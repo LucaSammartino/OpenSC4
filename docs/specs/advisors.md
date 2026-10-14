@@ -662,13 +662,17 @@ The tracker itself never holds more than one.
    property `0xEA9F13C0`). If that advice is **no longer active** (`CheckFlags(2)` false) or has an **expire request**
    (`CheckFlags(8)`), it ends the dialog.
 2. Then, by message:
-   - a command message (type 3) from control `0x287259F6`, the **Close** button: end the dialog;
+   - a command message (type 3) whose data1 is `0x287259F6`, "a button was pressed" (data2 is the button's ID, and
+     **any** button ID counts): end the dialog;
    - a link message `0xE4A85D91`: follow the link (`cSC4HTMLLinkHandler::DoURL`), then end the dialog;
-   - message types `0xA2BF8AD5` and `0xA2BF8AD6`: swallowed with no action *[inferred: key down and key up]*. This
-     matches the observation that **Enter and Esc do nothing** (run 48).
+   - message types `0xA2BF8AD5` and `0xA2BF8AD6`: swallowed with no action. They are the notices a window procedure
+     gets when it is attached to or detached from a window (`cGZWinGen::SetWinProc`, `0x009998C8`), not keys. The
+     procedure handles no keyboard messages at all, which is why **Enter and Esc do nothing** (run 48).
+     (Corrected by modal-dialogs.md §6.)
 
-Ending clears the property and ends the modal loop. The loop then returns into the tick handler, which resumes the
-simulator and shows the next queued advice, if any. That is why closing one popup shows the next.
+Ending clears the property, ends the modal loop (window manager `EndModal`, modal-dialogs.md §2.4) and destroys the
+window. The loop then returns into the tick handler, which resumes the simulator and shows the next queued advice,
+if any. That is why closing one popup shows the next.
 
 **Other popups that hold the simulation** (gates b–e do not apply to them):
 - **City-situation popups** (`cSC4CitySituationManager::ShowSituationPopup`, `0x0052E910`) take a hidden pause
@@ -690,7 +694,8 @@ simulator and shows the next queued advice, if any. That is why closing one popu
    - `GenericNotificationDialog` shows nothing;
    - `GenericConfirmationDialog` returns false without asking;
    - `DoScriptedModalDialog` returns 0 without asking. It is used by the quit, go-to-region, obliterate and
-     budget-failure prompts, and **what those callers then do was not analysed**;
+     budget-failure prompts (what the callers then do: modal-dialogs.md §4; budget failure still closes the
+     city);
    - the missing-plugin report and the terrain edge-reconciliation prompt are skipped;
    - **the whole terrain edge reconciliation is skipped, and with it ConnectionsReady.** With the default
      preference, `ReconcileEdgesWithNeighboringCities` returns before posting TerrainReconciliation, so the regional
@@ -742,6 +747,11 @@ simulator and shows the next queued advice, if any. That is why closing one popu
    To find the advice: while it is queued or on screen it carries `0x4000` (`CheckFlags(0x4000)`). It can be
    reached through the advisors' active maps (`cISC4Advisor` slots 10/11), or by subscribing to `AdviceAdded`
    `0x8A09FA64` and remembering what arrives. Keys cannot dismiss it (they are swallowed).
+6. **Dismissing an open popup through the window manager** (best for a harness). Post the dialog the same command a
+   click posts: `cIGZWinMgr::PostMessageToTarget(window, 3, 0x287259F6, 0, 0)` (slot 14), with the window taken from
+   the modal begin notice `0x62BA7B42`. The same approach closes the other modal dialogs too (two of them need
+   their own button ID); see modal-dialogs.md §3. Do not use `EndModal` alone on an advisor popup: the window would
+   never be destroyed.
 
 **Not available:**
 - There is no per-advice priority setter: `cISC4Advice` has only `GetPriority` (slot 7). The priority comes from the

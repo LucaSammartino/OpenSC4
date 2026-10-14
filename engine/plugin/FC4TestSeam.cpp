@@ -17,6 +17,7 @@
 #include "FC4BudgetShadow.h"
 #include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
+#include "FC4DevelopmentShadow.h"
 #include "FC4FlammabilityShadow.h"
 #include "FC4FloraShadow.h"
 #include "FC4GrowthProbe.h"
@@ -30,6 +31,7 @@
 #include "FC4PowerShadow.h"
 #include "FC4ProtectionShadow.h"
 #include "FC4ResidentialShadow.h"
+#include "FC4Script.h"
 #include "FC4Popups.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
@@ -78,6 +80,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return CrimeShadowTestRun(static_cast<const FC4CrimeShadowTestInput*>(a));
         case kFC4SeamAuraShadow:
             return AuraShadowTestCityLoad(static_cast<const FC4AuraShadowDeliverInput*>(a));
+        case kFC4SeamDevelopmentShadow:
+            return DevelopmentShadowTest(static_cast<const FC4DevelopmentShadowTestInput*>(a));
         case kFC4SeamAuraShadowDeliver:
             return AuraShadowTestDeliver(static_cast<const FC4AuraShadowDeliverInput*>(a));
         case kFC4SeamRefAuditRelease: {
@@ -167,6 +171,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return a == nullptr ? -1 : ZonesTestSeam(static_cast<const FC4ZonesTestInput*>(a));
         case kFC4SeamGrowthProbe:
             return GrowthProbeTest(static_cast<const FC4GrowthProbeTestInput*>(a));
+        case kFC4SeamScript:  // the harness lane (FC4Script.h)
+            return fc4::ScriptLoad(static_cast<const char*>(a), "test seam");
         case kFC4SeamFpuReference:
             if (a == nullptr) {
                 fc4::FpuSetReference("test seam");

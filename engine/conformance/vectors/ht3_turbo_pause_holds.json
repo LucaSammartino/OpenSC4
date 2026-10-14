@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "name": "turbo_pause_holds",
+  "spec": ["tooling: turbo clock (not simulator.md)", "5.1", "6"],
+  "description": "Tooling deviation (the harness lane's turbo clock, fc4_core::Turbo). Pause and hidden pause stop time with turbo on exactly as without it: no day opens and no day agent is delivered; while paused only idle work runs. [choice] The paused budget is the §5.1 one (33 minus the frame length, floored at 15), not the turbo budget. Resuming lets turbo run again.",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "agents": {
+    "D": {"finish_after": 1},
+    "Burn": {"finish_after": 1, "cost_ms": 1}
+  },
+  "steps": [
+    {"op": "add_agent", "agent": "D", "level": 4, "flags": 3},
+    {"op": "add_agent", "agent": "Burn", "level": 10, "flags": 3},
+    {"op": "init"},
+    {"op": "set_turbo", "on": true, "frame_ms": 250},
+    {"op": "clear_events"},
+
+    {"op": "tick", "count": 3, "note": "hidden-paused by Init"},
+    {"op": "expect_state", "state": {"frame_budget_ms": 33, "julian": 2451545, "hidden_pause_count": 1}},
+    {"op": "expect_events", "filter": {"event": "deliver"}, "events": []},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewDay"}, "count": 0},
+
+    {"op": "post_city_init"},
+    {"op": "pause"},
+    {"op": "clear_events"},
+    {"op": "tick", "note": "paused: idle only, t = 0 .. 33"},
+    {"op": "expect_state", "state": {"frame_budget_ms": 33, "julian": 2451545, "pause_count": 1}},
+    {"op": "expect_event_count", "filter": {"agent": "Burn"}, "count": 33},
+    {"op": "tick", "count": 10},
+    {"op": "expect_state", "state": {"julian": 2451545}},
+    {"op": "expect_event_count", "filter": {"agent": "D"}, "count": 0},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewDay"}, "count": 0},
+
+    {"op": "hidden_pause"},
+    {"op": "resume"},
+    {"op": "clear_events"},
+    {"op": "tick", "count": 3, "note": "hidden pause alone also holds"},
+    {"op": "expect_events", "filter": {"event": "deliver"}, "events": []},
+    {"op": "expect_state", "state": {"julian": 2451545}},
+
+    {"op": "hidden_resume"},
+    {"op": "clear_events"},
+    {"op": "tick", "note": "the first pass delivers the start day, the next 249 each open a day"},
+    {"op": "expect_state", "state": {"frame_budget_ms": 250, "julian": 2451794}},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewDay"}, "count": 249}
+  ]
+}

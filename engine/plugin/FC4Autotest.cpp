@@ -16,8 +16,10 @@
 #include "FC4Checked.h"
 #include "FC4Config.h"
 #include "FC4DiagLogic.h"
+#include "FC4HarnessLogic.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
+#include "FC4Script.h"
 #include "FC4Subsystems.h"
 #include "FC4Watchdog.h"
 
@@ -75,6 +77,21 @@ volatile DWORD g_endedAt = 0;
 volatile LONG g_endedJulian = 0;  // the last day played before that shutdown
 constexpr DWORD kExitAfterVerdictMs = 30000;  // [choice] then the process should be gone
 
+// autotest_end_date (the harness lane; tooling): the run ends at the first
+// SimNewDay on or after this julian (0 = none), as autotest_end says;
+// autotest_seconds stays a timeout (0 = none) and whichever comes first ends
+// the run. g_days counts the SimNewDay messages since the clock started (the
+// verdict's days_per_second).
+volatile LONG g_endJulian = 0;
+volatile LONG g_endDateHit = 0;  // the run is ending because the end date was reached
+// The end date was reached while script actions (a `save`) waited for the
+// next tick (FC4Script.h): the verdict follows them, at that tick.
+volatile LONG g_endAfterScript = 0;
+volatile LONG g_days = 0;
+
+// "deadline" or "end date": what ended a run that quits through the game.
+const char* EndPoint() { return g_endDateHit ? "end date" : "deadline"; }
+
 AutotestCounters Counters() {
     AutotestCounters c;
     c.foreignExceptions = ForeignExceptionCount();
@@ -92,12 +109,20 @@ Verdict EndVerdict() { return VerdictAtEnd(Counters(), g_cityEnded != 0); }
 bool WriteVerdict(Verdict v, unsigned wait, const char* reason, long julian = -1) {
     if (InterlockedCompareExchange(&g_verdict, static_cast<LONG>(v), 0) != 0) return false;
     const AutotestCounters c = Counters();
+    const long j = julian < 0 ? PublishedJulian() : julian;
+    // The run figures (the harness lane): the date reached, the real seconds
+    // since the clock started and the game days per real second, after
+    // julian=. Fixed buffers: no allocation here.
+    harness::RunFigures f;
+    harness::FormatRunFigures(static_cast<int32_t>(j), g_started != 0, ElapsedMs(GetTickCount(), g_startMs),
+                              static_cast<uint32_t>(g_days), &f);
     LogWait(wait, "autotest: %s", reason);
     LogWait(wait,
             "AUTOTEST VERDICT: %s (foreign_exceptions=%ld, watchdog_stalls=%ld, rtc=%ld, overruns=%ld, "
-            "ref_warnings=%ld, julian=%ld, switches_off=%s, disabled=%s)",
-            VerdictName(v), c.foreignExceptions, c.watchdogStalls, c.rtc, c.overruns, c.refWarnings,
-            julian < 0 ? PublishedJulian() : julian, SwitchesOffList(), DisabledSubsystemsList());
+            "ref_warnings=%ld, julian=%ld, date=%s, real_seconds=%s, days_per_second=%s, switches_off=%s, "
+            "disabled=%s)",
+            VerdictName(v), c.foreignExceptions, c.watchdogStalls, c.rtc, c.overruns, c.refWarnings, j, f.date,
+            f.realSeconds, f.daysPerSecond, SwitchesOffList(), DisabledSubsystemsList());
     LogFlush();
     return true;
 }
@@ -118,9 +143,12 @@ DWORD WINAPI ThreadProc(void*) {
         if (!g_started || g_verdict != 0) continue;
         if (g_quitRequested) {
             if (ElapsedMs(now, g_quitAt) > kQuitGraceMs) {
+                char reason[96];
+                _snprintf_s(reason, sizeof(reason), _TRUNCATE, "the quit requested at the %s did not finish in 90 s",
+                            EndPoint());
                 WriteVerdict(Verdict::Stalled, 1000,
                              g_cityEnded ? "the quit requested after the game ended the city did not finish in 90 s"
-                                         : "the quit requested at the deadline did not finish in 90 s");
+                                         : reason);
                 Terminate(1000, "autotest thread");
             }
             continue;
@@ -132,6 +160,9 @@ DWORD WINAPI ThreadProc(void*) {
             }
             continue;
         }
+        // No autotest_seconds (an autotest_end_date run): no deadline, no
+        // timeout; the end date, the watchdog or an exception end the run.
+        if (g_seconds <= 0) continue;
         const DWORD last = LastTickMs();
         if (g_endQuit && !g_quitDue && DeadlineVerdictDue(now, g_deadline, last)) {
             LogWait(1000,
@@ -190,8 +221,9 @@ void RequestQuitNow(long julian) {
     } else {
         Log("autotest: no cISC4App to quit through");
     }
-    AutotestFinish(g_cityEnded ? "the game ended the city before the deadline, and the quit could not be requested"
-                               : "deadline reached, but the quit could not be requested",
+    AutotestFinish(g_cityEnded      ? "the game ended the city before the deadline, and the quit could not be requested"
+                   : g_endDateHit ? "end date reached, but the quit could not be requested"
+                                  : "deadline reached, but the quit could not be requested",
                    "observer (autotest_end = quit)");
 }
 
@@ -220,20 +252,44 @@ void AutotestReload() {
         Log("autotest: WARNING autotest_unpause=%ld is not 0, 1 or 2; using 2", unpause);
         unpause = 2;
     }
+    // autotest_end_date = YYYY-MM-DD (the harness lane; tooling).
+    const std::string endDate = LowerTrim(Setting("autotest_end_date", "FC4_AUTOTEST_END_DATE"));
+    harness::Date endDay{};
+    long endJulian = 0;
+    if (!endDate.empty()) {
+        if (harness::ParseIsoDate(endDate, &endDay)) {
+            endJulian = harness::JulianFromCivil(endDay.year, endDay.month, endDay.day);
+        } else {
+            Log("autotest: WARNING autotest_end_date='%s' is not a date YYYY-MM-DD; ignored", endDate.c_str());
+        }
+    }
     InterlockedExchange(&g_unpause, unpause);
     InterlockedExchange(&g_seconds, seconds);
-    if (seconds == 0) {
+    InterlockedExchange(&g_endJulian, endJulian);
+    const char* const ending = g_endQuit
+                                   ? "after quitting the game (cISC4App::RequestQuit, verdict at PostSystemServiceShutdown)"
+                                   : "then TerminateProcess";
+    const char* const unpauseText = unpause ? (unpause == 1 ? "to speed 1" : "to speed 2") : "off";
+    if (seconds == 0 && endJulian == 0) {
         Log("autotest: off");
         return;
     }
-    Log("autotest: ON - verdict %ld s after the first tick of a loaded city, %s; unpause %s", seconds,
-        g_endQuit ? "after quitting the game (cISC4App::RequestQuit, verdict at PostSystemServiceShutdown)"
-                  : "then TerminateProcess",
-        unpause ? (unpause == 1 ? "to speed 1" : "to speed 2") : "off");
+    if (seconds > 0) {
+        Log("autotest: ON - verdict %ld s after the first tick of a loaded city, %s; unpause %s", seconds, ending,
+            unpauseText);
+    } else {
+        Log("autotest: ON - verdict at the first new day on or after %s (autotest_end_date; no timeout: "
+            "autotest_seconds = 0), %s; unpause %s",
+            endDate.c_str(), ending, unpauseText);
+    }
+    if (endJulian != 0) {
+        Log("autotest: end date %s (julian %ld): the run ends at the first new day on or after it%s", endDate.c_str(),
+            endJulian, seconds > 0 ? ", or at the autotest_seconds timeout, whichever comes first" : "");
+    }
     StartThread();
 }
 
-bool AutotestEnabled() { return g_seconds > 0; }
+bool AutotestEnabled() { return g_seconds > 0 || g_endJulian != 0; }
 
 uint32_t AutotestThreadId() { return g_autotestTid; }
 
@@ -242,18 +298,48 @@ void AutotestOnCityLoaded() {
     if (InterlockedExchange(&g_cityLoaded, 1) == 0) Log("autotest: city loaded (PostCityInit); clock starts at the next tick");
 }
 
+namespace {
+
+// The verdict's reason at the end date.
+void EndDateReason(char* out, size_t size) {
+    const harness::Date e = harness::CivilFromJulian(static_cast<int32_t>(g_endJulian));
+    _snprintf_s(out, size, _TRUNCATE, "end date %04d-%02d-%02d reached (autotest_end_date)", e.year, e.month, e.day);
+}
+
+}  // namespace
+
 int AutotestOnTick() {
     if (!AutotestEnabled() || !g_cityLoaded) return 0;
     if (g_quitDue && !g_quitRequested && g_verdict == 0) {
         RequestQuitNow(PublishedJulian());
         return 0;
     }
+    if (g_endAfterScript && g_verdict == 0) {
+        // The observer ran the script's waiting actions just before this call
+        // (FC4Observer.cpp, OnTick); the verdict's day is the day played now.
+        char reason[96];
+        EndDateReason(reason, sizeof(reason));
+        WriteVerdict(VerdictAtDeadline(Counters()), 1000, reason);
+        Terminate(1000, "observer (autotest_end_date)");
+    }
     const DWORD now = GetTickCount();
     if (!g_started) {
         g_startMs = now;
         g_deadline = now + static_cast<DWORD>(g_seconds) * 1000u;
         InterlockedExchange(&g_started, 1);
-        Log("autotest: clock started; verdict in %ld s", static_cast<long>(g_seconds));
+        if (g_endJulian == 0) {
+            Log("autotest: clock started; verdict in %ld s", static_cast<long>(g_seconds));
+        } else {
+            const harness::Date e = harness::CivilFromJulian(static_cast<int32_t>(g_endJulian));
+            if (g_seconds > 0) {
+                Log("autotest: clock started; verdict in %ld s or at %04d-%02d-%02d (autotest_end_date), whichever "
+                    "comes first",
+                    static_cast<long>(g_seconds), e.year, e.month, e.day);
+            } else {
+                Log("autotest: clock started; verdict at %04d-%02d-%02d (autotest_end_date), no timeout", e.year,
+                    e.month, e.day);
+            }
+        }
     }
     if (g_unpause == 0) return 0;
     // [choice] Unpause at the first tick, and again after 3 s and 10 s in case
@@ -266,6 +352,42 @@ int AutotestOnTick() {
     return 0;
 }
 
+void AutotestOnNewDay(int32_t julian) {
+    if (!AutotestEnabled() || !g_cityLoaded || !g_started) return;
+    InterlockedIncrement(&g_days);
+    if (g_verdict != 0 || g_quitDue || g_quitRequested || g_cityEnded || g_endAfterScript) return;
+    if (!harness::EndDateDue(static_cast<int32_t>(g_endJulian), julian, true)) return;
+    // [choice] The day is checked inside the SimNewDay message (main thread),
+    // so a terminate run ends on exactly that day even when turbo plays many
+    // days per tick; a quit run asks the game to quit at the next tick, as at
+    // the deadline. [choice] Script actions waiting for the next tick (a
+    // `save`, FC4Script.h) run first: the verdict then follows at that tick.
+    InterlockedExchange(&g_endDateHit, 1);
+    const bool afterScript = !g_endQuit && ScriptWaiting();
+    const harness::Date e = harness::CivilFromJulian(static_cast<int32_t>(g_endJulian));
+    const harness::Date d = harness::CivilFromJulian(julian);
+    const DWORD ms = ElapsedMs(GetTickCount(), g_startMs);
+    Log("autotest: end date %04d-%02d-%02d reached at the new day %04d-%02d-%02d (julian %ld), %lu.%03lu s after the "
+        "clock started; %s",
+        e.year, e.month, e.day, d.year, d.month, d.day, static_cast<long>(julian), static_cast<unsigned long>(ms / 1000),
+        static_cast<unsigned long>(ms % 1000),
+        g_endQuit     ? "quitting at the next tick (autotest_end = quit)"
+        : afterScript ? "the script's waiting action(s) first, then the verdict and TerminateProcess at the next tick"
+                      : "verdict, then TerminateProcess");
+    if (g_endQuit) {
+        InterlockedExchange(&g_quitDue, 1);
+        return;
+    }
+    if (afterScript) {
+        InterlockedExchange(&g_endAfterScript, 1);
+        return;
+    }
+    char reason[96];
+    EndDateReason(reason, sizeof(reason));
+    WriteVerdict(VerdictAtDeadline(Counters()), 1000, reason, julian);
+    Terminate(1000, "observer (autotest_end_date)");
+}
+
 void AutotestFinish(const char* reason, const char* from) {
     WriteVerdict(EndVerdict(), 1000, reason, g_cityEnded ? g_endedJulian : -1);
     Terminate(1000, from);
@@ -274,10 +396,12 @@ void AutotestFinish(const char* reason, const char* from) {
 void AutotestOnShutdownComplete(const char* hook) {
     if (!g_quitRequested || g_verdict != 0) return;
     char reason[128];
-    _snprintf_s(reason, sizeof(reason), _TRUNCATE,
-                g_cityEnded ? "the game ended the city before the deadline; the quit after it reached %s"
-                            : "the game quit at the deadline and reached %s",
-                hook);
+    if (g_cityEnded) {
+        _snprintf_s(reason, sizeof(reason), _TRUNCATE,
+                    "the game ended the city before the deadline; the quit after it reached %s", hook);
+    } else {
+        _snprintf_s(reason, sizeof(reason), _TRUNCATE, "the game quit at the %s and reached %s", EndPoint(), hook);
+    }
     if (!WriteVerdict(EndVerdict(), 1000, reason, g_quitJulian)) return;
     // The game exits by itself from here; if it does not, the thread ends it.
     g_terminateAt = GetTickCount() + kExitAfterVerdictMs;
@@ -290,10 +414,16 @@ void AutotestOnCityShutdown(bool post) {
         if (InterlockedExchange(&g_cityEnded, 1) != 0) return;
         g_endedAt = GetTickCount();
         InterlockedExchange(&g_endedJulian, PublishedJulian());
-        Log("autotest: WARNING the game is shutting the city down by itself %lu s after the clock started, before the "
-            "%ld s deadline (julian %ld); the run ends at its PostCityShutdown with verdict \"ended\"",
-            static_cast<unsigned long>(ElapsedMs(g_endedAt, g_startMs) / 1000), static_cast<long>(g_seconds),
-            static_cast<long>(g_endedJulian));
+        if (g_seconds > 0) {
+            Log("autotest: WARNING the game is shutting the city down by itself %lu s after the clock started, before "
+                "the %ld s deadline (julian %ld); the run ends at its PostCityShutdown with verdict \"ended\"",
+                static_cast<unsigned long>(ElapsedMs(g_endedAt, g_startMs) / 1000), static_cast<long>(g_seconds),
+                static_cast<long>(g_endedJulian));
+        } else {
+            Log("autotest: WARNING the game is shutting the city down by itself %lu s after the clock started, before "
+                "the end date (julian %ld); the run ends at its PostCityShutdown with verdict \"ended\"",
+                static_cast<unsigned long>(ElapsedMs(g_endedAt, g_startMs) / 1000), static_cast<long>(g_endedJulian));
+        }
         return;
     }
     if (!g_cityEnded) return;

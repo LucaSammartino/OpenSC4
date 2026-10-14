@@ -55,9 +55,13 @@
 #include "FC4CrimeInterfaces.h"
 #include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
+#include "FC4DevelopmentShadow.h"
 #include "FC4GameMap.h"
 #include "FC4GrowthProbe.h"
+#include "FC4HarnessLogic.h"
 #include "cFC4Demand.h"
+#include "FC4DevelopmentInterfaces.h"
+#include "cGZPersistResourceKey.h"
 #include "FC4PollutionShadow.h"
 #include "FC4FlammabilityShadow.h"
 #include "FC4LandValueShadow.h"
@@ -1666,6 +1670,52 @@ int RunChild(const std::string& args, DWORD timeoutMs, DWORD* elapsedMs) {
     return w == WAIT_OBJECT_0 ? static_cast<int>(code) : -1;
 }
 
+// The value of `name=` in a verdict line ("" if absent).
+std::string VerdictField(const std::string& line, const std::string& name) {
+    const size_t at = line.find(" " + name + "=");
+    if (at == std::string::npos) return "";
+    const size_t from = at + name.size() + 2;
+    const size_t end = line.find_first_of(",)", from);
+    return line.substr(from, end == std::string::npos ? std::string::npos : end - from);
+}
+
+// "digits.digits" with exactly `decimals` decimals.
+bool IsDecimal(const std::string& s, size_t decimals) {
+    const size_t dot = s.find('.');
+    if (dot == std::string::npos || dot == 0 || s.size() - dot - 1 != decimals) return false;
+    for (size_t i = 0; i < s.size(); ++i) {
+        if (i != dot && (s[i] < '0' || s[i] > '9')) return false;
+    }
+    return true;
+}
+
+// The log's one "AUTOTEST VERDICT:" line with its run-time fields (the
+// harness lane: real_seconds always, days_per_second if `rate`) replaced by
+// S and R when well formed, so the rest compares exactly.
+std::string NormalVerdict(const std::string& text, bool rate) {
+    const size_t at = text.find("AUTOTEST VERDICT:");
+    if (at == std::string::npos) return "";
+    const size_t end = text.find_first_of("\r\n", at);
+    std::string line = text.substr(at, end == std::string::npos ? std::string::npos : end - at);
+    auto replace = [&line](const std::string& name, size_t decimals, const char* with) {
+        const std::string v = VerdictField(line, name);
+        if (!IsDecimal(v, decimals)) return;
+        const size_t pos = line.find(" " + name + "=" + v) + name.size() + 2;
+        line.replace(pos, v.size(), with);
+    };
+    replace("real_seconds", 3, "S");
+    if (rate) replace("days_per_second", 2, "R");
+    return line;
+}
+
+// days_per_second x real_seconds of a verdict: the days the run counted.
+double VerdictDays(const std::string& text) {
+    const size_t at = text.find("AUTOTEST VERDICT:");
+    if (at == std::string::npos) return -1.0;
+    const std::string line = text.substr(at, text.find_first_of("\r\n", at) - at);
+    return std::atof(VerdictField(line, "days_per_second").c_str()) * std::atof(VerdictField(line, "real_seconds").c_str());
+}
+
 // A child: loads the DLL with an autotest FreeCity4.ini and plays the game's
 // part through the test seam. Never returns normally (the DLL terminates it);
 // exit code 3 means it did not.
@@ -1678,6 +1728,23 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
         WriteTextFile(ini, "[autotest]\nautotest_save_after_months = 2\nautotest_save_fast = 0\nobserve = 1\n");
     } else if (scenario == "panic") {
         WriteTextFile(ini, "[autotest]\n");
+    } else if (scenario == "enddate") {  // the harness lane: autotest_end_date alone, passthrough
+        WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_end_date = 2000-03-01\n");
+    } else if (scenario == "enddate-timeout") {  // the timeout comes first
+        WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 2\n"
+                           "autotest_end_date = 2100-01-01\n");
+    } else if (scenario == "enddate-quit") {  // an end date already past at the city load; autotest_end = quit
+        WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 60\nautotest_end = quit\n"
+                           "autotest_end_date = 2000-01-15\n");
+    } else if (scenario == "enddate-save") {  // a script save waits for its tick on the end date
+        const std::string dir = ini.substr(0, ini.find_last_of("\\/") + 1);
+        WriteTextFile(dir + "fc4_script_endsave.txt",
+                      "2000-02-26 mark the day before\n2000-02-27 save\n2000-02-27 mark after the save\n");
+        WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_end_date = 2000-02-27\n[harness]\n"
+                           "script = fc4_script_endsave.txt\n");
+    } else if (scenario == "enddate-bad") {  // not a date: ignored, the timeout ends the run
+        WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 1\n"
+                           "autotest_end_date = 2000-02-30\n");
     } else {  // stalled, ended: passthrough (the observer alone)
         WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 60\n");
     }
@@ -1717,6 +1784,22 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
                  reinterpret_cast<void*>(julian));
         }
         seam(kFC4SeamObserverTick, nullptr, nullptr);  // saves and terminates
+        return 3;
+    }
+    if (scenario.compare(0, 7, "enddate") == 0) {
+        // The city loads, the clock starts at the first tick, then one new day
+        // per tick from 2000-02-25 (2451600) until the DLL ends the process.
+        if (scenario == "enddate-save") seam(kFC4SeamObserverApp, &world.app, nullptr);
+        seam(kFC4SeamObserverCity, &world.city, nullptr);
+        seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgPostCityInit)), nullptr);
+        seam(kFC4SeamObserverTick, nullptr, nullptr);
+        const DWORD start = GetTickCount();
+        for (intptr_t julian = 2451600; GetTickCount() - start < 20000; ++julian) {
+            Sleep(20);
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewDay)),
+                 reinterpret_cast<void*>(julian));
+            seam(kFC4SeamObserverTick, nullptr, nullptr);
+        }
         return 3;
     }
     seam(kFC4SeamObserverCity, &world.city, nullptr);
@@ -4186,6 +4269,402 @@ int ResidentialEnableTest(const std::string& dll, const std::string& ini, const 
     CHECK(text.find("WARNING: over-release") == std::string::npos);
     CHECK(text.find("streams: WARNING") == std::string::npos);
     if (g_failures == 0) std::printf("plugin residential enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
+// ---- development (building-development.md, growth-developer.md): the BDS without a city ----------------
+constexpr uint32_t kCLSID_Development = 0x8990BE7A;
+constexpr uint32_t kIID_cISC4BuildingDevelopmentSimulator = 0x07813EAE;
+constexpr uint32_t kIID_cIGZMessageTargetDev = 0xE98B2F57;
+constexpr uint32_t kIID_cIGZMessageTarget2Dev = 0x452294AA;
+
+// The answers without a city or catalogue (§7.1), through the compiled
+// slots. The AL-only slots 42 / 43 are also called raw: the whole of EAX
+// must be the key (zero-extended).
+void CheckDevelopmentNeutral(cFC4ISC4BuildingDevelopmentSimulator* b, uint32_t t) {
+    void** vt = *reinterpret_cast<void***>(b);
+    uint32_t n = 5;
+    CHECK(b->GetAllBuildingTypesArray(nullptr, n) == 0 && n == 0);  // 12
+    CHECK(!b->IsBuildingTypeValid(t) && !b->IsBuildingFamilyTypeValid(t));
+    CHECK(b->IsBuildingInFamily(7, 7) && !b->IsBuildingInFamily(7, 8));  // 20: b == f
+    cGZPersistResourceKey key(1, 2, 3);
+    CHECK(!b->GetBuildingKeyFromType(t, key) && !b->GetFoundationKeyFromType(t, key) &&
+          !b->GetLotRetainingWallKeyFromType(t, key));
+    CHECK(b->GetDeveloperType(1, 2) == 0x1020 && b->GetWealth(0x1020) == 2);  // 30 / 31
+    CHECK(b->GetDeveloper(0x1020) == nullptr && b->GetDeveloperOf(1, 2) == nullptr);
+    CHECK(b->GetDevelopers() != nullptr);  // 34: the map object (empty)
+    CHECK(b->GetTractDeveloper() == nullptr && b->GetLotDeveloper() == nullptr);
+    CHECK(b->GetBuildingMap() == nullptr);
+    CHECK(b->GetSpecialBuildings() == nullptr);  // no allocator service: no list
+    CHECK(b->GetMaxCapacity(1, 1, 1) == 0.0f);
+    CHECK(b->GetCostOfFoundationDemolition(nullptr, 0) == 0);
+    float pos[3] = {0.0f, 0.0f, 0.0f};
+    CHECK(!b->AddNewFoundationOccupantAt(1, 0, pos, 0.0f, 0.0f, 0, 0.0f));  // 23: not specified, false
+    CHECK(!b->LoadFoundationProperties(nullptr, 1) && !b->LoadLotRetainingWallProperties(nullptr, 1));
+    CHECK(!b->CheatIgnorePlumbing() && !b->CheatIgnorePower() && !b->CheatIgnoreCaps() && !b->CheatDebugGrowth() &&
+          !b->CheatCoffeeBar());
+    // 42 / 43: 4p + w + 1, in EAX.
+    using KeyOfFn = uint32_t(__fastcall*)(void*, void*, uint32_t, uint32_t);
+    using KeyFn = uint32_t(__fastcall*)(void*, void*, uint32_t);
+    CHECK(b->GetBuildingMapKeyOf(1, 2) == 7);
+    CHECK(reinterpret_cast<KeyOfFn>(vt[42])(b, nullptr, 1, 2) == 7);
+    CHECK(reinterpret_cast<KeyOfFn>(vt[42])(b, nullptr, 3, 3) == 16);
+    // 40 / 39 / 43: an unknown type has no profile until 39 inserts a zero one (key 1).
+    CHECK(b->GetBuildingProfilePtr(t) == nullptr);
+    FC4BuildingProfile& p = b->GetBuildingProfile(t);
+    CHECK(&p == b->GetBuildingProfilePtr(t) && p.purpose == 0 && p.wealth == 0 && p.capacity == 0);
+    CHECK(reinterpret_cast<KeyFn>(vt[43])(b, nullptr, t) == 1);
+    // 37 / 38: "" inserted for an unknown type, the same object each time.
+    cIGZString* name = b->GetExemplarName(t + 1);
+    CHECK(name != nullptr && name->Strlen() == 0 && name == b->GetExemplarName(t + 1));
+    cIGZString* bname = b->GetBuildingName(t + 1);
+    CHECK(bname != nullptr && bname != name && bname->Strlen() == 0);
+}
+
+// Getters and a message from another thread (fc4.h: one process-wide lock;
+// the other thread waits at most 20 ms).
+void CheckDevelopmentThreads(cFC4ISC4BuildingDevelopmentSimulator* b, cIGZMessageTarget2* mt) {
+    int32_t freeRes = 9;
+    bool delivered = false, cheat = true;
+    cISC4GrowthDeveloper* dev = reinterpret_cast<cISC4GrowthDeveloper*>(1);
+    std::thread t([&] {
+        freeRes = b->GetFreeConstructionResources();
+        cheat = b->CheatCoffeeBar();
+        dev = b->GetDeveloper(0x1010);
+        TypeMessage day(kMsgSimNewDay);
+        delivered = mt->DoMessage(&day);
+    });
+    t.join();
+    CHECK(freeRes == b->GetFreeConstructionResources() && !cheat && dev == nullptr && delivered);
+}
+
+// ---- the growth developer (growth-developer.md) without a city ----------------------------------------
+constexpr uint32_t kCLSID_GrowthDeveloper = 0x0990C138;
+constexpr uint32_t kIID_cISC4GrowthDeveloperDev = 0xE7CDD662;
+constexpr uint32_t kMsgSimIdleDev = 0x6695681A;
+
+// QueryInterface (§1: +4, +8), the §2 values through the compiled slots
+// (10 and 28 raw: 0/1 in the whole of EAX), Init refused without a holder
+// or a city, the v1 record (§9), messages, another thread, and Read before
+// Init.
+void CheckGrowthDeveloper(cIGZCOMDirector* director) {
+    void* obj = nullptr;
+    CHECK(director->GetClassObject(kCLSID_GrowthDeveloper, kIID_cISC4GrowthDeveloperDev, &obj));
+    auto* g = static_cast<cFC4ISC4GrowthDeveloper*>(obj);
+    if (g == nullptr) return;
+    void* p = nullptr;
+    CHECK(g->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(g));
+    if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+    cIGZMessageTarget2* mt = nullptr;
+    CHECK(g->QueryInterface(kIID_cIGZMessageTarget2Dev, reinterpret_cast<void**>(&mt)) &&
+          static_cast<void*>(mt) == static_cast<void*>(reinterpret_cast<char*>(g) + 4));
+    cIGZSerializable* ser = nullptr;
+    CHECK(g->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) &&
+          static_cast<void*>(ser) == static_cast<void*>(reinterpret_cast<char*>(g) + 8));
+    if (ser != nullptr) CHECK(ser->GetGZCLSID() == kCLSID_GrowthDeveloper);
+    p = reinterpret_cast<void*>(0x1234);
+    CHECK(!g->QueryInterface(kIID_cISC4BuildingDevelopmentSimulator, &p) && p == reinterpret_cast<void*>(0x1234));
+    // §2: the constructor's values.
+    CHECK(g->GetType() == 0 && g->GetSubType() == 0 && g->GetPurpose() == 0 && g->GetWealth() == 0);
+    CHECK(g->GetPowerSupplyCap() == 0 && g->GetWaterSupplyCap() == 3 && g->GetFireCoverageCap() == 3 &&
+          g->GetParkCap() == 6);
+    CHECK(g->GetDesirabilityThreshold() == 80 && g->GetMonopolyUse() == 1 && g->GetTotalCapacity() == 0);
+    CHECK(g->GetSourceDemand() == nullptr && g->GetDesirabilityMap() == nullptr && g->GetCapacityMap() == nullptr &&
+          g->GetPopulationMap() == nullptr && g->GetMaxCapacityMap() == nullptr);
+    CHECK(g->GetGrowthList().size() == 0 && g->GetDeclineList().size() == 0 && g->GetStylePercentages() != nullptr);
+    int32_t mn = 0, mx = 0;
+    g->GetSubjectiveThresholds(0, mn, mx);  // no vectors: -4 / 20
+    CHECK(mn == -4 && mx == 20);
+    CHECK(g->GetAbandonmentThreshold(2) == 0.0f);
+    FC4ConstructionProfile prof{};
+    prof.buildingType = 0x77;
+    prof.x = 5;
+    g->GetConstructionInfo(prof);  // §6.2: the info fields only
+    CHECK(prof.buildingType == 0x77 && prof.x == 5 && prof.zone == 0);
+    void** vt = *reinterpret_cast<void***>(g);
+    using BoolFn = uint32_t(__fastcall*)(void*, void*);
+    CHECK(reinterpret_cast<BoolFn>(vt[10])(g, nullptr) == 1);  // state 0 < 17
+    CHECK(reinterpret_cast<BoolFn>(vt[28])(g, nullptr) == 1);  // state 0
+    g->StartMapUpdate();  // state 1: not initialised, so it stays there (§3.2)
+    CHECK(reinterpret_cast<BoolFn>(vt[28])(g, nullptr) == 0 && g->GrowthAndDeclineListsAreValid());
+    CHECK(!g->Init(nullptr));  // [choice] a null holder is refused
+    // §9: version 1 first.
+    std::vector<uint8_t> record;
+    if (ser != nullptr) {
+        ResidentialSegOStream out;
+        CHECK(ser->Write(out));
+        record = out.bytes;
+        CHECK(record.size() > 10 && record[0] == 1 && record[1] == 0);
+    }
+    if (mt != nullptr) {
+        ResidentialDayMessage idle(kMsgSimIdleDev, kJulian20000201);
+        CHECK(mt->DoMessage(&idle));
+        ResidentialDayMessage day(kMsgSimNewDay, kJulian20000201);
+        CHECK(mt->DoMessage(&day));  // elapsed 0: never blocks
+        TypeMessage other(0x12345678);
+        CHECK(mt->DoMessage(&other));
+    }
+    // Another thread takes the lock (nothing holds it) and reads the same values.
+    int32_t threshold = 0;
+    uint8_t park = 0;
+    std::thread t([&] {
+        threshold = g->GetDesirabilityThreshold();
+        park = g->GetParkCap();
+    });
+    t.join();
+    CHECK(threshold == 80 && park == 6);
+    if (ser != nullptr) ser->Release();
+    if (mt != nullptr) mt->Release();
+    CHECK(g->Shutdown());
+    CHECK(g->Release() == 0);
+    // Read runs before Init: the record loads into a new developer; a
+    // truncated one does not.
+    for (bool whole : {true, false}) {
+        obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_GrowthDeveloper, kIID_cISC4GrowthDeveloperDev, &obj));
+        auto* fresh = static_cast<cFC4ISC4GrowthDeveloper*>(obj);
+        if (fresh == nullptr) continue;
+        cIGZSerializable* s = nullptr;
+        CHECK(fresh->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&s)) && s != nullptr);
+        if (s != nullptr && !record.empty()) {
+            std::vector<uint8_t> bytes = record;
+            if (!whole) bytes.resize(5);
+            ResidentialSegIStream in(bytes);
+            CHECK(s->Read(in) == whole);
+            s->Release();
+        }
+        CHECK(fresh->Release() == 0);
+    }
+}
+
+int DevelopmentEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = development` registers the building
+    // development simulator and the growth developers.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_DEVELOPMENT_SEED", nullptr);
+    SetEnvironmentVariableA("FC4_DEVELOPMENT_GROWTH_ATTEMPTS_PER_DAY", nullptr);
+    SetEnvironmentVariableA("FC4_DEVELOPMENT_SHADOW", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = development\ndevelopment_seed = 42\n"
+                       "development_growth_attempts_per_day = 3\n[tools]\ndevelopment_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr);
+    SetGamePrecision();  // as the game's PreFrameWorkInit does: the simulator must leave it
+    std::vector<uint8_t> record;
+    if (director != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        // simulator (1) + budget (3) + development (2).
+        CHECK(classes.size() == 6);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Development) == 1);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_GrowthDeveloper) == 1);
+
+        void* obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Development, kIID_cISC4BuildingDevelopmentSimulator, &obj));
+        auto* bds = static_cast<cFC4ISC4BuildingDevelopmentSimulator*>(obj);
+        if (bds != nullptr) {
+            // §1.1: the primary for its IID and cIGZUnknown, the two message
+            // targets (+4, +8) and the serializable (+0xC); nothing else.
+            void* p = nullptr;
+            CHECK(bds->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(bds));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            p = nullptr;
+            CHECK(bds->QueryInterface(kIID_cISC4BuildingDevelopmentSimulator, &p) && p == static_cast<void*>(bds));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            p = nullptr;
+            CHECK(bds->QueryInterface(kIID_cIGZMessageTargetDev, &p) &&
+                  p == static_cast<void*>(reinterpret_cast<char*>(bds) + 4));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            cIGZMessageTarget2* mt = nullptr;
+            CHECK(bds->QueryInterface(kIID_cIGZMessageTarget2Dev, reinterpret_cast<void**>(&mt)) &&
+                  static_cast<void*>(mt) == static_cast<void*>(reinterpret_cast<char*>(bds) + 8));
+            cIGZSerializable* ser = nullptr;
+            CHECK(bds->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) &&
+                  static_cast<void*>(ser) == static_cast<void*>(reinterpret_cast<char*>(bds) + 0xC));
+            if (ser != nullptr) CHECK(ser->GetGZCLSID() == kCLSID_Development);
+            p = reinterpret_cast<void*>(0x1234);
+            CHECK(!bds->QueryInterface(0x12345678, &p) && p == reinterpret_cast<void*>(0x1234));
+            CheckDevelopmentNeutral(bds, 0x5150);
+            // The record before Init (§6: version 4).
+            if (ser != nullptr) {
+                ResidentialSegOStream out;
+                CHECK(ser->Write(out));
+                record = out.bytes;
+                CHECK(record.size() > 2 && record[0] == 4 && record[1] == 0);
+            }
+            // Without a city Init runs (no catalogue, no services); the
+            // status lines still come.
+            CHECK(bds->Init());
+            if (mt != nullptr) {
+                ResidentialDayMessage day(kMsgSimNewDay, kJulian20000201);
+                CHECK(mt->DoMessage(&day));
+                ResidentialDayMessage month(kMsgSimNewMonth, kJulian20000201);
+                CHECK(mt->DoMessage(&month));
+                CheckDevelopmentThreads(bds, mt);
+            }
+            CheckDevelopmentNeutral(bds, 0x5160);  // the catalogue mirror is process-wide: new types
+            if (ser != nullptr) ser->Release();
+            if (mt != nullptr) mt->Release();
+            CHECK(bds->Shutdown());
+            CHECK(bds->Release() == 0);
+        }
+        // Read runs before Init (§6): the record written above loads into a
+        // new simulator; a truncated one does not.
+        for (bool whole : {true, false}) {
+            obj = nullptr;
+            CHECK(director->GetClassObject(kCLSID_Development, kIID_cISC4BuildingDevelopmentSimulator, &obj));
+            auto* fresh = static_cast<cFC4ISC4BuildingDevelopmentSimulator*>(obj);
+            if (fresh == nullptr) continue;
+            cIGZSerializable* s = nullptr;
+            CHECK(fresh->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&s)) && s != nullptr);
+            if (s != nullptr && !record.empty()) {
+                std::vector<uint8_t> bytes = record;
+                if (!whole) bytes.resize(bytes.size() / 2);
+                ResidentialSegIStream in(bytes);
+                CHECK(s->Read(in) == whole);
+                s->Release();
+            }
+            CHECK(fresh->Release() == 0);  // the final Release shuts a never-initialised simulator down
+        }
+        CheckGrowthDeveloper(director);
+        // The development shadow's record bridge (seam op 34, mode 1): one of
+        // our developers' record read into a new read-only core.
+        auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+        CHECK(seam != nullptr);
+        if (seam != nullptr) {
+            void* g = nullptr;
+            CHECK(director->GetClassObject(kCLSID_GrowthDeveloper, kIID_cISC4GrowthDeveloperDev, &g) && g != nullptr);
+            if (g != nullptr) {
+                FC4DevelopmentShadowTestInput in{};
+                in.mode = 1;
+                in.developer = static_cast<cIGZUnknown*>(g);
+                CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 1);
+                CHECK(static_cast<cIGZUnknown*>(g)->Release() == 0);
+            }
+            FC4DevelopmentShadowTestInput none{};
+            none.mode = 1;
+            CHECK(seam(kFC4SeamDevelopmentShadow, &none, nullptr) == -1);
+        }
+        CheckCw("development");
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("subsystem 'development': enabled (2 classes replaced) by FreeCity4.ini (enable=)") !=
+          std::string::npos);
+    CHECK(text.find("development: process statics ") != std::string::npos);
+    CHECK(text.find(", session seed 0x0000002A (development_seed)") != std::string::npos);
+    CHECK(CountOf(text, "cFC4BuildingDevelopmentSimulator(") == 3);
+    CHECK(CountOf(text, "daily growth budget 3") == 3);
+    CHECK(text.find("development Write -> 1") != std::string::npos);
+    CHECK(text.find("development: no city; services not acquired") != std::string::npos);
+    CHECK(text.find("development Init: init=1") != std::string::npos);
+    CHECK(text.find("development month 2000-02-01: developers=0 built=0") != std::string::npos);
+    CHECK(text.find("development Read -> 1") != std::string::npos);
+    CHECK(text.find("development Read: init=0 loaded=1") != std::string::npos);
+    CHECK(text.find("development Read -> 0") != std::string::npos);
+    CHECK(text.find("development Shutdown: init=0") != std::string::npos);
+    CHECK(CountOf(text, "cFC4BuildingDevelopmentSimulator destroyed") == 3);
+    CHECK(text.find("development: AddNewFoundationOccupant (slot 23") != std::string::npos);
+    // The growth developers: one created and initialised (refused), two read.
+    CHECK(text.find("development: growth statics ") != std::string::npos);
+    CHECK(CountOf(text, "cFC4GrowthDeveloper(") == 8);  // created and destroyed (one for the shadow's bridge)
+    CHECK(text.find("growth 0x00000000 Init FAILED: init=0") != std::string::npos);
+    CHECK(text.find("growth 0x00000000 Write -> 1") != std::string::npos);
+    CHECK(text.find("growth 0x00000000 Read: init=0") != std::string::npos);
+    CHECK(text.find("growth 0x00000000 Read FAILED") != std::string::npos);
+    CHECK(CountOf(text, ") destroyed (0 updates, 0 calls answered without the lock)") == 4);
+    // The development shadow: inactive with ours; its record bridge.
+    CHECK(text.find("development shadow: requested (development_shadow from FreeCity4.ini) but INACTIVE: it needs "
+                    "FreeCity4's simulator and the original development unit (do not enable development); here the "
+                    "simulator is ours and development is ours") != std::string::npos);
+    CHECK(text.find("development shadow: ON") == std::string::npos);
+    CHECK(text.find("development shadow test: record v1 (30 bytes) phantom=0 total=0 -> read 1 (copies 0, failed 0; "
+                    "core total=0 phantom=0)") != std::string::npos);
+    // The catalogue mirror: built once per process, after the first Init loaded the catalogue.
+    CHECK(CountOf(text, "development catalogue: 0 building types, 0 families") == 1);
+    CHECK(CountOf(text, "development: the static-data cleanup is not registered") == 1);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    CHECK(text.find("streams: WARNING") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin development enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
+// ---- the development shadow (test seam op 34) ---------------------------------------------------------
+
+int DevelopmentShadowIniTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // `development_shadow = 1` with FreeCity4's simulator and the original
+    // development unit (the defaults): ON, and the shadow's list comparison.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_DEVELOPMENT_SHADOW", nullptr);
+    WriteTextFile(ini, "[tools]\ndevelopment_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_GrowthDeveloper) == 0);
+        const int32_t two[] = {1, 2, 1, 3, 4, 2};
+        const int32_t swapped[] = {3, 4, 2, 1, 2, 1};
+        const int32_t three[] = {1, 2, 1, 3, 4, 2, 5, 6, 1};
+        FC4DevelopmentShadowTestInput in{};
+        in.mode = 0;
+        in.original = two;
+        in.originalCount = 2;
+        in.ours = two;
+        in.oursCount = 2;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 0);
+        in.ours = swapped;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 2);  // both indices
+        in.asSet = 1;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 0);  // the industrial decline order
+        in.ours = three;
+        in.oursCount = 3;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 2);  // the count, one only in ours
+        in.asSet = 0;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 1);  // the count
+        in.ours = nullptr;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == -1);
+        CHECK(seam(kFC4SeamDevelopmentShadow, nullptr, nullptr) == -1);
+        FC4DevelopmentShadowTestInput other{};
+        other.mode = 9;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &other, nullptr) == -1);
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    const auto npos = std::string::npos;
+    CHECK(text.find("development shadow: ON (development_shadow from FreeCity4.ini): every ORIGINAL growth "
+                    "developer's monthly update") != npos);
+    CHECK(text.find("development shadow: not compared or assumed: the industrial decline order") != npos);
+    CHECK(text.find("development shadow: requested") == npos);
+    CHECK(text.find("development shadow test: lists 2/2 in order; mismatches=0") != npos);
+    CHECK(text.find("development shadow test: lists 2/2 in order; mismatches=2; differences (original/ours): "
+                    "list[0] (1,2) s1/(3,4) s2, list[1] (3,4) s2/(1,2) s1") != npos);
+    CHECK(text.find("development shadow test: lists 2/2 as a multiset; mismatches=0") != npos);
+    CHECK(text.find("development shadow test: lists 2/3 as a multiset; mismatches=2; differences (original/ours): "
+                    "list count 2/3, list (5,6) s1 only in ours") != npos);
+    CHECK(text.find("development shadow test: lists 2/3 in order; mismatches=1; differences (original/ours): "
+                    "list count 2/3") != npos);
+    CHECK(text.find("subsystem 'development': enabled") == npos);
+    CHECK(text.find("structured exception") == npos);
+    CHECK(text.find("config: WARNING unknown key") == npos);
+    CHECK(text.find("WARNING: released last reference") == npos);
+    CHECK(text.find("WARNING: over-release") == npos);
+    if (g_failures == 0) std::printf("plugin development shadow test: all checks passed\n");
     return g_failures == 0 ? 0 : 1;
 }
 
@@ -7008,6 +7487,487 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
 
 }  // namespace
 
+// ---- the harness lane: sim_turbo (FC4Turbo.h) --------------------------------------------------------------
+
+// A day agent that finishes every delivery at once.
+class QuickDayAgent final : public cIGZMessageTarget2 {
+public:
+    uint32_t refs = 0;
+    uint32_t calls = 0;
+    int32_t lastJulian = 0;
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return refs > 0 ? --refs : 0; }
+    bool DoMessage(cIGZMessage2* msg) override {
+        ++calls;
+        lastJulian = static_cast<int32_t>(static_cast<cIGZMessage2Standard*>(msg)->GetData1());
+        return true;
+    }
+};
+
+// A child process: game start with one FreeCity4.ini (the settings are read once per process).
+int TurboChild(const std::string& dll, const std::string& ini, const std::string& scenario) {
+    if (scenario == "disabled") {
+        WriteTextFile(ini, "[subsystems]\ndisable = simulator\n[harness]\nsim_turbo = 1\nsim_turbo_until = 2001-01-01\n");
+    } else {  // bad values
+        WriteTextFile(ini, "[harness]\nsim_turbo = yes\nsim_turbo_frame_ms = 0\nsim_turbo_until = 2000-02-30\n"
+                           "sim_turbo_wait_days = -1\n");
+    }
+    HMODULE h = LoadLibraryA(dll.c_str());
+    if (h == nullptr) return 4;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(h, "GZDllGetGZCOMDirector"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    if (director == nullptr) return 5;
+    std::vector<uint32_t> classes;
+    director->EnumClassObjects(&CollectClass, &classes);  // game start: the configuration
+    FreeLibrary(h);
+    return 0;
+}
+
+int TurboIniTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_SIM_TURBO", nullptr);
+    SetEnvironmentVariableA("FC4_SIM_TURBO_FRAME_MS", nullptr);
+    SetEnvironmentVariableA("FC4_SIM_TURBO_UNTIL", nullptr);
+    DWORD ms = 0;
+    const std::string dllArg = "\"" + dll + "\" ";
+
+    // 1. disable = simulator: one WARNING, turbo never switched on.
+    CHECK(RunChild(dllArg + "--turbo-child-disabled", 30000, &ms) == 0);
+    std::string text = ReadFile(log);
+    CHECK(text.find("simulator: WARNING sim_turbo = 1 has no effect: our simulator is disabled (disable = simulator), "
+                    "the original's clock runs") != std::string::npos);
+    CHECK(CountOf(text, "turbo") == 1);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+
+    // 2. Bad values: reported, then the defaults (250 ms, no end date).
+    CHECK(RunChild(dllArg + "--turbo-child-bad", 30000, &ms) == 0);
+    text = ReadFile(log);
+    CHECK(text.find("simulator: WARNING sim_turbo_frame_ms=0 is not 1..10000; using 250") != std::string::npos);
+    CHECK(text.find("simulator: WARNING sim_turbo_until='2000-02-30' is not a date YYYY-MM-DD; turbo has no end date") !=
+          std::string::npos);
+    CHECK(text.find("simulator: turbo ON (sim_turbo = 1; tooling deviation from simulator.md section 5): days not "
+                    "paced by msPerDay, frame budget 250 ms at any speed; no end date") != std::string::npos);
+    CHECK(text.find("simulator: WARNING sim_turbo_wait_days=-1 is not 0..3650; using 30") != std::string::npos);
+    CHECK(text.find("; engages at each city's first ConnectionsReady, or after 30 game day(s) without it "
+                    "(sim_turbo_wait_days)") != std::string::npos);
+
+    // 3. In this process: speed 0 (5000 ms per day) with turbo until 2000-03-01.
+    // The request at Init is HELD (days paced as usual) until the city's first
+    // ConnectionsReady reaches the observer; then the 60 days to 2000-03-01 at
+    // once, and no more within the test's ~0.5 s.
+    WriteTextFile(ini, "[harness]\nsim_turbo = 1\nsim_turbo_frame_ms = 50\nsim_turbo_until = 2000-03-01\n"
+                       "sim_turbo_wait_days = 3\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    std::string held;  // the log after the city became ready (before the second load)
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        cISC4Simulator* sim = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Simulator, kIID_cISC4Simulator, reinterpret_cast<void**>(&sim)));
+        if (sim != nullptr) {
+            CHECK(sim->Init());
+            CHECK(sim->GetSimSpeed() == 0);
+            CHECK(sim->HiddenResume());
+            QuickDayAgent agent;
+            CHECK(sim->AddAgent(&agent, cISC4Simulator::AgentTypeSimNewDay, cRZBaseString("turbo day agent"),
+                                static_cast<cISC4Simulator::eAgentFlags>(3)));
+            cIGZSystemService* service = nullptr;
+            CHECK(sim->QueryInterface(GZIID_cIGZSystemService, reinterpret_cast<void**>(&service)));
+            if (service != nullptr) {
+                // a. Held: ~300 ms of ticks at 5000 ms per day: no day passes.
+                DWORD start = GetTickCount();
+                while (GetTickCount() - start < 300) service->OnTick(0);
+                const int32_t heldJulian = sim->GetSimDateNumber();
+                std::printf("turbo: julian %d after ~300 ms held (before ConnectionsReady)\n", heldJulian);
+                CHECK(heldJulian < 2451547);
+                // b. ConnectionsReady 0x6AC284F3 reaches the observer: turbo engages.
+                seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(0x6AC284F3u)), nullptr);
+                start = GetTickCount();
+                while (GetTickCount() - start < 500) service->OnTick(0);
+                // A second ConnectionsReady of the same load changes nothing.
+                seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(0x6AC284F3u)), nullptr);
+                service->Release();
+            }
+            std::printf("turbo: julian %d after ConnectionsReady and ~500 ms at speed 0; agent called %u times\n",
+                        sim->GetSimDateNumber(), agent.calls);
+            CHECK(sim->GetSimDateNumber() == 2451605);  // 2000-03-01, not one day more
+            CHECK(agent.lastJulian == 2451605);
+            CHECK(sim->Shutdown());  // releases the agent
+            CHECK(agent.refs == 0);
+            held = ReadFile(log);
+
+            // c. A second city load where ConnectionsReady never comes: held
+            // again, then the fallback after sim_turbo_wait_days = 3 game days
+            // (speed 2: 100 ms per day), with a WARNING.
+            CHECK(sim->Init());
+            CHECK(sim->HiddenResume());
+            CHECK(sim->SetSimSpeed(2));
+            const int32_t reloadJulian = sim->GetSimDateNumber();
+            if (sim->QueryInterface(GZIID_cIGZSystemService, reinterpret_cast<void**>(&service)) && service) {
+                const DWORD start = GetTickCount();
+                while (GetTickCount() - start < 1500) service->OnTick(0);
+                service->Release();
+            }
+            std::printf("turbo: second load: julian %d -> %d without ConnectionsReady\n", reloadJulian,
+                        sim->GetSimDateNumber());
+            CHECK(sim->GetSimDateNumber() >= reloadJulian + 3);
+            CHECK(sim->Shutdown());
+            sim->Release();
+        }
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    CHECK(held.find("simulator: turbo ON (sim_turbo = 1; tooling deviation from simulator.md section 5): days not "
+                    "paced by msPerDay, frame budget 50 ms at any speed; until 2000-03-01 (julian 2451605); engages at "
+                    "each city's first ConnectionsReady, or after 3 game day(s) without it (sim_turbo_wait_days)") !=
+          std::string::npos);
+    // The ordering: requested (held) at Init, ON only after ConnectionsReady, once.
+    const size_t requested = held.find("simulator: turbo requested (sim_turbo) at 2000-01-01: held, days paced by "
+                                       "msPerDay, until the city's first ConnectionsReady (or 3 game day(s) without "
+                                       "it, sim_turbo_wait_days)");
+    const size_t engaged =
+        held.find("simulator: turbo ON at 2000-01-01 (after ConnectionsReady; sim_turbo): frame budget 50 ms, until "
+                  "2000-03-01");
+    CHECK(requested != std::string::npos);
+    CHECK(engaged != std::string::npos);
+    CHECK(requested < engaged);
+    CHECK(CountOf(held, "(after ConnectionsReady") == 1);
+    CHECK(held.find("turbo ON (sim_turbo) at") == std::string::npos);  // never engaged at Init
+    CHECK(held.find("simulator: WARNING no ConnectionsReady") == std::string::npos);
+    CHECK(held.find("simulator: turbo month 2000-02-01: 31 day(s) in ") != std::string::npos);
+    CHECK(held.find(" days/s, ") != std::string::npos);
+    CHECK(CountOf(held, "simulator: turbo month") == 1);  // switched off on 2000-03-01 itself
+    CHECK(held.find("simulator: turbo OFF at 2000-03-01 (sim_turbo_until reached); days paced by msPerDay again") !=
+          std::string::npos);
+    CHECK(CountOf(held, "simulator: turbo OFF") == 1);
+    text = ReadFile(log);
+    CHECK(CountOf(text, "simulator: turbo requested (sim_turbo) at ") == 2);  // one per city load
+    CHECK(text.find("simulator: WARNING no ConnectionsReady within 3 game day(s) of the turbo request (sim_turbo); "
+                    "turbo ON at ") != std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin turbo test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
+// ---- the harness lane: script (FC4Script.h) ----------------------------------------------------------------
+
+// SC4CellRegion<long> as it crosses PlaceZone (zones.md §11.4): the inclusive
+// rectangle, then a cRZCellMap<bool> {vtable, width, height, words per row,
+// rows}; bit (dx, dz) is bit dz % 32 of rows[dx][dz / 32].
+struct ScriptRegionLayout {
+    int32_t x1, z1, x2, z2;
+    void* mapVtbl;
+    uint32_t width, height, words;
+    uint32_t** rows;
+};
+static_assert(sizeof(ScriptRegionLayout) == 0x24, "zones.md 11.4: 0x24 bytes");
+
+struct ScriptPlaceCall {
+    int32_t x1, z1, x2, z2;
+    uint32_t width, height, words;
+    bool rows;        // a row array was there
+    uint32_t bitsIn;  // bits set on entry
+    int32_t type;
+    bool commit, skipFunds, checkSlope, skipSize, lotInside;
+    bool outCost, outError, outLots;  // non-null
+};
+
+struct FakeScriptZones {
+    FakeVtable zmVt;
+    FakeObject zm{};
+    std::vector<ScriptPlaceCall> calls;
+};
+FakeScriptZones* g_scriptZones = nullptr;
+
+uint32_t ScriptRegionBits(const ScriptRegionLayout& r) {
+    if (r.rows == nullptr) return 0;
+    uint32_t n = 0;
+    for (uint32_t dx = 0; dx < r.width; ++dx) {
+        for (uint32_t dz = 0; dz < r.height; ++dz) n += (r.rows[dx][dz / 32] >> (dz % 32)) & 1u;
+    }
+    return n;
+}
+
+void* __fastcall ScriptCityGetZoneManager(void*, void*) { return &g_scriptZones->zm; }  // cISC4City 36 (borrowed)
+
+// cISC4ZoneManager 11 PlaceZone (pop 40, AL): records the arguments and the
+// region; then, as the game does (zones.md §13.2), only clears bits: the cell
+// (x1, z1) is "rejected" by a committed zoning of a type other than 0. Type 7
+// fails for funds (error 1). The cost is 10 per cell left set.
+bool __fastcall ScriptZmPlaceZone(void*, void*, void* region, int32_t type, bool commit, bool skipFunds,
+                                  bool checkSlope, bool skipSize, bool lotInside, int64_t* outCost, int32_t* outError,
+                                  void* outLots) {
+    auto* r = static_cast<ScriptRegionLayout*>(region);
+    ScriptPlaceCall c{};
+    c.x1 = r->x1;
+    c.z1 = r->z1;
+    c.x2 = r->x2;
+    c.z2 = r->z2;
+    c.width = r->width;
+    c.height = r->height;
+    c.words = r->words;
+    c.rows = r->rows != nullptr;
+    c.bitsIn = ScriptRegionBits(*r);
+    c.type = type;
+    c.commit = commit;
+    c.skipFunds = skipFunds;
+    c.checkSlope = checkSlope;
+    c.skipSize = skipSize;
+    c.lotInside = lotInside;
+    c.outCost = outCost != nullptr;
+    c.outError = outError != nullptr;
+    c.outLots = outLots != nullptr;
+    g_scriptZones->calls.push_back(c);
+    if (type == 7) {
+        if (outCost != nullptr) *outCost = 999999;
+        if (outError != nullptr) *outError = 1;
+        return false;
+    }
+    if (commit && type != 0 && r->rows != nullptr && r->width > 0 && r->height > 0) r->rows[0][0] &= ~1u;
+    if (outCost != nullptr) *outCost = 10 * static_cast<int64_t>(ScriptRegionBits(*r));
+    if (outError != nullptr) *outError = 0;
+    return true;
+}
+
+// The region a call saw, its flags as a user's zoning (FC4Script.cpp), and
+// the out-pointers: cost and error given, no lot set.
+bool ScriptCallIs(const ScriptPlaceCall& c, int32_t x1, int32_t z1, int32_t x2, int32_t z2, uint32_t words,
+                  int32_t type, bool commit) {
+    const uint32_t w = static_cast<uint32_t>(x2 - x1 + 1), h = static_cast<uint32_t>(z2 - z1 + 1);
+    return c.x1 == x1 && c.z1 == z1 && c.x2 == x2 && c.z2 == z2 && c.width == w && c.height == h &&
+           c.words == words && c.rows && c.bitsIn == w * h && c.type == type && c.commit == commit && !c.skipFunds &&
+           c.checkSlope && !c.skipSize && c.lotInside && c.outCost && c.outError && !c.outLots;
+}
+
+int ScriptIniTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    for (const char* v : {"FC4_DISABLE", "FC4_ENABLE", "FC4_SCRIPT", "FC4_SIM_TURBO", "FC4_AUTOTEST_SECONDS",
+                          "FC4_AUTOTEST_END_DATE"}) {
+        SetEnvironmentVariableA(v, nullptr);
+    }
+    const std::string dir = ini.substr(0, ini.find_last_of("\\/") + 1);
+    const std::string script = dir + "fc4_script_test.txt";
+    const std::string bad = dir + "fc4_script_bad.txt";
+    const std::string empty = dir + "fc4_script_empty.txt";
+    const std::string late = dir + "fc4_script_late.txt";
+    const std::string saves = dir + "fc4_script_save.txt";
+    WriteTextFile(script,
+                  "# FreeCity4 script test (the harness lane)\n"
+                  "2000-01-03 zone 10 20 12 22 1        # a 3x3 residential block\n"
+                  "2000-01-03 pricezone 30 20 32 22 4   # price a commercial one\n"
+                  "2000-01-03 mark three on one day\n"
+                  "2000-01-05 dezone 10 20 11 22        # part of the first\n"
+                  "2000-01-05 zone 40 40 41 41 7        # the stub refuses it (funds)\n"
+                  "2000-01-05 zone 50 0 51 39 2         # 40 rows: two words per row\n"
+                  "2000-01-06 speed 2\n"
+                  "2000-01-06 pause\n"
+                  "2000-01-06 resume\n"
+                  "2000-01-07 turbo on\n"
+                  "2000-01-08 turbo off\n"
+                  "2000-01-08 digest\n"
+                  "1999-12-01 mark already past at load\n");
+    WriteTextFile(bad, "# two errors\n2000-01-10 zonee 1 1 2 2 1\n2000-01-10 zone 1 1 2 2 16\n2000-01-10 mark fine\n");
+    WriteTextFile(empty, "# nothing to do\n\n");
+    WriteTextFile(late, "2000-01-01 dezone 5 6 5 6\n");
+    WriteTextFile(saves,
+                  "2000-01-12 mark before the save\n"
+                  "2000-01-12 save\n"
+                  "2000-01-12 mark after the save, on its day\n"
+                  "2000-01-13 save fast\n"
+                  "2000-01-14 mark a later day\n");
+    WriteTextFile(ini, "[harness]\nscript = fc4_script_test.txt   # relative: next to FreeCity4.ini\n");
+
+    static FakeWorld world;
+    InitFakeWorld(world);
+    static FakeScriptZones zones;
+    g_scriptZones = &zones;
+    zones.zmVt.slots[11] = reinterpret_cast<void*>(&ScriptZmPlaceZone);
+    zones.zm.vtbl = zones.zmVt.slots.data();
+    world.cityVt.slots[36] = reinterpret_cast<void*>(&ScriptCityGetZoneManager);
+
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    if (director == nullptr || seam == nullptr) return 1;
+    std::vector<uint32_t> classes;
+    director->EnumClassObjects(&CollectClass, &classes);  // game start: the script is read and parsed
+    cISC4Simulator* sim = nullptr;
+    CHECK(director->GetClassObject(kCLSID_Simulator, kIID_cISC4Simulator, reinterpret_cast<void**>(&sim)));
+    if (sim == nullptr) return 1;
+    CHECK(sim->Init());  // our simulator, live: the script's turbo has something to set
+    world.sim = sim;
+    seam(kFC4SeamObserverCity, &world.city, nullptr);
+
+    auto newDay = [&](intptr_t julian) {
+        seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewDay)),
+             reinterpret_cast<void*>(julian));
+    };
+    // 2000-01-01 .. 2000-01-02: only the action already past at load.
+    newDay(2451545);
+    newDay(2451546);
+    CHECK(zones.calls.empty());
+    // 2000-01-03: zone, pricezone, mark (file order).
+    newDay(2451547);
+    CHECK(zones.calls.size() == 2);
+    newDay(2451548);
+    CHECK(zones.calls.size() == 2);
+    // 2000-01-05: dezone, a refused zone, a 40-row zone.
+    newDay(2451549);
+    CHECK(zones.calls.size() == 5);
+    if (zones.calls.size() == 5) {
+        CHECK(ScriptCallIs(zones.calls[0], 10, 20, 12, 22, 1, 1, true));   // zone
+        CHECK(ScriptCallIs(zones.calls[1], 30, 20, 32, 22, 1, 4, false));  // pricezone: commit = 0
+        CHECK(ScriptCallIs(zones.calls[2], 10, 20, 11, 22, 1, 0, true));   // dezone: type 0
+        CHECK(ScriptCallIs(zones.calls[3], 40, 40, 41, 41, 1, 7, true));
+        CHECK(ScriptCallIs(zones.calls[4], 50, 0, 51, 39, 2, 2, true));    // ceil(40 / 32) = 2 words
+    }
+    // 2000-01-06: speed 2, pause, resume through our simulator.
+    CHECK(sim->GetSimSpeed() == 0);
+    newDay(2451550);
+    CHECK(sim->GetSimSpeed() == 2);
+    CHECK(!sim->IsPaused());
+    // 2000-01-07: turbo on, held: this city load has not seen ConnectionsReady;
+    // it engages when ConnectionsReady comes. 2000-01-08: turbo off, the digest.
+    newDay(2451551);
+    seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(0x6AC284F3u)), nullptr);
+    newDay(2451552);
+    std::string text = ReadFile(log);
+    const size_t linesBefore = CountOf(text, "script: line ");
+    // Each runs once: the same day again and the next produce nothing.
+    newDay(2451552);
+    newDay(2451553);
+    CHECK(zones.calls.size() == 5);
+
+    // Refused: two parse errors, nothing runs (test seam op 46).
+    CHECK(seam(kFC4SeamScript, const_cast<char*>("fc4_script_bad.txt"), nullptr) == -2);
+    newDay(2451554);
+    // Unreadable, and empty.
+    CHECK(seam(kFC4SeamScript, const_cast<char*>("fc4_no_such_script.txt"), nullptr) == -1);
+    CHECK(seam(kFC4SeamScript, const_cast<char*>("fc4_script_empty.txt"), nullptr) == 0);
+    // An absolute path, its date long past: it runs at the next new day.
+    CHECK(seam(kFC4SeamScript, const_cast<char*>(late.c_str()), nullptr) == 1);
+    CHECK(zones.calls.size() == 5);
+    newDay(2451555);
+    CHECK(zones.calls.size() == 6);
+    if (zones.calls.size() == 6) CHECK(ScriptCallIs(zones.calls[5], 5, 6, 5, 6, 1, 0, true));
+
+    // save: cISC4App 16 (the fake returns true for a full save). It waits for
+    // the observer's next tick, and every action due after it waits behind it.
+    seam(kFC4SeamObserverApp, &world.app, nullptr);
+    CHECK(seam(kFC4SeamScript, const_cast<char*>("fc4_script_save.txt"), nullptr) == 5);
+    newDay(2451556);  // 2000-01-12: the first mark runs; the save and the mark after it wait
+    newDay(2451557);  // 2000-01-13: the fast save queues behind them
+    newDay(2451558);  // 2000-01-14: so does the last mark (file order holds)
+    CHECK(world.saveCalls == 0);
+    seam(kFC4SeamObserverTick, nullptr, nullptr);  // all four, in order
+    CHECK(world.saveCalls == 2);
+    seam(kFC4SeamObserverTick, nullptr, nullptr);  // nothing left
+    newDay(2451559);
+    CHECK(world.saveCalls == 2);
+    seam(kFC4SeamObserverApp, nullptr, nullptr);
+
+    seam(kFC4SeamObserverCity, nullptr, nullptr);
+    CHECK(sim->Shutdown());
+    sim->Release();
+    FreeLibrary(hd);
+    for (const std::string& f : {script, bad, empty, late, saves, ini}) DeleteFileA(f.c_str());
+
+    text = ReadFile(log);
+    // A relative path is resolved against FreeCity4.ini's folder as the DLL
+    // reports it (GetModuleFileName: backslashes).
+    std::string winDir = dir;
+    for (char& ch : winDir) ch = ch == '/' ? '\\' : ch;
+    const std::string winScript = winDir + "fc4_script_test.txt";
+    CHECK(text.find("script: loaded '" + winScript + "' (script setting; tooling): 13 action(s), 1999-12-01 to "
+                    "2000-01-08; each runs once at the first new day on or after its date") != std::string::npos);
+    const char* const expected[] = {
+        "script: line 14 1999-12-01 mark already past at load -> marked (run on 2000-01-01)",
+        "script: line 2 2000-01-03 zone 10 20 12 22 1 -> ok=1 error=0 (none) cost=80 accepted=8 of 9 cell(s)",
+        "script: line 3 2000-01-03 pricezone 30 20 32 22 4 -> dry run: ok=1 error=0 (none) cost=90 accepted=9 of 9 "
+        "cell(s)",
+        "script: line 4 2000-01-03 mark three on one day -> marked",
+        "script: line 5 2000-01-05 dezone 10 20 11 22 -> ok=1 error=0 (none) cost=60 accepted=6 of 6 cell(s)",
+        "script: line 6 2000-01-05 zone 40 40 41 41 7 -> ok=0 error=1 (insufficient funds) cost=999999 accepted=4 of 4 "
+        "cell(s)",
+        "script: line 7 2000-01-05 zone 50 0 51 39 2 -> ok=1 error=0 (none) cost=790 accepted=79 of 80 cell(s)",
+        "script: line 8 2000-01-06 speed 2 -> SetSimSpeed(2) = 1; speed 0 -> 2",
+        "script: line 9 2000-01-06 pause -> Pause() = 1; paused=1",
+        "script: line 10 2000-01-06 resume -> Resume() = 1; paused=0",
+        // our simulator's line, then the script's
+        "simulator: turbo requested (script) at 2000-01-01: held, days paced by msPerDay, until the city's first "
+        "ConnectionsReady (or 30 game day(s) without it, sim_turbo_wait_days)",
+        "script: line 11 2000-01-07 turbo on -> turbo requested: held until the city's ConnectionsReady",
+        "simulator: turbo ON at 2000-01-01 (after ConnectionsReady; script): frame budget 250 ms, until none",
+        "simulator: turbo OFF (script) at ",
+        "script: line 12 2000-01-08 turbo off -> turbo off",
+        "script: line 13 2000-01-08 digest -> the DIGEST line follows",
+        "DIGEST julian=2451552 (2000-01-08)",
+        "script: all 13 action(s) of '",
+    };
+    size_t at = 0;
+    for (const char* e : expected) {
+        const size_t found = text.find(e, at);
+        if (found == std::string::npos) std::printf("script test: not found (in order): %s\n", e);
+        CHECK(found != std::string::npos);
+        if (found != std::string::npos) at = found;
+    }
+    CHECK(linesBefore == 13);
+    // the 13, the late script's one, the save script's 5 and its "waits" line
+    CHECK(CountOf(text, "script: line ") == 20);
+    CHECK(text.find("script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, speed, pause, resume, "
+                    "turbo, digest, mark, save)") != std::string::npos);
+    CHECK(text.find("script: ERROR line 3: zone type '16' is not 0..15") != std::string::npos);
+    CHECK(text.find("script: REFUSED '" + winDir + "fc4_script_bad.txt' (test seam): 2 parse error(s); no action of "
+                    "it runs") != std::string::npos);
+    CHECK(text.find("script: line 4 2000-01-10 mark fine") == std::string::npos);  // refused: not even its good line
+    CHECK(text.find("script: ERROR cannot read '" + winDir + "fc4_no_such_script.txt' (test seam; error 2); no "
+                    "action runs") != std::string::npos);
+    CHECK(text.find("script: '" + winDir + "fc4_script_empty.txt' (test seam): no actions") != std::string::npos);
+    CHECK(text.find("script: loaded '" + late + "' (test seam; tooling): 1 action(s), 2000-01-01 to 2000-01-01") !=
+          std::string::npos);  // an absolute path as given
+    CHECK(text.find("script: line 1 2000-01-01 dezone 5 6 5 6 -> ok=1 error=0 (none) cost=10 accepted=1 of 1 "
+                    "cell(s) (run on 2000-01-11)") != std::string::npos);
+    {
+        const std::string saveOrder[] = {
+            "script: loaded '" + winDir + "fc4_script_save.txt' (test seam; tooling): 5 action(s), 2000-01-12 to "
+            "2000-01-14",
+            "script: line 1 2000-01-12 mark before the save -> marked\r\n",
+            "script: line 2 2000-01-12 save: waits for the next framework tick (not run inside SimNewDay); the "
+            "actions due after it wait behind it",
+            "script: line 2 2000-01-12 save -> ok=1 (SaveCity(full) in ",
+            " ms) (run on 2000-01-14)",
+            "script: line 3 2000-01-12 mark after the save, on its day -> marked (run on 2000-01-14)",
+            "script: line 4 2000-01-13 save fast -> ok=0 (SaveCity(fast) in ",
+            " ms) (run on 2000-01-14)",
+            "script: line 5 2000-01-14 mark a later day -> marked\r\n",
+            "script: all 5 action(s) of '",
+        };
+        size_t from = 0;
+        for (const std::string& e : saveOrder) {
+            const size_t found = text.find(e, from);
+            if (found == std::string::npos) std::printf("script save test: not found (in order): %s\n", e.c_str());
+            CHECK(found != std::string::npos);
+            if (found != std::string::npos) from = found;
+        }
+        CHECK(CountOf(text, ": waits for the next framework tick") == 1);
+        CHECK(text.find("[structured exception in SaveCity]") == std::string::npos);
+    }
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);  // script is a known key
+    if (g_failures == 0) std::printf("plugin script test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::fprintf(stderr, "usage: %s <FreeCity4.dll>\n", argv[0]);
@@ -7048,6 +8008,10 @@ int main(int argc, char** argv) {
     if (mode == "--ini-enable-zones") return ZonesEnableTest(dll, ini, log);
     // Neighbours (neighbors.md): the replacement, its objects, an original connection loaded.
     if (mode == "--ini-enable-neighbors") return NeighborsEnableTest(dll, ini, log);
+    // Development (building-development.md): the replacement without a city.
+    if (mode == "--ini-enable-development") return DevelopmentEnableTest(dll, ini, log);
+    // The development shadow: ON with the original unit, its list comparison (seam op 34).
+    if (mode == "--ini-development-shadow") return DevelopmentShadowIniTest(dll, ini, log);
     // Land value and flammability grid shadows on fake originals; both inactive with ours.
     if (mode == "--ini-landvalue-shadow") return LandValueShadowTest(dll, ini, log);
     if (mode == "--ini-flammability-shadow") return FlammabilityShadowTest(dll, ini, log);
@@ -7056,12 +8020,19 @@ int main(int argc, char** argv) {
     if (mode == "--saved-refs") return SavedRefsTest(dll, ini, log);
     // The growth calibration probe (building-development.md §12, seam op 39).
     if (mode == "--ini-growth-probe") return GrowthProbeIniTest(dll, ini, log);
+    // The harness lane: sim_turbo (FC4Turbo.h).
+    const std::string turboPrefix = "--turbo-child-";
+    if (mode.compare(0, turboPrefix.size(), turboPrefix) == 0) return TurboChild(dll, ini, mode.substr(turboPrefix.size()));
+    if (mode == "--ini-turbo") return TurboIniTest(dll, ini, log);
+    // The harness lane: script (FC4Script.h, seam op 46).
+    if (mode == "--ini-script") return ScriptIniTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).
         SetEnvironmentVariableA("FC4_DISABLE", nullptr);
         SetEnvironmentVariableA("FC4_AUTOTEST_SECONDS", nullptr);
         SetEnvironmentVariableA("FC4_AUTOTEST_UNPAUSE", nullptr);
+        SetEnvironmentVariableA("FC4_AUTOTEST_END_DATE", nullptr);
         DWORD ms = 0;
         const std::string dllArg = "\"" + dll + "\" ";
 
@@ -7077,9 +8048,12 @@ int main(int argc, char** argv) {
         CHECK(text.find("autotest: unpause: 1 Resume call(s), speed 1") != std::string::npos);
         CHECK(text.find("paused=0 hidden=") != std::string::npos);
         // julian: our simulator publishes its own date (2000-01-01; it is not ticked here).
-        CHECK(text.find("AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, "
-                        "ref_warnings=0, julian=2451545, switches_off=-, disabled=-)") != std::string::npos);
+        // The run figures (the harness lane): no new day since the clock started.
+        CHECK(NormalVerdict(text, false) ==
+              "AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, "
+              "julian=2451545, date=2000-01-01, real_seconds=S, days_per_second=0.00, switches_off=-, disabled=-)");
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the autotest thread") != std::string::npos);
+        CHECK(text.find("end date") == std::string::npos);  // no autotest_end_date
 
         // 2. Corrupt: a first-chance access violation in the host; terminate ~5 s later.
         CHECK(RunChild(dllArg + "--autotest-child-corrupt", 30000, &ms) == 0);
@@ -7088,8 +8062,9 @@ int main(int argc, char** argv) {
         text = ReadFile(log);
         CHECK(text.find("first-chance exception OUTSIDE FreeCity4.dll in fc4_plugin_load_test.exe+0x") !=
               std::string::npos);
-        CHECK(text.find("AUTOTEST VERDICT: corrupt (foreign_exceptions=1, watchdog_stalls=0, rtc=0, overruns=0, "
-                        "ref_warnings=0, julian=2451600, switches_off=-, disabled=-)") != std::string::npos);
+        CHECK(NormalVerdict(text, false) ==
+              "AUTOTEST VERDICT: corrupt (foreign_exceptions=1, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, "
+              "julian=2451600, date=2000-02-25, real_seconds=S, days_per_second=0.00, switches_off=-, disabled=-)");
         CHECK(text.find("autotest: terminating in 5000 ms (time for stall evidence)") != std::string::npos);
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the autotest thread") != std::string::npos);
         CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
@@ -7101,9 +8076,10 @@ int main(int argc, char** argv) {
         text = ReadFile(log);
         CHECK(text.find("observer: PostCityInit (passthrough)") != std::string::npos);
         CHECK(text.find("watchdog: started for main thread") != std::string::npos);
-        CHECK(text.find("AUTOTEST VERDICT: stalled (foreign_exceptions=0, watchdog_stalls=1, rtc=0, overruns=0, "
-                        "ref_warnings=0, julian=2451600, switches_off=-, disabled=simulator,budget)") !=
-              std::string::npos);
+        CHECK(NormalVerdict(text, false) ==
+              "AUTOTEST VERDICT: stalled (foreign_exceptions=0, watchdog_stalls=1, rtc=0, overruns=0, ref_warnings=0, "
+              "julian=2451600, date=2000-02-25, real_seconds=S, days_per_second=0.00, switches_off=-, "
+              "disabled=simulator,budget)");
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the watchdog thread") != std::string::npos);
         CHECK(text.find("for 4294967") == std::string::npos);  // no unsigned underflow in any duration
 
@@ -7117,9 +8093,10 @@ int main(int argc, char** argv) {
                         "before the 60 s deadline (julian 2451600)") != std::string::npos);
         CHECK(text.find("autotest: the game ended the city before the deadline (PostCityShutdown)") !=
               std::string::npos);
-        CHECK(text.find("AUTOTEST VERDICT: ended (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, "
-                        "ref_warnings=0, julian=2451600, switches_off=-, disabled=simulator,budget)") !=
-              std::string::npos);
+        CHECK(NormalVerdict(text, false) ==
+              "AUTOTEST VERDICT: ended (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, "
+              "julian=2451600, date=2000-02-25, real_seconds=S, days_per_second=0.00, switches_off=-, "
+              "disabled=simulator,budget)");
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the observer (city ended)") != std::string::npos);
         CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
 
@@ -7152,12 +8129,159 @@ int main(int argc, char** argv) {
         CHECK(text.find("observe snapshot (before save): date=2000-01-01 julian=2451545 funds=- fundings=-") !=
               std::string::npos);
         CHECK(text.find("autotest: save after 2 month(s): SaveCity(full) returned 1 in ") != std::string::npos);
-        CHECK(text.find("AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, "
-                        "ref_warnings=0, julian=2451605, switches_off=-, disabled=-)") != std::string::npos);
+        // No autotest clock (no autotest_seconds): no real seconds, no rate.
+        CHECK(NormalVerdict(text, false) ==
+              "AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, "
+              "julian=2451605, date=2000-03-01, real_seconds=-, days_per_second=-, switches_off=-, disabled=-)");
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the observer (save autotest)") !=
               std::string::npos);
         CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
         CHECK(text.find("config: WARNING unknown key") == std::string::npos);  // observe, autotest_save_* are known
+
+        // 5. The harness lane: autotest_end_date = 2000-03-01 alone (no timeout):
+        // one new day per tick from 2000-02-25; the verdict at 2000-03-01, on
+        // that day, after 6 new days.
+        CHECK(RunChild(dllArg + "--autotest-child-enddate", 30000, &ms) == 0);
+        std::printf("autotest end-date child: %lu ms\n", static_cast<unsigned long>(ms));
+        CHECK(ms < 15000);
+        text = ReadFile(log);
+        CHECK(text.find("autotest: ON - verdict at the first new day on or after 2000-03-01 (autotest_end_date; no "
+                        "timeout: autotest_seconds = 0), then TerminateProcess; unpause off") != std::string::npos);
+        CHECK(text.find("autotest: end date 2000-03-01 (julian 2451605): the run ends at the first new day on or "
+                        "after it\r\n") != std::string::npos ||
+              text.find("autotest: end date 2000-03-01 (julian 2451605): the run ends at the first new day on or "
+                        "after it\n") != std::string::npos);
+        CHECK(text.find("autotest: clock started; verdict at 2000-03-01 (autotest_end_date), no timeout") !=
+              std::string::npos);
+        CHECK(text.find("autotest: end date 2000-03-01 reached at the new day 2000-03-01 (julian 2451605), ") !=
+              std::string::npos);
+        CHECK(text.find("s after the clock started; verdict, then TerminateProcess") != std::string::npos);
+        CHECK(text.find("autotest: end date 2000-03-01 reached (autotest_end_date)") != std::string::npos);
+        CHECK(NormalVerdict(text, true) ==
+              "AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, "
+              "julian=2451605, date=2000-03-01, real_seconds=S, days_per_second=R, switches_off=-, "
+              "disabled=simulator,budget)");
+        {
+            const double days = VerdictDays(text);
+            std::printf("autotest end-date child: rate x seconds = %.3f days (6 expected)\n", days);
+            CHECK(days > 5.8 && days < 6.2);
+        }
+        CHECK(text.find("autotest: TerminateProcess(exit code 0) from the observer (autotest_end_date)") !=
+              std::string::npos);
+        CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
+        CHECK(text.find("config: WARNING unknown key") == std::string::npos);  // autotest_end_date is known
+
+        // 5b. The timeout comes first: autotest_seconds = 2 with an end date in 2100.
+        CHECK(RunChild(dllArg + "--autotest-child-enddate-timeout", 30000, &ms) == 0);
+        std::printf("autotest end-date timeout child: %lu ms\n", static_cast<unsigned long>(ms));
+        CHECK(ms >= 1500 && ms < 15000);
+        text = ReadFile(log);
+        CHECK(text.find("autotest: ON - verdict 2 s after the first tick of a loaded city, then TerminateProcess; "
+                        "unpause off") != std::string::npos);
+        CHECK(text.find("autotest: end date 2100-01-01 (julian 2488070): the run ends at the first new day on or "
+                        "after it, or at the autotest_seconds timeout, whichever comes first") != std::string::npos);
+        CHECK(text.find("autotest: clock started; verdict in 2 s or at 2100-01-01 (autotest_end_date), whichever "
+                        "comes first") != std::string::npos);
+        CHECK(text.find("reached at the new day") == std::string::npos);
+        CHECK(text.find("autotest: 2 s after the first tick of the loaded city") != std::string::npos);
+        {
+            const std::string v = NormalVerdict(text, true);
+            const std::string head = "AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, "
+                                     "overruns=0, ref_warnings=0, julian=";
+            CHECK(v.compare(0, head.size(), head) == 0);
+            CHECK(v.find(", real_seconds=S, days_per_second=R, switches_off=-, disabled=simulator,budget)") !=
+                  std::string::npos);
+            // date= is the verdict's julian, and the days counted are the days played.
+            const long j = std::atol(VerdictField(v, "julian").c_str());
+            const fc4::harness::Date d = fc4::harness::CivilFromJulian(static_cast<int32_t>(j));
+            CHECK(VerdictField(v, "date") == fc4::harness::FormatDate(d));
+            const double days = VerdictDays(text);
+            std::printf("autotest end-date timeout child: julian %ld, rate x seconds = %.3f days (%ld played)\n", j,
+                        days, j - 2451600 + 1);
+            CHECK(j > 2451620 && days > 0.95 * static_cast<double>(j - 2451600 + 1) - 1.0 &&
+                  days < 1.05 * static_cast<double>(j - 2451600 + 1) + 1.0);
+        }
+        CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
+
+        // 5c. autotest_end = quit and an end date already past when the city
+        // loads: the first new day ends the run; with no game to quit through
+        // (tests have no framework), the verdict as at the end.
+        CHECK(RunChild(dllArg + "--autotest-child-enddate-quit", 30000, &ms) == 0);
+        std::printf("autotest end-date quit child: %lu ms\n", static_cast<unsigned long>(ms));
+        CHECK(ms < 15000);
+        text = ReadFile(log);
+        CHECK(text.find("autotest: end date 2000-01-15 reached at the new day 2000-02-25 (julian 2451600), ") !=
+              std::string::npos);
+        CHECK(text.find("s after the clock started; quitting at the next tick (autotest_end = quit)") !=
+              std::string::npos);
+        CHECK(text.find("autotest: no cISC4App to quit through") != std::string::npos);
+        CHECK(text.find("autotest: end date reached, but the quit could not be requested") != std::string::npos);
+        CHECK(NormalVerdict(text, true) ==
+              "AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, "
+              "julian=2451600, date=2000-02-25, real_seconds=S, days_per_second=R, switches_off=-, "
+              "disabled=simulator,budget)");
+        {
+            const double days = VerdictDays(text);
+            std::printf("autotest end-date quit child: rate x seconds = %.3f days (1 expected)\n", days);
+            CHECK(days > 0.9 && days < 1.1);
+        }
+        CHECK(text.find("autotest: TerminateProcess(exit code 0) from the observer (autotest_end = quit)") !=
+              std::string::npos);
+        CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
+
+        // 5e. A script save due on the end date waits for the observer's tick;
+        // the verdict waits for it and comes at that tick, after the save.
+        CHECK(RunChild(dllArg + "--autotest-child-enddate-save", 30000, &ms) == 0);
+        std::printf("autotest end-date save child: %lu ms\n", static_cast<unsigned long>(ms));
+        CHECK(ms < 15000);
+        DeleteFileA((ini.substr(0, ini.find_last_of("\\/") + 1) + "fc4_script_endsave.txt").c_str());
+        text = ReadFile(log);
+        {
+            const char* const order[] = {
+                "script: line 1 2000-02-26 mark the day before -> marked",
+                "script: line 2 2000-02-27 save: waits for the next framework tick (not run inside SimNewDay); the "
+                "actions due after it wait behind it",
+                "autotest: end date 2000-02-27 reached at the new day 2000-02-27 (julian 2451602), ",
+                "s after the clock started; the script's waiting action(s) first, then the verdict and "
+                "TerminateProcess at the next tick",
+                "script: line 2 2000-02-27 save -> ok=1 (SaveCity(full) in ",
+                "script: line 3 2000-02-27 mark after the save -> marked",
+                "script: all 3 action(s) of '",
+                "autotest: end date 2000-02-27 reached (autotest_end_date)",
+                "AUTOTEST VERDICT:",
+                "autotest: TerminateProcess(exit code 0) from the observer (autotest_end_date)",
+            };
+            size_t at = 0;
+            for (const char* e : order) {
+                const size_t found = text.find(e, at);
+                if (found == std::string::npos) std::printf("end-date save: not found (in order): %s\n", e);
+                CHECK(found != std::string::npos);
+                if (found != std::string::npos) at = found;
+            }
+        }
+        CHECK(text.find("s after the clock started; verdict, then TerminateProcess") == std::string::npos);
+        CHECK(NormalVerdict(text, true) ==
+              "AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, "
+              "julian=2451602, date=2000-02-27, real_seconds=S, days_per_second=R, switches_off=-, "
+              "disabled=simulator,budget)");
+        {
+            const double days = VerdictDays(text);
+            std::printf("autotest end-date save child: rate x seconds = %.3f days (3 expected)\n", days);
+            CHECK(days > 2.8 && days < 3.2);
+        }
+        CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
+        CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+
+        // 5d. Not a date: a WARNING, ignored; the 1 s timeout ends the run.
+        CHECK(RunChild(dllArg + "--autotest-child-enddate-bad", 30000, &ms) == 0);
+        text = ReadFile(log);
+        CHECK(text.find("autotest: WARNING autotest_end_date='2000-02-30' is not a date YYYY-MM-DD; ignored") !=
+              std::string::npos);
+        CHECK(text.find("autotest: clock started; verdict in 1 s\r\n") != std::string::npos ||
+              text.find("autotest: clock started; verdict in 1 s\n") != std::string::npos);
+        CHECK(text.find("autotest: end date") == std::string::npos);
+        CHECK(text.find("autotest: 1 s after the first tick of the loaded city") != std::string::npos);
+        CHECK(CountOf(text, "AUTOTEST VERDICT: clean") == 1);
         DeleteFileA(ini.c_str());
         if (g_failures == 0) std::printf("plugin autotest test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -7190,7 +8314,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 160): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 171): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -8817,6 +9941,10 @@ int main(int argc, char** argv) {
     CHECK(ForeignFault() == 1);
     CHECK(ForeignFaultX87() == 1);
     const std::string text = ReadFile(log);
+    // The harness switches are off by default: no turbo, no end date, no script (FC4Turbo.h).
+    CHECK(text.find("turbo") == std::string::npos);
+    CHECK(text.find("end date") == std::string::npos);
+    CHECK(text.find("script:") == std::string::npos);
     CHECK(CountOf(text, "first-chance exception OUTSIDE FreeCity4.dll in fc4_plugin_load_test.exe+0x") == 3);
     CHECK(text.find("(report 2 of at most 2 for this address)") != std::string::npos);
     // ... with the x87 state at the fault (an empty stack here) and the raw
@@ -8964,17 +10092,17 @@ int main(int argc, char** argv) {
                     "orig/ours=0/0; wateredCells orig/ours=0/0; unwateredCells orig/ours=0/0; cost orig/ours=0/0; "
                     "demand orig/ours=0/0; pipes orig/ours=0/0; distressed orig/ours=0/0; burst orig/ours=0/0; "
                     "sources orig/ours=0/0; maintenance compared=0 differing=0; ageing=yes; condition orig/ours=[]; "
-                    "deliveries=5; mismatches=0; passes compared=2 clean=2") != std::string::npos);
+                    "deliveries=5 days=0; mismatches=0; passes compared=2 clean=2") != std::string::npos);
     CHECK(text.find("plumbing shadow 2000-02-01 pass 2: aligned=start exact=1; grid 4x4 cells=16 differing=1 "
                     "max|diff|=1 first (x,z) orig/ours: (2,2) 1/0; ") != std::string::npos);
     CHECK(CountOf(text, "wateredCells orig/ours=3/0!; ") == 2);
-    CHECK(CountOf(text, "; ageing=no; deliveries=5; mismatches=1; passes compared=1 clean=0") == 1);
+    CHECK(CountOf(text, "; ageing=no; deliveries=5 days=0; mismatches=1; passes compared=1 clean=0") == 1);
     CHECK(CountOf(text, "; mismatches=1; passes compared=2 clean=1") == 1);  // the wrong cell
     CHECK(CountOf(text, "; mismatches=1; passes compared=2 clean=0") == 1);  // the wrong scalar, again
     // Made mid-city around no month: whether the first state 8 aged shows in
     // the producers' condition (none here: not aged; PS7).
-    CHECK(text.find("; ageing=no (inferred: no producer's condition changed; plumbing.md §6.7, PS7); deliveries=5; "
-                    "mismatches=0; passes compared=1 clean=1") != std::string::npos);
+    CHECK(text.find("; ageing=no (inferred: no producer's condition changed; plumbing.md §6.7, PS7); deliveries=5 "
+                    "days=0; mismatches=0; passes compared=1 clean=1") != std::string::npos);
     CHECK(text.find("plumbing shadow: ON (plumbing_shadow from FC4_PLUMBING_SHADOW): at each SimIdle and SimNewDay "
                     "of the ORIGINAL plumbing simulator (one pass state each), FreeCity4's water pass replayed") !=
           std::string::npos);
@@ -9084,11 +10212,11 @@ int main(int argc, char** argv) {
                     "residential EQ/HQ/LE=12.5000/34.2500/75\r\n") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 160 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 160 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 171 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 171 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 160): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 171): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);

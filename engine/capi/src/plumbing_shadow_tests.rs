@@ -965,8 +965,10 @@ fn shadow_agrees_with_an_identical_original() {
     assert_eq!(w.refs.borrow().get(&PRODUCER).copied().unwrap_or(0), 0);
 }
 
-/// A published cell the original computes differently, and a consumer whose
-/// consumption changes after our replay: both reported and counted.
+/// A published cell the original computes differently, and a producer's
+/// water used changed after the original's flood: both reported and counted.
+/// A consumer whose consumption changes after the pass started but before the
+/// flood agrees: our flood runs just before the original's (PS8).
 #[test]
 fn shadow_reports_a_wrong_cell_and_a_wrong_scalar() {
     let w = started();
@@ -1015,9 +1017,11 @@ fn shadow_reports_a_wrong_cell_and_a_wrong_scalar() {
     let st = stats(s);
     assert_eq!((st.cell_mismatches, st.last_mismatches), (1, 1), "{st:?}");
 
-    // The second consumer draws more once our replay has run (the original's
-    // flood, state 4, comes later): consumed, the producer's water used and
-    // the water cost differ.
+    // The second consumer draws more from the delivery in which the original
+    // seeds (state 3), after the pass started (state 0 and 1, and our replay's
+    // start): the original's flood (state 4) reads the new consumption, and so
+    // does ours, run just before it (plumbing.md §5.3 PS8; the r6b pass 339
+    // difference). They agree.
     message(&w, msg::PIPE_BURST, 0, 0, 0);
     let mut results = Vec::new();
     let mut changed = false;
@@ -1045,26 +1049,66 @@ fn shadow_reports_a_wrong_cell_and_a_wrong_scalar() {
         }
     }
     assert!(changed);
-    assert_eq!(results, vec![3], "{lines:#?}");
+    assert_eq!(results, vec![0], "{lines:#?}");
     let p = pass_lines(&lines).last().unwrap().to_string();
-    assert!(p.contains("consumed orig/ours=140/130!"), "{p}");
-    assert!(p.contains("used orig/ours=[140/130!]"), "{p}");
-    assert!(p.contains("cost orig/ours="), "{p}");
-    assert!(p.contains("grid 32x32 cells=1024 differing=0"), "{p}");
-    assert!(p.contains("mismatches=3;"), "{p}");
+    assert!(p.contains("aligned=start exact=1;"), "{p}");
+    assert!(p.contains("consumed orig/ours=140/140;"), "{p}");
+    assert!(p.contains("used orig/ours=[140/140]"), "{p}");
+    assert!(p.contains("mismatches=0;"), "{p}");
 
-    // The next pass, on the new consumption everywhere, agrees again.
+    // The producer's water used overwritten right after the original's last
+    // flood (its states 4 wrote it; nothing is left to seed, state 5 is next):
+    // the used value and the water cost its state 8 adds differ, and are
+    // counted.
     message(&w, msg::PIPE_BURST, 0, 0, 0);
-    assert_eq!(idle_until_rest(&w, s, JULIAN + 3, &mut lines), vec![0], "{lines:#?}");
+    let mut results = Vec::new();
+    let meddled = Cell::new(false);
+    for _ in 0..100 {
+        let r = deliver(
+            &w,
+            s,
+            msg::SIM_IDLE,
+            JULIAN + 3,
+            &mut lines,
+            || {},
+            || {
+                if !meddled.get() && state_of(&w).state == 5 {
+                    meddled.set(true);
+                    w.set(PRODUCER, prop::WATER_USED, mem::UINT32, false, &[999u32]);
+                }
+            },
+        );
+        if r >= 0 {
+            results.push(r);
+        }
+        let st = state_of(&w);
+        if st.state == 9 && st.recompute == 0 {
+            break;
+        }
+    }
+    assert!(meddled.get());
+    assert_eq!(results, vec![2], "{lines:#?}");
+    let p = pass_lines(&lines).last().unwrap().to_string();
+    assert!(p.contains("used orig/ours=[999/140!]"), "{p}");
+    assert!(p.contains("consumed orig/ours=140/140;"), "{p}");
+    assert!(p.contains("grid 32x32 cells=1024 differing=0"), "{p}");
+    assert!(p.contains("mismatches=2;"), "{p}");
+
+    // The next pass writes the water used again and agrees.
+    message(&w, msg::PIPE_BURST, 0, 0, 0);
+    assert_eq!(idle_until_rest(&w, s, JULIAN + 4, &mut lines), vec![0], "{lines:#?}");
     println!("{}", lines.join("\n"));
 
     unsafe { fc4_plumbing_shadow_destroy(s) };
     stop(&w);
 }
 
-/// A building inserted while a pass runs makes it "not exact": its
-/// differences are reported, not counted; a failed capture is INCOMPLETE; the
-/// daily replay budget leaves the other passes followed only.
+/// A consumer removed while a pass runs, before its flood: each of our states
+/// runs on the original's flag map of the moment, so the pass stays exact and
+/// agrees. Removed during the original's time-sliced state 6, after our
+/// unsliced one, it makes the pass "not exact": its differences are reported,
+/// not counted. A failed capture is INCOMPLETE; the daily replay budget leaves
+/// the other passes followed only.
 #[test]
 fn shadow_flags_changes_during_a_pass_failures_and_the_budget() {
     let w = started();
@@ -1072,8 +1116,9 @@ fn shadow_flags_changes_during_a_pass_failures_and_the_budget() {
     let mut lines: Vec<String> = Vec::new();
     assert_eq!(idle_until_rest(&w, s, JULIAN, &mut lines), vec![0, 0], "{lines:#?}");
 
-    // A consumer removed after our replay: the flag map changes (and demand,
-    // which no pass state reads: PS8).
+    // A consumer removed when the original is about to seed (state 3): the
+    // flag map and demand change (no pass state reads demand: PS8); our
+    // states 3 and 4 read the new flag map as the original's do.
     message(&w, msg::PIPE_BURST, 0, 0, 0);
     let mut removed = false;
     let mut results = Vec::new();
@@ -1101,13 +1146,56 @@ fn shadow_flags_changes_during_a_pass_failures_and_the_budget() {
     }
     assert_eq!(results, vec![0], "{lines:#?}");
     let p = pass_lines(&lines).last().unwrap().to_string();
-    assert!(p.contains("exact=0 (flag map changed during the pass);"), "{p}");
-    assert!(p.contains("mismatches=0 (not exact: "), "{p}");
+    assert!(p.contains("aligned=start exact=1;"), "{p}");
+    assert!(p.contains("consumed orig/ours=30/30;"), "{p}");
+    assert!(p.contains("wateredCells orig/ours=1/1;"), "{p}");
     // Demand: the record's at the comparison, without the removed consumer.
     assert!(p.contains("demand orig/ours=30/30;"), "{p}");
+    assert!(p.contains("mismatches=0;"), "{p}");
+    assert_eq!(stats(s).passes_not_exact, 0);
+    // The removal's recompute runs one more pass, which agrees.
+    assert_eq!(idle_until_rest(&w, s, JULIAN + 1, &mut lines), vec![0], "{lines:#?}");
+
+    // The original's states 6 and 7 sliced (as in the game, §6): the second
+    // consumer removed while its state 6 runs, after ours ran whole. The flag
+    // map at the swap is not the one our state 6 read: not exact.
+    test_set_slice_cells(w.a(), Some(100));
+    message(&w, msg::PIPE_BURST, 0, 0, 0);
+    let mut removed = false;
+    let mut results = Vec::new();
+    for _ in 0..200 {
+        let r = deliver(
+            &w,
+            s,
+            msg::SIM_IDLE,
+            JULIAN + 1,
+            &mut lines,
+            || {
+                if !removed && state_of(&w).state == 6 {
+                    removed = true;
+                    message(&w, msg::REMOVE_OCCUPANT, 0, 0, CONSUMER2);
+                }
+            },
+            || {},
+        );
+        if r >= 0 {
+            results.push(r);
+        }
+        if results.len() == 1 {
+            break;
+        }
+    }
+    assert!(removed);
+    assert_eq!(results, vec![0], "{lines:#?}");
+    let p = pass_lines(&lines).last().unwrap().to_string();
+    assert!(p.contains("exact=0 (flag map changed during state 6);"), "{p}");
     let st = stats(s);
     assert_eq!(st.passes_not_exact, 1, "{st:?}");
-    // The removal's recompute runs one more pass, which agrees.
+    // Its recompute: one more pass, sliced too, which agrees.
+    assert_eq!(idle_until_rest(&w, s, JULIAN + 1, &mut lines), vec![0], "{lines:#?}");
+    test_set_slice_cells(w.a(), None);
+    message(&w, msg::INSERT_OCCUPANT, 0, 0, CONSUMER);
+    message(&w, msg::INSERT_OCCUPANT, 0, 0, CONSUMER2);
     assert_eq!(idle_until_rest(&w, s, JULIAN + 1, &mut lines), vec![0], "{lines:#?}");
 
     // A capture that fails: INCOMPLETE, nothing counted.
@@ -1229,6 +1317,48 @@ fn a_restart_moves_the_counter_and_is_replayed_from_its_start() {
     let p = pass_lines(&lines).last().unwrap().to_string();
     assert!(p.contains("pass 4: aligned=start exact=1;"), "{p}");
     assert!(p.contains("mismatches=0;"), "{p}");
+    unsafe { fc4_plumbing_shadow_destroy(s) };
+    stop(&w);
+}
+
+/// A pass the original spreads over many game days (its states 6 and 7 are
+/// time-sliced, and a loaded game delivers few SimIdle: r6b saw passes of
+/// four days) is followed to its swap and compared exactly; there is no time
+/// limit, and no INCOMPLETE line.
+#[test]
+fn a_pass_over_many_days_is_compared() {
+    let w = started();
+    let s = shadow(&w, 0);
+    let mut lines: Vec<String> = Vec::new();
+    assert_eq!(idle_until_rest(&w, s, JULIAN, &mut lines), vec![0, 0], "{lines:#?}");
+    test_set_slice_cells(w.a(), Some(64));
+    message(&w, msg::PIPE_BURST, 0, 0, 0);
+    let mut results = Vec::new();
+    for day in (JULIAN + 1..).take(200) {
+        // One delivery a game day.
+        let r = deliver(&w, s, msg::SIM_NEW_DAY, day, &mut lines, || {}, || {});
+        if r >= 0 {
+            results.push(r);
+        }
+        let st = state_of(&w);
+        if st.state == 9 && st.recompute == 0 {
+            break;
+        }
+    }
+    assert_eq!(results, vec![0], "{lines:#?}");
+    let p = pass_lines(&lines).last().unwrap().to_string();
+    assert!(p.contains("pass 3: aligned=start exact=1;"), "{p}");
+    assert!(p.contains("grid 32x32 cells=1024 differing=0"), "{p}");
+    assert!(p.contains("mismatches=0;"), "{p}");
+    let days: i32 = p
+        .split("days=")
+        .nth(1)
+        .and_then(|t| t.split(';').next())
+        .and_then(|t| t.parse().ok())
+        .unwrap();
+    assert!(days > 2, "{p}");
+    assert!(!lines.iter().any(|l| l.contains("INCOMPLETE")), "{lines:#?}");
+    assert_eq!(stats(s).passes_incomplete, 0);
     unsafe { fc4_plumbing_shadow_destroy(s) };
     stop(&w);
 }

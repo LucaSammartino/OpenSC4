@@ -8,15 +8,30 @@ original executable. Target: **SimCity 4 Deluxe 1.1.641** (GOG Windows exe, SHA-
 - How it works and the roadmap: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - How to contribute (clean-room rules): [CONTRIBUTING.md](CONTRIBUTING.md)
 - Specs for engine authors: [docs/specs/](docs/specs/)
+- Interface facts (vtable slots, layouts, allocators, direct calls): [docs/abi/](docs/abi/)
+- Building and testing the engine, plugin ini keys: [engine/README.md](engine/README.md)
+- Current state, running the game, lanes: [docs/HANDOFF.md](docs/HANDOFF.md)
+
+## Start here
+
+Read by role. The clean-room rules in [CONTRIBUTING.md](CONTRIBUTING.md) decide what each role may open.
+
+- **Coordinator:** [docs/HANDOFF.md](docs/HANDOFF.md).
+- **Implementer (engine code):** [CONTRIBUTING.md](CONTRIBUTING.md), then [docs/specs/](docs/specs/) (questions for the
+  RE side go in [docs/specs/QUESTIONS.md](docs/specs/QUESTIONS.md)), [docs/abi/](docs/abi/) and
+  [engine/README.md](engine/README.md). Nothing below Progress is for implementers.
+- **Spec writer (RE side):** [docs/specs/foundations.md](docs/specs/foundations.md) and [re/](re/); the early RE
+  notes are listed under "Early RE notes" below.
 
 ## Progress
 
-Last updated 2026-10-14 (third session). "Core" means the Rust logic, with its conformance vectors, in `engine/core`. "Glue" means
-the plugin code in `engine/plugin` that runs the core inside the real game. Milestones are defined in
+Last updated 2026-10-14 (run 103). "Core" means the Rust logic, with its conformance vectors, in `engine/core`. "Glue" means
+the plugin code in `engine/plugin` that runs the core inside the real game. Every glue except the simulator and the
+budget is off by default (enable = <key>). Milestones are defined in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap).
 
 **M0: toolchain**
-- [x] CMake project, Rust core, C ABI, conformance runner (416 vector files + 1 runner self-test = 417 tests)
+- [x] CMake project, Rust core, C ABI, conformance runner (658 vector files)
 - [x] `FreeCity4.dll` loads in SC4 1.1.641 and replaces `cSC4Simulator`
 - [x] Unattended in-game runs: autoload a city, autotest verdict, monthly observer (`tools/ingame_run.ps1`)
 - [x] Hands-free game control: advisor popups and the save box closed automatically, scripted UI actions (`-Actions`), the test city restored after a save (`tools/sc4ctl.ps1`)
@@ -40,58 +55,68 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 
 **M3: grid sims**
 - [x] Cores: SimGrid, land value, pollution, crime, aura, flammability, power, plumbing, protection, flora
-- [x] Land value glue (off by default)
+- [x] Land value glue
 - [x] Power glue (merged 63e88f1; runs 27/28 clean, production 5997→6000, 409 cells powered, 0 unpowered)
 - [x] Plumbing and flammability glue (merged 9f741de), **now run in game** (runs 33–38): the water pass on a real network (2 producers, 403 pipes, watered = building cells), fire rolls about every 40 days, and the cross-subsystem `IsCellWatered` read is live. Run 37 caught a use-after-free on fire ignition (a borrowed manager was released), fixed in 95db886; run 38 went through a real fire and a full Shutdown with 0 reference warnings
-- [x] **Pollution glue** (merged d743db2; run 67 clean over 73 months) and its same-process **grid shadow: identical to the original on all eight grids, cell by cell, for 94 months** (run 68). The one difference is a `dirtyWater` flag on 104 days with identical grids (PG14, being traced in the exe)
+- [x] **Pollution glue** (merged d743db2; run 67 clean over 73 months) and its same-process **grid shadow: identical to the original on all eight grids, cell by cell, for 94 months** (run 68). Its one difference, a `dirtyWater` flag, was fixed in 4619a6f; exact since run 73
 - [x] **Protection glue** (fire + police, merged 29b3fcb) and its **grid shadow: identical to the original, cell by cell, for 97 months** (run 70). The fire grid read 0×0 after a load; fixed in f7a9f16 (run 73: fire cycles running)
 - [x] **Crime glue** (merged 941c34f) and its **grid shadow: 96 of 96 months identical**, hotspot included (run 70b); the replacement runs clean for 97 months
-- [x] **Aura glue** and its shadow (merged 7c3f3a2; run 75b: the replacement runs clean; the shadow is close but not exact, AU13–AU15)
-- [x] **Flora glue** and census shadow (merged f8ebce0) and **landfill developer glue** and shadow (merged c2ada06); in game since run 80: landfill shadow exact (94/94), flora registry identical with one tree in some months (FQ15)
+- [x] **Aura glue** and its shadow (merged 7c3f3a2; run 75b: the replacement runs clean; the shadow is exact since run 95)
+- [x] **Flora glue** and census shadow (merged f8ebce0) and **landfill developer glue** and shadow (merged c2ada06); in game since run 80
 - [x] **All ten replacements together track the original for 36 game years** (runs 77/78 on Konradshohe: the same funds curve and the same end in 2062)
-- [x] Shadows for power (290093b), plumbing (571a47e), land value and flammability (9bb91f2): in game since runs 80–83. Power and plumbing grids identical cell by cell on every replayed pass; their bookkeeping lines are off by inherited counts (PW8, PS8: being applied); land value exact (57/57); flammability 69/70 (FL6)
+- [x] Shadows for power (290093b), plumbing (571a47e), land value and flammability (9bb91f2): in game since runs 80–83
 - [x] x87 return channels fixed (5ee5c52): our methods no longer leave values on the game's x87 stack (run 74's corruption); 0 leftovers in every run since, the 900 s soaks included
-- [ ] Grid snapshots match within tolerance (M3 exit)
+- [x] **Shadow scoreboard (run 103, `regress.ps1 -Tag r6c`), exact:** pollution, protection, crime, aura, flora,
+  flammability, land value, residential, power (463/463), plumbing (179/179; exact since run 103, after apply6c),
+  landfill (89/89), neighbours, budget, demand; 0 INCOMPLETE lines. Zones differ only by ZG17
+- [ ] Landfill replacement: its game tiles fail (LG27–LG29): run 103 shows the last step, the new tile occupant answers no exemplar-holder QI
+- [x] **Grid snapshots match within tolerance (M3 exit): met in run 103.** Every grid shadow exact, and the replace run (sixteen replacements) clean
 
 **M4: growth**
 - [x] Specs: building development, growth, tract, lot and zone developers
 - [x] Cores: building development simulator, growth developer, tract developer, **lot developer** (merged 9889f65; 5,254 lines, 36 unit tests, 18 conformance vectors), **zones** (merged f56e52a; ~10,900 lines, 30 conformance vectors covering all 29 §15 tests)
 - [x] **M4 cores complete (5 of 5)**; zones found and fixed a real `SimpleParcellize` Q=2 x-line bug during self-review (`zn15_31`)
-- [x] Zones follow-up (merged 8ee3253): ZQ2/ZQ3/ZQ5/ZQ6 answered from the exe and applied; `DetermineLotSize` filter in the core; tests 30–32 as vectors `zn15_32`–`zn15_35`. ZQ7–ZQ10 filed
+- [x] Zones follow-up (merged 8ee3253): spec answers from the exe applied; `DetermineLotSize` filter in the core; tests 30–32 as vectors `zn15_32`–`zn15_35`
 - [x] Landfill tests 1–23 (`lf11_*`) and the **neighbours core** with tests 1–12 (`nb18_*`) (merged 026fd9e)
-- [x] **Zones glue, phase 1** (the zone manager replacement and its shadow; regress rzones: 16 replacements together run clean, run 97). Phase 2, the zone developer, is next
+- [x] **Zones glue, phase 1** (the zone manager replacement and its shadow; regress rzones: 16 replacements together run clean, run 97). Run 99 exercised the PlaceZone commit path and the dezone handler in game: clean
 - [x] **Neighbours glue** and its shadow (merged 50e2dc5, fixed 5e61237): the shadow matches the original every month (92/92); the replacement runs clean with the other fourteen (regress rneigh2). The first in-game run crashed until our property holder kept the game's own property objects (foundations §10.2)
-- [x] **Residential simulator core** (merged 737bcc5): all 24 residential §15 tests as unit tests and `rs15_*` vectors, the save record, RS1–RS6 applied; REH building work is left to host hooks. RS7–RS17 filed
-- [x] **Residential education and health core** (REH §2–§7, merged e520128): all 24 REH §11 tests as unit tests and `reh11_*` vectors (36 new vectors), RS7–RS17 applied, EH1–EH14 filed
-- [x] **Residential glue** and its shadow (merged bc7ffa0): in game since run 86. The replacement runs clean for 39 game years (run 89) and saves and reloads (runs 88, 91); the shadow matches the original on 12 of 15 daily states, every grid and scalar (the proximity states differ, RG23); the original's EQ/HQ path (run 90b) and ours (run 89) decline the same way
-- [x] GD/BD/TD spec questions answered in the named specs (8fdea4e)
+- [x] **Residential simulator core** (merged 737bcc5): all 24 residential §15 tests as unit tests and `rs15_*` vectors, the save record; REH building work is left to host hooks
+- [x] **Residential education and health core** (REH §2–§7, merged e520128): all 24 REH §11 tests as unit tests and `reh11_*` vectors (36 new vectors)
+- [x] **Residential glue** and its shadow (merged bc7ffa0): in game since run 86. The replacement runs clean for 39 game years (run 89) and saves and reloads (runs 88, 91); the shadow is exact since run 95; the original's EQ/HQ path (run 90b) and ours (run 89) decline the same way
+- [x] Growth, building development and tract developer spec questions answered in the specs (8fdea4e)
 - [x] Daily growth budget calibrated in the original (growth probe merged 393a529; run 93: 14,339 days, the 3 ms timer never cuts, so the default is unlimited)
 - [ ] Seeding rules (foundations §6.3)
-- [ ] Glue, and the growth statistics distribution matches across seeded runs (M4 exit)
+- [ ] **Development glue** (building development simulator, growth developers and `development_shadow`; merged c787ecf): fails in game. Run 101: the shadow compared nothing. Run 102: the replacement went bankrupt. Back with the devglue2 lane (paused)
+- [ ] Tract developer glue (lane paused)
+- [ ] Lot developer glue; zone developer and lot manager (zones phase 2): not started
+- [ ] The growth statistics distribution matches across seeded runs (M4 exit)
 
 **M5: traffic**
 - [x] Specs: traffic simulator, traffic network, pathfinder
-- [x] Traffic network core (merged dd240c9: 50 unit tests, 20 conformance vectors for all twelve §11 tests; §4.14 and §6 persistence wait for the traffic simulator). Twenty spec questions filed as TN1–TN20
-- [x] Pathfinder core (merged 36ababe: 28 `pf11_*` vectors, PF1–PF15 filed)
-- [x] **Traffic simulator core** (merged a11eb7d: all 15 §11 tests as unit tests and 29 `ts11_*` vectors; TS1–TS34 filed)
-- [ ] Traffic glue (phase 1, the simulator + pathfinder unit: lane running), calibration; commute and volume maps match (M5 exit)
+- [x] Traffic network core (merged dd240c9: 50 unit tests, 20 conformance vectors for all twelve §11 tests; §4.14 and §6 persistence wait for the traffic simulator)
+- [x] Pathfinder core (merged 36ababe: 28 `pf11_*` vectors)
+- [x] **Traffic simulator core** (merged a11eb7d: all 15 §11 tests as unit tests and 29 `ts11_*` vectors)
+- [ ] Traffic glue (phase 1, the simulator + pathfinder unit: lane paused), calibration; commute and volume maps match (M5 exit)
 
 **M6+: beyond simulation**
 - [x] Specs: game data formats (DBPF, exemplars, tuning catalogue, 601f3a9), lot/occupant save records (0460f3a), city save records validated against 417 saves (e69009f)
 - [x] `engine/formats` matches spec §11 for DBPF, QFS and LTEXT (merged b5bdf8a; the sweep over real game data shows 0 failures across 22 .dat files and 1,004 saves)
-- [x] `exemplar.rs` matches data-formats §4, §5 and the §11 exemplar rows (merged 64a25d2): the install sweep loads 9,347 of 9,347 exemplars and re-encodes 9,345 binary records byte-identically. EX1–EX20 filed
+- [x] `exemplar.rs` matches data-formats §4, §5 and the §11 exemplar rows (merged 64a25d2): the install sweep loads 9,347 of 9,347 exemplars and re-encodes 9,345 binary records byte-identically
 - [x] FSH texture and S3D model readers (graphics-formats §2–§4, merged 2db780b): `fc4-dat fsh|s3d`; the sweep reads every FSH and S3D in the install
 - [ ] Rendering, UI, audio, region; a standalone executable
 
 **Cross-cutting**
 - [x] Interface/ABI reference for implementers: allocators, layouts, direct calls ([docs/abi/](docs/abi/))
+- [x] Test harness switches in the plugin (6147be6, tooling, off by default): `sim_turbo` (our clock without the msPerDay wait), `autotest_end_date`, `script = <file>` (dated zone / dezone / speed / save / digest actions through the game's interfaces); turbo runs about 100 game days/s in game and waits for ConnectionsReady (0786064)
+- [ ] Parallel game slots and a per-lane run queue (tooling lane running)
 - [ ] SDK errata (289 findings) re-checked against upstream gzcom-dll and reported (needs the owner's OK)
-- [ ] In-game manual checklist ([docs/manual-checks.md](docs/manual-checks.md))
+- [ ] In-game manual checklist ([docs/manual-checks.md](docs/manual-checks.md)): two human checks remain, the budget window's look and the cheats (`RiskyMoney`, `WeaknessPays`, `Moolah`)
 
 The rest of this README covers the **reverse-engineering workspace** that produces those specs. That material is
-for spec writers only. It contains no game binaries or assets, and decompiled output is never committed.
+for spec writers only (the in-game harness entry under Tooling is for the coordinator). It contains no game
+binaries or assets, and decompiled output is never committed.
 
-## Start here
+## Early RE notes (spec writers only; superseded by docs/specs where they overlap)
 
 | Topic | Doc |
 |---|---|
@@ -129,8 +154,13 @@ addresses alongside the matching named Mac Rev A function.
 - `tools/build.ps1`: the full pipeline (match → merge → apply → export to `decomp/`).
 - `tools/dbpf.py`, `tools/extract_tuning.py`: read-only DBPF/exemplar reader and tuning dumper.
 - `tools/x86dis.py`, `tools/class_vtables.py`: quick disassembly and vtable discovery from a CLSID.
+- In-game harness (coordinator): `tools/ingame_run.ps1`, `tools/regress.ps1`, `tools/run_summary.ps1`, `tools/sc4ctl.ps1`;
+  see [docs/HANDOFF.md](docs/HANDOFF.md) §3. Implementers work from the coordinator's run results and do not open `tools/`.
 
 ## Rebuilding locally
+
+This section rebuilds the RE workspace. To build the engine and the plugin DLL, see
+[engine/README.md](engine/README.md#build-and-test).
 
 Everything is built from your own copy of the game. Nothing decompiled is downloaded or committed.
 

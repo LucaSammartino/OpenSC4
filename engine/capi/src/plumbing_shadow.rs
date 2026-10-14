@@ -24,28 +24,41 @@
 //!   (`pass_counter`, without the references). The next `DoIdle` runs
 //!   state 1; after it the shadow captures the original's record (its own `Write`
 //!   into memory, §9: flag map, producers with the production of its state 1,
-//!   pipes, department, totals) and runs FreeCity4's pass on it at once:
-//!   states 0 and 1 (their results kept for the comparison), then,
-//!   with the original's production put back so a difference does not
-//!   spread, states 2 to 7, over private copies of the two grids. Every input
-//!   is read live, read-only, through the host table; every write stays in
-//!   the shadow (deal usage, connection flags, occupant properties in
-//!   overlays that later reads see; posts, history, lots, pipe watered
-//!   states, budget writes are counted and dropped).
+//!   pipes, department, totals) and starts FreeCity4's pass on it, over
+//!   private copies of the two grids: states 0 and 1 at once (their results
+//!   kept for the comparison), then the original's production is put back so
+//!   a difference does not spread.
+//! - **State by state.** States 0 to 5 each take one `DoIdle` (§6), so the
+//!   shadow runs each of our states 2 to 5 just before the delivery in which
+//!   the original runs the same state (state 5 falls through into 6, and our
+//!   state 6 is not sliced, so our 7 follows at once). Each therefore reads
+//!   the live inputs as the original's does, whatever the occupant messages
+//!   delivered between the steps changed: a building's consumption at the
+//!   ring flood (§6.3 step 3, §5.3 PS8) above all. The flag map, which those
+//!   messages move (§5.3 step 2, §5.4), is the original's own, taken from
+//!   its record before each of our states. The pass has no time limit: a
+//!   loaded machine delivers few `SimIdle`, and a pass can take days; it is
+//!   followed until its swap or until the counter moves again. Every input is
+//!   read live, read-only, through the host table; every write stays in the
+//!   shadow (deal usage, connection flags, occupant properties in overlays
+//!   that later reads see; posts, history, lots, pipe watered states, budget
+//!   writes are counted and dropped).
 //! - **Swap** (the end of state 6; `GetWateredGrid` changes): our published
 //!   grid is compared cell by cell with the original's new one, with the
 //!   production, efficiency, polluted flag and water used of each producer
 //!   (its record and `GetWaterProducerInfo`), the polluted count and pollution
 //!   average, the deal usage, and each water connection's active and visited
-//!   flags. The record captured now must show the same pass, flag map,
-//!   producers, pipes and department as at the start; otherwise the pass is
-//!   "not exact" (the city changed while it ran: its differences are
-//!   reported but not counted). Demand is not among them: no pass state reads
-//!   it (§5.3, PS8). A pass restarted by a deal status (state 9, then 0)
-//!   moves the counter again and is replayed from its new start.
-//!   Without the `pass_counter` callback, the start shows on a probe cell of
-//!   the next working grid (state 2 is its first writer and sets every cell
-//!   to 0 or `PIPE`), and a restart is replayed from the swap's record.
+//!   flags. The record captured now must show the same pass, producers, pipes
+//!   and department as at the start, and the flag map our last state ran on
+//!   (a change during the original's time-sliced state 6 is not seen by our
+//!   unsliced one); otherwise the pass is "not exact" (the city changed while
+//!   it ran: its differences are reported but not counted). Demand is not
+//!   among them: no pass state reads it (§5.3, PS8). A pass restarted by a
+//!   deal status (state 9, then 0) moves the counter again and is replayed
+//!   from its new start. Without the `pass_counter` callback, the start shows
+//!   on a probe cell of the next working grid (state 2 is its first writer and
+//!   sets every cell to 0 or `PIPE`), and a restart is replayed from the
+//!   swap's record.
 //! - **End.** The shadow captures after each delivery until state 7 is done
 //!   (the record's iterator), runs our state 8 just before the original's
 //!   (its inputs, producer condition and budget items, are the ones state 8
@@ -227,8 +240,6 @@ const _: () = {
 const MAX_REPLAY_STEPS: u32 = 1_000_000;
 /// Deliveries after a swap before the end is given up.
 const MAX_AFTER_SWAP: u32 = 256;
-/// Game days a started pass may take to swap.
-const MAX_PASS_DAYS: i32 = 2;
 /// INCOMPLETE lines per month (the month line counts them all).
 const INCOMPLETE_LINES_PER_MONTH: u32 = 8;
 /// Producers, deals and connections listed per line (beyond `max_cells`).
@@ -769,14 +780,18 @@ impl Rec {
     }
 }
 
-/// What must not change while a pass runs for its replay to be exact.
-/// Demand is not among them: no pass state reads it, and the occupant
-/// messages delivered between the pass's steps move it (plumbing.md §5.3,
-/// PS8); it is compared with the record read at the comparison.
-fn changed_inputs(a: &PlumbingState, b: &PlumbingState) -> Vec<&'static str> {
+/// What must not change while a pass runs for its replay to be exact: the
+/// producers, pipes and department since its start (`start`), and the flag
+/// map since our last state ran on it (`flags_seen`: each of our states 2 to
+/// 5 runs on the original's flag map as it stands then, so only a change
+/// during the original's time-sliced state 6, after our unsliced one,
+/// remains). Demand is not among them: no pass state reads it, and the
+/// occupant messages delivered between the pass's steps move it (plumbing.md
+/// §5.3, PS8); it is compared with the record read at the comparison.
+fn changed_inputs(start: &PlumbingState, flags_seen: &[u8], now: &PlumbingState) -> Vec<&'static str> {
     let mut v = Vec::new();
-    if a.flags != b.flags || (a.count_x, a.count_z) != (b.count_x, b.count_z) {
-        v.push("flag map");
+    if flags_seen != now.flags.as_slice() || (start.count_x, start.count_z) != (now.count_x, now.count_z) {
+        v.push("flag map changed during state 6");
     }
     let prod = |s: &PlumbingState| {
         s.producers
@@ -784,16 +799,37 @@ fn changed_inputs(a: &PlumbingState, b: &PlumbingState) -> Vec<&'static str> {
             .map(|p| (p.occupant, p.seed_x, p.seed_z, p.rect, p.max_capacity, p.production))
             .collect::<Vec<_>>()
     };
-    if prod(a) != prod(b) {
-        v.push("producers");
+    if prod(start) != prod(now) {
+        v.push("producers changed during the pass");
     }
-    if a.pipes != b.pipes {
-        v.push("pipes");
+    if start.pipes != now.pipes {
+        v.push("pipes changed during the pass");
     }
-    if a.department != b.department {
-        v.push("department");
+    if start.department != now.department {
+        v.push("department changed during the pass");
     }
     v
+}
+
+/// Marks a run not exact, once per reason.
+fn note_inexact(run: &mut Run, why: String) {
+    if !run.why_inexact.contains(&why) {
+        run.why_inexact.push(why);
+    }
+}
+
+/// Our `DoIdle` until `target` is the next state (one state per call, §6;
+/// our states 6 and 7 are not sliced).
+fn run_to(sim: &PlumbingSim, target: u32) -> Result<(), String> {
+    let mut steps = 0u32;
+    while sim.with_state(|s| s.state) != target {
+        if steps >= MAX_REPLAY_STEPS || sim.with_state(|s| s.state) > 8 {
+            return Err(format!("our pass did not reach state {target}"));
+        }
+        sim.do_idle(0);
+        steps += 1;
+    }
+    Ok(())
 }
 
 // ---- comparisons and lines ---------------------------------------------------------------------------
@@ -878,6 +914,10 @@ struct Run {
     why_inexact: Vec<String>,
     /// The record the replay started from.
     start: PlumbingState,
+    /// The game day it started on (the pass line's `days`).
+    start_julian: i32,
+    /// The original's flag map our last state ran on.
+    flags_seen: Vec<u8>,
     sim: Rc<PlumbingSim>,
     /// Our state 1: (occupant, production, efficiency, polluted).
     ours1: Vec<(u64, u32, f32, bool)>,
@@ -907,7 +947,8 @@ enum Phase {
     /// `DoIdle` runs state 1, after which the record holds this pass's
     /// production: the replay starts there.
     Counted { julian: i32, id: i32 },
-    /// A pass started (state 1 or 2 seen); waiting for its swap.
+    /// A pass started (state 1 or 2 seen); our states run one per delivery
+    /// (`Shadow::step`) until its swap, however many days that takes.
     Started {
         julian: i32,
         deliveries: u32,
@@ -1074,8 +1115,12 @@ impl Shadow {
         Ok((c, r))
     }
 
-    /// FreeCity4's pass on the original's record, to the start of state 8.
-    fn replay(&self, cap: &Capture, rec: &Rec, aligned_start: bool) -> Result<Box<Run>, String> {
+    /// FreeCity4's pass on the original's record: states 0 and 1, then the
+    /// original's production put back, then on until `pending` is the next
+    /// state (2: the original has run state 1; 3: state 2, seen on the probe
+    /// cell; 8: the swap, the rest of the pass at once).
+    fn replay(&self, cap: &Capture, rec: &Rec, julian: i32, pending: u32) -> Result<Box<Run>, String> {
+        let aligned_start = pending != 8;
         let h = self.host.clone();
         h.begin_run();
         for &t in &rec.grids {
@@ -1127,18 +1172,13 @@ impl Shadow {
                 }
             }
         });
-        let mut steps = 0u32;
-        while sim.with_state(|s| s.state) != 8 {
-            if steps >= MAX_REPLAY_STEPS || sim.with_state(|s| s.state) > 8 {
-                return Err("our pass did not reach state 8".to_string());
-            }
-            sim.do_idle(0);
-            steps += 1;
-        }
+        run_to(&sim, pending)?;
         Ok(Box::new(Run {
             aligned_start,
             why_inexact: Vec::new(),
             start: rec.state.clone(),
+            start_julian: julian,
+            flags_seen: rec.state.flags.clone(),
             sim,
             ours1,
             avg1: s1.average_water_pollution,
@@ -1202,6 +1242,34 @@ impl Shadow {
         }
         self.day_replays += 1;
         true
+    }
+
+    /// Before a `DoIdle` of the original during its pass: our next state,
+    /// the one the original is about to run (states 0 to 5 take one call
+    /// each, §6), on the inputs as they stand now. The flag map first: the
+    /// original's, from its record, which the occupant messages delivered
+    /// since our last state may have moved (§5.3 step 2, §5.4; PS8). After
+    /// our state 5 the rest of our pass runs at once (state 5 falls through
+    /// into 6, which ours does not slice; 7 only redisplays).
+    fn step(&mut self, run: &mut Run) {
+        let state = run.sim.with_state(|s| s.state);
+        if !(2..=5).contains(&state) {
+            return;
+        }
+        match self.capture_rec() {
+            Ok((_, r)) if (r.state.count_x, r.state.count_z) == (run.start.count_x, run.start.count_z) => {
+                run.sim.with_state(|s| s.flags.clone_from(&r.state.flags));
+                run.flags_seen = r.state.flags;
+            }
+            Ok(_) => note_inexact(run, "the city's size changed during the pass".to_string()),
+            Err(e) => note_inexact(run, format!("capture before our state {state}: {e}")),
+        }
+        run.sim.do_idle(0);
+        if run.sim.with_state(|s| s.state) >= 6 {
+            if let Err(e) = run_to(&run.sim, 8) {
+                note_inexact(run, e);
+            }
+        }
     }
 
     fn note_observed_end(&mut self) {
@@ -1276,6 +1344,13 @@ impl Shadow {
                 // The counter before this delivery, so a state 0 in it shows.
                 self.last_counter = self.host.orig_pass_counter();
             }
+            if let Phase::Started { run: Some(_), .. } = &self.phase {
+                let mut phase = std::mem::replace(&mut self.phase, Phase::Idle);
+                if let Phase::Started { run: Some(run), .. } = &mut phase {
+                    self.step(run);
+                }
+                self.phase = phase;
+            }
             if let Phase::EndPending(t) = &mut self.phase {
                 // Our state 8, on the inputs the original's state 8 changes
                 // (condition, budget items) as they stand before it.
@@ -1347,7 +1422,8 @@ impl Shadow {
                         Phase::Idle
                     }
                 } else if self.probe_changed() {
-                    self.on_start(cur.julian, lines)
+                    // This delivery ran state 2 (its first writer).
+                    self.on_start(cur.julian, 3, lines)
                 } else {
                     Phase::Idle
                 }
@@ -1361,7 +1437,7 @@ impl Shadow {
                     self.on_swap(Some((None, id)), cur.julian, cur.pub_before, pub_after, 1, lines)
                 } else {
                     // This delivery ran state 1.
-                    self.on_start(julian, lines)
+                    self.on_start(julian, 2, lines)
                 }
             }
             Phase::Started {
@@ -1383,12 +1459,11 @@ impl Shadow {
                     // A deal status restarted the pass (state 9, then 0):
                     // the replay starts again with it.
                     counted(cur.julian)
-                } else if cur.julian.wrapping_sub(julian) > MAX_PASS_DAYS {
-                    if run.is_some() {
-                        self.incomplete(cur.julian, Some(id), "no swap within 2 days of its start", lines);
-                    }
-                    Phase::Idle
                 } else {
+                    // No time limit: the original's states 6 and 7 are
+                    // time-sliced and a loaded game delivers few SimIdle, so
+                    // a pass can take days (r6b: four). It ends at its swap,
+                    // or at the next counter move (a restart).
                     Phase::Started {
                         julian,
                         deliveries: deliveries + 1,
@@ -1452,8 +1527,9 @@ impl Shadow {
         result
     }
 
-    /// State 2 was seen: a pass started.
-    fn on_start(&mut self, julian: i32, lines: &mut Vec<String>) -> Phase {
+    /// A pass started: the original has run state 1 (`pending` 2, seen
+    /// through its counter) or state 2 (`pending` 3, seen on the probe cell).
+    fn on_start(&mut self, julian: i32, pending: u32, lines: &mut Vec<String>) -> Phase {
         self.probe = None;
         // The previous pass has ended (or was abandoned) by now.
         self.maybe_end = false;
@@ -1471,7 +1547,7 @@ impl Shadow {
             Ok((c, r)) => {
                 let id = r.state.pass_counter;
                 let run = if replay {
-                    match self.replay(&c, &r, true) {
+                    match self.replay(&c, &r, julian, pending) {
                         Ok(run) => Some(run),
                         Err(e) => {
                             self.incomplete(julian, Some(id), &e, lines);
@@ -1521,7 +1597,7 @@ impl Shadow {
                         if start_id != id {
                             // A deal status restarted the pass: replay its
                             // last run from this record.
-                            match self.replay(&c, &r, false) {
+                            match self.replay(&c, &r, julian, 8) {
                                 Ok(mut again) => {
                                     again.why_inexact.push("restarted during the pass".to_string());
                                     run = Some(again);
@@ -1529,10 +1605,22 @@ impl Shadow {
                                 Err(e) => self.incomplete(julian, Some(id), &e, lines),
                             }
                         } else {
-                            let changed = changed_inputs(&prev.start, &r.state);
+                            let behind = prev.sim.with_state(|s| s.state);
+                            if behind < 6 {
+                                // The original ran more states than the
+                                // deliveries we saw: ours finish now, later
+                                // than its.
+                                note_inexact(
+                                    &mut prev,
+                                    format!("our pass was at state {behind} at the original's swap"),
+                                );
+                            }
+                            if let Err(e) = run_to(&prev.sim, 8) {
+                                note_inexact(&mut prev, e);
+                            }
+                            let changed = changed_inputs(&prev.start, &prev.flags_seen, &r.state);
                             if !changed.is_empty() {
-                                prev.why_inexact
-                                    .push(format!("{} changed during the pass", changed.join(", ")));
+                                prev.why_inexact.push(changed.join(", "));
                             }
                             run = Some(prev);
                         }
@@ -1540,7 +1628,7 @@ impl Shadow {
                     Some((None, _)) => {}
                     None => {
                         if self.budget_allows(julian) {
-                            match self.replay(&c, &r, false) {
+                            match self.replay(&c, &r, julian, 8) {
                                 Ok(mut again) => {
                                     again.why_inexact.push("start not seen".to_string());
                                     run = Some(again);
@@ -1856,7 +1944,7 @@ impl Shadow {
             format!(" (not exact: {total} differences not counted)")
         };
         lines.push(format!(
-            "plumbing shadow {} pass {}: aligned={} exact={}{}; {}; deliveries={}; mismatches={counted}{not_exact}; \
+            "plumbing shadow {} pass {}: aligned={} exact={}{}; {}; deliveries={} days={}; mismatches={counted}{not_exact}; \
              passes compared={} clean={}",
             date(julian),
             t.id,
@@ -1869,6 +1957,7 @@ impl Shadow {
             },
             parts.join("; "),
             t.deliveries,
+            julian.wrapping_sub(run.start_julian),
             self.stats.passes_compared,
             self.stats.passes_clean
         ));
