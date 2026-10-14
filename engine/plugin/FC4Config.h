@@ -176,6 +176,12 @@ enum class Sw : unsigned {
     ProtectionAirSources,  // protection_air_sources: create the fire plane / police helicopter
                            //   dispatch source through GZCOM and call its non-virtual Init /
                            //   Shutdown (docs/abi/direct-calls.md; identified executable only)
+    // Demand simulator (cFC4Demand.cpp); only used when the demand subsystem is enabled.
+    DemandCapacity,        // demand_capacity: read the building profile's capacity maps (§7.2;
+                           //   plain reads, any executable) (off: no capacity, as before)
+    DemandDirectCalls,     // demand_direct_calls: fill GetLocalPopulationSummary's map with the
+                           //   game's map functions (docs/abi/direct-calls.md; identified executable
+                           //   only) (off: the caller's map is left untouched)
     Count
 };
 

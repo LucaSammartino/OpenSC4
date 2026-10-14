@@ -117,6 +117,8 @@ const SwitchInfo kSwitches[kCount] = {
     {"protection_posts", "FC4_PROTECTION_POSTS"},
     {"protection_history", "FC4_PROTECTION_HISTORY"},
     {"protection_air_sources", "FC4_PROTECTION_AIR_SOURCES"},
+    {"demand_capacity", "FC4_DEMAND_CAPACITY"},
+    {"demand_direct_calls", "FC4_DEMAND_DIRECT_CALLS"},
 };
 
 // Keys that are not switches.
@@ -137,8 +139,10 @@ volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // pollution
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // protection
-                               1, 1, 1, 1, 1, 1, 1, 1};
-static_assert(kCount == 80, "g_on: one 1 per switch");
+                               1, 1, 1, 1, 1, 1, 1, 1,
+                               // demand
+                               1, 1};
+static_assert(kCount == 82, "g_on: one 1 per switch");
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};

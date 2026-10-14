@@ -59,6 +59,11 @@
 //         SimNewMonth) to a fake "original" pollution simulator; returns the
 //         delivery's difference count, -1 (not taken) or -2 (delivered,
 //         nothing compared). (13-15 are left to the parallel glue lanes.)
+//   op 20 kFC4SeamDemandCapacity   a = const FC4DemandCapacityTestInput*
+//         (cFC4Demand.h): the demand glue's capacity-map read of a building
+//         profile (DemandReportCapacities, no simulator): the visitor gets
+//         every entry; returns the entries reported, 0 (switch off) or -1
+//         (refused, logged).
 #pragma once
 
 #include <cstdint>
@@ -79,6 +84,7 @@ enum : uint32_t {
     kFC4SeamDemandShadow = 11,
     kFC4SeamRefAuditRelease = 12,
     kFC4SeamPollutionShadow = 16,
+    kFC4SeamDemandCapacity = 20,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);
