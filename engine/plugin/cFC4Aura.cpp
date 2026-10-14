@@ -425,10 +425,9 @@ uint64_t InputGrid(void* u, uint32_t which) {
             // Slots 39 / 40 return a cISC4SimGrid<float>* (§13 SDK errata: the
             // SDK says int32; same register), not AddRef'd.
             cFC4ISC4ResidentialSimulator* rs = fc4::AsGame(r);
-            const int32_t v =
+            cISC4SimGrid<float>* grid =
                 which == FC4_AURA_INPUT_SCHOOL ? rs->GetSchoolAverageGradeMap() : rs->GetHospitalAverageGradeMap();
-            const uint64_t t = static_cast<uint64_t>(static_cast<uint32_t>(v));
-            return t ? t : Missing(u, which, "the grade map getter returned null");
+            return grid ? TokenOf(grid) : Missing(u, which, "the grade map getter returned null");
         }
         case FC4_AURA_INPUT_CRIME: {
             cISC4CrimeSimulator* cr = c->GetCrimeSimulator();  // borrowed
