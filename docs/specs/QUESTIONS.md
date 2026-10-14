@@ -2091,3 +2091,17 @@ About PR1–PR13, DQ3–DQ8 and PG4–PG13 as applied. The current answer is in 
   their integer sum: it comes from unrounded values. Which values does the original add for the total (float
   per-lot sums, or per-line floats before display rounding), in which order and width, and how is the total
   rounded? First seen in this run; runs 80–83 had none in 93–95 months. [ours as budget.md reads today]
+
+## From the save-reference audit (filed by the coordinator from the `lvrefs` lane's report, 2026-10-14)
+
+Run 88 (save, then reload, fourteen replacements): after an in-session save, land value's release of its three grids at
+Shutdown was the last reference; on a loaded city without a save, the game still holds a reference at Shutdown. The
+lane now treats every reference a glue holds from `Read` as its own (`FC4_RELEASE_CREATED`), which is correct either
+way.
+
+- **SV1 — foundations §2.7:** which references does the game's load (the persistent resource manager's object table,
+  `ReadGZSerializable`) keep on the objects it creates or resolves, and when does it drop them: at the end of the
+  load, at the next save, or at city Shutdown? [our reading: the load keeps one until the next save; marked in the
+  code as a reading, not a finding]
+- **SV2 — ordinance §9.1:** does anything other than the ordinance simulator hold a foreign (plugin) ordinance read
+  from a save? [assumed no; released as ours]
