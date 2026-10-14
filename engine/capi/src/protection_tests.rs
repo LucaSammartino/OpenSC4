@@ -527,6 +527,7 @@ fn null_handle_gives_the_neutral_answers() {
             false
         ));
         assert_eq!(fc4_protection_shadow_grid(null, std::ptr::null_mut(), 0), 0);
+        assert_eq!(fc4_protection_shadow_unadjusted_grid(null, std::ptr::null_mut(), 0), 0);
         fc4_protection_destroy(null);
     }
 }
@@ -741,17 +742,19 @@ fn the_dispatch_source_slots() {
             std::ptr::null_mut(),
             std::ptr::null_mut()
         ));
-        // An active dispatch adds its cone; the ID buffer is sized from the
-        // count (never a capacity of 0).
+        // An active dispatch adds the cone of its source station's dispatch
+        // effect (§7.2, PR2); the ID buffer is sized from the count (never a
+        // capacity of 0). The reserved field (an occupant without the
+        // properties) is not read.
         let pd = ProtectionKind::Police.params();
-        g.set_raw(AUTOMATON, pd.dispatch_effect_props[0], mem::SINT32, 50i32);
-        g.set_raw(AUTOMATON, pd.dispatch_effect_props[1], mem::SINT32, 10i32);
-        g.set_raw(AUTOMATON, pd.dispatch_effect_props[2], mem::FLOAT32, 64.0f32);
+        g.set_raw(STATION, pd.dispatch_effect_props[0], mem::SINT32, 50i32);
+        g.set_raw(STATION, pd.dispatch_effect_props[1], mem::SINT32, 10i32);
+        g.set_raw(STATION, pd.dispatch_effect_props[2], mem::FLOAT32, 64.0f32);
         g.dispatches.borrow_mut().push((
             0,
             fc4_protection_dispatch_info {
                 station: STATION,
-                automaton: AUTOMATON,
+                reserved: AUTOMATON,
                 call_id: 1,
                 active: 1,
                 x: 400.0,
@@ -768,7 +771,8 @@ fn the_dispatch_source_slots() {
         assert!(g.capacities.borrow().iter().all(|&c| c > 0));
         let adj = g.grid_values(state(p).adjusted_grid);
         assert!(adj[(12 * TRACTS + 12) as usize] > 0.0);
-        assert_eq!(fc4_protection_station_dispatch_radius(p, AUTOMATON), 64.0);
+        assert_eq!(fc4_protection_station_dispatch_radius(p, STATION), 64.0);
+        assert_eq!(fc4_protection_station_dispatch_radius(p, AUTOMATON), 0.0);
         assert!(fc4_protection_shutdown(p));
         fc4_protection_destroy(p);
     }
@@ -1030,6 +1034,7 @@ fn the_shadow_rebuilds_the_replacements_grid_read_only() {
         let s = fc4_protection_shadow_create(&ro, 0);
         assert!(!s.is_null());
         assert_eq!(fc4_protection_shadow_grid(s, std::ptr::null_mut(), 0), 0);
+        assert_eq!(fc4_protection_shadow_unadjusted_grid(s, std::ptr::null_mut(), 0), 0);
         let mut bad = geometry();
         bad.count_x = 0;
         assert!(!fc4_protection_shadow_run(s, &bad, std::ptr::null(), 0, 0, false));
@@ -1047,6 +1052,22 @@ fn the_shadow_rebuilds_the_replacements_grid_read_only() {
         let theirs: Vec<f64> = grid.iter().map(|&v| f64::from(v)).collect();
         assert_eq!(theirs, ours);
         assert!(grid.iter().any(|&v| v > 0));
+        // PR5: the unadjusted grid too (the replacement's int16 grid).
+        let ours_unadj = g.grid_values(state(p).unadjusted_grid);
+        let mut unadj = vec![0i16; (TRACTS * TRACTS) as usize];
+        assert_eq!(
+            fc4_protection_shadow_unadjusted_grid(s, unadj.as_mut_ptr(), unadj.len()),
+            unadj.len()
+        );
+        let theirs: Vec<f64> = unadj.iter().map(|&v| f64::from(v)).collect();
+        assert_eq!(theirs, ours_unadj);
+        assert!(unadj.iter().any(|&v| v > 0));
+        let mut short16 = [0i16; 3];
+        assert_eq!(
+            fc4_protection_shadow_unadjusted_grid(s, short16.as_mut_ptr(), 3),
+            unadj.len()
+        );
+        assert_eq!(short16[..], unadj[..3]);
         // Queries on the shadow use the same inputs.
         assert_eq!(
             fc4_protection_station_efficiency(s, STATION),

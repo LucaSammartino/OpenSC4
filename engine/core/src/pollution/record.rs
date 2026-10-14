@@ -131,7 +131,9 @@ impl PollutionSim {
         if inp.error() != 0 {
             return None;
         }
-        s.radiation_sum = 0;
+        // radiationSum is not saved and Read does not touch it (§6, PG7
+        // [quirk]): a fresh object keeps the constructor's 0, so the first end
+        // of cycle after a load uses only the tracts visited since the load.
         s.effects_visible = true;
         s.loaded = true;
         Some(s)

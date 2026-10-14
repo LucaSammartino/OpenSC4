@@ -143,15 +143,15 @@ The data model, by meaning (offsets are deliberately not part of it):
 
 | Message | Condition | Action |
 |---|---|---|
-| `0x66956810` (simulation begin) | | marks the network as changed (forces `DoConnectionsChanged` on the next cycle; traffic-network.md) |
+| `0x66956810` (SimBegin, the one-shot agent) | | sets the **network-changed byte** := 1 and returns true. The byte is cleared by the constructor and saved and loaded (§6.1 row 14: the `bool` after the intersection-dirty rectangle). Nothing else reads it, in 1.1.641 (`0x00724558`, its only writer besides the constructor `0x0071FC1A`) or in the Mac build. No rebuild follows: the network model is kept current by the occupant and neighbour handlers below (traffic-network.md §3) and rebuilt only by DoPostCityInit (§3.5). *[compat: keep the byte for the round trip; it drives nothing]* (TS5) |
 | `0x66956814` (day agent) | | `DoDailySimulation` (§3.3); its result is the agent's "finished" answer |
 | `0x66956816` (month agent) | | `DoMonthlySimulation` (§4.12) |
-| `0x26D31EC1` | | `DoPostCityInit` (`0x00720430`, traffic-network.md: builds the network model) |
+| `0x26D31EC1` | | `DoPostCityInit` (`0x00720430`, §3.5: builds the network model, traffic-network.md, then resumes the saved cycle) |
 | `0x08DAC3E7` | data2 = `0xC921CEEB` (mass transit) | `transitMultiplier` (the transit-switch entry cost multiplier, traffic-network.md §4.7.3) := curve `0xCA5F7821`(`r24(f × 100.0f)`), `f` = the department's funding fraction (slot 10 `+0x28` returns a pointer to it); also set the same way in DoPostCityInit; saved |
-| `0x8A0D15DA` / `0xEA0D163E` | | add / remove a neighbour connection (traffic-network.md) |
+| `0x8A0D15DA` / `0xEA0D163E` | | `AddNeighborConnection(data1 type, data2 x, data3 z)` (`0x007153C0`) / `RemoveNeighborConnection(type, x, z)` (`0x00713AB0`): they maintain the off-map cell's edge record (traffic-network.md §2.7.2–§2.7.3). Add sets the type bit, raises the trip cost and sets the pool. Remove clears the bit; once the mask is empty it also clears the pool, runs the pool sweep and frees the destination byte. Neither touches the network-changed byte (TS6) |
 | `0xC53D10AA` | data1 = `0xE7E2C2DB` and data2 = `0xC9133286` | re-read tuning (§4.14) |
 | `0xC2C09554` | | `UpdateTravelStrategies` (§4.1.2) |
-| `0x99EF1142` / `0x99EF1143` | data3 = `0xC772BF98` | network occupant inserted / removed (traffic-network.md); on remove the cell's edge-density records are erased; any such message (even a failed cast) marks the network as changed |
+| `0x99EF1142` / `0x99EF1143` | data3 = `0xC772BF98` | network occupant inserted / removed: the cell-count and pothole-set bookkeeping (§3.6), then the network part (traffic-network.md); on remove the cell's edge-density records are erased. Any such message (even a failed cast) sets the network-changed byte (see `0x66956810`; never read) |
 | `0xE8BDA2E7` | lot (`IGZUnknown` → a **copy** of the lot with an empty trip list, lot-developer.md §3.2; §4.1.3 finds the real lot again at its corner) | data1 = 3: `DoLotDeactivated` (`0x0071E2F0`); else data2 = 3: `DoLotActivated` (`0x00723AF0`, §4.1.3) |
 
 All handlers return true except the day handler.
@@ -176,7 +176,7 @@ when the subnetwork data need no rebuild *[inferred: flag meaning, traffic-netwo
 | 2 | CreateMaps (`0x0071A0C0`) | §4.9 | scanning iterator reset; per-network-type statistics reset; commercial work grid := 0 |
 | 4 | CreateFinalMap (`0x0070F460`) | §4.10 | scanning iterator reset; commercial traffic grid := commercial work grid (copy of the grid data) |
 | 5 | ClearTripDestinations (`0x0070E4F0`) | §4.11 | scanning iterator reset |
-| 11 | UpdateNeighborConnections (`0x00714BE0`) | traffic-network.md §2.7.5 | |
+| 11 | UpdateNeighborConnections (`0x00714BE0`) | traffic-network.md §2.7.5 (not a no-op: on every neighbour connection it rolls the per-travel-type arrival arrays `0xAA9EA81A + i` into `0xAA9EA81D + i` and the arrival counts of `0x8A0B4100`, elements 4–7 into 8–11; TS2) | |
 | 3 | ReduceTransitSwitches (`0x00713750`) | §4.8 | |
 | 7 | DumpEdgeDensities (`0x007137D0`) | §4.8 | |
 | 6 | ReduceEdgeDensities (`0x007110B0`) | §4.8 | scanning iterator reset |
@@ -213,13 +213,23 @@ own static step state); slicing only splits the work, the results do not depend 
    * `finished := WorkOnSimCycle(deadline)`;
    * if finished, by the **new** state `s`:
      * `s = 16`: `total := passTotal` (the number of trips counted in the last cycle, §4.6), `days := max(1, total
-       div 20)`; day index and processed := 0; the pass counters (§10, Q4) := 0; continue;
-     * `s = 17`: `total := toReRoute`, `days := max(1, total div 18)`, reset, return **true**;
+       div 20)`; day index and processed := 0; `toReRoute`, `toSearch` := 0 (`0x0072184B`, the only place they are
+       zeroed; Read restores them, ConfirmTrips counts them and states 17 and 18 add to `toSearch`, §4.4, TS21); of
+       the ten pass counters that follow
+       them (§6.1 row 15 and two unsaved ones; §10 Q4) all are zeroed **except** counter 1 (the re-route counter,
+       incremented by ReRouteTrips; zeroed on entering 17 instead) and counter 2 = `rerouteBucket` (kept: only
+       StartRecalc advances it). Counter 3, the source counter of §4.3, is zeroed here, so it restarts at 0 every
+       cycle (TS1); continue;
+     * `s = 17`: `total := toReRoute`, `days := max(1, total div 18)`, reset (day index, processed and pass
+       counter 1 := 0), return **true**;
      * `s = 18`: `total := toSearch`, `days := max(1, total div 18)`, reset, `passTotal := 0`, return **true**;
      * `s = 2` or `s = 11`: return **true**;
      * otherwise continue;
-   * if not finished: if `16 ≤ state ≤ 18` and `processed ≥ total · (dayIndex + 1) / days` (unsigned), then
-     `dayIndex += 1` and return **true**; else return false.
+   * if not finished: if `16 ≤ state ≤ 18`, `dayIndex < days` and `processed ≥ total · (dayIndex + 1) / days`
+     (all unsigned, `0x0072191E`), then `dayIndex += 1` and return **true**; else return false. *(Corrected: the
+     `dayIndex < days` guard was missing.)* Once `dayIndex` has reached `days` (a cycle with more trips than the
+     last one, or `days = 0` after a load, §3.5 step 13) no share ends the day: the phase runs on, slice after
+     slice, until it finishes.
 
 So the trip phases are spread over `days` days (at least the share `total/days` per day), and a day also ends after
 FinishTripMap (on entering 2) and after ClearTripDestinations (on entering 11).
@@ -248,6 +258,9 @@ with a count of those units.
 - Consequently the work of one trip-phase day is the shortest run of whole slices whose end reaches the share
   `total · (dayIndex + 1) / days`: at least the share, and at most N − 1 units more.
 - **Default**: to be calibrated in the original (§12). N = 1 is the minimum (the day ends exactly at the share).
+  The original has no such constant (TS27): its slice is the 4 ms deadline of §3.3 step 1, tested once per unit,
+  so its units per slice depend on the machine. The default N is FreeCity4's choice until the §12 counters
+  calibrate it.
 - **Observable effect of the budget** (for the M5 exit tests):
   - Larger N means more work per day than the share, so the trip phases finish in fewer days and the **traffic
     cycle is shorter** (in game days). The commute, congestion, air-polluting and commercial maps are then
@@ -259,6 +272,136 @@ with a count of those units.
   - Budget-sensitive statistics: cycle length, maps sampled at a fixed date, convergence time after a change, and
     monthly income and accident counts. Budget-insensitive: the result of one cycle given the same inputs (routes,
     volumes and the maps it publishes), and the draw sequence of each operation.
+
+### 3.5 DoPostCityInit (`0x00720430`, message `0x26D31EC1`) *[compat]*
+
+Runs once per city load (and for a new city), after every lot and occupant of the save exists and after `Read`. The
+whole order (TS7):
+
+1. – 7. **Network part**, traffic-network.md §1 steps 1–7: re-read every transit switch's rules; refresh the subway
+   access points; `DoConnectionsChanged` over the whole city; **register the neighbour connections** (an Add for each
+   connection of the neighbours simulator, slot 16 `GetAllConnections` in list order, then one pool sweep;
+   traffic-network.md §2.7.2–§2.7.3); the **destination-map boundary pass** (each ring cell around the map whose
+   `HasMapExit` is false gets destination byte 0, `freeDest` untouched; traffic-network.md §1 step 5, §2.7); clear
+   the subnetwork labels and run `UpdateSubnetworks`; build the subnetwork info with no time limit and publish it.
+8. If the loaded cycle state is 12 or 13, it becomes **8** (FinalCalculations): the subnetwork work was just done in
+   full, so the cycle skips the rest of 12/13 and also state 19 (`0x00720859`).
+9. `transitMultiplier := curve 0xCA5F7821(r24(f × 100.0f))`, `f` = the mass-transit department's funding fraction
+   (as §3.1 for message `0x08DAC3E7`).
+10. A rebuild of the per-network-type cell counts from the network occupants of the city, guarded by a flag that
+    the constructor clears and nothing in 1.1.641 sets (`0x00720895`): **never runs**. The counts come from the save
+    and from the occupant messages *[compat: do nothing]*.
+11. **Resume the interrupted phase**, by the loaded cycle state:
+    * 16, 17, 18: the re-route context's search state := idle; the traffic-source iterator is reset (lots, then
+      neighbour connections, §4.1) and advanced until it has returned the source whose cell is the saved source cell
+      (the cell the phase stored when it took its current source, §6.1 row 14). That source becomes the held current
+      source, so the phase continues after it. If no source has that cell, the iterator is reset again and no source
+      is held (the phase restarts from the first source). *[inferred: the position inside a partly processed source's
+      trip list is the saved context's, not traced]*
+    * 15: the lot iterator is reset; when the lot manager has a lot at the saved cell (`GetLot(x, z, false)`), the
+      iterator is advanced past that lot; if the walk reaches the end without meeting it, the iterator restarts from
+      the first lot.
+    * 19: every ferry terminal's re-route flag := 1 and the ferry pass restarts at the first terminal, its sub-step
+      0 (traffic-network.md §4.9.3). **Only in this state**: a city saved in any other state keeps the loaded ferry
+      links until the next state-19 pass.
+    * 1 or 14 (never saved by 1.1.641, §3.2): `freeDest[0…3] := 0`, then the ClearTripDestinations work (§4.11) and
+      the RefreshCommuteMap work over the whole city, each run to completion, then state := 0.
+    * any other state: nothing.
+12. **Strategy buckets**: the bucket multimap (§4.1.3) is cleared and rebuilt from the lots, in the lot manager's
+    list order (slot 15): each lot whose property `0x691C863C` is present is registered under that value with its
+    location (lot slot 21). Equal keys keep list order. (So the daily re-draw of §3.3 does reach loaded lots; the
+    bucket counter and the current bucket come from the save.)
+13. `days := lotCount div 18` (lot manager slot 16 `GetLotCount`, unsigned; **no** `max(1, …)`, so 0 with fewer than
+    18 lots). `total`, `dayIndex` and `processed` keep their loaded values; §3.3's share test is skipped while
+    `dayIndex ≥ days`.
+14. `UpdateMassTransitBudget`, then `UpdateRoadsBudget` (§4.9): the departments' monthly costs from the loaded cell
+    counts.
+
+### 3.6 Network occupant bookkeeping: DoRoadChanged, DoRailChanged, DoSubwayChanged *[compat]*
+
+On `0x99EF1142` (inserted, `ins` = true) and `0x99EF1143` (removed, `ins` = false) for a network occupant (§3.1),
+DoMessage first does this bookkeeping (`0x00724334`–`0x0072442E`), then the network part (traffic-network.md §3). Let
+`has(t)` mean that the occupant's network flag word contains bit `1 << t` (cISC4NetworkOccupant slot 22; network
+types as traffic-network.md §2.2). The calls, in this order (TS4):
+
+1. `has(6)` Avenue → `DoRoadChanged(occ, ins, 6)`.
+2. `has(0)` Road → `DoRoadChanged(occ, ins, 0)`.
+3. The first of OneWayRoad 10, Street 3, Highway 2, GroundHighway 12 that `has` holds for →
+   `DoRoadChanged(occ, ins, t)`. At most one call comes from this step.
+4. `has(1)` Rail → `DoRailChanged(occ, ins)`.
+5. `has(7)` Subway, and the flag word does **not** contain bit 31 (slot 8, all-bits test of `0x80000000`) →
+   `DoSubwayChanged(ins)`.
+
+An occupant with several of these types gets several calls (Avenue and Road: steps 1 and 2). DirtRoad 11, LightRail 8
+and Monorail 9 get no bookkeeping.
+
+`cells[t]` (t = 0…12, u32, saved in §6.1 row 18) are the per-network-type counts that `UpdateRoadsBudget` and
+`UpdateMassTransitBudget` (§4.9) price. `bump(t)` is `cells[t] += 1` on insert. On remove it is `cells[t] −= 1` only
+if `cells[t] > 0`; at 0 it stays 0. At the end of every CreateMaps pass, `cells[t]` is replaced by the pass's count
+of network-info records of type `t` (§4.9; about two per road or street cell, bridges excluded). So these bumps hold
+only until the next pass.
+
+**DoRoadChanged(occ, ins, t)** (`0x007155D0`):
+
+1. Cell `(x, z)` := the city's `PositionToCell` (slot 95) of the occupant's position (occupant slot 8, its x and z).
+2. `bump(t)`, then `UpdateRoadsBudget`.
+3. If `t` is Highway 2 or GroundHighway 12, stop: highways are not in the pothole sets.
+4. `key := x << 8 | z` (u16, as §4.12).
+5. **Insert**: add `key` to the intact road set; nothing happens if it is already there. The damaged set is not
+   looked at, so a key can end up in both sets. Then `roadCellCount += 1` in **every** case, including a key that
+   was already present.
+6. **Remove**, in this order:
+   * If `key` is in the intact set, erase it.
+   * Otherwise, if `key` is in the damaged set, it is repaired by removal. Erase it, then `damagedRoadCount −= 1`.
+     Then decrement the published **pothole count** (the u16 at offset `0x134` of the slot-34 statistics block, read
+     by the traffic advisor as `g_pothole_count`; it wraps below 0). Then post `0x69247DC8` (message-server slot 4,
+     queued) with data1 = x, data2 = z, data3 = 0.
+   * In **every** case, including a key in neither set: `roadCellCount −= 1` (u32, no clamp).
+
+**DoRailChanged(occ, ins)** (`0x00715790`):
+
+1. `bump(1)`.
+2. If the occupant also has Road or Street (slot 9, any-bit test of mask 9: a level crossing), skip to step 5.
+3. Cell `(x, z)` := the network occupant's own cell (slot 59). `key := x << 8 | z`.
+4. Insert and remove as DoRoadChanged steps 5–6, with the rail sets, `railCellCount` and `damagedRailCount`. On
+   insert the rail set is first grown to hold `count + 1` (the same rehash rule as the road insert). *[quirk]*
+   Removing a damaged rail cell also decrements the **road** pothole count. It posts `0x69247DC8` with data3 = 0, like
+   a road.
+5. `UpdateMassTransitBudget`, also when step 2 skipped.
+
+**DoSubwayChanged(ins)** (`0x0070EA70`): `bump(7)`, then `UpdateMassTransitBudget`. It has no cell set.
+
+The bracket of TS4 holds for the sets. What it misses is the count, the damaged set, the highway and level-crossing
+exclusions, and the per-type counts with the budget refresh.
+
+* **The cell counts count calls, not cells.** Both cases below add 2 to the count but only one key to the set:
+  * an occupant re-inserted at a cell it already holds;
+  * an occupant with two counted road types (steps 1 and 2).
+
+  The monthly pothole target is `cellCount × d` (§4.12), so a rebuild that counts distinct cells drifts from the
+  original. A replacement keeps the running count, updated by these rules. A rebuild from the live occupants is
+  exact only when it repeats the same per-call rules. To do so, count each occupant once per DoRoadChanged call
+  (steps 1–3, excluding Highway and GroundHighway), and once per rail occupant without Road or Street.
+* The pothole count is only re-set by `ApplyRoadFunding`, and only in a month when the road target changes
+  (`damagedRoadCount := target`, then the pothole count := its low 16 bits; `0x00717DF2`). In the months between,
+  the drops above stay, including the rail drops. `ApplyMassTransitFunding` writes no pothole count.
+* *[quirk]* The cell counts have no floor: with more removes than inserts (an occupant removed twice), `roadCellCount`
+  wraps from 0 to 2³² − 1. The next month's target is then `trunc(r24(4294967295.0 × d))`, and `ApplyPotholeChanges`
+  caps the move at the intact set's size. Keep the wrap *[compat]*.
+
+Worked example. 100 road calls so far, `cells[0]` = 100, `roadCellCount` = 100, `damagedRoadCount` = 3, pothole
+count 3, and cell (12, 34) is damaged (key `0x0C22`). Bulldoze its road piece (flags: Road only):
+
+1. Message `0x99EF1143`. Step 2 calls `DoRoadChanged(occ, false, 0)`.
+2. `cells[0]` = 99, and the roads budget is recomputed from it.
+3. Key `0x0C22` is not intact but is damaged. It is erased, `damagedRoadCount` = 2, the pothole count = 2,
+   `0x69247DC8 (12, 34, 0)` is posted, and `roadCellCount` = 99.
+
+Then place a level-crossing piece at (20, 5) with flags Road | Rail:
+
+1. Step 2 inserts key `0x1405` into the intact road set: `cells[0]` = 100, `roadCellCount` = 100.
+2. Step 4: `cells[1] += 1`. The rail sets and `railCellCount` are untouched (Road is set), and the mass-transit budget
+   is recomputed.
 
 ## 4. Behaviour
 
@@ -273,6 +416,20 @@ cell).
 order (lot manager slot 15), then all neighbour connections in the neighbour simulator's list order
 (`GetAllConnections`, slot 16). Each step yields the source's location and its traffic-source interface
 (`AsTrafficSource`, slot 4; AddRef'd).
+
+The two halves differ in when they are fixed (TS20). `Reset` runs on entering states 16, 17 and 18 and on the
+DoPostCityInit resume (§3.5).
+
+- **Connections are a snapshot.** `Reset` has the neighbour simulator clear and refill the iterator's own list
+  (`0x007107C2`). The list holds counted references (`cRZAutoRefCount`), so a connection removed during the phase
+  stays alive and is still visited, and one added during the phase is not.
+- **Lots are live.** The iterator walks the lot manager's master list through the manager's safe lot iterator
+  (zones.md §8.2 slot 15; created once, at the first `Reset`, and rewound to the list's first node by every
+  `Reset`). A lot removed before the iterator reaches it is skipped, because removal advances the safe iterator.
+  A lot added during the phase is appended to the master list (zones.md §8.1), so the same pass visits it.
+
+*[compat]* A shadow comparison that snapshots the lots at the phase start differs from the original on a lot
+plopped or bulldozed during a long phase (FullTrips can run over several days).
 
 #### 4.1.1 Lot: `cSC4Lot::UpdateTrafficVolume` (`0x006C27E0`)
 
@@ -326,6 +483,17 @@ property `0x8A612FEE` (s32[9], read without a size check *[quirk]*; ordinance.md
 `pct[w][s]` for w = 1…3, clamping each sum to 0…100. Runs at Init and on `OrdinanceUpdated`. *[quirk]* When the
 exemplar is missing, the re-read is skipped and the ordinance offsets accumulate on every update.
 
+Short or missing data (TS28):
+
+- **Strategy property.** A missing `0x4953E8A3 + w` leaves `pct[w]` unchanged. A present one is read as raw bytes
+  (no type check), and its first three bytes are copied whatever its length (`0x00711899`). With fewer than 3 bytes
+  the original reads past the copied data. *[choice]* The missing ones keep their value.
+- **Ordinance offsets.** An ordinance with no `0x8A612FEE` (or no property holder) adds nothing. With fewer than 9
+  entries the original reads past the array (`0x007119A0`). *[choice]* Entries past the end count as 0.
+- **Wealth above 3.** `GetTravelStrategyPercentages(w)` reads the three bytes at `pct + 3w` with no bound
+  (`0x00718BD6`). For `w = 4` that is the intersection-effect count byte (§4.14) and two padding bytes; higher `w`
+  reads further members. *[choice]* Return three zeros for `w > 3`.
+
 `GetTravelStrategyPercentages(w, vector<float>* out)` (slot 26) resizes `*out` to 3 (allocator B) and writes
 `out[s] := r24(float(pct[w][s]) × 0.01f)` (dword constant).
 
@@ -352,8 +520,28 @@ step, and **none of the steps below runs**, not even the draw (TN1, traffic-netw
    `bits` into the destination byte of every cell of the lot rectangle (`0x00724167`). *(Corrected: the byte is
    replaced, not ORed into.)*
 
-`DoLotDeactivated` (`0x0071E2F0`) removes what activation added (destination bits, bucket entry, network rules)
-*[inferred: not traced line by line]*.
+`DoLotDeactivated(lot)` (`0x0071E2F0`, TS23) removes what activation added. `holder` is the lot's own property
+holder (lot slot 3). A null lot does nothing. In order:
+
+1. **Bucket entry.** If `holder` has `0x691C863C` (read as u32) = `b`: among the multimap entries under `b`, the
+   first whose cell equals the lot's location (lot slot 21) is erased. Only that one entry goes.
+2. **Transit switch** (traffic-network.md §4.7.5 step 1): the switch at the NW cell of the lot's bounding rect
+   (lot slot 14) is released and erased, the ID and mask grids over the rect are zeroed, and
+   `DoConnectionsChanged(x1 − 1, z1 − 1, x2 + 1, z2 + 1)` runs.
+3. **Budget items.** Budget simulator slot 51 `GetBudgetItemForPurpose(holder, 0xCA550301, item)`. If found:
+   slot 56 `RemoveBudgetItemFromBudget(holder, item.id)` and `E −= item.cost` (the int64 at record `+0x10`).
+   Then, **independently** (unlike activation, which asks the second purpose only when the first fails):
+   `GetBudgetItemForPurpose(holder, 0x0C3BF549, item)`, and if found `RemoveBudgetItemFromBudget(holder,
+   item.id)`, with no change to `E`.
+4. **Free destinations.** Unless the cycle is in state 10: for `k` = 0…3, if bit `k` of the destination byte at the
+   rect's NW cell `(x1, z1)` is set, `freeDest[k] −= 1` (`0x0071E570`). Only that one cell is read, so each lot is
+   counted once, as RefreshCommuteMap counts it.
+5. **Ferry terminal** (traffic-network.md §4.9.4): the first terminal whose lot cell is in the rect is removed.
+6. **Destination bytes** over the whole rect := 0 (`0x0071E7B7`), bit 3 included.
+
+Example: a 2 × 2 commercial lot at (10, 20)–(11, 21) with destination byte 3 at every cell (bits 0 and 1) is
+deactivated in state 18. `freeDest[0]` and `freeDest[1]` each drop by 1 and the four bytes become 0. Its bucket
+entry and its `0xCA550301` budget item go, and `E` drops by the item's cost.
 
 #### 4.1.4 Neighbour connection: `UpdateTrafficVolume` (`0x006D4C10`)
 
@@ -378,6 +566,24 @@ Each lot and neighbour pool carries property `0x8A0B4100`, an array of 12 u16 (p
 reaches `0xFFFF`): elements 0–3 = **max trip capacity** per destination type `k`, 4–7 = trips **arrived this
 cycle**, 8–11 = trips **arrived last cycle**.
 
+**Element store** (`SetTripCapacity`, `0x0070DE70`; TS18). Every write goes through it: slot 19, the arrived count
+in ApplyTrafficToDestination, the roll in ClearTripDestinations (§4.11) and the neighbour-capacity code.
+
+1. If the holder has no `0x8A0B4100`, it is created as 12 u16 zeros.
+2. If the property is a u16 array (variant type `0x8004`) and `value < 0xFFFF`, element `i := value` as a u16.
+3. If it is a u16 array and `value ≥ 0xFFFF` (so `0xFFFF` itself promotes), the 12 elements are copied
+   zero-extended into a 12-element u32 array, which replaces the data (`0x0070DF30`). Then the u32 element
+   `i := value`.
+4. Any other type: the u32 element `i := value`.
+
+A promoted property stays u32: no write turns it back. The type is saved with the holder's properties, so a save
+keeps it *[compat]*. The readers (slot 20, slot 21, `0x0070DFF0`) take the u16 element when the type is `0x8004`,
+else the u32 element. The variant type is the only check: neither side checks the element count, and "any other
+type" is accessed as u32 data. A short or mistyped property (only from damaged or custom data) is read and written
+past its end. *[choice]* Treat a `0x8A0B4100` that is not a 12-element u16 or u32 array as missing: read 0, and
+replace it with 12 u16 zeros before a write. Example: a pool holds `arrived[0] = 65530` (u16) and 10 commuters
+arrive. `65540 ≥ 0xFFFF`, so all twelve values become u32 with their old values, and element 4 := 65540.
+
 | Function | Result |
 |---|---|
 | `GetMaxTripCapacity(holder, k)` (slot 20) | element `k`, 0 if the property is missing |
@@ -399,9 +605,13 @@ cell and `type < 3` it also adds `count` to element `lastTravelType` of the u32[
 (nine zeros if missing) on the **neighbour connection's own** holder, the connection that
 `FindNeighborConnection(lastTravelType, x, z)` finds (`0x007147C9`). This is not the pool. If there is no such
 connection, nothing is added. *(Corrected: an earlier text said the pool's property.)* Then
-`arrivedThisCycle(type) += count`; if now `arrived ≥ max`, clear destination bit `type` over the destination lot's
-rect and decrement `freeDest[type]` *[quirk: decremented on every such call, also when the bit was already
-clear]*.
+`a := arrivedThisCycle(type) + count` (u32, wrapping) is stored on the holder (element `4 + type`). For an off-map cell
+where `FindNeighborConnection` found a connection, `a` is **also stored** into element `4 + type` of the
+connection's own holder's `0x8A0B4100`, whatever `type` (`0x007148C1`). That write is the pool's new total, not
+the connection's own count plus `count`, and it creates the property on the connection if needed. If `a ≥ max`
+(the holder's `GetMaxTripCapacity(type)`, read before the store), clear destination bit `type` over the destination
+lot's rect (for an off-map cell, the cell itself in the bordered destination map) and decrement `freeDest[type]`
+*[quirk: decremented on every such call, also when the bit was already clear]*.
 
 ### 4.3 StartRecalc and ConfirmTrips (states 0 and 16)
 
@@ -413,15 +623,14 @@ neighbour pool capacities and sets the destination bits of the off-map edge cell
 §4.1.4), then `ConfirmTrips(source)` (`0x0071D920`):
 
 * `sourceCounter += 1`; `rerouteSource := ((sourceCounter & 3) = rerouteBucket)` — one source in four takes part in
-  this cycle's re-balancing.
+  this cycle's re-balancing. `sourceCounter` is 0 on entering state 16 (§3.3), so the first source has counter 1.
 * If `rerouteSource`: **merge** — for each routed (status 3) trip, every later trip of the same type and strategy is
   merged into it (counts added, the other erased) and the trip's status becomes 0 (search again).
 * Then for each trip (`processed += 1`):
   * **status 3** (routed):
     * if `CapacityStillAvailable`: status := 1 (re-route to the known destination), but 0 for freight. If not
-      `rerouteSource`, the old route is **confirmed** without a search: `ConfirmRoute(route)` (`0x0070E320`; walks
-      the compressed route and checks that each step still exists in the network and is not blocked by the strike,
-      traffic-network.md); on success:
+      `rerouteSource`, the old route is **confirmed** without a search: `ConfirmRoute(route)` (`0x0070E320`; below);
+      on success:
       * freight: `ApplyRoute(route, mode 0)` (§4.5) unless probe; status := 3;
       * reversible (flag 0): `ApplyRoute(route, mode 2)` unless probe; status := 3;
       * otherwise `ConfirmRoute(returnRoute)` must succeed too; then `ApplyRoute(route, mode 0)` and
@@ -430,6 +639,46 @@ neighbour pool capacities and sets the destination bits of the off-map edge cell
   * **status 5** (failed last time): status := 0.
   * afterwards status 1 counts towards `toReRoute`, status 0 towards `toSearch`.
 
+**ConfirmRoute(route)** (`0x0070E320`, one argument) *[compat]* (TS14). It replays the compressed route
+(pathfinder.md §4.15) with the route reader and tests each cell against the cell connection records
+(traffic-network.md §2.1). The reader turns the route into one record per visited cell, in route order:
+
+* the cell (x, z) and its travel type `t` (the type of the header or token that brought the route there);
+* the next type `t'` (the type of the following run or jump; `t' = t` at the last cell);
+* the **exit** side `x`: the direction of the following unit step; for the following **jump** to cell `(qx, qz)`,
+  with `dx = qx − cx` and `dz = qz − cz`: when both are non-zero, the one smaller in absolute value is set to 0
+  (`dx` when the magnitudes are equal); then `|dx| ≥ 2` → `+x` or `−x` by its sign; `dx = ±1` (so `dz = 0`) →
+  **none**, and the cell's own entry side also becomes none; `dx = 0` → `dz ≤ −2` gives `−z` and **every other `dz`
+  gives `+z`**, including `dz = −1` and `dz = 0` *[quirk]* (`0x006D65E0`–`0x006D666A`). The last cell's exit is
+  none.
+* the **entry** side `e`: none at the first cell; after a unit step or a jump with an exit, the side facing back
+  (`(x + 2) mod 4`); after a jump whose exit is none, the previous cell's entry side carries over unchanged.
+
+The test, with `strike := (strike state = 1)` (§4.12) read once at the start:
+
+1. An empty route: **false**.
+2. **First cell**, if inside the city and its exit is not none: when `t = t'`, some entry side `e' ∈ 0…3` must have
+   bit `x + 4e'` set in `conn[t]` (any entry may leave through `x`); when `t ≠ t'`, nibble `x` of `switch[t]` must
+   equal `t'`. No strike test and no wormhole test here.
+3. **Every later cell**, if inside the city (cells off the map are skipped) and its exit is not none (the last cell
+   and a cell before a jump with no exit are skipped):
+   * `t = t'`: pass when bit `x + 4e` of `conn[t]` is set (never when `e` is none). Otherwise pass when the cell's
+     wormhole byte has the tunnel bit (2); otherwise pass when it has the ferry bit (4) **and** there is no strike;
+     otherwise **false**.
+   * `t ≠ t'` (a type change): during a strike **false**; otherwise nibble `x` of `switch[t]` must equal `t'`, else
+     **false**.
+4. **true**.
+
+So a strike fails every confirmed route that changes travel type after its first cell or that crosses a ferry
+terminal's water link, whatever the types; a route that keeps one type (a car route, or a neighbour trip forced to
+start on the bus or a train and staying on it) still confirms. The last cell is never tested. *[choice]* A type
+byte above 8 (only in a damaged save) fails the test; the original reads unrelated words of the record.
+
+**Example** (§11 test 10's route `01 02 03 41 02 0A`): cells (2,3) type 1, exit `+x`, entry none; (3,3) type 1,
+entry `−x` side 0, exit `+x` side 2; (4,3), exit none. ConfirmRoute is true when (2,3)'s `conn[1]` has bit 2, 6, 10
+or 14 and (3,3)'s `conn[1]` has bit `2 + 4·0 = 2`; (4,3) is not looked at. The same with a walk-to-bus change at
+(3,3) (`t = 0`, `t' = 2`): during a strike false; otherwise nibble 2 of (3,3)'s `switch[0]` must be 2.
+
 ### 4.4 Path searches: ReRouteTrips and FullTrips (states 17 and 18)
 
 **ReRouteTrips** (`0x0071D020`) takes, for each source, the status-1 trips: if the destination has no capacity left
@@ -437,6 +686,9 @@ neighbour pool capacities and sets the destination bits of the off-map edge cell
 result found → status 3 and `tripLength := pf.GetTripLength()`; not found → status 5. Then, for the same source, a
 merge of status-0 trips (each absorbs the later ones of the same type and strategy whose status is not 3). A
 network change (`DoConnectionsChanged`) aborts a suspended search: both pathfinders `Reset` and the context restarts.
+Counters (TS21): a trip sent back to status 0 for lack of capacity adds 1 to `toSearch` and to pass counter 4
+(`0x0071D20D`), not to `processed`. So the next state's `total` (§3.3) includes it. Each search that is not
+suspended adds 1 to `processed`; a found one also adds 1 to pass counter 1, the re-route counter.
 
 **FullTrips** (`0x0071D440`) takes, for each source, the status-0 trips: `SetupTrip`, `PerformPathSearch`;
 
@@ -445,6 +697,10 @@ network change (`DoConnectionsChanged`) aborts a suspended search: both pathfind
   original keeps `arrived`; the copy is searched next with the *continue* flag (pathfinder flag 4) so the search
   resumes from the previous open set (`continueSearch := true`); otherwise `continueSearch := false`;
 * not found: status 5, `continueSearch := false`.
+
+Counters (TS21): each search that is not suspended adds 1 to `processed`. Each split adds 1 to `toSearch`, to the
+phase's `total` and to pass counter 9 (`0x0071D75A`). The day shares of the running phase (§3.3) therefore stretch
+with the splits: `total` was `toSearch` on entering 18 and grows as copies are made.
 
 After each source's list: `CompleteTripSourceCalculations(source)` (§4.6). At the end of the phase the per-travel-type
 trip counts built in this pass are published (slot-34 stats and history, §4.12).
@@ -474,20 +730,73 @@ trip counts built in this pass are published (slot-34 stats and history, §4.12)
      done.
    * `pf.WasTripReversible()`: flags |= 1; route as above; `ApplyRoute(…, mode 2)` unless probe; done.
    * Otherwise flags &= ~1 and the **return leg** is searched with **pf2**, configured by writing its fields
-     directly *[compat: the pathfinder's memory layout is shared with the simulator; pathfinder.md §9]*:
-     start rect = the destination lot's rect (or the destination cell; for an off-map neighbour connection the
-     highway-return adjustment of traffic-network.md applies), end rect = pf's start rect (or the highway return
-     tile), flags := 1 (no budget), traffic density := pf's traffic arrived, filter := 3, allowed types := pf's
-     allowed types, starting types := `1 << ` the travel type of pf's result node, starting cost array := pf's;
-     if pf recorded a park-and-ride cell, it is copied and flag 8 is set.
+     directly *[compat: the pathfinder's memory layout is shared with the simulator; pathfinder.md §9]*
+     (`0x0071C858`–`0x0071CA03`, TS17):
+     - **start rect**, from pf's end cell `(x, z)`. In the city: the bounding rect (lot slot 14) of
+       `GetLot(x, z, false)`. If there is no lot there, the start rect is **not written** and keeps pf2's previous
+       one *[quirk]*. Off the map: if the travel type of pf's result node is 1 (car) or 2 (bus), and the cell's
+       edge record (`GetTrafficNeighborConnection`, traffic-network.md §2.7.1) has a Highway, Avenue or
+       GroundHighway connection (mask `& 0x1108`), then `FindHighwayReturnTile(x, z, back = false)` (below). The
+       start rect is then the single cell `(x, z)`.
+     - **end rect**: pf's start rect when its `(x0, z0)` corner is in the city. Otherwise, if the edge record at
+       `(x0, z0)` has mask `& 0x1108` (whatever the travel type), the single cell
+       `FindHighwayReturnTile(x0, z0, back = true)`; else pf's start rect.
+     - flags := 1 (no budget), traffic density := pf's traffic arrived, filter := 3, allowed types := pf's allowed
+       types, starting types := `1 << ` the travel type of pf's result node, starting cost array := pf's; if pf
+       recorded a park-and-ride cell, it is copied and flag 8 is set.
      *[quirk]* pf2's max trip length is never set: it is the shared max-length/trip-length float (pathfinder.md §4.3),
      so it holds pf2's previous trip length; with flag 1 it is not used as a budget.
+
+     **FindHighwayReturnTile(x, z, back)** (`0x0070DD30`, its only callers are the two above) moves an off-map cell
+     one step along its map edge. So a car or bus that left by a divided road (highway, avenue, ground highway)
+     comes back on the other carriageway. First `right := true`. The language manager's utility for the current
+     language (`cIGZLanguageManager` slot 38 `GetLanguageUtility(0)`, then its slot 25
+     `GetLanguageRoadDrivingSide`) returns 0 (drive on the left) for UK English (language 2) and Japanese (15) and 1
+     for every other language. `right := (that value = 1)`; with no utility it stays true. If `back`,
+     `right := not right`. Then the first case that matches applies (`X`, `Z` the city size in cells):
+
+     | Cell | `right` | not `right` |
+     |---|---|---|
+     | `x < 0` | `z + 1` | `z − 1` |
+     | `x > X − 1` | `z − 1` | `z + 1` |
+     | `z < 0` | `x − 1` | `x + 1` |
+     | `z > Z − 1` | `x + 1` | `x − 1` |
+
+     An in-city cell is unchanged. The new cell is not checked: it may have no connection, or be a map corner when
+     the connection is the last cell of its edge. Example, English: a commuter drives out by a highway to `(−1, 40)`.
+     The return leg starts at `(−1, 41)` and searches back to its source lot. A trip from a neighbour connection at
+     `(−1, 40)` by highway has its return leg end at `(−1, 39)`. With UK English the shifts are reversed.
+
+     *[choice]* For the no-lot case, keep pf2's previous start rect, as the original does. It needs an in-city end
+     cell without a lot, which a found destination does not normally have.
    * `pf2.FindPath()`: 2 → suspended; 0 → not found (the whole trip fails). Found: both compressed routes are
      fetched (`travelTypesUsed |=` pf2's mask), `ApplyRoute(route, mode 0)`, `ApplyRoute(returnRoute, mode 1)` unless
      probe.
 
-`SetupPathFinderForLot(pf, lot)` (slot 7, `0x00711610`) is the same configuration for outside callers (traffic
-automata, query tool) *[inferred]*.
+**SetupPathFinderForLot(pf, lot)** (slot 7, `0x00711610`, returns a bool in AL) configures a caller's pathfinder
+from a lot's trip list, for outside callers (TS10):
+
+1. If `pf` or `lot` is null: return false.
+2. `src := lot.AsTrafficSource()` (lot slot 4). If `src.GetTripDataList()` (slot 3) is empty, call
+   `src.UpdateTrafficVolume()` (slot 4, §4.1.1) **once**, which generates the lot's trips as a side effect, and look
+   again. If it is still empty, return false.
+3. `sum[s]` (u32, s = 0…2) := the `count`s of the list's trips by `strategy`. Then pick the dominant strategy:
+   `best := 0`; if `sum[1] > sum[0]` then `best := 1`; if `sum[2] > sum[best]` then `best := 2`. The comparisons are
+   unsigned and strict, so a tie keeps the lower index. Also `type :=` the **first** trip's `type`.
+4. `SetStartRect(src.GetSourceCells())`, `ClearAllFlags`, `ClearAllTravelTypeFlags`, `SetStartingCostArray(null)`,
+   `SetMaxTripLength(commuteMaxTime)`.
+5. `SetTripDestinationFilter(0)`, `ClearAllDestinationFlags`, `SetDestinationFlag(1 << type)`. There is no probe
+   case here: SetupTrip's 7 for a type-0 probe does not occur.
+6. By `type`:
+   * **Commuter** (`type ≤ 2`): `SetTravelTypeFlag(0x1CF, false)`, `SetTravelTypeFlag(0x3, true)`, and
+     `SetStartingCostArray` of `best`, with SetupTrip's mapping (0 mass transit, 1 car, 2 neutral). Return true.
+   * **Freight** (`type = 3`): `SetFlag(1)`, `SetTravelTypeFlag(0x30, true)`. Return true.
+   * **Anything else**: return false. Every exit path frees the strategy sums.
+
+Compared with SetupTrip, it never sets the traffic density, the work-time limit, flag 4 (continue search), a forced
+start type or a re-route end rect; those keep whatever the caller's pathfinder held. It makes no search and changes
+no trip. *[compat]* Two side effects remain: the trip generation of step 2 on a lot with no trips, and the use of the
+first trip's type.
 
 ### 4.5 Applying a route: ApplyRoute (`0x00719910`)
 
@@ -498,25 +807,91 @@ automata, query tool) *[inferred]*.
 * `N := float(count)`; `Nc := N`, or with the Carpool ordinance (`0xA2BF1DDC`) on,
   `Nc := float32(ceil(double(r24(N × 0.8f))))`. Car (travel type 1) uses `Nc`, all others `N`. `Q` = that value,
   `Qi := round(Q)`.
-* For each route cell `(x, z, t)` in city:
+* The **start rect** `R` is `sourceRect` in modes 0 and 2. In mode 1 it is the bounding rect (lot slot 14) of the lot
+  at `(destX, destZ)` when that cell is in the city and holds a lot (`GetLot(x, z, false)`), else the single cell
+  `(destX, destZ)`. `I` (income) and `fees` start at 0.
+* **Ferry leg from a neighbour, at the first cell** (TS16, `0x00719A4E`–`0x00719B29`). Let `(x, z)` be the first
+  route cell. If exactly one of "`x = x0 − 1` or `x = x1 + 1`" and "`z = z0 − 1` or `z = z1 + 1`" holds (`R` =
+  `(x0, z0, x1, z1)`; the other coordinate is not compared with the rect), `(x, z)` is the arrival cell of a terminal
+  `T` (traffic-network.md §2.6), and `T` has a neighbour link whose off-map cell or edge cell is `(x0, z0)`: that
+  link's counters are bumped by mode as in step 4 below, and `I := r24(Q × ferryFare)`, with `Q` of the first cell's
+  travel type. This is the crossing from a neighbour city into the city, whose departure cell is not on the route.
+  It is a store, not an add, which is harmless since `I` is still 0. `T`'s riders are not counted.
+* For each route cell `(x, z, t)`, steps 1–4 only when the cell is in the city and step 5 for every cell, off-map cells
+  included (`0x00719C06`):
   1. **Volume**: if the cell has network info for transit network `network(t)` (pathfinder.md §4.1) and
      `generatesTraffic[t]`: `vol := r24(vol + Q)`; mode 2 adds a second time, `vol := r24(vol + Q)`.
-  2. **Transit switch**: when the cell's switch ID (switch map) differs from the last one seen on this route and is
-     non-zero, except when both this and the previous step are subway (type 6): `usage := r24(usage + Q)` (once, also
-     in mode 2) and `fees := r24(fees + r24(Q × switchFee))`.
-  3. **Edge density** (§4.8): entry side `e` = direction from the cell to the previous route cell (for the first cell:
-     towards the source rect, `x < x0 → step +x`, `x > x1 → −x`, else `z < z0 → +z`, else `−z`); exit side `o` =
-     direction from the cell to the next route cell, or at the last cell towards `(destX, destZ)` (mode 0, 2) or
-     towards the source rect (mode 1); a direction is only defined for a one-cell step (else no update). With both
-     defined: record key `(mode = 1) << 24 | t << 16 | x << 8 | z`, `current[4e + o] := min(0xFFFF, current + Qi)`.
+  2. **Transit switch** (`0x00719C8A`–`0x00719CDB`, TS25): `id :=` the cell's switch ID (switch map); `last` starts
+     at 0 for each route. If `id ≠ last`: when `id ≠ 0`, and not both this cell's type and the **next** record's type
+     are subway (6), `usage := r24(usage + Q)` (once, also in mode 2) and `fees := r24(fees + r24(Q × switchFee))`.
+     In every case where `id ≠ last`, `last := id`, also when `id = 0` and in the subway case. So `last` follows every
+     in-city cell, and leaving a station's lot and coming back counts it again. Off-map cells do not touch it. At the
+     last cell the "next" record is the last record itself, so a subway last cell inside a switch is never counted.
+     The switch is looked up with insert-if-missing (as in §4.16); only a damaged save has an ID with no switch.
+     *(Corrected: an earlier text said the previous step.)* Example: a bus route whose in-city cells have IDs
+     0, 7, 7, 0, 7 counts switch 7 twice, at the second and the fifth cell.
+
+     `switchFee` is the switch's toll, the f32 building property `0x0BFC0A4C` (traffic-network.md §2.4; absent →
+     0.0), so only toll booths charge (TS15). Example: 37
+     commuters by car, Carpool off, `Q = 37.0`, through a toll booth with toll 0.1 (f32 `0.100000001`):
+     `r24(37 × 0.1)` = 3.70000005 (the f32 nearest 3.7), added to `fees` and at month end to the toll income
+     (§4.12). A return leg through the same booth is a separate ApplyRoute and charges again; mode 2 charges once.
+  3. **Edge density** (§4.8): `e` and `o` are the route reader's entry and exit sides of the cell (§4.3, as
+     ConfirmRoute reads them; around a jump they follow the reader's jump rules). There are two overrides (TS24):
+     - the **first** cell's entry is the side towards `R`: `x < x0 → +x`, `x > x1 → −x`, else `z < z0 → +z`,
+       else `−z` (`0x00719B2D`). This is always defined, however far the rect is;
+     - the **last** cell's exit, in modes 0 and 2, is the unit step from the cell to `(destX, destZ)`. It is
+       defined only when that cell is exactly one step away along x or z (16-bit differences), so no update when
+       the destination is the cell itself or farther away. In mode 1 it is the side towards the `sourceRect`
+       parameter (not `R`): `x < x0 → +x`, `x > x1 → −x`, `z < z0 → +z`, else `−z`. This is always defined; a cell
+       inside the rect gives `−z`.
+
+     With both defined: record key `(mode = 1) << 24 | t << 16 | x << 8 | z`, `current[4e + o] := min(0xFFFF,
+     current + Qi)`.
      **Mode 2 also adds `Qi` to the record with key `1 << 24 | t << 16 | x << 8 | z` at index `4o + e`** (the mirrored
      direction) *[compat]*. The pathfinder's `ApplyTraffic` (pathfinder.md §4.17, no known caller) mirrors the same
      way (corrected by PF2).
-  4. **Ferry legs**: a step across a ferry link adds `round(Q)` to the link's counters (by mode) and
-     `r24(Q × ferryFare)` to the fares *[inferred: counter meaning, traffic-network.md]*.
+
+     At the last cell an undefined side only skips this update. At any **other** in-city cell, an undefined side
+     ends ApplyRoute at once (`0x00719DC3` → `0x0071A0AF`) *[quirk]*. Steps 4–5 of the cell, all later cells, the
+     destination step and the final accumulation are skipped, so the route's `I` and `fees` are lost. Volume,
+     switch usage and edge densities already added stay. The reader leaves a side undefined only around a jump
+     to an x-neighbour (`dx = ±1`, `dz = 0`, §4.3). For example, a ferry departure cell beside the in-city edge
+     cell of its neighbour link: the off-map node is written as that edge cell (pathfinder.md §4.15). *[choice]*
+     Follow the original.
+  4. **Ferry legs** (TS16, `0x00719E8F`–`0x0071A054`): only at a cell that is not the last, when the **next** route
+     record has the jump flag (pathfinder.md §4.15) and the cell is the departure cell of a terminal `T`
+     (traffic-network.md §2.6). Then:
+     - `T`'s current riders `+= Qi`, twice in mode 2;
+     - `I := r24(I + r24(Q × ferryFare))`, once in every mode. The fare is income, not a fee;
+     - if the next cell is the arrival cell of a terminal `T2`: `L :=` `T`'s terminal link keyed by `T2`'s departure
+       cell. Mode 0: `L.currentA += Qi`. Mode 1: `L.currentB += Qi`. Mode 2: `L.currentA += Qi`, and `T2`'s link
+       keyed by `T`'s departure cell gets `currentB += Qi`, the reverse crossing. The reverse link is looked up even
+       when `L` is missing; a missing link is skipped;
+     - otherwise `T`'s neighbour link whose off-map cell or edge cell is the next cell gets `currentA += Qi` (mode
+       0), `currentB += Qi` (mode 1) or both (mode 2); none, nothing.
+
+     The counters are u16 and wrap; unlike the edge densities they are not clamped. A is the outbound-leg count and B
+     the return-leg count, each in the link's own direction. On a crossing to a neighbour the next record holds the
+     connection's in-city edge cell, because the route writes an off-map node that way (pathfinder.md §4.15), so the
+     neighbour link is found by its edge cell. The arrival table is tried first, so an edge cell that is also some
+     terminal's arrival cell counts on a terminal link instead.
+
+     Example, mode 2: 30 pedestrians (`Q = 30.0`, `Qi = 30`) cross from terminal A to terminal B with the shipped
+     fare 0.01. A's current riders `+= 60`; `I += r24(30 × 0.01f)` = 0.29999998; A's link to B gets `currentA +=
+     30`; B's link to A gets `currentB += 30`.
   5. **Income**: `I := r24(I + r24(Q × incomePerTile[t]))`.
 * At the last cell, unless mode 1: `ApplyTrafficToDestination(count, destX, destZ, lastTravelType, type)` (§4.2).
 * Finally `incomeAcc := incomeAcc + I` and `feeAcc := feeAcc + fees` (doubles, the additions rounded to 24 bits).
+
+**Off-map roots** (TS13). The original never produces a route whose root is off-map. Start nodes are seeded on rings
+clamped to the map: a neighbour-connection start rect `(−1, z)` seeds at `(0, z)` with entry side 0, and the ferry
+fallback starts on the in-city arrival cell (pathfinder.md §4.6). So the header's "off-map root → inner cell"
+replacement (pathfinder.md §4.15) is unreachable. The reader (`0x006D64B0`) takes the header x and z as zero-extended
+bytes and decodes every step literally, with no off-map adjustment. A route with an off-map root, encoded as the inner
+cell followed by unit steps measured from the off-map cell, would therefore be replayed one cell off by the original
+too. *[choice]* Decode literally, as the core does. A shadow difference here points at a pathfinder that seeded off
+the map, not at the decoder.
 
 ### 4.6 Daily results: trip length per source (CompleteTripSourceCalculations, `0x0070F0A0`)
 
@@ -551,6 +926,31 @@ the four directions (−x, −z, +x, +z, distance 1, 2, …; each direction stop
 a lot of another zone) for a lot of the same zone with slot 28 true; its trip-length value is written over the
 lot's rect.
 
+The borrow in detail (`0x00710016`–`0x007101D7`, TS26). `value := 0`.
+
+- **Linked lot.** If slot 59 gives a lot, `value :=` the trip-length map byte at that lot's location (slot 21).
+  Its zone and slot 28 are not checked.
+- **Search.** Otherwise `(x, z)` := the lot's own location. The search visits distance `n = 1, 2, …`, and at each
+  distance the directions in the order `−x, −z, +x, +z` (tables `0x00AB325C`/`0x00AB326C`), skipping those already
+  closed. The cell is `(x + n·dx, z + n·dz)`.
+  - A cell outside the city, with no lot (`GetLot(…, false)`) or with a lot of another zone **closes** that
+    direction.
+  - A cell of the lot itself, or of a same-zone lot whose slot 28 is false, is passed over: the direction stays
+    open.
+  - The first cell whose lot has the same zone and slot 28 true ends the search, with `value :=` the trip-length
+    map byte at **that cell** (not at the donor's location).
+- **Write.** `value` is stored into every cell of the lot's bounding rect (slot 14). When every direction closes
+  without a donor, the value written is **0**.
+
+Example: a lot at location (20, 20) with rect (20, 20)–(20, 21).
+
+- Distance 1. −x, (19, 20): a lot of another zone, so −x closes. −z, (20, 19): no lot, so −z closes. +x, (21, 20): a
+  same-zone lot with slot 28 false, passed over. +z, (20, 21): the lot itself, passed over.
+- Distance 2. Only +x and +z are open. +x, (22, 20): a same-zone lot with slot 28 true, whose map byte is 37.
+
+So `value = 37` is written into (20, 20) and (20, 21), and +z at distance 2 is never looked at. The bracket order
+(distance first, then −x, −z, +x, +z) is the original's.
+
 ### 4.8 Edge densities and transit switches (states 3, 7, 6; slot 12)
 
 `TrafficEdgeDensity` = 33 u16: `last[16]` (index `4·entry + exit`), `usage`, `current[16]` (the SDK's layout of
@@ -560,10 +960,25 @@ record).
 * **Dump** (state 7): for every record `last := current`, `usage := min(0xFFFF, Σ current)`.
 * **Reduce** (state 6): `current := 0` for all 9 travel types and both evening values at every cell with network
   info or a transit switch, and at the ferry terminal cells. Records are erased only when the network occupant is
-  removed (§3.1).
+  removed (§3.1). In detail (`0x007110B0`, TS22):
+  1. The time-sliced cell scan visits every cell. A cell takes part when it has a network-info record or a non-zero
+     switch ID. Each of its 18 keys (t = 0…8, evening 0 and 1) is looked up, and a record that exists has its
+     `current[16]` zeroed. A missing record is **not** created.
+  2. When the scan is done, in the same call and with no deadline test, each terminal in list order is handled the
+     same way at its **arrival** cell (x2, z2).
+
+  The departure cell needs no pass of its own: the ferry phase of every rebuild gives it network-info records for
+  the pedestrian and road networks (traffic-network.md §4.9.2), so step 1 covers it. The arrival cell gets only
+  connection bits there, hence step 2. An arrival cell that also has network info is cleared twice, which is
+  harmless.
 * **GetTrafficEdgeDensity(x, z, t, evening)** (slot 12): the record, or a shared all-zero record (`0x00AB31D0`) when
   missing. The returned pointer must not be written by callers.
-* **ReduceTransitSwitches** (state 3) rolls switch usage for the next cycle (traffic-network.md).
+* **ReduceTransitSwitches** (state 3, `0x00713750`): for every transit switch, in table order, `load :=
+  r24(densityReduction × load)` (`0x29136788`, the same factor as the volume reset of §4.9 step 3). Nothing
+  else: the two saved counters keep what CreateMaps (state 2, earlier in the same cycle) wrote, `prevUsage := load`
+  and `ratio := min(load / capacity, 1)` (§4.9 step 4). Finishes in one call. With the shipped factor 0 the load
+  restarts from 0 for the coming trip phases (`0 × NaN` and `0 × ±∞` give NaN; a negative load would become −0.0).
+  With a non-zero factor the load decays instead *[compat]* (TS3).
 * **GetTravelTimeRatio(x, z, t)** (slot 24, `0x007103B0`): 1.0 if `affectedByTraffic[t]` is false. Else
   `u := Σ` over travel types `i` with `generatesTraffic[i]` of `usage(x, z, i, 0) + usage(x, z, i, 1)` (u32), and with
   the cell's network info for `network(t)` (none → 1.0): `congestionCurve(r24(float(u) × invCapacity))`.
@@ -573,17 +988,57 @@ record).
 Per cell (x innermost), with `B` = peak volume grid, `D` = peak ratio grid:
 
 1. `B := 0`, `D := 0`.
-2. If `x mod 4 = 0` and `z mod 4 = 0`: `commercialWork[x/4][z/4] := min(255, round(r24(v × commercialScale)))` where
-   `v` = `0x00714AA0`: the sum of the maximum morning and the maximum evening edge-density usage of road, el-train and
-   monorail over a window around the 4×4 block *[inferred: exact window, traffic-network.md]*.
+2. If `x mod 4 = 0` and `z mod 4 = 0`: `commercialWork[x/4][z/4] := min(255, round(r24(float(v) × commercialScale)))`,
+   where `v` is the commercial traffic window value of block `(bx, bz) = (x/4, z/4)` (`0x00714AA0`, TS8). Rounding is
+   to nearest, ties to even: the f32 magic-number trick `+ 12582912.0f`, `0x0071A271`. Definitions:
+   * **Cell value** `cv(x, z, k)` (`0x00714940`), `k` = the `evening` byte of §4.8 (0 or 1), with `usage(x, z, t, k)`
+     = the `usage` field of the edge-density record (§4.8; 0 when there is no record). The cell value is the maximum
+     (u16) of three per-network sums:
+     * road: `usage(t = 1 Car) + usage(2 Bus) + usage(4 FreightTruck)`, summed in u16 (mod 2¹⁶);
+     * el-train: `usage(7)`;
+     * monorail: `usage(8)`.
+
+     Travel types whose network (traffic-network.md §2.1, table `0x00AB31A8`) is pedestrian, rail or subway add
+     nothing.
+   * **Window** of block `(bx, bz)`, with `X0 = 4·bx` and `Z0 = 4·bz`: a plus shape, the 4 × 4 block widened by 2
+     cells on each side in each direction, without the corners:
+     * `z` runs from `max(0, Z0 − 2)` to `min(H, Z0 + 6) − 1`;
+     * on the block's own rows (`Z0 ≤ z < Z0 + 4`), `x` runs from `max(0, X0 − 2)` to `X0 + 5`;
+     * on the other rows, `x` runs from `X0` to `X0 + 3`.
+
+     That is at most 48 cells.
+   * `v := (maxM + maxE) mod 2¹⁶`, where `maxM` = the maximum over the window of `cv(·, ·, 0)` and `maxE` = the
+     maximum of `cv(·, ·, 1)`. The two maxima are taken independently and may come from different cells. The sum
+     is truncated to u16 by the caller.
+   * *[quirk]* The `x` range on the block rows has **no upper clamp**, and the record key uses the low byte of `x`.
+     So in a 256-wide city the east-most block column (`X0 = 252`) also reads cells `x = 0` and `x = 1` on the same
+     rows: the west edge. In 64- and 128-wide cities, `x = W` and `W + 1` have no records and give 0. Keep it
+     *[compat]*.
+
+   Worked example, block (2, 3): `X0 = 8`, `Z0 = 12`. The window is rows 12–15 with x = 6–13, and rows 10, 11, 16, 17
+   with x = 8–11 (48 cells).
+   * Morning: at (13, 14), Car 300 + Bus 40 + FreightTruck 100 = road 440. At (9, 10), el-train 500. So `maxM` =
+     500.
+   * Evening: the largest cell value is 380, at (6, 12). So `maxE` = 380.
+   * `v` = 880. With `commercialScale` 0.128: `r24(880 × 0.128)` = 112.64, so `commercialWork[2][3]` = 113.
 3. For transit network `n` = 0…5 with network info `e` at the cell (`vol := volume[n]`):
    * `n ∉ {2, 3}` (not rail, not subway): `B := max(B, vol)`;
    * `r := r24(vol × e.invCapacity)`; `D := max(D, r)`;
    * accident list (road and rail, `n ∈ {1, 2}`, and the cell's connection count `> 3`):
      `p := accidentCongestionCurve(r)`; if `p > 0`, `p2 := r24(accidentCapacityCurve(r24(1 / e.invCapacity)) × p)`;
      if `p2 > 0`, the cell is added to the accident-prone list with probability `p2` (`0x00716950`);
-   * per network type statistics (sum of `r`, count, maximum with its cell, count with `r > 1`) when the network
-     info is not excluded *[inferred: flag meaning]*;
+   * **statistics** (TS9). No record is excluded; the flag only picks the slot. The slot is `s := 13` (the
+     **bridge** slot) when `e.flags` bit 0 is set, else `s := e.type`. Bit 0 means the occupant has network flag
+     `0x40000` (traffic-network.md §2.2). The traffic advisor publishes slot 13 as `ga_bridge_congestion` and
+     `g_bridge_congestion_tile_count` (`cSC4AdvisorTraffic::update_variables`, `0x0041C1A0`; it reads published row 13, advisors.md §7.7), hence the name.
+     * `sum[s] := r24(sum[s] + r)`, `count[s] += 1` (u32), `records[s] += 1` (u16, wraps).
+     * If `r > max[s]` (ordered, so a NaN never wins; `max` starts at −1.0): `max[s] := r` and
+       `maxCell[s] := (x, z)`.
+     * If `r > 1.0` (ordered): `congested[s] += 1`.
+
+     Every record of every transit network counts, the pedestrian one (`n = 0`) included. A road or street cell
+     therefore normally adds 2 to `records[type]`: its pedestrian record and its car record have the same type
+     (traffic-network.md §4.2).
    * `volume[n] := r24(densityReduction × vol)` (shipped `0x29136788` = 0: volumes restart from 0 every cycle);
    * road (`n = 1`): `volume[1] := r24(volume[1] + GetBackgroundTraffic(x, z))` — background traffic therefore
      appears in the **next** cycle's maps.
@@ -591,10 +1046,27 @@ Per cell (x innermost), with `B` = peak volume grid, `D` = peak ratio grid:
    `switch.ratio := min(ratio, 1)`.
 5. If any network info exists at the cell: `B := max(B, 1.0)`.
 
-At the end: the network-type averages become the "last" statistics (slot 34), the cell counts per network type are
-kept, `UpdateRoadsBudget` (`0x0070D8A0`) and `UpdateMassTransitBudget` (`0x0070DA40`) set the departments' monthly
-costs from the cell counts and the per-tile costs `0x6A84493E` (budget.md), and the accident-prone list is copied
-for the accident check.
+At the end of the pass (`0x0071A5D7`–`0x0071A701`):
+
+1. **Publish the statistics.** For each slot `s` = 0…13: if `count[s] ≠ 0`, `sum[s] := r24(sum[s] / float(u32
+   count[s]))`. Then copy the five fields `(average, congested, maxX, maxZ, max)` into the "last" statistics (the
+   slot-34 block, rows 0–12, then the bridge row). A slot with no record keeps `(0, 0, 0, 0, 0)`. The state-2 entry
+   reset sets `max` to −1.0 and the copied fields to 0.
+2. **Replace the cell counts.** `records[t]` for t = 0…12 become the published u16 × 13, **and**
+   `cells[t] := records[t]` (u32). This replaces the running counts that the occupant messages keep between passes
+   (§3.6). The bridge slot's `records[13]` is neither published nor a cell count, so bridge pieces are in no cell
+   count after a pass. Road-like counts are about twice the cells. *[compat]*
+3. `UpdateRoadsBudget` (`0x0070D8A0`) and `UpdateMassTransitBudget` (`0x0070DA40`) set the departments' monthly
+   costs from these counts and the per-tile costs `0x6A84493E` (budget.md). Road line: Road + OneWayRoad. Street
+   line: Street. Highway line: Highway + GroundHighway. Avenue line: Avenue.
+4. The accident-prone list is copied for the accident check.
+
+Corpus check (read-only, the eleven shipped saves with record version ≥ 37):
+* The saved cell counts equal the published u16 counts in every one.
+* Road + Street + Avenue + OneWayRoad counts are twice the distinct road keys of the damage block, exactly in seven
+  of them, five distinct cities (Fulham: 538 + 458 = 996 = 2 × 498).
+* The tutorial city's rail count is 143 against 135 rail keys. The difference is consistent with level crossings,
+  which DoRailChanged leaves out of the rail sets (§3.6).
 
 **GetBackgroundTraffic(x, z)** (slot 11, `0x0070E870`): with `R`, `C`, `I` = the sums of the BDS developers'
 population grid values (developer slot 15 `GetCellValue`, s16) at the cell for residential `0x1010, 0x1020,
@@ -617,7 +1089,9 @@ data directly, assuming tract size 1 for both u8 grids *[quirk]*. Then posts `0x
 
 **ClearTripDestinations** (`0x0070E4F0`): per cell with a lot (`GetLot(x, z, true)`): `arrivedLast[k] :=
 arrivedThisCycle[k]`, `arrivedThisCycle[k] := 0` (k = 0…3); `jobCapacity[k] += GetMaxTripCapacity(holder, k)` for
-k = 0…2 *[inferred: once per lot cell, so multi-cell lots count once per cell]*.
+k = 0…2. The cell iterator steps one cell at a time (step 1, `0x0071F47B`), and `GetLot(…, true)` answers only at
+the lot's origin cell (`0x0072B453`), so each lot is rolled and counted **once**. *(Corrected (TS19): an earlier
+text inferred once per lot cell.)*
 
 **RefreshCommuteMap** (`0x0070F6E0`, despite the name it refreshes the **destination map**): per cell, the
 destination byte `&= 0xF8` (bits 0–2 cleared, *[quirk]* bit 3 = freight destination is never cleared); with the lot
@@ -634,7 +1108,8 @@ destination byte `&= 0xF8` (bits 0–2 cleared, *[quirk]* bit 3 = freight destin
 **StartRecalc** (state 0, `0x00717C90`): remembers the cycle start date (`GetSimDateNumber`); income and fee
 accumulators := 0.0; `jobCapacity[k]`, `attempted[k]`, `routed[k]` := 0; `rerouteBucket := (rerouteBucket + 1) & 3`;
 car and freight length sums and counts := 0; then `RecalculateNeighborConnectionCapacities` (`0x00714E60`,
-traffic-network.md). Finishes in one call.
+traffic-network.md §2.7.4: regional job capacities per established neighbour pool, the default pool's freight
+counter, and destination bits plus `freeDest` on the off-map edge cells; not a no-op, TS12). Finishes in one call.
 
 **DoMonthlySimulation** (`0x00718AC0`), in this order:
 
@@ -647,6 +1122,9 @@ traffic-network.md). Finishes in one call.
    * `target := low32(ftol(r24(float(u32 cellCount) × d)))` with `cellCount` = the number of road (resp. rail)
      cells kept by the network part;
    * if `target ≠ damagedCount`: `ApplyPotholeChanges(kind, target − damagedCount)` and `damagedCount := target`.
+     Road only: then the published pothole count (u16 at offset `0x134` of the slot-34 block, §3.6) := the low 16
+     bits of `damagedCount`. Rail writes no pothole count, and sets `damagedCount` before the call rather than after
+     (the outcome is the same).
 
    **ApplyPotholeChanges(kind, delta)** (`0x00715FB0`; kind 1 road, 2 rail): the network part keeps, per kind, a
    set of intact cells and a set of damaged cells (SGI hash tables keyed by the u16 cell key `x << 8 | z`;
@@ -715,7 +1193,7 @@ missing.
 | `0x29136788` | Monthly Traffic Density Reduction | — (uninitialised *[quirk]*; FreeCity4 0) | 0 | `densityReduction` (§4.9) |
 | `0x29136789` | — | 0.03125 | — | read, unused |
 | `0x6A84493E` | Monthly cost for network tile [13] | 0 | see tuning | department costs (§4.9) |
-| `0xA92356AE`, `0xA92356AF` | Max roads / mass transit funding percent | 1.2, 1.2 | 120, 120 (→ 1.2) | department maximum funding |
+| `0xA92356AE`, `0xA92356AF` | Max roads / mass transit funding percent | 1.2, 1.2 | 120, 120 (→ 1.1999999) | department maximum funding; `r24(v × 0.01f)`, below |
 | `0xA92356B0` | Damaged road extra step cost | 32.0 | 0.1 | traffic-network.md |
 | `0xA92356B6` | strategy period (u32) | 365 | — | §3.3 |
 | `0xA92356B7` | strategy buckets (u32) | 128 | — | §3.3 |
@@ -748,6 +1226,33 @@ missing.
 | `0x0CAAAEB8` | (commercial traffic scale) | 0.128 | 0.128 | `commercialScale`, §4.9 |
 
 Then `UpdateTravelStrategies` (§4.1.2). `0xA92356B2` (Mass Transit Usage Chance) is not read by this function.
+
+**Funding percents** (TS29). `0xA92356AE` and `0xA92356AF` (stored at +0xB88, +0xB8C; `Init` hands them to the
+roads and mass transit departments) go through the percent getter `0x005FDAC0` (calls `0x00716D67`, `0x00716D79`).
+For any numeric property type (u8, s8, u16, s16, u32 as unsigned, s32, 64-bit, f32, f64) it **multiplies** the
+value by the f32 constant `0.01f` (0x3C23D70A, `0x00A823A4`) and rounds once to f32: `r24(v × 0.01f)`, not
+`r24(v / 100)`. For an integer below 2^29 or an f32 the product is exact before that rounding. A missing property, or
+one of another type (bool, string), leaves the code default 1.2 (0x3F99999A).
+
+Worked example: shipped 120. `0.01f` is 0.00999999977648…; × 120 = 1.19999997317…, which lies below the midpoint
+1.19999998807… of the two nearest f32 values, so the result is 0x3F999999 (1.1999999), one ulp **below** the code
+default 1.2. Dividing by 100 would give 0x3F99999A. The two formulas agree for 50, 100, 110, 150 and 200.
+
+**Short and missing arrays** (TS28). Each array read has its own rule; "the rest" means the target entries past the
+property's count. Entries past the target's size are ignored.
+
+| Property | Missing | Fewer entries |
+|---|---|---|
+| `0x491332E7 + t` max speed (13) | all 13 of type `t` reset as for `v ≤ 0` (speed 0, inverse `FLT_MAX`) | the rest reset the same way |
+| `0x6A84493E` network tile cost (13) | all 13 := 0.0. There is no presence test (`0x00716D34`) | the rest := 0.0 |
+| `0xA92356B1` income per tile (9) | unchanged | all 9 are copied with **no count check** (`0x00716E07`), so the original reads past the array *[quirk]*. *[choice]* the rest := 0.0 |
+| `0xA92356B3` capacity (13) | unchanged | the rest := capacity 0.0, `invCapacity` 1.0 |
+| `0xA92356B4`, `0xA92356BF`, `0xA92356B5` bools (9) | unchanged | the rest := true |
+| `0xA92356BB` intersection effects | unchanged | the count is the array's own, stored as a u8 (`0x00717172`), so a count ≥ 256 wraps; reciprocals of that many entries |
+| `0xA92356BC`, `0xEA8C3CDB`, `0xCAD64136` start costs (9) | unchanged | the rest := 0.0 |
+| `0xA92356BE` background traffic (3) | unchanged | the rest := 1.0 |
+
+The shipped exemplar gives full arrays everywhere, so only modified tuning reaches these rules.
 
 **Shipped "Max speed by Network"** (`0x491332E7 + t`, 13 floats each). Source: the Traffic Simulator exemplar
 `0xC9133286` in `SimCity_1.dat` (dump `re/tuning/simulators.md`). Columns are the network types in index order. A
@@ -806,6 +1311,50 @@ for the sequence of draws 3, 4, 6 and 7. The month order is fixed: pothole draws
 draws. No other draw exists in this class: trip generation, routing and the maps are deterministic, and the network
 part draws nothing (traffic-network.md §12).
 
+### 4.16 Station query: GetTransitSwitchQueryData(x, z, out) (slot 35, `0x0071CB80`) *[compat]*
+
+`out` is five 32-bit fields, all written on success (TS11). The names are those of the query window's readers in
+the Mac build (`cSC4ViewInputControlQuery::SetOrGetTransitStation…`):
+
+| Field | Meaning (query reader) | Transit switch at the cell | Ferry terminal in the lot at the cell |
+|---|---|---|---|
+| +0x00 u32 | available capacity (service quality numerator) | `low32(ftol(capacity))`; 0 during a strike | riders last period; 0 during a strike |
+| +0x04 u32 | maximum capacity | `low32(ftol(capacity))`, **also during a strike** | riders last period; 0 during a strike |
+| +0x08 f32 | load fraction (no query reader) | the switch's `ratio = min(load / capacity, 1)` written by the last CreateMaps (§4.9 step 4); 0.0 during a strike | 1.0; 0.0 during a strike |
+| +0x0C u32 | actual usage | `low32(ftol(prevUsage))` (the load seen by the last CreateMaps); 0 during a strike | riders last period; 0 during a strike |
+| +0x10 u32 | monthly maintenance cost | cost (below), whatever the strike | cost (below), whatever the strike |
+
+"During a strike" is the mass-transit strike state 1 (§4.12), for both kinds. `capacity` is the switch's building
+property `0xE90E25A3`; "riders last period" is the terminal's u16 rolled on entering state 19 (traffic-network.md
+§2.6). `ftol` truncates toward zero.
+
+1. `id :=` the switch-ID grid at `(x, z)` (grid slot 7). If `id ≠ 0`: the switch is looked up with insert-if-missing
+   (as traffic-network.md §4.7.3), the fields are filled from it, and the cost is taken from its building. Return
+   **true**.
+2. Else `lot := GetLot(x, z, false)`; none → return **false** (`out` untouched). Walk the ferry terminals in list
+   order; the first whose lot cell (x, z) lies inside the lot's bounding rect (lot slot 14, bounds inclusive) is
+   used, the cost taken from the lot's building (lot slot 48; no building → the cost stays 0). Return **true**. No
+   such terminal → return **false** (`out` untouched).
+
+**Cost**: `holder :=` the building's property holder; the budget simulator's `GetBudgetItemForPurpose(holder,
+0xCA550301, item)` (slot 51) gives the building's first budget item with that purpose (budget.md §2); then
+`dept := GetDepartmentBudget(item.department)` (slot 28). When both exist, cost `:= low32(ftol(r24(float(item.cost)
+× f)))`, `item.cost` the item's int64 monthly cost at 100 % and `f` the department's funding fraction (department slot
+10, a pointer to the fraction). Otherwise 0.
+
+The query window then shows: service quality `0` if the call fails or +0x00 is 0, `1` if +0x0C is 0, else
+`min(+0x00 / +0x0C, 1)`; usage percent `+0x0C / +0x04 × 100` (0 when +0x04 is 0); maximum capacity +0x04; usage
++0x0C; maintenance +0x10 *[inferred: from the Mac readers; the Windows readers were not traced]*.
+
+*[choice]* A switch ID in the grid with no switch behind it (only possible from a damaged save) makes the original
+insert a default switch with no building and crash on the cost step. FreeCity4 returns false and leaves `out`
+untouched.
+
+**Example.** A subway station with capacity 2500.0, last cycle's load 3100.0 (so ratio 1.0), no strike, budget item
+cost 150 for purpose `0xCA550301` in a department funded at 0.9: `out = {2500, 2500, 1.0f, 3100, 135}`
+(`r24(150 × 0.9) = 135.0`, truncated 135). The window shows service quality `min(2500/3100, 1) = 0.80645`, usage
+124 %. During a strike: `{0, 2500, 0.0f, 0, 135}`.
+
 ## 5. Messages posted
 
 | Message | When | Data |
@@ -822,6 +1371,21 @@ part draws nothing (traffic-network.md §12).
 
 Version **0x29** (41). Read accepts versions ≥ `0x13` and returns false below that; the version gates are listed
 in §6.4. Primitive encodings are foundations §2.2.
+
+**A failed Read** (TS30). The original does not parse first. Its only early exit is the version test: below `0x13`
+it returns false having consumed only the version, and nothing has changed. Otherwise it writes into the simulator
+as it goes and never stops on an error:
+
+- each failed stream read leaves its destination unchanged;
+- each ref (the grids, the switch buildings, the departments) is first set to null by the ref helper
+  (`0x005D9730`), which does not release the old object, so on an error the ref stays null;
+- counts are read into locals, some never initialised (the destination-map dimensions, `0x00721ACA` and
+  `0x00721ADA`), so after an error the map is resized to, and loops run over, garbage counts.
+
+At the end it returns `!stream.GetError()` (stream slot 18, `0x007235E5`), and the class-store loader ignores that
+result (foundations §3.5). A failed Read therefore leaves a partly loaded simulator with null grids, which is
+unusable. *[choice]* FreeCity4 parses the whole record first and commits only on success; a failed Read returns
+false and leaves the simulator as it was before the call.
 
 **Corrected (M6):** the authoritative byte layout, with every Read version gate, is save-records.md §7.1.1; it
 parses all 417 corpus records. The table below is kept as a field overview; where it differs, save-records.md
@@ -843,13 +1407,13 @@ vectors.
 | 7 | edge densities | u32 count; per record: u32 key, `last[16]` u16 (index order 0…15), u16 usage, `current[16]` u16 |
 | 8 | per trip type k = 0…2 | u32 `jobCapacity[k]`, u32 `attempted[k]`, u32 `routed[k]` |
 | 9 | network grids | transit-switch mode-mask grid (`0x69D5C424`), transit-switch ID grid (`0x69D5C42D`) |
-| 10 | switch block (traffic-network.md §2.4, §6) | u32 next switch ID, u32 count, then per switch in table iteration order: u32 ID, building reference (`SetGZSerializable`), f32 load, f32 time factor, f32 capacity, bool has-access-point, u8 access x, u8 access z, f32, f32 (the two counters), u32 rule count, per rule: u8 kind, 4 × bool side, u16 from, u16 to; then f32 (the `0x0BFC0A4C` value *[inferred: pairing]*), bool counts-as-intersection |
+| 10 | switch block (traffic-network.md §2.4, §6) | u32 next switch ID, u32 count, then per switch in table iteration order: u32 ID, building reference (`SetGZSerializable`), f32 load, f32 time factor, f32 capacity, bool has-access-point, u8 access x, u8 access z, f32, f32 (the two counters), u32 rule count, per rule: u8 kind, 4 × bool side, u16 from, u16 to; then f32 toll (the `0x0BFC0A4C` value), bool counts-as-intersection |
 | 11 | departments | roads, mass transit (serializables, budget.md) |
 | 12 | income | s64 budget-item total (§4.1.3), f32 transit income, f32 toll income, f32 last monthly income, f64 income accumulator, f64 fee accumulator |
 | 13 | cycle date, strike, damage | u32 cycle start date (§4.12 StartRecalc), u8 strike state, s32 strike month counter; road: u32 cell count, u32 damaged count, f32 damage rate; u32 n + n × u16 intact road cell keys, u32 n + n × u16 damaged road cell keys (hash iteration order); rail: the same five fields and two key lists |
-| 14 | cycle position | u8 cycle state, the scanning iterator (helper `0x005D9FD0`/`operator<<`), bool intersection-dirty flag, s32 × 4 intersection dirty rect, bool, u32 strategy bucket counter, u32 strategy bucket, s16 × 2 phase positions, the lot iterator position (helper `0x005DA390`), bool, bool, f32, s32 x, s32 z (re-route context), u32 n + n × u32, u8, u32, s32 × 4, u32 n + n × u32 (per entry), u8 × 2 (context flags) |
+| 14 | cycle position | u8 cycle state, the scanning iterator (helper `0x005D9FD0`/`operator<<`), bool intersection-dirty flag, s32 × 4 intersection dirty rect, bool network-changed byte (§3.1; never read), u32 strategy bucket counter, u32 strategy bucket, s16 × 2 phase positions, the lot iterator position (helper `0x005DA390`), bool, bool, f32, s32 x, s32 z (re-route context), u32 n + n × u32, u8, u32, s32 × 4, u32 n + n × u32 (per entry), u8 × 2 (context flags) |
 | 15 | pacing and counters | s32 processed, s32, s32 total, u32 days, u32 day index, u32, u32, s32 `passTotal`, s32 `toReRoute`, s32 `toSearch`, then u32 × 10 pass counters (routed, re-routed, `rerouteBucket`, source counter, …; §10 Q4) |
-| 16 | network-type statistics, two sets (published "last" set = slot 34 block, then the working set) | per set: 13 × (f32 sum, u32 count, s32 max x, s32 max z, f32 max), the aggregate (same 5 fields), u16 × 13 (over-capacity counts), u16, u16, s32 12, 12 × (u16, f32, s32, s32, f32) per-switch-type records, f32, f32, bool, f32, u8 |
+| 16 | network-type statistics, two sets (published "last" set = slot 34 block, then the working set) | per set: 13 × (f32 average (the working set holds the sum), u32 congested count (`r > 1`), s32 max x, s32 max z, f32 max), the bridge row (same 5 fields, §4.9), u16 × 13 (network-info records per type; published = the cell counts), u16 (bridge records; never published), u16 (published set: the pothole count, §3.6), s32 12, 12 × (u16, f32, s32, s32, f32) per-switch-type records, f32, f32, bool, f32, u8 |
 | 17 | neighbour-connection records | u32 count, per record (traffic-network.md §2.7): u16, u8, u8, u16, u16, then its f32 values |
 | 18 | commute | f32 `avgCarCommute`, f32 `carLenSum`, u32 `carLenCount`, f32 `freightLenSum`, u32 `freightCount`, u32 × 13 cells per network type, u32 4, u32 × 4 `freeDest` |
 | 19 | tail | u32 count + records of the neighbour pool map (per pool: u16 ID, then its property-holder record; traffic-network.md §2.7.3), the per-travel-type count vectors (u32 × 9 each) and the ferry total, then the **ferry terminals**: u32 count, per terminal u8 × 6, u8, u16 × 3, u8 × 2 (kind, cell, counters), u32 link count + per link (f32 cost, s16 x, s16 z, u16, u16 × 4 counters, route bytes `vector<u8>`), u32 neighbour-link count + per link (f32, s16 × 4, u16 × 4, two route vectors); Read rebuilds the terminal tables from them (`0x00713DF0`) *[inferred: field grouping]*; traffic-network.md §6 agrees |
@@ -857,6 +1421,17 @@ vectors.
 Rows 14–19 are partly given by type sequence; the meaning of each unnamed scalar is either traffic-network.md's or an
 internal counter that FreeCity4 writes back unchanged. The full write order with addresses is in the evidence file named in
 §10 Q5. FreeCity4 writes version `0x29` only.
+
+**The scanning iterator in row 14** (TS31). Read replaces the iterator with a new one (`0x00722623`; the old one is
+not freed) and fills its eight fields from the record without any check (`0x005DA410`). The scanning phases step
+it with an inline GetNext (`0x0071A1A5`, `0x0070F514`, `0x0070E585`, `0x00711120`, `0x0070F771`, `0x00716240`) that
+tests only two values: state byte 2 is done and 0 is fresh. **Every other byte, 1 and any unknown 3…255, acts as
+running** (simgrid.md §7.4), so the scan steps on from the saved cell. The byte is not rewritten until the scan
+ends (2) or the iterator is reset, so an unknown value is also written back by the next save. Each scanning state
+resets the iterator to (0, 0) on entry (`0x00721308`), so a loaded iterator matters only for a save taken
+mid-scan. Example: state byte 7, current (5, 3), step 1, rectangle [0, 63] × [0, 63]: the next GetNext returns
+(6, 3) and the scan goes on; a byte of 2 would end the phase at once. *[compat]* FreeCity4 keeps the raw byte and
+treats it in the same way.
 
 ### 6.2 What must survive a save
 
@@ -889,6 +1464,12 @@ the 417 corpus saves hold version 19; the gate-by-gate layout is save-records.md
 older record is not an option: the six published grids are separate objects that would be left unreferenced, and
 the destination map, damage and switch state would be lost. An old record is written back as version `0x29`; a
 byte-exact round trip is expected only for versions 40 and 41 (save-records.md §7.1.4).
+
+**Versions above `0x29`** (TS32). Read has no upper bound. Every gate, including the three that hold the constant
+in a register (`0x007223B6`, `0x0072290F`, `0x00722C4D`), is an unsigned ordered test of the u16 version (`jb`,
+`jae` or `jbe`); none tests for equality. A record of version `0x2A`…`0xFFFF` is therefore read exactly as version
+`0x29`. Bytes left at the end of the entry are skipped by the class-store loader, which moves to the next entry
+(foundations §3.5), and Write writes it back as `0x29`.
 
 ## 7. Interface: cISC4TrafficSimulator (vtable `0x00AB33D0`, 44 slots)
 
@@ -932,7 +1513,7 @@ interfaces.tsv); return channel read from the epilogues. AL = bool/byte (upper E
 | 32 | +0x80 | `0x0071FFF0` | `uint32 GetFerryTerminalCount(uint32 type)` | 4 | EAX | |
 | 33 | +0x84 | `0x0070EC10` | `GetWaterRoute(…, vector<uint8>&)` | 20 | AL | traffic-network.md |
 | 34 | +0x88 | `0x00720000` | `const TrafficStats* GetTrafficStats()` | 0 | EAX | pointer to the statistics block (§4.9); **SDK**: `intptr_t` is a pointer |
-| 35 | +0x8C | `0x0071CB80` | `bool GetTransitSwitchQueryData(uint32, uint32, TransitSwitchQueryData&)` | 12 | AL | traffic-network.md |
+| 35 | +0x8C | `0x0071CB80` | `bool GetTransitSwitchQueryData(uint32 x, uint32 z, TransitSwitchQueryData&)` | 12 | AL | §4.16 (five 32-bit fields); target lookup traffic-network.md |
 | 36–41 | +0x90…+0xA4 | `0x00710540`, `0x00711A70`, `0x007106C0`, `0x00711B50`, `0x00718D20`, `0x00718F90` | AreLotsConnected, GetConnectedOccupantCount, GetConnectedDestinationCount, GetSubnetworksForLot, GetSubnetworksInRectangle, GetSubnetworksInRegion | 8 each | AL / EAX | traffic-network.md |
 | 42 | +0xA8 | `0x007143B0` | GetOccupantCountForAllSubnetworks | 8 | | traffic-network.md |
 | 43 | +0xAC | `0x007215A0` | scalar deleting destructor `(uint32 flags)` | 4 | EAX = this | not in the SDK; bit 0 frees with allocator C |
@@ -949,7 +1530,7 @@ Virtual calls (slot, offset, pop, return):
 |---|---|---|---|---|---|
 | `cISC4City` | 93, 94 (+0x174, +0x178) | cell counts | 0 | EAX | Init |
 | `cISC4City` | (+0x16C) | cell width (float) | 0 | x87 | speed tables (§4.14) |
-| `cISC4LotManager` | 6 (+0x18) | `GetLot(x, z, bool)` | 12 | EAX | everywhere |
+| `cISC4LotManager` | 6 (+0x18) | `GetLot(x, z, bool originOnly)` (`0x0072B410`): false = any cell of the lot, true = only the lot's origin (lot slot 21); off-map → null. **false** at every site except ClearTripDestinations, RefreshCommuteMap's first lookup and UpdateSubnetworkInfo (true). The pathfinder's three sites pass false (pathfinder.md §8, TS19) | 12 | EAX | everywhere |
 | `cISC4LotManager` | 15 (+0x3C) | lot list / iterator | | | source iterator, FinishTripMap |
 | `cISC4Lot` | 3 (+0x0C), 12/13 (+0x30/+0x34), 14 (+0x38), 21 (+0x54), 28 (+0x70), 31 (+0x7C), 37 (+0x94), 48 (+0xC0), 56 (+0xE0), 59 (+0xEC) | property holder, flags, bounding rect, location, road access, zone type, livable, building, travel population, lot link | | | §4.1, §4.7 |
 | `cISC4TrafficSource` | 3, 4, 5 | §4.1 | 0, 0, 4 | | |
@@ -1002,9 +1583,9 @@ never read.
 
 Open questions:
 
-* **Q1** `UpdateStrikes`, `ApplyRoad/MassTransitFunding`, `UpdateRoads/MassTransitBudget` and
-  `DoLotDeactivated` were not traced line by line *[inferred]*; their observable outputs (strike state, department
-  costs) need differential tests.
+* **Q1** `UpdateStrikes`, `ApplyRoad/MassTransitFunding` and `UpdateRoads/MassTransitBudget` were not traced line
+  by line *[inferred]*; their observable outputs (strike state, department costs) need differential tests.
+  (`DoLotDeactivated` is traced in §4.1.3, TS23.)
 * **Q2** The meaning of the slot-59 lot link and of zones 8/9 in FinishTripMap (§4.7).
 * **Q3** *Answered* (§5): `0x0C05E4C3`, data1 = x, data2 = z, posted queued, no compiled receiver; rail accidents
   post nothing. Open: who calls `CheckRailAccident` and what the caller does with a true result.
@@ -1016,7 +1597,7 @@ Open questions:
 * **Q7** Lot activation (`0xE8BDA2E7`, posted only by the virtual `cSC4Lot::SetState` `0x006C3100`) drives the
   strategy-bucket registration, the destination bits, the transit switches and the ferry terminals. Whether loading a
   city re-sends it for every lot is the lot spec's question (traffic-network.md Q2). The bucket multimap is not in
-  the save record, so without a re-send no lot is re-drawn after load (harmless: the value is never read) and the
+  the save record, but DoPostCityInit rebuilds it from the lots' saved `0x691C863C` values (§3.5 step 12, TS7); the
   destination bits come back with the next RefreshCommuteMap.
 * **Q8** The int64 total `E` that gates strikes (§4.12) comes from budget items of activated lots (properties
   `0xCA550301` / `0x0C3BF549`); its exact meaning needs the budget items' owner.

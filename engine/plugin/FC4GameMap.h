@@ -151,10 +151,16 @@ GameMapStatus WalkGameMap(const GameMapObject* m, uint32_t maxNodes, Visit&& vis
     if (m == nullptr) return done(GameMapStatus::NullMap);
     const GameMapNode* const h = m->header;
     if (h == nullptr) return done(GameMapStatus::NullHeader);
+    // DQ6 (demand.md §7.2): every map constructor, the copy constructor
+    // included, writes header colour 0 and nothing changes it later; colour 1
+    // never occurs in the game, so refusing it is our choice.
     if (h->color != kGameMapRed) return done(GameMapStatus::BadHeader);
     const uint32_t count = m->count;
     if (count == 0) {
         // The empty map: parent null, left = right = header (the constructors and the clear).
+        // DQ4 (demand.md §5): count 0 with a non-empty tree is unreachable in the
+        // game (every writer keeps the count equal to the nodes); the original
+        // would reuse the stale tree, a corrupt map, so it is refused (our choice).
         if (h->parent != nullptr || h->left != h || h->right != h) return done(GameMapStatus::BadEmpty);
         return done(GameMapStatus::Ok);
     }
@@ -231,6 +237,9 @@ GameMapStatus WalkGameMap(const GameMapObject* m, uint32_t maxNodes, Visit&& vis
 // ---- a building profile's capacity maps (layouts.md, "The capacity maps") ------------------------
 
 constexpr size_t kProfileCapacityVectorOffset = 0x0C;  // begin, end, capacity_end of 12-byte maps
+// DQ7 (demand.md §7.2): the original sets no limit; a profile holds at most 1
+// map by construction and every shipped capacity property 1 entry, so only
+// plug-in data could exceed these (refused above them: our choice).
 constexpr uint32_t kMaxCapacityMaps = 16;              // the shipped game has 0 or 1
 constexpr uint32_t kMaxCapacityEntries = 128;          // over every map; keys are developer types
 

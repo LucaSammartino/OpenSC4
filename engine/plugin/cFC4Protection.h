@@ -66,7 +66,9 @@
 #include <vector>
 
 class cIGZMessageServer2;
+class cISC4BudgetSimulator;
 class cISC4City;
+class cISC4ZoneManager;
 
 static const uint32_t kFC4_CLSID_cSC4FireProtectionSimulator = 0x2990C05A;
 static const uint32_t kFC4_CLSID_cSC4PoliceSimulator = 0x6990C04F;
@@ -85,6 +87,8 @@ struct ProtectionContext {
     bool readOnly = false;        // the shadow: borrowed city, no game changes
     cISC4City* city = nullptr;    // simulator: held from acquire_services to release_services
     cIGZMessageServer2* msgServer = nullptr;  // simulator only, held likewise
+    cISC4BudgetSimulator* budget = nullptr;    // simulator only, held likewise (§4.1 base init step 1)
+    cISC4ZoneManager* zoneManager = nullptr;   // simulator only, held likewise (§4.1 base init step 1)
     cIGZMessageTarget2* target = nullptr;     // simulator only: the agent and notification target
     cFC4ISC4DispatchSource* source = nullptr;  // simulator only: the dispatch-source sub-object
     uint64_t selfToken = 0;       // simulator only: the primary interface (void1 / IGZUnknown of §12)

@@ -722,7 +722,6 @@ fn env(w: &World, op: &Json) -> R<()> {
                     station: opt(e, "station").map_or(Ok(0), |v| u32_of(v, "station"))? as u64,
                     call_id: opt(e, "call").map_or(Ok(id), |v| u32_of(v, "call"))?,
                     active: opt(e, "active").map_or(Ok(true), |v| bool_of(v, "active"))?,
-                    automaton: opt(e, "automaton").map_or(Ok(0), |v| u32_of(v, "automaton"))? as u64,
                     x: pos.0,
                     z: pos.1,
                 },

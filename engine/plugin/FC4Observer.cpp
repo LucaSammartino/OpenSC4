@@ -328,6 +328,10 @@ struct ObserveCall {
 // power req/prod/cons/demand=… consumers powered/unpowered=… plants=… aged=…
 // distressed=… (the active power simulator's getters, power §10.1 slots 11,
 // 12, 17, 15, 22, 21, 24, 28, 29: the same line for the original and ours)
+// residential EQ/HQ/LE=… (the active residential simulator's GetGlobalEQ /
+// GetGlobalHQ / GetGlobalLE, residential §10.1 slots 32 and 33, x87, and 34,
+// AL only; `-` without one). Appended after the power fields, so parsers of
+// the earlier fields keep working.
 void ObserveMonthStep(void* p) {
     auto* c = static_cast<ObserveCall*>(p);
     char* out = c->line;
@@ -394,6 +398,14 @@ void ObserveMonthStep(void* p) {
                 static_cast<long>(power->GetDistressedPowerPlantCount()));
     } else {
         AppendF(out, cap, " power=-");
+    }
+    if (res != nullptr) {
+        const float eq = res->GetGlobalEQ();     // slot 32 (ST0)
+        const float hq = res->GetGlobalHQ();     // slot 33 (ST0)
+        const uint32_t le = res->GetGlobalLE();  // slot 34 (AL only; widened here)
+        AppendF(out, cap, " residential EQ/HQ/LE=%.4f/%.4f/%u", static_cast<double>(eq), static_cast<double>(hq), le);
+    } else {
+        AppendF(out, cap, " residential EQ/HQ/LE=-");
     }
 }
 

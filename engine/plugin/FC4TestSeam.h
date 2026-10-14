@@ -134,6 +134,11 @@
 //         with one reference for the caller; returns 1, or -1.
 //   op 31 kFC4SeamX87Check         the x87 leftover guard (FC4Fpu.h) at the
 //         site "test seam"; returns the occupied x87 registers it found.
+//   op 32 kFC4SeamProtectionShadowVtables a = fire, b = police primary
+//         vtable (const void*) the protection shadow accepts as the original
+//         classes' instead of the compat table's, to read the unadjusted grid
+//         at primary +0x84 (FC4ProtectionShadow.h, PR5); both null: back to
+//         the compat table. Returns 1.
 //   op 35 kFC4SeamAuraShadowDeliver a = const FC4AuraShadowDeliverInput*
 //         (FC4AuraShadow.h): one delivery to a fake original aura simulator
 //         through the aura shadow (its state read before and after, our
@@ -141,6 +146,11 @@
 //         returns the original's state after the delivery, -1 (not taken,
 //         delivered by the seam), -2 (taken, state unreadable after), or for
 //         an occupant message 1 (ours received it) / 0.
+//   op 39 kFC4SeamGrowthProbe      a = const FC4GrowthProbeTestInput*
+//         (FC4GrowthProbe.h): the growth probe started on a given vtable
+//         (instead of the compat table's), one of its messages delivered
+//         with a given city, or the probe stopped; see GrowthProbeTest for
+//         the return values (-1: null argument).
 #pragma once
 
 #include <cstdint>
@@ -191,7 +201,9 @@ enum : uint32_t {
     kFC4SeamPipeBurst = 29,
     kFC4SeamVariant = 30,
     kFC4SeamX87Check = 31,
+    kFC4SeamProtectionShadowVtables = 32,
     kFC4SeamAuraShadowDeliver = 35,
+    kFC4SeamGrowthProbe = 39,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

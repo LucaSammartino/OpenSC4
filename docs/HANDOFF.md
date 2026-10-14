@@ -77,7 +77,8 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >     `df5_01`; EX21–EX33 filed); **x87 fix** (`5ee5c52`, includes `abi-x87`; seam ops 28–31; DQ10–DQ12 filed);
 >     **`apply4b`** (`58e1226`: PF1–PF15, ZQ4/ZQ7–ZQ10, LF1–LF5 (`lf11_11` regenerated), NB1–NB16 in the cores;
 >     TN26–TN28, ZQ11–ZQ12, LF6, NB18 filed); **residential glue + shadow** (`bc7ffa0`, M4; ABI 26; seam op 25;
->     136 plugin switches; RG1–RG22 filed; not yet run in game).
+>     136 plugin switches; RG1–RG23 filed); **`apply3`** (`1d1274d`: PR1–PR13, DQ3–DQ8, PG4–PG13; ABI 27, seam op 32:
+>     the protection shadow reads the original's unadjusted grids after a vtable check; PR14–PR16, PG15, DQ13 filed).
 > - **Fixed on main (`5ee5c52`); runs 83/84 count 0 x87 leftovers, the 900 s soak over 35 game years included.**
 > - **Run 74, the likely cause (audit workflow + coordinator check of the instructions): our methods corrupt the
 >   game's x87 register stack.** The ABI extractor tagged as `x87` every method whose float work ends in a popping
@@ -116,25 +117,65 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   flammability 69/70 (FL6: a region at about 1.25 times ours, the ratio of FL5). **Run 84 (soak 3 again, all
 >   thirteen replacements + simulator + budget, 900 s)**: clean, 0 leftovers, 2026 → 2061; **the city path differs
 >   from runs 77/78**: higher tax income from about 2041, and the collapse comes later (+79,924 at 2061-09 against
->   about −80k). **Run 85** repeats the all-original soak with the same DLL to separate variance from a bias.
+>   about −80k). **Run 85** (all original, same DLL) spans run 84: variance, not a bias.
+>   **Run 86 (`regress rbc7f`, first in-game residential)**: PASS with fourteen replacements; our residential clean
+>   for 7 game years; its shadow exact on 12 of 15 daily states (all grids, fields, properties and scalars), the
+>   proximity states 1–3 differ (RG23); budget 30/31 (BQ3). **Run 87 (`regress r1d12`, apply3)**: PASS; PR5's
+>   unadjusted grids equal every month. `tools/regress.ps1` now replaces residential by default.
+>   **Run 88 (save → reload, fourteen replacements)**: our residential's `Write`/`Read` work (population, wealth
+>   split and EQ/HQ restored); after the in-session save, land value's own `ReleaseGrid` released the last reference
+>   to its three grids from `Read` (3 reference warnings at Shutdown): lane below.
+>   **Run 89 (soak, fourteen replacements, 900 s)**: clean for 39 game years (2026 → 2065), `ref_warnings=0`, x87 0;
+>   funds inside the original's spread. Our residential's EQ falls 58 → 16 and HQ 69 → 18 by 2051; there is no
+>   original baseline yet (the observe line gains `residential EQ/HQ/LE=` in the land value lane), then an
+>   all-original soak gives one.
+>   **Run 90b (all original + residential shadow, 900 s)**: clean to 2064; **the original's EQ/HQ fall the same way**
+>   (EQ 17.7 / HQ 20.6 at 2051 against our 16.3 / 18.0): our residential follows the original's decline. The
+>   shadow's scalars are identical on every state-0 line; only the proximity states 1–3 differ (RG23).
+>   **`lvrefs` merged** (`32d9d84`): land value and ordinance release the references a save handed over as ours;
+>   SV1–SV2 filed. **Run 91 (save → reload again)**: both runs clean, `ref_warnings=0` (run 88 had 3).
 > - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lanes in
 >   `.claude/worktrees/re-answers4`, `re-answers5`):
->   - **`apply3`**: PR1–PR13 (except PR4/PR6/PR7), DQ3–DQ8, PG4–PG13 (may take ABI 27, seam op 32);
 >   - **neighbours glue + shadow** (`cFC4NeighborsSimulator`, `neighbours_shadow`; ABI 28, seam op 33; renumber at
 >     merge);
->   - RE `re-answers4` (AU13–AU15, AU1–AU12, EH1–EH14, FQ1–FQ15) and `re-answers5` (TS1–TS34, PW1–PW8, PS1–PS8,
->     LG1–LG20).
+>   - **development glue + shadow** (BDS `0x8990BE7A` and the growth developers `0x0990C138` as one unit,
+>     `development_shadow`; ABI 29, seam op 34);
+>   - **`apply5`**: AU1–AU15 (the aura shadow rebuilt on the original's state field, §14.3), EH1–EH14, FQ1–FQ15 (the
+>     64 m index query of FQ15, inherited flora properties); ABI 30 / seam op 35 if needed;
+>   - **zones glue, phase 1** (`cFC4ZoneManager` replacement + `zones_shadow`; the zone developer / lot manager stays
+>     original; ABI 34, seam op 38);
+>   - **growth probe: merged** (`393a529`, seam op 39; DLL `83897a4b`). Run 93 (all original, 14,339 days):
+>     159 µs per attempt, Σattempts/Σqualifying 0.72, no cut days, so `growthAttemptsPerDay` stays unlimited
+>     (building-development.md §12.1, manual-checks row 93);
+>   - **`apply6a`**: TS1–TS34 into the traffic simulator core (`ts11_*` vectors; core only, no glue; ABI 32 only if
+>     unavoidable);
+>   - **`apply6b`**: PW1–PW8, PS1–PS8, LG1–LG20 into the power, plumbing and landfill cores, glue and shadows (the
+>     PW8/PW3/PS4/PS8 shadow comparisons; LG2/LG3 landfill texture and tile exemplar; ABI 33, seam op 37 if needed);
+>   - **`apply7a`**: RG23 (the proximity seed writes only the z = 0 edge), RG17, BQ3 (the budget total lot by lot),
+>     DQ10–DQ12, LV1–LV4 (the land value shadow sorts the developers by pointer), FL1–FL6 (the flammability mirror
+>     accepts either watered state); ABI 35 / seam op 40 if needed;
+>   - RE `re-answers7` (RG1–RG22 except RG17, PR14–PR16, PG15, DQ13, SV1–SV2, TN26–TN28, ZQ11–ZQ12, LF6, NB18,
+>     EX21–EX33). Merged RE lanes: `re-answers4` (`79d619c`; `docs/abi` rows `83aa768`), `re-answers5` (`fdc6893`;
+>     rows `a9eef99`), `re-answers6` (`d9db98f`: LV, FL, DQ10–12, RG23, RG17, BQ3, CQ16–22, TN21–25, HG1, the crime
+>     errata; row `bbee494`).
+>   - **`apply7b`**: CQ16–CQ22 (the clock-seed helper moves to `rng.rs`), the crime errata, TN21–TN25, HG1; ABI 36 /
+>     seam op 41 if needed;
+>   - RE **`re-formats2`** (M6): a new `docs/specs/graphics-formats.md` for FSH textures and S3D models, with a survey
+>     of the shipped data and conformance tests (GF questions); then an `engine/formats` lane;
+>   - **Next to launch, M5 traffic glue phase 1** (prompt in the session scratchpad, `trafficglue-task.txt`): the
+>     traffic simulator + pathfinder replacement unit (class `0x6990C1AA`, our slot-6 pathfinders, §6 record),
+>     ABI 37. Launch it once `apply6a` merges (TS1–TS34 change the core it hosts).
+> - **Restarts:** the coordinator's process exited twice on 2026-10-14; each time every lane stopped, and resumed
+>   through `SendMessage` with its worktree intact. Worktrees made by an elevated session are owned by
+>   Administrators, so a non-elevated session needs `safe.directory = C:/Users/tlori/FreeCity4/.claude/worktrees/*`
+>   (now in the global git config).
 >   Merge order rule: merge one lane, then have the next lane `git merge main` itself (it knows its files), then
 >   gate its worktree; renumber ABI/seam ops/switch counts at that point. If `git merge-tree` shows no conflict,
 >   the coordinator may merge main into the lane's worktree itself and gate that.
 > - **Open follow-ups:**
->   - **residential in game**: `tools/regress.ps1` now runs `residential_shadow`; add `residential` to the replace
->     list once a run with it is clean;
->   - **run 85** (all-original soak) against run 84: a bias in our replacements or variance;
->   - **RE `re-answers6`** (prompt in the session scratchpad, launch when an RE lane finishes): LV1–LV4, FL1–FL6,
->     DQ10–DQ12, CQ16–CQ22, TN21–TN25, HG1, and the crime errata from the audit (§11.4 second caller `0x7A2F60`,
->     §14.1 the patrol car calls `GetNearestCrimeProp`); later RG1–RG22, TN26–TN28, ZQ11–ZQ12, LF6, NB18,
->     EX21–EX33;
+>   - residential: the RG23 answer (proximity grids), then an apply lane;
+>   - growth budget: done (run 93). Optional: the same probe on a large city (attempt cost grows with lots; §12.1);
+>   - run 85 settled run 84: the original's own path spans it (no bias; `docs/manual-checks.md`);
 >   - zones glue (M4); development glue (BDS, growth, tract and lot developers: building-development.md §9);
 >     traffic glue (M5);
 >   - after each merge that stages a new DLL: `tools/regress.ps1 -Tag <tag> -Dll <dll>` (all shadows at once + all

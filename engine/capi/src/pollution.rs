@@ -776,7 +776,8 @@ pub unsafe extern "C" fn fc4_pollution_set_cell(p: *mut fc4_pollution, slot: u32
     })
 }
 
-/// Slot 29 `AddToGarbageSupply(n)`: the applied delta.
+/// Slot 29 `AddToGarbageSupply(n)`: the applied delta, taken before the final
+/// clamp at 0 (§8.1, PG11).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_pollution_add_to_garbage_supply(p: *mut fc4_pollution, n: i32) -> i32 {
     peek(p, 0, |s| s.add_to_garbage_supply(n))

@@ -317,7 +317,7 @@ pub struct KindParams {
     pub department_name: u32,
     /// Station effect: centre (s32), outer (s32), radius (f32) (§7.1).
     pub effect_props: [u32; 3],
-    /// Dispatch effect of an automaton (§7.2).
+    /// Dispatch effect of the dispatch's source station (§7.2, PR2).
     pub dispatch_effect_props: [u32; 3],
     /// Unit count, availability mask and base call number (§8.1).
     pub unit_count_prop: u32,
@@ -562,16 +562,16 @@ pub struct BudgetItem {
     pub department: Option<u64>,
 }
 
-/// `cISC4DispatchManager::GetDispatchInfo` (§5, §5.1).
+/// `cISC4DispatchManager::GetDispatchInfo` (§5, §5.1; PR1).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct DispatchInfo {
-    /// The station the unit came from (host token).
+    /// The record's `+0x20`: the source station the unit left from (host
+    /// token, borrowed). Its dispatch effect is the cone's (§7.2, PR2).
     pub station: u64,
-    /// The call ID.
+    /// The record's `+0x08`: the unit's call ID (`base + i`).
     pub call_id: u32,
+    /// The record's `+0x10` byte: the dispatch state is 5.
     pub active: bool,
-    /// The automaton occupant (its dispatch effect, §7.2).
-    pub automaton: u64,
     /// The dispatch's position (metres).
     pub x: f32,
     pub z: f32,
@@ -603,9 +603,12 @@ impl ProtectionMessage {
 /// tokens.
 pub trait ProtectionHost: GridProvider<u8> + GridProvider<i16> {
     // ---- lifecycle (§4) ----
-    /// Holds the city, the simulator and the message server; fire also the
-    /// flammability simulator (`+0xE8`), police the crime simulator
-    /// (`+0xDC`). Neither is ever called.
+    /// §4.1 base init steps 1 and 4: holds the city, the budget simulator
+    /// and the zone manager, and the message server, each only if not held
+    /// yet. [choice] (PR12) The simulator (the original reads a cache global
+    /// each time) and fire's flammability / police's crime simulator (held
+    /// by the original but never called) need not be held: only reference
+    /// counts differ.
     fn acquire_services(&self, kind: ProtectionKind);
     /// Releases what [`ProtectionHost::acquire_services`] holds.
     fn release_services(&self, kind: ProtectionKind);
@@ -716,8 +719,10 @@ pub trait ProtectionHost: GridProvider<u8> + GridProvider<i16> {
     fn post(&self, msg_type: u32, subject: Option<u64>);
 
     // ---- air dispatch sources (§8.4) ----
-    /// Creates the fire plane / police helicopter source (`operator new`)
-    /// holding one reference.
+    /// Creates the fire plane / police helicopter source holding one
+    /// reference. The original allocates it directly; its registered GZCOM
+    /// factory builds the same object (§8.4, PR13), asked for IID
+    /// `0xC9C00435`.
     fn create_air_source(&self, kind: ProtectionKind) -> Option<ObjRef>;
     /// Its non-virtual `Init` / `Shutdown`.
     fn air_source_init(&self, source: u64);

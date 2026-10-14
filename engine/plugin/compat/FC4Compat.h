@@ -55,6 +55,17 @@ struct ExecutableVersion {
     uint32_t fpuSetPrecisionVA;
     // Direct-call targets, indexed by Direct (docs/abi/direct-calls.md).
     uint32_t directVA[static_cast<unsigned>(Direct::Count)];
+    // The original fire / police simulators' primary vtables (protection.md
+    // §15.1, §15.2): the protection shadow reads the unadjusted grid at
+    // primary +0x84 only from an object with one of these (§2, PR5).
+    uint32_t protectionVtableVA[2];
+    // The growth probe (building-development.md §12): the original tract
+    // developer's primary vtable and the Grow its slot 5 holds
+    // (tract-developer.md §1.1, §7.1; docs/abi/interfaces.tsv), and the
+    // original BDS's primary vtable (building-development.md §1.1, §7.1).
+    uint32_t tractDeveloperVtableVA;
+    uint32_t tractDeveloperGrowVA;
+    uint32_t bdsVtableVA;
     // The original aura simulator's cISC4AuraSimulator vtable (aura.md
     // §12.1): the aura shadow reads the object's pipeline state (§14.3) only
     // when its vtable is this one.
@@ -90,6 +101,24 @@ bool StlNodeAllocator(StlNodeAllocateFn* allocate, StlNodeFreeFn* release);
 // not identified or the address is not read-only data inside its image whose
 // first entry is code inside the image.
 const void* GameStringVtable();
+
+// The original fire (kind 0) or police (kind 1) simulator's primary vtable
+// (protection.md §15.1 / §15.2), or nullptr (logged once per kind) if the
+// executable is not identified or the address is not committed, readable
+// memory inside its image whose first entry is code inside the image.
+const void* ProtectionPrimaryVtable(unsigned kind);
+
+// The growth probe (building-development.md §12): the original tract
+// developer's primary vtable and the original Grow its slot 5 must hold, or
+// false (logged once) if the executable is not identified, the vtable is not
+// committed, readable memory inside its image whose first entry is code
+// inside the image, or the Grow address is not executable code inside the
+// image. The vtable is returned as it is; the probe checks the entry itself.
+bool TractDeveloperGrow(void*** vtable, uintptr_t* grow);
+
+// The original building development simulator's primary vtable
+// (building-development.md §7.1), or nullptr (logged once; same checks).
+const void* BuildingDevelopmentVtable();
 
 // The address of a direct-call target, or 0 (logged once per target) if the
 // executable is not identified or the address is not executable code inside

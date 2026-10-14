@@ -21,6 +21,7 @@
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "cFC4Protection.h"
+#include "compat/FC4Compat.h"
 #include "fc4.h"
 
 #include "GZServPtrs.h"
@@ -41,12 +42,19 @@
 namespace fc4 {
 namespace {
 
-constexpr uint32_t kClsU8 = 0x49B9E602;  // the adjusted grid's class (§2)
+constexpr uint32_t kClsU8 = 0x49B9E602;   // the adjusted grid's class (§2)
+constexpr uint32_t kClsI16 = 0x49B9E605;  // the unadjusted grid's class (§2)
+// Both original classes keep the unadjusted grid pointer at primary +0x84,
+// next to the adjusted one at +0x80 (protection.md §2, PR5).
+constexpr size_t kUnadjustedOffset = 0x84;
 constexpr uint32_t kDispatchType[2] = {1, 0};
 const char* const kTag[2] = {"fire", "police"};
 constexpr size_t kFirstCells = 8;  // differing cells listed per line
 
 bool g_enabled = false;
+// The test seam's stand-ins for the original classes' primary vtables.
+bool g_testVtables = false;
+const void* g_testVtable[2] = {nullptr, nullptr};
 
 struct KindState {
     std::vector<uint8_t> last;  // our grid at the previous month end
@@ -54,6 +62,7 @@ struct KindState {
     uint32_t stable = 0;        // consecutive month ends with the same grid of ours
     bool loggedOurs = false;
     bool loggedNoSim = false;
+    bool loggedUnadjusted = false;  // the "unadjusted grid not compared" reason
 };
 KindState g_state[2];
 
@@ -154,6 +163,29 @@ float OriginalEfficiency(uint32_t kind, cIGZUnknown* sim, cISC4Occupant* s) {
 float OriginalRadius(uint32_t kind, cIGZUnknown* sim, cISC4Occupant* s) {
     if (kind == 0) return AsGame(reinterpret_cast<cISC4FireProtectionSimulator*>(sim))->GetStationDispatchRadius(s);
     return AsGame(reinterpret_cast<cISC4PoliceSimulator*>(sim))->GetStationDispatchRadius(s);  // 23
+}
+
+// PR5 (protection.md §2): the original's unadjusted int16 grid, borrowed
+// from its primary +0x84 (no slot returns it). Read only from an object
+// whose primary vtable is the original class's (the identified executable's,
+// compat table; or the test seam's), so another plug-in's replacement is
+// never read raw. nullptr, and `why` set, when it cannot be read.
+cISC4SimGrid<int16_t>* OriginalUnadjusted(uint32_t kind, cIGZUnknown* sim, const char** why) {
+    const void* vt = g_testVtables ? g_testVtable[kind] : compat::ProtectionPrimaryVtable(kind);
+    if (vt == nullptr) {
+        *why = "the original class cannot be recognised: executable not identified";
+        return nullptr;
+    }
+    const void* actual = nullptr;
+    std::memcpy(&actual, sim, sizeof(actual));
+    if (actual != vt) {
+        *why = "the simulator's vtable is not the original class's";
+        return nullptr;
+    }
+    cISC4SimGrid<int16_t>* g = nullptr;
+    std::memcpy(&g, reinterpret_cast<const uint8_t*>(sim) + kUnadjustedOffset, sizeof(g));
+    if (g == nullptr) *why = "the original has no unadjusted grid";
+    return g;
 }
 
 uint32_t Bits(float f) {
@@ -295,6 +327,47 @@ void MonthStep(void* p) {
     }
     const float chanceOurs = fc4_protection_chance_of_strike(core);
     const int32_t totalOurs = fc4_protection_total_dispatch_count(core);
+
+    // 4. The unadjusted grids (PR5), when the original's can be read.
+    const char* why = nullptr;
+    char unadjusted[600] = "";
+    if (cISC4SimGrid<int16_t>* ug = OriginalUnadjusted(kind, sim, &why)) {
+        const uint64_t ut = TokenOf(ug);
+        fc4_grid_geometry ugeom{};
+        api.geometry(api.user, ut, &ugeom);  // slots 10-17
+        std::vector<int16_t> mineU(n, 0);
+        const size_t gotU = fc4_protection_shadow_unadjusted_grid(core, mineU.data(), mineU.size());
+        if (ugeom.count_x != geom.count_x || ugeom.count_z != geom.count_z || ugeom.tract_size != geom.tract_size) {
+            why = "its geometry differs from the adjusted grid's";
+        } else if (gotU != n) {
+            why = "our unadjusted grid has another size";
+        } else {
+            uint32_t um = 0;
+            int umax = 0;
+            char ufirst[400] = "-";
+            size_t ulisted = 0;
+            for (int32_t x = 0; x < geom.count_x; ++x) {
+                for (int32_t z = 0; z < geom.count_z; ++z) {
+                    const int orig = static_cast<int>(api.get(api.user, ut, kClsI16, x, z));
+                    const int mine = mineU[static_cast<size_t>(x) * static_cast<size_t>(geom.count_z) + z];
+                    if (orig == mine) continue;
+                    ++um;
+                    const int d = orig > mine ? orig - mine : mine - orig;
+                    if (d > umax) umax = d;
+                    if (ulisted < kFirstCells) {
+                        char cell[48];
+                        _snprintf_s(cell, sizeof(cell), _TRUNCATE, "%s(%d,%d):%d/%d", ulisted == 0 ? "" : ",", x, z,
+                                    orig, mine);
+                        if (ulisted == 0) ufirst[0] = 0;
+                        strncat_s(ufirst, cell, _TRUNCATE);
+                        ++ulisted;
+                    }
+                }
+            }
+            _snprintf_s(unadjusted, sizeof(unadjusted), _TRUNCATE, "unadjusted cells=%u mismatches=%u max|diff|=%d first=%s",
+                        static_cast<unsigned>(n), um, umax, ufirst);
+        }
+    }
     fc4_protection_destroy(core);
 
     Line(c,
@@ -308,6 +381,12 @@ void MonthStep(void* p) {
     if (expectExact && mismatches != 0) {
         Line(c, "WARNING %u cells differ although the grid should be exact (stable for %u month ends, no dispatch)",
              mismatches, k.stable);
+    }
+    if (unadjusted[0] != 0) {
+        Line(c, "%s", unadjusted);
+    } else if (why != nullptr && !k.loggedUnadjusted) {
+        k.loggedUnadjusted = true;
+        Line(c, "unadjusted grid not compared (%s)", why);
     }
 }
 
@@ -327,12 +406,18 @@ void ProtectionShadowStartup(bool protectionReplaced) {
     }
     Log("protection shadow: ON (protection_shadow from %s): at each SimNewMonth, per simulator, FreeCity4's coverage "
         "grid rebuilt from the original's stations, department and strike flag, compared cell by cell with the "
-        "original's adjusted grid; plus per-station efficiency and dispatch radius, chance of strike and total "
+        "original's adjusted grid, and the unadjusted int16 grid with the original's (primary +0x84, read only from "
+        "the original class); plus per-station efficiency and dispatch radius, chance of strike and total "
         "dispatch count",
         src);
-    Log("protection shadow: NOT readable read-only (so not compared): the original's unadjusted int16 grid (no "
-        "getter; slot 5 is the adjusted grid), its cycle accumulators (zoned/sum/nonZero) and iterator position "
-        "(avg and pct are logged as the original's)");
+    Log("protection shadow: NOT readable read-only (so not compared): the original's cycle accumulators "
+        "(zoned/sum/nonZero) and iterator position (avg and pct are logged as the original's)");
+}
+
+void ProtectionShadowTestOriginalVtables(const void* fire, const void* police) {
+    g_testVtables = fire != nullptr || police != nullptr;
+    g_testVtable[0] = fire;
+    g_testVtable[1] = police;
 }
 
 void ProtectionShadowMonth(cISC4City* city, int32_t julian) {
