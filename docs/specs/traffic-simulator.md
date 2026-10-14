@@ -655,7 +655,11 @@ neighbour pool capacities and sets the destination bits of the off-map edge cell
   gives `+z`**, including `dz = −1` and `dz = 0` *[quirk]* (`0x006D65E0`–`0x006D666A`). The last cell's exit is
   none.
 * the **entry** side `e`: none at the first cell; after a unit step or a jump with an exit, the side facing back
-  (`(x + 2) mod 4`); after a jump whose exit is none, the previous cell's entry side carries over unchanged.
+  (`(x + 2) mod 4`); after a jump whose exit is none, the entry side the cell before the jump had on arrival carries
+  over unchanged (TS36, `0x006D666F`). The reader blanks that side in the record of the cell before the jump but
+  keeps it for the next record, so it is none only when the cell before the jump is the first cell (the reader
+  starts with none, `0x006D64FD`). Example: a route steps +x into (5, 3), entry `−x`, and then jumps to (6, 3). The
+  record of (5, 3) has entry none and exit none; the record of (6, 3) has entry `−x`.
 
 The test, with `strike := (strike state = 1)` (§4.12) read once at the start:
 

@@ -3037,7 +3037,11 @@ host gained connection, region, budget and drive-side methods. The current answe
   traffic-simulator §3.3. No: entering 18 zeroes the day index, `processed` and `passTotal`, not pass counter 1
   (+0x94C). Only entering 17 zeroes it, so it keeps state 17's re-route count through state 18. The bracket (yes) is
   wrong.
-- **TS36:** After a dx = ±1 jump, what entry does the cell carry? [none]
+- ~~**TS36:** After a dx = ±1 jump, what entry does the cell carry? [none]~~
+  **ANSWERED 2026-10-14** from the exe (route reader `GetNext` `0x006D6510`: the none exit at `0x006D665F`, the skipped
+  update at `0x006D666F`; `SetData` `0x006D64FD`) and written into traffic-simulator §4.3. The landing cell carries the
+  entry side that the cell before the jump had on arrival. The reader blanks it only in that cell's own record and keeps
+  it for the next one. It is none only when the cell before the jump is the first cell. The bracket (none) is wrong.
 - **TS37:** Does a missing funding percent leave the default? [unchanged]
 - **TS38:** §8 and §4.1.4 name slot 13 differently from §2.7.2. Which is right? [the code keeps its existing naming]
 - **TS39:** What is the "jump flag" in TS16? [the 0x80 flag of the next jump record]
