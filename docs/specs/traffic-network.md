@@ -742,6 +742,11 @@ from the rules above *[quirk]*:
 - the mask ORs the raw `to` of the **kind-1** rules;
 - the flags also map `to = 5` to `0x20` (`0x007235FC`).
 
+Everything else in Read's flags is the same as above (TS33, `0x00722202`–`0x0072227D`). The flags start at 0, the
+other `to` values map as in the table, and `0x40` is added when (from, to) is (6, 7) or (7, 6), whatever the
+rule's kind. Read compares the full u16 `from` and `to`; the re-read's table uses the low byte of `to`. The two
+differ only for a `to` above 255, which shipped rules cannot hold.
+
 #### 4.7.3 TransitSwitchEntryCost(id) (non-virtual `0x0071CB20`, x87 return; used by pathfinder.md §4.8)
 
 1. Look up the switch with insert-if-missing semantics *[quirk]*: an unknown ID inserts a default switch.

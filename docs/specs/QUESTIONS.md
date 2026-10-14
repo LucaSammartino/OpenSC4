@@ -1425,7 +1425,10 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   (`Read` `0x00721990`): **the bracket matches.** There is no upper bound and every gate is an unsigned ordered
   test (none an equality), so versions `0x2A`…`0xFFFF` read as `0x29`; trailing bytes are skipped by the loader's
   entry framing. Written into traffic-simulator.md §6.4.
-- **TS33:** Read's own switch flags: is 0x40 set for a subway / el-train rule? [yes, as the re-read does; TN25]
+- ~~**TS33:** Read's own switch flags: is 0x40 set for a subway / el-train rule? [yes, as the re-read does; TN25]~~
+  **ANSWERED 2026-10-14** from the exe (`Read` `0x0072225E`–`0x0072227D`): **the bracket matches.** Read adds `0x40`
+  for (from, to) = (6, 7) or (7, 6) of any kind, as the re-read does. Its other differences stay as
+  traffic-network.md §4.7.2 lists them (kind-1 raw-`to` mask, `to = 5` → `0x20`). Written into §4.7.2.
 - **TS34 (fixtures only):** every cell reports a network occupant; department funding defaults to 1.0; department
   tokens are 900+.
 - Not covered by vectors: path searches over a real network (the vector world has no network occupants; test 10
