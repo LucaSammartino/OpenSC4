@@ -68,6 +68,24 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >     **Protection and landfill still call city slot 97 through a float-returning pointer (PR6)**: next apply lane;
 >   - tools: `regress.ps1` runs every shadow (flora, landfill, power, plumbing added) and all thirteen replacements;
 >     `run_summary.ps1` reads `mismatched N`, `clean`, flora's dated month lines and `Shutdown:` lines.
+>   - **land value + flammability shadows** (`9bb91f2`; ABI 25; seam ops 23–24; LV1–LV4, FL1–FL4);
+>     **`apply2`** (`2800741`: DQ9's float sum order, CQ1–CQ15 in the crime core and glue, PR4/PR7 comments; seam
+>     ops 26–27; CQ16–CQ22 filed); RE **`re-answers3`** complete (`4e389d6`, `68ad36d`: PF1–PF15, ZQ4/ZQ7–ZQ10,
+>     LF1–LF5, NB1–NB17, EX1–EX20 in the specs; **LF4 changes the zot spiral: `lf11_11` must be regenerated**; PF5,
+>     NB2, NB3, NB6, EX3–EX5, EX8, EX10, EX12, EX14, EX17 differ from our code).
+> - **Run 74, the likely cause (audit workflow + coordinator check of the instructions): our methods corrupt the
+>   game's x87 register stack.** The ABI extractor tagged as `x87` every method whose float work ends in a popping
+>   store (`fstp [mem]`), so we declared `float`/`double` where the game returns nothing (or a bool in AL): demand
+>   node slots 16/17 (`AddToSupplyValue`/`AddToDemandValue`, called on every demand propagation step), demand
+>   simulator slot 8 (`CalculateJobsPerUnitOfDemand`, which **also writes the wrong elements**: the game's record is
+>   four floats and the outputs are `[1..3]`), weather slot 11, variant slot 41. Each call leaves one value on the
+>   game's x87 stack; at eight the next load gives NaN silently (exceptions masked), and NaN as an integer is a
+>   garbage size: run 74's signature. The crime probe saw 3 leftover values in most months of runs 74–79.
+>   **Branch `abi-x87` (`a91e140`, not on main until the fix lands, since the conformance test then fails on our
+>   declarations):** `tools/abi_extract.py` decides x87 returns by a forward x87-depth walk (depth 0 at each call,
+>   1 if the code after it uses the call's value); 63 interface rows and 105 vtable rows corrected, PG hand answers
+>   kept; `docs/abi/README.md` states the rule; demand.md/weather.md errata (jobs `f32(u32 p) × 0.01f`, not `p/100`).
+>   Also found: plumbing releases the pipe-burst `AttemptDisasterStart` result, which it never acquired.
 > - **In game this session after the merges:** run 69 (soak 2, 8 replacements): the game ended the city in 2057,
 >   bankrupt (funds −103,047). **Runs 71/72 settle it: with our power and with the original's, the city follows the
 >   same path and ends in 2060-12 at about −100k funds** (aging plants, no player); our power tracks the original. Run 70 (`regress r941c`): PASS; **protection shadow 194/194 clean (first in-game
@@ -85,19 +103,29 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   **Run 80 (`regress r2900`)**: thirteen replacements clean; landfill shadow 94/94; power shadow exact on all 213
 >   cycles and 94 months (bookkeeping lines off by ~3 consumers, PW8); flora registry identical, one tree in 23 of
 >   94 months (FQ15).
-> - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lane in
->   `.claude/worktrees/re-answers3`):
->   - land value + flammability shadows (ABI 25, seam ops 23–24); **residential glue + shadow (M4, ABI 26, seam op 25)**;
->   - `apply2`: DQ9 (the neutral tax rate's float sum), CQ1–CQ15, PR4/PR7 into the cores and glue;
->   - RE `re-answers3` (PF, ZQ, LF, NB, EX);
->   - workflow `run74-garbage-new-audit` (read-only; result goes to the coordinator).
+>   **Run 81 (`regress r571a`, first plumbing shadow)**: PASS; plumbing 186/191: the grid identical cell by cell in
+>   every replayed pass; 4 passes differ in `demand` only (PS8, like PW8), one pass reads a producer's production as
+>   0 (PS9, shadow-side).
+> - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lanes in
+>   `.claude/worktrees/re-answers4`, `re-answers5`):
+>   - **residential glue + shadow (M4, ABI 26, seam op 25)**;
+>   - **x87 fix** (merges `abi-x87`; our float declarations of void/bool slots, the jobs record, city slots 96/97
+>     callers (PR6), the regional-city setters, the plumbing over-release; an x87 leftover guard in OnTick and
+>     deliveries with a heartbeat count; the crash report gains the FPU state). ABI 27 if it adds an entry point;
+>     seam ops 28+;
+>   - RE `re-answers4` (AU13–AU15, AU1–AU12, EH1–EH14, FQ1–FQ15) and `re-answers5` (TS1–TS34, PW1–PW8, PS1–PS8,
+>     LG1–LG20).
 >   Merge order rule: merge one lane, then have the next lane `git merge main` itself (it knows its files), then
 >   gate its worktree; renumber ABI/seam ops/switch counts at that point.
 > - **Open follow-ups:**
->   - **run 74's crash**: catch it again with the new report, map the frames with `tools/addr2func.py --log`;
->   - **apply3** (after `apply2`): PR1–PR13 (except PR4/PR7), DQ3–DQ8, PG4–PG13, and PR6 (city slot 97 is void) in
->     protection and landfill;
->   - RE lanes for the open batches: AU1–AU15, EH1–EH14, FQ1–FQ15, LG1–LG20, TS1–TS34, PW1–PW8, PS1–PS7;
+>   - **after the x87 fix merges: soak 3 again** (all replacements, Konradshohe, 900 s) and read the new leftover
+>     counter (it must be 0) and, if anything faults, the crash report's FPU block;
+>   - **apply3** (after the x87 fix; prompt in the session scratchpad): PR1–PR13 (except PR4/PR6/PR7), DQ3–DQ8,
+>     PG4–PG13;
+>   - **apply4**: the re-answers3 answers that change code: PF5 (pathfinder), LF4 (`lf11_11`), NB2/NB3/NB6
+>     (neighbours core), EX3–EX5/EX8/EX10/EX12/EX14/EX17 (engine/formats), ZQ9/ZQ10 (zones core);
+>   - RE lane for TN21+, HG1, CQ16–CQ22, LV1–LV4, FL1–FL4 and the crime errata from the audit (§11.4 second caller
+>     `0x7A2F60`, §14.1 the patrol car calls `GetNearestCrimeProp`);
 >   - zones glue (M4); neighbours glue; traffic glue (M5);
 >   - after each merge that stages a new DLL: `tools/regress.ps1 -Tag <tag>` (all shadows at once + all
 >     replacements at once, one table; `tools/run_summary.ps1 -Log <log>` summarises any single run).
