@@ -668,6 +668,12 @@ end-of-strike message, AL = 1.
 Otherwise AL = 0. The aura simulator calls these when a disaster ends (aura spec). The per-building strike days
 are **not** cleared, so the next monthly check re-evaluates them.
 
+So AL is the city strike flag as it was **before** the call (1 = a strike was ended and its end message posted,
+0 = nothing happened). The original runs these, the setters of §4.2/§4.10 and the per-building setters on the
+caller's thread with no deferral; its callers (the aura simulator's agent, the UI) are on the main thread
+*[inferred]*. Deferring calls from another thread and returning the flag that was visible at the call is the
+implementer's choice (RG9): no original behaviour covers it.
+
 **SchoolIsOnStrike / HealthIsOnStrike** (6/7): AL = flag.
 
 **ChanceOfSchoolStrike / ChanceOfHealthStrike** (10/11), returned through a hidden pointer as SC4Percentage:

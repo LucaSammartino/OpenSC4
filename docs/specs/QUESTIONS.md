@@ -2176,8 +2176,11 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   §4.8 (the slot 21/22 row). **No original behaviour; the implementer's choice stands.** The original does not use
   GZCOM here: it builds the float grid directly (global heap, inlined constructor). Its callers are UI code on the
   main thread *[inferred]*, so nothing in the original constrains a call from another thread.
-- **RG9:** setters off the main thread: deferred, and `EndStrike` off the main thread returns the published flag?
-  [yes]
+- ~~**RG9:** setters off the main thread: deferred, and `EndStrike` off the main thread returns the published flag?
+  [yes]~~ **ANSWERED 2026-10-14** from the exe (`EndStrike`, slots 8/9) and written into REH §4.9. **No original
+  behaviour; the implementer's choice stands.** The original applies every setter at once on the caller's thread, and
+  its callers are on the main thread *[inferred]*. `EndSchoolStrike` / `EndHealthStrike` return AL = the city strike
+  flag before the call and post the end message when it was set, so returning the published flag matches.
 - **RG10:** department funding with no department? [1.0]
 - **RG11:** slots 19, 20, 21–25, 28, 47 and 49: always true? [true]
 - **RG12:** slot 45 returning false: are its outputs left untouched? [untouched]
