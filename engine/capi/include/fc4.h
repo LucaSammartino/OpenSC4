@@ -716,7 +716,8 @@ typedef struct fc4_landvalue_host {
     float (*min_allowed_height)(void* user);
     float (*max_allowed_height)(void* user);
     uint32_t (*zone_type)(void* user, int32_t x, int32_t z);
-    /* Lot developer GetAreaSlope({x1, z1, x2, z2}, true), inclusive cells. */
+    /* Lot developer GetAreaSlope({x1, z1, x2, z2}, true), inclusive cells;
+     * read-only in the original (landvalue.md §6, LV3). */
     float (*area_slope)(void* user, int32_t x1, int32_t z1, int32_t x2, int32_t z2);
     uint64_t (*developer)(void* user, uint32_t developer_type); /* growth developer or 0 */
     uint64_t (*desirability_map)(void* user, uint64_t developer); /* int16 grid (borrowed) or 0 */
@@ -734,6 +735,11 @@ typedef struct fc4_landvalue_host {
     void (*set_history_queue_length)(void* user, uint32_t series, uint32_t length);
     void (*record_history)(void* user, uint32_t series, int32_t value);
     void (*post)(void* user, uint32_t msg_type); /* type-only MessagePost */
+    /* Growth developer slot 10 GrowthAndDeclineListsAreValid (state < 17) of
+     * a developer: true while its desirability map cannot change
+     * (landvalue.md §7.4, LV2). Read by the land value shadow only; NULL =
+     * unknown. */
+    bool (*developer_lists_valid)(void* user, uint64_t developer);
 } fc4_landvalue_host;
 
 /* The tuning exemplar (§8). A NULL array means the property is absent (a
@@ -3468,7 +3474,7 @@ typedef struct fc4_landvalue_shadow_stats {
     int32_t last_mismatches; /* -1 = not compared */
     uint32_t intrinsic_mismatches, total_mismatches, slope_mismatches, type_mismatches, scalar_mismatches;
     uint32_t desirability_reruns;  /* passes compared with a developer's previous desirability map */
-    uint32_t desirability_changes; /* map changes seen by note_day */
+    uint32_t desirability_changes; /* snapshot changes (note_day and after each comparison; LV2) */
 } fc4_landvalue_shadow_stats;
 
 /* `host`: only its read callbacks are called (create_grid, the writes,
@@ -3478,8 +3484,12 @@ typedef struct fc4_landvalue_shadow_stats {
 fc4_landvalue_shadow* fc4_landvalue_shadow_create(const fc4_landvalue_host* host, const fc4_landvalue_tuning* tuning,
                                                   uint32_t max_cells);
 void fc4_landvalue_shadow_destroy(fc4_landvalue_shadow* s);
-/* SimNewDay: notes each listed developer's desirability map (read-only);
- * returns how many changed since the previous note. */
+/* SimNewDay: snapshots each listed developer's desirability map (read-only)
+ * while its slot 10 (host->developer_lists_valid) is true or unknown, so the
+ * snapshot before a change is the map from before the developer's last
+ * state-17 copy (landvalue.md §7.4, LV2); returns how many snapshots
+ * changed. Our pass applies the developers in ascending pointer order, as
+ * the original does (LV1). */
 uint32_t fc4_landvalue_shadow_note_day(fc4_landvalue_shadow* s);
 /* The end of an original pass: one line to `sink`. Returns the differences,
  * -1 when nothing was compared (INCOMPLETE). */
@@ -3921,7 +3931,7 @@ static_assert(sizeof(fc4_tax_lot) == 24, "fc4_tax_lot layout");
 static_assert(sizeof(fc4_tax_scan) == 408, "fc4_tax_scan layout");
 static_assert(sizeof(fc4_grid_geometry) == 32, "fc4_grid_geometry layout");
 static_assert(sizeof(fc4_landvalue_state) == 56, "fc4_landvalue_state layout");
-static_assert(sizeof(fc4_landvalue_host) == (sizeof(void*) == 4 ? 92 : 184), "fc4_landvalue_host layout");
+static_assert(sizeof(fc4_landvalue_host) == (sizeof(void*) == 4 ? 96 : 192), "fc4_landvalue_host layout");
 static_assert(sizeof(fc4_landvalue_tuning) == (sizeof(void*) == 4 ? 72 : 128), "fc4_landvalue_tuning layout");
 static_assert(sizeof(fc4_weather_state) == 56, "fc4_weather_state layout");
 static_assert(sizeof(fc4_weather_host) == (sizeof(void*) == 4 ? 56 : 112), "fc4_weather_host layout");

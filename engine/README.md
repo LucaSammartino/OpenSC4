@@ -834,13 +834,14 @@ plugin.
      altitude, which have no getter) are read, and FreeCity4's pass (states 0-8, the core code our simulator
      runs, `fc4_landvalue_shadow_compare`) runs on local grids (the intrinsic grid starts as a copy of the
      original's: state 4 keeps it without an altitude curve), reading the terrain, the zones, the lot developer's
-     area slope and the growth developers' desirability maps live and read-only. `SimNewDay` notes the listed
-     developers' desirability maps: when the total grid differs and a map changed after the original's pass read
-     it, our pass runs again with the previous map and the better result is kept (`desirability=previous map
+     area slope and the growth developers' desirability maps live and read-only; several developers apply in
+     ascending pointer order, as in the original (land value spec §7.4, LV1). `SimNewDay` snapshots the listed
+     developers' desirability maps while their `GrowthAndDeclineListsAreValid` (slot 10) is true (LV2): when the
+     total grid differs and a map changed after the original's pass read it, our pass runs again with the map
+     from before the developer's last state-17 copy and the better result is kept (`desirability=previous map
      …`). **Not compared** (said at game start): the scratch grid, the histogram, min / max altitude, pivot and
      ranges (no getter, not saved), the pipeline state and the dirty flag apart (the record holds their OR,
-     logged as `settled`), the inputs as each state read them, and the order of several growth developers (the
-     shipped tuning lists one). Lines (always written; longer ones continue on `landvalue shadow (cont.)` lines):
+     logged as `settled`), and the inputs as each state read them. Lines (always written; longer ones continue on `landvalue shadow (cont.)` lines):
 
      ```
      landvalue shadow: ON (landvalue_shadow from …): …                                    (game start)
