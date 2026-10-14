@@ -59,6 +59,10 @@ no method of another simulator, so the order does not matter for `Init` itself.
   `SetTractSize(S)`; a grid loaded from a save keeps its saved tract size. With `S = 1` a tract **is** a city
   cell, and this spec writes "tract" and "cell" interchangeably except where noted. Places where the original
   would misbehave with `S > 1` are listed in §14.
+  A tract size other than 1 can therefore only come from a save the original game did not write (a damaged or
+  foreign record): the original creates both grids with S = 1 and never changes a grid's tract size. There is no
+  original behaviour to match for a tract-size difference between the original's grids and a replacement's
+  (QUESTIONS FL3); a shadow reporting it as `INCOMPLETE` is the implementer's choice and stands.
 - `countX`, `countZ`: the **city's** `CellCountX/Z` (read at `Init`), used for bounds checks.
 - The grid's own `GetTractCountX/Z` sizes the daily iterator and `tractsPerDay`.
 

@@ -1671,7 +1671,9 @@ brackets.
   the baseline. Right? [taken at the baseline]~~ **ANSWERED 2026-10-14** from the exe and written into
   flammability.md §6.4. **Right.** Only the constructor, `Read` and the SeasonChange/OrdinanceUpdated branch of
   `DoMessage` (`0x006AFB87`) write g.
-- **FL3:** a tract-size difference between the original and ours is reported as `INCOMPLETE`. [INCOMPLETE]
+- ~~**FL3:** a tract-size difference between the original and ours is reported as `INCOMPLETE`. [INCOMPLETE]~~
+  **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. The original creates its grids
+  with tract size 1 and never changes it, so a difference needs a save the original did not write (flammability.md §2).
 - **FL4:** the message server's delivery order to the original's target and to the mirror is unspecified; both read
   the same game state. Is that enough? [assumed so]
 - **FL5 — first in-game shadow (run 82, coordinator):** 64 of 65 compared cycles exact; in cycle 66 (2033-03-15)
