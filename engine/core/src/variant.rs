@@ -79,11 +79,18 @@ impl Elem {
         }
     }
 
-    /// The value as a 64-bit integer (floats truncated), for property readers.
+    /// The value as a 64-bit integer, for property readers: the int64 step of
+    /// the converting getters (`docs/specs/data-formats.md` §5.1). Unsigned
+    /// types are zero-extended, signed types sign-extended, Char and RZChar
+    /// **sign-extended** as signed bytes (EX4), RZUnicodeChar zero-extended.
+    /// Floats are truncated toward zero by `_ftol`, which does not saturate:
+    /// NaN, ±∞ and magnitudes ≥ 2⁶³ give `0x8000000000000000` (EX3), so a
+    /// caller keeping the low 32 bits gets 0, and larger values wrap.
     pub fn as_i64(&self) -> i64 {
         match *self {
             Elem::Bool(b) => i64::from(b),
-            Elem::U8(v) | Elem::Char(v) | Elem::RzChar(v) => i64::from(v),
+            Elem::U8(v) => i64::from(v),
+            Elem::Char(v) | Elem::RzChar(v) => i64::from(v as i8),
             Elem::I8(v) => i64::from(v),
             Elem::U16(v) | Elem::UnicodeChar(v) => i64::from(v),
             Elem::I16(v) => i64::from(v),
@@ -91,16 +98,25 @@ impl Elem {
             Elem::I32(v) => i64::from(v),
             Elem::U64(v) | Elem::VoidPtr(v) => v as i64,
             Elem::I64(v) => v,
-            Elem::F32(v) => v as i64,
-            Elem::F64(v) => v as i64,
+            Elem::F32(v) => crate::x87::ftol(f64::from(v)),
+            Elem::F64(v) => crate::x87::ftol(v),
         }
     }
 
+    /// The value as a double, for property readers: the to-double step of the
+    /// converting getters (data-formats §5.1). Signed types and a Uint32 below
+    /// 2³¹ are exact (a Sint64 rounded to 53 bits); Char and RZChar are signed
+    /// bytes (EX4); a Uint32 from 2³¹ and **every** Uint64 keep only 24
+    /// significant bits, because the unsigned correction is an x87 add at the
+    /// main thread's precision (EX2): Uint64 16,777,217 gives 16,777,216.0.
     pub fn as_f64(&self) -> f64 {
         match *self {
             Elem::F32(v) => f64::from(v),
             Elem::F64(v) => v,
-            Elem::U64(v) => v as f64,
+            // One rounding of the exact value to 24 bits (nearest, ties to even).
+            Elem::U64(v) => f64::from(v as f32),
+            Elem::U32(v) => crate::x87::u32_to_float(v as i32),
+            Elem::I64(v) => v as f64,
             _ => self.as_i64() as f64,
         }
     }
@@ -502,5 +518,38 @@ mod tests {
         // Marker 1 reads like 0.
         let mut r = ByteReader::new(&[1, 0, 0, 0, 3, 0, 0, 0, 9, 0, 0, 0]);
         assert_eq!(Variant::read(&mut r), Some(Variant::Scalar(Elem::U32(9))));
+    }
+
+    /// data-formats §5.1 worked examples (EX2–EX4).
+    #[test]
+    fn conversions() {
+        // Floats to integers: _ftol truncation, the low bits kept (EX3).
+        assert_eq!(Elem::F32(300.7).as_i64() as u8, 44);
+        assert_eq!(Elem::F32(3e9).as_i64() as i32, -1_294_967_296);
+        assert_eq!(Elem::F32(-1.5).as_i64() as u32, 0xFFFF_FFFF);
+        assert_eq!(Elem::F32(2.9).as_i64(), 2);
+        for x in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 1e19, -1e19] {
+            assert_eq!(Elem::F64(x).as_i64(), i64::MIN, "{x}");
+            assert_eq!(Elem::F64(x).as_i64() as u32, 0, "{x}");
+            assert_ne!(Elem::F64(x).as_i64(), 0, "{x}: true as Bool");
+        }
+        assert_eq!(Elem::F32(0.5).as_i64(), 0, "false as Bool");
+        // Char and RZChar are signed bytes, RZUnicodeChar unsigned (EX4).
+        for e in [Elem::RzChar(0xE9), Elem::Char(0xE9)] {
+            assert_eq!(e.as_i64() as u32, 0xFFFF_FFE9);
+            assert_eq!(e.as_i64() as i16, -23);
+            assert_eq!(e.as_i64() as u8, 0xE9);
+            assert_eq!(e.as_f64() as f32, -23.0);
+        }
+        assert_eq!(Elem::UnicodeChar(0xFFE9).as_i64() as u32, 65_513);
+        // Unsigned values to double: 24 significant bits for a Uint64 and a Uint32 from 2^31 (EX2).
+        assert_eq!(Elem::U64(16_777_217).as_f64(), 16_777_216.0);
+        assert_eq!(Elem::I64(16_777_217).as_f64(), 16_777_217.0);
+        assert_eq!(Elem::U32(16_777_217).as_f64(), 16_777_217.0);
+        assert_eq!(Elem::U32(0x8000_0001).as_f64(), 2_147_483_648.0);
+        assert_eq!(Elem::U32(0xFFFF_FFFF).as_f64(), 4_294_967_296.0);
+        assert_eq!(Elem::U64(u64::MAX).as_f64(), 18_446_744_073_709_551_616.0);
+        assert_eq!(Elem::I64((1 << 53) + 1).as_f64(), 9_007_199_254_740_992.0);
+        assert_eq!(Elem::I32(-3).as_f64(), -3.0);
     }
 }
