@@ -112,7 +112,8 @@ If already initialized, return true and do nothing. Otherwise, in order:
    grid, and register the prop-requester sub-object with the prop developer (`AddPropRequester`, §11.6). In a
    loaded city the prop developer restores the registration itself from its own save (§14.2).
 9. Reset the hotspot to (0, 0, value 0) and the ordinance factor to **1.0**, for new and loaded cities alike.
-   *[compat, quirk]*
+   *[compat, quirk]* After a load nothing re-posts OrdinanceUpdated, so the factor stays 1.0 until some
+   ordinance's on flag changes (§16 Q1).
 
 ### 4.2 `Shutdown()` → true
 
@@ -816,8 +817,16 @@ Corrections to `docs/subsystems/grid-sims.md` §6:
 
 ## 16. Open questions
 
-1. Does anything post OrdinanceUpdated `0xC2C09554` after a load? If not, a loaded city ignores crime ordinances
-   until one is toggled (§4.1 step 9).
+1. *(resolved)* Nothing posts OrdinanceUpdated `0xC2C09554` after a load. Its only poster is `SetOrdinanceOn`
+   (the message is built at `0x0080D714`; ordinance §4.4), and it posts only when an ordinance's on flag
+   changes. The ordinance simulator's `Read` and its `Init` after a load call neither `SetOrdinanceOn` nor
+   `AddOrdinance` (ordinance §8.1, §9.1). A loaded city therefore runs at factor 1.0 (§4.1 step 9) until some
+   ordinance's on flag changes, by any route: a player or LUA toggle, `AddOrdinance` / `RemoveOrdinance`, or a
+   month-end availability change of an ordinance that is on (ordinance §4.3, §5). The handler (`0x006A22D5`)
+   ignores the message data and re-reads the cumulative factor over **all** on ordinances, so one toggle of any
+   ordinance, even one with no crime effect, restores the full factor. Example: a city saved with Gambling
+   (1.2) on loads with factor 1.0, so 10 crimes stay 10 instead of 12. After the player enacts Free Clinics,
+   which has no crime effect, the factor is `1.2f` again and 10 crimes become `rhe(f32(10 × 1.2f))` = 12.
 2. Lot condition values: *(partly resolved)* condition 4, the only one arson can hit, is an abandoned lot at its
    last decay stage; occupied lots get 0..3 (foundations §5.2). Conditions 5 and 6 (accepted by
    `CalculateEconomicFactors`) and building purposes 1–9 (purpose 5 is the one excluded from most masks) are

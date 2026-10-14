@@ -560,7 +560,13 @@ About `docs/specs/crime.md` and its `docs/abi` rows. Ini: `enable = crime` (opti
   it does not, and 0 in the library's spring-forward hour. The bracket counts local seconds from 1970 instead. No run
   can observe the seed, so this is a *[choice]*: crime.md §9 recommends `(uint32)(time(NULL) + 2177452800) XOR
   0x6C09C3F6`.
-- **CQ6 — §16.1:** the ordinance crime factor after a load with no ordinance simulator. [left unchanged]
+- ~~**CQ6 — §16.1:** the ordinance crime factor after a load with no ordinance simulator. [left unchanged]~~
+  **ANSWERED 2026-10-14** from the exe (crime `Init` step 6; OrdinanceUpdated handler `0x006A22D5`; the only poster
+  of `0xC2C09554` is `SetOrdinanceOn`, `0x0080D714`) and written into crime.md §4.1 and §16 Q1. **No original
+  behaviour; the implementer's choice stands.** With no ordinance simulator the original crashes in `Init` step 6
+  (the AddRef has no null check), before any month. "Left unchanged" means 1.0, the value `Init` step 9 sets. §16 Q1
+  is closed: nothing posts OrdinanceUpdated after a load. Even with an ordinance simulator, a loaded city runs at
+  1.0 until some ordinance's on flag changes. Then the handler re-reads the factor over all on ordinances.
 - **CQ7:** the prop requester is never unregistered at Shutdown; the spec is silent. [not unregistered]
 - **CQ8 — §16.8:** crime type names: which LTEXT key, and the fallback when it is missing. [open]
 - **CQ9:** `Read` on a stream error. [returns false, no state changed]
