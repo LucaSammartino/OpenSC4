@@ -287,21 +287,22 @@ switch ($Cmd.ToLower()) {
     }
     "realdrag" {
         # Real input: the 3D view ignores posted mouse messages (run 54), so a zone or road tool drag needs this.
+        # (PowerShell names are case-insensitive: $a would be $A, hence $p1 / $p2.)
         $h = GameWindow
         $to = ($C -split "[ ,]+") | Where-Object { $_ -ne "" }
         if ($to.Count -ne 2) { throw "realdrag needs: realdrag x1 y1 'x2,y2'" }
-        $a = New-Object FC4Ctl+PT; $a.X = [int]$A; $a.Y = [int]$B; [FC4Ctl]::ClientToScreen($h, [ref]$a) | Out-Null
-        $b = New-Object FC4Ctl+PT; $b.X = [int]$to[0]; $b.Y = [int]$to[1]; [FC4Ctl]::ClientToScreen($h, [ref]$b) | Out-Null
+        $p1 = New-Object FC4Ctl+PT; $p1.X = [int]$A; $p1.Y = [int]$B; [FC4Ctl]::ClientToScreen($h, [ref]$p1) | Out-Null
+        $p2 = New-Object FC4Ctl+PT; $p2.X = [int]$to[0]; $p2.Y = [int]$to[1]; [FC4Ctl]::ClientToScreen($h, [ref]$p2) | Out-Null
         [FC4Ctl]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Milliseconds 300
-        [FC4Ctl]::SetCursorPos($a.X, $a.Y) | Out-Null; Start-Sleep -Milliseconds 200
+        [FC4Ctl]::SetCursorPos($p1.X, $p1.Y) | Out-Null; Start-Sleep -Milliseconds 200
         [FC4Ctl]::mouse_event(0x0002, 0, 0, 0, [IntPtr]::Zero); Start-Sleep -Milliseconds 200
         for ($i = 1; $i -le 12; $i++) {
-            [FC4Ctl]::SetCursorPos([int]($a.X + ($b.X - $a.X) * $i / 12), [int]($a.Y + ($b.Y - $a.Y) * $i / 12)) | Out-Null
+            [FC4Ctl]::SetCursorPos([int]($p1.X + ($p2.X - $p1.X) * $i / 12), [int]($p1.Y + ($p2.Y - $p1.Y) * $i / 12)) | Out-Null
             Start-Sleep -Milliseconds 100
         }
         Start-Sleep -Milliseconds 200
         [FC4Ctl]::mouse_event(0x0004, 0, 0, 0, [IntPtr]::Zero)
-        Write-Output "real drag from client ($A, $B) to ($($to[0]), $($to[1])) = screen ($($a.X), $($a.Y)) to ($($b.X), $($b.Y))"
+        Write-Output "real drag from client ($A, $B) to ($($to[0]), $($to[1])) = screen ($($p1.X), $($p1.Y)) to ($($p2.X), $($p2.Y))"
     }
     "close" {
         $h = GameWindow
