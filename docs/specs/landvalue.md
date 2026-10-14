@@ -281,6 +281,21 @@ shipped tuning there is exactly one developer (ID `0x1030`), so order does not m
 developers in tuning order. A null developer (unknown ID) is not filtered: the original would crash in state 7
 *[quirk]*; *[choice]* FreeCity4 skips it.
 
+**What "address order" is** (QUESTIONS LV1, from the exe). The key is the pointer as an **unsigned 32-bit
+integer** (`map<uint32, float>` with `less`, filled by the tuning reader `0x006BE110`), and state 7 walks the map
+from its smallest key up. So the developers are applied in **ascending unsigned pointer value**. That value is
+fixed by the allocator, not by any listing:
+- each growth developer is a 0x13C-byte object allocated with the game's `operator new`;
+- in a new city the building development simulator creates them in its `Init`, one per exemplar of the resource
+  manager's enumeration (callback `0x00699E20`, creation `0x006991A0`), in that enumeration's order;
+- in a loaded city the class store creates them while reading the building development simulator's record (class
+  factory `0x006B7870`), and `Init` then only updates them.
+
+So the address order equals neither the tuning order (`0x47E2C330`) nor, in general, the creation order. A shadow
+of the original reproduces it exactly by sorting the pointers that `GetDeveloper(ID)` returns, unsigned and
+ascending; ties cannot occur (duplicate IDs give the same pointer and share one entry, the later weight winning).
+For FreeCity4's own developers the tuning-order *[choice]* above stands.
+
 For the current developer, with D = its desirability map (`GetDesirabilityMap()`, an `int16` grid) the helper
 `ProcessTwoGridsWithCallback` (simgrid.md §7.3) maps D onto scratch's tracts and calls, for every scratch tract,
 the step below. The desirability map's tract size is the growth developer's tuning property `0x87CD6310`, which

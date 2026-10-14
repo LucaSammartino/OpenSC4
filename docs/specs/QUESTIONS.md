@@ -1640,8 +1640,12 @@ value shadow compares on `LandValueMapChanged` (`0x87CC75B3`, end of state 8); t
 `SimCycleComplete` (`0x08F415FE`), with a mirror fed the original's six messages. The shadow's current answer is in
 brackets.
 
-- **LV1:** with several growth developers, is the developers' address order the tuning's listing order? [not
-  compared]
+- ~~**LV1:** with several growth developers, is the developers' address order the tuning's listing order? [not
+  compared]~~ **ANSWERED 2026-10-14** from the exe (tuning reader `0x006BE110`; developer creation `0x006991A0` from
+  the resource enumeration callback `0x00699E20`, load factory `0x006B7870`) and written into landvalue.md §7.4.
+  **No.** The list is a map keyed by the developer pointer as an unsigned 32-bit value, walked from the smallest:
+  ascending pointer order, fixed by the allocator. That matches neither the tuning order nor, in general, the
+  creation order. A shadow reproduces it exactly by sorting the pointers `GetDeveloper(ID)` returns.
 - **LV2:** a desirability map can change between the original's pass reading it and the comparison. [rerun with the
   previous map and keep the better result]
 - **LV3:** is `GetAreaSlope` on the lot developer free of side effects? [assumed read-only]
