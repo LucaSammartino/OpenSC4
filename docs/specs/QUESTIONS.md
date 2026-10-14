@@ -2836,7 +2836,12 @@ developer stays original). The current answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`ReadSimulatorTunableValues` `0x004DC460`: key `0x004DC49B`–`0x004DC4AB`,
   resource call `0x004DC4B6`) and written into zones §4. The type is `0x6534284A`; `0xA52160F5` is the interface ID
   asked of the resource manager with that key. The bracket matches.
-- **ZG2:** An oversized region or a bad §11.4 layout passed to PlaceZone. [fails with error 0 and touches nothing]
+- ~~**ZG2:** An oversized region or a bad §11.4 layout passed to PlaceZone. [fails with error 0 and touches nothing]~~
+  **ANSWERED 2026-10-14** from the exe (`PlaceZone` cell loop `0x004DD8B0`–`0x004DD913`) and written into zones §6
+  (pseudo-code and a new note). The original has no city-bounds test. It skips only cells outside the region's own
+  bitmap or with the bit clear, then reads (and on a commit writes) the zone grid unchecked. A rect past the city edge
+  therefore reads and writes outside the grid, and a bad bitmap is dereferenced. The bracket (fail with error 0, touch
+  nothing) is a *[choice]*, recommended. Also corrected: §6's "only cells inside the city".
 - **ZG3:** The zone display alpha after `Read`. [the alpha read]
 - **ZG4:** A second `Read`: the services the first one set. [replaced; the old ones released]
 - **ZG5:** ZoningChange `void1` / `IGZUnknown`. [SetVoid1 plus SetIGZUnknown on the zone manager; the message holds a

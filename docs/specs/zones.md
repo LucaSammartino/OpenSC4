@@ -287,7 +287,7 @@ if !skipSizeCheck:
     w := x2 − x1 + 1;  h := z2 − z1 + 1
     if w < min[type] or h < min[type]: error 3, ABORT before the first cell
     if w > max[type] or h > max[type]: error 4, ABORT before the first cell
-for x in x1..x2 (outer), z in z1..z2 (inner), only cells inside the city and set in the region:
+for x in x1..x2 (outer), z in z1..z2 (inner), only cells inside the region's bitmap and set (ZG2):
     old := grid(x, z);  if old ≥ 16 unsigned: old := 0
     tile := city.GetTrafficNetwork().FindNetworkTile(x, z, 0x1F4F, 1)
     if tile and tile.AsOccupant().IsFlagSet(1) and type ≠ 14:
@@ -366,6 +366,12 @@ Notes *[compat]*:
 - **Type out of range** (ZG17, `0x004DD7F9`–`0x004DD807`): a type ≥ 16 is not a failure. The type argument is
   replaced by 0 and the call proceeds as a dezone, with the size limits of type 0 (corrects the earlier "fail
   (code 0)").
+- **No city-bounds test** (ZG2, `0x004DD8B0`–`0x004DD913`). The loop skips a cell only when it lies outside the
+  region's own bitmap (its width and height, unsigned offsets) or its bit is clear. It then reads the zone grid with
+  no bounds check, and a commit writes it the same way. The size check limits the rect's size, not its position: any
+  part of the rect outside the city is read, and on a commit written, outside the grid. A bitmap smaller than its
+  rect skips the cells it does not cover; a bitmap with bad row pointers is dereferenced. *[choice]* reject such a
+  call with error 0 before touching anything; the original has no such failure.
 - The 5th argument (`checkAreaSlope` in the SDK) is used four ways: slope check, building-removal check,
   `DemolishLots` argument, `DoParcellization`'s street-removal flag (§7.9) and ZoningChange data4. It behaves as
   "this is a user action" *[inferred]*.
