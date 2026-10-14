@@ -352,6 +352,14 @@ with the developer's slot 10, `GrowthAndDeclineListsAreValid` (`state < 17`): D 
 and slot 10 is false from the moment state 17 is pending, so D cannot change while slot 10 is true. The last
 snapshot of D taken while slot 10 was true is therefore the map from before the latest copy.
 
+**A developer first seen while slot 10 is false** (QUESTIONS LV5). Slot 10 is false only in states 17 to 20
+(growth-developer §3.2), from the call that ends state 16 to the call that ends state 20 and sets state 0. D changes
+in the first call of that window, state 17's. A developer first seen inside it has therefore already published its new
+map unless it is still in state 17, and no slot tells state 17 from states 18–20 (slot 28 is `state == 0`). The map
+from before the copy cannot be recovered through the interface. The window is reached only by a shadow that starts
+watching during a monthly update: the state is 0 after construction, `Init` and a load (growth-developer §2), so slot
+10 is true until the developer's first update.
+
 ### 7.5 Average (state 8)
 
 For every tract with (`ignoreZoning` or `IsZoned(t)`) and `HasLand(t)` (ignoreZoning as left by state 3):

@@ -245,9 +245,10 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "growth_probe",
                                   "development_growth_attempts_per_day", "development_seed",
                                   "development_shadow",
-                                  // the harness lane's tooling (FC4Turbo.h, FC4Autotest.h, FC4Script.h)
+                                  // the harness lane's tooling (FC4Turbo.h, FC4Autotest.h, FC4Script.h,
+                                  // FC4Dialogs.h)
                                   "sim_turbo", "sim_turbo_frame_ms", "sim_turbo_until", "autotest_end_date", "script",
-                                  "sim_turbo_wait_days",
+                                  "sim_turbo_wait_days", "close_dialogs",
                                   "tract_shadow", "tract_seed", "tract_grow_log"};
 
 // The switches that are off, for lock-free readers (autotest verdict).

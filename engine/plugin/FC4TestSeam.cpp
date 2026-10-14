@@ -18,6 +18,7 @@
 #include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
 #include "FC4DevelopmentShadow.h"
+#include "FC4Dialogs.h"
 #include "FC4FlammabilityShadow.h"
 #include "FC4FloraShadow.h"
 #include "FC4GrowthProbe.h"
@@ -176,6 +177,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return GrowthProbeTest(static_cast<const FC4GrowthProbeTestInput*>(a));
         case kFC4SeamScript:  // the harness lane (FC4Script.h)
             return fc4::ScriptLoad(static_cast<const char*>(a), "test seam");
+        case kFC4SeamDialogs:  // the harness lane (FC4Dialogs.h)
+            return DialogsTestSeam(static_cast<const FC4DialogsTestInput*>(a));
         case kFC4SeamFpuReference:
             if (a == nullptr) {
                 fc4::FpuSetReference("test seam");

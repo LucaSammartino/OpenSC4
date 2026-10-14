@@ -107,8 +107,9 @@ offset size  field
 - **A** is used only by DXT1 (code `0x60`): A ≠ 0 selects the "DXT1 with 1-bit alpha" texture format, A = 0 plain
   DXT1 (`0x00800690`, §2.10). It is stored as the low 16 bits of the sign-extended value, so any non-zero 12-bit
   value counts. For every other code A is ignored.
-- Bits 12–27 and the centre fields are ignored by the 3D path. Other subsystems may read the centre fields through
-  their own code; nothing found does *[inferred]*.
+- Bits 12–27 and the centre fields are read by nothing (GF12). The one entry-header decoder (`0x00808D70`) keeps the
+  code, width, height, the entry's directory tag, the pixel pointer, A (bits 0–11) and M (bits 28–31), and its only
+  callers are `SerialRead`, `Open` and `OpenInfoOnly`; `cS3DShapeFile` is the only `SHPI` parser (§2.1).
 
 ### 2.5 Attached blocks and palettes *[compat]*
 
@@ -150,23 +151,37 @@ Notes:
 - "Fails" means the DX7 driver's `TranslateGDFormatToSourceFormat` (`0x0088D0B0`) has no entry for the
   (format, type) pair: it accepts only BYTE/UBYTE with RGB, RGBA, BGR, BGRA and the three DXT formats, plus three
   packed 16-bit types (eGDType 10, 13, 14) that FSH never produces. The factory still accepts these codes
-  (the record loads); what a model shows when its texture cannot be created is GF1.
+  (the record loads), but the DX7 texture gets no surface.
+- **A model whose texture has no surface is drawn untextured** (GF1). When the DX7 driver sets up a texture stage
+  and finds no texture record, or a record whose surface pointer (+0x2C) is null (`0x00884320`), it sets that
+  stage's colour and alpha operations to *disable* (`0x008844A6`) and binds nothing. Stage 0 then passes the diffuse
+  colour and alpha (vertex colour and lighting) straight through: the model is still drawn, with its material's
+  depth, blending and alpha-test states, in its diffuse colour. The texture bound before stays bound but is not
+  sampled. Under OpenGL, `0x64`, `0x65`, `0x7B`, `0x6D` and `0x7E` do upload (signed bytes for the first three, the
+  channel order of §2.11 for the last two); `0x78` fails there too, as type 11 has no GL entry. FreeCity4 decodes
+  and shows all six *[choice]*: unlike DX7, the default renderer, but like the original's OpenGL renderer for five
+  of them.
 - Codes `0x64`, `0x65` and `0x7B` use type 0, which the OpenGL table maps to signed `GL_BYTE`: values 128–255 would
   clamp to 0 under GL *[quirk]*. FreeCity4 reads them unsigned *[choice]*.
 - A code with bit 7 set (a "compressed bitmap" code `0xE0`–`0xFF`) is outside `0x60`–`0x7F` and rejected.
 - For `0x7B` the palette check reads the palette info filled by §2.5. When no palette was found the info is not
   written, and the check reads whatever the caller's stack held *[quirk]*. FreeCity4 rejects `0x7B` without a
-  256 × 1 palette *[choice]*.
+  256 × 1 palette *[choice]*. Only frame 0's palette is checked: the format is decided once, from frame 0 (§2.10),
+  and later frames need no palette, which is never applied anyway (FS4). FreeCity4 checks frame 0 the same way and
+  decodes a later frame with no usable palette as grey, (i, i, i, 255) for index i, which is the original's
+  luminance upload read unsigned *[choice]*.
 
 ### 2.7 What the factory accepts (`SerialRead` `0x00800860`) *[compat]*
 
-With frame 0's header (code C, width W, height H, mip count M):
+A record with `count` = 0 fails at once, before any entry is read (`0x008008D0`–`0x008008DB`), in the full and
+the info-only open alike (FS3). Otherwise, with frame 0's header (code C, width W, height H, mip count M):
 
 1. The code must map (§2.6), else the load fails.
 2. **H must be a power of two** (the test is "H & −H equals H", so 0 passes). **W is not checked**: the shipped
    data has two 257 × 1 entries, and they load.
 3. The minimum level dimension is m = 4 for DXT codes (`0x60`–`0x62`), else 1. The texture's dimensions are
-   max(W, m) × max(H, m); the level count is M + 1.
+   max(W, m) × max(H, m); the level count is M + 1. W and H are the sign-extended values and both tests are
+   signed (FS6): a negative H fails rule 2 (H = −4: −H & H = 4, not −4), and a negative W becomes m.
 4. Every further entry (frame) must equal frame 0 in **height, code and M**, else the load fails. Width is not
    compared; all frames are laid out with frame 0's dimensions (§2.8), so a narrower later frame is misread
    *[quirk]* (none shipped).
@@ -186,12 +201,38 @@ For each frame, level offsets are relative to that entry's pixel start (header +
 So every level starts **16-byte aligned** from the pixel start, and DXT levels stop shrinking at 4 × 4 (8 or 16
 bytes). Example: DXT1 8 × 8, M = 3: offsets 0, 32, 48, 64 (sizes 32, 8, 8, 8; padded total 80, unpadded 56).
 
+A DXT width that is not a multiple of 4 (none shipped) makes the formula smaller than the whole blocks: DXT1 6 × 8
+gives 24 bytes for 2 × 2 blocks of 8. DX7 copies the surface's whole compressed size from the level's start
+(`CopyToSurface` `0x0088A380`, linear-size path), so the missing bytes are the record bytes that follow, padding first
+(FS7; OpenGL not traced). FreeCity4 reads the whole blocks from the record the same way, decodes them and crops to
+the width *[choice]*.
+
 *[quirk]* 167 shipped DXT1 entries with mipmaps store their levels **without** the per-level padding (tools
 packed them back to back). The game still reads them at the aligned offsets. Only levels after the first 8-byte
 level move, so the two or three smallest levels show the wrong blocks, and the last level reads up to 8 bytes past
 the pixel data (into the next attachment). Example: `SimCity_2.dat` (`0x7AB50E44`, `0x1ABE787D`, `0x10EC0000`),
 128 × 128, M = 7: the game reads levels at 0, 8192, 10240, 10752, 10880, 10912, 10928, 10944; the data ends at
-10944. FreeCity4 reads the aligned offsets as the game does and fills bytes beyond the entry with zero *[choice]*.
+10944.
+
+All 167 are in group `0x1ABE787D`, and each is followed by its `0x70` name block. The misread last level always lies
+exactly 8 bytes past the stored levels, on that block's header: the game reads the code `0x70`, the block's 3-byte
+`next` and the first four name characters as the level's DXT1 block. No shipped level read reaches past the record
+(`size`). In the example the last level reads `70 00 00 00 31 30 45 43`: c0 = `0x0070`, (0, 12, 132) after
+expansion, c1 = black, so a 4 × 4 level of dark blues and black. FreeCity4 reads the aligned offsets from the
+record as the game does, so those bytes are the record's own; only bytes past `size` (none shipped) read as zero
+*[choice]* (GF9).
+
+The original has no notion of where an entry ends (FS1): it reads every level at its aligned offset from the
+`size`-byte buffer, whatever lies there, and checks nothing. FreeCity4 needs an end only to decide acceptance
+(below): an entry ends at the first of its attached block (`next`), another entry's header, or `size`, counting
+only positions at or after its pixel start *[choice]*. The bytes it decodes still come from the record, as above.
+
+Acceptance (FS2). The original accepts any layout (§2.7): a truncated entry shows the bytes that follow it, and a
+read past `size` would show heap bytes. FreeCity4 accepts an entry whose levels fit before its end at the aligned
+offsets, or whose levels fit there packed back to back while the aligned layout overruns (the mip-padding case,
+read from the record as above); it rejects an entry whose levels do not fit even packed *[choice]*. Shipped: 167
+entries of the second kind, none of the third. In all 167 the aligned layout overruns the end by exactly 8 bytes,
+and the entry holds the packed levels, in 163 of them followed by 8 bytes of padding.
 
 ### 2.9 Info-only open *[compat]*
 
@@ -207,18 +248,22 @@ built.
   the binding getting width `bw >> k` and height `bh >> k` and the table entry `(M + 1 − n) + k`. A binding
   smaller than the FSH (the LOD offset, `SetLodOffset` `0x00809910`, set from the texture-quality option
   *[inferred]*) therefore skips the largest levels.
+- Every frame is created with the one (format, type) pair decided from frame 0: `GetTypeAndFormat` is called only
+  from `SerialRead` (`0x0080090D`), and the upload reads the stored pair (`0x00809BA7`). A later DXT1 frame whose A
+  differs still gets frame 0's format (FS5); FreeCity4 reports frame 0's pair for every frame *[compat]*.
 - DX7 creates the surface through `TranslateGDFormatToSourceFormat` (§2.6). OpenGL uploads the DXT formats as
   compressed images and the others through its format and type tables.
 - Bindings are cached by (group, instance): the hash at `0x0080A380` ignores the key's type.
 
 ### 2.11 Pixel decoding for FreeCity4 *[choice]*
 
-The original never decodes pixels on the CPU for 3D textures (the GPU does). A standalone renderer that decodes to
-RGBA8 uses:
+The original never decodes pixels on the CPU for 3D textures (the GPU does), so nothing in the exe fixes the rounding
+of the DXT interpolations: FreeCity4 rounds every division down *[choice]* (FS8). A standalone renderer that decodes
+to RGBA8 uses:
 
 | Code | Decoding |
 |---|---|
-| `0x60` | S3TC DXT1. Colours 5:6:5 expanded by bit replication. If c0 > c1 (as `u16`): c2 = (2c0 + c1) / 3, c3 = (c0 + 2c1) / 3; else c2 = (c0 + c1) / 2 and c3 = **transparent black**, whatever A says (DX7 behaviour, which treats both DXT1 formats alike; under OpenGL A = 0 would give opaque black: GF3). Divisions on the 8-bit expanded values, rounded down |
+| `0x60` | S3TC DXT1. Colours 5:6:5 expanded by bit replication. If c0 > c1 (as `u16`): c2 = (2c0 + c1) / 3, c3 = (c0 + 2c1) / 3; else c2 = (c0 + c1) / 2 and c3 = **transparent black**, whatever A says (DX7 behaviour: both DXT1 formats become the one Direct3D DXT1 surface, `0x0088D0B0`, which always decodes 3-colour-mode index 3 as (0, 0, 0, 0); under OpenGL A = 0 gives opaque black. A material with alpha test or blending drops these texels, one with neither shows them black: GF3). Divisions on the 8-bit expanded values, rounded down |
 | `0x61` | DXT3: 8 bytes of 4-bit alpha (pixel 0 in the low nibble of byte 0, row-major), alpha × 17; then a colour block always in 4-colour mode |
 | `0x62` | DXT5: a0, a1, 48 bits of 3-bit indices (pixel 0 in the lowest bits). Index 0 → a0, 1 → a1. If a0 > a1, index i = 2–7 → ((8 − i) a0 + (i − 1) a1) / 7; else i = 2–5 → ((6 − i) a0 + (i − 1) a1) / 5, 6 → 0, 7 → 255. Colour block in 4-colour mode |
 | `0x7D` | B, G, R, A bytes |
@@ -230,8 +275,12 @@ RGBA8 uses:
 | `0x65` | byte 0 luminance L, byte 1 alpha: (L, L, L, a) |
 | `0x7B` | index through the palette (0x24: B, G, R bytes; 0x2A: B, G, R, A; 0x2D: `u16` A1R5G5B5; 0x29: `u16` R5G6B5), alpha 255 unless the palette has alpha. The shipped palettes are identity grey ramps, so this equals the original's luminance upload |
 
-The 16-bit layouts are the Direct3D ones that FSH tools write. The original's own enums (BGRA with non-reversed
-packed types) would read them differently under OpenGL, and DX7 cannot create them at all (GF2).
+The 16-bit layouts are the Direct3D ones that FSH tools write. **No renderer of the original shows them that way**
+(GF2). DX7 cannot create them (§2.6). OpenGL uploads `0x6D` and `0x7E` as BGRA with non-reversed packed types, so it
+reads a `u16` as B in bits 12–15, G 8–11, R 4–7 and A 0–3 (`0x6D`), or B 11–15, G 6–10, R 1–5 and A bit 0 (`0x7E`);
+`0x78` does not upload under OpenGL either. Example: the `0x7E` texel `0xFC00` is opaque red in the Direct3D layout,
+and OpenGL reads it as B 31, G 16, R 0, A 0, a transparent blue. FreeCity4 follows the Direct3D layouts *[choice]*:
+they are what the files mean, and the original has no correct path to copy.
 
 ### 2.12 Compression *[compat]*
 
@@ -257,8 +306,16 @@ check and does not load. There is no in-file compression: codes with bit 7 set a
 | Frame checks | every multi-entry record has equal height, code, M and width across frames |
 | Failures | 0 (all accepted by §2.7) |
 
-The 24 `0x7B` entries live in group `0x891B0E1A` and cannot be created as textures under DX7; their consumers
-(terrain brushes, water) are GF4.
+The 24 `0x7B` entries live in group `0x891B0E1A`. DX7 cannot create them as textures, but nothing creates them as
+textures: they are read on the CPU (GF4). `cSTETerrainView3D::InitializeCityEdgeLayerHeights` (`0x00757300`) loads
+the two 257 × 1 ramps (`0xCA5CC9C0`, `0xCA5CC9C1`), reads their 257 pixel values one by one through the bitmap's
+pixel getter (slot `0x54`) and turns each into a height, filling two tables of 257 floats (`0x00B4BE10`,
+`0x00B4C214`). `cSTETerrain::ApplyBrushComponents` (`0x0074D730`) loads each brush component's bitmap from the
+group through the resource manager (interface `0x1AB50C3F`) and samples it on the CPU; the 22 square `0x7B` entries
+are those brush shapes *[inferred: the instances come from the brush data]*. The other users of the group
+(underground `0x0065D810`, lava `0x0075EDC0`, ripples `0x00760EE0`, retaining walls `0x005E1620`) were not traced
+to their instances. FreeCity4's reader must therefore give the terrain code the raw indices of `0x7B` frames, not
+only RGBA8.
 
 ---
 
@@ -327,11 +384,17 @@ S × N bytes          interleaved vertices
 ```
 
 - The block keeps (format, S, N, data). Its bounding box is **computed** from the first three floats of each vertex
-  (step S; `0x00801040`); there is no bounding box in the file.
+  (step S; `0x00801040`); there is no bounding box in the file. The pass reads those floats whatever the format
+  holds (FS9): a format with no position is boxed on the first 12 bytes of each vertex, and with S < 12 the last
+  vertex reads 12 − S bytes past the block's data. FreeCity4 rejects S < 12 and boxes a position-less format with
+  S ≥ 12 the same way *[choice]*.
 - At draw time the vertex pointer is set with stride 0, so the renderer uses the **standard** stride of the format,
   not S (`RenderMesh` `0x007D4A80`, `InterleavedArrays` `0x00881EC0`). A legacy block whose S differs from the
   standard stride is read with S and drawn with the standard one *[quirk]*. Every shipped legacy block has format 2
-  and S = 20, which agree.
+  and S = 20, which agree. With S below the standard stride the draw reads past the block's S × N bytes; a legacy
+  block with an unknown format reads its S × N bytes and is boxed with S, but is drawn with the format's standard
+  stride, 0 (FS10; the draw is not traced further). FreeCity4 rejects both *[choice]*: the original draws from
+  outside, or without a layout for, the vertex data.
 - A new vertex block starts as format 2, stride 20, with an empty box (min (1, 1, 1), max (0, 0, 0); `0x00802B90`).
   The bounding-box pass seeds the box from vertex 0 **without checking N or the buffer**, then takes N − 1 more.
   So N = 0, or a stride of 0, reads through an empty buffer (and N = 0 then loops about 2³² times) *[quirk]*; no
@@ -355,7 +418,7 @@ Packed layout (bit position, width, element size; `StandardVFElementOffset` `0x0
 | 2 | 5 | 4 | 4 bytes *[inferred]* |
 | 3 | 6 | 12 | normal, 3 × f32 |
 | 4 | 7 | 4 | 4 bytes *[inferred]* |
-| 5 | 8–9 | 4 | colour, 32-bit (byte order GF6) |
+| 5 | 8–9 | 4 | colour, 32-bit: bytes B, G, R, A (below) |
 | 6 | 10–13 | 4 | 1-component texture coordinates |
 | 7 | 14–17 | 8 | 2-component texture coordinates (u, v as f32) |
 | 8 | 18–21 | 12 | 3-component texture coordinates |
@@ -389,6 +452,10 @@ Standard formats (`PackStandardVertexFormat` table at `0x008D028C`):
 
 Any other standard number packs to 0 (stride 0, §3.4). Shipped: `0x80004001` 165,256 blocks; standard 2 (new
 layout) 1,526; standard 2 (legacy, S = 20) 286; `0x80004101` 2 blocks (one model). Vertex counts 1–1,898.
+
+The colour element is a Direct3D colour, bytes B, G, R, A (GF6): DX7 sets the diffuse flag (`0x40`) in the vertex
+format for it (`0x008891EA`) and copies the 32-bit word unchanged into the Direct3D vertex (`0x0088C7D0` for
+`0x80004101`). OpenGL not traced.
 
 ### 3.6 INDX *[compat]*
 
@@ -479,9 +546,17 @@ T ×   texture:
   alpha, 7 1 − dst alpha, 8 dst colour, 9 1 − dst colour, 10 src alpha saturate.
 - Texture-parameter enum (`0x00B12168`), used for wrap and filter bytes: 0 nearest, 1 linear, 2 clamp, 3 repeat,
   4 nearest-mipmap-nearest, 5 linear-mipmap-nearest, 6 nearest-mipmap-linear, 7 linear-mipmap-linear. Wrap uses 2
-  and 3. The draw context may override both filters (`SetTexFiltering` `0x007D4280`: (nearest, nearest) or
-  (linear, linear-mipmap-linear) when one of two settings is on) and the wrap modes (`0x007D41E0`); without an
-  override the file's bytes are used (GF5).
+  and 3. The draw context may override both filters (`SetTexFiltering` `0x007D4280`) and the wrap modes
+  (`0x007D41E0`) from three boolean render properties (GF5):
+  - `kForcePointSampling` (boolean property 5): (nearest, nearest);
+  - otherwise `kForceBilinear` (boolean property 6): (linear, linear-mipmap-linear), despite its name;
+  - `kForceTextureRepeat` (boolean property 21): both wraps repeat.
+
+  For a stage above 0, neither function does anything unless `kUseSecondStage` (boolean property 11) is on. The
+  three force flags are registered false (`0x007DF320`, `0x007DF400`, `0x007E0120`) and the shipped
+  `Graphics Rules.sgr` never sets them, so **in normal play there is no override** and the file's bytes are used.
+  The 137,480 shipped 1.5 textures with filters (0, 0) are therefore drawn with nearest sampling and no
+  mipmapping (DX7: magnification and minification point, mip filter none, `0x00884363`–`0x008843BB`).
 - The context's highlight modes can override blending, depth and alpha function; those are draw states, not data.
 
 ### 3.9 ANIM *[compat]*
@@ -513,9 +588,11 @@ per mesh:
 ### 3.10 PROP (1.1 and later) *[compat]*
 
 `u32` count, then per entry: `s16` mesh index, `s16` frame, `u8` length + key string, `u8` length + value string
-(both as in §3.9, NUL included). The array is kept on the model and sorted after reading (`0x00806B40`).
-Shipped: 58 models with 2 entries each, e.g. (−1, 0, `skeleton`, `adult`) and (−1, 0, `suit`,
-`RangerFFit_01`). Consumer not traced (GF11).
+(both as in §3.9, NUL included). The array is kept on the model and sorted after reading by frame, signed and
+ascending (`std::sort`, `0x00806B40`, then an insertion pass). Equal frames keep file order up to 16 entries;
+above 16 their order is not defined (FS11). FreeCity4 sorts stably by frame *[choice]*, which is the same on all
+shipped data. Shipped: 58 models with 2 entries each, e.g. (−1, 0, `skeleton`, `adult`) and (−1, 0, `suit`,
+`RangerFFit_01`); every entry is (−1, 0). Consumer not traced (GF11).
 
 ### 3.11 REGP (1.2 and later) *[compat]*
 
@@ -524,6 +601,14 @@ bytes (7 × f32 each). Entries go into a map keyed by the name; a repeated name 
 Shipped: 1,810 models have entries, names such as `fx_00_highway_bridge_collumn_f` and
 `fx_00_blue_blinking_light_slow`, C = 1. The 7 floats are a position and an orientation *[inferred]*; consumer not
 traced (GF11).
+
+Lower-casing is `cRZString::MakeLower` (`0x0090EAC5`, FS12). A name whose bytes are all below `0x7F` is lowered
+byte by byte with the C library's `tolower`; any other name is converted from UTF-8 to UTF-16, lowered with
+`towlower` and converted back. Both follow the C library locale, which `cRZLanguageManager::SetCurrentLanguage`
+(`0x00928021`) sets to the game's language, so non-ASCII letters are lowered too. Shipped: 3,025 names, all ASCII;
+299 have capitals, and 14 repeat an earlier name of the same model once lowered. FreeCity4 lowers ASCII letters and
+keeps the name's bytes (UTF-8 when valid, else Latin-1); for a valid UTF-8 name it also lowers non-ASCII letters
+with Unicode simple case mapping *[choice]*, close to the original under a Western-language locale.
 
 ### 3.12 Building and drawing a frame *[compat]*
 
@@ -568,7 +653,9 @@ The first time a frame uses a material, each texture slot with a non-zero ID and
 1. (`0x7AB50E44`, `0x1ABE787D`, ID): slot `0x14` (`0x008094C0`) builds this key with the group hard-coded.
 2. If that fails: (`0x7AB50E44`, the model's own group, ID) through slot `0x18` (`0x0080A380`).
 3. If that fails too: instance `0x07F94200` in group `0x1ABE787D` (shipped in `SimCity_3.dat`, 32 × 32 DXT1), and
-   the slot's ID is set to 0 so it is not looked up again.
+   the slot's ID is set to 0 so it is not looked up again. If the fallback does not load either, its result is
+   ignored: the slot keeps no binding and its ID is still set to 0 (`0x00806DF5`–`0x00806E02`), so the material is
+   drawn without that texture *[inferred]* (FS13). FreeCity4 resolves such a slot to no texture *[choice]*.
 
 The binding cache keys on (group, instance) only (§2.10). On the shipped data, step 1 always succeeds.
 
@@ -577,9 +664,16 @@ The binding cache keys on (group, instance) only (§2.10). On the shipped data, 
 An occupant's exemplar names its model with one of the resource-key-type properties
 (`cSC4ModelMakerUtility::GetModelInstanceID` `0x00496830`). Let the property's values be v[0], v[1], …, and z the
 zoom after the detail remap: z = table[zoom + 5 × detail] (table `0x00B094A4`: detail 0 → 0, 1, 2, 3, 4; detail 1 →
-0, 1, 2, 3, 3; detail 2 → 0, 0, 1, 2, 3; detail global `0x00B216FC`, GF8). Let r be the rotation, 0–3, relative
+0, 1, 2, 3, 3; detail 2 → 0, 0, 1, 2, 3; detail global `0x00B216FC`, below). Let r be the rotation, 0–3, relative
 to the view *[inferred naming]*: the function forms (3a + b) mod 4 from its two rotation arguments a and b, or
 3a mod 4 when its flag argument is set.
+
+The detail is the integer render property `kModelLODOffset` (integer property 22), clamped to 0–2 (GF8). The model
+maker reads it in `Init` (`0x004948BE`–`0x004948DF`) and again on message `0xC9F775BB` (`0x00496466`), which it
+subscribes to in `DoPostCityInit` (`0x004952B8`) and which `cSC4App::ApplyVideoPreferences` (`0x0044A2F3`) and
+`cSC4View3DWin::SetRenderProperties` (`0x007ECF15`) post. `Graphics Rules.sgr` sets `modelLODOffset` from the
+Texture Quality option: High 0, Medium 1, Low 2; the registered default is 0 (`0x007E2330`). Example: at Low, zoom 4
+gives z = table[4 + 5 × 2] = 3, so an RKT1 model uses instance v[2] + `0x300` + r × `0x10`, the zoom-3 model.
 
 | Property | Key |
 |---|---|
@@ -588,6 +682,14 @@ to the view *[inferred naming]*: the function forms (3a + b) mod 4 from its two 
 | `0x27812822` (RKT2) | (v[0], v[1], v[2 + 4z + r]): 20 explicit instances |
 | `0x27812823` (RKT3) | (v[0], v[1], v[2 + z]): one per zoom |
 | `0x27812824`, `0x27812825` (RKT4, RKT5) | not handled by this function (other callers, GF7) |
+
+Nothing is range-checked (FS14). z = table[zoom + 5 × detail] indexes the 15-entry table directly: zoom 5 at
+detail 0 reads the detail-1 row, and an index past 14 reads the pointers stored after the table. The value count is
+never checked, so too few values read past the property's array. r is (3a + b) mod 4 with C's signed remainder, so
+a negative argument gives −1 to −3 (RKT1 then subtracts from the base, RKT2 indexes before its 20 instances).
+Detail cannot exceed 2, since it is clamped when set (above). The RKT1 sum is 32-bit and wraps. FreeCity4 returns no
+model for a zoom above 4 or too few values, clamps the detail to 0–2, takes the rotation mod 4 into 0–3, and lets
+RKT0 ignore zoom and detail *[choice]*.
 
 Shipped S3D instances follow the RKT1 pattern: of 2,761 instance bases (instance with the low 12 bits cleared),
 1,957 hold exactly the 20 variants zoom 0–4 (bits 8–11) × rotation 0–3 (bits 4–7); the low 4 bits are 0 in 42,388
@@ -648,7 +750,7 @@ readers wholesale (§10) and the renderer consumes the decoded data.
 | Q3 | Height must be a power of two (0 passes); width unchecked; frames compared on height, code, mips only | *[compat]* |
 | Q4 | Levels 16-byte aligned; DXT levels stop at 4 × 4; unpadded shipped DXT1 mips misread | *[compat]* *[quirk]* |
 | Q5 | 12-bit field A selects DXT1 RGB/RGBA; DX7 treats both alike | *[compat]*, decode as DX7 *[choice]* |
-| Q6 | Codes `0x64 0x65 0x6D 0x78 0x7B 0x7E` load but cannot be created under DX7; signed BYTE under GL | *[compat]* *[quirk]*, FreeCity4 decodes them *[choice]* |
+| Q6 | Codes `0x64 0x65 0x6D 0x78 0x7B 0x7E` load but cannot be created under DX7 (drawn untextured); signed BYTE under GL | *[compat]* *[quirk]*, FreeCity4 decodes them *[choice]* |
 | Q7 | `0x7B` needs a 256 × 1 palette but uploads the indices; no palette → uninitialised check | *[quirk]*, apply palette / reject *[choice]* |
 | Q8 | Only DBPF-level compression; bit-7 codes rejected | *[compat]* |
 | Q9 | S3D chunk and container lengths ignored; fixed chunk order | *[compat]* |
@@ -723,7 +825,8 @@ Byte strings are hexadecimal. "FSH(entry)" is a one-entry record: `53 48 50 49`,
 18. **Type.** The bytes of test 5 under type `0x7AB50E45`: no resource is created.
 19. **Unpadded mips (shipped).** `SimCity_2.dat` (`0x7AB50E44`, `0x1ABE787D`, `0x10EC0000`): DXT1 128 × 128, M = 7,
     A = 1: the original's level offsets are 0, 8192, 10240, 10752, 10880, 10912, 10928, 10944 from the pixel
-    start; the pixel data ends at 10944 (the next block's header starts there).
+    start; the pixel data ends at 10944 (the next block's header starts there), so the last level's 8 bytes are
+    `70 00 00 00 31 30 45 43`, the start of the `0x70` name block.
 20. **Fallback texture (shipped).** `SimCity_3.dat` (`0x7AB50E44`, `0x1ABE787D`, `0x07F94200`): 576 bytes, header as
     §2.2's example, one entry: code `0x60`, 32 × 32, M = 0; accepted, format 7.
 
@@ -800,7 +903,8 @@ The test model T is version 1.5, one triangle. Fields in order (hex):
 ### 8.4 Shipped-data sweep
 
 42. Every FSH record of the install (§2.13 counts) is accepted; per code the entry counts are `0x61` 25,957,
-    `0x60` 19,357, `0x7D` 40, `0x7B` 24, `0x7F` 9; 167 DXT1 entries need the zero-fill of §2.8.
+    `0x60` 19,357, `0x7D` 40, `0x7B` 24, `0x7F` 9; 167 DXT1 entries read their last level from the
+    following name block (§2.8).
 43. Every S3D record (42,915) loads; 167,070 vertex blocks, 155,661 index blocks, 138,735 primitives, 155,827
     materials; 71 meshes dropped; every texture ID resolves at step 1 of §4.1 or is 0.
 
@@ -831,9 +935,9 @@ Common modding descriptions of FSH and S3D were the starting point. Where they d
 `engine/formats` has no FSH or S3D reader today. Add:
 
 1. **`fsh` module**: `SHPI` header, directory, entry header (§2.4), attachment chain with the palette search
-   (§2.5), the code table (§2.6), the accept rules (§2.7), level offsets with 16-byte alignment and the zero-fill of
-   §2.8, frames. Expose per frame the (format, type) pair of §2.6, the level table, and a CPU decoder to RGBA8
-   (§2.11) for every accepted code. Bounds-check everything (Q2).
+   (§2.5), the code table (§2.6), the accept rules (§2.7), level offsets with 16-byte alignment read from the
+   record (§2.8), frames. Expose per frame the (format, type) pair of §2.6, the level table, and a CPU decoder to
+   RGBA8 (§2.11) for every accepted code. Bounds-check everything (Q2).
 2. **`s3d` module**: the chunk grammar of §3.2–§3.11 with the version table, legacy VERT, the vertex-format
    tables (§3.5, packed and standard), INDX size rule, PRIM, MATS (16-bit flags OR `0x180`, alpha reference
    quantisation, T ≤ 2), ANIM with mesh dropping, PROP, REGP (lower-cased names, merging). Expose `frame(f)` →
@@ -854,14 +958,23 @@ Common modding descriptions of FSH and S3D were the starting point. Where they d
 Also filed in QUESTIONS.md, "From the graphics formats spec", GF1–GF12.
 
 1. GF1: what a model shows when its texture cannot be created under DX7 (codes of Q6).
+   **Answered** (§2.6): drawn untextured, in its diffuse colour.
 2. GF2: channel layout of `0x6D`/`0x7E`/`0x78` (DX7 cannot create them; GL enums differ from the D3D layouts).
+   **Answered** (§2.11): no renderer shows them correctly; follow the Direct3D layouts.
 3. GF3: whether DX7 really shows DXT1 index-3 texels as transparent when A = 0.
+   **Answered** (§2.11): yes; alpha-tested or blended materials drop them, others show them black.
 4. GF4: who uses the 24 `0x7B` grey-ramp entries in group `0x891B0E1A`, and through which path.
+   **Answered** (§2.13): CPU reads (city-edge height ramps, terrain brushes), never the texture path.
 5. GF5: defaults of the draw settings that override material filters and wrap.
+   **Answered** (§3.8): `kForcePointSampling`, `kForceBilinear`, `kForceTextureRepeat`; all off.
 6. GF6: byte order of the vertex colour element.
+   **Answered** (§3.5): bytes B, G, R, A, copied unchanged into the Direct3D diffuse colour.
 7. GF7: RKT4/RKT5 layouts.
 8. GF8: where the detail global `0x00B216FC` is set.
+   **Answered** (§4.2): `kModelLODOffset` clamped to 0–2, set by the Texture Quality option.
 9. GF9: unpadded DXT1 mips: reproduce or fix.
+   **Answered** (§2.8): reproduce, with the record's own bytes; zero only past `size`.
 10. GF10: semantics of ANIM frame rate, mode, flags and displacement.
 11. GF11: consumers of PROP and REGP, and the meaning of REGP's 7 floats.
 12. GF12: whether anything reads the FSH centre fields or the bits 12–27 of `+0x0C`.
+    **Answered** (§2.4): nothing reads them.

@@ -42,6 +42,7 @@
 #include "FC4DevelopmentInterfaces.h"
 #include "FC4Interfaces.h"
 #include "FC4TractInterfaces.h"
+#include "FC4WinInterfaces.h"
 
 #include "SC4Vector.h"
 #include "cIGZPersistResourceKeyList.h"
@@ -399,6 +400,9 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4VisualEffect", 18, 13,
      "the table has rows only for the slots re-answers2 PG4 traced (2-5, 8, 12; no RTTI); the SDK declares 0-17. "
      "The residential glue calls slots 2, 3 and 8 only (REH 4.7 step 3, RG1)"},
+    {"cIGZWin", 68, 148,
+     "cFC4IGZWin declares slots 3-67 only: the dialog closer calls slot 67 (GetFlag) only (modal-dialogs.md "
+     "section 3.2). Slots 68-147 are not declared"},
 };
 
 const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlots) {

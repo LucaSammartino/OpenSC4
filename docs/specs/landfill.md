@@ -182,7 +182,8 @@ An occupant of type **`0x6A11BD2B`** (set by the constructor) with:
 | bounding box | from position | no | `(x−8, y, z−8) … (x+8, y+16, z+8)` metres, recomputed on `Read` and `SetPosition` |
 | base occupant state | | yes | `cSC4Occupant` record (§6.4) |
 
-The constructor also sets occupant flag 4 (`SetFlag(4)`).
+The constructor also calls `SetFlag(4)` (visible). That changes nothing: `cSC4Occupant`'s constructor already sets
+flag 4 for every occupant (`0x005E9265`) (LG28).
 
 ## 3. Agents, messages and cadence
 
@@ -879,8 +880,10 @@ anyway.
    occupant and crashes there (`0x006BC911`) *[quirk]*.
 2. `o := new cSC4LandfillOccupant(tile, orientation)` (`0x00477270`). This constructor stores the tile ID and the
    orientation, sets type `0x6A11BD2B` and calls `SetFlag(4)`. Then `o.AddRef()`.
-3. Attach the exemplar: `SetDefaultExemplar(ex)` on the occupant's `cISCExemplarPropertyHolder` (IID `0x0AC2B5F7`,
-   the sub-object at `+0x20`, slot 3). It takes a reference to `ex` and releases any exemplar held before.
+3. Attach the exemplar: `SetDefaultExemplar(ex)` (slot 3, `0x00458E60`) on the occupant's
+   `cISCExemplarPropertyHolder`, the sub-object at `+0x20`. The developer calls it **directly** on the object it has
+   just constructed (`0x006BC845`–`0x006BC84C`), with no QueryInterface (LG27). It takes a reference to `ex`, stores
+   it and releases any exemplar held before.
 4. `SetFlag(4)` again, `SetRemovalFlags(2)`, `pollution.SetIsActiveLandfill(x, z, true)`, `isEmpty := false`.
 5. `(px, pz) := CellCenterToPosition(x, z)`; `py := terrain.GetAltitude(px, pz)`, stored as float32;
    `SetPosition((px, py, pz))`.
@@ -891,10 +894,42 @@ anyway.
    the insert.
 8. Return `occupantManager.InsertOccupant(o.AsOccupant(), 0)` (slot 20).
 
+**When the insert returns false** (LG29, occupant manager slot 20, `0x0049EF60`), in this order: (1) the occupant is
+null; (2) its flag 1 (bit 0, in an occupant manager) is already set, tested before anything else (`0x0049EF8A`); (3)
+after `AddRef` and `Init` (a no-op for an initialised occupant, `0x005E8C90`), `AsPropertyHolder()` (slot 6) returns
+null, which no `cSC4Occupant` class does (`0x0049EFBB`); (4) the occupant is already in the list of the first cell it
+would be listed in, its low x and low z cell (`0x0049F158`–`0x0049F182`). Nothing else fails: not the type (never
+read), not the initialised state (the insert initialises), and not the box (a cell range that comes out empty succeeds
+and lists nothing; for cells outside the index see flora §6.4.2). On success it sets flag 1 and posts `0x99EF1142`
+with its second argument (`0x0049F200`–`0x0049F214`). After failure (3) or (4) its reference is released again, but
+the `Init` and the stored cell rectangle remain. A saved record's flags byte keeps bit 0 (lot-records.md §2.3), so an
+occupant read from one is refused by (2) unless the bit is cleared first; flora's obliteration save clears it around
+its `Write` (flora §10.3).
+
 Dead branch: `0x006BC88D`–`0x006BC8B4` handles `tile = 0x02F10000`. It calls `SetRemovalFlags(1)` and
 `SetIsActiveLandfill(x, z, false)`, sets `isEmpty := true`, then calls `SetEmptyCellTexture`. Step 2 of
 `CreateLandfillOccupant` has already returned for that tile, so this branch never runs. It is the only code found that
 sets `isEmpty` to true (§10.2 question 7).
+
+**The tile's interfaces** (LG27, from the exe; constructors `0x00477270` and `0x004774C0`, base constructor
+`0x005E9220`). The object is laid out as follows:
+
+| Offset | Interface | vtable | QueryInterface answers |
+|---|---|---|---|
+| `+0x00` | `cISC4LandfillOccupant` | `0x00A8CE28` | `0x2A15F262` |
+| `+0x04` | `cISC4Occupant` (the `cSC4Occupant` base) | `0x00A8CDA0` | `1`, `0x26BB767E` |
+| `+0x08` | `cIGZSerializable` | `0x00A8CD84` | `0xE4FDA3D4` |
+| `+0x0C` | `cISCPropertyHolder` (the base's exemplar property holder) | `0x00A8CD20` | none |
+| `+0x20` | `cISCExemplarPropertyHolder` (the same holder) | `0x00A8CD08` | none |
+
+Every sub-object's QueryInterface is a thunk (`0x00477210`, `0x00477230`, `0x00477240`, `0x00477260`) to the one at
+`0x00477130`, which answers only the four IIDs above and returns false for any other without writing `*out`. So
+**nothing answers `0x0AC2B5F7`** through QueryInterface: not the occupant, not the property holder that
+`cISC4Occupant::AsPropertyHolder` (slot 6, `0x006C2040`: occupant + 8) returns, and not the holder itself. The holder
+keeps the exemplar at its `+4` (object `+0x24`); slot 4 `GetDefaultExemplar` (`0x0060CE80`) returns it without a
+reference. `cSC4Occupant`'s constructor fixes where the holder sits (property holder at occupant + 8, exemplar-holder
+vtable at occupant + 0x1C), so it is the same in every occupant class built on it: the exemplar holder is
+`AsPropertyHolder()` + 0x14 = `cISC4Occupant*` + 0x1C = `cISC4LandfillOccupant*` + 0x20.
 
 **`SetTileID` is not enough** (LG3). `SetTileID` (slot 6, `0x00477450`) neither loads nor attaches an exemplar.
 When `id` differs from the stored ID, it stores `id` and rewrites the instance in the key of the **attached**
@@ -904,13 +939,24 @@ exemplar (`GetKey` and `SetKey`, exemplar slots 11 and 12):
 - With another tile's exemplar attached, that exemplar keeps its own properties (cost `0xEA54D286`, models) under
   the new key. Every other holder of the cached exemplar sees the new key too (§7.3).
 
-*[choice]* To build a tile from outside the class, run steps 1–8 in the same order, through public interfaces:
+*[choice]* To build a tile from outside the class, run steps 1–8 in the same order:
 
 1. Create the occupant with GZCOM `CreateInstance(0x8A22BEBE, 0x2A15F262)` (factory `0x004776B0`). This uses
-   the default constructor `0x004774C0`: tile `0x02F10000`, orientation 0, and flag 4 **not** set.
-2. Attach the exemplar with `SetDefaultExemplar(ex)`, reached by QI `0x0AC2B5F7`.
+   the default constructor `0x004774C0`: tile `0x02F10000`, orientation 0, the same type `0x6A11BD2B` (`0x00477553`)
+   and, from the `cSC4Occupant` constructor, flag 4 (LG28). It differs from the tile constructor only in the tile and
+   the orientation.
+2. Attach the exemplar with `SetDefaultExemplar(ex)` (slot 3) on the holder at `cISC4LandfillOccupant*` + 0x20, as the
+   original does (LG27). QueryInterface cannot reach it (above).
 3. Call `SetTileID(tile)`. It is now harmless, because the key already has that instance.
-4. Call `SetOrientation(orientation)` (slot 8) and `SetFlag(4)`, then continue from step 4.
+4. Call `SetOrientation(orientation)` (slot 8), then continue from step 4 (its `SetFlag(4)` is a no-op, LG28).
+
+The layout-free alternative is the load path: QI the new occupant for `cIGZSerializable` (`0xE4FDA3D4`) and `Read` a
+§6.4 record from a memory stream, with the holder key (group `0x07BDDF1C`, type `0x6534284A`, instance `tile`) and a
+flags byte with bit 0 clear (LG29). The holder's `Read` (`0x005FF420`) then fetches the exemplar from the resource
+manager itself, as for a tile in a loaded city (foundations §10.3), and the record also sets tile, orientation,
+position and `isEmpty`. It differs in one way: the base record marks the occupant as loaded, so its `Init` does not
+post `CreateOccupant` (`0x99EF1140`) as a new tile's does (lot-records.md §2.4). The layout route is therefore
+recommended.
 
 **Who sees the tile occupants.** The pollution flag is what pollution reads. The tile occupants are also visible
 elsewhere, so tiles kept only inside FreeCity4 differ from the original:

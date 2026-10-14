@@ -19,6 +19,7 @@
 #include "FC4Checked.h"
 #include "FC4Config.h"
 #include "FC4Diag.h"
+#include "FC4Dialogs.h"
 #include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
@@ -507,6 +508,9 @@ public:
         WatchdogStart();  // once; this is the main thread
         NoteFrameworkTick();
         FpuTick();
+        // close_dialogs (FC4Dialogs.h): a modal loop ticks us once per pass
+        // (modal-dialogs.md §2.3); before the script and the autotest.
+        DialogsOnTick();
         if (loadSnapshotDue_) {
             loadSnapshotDue_ = false;
             WriteObserve(&SnapshotStep, "observe snapshot", 0, "after load");

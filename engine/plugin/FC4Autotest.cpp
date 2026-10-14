@@ -16,6 +16,7 @@
 #include "FC4Checked.h"
 #include "FC4Config.h"
 #include "FC4DiagLogic.h"
+#include "FC4Dialogs.h"
 #include "FC4HarnessLogic.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
@@ -29,6 +30,7 @@
 #include "cRZCOMDllDirector.h"
 
 #include <cctype>
+#include <cstdio>
 #include <string>
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -116,13 +118,16 @@ bool WriteVerdict(Verdict v, unsigned wait, const char* reason, long julian = -1
     harness::RunFigures f;
     harness::FormatRunFigures(static_cast<int32_t>(j), g_started != 0, ElapsedMs(GetTickCount(), g_startMs),
                               static_cast<uint32_t>(g_days), &f);
+    // close_dialogs = 1 only (FC4Dialogs.h): the dialogs it closed, after ref_warnings=.
+    char dialogs[40] = "";
+    if (DialogsEnabled()) std::snprintf(dialogs, sizeof(dialogs), ", dialogs_closed=%ld", DialogsClosedCount());
     LogWait(wait, "autotest: %s", reason);
     LogWait(wait,
             "AUTOTEST VERDICT: %s (foreign_exceptions=%ld, watchdog_stalls=%ld, rtc=%ld, overruns=%ld, "
-            "ref_warnings=%ld, julian=%ld, date=%s, real_seconds=%s, days_per_second=%s, switches_off=%s, "
+            "ref_warnings=%ld%s, julian=%ld, date=%s, real_seconds=%s, days_per_second=%s, switches_off=%s, "
             "disabled=%s)",
-            VerdictName(v), c.foreignExceptions, c.watchdogStalls, c.rtc, c.overruns, c.refWarnings, j, f.date,
-            f.realSeconds, f.daysPerSecond, SwitchesOffList(), DisabledSubsystemsList());
+            VerdictName(v), c.foreignExceptions, c.watchdogStalls, c.rtc, c.overruns, c.refWarnings, dialogs, j,
+            f.date, f.realSeconds, f.daysPerSecond, SwitchesOffList(), DisabledSubsystemsList());
     LogFlush();
     return true;
 }

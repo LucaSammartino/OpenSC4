@@ -37,6 +37,7 @@ FC4 = os.path.join(ENGINE, "plugin", "FC4Interfaces.h")
 FC4C = os.path.join(ENGINE, "plugin", "FC4CrimeInterfaces.h")
 FCD = os.path.join(ENGINE, "plugin", "FC4DevelopmentInterfaces.h")
 FC4T = os.path.join(ENGINE, "plugin", "FC4TractInterfaces.h")
+FCW = os.path.join(ENGINE, "plugin", "FC4WinInterfaces.h")
 
 # (table interface, class, header, required)
 #   required = the plugin implements or calls the interface through this
@@ -236,6 +237,14 @@ INTERFACES = [
     # configuration manager through the compiled slot order (slot 9's set is
     # the game's hash_set; the SDK row above stays for other glue's calls).
     ("cISC4LotConfigurationManager", "cFC4ISC4LotConfigurationManager", FC4T, True),
+    # The dialog closer (docs/specs/modal-dialogs.md section 3.2; tooling switch
+    # close_dialogs): the window manager and the window through the compiled
+    # slot order (the SDK headers are wrong for these slots), the legacy message
+    # server it subscribes to, and the message target it implements.
+    ("cIGZWinMgr", "cFC4IGZWinMgr", FCW, True),
+    ("cIGZWin", "cFC4IGZWin", FCW, True),
+    ("cIGZMessageServer", "cFC4IGZMessageServer", FCW, True),
+    ("cIGZMessageTarget(AudioEventHandler)", "cIGZMessageTarget", "cIGZMessageTarget.h", True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),

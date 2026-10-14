@@ -783,7 +783,7 @@ cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	9	+0x24	006d19f0	cSC4Nei
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	10	+0x28	006cdf80	cSC4NeighborsSimulator::HasConnection	12	3	eax-or-void	medium	
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	11	+0x2C	006cf6b0	cSC4NeighborsSimulator::FindConnection	12	3	eax-or-void	medium	
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	12	+0x30	006cf030	cSC4NeighborsSimulator::FindCityOnOtherSideOfConnection	8	2	eax-or-void	medium	
-cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	13	+0x34	006cdfa0	cSC4NeighborsSimulator::FindConnectionOnOtherSide	4	1	via-call	low	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	13	+0x34	006cdfa0	cSC4NeighborsSimulator::FindConnectionOnOtherSide	4	1	eax	high	(conn): takes its type and cell, calls slot 14; EAX the neighbour's connection or null (TS38)
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	14	+0x38	006cede0	cSC4NeighborsSimulator::FindConnectionOnOtherSide	12	3	eax-or-void	medium	
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	15	+0x3C	006cf720	cSC4NeighborsSimulator::FindUnvisitedConnection	8	2	eax-or-void	medium	
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	16	+0x40	006cff00	cSC4NeighborsSimulator::GetAllConnections	4	1	eax-or-void	medium	
@@ -802,8 +802,8 @@ cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	28	+0x70	006d4670	cSC4Ne
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	29	+0x74	006d0840	cSC4NeighborsSimulator::FindDeals	12	3	eax-or-void	medium	
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	30	+0x78	006d0760	cSC4NeighborsSimulator::FindDeals	8	2	eax-or-void	medium	
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	31	+0x7C	006cfd70	cSC4NeighborsSimulator::MarkDealsDirty	0	0	unknown	low	
-cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	32	+0x80	006cf860	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealIncome	0	0	eax-or-void	medium	
-cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	33	+0x84	006cf8d0	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealExpense	0	0	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	32	+0x80	006cf860	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealIncome	0	0	eax-or-void	medium	re-answers8 NG11: int64 in edx:eax, every caller reads EDX; ret column changes with the plugin fix (neighbours apply lane)
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	33	+0x84	006cf8d0	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealExpense	0	0	eax-or-void	medium	re-answers8 NG11: int64 in edx:eax, every caller reads EDX; ret column changes with the plugin fix (neighbours apply lane)
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	34	+0x88	006d2a20	cSC4NeighborsSimulator::UpdateCommodityStats	4	1	eax-or-void	medium	
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	35	+0x8C	006d3250	cSC4NeighborsSimulator::GetDealCost	16	4	x87	high	indirect-jump dword ptr [eax*4 + 0x6d35fc]
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	36	+0x90	006d3620	cSC4NeighborsSimulator::GetDealMaxAmount	8	2	x87	high	indirect-jump dword ptr [eax*4 + 0x6d38b8]
@@ -1783,8 +1783,8 @@ cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	28	+0x70	0049e4d0		16	4	eax-or
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	29	+0x74	0049dc80		16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x70]
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	30	+0x78	0049e5e0		16	4	eax-or-void	medium	
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	31	+0x7C	0049dcb0		16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x78]
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	32	+0x80	0049e690	cSC4OccupantManager::GetOccupantAtCell	16	4	eax-or-void	medium	re-answers5 LG4: (&out, x, z, filter*); AL = found; *out AddRef'd on a hit, untouched on a miss
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	33	+0x84	0049dce0	cSC4OccupantManager::GetOccupantAtCell (typed)	16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x80]; indirect-jump dword ptr [eax + 0x80]; re-answers5 LG4: (&out, x, z, type); sets the type filter, tail to slot 32
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	32	+0x80	0049e690	cSC4OccupantManager::GetFirstOccupantByStandardCityCell (filter)	16	4	eax-or-void	medium	re-answers5 LG4: (&out, x, z, filter*); AL = found; *out AddRef'd on a hit, untouched on a miss; re-answers8 ZG11: SDK name
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	33	+0x84	0049dce0	cSC4OccupantManager::GetFirstOccupantByStandardCityCell (typed)	16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x80]; re-answers5 LG4: (&out, x, z, type); sets the type filter, tail to slot 32; re-answers8 ZG11: SDK typed overload, placed after its filter overload by MSVC
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	34	+0x88	0049e800		16	4	eax-or-void	medium	
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	35	+0x8C	0049dd10		16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x88]
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	36	+0x90	004a0670		20	5	eax-or-void	medium	
@@ -3977,7 +3977,7 @@ cISC4TrafficSource	cSC4NeighborConnection	00ab1fa0	0	+0x0	006d47f0		8	2	eax-or-v
 cISC4TrafficSource	cSC4NeighborConnection	00ab1fa0	1	+0x4	006d4800		0	0	eax-or-void	medium	tail->008ae800
 cISC4TrafficSource	cSC4NeighborConnection	00ab1fa0	2	+0x8	006d4810		0	0	eax-or-void	medium	tail->006ce060
 cISC4TrafficSource	cSC4NeighborConnection	00ab1fa0	3	+0xC	006d4790	cSC4Region::GetDirectoryName	0	0	eax-or-void	medium	
-cISC4TrafficSource	cSC4NeighborConnection	00ab1fa0	4	+0x10	006d4c10		0	0	eax-or-void	medium	
+cISC4TrafficSource	cSC4NeighborConnection	00ab1fa0	4	+0x10	006d4c10	cSC4NeighborConnection::UpdateTrafficVolume	0	0	al	low	AL is 0, 3 or undefined, not a clean bool; the only caller (0x0071E28E) ignores it (NG21)
 cISC4TrafficSource	cSC4NeighborConnection	00ab1fa0	5	+0x14	006d4820		4	1	eax-or-void	medium	
 cISC4ZoneDeveloper	cSC4ZoneDeveloper	00ab3830	0	+0x0	00729ef0	cSC4ZoneDeveloper::QueryInterface	8	2	eax-or-void	medium	
 cISC4ZoneDeveloper	cSC4ZoneDeveloper	00ab3830	1	+0x4	00695330	icf::cSC4AutomataControllerManager::AddRef	0	0	eax-or-void	medium	
@@ -4168,7 +4168,9 @@ cIGZIStream(SC4DBSegment)	cSC4DBSegmentIStream	00aa2280	18	+0x48	005d16b0	GetErr
 cIGZOStream(SC4DBSegment)	cSC4DBSegmentOStream	00aa2310	7	+0x1C	005d1e30	PutUint16	4	1	eax-or-void	high	re-answers4 FQ3: EAX
 cIGZOStream(SC4DBSegment)	cSC4DBSegmentOStream	00aa2310	9	+0x24	005d1eb0	PutUint32	4	1	eax-or-void	high	re-answers4 FQ3: EAX
 cIGZOStream(SC4DBSegment)	cSC4DBSegmentOStream	00aa2310	18	+0x48	005d16b0	GetError	0	0	eax-or-void	high	re-answers4 FQ3: EAX; 1 = error, sticky
+cISCExemplarPropertyHolder	cSC4LandfillOccupant	00a8cd08	0	+0x0	00477260	QueryInterface (thunk, this-0x20 -> 0x00477130)	8	2	al	high	answers only 0x2A15F262, 1, 0x26BB767E, 0xE4FDA3D4; never 0x0AC2B5F7 (LG27)
 cISCExemplarPropertyHolder	cSC4LandfillOccupant	00a8cd08	3	+0xC	00458e60	SetDefaultExemplar	4	1	eax-or-void	medium	re-answers5 LG3: new row; no defined result
+cISCExemplarPropertyHolder	cSC4LandfillOccupant	00a8cd08	4	+0x10	0060ce80	GetDefaultExemplar	0	0	eax	high	returns [this+4] (object +0x24), no AddRef (LG27)
 cIGZWinMgr	cGZWinMgrW32	00ae46e8	0	+0x0	009daf24	cGZWinMgrBase::QueryInterface	8	2	eax-or-void	medium	tail->0091dd67; re-modal: framework service 0xA417445E, IID 0x5A4
 cIGZWinMgr	cGZWinMgrW32	00ae46e8	1	+0x4	0093056f	cGZWinMgrBase::AddRef	0	0	eax-or-void	medium	tail->009297a0
 cIGZWinMgr	cGZWinMgrW32	00ae46e8	2	+0x8	00930577	cGZWinMgrBase::Release	0	0	eax-or-void	medium	tail->0091dd89
@@ -4397,3 +4399,36 @@ cIGZMessageTarget(AudioEventHandler)	cSC4AudioEventHandler	00a94154	0	+0x0	004ef
 cIGZMessageTarget(AudioEventHandler)	cSC4AudioEventHandler	00a94154	1	+0x4	005183b0		0	0	eax-or-void	medium	tail->008ae800
 cIGZMessageTarget(AudioEventHandler)	cSC4AudioEventHandler	00a94154	2	+0x8	004ef7b0		0	0	eax-or-void	medium	tail->004ede60
 cIGZMessageTarget(AudioEventHandler)	cSC4AudioEventHandler	00a94154	3	+0xC	004efe50	cSC4AudioEventHandler::DoMessage	4	1	eax-or-void	medium	re-modal: DoMessage(cGZMessage&) -> bool in AL only; the legacy server ignores the result
+cISC4Occupant	cSC4LandfillOccupant	00a8cda0	0	+0x0	00477210	QueryInterface (thunk, this-4 -> 0x00477130)	8	2	al	high	same IID set as above (LG27)
+cISC4Occupant	cSC4LandfillOccupant	00a8cda0	6	+0x18	006c2040	AsPropertyHolder	0	0	eax	high	this+8, null for a null this; exemplar holder = result+0x14 (LG27)
+cISC4Occupant	cSC4LandfillOccupant	00a8cda0	7	+0x1C	006bdd80	GetType	0	0	eax	high	returns [this+0x24]; 0x6A11BD2B for landfill tiles (LG28)
+cIGZMessage2Standard	cRZMessage2Standard (ZoningChange subclass)	00a92d40	37	+0x94	004dcc10	scalar deleting destructor	4	1	eax	high	calls 0x004DCC30 (frees void2 with C); slots 0-36 identical to 00acec00
+cISC4RenderProperties	cSC4RenderProperties	00abb6c0	6	+0x18	007ddec0	GetBool(index)	4	1	al	high	byte at [this+0xC] + index*32 + 0x1C; interface name inferred (GF5)
+cISC4RenderProperties	cSC4RenderProperties	00abb6c0	7	+0x1C	007ddee0	GetInt(index)	4	1	eax	high	[this+0x18] + index*40 + 0x1C; kModelLODOffset = 22 (GF8)
+cISC4RenderProperties	cSC4RenderProperties	00abb6c0	8	+0x20	007ddf00	GetFloat(index)	4	1	x87	high	[this+0x24] + index*40 + 0x1C
+cISC4Region	cSC4Region	00a8fa40	0	+0x0	004a44e0	QueryInterface	8	2	al	medium	NG30
+cISC4Region	cSC4Region	00a8fa40	1	+0x4	004bdf00	AddRef	0	0	eax	medium	
+cISC4Region	cSC4Region	00a8fa40	2	+0x8	004a4570	Release	0	0	eax	medium	
+cISC4Region	cSC4Region	00a8fa40	3	+0xC	00577450	GetName	0	0	eax	high	returns this+0xC
+cISC4Region	cSC4Region	00a8fa40	4	+0x10	004a4510	SetName	4	1	eax-or-void	medium	tail call
+cISC4Region	cSC4Region	00a8fa40	5	+0x14	006d4790	GetDirectoryName	0	0	eax	high	returns this+0x20
+cISC4Region	cSC4Region	00a8fa40	6	+0x18	004a4520	SetDirectoryName	4	1	eax-or-void	medium	tail call
+cISC4Region	cSC4Region	00a8fa40	7	+0x1C	004a6cd0	LoadConfig	0	0	eax-or-void	medium	
+cISC4Region	cSC4Region	00a8fa40	8	+0x20	004a6c80	Init	0	0	eax-or-void	medium	
+cISC4Region	cSC4Region	00a8fa40	9	+0x24	004a5be0	Shutdown	0	0	eax-or-void	medium	
+cISC4Region	cSC4Region	00a8fa40	10	+0x28	004a65a0	Delete	0	0	eax-or-void	medium	
+cISC4Region	cSC4Region	00a8fa40	11	+0x2C	004a4930	GetCity	8	2	eax	high	cRZAutoRefCount<cISC4RegionalCity>* or null; hash on the 32-bit (x, z) pair (NG15)
+cISC4Region	cSC4Region	00a8fa40	12	+0x30	004a4f00	InsertCity	4	1	eax-or-void	medium	
+cISC4Region	cSC4Region	00a8fa40	13	+0x34	004a4b50	RemoveCity	4	1	eax-or-void	medium	
+cISC4Region	cSC4Region	00a8fa40	14	+0x38	004a5120	DeleteCity	4	1	eax-or-void	medium	
+cISC4Region	cSC4Region	00a8fa40	15	+0x3C	004a5030	ReloadCity	4	1	unknown	high	return value not meaningful (NG30)
+cISC4Region	cSC4Region	00a8fa40	16	+0x40	004a7200	MoveCity	16	4	eax-or-void	medium	
+cISC4Region	cSC4Region	00a8fa40	17	+0x44	004a4ce0	GetAllCities	4	1	eax-or-void	medium	
+cISC4Region	cSC4Region	00a8fa40	18	+0x48	00a6cab0	GetBaseTerrainType	0	0	eax-or-void	medium	
+cISC4Region	cSC4Region	00a8fa40	19	+0x4C	004a4cb0	SetBaseTerrainType	4	1	eax-or-void	medium	
+cISC4Region	cSC4Region	00a8fa40	20	+0x50	004a4ca0	GetBaseTerrainHeight	0	0	eax-or-void	medium	
+cISC4Region	cSC4Region	00a8fa40	21	+0x54	004a4cc0	GetWaterPrefs	8	2	eax-or-void	medium	
+cISC4Region	cSC4Region	00a8fa40	22	+0x58	004a5400	ResetTutorialCity	4	1	eax-or-void	medium	
+cISC4Region	cSC4Region	00a8fa40	23	+0x5C	004a4c20	GetCityLocations	4	1	eax-or-void	medium	
+cISC4Region	cSC4Region	00a8fa40	24	+0x60	004a45a0	GetBoundingRect	4	1	eax-or-void	medium	
+cISC4Region	cSC4Region	00a8fa40	25	+0x64	004a53e0	scalar deleting destructor	4	1	eax	medium	
