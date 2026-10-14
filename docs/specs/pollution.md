@@ -279,6 +279,16 @@ Read once per day from the ordinance simulator (`GetCumulativeFactor(id, index)`
 | `fGarbage` | `0xE8F79C90`, 0 |
 | zone multipliers for zone type z = 0..15 | air `0x8A67E373`, water `0x8A67E374`, garbage `0x8A67E376`, index z |
 
+These are 52 calls in all (`0x006E83DD`–`0x006E8479`), made once per day before the visit loop, each storing its
+`float32` result.
+
+**No ordinance simulator (PG10).** The original has no path for this case. The day pass calls through the held
+pointer without checking it, so a null pointer would crash on the first read (`0x006E83E0`). The city always
+creates an ordinance simulator, so the case does not arise in the game. *[choice]* With no ordinance simulator,
+treat every factor and multiplier as **1.0**. That is exactly what `GetCumulativeFactor` returns when no enacted
+ordinance carries the property (ordinance.md §6.1), so a city without the simulator behaves like a city with no
+ordinances.
+
 #### 4.4.4 One tract visit (repeated `tractsPerDay` times)
 
 Let `(x, z) := (cellX, cellZ)` (cell coordinates of the tract's corner) and `t := (x/2, z/2)`.

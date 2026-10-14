@@ -420,7 +420,11 @@ About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answ
   matches if the value is read again each day.** None of those callers runs inside pollution's day pass, which
   finishes in one delivery. The values can change between day passes: after zoning, after the landfill month
   agent, or after a load.
-- **PG10:** without an ordinance simulator, `cumulative_factor` returns 1.0. [choice]
+- ~~**PG10:** without an ordinance simulator, `cumulative_factor` returns 1.0. [choice]~~ **ANSWERED 2026-10-14**
+  from the exe (52 unchecked calls through the held pointer, `0x006E83DD`–`0x006E8479`) and written into
+  pollution.md §4.4.3. **The original has no such path: a null pointer crashes on the first read, and the city
+  always creates the simulator.** The *[choice]* of 1.0 stands. It equals `GetCumulativeFactor` with no enacted
+  ordinance carrying the property (ordinance.md §6.1).
 - **PG11 — slots 29/30:** they return int32 (the applied delta and the argument respectively) where the SDK has
   bool. Confirm. [int32]
 - **PG12 — §5.2 posts:** no void or IGZUnknown is set on them, since the spec names none. Confirm. [none set]
