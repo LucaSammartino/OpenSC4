@@ -33,7 +33,7 @@ Profiles. The default (since main c367684 made the power shadow exact under turb
 goes to the game date -EndDate (default 2032-01-01, six game years on Konradshohe) with our simulator's turbo clock
 (sim_turbo = 1; a plugin from 0786064 on starts it after the city's first ConnectionsReady, so popups are already
 off), so every run gives the same month and shadow lines. -TurboFrom <date> starts it with a script action at that
-game date instead (for older DLLs). -TurboTimeout (default 600 s) is the timeout. -Turbo is accepted and changes
+game date instead (for older DLLs). -TurboTimeout (default 900 s) is the timeout. -Turbo is accepted and changes
 nothing. -NormalSpeed: the old timed profile, -Seconds (default 150) of real time after the load at normal speed
 (an explicit -Seconds without -Turbo selects it too).
 
@@ -69,7 +69,7 @@ param(
     [switch]$NormalSpeed,
     [string]$EndDate = "2032-01-01",
     [string]$TurboFrom = "",
-    [int]$TurboTimeout = 600,
+    [int]$TurboTimeout = 900,
     [string]$Baseline = "",
     [switch]$AnyPacing
 )
