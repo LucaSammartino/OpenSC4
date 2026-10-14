@@ -1429,8 +1429,11 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   **ANSWERED 2026-10-14** from the exe (`Read` `0x0072225E`–`0x0072227D`): **the bracket matches.** Read adds `0x40`
   for (from, to) = (6, 7) or (7, 6) of any kind, as the re-read does. Its other differences stay as
   traffic-network.md §4.7.2 lists them (kind-1 raw-`to` mask, `to = 5` → `0x20`). Written into §4.7.2.
-- **TS34 (fixtures only):** every cell reports a network occupant; department funding defaults to 1.0; department
-  tokens are 900+.
+- ~~**TS34 (fixtures only):** every cell reports a network occupant; department funding defaults to 1.0; department
+  tokens are 900+.~~ **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. These are
+  test-world stand-ins. The one with an original counterpart agrees: a department created by `CreateDepartmentBudget`
+  starts at 100 % funding, a fraction of 1.0 (budget.md, department table). The traffic simulator's `Init` then
+  sets its maximum to the TS29 value (1.1999999 shipped).
 - Not covered by vectors: path searches over a real network (the vector world has no network occupants; test 10
   drives ApplyRoute with the spec's route bytes); switches, tunnels and ferries in the save record round-trip only
   as empty lists (Read's switch mask and flags have a unit test). No plugin or capi integration yet (M5 glue).
