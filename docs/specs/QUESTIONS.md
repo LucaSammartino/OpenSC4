@@ -2877,3 +2877,16 @@ in the code; the implemented answer is in brackets.
 - **DG25:** The shadow's `building_purpose`. [slot 40, no insert]
 - **DG26:** Growth developer slots 10 and 28. [the full EAX, 0 or 1]
 - **DG27:** The off-thread fallback for slot 30. [−4 / 20]
+
+## From the apply6c follow-up (landfill game tiles; filed by the coordinator, 2026-10-14)
+
+Regress r6b (run 100): every LG3 game tile failed to insert (`gameTiles=0 gameTileFailures=12`). apply6c logs each
+step and adds a fallback. The current answer is in brackets.
+
+- **LG27:** Does the landfill occupant's QueryInterface (`0x00477130`) answer `0x0AC2B5F7`? If not, which object
+  does: the sub-object at +0x20, or the occupant's property holder? [QI on the occupant, then on its property holder]
+- **LG28:** Does the GZCOM default constructor `0x004774C0` set type `0x6A11BD2B`, as the tile constructor
+  `0x00477270` does? If not, does InsertOccupant accept the type it leaves? [left as the constructor sets it; the
+  type is logged]
+- **LG29:** When does InsertOccupant (`0x0049EF60`) return false: already inserted, not initialised, its box, or its
+  type? [each failure is logged with those values]

@@ -81,8 +81,9 @@ extern "C" {
  *      game_tiles / game_tile_failures (landfill.md LG3, LG8);
  * 34 = adds the zone manager (fc4_zones, zones.md) and its shadow mode (fc4_zones_create_shadow);
  * 35 = adds the building development simulator and growth developers (fc4_development / fc4_growth)
- *      and the development shadow (taken as 29 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 35u
+ *      and the development shadow (taken as 29 on its lane; renumbered at merge);
+ * 41 = adds the turbo clock (tooling: fc4_sim_set_turbo / fc4_sim_get_turbo / fc4_sim_take_turbo_auto_off). */
+#define FC4_ABI_VERSION 41u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -1879,8 +1880,13 @@ bool fc4_plumbing_read(fc4_plumbing* p, const fc4_istream* in);         /* §9: 
  * own Write, through `capture`) after state 1 and runs FreeCity4's pass on it
  * over private grid copies, reading every input through the host table (read
  * callbacks and the grid table's geometry / get only; nothing is written to
- * the game). At the original's swap (GetWateredGrid changes) it compares the
- * published grid cell by cell, the producers, deals and water connections;
+ * the game). Our states 2 to 5 run one per delivery, each in the
+ * fc4_plumbing_shadow_before of the delivery in which the original runs the
+ * same state, on the original's flag map of that moment (from its record), so
+ * they read what the original reads; a pass has no time limit (it is followed
+ * until its swap or its restart). At the original's swap (GetWateredGrid
+ * changes) it compares the published grid cell by cell, the producers, deals
+ * and water connections;
  * after the original's state 8, the totals, the building counts, demand (the
  * original's running sum, read then; PS4, PS8), pipes, sources and the
  * producers' budget items and condition (ageing inferred from the conditions
@@ -4963,6 +4969,21 @@ fc4_neighbors* fc4_neighbors_shadow_create(const fc4_neighbors_shadow_input* inp
 /* A city of the snapshot as the shadow left it (false: not a shadow / unknown city). */
 bool fc4_neighbors_shadow_city_get(const fc4_neighbors* p, uint64_t city, fc4_neighbors_shadow_city* out);
 bool fc4_neighbors_shadow_get_counters(const fc4_neighbors* p, fc4_neighbors_shadow_counters* out);
+
+/* ---- turbo clock (tooling, not simulator.md; fc4_core::Turbo) --------------
+ * Tooling deviation for test runs (the plugin's sim_turbo). Off (the default)
+ * changes nothing. On: the day gate's "ready" (spec §5.2 step 3) is always true
+ * (the done[...] conditions still hold a day for its agents), and frameBudgetMs
+ * is `frame_ms` while neither paused nor hidden-paused (the §5.1 value
+ * otherwise). Pause and hidden pause stop time as without turbo.
+ * `until_julian` (0 = none): turbo turns itself off on the first new day on or
+ * after it, and clears it; fc4_sim_take_turbo_auto_off then returns that day
+ * once. Takes effect from the next tick. Always returns true for a live sim. */
+bool fc4_sim_set_turbo(fc4_sim* sim, bool on, uint32_t frame_ms, int32_t until_julian);
+/* Pointers may be NULL. False only for a NULL sim. */
+bool fc4_sim_get_turbo(const fc4_sim* sim, bool* on, uint32_t* frame_ms, int32_t* until_julian);
+/* The Julian day of the last automatic switch-off, once; 0 if none since the last call. */
+int32_t fc4_sim_take_turbo_auto_off(fc4_sim* sim);
 
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);

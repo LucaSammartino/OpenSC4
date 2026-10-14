@@ -1,5 +1,9 @@
 # Growth / development pipeline (zoned land to buildings)
 
+> **Superseded.** `docs/specs/building-development.md`, `growth-developer.md`, `tract-developer.md`, `lot-developer.md`
+> and `zones.md` replace this file in full. The banner below lists only some corrections; the body is not corrected.
+> This file is kept as historical RE notes because `re/fields_windows.tsv` and specs cite it by name. Where it disagrees with `docs/specs/`, the spec wins.
+
 Target: `SimCity 4.exe` 1.1.641 (GOG), image base `0x00400000`. Logic and names come from the named Mac Rev A Intel
 pseudocode (written `mac:XXXXXXXX`). Windows addresses were matched to it through vtables, constants, string
 switches and call-graph order. The full symbol map, with evidence for each entry, is in

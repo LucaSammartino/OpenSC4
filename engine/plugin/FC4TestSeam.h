@@ -161,6 +161,10 @@
 //         (instead of the compat table's), one of its messages delivered
 //         with a given city, or the probe stopped; see GrowthProbeTest for
 //         the return values (-1: null argument).
+//   op 46 kFC4SeamScript          a = const char* path (the harness lane,
+//         FC4Script.h): loads that script in place of the current one, as the
+//         `script` setting does at game start. Returns the number of actions
+//         it will run, -1 (cannot be read), -2 (refused: parse errors).
 #pragma once
 
 #include <cstdint>
@@ -216,6 +220,7 @@ enum : uint32_t {
     kFC4SeamAuraShadowDeliver = 35,
     kFC4SeamZones = 38,
     kFC4SeamGrowthProbe = 39,
+    kFC4SeamScript = 46,  // the harness lane
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

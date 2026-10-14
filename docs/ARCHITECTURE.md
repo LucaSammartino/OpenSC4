@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make the SimCity 4 engine **open source source code that compiles**, with no copyrighted code from the original.
+Make the SimCity 4 engine **open source code that compiles**, with no copyrighted code from the original.
 Players supply their own copy of the game's data.
 
 ## Why reimplement instead of recompiling the decompilation
@@ -10,8 +10,8 @@ Players supply their own copy of the game's data.
 The decompiled output in `decomp/` is derived from EA's copyrighted binary, so it can't be published as open source.
 It also isn't a buildable reconstruction (it's Ghidra pseudocode). Successful projects in this space (OpenRCT2, OpenTTD,
 OpenMW) instead **reimplement** behaviour and verify it against the original. We use our reverse-engineering only to
-write behaviour **specs** (`docs/specs/`). Engine code is written from those specs by a different role (see
-[CONTRIBUTING.md](../CONTRIBUTING.md)).
+write behaviour **specs** (`docs/specs/`) and to record interface facts (`docs/abi/`). Engine code is written from
+those specs by a different role (see [CONTRIBUTING.md](../CONTRIBUTING.md)).
 
 ## How the replacement plugs in
 
@@ -27,12 +27,14 @@ SimCity 4 loads GZCOM DLLs from its `Plugins` folder. So `FreeCity4.dll` registe
 ID, such as `cSC4Simulator` `0x2990C1E5`, and the game uses ours. Everything else keeps running the original code, so
 every step can be tested in the real game. A component is replaceable this way if the game reaches it only through
 interfaces. We checked this for the simulator: its only external callers are COM plumbing.
+Several other replacements also need direct calls into the exe and compat hooks. These are recorded in
+[docs/abi/direct-calls.md](abi/direct-calls.md) and sit behind the 1.1.641 version check in `engine/plugin/compat`.
 
 ```
 SimCity 4.exe (original, unmodified)
-  └─ GZCOM registry ──► FreeCity4.dll (GPL)        engine/plugin  thin C++ shim over the gzcom-dll SDK (Win32/x86)
-                          └─ C ABI (fc4_sim_*)     engine/capi    stable boundary, fc4.h
-                              └─ fc4-core          engine/core    portable Rust: all engine logic
+  └─ GZCOM registry ──► FreeCity4.dll (GPL)                               engine/plugin  thin C++ shim over the gzcom-dll SDK (Win32/x86)
+                          └─ C ABI (fc4.h, versioned by FC4_ABI_VERSION)  engine/capi    stable boundary
+                              └─ fc4-core                                 engine/core    portable Rust: all engine logic
 ```
 
 ### Language: Rust core, C++ shim
@@ -55,32 +57,33 @@ Migration path (to all-Rust, or any other rewrite) built in from day one:
 |---|---|
 | `engine/core/` | Rust crate `fc4-core`: portable engine logic, no GZCOM types. It builds and tests on any OS. |
 | `engine/capi/` | Rust crate `fc4-capi` (staticlib) and the C header `fc4.h`: the stable boundary |
+| `engine/formats/` | Rust crate `fc4-formats`: readers for the game's data files (DBPF, QFS, exemplars, LTEXT, FSH, S3D); not used by the plugin |
 | `engine/conformance/` | language-neutral conformance vectors derived from the spec sections |
 | `engine/plugin/` | C++ GZCOM DLL director and adapters exposing the core as `cISC4*` interfaces (MSVC, Win32/x86) |
+| `engine/tests/` | C++ tests: the C ABI, the plugin, and `abi_conformance_test` against `docs/abi/` |
 | `engine/third_party/gzcom-dll/` | LGPL-2.1+ SDK headers (submodule) |
-| `docs/specs/` | clean-room behaviour specs: the only input for engine authors |
+| `docs/specs/` + `docs/abi/` | clean-room behaviour specs and interface facts: the only inputs for engine authors, besides the SDK headers ([CONTRIBUTING.md](../CONTRIBUTING.md)) |
+| `docs/HANDOFF.md` | the coordinator's current state and procedures (running the game, merge gate, lanes) |
+| `docs/manual-checks.md` | log of in-game runs and the remaining human checks |
 | `docs/subsystems/`, `re/`, `tools/` | research material for spec writers |
 
 ## Roadmap
 
+Current status: [README Progress](../README.md#progress).
+
 | Milestone | Scope | Exit criteria |
 |---|---|---|
-| **M0: toolchain** ✅ | CMake project, core library, tests, a plugin DLL that loads in the game | the DLL loads in SC4 and its director logs `PostAppInit`; tests pass |
-| **M1: the clock** 🟡 runs in-game | `cSC4Simulator` replacement ([spec](specs/simulator.md)) | a city runs at all speeds; pause/emergency/save/load work; a differential log of agent messages matches the original on the same save |
+| M0: toolchain | CMake project, core library, tests, a plugin DLL that loads in the game | the DLL loads in SC4 and its director logs `PostAppInit`; tests pass |
+| M1: the clock | `cSC4Simulator` replacement ([spec](specs/simulator.md)) | a city runs at all speeds; pause/emergency/save/load work; a differential log of agent messages matches the original on the same save |
 | M2: scalar sims | Budget, Demand, Ordinance, Weather | the budget and demand panels match the original after N months on reference saves |
 | M3: grid sims | SimGrid, LandValue, Pollution, Crime, Aura, Power, Plumbing, Protection, Flora, Flammability | grid snapshots match within tolerance |
 | M4: growth | BuildingDevelopment and the lot/tract/growth/zone developers ([specs](specs/building-development.md)). **Replacement units:** the growth developer together with the building development simulator's developer creation (one unit); the zone developer is headless-limited (its `Init` needs the 3D view) | the growth statistics distribution matches across seeded runs; the daily growth budget is calibrated in the original (building-development.md §12) |
 | M5: traffic | traffic simulator and pathfinding ([specs](specs/traffic-simulator.md)). **Replacement unit:** the traffic simulator and the pathfinder together (they read each other's internals) | commute and volume maps match within tolerance; the traffic work budget is calibrated in the original (traffic-simulator.md §12) |
 | M6+: beyond simulation | data formats (DBPF, exemplars, S3D, FSH), rendering, UI, audio, region; then a standalone executable | FreeCity4 starts without `SimCity 4.exe` |
 
-Verification uses **differential testing**: run the same save in the original and with our replacement, log messages
-and grid states from a small observer plugin, and diff the results.
-
-## Status log
-
-- **2026-10-12, M0 done:** `FreeCity4.dll` loads in SimCity 4 1.1.641 and its class factory replaces `cSC4Simulator`.
-- **2026-10-12, M1 runs in-game:** a saved city loads into our simulator. About 100 original subsystems register as
-  agents and are scheduled by our code. Days, weeks (Mondays) and months advance with the correct message data. Key
-  finding: the simulator also owns the CPU-cycle limit-timer calibration (spec §5.5). Without it, original
-  subsystems never finish their daily work. Still to do for M1 exit: verify save → reload in-game, pause and
-  emergency flows, and a differential comparison against the original on the same save.
+Verification uses **same-process shadows**. With `<sub>_shadow = 1`, the original subsystem keeps running and our
+core computes the same step beside it on the same inputs; the plugin logs every difference. Comparing two separate
+runs cannot settle exact values, because the original is not deterministic from run to run. `tools/regress.ps1` runs
+the test city twice, once with every shadow on and once with every merged replacement on, and prints a verdict per
+run. Separate-run soak comparisons (`tools/compare_soaks.ps1`) are used only for long-run paths, such as funds and
+population over decades.

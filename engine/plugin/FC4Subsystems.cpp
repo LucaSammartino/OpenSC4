@@ -52,6 +52,8 @@
 #include "cFC4Neighbors.h"
 #include "cFC4Development.h"
 #include "cFC4GrowthDeveloper.h"
+#include "FC4Turbo.h"  // the harness lane: sim_turbo
+#include "FC4Script.h"  // the harness lane: script
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -352,6 +354,10 @@ void Resolve() {
     NeighborsShadowStartup(g_enabled[0], enabledKey("neighbors"));
     // The development shadow (FC4DevelopmentShadow.h; it compares the original BDS and growth developers).
     DevelopmentShadowStartup(g_enabled[0], enabledKey("development"));
+    // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
+    TurboReload(g_enabled[0]);
+    // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.
+    ScriptReload();
 }
 
 }  // namespace

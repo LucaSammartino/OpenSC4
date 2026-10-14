@@ -26,6 +26,8 @@
 #include "FC4PowerShadow.h"
 #include "FC4ResidentialShadow.h"
 #include "FC4NeighborsShadow.h"
+#include "FC4HarnessLogic.h"
+#include "FC4Turbo.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Watchdog.h"
@@ -112,7 +114,28 @@ cFC4Message2Standard* MakeMessage(const fc4_message& src) {
                           static_cast<intptr_t>(src.data3));
 }
 
+// The initialized simulator of ours (between Init and Shutdown), for the
+// script's `turbo on|off` (FC4Turbo.h). Main thread only.
+cFC4Simulator* g_liveSim = nullptr;
+
+void DateOf(int32_t julian, char (&out)[16]) {
+    fc4_date d{};
+    fc4_date_from_julian(julian, &d);
+    _snprintf_s(out, sizeof(out), _TRUNCATE, "%04d-%02d-%02d", d.year, d.month, d.day_of_month);
+}
+
 }  // namespace
+
+fc4::TurboScriptResult fc4::TurboScriptSet(bool on) {
+    if (g_liveSim == nullptr) return TurboScriptResult::NoSimulator;
+    if (on) return g_liveSim->RequestTurbo(0, "script") ? TurboScriptResult::On : TurboScriptResult::Held;
+    if (!g_liveSim->DropHeldTurbo("script")) g_liveSim->SetTurbo(false, 0, "script");
+    return TurboScriptResult::Off;
+}
+
+void fc4::TurboOnConnectionsReady() {
+    if (g_liveSim != nullptr) g_liveSim->TurboCityReady();
+}
 
 // ---- construction -------------------------------------------------------------
 
@@ -143,6 +166,7 @@ cFC4Simulator::cFC4Simulator() : serviceId_(kServiceID) {
 
 cFC4Simulator::~cFC4Simulator() {
     fc4::Log("cFC4Simulator destroyed");
+    if (g_liveSim == this) g_liveSim = nullptr;
     fc4::WatchdogStop();
     fc4_sim_destroy(sim_);  // releases any agents still registered
     sim_ = nullptr;
@@ -511,6 +535,7 @@ void cFC4Simulator::Post(const fc4_message& msg) {
         m->Release();
     }
     if (msg.type == kMsgSimNewMonth) fc4::HeartbeatNow("month start");
+    if (msg.type == kMsgSimNewMonth && turboUsed_) TurboMonthLine(static_cast<int32_t>(msg.data1));  // tooling
     const bool logIt = calendar || postsLogged_ < 200;
     if (!logIt) {
         if (fc4::LogLevel() >= fc4::kLogVerbose) fc4::NoteSuppressed();
@@ -603,6 +628,25 @@ bool cFC4Simulator::Init() {
     size_t msCount = 0, dilCount = 0;
     const fc4_tuning tuning = ReadTuning(msPerDay, msCount, dilation, dilCount);
     const bool ok = fc4_sim_init(sim_, &tuning);
+    g_liveSim = this;
+    // Tooling: sim_turbo (FC4Turbo.h), held until this load's first
+    // ConnectionsReady. Off and never used: nothing is set or logged.
+    cityReady_ = false;
+    turboHeld_ = false;
+    {
+        bool left = false;
+        uint32_t leftFrame = 0;
+        int32_t leftUntil = 0;
+        // A turbo the previous city left on in the core: off until this city is ready.
+        if (turboUsed_ && fc4_sim_get_turbo(sim_, &left, &leftFrame, &leftUntil) && left) {
+            fc4_sim_set_turbo(sim_, false, leftFrame, 0);
+        }
+        if (fc4::TurboConfig().on) {
+            RequestTurbo(fc4::TurboConfig().untilJulian, "sim_turbo");
+        } else if (left) {
+            RequestTurbo(leftUntil, "kept from the previous city");
+        }
+    }
 
     // Step 8: framework registration.
     if (cIGZFrameWork* fw = RZGetFrameWork()) {
@@ -633,6 +677,9 @@ bool cFC4Simulator::Shutdown() {
 
     UnregisterCheats();          // step 1
     fc4_sim_shutdown(sim_);      // steps 2, 3, 7
+    if (g_liveSim == this) g_liveSim = nullptr;
+    cityReady_ = false;  // tooling: a held turbo request ends with its city
+    turboHeld_ = false;
 
     if (msgServer_ != nullptr) {  // step 4
         if (postCityInitSubscribed_) {
@@ -984,7 +1031,122 @@ bool cFC4Simulator::OnTick(uint32_t unknown1) {
                              st.emergency_pause_count);
     }
     if (ticks_ % StatusEveryTicks() == 0 && fc4::LogLevel() >= fc4::kLogVerbose) LogSchedulerStatus();
+    if (turboUsed_) TurboAfterTick();  // tooling: sim_turbo_until (FC4Turbo.h)
+    if (turboHeld_) {
+        // Tooling: the fallback of a request held for ConnectionsReady (FC4Turbo.h).
+        const int32_t wait = fc4::TurboConfig().waitDays;
+        if (wait > 0 && fc4_sim_get_julian_day(sim_) - turboHeldSince_ >= wait) EngageHeldTurbo(true);
+    }
     return r;
+}
+
+// ---- the turbo clock (tooling, FC4Turbo.h; not simulator.md) -----------------------------------------------
+
+void cFC4Simulator::TurboResetReference(int32_t julian) {
+    turboRefMs_ = HostNowMs(nullptr);
+    turboRefTicks_ = ticks_;
+    turboRefJulian_ = julian;
+}
+
+void cFC4Simulator::SetTurbo(bool on, int32_t untilJulian, const char* why) {
+    if (sim_ == nullptr) return;
+    const uint32_t frameMs = fc4::TurboConfig().frameMs;
+    fc4_sim_set_turbo(sim_, on, frameMs, on ? untilJulian : 0);
+    const int32_t julian = fc4_sim_get_julian_day(sim_);
+    char date[16];
+    DateOf(julian, date);
+    if (on) {
+        turboUsed_ = true;
+        TurboResetReference(julian);
+        char until[16] = "none";
+        if (untilJulian != 0) DateOf(untilJulian, until);
+        fc4::Log("simulator: turbo ON (%s) at %s: frame budget %u ms, until %s", why, date, frameMs, until);
+    } else {
+        fc4::Log("simulator: turbo OFF (%s) at %s", why, date);
+    }
+}
+
+bool cFC4Simulator::RequestTurbo(int32_t untilJulian, const char* why) {
+    if (sim_ == nullptr) return false;
+    if (cityReady_) {
+        SetTurbo(true, untilJulian, why);
+        return true;
+    }
+    turboHeld_ = true;
+    turboHeldUntil_ = untilJulian;
+    turboHeldWhy_ = why;
+    turboHeldSince_ = fc4_sim_get_julian_day(sim_);
+    char date[16];
+    DateOf(turboHeldSince_, date);
+    const int32_t wait = fc4::TurboConfig().waitDays;
+    if (wait > 0) {
+        fc4::Log("simulator: turbo requested (%s) at %s: held, days paced by msPerDay, until the city's first "
+                 "ConnectionsReady (or %d game day(s) without it, sim_turbo_wait_days)",
+                 why, date, wait);
+    } else {
+        fc4::Log("simulator: turbo requested (%s) at %s: held, days paced by msPerDay, until the city's first "
+                 "ConnectionsReady (no fallback: sim_turbo_wait_days = 0)",
+                 why, date);
+    }
+    return false;
+}
+
+bool cFC4Simulator::DropHeldTurbo(const char* why) {
+    if (!turboHeld_) return false;
+    turboHeld_ = false;
+    char date[16];
+    DateOf(fc4_sim_get_julian_day(sim_), date);
+    fc4::Log("simulator: turbo OFF (%s) at %s: the held request (%s) is dropped", why, date, turboHeldWhy_);
+    return true;
+}
+
+void cFC4Simulator::TurboCityReady() {
+    if (cityReady_) return;  // only the first ConnectionsReady of the load counts
+    cityReady_ = true;
+    if (turboHeld_) EngageHeldTurbo(false);
+}
+
+void cFC4Simulator::EngageHeldTurbo(bool fallback) {
+    turboHeld_ = false;
+    const uint32_t frameMs = fc4::TurboConfig().frameMs;
+    fc4_sim_set_turbo(sim_, true, frameMs, turboHeldUntil_);
+    const int32_t julian = fc4_sim_get_julian_day(sim_);
+    turboUsed_ = true;
+    TurboResetReference(julian);
+    char date[16], until[16] = "none";
+    DateOf(julian, date);
+    if (turboHeldUntil_ != 0) DateOf(turboHeldUntil_, until);
+    if (fallback) {
+        fc4::Log("simulator: WARNING no ConnectionsReady within %d game day(s) of the turbo request (%s); turbo ON at "
+                 "%s anyway (sim_turbo_wait_days): frame budget %u ms, until %s",
+                 fc4::TurboConfig().waitDays, turboHeldWhy_, date, frameMs, until);
+    } else {
+        fc4::Log("simulator: turbo ON at %s (after ConnectionsReady; %s): frame budget %u ms, until %s", date,
+                 turboHeldWhy_, frameMs, until);
+    }
+}
+
+void cFC4Simulator::TurboMonthLine(int32_t julian) {
+    bool on = false;
+    if (!fc4_sim_get_turbo(sim_, &on, nullptr, nullptr) || !on) return;
+    const uint32_t ms = HostNowMs(nullptr) - turboRefMs_;
+    const uint32_t frames = ticks_ - turboRefTicks_;
+    const int32_t days = julian - turboRefJulian_;
+    char date[16];
+    DateOf(julian, date);
+    fc4::Log("simulator: turbo month %s: %d day(s) in %u.%03u s real = %s days/s, %s fps (%u frames)", date, days,
+             ms / 1000, ms % 1000,
+             fc4::harness::FormatPer100(fc4::harness::RatePer100(days > 0 ? static_cast<uint64_t>(days) : 0, ms)).c_str(),
+             fc4::harness::FormatPer100(fc4::harness::RatePer100(frames, ms)).c_str(), frames);
+    TurboResetReference(julian);
+}
+
+void cFC4Simulator::TurboAfterTick() {
+    const int32_t off = fc4_sim_take_turbo_auto_off(sim_);
+    if (off == 0) return;
+    char date[16];
+    DateOf(off, date);
+    fc4::Log("simulator: turbo OFF at %s (sim_turbo_until reached); days paced by msPerDay again", date);
 }
 bool cFC4Simulator::OnIdle(uint32_t) { return true; }  // [choice] no idle-tick work
 int32_t cFC4Simulator::GetServiceTickPriority() { return kServicePriority; }  // [choice]
