@@ -2750,3 +2750,24 @@ variant (GF3). The current answer is in brackets.
 - **FS13:** §4.1 when the fallback texture itself does not load. [the fallback key is returned anyway]
 - **FS14:** RKT lookups with a zoom above 4, a detail above 2, a rotation above 3, or too few values. [no model
   (`None`); RKT0 ignores zoom and detail; the RKT1 addition wraps]
+
+## From applying the traffic simulator answers (filed by the coordinator from the `apply6a` lane's report, 2026-10-14)
+
+TS1–TS34 are applied to the traffic simulator core (vectors ts11_27–ts11_46 new; ts11_10a and ts11_25 adjusted). The
+host gained connection, region, budget and drive-side methods. The current answer is in brackets.
+
+- **TS35:** Does entering state 18 zero pass counter 1? [yes]
+- **TS36:** After a dx = ±1 jump, what entry does the cell carry? [none]
+- **TS37:** Does a missing funding percent leave the default? [unchanged]
+- **TS38:** §8 and §4.1.4 name slot 13 differently from §2.7.2. Which is right? [the code keeps its existing naming]
+- **TS39:** What is the "jump flag" in TS16? [the 0x80 flag of the next jump record]
+- **TS40:** What does a statistics slot with no record publish? [zeros]
+- **TS41:** A pool ID repeated in row 19: which entry wins? [the last one]
+- **TS42:** Pool ID overflow. [pool 0]
+- **TS43:** A missing regional demand node. [0]
+- **TS44:** Which row-14 field holds the saved source cell? [`phase_positions` s16×2, the lot location]
+- **TS45:** Which cell is saved for the state-15 resume? [the same `phase_positions`]
+- **TS46:** How is §4.16's `float(item.cost)` computed? [converted to f32 first, then × funding, r24]
+- **TS47:** A strategy above 2 in SetupPathFinderForLot. [ignored; a choice in code]
+- **TS48:** A damaged travel type above 8. [adds nothing in ApplyRoute and fails ConfirmRoute; a choice]
+- **TS49:** A switch ID with no switch behind it in GetTransitSwitchQueryData. [returns false; a choice]
