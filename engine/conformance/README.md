@@ -1453,6 +1453,59 @@ Neighbours events: `add_agent` (`level`, `name`, `flags`), `remove_agents`, `sub
 (`deal`: an ID or null, `status`, `flags` at the time, `sent`), `connection_created` / `connection_deleted` (`type`,
 `x`, `z`), `prop_add` (`prop`, `pos`, `orientation`, `props`), `prop_remove` (`prop`), `prop_move` (`prop`, `pos`).
 
+## Traffic simulator ops
+
+The traffic simulator vectors (`ts11_…`) drive `fc4_core::traffic_simulator::TrafficSimulator`
+(`docs/specs/traffic-simulator.md`), with its own network model and pathfinders, over one scripted game implementing
+`TrafficSimHost`. Every op name starts with `ts_`. The default world: 8 × 8 cells (tract size 1), the shipped tuning
+(`SimTuning::spec_exemplar`, §4.14), day of month 5, date number 1, clock 0, workforce 1.0, carpool off, no view,
+every department funded at 1.0, no lots and no connections. Departments get tokens 900, 901, … in creation order
+(Init creates roads, then mass transit). A lot's holder defaults to `id + 0x10000` and its building to
+`id + 0x20000`; a connection's holder to `id + 0x10000`. `ts_init` replaces the simulator and keeps the world.
+
+Floats are written as numbers or as their bit pattern (`"0x3FC00000"`). Float results are compared as bit patterns,
+so write float expectations as `"0x…"` strings (or 0); doubles are 16-digit bit strings. A trip is `{count, type,
+strategy, flags, status, dest: [x, z], length, mask, route, return_route}` (routes in hex; omitted fields 0 or
+empty; checks compare only the fields given). A source is `["lot", id]` or `["connection", id]`.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `ts_env` | any of `cells` (`[w, h]`), `tuning` (`"shipped"`, or `"code"`: no exemplar), `day`, `date`, `clock`, `workforce`, `carpool`, `view` (`[x1, z1, x2, z2]` or null), `roads_funding`, `transit_funding`, `dev_pop` (`[[developer type, x, z, population]]`), `dept_base`, `budget_items` | the world |
+| `ts_lot` | `id`, `rect`, `holder?`, `building?` (null: none), `zone?` (0), `livable?`, `road_access?` (true), `link?`, `pops?` (`[[developer type, count]]`), `strategy_byte?`, `capacity?` (the u16[12] property `0x8A0B4100`: max 0–3, arrived this cycle 4–7, arrived last cycle 8–11), `trips?` | adds or replaces a lot |
+| `ts_connection` | `id`, `cell`, `holder?`, `dirty?` (true: the volume-dirty flag), `targets?` (`[[row, [9 counts]]]`, property `0xAA9EA81D + row`), `trips?` | a neighbour connection |
+| `ts_trips` | `source`, `trips` | the host's trip list |
+| `ts_capacity` | `holder`, `values` | the trip capacity property |
+| `ts_prop` | `holder`, `id`, `value` (a variant) | any holder property |
+| `ts_init` | `session_seed?` (0), `expect?` | a new simulator and its Init |
+| `ts_street` | `cell`, `cells` or `rect` | §11 test 10's road info (network 1, `invCapacity 0.0625`, Street, 3 connections) |
+| `ts_info` | `cell`, `cells` or `rect`; `info` (`[[network, type, inv_cap, conn_count, flags?]]`) | network-info records |
+| `ts_state` | `state`: any of `cycle_state` (set without the entry action), `pass_total`, `to_reroute`, `to_search`, `units_per_slice`, `pct` (`[[wealth, [3 percentages]]]`), `budget_total`, `strike_state`, `strike_months`, `transit_income`, `toll_income`, `rail_damage_accident_factor`, `commute_max_time`, `strategy_bucket`, `buckets` (`[[bucket, [[x, z]]]]`), `dest` (`[[x, z, bits]]`), `free` (the free-destination counts), `accident_check` (`[[x, z, p]]`), `rng_seed` (the generator reseeded, wall and process clocks = the value), `income_acc` (a double), `subnetworks_stale`, `network_changed` | the state |
+| `ts_damage` | `kind` (`road`, `rail`), `intact?`, `damaged?` (`[[x, z]]`), `rate?` | damage cells |
+| `ts_grid` | `grid`, `n?`, `values` (`[[x, z, v]]`) | writes a grid |
+
+Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (bytes); `peak_volume`, `peak_ratio`,
+`volume` (with `n`, default 1) (floats).
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `ts_call` | `method`, `args?`, `expect?` (objects compared on the keys given) | `init`, `shutdown`, `read_tunable_values`, `work_on_sim_cycle`, `do_daily_simulation`, `do_monthly_simulation`, `do_post_city_init`, `do_message [type, data1, data2, data3, object]`, `enter_cycle_state [s]` (with the entry action), `cycle_state`, `cycle_states [stale?]` (the states visited until 0 comes back, at most `max?` 64 calls; `stale` is set before each call; fails when a phase does not finish in one call), `apply_route [route, count, source rect, [x, z], mode, type]`, `update_traffic_volume [source]`, `confirm_source [source]`, `complete_trip_source_calculations [source]`, `capacity_still_available [trip]`, `apply_traffic_to_destination [count, x, z, last type, trip type]`, `setup_trip [trip, source]` (the first pathfinder: `{density, filter, destination_flags, flags, allowed, starting, start_rect, end_rect, start_costs, max_work_time}`), `background_traffic [x, z]`, `travel_time_ratio [x, z, t]`, `check_rail_accident [x, z]`, `is_road_damaged [x, z]`, `apply_pothole_changes [kind, delta]` (kind 1 road, 2 rail), `travel_strategy_percentages [wealth]`, `trip_scale`, `trip_scale_for_display`, `freight_scaling_factor`, `last_monthly_income`, `query_interface [iid]`, `simulator_type`, `desired_lot_insertion_point`, `max_trip_capacity [holder, k]`, `set_max_trip_capacity [holder, k, v]`, `traffic_arrived [holder, k]`, `traffic_arrived_this_cycle [holder, k]`, `destination_byte [x, z]`, `free_destinations`, `rng_uniform [n, count]`, `rng_next [count]`, `rng_double [count]` (as float32 bits) |
+| `ts_eval` | `fn`, `args`, `expect` | pure functions: `congestion_byte [peak volume, peak ratio]` and `congestion_curve [x]` (the shipped curve after the inversion), `shipped_congestion` (`{points, scale}`), `invert_curve [[[x, y]]]`, `air_polluting_byte [v]`, `trip_length_byte [average, commuteMaxTime]`, `strategy_percentages [[3 pct]]`, `residential_split [commuters, [3 fractions], strategy byte]`, `residential_split_pct [commuters, [3 pct], strategy byte]`, `residential_commuters [population, scale]`, `industrial_trips [workers, scale]`, `background_value [R, C, I]`, `damage_target [funding, rate, cells]` (`[rate, potholes]`), `reconcile_lot [trips, [3 targets], type]`, `reconcile_connection [trips, [[9 counts] × 3]]`, `decode_route [hex]` (`[[x, z, t, jump]]`), `legacy_density [v]`, `write_trip [trip]` (hex), `read_trip [hex, prior trip?]` (the trip, or null on failure) |
+| `ts_save` | `slot`, `prefix?` (hex), `length?` | `Write` into a slot, with its reference registry |
+| `ts_load` | `slot`, `version?` (the leading u16 patched), `truncate?` (bytes dropped from the end), `expect?` | `Read` |
+| `ts_expect_same_save` | `a`, `b` | the two records are byte-identical |
+| `ts_expect_state` | `state` (partial: `initialised`, `cycle_state`, `total`, `days`, `day_index`, `processed`, `pass_total`, `to_reroute`, `to_search`, `source_pos`, `source_count`, `pass_counters`, `strategy_bucket`, `strategy_bucket_counter`, `buckets`, `budget_total`, `strike_state`, `strike_months`, `strike_flag`, `strike_probability`, `attempted`, `routed`, `job_capacity`, `car_len_sum`, `car_len_count`, `freight_len_sum`, `freight_count`, `freight_byte`, `avg_car_commute`, `transit_income`, `toll_income`, `last_monthly_income`, `income_acc`, `fee_acc`, `free`, `type_count_building`, `type_count_published`, `ferry_total`, `cells_per_type`, `stats_over`, `stats_rows`, `next_accident_check`, `accident_check`, `roads`, `mass_transit`, `commute_max_time`, `congestion_scale`, `congestion_points`, `units_per_slice`, `last_day`, `cycle_start_date`, `subnetworks_stale`, `network_changed`, `transit_multiplier`) | the simulator state |
+| `ts_expect_grid` | `grid`, `n?`, `values` (`[[x, z, v]]`) | grid values |
+| `ts_expect_edge` | `cell`, `t?` (1), `evening?` (false: key bit 24), `counts?` and `last?` (`[[entry, exit, value]]`, every other counter 0), `usage?` | `GetTrafficEdgeDensity` |
+| `ts_expect_world` | `state?` (partial: `posted` (`[[type, data1, data2, data3]]`), `posted_types`, `history` (`[[series, value]]`), `incomes` (`[[department, item, amount]]`), `accidents` (`[[x, z, ms]]`), `agents` (levels), `subscriptions`, `departments` (`[[id, max funding]]`), `released_departments`, `refs` (non-zero reference counts)); `posted_includes?` (`[[type]]` or `[[type, data1, data2, data3]]`); `history_includes?` (`[[series, value]]`) | the host's log |
+| `ts_expect_prop` | `holder`, `id`, `expect` (null: absent; else the elements) | a holder property |
+| `ts_expect_trips` | `source`, `trips` (the whole list; each trip partial) | the host's trip list |
+| `ts_expect_damage` | `kind`, `state` (partial: `cell_count`, `damaged_count`, `rate`, `intact` and `damaged` (set sizes), `damaged_cells`) | the damage block |
+| `ts_expect_network` | `cell`, `n?` (1), `record` (partial `{extra_cost, inv_cap, type, conn_count}`, or null) | a network-info record |
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
@@ -1463,7 +1516,8 @@ Neighbours events: `add_agent` (`level`, `name`, `flags`), `remove_agents`, `sub
    `pr18_…` (protection §18), `fo16_…` (flora §16), `bd11_…` (building development §11),
    `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `ld16_…` (lot developer §16),
    `zn15_…` (zones §15), `lf11_…` (landfill §11), `nb18_…` (neighbours §18), `tn11_…` (traffic network §11),
-   `pf11_…` (pathfinder §11), `rs15_…` (residential §15) and `rs00_…` (other residential behaviour).
+   `pf11_…` (pathfinder §11), `rs15_…` (residential §15), `rs00_…` (other residential behaviour) and `ts11_…`
+   (traffic simulator §11).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -2239,3 +2293,42 @@ Not covered by a vector, and why:
   behaviour, not the clock.
 - **RS5** has no vector of its own: a byte-wide running distance would wrap 255 + 1 to 0 and put zeros into
   `rs15_01`'s R$$ / R$$$ maps; the single-row example of RS5 is a `fc4-core` unit test (`rs5_distance_does_not_wrap`).
+
+## Coverage (traffic simulator §11)
+
+| §11 item | Vector |
+|---|---|
+| 1 cycle order, with and without the subnetwork rebuild; the days of `DoDailySimulation` | `ts11_01_cycle_order` |
+| 2 day pacing (N = 3, N = 1, `toReRoute` 17) | `ts11_02a_day_pacing_slices_of_3`, `ts11_02b_day_pacing_slices_of_1`, `ts11_02c_reroute_days` |
+| 3 congestion scale (the inverted points, `0x42DA924A`) | `ts11_03_congestion_scale` |
+| 4 congestion map | `ts11_04_congestion_map` |
+| 5 air-polluting map | `ts11_05_air_polluting_map` |
+| 6 trip-length map, a lot with a failed trip | `ts11_06_trip_length_map` |
+| 7 strategy percentages, the small-lot thresholds | `ts11_07_strategy_percentages` |
+| 8 large lot split | `ts11_08_large_lot_split` |
+| 9 carpool | `ts11_09_carpool` |
+| 10 hand-checkable network: mode 0, edge densities, arrived, income, CreateMaps, CreateFinalMap, CompleteTripSourceCalculations, FinalCalculations, the history; mode 2 | `ts11_10a_hand_checkable_network`, `ts11_10b_hand_checkable_network_mode_2` |
+| 11 background traffic | `ts11_11_background_traffic` |
+| 12 seeded draws: the re-draw, the continuation, lot activation, seed 12345, `RandomDoubleUniform`, `CheckRailAccident` | `ts11_12_seeded_draws` |
+| 13 capacity | `ts11_13_capacity` |
+| 14 neighbour reconcile and SetupTrip | `ts11_14_neighbour_reconcile` |
+| 15 save round trip, the header, the trip record | `ts11_15_save_round_trip` |
+| extra: version-1 trip record, the long vector, a short record (§6.3) | `ts11_16_trip_record_version_1` |
+| extra: `Read` version gate, truncation, unchanged on failure (§6.4) | `ts11_17_read_gates` |
+| extra: legacy edge densities (§6.4) | `ts11_18_legacy_edge_density` |
+| extra: lot reconcile, the probe, freight and commuter counts (§4.1.1) | `ts11_19_lot_reconcile` |
+| extra: lot activation stores the destination bits (TN1), free destinations, the bucket; deactivation; the no-building stop (§4.1.3) | `ts11_20_lot_activation` |
+| extra: funding damage target and potholes (§4.12 step 1) | `ts11_21_funding_damage_and_potholes` |
+| extra: strike transitions and messages (§4.12 step 2) | `ts11_22_strike_transitions` |
+| extra: the accident check needs a view (§4.13) | `ts11_23_accident_check` |
+| extra: day-1 incomes (§3.3) | `ts11_24_day_one_income` |
+| extra: Init (agents, subscriptions, departments), identity slots, Shutdown (§1, §7) | `ts11_25_init_and_identity` |
+| extra: DumpEdgeDensities, ReduceEdgeDensities, `GetTravelTimeRatio` (§4.8) | `ts11_26_edge_dump_and_reduce` |
+
+Not covered by a vector, and why:
+
+- **Path searches over a real network (states 17 and 18)** need network occupants with path info; the vector world
+  has none (the pathfinder's own vectors pin the search). Test 10 drives `ApplyRoute` with the spec's route bytes.
+- **Transit switches, tunnels and ferries in the record** round-trip only as empty lists here; Read's switch mask and
+  flags (`read_mask_and_flags`) are a `fc4-core` unit test.
+- **The work budget (§3.4)** replaces the original's CPU-time slicing *[choice]*; test 2 pins its pacing, not a clock.

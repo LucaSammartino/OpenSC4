@@ -82,14 +82,20 @@ pub mod tuning;
 #[cfg(test)]
 mod tests;
 
-pub use adapters::{capacity_values, NetAdapter};
-pub use record::{read_trip, write_trip, TRIP_RECORD_VERSION};
+pub use adapters::{capacity_element, capacity_values, set_capacity_element, NetAdapter, CAPACITY_LEN};
+pub use maps::{air_polluting_byte, background_value, congestion_byte};
+pub use monthly::{damage_target, kind as damage_kind, STRIKE_KEEP, STRIKE_MAX_MONTHS, STRIKE_SCALE, STRIKE_START};
+pub use record::{legacy_density, read_mask_and_flags, read_trip, write_trip, TRIP_RECORD_VERSION};
 pub use route::{decode_route, RouteCell};
 pub use state::{
     AccidentEntry, DamageBlock, DamageState, SaveExtras, StatRow, State, StatsSet, SwitchStat, PC_REROUTE_BUCKET,
     PC_SOURCE_COUNTER,
 };
-pub use tuning::SimTuning;
+pub use trips::{
+    ceil_idiom, floor_idiom, industrial_trips, merge_routed, merge_search, reconcile_connection, reconcile_lot,
+    residential_commuters, residential_split, trip_length_byte, COMMUTER_START, COMMUTER_TYPES, FREIGHT_TYPES,
+};
+pub use tuning::{invert_congestion_curve, SimTuning};
 
 use std::cell::RefCell;
 use std::rc::Rc;

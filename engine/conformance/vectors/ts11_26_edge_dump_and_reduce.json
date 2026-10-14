@@ -1,0 +1,135 @@
+{
+  "format": 1,
+  "name": "ts11_26_edge_dump_and_reduce",
+  "spec": [
+    "traffic-simulator 4.8",
+    "traffic-simulator 7"
+  ],
+  "description": "§4.8: DumpEdgeDensities (state 7) copies current into last and sums the usage (40 at (3,3)); ReduceEdgeDensities (state 6) clears current. GetTravelTimeRatio at (3,3): usage 40 x invCapacity 0.0625 = 2.5 -> the congestion curve at 2.5 (0x401BE5BE, test 4).",
+  "steps": [
+    {
+      "op": "ts_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "holder": 11,
+      "note": "lot A, the source"
+    },
+    {
+      "op": "ts_lot",
+      "id": 2,
+      "rect": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "holder": 12,
+      "capacity": [
+        100
+      ],
+      "note": "job lot B, max[0] = 100"
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "road info {invCapacity 0.0625, Street, 3 connections} at (0,3)...(4,3)"
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_route",
+      "args": [
+        "01020341020a",
+        40,
+        [
+          2,
+          2,
+          2,
+          2
+        ],
+        [
+          4,
+          4
+        ],
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "enter_cycle_state",
+      "args": [
+        7
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "work_on_sim_cycle",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_edge",
+      "cell": [
+        3,
+        3
+      ],
+      "last": [
+        [
+          0,
+          2,
+          40
+        ]
+      ],
+      "usage": 40
+    },
+    {
+      "op": "ts_call",
+      "method": "cycle_state",
+      "expect": 6
+    },
+    {
+      "op": "ts_call",
+      "method": "work_on_sim_cycle",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_edge",
+      "cell": [
+        3,
+        3
+      ],
+      "counts": [],
+      "last": [
+        [
+          0,
+          2,
+          40
+        ]
+      ],
+      "usage": 40
+    },
+    {
+      "op": "ts_call",
+      "method": "travel_time_ratio",
+      "args": [
+        3,
+        3,
+        1
+      ],
+      "expect": "0x401BE5BE"
+    }
+  ]
+}
