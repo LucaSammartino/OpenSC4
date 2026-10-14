@@ -1209,6 +1209,11 @@ The display alpha read here (`0x004DD58E`, the byte at +0x360) lasts only until 
 and copies that to the default alpha (`0x004DC65E`–`0x004DC675`). The saved alpha survives only when the exemplar or
 the property is missing.
 
+A second `Read` (ZG4) overwrites the grid and service references without releasing the old ones. All six go through
+the reference reader `0x005D9730` (`0x004DD43F`, `0x004DD714`–`0x004DD75B`), which sets the field to null
+(`0x005D9742`) before reading and never releases what was there, so each reference held before leaks once.
+*[choice]* release them.
+
 ### 10.2 Zone developer (`cIGZSerializable` at +0xC; `Write` `0x0072AB40`, `Read` `0x00734380`)
 
 | # | Field |

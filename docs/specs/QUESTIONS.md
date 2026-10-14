@@ -2848,7 +2848,11 @@ developer stays original). The current answer is in brackets.
   bracketed. But `Init`, which follows every load, overwrites it with the exemplar's Zone Display Alpha (shipped 170)
   and sets the default alpha to the same value. The saved alpha survives only when the exemplar or the property is
   missing.
-- **ZG4:** A second `Read`: the services the first one set. [replaced; the old ones released]
+- ~~**ZG4:** A second `Read`: the services the first one set. [replaced; the old ones released]~~
+  **ANSWERED 2026-10-14** from the exe (`Read` reference reads `0x004DD43F`, `0x004DD714`–`0x004DD75B`; reference
+  reader `0x005D9730`, null store `0x005D9742`) and written into zones §10.1. The original does not release the old
+  references: the reader nulls the field and reads the new one, so the old grid and services leak one reference each.
+  Releasing them (the bracket) is the implementer's choice, recommended.
 - **ZG5:** ZoningChange `void1` / `IGZUnknown`. [SetVoid1 plus SetIGZUnknown on the zone manager; the message holds a
   reference]
 - **ZG6:** A dezone arriving during a PlaceZone. [runs at once and is counted]
