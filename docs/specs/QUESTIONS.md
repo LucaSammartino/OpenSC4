@@ -2171,7 +2171,11 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   `0x006FF5CA`) and written into REH §4.3. **No; the bracket differs.** The original reads the ordinance effects only
   in `Init` and in state 0. A shadow that re-reads them elsewhere can see an ordinance change earlier than the
   original does; it should keep the lists from state 0 to state 0.
-- **RG8:** slots 21/22 called off the main thread create grids through GZCOM. Allowed? [yes]
+- ~~**RG8:** slots 21/22 called off the main thread create grids through GZCOM. Allowed? [yes]~~ **ANSWERED
+  2026-10-14** from the exe (slot 21 `0x006FCF30`, allocation `0x006FCF36`; slot 22 the same) and written into REH
+  §4.8 (the slot 21/22 row). **No original behaviour; the implementer's choice stands.** The original does not use
+  GZCOM here: it builds the float grid directly (global heap, inlined constructor). Its callers are UI code on the
+  main thread *[inferred]*, so nothing in the original constrains a call from another thread.
 - **RG9:** setters off the main thread: deferred, and `EndStrike` off the main thread returns the published flag?
   [yes]
 - **RG10:** department funding with no department? [1.0]
