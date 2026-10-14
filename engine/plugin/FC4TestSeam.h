@@ -95,7 +95,19 @@
 //         SimNewMonth) to a fake "original" plumbing simulator, one shadow for
 //         the run; returns the summed difference count of the passes and
 //         months compared, -1 (none taken) or -2 (taken, nothing compared).
-//         (23-25 are held by the parallel glue lanes.)
+//   op 23 kFC4SeamLandValueShadow  a = const FC4LandValueShadowTestInput*
+//         (FC4LandValueShadow.h): one land value shadow event on a fake city
+//         whose land value simulator is the "original" (a pass end, a
+//         SimNewDay, PostCityShutdown); returns the pass's difference count,
+//         -1 (not run) or -2 (ran, nothing compared); a day: the maps that
+//         changed.
+//   op 24 kFC4SeamFlammabilityShadow a = const FC4FlammabilityShadowTestInput*
+//         (FC4FlammabilityShadow.h): one flammability shadow event on a fake
+//         city whose flammability simulator is the "original" (one of its six
+//         messages, a SimCycleComplete, PostCityShutdown); returns the cycle's
+//         difference count, -1 (not run) or -2 (ran, nothing compared: the
+//         baseline or INCOMPLETE); a message: 1 mirrored, 0 not.
+//         (25 is held by a parallel glue lane.)
 //   op 26 kFC4SeamRawArrayBytes    a = cISCPropertyHolder*, b =
 //         FC4RawArrayBytesTestIo*: fc4::props::GetRawArrayBytes of property
 //         b->id (the crime effect read, crime.md §6.10 / CQ13): b->len = the
@@ -139,6 +151,8 @@ enum : uint32_t {
     kFC4SeamDemandCapacity = 20,
     kFC4SeamPowerShadow = 21,
     kFC4SeamPlumbingShadow = 22,
+    kFC4SeamLandValueShadow = 23,
+    kFC4SeamFlammabilityShadow = 24,
     kFC4SeamRawArrayBytes = 26,
     kFC4SeamLotCenter = 27,
 };
