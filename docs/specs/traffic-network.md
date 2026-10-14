@@ -1063,6 +1063,20 @@ z1, max x2, max z2).
 | `0x278E6003`, `0x678E6E3A` | dirty ∪= (data1 >> 16) − 1 … data1 & 0xFFFF, (data2 >> 16) − 1 … data2 & 0xFFFF, clamped to the map (terrain change) |
 | `0x99EF1142` / `0x99EF1143` with data3 = `0xC772BF98` | r = the occupant's (void data1) **bounding city cells** (occupant slot 11 `GetBoundingCityCells`). If the cell `(r.x1, r.z1)` is under water (terrain slot 34, NW corner only): dirty ∪= r, not grown and not clamped (bridges). TN15, `0x00724B19`–`0x00724BC8` |
 
+**The update** (UpdateDepthMap `0x00724840`) visits every cell of the dirty rectangle, x inner and z outer, then
+clears the flag. It does not clamp the rectangle and does not check bounds (TN24, from the exe). An off-map cell is
+both asked and written:
+- **asked:** surface water `IsNavigable` (`0x0073EBF0`) tests the city's `CellIsInBounds` (`0x004594D0`, called at
+  `0x0073ECA2`) first and returns false. So the depth is never read, and the cell's value is 0;
+- **written:** the 0 is stored through the grid's raw rows (`0x007249A6`–`0x007249B2`), at row x, byte z, with no
+  check. For x in the map and z past it, this writes past the end of row x. For x outside the map, it uses a row
+  pointer read from outside the row table. Either way it is an out-of-bounds heap write *[quirk]*.
+
+*[choice]* FreeCity4 visits only the in-map part of the rectangle. The in-map cells get the same values. Example on a
+256 × 256 map: a bridge occupant whose bounding cells are (250, 254)–(252, 256) makes the original write a 0 at byte
+256 of rows 250, 251 and 252. That is one byte past each 256-byte row. FreeCity4 updates (250…252, 254…255) and
+nothing else.
+
 #### 4.10.2 FindPath(sx, sz, tx, tz, &cells, fwd, back) (`0x00725170`, pop 28, AL)
 
 1. If the map is dirty, update it.

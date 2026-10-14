@@ -1146,8 +1146,13 @@ About `docs/specs/traffic-network.md`. The core's current answer is in brackets.
   inserted switch's building is not null but a stale stack value, and so are its load, capacity, flags and other
   fields. FreeCity4's all-zero switch is not re-read; flag 4 clear clears the access point; flag 4 set keeps it as it
   is. The §11 test "unknown ID → `0x7EFFFFFF`" is now marked *[choice]*.
-- **TN24 — §4.10.1 TN15:** when the unclamped dirty rectangle reaches past the map, are off-map cells asked or
-  written during the update? [only in-map cells]
+- ~~**TN24 — §4.10.1 TN15:** when the unclamped dirty rectangle reaches past the map, are off-map cells asked or
+  written during the update? [only in-map cells]~~ **ANSWERED 2026-10-14** from the exe (UpdateDepthMap `0x00724840`:
+  no clamp and no bounds check; `IsNavigable` `0x0073EBF0` returns false through `CellIsInBounds` `0x004594D0`; the 0
+  is stored at `0x007249A6`–`0x007249B2`) and written into traffic-network §4.10.1 ("The update"). **The bracket
+  stands as a *[choice]*.** The original asks about every cell of the rectangle and writes 0 for each off-map cell
+  through the raw rows. That write lands outside the grid, so it is an out-of-bounds heap write. In-map cells get
+  the same values either way.
 - **TN25 — §4.7.2 TN3:** FreeCity4 replaces the rules on the re-read, so the flags come from the property's rules;
   the original takes them from the first n rules of the vector (the saved copy). They differ only when the saved
   rules differ from the exemplar. Acceptable? [flags from the re-read rules]
