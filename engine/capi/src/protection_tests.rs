@@ -741,17 +741,19 @@ fn the_dispatch_source_slots() {
             std::ptr::null_mut(),
             std::ptr::null_mut()
         ));
-        // An active dispatch adds its cone; the ID buffer is sized from the
-        // count (never a capacity of 0).
+        // An active dispatch adds the cone of its source station's dispatch
+        // effect (§7.2, PR2); the ID buffer is sized from the count (never a
+        // capacity of 0). The reserved field (an occupant without the
+        // properties) is not read.
         let pd = ProtectionKind::Police.params();
-        g.set_raw(AUTOMATON, pd.dispatch_effect_props[0], mem::SINT32, 50i32);
-        g.set_raw(AUTOMATON, pd.dispatch_effect_props[1], mem::SINT32, 10i32);
-        g.set_raw(AUTOMATON, pd.dispatch_effect_props[2], mem::FLOAT32, 64.0f32);
+        g.set_raw(STATION, pd.dispatch_effect_props[0], mem::SINT32, 50i32);
+        g.set_raw(STATION, pd.dispatch_effect_props[1], mem::SINT32, 10i32);
+        g.set_raw(STATION, pd.dispatch_effect_props[2], mem::FLOAT32, 64.0f32);
         g.dispatches.borrow_mut().push((
             0,
             fc4_protection_dispatch_info {
                 station: STATION,
-                automaton: AUTOMATON,
+                reserved: AUTOMATON,
                 call_id: 1,
                 active: 1,
                 x: 400.0,
@@ -768,7 +770,8 @@ fn the_dispatch_source_slots() {
         assert!(g.capacities.borrow().iter().all(|&c| c > 0));
         let adj = g.grid_values(state(p).adjusted_grid);
         assert!(adj[(12 * TRACTS + 12) as usize] > 0.0);
-        assert_eq!(fc4_protection_station_dispatch_radius(p, AUTOMATON), 64.0);
+        assert_eq!(fc4_protection_station_dispatch_radius(p, STATION), 64.0);
+        assert_eq!(fc4_protection_station_dispatch_radius(p, AUTOMATON), 0.0);
         assert!(fc4_protection_shutdown(p));
         fc4_protection_destroy(p);
     }

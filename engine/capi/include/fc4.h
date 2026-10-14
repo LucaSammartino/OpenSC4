@@ -2276,10 +2276,13 @@ typedef struct fc4_protection_budget_item {
     uint64_t department; /* borrowed */
 } fc4_protection_budget_item;
 
-/* GetDispatchInfo (§5). Tokens borrowed. */
+/* GetDispatchInfo (§5). Tokens borrowed. `station` is the record's +0x20,
+ * the source station whose dispatch effect draws the cone (§7.2, PR2);
+ * `call_id` its +0x08 and `active` its +0x10 (PR1). `reserved` (formerly the
+ * vehicle automaton) is not read: leave it 0. */
 typedef struct fc4_protection_dispatch_info {
     uint64_t station;
-    uint64_t automaton;
+    uint64_t reserved;
     uint32_t call_id;
     uint32_t active;
     float x, z;

@@ -547,6 +547,41 @@ int main() {
                     g_stl.frees, g_alloc.allocs, g_alloc.frees);
     }
 
+    // 13. The name the protection glue hands to the automata controller
+    // manager (AddControllersFromOccupantGroup / Remove..., slots 10 / 12):
+    // the game's group lookup reads it raw as its cRZString (docs/abi
+    // layouts.md "Game string"; protection.md §6.3, PR3): begin pointer at
+    // +0x04, end at +0x08, capacity end at +0x0C, 0x14 bytes, the text always
+    // in a separate buffer (no inline small-string storage). Built as the
+    // glue builds it: SC4String(group, len).
+    {
+        g_alloc.Reset();
+        static_assert(sizeof(SC4String) == 0x14, "cRZString layout (0x14 bytes)");
+        auto rawPtr = [](const SC4String& s, size_t off) {
+            const char* p = nullptr;
+            std::memcpy(&p, reinterpret_cast<const unsigned char*>(&s) + off, sizeof(p));
+            return p;
+        };
+        auto outside = [](const SC4String& s, const char* p) {
+            const char* o = reinterpret_cast<const char*>(&s);
+            return p < o || p >= o + sizeof(SC4String);
+        };
+        bool ok = true;
+        for (const char* group : {"FireStationStrikeGroup", "ab"}) {
+            const uint32_t len = static_cast<uint32_t>(std::strlen(group));
+            const SC4String name(group, len);
+            const char* begin = rawPtr(name, 0x04);
+            const char* end = rawPtr(name, 0x08);
+            const char* cap = rawPtr(name, 0x0C);
+            ok = ok && begin != nullptr && begin == name.Data() && end == begin + len && cap >= end;
+            ok = ok && outside(name, begin) && std::memcmp(begin, group, len) == 0;
+        }
+        CHECK(ok);
+        CHECK(g_alloc.Live() == 0 && g_alloc.doubleFrees == 0 && g_alloc.foreignFrees == 0);
+        std::printf("SC4String as cRZString: begin +0x04, end +0x08, capacity +0x0C, heap text (%d allocations)\n",
+                    g_alloc.allocs);
+    }
+
     g_stl.Reset();
     g_alloc.Reset();
     if (g_failures != 0) {

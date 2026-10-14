@@ -85,10 +85,11 @@ pub struct fc4_protection_budget_item {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct fc4_protection_dispatch_info {
-    /// The station the unit came from (borrowed token).
+    /// The record's `+0x20`: the station the unit came from (borrowed
+    /// token), whose dispatch effect draws the cone (§7.2, PR2).
     pub station: u64,
-    /// The automaton (borrowed token).
-    pub automaton: u64,
+    /// Formerly the vehicle automaton; not read (0).
+    pub reserved: u64,
     pub call_id: u32,
     pub active: u32,
     pub x: f32,
@@ -473,7 +474,6 @@ impl ProtectionHost for CHost {
             station: i.station,
             call_id: i.call_id,
             active: i.active != 0,
-            automaton: i.automaton,
             x: i.x,
             z: i.z,
         })

@@ -779,7 +779,6 @@ fn call_numbers_and_dispatch() {
             station: 3,
             call_id: 1,
             active: false,
-            automaton: 77,
             x: 0.0,
             z: 0.0,
         },
@@ -791,6 +790,8 @@ fn call_numbers_and_dispatch() {
     assert_eq!(host.get_u32(3, p.mask_prop), Some(0b11));
 }
 
+/// §5.1 / §7.2 (PR2): the dispatch cone comes from the source station's
+/// dispatch effect (the record's +0x20).
 #[test]
 fn dispatch_cone_and_box_copy() {
     let (host, sim) = setup(ProtectionKind::Fire, 64, &[]);
@@ -802,10 +803,9 @@ fn dispatch_cone_and_box_copy() {
     host.dispatches.borrow_mut().push((
         4,
         DispatchInfo {
-            station: 0,
+            station: 77,
             call_id: 4,
             active: true,
-            automaton: 77,
             x: 330.0,
             z: 330.0,
         },
@@ -824,6 +824,19 @@ fn dispatch_cone_and_box_copy() {
     m.data1 = 0;
     sim.handle_message(m);
     assert_eq!(adj.get(10, 10), 0);
+    // UpdateUnadjusted reads the station's effect too: the vehicle-like
+    // occupant 78 carries other values, which are never used.
+    host.set(78, p.dispatch_effect_props[0], Variant::Scalar(Elem::I32(99)));
+    host.set(78, p.dispatch_effect_props[1], Variant::Scalar(Elem::I32(99)));
+    host.set(78, p.dispatch_effect_props[2], Variant::Scalar(Elem::F32(160.0)));
+    sim.update_unadjusted();
+    let unadj = sim.unadjusted_grid().unwrap();
+    assert_eq!(unadj.get(10, 10), 40);
+    assert_eq!(unadj.get(12, 10), 0);
+    // A station without the properties draws a zero-radius cone of 0.
+    host.dispatches.borrow_mut()[0].1.station = 78 + 1;
+    sim.update_unadjusted();
+    assert_eq!(unadj.get(10, 10), 0);
 }
 
 #[test]
