@@ -35,11 +35,17 @@ developer, weighted by local crime. It exposes the nearest crime automaton or cr
 | `cIGZMessageTarget2` | IID `0x452294AA` |
 | Prop requester | `cISC4PropRequester`, IID `0x89C498BE` (name from the Mac build) |
 | `cIGZSerializable` | IID `0xE4FDA3D4` |
-| Not answered | `cIGZMessageTarget` `0xE98B2F57`, everything else → false, out pointer null |
+| Not answered | `cIGZMessageTarget` `0xE98B2F57`, everything else → false (AL = 0), **out pointer untouched** (`0x0069F1FC`) *[compat]* |
 | City component | slot **#23** (foundations §3.6); the city gets it with `GetClassObject(0x8990C09A, 0x67659555)` |
 | City getter | `cISC4City` slot 55 (`+0xDC`) `GetCrimeSimulator`, cached by the game as `SL::spCrimeSim` |
 | Init order | after commercial, before fire protection (foundations §3.7) |
 | Extra class slot | slot 15 of the primary vtable (after the destructor) returns the simulator type `0x27567222` |
+
+*(Corrected: an earlier version said the out pointer is nulled.)* Every simulator class behaves the same way. Of
+the 64 `QueryInterface` implementations checked (each simulator, the city, lots, occupants and managers) and the
+base-class implementations they fall through to (such as `cRZUnknown` `0x009457C6` and `cRZSystemService`
+`0x0091DD67`), only `cSCResExemplarCohort` writes
+null into the out pointer: it does so on entry (`0x0067C15D`), so its failures leave null.
 
 All four interfaces are one object (one reference count). `AddRef` increments, `Release` decrements. When
 `Release` is called with a count ≤ 1, it calls `Shutdown()` and then destroys the object. It returns 0 then,
