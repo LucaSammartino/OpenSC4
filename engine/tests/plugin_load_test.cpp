@@ -48,6 +48,8 @@
 #include "FC4GameMap.h"
 #include "cFC4Demand.h"
 #include "FC4PollutionShadow.h"
+#include "FC4PlumbingShadow.h"
+#include "FC4Streams.h"
 #include "cS3DVector3.h"
 #include "cIGZOStream.h"
 #include "FC4Interfaces.h"
@@ -1061,6 +1063,267 @@ intptr_t CrimeShadowOnce(FC4TestSeamFn seam, FakeOrigCrime& o, cIGZMessageTarget
     FC4CrimeShadowTestInput in{reinterpret_cast<cISC4City*>(&o.city), target, types, severities, 3, 0.5f, 4,
                                2451576};  // first SimNewDay 2000-02-01: state 4 runs on 2000-02-05
     return seam(kFC4SeamCrimeShadow, &in, nullptr);
+}
+
+// ---- the plumbing shadow (test seam op 22) -------------------------------------------------------
+// An "original" plumbing simulator on a 4x4 city with one pipe flag, at
+// (0,0), and nothing else (no producers, pipe occupants, deals or
+// connections): FreeCity4's pass publishes the pipe value 8 at (0,0) and 0
+// elsewhere, and every total is 0. Its agent runs one pass state per SimIdle
+// or SimNewDay (plumbing.md §6, as far as the shadow can see it): 9 -> 0 when
+// a recompute is due; 0 counts the pass; 2 resets the working grid; 3 -> 5
+// (no network); 5 -> 6 swaps the grids (the iterator fresh); 7 finishes the
+// iterator; 8 -> 9. SimNewMonth sets the recompute (no pipes: nothing to age
+// or burst). Its record (its own Write, cIGZSerializable) is a version-4
+// record (§9) through the segment stream's WriteGZSerializable; the grid
+// references are two fake cSC4SimGrid<uint8> (class 0x49B9E602, through a
+// serializable stand-in each) answering geometry (slots 10-17) and
+// GetTractValue (22). The second grid starts with stale values, so after the
+// first pass's swap the shadow finds a cell the next state 2 changes and sees
+// the second pass start. `wrongCell` flips (2,2) of the grid the second pass
+// publishes; `watered` is what GetNumWateredBuildings (slot 21) answers. The
+// city answers GetPlumbingSimulator (compiled slot 64); `noCity` returns null
+// there. Any other call aborts.
+struct FakePlumbGrid {
+    void** vtbl;
+    uint8_t v[16];  // [z * 4 + x]
+};
+struct FakePlumbGridSer {
+    void** vtbl;
+    FakePlumbGrid* grid;
+};
+struct FakeOrigPlumbing {
+    FakeVtable simVt, agentVt, serVt, gridVt, gridSerVt, cityVt, noCityVt;
+    FakeObject sim{}, agent{}, ser{}, city{}, noCity{}, other{};
+    FakePlumbGrid grids[2]{};
+    FakePlumbGridSer gridSers[2]{};
+    int working = 0;
+    int state = 9;
+    bool recompute = true;
+    int32_t pass = 0;
+    uint8_t iter = 2;  // 0 fresh, 1 running, 2 done
+    int swaps = 0;
+    bool wrongCell = false;
+    uint32_t watered = 0;
+    int refs = 1;
+    int deliveries = 0;
+    int writes = 0;
+};
+
+FakeOrigPlumbing* g_opb = nullptr;
+
+bool __fastcall OpbQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, agent, serializable)
+    if (out == nullptr) return false;
+    if (iid == 0x452294AA) {
+        *out = &g_opb->agent;  // cIGZMessageTarget2
+    } else if (iid == GZIID_cIGZSerializable) {
+        *out = &g_opb->ser;
+    } else {
+        return false;  // (the reference audit asks other IIDs)
+    }
+    ++g_opb->refs;
+    return true;
+}
+uint32_t __fastcall OpbAddRef(void*, void*) { return static_cast<uint32_t>(++g_opb->refs); }   // 1
+uint32_t __fastcall OpbRelease(void*, void*) { return static_cast<uint32_t>(--g_opb->refs); }  // 2
+int OpbIndex(const void* grid) { return grid == &g_opb->grids[0] ? 0 : 1; }
+bool __fastcall OpbGridQi(void* self, void*, uint32_t iid, void** out) {  // grid 0
+    if (out == nullptr) return false;
+    if (iid == 0xC9BD939A) {
+        *out = self;  // cISC4SimGrid
+    } else if (iid == GZIID_cIGZSerializable) {
+        *out = &g_opb->gridSers[OpbIndex(self)];
+    } else {
+        return false;
+    }
+    ++g_opb->refs;
+    return true;
+}
+bool __fastcall OpbGridSerQi(void* self, void*, uint32_t iid, void** out) {  // grid serializable 0
+    if (out == nullptr) return false;
+    if (iid == 0xC9BD939A) {
+        *out = static_cast<FakePlumbGridSer*>(self)->grid;
+    } else if (iid == GZIID_cIGZSerializable) {
+        *out = self;
+    } else {
+        return false;
+    }
+    ++g_opb->refs;
+    return true;
+}
+uint32_t __fastcall OpbGridClsid(void*, void*) { return 0x49B9E602; }  // grid serializable 5
+int32_t __fastcall OpbTractSize(void*, void*) { return 1; }             // grid 10
+int32_t __fastcall OpbTractShift(void*, void*) { return 0; }            // grid 11
+int32_t __fastcall OpbTractCount(void*, void*) { return 4; }            // grid 12, 13
+float __fastcall OpbTractWidth(void*, void*) { return 16.0f; }          // grid 14, 15
+float __fastcall OpbTractInvWidth(void*, void*) { return 1.0f / 16.0f; }  // grid 16, 17
+uint8_t __fastcall OpbTractValue(void* self, void*, int32_t x, int32_t z) {  // grid 22
+    if (x < 0 || x > 3 || z < 0 || z > 3) return 0;
+    return static_cast<FakePlumbGrid*>(self)->v[z * 4 + x];
+}
+void* __fastcall OpbWateredGrid(void*, void*) { return &g_opb->grids[1 - g_opb->working]; }  // sim 7
+uint32_t __fastcall OpbZero(void*, void*) { return 0; }                    // sim 12-20, 22, 23
+uint32_t __fastcall OpbWateredCount(void*, void*) { return g_opb->watered; }  // sim 21
+uint32_t __fastcall OpbClsid(void*, void*) { return kCLSID_Plumbing; }     // serializable 5
+// Serializable 3: the version-4 record of §9.
+bool __fastcall OpbWrite(void*, void*, cIGZOStream* s) {
+    FakeOrigPlumbing& o = *g_opb;
+    ++o.writes;
+    void* p = nullptr;
+    if (s == nullptr || !s->QueryInterface(kFC4_IID_cISC4DBSegmentOStream, &p) || p == nullptr) return false;
+    cFC4ISC4DBSegmentOStream* w = static_cast<cFC4ISC4DBSegmentOStream*>(p);
+    w->SetUint16(4);
+    w->WriteGZSerializable(reinterpret_cast<cIGZSerializable*>(&o.gridSers[o.working]));      // working
+    w->WriteGZSerializable(reinterpret_cast<cIGZSerializable*>(&o.gridSers[1 - o.working]));  // published
+    w->SetUint32(4);
+    w->SetUint32(4);
+    uint8_t flags[16] = {};
+    flags[0] = 0x10;  // the pipe bit at (0,0)
+    w->SetVoid(flags, sizeof(flags));
+    w->SetSint32(o.pass);
+    w->SetUint32(0);  // average water pollution
+    w->SetSint64(0);  // total water cost
+    w->SetUint32(0);  // producers
+    w->SetUint32(0);  // polluted producers
+    for (int i = 0; i < 8; ++i) w->SetUint32(0);  // the current producer: none
+    w->WriteGZSerializable(nullptr);
+    w->SetUint8(o.iter);
+    w->SetSint32(0);
+    w->SetSint32(0);
+    w->SetUint32(1);
+    w->SetSint32(0);
+    w->SetSint32(0);
+    w->SetSint32(3);
+    w->SetSint32(3);
+    w->SetSint64(0);  // demand
+    w->SetUint32(0);  // pipes
+    w->SetUint32(0);  // distressed
+    w->SetUint32(0);  // burst
+    w->WriteGZSerializable(nullptr);  // the department
+    for (int i = 0; i < 4; ++i) w->SetSint64(0);  // last produced, consumed, imported, exported
+    w->Release();
+    return true;
+}
+bool __fastcall OpbDoMessage(void*, void*, cIGZMessage2* m) {  // agent 3
+    FakeOrigPlumbing& o = *g_opb;
+    ++o.deliveries;
+    const uint32_t type = m->GetType();
+    if (type == kMsgSimNewMonth) {
+        o.recompute = true;
+        return true;
+    }
+    if (type != kMsgSimNewDay && type != kMsgSimIdle) return true;
+    switch (o.state) {
+        case 9:
+            if (o.recompute) {
+                o.recompute = false;
+                o.state = 0;
+            }
+            break;
+        case 0:
+            ++o.pass;
+            o.state = 1;
+            break;
+        case 1: o.state = 2; break;
+        case 2: {
+            FakePlumbGrid& g = o.grids[o.working];
+            std::memset(g.v, 0, sizeof(g.v));
+            g.v[0] = 8;
+            o.iter = 2;
+            o.state = 3;
+            break;
+        }
+        case 3: o.state = 5; break;
+        case 5:
+            o.working = 1 - o.working;
+            o.iter = 0;
+            o.state = 7;
+            if (++o.swaps == 2 && o.wrongCell) o.grids[1 - o.working].v[2 * 4 + 2] ^= 1;
+            break;
+        case 7:
+            o.iter = 2;
+            o.state = 8;
+            break;
+        default:
+            o.state = 9;
+            break;
+    }
+    return true;
+}
+void* __fastcall OpbCityPlumbing(void*, void*) { return &g_opb->sim; }  // city 64
+void* __fastcall OpbCityNoPlumbing(void*, void*) { return nullptr; }    // city 64
+
+void InitFakeOrigPlumbing(FakeOrigPlumbing& o) {
+    g_opb = &o;
+    for (FakeVtable* vt : {&o.simVt, &o.agentVt, &o.serVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OpbQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OpbAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OpbRelease);
+    }
+    o.gridVt.slots[0] = reinterpret_cast<void*>(&OpbGridQi);
+    o.gridSerVt.slots[0] = reinterpret_cast<void*>(&OpbGridSerQi);
+    for (FakeVtable* vt : {&o.gridVt, &o.gridSerVt}) {
+        vt->slots[1] = reinterpret_cast<void*>(&OpbAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OpbRelease);
+    }
+    o.gridSerVt.slots[5] = reinterpret_cast<void*>(&OpbGridClsid);
+    o.gridVt.slots[10] = reinterpret_cast<void*>(&OpbTractSize);
+    o.gridVt.slots[11] = reinterpret_cast<void*>(&OpbTractShift);
+    o.gridVt.slots[12] = reinterpret_cast<void*>(&OpbTractCount);
+    o.gridVt.slots[13] = reinterpret_cast<void*>(&OpbTractCount);
+    o.gridVt.slots[14] = reinterpret_cast<void*>(&OpbTractWidth);
+    o.gridVt.slots[15] = reinterpret_cast<void*>(&OpbTractWidth);
+    o.gridVt.slots[16] = reinterpret_cast<void*>(&OpbTractInvWidth);
+    o.gridVt.slots[17] = reinterpret_cast<void*>(&OpbTractInvWidth);
+    o.gridVt.slots[22] = reinterpret_cast<void*>(&OpbTractValue);
+    o.simVt.slots[7] = reinterpret_cast<void*>(&OpbWateredGrid);
+    for (int s = 12; s <= 23; ++s) o.simVt.slots[s] = reinterpret_cast<void*>(&OpbZero);
+    o.simVt.slots[21] = reinterpret_cast<void*>(&OpbWateredCount);
+    o.serVt.slots[3] = reinterpret_cast<void*>(&OpbWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&OpbClsid);
+    o.agentVt.slots[3] = reinterpret_cast<void*>(&OpbDoMessage);
+    o.cityVt.slots[64] = reinterpret_cast<void*>(&OpbCityPlumbing);
+    o.noCityVt.slots[64] = reinterpret_cast<void*>(&OpbCityNoPlumbing);
+    o.sim.vtbl = o.simVt.slots.data();
+    o.agent.vtbl = o.agentVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.noCity.vtbl = o.noCityVt.slots.data();
+    o.other.vtbl = o.agentVt.slots.data();  // an agent, but not the simulator's
+    for (int i = 0; i < 2; ++i) {
+        o.grids[i].vtbl = o.gridVt.slots.data();
+        o.gridSers[i] = FakePlumbGridSer{o.gridSerVt.slots.data(), &o.grids[i]};
+    }
+}
+
+// A new "original" (state 9, a recompute due, the grids as a loaded city left
+// them: the published one with stale values) for each run.
+void OpbReset(FakeOrigPlumbing& o, bool wrongCell, uint32_t watered) {
+    o.working = 0;
+    o.state = 9;
+    o.recompute = true;
+    o.pass = 0;
+    o.iter = 2;
+    o.swaps = 0;
+    o.wrongCell = wrongCell;
+    o.watered = watered;
+    std::memset(o.grids[0].v, 0, sizeof(o.grids[0].v));
+    std::memset(o.grids[1].v, 0, sizeof(o.grids[1].v));
+    o.grids[1].v[1 * 4 + 1] = 3;  // a watered lot cell of the last pass
+}
+
+// One run: twelve SimIdle (the first pass: its start is not seen), a
+// SimNewMonth (the pipe funding; it also sets the recompute) and twelve
+// SimIdle (the second pass, seen from its start), all on 2000-02-01.
+intptr_t PlumbingShadowRun(FC4TestSeamFn seam, FakeObject* city, cIGZMessageTarget2* target) {
+    static uint32_t types[25];
+    static int32_t julians[25];
+    for (int i = 0; i < 25; ++i) {
+        types[i] = i == 12 ? kMsgSimNewMonth : kMsgSimIdle;
+        julians[i] = 2451576;
+    }
+    FC4PlumbingShadowTestInput in{reinterpret_cast<cISC4City*>(city), target, types, julians, 25, 0, nullptr};
+    return seam(kFC4SeamPlumbingShadow, &in, nullptr);
 }
 
 // A vector for GetCrimeIncidentArray in this executable (the game's allocator
@@ -2598,7 +2861,7 @@ int main(int argc, char** argv) {
         // the water simulator (plumbing.md §1).
         SetEnvironmentVariableA("FC4_DISABLE", nullptr);
         SetEnvironmentVariableA("FC4_ENABLE", nullptr);
-        WriteTextFile(ini, "[subsystems]\nenable = plumbing\n");
+        WriteTextFile(ini, "[subsystems]\nenable = plumbing\n[tools]\nplumbing_shadow = 1\n");
         HMODULE hd = LoadLibraryA(dll.c_str());
         CHECK(hd != nullptr);
         if (hd == nullptr) return 1;
@@ -2687,6 +2950,11 @@ int main(int argc, char** argv) {
         CHECK(text.find("plumbing Init:") != std::string::npos);
         CHECK(text.find("plumbing Shutdown") != std::string::npos);
         CHECK(text.find("cFC4PlumbingSimulator destroyed") != std::string::npos);
+        // The shadow compares against the ORIGINAL plumbing simulator: requested, inactive.
+        CHECK(text.find("plumbing shadow: requested (plumbing_shadow from FreeCity4.ini) but INACTIVE: it needs "
+                        "FreeCity4's simulator and the original plumbing simulator (do not enable plumbing); here the "
+                        "simulator is ours and plumbing is ours") != std::string::npos);
+        CHECK(text.find("plumbing shadow: ON") == std::string::npos);
         CHECK(text.find("config: WARNING unknown key") == std::string::npos);
         if (g_failures == 0) std::printf("plugin enable test (%s): all checks passed\n", mode.c_str());
         return g_failures == 0 ? 0 : 1;
@@ -2963,6 +3231,9 @@ int main(int argc, char** argv) {
     SetEnvironmentVariableA("FC4_CHECKED_SELFTEST", "1");
     SetEnvironmentVariableA("FC4_STATUS_EVERY", "5");
     SetEnvironmentVariableA("FC4_HEARTBEAT_MS", "2000");
+    // The plumbing shadow on (our simulator, the original plumbing simulator):
+    // the game-start line says ON; deliveries to other agents pass through.
+    SetEnvironmentVariableA("FC4_PLUMBING_SHADOW", "1");
 
     SetGamePrecision();  // as the game's PreFrameWorkInit does
     HMODULE h = LoadLibraryA(dll.c_str());
@@ -3436,6 +3707,39 @@ int main(int argc, char** argv) {
             CheckCw("crime shadow");
         }
 
+        // The plumbing shadow (op 22) next to an "original" plumbing simulator:
+        // runs of 25 deliveries, a fresh shadow each. No city, a city without a
+        // plumbing simulator, or an agent that is not the original's: left to
+        // the caller (-1), every delivery made once. Clean: the first pass
+        // (start not seen: not exact, not counted), a clean month, the second
+        // pass seen from its start and exact (0). One published cell wrong in
+        // the second pass (1); one scalar (the watered buildings) wrong (1;
+        // in the first pass too, but that one is not exact).
+        if (seam != nullptr) {
+            static FakeOrigPlumbing opb;
+            InitFakeOrigPlumbing(opb);
+            cIGZMessageTarget2* agent = reinterpret_cast<cIGZMessageTarget2*>(&opb.agent);
+            OpbReset(opb, false, 0);
+            CHECK(PlumbingShadowRun(seam, nullptr, agent) == -1);
+            CHECK(PlumbingShadowRun(seam, &opb.noCity, agent) == -1);
+            OpbReset(opb, false, 0);
+            CHECK(PlumbingShadowRun(seam, &opb.city, reinterpret_cast<cIGZMessageTarget2*>(&opb.other)) == -1);
+            CHECK(opb.deliveries == 75 && opb.writes == 0);
+            OpbReset(opb, false, 0);
+            const int writesBefore = opb.writes;
+            CHECK(PlumbingShadowRun(seam, &opb.city, agent) == 0);
+            CHECK(opb.deliveries == 100);
+            CHECK(opb.pass == 2 && opb.state == 9);
+            CHECK(opb.writes > writesBefore);
+            OpbReset(opb, true, 0);
+            CHECK(PlumbingShadowRun(seam, &opb.city, agent) == 1);
+            OpbReset(opb, false, 3);
+            CHECK(PlumbingShadowRun(seam, &opb.city, agent) == 1);
+            CHECK(opb.deliveries == 150);
+            CHECK(opb.refs == 1);  // every QueryInterface released
+            CheckCw("plumbing shadow");
+        }
+
         // The reference audit (run 42, ForEachExemplarKey): freeing a
         // temporary the game created for us (acquired, then
         // FC4_RELEASE_CREATED) is not a warning; the same last-reference
@@ -3573,6 +3877,38 @@ int main(int argc, char** argv) {
     CHECK(text.find("crime shadow 2000-02-05: INCOMPLETE") == std::string::npos);
     CHECK(text.find("crime shadow: ON") == std::string::npos);  // off by default
     CHECK(text.find("crime shadow: requested") == std::string::npos);
+    // The plumbing shadow (test seam op 22): three runs taken (clean, one
+    // wrong cell, one wrong scalar), each a first pass replayed from its swap
+    // (not exact), a month and a second pass seen from its start.
+    CHECK(CountOf(text, "plumbing shadow: comparing with the original plumbing simulator ") == 3);
+    CHECK(text.find("plumbing shadow 2000-02-01 pass 1: aligned=swap exact=0 (start not seen); grid 4x4 cells=16 "
+                    "differing=0 max|diff|=0; producers 0; ") != std::string::npos);
+    CHECK(text.find("plumbing shadow 2000-02-01 month: pipes=0 distressedBefore=0 burstBefore=0; distressed "
+                    "orig/ours=0/0; burst orig/ours=+0/+0; pipeCondition ours=0.0000 (orig not readable; its "
+                    "distressed count implies 0 (no pipes)); funding=1.000; mismatches=0; months=1 clean=1; passes "
+                    "since the last month line: seen=1 compared=1 clean=0 notExact=1") != std::string::npos);
+    CHECK(CountOf(text, "plumbing shadow 2000-02-01 month: ") == 3);
+    CHECK(text.find("plumbing shadow 2000-02-01 pass 2: aligned=start exact=1; grid 4x4 cells=16 differing=0 "
+                    "max|diff|=0; ") != std::string::npos);
+    CHECK(text.find("; produced orig/ours=0/0; consumed orig/ours=0/0; imported orig/ours=0/0; exported "
+                    "orig/ours=0/0; wateredCells orig/ours=0/0; unwateredCells orig/ours=0/0; cost orig/ours=0/0; "
+                    "demand orig/ours=0/0; pipes orig/ours=0/0; distressed orig/ours=0/0; burst orig/ours=0/0; "
+                    "sources orig/ours=0/0; maintenance compared=0 differing=0; ageing=yes; condition orig/ours=[]; "
+                    "deliveries=4; mismatches=0; passes compared=2 clean=1") != std::string::npos);
+    CHECK(text.find("plumbing shadow 2000-02-01 pass 2: aligned=start exact=1; grid 4x4 cells=16 differing=1 "
+                    "max|diff|=1 first (x,z) orig/ours: (2,2) 1/0; ") != std::string::npos);
+    CHECK(CountOf(text, "wateredCells orig/ours=3/0!; ") == 2);
+    CHECK(text.find("deliveries=2; mismatches=0 (not exact: 1 differences not counted); passes compared=1 clean=0") !=
+          std::string::npos);
+    CHECK(CountOf(text, "; mismatches=1; passes compared=2 clean=0") == 2);
+    CHECK(text.find("plumbing shadow: ON (plumbing_shadow from FC4_PLUMBING_SHADOW): at each SimIdle and SimNewDay "
+                    "of the ORIGINAL plumbing simulator (one pass state each), FreeCity4's water pass replayed") !=
+          std::string::npos);
+    CHECK(text.find("differing cells listed per line: 8; passes replayed per game day: 4 (0 = all). The record is "
+                    "read through the original's own Write into memory. Not compared (not readable read-only): pipe "
+                    "watered states") != std::string::npos);
+    CHECK(text.find("plumbing shadow: requested") == std::string::npos);
+    CHECK(CountOf(text, "plumbing shadow 2000-02-01 pass ") == 6);  // no INCOMPLETE pass line
     CHECK(text.find("DLL_PROCESS_ATTACH") != std::string::npos);
     CHECK(text.find("cFC4Director constructed") != std::string::npos);
     CHECK(text.find("EnumClassObjects: reporting clsid 0x2990C1E5") != std::string::npos);

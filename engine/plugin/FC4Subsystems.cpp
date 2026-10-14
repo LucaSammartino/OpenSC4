@@ -27,6 +27,7 @@
 #include "cFC4Ordinance.h"
 #include "cFC4Power.h"
 #include "cFC4Plumbing.h"
+#include "FC4PlumbingShadow.h"
 #include "cFC4Flammability.h"
 #include "FC4PollutionShadow.h"
 #include "cFC4Pollution.h"
@@ -270,6 +271,8 @@ void Resolve() {
     CrimeShadowStartup(g_enabled[0], enabledKey("crime"));
     // The aura grid shadow (FC4AuraShadow.h; it compares the original aura simulator).
     AuraShadowStartup(enabledKey("aura"));
+    // The plumbing shadow (FC4PlumbingShadow.h; it compares the original plumbing simulator).
+    PlumbingShadowStartup(g_enabled[0], enabledKey("plumbing"));
 }
 
 }  // namespace

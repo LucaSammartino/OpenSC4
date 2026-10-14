@@ -105,7 +105,11 @@ constexpr uint32_t kBudgetPurpose = 0xCA58C9D5;
 
 using GridU8 = cISC4SimGrid<uint8_t>;
 
-cFC4PlumbingSimulator* Self(void* u) { return static_cast<cFC4PlumbingSimulator*>(u); }
+// The host tables' user: the game services (FC4PlumbingGame). Our own table's
+// user is the simulator's FC4PlumbingGame base; the write callbacks, which only
+// our table has, reach the simulator from it.
+FC4PlumbingGame* G(void* u) { return static_cast<FC4PlumbingGame*>(u); }
+cFC4PlumbingSimulator* Self(void* u) { return static_cast<cFC4PlumbingSimulator*>(G(u)); }
 
 cISC4Occupant* OccOf(uint64_t t) { return reinterpret_cast<cISC4Occupant*>(FromToken(t)); }
 cFC4ISC4Lot* LotOf(uint64_t t) { return t ? fc4::AsGame(reinterpret_cast<cISC4Lot*>(FromToken(t))) : nullptr; }
@@ -122,6 +126,10 @@ bool Gate(fc4::Sw s, const char* what) {
     fc4::NoteSkipped(s, what);
     return false;
 }
+
+// A read callback's gate: the plumbing_* switches gate our reads; the shadow
+// (FC4PlumbingShadow.h) reads the original's inputs as they are.
+bool Gate(void* u, fc4::Sw s, const char* what) { return !G(u)->gated || Gate(s, what); }
 
 // QueryInterface for `iid`; the result (one reference) or nullptr.
 template <class T>
@@ -153,20 +161,20 @@ bool WithQi(uint64_t occ, uint32_t iid, F f) {
 // ---- city, tuning, ordinance, pollution ---------------------------------------------------------
 
 void CellCounts(void* u, int32_t* x, int32_t* z) {
-    cISC4City* c = Self(u)->City();
+    cISC4City* c = G(u)->city;
     if (x != nullptr) *x = c ? static_cast<int32_t>(c->CellCountX()) : 0;
     if (z != nullptr) *z = c ? static_cast<int32_t>(c->CellCountZ()) : 0;
 }
 
 void PositionToCell(void* u, float x, float z, int32_t* cx, int32_t* cz) {
     int32_t a = 0, b = 0;
-    if (cISC4City* c = Self(u)->City()) c->PositionToCell(x, z, a, b);  // slot 95
+    if (cISC4City* c = G(u)->city) c->PositionToCell(x, z, a, b);  // slot 95
     if (cx != nullptr) *cx = a;
     if (cz != nullptr) *cz = b;
 }
 
-fc4_props* Tuning(void*) {
-    if (!Gate(fc4::Sw::ExemplarLoads, "plumbing tuning exemplar (none)")) return nullptr;
+fc4_props* Tuning(void* u) {
+    if (!Gate(u, fc4::Sw::ExemplarLoads, "plumbing tuning exemplar (none)")) return nullptr;
     fc4::props::Exemplar ex;
     if (!ex.Load(kTuningType, kTuningGroup, kTuningInstance)) {
         fc4::Log("plumbing: tuning exemplar unavailable; the defaults stay");
@@ -180,8 +188,8 @@ fc4_props* Tuning(void*) {
 uint32_t WallClockSeed(void*) { return static_cast<uint32_t>(GetTickCount64() ^ GetCurrentProcessId()); }
 
 bool CumulativeFactor(void* u, uint32_t id, uint32_t index, float* out) {
-    if (!Gate(fc4::Sw::PlumbingOrdinance, "plumbing GetCumulativeFactor (absent)")) return false;
-    cISC4City* c = Self(u)->City();
+    if (!Gate(u, fc4::Sw::PlumbingOrdinance, "plumbing GetCumulativeFactor (absent)")) return false;
+    cISC4City* c = G(u)->city;
     cISC4OrdinanceSimulator* o = c ? c->GetOrdinanceSimulator() : nullptr;
     if (o == nullptr) return false;
     if (out != nullptr) *out = o->GetCumulativeFactor(id, index);  // slot 25, ST0
@@ -189,8 +197,8 @@ bool CumulativeFactor(void* u, uint32_t id, uint32_t index, float* out) {
 }
 
 int32_t WaterValue(void* u, int32_t x, int32_t z) {
-    if (!Gate(fc4::Sw::PlumbingPollution, "plumbing GetWaterValue (0)")) return 0;
-    cISC4PollutionSimulator* p = Self(u)->Pollution();
+    if (!Gate(u, fc4::Sw::PlumbingPollution, "plumbing GetWaterValue (0)")) return 0;
+    cISC4PollutionSimulator* p = G(u)->pollution;
     if (p == nullptr) return 0;
     int32_t v = 0;
     p->GetWaterValue(static_cast<uint32_t>(x), static_cast<uint32_t>(z), v);  // slot 8
@@ -200,7 +208,7 @@ int32_t WaterValue(void* u, int32_t x, int32_t z) {
 // ---- framework ----------------------------------------------------------------------------------
 
 void AddAgent(void* u, uint32_t level, const char* name, size_t len, uint32_t flags) {
-    cISC4City* c = Self(u)->City();
+    cISC4City* c = G(u)->city;
     cFC4ISC4Simulator* sim = c ? fc4::AsGame(c->GetSimulator()) : nullptr;
     if (sim == nullptr) {
         fc4::Log("plumbing: no simulator; agent level %u not registered", level);
@@ -211,7 +219,7 @@ void AddAgent(void* u, uint32_t level, const char* name, size_t len, uint32_t fl
 }
 
 void RemoveAgent(void* u) {
-    cISC4City* c = Self(u)->City();
+    cISC4City* c = G(u)->city;
     cFC4ISC4Simulator* sim = c ? fc4::AsGame(c->GetSimulator()) : nullptr;
     if (sim != nullptr) sim->RemoveAgentAllLevels(Self(u)->Target());  // slot 20
 }
@@ -240,7 +248,7 @@ void Post(void* u, uint32_t msgType, uint32_t data1) {
 
 void RecordHistory(void* u, uint32_t id, uint32_t value) {
     if (!Gate(fc4::Sw::PlumbingHistory, "plumbing RecordHistoryData")) return;
-    cISC4City* c = Self(u)->City();
+    cISC4City* c = G(u)->city;
     cISC4HistoryWarehouse* h = c ? c->GetHistoryWarehouse() : nullptr;
     if (h != nullptr) h->RecordHistoryData(id, value);  // slot 12
 }
@@ -289,13 +297,13 @@ uint64_t ResolveRef(void*, uint64_t t, uint32_t iid) {
 
 // ---- occupants ----------------------------------------------------------------------------------
 
-uint32_t OccupantType(void*, uint64_t occ) {
-    if (occ == 0 || !Gate(fc4::Sw::PlumbingOccupants, "plumbing occupant GetType (0)")) return 0;
+uint32_t OccupantType(void* u, uint64_t occ) {
+    if (occ == 0 || !Gate(u, fc4::Sw::PlumbingOccupants, "plumbing occupant GetType (0)")) return 0;
     return static_cast<uint32_t>(OccOf(occ)->GetType());  // slot 7
 }
 
-bool OccupantProperty(void*, uint64_t occ, uint32_t id, fc4_props* out) {
-    if (occ == 0 || !Gate(fc4::Sw::PlumbingOccupants, "plumbing occupant property read (absent)")) return false;
+bool OccupantProperty(void* u, uint64_t occ, uint32_t id, fc4_props* out) {
+    if (occ == 0 || !Gate(u, fc4::Sw::PlumbingOccupants, "plumbing occupant property read (absent)")) return false;
     cISCPropertyHolder* h = OccOf(occ)->AsPropertyHolder();  // borrowed, slot 6
     return h != nullptr && fc4::props::CopyToCore(h, id, out);
 }
@@ -310,8 +318,8 @@ void SetOccupantProperty(void*, uint64_t occ, uint32_t id, uint16_t memType, boo
     }
 }
 
-void OccupantPosition(void*, uint64_t occ, float* xyz) {
-    if (xyz == nullptr || occ == 0 || !Gate(fc4::Sw::PlumbingOccupants, "plumbing occupant GetPosition")) return;
+void OccupantPosition(void* u, uint64_t occ, float* xyz) {
+    if (xyz == nullptr || occ == 0 || !Gate(u, fc4::Sw::PlumbingOccupants, "plumbing occupant GetPosition")) return;
     cS3DVector3 v;
     OccOf(occ)->GetPosition(&v);  // slot 8
     xyz[0] = v.fX;
@@ -319,9 +327,9 @@ void OccupantPosition(void*, uint64_t occ, float* xyz) {
     xyz[2] = v.fZ;
 }
 
-void OccupantBoundingBox(void*, uint64_t occ, float* mn, float* mx) {
+void OccupantBoundingBox(void* u, uint64_t occ, float* mn, float* mx) {
     if (mn == nullptr || mx == nullptr || occ == 0 ||
-        !Gate(fc4::Sw::PlumbingOccupants, "plumbing occupant GetBoundingBox")) {
+        !Gate(u, fc4::Sw::PlumbingOccupants, "plumbing occupant GetBoundingBox")) {
         return;
     }
     cS3DVector3 a, b;
@@ -334,9 +342,9 @@ void OccupantBoundingBox(void*, uint64_t occ, float* mn, float* mx) {
     mx[2] = b.fZ;
 }
 
-void OccupantBoundingCells(void*, uint64_t occ, fc4_cell_rect* out) {
+void OccupantBoundingCells(void* u, uint64_t occ, fc4_cell_rect* out) {
     if (out == nullptr || occ == 0 ||
-        !Gate(fc4::Sw::PlumbingOccupants, "plumbing occupant GetBoundingCityCells")) {
+        !Gate(u, fc4::Sw::PlumbingOccupants, "plumbing occupant GetBoundingCityCells")) {
         return;
     }
     SC4Rect<long> r;
@@ -347,8 +355,8 @@ void OccupantBoundingCells(void*, uint64_t occ, fc4_cell_rect* out) {
     out->z2 = static_cast<int32_t>(r.bottomRightY);
 }
 
-bool BuildingType(void*, uint64_t occ, uint32_t* out) {
-    if (!Gate(fc4::Sw::PlumbingOccupants, "plumbing building type (none)")) return false;
+bool BuildingType(void* u, uint64_t occ, uint32_t* out) {
+    if (!Gate(u, fc4::Sw::PlumbingOccupants, "plumbing building type (none)")) return false;
     return WithQi<cISC4BuildingOccupant>(occ, kIID_cISC4BuildingOccupant, [&](cISC4BuildingOccupant* b) {
         if (out != nullptr) *out = static_cast<uint32_t>(b->GetBuildingType());  // slot 4
     });
@@ -359,8 +367,8 @@ bool BuildingType(void*, uint64_t occ, uint32_t* out) {
 // fills an SC4List (A) with one reference each, kept until the outermost call
 // into the core returns.
 void BuildingsInCell(void* u, int32_t x, int32_t z, fc4_token_callback cb, void* ctx) {
-    if (cb == nullptr || !Gate(fc4::Sw::PlumbingOccupants, "plumbing buildings in a cell (none)")) return;
-    cISC4OccupantManager* om = Self(u)->OccupantManager();
+    if (cb == nullptr || !Gate(u, fc4::Sw::PlumbingOccupants, "plumbing buildings in a cell (none)")) return;
+    cISC4OccupantManager* om = G(u)->occupantManager;
     if (om == nullptr) return;
     auto list = std::make_shared<SC4List<cISC4Occupant*>>();
     const SC4Point<int> cell(x, z);
@@ -368,7 +376,7 @@ void BuildingsInCell(void* u, int32_t x, int32_t z, fc4_token_callback cb, void*
     for (cISC4Occupant* o : *list) {
         if (o != nullptr) cb(ctx, TokenOf(o));
     }
-    Self(u)->Hold(std::move(list));
+    G(u)->Hold(std::move(list));
 }
 
 // ---- network occupants (pipes) ------------------------------------------------------------------
@@ -378,24 +386,24 @@ void BuildingsInCell(void* u, int32_t x, int32_t z, fc4_token_callback cb, void*
 // is at +0 (docs/abi/direct-calls.md). §12.2 item 4: a replacement QIs rather
 // than applying the original's +4 adjustment.
 
-bool IsNetworkOccupant(void*, uint64_t occ) {
-    if (occ == 0 || !Gate(fc4::Sw::PlumbingPipes, "plumbing pipe QueryInterface (not a pipe)")) return false;
+bool IsNetworkOccupant(void* u, uint64_t occ) {
+    if (occ == 0 || !Gate(u, fc4::Sw::PlumbingPipes, "plumbing pipe QueryInterface (not a pipe)")) return false;
     cISC4NetworkOccupant* n = Query<cISC4NetworkOccupant>(FromToken(occ), kIID_cSC4PipeOccupant);
     const bool ok = n != nullptr;
     Drop(n);
     return ok;
 }
 
-bool HasNetworkFlag(void*, uint64_t occ, uint32_t flag) {
-    if (!Gate(fc4::Sw::PlumbingPipes, "plumbing HasNetworkFlag (false)")) return false;
+bool HasNetworkFlag(void* u, uint64_t occ, uint32_t flag) {
+    if (!Gate(u, fc4::Sw::PlumbingPipes, "plumbing HasNetworkFlag (false)")) return false;
     bool v = false;
     WithQi<cISC4NetworkOccupant>(occ, kIID_cSC4PipeOccupant,
                                  [&](cISC4NetworkOccupant* n) { v = n->HasNetworkFlag(flag); });  // slot 8
     return v;
 }
 
-uint32_t NetworkFlags(void*, uint64_t occ) {
-    if (!Gate(fc4::Sw::PlumbingPipes, "plumbing GetNetworkFlag (0)")) return 0;
+uint32_t NetworkFlags(void* u, uint64_t occ) {
+    if (!Gate(u, fc4::Sw::PlumbingPipes, "plumbing GetNetworkFlag (0)")) return 0;
     uint32_t v = 0;
     WithQi<cISC4NetworkOccupant>(occ, kIID_cSC4PipeOccupant,
                                  [&](cISC4NetworkOccupant* n) { v = n->GetNetworkFlag(); });  // slot 12
@@ -414,8 +422,8 @@ void ClearNetworkFlag(void*, uint64_t occ, uint32_t flag) {
                                  [&](cISC4NetworkOccupant* n) { n->ClearNetworkFlag(flag); });  // slot 11
 }
 
-bool ConnectsToNeighbor(void*, uint64_t occ, uint32_t dir, uint32_t networkType) {
-    if (!Gate(fc4::Sw::PlumbingPipes, "plumbing ConnectsToNeighbor (false)")) return false;
+bool ConnectsToNeighbor(void* u, uint64_t occ, uint32_t dir, uint32_t networkType) {
+    if (!Gate(u, fc4::Sw::PlumbingPipes, "plumbing ConnectsToNeighbor (false)")) return false;
     bool v = false;
     WithQi<cISC4NetworkOccupant>(
         occ, kIID_cSC4PipeOccupant,
@@ -426,9 +434,9 @@ bool ConnectsToNeighbor(void*, uint64_t occ, uint32_t dir, uint32_t networkType)
     return v;
 }
 
-void OccupiedCell(void*, uint64_t occ, int32_t* x, int32_t* z) {
+void OccupiedCell(void* u, uint64_t occ, int32_t* x, int32_t* z) {
     uint32_t cx = 0, cz = 0;
-    if (Gate(fc4::Sw::PlumbingPipes, "plumbing GetOccupiedCell")) {
+    if (Gate(u, fc4::Sw::PlumbingPipes, "plumbing GetOccupiedCell")) {
         WithQi<cISC4NetworkOccupant>(occ, kIID_cSC4PipeOccupant,
                                      [&](cISC4NetworkOccupant* n) { n->GetOccupiedCell(cx, cz); });  // slot 59
     }
@@ -460,19 +468,19 @@ void SetPipeWatered(void*, uint64_t occ, bool watered) {
 // ---- lots ---------------------------------------------------------------------------------------
 
 uint64_t LotAt(void* u, int32_t x, int32_t z) {
-    if (!Gate(fc4::Sw::PlumbingLots, "plumbing GetLot (none)")) return 0;
-    cISC4LotManager* lm = Self(u)->LotManager();
+    if (!Gate(u, fc4::Sw::PlumbingLots, "plumbing GetLot (none)")) return 0;
+    cISC4LotManager* lm = G(u)->lotManager;
     return lm ? TokenOf(lm->GetLot(x, z, false)) : 0;  // compiled slot 6, borrowed
 }
 
 uint64_t OccupantLot(void* u, uint64_t occ) {
-    if (occ == 0 || !Gate(fc4::Sw::PlumbingLots, "plumbing GetOccupantLot (none)")) return 0;
-    cISC4LotManager* lm = Self(u)->LotManager();
+    if (occ == 0 || !Gate(u, fc4::Sw::PlumbingLots, "plumbing GetOccupantLot (none)")) return 0;
+    cISC4LotManager* lm = G(u)->lotManager;
     return lm ? TokenOf(lm->GetOccupantLot(OccOf(occ))) : 0;  // slot 14, borrowed
 }
 
-void LotRect(void*, uint64_t lot, fc4_cell_rect* out) {
-    if (out == nullptr || lot == 0 || !Gate(fc4::Sw::PlumbingLots, "plumbing GetBoundingRect")) return;
+void LotRect(void* u, uint64_t lot, fc4_cell_rect* out) {
+    if (out == nullptr || lot == 0 || !Gate(u, fc4::Sw::PlumbingLots, "plumbing GetBoundingRect")) return;
     SC4Rect<int32_t> r;
     LotOf(lot)->GetBoundingRect(r);  // slot 14, inclusive cells
     out->x1 = r.topLeftX;
@@ -481,13 +489,13 @@ void LotRect(void*, uint64_t lot, fc4_cell_rect* out) {
     out->z2 = r.bottomRightY;
 }
 
-bool LotNeedsPower(void*, uint64_t lot) {
-    if (lot == 0 || !Gate(fc4::Sw::PlumbingLots, "plumbing GetNeedsPower (false)")) return false;
+bool LotNeedsPower(void* u, uint64_t lot) {
+    if (lot == 0 || !Gate(u, fc4::Sw::PlumbingLots, "plumbing GetNeedsPower (false)")) return false;
     return LotOf(lot)->GetNeedsPower();  // slot 65
 }
 
-bool LotHasPower(void*, uint64_t lot) {
-    if (lot == 0 || !Gate(fc4::Sw::PlumbingLots, "plumbing GetHasPower (false)")) return false;
+bool LotHasPower(void* u, uint64_t lot) {
+    if (lot == 0 || !Gate(u, fc4::Sw::PlumbingLots, "plumbing GetHasPower (false)")) return false;
     return LotOf(lot)->GetHasPower();  // slot 66
 }
 
@@ -500,21 +508,21 @@ void SetLotCondition(void*, uint64_t lot, uint8_t condition) {
 // ---- terrain ------------------------------------------------------------------------------------
 
 bool TerrainCellCounts(void* u, int32_t* x, int32_t* z) {
-    cISTETerrain* t = Self(u)->Terrain();
-    if (t == nullptr || !Gate(fc4::Sw::PlumbingTerrain, "plumbing terrain cell counts (no terrain)")) return false;
+    cISTETerrain* t = G(u)->terrain;
+    if (t == nullptr || !Gate(u, fc4::Sw::PlumbingTerrain, "plumbing terrain cell counts (no terrain)")) return false;
     if (x != nullptr) *x = static_cast<int32_t>(t->CellCountX());  // slot 7
     if (z != nullptr) *z = static_cast<int32_t>(t->CellCountZ());  // slot 8
     return true;
 }
 
 bool CellHasWater(void* u, int32_t x, int32_t z) {
-    cISTETerrain* t = Self(u)->Terrain();
-    if (t == nullptr || !Gate(fc4::Sw::PlumbingTerrain, "plumbing CellHasWater (false)")) return false;
+    cISTETerrain* t = G(u)->terrain;
+    if (t == nullptr || !Gate(u, fc4::Sw::PlumbingTerrain, "plumbing CellHasWater (false)")) return false;
     return t->CellHasWater(static_cast<uint32_t>(x), static_cast<uint32_t>(z));  // slot 34
 }
 
 void RedisplayTerrain(void* u, int32_t minX, int32_t minZ, int32_t maxX, int32_t maxZ) {
-    cISTETerrain* t = Self(u)->Terrain();
+    cISTETerrain* t = G(u)->terrain;
     if (t == nullptr || !Gate(fc4::Sw::PlumbingTerrain, "plumbing RedisplayTerrain")) return;
     const SC4Point<int32_t> mn(minX, minZ), mx(maxX, maxZ);
     t->RedisplayTerrain(false, false, mn, mx, 0);  // slot 69
@@ -526,7 +534,7 @@ void RedisplayTerrain(void* u, int32_t minX, int32_t minZ, int32_t maxX, int32_t
 // AttemptDisasterStart(x, z). Returns whether the manager existed (§7.1).
 bool AttemptPipeBurst(void* u, int32_t x, int32_t z) {
     if (!Gate(fc4::Sw::PlumbingDisaster, "plumbing AttemptDisasterStart (no manager)")) return false;
-    cISC4City* c = Self(u)->City();
+    cISC4City* c = G(u)->city;
     cISC4DisasterLayer* layer = c ? c->GetDisasterLayer() : nullptr;  // city slot 72
     cISC4DisasterManager* m = layer ? layer->GetDisasterManager(kPipeBurstManager) : nullptr;  // layer slot 7
     if (m == nullptr) return false;
@@ -537,7 +545,7 @@ bool AttemptPipeBurst(void* u, int32_t x, int32_t z) {
 // ---- neighbours ---------------------------------------------------------------------------------
 
 cFC4ISC4NeighborsSimulator* Neighbors(void* u) {
-    cISC4NeighborsSimulator* n = Self(u)->Neighbors();
+    cISC4NeighborsSimulator* n = G(u)->neighbors;
     return n ? fc4::AsGame(n) : nullptr;
 }
 
@@ -545,7 +553,7 @@ cFC4ISC4NeighborsSimulator* Neighbors(void* u) {
 // each (allocators.md): an SC4List, held until the outermost call into the core
 // returns.
 void FindDeals(void* u, uint32_t type, fc4_token_callback cb, void* ctx) {
-    if (cb == nullptr || !Gate(fc4::Sw::PlumbingNeighbors, "plumbing FindDeals (none)")) return;
+    if (cb == nullptr || !Gate(u, fc4::Sw::PlumbingNeighbors, "plumbing FindDeals (none)")) return;
     cFC4ISC4NeighborsSimulator* n = Neighbors(u);
     if (n == nullptr) return;
     auto list = std::make_shared<SC4List<cISC4NeighborDeal*>>();
@@ -553,7 +561,7 @@ void FindDeals(void* u, uint32_t type, fc4_token_callback cb, void* ctx) {
     for (cISC4NeighborDeal* d : *list) {
         if (d != nullptr) cb(ctx, TokenOf(d));
     }
-    Self(u)->Hold(std::move(list));
+    G(u)->Hold(std::move(list));
 }
 
 uint32_t DealType(void*, uint64_t deal) { return deal ? static_cast<uint32_t>(DealOf(deal)->GetType()) : 0; }
@@ -579,7 +587,7 @@ void SetDealFlags(void*, uint64_t deal, uint32_t flags, bool on) {
 
 template <class Fill>
 void Connections(void* u, fc4_token_callback cb, void* ctx, Fill fill) {
-    if (cb == nullptr || !Gate(fc4::Sw::PlumbingNeighbors, "plumbing neighbour connections (none)")) return;
+    if (cb == nullptr || !Gate(u, fc4::Sw::PlumbingNeighbors, "plumbing neighbour connections (none)")) return;
     cFC4ISC4NeighborsSimulator* n = Neighbors(u);
     if (n == nullptr) return;
     auto list = std::make_shared<SC4List<cISC4NeighborConnection*>>();
@@ -587,7 +595,7 @@ void Connections(void* u, fc4_token_callback cb, void* ctx, Fill fill) {
     for (cISC4NeighborConnection* c : *list) {
         if (c != nullptr) cb(ctx, TokenOf(c));
     }
-    Self(u)->Hold(std::move(list));
+    G(u)->Hold(std::move(list));
 }
 
 using ConnType = cISC4NeighborsSimulator::ConnectionType;
@@ -615,7 +623,7 @@ uint64_t FindUnvisitedConnection(void* u, uint32_t type, uint64_t city) {
 }
 
 uint64_t ConnectionOnOtherSide(void* u, uint64_t conn) {
-    if (conn == 0 || !Gate(fc4::Sw::PlumbingNeighbors, "plumbing FindConnectionOnOtherSide (none)")) return 0;
+    if (conn == 0 || !Gate(u, fc4::Sw::PlumbingNeighbors, "plumbing FindConnectionOnOtherSide (none)")) return 0;
     cFC4ISC4NeighborsSimulator* n = Neighbors(u);
     return n ? TokenOf(n->FindConnectionOnOtherSideOf(ConnOf(conn))) : 0;
 }
@@ -647,7 +655,7 @@ void MarkDealsDirty(void* u) {
 // ---- budget -------------------------------------------------------------------------------------
 
 cFC4ISC4BudgetSimulator* Budget(void* u) {
-    cISC4BudgetSimulator* b = Self(u)->Budget();
+    cISC4BudgetSimulator* b = G(u)->budget;
     return b ? fc4::AsGame(b) : nullptr;
 }
 
@@ -689,7 +697,7 @@ void RemoveLineItem(void*, uint64_t dept, uint32_t line) {
 }
 
 uint64_t DepartmentById(void* u, uint32_t id) {
-    if (!Gate(fc4::Sw::PlumbingBudget, "plumbing GetDepartmentBudget (none)")) return 0;
+    if (!Gate(u, fc4::Sw::PlumbingBudget, "plumbing GetDepartmentBudget (none)")) return 0;
     cFC4ISC4BudgetSimulator* b = Budget(u);
     return b ? TokenOf(b->GetDepartmentBudget(id)) : 0;  // slot 28, borrowed
 }
@@ -730,7 +738,7 @@ void SetLineItemSecondaryInfo(void*, uint64_t item, int64_t v) {
 cISCPropertyHolder* HolderOf(uint64_t occ) { return occ ? OccOf(occ)->AsPropertyHolder() : nullptr; }
 
 bool BudgetItemForPurpose(void* u, uint64_t occ, uint32_t purpose, fc4_plumbing_budget_item* out) {
-    if (!Gate(fc4::Sw::PlumbingBudget, "plumbing GetBudgetItemForPurpose (none)")) return false;
+    if (!Gate(u, fc4::Sw::PlumbingBudget, "plumbing GetBudgetItemForPurpose (none)")) return false;
     cFC4ISC4BudgetSimulator* b = Budget(u);
     cISCPropertyHolder* h = HolderOf(occ);
     if (b == nullptr || h == nullptr) return false;
@@ -782,29 +790,18 @@ bool LocalFunding(void*, uint64_t dept, uint64_t occ, float* out) {
     return true;
 }
 
-fc4_plumbing_host MakeHost(cFC4PlumbingSimulator* self, const fc4::HostGridContext* grids) {
-    fc4_plumbing_host h{};
-    h.struct_size = sizeof(h);
-    h.user = self;
-    h.grids = fc4::MakeGridApi(grids);
+// The read callbacks: our table's and the shadow's (PlumbingReadOnlyHost).
+void FillReads(fc4_plumbing_host& h) {
     // city
     h.cell_counts = &CellCounts;
     h.position_to_cell = &PositionToCell;
     h.tuning = &Tuning;
     h.wall_clock_seed = &WallClockSeed;
-    // simulator, messages, history
-    h.add_agent = &AddAgent;
-    h.remove_agent = &RemoveAgent;
-    h.subscribe = &Subscribe;
-    h.unsubscribe = &Unsubscribe;
-    h.post = &Post;
-    h.record_history = &RecordHistory;
     h.cumulative_factor = &CumulativeFactor;
     h.water_value = &WaterValue;
     // occupants
     h.occupant_type = &OccupantType;
     h.occupant_property = &OccupantProperty;
-    h.set_occupant_property = &SetOccupantProperty;
     h.occupant_position = &OccupantPosition;
     h.occupant_bounding_box = &OccupantBoundingBox;
     h.occupant_bounding_cells = &OccupantBoundingCells;
@@ -814,39 +811,64 @@ fc4_plumbing_host MakeHost(cFC4PlumbingSimulator* self, const fc4::HostGridConte
     h.is_network_occupant = &IsNetworkOccupant;
     h.has_network_flag = &HasNetworkFlag;
     h.network_flags = &NetworkFlags;
-    h.set_network_flag = &SetNetworkFlag;
-    h.clear_network_flag = &ClearNetworkFlag;
     h.connects_to_neighbor = &ConnectsToNeighbor;
     h.occupied_cell = &OccupiedCell;
-    h.set_pipe_watered = &SetPipeWatered;
     // lots
     h.lot_at = &LotAt;
     h.occupant_lot = &OccupantLot;
     h.lot_rect = &LotRect;
     h.lot_needs_power = &LotNeedsPower;
     h.lot_has_power = &LotHasPower;
-    h.set_lot_condition = &SetLotCondition;
     // terrain
     h.terrain_cell_counts = &TerrainCellCounts;
     h.cell_has_water = &CellHasWater;
-    h.redisplay_terrain = &RedisplayTerrain;
-    // disasters
-    h.attempt_pipe_burst = &AttemptPipeBurst;
     // neighbours
     h.find_deals = &FindDeals;
     h.deal_type = &DealType;
     h.deal_city = &DealCity;
     h.deal_amount = &DealAmount;
     h.deal_amount_used = &DealAmountUsed;
-    h.set_deal_amount_used = &SetDealAmountUsed;
-    h.set_deal_flags = &SetDealFlags;
     h.connections_of_type = &ConnectionsOfType;
     h.connections_of_type_to_city = &ConnectionsOfTypeToCity;
-    h.find_unvisited_connection = &FindUnvisitedConnection;
     h.connection_on_other_side = &ConnectionOnOtherSide;
     h.connection_cell = &ConnectionCell;
-    h.set_connection_visited = &SetConnectionVisited;
     h.connection_is_active = &ConnectionIsActive;
+    // budget
+    h.department_funding = &DepartmentFunding;
+    h.department_by_id = &DepartmentById;
+    h.line_item = &LineItem;
+    h.line_item_secondary_info = &LineItemSecondaryInfo;
+    h.budget_item_for_purpose = &BudgetItemForPurpose;
+    h.line_item_from_budget_item = &LineItemFromBudgetItem;
+    h.local_funding = &LocalFunding;
+}
+
+fc4_plumbing_host MakeHost(cFC4PlumbingSimulator* self, const fc4::HostGridContext* grids) {
+    fc4_plumbing_host h{};
+    h.struct_size = sizeof(h);
+    h.user = static_cast<FC4PlumbingGame*>(self);
+    h.grids = fc4::MakeGridApi(grids);
+    FillReads(h);
+    // simulator, messages, history
+    h.add_agent = &AddAgent;
+    h.remove_agent = &RemoveAgent;
+    h.subscribe = &Subscribe;
+    h.unsubscribe = &Unsubscribe;
+    h.post = &Post;
+    h.record_history = &RecordHistory;
+    // occupants, pipes, lots, terrain, disasters
+    h.set_occupant_property = &SetOccupantProperty;
+    h.set_network_flag = &SetNetworkFlag;
+    h.clear_network_flag = &ClearNetworkFlag;
+    h.set_pipe_watered = &SetPipeWatered;
+    h.set_lot_condition = &SetLotCondition;
+    h.redisplay_terrain = &RedisplayTerrain;
+    h.attempt_pipe_burst = &AttemptPipeBurst;
+    // neighbours
+    h.set_deal_amount_used = &SetDealAmountUsed;
+    h.set_deal_flags = &SetDealFlags;
+    h.find_unvisited_connection = &FindUnvisitedConnection;
+    h.set_connection_visited = &SetConnectionVisited;
     h.set_connection_active = &SetConnectionActive;
     h.mark_deals_dirty = &MarkDealsDirty;
     // budget
@@ -856,20 +878,13 @@ fc4_plumbing_host MakeHost(cFC4PlumbingSimulator* self, const fc4::HostGridConte
     h.create_line_item = &CreateLineItem;
     h.set_line_item_name = &SetLineItemName;
     h.remove_line_item = &RemoveLineItem;
-    h.department_funding = &DepartmentFunding;
-    h.department_by_id = &DepartmentById;
-    h.line_item = &LineItem;
     h.create_line_item_for_building_type = &CreateLineItemForBuildingType;
     h.set_line_item_display_flag = &SetLineItemDisplayFlag;
     h.add_to_line_item_expenses = &AddToLineItemExpenses;
     h.set_line_item_expenses = &SetLineItemExpenses;
-    h.line_item_secondary_info = &LineItemSecondaryInfo;
     h.set_line_item_secondary_info = &SetLineItemSecondaryInfo;
-    h.budget_item_for_purpose = &BudgetItemForPurpose;
     h.change_budget_item_line = &ChangeBudgetItemLine;
     h.change_budget_item_cost = &ChangeBudgetItemCost;
-    h.line_item_from_budget_item = &LineItemFromBudgetItem;
-    h.local_funding = &LocalFunding;
     // references
     h.add_ref = &AddRefToken;
     h.release = &ReleaseToken;
@@ -888,6 +903,25 @@ void AppendProducer(void* ctx, uint64_t t) {
 }
 
 }  // namespace
+
+fc4_plumbing_host fc4::PlumbingReadOnlyHost(FC4PlumbingGame* game, const HostGridContext* grids) {
+    fc4_plumbing_host h{};
+    h.struct_size = sizeof(h);
+    h.user = game;
+    h.grids = MakeGridApi(grids);
+    // Geometry and reads only: the shadow copies the live grids and never
+    // creates, writes, shuts down or releases one.
+    h.grids.create = nullptr;
+    h.grids.set = nullptr;
+    h.grids.fill = nullptr;
+    h.grids.shutdown = nullptr;
+    h.grids.release = nullptr;
+    // Every write callback stays NULL; so do FindUnvisitedConnection (the
+    // shadow answers it from its own visited flags) and the reference
+    // callbacks (the shadow holds no reference).
+    FillReads(h);
+    return h;
+}
 
 // ---- object -------------------------------------------------------------------------------------
 
@@ -949,18 +983,18 @@ uint64_t cFC4PlumbingSimulator::Occ(cISC4Occupant* occupant) const { return Toke
 
 // §4.1 step 2: each service only while its member is still null.
 void cFC4PlumbingSimulator::AcquireServices() {
-    if (city_ == nullptr) {
+    if (city == nullptr) {
         cIGZFrameWork* fw = RZGetFrameWork();
         cIGZApp* app = fw ? fw->Application() : nullptr;
         cISC4App* sc4 = nullptr;
         if (app != nullptr && app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) && sc4 != nullptr) {
             FC4_ACQUIRED(sc4, "QueryInterface");
-            city_ = sc4->GetCity();
-            FC4_ADDREF(city_);
+            city = sc4->GetCity();
+            FC4_ADDREF(city);
             FC4_RELEASE(sc4);
         }
     }
-    if (city_ == nullptr) {
+    if (city == nullptr) {
         fc4::Log("plumbing: no city; services not acquired");
         return;
     }
@@ -970,13 +1004,13 @@ void cFC4PlumbingSimulator::AcquireServices() {
             FC4_ADDREF(member);
         }
     };
-    take(occupantManager_, city_->GetOccupantManager());
-    take(lotManager_, city_->GetLotManager());
-    take(pollution_, city_->GetPollutionSimulator());
-    take(ordinance_, city_->GetOrdinanceSimulator());
-    take(neighbors_, city_->GetNeighborsSimulator());
-    take(budget_, city_->GetBudgetSimulator());
-    take(terrain_, city_->GetTerrain());
+    take(occupantManager, city->GetOccupantManager());
+    take(lotManager, city->GetLotManager());
+    take(pollution, city->GetPollutionSimulator());
+    take(ordinance, city->GetOrdinanceSimulator());
+    take(neighbors, city->GetNeighborsSimulator());
+    take(budget, city->GetBudgetSimulator());
+    take(terrain, city->GetTerrain());
 }
 
 // §4.2 step 2.
@@ -985,14 +1019,14 @@ void cFC4PlumbingSimulator::ReleaseServices() {
         if (member != nullptr) FC4_RELEASE(member);
         member = nullptr;
     };
-    drop(terrain_);
-    drop(budget_);
-    drop(neighbors_);
-    drop(ordinance_);
-    drop(pollution_);
-    drop(lotManager_);
-    drop(occupantManager_);
-    drop(city_);
+    drop(terrain);
+    drop(budget);
+    drop(neighbors);
+    drop(ordinance);
+    drop(pollution);
+    drop(lotManager);
+    drop(occupantManager);
+    drop(city);
 }
 
 void cFC4PlumbingSimulator::Subscribe(const uint32_t* ids, size_t count, bool add) {
@@ -1057,7 +1091,7 @@ bool cFC4PlumbingSimulator::Shutdown() {
         CoreCall call(this);
         fc4_plumbing_shutdown(core_);
     }
-    held_.clear();
+    held.clear();
     ReleaseServices();
     fc4::Log("plumbing Shutdown (%u passes)", passes_);
     if (!destroying_) Release();
