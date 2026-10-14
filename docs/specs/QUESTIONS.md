@@ -1519,6 +1519,9 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
 - **RG19:** what goes in a strike message's data1? [0]
 - **RG20:** `GetBuildingMapKey` returns 32 bits; only the low 8 are used. Right? [yes]
 - **RG21:** the strike clock seed is `time() + 2177452800` (the cRZTime epoch), as in crime. [yes]
+- **RG22 — `docs/abi`:** residential slots 37/38 (`GetCellEQByWealth`/`GetCellHQByWealth`) are `via-call`, low
+  confidence, in `interfaces.tsv`, while residential.md §10.1 says ST0 (they end by calling the float grid's
+  `GetTractValue`, x87 high). Should the rows say x87? [declared float, on the spec's word]
 
 ## From applying the pathfinder, zones, landfill and neighbours answers (filed by the coordinator from the `apply4b` lane's report, 2026-10-14)
 
