@@ -825,8 +825,12 @@ SC4Percentage:
   then add the record's +0x14..+0x24 (u32 sums) and +0x28 (float32 grade sum) to the totals and count the
   building (`0x006FA167`–`0x006FA1CF`).
 - Return the **number of buildings counted** in EAX: every matching building, whether its query succeeded or not.
-- The stack record starts like the ratings' record (+0x28 is 0, +0x14..+0x24 are leftovers), and a failed query
-  leaves what it read plus the previous building's other fields (§4.11 partial writes).
+- **The stack record** (AQ1, `0x006FA0D5`–`0x006FA0E9`) is set up once per call, before the walk, like the ratings'
+  record: only +0x10, +0x28, +0x2C and +0x34 are set to 0. +0x14..+0x24, +0x30 and +0x38 are stack leftovers, and
+  nothing resets the record between buildings. So a failed query leaves what it read plus the previous building's
+  other fields or, for the first building, the leftovers (§4.11 partial writes). Shipped data reaches this: when the
+  farmer's market below is the first building the hospital totals count, its +0x1C and +0x20 are two stack words.
+  *[choice]* FreeCity4 starts +0x14..+0x24 at 0, so that case adds 0 there.
 - *[quirk]* `groups` must not be null. Null is dereferenced and crashes; an empty vector counts nothing.
   The dereference (`0x006FA11C`) happens per building, inside the list walk, so a null `groups` crashes only
   once some group list holds a building. With every group list empty, the original returns 0 after the reset

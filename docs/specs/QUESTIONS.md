@@ -2684,7 +2684,11 @@ AU1–AU15, EH1–EH14 and FQ1–FQ15 are applied (the aura shadow follows the o
 record goes through record streams, switch `flora_obliteration`). Not applied: a call-order test for EH1, and the aura
 shadow's riot roll (wall-clock RNG). The current answer is in brackets.
 
-- **AQ1:** REH: the totals record's leftover fields +0x14..+0x24. [they start at 0]
+- ~~**AQ1:** REH: the totals record's leftover fields +0x14..+0x24. [they start at 0]~~
+  **ANSWERED 2026-10-14** from the exe (totals helper `0x006FA070`, record set up once at `0x006FA0D5`–`0x006FA0E9`) and
+  written into residential-education-health §4.11. The original does not start them at 0: only +0x10, +0x28, +0x2C and
+  +0x34 are set, so +0x14..+0x24 hold stack leftovers until a query writes them. Shipped data reaches it: a farmer's
+  market counted first adds two leftover words at +0x1C and +0x20. The bracket (0) is a *[choice]*, recommended.
 - **AQ2:** REH §4.8: S_EQ against member E. [E is kept]
 - **AQ3:** S_EQ for the HQ variants. [E]
 - **AQ4:** FQ3 save: is flag 1 toggled only when the obliteration record opens? [yes]
