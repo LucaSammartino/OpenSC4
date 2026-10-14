@@ -438,7 +438,16 @@ About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answ
   bracket matches.** The helper sets the IGZUnknown explicitly to the argument pollution passes, which is always
   null. void1 is never set and stays null from the constructor, which zeroes every field. The messages are queued
   with `MessagePost(msg, false)`.
-- **PG13 — slot 5:** what does it return for a type above 3? [null; choice]
+- ~~**PG13 — slot 5:** what does it return for a type above 3? [null; choice]~~ **ANSWERED 2026-10-14** from the
+  exe (`GetPollutionGrid` `0x006E3360`; every caller found checked) and written into pollution.md §8.1 slot 5.
+  **Never a grid; the null *[choice]* stands.**
+  - **What the original returns.** Type 3 is special-cased. Every other type reads the member at
+    `this + 0x50 + 4 × type` with no bounds check:
+    - 4 and 5 return `cellX` / `cellZ` as a pointer;
+    - 6–9 return the four occupant lists' head pointers;
+    - larger types read past the object and can fault.
+  - **No caller passes a type above 3.** MySim, the query tool, the growth developer, the map view and aura all
+    pass a constant or loop over 0..3.
 - ~~**PG14 — in-game differential (run 68, coordinator): `dirtyWater` after a day.** With the original pollution
   simulator and `pollution_shadow = 1`, our core matched all eight grids cell by cell for 94 months (2026-02 →
   2033-11; 1.4 M cells a month, 0 mismatches) and every saved field except one: on 104 of about 2,800 days the
