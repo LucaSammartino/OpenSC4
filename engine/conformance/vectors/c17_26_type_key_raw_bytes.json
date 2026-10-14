@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "crime_type_key_raw_bytes",
+  "spec": ["crime 7"],
+  "description": "CQ23 (crime 7 'Other value types'): the name key 0x8A416B2E and the icon key 0xAA12FCB1 are read as the first 12 bytes of the value's data, three little-endian u32, whatever the element type; nothing is converted. The spec's worked examples: the shipped Generic key stored as the u16 array [0x960B, 0x2026, 0x4AE0, 0x0A55, 0xA698, 0xEA5E] gives G = 0x0A554AE0, I = 0xEA5EA698 (0x60 -> 'Generic'); the f32 array [0, 1, 2] gives G = 0x3F800000, I = 0x40000000 (0x61); the string 'ABCDEFGHIJKL' gives G = 0x48474645, I = 0x4C4B4A49 (0x62). [choice] (CQ23, recommended) A value with fewer than 12 data bytes is missing: the u8 array [1, 2, 3] has 3 bytes, so no lookup (converting element by element would ask for (0x2026960B, 2, 3)) and the inline name wins (0x63). The icon key: a u16 array [1, 0, 2, 0, 3, 0] gives (1, 2, 3) (0x64); two u32 (8 bytes) are missing, so the icon is the default (0, 0, 0) (0x65). Hand-derived from the spec's table.",
+  "steps": [
+    {"op": "crime_env", "ltext": [
+      {"key": ["0x2026960B", "0x0A554AE0", "0xEA5EA698"], "text": "Generic"},
+      {"key": ["0x2026960B", "0x3F800000", "0x40000000"], "text": "Floats"},
+      {"key": ["0x2026960B", "0x48474645", "0x4C4B4A49"], "text": "String"},
+      {"key": ["0x2026960B", "0x2", "0x3"], "text": "never asked for"}]},
+    {"op": "crime_types", "shipped": false, "types": [
+      {"id": "0x60", "props": {"0x8A416B2E": {"u16": ["0x960B", "0x2026", "0x4AE0", "0x0A55", "0xA698", "0xEA5E"]}}},
+      {"id": "0x61", "props": {"0x8A416B2E": {"f32": [0, 1, 2]}}},
+      {"id": "0x62", "props": {"0x8A416B2E": {"str": "ABCDEFGHIJKL"}}},
+      {"id": "0x63", "props": {"0x8A416B2E": {"u8": [1, 2, 3]}, "0xAA12FCB0": {"str": "Inline"}}},
+      {"id": "0x64", "props": {"0xAA12FCB1": {"u16": [1, 0, 2, 0, 3, 0]}}},
+      {"id": "0x65", "props": {"0xAA12FCB1": {"u32": ["0x7AB50E44", "0x1ABE787D"]}}}]},
+    {"op": "crime_create"},
+    {"op": "crime_init"},
+    {"op": "crime_expect", "state": {"types": [
+      {"id": "0x60", "name": "Generic"},
+      {"id": "0x61", "name": "Floats"},
+      {"id": "0x62", "name": "String"},
+      {"id": "0x63", "name": "Inline"},
+      {"id": "0x64", "name": "", "icon": [1, 2, 3]},
+      {"id": "0x65", "name": "", "icon": [0, 0, 0]}]}}
+  ]
+}

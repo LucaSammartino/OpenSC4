@@ -25,6 +25,7 @@
 #include "FC4Autotest.h"
 #include "FC4ClockProbe.h"
 #include "FC4Diag.h"
+#include "FC4Dialogs.h"
 #include "FC4FlammabilityShadow.h"
 #include "FC4Fpu.h"
 #include "FC4GrowthProbe.h"
@@ -309,6 +310,10 @@ public:
                      g_factoryCalls != before ? "CALLED" : "NOT called (another factory answered)");
             if (ok && probe != nullptr) probe->Release();
         }
+        // close_dialogs (FC4Dialogs.h, modal-dialogs.md §3.2): the modal
+        // begin / end notices from here on, before any city load (the two
+        // load-time dialogs of §4 come before ConnectionsReady).
+        fc4::DialogsStart();
         // popup_dialogs (FC4Popups.h, advisors §6.8.1 option 1): before any
         // city view, so before the first popup tick. Once per process.
         fc4::PopupDialogsApply("PostAppInit");
@@ -329,6 +334,7 @@ public:
         fc4::LandValueShadowStop();
         fc4::GrowthProbeStop();
         fc4::ClockProbeStop();
+        fc4::DialogsStop();  // close_dialogs (FC4Dialogs.h)
         fc4::ObserverStop();
         return true;
     }

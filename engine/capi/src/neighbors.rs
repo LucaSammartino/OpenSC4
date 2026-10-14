@@ -345,7 +345,7 @@ pub struct fc4_neighbors_host {
     pub repair_foreign_connection: Option<unsafe extern "C" fn(U, u64, u64)>,
     /// The simulator's list let go of a connection: release its reference.
     pub release_connection: Option<unsafe extern "C" fn(U, u64)>,
-    // foreign deals (NG4; ABI 47, appended)
+    // foreign deals (NG4; ABI 45, appended)
     /// A foreign deal's state, read through its interface; false = unreadable.
     pub foreign_deal: Option<unsafe extern "C" fn(U, u64, *mut fc4_neighbor_deal_data) -> bool>,
     /// A call on a foreign deal (`FC4_NEIGHBOR_DEAL_CALL_*`): the setters

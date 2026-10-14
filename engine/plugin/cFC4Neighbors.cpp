@@ -1261,7 +1261,7 @@ fc4_neighbors_host MakeNeighborsHost(NeighborsContext* ctx) {
     h.set_foreign_connection_flags = &SetForeignConnectionFlags;
     h.repair_foreign_connection = &RepairForeignConnection;
     h.release_connection = &ReleaseConnection;
-    h.foreign_deal = &ForeignDeal;  // NG4 (ABI 47)
+    h.foreign_deal = &ForeignDeal;  // NG4 (ABI 45)
     h.foreign_deal_call = &ForeignDealCall;
     h.release_deal = &ReleaseDeal;
     return h;

@@ -623,15 +623,15 @@ cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	1	+0x4	004f0240	icf::cSC4Aud
 cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	2	+0x8	00476aa0	cSC4HistoryWarehouse::Release	0	0	eax-or-void	medium	
 cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	3	+0xC	004766f0	cSC4HistoryWarehouse::Init	0	0	eax-or-void	medium	
 cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	4	+0x10	004758d0	cSC4HistoryWarehouse::Shutdown	0	0	eax-or-void	medium	
-cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	5	+0x14	00476160	cSC4HistoryWarehouse::GetCount	16	4	eax-or-void	medium	
-cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	6	+0x18	004761f0	cSC4HistoryWarehouse::GetTrend	20	5	eax-or-void	medium	
-cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	7	+0x1C	00476280	cSC4HistoryWarehouse::GetMinMaxAverage	24	6	eax-or-void	medium	
-cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	8	+0x20	00476490	cSC4HistoryWarehouse::GetPoint	12	3	eax-or-void	medium	
-cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	9	+0x24	00476520	cSC4HistoryWarehouse::Coalesce	16	4	eax-or-void	medium	
-cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	10	+0x28	00476650	cSC4HistoryWarehouse::Dispose	4	1	eax-or-void	medium	
-cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	11	+0x2C	004765c0	cSC4HistoryWarehouse::Dispose	12	3	eax-or-void	medium	
-cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	12	+0x30	00475aa0	cSC4HistoryWarehouse::RecordHistoryData	8	2	via-call	low	
-cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	13	+0x34	00477040	cSC4HistoryWarehouse::SetHistoryDataQueueLength	8	2	eax-or-void	medium	tail->00476fc0
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	5	+0x14	00476160	cSC4HistoryWarehouse::GetCount	16	4	eax-or-void	high	bool in AL (re-specs9 history.md)
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	6	+0x18	004761f0	cSC4HistoryWarehouse::GetTrend	20	5	eax-or-void	high	bool in AL (re-specs9 history.md)
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	7	+0x1C	00476280	cSC4HistoryWarehouse::GetMinMaxAverage	24	6	eax-or-void	high	bool in AL (re-specs9 history.md)
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	8	+0x20	00476490	cSC4HistoryWarehouse::GetPoint	12	3	eax-or-void	high	bool in AL (re-specs9 history.md)
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	9	+0x24	00476520	cSC4HistoryWarehouse::Coalesce	16	4	eax-or-void	high	bool in AL (re-specs9 history.md)
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	10	+0x28	00476650	cSC4HistoryWarehouse::Dispose	4	1	eax-or-void	high	bool in AL (re-specs9 history.md)
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	11	+0x2C	004765c0	cSC4HistoryWarehouse::Dispose	12	3	eax-or-void	high	bool in AL (re-specs9 history.md)
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	12	+0x30	00475aa0	cSC4HistoryWarehouse::RecordHistoryData	8	2	eax-or-void	high	no meaningful return; callers ignore it (re-specs9 history.md)
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	13	+0x34	00477040	cSC4HistoryWarehouse::SetHistoryDataQueueLength	8	2	eax-or-void	high	tail->00476fc0; bool in AL (re-specs9 history.md)
 cISC4DisasterManager	cSC4EarthquakeManager	00a9e090	0	+0x0	00575650		8	2	eax-or-void	medium	tail->00577470
 cISC4DisasterManager	cSC4EarthquakeManager	00a9e090	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
 cISC4DisasterManager	cSC4EarthquakeManager	00a9e090	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
@@ -1444,7 +1444,7 @@ cISC4City	cSC4City	00a87620	28	+0x70	007624f0	cSC4City::GetWorldBaseElevation	0	
 cISC4City	cSC4City	00a87620	29	+0x74	00459680	cSC4City::SetWorldBaseElevation	4	1	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	30	+0x78	00459690	cSC4City::GetWorldHemisphere	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	31	+0x7C	007e56f0	icf::cSC4City::GetDemolitionUtility	0	0	eax-or-void	medium	
-cISC4City	cSC4City	00a87620	32	+0x80	006dc680	cSC4PlumbingSimulator::GetWaterExported	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	32	+0x80	006dc680	cSC4City::GetHistoryWarehouse	0	0	eax-or-void	high	returns city field +0x128, the history warehouse (re-specs9 HW4); the old name came from identical code folding
 cISC4City	cSC4City	00a87620	33	+0x84	00472e70	cSC4City::GetLotManager	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	34	+0x88	00423710	icf::cSC4City::GetOccupantManager	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	35	+0x8C	00798370	icf::cSC4City::GetPropManager	0	0	eax-or-void	medium	
@@ -3820,7 +3820,7 @@ cIGZSerializable(GrowthDeveloper)	cSC4GrowthDeveloper	00ab145c	4	+0x10	006b39f0	
 cIGZSerializable(GrowthDeveloper)	cSC4GrowthDeveloper	00ab145c	5	+0x14	006b3790	cSC4GrowthDeveloper::GetGZCLSID	0	0	eax-or-void	medium	
 cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	0	+0x0	0069ea50	cSC4CommercialSimulator::QueryInterface	8	2	eax-or-void	medium	
 cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
-cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	2	+0x8	0069eb50		0	0	eax-or-void	medium	
+cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	2	+0x8	0069eb50	cSC4CommercialSimulator::Release	0	0	eax-or-void	high	EAX new count (re-specs9)
 cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	3	+0xC	0069ef90	cSC4CommercialSimulator::Init	0	0	eax-or-void	medium	
 cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	4	+0x10	0069eb80	cSC4CommercialSimulator::Shutdown	0	0	eax-or-void	medium	
 cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	5	+0x14	0069ead0	cSC4CommercialSimulator::GetProximityMap	4	1	eax-or-void	medium	
@@ -4402,7 +4402,6 @@ cIGZMessageTarget(AudioEventHandler)	cSC4AudioEventHandler	00a94154	3	+0xC	004ef
 cISC4Occupant	cSC4LandfillOccupant	00a8cda0	0	+0x0	00477210	QueryInterface (thunk, this-4 -> 0x00477130)	8	2	al	high	same IID set as above (LG27)
 cISC4Occupant	cSC4LandfillOccupant	00a8cda0	6	+0x18	006c2040	AsPropertyHolder	0	0	eax	high	this+8, null for a null this; exemplar holder = result+0x14 (LG27)
 cISC4Occupant	cSC4LandfillOccupant	00a8cda0	7	+0x1C	006bdd80	GetType	0	0	eax	high	returns [this+0x24]; 0x6A11BD2B for landfill tiles (LG28)
-cIGZMessage2Standard	cRZMessage2Standard (ZoningChange subclass)	00a92d40	37	+0x94	004dcc10	scalar deleting destructor	4	1	eax	high	calls 0x004DCC30 (frees void2 with C); slots 0-36 identical to 00acec00
 cISC4RenderProperties	cSC4RenderProperties	00abb6c0	6	+0x18	007ddec0	GetBool(index)	4	1	al	high	byte at [this+0xC] + index*32 + 0x1C; interface name inferred (GF5)
 cISC4RenderProperties	cSC4RenderProperties	00abb6c0	7	+0x1C	007ddee0	GetInt(index)	4	1	eax	high	[this+0x18] + index*40 + 0x1C; kModelLODOffset = 22 (GF8)
 cISC4RenderProperties	cSC4RenderProperties	00abb6c0	8	+0x20	007ddf00	GetFloat(index)	4	1	x87	high	[this+0x24] + index*40 + 0x1C
@@ -4431,4 +4430,52 @@ cISC4Region	cSC4Region	00a8fa40	21	+0x54	004a4cc0	GetWaterPrefs	8	2	eax-or-void	
 cISC4Region	cSC4Region	00a8fa40	22	+0x58	004a5400	ResetTutorialCity	4	1	eax-or-void	medium	
 cISC4Region	cSC4Region	00a8fa40	23	+0x5C	004a4c20	GetCityLocations	4	1	eax-or-void	medium	
 cISC4Region	cSC4Region	00a8fa40	24	+0x60	004a45a0	GetBoundingRect	4	1	eax-or-void	medium	
-cISC4Region	cSC4Region	00a8fa40	25	+0x64	004a53e0	scalar deleting destructor	4	1	eax	medium	
+cISC4IndustrialSimulator	cSC4IndustrialSimulator	00ab1530	0	+0x0	006b8970	cSC4IndustrialSimulator::QueryInterface	8	2	eax-or-void	high	AL
+cISC4IndustrialSimulator	cSC4IndustrialSimulator	00ab1530	1	+0x4	004f7ba0	AddRef (shared code)	0	0	eax-or-void	high	EAX new count
+cISC4IndustrialSimulator	cSC4IndustrialSimulator	00ab1530	2	+0x8	006d5140	Release (shared with cSC4ParkManager)	0	0	eax-or-void	high	EAX new count; destroys at <=1 without decrementing
+cISC4IndustrialSimulator	cSC4IndustrialSimulator	00ab1530	3	+0xC	006b89f0	cSC4IndustrialSimulator::Init	0	0	eax-or-void	high	AL=1
+cISC4IndustrialSimulator	cSC4IndustrialSimulator	00ab1530	4	+0x10	006b8a10	cSC4IndustrialSimulator::Shutdown	0	0	eax-or-void	high	AL=1
+cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	0	+0x0	0069d6c0	cSC4CivicBuildingSimulator::QueryInterface	8	2	eax-or-void	high	AL
+cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	1	+0x4	004664a0	AddRef (shared code)	0	0	eax-or-void	high	EAX new count
+cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	2	+0x8	0069d7a0	cSC4CivicBuildingSimulator::Release	0	0	eax-or-void	high	EAX new count
+cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	3	+0xC	0069dc10	cSC4CivicBuildingSimulator::Init	0	0	eax-or-void	high	AL=1
+cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	4	+0x10	0069d7c0	cSC4CivicBuildingSimulator::Shutdown	0	0	eax-or-void	high	AL=1
+cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	5	+0x14	0069e5b0	cSC4CivicBuildingSimulator::IsBuildingExcluded	4	1	eax-or-void	high	AL
+cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	6	+0x18	0069d8d0	cSC4CivicBuildingSimulator::GetConditionalBuildingStatus	4	1	eax-or-void	high	EAX pointer into the map or null; callers write through it
+cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	7	+0x1C	0069e9f0	cSC4CivicBuildingSimulator::UpdateConditionalBuildingStatus	8	2	eax-or-void	low	no meaningful return although the SDK says bool; arg 2 is read only
+cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	8	+0x20	0069e5d0	cSC4CivicBuildingSimulator::GetLandmarkCount	0	0	eax-or-void	high	EAX; counts every maintained building
+cISC4ParkManager	cSC4ParkManager	00ab20ac	0	+0x0	006d5060	cSC4ParkManager::QueryInterface	8	2	eax-or-void	high	AL
+cISC4ParkManager	cSC4ParkManager	00ab20ac	1	+0x4	004f7ba0	AddRef (shared code)	0	0	eax-or-void	high	EAX new count
+cISC4ParkManager	cSC4ParkManager	00ab20ac	2	+0x8	006d5140	cSC4ParkManager::Release (shared with the industrial simulator)	0	0	eax-or-void	high	EAX new count; 0 when destroyed
+cISC4ParkManager	cSC4ParkManager	00ab20ac	3	+0xC	006d5b00	cSC4ParkManager::Init	0	0	eax-or-void	high	AL=1
+cISC4ParkManager	cSC4ParkManager	00ab20ac	4	+0x10	006d5420	cSC4ParkManager::Shutdown	0	0	eax-or-void	high	AL=1
+cISC424HourClock	cSC424HourClock	00a86588	0	+0x0	00444e40	cSC424HourClock::QueryInterface	8	2	eax-or-void	high	AL; other IIDs tail-call cRZSystemService::QueryInterface on this+0xC
+cISC424HourClock	cSC424HourClock	00a86588	1	+0x4	00825d60	cSC424HourClock::AddRef	0	0	eax-or-void	high	EAX new count (+0x2C)
+cISC424HourClock	cSC424HourClock	00a86588	2	+0x8	004451f0	cSC424HourClock::Release	0	0	eax-or-void	high	EAX new count; destroys at <=1 without decrementing
+cISC424HourClock	cSC424HourClock	00a86588	3	+0xC	00445b70	cSC424HourClock::Init	0	0	eax-or-void	high	AL=1
+cISC424HourClock	cSC424HourClock	00a86588	4	+0x10	00445130	cSC424HourClock::Shutdown	0	0	eax-or-void	high	AL=1
+cISC424HourClock	cSC424HourClock	00a86588	5	+0x14	00445780	cSC424HourClock::SetVisualTimeMode	4	1	eax-or-void	low	no meaningful value; tail-calls ChangeVisualTime
+cISC424HourClock	cSC424HourClock	00a86588	6	+0x18	00407ac0	cSC424HourClock::GetVisualTimeMode (shared code)	0	0	eax-or-void	high	EAX
+cISC424HourClock	cSC424HourClock	00a86588	7	+0x1C	00445420	cSC424HourClock::GetTimePercentage	4	1	eax-or-void	low	takes float* out and returns nothing; SDK float(void) is wrong
+cISC424HourClock	cSC424HourClock	00a86588	8	+0x20	00445480	cSC424HourClock::SetTimePercentage	4	1	eax-or-void	low	arg float&; no meaningful value
+cISC424HourClock	cSC424HourClock	00a86588	9	+0x24	00445450	cSC424HourClock::GetVisualTimePercentage	4	1	eax-or-void	low	takes float* out; SDK float(void) is wrong
+cISC424HourClock	cSC424HourClock	00a86588	10	+0x28	00444ec0	cSC424HourClock::GetHour	0	0	eax-or-void	high	EAX
+cISC424HourClock	cSC424HourClock	00a86588	11	+0x2C	004457c0	cSC424HourClock::SetHour	4	1	eax-or-void	low	no meaningful value
+cISC424HourClock	cSC424HourClock	00a86588	12	+0x30	00444ed0	cSC424HourClock::GetVisualHour	0	0	eax-or-void	high	EAX
+cISC424HourClock	cSC424HourClock	00a86588	13	+0x34	00444ee0	cSC424HourClock::GetMinute	0	0	eax-or-void	high	EAX
+cISC424HourClock	cSC424HourClock	00a86588	14	+0x38	00444f40	cSC424HourClock::SetMinute	4	1	eax-or-void	high	EAX = new seconds-of-day
+cISC424HourClock	cSC424HourClock	00a86588	15	+0x3C	00444f10	cSC424HourClock::GetVisualMinute	0	0	eax-or-void	high	EAX
+cISC424HourClock	cSC424HourClock	00a86588	16	+0x40	00444f80	cSC424HourClock::GetSeconds	0	0	eax-or-void	high	EAX second within the minute
+cISC424HourClock	cSC424HourClock	00a86588	17	+0x44	00444fe0	cSC424HourClock::SetSeconds	4	1	eax-or-void	low	EAX = GetMinute() result, not meaningful
+cISC424HourClock	cSC424HourClock	00a86588	18	+0x48	00444fb0	cSC424HourClock::GetVisualSeconds	0	0	eax-or-void	high	EAX
+cISC424HourClock	cSC424HourClock	00a86588	19	+0x4C	00445020	cSC424HourClock::GetEventHour	4	1	eax-or-void	high	arg is a dword index (0 night start, 1 night end, else 0), not bool
+cISC424HourClock	cSC424HourClock	00a86588	20	+0x50	00445040	cSC424HourClock::GetTimeMagnification	4	1	eax-or-void	medium	arg float&; EAX = the float's bits
+cISC424HourClock	cSC424HourClock	00a86588	21	+0x54	00445050	cSC424HourClock::SetTimeMagnification	4	1	eax-or-void	high	arg float by value; AL=1
+cISC424HourClock	cSC424HourClock	00a86588	22	+0x58	00445090	cSC424HourClock::GetTimeMagnificationMinMax	8	2	eax-or-void	medium	args float&, float&; EAX = bits of max
+cISC424HourClock	cSC424HourClock	00a86588	23	+0x5C	004450b0	cSC424HourClock::SetTimeMagnificationMinMax	8	2	eax-or-void	high	AL=1
+cISC424HourClock	cSC424HourClock	00a86588	24	+0x60	00445540	cSC424HourClock::Pause	4	1	eax-or-void	high	bool read as a byte; AL=1
+cISC424HourClock	cSC424HourClock	00a86588	25	+0x64	00703d50	IsPaused (shared with cSC4Simulator::IsPaused)	0	0	eax-or-void	high	EAX 0/1 (count at +0x30 > 0)
+cISC424HourClock	cSC424HourClock	00a86588	26	+0x68	004455b0	cSC424HourClock::HiddenPause	4	1	eax-or-void	high	bool read as a byte; AL=1
+cISC424HourClock	cSC424HourClock	00a86588	27	+0x6C	00703d60	IsHiddenPaused (shared with cSC4Simulator::IsHiddenPaused)	0	0	eax-or-void	high	EAX 0/1 (count at +0x34 > 0)
+cISC424HourClock	cSC424HourClock	00a86588	28	+0x70	004453e0	cSC424HourClock::IsNight	0	0	eax-or-void	high	EAX 0/1, visual hour
+cISC424HourClock	cSC424HourClock	00a86588	29	+0x74	00445620	cSC424HourClock::EnableDayNightTransitionNotifications	4	1	eax-or-void	high	void

@@ -21,8 +21,11 @@
 #include <cstdint>
 
 class cISCPropertyHolder;
+class cISCResExemplar;
 
 namespace fc4::props {
+
+class Exemplar;
 
 enum class Kind { U32, I64, F32 };
 
@@ -36,12 +39,28 @@ struct Spec {
 // nullptr. The caller destroys it (fc4_props_destroy) or uses CoreProps.
 fc4_props* ToCore(const cISCPropertyHolder* holder, const Spec* specs, size_t count);
 
-// A new fc4_props with ALL of the holder's properties, each with its exact
-// variant type and shape (FC4Properties.h CopyToCore). EnumProperties walks
-// the effective list (data-formats §4.4), so properties inherited from a
-// parent cohort are included and an own property overrides them, as the
-// original flora reads them (flora §3.3, FQ13). nullptr if `holder` is nullptr.
-fc4_props* ToCoreAll(const cISCPropertyHolder* holder);
+// How many properties ToCoreAll copied: the holder's own, and inherited from
+// its cohorts.
+struct ToCoreAllStats {
+    uint32_t own = 0;
+    uint32_t inherited = 0;
+};
+
+// A new fc4_props with ALL of the holder's effective properties (data-formats
+// §4.4), each with its exact variant type and shape (FC4Properties.h
+// CopyToCore): its own, and those inherited from its parent cohort, the
+// cohort's parent and so on, an own (or nearer) property overriding a farther
+// one, as the original reads them (flora §3.3, FQ13; building development
+// §1.3: a building's ExemplarType, purpose, capacity and families usually sit
+// in its cohort). The game's EnumProperties lists only a holder's own
+// properties, so the cohorts are walked (FC4Properties.h EffectiveProperties);
+// `res` is the exemplar behind `holder` (nullptr: asked through
+// QueryInterface; a holder that is not an exemplar gives its own properties).
+// nullptr if `holder` is nullptr.
+fc4_props* ToCoreAll(const cISCPropertyHolder* holder, cISCResExemplar* res = nullptr,
+                     ToCoreAllStats* stats = nullptr);
+// The same for a loaded exemplar.
+fc4_props* ToCoreAll(const Exemplar& ex, ToCoreAllStats* stats = nullptr);
 
 // Owns an fc4_props.
 class CoreProps {

@@ -583,6 +583,33 @@ fn t37_regp() {
     );
 }
 
+/// FS12 (§3.11): a valid UTF-8 name is lowered letter by letter (Unicode simple case mapping), so `FX_Ä` and
+/// `fx_ä` merge; a name that is not UTF-8 is Latin-1 and only its ASCII letters are lowered.
+#[test]
+fn regp_non_ascii_names() {
+    let mut body = 4u32.to_le_bytes().to_vec();
+    for name in [
+        &b"FX_\xC3\x84\0"[..],         // "FX_Ä" in UTF-8
+        &b"fx_\xC3\xA4\0"[..],         // "fx_ä"
+        &b"FX_\xC4\xB0\xCE\xA3\0"[..], // "FX_İΣ": simple mappings i and σ
+        &b"FX_\xC4\0"[..],             // not UTF-8: Latin-1 "FX_Ä"
+    ] {
+        body.push(name.len() as u8);
+        body.extend_from_slice(name);
+        body.extend_from_slice(&1u16.to_le_bytes());
+        body.extend(f32s(&[0.0; 7]));
+    }
+    let mut t = T::new();
+    t.regp = Some(body);
+    let m = t.model();
+    let names: Vec<&str> = m.regions.keys().map(String::as_str).collect();
+    assert_eq!(names, ["fx_iσ", "fx_Ä", "fx_ä"]);
+    assert_eq!(m.regions["fx_ä"].len(), 2);
+    assert_eq!(simple_lowercase('\u{130}'), 'i');
+    assert_eq!(simple_lowercase('Σ'), 'σ');
+    assert_eq!(simple_lowercase('ß'), 'ß');
+}
+
 #[test]
 fn prop_entries() {
     let mut body = 2u32.to_le_bytes().to_vec();
@@ -614,6 +641,30 @@ fn prop_entries() {
                 value: "RangerFFit_01".into()
             }
         ]
+    );
+}
+
+/// FS11 (§3.10): PROP is sorted by frame, signed and ascending; equal frames keep file order *\[choice\]*.
+#[test]
+fn prop_sorted_by_frame() {
+    let entries: [(i16, i16, &str); 5] = [(0, 3, "a"), (1, -1, "b"), (2, 0, "c"), (3, -1, "d"), (4, -32768, "e")];
+    let mut body = (entries.len() as u32).to_le_bytes().to_vec();
+    for (mesh, frame, key) in entries {
+        body.extend_from_slice(&mesh.to_le_bytes());
+        body.extend_from_slice(&frame.to_le_bytes());
+        for s in [key, "v"] {
+            body.push(s.len() as u8 + 1);
+            body.extend_from_slice(s.as_bytes());
+            body.push(0);
+        }
+    }
+    let mut t = T::new();
+    t.prop = Some(body);
+    let m = t.model();
+    let order: Vec<(i16, i16, &str)> = m.props.iter().map(|p| (p.mesh, p.frame, p.key.as_str())).collect();
+    assert_eq!(
+        order,
+        [(4, -32768, "e"), (1, -1, "b"), (3, -1, "d"), (2, 0, "c"), (0, 3, "a")]
     );
 }
 

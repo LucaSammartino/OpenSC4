@@ -55,6 +55,7 @@ const ExecutableVersion kVersions[] = {
         0x0070D130,  // cSC4TractDeveloper::Grow, its slot 5 (tract-developer.md §7.1; interfaces.tsv)
         0x00AB0AF8,  // cSC4BuildingDevelopmentSimulator primary vtable (building-development.md §1.1, §7.1)
         0x00AB07C8,  // cSC4AuraSimulator's cISC4AuraSimulator vtable (aura.md §12.1, §14.3)
+        0x00AA56C0,  // cSC4WinGameDelay primary vtable (docs/abi/vtables.tsv; modal-dialogs.md §3.4)
         0x00AB1EE0,  // cSC4NeighborsSimulator's cISC4NeighborsSimulator vtable (neighbors.md §15.4 NG7)
     },
 };
@@ -420,6 +421,25 @@ const void* BuildingDevelopmentVtable() {
                 static_cast<unsigned long>(v->bdsVtableVA));
         } else {
             Log("compat: original building development simulator vtable NOT available (%s)",
+                v ? "address rejected" : "executable not identified");
+        }
+    }
+    return state == 1 ? vtable : nullptr;
+}
+
+const void* GameDelayWindowVtable() {
+    static int state = 0;  // 0 unknown, 1 available, -1 refused
+    static const void* vtable = nullptr;
+    if (state == 0) {
+        state = -1;
+        const ExecutableVersion* v = IdentifiedVersion();
+        if (v != nullptr && CheckImageVtable("cSC4WinGameDelay vtable entry 0", v, v->gameDelayWindowVtableVA)) {
+            vtable = reinterpret_cast<const void*>(static_cast<uintptr_t>(v->gameDelayWindowVtableVA));
+            state = 1;
+            Log("compat: cSC4WinGameDelay vtable at 0x%08lX", static_cast<unsigned long>(v->gameDelayWindowVtableVA));
+        } else {
+            Log("compat: cSC4WinGameDelay vtable NOT available (%s); the dialog closer cannot recognise "
+                "SC4GameDelay's modal window",
                 v ? "address rejected" : "executable not identified");
         }
     }

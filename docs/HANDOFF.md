@@ -7,10 +7,10 @@ operating knowledge that is still true.
 
 ## 0. Current state
 
-*Last updated 2026-10-14, at the merge of `gameslots` (`9e0fa74`), after run 103.*
+*Last updated 2026-10-14, at the merge of apply9d (`ccfe2b4`), after run 105.*
 
-- **main:** `FC4_ABI_VERSION` 41, 171 plugin switches, 658 conformance vectors. Last gate (harness): cargo 1717/0,
-  clippy clean, ctest 43/43. Test switches `sim_turbo`, `autotest_end_date`, `script` (engine/README). Every glue except the simulator and the budget is off by default (`enable = <key>`).
+- **main:** `FC4_ABI_VERSION` 44, 661 conformance vectors. Last gate: merged main at `ccfe2b4` (main-9d), cargo 1746/0;
+  clippy clean, ctest 44/45: `cargo_test` failed once on the timing-sensitive flora thread test under load and passes alone (fix with apply9d). Test switches `sim_turbo`, `autotest_end_date`, `script`, `close_dialogs` (engine/README). Every glue except the simulator and the budget is off by default (`enable = <key>`).
 - **Milestones** (details in the README): M0, M1 and M2 done. **M3 exit met in run 103** (regress r6c): every grid
   shadow exact, including power 463/463, plumbing 179/179 and landfill 89/89, zero INCOMPLETE lines. M4: all cores
   merged; glue merged for residential, zones phase 1 and development (BDS + growth developers, opt-in), but the
@@ -20,8 +20,9 @@ operating knowledge that is still true.
 
 ### Lanes
 
-Every lane is running again (resumed 2026-10-14 13:15, after the harness landed). **Engine lanes test their own DLL
-in game** through the run queue (`docs/harness.md`; the queue is `tools/game_queue.ps1 -Slots 3`, started detached
+Every lane is running (resumed 2026-10-14 14:05 after an API session limit stopped them all at 13:57; resume with
+`SendMessage`, and tell the lane which of its queued runs finished meanwhile). **Engine lanes test their own DLL
+in game** through the run queue (`docs/harness.md`; the queue is `tools/game_queue.ps1 -Slots 6`, started detached
 from the main checkout, log `build-runs/game-queue.log`) and must report request labels and verdict lines. Lane
 prompts are in `build-runs/lane-prompts/` (gitignored, on disk); new engine lanes start from
 `engine-lane-header.txt` + `selftest-addendum.txt` + the task. A worktree lane cannot read files outside its
@@ -30,29 +31,41 @@ worktree: paste what it needs into the message, or copy files into its `build-ru
 
 | Lane | Agent ID | Worktree (`.claude/worktrees/`) / branch | Reserved | State |
 |---|---|---|---|---|
-| harness: dialog closer `close_dialogs` (from `docs/specs/modal-dialogs.md`) | `a313b6961fe7dfb95` | `agent-a313b6961fe7dfb95` | ABI 43 if needed | running (turbo, end date, script, save merged in `6147be6`, `0786064`) |
-| development glue fixes (devglue2) | `a054ba812e30f4fd3` | `agent-a054ba812e30f4fd3` / `devglue2` | ABI 42 | running |
-| traffic glue phase 1 (M5) | `ae77339e1cc706c17` | `agent-ae77339e1cc706c17` | ABI 44, seam op 42 | running |
+| harness (turbo, end date, script, save, dialog closer) | `a313b6961fe7dfb95` | `agent-a313b6961fe7dfb95` | - | done; merged `6147be6`, `0786064`, `dba09eb` |
+| development glue fixes (devglue2) | `a054ba812e30f4fd3` | `agent-a054ba812e30f4fd3` / `devglue2` | - | merged `38524aa` |
+| traffic glue (M5): phase 1 merged `850b567` (ABI 44, seam op 42); phase 2 running | `ae77339e1cc706c17` | `agent-ae77339e1cc706c17` | ABI 52, seam op 51 | running |
 | tract developer glue (M4) | `ae81a8bc4c10d6880` | `agent-ae81a8bc4c10d6880` | ABI 45, seam op 45 | running |
-| power shadow under turbo (306/352 in gsT1, exact at normal speed) | `affee80aaa8e17945` | `agent-affee80aaa8e17945` | ABI 46 if needed | running |
-| RE answers 8 (ZG17, NG, GF, AQ, BQ, FL, ZG, TS35-49, FS, then LG27-LG29 landfill tiles) | `a8519c0be49880b49` | `re-answers8` | - | running |
-| RE specs 9 (commercial, industrial, 24-hour clock, ...) | `a3547ddd1232ef1f1` | `re-specs9` | - | running |
+| power shadow under turbo | `affee80aaa8e17945` | `agent-affee80aaa8e17945` | - | merged `c367684`: exact under turbo and at normal speed (the shadow's bookkeeping, not the core); PW9-PW11 |
+| RE answers 8 | `a8519c0be49880b49` | `re-answers8` | - | merged `957e766`; ABI rows `a6e3d36` |
+| apply9a: neighbours NG4-NG25, incl. NG11 (slots 32/33 return int64 in EDX:EAX; the plugin declares int32) | `a56eb55371f9ce77d` | worktree | ABI 47, seam op 48 | running |
+| apply9b: zones ZG2-ZG17, landfill tiles LG27-LG29, budget BQ4/BQ7, crime CQ23 | `a2dc48d26cc52d9a2` | worktree | ABI 48, seam op 49 | running |
+| apply9c: graphics formats FS4-FS14, GF1-GF9 | `a1ec5d982a5986c5a` | worktree | - | merged `f427e44`; FS15-FS17 |
+| apply9d: education/health AQ1-AQ3, flora AQ7/AQ10, residential RG24, flammability FL7/FL8 | `a1a2a3d5ee6186779` | worktree | - (none used) | merged `ccfe2b4`; AQ11-AQ13, FL10-FL13 |
+| RE specs 9 (commercial/industrial, civic, parks, history warehouse, 24-hour clock) | `a3547ddd1232ef1f1` | `re-specs9` | - | merged `a3599a0`; ABI rows `340ad36` |
+| cores10a: history warehouse + 24-hour clock cores | `aaba26b7267188fb1` | worktree | ABI 50 | running |
+| cores10b: commercial + industrial + civic buildings + park manager cores | `a195154e182349440` | worktree | ABI 51 | running |
+| RE specs 10: city situation manager, demolition utility, dispatch manager, airport/seaport developers, prop developer (city detail manager if time) | `a576c1f88a67e75e5` | `re-specs10` | - | running |
+| RE answers 9: DG1-DG27 (DG5 first: how a building occupant gets its exemplar), LG21-LG26, AO1-AO2, PR/RG/NB/PG, EX34-EX39, ZQ13 | `a847980b29901cc38` | `re-answers9` | - | running |
+| RE specs 11: lot developer geometry (levelling, foundations, slot 39, boundary textures; Q3, Q7), graphics GF7/GF10/GF11, zones §14.3 Q2-Q8 and lot creation (for zones phase 2) | `a51611144f724e0f2` | `re-specs11` | - | running |
+| lotglue: lot developer replacement (`enable = lotdev`) and shadow (`lotdev_shadow = 1`); Q4 slots wait for re-specs11 | `ab9c3d71e1a39f129` | worktree | ABI 53, seam op 52 | running |
+| harness tooling 2: regress through the queue with coordinator priority, 6 slots, queue status, clearer rejections | `aebacb404dae356d7` | worktree | - | merged `4e489e9`; queue restarted with `-Slots 6` at 14:51 |
 
 Merged today, tooling: harness switches (`6147be6`, `0786064`), modal-dialog spec (`baa5d0a`), game slots and the
-run queue (`9e0fa74`: up to 3 games at once; `regress -Parallel` 164 s, `-Turbo -Parallel` 94 s to 2032).
+run queue (`9e0fa74`: up to 3 games at once; `regress -Parallel` 164 s, `-Turbo -Parallel` 94 s to 2032), the
+dialog closer (`dba09eb`: `close_dialogs = 1`; in game it closed 5 advisor popups by button with popups on).
+The traffic simulator answers TS35-TS49 (re-answers8) go to the traffic glue lane after its phase 1.
 
 ### Open items, most useful first
 
-1. **Development glue in game** (devglue2): the shadow compared nothing (run 101: it read developer types 0x0001-3
-   instead of 0x1010...0x4400); the growth developer's `Read` returns garbage; our catalogue has 91 types against the
-   original's 744; C/I population stays 0 and the city goes bankrupt (run 102); 5 reference warnings on class
-   `0xA9BD882D`. Also add `development` / `development_shadow` to `tools/regress.ps1`.
-2. **Landfill game tiles** (LG27-LG29): every tile fails at the last step (run 103): the class object
-   `0x8A22BEBE` / `0x2A15F262` is made and is an occupant, but neither it nor its property holder answers the
-   exemplar-holder QI `0x0AC2B5F7`. An RE question: how does the original attach the exemplar to a new tile?
-3. **Zones:** the shadow differs only by ZG17 (zones cost; with re-answers8). The dezone tool path is untested in
+1. **Development glue works in game** (devglue2, merged `38524aa`): catalogue 744/744 types and 281 families, the
+   shadow exact, the replacement grows like the original at equal pacing. Open: our development unit is about 3x
+   slower per game day; DG28-DG31 (DG31: the original's results depend on game days per real second).
+2. **Landfill game tiles** (LG27-LG29): every tile fails at the last step (run 103). Answered: the original calls
+   `SetDefaultExemplar` on the holder sub-object at +0x20 (layouts.md); apply9b applies it.
+3. **Zones:** the shadow differs only by ZG17 (answered; apply9b applies it). The dezone tool path is untested in
    game. Phase 2 (zone developer, lot manager) and the lot developer glue have not started.
-4. **Traffic glue** (paused lane), then calibration; **tract glue** (paused lane).
+4. **Traffic glue** phase 1 merged (`850b567`, `enable = traffic`, clean in game); phase 2 running (TS35-TS49, the
+   O(N^2) lot scan, host callbacks, a traffic shadow for the M5 exit). **Tract glue** lane running.
 5. Residential buzzards never trigger in Konradshohe; a growth probe on a large city is optional (attempt cost grows
    with lots).
 6. **QUESTIONS.md restructure** (open index, archive answered sections): after re-answers8 merges. The audit proposal
@@ -93,11 +106,15 @@ roadmap in `docs/ARCHITECTURE.md`, build and ini keys in `engine/README.md`.
 ## 3. Running the game
 
 - **Regression after every merge that touches the plugin** (run detached):
-  `tools/regress.ps1 -Tag <tag> -Dll <dll> -Parallel` runs a shadows run and a replace run (16 replacements) on
-  Konradshohe at the same time in game slots 1 and 2 (about 3 minutes; `-Turbo` runs to a fixed date, about 1.5
-  minutes, not yet the default because the power shadow differs under turbo) and prints one table,
-  `REGRESS <tag>: PASS/FAIL`, and a delta against the previous PASS (`-Baseline <tag>` to choose). Read the shadow
-  column, not only the verdict. Start it while the queue is idle (a slot held by the queue blocks it after 60 s).
+  `tools/regress.ps1 -Tag <tag> -Dll <dll> -Queue` submits a shadows run and a replace run (17 replacements with
+  `development`; every shadow including `development_shadow`) through the run queue with coordinator priority
+  (`priority = high`: they jump the lanes' requests and run side by side), turbo to 2032-01-01 on Konradshohe by
+  default (`-NormalSpeed` for the old timed runs), and prints one table, `REGRESS <tag>: PASS/FAIL`, and a delta
+  against the previous PASS of the same pacing (`-Baseline <tag>`; the original's results depend on days/s, DG31).
+  Read the shadow column, not only the verdict. `-Parallel` (direct slots 1 and 2) only when the queue is stopped.
+  Queue status: `tools/game_queue.ps1 -Status`; check a request without running it: `-Check <file>.req`. The queue
+  runs with `-Slots 6` (measured safe; slots 8-9 would be E-cores); restart it with care: stop the queue, its `ingame_run` children and their games together (runs in
+  flight are re-run by the new queue).
   `tools/run_summary.ps1 -Log <log>` summarises any single run.
 - **One run:** `tools/ingame_run.ps1 -Label runN -AfterLoadSeconds 150 -Seconds 400 -Ini $ini`, with the ini built in
   PowerShell with real `` `n `` newlines, for example

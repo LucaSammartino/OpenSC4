@@ -21,6 +21,7 @@
 #include "FC4DemandShadow.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
+#include "FC4Dialogs.h"  // the harness lane: close_dialogs
 #include "FC4Popups.h"
 #include "FC4RefAudit.h"
 #include "cFC4Demand.h"
@@ -52,6 +53,7 @@
 #include "cFC4Neighbors.h"
 #include "cFC4Development.h"
 #include "cFC4GrowthDeveloper.h"
+#include "cFC4TrafficSimulator.h"
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
 
@@ -211,6 +213,14 @@ const ClassEntry kDevelopmentClasses[] = {
     {kFC4_CLSID_cSC4GrowthDeveloper, "cSC4GrowthDeveloper", &CreateFC4GrowthDeveloper},
 };
 
+// docs/specs/traffic-simulator.md, traffic-network.md and pathfinder.md: the
+// traffic simulator, its network model and the pathfinders of slot 6, replaced
+// as one unit (traffic-simulator.md §9). Off by default (M5 glue trial):
+// `enable = traffic`.
+const ClassEntry kTrafficClasses[] = {
+    {kFC4_CLSID_cSC4TrafficSimulator, "cSC4TrafficSimulator", &CreateFC4TrafficSimulator},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -235,6 +245,7 @@ const Subsystem kSubsystems[] = {
     {"neighbors", nullptr, kNeighborsClasses, sizeof(kNeighborsClasses) / sizeof(kNeighborsClasses[0]), false},
     {"development", nullptr, kDevelopmentClasses, sizeof(kDevelopmentClasses) / sizeof(kDevelopmentClasses[0]),
      false},
+    {"traffic", nullptr, kTrafficClasses, sizeof(kTrafficClasses) / sizeof(kTrafficClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -281,6 +292,7 @@ void Resolve() {
     AutotestReload();
     ObserverReload();
     PopupDialogsReload();  // popup_dialogs (FC4Popups.h); the call itself is made at PostAppInit
+    DialogsReload();       // close_dialogs (FC4Dialogs.h); the subscription is made at PostAppInit
     // FreeCity4.ini `disable = ...` wins over FC4_DISABLE.
     const char* source = "";
     const std::string disable = Lower(Setting("disable", "FC4_DISABLE", &source));

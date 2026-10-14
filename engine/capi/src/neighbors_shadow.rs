@@ -94,7 +94,7 @@ pub struct fc4_neighbors_shadow_input {
     pub ready: u8,
     pub ui_disabled: u8,
     pub two_curves: u8,
-    /// ABI 47 (0 before: the earlier fixed values).
+    /// ABI 45 (0 before: the earlier fixed values).
     pub deals_dirty: u8,
     pub stats_dirty: u8,
     pub busy: u8,

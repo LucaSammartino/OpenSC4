@@ -3342,3 +3342,215 @@ step and adds a fallback. The current answer is in brackets.
   occupant whose flag 1 ("inserted") is already set, a null `AsPropertyHolder()` (never for game occupants), or an
   occupant already listed in its first cell. Never for the type, the initialised state (the insert calls `Init` itself)
   or the box. Logging these is the implementer's choice; the bracket stands.
+
+## From the commercial, industrial, civic, park, history and clock specs (re-specs9 lane, 2026-10-14)
+
+Open points from commercial-industrial.md, civic-buildings.md, parks.md, history.md and clock24.md. The current
+answer is in brackets; each entry says what would settle it.
+
+- **CM1:** AO1, the commercial part: which AddAgent name does the commercial simulator use, and does it count at the
+  month level? [`cSC4CommercialSimulator`. It registers a one-shot, an idle, a day and a month agent; the month agent
+  ignores its message but still takes a place in the month order (commercial-industrial.md §3). AO1 and
+  foundations §13.4 can take this name. The two port developers are still open]
+- **CM2:** If FreeCity4 ever corrects RG23 (the proximity seed covers only the z = 0 edge), the CO$$ and CO$$$ maps
+  stop being constant and offices start to affect growth. Should the correction be offered? [no: compatibility
+  keeps the defect. A correction would be a separate *[choice]* behind an option, off by default. This is a
+  coordinator decision, not an RE question]
+- **CM3:** The demand nodes `0x3000` and `0x3800` are held but never read, yet `Init` fails without them. Can the
+  shipped game reach `Init` without them? [no case found: the demand simulator creates them first, and FreeCity4
+  keeps the failure path. A load test with a city whose demand record is missing would settle it]
+- **IN1:** Does anything call the industrial simulator beyond the city's lifecycle calls? [no other reference to its
+  interface or class ID was found, so the implementation is a stub with a version record. A runtime call trace on
+  its vtable would settle it]
+- **CB1:** Lot placement and exclusion IDs. The civic simulator has no preview-occupant test, so a preview occupant
+  of a building with `0xEA2E078B` adds that ID and then erases it. If the preview's removal came after the real
+  building's insertion, the ID would be lost and the building could be placed twice. [in the shipped game a placed
+  reward building is disabled in the menu, so either the preview's removal comes first or the preview is never
+  inserted. FreeCity4 must keep the original message order. An in-game check (place the Mayor's House, look at the
+  menu) with a message log would settle it]
+- **CB2:** A lot that returns to state 3 (for example after abandonment) is charged a second time and listed in
+  `maintained` a second time. Does the shipped game send state 3 twice for a civic lot? [reproduced as is. The
+  corpus holds 7 `maintained` entries in 5 cities and no duplicate. A lot-state message log for an abandoned and
+  restored civic building would settle it]
+- **CB3:** Status bytes 4, 5 and 6 occur in the corpus (15, 8 and 32 entries). The SDK calls bit 4 "advisor event
+  data set". Who sets it, and does anything read it back? [carried through `Read` and `Write` unchanged; the
+  advisors write through `GetConditionalBuildingStatus`. A trace of the writers of the status byte would settle it]
+- **CB4:** `buildingCount` is a u16 that wraps. A removal without a matching insert gives 65,535: for example a
+  building inserted before its status entry existed, or removed before activation. [reproduce the wrap. Counts
+  above 0 occur in only 13 entries of 5 cities, and none has wrapped. A save that loads with a building but
+  without its status entry would show it]
+- **CB5:** The income line is keyed by the building type, not by the item's line. The line that
+  `CreateLineItemForBuildingType` returns is used without a null check. [keep the keying. *[choice]* FreeCity4
+  skips the income when creation fails, which the shipped budget never does for a new type]
+- **PK1:** The shipped distress threshold 25.0 is compared with a fraction. So the first monthly pass of each session
+  marks every park lot run down (condition 2), and the park manager never restores it. Yet in the corpus every park
+  lot is at condition 0 (one at 1). What resets the condition? [the lot developer's condition test
+  (lot-developer.md §5.5) *[inferred]*. An in-game check would settle it: play one month with a park, then save,
+  or watch the lot condition in the query tool]
+- **PK2:** The zoo escape runs only when the park list is not empty. A park budget item that names a missing
+  department crashes the original. [the shipped zoo is in both groups, so the first point cannot show in the
+  shipped game. *[choice]* FreeCity4 skips the charge for a missing department (parks.md §4.2)]
+- **PK3:** Park line items are never removed. A removal message releases the occupant once even when it was not
+  listed. [reproduced; an empty line stays in the budget panel at 0 and 0. A budget-panel check after demolishing
+  every park of one type would confirm the visible effect]
+- **HW1:** The yearly thinning keeps the last point of every `Dispose` range and leaves the last group of every
+  `Coalesce` range open. Is that an off-by-one in the original, or intended? [reproduced as is; Konradshohe's 296
+  points match this model exactly]
+- **HW2:** `GetPoint` at an interior point returns the regression value through three points (a smoothing), and
+  `GetCount` counts the widened range. Do the graph windows depend on this? [reproduced; the graph and Lua callers
+  are not traced yet. A trace of the graph window's calls would settle it]
+- **HW3:** The regression sums are `double` variables, but they follow the caller's x87 precision: 24-bit from the
+  simulators, 53-bit inside Lua calls (foundations §18). [FreeCity4 evaluates them per caller. A differential test
+  through a Lua advisor call would confirm the 53-bit path]
+- **HW4:** Version 1 records turn `maxCount = 100` into 0, duplicate dates overwrite the last point, and nothing in the
+  executable posts `0x89EFA537`. Why `100 → 0`, and does any plugin post `0x89EFA537`? [reproduced; the message stays
+  handled for plugins. The city getter is settled: slot 32 (`+0x80`) returns the field that `CreateCityComponents`
+  fills with the warehouse (history.md §1); docs/abi still shows a folded name for it]
+- **CK1:** Does the clock run while the player pauses the simulation (pause button or speed 0)? [yes *[inferred]*:
+  only hidden pauses (through `SC4GamePause` and the scrubber) stop it, and nothing links the simulator's `Pause()`
+  or speed to the clock. An in-game check would settle it: pause, then watch the clock display and the lighting]
+- **CK2:** Is the clock timer's unit 3 microseconds? [yes *[inferred]* from the `1e-6` factor, which gives a
+  640-second day at magnification 135. The unit factors from `0x00B54360` onwards are calibrated at runtime.
+  Reading that table in a running game, or timing one game day, would settle it]
+- **CK3:** What is the object at `+0x8C` that `Shutdown` hands the string at `+0x78` to? [dead: nothing in the clock
+  sets it, so FreeCity4 omits both fields. A write breakpoint on `+0x8C` would settle it]
+- **CK4:** A saved `pauseCount > 0` leaves the clock stopped after the load, and only `Stopwatch resume` restarts it.
+  [reproduced; the corpus has no such save]
+- **CK5:** Each step loses the fraction of a game second left after truncation, so the day is up to about 1.6 %
+  longer than 86,400 / magnification real seconds, depending on the idle cadence. [FreeCity4 reproduces the formula. The
+  visible day length follows FreeCity4's own idle cadence, which conformance does not test]
+- **CK6:** The SDK header declares `GetTimePercentage` and `GetVisualTimePercentage` as `float (void)`, but the game
+  takes an out pointer and pops 4 bytes. `GetEventHour` takes a dword index, not a `bool`. [the game's form is
+  binding (clock24.md §8), and docs/abi should note it. Plugins built on the SDK declaration would corrupt the
+  stack in the original too]
+
+## From the power shadow under the turbo clock (filed by the coordinator from the `powerturbo` lane's report, 2026-10-14)
+
+The power shadow's bookkeeping lines were exact at normal speed but not under `sim_turbo` (regress gsT1: 306 of 352).
+The cause was the shadow's classifier, not the power core: building messages still in flight at a month line, which
+turbo makes more frequent. The lane fixed it in the shadow (exact under turbo and at normal speed) and implemented
+the brackets below, marked *[choice]* in code.
+
+- **PW9:** power §5.2 takes the first bookkeeping line as the baseline of differences inherited from the save, but
+  that line can have building messages in flight. Should the spec say how the baseline is chosen? [the first line
+  equal to its predecessor; never edited afterwards; an entry that reads 0 is listed as absent and counts as
+  inherited again when it returns; a non-inherited difference is a mismatch only when it is unchanged at a line
+  where nothing else changed, or unchanged across three lines]
+- **PW10:** given §5.3 (PW5: a partial rebuild leaves bits set outside the rebuilt area, and no insertion filters
+  run during a rebuild), should the bookkeeping line compare wire bits at all? [listed as "wire bits, not counted";
+  kept out of the baseline and the mismatch count. The cycle lines still compare every rebuild's wire bits exactly.
+  No counted check then covers the wire bits that §5.1 insertion sets directly]
+- **PW11:** under turbo the baseline can settle late (the 9th line in one run), so a real difference that appears
+  earlier is taken as inherited; and a frame that opens two month days keeps the first day's messages in flight at
+  the second, which then looks settled. Is a count of queued occupant messages (from the message server) a
+  documented, reliable signal that the shadow could use instead of this guesswork? [not used]
+
+## From applying the graphics-format answers (filed by the coordinator from the `apply9c` lane's report, 2026-10-14)
+
+- **FS15:** FS4: a later `0x7B` frame that has its own valid 256 × 1 palette. Does the original use that palette,
+  frame 0's, or upload grey? §2.6 covers only a frame with no usable palette. [its own palette; a palette that is
+  missing, the wrong size, outside the record, or behind a chain that leaves the record counts as "no usable
+  palette" → grey, and the record is still accepted]
+- **FS16:** FS12: the original's `towlower` works on UTF-16 code units, so it probably does not lower characters
+  outside the BMP. Should FreeCity4 match that? [no: every character is lowered by Unicode simple case mapping, as
+  §3.11 says]
+- **FS17:** §2.13 does not record the 15 shipped frames, in multi-frame DXT1 records, whose own A field would give the
+  other DXT1 format (they report frame 0's format since FS5; the pixels are the same). Should it? [no code depends
+  on it]
+
+## From the development glue fixes (filed by the coordinator from the `devglue2` lane's report, 2026-10-14)
+
+devglue2 made the development replacement work in game: the catalogue loads 744/744 types and 281 families (a
+building's own property list holds only its own properties; most building data sits in parent cohorts), the
+shadow is exact (305/305 lines), and the replacement grows like the original at equal pacing without going
+bankrupt. QI `0x0AC2B5F7` on new building occupants works (154 created, 0 failures), unlike the landfill tile (LG27).
+
+- **DG28:** the growth developer's special-building copy is released last, in its destructor; in an unsaved city
+  that release is the last reference (the five warnings on class `0xA9BD882D` in run 102). Does the original also
+  free those occupants there, after the load's object table has dropped its references? [yes, assumed; the release
+  is marked expected (`FC4_RELEASE_AT_DESTRUCTION`), and still warns if the reference was never taken]
+- **DG29:** data-formats §4.4 says `EnumProperties` gives the effective property list, but in game it lists only a
+  holder's own properties. Is there an effective enumerator, and what does the original's lookup do with cohorts?
+  [the glue walks the parent cohort chain itself (`EffectiveProperties`), with cycle detection]
+- **DG30:** the suitability comparison tests each building type at a cell whose zone fits it, rotating through lots
+  in state 1, lots in other states and empty cells. Tooling only. [accepted as tooling]
+- **DG31:** with the original simulators, a city run at about 85 game days per real second (`sim_turbo`) ends with
+  lower income (3540-3647 against 4202-4593 at 8-20 days/s) and negative funds. Which original work is bound to
+  frames or real time rather than game days? [unknown; compare runs only at equal pacing. Separately, our
+  development unit costs about 3× per game day: 23-29 days/s under turbo against the original's 80-90]
+
+## From the traffic glue, phase 1 (filed by the coordinator from the `trafficglue` lane's report, 2026-10-14)
+
+Our traffic simulator (with the pathfinder) replaces the original in game (`enable = traffic`): clean under turbo,
+at normal speed for 84 months and across two saves, with 0 reference warnings. There is no traffic shadow yet.
+The lane's implemented answers are in brackets; most are glue choices that need only a confirmation or a spec line.
+
+- **TG1:** `FindPath` with a route deque. [returns 0, logged once, counted; the deque is untouched]
+- **TG2:** host callbacks left NULL: `path_info` and its helpers, `sim_clock_ms`, `update_network_costs`,
+  `lot_strategy_byte`, `take_connection_volume_dirty`, `occupants_in_cells`, `occupant_filter_includes`,
+  `cell_has_network_occupant`, `tunnel_paired_portal`, `view_cell_rect`, `create_accident`. Which of these does
+  the original need for the simulation (not the view)? [all NULL in phase 1]
+- **TG3:** the trip record layout. [FreeCity4's own `FC4TripData`]
+- **TG4:** `Init` after state was loaded by `Read`. [the loaded state is kept]
+- **TG5:** slot 34's record size. [0x23C]
+- **TG6:** slot 22. [returns null, logged]
+- **TG7:** departments. [`Get`, else `Create(id, 0)`; `SetMaxAllowedFunding`; line items 1–6]
+- **TG8:** `GetLanguageUtility`. [borrowed, not AddRef'd]
+- **TG9:** `DoLotActivated` budget items. [copied, then `AddBudgetItemToBudget(lot holder, item.index)`]
+- **TG10:** lot order. [the master list through the safe iterator; a rect query as fallback]
+- **TG11:** `Shutdown`. [unsubscribe; `RemoveAgentAllLevels`]
+- **TG12:** `department_funding` with a null department. [1.0]
+- **TG13:** slot 12. [a ring of 64 records]
+- **TG14:** slot 29. [a vector kept per tile pair]
+- **TG15:** slots 20/21 called off the main thread. [a direct property read]
+- **TG16:** a lot's `AsTrafficSource`. [borrowed]
+- **TG17:** `CreatePathFinder(null)`. [false]
+- **TG18:** `SetupPathFinderForLot` with a pathfinder the original created. [false]
+- **TG19:** stale lot or connection tokens. [refused; a connection removed mid-phase is skipped]
+- **TG20:** which messages carry an object. [only the lot message `0xE8BDA2E7` and the occupant messages
+  `0x99EF1142`/`0x99EF1143`]
+- **TG21:** a message on another thread while the lock is busy; slot 19 while the lock is busy. [dropped; slot 19
+  counted as a fallback]
+- **TG22:** units per slice against the original's 4 ms deadline (traffic-simulator §3.4). [16 deterministic units
+  per slice; our turbo runs at about 43–46 game days/s with traffic against about 76 without]
+
+## From applying the REH, flora, residential and flammability answers (filed by the coordinator from the `apply9d` lane's report, 2026-10-14)
+
+apply9d applied AQ1–AQ10, RG24 and FL7–FL9 (merged `ccfe2b4`). Every in-game run stayed clean and exact:
+flammability 18/18 under turbo and 117/117 at normal speed, residential 384/384 and flora 25/25. Under turbo the
+flammability cycle-end message arrived up to 17 days after the wrap day.
+
+- **AQ11:** AQ2/AQ3: when there is no R$ EQ or HQ grid, which tract size do the R$$ and R$$$ variants and the
+  minimum and maximum coordinates use? [member E]
+- **AQ12:** AQ10: how should the stray reference from a failed `OpenOStream`/`OpenIStream` be audited? [as
+  acquired, then released as created-for-us]
+- **AQ13:** AQ7: is each end of a listing clamped to 0..191 on its own? [yes]
+- **FL10:** FL8: the tracts a new cycle visits come from a `rand()` draw. Which marks carry into the next cycle?
+  [every tract changed after the wrap day, a superset]
+- **FL11:** FL8: the day count starts when the shadow is created (the first event, before the original's first
+  day) and uses our own tractsPerDay. It is checked only against the number of cycle ends delivered, so an offset of
+  whole cycles is not detected. [once it is off, it stays off for that city and only the comparison's own poll
+  carries]
+- **FL12:** FL1/FL8: what is the bound on unvisited tracts under the turbo clock? [max(2 × tractsPerDay, the
+  new-cycle tracts the count gave at the previous comparison); in game the bound reached 7098 and the unvisited
+  count stayed at most 155]
+- **FL13:** FL7: what polls when there are no day polls, for example when the game's own simulator delivers the days?
+  [every forwarded message plus the cycle end. Polling still needs the host's `watered_grid` to be non-NULL, although
+  content polls read only slot 11]
+
+## From applying the zones, landfill, budget and crime answers (filed by the coordinator from the `apply9b` lane's report, 2026-10-14)
+
+apply9b applied ZG1–ZG17, LG27–LG29, BQ4, BQ7 and CQ23 (merged `969527d`). In game the zones shadow is exact (392/392,
+296/296), and landfill game tiles insert with no failures (`gameTiles=12 gameTileFailures=0`; the tile exemplar is set
+through the holder at occupant + 0x20).
+
+- **ZG18:** ZG3: with no exemplar, or no Zone Display Alpha property, does `Init` still copy the alpha to the default
+  alpha? [no: the saved alpha survives and the default alpha stays as it was (0xFF from the constructor); only the
+  exemplar's value is copied]
+- **ZG19:** ZG3 / §10.1: does `Read` set the default alpha? [no: the default alpha is not saved, so after `Read` and
+  before `Init` it is 0xFF]
+- **ZG20:** zones §15.2 still says "Type 16 → false", which conflicts with §6 and ZG17. [ZG17 followed: type 16
+  dezones; `zn15_02` updated. The spec text needs the fix]
+- **ZG21:** ZG2 and the §5.1 dezone: under the ZG2 choice, a network whose bounding cells cross the city edge has its
+  whole dezone refused. Before, the inside cells were dezoned, and the original dezones them too while touching
+  memory outside the grid. [refused whole, with error 0; not seen in game]

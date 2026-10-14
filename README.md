@@ -86,9 +86,11 @@ budget is off by default (enable = <key>). Milestones are defined in
 - [x] Growth, building development and tract developer spec questions answered in the specs (8fdea4e)
 - [x] Daily growth budget calibrated in the original (growth probe merged 393a529; run 93: 14,339 days, the 3 ms timer never cuts, so the default is unlimited)
 - [ ] Seeding rules (foundations §6.3)
-- [ ] **Development glue** (building development simulator, growth developers and `development_shadow`; merged c787ecf): fails in game. Run 101: the shadow compared nothing. Run 102: the replacement went bankrupt. Back with the devglue2 lane (paused)
-- [ ] Tract developer glue (lane paused)
+- [x] **Development glue** (building development simulator, growth developers and `development_shadow`; merged c787ecf, fixed in devglue2 38524aa): the catalogue loads 744/744 types and 281 families, the shadow is exact (913/913 in regress m850, run 104), and the replacement grows like the original at equal pacing. Our unit is about 3x slower per game day
+- [ ] Tract developer glue (lane running)
 - [ ] Lot developer glue; zone developer and lot manager (zones phase 2): not started
+- [x] Specs: commercial and industrial simulators, civic buildings, park manager, history warehouse, 24-hour clock (re-specs9, a3599a0)
+- [ ] Cores for them (two lanes running: history warehouse + 24-hour clock; commercial + industrial + civic + parks), then glue
 - [ ] The growth statistics distribution matches across seeded runs (M4 exit)
 
 **M5: traffic**
@@ -96,7 +98,8 @@ budget is off by default (enable = <key>). Milestones are defined in
 - [x] Traffic network core (merged dd240c9: 50 unit tests, 20 conformance vectors for all twelve §11 tests; §4.14 and §6 persistence wait for the traffic simulator)
 - [x] Pathfinder core (merged 36ababe: 28 `pf11_*` vectors)
 - [x] **Traffic simulator core** (merged a11eb7d: all 15 §11 tests as unit tests and 29 `ts11_*` vectors)
-- [ ] Traffic glue (phase 1, the simulator + pathfinder unit: lane paused), calibration; commute and volume maps match (M5 exit)
+- [x] **Traffic glue, phase 1** (merged 850b567, `enable = traffic`): our traffic simulator and pathfinder replace the original in game; clean alone, across saves and for 84 months at normal speed, and in a full city with 17 other replacements (run 105, one reference warning under investigation)
+- [ ] Traffic phase 2 (lane running): the TS35–TS49 answers, a traffic shadow; then calibration; commute and volume maps match (M5 exit)
 
 **M6+: beyond simulation**
 - [x] Specs: game data formats (DBPF, exemplars, tuning catalogue, 601f3a9), lot/occupant save records (0460f3a), city save records validated against 417 saves (e69009f)
@@ -108,7 +111,8 @@ budget is off by default (enable = <key>). Milestones are defined in
 **Cross-cutting**
 - [x] Interface/ABI reference for implementers: allocators, layouts, direct calls ([docs/abi/](docs/abi/))
 - [x] Test harness switches in the plugin (6147be6, tooling, off by default): `sim_turbo` (our clock without the msPerDay wait), `autotest_end_date`, `script = <file>` (dated zone / dezone / speed / save / digest actions through the game's interfaces); turbo runs about 100 game days/s in game and waits for ConnectionsReady (0786064)
-- [ ] Parallel game slots and a per-lane run queue (tooling lane running)
+- [x] Parallel game slots and a per-lane run queue (9e0fa74): up to 3 games at once, each lane tests its own DLL in game ([docs/harness.md](docs/harness.md)); `regress -Parallel` in about 164 s
+- [x] Game dialogs ended from inside the plugin (dba09eb, tooling, off by default): `close_dialogs = 1` presses each modal dialog's default button through the window manager ([docs/specs/modal-dialogs.md](docs/specs/modal-dialogs.md))
 - [ ] SDK errata (289 findings) re-checked against upstream gzcom-dll and reported (needs the owner's OK)
 - [ ] In-game manual checklist ([docs/manual-checks.md](docs/manual-checks.md)): two human checks remain, the budget window's look and the cheats (`RiskyMoney`, `WeaknessPays`, `Moolah`)
 

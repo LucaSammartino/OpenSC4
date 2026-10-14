@@ -54,11 +54,16 @@
 //! - `enabled` (latched once the original's `DoIdle` is seen working).
 //!
 //! The month's bookkeeping line (§5.2, PW8) sets apart what the original's
-//! running counts inherited from the save: a difference equal to the first
-//! bookkeeping line's is inherited (case 1), one that changed since the last
-//! line is in flight (case 2, occupant messages not yet delivered), and only
-//! one that stays from a line to the next without being inherited counts as a
-//! mismatch [choice, power.md §5.2].
+//! running counts inherited from the save: a difference equal to the
+//! baseline's is inherited (case 1), one that changed since the last line is
+//! in flight (case 2, occupant messages not yet delivered), and only one that
+//! stays without being inherited counts as a mismatch [choice, power.md
+//! §5.2]. The baseline is the first line equal to the line before it (the
+//! first line can have messages in flight too), and it is never edited (an
+//! entry masked by a difference in flight comes back as inherited). The wire
+//! bits are listed and not counted: a whole-map rebuild differs from the
+//! original's rectangle-by-rectangle bitmap by design (§5.3, PW5), and each
+//! rebuild is compared on the cycle lines; see `Shadow::bookkeeping_line`.
 //!
 //! Not readable, hence not compared: the posted messages, history values,
 //! budget line items, demolitions and lot conditions, the poles the month's
@@ -1196,12 +1201,54 @@ type BookDiff = BTreeMap<BookKey, i64>;
 /// The bookkeeping lines so far.
 #[derive(Default)]
 struct BookHistory {
-    /// The first line's differences, less those gone since (they were in
-    /// flight then): what the save left behind (case 1).
+    /// The baseline: the differences of the first line that equals the line
+    /// before it (nothing in flight at either), what the save left behind
+    /// (case 1). Never edited once set: an entry masked at a line by a
+    /// difference in flight comes back as inherited.
     base: Option<BookDiff>,
     base_date: Option<i32>,
-    /// The previous line's differences.
+    /// Lines written so far.
+    lines: u32,
+    /// The previous line's differences, and those of the line before it.
     prev: BookDiff,
+    prev2: BookDiff,
+}
+
+/// One key's place on a bookkeeping line once the baseline is set (§5.2,
+/// PW8; see `Shadow::bookkeeping_line`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BookClass {
+    /// The baseline's difference (case 1).
+    Inherited,
+    /// Changed since the last line (case 2).
+    InFlight,
+    /// A baseline entry whose difference is 0 at this line: masked by a
+    /// difference in flight that cancels it, or in flight at the baseline.
+    Absent,
+    /// Not inherited and unchanged since the last line, at a line where
+    /// other differences changed: counted at the next line.
+    Waiting,
+    /// Not inherited and unchanged since the last line at a line where
+    /// nothing changed, or unchanged at the last two lines: a mismatch.
+    Persistent,
+}
+
+/// Classifies one key: `v` its difference at this line, `b0` the baseline's,
+/// `p1` / `p2` the last two lines', `quiet` whether no difference of the
+/// line changed since the last line. None: no difference and none expected.
+fn book_class(v: i64, b0: i64, p1: i64, p2: i64, quiet: bool) -> Option<BookClass> {
+    if v == 0 {
+        return (b0 != 0).then_some(BookClass::Absent);
+    }
+    Some(if v == b0 {
+        BookClass::Inherited
+    } else if v != p1 {
+        BookClass::InFlight
+    } else if quiet || p1 == p2 {
+        BookClass::Persistent
+    } else {
+        BookClass::Waiting
+    })
 }
 
 /// One comparison's findings.
@@ -2250,12 +2297,44 @@ impl Shadow {
     /// The month's bookkeeping line (§5.2, PW8): the original's running
     /// counts (the record before the month) against FreeCity4's insertion
     /// (§5.1) of every live occupant and a wire rebuild of the whole map.
-    /// [choice, power.md §5.2] A difference equal to the first line's is
+    ///
+    /// [choice, power.md §5.2] A difference equal to the baseline's is
     /// inherited from the save (case 1); one that changed since the last
-    /// line is in flight (case 2: occupant messages not yet delivered); only
-    /// one that stays from a line to the next without being inherited is a
-    /// mismatch. A first-line difference gone later was in flight then and
-    /// leaves the baseline.
+    /// line is in flight (case 2: occupant messages posted and not yet
+    /// delivered, foundations §5.1); only one that stays without being
+    /// inherited is a mismatch. The spec takes the first line as the
+    /// baseline; the occupant messages of that line's own day (and, under
+    /// the turbo clock, of every day since the frame's message-server tick)
+    /// can be in flight there too (runs pt-base-turbo-1 and -normal-1: the
+    /// first line had consumers +3, the save's +2 and +1 in flight, and two
+    /// cells in flight), so the baseline is the first line that equals the line
+    /// before it [choice; QUESTIONS, power shadow baseline]: nothing changed
+    /// between the two, so nothing was in flight at either (a message posted
+    /// before the first is delivered at the next frame's message-server
+    /// tick, flammability.md §9, which comes before the second unless one
+    /// frame opens both month days). Until then nothing is counted. The
+    /// baseline is never edited: a baseline entry whose difference is 0 at
+    /// a line is absent (masked by a difference in flight that cancels it,
+    /// run gsT1 2027-12-01: consumers +2 and two new buildings in flight,
+    /// 660/660) and inherited again when it comes back; earlier versions
+    /// dropped it there, and its return was then counted as persistent.
+    /// A non-inherited difference unchanged since the last line counts as a
+    /// mismatch when nothing else changed at this line, or when it is also
+    /// unchanged since the line before (two buildings in flight at two
+    /// lines can show the same count, never the same cells).
+    ///
+    /// The wire bits are listed apart and not counted, nor used for the
+    /// baseline or the quiet test [choice; QUESTIONS, power shadow wire
+    /// bits]. Ours are one rebuild of the whole map; the original's are what
+    /// its insertions and its dirty-rectangle rebuilds left, and power.md §5.3
+    /// makes those depend on the rectangles: a rebuild loses a bit whose only
+    /// source is a zoned cell outside the rectangle (PW5), sets bits outside
+    /// it that only a later rebuild clears, and wires what the insertion
+    /// filters of §5.1 skip. Run pt-fix1-turbo-1 had wire 0/1 at
+    /// (39..,37..38) for nine months after the rebuild over (0,37)-(44,111),
+    /// run pt-fix1-turbo-2 two at (46,37..38) for eight months, with every
+    /// cycle line exact; each rebuild's bits are compared exactly on the
+    /// cycle lines.
     fn bookkeeping_line(&mut self, p: &Pending, b: &Result<Bookkeeping, String>) -> String {
         let head = format!("power shadow {} bookkeeping", date(p.julian));
         let b = match b {
@@ -2335,18 +2414,19 @@ impl Shadow {
                 }
             }
         }
-        let mut wires = 0u64;
+        // The wire bits stay out of `diff`: listed, not counted (see above).
+        let mut wire_bits: Vec<(BookKey, i64)> = Vec::new();
         if o.wire.words() != s.wire.words() {
             for x in 0..cx {
                 for z in 0..cz {
                     let (a, c) = (o.wire.test(x, z), s.wire.test(x, z));
                     if a != c {
-                        wires += 1;
-                        put(BookKey::Wire(x, z), if a { 1 } else { -1 });
+                        wire_bits.push((BookKey::Wire(x, z), if a { 1 } else { -1 }));
                     }
                 }
             }
         }
+        let wires = wire_bits.len();
         parts.push(format!(
             "consumption map {cells}/{} cells differ max|d|={maxd}; wire {wires} cells differ",
             i64::from(cx) * i64::from(cz)
@@ -2363,28 +2443,57 @@ impl Shadow {
                 format!(" [{}]", v.join(", "))
             }
         };
-        let city_start = self.mirror.city_start;
+        let since = if self.mirror.city_start {
+            "since the city start"
+        } else {
+            "since the shadow started mid-city"
+        };
+        let wire_part = format!(
+            "; wire bits, not counted (the original's running bitmap after its dirty-rectangle rebuilds vs one \
+             rebuild of the whole map, power.md §5.3: PW5, unclipped bits, no insertion filters; each rebuild is \
+             compared on the cycle lines) {wires}{}",
+            list(&wire_bits)
+        );
+        let intro = format!(
+            "{head}: the original's running counts (orig) vs FreeCity4's insertion (§5.1) of the {} live occupants \
+             and a wire rebuild of the whole map (ours), orig/ours: {}",
+            b.occupants,
+            parts.join("; ")
+        );
         let hist = &mut self.book;
-        let Some(base) = hist.base.as_mut() else {
-            // The first line: the baseline.
+        let get = |d: &BookDiff, k: &BookKey| d.get(k).copied().unwrap_or(0);
+        // Nothing changed since the last line: no occupant message in flight
+        // at this line that was not at the last one.
+        let quiet = hist.lines > 0 && diff == hist.prev;
+        hist.lines += 1;
+        let Some(base) = hist.base.as_ref() else {
             let all: Vec<(BookKey, i64)> = diff.iter().map(|(&k, &v)| (k, v)).collect();
-            hist.base = Some(diff.clone());
-            hist.base_date = Some(p.julian);
-            hist.prev = diff;
-            return format!(
-                "{head}: the original's running counts (orig) vs FreeCity4's insertion (§5.1) of the {} live \
-                 occupants and a wire rebuild of the whole map (ours), orig/ours: {}; baseline ({}): {} differences \
-                 inherited from the save (power.md §5.2 case 1) or in flight (case 2){}; mismatches=0",
-                b.occupants,
-                parts.join("; "),
-                if city_start {
-                    "the first line since the city start"
+            let line = if quiet {
+                hist.base = Some(diff.clone());
+                hist.base_date = Some(p.julian);
+                format!(
+                    "{intro}; baseline (the first line equal to the one before it {since}, nothing in flight): {} \
+                     differences inherited from the save (power.md §5.2 case 1){}{wire_part}; mismatches=0",
+                    all.len(),
+                    list(&all)
+                )
+            } else {
+                let why = if hist.lines == 1 {
+                    format!("the first line {since}")
                 } else {
-                    "the first line since the shadow started mid-city"
-                },
-                all.len(),
-                list(&all)
-            );
+                    let keys: BTreeSet<&BookKey> = diff.keys().chain(hist.prev.keys()).collect();
+                    let changed = keys.iter().filter(|&&k| get(&diff, k) != get(&hist.prev, k)).count();
+                    format!("{changed} differences changed since the last line: in flight, power.md §5.2 case 2")
+                };
+                format!(
+                    "{intro}; baseline not set yet ({why}; the baseline is the first line equal to the one before \
+                     it, nothing counted until then): {} differences{}{wire_part}; mismatches=0",
+                    all.len(),
+                    list(&all)
+                )
+            };
+            hist.prev2 = std::mem::replace(&mut hist.prev, diff);
+            return line;
         };
         let keys: BTreeSet<BookKey> = diff
             .keys()
@@ -2392,39 +2501,33 @@ impl Shadow {
             .chain(base.keys())
             .copied()
             .collect();
-        let (mut inherited, mut flight, mut gone, mut persistent, mut left) =
-            (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        let (mut inherited, mut flight, mut gone, mut absent, mut waiting, mut persistent) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
         for k in keys {
-            let v = diff.get(&k).copied().unwrap_or(0);
-            let b0 = base.get(&k).copied().unwrap_or(0);
-            let pv = hist.prev.get(&k).copied().unwrap_or(0);
-            if v != 0 && v == b0 {
-                inherited.push((k, v));
-            } else if v != 0 && v == pv {
-                persistent.push((k, v));
-            } else if v != 0 {
-                flight.push((k, v));
-            } else if b0 != 0 {
-                // Gone: in flight at the first line, not inherited.
-                base.remove(&k);
-                left.push((k, b0));
+            let (v, b0) = (get(&diff, &k), get(base, &k));
+            let (p1, p2) = (get(&hist.prev, &k), get(&hist.prev2, &k));
+            match book_class(v, b0, p1, p2, quiet) {
+                Some(BookClass::Inherited) => inherited.push((k, v)),
+                Some(BookClass::InFlight) => flight.push((k, v)),
+                Some(BookClass::Absent) => absent.push((k, b0)),
+                Some(BookClass::Waiting) => waiting.push((k, v)),
+                Some(BookClass::Persistent) => persistent.push((k, v)),
+                None => {}
             }
-            if pv != 0 && pv != b0 && v != pv && (v == 0 || v == b0) {
-                gone.push((k, pv));
+            if p1 != 0 && p1 != b0 && v != p1 && (v == 0 || v == b0) {
+                gone.push((k, p1));
             }
         }
-        hist.prev = diff;
+        hist.prev2 = std::mem::replace(&mut hist.prev, diff);
         let base_date = hist.base_date;
         let n = persistent.len() as u64;
         self.stats.bookkeeping_mismatches = self.stats.bookkeeping_mismatches.wrapping_add(n);
         format!(
-            "{head}: the original's running counts (orig) vs FreeCity4's insertion (§5.1) of the {} live occupants \
-             and a wire rebuild of the whole map (ours), orig/ours: {}; inherited (as at the baseline line {}, \
-             power.md §5.2 case 1) {}{}; in flight (changed since the last line, case 2) {}{}; gone since the last \
-             line {}{}; baseline entries gone (in flight then) {}{}; persistent (the same at two lines, not \
-             inherited) {}{}; mismatches={n}",
-            b.occupants,
-            parts.join("; "),
+            "{intro}; inherited (as at the baseline line {}, power.md §5.2 case 1) {}{}; in flight (changed since the \
+             last line, case 2) {}{}; gone since the last line {}{}; baseline entries absent (0 at this line: masked \
+             by a difference in flight; kept) {}{}; unchanged while others changed (not inherited; counted at the \
+             next line) {}{}; persistent (not inherited; unchanged since the last line with nothing in flight, or \
+             at three lines) {}{}{wire_part}; mismatches={n}",
             base_date.map_or("?".to_string(), date),
             inherited.len(),
             list(&inherited),
@@ -2432,8 +2535,10 @@ impl Shadow {
             list(&flight),
             gone.len(),
             list(&gone),
-            left.len(),
-            list(&left),
+            absent.len(),
+            list(&absent),
+            waiting.len(),
+            list(&waiting),
             persistent.len(),
             list(&persistent),
         )

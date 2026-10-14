@@ -43,8 +43,10 @@ pub mod prop {
     pub const MAX_SLOPE: u32 = 0xE948_25B9;
 }
 
-/// The tuning exemplar key (§4): `{type, group, instance}`.
-pub const TUNING_KEY: (u32, u32, u32) = (0xA521_60F5, 0xE7E2_C2DB, 0xE948_2490);
+/// The tuning exemplar key (§4): `{type, group, instance}`. ZG1: the type
+/// is `0x6534284A`; `0xA52160F5` is the interface ID the original asks of the
+/// resource manager with this key, not a type.
+pub const TUNING_KEY: (u32, u32, u32) = (0x6534_284A, 0xE7E2_C2DB, 0xE948_2490);
 
 /// `GetTextureForZone`'s fixed key type and group (§11.1 slot 14).
 pub const TEXTURE_KEY_TYPE: u32 = 0x7AB5_0E44;
@@ -92,11 +94,12 @@ impl Tuning {
     /// the first `min(16, count)` and leaving the rest at their previous
     /// value [choice: the original reinterprets 16 elements through `Ref*`
     /// with no count or type check]. A missing exemplar or property leaves the
-    /// array unchanged.
-    pub fn read(&mut self, h: Option<&PropertyHolder>) {
+    /// array unchanged. Returns whether the Zone Display Alpha was read (ZG3:
+    /// only then is it copied to the default alpha).
+    pub fn read(&mut self, h: Option<&PropertyHolder>) -> bool {
         self.create_cost = [0; 16];
         self.destroy_cost = [0; 16];
-        let Some(h) = h else { return };
+        let Some(h) = h else { return false };
 
         fn take16<T: Copy>(dst: &mut [T; 16], src: Option<Vec<T>>) {
             if let Some(v) = src {
@@ -120,7 +123,9 @@ impl Tuning {
         take16(&mut self.max_slope, props::f32s(h, prop::MAX_SLOPE));
         if let Some(a) = props::u32_of(h, prop::DISPLAY_ALPHA) {
             self.display_alpha = a as u8;
+            return true;
         }
+        false
     }
 }
 
@@ -268,6 +273,22 @@ fn rect_inside(inner: CellRect, outer: CellRect) -> bool {
     inner.x1 >= outer.x1 && inner.x2 <= outer.x2 && inner.z1 >= outer.z1 && inner.z2 <= outer.z2
 }
 
+/// Whether a cell of `region` that PlaceZone would examine (inside the
+/// region's bitmap, its bit set) lies outside the `cx` × `cz` city (ZG2).
+fn has_cell_outside_city(region: &super::CellRegion, cx: i32, cz: i32) -> bool {
+    let r = region.rect;
+    if r.x1 > r.x2 || r.z1 > r.z2 {
+        return false; // an empty rectangle has no cell
+    }
+    if r.x1 >= 0 && r.z1 >= 0 && r.x2 < cx && r.z2 < cz {
+        return false; // the whole rectangle is inside
+    }
+    region
+        .cells()
+        .into_iter()
+        .any(|(x, z)| x < 0 || z < 0 || x >= cx || z >= cz)
+}
+
 impl ZoneManager {
     /// The constructor's state (§3.1): no grid, counts 0, alpha 0xFF, flags
     /// false. The member `cRZRandom` is never created (§9: it is never drawn).
@@ -305,8 +326,14 @@ impl ZoneManager {
         let tuning = self.host.tuning();
         {
             let mut s = self.st.borrow_mut();
-            s.tuning.read(tuning.as_deref());
-            s.default_alpha = s.tuning.display_alpha;
+            // ZG3 (§10.1): the exemplar's Zone Display Alpha overwrites the
+            // alpha a Read set and is copied to the default alpha. [question]
+            // Literal reading: with no exemplar or no such property the saved
+            // alpha survives and the default alpha is left as it was (the
+            // copy is of the exemplar's value, so there is nothing to copy).
+            if s.tuning.read(tuning.as_deref()) {
+                s.default_alpha = s.tuning.display_alpha;
+            }
         }
         // 2. Take the services and subscribe.
         self.host.manager_acquire_services();
@@ -521,12 +548,23 @@ impl ZoneManager {
         skip_size_check: bool,
         check_lot_inside: bool,
     ) -> PlaceZoneResult {
-        let funds = self.host.total_funds();
-        let t = zone_type as u32;
-        if t >= 16 {
+        // ZG2 [choice] (§6 "No city-bounds test", recommended): the original
+        // skips only the cells outside the region's own bitmap or with their
+        // bit clear and reads (on a commit writes) the zone grid unchecked, so
+        // a set cell outside the city reads and writes outside the grid. Such
+        // a call fails here with error 0 before anything else (no funds read,
+        // no cell examined, the region untouched). The glue refuses a bad
+        // §11.4 layout or an oversized region the same way (fc4_zones_place_zone).
+        let (cx, cz) = self.host.city_cell_counts();
+        if has_cell_outside_city(region, cx, cz) {
             return PlaceZoneResult::fail(place_error::OK);
         }
-        let idx = t as usize;
+        let funds = self.host.total_funds();
+        // ZG17 (§6 "Type out of range"): a type ≥ 16 (unsigned) is not a
+        // failure; the argument itself is replaced by 0 and the call proceeds
+        // as a dezone, with type 0's size limits.
+        let zone_type = if (zone_type as u32) >= 16 { 0 } else { zone_type };
+        let idx = zone_type as usize;
 
         // Snapshot the tuning values needed below, so no borrow is held
         // across a host call. `destroy_cost` is read per cell in the loop,
@@ -542,27 +580,38 @@ impl ZoneManager {
         };
 
         let rect = region.rect;
-        if !skip_size_check {
-            let w = rect.x2.wrapping_sub(rect.x1).wrapping_add(1);
-            let h = rect.z2.wrapping_sub(rect.z1).wrapping_add(1);
-            if w < min || h < min {
-                return PlaceZoneResult::fail(place_error::TOO_SMALL);
-            }
-            if w > max || h > max {
-                return PlaceZoneResult::fail(place_error::TOO_LARGE);
-            }
-        }
-
-        let grid = self.grid();
-        let (cx, cz) = self.host.city_cell_counts();
         let mut cost: i64 = 0;
         let mut accepted: Vec<(i32, i32, i32)> = Vec::new(); // (old, x, z)
         let mut demolish: Vec<u64> = Vec::new(); // unique, insertion order
         let mut error = place_error::OK;
 
+        // ZG17 (§6): a failed size check is an ABORT, not an early return. The
+        // cell loop does not run (nothing accepted, nothing to demolish, the
+        // region untouched), but the post-loop block below runs in full: the
+        // type-14 landfill cost of the whole request region, skipFunds, the
+        // funds test (error 1 replaces 3 or 4) and both outputs.
+        if !skip_size_check {
+            let w = rect.x2.wrapping_sub(rect.x1).wrapping_add(1);
+            let h = rect.z2.wrapping_sub(rect.z1).wrapping_add(1);
+            if w < min || h < min {
+                error = place_error::TOO_SMALL;
+            } else if w > max || h > max {
+                error = place_error::TOO_LARGE;
+            }
+        }
+
+        let grid = self.grid();
+        // After a size ABORT no cell is examined.
+        let scan = error == place_error::OK;
+
         'scan: for x in rect.x1..=rect.x2 {
+            if !scan {
+                break;
+            }
             for z in rect.z1..=rect.z2 {
-                if x < 0 || x >= cx || z < 0 || z >= cz || !region.includes(x, z) {
+                // ZG2: only the cells of the region's bitmap with their bit set
+                // (every such cell is inside the city, tested above).
+                if !region.includes(x, z) {
                     continue;
                 }
                 let mut old = grid.as_ref().map_or(0, |g| i32::from(g.get_cell_value(x, z)));
@@ -841,8 +890,9 @@ impl ZoneManager {
             for slot in m.tuning.drag_color.iter_mut() {
                 *slot = inp.get_u32()?;
             }
+            // ZG3: the saved alpha lasts until Init's tuning read (§10.1);
+            // the default alpha is not saved, so Read leaves it alone.
             m.tuning.display_alpha = inp.get_u8()?;
-            m.default_alpha = m.tuning.display_alpha;
             for map in [&mut m.failure1, &mut m.failure2] {
                 let n = inp.get_u32()?;
                 for _ in 0..n {
@@ -873,8 +923,12 @@ impl ZoneManager {
         s.unnamed1 = m.unnamed1;
         s.abandoned_tile_count = m.abandoned_tile_count;
         s.unnamed2 = m.unnamed2;
-        s.tuning = m.tuning;
-        s.default_alpha = m.default_alpha;
+        // The max slopes and the default alpha are not saved (§10.1): Read
+        // keeps the current ones.
+        s.tuning = Tuning {
+            max_slope: s.tuning.max_slope,
+            ..m.tuning
+        };
         s.failure1 = m.failure1;
         s.failure2 = m.failure2;
         s.loaded = true;

@@ -6,7 +6,7 @@
     "zones 4",
     "zones 15.2"
   ],
-  "description": "Conformance test 2 (size errors, \u00a76). With the shipped tuning (\u00a74) and skipSizeCheck = 0: a 33 \u00d7 1 rect of type 1 exceeds max[1] = 32 -> false, error 4, no grid change. A 3 \u00d7 3 rect of type 7 is below min[7] = 4 -> error 3. A 1 \u00d7 1 rect of type 14 is below min[14] = 2 -> error 3. A type-16 request fails before the size check with error 0. The size test uses w = x2 - x1 + 1 and h = z2 - z1 + 1 against both min and max.",
+  "description": "Conformance test 2 (size errors, \u00a76). With the shipped tuning (\u00a74) and skipSizeCheck = 0: a 33 \u00d7 1 rect of type 1 exceeds max[1] = 32 -> false, error 4, no grid change. A 3 \u00d7 3 rect of type 7 is below min[7] = 4 -> error 3. A 1 \u00d7 1 rect of type 14 is below min[14] = 2 -> error 3. A type-16 request is not a failure (ZG17, \u00a76 \"Type out of range\"): the type is replaced by 0 and the call proceeds as a dezone with type 0's size limits, so a 4 \u00d7 4 rect over unzoned cells succeeds with error 0 and leaves the grid at 0. (\u00a715.2 still says \"Type 16 \u2192 false\"; ZG17 corrects it.) The size test uses w = x2 - x1 + 1 and h = z2 - z1 + 1 against both min and max.",
   "steps": [
     {
       "op": "zone_env",
@@ -109,9 +109,25 @@
       "skip_funds": true,
       "skip_size": false,
       "expect": {
-        "ok": false,
-        "error": 0
+        "ok": true,
+        "error": 0,
+        "cost": 0
       }
+    },
+    {
+      "op": "zone_expect",
+      "zones": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          3,
+          3,
+          0
+        ]
+      ]
     }
   ]
 }

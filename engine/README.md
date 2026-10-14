@@ -316,14 +316,19 @@ plugin.
        `cSC4LandfillOccupant`s made through GZCOM with their tile exemplar attached (`SetDefaultExemplar`), so the
        model is drawn, the query tool shows them, the maintenance reads each tile's cost from its exemplar and the
        game saves them; a tile that cannot be made is kept in FreeCity4 (the cell keeps pollution's
-       active-landfill flag; a load rebuilds only those). The first tile made is logged in full (`landfill: game
-       tile made (first one; …): tile 0x… orientation … at cell (x, z), position (…); exemplar holder by QI on the
-       occupant; tile cost 0xEA54D286 … found; type 0x6A11BD2B …; Init true, IsInitialized yes; bounding box …;
-       InsertOccupant true; flag 1 set`), and so are the first four failures, each with the step that failed and
-       what every step before it gave (`landfill: WARNING game tile failure N: tile … not made: <step>. Steps:
-       exemplar (0x6534284A, 0x07BDDF1C, 0x…) found; GZCOM GetClassObject(0x8A22BEBE, 0x2A15F262) made one;
-       AsOccupant ok; exemplar holder (QI 0x0AC2B5F7) …`); later failures are counted in `tilesFailed`. When the
-       occupant does not answer the exemplar-holder QI, its property holder (occupant slot 6) is asked.
+       active-landfill flag; a load rebuilds only those). No interface of the tile answers the exemplar-holder QI
+       `0x0AC2B5F7` (LG27), so `SetDefaultExemplar` is called, as the original does, on the holder at the
+       occupant + `0x20` (docs/abi/layouts.md), after checking that `AsOccupant` and `AsPropertyHolder` return
+       the documented sub-objects (+`0x04`, +`0x0C`). The first tile made is logged in full (`landfill: game tile
+       made (first one; …): tile 0x… orientation … at cell (x, z), position (…); exemplar holder at the occupant +
+       0x20 (LG27, …); GetDefaultExemplar returns it; tile cost 0xEA54D286 … found; type 0x6A11BD2B …; Init
+       true, IsInitialized yes; bounding box …; before the insert (LG29): flag 1 clear, AsPropertyHolder
+       non-null; InsertOccupant true; flag 1 set`), and so are the first four failures, each with the step that
+       failed and what every step before it gave (`landfill: WARNING game tile failure N: tile … not made: <step>.
+       Steps: exemplar (0x6534284A, 0x07BDDF1C, 0x…) found; GZCOM GetClassObject(0x8A22BEBE, 0x2A15F262) made
+       one; AsOccupant ok (object +0x4), AsPropertyHolder object +0xC; exemplar holder …`); a refused insert names
+       its LG29 case (flag 1 already set, a null `AsPropertyHolder`, or already listed in its first cell) and how
+       many landfill occupants the cell lists. Later failures are counted in `tilesFailed`.
        New landfill cells get the landfill ground texture (a
        usage-1 `cSC4LotBaseTextureOccupant`). At `Init` the log says how the month agent is ordered (`landfill:
        month agent registered with …`; with the game's simulator a `WARNING` when the landfill would run before
@@ -416,6 +421,10 @@ plugin.
      AUTOTEST VERDICT: clean|corrupt|stalled|ended (foreign_exceptions=…, watchdog_stalls=…, rtc=…, overruns=…,
        ref_warnings=…, julian=…, date=…, real_seconds=…, days_per_second=…, switches_off=…, disabled=…)
      ```
+
+     With `close_dialogs = 1` (the dialog closer below) the line gains `, dialogs_closed=N` right after
+     `ref_warnings=…`: the game dialogs the closer ended (by button or by the EndModal fallback). Without it the
+     line is unchanged.
 
      - `clean`: at the deadline, with no foreign exception, RTC failure or out-parameter overrun.
      - `corrupt`: a first-chance exception outside `FreeCity4.dll` (written at once, after its report; the
@@ -530,6 +539,40 @@ plugin.
      `error` is PlaceZone's code (1 insufficient funds, 2 landfill on water, 3 too small, 4 too large, 5 blocked);
      `accepted` counts the cells whose bits PlaceZone left set. A date passed while no city ran is caught up at the
      next city's first new day; an action never runs twice in one game session.
+   - **Dialog closer** (`close_dialogs = 1`, env `FC4_CLOSE_DIALOGS`; off by default; `plugin/FC4Dialogs.h`; a
+     *tooling* switch, docs/specs/modal-dialogs.md §3.2): ends every game modal dialog from inside the game, through
+     its window manager, so an unattended run needs no screenshot and no click (several games at once, or a covered
+     window, are fine). At `PostAppInit`, before any city load (the edge-reconciliation and missing-plugin-pack
+     dialogs come before ConnectionsReady), it subscribes to the legacy message server's modal begin / end notices
+     (`0x62BA7B42` / `0x62BA7B43`). A begin notice records the window, its ID and its nesting depth; nothing is
+     called inside it. On a later frame (the modal loop keeps ticking the observer) the innermost dialog, 5 frames
+     after its begin notice, is checked (`IsWindowValid`, the nest count = depth + 1, the window's modal flag
+     `0x1000`) and gets button 0 (`PostMessageToTarget(window, 3, 0x287259F6, 0, 0)`, what a click does). A dialog
+     that ignores button 0 (edge reconciliation, missing plugin packs) gets `EndModal(window, 0)` 30 frames later,
+     after the same checks. Only button 0 is ever sent (never the city-situation popup's 1, 6 or 7); `SC4GameDelay`'s
+     invisible modal (recognised by the `cSC4WinGameDelay` vtable, compat table) is left alone; a window that is gone
+     is never called; Win32 message boxes are out of reach (no frame runs while they are open; detect them from
+     outside). Button 0 answers "no" / cancel, so a quit, close-city or go-to-region prompt the harness asks for
+     itself is refused; the autotest's quit asks nothing. Log (one line per dialog):
+
+     ```
+     dialogs: subscribed to the modal begin / end notices 0x62BA7B42 / 0x62BA7B43 (legacy message server 0x64063387) at PostAppInit
+     dialogs: closed 0x2A5CFB2C (window 0x0F3A1C40, depth 0) by button after 3 frame(s)
+     dialogs: closed 0x6A4D0A59 (window 0x0F3A2E80, depth 0) by EndModal fallback after 2 frame(s)
+     dialogs: left 0x… (window 0x…, depth 0) alone: SC4GameDelay's invisible modal ends itself
+     dialogs: 0x… (window 0x…, depth 0) ended by itself after K frame(s)
+     dialogs: WARNING could not close 0x… (window 0x…, depth N): the window is no longer valid (IsWindowValid
+       false) and no end notice came; record dropped, nothing called on it
+     dialogs: WARNING could not close …: not the current modal window for 30 frame(s) (nest count …, expected …;
+       modal flag …); still checked each frame
+     dialogs: WARNING could not close …: no end notice 30 frame(s) after EndModal; nothing more is called on it
+     ```
+
+     K counts frames from the button press (or `EndModal`) to the end notice. `0` (or unset) changes nothing: no
+     subscription, no call, no log line, and the autotest verdict keeps its format. As §3.4 says, the harness should
+     not use the `GameDelay` automation command or the debug plop-all commands while the closer is on; if it does,
+     the closer leaves the delay's window alone on the compat table's executable, and on any other one (it logs
+     `compat: cSC4WinGameDelay vtable NOT available`) would end the delay early.
    - **Clock probe** (`clock_probe = 1` or `2`, env `FC4_CLOCK_PROBE`; off by default; `plugin/FC4ClockProbe.h`):
      the M1 clock differential. From game start it logs every message the simulator posts (`CLOCK post day|week|
      month|year j=… c=…`, `CLOCK post pause|hidden|emergency|speed d1=…`), and at every city load it registers an
@@ -941,9 +984,11 @@ plugin.
      power shadow yyyy-mm-dd bookkeeping: the original's running counts (orig) vs FreeCity4's insertion (§5.1)
        of the N live occupants and a wire rebuild of the whole map (ours), orig/ours: consumers=…;
        requirement=…; plantCount=…; poleCount=…; costBase=…; consumption map d/N cells differ max|d|=…; wire
-       … cells differ; baseline (the first line …): N differences …  (first line) | inherited (as at the
-       baseline line …) N [..]; in flight (changed since the last line) N [..]; gone since the last line N [..];
-       baseline entries gone (in flight then) N [..]; persistent (the same at two lines, not inherited) N [..];
+       … cells differ; baseline not set yet (the first line … | N differences changed since the last line …):
+       N differences [..] | baseline (the first line equal to the one before it …): N differences [..] |
+       inherited (as at the baseline line …) N [..]; in flight (changed since the last line) N [..]; gone since
+       the last line N [..]; baseline entries absent (0 at this line …) N [..]; unchanged while others changed
+       (… counted at the next line) N [..]; persistent (…) N [..]; wire bits, not counted (…) N [..];
        mismatches=M
      power shadow month to yyyy-mm-dd: deliveries=… steps=… idle passed through=… not enabled=… cycles=…
        (clean …, lines …) incomplete=… reruns=… uncached=… factor=…[ (not known)] pass totals known|unknown
@@ -955,9 +1000,23 @@ plugin.
      the cycle lines with a difference a month). Success is `mismatches=0` on every cycle, month and bookkeeping
      line, `not_exact=0` from a city start (mid-city: only until the first month) and no `INCOMPLETE` line. The
      bookkeeping line (power spec §5.2, PW8) compares running counts the original inherits from the save and
-     never rebuilds: its first line is the baseline (differences inherited from the save, or occupants still in
-     flight); later a difference equal to the baseline's is inherited, one that changed since the last line is
-     in flight, and only one that stays the same at two lines without being inherited is a mismatch.
+     never rebuilds. The occupant messages are posted, so the original's counts lag the live occupants until the
+     next frame's message-server tick: at a month line, the buildings of that day (under the turbo clock, of every
+     day since the frame began) can be in flight. The baseline is the first line equal to the one before it
+     (nothing changed between them, so nothing was in flight; the first line itself can have a building in
+     flight, runs pt-base-turbo-1 / -normal-1); until then nothing is counted. It is never edited afterwards: a
+     baseline entry that reads 0 at a line (masked by a difference in flight that cancels it; run gsT1
+     2027-12-01, consumers 660/660) is listed as absent and is inherited again when it comes back. A difference
+     equal to the baseline's is inherited, one that changed since the last line is in flight, and one that is
+     unchanged since the last line without being inherited is a mismatch when nothing else changed at that line,
+     or when it is also unchanged since the line before (two buildings in flight at two lines can give the same
+     counts, never the same cells); otherwise it is listed as unchanged while others changed and judged at the
+     next line. The wire bits are listed apart and not counted, nor used for the baseline: ours are one rebuild
+     of the whole map, the original's what its dirty-rectangle rebuilds left, and power spec §5.3 makes those
+     depend on the rectangles (PW5: a bit whose only source is a zoned cell outside the rectangle is lost; runs
+     pt-fix1-turbo-1 / -2 kept such bits 0/1 for eight or nine months). Each rebuild is compared exactly on the
+     cycle lines. Limit: a frame that opens two month days keeps the first one's messages in flight at the
+     second, which then looks settled.
    - **Plumbing shadow** (`plumbing_shadow = 1`, env `FC4_PLUMBING_SHADOW`; off by default;
      `plumbing_shadow_cells = N`, env `FC4_PLUMBING_SHADOW_CELLS`, default 8, 1..64, the differing cells listed per
      line; `plumbing_shadow_passes = N`, env `FC4_PLUMBING_SHADOW_PASSES`, default 4, the passes replayed per game
@@ -1071,17 +1130,24 @@ plugin.
      `fc4_flammability_shadow_cycle` compares: the raw grid exactly; each adjusted tract against the values the
      cycle could have written (its daily value from the raw values, multipliers and watered states it had, or
      its previous value: at most 2 × tractsPerDay tracts may be "unvisited", visited on the wrap day before the
-     previous comparison); the average against the range those values allow; the multiplier bitwise; the
-     hotspots against every rotation of the fixed visiting order; the getters on the mirror after it took the
-     original's state. The watered state is the one at the visit (flammability spec §6.5, FL5/FL6): the target
-     also hears the plumbing pass end (`0x6946DC34`), and every event first polls the plumbing simulator's
-     `GetWateredGrid` (slot 7), whose object alternates at every pass; on a new pointer the watered states are
-     read again, and a tract whose state changed in the cycle may hold its daily value under either state (no
-     other tract is loosened). The first cycle seen (and the one after a new simulator, a new geometry or an
-     `INCOMPLETE`) is the baseline. **Not compared** (said at game start and in every line): the fire roll (a
-     clock-seeded generator), the iterator start and the hotspot shuffle (C `rand()` draws), the random lot, the
-     candidate list and the zoned sum and count. Lines (always written; longer ones continue on `flammability
-     shadow (cont.)` lines):
+     previous comparison, or the day count's number of them when larger, as under the turbo clock); the average
+     against the range those values allow; the multiplier bitwise; the hotspots against every rotation of the
+     fixed visiting order; the getters on the mirror after it took the original's state. The watered state is
+     the one at the visit (flammability spec §6.5, FL5-FL7): plumbing slot 11 is read for every tract and
+     compared **by content** with the last poll (the published grid's pointer is only counted: an aborted pass
+     or a quick restart brings it back unseen, FL7, FL9). The polls: right after every `SimNewDay` our
+     simulator delivers to the original (`FlammabilityShadowDeliver`, in `cFC4Simulator`'s delivery: the
+     original reads the state only there), at every event (the target also hears the plumbing pass end
+     `0x6946DC34`) until the first such day, and at the cycle end. A tract whose state changed in the cycle may
+     hold its daily value under either state (no other tract is loosened). The changes seen after the last wrap
+     day are **carried** into the next cycle (FL8: the new cycle's first tracts were visited before them and
+     keep those values for a whole cycle); the wrap days come from counting days since the original's `Init`
+     (day 1 wraps at once, §6.5), checked against the cycle ends delivered; when the count is off or there are
+     no day polls, only the comparison's own poll is carried. The first cycle seen (and the one after a new
+     simulator, a new geometry or an `INCOMPLETE`) is the baseline. **Not compared** (said at game start and in
+     every line): the fire roll (a clock-seeded generator), the iterator start and the hotspot shuffle (C `rand()`
+     draws), the random lot, the candidate list and the zoned sum and count. Lines (always written; longer ones
+     continue on `flammability shadow (cont.)` lines):
 
      ```
      flammability shadow: ON (flammability_shadow from …): …                            (game start)
@@ -1089,11 +1155,14 @@ plugin.
      flammability shadow: following the original flammability simulator of city …; …    (each city)
      flammability shadow yyyy-mm-dd cycle N: baseline (why): our simulator takes the original's grids (…)
      flammability shadow yyyy-mm-dd cycle N: tracts=CXxCZ (S=1) tractsPerDay=d; raw cells=… mismatched=a
-       max|d|=…; adjusted cells=… mismatched=b max|d|=… (exact …, explained …, unvisited u of at most 2d); average
+       max|d|=…; adjusted cells=… mismatched=b max|d|=… (exact …, explained …, unvisited u of at most B); average
        orig/ours=x/y[..z]; multiplier orig/ours=…/…; hotspots orig/ours=h/h same (rotation k of n hot tracts) |
-       differ (…)[; first differing (x,z) orig/ours: …]; events=e; plumbing passes=p (tracts whose watered state
-       changed: t); hotspot getter orig/ours=v@(x,z)/…; average
-       getter orig/ours=…/…; flammable getter cells=… mismatched=…; mismatches=M; cycles=K clean=C; not compared: …
+       differ (…)[; first differing (x,z) orig/ours: …]; events=e; watered polls=P by content (at a day D, with a
+       change C; published grid pointer changes G); tracts whose watered state changed: t (k carried in); carried
+       into the next cycle: c (changed after the wrap day W (day d since Init; n tracts of the new cycle visited) |
+       the comparison's own poll only (no day polls | the day count is off: …)); hotspot getter
+       orig/ours=v@(x,z)/…; average getter orig/ours=…/…; flammable getter cells=… mismatched=…; mismatches=M;
+       cycles=K clean=C; not compared: …
      flammability shadow yyyy-mm-dd cycle N: INCOMPLETE (why); not compared, the next cycle is a new baseline
      ```
 
@@ -1223,7 +1292,13 @@ plugin.
   for it). `plugin_ini_script_test` runs a `script` through a stub zone manager on the fake city (slot 36; its
   slot 11 records the region layout and the arguments, and clears a bit as the game does) and our simulator;
   seam op 46 loads a refused, an unreadable, an empty, a late and a save script (the fake app's slot 16 counts
-  the saves, which wait for the observer tick in file order).
+  the saves, which wait for the observer tick in file order). `plugin_ini_dialogs_test` plays DoModalWin and its
+  loop on a fake window manager, legacy message server and windows (seam op 47; every slot the closer must not
+  call traps): button 0 on a later frame, never inside the begin notice; the EndModal fallback for a dialog that
+  ignores it; a stale window (no call after IsWindowValid); nested dialogs (inner first); SC4GameDelay's window
+  left alone; a window not yet modal; a late subscription that finds the open dialog through the focus; and, in
+  child processes, `close_dialogs = 0`, unset and not 0/1 (no subscription, no call, no line) and the
+  environment alone. A sixth autotest child checks `dialogs_closed=1` in the verdict.
 - Return types are part of the ABI too: SDK declarations can be wrong (budget erratum:
   `cISC4DepartmentBudget` slot 26 returns a float POINTER in EAX, not a float in ST0; `cIGZDate` slots 33–36
   return a `uint32` day number and leave the date alone; `cISC4Lot` slot 61 returns `SC4Percentage` by value

@@ -20,8 +20,8 @@ use super::adapters::{capacity_element, set_capacity_element, Holders, PfAdapter
 use super::pools::{pool_token, Pools};
 use super::state::{DamageBlock, DamageState, StatRow, State, PASS_COUNTERS, PC_REROUTE_BUCKET, PC_REROUTE_COUNTER};
 use super::{
-    cell_key16, cycle_state as cs, dept, grid_id, msg, prop, Message, TrafficSimHost, TrafficSimulator, AGENT_FLAGS,
-    AGENT_LEVELS, AGENT_NAME,
+    cell_key16, cycle_state as cs, dept, grid_id, msg, prop, GridF32, GridU8, Message, TrafficSimHost,
+    TrafficSimulator, AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME,
 };
 
 /// The network-occupant type of the occupant messages (§3.1).
@@ -86,6 +86,33 @@ impl Run<'_, '_> {
             net: &mut *self.cx.s,
             host: &host,
         })
+    }
+
+    /// `Init` (pathfinder slot 3) of a pathfinder (pathfinder.md §1).
+    pub(crate) fn init_path_finder(&mut self, pf: &mut Pathfinder) -> bool {
+        let host = PfAdapter {
+            h: self.h,
+            st: &*self.st,
+            pools: self.pools,
+        };
+        pf.init(&host)
+    }
+
+    /// `ApplyTraffic(style)` (pathfinder slot 29, pathfinder.md §4.17) of a
+    /// pathfinder over the simulator's network and state.
+    pub(crate) fn apply_path_finder_traffic(&mut self, pf: &mut Pathfinder, style: u32) {
+        let host = PfAdapter {
+            h: self.h,
+            st: &*self.st,
+            pools: self.pools,
+        };
+        pf.apply_traffic(
+            &mut PathCx {
+                net: &mut *self.cx.s,
+                host: &host,
+            },
+            style,
+        );
     }
 
     pub(crate) fn net(&self) -> &NetworkState {
@@ -772,41 +799,71 @@ impl TrafficSimulator {
         for m in msg::SUBSCRIPTIONS {
             h.subscribe(m);
         }
-        // Step 4: the grids and the destination map.
+        // Step 4: the grids and the destination map. A grid, the
+        // destination map and the scanning iterator a committed `Read`
+        // brought are kept (`Read` runs before `Init` on a load, foundations
+        // §3.7): the spec creates them unconditionally, which would drop the
+        // saved maps of §6.2 *[choice, question]*.
         let (w, hgt) = h.cell_counts();
         self.with_state(|h, s| {
             let tract = s.tuning.tract_size;
-            let g8 = |id: u32, t: i32| GridProvider::<u8>::create_grid(h, id, t);
-            let gf = |id: u32, t: i32| GridProvider::<f32>::create_grid(h, id, t);
-            s.air = g8(grid_id::AIR_POLLUTING, tract);
-            s.peak_volume = gf(grid_id::PEAK_VOLUME, tract);
-            s.commercial = g8(grid_id::COMMERCIAL, 4);
-            s.commercial_work = g8(grid_id::COMMERCIAL_WORK, 4);
-            s.unused = g8(grid_id::UNUSED, 1);
-            s.trip_length = g8(grid_id::TRIP_LENGTH, 1);
-            s.volume = (0..6).map(|n| gf(grid_id::VOLUME + n, 1)).collect();
-            s.float_grid = gf(grid_id::FLOAT, 1);
-            s.congestion = g8(grid_id::CONGESTION, 1);
-            s.peak_ratio = gf(grid_id::PEAK_RATIO, 1);
-            s.size_dest(w, hgt);
+            let g8 = |slot: &mut Option<GridU8>, id: u32, t: i32| {
+                if slot.is_none() {
+                    *slot = GridProvider::<u8>::create_grid(h, id, t);
+                }
+            };
+            let gf = |slot: &mut Option<GridF32>, id: u32, t: i32| {
+                if slot.is_none() {
+                    *slot = GridProvider::<f32>::create_grid(h, id, t);
+                }
+            };
+            g8(&mut s.air, grid_id::AIR_POLLUTING, tract);
+            gf(&mut s.peak_volume, grid_id::PEAK_VOLUME, tract);
+            g8(&mut s.commercial, grid_id::COMMERCIAL, 4);
+            g8(&mut s.commercial_work, grid_id::COMMERCIAL_WORK, 4);
+            g8(&mut s.unused, grid_id::UNUSED, 1);
+            g8(&mut s.trip_length, grid_id::TRIP_LENGTH, 1);
+            s.volume.resize(6, None);
+            for (n, slot) in s.volume.iter_mut().enumerate() {
+                gf(slot, grid_id::VOLUME + n as u32, 1);
+            }
+            gf(&mut s.float_grid, grid_id::FLOAT, 1);
+            g8(&mut s.congestion, grid_id::CONGESTION, 1);
+            gf(&mut s.peak_ratio, grid_id::PEAK_RATIO, 1);
+            let keep_dest = s.loaded && s.dest_rows == w.max(0) + 2 && s.dest_cols == hgt.max(0) + 2;
+            if !keep_dest {
+                s.size_dest(w, hgt);
+            }
             // Step 5: the scanning iterator over the city rect.
-            s.scan = ScanIterator::new(0, 0, w - 1, hgt - 1);
-            s.extras.scan_state_byte = None;
+            if !s.loaded {
+                s.scan = ScanIterator::new(0, 0, w - 1, hgt - 1);
+                s.extras.scan_state_byte = None;
+            }
         });
         // Step 5: the network model (cell connection array, switch grids,
         // water pathfinder), outside any operation.
         self.net.init();
-        let (roads_max, transit_max) = self.read_state(|s| (s.tuning.max_roads_funding, s.tuning.max_transit_funding));
-        let roads = h.create_department(dept::ROADS, roads_max);
-        let transit = h.create_department(dept::MASS_TRANSIT, transit_max);
+        let (roads_max, transit_max, loaded_roads, loaded_transit) = self.read_state(|s| {
+            (
+                s.tuning.max_roads_funding,
+                s.tuning.max_transit_funding,
+                s.roads,
+                s.mass_transit,
+            )
+        });
+        // A department a `Read` resolved is kept *[choice]* (as the grids).
+        let roads = loaded_roads.or_else(|| h.create_department(dept::ROADS, roads_max));
+        let transit = loaded_transit.or_else(|| h.create_department(dept::MASS_TRANSIT, transit_max));
         self.update_state(|s| {
             s.roads = roads;
             s.mass_transit = transit;
         });
         // Step 7 (here, before the pathfinders): the default pool,
         // `SetMaxTripCapacity(default, 3, 0xFFFFFFFF)` (traffic-network.md
-        // §2.7.3).
-        *self.pools.borrow_mut() = Pools::default();
+        // §2.7.3). The pools by ID a committed `Read` brought are kept (row
+        // 19 of §6.1; `Read` runs before `Init`) *[choice]*: only the
+        // default pool is Init's.
+        self.pools.borrow_mut().default = Pools::default().default;
         set_capacity_element(&self.holders(), pool_token(0), 3, u32::MAX);
         // Step 6: the two pathfinders.
         self.run(|r| {
@@ -837,7 +894,13 @@ impl TrafficSimulator {
             s.congestion = None;
             s.peak_ratio = None;
             s.initialised = false;
+            s.loaded = false;
             vec![s.roads.take(), s.mass_transit.take()]
+        });
+        // The network's two switch grids go with the others *[choice]*.
+        self.net.update_state(|n| {
+            n.switch_mode = None;
+            n.switch_id = None;
         });
         for d in depts.into_iter().flatten() {
             self.host.release_department(d);
