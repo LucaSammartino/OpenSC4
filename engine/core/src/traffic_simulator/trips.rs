@@ -378,7 +378,7 @@ impl Run<'_, '_> {
     /// of the live walk, then the connections of the snapshot.
     pub(crate) fn next_source(&mut self) -> Option<Source> {
         if !self.st.iter.lots_done {
-            let lots = self.h.lots();
+            let lots = self.h.lots_shared();
             if let Some(l) = self.st.iter.next_lot(lots) {
                 return Some(Source::Lot(l));
             }

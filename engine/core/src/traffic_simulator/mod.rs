@@ -489,6 +489,14 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     // ---- lots (§4.1, §4.7) ----
     /// All lots in the lot manager's list order (slot 15).
     fn lots(&self) -> Vec<u64>;
+    /// [`lots`](Self::lots), shared. A host that knows its list unchanged
+    /// may hand out the same list again (FreeCity4's host does within one
+    /// outermost call, where the plugin keeps one lot walk), which lets the
+    /// source iterator's step cost O(1) instead of O(lots); the walk is
+    /// the same either way. Default: a fresh copy each time.
+    fn lots_shared(&self) -> Rc<[u64]> {
+        self.lots().into()
+    }
     /// `QueryInterface(0xE818FCED)` on a message object: the lot copy.
     fn as_lot(&self, object: u64) -> Option<u64>;
     /// Lot slot 31: the zone type.

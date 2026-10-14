@@ -9,6 +9,7 @@
 
 use std::cell::Cell;
 use std::collections::{BTreeMap, HashSet};
+use std::rc::Rc;
 
 use crate::grid::ScanIterator;
 use crate::pathfinder::{Pathfinder, SharedWorkCheck};
@@ -198,12 +199,18 @@ pub struct SourceIter {
     pub conns: Vec<u64>,
     /// The next connection to return.
     pub conn_pos: usize,
-    /// The lot list as the walk last read it.
-    pub lots_seen: Vec<u64>,
+    /// The lot list as the walk last read it (the host's own list while
+    /// that is unchanged: [`Host::lots_shared`](super::TrafficSimHost::lots_shared)).
+    pub lots_seen: Rc<[u64]>,
     /// The last lot returned; `None` before the first.
     pub last_lot: Option<u64>,
     /// The walk has passed the last lot.
     pub lots_done: bool,
+    /// A cache: the first position of `last_lot` in `lots_seen` (`None`
+    /// before the first lot or when it is not listed).
+    last_index: Option<usize>,
+    /// A cache: `lots_seen` lists some lot twice.
+    seen_dups: bool,
 }
 
 impl SourceIter {
@@ -220,12 +227,21 @@ impl SourceIter {
     /// lot after the last one returned is the first lot after it, in the
     /// list as last read, that is still listed; else the first lot appended
     /// since. `None` (and the walk leaves the lots) at the end.
-    pub fn next_lot(&mut self, lots: Vec<u64>) -> Option<u64> {
+    ///
+    /// The list is normally the one the walk last read: then every lot
+    /// listed was seen and every lot seen is listed, and (no lot listed
+    /// twice) the rule gives the lot right after the last one, found from
+    /// the cached position in O(1). Any other list takes the general rule.
+    pub fn next_lot(&mut self, lots: impl Into<Rc<[u64]>>) -> Option<u64> {
         if self.lots_done {
             return None;
         }
+        let lots: Rc<[u64]> = lots.into();
+        let same = Rc::ptr_eq(&lots, &self.lots_seen) || *lots == *self.lots_seen;
+        let fast = same && !self.seen_dups;
         let next = match self.last_lot {
             None => lots.first().copied(),
+            Some(_) if fast => self.last_index.and_then(|i| self.lots_seen.get(i + 1).copied()),
             Some(last) => {
                 let now: HashSet<u64> = lots.iter().copied().collect();
                 let seen: HashSet<u64> = self.lots_seen.iter().copied().collect();
@@ -240,10 +256,28 @@ impl SourceIter {
                     .or_else(|| lots.iter().copied().find(|l| !seen.contains(l)))
             }
         };
+        if !same {
+            let mut set = HashSet::with_capacity(lots.len());
+            self.seen_dups = !lots.iter().all(|&l| set.insert(l));
+        }
+        // The host's list is kept even when equal, so that the next step
+        // finds the same list by pointer.
         self.lots_seen = lots;
         match next {
-            Some(l) => self.last_lot = Some(l),
-            None => self.lots_done = true,
+            Some(l) => {
+                self.last_index = match (self.last_lot, self.last_index) {
+                    (Some(_), Some(i)) if fast => Some(i + 1),
+                    _ => self.lots_seen.iter().position(|&x| x == l),
+                };
+                self.last_lot = Some(l);
+            }
+            None => {
+                if !fast {
+                    let last = self.last_lot;
+                    self.last_index = last.and_then(|last| self.lots_seen.iter().position(|&x| x == last));
+                }
+                self.lots_done = true;
+            }
         }
         next
     }

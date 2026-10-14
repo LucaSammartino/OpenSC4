@@ -3347,3 +3347,95 @@ fn ts46_station_cost_rounds_once() {
     w.query_items.borrow_mut().insert(900, (dept::MASS_TRANSIT, 150));
     assert_eq!(s.transit_switch_query_data(3, 3).map(|q| q.cost), Some(112));
 }
+
+/// §4.1 (TS20): the O(1) step of an unchanged list gives the same walk as
+/// the general rule. A reference walk (the rule as written, every step)
+/// against the iterator over random lists: unchanged (shared or copied),
+/// a lot appended, a lot removed, a lot listed twice.
+#[test]
+fn ts20_source_iterator_fast_path_is_the_rule() {
+    use std::collections::HashSet;
+    use std::rc::Rc;
+    struct Reference {
+        seen: Vec<u64>,
+        last: Option<u64>,
+        done: bool,
+    }
+    impl Reference {
+        fn next(&mut self, lots: &[u64]) -> Option<u64> {
+            if self.done {
+                return None;
+            }
+            let next = match self.last {
+                None => lots.first().copied(),
+                Some(last) => {
+                    let now: HashSet<u64> = lots.iter().copied().collect();
+                    let seen: HashSet<u64> = self.seen.iter().copied().collect();
+                    let after = match self.seen.iter().position(|&l| l == last) {
+                        Some(i) => &self.seen[i + 1..],
+                        None => &[][..],
+                    };
+                    after
+                        .iter()
+                        .copied()
+                        .find(|l| now.contains(l))
+                        .or_else(|| lots.iter().copied().find(|l| !seen.contains(l)))
+                }
+            };
+            self.seen = lots.to_vec();
+            match next {
+                Some(l) => self.last = Some(l),
+                None => self.done = true,
+            }
+            next
+        }
+    }
+    let mut seed = 0x1234_5678u32;
+    let mut rand = |n: u32| {
+        seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+        (seed >> 8) % n
+    };
+    for round in 0..300 {
+        let mut it = SourceIter::default();
+        it.reset(Vec::new());
+        let mut r = Reference {
+            seen: Vec::new(),
+            last: None,
+            done: false,
+        };
+        let mut list: Vec<u64> = (1..=rand(12) as u64).collect();
+        let mut fresh = 100u64;
+        let mut shared: Rc<[u64]> = list.clone().into();
+        for step in 0..60 {
+            match rand(10) {
+                0 => {
+                    fresh += 1;
+                    list.push(fresh);
+                }
+                1 if !list.is_empty() => {
+                    let i = rand(list.len() as u32) as usize;
+                    list.remove(i);
+                }
+                2 if !list.is_empty() && round % 3 == 0 => {
+                    let i = rand(list.len() as u32) as usize;
+                    list.push(list[i]);
+                }
+                _ => {}
+            }
+            // Mostly the same shared list, as the host hands it out.
+            if *shared != *list || rand(4) == 0 {
+                shared = list.clone().into();
+            }
+            let want = r.next(&list);
+            assert_eq!(it.next_lot(shared.clone()), want, "round {round} step {step}");
+            assert_eq!(
+                (it.last_lot, it.lots_done),
+                (r.last, r.done),
+                "round {round} step {step}"
+            );
+            if r.done {
+                break;
+            }
+        }
+    }
+}
