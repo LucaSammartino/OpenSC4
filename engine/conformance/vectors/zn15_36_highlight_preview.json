@@ -1,0 +1,834 @@
+{
+  "format": 1,
+  "name": "zn15_36_highlight_preview",
+  "spec": [
+    "zones 7.1",
+    "zones 7.2",
+    "zones 8.5",
+    "zones 8.8"
+  ],
+  "description": "Conformance test 33a (ZQ4): test 19 as a preview. HighlightParcels(x 10..15 × z 10..13, all set; type 1; null point; &out), first without the zone written (code 2 is real-mode only), then with it, then again. S, C, D, Q and flag are test 19's. The street stub records a Place with realMode false as a street draft (flags 0x8, a nonzero mask byte per edge towards a neighbouring cell of the segment), logged as 'P(…) draft'. The Place log is P(12,10,12,13) with realMode false. CreateLotIfPossible with code 8 records a virtual lot {x1, z1, facing} on every cell (20 entries) and creates no lot. *out is a new region equal to the input (rect {10, 10, 15, 13}, 24 cells). ClearHighlight resets the street (3) and road (0) tools, not the dirt road. Every case: no real lot, no AttemptAreaLevelling, no locked lot, both DeferOccupantOperations messages posted; on return real mode, zone type 0, point null; the maps and the street drafts remain. Calling it again gives the same result.",
+  "steps": [
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 0,
+          "rect": [
+            8,
+            9,
+            17,
+            9
+          ]
+        }
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_options",
+      "alternate": false,
+      "streets": true,
+      "custom": false
+    },
+    {
+      "op": "zone_lot_size",
+      "width": 2,
+      "depth": 2,
+      "min_depth": 1,
+      "max_depth": 3,
+      "block": 6
+    },
+    {
+      "op": "zone_clear_events",
+      "note": "without the zone written (code 2 is real-mode only)"
+    },
+    {
+      "op": "zone_highlight_parcels",
+      "region": {
+        "rect": [
+          10,
+          10,
+          15,
+          13
+        ]
+      },
+      "type": 1,
+      "point": null,
+      "expect_out": {
+        "rect": [
+          10,
+          10,
+          15,
+          13
+        ],
+        "count": 24
+      }
+    },
+    {
+      "op": "zone_expect",
+      "state": {
+        "lot_count": 0,
+        "real_mode": true,
+        "current_zone": 0,
+        "highlight_point": null,
+        "levelling_count": 0,
+        "locked_lots": 0,
+        "orientation_d": 3,
+        "orientation_q": 0,
+        "orientation_flag": false,
+        "scores": [
+          600,
+          4,
+          6,
+          4
+        ],
+        "conditions": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "virtual_lots": [
+          [
+            10,
+            10,
+            10,
+            10,
+            1
+          ],
+          [
+            10,
+            11,
+            10,
+            10,
+            1
+          ],
+          [
+            10,
+            12,
+            10,
+            12,
+            1
+          ],
+          [
+            10,
+            13,
+            10,
+            12,
+            1
+          ],
+          [
+            11,
+            10,
+            10,
+            10,
+            1
+          ],
+          [
+            11,
+            11,
+            10,
+            10,
+            1
+          ],
+          [
+            11,
+            12,
+            10,
+            12,
+            1
+          ],
+          [
+            11,
+            13,
+            10,
+            12,
+            1
+          ],
+          [
+            13,
+            10,
+            13,
+            10,
+            3
+          ],
+          [
+            13,
+            11,
+            13,
+            10,
+            3
+          ],
+          [
+            13,
+            12,
+            13,
+            12,
+            3
+          ],
+          [
+            13,
+            13,
+            13,
+            12,
+            3
+          ],
+          [
+            14,
+            10,
+            13,
+            10,
+            3
+          ],
+          [
+            14,
+            11,
+            13,
+            10,
+            3
+          ],
+          [
+            14,
+            12,
+            13,
+            12,
+            3
+          ],
+          [
+            14,
+            13,
+            13,
+            12,
+            3
+          ],
+          [
+            15,
+            10,
+            13,
+            10,
+            3
+          ],
+          [
+            15,
+            11,
+            13,
+            10,
+            3
+          ],
+          [
+            15,
+            12,
+            13,
+            12,
+            3
+          ],
+          [
+            15,
+            13,
+            13,
+            12,
+            3
+          ]
+        ],
+        "virtually_deleted": [],
+        "drafts": [
+          [
+            3,
+            12,
+            10,
+            8,
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            3,
+            12,
+            11,
+            8,
+            [
+              0,
+              1,
+              0,
+              1
+            ]
+          ],
+          [
+            3,
+            12,
+            12,
+            8,
+            [
+              0,
+              1,
+              0,
+              1
+            ]
+          ],
+          [
+            3,
+            12,
+            13,
+            8,
+            [
+              0,
+              1,
+              0,
+              0
+            ]
+          ]
+        ],
+        "tool_resets": [
+          3,
+          0
+        ],
+        "deferred": [
+          true,
+          false
+        ]
+      }
+    },
+    {
+      "op": "zone_expect_parcel_log",
+      "log": [
+        "P(12,10,12,13) draft"
+      ]
+    },
+    {
+      "op": "zone_zones",
+      "rect": [
+        10,
+        10,
+        15,
+        13
+      ],
+      "v": 1
+    },
+    {
+      "op": "zone_clear_events",
+      "note": "with the zone written"
+    },
+    {
+      "op": "zone_highlight_parcels",
+      "region": {
+        "rect": [
+          10,
+          10,
+          15,
+          13
+        ]
+      },
+      "type": 1,
+      "point": null,
+      "expect_out": {
+        "rect": [
+          10,
+          10,
+          15,
+          13
+        ],
+        "count": 24
+      }
+    },
+    {
+      "op": "zone_expect",
+      "state": {
+        "lot_count": 0,
+        "real_mode": true,
+        "current_zone": 0,
+        "highlight_point": null,
+        "levelling_count": 0,
+        "locked_lots": 0,
+        "orientation_d": 3,
+        "orientation_q": 0,
+        "orientation_flag": false,
+        "scores": [
+          600,
+          4,
+          6,
+          4
+        ],
+        "conditions": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "virtual_lots": [
+          [
+            10,
+            10,
+            10,
+            10,
+            1
+          ],
+          [
+            10,
+            11,
+            10,
+            10,
+            1
+          ],
+          [
+            10,
+            12,
+            10,
+            12,
+            1
+          ],
+          [
+            10,
+            13,
+            10,
+            12,
+            1
+          ],
+          [
+            11,
+            10,
+            10,
+            10,
+            1
+          ],
+          [
+            11,
+            11,
+            10,
+            10,
+            1
+          ],
+          [
+            11,
+            12,
+            10,
+            12,
+            1
+          ],
+          [
+            11,
+            13,
+            10,
+            12,
+            1
+          ],
+          [
+            13,
+            10,
+            13,
+            10,
+            3
+          ],
+          [
+            13,
+            11,
+            13,
+            10,
+            3
+          ],
+          [
+            13,
+            12,
+            13,
+            12,
+            3
+          ],
+          [
+            13,
+            13,
+            13,
+            12,
+            3
+          ],
+          [
+            14,
+            10,
+            13,
+            10,
+            3
+          ],
+          [
+            14,
+            11,
+            13,
+            10,
+            3
+          ],
+          [
+            14,
+            12,
+            13,
+            12,
+            3
+          ],
+          [
+            14,
+            13,
+            13,
+            12,
+            3
+          ],
+          [
+            15,
+            10,
+            13,
+            10,
+            3
+          ],
+          [
+            15,
+            11,
+            13,
+            10,
+            3
+          ],
+          [
+            15,
+            12,
+            13,
+            12,
+            3
+          ],
+          [
+            15,
+            13,
+            13,
+            12,
+            3
+          ]
+        ],
+        "virtually_deleted": [],
+        "drafts": [
+          [
+            3,
+            12,
+            10,
+            8,
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            3,
+            12,
+            11,
+            8,
+            [
+              0,
+              1,
+              0,
+              1
+            ]
+          ],
+          [
+            3,
+            12,
+            12,
+            8,
+            [
+              0,
+              1,
+              0,
+              1
+            ]
+          ],
+          [
+            3,
+            12,
+            13,
+            8,
+            [
+              0,
+              1,
+              0,
+              0
+            ]
+          ]
+        ],
+        "tool_resets": [
+          3,
+          0
+        ]
+      }
+    },
+    {
+      "op": "zone_expect_parcel_log",
+      "log": [
+        "P(12,10,12,13) draft"
+      ]
+    },
+    {
+      "op": "zone_clear_events",
+      "note": "again: the clear at the start empties the maps and resets the street stub"
+    },
+    {
+      "op": "zone_highlight_parcels",
+      "region": {
+        "rect": [
+          10,
+          10,
+          15,
+          13
+        ]
+      },
+      "type": 1,
+      "point": null,
+      "expect_out": {
+        "rect": [
+          10,
+          10,
+          15,
+          13
+        ],
+        "count": 24
+      }
+    },
+    {
+      "op": "zone_expect",
+      "state": {
+        "lot_count": 0,
+        "real_mode": true,
+        "current_zone": 0,
+        "highlight_point": null,
+        "levelling_count": 0,
+        "locked_lots": 0,
+        "orientation_d": 3,
+        "orientation_q": 0,
+        "orientation_flag": false,
+        "scores": [
+          600,
+          4,
+          6,
+          4
+        ],
+        "conditions": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "virtual_lots": [
+          [
+            10,
+            10,
+            10,
+            10,
+            1
+          ],
+          [
+            10,
+            11,
+            10,
+            10,
+            1
+          ],
+          [
+            10,
+            12,
+            10,
+            12,
+            1
+          ],
+          [
+            10,
+            13,
+            10,
+            12,
+            1
+          ],
+          [
+            11,
+            10,
+            10,
+            10,
+            1
+          ],
+          [
+            11,
+            11,
+            10,
+            10,
+            1
+          ],
+          [
+            11,
+            12,
+            10,
+            12,
+            1
+          ],
+          [
+            11,
+            13,
+            10,
+            12,
+            1
+          ],
+          [
+            13,
+            10,
+            13,
+            10,
+            3
+          ],
+          [
+            13,
+            11,
+            13,
+            10,
+            3
+          ],
+          [
+            13,
+            12,
+            13,
+            12,
+            3
+          ],
+          [
+            13,
+            13,
+            13,
+            12,
+            3
+          ],
+          [
+            14,
+            10,
+            13,
+            10,
+            3
+          ],
+          [
+            14,
+            11,
+            13,
+            10,
+            3
+          ],
+          [
+            14,
+            12,
+            13,
+            12,
+            3
+          ],
+          [
+            14,
+            13,
+            13,
+            12,
+            3
+          ],
+          [
+            15,
+            10,
+            13,
+            10,
+            3
+          ],
+          [
+            15,
+            11,
+            13,
+            10,
+            3
+          ],
+          [
+            15,
+            12,
+            13,
+            12,
+            3
+          ],
+          [
+            15,
+            13,
+            13,
+            12,
+            3
+          ]
+        ],
+        "virtually_deleted": [],
+        "drafts": [
+          [
+            3,
+            12,
+            10,
+            8,
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            3,
+            12,
+            11,
+            8,
+            [
+              0,
+              1,
+              0,
+              1
+            ]
+          ],
+          [
+            3,
+            12,
+            12,
+            8,
+            [
+              0,
+              1,
+              0,
+              1
+            ]
+          ],
+          [
+            3,
+            12,
+            13,
+            8,
+            [
+              0,
+              1,
+              0,
+              0
+            ]
+          ]
+        ],
+        "tool_resets": [
+          3,
+          0
+        ]
+      }
+    },
+    {
+      "op": "zone_expect_parcel_log",
+      "log": [
+        "P(12,10,12,13) draft"
+      ]
+    }
+  ]
+}

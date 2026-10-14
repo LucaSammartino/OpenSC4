@@ -100,10 +100,13 @@
 //! - **Components** (§7.2 step 5): seeded in x-outer, z-inner order and
 //!   flood-filled; with no component, one empty region (no cells, so
 //!   `SimpleParcellize` draws nothing for it) *[inferred]*.
-//! - **`HighlightParcels`** (§7.1): `*out` starts as a copy of the cropped
-//!   parcellizable region; skipped components clear their cells from it
-//!   *[inferred]*. Virtual lots and virtually deleted cells are kept in
-//!   two maps until the next highlight.
+//! - **`HighlightParcels`** (§7.1, §7.2 step 6, ZQ4): `*out` is written as a
+//!   copy of the input region (rect and bits); skipped components clear
+//!   their cells from it; with a point, `*out` ends as the cropped component
+//!   holding the point, or null. A point outside `*out`'s rect reads as a
+//!   clear bit (the original reads outside the bit array) *[choice]*.
+//!   Virtual lots, virtually deleted cells and the street tool's drafts are
+//!   kept until the next clear.
 //! - **`DetermineLotSize`** (§7.2.1): the configuration set is visited in
 //!   ascending configuration ID (§7.2.1 "Configuration order" *[choice]*,
 //!   test 30e); the original's order is heap-address order. A candidate
@@ -111,8 +114,9 @@
 //!   null-check it, §7.2.1 step 2 *[quirk]*; the shipped BDS has all eight).
 //!   With no best developer there is no query and the set is empty, so
 //!   steps 6–7 give (2, 2) and `[1, 3]` as written (test 30f). A
-//!   configuration with width 0 is skipped in the depth widening (the
-//!   original divides by zero). A missing source demand reads as 0.
+//!   configuration with width 0 fails step 6's size filter and is skipped in
+//!   the depth widening (the original divides by zero; ZQ10 *[choice]*). A
+//!   missing source demand reads as 0.
 //! - **`CreateParcellizableRegion`**'s "occupied" test (§7.4, ZQ2) is the
 //!   zone developer's per-cell `IsCellOccupied`, asked in highlight mode
 //!   only; it is not `CanCreateLot(…) == 7`.
@@ -391,31 +395,35 @@ pub trait ZonesHost: GridProvider<i8> + GridProvider<u16> {
     fn tile_is_of_type(&self, tile: u64, t: u32) -> bool;
     /// `tile.GetCostOfDemolition()`.
     fn tile_demolition_cost(&self, tile: u64) -> i64;
-    /// Network tool slot 9: the street (3) or dirt-road (11) tool's draft
-    /// covers the cell (highlight mode, §8.8).
-    fn network_tool_draft_at(&self, tool: u32, x: i32, z: i32) -> bool;
     /// `DrawStreet`'s "Place(a, b)" (§7.10): the street tool's slot 7
     /// `PlaceNetworkOccupants(a.x, a.z, b.x, b.z, 0xC49, callback = the street
     /// tool, realMode, −1)`. One street segment from cell `a` to cell `b`
-    /// (inclusive); returns AL. In real mode the streets must become visible
-    /// to the next `ExistsNetworkOfType` (§7.6.2); in highlight mode they are
-    /// drafts (seen through [`ZonesHost::network_tool_draft_at`]). `kind` is
-    /// the network kind of the caller (`ExtendAsStreets` / `LayInJogStreets`
-    /// pass their kind, `DrawStreet` the street kind 3) so the host can
-    /// insert the right occupant type. The restriction region is applied by
-    /// the core, so `a`..`b` may include cells outside it only through the
-    /// §7.10 fallback chain.
-    fn street_place(&self, kind: u32, a: (i32, i32), b: (i32, i32)) -> bool;
+    /// (inclusive); returns AL. In real mode (`real_mode` true) the streets
+    /// must become visible to the next `ExistsNetworkOfType` (§7.6.2); in
+    /// highlight mode they are drafts, seen through
+    /// [`ZonesHost::network_tool_occupant_exists`] (§8.8). `kind` is the
+    /// network kind of the caller (`DrawStreet` passes the street kind 3) so
+    /// the host can insert the right occupant type. The restriction region
+    /// is applied by the core, so `a`..`b` may include cells outside it only
+    /// through the §7.10 fallback chain.
+    fn street_place(&self, kind: u32, a: (i32, i32), b: (i32, i32), real_mode: bool) -> bool;
+    /// Network tool slot 5 `Reset()` on the street (kind 3) or road (kind 0)
+    /// tool (`ClearHighlight`, §7.1): drops the tool's draft. The core never
+    /// resets the dirt-road tool (kind 11) *[quirk]*.
+    fn reset_network_tool(&self, tool_kind: u32);
     /// A network occupant's slot 47 `ConnectsToNeighbor(edge, type)`
     /// (§7.13): true when the occupant is of network type `type` and has a
     /// connection on `edge` for that type. `edge` is 0..3 (0 = −x, 1 = −z,
     /// 2 = +x, 3 = +z), or −1 for a facing side outside 0..3.
     fn connects_to_neighbor(&self, occupant: u64, edge: i32, net_type: u32) -> bool;
-    /// Highlight mode only (§7.13): the street (tool kind 3) or dirt-road
-    /// (kind 11) tool's slot 9 `OccupantExists(x, z, flag, &mask)` → `Some(mask)`
-    /// when it reports a draft at the cell, `None` otherwise. `mask` is the
-    /// four network-edge bytes (bit set per connected edge). `flag` is `0x8`
-    /// (street) or `0x800` (dirt road). Not consulted in real mode.
+    /// Highlight mode only (§7.12, §7.13, §8.8): the street (tool kind 3) or
+    /// dirt-road (kind 11) tool's slot 9 `OccupantExists(x, z, flag, &mask)`
+    /// → `Some(mask)` when the tool has a **draft** record at the cell whose
+    /// network flags intersect `flag`, `None` otherwise (`*mask` untouched).
+    /// `mask` is the record's four network-edge bytes for the tool's own
+    /// network type (byte i ≠ 0: a connection on network edge i). An
+    /// existing network alone never answers. `flag` is `0x8` (street) or
+    /// `0x800` (dirt road). Not consulted in real mode.
     fn network_tool_occupant_exists(&self, tool_kind: u32, x: i32, z: i32, flag: u32) -> Option<[u8; 4]>;
     /// InsertOccupant step 3 (§5.2): `0x00731F60(occupant)` for data4 1 or
     /// 2, `0x00732450(occupant)` for 3 (not traced; no RNG).
