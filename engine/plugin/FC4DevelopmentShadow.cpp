@@ -470,6 +470,7 @@ struct State {
     bool catalogueCompared = false;
     uint32_t forwarded = 0;  // notifications handed to the cores (status)
     DWORD mainTid = 0;       // the thread of the first delivery (the simulator's)
+    LotFlow lotFlow;         // the original's StateChanged flow since the last lot line (tooling)
 };
 State g;
 
@@ -555,6 +556,14 @@ public:
         if (type == kMsgPreCityShutdown) {
             SehGuard("development shadow (city shutdown)", &DropAllGuarded, nullptr);
             return true;
+        }
+        if (type == kMsgStateChanged) {  // tooling: the month's lot line (data1 old state, data2 new)
+            cIGZMessage2Standard* s = nullptr;
+            if (msg->QueryInterface(GZIID_cIGZMessage2Standard, reinterpret_cast<void**>(&s)) && s != nullptr) {
+                FC4_ACQUIRED(reinterpret_cast<cIGZUnknown*>(s), "QueryInterface");
+                g.lotFlow.Note(static_cast<uint32_t>(s->GetData1()), static_cast<uint32_t>(s->GetData2()));
+                FC4_RELEASE(reinterpret_cast<cIGZUnknown*>(s));
+            }
         }
         if ((type == kMsgZoningChange || type == kMsgStateChanged) && !g.devs.empty()) {
             if (!SehGuard("development shadow (a notification)", &ForwardStep, msg)) g.disabledByFault = true;
@@ -662,6 +671,11 @@ void CompareTuning(Dev& d) {
     }
     // Slots 25 and 26, which the tract developer reads when it picks a
     // building (tract-developer.md §4.16 steps 3 and 8).
+    // Slot 18, whose node the tract developer sizes a build by (§4.2): the
+    // same game demand object.
+    const void* osd = d.orig->GetSourceDemand();
+    const void* ssd = FromToken(fc4_growth_source_demand(d.gs->core));
+    if (osd != ssd) df.Add(Fmt("source demand %p/%p", osd, ssd));
     const int32_t om = d.orig->GetMonopolyUse();
     const uint32_t sm = fc4_growth_monopoly_use(d.gs->core);
     if (static_cast<uint32_t>(om) != sm) df.Add(Fmt("monopoly %d/%u", om, sm));
@@ -1274,6 +1288,12 @@ void BdsAfter(void* p) {
         CompareCatalogue(bd.ob, julian);
     }
     CompareSuitability(bd.ob, bd.city, julian);
+    // Tooling: the original's lots and month, to set beside "development lots
+    // ... (ours)" of a run with the development unit enabled.
+    const std::string flow = g.lotFlow.Take();
+    Log("development lots %s (the original's): %s; state changes %s; resources %d/%d stage %.2f",
+        DateText(julian).c_str(), LotCensus(bd.city).c_str(), flow.c_str(), bd.ob->GetFreeConstructionResources(),
+        bd.ob->GetTotalConstructionResources(), static_cast<double>(bd.ob->GetStagePopulationMultiplier()));
 }
 
 // The city the entries belong to: a different one drops them first.

@@ -1874,6 +1874,99 @@ void ReleaseDevelopmentContext(DevelopmentContext* ctx) {
     ReleaseServices(ctx);
 }
 
+void LotFlow::Note(uint32_t from, uint32_t to) { ++changes[from < 7 ? from : 7][to < 7 ? to : 7]; }
+
+std::string LotFlow::Take() {
+    std::string s;
+    for (uint32_t a = 0; a < 8; ++a) {
+        for (uint32_t b = 0; b < 8; ++b) {
+            if (changes[a][b] == 0) continue;
+            char t[32];
+            std::snprintf(t, sizeof(t), "%s%u>%u:%u", s.empty() ? "" : " ", a, b, changes[a][b]);
+            s += t;
+            changes[a][b] = 0;
+        }
+    }
+    return s.empty() ? "-" : s;
+}
+
+std::string LotCensus(cISC4City* city) {
+    if (city == nullptr) return "no city";
+    cISC4LotManager* sdkLm = city->GetLotManager();  // borrowed
+    if (sdkLm == nullptr) return "no lot manager";
+    cFC4ISC4LotManager* lm = AsGame(sdkLm);
+    const int32_t cx = static_cast<int32_t>(city->CellCountX()), cz = static_cast<int32_t>(city->CellCountZ());
+    std::unordered_set<cISC4Lot*> seen;
+    uint32_t lots = 0, buildings = 0, livable = 0, states[8] = {}, reasons[8] = {};
+    uint32_t waning1 = 0, waning2 = 0, below = 0, byGroup[3] = {};  // livable buildings: R, C (2-4), I (5-8)
+    uint32_t stages[17] = {};      // livable lots by their configuration's growth stage (16 = 16 and above)
+    int64_t value[3] = {};         // livable buildings' value (property 0xE91A0B5F), by R / C / I
+    for (int32_t x = 0; x < cx; ++x) {
+        for (int32_t z = 0; z < cz; ++z) {
+            cISC4Lot* sdkLot = lm->GetLot(x, z, true);  // slot 6, borrowed
+            if (sdkLot == nullptr || !seen.insert(sdkLot).second) continue;
+            cFC4ISC4Lot* lot = AsGame(sdkLot);
+            ++lots;
+            const uint32_t st = static_cast<uint32_t>(lot->GetState());  // slot 33
+            ++states[st < 7 ? st : 7];
+            if (st == 4) {
+                const auto r = static_cast<uint32_t>(static_cast<uint8_t>(lot->GetVacateReason()));  // slot 45
+                ++reasons[r < 7 ? r : 7];
+            }
+            cISC4BuildingOccupant* b = lot->GetBuilding();  // slot 48, borrowed
+            if (b == nullptr) continue;
+            ++buildings;
+            if (!lot->IsInLivableState()) continue;  // slot 37
+            ++livable;
+            const cISC4BuildingOccupant::BuildingProfile& p = b->GetBuildingProfile();
+            const uint32_t purpose = static_cast<uint32_t>(p.purpose);
+            const int g = purpose == 1 ? 0 : (purpose >= 2 && purpose <= 4) ? 1 : (purpose >= 5 && purpose <= 8) ? 2 : -1;
+            if (g >= 0) {
+                ++byGroup[g];
+                cISCPropertyHolder* h = nullptr;
+                if (b->QueryInterface(GZIID_cISCPropertyHolder, reinterpret_cast<void**>(&h)) && h != nullptr) {
+                    FC4_ACQUIRED(h, "QueryInterface");
+                    std::vector<int64_t> v;
+                    if (props::GetI64s(h, 0xE91A0B5F, v) && !v.empty()) value[g] += v[0];
+                    FC4_RELEASE(h);
+                }
+            }
+            if (cISC4LotConfiguration* cfg = lot->GetLotConfiguration()) {  // slot 9, borrowed
+                const uint32_t s = cfg->GetGrowthStage();
+                ++stages[s < 16 ? s : 16];
+            }
+            const int32_t d = static_cast<int32_t>(p.wealth) - static_cast<int32_t>(lot->GetOccupantWealth());  // 41
+            if (d == 1) ++waning1;
+            if (d == 2) ++waning2;
+            if (d < 0) ++below;
+        }
+    }
+    std::string st, rs, gs;
+    for (uint32_t i = 0; i < 17; ++i) {
+        char t[24];
+        if (i < 8 && states[i] != 0) {
+            std::snprintf(t, sizeof(t), "%s%u:%u", st.empty() ? "" : " ", i, states[i]);
+            st += t;
+        }
+        if (i < 8 && reasons[i] != 0) {
+            std::snprintf(t, sizeof(t), "%s%u:%u", rs.empty() ? "" : " ", i, reasons[i]);
+            rs += t;
+        }
+        if (stages[i] != 0) {
+            std::snprintf(t, sizeof(t), "%s%u:%u", gs.empty() ? "" : " ", i, stages[i]);
+            gs += t;
+        }
+    }
+    char out[640];
+    std::snprintf(out, sizeof(out),
+                  "lots=%u (states %s) buildings=%u livable=%u (R %u, C %u, I %u; value %lld/%lld/%lld; stages %s) "
+                  "vacant reasons %s; livable with building wealth above the lot's by 1: %u, by 2: %u (below: %u)",
+                  lots, st.empty() ? "-" : st.c_str(), buildings, livable, byGroup[0], byGroup[1], byGroup[2],
+                  static_cast<long long>(value[0]), static_cast<long long>(value[1]), static_cast<long long>(value[2]),
+                  gs.empty() ? "-" : gs.c_str(), rs.empty() ? "-" : rs.c_str(), waning1, waning2, below);
+    return out;
+}
+
 }  // namespace fc4
 
 // ---- the object -----------------------------------------------------------------------------------
@@ -2130,6 +2223,12 @@ void cFC4BuildingDevelopmentSimulator::LogMonth() {
              ctx_.dezones, ctx_.lotElementUpdates);
     lastMonth_ = st;
     haveLastMonth_ = true;
+    if (fc4::On(fc4::Sw::DevelopmentLots)) {
+        const std::string flow = lotFlow_.Take();
+        fc4::Log("development lots %s (ours): %s; state changes %s; resources %d/%d stage %.2f",
+                 DateText(StatusDay()).c_str(), fc4::LotCensus(CityOf(&ctx_)).c_str(), flow.c_str(),
+                 st.free_resources, st.total_resources, mult);
+    }
 }
 
 namespace {
@@ -2603,6 +2702,7 @@ bool cFC4BuildingDevelopmentSimulator::DoMessage(cIGZMessage2* pMessage) {
             cISC4Lot* l = Query<cISC4Lot>(s->GetIGZUnknown(), kIID_cISC4Lot);
             if (l != nullptr) ctx_.held.push_back(l);
             m.lot = TokenOf(l);
+            lotFlow_.Note(m.data1, m.data2);  // tooling: the month's lot line
         } else if (m.msg_type == kMsgPlaceBuilding) {
             nParams = ReadPlaceBuildingParams(static_cast<cIGZCommandParameterSet*>(s->GetVoid1()), params);
         }
