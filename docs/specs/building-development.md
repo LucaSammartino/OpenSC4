@@ -291,6 +291,7 @@ while pending is not empty:
         if there is an item:
             insert (item.x, item.z) into marks[t]
             built := tractDeveloper.Grow({D, item.x, item.z, item.stage}, outcomes, flag)   -- §8, slot 5
+                                                    -- item.stage = the low byte of maxStage (DG18)
             if built > 0 (signed): lastSuccessfulBuild[t] := today
     remove t from pending
 ```
@@ -323,6 +324,8 @@ Consequences *[compat]*:
   This depends on the machine's speed and cannot be reproduced.
 - *[choice]* FreeCity4 replaces the 3 ms timer with a deterministic **daily growth budget** (§4.4.1). There is
   no spin, no timer and no step adaptation.
+- *[compat]* (DG18) The growth item's third field is an `int32` (growth-developer §5.4); `Grow` copies only its **low
+  byte** into the profile's `uint8` stage (`0x0069B349`). Shipped values are 1..8, so nothing is lost.
 - The outcome list passed to `Grow` is created empty by the BDS, filled by the tract developer and freed by the
   BDS (allocator B, §9.2); its content is not used. `flag` starts false and is not read afterwards.
 
@@ -498,7 +501,7 @@ expansion of §4.7.4 *[compat]*. "Hash order" below is the key map's enumeration
 | `IsBuildingInFamily(b, f)` (20) | `b = f`, or b is a member of family f |
 | `GetBuildingTypesByFamily(vector&, f)` (18) | f is a family: the vector **becomes** a copy of the member list (assignment, B); returns the member count. Else f is a building type: the vector is cleared and holds f; **returns 0** *[quirk]*. Else: unchanged, returns 0 |
 | `GetBuildingTypesByFamily(hash_set&, f)` (19) | same, but **inserts** into the set (no clear); returns the member count, 0 for a single type |
-| `GetBuildingTypesByFilter(hash_set&, filter)` (17) | for each building type in hash order: if `filter` is null or `filter.slot3(type)` is true, insert; returns the number of types that passed |
+| `GetBuildingTypesByFilter(hash_set&, filter)` (17) | for each building type in hash order: if `filter` is null or `filter.slot3(type)` is true, insert; returns the number of types that passed. The filter's slot 3 is `bool(uint32 type)`: pop 4, result tested in AL (`0x00699C94`, DG17). The exe has no filter class and no caller of this slot *[inferred]* |
 | `GetBuildingProfile(t)` (39) | reference to the stored profile; **inserts a zero profile** for an unknown type *[compat]* (the catalogue grows) |
 | `GetBuildingProfilePtr(t)` (40) | pointer, null for an unknown type |
 | `GetBuildingKeyFromType(t, key&)` (14) | true and the key, or false and key unchanged |
@@ -528,7 +531,7 @@ otherwise false. (A denser zone accepts lower-density buildings of the same fami
 #### 4.7.4 Maximum density table (`CalculateMaxCapacity` `0x0069C370`, `GetMaxCapacity` slot 45)
 
 Built once at the static initialisation, from every lot configuration (lot configuration manager `0x00B43D18`, slot
-20 `GetLotConfigurationMap`):
+20 `GetLotConfigurationMap`, layout below):
 
 ```
 (w, h) := config.GetSize();  area := w · h (int)
@@ -548,7 +551,7 @@ for each ID in obj's ID list:
     prof := GetBuildingProfile(T);  skip if prof.purpose = 0
     d := r24(r24(float(prof.capacity) / float(area)) + 0.5)
     if d < 1.0 and prof.capacity > 0: d := 1.0
-    for zone z in 0..15 with config.IsCompatibleWithZoneType(z):        -- slot 15
+    for zone z in 0..15 with config.IsCompatibleWithZoneType(z):        -- slot 15; z = 16+ is never asked (0x0069C975)
         key := (z, uint8(4·purpose + wealth + 1));  table[key] := max(table[key], d)   -- inserted if absent
 ```
 
@@ -562,8 +565,26 @@ reproduce it. When the exemplar does not load, the fit test is skipped and T is 
 inserts a zero profile for a T without one (purpose 0: skipped). The order of S does not matter (the table keeps
 maxima).
 
+**Inputs** *[compat]* (DG3, DG10):
+
+- `GetLotConfigurationMap()` (`0x00489720`, pop 0, EAX) returns the address of the manager's process-wide STLport
+  `hash_map` (`0x00B216C8`), not a copy and with no reference: the shape of allocators.md *hash_set* (object
+  `0x14` bytes, bucket vector at `+0x04`/`+0x08`, identity hash, count at `+0x10`) with 12-byte nodes
+  `{next, uint32 key, cISC4LotConfiguration* value}`; the key is the configuration's ID *[inferred]*. The BDS
+  walks it read-only (begin `0x004B0390`: buckets 0..n−1, each chain from its head). The map holds the references;
+  a reader must not release the values. Equivalent input: slot 9 `GetLotConfigurationsByFilter(set, null)` returns
+  the same configurations (every one passes a null filter, `0x0048B2E7`), but **AddRefs each** into the caller's B
+  `hash_set` (allocators.md row 79), so the caller releases each one. The table keeps maxima, so the order of the
+  configurations does not matter.
+- `GetPrimaryBuildingConfigurationObject()` (lot configuration slot 24, `0x00477DF0`) returns a pointer into the
+  configuration's object vector (stride `0x34`): the first object whose type byte is 0 (building), or null. The
+  object is the SDK's `cSC4LotConfigurationObject` exactly: type `+0x00`, flags `+0x01`, rotation `+0x02`, mirrored
+  `+0x03`, x/y/z `+0x04`/`+0x08`/`+0x0C`, rectangle `+0x10`…`+0x1C`, foundation `+0x20`, object ID `+0x24`, ID
+  vector (begin/end/capacity) `+0x28`/`+0x2C`/`+0x30`. The BDS reads rotation, x, z and the ID vector.
+
 `GetMaxCapacity(zone, p, w)` returns `float(trunc(table[(zone, GetBuildingMapKey(p, w))]))` in **ST0**, or 0.0 if the
-key is absent: the largest "capacity per cell, rounded half up, at least 1" of any building of that purpose and
+key is absent (DG19: any zone outside 0..15, and any zone no configuration allows, is simply absent; no bounds check
+is needed or made): the largest "capacity per cell, rounded half up, at least 1" of any building of that purpose and
 wealth that fits a lot configuration allowed in that zone. *[compat]* SDK error, §7.1.
 
 ### 4.8 `IsSuitableForConstruction(profile, reason&)` (slot 46, `0x00695430`)
@@ -739,7 +760,9 @@ Nothing for an empty rectangle. Lots = `lotManager.GetLotsInCellRect(rect, false
 - `kind ∈ {1, 2, 3}`: for each lot:
   `d := r24(terrain.GetAltitude(cx, cz) − cy)` with `(cx, cy, cz) := lot.GetCenter()`;
   `A := atan(r24(lotDeveloper.GetLotSlope(lot, false) × r24(1 / CellWidthX)))`,
-  `B := atan(r24(lot.GetSlope() × r24(1 / CellWidthX)))` (each arctangent rounded to float32).
+  `B := atan(r24(lot.GetSlope() × r24(1 / CellWidthX)))` (each arctangent rounded to float32). `GetLotSlope` is lot
+  developer slot 30 (`+0x78`, pop 8, ST0, `0x006987AA`); `lot.GetSlope()` is lot slot 19 (`+0x4C`, ST0,
+  `0x0069879C`) (DG15).
   If `−1 ≤ d ≤ 2` (NaN counts as inside) and `r24(A − B) ≤ 0.08726647` (5°, float32 `0x3DB2B8C3`):
   `UpdateLotElements(lot, kind)`. Otherwise the change is too big: a lot that `IsInDemolishableState()` is queued for
   demolition; any other lot's rectangle is dezoned at once (`zoneManager.PlaceZone(region, zone 0, true,

@@ -3292,9 +3292,18 @@ in the code; the implemented answer is in brackets.
   `capacity=1036996237` (`0x3DCF4E8D`, a float bit pattern) is the original's own garbage, not a misread; zone, purpose,
   wealth and source are tuning set by `Init` after `Read`, and five grid references of six is the record's shape
   (growth-developer §2, §9). *[choice]* total capacity 0 for a new city.
-- **DG2:** The timer that slices state 18. [a real timer, QueryPerformanceCounter]
-- **DG3:** The layout behind `GetLotConfigurationMap`. [lot configuration manager slot 9 `GetLotConfigurationsByFilter`
-  with an accept-all filter, into a B hash_set]
+- ~~**DG2:** The timer that slices state 18. [a real timer, QueryPerformanceCounter]~~
+  **ANSWERED 2026-10-14** from the exe (adaptive helper `0x0068CC20`/`0x0068BF50`, growth developer step `0x00B49098`)
+  and written into growth-developer §5.2. The original reads the processor's time-stamp counter and converts the
+  budget with the simulator's `MillisecsToCycles` (simulator §5.5). **The bracket matches in effect**: any monotonic
+  real-time clock gives the same behaviour, since slicing changes only how much of state 18 runs per call.
+- ~~**DG3:** The layout behind `GetLotConfigurationMap`. [lot configuration manager slot 9 `GetLotConfigurationsByFilter`
+  with an accept-all filter, into a B hash_set]~~
+  **ANSWERED 2026-10-14** from the exe (slot 20 `0x00489720`, map `0x00B216C8`, begin `0x004B0390`; slot 9
+  `0x0048B1A0`, null-filter path `0x0048B2E7`) and written into building-development §4.7.4 (Inputs). Slot 20 returns
+  the manager's own STLport `hash_map` (allocators.md hash_set shape, 12-byte nodes `{next, key, config*}`), with no
+  reference. **The bracket matches**: slot 9 with a null (or accept-all) filter gives the same configurations, each
+  AddRef'd into a B `hash_set`; the caller must release each one. Order does not matter (the table keeps maxima).
 - **DG4:** The budget item cost at +0x38. [0]
 - ~~**DG5:** How a building occupant's properties are loaded. [a GZCOM occupant, `SetBuildingType`, `GetResource`, QI
   `0x0AC2B5F7` and `SetDefaultExemplar`; a failure gives false]~~
@@ -3315,23 +3324,46 @@ in the code; the implemented answer is in brackets.
 - **DG7:** The static cleanup through app slot 69. [not registered, logged]
 - **DG8:** "Declined by stage" in the month line. [counted by wealth only]
 - **DG9:** When the decline plan line is written. [at BDS state 4 → 0]
-- **DG10:** The `cSC4LotConfigurationObject` layout. [the SDK header]
+- ~~**DG10:** The `cSC4LotConfigurationObject` layout. [the SDK header]~~
+  **ANSWERED 2026-10-14** from the exe (`0x00477B10` stride `0x34`, type byte at `+0`; reads at `0x0069C43E`,
+  `0x0069C6D0`–`0x0069C71E`) and written into building-development §4.7.4 (Inputs). **The bracket matches**: the
+  SDK's `cSC4LotConfigurationObject` is the exact `0x34`-byte layout (rotation `+0x02`, x `+0x04`, z `+0x0C`, ID
+  vector `+0x28`). Slot 24 returns the first object of type 0 (building), or null.
 - **DG11:** An empty capacity vector against a present-but-empty one. [`n_capacities > 0` gives one map]
 - **DG12:** A zero profile inserted in advance. [replaced in place]
 - **DG13:** The cheat notification ID. [the cheat ID]
 - **DG14:** The name fallback. [GameString, otherwise cRZBaseString]
-- **DG15:** The lot slope read. [slot 19]
+- ~~**DG15:** The lot slope read. [slot 19]~~
+  **ANSWERED 2026-10-14** from the exe (`0x0069879C` lot `+0x4C`, `0x006987AA` lot developer `+0x78`) and written
+  into building-development §4.11. `lot.GetSlope()` is lot slot 19 (ST0); `GetLotSlope(lot, false)` is lot developer
+  slot 30 (pop 8, ST0). **The bracket matches.**
 - **DG16:** The advice subject. [not created]
-- **DG17:** The building type filter's slot 3. [bool(uint32)]
-- **DG18:** The `GrowthItem` stage width. [masked to uint8]
-- **DG19:** A zone type out of bounds. [0]
-- **DG20:** Lot configuration zones: 0..15, where `fc4.h` allows 0..16. [0..15]
+- ~~**DG17:** The building type filter's slot 3. [bool(uint32)]~~
+  **ANSWERED 2026-10-14** from the exe (`0x00699C8F`–`0x00699C97`: one push, AL tested) and written into
+  building-development §4.7.2. **The bracket matches**: `bool(uint32 type)`, pop 4, AL. The exe has no filter class and
+  no caller of BDS slot 17 *[inferred]*, so only plug-ins use it.
+- ~~**DG18:** The `GrowthItem` stage width. [masked to uint8]~~
+  **ANSWERED 2026-10-14** from the exe (growth developer writes the whole `int32` at `0x006B6FA8`; `Grow` reads the
+  low byte at `0x0069B349`) and written into building-development §4.4. **The bracket matches**: the tract developer
+  receives the low byte; shipped stages are 1..8.
+- ~~**DG19:** A zone type out of bounds. [0]~~
+  **ANSWERED 2026-10-14** from the exe (`GetMaxCapacity` `0x00696C20`: map lookup, 0 when absent; zone loop bound
+  `0x0069C975`) and written into building-development §4.7.4. **The bracket matches**: a zone outside 0..15 is never a
+  key of the table, so the lookup misses and the result is 0.0; `GrowthStageFitsInZone` / `BuildingFitsInZone` give
+  false for unknown zones (§4.7.3). No original path indexes an array by zone.
+- ~~**DG20:** Lot configuration zones: 0..15, where `fc4.h` allows 0..16. [0..15]~~
+  **ANSWERED 2026-10-14** from the exe (`0x0069C974`–`0x0069C978`: `z < 16`) and written into building-development
+  §4.7.4. **The bracket matches**: the BDS asks `IsCompatibleWithZoneType` for zones 0..15 only. A wider range in
+  `fc4.h` is harmless as long as the table loop stops at 15.
 - **DG21:** An off-thread message arriving without the lock. [dropped]
 - **DG22:** ABI numbering after a merge. [renumbered by the coordinator: ABI 35]
 - **DG23:** The `wall_clock_seed` for the `0xFFFFFFFF` key seed. [the development session seed]
 - **DG24:** A null property holder. [false]
 - **DG25:** The shadow's `building_purpose`. [slot 40, no insert]
-- **DG26:** Growth developer slots 10 and 28. [the full EAX, 0 or 1]
+- ~~**DG26:** Growth developer slots 10 and 28. [the full EAX, 0 or 1]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006B7530`, `0x006B75D0`: EAX zeroed, then set from the compare) and already in
+  growth-developer §10.1 ("EAX 0/1"). **The bracket matches**: slot 10 = `state < 17` (signed), slot 28 = `state = 0`,
+  both as the full EAX.
 - **DG27:** The off-thread fallback for slot 30. [−4 / 20]
 
 ## From the apply6c follow-up (landfill game tiles; filed by the coordinator, 2026-10-14)
