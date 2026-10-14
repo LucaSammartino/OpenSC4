@@ -616,8 +616,11 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. The tests check the resource
   manager and startup registration (§3, §3.1), not the package reader, so they belong to whichever module
   implements §3.1 (data-formats.md §10.3).
-- **EX19:** how is depth counted for `MAX_PARENT_DEPTH`? [at most 32 nested loads below the record; a record that
-  fails only on depth is retried when reached shallower]
+- ~~**EX19:** how is depth counted for `MAX_PARENT_DEPTH`? [at most 32 nested loads below the record; a record that
+  fails only on depth is retried when reached shallower]~~ **ANSWERED 2026-10-14** from the exe (`0x009732EB`):
+  no original behaviour for the limit, because the original has none (§4.4); the implementer's choice stands.
+  The retry half is consistent with the original, which caches only successful loads, so a failed key is loaded
+  again on the next request (data-formats.md §4.4).
 - **EX20 — §5.2:** a raw accessor on a type mismatch. [choice: a missing value]
 
 ## From the protection glue and grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)

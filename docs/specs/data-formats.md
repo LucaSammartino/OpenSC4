@@ -424,7 +424,12 @@ the **effective** list. `IsPropertyLocal(id)` (`cISCResExemplar` slot 8) tests t
   Shipped chains are at most 3 levels deep (engine/formats README).
 - **Cycles**: a cohort that is (directly or indirectly) its own parent makes loading recurse without end
   *[inferred: no guard was found; the resource is not in the cache until its read completes]*. *[choice]*
-  FreeCity4 stops at the first repeated key and at depth 32, and treats the record as failing to load.
+  FreeCity4 stops at the first repeated key and at depth 32, and treats the record as failing to load. Depth
+  counts the nested parent loads below the record requested, so at most 32 ancestors load. The original has no
+  limit to match, and it **does not cache failures**: `GetResource` (`0x009732EB`) adds an object to the cache
+  only after its load succeeds, so a key that failed is loaded again on the next request. FreeCity4 likewise
+  remembers no failure, so a record that failed only on depth loads when it is later requested at a shallower
+  depth.
 
 ### 4.5 Duplicate property IDs *[compat]*
 
