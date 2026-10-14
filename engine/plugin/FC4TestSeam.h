@@ -75,6 +75,18 @@
 //         profile (DemandReportCapacities, no simulator): the visitor gets
 //         every entry; returns the entries reported, 0 (switch off) or -1
 //         (refused, logged).
+//   op 23 kFC4SeamLandValueShadow  a = const FC4LandValueShadowTestInput*
+//         (FC4LandValueShadow.h): one land value shadow event on a fake city
+//         whose land value simulator is the "original" (a pass end, a
+//         SimNewDay, PostCityShutdown); returns the pass's difference count,
+//         -1 (not run) or -2 (ran, nothing compared); a day: the maps that
+//         changed.
+//   op 24 kFC4SeamFlammabilityShadow a = const FC4FlammabilityShadowTestInput*
+//         (FC4FlammabilityShadow.h): one flammability shadow event on a fake
+//         city whose flammability simulator is the "original" (one of its six
+//         messages, a SimCycleComplete, PostCityShutdown); returns the cycle's
+//         difference count, -1 (not run) or -2 (ran, nothing compared: the
+//         baseline or INCOMPLETE); a message: 1 mirrored, 0 not.
 #pragma once
 
 #include <cstdint>
@@ -98,6 +110,8 @@ enum : uint32_t {
     kFC4SeamAuraShadow = 14,
     kFC4SeamPollutionShadow = 16,
     kFC4SeamDemandCapacity = 20,
+    kFC4SeamLandValueShadow = 23,
+    kFC4SeamFlammabilityShadow = 24,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

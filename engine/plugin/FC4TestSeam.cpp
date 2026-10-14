@@ -17,6 +17,8 @@
 #include "FC4BudgetShadow.h"
 #include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
+#include "FC4FlammabilityShadow.h"
+#include "FC4LandValueShadow.h"
 #include "FC4Fpu.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
@@ -78,6 +80,10 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             if (in == nullptr) return -1;
             return DemandReportCapacities(nullptr, in->buildingType, in->profile, in->visit, in->ctx);
         }
+        case kFC4SeamLandValueShadow:
+            return LandValueShadowTest(static_cast<const FC4LandValueShadowTestInput*>(a));
+        case kFC4SeamFlammabilityShadow:
+            return FlammabilityShadowTest(static_cast<const FC4FlammabilityShadowTestInput*>(a));
         case kFC4SeamRustPanic:
             fc4_debug_panic();
             return 1;  // only if the build unwinds

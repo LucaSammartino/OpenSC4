@@ -35,6 +35,8 @@
 #include "cFC4Crime.h"
 #include "FC4AuraShadow.h"
 #include "cFC4Aura.h"
+#include "FC4LandValueShadow.h"
+#include "FC4FlammabilityShadow.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -270,6 +272,10 @@ void Resolve() {
     CrimeShadowStartup(g_enabled[0], enabledKey("crime"));
     // The aura grid shadow (FC4AuraShadow.h; it compares the original aura simulator).
     AuraShadowStartup(enabledKey("aura"));
+    // The land value and flammability grid shadows (FC4LandValueShadow.h,
+    // FC4FlammabilityShadow.h; they compare the original simulators).
+    LandValueShadowStartup(enabledKey("landvalue"));
+    FlammabilityShadowStartup(enabledKey("flammability"));
 }
 
 }  // namespace

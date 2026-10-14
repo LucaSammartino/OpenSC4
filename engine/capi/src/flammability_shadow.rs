@@ -89,7 +89,7 @@ pub struct fc4_flammability_shadow {
 /// One hotspot of the original's record (§10).
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct fc4_flammability_hotspot {
+pub struct fc4_flammability_shadow_hotspot {
     pub x: i32,
     pub z: i32,
     pub weight: i32,
@@ -111,7 +111,7 @@ pub struct fc4_flammability_original {
     pub adjusted: *const u8,
     pub raw: *const u8,
     /// The record's hotspots, in list order.
-    pub hotspots: *const fc4_flammability_hotspot,
+    pub hotspots: *const fc4_flammability_shadow_hotspot,
     /// `IsCellFlammable` (slot 6) per city cell, x outer; NULL = not read.
     pub flammable: *const u8,
     pub hotspot_count: u32,
@@ -153,7 +153,7 @@ pub struct fc4_flammability_shadow_stats {
 }
 
 const _: () = {
-    assert!(std::mem::size_of::<fc4_flammability_hotspot>() == 12);
+    assert!(std::mem::size_of::<fc4_flammability_shadow_hotspot>() == 12);
     assert!(std::mem::size_of::<fc4_flammability_shadow_stats>() == 48);
     assert!(
         std::mem::size_of::<fc4_flammability_original>() == if cfg!(target_pointer_width = "32") { 128 } else { 144 }

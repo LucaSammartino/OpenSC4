@@ -212,7 +212,7 @@ impl FlammabilityRandom for NoDraw {
 struct Read {
     adjusted: Vec<u8>,
     raw: Vec<u8>,
-    hotspots: Vec<fc4_flammability_hotspot>,
+    hotspots: Vec<fc4_flammability_shadow_hotspot>,
     flammable: Vec<u8>,
     o: fc4_flammability_original,
 }
@@ -328,7 +328,7 @@ impl World {
         let hotspots = d
             .hotspots
             .iter()
-            .map(|h| fc4_flammability_hotspot {
+            .map(|h| fc4_flammability_shadow_hotspot {
                 x: h.x,
                 z: h.z,
                 weight: h.weight,

@@ -61,6 +61,14 @@
 //   aura_shadow = 0 / 1           the aura grid shadow (default 0; needs the ORIGINAL
 //                                 aura simulator: do not enable aura; FC4AuraShadow.h)
 //   aura_shadow_cells = N         its differing tracts listed per grid (default 4)
+//   landvalue_shadow = 0 / 1      the land value grid shadow (default 0; needs the
+//                                 ORIGINAL land value simulator: do not enable
+//                                 landvalue; FC4LandValueShadow.h)
+//   landvalue_shadow_cells = N    its differing tracts listed per grid (default 4)
+//   flammability_shadow = 0 / 1   the flammability grid shadow (default 0; needs the
+//                                 ORIGINAL flammability simulator: do not enable
+//                                 flammability; FC4FlammabilityShadow.h)
+//   flammability_shadow_cells = N its differing tracts listed per grid (default 4)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.

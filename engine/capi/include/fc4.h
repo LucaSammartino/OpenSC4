@@ -2785,9 +2785,9 @@ bool fc4_landvalue_shadow_get_stats(const fc4_landvalue_shadow* s, fc4_landvalue
  * draws) are not compared. */
 typedef struct fc4_flammability_shadow fc4_flammability_shadow;
 
-typedef struct fc4_flammability_hotspot {
+typedef struct fc4_flammability_shadow_hotspot {
     int32_t x, z, weight;
-} fc4_flammability_hotspot;
+} fc4_flammability_shadow_hotspot;
 
 typedef struct fc4_flammability_original {
     uint32_t struct_size;
@@ -2797,7 +2797,7 @@ typedef struct fc4_flammability_original {
     fc4_grid_geometry raw_geometry; /* the record's raw grid */
     const uint8_t* adjusted;        /* x outer */
     const uint8_t* raw;
-    const fc4_flammability_hotspot* hotspots; /* the record's, in list order */
+    const fc4_flammability_shadow_hotspot* hotspots; /* the record's, in list order */
     const uint8_t* flammable;                 /* slot 6 per city cell, x outer; NULL = not read */
     uint32_t hotspot_count;
     float global_multiplier; /* the record's */
@@ -2931,7 +2931,7 @@ static_assert(sizeof(fc4_aura_capture) == (sizeof(void*) == 4 ? 24 : 40), "fc4_a
 static_assert(sizeof(fc4_aura_shadow_stats) == 64, "fc4_aura_shadow_stats layout");
 static_assert(sizeof(fc4_landvalue_original) == (sizeof(void*) == 4 ? 132 : 152), "fc4_landvalue_original layout");
 static_assert(sizeof(fc4_landvalue_shadow_stats) == 48, "fc4_landvalue_shadow_stats layout");
-static_assert(sizeof(fc4_flammability_hotspot) == 12, "fc4_flammability_hotspot layout");
+static_assert(sizeof(fc4_flammability_shadow_hotspot) == 12, "fc4_flammability_shadow_hotspot layout");
 static_assert(sizeof(fc4_flammability_original) == (sizeof(void*) == 4 ? 128 : 144), "fc4_flammability_original layout");
 static_assert(sizeof(fc4_flammability_shadow_stats) == 48, "fc4_flammability_shadow_stats layout");
 #else
