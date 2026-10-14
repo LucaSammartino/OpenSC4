@@ -169,7 +169,7 @@ when the subnetwork data need no rebuild *[inferred: flag meaning, traffic-netwo
 | State | Phase | Spec | Entry action when entered |
 |---|---|---|---|
 | 0 | StartRecalc (`0x00717C90`) | §4.3 | |
-| 16 | ConfirmTrips (`0x0071E1B0`) | §4.3 | traffic-source iterator reset; pass counters reset; re-route context idle |
+| 16 | ConfirmTrips (`0x0071E1B0`) | §4.3 | traffic-source iterator reset; saved source cell := (0, 0) (§3.5, TS44); re-route context idle |
 | 17 | ReRouteTrips (`0x0071D020`) | §4.4 | same |
 | 18 | FullTrips (`0x0071D440`) | §4.4 | same; the per-travel-type count vector being built := 9 zeros |
 | 15 | FinishTripMap (`0x0070FEF0`) | §4.7 | lot iterator reset |
@@ -295,8 +295,11 @@ whole order (TS7):
     and from the occupant messages *[compat: do nothing]*.
 11. **Resume the interrupted phase**, by the loaded cycle state:
     * 16, 17, 18: the re-route context's search state := idle; the traffic-source iterator is reset (lots, then
-      neighbour connections, §4.1) and advanced until it has returned the source whose cell is the saved source cell
-      (the cell the phase stored when it took its current source, §6.1 row 14). That source becomes the held current
+      neighbour connections, §4.1) and advanced until it has returned the source whose cell is the saved source cell.
+      That cell is the two s16 phase positions of §6.1 row 14 (+0x90C, +0x90E; TS44). ConfirmTrips, ReRouteTrips
+      and FullTrips write there, as they take a source, the cell the source iterator returns: a lot's location (lot
+      slot 21) or a neighbour connection's cell (connection slot 6) (`0x0071E276`, `0x0071D0FD`, `0x0071D51C`). The
+      resume compares x and z as 16-bit values (`0x00720C17`–`0x00720C25`). That source becomes the held current
       source, so the phase continues after it. If no source has that cell, the iterator is reset again and no source
       is held (the phase restarts from the first source). *[inferred: the position inside a partly processed source's
       trip list is the saved context's, not traced]*
@@ -1424,7 +1427,7 @@ vectors.
 | 11 | departments | roads, mass transit (serializables, budget.md) |
 | 12 | income | s64 budget-item total (§4.1.3), f32 transit income, f32 toll income, f32 last monthly income, f64 income accumulator, f64 fee accumulator |
 | 13 | cycle date, strike, damage | u32 cycle start date (§4.12 StartRecalc), u8 strike state, s32 strike month counter; road: u32 cell count, u32 damaged count, f32 damage rate; u32 n + n × u16 intact road cell keys, u32 n + n × u16 damaged road cell keys (hash iteration order); rail: the same five fields and two key lists |
-| 14 | cycle position | u8 cycle state, the scanning iterator (helper `0x005D9FD0`/`operator<<`), bool intersection-dirty flag, s32 × 4 intersection dirty rect, bool network-changed byte (§3.1; never read), u32 strategy bucket counter, u32 strategy bucket, s16 × 2 phase positions, the lot iterator position (helper `0x005DA390`), bool, bool, f32, s32 x, s32 z (re-route context), u32 n + n × u32, u8, u32, s32 × 4, u32 n + n × u32 (per entry), u8 × 2 (context flags) |
+| 14 | cycle position | u8 cycle state, the scanning iterator (helper `0x005D9FD0`/`operator<<`), bool intersection-dirty flag, s32 × 4 intersection dirty rect, bool network-changed byte (§3.1; never read), u32 strategy bucket counter, u32 strategy bucket, s16 × 2 phase positions (the saved source or lot cell x, z, §3.5), the lot iterator position (helper `0x005DA390`), bool, bool, f32, s32 x, s32 z (re-route context), u32 n + n × u32, u8, u32, s32 × 4, u32 n + n × u32 (per entry), u8 × 2 (context flags) |
 | 15 | pacing and counters | s32 processed, s32, s32 total, u32 days, u32 day index, u32, u32, s32 `passTotal`, s32 `toReRoute`, s32 `toSearch`, then u32 × 10 pass counters (routed, re-routed, `rerouteBucket`, source counter, …; §10 Q4) |
 | 16 | network-type statistics, two sets (published "last" set = slot 34 block, then the working set) | per set: 13 × (f32 average (the working set holds the sum), u32 congested count (`r > 1`), s32 max x, s32 max z, f32 max), the bridge row (same 5 fields, §4.9), u16 × 13 (network-info records per type; published = the cell counts), u16 (bridge records; never published), u16 (published set: the pothole count, §3.6), s32 12, 12 × (u16, f32, s32, s32, f32) per-switch-type records, f32, f32, bool, f32, u8 |
 | 17 | neighbour-connection records | u32 count, per record (traffic-network.md §2.7): u16, u8, u8, u16, u16, then its f32 values |

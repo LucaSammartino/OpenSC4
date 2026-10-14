@@ -3075,7 +3075,12 @@ host gained connection, region, budget and drive-side methods. The current answe
   `0x00714EDC`) and written into traffic-network §2.7.4. The original crashes: `GetDemand` returns null for a missing
   node and the value query goes through it. The shipped data define the nodes. The bracket (0) is a *[choice]*,
   recommended.
-- **TS44:** Which row-14 field holds the saved source cell? [`phase_positions` s16×2, the lot location]
+- ~~**TS44:** Which row-14 field holds the saved source cell? [`phase_positions` s16×2, the lot location]~~
+  **ANSWERED 2026-10-14** from the exe (writes `0x0071E276`, `0x0071D0FD`, `0x0071D51C`; source iterator `0x007107F0`;
+  resume `0x00720B9A`–`0x00720C2E`) and written into traffic-simulator §3.2, §3.5 and §6.1. It is the two s16 phase
+  positions. The trip phases store the cell the source iterator returns: a lot's location (lot slot 21) or a neighbour
+  connection's cell. The 16–18 entry action zeroes them (the table's "pass counters reset" was these two). The bracket
+  matches.
 - **TS45:** Which cell is saved for the state-15 resume? [the same `phase_positions`]
 - **TS46:** How is §4.16's `float(item.cost)` computed? [converted to f32 first, then × funding, r24]
 - **TS47:** A strategy above 2 in SetupPathFinderForLot. [ignored; a choice in code]
