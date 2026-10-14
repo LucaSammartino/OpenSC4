@@ -5296,35 +5296,35 @@ cSC4DBSegmentIStream::vftable	00aa22f4	2	+0x8	0057eb70	icf::cGZLua5::Release	0	0
 cSC4DBSegmentIStream::vftable	00aa22f4	3	+0xC	005d2290	cSC4DBSegmentIStream::~cSC4DBSegmentIStream	4	1	eax-or-void	medium	
 cSC4DBSegmentIStream::vftable	00aa22f4	4	+0x10	0090d981	cRZUnknown::RemoveRef	0	0	eax-or-void	medium	
 cSC4DBSegmentIStream::vftable	00aa22f4	5	+0x14	009d7e63	cRZString::ToChar	0	0	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	0	+0x0	005d1bb0	__ZThn8_N20cSC4DBSegmentOStream14QueryInterfaceEmPPv	8	2	eax-or-void	medium	tail->005d1620
-cSC4DBSegmentIStream::vftable_1	00aa2310	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
-cSC4DBSegmentIStream::vftable_1	00aa2310	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
-cSC4DBSegmentIStream::vftable_1	00aa2310	3	+0xC	00407990	_memset	0	0	unknown	low	
-cSC4DBSegmentIStream::vftable_1	00aa2310	4	+0x10	005d1d80		4	1	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	5	+0x14	005d1db0		4	1	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	6	+0x18	005d1df0		4	1	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	7	+0x1C	005d1e30		4	1	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	8	+0x20	005d1e70		4	1	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	9	+0x24	005d1eb0		4	1	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	10	+0x28	005d1ef0		8	2	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	11	+0x2C	005d1f30		8	2	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	12	+0x30	005d1f70		4	1	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	13	+0x34	005d1fb0		8	2	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	14	+0x38	005d2d50		4	1	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	15	+0x3C	005d1ff0		4	1	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	16	+0x40	005d1670		4	1	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	17	+0x44	005d2030		8	2	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	18	+0x48	005d16b0	cSC4DBSegmentIStream::GetError	0	0	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	19	+0x4C	005d1b80	cSC4DBSegmentIStream::SetUserData	4	1	via-call	low	
-cSC4DBSegmentIStream::vftable_1	00aa2310	20	+0x50	0040ce60	icf::cGZLua5Thread::GetUserContext	0	0	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	21	+0x54	005d2410		12	3	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	22	+0x58	005d1bc0	cSC4DBSegmentIStream::Close	0	0	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	23	+0x5C	005d1c30	cSC4DBSegmentIStream::IsOpen	0	0	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	24	+0x60	004777e0	icf::cGZLua5Thread::GetContext	0	0	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	25	+0x64	00517f70	icf::cGZLua5Thread::GetLua	0	0	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	26	+0x68	005d1c50		4	1	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	27	+0x6C	005d1ca0		4	1	eax-or-void	medium	
-cSC4DBSegmentIStream::vftable_1	00aa2310	28	+0x70	005d1ce0		4	1	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	0	+0x0	005d1bb0	__ZThn8_N20cSC4DBSegmentOStream14QueryInterfaceEmPPv	8	2	eax-or-void	medium	tail->005d1620
+cSC4DBSegmentOStream::vftable_1	00aa2310	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
+cSC4DBSegmentOStream::vftable_1	00aa2310	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
+cSC4DBSegmentOStream::vftable_1	00aa2310	3	+0xC	00407990	_memset	0	0	unknown	low	
+cSC4DBSegmentOStream::vftable_1	00aa2310	4	+0x10	005d1d80		4	1	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	5	+0x14	005d1db0		4	1	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	6	+0x18	005d1df0		4	1	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	7	+0x1C	005d1e30		4	1	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	8	+0x20	005d1e70		4	1	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	9	+0x24	005d1eb0		4	1	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	10	+0x28	005d1ef0		8	2	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	11	+0x2C	005d1f30		8	2	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	12	+0x30	005d1f70		4	1	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	13	+0x34	005d1fb0		8	2	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	14	+0x38	005d2d50		4	1	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	15	+0x3C	005d1ff0		4	1	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	16	+0x40	005d1670		4	1	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	17	+0x44	005d2030		8	2	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	18	+0x48	005d16b0	cSC4DBSegmentIStream::GetError	0	0	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	19	+0x4C	005d1b80	cSC4DBSegmentIStream::SetUserData	4	1	via-call	low	
+cSC4DBSegmentOStream::vftable_1	00aa2310	20	+0x50	0040ce60	icf::cGZLua5Thread::GetUserContext	0	0	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	21	+0x54	005d2410		12	3	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	22	+0x58	005d1bc0	cSC4DBSegmentIStream::Close	0	0	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	23	+0x5C	005d1c30	cSC4DBSegmentIStream::IsOpen	0	0	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	24	+0x60	004777e0	icf::cGZLua5Thread::GetContext	0	0	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	25	+0x64	00517f70	icf::cGZLua5Thread::GetLua	0	0	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	26	+0x68	005d1c50		4	1	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	27	+0x6C	005d1ca0		4	1	eax-or-void	medium	
+cSC4DBSegmentOStream::vftable_1	00aa2310	28	+0x70	005d1ce0		4	1	eax-or-void	medium	
 cSC4DBSegmentOStream::vftable	00aa2384	0	+0x0	005d1620	cSC4DBSegmentOStream::QueryInterface	8	2	eax-or-void	medium	
 cSC4DBSegmentOStream::vftable	00aa2384	1	+0x4	0057eb00	icf::cGZLua5::AddRef	0	0	eax-or-void	medium	tail->00968b60
 cSC4DBSegmentOStream::vftable	00aa2384	2	+0x8	0057eb70	icf::cGZLua5::Release	0	0	eax-or-void	medium	tail->0090d997

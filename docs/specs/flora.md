@@ -95,11 +95,26 @@ Three containers are **static** (shared by every city of the process): a map *ty
 across cities. An application-shutdown callback releases each record, empties the map and the type array (not
 the family map).
 
+**The shutdown callback** (verified, FQ2). `0x006B1070`, registered once per process by §4.1 step 2 with data 0.
+If the "types loaded" flag is set it clears the flag, then for each map entry drops the map's reference to the
+record (a count of 1 destroys it: the held exemplar is released, the family vector and the record are freed;
+a higher count is only decremented, so records still held by flora occupants survive), erases every map node
+and empties the type array; it returns true. The app keeps the callbacks in a list in registration order and runs
+them inside its own `Shutdown` (`0x0044A633`–`0x0044A650`), each called with its data. The framework calls that
+`Shutdown` (`0x0087AB54`) after it has sent PreAppShutdown to every framework hook (`0x0087A376`, hook slot 6)
+and before PostAppShutdown (`0x0087A3C6`, slot 7) and PostSystemServiceShutdown (`0x0087A416`, slot 8), so plugin
+DLLs are still loaded when the callbacks run. Nothing after it reads the registry, and it posts no message and
+writes nothing: it only returns memory at process exit. **No observable behaviour depends on it**; *[choice]*
+FreeCity4 need not register it and may keep its records until the process ends (§13.2).
+
 Every `Init` also inserts a **default record** under key **0** into the map (only the map, not the type array).
 It is a fresh record with the defaults of §3.3 and an **uninitialised flags byte**. If key 0 is already present
 the new record leaks *[quirk]*. Consequences: `IsFloraTypeValid(0)` is true, `GetStaticFloraData(0)` is
 non-null, and the default record takes part in `GetBestFloraTypeForLocation` and `GetFloraTypesByFilter`
-*[quirk]* (§14).
+*[quirk]* (§14). **After an exemplar-change reload** (§5) key 0 is absent: the reload clears the map
+(`0x006B353A`), key 0 included, and only loads the exemplars, so until the next `Init` `IsFloraTypeValid(0)` is
+false, `GetStaticFloraData(0)` is null and the default record takes part in nothing (verified, FQ14). The next
+`Init` inserts a fresh default record, which then does not leak.
 
 **The flags byte of the default record** (`Init`, `0x006B2BAA`–`0x006B2BF2`): the record is 376 bytes from the
 game's global heap (`operator new`, the 512-byte pool, `docs/abi/allocators.md` instance C). The inline
@@ -165,6 +180,19 @@ Flag use: bit 0 set → the type is never picked by `GetBestFloraTypeForLocation
 flora brush lists only types with bit 0 clear and bit 1 set *[inferred meaning: "wild/brush flora"]*. Bit 2 is
 not read by any code found.
 
+*[compat]* **Parent-cohort properties count** (verified, FQ13). Every value in the table is read through the
+exemplar's property-holder calls (slot 3 `HasProperty`, slot 8 `GetProperty(id, u32&)`, slot 9 `GetProperty(id)`
+and the typed helpers; `AddStaticFloraData` `0x006B12D0`, reads `0x006B13A6`–`0x006B159E`), and so does the
+`0x10 = 0x0F` test that admits an exemplar at all (§4.1 step 2). All of these use the **effective** property
+list (data-formats §4.4): a property the exemplar inherits from its parent cohort (or a grandparent) is used
+exactly as if it were its own, and an own property overrides the inherited one. The 22 shipped flora exemplars
+(all in `SimCity_1.dat`; none in `SimCity_2`–`5.dat` or `EP1.dat`) have no parent cohort, so on shipped data
+including or leaving out inherited properties gives the same registry. They differ only for a plugin.
+*Example:* a plugin exemplar with own properties `0x10 = 0x0F` and `0x21 = T` whose cohort holds `0x083DC35B` and
+`0x2A0348BA = N`: the original's record for T has the cohort's 14 floats and next type N; a reader that leaves the
+cohort out gives the code defaults (730, 730, 365, …) and next type 0. If `0x10 = 0x0F` itself is in the cohort,
+the original registers the type and such a reader skips it. *[choice]* Read flora exemplars with inheritance.
+
 Shipped example, **Burnt Tree** `0x29CFF3CB` (group `0xE83E0437`): floats {100, 100, 200, 3, 128, 15000, 15050,
 0.6, 0, 0, 1, 5, 1.5, 5}, `0xE9D117C3` = true, a propagation table that is mostly 0–0.9.
 
@@ -201,9 +229,32 @@ lot-records.md §11 (Write `0x00472990`, Read `0x00472A20`; validated on 744,617
    of type `0x6534284A` (resource manager slot 18 `+0x48`, key-list `EnumKeys` slot 7 `+0x1C`); for each key
    whose exemplar has property `0x10` = `0x0F`, call own slot 5 `AddStaticFloraData(key, exemplar)`. Then post
    FloraTypesUpdated (§9).
+
+   *[compat]* **What the enumeration amounts to** (verified, FQ1). Slot 18 (`0x00973280`) only wraps a key filter
+   that accepts a key exactly when its **type** equals the given type (filter slot 3, `0x00973194`; group and
+   instance are not looked at) and calls slot 17 `GetAvailableResourceList(list**, filter)` (`0x009739CB`), which
+   adds the matching keys of every segment, segment by segment (§3.2). So slot 17 with any filter that accepts
+   exactly the keys of type `0x6534284A` builds the same list in the same order. `EnumKeys` (slot 7,
+   `0x009749CB`) hands the keys to the callback from first to last; key-list slot 9 `Size` and slot 10 `GetKey(i)`
+   (`0x00974741`) index the same sequence, so reading keys 0 … `Size` − 1 is equivalent. Per key (`0x006B03B0`):
+   `GetResource(key, 0xA52160F5)` (the exemplar interface, data-formats §4); if that succeeds and property `0x10`,
+   read with the u32 converting getter (`0x005FD480`, data-formats §5.1, so through the parent cohort, §4.4), is
+   `0x0F`, call own slot 5 with the key and the exemplar; the exemplar reference is released either way. A key
+   whose resource does not load is skipped silently.
 3. Subscribe on the message server (`+0x14`) to `0x278E6003`, `0x99EF1142`, `0x99EF1143`, `0xC53D10AA`,
    `0x26D31EC4`, `0x26D31EC5`, `0xAB99A64B`, in that order. Register command `0xAB99A64B` with the command server
    (slot 6 `+0x18`) under the name `"PlaceFlora"` and parameter info null.
+
+   *[compat]* **The registration call** (verified, FQ12). Both halves of this step run only when the message server
+   global (`0x00B43CCC`) is non-null (`0x006B29AA`); the command server global (`0x00B43CB0`) is then used without
+   a null test, and the result is ignored (`0x006B2A0C`–`0x006B2A1F`). The arguments are (`0xAB99A64B`, a plain
+   `const char*` to `"PlaceFlora"` at `0x00AB1428`, **null**), so null parameter info is the original's. The
+   server's slot 6 (`0x0092B075`, pops 12, AL) refuses an ID of 0, a null name or an ID already registered;
+   otherwise it stores the command, passes the info to its own slot 8 `RegisterCommandParameterInfo(id, info)`
+   (`0x0092AD10`, pops 8) and announces the registration. Slot 8 copies a non-empty info string as the command's
+   help text; for a null or empty one it writes `"Format: <name>\nOutput: <none>"` (format at `0x00AD1738`)
+   instead, but only when the server's own help flag (`+0x48`) is set, and otherwise leaves the text empty.
+   *Example:* with the flag set, the help text of `0xAB99A64B` is `"Format: PlaceFlora\nOutput: <none>"`.
 4. If no simulator is held yet: hold it and `AddAgent(messageTarget, 4, "cSC4FloraSimulator", 3)` then the same
    at level **6**. Flags 3 = enabled before and after the city is established.
 5. Hold the occupant manager, the weather simulator (may be null), the terrain and the lot manager. Create the
@@ -221,6 +272,16 @@ lot-records.md §11 (Write `0x00472990`, Read `0x00472A20`; validated on 744,617
 10. `propagation := not city.GetEstablished()` (city slot 22, AL); then if propagationForced, propagation := true.
 11. Register the cheat code `0x095BDC9C` with the string `"Flora"` (cheat manager slot 3 `+0xC`) and subscribe the
     message target to it (slot 7 `+0x1C`, `AddNotification2`).
+
+    *[compat]* **The notification ID** (verified, FQ11). The call is `AddNotification2(target, 0x095BDC9C)`
+    (`0x006B2C77`), and `Shutdown` removes the same pair (`RemoveNotification2(target, 0x095BDC9C)`,
+    `0x006AFDDD`). The cheat manager keeps a list of (target, ID) pairs (`0x009212A6`: a pair already present is
+    refused) and, when a cheat is entered, sends `0x230E27AC` with data1 = the cheat's ID to every pair whose ID
+    **equals that cheat's ID or is 0** (`0x00920F34`–`0x00920F3E`). With the original's ID only "Flora …"
+    lines reach flora, so the "another cheat" branch of §5 is reachable only by a message sent to flora
+    directly; with 0, every cheat would reach it and each non-Flora cheat would take the exemplar-changed path.
+    The original budget (`0xCBF31943`, `0x4AB87766`, `0x493F4FE6`; `0x00693135` …) and simulator (`0x0AC07E24`,
+    `0x8A78BEFF`; `0x007033B1` …) likewise subscribe with their own cheat IDs, never 0.
 12. `spec := app.GetNewCitySpecification()` (`cISC4App` slot 39 `+0x9C`). If
     `spec.obliteratedCityDBSegment` (SDK `SC4NewCitySpecification`, offset `0x204`) is non-null, restore the
     obliterated flora from it (§10.3).
@@ -256,8 +317,8 @@ results, so flora's position in the month list (foundations §13.2: registration
 | TerrainHeightsChanged `0x278E6003` | Only if the terrain is initialized (terrain slot 5): cell rectangle `x0 = max(0, (data1 >> 16) − 1)`, `x1 = min(data1 & 0xFFFF, cellsX − 1)`, `z0 = max(0, (data2 >> 16) − 1)`, `z1 = min(data2 & 0xFFFF, cellsZ − 1)`; §6.10.2. |
 | CityEstablished `0x26D31EC4` | `propagation := propagationForced`. |
 | CityObliterated `0x26D31EC5` | `propagation := true`. |
-| PlaceFlora command `0xAB99A64B` | `params := void1` (command parameter set). type := param 0 as u32; `p1, p2` := params 1 and 2 as floats; `AddNewFloraOccupant(type, {p1, p2, −1}, false)`. *[quirk]* p2 lands in **y** and z = −1, so the location check always fails and nothing is planted (§14). |
-| Cheat `0x230E27AC` | If data1 = `0x095BDC9C` and the command line has ≥ 2 words: §5.2. Otherwise (another cheat, or a bare "Flora"): handled **exactly like `0xC53D10AA`** below *[quirk]*. |
+| PlaceFlora command `0xAB99A64B` | `params := void1` (command parameter set). type := param 0 as u32; `p1, p2` := params 1 and 2 as floats; `AddNewFloraOccupant(type, {p1, p2, −1}, false)`. *[quirk]* p2 lands in **y** and z = −1, so the location check always fails and nothing is planted (§14). Reads (verified, FQ10; `0x006B3497`–`0x006B34F6`): parameter-set slot 5 `operator[](0)`, `(1)`, `(2)` in that order, then variant slot 24 `GetValUint32()` for 0 and slot 36 `GetValFloat32()` for 1 and 2 (§12); a missing parameter reads the set's empty variant; the result of own slot 17 is ignored. |
+| Cheat `0x230E27AC` | If data1 = `0x095BDC9C` and the command line has ≥ 2 words: §5.2. Otherwise (another cheat, or a bare "Flora"): handled **exactly like `0xC53D10AA`** below *[quirk]*. With the original subscription (§4.1 step 11) only "Flora …" cheats are delivered, so "another cheat" arrives only when sent to flora directly. |
 | Exemplar changed `0xC53D10AA` | `inst := data2` (data1 is read and ignored). If `GetStaticFloraData(inst)` is non-null: clear the type array, the type map and the family map (records are **not** released, *[quirk]* leak) and reload all flora types (§4.1 step 2, including the FloraTypesUpdated post). Then, if `inst = 0x1A2FDB6A`, re-read the tuning (§7). The group is never checked *[quirk]*. |
 | anything else | ignored |
 
@@ -306,6 +367,13 @@ Score(type, x, z):
     e := ElevationIndex(x, z, record.water)
     return record.table[e][m] × (1/255 as f32)        (x87 result in ST0)
 ```
+
+*[compat]* **The moisture value's width** (verified, FQ5). The weather's `GetMoistureType` (slot 19, `0x007256D0`)
+returns its own `GetMoistureValue(x, z)` (slot 17, `0x00726150`: a zero-extended byte, 0 off the grid) shifted
+right by 4, so EAX is always 0..15 with the upper 24 bits zero. `Score` (`0x006B0939`–`0x006B095B`) and
+`GetBestFloraTypeForLocation` add the whole EAX to `16·e` as the byte offset into the 256-byte table. Against the
+original weather, reading only AL therefore gives the same index; a FreeCity4 weather must still return the
+clean 32-bit value (§13.2), because original callers use all of EAX.
 
 **No weather simulator.** `Init` takes the weather from the game's cached service pointer and holds it only if
 it is non-null (`Shutdown` releases it only if non-null), but neither `Score` (`0x006B0900`) nor
@@ -357,6 +425,49 @@ radius does not block. An unordered compare (NaN) counts as overlapping on that 
 `cISC4NetworkOccupant::GetNetworkFlag()` & `0x1F4F` ≠ 0 (road, rail, highway, street, avenue, light rail,
 monorail, one-way road, dirt road, ground highway; not pipes, power lines or subway *[inferred from the SDK
 enum]*). Everything else does not block flora.
+
+*[compat]* **The filter object and how the query uses it** (verified, FQ4). `Init` builds it on the game heap
+(12 bytes, two vtables); the simulator holds the `cISC4OccupantFilter` part, vtable `0x00AB1374`: slots 0–2
+QI / AddRef / Release, **slot 3 `+0x0C` `bool IsOccupantIncluded(cISC4Occupant*)`** = the test above
+(`0x006AFD10`, 4 bytes popped, AL), slots 4 and 5 `+0x10` / `+0x14` take one argument and return true
+(`0x004FC900`). For a network occupant the test asks the occupant for `cISC4NetworkOccupant` (IID `0xA821EF94`);
+if it does not answer, the occupant does not block; the interface is released after `GetNetworkFlag()`. The
+box query (occupant manager slot 36) calls **only slot 3**, once per candidate occupant, before its box test.
+The typed query (slot 37, `0x0049DD40`) is slot 36 with the manager's own one-type filter (type 0 = no
+filter; an uninitialized manager returns false). So one typed query per accepted type (flora, building,
+landfill, prop) plus a network query keeping flag & `0x1F4F` ≠ 0 returns **the same occupants**, grouped by type
+instead of in the manager's cell order. `LocationIsOKForNewFlora` does not depend on the order: it fails if any
+of them overlaps, and every reference is released either way.
+
+#### 6.4.2 What an occupant-manager box query returns *[compat]*
+
+Every flora query ends in occupant manager slot 36 (`0x004A0670`): the box queries of §6.4 and §6.5, the typed
+query (slot 37) and the cell queries (slot 41 → 40 → 36, §6.10.4, used by the monthly visit). Slot 36 does not
+test every occupant; it reads a coarse index (verified, FQ6):
+
+- **The index.** 192 × 192 cells of 64 m; city (0, 0) is cell (64, 64). A coordinate `p` maps to
+  `cell(p) := rhe(f32(f32(p + 4096) × (1/64)) − 0.499f)` (slot 15, `0x0049E0E0`; `rhe` = round half to even, crime.md
+  §6; `float32` constants 4096, 0.015625, 0.499 at `0x00A8F7C0`, `0x00A8F7B8`, `0x00A8F7BC`). That is
+  `floor((p + 4096) / 64)`, except that a coordinate **less than 64·(0.5 − 0.499f) ≈ 0.06399918 m below a 64 m
+  line maps to the cell above** the line.
+- **Listing** (`InsertOccupant` slot 20 `0x0049EF60`, `MoveOccupant` slot 24 `0x0049F3C0`): take the occupant's
+  box at that moment; on x and on z separately, if `max − min > 1.0` (`0x00A81228`), move both ends inwards by
+  `0.1f` (`0x00A8F768`, `float32` add and subtract). The occupant is listed in every cell from
+  `(cell(min.x), cell(min.z))` to `(cell(max.x), cell(max.z))`. y plays no part.
+- **Query**: map the query box's two corners to cells, clamped to 0..191 (`0x0049DF00`). The candidates are the
+  occupants listed in that cell rectangle, each taken once. A candidate is returned if the filter (if any)
+  accepts it (§6.4.1) and its **current** box overlaps the query box **strictly** on x, y and z:
+  `occMin < qMax` and `qMin < occMax` (`float32` compares; an unordered compare, NaN, counts as overlapping), the
+  same rule as §6.4's `Intersects`. Boxes that only touch are **not** returned. The last argument is a count
+  limit (−1 = none; 0 returns false at once); an uninitialized manager returns false.
+
+So "in the box" means: listed in one of the query's 64 m cells **and** strictly overlapping. The two differ for
+a box wider than 1 m whose low edge lies in `[X − 0.164, X − 0.1)` below a 64 m line `X`: its listing starts at
+`edge + 0.1 ≥ X − 0.064`, in the cell above `X`, so a query box that ends at `X − 0.1` (for example the monthly
+block just below `X`, §6.7.1) overlaps it strictly but never returns it. Example: a box z 319.844 … 337.844 is
+listed from 319.944 (0.056 below 320, so z cell 69, city z 320 … 384); the block query z 288.1 … 319.9 reads z cell
+68 only and does not return it, although 319.844 < 319.9. Lines at odd multiples of 32 m lie inside a cell and do
+not matter.
 
 ### 6.5 Planting (`AddNewFloraOccupant(type, pos, force)` → occupant or null)
 
@@ -430,6 +541,35 @@ while k > 0:
 ```
 
 A full pass therefore takes about `period` months (24 shipped).
+
+*[compat]* **Which blocks visit a plant** (verified, FQ15). A block's query is the city-cell box
+`(32bx + 0.1, 32bz + 0.1) … (32bx + 31.9, 32bz + 31.9)` (§6.10.4), answered by the occupant manager's index
+(§6.4.2). A plant whose box spans several blocks is visited once by each block that returns it, at that block's
+place in the shuffled order. So a plant straddling a block edge is normally visited twice (or four times at a
+corner) per pass. **The exception is §6.4.2's window:** if the box is wider than 1 m on an axis and its low edge
+`m` on that axis lies in `[X − 0.164, X − 0.1)` below a 64 m line `X` (`X` a multiple of 64 in city metres),
+the block that ends at `X` overlaps the box but does not return it, and only the blocks from `X` up visit it.
+Testing every flora box directly against the block box adds those extra visits. With the shipped wild clumps
+the extra visits are visible, because their lifespans are 2–42 days against a visit every
+~`period` months: every visit by the block below finds the plant past its lifespan and gives it a rebirth
+(birth := that day, state 0) that the original does not perform. The shipped first in-game shadow (2048 m city,
+4096 blocks, 170 per month, propagation off) had six such trees, and they are the only plants that differed
+(23 differing tree-months in 94 months):
+
+| Occupant | Type | Position (x, z) | Box half-width | Axis | Line `X` | `X − m` | Months differing |
+|---|---|---|---|---|---|---|---|
+| `0x14C279F4` | `0x2A0C8216` Oak Tree clump 5 | (1726.9807, 328.84396) | 9 | z | 320 | 0.1560 | 7 |
+| `0x14C21600` | `0x2A0C8214` Oak Tree clump 3 | (1605.8865, 560.6062) | 6 | x | 1600 | 0.1135 | 4 |
+| `0x1492F0F8` | `0x2A0C8215` Oak Tree clump 4 | (327.88672, 151.14545) | 8 | x | 320 | 0.1133 | 3 |
+| `0x14BFBB08` | `0x16800000` LotFlora5x5x10_Pines1 | (1024.876, 1371.5037) | 1.0 | x | 1024 | 0.1240 | 1 |
+| `0x14C2F268` | `0x2A0C8216` Oak Tree clump 5 | (1736.8553, 401.34277) | 9 | x | 1728 | 0.1447 | 4 |
+| `0x14BEA68C` | `0x2A0C8213` Oak Tree clump 2 | (977.7621, 131.8909) | 4 | z | 128 | 0.1091 | 4 |
+
+*Example:* Oak Tree clump 5 `0x14C279F4` has the box x 1717.98 … 1735.98, z 319.84 … 337.84. It is listed in
+manager cells x 90–91, z 69 (from z 319.944, §6.4.2). Blocks (53, 10) and (54, 10) (z 320 … 352) visit it; blocks
+(53, 9) and (54, 9) (z 288 … 320) query z 288.1 … 319.9, which reads manager z cell 68 only, so they do not, although
+319.84 < 319.9. A tree 0.2 m below the line (box z 319.8 … 337.8, listed from 319.9 in z cell 68) is visited by all
+four blocks.
 
 #### 6.7.2 One flora occupant (`SimulateExistingFloraOccupant`)
 
@@ -572,8 +712,18 @@ Seed type, computed in `AddStaticFloraData(record)`: `record.seedType := record.
 record whose seed type equals the new record's next type gets the new type as seed type. The original also
 compares "other.next = new type" and then assigns the same value (a no-op, also in the Mac build). Result
 *[quirk]*: clusters seed the head of their chain only if the head was registered after them; otherwise they
-seed their own type. The key-0 default record (seed type 0) is captured by the first registered type whose next
-type is 0.
+seed their own type.
+
+*[compat]* **Next type 0** (verified, FQ14; `AddStaticFloraData` slot 6 `0x006B3570`, loop `0x006B3725`–
+`0x006B3776`). There is no special case for 0: the comparison is "other's seed type = new record's next type",
+whatever the value, over every map entry including key 0. The only record whose seed type is 0 is the key-0
+default record (§3.2), so a new record with next type 0 sets key 0's seed type to its own type, if key 0 is in
+the map at that moment. **In the game it never is:** the first load (§4.1 step 2) runs before `Init` inserts
+key 0 (step 8), and the exemplar-change reload (§5) clears the map, key 0 included, before loading and does not
+put key 0 back. So in the game key 0 keeps seed type 0. Only a registration made after `Init` and outside those
+loads (a plugin calling slot 5 or 6, or a test) can change it. *Example:* after `Init`, register A (next 0)
+then B (next 0): A's seed type is A and key 0's becomes A; B's seed type is B and key 0's stays A (it no longer
+equals 0). Nothing reads key 0's seed type, since no flora occupant has type 0 (§6.5 step 1).
 
 ---
 
@@ -599,6 +749,13 @@ wildSeedsPerMonth := u32( trunc( float(u32(trunc(float(wildSeedsPerMonth) × siz
 ```
 
 i.e. seeds per 2²⁰ m² (one 1024 m × 1024 m city). The scaling rewrites the stored value; see §14 quirk 11.
+
+**Elevation scale** (verified, FQ7; tuning read `0x006B00F0`). The constructor stores `0.08f` (`0x3DA3D70A`,
+`0x006B1941`). The tuning read sets `elevationScale := 16.0f / v` (constant `0x00A8D45C`, one `float32` division,
+`0x006B01B0`) only when the exemplar loads **and** has `0xC9DBDD02`; otherwise the value stays. The read runs at
+every `Init` (§4.1 step 9) and when the exemplar `0x1A2FDB6A` changes (§5). The value is **not** in the save
+record (§10.1: neither `Write` `0x006AFEE0` nor `Read` `0x006AFFE0` touches it), so a loaded city always uses the
+running game's tuning. Shipped: 800 → `16 / 800` = `0x3CA3D70A` (0.0199999996).
 
 **Period 0** *[quirk]*: `blocksPerMonth` is an x86 `div` by `period` in two places, `Init` step 6
 (`0x006B2B53`, with the constructor's or the **saved** period) and this tuning read (`0x006B01CB`, with the value
@@ -714,6 +871,35 @@ manager exists: reads the count; for each `i < count` whose record opens: create
 it (result ignored), `cISC4Occupant::Init()`, `InsertOccupant(occ, 0)`, release. Returns true (false only
 without an occupant manager). So **trees survive obliteration** *[compat]*.
 
+**Record layout and calls** (verified, FQ3; save `0x006B2760`, restore `0x006B0660`, the game's record-stream
+helpers `0x005D9F00` / `0x005D9DB0` (write) and `0x005D9E70` / `0x005D9C90` (read)). *Correction:* every record
+starts with a **u16 record version, 0**, written by the helper before the payload:
+
+| Record | Bytes |
+|---|---|
+| count (`0xC9BB3FC6`, `0xC9BB3FC7`, 1) | `u16 0`, `u32 count` (6 bytes) |
+| occupant `i` (`0xC9BB3FC6`, `0x4A664F83`, `i`) | `u16 0`, then the flora occupant's own record (lot-records.md §11, which starts with its own `u16` version 3) |
+
+Opening a record for writing: query the given `cIGZPersistDBSegment` for `cISC4DBSegment` (IID `0x499899DA`);
+`OpenOStream(key, &stream, true)` (slot 8); write `u16 0` (stream slot 7); if `GetError()` (stream slot 18) is
+non-zero, close it again (`CloseOStream`, slot 9) and treat the record as not open. Closing: `CloseOStream`
+(slot 9), then both references are released. Reading is the same with `OpenIStream(key, &stream)` (slot 5),
+`GetUint16` (slot 7; the value is kept by the helper and **never checked** by flora) and `CloseIStream` (slot 6).
+A segment that does not answer the IID, or a key that does not open, gives "not open": nothing is written or read.
+
+- Save: the count record is written even when the count is 0. `i` is the occupant's position in the list and
+  advances for every occupant, also when its record does not open. The count is written with `PutUint32`
+  (stream slot 9) and the occupant record by the occupant's `cIGZSerializable::Write` on the same stream (the
+  segment streams begin with the `cIGZOStream` / `cIGZIStream` slots). Returns true (AL = 1) whatever happened.
+- Restore: `count` starts at 0 and is read with `GetUint32` (stream slot 9) only if the count record opens; the
+  count is read **before** the occupant-manager test, so without an occupant manager the function returns false
+  after reading it. Each occupant: pooled `new` (92 bytes) and constructor, `AddRef`, `Read` from the stream,
+  `Init`, `InsertOccupant(occ, 0)` (slot 20), `Release`; records that do not open are skipped. There is no upper
+  bound on `count` (a damaged count means as many open attempts).
+
+Example: three flora occupants → count record `00 00 03 00 00 00`; records `i` = 0, 1, 2, each `00 00` followed by
+that occupant's version-3 record.
+
 ---
 
 ## 11. Interfaces (compiled slot tables) *[compat]*
@@ -755,6 +941,15 @@ reversed exactly as foundations §16 predicts, and every argument size and retur
 
 "AL only": the upper 24 bits of EAX are garbage; callers test AL. A replacement should return a clean 0/1 in EAX
 *[choice]*. Functions 8 and 10 return nothing.
+
+**Slot 13 with a filter** (verified, FQ9; `0x006B23A0`). The map is walked in ascending type order (key 0
+included while it is present, §3.2). For each key, a non-null filter is asked through **`cISC4FloraTypeFilter`
+slot 3 `+0x0C`, `bool (u32 floraType)`** (4 bytes popped by the callee, result in AL; no other filter slot is
+called); a null filter accepts every key. Each accepted key is inserted into the caller's set (the set is first
+grown to hold one more element, `0x004F0940`) and counted, also when the set already held it; the count is
+returned (0 for an empty map). Example: map {0, A, B, C}, a filter accepting A and C, a set already holding A →
+the set is {A, C}, the result 2. No caller in the exe passes a filter (the two set users, `0x0048B860` and
+`0x006CD010`, call slot 14), so only plugins can see the difference.
 
 ### 11.2 `cIGZMessageTarget2`, vtable `0x00AB13AC`
 
@@ -799,15 +994,21 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check` and th
 | | 19 | `+0x4C` | AddAgent(target, level, name, flags) | 16 | bool |
 | | 20 | `+0x50` | RemoveAgent(target) | 4 | bool |
 | `cIGZMessageServer2` (`0x00AD1BF4`) | 4 / 5 / 6 | `+0x10/+0x14/+0x18` | MessagePost(msg, false) / AddNotification / RemoveNotification | 8 each | bool |
-| `cIGZCommandServer` (`0x00AD17A0`) | 6 | `+0x18` | RegisterCommand(id, name, paramInfo) | 12 | bool |
+| `cIGZCommandServer` (`0x00AD17A0`) | 6 | `+0x18` | RegisterCommand(u32 id, const char* name, const char* paramInfo) (`0x0092B075`; false for id 0, null name or an existing id) | 12 | AL |
+| | 8 | `+0x20` | RegisterCommandParameterInfo(u32 id, const char* info) (`0x0092AD10`; null or empty → default text when the server's help flag is set, §4.1 step 3) | 8 | AL |
 | | 9 | `+0x24` | UnregisterCommand(id) | 4 | bool |
 | `cIGZCheatCodeManager` (`0x00ACFCD0`) | 3 / 4 | `+0x0C` / `+0x10` | RegisterCheatCode(id, const cIGZString&) / UnregisterCheatCode(id) | 8 / 4 | bool |
 | | 7 / 8 | `+0x1C` / `+0x20` | AddNotification2 / RemoveNotification2(target, id) | 8 / 8 | bool |
 | `cISC4App` (global `0x00B43C94`) | 39 | `+0x9C` | GetNewCitySpecification → `SC4NewCitySpecification*` (field `obliteratedCityDBSegment` read) | 0 | EAX ptr |
 | | 69 | `+0x114` | RegisterShutdownCallbackFunction(cb, data) | 8 | bool |
+| `cISC4DBSegment` (IID `0x499899DA`, vtable `0x00AA2654`; queried from the `cIGZPersistDBSegment`, §10.3) | 5 / 6 | `+0x14` / `+0x18` | OpenIStream(const key&, IStream**) / CloseIStream(IStream*) | 8 / 4 | AL / ignored |
+| | 8 / 9 | `+0x20` / `+0x24` | OpenOStream(const key&, OStream**, bool = true) / CloseOStream(OStream*) | 12 / 4 | AL / ignored |
+| `cISC4DBSegmentIStream` (`0x00AA2280`) / `…OStream` (`0x00AA2310`) | 7 / 9 / 18 | `+0x1C` / `+0x24` / `+0x48` | Get-/PutUint16, Get-/PutUint32 (4 bytes each, EAX 0/1); GetError() (EAX 1 = error, sticky) | 4 / 4 / 0 | EAX |
 | `cIGZPersistResourceManager` (`0x00AD89D0`) | 3 | `+0x0C` | GetResource(key, `0xA52160F5`, out, 0, 0) | 20 | AL |
+| | 17 | `+0x44` | GetAvailableResourceList(list**, key filter) (slot 18 = slot 17 with a type filter, §4.1 step 2) | 8 | EAX count |
 | | 18 | `+0x48` | GetAvailableResourceListForType(list**, `0x6534284A`) | 8 | EAX |
-| `cIGZPersistResourceKeyList` | 7 | `+0x1C` | EnumKeys(callback, context) | 8 | none |
+| `cIGZPersistResourceKeyList` (`0x00AADA64`) | 7 | `+0x1C` | EnumKeys(callback, context) | 8 | none |
+| | 9 / 10 | `+0x24` / `+0x28` | Size() / GetKey(i) → pointer to the i-th key (no bounds check) (FQ1 equivalent) | 0 / 4 | EAX |
 | `cISCResExemplar` (`0x00AAF0D0`) / `cISCPropertyHolder` (`0x00AA6CD8`) | foundations §17.2, §17.5 | | AsPropertyHolder; HasProperty (slot 3); GetPropertyValue (slot 8); GetProperty (slot 9) | | |
 | `cISTETerrain` (`0x00AB3D18`) | 5 | `+0x14` | initialized flag | 0 | AL |
 | | 13 | `+0x34` | GetAltitude(x, z) | 8 | ST0 |
@@ -832,7 +1033,8 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check` and th
 | | 29 / 31 / 32 | `+0x74/+0x7C/+0x80` | SetFlag(1) / ClearFlag(1) / IsFlagSet(1) | 4 | AL (32) |
 | `cISC4NetworkOccupant` (IID `0xA821EF94`) | 12 | `+0x30` | GetNetworkFlag | 0 | EAX |
 | `cISC4FloraOccupant` (`0x00A88608`) | 3–14 | | §11.4 | | |
-| `cIGZCommandParameterSet` / `cIGZVariant` | 5; `+0x60`, `+0x90` | | GetParameter(i); value as u32 / as f32 (ST0) | | |
+| `cIGZCommandParameterSet` (game class `cGZCommandParameterSet`, vtable `0x00AD16C8`) | 5 | `+0x14` | `cIGZVariant* operator[](u32 index)` (`0x0092A162`): never null, an index the set lacks gives the set's own empty variant (slot 6 `GetParameter`, `0x0092A186`, would return null instead) | 4 | EAX ptr, borrowed |
+| `cIGZVariant` (`0x00AA6788`) | 24 / 36 | `+0x60` / `+0x90` | `u32 GetValUint32()` / `f32 GetValFloat32()`: call the converting getter of slot 25 / 37 (data-formats §5.1) on a local preset to 0 / 0.0 and return it (`0x0091560F`, `0x0091567A`) | 0 | EAX / ST0 |
 | non-virtual | | | `cSC4FloraOccupant` constructor (`0x00472B30`) with the pooled `operator new` (`0x00472960`); `cRZRandom` methods (foundations §6.1); `SC4GeometryUtilities::BoundingBoxesIntersect` (`0x005D6D80`, cdecl, 24 bytes of arguments popped by the caller, AL; §6.4); random cell iterator (`0x0049C820` SetRect, `0x0049CB10` GetNext, `0x0049D1C0` Reset); `cRZCmdLine` | | |
 
 ---
@@ -879,6 +1081,13 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check` and th
   therefore either reuse the original records (build them with the full original layout from the game's
   allocator) or never let a record's count reach zero (keep its own reference for the process lifetime)
   *[choice: keep a permanent reference]*. The flora occupant also holds these records across cities.
+
+  **Never freeing them** (FQ8). The original gives up the registry's references only in its application-shutdown
+  callback (§3.2), after which nothing reads a record; its reload on an exemplar change (§5) already drops the
+  old records without releasing them. So never freeing the record blocks and never clearing the registry at
+  application shutdown has no observable effect; the implementer's choice stands. Records that flora occupants
+  still reference must stay valid in any case, because occupants release them through the game's
+  `cSC4StaticFloraData::Release`.
 - **Flora occupants are original objects.** The simulator creates `cSC4FloraOccupant` directly (constructor +
   pooled new, not GZCOM) and its obliteration save assumes every type-`0x74758926` occupant **is** one (it steps
   from the `cISC4Occupant` pointer to the object base). A replacement should create flora occupants through
@@ -903,7 +1112,7 @@ Quirks *[quirk]*:
    be clear, which makes type-0 planting requests fail there; a second city leaks a new record. The byte is heap
    leftovers; FreeCity4 fixes it at `0x01` *[choice]* (§3.2).
 2. Exemplar-changed handling reloads all types when `data2` is any registered type (including 0), ignores the
-   group, leaks the old records, and the cheat message falls into the same handler for any non-flora cheat.
+   group, leaks the old records, and the cheat message falls into the same handler for any non-flora cheat (sent directly; the subscription delivers only Flora cheats, §4.1 step 11).
 3. PlaceFlora puts parameter 2 into `y` and `z = −1`, so it never plants.
 4. `AddNewFloraOccupant` rewrites the caller's position array and removes merged flora before its final
    location check.
@@ -1008,8 +1217,10 @@ Unless stated: record defaults of §3.3, shipped tuning (§7), a 64 × 64-cell c
 28. **Init after load**: saved period 6 with shipped tuning → period 24, blocksPerMonth 42, iterator reshuffled.
 29. **GetAllFloraTypes(buffer, count)**: N = 7, null buffer → count 7, returns 7; count 3 → 3 copied, returns 3;
     count 10 → count := 7.
-30. **Obliteration**: 3 flora saved → record (`0xC9BB3FC6`, `0xC9BB3FC7`, 1) = u32 3 and records
-    (`0xC9BB3FC6`, `0x4A664F83`, 0..2); the new city's `Init` re-creates and inserts 3 flora occupants.
+30. **Obliteration**: 3 flora saved → record (`0xC9BB3FC6`, `0xC9BB3FC7`, 1) = `00 00 03 00 00 00` (u16 0, u32 3)
+    and records (`0xC9BB3FC6`, `0x4A664F83`, 0..2), each `00 00` then the occupant's version-3 record; the new
+    city's `Init` re-creates and inserts 3 flora occupants. A count record whose u16 is 7 restores the same
+    (the version is not checked); no count record → nothing restored.
 31. **AdvanceClusterType**: chain S → M → L: (S, S) → M; (S, M) → L; (M, S) → L; (L, S) → 0 (next(L) = 0); unrelated
     types → 0.
 32. **Seed types**: chain S → C registered C then S → C seeds S; registered S then C → C seeds C.
@@ -1025,3 +1236,16 @@ Unless stated: record defaults of §3.3, shipped tuning (§7), a 64 × 64-cell c
     period saved as 0 (the original faults on the division).
 36. **No weather** *[choice]*: no weather simulator, a type whose table byte at `[e][0]` is 153 → score 0.6
     (moisture 0); the original crashes.
+37. **Box query** (§6.4.2): `cell(0)` = 64, `cell(63.93)` = 64, `cell(63.94)` = 65, `cell(64)` = 65, `cell(−0.5)`
+    = 63, `cell(319.936)` = 68, `cell(319.937)` = 69. A box x 100 … 101 (width 1.0) is listed from `cell(100)`; a
+    box x 100 … 102 from `cell(100.1)` to `cell(101.9)`. Strict: an occupant box x 10 … 20 is not returned by a
+    query whose max.x is 10 or whose min.x is 20, and is returned when max.x is 10.000001. Listing: an occupant
+    box (1717.9807, ·, 319.84396) … (1735.9807, ·, 337.84396) (x cells 90–91, z cell 69) is **not** returned by
+    the query (1696.1, −FLT_MAX, 288.1) … (1727.9, +FLT_MAX, 319.9) and is returned by (1696.1, −FLT_MAX, 320.1) …
+    (1727.9, +FLT_MAX, 351.9).
+38. **Monthly visits across a 64 m line** (§6.7.1): 2048² city, a flora occupant of a type with box half-width 9 at
+    (1726.9807, 328.84396) → the block queries of blocks (53, 10) and (54, 10) return it; those of (53, 9) and
+    (54, 9) do not. The same type at (1726.9807, 328.8) (box z from 319.8) → returned by all four blocks. A type
+    with half-width 0.4 (box 0.8 m wide, so no inset) at (1726.9807, 320.26) (box z 319.86 … 320.66, listed from
+    z cell 68) → returned by blocks (53, 9) and (53, 10). A month in which only block (53, 9) is visited leaves the
+    first occupant's birth date and state unchanged.

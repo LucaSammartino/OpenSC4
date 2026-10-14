@@ -405,8 +405,8 @@ cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	13	+0x34	00972c24	
 cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	14	+0x38	00973964		4	1	eax-or-void	medium	
 cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	15	+0x3C	009731c2		8	2	eax-or-void	medium	
 cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	16	+0x40	00973239		8	2	eax-or-void	medium	
-cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	17	+0x44	009739cb		8	2	eax-or-void	medium	
-cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	18	+0x48	00973280		8	2	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	17	+0x44	009739cb		8	2	eax-or-void	high	re-answers4 FQ1: GetAvailableResourceList(list**, cIGZPersistResourceKeyFilter*) returns the count in EAX, segment by segment
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	18	+0x48	00973280		8	2	eax-or-void	high	re-answers4 FQ1: GetAvailableResourceListForType(list**, u32 type) = slot 17 with a type-only key filter
 cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	19	+0x4C	00974407		12	3	eax-or-void	medium	
 cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	20	+0x50	00973fd6		4	1	eax-or-void	medium	
 cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	21	+0x54	00974042		8	2	eax-or-void	medium	
@@ -542,8 +542,8 @@ cISC4Lot	cSC4Lot	00ab19b0	49	+0xC4	006bff70	cSC4Lot::GetLotOccupants	4	1	via-cal
 cISC4Lot	cSC4Lot	00ab19b0	50	+0xC8	006c05a0	cSC4Lot::GetCapacity	8	2	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	51	+0xCC	006bf9b0	cSC4Lot::GetCapacity	4	1	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	52	+0xD0	006c0640	cSC4Lot::GetAvailableCapacity	8	2	eax-or-void	medium	
-cISC4Lot	cSC4Lot	00ab19b0	53	+0xD4	006c04a0	cSC4Lot::GetPopulation	4	1	eax-or-void	medium	
-cISC4Lot	cSC4Lot	00ab19b0	54	+0xD8	006c21e0	cSC4Lot::GetPopulations	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	53	+0xD4	006c04a0	cSC4Lot::GetPopulation	4	1	eax-or-void	high	re-answers4: GetPopulation(u32 type) returns uint16 in AX
+cISC4Lot	cSC4Lot	00ab19b0	54	+0xD8	006c21e0	cSC4Lot::GetPopulations	0	0	eax-or-void	high	re-answers4: GetPopulations() returns vector<map<u32,u16>>* (lot+0x54) in EAX
 cISC4Lot	cSC4Lot	00ab19b0	55	+0xDC	006c1940	cSC4Lot::SetPopulation	8	2	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	56	+0xE0	006c0510	cSC4Lot::GetTravelPopulation	4	1	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	57	+0xE4	006c0550	cSC4Lot::ResetTravelPopulation	0	0	eax-or-void	medium	tail->006bf6a0
@@ -714,7 +714,7 @@ cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	20	+0x50	0080e040	cSC4Or
 cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	21	+0x54	0080e4f0	cSC4OrdinanceSimulator::GetOrdinanceByName	4	1	eax-or-void	medium	
 cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	22	+0x58	0080d500	cSC4OrdinanceSimulator::GetOrdinanceMonthlyExpense	0	0	edx:eax	medium	
 cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	23	+0x5C	0080d510	cSC4OrdinanceSimulator::GetOrdinanceMonthlyIncome	0	0	edx:eax	medium	
-cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	24	+0x60	0080dd70	cSC4OrdinanceSimulator::GetCumulativeOffset	8	2	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	24	+0x60	0080dd70	cSC4OrdinanceSimulator::GetCumulativeOffset	8	2	eax-or-void	high	re-answers4: GetCumulativeOffset(u32 property, u32) returns int32 in EAX; EDX is a leftover (the SDK says int64)
 cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	25	+0x64	0080deb0	cSC4OrdinanceSimulator::GetCumulativeFactor	8	2	x87	high	
 cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	0	+0x0	0080c920	cSC4OrdinanceSimple::QueryInterface	8	2	eax-or-void	medium	tail->005fd310
 cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	1	+0x4	005d7b40	icf::cSC4GlyphTextureManager::AddRef	0	0	eax-or-void	medium	
@@ -2341,9 +2341,9 @@ cIGZCommandServer	cGZCommandServer	00ad17a0	2	+0x8	00920bf0	icf::cGZCheatCodeMan
 cIGZCommandServer	cGZCommandServer	00ad17a0	3	+0xC	0092a982	cGZCommandServer::Init	0	0	eax-or-void	medium	
 cIGZCommandServer	cGZCommandServer	00ad17a0	4	+0x10	0092ae88	cGZCommandServer::Shutdown	0	0	eax-or-void	medium	
 cIGZCommandServer	cGZCommandServer	00ad17a0	5	+0x14	0092a9f8	cGZCommandServer::CreateCommandParameterSet	4	1	via-call	low	
-cIGZCommandServer	cGZCommandServer	00ad17a0	6	+0x18	0092b075	cGZCommandServer::RegisterCommand	12	3	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	6	+0x18	0092b075	cGZCommandServer::RegisterCommand	12	3	eax-or-void	high	re-answers4 FQ12: RegisterCommand(u32 id, const char* name, const char* info); AL false for id 0, a null name or an existing id
 cIGZCommandServer	cGZCommandServer	00ad17a0	7	+0x1C	00929844	cGZCommandServer::RegisterCommands	8	2	eax-or-void	medium	
-cIGZCommandServer	cGZCommandServer	00ad17a0	8	+0x20	0092ad10	cGZCommandServer::RegisterCommandParameterInfo	8	2	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	8	+0x20	0092ad10	cGZCommandServer::RegisterCommandParameterInfo	8	2	eax-or-void	high	re-answers4 FQ12: RegisterCommandParameterInfo(u32 id, const char* info); AL false if the id is unknown; null or empty info gives "Format: %s\nOutput: <none>" (0x00AD1738) when server +0x48 is set
 cIGZCommandServer	cGZCommandServer	00ad17a0	9	+0x24	0092ad88	cGZCommandServer::UnregisterCommand	4	1	eax-or-void	medium	
 cIGZCommandServer	cGZCommandServer	00ad17a0	10	+0x28	00929881	cGZCommandServer::UnregisterCommands	8	2	eax-or-void	medium	
 cIGZCommandServer	cGZCommandServer	00ad17a0	11	+0x2C	0092a1f6	cGZCommandServer::GetCommandInfo	12	3	eax-or-void	medium	
@@ -4151,3 +4151,20 @@ cIGZSerializable(ConstructionOccupant)	cSC4ConstructionOccupant	00aa219c	2	+0x8	
 cIGZSerializable(ConstructionOccupant)	cSC4ConstructionOccupant	00aa219c	3	+0xC	005cd250	cSC4ConstructionOccupant::Write	4	1	eax-or-void	medium	
 cIGZSerializable(ConstructionOccupant)	cSC4ConstructionOccupant	00aa219c	4	+0x10	005ce770	cSC4ConstructionOccupant::Read	4	1	eax-or-void	medium	
 cIGZSerializable(ConstructionOccupant)	cSC4ConstructionOccupant	00aa219c	5	+0x14	005d04a0	cSC4ConstructionOccupant::GetGZCLSID	0	0	eax-or-void	medium	
+cISC4OccupantFilter(FloraBlocking)	cSC4FloraSimulator blocking filter	00ab1374	3	+0xC	006afd10	IsOccupantIncluded(cISC4Occupant*)	4	1	eax-or-void	high	re-answers4 FQ4/FQ6: AL; flora §6.4.1; only occupant-manager slot 36 calls it
+cISC4OccupantFilter(FloraBlocking)	cSC4FloraSimulator blocking filter	00ab1374	4	+0x10	004fc900	IsOccupantTypeIncluded(u32)	4	1	eax-or-void	high	re-answers4: AL, returns true
+cISC4OccupantFilter(FloraBlocking)	cSC4FloraSimulator blocking filter	00ab1374	5	+0x14	004fc900	(one argument)	4	1	eax-or-void	high	re-answers4: AL, returns true
+cISC4FloraTypeFilter	(caller-supplied)		3	+0xC		IsFloraTypeIncluded(u32 type)	4	1	eax-or-void	high	re-answers4 FQ9: AL; flora §11.1 slot 13 asks it about every type
+cIGZCommandParameterSet	cGZCommandParameterSet	00ad16c8	3	+0xC	009cede1	GetParameterCount()	0	0	eax-or-void	high	re-answers4 FQ10: EAX
+cIGZCommandParameterSet	cGZCommandParameterSet	00ad16c8	5	+0x14	0092a162	operator[](u32) -> cIGZVariant*	4	1	eax-or-void	high	re-answers4 FQ10: EAX, never null: out of range gives the empty variant at +0x14
+cIGZCommandParameterSet	cGZCommandParameterSet	00ad16c8	6	+0x18	0092a186	GetParameter(u32) -> cIGZVariant*	4	1	eax-or-void	high	re-answers4 FQ10: EAX, null when out of range
+cIGZPersistDBSegment(SC4)	cSC4DBSegment	00aa2654	5	+0x14	005d2740	OpenIStream	8	2	eax-or-void	high	re-answers4 FQ3: AL
+cIGZPersistDBSegment(SC4)	cSC4DBSegment	00aa2654	6	+0x18	005d16c0	CloseIStream	4	1	eax-or-void	high	re-answers4 FQ3: ICF-folded with CloseOStream (slot 9); result ignored
+cIGZPersistDBSegment(SC4)	cSC4DBSegment	00aa2654	8	+0x20	005d27e0	OpenOStream(key&, OStream**, bool = true)	12	3	eax-or-void	high	re-answers4 FQ3: AL
+cIGZPersistDBSegment(SC4)	cSC4DBSegment	00aa2654	9	+0x24	005d16c0	CloseOStream(OStream*)	4	1	eax-or-void	high	re-answers4 FQ3: ICF-folded with CloseIStream (slot 6); result ignored
+cIGZIStream(SC4DBSegment)	cSC4DBSegmentIStream	00aa2280	7	+0x1C	005d19c0	GetUint16	4	1	eax-or-void	high	re-answers4 FQ3: EAX
+cIGZIStream(SC4DBSegment)	cSC4DBSegmentIStream	00aa2280	9	+0x24	005d1a20	GetUint32	4	1	eax-or-void	high	re-answers4 FQ3: EAX
+cIGZIStream(SC4DBSegment)	cSC4DBSegmentIStream	00aa2280	18	+0x48	005d16b0	GetError	0	0	eax-or-void	high	re-answers4 FQ3: EAX; 1 = error, sticky
+cIGZOStream(SC4DBSegment)	cSC4DBSegmentOStream	00aa2310	7	+0x1C	005d1e30	PutUint16	4	1	eax-or-void	high	re-answers4 FQ3: EAX
+cIGZOStream(SC4DBSegment)	cSC4DBSegmentOStream	00aa2310	9	+0x24	005d1eb0	PutUint32	4	1	eax-or-void	high	re-answers4 FQ3: EAX
+cIGZOStream(SC4DBSegment)	cSC4DBSegmentOStream	00aa2310	18	+0x48	005d16b0	GetError	0	0	eax-or-void	high	re-answers4 FQ3: EAX; 1 = error, sticky
