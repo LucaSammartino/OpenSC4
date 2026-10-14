@@ -727,6 +727,25 @@ and the table holds the shuffled packed `(tx << 8) | tz` entries (32 KB for a la
 
 **Write** returns true.
 
+**`Write` changes nothing (PG6).** `Write` (`0x006E3380`–`0x006E371A`) only reads the simulator. It stores to no
+member, clears no dirty flag and allocates nothing. The iterator's writer (`0x005DAB70`) only reads the iterator.
+Calling `Write` outside a save, for example to capture the state, is therefore safe for the simulator. Its other
+effects all go through the stream it is given:
+
+- **Refs.** Each `ref` goes through `SC4WriteGZSerializable` (`0x005D99A0`), which first asks the stream for
+  `cISC4DBSegmentOStream` (`0x6999A8FB`).
+  - **If the stream refuses,** the ref writes **nothing**, not even a null ID. The helper returns false, which
+    `Write` ignores, and the referenced object is not touched.
+  - **If the stream answers,** the helper asks the object for `cIGZSerializable` (`0xE4FDA3D4`) and passes it to
+    the stream's `WriteGZSerializable` (slot 26, `+0x68`). It then releases both pointers, so the object's
+    reference count ends where it started. On the game's save stream, that call also registers the object with
+    the class-object store (foundations §2.7). A capture must therefore never use a save's stream.
+- **Lists.** The list writer (`0x005DAFF0`) counts the nodes by walking the list, writes the count as `u32`, and
+  then writes each entry as a ref, as above.
+
+A capture through a stream that refuses `0x6999A8FB` therefore gets every field of the layout above in order,
+except the 8 grid refs, the list entries (the four counts are still there) and the department.
+
 **Read**:
 - `version > 4` → fail. Versions 0–4 are accepted.
 - Grid refs are read with IID `0xC9BD939A`, list refs with IID `0x26BB767E` (occupant), the department with IID

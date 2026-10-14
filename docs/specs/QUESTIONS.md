@@ -386,8 +386,17 @@ About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answ
     `0x89C498BE`. A loaded city therefore still gets garbage props.
   - **Do not re-add it.** `AddPropRequester` has no duplicate check, so adding it again would register it twice.
   - **For a replacement.** It must answer `0x89C498BE` and be saved by ref.
-- **PG6 — shadow method:** the shadow captures the original's state by calling the original's own `Write`. Is that
-  acceptable as read-only? [used]
+- ~~**PG6 — shadow method:** the shadow captures the original's state by calling the original's own `Write`. Is that
+  acceptable as read-only? [used]~~ **ANSWERED 2026-10-14** from the exe (`Write` `0x006E3380`–`0x006E371A`; ref
+  helper `0x005D99A0`; list writer `0x005DAFF0`; iterator writer `0x005DAB70`) and written into pollution.md §6.
+  **Yes; the bracket stands.**
+  - **No stores.** `Write` stores to no member of the simulator, clears no dirty flag and allocates nothing.
+  - **Refs depend on the stream.** If the stream refuses `cISC4DBSegmentOStream` (`0x6999A8FB`), every ref writes
+    nothing and the referenced objects are not touched. The capture then has no grid refs, no list entries (the
+    counts remain) and no department.
+  - **If the stream answers,** each object is QueryInterface'd and released again, so its reference count does not
+    change. A save's own stream would also register the object with the class-object store, so never capture
+    through it.
 - **PG7:** `radiationSum` is not saved, so the radiation history at the end of a cycle after a load diverges from a
   run without the load. Intended? [as the spec]
 - **PG8 — §4.6.1 step 3:** is the unsigned `wteRemaining` converted to float as signed or unsigned? [as written]
