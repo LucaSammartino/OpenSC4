@@ -1239,7 +1239,8 @@ roads and mass transit departments) go through the percent getter `0x005FDAC0` (
 For any numeric property type (u8, s8, u16, s16, u32 as unsigned, s32, 64-bit, f32, f64) it **multiplies** the
 value by the f32 constant `0.01f` (0x3C23D70A, `0x00A823A4`) and rounds once to f32: `r24(v × 0.01f)`, not
 `r24(v / 100)`. For an integer below 2^29 or an f32 the product is exact before that rounding. A missing property, or
-one of another type (bool, string), leaves the code default 1.2 (0x3F99999A).
+one of another type (bool, string), leaves the code default 1.2 (0x3F99999A): the getter returns without a store
+(TS37; missing `0x005FDAD6` → `0x005FDCBE`, other types `0x005FDAF3` → `0x005FDCBD`).
 
 Worked example: shipped 120. `0.01f` is 0.00999999977648…; × 120 = 1.19999997317…, which lies below the midpoint
 1.19999998807… of the two nearest f32 values, so the result is 0x3F999999 (1.1999999), one ulp **below** the code

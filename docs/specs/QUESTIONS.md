@@ -3042,7 +3042,10 @@ host gained connection, region, budget and drive-side methods. The current answe
   update at `0x006D666F`; `SetData` `0x006D64FD`) and written into traffic-simulator §4.3. The landing cell carries the
   entry side that the cell before the jump had on arrival. The reader blanks it only in that cell's own record and keeps
   it for the next one. It is none only when the cell before the jump is the first cell. The bracket (none) is wrong.
-- **TS37:** Does a missing funding percent leave the default? [unchanged]
+- ~~**TS37:** Does a missing funding percent leave the default? [unchanged]~~
+  **ANSWERED 2026-10-14** from the exe (percent getter `0x005FDAC0`: missing property `0x005FDAD6` → `0x005FDCBE`, other
+  types `0x005FDAF3` → `0x005FDCBD`; calls `0x00716D67`, `0x00716D79`) and written into traffic-simulator §4.14. Yes:
+  the getter returns without a store, so the code default 1.2 stays. The bracket matches.
 - **TS38:** §8 and §4.1.4 name slot 13 differently from §2.7.2. Which is right? [the code keeps its existing naming]
 - **TS39:** What is the "jump flag" in TS16? [the 0x80 flag of the next jump record]
 - **TS40:** What does a statistics slot with no record publish? [zeros]
