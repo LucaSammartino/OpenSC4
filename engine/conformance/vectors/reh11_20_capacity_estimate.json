@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "reh11_capacity_estimate",
+  "spec": ["REH 4.11", "REH 11.20", "REH 10.13"],
+  "description": "REH test 20 (slot 28): cap = trunc(capacity x e1 x m2) with strikes ignored, staff = ceil(cap / the school staff divisor). School capacity 1000, divisor 30 -> (1000, 34). [quirk] A hospital uses the school divisor too: school divisor 25, hospital divisor 30 -> (1000, 40). At 50 % funding, striking: e1 = 0.5 -> (500, 20). Neither a school nor a hospital -> (0, 0).",
+  "steps": [
+    {"op": "residential_env", "groups": {"1": ["0x150F"]}, "props": {"1": {"0x8922041B": {"u32": 1000}}}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_call", "method": "estimate_occupant_capacity", "args": [1], "expect": [1000, 34]},
+
+    {"op": "residential_env", "tuning_props": {"0x8A891421": {"u32": 25}}, "groups": {"2": ["0x1512"]}, "props": {"2": {"0x69220415": {"u32": 1000}}}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_call", "method": "estimate_occupant_capacity", "args": [2], "expect": [1000, 40]},
+    {"op": "residential_env", "departments": {"0x77": {"token": 950, "funding": 0.5}}, "items": {"2": {"hospital_staff": {"department": "0x77"}}}, "props": {"2": {"0xEAA69F83": {"u32": 5}}}},
+    {"op": "residential_call", "method": "estimate_occupant_capacity", "args": [2], "expect": [500, 20]},
+    {"op": "residential_call", "method": "estimate_occupant_capacity", "args": [99], "expect": [0, 0]}
+  ]
+}

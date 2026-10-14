@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "reh11_system_rating",
+  "spec": ["REH 4.11", "REH 11.10", "REH 10.12"],
+  "description": "REH test 10: slots 12 / 13. Schools of effective capacity 1000 and 2000 (sum 3000), population 4000 -> 0.75. Population 0 -> 1.0. Sum 0 -> 0. [quirk] The query record is not reset between buildings: a school whose query fails (no effective capacity) adds the previous school's 1000 again -> 2000 / 4000 = 0.5. No hospitals -> 0.",
+  "steps": [
+    {"op": "residential_env", "groups": {"1": ["0x150F"], "2": ["0x1510"]}, "props": {"1": {"0x8922041B": {"u32": 1000}, "0xE9244B2E": {"u32": 1000}, "0x09220161": {"u32": 0}, "0x292453C5": {"f32": 1}}, "2": {"0x8922041B": {"u32": 2000}, "0xE9244B2E": {"u32": 2000}, "0x09220161": {"u32": 0}, "0x292453C5": {"f32": 1}}}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_set", "state": {"lists": {"school_groups": [[1], [2]]}, "population": 4000}},
+    {"op": "residential_call", "method": "school_system_rating", "expect": 0.75},
+    {"op": "residential_set", "state": {"population": 0}},
+    {"op": "residential_call", "method": "school_system_rating", "expect": 1.0},
+    {"op": "residential_set", "state": {"population": 4000}},
+    {"op": "residential_env", "props": {"1": {"0xE9244B2E": {"u32": 0}}, "2": {"0xE9244B2E": {"u32": 0}}}},
+    {"op": "residential_call", "method": "school_system_rating", "expect": 0},
+    {"op": "residential_env", "props": {"1": {"0xE9244B2E": {"u32": 1000}}, "2": {"0xE9244B2E": null}}},
+    {"op": "residential_call", "method": "school_system_rating", "expect": 0.5},
+    {"op": "residential_call", "method": "health_system_rating", "expect": 0},
+    {"op": "residential_call", "method": "slot", "args": [12], "expect": ["GetSchoolSystemRating", 4, "hidden"]}
+  ]
+}

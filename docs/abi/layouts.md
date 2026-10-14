@@ -126,6 +126,28 @@ record is a C block with a B (or null) family buffer and a counted (or null) exe
 can free it, or the plugin keeps one reference for the life of the process, so that no game Release ever sees a
 count of 1 or less.
 
+## Game string (`cRZString`, 0x14 bytes; the SDK's `SC4String` matches it)
+
+Some game code reads a `cIGZString` argument directly as a `cRZString`, without a virtual call. For example, the
+automata controller manager's by-name group lookup (`AddControllersFromOccupantGroup` /
+`RemoveControllersFromOccupantGroup`, slots 10/12; its string-keyed hash lookup `0x0051CFC0` → `0x0051C9F0`; QUESTIONS
+PR3). An argument passed there must have this layout:
+
+| Offset | Field |
+|---|---|
+| +0x00 | vtable (`cIGZString`) |
+| +0x04 | `char*` begin (STLport `std::string` start) |
+| +0x08 | `char*` end |
+| +0x0C | `char*` capacity end |
+| +0x10 | `uint32` reference count |
+
+- The text is always in a separate buffer that begin points to. There is no inline small-string storage, so
+  +0x04 is never text.
+- The SDK's `SC4String` has exactly this layout (`static_assert(sizeof(SC4String) == 0x14)`, heap buffer). A
+  string class with any other layout, such as an inline buffer or a different member order, must not be passed
+  where the game reads it raw.
+- The game's own constructor `cRZString(const char*)` is at `0x00408480`.
+
 ## Building profile (`cISC4BuildingOccupant::BuildingProfile`, 0x40 bytes)
 
 There is one profile per **building type**, shared by every building of that type and by every city. Two calls

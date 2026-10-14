@@ -14,7 +14,8 @@
 //!
 //! No `RefCell` borrow is held across a host callback (foundations §19.3
 //! rule 4): every grid is an `Rc` cloned out of the state before the host is
-//! called, the hooks of [`super::EducationHealth`] get copies, and the
+//! called, the education and health half (`education_health.rs`) reads
+//! what it needs before each host call, and the
 //! accumulators are written back with a short borrow at the end of a tract.
 
 use std::cell::{Cell, RefCell};
@@ -24,10 +25,11 @@ use crate::grid::{GridProvider, ScanIterator, TractGrid, MAX_TRACTS};
 use crate::rng::{derive_seed, RzRandom, SeedSource, CLOCK_SEED};
 use crate::x87::{ftol32, mul_i64_f32, rhe, u32_to_float};
 
+use super::education_health::{OrdinanceEffect, Service};
 use super::geometry::{copy_proximity, distance_pass, distance_to_convergence, seed_proximity, FAR};
 use super::tuning::{le_curve, new_ages_by_wealth, pct, workforce_curve, PopulationTuning, SimulatorTuning};
 use super::{
-    group, history, instance, msg, state as st, wealth, DepartmentBlock, OccupantLists, QueryData, ResidentialHost,
+    group, history, instance, msg, state as st, wealth, DepartmentBlock, OccupantLists, ResidentialHost,
     ResidentialMessage, ResidentialRandom, AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, AGE_BUCKETS,
     BUILDING_PURPOSE_RESIDENTIAL, BUZZARDS_EFFECT, CLSID_RESIDENTIAL_SIMULATOR, DEFAULT_TRACT_SIZE,
     DEFAULT_WORK_BUDGET, DEVELOPERS, MAX_QUOTIENT, OCCUPANT_TYPE_BUILDING, PROP_AUTO_BUDGET, PROXIMITY_TRACT_SIZE,
@@ -108,6 +110,14 @@ pub struct ResidentialState {
     /// School / hospital global auto-budget (slots 52–55).
     pub school_auto_budget: bool,
     pub hospital_auto_budget: bool,
+    /// The ordinance effect lists (REH §2, §4.3): rebuilt by `Init` step 7
+    /// and every state 0; not saved.
+    pub school_effects: Vec<OrdinanceEffect>,
+    pub health_effects: Vec<OrdinanceEffect>,
+    /// The grade totals (REH §2): reset by state 0 and accumulated by the
+    /// EQ/HQ boost (REH §4.6); never read and not saved (RS13).
+    pub school_grade_total: f32,
+    pub hospital_grade_total: f32,
 }
 
 impl Default for ResidentialState {
@@ -143,6 +153,10 @@ impl Default for ResidentialState {
             lists: OccupantLists::default(),
             school_auto_budget: false,
             hospital_auto_budget: false,
+            school_effects: Vec::new(),
+            health_effects: Vec::new(),
+            school_grade_total: 0.0,
+            hospital_grade_total: 0.0,
         }
     }
 }
@@ -292,7 +306,7 @@ impl ResidentialRandom for ResidentialRng {
 
 /// `min(cap, v)` as the original's `cap < v ? cap : v`: a NaN operand is
 /// stored rather than capped (§5.5 step 4, REH §4.5 *[inferred]*).
-fn min_cap(cap: f32, v: f32) -> f32 {
+pub(super) fn min_cap(cap: f32, v: f32) -> f32 {
     if cap < v {
         cap
     } else {
@@ -302,13 +316,13 @@ fn min_cap(cap: f32, v: f32) -> f32 {
 
 /// `int × float`: one `f32` rounding of the exact product (foundations §18.3
 /// point 1: the integer operand enters unrounded).
-fn mul_i(i: i64, f: f32) -> f32 {
+pub(super) fn mul_i(i: i64, f: f32) -> f32 {
     mul_i64_f32(i, f)
 }
 
 /// `float(uint32 v) × f`: a non-negative `int32` enters exactly; a negative
 /// one first has 2³² added, which rounds to 24 bits ([`u32_to_float`]).
-fn mul_u32(v: i32, f: f32) -> f32 {
+pub(super) fn mul_u32(v: i32, f: f32) -> f32 {
     if v >= 0 {
         mul_i64_f32(i64::from(v), f)
     } else {
@@ -347,7 +361,7 @@ pub struct ResidentialSim {
     pub(super) host: Rc<dyn ResidentialHost>,
     pub(super) token: Cell<u64>,
     pub(super) s: RefCell<ResidentialState>,
-    rng: RefCell<Box<dyn ResidentialRandom>>,
+    pub(super) rng: RefCell<Box<dyn ResidentialRandom>>,
     work_budget: Cell<u32>,
 }
 
@@ -496,7 +510,7 @@ impl ResidentialSim {
         // not yet initialised.
         if !self.s.borrow().initialized {
             self.read_simulator_tuning();
-            h.refresh_ordinance_effects();
+            self.read_ordinance_effects(false);
         }
         // Step 8: create every absent grid of §2.
         self.create_grids();
@@ -711,7 +725,7 @@ impl ResidentialSim {
     /// ordinance products (REH §4.3); tuningLoaded := true.
     fn read_population_tuning(&self) {
         let exemplar = self.host.tuning();
-        let (edu, health) = self.host.ordinance_decay_products();
+        let (edu, health) = self.ordinance_decay_products();
         let previous = self.s.borrow().population_tuning.pollution_curves.clone();
         let t = PopulationTuning::read(exemplar.as_deref(), edu, health, &previous);
         let mut s = self.s.borrow_mut();
@@ -739,14 +753,7 @@ impl ResidentialSim {
             msg::OCCUPANT_INSERTED | msg::OCCUPANT_REMOVED => {
                 if m.data3 == OCCUPANT_TYPE_BUILDING {
                     if let Some(building) = m.void1.and_then(|occ| self.host.occupant_as_building(occ)) {
-                        let inserted = m.msg_type == msg::OCCUPANT_INSERTED;
-                        let mut lists = self.s.borrow().lists.clone();
-                        let dirty = self.host.building_changed(building, inserted, &mut lists);
-                        let mut s = self.s.borrow_mut();
-                        s.lists = lists;
-                        if dirty {
-                            s.dirty = true;
-                        }
+                        self.do_building_changed(building, m.msg_type == msg::OCCUPANT_INSERTED);
                     }
                 }
                 true
@@ -842,25 +849,13 @@ impl ResidentialSim {
         true
     }
 
-    /// State 0 (§5.1, REH §3): the strike checks (schools, then hospitals),
-    /// the ordinance-effect refresh, the pending school and hospital lists,
-    /// then the pending health-affecting list.
+    /// State 0 (§5.1, REH §3): the grade totals, the strike checks (schools,
+    /// then hospitals) and the ordinance-effect refresh (`education_health.rs`),
+    /// then the pending school and hospital lists, then the pending
+    /// health-affecting list (§5.8).
     fn state_0(&self) {
         let h = &*self.host;
-        let (lists, tuning, mut education, mut health) = {
-            let s = self.s.borrow();
-            (s.lists.clone(), s.simulator_tuning.clone(), s.education, s.health)
-        };
-        {
-            let mut rng = self.rng.borrow_mut();
-            h.strike_checks(&lists, &tuning, &mut education, &mut health, &mut **rng);
-        }
-        {
-            let mut s = self.s.borrow_mut();
-            s.education = education;
-            s.health = health;
-        }
-        h.refresh_ordinance_effects();
+        self.education_health_state_0();
         let mut lists = self.s.borrow().lists.clone();
         distribute(h, &mut lists.pending_school, &mut lists.school_groups, &group::SCHOOL);
         distribute(
@@ -869,8 +864,9 @@ impl ResidentialSim {
             &mut lists.hospital_groups,
             &group::HOSPITAL,
         );
-        // The other list is the pending health-affecting list (module doc
-        // *[inferred]*): moved as a whole.
+        // The other list is the pending health-affecting list (§5.8, RS8):
+        // every entry is appended to the health-affecting list, in order, and
+        // the pending list is cleared.
         let moved = std::mem::take(&mut lists.other);
         lists.health_affecting.extend(moved);
         self.s.borrow_mut().lists = lists;
@@ -1177,10 +1173,11 @@ impl ResidentialSim {
                 s.simulator_tuning.age_group_curves.clone(),
             )
         };
-        // Step 2: the population-weighted average life expectancy (unsigned
-        // 64-bit division).
-        let avg_le = if population > 0 {
-            (le_sum / population as u64) as i32
+        // Step 2: the population-weighted average life expectancy: an unsigned
+        // 64-bit division by the population sign-extended to 64 bits, guarded
+        // by `≠ 0` (RS16), so a negative population divides by 2⁶⁴ − |p|.
+        let avg_le = if population != 0 {
+            (le_sum / i64::from(population) as u64) as i32
         } else {
             0
         };
@@ -1212,52 +1209,6 @@ impl ResidentialSim {
             self.host.record_history(history::AGE_GROUP_POPULATION + g, pop_sum);
             let group_eq = if pop_sum > 0 { eq_sum.wrapping_div(pop_sum) } else { 0 };
             self.host.record_history(history::AGE_GROUP_EQ + g, group_eq);
-        }
-    }
-
-    /// States 5 / 7: zero the served counter and the service's coverage
-    /// grids, then `UpdateCoverageMap` per group (the hook).
-    fn coverage_state(&self, school: bool) {
-        let grids: Vec<Rc<dyn TractGrid<u8>>> = {
-            let mut s = self.s.borrow_mut();
-            if school {
-                s.school_covered = 0;
-                s.grids.school_coverage.iter().flatten().cloned().collect()
-            } else {
-                s.hospital_covered = 0;
-                s.grids.hospital_coverage.iter().flatten().cloned().collect()
-            }
-        };
-        for g in grids {
-            g.fill(0);
-        }
-        let snapshot = self.snapshot();
-        let served = self.host.update_coverage(school, &snapshot);
-        let mut s = self.s.borrow_mut();
-        if school {
-            s.school_covered = served;
-        } else {
-            s.hospital_covered = served;
-        }
-    }
-
-    /// States 6 / 8: zero the grade grid, then the auto-budget and grading
-    /// (the hook).
-    fn grading_state(&self, school: bool) {
-        let g = {
-            let s = self.s.borrow();
-            if school {
-                s.grids.school_grade.clone()
-            } else {
-                s.grids.hospital_grade.clone()
-            }
-        };
-        if let Some(g) = g {
-            g.fill(0.0);
-        }
-        let snapshot = self.snapshot();
-        if self.host.grade(school, &snapshot) {
-            self.s.borrow_mut().dirty = true;
         }
     }
 
@@ -1601,7 +1552,7 @@ impl ResidentialSim {
         self.end_strike(false)
     }
 
-    fn end_strike(&self, school: bool) -> bool {
+    pub(super) fn end_strike(&self, school: bool) -> bool {
         if !(if school {
             self.school_is_on_strike()
         } else {
@@ -1625,7 +1576,8 @@ impl ResidentialSim {
     }
 
     /// Slots 10 / 11 `ChanceOfSchoolStrike` / `ChanceOfHealthStrike`
-    /// (hidden pointer): 1.0 on strike, otherwise the hook's combined chance.
+    /// (hidden pointer): 1.0 on strike, otherwise the combined chance of the
+    /// group lists (REH §4.9).
     pub fn chance_of_school_strike(&self) -> f32 {
         self.chance_of_strike(true)
     }
@@ -1641,70 +1593,12 @@ impl ResidentialSim {
         } {
             return 1.0;
         }
-        let snapshot = self.snapshot();
-        self.host.chance_of_strike(school, &snapshot)
+        self.combined_strike_chance(Service::of(school))
     }
 
     // ---- education / health slots (REH) ----
-
-    /// Slots 12 / 13 (hidden pointer).
-    pub fn school_system_rating(&self) -> f32 {
-        let snapshot = self.snapshot();
-        self.host.system_rating(true, &snapshot)
-    }
-    pub fn health_system_rating(&self) -> f32 {
-        let snapshot = self.snapshot();
-        self.host.system_rating(false, &snapshot)
-    }
-
-    /// Slots 14 / 15: the number of buildings counted (EAX). The original
-    /// crashes on a null `groups` *[quirk]*; the slice cannot be null.
-    pub fn school_system_totals(&self, groups: &[u32], totals: &mut QueryData) -> u32 {
-        let snapshot = self.snapshot();
-        self.host.system_totals(true, groups, totals, &snapshot)
-    }
-    pub fn hospital_system_totals(&self, groups: &[u32], totals: &mut QueryData) -> u32 {
-        let snapshot = self.snapshot();
-        self.host.system_totals(false, groups, totals, &snapshot)
-    }
-
-    /// Slot 19 `SetOccupantFundingPercentages` (REH §4.2): sets the dirty
-    /// flag unless the hook ends without it; a replacement returns true.
-    pub fn set_occupant_funding(&self, occupant: u64, staff: f32, vehicle: f32, is_school: bool) -> bool {
-        if self.host.set_occupant_funding(occupant, staff, vehicle, is_school) {
-            self.s.borrow_mut().dirty = true;
-        }
-        true
-    }
-
-    /// Slot 20: `(staff, vehicle)`; a replacement returns true.
-    pub fn occupant_funding(&self, occupant: u64, is_school: bool) -> (f32, f32) {
-        self.host.occupant_funding(occupant, is_school)
-    }
-
-    /// Slots 26 / 27: the query-tool record; `None` = AL 0.
-    pub fn school_query_data(&self, occupant: u64) -> Option<QueryData> {
-        self.host.query_data(true, occupant)
-    }
-    pub fn hospital_query_data(&self, occupant: u64) -> Option<QueryData> {
-        self.host.query_data(false, occupant)
-    }
-
-    /// Slot 28 `EstimateCurrentOccupantCapacity`: `(capacity, staff)`; a
-    /// replacement returns true.
-    pub fn estimate_occupant_capacity(&self, occupant: u64) -> (u32, u32) {
-        self.host.estimate_occupant_capacity(occupant)
-    }
-
-    /// Slot 45 `GetOccupantCoverage`: `(distance, radius)`; `None` = AL 0.
-    pub fn occupant_coverage(&self, occupant: u64, level: f32) -> Option<(f32, f32)> {
-        self.host.occupant_coverage(occupant, level)
-    }
-
-    /// Slot 58 `EstimateIdealFunding`; `None` = AL 0.
-    pub fn estimate_ideal_funding(&self, occupant: u64) -> Option<f32> {
-        self.host.estimate_ideal_funding(occupant)
-    }
+    //
+    // Slots 12–15, 19, 20, 26–28, 45 and 58 are in `education_health.rs`.
 
     // ---- building lists (slots 46–49, 61; REH §4.1) ----
 

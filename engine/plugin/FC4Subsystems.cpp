@@ -33,6 +33,8 @@
 #include "FC4ProtectionShadow.h"
 #include "cFC4Protection.h"
 #include "cFC4Crime.h"
+#include "FC4AuraShadow.h"
+#include "cFC4Aura.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -147,6 +149,11 @@ const ClassEntry kCrimeClasses[] = {
     {0x8990C09A, "cSC4CrimeSimulator", &CreateFC4CrimeSimulator},
 };
 
+// docs/specs/aura.md §1. Off by default (M3 glue trial): `enable = aura`.
+const ClassEntry kAuraClasses[] = {
+    {0x0990BDD8, "cSC4AuraSimulator", &CreateFC4AuraSimulator},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -162,6 +169,7 @@ const Subsystem kSubsystems[] = {
     {"pollution", nullptr, kPollutionClasses, sizeof(kPollutionClasses) / sizeof(kPollutionClasses[0]), false},
     {"protection", nullptr, kProtectionClasses, sizeof(kProtectionClasses) / sizeof(kProtectionClasses[0]), false},
     {"crime", nullptr, kCrimeClasses, sizeof(kCrimeClasses) / sizeof(kCrimeClasses[0]), false},
+    {"aura", nullptr, kAuraClasses, sizeof(kAuraClasses) / sizeof(kAuraClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -260,6 +268,8 @@ void Resolve() {
         return false;
     };
     CrimeShadowStartup(g_enabled[0], enabledKey("crime"));
+    // The aura grid shadow (FC4AuraShadow.h; it compares the original aura simulator).
+    AuraShadowStartup(enabledKey("aura"));
 }
 
 }  // namespace

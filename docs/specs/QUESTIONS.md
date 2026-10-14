@@ -790,3 +790,69 @@ About `docs/specs/traffic-network.md`. The core's current answer is in brackets.
 - **TN25 — §4.7.2 TN3:** FreeCity4 replaces the rules on the re-read, so the flags come from the property's rules;
   the original takes them from the first n rules of the vector (the saved copy). They differ only when the saved
   rules differ from the exemplar. Acceptable? [flags from the re-read rules]
+
+## From the aura glue and grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/aura.md` and its `docs/abi` rows. Ini: `enable = aura`; shadow `aura_shadow = 1` (compared at
+each cycle-completed message `0x2A09B21A`). The glue's current answer is in brackets.
+
+- **AU1 — §11.3:** does Read replace the departments and hotspots, or merge/append? [replace]
+- **AU2 — §10:** the transient tuning is read through properties, not the raw f32 copy. Same values? [properties]
+- **AU3:** `GetPopulations` (lot slot 54) returns a container not in `docs/abi`; the glue calls `GetPopulation(type)`
+  (slot 53) for the 12 developer types and keeps non-zero counts, so a mixed lot whose residential count is 0 reads
+  −128 instead of 0. What is the container's layout (allocators.md)? [slot 53 loop]
+- **AU4:** `RefSint32` on a non-Sint32 property: a Uint32 is accepted bitwise, anything else counts as absent.
+  Right? [as stated]
+- **AU5:** the safe lot iterator's layout is not in `docs/abi`; the glue walks cells with `GetLot(x, z, false)`,
+  takes each lot once and re-checks the pointer at the next step. Layout of the iterator? [cell walk]
+- **AU6:** the game-data registry node "aura" is a stub. What does the original publish there? [stub]
+- **AU7 — shadow timing:** the other inputs are read at the end of the original's cycle, so a mid-cycle change shows
+  as a difference; the tax baseline is taken at the first compared cycle. [as stated]
+- **AU8:** `GetCumulativeOffset` (ordinance slot 24): the SDK says int64, the spec and table int32 in EAX. [int32,
+  declared as `GetCumulativeOffset32` in `cFC4ISC4OrdinanceSimulator`]
+- **AU9:** a cycle in an empty city keeps the lot iterator open until the next state 4. Intended? [as the spec]
+- **AU10:** with no land value simulator the land value type is 0; the spec is silent. [0]
+- **AU11 — §16 Q7:** the base-aura process table is not written. [not written]
+- **AU12:** the CPU-cycle limit timer runs on `QueryPerformanceCounter` instead of the TSC. Acceptable? [QPC]
+
+First in-game aura shadow (coordinator, `regress -Tag r7c3f`, Spandau, 98 cycles 2026-01 to 2034-02; the replace run
+with aura was clean, 0 problems). The park, landmark and riot fields aside, **6 of 98 cycles match exactly**:
+
+- **AU13 — small base differences every cycle.** 0 to 43 tracts of 1024 differ by 1 to 3 (most cycles 2 to 12
+  tracts, max|d| = 2), in both directions from one cycle to the next (cycle 1 `(6,21)` 59/58, cycle 2 58/59), and
+  the aura grid carries the same differences. The mayor rating is off by 1 in 11 cycles. The first cycles' tracts
+  sit in one area (x 4 to 13, z 21 to 28). Is this the AU7 timing (an input that changes during the original's
+  cycle: which inputs does the original read in which state, and on which day), or a rounding step the spec does
+  not give (the order of the sums, a truncation instead of a rounding)? Name the inputs read per state.
+- **AU14 — park and landmark maps in cycles 2 and 3 only.** 193 tracts (max|d| 200) in cycle 2 and 208 (max 188)
+  in cycle 3 differ in both maps, then 0 for the other 95 cycles. When does the original rebuild these maps (on
+  load, on the first cycle, when a park lot is added), and does it clear them first?
+- **AU15 — rare large single-tract differences.** Three cycles have a base difference near 180 (cycle 3: 182,
+  cycle 7: 188, cycle 88: 175) while the aura grid differs by at most 54/60/47 there. A lot placed or removed during
+  the cycle? Which state reads the lots, and is a lot's effect clamped before or after it is added to the base?
+
+## From the residential education and health core (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/residential-education-health.md` (REH) §2 to §7. RS7 to RS17 are applied. The lane's answer is in
+brackets; the module doc of `core/src/residential/education_health.rs` lists 1 to 13.
+
+- **EH1:** do the efficiency ratings and the base staff efficiency start (a, b) at (0, 0)? [yes]
+- **EH2:** slot 19 sets both percentages: does it end with the dirty flag set? [yes]
+- **EH3:** after `ChangeBudgetItemLine`, is the line item's line the building type? [yes]
+- **EH4:** on removal with no line item for the line, is the count step skipped? [skipped]
+- **EH5:** a building added without a capacity: is its effective capacity 0? [yes]
+- **EH6:** do "served", the tract list and the boost all use the lot centre, else `GetPosition`? [yes, all three]
+- **EH7:** how do slots 28 and 58 pick the service? [like slot 45: hospital capacity first, then school]
+- **EH8:** slot 45 with no matching point or no radius? [AL = 1 whenever the building's kind is found, distance 0,
+  radius 0]
+- **EH9:** does the ideal funding test the served property itself for `0xFFFFFFFF`? [yes, the property]
+- **EH10:** does the hospital query fail on missing fields, testing the staff item last? [yes]
+- **EH11:** what does the ratings query's record start at? [zero]
+- **EH12:** do the system totals count only successful queries and add onto the caller's record? [yes]
+- **EH13:** in `AddRadiusEffectWithCurves`, with n = 0 is pop' = pop, and is the same tract index used for all
+  grids? [yes]
+- **EH14:** P is a signed 32-bit value: is a negative P accepted on Read (`record.rs`)? [accepted]
+- Not testable by vectors: the unsigned versus signed upper-bound compare (no output differs); the §4.13 tuning
+  values that are loaded but unused (minimum acceptable funding, maximum EQ/HQ boost). REH §11 test 24's calling
+  conventions (slot 34 leaves the x87 stack unchanged; slots 10 to 13 return through the hidden pointer) belong
+  to the residential glue.
