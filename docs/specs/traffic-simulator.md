@@ -807,9 +807,15 @@ first trip's type.
   included (`0x00719C06`):
   1. **Volume**: if the cell has network info for transit network `network(t)` (pathfinder.md §4.1) and
      `generatesTraffic[t]`: `vol := r24(vol + Q)`; mode 2 adds a second time, `vol := r24(vol + Q)`.
-  2. **Transit switch**: when the cell's switch ID (switch map) differs from the last one seen on this route and is
-     non-zero, except when both this and the previous step are subway (type 6): `usage := r24(usage + Q)` (once, also
-     in mode 2) and `fees := r24(fees + r24(Q × switchFee))`. `switchFee` is the switch's toll, the f32 building
+  2. **Transit switch** (`0x00719C8A`–`0x00719CDB`, TS25): `id :=` the cell's switch ID (switch map); `last` starts
+     at 0 for each route. If `id ≠ last`: when `id ≠ 0`, and not both this cell's type and the **next** record's type
+     are subway (6), `usage := r24(usage + Q)` (once, also in mode 2) and `fees := r24(fees + r24(Q × switchFee))`.
+     In every case where `id ≠ last`, `last := id`, also when `id = 0` and in the subway case. So `last` follows every
+     in-city cell, and leaving a station's lot and coming back counts it again. Off-map cells do not touch it. At the
+     last cell the "next" record is the last record itself, so a subway last cell inside a switch is never counted.
+     The switch is looked up with insert-if-missing (as in §4.16); only a damaged save has an ID with no switch.
+     *(Corrected: an earlier text said the previous step.)* Example: a bus route whose in-city cells have IDs
+     0, 7, 7, 0, 7 counts switch 7 twice, at the second and the fifth cell. `switchFee` is the switch's toll, the f32 building
      property `0x0BFC0A4C` (traffic-network.md §2.4; absent → 0.0), so only toll booths charge (TS15). Example: 37
      commuters by car, Carpool off, `Q = 37.0`, through a toll booth with toll 0.1 (f32 `0.100000001`):
      `r24(37 × 0.1)` = 3.70000005 (the f32 nearest 3.7), added to `fees` and at month end to the toll income
