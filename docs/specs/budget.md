@@ -429,13 +429,24 @@ Afterwards `monthlyTax[t] := trunc(groupTax[t])` and the function returns `trunc
   {1.2, 1.1, 1.0}` per difficulty. Example: a building worth 10,000 at 9 % on hard pays 75 per month.
 
 **The lot set and its order (BQ1, from the exe).** `ComputeTax` (`0x00691E20`) works as follows:
-- It gets a safe iterator from the lot manager (slot 15, call at `0x00691E99`) and walks the master list node by
-  node until it returns to the head. At the end it unregisters and frees the iterator (`0x0069207C`–`0x006920AF`).
+- It gets a safe iterator from the lot manager (slot 15, call at `0x00691E99`) and walks the master list node by node
+  until it returns to the head. At the end it unregisters and frees the iterator (`0x0069207C`–`0x006920AF`). The
+  unregistering is `std::list::remove` (`0x00809580`) inlined: when the iterator block's owner (block `+4`) is not
+  null, every node of the owner's iterator list (owner `+4`) whose value is the iterator is unlinked and freed with
+  allocator B (`0x0090CF63`), and the scan runs to the end, so duplicates go too. The 8-byte block is then freed with
+  allocator C (`0x005E5620`) **in every case**, also when no node matched or the owner is null (BQ4).
 - For each lot it applies, in this order, the only three filters it has:
   - no building (lot slot 48, `+0xC0`, returns null);
   - not livable (lot slot 37, `+0x94`, `IsInLivableState`, returns false);
   - an untaxed purpose/wealth cell (−1 in the tax-type table).
 - It has no bounds test, no other state test and no highlight check.
+- It takes no references (BQ5). Each lot is the list node's value, used as it is, and lot slot 48
+  (`cSC4Lot::GetBuilding`, `0x006BFA30`) releases its own `QueryInterface` reference before it returns the building.
+  The loop (`0x00691EB0`–`0x00692077`) calls no `AddRef` or `Release` on either.
+- It reaches the list only through slot 15 (BQ6). The original's slot 15 (`0x00734850`) registers the iterator on its
+  member at `+0x5C`, which always exists, so it never fails. `ComputeTax` reads no lot manager field itself. It tests
+  the block's owner (`0x00691EA1`, `0x00691EB3`): with a null owner it visits no lot and still frees the block. A null
+  block would fault (`0x00691E9E`).
 
 The master list and the cell → lot map that `GetLotsInCellRect` scans hold **the same lots** (zones.md §8):
 - **Created and deleted together.** `CreateLot` writes every cell of the lot and adds it to the list in the same
@@ -476,6 +487,12 @@ is stored as a double, which is exact. So both sums hold exactly the values of `
 (`0x006920B4`–`0x006920EB`):
 - the return value is `_ftol(total)`, truncated toward zero to 64 bits;
 - then, for t = 0..11, `monthlyTax[t] := _ftol(groupTax[t])`.
+
+Both are kept at **64 bits** (BQ7). `_ftol` (`0x009EEF04`) returns EDX:EAX; `ComputeTax` returns both halves
+(`0x006920FF`–`0x00692101`) and stores both halves of each `monthlyTax[t]` (`0x006920DC`–`0x006920DE`). Nothing
+narrows them to 32 bits. Within ±2^63 the result is the exact truncation toward zero; at or beyond it, and for a NaN,
+it is `0x8000000000000000` (the x87 integer indefinite, which `_ftol` passes through). Example: a total of 3.0e9
+(`0x4F32D05E`) returns 3,000,000,000. Its low 32 bits, read as an int32, would be −1,294,967,296.
 
 The total is never built from the lines or from the group sums. It keeps the fractions that the twelve truncations
 drop, so it usually exceeds the sum of the lines by a few simoleons (by less than 12, up to rounding). BQ3's month

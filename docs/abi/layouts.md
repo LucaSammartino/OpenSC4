@@ -268,3 +268,15 @@ The building value `0xE91A0B5F` is read with `cSCPropertyHelp::GetPropertyValue(
 slot 34 (`+0x88`, `GetValSint64(int64&)`, `0x009177E4`). The variant read copies the value directly if its
 type is `Sint64` (9) and otherwise converts through `0x00917350`. It returns false for a missing property, and
 the caller's 0 then stays.
+
+## Landfill tile occupant (`cSC4LandfillOccupant`, re-answers8 LG27/LG28)
+
+| Offset | What |
+|---|---|
+| `+0x00` | object start; `QueryInterface` (`0x00477130`) answers only `0x2A15F262`, `1`, `0x26BB767E`, `0xE4FDA3D4`, never `0x0AC2B5F7` |
+| `+0x04` | the `cISC4Occupant` sub-object (vtable `0x00A8CDA0`): `AsPropertyHolder()` (slot 6) returns `+0x0C` of the object, null for null; `GetType()` (slot 7) returns the dword at `+0x28` of the object (`0x6A11BD2B` for landfill tiles) |
+| `+0x20` | the `cISCExemplarPropertyHolder` sub-object (vtable `0x00A8CD08`) = `cISC4Occupant* + 0x1C` = `AsPropertyHolder() + 0x14` |
+| `+0x24` | the default exemplar pointer: `SetDefaultExemplar` (holder slot 3) stores it, `GetDefaultExemplar` (holder slot 4) returns it without an AddRef |
+
+A plugin creating landfill tiles calls `SetDefaultExemplar` on the `+0x20` sub-object before `Init` and before
+inserting the tile (landfill.md, LG27).
