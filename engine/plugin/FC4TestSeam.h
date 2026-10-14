@@ -183,6 +183,14 @@
 //         cISC4NeighborDeal** receiving a new deal of ours with a's state
 //         (one reference for the caller; NeighborsTestCopyDeal, NG4).
 //         Returns 1, 0 if none was made.
+//   op 54 kFC4SeamHistClock       a = const FC4HistClockTestInput*
+//         (FC4HistClock.h; the history and 24-hour clock lane): op 0 installs
+//         the hooks the history warehouse, the clock and their shadows call
+//         instead of the game (the date, notifications, agents, the record's
+//         MessageSend, the clock's MessagePost, the framework's system-service
+//         and on-idle lists, the cheat manager, the timer, the tuning, the
+//         shadows' city); the other ops run one shadow event. Returns what
+//         HistClockTestSeam returns, -1 for a null argument.
 #pragma once
 
 #include <cstdint>
@@ -242,6 +250,7 @@ enum : uint32_t {
     kFC4SeamScript = 46,  // the harness lane
     kFC4SeamDialogs = 47,  // the harness lane
     kFC4SeamNeighborsApp = 48,  // the neighbours apply lane (NG14)
+    kFC4SeamHistClock = 54,  // the history and clock lane
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

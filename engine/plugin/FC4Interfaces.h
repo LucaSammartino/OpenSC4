@@ -1644,6 +1644,34 @@ public:
     virtual bool IsFloraTypeIncluded(uint32_t floraType) = 0;  // 3
 };
 
+// ---- history warehouse (docs/specs/history.md §8) ---------------------------------------------------
+
+class cISC4HistoryWarehouse;
+
+// cISC4HistoryWarehouse (IID 0x69F4A803, vtable 0x00A8CCB4, 14 slots; §8).
+// SDK errors fixed (foundations §16): the two Dispose overloads are in the
+// reverse of the SDK's order (slot 10 takes the key alone), and Coalesce
+// (slot 9) takes two dates and the granularity. Slot 12's return value is not
+// meaningful in the original ([choice] FreeCity4 returns true, HW12). Every
+// slot returns in AL / EAX and pops its arguments (docs/abi).
+class cFC4ISC4HistoryWarehouse : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;      // 3
+    virtual bool Shutdown() = 0;  // 4
+    virtual bool GetCount(uint32_t key, cFC4IGZDate const& from, cFC4IGZDate const& to, float& n) = 0;  // 5
+    virtual bool GetTrend(uint32_t key, cFC4IGZDate const& from, cFC4IGZDate const& to, float& slope,
+                          float& intercept) = 0;  // 6
+    virtual bool GetMinMaxAverage(uint32_t key, cFC4IGZDate const& from, cFC4IGZDate const& to, float& min,
+                                  float& max, float& avg) = 0;  // 7
+    virtual bool GetPoint(uint32_t key, cFC4IGZDate const& date, float& v) = 0;  // 8
+    virtual bool Coalesce(uint32_t key, cFC4IGZDate const& from, cFC4IGZDate const& to,
+                          int32_t granularity) = 0;  // 9
+    virtual bool DisposeAll(uint32_t key) = 0;      // 10  Dispose(key)
+    virtual bool DisposeRange(uint32_t key, cFC4IGZDate const& from, cFC4IGZDate const& to) = 0;  // 11  Dispose(key, from, to)
+    virtual bool RecordHistoryData(uint32_t key, int32_t value) = 0;           // 12
+    virtual bool SetHistoryDataQueueLength(uint32_t key, uint32_t n) = 0;      // 13
+};
+
 namespace fc4 {
 // A simulator handed out by the game (cISC4City::GetSimulator), seen through
 // the verified slot order instead of the SDK's declaration.
@@ -1752,5 +1780,11 @@ inline cFC4ISC4ZoneManager* AsGame(cISC4ZoneManager* p) { return reinterpret_cas
 // verified slot.
 inline cFC4ISC4FloraTypeFilter* AsGame(cISC4FloraTypeFilter* p) {
     return reinterpret_cast<cFC4ISC4FloraTypeFilter*>(p);
+}
+
+// The history warehouse travels as the SDK's pointer (cISC4City slot 32);
+// slots 9-11 only ever through the compiled declaration (history.md §8).
+inline cFC4ISC4HistoryWarehouse* AsGame(cISC4HistoryWarehouse* p) {
+    return reinterpret_cast<cFC4ISC4HistoryWarehouse*>(p);
 }
 }  // namespace fc4

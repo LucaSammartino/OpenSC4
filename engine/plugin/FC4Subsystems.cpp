@@ -54,6 +54,7 @@
 #include "cFC4Development.h"
 #include "cFC4GrowthDeveloper.h"
 #include "cFC4TrafficSimulator.h"
+#include "cFC4History.h"
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
 
@@ -221,6 +222,12 @@ const ClassEntry kTrafficClasses[] = {
     {kFC4_CLSID_cSC4TrafficSimulator, "cSC4TrafficSimulator", &CreateFC4TrafficSimulator},
 };
 
+// docs/specs/history.md §1: the history warehouse (city component 1). Off by
+// default (glue trial): `enable = history`.
+const ClassEntry kHistoryClasses[] = {
+    {kFC4_CLSID_cSC4HistoryWarehouse, "cSC4HistoryWarehouse", &CreateFC4HistoryWarehouse},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -246,6 +253,7 @@ const Subsystem kSubsystems[] = {
     {"development", nullptr, kDevelopmentClasses, sizeof(kDevelopmentClasses) / sizeof(kDevelopmentClasses[0]),
      false},
     {"traffic", nullptr, kTrafficClasses, sizeof(kTrafficClasses) / sizeof(kTrafficClasses[0]), false},
+    {"history", nullptr, kHistoryClasses, sizeof(kHistoryClasses) / sizeof(kHistoryClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

@@ -78,6 +78,7 @@
 #include "cS3DVector3.h"
 #include "cIGZOStream.h"
 #include "FC4Interfaces.h"
+#include "FC4HistClock.h"
 #include "FC4TestSeam.h"
 #include "cFC4TrafficSimulator.h"
 #include "cFC4ZoneManager.h"
@@ -9380,6 +9381,9 @@ int DialogsIniTest(const std::string& dll, const std::string& ini, const std::st
     return g_failures == 0 ? 0 : 1;
 }
 
+// The history warehouse and the 24-hour clock (history.md, clock24.md; seam op 54).
+#include "plugin_histclock_test.inc"
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::fprintf(stderr, "usage: %s <FreeCity4.dll>\n", argv[0]);
@@ -9446,6 +9450,8 @@ int main(int argc, char** argv) {
         return DialogsChild(dll, ini, mode.substr(dialogsPrefix.size()));
     }
     if (mode == "--ini-dialogs") return DialogsIniTest(dll, ini, log);
+    // The history warehouse (history.md): the replacement through the test hooks (seam op 54).
+    if (mode == "--ini-enable-history") return HistoryEnableTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).
