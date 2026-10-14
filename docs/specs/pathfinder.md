@@ -568,6 +568,16 @@ map view and the network layout view, and it is stored in the trip data saved wi
 
 Unit steps to and from off-map cells are ordinary unit steps (an exit node is one cell from its predecessor).
 
+**Inner cell of an off-map node** (PF10). "Its connection's in-city cell" is `GetNeighborConnectionInnerCell(x, z)`
+(`0x0070DDD0`, traffic-network.md §2.7), a clamp onto the map, not a connection lookup: it needs exactly one
+coordinate off the map, and it writes nothing and returns −1 otherwise (`0x0070DE01`, `0x0070DE10`).
+`GetCompressedRoute` ignores the result and writes the low bytes of its two output variables (`0x006D71E2`,
+`0x006D7550`), which then hold stack garbage or the previous call's values. The failure cannot occur: the root is
+always in city (ring cells are clamped to the map and ferry-arrival nodes sit on the arrival cell, §4.6), and an
+off-map node reached by a jump is a ferry exit whose off-map cell had a valid inner cell when its link was made
+(traffic-network.md §4.9.3; only a damaged save could hold a corner cell). *[choice]* FreeCity4 writes the node's
+own cell, low bytes.
+
 ### 4.16 WasTripReversible
 
 True when there is no result node. Otherwise walk from the result node towards the root over pairs (node `c`, its

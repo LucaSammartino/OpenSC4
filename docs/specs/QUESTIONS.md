@@ -548,7 +548,12 @@ vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
   written to and writes the node at the end, overwriting whatever the slot held. But that case never happens in
   the game: the only open node with a stale slot is the one being expanded, and no move produces its own key.
   **The bracket stands as a [choice]**; it is equivalent in every reachable flow.
-- **PF10 — §4.15:** `GetNeighborConnectionInnerCell` fails for an off-map node. [the node's own cell, low bytes]
+- ~~**PF10 — §4.15:** `GetNeighborConnectionInnerCell` fails for an off-map node. [the node's own cell, low
+  bytes]~~ **ANSWERED 2026-10-14** from the exe (`0x0070DE01`/`0x0070DE10`; `GetCompressedRoute` `0x006D71E2`,
+  `0x006D7550`) and written into §4.15. On failure (a corner cell) the function writes nothing, and the original
+  emits the low bytes of two uninitialised or stale stack variables. **It cannot happen in the game:** the root is
+  always in city and jumped-to off-map nodes are ferry exits with a valid inner cell. **The bracket stands as a
+  [choice].**
 - **PF11:** FindPath on an object that is not initialised. [returns 0, does nothing]
 - **PF12:** `LengthOfLine` precision. [the exact square root, rounded once to float]
 - **PF13:** a switch nibble naming a travel type above 8. [ignored]
