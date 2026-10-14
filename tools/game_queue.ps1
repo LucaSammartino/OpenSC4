@@ -152,6 +152,7 @@ function Finish($job) {
     $log = Join-Path $Out "$($job.runLabel).log"
     $body = @("verdict: $word", "line: $v")
     if ($held) { $body += "held: " + ($held.Trim() -replace '^HELD: ', '') }
+    foreach ($dl in @($lines | Where-Object { $_ -match '^\s+DIALOG \(' })) { $body += "dialog: " + ($dl.Trim() -replace '^DIALOG ', '') }
     $body += @("request: $($job.reqName) (queued $($job.queued.ToString('yyyy-MM-dd HH:mm:ss')), started $($job.started.ToString('HH:mm:ss')) in slot $($job.slot), wall $wall s)",
         "dll: $($job.q.dllFull)", "city: $($job.q.city); seconds $($job.q.seconds); timeout $($job.q.timeout)$(if ($job.q.end_date) { "; end_date $($job.q.end_date)" })$(if ($job.q.turbo -eq '1') { '; turbo 1' })$(if ($job.q.turbo_from) { "; turbo_from $($job.q.turbo_from)" })")
     foreach ($nt in $job.q.notes) { $body += "note: $nt" }
@@ -233,9 +234,9 @@ while ($true) {
         $pending += $reqs.Count
         if ($reqs.Count -eq 0 -or $busy -contains $root.ToLower()) { continue }
         if (((Get-Date) - $reqs[0].LastWriteTime).TotalSeconds -lt 2) { continue }   # still being written
-        $heads += @{ root = $root; req = $reqs[0] }
+        $heads += @{ root = $root; req = $reqs[0]; i = $heads.Count }
     }
-    foreach ($h in ($heads | Sort-Object { $_.req.LastWriteTime })) {
+    foreach ($h in ($heads | Sort-Object { $_.req.LastWriteTime }, { $_.i })) {
         $free = @(1..$Slots | Where-Object { -not $running.ContainsKey($_) -and -not (SlotBusy $_) })
         if ($free.Count -eq 0) { break }
         try { $job = @(StartJob $h.root $h.req $free[0]) | Where-Object { $_ -is [hashtable] } | Select-Object -First 1; if ($job) { $running[$free[0]] = $job } }

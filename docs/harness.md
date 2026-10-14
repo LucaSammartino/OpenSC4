@@ -60,6 +60,7 @@ In your worktree, under `build-runs\`:
   - `line:` the full verdict line, e.g. `AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0,
     overruns=0, ref_warnings=0, julian=..., date=2027-06-23, real_seconds=150.7, days_per_second=17.50, ...)`;
   - `held:` if a dialog held the city (see below);
+  - `dialog:` one line per Windows message box the game opened (title, text, buttons, how it was closed);
   - the request, the DLL, the slot and the wall time;
   - `harness:` the harness lines (the last heartbeat, the last turbo month line, the game's pid and slot);
   - `summary:` problem counts (all should be 0), the month lines and the shadow lines of every subsystem
@@ -94,8 +95,13 @@ after `timeout` plus 15 minutes, ask the coordinator (the queue may be stopped).
 
 - There is no keyboard or mouse: the game runs minimized and is never brought to the front. No UI-driven tests, no
   Ctrl+S. Drive the city with `script = <file>` actions instead (including `save`).
-- Dialogs are not clicked away. Keep `popup_dialogs = 0` (the queue adds it). If a dialog still holds the city, the
-  verdict file has a `held:` line ("held by a dialog since <game date>"), and the run usually ends at its timeout.
+- Game dialogs (advisor popups and the like, drawn by the game) are not clicked away. Keep `popup_dialogs = 0` (the
+  queue adds it). If one still holds the city, the verdict file has a `held:` line ("held by a dialog since <game
+  date>"), and the run usually ends at its timeout.
+- Windows message boxes (class `#32770`, e.g. an assert or runtime error box; no plugin code runs while one is open)
+  are read and closed from outside: OK if there is one, else Cancel, else WM_CLOSE (a Yes/No box stays open and is
+  reported). Each gives a `dialog:` line with its title and text. One whose title says "Error" before the plugin
+  has attached (e.g. "Hardware Driver Error") is a `failed-start`.
 - Each slot starts from a fresh copy of the test region, so a city changed or saved by your run does not carry over
   to the next run.
 - Do not start the game yourself and do not write to `Documents\SimCity 4\`; the queue owns the game.

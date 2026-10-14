@@ -18,6 +18,12 @@ Verdict sources, in order:
   A start that shows a "Hardware Driver Error" window, or writes no plugin attach line within 60 s, is stopped at
   once: "failed start: <window title or reason>".
 
+Win32 dialogs. A plain MessageBox (or another #32770 dialog with buttons) of the game stops all plugin code while it is
+open, so the harness looks for them from outside every round: each is logged once with its title, the text of its
+static controls and its buttons ("DIALOG (<phase>, <time>): '<title>': <text> [buttons: OK=2]"), then closed with
+WM_COMMAND IDOK if it has that button, else IDCANCEL, else WM_CLOSE (up to 3 tries; -NoDismiss only logs). One whose
+title has "Error" before the plugin attached is a failed start. The DIALOG lines follow the verdict line.
+
 Modal dialogs. Advisor popups (and the save confirmation) call HiddenPause() on our simulator and hold the city until
 a button is clicked; Esc and Enter do not close them (runs 48-50). Unless -NoDismiss is given, the harness runs
 `sc4ctl.ps1 clear` whenever a new HiddenPause shows up in the log after the load, or the date stands still across two
@@ -125,6 +131,53 @@ public static class FC4Run {
     }
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    // Plain Win32 dialogs (MessageBox and other #32770 windows) of the process: while one is open no plugin code
+    // runs, so the harness reads and closes them from outside. Only dialogs with at least one button.
+    [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr p, EnumProc f, IntPtr l);
+    [DllImport("user32.dll")] static extern IntPtr GetDlgItem(IntPtr h, int id);
+    [DllImport("user32.dll")] static extern int GetDlgCtrlID(IntPtr h);
+    [DllImport("user32.dll")] static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
+    [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessageTimeout(IntPtr h, uint m, IntPtr w, StringBuilder l, uint flags, uint ms, out IntPtr res);
+    static string ClassOf(IntPtr h) { StringBuilder c = new StringBuilder(256); GetClassName(h, c, 256); return c.ToString(); }
+    // WM_GETTEXT with a timeout (works across processes; a hung window gives ""), else the stored caption.
+    public static string TextOf(IntPtr h) {
+        StringBuilder t = new StringBuilder(2048); IntPtr r;
+        if (SendMessageTimeout(h, 0x000D, (IntPtr)2048, t, 2 /* SMTO_ABORTIFHUNG */, 1000, out r) != IntPtr.Zero && t.Length > 0) return t.ToString();
+        t = new StringBuilder(2048); GetWindowText(h, t, 2048); return t.ToString();
+    }
+    static List<IntPtr> Children(IntPtr h, string cls) {
+        List<IntPtr> r = new List<IntPtr>();
+        EnumChildWindows(h, delegate(IntPtr c, IntPtr l) { if (ClassOf(c) == cls) r.Add(c); return true; }, IntPtr.Zero);
+        return r;
+    }
+    public static List<IntPtr> Dialogs(int pid) {
+        List<IntPtr> r = new List<IntPtr>();
+        EnumWindows(delegate(IntPtr h, IntPtr l) {
+            uint p; GetWindowThreadProcessId(h, out p);
+            if (p == (uint)pid && ClassOf(h) == "#32770" && Children(h, "Button").Count > 0) r.Add(h);
+            return true; }, IntPtr.Zero);
+        return r;
+    }
+    // The texts of the dialog's static controls, joined with " / ".
+    public static string DialogText(IntPtr h) {
+        List<string> r = new List<string>();
+        foreach (IntPtr c in Children(h, "Static")) { string t = TextOf(c).Trim(); if (t.Length > 0) r.Add(t.Replace("\r\n", " / ").Replace("\n", " / ")); }
+        return string.Join(" / ", r.ToArray());
+    }
+    public static string DialogButtons(IntPtr h) {
+        List<string> r = new List<string>();
+        foreach (IntPtr c in Children(h, "Button")) r.Add(TextOf(c).Replace("&", "") + "=" + GetDlgCtrlID(c));
+        return string.Join(", ", r.ToArray());
+    }
+    // Close: WM_COMMAND IDOK if the dialog has an OK button, else IDCANCEL, else WM_CLOSE. Returns what was posted.
+    public static string CloseDialog(IntPtr h) {
+        IntPtr b = GetDlgItem(h, 1);
+        if (b != IntPtr.Zero) { PostMessage(h, 0x0111, (IntPtr)1, b); return "WM_COMMAND IDOK"; }
+        b = GetDlgItem(h, 2);
+        if (b != IntPtr.Zero) { PostMessage(h, 0x0111, (IntPtr)2, b); return "WM_COMMAND IDCANCEL"; }
+        PostMessage(h, 0x0010, IntPtr.Zero, IntPtr.Zero); return "WM_CLOSE";
+    }
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
 }
 "@
@@ -168,6 +221,43 @@ function GamesUsing([string]$dir) {
 }
 function HasKey([string]$text, [string]$key) { return $text -match "(?m)^\s*$key\s*=" }
 function JulianDate([int64]$jd) { return ([DateTime]"2000-01-01").AddDays($jd - 2451545).ToString("yyyy-MM-dd") }
+# Win32 dialogs of the game (see FC4Run.Dialogs). Each one is logged once with its title, text and buttons, and closed
+# unless -NoDismiss; a dialog still open after 3 close attempts is reported as such. Returns new notes (for the output).
+$dialogState = @{}; $dialogNotes = New-Object System.Collections.ArrayList
+function DialogInfo([IntPtr]$h) { return @{ h = $h; title = [FC4Run]::TextOf($h); text = [FC4Run]::DialogText($h); buttons = [FC4Run]::DialogButtons($h) } }
+function HandleDialogs([string]$phase, [switch]$NoClose) {
+    $out = @()
+    if (-not $p) { return $out }
+    foreach ($k in @($dialogState.Keys)) {   # dialogs that went away after a close
+        $st = $dialogState[$k]
+        if (-not $st.gone -and $st.tries -gt 0 -and -not [FC4Run]::IsWindow([IntPtr]$k)) {
+            $st.gone = $true; $dialogNotes[$st.idx] += ", closed"; $out += "dialog '$($st.title)' closed"
+        }
+    }
+    if ($p.HasExited) { return $out }
+    foreach ($h in @([FC4Run]::Dialogs($p.Id))) {
+        $k = [int64]$h
+        if (-not $dialogState.ContainsKey($k)) {
+            $d = DialogInfo $h
+            $dialogState[$k] = @{ idx = $dialogNotes.Count; tries = 0; gone = $false; title = $d.title; ended = $false }
+            [void]$dialogNotes.Add("DIALOG ($phase, $(Get-Date -Format 'HH:mm:ss')): '$($d.title)': $($d.text) [buttons: $($d.buttons)]")
+            $out += $dialogNotes[$dialogState[$k].idx]
+        }
+        $st = $dialogState[$k]
+        if ($NoClose -or $NoDismiss) {
+            if ($phase -eq "end" -and -not $st.ended) { $st.ended = $true; $dialogNotes[$st.idx] += ", still open when the game was stopped" }
+            continue
+        }
+        if ($st.tries -lt 3) {
+            $how = [FC4Run]::CloseDialog($h); $st.tries++
+            $dialogNotes[$st.idx] += $(if ($st.tries -eq 1) { " -> posted $how" } else { ", again (try $($st.tries))" })
+            $out += "dialog '$($st.title)': posted $how (try $($st.tries))"
+        } elseif ($st.tries -eq 3) {
+            $st.tries++; $dialogNotes[$st.idx] += ", still open after 3 tries"; $out += "dialog '$($st.title)': still open after 3 tries"
+        }
+    }
+    return $out
+}
 function TakeMutex([string]$name, [int]$ms) {
     $m = New-Object System.Threading.Mutex($false, $name)
     try { if ($m.WaitOne($ms)) { return $m } } catch [System.Threading.AbandonedMutexException] { return $m }
@@ -302,6 +392,15 @@ try {
             Start-Sleep -Milliseconds 250
             if ((ReadShared $Log) -match "\[pid $($p.Id) tid \d+\] DLL_PROCESS_ATTACH") { break }
             if ($p.HasExited) { $failedStart = "the game exited (code $($p.ExitCode)) before the plugin attached"; break }
+            $dl = @([FC4Run]::Dialogs($p.Id))
+            if ($dl.Count -gt 0) {
+                $d = DialogInfo $dl[0]
+                if ($d.title -match 'Error') {
+                    [void]$dialogNotes.Add("DIALOG (start, $(Get-Date -Format 'HH:mm:ss')): '$($d.title)': $($d.text) [buttons: $($d.buttons)] -> failed start, game stopped")
+                    $failedStart = "$($d.title): $($d.text)"; break
+                }
+                HandleDialogs "start" | ForEach-Object { Write-Output "  $_" }
+            }
             $bad = @([FC4Run]::Titles($p.Id) | Where-Object { $_ -match 'Error' })
             if ($bad.Count -gt 0) { $failedStart = $bad[0]; break }
             if ($Slot -gt 0 -and (ReadShared $docLog $docLen) -match "\[pid $($p.Id) tid ") { $failedStart = "the game ignored -UserDir and used Documents"; break }
@@ -330,6 +429,7 @@ $minimized = $false; $everMinimized = $false; $minTries = 0; $heldSince = $null;
 
 while (-not $failedStart -and (Get-Date) - $start -lt [TimeSpan]::FromSeconds($Seconds)) {
     Start-Sleep -Seconds 3
+    HandleDialogs "run" | ForEach-Object { Write-Output "  [$(Get-Date -Format 'HH:mm:ss')] $_" }
     $text = ReadShared $Log
     if ($text -match "AUTOTEST VERDICT: ([a-z]+)[^\r\n]*") { $verdict = $Matches[0]; break }
     if ($text -match "first-chance exception OUTSIDE FreeCity4\.dll[^\r\n]*") { $verdict = "corrupt (fallback): " + $Matches[0] }
@@ -399,6 +499,7 @@ while (-not $failedStart -and (Get-Date) - $start -lt [TimeSpan]::FromSeconds($S
         $graceEnd = (Get-Date).AddSeconds($VerdictGraceSeconds)
         while (-not $p.HasExited -and (Get-Date) -lt $graceEnd) {
             Start-Sleep -Seconds 1
+            HandleDialogs "quit" | ForEach-Object { Write-Output "  [$(Get-Date -Format 'HH:mm:ss')] $_" }
             $text = ReadShared $Log
             if ($text -match "AUTOTEST VERDICT: ([a-z]+)[^\r\n]*") { $verdict = $Matches[0]; break }
         }
@@ -421,6 +522,7 @@ elseif (-not $verdict) {
     else { $verdict = "timeout" }
 }
 
+if ($p -and -not $p.HasExited -and -not $failedStart) { HandleDialogs "end" -NoClose | Out-Null }
 if ($p -and -not $p.HasExited) {
     # A run that ends badly keeps a picture of the window (diagnostics only; a minimized window is shown without
     # activation first).
@@ -440,6 +542,7 @@ if ($cityBak -and (Get-FileHash $cityPath).Hash -ne $cityHash) {
     Write-Output "  the city file changed during the run (a save): $restored from $cityBak"
 }
 Write-Output "[$Label] $verdict"
+foreach ($n in $dialogNotes) { Write-Output "  $n" }
 if ($rounds -gt 0) { Write-Output "  dialog rounds: $rounds, buttons clicked: $clicked (screenshots: build-runs\$Label-popup*.png)" }
 if ($nextAction -lt $plan.Count) { Write-Output "  WARNING: $($plan.Count - $nextAction) action(s) never ran" }
 if ($heldNote) { Write-Output "  $heldNote" }
