@@ -31,6 +31,12 @@
 //     average, the hotspots) and its getters (slot 6 per city cell, slots 7
 //     and 8) are read, and fc4_flammability_shadow_cycle compares them with
 //     the mirror (the first cycle seen is the baseline);
+//   - the plumbing pass end (0x6946DC34, plumbing.md §6.7, after the grid
+//     swap): handed to the core as a message it does not mirror; like every
+//     event, it first polls the plumbing simulator's GetWateredGrid (slot 7):
+//     a changed pointer means a pass ended, and the tracts whose watered
+//     state changed may hold their value under either state in this cycle
+//     (flammability.md §6.5, FL5/FL6);
 //   - PostCityShutdown: the shadow core is dropped.
 //
 // Log lines (always written, not the verbose channel; longer lines are split
@@ -40,7 +46,8 @@
 //   flammability shadow YYYY-MM-DD cycle N: baseline (...): ...     first cycle
 //   flammability shadow YYYY-MM-DD cycle N: tracts=CXxCZ (S=1) ...; raw
 //     cells=.. mismatched=.. max|d|=..; adjusted ...; average orig/ours=..;
-//     multiplier orig/ours=..; hotspots orig/ours=..; events=..; ...getters...;
+//     multiplier orig/ours=..; hotspots orig/ours=..; events=..; plumbing
+//     passes=P (tracts whose watered state changed: T); ...getters...;
 //     mismatches=N; cycles=K clean=C; not compared: ...           per cycle
 #pragma once
 
@@ -73,7 +80,7 @@ struct FC4FlammabilityShadowTestInput {
     cISC4City* city;
     int32_t julian;
     uint32_t event;     // 0 = a message (msg_type), 1 = SimCycleComplete, 2 = PostCityShutdown
-    uint32_t msg_type;  // event 0: one of the six (§5)
+    uint32_t msg_type;  // event 0: one of the six (§5), or the plumbing pass end 0x6946DC34
     cIGZUnknown* void1;        // event 0: the message's void1 (occupant messages), may be null
     cIGZUnknown* igz_unknown;  // event 0: the message's IGZUnknown (ConditionChanged), may be null
 };

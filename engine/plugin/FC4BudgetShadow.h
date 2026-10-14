@@ -66,6 +66,9 @@ namespace fc4 {
 using BudgetLotTapFn = void (*)(void* context, cFC4ISC4Lot* lot);
 const fc4_budget_host* BudgetReadOnlyHost();
 void SetBudgetLotTap(BudgetLotTapFn fn, void* context);
+// The walk ForEachLot used last: "master list" (the original's order, BQ3),
+// "rect query", "cells" or "none".
+const char* BudgetLastLotWalk();
 
 // Game start (after the subsystems are resolved): reads the settings and logs
 // whether the shadow can run in this configuration.

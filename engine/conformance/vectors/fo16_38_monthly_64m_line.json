@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "flora_monthly_64m_line",
+  "spec": ["flora 6.7.1", "flora 6.4.2", "flora 6.10.4", "FQ15"],
+  "description": "Derived by hand from flora 6.7.1, 6.4.2 and 6.10.4 (test 38 of 16; FQ15). A 2048 m city (128 x 128 cells). Block (bx, bz) queries cells (2bx, 2bz)..(2bx + 1, 2bz + 1), the world box (32bx + 0.1, 32bz + 0.1) .. (32bx + 31.9, 32bz + 31.9), through the occupant manager's 64 m index. Occupant 1, type A (half-width 9) at (1726.9807, 328.84396): box z 319.84396 .. 337.84396, listed from z 319.94396 (z cell 69), so blocks (53, 10) and (54, 10) return it and blocks (53, 9) and (54, 9) (z 288.1 .. 319.9, z cell 68 only) do not, although they overlap it. Occupant 2, type A at (1726.9807, 328.8): box z from 319.8, listed from 319.9 (z cell 68): all four blocks. Occupant 3, type B (half-width 0.4, a box 0.8 m wide, no inset) at (1726.9807, 320.26): box z 319.86 .. 320.66 listed from z cell 68, x 1726.58 .. 1727.38: blocks (53, 9) and (53, 10). A month that visits only block (53, 9) (propagation off, no seeds, today 5000, every occupant born on day 1000, lifespan 1460) rebirths occupants 2 and 3 and leaves occupant 1's birth date and state unchanged; a month that visits only block (53, 10) then rebirths occupant 1.",
+  "steps": [
+    {"op": "flora_types", "types": [{"type": "0x1000", "maturity": 730, "lifespan": 1460, "max_age": 1560, "seeds": 0, "min_score": 0, "table": 0.6, "half_width": 9}, {"type": "0x2000", "maturity": 730, "lifespan": 1460, "max_age": 1560, "seeds": 0, "min_score": 0, "table": 0.6, "half_width": 0.4}]},
+    {"op": "flora_env", "size": [2048, 2048], "cells": [128, 128], "date": 5000, "occupants": [
+      {"id": 1, "type": "flora", "flora_type": "0x1000", "pos": [1726.9807, 260, 328.84396], "birth": 1000, "last_seed": 1000, "state": 2},
+      {"id": 2, "type": "flora", "flora_type": "0x1000", "pos": [1726.9807, 260, 328.8], "birth": 1000, "last_seed": 1000, "state": 2},
+      {"id": 3, "type": "flora", "flora_type": "0x2000", "pos": [1726.9807, 260, 320.26], "birth": 1000, "last_seed": 1000, "state": 2}]},
+    {"op": "flora_create"},
+    {"op": "flora_init", "expect": true},
+    {"op": "flora_call", "method": "occupants_in_cells", "args": [[106, 18, 107, 19], "flora"], "expect": [2, 3]},
+    {"op": "flora_call", "method": "occupants_in_cells", "args": [[108, 18, 109, 19], "flora"], "expect": [2]},
+    {"op": "flora_call", "method": "occupants_in_cells", "args": [[106, 20, 107, 21], "flora"], "expect": [1, 2, 3]},
+    {"op": "flora_call", "method": "occupants_in_cells", "args": [[108, 20, 109, 21], "flora"], "expect": [1, 2]},
+    {"op": "flora_set", "iterator_table": [[53, 9]], "state": {"today": 5000, "blocks_per_month": 1, "propagation": false}},
+    {"op": "flora_clear_events"},
+    {"op": "flora_call", "method": "monthly"},
+    {"op": "flora_expect_occupant", "occupant": 1, "birth": 1000, "state": 2},
+    {"op": "flora_expect_occupant", "occupant": 2, "birth": 5000, "state": 0},
+    {"op": "flora_expect_occupant", "occupant": 3, "birth": 5000, "state": 0},
+    {"op": "flora_expect_event_count", "filter": {"event": "change"}, "count": 2},
+    {"op": "flora_set", "iterator_table": [[53, 10]], "state": {"today": 5030}},
+    {"op": "flora_call", "method": "monthly"},
+    {"op": "flora_expect_occupant", "occupant": 1, "birth": 5030, "state": 0},
+    {"op": "flora_expect_occupant", "occupant": 2, "birth": 5000, "state": 0}
+  ]
+}

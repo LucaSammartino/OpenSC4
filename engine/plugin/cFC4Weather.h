@@ -85,7 +85,7 @@ public:
     void UpdateMoisture(SC4Rect<int32_t> const& rect) override;
     uint8_t GetMoistureValue(float x, float z) override;
     void GetMoistureValueMapPtr(FC4ByteGridVector*& out) override;
-    uint8_t GetMoistureType(float x, float z) override;
+    uint32_t GetMoistureType(float x, float z) override;  // a clean EAX (flora.md §6.2, FQ5)
     void SetManualMoistureAddition(float x0, float z0, float x1, float z1, float v) override;
     float GetHumidity(float x, float z) override;
     float GetAmbientWind(cS3DVector2& wind) override;

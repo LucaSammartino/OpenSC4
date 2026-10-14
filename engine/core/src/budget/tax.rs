@@ -10,7 +10,7 @@
 //! budget) runs the very same code on the same lots and compares, without
 //! touching any budget state.
 
-use crate::x87::mul_i64_f32;
+use crate::x87::{ftol, mul_i64_f32};
 
 use super::tuning::BudgetTuning;
 use super::{round_half_even, LotInfo, TAX_GROUPS};
@@ -70,7 +70,8 @@ pub struct TaxScan {
     pub weighted_assessed: [i64; TAX_GROUPS],
     /// `groupTax[t]` (float32 running sums).
     pub group_tax: [f32; TAX_GROUPS],
-    /// `total` (float32 running sum).
+    /// `total` (float32 running sum of the lot taxes in visit order, BQ3:
+    /// never formed from the group sums).
     pub total: f32,
     /// Lots visited.
     pub lots: u32,
@@ -79,14 +80,16 @@ pub struct TaxScan {
 }
 
 impl TaxScan {
-    /// `monthlyTax[t] := trunc(groupTax[t])`.
+    /// `monthlyTax[t] := _ftol(groupTax[t])`, truncated toward zero.
     pub fn monthly_tax(&self) -> [i64; TAX_GROUPS] {
-        self.group_tax.map(|g| g as i64)
+        self.group_tax.map(|g| ftol(f64::from(g)))
     }
 
-    /// `ComputeTax`'s result: `trunc(total)`.
+    /// `ComputeTax`'s result: `_ftol(total)`, truncated toward zero to 64
+    /// bits (§5.2, BQ3). It keeps the fractions the twelve group truncations
+    /// drop, so it usually exceeds the sum of [`monthly_tax`](Self::monthly_tax).
     pub fn total_tax(&self) -> i64 {
-        self.total as i64
+        ftol(f64::from(self.total))
     }
 }
 
@@ -110,6 +113,12 @@ fn assessed_value(tuning: &BudgetTuning, lot: &LotInfo, t: usize) -> i64 {
 /// difficulty multiplier `mult` and the group rates `rates` (percent). Pure:
 /// it reads nothing but its arguments. `on_lot` sees every lot with what was
 /// done with it.
+///
+/// *[compat]* (BQ3): each counted lot's tax is added to the float32 running
+/// `total` first, then to its group, lot by lot in visit order. The total
+/// depends on that order (its additions round), so it matches the original
+/// to the simoleon only when `lots` visits the lot manager's master list in
+/// list order (§5.2 "The lot set and its order").
 pub fn scan_tax(
     tuning: &BudgetTuning,
     mult: f32,
@@ -161,8 +170,9 @@ pub fn scan_tax(
         s.weighted_assessed[t] = s.weighted_assessed[t].wrapping_add(assessed);
         // §5.2 [compat]: float(assessed) × multiplier × rate × INV1200, left to right.
         let lot_tax = mul_i64_f32(assessed, mult) * rates[t] * INV_1200;
-        s.group_tax[t] += lot_tax;
+        // BQ3 [compat]: the total first, then the group; each a float32 add.
         s.total += lot_tax;
+        s.group_tax[t] += lot_tax;
         s.counted[t] += 1;
         on_lot(
             lot,
@@ -263,6 +273,51 @@ mod tests {
         assert_eq!(s.monthly_tax()[3], 97);
         assert_eq!(tax_income_of(s.weighted_assessed[3], 1.0, 9.0), 97);
         assert_eq!(s.total_tax(), 97);
+    }
+
+    /// §5.2 worked example (BQ3): medium (1.1), 9 %, four lots assessed
+    /// 104410 and 362120 in R$, then 258840 and 70630 in CS$. The list order
+    /// totals 6567.0 (`0x45CD3800`), the reverse order 6566.9995
+    /// (`0x45CD37FF`); the lines are R$ 3848 and CS$ 2718 either way.
+    #[test]
+    fn total_is_a_running_sum_in_lot_order() {
+        let tuning = shipped();
+        let lots = [
+            lot(1, 1, 1, 104_410),
+            lot(1, 1, 1, 362_120),
+            lot(2, 1, 1, 258_840),
+            lot(2, 1, 1, 70_630),
+        ];
+        let rates = [9.0f32; TAX_GROUPS];
+        let run = |order: &[usize]| {
+            let mut taxes = Vec::new();
+            let s = scan_tax(
+                &tuning,
+                1.1,
+                &rates,
+                |v| {
+                    for &i in order {
+                        v(&lots[i]);
+                    }
+                },
+                &mut |_, r| taxes.push(r.tax.to_bits()),
+            );
+            (s, taxes)
+        };
+        let (fwd, taxes) = run(&[0, 1, 2, 3]);
+        assert_eq!(taxes, [0x4457_587B, 0x453A_B7D7, 0x4505_76E1, 0x4411_ACA4]);
+        assert_eq!(fwd.total.to_bits(), 0x45CD_3800);
+        assert_eq!(fwd.total_tax(), 6567);
+        let (rev, _) = run(&[3, 2, 1, 0]);
+        assert_eq!(rev.total.to_bits(), 0x45CD_37FF);
+        assert_eq!(rev.total_tax(), 6566);
+        for s in [&fwd, &rev] {
+            assert_eq!((s.monthly_tax()[0], s.monthly_tax()[3]), (3848, 2718));
+            assert_eq!(s.group_tax[0].to_bits(), fwd.group_tax[0].to_bits());
+        }
+        // The total is not the sum of the lines (6566).
+        let lines: i64 = fwd.monthly_tax().iter().sum();
+        assert_eq!(lines, 6566);
     }
 
     #[test]

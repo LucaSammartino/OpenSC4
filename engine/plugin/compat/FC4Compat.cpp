@@ -48,8 +48,13 @@ const ExecutableVersion kVersions[] = {
             0x006AC860,  // air dispatch source Shutdown
             0x00497A00,  // STLport map<uint32_t, 4-byte T>::operator[] (docs/abi/direct-calls.md)
             0x004A79A0,  // the same maps' subtree free (_M_erase)
+            0x005E5620,  // global heap (allocator C) free (docs/abi/allocators.md)
         },
         {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
+        0x00AB3118,  // cSC4TractDeveloper primary vtable (tract-developer.md §1.1, §7.1)
+        0x0070D130,  // cSC4TractDeveloper::Grow, its slot 5 (tract-developer.md §7.1; interfaces.tsv)
+        0x00AB0AF8,  // cSC4BuildingDevelopmentSimulator primary vtable (building-development.md §1.1, §7.1)
+        0x00AB07C8,  // cSC4AuraSimulator's cISC4AuraSimulator vtable (aura.md §12.1, §14.3)
     },
 };
 
@@ -354,9 +359,76 @@ const void* ProtectionPrimaryVtable(unsigned kind) {
     return state[kind] == 1 ? vtable[kind] : nullptr;
 }
 
+namespace {
+
+// A vtable of the identified executable: committed, readable image memory,
+// aligned, whose first entry (QueryInterface) is code inside the image.
+bool CheckImageVtable(const char* what, const ExecutableVersion* v, uintptr_t va) {
+    MEMORY_BASIC_INFORMATION mbi{};
+    bool ok = v != nullptr && va != 0 && va % 4 == 0 &&
+              VirtualQuery(reinterpret_cast<const void*>(va), &mbi, sizeof(mbi)) == sizeof(mbi) &&
+              mbi.State == MEM_COMMIT && mbi.Type == MEM_IMAGE &&
+              reinterpret_cast<uintptr_t>(mbi.AllocationBase) == v->imageBase &&
+              !(mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS));
+    if (ok) {
+        const uintptr_t first = *reinterpret_cast<const uintptr_t*>(va);
+        ok = CheckCode(what, first, v->imageBase);
+    }
+    return ok;
+}
+
+}  // namespace
+
+bool TractDeveloperGrow(void*** vtable, uintptr_t* grow) {
+    static int state = 0;  // 0 unknown, 1 available, -1 refused
+    static void** vt = nullptr;
+    static uintptr_t fn = 0;
+    if (state == 0) {
+        state = -1;
+        const ExecutableVersion* v = IdentifiedVersion();
+        if (v == nullptr) {
+            Log("compat: original tract developer vtable NOT available (executable not identified)");
+        } else if (!CheckImageVtable("tract developer vtable entry 0", v, v->tractDeveloperVtableVA) ||
+                   v->tractDeveloperGrowVA == 0 ||
+                   !CheckCode("tract developer Grow", v->tractDeveloperGrowVA, v->imageBase)) {
+            Log("compat: original tract developer vtable NOT available (address rejected)");
+        } else {
+            vt = reinterpret_cast<void**>(static_cast<uintptr_t>(v->tractDeveloperVtableVA));
+            fn = static_cast<uintptr_t>(v->tractDeveloperGrowVA);
+            state = 1;
+            Log("compat: original tract developer vtable at 0x%08lX, Grow (slot 5) 0x%08lX",
+                static_cast<unsigned long>(v->tractDeveloperVtableVA), static_cast<unsigned long>(fn));
+        }
+    }
+    if (state != 1) return false;
+    if (vtable != nullptr) *vtable = vt;
+    if (grow != nullptr) *grow = fn;
+    return true;
+}
+
+const void* BuildingDevelopmentVtable() {
+    static int state = 0;  // 0 unknown, 1 available, -1 refused
+    static const void* vtable = nullptr;
+    if (state == 0) {
+        state = -1;
+        const ExecutableVersion* v = IdentifiedVersion();
+        if (v != nullptr && CheckImageVtable("BDS vtable entry 0", v, v->bdsVtableVA)) {
+            vtable = reinterpret_cast<const void*>(static_cast<uintptr_t>(v->bdsVtableVA));
+            state = 1;
+            Log("compat: original building development simulator vtable at 0x%08lX",
+                static_cast<unsigned long>(v->bdsVtableVA));
+        } else {
+            Log("compat: original building development simulator vtable NOT available (%s)",
+                v ? "address rejected" : "executable not identified");
+        }
+    }
+    return state == 1 ? vtable : nullptr;
+}
+
 uintptr_t DirectCall(Direct which) {
     static const char* const kNames[] = {"RemoveConnection",      "SetWateredState", "air dispatch Init",
-                                         "air dispatch Shutdown", "map operator[]",  "map subtree free"};
+                                         "air dispatch Shutdown", "map operator[]",  "map subtree free",
+                                         "global heap free"};
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused
     static uintptr_t address[static_cast<unsigned>(Direct::Count)] = {};
@@ -375,6 +447,37 @@ uintptr_t DirectCall(Direct which) {
         }
     }
     return state[i] == 1 ? address[i] : 0;
+}
+
+const void* AuraSimulatorVtable() {
+    static int state = 0;  // 0 unknown, 1 available, -1 refused
+    static const void* vtable = nullptr;
+    if (state == 0) {
+        state = -1;
+        const ExecutableVersion* v = IdentifiedVersion();
+        MEMORY_BASIC_INFORMATION mbi{};
+        const uintptr_t va = v ? v->auraSimulatorVtableVA : 0;
+        bool ok = v != nullptr && va != 0 && va % 4 == 0 &&
+                  VirtualQuery(reinterpret_cast<const void*>(va), &mbi, sizeof(mbi)) == sizeof(mbi) &&
+                  mbi.State == MEM_COMMIT && mbi.Type == MEM_IMAGE &&
+                  reinterpret_cast<uintptr_t>(mbi.AllocationBase) == v->imageBase &&
+                  !(mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS));
+        if (ok) {
+            // The first entry (QueryInterface) must be code inside the image.
+            const uintptr_t first = *reinterpret_cast<const uintptr_t*>(va);
+            ok = CheckCode("cISC4AuraSimulator vtable entry 0", first, v->imageBase);
+        }
+        if (ok) {
+            vtable = reinterpret_cast<const void*>(va);
+            state = 1;
+            Log("compat: original cISC4AuraSimulator vtable at 0x%08lX", static_cast<unsigned long>(va));
+        } else {
+            Log("compat: original cISC4AuraSimulator vtable NOT available (%s); the aura shadow cannot read the "
+                "original's state",
+                v ? "address rejected" : "executable not identified");
+        }
+    }
+    return state == 1 ? vtable : nullptr;
 }
 
 const ExecutableVersion* SupportedVersions(int* count) {

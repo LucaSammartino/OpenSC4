@@ -72,6 +72,9 @@
 //!   unset or null distance tables (PF11, §4.3; unreachable in the game).
 //! - A null occupant filter makes filter 2 never match (§4.10.3).
 //! - Off-map switch moves read "no switch, no info" (§10 Q4).
+//! - The cost of an unknown transit-switch ID is the network model's choice
+//!   (TN23, traffic-network.md §4.7.3): its inserted switch is all zeros, so
+//!   the step costs `0x7EFFFFFF`; the original's holds stack garbage.
 //! - A switch nibble naming a type above 8 is ignored (PF13, §4.8.2 (b); the
 //!   original indexes its 9-entry tables with it, but no game caller sets
 //!   such a bit in the allowed mask).

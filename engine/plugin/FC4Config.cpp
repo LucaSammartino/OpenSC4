@@ -152,6 +152,7 @@ const SwitchInfo kSwitches[kCount] = {
     {"flora_posts", "FC4_FLORA_POSTS"},
     {"flora_cheats", "FC4_FLORA_CHEATS"},
     {"flora_exemplars", "FC4_FLORA_EXEMPLARS"},
+    {"flora_obliteration", "FC4_FLORA_OBLITERATION"},
     {"landfill_terrain", "FC4_LANDFILL_TERRAIN"},
     {"landfill_levelling", "FC4_LANDFILL_LEVELLING"},
     {"landfill_pollution", "FC4_LANDFILL_POLLUTION"},
@@ -186,6 +187,15 @@ const SwitchInfo kSwitches[kCount] = {
     {"zones_occupants", "FC4_ZONES_OCCUPANTS"},
     {"zones_landfill_cost", "FC4_ZONES_LANDFILL_COST"},
     {"zones_lot_developer", "FC4_ZONES_LOT_DEVELOPER"},
+    {"neighbors_region_reads", "FC4_NEIGHBORS_REGION_READS"},
+    {"neighbors_region_writes", "FC4_NEIGHBORS_REGION_WRITES"},
+    {"neighbors_deals", "FC4_NEIGHBORS_DEALS"},
+    {"neighbors_reload", "FC4_NEIGHBORS_RELOAD"},
+    {"neighbors_symmetric", "FC4_NEIGHBORS_SYMMETRIC"},
+    {"neighbors_markers", "FC4_NEIGHBORS_MARKERS"},
+    {"neighbors_posts", "FC4_NEIGHBORS_POSTS"},
+    {"neighbors_history", "FC4_NEIGHBORS_HISTORY"},
+    {"neighbors_figures", "FC4_NEIGHBORS_FIGURES"},
 };
 
 // Keys that are not switches.
@@ -205,7 +215,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "landvalue_shadow", "landvalue_shadow_cells",
                                   "flammability_shadow", "flammability_shadow_cells",
                                   "residential_shadow", "residential_shadow_cells", "residential_seed",
-                                  "zones_shadow"};
+                                  "zones_shadow",
+                                  "neighbours_shadow", "neighbors_seed", "neighbors_two_curves",
+                                  "growth_probe"};
 
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
@@ -224,14 +236,16 @@ volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // aura
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // flora
-                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // landfill
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // residential
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // zones
-                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-static_assert(kCount == 149, "g_on: one 1 per switch");
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               // neighbours
+                               1, 1, 1, 1, 1, 1, 1, 1, 1};
+static_assert(kCount == 159, "g_on: one 1 per switch");
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};

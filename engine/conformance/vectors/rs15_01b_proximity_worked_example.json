@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "residential_proximity_worked_example",
+  "spec": ["residential 5.3", "residential 15.1", "RG23"],
+  "description": "The residential 5.3 worked example (RG23 [compat]): a 4 x 4 building map with key 6 at (1, 0), (1, 1) and (2, 3), key 7 at (3, 0) and no key 8. The seed reads map[x][0] and stores in (x, 0) only, and R$$ and R$$$ reuse the R$ grid. R$: state 13 seeds the edge 255, 0, 255, 255 (only map[1][0] is 6); the passes give rows [1,0,0,0] [0,0,0,0] [1,0,0,0] [1,0,0,0]; the keys at (1, 1) and (2, 3) are never seen. R$$: [1,0,0,0] [1,0,0,0] [1,0,0,0] [0,0,0,0]. R$$$: the edge is 1 everywhere.",
+  "steps": [
+    {"op": "residential_env", "cells": [4, 4], "building_map": {"size": 1, "cells": [[1, 0, 6], [1, 1, 6], [2, 3, 6], [3, 0, 7]]}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_run_to", "state": 1, "steps": 2},
+    {"op": "residential_expect_grid", "grid": "temporary", "size": 1, "counts": [4, 4], "cells": [[0, 0, 255], [1, 0, 0], [2, 0, 255], [3, 0, 255]], "others": 0},
+    {"op": "residential_run_to", "state": 11, "steps": 5},
+    {"op": "residential_expect_grid", "grid": "proximity1", "size": 1, "counts": [4, 4], "cells": [[0, 0, 1], [1, 0, 0], [2, 0, 1], [3, 0, 1]], "others": 0},
+    {"op": "residential_expect_grid", "grid": "proximity2", "size": 1, "counts": [4, 4], "cells": [[0, 0, 1], [1, 0, 1], [2, 0, 1], [3, 0, 0]], "others": 0},
+    {"op": "residential_expect_grid", "grid": "proximity3", "size": 1, "counts": [4, 4], "cells": [[0, 0, 1], [1, 0, 1], [2, 0, 1], [3, 0, 1]], "others": 0}
+  ]
+}

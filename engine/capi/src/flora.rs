@@ -21,7 +21,7 @@
 //!   trait's order).
 //!
 //! Tokens are opaque host identities (fc4.h): occupants, blocks, exemplars,
-//! segments. 0 is the null object.
+//! segments, segment record streams. 0 is the null object.
 //!
 //! # Threads
 //!
@@ -58,7 +58,8 @@ use std::thread::ThreadId;
 
 use fc4_core::flora::{
     msg, occupant_type, prop, CellRect, CommandParam, FloraHost, FloraOccupant, FloraRandom, FloraRecord,
-    FloraRegistry, FloraRng, FloraSim, Message, OccupantFilter, SegmentId, SharedRegistry, Vec3, FLORA_EXEMPLAR_TYPE,
+    FloraRegistry, FloraRng, FloraSim, Message, OccupantFilter, SegmentId, SharedRegistry, StreamId, Vec3,
+    FLORA_EXEMPLAR_TYPE,
 };
 use fc4_core::property::PropertyHolder;
 use fc4_core::props::u32_of;
@@ -406,11 +407,23 @@ pub struct fc4_flora_host {
     /// `rect` NULL = null corners (the whole city).
     pub occupants_in_cells: Option<unsafe extern "C" fn(U, *const fc4_cell_rect, u32, fc4_token_callback, *mut c_void)>,
     pub occupants_in_manager_cells: Option<unsafe extern "C" fn(U, u32, fc4_token_callback, *mut c_void)>,
-    // obliteration segment (§10.3)
-    pub segment_write_u32: Option<unsafe extern "C" fn(U, u64, u32, u32, u32, u32) -> bool>,
-    pub segment_read_u32: Option<unsafe extern "C" fn(U, u64, u32, u32, u32, *mut u32) -> bool>,
-    pub segment_write_occupant: Option<unsafe extern "C" fn(U, u64, u32, u32, u32, u64) -> bool>,
-    pub segment_read_flora_occupant: Option<unsafe extern "C" fn(U, u64, u32, u32, u32) -> u64>,
+    // obliteration segment (§10.3, ABI 30)
+    /// `(segment, type, group, instance, write)`: `QueryInterface` for
+    /// `cISC4DBSegment`, then `OpenOStream(key, &s, true)` (`write`) or
+    /// `OpenIStream(key, &s)`; the stream token, 0 = not open.
+    pub segment_open: Option<unsafe extern "C" fn(U, u64, u32, u32, u32, bool) -> u64>,
+    /// `CloseOStream` / `CloseIStream`, then both references released.
+    pub segment_close: Option<unsafe extern "C" fn(U, u64)>,
+    pub stream_put_u16: Option<unsafe extern "C" fn(U, u64, u16) -> bool>,
+    pub stream_put_u32: Option<unsafe extern "C" fn(U, u64, u32) -> bool>,
+    /// False when the call fails (`*out` untouched).
+    pub stream_get_u16: Option<unsafe extern "C" fn(U, u64, *mut u16) -> bool>,
+    pub stream_get_u32: Option<unsafe extern "C" fn(U, u64, *mut u32) -> bool>,
+    /// `GetError()` is non-zero.
+    pub stream_error: Option<unsafe extern "C" fn(U, u64) -> bool>,
+    /// `(occupant, stream)`: the occupant's `cIGZSerializable::Write` / `Read`.
+    pub write_occupant: Option<unsafe extern "C" fn(U, u64, u64) -> bool>,
+    pub read_occupant: Option<unsafe extern "C" fn(U, u64, u64) -> bool>,
 }
 
 const _: () = {
@@ -420,7 +433,7 @@ const _: () = {
     assert!(std::mem::size_of::<fc4_flora_message>() == if cfg!(target_pointer_width = "32") { 40 } else { 56 });
     assert!(std::mem::size_of::<fc4_flora_state>() == 180);
     assert!(std::mem::size_of::<fc4_flora_registry_host>() == if cfg!(target_pointer_width = "32") { 20 } else { 40 });
-    assert!(std::mem::size_of::<fc4_flora_host>() == if cfg!(target_pointer_width = "32") { 240 } else { 480 });
+    assert!(std::mem::size_of::<fc4_flora_host>() == if cfg!(target_pointer_width = "32") { 260 } else { 520 });
 };
 
 // ---- the process-wide re-entrant lock ---------------------------------------------------------------
@@ -718,7 +731,8 @@ pub unsafe extern "C" fn fc4_flora_registry_record(p: *const fc4_flora_registry,
 }
 
 /// Slot 11 `IsFloraTypeValid(type)`: in the map (true for 0 after an `Init`,
-/// §3.2). Any thread.
+/// §3.2; false again after an exemplar-change reload until the next `Init`,
+/// §5, FQ14). Any thread.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_flora_registry_is_type_valid(p: *const fc4_flora_registry, type_id: u32) -> bool {
     match registry(p) {
@@ -1230,54 +1244,43 @@ impl FloraHost for CHost {
     fn occupants_in_manager_cells(&self, occ_type: u32) -> Vec<u64> {
         collect_tokens(|sink, ctx| cb!(self, occupants_in_manager_cells, (), occ_type, sink, ctx))
     }
-    fn segment_write_u32(&self, seg: SegmentId, key: ResKey, value: u32) -> bool {
-        cb!(
-            self,
-            segment_write_u32,
-            false,
-            seg,
-            key.type_id,
-            key.group,
-            key.instance,
-            value
-        )
-    }
-    fn segment_read_u32(&self, seg: SegmentId, key: ResKey) -> Option<u32> {
-        let mut v = 0u32;
-        cb!(
-            self,
-            segment_read_u32,
-            false,
-            seg,
-            key.type_id,
-            key.group,
-            key.instance,
-            &mut v
-        )
-        .then_some(v)
-    }
-    fn segment_write_occupant(&self, seg: SegmentId, key: ResKey, occ: u64) -> bool {
-        cb!(
-            self,
-            segment_write_occupant,
-            false,
-            seg,
-            key.type_id,
-            key.group,
-            key.instance,
-            occ
-        )
-    }
-    fn segment_read_flora_occupant(&self, seg: SegmentId, key: ResKey) -> Option<u64> {
+    fn segment_open(&self, seg: SegmentId, key: ResKey, write: bool) -> Option<StreamId> {
         opt(cb!(
             self,
-            segment_read_flora_occupant,
+            segment_open,
             0,
             seg,
             key.type_id,
             key.group,
-            key.instance
+            key.instance,
+            write
         ))
+    }
+    fn segment_close(&self, s: StreamId) {
+        cb!(self, segment_close, (), s)
+    }
+    fn stream_put_u16(&self, s: StreamId, v: u16) {
+        cb!(self, stream_put_u16, false, s, v);
+    }
+    fn stream_put_u32(&self, s: StreamId, v: u32) {
+        cb!(self, stream_put_u32, false, s, v);
+    }
+    fn stream_get_u16(&self, s: StreamId) -> Option<u16> {
+        let mut v = 0u16;
+        cb!(self, stream_get_u16, false, s, &mut v).then_some(v)
+    }
+    fn stream_get_u32(&self, s: StreamId) -> Option<u32> {
+        let mut v = 0u32;
+        cb!(self, stream_get_u32, false, s, &mut v).then_some(v)
+    }
+    fn stream_error(&self, s: StreamId) -> bool {
+        cb!(self, stream_error, false, s)
+    }
+    fn write_occupant(&self, occ: u64, s: StreamId) -> bool {
+        cb!(self, write_occupant, false, occ, s)
+    }
+    fn read_occupant(&self, occ: u64, s: StreamId) -> bool {
+        cb!(self, read_occupant, false, occ, s)
     }
 }
 

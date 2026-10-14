@@ -82,6 +82,7 @@
 #include "cISC4RegionalCity.h"
 #include "cISC4Simulator.h"
 #include "cISC4TrafficSimulator.h"
+#include "cISC4TrafficSource.h"
 #include "cISC4WeatherSimulator.h"
 #include "cIGZDate.h"
 #include "cISCPropertyHolder.h"
@@ -498,7 +499,11 @@ const Waiver* FindWaiver(const char* table, const char* cls, int slot) {
     return nullptr;
 }
 
-// Plugin sources that call `method` (->method( or .method( ).
+// Plugin sources that call `method` (->method( or .method( ). A call whose
+// line carries the marker "abi: via cFC4I" goes through FreeCity4's own
+// declaration of the interface (a cFC4I... class with its own required row
+// above, which declares the slot as the game compiles it), not the SDK's,
+// and does not void the SDK row's waiver.
 std::vector<std::string> CallersOf(const char* pluginDir, const char* method) {
     std::vector<std::string> out;
     std::error_code ec;
@@ -509,7 +514,18 @@ std::vector<std::string> CallersOf(const char* pluginDir, const char* method) {
         std::ifstream f(e.path(), std::ios::binary);
         std::stringstream ss;
         ss << f.rdbuf();
-        if (std::regex_search(ss.str(), call)) out.push_back(e.path().filename().string());
+        const std::string text = ss.str();
+        bool calls = false;
+        for (std::sregex_iterator it(text.begin(), text.end(), call), end; it != end && !calls; ++it) {
+            const size_t at = static_cast<size_t>(it->position());
+            const size_t from = text.rfind('\n', at);
+            const size_t to = text.find('\n', at);
+            const std::string line =
+                text.substr(from == std::string::npos ? 0 : from + 1,
+                            (to == std::string::npos ? text.size() : to) - (from == std::string::npos ? 0 : from + 1));
+            calls = line.find("abi: via cFC4I") == std::string::npos;
+        }
+        if (calls) out.push_back(e.path().filename().string());
     }
     return out;
 }

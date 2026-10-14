@@ -56,7 +56,18 @@
 //! - Slots 40–42 return true where the original returns garbage (§7.1).
 //! - The DoPostCityInit re-read **replaces** a switch's rules where the
 //!   original appends them (§4.7.2, TN3), so a load then a save reproduces
-//!   the file.
+//!   the file. The flags then come from the re-read rules (TN25); they equal
+//!   the original's whenever the station's `0xE90E25A1` is unchanged since
+//!   the save, and for a changed one FreeCity4 follows the current property
+//!   throughout (rules, flags, access point, connections, the next save).
+//! - A switch inserted by a lookup is all zeros (§4.7.3, TN23): an unknown
+//!   ID costs `0x7EFFFFFF` (0/0), and DoPostCityInit neither re-reads a
+//!   switch with building 0 nor gives it a NW-cell access point (flag 4
+//!   clear still clears it). The original's inserted switch holds stack
+//!   garbage, and a null building crashes its walks.
+//! - The water depth map's update asks about and writes in-map cells only
+//!   (§4.10.1, TN24); the original asks about every cell of the unclamped
+//!   rectangle and writes 0 for each off-map one past the grid.
 //! - Host containers (occupant lists, path-info vectors, neighbour lists)
 //!   are plain `Vec`s; their allocators (§9) are the glue's business.
 //! - `GetTrafficNeighborConnection` for a corner or in-city cell gives an

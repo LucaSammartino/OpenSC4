@@ -997,8 +997,13 @@ void cFC4ProtectionBase::LogState(const char* what) {
              ctx_.airInits, ctx_.controllers, months_, days_);
     // A month with a coverage grid that has no tracts: the daily cycle (§5.3)
     // cannot run, and the grid is never updated. `Init` takes the geometry
-    // from the grid (§4.1 base init steps 2 and 6); at `Read` a grid can still
-    // be 0 x 0, because the game reads its record later.
+    // from the grid (§4.1 base init steps 2 and 6). At `Read` a grid can still
+    // be 0 x 0, because the game reads its record later, but never at `Init`
+    // (HG1, foundations §3.7): every saved object is read in ascending class
+    // ID before cSC4City::Init, fire (0x2990C05A) before the grids
+    // (0x49B9E602) and police (0x6990C04F) after them. So a 0 x 0 grid at a
+    // month is empty in itself, such as a grid saved as 0 x 0 (it stays empty
+    // after its Read).
     if (!emptyGridWarned_ && std::strcmp(what, "month") == 0 && st.adjusted_grid != 0 &&
         (st.count_x <= 0 || st.count_z <= 0)) {
         emptyGridWarned_ = true;
