@@ -217,7 +217,7 @@ Silent deals. It is **posted**, except that `SetAmount` **sends** it synchronous
 | `SetAmount(a)` | Only if the current city exists, has a neighbours simulator, and flags have neither Grace nor Probation: `amount := a`; report status 0 (**sent**); `UpdateCost()`. Otherwise ignored *[compat]*. |
 | `Get/SetLastAmount`, `Get/SetLastIncAmount`, `Get/SetIncAmount`, `Get/SetIncAmount2`, `Get/SetAmountUsed` | plain. |
 | `GetCost()` | cost. |
-| `UpdateCost()` | Unless Grace or Probation: `cost := trunc_s64(neighbours.GetDealCost(type, amount, GetCityOnOtherSide()))` through the **current city's** neighbours simulator; if that is 0, `cost := 1`; report status 0 (posted). |
+| `UpdateCost()` | Unless Grace or Probation: `cost := trunc_s64(neighbours.GetDealCost(type, amount, GetCityOnOtherSide()))` through the **current city's** neighbours simulator; if that is 0, `cost := 1`; report status 0 (posted). The amount is passed as a double. *Without a current city or neighbours simulator* (NB5), the original crashes: it checks neither the global city pointer (`0x006CF9D4`) nor `GetNeighborsSimulator()`'s result (`0x006CF9E8`). `SetAmount` checks both before it calls `UpdateCost`, so only direct callers can reach this. *[choice]* FreeCity4 does nothing in that case: the cost stays as it was and no report is sent. |
 | `Get/SetStartDate`, `Get/SetExpirationDate`, `Get/SetCurrentDate`, `Get/SetSuspensionDate` | copy the Julian day to / from the caller's `cIGZDate`. |
 | `Copy(src)` | copies type, flags, amount, amountUsed, cost, incAmount, lastAmount, both region cells and the four dates from `src` (through its interface). |
 | `UpdateState()` | §7.3 step 1. |

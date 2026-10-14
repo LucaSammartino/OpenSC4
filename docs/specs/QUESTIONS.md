@@ -460,7 +460,10 @@ vectors `nb18_*`). The core's current answer is in brackets.
   matches. `ProposeDeals` reads both. The `0xCA469346` read (`0x006D22B4`) becomes `1 + v` in a local that is never
   read; the budget test uses `0xCA46931F` (`0x006D24EE`). Both sections were right, and neighbors.md §12 now marks
   the read as dead.
-- **NB5:** what does `UpdateCost` do with no current simulator? [nothing]
+- ~~**NB5:** what does `UpdateCost` do with no current simulator? [nothing]~~ **ANSWERED 2026-10-14** from the exe:
+  the original **crashes**. `UpdateCost` (`0x006CF9C0`) checks neither the global city nor `GetNeighborsSimulator()`
+  (`0x006CF9E8`); only `SetAmount` guards both. The bracket is kept as a *[choice]*: no cost change and no report
+  (neighbors.md §5.4).
 - **NB6 — §2.2:** `neighbour_connection_cell` for an interior cell has no row. [`None`]
 - **NB7 — §13:** null or host references in the connection list are skipped on read. Correct? [skipped]
 - **NB8 — §8.1:** does `existing` include the deal being priced? [yes: its own `UpdateCost` counts it; 262 in
