@@ -1081,7 +1081,10 @@ brackets; the module doc of `core/src/residential/education_health.rs` lists 1 t
   `0x006FD308`, dist zeroed `0x006FD435`) and written into REH §4.11 ("Edge cases"). **The bracket matches**, with
   one more case: a distance curve with no points (a property with fewer than two values) skips the step and leaves
   dist unwritten (the caller's value). *[choice]* write 0 there too.
-- **EH9:** does the ideal funding test the served property itself for `0xFFFFFFFF`? [yes, the property]
+- ~~**EH9:** does the ideal funding test the served property itself for `0xFFFFFFFF`? [yes, the property]~~
+  **ANSWERED 2026-10-14** from the exe (`EstimateIdealFunding` `0x006FD701`–`0x006FD72B`) and written into REH
+  §4.10. **Yes, the property**, read into a value preset to `0xFFFFFFFF`, so a missing property also fails. The
+  ratio then uses the query data's served (+0x24) and capacity (+0x14), which equal the properties at that point.
 - **EH10:** does the hospital query fail on missing fields, testing the staff item last? [yes]
 - **EH11:** what does the ratings query's record start at? [zero]
 - **EH12:** do the system totals count only successful queries and add onto the caller's record? [yes]

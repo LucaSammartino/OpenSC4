@@ -622,8 +622,12 @@ Only the staff percentage changes; the vehicle percentage is written back unchan
 
 - **Service** *[compat]*: school if `GetSchoolQueryData` (slot 26) succeeds; otherwise hospital if
   `GetHospitalQueryData` (slot 27) succeeds; otherwise AL = 0. The school is tried first.
-- Fails (AL = 0) if the building's query data fails (§4.11) or served = `0xFFFFFFFF` (not graded yet).
-- r := float(served) / float(trunc(float(capacity) × m2)) (u32 operands). A zero divisor gives inf or NaN.
+- Fails (AL = 0) if the building's query data fails (§4.11) or served = `0xFFFFFFFF` (not graded yet). The test
+  reads the served **property** itself (`0x09220161` / `0xC922015C`) into a value preset to `0xFFFFFFFF`
+  (`0x006FD701`–`0x006FD72B`), not the query data's served field (which maps `0xFFFFFFFF` to 0). A missing
+  property therefore also fails, though the query has already failed in that case.
+- r := float(served) / float(trunc(float(capacity) × m2)) (u32 operands; served and capacity are the query
+  data's +0x24 and +0x14, `0x006FD7EE`–`0x006FD82B`). A zero divisor gives inf or NaN.
 - effCurve is the service's "Funding To Efficiency" curve and L its max allowed funding.
 
 ```
