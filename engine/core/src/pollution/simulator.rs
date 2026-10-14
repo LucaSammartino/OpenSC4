@@ -263,12 +263,31 @@ impl PollutionState {
         self.set_cell(G_RAD_SRC, x, z, i16::from(on));
         self.dirty_radiation = true;
     }
-    /// Slot 29: saturating add, then clamped ≥ 0; returns the applied delta.
+    /// Slot 29 (§8.1, PG11) [compat]: with `s` the supply on entry, the delta
+    /// is `min(n, 0x7FFFFFFF − s)` for n > 0, 0 for n = 0, and `n` if `s + n ≥
+    /// 0` else `−s` for n < 0; the supply becomes `s + delta`, then 0 if
+    /// negative (only an already negative `s`, from a damaged save). Returns
+    /// the delta taken **before** that last clamp (EAX; no caller reads it).
+    /// [choice] `0x7FFFFFFF − s` and `s + n` are exact (a negative `s` with
+    /// n > 0 gives delta `n`; spec question).
     pub fn add_to_garbage_supply(&mut self, n: i32) -> i32 {
-        let old = self.garbage_supply;
-        let new = old.saturating_add(n).max(0);
-        self.garbage_supply = new;
-        new.wrapping_sub(old)
+        let s = i64::from(self.garbage_supply);
+        let n = i64::from(n);
+        let delta = match n.cmp(&0) {
+            std::cmp::Ordering::Greater => n.min(i64::from(i32::MAX) - s),
+            std::cmp::Ordering::Equal => 0,
+            std::cmp::Ordering::Less => {
+                if s + n >= 0 {
+                    n
+                } else {
+                    -s
+                }
+            }
+        };
+        // s + delta always fits in an i32 (0 when a negative n overshoots).
+        let new = s + delta;
+        self.garbage_supply = if new < 0 { 0 } else { new as i32 };
+        delta as i32
     }
 
     /// Zeroes every statistic and counter of §3.1 (new-city `Init`).
@@ -565,6 +584,7 @@ impl PollutionSim {
                 s.dirty_water = false;
                 s.dirty_garbage = false;
             });
+            // New city only (PG5): a load gets it back from the prop developer's save.
             h.add_prop_requester();
         }
         if !initialized {
@@ -821,7 +841,7 @@ impl PollutionSim {
     // ---- interface slots (§8.1) --------------------------------------------------------------------------
 
     /// The grid index slot 5 answers for a type: 0 air value, 1 water value,
-    /// 2 garbage value, 3 radiation **source**; others none ([choice]).
+    /// 2 garbage value, 3 radiation **source**; others none ([choice], PG13).
     pub fn pollution_grid_index(kind: u32) -> Option<usize> {
         match kind {
             0 => Some(G_AIR_VAL),

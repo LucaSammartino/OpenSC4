@@ -55,6 +55,10 @@ struct ExecutableVersion {
     uint32_t fpuSetPrecisionVA;
     // Direct-call targets, indexed by Direct (docs/abi/direct-calls.md).
     uint32_t directVA[static_cast<unsigned>(Direct::Count)];
+    // The original fire / police simulators' primary vtables (protection.md
+    // §15.1, §15.2): the protection shadow reads the unadjusted grid at
+    // primary +0x84 only from an object with one of these (§2, PR5).
+    uint32_t protectionVtableVA[2];
 };
 
 // The running executable if it is a table entry loaded at its preferred base
@@ -86,6 +90,12 @@ bool StlNodeAllocator(StlNodeAllocateFn* allocate, StlNodeFreeFn* release);
 // not identified or the address is not read-only data inside its image whose
 // first entry is code inside the image.
 const void* GameStringVtable();
+
+// The original fire (kind 0) or police (kind 1) simulator's primary vtable
+// (protection.md §15.1 / §15.2), or nullptr (logged once per kind) if the
+// executable is not identified or the address is not committed, readable
+// memory inside its image whose first entry is code inside the image.
+const void* ProtectionPrimaryVtable(unsigned kind);
 
 // The address of a direct-call target, or 0 (logged once per target) if the
 // executable is not identified or the address is not executable code inside

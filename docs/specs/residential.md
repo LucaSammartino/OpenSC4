@@ -92,6 +92,9 @@ per simgrid §6.4 with the same element type, tract size and instance ID.
   exemplars give **4** (property `0x87CD6310` of developers `0x1010`, `0x1020`, `0x1030`). On a loaded city both
   come from the save (§9) and the grids keep their saved geometry. The coverage, grade and age grids use P; the
   EQ and HQ grids use E.
+- After a load, P and E are only **read** by `Init`, as the tract size of a grid it has to create because its
+  reference came back null (§4.1 step 8), and by `Write` (EH14). The simulation asks each grid for its own size:
+  state 4's S is the R$ population grid's `GetTractSize()` (§5.5).
 - The population, EQ, HQ and age grids are indexed by the same tract coordinates (x, z); the code assumes P = E.
 - Grid contents are the model: population grid w at tract (x, z) is `pop_w`, and so on. Coverage and grade grids
   belong to the other spec.
@@ -272,7 +275,8 @@ ageCount[b] := 0 and ageEqSum[b] := 0 for b = 0..19; leSum := 0; running populat
 ### 5.5 `DoPopulationChange(T, x, z)` (state 4, per tract)
 
 State 4 first reads the population tuning (§7.1) if tuningLoaded is false. Then for every tract (x, z) from the
-scanning iterator (x inner, z outer; simgrid §7.4), with T = the tuning and `S = P` (population tract size). All
+scanning iterator (x inner, z outer; simgrid §7.4), with T = the tuning and S = the R$ population grid's own
+`GetTractSize()` (`0x006FA4AE`–`0x006FA4B7`; it is P on a new city, see RS15 below). All
 float steps are float32 operations in the order given (foundations §18).
 
 1. **Pollution**. For type q = 0 (air), 1 (water), 2 (garbage):
@@ -291,16 +295,25 @@ float steps are float32 operations in the order given (foundations §18).
    A wrap needs `S² · 65535 ≥ 2³²`, that is S ≥ 257, so it cannot happen with any real tract size. Example: with
    S = 4 and every cell at 300, the sum is 4800, the average is 300, and the low byte is `p_q = 44`.
 
-   **S is not capped** (RS15, helper `0x006F7FF0`–`0x006F8067`). S is P, which `Init` takes from the developer on
-   a new city and `Read` takes from the record. Nothing bounds it, so a hostile record has these effects:
+   **S is not capped** (RS15, helper `0x006F7FF0`–`0x006F8067`). *(Corrected, EH14: S is not the member P.)*
+   `DoPopulationChange` asks the R$ population grid for S at each call (`0x006FA4AE`–`0x006FA4B7`, and again for
+   the life-expectancy cell at `0x006FAB2F`–`0x006FAB51`). On a new city `Init` creates that grid with P, so
+   S = P. On a loaded city S is the tract size stored in the grid's own record (simgrid §5), which every
+   game-written save keeps at 4; P only matters if the grid's reference came back null and `Init` recreates it.
+   Nothing bounds S, so a hostile record has these effects:
    - the helper makes S² `GetPollutionValue` calls per tract and type, so a large S stalls state 4;
    - `S·x + S` and `S·z + S` are 32-bit sums. When one wraps below its start, that loop is empty and the sum is
      0;
+   - a **negative** S makes the bounds compare below its start for x ≥ 1 (empty loop, sum 0). At x = 0 the loop
+     runs from 0 to 2³² + S unsigned, so tract (0, 0), the first one scanned, makes about 1.8e19 calls: the
+     original hangs in state 4;
    - the divisor `S·S` is a 32-bit product. For S = 0, or S a multiple of 65536, it is 0 and the unsigned `div`
      (`0x006F8062`) raises a divide fault, which crashes the original.
 
-   *[choice]* FreeCity4 `Read` treats P = 0 or P > 256 as a damaged record (the RS9 rule, §9.2). Every real tract
-   size is far below 256, and this also keeps the wrap above out of reach.
+   *[choice]* FreeCity4 `Read` treats the record as damaged (the RS9 rule, §9.2) when P or E, read as **signed**,
+   is outside 1…256 (so 0 and every negative value are rejected), or when the loaded R$ population grid's tract
+   size is. State 4 takes S from that grid, as the original does. Every real tract size is 4, so no game-written
+   save is affected, and the wrap, the hang and the divide fault are out of reach.
    `hqLoss = ((HQdecay + air(p_0)) + water(p_1)) + garbage(p_2)` with the three tuning curves of §7.1 evaluated at
    `float(p_q)`.
 2. **Decay and buzzards**, for w = R$, R$$, R$$$ (one flag `buzzard := false` per tract):
@@ -715,6 +728,14 @@ the temporary grid are not saved. Which list is which belongs to the other spec 
     the coverage vectors to 7 and 3 nulls and the building-list vectors to 7 and 3 empty lists (`0x0070087C`,
     `0x007008FB`). *[choice]* FreeCity4 may release what it replaces, which the core already does
     (`release_department`). This cannot be observed.
+  - **Tract sizes** (EH14, from the exe). The proximity size, P and E are each read with one 32-bit read straight
+    into the member (P `0x00700A02`, E `0x00700B92`) and never checked: zero, negative and huge values are all
+    kept. After the load only `Init` reads P and E, as the tract size it gives a grid that it creates because the
+    grid's reference came back null (`SetTractSize(P)` for the population, age, coverage and grade grids at
+    `0x006FEEB1`–`0x006FF15D`, `SetTractSize(E)` for EQ and HQ at `0x006FF1D1`/`0x006FF254`). `Write` writes them
+    back unchanged. So with every grid present, a negative P changes nothing. A recreated grid with a negative
+    size has shift 0, the city's full cell counts and negative widths (simgrid §3); as the R$ population grid it
+    hangs state 4 (§5.5, RS15). *[choice]* FreeCity4 rejects P or E outside 1…256 (§5.5).
   - Lists: cleared first; a count of 0 or ≥ 10,000,000 reads nothing more; null references are appended.
   - **Null list entries** (RS12, from the exe). A game-written save never holds one. The lists hold live, AddRef'd
     occupants, and a removal erases the entry. A null appears only through `Read`: a reference that cannot be

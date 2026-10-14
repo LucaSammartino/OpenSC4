@@ -73,8 +73,10 @@
 //! - The water "stop at 1" bounds use the water value grid's tract counts.
 //! - Visits per day are capped at the source tract count (a hostile save may
 //!   store any `tractsPerDay`); with no source tracts nothing is visited.
-//! - `GetPollutionGrid(type ≥ 4)` returns no grid; `GetPollutionValue` with
-//!   types 4–7 reads the value grids (the quirk), types ≥ 8 return 0.
+//! - `GetPollutionGrid(type ≥ 4)` returns no grid (PG13: the original reads
+//!   past its grid table, which is never a grid, and no caller passes such a
+//!   type); `GetPollutionValue` with types 4–7 reads the value grids (the
+//!   quirk), types ≥ 8 return 0.
 //! - Missing grids (a save whose grid reference does not resolve) read 0 and
 //!   ignore writes. `Init` creates missing grids only for a new city (§4.1).
 //! - Without a department, the funding fraction reads 1.0 (100 %) and the
@@ -334,7 +336,8 @@ pub trait PollutionHost: GridProvider<i16> {
     /// `cISC4HistoryWarehouse::SetHistoryDataQueueLength(type, n)`.
     fn set_history_queue_length(&self, series: u32, length: u32);
     /// `cISC4PropDeveloper::AddPropRequester` / `RemovePropRequester` with
-    /// the simulator's `cISC4PropRequester`.
+    /// the simulator's `cISC4PropRequester`. Added for a new city only (§4.1,
+    /// PG5): the prop developer's own save restores it after a load.
     fn add_prop_requester(&self);
     fn remove_prop_requester(&self);
 

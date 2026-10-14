@@ -354,7 +354,8 @@ bool g_capacityFaultLogged = false;
 constexpr int kRefusedLines = 5;
 // The population summary map the game hands in holds the previous call's
 // entries (40 local nodes have a region use in the shipped data, §4.5); a
-// larger count is not believed.
+// larger count is not believed (DQ7: the original sets no limit; only plug-in
+// data with more than 4,096 region-use nodes could exceed it).
 constexpr uint32_t kSummaryMaxNodes = 4096;
 
 struct CapacityStep {
@@ -440,7 +441,8 @@ namespace {
 
 // §6.3 / §7.2: the building profile (BDS slot 39, read only): its purpose,
 // and its capacity maps through `visit` (the core sums the entries of the
-// developer type, §7.2).
+// developer type, §7.2). The census passes no visitor (DQ5: the original
+// reads only `purpose` there), so the maps are walked for UpdateCapacity only.
 bool BuildingProfile(void* u, uint32_t buildingType, uint32_t* purpose, fc4_capacity_visitor visit, void* ctx) {
     cISC4BuildingDevelopmentSimulator* b = Bds(u);
     if (b == nullptr || purpose == nullptr) return false;
@@ -1031,15 +1033,18 @@ int g_summaryFailedLogged = 0;
 
 }  // namespace
 
-// §5: clear the caller's map, then map[key] := trunc(supply) (region use 1)
-// or trunc(demand) (region use 2) for each node in key order (the core's
-// fc4_demand_sim_local_population_summary). The map is the game's STLport
+// §5: clear the caller's map, then map[key] := _ftol(supply) (region use 1)
+// or _ftol(demand) (region use 2) for each node in key order (the core's
+// fc4_demand_sim_local_population_summary; DQ3: the CRT conversion kept to 32
+// bits, wrapping above int32, 0 for NaN and inf). The map is the game's STLport
 // map<uint32_t, int32_t> (docs/abi/allocators.md, GetLocalPopulationSummary;
 // the SDK's std::map& is only its address), emptied and filled with the
 // game's own subtree free and operator[] (docs/abi/direct-calls.md) on the
 // calling thread, as the original does. Only on the identified executable,
 // after a read-only check of the map, under the structured-exception guard;
-// otherwise the map is left untouched (logged once).
+// otherwise the map is left untouched (logged once). DQ8 (demand.md §5): the
+// caller is the regional city's UpdateCityCache on PostCityInit / PreSave,
+// the main thread [inferred]; the first copy logs its thread to confirm it.
 void cFC4DemandSimulator::GetLocalPopulationSummary(std::map<uint32_t, int32_t>& summary) const {
     FC4_TRACE("DemandSimulator::GetLocalPopulationSummary");
     std::vector<std::pair<uint32_t, int32_t>> entries;

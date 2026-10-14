@@ -148,17 +148,33 @@ data3 = `0x278128A0` (building occupant) and void1 = the occupant. The class ask
    staff) succeeds. Otherwise (no item) it is a hospital if it is in occupant group `0x1507` or `0x151C`.
    For a hospital:
    - Budget registration (only when the staff item exists):
-     - if the item's line is 0, `ChangeBudgetItemLine(holder, item.index, b.GetBuildingType())`;
+     - if the item's line is 0, `ChangeBudgetItemLine(holder, item.index, b.GetBuildingType())`, and the call's
+       own copy of the item gets line := the building type (`0x006FB17F`; schools `0x006FB39A`). Every later step
+       of this call (`GetLineItem`, `CreateLineItemForBuildingType`, the count, `RemoveLineItem`) uses that line;
+       the item is not read again;
      - `dept := GetDepartmentBudget(item.department)`; null **aborts the whole call** (no list change);
      - when added: if `dept.GetLineItem(line)` is null, `CreateLineItemForBuildingType(line, 1)` then
        `line.SetDisplayFlag(2, true)`; `AddLocallyFundedObject(holder, 0xCA565486)`;
      - when removed: `RemoveLocallyFundedObject(holder, 0xCA565486)`;
      - the line item's 64-bit count (line slot 8 get / slot 9 set) is changed by +1 or −1; when removed and the
        count reaches 0, `RemoveLineItem(line)`;
+     - *[quirk]* on removal the line item is fetched with `GetLineItem(line)` and used with **no null check**
+       (`0x006FB1FD`–`0x006FB20C`; schools `0x006FB418`–`0x006FB427`). If the department has no line item for the
+       line, the original calls through a null pointer and crashes. With consistent budget data this does not
+       happen: the add created the line item and the count keeps it alive while a building uses it. *[choice]*
+       FreeCity4 skips the count step and `RemoveLineItem` when the line item is missing;
      - then, if the ambulance purpose `0xEA56549E` has an item: its department (null aborts),
        `AddLocallyFundedObject` or `RemoveLocallyFundedObject` with that purpose.
    - **Added:** create and set served := `0xFFFFFFFF`, grade := 1.0, staff ratio := 1.0, effective capacity :=
      capacity (`0x69220415`). AddRef. Append to the pending hospital list. Set the dirty flag.
+   - *[quirk]* **No capacity property.** The getter (`0x005FD480`) returns false and leaves its output alone, and
+     the output is a stack slot this call used before. So the effective capacity written is: for a hospital with
+     the staff item, the low 32 bits of the health department's object pointer (stored there at `0x006FB1A5`);
+     for a school with the staff item, the school line item's pointer (`0x006FB41F`); for a building found
+     through its groups only, whatever the slot held. The value is visible to the query data (§4.11 +0x18), the
+     ratings and the totals until the next state 6 or 8 grades the building. No shipped building is affected:
+     all 18 school and hospital buildings of `SimCity_1.dat`–`SimCity_5.dat` and `EP1.dat` have their capacity.
+     *[choice]* FreeCity4 writes 0.
    - **Removed:** erase it from the first group list that contains it, else from the pending list. Release.
      Set the dirty flag.
 2. **School test.** The same with staff purpose `0xEA5654B6`, bus purpose `0x4A5654BA`, groups `0x1503` or
@@ -219,20 +235,29 @@ Calls: `CreateDepartmentBudget(id, 0x6A357B7F)`, AddRef, `SetDepartmentName(0x6A
 - For the staff purpose, then the vehicle purpose: `GetBudgetItemForPurpose`; if it succeeds,
   `GetDepartmentBudget(item.department)`, then `SetLocalFundingPercent(holder, x, purpose)`.
 - A missing item ends the call **with** the dirty flag set. A null department ends it **without**.
+- When both purposes succeed, the call also ends **with** the dirty flag set (`0x006F834A`, reached from the two
+  "no item" exits and after the second `SetLocalFundingPercent`). So the flag is set in every case except a null
+  department. The flag is never read (§2), so this is not observable.
 
 **Efficiency ratings** `GetOccupantEfficiencyRatings(occ, &e1, &e2, isSchool, ignoreStrike)`:
 
 ```
 e1 := e2 := 1.0
+(a, b) := (0.0, 0.0); GetOccupantFundingPercentages(occ, &a, &b, isSchool)    (slot 20, always called)
 if the building has no staff budget item: return
-(a, b) := GetOccupantFundingPercentages(occ, isSchool)
 if not ignoreStrike and building strike day ≠ 0:  e1 := a × strikeEfficiency
 else:                                              e1 := effCurve(a × 100) × 0.01
 e2 := coverageCurve(b × 100) × 0.01
 ```
 
-**Base staff efficiency** `GetBaseStaffEfficiency(occ, isSchool)`: `effCurve(a × 100) × 0.01` when the staff
-item exists, else a (1.0). It ignores strikes.
+**Base staff efficiency** `GetBaseStaffEfficiency(occ, isSchool)` (`0x006F85F0`, result through a hidden pointer):
+the same (a, b) := (0, 0) and slot-20 call, then `effCurve(a × 100) × 0.01` when the staff item exists, else a
+(1.0, set by slot 20). It ignores strikes.
+
+*[compat]* Both start a and b at **0.0** (`0x006F8749`–`0x006F8759`, `0x006F8611`–`0x006F8621`). Slot 20 leaves
+them untouched when the staff item exists but its department is missing (§4.2 above), so then both read the curves
+at 0. Example with the shipped school curves: e1 = effCurve(0) × 0.01 = **0**, e2 = coverageCurve(0) × 0.01 =
+**0.5**, base = 0. The building then grades 0 (effective capacity 0), and its coverage radius is halved.
 
 ### 4.3 Ordinance effects
 
@@ -330,8 +355,11 @@ building of every group in state 6 or 8. Inputs:
 
 - radius: as in §4.4. If it is missing: served := 0, effective capacity := 0, grade := 0.0. The staff ratio is
   not touched. Nothing else happens.
-- capacity (u32, `0x8922041B` / `0x69220415`). A missing capacity is treated as 0 *[inferred: the getter's
-  output is pre-set to 0]*.
+- capacity (u32, `0x8922041B` / `0x69220415`). *[quirk]* (corrected: not 0.) A missing capacity leaves the
+  getter's output alone, and that stack slot holds the **coverage-radius property ID** stored there at the start
+  (`0x006FD9D7` / `0x006FDA20`; read at `0x006FDBB7`). So a building with a radius but no capacity is graded with
+  capacity `0x691B42B3` = 1 763 394 227 (school) or `0x091B42A2` = 152 781 474 (hospital). No shipped building
+  has a radius without a capacity (§4.1). *[choice]* FreeCity4 uses 0.
 - e1, e2 from `GetOccupantEfficiencyRatings(isSchool, ignoreStrike = false)`; base := base staff efficiency.
 - The building's three curves: age (c1), wealth (c2), distance (c3). See the table below. Each is loaded with
   the property-pointer loader after a rebuild from the code default (0,100)(100,100), so the pattern is
@@ -377,7 +405,12 @@ gradeGrid(x, z) := min(1.0, v)
 **GetPopulationServed** (r' and the tract list from above):
 
 - r' ≤ 0 → 0.
-- (tx, tz) := the building's tract in the R$ population grid (`PositionToTract`).
+- (tx, tz) := the building's tract in the R$ population grid: `PositionToTract` of the occupant's **own**
+  `GetPosition` (occupant slot 8, `0x006F8FB7`), with no lot lookup *[compat]*. The tract list (§4.4) and the
+  boost centre (§4.6) use the lot centre instead, so the two can name different tracts. Example with 64 m tracts:
+  a lot whose centre is at x = 128 m (tract 2) and a building whose position is x = 120 m (tract 1). The listed
+  tract x = 2 then gets `dx = float(u32(1 − 2))` ≈ 4.29e9 (the +x quirk below) instead of 0, so the distance curve
+  is read at its last point for that column.
 - For each listed tract (x, z) with n := `coverage[i](x, z)` > 0:
 
 ```
@@ -437,9 +470,39 @@ target is a float grid with tract size S_t and tract width w.
      mult := (mult × curve(float(ageGrid.GetCellValue(x × S_t, z × S_t)))) × 0.01.
   6. eff := mult × value.
   7. n := coverage(x, z) (raw u8). If n ≠ 0: k := float(units) / float(n); eff := eff × k;
-     pop' := trunc(float(pop) × k).
+     pop' := trunc(float(pop) × k). If n = 0, neither changes: eff stays as in step 6 and pop' := pop
+     (verified, EH13: the compare with 0.0 at `0x005E4B5F`–`0x005E4B72` jumps straight to `0x005E4B96`).
   8. total := total + float(pop' & 0xFFFF) × eff.
   9. target(x, z) := min(max, target(x, z) + eff), written raw.
+- **Which tract each grid is read at** (verified, EH13). One pair (x, z) drives every read and write of an
+  iteration:
+  - the population grid through `GetTractValue(x, z)` (slot 22), read twice with the same arguments: the step-1
+    test (`0x005E4A41`–`0x005E4A49`) and pop in step 7 (`0x005E4B3F`–`0x005E4B45`);
+  - the coverage grid raw at `data[x][z]` (`0x005E4B4E`–`0x005E4B57`);
+  - the target raw at `data[x][z]` (`0x005E4BBA`–`0x005E4BC3`);
+  - the age grid is the exception. It is read through **cell** coordinates (x × S_t, z × S_t) with
+    `GetCellValue`, so it lands on its own tract ((x × S_t) >> its shift). That is the same tract only when its
+    tract size equals S_t.
+
+  The bounds, the tract centres and S_t all come from the target alone (counts slots 12/13 at `0x005E497D` and
+  `0x005E49A6`, width slot 14 at `0x005E490C`, size slot 10 at `0x005E48FF`). No other grid's geometry is asked
+  for, and nothing is bounds-checked against it.
+  - In this class the target is an EQ or HQ grid (tract size E) and the other three grids use P. P = E = 4 on a
+    new city, and each grid keeps its own tract size through a save (residential.md §2, simgrid §5), so all four
+    name the same tract in every game-written city.
+  - Only a hand-made save can make them differ. If the target then has more tracts than the population or
+    coverage grid, the original reads past their arrays. *[choice]* FreeCity4 reads such a tract as 0 in those
+    grids (population 0 skips it at step 1).
+- Example for step 7 (eff = 1.5 after step 6, pop = 120, units = 3):
+
+  | n | k | eff | pop' | total += | target += |
+  |---|---|---|---|---|---|
+  | 0 | not computed | 1.5 | 120 | 180 | 1.5 |
+  | 3 | 1.0 | 1.5 | 120 | 180 | 1.5 |
+  | 6 | 0.5 | 0.75 | 60 | 45 | 0.75 |
+
+  With units = 0 (capacity below the chunk size, §4.4), n = 6 gives k = 0, so nothing is added. A tract that no
+  building of the group covered (n = 0) still gets the full 1.5 and counts all 120 people.
 - Notes:
   - Units: xd here is a 0..1 fraction of the radius. Curves with x in percent therefore see only their first
     percent *[compat]*.
@@ -585,10 +648,16 @@ if EstimateIdealFunding(occ, &a):                                        (slot 5
 Only the staff percentage changes; the vehicle percentage is written back unchanged. The auto-budget step runs
 **before** the building is graded, so it uses last cycle's served population.
 
-**EstimateIdealFunding(occ, &f)**:
+**EstimateIdealFunding(occ, &f)** (slot 58, `0x006FD680`):
 
-- Fails (AL = 0) if the building's query data fails (§4.11) or served = `0xFFFFFFFF` (not graded yet).
-- r := float(served) / float(trunc(float(capacity) × m2)) (u32 operands). A zero divisor gives inf or NaN.
+- **Service** *[compat]*: school if `GetSchoolQueryData` (slot 26) succeeds; otherwise hospital if
+  `GetHospitalQueryData` (slot 27) succeeds; otherwise AL = 0. The school is tried first.
+- Fails (AL = 0) if the building's query data fails (§4.11) or served = `0xFFFFFFFF` (not graded yet). The test
+  reads the served **property** itself (`0x09220161` / `0xC922015C`) into a value preset to `0xFFFFFFFF`
+  (`0x006FD701`–`0x006FD72B`), not the query data's served field (which maps `0xFFFFFFFF` to 0). A missing
+  property therefore also fails, though the query has already failed in that case.
+- r := float(served) / float(trunc(float(capacity) × m2)) (u32 operands; served and capacity are the query
+  data's +0x24 and +0x14, `0x006FD7EE`–`0x006FD82B`). A zero divisor gives inf or NaN.
 - effCurve is the service's "Funding To Efficiency" curve and L its max allowed funding.
 
 ```
@@ -625,21 +694,56 @@ fields below follow it and are u32 unless marked:
 The school query fails (AL = 0) only if one of capacity, effective capacity, served or grade is missing. A
 divisor of 0 divides by zero *[quirk]*.
 
+**Order of the tests and partial writes** *[compat]* (school `0x006F91C0`, hospital `0x006F7E80`). Both read, in
+this order: capacity (a probe, then again straight into +0x14), effective capacity (straight into +0x18), served
+(straight into +0x24, still raw), grade (into a local). The hospital query then requires the staff item
+(`0xCA565486`) **last**; the school query does not. The first missing one returns AL = 0 at once. So a failed query
+leaves the fields read before the failure in the record (+0x14, +0x18, +0x24 with a raw `0xFFFFFFFF`), and every
+other field as the caller left it. Only a successful query writes +0x1C to +0x38 and maps served `0xFFFFFFFF` to
+0. Example: a hospital with every property but no staff item → AL = 0 with +0x14, +0x18 and +0x24 already
+written.
+
 **Ratings** `GetSchoolSystemRating` / `GetHealthSystemRating` (12/13), returned through a hidden pointer as
 SC4Percentage:
 
 - sum := Σ effective capacity (+0x18) of the query data of every building in the group lists.
 - *[quirk]* The record is not reset between buildings. A failed query adds the previous building's value again.
+- **Starting record** *[compat]* (`0x006F9F27`–`0x006F9F79`, health `0x006F9DD7`–`0x006F9E29`): one record per
+  call, built on the stack. Only +0x10, +0x28, +0x2C and +0x34 are set to 0 (and the string at +0). +0x14, +0x18,
+  +0x1C, +0x20, +0x24, +0x30 and +0x38 are **not initialised**. So if the first building's query fails before it
+  reads the effective capacity (no capacity or no effective capacity property), the sum starts with a stack
+  leftover. A failure later in the query (served, grade or, for hospitals, the staff item) comes after +0x18 is
+  written (above), so the sum still gets that building's own value. Every building in a group list has an
+  effective-capacity property (created on add, §4.1), so only a building without a capacity reaches the leftover,
+  and none ships. *[choice]* FreeCity4 starts the record at 0.
 - rating := sum = 0 ? 0 : pop = 0 ? 1.0 : min(1.0, float(sum) / float(GetPopulation())).
 
-**Totals** `GetSchoolSystemTotals` / `GetHospitalSystemTotals(totals*, groups*)` (14/15):
+**Totals** `GetSchoolSystemTotals` / `GetHospitalSystemTotals(totals*, groups*)` (14/15; both call one helper,
+`0x006FA070`, with the service's group lists):
 
-- Over the group lists whose ID is in `groups`, accumulate the query fields +0x14..+0x24 (u32 sums) and
-  +0x28 (grade sum).
-- Return the **number of buildings counted** in EAX.
+- **Reset first** *[compat]*: the caller's +0x14, +0x18, +0x1C, +0x20, +0x24 := 0 and +0x28 := 0.0
+  (`0x006FA0A6`–`0x006FA0BB`). Nothing is added onto earlier contents; the string and +0x2C..+0x38 are not
+  touched.
+- **Which buildings** (corrected): every building of every group list, in list order (pending buildings are not
+  in these lists), that is in **at least one** of the groups in `groups` (`IsOccupantGroup`, tested per building,
+  so a building filed under another group still counts when it also has one of these groups).
+- For each such building: run the service's query (slot 26 or 27) into one stack record, **ignore its result**,
+  then add the record's +0x14..+0x24 (u32 sums) and +0x28 (float32 grade sum) to the totals and count the
+  building (`0x006FA167`–`0x006FA1CF`).
+- Return the **number of buildings counted** in EAX: every matching building, whether its query succeeded or not.
+- The stack record starts like the ratings' record (+0x28 is 0, +0x14..+0x24 are leftovers), and a failed query
+  leaves what it read plus the previous building's other fields (§4.11 partial writes).
 - *[quirk]* `groups` must not be null. Null is dereferenced and crashes; an empty vector counts nothing.
 
-**EstimateCurrentOccupantCapacity(occ, &cap, &staff)** (28):
+*[compat]* This is reached by shipped data. The farmer's market (`0x8A3858D8 / 0x032C0000`) is a hospital through
+its groups only and has no health staff item, so its hospital query always fails at the staff test. The hospital
+totals still count it, with its own capacity, effective capacity and served (+0x24 raw: `0xFFFFFFFF` until its
+first grading, which adds −1 modulo 2^32), and the previous building's +0x1C, +0x20 and +0x28.
+
+**EstimateCurrentOccupantCapacity(occ, &cap, &staff)** (28, `0x006FD510`):
+
+- **Service** *[compat]*: school if the building has the school capacity `0x8922041B`, otherwise hospital (with
+  no test that the hospital capacity exists; a missing one reads as 0, so cap = staff = 0).
 
 - e1 from the efficiency ratings with **ignoreStrike = true**.
 - cap := trunc((float(capacity) × e1) × m2).
@@ -648,7 +752,11 @@ SC4Percentage:
 **GetOccupantCoverage(occ, const SC4Percentage& level, float& dist, float& radius)** (45):
 
 - Kind: school if the building has `0x8922041B`; hospital if it has `0x69220415` (hospital wins if both).
-  Neither → AL = 0.
+  Neither → AL = 0 and no output is written.
+- *[quirk]* "Hospital wins" covers only the radius property, the kind property and the ordinance list. The
+  school/hospital flag passed to the efficiency ratings and to the building-curve read is set by the school test
+  and not cleared by the hospital test (`0x006FD2A2`, `0x006FD2D8`). So a building with both capacities uses the
+  school curves and funding with the hospital radius. No shipped building has both (§4.1).
 - radius := (e2 × m1) × coverage radius.
 - dist := the distance at which the building's distance curve (c3) falls to level × 100:
   - walk the points from the second one on, keeping the last point P_prev with y > level × 100;
@@ -659,6 +767,17 @@ SC4Percentage:
   - *[quirk]* The x_prev term has no 0.01 factor.
   - With the default flat curve (0,100)(100,100): level < 1 gives dist = 0, and level = 1 gives NaN.
 - AL = 1 when found.
+- **Edge cases** *[compat]* (`0x006FD260`): AL is the "kind found" flag alone, so it is 1 in all of these.
+  - No radius property: the radius local is set to 0 before the read (`0x006FD308`) and the read's result is not
+    tested, so radius := (e2 × m1) × 0 = **0**. dist is computed as usual and multiplied by 0.
+  - No point at or below the level: dist := **0** (written before the walk, `0x006FD435`).
+  - A distance curve with one point: dist := 0. A curve with **no** points (a property with fewer than two values,
+    foundations §4.1) skips the whole step, so dist is **not written** and keeps the caller's value *[quirk]*.
+    *[choice]* FreeCity4 writes 0.
+
+**Which service the three methods pick** (summary): slot 45 tests school then hospital (hospital properties win,
+flag above); slot 28 tests only the school capacity (school first); slot 58 tries the school query, then the
+hospital query (school first). They differ only for a building with both capacities.
 
 ### 4.12 History
 
@@ -960,9 +1079,11 @@ Open questions:
    them, and nothing outside it can reach them. (The age histogram is read by residential.md §5.6.)
 4. What does the building's slot-11 value (§4.1 step 4) mean? (The LE-weighted population sum is the average
    life expectancy history, residential.md §5.6.)
-5. The population tract size and the EQ tract size are equal on a new city. Does a loaded city keep them equal?
-   This affects aura question 4. *[inferred: yes, both are saved and both start from the same developer tract
-   size]*.
+5. ~~The population tract size and the EQ tract size are equal on a new city. Does a loaded city keep them equal?
+   This affects aura question 4.~~ **Yes** in every game-written save (EH13, EH14): P, E and each grid's own tract
+   size are saved and stay 4. The simulation asks each grid for its own size; P and E only size a grid that `Init`
+   recreates (residential.md §9.2). `AddRadiusEffectWithCurves` takes its geometry from the EQ/HQ grid alone
+   (§4.6).
 
 ## 11. Conformance tests
 

@@ -32,9 +32,9 @@
 // the core (CoreCall); the getters touch nothing on this object but the core
 // handle (and slot 33 its own float).
 //
-// Not implemented here: the visual effects of §4.10 (the effects manager's
-// CreateVisualEffect and cISC4VisualEffect / cS3DTransform are not in
-// docs/abi; logged once, spec question). Everything else of §9 is called.
+// Not drawn here: the visual effects of §4.10 (PG4: the implementer's choice;
+// logged once). The rest of that pass (its rand() call, the worst tracts)
+// runs in the core. Everything else of §9 is called.
 #pragma once
 
 #include "FC4Config.h"

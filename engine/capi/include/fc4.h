@@ -68,8 +68,9 @@ extern "C" {
  * 23 = adds the power shadow (fc4_power_shadow);
  * 24 = adds the plumbing shadow (fc4_plumbing_shadow);
  * 25 = adds the land value and flammability shadows (fc4_landvalue_shadow / fc4_flammability_shadow);
- * 26 = adds the residential simulator (fc4_residential) and its shadow (fc4_residential_shadow). */
-#define FC4_ABI_VERSION 26u
+ * 26 = adds the residential simulator (fc4_residential) and its shadow (fc4_residential_shadow);
+ * 27 = adds fc4_protection_shadow_unadjusted_grid (protection.md §2, PR5). */
+#define FC4_ABI_VERSION 27u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -1119,7 +1120,9 @@ typedef struct fc4_demand_host {
     uint32_t (*now_ms)(void* user);
     /* Census (§6.3). census_lot: false unless GetLot(x, z, true) exists, has
      * capacity and a building type. building_profile: false = no profile; the
-     * capacity list goes to `visit` (vector index, developer type, value). */
+     * capacity list goes to `visit` (vector index, developer type, value).
+     * `visit` may be NULL: the purpose alone, no capacity walk (the census,
+     * §6.3 / DQ5). */
     bool (*census_lot)(void* user, int32_t x, int32_t z, uint32_t* building_type, uint32_t* wealth);
     bool (*building_profile)(void* user, uint32_t building_type, uint32_t* purpose, fc4_capacity_visitor visit,
                              void* ctx);
@@ -2275,10 +2278,13 @@ typedef struct fc4_protection_budget_item {
     uint64_t department; /* borrowed */
 } fc4_protection_budget_item;
 
-/* GetDispatchInfo (§5). Tokens borrowed. */
+/* GetDispatchInfo (§5). Tokens borrowed. `station` is the record's +0x20,
+ * the source station whose dispatch effect draws the cone (§7.2, PR2);
+ * `call_id` its +0x08 and `active` its +0x10 (PR1). `reserved` (formerly the
+ * vehicle automaton) is not read: leave it 0. */
 typedef struct fc4_protection_dispatch_info {
     uint64_t station;
-    uint64_t automaton;
+    uint64_t reserved;
     uint32_t call_id;
     uint32_t active;
     float x, z;
@@ -2468,11 +2474,14 @@ bool fc4_protection_read(fc4_protection* p, const fc4_istream* in);         /* �
  * run), rebuilds the unadjusted grid (§5.1) in a core grid of geometry `geom`
  * and derives the adjusted grid (§2, factor 1.0). fc4_protection_shadow_grid
  * copies the adjusted grid (x outer: x * count_z + z) and returns the number
- * of tracts. Destroy with fc4_protection_destroy (releases nothing). */
+ * of tracts; fc4_protection_shadow_unadjusted_grid likewise the unadjusted
+ * int16 grid (PR5: the original keeps its own at primary +0x84). Destroy
+ * with fc4_protection_destroy (releases nothing). */
 fc4_protection* fc4_protection_shadow_create(const fc4_protection_host* host, uint32_t kind);
 bool fc4_protection_shadow_run(fc4_protection* p, const fc4_grid_geometry* geom, const uint64_t* stations,
                                size_t count, uint64_t department, bool strike_flag);
 size_t fc4_protection_shadow_grid(const fc4_protection* p, uint8_t* out, size_t n);
+size_t fc4_protection_shadow_unadjusted_grid(const fc4_protection* p, int16_t* out, size_t n); /* ABI 27 */
 
 /* ---- crime (docs/specs/crime.md) ---------------------------------------------
  *
