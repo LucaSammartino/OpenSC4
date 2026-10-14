@@ -545,8 +545,9 @@ entry and its `0xCA550301` budget item go, and `E` drops by the item's cost.
 
 #### 4.1.4 Neighbour connection: `UpdateTrafficVolume` (`0x006D4C10`)
 
-Runs only when the connection's "volume dirty" flag is set (then cleared). Holder := the connection's property
-holder (neighbour simulator slot 13). For trip type `w` = 0…2 and index `s` = 0…8: `target := ` element `s` of the
+Runs only when the connection's "volume dirty" flag is set (then cleared). Holder := the property holder of the
+matching connection on the other side (neighbour simulator slot 13, `FindConnectionOnOtherSide(conn)`). If there is
+none, the whole trip list is cleared instead (`0x006D5030`) and the function returns (neighbors §15.4, NG19). For trip type `w` = 0…2 and index `s` = 0…8: `target := ` element `s` of the
 u32 vector property `0xAA9EA81D + w` (padded with zeros to 9; set by the neighbour simulation, neighbors.md);
 `have :=` the sum of counts of the list's trips with type `w` and strategy `s` (trips of type > 2 are ignored and
 never erased).

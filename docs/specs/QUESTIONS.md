@@ -2619,7 +2619,10 @@ answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (deal QI `0x006CE260`; holder vtable `0x00AB1D58` only in the constructor and
   destructor) and written into neighbors §15.4. The original deal's holder is not reachable either; it only travels with
   the record. Nothing to expose: round-trip the record's properties.
-- **NG19:** No city on the other side of a connection. [targets 0]
+- ~~**NG19:** No city on the other side of a connection. [targets 0]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006D4C3B` lookup, `0x006D5030` list clear) and written into neighbors §15.4
+  and traffic-simulator §4.1.4. The original clears the whole trip list. "Targets 0" agrees except for trips of a type
+  above 2, which the sync never creates; recommend clearing the list.
 - **NG20:** The `GetSourceCells` rectangle. [(x, z, x, z)]
 - **NG21:** The return of `UpdateTrafficVolume`. [true]
 - **NG22:** `cISCProperty` Write/Read. [through the segment stream]

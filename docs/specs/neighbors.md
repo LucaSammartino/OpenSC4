@@ -1073,6 +1073,14 @@ only in the deal's constructor and destructor. The holder exists only to be writ
 record. A FreeCity4 deal therefore needs no reachable holder: it must only keep the properties of a record it read
 and write them back.
 
+**NG19. No matching connection on the other side.** When `UpdateTrafficVolume` runs (the flag of NG8 is set) and
+`FindConnectionOnOtherSide(conn)` (simulator slot 13) returns null, whether there is no city there or the city has
+no matching connection, the original **clears the whole trip list** (`0x006D5030`, every node freed) and returns.
+
+The bracket (targets 0) erases every trip of types 0–2 through the excess rule of traffic-simulator.md §4.1.4, but
+keeps trips of type > 2, which that rule never touches. This sync creates only types 0–2, so the two agree unless
+something else puts a trip of another type on a connection. *[choice]* Clear the list, which is exact and simpler.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
