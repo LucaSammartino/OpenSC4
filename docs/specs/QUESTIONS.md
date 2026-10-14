@@ -2101,7 +2101,11 @@ answer is in brackets.
   - One rounding from the exact value; the bracket matches: `-16777217` gives −16,777,216.0.
   - A Sint64 scalar rounds twice (to the stored double, then to Float32). The two differ only above 2⁵³ in magnitude:
     −(2⁵⁴ + 2³⁰ + 1) gives −(2⁵⁴ + 2³¹) from text, but −2⁵⁴ from a scalar.
-- **EX26:** a Bool scalar's "leading spaces trimmed": spaces only, or tabs too? [spaces only]
+- ~~**EX26:** a Bool scalar's "leading spaces trimmed": spaces only, or tabs too? [spaces only]~~ **ANSWERED
+  2026-10-14** from the exe (the Bool branch of `InterpretEntry` 0x0067E780 calls `cRZString::LTrim` 0x0090E869, whose
+  character set at 0x00ACE73C is space and tab) and written into data-formats §4.3 (`Bool`).
+  - Spaces **and tabs**, the same trim as array values. The bracket differs: a value starting with a tab before `true`
+    reads as true.
 - **EX27:** a String value is "trimmed" of what? [spaces and tabs]
 - **EX28 — EX8:** a Float32 signalling NaN as text? [the x87 load quiets it: `1.#QNAN`; a Float64 sNaN gives
   `1.#SNAN`]

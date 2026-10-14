@@ -387,7 +387,9 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
 
     Shipped text Float32 values are small integers, which are exact. *[inferred: text exemplars are read on the
     main thread at 24-bit precision; at 53-bit precision `0.05` would give `0x3D4CCCCD`]*
-  - `Bool`: lower-cased, leading spaces trimmed; true exactly when it begins with `true` (`1` gives false);
+  - `Bool`: leading spaces **and tabs** trimmed, lower-cased; true exactly when it begins with `true` (`1` gives
+    false). The trim is `cRZString::LTrim` (`0x0090E869`), whose set is space and tab (`0x00ACE73C`), the same as
+    for array values (EX26). So `{\ttrue}` (a tab) is true;
   - `String`: everything up to the first `}`, trimmed, then one leading `"` and one trailing `"` removed. A string
     cannot contain `}` *[quirk]*.
 - The reader does not check that the number of values matches `reps`, and there is **no cap** on `reps`
