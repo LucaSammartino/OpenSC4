@@ -1449,8 +1449,11 @@ shadow's current answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`0x006CF720`): **the bracket matches.** It walks the connection list from
   the head in append order and returns the first with type `t`, visited bit clear and other-side city `city` (no
   AddRef), the same order as `GetConnectionsOfTypeToCity`. Written into power.md §6.5.
-- **PW2:** the log date for SimNewDay, SimIdle and SimNewMonth comes from the message's `data1` as a julian date.
-  Does SimIdle's `data1` carry the date? [assumed]
+- ~~**PW2:** the log date for SimNewDay, SimIdle and SimNewMonth comes from the message's `data1` as a julian date.
+  Does SimIdle's `data1` carry the date? [assumed]~~ **ANSWERED 2026-10-14** from the exe (`SimulateIdleTime`
+  `0x00702E38`, `SimulateAgents` `0x007038E7`): **the bracket matches.** Both read the simulator date's number
+  (`GetSimDateNumber`, julian day) once per call and pass it as `data1` of every agent message, SimIdle included.
+  Written into power.md §4.3.
 - **PW3:** the pass import, export and demand are not saved. What does the original hold after a load, before its
   first state 0? [counted as `not_exact` until then]
 - **PW4:** `brokenFraction` is not saved; the shadow starts it at 0. The original's value after a load? [0]

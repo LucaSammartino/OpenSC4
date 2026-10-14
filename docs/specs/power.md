@@ -235,6 +235,12 @@ month time is produced by a later month agent in the same month *[inferred]*.
 
 `DoMessage` always returns **true** (finished) for every message *[compat]*.
 
+All three carry `data1` = the simulator's current date number, the julian day of `GetSimDateNumber` (`0x00703D40`,
+the date object's slot 26) (PW2). The agent loop reads it once per `SimulateAgents` call (`0x007038E7`; the
+message ID is `0x66956810 + level`, `data2` = 0), and the idle loop once per `SimulateIdleTime` call
+(`0x00702E38`), so every idle agent of one frame gets the same date (simulator.md §5.3, §5.4). The power
+simulator itself does not read `data1`.
+
 ## 5. Messages handled
 
 | Message | Action |
