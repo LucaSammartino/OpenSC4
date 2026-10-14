@@ -375,7 +375,10 @@ S × N bytes          interleaved vertices
 ```
 
 - The block keeps (format, S, N, data). Its bounding box is **computed** from the first three floats of each vertex
-  (step S; `0x00801040`); there is no bounding box in the file.
+  (step S; `0x00801040`); there is no bounding box in the file. The pass reads those floats whatever the format
+  holds (FS9): a format with no position is boxed on the first 12 bytes of each vertex, and with S < 12 the last
+  vertex reads 12 − S bytes past the block's data. FreeCity4 rejects S < 12 and boxes a position-less format with
+  S ≥ 12 the same way *[choice]*.
 - At draw time the vertex pointer is set with stride 0, so the renderer uses the **standard** stride of the format,
   not S (`RenderMesh` `0x007D4A80`, `InterleavedArrays` `0x00881EC0`). A legacy block whose S differs from the
   standard stride is read with S and drawn with the standard one *[quirk]*. Every shipped legacy block has format 2

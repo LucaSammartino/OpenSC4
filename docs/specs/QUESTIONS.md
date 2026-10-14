@@ -2911,8 +2911,12 @@ variant (GF3). The current answer is in brackets.
   **ANSWERED 2026-10-14**: no original behaviour; the original never decodes pixels on the CPU, and the GPU does
   the DXT interpolation. The implementer's choice (round down, as for DXT1) stands; noted in graphics-formats §2.11.
   No DXT5 entry is shipped.
-- **FS9:** A vertex format with stride below 12, or with no position, while the bounding box reads 3 floats per
-  vertex. [stride < 12 is rejected; no position with stride ≥ 12 is accepted and its box uses the first 12 bytes]
+- ~~**FS9:** A vertex format with stride below 12, or with no position, while the bounding box reads 3 floats per
+  vertex. [stride < 12 is rejected; no position with stride ≥ 12 is accepted and its box uses the first 12 bytes]~~
+  **ANSWERED 2026-10-14** from the exe (bounding box `0x00801040`: three floats at each vertex start, step S, no
+  format test) and written into graphics-formats §3.4. The original boxes the first 12 bytes of each vertex whatever the
+  format, so with S < 12 the last vertex reads past the vertex data. The bracket (reject S < 12; accept no position with
+  S ≥ 12 and box its first 12 bytes) matches where the original is defined.
 - **FS10:** A legacy VERT stride S below the format's standard stride, or a legacy block with an unknown format. [both
   rejected]
 - **FS11:** PROP is "sorted after reading", but the sort key is not given. [file order kept]
