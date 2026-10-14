@@ -12,14 +12,18 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 // Pure logic of the test-harness switches (sim_turbo, autotest_end_date,
-// script): dates, rates. Header-only and free of Windows and game calls, so
+// script): dates, rates, the end-date rule, the script parser and its
+// schedule. Header-only and free of Windows and game calls, so
 // tests/harness_logic_test.cpp checks it directly. Tooling only; no spec
 // behaviour.
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace fc4 {
 namespace harness {
@@ -146,6 +150,260 @@ inline void FormatRunFigures(int32_t julian, bool started, uint32_t elapsedMs, u
         std::snprintf(out->daysPerSecond, sizeof(out->daysPerSecond), "-");
     }
 }
+
+// ---- script = <path>: the parser and the schedule ----------------------------------------------------
+//
+// One action per line, `YYYY-MM-DD <action> <args>`; `#` starts a comment
+// anywhere on a line ([choice] also inside a mark's text); blank lines and
+// comment lines are skipped; tokens are separated by spaces or tabs; action
+// names are case-insensitive ([choice]). Actions:
+//   zone x0 z0 x1 z1 type     PlaceZone, commit = 1 (type 0..15, zones.md §2)
+//   pricezone x0 z0 x1 z1 type  the same, commit = 0 (a dry run)
+//   dezone x0 z0 x1 z1        PlaceZone type 0, commit = 1
+//   speed 0|1|2               SetSimSpeed (turtle, llama, cheetah)
+//   pause | resume            one Pause / Resume call
+//   turbo on|off              our simulator's turbo clock (FC4Turbo.h)
+//   digest                    the observer's DIGEST line now
+//   mark <text>               a log line with the text
+// Coordinates are whole numbers 0..kScriptMaxCell with x0 <= x1 and z0 <= z1
+// ([choice]: a reversed rectangle is an error, not swapped).
+
+enum class ScriptOp { Zone, PriceZone, Dezone, Speed, Pause, Resume, Turbo, Digest, Mark };
+
+constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
+
+inline const char* ScriptOpName(ScriptOp op) {
+    switch (op) {
+        case ScriptOp::Zone: return "zone";
+        case ScriptOp::PriceZone: return "pricezone";
+        case ScriptOp::Dezone: return "dezone";
+        case ScriptOp::Speed: return "speed";
+        case ScriptOp::Pause: return "pause";
+        case ScriptOp::Resume: return "resume";
+        case ScriptOp::Turbo: return "turbo";
+        case ScriptOp::Digest: return "digest";
+        case ScriptOp::Mark: return "mark";
+    }
+    return "?";
+}
+
+struct ScriptAction {
+    int32_t line = 0;    // 1-based line in the file
+    Date date;
+    int32_t julian = 0;  // of `date`
+    ScriptOp op = ScriptOp::Mark;
+    int32_t x0 = 0, z0 = 0, x1 = 0, z1 = 0;  // zone, pricezone, dezone
+    int32_t type = 0;                        // zone, pricezone (dezone: 0)
+    int32_t speed = 0;                       // speed
+    bool on = false;                         // turbo
+    std::string text;                        // mark; the arguments as written for the others
+};
+
+struct ScriptError {
+    int32_t line = 0;
+    std::string message;
+};
+
+struct ParsedScript {
+    std::vector<ScriptAction> actions;  // file order
+    std::vector<ScriptError> errors;    // file order; any error refuses the script
+};
+
+namespace detail {
+
+inline bool IsBlank(char c) { return c == ' ' || c == '\t'; }
+
+inline std::string TrimBlank(const std::string& s) {
+    size_t a = 0, b = s.size();
+    while (a < b && (IsBlank(s[a]) || s[a] == '\r')) ++a;
+    while (b > a && (IsBlank(s[b - 1]) || s[b - 1] == '\r')) --b;
+    return s.substr(a, b - a);
+}
+
+inline std::string Lower(std::string s) {
+    for (char& c : s) {
+        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+    }
+    return s;
+}
+
+// A whole number 0..max, decimal digits only.
+inline bool ParseCount(const std::string& s, int32_t max, int32_t* out) {
+    if (s.empty() || s.size() > 9) return false;
+    int32_t v = 0;
+    for (char c : s) {
+        if (c < '0' || c > '9') return false;
+        v = v * 10 + (c - '0');
+    }
+    if (v > max) return false;
+    *out = v;
+    return true;
+}
+
+}  // namespace detail
+
+// Parses one line (no line end). Returns false with `*error` set for a bad
+// line; true with `*has` = false for a blank or comment line.
+inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction* out, bool* has, std::string* error) {
+    *has = false;
+    std::string line = raw;
+    const size_t hash = line.find('#');
+    if (hash != std::string::npos) line.erase(hash);
+    line = detail::TrimBlank(line);
+    if (line.empty()) return true;
+    std::vector<std::string> tok;
+    std::vector<size_t> at;  // where each token starts (a mark keeps its text as written)
+    for (size_t i = 0; i < line.size();) {
+        while (i < line.size() && detail::IsBlank(line[i])) ++i;
+        if (i >= line.size()) break;
+        const size_t s = i;
+        while (i < line.size() && !detail::IsBlank(line[i])) ++i;
+        tok.push_back(line.substr(s, i - s));
+        at.push_back(s);
+    }
+    ScriptAction a;
+    a.line = lineNo;
+    if (!ParseIsoDate(tok[0], &a.date)) {
+        *error = "'" + tok[0] + "' is not a date YYYY-MM-DD";
+        return false;
+    }
+    a.julian = JulianFromCivil(a.date.year, a.date.month, a.date.day);
+    if (tok.size() < 2) {
+        *error = "a date with no action";
+        return false;
+    }
+    const std::string name = detail::Lower(tok[1]);
+    const size_t nargs = tok.size() - 2;
+    a.text = nargs > 0 ? detail::TrimBlank(line.substr(at[2])) : std::string();
+    auto wantArgs = [&](size_t n, const char* usage) {
+        if (nargs == n) return true;
+        char b[160];
+        std::snprintf(b, sizeof(b), "%s takes %u argument(s) (%s), not %u", name.c_str(), static_cast<unsigned>(n),
+                      usage, static_cast<unsigned>(nargs));
+        *error = b;
+        return false;
+    };
+    auto rect = [&]() {
+        static const char* const kNames[4] = {"x0", "z0", "x1", "z1"};
+        int32_t* const dst[4] = {&a.x0, &a.z0, &a.x1, &a.z1};
+        for (int i = 0; i < 4; ++i) {
+            if (!detail::ParseCount(tok[2 + i], kScriptMaxCell, dst[i])) {
+                char b[160];
+                std::snprintf(b, sizeof(b), "%s '%s' is not a cell coordinate 0..%d", kNames[i], tok[2 + i].c_str(),
+                              kScriptMaxCell);
+                *error = b;
+                return false;
+            }
+        }
+        if (a.x0 > a.x1 || a.z0 > a.z1) {
+            char b[160];
+            std::snprintf(b, sizeof(b), "the rectangle %d,%d..%d,%d is reversed (x0 <= x1 and z0 <= z1 needed)", a.x0,
+                          a.z0, a.x1, a.z1);
+            *error = b;
+            return false;
+        }
+        return true;
+    };
+    if (name == "zone" || name == "pricezone") {
+        a.op = name == "zone" ? ScriptOp::Zone : ScriptOp::PriceZone;
+        if (!wantArgs(5, "x0 z0 x1 z1 type") || !rect()) return false;
+        if (!detail::ParseCount(tok[6], 15, &a.type)) {
+            *error = "zone type '" + tok[6] + "' is not 0..15";
+            return false;
+        }
+    } else if (name == "dezone") {
+        a.op = ScriptOp::Dezone;
+        if (!wantArgs(4, "x0 z0 x1 z1") || !rect()) return false;
+        a.type = 0;
+    } else if (name == "speed") {
+        a.op = ScriptOp::Speed;
+        if (!wantArgs(1, "0, 1 or 2")) return false;
+        if (!detail::ParseCount(tok[2], 2, &a.speed)) {
+            *error = "speed '" + tok[2] + "' is not 0, 1 or 2";
+            return false;
+        }
+    } else if (name == "pause" || name == "resume" || name == "digest") {
+        a.op = name == "pause" ? ScriptOp::Pause : name == "resume" ? ScriptOp::Resume : ScriptOp::Digest;
+        if (!wantArgs(0, "none")) return false;
+    } else if (name == "turbo") {
+        a.op = ScriptOp::Turbo;
+        if (!wantArgs(1, "on or off")) return false;
+        const std::string v = detail::Lower(tok[2]);
+        if (v != "on" && v != "off") {
+            *error = "turbo '" + tok[2] + "' is not on or off";
+            return false;
+        }
+        a.on = v == "on";
+    } else if (name == "mark") {
+        a.op = ScriptOp::Mark;
+        if (nargs == 0) {
+            *error = "mark takes a text";
+            return false;
+        }
+    } else {
+        *error = "unknown action '" + tok[1] + "' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark)";
+        return false;
+    }
+    *out = a;
+    *has = true;
+    return true;
+}
+
+// Parses a whole file: every line, every error (with its line number).
+inline ParsedScript ParseScript(const std::string& text) {
+    ParsedScript p;
+    int32_t lineNo = 0;
+    size_t from = 0;
+    while (from <= text.size()) {
+        size_t end = text.find('\n', from);
+        if (end == std::string::npos) end = text.size();
+        ++lineNo;
+        std::string line = text.substr(from, end - from);
+        if (lineNo == 1 && line.size() >= 3 && static_cast<unsigned char>(line[0]) == 0xEF &&
+            static_cast<unsigned char>(line[1]) == 0xBB && static_cast<unsigned char>(line[2]) == 0xBF) {
+            line.erase(0, 3);  // a UTF-8 byte order mark
+        }
+        ScriptAction a;
+        bool has = false;
+        std::string error;
+        if (!ParseScriptLine(line, lineNo, &a, &has, &error)) {
+            p.errors.push_back(ScriptError{lineNo, error});
+        } else if (has) {
+            p.actions.push_back(a);
+        }
+        if (end == text.size()) break;
+        from = end + 1;
+    }
+    return p;
+}
+
+// The actions in run order: by date, then file order ([choice] also for
+// actions of different past dates that fall due at the same new day). Each
+// runs once, at the first new day on or after its date.
+class ScriptSchedule {
+public:
+    void Load(std::vector<ScriptAction> actions) {
+        std::stable_sort(actions.begin(), actions.end(),
+                         [](const ScriptAction& a, const ScriptAction& b) { return a.julian < b.julian; });
+        actions_ = std::move(actions);
+        next_ = 0;
+    }
+    // The actions due at the new day `julian` (not run before), in run
+    // order; they count as run from here.
+    std::vector<const ScriptAction*> Due(int32_t julian) {
+        std::vector<const ScriptAction*> due;
+        while (next_ < actions_.size() && actions_[next_].julian <= julian) due.push_back(&actions_[next_++]);
+        return due;
+    }
+    size_t Size() const { return actions_.size(); }
+    size_t Remaining() const { return actions_.size() - next_; }
+    const ScriptAction* First() const { return actions_.empty() ? nullptr : &actions_.front(); }
+    const ScriptAction* Last() const { return actions_.empty() ? nullptr : &actions_.back(); }
+
+private:
+    std::vector<ScriptAction> actions_;
+    size_t next_ = 0;
+};
 
 }  // namespace harness
 }  // namespace fc4
