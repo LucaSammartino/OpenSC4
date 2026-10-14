@@ -506,7 +506,10 @@ vectors `nb18_*`). The core's current answer is in brackets.
   the exe (`0x006D01E0`): the original collects into a `std::set<cISC4RegionalCity*>` with `std::less`, so the order
   is ascending heap address, which cannot be reproduced. The *[choice]* stands. The order mainly affects list and
   message order; the one effect on values is in `ProposeDeals(…, true)` (neighbors.md §9.1).
-- **NB15:** without a current regional city, the UpdateState budget test is skipped. [skipped]
+- ~~**NB15:** without a current regional city, the UpdateState budget test is skipped. [skipped]~~ **ANSWERED
+  2026-10-14** from the exe (`0x006CF360`): for a buy deal the original dereferences the missing regional city and
+  **crashes** (`0x006CF386`); sell deals never use it. Skipping is kept as a *[choice]*. The test is `cost > budget`,
+  and an affordable buy deal then goes on to the connection test (neighbors.md §7.3).
 - **NB16:** a missing payer at renewal counts as "cannot afford". [yes]
 - **NB17:** the return types of `RequestCreateConnection` and `CreateConnection`. [choice: the request returns
   `ConnectionRequest`, `CreateConnection` the new connection or null]

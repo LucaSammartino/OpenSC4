@@ -491,6 +491,18 @@ busy := false
 `grace` and `probation` are the tuning values `0x6B588FAD` and `0x8B58C59E` in days (90 and 90). Dates compare
 as Julian days; "today" is the simulator date.
 
+**`UpdateState` in detail** (`0x006CF360`):
+
+- `R` comes from the region (its current regional record).
+- For a **buy** type it compares `cost` (int64, loaded exactly) with `R.GetBudget()`. It sets CannotAfford when
+  `cost > budget`; equal, or a NaN budget, does not set it. It then returns **without** the connection test.
+- Otherwise (a sell type, or an affordable buy) it sets NoConnection when the other-side city is missing or when
+  the neighbours simulator (the global pointer, not `this`) finds no suitable connection.
+
+*No current regional city* (NB15): `R` is used without a null check. A **buy** deal crashes the original at
+`0x006CF386`. A sell deal never touches `R`. *[choice]* FreeCity4 skips the budget test and goes on to the
+connection test.
+
 Consequences: a failing deal survives one grace period (90 days) during which failures are ignored, then a
 probation period (90 days) during which any failure ends it. Expired deals renew automatically for the same span
 if the payer can afford the updated cost. The checks in step 1 run every time; for **sell** deals the
