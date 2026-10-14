@@ -601,8 +601,11 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   matches, the second does not.** A key resolves if a resource cache already holds it, or if a factory is
   registered for its type, a loaded package holds the record, and the factory's read succeeds. Index presence
   alone is not enough. Any type with a factory counts, not only exemplars and cohorts (data-formats.md §4.6).
-- **EX16:** shipped data: `Plugin_002_TheLivingMall.dat` writes `Uint8:0:{}` for two LotConfig properties, now read
-  as a scalar 0 (§4.3). Intended? [scalar 0]
+- ~~**EX16:** shipped data: `Plugin_002_TheLivingMall.dat` writes `Uint8:0:{}` for two LotConfig properties, now read
+  as a scalar 0 (§4.3). Intended? [scalar 0]~~ **ANSWERED 2026-10-14** from the exe (`0x0067E780`, `0x005FFB40`):
+  **the bracket matches.** The original stores a scalar Uint8 0. Both readers of these properties use a byte-list
+  getter that copies `GetCount()` bytes, 0 for a scalar, so the lot gets no wealth or purpose types. That is
+  the same as an empty array, so the difference is not observable (data-formats.md §4.3).
 - **EX17:** slot 5 `GetProperty(id, void*, uint32&)`: what type does the caller request? [not implemented]
 - **EX18:** are §10.3 tests 18–22 (resource-manager load order) in scope for `engine/formats`? [out of scope]
 - **EX19:** how is depth counted for `MAX_PARENT_DEPTH`? [at most 32 nested loads below the record; a record that

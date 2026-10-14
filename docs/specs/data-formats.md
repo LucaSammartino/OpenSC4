@@ -398,6 +398,13 @@ PropCount=0x00000016
 0x27812810:{"Occupant Size"}=Float32:3:{80,52,80}
 ```
 
+Its lot configuration writes `LotConfigPropertyWealthTypes` (`0x88EDC795`) and `LotConfigPropertyPurposeTypes`
+(`0x88EDC796`) as `Uint8:0:{}`, which reads as a **scalar** Uint8 0 (rule N on `}` gives 0). That is what the
+original stores, and it is not observable as different from an empty array. Both readers (`0x0047A16C`,
+`0x0060F710`) use the byte-list getter `0x005FFB40`, which copies `GetCount()` bytes from the raw data
+pointer (§5.2), and `GetCount()` is 0 for a scalar. So the lot gets **no** wealth or purpose types.
+`Uint8:1:{}` would instead give one type, 0.
+
 ### 4.4 Parents and inheritance *[compat]*
 
 Each exemplar or cohort keeps two property lists, both sorted by ascending unsigned property ID:
