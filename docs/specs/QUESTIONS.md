@@ -2702,7 +2702,11 @@ shadow's riot roll (wall-clock RNG). The current answer is in brackets.
   residential-education-health §4.8. Slot 22 uses E like slot 21. Slots 36, 38 and 44 divide by the R$ **HQ** grid's own
   tract size, not an EQ grid's and not E. The bracket (E) matches slot 22 only; as in AQ2, the difference shows only in
   a hand-made save.
-- **AQ4:** FQ3 save: is flag 1 toggled only when the obliteration record opens? [yes]
+- ~~**AQ4:** FQ3 save: is flag 1 toggled only when the obliteration record opens? [yes]~~
+  **ANSWERED 2026-10-14** from the exe (`cSC4FloraSimulator::SaveObliterated` `0x006B2760`: open test `0x006B2886`,
+  clear, write and set `0x006B2890`–`0x006B28AB`, release `0x006B28B2`) and written into flora §10.3. Yes: the flag is
+  cleared and set again only in the branch taken when the record opened. The occupant's list reference is released
+  either way. The bracket matches.
 - **AQ5:** FQ3 restore: is the record closed right after `Read`, before `Init` and `InsertOccupant`? [yes]
 - **AQ6:** FQ3: a failed `GetUint32` of the count. [the count stays 0]
 - **AQ7:** FQ6: is the 64 m listing clamped to 0..191? [not clamped; only the query is]

@@ -863,8 +863,10 @@ and then flora slot 24 `SaveObliterated(segment)`:
 
 - record key (type `0xC9BB3FC6`, group `0xC9BB3FC7`, instance 1): `u32 count` of all flora occupants
   (`GetOccupantsByOccupantManagerCells(null, null, type flora)`);
-- for each occupant `i` (list order): record (`0xC9BB3FC6`, `0x4A664F83`, `i`): the occupant clears its flag 1,
-  writes its own serialized form (`cIGZSerializable::Write`), then sets flag 1 again.
+- for each occupant `i` (list order): record (`0xC9BB3FC6`, `0x4A664F83`, `i`): the occupant clears its flag 1, writes
+  its own serialized form (`cIGZSerializable::Write`), then sets flag 1 again. All three happen only when the record
+  opened (AQ4; test `0x006B2886`, calls `0x006B2890`–`0x006B28AB`), so an occupant whose record does not open keeps
+  its flags. Its list reference is released either way (`0x006B28B2`).
 
 The replacement city's `Init` finds the segment in `SC4NewCitySpecification` (§4.1 step 12) and, if the occupant
 manager exists: reads the count; for each `i < count` whose record opens: create a `cSC4FloraOccupant`, `Read`
