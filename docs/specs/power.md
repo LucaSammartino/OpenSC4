@@ -450,6 +450,11 @@ agePlants: zero the overworked, aged and distressed counts, agePlants := false, 
 *[quirk]* On a shortfall the whole remaining availability counts as consumed. A block with zero need is powered
 only while `avail ≠ 0`.
 
+**Block count** (PW6). The block rectangle is at most `CellCountX / 8` wide and as many high, so a 256-cell city has
+at most 32 × 32 = 1,024 blocks (64: 64; 128: 256). The iterator's start is `rand() mod count` with `rand()` in
+0…32,767 (foundations §12), so every start is reachable, and a count above 32,768 cannot occur. If it did, the
+starts from 32,768 up could never be drawn.
+
 ### 6.4 Helpers of §6.3
 
 **`IsNeighborConnected(city, markVisited, light)`** → bool: for each PowerPole connection to `city`

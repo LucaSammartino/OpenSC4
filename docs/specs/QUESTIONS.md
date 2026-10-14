@@ -1469,8 +1469,11 @@ shadow's current answer is in brackets.
   zoned cells inside the rect. A cell of the smaller rect wired only by a zoned cell that only the larger rect
   holds loses its bit with the smaller one. *[choice]*: take the rect our simulator merges from the same messages.
   Written into power.md §5.3 with an example.
-- **PW6:** the shortfall block probe tries starts 0 to min(count, 32768), assuming one `rand()` of at most 0x7FFF.
-  True for networks with more than 32768 blocks?
+- ~~**PW6:** the shortfall block probe tries starts 0 to min(count, 32768), assuming one `rand()` of at most 0x7FFF.
+  True for networks with more than 32768 blocks?~~ **ANSWERED 2026-10-14** from the spec's block rectangle and the
+  C `rand()` (foundations §12): such networks cannot exist. The block count is at most (256 / 8)² = 1,024, and the
+  start is one `rand() mod count` with `rand()` ≤ 0x7FFF, so the probe range is right and covers every start.
+  Written into power.md §6.3.
 - **PW7 — §7.5:** the ordinance factor is read live when the shadow starts, then each month. Does the original read
   it anywhere else (at load, on an ordinance change)?
 - Not compared (cannot be read without changing the game): posted messages, history values, budget line items,
