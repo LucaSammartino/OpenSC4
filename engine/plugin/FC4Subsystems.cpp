@@ -52,6 +52,8 @@
 #include "cFC4Neighbors.h"
 #include "cFC4Development.h"
 #include "cFC4GrowthDeveloper.h"
+#include "FC4TractShadow.h"
+#include "cFC4TractDeveloper.h"
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
 
@@ -211,6 +213,13 @@ const ClassEntry kDevelopmentClasses[] = {
     {kFC4_CLSID_cSC4GrowthDeveloper, "cSC4GrowthDeveloper", &CreateFC4GrowthDeveloper},
 };
 
+// docs/specs/tract-developer.md §1. Off by default (M4 glue trial):
+// `enable = tract`. The BDS, the growth developers, the lot developer, the
+// lot manager and the lot configuration manager stay whoever the city runs.
+const ClassEntry kTractClasses[] = {
+    {kFC4_CLSID_cSC4TractDeveloper, "cSC4TractDeveloper", &CreateFC4TractDeveloper},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -235,6 +244,7 @@ const Subsystem kSubsystems[] = {
     {"neighbors", nullptr, kNeighborsClasses, sizeof(kNeighborsClasses) / sizeof(kNeighborsClasses[0]), false},
     {"development", nullptr, kDevelopmentClasses, sizeof(kDevelopmentClasses) / sizeof(kDevelopmentClasses[0]),
      false},
+    {"tract", nullptr, kTractClasses, sizeof(kTractClasses) / sizeof(kTractClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -354,6 +364,8 @@ void Resolve() {
     NeighborsShadowStartup(g_enabled[0], enabledKey("neighbors"));
     // The development shadow (FC4DevelopmentShadow.h; it compares the original BDS and growth developers).
     DevelopmentShadowStartup(g_enabled[0], enabledKey("development"));
+    // The tract developer shadow (FC4TractShadow.h; it compares the original tract developer).
+    TractShadowStartup(enabledKey("tract"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.

@@ -36,6 +36,7 @@ SDK = os.path.join(ENGINE, "third_party", "gzcom-dll", "gzcom-dll", "include")
 FC4 = os.path.join(ENGINE, "plugin", "FC4Interfaces.h")
 FC4C = os.path.join(ENGINE, "plugin", "FC4CrimeInterfaces.h")
 FCD = os.path.join(ENGINE, "plugin", "FC4DevelopmentInterfaces.h")
+FC4T = os.path.join(ENGINE, "plugin", "FC4TractInterfaces.h")
 
 # (table interface, class, header, required)
 #   required = the plugin implements or calls the interface through this
@@ -231,6 +232,10 @@ INTERFACES = [
     ("cISC4ZoneDeveloper", "cISC4ZoneDeveloper", "cISC4ZoneDeveloper.h", True),
     # Crime type names (crime.md section 7 step 3; lua-host.md section 10.1).
     ("cISCStringDetokenizer", "cFC4ISCStringDetokenizer", FC4C, True),
+    # The tract developer (docs/specs/tract-developer.md section 8): the lot
+    # configuration manager through the compiled slot order (slot 9's set is
+    # the game's hash_set; the SDK row above stays for other glue's calls).
+    ("cISC4LotConfigurationManager", "cFC4ISC4LotConfigurationManager", FC4T, True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),

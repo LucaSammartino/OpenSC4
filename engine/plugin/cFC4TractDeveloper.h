@@ -15,7 +15,7 @@
 // CLSID 0x2990C142, city component 17). The model lives in the Rust core
 // behind fc4.h (fc4_tract); this class implements the three interfaces of §7
 // in the compiled slot order and return channels of §7.1
-// (FC4TractInterfaces.h cFC4ISC4TractDeveloper) and the host callbacks over
+// (FC4DevelopmentInterfaces.h cFC4ISC4TractDeveloper) and the host callbacks over
 // the game's services (§8, FC4TractHost.cpp). The BDS, the growth
 // developers, the lot developer, the lot manager and the lot configuration
 // manager stay the game's (or whoever the city runs): they are reached only
@@ -110,13 +110,20 @@ struct TractContext {
     const fc4_tract_host* test = nullptr;
     cISC4LotConfigurationManager* testConfigs = nullptr;
     // References taken for one top-level call into the core (the lots and
-    // configurations its lists gave), released when it returns; BuildFarm's
-    // lot lists (§4.15.2, one list appended across calls; GameList<cISC4Lot*>*).
+    // configurations its lists gave, a created lot), released when it
+    // returns; the lots it deleted (DeleteLot), kept alive until then and
+    // released as objects whose last reference may be ours; BuildFarm's lot
+    // lists (§4.15.2: one list appended across calls, begun at each
+    // GetLotsSurroundingRect with flags 1).
     std::vector<cIGZUnknown*> held;
-    std::vector<void*> farmLists;
+    std::vector<cIGZUnknown*> deleted;
+    std::vector<fc4::GameList<cISC4Lot*, fc4::TractNodeAllocator>*> farmLists;
     // Observability (the status lines): calls made since construction.
     uint32_t filtersRegistered = 0, filtersUnregistered = 0, filtersRefused = 0;
-    uint32_t listsRefused = 0;  // game lists / sets not made (no allocator B)
+    uint32_t listsRefused = 0;     // game lists / sets not made (no allocator B)
+    uint32_t roadsRefused = 0;     // GetRequiredRoads results not read (unexpected layout)
+    uint32_t mapsRefused = 0;      // style maps not read (inconsistent)
+    uint32_t exemplarMisses = 0;   // building exemplars not found (occupant groups, monopoly, fields)
 };
 
 // The host table over `ctx` (the tract developer's).
@@ -143,8 +150,10 @@ void TractMonthLine(int32_t julian);
 // counted (AddRef / Release return 1), QueryInterface answers nothing.
 class cFC4TractFilter final : public cISC4LotConfigurationFilter {
 public:
-    cFC4TractFilter(const fc4_tract_host* host, uint32_t wealth, uint32_t purpose)
-        : host_(host), wealth_(wealth), purpose_(purpose) {}
+    cFC4TractFilter(const fc4_tract_host* host, uint32_t wealth, uint32_t purpose);
+    ~cFC4TractFilter();
+    cFC4TractFilter(const cFC4TractFilter&) = delete;
+    cFC4TractFilter& operator=(const cFC4TractFilter&) = delete;
     bool QueryInterface(uint32_t riid, void** ppvObj) override;
     uint32_t AddRef() override;
     uint32_t Release() override;
@@ -154,9 +163,11 @@ public:
     static long Live();  // filters allocated and not yet freed (tests)
 
 private:
-    const fc4_tract_host* host_;
+    // {vtable, wealth, purpose} as the original's (§4.6), then the table the
+    // filter reads configurations through.
     uint32_t wealth_;
     uint32_t purpose_;
+    const fc4_tract_host* host_;
 };
 
 class cFC4TractDeveloper final : public cFC4ISC4TractDeveloper, public cIGZMessageTarget2, public cIGZSerializable {
@@ -172,15 +183,15 @@ public:
     // cISC4TractDeveloper as compiled (§7.1)
     bool Init() override;
     bool Shutdown() override;
-    int32_t Grow(GrowthProfile const& profile, fc4::TractOutcomeList& outcomes, bool& outFlag) override;
-    int32_t Decline(GrowthProfile const& profile) override;
-    int32_t UpdatePopulation(GrowthProfile const& profile) override;
-    int32_t GetCurrentStyle() override;
-    fc4::TractStyleVector& GetActiveStyles() override;
-    intptr_t SetActiveStyles(fc4::TractStyleVector const& styles) override;
-    bool IsUsingAllStylesAtOnce() override;
+    int32_t Grow(FC4GrowthProfile const& profile, fc4::GameList<int32_t>& outcomes, bool& outFlag) override;
+    int32_t Decline(FC4GrowthProfile const& profile) override;
+    int32_t UpdatePopulation(FC4GrowthProfile const& profile) override;
+    int32_t GetCurrentStyle() const override;
+    fc4::GameVector<uint32_t>& GetActiveStyles() override;
+    intptr_t SetActiveStyles(fc4::GameVector<uint32_t> const& styles) override;
+    bool IsUsingAllStylesAtOnce() const override;
     cFC4ISC4TractDeveloper* UseAllStylesAtOnce(bool all) override;
-    int32_t GetYearsBetweenStyleChanges() override;
+    int32_t GetYearsBetweenStyleChanges() const override;
     cFC4ISC4TractDeveloper* SetYearsBetweenStyleChanges(int32_t years) override;
 
     // cIGZMessageTarget2 (§3)

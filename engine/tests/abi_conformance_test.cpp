@@ -41,6 +41,7 @@
 #include "FC4CrimeInterfaces.h"
 #include "FC4DevelopmentInterfaces.h"
 #include "FC4Interfaces.h"
+#include "FC4TractInterfaces.h"
 
 #include "SC4Vector.h"
 #include "cIGZPersistResourceKeyList.h"

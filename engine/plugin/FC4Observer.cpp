@@ -30,6 +30,8 @@
 #include "FC4Watchdog.h"
 #include "FC4ZonesShadow.h"
 #include "cFC4ZoneManager.h"
+#include "FC4TractShadow.h"
+#include "cFC4TractDeveloper.h"
 #include "cFC4Message2Standard.h"
 #include "fc4.h"
 
@@ -538,6 +540,7 @@ public:
                 PopupDialogsOnCityLoad();
                 AuraShadowCityLoaded(CurrentCity());  // aura_shadow = 1 only
                 ZonesShadowCityLoaded(CurrentCity());  // zones_shadow = 1 only
+                TractShadowCityLoaded(CurrentCity());  // tract_shadow = 1 only
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
@@ -581,6 +584,8 @@ public:
                 ProtectionShadowMonth(CurrentCity(), julian);  // protection_shadow = 1 only
                 fc4::ZonesMonthLine(julian);                    // enable = zones only (the month status line)
                 ZonesShadowMonth(CurrentCity(), julian);        // zones_shadow = 1 only
+                fc4::TractMonthLine(julian);                    // enable = tract only (the month status line)
+                TractShadowMonth(CurrentCity(), julian);        // tract_shadow = 1 only
                 ++monthsSinceLoad_;
                 if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the

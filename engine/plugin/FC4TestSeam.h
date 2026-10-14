@@ -220,6 +220,7 @@ enum : uint32_t {
     kFC4SeamAuraShadowDeliver = 35,
     kFC4SeamZones = 38,
     kFC4SeamGrowthProbe = 39,
+    kFC4SeamTract = 45,   // the tract developer (cFC4TractDeveloper.h FC4TractTestInput)
     kFC4SeamScript = 46,  // the harness lane
 };
 

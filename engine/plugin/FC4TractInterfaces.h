@@ -16,11 +16,10 @@
 // tests/abi_conformance_test against docs/abi/interfaces.tsv:
 //
 //   cFC4ISC4TractDeveloper            cISC4TractDeveloper (IID 0xA818ED1B),
-//                                     slots 3-14 with the COMPILED return
-//                                     channels of §7.1 (the SDK says bool for
-//                                     slots 5, 6, 7 and 10, and its containers
-//                                     are the service allocator's SC4List /
-//                                     SC4Vector; the game's are B, §9.2).
+//                                     declared once, in FC4DevelopmentInterfaces.h
+//                                     (the development lane calls it, the tract
+//                                     lane implements it): slots 3-14 with the
+//                                     compiled return channels of §7.1.
 //   cFC4ISC4LotConfigurationManager   cISC4LotConfigurationManager (28 slots):
 //                                     the SDK's two AddLotConfiguration
 //                                     overloads under names of their own, slot
@@ -32,10 +31,10 @@
 // (its 4 slots match docs/abi).
 #pragma once
 
+#include "FC4DevelopmentInterfaces.h"
 #include "FC4GameList.h"
 
 #include "cIGZUnknown.h"
-#include "cISC4BuildingDevelopmentSimulator.h"
 
 #include <atomic>
 #include <cstdint>
@@ -44,7 +43,6 @@ class cGZPersistResourceKey;
 class cISC4LotConfiguration;
 class cISC4LotConfigurationFilter;
 class cISC4LotConfigurationManager;
-class cISC4TractDeveloper;
 class cS3DRect2D;
 class cSC4LotConfigurationObject;
 
@@ -86,30 +84,19 @@ struct TractNodeAllocator {
 using TractOutcomeList = GameList<int32_t, TractNodeAllocator>;
 // std::vector<uint32_t> of slots 9 and 10 (B).
 using TractStyleVector = GameVector<uint32_t, TractNodeAllocator>;
+static_assert(sizeof(TractOutcomeList) == sizeof(GameList<int32_t>), "same list layout");
+static_assert(sizeof(TractStyleVector) == sizeof(GameVector<uint32_t>), "same vector layout");
+
+// The interface's containers (allocator B) seen with the tract allocator
+// (B, or the test seam's): the layout does not depend on the allocator, and
+// in the game both allocate from B.
+inline TractOutcomeList& AsTract(GameList<int32_t>& l) { return reinterpret_cast<TractOutcomeList&>(l); }
+inline const TractStyleVector& AsTract(const GameVector<uint32_t>& v) {
+    return reinterpret_cast<const TractStyleVector&>(v);
+}
+inline GameVector<uint32_t>& AsGameB(TractStyleVector& v) { return reinterpret_cast<GameVector<uint32_t>&>(v); }
 
 }  // namespace fc4
-
-// cISC4TractDeveloper as compiled (§7.1, vtable 0x00AB3118). Slot 15, the
-// scalar deleting destructor, is not part of the interface.
-class cFC4ISC4TractDeveloper : public cIGZUnknown {
-public:
-    using GrowthProfile = cISC4BuildingDevelopmentSimulator::GrowthProfile;
-
-    virtual bool Init() = 0;                                                                   // 3  AL
-    virtual bool Shutdown() = 0;                                                               // 4  AL = 1
-    // EAX = the capacity built (int32, may be negative; callers test > 0).
-    virtual int32_t Grow(GrowthProfile const& profile, fc4::TractOutcomeList& outcomes, bool& outFlag) = 0;  // 5
-    virtual int32_t Decline(GrowthProfile const& profile) = 0;                                 // 6  EAX = the sum
-    virtual int32_t UpdatePopulation(GrowthProfile const& profile) = 0;                        // 7  0 (original: garbage)
-    virtual int32_t GetCurrentStyle() = 0;                                                     // 8
-    virtual fc4::TractStyleVector& GetActiveStyles() = 0;                                      // 9  the member vector
-    // EAX = the member vector's address (the original's, from the assignment).
-    virtual intptr_t SetActiveStyles(fc4::TractStyleVector const& styles) = 0;                 // 10
-    virtual bool IsUsingAllStylesAtOnce() = 0;                                                 // 11
-    virtual cFC4ISC4TractDeveloper* UseAllStylesAtOnce(bool all) = 0;                          // 12 `this`
-    virtual int32_t GetYearsBetweenStyleChanges() = 0;                                         // 13
-    virtual cFC4ISC4TractDeveloper* SetYearsBetweenStyleChanges(int32_t years) = 0;            // 14 `this`
-};
 
 // cISC4LotConfigurationManager (vtable 0x00A8EC58, 28 slots).
 class cFC4ISC4LotConfigurationManager : public cIGZUnknown {
@@ -152,6 +139,4 @@ namespace fc4 {
 inline cFC4ISC4LotConfigurationManager* AsGame(cISC4LotConfigurationManager* p) {
     return reinterpret_cast<cFC4ISC4LotConfigurationManager*>(p);
 }
-// The city's tract developer (city slot 80) seen through the compiled slots.
-inline cFC4ISC4TractDeveloper* AsGame(cISC4TractDeveloper* p) { return reinterpret_cast<cFC4ISC4TractDeveloper*>(p); }
 }  // namespace fc4
