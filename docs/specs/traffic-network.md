@@ -295,6 +295,27 @@ It never fails and checks no range: a corner cell such as (−1, −1) reads ind
 in-city cell gets side-3 record x. Every caller passes an off-map edge cell, so neither happens in the game.
 *[choice]* Return an empty record (mask 0, pool 0, cost 0.0) for any other cell.
 
+In full (TN28), the original returns a pointer for every cell:
+
+| Cell | Record returned |
+|---|---|
+| x < 0, any z | side-0 index z. For z = −1 or z = Z this is the 8 bytes before or after the array (heap memory) |
+| x > X−1, any z | side-2 index z, with the same overrun at z = −1 and z = Z |
+| 0 ≤ x ≤ X−1, z < 0 | side-1 index x: the correct record when z = −1 |
+| 0 ≤ x ≤ X−1, z ≥ 0 | side-3 index x. For an in-city cell this is the record of (x, Z), a real record |
+
+So a corner cell reads, and through Add (`0x007153F5`) would write, heap memory. An in-city cell aliases the edge
+record below it, and an Add there would change that record. The callers:
+
+- the pathfinder (`0x006D87ED`), only for a cell off the map;
+- FindNeighborConnection (`0x007104F3`), after its in-city test;
+- Add (`0x007153F5`), with a neighbour connection's cell;
+- the trip end tests at `0x0071C8BC` and `0x0071C934`, only for an off-map trip end.
+
+GetNeighborPoolPropertyHolder repeats the same tests inline (`0x00711500`–`0x0071153E`). Every one of these cells
+is the off-map cell of a neighbour connection, which is always an edge cell next to the map. So the empty record of
+the *[choice]* is never observable against the original. Writes to it must be discarded.
+
 **FindNeighborConnection(t, x, z)** (`0x007104A0`) finds the neighbour connection that a trip of travel type `t`
 uses at an off-map cell. For an in-city cell the result is none. Otherwise let `wanted := connMask(net(t))` (table
 below) and `rec` the cell's record. For connection type `c` = 0…12 in ascending order, with bit `c` set in both

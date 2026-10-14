@@ -2295,7 +2295,16 @@ About PF1–PF15, ZQ4/ZQ7–ZQ10, LF1–LF5 and NB1–NB17 as applied in the cor
   - Unreachable: callers pass −1, 1 or a trip's travel type (0…8).
   - The bracket differs from the literal original for t = 9…30, but as a *[choice]* for an unreachable input it
     stands: `wanted := 0` (t = −1 keeps all bits in the pool lookup). A Ferry record still gets a pool through step 2.
-- **TN28 — §2.7:** `GetTrafficNeighborConnection` for a corner cell or a cell inside the city. [an empty record]
+- ~~**TN28 — §2.7:** `GetTrafficNeighborConnection` for a corner cell or a cell inside the city. [an empty record]~~
+  **ANSWERED 2026-10-14** from the exe (`0x0070F970`; callers 0x006D87ED, 0x007104F3, 0x007153F5, 0x0071C8BC,
+  0x0071C934; inline copy 0x00711500–0x0071153E) and written into traffic-network §2.7.1 (the table after
+  GetTrafficNeighborConnection).
+  - The original always returns a pointer. A corner cell gets index −1 or Z of the side-0 or side-2 array: heap
+    memory just outside it, which Add would write. An in-city cell (x, z) gets side-3 record x, the real record of (x,
+    Z), which it aliases.
+  - Every caller passes the off-map cell of a neighbour connection or of an off-map trip end, after an in-city test
+    where there is one, so neither case is reached.
+  - The bracket stands as a *[choice]* that is never observable: an empty record, with writes to it discarded.
 - ~~**ZQ11 — zones test 33:** a second draft `Place` on the same cell. [the mask bytes are merged (OR); inferred]~~
   **ANSWERED 2026-10-14** from the exe (`PlaceNetworkOccupants` 0x00629210, cache clear only in real mode at
   0x0062932F; record update 0x00633250; edge merge 0x00638160 → 0x00620F00; draft byte 0x0062591E) and written into
