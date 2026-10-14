@@ -488,6 +488,12 @@ is stored as a double, which is exact. So both sums hold exactly the values of `
 - the return value is `_ftol(total)`, truncated toward zero to 64 bits;
 - then, for t = 0..11, `monthlyTax[t] := _ftol(groupTax[t])`.
 
+Both are kept at **64 bits** (BQ7). `_ftol` (`0x009EEF04`) returns EDX:EAX; `ComputeTax` returns both halves
+(`0x006920FF`–`0x00692101`) and stores both halves of each `monthlyTax[t]` (`0x006920DC`–`0x006920DE`). Nothing
+narrows them to 32 bits. Within ±2^63 the result is the exact truncation toward zero; at or beyond it, and for a NaN,
+it is `0x8000000000000000` (the x87 integer indefinite, which `_ftol` passes through). Example: a total of 3.0e9
+(`0x4F32D05E`) returns 3,000,000,000. Its low 32 bits, read as an int32, would be −1,294,967,296.
+
 The total is never built from the lines or from the group sums. It keeps the fractions that the twelve truncations
 drop, so it usually exceeds the sum of the lines by a few simoleons (by less than 12, up to rounding). BQ3's month
 shows this: the lines sum to 4835 and the month's income is 4839. The settlement then adds this 64-bit total to

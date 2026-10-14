@@ -2806,7 +2806,12 @@ in brackets.
   written into budget.md §5.2: the original's slot 15 (`0x00734850`) always registers on its member at `+0x5C`, and
   `ComputeTax` reads no lot manager field itself. With a null owner in the block it visits nothing and frees the block.
   A walk through slot 15 needs only the block and node layout, not the manager's.
-- **BQ7:** BQ3: line and total values outside the int32 range. [the low 32 bits of `_ftol`]
+- ~~**BQ7:** BQ3: line and total values outside the int32 range. [the low 32 bits of `_ftol`]~~
+  **ANSWERED 2026-10-14** from the exe (`_ftol` `0x009EEF04`; return `0x006920FF`–`0x00692101`; group stores
+  `0x006920DC`–`0x006920DE`) and written into budget.md §5.2. The original never narrows: the total and every group's
+  monthly tax are 64-bit `_ftol` results, so values outside the int32 range keep all their bits. Only at or beyond
+  ±2^63, or for a NaN, does it give `0x8000000000000000`. The bracket (low 32 bits) differs above 2^31; *[choice]* carry
+  64 bits, as the original does (recommended). Normal play never reaches 2^31 simoleons a month.
 - **BQ8:** The land value and flammability host tables grew (new last callbacks) without an ABI bump, so a table of
   the old size is now refused by the `struct_size` check. [no bump; refused]
 - **LV5:** LV2: a developer first seen while its slot 10 is false gets no snapshot until slot 10 turns true, so there
