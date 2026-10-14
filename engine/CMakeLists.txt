@@ -255,6 +255,8 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4HarnessLogic.h
         plugin/FC4Turbo.cpp
         plugin/FC4Turbo.h
+        plugin/FC4Script.cpp
+        plugin/FC4Script.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -491,6 +493,11 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME harness_logic_test COMMAND fc4_harness_logic_test)
     add_test(NAME plugin_ini_turbo_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-turbo)
     set_tests_properties(plugin_ini_turbo_test PROPERTIES RUN_SERIAL TRUE)
+    # script = <path> (FC4Script.h): dated actions through a stub zone manager
+    # (the region layout, the arguments, the bits it clears) and our simulator;
+    # a refused script and an unreadable one (test seam op 46).
+    add_test(NAME plugin_ini_script_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-script)
+    set_tests_properties(plugin_ini_script_test PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

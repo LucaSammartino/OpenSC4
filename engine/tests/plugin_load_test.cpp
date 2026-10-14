@@ -7598,6 +7598,264 @@ int TurboIniTest(const std::string& dll, const std::string& ini, const std::stri
     return g_failures == 0 ? 0 : 1;
 }
 
+// ---- the harness lane: script (FC4Script.h) ----------------------------------------------------------------
+
+// SC4CellRegion<long> as it crosses PlaceZone (zones.md §11.4): the inclusive
+// rectangle, then a cRZCellMap<bool> {vtable, width, height, words per row,
+// rows}; bit (dx, dz) is bit dz % 32 of rows[dx][dz / 32].
+struct ScriptRegionLayout {
+    int32_t x1, z1, x2, z2;
+    void* mapVtbl;
+    uint32_t width, height, words;
+    uint32_t** rows;
+};
+static_assert(sizeof(ScriptRegionLayout) == 0x24, "zones.md 11.4: 0x24 bytes");
+
+struct ScriptPlaceCall {
+    int32_t x1, z1, x2, z2;
+    uint32_t width, height, words;
+    bool rows;        // a row array was there
+    uint32_t bitsIn;  // bits set on entry
+    int32_t type;
+    bool commit, skipFunds, checkSlope, skipSize, lotInside;
+    bool outCost, outError, outLots;  // non-null
+};
+
+struct FakeScriptZones {
+    FakeVtable zmVt;
+    FakeObject zm{};
+    std::vector<ScriptPlaceCall> calls;
+};
+FakeScriptZones* g_scriptZones = nullptr;
+
+uint32_t ScriptRegionBits(const ScriptRegionLayout& r) {
+    if (r.rows == nullptr) return 0;
+    uint32_t n = 0;
+    for (uint32_t dx = 0; dx < r.width; ++dx) {
+        for (uint32_t dz = 0; dz < r.height; ++dz) n += (r.rows[dx][dz / 32] >> (dz % 32)) & 1u;
+    }
+    return n;
+}
+
+void* __fastcall ScriptCityGetZoneManager(void*, void*) { return &g_scriptZones->zm; }  // cISC4City 36 (borrowed)
+
+// cISC4ZoneManager 11 PlaceZone (pop 40, AL): records the arguments and the
+// region; then, as the game does (zones.md §13.2), only clears bits: the cell
+// (x1, z1) is "rejected" by a committed zoning of a type other than 0. Type 7
+// fails for funds (error 1). The cost is 10 per cell left set.
+bool __fastcall ScriptZmPlaceZone(void*, void*, void* region, int32_t type, bool commit, bool skipFunds,
+                                  bool checkSlope, bool skipSize, bool lotInside, int64_t* outCost, int32_t* outError,
+                                  void* outLots) {
+    auto* r = static_cast<ScriptRegionLayout*>(region);
+    ScriptPlaceCall c{};
+    c.x1 = r->x1;
+    c.z1 = r->z1;
+    c.x2 = r->x2;
+    c.z2 = r->z2;
+    c.width = r->width;
+    c.height = r->height;
+    c.words = r->words;
+    c.rows = r->rows != nullptr;
+    c.bitsIn = ScriptRegionBits(*r);
+    c.type = type;
+    c.commit = commit;
+    c.skipFunds = skipFunds;
+    c.checkSlope = checkSlope;
+    c.skipSize = skipSize;
+    c.lotInside = lotInside;
+    c.outCost = outCost != nullptr;
+    c.outError = outError != nullptr;
+    c.outLots = outLots != nullptr;
+    g_scriptZones->calls.push_back(c);
+    if (type == 7) {
+        if (outCost != nullptr) *outCost = 999999;
+        if (outError != nullptr) *outError = 1;
+        return false;
+    }
+    if (commit && type != 0 && r->rows != nullptr && r->width > 0 && r->height > 0) r->rows[0][0] &= ~1u;
+    if (outCost != nullptr) *outCost = 10 * static_cast<int64_t>(ScriptRegionBits(*r));
+    if (outError != nullptr) *outError = 0;
+    return true;
+}
+
+// The region a call saw, its flags as a user's zoning (FC4Script.cpp), and
+// the out-pointers: cost and error given, no lot set.
+bool ScriptCallIs(const ScriptPlaceCall& c, int32_t x1, int32_t z1, int32_t x2, int32_t z2, uint32_t words,
+                  int32_t type, bool commit) {
+    const uint32_t w = static_cast<uint32_t>(x2 - x1 + 1), h = static_cast<uint32_t>(z2 - z1 + 1);
+    return c.x1 == x1 && c.z1 == z1 && c.x2 == x2 && c.z2 == z2 && c.width == w && c.height == h &&
+           c.words == words && c.rows && c.bitsIn == w * h && c.type == type && c.commit == commit && !c.skipFunds &&
+           c.checkSlope && !c.skipSize && c.lotInside && c.outCost && c.outError && !c.outLots;
+}
+
+int ScriptIniTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    for (const char* v : {"FC4_DISABLE", "FC4_ENABLE", "FC4_SCRIPT", "FC4_SIM_TURBO", "FC4_AUTOTEST_SECONDS",
+                          "FC4_AUTOTEST_END_DATE"}) {
+        SetEnvironmentVariableA(v, nullptr);
+    }
+    const std::string dir = ini.substr(0, ini.find_last_of("\\/") + 1);
+    const std::string script = dir + "fc4_script_test.txt";
+    const std::string bad = dir + "fc4_script_bad.txt";
+    const std::string empty = dir + "fc4_script_empty.txt";
+    const std::string late = dir + "fc4_script_late.txt";
+    WriteTextFile(script,
+                  "# FreeCity4 script test (the harness lane)\n"
+                  "2000-01-03 zone 10 20 12 22 1        # a 3x3 residential block\n"
+                  "2000-01-03 pricezone 30 20 32 22 4   # price a commercial one\n"
+                  "2000-01-03 mark three on one day\n"
+                  "2000-01-05 dezone 10 20 11 22        # part of the first\n"
+                  "2000-01-05 zone 40 40 41 41 7        # the stub refuses it (funds)\n"
+                  "2000-01-05 zone 50 0 51 39 2         # 40 rows: two words per row\n"
+                  "2000-01-06 speed 2\n"
+                  "2000-01-06 pause\n"
+                  "2000-01-06 resume\n"
+                  "2000-01-07 turbo on\n"
+                  "2000-01-08 turbo off\n"
+                  "2000-01-08 digest\n"
+                  "1999-12-01 mark already past at load\n");
+    WriteTextFile(bad, "# two errors\n2000-01-10 zonee 1 1 2 2 1\n2000-01-10 zone 1 1 2 2 16\n2000-01-10 mark fine\n");
+    WriteTextFile(empty, "# nothing to do\n\n");
+    WriteTextFile(late, "2000-01-01 dezone 5 6 5 6\n");
+    WriteTextFile(ini, "[harness]\nscript = fc4_script_test.txt   # relative: next to FreeCity4.ini\n");
+
+    static FakeWorld world;
+    InitFakeWorld(world);
+    static FakeScriptZones zones;
+    g_scriptZones = &zones;
+    zones.zmVt.slots[11] = reinterpret_cast<void*>(&ScriptZmPlaceZone);
+    zones.zm.vtbl = zones.zmVt.slots.data();
+    world.cityVt.slots[36] = reinterpret_cast<void*>(&ScriptCityGetZoneManager);
+
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    if (director == nullptr || seam == nullptr) return 1;
+    std::vector<uint32_t> classes;
+    director->EnumClassObjects(&CollectClass, &classes);  // game start: the script is read and parsed
+    cISC4Simulator* sim = nullptr;
+    CHECK(director->GetClassObject(kCLSID_Simulator, kIID_cISC4Simulator, reinterpret_cast<void**>(&sim)));
+    if (sim == nullptr) return 1;
+    CHECK(sim->Init());  // our simulator, live: the script's turbo has something to set
+    world.sim = sim;
+    seam(kFC4SeamObserverCity, &world.city, nullptr);
+
+    auto newDay = [&](intptr_t julian) {
+        seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewDay)),
+             reinterpret_cast<void*>(julian));
+    };
+    // 2000-01-01 .. 2000-01-02: only the action already past at load.
+    newDay(2451545);
+    newDay(2451546);
+    CHECK(zones.calls.empty());
+    // 2000-01-03: zone, pricezone, mark (file order).
+    newDay(2451547);
+    CHECK(zones.calls.size() == 2);
+    newDay(2451548);
+    CHECK(zones.calls.size() == 2);
+    // 2000-01-05: dezone, a refused zone, a 40-row zone.
+    newDay(2451549);
+    CHECK(zones.calls.size() == 5);
+    if (zones.calls.size() == 5) {
+        CHECK(ScriptCallIs(zones.calls[0], 10, 20, 12, 22, 1, 1, true));   // zone
+        CHECK(ScriptCallIs(zones.calls[1], 30, 20, 32, 22, 1, 4, false));  // pricezone: commit = 0
+        CHECK(ScriptCallIs(zones.calls[2], 10, 20, 11, 22, 1, 0, true));   // dezone: type 0
+        CHECK(ScriptCallIs(zones.calls[3], 40, 40, 41, 41, 1, 7, true));
+        CHECK(ScriptCallIs(zones.calls[4], 50, 0, 51, 39, 2, 2, true));    // ceil(40 / 32) = 2 words
+    }
+    // 2000-01-06: speed 2, pause, resume through our simulator.
+    CHECK(sim->GetSimSpeed() == 0);
+    newDay(2451550);
+    CHECK(sim->GetSimSpeed() == 2);
+    CHECK(!sim->IsPaused());
+    // 2000-01-07 / 08: turbo on, turbo off and the digest.
+    newDay(2451551);
+    newDay(2451552);
+    std::string text = ReadFile(log);
+    const size_t linesBefore = CountOf(text, "script: line ");
+    // Each runs once: the same day again and the next produce nothing.
+    newDay(2451552);
+    newDay(2451553);
+    CHECK(zones.calls.size() == 5);
+
+    // Refused: two parse errors, nothing runs (test seam op 46).
+    CHECK(seam(kFC4SeamScript, const_cast<char*>("fc4_script_bad.txt"), nullptr) == -2);
+    newDay(2451554);
+    // Unreadable, and empty.
+    CHECK(seam(kFC4SeamScript, const_cast<char*>("fc4_no_such_script.txt"), nullptr) == -1);
+    CHECK(seam(kFC4SeamScript, const_cast<char*>("fc4_script_empty.txt"), nullptr) == 0);
+    // An absolute path, its date long past: it runs at the next new day.
+    CHECK(seam(kFC4SeamScript, const_cast<char*>(late.c_str()), nullptr) == 1);
+    CHECK(zones.calls.size() == 5);
+    newDay(2451555);
+    CHECK(zones.calls.size() == 6);
+    if (zones.calls.size() == 6) CHECK(ScriptCallIs(zones.calls[5], 5, 6, 5, 6, 1, 0, true));
+
+    seam(kFC4SeamObserverCity, nullptr, nullptr);
+    CHECK(sim->Shutdown());
+    sim->Release();
+    FreeLibrary(hd);
+    for (const std::string& f : {script, bad, empty, late, ini}) DeleteFileA(f.c_str());
+
+    text = ReadFile(log);
+    // A relative path is resolved against FreeCity4.ini's folder as the DLL
+    // reports it (GetModuleFileName: backslashes).
+    std::string winDir = dir;
+    for (char& ch : winDir) ch = ch == '/' ? '\\' : ch;
+    const std::string winScript = winDir + "fc4_script_test.txt";
+    CHECK(text.find("script: loaded '" + winScript + "' (script setting; tooling): 13 action(s), 1999-12-01 to "
+                    "2000-01-08; each runs once at the first new day on or after its date") != std::string::npos);
+    const char* const expected[] = {
+        "script: line 14 1999-12-01 mark already past at load -> marked (run on 2000-01-01)",
+        "script: line 2 2000-01-03 zone 10 20 12 22 1 -> ok=1 error=0 (none) cost=80 accepted=8 of 9 cell(s)",
+        "script: line 3 2000-01-03 pricezone 30 20 32 22 4 -> dry run: ok=1 error=0 (none) cost=90 accepted=9 of 9 "
+        "cell(s)",
+        "script: line 4 2000-01-03 mark three on one day -> marked",
+        "script: line 5 2000-01-05 dezone 10 20 11 22 -> ok=1 error=0 (none) cost=60 accepted=6 of 6 cell(s)",
+        "script: line 6 2000-01-05 zone 40 40 41 41 7 -> ok=0 error=1 (insufficient funds) cost=999999 accepted=4 of 4 "
+        "cell(s)",
+        "script: line 7 2000-01-05 zone 50 0 51 39 2 -> ok=1 error=0 (none) cost=790 accepted=79 of 80 cell(s)",
+        "script: line 8 2000-01-06 speed 2 -> SetSimSpeed(2) = 1; speed 0 -> 2",
+        "script: line 9 2000-01-06 pause -> Pause() = 1; paused=1",
+        "script: line 10 2000-01-06 resume -> Resume() = 1; paused=0",
+        "simulator: turbo ON (script) at ",  // our simulator's line, then the script's
+        "script: line 11 2000-01-07 turbo on -> turbo on",
+        "simulator: turbo OFF (script) at ",
+        "script: line 12 2000-01-08 turbo off -> turbo off",
+        "script: line 13 2000-01-08 digest -> the DIGEST line follows",
+        "DIGEST julian=2451552 (2000-01-08)",
+        "script: all 13 action(s) of '",
+    };
+    size_t at = 0;
+    for (const char* e : expected) {
+        const size_t found = text.find(e, at);
+        if (found == std::string::npos) std::printf("script test: not found (in order): %s\n", e);
+        CHECK(found != std::string::npos);
+        if (found != std::string::npos) at = found;
+    }
+    CHECK(linesBefore == 13);
+    CHECK(CountOf(text, "script: line ") == 14);  // the 13, then the late script's one
+    CHECK(text.find("script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, speed, pause, resume, "
+                    "turbo, digest, mark)") != std::string::npos);
+    CHECK(text.find("script: ERROR line 3: zone type '16' is not 0..15") != std::string::npos);
+    CHECK(text.find("script: REFUSED '" + winDir + "fc4_script_bad.txt' (test seam): 2 parse error(s); no action of "
+                    "it runs") != std::string::npos);
+    CHECK(text.find("script: line 4 2000-01-10 mark fine") == std::string::npos);  // refused: not even its good line
+    CHECK(text.find("script: ERROR cannot read '" + winDir + "fc4_no_such_script.txt' (test seam; error 2); no "
+                    "action runs") != std::string::npos);
+    CHECK(text.find("script: '" + winDir + "fc4_script_empty.txt' (test seam): no actions") != std::string::npos);
+    CHECK(text.find("script: loaded '" + late + "' (test seam; tooling): 1 action(s), 2000-01-01 to 2000-01-01") !=
+          std::string::npos);  // an absolute path as given
+    CHECK(text.find("script: line 1 2000-01-01 dezone 5 6 5 6 -> ok=1 error=0 (none) cost=10 accepted=1 of 1 "
+                    "cell(s) (run on 2000-01-11)") != std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);  // script is a known key
+    if (g_failures == 0) std::printf("plugin script test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::fprintf(stderr, "usage: %s <FreeCity4.dll>\n", argv[0]);
@@ -7654,6 +7912,8 @@ int main(int argc, char** argv) {
     const std::string turboPrefix = "--turbo-child-";
     if (mode.compare(0, turboPrefix.size(), turboPrefix) == 0) return TurboChild(dll, ini, mode.substr(turboPrefix.size()));
     if (mode == "--ini-turbo") return TurboIniTest(dll, ini, log);
+    // The harness lane: script (FC4Script.h, seam op 46).
+    if (mode == "--ini-script") return ScriptIniTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).

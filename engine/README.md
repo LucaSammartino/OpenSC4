@@ -464,6 +464,40 @@ plugin.
      simulator: turbo OFF at 2001-01-01 (sim_turbo_until reached); days paced by msPerDay again
      simulator: WARNING sim_turbo = 1 has no effect: our simulator is disabled (disable = simulator), ...
      ```
+   - **Scripted actions** (`script = <path>`, env `FC4_SCRIPT`; off by default; `plugin/FC4Script.h`, the grammar
+     in `plugin/FC4HarnessLogic.h`; tooling): a text file of dated in-city actions, one per line,
+     `YYYY-MM-DD <action> <args>`, `#` comments anywhere, blank lines allowed. A relative path is relative to the
+     folder of `FreeCity4.ini`. The whole file is parsed at game start; every error is logged with its line
+     number and a script with any error is refused. Each action runs once, on the main thread, inside the
+     observer's `SimNewDay` at the first new day on or after its date (several on one date in file order; dates
+     already past all run at the first new day, by date then file order). Everything goes through the game's
+     interfaces, so it works with the original's classes and with ours:
+
+     | Action | Call |
+     |---|---|
+     | `zone x0 z0 x1 z1 type` | `cISC4ZoneManager::PlaceZone` (city slot 36, slot 11; zones.md §6): commit = 1, skipFunds = 0, checkSlope = 1, skipSizeCheck = 0, checkLotInside = 1, outLots = null; the region (§11.4) in our memory, every cell of the inclusive rectangle set |
+     | `pricezone x0 z0 x1 z1 type` | the same with commit = 0 (a dry run) |
+     | `dezone x0 z0 x1 z1` | the same with type 0, commit = 1 |
+     | `speed 0\|1\|2`, `pause`, `resume` | the city simulator's `SetSimSpeed` / `Pause` / `Resume` (one call) |
+     | `turbo on\|off` | our simulator's turbo clock (`sim_turbo_frame_ms`, no end date); no effect with `disable = simulator` |
+     | `digest` | the observer's `DIGEST` line, now |
+     | `mark <text>` | a log line |
+
+     Coordinates are cells 0..4095 with x0 <= x1 and z0 <= z1; zone types 0..15 (zones.md §2). Lines:
+
+     ```
+     script: loaded '…\script.txt' (script setting; tooling): 3 action(s), 2000-01-03 to 2000-01-05; …
+     script: line 2 2000-01-03 zone 10 20 12 22 1 -> ok=1 error=0 (none) cost=… accepted=9 of 9 cell(s)
+     script: line 3 2000-01-03 pricezone 30 20 32 22 4 -> dry run: ok=1 error=0 (none) cost=… accepted=9 of 9 cell(s)
+     script: line 4 2000-01-05 dezone 10 20 11 22 -> ok=1 error=0 (none) cost=… accepted=6 of 6 cell(s)
+     script: all 3 action(s) of '…\script.txt' have run
+     script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark)
+     script: REFUSED '…\script.txt' (script setting): 1 parse error(s); no action of it runs
+     ```
+
+     `error` is PlaceZone's code (1 insufficient funds, 2 landfill on water, 3 too small, 4 too large, 5 blocked);
+     `accepted` counts the cells whose bits PlaceZone left set. A date passed while no city ran is caught up at the
+     next city's first new day; an action never runs twice in one game session.
    - **Clock probe** (`clock_probe = 1` or `2`, env `FC4_CLOCK_PROBE`; off by default; `plugin/FC4ClockProbe.h`):
      the M1 clock differential. From game start it logs every message the simulator posts (`CLOCK post day|week|
      month|year j=… c=…`, `CLOCK post pause|hidden|emergency|speed d1=…`), and at every city load it registers an
@@ -1147,7 +1181,9 @@ plugin.
   never calls it. `plugin_autotest_test` runs child processes (clean, corrupt, stalled, ended, save, and a Rust
   panic) that end through the autotest's `TerminateProcess` (the panic through fail-fast). The harness lane adds
   four with `autotest_end_date`: an end date alone, a timeout that comes first, an end date already past with
-  `autotest_end = quit`, and a value that is not a date.
+  `autotest_end = quit`, and a value that is not a date. `plugin_ini_script_test` runs a `script` through a stub
+  zone manager on the fake city (slot 36; its slot 11 records the region layout and the arguments, and clears a
+  bit as the game does) and our simulator; seam op 46 loads a refused, an unreadable, an empty and a late script.
 - Return types are part of the ABI too: SDK declarations can be wrong (budget erratum:
   `cISC4DepartmentBudget` slot 26 returns a float POINTER in EAX, not a float in ST0; `cIGZDate` slots 33–36
   return a `uint32` day number and leave the date alone; `cISC4Lot` slot 61 returns `SC4Percentage` by value

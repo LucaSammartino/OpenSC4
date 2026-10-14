@@ -65,4 +65,10 @@ void ObserverTestSetApp(cISC4App* app);
 void ObserverTestTick();
 void ObserverTestMessage(uint32_t type, intptr_t data1);
 
+// For the harness lane's script (FC4Script.h; main thread): the city the
+// observer reads (the test seam's, else the application's; borrowed, may be
+// null), and the DIGEST line for `julian`, written now.
+cISC4City* ObserverCity();
+void ObserverWriteDigest(int32_t julian);
+
 }  // namespace fc4
