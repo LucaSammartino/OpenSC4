@@ -2687,3 +2687,112 @@ exe and the shipped data alone.
   orientation; not traced]
 - **GF12 — §2.4:** does anything outside the 3D texture path read the FSH centre fields (non-zero in 722 entries) or
   bits 12–27 of `+0x0C` (non-zero in 294)? [none found]
+
+## From the zones glue and shadow (filed by the coordinator from the `zoneglue` lane's report, 2026-10-14)
+
+About `docs/specs/zones.md` and the zone manager glue (`cFC4ZoneManager`, `FC4ZonesShadow`; phase 1, the zone
+developer stays original). The current answer is in brackets.
+
+- **ZG1:** The tuning exemplar type: `0xA52160F5` or §4's `0x6534284A`? [`0x6534284A`]
+- **ZG2:** An oversized region or a bad §11.4 layout passed to PlaceZone. [fails with error 0 and touches nothing]
+- **ZG3:** The zone display alpha after `Read`. [the alpha read]
+- **ZG4:** A second `Read`: the services the first one set. [replaced; the old ones released]
+- **ZG5:** ZoningChange `void1` / `IGZUnknown`. [SetVoid1 plus SetIGZUnknown on the zone manager; the message holds a
+  reference]
+- **ZG6:** A dezone arriving during a PlaceZone. [runs at once and is counted]
+- **ZG7:** When are `outLots` inserted? [at the pricing call]
+- **ZG8:** What is released after a failed `Read`? [the grid, at Shutdown or destruction]
+- **ZG9:** Glue behaviour with switches off or calls from another thread. [`zones_budget` off: unlimited funds,
+  nothing charged; no budget simulator: funds 0, withdraw false; PlaceZone from another thread without the lock:
+  false, error 0; such a message: dropped; SetZoneDisplayAlpha: unchanged; GetZoneType fallback: 0 outside the grid]
+- **ZG10:** Is the loaded flag set before the version check, even on failure? [yes; the core changed to do this]
+- **ZG11:** Occupant manager slot 33. [called through the SDK overload, relying on MSVC's reversal of overloaded
+  virtuals]
+- **ZG12:** Shutdown followed by the final Release. [Shutdown runs twice]
+- **ZG13:** Shadow: "our core's bookkeeping after it has loaded the same grid". [the core loads the original's own
+  record through its Write]
+- **ZG14:** Is a PlaceZone dry run (commit=false, outLots null) on the original safe? `CanRemove(2)` is an inferred
+  name. [yes, per §6 and §13.2; `CanRemove(2)` assumed to be a query]
+- **ZG15:** Dry-run sample regions and flags (the spec names no UI caller). [four seeded regions: 1×1 checkSlope with
+  size check, 2×3 checkSlope without size check and a lot inside, 4×4 the building-development form, 7×3 checkerboard
+  without flags]
+- **ZG16:** Are `*outCost` and `*outError` written on an early size-check failure? [the shadow fills the original's
+  with 0 first; our core writes 0]
+- **ZG17 — zones §6, in game (regress rzones, coordinator):** the zones shadow's 1×1 PlaceZone dry run (checkSlope,
+  size check, commit=false) with zone type 14 fails with error 3 on both sides, but the original writes a cost
+  (36–208, varying by month and place) and ours writes 0. 15 of 92 months differ, only in this case. What does the
+  original write to `*outCost` when PlaceZone fails with error 3, and for which zone types? [ours: 0]
+
+## From the FSH and S3D readers (filed by the coordinator from the `formats3` lane's report, 2026-10-14)
+
+About `docs/specs/graphics-formats.md` and `engine/formats` (`fsh`, `s3d`, `keys`). All §8 tests 1–43 pass; the
+release sweep reproduces the §8.4 counts. Not done: the info-only open of §2.9; a DXT1 A = 0 opaque-black decoder
+variant (GF3). The current answer is in brackets.
+
+- **FS1:** §2.8 says bytes "beyond the entry" read as zero, but not where an entry ends. [it ends at the first of: its
+  attached block (`next`), another entry's header, or `size`; only positions at or after its pixel start count]
+- **FS2:** Q2 rejects what does not fit "except the mip-padding case": how is that case told from a truncated entry?
+  [if the levels fit packed back to back but the 16-byte-aligned layout overruns, zero-fill; if even the packed levels
+  do not fit, reject. Shipped data: exactly 167 zero-filled, 0 rejected]
+- **FS3:** A record with `count` = 0 has no frame 0. [rejected]
+- **FS4:** The original checks the `0x7B` palette on frame 0 only. [every `0x7B` frame needs a 256 × 1 palette with
+  all 256 entries inside the record]
+- **FS5:** For DXT1, the field A could differ between frames. [each frame reports its own (format, type);
+  `Fsh::format()` is frame 0's]
+- **FS6:** Negative sign-extended dimensions. [the power-of-two test is on the 32-bit sign-extended height, so a
+  negative height fails; max(W, m) is signed, so a negative width becomes m]
+- **FS7:** A DXT width that is not a multiple of 4: the level size from the formula is smaller than the whole blocks.
+  [the missing bytes read as zero, whole blocks are decoded, and the image is cropped]
+- **FS8:** The DXT5 alpha divisions (/7, /5) have no stated rounding. [rounded down, as for DXT1]
+- **FS9:** A vertex format with stride below 12, or with no position, while the bounding box reads 3 floats per
+  vertex. [stride < 12 is rejected; no position with stride ≥ 12 is accepted and its box uses the first 12 bytes]
+- **FS10:** A legacy VERT stride S below the format's standard stride, or a legacy block with an unknown format. [both
+  rejected]
+- **FS11:** PROP is "sorted after reading", but the sort key is not given. [file order kept]
+- **FS12:** REGP lower-casing: ASCII or locale-aware? Which encoding for byte names? [ASCII lower-casing; names
+  decoded as UTF-8 when valid, else Latin-1]
+- **FS13:** §4.1 when the fallback texture itself does not load. [the fallback key is returned anyway]
+- **FS14:** RKT lookups with a zoom above 4, a detail above 2, a rotation above 3, or too few values. [no model
+  (`None`); RKT0 ignores zoom and detail; the RKT1 addition wraps]
+
+## From applying the traffic simulator answers (filed by the coordinator from the `apply6a` lane's report, 2026-10-14)
+
+TS1–TS34 are applied to the traffic simulator core (vectors ts11_27–ts11_46 new; ts11_10a and ts11_25 adjusted). The
+host gained connection, region, budget and drive-side methods. The current answer is in brackets.
+
+- **TS35:** Does entering state 18 zero pass counter 1? [yes]
+- **TS36:** After a dx = ±1 jump, what entry does the cell carry? [none]
+- **TS37:** Does a missing funding percent leave the default? [unchanged]
+- **TS38:** §8 and §4.1.4 name slot 13 differently from §2.7.2. Which is right? [the code keeps its existing naming]
+- **TS39:** What is the "jump flag" in TS16? [the 0x80 flag of the next jump record]
+- **TS40:** What does a statistics slot with no record publish? [zeros]
+- **TS41:** A pool ID repeated in row 19: which entry wins? [the last one]
+- **TS42:** Pool ID overflow. [pool 0]
+- **TS43:** A missing regional demand node. [0]
+- **TS44:** Which row-14 field holds the saved source cell? [`phase_positions` s16×2, the lot location]
+- **TS45:** Which cell is saved for the state-15 resume? [the same `phase_positions`]
+- **TS46:** How is §4.16's `float(item.cost)` computed? [converted to f32 first, then × funding, r24]
+- **TS47:** A strategy above 2 in SetupPathFinderForLot. [ignored; a choice in code]
+- **TS48:** A damaged travel type above 8. [adds nothing in ApplyRoute and fails ConfirmRoute; a choice]
+- **TS49:** A switch ID with no switch behind it in GetTransitSwitchQueryData. [returns false; a choice]
+
+## From applying the residential, protection and save-reference answers (filed by the coordinator from the `apply8a` lane's report, 2026-10-14)
+
+RG1–RG22, RG13 in the budget core, PR14–PR16, PG15, DQ13, SV1–SV2, LF6 and NB18 are applied or cited. RG1 creates
+the buzzards through the effects manager (new switch `residential_effects`, 160 switches). The current answer is in
+brackets.
+
+- **PR17:** Protection §5.1: what does `UpdateUnadjusted` do when `GetDispatchEffect` fails? [the return value is
+  ignored and the record is zeroed, so the centre adds 0]
+- **PR18:** Protection §7.2: what is in the caller's record? [a zeroed record]
+- **PR19:** The older "PR14/PR15" labels in the jail vectors, `protection/mod.rs` and `algo.rs` clash with the
+  QUESTIONS numbering. [left as they are]
+- **RG25:** RG1: the buzzard transform's bytes +2 and +3 are not stated. [0]
+- **RG26:** RG10: how does a host report "cannot be read"? [NaN or a NULL callback means missing; the outputs are left
+  alone]
+- **RG27:** RG1: does "cannot show" (a NULL callback or `FC4_EFFECT_NOT_SHOWN`) count as created? [yes: the second
+  draw is made and the flag set, but there is no altitude read, start or release]
+- **RG28:** RG7: which ordinance effects does the shadow use before its first state 0? [it reads them as they stand]
+- **NB19:** NB18: does `cISC4App::GetCity` return the same primary cISC4City address the game's city global holds?
+  [assumed yes]
+- **PG16:** PG15: should the n<0 wrap quirk on a damaged save be reproduced? [no, clamped: delta −s, supply 0]

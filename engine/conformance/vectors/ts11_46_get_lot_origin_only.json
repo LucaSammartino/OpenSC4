@@ -1,0 +1,160 @@
+{
+  "format": 1,
+  "name": "ts11_46_get_lot_origin_only",
+  "spec": [
+    "traffic-simulator 4.11",
+    "traffic-simulator 8"
+  ],
+  "description": "§4.11 (TS19): ClearTripDestinations asks GetLot(x, z, true), which answers only at the lot's origin, so the 2 x 2 lot (2,2)-(3,3) with max[0] = 6 and arrivedThisCycle[0] = 4 is rolled once (arrivedLast[0] = 4, not 0 from a second roll) and its capacity counted once (jobCapacity[0] = 6). RefreshCommuteMap sets bit 0 at all four cells (GetLot false at the others) and counts freeDest[0] once.",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        8,
+        8
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        3,
+        3
+      ],
+      "holder": 11,
+      "capacity": [
+        6,
+        0,
+        0,
+        0,
+        4,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "enter_cycle_state",
+      "args": [
+        5
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "work_on_sim_cycle",
+      "args": [],
+      "expect": true
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 11,
+      "id": "0x8A0B4100",
+      "expect": [
+        6,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        4,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "job_capacity": [
+          6,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "free": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "enter_cycle_state",
+      "args": [
+        10
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "work_on_sim_cycle",
+      "args": [],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        2,
+        2
+      ],
+      "expect": 1
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        3,
+        2
+      ],
+      "expect": 1
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        2,
+        3
+      ],
+      "expect": 1
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        3,
+        3
+      ],
+      "expect": 1
+    },
+    {
+      "op": "ts_call",
+      "method": "free_destinations",
+      "args": [],
+      "expect": [
+        1,
+        0,
+        0,
+        0
+      ]
+    }
+  ]
+}

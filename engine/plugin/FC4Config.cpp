@@ -174,6 +174,19 @@ const SwitchInfo kSwitches[kCount] = {
     {"residential_history", "FC4_RESIDENTIAL_HISTORY"},
     {"residential_lots", "FC4_RESIDENTIAL_LOTS"},
     {"residential_terrain", "FC4_RESIDENTIAL_TERRAIN"},
+    {"zones_grid_writes", "FC4_ZONES_GRID_WRITES"},
+    {"zones_budget", "FC4_ZONES_BUDGET"},
+    {"zones_lots", "FC4_ZONES_LOTS"},
+    {"zones_out_lots", "FC4_ZONES_OUT_LOTS"},
+    {"zones_demolition", "FC4_ZONES_DEMOLITION"},
+    {"zones_parcellization", "FC4_ZONES_PARCELLIZATION"},
+    {"zones_posts", "FC4_ZONES_POSTS"},
+    {"zones_messages", "FC4_ZONES_MESSAGES"},
+    {"zones_traffic", "FC4_ZONES_TRAFFIC"},
+    {"zones_terrain", "FC4_ZONES_TERRAIN"},
+    {"zones_occupants", "FC4_ZONES_OCCUPANTS"},
+    {"zones_landfill_cost", "FC4_ZONES_LANDFILL_COST"},
+    {"zones_lot_developer", "FC4_ZONES_LOT_DEVELOPER"},
     {"neighbors_region_reads", "FC4_NEIGHBORS_REGION_READS"},
     {"neighbors_region_writes", "FC4_NEIGHBORS_REGION_WRITES"},
     {"neighbors_deals", "FC4_NEIGHBORS_DEALS"},
@@ -213,6 +226,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "landvalue_shadow", "landvalue_shadow_cells",
                                   "flammability_shadow", "flammability_shadow_cells",
                                   "residential_shadow", "residential_shadow_cells", "residential_seed",
+                                  "zones_shadow",
                                   "neighbours_shadow", "neighbors_seed", "neighbors_two_curves",
                                   "growth_probe",
                                   "development_growth_attempts_per_day", "development_seed",
@@ -240,11 +254,13 @@ volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // residential
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               // zones
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // neighbours
                                1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // development
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-static_assert(kCount == 157, "g_on: one 1 per switch");
+static_assert(kCount == 170, "g_on: one 1 per switch");
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};

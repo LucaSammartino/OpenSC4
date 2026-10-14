@@ -1,0 +1,246 @@
+{
+  "format": 1,
+  "name": "ts11_32_neighbour_roll",
+  "spec": [
+    "traffic-network 2.7.5"
+  ],
+  "description": "traffic-network.md §2.7.5 (TS2): state 11 works on each connection's own holder. A present 0xAA9EA81A + i is copied to 0xAA9EA81D + i (an absent one copies nothing), then 0xAA9EA81A + i := nine u32 zeros, present or not. Elements 4 + k of 0x8A0B4100 roll to 8 + k and become 0, through the element store, so a connection without the property gets 12 u16 zeros.",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        8,
+        8
+      ]
+    },
+    {
+      "op": "ts_connection",
+      "id": 77,
+      "cell": [
+        -1,
+        5
+      ],
+      "holder": 70
+    },
+    {
+      "op": "ts_connection",
+      "id": 78,
+      "cell": [
+        8,
+        2
+      ],
+      "holder": 71
+    },
+    {
+      "op": "ts_prop",
+      "holder": 70,
+      "id": "0xAA9EA81B",
+      "value": {
+        "u32": [
+          0,
+          5,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "ts_capacity",
+      "holder": 70,
+      "values": [
+        7,
+        7,
+        7,
+        7,
+        1,
+        2,
+        3,
+        4,
+        9,
+        9,
+        9,
+        9
+      ]
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "enter_cycle_state",
+      "args": [
+        11
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "work_on_sim_cycle",
+      "args": [],
+      "expect": true
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 70,
+      "id": "0xAA9EA81D",
+      "expect": null
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 70,
+      "id": "0xAA9EA81E",
+      "expect": [
+        0,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 70,
+      "id": "0xAA9EA81A",
+      "expect": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 70,
+      "id": "0xAA9EA81B",
+      "expect": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 70,
+      "id": "0xAA9EA81C",
+      "expect": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 71,
+      "id": "0xAA9EA81A",
+      "expect": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 71,
+      "id": "0xAA9EA81B",
+      "expect": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 71,
+      "id": "0xAA9EA81C",
+      "expect": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 70,
+      "id": "0x8A0B4100",
+      "expect": [
+        7,
+        7,
+        7,
+        7,
+        0,
+        0,
+        0,
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "elem": "u16"
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 71,
+      "id": "0x8A0B4100",
+      "expect": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "elem": "u16"
+    }
+  ]
+}

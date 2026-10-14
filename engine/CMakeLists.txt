@@ -227,6 +227,11 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Residential.h
         plugin/FC4ResidentialShadow.cpp
         plugin/FC4ResidentialShadow.h
+        plugin/cFC4ZoneManager.cpp
+        plugin/cFC4ZoneManager.h
+        plugin/FC4ZonesShadow.cpp
+        plugin/FC4ZonesShadow.h
+        plugin/FC4GameSet.h
         plugin/FC4PropertyHolder.cpp
         plugin/FC4PropertyHolder.h
         plugin/cFC4Neighbors.cpp
@@ -296,6 +301,13 @@ if(FC4_IS_WIN32_X86)
     target_include_directories(fc4_game_map_test PRIVATE plugin)
     target_compile_options(fc4_game_map_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME game_map_test COMMAND fc4_game_map_test)
+
+    # The game's STLport set (plugin/FC4GameSet.h): PlaceZone's outLots unique
+    # insert against sets built and checked as docs/abi/allocators.md describes.
+    add_executable(fc4_game_set_test tests/game_set_test.cpp)
+    target_include_directories(fc4_game_set_test PRIVATE plugin)
+    target_compile_options(fc4_game_set_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME game_set_test COMMAND fc4_game_set_test)
 
     # The master lot list through the safe lot iterator
     # (plugin/FC4SafeLotIterator.h, budget.md §5.2 BQ3) against fake lists
@@ -441,6 +453,14 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_development_shadow_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-development-shadow)
     set_tests_properties(plugin_ini_development_shadow_test PROPERTIES RUN_SERIAL TRUE)
+    # Zones (zones.md): `enable = zones` (no city: the QI table, neutral getters,
+    # the slots' return channels, lifecycle, the record round trip, status
+    # lines) and, through seam op 38 with stub hosts, PlaceZone (reject, abort,
+    # accept, outLots), ZoningChange, the dezone handler and the zones shadow
+    # (zones_shadow = 1: INACTIVE with `enable = zones`; runs on a fake original).
+    add_test(NAME plugin_ini_enable_zones_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-zones)
+    set_tests_properties(plugin_ini_enable_zones_test PROPERTIES RUN_SERIAL TRUE)
     # `enable = neighbors`: the neighbours simulator, its connections (an
     # original's accepted on load) and deals, through a fake city and region.
     add_test(NAME plugin_ini_enable_neighbors_test

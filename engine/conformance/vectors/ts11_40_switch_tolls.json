@@ -1,0 +1,360 @@
+{
+  "format": 1,
+  "name": "ts11_40_switch_tolls",
+  "spec": [
+    "traffic-simulator 4.5",
+    "traffic-network 2.4"
+  ],
+  "description": "§4.5 step 2. TS15 worked example: 37 commuters by car (Carpool off, Q = 37.0) through a toll booth (switch 5 at (3,3)) with toll 0.1 (f32 0.100000001): fees r24(37 x 0.1) = 3.70000005, usage 37; a mode-2 route counts and charges once more (74, 7.4000001). TS25: a bus route (1,1)...(5,1) over switch IDs 0, 7, 7, 0, 7 counts switch 7 twice (load 20, fees +10 at toll 0.5); a subway cell whose next record is subway is not counted (switch 4 at (1,2)), one whose next record is walking is (switch 9 at (2,2)); a subway last cell is its own next and never counted (switch 11 stays out of the table); a missing switch (12) is inserted with toll 0.",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        8,
+        8
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "holder": 11,
+      "note": "lot A, the source"
+    },
+    {
+      "op": "ts_lot",
+      "id": 2,
+      "rect": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "holder": 12,
+      "capacity": [
+        100
+      ],
+      "note": "job lot B"
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ]
+    },
+    {
+      "op": "ts_net",
+      "switch_ids": [
+        [
+          3,
+          3,
+          5
+        ]
+      ],
+      "switches": [
+        [
+          5,
+          "0x3DCCCCCD"
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_route",
+      "args": [
+        "01020341020a",
+        37,
+        [
+          2,
+          2,
+          2,
+          2
+        ],
+        [
+          4,
+          4
+        ],
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "fee_acc": "0x400D9999A0000000"
+      }
+    },
+    {
+      "op": "ts_expect_net",
+      "switches": [
+        [
+          5,
+          {
+            "load": "0x42140000",
+            "toll": "0x3DCCCCCD"
+          }
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_route",
+      "args": [
+        "01020341020a",
+        37,
+        [
+          2,
+          2,
+          2,
+          2
+        ],
+        [
+          4,
+          4
+        ],
+        2,
+        0
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "fee_acc": "0x401D9999A0000000"
+      }
+    },
+    {
+      "op": "ts_expect_net",
+      "switches": [
+        [
+          5,
+          {
+            "load": "0x42940000"
+          }
+        ]
+      ]
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "fee_acc": 0
+      }
+    },
+    {
+      "op": "ts_net",
+      "switch_ids": [
+        [
+          2,
+          1,
+          7
+        ],
+        [
+          3,
+          1,
+          7
+        ],
+        [
+          5,
+          1,
+          7
+        ],
+        [
+          1,
+          2,
+          4
+        ],
+        [
+          2,
+          2,
+          9
+        ],
+        [
+          2,
+          3,
+          11
+        ],
+        [
+          1,
+          4,
+          12
+        ]
+      ],
+      "switches": [
+        [
+          7,
+          0.5
+        ],
+        [
+          4,
+          0.5
+        ],
+        [
+          9,
+          0.5
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_route",
+      "args": [
+        "0201014204aa",
+        10,
+        [
+          0,
+          1,
+          0,
+          1
+        ],
+        [
+          6,
+          1
+        ],
+        0,
+        0
+      ],
+      "note": "bus, IDs 0 7 7 0 7"
+    },
+    {
+      "op": "ts_expect_net",
+      "switches": [
+        [
+          7,
+          {
+            "load": "0x41A00000"
+          }
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "fee_acc": "0x4024000000000000"
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_route",
+      "args": [
+        "060102460102400102",
+        10,
+        [
+          0,
+          2,
+          0,
+          2
+        ],
+        [
+          4,
+          2
+        ],
+        0,
+        0
+      ],
+      "note": "subway (1,2), (2,2), walking (3,2)"
+    },
+    {
+      "op": "ts_expect_net",
+      "switches": [
+        [
+          4,
+          {
+            "load": 0
+          }
+        ],
+        [
+          9,
+          {
+            "load": "0x41200000"
+          }
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "fee_acc": "0x402E000000000000"
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_route",
+      "args": [
+        "060103460102",
+        10,
+        [
+          0,
+          3,
+          0,
+          3
+        ],
+        [
+          3,
+          3
+        ],
+        0,
+        0
+      ],
+      "note": "a subway last cell"
+    },
+    {
+      "op": "ts_expect_net",
+      "switches": [
+        [
+          11,
+          null
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_route",
+      "args": [
+        "020104420102",
+        10,
+        [
+          0,
+          4,
+          0,
+          4
+        ],
+        [
+          3,
+          4
+        ],
+        0,
+        0
+      ],
+      "note": "switch 12 not in the table"
+    },
+    {
+      "op": "ts_expect_net",
+      "switches": [
+        [
+          12,
+          {
+            "load": "0x41200000",
+            "toll": 0
+          }
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "fee_acc": "0x402E000000000000"
+      }
+    }
+  ]
+}

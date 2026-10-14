@@ -151,6 +151,11 @@
 //         returns the original's state after the delivery, -1 (not taken,
 //         delivered by the seam), -2 (taken, state unreadable after), or for
 //         an occupant message 1 (ours received it) / 0.
+//   op 38 kFC4SeamZones            a = const FC4ZonesTestInput*
+//         (cFC4ZoneManager.h): the zone manager's test hooks (a host table
+//         answering instead of the game, a ZoningChange sink, the outLots
+//         node allocator) or one zones shadow comparison. Returns what
+//         ZonesTestSeam returns, -1 for a null argument.
 //   op 39 kFC4SeamGrowthProbe      a = const FC4GrowthProbeTestInput*
 //         (FC4GrowthProbe.h): the growth probe started on a given vtable
 //         (instead of the compat table's), one of its messages delivered
@@ -209,6 +214,7 @@ enum : uint32_t {
     kFC4SeamProtectionShadowVtables = 32,
     kFC4SeamDevelopmentShadow = 34,
     kFC4SeamAuraShadowDeliver = 35,
+    kFC4SeamZones = 38,
     kFC4SeamGrowthProbe = 39,
 };
 

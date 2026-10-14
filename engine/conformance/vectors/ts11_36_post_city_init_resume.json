@@ -1,0 +1,156 @@
+{
+  "format": 1,
+  "name": "ts11_36_post_city_init_resume",
+  "spec": [
+    "traffic-simulator 3.5",
+    "traffic-simulator 4.1"
+  ],
+  "description": "§3.5 step 11 (TS7), the resume by the loaded state. 18: the iterator is reset and advanced to the source whose cell is the saved source cell (lot 2's location (2, 2)), which becomes the held current source; days = 3 lots div 18 = 0. 16 with no source at the saved cell ((3, 3) is no source's location): reset again, none held. 15: the lot at the saved cell (GetLot(3, 3, false): lot 2, any cell) is where the FinishTripMap walk resumes after. 14: freeDest := 0, then ClearTripDestinations and RefreshCommuteMap over the city, state 0: lot 3's capacity 5 for type 0 sets bit 0 at (4, 4) and freeDest[0] = 1. The saved cell is the s16 x 2 'phase positions' pair of row 14 [question].",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        8,
+        8
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 1,
+      "rect": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "holder": 11
+    },
+    {
+      "op": "ts_lot",
+      "id": 2,
+      "rect": [
+        2,
+        2,
+        3,
+        3
+      ],
+      "holder": 12
+    },
+    {
+      "op": "ts_lot",
+      "id": 3,
+      "rect": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "holder": 13,
+      "capacity": [
+        5
+      ]
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "cycle_state": 18,
+        "phase_positions": [
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_post_city_init"
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "held_source": [
+          "lot",
+          2
+        ],
+        "days": 0,
+        "cycle_state": 18
+      }
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "cycle_state": 16,
+        "phase_positions": [
+          3,
+          3
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_post_city_init"
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "held_source": null
+      }
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "cycle_state": 15
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_post_city_init"
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "finish_resume": 2
+      }
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "cycle_state": 14,
+        "free": [
+          0,
+          0,
+          9,
+          0
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_post_city_init"
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "cycle_state": 0,
+        "free": [
+          1,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        4,
+        4
+      ],
+      "expect": 1
+    }
+  ]
+}

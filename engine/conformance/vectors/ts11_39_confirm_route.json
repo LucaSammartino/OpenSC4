@@ -1,0 +1,514 @@
+{
+  "format": 1,
+  "name": "ts11_39_confirm_route",
+  "spec": [
+    "traffic-simulator 4.3",
+    "pathfinder 4.15"
+  ],
+  "description": "§4.3 (TS14). The route reader's records [x, z, t, t', entry, exit, next-is-0x80-jump] of test 10's route 01 02 03 41 02 0A, and of a route with jumps: a jump to an x-neighbour (6,5)->(7,5) has no exit and clears the cell's entry, and the entry carried to (7,5) is that cleared one [question]; a same-cell type change and a jump with dz = -1 give +z; equal magnitudes (-2, -2) zero dx and give -z; (-3, 1) gives -x. The worked example: ConfirmRoute is true when (2,3)'s conn[1] has bit 2, 6, 10 or 14 and (3,3)'s has bit 2 + 4*0; (4,3) is not looked at. A conn bit for another entry fails; the tunnel bit passes; the ferry bit passes with no strike only; a route keeping one type confirms during a strike. The walk-to-bus change at (3,3) (t = 0, t' = 2): during a strike false, otherwise nibble 2 of (3,3)'s switch[0] must be 2. A type change at the first cell needs only the switch nibble, with no strike test. An empty route is false.",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        8,
+        8
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "holder": 11,
+      "note": "lot A, the source"
+    },
+    {
+      "op": "ts_lot",
+      "id": 2,
+      "rect": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "holder": 12,
+      "capacity": [
+        100
+      ],
+      "note": "job lot B"
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ]
+    },
+    {
+      "op": "ts_eval",
+      "fn": "read_route",
+      "args": [
+        "01020341020a"
+      ],
+      "expect": [
+        [
+          2,
+          3,
+          1,
+          1,
+          null,
+          2,
+          false
+        ],
+        [
+          3,
+          3,
+          1,
+          1,
+          0,
+          2,
+          false
+        ],
+        [
+          4,
+          3,
+          1,
+          1,
+          0,
+          null,
+          false
+        ]
+      ]
+    },
+    {
+      "op": "ts_eval",
+      "fn": "read_route",
+      "args": [
+        "010505410102010705410103020706020704820405020404020202"
+      ],
+      "expect": [
+        [
+          5,
+          5,
+          1,
+          1,
+          null,
+          2,
+          false
+        ],
+        [
+          6,
+          5,
+          1,
+          1,
+          null,
+          null,
+          false
+        ],
+        [
+          7,
+          5,
+          1,
+          1,
+          null,
+          3,
+          false
+        ],
+        [
+          7,
+          6,
+          1,
+          2,
+          1,
+          3,
+          false
+        ],
+        [
+          7,
+          6,
+          2,
+          2,
+          1,
+          1,
+          false
+        ],
+        [
+          7,
+          4,
+          2,
+          2,
+          3,
+          0,
+          true
+        ],
+        [
+          4,
+          5,
+          2,
+          2,
+          2,
+          3,
+          false
+        ],
+        [
+          4,
+          4,
+          2,
+          2,
+          1,
+          1,
+          false
+        ],
+        [
+          2,
+          2,
+          2,
+          2,
+          3,
+          null,
+          false
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        ""
+      ],
+      "expect": false,
+      "note": "an empty route"
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "01020341020a"
+      ],
+      "expect": false
+    },
+    {
+      "op": "ts_net",
+      "conn": [
+        [
+          3,
+          3,
+          1,
+          4
+        ],
+        [
+          2,
+          3,
+          1,
+          4
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "01020341020a"
+      ],
+      "expect": true,
+      "note": "(2,3) bit 2"
+    },
+    {
+      "op": "ts_net",
+      "conn": [
+        [
+          2,
+          3,
+          1,
+          64
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "01020341020a"
+      ],
+      "expect": true,
+      "note": "(2,3) bit 6"
+    },
+    {
+      "op": "ts_net",
+      "conn": [
+        [
+          2,
+          3,
+          1,
+          1024
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "01020341020a"
+      ],
+      "expect": true,
+      "note": "(2,3) bit 10"
+    },
+    {
+      "op": "ts_net",
+      "conn": [
+        [
+          2,
+          3,
+          1,
+          16384
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "01020341020a"
+      ],
+      "expect": true,
+      "note": "(2,3) bit 14"
+    },
+    {
+      "op": "ts_net",
+      "conn": [
+        [
+          2,
+          3,
+          1,
+          8
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "01020341020a"
+      ],
+      "expect": false,
+      "note": "(2,3) exit +z, not +x"
+    },
+    {
+      "op": "ts_net",
+      "conn": [
+        [
+          2,
+          3,
+          1,
+          64
+        ],
+        [
+          3,
+          3,
+          1,
+          64
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "01020341020a"
+      ],
+      "expect": false,
+      "note": "(3,3) entry -z, not -x"
+    },
+    {
+      "op": "ts_net",
+      "wormhole": [
+        [
+          3,
+          3,
+          2
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "01020341020a"
+      ],
+      "expect": true,
+      "note": "the tunnel bit"
+    },
+    {
+      "op": "ts_net",
+      "wormhole": [
+        [
+          3,
+          3,
+          4
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "01020341020a"
+      ],
+      "expect": true,
+      "note": "the ferry bit, no strike"
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "strike_state": 1
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "01020341020a"
+      ],
+      "expect": false,
+      "note": "the ferry bit during a strike"
+    },
+    {
+      "op": "ts_net",
+      "conn": [
+        [
+          3,
+          3,
+          1,
+          4
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "01020341020a"
+      ],
+      "expect": true,
+      "note": "one type during a strike"
+    },
+    {
+      "op": "ts_net",
+      "conn": [
+        [
+          2,
+          3,
+          0,
+          4
+        ]
+      ],
+      "switch": [
+        [
+          3,
+          3,
+          0,
+          62207
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "000203400102420102"
+      ],
+      "expect": false,
+      "note": "walk to bus during a strike"
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "strike_state": 0
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "000203400102420102"
+      ],
+      "expect": true,
+      "note": "walk to bus, nibble 2 = 2"
+    },
+    {
+      "op": "ts_net",
+      "switch": [
+        [
+          3,
+          3,
+          0,
+          65535
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "000203400102420102"
+      ],
+      "expect": false,
+      "note": "walk to bus, nibble 2 = F"
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "strike_state": 1
+      }
+    },
+    {
+      "op": "ts_net",
+      "switch": [
+        [
+          2,
+          3,
+          0,
+          62207
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "000203420102"
+      ],
+      "expect": true,
+      "note": "a first-cell type change: no strike test"
+    },
+    {
+      "op": "ts_net",
+      "switch": [
+        [
+          2,
+          3,
+          0,
+          62463
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "000203420102"
+      ],
+      "expect": false
+    }
+  ]
+}

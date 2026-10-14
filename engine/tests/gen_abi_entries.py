@@ -213,6 +213,14 @@ INTERFACES = [
     ("cIGZCommandParameterSet", "cIGZCommandParameterSet", "cIGZCommandParameterSet.h", True),
     ("cIGZMessageServer2", "cIGZMessageServer2", "cIGZMessageServer2.h", True),
     ("cISC4DemandSimulator", "cISC4DemandSimulator", "cISC4DemandSimulator.h", True),
+    # Zones (docs/specs/zones.md section 11): the zone manager, implemented through
+    # the compiled slot order (the SDK row above stays for other glue's calls),
+    # its sub-object interfaces, and the zone developer and lot configurations
+    # it calls.
+    ("cISC4ZoneManager", "cFC4ISC4ZoneManager", FC4, True),
+    ("cIGZSerializable(ZoneManager)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZMessageTarget2(ZoneManager)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cISC4ZoneDeveloper", "cISC4ZoneDeveloper", "cISC4ZoneDeveloper.h", True),
     # Crime type names (crime.md section 7 step 3; lua-host.md section 10.1).
     ("cISCStringDetokenizer", "cFC4ISCStringDetokenizer", FC4C, True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
