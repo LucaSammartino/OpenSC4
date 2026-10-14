@@ -68,6 +68,30 @@ returns the new count. *[compat]*
 
 The sanitation department is **not** acquired here; it is fetched on PostCityInit (§3.2).
 
+**Where the services come from** *[compat]* (LG15; `0x006B9D98`–`0x006B9E87`). Init reads them from the
+global service pointers that the city fills, not from the city's getters:
+
+| Service | Global | Held |
+|---|---|---|
+| simulator, for `AddAgent` | `0x00B43D5C` | **no** (LG18) |
+| city | `0x00B43CEC` | yes (`+0x1C`) |
+| terrain | `0x00B43CF4` | yes (`+0x24`) |
+| pollution simulator | `0x00B43D9C` | yes (`+0x20`) |
+| budget simulator | `0x00B43D64` | yes (`+0x28`) |
+| message server | `0x00B43CCC` | yes (`+0x18`) |
+
+Each held service is taken with `AddRef`, and only if its field is still null. The five subscriptions are made
+only in the branch that takes the message server. With the server already held, there would be none.
+
+`Shutdown` releases the five held services (§1.2). Elsewhere the classes also use globals directly:
+- `getLandfillTileCost` takes the occupant manager from the global city (§4.9.1);
+- `PopulateZone` takes the network map from the global city (§4.4.5);
+- `AddZot` uses the terrain and prop manager globals `0x00B43CF4` and `0x00B43D10`.
+
+A held reference and a per-call fetch name the same object for the whole life of the city. So holding only the city
+and the message server changes reference counts and nothing else, provided nothing calls a service after the city
+has destroyed it. Nothing in §1.2 does.
+
 ### 1.2 Shutdown
 
 `Shutdown()` (slot 4): unsubscribe the five messages, release the message server; for every zone: zone

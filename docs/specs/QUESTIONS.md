@@ -1283,8 +1283,11 @@ before and after). The glue's current answer is in brackets.
   (landfill.md §4.7.1). This is shadow glue: **no original behaviour; the implementer's choice stands.** In the
   original month the supply ends at exactly `s − Σ n`, and no clamp engages, so "live plus delta" equals the
   original and the clamp is inert. The only exception is a negative supply from a damaged save.
-- **LG15 — §1.1:** only the city and the message server are held; terrain, pollution and budget are fetched per
-  call. [as stated]
+- ~~**LG15 — §1.1:** only the city and the message server are held; terrain, pollution and budget are fetched per
+  call. [as stated]~~ **ANSWERED 2026-10-14** from the exe (`Init` `0x006B9D98`–`0x006B9E87`). The original holds
+  **five** services, all with `AddRef` from the global service pointers: city, terrain, pollution, budget and message
+  server. It does not hold the simulator. **The bracket is acceptable**: only reference counts differ, because each
+  per-call fetch names the same object for the city's life. Written into landfill.md §1.1.
 - **LG16:** the 3D view level is not reachable through a documented interface. [not done]
 - **LG17:** the traffic network map comes through city slot 40 (`GetTrafficNetwork`, `intptr_t` in the SDK). Right?
 - **LG18 — §1.1/§1.2:** which simulator does the original use for AddAgent before services are acquired? [the app's
