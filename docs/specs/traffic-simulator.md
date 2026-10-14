@@ -1193,7 +1193,7 @@ missing.
 | `0x29136788` | Monthly Traffic Density Reduction | — (uninitialised *[quirk]*; FreeCity4 0) | 0 | `densityReduction` (§4.9) |
 | `0x29136789` | — | 0.03125 | — | read, unused |
 | `0x6A84493E` | Monthly cost for network tile [13] | 0 | see tuning | department costs (§4.9) |
-| `0xA92356AE`, `0xA92356AF` | Max roads / mass transit funding percent | 1.2, 1.2 | 120, 120 (→ 1.2) | department maximum funding |
+| `0xA92356AE`, `0xA92356AF` | Max roads / mass transit funding percent | 1.2, 1.2 | 120, 120 (→ 1.1999999) | department maximum funding; `r24(v × 0.01f)`, below |
 | `0xA92356B0` | Damaged road extra step cost | 32.0 | 0.1 | traffic-network.md |
 | `0xA92356B6` | strategy period (u32) | 365 | — | §3.3 |
 | `0xA92356B7` | strategy buckets (u32) | 128 | — | §3.3 |
@@ -1226,6 +1226,17 @@ missing.
 | `0x0CAAAEB8` | (commercial traffic scale) | 0.128 | 0.128 | `commercialScale`, §4.9 |
 
 Then `UpdateTravelStrategies` (§4.1.2). `0xA92356B2` (Mass Transit Usage Chance) is not read by this function.
+
+**Funding percents** (TS29). `0xA92356AE` and `0xA92356AF` (stored at +0xB88, +0xB8C; `Init` hands them to the
+roads and mass transit departments) go through the percent getter `0x005FDAC0` (calls `0x00716D67`, `0x00716D79`).
+For any numeric property type (u8, s8, u16, s16, u32 as unsigned, s32, 64-bit, f32, f64) it **multiplies** the
+value by the f32 constant `0.01f` (0x3C23D70A, `0x00A823A4`) and rounds once to f32: `r24(v × 0.01f)`, not
+`r24(v / 100)`. For an integer below 2^29 or an f32 the product is exact before that rounding. A missing property, or
+one of another type (bool, string), leaves the code default 1.2 (0x3F99999A).
+
+Worked example: shipped 120. `0.01f` is 0.00999999977648…; × 120 = 1.19999997317…, which lies below the midpoint
+1.19999998807… of the two nearest f32 values, so the result is 0x3F999999 (1.1999999), one ulp **below** the code
+default 1.2. Dividing by 100 would give 0x3F99999A. The two formulas agree for 50, 100, 110, 150 and 200.
 
 **Short and missing arrays** (TS28). Each array read has its own rule; "the rest" means the target entries past the
 property's count. Entries past the target's size are ignored.

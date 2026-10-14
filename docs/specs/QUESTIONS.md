@@ -1408,7 +1408,10 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   tile costs are reset even when missing, and income reads past the array (*[choice]* 0.0). The strategy and
   ordinance arrays read past their data when short, and wealth > 3 reads the following members. The brackets stand
   as *[choice]*s there; a missing ordinance property adds nothing. Written into traffic-simulator.md §4.1.2, §4.14.
-- **TS29:** max funding conversion from percent? [`r24(v / 100)`]
+- ~~**TS29:** max funding conversion from percent? [`r24(v / 100)`]~~ **ANSWERED 2026-10-14** from the exe
+  (`0x005FDAC0`, `0x00716D67`): the bracket does not match. The percent getter multiplies by the f32 constant 0.01f
+  for every numeric type, `r24(v × 0.01f)`; shipped 120 gives 0x3F999999 (1.1999999), not 1.2. Written into
+  traffic-simulator.md §4.14.
 - **TS30:** does Read commit only on success? [yes: parsed first; a failed Read leaves the simulator unchanged]
 - **TS31:** an unknown iterator-state byte in the record? [Done]
 - **TS32:** record versions above 0x29? [read with the 0x29 layout]
