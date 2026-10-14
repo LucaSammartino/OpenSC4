@@ -1619,8 +1619,14 @@ shadow's current answer is in brackets.
 
 About `docs/specs/crime.md` (CQ5, CQ8, CQ13 as applied). The glue's current answer is in brackets.
 
-- **CQ16 — CQ8:** the LTEXT string loads but the game's detokenizer returns false. [The load counts as failed;
-  `0xAA12FCB0` replaces the name only if that property exists, otherwise the copied text stays.]
+- ~~**CQ16 — CQ8:** the LTEXT string loads but the game's detokenizer returns false. [The load counts as failed;
+  `0xAA12FCB0` replaces the name only if that property exists, otherwise the copied text stays.]~~ **ANSWERED
+  2026-10-14** from the exe (`SC4LoadString` `0x00603040`: detokenizer call `0x00603133`, failure exit
+  `0x00603202`; crime loader reset `0x006A0C9C`–`0x006A0CA6`) and written into crime.md §7 ("Name", steps 0 and
+  "A failure in steps 2 or 3"). **Half right.** The load does fail, and `0xAA12FCB0` replaces the name only if it
+  exists. But the copied text does not stay. `SC4LoadString`'s failure exit calls `Resize(0)` on the output, so
+  the name is empty. The loader had already emptied it before the load, so every failed load leaves the name
+  empty unless `0xAA12FCB0` exists.
 - **CQ17 — CQ8:** property `0x8A416B2E` has fewer than 3 values. [No key, no lookup; the fallback is used.]
 - **CQ18 — CQ8:** there is no language manager. [Language 0, so only (group, instance) is tried.]
 - **CQ19 — CQ8:** is the detokenizer returned by `GetStringDetokenizer` (`cISC4App +0xA8`) borrowed or owned?

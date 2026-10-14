@@ -451,18 +451,25 @@ Names in quotes are the official property names (community property list, re/pri
 **Name** *[compat]* (`LoadCrimeTypeFromExemplar` `0x006A0D12`; `SC4LoadExemplarString` `0x00603270` →
 `0x00603220`; `SC4LoadString` `0x00603040`):
 
+0. Before loading, the loader resets the entry: it **empties the name** (`0x006A0C9C`–`0x006A0CA6`) and sets the
+   masks, severity, arson flag and weight to their defaults. A reloaded entry is reset the same way as a new one.
 1. Read property `0x8A416B2E` as three `u32` from the exemplar that the resource manager returns for the crime
    type's own key. If it is missing, the load fails. Value [0] (the key's type) is **ignored**: the LTEXT type is
    always `0x2026960B`. Value [1] is the LTEXT group `G` and value [2] the instance `I`.
 2. Look up (`0x2026960B`, `G` + current language ID, `I`). If that is missing and the language ID is not 0, look up
-   (`0x2026960B`, `G`, `I`) (data-formats §6.2). If both are missing, the load fails and the name is untouched.
+   (`0x2026960B`, `G`, `I`) (data-formats §6.2). If both are missing, the load fails.
 3. Copy the text into the name. Run the game's string detokenizer on it in place (the application's
    `GetStringDetokenizer`, `cISCStringDetokenizer` slot 9). If it returns false, the load fails. With no
    detokenizer the step is skipped.
 4. Replace every U+2022 by U+200B (data-formats §6.1). The load succeeds.
 
+**A failure in steps 2 or 3 empties the name** (QUESTIONS CQ16; `SC4LoadString`'s exit `0x00603202` calls the
+string's `Resize(0)`, slot 15). When the detokenizer returns false, the text that step 3 copied is therefore
+discarded. A failure in step 1 returns before `SC4LoadString` and leaves the name as step 0 left it. In every
+case a failed load leaves the name empty.
+
 If the load fails, read the string property `0xAA12FCB0` into the name. If that is missing too, the name stays
-as it was (empty for a new entry).
+empty.
 
 **Mask parsing**: each byte `b` sets bit `b − 1`. A byte 0 makes the mask `0xFFFFFFFF` (any). *[quirk]* A present
 but **empty** array gives mask 0, which never matches. A missing property gives `0xFFFFFFFF`. Byte values above
