@@ -404,6 +404,31 @@ deal list; `d.SetAmount(0)` (the proposal's amount is **0** *[compat]*); term in
 to `list`. The generator is a process-wide `cRZRandom` created on first use and seeded from the wall clock
 (foundations §6.2), double path. With the shipped tuning (1 and 1) `y = 1`.
 
+**Re-entry with `add = true`** *[compat]* (NB10; `create_deal_proposition` `0x006D0520`). The order inside
+`Propose` is:
+
+1. `ProposeDeal`: `d` is still Silent, so its `SetAmount(0)` reports nothing.
+2. `SetFlags(Silent, false)`, which **posts** status 0.
+3. Append `d` to the deal list.
+4. `SetAmount(0)`. `d` is now listed and not Silent, so this **sends** status 0 synchronously (§5.3). The
+   simulator's handler sets `statsDirty` and calls `simulate_deals` at once. `ready` is true here, because
+   `ProposeDeals` runs only when ready, and `busy` is false, because `ProposeDeals` does not set it. So a full run
+   (§7.3) happens **inside** `Propose`:
+   - unless `uiDisabled`, `d` normally passes `UpdateState` and the garbage check, because the proposal tests just
+     checked its connection and the payer's budget. It then has no flag of `0x3C` and is Proposed, so `Activate()`
+     makes it **Active** (posting 0, 0, NB2), `currentDate := today`, and status 1 is posted. A garbage-sell
+     proposal can instead get NoLandfill here, which starts Grace (§7.3);
+   - every other listed deal is simulated as well;
+   - `UpdateCommodityStats` runs and the region push follows.
+5. Back in `SetAmount`: `UpdateCost()` (cost 1, status 0 posted).
+6. Back in `Propose`: the term, then `currentDate := startDate := today` and `expirationDate := today + 365·y`
+   overwrite the dates. During the nested run the start and expiration dates were still the construction dates
+   (§5.1). The nested run does not read them for a Proposed deal.
+
+So `ProposeDeals(list, true)` returns deals that are already **Active**, unless `uiDisabled` was set, in which case
+they stay Proposed. This is the original's behaviour and must be kept. The queued reports (0 from step 2, then 0,
+0, 1 from step 4, then 0 from step 5) each trigger a further run when delivered (§7.2).
+
 Who calls `ProposeDeals` and sets amounts afterwards is the UI's business (open question 3).
 
 ### 7.2 When the deal simulation runs

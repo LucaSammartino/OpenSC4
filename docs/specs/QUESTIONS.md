@@ -483,8 +483,11 @@ vectors `nb18_*`). The core's current answer is in brackets.
   2026-10-14** from the exe: the bracket matches. Both `FindDeals` overloads (`0x006D0760`, `0x006D0840`) match on
   type and city only, and `GetDealCost`/`GetDealMaxAmount` check no flags. §5.2 was wrong and now limits the `0x3D`
   rule to the totals (neighbors.md §5.2).
-- **NB10:** SetAmount's synchronous report re-enters `simulate_deals` during `ProposeDeals(add = true)` and
-  activates the proposal. Intended? [as written]
+- ~~**NB10:** SetAmount's synchronous report re-enters `simulate_deals` during `ProposeDeals(add = true)` and
+  activates the proposal. Intended? [as written]~~ **ANSWERED 2026-10-14** from the exe: the bracket matches, and
+  it must be kept. In `0x006D0520` the order is: un-Silence, append, then `SetAmount(0)`, which sends status 0
+  synchronously. The handler runs a full `simulate_deals`, since `ProposeDeals` sets no busy flag, and that run
+  activates the proposal. `Propose` writes the dates afterwards (neighbors.md §7.1, step by step).
 - **NB11:** the store ignores a false `Read` (foundations §3.5), so a version-3 simulator record loads "clean" with 0
   connections. Confirm. [yes]
 - **NB12:** `UpdateCommodityStats` takes a regional-city token. Is that the right subject? [yes]
