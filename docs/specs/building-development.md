@@ -393,7 +393,11 @@ below posts ActiveDemandChanged (`0x426840A0`, data1 = 0) like any node (demand 
 
 #### 4.7.1 Buildings
 
-For each building exemplar (ExemplarType 2) the **building type** is the exemplar's instance ID.
+For each building exemplar (ExemplarType 2) the **building type** is the exemplar's instance ID. *[compat]* Every
+property here, `ExemplarType` included, is read with the exemplar's **effective** lookups, so values inherited from
+parent cohorts count (data-formats §4.4): 653 of the 743 shipped building exemplars get `ExemplarType` 2 and all of
+their family lists only from a cohort. A catalogue built from own properties (for example through `EnumProperties`)
+has 90 types and no families; the devglue shadow's `types=744/91` (manual-checks run 101) is this difference.
 `AddBuildingData` stores type → exemplar key (a later exemplar with the same instance replaces the key) and calls
 `LoadBuildingProperties(holder, type)` (`0x0069B910`), which fills:
 

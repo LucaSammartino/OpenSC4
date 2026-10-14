@@ -487,8 +487,28 @@ Each exemplar or cohort keeps two property lists, both sorted by ascending unsig
 - the **effective** list = the parent's effective list, then the own properties applied on top (an own property
   replaces the parent's property with the same ID).
 
-All lookups (`HasProperty`, `GetProperty(id)`, the typed getters of §5, `GetPropertyList`, `EnumProperties`) use
-the **effective** list. `IsPropertyLocal(id)` (`cISCResExemplar` slot 8) tests the own list only.
+The lookups `HasProperty` (holder slot 3, `0x0067C620`), `GetProperty(id)` (slot 9, `0x0067C670`), the typed getters
+of §5 (slots 5–8 call slot 9) and `GetPropertyList` (slot 4, `0x0067C4B0`) use the **effective** list: a binary
+search (`0x005FE940`) in a sorted vector of `{id, property}` pairs (property-holder sub-object `+0x18`/`+0x1C`); the
+parent chain is **not** walked at lookup time, because the vector already holds every inherited property.
+`IsPropertyLocal(id)` (`cISCResExemplar` slot 8, `0x0067C210`) tests the own list only (`+0x08`/`+0x0C`).
+
+**Correction (DG29): `EnumProperties` lists the own properties only.** Exemplars and cohorts do not override the
+base `cSCPropertyHolder::EnumProperties` (slots 19 and 20, `0x005FDA80` / `0x005FDA50`), which walks the own list
+(`+0x08`). An earlier version of this section listed it with the effective lookups. The **effective enumerator is
+`GetPropertyList`**: it creates a new `cIGZUnknownList` (`0x0090DC0F`), adds every property of the effective list in
+ascending ID order (list slot 7), and returns it with one reference, which the caller releases; it returns false
+(and no list) for a null out-pointer. Occupants differ: an occupant's holder (`cSCExemplarPropertyHolder`, e.g. a
+building's `+0x0C`, building-development §4.9.1) answers `GetProperty` from its own list, then from its default
+exemplar's effective list, and its `EnumProperties` (`0x005FEE10` / `0x005FEF00`) visits its own properties, then
+the exemplar's `GetPropertyList` minus the IDs it overrides.
+
+Worked example: an exemplar E whose record holds only a name and a capacity, with parent cohort C holding
+`ExemplarType` = 2 and a family list `0x27812870`. `GetProperty(0x10)` on E finds 2 and E's `GetPropertyList`
+contains `0x10` and `0x27812870`, but E's `EnumProperties` visits only the name and the capacity. This is the shipped
+case: of the 743 building types in the shipped `.dat` files (the devglue shadow counted 744 in game), 653 inherit
+`ExemplarType` 2 from a cohort and 90 carry it themselves, and all 556 building exemplars with a family list inherit
+it. A reader that sees own properties only finds 90 building types and no families.
 
 - The effective list is **built when the parent is set and updated on every add**: it is a snapshot. Changing a
   cohort later does not change exemplars already built from it *[compat]* (the game never changes cohorts at run
