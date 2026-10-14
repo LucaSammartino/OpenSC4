@@ -31,6 +31,9 @@ enum class Direct : unsigned {
     MapU32Index,           // STLport map<uint32_t, 4-byte T>::operator[]: thiscall (const uint32_t*), pop 4,
                            //   EAX = the value's address (FC4GameMap.h)
     MapEraseSubtree,       // the same maps' subtree free: thiscall (node* top), pop 4 (FC4GameMap.h)
+    GlobalHeapFree,        // allocator C free (the game's operator delete): cdecl void (void*)
+                           //   (docs/abi/allocators.md; FC4SafeLotIterator.h frees the
+                           //   safe lot iterator's block with it)
     Count
 };
 

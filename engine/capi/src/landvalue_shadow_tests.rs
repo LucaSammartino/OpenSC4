@@ -6,8 +6,10 @@
 
 //! The land value shadow against a fake game whose "original" is our own
 //! simulator (fc4_landvalue_*): a clean pass, one wrong tract, one wrong
-//! scalar, a desirability map changed after the pass, the read-only
-//! contract, the INCOMPLETE paths and the stats getter inside a pass.
+//! scalar, a desirability map changed after the pass (snapshotted only while
+//! the developer's slot 10 is true, LV2), two developers applied in pointer
+//! order (LV1), the read-only contract, the INCOMPLETE paths and the stats
+//! getter inside a pass.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -25,6 +27,8 @@ const CITY: CityCells = CityCells {
     cell_width_z: 16.0,
 };
 const DEV: u64 = 0xDE5;
+/// A second developer (type 0x1040) at a lower address than [`DEV`].
+const DEV2: u64 = 0xD00;
 
 enum Data {
     U8(Vec<u8>),
@@ -42,6 +46,10 @@ struct Game {
     grids: RefCell<HashMap<u64, Grid>>,
     next: RefCell<u64>,
     dmap: RefCell<u64>,
+    dmap2: RefCell<u64>,
+    /// The developers' slot 10 (`GrowthAndDeclineListsAreValid`) is false:
+    /// state 17 pending or done (growth-developer §3.2).
+    busy: Cell<bool>,
     /// Every call that changes the game (create, write, resize, shutdown,
     /// release, history, post).
     changes: RefCell<Vec<String>>,
@@ -117,17 +125,32 @@ unsafe extern "C" fn area_slope(_: *mut c_void, x1: i32, z1: i32, _x2: i32, _z2:
     x1 as f32 + z1 as f32 / 100.0
 }
 unsafe extern "C" fn developer(_: *mut c_void, t: u32) -> u64 {
-    if t == 0x1030 {
-        DEV
-    } else {
-        0
+    match t {
+        0x1030 => DEV,
+        0x1040 => DEV2,
+        _ => 0,
     }
 }
+unsafe extern "C" fn lists_valid(u: *mut c_void, dev: u64) -> bool {
+    assert!(dev == DEV || dev == DEV2);
+    !game(u).busy.get()
+}
 unsafe extern "C" fn desirability_map(u: *mut c_void, dev: u64) -> u64 {
+    let g = game(u);
+    if dev == DEV2 {
+        let existing = *g.dmap2.borrow();
+        if existing != 0 {
+            return existing;
+        }
+        // Strongly negative: applied first it clamps every tract to 1, last
+        // it clamps them all to 1 after the other developer's additions.
+        let t = g.add(2, |n| Data::I16(vec![-200; n]));
+        *g.dmap2.borrow_mut() = t;
+        return t;
+    }
     if dev != DEV {
         return 0;
     }
-    let g = game(u);
     let existing = *g.dmap.borrow();
     if existing != 0 {
         return existing;
@@ -218,6 +241,7 @@ fn host(g: &Game) -> fc4_landvalue_host {
         set_history_queue_length: Some(history_len),
         record_history: Some(history),
         post: Some(post),
+        developer_lists_valid: Some(lists_valid),
     }
 }
 
@@ -482,7 +506,11 @@ fn desirability_changed_after_the_pass() {
         let t = tuning(&SHIPPED);
         let orig = Original::run(&g, &t);
         let r = read(&g, &orig);
-        let ro = read_only(&g);
+        // No slot-10 callback: every note snapshots.
+        let ro = fc4_landvalue_host {
+            developer_lists_valid: None,
+            ..read_only(&g)
+        };
         let s = fc4_landvalue_shadow_create(&ro, &t, 0);
         assert_eq!(fc4_landvalue_shadow_note_day(s), 0);
         // The developer republishes its map after the original's pass read it.
@@ -497,6 +525,98 @@ fn desirability_changed_after_the_pass() {
         let mut st = fc4_landvalue_shadow_stats::default();
         assert!(fc4_landvalue_shadow_get_stats(s, &mut st));
         assert_eq!((st.desirability_changes, st.desirability_reruns), (1, 1));
+        fc4_landvalue_shadow_destroy(s);
+    }
+}
+
+/// Sets every value of the developer map `d` to `v`.
+fn set_map(g: &Game, d: u64, v: i16) {
+    if let Some(Grid { data: Data::I16(m), .. }) = g.grids.borrow_mut().get_mut(&d) {
+        m.iter_mut().for_each(|x| *x = v);
+    }
+}
+
+/// LV2: the map is snapshotted only while the developer's slot 10 is true,
+/// so the second candidate is the map from before the developer's last
+/// state-17 copy, whenever the notes fall.
+#[test]
+fn desirability_snapshot_follows_slot_10() {
+    unsafe {
+        let g = Game::default();
+        let t = tuning(&SHIPPED);
+        // The original's pass reads M0 (the fake's initial map).
+        let orig = Original::run(&g, &t);
+        let r = read(&g, &orig);
+        let ro = read_only(&g);
+        let s = fc4_landvalue_shadow_create(&ro, &t, 0);
+        // Slot 10 true: M0 is snapshotted.
+        assert_eq!(fc4_landvalue_shadow_note_day(s), 0);
+        // State 17 pending, then the copy publishes M1: no snapshot while
+        // slot 10 is false, before or after the copy.
+        g.busy.set(true);
+        assert_eq!(fc4_landvalue_shadow_note_day(s), 0);
+        set_map(&g, *g.dmap.borrow(), 90);
+        assert_eq!(fc4_landvalue_shadow_note_day(s), 0);
+        let mut st = fc4_landvalue_shadow_stats::default();
+        assert!(fc4_landvalue_shadow_get_stats(s, &mut st));
+        assert_eq!(st.desirability_changes, 0);
+        // Compared while slot 10 is still false: the candidates are the live
+        // M1 and the snapshot M0; M0 is the one the original read.
+        let mut lines = Vec::new();
+        assert_eq!(compare(s, &r, &mut lines), 0, "{lines:?}");
+        assert!(lines[0].contains("desirability=previous map"), "{}", lines[0]);
+        // Back to state 0: slot 10 true, M1 is snapshotted (M0 kept as the
+        // map before the copy).
+        g.busy.set(false);
+        assert_eq!(fc4_landvalue_shadow_note_day(s), 1);
+        assert_eq!(compare(s, &r, &mut lines), 0, "{lines:?}");
+        assert!(lines[1].contains("desirability=previous map"), "{}", lines[1]);
+        // A pass that read M1 matches with the live map.
+        let orig1 = Original::run(&g, &t);
+        let r1 = read(&g, &orig1);
+        assert_eq!(compare(s, &r1, &mut lines), 0, "{lines:?}");
+        assert!(lines[2].contains("desirability=live (1 developer(s))"), "{}", lines[2]);
+        assert!(fc4_landvalue_shadow_get_stats(s, &mut st));
+        assert_eq!((st.desirability_changes, st.desirability_reruns), (1, 2));
+        fc4_landvalue_shadow_destroy(s);
+    }
+}
+
+/// LV1: two developers listed in an order other than their pointers'; the
+/// original applies them in ascending pointer order, so must the shadow.
+#[test]
+fn developers_in_pointer_order() {
+    unsafe {
+        let g = Game::default();
+        let weights = [2.5f32, 2.5];
+        // Tuning order: DEV (0xDE5) first, then DEV2 (0xD00).
+        let listed = [0x1030u32, 0x1040];
+        let t = fc4_landvalue_tuning {
+            developer_ids: listed.as_ptr(),
+            developer_id_count: 2,
+            developer_weights: weights.as_ptr(),
+            developer_weight_count: 2,
+            ..tuning(&SHIPPED)
+        };
+        // The original's order: DEV2 then DEV (our simulator keeps tuning
+        // order, so the stand-in for the original is listed that way).
+        let by_address = [0x1040u32, 0x1030];
+        let ta = fc4_landvalue_tuning {
+            developer_ids: by_address.as_ptr(),
+            ..t
+        };
+        let orig = Original::run(&g, &ta);
+        let r = read(&g, &orig);
+        // The order matters here: in tuning order the totals differ.
+        let in_tuning_order = Original::run(&g, &t);
+        let r_t = read(&g, &in_tuning_order);
+        assert_ne!(r.total, r_t.total);
+        let ro = read_only(&g);
+        let s = fc4_landvalue_shadow_create(&ro, &t, 0);
+        assert_eq!(fc4_landvalue_shadow_note_day(s), 0);
+        let mut lines = Vec::new();
+        assert_eq!(compare(s, &r, &mut lines), 0, "{lines:?}");
+        assert!(lines[0].contains("desirability=live (2 developer(s))"), "{}", lines[0]);
         fc4_landvalue_shadow_destroy(s);
     }
 }

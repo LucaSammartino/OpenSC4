@@ -1,8 +1,8 @@
 {
   "format": 1,
   "name": "residential_proximity_one_source",
-  "spec": ["residential 5.1", "residential 5.3", "residential 15.1", "RS5"],
-  "description": "Test 1 through the states: a 5 x 5 building map (tract size 1) with key 6 = (purpose 1 << 2) + 1 + 1 only at (2, 2). States 0 -> 13 -> 1 -> 14 -> 2 -> 15 -> 3 -> 11 build the three proximity maps; running state 13 creates the temporary grid and seeds it (0 at the key tract, 255 elsewhere), and running state 3 shuts it down (instance 0) and frees it. Proximity R$ is the Manhattan distance |x - 2| + |z - 2| ((0, 0) = 4, (4, 2) = 2, every cell listed); R$$ and R$$$ have no key 7 or 8, so they stay 255 everywhere: with RS5 the running distance d is 32-bit, so 255 + 1 does not wrap to 0 and the min keeps 255.",
+  "spec": ["residential 5.1", "residential 5.3", "residential 15.1", "RS5", "RG23"],
+  "description": "Test 1 through the states: a 5 x 5 building map (tract size 1) with key 6 = (purpose 1 << 2) + 1 + 1 only at (2, 2). States 0 -> 13 -> 1 -> 14 -> 2 -> 15 -> 3 -> 11 build the three proximity maps; running state 13 creates the temporary grid (all 0) and seeds it, and running state 3 shuts it down (instance 0) and frees it. RG23 [compat]: the seed reads map[x][0] (no z offset) and stores in the cell (x, 0) only, so the key at (2, 2) is never seen: after state 13 the z = 0 edge is 255 and every other cell keeps 0. The passes lower the edge to 1 from its 0 neighbour (x, 1), so R$, R$$ and R$$$ are all 1 at (x, 0) and 0 elsewhere: (0, 0) = 1, (2, 2) = 0, (4, 2) = 0. With RS5 the running distance d is 32-bit, so 255 + 1 does not wrap to 0 and the edge is 1, not 0.",
   "steps": [
     {"op": "residential_env", "cells": [5, 5], "building_map": {"size": 1, "cells": [[2, 2, 6]]}},
     {"op": "residential_create"},
@@ -12,22 +12,18 @@
     {"op": "residential_expect", "state": {"temporary": false}},
     {"op": "residential_run_to", "state": 1, "steps": 1},
     {"op": "residential_expect", "state": {"temporary": true}},
-    {"op": "residential_expect_grid", "grid": "temporary", "size": 1, "counts": [5, 5], "cells": [[2, 2, 0]], "others": 255},
+    {"op": "residential_expect_grid", "grid": "temporary", "size": 1, "counts": [5, 5], "cells": [[0, 0, 255], [1, 0, 255], [2, 0, 255], [3, 0, 255], [4, 0, 255]], "others": 0},
     {"op": "residential_clear_events"},
     {"op": "residential_run_to", "state": 11, "steps": 5},
     {"op": "residential_expect", "state": {"temporary": false}},
     {"op": "residential_expect_events", "filter": {"event": "shutdown_grid"}, "events": [{"instance": 0}]},
-    {"op": "residential_expect_grid", "grid": "proximity1", "size": 1, "counts": [5, 5], "instance": "0x49D5BC96", "cells": [
-      [0, 0, 4], [0, 1, 3], [0, 2, 2], [0, 3, 3], [0, 4, 4],
-      [1, 0, 3], [1, 1, 2], [1, 2, 1], [1, 3, 2], [1, 4, 3],
-      [2, 0, 2], [2, 1, 1], [2, 2, 0], [2, 3, 1], [2, 4, 2],
-      [3, 0, 3], [3, 1, 2], [3, 2, 1], [3, 3, 2], [3, 4, 3],
-      [4, 0, 4], [4, 1, 3], [4, 2, 2], [4, 3, 3], [4, 4, 4]
-    ]},
-    {"op": "residential_expect_grid", "grid": "proximity2", "all": 255},
-    {"op": "residential_expect_grid", "grid": "proximity3", "all": 255},
-    {"op": "residential_call", "method": "get_proximity", "args": [1, 4, 2], "expect": 2},
-    {"op": "residential_call", "method": "get_proximity", "args": [2, 2, 2], "expect": 255},
+    {"op": "residential_expect_grid", "grid": "proximity1", "size": 1, "counts": [5, 5], "instance": "0x49D5BC96", "cells": [[0, 0, 1], [1, 0, 1], [2, 0, 1], [3, 0, 1], [4, 0, 1]], "others": 0},
+    {"op": "residential_expect_grid", "grid": "proximity2", "cells": [[0, 0, 1], [1, 0, 1], [2, 0, 1], [3, 0, 1], [4, 0, 1]], "others": 0},
+    {"op": "residential_expect_grid", "grid": "proximity3", "cells": [[0, 0, 1], [1, 0, 1], [2, 0, 1], [3, 0, 1], [4, 0, 1]], "others": 0},
+    {"op": "residential_call", "method": "get_proximity", "args": [1, 0, 0], "expect": 1},
+    {"op": "residential_call", "method": "get_proximity", "args": [1, 2, 2], "expect": 0},
+    {"op": "residential_call", "method": "get_proximity", "args": [1, 4, 2], "expect": 0},
+    {"op": "residential_call", "method": "get_proximity", "args": [2, 2, 0], "expect": 1},
     {"op": "residential_call", "method": "get_proximity", "args": [0, 2, 2], "expect": null},
     {"op": "residential_call", "method": "get_proximity", "args": [4, 2, 2], "expect": null}
   ]

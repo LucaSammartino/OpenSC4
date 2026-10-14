@@ -153,7 +153,8 @@ pub trait BudgetHost {
     fn ordinance_monthly_expense(&self) -> i64;
     fn neighbor_deal_income(&self) -> i64;
     fn neighbor_deal_expense(&self) -> i64;
-    /// Every lot of the lot manager, in its own order.
+    /// Every lot of the lot manager, in its master-list order (§5.2): the
+    /// tax total is a float32 running sum, so it depends on that order (BQ3).
     fn for_each_lot(&self, f: &mut dyn FnMut(&LotInfo));
     fn record_history(&self, series: u32, value: i32);
     fn set_history_queue_length(&self, series: u32, length: u32);

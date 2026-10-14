@@ -12,9 +12,10 @@
 //!
 //! # Structure
 //!
-//! - `geometry.rs`: the proximity seed and the four-sweep Manhattan distance
-//!   passes of §5.3 ([`seed_proximity`], [`distance_pass`],
-//!   [`distance_to_convergence`], [`copy_proximity`]).
+//! - `geometry.rs`: the proximity seed (z = 0 edge only, *[compat]* RG23)
+//!   and the four-sweep Manhattan distance passes of §5.3
+//!   ([`seed_proximity`], [`distance_pass`], [`distance_to_convergence`],
+//!   [`copy_proximity`]).
 //! - `tuning.rs`: the population tuning of §7.1 ([`PopulationTuning`]), the
 //!   simulator tuning of §7.2 ([`SimulatorTuning`], whose `read` reproduces
 //!   the §9.3 strike-reset quirk), the two per-call curves of §7.3
@@ -172,7 +173,9 @@ pub use education_health::{
     OrdinanceEffect, RadiusEffect, Service, FLAT_CURVE, HOSPITAL, LINE_ITEM_DISPLAY_FLAG, NOT_GRADED,
     PROP_HEALTH_AFFECTING, PROP_STRIKE_DAY, SCHOOL, STRIKING_EDUCATION, STRIKING_HEALTH,
 };
-pub use geometry::{copy_proximity, distance_pass, distance_to_convergence, seed_proximity, FAR, MAX_PASSES};
+pub use geometry::{
+    copy_proximity, distance_pass, distance_to_convergence, seed_proximity, seed_proximity_no_map, FAR, MAX_PASSES,
+};
 pub use record::RECORD_VERSION;
 pub use simulator::{
     age_bucket, query_interface, Grids, ResidentialRng, ResidentialSim, ResidentialState, SlotReturn, SlotRow,

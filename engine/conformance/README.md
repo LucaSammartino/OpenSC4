@@ -1591,6 +1591,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 |---|---|
 | 1 funds | `b15_01_funds` |
 | 2 tax | `b15_02_tax` |
+| 2 tax: the total is a float32 running sum in lot order (BQ3, the §5.2 worked example: 6567 in list order, 6566 reversed, lines 3848 + 2718) | `b15_02b_tax_lot_order` |
 | 3 settlement | `b15_03_settlement` |
 | 4 year end | `b15_04_year_end` |
 | 5 bankruptcy | `b15_05_bankruptcy` |
@@ -1624,7 +1625,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | 11 history | `d16_11_history` |
 | 12 save round trip | `d16_12_save` |
 | §5 `GetNeutralTaxRate` sum order (DQ9, the §5 worked example) | `d16_13_neutral_rate_sum_order` |
-| §5 `CalculateJobsPerUnitOfDemand` scale `f32(u32 percent) × 0.01f` (corrected 2026-10-14; 33 → `0x3EA8F5C2`) and `GetJobsBySensus` | `d16_14_jobs_per_unit_scale` |
+| §5 `CalculateJobsPerUnitOfDemand` scale, the §4.1 link factor (33 → `0x3EA8F5C2`; DQ12: two roundings from 2^31 up, 3242996796 → `0x4BF76BC7`) and `GetJobsBySensus` (DQ10: `(jobs[3] + jobs[2]) + jobs[1]`, 1/3/96 % × 1000 → 999) | `d16_14_jobs_per_unit_scale` |
 
 ## Coverage (ordinance §13)
 
@@ -2278,9 +2279,11 @@ Not covered by a vector, and why:
 
 | §15 item | Vector |
 |---|---|
-| 1 proximity, one source (Manhattan R$, 255 for R$$ / R$$$; RS5) | `rs15_01_proximity_one_source` |
+| 1 proximity, one source (RG23: the seed fills only the z = 0 edge, so every map is 1 there and 0 elsewhere; RS5) | `rs15_01_proximity_one_source` |
+| 1 a key on the z = 0 edge (R$ (3, 0) = 0, R$$ unchanged; RG23) | `rs15_01c_proximity_edge_key` |
+| 1 the §5.3 worked example (4 × 4, R$$ and R$$$ reuse the grid; RG23) | `rs15_01b_proximity_worked_example` |
 | 2 proximity cap (200 at x = 200, 255 at x = 280) | `rs15_02_proximity_cap` |
-| 3 proximity, coarser target (tract (1, 0) = 0, (0, 0) = 1) | `rs15_03_proximity_coarser_target` |
+| 3 proximity, coarser target (RG23: tract (1, 1) overwrites (1, 0)'s 0; (0, 0) = (1, 0) = 1, (0, 1) = (1, 1) = 0) | `rs15_03_proximity_coarser_target` |
 | 4 decay (10 → 9.8, 0.1 → 0) | `rs15_04_decay` |
 | 5 newcomers' age (35) | `rs15_05_06_newcomers_age` |
 | 6 age quirk (71) | `rs15_05_06_newcomers_age` |
@@ -2318,8 +2321,8 @@ Not covered by a vector, and why:
 
 - **The 5 ms CPU-cycle slicer (§5.2)** is replaced by a work budget ([choice]); test 19 pins the budget's resume
   behaviour, not the clock.
-- **RS5** has no vector of its own: a byte-wide running distance would wrap 255 + 1 to 0 and put zeros into
-  `rs15_01`'s R$$ / R$$$ maps; the single-row example of RS5 is a `fc4-core` unit test (`rs5_distance_does_not_wrap`).
+- **RS5** has no vector of its own: a byte-wide running distance would wrap 255 + 1 to 0 and put zeros on
+  `rs15_01`'s z = 0 edge, where the maps hold 1; the single-row example of RS5 is a `fc4-core` unit test (`rs5_distance_does_not_wrap`).
 
 ## Coverage (residential education and health §11)
 

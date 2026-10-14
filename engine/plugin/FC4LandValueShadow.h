@@ -30,8 +30,12 @@
 //     reading the terrain, the zones, the lot developer's area slope and the
 //     growth developers' desirability maps live and read-only, and the two are
 //     compared tract by tract;
-//   - SimNewDay (posted): the listed developers' desirability maps are noted
-//     (a map republished after the original's pass read it is retried);
+//   - SimNewDay (posted): the listed developers' desirability maps are
+//     snapshotted while their GrowthAndDeclineListsAreValid (slot 10) is true
+//     (landvalue.md §7.4, LV2); a map republished after the original's pass
+//     read it is retried with the map from before the developer's last
+//     state-17 copy. Several developers apply in ascending pointer order, as
+//     in the original (LV1);
 //   - PostCityShutdown: the shadow core is dropped.
 //
 // Log lines (always written, not the verbose channel; longer lines are split

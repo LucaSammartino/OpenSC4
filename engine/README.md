@@ -872,13 +872,14 @@ plugin.
      altitude, which have no getter) are read, and FreeCity4's pass (states 0-8, the core code our simulator
      runs, `fc4_landvalue_shadow_compare`) runs on local grids (the intrinsic grid starts as a copy of the
      original's: state 4 keeps it without an altitude curve), reading the terrain, the zones, the lot developer's
-     area slope and the growth developers' desirability maps live and read-only. `SimNewDay` notes the listed
-     developers' desirability maps: when the total grid differs and a map changed after the original's pass read
-     it, our pass runs again with the previous map and the better result is kept (`desirability=previous map
+     area slope and the growth developers' desirability maps live and read-only; several developers apply in
+     ascending pointer order, as in the original (land value spec §7.4, LV1). `SimNewDay` snapshots the listed
+     developers' desirability maps while their `GrowthAndDeclineListsAreValid` (slot 10) is true (LV2): when the
+     total grid differs and a map changed after the original's pass read it, our pass runs again with the map
+     from before the developer's last state-17 copy and the better result is kept (`desirability=previous map
      …`). **Not compared** (said at game start): the scratch grid, the histogram, min / max altitude, pivot and
      ranges (no getter, not saved), the pipeline state and the dirty flag apart (the record holds their OR,
-     logged as `settled`), the inputs as each state read them, and the order of several growth developers (the
-     shipped tuning lists one). Lines (always written; longer ones continue on `landvalue shadow (cont.)` lines):
+     logged as `settled`), and the inputs as each state read them. Lines (always written; longer ones continue on `landvalue shadow (cont.)` lines):
 
      ```
      landvalue shadow: ON (landvalue_shadow from …): …                                    (game start)
@@ -911,7 +912,11 @@ plugin.
      its previous value: at most 2 × tractsPerDay tracts may be "unvisited", visited on the wrap day before the
      previous comparison); the average against the range those values allow; the multiplier bitwise; the
      hotspots against every rotation of the fixed visiting order; the getters on the mirror after it took the
-     original's state. The first cycle seen (and the one after a new simulator, a new geometry or an
+     original's state. The watered state is the one at the visit (flammability spec §6.5, FL5/FL6): the target
+     also hears the plumbing pass end (`0x6946DC34`), and every event first polls the plumbing simulator's
+     `GetWateredGrid` (slot 7), whose object alternates at every pass; on a new pointer the watered states are
+     read again, and a tract whose state changed in the cycle may hold its daily value under either state (no
+     other tract is loosened). The first cycle seen (and the one after a new simulator, a new geometry or an
      `INCOMPLETE`) is the baseline. **Not compared** (said at game start and in every line): the fire roll (a
      clock-seeded generator), the iterator start and the hotspot shuffle (C `rand()` draws), the random lot, the
      candidate list and the zoned sum and count. Lines (always written; longer ones continue on `flammability
@@ -925,7 +930,8 @@ plugin.
      flammability shadow yyyy-mm-dd cycle N: tracts=CXxCZ (S=1) tractsPerDay=d; raw cells=… mismatched=a
        max|d|=…; adjusted cells=… mismatched=b max|d|=… (exact …, explained …, unvisited u of at most 2d); average
        orig/ours=x/y[..z]; multiplier orig/ours=…/…; hotspots orig/ours=h/h same (rotation k of n hot tracts) |
-       differ (…)[; first differing (x,z) orig/ours: …]; events=e; hotspot getter orig/ours=v@(x,z)/…; average
+       differ (…)[; first differing (x,z) orig/ours: …]; events=e; plumbing passes=p (tracts whose watered state
+       changed: t); hotspot getter orig/ours=v@(x,z)/…; average
        getter orig/ours=…/…; flammable getter cells=… mismatched=…; mismatches=M; cycles=K clean=C; not compared: …
      flammability shadow yyyy-mm-dd cycle N: INCOMPLETE (why); not compared, the next cycle is a new baseline
      ```

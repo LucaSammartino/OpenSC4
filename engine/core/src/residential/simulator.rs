@@ -26,7 +26,7 @@ use crate::rng::{derive_seed, RzRandom, SeedSource, CLOCK_SEED};
 use crate::x87::{ftol32, mul_i64_f32, rhe, u32_to_float};
 
 use super::education_health::{OrdinanceEffect, Service};
-use super::geometry::{copy_proximity, distance_pass, distance_to_convergence, seed_proximity, FAR};
+use super::geometry::{copy_proximity, distance_pass, distance_to_convergence, seed_proximity, seed_proximity_no_map};
 use super::tuning::{le_curve, new_ages_by_wealth, pct, workforce_curve, PopulationTuning, SimulatorTuning};
 use super::{
     group, history, instance, msg, state as st, wealth, DepartmentBlock, OccupantLists, ResidentialHost,
@@ -875,8 +875,9 @@ impl ResidentialSim {
     }
 
     /// States 13/14/15 (§5.3 step 1): create the temporary grid if absent and
-    /// seed it for wealth `w`. R$$ and R$$$ reuse the R$ grid (the seed
-    /// overwrites every tract).
+    /// seed it for wealth `w`. R$$ and R$$$ reuse the R$ grid. *[compat]*
+    /// (RG23): the seed overwrites only the z = 0 edge, so every other cell
+    /// keeps the previous wealth's result (0 off the edge, as on a fresh grid).
     fn seed_temporary(&self, w: usize) {
         let h = &*self.host;
         let key = h.building_map_key(BUILDING_PURPOSE_RESIDENTIAL, wealth::NUMBERS[w]);
@@ -897,8 +898,9 @@ impl ResidentialSim {
         };
         match map {
             Some(map) => seed_proximity(&*temp, &*map, key),
-            // No building map: no key tract, so every value is FAR (§5.3).
-            None => temp.fill(FAR),
+            // [choice] No building map: seed as against a map with no key, so
+            // the z = 0 edge is FAR and the rest is kept (§5.3, RG23).
+            None => seed_proximity_no_map(&*temp),
         }
     }
 

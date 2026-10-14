@@ -124,17 +124,31 @@ pub struct fc4_flammability_host {
     pub set_fire_cause: Option<unsafe extern "C" fn(U, u32)>,
     // messages
     pub post: Option<unsafe extern "C" fn(U, u32)>,
+    /// Plumbing slot 7 `GetWateredGrid()`: the published watered grid as a
+    /// token (0 = none). Its object alternates at every plumbing pass
+    /// (plumbing §2), so a change tells a pass ended (flammability.md §6.5,
+    /// FL5/FL6). Read by the flammability shadow only; NULL = not polled.
+    pub watered_grid: Option<unsafe extern "C" fn(U) -> u64>,
 }
 
 const _: () = {
     assert!(std::mem::size_of::<fc4_flammability_message>() == 24);
     assert!(std::mem::size_of::<fc4_flammability_state>() == 80);
-    assert!(std::mem::size_of::<fc4_flammability_host>() == if cfg!(target_pointer_width = "32") { 132 } else { 264 });
+    assert!(std::mem::size_of::<fc4_flammability_host>() == if cfg!(target_pointer_width = "32") { 136 } else { 272 });
 };
 
 // ---- host adapter -----------------------------------------------------------------------------------
 
 pub(crate) struct CHost(pub(crate) fc4_flammability_host);
+
+impl CHost {
+    /// The plumbing simulator's published watered grid (FL5/FL6); `None`
+    /// when the host does not answer it.
+    pub(crate) fn watered_grid(&self) -> Option<u64> {
+        // SAFETY: whoever created the object promised valid callbacks.
+        self.0.watered_grid.map(|f| unsafe { f(self.0.user) })
+    }
+}
 
 macro_rules! cb {
     ($s:expr, $f:ident, $default:expr $(, $arg:expr)*) => {

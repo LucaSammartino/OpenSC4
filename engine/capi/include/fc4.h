@@ -471,13 +471,13 @@ typedef struct fc4_tax_scan {
     uint32_t struct_size; /* caller sets = sizeof(fc4_tax_scan) */
     uint32_t lots;        /* lots visited */
     float multiplier;     /* DifficultyTaxMultiplier[difficulty] */
-    float total;          /* the float32 running total */
+    float total;          /* the float32 running total, lot by lot in visit order (BQ3) */
     int64_t weighted_assessed[12];
     int64_t monthly_tax[12]; /* trunc(groupTax[t]) */
     int64_t tax_income[12];  /* GetTaxIncome(t) with the given rates */
     float group_tax[12];
     uint32_t counted[12];    /* lots counted per group */
-    int64_t total_tax;       /* ComputeTax's result, trunc(total) */
+    int64_t total_tax;       /* ComputeTax's result, trunc(total), never the sum of the lines */
 } fc4_tax_scan;
 
 typedef void (*fc4_tax_lot_callback)(void* ctx, uint32_t index, const fc4_lot_info* lot, const fc4_tax_lot* result);
@@ -505,6 +505,8 @@ typedef struct fc4_budget_host {
     int64_t (*ordinance_expense)(void* user);
     int64_t (*neighbor_income)(void* user);
     int64_t (*neighbor_expense)(void* user);
+    /* Every lot, in the lot manager's master-list order (§5.2): the tax total
+     * is a float32 running sum, so only that order matches it exactly (BQ3). */
     void (*for_each_lot)(void* user, fc4_lot_visitor visit, void* ctx);
     void (*record_history)(void* user, uint32_t series, int32_t value);
     void (*set_history_queue_length)(void* user, uint32_t series, uint32_t length);
@@ -718,7 +720,8 @@ typedef struct fc4_landvalue_host {
     float (*min_allowed_height)(void* user);
     float (*max_allowed_height)(void* user);
     uint32_t (*zone_type)(void* user, int32_t x, int32_t z);
-    /* Lot developer GetAreaSlope({x1, z1, x2, z2}, true), inclusive cells. */
+    /* Lot developer GetAreaSlope({x1, z1, x2, z2}, true), inclusive cells;
+     * read-only in the original (landvalue.md §6, LV3). */
     float (*area_slope)(void* user, int32_t x1, int32_t z1, int32_t x2, int32_t z2);
     uint64_t (*developer)(void* user, uint32_t developer_type); /* growth developer or 0 */
     uint64_t (*desirability_map)(void* user, uint64_t developer); /* int16 grid (borrowed) or 0 */
@@ -736,6 +739,11 @@ typedef struct fc4_landvalue_host {
     void (*set_history_queue_length)(void* user, uint32_t series, uint32_t length);
     void (*record_history)(void* user, uint32_t series, int32_t value);
     void (*post)(void* user, uint32_t msg_type); /* type-only MessagePost */
+    /* Growth developer slot 10 GrowthAndDeclineListsAreValid (state < 17) of
+     * a developer: true while its desirability map cannot change
+     * (landvalue.md §7.4, LV2). Read by the land value shadow only; NULL =
+     * unknown. */
+    bool (*developer_lists_valid)(void* user, uint64_t developer);
 } fc4_landvalue_host;
 
 /* The tuning exemplar (§8). A NULL array means the property is absent (a
@@ -1177,10 +1185,13 @@ bool fc4_demand_sim_shutdown(fc4_demand_sim* s);
  * added; 0 if none. */
 uint64_t fc4_demand_sim_get_demand(fc4_demand_sim* s, uint32_t demand_id, uint32_t demand_index);
 void fc4_demand_sim_update_occupant_effects(fc4_demand_sim* s, uint32_t building_type, float old_pct, float new_pct);
-/* CalculateJobsPerUnitOfDemand: out = the 3 outputs (may be NULL), each
- * f32(percent) x 0.01f. The game's record is four floats: the plugin writes
+/* CalculateJobsPerUnitOfDemand: out = the 3 outputs (may be NULL), each the
+ * demand.md 4.1 link factor, percent x 0.01f (DQ12: rounded once below 2^31,
+ * twice from 2^31 up). The game's record is four floats: the plugin writes
  * them to jobs[1..3] and never touches jobs[0]. */
 void fc4_demand_sim_jobs_per_unit(const fc4_demand_sim* s, uint32_t demand_id, uint32_t demand_index, float* out);
+/* GetJobsBySensus (DQ10): (jobs[3] + jobs[2]) + jobs[1] times the supply,
+ * the low 32 bits of _ftol, no clamp; slot 9 returns it in EAX. */
 uint32_t fc4_demand_sim_jobs_by_census(const fc4_demand_sim* s, uint32_t census_type);
 float fc4_demand_sim_neutral_tax_rate(const fc4_demand_sim* s);
 /* GetLocalPopulationSummary: (key, value) in key order; returns the count. */
@@ -1997,6 +2008,11 @@ typedef struct fc4_flammability_host {
     void (*set_fire_cause)(void* user, uint32_t cause);
     /* messages: MessagePost with void1 = IGZUnknown = the simulator (§9). */
     void (*post)(void* user, uint32_t msg_type);
+    /* Plumbing slot 7 GetWateredGrid(): the published watered grid as a
+     * token (0 = none). Its object alternates at every plumbing pass
+     * (plumbing §2), so a change tells a pass ended (§6.5, FL5/FL6). Read by
+     * the flammability shadow only; NULL = not polled. */
+    uint64_t (*watered_grid)(void* user);
 } fc4_flammability_host;
 
 fc4_flammability* fc4_flammability_create(const fc4_flammability_host* host, uint64_t token, uint32_t wall_clock_seed,
@@ -3509,7 +3525,7 @@ typedef struct fc4_landvalue_shadow_stats {
     int32_t last_mismatches; /* -1 = not compared */
     uint32_t intrinsic_mismatches, total_mismatches, slope_mismatches, type_mismatches, scalar_mismatches;
     uint32_t desirability_reruns;  /* passes compared with a developer's previous desirability map */
-    uint32_t desirability_changes; /* map changes seen by note_day */
+    uint32_t desirability_changes; /* snapshot changes (note_day and after each comparison; LV2) */
 } fc4_landvalue_shadow_stats;
 
 /* `host`: only its read callbacks are called (create_grid, the writes,
@@ -3519,8 +3535,12 @@ typedef struct fc4_landvalue_shadow_stats {
 fc4_landvalue_shadow* fc4_landvalue_shadow_create(const fc4_landvalue_host* host, const fc4_landvalue_tuning* tuning,
                                                   uint32_t max_cells);
 void fc4_landvalue_shadow_destroy(fc4_landvalue_shadow* s);
-/* SimNewDay: notes each listed developer's desirability map (read-only);
- * returns how many changed since the previous note. */
+/* SimNewDay: snapshots each listed developer's desirability map (read-only)
+ * while its slot 10 (host->developer_lists_valid) is true or unknown, so the
+ * snapshot before a change is the map from before the developer's last
+ * state-17 copy (landvalue.md §7.4, LV2); returns how many snapshots
+ * changed. Our pass applies the developers in ascending pointer order, as
+ * the original does (LV1). */
 uint32_t fc4_landvalue_shadow_note_day(fc4_landvalue_shadow* s);
 /* The end of an original pass: one line to `sink`. Returns the differences,
  * -1 when nothing was compared (INCOMPLETE). */
@@ -3584,11 +3604,16 @@ typedef struct fc4_flammability_shadow_stats {
 fc4_flammability_shadow* fc4_flammability_shadow_create(const fc4_flammability_host* host, uint32_t max_cells);
 void fc4_flammability_shadow_destroy(fc4_flammability_shadow* s);
 /* One of the original's six messages; false when not mirrored (no baseline
- * yet, or another type). */
+ * yet, or another type). Every call (any type, e.g. the plumbing pass end
+ * WaterMapChanged 0x6946DC34) first polls host->watered_grid: a changed
+ * pointer means a plumbing pass ended, and the tracts whose watered state
+ * changed are marked for the cycle (§6.5, FL5/FL6). */
 bool fc4_flammability_shadow_message(fc4_flammability_shadow* s, const fc4_flammability_message* m);
 /* The original's cycle end: the first (or after a new simulator) is the
- * baseline; later ones are compared. One line. Returns the differences, -1
- * when nothing was compared. */
+ * baseline; later ones are compared (after a poll of host->watered_grid; a
+ * tract marked by a pass in the cycle may hold its value under either
+ * watered state). One line. Returns the differences, -1 when nothing was
+ * compared. */
 int32_t fc4_flammability_shadow_cycle(fc4_flammability_shadow* s, const fc4_flammability_original* orig,
                                       int32_t julian, fc4_bytes_sink sink, void* ctx);
 /* The counters as the last call that finished left them (callable from the
@@ -4256,7 +4281,7 @@ static_assert(sizeof(fc4_tax_lot) == 24, "fc4_tax_lot layout");
 static_assert(sizeof(fc4_tax_scan) == 408, "fc4_tax_scan layout");
 static_assert(sizeof(fc4_grid_geometry) == 32, "fc4_grid_geometry layout");
 static_assert(sizeof(fc4_landvalue_state) == 56, "fc4_landvalue_state layout");
-static_assert(sizeof(fc4_landvalue_host) == (sizeof(void*) == 4 ? 92 : 184), "fc4_landvalue_host layout");
+static_assert(sizeof(fc4_landvalue_host) == (sizeof(void*) == 4 ? 96 : 192), "fc4_landvalue_host layout");
 static_assert(sizeof(fc4_landvalue_tuning) == (sizeof(void*) == 4 ? 72 : 128), "fc4_landvalue_tuning layout");
 static_assert(sizeof(fc4_weather_state) == 56, "fc4_weather_state layout");
 static_assert(sizeof(fc4_weather_host) == (sizeof(void*) == 4 ? 56 : 112), "fc4_weather_host layout");
@@ -4298,7 +4323,7 @@ static_assert(sizeof(fc4_plumbing_original) == (sizeof(void*) == 4 ? 28 : 56), "
 static_assert(sizeof(fc4_plumbing_shadow_stats) == 72, "fc4_plumbing_shadow_stats layout");
 static_assert(sizeof(fc4_flammability_message) == 24, "fc4_flammability_message layout");
 static_assert(sizeof(fc4_flammability_state) == 80, "fc4_flammability_state layout");
-static_assert(sizeof(fc4_flammability_host) == (sizeof(void*) == 4 ? 132 : 264), "fc4_flammability_host layout");
+static_assert(sizeof(fc4_flammability_host) == (sizeof(void*) == 4 ? 136 : 272), "fc4_flammability_host layout");
 static_assert(sizeof(fc4_pollution_budget_item) == 32, "fc4_pollution_budget_item layout");
 static_assert(sizeof(fc4_pollution_grid_stats) == 24, "fc4_pollution_grid_stats layout");
 static_assert(sizeof(fc4_pollution_state) == 408, "fc4_pollution_state layout");

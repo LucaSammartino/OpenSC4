@@ -72,6 +72,11 @@ pub struct fc4_landvalue_host {
     pub set_history_queue_length: Option<unsafe extern "C" fn(U, u32, u32)>,
     pub record_history: Option<unsafe extern "C" fn(U, u32, i32)>,
     pub post: Option<unsafe extern "C" fn(U, u32)>,
+    /// Growth developer slot 10 `GrowthAndDeclineListsAreValid` (`state <
+    /// 17`) of a developer token: true while its desirability map cannot
+    /// change (landvalue.md §7.4, LV2). Read by the land value shadow only;
+    /// NULL = unknown.
+    pub developer_lists_valid: Option<unsafe extern "C" fn(U, u64) -> bool>,
 }
 
 /// The tuning exemplar (§8). A NULL array pointer means the property is
@@ -124,13 +129,24 @@ pub struct fc4_landvalue_state {
 const _: () = {
     assert!(std::mem::size_of::<fc4_grid_geometry>() == 32);
     assert!(std::mem::size_of::<fc4_landvalue_state>() == 56);
-    assert!(std::mem::size_of::<fc4_landvalue_host>() == if cfg!(target_pointer_width = "32") { 92 } else { 184 });
+    assert!(std::mem::size_of::<fc4_landvalue_host>() == if cfg!(target_pointer_width = "32") { 96 } else { 192 });
     assert!(std::mem::size_of::<fc4_landvalue_tuning>() == if cfg!(target_pointer_width = "32") { 72 } else { 128 });
 };
 
 // ---- host adapter -----------------------------------------------------------------------------------
 
 pub(crate) struct CHost(pub(crate) fc4_landvalue_host);
+
+impl CHost {
+    /// Growth developer slot 10 of `developer` (LV2); `None` when the host
+    /// does not answer it.
+    pub(crate) fn developer_lists_valid(&self, developer: u64) -> Option<bool> {
+        // SAFETY: whoever created the object promised valid callbacks.
+        self.0
+            .developer_lists_valid
+            .map(|f| unsafe { f(self.0.user, developer) })
+    }
+}
 
 macro_rules! cb {
     ($s:expr, $f:ident, $default:expr $(, $arg:expr)*) => {

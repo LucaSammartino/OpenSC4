@@ -747,18 +747,65 @@ fn t01_proximity_one_source_through_the_states() {
     assert!(fx.grids().temporary.is_none());
     assert!(fx.h.take_events().contains(&Ev::ShutdownGrid(0)));
 
+    // [compat] (RG23): the seed reads `map[x][0]` and writes (x, 0) only, so
+    // the key at (2, 2) is never seen: every map is 1 on the z = 0 edge and 0
+    // elsewhere (RS5: the running `d` does not wrap, so the edge is 1, not 0).
     let g = fx.grids();
-    for x in 0..5 {
-        for z in 0..5 {
-            let d = ((x - 2i32).unsigned_abs() + (z - 2i32).unsigned_abs()) as u8;
-            assert_eq!(g.proximity[0].as_ref().unwrap().get(x, z), d, "R$ at ({x}, {z})");
-            // No key 7 or 8: 255 everywhere (RS5: `d` does not wrap).
-            assert_eq!(g.proximity[1].as_ref().unwrap().get(x, z), 255);
-            assert_eq!(g.proximity[2].as_ref().unwrap().get(x, z), 255);
+    for w in 0..3 {
+        for x in 0..5 {
+            for z in 0..5 {
+                let want = u8::from(z == 0);
+                assert_eq!(g.proximity[w].as_ref().unwrap().get(x, z), want, "w {w} at ({x}, {z})");
+            }
         }
     }
-    assert_eq!(g.proximity[0].as_ref().unwrap().get(0, 0), 4);
-    assert_eq!(g.proximity[0].as_ref().unwrap().get(4, 2), 2);
+    let r = g.proximity[0].as_ref().unwrap();
+    assert_eq!((r.get(0, 0), r.get(2, 2), r.get(4, 2)), (1, 0, 0));
+}
+
+/// §15 test 1, second half, and the §5.3 worked example through the states
+/// (RG23): a key on the z = 0 edge is the only one the seed sees.
+#[test]
+fn t01b_proximity_worked_example_through_the_states() {
+    let rows = |g: &Rc<dyn TractGrid<u8>>, n: i32| -> Vec<Vec<u8>> {
+        (0..n).map(|x| (0..n).map(|z| g.get(x, z)).collect()).collect()
+    };
+    // Rows x of length n: `e[x]` at z = 0, 0 elsewhere.
+    let edge = |e: &[u8]| -> Vec<Vec<u8>> {
+        let mut g = vec![vec![0u8; e.len()]; e.len()];
+        for (row, &v) in g.iter_mut().zip(e) {
+            row[0] = v;
+        }
+        g
+    };
+    // 5 × 5, key 6 at (2, 2) and (3, 0): R$ (3, 0) = 0, R$$ unchanged.
+    let fx = Fx::new(5);
+    let map = SimGrid::<u8>::create(&fx.h.city, 0, 1);
+    map.set(2, 2, 6);
+    map.set(3, 0, 6);
+    *fx.h.building_map.borrow_mut() = Some(map);
+    while fx.state() != state::HISTOGRAM_RESET {
+        fx.step();
+    }
+    let g = fx.grids();
+    assert_eq!(rows(g.proximity[0].as_ref().unwrap(), 5), edge(&[1, 1, 1, 0, 1]));
+    assert_eq!(rows(g.proximity[1].as_ref().unwrap(), 5), edge(&[1, 1, 1, 1, 1]));
+
+    // 4 × 4: key 6 at (1, 0), (1, 1), (2, 3), key 7 at (3, 0), no key 8.
+    let fx = Fx::new(4);
+    let map = SimGrid::<u8>::create(&fx.h.city, 0, 1);
+    for (x, z) in [(1, 0), (1, 1), (2, 3)] {
+        map.set(x, z, 6);
+    }
+    map.set(3, 0, 7);
+    *fx.h.building_map.borrow_mut() = Some(map);
+    while fx.state() != state::HISTOGRAM_RESET {
+        fx.step();
+    }
+    let g = fx.grids();
+    assert_eq!(rows(g.proximity[0].as_ref().unwrap(), 4), edge(&[1, 0, 1, 1]), "R$");
+    assert_eq!(rows(g.proximity[1].as_ref().unwrap(), 4), edge(&[1, 1, 1, 0]), "R$$");
+    assert_eq!(rows(g.proximity[2].as_ref().unwrap(), 4), edge(&[1, 1, 1, 1]), "R$$$");
 }
 
 /// §15 test 2 through the states: 300 × 1 map, key 7 at (0, 0).
@@ -784,11 +831,12 @@ fn t02_proximity_cap_through_the_states() {
     assert_eq!(fx.grids().proximity[0].as_ref().unwrap().get(200, 0), 255);
 }
 
-/// §15 test 3 through the states: proximity size 2, building map size 1,
-/// key at map cell (3, 1).
+/// §15 test 3 through the states (RG23): proximity size 2, a 4 × 4
+/// building map of size 1, key at map cell (3, 1). Tract (1, 1) finds no key
+/// and overwrites tract (1, 0)'s 0 in the same cell (1, 0).
 #[test]
 fn t03_proximity_coarser_target_through_the_states() {
-    let fx = Fx::constructed(CityDims::square(8), 4, Some(shipped_tuning()));
+    let fx = Fx::constructed(CityDims::square(4), 4, Some(shipped_tuning()));
     fx.s.with_state(|s| s.proximity_size = 2);
     assert!(fx.s.init());
     let map = SimGrid::<u8>::create(&fx.h.city, 0, 1);
@@ -799,8 +847,8 @@ fn t03_proximity_coarser_target_through_the_states() {
     }
     let p = fx.grids().proximity[0].clone().unwrap();
     assert_eq!(p.geometry().tract_size, 2);
-    assert_eq!(p.get(1, 0), 0);
-    assert_eq!(p.get(0, 0), 1);
+    assert_eq!((p.count_x(), p.count_z()), (2, 2));
+    assert_eq!((p.get(0, 0), p.get(1, 0), p.get(0, 1), p.get(1, 1)), (1, 1, 0, 0));
 }
 
 /// §15 test 4 / REH test 14: EQdecay = HQdecay = 0.2.
