@@ -583,6 +583,14 @@ result is a heap address. Only kind-1 properties (§4.6) hold objects, and no sh
      prefix**. Signed and unsigned give the same bits; they differ only for float targets, where an unsigned
      value takes the 24-bit path above ("Unsigned 64-bit…") and a signed one is converted exactly, then rounded
      to the target.
+
+     **Signed text into a Float32** (EX25): the int64 is loaded exactly (`fild`) and stored to the Float32 once
+     (`0x00916BF6`–`0x00916BF9`; Float64 `0x00916C58`). That is one rounding from the exact value, so `-16777217`
+     gives −16,777,216.0 (a tie, to even). A **Sint64 scalar** read as Float32 rounds twice: first to the double
+     that the converter stores (`0x00915B85`, which writes the variant's double), then to Float32. The two differ
+     only above 2⁵³ in magnitude. Worked example: −18,014,399,583,223,809 (−(2⁵⁴ + 2³⁰ + 1)) as text gives
+     −18,014,400,656,965,632.0 (−(2⁵⁴ + 2³¹)). As a Sint64 scalar it becomes the double −(2⁵⁴ + 2³⁰), which is a
+     tie for Float32 and goes to even: −18,014,398,509,481,984.0 (−2⁵⁴).
   5. Then the target. Integer types keep the low bits; floating point is first truncated toward zero as in
      "Floats to integers". **Bool** is value ≠ 0, so floating-point text **`0.5` gives true** (a Float32 scalar
      0.5 gives false, because it is truncated first) and NaN text gives true. Float32 and Float64 as in the table.

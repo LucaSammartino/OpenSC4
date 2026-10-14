@@ -2094,8 +2094,13 @@ answer is in brackets.
   '-'); printer 0x0091052A) and written into data-formats §5.1 ("Negative zero").
   - `0`; the bracket matches. The sign of a zero is dropped inside the C runtime's conversion, so no `-` is printed,
     for a Float32 or a Float64.
-- **EX25:** signed decimal text read into a Float32: one rounding from the exact value, unlike a Sint64 scalar,
-  which goes through double? [one rounding, so `-16777217` gives −16777216.0]
+- ~~**EX25:** signed decimal text read into a Float32: one rounding from the exact value, unlike a Sint64 scalar,
+  which goes through double? [one rounding, so `-16777217` gives −16777216.0]~~ **ANSWERED 2026-10-14** from the exe
+  (`ConvertFromString` signed branch: `fild` of the int64, then `fstp dword` at 0x00916BF6–0x00916BF9; scalar
+  converter 0x00915B85 stores a double first) and written into data-formats §5.1 (Parsing, step 4).
+  - One rounding from the exact value; the bracket matches: `-16777217` gives −16,777,216.0.
+  - A Sint64 scalar rounds twice (to the stored double, then to Float32). The two differ only above 2⁵³ in magnitude:
+    −(2⁵⁴ + 2³⁰ + 1) gives −(2⁵⁴ + 2³¹) from text, but −2⁵⁴ from a scalar.
 - **EX26:** a Bool scalar's "leading spaces trimmed": spaces only, or tabs too? [spaces only]
 - **EX27:** a String value is "trimmed" of what? [spaces and tabs]
 - **EX28 — EX8:** a Float32 signalling NaN as text? [the x87 load quiets it: `1.#QNAN`; a Float64 sNaN gives
