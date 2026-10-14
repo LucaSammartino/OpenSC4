@@ -441,7 +441,11 @@ vectors `nb18_*`). The core's current answer is in brackets.
   `ModifyTerrainHeight(1, 1, x, z, x+2, z+2, avg, null, 5, null)`. The levelling is chained cell by cell (x outer,
   z inner) and reaches one cell past the region's +x and +z edges. Whether that was the author's intent cannot be
   known; it must be reproduced. Worked example in landfill.md §4.4.4 step 3.
-- **NB1:** the Julian day of `DEFAULT_DATE`. [0]
+- ~~**NB1:** the Julian day of `DEFAULT_DATE`. [0]~~ **ANSWERED 2026-10-14** from the exe: there is no fixed default.
+  The deal's date objects are default-constructed from the **wall clock** (`0x0091307C`: `time`, `localtime`, then
+  `Jday`), so a deal built on 2026-10-14 starts at 2461328. The bracket's 0 is kept as a *[choice]*, because the
+  original is clock-dependent. The date survives only in fields nothing reads before overwriting them (neighbors.md
+  §5.1).
 - **NB2:** does `Activate` change the flags directly, or through `SetFlags` with its status-0 reports? [directly]
 - **NB3 — §6.3:** does the marker altitude `GetAltitude(x, z)` use the connection cell as given or the inner cell?
   [as given]

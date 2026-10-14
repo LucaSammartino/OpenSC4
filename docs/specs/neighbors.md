@@ -151,9 +151,28 @@ u8   flags
 | amount (s32) | 0 | commodity units per month |
 | incAmount, incAmount2, lastAmount, lastIncAmount, amountUsed (s32) | 0 | maintained by the utility simulators *[inferred]*; only incAmount, lastAmount and amountUsed are saved |
 | cost (s64) | 0 | monthly price (§8.1) |
-| startDate, expirationDate, currentDate, suspensionDate | the Julian day of the date class's default | |
+| startDate, expirationDate, currentDate, suspensionDate | the PC's local date at construction (see below); *[choice]* 0 | |
 | flags | `0x81` (Proposed + Silent) | §5.2 |
 | property holder | empty | |
+
+**Initial dates** (NB1). The four dates are date objects whose default constructor (`0x0091307C`) reads the
+**wall clock**. It calls the C runtime's `time` and `localtime`, then stores the Julian day of that local calendar
+date (`Jday(month, day, year)`, `0x00912B5F`; 2000-01-01 = 2451545). So a deal constructed on 2026-10-14 starts
+with all four dates = 2461328. There is no fixed default date.
+
+Where the construction date survives:
+
+- `suspensionDate` of every deal that was never suspended. The region writes it into the version-5 deal record
+  (§5.6). Nothing reads it before the first strike overwrites it (§7.3), so the simulation does not see it.
+- All four dates of a deal from `ProposeDeal` that nobody dated afterwards. `ProposeDeals` dates its own proposals
+  (§7.1).
+- `suspensionDate` of a deal read from a version ≤ 4 record (§5.6 reads it only for version > 4). The regional
+  city reads such a record into a new deal object, so the date is the day of that read. `Init` step 7 then shifts
+  it with the other three dates (§14.1). It matters only if the record also has Grace or Probation set: the grace
+  arithmetic of §7.3 then starts from a wall-clock date.
+
+*[choice]* FreeCity4 initializes the four dates to **0**, deterministically. The original value depends on the
+PC's clock and cannot be reproduced. A saved 0 is harmless to the original game, for the reasons above.
 
 ### 5.2 Flags *[compat]*
 
