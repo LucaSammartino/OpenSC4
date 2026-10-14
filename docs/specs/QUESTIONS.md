@@ -584,7 +584,12 @@ About `docs/specs/crime.md` and its `docs/abi` rows. Ini: `enable = crime` (opti
   - **Shipped data.** Only `0xEA5EA698` exists, in every language, so Generic gets an unrelated building text and
     the other 13 types are empty.
   - **Choice.** Reproduce the steps, or call the game's `SC4LoadString`.
-- **CQ9:** `Read` on a stream error. [returns false, no state changed]
+- ~~**CQ9:** `Read` on a stream error. [returns false, no state changed]~~ **ANSWERED 2026-10-14** from the exe
+  (`cSC4CrimeSimulator::Read` `0x006A05E0`) and written into crime.md §12. **The bracket is not the original but
+  matches the §12 *[choice]*, which stands.** The only early exit is the version test. On a stream error the
+  original reads on and sets `loadedFromSave`, then returns false. It nulls the grid refs, resizes the iterator
+  table to the stream pointer's value, and loops over an uninitialised incident count, so it reads garbage. The
+  following `Init` then leaves the simulator unusable.
 - **CQ10:** crime type list order. [ascending instance]
 - **CQ11:** police slot 5 returns a uint8 grid (the SDK says short) and slot 27 an int32 count, as protection
   declares them. Confirm. [as protection]

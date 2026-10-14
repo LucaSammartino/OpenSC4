@@ -696,8 +696,8 @@ incidentCount × {
 - `Read` rejects any version ≠ 6 and returns false after consuming only the version (`loadedFromSave` stays
   clear). Otherwise it reads all fields, appends the incidents to the current list (it does not clear it), sets
   every incident's visuals flag to false, sets `loadedFromSave`, and returns `!GetError()`.
-- **Stream error** (foundations §2.1, §2.9; the loader ignores the result, foundations §3.5). The original does
-  not stop at the first failure: it keeps calling the stream (each failed read leaves its destination
+- **Stream error** (foundations §2.1, §2.9; the loader ignores the result, foundations §3.5; `Read`
+  `0x006A05E0`, whose only early exit is the version test). The original does not stop at the first failure: it keeps calling the stream (each failed read leaves its destination
   unchanged), **sets `loadedFromSave` anyway** and returns false. Fields read before the failure hold the loaded
   values. The exceptions after it: a grid ref becomes **null** (the ref helper clears the destination first, without
   releasing an old grid); the iterator's table is resized to *(the stream object's address)* entries (the count
