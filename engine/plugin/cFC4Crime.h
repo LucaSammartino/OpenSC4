@@ -145,8 +145,8 @@ public:
         uint32_t jailed = 0;       // GetJailPopulation (last answer)
         int32_t released = 0;      // ResetUnjailedCriminals (last answer)
         uint32_t policeGrid = 0;   // 1: the last month had a police grid
-        // GetCenter's x87 stack after the call: empty per §13 (CQ3); a
-        // non-empty ST0 is a diagnostic (popped, logged once).
+        // GetCenter's x87 stack depth after the call: unchanged per §13 (CQ3);
+        // a change is counted and logged once, never compensated.
         uint32_t centerEmptySt0 = 0, centerSt0 = 0;
     };
     Probes& Probe() { return probes_; }
@@ -205,6 +205,7 @@ namespace fc4 {
 // crime.md §7 step 3); every other callback NULL.
 fc4_crime_host CrimeReadOnlyHost();
 // Test seam only (op 27, kFC4SeamLotCenter): the lot slot 15 thunk on `lot` (a
-// cISC4Lot*). Returns 1 if ST0 held a value after the call (popped), else 0.
+// cISC4Lot*). Returns the values the call left on the x87 stack (0 = the
+// original; 1 = one pushed, which the caller must pop; 7 = one popped).
 int CrimeTestLotCenter(void* lot, float* out3);
 }  // namespace fc4

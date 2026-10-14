@@ -413,11 +413,10 @@ int32_t cFC4WeatherSimulator::PositionToCell(float x, float z, int32_t& cx, int3
     return fc4_weather_position_to_cell(core_, x, z, &cx, &cz);
 }
 
-// [choice] Returns the z position (the original leaves a value in ST0; no
-// caller reads it).
-float cFC4WeatherSimulator::CellToPosition(int32_t cx, int32_t cz, float& x, float& z) {
+// §4 (corrected 2026-10-14): returns nothing and leaves nothing on the x87
+// stack; the results are the out parameters only.
+void cFC4WeatherSimulator::CellToPosition(int32_t cx, int32_t cz, float& x, float& z) {
     fc4_weather_cell_to_position(core_, cx, cz, &x, &z);
-    return z;
 }
 
 void cFC4WeatherSimulator::CellToStandardCityCell(int32_t cx, int32_t cz, int32_t& sx, int32_t& sz) {

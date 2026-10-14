@@ -989,13 +989,14 @@ void cFC4DemandSimulator::UpdateOccupantEffects(uint32_t buildingType, SC4Percen
     fc4_demand_sim_update_occupant_effects(core_, buildingType, oldPct.percentage, newPct.percentage);
 }
 
-// docs/abi: the game returns in ST0. [choice] The value is the sum of the
-// three outputs (what it is in the original is not specified; spec question).
-float cFC4DemandSimulator::CalculateJobsPerUnitOfDemand(float* jobs, uint32_t demandID, uint32_t demandIndex) {
+// §5 (corrected 2026-10-14): returns nothing and leaves the x87 stack as it
+// found it. `jobs` is the caller's four-float record (a lot's GetJobs
+// record): the three outputs (the 0x2010 / 0x2020 / 0x2030 factors) go to
+// jobs[1], jobs[2], jobs[3]; jobs[0] is never touched.
+void cFC4DemandSimulator::CalculateJobsPerUnitOfDemand(float* jobs, uint32_t demandID, uint32_t demandIndex) {
     float j[3] = {0.0f, 0.0f, 0.0f};
     fc4_demand_sim_jobs_per_unit(core_, demandID, demandIndex, j);
-    if (jobs != nullptr) std::memcpy(jobs, j, sizeof(j));
-    return j[0] + j[1] + j[2];
+    if (jobs != nullptr) std::memcpy(jobs + 1, j, sizeof(j));
 }
 
 uint32_t cFC4DemandSimulator::GetJobsBySensus(uint32_t type) { return fc4_demand_sim_jobs_by_census(core_, type); }
@@ -1231,10 +1232,9 @@ float cFC4Demand::QueryEconomyModifier() const { return Get(FC4_DEMAND_ECONOMY_M
 float cFC4Demand::QueryActiveDemandMax() const { return Get(FC4_DEMAND_ACTIVE_MAX); }
 float cFC4Demand::QueryActiveDemandMin() const { return Get(FC4_DEMAND_ACTIVE_MIN); }
 
-// docs/abi: the game returns these in ST0. [choice] 1.0 for "true" (§3.2 says
-// they return true; the value in ST0 is not specified: spec question).
-float cFC4Demand::AddToSupplyValue(float v) { return fc4_demand_node_add(core_, FC4_DEMAND_SUPPLY, v) ? 1.0f : 0.0f; }
-float cFC4Demand::AddToDemandValue(float v) { return fc4_demand_node_add(core_, FC4_DEMAND_DEMAND, v) ? 1.0f : 0.0f; }
+// §3.2 (corrected 2026-10-14): true as a bool in AL, nothing on the x87 stack.
+bool cFC4Demand::AddToSupplyValue(float v) { return fc4_demand_node_add(core_, FC4_DEMAND_SUPPLY, v); }
+bool cFC4Demand::AddToDemandValue(float v) { return fc4_demand_node_add(core_, FC4_DEMAND_DEMAND, v); }
 
 bool cFC4Demand::SetSupplyValue(float v) { return fc4_demand_node_set(core_, FC4_DEMAND_SUPPLY, v); }
 bool cFC4Demand::SetDemandValue(float v) { return fc4_demand_node_set(core_, FC4_DEMAND_DEMAND, v); }

@@ -77,7 +77,7 @@ public:
     uint32_t CellCountX() override;
     uint32_t CellCountZ() override;
     int32_t PositionToCell(float x, float z, int32_t& cx, int32_t& cz) override;
-    float CellToPosition(int32_t cx, int32_t cz, float& x, float& z) override;
+    void CellToPosition(int32_t cx, int32_t cz, float& x, float& z) override;
     void CellToStandardCityCell(int32_t cx, int32_t cz, int32_t& sx, int32_t& sz) override;
     int64_t StandardCityCellToCell(int32_t sx, int32_t sz, int32_t& cx, int32_t& cz) override;
     int32_t GetCurrentSeason() override;

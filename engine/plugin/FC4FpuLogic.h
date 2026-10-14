@@ -17,7 +17,9 @@
 // itself from compat (the only place allowed to).
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <cstdio>
 
 namespace fc4 {
 

@@ -414,17 +414,13 @@ void CellCounts(void* u, int32_t* x, int32_t* z) {
     if (z != nullptr) *z = c ? static_cast<int32_t>(c->CellCountZ()) : 0;  // slot 94
 }
 
-// City slot 97 (pop 16). [abi] The game returns a float in ST0 (docs/abi:
-// x87, high), where the SDK declares void: called through a declaration that
-// pops ST0. The outputs are what the core uses (§8: return "—").
-using CellCenterFn = float(__fastcall*)(void* self, void* edx, int32_t cx, int32_t cz, float* x, float* z);
-
+// City slot 97 CellCenterToPosition (pop 16). docs/abi (corrected
+// 2026-10-14): returns nothing, the results come through the out references,
+// as the SDK declares it. Calling it through a float declaration popped an
+// empty x87 register on every call (stack underflow). §8: return "—".
 void CellCenterToPosition(void* u, int32_t cx, int32_t cz, float* x, float* z) {
     float a = 0.0f, b = 0.0f;
-    if (cISC4City* c = City(u)) {
-        void** vtbl = *reinterpret_cast<void***>(c);
-        reinterpret_cast<CellCenterFn>(vtbl[97])(c, nullptr, cx, cz, &a, &b);
-    }
+    if (cISC4City* c = City(u)) c->CellCenterToPosition(cx, cz, a, b);
     if (x != nullptr) *x = a;
     if (z != nullptr) *z = b;
 }

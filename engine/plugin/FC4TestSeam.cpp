@@ -33,7 +33,11 @@
 #include "cFC4Crime.h"
 #include "cFC4Demand.h"
 #include "cFC4Flammability.h"
+#include "cFC4Landfill.h"
+#include "cFC4Plumbing.h"
 #include "cFC4Power.h"
+#include "cFC4Protection.h"
+#include "cFC4Variant.h"
 #include "fc4.h"
 
 #include <cstring>

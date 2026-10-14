@@ -585,6 +585,57 @@ void InitFakeFireCity(FakeFireCity& f) {
     f.fire.vtbl = f.fireVt.slots.data();
 }
 
+// ---- city slot 97 and the pipe burst (test seam ops 28, 29) ------------------------------------
+// The game's CellCenterToPosition (city slot 97) returns nothing (docs/abi,
+// corrected 2026-10-14): a void __fastcall popping 16 here. A caller that
+// declares it float pops an empty x87 register, which moves TOP.
+void __fastcall CityCellCenterToPosition(void*, void*, int32_t cx, int32_t cz, float* x, float* z) {
+    *x = static_cast<float>(cx) * 16.0f + 8.0f;
+    *z = static_cast<float>(cz) * 16.0f + 8.0f;
+}
+
+// The pipe-burst manager (plumbing.md §7.1 step 4) behind the disaster layer;
+// AttemptDisasterStart (slot 6) hands back the manager's own instance, which
+// the caller must not release.
+struct FakePipeCity {
+    FakeVtable cityVt, layerVt, mgrVt, instVt;
+    FakeObject city{}, layer{}, mgr{}, inst{};
+    int instRefs = 1;  // the manager's own reference
+    int attempts = 0;
+    int32_t x = 0, z = 0;
+};
+
+FakePipeCity* g_pipe = nullptr;
+
+void* __fastcall PipeCityGetDisasterLayer(void*, void*) { return &g_pipe->layer; }  // cISC4City 72
+void* __fastcall PipeLayerGetManager(void*, void*, uint32_t type) {                  // layer 7
+    return type == 0x4A1332E8 ? &g_pipe->mgr : nullptr;
+}
+void* __fastcall PipeMgrAttempt(void*, void*, int32_t x, int32_t z) {  // manager 6 (pop 8)
+    ++g_pipe->attempts;
+    g_pipe->x = x;
+    g_pipe->z = z;
+    return &g_pipe->inst;
+}
+bool __fastcall PipeInstQi(void*, void*, uint32_t, void**) { return false; }                        // 0
+uint32_t __fastcall PipeInstAddRef(void*, void*) { return static_cast<uint32_t>(++g_pipe->instRefs); }   // 1
+uint32_t __fastcall PipeInstRelease(void*, void*) { return static_cast<uint32_t>(--g_pipe->instRefs); }  // 2
+
+void InitFakePipeCity(FakePipeCity& p) {
+    g_pipe = &p;
+    p.cityVt.slots[72] = reinterpret_cast<void*>(&PipeCityGetDisasterLayer);
+    p.cityVt.slots[97] = reinterpret_cast<void*>(&CityCellCenterToPosition);
+    p.layerVt.slots[7] = reinterpret_cast<void*>(&PipeLayerGetManager);
+    p.mgrVt.slots[6] = reinterpret_cast<void*>(&PipeMgrAttempt);
+    p.instVt.slots[0] = reinterpret_cast<void*>(&PipeInstQi);
+    p.instVt.slots[1] = reinterpret_cast<void*>(&PipeInstAddRef);
+    p.instVt.slots[2] = reinterpret_cast<void*>(&PipeInstRelease);
+    p.city.vtbl = p.cityVt.slots.data();
+    p.layer.vtbl = p.layerVt.slots.data();
+    p.mgr.vtbl = p.mgrVt.slots.data();
+    p.inst.vtbl = p.instVt.slots.data();
+}
+
 constexpr uint32_t kMsgPostCityInit = 0x26D31EC1;
 constexpr uint32_t kMsgSimNewDay = 0x66956814;
 constexpr uint32_t kMsgSimNewMonth = 0x66956816;
@@ -3992,7 +4043,16 @@ int main(int argc, char** argv) {
                 CHECK(w->CellWidthX() == 16.0f && w->CellCountZ() == 0);
                 CHECK(w->GetCurrentSeasonMonth() == 1 && w->GetCurrentSeason() == 0);
                 float x = 0, z = 0;
-                CHECK(w->CellToPosition(2, 3, x, z) == 48.0f && x == 32.0f && z == 48.0f);
+                w->CellToPosition(2, 3, x, z);
+                CHECK(x == 32.0f && z == 48.0f);
+                {
+                    // §4 (corrected 2026-10-14): slot 11 returns nothing; called the
+                    // game's way it pops 16 and leaves the x87 stack as it was.
+                    float gx = 0, gz = 0;
+                    const fc4test::SlotCall r = fc4test::CallSlot(
+                        w, 11, {2, 3, reinterpret_cast<uint32_t>(&gx), reinterpret_cast<uint32_t>(&gz)});
+                    CHECK(r.espDelta == 0 && r.x87Pushed == 0 && gx == 32.0f && gz == 48.0f);
+                }
                 int32_t a = 0, b = 0;
                 w->CellToStandardCityCell(3, 7, a, b);
                 CHECK(a == 3 && b == 3);  // [quirk]
@@ -4176,9 +4236,18 @@ int main(int argc, char** argv) {
                 CHECK(sim->GetDemand(0x1010, 0x20000) == nullptr);
                 CHECK(sim->GetJobsBySensus(0x3121) == 0);
                 CHECK(sim->GetNeutralTaxRate() == 0.0f);
-                float jobs[3] = {1.0f, 1.0f, 1.0f};
-                CHECK(sim->CalculateJobsPerUnitOfDemand(jobs, 0x3121, 0) == 0.0f);
-                CHECK(jobs[0] == 0.0f && jobs[1] == 0.0f && jobs[2] == 0.0f);
+                // §5 (corrected 2026-10-14): four floats, jobs[1..3] zeroed (no
+                // exemplar), jobs[0] never touched, nothing returned.
+                float jobs[4] = {7.0f, 1.0f, 1.0f, 1.0f};
+                sim->CalculateJobsPerUnitOfDemand(jobs, 0x3121, 0);
+                CHECK(jobs[0] == 7.0f && jobs[1] == 0.0f && jobs[2] == 0.0f && jobs[3] == 0.0f);
+                {
+                    float g[4] = {7.0f, 1.0f, 1.0f, 1.0f};
+                    const fc4test::SlotCall r =
+                        fc4test::CallSlot(sim, 8, {reinterpret_cast<uint32_t>(g), 0x3121u, 0u});
+                    CHECK(r.espDelta == 0 && r.x87Pushed == 0);
+                    CHECK(g[0] == 7.0f && g[1] == 0.0f && g[2] == 0.0f && g[3] == 0.0f);
+                }
                 SC4Percentage full{1.0f}, half{0.5f};
                 sim->UpdateOccupantEffects(0xBEEF, full, half);  // no effects: nothing happens
                 // Not the identified executable: the game's map functions cannot be
@@ -4244,7 +4313,18 @@ int main(int argc, char** argv) {
                     // §16 test 2: min/max ±6000, demand 1000, supply 400 + 10 pending.
                     CHECK(node->SetActiveDemandMin(-6000.0f) && node->SetActiveDemandMax(6000.0f));
                     CHECK(node->SetDemandValue(1000.0f) && node->SetSupplyValue(400.0f));
-                    CHECK(node->AddToSupplyValue(10.0f) == 1.0f);  // [choice] 1.0 in ST0
+                    {
+                        // §3.2 (corrected 2026-10-14): slots 16/17 return true in AL and
+                        // leave the x87 stack as they found it (pop 4).
+                        const float ten = 10.0f, zero = 0.0f;
+                        uint32_t tenBits = 0, zeroBits = 0;
+                        std::memcpy(&tenBits, &ten, sizeof(tenBits));
+                        std::memcpy(&zeroBits, &zero, sizeof(zeroBits));
+                        const fc4test::SlotCall s16 = fc4test::CallSlot(node, 16, {tenBits});
+                        CHECK(s16.espDelta == 0 && s16.x87Pushed == 0 && (s16.eax & 0xFF) == 1);
+                        const fc4test::SlotCall s17 = fc4test::CallSlot(node, 17, {zeroBits});
+                        CHECK(s17.espDelta == 0 && s17.x87Pushed == 0 && (s17.eax & 0xFF) == 1);
+                    }
                     CHECK(node->QuerySupplyValue() == 400.0f && node->QueryNewSupply() == 10.0f);
                     CHECK(node->EndOfCycle());
                     CHECK(!node->EndOfCycle());
@@ -4666,9 +4746,9 @@ int main(int argc, char** argv) {
             CHECK(seam(kFC4SeamRawArrayBytes, nullptr, &io) == -1);
 
             // Test seam op 27. §13 (CQ3): lot GetCenter (slot 15) answers in the out
-            // parameter with the x87 stack empty; the thunk pops ST0 only if
-            // it is not empty (a counted diagnostic), so the stack stays
-            // balanced either way.
+            // parameter with the x87 stack unchanged; the thunk counts a depth
+            // change and no longer pops anything (a value left behind is the
+            // caller's, here the test's, to pop).
             void* vt[16] = {};
             vt[15] = reinterpret_cast<void*>(&FakeLotGetCenter);
             FakeLotObject lot{vt};
@@ -4678,7 +4758,10 @@ int main(int argc, char** argv) {
             CHECK(c[0] == 256.5f && c[1] == 10.0f && c[2] == 512.25f);
             CHECK(X87Top() == top);
             vt[15] = reinterpret_cast<void*>(&FakeLotGetCenterSt0);
-            CHECK(seam(kFC4SeamLotCenter, &lot, c) == 1);
+            const intptr_t left = seam(kFC4SeamLotCenter, &lot, c);
+            const unsigned topLeft = X87Top();
+            fc4test::PopX87();  // the 7.0f the fake left: not popped by the thunk
+            CHECK(left == 1 && topLeft == ((top - 1u) & 7u));
             CHECK(c[0] == 1.0f && c[2] == 3.0f);
             CHECK(X87Top() == top);
             CHECK(seam(kFC4SeamLotCenter, nullptr, c) == -1);
