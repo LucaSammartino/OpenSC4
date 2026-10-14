@@ -16,8 +16,8 @@ use std::rc::{Rc, Weak};
 use fc4_core::crime::{
     census_bucket, choose_candidate, decay_value, jobless_factor, msg, parse_mask, rhe, shipped_tuning,
     shipped_type_exemplars, BuildingInfo, CrimeEvent, CrimeHost, CrimeMessage, CrimeRandom, CrimeShared, CrimeSim,
-    DemandValues, GridProvider, Incident, LotBits, LotRef, NearbyOccupant, NearestKind, RzRandomSuper, TractGrid,
-    CLSID_CRIME_SIMULATOR,
+    DemandValues, GridProvider, Incident, LotBits, LotRef, LtextLoad, NearbyOccupant, NearestKind, RzRandomSuper,
+    TractGrid, CLSID_CRIME_SIMULATOR,
 };
 use fc4_core::grid::{create_for_clsid, CityDims, SimGrid};
 use fc4_core::property::PropertyHolder;
@@ -107,6 +107,10 @@ struct CrimeSaved {
     hosts: BTreeMap<(u32, u32), u64>,
 }
 
+/// The host's LTEXT table: (type, group, instance) → (text, whether the
+/// detokenizer accepts it).
+type LtextTable = BTreeMap<(u32, u32, u32), (String, bool)>;
+
 pub(crate) struct World {
     me: RefCell<Weak<World>>,
     events: EventLog,
@@ -117,7 +121,7 @@ pub(crate) struct World {
     city: Cell<CityDims>,
     tuning: RefCell<Option<Rc<PropertyHolder>>>,
     types: RefCell<Vec<(u32, Rc<PropertyHolder>)>>,
-    ltext: RefCell<BTreeMap<(u32, u32, u32), String>>,
+    ltext: RefCell<LtextTable>,
     pops: RefCell<[Option<Rc<SimGrid<u16>>>; 3]>,
     eqs: RefCell<[Option<Rc<SimGrid<f32>>>; 3]>,
     demand: RefCell<BTreeMap<u32, DemandValues>>,
@@ -300,11 +304,15 @@ impl CrimeHost for World {
         self.events.push("load_types", vec![]);
         self.types.borrow().clone()
     }
-    fn ltext(&self, k: ResKey) -> Option<Vec<u8>> {
-        self.ltext
-            .borrow()
-            .get(&(k.type_id, k.group, k.instance))
-            .map(|s| s.as_bytes().to_vec())
+    /// The host's LTEXT table holds the text the language lookup finds (the
+    /// language rule is the plugin's, CQ8) and whether the detokenizer
+    /// accepts it.
+    fn ltext(&self, k: ResKey) -> LtextLoad {
+        match self.ltext.borrow().get(&(k.type_id, k.group, k.instance)) {
+            None => LtextLoad::Missing,
+            Some((s, true)) => LtextLoad::Loaded(s.as_bytes().to_vec()),
+            Some((s, false)) => LtextLoad::DetokenizeFailed(s.as_bytes().to_vec()),
+        }
     }
     fn population_grids(&self) -> [Option<Rc<dyn TractGrid<u16>>>; 3] {
         self.pops
@@ -604,9 +612,12 @@ fn env(w: &World, op: &Json) -> R<()> {
                 return Err("ltext key is [type, group, instance]".into());
             }
             let key = (u32_of(&k[0], "key")?, u32_of(&k[1], "key")?, u32_of(&k[2], "key")?);
+            // `detokenized: false`: the game's detokenizer returns false on
+            // this text (§7 step 3, CQ8).
+            let detokenized = opt(e, "detokenized").map_or(Ok(true), |d| bool_of(d, "detokenized"))?;
             w.ltext
                 .borrow_mut()
-                .insert(key, str_of(field(e, "text")?, "text")?.to_owned());
+                .insert(key, (str_of(field(e, "text")?, "text")?.to_owned(), detokenized));
         }
     }
     Ok(())

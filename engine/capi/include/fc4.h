@@ -2382,6 +2382,13 @@ typedef struct fc4_crime_host {
     fc4_props* (*tuning)(void* user); /* a NEW fc4_props (the core destroys it), NULL if missing */
     void (*for_each_type_key)(void* user, fc4_key_visitor visit, void* ctx);
     fc4_props* (*exemplar)(void* user, uint32_t type_id, uint32_t group, uint32_t instance); /* NEW or NULL */
+    /* A crime type name, §7 steps 2-3 (CQ8): type_id is always 0x2026960B.
+     * Look up (type, group + language ID, instance), then (type, group,
+     * instance) if that is missing and the language ID is not 0; copy the text
+     * and detokenize it in place (skipped with no detokenizer). true: loaded,
+     * the text went to the sink. false and text sent to the sink: the
+     * detokenizer returned false (the name keeps that text). false and nothing
+     * sent: no such LTEXT. The core replaces U+2022 itself (step 4). */
     bool (*ltext)(void* user, uint32_t type_id, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx);
     /* residential and demand (§6.1, §6.2): three grid tokens, one reference each */
     void (*population_grids)(void* user, uint64_t* out3);

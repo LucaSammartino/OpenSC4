@@ -70,9 +70,15 @@
 //!   curve property that is a scalar or non-numeric is treated as absent; a
 //!   present array without a complete point gives an empty curve, which
 //!   evaluates to 0 (foundations §4.1, §4.3).
-//! - Crime types (§7): the display name is the LTEXT string named by the
-//!   three `u32` of `0x8A416B2E` when the host has it, otherwise the inline
-//!   string `0xAA12FCB0` ("Crime Name"), otherwise empty. A mask property
+//! - Crime types (§7, CQ8): the display name is the LTEXT string
+//!   (`0x2026960B`, G, I) with G and I values [1] and [2] of `0x8A416B2E`
+//!   ([0] is ignored), which the host looks up under G + language ID, then
+//!   G, and detokenizes ([`LtextLoad`]); a loaded name has every U+2022
+//!   replaced by U+200B. If the load fails, the inline string `0xAA12FCB0`
+//!   ("Crime Name") replaces the name when it exists, otherwise the name
+//!   stays as the load left it: empty, or [choice] the copied text when the
+//!   detokenizer returned false. A key with fewer than 3 values is treated
+//!   as missing ([choice]). A mask property
 //!   that is not numeric is treated as missing (all bits); numeric elements
 //!   are reduced to their low 8 bits. A missing or short icon key fills
 //!   with 0. [`shipped_type_exemplars`] carries the shipped name and icon
@@ -114,9 +120,9 @@ pub use simulator::{
 };
 pub use tuning::{shipped_tuning, CrimeTuning};
 pub use types::{
-    choose_candidate, condition_bits, mask_of, parse_mask, purpose_bits, shipped_type_exemplars, wealth_bits,
-    zone_bits, CrimeType, LotBits, ANY_BITS, NONE_BIT, NO_PURPOSE_BIT, SHIPPED_ICON_GROUP, SHIPPED_ICON_TYPE,
-    SHIPPED_NAME_GROUP, SHIPPED_NAME_TYPE,
+    bullets_to_zero_width_spaces, choose_candidate, condition_bits, mask_of, name_ltext_key, parse_mask, purpose_bits,
+    shipped_type_exemplars, wealth_bits, zone_bits, CrimeType, LotBits, LtextLoad, ANY_BITS, NAME_LTEXT_TYPE, NONE_BIT,
+    NO_PURPOSE_BIT, SHIPPED_ICON_GROUP, SHIPPED_ICON_TYPE, SHIPPED_NAME_GROUP, SHIPPED_NAME_TYPE,
 };
 
 use std::cell::RefCell;
@@ -340,8 +346,12 @@ pub trait CrimeHost: GridProvider<u8> {
     /// Every exemplar of type `0x6534284A`, group `0xEA12F32C`, as
     /// (instance, properties), in the resource manager's key-list order.
     fn crime_type_exemplars(&self) -> Vec<(u32, Rc<PropertyHolder>)>;
-    /// The LTEXT string with this key, if any.
-    fn ltext(&self, key: ResKey) -> Option<Vec<u8>>;
+    /// Steps 2 and 3 of a crime type's name load (§7, CQ8) for `key`, whose
+    /// type is always [`NAME_LTEXT_TYPE`]: look up (type, G + language ID,
+    /// I), then (type, G, I) when that is missing and the language ID is not
+    /// 0; copy the text and run the game's string detokenizer on it in place
+    /// (skipped with no detokenizer). Step 4 is the core's.
+    fn ltext(&self, key: ResKey) -> LtextLoad;
 
     // ---- residential and demand (§6.1, §6.2) ----
     /// `cISC4ResidentialSimulator::GetPopulationGrids` (R$, R$$, R$$$).

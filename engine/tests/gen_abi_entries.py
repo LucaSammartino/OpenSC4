@@ -156,6 +156,8 @@ INTERFACES = [
     ("cISC4PropRequester(Crime)", "cFC4CrimePropRequester", FC4C, True),
     ("cISC4PropManager", "cISC4PropManager", "cISC4PropManager.h", True),
     ("cISC4PropOccupant", "cISC4PropOccupant", "cISC4PropOccupant.h", True),
+    # Crime type names (crime.md section 7 step 3; lua-host.md section 10.1).
+    ("cISCStringDetokenizer", "cFC4ISCStringDetokenizer", FC4C, True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),

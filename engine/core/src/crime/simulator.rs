@@ -1113,8 +1113,8 @@ mod tests {
                 .map(|(i, h)| (i, Rc::new(h)))
                 .collect()
         }
-        fn ltext(&self, _k: ResKey) -> Option<Vec<u8>> {
-            None
+        fn ltext(&self, _k: ResKey) -> crate::crime::LtextLoad {
+            crate::crime::LtextLoad::Missing
         }
         fn population_grids(&self) -> [Option<Rc<dyn TractGrid<u16>>>; 3] {
             let p = self.pops.borrow();

@@ -195,7 +195,8 @@ cIGZUnknown* CreateFC4CrimeSimulator();
 
 namespace fc4 {
 // The crime host table for the shadow (FC4CrimeShadow.cpp): tuning,
-// for_each_type_key, exemplar and ltext only (the resource manager and the
-// string manager, read only); every other callback NULL.
+// for_each_type_key, exemplar and ltext only (the resource and language
+// managers, read only, and the game's string detokenizer on the name copies,
+// crime.md §7 step 3); every other callback NULL.
 fc4_crime_host CrimeReadOnlyHost();
 }  // namespace fc4

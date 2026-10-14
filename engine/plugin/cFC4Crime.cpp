@@ -28,11 +28,10 @@
 #include "GZServPtrs.h"
 #include "SC4List.h"
 #include "SC4Rect.h"
-#include "StringResourceKey.h"
-#include "StringResourceManager.h"
 #include "cGZPersistResourceKey.h"
 #include "cIGZApp.h"
 #include "cIGZFrameWork.h"
+#include "cIGZLanguageManager.h"
 #include "cIGZMessage2.h"
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageServer2.h"
@@ -62,6 +61,7 @@
 #include "cISC4Simulator.h"
 #include "cISC4ZoneManager.h"
 #include "cISCPropertyHolder.h"
+#include "cISCStringDetokenizer.h"
 #include "cRZAutoRefCount.h"
 #include "cRZBaseString.h"
 #include "cRZCOMDllDirector.h"
@@ -257,16 +257,79 @@ fc4_props* ExemplarProps(void*, uint32_t type, uint32_t group, uint32_t instance
     return fc4::props::ToCoreAll(ex.Holder());
 }
 
-// The display name (§7: SC4LoadExemplarString's LTEXT lookup).
-bool Ltext(void*, uint32_t, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx) {
-    if (!Gate(fc4::Sw::Ltext, "crime type name LTEXT (not found)")) return false;
-    cRZAutoRefCount<cIGZString> s;  // the SDK helper owns the reference
-    if (!StringResourceManager::GetLocalizedString(StringResourceKey(group, instance), s)) return false;
-    if (s && sink != nullptr) {
-        const char* p = s->ToChar();
-        if (p != nullptr) sink(ctx, reinterpret_cast<const uint8_t*>(p), s->Strlen());
+// One LTEXT resource as a new string with our reference, or null.
+// [choice] GetPrivateResource, as the SDK's StringResourceManager reads LTEXT
+// (the spec does not say which call; both give the same text).
+cIGZString* LoadLtextString(cIGZPersistResourceManager* rm, uint32_t type, uint32_t group, uint32_t instance) {
+    const cGZPersistResourceKey key(type, group, instance);
+    FC4_OUT(cIGZString*, out, "cIGZString* (GetPrivateResource out pointer)");
+    const bool ok = rm->GetPrivateResource(key, GZIID_cIGZString, reinterpret_cast<void**>(out.ptr()), 0, nullptr);
+    out.Check();
+    if (out.get() == nullptr) return nullptr;
+    FC4_ACQUIRED(out.get(), "GetPrivateResource");
+    if (!ok) {
+        FC4_RELEASE_CREATED(out.get());
+        return nullptr;
     }
-    return true;
+    return out.get();
+}
+
+// The game's string detokenizer (cISC4App +0xA8, lua-host.md §10.1) with a
+// reference of ours, or null. [choice] GetStringDetokenizer is taken as
+// returning a borrowed pointer, like GetCity (spec question); our AddRef /
+// Release pair keeps the object alive across the call either way.
+cFC4ISCStringDetokenizer* AcquireDetokenizer() {
+    cIGZFrameWork* fw = RZGetFrameWork();
+    cIGZApp* app = fw ? fw->Application() : nullptr;
+    cISC4App* sc4 = nullptr;
+    if (app == nullptr || !app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) || sc4 == nullptr)
+        return nullptr;
+    FC4_ACQUIRED(sc4, "QueryInterface");
+    cISCStringDetokenizer* d = sc4->GetStringDetokenizer();
+    if (d != nullptr) FC4_ADDREF(d);
+    FC4_RELEASE(sc4);
+    return reinterpret_cast<cFC4ISCStringDetokenizer*>(d);
+}
+
+// A crime type's display name, §7 steps 2 and 3 (CQ8; data-formats §6.1,
+// §6.2). The core passes (0x2026960B, G, I): value [0] of 0x8A416B2E is
+// ignored, and step 4 (U+2022 -> U+200B) is the core's.
+//   2. (type, G + language ID, I); if that is missing and the language ID is
+//      not 0, (type, G, I). Group and instance 0 are looked up like any other
+//      key (the SDK helper refuses them; the original does not).
+//   3. The text is copied into the name and the detokenizer runs on the copy
+//      in place (slot 9, Detokenize(string, string), with the same string as
+//      input and output). It returning false fails the load, but the name
+//      keeps the text: the sink gets it and the callback returns false (fc4.h).
+//      With no detokenizer the step is skipped.
+// [choice] With no language manager the language ID is 0 (one lookup).
+bool Ltext(void*, uint32_t type, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx) {
+    if (!Gate(fc4::Sw::Ltext, "crime type name LTEXT (not found)")) return false;
+    cIGZPersistResourceManagerPtr rm;
+    if (!rm) return false;
+    cIGZLanguageManagerPtr lm;
+    const uint32_t language = lm ? lm->GetCurrentLanguage() : 0;
+    cIGZString* text = LoadLtextString(rm, type, group + language, instance);
+    if (text == nullptr && language != 0) text = LoadLtextString(rm, type, group, instance);
+    if (text == nullptr) return false;
+    cRZBaseString name;
+    if (text->ToChar() != nullptr) name.FromChar(text->ToChar(), text->Strlen());
+    FC4_RELEASE_CREATED(text);
+    bool ok = true;
+    if (cFC4ISCStringDetokenizer* det = AcquireDetokenizer()) {
+        ok = det->DetokenizeString(name, name);
+        FC4_RELEASE(det);
+        if (!ok) {
+            fc4::Log("crime: type name LTEXT %08X-%08X-%08X: the detokenizer returned false; the name keeps "
+                     "the text (§7 step 3)",
+                     type, group, instance);
+        }
+    }
+    if (sink != nullptr) {
+        const char* p = name.ToChar();
+        sink(ctx, reinterpret_cast<const uint8_t*>(p != nullptr ? p : ""), p != nullptr ? name.Strlen() : 0);
+    }
+    return ok;
 }
 
 // ---- lifecycle glue (§4) ------------------------------------------------------------------------
