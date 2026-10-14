@@ -947,6 +947,21 @@ out that same pointer, and the caller's later calls on `d` act on the simulated 
 - *[choice]* Keep the caller's object as the listed deal and drive it through `cISC4NeighborDeal`, as for the foreign
   deals of §15.2. If the core must own its deals, the copy may stay as a deviation that only mods can observe.
 
+**NG5. Lifetime of a deal object.** An original deal is a plain counted object. It is destroyed at its last
+`Release`, never earlier, and it is never reused. These hold references to it:
+
+- the simulator's deal list (§6.1);
+- the regional cities, after `SetLocalDeals` (§9.2, foundations §11.3), until the next push replaces their lists;
+- every queued status report (§5.3), until it is delivered. That can be after the deal left the list (statuses 2–5);
+- the lists filled by `FindDeals`, `FindDealsAll` and `ProposeDeals` (each entry AddRef'd), including the budget
+  window's neighbour-tab list while the tab is open (NG7);
+- the utility advisor's advice made from a status 3–6 report, which is given the deal (NG31).
+
+So a deal that has left the simulation must keep answering every `cISC4NeighborDeal` call with its last state while
+any of these holds it, and the same deal must keep the same pointer for as long as any reference exists. Creating the
+wrapper lazily cannot be seen by the game. Neither can keeping a wrapper at zero references for reuse ("parked"),
+because no correct caller can reach an object it holds no reference to. The bracket stands under those two rules.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).

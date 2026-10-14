@@ -2563,7 +2563,11 @@ answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`AddDeal` `0x006D2870`; no caller through slot 26) and written into neighbors
   §15.4. The original keeps the caller's object (AddRef), clears its Silent flag and simulates that object. The bracket
   differs (pointer identity, later changes lost), but no shipped code calls `AddDeal`, so only mods can see it.
-- **NG5:** The lifetime of the deal wrapper objects. [created lazily, parked at zero references]
+- ~~**NG5:** The lifetime of the deal wrapper objects. [created lazily, parked at zero references]~~
+  **ANSWERED 2026-10-14** from the exe (`FindDeals` `0x006D0760`, `AddDeal`, the status-report subscribers) and written
+  into neighbors §15.4. An original deal lives until its last Release. The holders are the deal list, the regional
+  cities' local lists, queued status reports, `FindDeals`/`ProposeDeals` lists and the utility advisor's advice. Lazy
+  creation and parking are invisible, so the bracket stands, provided a removed deal keeps answering while referenced.
 - **NG6:** Getters called from other threads. [the lock is tried for 20 ms, then the mirror or a neutral value is
   returned and counted as a fallback]
 - **NG7:** The shadow's state it cannot read from the original. [ready = 1, uiDisabled = 0]
