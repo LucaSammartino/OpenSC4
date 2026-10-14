@@ -463,9 +463,9 @@ For each cell of the rect (x outer, z inner):
 cell or a cell that failed to zone stay valid and receive capacity and garbage (until a later `PopulateZone` or
 `AddRegionToZone` pass sees the cell outside the mask).
 
-**The road test** (LG7; `0x006BCDF6`–`0x006BCE16`). The traffic network map is fetched for each cell, as `GetTrafficNetwork()`
-(slot 40) of the **global** city `0x00B43CEC`. The zone's own city pointer is not used. The returned tile is
-only tested for null and is not released. That is correct, because `FindNetworkTile` (`0x004B0B20`, pop 16)
+**The road test** (LG7; `0x006BCDF6`–`0x006BCE16`). The traffic network map is fetched for each cell, as
+`GetTrafficNetwork()` (slot 40) of the **global** city `0x00B43CEC`. The zone's own city pointer is not used. The
+returned tile is only tested for null and is not released. That is correct, because `FindNetworkTile` (`0x004B0B20`, pop 16)
 returns a **borrowed** pointer and makes no `AddRef` call *[compat]*. It returns the first network occupant
 listed at cell `(x, z)` for which `HasAnyNetworkFlag(0x1F4F)` (network occupant slot 9) is true. If there is none
 and the fourth argument is true, as here, it searches the map's multi-cell index under the key `(x << 16) | z`
@@ -798,8 +798,9 @@ occupant slot 12). *[quirk]* No null check: a missing prop exemplar crashes. The
 reads field `+0x10` of the global `SC4ViewUtilities` object (`0x00B43DD8`). `cSC4WinRegionScreen` fills that global
 from its renderer's `GetViewUtilities()` (`cISC43DRender` slot 8). `SC4ViewUtilities::UpdateCameraPosition`
 copies the field from the camera control's rotation (`+0x10C`) and uses `rotation × π/2` as the camera yaw.
-Nothing checks the global for null *[quirk]*. So the zot faces whichever way the player's view faced in the month it was placed. The
-value is saved in the prop's record (lot-records.md §10.1, field 5), and it is the only observable effect.
+Nothing checks the global for null *[quirk]*. So the zot faces whichever way the player's view faced in the month
+it was placed. The value is saved in the prop's record (lot-records.md §10.1, field 5), and it is the only
+observable effect.
 
 No local save holds a landfill zot, because every saved landfill zone is connected. All 66 `0x107A0000` props in the
 saves are building zots placed through the same global (lot-developer.md §5.6), and all have orientation 0.
