@@ -49,6 +49,7 @@ const ExecutableVersion kVersions[] = {
             0x00497A00,  // STLport map<uint32_t, 4-byte T>::operator[] (docs/abi/direct-calls.md)
             0x004A79A0,  // the same maps' subtree free (_M_erase)
         },
+        {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
     },
 };
 
@@ -318,6 +319,39 @@ const void* GameStringVtable() {    static int state = 0;  // 0 unknown, 1 avail
         }
     }
     return state == 1 ? vtable : nullptr;
+}
+
+const void* ProtectionPrimaryVtable(unsigned kind) {
+    static int state[2] = {};  // 0 unknown, 1 available, -1 refused
+    static const void* vtable[2] = {};
+    static const char* const kNames[2] = {"fire", "police"};
+    if (kind > 1) return nullptr;
+    if (state[kind] == 0) {
+        state[kind] = -1;
+        const ExecutableVersion* v = IdentifiedVersion();
+        MEMORY_BASIC_INFORMATION mbi{};
+        const uintptr_t va = v ? v->protectionVtableVA[kind] : 0;
+        bool ok = v != nullptr && va != 0 && va % 4 == 0 &&
+                  VirtualQuery(reinterpret_cast<const void*>(va), &mbi, sizeof(mbi)) == sizeof(mbi) &&
+                  mbi.State == MEM_COMMIT && mbi.Type == MEM_IMAGE &&
+                  reinterpret_cast<uintptr_t>(mbi.AllocationBase) == v->imageBase &&
+                  !(mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS));
+        if (ok) {
+            // The first entry (QueryInterface) must be code inside the image.
+            const uintptr_t first = *reinterpret_cast<const uintptr_t*>(va);
+            ok = CheckCode(kind == 0 ? "fire simulator vtable entry 0" : "police simulator vtable entry 0", first,
+                           v->imageBase);
+        }
+        if (ok) {
+            vtable[kind] = reinterpret_cast<const void*>(va);
+            state[kind] = 1;
+            Log("compat: original %s simulator vtable at 0x%08lX", kNames[kind], static_cast<unsigned long>(va));
+        } else {
+            Log("compat: original %s simulator vtable NOT available (%s)", kNames[kind],
+                v ? "address rejected" : "executable not identified");
+        }
+    }
+    return state[kind] == 1 ? vtable[kind] : nullptr;
 }
 
 uintptr_t DirectCall(Direct which) {

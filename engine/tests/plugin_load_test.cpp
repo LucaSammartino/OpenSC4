@@ -74,6 +74,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -2188,14 +2189,26 @@ int ProtectionEnableTest(const std::string& dll, const std::string& ini, const s
 
 // The grid shadow (FC4ProtectionShadow.h) against fake ORIGINAL simulators:
 // fire with a 4 x 3 tract grid and no stations, police without a grid. Every
-// slot the shadow must not call traps.
+// slot the shadow must not call traps. Both simulators keep an unadjusted
+// int16 grid pointer at primary +0x84 (protection.md §2, PR5): fire's is a
+// 4 x 3 grid, police's null.
+struct FakeProtSim {
+    void** vtbl;
+    uint8_t members[0x80];
+    void* unadjusted;  // +0x84
+};
+static_assert(offsetof(FakeProtSim, unadjusted) == 0x84, "the unadjusted grid pointer is at primary +0x84");
+
 struct FakeProtCity {
-    FakeVtable cityVt, fireVt, policeVt, gridVt;
-    FakeObject city{}, fire{}, police{}, grid{};
-    uint8_t values[4][3] = {};  // [x][z]
+    FakeVtable cityVt, fireVt, policeVt, gridVt, grid16Vt;
+    FakeObject city{}, grid{}, grid16{};
+    FakeProtSim fire{}, police{};
+    uint8_t values[4][3] = {};    // [x][z]
+    int16_t values16[4][3] = {};  // [x][z], the unadjusted grid
     SC4Percentage pct{0.25f};
     int stationCalls = 0;
     int tractReads = 0;
+    int tractReads16 = 0;
 };
 
 FakeProtCity* g_prot = nullptr;
@@ -2225,6 +2238,10 @@ float __fastcall GridInvWidth(void*, void*) { return 0.03125f; }  // 16, 17
 uint8_t __fastcall GridTractValue(void*, void*, int32_t x, int32_t z) {  // 22
     ++g_prot->tractReads;
     return (x >= 0 && x < 4 && z >= 0 && z < 3) ? g_prot->values[x][z] : 0;
+}
+int16_t __fastcall Grid16TractValue(void*, void*, int32_t x, int32_t z) {  // int16 grid 22
+    ++g_prot->tractReads16;
+    return (x >= 0 && x < 4 && z >= 0 && z < 3) ? g_prot->values16[x][z] : 0;
 }
 
 void InitFakeProtCity(FakeProtCity& c) {
@@ -2257,11 +2274,16 @@ void InitFakeProtCity(FakeProtCity& c) {
     c.gridVt.slots[16] = reinterpret_cast<void*>(&GridInvWidth);
     c.gridVt.slots[17] = reinterpret_cast<void*>(&GridInvWidth);
     c.gridVt.slots[22] = reinterpret_cast<void*>(&GridTractValue);
+    for (int s = 10; s <= 17; ++s) c.grid16Vt.slots[s] = c.gridVt.slots[s];  // the same 4 x 3 geometry
+    c.grid16Vt.slots[22] = reinterpret_cast<void*>(&Grid16TractValue);
     c.city.vtbl = c.cityVt.slots.data();
     c.fire.vtbl = c.fireVt.slots.data();
     c.police.vtbl = c.policeVt.slots.data();
     c.grid.vtbl = c.gridVt.slots.data();
-    c.values[1][2] = 5;  // the original's grid has one covered tract; ours (no stations) has none
+    c.grid16.vtbl = c.grid16Vt.slots.data();
+    c.fire.unadjusted = &c.grid16;
+    c.values[1][2] = 5;     // the original's grid has one covered tract; ours (no stations) has none
+    c.values16[2][1] = -7;  // likewise its unadjusted grid (a negative strike / dispatch sum)
 }
 
 int ProtectionShadowTest(const std::string& dll, const std::string& ini, const std::string& log) {
@@ -2286,19 +2308,37 @@ int ProtectionShadowTest(const std::string& dll, const std::string& ini, const s
         seam(kFC4SeamObserverCity, &city.city, nullptr);
         // Three month ends (2000-02-01, 03-01, 04-01): our grid is the same
         // each time, so the third one expects an exact match.
+        // Not the game's executable: the original classes cannot be
+        // recognised, so the unadjusted grid at +0x84 is never read.
         for (intptr_t julian : {2451576, 2451605, 2451636}) {
             seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewMonth)),
                  reinterpret_cast<void*>(julian));
         }
+        CHECK(city.tractReads16 == 0);
+        // PR5: with the fakes' vtables as the original classes' (seam op 32),
+        // a fourth month end (2000-05-01) compares the unadjusted grids too.
+        CHECK(seam(kFC4SeamProtectionShadowVtables, city.fire.vtbl, city.police.vtbl) == 1);
+        seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewMonth)),
+             reinterpret_cast<void*>(static_cast<intptr_t>(2451666)));
+        CHECK(seam(kFC4SeamProtectionShadowVtables, nullptr, nullptr) == 1);
         seam(kFC4SeamObserverCity, nullptr, nullptr);
     }
     FreeLibrary(hd);
     DeleteFileA(ini.c_str());
-    CHECK(city.stationCalls == 6);       // both simulators, three months
-    CHECK(city.tractReads == 3 * 12);    // fire only: 4 x 3 tracts a month
+    CHECK(city.stationCalls == 8);        // both simulators, four months
+    CHECK(city.tractReads == 4 * 12);     // fire only: 4 x 3 tracts a month
+    CHECK(city.tractReads16 == 12);       // fire only, the fourth month only
     const std::string text = ReadFile(log);
     CHECK(text.find("protection shadow: ON (protection_shadow from FreeCity4.ini)") != std::string::npos);
-    CHECK(text.find("protection shadow: NOT readable read-only") != std::string::npos);
+    CHECK(text.find("and the unadjusted int16 grid with the original's (primary +0x84") != std::string::npos);
+    CHECK(text.find("protection shadow: NOT readable read-only (so not compared): the original's cycle "
+                    "accumulators") != std::string::npos);
+    CHECK(text.find("protection shadow (fire) 2000-02-01: unadjusted grid not compared (the original class cannot "
+                    "be recognised: executable not identified)") != std::string::npos);
+    CHECK(CountOf(text, "unadjusted grid not compared") == 1);  // once per simulator (police: no grid at all)
+    CHECK(CountOf(text, "unadjusted cells=") == 1);
+    CHECK(text.find("protection shadow (fire) 2000-05-01: unadjusted cells=12 mismatches=1 max|diff|=7 "
+                    "first=(2,1):-7/0") != std::string::npos);
     CHECK(text.find("protection shadow (fire) 2000-02-01: cells=12 mismatches=1 max|diff|=5 stations=0 dispatches=0 "
                     "stable=0 expectExact=0 first=(1,2):5/0; efficiency mismatches=0/0; radius mismatches=0/0; "
                     "strike=0; chance orig/ours=0/0; totalDispatch orig/ours=0/0; avg=12.5 pct=0.25 (original)") !=
@@ -2309,7 +2349,7 @@ int ProtectionShadowTest(const std::string& dll, const std::string& ini, const s
                     "stable=2 expectExact=1") != std::string::npos);
     CHECK(text.find("protection shadow (fire) 2000-04-01: WARNING 1 cells differ although the grid should be exact") !=
           std::string::npos);
-    CHECK(CountOf(text, "protection shadow (police) ") == 3);
+    CHECK(CountOf(text, "protection shadow (police) ") == 4);
     CHECK(text.find("protection shadow (police) 2000-02-01: skipped (the original has no coverage grid yet)") !=
           std::string::npos);
     CHECK(text.find("structured exception") == std::string::npos);

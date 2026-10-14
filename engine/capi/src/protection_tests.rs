@@ -527,6 +527,7 @@ fn null_handle_gives_the_neutral_answers() {
             false
         ));
         assert_eq!(fc4_protection_shadow_grid(null, std::ptr::null_mut(), 0), 0);
+        assert_eq!(fc4_protection_shadow_unadjusted_grid(null, std::ptr::null_mut(), 0), 0);
         fc4_protection_destroy(null);
     }
 }
@@ -1033,6 +1034,7 @@ fn the_shadow_rebuilds_the_replacements_grid_read_only() {
         let s = fc4_protection_shadow_create(&ro, 0);
         assert!(!s.is_null());
         assert_eq!(fc4_protection_shadow_grid(s, std::ptr::null_mut(), 0), 0);
+        assert_eq!(fc4_protection_shadow_unadjusted_grid(s, std::ptr::null_mut(), 0), 0);
         let mut bad = geometry();
         bad.count_x = 0;
         assert!(!fc4_protection_shadow_run(s, &bad, std::ptr::null(), 0, 0, false));
@@ -1050,6 +1052,22 @@ fn the_shadow_rebuilds_the_replacements_grid_read_only() {
         let theirs: Vec<f64> = grid.iter().map(|&v| f64::from(v)).collect();
         assert_eq!(theirs, ours);
         assert!(grid.iter().any(|&v| v > 0));
+        // PR5: the unadjusted grid too (the replacement's int16 grid).
+        let ours_unadj = g.grid_values(state(p).unadjusted_grid);
+        let mut unadj = vec![0i16; (TRACTS * TRACTS) as usize];
+        assert_eq!(
+            fc4_protection_shadow_unadjusted_grid(s, unadj.as_mut_ptr(), unadj.len()),
+            unadj.len()
+        );
+        let theirs: Vec<f64> = unadj.iter().map(|&v| f64::from(v)).collect();
+        assert_eq!(theirs, ours_unadj);
+        assert!(unadj.iter().any(|&v| v > 0));
+        let mut short16 = [0i16; 3];
+        assert_eq!(
+            fc4_protection_shadow_unadjusted_grid(s, short16.as_mut_ptr(), 3),
+            unadj.len()
+        );
+        assert_eq!(short16[..], unadj[..3]);
         // Queries on the shadow use the same inputs.
         assert_eq!(
             fc4_protection_station_efficiency(s, STATION),
