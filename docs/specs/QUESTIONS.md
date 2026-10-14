@@ -1731,9 +1731,17 @@ answer is in brackets.
 About `docs/specs/demand.md` §4.1 and §5 after the ABI correction (slot 8 `CalculateJobsPerUnitOfDemand` returns
 void and writes jobs[1..3] of a four-float record). The current answer is in brackets.
 
-- **DQ10 — §5:** `GetJobsBySensus` still reads `j0 + j1 + j2`, and ExtrapolateBusinessCensus reads `j[w]`,
+- ~~**DQ10 — §5:** `GetJobsBySensus` still reads `j0 + j1 + j2`, and ExtrapolateBusinessCensus reads `j[w]`,
   w = 0..2, but the outputs are now jobs[1..3]. Which elements are summed, and which one does wealth w read? [the
-  three outputs, summed in order: f32(f32(out1 + out2) + out3); extrapolation reads output w for wealth w + 1]
+  three outputs, summed in order: f32(f32(out1 + out2) + out3); extrapolation reads output w for wealth w + 1]~~
+  **ANSWERED 2026-10-14** from the exe (`GetJobsBySensus` `0x006A3E60`, sum `0x006A3E8C`–`0x006A3E9C`;
+  ExtrapolateBusinessCensus `0x006A6BD8`–`0x006A6C83`) and written into demand.md §5 (slot 9 row and
+  "`GetJobsBySensus` arithmetic") and §9.2. **The elements are right, the order is not.** The three outputs are
+  summed **f32(f32(jobs[3] + jobs[2]) + jobs[1])**, last output first. Then `x := f32(supply × sum)` goes to `_ftol`
+  with no `≤ 0` clamp, and the function returns EAX. The order matters for whole percents: 1, 3, 96 sum to
+  0.99999994 in the original and 1.0 in the bracket's order, so supply 1000 gives 999, not 1000. The two orders
+  give different sums for 1198 of the 5151 splits of 100 %. **Extrapolation:** each wealth reads its own output. $
+  (`0x12010`, `0x2010`) reads jobs[1], $$ reads jobs[2] and $$$ reads jobs[3], each `f32(jobs[k] × n)`.
 - **DQ11 — §5:** in the original `GetJobsBySensus`, what is in the local record's jobs[0] when slot 8 returns, and
   is it really summed with jobs[3] left out? [not modelled; the sum of the three outputs]
 - **DQ12 — §5 against §4.1:** §5 says `f32(percent) × 0.01f`, while §4.1 describes an exact FILD followed by a
