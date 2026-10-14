@@ -19,6 +19,7 @@
 #include "FC4FloraShadow.h"
 #include "FC4LandfillShadow.h"
 #include "FC4PollutionShadow.h"
+#include "FC4PowerShadow.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Watchdog.h"
@@ -316,13 +317,16 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
     // simulator's SimNewMonth deliveries.
     // The landfill shadow (opt-in, FC4LandfillShadow.h) wraps the original
     // landfill developer's SimNewMonth deliveries.
+    // The power shadow (opt-in, FC4PowerShadow.h) wraps the original power
+    // simulator's SimNewMonth / SimNewDay and its working SimIdle deliveries.
     bool finished = false;
     if (!fc4::BudgetShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::DemandShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::PollutionShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::CrimeShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::FloraShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
-        !fc4::LandfillShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) {
+        !fc4::LandfillShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
+        !fc4::PowerShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) {
         finished = target->DoMessage(m);
     }
     fc4::DeliveryEnd();
