@@ -2696,7 +2696,12 @@ shadow's riot roll (wall-clock RNG). The current answer is in brackets.
   grid's tract size. Slots 35, 37 and 43 divide by the R$ EQ grid's own `GetTractSize()`, asked on every call. Both are
   4 in every game-written city. The bracket (E) matches slot 21 only; elsewhere it is a *[choice]* that differs only in
   a hand-made save, and asking the grid is recommended.
-- **AQ3:** S_EQ for the HQ variants. [E]
+- ~~**AQ3:** S_EQ for the HQ variants. [E]~~
+  **ANSWERED 2026-10-14** from the exe (`GetCellHQ` `0x006F7A10`, `GetCellHQByWealth` `0x006F7AB0`,
+  `GetHQMinAndMaxCellCoords` `0x006F7550`, `GetAverageHQGrid` `0x006FCFD0`) and written into
+  residential-education-health §4.8. Slot 22 uses E like slot 21. Slots 36, 38 and 44 divide by the R$ **HQ** grid's own
+  tract size, not an EQ grid's and not E. The bracket (E) matches slot 22 only; as in AQ2, the difference shows only in
+  a hand-made save.
 - **AQ4:** FQ3 save: is flag 1 toggled only when the obliteration record opens? [yes]
 - **AQ5:** FQ3 restore: is the record closed right after `Read`, before `Init` and `InsertOccupant`? [yes]
 - **AQ6:** FQ3: a failed `GetUint32` of the count. [the count stays 0]
