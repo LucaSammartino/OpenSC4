@@ -317,8 +317,10 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
    instance 2, type 3; `Key:{0x1, 0x2, 0x3}` gives group 1, instance 0, type 0; `Key:{1, 2, 3}` gives 1, 2,
    3; `Key:{0x1,0x2}` gives type 0, so the parent key is not all zero and its load fails; `Key:{}` gives three
    zeros, no parent.
-2. The next line must be `PropCount=<number>` (name case-insensitive).
-3. Exactly `PropCount` property lines follow:
+2. The next line must be `PropCount=<number>` (name case-insensitive). As on every `name=value` line, the name
+   and the value are trimmed of spaces and tabs (`0x0067E0B0`); the number is rule N (`0x0067E250`).
+3. Exactly `PropCount` property lines follow. If the record runs out of lines first, the read fails; lines after
+   them are never read.
 
 ```
 0x<ID>:{"<name>"}=<Type>:<reps>:{<values>}
@@ -328,9 +330,13 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
   first character that is not a digit, so `0x00000010:{"Exemplar Type"}` gives `0x10`. The name is ignored. A
   name containing `=` breaks the line *[quirk]*.
 - **Type**: one of `Bool`, `Uint8`, `Sint8`, `Uint16`, `Sint16`, `Uint32`, `Sint32`, `Uint64`, `Sint64`,
-  `Float32`, `String`, **case-sensitive**. Anything else fails the read. (No `Float64` in text.)
+  `Float32`, `String`, **case-sensitive**. Anything else fails the read. (No `Float64` in text.) It is the text
+  before the first `:`, compared **exactly** (`0x0067E780`): the value was trimmed at its start, but nothing is
+  trimmed around the `:`, so `Uint32 :0:{1}` fails the read.
 - **reps**: number (rule N). `0` = a scalar with one value; `n ≥ 1` = an array of `n` values (even for `n = 1`).
-  For `String` the reps field is ignored.
+  For `String` the reps field is ignored. It is read from the text right after the first `:`, **not trimmed**;
+  rule N stops at the next `:`. So ` 3` gives 3, but ` 0x3` gives 0, a scalar. The `{` must follow the second `:`
+  directly: `Uint32:0: {1}` fails the read.
 - **values**: must start with `{`. Values are separated by commas; leading spaces are trimmed. Per type:
   - integer types up to 32 bits: rule N, then truncated to the type's width (two's complement);
   - `Uint64` / `Sint64`: always read as **hexadecimal**, with or without `0x` *[inferred for the no-prefix case]*;
@@ -344,7 +350,9 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
 `a`–`f`/`A`–`F` appears before the first character that is not a hex digit, hexadecimal; else decimal. The
 conversion is C `strtoul` in that base (a leading `-` negates modulo 2³²). So `16` = 16, `1A` = 26, `0x10` = 16,
 `-1` = `0xFFFFFFFF`. The base is chosen on the raw text (`RZConvertToUint32A` `0x0090FE93`): a leading space
-stops the scan with base 10, and `strtoul` then skips the space, so ` 16` = 16, ` 1A` = 1 and ` 0x10` = 0.
+stops the scan with base 10, and `strtoul` then skips the space, so ` 16` = 16, ` 1A` = 1 and ` 0x10` = 0. A
+value above `0xFFFFFFFF` gives `0xFFFFFFFF`, with or without a leading `-` (`strtoul` saturates): `4294967296` and
+`-4294967296` both give `0xFFFFFFFF`.
 
 Shipped text exemplars: two, both in `Plugin_002_TheLivingMall.dat` (`0xCA386E22`/`0x04C00000` and
 `0xA8FBD372`/`0x6AC4085B`). The first starts:

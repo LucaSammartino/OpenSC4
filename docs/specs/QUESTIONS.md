@@ -575,8 +575,12 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   **ANSWERED 2026-10-14** from the exe (`0x0067DFD0`): **the bracket does not match.** Fields are not counted:
   a fourth and later field is ignored, and a missing field reads 0. Nothing inside the braces is trimmed: a
   space after `{` or `,` makes a `0x` field read 0, while a decimal field survives (data-formats.md §4.3).
-- **EX11:** are PropCount, reps and the type name trimmed? [PropCount and reps trimmed; the type name must match
-  exactly]
+- ~~**EX11:** are PropCount, reps and the type name trimmed? [PropCount and reps trimmed; the type name must match
+  exactly]~~ **ANSWERED 2026-10-14** from the exe (`0x0067E250`, `0x0067E780`): **the bracket matches for
+  PropCount and the type name, not for reps.** PropCount is trimmed of spaces and tabs like every `name=value`
+  line. The type name is compared exactly, with no trimming at the `:`. reps is not trimmed: rule N reads it, so
+  a leading space is harmless for decimal but turns `0x3` into 0. Rule N saturates at `0xFFFFFFFF`; too few
+  property lines fail the read (data-formats.md §4.3).
 - **EX12:** is there a cap on reps? [more reps than the record length fails]
 - **EX13:** are numeric values cut at `}` too? [no, only strings]
 - **EX14:** how is Float32 text parsed? [as f64, then rounded to f32; no hex/inf/nan]
