@@ -129,6 +129,11 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   funds inside the original's spread. Our residential's EQ falls 58 → 16 and HQ 69 → 18 by 2051; there is no
 >   original baseline yet (the observe line gains `residential EQ/HQ/LE=` in the land value lane), then an
 >   all-original soak gives one.
+>   **Run 90b (all original + residential shadow, 900 s)**: clean to 2064; **the original's EQ/HQ fall the same way**
+>   (EQ 17.7 / HQ 20.6 at 2051 against our 16.3 / 18.0): our residential follows the original's decline. The
+>   shadow's scalars are identical on every state-0 line; only the proximity states 1–3 differ (RG23).
+>   **`lvrefs` merged** (`32d9d84`): land value and ordinance release the references a save handed over as ours;
+>   SV1–SV2 filed. **Run 91 (save → reload again)**: both runs clean, `ref_warnings=0` (run 88 had 3).
 > - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lanes in
 >   `.claude/worktrees/re-answers4`, `re-answers5`):
 >   - **neighbours glue + shadow** (`cFC4NeighborsSimulator`, `neighbours_shadow`; ABI 28, seam op 33; renumber at
@@ -137,8 +142,10 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >     `development_shadow`; ABI 29, seam op 34);
 >   - **`apply5`**: AU1–AU15 (the aura shadow rebuilt on the original's state field, §14.3), EH1–EH14, FQ1–FQ15 (the
 >     64 m index query of FQ15, inherited flora properties); ABI 30 / seam op 35 if needed;
->   - **land value grid references after a save** (`FC4_RELEASE_CREATED` or the shared host grids; audit of every
->     glue's Read → Shutdown references; seam op 36 if needed);
+>   - **zones glue, phase 1** (`cFC4ZoneManager` replacement + `zones_shadow`; the zone developer / lot manager stays
+>     original; ABI 34, seam op 38);
+>   - **growth probe** (`growth_probe`: counts the original tract developer's `Grow` calls per day through a vtable
+>     hook, building-development.md §12, to set the `growthAttemptsPerDay` default; seam op 39 if needed);
 >   - **`apply6a`**: TS1–TS34 into the traffic simulator core (`ts11_*` vectors; core only, no glue; ABI 32 only if
 >     unavoidable);
 >   - **`apply6b`**: PW1–PW8, PS1–PS8, LG1–LG20 into the power, plumbing and landfill cores, glue and shadows (the
@@ -151,7 +158,8 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   the coordinator may merge main into the lane's worktree itself and gate that.
 > - **Open follow-ups:**
 >   - residential: the RG23 answer (proximity grids), then an apply lane;
->   - after the land value fix: run 88 again (save → reload), expecting `ref_warnings=0`;
+>   - run the growth probe in the original when it merges (a long soak with `growth_probe = 1`), and set the default
+>     from its Shutdown summary (building-development.md §4.4.1, §12);
 >   - run 85 settled run 84: the original's own path spans it (no bias; `docs/manual-checks.md`);
 >   - zones glue (M4); development glue (BDS, growth, tract and lot developers: building-development.md §9);
 >     traffic glue (M5);
