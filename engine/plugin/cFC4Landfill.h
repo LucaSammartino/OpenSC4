@@ -60,6 +60,7 @@
 
 class cIGZMessageServer2;
 class cISC4City;
+class cISC4Simulator;
 
 static const uint32_t kFC4_CLSID_cSC4LandfillDeveloper = 0xEA09D4AE;
 static const uint32_t kFC4_IID_cISC4LandfillDeveloper = 0x8A09D502;
@@ -76,6 +77,10 @@ struct LandfillContext {
     cISC4City* city = nullptr;  // developer: held from acquire_services to release_services
     cIGZMessageServer2* msgServer = nullptr;  // developer only, held likewise
     cIGZMessageTarget2* target = nullptr;     // developer only: the agent and notification target
+    // The simulator the agent is registered with: held from add_agent to
+    // remove_agent (§1.1 registers before the services are acquired, §1.2
+    // removes after they are released).
+    cISC4Simulator* agentSim = nullptr;
     bool agentsRegistered = false;
     // Game lists (and the references they hold) kept until the outermost call
     // into the core returns.

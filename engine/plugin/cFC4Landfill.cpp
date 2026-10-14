@@ -44,6 +44,7 @@
 #include "cISC4OccupantManager.h"
 #include "cISC4PollutionSimulator.h"
 #include "cISC4PropManager.h"
+#include "cISC4Simulator.h"
 #include "cISC4TrafficSimulator.h"
 #include "cISC4ZoneManager.h"
 #include "cISCPropertyHolder.h"
@@ -301,26 +302,52 @@ void ReleaseServices(void* u) {
     c->city = nullptr;
 }
 
-// §1.1 step 2: simulator slot 19 AddAgent(target, level, name, flags).
+// The app's current city (borrowed).
+cISC4City* AppCity() {
+    cIGZFrameWork* fw = RZGetFrameWork();
+    cIGZApp* app = fw ? fw->Application() : nullptr;
+    cISC4App* sc4 = nullptr;
+    if (app == nullptr || !app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) || sc4 == nullptr) {
+        return nullptr;
+    }
+    FC4_ACQUIRED(sc4, "QueryInterface");
+    cISC4City* city = sc4->GetCity();
+    FC4_RELEASE(sc4);
+    return city;
+}
+
+// §1.1 step 2: simulator slot 19 AddAgent(target, level, name, flags). Step 2
+// runs before step 3 acquires the city, so the simulator comes from the app's
+// city; it is held until RemoveAgent (§1.2 removes the agent after the
+// services are released).
 void AddAgent(void* u, uint32_t level, const char* name, size_t len, uint32_t flags) {
     fc4::LandfillContext* c = Ctx(u);
-    cFC4ISC4Simulator* sim = c->city ? fc4::AsGame(c->city->GetSimulator()) : nullptr;  // city slot 50
-    if (sim == nullptr || c->target == nullptr || name == nullptr) {
+    if (c->target == nullptr || name == nullptr) return;
+    cISC4City* city = c->city ? c->city : AppCity();
+    cISC4Simulator* raw = city ? city->GetSimulator() : nullptr;  // city slot 50, borrowed
+    if (raw == nullptr) {
         fc4::Log("landfill: no simulator; agent not registered");
         return;
     }
+    if (c->agentSim == nullptr) {
+        c->agentSim = raw;
+        FC4_ADDREF(c->agentSim);
+    }
     const cRZBaseString n(name, len);
-    sim->AddAgent(c->target, level, n, flags);  // slot 19
+    fc4::AsGame(raw)->AddAgent(c->target, level, n, flags);  // slot 19
     c->agentsRegistered = true;
 }
 
-// §1.2: simulator slot 20 RemoveAgent(target), the simulator from the city.
+// §1.2: simulator slot 20 RemoveAgent(target), on the simulator AddAgent used.
 void RemoveAgent(void* u) {
     fc4::LandfillContext* c = Ctx(u);
-    if (!c->agentsRegistered) return;
-    cFC4ISC4Simulator* sim = c->city ? fc4::AsGame(c->city->GetSimulator()) : nullptr;
-    if (sim != nullptr) sim->RemoveAgentAllLevels(c->target);  // slot 20
+    if (c->agentSim == nullptr) return;
+    if (c->agentsRegistered) {
+        fc4::AsGame(c->agentSim)->RemoveAgentAllLevels(c->target);
+    }
     c->agentsRegistered = false;
+    FC4_RELEASE(c->agentSim);
+    c->agentSim = nullptr;
 }
 
 void Subscribe(void* u, uint32_t type) {
