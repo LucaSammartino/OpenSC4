@@ -995,6 +995,13 @@ it is set (`0x006D4C2B`), before it looks for the other side. So each connection
 after creation, a loaded one after the load (the load constructs it). If the other side has no matching connection
 at that moment, the trip list is cleared (NG19) and that object never syncs again. The bracket matches.
 
+**NG9. Setters on foreign connections.** `cISC4NeighborConnection` has no setter for type or cell (§4.2). In the
+original, type, cell and otherRegionCell are written only when the object is made: by the original simulator's
+`CreateConnection` and by `Read`. After that only `Repair(R)` rewrites otherRegionCell. So ignoring a type or cell
+change on a foreign connection matches the original. The state that does change after creation must go through the
+interface on a foreign connection: `Repair`, `SetVisitedThisCycle`, `SetIsActive` and the property holder. The
+bracket stands.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
