@@ -211,6 +211,8 @@ struct Lot {
     unit: Option<u64>,
     initialized: bool,
     props: BTreeMap<u32, u32>,
+    altitude: f32,
+    facing: i32,
 }
 
 impl Default for Lot {
@@ -242,6 +244,8 @@ impl Default for Lot {
             unit: None,
             initialized: true,
             props: BTreeMap::new(),
+            altitude: 0.0,
+            facing: 0,
         }
     }
 }
@@ -270,6 +274,9 @@ struct Occ {
     position: Vec3,
     orientation: u32,
     is_building: bool,
+    /// `Some(kind)` for a foundation occupant (§17.5).
+    foundation_kind: Option<i32>,
+    foundation_type: u32,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -320,6 +327,8 @@ struct Script {
     trip_cells: RefCell<BTreeMap<(i32, i32), u8>>,
     terrain_alts: RefCell<BTreeMap<i32, f32>>,
     terrain_water: RefCell<BTreeMap<i32, f32>>,
+    /// `GetAltitude(x, z)` at any position.
+    pos_alt: Cell<f32>,
     jobs_demand: Cell<Option<f32>>,
     cheats: Cell<[bool; 3]>,
     resources: RefCell<BTreeMap<u32, bool>>,
@@ -367,6 +376,7 @@ impl Default for Script {
             trip_cells: RefCell::new(BTreeMap::new()),
             terrain_alts: RefCell::new(BTreeMap::new()),
             terrain_water: RefCell::new(BTreeMap::new()),
+            pos_alt: Cell::new(100.0),
             jobs_demand: Cell::new(None),
             cheats: Cell::new([false; 3]),
             resources: RefCell::new(BTreeMap::new()),
@@ -459,12 +469,6 @@ impl LotDeveloperHost for Script {
     fn unregister_animation_tick(&self) {
         self.say("unregister_tick".into());
     }
-    fn init_boundary_rules(&self) {
-        self.say("init_boundary".into());
-    }
-    fn clear_boundary_rules(&self) {
-        self.say("clear_boundary".into());
-    }
     fn post_message(&self, msg_type: u32, data1: u32, lot: Option<u64>) {
         self.say(format!("post {msg_type:#x} d1={data1} lot={lot:?}"));
     }
@@ -478,6 +482,14 @@ impl LotDeveloperHost for Script {
     fn position_to_cell(&self, x: f32, z: f32) -> (bool, i32, i32) {
         let (cx, _cz) = self.cell_widths.get();
         (true, (x / cx).floor() as i32, (z / cx).floor() as i32)
+    }
+    fn cell_corner_to_position(&self, x: i32, z: i32) -> (f32, f32) {
+        let (cx, cz) = self.cell_widths.get();
+        (x as f32 * cx, z as f32 * cz)
+    }
+    fn cell_center_to_position(&self, x: i32, z: i32) -> (f32, f32) {
+        let (cx, cz) = self.cell_widths.get();
+        ((x as f32 + 0.5) * cx, (z as f32 + 0.5) * cz)
     }
     fn sim_date(&self) -> u32 {
         self.sim_date.get()
@@ -493,6 +505,25 @@ impl LotDeveloperHost for Script {
     }
     fn terrain_water_level(&self, index: i32) -> f32 {
         self.terrain_water.borrow().get(&index).copied().unwrap_or(0.0)
+    }
+    fn terrain_altitude_at(&self, x: f32, z: f32) -> f32 {
+        self.say(format!("altitude_at {x} {z}"));
+        self.pos_alt.get()
+    }
+    fn terrain_water_level_at(&self, _x: f32, _z: f32) -> f32 {
+        0.0
+    }
+    fn terrain_is_water_vertex(&self, _x: i32, _z: i32) -> bool {
+        false
+    }
+    fn terrain_cell_has_water(&self, _x: i32, _z: i32) -> bool {
+        false
+    }
+    fn zone_drag_color(&self, _zone: i32) -> u32 {
+        0xFFB2_3300
+    }
+    fn zone_display_alpha(&self) -> u8 {
+        0xAA
     }
     fn view_rotation(&self) -> i32 {
         self.view_rotation.get()
@@ -574,6 +605,15 @@ impl LotDeveloperHost for Script {
     }
     fn lot_zone_type(&self, lot: u64) -> i32 {
         self.lot(lot, |l| l.zone, 0)
+    }
+    fn lot_altitude(&self, lot: u64) -> f32 {
+        self.lot(lot, |l| l.altitude, 0.0)
+    }
+    fn lot_set_altitude(&self, lot: u64, altitude: f32) {
+        self.lot_mut(lot, |l| l.altitude = altitude, ());
+    }
+    fn lot_facing(&self, lot: u64) -> i32 {
+        self.lot(lot, |l| l.facing, 0)
     }
     fn lot_flags(&self, lot: u64) -> u32 {
         self.lot(lot, |l| l.flags, 0)
@@ -705,11 +745,17 @@ impl LotDeveloperHost for Script {
     fn cfg_objects(&self, cfg: u64) -> Vec<CfgObject> {
         self.cfgs.borrow().get(&cfg).map_or(Vec::new(), |c| c.objects.clone())
     }
-    fn cfg_primary_building_ids(&self, cfg: u64) -> Option<Vec<u32>> {
-        self.cfgs.borrow().get(&cfg).and_then(|c| c.primary_building.clone())
+    fn cfg_primary_building_object(&self, cfg: u64) -> Option<CfgObject> {
+        self.cfgs.borrow().get(&cfg).and_then(|c| c.primary_building.clone()).map(|ids| CfgObject {
+            ids,
+            ..CfgObject::default()
+        })
     }
-    fn cfg_primary_foundation_ids(&self, cfg: u64) -> Option<Vec<u32>> {
-        self.cfgs.borrow().get(&cfg).and_then(|c| c.primary_foundation.clone())
+    fn cfg_primary_foundation_object(&self, cfg: u64) -> Option<CfgObject> {
+        self.cfgs.borrow().get(&cfg).and_then(|c| c.primary_foundation.clone()).map(|ids| CfgObject {
+            ids,
+            ..CfgObject::default()
+        })
     }
     fn cfg_has_objects_of_type(&self, cfg: u64, object_type: u32) -> bool {
         if object_type == object_type::WATER {
@@ -730,38 +776,8 @@ impl LotDeveloperHost for Script {
             .and_then(|c| c.objects.get(index))
             .map_or(Vec::new(), |o| o.ids.clone())
     }
-    fn object_position(&self, lot: u64, _cfg: u64, _index: usize) -> (Vec3, i32) {
-        (self.lot_center(lot), 0)
-    }
-    fn position_for_building(&self, lot: u64) -> (bool, Vec3, i32) {
-        (true, self.lot_center(lot), 0)
-    }
     fn first_building(&self, lot: u64) -> Option<u64> {
         self.lot(lot, |l| l.building, None)
-    }
-    fn level_area_internal_vertices(&self, _r: CellRect, _a: f32, _w: bool, _f: bool, _l: u64) -> bool {
-        self.say("level_internal".into());
-        true
-    }
-    fn attempt_area_levelling(&self, _r: CellRect, _m: f32, _f: bool, _w: bool, _a: f32, _l: u64) -> bool {
-        self.say("attempt_levelling".into());
-        false
-    }
-    fn add_lot_foundation_type(&self, lot: u64, foundation: u32, _a: bool, _b: bool, _c: bool) -> bool {
-        self.say(format!("add_lot_foundation {lot} {foundation:#x}"));
-        true
-    }
-    fn add_building_foundation(&self, b: u64, cfg: u64) -> bool {
-        self.say(format!("add_building_foundation {b} cfg={cfg}"));
-        true
-    }
-    fn remove_building_foundation(&self, b: u64) -> bool {
-        self.say(format!("remove_building_foundation {b}"));
-        true
-    }
-    fn update_lot_foundation(&self, lot: u64) -> bool {
-        self.say(format!("update_lot_foundation {lot}"));
-        true
     }
     fn update_lot_retaining_walls(&self, lot: u64) -> bool {
         self.say(format!("update_retaining_walls {lot}"));
@@ -774,30 +790,18 @@ impl LotDeveloperHost for Script {
         self.say(format!("update_base_texture_occupant {lot} had={had}"));
         true
     }
-    fn set_empty_lot_base_texture(&self, lot: u64) {
-        self.say(format!("set_empty_texture {lot}"));
-    }
     fn base_texture_occupant(&self, _lot: u64, _create: bool) -> Option<u64> {
         Some(0xB0)
     }
-    fn base_texture_is_inserted(&self, _occ: u64) -> bool {
-        true
-    }
     fn base_texture_set(&self, _occ: u64, records: &[TextureRecord]) {
+        self.say(format!("set_textures n={}", records.len()));
         for r in records {
             self.say(format!("set_texture {:#x} @{},{}", r.texture, r.x, r.z));
         }
         self.textures.borrow_mut().extend(records.iter().map(|r| r.texture));
     }
-    fn remove_lot_retaining_walls(&self, lot: u64) {
-        self.say(format!("remove_retaining_walls {lot}"));
-    }
-    fn remove_lot_foundation(&self, x: i32, z: i32) -> bool {
-        self.say(format!("remove_lot_foundation {x},{z}"));
-        true
-    }
-    fn update_surrounding_lot_foundations(&self, lot: u64) {
-        self.say(format!("update_surrounding_foundations {lot}"));
+    fn add_retaining_wall_occupant(&self, lot: u64, flag: u32) {
+        self.say(format!("retaining_wall {lot} {flag}"));
     }
     fn update_surrounding_retaining_walls(&self, lot: u64) {
         self.say(format!("update_surrounding_walls {lot}"));
@@ -822,6 +826,15 @@ impl LotDeveloperHost for Script {
         if let Some(o) = self.occs.borrow_mut().get_mut(&b) {
             o.lit = lit;
         }
+    }
+    fn occupant_type(&self, occ: u64) -> u32 {
+        self.occs
+            .borrow()
+            .get(&occ)
+            .map_or(0, |o| if o.is_building { OCCUPANT_TYPE_BUILDING } else { 0 })
+    }
+    fn occupant_position(&self, occ: u64) -> Vec3 {
+        self.occs.borrow().get(&occ).map_or([0.0; 3], |o| o.position)
     }
     fn occupant_bounding_box(&self, occ: u64) -> (Vec3, Vec3) {
         self.occs.borrow().get(&occ).map_or(([0.0; 3], [0.0; 3]), |o| o.bbox)
@@ -852,6 +865,12 @@ impl LotDeveloperHost for Script {
     }
     fn occupant_init(&self, _occ: u64) {}
     fn occupant_set_flag(&self, _occ: u64, _flag: u32) {}
+    fn occupant_is_flag_set(&self, _occ: u64, _flag: u32) -> bool {
+        true
+    }
+    fn occupant_shutdown(&self, occ: u64) {
+        self.say(format!("shutdown {occ}"));
+    }
     fn occupant_set_orientation(&self, occ: u64, orientation: u32) {
         if let Some(o) = self.occs.borrow_mut().get_mut(&occ) {
             o.orientation = orientation;
@@ -875,9 +894,45 @@ impl LotDeveloperHost for Script {
     fn occupants_in_bbox(&self, _min: Vec3, _max: Vec3) -> Vec<u64> {
         Vec::new()
     }
-    fn occupants_in_cells(&self, rect: CellRect, _t: u32) -> Vec<u64> {
+    fn occupants_in_cells(&self, rect: CellRect, t: u32) -> Vec<u64> {
         self.cell_queries.borrow_mut().push(rect);
+        if t != OCCUPANT_TYPE_FOUNDATION {
+            return Vec::new();
+        }
+        self.occs
+            .borrow()
+            .iter()
+            .filter(|(_, o)| {
+                o.foundation_kind.is_some() && o.cells.x1 <= rect.x2 && rect.x1 <= o.cells.x2 && o.cells.z1 <= rect.z2 && rect.z1 <= o.cells.z2
+            })
+            .map(|(&t, _)| t)
+            .collect()
+    }
+    fn occupants_in_box(&self, _min: Vec3, _max: Vec3, _t: u32) -> Vec<u64> {
         Vec::new()
+    }
+    fn building_orientation(&self, b: u64) -> i32 {
+        self.occs.borrow().get(&b).map_or(0, |o| o.orientation as i32)
+    }
+    fn foundation_kind(&self, occ: u64) -> Option<i32> {
+        self.occs.borrow().get(&occ).and_then(|o| o.foundation_kind)
+    }
+    fn foundation_type(&self, occ: u64) -> u32 {
+        self.occs.borrow().get(&occ).map_or(0, |o| o.foundation_type)
+    }
+    fn add_new_foundation_occupant(
+        &self,
+        foundation_type: u32,
+        kind: i32,
+        pos: &mut Vec3,
+        _dx: f32,
+        _dz: f32,
+        _orient: i32,
+        _bottom: f32,
+    ) -> bool {
+        let name = if kind == foundation_kind::LOT { "add_lot_foundation" } else { "add_building_foundation" };
+        self.say(format!("{name} {foundation_type:#x} y={}", pos[1]));
+        true
     }
 
     fn prop_create(&self, prop_type: u32) -> Option<u64> {
@@ -1017,6 +1072,19 @@ impl LotDeveloperHost for Script {
     fn demolish_occupant(&self, occ: u64) -> bool {
         self.say(format!("demolish_occupant {occ}"));
         true
+    }
+    fn modify_terrain_height(
+        &self,
+        per_vertex: bool,
+        x0: i32,
+        z0: i32,
+        x1: i32,
+        z1: i32,
+        h: f32,
+        exempt: Option<u64>,
+    ) -> i32 {
+        self.say(format!("modify_terrain {per_vertex} {x0},{z0},{x1},{z1} {h} {exempt:?}"));
+        1
     }
     fn demolish_lot(&self, lot: u64) -> bool {
         self.say(format!("demolish_lot {lot}"));

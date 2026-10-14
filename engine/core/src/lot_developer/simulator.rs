@@ -9,16 +9,17 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use super::boundary::BoundaryRule;
 use super::geometry::{development_cost, rubble_count};
 use super::terrain::TerrainView;
 use super::tuning::Tuning;
 use super::{
     lot_prop, lot_state, msg, object_type, reason, zot, BuildingProfile, BurntBuilding, CellRect, CfgObject, Cheat,
-    LotDevMessage, LotDeveloperHost, TextureRecord, Vec3, AGENT_LEVELS, ANCHOR_GROUP, COFFEE_BAR_BUILDING,
+    LotDevMessage, LotDeveloperHost, TextureRecord, Vec3, AGENT_LEVELS, ANCHOR_GROUP, BASE_TEXTURE_EXTRA_DEFAULT,
+    COFFEE_BAR_BUILDING,
     COFFEE_BAR_CFG, OCCUPANT_TYPE_BUILDING, OCCUPANT_TYPE_NETWORK, OCCUPANT_TYPE_PROP, PROP_NIGHT_LIGHT,
     PROP_ZOT_NUMBER, SUBSCRIBED, TEXTURE_RESOURCE,
 };
-use crate::curve::ResponseCurve;
 use crate::rng::{derive_seed, file_seed, CrtRand, FixedSeeds, RzRandom, SeedSource};
 use crate::stl::StlHashSet;
 use crate::stream::{InStream, OutStream, RefValue};
@@ -189,9 +190,10 @@ pub struct LotDeveloper {
     statics: SharedStatics,
     initialised: bool,
     // ---- persistent (§2.1) ----
-    verts_x: i32,
-    extent_x: f32,
-    extent_z: f32,
+    /// `vertsX`, the extents (saved), the cell counts `Init` stores, the
+    /// tuning (§3.5) and the boundary-map switch: everything the terrain and
+    /// geometry slots read ([`TerrainView`]).
+    view: TerrainView,
     /// The night deque: one entry per building, `None` for a slot a failed
     /// save read left null.
     night: Vec<Option<u64>>,
@@ -212,9 +214,6 @@ pub struct LotDeveloper {
     force_empty: bool,
     night_acc: u32,
     night_batch: u32,
-    tuning: Tuning,
-    cell_count_x: i32,
-    cell_count_z: i32,
     daily_work_budget: u32,
 }
 
@@ -226,9 +225,7 @@ impl LotDeveloper {
             host,
             statics,
             initialised: false,
-            verts_x: 0,
-            extent_x: 0.0,
-            extent_z: 0.0,
+            view: TerrainView::default(),
             night: Vec::new(),
             night_cursor: 0,
             night_mode: 0,
@@ -246,9 +243,6 @@ impl LotDeveloper {
             force_empty: false,
             night_acc: NIGHT_THRESHOLD_MS,
             night_batch: 8,
-            tuning: Tuning::default(),
-            cell_count_x: 0,
-            cell_count_z: 0,
             daily_work_budget: DEFAULT_DAILY_WORK_BUDGET,
         }
     }
@@ -262,24 +256,24 @@ impl LotDeveloper {
     }
 
     pub fn tuning(&self) -> &Tuning {
-        &self.tuning
+        &self.view.tuning
     }
 
     /// Replaces the tuning (tests and hosts that read it themselves).
     pub fn set_tuning(&mut self, t: Tuning) {
-        self.tuning = t;
+        self.view.tuning = t;
     }
 
     // ---- saved state accessors (§2.1) ----
 
     pub fn verts_x(&self) -> i32 {
-        self.verts_x
+        self.view.verts_x
     }
     pub fn extent_x(&self) -> f32 {
-        self.extent_x
+        self.view.extent_x
     }
     pub fn extent_z(&self) -> f32 {
-        self.extent_z
+        self.view.extent_z
     }
     pub fn night_len(&self) -> usize {
         self.night.len()
@@ -348,7 +342,7 @@ impl LotDeveloper {
         self.night_batch
     }
     pub fn cell_counts(&self) -> (i32, i32) {
-        (self.cell_count_x, self.cell_count_z)
+        (self.view.cell_count_x, self.view.cell_count_z)
     }
 
     pub fn set_daily_state(&mut self, s: u32) {
@@ -408,14 +402,14 @@ impl LotDeveloper {
         }
         // 4. the cell counts (stored on every Init).
         let (cx, cz) = self.host.city_cell_counts();
-        self.cell_count_x = cx;
-        self.cell_count_z = cz;
+        self.view.cell_count_x = cx;
+        self.view.cell_count_z = cz;
         // 5. the terrain extents.
         let (tx, tz) = self.host.terrain_cell_counts();
         let cw = f64::from(self.host.terrain_cell_width());
-        self.verts_x = tx.wrapping_add(1);
-        self.extent_x = (r24(f64::from(tx) * cw)) as f32;
-        self.extent_z = (r24(f64::from(tz) * cw)) as f32;
+        self.view.verts_x = tx.wrapping_add(1);
+        self.view.extent_x = (r24(f64::from(tx) * cw)) as f32;
+        self.view.extent_z = (r24(f64::from(tz) * cw)) as f32;
         // 7. daily state.
         self.daily_state = 0;
         // 8. the simulator and the agent.
@@ -435,7 +429,7 @@ impl LotDeveloper {
         // 10. the animation-tick manager.
         self.host.register_animation_tick();
         // 11. the boundary rules.
-        self.host.init_boundary_rules();
+        self.view.boundary_ready = true;
         // 12. force a base-texture refresh: flip the flag, then restore it,
         // so slot 47 sees a change and walks every lot.
         let original = self.force_empty;
@@ -452,7 +446,7 @@ impl LotDeveloper {
     /// accumulator and the night count into the batch size (quirk 10).
     pub fn read_tuning(&mut self) {
         let h = self.host.tuning();
-        self.tuning
+        self.view.tuning
             .read(h.as_deref(), &mut self.night_acc, &mut self.night_batch);
     }
 
@@ -471,7 +465,7 @@ impl LotDeveloper {
             }
             self.host.release_message_server();
             self.host.release_services();
-            self.host.clear_boundary_rules();
+            self.view.boundary_ready = false;
             if let Some(it) = self.iterator.take() {
                 self.host.safe_lot_iterator_free(it);
             }
@@ -763,7 +757,7 @@ impl LotDeveloper {
         let d = (f32::from(v)) * 0.01f32;
         // Spec §5.1 `not (d < abandonThreshold)`: a NaN threshold counts as
         // "not low", so keep the strict `<` rather than rewriting it as `>=`.
-        let low = d < self.tuning.thresholds[0];
+        let low = d < self.view.tuning.thresholds[0];
         if !low {
             self.write_counter(lot, lot_prop::LOW_DESIRABILITY, 0);
             return true;
@@ -916,15 +910,15 @@ impl LotDeveloper {
     pub fn test_condition(&mut self, lot: u64, _x: i32, _z: i32) -> u32 {
         let s = self.host.lot_state(lot);
         let c = self.host.lot_condition(lot);
-        let stay_new = u32::from(self.tuning.stay_new_time);
+        let stay_new = u32::from(self.view.tuning.stay_new_time);
         if s == lot_state::OCCUPIED {
             let p = self.host.building_profile(self.host.lot_building_type(lot, false));
             let mut d = i32::from(p.wealth).wrapping_sub(self.host.lot_occupant_wealth(lot) as i32);
             let b = (c as i32).wrapping_sub(1) > d;
             if b || self.host.lot_days_since_state_change(lot) > stay_new {
                 let f = self.host.lot_occupancy(lot);
-                let distress = self.tuning.thresholds[1];
-                let renew = self.tuning.thresholds[2];
+                let distress = self.view.tuning.thresholds[1];
+                let renew = self.view.tuning.thresholds[2];
                 // Spec §5.5 lists the distress and the mismatched-wealth renew
                 // cases as separate branches; they happen to share a body.
                 #[allow(clippy::if_same_then_else)]
@@ -1015,10 +1009,10 @@ impl LotDeveloper {
         }
         self.remove_lot_prop(lot, cur);
         self.write_zot(lot, which);
-        let has_object = cfg.is_some_and(|c| self.host.cfg_primary_building_ids(c).is_some());
+        let has_object = cfg.is_some_and(|c| self.host.cfg_primary_building_object(c).is_some());
         let mut pos = match (b, has_object) {
             (Some(b), true) => {
-                let (_ok, p, _orient) = self.host.position_for_building(lot);
+                let (p, _orient) = self.building_position(lot);
                 let (_min, max) = self.host.occupant_bounding_box(b);
                 [p[0], max[1], p[2]]
             }
@@ -1298,24 +1292,14 @@ impl LotDeveloper {
             found = self.add_lot_foundation(lot, cfg, false, true, true);
         }
         if !found {
-            let t = self.tuning.clone();
             let wide = rect.x2.wrapping_sub(rect.x1) > 1 && rect.z2.wrapping_sub(rect.z1) > 1;
-            if not_farm && t.attempt_internal_lot_levelling && wide {
-                self.host.level_area_internal_vertices(rect, -1.0, water, false, lot);
+            if not_farm && self.view.tuning.attempt_internal_lot_levelling && wide {
+                self.view
+                    .level_area_internal_vertices(&*self.host, rect, -1.0, water, false, Some(lot));
             }
             let mut s = self.get_lot_slope(lot, water);
-            if s > t.max_slope_for_flatness && s > max_slope {
-                if not_farm
-                    && t.attempt_lot_levelling
-                    && self.host.attempt_area_levelling(
-                        rect,
-                        max_slope,
-                        true,
-                        water,
-                        t.max_area_slope_for_levelling,
-                        lot,
-                    )
-                {
+            if s > self.view.tuning.max_slope_for_flatness && s > max_slope {
+                if not_farm && self.view.tuning.attempt_lot_levelling && self.levelled(rect, water, lot) {
                     s = self.get_lot_slope(lot, water);
                 }
                 if s > max_slope {
@@ -1324,24 +1308,13 @@ impl LotDeveloper {
             }
         }
         self.clear_lot_blocking_objects(lot, rect);
-        let (_ok, pos, orient) = self.host.position_for_building(lot);
+        let (pos, orient) = self.building_position(lot);
         let Some(b) = self.host.add_new_building_occupant(btype, pos, orient) else {
             return false;
         };
         if !found {
-            let flat = self.tuning.max_slope_for_flatness;
-            let area = self.tuning.max_area_slope_for_levelling;
-            let mut so = self.get_occupant_slope(b, water);
-            if so > flat {
-                let coverage = self.occupant_cell_coverage(b);
-                if self.host.attempt_area_levelling(coverage, flat, true, water, area, lot) {
-                    so = self.get_occupant_slope(b, water);
-                }
-                if so > flat {
-                    if let Some(c) = cfg {
-                        self.host.add_building_foundation(b, c);
-                    }
-                }
+            if let Some(c) = cfg {
+                self.level_or_found_building(b, c, water, lot);
             }
         }
         if animate {
@@ -1357,9 +1330,9 @@ impl LotDeveloper {
         let mut t = btype;
         if t == 0 {
             if let Some(c) = cfg {
-                if let Some(ids) = self.host.cfg_primary_building_ids(c) {
+                if let Some(obj) = self.host.cfg_primary_building_object(c) {
                     let mut set = StlHashSet::with_hint(100);
-                    for id in ids {
+                    for id in obj.ids {
                         if self.host.is_building_type(id) {
                             set.insert(id);
                         } else {
@@ -1414,26 +1387,53 @@ impl LotDeveloper {
             return false;
         };
         self.clear_lot_buildings(lot, lot_state::READY, true, 0);
-        let (_ok, pos, orient) = self.host.position_for_building(lot);
+        let (pos, orient) = self.building_position(lot);
         if let Some(b) = self.host.add_new_building_occupant(btype, pos, orient) {
             if self.host.lot_flags(lot) & 3 == 0 {
                 let water = self.host.cfg_is_compatible_with_water(cfg);
-                let flat = self.tuning.max_slope_for_flatness;
-                let area = self.tuning.max_area_slope_for_levelling;
-                let mut so = self.get_occupant_slope(b, water);
-                if so > flat {
-                    let coverage = self.occupant_cell_coverage(b);
-                    if self.host.attempt_area_levelling(coverage, flat, true, water, area, lot) {
-                        so = self.get_occupant_slope(b, water);
-                    }
-                    if so > flat {
-                        self.host.add_building_foundation(b, cfg);
-                    }
-                }
+                self.level_or_found_building(b, cfg, water, lot);
             }
         }
         // Also when no building was created (quirk 7).
         self.host.lot_set_state(lot, lot_state::OCCUPIED, 0, 0)
+    }
+
+    /// `GetPositionForBuilding` (slot 40) as `StartConstruction` and
+    /// `ChangeBuilding` use it: `(0, 0, 0)` and orientation 0 when the slot
+    /// writes nothing *[choice]*.
+    fn building_position(&self, lot: u64) -> (Vec3, i32) {
+        self.view
+            .position_for_building(&*self.host, lot)
+            .unwrap_or(([0.0; 3], 0))
+    }
+
+    /// `AttemptAreaLevelling(rect, …, true, perVertex,
+    /// maxAreaSlopeForLevelling, lot)` (slot 21) tested as a bool: the low
+    /// byte of the count *[inferred: callers test AL, §17.4]*.
+    fn levelled(&self, rect: CellRect, per_vertex: bool, lot: u64) -> bool {
+        let area = self.view.tuning.max_area_slope_for_levelling;
+        let n = self
+            .view
+            .attempt_area_levelling(&*self.host, rect, true, per_vertex, area, Some(lot));
+        n & 0xFF != 0
+    }
+
+    /// The building-slope step of `StartConstruction` / `ChangeBuilding`
+    /// (§6.1, §6.4): a building steeper than `kMaxSlopeForFlatness` gets its
+    /// cells levelled (slot 21 on slot 22's rectangle) and, if still too
+    /// steep, a building foundation (slot 58).
+    fn level_or_found_building(&mut self, b: u64, cfg: u64, water: bool, lot: u64) {
+        let flat = self.view.tuning.max_slope_for_flatness;
+        let mut so = self.get_occupant_slope(b, water);
+        if so > flat {
+            let coverage = self.occupant_cell_coverage(b);
+            if self.levelled(coverage, water, lot) {
+                so = self.get_occupant_slope(b, water);
+            }
+            if so > flat {
+                self.view.add_building_foundation(&*self.host, b, cfg);
+            }
+        }
     }
 
     /// Slot 37 `UpdateLotElements(lot, kind)` (§6.4). `kind` is the BDS's
@@ -1446,7 +1446,7 @@ impl LotDeveloper {
         }
         let mut added = false;
         if self.host.lot_flags(lot) & 3 != 0 {
-            self.host.update_lot_foundation(lot);
+            self.update_lot_foundation(lot);
             self.host.update_lot_retaining_walls(lot);
         } else if kind != KIND_NO_FOUNDATION_RECHECK {
             if let Some(cfg) = self.host.lot_configuration(lot) {
@@ -1467,20 +1467,50 @@ impl LotDeveloper {
         true
     }
 
-    /// Slot 54 `AddLotFoundation(lot, cfg, a, b, c)` (§6.1, §10.2 R8)
-    /// *[inferred]*: the configuration's primary foundation object's ID list
-    /// gives `ids[Uniform(n)]`, else the tuning's default lot foundation
-    /// type.
-    pub fn add_lot_foundation(&mut self, lot: u64, cfg: Option<u64>, a: bool, b: bool, c: bool) -> bool {
-        let ids = cfg.and_then(|cf| self.host.cfg_primary_foundation_ids(cf));
-        let ftype = match ids {
-            Some(ids) if !ids.is_empty() => {
-                let i = self.draw_u32(DrawKind::R8, ids.len() as u32) as usize;
-                ids[i.min(ids.len() - 1)]
-            }
-            _ => self.tuning.default_lot_foundation_type,
-        };
-        self.host.add_lot_foundation_type(lot, ftype, a, b, c)
+    /// Slot 54 `AddLotFoundation(lot, cfg, useLotAltitude, level, walls)`
+    /// (§17.5.4; R8).
+    pub fn add_lot_foundation(
+        &mut self,
+        lot: u64,
+        cfg: Option<u64>,
+        use_lot_altitude: bool,
+        level: bool,
+        walls: bool,
+    ) -> bool {
+        self.view
+            .add_lot_foundation(&*self.host, &self.statics, lot, cfg, use_lot_altitude, level, walls)
+    }
+
+    /// Slot 55 `AddLotFoundation(lot, type, useLotAltitude, level, walls)`
+    /// (§17.5.4).
+    pub fn add_lot_foundation_type(
+        &mut self,
+        lot: u64,
+        ftype: u32,
+        use_lot_altitude: bool,
+        level: bool,
+        walls: bool,
+    ) -> bool {
+        self.view.add_lot_foundation_type(
+            &*self.host,
+            &self.statics,
+            lot,
+            ftype,
+            use_lot_altitude,
+            level,
+            walls,
+        )
+    }
+
+    /// Slot 61 `UpdateLotFoundation(lot)` (§17.5.4; R8 possible).
+    pub fn update_lot_foundation(&mut self, lot: u64) -> bool {
+        self.view.update_lot_foundation(&*self.host, &self.statics, lot)
+    }
+
+    /// `UpdateSurroundingLotFoundations(lot)` (§17.5.4).
+    pub fn update_surrounding_lot_foundations(&mut self, lot: u64) {
+        self.view
+            .update_surrounding_lot_foundations(&*self.host, &self.statics, lot);
     }
 
     /// `ClearLotBlockingObjects` (§6.2): bulldozes the flora on the lot.
@@ -1562,7 +1592,7 @@ impl LotDeveloper {
 
     /// `CreateRandomLotProp(lot, index)` (§6.5).
     fn create_random_lot_prop(&mut self, lot: u64, cfg: u64, index: usize, o: &CfgObject) {
-        let (pos, orient) = self.host.object_position(lot, cfg, index);
+        let (pos, orient) = self.view.object_position(&*self.host, lot, Some(cfg), o);
         let ids = self.host.object_id_array(cfg, index);
         if ids.is_empty() {
             return;
@@ -1580,11 +1610,11 @@ impl LotDeveloper {
     /// `AddLotFlora(lot, cfg, 1)` (§6.5). Draws R6 / R7 per flora object.
     pub fn add_lot_flora(&mut self, lot: u64, cfg: u64) {
         let objects = self.host.cfg_objects(cfg);
-        for (index, o) in objects.iter().enumerate() {
+        for o in objects.iter() {
             if o.object_type != object_type::FLORA {
                 continue;
             }
-            let (pos, _orient) = self.host.object_position(lot, cfg, index);
+            let (pos, _orient) = self.view.object_position(&*self.host, lot, Some(cfg), o);
             let t = self.pick_flora_type_for_lot(&o.ids);
             if t == 0 {
                 continue;
@@ -1632,16 +1662,16 @@ impl LotDeveloper {
         };
         let zone = self.host.lot_zone_type(lot);
         if self.force_empty && !matches!(zone, 0 | 11 | 12 | 15) {
-            self.host.set_empty_lot_base_texture(lot);
+            self.view.set_empty_lot_base_texture(&*self.host, lot);
             return;
         }
         let objects = self.host.cfg_objects(cfg);
         let mut records: Vec<TextureRecord> = Vec::new();
-        for (index, o) in objects.iter().enumerate() {
+        for o in objects.iter() {
             if o.object_type != object_type::TEXTURE || o.ids.is_empty() {
                 continue;
             }
-            let (pos, orient) = self.host.object_position(lot, cfg, index);
+            let (pos, orient) = self.view.object_position(&*self.host, lot, Some(cfg), o);
             let tex = if o.ids[0] != 0 {
                 self.pick_lot_base_texture_for_lot(&o.ids, lot)
             } else {
@@ -1665,6 +1695,8 @@ impl LotDeveloper {
                 z,
                 orientation: orient as u8,
                 byte3: o.byte3,
+                extra: BASE_TEXTURE_EXTRA_DEFAULT,
+                frame: 0xFF,
             });
         }
         if records.is_empty() {
@@ -1674,7 +1706,7 @@ impl LotDeveloper {
             return;
         };
         self.host.base_texture_set(occ, &records);
-        if self.host.base_texture_is_inserted(occ) {
+        if self.host.occupant_is_flag_set(occ, 1) {
             self.host.occupant_changed(occ);
             self.host.occupant_post_message(occ, msg::OCCUPANT_CHANGED);
         } else {
@@ -1727,7 +1759,7 @@ impl LotDeveloper {
         let it = self.host.safe_lot_iterator();
         while let Some(lot) = self.host.safe_lot_iterator_next(it) {
             if f {
-                self.host.set_empty_lot_base_texture(lot);
+                self.view.set_empty_lot_base_texture(&*self.host, lot);
             } else {
                 let cfg = self.host.lot_configuration(lot);
                 self.set_normal_lot_base_texture(lot, cfg, true);
@@ -1753,7 +1785,7 @@ impl LotDeveloper {
             n += 1;
             self.host.remove_building_props(b);
             if remove_foundation {
-                self.host.remove_building_foundation(b);
+                self.view.remove_building_foundation(&*self.host, b);
             }
             self.host.occupant_remove(b, 1, flags);
         }
@@ -1787,16 +1819,16 @@ impl LotDeveloper {
 
     /// `ClearLot(lot)` (§7.2).
     pub fn clear_lot(&mut self, lot: u64) {
-        self.host.remove_lot_retaining_walls(lot);
+        self.host.add_retaining_wall_occupant(lot, 0);
         let (x, z) = self.host.lot_location(lot);
-        self.host.remove_lot_foundation(x, z);
-        self.host.update_surrounding_lot_foundations(lot);
+        self.view.remove_lot_foundation_at(&*self.host, x, z);
+        self.update_surrounding_lot_foundations(lot);
         self.host.update_surrounding_retaining_walls(lot);
         self.host.lot_set_vertices_locked(lot, false);
         self.host.lot_set_state(lot, lot_state::READY, 0, 0);
         self.host.lot_set_building_type(lot, 0);
         self.host.lot_set_configuration(lot, None);
-        self.host.set_empty_lot_base_texture(lot);
+        self.view.set_empty_lot_base_texture(&*self.host, lot);
     }
 
     /// Slot 14 `ExplodeLot(lot, burnt)` (§7.2). Returns true where the
@@ -2051,85 +2083,71 @@ impl LotDeveloper {
 
     // ---- terrain and cost slots (§11.1, §11.4) ----
 
-    /// The values the terrain and cost slots read, for hosts that answer
-    /// them while the lot developer is busy ([`TerrainView`]).
+    /// The values the terrain and geometry slots read, for hosts that
+    /// answer them while the lot developer is busy ([`TerrainView`]).
     pub fn terrain_view(&self) -> TerrainView {
-        TerrainView {
-            verts_x: self.verts_x,
-            flatness: self.tuning.max_cell_altitude_delta_for_flatness,
-            cost_curve: self.tuning.cost_curve.clone(),
-        }
-    }
-
-    /// The view without the cost curve (every slot but 32).
-    fn terrain(&self) -> TerrainView {
-        TerrainView {
-            verts_x: self.verts_x,
-            flatness: self.tuning.max_cell_altitude_delta_for_flatness,
-            cost_curve: ResponseCurve::default(),
-        }
+        self.view.clone()
     }
 
     /// Slot 15 `GetTerrainAltitudeByVertex(x, z, withWater)`.
     pub fn get_terrain_altitude_by_vertex(&self, x: i32, z: i32, with_water: bool) -> f32 {
-        self.terrain().altitude_by_vertex(&*self.host, x, z, with_water)
+        self.view.altitude_by_vertex(&*self.host, x, z, with_water)
     }
 
     /// Slots 16 / 17 `GetLowestOrHighestAreaAltitude(rect, lowest,
     /// withWater)` over the vertices `x1 ..= x2 + 1`, `z1 ..= z2 + 1`.
     pub fn lowest_or_highest_area_altitude(&self, rect: CellRect, lowest: bool, with_water: bool) -> f32 {
-        self.terrain()
-            .lowest_or_highest_area_altitude(&*self.host, rect, lowest, with_water)
+        self.view.lowest_or_highest_area_altitude(&*self.host, rect, lowest, with_water)
     }
 
     /// Slot 18 `GetAverageAreaAltitude(rect, withWater)`.
     pub fn average_area_altitude(&self, rect: CellRect, with_water: bool) -> f32 {
-        self.terrain().average_area_altitude(&*self.host, rect, with_water)
+        self.view.average_area_altitude(&*self.host, rect, with_water)
     }
 
     /// Slot 27 `GetAreaAltitudeRange(rect, withWater)`: max − min over the
     /// vertices.
     pub fn area_altitude_range(&self, rect: CellRect, with_water: bool) -> f32 {
-        self.terrain().area_altitude_range(&*self.host, rect, with_water)
+        self.view.area_altitude_range(&*self.host, rect, with_water)
     }
 
     /// Slot 25 `IsAreaFlat(rect, withWater)`: the altitude range within
     /// `0xE900EA24` *[inferred: `<=`]*.
     pub fn is_area_flat(&self, rect: CellRect, with_water: bool) -> bool {
-        self.terrain().is_area_flat(&*self.host, rect, with_water)
+        self.view.is_area_flat(&*self.host, rect, with_water)
     }
 
     /// Slot 26 `IsLotFlat(lot, withWater)`.
     pub fn is_lot_flat(&self, lot: u64, with_water: bool) -> bool {
-        self.terrain().is_lot_flat(&*self.host, lot, with_water)
+        self.view.is_lot_flat(&*self.host, lot, with_water)
     }
 
     /// Slot 29 `GetAreaSlope(rect, withWater)` (§11.4).
     pub fn get_area_slope(&self, rect: CellRect, with_water: bool) -> f32 {
-        self.terrain().area_slope(&*self.host, rect, with_water)
+        self.view.area_slope(&*self.host, rect, with_water)
     }
 
     /// Slot 30 `GetLotSlope(lot, withWater)`.
     pub fn get_lot_slope(&self, lot: u64, with_water: bool) -> f32 {
-        self.terrain().lot_slope(&*self.host, lot, with_water)
+        self.view.lot_slope(&*self.host, lot, with_water)
     }
 
     /// Slot 31 `GetOccupantSlope(occupant, withWater)`: slot 29 on slot 22's
     /// rectangle.
     pub fn get_occupant_slope(&self, occ: u64, with_water: bool) -> f32 {
-        self.terrain().occupant_slope(&*self.host, occ, with_water)
+        self.view.occupant_slope(&*self.host, occ, with_water)
     }
 
     /// Slot 22 `GetOccupantCellCoverage(occupant, rect&)`: the bounding box
     /// shrunk by 0.05 on each side, converted with `PositionToCell`.
     pub fn occupant_cell_coverage(&self, occ: u64) -> CellRect {
-        self.terrain().occupant_cell_coverage(&*self.host, occ)
+        self.view.occupant_cell_coverage(&*self.host, occ)
     }
 
     /// Slot 32 `GetLotDevelopmentCost(rect)` (§11.4).
     pub fn get_lot_development_cost(&self, rect: CellRect) -> i64 {
         let slope = self.get_area_slope(rect, true);
-        development_cost(rect, slope, &self.tuning.cost_curve)
+        development_cost(rect, slope, &self.view.tuning.cost_curve)
     }
 
     /// Slot 23 `IsAreaDeveloped(rect)` → always false.
@@ -2142,14 +2160,129 @@ impl LotDeveloper {
         false
     }
 
+    // ---- geometry (§17) ----
+
+    /// Slot 16 `GetLowestOrHighestAreaAltitude(SC4Rect<float>, lowest,
+    /// withWater)` (§17.2).
+    pub fn lowest_or_highest_area_altitude_f(&self, rect: [f32; 4], lowest: bool, with_water: bool) -> f32 {
+        self.view
+            .lowest_or_highest_area_altitude_f(&*self.host, rect, lowest, with_water)
+    }
+
+    /// Slot 19 `LevelAreaInternalVertices` (§17.4): the call count.
+    pub fn level_area_internal_vertices(
+        &self,
+        rect: CellRect,
+        target: f32,
+        skip_water: bool,
+        force: bool,
+        lot: Option<u64>,
+    ) -> i32 {
+        self.view
+            .level_area_internal_vertices(&*self.host, rect, target, skip_water, force, lot)
+    }
+
+    /// Slot 20 `LevelBorderingVertices` (§17.4).
+    pub fn level_bordering_vertices(&self, rect: CellRect, h: f32, lot: Option<u64>) -> i32 {
+        self.view.level_bordering_vertices(&*self.host, rect, h, lot)
+    }
+
+    /// Slot 21 `AttemptAreaLevelling` (§17.4).
+    pub fn attempt_area_levelling(
+        &self,
+        rect: CellRect,
+        with_water: bool,
+        per_vertex: bool,
+        max_area_slope: f32,
+        lot: Option<u64>,
+    ) -> i32 {
+        self.view
+            .attempt_area_levelling(&*self.host, rect, with_water, per_vertex, max_area_slope, lot)
+    }
+
+    /// Slot 39 `GetPositionForLotConfigurationObject` (§17.6).
+    pub fn object_position(&self, lot: u64, cfg: Option<u64>, obj: &CfgObject) -> (Vec3, i32) {
+        self.view.object_position(&*self.host, lot, cfg, obj)
+    }
+
+    /// Slot 40 `GetPositionForBuilding` (§17.6).
+    pub fn position_for_building(&self, lot: u64) -> Option<(Vec3, i32)> {
+        self.view.position_for_building(&*self.host, lot)
+    }
+
+    /// Slot 42 `GetBoundaryLotTexture` (§17.7).
+    pub fn boundary_lot_texture(&self, sides: [i32; 4]) -> Option<BoundaryRule> {
+        self.view.boundary_lot_texture(sides)
+    }
+
+    /// Slot 43 `SetEmptyLotBaseTexture` (§17.7).
+    pub fn set_empty_lot_base_texture(&self, lot: u64) {
+        self.view.set_empty_lot_base_texture(&*self.host, lot);
+    }
+
+    /// Slot 48 `GetFoundationByOccupant` (§17.5.1).
+    pub fn foundation_by_occupant(&self, occ: u64) -> Option<u64> {
+        self.view.foundation_by_occupant(&*self.host, occ)
+    }
+
+    /// Slot 49 `GetFoundationByStandardCityCell` (§17.5.1).
+    pub fn foundation_by_cell(&self, kind: i32, x: i32, z: i32) -> Option<u64> {
+        self.view.foundation_by_cell(&*self.host, kind, x, z)
+    }
+
+    /// Slot 50 `GetFoundationByPosition` (§17.5.1).
+    pub fn foundation_by_position(&self, kind: i32, x: f32, z: f32) -> Option<u64> {
+        self.view.foundation_by_position(&*self.host, kind, x, z)
+    }
+
+    /// Slot 51 `GetLotFoundation` (§17.5.1).
+    pub fn lot_foundation(&self, lot: u64) -> Option<u64> {
+        self.view.lot_foundation(&*self.host, lot)
+    }
+
+    /// Slot 52 `RemoveFoundation` (§17.5.2).
+    pub fn remove_foundation(&self, kind: i32, x: f32, z: f32) -> bool {
+        self.view.remove_foundation(&*self.host, kind, x, z)
+    }
+
+    /// Slot 53 `RemoveLotFoundation(x, z)` (§17.5.2).
+    pub fn remove_lot_foundation_at(&self, x: i32, z: i32) -> bool {
+        self.view.remove_lot_foundation_at(&*self.host, x, z)
+    }
+
+    /// Slot 56 `IsLotObjectFoundationRequired(occ)` (§17.5.5).
+    pub fn is_occupant_foundation_required(&self, occ: u64) -> bool {
+        self.view.is_occupant_foundation_required(&*self.host, occ)
+    }
+
+    /// Slot 57 `IsLotObjectFoundationRequired(min, max)` (§17.5.5).
+    pub fn is_box_foundation_required(&self, min: Vec3, max: Vec3) -> bool {
+        self.view.is_box_foundation_required(&*self.host, min, max)
+    }
+
+    /// Slot 58 `AddBuildingFoundation(building, cfg)` (§17.5.5).
+    pub fn add_building_foundation(&self, building: u64, cfg: u64) -> bool {
+        self.view.add_building_foundation(&*self.host, building, cfg)
+    }
+
+    /// Slot 59 `AddBuildingFoundation(building, type)` (§17.5.5).
+    pub fn add_building_foundation_type(&self, building: u64, ftype: u32) -> bool {
+        self.view.add_building_foundation_type(&*self.host, building, ftype)
+    }
+
+    /// Slot 60 `RemoveBuildingFoundation` (§17.5.2).
+    pub fn remove_building_foundation(&self, occ: u64) -> bool {
+        self.view.remove_building_foundation(&*self.host, occ)
+    }
+
     // ---- persistence (§13) ----
 
     /// `Write` (§13). Returns whether the stream has no error.
     pub fn write(&self, out: &mut dyn OutStream) -> bool {
         let mut ok = out.put_u16(RECORD_VERSION);
-        ok &= out.put_i32(self.verts_x);
-        ok &= out.put_f32(self.extent_x);
-        ok &= out.put_f32(self.extent_z);
+        ok &= out.put_i32(self.view.verts_x);
+        ok &= out.put_f32(self.view.extent_x);
+        ok &= out.put_f32(self.view.extent_z);
         ok &= out.put_u32(self.night.len() as u32);
         for e in &self.night {
             let r = match e {
@@ -2176,15 +2309,15 @@ impl LotDeveloper {
         }
         let mut ok = true;
         match inp.get_i32() {
-            Some(v) => self.verts_x = v,
+            Some(v) => self.view.verts_x = v,
             None => ok = false,
         }
         match inp.get_f32() {
-            Some(v) => self.extent_x = v,
+            Some(v) => self.view.extent_x = v,
             None => ok = false,
         }
         match inp.get_f32() {
-            Some(v) => self.extent_z = v,
+            Some(v) => self.view.extent_z = v,
             None => ok = false,
         }
         let count = inp.get_u32().unwrap_or_else(|| {
