@@ -1031,7 +1031,7 @@ Callee-pop values were checked with `abi_extract.py --check`; return channels by
 | 34 | +0x88 | `uint8 GetGlobalLE()` | 0 | **AL only** | **SDK error**: SDK `float`; nothing is left on the x87 stack (`006FC9E0`). |
 | 35 | +0x8C | `float GetCellEQ(uint32 x, uint32 z)` | 8 | ST0 | `006F79C0`. |
 | 36 | +0x90 | `float GetCellHQ(uint32 x, uint32 z)` | 8 | ST0 | `006F7A10`. |
-| 37 | +0x94 | `float GetCellEQByWealth(uint32 x, uint32 z, uint8 wealth)` | 12 | ST0 (from `GetTractValue`) | `006F7A60`. wealth 1..3. |
+| 37 | +0x94 | `float GetCellEQByWealth(uint32 x, uint32 z, uint8 wealth)` | 12 | ST0 (from `GetTractValue`) | `006F7A60`. wealth 1..3. Checked (RG22): x and z are divided (unsigned) by the R$ EQ grid's `GetTractSize`, the grid is `EQ[wealth − 1]` (`+0x7C`; HQ `+0x88`), and the last call is the float grid's slot 22 `GetTractValue` (`0x0045F210`, which ends with `fld`); the method returns with `ret 0xC` and leaves that ST0 in place. So the return channel is x87 with high confidence. |
 | 38 | +0x98 | `float GetCellHQByWealth(...)` | 12 | ST0 | `006F7AB0`. |
 | 39 | +0x9C | `cISC4SimGrid<float>* GetSchoolAverageGradeMap()` | 0 | EAX ptr, **no AddRef** | `00809240`. SDK error already reported by aura.md. |
 | 40 | +0xA0 | `cISC4SimGrid<float>* GetHospitalAverageGradeMap()` | 0 | EAX ptr | `00407AC0`. |

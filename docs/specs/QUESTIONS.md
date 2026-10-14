@@ -2242,9 +2242,14 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   **The bracket differs, but it cannot be observed.** The seed is `time(NULL) XOR ((clock() << 16) | clock())`, not
   the `cRZTime` epoch value. No save or output exposes it. *[choice]* FreeCity4 uses `derive(0x4990C013)` from the
   session seed, as foundations §6.3 prescribes for member generators.
-- **RG22 — `docs/abi`:** residential slots 37/38 (`GetCellEQByWealth`/`GetCellHQByWealth`) are `via-call`, low
+- ~~**RG22 — `docs/abi`:** residential slots 37/38 (`GetCellEQByWealth`/`GetCellHQByWealth`) are `via-call`, low
   confidence, in `interfaces.tsv`, while residential.md §10.1 says ST0 (they end by calling the float grid's
-  `GetTractValue`, x87 high). Should the rows say x87? [declared float, on the spec's word]
+  `GetTractValue`, x87 high). Should the rows say x87? [declared float, on the spec's word]~~ **ANSWERED 2026-10-14**
+  from the exe (`0x006F7A60`, `0x006F7AB0`; float grid `GetTractValue` `0x0045F210`) and noted in REH §7 (slot 37).
+  **Yes: the rows should say x87, high confidence.** Each method divides x and z by the EQ grid's tract size, indexes
+  `EQ[w − 1]` (HQ for slot 38) and returns through the float grid's `GetTractValue`, whose `fld` leaves the result in
+  ST0; the method's `ret 0xC` does not touch it. The corrected `docs/abi/interfaces.tsv` rows are in the lane's report
+  (the spec does not edit `docs/abi`).
 - ~~**RG23 — first in-game residential shadow (run 86, coordinator):** every cycle, 12 of 15 daily states match
   exactly (all 25 grids, the saved fields, the per-building properties, funding and the scalars: population, EQ,
   HQ, life expectancy). States 1, 2 and 3 (the proximity grids R$, R$$, R$$$) differ in about 16,000 of 16,384
