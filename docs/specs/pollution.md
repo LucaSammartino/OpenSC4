@@ -339,6 +339,25 @@ Let `(x, z) := (cellX, cellZ)` (cell coordinates of the tract's corner) and `t :
       current (pre-update) value: any tract with value ≥ 2 that decays to 0 stops at 1 instead.
     - The bounds compare **cell** coordinates with **tract** counts, so the own-tract reads only happen for
       `2·tx < tractCountX − 1` (resp. z), i.e. roughly the lower-x (lower-z) half of the map.
+    - **The special case always writes** (PG14, `0x006E8B87`–`0x006E8C4B`). Once the decrease gives 0, the code
+      calls `SetWaterValue` with 1 (a neighbour read > 1) or with 0 (none), without comparing with the current
+      value. The case is entered only when `W = 0` (after the clamp of step 8) and `0 < v ≤ maxWaterDelta`. So
+      with **v = 1** and a hit, `SetWaterValue(x, z, 1)` rewrites the 1 that is already there: no cell changes,
+      but `dirtyWater` becomes **true** (`SetWaterValue` `0x006E30B0` sets it unconditionally, `0x006E30DC`).
+      Every other water write, and every air write, has `v ≠ W` and a step of at least 1, so it changes the cell.
+
+      *Example*: shipped `maxWaterDelta` 150, tract at cell (4, 6) with water value 1, `W = 0` this visit, and
+      cell (3, 6) (the tract to the −x side) at 5. The decrease gives 0, the first read hits, and
+      `SetWaterValue(4, 6, 1)` runs: the grid is unchanged, `dirtyWater` is true, and the next end of cycle
+      (§4.8) posts "water changed" `0x5A6DD1AA` and clears it.
+
+      This is the day's **only** `SetWaterValue` call (`0x006E8C4B`), and nothing else in the day writes
+      `dirtyWater`: `DoDailySimulation` `0x006E7FD0`–`0x006E8E1F` has no other reference to it. The end of cycle
+      that runs inside the day (step 11, `0x006E8C69`) clears it, so a later visit the same day can set it again.
+      *[compat]* A reimplementation must mark `dirtyWater` whenever this case runs, even if the value stays 1.
+    - *[compat]* With `maxWaterDelta` = 0 (or `maxAirDelta` = 0; not shipped), the step is 0. Then every visit with
+      `v ≠ W` writes the unchanged value and marks the flag. The compare against the delta is unsigned
+      (`0x006E8B61`, `0x006E8B7F`).
 11. **Advance**: if the iterator is exhausted (simgrid.md §7.4): `Reset(shuffle)` and run the **end of cycle**
     (§4.8). Then `GetNext → (tx', tz')`; `cellX := 2·tx'`, `cellZ := 2·tz'`.
 
@@ -822,11 +841,11 @@ Calling convention: `thiscall`, callee pops its stack arguments. "Pop" is in byt
 | 48 | +0xC0 | `float GetGarbageScalingFactor()` | 0 | ST0 | tuning `0x09135482` | |
 | 49 | +0xC4 | `bool IsActiveLandfill(cellX, cellZ)` | 8 | AL | bit 15 of the garbage cell | |
 | 50 | +0xC8 | `SetIsActiveLandfill(cellX, cellZ, bool)` | 12 | none | only if the cell's zone type is 14 **and** the flag differs: set/clear bit 15, `activeLandfillCells ± 1` (decrement only if > 0), `dirtyGarbage` | **SDK `bool`** |
-| 51 | +0xCC | `GarbagePutInLandfill(int32 n)` | 4 | none | `landfilled += n` (int64; the overflow guard is unreachable in practice). EDX:EAX = (sign of n, new high dword) | **SDK `int64`: value meaningless**. Return the new total. |
+| 51 | +0xCC | `GarbagePutInLandfill(int32 n)` | 4 | none | `landfilled += n` (int64; the overflow guard is unreachable in practice). EDX:EAX = (sign of n, new high dword) | **SDK `int64`: value meaningless**. Return the new total. PG2: the registers at `ret 4` (`0x006E32CE`) are EAX = the new **high** dword of `landfilled` (the `adc` at `0x006E32C4`) and EDX = the sign extension of n (`cdq` at `0x006E32B4`). That is neither the total nor void. Its known caller, the landfill month agent (landfill.md §4.7.2), ignores it. Declare it int64 in EDX:EAX (SDK) with pop 4. The value is free; FreeCity4 returns the new total. |
 | 52 | +0xD0 | `bool GetMaxCapacity(prop, occ, u32& r)` | 12 | AL | `r := 0`, then u32 property `prop`; returns found | |
 | 53 | +0xD4 | `bool GetCurrentCapacity(prop, occ, u32& r)` | 12 | AL | missing → `r := 0`, false. Else `r := base`; 0 if not powered (`IsOccupantPowered`); `r := trunc(r × efficiency)`; if curve property `0x8A1E07EE` exists, `r := roundHalfEven(r × curve(condition))`; true | |
-| 54 | +0xD8 | `bool GetRecyclingCenterMaxCapacity(occ, SC4Percentage&)` | 8 | AL | `p := default`, then property `0x88ED1059`; returns found | |
-| 55 | +0xDC | `bool GetRecyclingCenterCurrentCapacity(occ, SC4Percentage&)` | 8 | AL | slot 53 with `0x88ED1059`: success → `p := f32(float(uint32 r) × 0.01f)` (§4.7: `0.01f` is a `float32` literal, so r = 30 → 0.29999998 `0x3E999999`, not 0.3f), true; else `p := default`, false | |
+| 54 | +0xD8 | `bool GetRecyclingCenterMaxCapacity(occ, SC4Percentage&)` | 8 | AL | `p := default` (`0x00B49BC4`), then property `0x88ED1059` through the shared percentage getter `0x005FDAC0` (value × **0.01f**, one float32 rounding, as in residential.md §7.1 RS1); returns found | **AL only, not a float** (PG3, `0x006E2D70`–`0x006E2D94`): AL is the getter's result, and each arm of the getter stores the float through the reference (`fstp`) and returns its bool in AL, so the x87 stack is empty. `docs/abi`'s "x87\|eax" is a heuristic. |
+| 55 | +0xDC | `bool GetRecyclingCenterCurrentCapacity(occ, SC4Percentage&)` | 8 | AL | slot 53 with `0x88ED1059`: success → `p := f32(float(uint32 r) × 0.01f)` (§4.7: `0.01f` is a `float32` literal, so r = 30 → 0.29999998 `0x3E999999`, not 0.3f), true; else `p := default`, false | **AL only** (PG1): AL is slot 53's result, left untouched on both paths (`0x006E3737`–`0x006E3768`). The float goes through the reference (`fstp` `0x006E3757`), so the x87 stack is **empty** on return. `docs/abi`'s "x87" is a heuristic misreading of the `fild`/`fmul` (the `fadd` `0x4F800000` = 2³² makes r unsigned). |
 | 56 | +0xE0 | `bool GetCurrentOccupantCondition(occ, SC4Percentage&)` | 8 | AL | `p := 1.0`; with curve `0x8A1E07EE`: `p := curve(condition) × 1.0`, true; else false | |
 | 57 | +0xE4 | `bool GetCurrentOccupantEfficiency(occ, SC4Percentage&)` | 8 | AL | powered and slot 56 succeeds → `p := efficiency × condition`, true; else `p := default`, false | |
 | 58 | +0xE8 | `bool GetIncineratorUsedCapacity(occ, u32&)` | 8 | AL | `r := 0`, then `0xE8ECF641` | |

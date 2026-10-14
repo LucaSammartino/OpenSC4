@@ -20,7 +20,8 @@
 // reference. Supported element types: uint8 (0x49B9E602, also "bool"
 // 0x49B9E601), int16 (0x49B9E605) and float (0x49B9E60A), the ones
 // docs/abi/interfaces.tsv checks. [choice] Other types are refused (create
-// returns 0) until a subsystem needs them.
+// returns 0) until a subsystem needs them. uint16 grids (0x49B9E604) the game
+// hands out can be read (get) but are never created or written.
 #pragma once
 
 #include "FC4Config.h"

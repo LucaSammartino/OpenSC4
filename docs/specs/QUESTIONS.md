@@ -223,11 +223,28 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   2026-10-14** from the exe (`0x00725370` `fmul dword [0x00AB34F4]`) and written into §4.10.2. **The bracket is
   wrong: float32** `0x3E4CCCCD`, as are 40.0, 0.1 and 1.0. The double would change the step cost for 25 depth
   bytes, for example 47 (`0x4081EB85` vs `0x4081EB86`). A worked example is in the spec.
-- **TN15 — §4.10.1:** is a water occupant's "cell rectangle" its single cell or its bounding cells? [single cell]
-- **TN16 — §4.11 Fill step 3:** does a popped state resume after step 3 or redo it? [after; redoing it can loop
-  forever]
-- **TN17:** what does `GetConnectedDestinationCount` return for a negative k? [0]
-- **TN18:** what does `GetFerryTerminalCount` return for a type above 2? [0]
+- ~~**TN15 — §4.10.1:** is a water occupant's "cell rectangle" its single cell or its bounding cells? [single cell]~~
+  **ANSWERED 2026-10-14** from the exe (`cSC4WaterPathFinder::DoMessage` `0x00724B19`–`0x00724BC8`) and written
+  into the §4.10.1 table. **The bracket is wrong: bounding cells.** The rectangle is occupant slot 11
+  `GetBoundingCityCells`, and only its NW corner `(x1, z1)` is tested under water. It is added to the dirty
+  rectangle as is, not grown or clamped. For an ordinary one-cell network piece the two answers coincide.
+- ~~**TN16 — §4.11 Fill step 3:** does a popped state resume after step 3 or redo it? [after; redoing it can loop
+  forever]~~ **ANSWERED 2026-10-14** from the exe (`Fill` `0x00717EC0`: `0x00718186`, `0x007181A5`) and written
+  into §4.11. **The bracket is right: after.** The state's k runs 0…5. Step 3 runs only at k = 4 and sets k := 5
+  before pushing, so a popped tunnel state goes straight to the next pop.
+- ~~**TN17:** what does `GetConnectedDestinationCount` return for a negative k? [0]~~ **ANSWERED 2026-10-14** from
+  the exe (`0x007106C0`: `cmp k, 3` / `jle`, then index `7·id + 3 + k`) and written into §4.13 under the table. **The
+  bracket is wrong:** a negative k passes the signed `k > 3` test and reads before `capacity`. k = −1…−3 read the
+  record's population map object (k = −3 is its header pointer, a heap address); lower k read earlier records.
+  The spec recommends returning 0, since no known caller passes k < 0.
+- ~~**TN18:** what does `GetFerryTerminalCount` return for a type above 2? [0]~~ **ANSWERED 2026-10-14** from the
+  exe (`0x0071FFF0`; constructor `0x0071FF7C`/`0x0071FF83`; activation `0x0072368A`) and written into §2.3's
+  table, §4.9.1 step 1 and §4.9.5. **The bracket is wrong.** There is no bounds check: it returns the u32 at
+  `+0x128 + 4·type`. Only types 0 and 1 have count words. Type 2 reads the potential-accident vector's begin
+  pointer, and types 3 and above read its end, its capacity and later members.
+
+  A side effect is that a type-2 ferry terminal can never activate, because its "count" is a heap pointer and so
+  always ≥ 16. The spec recommends returning 0 for type ≥ 2.
 - ~~**TN19 — §4.7:** are the switch flags taken from all rules or only from kind-0 rules? [all]~~ **ANSWERED
   2026-10-14** from the exe and written into §2.4 and §4.7.2. **All:** the loop at `0x00715EF8`–`0x00715F6D` has no
   kind test and covers the first n rules of the vector. A worked example (shipped station `0x0ADE0000`, flags
@@ -259,31 +276,95 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
 About `docs/specs/residential.md` and `residential-education-health.md` (REH). All 24 §15 tests pass. REH tests
 1–7, 10 and 18–21 belong to the host's education/health hooks. The core's current answer is in brackets.
 
-- **RS7 — §15 test 8 vs the shipped LE curve (inconsistency):** the shipped Health Quotient → Life Expectancy curve
+- ~~**RS7 — §15 test 8 vs the shipped LE curve (inconsistency):** the shipped Health Quotient → Life Expectancy curve
   gives 65 at HQ 60, not the 61 the test states. The vector uses a flat custom curve to get round it. Which is
-  right: the test's number, or the curve the test should use? [custom curve in the vector]
-- **RS8:** does the "other" list move into the health-affecting list? The spec does not say so. [moved; inferred]
-- **RS9 — record Read:** what should Read repair after a stream error, and what happens with a version it cannot
-  read? [nothing repaired; Read fails]
-- **RS10 — record Read:** are list and department entries that a Read replaces released? [released, departments
-  with `release_department`]
-- **RS11:** how do coverage and list vectors with counts other than 7 / 3 behave? [none]
-- **RS12:** can the lists hold null entries, and what does each pass do with one? [skipped]
-- **RS13:** do the state-0 grade totals live in the residential simulator or in the host (REH)? [host]
-- **RS14:** what does the state machine do in an unknown state? [waits]
-- **RS15:** is the pollution loop's S capped (a hostile S is unbounded)? [no cap]
-- **RS16:** what does a zero divisor give in the averages? [0]
-- **RS17:** does a version-3 record keep the running population the constructor set? [yes]
+  right: the test's number, or the curve the test should use? [custom curve in the vector]~~ **ANSWERED
+  2026-10-14** from the shipped exemplar ("Residential simulator", `0x6941A67F` = (0,50) (20,55) (40,60) (60,65)
+  (200,100)) and foundations §4.3. Test 8 is rewritten in residential.md §15. **The curve is right and the test's
+  61 was wrong:** at GetCellHQ = 60 the curve is exact at its point, so LE = 65. Since 70 > 65 the reset still
+  happens, with the same EQ/HQ results; only leSum changes (65 × 200). The test now uses the shipped curve, with
+  EQ/HQ stored as 50.2 / 60.2, which decay to exactly 50 / 60. The custom curve can go. For LE 61, use HQ 44
+  (exact).
+- ~~**RS8:** does the "other" list move into the health-affecting list? The spec does not say so. [moved; inferred]~~
+  **ANSWERED 2026-10-14** from the exe (state 0 `0x006FF75F`–`0x006FF7E8`; `DoBuildingChanged` `0x006FB5C1`–
+  `0x006FB9C1`) and written into the new residential.md §5.8. **The bracket is right: moved.** State 0 appends
+  every pending entry, in order and unfiltered, to the end of the health-affecting list, moving the reference,
+  and then clears the pending list. Also specified: the add test (both properties > 0), and a removal that tries
+  the health-affecting list first and then the pending one.
+- ~~**RS9 — record Read:** what should Read repair after a stream error, and what happens with a version it cannot
+  read? [nothing repaired; Read fails]~~ **ANSWERED 2026-10-14** from the exe (`Read` `0x007009A0`, helpers
+  `0x005D9730`, `0x005DB3C0`, `0x006F7BA0`) and written into residential.md §9.2 and test 20. The original rejects
+  no version (≥ 7 is read as 7, 0–2 as 2), never checks the stream and returns true. After an error, later refs
+  are null and the state, list counts and department scalars are stale stack values. Init repairs only the grids,
+  the departments and the department scalars.
+
+  **Choice:** return false and leave the simulator **as constructed**, rather than partly read, so that Init
+  starts a new city. This is the crime.md §12 rule. Accept every version.
+- ~~**RS10 — record Read:** are list and department entries that a Read replaces released? [released, departments
+  with `release_department`]~~ **ANSWERED 2026-10-14** from the exe and written into residential.md §9.2. The
+  original releases **nothing**: list clears free nodes only (`0x00413E60`), and ref reads null the destination
+  without `Release` (`0x005D9742`). This cannot be observed, because Read only ever runs on a freshly constructed
+  object, where every ref is null and every list empty. The core's releasing is fine.
+- ~~**RS11:** how do coverage and list vectors with counts other than 7 / 3 behave? [none]~~ **ANSWERED 2026-10-14**
+  from the exe and written into residential.md §9.2. They arise only from a hand-made or damaged record, since
+  the game writes 7 and 3. The original accepts them and never checks a bound: the monthly states loop over the
+  building-list vector's size, and Init loops over the coverage vector's size. Both index fixed 7- and 3-entry
+  tables (`0x00AB2B60`/`7C`/`98`/`A4`) and each other's vectors. A larger count reads the next table, and a
+  smaller one drops and leaks pending buildings. **Choice:** treat such a count as a damaged record (RS9 rule).
+- ~~**RS12:** can the lists hold null entries, and what does each pass do with one? [skipped]~~ **ANSWERED
+  2026-10-14** from the exe and written into residential.md §9.2. Only `Read` can produce them, through an
+  unresolvable reference or a stream error; the game never writes them. The original does **not** skip them:
+  distribution (`0x006FF622`), coverage (`0x006F8710`), grading (`0x006FFE61`) and `GetBuildings` (`0x006FAD2C`)
+  all dereference the entry and crash. **Choice:** drop nulls in Read, so passes never see one; skipping them in
+  each pass is equivalent.
+- ~~**RS13:** do the state-0 grade totals live in the residential simulator or in the host (REH)? [host]~~
+  **ANSWERED 2026-10-14** from the exe and written into REH §3 (table), REH open question 3 and residential.md
+  §5.1. **The bracket is right: host (REH).** In the original they are two floats of the one object (`+0x314`,
+  `+0x318`). They are zeroed at the start of state 0 (`0x006FF567`) and accumulated by grading in states 6 and 8
+  (`0x006FFED3`, `0x00700053`). Nothing else in the class touches them, no slot returns them and they are not
+  saved. They are therefore write-only, and the host may keep them or drop them without any observable change.
+- ~~**RS14:** what does the state machine do in an unknown state? [waits]~~ **ANSWERED 2026-10-14** from the exe
+  (`DoDailySimulation` `0x006FF546` and its jump table; `DoMessage` `0x00700397`) and written into residential.md
+  §5.1. **The bracket is right, with a caveat: it waits forever.** A state above 15 does what state 10 does
+  (nothing; returns true), but the month message resets only state 10, so the simulator never resumes.
+  **Choice:** keep it, but let Read reject a saved state above 15 as damaged (RS9 rule).
+- ~~**RS15:** is the pollution loop's S capped (a hostile S is unbounded)? [no cap]~~ **ANSWERED 2026-10-14** from
+  the exe (`0x006F7FF0`) and written into residential.md §5.5 step 1. **The bracket is right: no cap.** S² calls
+  are made per tract and type. A wrapped `S·x + S` empties the loop. For S = 0 or S ≡ 0 (mod 65536), `S·S` is 0
+  and the `div` at `0x006F8062` faults. **Choice:** Read rejects P = 0 or P > 256 as a damaged record.
+- ~~**RS16:** what does a zero divisor give in the averages? [0]~~ **ANSWERED 2026-10-14** from the exe
+  (`PostPopulationChange` `0x006F8070`, `DoDailySimulation` state 9 `0x007000B5`, `DoPopulationChange`
+  `0x006FAAC7`, `GetTractQuotient` `0x006F6FC0`, `GetGlobalEQ`/`HQ` `0x006F7720`/`0x006F7870`) and written into
+  residential.md §5.6 (new "Zero divisors" table) and §5.5 step 6. **The bracket is right: 0 everywhere, and none
+  of them faults.** One correction: the life-expectancy guard is `population ≠ 0`, not `> 0`. A negative population
+  (damaged record only) divides as unsigned 64-bit by 2^64 − |population|, which also gives 0.
+- ~~**RS17:** does a version-3 record keep the running population the constructor set? [yes]~~ **ANSWERED
+  2026-10-14** from the exe (`Read` `0x00700D5D`–`0x00700D63`; constructor `0x00700510`, store at `0x007005BF`)
+  and written into residential.md §9.2, §9.3 and open question 4. **The bracket is right: yes, and the value is
+  0.** A version-3 record skips the running population and changes nothing else (versions 0–2 zero it and move
+  state 4 to 11). Because `Init` then restarts the pass with leSum 0, a version-3 save made in state 4 does **not**
+  get the double count that §9.3 describes for version ≥ 4 (worked example there).
 
 ## From the pollution glue and grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
 
 About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answer is in brackets.
 
-- **PG1 — slot 55 `GetRecyclingCenterCurrentCapacity`:** the spec says a bool in AL; `docs/abi` says ST0 (a float).
-  Which? [bool; the slot is waived in abi_conformance_test]
-- **PG2 — slot 51 `GarbagePutInLandfill`:** the spec says it returns the new int64 total; `docs/abi` says eax or
-  void. [int64; waived]
-- **PG3 — slot 54:** the spec says AL; the table says x87 or eax. Is it a float? [as the spec]
+- ~~**PG1 — slot 55 `GetRecyclingCenterCurrentCapacity`:** the spec says a bool in AL; `docs/abi` says ST0 (a float).
+  Which? [bool; the slot is waived in abi_conformance_test]~~ **ANSWERED 2026-10-14** from the exe (`0x006E3720`)
+  and written into the pollution.md slot table. **The bracket is right: bool in AL** (slot 53's result, untouched).
+  The percentage is stored through the reference, and the x87 stack is empty on return. `docs/abi`'s ST0 is wrong;
+  the abi rows are the coordinator's to fix.
+- ~~**PG2 — slot 51 `GarbagePutInLandfill`:** the spec says it returns the new int64 total; `docs/abi` says eax or
+  void. [int64; waived]~~ **ANSWERED 2026-10-14** from the exe (`0x006E3250`–`0x006E32CE`) and written into the
+  pollution.md slot table. Both descriptions are loose. The original leaves EAX = the new high dword of
+  `landfilled` and EDX = the sign of n, which is meaningless as an int64. Its known caller (landfill §4.7.2) ignores
+  it. **The bracket is fine:** declare it int64 in EDX:EAX with pop 4 (SDK), since any value conforms. FreeCity4
+  returns the new total.
+- ~~**PG3 — slot 54:** the spec says AL; the table says x87 or eax. Is it a float? [as the spec]~~ **ANSWERED
+  2026-10-14** from the exe (`0x006E2D70`; getter `0x005FDAC0`) and written into the pollution.md slot table.
+  **The bracket is right: AL, a bool.** The fraction goes through the reference and the x87 stack is empty on
+  return. Also added to the row: the property is read through the shared percentage getter, so it is × 0.01f
+  (float32), like slot 55.
 - **PG4 — §4.10 visual effects:** the effects manager's `CreateVisualEffect` and the `cISC4VisualEffect` /
   `cS3DTransform` layouts are not in `docs/abi`. [visual effects not implemented]
 - **PG5 — §10.2 Q1:** is the prop requester re-added after a load? [open in the spec]
@@ -298,14 +379,19 @@ About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answ
   bool. Confirm. [int32]
 - **PG12 — §5.2 posts:** no void or IGZUnknown is set on them, since the spec names none. Confirm. [none set]
 - **PG13 — slot 5:** what does it return for a type above 3? [null; choice]
-- **PG14 — in-game differential (run 68, coordinator): `dirtyWater` after a day.** With the original pollution
+- ~~**PG14 — in-game differential (run 68, coordinator): `dirtyWater` after a day.** With the original pollution
   simulator and `pollution_shadow = 1`, our core matched all eight grids cell by cell for 94 months (2026-02 →
   2033-11; 1.4 M cells a month, 0 mismatches) and every saved field except one: on 104 of about 2,800 days the
   original's `dirtyWater` is **true** after its day while ours stays false, with identical grids. The likely place
   is §4.4.4 step 10, the water neighbour special case. When a tract at 1 would decay to 0 and the case keeps it at
   1, does the original still call `SetWaterValue` (marking `dirtyWater`) although the value did not change? Or does
   some other day path set the flag without changing a cell? It decides how often "water changed" `0x5A6DD1AA` is
-  posted. [ours: written only when the value differs, as step 9 says for air]
+  posted. [ours: written only when the value differs, as step 9 says for air]~~ **ANSWERED 2026-10-14** from the
+  exe (`DoDailySimulation` `0x006E8B87`–`0x006E8C4B`; `SetWaterValue` `0x006E30DC`) and written into pollution.md
+  §4.4.4 step 10. **The hypothesis is right.** Once the decrease gives 0, the original always calls
+  `SetWaterValue`, with 1 or 0, without comparing. So v = 1, W = 0 and a neighbour > 1 rewrites the same 1 and
+  sets `dirtyWater`. No other day path sets the flag: this is the day's only `SetWaterValue` call, and the in-day
+  end of cycle clears it. Fix: mark `dirtyWater` whenever the special case runs.
 
 ## From the landfill tests and the neighbours core (filed by the coordinator from the lane's report, 2026-10-14; merged)
 
@@ -435,3 +521,77 @@ vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
 - **PF15:** the entry side of a ferry neighbour-link exit node. [`EdgeTo(off → edge)`; assumes adjacent cells]
 - Deviations from the compiled interface (choices): `SetStartingCostArray` copies the 9 floats; `SetRouteInfo` keeps
   its own route list; the process-wide work-check values are one shared cell.
+
+## From the crime glue and grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/crime.md` and its `docs/abi` rows. Ini: `enable = crime` (optional `crime_seed`); shadow
+`crime_shadow = 1`. The glue's current answer is in brackets.
+
+- **CQ1:** `GetCrimeIncidentArray`: allocators.md does not list its container. [the game's allocator]
+- **CQ2:** `PropProfile.crimeIncidentID` is read at offset 24, from the SDK layout; layouts.md does not list
+  `PropProfile`. [24]
+- **CQ3:** lot `GetCenter` (slot 15): docs/abi says ST0, §13 says the out parameter with nothing left on the x87
+  stack. [both handled; the month line counts which one happens as `center st0=a/b`]
+- **CQ4:** `GetOccupantsByBBox`: §13 names the filter overload (slot 36). [the typed overload, slot 37, last
+  argument 0xFFFFFFFF]
+- **CQ5:** the session seed "local wall-clock seconds". [`_mkgmtime(localtime(now))`]
+- **CQ6 — §16.1:** the ordinance crime factor after a load with no ordinance simulator. [left unchanged]
+- **CQ7:** the prop requester is never unregistered at Shutdown; the spec is silent. [not unregistered]
+- **CQ8 — §16.8:** crime type names: which LTEXT key, and the fallback when it is missing. [open]
+- **CQ9:** `Read` on a stream error. [returns false, no state changed]
+- **CQ10:** crime type list order. [ascending instance]
+- **CQ11:** police slot 5 returns a uint8 grid (the SDK says short) and slot 27 an int32 count, as protection
+  declares them. Confirm. [as protection]
+- **CQ12:** arson calls `SetCause` whatever `IgniteOccupant` returns. Right? [yes]
+- **CQ13:** property 0xCA5B9306 is read with numeric conversion (`GetU32s`, low bytes). [as stated]
+- **CQ14:** a failed QueryInterface nulls the out pointer per crime.md §1; flammability, plumbing and pollution leave
+  it untouched. Which is the original's rule per class? [crime nulls]
+- **CQ15:** the return value of the residential `GetPopulationGrids` / `GetEQGrids` is ignored; only the three out
+  pointers are used. [ignored]
+- Not compared by the shadow (stated on every line): the number of crimes to commit (needs
+  `ResetUnjailedCriminals`, which has side effects), which attempts the police stopped and each crime's type (the
+  original's draws), which lots were tried (the lot manager's generator), the crime-effect grid (no interface).
+
+## From the demand glue: capacity maps and population summary (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/demand.md` (§6.3 capacity, `GetLocalPopulationSummary`) and the STLport map layout in
+`docs/abi/allocators.md`. Switches `demand_capacity` and `demand_direct_calls` (both on by default). The glue's
+current answer is in brackets.
+
+- **DQ3:** a NaN or out-of-range summary value: Rust `as i32` saturates and gives 0 for NaN; the game's CRT
+  conversion gives 0x80000000. Which does the original produce? [saturating]
+- **DQ4:** a map with count 0 but a non-empty tree shape. The spec only says "with a count of 0, the map is left
+  untouched". [refused]
+- **DQ5:** the census asks for the profile at every cell, so the capacity walk runs there too, although §6.3 needs
+  only the purpose. Intended? [walks at every cell]
+- **DQ6:** the header colour of a copied capacity map is assumed to be 0. [colour 1 refused]
+- **DQ7:** limits of 16 maps, 128 capacity entries and 4,096 summary nodes. Are larger real maps possible? [refused
+  above them]
+- **DQ8:** which thread calls `GetLocalPopulationSummary`? [unspecified; the first success is logged with its thread]
+
+## From the protection fix: saved grid refs and their geometry (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+Run 70 found the fire replacement's grid at 0×0 after a load. The fire record's grid ref points to a grid whose own
+record is read later, so the grid is still empty during the simulator's `Read`. The host grid now keeps a geometry
+only once it is non-empty. The current answer is in brackets.
+
+- **HG1 — foundations (load order):** are all grid records read before any simulator's `Init`, so that the first
+  non-empty geometry is the final one? Which order does the class store read records and resolve refs in, relative
+  to `Read` and `Init`? [assumed yes]
+
+## From applying TN1–TN20 to the traffic network core (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/traffic-network.md`. The core's current answer is in brackets.
+
+- **TN21 — §4.6 / TN5:** if the intersection search's start cell is itself a tunnel cell, is it still extended?
+  [yes, the start cell is always extended]
+- **TN22 — §4.7.2:** what count does an object-reference or empty variant give for `0xE90E25A1`? [0: a switch
+  with no rules]
+- **TN23 — §4.7.2 TN3/TN4:** how do the DoPostCityInit walks treat a switch with building 0 (a default inserted by
+  a §4.7.3/§4.7.4 lookup), where the original would use a null building? [not re-read; flag 4 clear still clears the
+  access point; flag 4 set gets no NW cell]
+- **TN24 — §4.10.1 TN15:** when the unclamped dirty rectangle reaches past the map, are off-map cells asked or
+  written during the update? [only in-map cells]
+- **TN25 — §4.7.2 TN3:** FreeCity4 replaces the rules on the re-read, so the flags come from the property's rules;
+  the original takes them from the first n rules of the vector (the saved copy). They differ only when the saved
+  rules differ from the exemplar. Acceptable? [flags from the re-read rules]

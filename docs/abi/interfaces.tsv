@@ -1236,11 +1236,11 @@ cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	47	+0xBC	006e3160	cSC4Po
 cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	48	+0xC0	006e3190	cSC4PollutionSimulator::GetGarbageScalingFactor	0	0	x87	high	
 cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	49	+0xC4	006e31a0	cSC4PollutionSimulator::IsActiveLandfill	8	2	eax-or-void	medium	
 cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	50	+0xC8	006e31c0	cSC4PollutionSimulator::SetIsActiveLandfill	12	3	via-call	low	
-cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	51	+0xCC	006e3250	cSC4PollutionSimulator::GarbagePutInLandfill	4	1	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	51	+0xCC	006e3250	cSC4PollutionSimulator::GarbagePutInLandfill	4	1	edx:eax?	high	EAX = new high dword of landfilled, EDX = sign of n: meaningless as int64; caller (landfill 4.7.2) ignores it; declare int64 (QUESTIONS PG2)
 cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	52	+0xD0	006e2da0	cSC4PollutionSimulator::GetMaxCapacity	12	3	eax-or-void	medium	
 cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	53	+0xD4	006e4300	cSC4PollutionSimulator::GetCurrentCapacity	12	3	eax-or-void	medium	
-cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	54	+0xD8	006e2d70	cSC4PollutionSimulator::GetRecyclingCenterMaxCapacity	8	2	x87|eax	low	
-cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	55	+0xDC	006e3720	cSC4PollutionSimulator::GetRecyclingCenterCurrentCapacity	8	2	x87	high	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	54	+0xD8	006e2d70	cSC4PollutionSimulator::GetRecyclingCenterMaxCapacity	8	2	eax-or-void	high	bool in AL; the fraction (x 0.01f) goes through the reference; x87 stack empty on return (QUESTIONS PG3)
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	55	+0xDC	006e3720	cSC4PollutionSimulator::GetRecyclingCenterCurrentCapacity	8	2	eax-or-void	high	bool in AL (slot 53's result); the percentage goes through the reference; x87 stack empty on return (QUESTIONS PG1)
 cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	56	+0xE0	006e4410	cSC4PollutionSimulator::GetCurrentOccupantCondition	8	2	eax-or-void	medium	
 cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	57	+0xE4	006e3770	cSC4PollutionSimulator::GetCurrentOccupantEfficiency	8	2	eax-or-void	medium	
 cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	58	+0xE8	006e2e70	cSC4PollutionSimulator::GetIncineratorUsedCapacity	8	2	eax-or-void	medium	

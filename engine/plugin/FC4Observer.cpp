@@ -61,6 +61,10 @@ constexpr uint32_t kMsgPostCityInit = 0x26D31EC1;
 constexpr uint32_t kMsgSimNewDay = 0x66956814;
 constexpr uint32_t kMsgSimNewMonth = 0x66956816;
 constexpr uint32_t kMsgConnectionsReady = 0x6AC284F3;  // foundations.md 11.6; popup_dialogs = 0 waits for it
+constexpr uint32_t kMsgPreCityShutdown = 0x26D31EC2;   // the autotest's "ended" verdict
+constexpr uint32_t kMsgPostCityShutdown = 0x26D31EC3;
+constexpr uint32_t kObserverMessages[] = {kMsgPostCityInit,     kMsgSimNewDay,       kMsgSimNewMonth,
+                                         kMsgConnectionsReady, kMsgPreCityShutdown, kMsgPostCityShutdown};
 constexpr uint32_t kObserverServiceID = 0x5C7A43E2;  // random, FreeCity4's
 constexpr int32_t kObserverPriority = -1000000;      // [choice] tooling; any value works
 
@@ -315,6 +319,9 @@ struct ObserveCall {
 
 // observe month YYYY-MM: date=… julian=… funds=… income=… expense=…
 // tax[0..11]=… dept_expense=0xID:…,… demand R$/…/I-HT=… population R/C/I=…
+// power req/prod/cons/demand=… consumers powered/unpowered=… plants=… aged=…
+// distressed=… (the active power simulator's getters, power §10.1 slots 11,
+// 12, 17, 15, 22, 21, 24, 28, 29: the same line for the original and ours)
 void ObserveMonthStep(void* p) {
     auto* c = static_cast<ObserveCall*>(p);
     char* out = c->line;
@@ -367,6 +374,20 @@ void ObserveMonthStep(void* p) {
         } else {
             AppendF(out, cap, "/-");
         }
+    }
+    cFC4ISC4PowerSimulator* power = AsGame(city->GetPowerSimulator());  // borrowed
+    if (power != nullptr) {
+        AppendF(out, cap,
+                " power req/prod/cons/demand=%ld/%ld/%ld/%ld consumers powered/unpowered=%ld/%ld plants=%ld aged=%ld "
+                "distressed=%ld",
+                static_cast<long>(power->GetMonthlyRequirement()), static_cast<long>(power->GetMonthlyProduction()),
+                static_cast<long>(power->GetMonthlyConsumptionTotal()), static_cast<long>(power->GetMonthlyDemand()),
+                static_cast<long>(power->GetPoweredConsumerCount()),
+                static_cast<long>(power->GetUnpoweredConsumerCount()), static_cast<long>(power->GetPowerPlantCountAll()),
+                static_cast<long>(power->GetAgedPowerPlantCount()),
+                static_cast<long>(power->GetDistressedPowerPlantCount()));
+    } else {
+        AppendF(out, cap, " power=-");
     }
 }
 
@@ -497,6 +518,12 @@ public:
             case kMsgConnectionsReady:
                 PopupDialogsOnConnectionsReady();
                 break;
+            case kMsgPreCityShutdown:
+                AutotestOnCityShutdown(false);
+                break;
+            case kMsgPostCityShutdown:
+                AutotestOnCityShutdown(true);
+                break;
             case kMsgSimNewDay: {
                 bool ok = false;
                 const int64_t j = DataOf(msg, &ok);
@@ -564,7 +591,7 @@ public:
         const bool service = fw->AddSystemService(static_cast<cIGZSystemService*>(this));
         const bool tick = fw->AddToTick(static_cast<cIGZSystemService*>(this));
         bool notes = true;
-        for (uint32_t id : {kMsgPostCityInit, kMsgSimNewDay, kMsgSimNewMonth, kMsgConnectionsReady}) {
+        for (uint32_t id : kObserverMessages) {
             notes = ms->AddNotification(static_cast<cIGZMessageTarget2*>(this), id) && notes;
         }
         started_ = true;
@@ -579,7 +606,7 @@ public:
         started_ = false;
         cIGZMessageServer2Ptr ms;
         if (ms) {
-            for (uint32_t id : {kMsgPostCityInit, kMsgSimNewDay, kMsgSimNewMonth, kMsgConnectionsReady}) {
+            for (uint32_t id : kObserverMessages) {
                 ms->RemoveNotification(static_cast<cIGZMessageTarget2*>(this), id);
             }
         }

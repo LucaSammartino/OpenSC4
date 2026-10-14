@@ -33,20 +33,44 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 > - **Merged this session:**
 >   - traffic network core (`dd240c9`: TN1–TN20 filed); residential core (`737bcc5`: RS7–RS17 filed);
 >   - host grids released with `FC4_RELEASE_CREATED` (`bbe9181`);
->   - spec answers part 1 (`ac19c1e`), part 2 (`5b305c6`), part 3 (`6d0a68a`: CR1 ConnectionsReady, TN4–TN14);
+>   - spec answers part 1 (`ac19c1e`), part 2 (`5b305c6`), part 3 (`6d0a68a`: CR1 ConnectionsReady, TN4–TN14),
+>     part 4 (`a4d54b0`: PG14 `dirtyWater`, PG1–PG3, TN15–TN18, RS7–RS17);
 >   - zones ZQ2/ZQ3/ZQ5/ZQ6 follow-up (`8ee3253`: tests 30–32 as vectors `zn15_32`–`zn15_35`; ZQ7–ZQ10 filed);
->   - **pollution glue + grid shadow** (merged after `d161d20`: `enable = pollution`, `pollution_shadow = 1`;
->     `FC4_ABI_VERSION` 17; PG1–PG13 filed; not yet run in game).
-> - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`, RE lanes in
->   `.claude/worktrees/re-answers` and `re-abi`):
->   - glue + grid shadow for protection and crime (each bumped `FC4_ABI_VERSION` to 17: renumber to 18/19 at merge,
->     and rerun `python tests/gen_abi_entries.py` after each merge);
->   - landfill + neighbors cores; the pathfinder core (M5); formats `exemplar.rs`;
->   - RE: TN15–TN19 and RS7–RS17 (`re-answers`); STLport map + BuildingProfile layout (`re-abi`).
+>   - **pollution glue + grid shadow** (`d743db2`; ABI 17; PG1–PG14 filed). In game: run 67 clean over 73 months;
+>     run 68 **shadow identical on all eight grids for 94 months**, one flag-only difference (`dirtyWater`, PG14);
+>     the PG1–PG3 `docs/abi` rows corrected and their waivers dropped (`6aea1a5`);
+>   - **protection glue (fire + police) + grid shadow** (`29b3fcb`; ABI 18; PR1–PR13 filed);
+>   - **crime glue + grid shadow** (`941c34f`; ABI 19; 91 plugin switches; CQ1–CQ15 filed);
+>   - **demand glue fix** (`ae82e65`): capacity maps and `GetLocalPopulationSummary` through the game's STLport map
+>     (`FC4GameMap.h`; switches `demand_capacity`, `demand_direct_calls`; DQ3–DQ8 filed);
+>   - landfill tests 1–23 + **neighbours core** (`026fd9e`; LF1–LF5, NB1–NB17); `exemplar.rs` (`64a25d2`; EX1–EX20);
+>     **pathfinder core** (`36ababe`; 28 `pf11_*` vectors; PF1–PF15);
+>   - RE: `re-abi` (`4611f56`: STLport map/set layout, map `operator[]` direct call, BuildingProfile layout);
+>   - harness: observe line shows the power getters (`7c94135`), `tools/regress.ps1` + `tools/run_summary.ps1`,
+>     and **autotest verdict `ended`** when the game shuts the city down by itself (`0173fe3`; run 69 had none).
+> - **In game this session after the merges:** run 69 (soak 2, 8 replacements): the game ended the city in 2057,
+>   bankrupt (funds −103,047), with power requirement climbing while consumers fell; next step, the same soak with
+>   the original power simulator. Run 70 (`regress r941c`): PASS; **protection shadow 194/194 clean (first in-game
+>   protection run)**; **but the fire replacement's grid is 0×0 after a load, so its cycle never runs** (lane below).
+>   Crime shadow clean (0 mismatched cells, hotspot equal) in the first crime run.
+> - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lanes in
+>   `.claude/worktrees/re-answers2`, `re-answers3`):
+>   - glue + shadow: aura, flora, landfill developer (each bumps the ABI; main is 19; renumber at merge, rerun
+>     `python tests/gen_abi_entries.py`, fix the plugin switch-count checks in `plugin_load_test`);
+>   - traffic simulator core (M5), on the merged pathfinder;
+>   - REH core (education/health), also applying RS7–RS17 to the residential core;
+>   - answers-apply: pollution PG14 (`dirtyWater`) and the traffic network TN1–TN20 answers (stays out of the
+>     traffic simulator's §4.14/§6 parts);
+>   - protection fix: the fire grid's geometry taken at Init, not Read (and the same check on every other glue);
+>   - **power shadow** (`power_shadow = 1`): our power core on the original's live inputs, to settle run 69;
+>   - RE `re-answers2` (CQ, PR, DQ, PG4–PG13) and `re-answers3` (PF, ZQ, LF, NB, EX).
 > - **Open follow-ups:**
->   - flora and aura glue, residential glue (M3); demand glue fix once the ABI layouts land;
->   - the traffic simulator core after the pathfinder; a TN-apply lane after TN4–TN19;
->   - rerun the soak with the fixed `popup_dialogs` (power and plumbing now live) and pollution enabled.
+>   - soak pair on `ae82e65` (detached, `build-runs/soak-pair.ps1`): run 71 = run 69's eight replacements, run 72 =
+>     the same with the original power simulator; compare the power observe lines and the money;
+>   - grid shadows still missing for the M3 exit: land value, flammability, plumbing (power's is in a lane);
+>   - residential glue (after REH) and zones glue (M4); neighbours glue;
+>   - after each merge that stages a new DLL: `tools/regress.ps1 -Tag <tag>` (all shadows at once + all
+>     replacements at once, one table; `tools/run_summary.ps1 -Log <log>` summarises any single run).
 > - **Coordinator gate:** `build-runs/coord-full-verify.ps1 -Engine <worktree>\engine -Tag <tag>` (cargo summed,
 >   clippy, configure/build/ctest; it copies the SDK into worktrees that lack the submodule), then `rustfmt --check`
 >   on the touched files, run from `engine/` (it needs `engine/rustfmt.toml`; skip `lib.rs` roots).

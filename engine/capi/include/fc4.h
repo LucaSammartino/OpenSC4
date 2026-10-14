@@ -60,8 +60,9 @@ extern "C" {
  * 15 = adds the budget shadow's tax scan (fc4_budget_shadow_tax);
  * 16 = adds the demand shadow (fc4_demand_shadow);
  * 17 = adds the pollution simulator (fc4_pollution) and its shadow (fc4_pollution_shadow);
- * 18 = adds the protection simulators (fc4_protection). */
-#define FC4_ABI_VERSION 18u
+ * 18 = adds the protection simulators (fc4_protection);
+ * 19 = adds the crime simulator and the crime shadow (fc4_crime / fc4_crime_shadow). */
+#define FC4_ABI_VERSION 19u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -2284,6 +2285,225 @@ bool fc4_protection_shadow_run(fc4_protection* p, const fc4_grid_geometry* geom,
                                size_t count, uint64_t department, bool strike_flag);
 size_t fc4_protection_shadow_grid(const fc4_protection* p, uint8_t* out, size_t n);
 
+/* ---- crime (docs/specs/crime.md) ---------------------------------------------
+ *
+ * Tokens: lots, building occupants, occupants and grids (the game objects'
+ * identities); 0 is null. Both crime grids are the game's own
+ * cSC4SimGrid<uint8> (fc4_grid_api); the population grids are uint16 and the
+ * EQ grids float ones.
+ *
+ * The crime type list and the generator are process-wide (§7, §9): the first
+ * fc4_crime_create seeds the generator with derive_seed(session_seed,
+ * 0x6C09C3F6) (foundations §6.3); later objects share both.
+ *
+ * Threads (foundations §19): the game calls getters from a second thread while
+ * the main thread is inside a call. The functions marked "any thread" read a
+ * snapshot the main thread publishes at the end of every outermost call and
+ * never touch the core; every other function is main-thread only. A message
+ * delivered while another call into the same object is running is queued and
+ * handled when that call returns. */
+typedef struct fc4_crime fc4_crime;
+
+/* A message for fc4_crime_do_message (§5). */
+typedef struct fc4_crime_message {
+    uint32_t msg_type;
+    uint32_t data1;    /* GetData1() (exemplar changed: the group) */
+    uint32_t data2;    /* GetData2() (exemplar changed: the instance) */
+    uint32_t reserved;
+    uint64_t occupant; /* GetVoid1() as a cISC4Occupant (inserted / removed) */
+} fc4_crime_message;
+
+/* One element of GetCrimeIncidentArray: the game's 28-byte tCrimeEvent
+ * (§11.4) with `has_lot` in a padding byte. has_lot = 0: an incident without a
+ * lot; the game's element keeps its previous content. */
+typedef struct fc4_crime_event {
+    uint32_t cell_x, cell_z;
+    uint32_t type_id;
+    uint8_t visuals_created;
+    uint8_t has_lot;
+    uint8_t pad[2];
+    uint32_t icon_type, icon_group, icon_instance;
+} fc4_crime_event;
+
+/* One occupant of the bounding-box query of §11.3. */
+typedef struct fc4_crime_nearby {
+    uint64_t token;
+    uint32_t occupant_type;
+    uint8_t in_crime_group;        /* sims: IsOccupantGroup(0x4102) */
+    uint8_t has_incident_property; /* props: HasProperty(0x8AA864D5) */
+    uint8_t answers_iid;           /* the kind's QueryInterface succeeded */
+    uint8_t pad;
+    float position[3];
+    uint32_t prop_state; /* props: GetState() */
+} fc4_crime_nearby;
+typedef void (*fc4_crime_nearby_callback)(void* ctx, const fc4_crime_nearby* o);
+
+#define FC4_CRIME_NEAREST_SIM 0u
+#define FC4_CRIME_NEAREST_PROP 1u
+
+/* Diagnostics. */
+typedef struct fc4_crime_state {
+    uint32_t struct_size;
+    uint8_t initialized, loaded_from_save, has_message_server, pad0;
+    uint32_t pipeline_state;
+    uint32_t monthly_crime_count;
+    uint32_t average_bits; /* the stored float32 (NaN 0xFFC00000 when unzoned) */
+    int32_t hotspot_x, hotspot_z, hotspot_value;
+    float ordinance_factor;
+    int32_t criminal_base, crimes_to_commit;
+    uint32_t incidents;
+    uint32_t types; /* the process-wide type list's length (0 = not loaded) */
+    uint32_t tract_size;
+    float decay, reoffend;
+    uint32_t census[12]; /* pop[wealth][bucket] (§6.1), wealth-major */
+    float jobless[3];
+    uint32_t incident_epoch, reentrant_calls, reserved;
+    uint64_t crime_grid, effect_grid;
+} fc4_crime_state;
+
+/* What the crime simulator needs from the game (one callback per CrimeHost
+ * method, engine/core/src/crime/mod.rs, §13). Missing callbacks behave as
+ * "nothing there" (0, false, no object). */
+typedef struct fc4_crime_host {
+    uint32_t struct_size; /* sizeof(fc4_crime_host) */
+    void* user;
+    fc4_grid_api grids;
+    /* lifecycle glue (§4) */
+    void (*add_agent)(void* user, const uint8_t* name, size_t len, const uint32_t* levels, uint32_t count,
+                      uint32_t flags);
+    void (*remove_agent)(void* user);
+    void (*subscribe)(void* user, const uint32_t* msg_types, uint32_t count);
+    void (*unsubscribe)(void* user, const uint32_t* msg_types, uint32_t count);
+    void (*acquire_services)(void* user);
+    void (*release_services)(void* user);
+    void (*add_prop_requester)(void* user);
+    /* resources (§7, §8) */
+    fc4_props* (*tuning)(void* user); /* a NEW fc4_props (the core destroys it), NULL if missing */
+    void (*for_each_type_key)(void* user, fc4_key_visitor visit, void* ctx);
+    fc4_props* (*exemplar)(void* user, uint32_t type_id, uint32_t group, uint32_t instance); /* NEW or NULL */
+    bool (*ltext)(void* user, uint32_t type_id, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx);
+    /* residential and demand (§6.1, §6.2): three grid tokens, one reference each */
+    void (*population_grids)(void* user, uint64_t* out3);
+    void (*eq_grids)(void* user, uint64_t* out3);
+    bool (*demand)(void* user, uint32_t id, float* value, float* max, float* min);
+    /* police and ordinances (§6.4, §6.6) */
+    uint64_t (*police_grid)(void* user); /* one reference handed over, 0 = none */
+    uint32_t (*jail_population)(void* user);
+    int32_t (*reset_unjailed_criminals)(void* user);
+    void (*process_monthly_crime_stats)(void* user);
+    bool (*ordinance_crime_factor)(void* user, float* out);
+    /* lots and zones (§6.6-§6.9, §11): lot tokens are borrowed */
+    uint64_t (*random_lot)(void* user);
+    uint64_t (*lot_at)(void* user, int32_t cell_x, int32_t cell_z);
+    void (*lot_bounding_rect)(void* user, uint64_t lot, fc4_cell_rect* out);
+    bool (*lot_location)(void* user, uint64_t lot, int32_t* x, int32_t* z);
+    uint8_t (*lot_condition)(void* user, uint64_t lot);
+    bool (*lot_building)(void* user, uint64_t lot, uint64_t* building, uint32_t* purpose, uint32_t* wealth);
+    void (*lot_center_cell)(void* user, uint64_t lot, int32_t* x, int32_t* z);
+    uint32_t (*zone_type)(void* user, int32_t cell_x, int32_t cell_z);
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* occupants and props (§6.10, §11.3, §11.6) */
+    bool (*occupant_has_property)(void* user, uint64_t occ, uint32_t id);
+    bool (*occupant_property_bytes)(void* user, uint64_t occ, uint32_t id, fc4_bytes_sink sink, void* ctx);
+    void (*occupant_position)(void* user, uint64_t occ, float* xyz);
+    void (*occupants_in_box)(void* user, const float* min3, const float* max3, uint32_t kind,
+                             fc4_crime_nearby_callback cb, void* ctx);
+    uint32_t (*prop_crime_incident_id)(void* user, uint32_t prop);
+    /* arson (§6.8) */
+    bool (*disaster_layer_present)(void* user);
+    void (*ignite)(void* user, uint64_t building, uint32_t cause);
+    /* messages (§10) */
+    void (*post_crime_committed)(void* user, uint32_t type_id, uint64_t lot, const uint8_t* name, size_t len);
+    void (*post_crime_map_updated)(void* user);
+} fc4_crime_host;
+
+/* The host table is copied; `token` is the simulator's own identity. */
+fc4_crime* fc4_crime_create(const fc4_crime_host* host, uint64_t token, uint32_t session_seed);
+void fc4_crime_destroy(fc4_crime* p);
+bool fc4_crime_init(fc4_crime* p);     /* §4.1 */
+bool fc4_crime_shutdown(fc4_crime* p); /* §4.2 */
+/* §5: always true for a live object; queued during another call. */
+bool fc4_crime_do_message(fc4_crime* p, const fc4_crime_message* m);
+/* Any thread (the published snapshot). */
+uint64_t fc4_crime_grid(const fc4_crime* p);          /* slot 5: borrowed token, 0 = none */
+uint32_t fc4_crime_average(const fc4_crime* p);       /* slot 6 */
+uint32_t fc4_crime_monthly_count(const fc4_crime* p); /* slot 7 */
+/* Slot 8: false and nothing written when the value is 0 or less. */
+bool fc4_crime_hotspot(const fc4_crime* p, uint8_t* value, int32_t* x, int32_t* z);
+uint32_t fc4_crime_incident_count(const fc4_crime* p);
+/* Slot 11: copies up to `capacity` events, returns the incident count. */
+uint32_t fc4_crime_incidents(const fc4_crime* p, fc4_crime_event* out, uint32_t capacity);
+bool fc4_crime_set_visuals(const fc4_crime* p, uint32_t index, bool value); /* slot 12 */
+bool fc4_crime_get_visuals(const fc4_crime* p, uint32_t index);             /* slot 13 */
+/* Slots 9/10 (§11.3): the selection over the occupants the box query
+ * returned, in its order: the index of the candidate, or -1. Pure. */
+int32_t fc4_crime_nearest_of(uint32_t kind, const float* pos3, float radius, const fc4_crime_nearby* occupants,
+                             uint32_t count);
+/* Main thread. Prop requester slot 3 (rect x1, z1, x2, z2) and slot 6 (0 = none). */
+int32_t fc4_crime_requested_share(const fc4_crime* p, int32_t x1, int32_t z1, int32_t x2, int32_t z2);
+uint32_t fc4_crime_select_prop(const fc4_crime* p, const uint32_t* props, uint32_t count, int32_t cell_x,
+                               int32_t cell_z);
+bool fc4_crime_get_state(const fc4_crime* p, fc4_crime_state* out);
+bool fc4_crime_write(const fc4_crime* p, const fc4_ostream* out); /* §12 */
+bool fc4_crime_read(fc4_crime* p, const fc4_istream* in);         /* §12: false for version != 6 */
+
+/* The crime shadow (tooling, engine/plugin/FC4CrimeShadow.h): the tuning and
+ * the type list read through a host table of which only tuning,
+ * for_each_type_key, exemplar and ltext are called, and the replay of
+ * pipeline state 4's grid work on grids read from the original simulator. */
+typedef struct fc4_crime_shadow fc4_crime_shadow;
+
+typedef struct fc4_crime_shadow_info {
+    uint32_t struct_size;
+    uint32_t types;
+    uint8_t tuning_found;
+    uint8_t pad[3];
+    uint32_t tract_size;
+    float decay, reoffend;
+} fc4_crime_shadow_info;
+
+/* One incident to replay: its lot's bounding rect (has_rect = 0: no lot) and type. */
+typedef struct fc4_crime_shadow_incident {
+    fc4_cell_rect rect;
+    uint32_t type_id;
+    uint8_t has_rect;
+    uint8_t pad[3];
+} fc4_crime_shadow_incident;
+
+typedef struct fc4_crime_shadow_month_in {
+    uint32_t struct_size;
+    fc4_grid_geometry geometry;
+    const uint8_t* pre; /* count_x * count_z values, x outer: the grid before the step */
+    int32_t hotspot_x, hotspot_z, hotspot_value; /* the hotspot before the step (tracts) */
+    const fc4_crime_shadow_incident* incidents;
+    uint32_t incident_count;
+    const uint32_t* zones; /* count_x * count_z corner-cell zone types, x outer; NULL = no average */
+} fc4_crime_shadow_month_in;
+
+typedef struct fc4_crime_shadow_month_out {
+    uint32_t struct_size;
+    int32_t hotspot_x, hotspot_z, hotspot_value;
+    uint32_t count;         /* incidents stamped (severity > 0) */
+    uint32_t unknown_types; /* incidents of a type not in the list */
+    uint32_t no_rect;       /* counted incidents with no rect (not stamped) */
+    uint32_t severity_sum;
+    uint32_t average_bits; /* the stored average's float32 bits, 0 when zones was NULL */
+    uint8_t average_computed;
+    uint8_t pad[3];
+} fc4_crime_shadow_month_out;
+
+fc4_crime_shadow* fc4_crime_shadow_create(const fc4_crime_host* host);
+void fc4_crime_shadow_destroy(fc4_crime_shadow* s);
+bool fc4_crime_shadow_get_info(const fc4_crime_shadow* s, fc4_crime_shadow_info* out);
+/* §6.7: 1 = a candidate, 0 = not, -1 = unknown type. */
+int32_t fc4_crime_shadow_candidate(const fc4_crime_shadow* s, uint32_t type_id, uint32_t zone_type, bool has_building,
+                                   uint32_t purpose, uint32_t wealth, uint8_t condition);
+/* Decay, the hotspot re-read, each incident stamped in order, the zoned
+ * average; `post` receives count_x * count_z values. */
+bool fc4_crime_shadow_month(const fc4_crime_shadow* s, const fc4_crime_shadow_month_in* in, uint8_t* post,
+                            fc4_crime_shadow_month_out* out);
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -2364,6 +2584,15 @@ static_assert(sizeof(fc4_protection_dispatch_info) == 32, "fc4_protection_dispat
 static_assert(sizeof(fc4_protection_message) == 32, "fc4_protection_message layout");
 static_assert(sizeof(fc4_protection_state) == 152, "fc4_protection_state layout");
 static_assert(sizeof(fc4_protection_host) == (sizeof(void*) == 4 ? 220 : 440), "fc4_protection_host layout");
+static_assert(sizeof(fc4_crime_message) == 24, "fc4_crime_message layout");
+static_assert(sizeof(fc4_crime_event) == 28, "fc4_crime_event layout");
+static_assert(sizeof(fc4_crime_nearby) == 32, "fc4_crime_nearby layout");
+static_assert(sizeof(fc4_crime_state) == 152, "fc4_crime_state layout");
+static_assert(sizeof(fc4_crime_host) == (sizeof(void*) == 4 ? 200 : 400), "fc4_crime_host layout");
+static_assert(sizeof(fc4_crime_shadow_info) == 24, "fc4_crime_shadow_info layout");
+static_assert(sizeof(fc4_crime_shadow_incident) == 24, "fc4_crime_shadow_incident layout");
+static_assert(sizeof(fc4_crime_shadow_month_in) == (sizeof(void*) == 4 ? 64 : 88), "fc4_crime_shadow_month_in layout");
+static_assert(sizeof(fc4_crime_shadow_month_out) == 40, "fc4_crime_shadow_month_out layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");

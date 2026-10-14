@@ -784,10 +784,13 @@ public:
                                                SC4Percentage& health, bool flag) = 0;  // 20
     virtual bool GetAverageEQGrid(cISC4SimGrid<float>*& grid, float* min, float* max) = 0;  // 21
     virtual bool GetAverageHQGrid(cISC4SimGrid<float>*& grid, float* min, float* max) = 0;  // 22
-    virtual bool GetEQGrids(cISC4SimGrid<float>*& grid, cISC4SimGrid<float>* a, cISC4SimGrid<float>* b) = 0;  // 23
+    // Slots 23 / 25 (crime.md §13): all three parameters are out pointers, each
+    // AddRef'd for the caller (SDK: the 2nd and 3rd plain pointers); the return
+    // value is garbage (declared bool, never read).
+    virtual bool GetEQGrids(cISC4SimGrid<float>*& g0, cISC4SimGrid<float>*& g1, cISC4SimGrid<float>*& g2) = 0;  // 23
     virtual bool GetHQGrids(cISC4SimGrid<float>*& grid, cISC4SimGrid<float>* a, cISC4SimGrid<float>* b) = 0;  // 24
-    virtual bool GetPopulationGrids(cISC4SimGrid<uint16_t>*& grid, cISC4SimGrid<uint16_t>* a,
-                                    cISC4SimGrid<uint16_t>* b) = 0;               // 25
+    virtual bool GetPopulationGrids(cISC4SimGrid<uint16_t>*& g0, cISC4SimGrid<uint16_t>*& g1,
+                                    cISC4SimGrid<uint16_t>*& g2) = 0;             // 25
     virtual bool GetSchoolQueryData(cISC4Occupant* occupant, intptr_t queryData) = 0;    // 26
     virtual bool GetHospitalQueryData(cISC4Occupant* occupant, intptr_t queryData) = 0;  // 27
     virtual bool EstimateCurrentOccupantCapacity(cISC4Occupant* occupant, uint32_t& a, uint32_t& b) = 0;  // 28
@@ -1041,6 +1044,7 @@ class cISC4Ordinance;
 class cISC4ResidentialSimulator;
 class cISC4RegionalCity;
 class cISC4PlumbingSimulator;
+class cISC4PowerSimulator;
 
 // ---- plumbing (docs/specs/plumbing.md §10.1) -----------------------------------------------------
 
@@ -1415,6 +1419,12 @@ inline cFC4ISC4PlumbingSimulator* AsGame(cISC4PlumbingSimulator* p) {
 }
 inline cISC4PlumbingSimulator* AsSdk(cFC4ISC4PlumbingSimulator* p) {
     return reinterpret_cast<cISC4PlumbingSimulator*>(p);
+}
+// Power travels as the SDK's cISC4PowerSimulator* (the city getter's type);
+// single inheritance, vtable at offset 0. Call it only through the verified
+// declaration (the SDK's overloads are out of compiled order).
+inline cFC4ISC4PowerSimulator* AsGame(cISC4PowerSimulator* p) {
+    return reinterpret_cast<cFC4ISC4PowerSimulator*>(p);
 }
 // Pollution travels as the SDK's cISC4PollutionSimulator* (the city getter's
 // type); single inheritance, vtable at offset 0. Call slots 29, 30, 33-41,

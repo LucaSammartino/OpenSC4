@@ -34,9 +34,42 @@ pub struct RuleSet {
     pub rules: Vec<Rule>,
     /// OR of `1 << to` over the kind-0 rules.
     pub to_mask: u16,
-    /// From the "to" types: 2 → 1, 3 → 2, 6 → 4, 7 → 8, 8 → 0x10, plus 0x40
-    /// when a rule links subway and elevated train.
+    /// From the "to" types of **all** rules, whatever their kind (TN19):
+    /// 2 → 1, 3 → 2, 6 → 4, 7 → 8, 8 → 0x10, plus 0x40 when a rule links
+    /// subway and elevated train.
     pub flags: u8,
+}
+
+/// What the network part of `DoLotActivated` did (§4.7.1). The simulator's
+/// step 7 (traffic-simulator.md §4.1.3: the strategy bucket, the one
+/// `RandomUint32Uniform(100)` draw, the budget items and the destination
+/// bits) follows only for [`LotActivation::Done`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LotActivation {
+    /// The lot has no building: DoLotActivated returns at once.
+    NoBuilding,
+    /// §4.7.1 step 1: the byte size of `0xE90E25A1` is not a multiple of 4,
+    /// so DoLotActivated **returned** (TN1). No switch, no ferry activation,
+    /// no rebuild, and none of step 7, not even the draw.
+    Returned,
+    /// Steps 2–6 ran as far as they apply; step 7 follows.
+    Done {
+        /// Whether a transit switch was created (always, once the property
+        /// is present and step 1 passed, even with no rules).
+        switch_created: bool,
+    },
+}
+
+impl LotActivation {
+    /// Whether a transit switch was created.
+    pub fn switch_created(self) -> bool {
+        matches!(self, LotActivation::Done { switch_created: true })
+    }
+
+    /// Whether the simulator's step 7 follows (§4.7.1 step 7).
+    pub fn continues(self) -> bool {
+        matches!(self, LotActivation::Done { .. })
+    }
 }
 
 /// A transit switch (§2.4).
@@ -92,12 +125,13 @@ fn flag_for_to(to: u8) -> u8 {
     }
 }
 
-/// `ReadTransitSwitchRules` on the u32 entries of property `0xE90E25A1`
-/// (§4.7.2), with the lot's facing `f`. For each entry, bytes `b0…b3` with b0
-/// the least significant: `kind = (b0 = 0x82) ? 1 : 0`;
+/// `ReadTransitSwitchRules` on the rules of property `0xE90E25A1` (§4.7.2),
+/// each given as the u32 of its four bytes `b0…b3` (b0 the least
+/// significant), with the lot's facing `f`: `kind = (b0 = 0x82) ? 1 : 0`;
 /// `side[ROT[f][i]] = bit (7 − i) of b1`; `from = b2`, `to = b3`. Kind-0
-/// rules OR `1 << to` into the "to" mask. A facing above 3 uses its low two
-/// bits [choice].
+/// rules OR `1 << to` into the "to" mask; the flags come from every rule,
+/// whatever its kind (TN19). A facing above 3 uses its low two bits
+/// [choice].
 pub fn read_rules(facing: u32, entries: &[u32]) -> RuleSet {
     let rot = ROT[(facing & 3) as usize];
     let mut set = RuleSet::default();
@@ -124,10 +158,15 @@ pub fn read_rules(facing: u32, entries: &[u32]) -> RuleSet {
     set
 }
 
-/// The u32 entries of a property value, read as its little-endian bytes;
-/// `None` when the byte size is not a multiple of 4 (§4.7.1 step 1). An
-/// object reference is not an array of bytes and also gives `None` [choice].
-pub fn u32_entries(v: &Variant) -> Option<Vec<u32>> {
+/// The raw bytes `0x005FFB40` copies out of property `0xE90E25A1` (§4.7.2):
+/// the variant's `GetCount()` bytes of its data (`RefUint8()`), whatever
+/// the element type. So the "byte size" of §4.7.1 step 1 is the element
+/// count: a u8 array (every shipped switch) gives all its bytes; a u32 array
+/// of N entries gives only its first N bytes, which are its first N/4
+/// entries whole *[quirk]*; a scalar has count 0 and gives none. An object
+/// reference (also a scalar) and an empty variant give none
+/// *[inferred: count 0]*.
+pub fn rule_bytes(v: &Variant) -> Vec<u8> {
     fn push(bytes: &mut Vec<u8>, e: &Elem) {
         match *e {
             Elem::Bool(b) => bytes.push(u8::from(b)),
@@ -143,22 +182,24 @@ pub fn u32_entries(v: &Variant) -> Option<Vec<u32>> {
             Elem::F64(v) => bytes.extend(v.to_bits().to_le_bytes()),
         }
     }
+    let Variant::Array { items, .. } = v else {
+        return Vec::new();
+    };
     let mut bytes = Vec::new();
-    match v {
-        Variant::Empty => {}
-        Variant::Object(_) => return None,
-        Variant::Scalar(e) => push(&mut bytes, e),
-        Variant::Array { items, .. } => items.iter().for_each(|e| push(&mut bytes, e)),
-    }
-    if bytes.len() % 4 != 0 {
-        return None;
-    }
-    Some(
-        bytes
-            .chunks_exact(4)
-            .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
-            .collect(),
-    )
+    items.iter().for_each(|e| push(&mut bytes, e));
+    bytes.truncate(items.len());
+    bytes
+}
+
+/// The `n = ⌊count / 4⌋` rules of the raw bytes (§4.7.2), each as the u32 of
+/// its four bytes (b0 the least significant) for [`read_rules`]. Trailing
+/// bytes are ignored here; DoLotActivated refuses them first (§4.7.1 step
+/// 1).
+pub fn rule_entries(bytes: &[u8]) -> Vec<u32> {
+    bytes
+        .chunks_exact(4)
+        .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+        .collect()
 }
 
 fn f32_prop(h: &dyn NetworkHost, occ: u64, id: u32) -> f32 {
@@ -174,23 +215,25 @@ fn u32_prop(h: &dyn NetworkHost, occ: u64, id: u32) -> u32 {
 }
 
 impl Cx<'_> {
-    /// `DoLotActivated`, the network part (§4.7.1 and §4.9.1). Returns
-    /// whether a transit switch was created; the traffic-source registration
-    /// and the one random draw that follow are the simulator's (§4.7.1 step
-    /// 7, §12).
+    /// `DoLotActivated`, the network part (§4.7.1 and §4.9.1). The
+    /// strategy-bucket registration, the one random draw, the budget items
+    /// and the destination bits that follow are the simulator's (§4.7.1 step
+    /// 7, §12); they follow only for [`LotActivation::Done`].
     ///
-    /// Steps 1–5 apply when the building has property `0xE90E25A1`; a byte
-    /// size that is not a multiple of 4 stops the whole activation (the
-    /// ferry part included) *[inferred: "stop" ends the numbered list]*.
-    pub(crate) fn lot_activated(&mut self, lot: u64) -> bool {
+    /// Steps 1–5 apply when the building has property `0xE90E25A1`. A byte
+    /// size (the element count, §4.7.2) that is not a multiple of 4 returns
+    /// from DoLotActivated: no switch, no ferry part, no rebuild, no step 7
+    /// (TN1).
+    pub(crate) fn lot_activated(&mut self, lot: u64) -> LotActivation {
         let Some(building) = self.h.lot_building(lot) else {
-            return false;
+            return LotActivation::NoBuilding;
         };
         let rect = self.h.lot_bounding_rect(lot);
         let mut created = false;
         if let Some(p) = self.h.occupant_property(building, prop::SWITCH_RULES) {
-            if u32_entries(&p).is_none() {
-                return false;
+            // Step 1.
+            if rule_bytes(&p).len() % 4 != 0 {
+                return LotActivation::Returned;
             }
             self.create_switch(building, rect);
             created = true;
@@ -202,7 +245,9 @@ impl Cx<'_> {
         } else if created {
             self.do_connections_changed(rect);
         }
-        created
+        LotActivation::Done {
+            switch_created: created,
+        }
     }
 
     /// §4.7.1 steps 2–5: builds the switch, writes the grids over the lot
@@ -210,8 +255,8 @@ impl Cx<'_> {
     fn create_switch(&mut self, building: u64, lot_rect: CellRect) {
         let h = self.h;
         // Step 2: the building reference, the four properties, the rules and
-        // the flags.
-        let rs = self.read_switch_rules(building);
+        // the flags (a fresh switch: with no lot it keeps none).
+        let rs = self.read_switch_rules(building).unwrap_or_default();
         h.add_ref(building);
         let mut sw = TransitSwitch {
             building,
@@ -257,31 +302,44 @@ impl Cx<'_> {
     }
 
     /// `ReadTransitSwitchRules` (§4.7.2): the lot at the NW corner of the
-    /// building's bounding cells gives the facing; with no lot no rules are
-    /// read *[quirk]*; a property whose byte size is not a multiple of 4
-    /// gives no rules either.
-    pub(crate) fn read_switch_rules(&self, building: u64) -> RuleSet {
+    /// building's bounding cells gives the facing. With no lot no rules are
+    /// read *[quirk]*: `None`, and the caller's rules and flags stay.
+    /// Otherwise the `⌊count / 4⌋` rules of the raw bytes (an absent
+    /// property gives none), their "to" mask and the flags from all of them
+    /// (TN19).
+    pub(crate) fn read_switch_rules(&self, building: u64) -> Option<RuleSet> {
         let h = self.h;
         let b = h.occupant_bounding_cells(building);
-        let Some(lot) = h.lot_at(b.x1, b.z1, false) else {
-            return RuleSet::default();
-        };
+        let lot = h.lot_at(b.x1, b.z1, false)?;
         let facing = h.lot_facing(lot);
-        let entries = h
+        let bytes = h
             .occupant_property(building, prop::SWITCH_RULES)
-            .and_then(|v| u32_entries(&v))
+            .map(|v| rule_bytes(&v))
             .unwrap_or_default();
-        read_rules(facing, &entries)
+        Some(read_rules(facing, &rule_entries(&bytes)))
     }
 
-    /// DoPostCityInit steps 1 and 2 (§1): re-reads the rules of every loaded
-    /// switch (in table order) and refreshes the subway access points. The
-    /// flags are recomputed with the rules [choice: they are derived from the
-    /// rules and are not in the save]; the access point is refreshed for the
-    /// switches with flag 4, over the rectangle of the lot under the
-    /// building's NW cell (the building's own cells without a lot) [choice].
+    /// DoPostCityInit steps 1 and 2 (§1, §4.7.2).
+    ///
+    /// Step 1, the re-read (TN3), for every switch in table order: the "to"
+    /// mask is zeroed; with no lot at the building's NW cell the rules and
+    /// flags stay as they were (the saved ones) and the mask stays 0;
+    /// otherwise the rules are **replaced** by the property's *[choice: the
+    /// original appends, so a loaded switch holds its rules twice]*, and the
+    /// mask and flags are rebuilt from them. The mode-mask grid is not
+    /// touched.
+    ///
+    /// Step 2, the access points (TN4), each switch on its own: flag 4 clear
+    /// → no access point (the cell bytes stay); flag 4 set with an access
+    /// point → kept; flag 4 set without one → the NW cell of the building's
+    /// bounding cells, with no occupant search *[quirk]*.
+    ///
+    /// A switch with no building (only a default one inserted by a lookup,
+    /// §4.7.3, §4.7.4) is not re-read and gets no NW-cell access point
+    /// *[choice: the original would dereference a null building]*.
     pub(crate) fn reread_switches(&mut self) {
-        for id in self.s.switches.keys() {
+        let ids = self.s.switches.keys();
+        for &id in &ids {
             let Some(building) = self.s.switches.get(id).map(|sw| sw.building) else {
                 continue;
             };
@@ -289,22 +347,27 @@ impl Cx<'_> {
                 continue;
             }
             let rs = self.read_switch_rules(building);
-            let b = self.h.occupant_bounding_cells(building);
-            let rect = self
-                .h
-                .lot_at(b.x1, b.z1, false)
-                .map_or(b, |lot| self.h.lot_bounding_rect(lot));
-            let Some(mut sw) = self.s.switches.get(id).cloned() else {
+            if let Some(sw) = self.s.switches.get_mut(id) {
+                sw.to_mask = 0;
+                if let Some(rs) = rs {
+                    sw.rules = rs.rules;
+                    sw.to_mask = rs.to_mask;
+                    sw.flags = rs.flags;
+                }
+            }
+        }
+        let h = self.h;
+        for &id in &ids {
+            let Some(sw) = self.s.switches.get_mut(id) else {
                 continue;
             };
-            sw.rules = rs.rules;
-            sw.to_mask = rs.to_mask;
-            sw.flags = rs.flags;
-            if sw.flags & 4 != 0 {
-                self.set_access_point(&mut sw, rect);
-            }
-            if let Some(slot) = self.s.switches.get_mut(id) {
-                *slot = sw;
+            if sw.flags & 4 == 0 {
+                sw.has_access_point = false;
+            } else if !sw.has_access_point && sw.building != 0 {
+                let b = h.occupant_bounding_cells(sw.building);
+                sw.has_access_point = true;
+                sw.access_x = b.x1 as u8;
+                sw.access_z = b.z1 as u8;
             }
         }
     }
@@ -464,8 +527,15 @@ fn set_switch_nibble(s: &mut super::NetworkState, x: i32, z: i32, from: usize, d
 
 impl NetworkModel {
     /// Lot activated (§3, `0xE8BDA2E7` with data2 = 3; §4.7.1, §4.9.1).
-    /// Returns whether a transit switch was created.
+    /// Returns whether a transit switch was created; see
+    /// [`NetworkModel::lot_activated_outcome`] for whether step 7 follows.
     pub fn lot_activated(&self, lot: u64) -> bool {
+        self.lot_activated_outcome(lot).switch_created()
+    }
+
+    /// Lot activated, with the full outcome (§4.7.1): the simulator runs its
+    /// step 7 only when [`LotActivation::continues`] (TN1).
+    pub fn lot_activated_outcome(&self, lot: u64) -> LotActivation {
         self.run(|cx| cx.lot_activated(lot))
     }
 

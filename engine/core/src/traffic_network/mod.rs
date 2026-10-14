@@ -52,6 +52,9 @@
 //! - The water depth map is private (§9: "a replacement may keep it
 //!   private").
 //! - Slots 40–42 return true where the original returns garbage (§7.1).
+//! - The DoPostCityInit re-read **replaces** a switch's rules where the
+//!   original appends them (§4.7.2, TN3), so a load then a save reproduces
+//!   the file.
 //! - Host containers (occupant lists, path-info vectors, neighbour lists)
 //!   are plain `Vec`s; their allocators (§9) are the glue's business.
 //!
@@ -90,7 +93,7 @@ pub use model::{
     SwitchQueryTarget, TrafficEdgeDensity, ARRAY_LEN, ARRAY_SIDE, EDGE_DENSITY_ZERO,
 };
 pub use neighbours::{Edge, NeighbourEdge};
-pub use switches::{read_rules, u32_entries, Rule, RuleSet, TransitSwitch};
+pub use switches::{read_rules, rule_bytes, rule_entries, LotActivation, Rule, RuleSet, TransitSwitch};
 pub use tuning::Tuning;
 pub use tunnels::{inverse_max_speed, tunnel_costs, tunnel_distance, InvMaxSpeed, TunnelInfo};
 pub use water::{depth_byte, encode_route, heuristic, step_cost, WaterPath, WaterPathFinder};
@@ -109,10 +112,9 @@ pub const CLSID_TRAFFIC_SIMULATOR: u32 = 0x6990_C1AA;
 pub const IID_TRAFFIC_SIMULATOR: u32 = 0x6802_7F37;
 
 /// The transit-switch grids (§1 step 5, §2.3): a `uint8` mode-mask grid and a
-/// `uint32` switch-ID grid, both saved. traffic-simulator.md §1 lists these
-/// two numbers as the grids' **IDs** (`SetID`), with the framework's `uint8`
-/// / `uint32` grid classes; FreeCity4 passes them as the instance ID to
-/// [`GridProvider::create_grid`].
+/// `uint32` switch-ID grid, both saved. These two numbers are the grids'
+/// **instance IDs** (grid slot 6 `SetInstanceID`, TN13), not classes;
+/// FreeCity4 passes them as the instance ID to [`GridProvider::create_grid`].
 pub const SWITCH_MODE_GRID_ID: u32 = 0x69D5_C424;
 pub const SWITCH_ID_GRID_ID: u32 = 0x69D5_C42D;
 /// The water depth map's grid type and instance ID (§4.10.1). FreeCity4
@@ -172,7 +174,8 @@ pub mod ferry_prop {
 
 /// Building / lot properties the network reads (§2.4, §4.7, §4.9, §4.12).
 pub mod prop {
-    /// Transit-switch rules (a u32 array, §4.7.2).
+    /// Transit-switch rules (raw bytes, 4 per rule; a u8 array in every
+    /// shipped exemplar, §4.7.2).
     pub const SWITCH_RULES: u32 = 0xE90E_25A1;
     /// Transit-switch time factor (f32).
     pub const SWITCH_TIME_FACTOR: u32 = 0xE90E_25A2;
