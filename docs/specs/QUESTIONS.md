@@ -1674,8 +1674,11 @@ brackets.
 - ~~**FL3:** a tract-size difference between the original and ours is reported as `INCOMPLETE`. [INCOMPLETE]~~
   **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. The original creates its grids
   with tract size 1 and never changes it, so a difference needs a save the original did not write (flammability.md §2).
-- **FL4:** the message server's delivery order to the original's target and to the mirror is unspecified; both read
-  the same game state. Is that enough? [assumed so]
+- ~~**FL4:** the message server's delivery order to the original's target and to the mirror is unspecified; both read
+  the same game state. Is that enough? [assumed so]~~ **ANSWERED 2026-10-14** and written into flammability.md §5.
+  **Yes, and the order is not unspecified**: one send delivers to the subscribers in subscription order (foundations
+  §5.1), so the original, which subscribes in `Init`, gets each message just before a later-subscribed mirror. The
+  handlers read nothing that the subscribers in between write *[inferred]*.
 - **FL5 — first in-game shadow (run 82, coordinator):** 64 of 65 compared cycles exact; in cycle 66 (2033-03-15)
   a 2×2 block of adjusted tracts, (7..8, 53..54), is 81 in the original and 65 in ours (max |d| 21; raw grid
   identical). One lot's flammability contribution changed in a way the mirror missed or counted differently: which

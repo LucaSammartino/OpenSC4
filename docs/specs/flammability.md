@@ -172,6 +172,22 @@ subscription set of §4.1 exactly and must not re-read its tuning on `0xC53D10AA
 Property `0x029244DB` is the **preview occupant** marker (foundations §5.2): the lot-placement and toll-booth tools
 set it on the temporary occupants they show under the cursor, and every grid simulator skips those occupants.
 
+**Delivery order of the six messages** (QUESTIONS FL4; foundations §5.1). All six are delivered by the message
+server's send: queued posts are sent from its tick, and a direct send runs at once. The send calls `DoMessage` on
+the subscribers of the type in **subscription order**, from a snapshot taken before the first call, and then on
+the wildcard subscribers. The order is therefore deterministic, not unspecified. This simulator subscribes in its
+`Init`, so any target that subscribes later (a shadow's mirror) receives each message after it, in the same send,
+with no other message in between. Only subscribers registered between the two can run in between. The handlers
+read only:
+- the occupant itself (type, property `0x29244DB5`, preview marker, bounding cells);
+- its lot's condition, through the lot manager;
+- the occupant manager's contents (removal, §6.3);
+- the ordinance factor and the season (g, §6.4).
+
+No other subscriber of these types writes those during its own `DoMessage` *[inferred from the other simulators'
+specs: their handlers write their own state, budget lines and, in plumbing's case, the occupant's property
+`0x2A58D350`, none of which this simulator reads]*. Both receivers see the same state, as the mirror assumes.
+
 Same-day ordering: the day agent reads the plumbing simulator's watered state (`IsCellWatered`) and the zone
 manager's zone types as they stand when it runs. No result of another level-4 agent of the same day is needed
 *[inferred]*; registration order is acceptable (foundations §13).
