@@ -545,7 +545,12 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   `0x00915B85`): **the bracket does not match.** RZChar and Char are **sign-extended** for integer and float
   targets: RZChar `0xE9` read as Uint32 gives `0xFFFFFFE9`, as Float32 −23.0. Only RZUnicodeChar is zero-extended
   (data-formats.md §5.1).
-- **EX5:** what do the getters return for Empty or object values? [None]
+- ~~**EX5:** what do the getters return for Empty or object values? [None]~~ **ANSWERED 2026-10-14** from the exe
+  (`0x00917350`, `0x00916EAA`, `0x009167C5`): **the bracket does not match.** Both take the text round trip. Empty
+  becomes empty text, which parses as 0, so the getters succeed with 0, 0.0 or false. An object becomes its
+  `cIGZString` text or its address as `0x%08x`, so `GetProperty(id, uint32&)` returns its address. The string
+  getter writes the text but returns false for every non-string type. The object case is a *[choice]*: missing
+  (data-formats.md §5.1).
 - **EX6:** Char, RZUnicodeChar and void arrays in the text round trip. [Char and RZUnicodeChar arrays as text; a void
   array gives its first byte as `%u`]
 - **EX7:** an RZChar scalar as a string. [that one character]

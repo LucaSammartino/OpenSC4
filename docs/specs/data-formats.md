@@ -428,6 +428,18 @@ floating point (round trip below) is truncated the same way for integer targets.
 read as Uint32 gives `0xFFFFFFE9`, as Sint16 −23, as Float32 −23.0, and as Uint8 `0xE9` (only the low byte is
 kept); RZUnicodeChar `0xFFE9` read as Uint32 gives 65,513.
 
+**Empty and object values.** An Empty value (memory type 0, §4.2) and an object value (IGZUnknown `0x10`) always
+take the text round trip: `ConvertTypes` (`0x00917350`) sends memory type 0 and every type above `0x0E` there.
+Empty becomes the empty text, which parses as the unsigned number 0, so every converting getter **succeeds**:
+integer and char targets 0, Float32 and Float64 0.0, Bool false; `GetProperty(id, uint32&)` returns true and 0. An
+object becomes the object's own text if it answers `cIGZString` (`0x089B7DC8`), otherwise its address printed as
+`0x%08x`; that text parses as hexadecimal, so `GetProperty(id, uint32&)` returns true and the **object's address**
+(0 for a null object). `GetValString`, and with it `GetProperty(id, cIGZString&)` (`0x009172A1`), returns true only
+for a string (RZChar array) or a string object. For every other type, Empty included, it **writes the round-trip
+text into the output and returns false**: a Uint32 7 gives the text `7` and false. *[choice]* FreeCity4 does the
+same for Empty, and treats an object value as a missing property (false, output unchanged), because the original's
+result is a heap address. Only kind-1 properties (§4.6) hold objects, and no shipped record has one.
+
 **Text round trip** (arrays and strings): the source is turned into text, then the text is parsed into the target.
 
 - Text of an array is its **first element** only (`%u` / `%d` / `%llu` / `%lld` for integers, the locale-free
