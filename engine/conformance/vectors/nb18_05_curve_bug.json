@@ -2,7 +2,7 @@
   "format": 1,
   "name": "nb18_05_curve_bug",
   "spec": ["neighbors 8.2", "neighbors 8.3", "neighbors 14.1", "neighbors 18"],
-  "description": "Conformance test 5. Init loads the scarcity curve 0x0A469353: test 3 prices 263. One UpdateCommodityStats with a sanitation department loads the garbage curve 0x4B61FFC9 into the same curve object: test 3 then prices 221 (the power figures 300 / 500 keep test 3's statistics). Without the department, or without the property, it still prices 263. [choice] The two-curve switch (off by default) keeps the scarcity curve.",
+  "description": "Conformance test 5. Init loads the scarcity curve 0x0A469353: test 3 prices 263. One UpdateCommodityStats with a sanitation department loads the garbage curve 0x4B61FFC9 into the same curve object: test 3 then prices 221 (the power figures 300 / 500 keep test 3's statistics). Without the department, or without the property, it still prices 263. UpdateCommodityStats acts only for the current city object (NB12, the argument city): a regional city (2, or our own regional city 1), null, or the current city object with no current regional city ([choice]: return at once) do nothing. [choice] The two-curve switch (off by default) keeps the scarcity curve.",
   "steps": [
     {"op": "neighbors_env", "current": 1, "figures": {"power_production": 300, "power_requirement": 500, "sanitation_department_expenses": 0}},
     {"op": "neighbors_city", "id": 1, "pos": [3, 3], "size": [1, 1], "stats": {"demanded": [500, 0, 0], "produced": [300, 0, 0]}},
@@ -10,32 +10,40 @@
 
     {"op": "neighbors_create"},
     {"op": "neighbors_call", "method": "get_deal_cost_trunc", "args": ["E0", 100, 2], "expect": 263},
-    {"op": "neighbors_call", "method": "update_commodity_stats", "args": [1]},
+    {"op": "neighbors_call", "method": "update_commodity_stats", "args": ["city"]},
     {"op": "neighbors_expect", "city": 1, "city_state": {"produced": [300, 0, 0], "demanded": [500, 0, 0]}},
     {"op": "neighbors_call", "method": "get_deal_cost", "args": ["E0", 100, 2], "expect": 221.50418},
     {"op": "neighbors_call", "method": "get_deal_cost_trunc", "args": ["E0", 100, 2], "expect": 221},
 
     {"op": "neighbors_env", "figures": {"sanitation_department_expenses": null}},
     {"op": "neighbors_create"},
-    {"op": "neighbors_call", "method": "update_commodity_stats", "args": [1]},
+    {"op": "neighbors_call", "method": "update_commodity_stats", "args": ["city"]},
     {"op": "neighbors_call", "method": "get_deal_cost_trunc", "args": ["E0", 100, 2], "expect": 263},
     {"op": "neighbors_expect", "city": 1, "city_state": {"cost_per_unit": [0.00001, 0.00001, 0.00001]}},
 
     {"op": "neighbors_env", "figures": {"sanitation_department_expenses": 0}, "tuning_remove": ["0x4B61FFC9"]},
     {"op": "neighbors_create"},
-    {"op": "neighbors_call", "method": "update_commodity_stats", "args": [1]},
+    {"op": "neighbors_call", "method": "update_commodity_stats", "args": ["city"]},
     {"op": "neighbors_call", "method": "get_deal_cost_trunc", "args": ["E0", 100, 2], "expect": 263},
 
     {"op": "neighbors_env", "tuning": "shipped"},
     {"op": "neighbors_create"},
     {"op": "neighbors_call", "method": "set_two_curves", "args": [true]},
-    {"op": "neighbors_call", "method": "update_commodity_stats", "args": [1]},
+    {"op": "neighbors_call", "method": "update_commodity_stats", "args": ["city"]},
     {"op": "neighbors_call", "method": "get_deal_cost_trunc", "args": ["E0", 100, 2], "expect": 263},
 
     {"op": "neighbors_create"},
     {"op": "neighbors_call", "method": "update_commodity_stats", "args": [2]},
     {"op": "neighbors_call", "method": "get_deal_cost_trunc", "args": ["E0", 100, 2], "expect": 263},
     {"op": "neighbors_call", "method": "update_commodity_stats", "args": [1]},
+    {"op": "neighbors_call", "method": "get_deal_cost_trunc", "args": ["E0", 100, 2], "expect": 263},
+    {"op": "neighbors_call", "method": "update_commodity_stats", "args": [null]},
+    {"op": "neighbors_call", "method": "get_deal_cost_trunc", "args": ["E0", 100, 2], "expect": 263},
+    {"op": "neighbors_env", "current": null},
+    {"op": "neighbors_call", "method": "update_commodity_stats", "args": ["city"]},
+    {"op": "neighbors_env", "current": 1},
+    {"op": "neighbors_call", "method": "get_deal_cost_trunc", "args": ["E0", 100, 2], "expect": 263},
+    {"op": "neighbors_call", "method": "update_commodity_stats", "args": ["city"]},
     {"op": "neighbors_call", "method": "get_deal_cost_trunc", "args": ["E0", 100, 2], "expect": 221}
   ]
 }

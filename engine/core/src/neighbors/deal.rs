@@ -18,9 +18,11 @@ use crate::stream::{InStream, OutStream, SaveObject};
 /// The record version written (§5.6).
 pub const DEAL_RECORD_VERSION: u16 = 5;
 
-/// The Julian day of the date class's default, the initial value of the four
-/// dates (§5.1). *[choice]* The spec does not give the number; 0 (spec
-/// question).
+/// The initial value of the four dates (§5.1). *[choice]* (NB1) The
+/// original default-constructs them from the wall clock (`0x0091307C`:
+/// `time`, `localtime`, then `Jday`), so its value depends on the day the
+/// deal is built; the core uses 0. The date survives only in fields nothing
+/// reads before overwriting them.
 pub const DEFAULT_DATE: u32 = 0;
 
 /// A deal's state (§5.1), also the snapshot form of a deal the region holds
@@ -275,7 +277,9 @@ impl NeighborDeal {
     /// `UpdateCost()`: unless Grace or Probation, `cost :=
     /// trunc_s64(GetDealCost(type, amount, other-side city))` through the
     /// current city's simulator, 1 when that is 0; report status 0 (posted).
-    /// *[choice]* Without a simulator nothing changes.
+    /// *[choice]* (NB5) Without a simulator nothing changes and nothing is
+    /// reported; the original (`0x006CF9C0`) checks neither the global city
+    /// nor its simulator and crashes.
     pub fn update_cost(self: &Rc<Self>) {
         if self.check_flags_or(flag::GRACE | flag::PROBATION) {
             return;
@@ -322,16 +326,21 @@ impl NeighborDeal {
         self.set_amount(0);
     }
 
-    /// `Activate()`: if Proposed and none of `0x38`: Active on, Proposed and
-    /// Cancelled off, true; else false. *[choice]* The flag changes are
-    /// direct, without the status 0 reports of `SetFlags` (the caller reports
-    /// status 1; spec question).
-    pub fn activate(&self) -> bool {
-        let mut d = self.d.borrow_mut();
-        if d.flags & flag::PROPOSED == 0 || d.flags & flag::FAILURES != 0 {
+    /// `Activate()` (§5.4, NB2, `0x006CE640`): if Proposed and none of
+    /// `0x38`, three calls through [`Self::set_flags`]: `(Active, true)`,
+    /// `(Proposed, false)`, `(Cancelled, false)`, in that order, then true;
+    /// else false. Each call that changes the flags of a non-Silent deal
+    /// posts a status 0 report, so a Proposed, non-Cancelled, non-Silent deal
+    /// posts two. Cancelled is not in `0x38`: a cancelled proposal is
+    /// activated too.
+    pub fn activate(self: &Rc<Self>) -> bool {
+        let flags = self.flags();
+        if flags & flag::PROPOSED == 0 || flags & flag::FAILURES != 0 {
             return false;
         }
-        d.flags = (d.flags | flag::ACTIVE) & !(flag::PROPOSED | flag::CANCELLED);
+        self.set_flags(flag::ACTIVE, true);
+        self.set_flags(flag::PROPOSED, false);
+        self.set_flags(flag::CANCELLED, false);
         true
     }
 

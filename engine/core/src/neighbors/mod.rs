@@ -33,10 +33,17 @@
 //! - `RequestCreateConnection` returns [`ConnectionRequest`]: the shim shows
 //!   the dialog, §6.2.
 //! - `GetAdjacentCities` orders the cities by region position (x, then z),
-//!   §9.1.
+//!   §9.1 (NB14: the original's order is by heap address).
 //! - Unknown deal types price at 0, §8.1.
 //! - A missing `0xEA46934F` in `UpdateCommodityStats` makes the free-landfill
-//!   term 0, §12.
+//!   term 0, §12 (NB13: the original reads an uninitialized float).
+//! - The four dates start at [`DEFAULT_DATE`] = 0, §5.1 (NB1: the original's
+//!   default is the wall-clock day).
+//! - Paths where the original crashes on a null do nothing instead:
+//!   `UpdateCost` without a simulator (NB5), a null reference in the
+//!   connection list on read (NB7), `UpdateState`'s budget test without a
+//!   current regional city (NB15, and the missing payer at renewal, NB16),
+//!   `UpdateCommodityStats` without a current regional city (NB12).
 //! - The proposal generator (`cRZRandom`, double path) is created on first use
 //!   with `derive_seed(session, 0xC990C0A4)` (foundations §6.3, a temporary
 //!   seeded from the clock, `n = 0`). It belongs to the simulator object, not
@@ -83,6 +90,11 @@ pub const AGENT_FLAGS: u32 = 2;
 
 /// A regional city (`cISC4RegionalCity`), as a host token.
 pub type CityId = u64;
+
+/// A city object (`cISC4City`), as a host token: the subject of
+/// `UpdateCommodityStats` (§8.2, NB12), compared by identity with the current
+/// city. A different object from any regional city, our own included.
+pub type CityHandle = u64;
 
 /// One region cell holds 64 city cells (§2.1).
 pub const REGION_CELL: i32 = 64;
@@ -336,8 +348,10 @@ pub fn neighbouring_region_cell(side: Side, x: i32, z: i32, pos: (i32, i32), siz
 
 /// The neighbour's connection cell (§2.2 table), with `(rx, rz)` the
 /// neighbouring region cell and the neighbour at `npos` with size `nsize`.
-/// `mod` is the C remainder. `None` for an interior cell [choice: the table
-/// has no row for it].
+/// `mod` is the C remainder. An interior cell gives `(0, 0)` (NB6,
+/// `0x006CE920`: the outputs start zeroed and the side switch has no interior
+/// case); the helper fails only when there is no city at `(rx, rz)`, which is
+/// the caller's lookup.
 pub fn neighbour_connection_cell(
     side: Side,
     x: i32,
@@ -345,16 +359,16 @@ pub fn neighbour_connection_cell(
     region_cell: (i32, i32),
     npos: (i32, i32),
     nsize: (i32, i32),
-) -> Option<(i32, i32)> {
+) -> (i32, i32) {
     let (rx, rz) = region_cell;
     let (qx, qz) = npos;
     let (tx, tz) = nsize;
     match side {
-        Side::East => Some((-1, z % REGION_CELL + (rz - qz) * REGION_CELL)),
-        Side::West => Some((tx * REGION_CELL, z % REGION_CELL + (rz - qz) * REGION_CELL)),
-        Side::North => Some((x % REGION_CELL + (rx - qx) * REGION_CELL, tz * REGION_CELL)),
-        Side::South => Some((x % REGION_CELL + (rx - qx) * REGION_CELL, -1)),
-        Side::Interior => None,
+        Side::East => (-1, z % REGION_CELL + (rz - qz) * REGION_CELL),
+        Side::West => (tx * REGION_CELL, z % REGION_CELL + (rz - qz) * REGION_CELL),
+        Side::North => (x % REGION_CELL + (rx - qx) * REGION_CELL, tz * REGION_CELL),
+        Side::South => (x % REGION_CELL + (rx - qx) * REGION_CELL, -1),
+        Side::Interior => (0, 0),
     }
 }
 
@@ -443,6 +457,9 @@ pub trait NeighborsHost {
     // ---- region ----
     /// The current city's regional record.
     fn current_city(&self) -> Option<CityId>;
+    /// The current city object (the game's global `cISC4City` pointer), or
+    /// none (§8.2, NB12).
+    fn current_city_object(&self) -> Option<CityHandle>;
     /// `region.GetCity(rx, rz)`.
     fn city_at(&self, rx: i32, rz: i32) -> Option<CityId>;
     /// `GetPosition()` and `GetCitySize()` in region cells.
@@ -487,9 +504,9 @@ pub trait NeighborsHost {
     // ---- markers (§6.3, §6.4, §11.1) ----
     /// `CellCenterToPosition(x, z)`.
     fn cell_center(&self, x: i32, z: i32) -> (f32, f32);
-    /// `terrain.GetAltitude(x, z)` with the connection cell **as given** to
-    /// `CreateConnection` (§6.3 literal; spec question).
-    fn marker_altitude(&self, x: i32, z: i32) -> f32;
+    /// `terrain.GetAltitude(px, pz)` at a world position: §6.3 asks it at
+    /// the inner cell's centre, the point the marker is placed at (NB3).
+    fn marker_altitude(&self, px: f32, pz: f32) -> f32;
     /// `terrain.GetMaxSurfaceLevel(x, z)` for the inner cell (§11.1).
     fn max_surface_level(&self, x: i32, z: i32) -> f32;
     /// Inserts the marker prop `0x29F10000` with the given bool properties

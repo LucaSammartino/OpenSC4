@@ -15,8 +15,8 @@ use super::pricing::{deal_cost, deal_max_amount, CommodityStats, PriceInputs};
 use super::tuning::{curve_of, prop, Tuning};
 use super::{
     conn_type, deal_type, flag, history, inner_cell, msg, neighbour_connection_cell, neighbouring_region_cell,
-    occupant, side_of, status, CityId, ForeignConnection, NeighborsHost, NeighborsMessage, Side, Stat, AGENT_FLAGS,
-    AGENT_LEVELS, AGENT_NAME, CLSID_NEIGHBORS_SIMULATOR, ELEVATED_MARKER_HEIGHT, IID_MESSAGE_TARGET2,
+    occupant, side_of, status, CityHandle, CityId, ForeignConnection, NeighborsHost, NeighborsMessage, Side, Stat,
+    AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, CLSID_NEIGHBORS_SIMULATOR, ELEVATED_MARKER_HEIGHT, IID_MESSAGE_TARGET2,
     IID_NEIGHBORS_SIMULATOR, IID_NEIGHBOR_CONNECTION, IID_SERIALIZABLE, IID_UNKNOWN, PROPOSAL_SEED_KEY,
 };
 use crate::curve::ResponseCurve;
@@ -378,12 +378,14 @@ impl NeighborsSimulator {
     }
 
     /// The neighbour's connection cell of `(x, z)` (§2.2) and the neighbour.
+    /// `None` without a current regional record or a city at the region
+    /// cell. An interior cell finds our own regional city and `(0, 0)` (NB6).
     pub fn neighbour_cell(&self, x: i32, z: i32) -> Option<(CityId, (i32, i32))> {
         let (cx, cz) = self.host.cell_counts();
         let side = side_of(x, z, cx, cz);
         let (rx, rz) = self.neighbouring_region_cell(x, z)?;
         let n = self.host.city_at(rx, rz)?;
-        let cell = neighbour_connection_cell(side, x, z, (rx, rz), self.host.city_position(n), self.host.city_size(n))?;
+        let cell = neighbour_connection_cell(side, x, z, (rx, rz), self.host.city_position(n), self.host.city_size(n));
         Some((n, cell))
     }
 
@@ -435,7 +437,9 @@ impl NeighborsSimulator {
             let (cx, cz) = self.host.cell_counts();
             let (ix, iz) = inner_cell(x, z, cx, cz);
             let (px, pz) = self.host.cell_center(ix, iz);
-            let mut y = self.host.marker_altitude(x, z);
+            // NB3: the height is taken at the inner cell's centre, the point
+            // the prop is placed at; the connection cell is not used.
+            let mut y = self.host.marker_altitude(px, pz);
             if conn_type::is_elevated(t) {
                 y += ELEVATED_MARKER_HEIGHT;
             }
@@ -588,7 +592,9 @@ impl NeighborsSimulator {
     }
 
     /// `GetAdjacentCities(list, includeUnestablished)` (§9.1). *[choice]*
-    /// Ordered by region position (x, then z).
+    /// (NB14) Ordered by region position (x, then z): the original collects
+    /// into a `std::set` of pointers (`0x006D01E0`), ordered by heap address,
+    /// which cannot be reproduced.
     pub fn adjacent_cities(&self, include_unestablished: bool) -> Vec<CityId> {
         let Some((_, (px, pz), (sx, sz))) = self.current_geometry() else {
             return Vec::new();
@@ -797,8 +803,10 @@ impl NeighborsSimulator {
         e
     }
 
-    /// `UpdateState()` (§7.3 step 1). *[choice]* Without a current regional
-    /// city the budget test is skipped.
+    /// `UpdateState()` (§7.3 step 1). *[choice]* (NB15) Without a current
+    /// regional city the budget test (`cost > budget`) is skipped; the
+    /// original dereferences the missing city for a buy deal and crashes
+    /// (`0x006CF386`). Sell deals never use it.
     pub(crate) fn update_deal_state(&self, d: &Rc<NeighborDeal>) {
         let r = self.host.current_city();
         let t = d.deal_type();
@@ -858,9 +866,8 @@ impl NeighborsSimulator {
         if !self.ready.get() {
             return list;
         }
-        let r = self.host.current_city();
-        self.update_commodity_stats(r);
-        let Some(r) = r else { return list };
+        self.update_commodity_stats(self.host.current_city_object());
+        let Some(r) = self.host.current_city() else { return list };
         let t = self.tuning();
         let min_budget = f64::from(t.proposal_min_budget);
         let cost_factor = f64::from(t.proposal_cost_factor);
@@ -976,11 +983,19 @@ impl NeighborsSimulator {
     }
 
     /// `UpdateCommodityStats(city)` (§8.2): only for the current city.
-    pub fn update_commodity_stats(&self, city: Option<CityId>) {
-        let Some(r) = city else { return };
-        if self.host.current_city() != Some(r) {
+    ///
+    /// The subject is the city object (`cISC4City`), compared by identity
+    /// with the current one (NB12, `0x006D2A2C`–`0x006D2A46`): null or any
+    /// other handle, our own regional city's included, does nothing. `R` is
+    /// then the current regional city; *[choice]* without one this returns
+    /// at once (the original does not null-check it and crashes,
+    /// `0x006D2A6C`).
+    pub fn update_commodity_stats(&self, city: Option<CityHandle>) {
+        let Some(c) = city else { return };
+        if self.host.current_city_object() != Some(c) {
             return;
         }
+        let Some(r) = self.host.current_city() else { return };
         // 1.
         let f = self.host.utility_figures();
         self.host.set_city_budget(r, f.total_funds);
@@ -1018,8 +1033,11 @@ impl NeighborsSimulator {
                     (produced, f.water_demand, cpu)
                 }
                 _ => {
-                    // [choice] A missing 0xEA46934F makes the free-landfill
-                    // term 0 (§12); a present value divides literally.
+                    // [choice] (NB13) A missing 0xEA46934F makes the
+                    // free-landfill term 0 (§12): the original divides by an
+                    // uninitialized stack float (0x006D2AE3), so its result
+                    // is undefined. A present value divides literally (0
+                    // gives +inf, or NaN with no free capacity).
                     let landfill = match tuning.max_term_years {
                         None => 0.0,
                         Some(years) => self.free_landfill() / (12.0 * f64::from(years)),
@@ -1135,10 +1153,10 @@ impl NeighborsSimulator {
         }
         self.busy.set(true);
         let city = self.host.current_city();
-        self.update_commodity_stats(city);
+        self.update_commodity_stats(self.host.current_city_object());
         if !self.ui_disabled.get() {
             self.run_deals(city);
-            self.update_commodity_stats(city);
+            self.update_commodity_stats(self.host.current_city_object());
         }
         self.push(self.deals_dirty.get(), self.stats_dirty.get());
         self.busy.set(false);
@@ -1202,7 +1220,10 @@ impl NeighborsSimulator {
                             r
                         };
                         d.update_cost();
-                        // [choice] A missing payer cannot afford.
+                        // [choice] (NB16) A missing payer cannot afford.
+                        // The original does not null-check it (0x006D13A5)
+                        // but cannot reach the case; the core can, through
+                        // the NB15 choice.
                         let affordable = payer.is_some_and(|p| self.host.city_budget(p) >= d.cost() as f64);
                         if !affordable {
                             d.set_flags(flag::CANNOT_AFFORD, true);
@@ -1267,8 +1288,12 @@ impl NeighborsSimulator {
     }
 
     /// §13: fails unless `version == 2`; each reference resolved as a
-    /// connection is appended (the list is not cleared first). *[choice]*
-    /// References that are not core connections are skipped.
+    /// connection is appended (the list is not cleared first). Failing
+    /// references (wrong interface, unknown class) are skipped, as in the
+    /// original. *[choice]* (NB7) A null reference is skipped too; the
+    /// original appends it and then releases it unchecked (`0x006CFEC5`),
+    /// crashing inside `Read`. A version other than 2 fails right after the
+    /// `u16`, and the store ignores the result (NB11).
     pub fn read(&self, inp: &mut dyn InStream) -> bool {
         if inp.get_u16() != Some(SIMULATOR_RECORD_VERSION) {
             return false;

@@ -236,15 +236,21 @@ pub fn redrawn_cells(hx: i32, hz: i32) -> [(i32, i32); 4] {
     [(hx, hz), (hx + 1, hz), (hx, hz + 1), (hx + 1, hz + 1)]
 }
 
-/// The spiral of §4.7.5 (`AddZot`): "spiral outward from the centre cell
-/// (clipped to the zone rect, centre first) to the first mask cell".
+/// The spiral of §4.7.5 (`AddZot`): the plumbing §7.2 `SpiralIterator` in
+/// its clockwise mode, started at `centre` and boxed by `rect` (LF4,
+/// `0x006BB3B0`–`0x006BB4DA`).
 ///
-/// *[choice]* The spec does not pin the spiral's shape, so this walks Chebyshev
-/// rings `r = 0, 1, 2, …` around the centre, clipped to `rect`, each ring
-/// clockwise from its top-left corner: top row left→right, right column
-/// top→bottom, bottom row right→left, left column bottom→top. `r = 0` is the
-/// centre cell alone. The first mask cell wins; with no mask cell the caller
-/// uses the centre cell.
+/// The order is `centre`, then ring by ring. Ring `r` starts at `(cx + r,
+/// cz − r + 1)` and runs +z up the column `x = cx + r` to `(cx + r, cz + r)`,
+/// then −x along the row `z = cz + r`, −z down the column `x = cx − r` and +x
+/// along the row `z = cz − r`, ending at the corner `(cx + r, cz − r)`. Ring 1
+/// is `(cx+1, cz)`, `(cx+1, cz+1)`, `(cx, cz+1)`, `(cx−1, cz+1)`, `(cx−1, cz)`,
+/// `(cx−1, cz−1)`, `(cx, cz−1)`, `(cx+1, cz−1)`. Cells outside `rect` are
+/// skipped one by one; the walk ends after ring `max(cx − x0, x1 − cx, cz −
+/// z0, z1 − cz)`, so every rect cell is visited exactly once. The original
+/// tests the centre twice (before the first `GetNext` and as its result); the
+/// repeat has no effect and is not listed. The first mask cell wins; with no
+/// mask cell the caller uses the centre cell.
 pub fn spiral_cells(rect: CellRect, centre: (i32, i32)) -> Vec<(i32, i32)> {
     let (cx, cz) = centre;
     // The largest ring that still touches the rect.
@@ -254,29 +260,24 @@ pub fn spiral_cells(rect: CellRect, centre: (i32, i32)) -> Vec<(i32, i32)> {
         .max(rect.z2 - cz)
         .max(0);
     let mut out = Vec::new();
-    for r in 0..=r_max {
-        if r == 0 {
-            if rect.x1 <= cx && cx <= rect.x2 && rect.z1 <= cz && cz <= rect.z2 {
-                out.push((cx, cz));
-            }
-            continue;
-        }
+    push_clipped(&mut out, rect, cx, cz);
+    for r in 1..=r_max {
         let (x0, z0, x1, z1) = (cx - r, cz - r, cx + r, cz + r);
-        // Top row, left to right.
-        for x in x0..=x1 {
-            push_clipped(&mut out, rect, x, z0);
-        }
-        // Right column, below the top row.
+        // +z up the column x = cx + r, from cz − r + 1 to cz + r.
         for z in z0 + 1..=z1 {
             push_clipped(&mut out, rect, x1, z);
         }
-        // Bottom row, right to left (below the top row).
+        // −x along the row z = cz + r, from cx + r − 1 to cx − r.
         for x in (x0..x1).rev() {
             push_clipped(&mut out, rect, x, z1);
         }
-        // Left column, bottom to top (between the two rows).
-        for z in (z0 + 1..z1).rev() {
+        // −z down the column x = cx − r, from cz + r − 1 to cz − r.
+        for z in (z0..z1).rev() {
             push_clipped(&mut out, rect, x0, z);
+        }
+        // +x along the row z = cz − r, from cx − r + 1 to cx + r.
+        for x in x0 + 1..=x1 {
+            push_clipped(&mut out, rect, x, z0);
         }
     }
     out
@@ -495,16 +496,59 @@ mod tests {
         sorted.sort_unstable();
         sorted.dedup();
         assert_eq!(sorted.len(), 9);
-        // Ring 1 is the eight neighbours, clockwise from the top-left.
+        // Ring 1 starts at (cx+1, cz) and runs +z, −x, −z, +x (LF4).
         assert_eq!(
             &s[1..9],
-            &[(0, 0), (1, 0), (2, 0), (2, 1), (2, 2), (1, 2), (0, 2), (0, 1)]
+            &[(2, 1), (2, 2), (1, 2), (0, 2), (0, 1), (0, 0), (1, 0), (2, 0)]
         );
         // Clipped: a centre on the rect's corner still visits every cell.
         let s = spiral_cells(CellRect::new(0, 0, 1, 1), (0, 0));
-        assert_eq!(s[0], (0, 0));
-        assert_eq!(s.len(), 4);
+        assert_eq!(s, [(0, 0), (1, 0), (1, 1), (0, 1)]);
         // A 1×1 rect: the centre alone.
         assert_eq!(spiral_cells(CellRect::new(3, 4, 3, 4), (3, 4)), [(3, 4)]);
+    }
+
+    #[test]
+    fn spiral_ring_two_and_the_worked_examples() {
+        // Ring 2 of an unclipped 5×5: starts at (cx+2, cz−1), ends at
+        // (cx+2, cz−2), 16 cells.
+        let s = spiral_cells(CellRect::new(0, 0, 4, 4), (2, 2));
+        assert_eq!(s.len(), 25);
+        assert_eq!(s[9], (4, 1));
+        assert_eq!(s[24], (4, 0));
+        assert_eq!(
+            &s[9..25],
+            &[
+                (4, 1),
+                (4, 2),
+                (4, 3),
+                (4, 4),
+                (3, 4),
+                (2, 4),
+                (1, 4),
+                (0, 4),
+                (0, 3),
+                (0, 2),
+                (0, 1),
+                (0, 0),
+                (1, 0),
+                (2, 0),
+                (3, 0),
+                (4, 0)
+            ]
+        );
+        // §4.7.5 example 1: the 3×3 zone over (10..12, 20..22), centre
+        // (11, 21): the first ring-1 cell is (12, 21).
+        let s = spiral_cells(CellRect::new(10, 20, 12, 22), (11, 21));
+        assert_eq!(s[..2], [(11, 21), (12, 21)]);
+        // §4.7.5 example 2: x 10..14, z 20..22, centre (12, 21): ring 2
+        // clipped to the rect is (14, 20), (14, 21), (14, 22), (10, 22),
+        // (10, 21), (10, 20).
+        let s = spiral_cells(CellRect::new(10, 20, 14, 22), (12, 21));
+        assert_eq!(s.len(), 15);
+        assert_eq!(&s[9..], &[(14, 20), (14, 21), (14, 22), (10, 22), (10, 21), (10, 20)]);
+        // With only (10, 20) and (14, 22) set, (14, 22) comes first.
+        let hit = s.iter().find(|c| **c == (10, 20) || **c == (14, 22));
+        assert_eq!(hit, Some(&(14, 22)));
     }
 }

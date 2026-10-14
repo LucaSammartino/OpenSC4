@@ -388,8 +388,14 @@ impl ZoneDeveloper {
         self.st.borrow().virtual_created.iter().map(|(&k, &v)| (k, v)).collect()
     }
 
+    /// The cells virtually deleted in highlight mode, keyed by cell (§7.1).
     pub fn virtual_deleted(&self) -> Vec<((i32, i32), VirtualLot)> {
         self.st.borrow().virtual_deleted.iter().map(|(&k, &v)| (k, v)).collect()
+    }
+
+    /// The highlight point (`HighlightParcels`, §7.1); null outside a call.
+    pub fn highlight_point(&self) -> Option<(i32, i32)> {
+        self.st.borrow().highlight_point
     }
 
     fn map_index(&self, x: i32, z: i32) -> Option<usize> {
@@ -625,39 +631,55 @@ impl ZoneDeveloper {
         self.st.borrow_mut().current_zone = 0;
     }
 
-    /// Slot 5 `HighlightParcels(region, type, point, out)` (§7.1): the UI
-    /// preview. `out` receives the highlighted region.
+    /// Slot 5 `HighlightParcels(region, type, point, out)` (§7.1, ZQ4): the UI
+    /// preview. Stores the point, leaves real mode and sets the zone type;
+    /// for an RCI type clears the highlight and runs `OnZone(region, out)`
+    /// in highlight mode (`UpdateHighlightTextures` is UI and left out). In
+    /// every case real mode is then back on, the type 0 and the point null.
+    /// `out` is the caller's `SC4CellRegion**` (`None`: a null pointer); a
+    /// non-RCI type, or a custom-size success, leaves `*out` unwritten. The
+    /// virtual maps and the street tool's drafts are not cleared at the end.
     pub fn highlight_parcels(
         &self,
         region: &super::CellRegion,
         zone_type: i32,
         point: Option<(i32, i32)>,
-    ) -> Option<super::CellRegion> {
+        out: Option<&mut Option<super::CellRegion>>,
+    ) {
         {
             let mut s = self.st.borrow_mut();
+            s.highlight_point = point;
             s.real_mode = false;
             s.current_zone = zone_type;
-            s.highlight_point = point;
         }
-        let mut out = None;
         if is_rci_zone(zone_type) {
             self.clear_highlight();
-            out = self.on_zone(region, Some(region.compress()));
-            // UpdateHighlightTextures: UI, left out.
+            self.on_zone(region, out);
+            // UpdateHighlightTextures (0x0072DB60): UI, left out.
         }
-        self.st.borrow_mut().real_mode = true;
-        out
-    }
-
-    fn clear_highlight(&self) {
         let mut s = self.st.borrow_mut();
-        s.virtual_created.clear();
-        s.virtual_deleted.clear();
+        s.real_mode = true;
+        s.current_zone = 0;
+        s.highlight_point = None;
     }
 
-    /// `OnZone(region, out)` (§7.2). Returns the highlighted region when `out`
-    /// was requested.
-    fn on_zone(&self, region: &super::CellRegion, out: Option<super::CellRegion>) -> Option<super::CellRegion> {
+    /// `ClearHighlight` (`0x0072C0E0`, §7.1): empties the virtual-lot and
+    /// virtually-deleted maps and resets the street and road tools (network
+    /// tool slot 5); the dirt-road tool is **not** reset *[quirk]*. The
+    /// terrain view's slot 9 is UI and left out.
+    fn clear_highlight(&self) {
+        {
+            let mut s = self.st.borrow_mut();
+            s.virtual_created.clear();
+            s.virtual_deleted.clear();
+        }
+        self.host.reset_network_tool(network_kind::STREET);
+        self.host.reset_network_tool(network_kind::ROAD);
+    }
+
+    /// `OnZone(region, out)` (§7.2). `out` is the caller's `SC4CellRegion**`
+    /// (`None`: null); only `HighlightParcels` passes one.
+    fn on_zone(&self, region: &super::CellRegion, mut out: Option<&mut Option<super::CellRegion>>) {
         let custom = self.st.borrow().options.custom_zone_size;
         if custom {
             // Custom-size path (§7.2): the region becomes the restriction,
@@ -678,11 +700,12 @@ impl ZoneDeveloper {
                 self.host.release(lot);
             }
             self.st.borrow_mut().restriction = None;
-            return match out {
-                Some(_) if created.is_none() => Some(super::CellRegion::new(rect, false)),
-                Some(r) => Some(r),
-                None => None,
-            };
+            // On success *out is not written; the highlight point is not
+            // looked at on this path.
+            if let (Some(o), None) = (out, created) {
+                *o = Some(super::CellRegion::new(rect, false));
+            }
+            return;
         }
 
         // Normal path.
@@ -717,23 +740,31 @@ impl ZoneDeveloper {
         if components.is_empty() {
             components.push(super::CellRegion::empty());
         }
-        // 6. For each component.
-        let mut result = out;
-        let highlight = !self.st.borrow().real_mode;
+        // 6. *out := a new region with the input region's rect and bits
+        //    (cells that were not parcellizable stay set).
+        if let Some(o) = out.as_deref_mut() {
+            *o = Some(region.clone());
+        }
+        // For each component; with a highlight point P (set only by
+        // HighlightParcels) a component is processed only if it holds P or
+        // one of P's four neighbours, each tested only inside the city.
         let point = self.st.borrow().highlight_point;
+        let (cells_x, cells_z) = self.host.city_cell_counts();
         for comp in components {
-            let skip = match (highlight, point) {
-                (true, Some((px, pz))) => {
-                    !comp.includes(px, pz)
-                        && !comp.includes(px + 1, pz)
-                        && !comp.includes(px - 1, pz)
-                        && !comp.includes(px, pz + 1)
-                        && !comp.includes(px, pz - 1)
+            let skip = match point {
+                Some((px, pz)) => {
+                    let near = comp.includes(px, pz)
+                        || (px > 0 && comp.includes(px - 1, pz))
+                        || (px < cells_x - 1 && comp.includes(px + 1, pz))
+                        || (pz > 0 && comp.includes(px, pz - 1))
+                        || (pz < cells_z - 1 && comp.includes(px, pz + 1));
+                    !near
                 }
-                _ => false,
+                None => false,
             };
             if skip {
-                if let Some(r) = result.as_mut() {
+                // Its cells are cleared from *out; nothing else happens.
+                if let Some(Some(r)) = out.as_deref_mut() {
                     for &(x, z) in &comp.cells() {
                         r.set(x, z, false);
                     }
@@ -750,9 +781,20 @@ impl ZoneDeveloper {
             }
             self.st.borrow_mut().restriction = None;
         }
-        // 7. real mode: 0x0072B180(region) — not traced, left out.
+        // After the loop, with both P and out given: *out := the
+        // 4-connected component of *out holding P, cropped, if P's bit is
+        // set; otherwise null. The original reads P's bit without a bounds
+        // check; *[choice]* a P outside *out's rect is a clear bit.
+        if let (Some((px, pz)), Some(o)) = (point, out) {
+            *o = o
+                .as_ref()
+                .filter(|r| r.includes(px, pz))
+                .and_then(|r| r.components().into_iter().find(|c| c.includes(px, pz)))
+                .map(|c| c.compress());
+        }
+        // 7. real mode: 0x0072B180(region) — not traced, left out
+        //    (highlight mode skips it).
         self.host.post_defer_occupant_operations(false); // 8.
-        result
     }
 
     /// Test/conformance affordance for `DetermineLotSize` (test 30): sets
@@ -796,9 +838,10 @@ impl ZoneDeveloper {
 
         // 3. Best developer: the first candidate; a later one replaces it if
         //    its desirability is greater, or equal and its truncated demand
-        //    greater. [choice] A candidate the BDS does not have is skipped:
-        //    the original does not null-check it ([quirk]; the shipped BDS
-        //    has all eight).
+        //    greater. [choice] (ZQ7) A candidate the BDS does not have is
+        //    skipped: the original reads its vtable at once (`0x00732C72`)
+        //    and crashes; the shipped BDS has all eight. With none, the
+        //    no-best path.
         let mut best: Option<(u64, i16, i32)> = None; // (developer, desirability, bestDemand)
         for &t in candidates {
             let Some(dev) = self.host.bds_developer(t) else {
@@ -837,7 +880,7 @@ impl ZoneDeveloper {
             // 5. The configurations the filter `{purpose, wealth, stage}`
             //    accepts (`IsLotConfigurationIncluded` `0x0072A080`): purpose
             //    and wealth compatibility and growth stage ≤ stage (the u8
-            //    stage zero-extended, compared signed). The manager AddRefs each
+            //    stage zero-extended, compared signed, ZQ8). The manager AddRefs each
             //    accepted configuration once as it inserts it into the set.
             let purpose = self.host.dev_purpose(dev);
             let wealth = self.host.dev_wealth(dev);
@@ -859,14 +902,21 @@ impl ZoneDeveloper {
             configs = keyed.into_iter().map(|(_, cfg)| cfg).collect();
 
             // 6. The configuration whose capacity value is nearest to the
-            //    best developer's demand (strict `<`: the first wins).
-            let mut best_score: i64 = 0;
+            //    best developer's demand (strict `<`: the first wins). The
+            //    score is int32 arithmetic (ZQ9): the difference wraps, the
+            //    abs is two's-complement (|−2³¹| stays −2³¹), the best score
+            //    starts at 0x7FFFFFFF and the take test is signed `<`. So a
+            //    score of 0x7FFFFFFF is never taken and a wrapped −2³¹ is
+            //    never beaten.
+            let mut best_score: i32 = i32::MAX;
             for &cfg in &configs {
                 let Some(ids) = self.host.cfg_primary_building_ids(cfg) else {
                     continue;
                 };
                 let (sx, sz) = self.host.cfg_size(cfg);
-                if !((2..=3).contains(&sz) && sx <= 3) || (shallow && sz > 2) {
+                // [choice] (ZQ10) a configuration with sx = 0 fails the size
+                // filter (the original divides by it in step 7).
+                if !((2..=3).contains(&sz) && sx <= 3) || sx == 0 || (shallow && sz > 2) {
                     continue;
                 }
                 // min := 0x7FFFFFFF, max := 0x80000000, over the types of each
@@ -890,8 +940,8 @@ impl ZoneDeveloper {
                 let s = self.host.dev_desirability_shift(dev);
                 let k = 1i32.wrapping_shl(s).wrapping_shl(s);
                 let v = capacity_value(k, sx.wrapping_mul(sz), (min + max) / 2);
-                let score = (i64::from(v) - i64::from(best_demand)).abs();
-                if chosen.is_none() || score < best_score {
+                let score = v.wrapping_sub(best_demand).wrapping_abs();
+                if score < best_score {
                     chosen = Some(cfg);
                     best_score = score;
                 }
@@ -909,7 +959,7 @@ impl ZoneDeveloper {
         let (mut min_depth, mut max_depth) = (depth, depth);
         for &cfg in &configs {
             let (sx, sz) = self.host.cfg_size(cfg);
-            // [choice] A configuration of width 0 is skipped: the original
+            // [choice] (ZQ10) A configuration of width 0 is skipped: the original
             // divides by zero.
             if sx != 0 && width % sx == 0 {
                 min_depth = min_depth.min(sz);
@@ -1468,6 +1518,23 @@ impl ZoneDeveloper {
         self.st.borrow_mut().restriction = prev;
     }
 
+    /// Test/conformance affordance for `LayInJogStreets` (§7.12): sets
+    /// `region` as the restriction region (as §7.2 step 4 does with the
+    /// cropped region) and, with `highlight`, highlight mode; runs
+    /// `LayInJogStreets(region.rect, kind)`; restores both. Not part of the
+    /// interface.
+    pub fn lay_in_jog_streets_for_test(&self, region: &super::CellRegion, kind: u32, highlight: bool) {
+        let (prev, prev_real) = {
+            let mut s = self.st.borrow_mut();
+            let prev_real = std::mem::replace(&mut s.real_mode, !highlight);
+            (s.restriction.replace(region.clone()), prev_real)
+        };
+        self.lay_in_jog_streets(region.rect, kind);
+        let mut s = self.st.borrow_mut();
+        s.restriction = prev;
+        s.real_mode = prev_real;
+    }
+
     /// `DrawStreet(x1, z1, x2, z2, perCell)` (§7.10). Draws an automatic
     /// street along one cell line, only on cells of the restriction region R.
     /// The callers pass a horizontal or vertical line. "Place(a, b)" is the
@@ -1480,7 +1547,9 @@ impl ZoneDeveloper {
         let uz = (z2 - z1).signum();
         let step = |(x, z): (i32, i32)| (x + ux, z + uz);
         let back = |(x, z): (i32, i32)| (x - ux, z - uz);
-        let place = |a: (i32, i32), b: (i32, i32)| self.host.street_place(network_kind::STREET, a, b);
+        // Place passes realMode: in highlight mode the street is a draft.
+        let real_mode = self.st.borrow().real_mode;
+        let place = |a: (i32, i32), b: (i32, i32)| self.host.street_place(network_kind::STREET, a, b, real_mode);
 
         // 1. Single cell (start = end).
         if x1 == x2 && z1 == z2 {
@@ -1689,7 +1758,14 @@ impl ZoneDeveloper {
                 if count == 1 && one_side == line.wanted {
                     dead = true;
                 }
-                // Parallel test (real network only).
+                // Parallel test (ZQ4): "has that network" is
+                // ExistsNetworkOfType, so in highlight mode a street or
+                // dirt-road draft passes it. Avenue, road and one-way ask
+                // the real network only; the street and dirt road use
+                // §7.13's ExistsConnectionOfType written out inline,
+                // highlight-mode branch included (the type is ignored there).
+                let e1 = if line.horiz { 0 } else { 1 };
+                let e2 = if line.horiz { 2 } else { 3 };
                 for &(pflag, ptype) in &[
                     (net::AVENUE, network_kind::AVENUE),
                     (0x1u32, network_kind::ROAD),
@@ -1697,15 +1773,21 @@ impl ZoneDeveloper {
                     (net::STREET, network_kind::STREET),
                     (net::DIRT, network_kind::DIRT_ROAD),
                 ] {
-                    if let Some(occ) = self.get_network(x, z, pflag) {
-                        let e1 = if line.horiz { 0 } else { 1 };
-                        let e2 = if line.horiz { 2 } else { 3 };
-                        if self.host.connects_to_neighbor(occ, e1, ptype)
-                            || self.host.connects_to_neighbor(occ, e2, ptype)
-                        {
-                            parallel = true;
-                            break;
-                        }
+                    if !self.exists_network_of_type(x, z, pflag) {
+                        continue;
+                    }
+                    let connects = if pflag & (net::STREET | net::DIRT) != 0 {
+                        self.connection_on_edge(x, z, pflag, e1, ptype)
+                            || self.connection_on_edge(x, z, pflag, e2, ptype)
+                    } else {
+                        self.get_network(x, z, pflag).is_some_and(|occ| {
+                            self.host.connects_to_neighbor(occ, e1, ptype)
+                                || self.host.connects_to_neighbor(occ, e2, ptype)
+                        })
+                    };
+                    if connects {
+                        parallel = true;
+                        break;
                     }
                 }
                 if parallel {
@@ -1728,50 +1810,103 @@ impl ZoneDeveloper {
             .find(|&occ| self.host.network_has_any_flag(occ, flags) == Some(true))
     }
 
-    /// `ExistsConnectionOfType(x, z, flags, side, type)` (§7.13).
+    /// `ExistsConnectionOfType(x, z, flags, side, type)` (§7.13): the facing
+    /// side maps to the network edge `e = (side + 1) mod 4`, or −1 for a side
+    /// outside 0..3.
     fn exists_connection_of_type(&self, x: i32, z: i32, flags: u32, side: i32, net_type: u32) -> bool {
         let e = if (0..4).contains(&side) {
             (side + 1).rem_euclid(4)
         } else {
             -1
         };
+        self.connection_on_edge(x, z, flags, e, net_type)
+    }
+
+    /// The body of `ExistsConnectionOfType` on network edge `e` (§7.13; also
+    /// written out inline in `LayInJogStreets`' parallel test for the street
+    /// and dirt road, §7.12). The real occupant (`GetNetwork`) connecting on
+    /// `e` for `type` → true. Otherwise, only in highlight mode and only when
+    /// `flags & 0x808`: ask the street tool `OccupantExists(x, z, 0x8)`, then
+    /// the dirt-road tool `OccupantExists(x, z, 0x800)`, whichever bits are
+    /// set; the first that reports a draft decides with `byte e of mask ≠ 0`.
+    /// The type is ignored there, and the byte is taken by shifting the mask
+    /// right by `8·e`, so for e = −1 the x86 shift count wraps to 24 and byte
+    /// 3 (+z) is read *[quirk]*.
+    fn connection_on_edge(&self, x: i32, z: i32, flags: u32, e: i32, net_type: u32) -> bool {
         if let Some(occ) = self.get_network(x, z, flags) {
             if self.host.connects_to_neighbor(occ, e, net_type) {
                 return true;
             }
         }
-        // Highlight mode only, and only when flags & 0x808.
-        if !self.st.borrow().real_mode && (flags & 0x808) != 0 {
-            if e < 0 {
-                return false;
-            }
-            for &(tool_kind, flag) in &[
-                (network_kind::STREET, net::STREET),
-                (network_kind::DIRT_ROAD, net::DIRT),
-            ] {
-                if let Some(mask) = self.host.network_tool_occupant_exists(tool_kind, x, z, flag) {
-                    return mask[e as usize] != 0;
-                }
+        if self.st.borrow().real_mode || flags & (net::STREET | net::DIRT) == 0 {
+            return false;
+        }
+        let byte = (e as u32 & 3) as usize; // the shift count 8·e mod 32
+        for (tool_kind, flag) in [
+            (network_kind::STREET, net::STREET),
+            (network_kind::DIRT_ROAD, net::DIRT),
+        ] {
+            if let Some(mask) = self.host.network_tool_occupant_exists(tool_kind, x, z, flag) {
+                return mask[byte] != 0;
             }
         }
         false
     }
 
-    /// Slot 8 `ExistsNetworkOfType(x, z, flags)` (§8.8).
+    /// Slot 8 `ExistsNetworkOfType(x, z, flags)` (§8.8): a real network
+    /// occupant of the cell with any of `flags`. When none matches, in
+    /// highlight mode only: with the street bit the street tool's
+    /// `OccupantExists(x, z, 0x8)` decides and the dirt-road tool is **not**
+    /// asked even when the dirt-road bit is set too *[quirk]*; else with the
+    /// dirt-road bit the dirt-road tool's `OccupantExists(x, z, 0x800)`; else
+    /// false. The road tool is never asked.
     pub fn exists_network_of_type(&self, x: i32, z: i32, flags: u32) -> bool {
         if self.get_network(x, z, flags).is_some() {
             return true;
         }
-        // Highlight mode: also accept the street / dirt-road tool's draft.
-        if !self.st.borrow().real_mode {
-            if flags & net::STREET != 0 && self.host.network_tool_draft_at(network_kind::STREET, x, z) {
-                return true;
-            }
-            if flags & net::DIRT != 0 && self.host.network_tool_draft_at(network_kind::DIRT_ROAD, x, z) {
-                return true;
-            }
+        if self.st.borrow().real_mode {
+            return false;
         }
-        false
+        if flags & net::STREET != 0 {
+            self.host
+                .network_tool_occupant_exists(network_kind::STREET, x, z, net::STREET)
+                .is_some()
+        } else if flags & net::DIRT != 0 {
+            self.host
+                .network_tool_occupant_exists(network_kind::DIRT_ROAD, x, z, net::DIRT)
+                .is_some()
+        } else {
+            false
+        }
+    }
+
+    /// Test/conformance affordance for the draft queries (test 33d): runs
+    /// `ExistsConnectionOfType(x, z, flags, side, type)` in highlight mode
+    /// when `highlight` is set (real mode otherwise) and restores the mode.
+    /// Not part of the interface.
+    pub fn exists_connection_of_type_for_test(
+        &self,
+        x: i32,
+        z: i32,
+        flags: u32,
+        side: i32,
+        net_type: u32,
+        highlight: bool,
+    ) -> bool {
+        let prev = std::mem::replace(&mut self.st.borrow_mut().real_mode, !highlight);
+        let r = self.exists_connection_of_type(x, z, flags, side, net_type);
+        self.st.borrow_mut().real_mode = prev;
+        r
+    }
+
+    /// Test/conformance affordance for the draft queries (test 33d): slot 8
+    /// in highlight mode when `highlight` is set, then the mode restored.
+    /// Not part of the interface.
+    pub fn exists_network_of_type_for_test(&self, x: i32, z: i32, flags: u32, highlight: bool) -> bool {
+        let prev = std::mem::replace(&mut self.st.borrow_mut().real_mode, !highlight);
+        let r = self.exists_network_of_type(x, z, flags);
+        self.st.borrow_mut().real_mode = prev;
+        r
     }
 
     /// Slot 9 `IsCellWater(x, z)` (§8.8): tail jump to terrain slot 34.

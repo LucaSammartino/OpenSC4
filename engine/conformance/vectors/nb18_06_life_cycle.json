@@ -2,7 +2,7 @@
   "format": 1,
   "name": "nb18_06_life_cycle",
   "spec": ["neighbors 5.2", "neighbors 5.3", "neighbors 5.4", "neighbors 7.3", "neighbors 18"],
-  "description": "Conformance test 6 (grace 90, probation 90), on sell-power deals (E1) over a power-pole connection to W. A proposed deal activates on the first run (status 1, currentDate = today). Losing the connection (inactive) sets NoConnection, then the first strike: Grace on, 0x38 off, suspension = today (1010), no removal. During Grace the failure is ignored (SetFlags drops 0x38). At 1100 (suspension + 90) Grace -> Probation; at 1101 the failure removes it with status 3 (its SetAmount(0) is ignored in Probation). A Probation deal with suspension 1000 clears at 1180, not at 1179. A cancelled deal is removed with status 2, then SetAmount(0) sends status 0 (delivered at once: the busy simulation posts the retry 8) and UpdateCost posts 0. Expiry posts 6; the next run renews with the same span (status 7, cost updated to 1), or, when the payer (the neighbour for a sell deal) cannot pay, flags CannotAfford.",
+  "description": "Conformance test 6 (grace 90, probation 90), on sell-power deals (E1) over a power-pole connection to W. A proposed deal activates on the first run: Activate goes through SetFlags (NB2), posting status 0 with Active set (flags 3), status 0 with Proposed cleared (flags 2), then the run posts status 1 (currentDate = today). Losing the connection (inactive) sets NoConnection, then the first strike: Grace on, 0x38 off, suspension = today (1010), no removal. During Grace the failure is ignored (SetFlags drops 0x38). At 1100 (suspension + 90) Grace -> Probation; at 1101 the failure removes it with status 3 (its SetAmount(0) is ignored in Probation). A Probation deal with suspension 1000 clears at 1180, not at 1179. A cancelled deal is removed with status 2, then SetAmount(0) sends status 0 (delivered at once: the busy simulation posts the retry 8) and UpdateCost posts 0. Expiry posts 6; the next run renews with the same span (status 7, cost updated to 1), or, when the payer (the neighbour for a sell deal) cannot pay, flags CannotAfford.",
   "steps": [
     {"op": "neighbors_env", "current": 1, "today": 1000},
     {"op": "neighbors_city", "id": 1, "pos": [3, 3], "size": [1, 1]},
@@ -14,6 +14,8 @@
 
     {"op": "neighbors_month", "today": 1000},
     {"op": "neighbors_expect_events", "filter": {"event": "status"}, "events": [
+      {"deal": 1, "status": 0, "flags": 3, "sent": false},
+      {"deal": 1, "status": 0, "flags": 2, "sent": false},
       {"deal": 1, "status": 1, "flags": 2, "sent": false}
     ]},
     {"op": "neighbors_expect", "deal": 1, "deal_state": {"flags": 2, "current": 1000}},

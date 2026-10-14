@@ -15,7 +15,8 @@ use std::collections::{HashMap, VecDeque};
 use super::*;
 use crate::curve::ResponseCurve;
 use crate::traffic_network::{
-    net_type, travel, wormhole, CellConnection, FerryTerminal, NetworkState, TerminalLink, ARRAY_LEN,
+    net_type, travel, wormhole, CellConnection, FerryTerminal, NeighborLink, NeighbourEdge, NetworkState, TerminalLink,
+    ARRAY_LEN,
 };
 
 // ---------------------------------------------------------------------------
@@ -42,8 +43,6 @@ struct World {
     /// (lot token, bounding rect, holder) per lot.
     lots: RefCell<Vec<(u64, CellRect, u64)>>,
     pools: RefCell<HashMap<(i32, i32), u64>>,
-    neighbor_costs: RefCell<HashMap<(i32, i32), f32>>,
-    connections: RefCell<Vec<NeighborConnectionLinks>>,
     income: Cell<f64>,
     deadline_reached: Cell<bool>,
 }
@@ -132,12 +131,6 @@ impl PathfinderHost for World {
     }
     fn neighbor_pool_holder(&self, _t: u32, x: i32, z: i32) -> Option<u64> {
         self.pools.borrow().get(&(x, z)).copied()
-    }
-    fn traffic_neighbor_connection_cost(&self, x: i32, z: i32) -> Option<f32> {
-        self.neighbor_costs.borrow().get(&(x, z)).copied()
-    }
-    fn neighbor_connections(&self) -> Vec<NeighborConnectionLinks> {
-        self.connections.borrow().clone()
     }
     fn income_accumulator(&self) -> f64 {
         self.income.get()
@@ -344,20 +337,26 @@ fn t04_apply_traffic() {
                 "volume ({x},3) style {style}"
             );
         }
-        // Edge density, style bit 0, type 1: (4,3) count[0][3], (3,3)
-        // count[0][2], (2,3) count[1][2] (root: entry from the start rect =
-        // side 1).
-        let want = [
-            (4, one_counter(0, 3, count)),
-            (3, one_counter(0, 2, count)),
-            (2, one_counter(1, 2, count)),
-        ];
-        for (x, c) in want {
-            assert_eq!(counters(&net, x, 3, false), c, "({x},3) style {style}");
-            // Style 2: the same counts in the key-bit-1 record (not
-            // mirrored); otherwise no key-bit-1 record.
-            let other = if style == 2 { c } else { [0; 16] };
+        // Edge density, all in `current`, style bit 0, type 1: (4,3)
+        // current[4·0 + 3], (3,3) current[4·0 + 2], (2,3) current[4·1 + 2]
+        // (root: entry from the start rect = side 1).
+        let want = [(4, (0, 3)), (3, (0, 2)), (2, (1, 2))];
+        for (x, (entry, exit)) in want {
+            assert_eq!(
+                counters(&net, x, 3, false),
+                one_counter(entry, exit, count),
+                "({x},3) style {style}"
+            );
+            // Style 2: the key-bit-1 record gets the mirrored index
+            // current[4·exit + entry] (PF2); otherwise no key-bit-1 record.
+            let other = if style == 2 {
+                one_counter(exit, entry, count)
+            } else {
+                [0; 16]
+            };
             assert_eq!(counters(&net, x, 3, true), other, "({x},3) evening style {style}");
+            let rec = net.edge_density_at(x, 3, 1, false);
+            assert_eq!((rec.last, rec.usage), ([0; 16], 0), "last and usage stay 0");
         }
     }
 }
@@ -760,7 +759,16 @@ fn goal_node_pushed_back() {
 fn exit_node_cost_and_connection_cost() {
     let (w, mut net) = street_city();
     w.attractiveness.set(0.5);
-    w.neighbor_costs.borrow_mut().insert((-1, 3), 0.25);
+    // The edge record of (−1,3) (traffic-network.md §2.7.1): cost 0.25.
+    net.set_neighbour_edge(
+        -1,
+        3,
+        NeighbourEdge {
+            mask: 1 << 2,
+            pool: 0,
+            cost: 0.25,
+        },
+    );
     let mut pf = test2_pathfinder(&w);
     // Start at (4,2) (no lot): ring 1 reaches the street at (4,3).
     pf.set_start_rect(CellRect::new(4, 2, 4, 2));
@@ -814,15 +822,46 @@ fn exit_cost_is_the_heuristic_term() {
     assert_eq!(res.g, 18.5);
 }
 
-/// §4.6: the off-map start fallback.
+/// A neighbour link of a ferry terminal (traffic-network.md §2.6): the
+/// off-map cell, its in-city edge cell and the cost.
+fn neighbour_link(off: (i16, i16), edge: (u16, u16), cost: f32) -> NeighborLink {
+    NeighborLink {
+        off_x: off.0,
+        off_z: off.1,
+        edge_x: edge.0,
+        edge_z: edge.1,
+        cost,
+        ..NeighborLink::default()
+    }
+}
+
+/// A ferry terminal arriving at `arrival` with the given neighbour links;
+/// its departure cell (6,6) is off the street.
+fn fallback_terminal(arrival: (u16, u16), mask: u16, links: Vec<NeighborLink>) -> FerryTerminal {
+    FerryTerminal {
+        dep_x: 6,
+        dep_z: 6,
+        arr_x: arrival.0,
+        arr_z: arrival.1,
+        mask,
+        neighbour_links: links,
+        ..FerryTerminal::default()
+    }
+}
+
+/// §4.6 (PF5): the off-map start fallback runs over the ferry terminals and
+/// their neighbour links; the node sits at the terminal's arrival cell.
 #[test]
 fn off_map_start_fallback() {
     let (w, mut net) = street_city();
-    w.connections.borrow_mut().push(NeighborConnectionLinks {
-        cell: (0, 3),
-        travel_mask: 0x2,
-        links: vec![((-1, 7), 9.0), ((-1, 5), 2.0)],
-    });
+    net.ferries.push(fallback_terminal(
+        (0, 3),
+        0x2,
+        vec![
+            neighbour_link((-1, 7), (0, 7), 9.0),
+            neighbour_link((-1, 5), (0, 5), 2.0),
+        ],
+    ));
     let mut pf = test2_pathfinder(&w);
     pf.set_start_rect(CellRect::new(-1, 5, -1, 5));
     assert_eq!(find(&mut pf, &w, &mut net), result::FOUND);
@@ -836,6 +875,56 @@ fn off_map_start_fallback() {
         route_of(&pf),
         vec![(0, 3, 1), (1, 3, 1), (2, 3, 1), (3, 3, 1), (4, 3, 1)]
     );
+}
+
+/// §4.6 (PF5): with two matching links the last match wins (its `g`, even
+/// when higher) and the node is pushed once per match; a terminal whose mask
+/// lacks the starting type is skipped; a later terminal's match overwrites
+/// an earlier one's.
+#[test]
+fn off_map_start_fallback_last_match_wins() {
+    for (costs, want_g) in [((0.5f32, 0.25f32), 0.25f32), ((0.25, 0.5), 0.5)] {
+        let (w, mut net) = street_city();
+        net.ferries.push(fallback_terminal(
+            (0, 3),
+            0x2,
+            vec![
+                neighbour_link((-1, 5), (0, 5), costs.0),
+                neighbour_link((-1, 5), (0, 5), costs.1),
+            ],
+        ));
+        // Mask 0x1 (Walk only): not a starting type, skipped.
+        net.ferries.push(fallback_terminal(
+            (1, 3),
+            0x1,
+            vec![neighbour_link((-1, 5), (0, 5), 0.0)],
+        ));
+        let mut pf = test2_pathfinder(&w);
+        pf.set_start_rect(CellRect::new(-1, 5, -1, 5));
+        // The end rect is the arrival cell: the first pop is the goal and is
+        // pushed back (§4.8.1), beside the second copy of the start push.
+        pf.set_end_rect(CellRect::new(0, 3, 0, 3));
+        assert_eq!(find(&mut pf, &w, &mut net), result::FOUND);
+        assert_eq!(pf.nodes().len(), 1);
+        let root = pf.nodes().nodes()[0];
+        assert_eq!((root.x, root.z, root.side), (0, 3, 0));
+        assert_eq!(root.key, start_key(0, 1, 0, 3));
+        assert_eq!(root.g.to_bits(), want_g.to_bits());
+        assert_eq!(pf.open_set().entries(), &[0, 0]);
+    }
+    // Two terminals both matching: the later terminal's link wins.
+    let (w, mut net) = street_city();
+    for cost in [0.25f32, 0.75] {
+        net.ferries.push(fallback_terminal(
+            (0, 3),
+            0x2,
+            vec![neighbour_link((-1, 5), (0, 5), cost)],
+        ));
+    }
+    let mut pf = test2_pathfinder(&w);
+    pf.set_start_rect(CellRect::new(-1, 5, -1, 5));
+    assert_eq!(find(&mut pf, &w, &mut net), result::FOUND);
+    assert_eq!(pf.nodes().nodes()[0].g, 0.75);
 }
 
 /// §4.8.2 (b), §4.13 step 1, §4.15, §4.16: a switch move Car → Walk records
@@ -1031,6 +1120,78 @@ fn distance_to_rectangle() {
     assert_eq!(distance_to_rect(3, 3, r), 2.0f32.sqrt());
     assert_eq!(distance_to_rect(2, 3, r), 5.0f32.sqrt());
     assert_eq!(distance_to_rect(1, 3, r), 10.0f32.sqrt());
+    // PF12: the exact root rounded once to float32 (§4.12 examples).
+    assert_eq!(distance_to_rect(3, 3, r).to_bits(), 0x3FB5_04F3);
+    assert_eq!(distance_to_rect(2, 3, r).to_bits(), 0x400F_1BBD);
+    assert_eq!(distance_to_rect(1, 3, r).to_bits(), 0x404A_62C2);
+}
+
+/// §4.9 step 5 (PF1): the replacement table; an equal `g` never replaces,
+/// a NaN on either side always does.
+#[test]
+fn add_trip_node_replacement_table() {
+    assert!(replaces_node_g(3.0, 2.5));
+    assert!(!replaces_node_g(3.0, 3.0));
+    assert!(replaces_node_g(3.0, f32::NAN));
+    assert!(replaces_node_g(f32::NAN, 5.0));
+    assert!(!replaces_node_g(3.0, 3.5));
+}
+
+/// §4.18 (PF8): RecalculateNodeScores evaluates `H` at the node's own cell;
+/// for an exit node that is its off-map cell, not the in-city cell
+/// AddTripNode used. The §4.18 example: end rect (10,5,10,5), the search
+/// rect (2,0)-(10,8) holds neither cell, the exit node from (0,5) to (−1,5).
+#[test]
+fn recalculated_exit_node_uses_its_own_cell() {
+    let w = World::preamble(16, 8);
+    let mut net = empty_net(16, 8);
+    net.inv_max_speed[travel::CAR][net_type::STREET as usize] = 1.5;
+    net.congestion_curve = ResponseCurve::from_points(&[(0.0, 1.0)]);
+    for x in 0..=6 {
+        street_cell(&mut net, x, 5);
+    }
+    let mut pf = Pathfinder::create(&w, shared_work_check());
+    pf.set_flag(flag::NO_BUDGET);
+    pf.set_start_rect(CellRect::new(6, 4, 6, 4));
+    pf.set_end_rect(CellRect::new(10, 5, 10, 5));
+    pf.set_trip_destination_filter(filter::END_RECT);
+    pf.clear_all_travel_type_flags();
+    pf.set_travel_type_flag(0x2, true);
+    pf.set_starting_cost_array(Some([0.0; 9]));
+    // (10,5) has no street: the search runs out.
+    assert_eq!(find(&mut pf, &w, &mut net), result::NOT_FOUND);
+    let exit_id = pf
+        .nodes()
+        .nodes()
+        .iter()
+        .position(|n| n.key & EXIT_KEY_BIT != 0)
+        .unwrap();
+    let exit = pf.nodes().nodes()[exit_id];
+    assert_eq!((exit.x, exit.z), (-1, 5));
+    // g(0,5) = 6 × 1.5 = 9.0; exit cost r24(f − g) = H(0,5) = 10; exit g =
+    // 19.0; AddTripNode's f = H(0,5) + g = 29.0.
+    assert_eq!((exit.g, exit.f), (19.0, 29.0));
+    pf.recalculate_node_scores();
+    // The recomputation uses H(−1,5) = 11.
+    assert_eq!(pf.nodes().nodes()[exit_id].f, 30.0);
+}
+
+/// §4.7 (PF8, PF15): a new node's cell comes from its key: the low bytes
+/// zero-extended, plus `dir(side)` as a 16-bit value for an exit node.
+#[test]
+fn key_cell_decode() {
+    assert_eq!(key_cell(node_key(0x10, 1, 2, 3)), (2, 3));
+    // In-city keys of −1 decode as 255 (no exit bit).
+    assert_eq!(key_cell(node_key(0, 1, -1, 3)), (255, 3));
+    // Exit nodes: side 0 (−x) from (0,5) is (−1,5); side 2 (+x) from (255,5)
+    // is (256,5); side 1 (−z) from (4,0) is (4,−1); side 3 (+z) from (4,7) is
+    // (4,8).
+    assert_eq!(key_cell(node_key(0, 1, 0, 5) | EXIT_KEY_BIT), (-1, 5));
+    assert_eq!(key_cell(node_key(2, 1, 255, 5) | EXIT_KEY_BIT), (256, 5));
+    assert_eq!(key_cell(node_key(1, 1, 4, 0) | EXIT_KEY_BIT), (4, -1));
+    assert_eq!(key_cell(node_key(3, 1, 4, 7) | EXIT_KEY_BIT), (4, 8));
+    // The pSide bits do not change the side read from the key.
+    assert_eq!(key_cell(node_key(2 << 2, 1, 0, 5) | EXIT_KEY_BIT), (-1, 5));
 }
 
 /// §4.7: the node key and the hash bucket.
