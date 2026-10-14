@@ -2841,8 +2841,11 @@ in brackets.
   cycle's last ones, and they keep those values for a whole cycle. The bracket is right for the comparison in hand, but
   with marks dropped at the boundary those tracts mismatch at the next comparison. *[choice]* Carry the pass's marks for
   the tracts that the new cycle has already visited.
-- **FL9:** FL5/FL6 with FreeCity4's own plumbing: detection relies on its published grid alternating too, which it
-  does today. [pointer detection only]
+- ~~**FL9:** FL5/FL6 with FreeCity4's own plumbing: detection relies on its published grid alternating too, which it
+  does today. [pointer detection only]~~
+  **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands while FreeCity4's plumbing keeps
+  alternating. Note that plumbing §12.2 allows a replacement to keep one fixed published grid, which would defeat
+  pointer detection. The content comparison recommended for FL7 (flammability §6.5) does not depend on alternation.
 
 ## From the graphics formats spec (re-formats2 lane, 2026-10-14)
 
