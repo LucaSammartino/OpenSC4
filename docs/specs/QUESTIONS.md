@@ -1274,7 +1274,11 @@ before and after). The glue's current answer is in brackets.
   fact that makes the clamp moot: in the original month the intakes sum to at most `t ≤ supply`, so no
   `AddToGarbageSupply(−n)` clamps, and "live plus delta" is exact. The clamp matters only for a negative supply from a
   damaged save, which `GetGarbageSupply` itself clamps and stores. Written into landfill.md §4.7.1.
-- **LG13:** on Shutdown, does a zone release its zot or also remove the prop? [release only]
+- ~~**LG13:** on Shutdown, does a zone release its zot or also remove the prop? [release only]~~ **ANSWERED 2026-10-14**
+  from the exe (`0x006BB766`–`0x006BB798`): it **removes the prop too**. It calls `RemovePropA` through the city's prop
+  manager when there is one, then releases the zot. **The bracket does not match**, but the difference is unobservable
+  in the shipped flows: every `RemoveZone` dezones cells, which already removes the zot. Only the city-close shutdown
+  still holds one. Written into landfill.md §4.4.9.
 - **LG14:** the shadow's supply is live plus delta, clamped. [choice]
 - **LG15 — §1.1:** only the city and the message server are held; terrain, pollution and budget are fetched per
   call. [as stated]

@@ -472,6 +472,22 @@ the rect is never negative, so this is the floor). Then `CellCenterToPosition(cx
    - Destroy the zone's region (cell mask).
    - Release the services the zone acquired, the city last.
 
+**The zot on Shutdown** *[compat]* (LG13; `0x006BB766`–`0x006BB798`). The zone **removes the prop and then
+releases it**:
+
+1. If the city is held, take its prop manager (city slot 35).
+2. If there is one, call `RemovePropA(zot)` (prop manager slot 29).
+3. In every case, release the zot and null the pointer.
+
+In the shipped flows this removal is almost never the one that counts:
+- `RemoveZone` is always called with `dezoneCells = true` (§4.4.2, §4.5.1). Each `DezoneCell` removes the zot first
+  (§4.4.8 step 1), and a zone with no mask cell left already lost it to the `DezoneCell` that cleared its last cell.
+- So a zone reaches `Shutdown` still holding a zot only through the developer's own `Shutdown` (§1.2), when the city
+  closes.
+
+"Release only" differs from the original only there. It leaves the prop in the prop manager during the city
+teardown, which nothing saves. *[choice]* Matching the original costs one call and is recommended.
+
 ### 4.5 Terrain
 
 #### 4.5.1 `DoTerrainChanged(rect)`
