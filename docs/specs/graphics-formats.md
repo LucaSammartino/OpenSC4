@@ -200,7 +200,15 @@ packed them back to back). The game still reads them at the aligned offsets. Onl
 level move, so the two or three smallest levels show the wrong blocks, and the last level reads up to 8 bytes past
 the pixel data (into the next attachment). Example: `SimCity_2.dat` (`0x7AB50E44`, `0x1ABE787D`, `0x10EC0000`),
 128 × 128, M = 7: the game reads levels at 0, 8192, 10240, 10752, 10880, 10912, 10928, 10944; the data ends at
-10944. FreeCity4 reads the aligned offsets as the game does and fills bytes beyond the entry with zero *[choice]*.
+10944.
+
+All 167 are in group `0x1ABE787D`, and each is followed by its `0x70` name block. The misread last level always lies
+exactly 8 bytes past the stored levels, on that block's header: the game reads the code `0x70`, the block's 3-byte
+`next` and the first four name characters as the level's DXT1 block. No shipped level read reaches past the record
+(`size`). In the example the last level reads `70 00 00 00 31 30 45 43`: c0 = `0x0070`, (0, 12, 132) after
+expansion, c1 = black, so a 4 × 4 level of dark blues and black. FreeCity4 reads the aligned offsets from the
+record as the game does, so those bytes are the record's own; only bytes past `size` (none shipped) read as zero
+*[choice]* (GF9).
 
 ### 2.9 Info-only open *[compat]*
 
@@ -740,7 +748,8 @@ Byte strings are hexadecimal. "FSH(entry)" is a one-entry record: `53 48 50 49`,
 18. **Type.** The bytes of test 5 under type `0x7AB50E45`: no resource is created.
 19. **Unpadded mips (shipped).** `SimCity_2.dat` (`0x7AB50E44`, `0x1ABE787D`, `0x10EC0000`): DXT1 128 × 128, M = 7,
     A = 1: the original's level offsets are 0, 8192, 10240, 10752, 10880, 10912, 10928, 10944 from the pixel
-    start; the pixel data ends at 10944 (the next block's header starts there).
+    start; the pixel data ends at 10944 (the next block's header starts there), so the last level's 8 bytes are
+    `70 00 00 00 31 30 45 43`, the start of the `0x70` name block.
 20. **Fallback texture (shipped).** `SimCity_3.dat` (`0x7AB50E44`, `0x1ABE787D`, `0x07F94200`): 576 bytes, header as
     §2.2's example, one entry: code `0x60`, 32 × 32, M = 0; accepted, format 7.
 
@@ -817,7 +826,8 @@ The test model T is version 1.5, one triangle. Fields in order (hex):
 ### 8.4 Shipped-data sweep
 
 42. Every FSH record of the install (§2.13 counts) is accepted; per code the entry counts are `0x61` 25,957,
-    `0x60` 19,357, `0x7D` 40, `0x7B` 24, `0x7F` 9; 167 DXT1 entries need the zero-fill of §2.8.
+    `0x60` 19,357, `0x7D` 40, `0x7B` 24, `0x7F` 9; 167 DXT1 entries read their last level from the
+    following name block (§2.8).
 43. Every S3D record (42,915) loads; 167,070 vertex blocks, 155,661 index blocks, 138,735 primitives, 155,827
     materials; 71 meshes dropped; every texture ID resolves at step 1 of §4.1 or is 0.
 
@@ -848,9 +858,9 @@ Common modding descriptions of FSH and S3D were the starting point. Where they d
 `engine/formats` has no FSH or S3D reader today. Add:
 
 1. **`fsh` module**: `SHPI` header, directory, entry header (§2.4), attachment chain with the palette search
-   (§2.5), the code table (§2.6), the accept rules (§2.7), level offsets with 16-byte alignment and the zero-fill of
-   §2.8, frames. Expose per frame the (format, type) pair of §2.6, the level table, and a CPU decoder to RGBA8
-   (§2.11) for every accepted code. Bounds-check everything (Q2).
+   (§2.5), the code table (§2.6), the accept rules (§2.7), level offsets with 16-byte alignment read from the
+   record (§2.8), frames. Expose per frame the (format, type) pair of §2.6, the level table, and a CPU decoder to
+   RGBA8 (§2.11) for every accepted code. Bounds-check everything (Q2).
 2. **`s3d` module**: the chunk grammar of §3.2–§3.11 with the version table, legacy VERT, the vertex-format
    tables (§3.5, packed and standard), INDX size rule, PRIM, MATS (16-bit flags OR `0x180`, alpha reference
    quantisation, T ≤ 2), ANIM with mesh dropping, PROP, REGP (lower-cased names, merging). Expose `frame(f)` →
@@ -882,6 +892,7 @@ Also filed in QUESTIONS.md, "From the graphics formats spec", GF1–GF12.
 7. GF7: RKT4/RKT5 layouts.
 8. GF8: where the detail global `0x00B216FC` is set.
 9. GF9: unpadded DXT1 mips: reproduce or fix.
+   **Answered** (§2.8): reproduce, with the record's own bytes; zero only past `size`.
 10. GF10: semantics of ANIM frame rate, mode, flags and displacement.
 11. GF11: consumers of PROP and REGP, and the meaning of REGP's 7 floats.
 12. GF12: whether anything reads the FSH centre fields or the bits 12–27 of `+0x0C`.

@@ -2790,9 +2790,14 @@ exe and the shipped data alone.
   here; for the building-rendering lane]
 - **GF8 — §4.2:** where the model detail global `0x00B216FC` (zoom remap table `0x00B094A4`) is set, and from which
   option. [unknown; 0 in the image]
-- **GF9 — §2.8:** 167 shipped DXT1 entries store their mip levels without the 16-byte padding, and the game reads
+- ~~**GF9 — §2.8:** 167 shipped DXT1 entries store their mip levels without the 16-byte padding, and the game reads
   the smallest two or three levels from the wrong offsets (the last one past the pixel data). Reproduce, or read
-  them as stored? [reproduce, zero-filling past the entry, *[choice]*]
+  them as stored? [reproduce, zero-filling past the entry, *[choice]*]~~
+  **ANSWERED 2026-10-14** from the exe (level table in `SerialRead` `0x00800860`; the levels are read from the
+  `size`-byte buffer of `Open` `0x00808F00`) and a sweep of all 45,387 shipped entries, and written into
+  graphics-formats §2.8. All 167 are in group `0x1ABE787D` and each is followed by a `0x70` name block. The last level
+  always reads that block's first 8 bytes, and no read passes the record end. Reproduce, as the bracket says, but with
+  the record's bytes rather than zeros: zero only past `size`, which no shipped entry reaches *[choice]*.
 - **GF10 — §3.9:** semantics of ANIM frame rate (30, 10, 3, 2, 1, 0 shipped), mode (always 3), flags and
   displacement (always 0), as the animated model instance uses them. [not traced; for the rendering spec]
 - **GF11 — §3.10, §3.11:** consumers of PROP (`skeleton`/`suit` pairs on 58 people models) and REGP (`fx_…` names on
