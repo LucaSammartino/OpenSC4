@@ -622,6 +622,112 @@ fn pole_decay_shuffles_and_repairs() {
     assert_eq!(s.state().broken_fraction, 0.0);
 }
 
+// ---- the block probe (tooling, the power shadow) ---------------------------------------------------
+
+/// One plant of 1000 (1100 available) and consumers of 600 in blocks 1, 2
+/// and 3 of one network: only one consumer block can be powered, and which
+/// one depends on step 6's order.
+fn shortfall_city(seed: u32) -> (Rc<Host>, Rc<PowerSim>) {
+    let h = Host::new(32);
+    plant(&h, 10, CellRect::new(8, 0, 9, 1), 1000, 1);
+    for (id, x) in [(11u64, 12), (12, 18), (13, 24)] {
+        h.building(id, CellRect::new(x, 0, x + 1, 1), &[(prop::REQUIREMENT, u32v(600))], None);
+    }
+    let s = sim(&h);
+    for id in 10..=13 {
+        s.occupant_inserted(id);
+    }
+    s.set_crt(crate::rng::CrtRand::new(seed));
+    (h, s)
+}
+
+fn powered_consumers(s: &PowerSim) -> [bool; 3] {
+    [s.is_powered(12, 0), s.is_powered(18, 0), s.is_powered(24, 0)]
+}
+
+#[test]
+fn block_probe_finds_the_order_a_shortfall_took() {
+    // Two seeds that power different consumer blocks.
+    let mut seen: Vec<(u32, [bool; 3])> = Vec::new();
+    for seed in 1..200 {
+        let (_h, s) = shortfall_city(seed);
+        cycle(&s);
+        let p = powered_consumers(&s);
+        assert_eq!(p.iter().filter(|&&b| b).count(), 1, "seed {seed}: one consumer block");
+        if seen.iter().all(|(_, q)| *q != p) {
+            seen.push((seed, p));
+        }
+        if seen.len() == 2 {
+            break;
+        }
+    }
+    assert_eq!(seen.len(), 2, "two seeds with different orders");
+    let ((seed_a, powered_a), (seed_b, _)) = (seen[0], seen[1]);
+    let (_ha, a) = shortfall_city(seed_a);
+    cycle(&a);
+    let target = a.state().powered_current.clone();
+
+    // Without a target the probe only records: the drawn start, a shortfall.
+    let (_hb, b) = shortfall_city(seed_b);
+    b.set_block_probe(true, None);
+    let drawn = b.crt();
+    cycle(&b);
+    let draws = b.take_block_draws();
+    assert_eq!(draws.len(), 1);
+    let d = &draws[0];
+    assert!(d.order_dependent && d.shortfall && !d.from_target && d.tried == 0);
+    let mut r = drawn;
+    assert_eq!(d.start, (r.rand() as i32) % d.count, "the drawn start");
+    assert_ne!(powered_consumers(&b), powered_a);
+
+    // With A's powered bits as the target, B takes A's order.
+    let (_hb, b) = shortfall_city(seed_b);
+    b.set_block_probe(true, Some(target.clone()));
+    let crt = b.crt();
+    cycle(&b);
+    assert_eq!(powered_consumers(&b), powered_a);
+    assert_eq!(b.state().powered_current, target);
+    let mut after = crt;
+    after.rand();
+    assert_eq!(b.crt(), after, "the rand() call is still made");
+    let draws = b.take_block_draws();
+    assert_eq!(draws.len(), 1);
+    let d = &draws[0];
+    assert!(d.order_dependent && d.shortfall && d.from_target && d.unmatched_mark.is_none());
+    assert_eq!(d.tried, d.count as u32);
+    assert!(d.matching >= 1 && d.matching < d.tried);
+    assert!(b.take_block_draws().is_empty(), "taken");
+
+    // A target no order can give (every consumer powered): drawn, the mark kept.
+    let mut all = target;
+    for x in [12, 13, 18, 19, 24, 25] {
+        all.set(x, 0);
+        all.set(x, 1);
+    }
+    let (_hc, c) = shortfall_city(seed_b);
+    c.set_block_probe(true, Some(all));
+    cycle(&c);
+    let d = &c.take_block_draws()[0];
+    assert!(!d.from_target && d.matching == 0 && d.unmatched_mark.is_some());
+
+    // Off: nothing recorded.
+    c.set_block_probe(false, None);
+    cycle(&c);
+    assert!(c.take_block_draws().is_empty());
+
+    // Enough supply: no order matters, no search.
+    let h = Host::new(32);
+    plant(&h, 10, CellRect::new(8, 0, 9, 1), 5000, 1);
+    h.building(11, CellRect::new(12, 0, 13, 1), &[(prop::REQUIREMENT, u32v(600))], None);
+    let s = sim(&h);
+    s.occupant_inserted(10);
+    s.occupant_inserted(11);
+    s.set_block_probe(true, Some(Bitmap::new(32, 32)));
+    cycle(&s);
+    let d = &s.take_block_draws()[0];
+    assert!(!d.order_dependent && !d.shortfall && d.tried == 0 && !d.from_target);
+}
+
 // ---- hostile input -------------------------------------------------------------------------------
 
 #[test]
