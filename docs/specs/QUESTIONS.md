@@ -1175,8 +1175,11 @@ part of §8 is not compared). The glue's current answer is in brackets.
   listed from its box shrunk by 0.1 m per side (boxes wider than 1 m), with coordinates up to 0.064 m below a
   64 m line counted in the cell above. A box whose low edge is 0.1–0.164 m below such a line overlaps the block
   below it but is not returned for it (this is FQ15).
-- **FQ7:** the shadow takes the elevation scale from the tuning exemplar's `0xC9DBDD02`; the record does not save
-  it. [as stated]
+- ~~**FQ7:** the shadow takes the elevation scale from the tuning exemplar's `0xC9DBDD02`; the record does not save
+  it. [as stated]~~ **ANSWERED 2026-10-14** from the exe (constructor `0x006B1941`, tuning read `0x006B01B0`,
+  `Write` `0x006AFEE0` / `Read` `0x006AFFE0`) and written into flora.md §7. **As stated.** Default `0.08f`;
+  `16.0f / v` only when the tuning exemplar has `0xC9DBDD02`; re-read at every `Init` and on an exemplar change of
+  `0x1A2FDB6A`; never saved.
 - **FQ8:** blocks are never freed and the registry is never cleared at app shutdown. [as stated]
 - **FQ9:** `cISC4FloraTypeFilter` (slot 3) is not in `docs/abi`. Slot 13 with a non-null filter inserts nothing and
   returns 0; with a null filter it inserts every key. [as stated]

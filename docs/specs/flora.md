@@ -674,6 +674,13 @@ wildSeedsPerMonth := u32( trunc( float(u32(trunc(float(wildSeedsPerMonth) × siz
 
 i.e. seeds per 2²⁰ m² (one 1024 m × 1024 m city). The scaling rewrites the stored value; see §14 quirk 11.
 
+**Elevation scale** (verified, FQ7; tuning read `0x006B00F0`). The constructor stores `0.08f` (`0x3DA3D70A`,
+`0x006B1941`). The tuning read sets `elevationScale := 16.0f / v` (constant `0x00A8D45C`, one `float32` division,
+`0x006B01B0`) only when the exemplar loads **and** has `0xC9DBDD02`; otherwise the value stays. The read runs at
+every `Init` (§4.1 step 9) and when the exemplar `0x1A2FDB6A` changes (§5). The value is **not** in the save
+record (§10.1: neither `Write` `0x006AFEE0` nor `Read` `0x006AFFE0` touches it), so a loaded city always uses the
+running game's tuning. Shipped: 800 → `16 / 800` = `0x3CA3D70A` (0.0199999996).
+
 **Period 0** *[quirk]*: `blocksPerMonth` is an x86 `div` by `period` in two places, `Init` step 6
 (`0x006B2B53`, with the constructor's or the **saved** period) and this tuning read (`0x006B01CB`, with the value
 just read). A period of 0 (tuning `0x8761ABD0 = 0`, or a save that holds 0) raises the integer divide-by-zero
