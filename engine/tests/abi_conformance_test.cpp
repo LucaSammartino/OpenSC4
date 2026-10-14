@@ -117,6 +117,8 @@
 #include "cISC4Advice.h"
 #include "cISC4Advisor.h"
 #include "cISC4AdvisorSystem.h"
+#include "cISC4EffectsManager.h"
+#include "cISC4VisualEffect.h"
 #include "cISC4LotConfiguration.h"
 #include "cISC4LotConfigurationFilter.h"
 #include "cISC4LotConfigurationManager.h"
@@ -390,6 +392,9 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cIGZCommandParameterSet", 15, 7,
      "the table lists slots 3, 5 and 6 only; the building development simulator calls slots 3 "
      "(GetParameterCount) and 5 (operator[]) (building-development.md §4.12)"},
+    {"cISC4VisualEffect", 18, 13,
+     "the table has rows only for the slots re-answers2 PG4 traced (2-5, 8, 12; no RTTI); the SDK declares 0-17. "
+     "The residential glue calls slots 2, 3 and 8 only (REH 4.7 step 3, RG1)"},
 };
 
 const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlots) {

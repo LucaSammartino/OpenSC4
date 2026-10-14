@@ -326,6 +326,8 @@ enum class Sw : unsigned {
     ResidentialHistory,    // residential_history: history records (MessageSend) and queue lengths
     ResidentialLots,       // residential_lots: GetOccupantLot and its centre (off: the building's position)
     ResidentialTerrain,    // residential_terrain: GetAltitude (off: 0)
+    ResidentialEffects,    // residential_effects: the buzzards through the effects manager (REH §4.7 step 3,
+                           //   RG1; off: not shown, counted as created)
     // Zone manager host callbacks (cFC4ZoneManager.cpp), one per group of game
     // calls; only used when the zones subsystem is enabled.
     ZonesGridWrites,      // zones_grid_writes: SetTractValue / fill on the zone grid (off: not written)

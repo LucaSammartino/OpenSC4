@@ -20,7 +20,7 @@ use fc4_core::grid::{CityDims, CoreGrids, GridElem, GridProvider, ScanState, Sim
 use fc4_core::property::PropertyHolder;
 use fc4_core::residential::{
     age_bucket, msg, ordinance_modifiers, pct, query_interface, shipped_tuning, tracts_in_radius, BudgetItem,
-    DepartmentBlock, EducationHealthHost, OccupantLists, QueryData, ResidentialHost, ResidentialMessage,
+    CreatedEffect, DepartmentBlock, EducationHealthHost, OccupantLists, QueryData, ResidentialHost, ResidentialMessage,
     ResidentialRandom, ResidentialRng, ResidentialSim, ResidentialState, SlotReturn, DEVELOPERS, GRID_TRIPLE_RESULT,
     HOSPITAL, OCCUPANT_TYPE_BUILDING, SCHOOL, SLOTS,
 };
@@ -451,9 +451,13 @@ impl ResidentialHost for World {
     fn altitude(&self, _x: f32, _z: f32) -> f32 {
         self.altitude.get()
     }
-    fn create_visual_effect(&self, name: &str) -> Option<u64> {
+    fn create_visual_effect(&self, name: &str) -> CreatedEffect {
         self.ev("effect", vec![("name", Json::Str(name.into()))]);
-        self.effect.get()
+        // RG1: null = the create failed; an ID = the effect.
+        match self.effect.get() {
+            Some(e) => CreatedEffect::Effect(e),
+            None => CreatedEffect::Failed,
+        }
     }
     fn set_effect_transform(&self, effect: u64, translation: [f32; 3]) {
         self.ev(
@@ -533,8 +537,10 @@ impl EducationHealthHost for World {
     fn department_budget(&self, department_id: u32) -> Option<u64> {
         self.departments.borrow().get(&department_id).copied()
     }
-    fn department_funding(&self, department: u64) -> f32 {
-        self.funding.borrow().get(&department).copied().unwrap_or(1.0)
+    fn department_funding(&self, department: u64) -> Option<f32> {
+        // RG10: NaN marks a department whose funding cannot be read.
+        let f = self.funding.borrow().get(&department).copied().unwrap_or(1.0);
+        (!f.is_nan()).then_some(f)
     }
     fn is_locally_funded(&self, department: u64, occupant: u64, purpose: u32) -> bool {
         self.locally_funded.borrow().contains(&(department, occupant, purpose))

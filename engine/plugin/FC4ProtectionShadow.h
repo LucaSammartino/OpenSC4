@@ -39,6 +39,12 @@
 //      object whose primary vtable is the original class's (§15.1 fire
 //      0x00AB1160, §15.2 police 0x00AB2490, from the compat table of the
 //      identified executable), with the same geometry as the adjusted grid.
+//      PR16 (protection.md §2, answered): the bracket matches. The city's
+//      getters return the object start, whose first dword is the primary
+//      vtable; only the class's own constructor and destructor write it, so a
+//      replacement or wrapper fails the test. +0x84 is null before Init and
+//      after Shutdown (logged as "no unadjusted grid"). The grid's instance
+//      ID check the answer calls optional is not made.
 //
 // Expected differences: the original's adjusted grid follows its unadjusted
 // grid only around a changed station (§5.2) and through the daily iterator
@@ -52,6 +58,10 @@
 // The original's unadjusted grid is rebuilt from scratch at every station,
 // funding, strike or dispatch change (§5.1), so it should equal ours unless
 // something changed without a rebuild; its mismatches are logged, not judged.
+// PR16: the original never compares the grids, so judging is FreeCity4's
+// [choice]; the unadjusted grid's dispatch cones follow the automata, so
+// tracts under an active dispatch can differ for reasons outside the
+// simulator, and logging only stays the choice.
 //
 // NOT readable read-only (logged at game start): the cycle accumulators
 // behind avg / pct (zoned, sum, nonZero) and the iterator position, so avg /

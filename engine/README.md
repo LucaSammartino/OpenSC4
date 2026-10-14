@@ -9,7 +9,7 @@ gzcom-dll SDK. Read [CONTRIBUTING.md](../CONTRIBUTING.md) before you change anyt
 | [`core/`](core/) | `fc4-core`: the portable simulation core. No GZCOM or OS types, no `unsafe`. | Rust |
 | [`capi/`](capi/) | `fc4-capi`: a stable C ABI over the core (`include/fc4.h`), built as a static library | Rust + C header |
 | [`conformance/`](conformance/) | Language-neutral JSON test vectors (the migration contract) and their Rust runner | JSON + Rust |
-| [`formats/`](formats/) | `fc4-formats`: readers for the game's data files (DBPF packages, QFS/RefPack, exemplars and cohorts, LTEXT), the `fc4-dat` inspection tool, and a sweep test over the installed game (`FC4_GAME_DIR`). Groundwork for the standalone engine (M6); not used by the plugin. | Rust |
+| [`formats/`](formats/) | `fc4-formats`: readers for the game's data files (DBPF packages, QFS/RefPack, exemplars and cohorts, LTEXT, FSH textures and S3D models), the `fc4-dat` inspection tool, and a sweep test over the installed game (`FC4_GAME_DIR`). Groundwork for the standalone engine (M6); not used by the plugin. | Rust |
 | [`plugin/`](plugin/) | `FreeCity4.dll`: GZCOM director with a subsystem table, the `cISC4Simulator` adapter, the budget classes (`cISC4BudgetSimulator`, `cISC4DepartmentBudget`, `cISC4LineItem`), the land value, weather, ordinance, demand and power simulators, the standard ordinances and the demand nodes (off by default), stream and property helpers, and our own standard message class (foundations §5.1; the SDK's `cRZMessage2Standard` is not used). Windows, x86 only. | C++17 |
 | [`tests/`](tests/) | `capi_smoke` (drives the C ABI from C++ with the plugin's compiler and CRT), `message_test` (foundations §7 item 12) and `plugin_load_test` (loads the DLL like a host and drives the simulator and the budget) | C++17 |
 | `third_party/gzcom-dll/` | gzcom-dll SDK (LGPL-2.1+), git submodule | C++ |
@@ -205,7 +205,9 @@ plugin.
        `cSC4PoliceSimulator`, protection spec; replaced together, §13.2). Their coverage grids are the game's own
        `cSC4SimGrid<uint8>` / `<int16>`, created through GZCOM. The fire plane and police helicopter dispatch
        sources are the game's classes, created through GZCOM; their `Init` / `Shutdown` are direct calls, made only
-       on the identified executable (otherwise no air source, logged). The getters the game calls from its second
+       on the identified executable (otherwise no air source, logged). A station's dispatch effect (its cone while a
+       dispatch is active, and `GetStationDispatchRadius`) is scaled by the station's efficiency (PR14); one with no
+       centre adds nothing. The getters the game calls from its second
        thread are served under a per-object lock; a thread that cannot get it within 20 ms gets the last month-end
        values (or a neutral one) and is counted as `fallbacks=`. The game calls have their own switches (default
        `1`, environment `FC4_PROTECTION_<KEY>`): `protection_occupants`, `protection_budget`,
@@ -335,8 +337,12 @@ plugin.
        keys, the growth developers' population maps, pollution, terrain, the simulator date, occupants and their
        properties, the four education and health departments, budget items and line items, ordinances, lot
        centres and the automata controllers; it sends history records and posts the strike messages. An input
-       that cannot be read is logged once (`residential: …`) and answers the spec's neutral value. Left out and
-       logged once: the buzzards (visual effects, §5.5 step 2). Its generator's session seed is
+       that cannot be read is logged once (`residential: …`) and answers the spec's neutral value. The buzzards
+       (visual effects, §5.5 step 2, RG1) are created through the city's effects manager (slot 7
+       `CreateVisualEffect("buzzards")`), positioned, started and released; without an effects manager they are
+       not shown but counted as created (both draws, the tract's flag), as the original with shipped data. A
+       department whose funding cannot be read leaves slot 20's outputs as the caller set them (RG10). Its
+       generator's session seed is
        `residential_seed` (env `FC4_RESIDENTIAL_SEED`), else the clock. The log has `residential Init: …`,
        `residential Read: …` (the state), `residential Write -> 1`, a month line from the first day after `Init`
        and at every `SimNewMonth` (`residential month yyyy-mm-dd: pop=N (R$ a R$$ b R$$$ c) EQ=… HQ=… LE=…
@@ -348,7 +354,8 @@ plugin.
        environment `FC4_RESIDENTIAL_<KEY>`): `residential_occupants`, `residential_budget`,
        `residential_developers`, `residential_pollution`, `residential_ordinance`, `residential_automata`,
        `residential_grid_writes`, `residential_posts`, `residential_history`, `residential_lots`,
-       `residential_terrain` (see `plugin/FC4Config.h`).
+       `residential_terrain`, `residential_effects` (see `plugin/FC4Config.h`). The month line counts the
+       buzzards: `effects=asked started=… failed=…`.
      - `development`: the building development simulator and the growth developers, replaced as one unit
        (`cSC4BuildingDevelopmentSimulator`, `cSC4GrowthDeveloper`; building-development and growth-developer
        specs). The BDS's 59 slots, its two message targets and its record (version 4); each growth developer's 31

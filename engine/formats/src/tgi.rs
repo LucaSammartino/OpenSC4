@@ -42,3 +42,13 @@ pub const TYPE_LTEXT: u32 = 0x2026_960B;
 pub const TYPE_DIR: u32 = 0xE86B_1EEF;
 /// Key of the DIR record.
 pub const DIR_TGI: Tgi = Tgi::new(0xE86B_1EEF, 0xE86B_1EEF, 0x286B_1F03);
+/// FSH (`SHPI`) textures (graphics-formats §2.1): the only FSH type the factory creates.
+pub const TYPE_FSH: u32 = 0x7AB5_0E44;
+/// The second type the FSH factory is registered for; it never creates an object for it (graphics-formats §2.1).
+pub const TYPE_FSH_UNCREATED: u32 = 0x7AB5_0E45;
+/// S3D (`3DMD`) models (graphics-formats §3.1).
+pub const TYPE_S3D: u32 = 0x5AD0_E817;
+/// The group of every shipped S3D model (graphics-formats §3.1).
+pub const GROUP_S3D: u32 = 0xBADB_57F1;
+/// The shared texture group: model and UI textures (graphics-formats §2.13, §4.1).
+pub const GROUP_TEXTURES: u32 = 0x1ABE_787D;

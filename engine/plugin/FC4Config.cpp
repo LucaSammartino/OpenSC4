@@ -174,6 +174,7 @@ const SwitchInfo kSwitches[kCount] = {
     {"residential_history", "FC4_RESIDENTIAL_HISTORY"},
     {"residential_lots", "FC4_RESIDENTIAL_LOTS"},
     {"residential_terrain", "FC4_RESIDENTIAL_TERRAIN"},
+    {"residential_effects", "FC4_RESIDENTIAL_EFFECTS"},
     {"zones_grid_writes", "FC4_ZONES_GRID_WRITES"},
     {"zones_budget", "FC4_ZONES_BUDGET"},
     {"zones_lots", "FC4_ZONES_LOTS"},
@@ -253,14 +254,14 @@ volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // landfill
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // residential
-                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // zones
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // neighbours
                                1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // development
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-static_assert(kCount == 170, "g_on: one 1 per switch");
+static_assert(kCount == 171, "g_on: one 1 per switch");
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};

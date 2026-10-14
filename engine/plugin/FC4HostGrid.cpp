@@ -176,9 +176,12 @@ uint32_t ReleaseGameGrid(uint64_t token) {
     // CreateGameGrid, or a save's ReadGZSerializable (then QueryInterface'd to
     // cISC4SimGrid) in Read; both noted with FC4_ACQUIRED. So this may be the
     // last reference, and that free is expected: a grid we created has no
-    // other owner, and a loaded grid has none after a save (in-game run 88:
-    // our reading, not a finding, is that the load's own reference lasts
-    // until the next save).
+    // other owner, and a loaded grid has none after a save. SV1 (answered,
+    // foundations §2.7 "References the load keeps"; the bracket matches): the
+    // city segment's serializer table keeps one reference on each object the
+    // load created until the next save, or, in a city never saved, until city
+    // close after Shutdown; so in an unsaved city this release is not the
+    // last, and after a save it is.
     cIGZUnknown* g = FromToken(token);
     return g != nullptr ? FC4_RELEASE_CREATED(g) : 0;
 }

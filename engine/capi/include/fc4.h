@@ -3720,11 +3720,16 @@ typedef struct fc4_residential_state {
     uint32_t reserved;
 } fc4_residential_state;
 
+/* create_visual_effect: the host cannot show effects (RG1; treated as
+ * created). */
+#define FC4_EFFECT_NOT_SHOWN UINT64_MAX
+
 /* What the residential simulator needs from the game: one callback per
  * ResidentialHost / EducationHealthHost method of the core
  * (engine/core/src/residential), in the traits' order, plus hand_out. Missing
- * callbacks behave as "nothing there" (0, false, no object), except
- * department_funding (1.0). */
+ * callbacks behave as "nothing there" (0, false, no object); a missing
+ * department_funding, or a NaN from it, is a department whose funding cannot
+ * be read, and the output keeps the caller's value (REH §4.2, RG10). */
 typedef struct fc4_residential_host {
     uint32_t struct_size; /* sizeof(fc4_residential_host) */
     void* user;
@@ -3764,7 +3769,10 @@ typedef struct fc4_residential_host {
     uint32_t (*sim_month)(void* user);
     uint32_t (*sim_day_number)(void* user);
     float (*altitude)(void* user, float x, float z);
-    /* visual effects (§5.5 step 2; 0 = none) */
+    /* visual effects (§5.5 step 2, REH §4.7 step 3, RG1): the effect (one
+     * reference, released by start_and_release_effect), 0 = the create
+     * failed (one draw), FC4_EFFECT_NOT_SHOWN = the host cannot show effects
+     * (treated as created: both draws, the flag). NULL = cannot show. */
     uint64_t (*create_visual_effect)(void* user, const char* name);
     void (*set_effect_transform)(void* user, uint64_t effect, const float* translation_xyz);
     void (*start_and_release_effect)(void* user, uint64_t effect);
@@ -3783,7 +3791,7 @@ typedef struct fc4_residential_host {
     bool (*budget_item)(void* user, uint64_t occ, uint32_t purpose, fc4_residential_budget_item* out);
     void (*change_budget_item_line)(void* user, uint64_t occ, uint32_t index, uint32_t line);
     uint64_t (*department_budget)(void* user, uint32_t id); /* borrowed, 0 = none */
-    float (*department_funding)(void* user, uint64_t dept);
+    float (*department_funding)(void* user, uint64_t dept); /* NaN = cannot be read (RG10) */
     bool (*is_locally_funded)(void* user, uint64_t dept, uint64_t occ, uint32_t purpose);
     void (*add_locally_funded)(void* user, uint64_t dept, uint64_t occ, uint32_t purpose);
     void (*remove_locally_funded)(void* user, uint64_t dept, uint64_t occ, uint32_t purpose);
