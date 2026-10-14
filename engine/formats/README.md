@@ -11,7 +11,7 @@ and on `i686-pc-windows-msvc`.
 | `qfs` | QFS/RefPack with the SimCity 4 header (`10 FB` / `11 FB` only): decompressor and a greedy hash-chain compressor |
 | `exemplar` | Exemplars and cohorts, binary (`EQZB`/`CQZB`) and text (`EQZT`/`CQZT`), read as the original's factories read them (data-formats §4); raw and converting property getters (§5); `ExemplarStore` loads records with their parent cohorts into `LoadedExemplar`s (own and effective property lists) |
 | `ltext` | LTEXT records (UTF-16 and 8-bit forms, 24-bit count, trailing bytes ignored) |
-| `fsh` | FSH (`SHPI`) textures, type `0x7AB50E44`, as the factory accepts them (graphics-formats §2): header, directory, entry headers, the attachment chain and its palette search, the code → (format, type) table, the accept rules, the 16-byte-aligned mipmap levels with the zero-fill of §2.8, frames; `Fsh::decode` turns any level of any frame into RGBA8 (§2.11) |
+| `fsh` | FSH (`SHPI`) textures, type `0x7AB50E44`, as the factory accepts them (graphics-formats §2): header, directory, entry headers, the attachment chain and its palette search, the code → (format, type) table, the accept rules, the 16-byte-aligned mipmap levels read from the record as §2.8 says (zero only past `size`), frames; `Fsh::decode` turns any level of any frame into RGBA8 (§2.11) |
 | `s3d` | S3D (`3DMD`) models, type `0x5AD0E817` (graphics-formats §3): the chunk grammar of each version with every length ignored, legacy and new vertex blocks, the packed and standard vertex-format tables, index, primitive and material blocks, animation with mesh dropping, PROP and REGP; `Model::frame(f)` gives the meshes of a frame and their draw calls; bounding boxes are computed |
 | `keys` | graphics-formats §4: the texture lookup order of a material (shared group, the model's group, the fallback `0x07F94200`) and the RKT0–RKT3 model-instance arithmetic with the detail table |
 
@@ -64,7 +64,10 @@ A second sweep, `sweep_fsh_and_s3d`, loads every FSH and S3D record of the `.dat
 index entry of its package) and checks the counts of graphics-formats §2.13, §3.14 and §8.4. It decodes every level
 of every frame in release builds and every 50th record in debug builds. Result, 2026-10-14: 40,549 FSH records
 (36,177 compressed) with 45,387 entries, all accepted; codes `0x61` 25,957, `0x60` 19,357, `0x7D` 40, `0x7B` 24,
-`0x7F` 9; 167 DXT1 entries need the §2.8 zero-fill; 48,029 levels decoded. 42,915 S3D records (42,868
+`0x7F` 9; 167 DXT1 entries need the §2.8 zero-fill; 48,029 levels decoded. With the GF9 and FS4/FS5 answers
+applied (2026-10-14): the same counts; each of the 167 reads its last level from the following `0x70` block inside
+the record (no zero byte); 15 frames of multi-frame DXT1 records have an A that alone would give the other DXT1
+format, and now report frame 0's (FS5); no later `0x7B` frame lacks a palette. 42,915 S3D records (42,868
 compressed; 1.5: 42,713, 1.3: 202), all loaded: 167,070 vertex blocks, 155,661 index blocks (15,311 empty), 154,046
 primitive blocks with 138,735 primitives (all triangle lists), 155,827 materials, 155,756 meshes kept and 71
 dropped, every draw inside its buffers; all 155,822 non-zero texture IDs resolve at step 1 of §4.1 (2 IDs are 0).
@@ -156,38 +159,61 @@ graphics-formats §2.11 chooses (`[choice]`, Q17):
 
 - **DXT1** (`0x60`): 5:6:5 colours expanded by bit replication; c0 > c1 (as `u16`) gives the 4-colour block,
   otherwise c2 = (c0 + c1) / 2 and c3 is **transparent black whatever the 12-bit field A says**. A only picks the
-  reported format (7 DXT1-RGB or 8 DXT1-RGBA, Q5); DX7 treats both alike (GF3). Divisions on the 8-bit values,
-  rounded down.
+  reported format (7 DXT1-RGB or 8 DXT1-RGBA, Q5); DX7 makes both the one Direct3D DXT1 surface, which decodes
+  index 3 as (0, 0, 0, 0), so this matches (GF3). Divisions on the 8-bit values, rounded down (FS8: the GPU does it
+  in the original).
 - **DXT3** (`0x61`): 4-bit alpha × 17, pixel 0 in the low nibble; colour block always 4-colour. **DXT5** (`0x62`):
   the usual 8-value alpha ramp (6 or 4 interpolated values, rounded down); colour block always 4-colour.
 - **Uncompressed**: `0x7D` B, G, R, A; `0x7F` B, G, R (alpha 255); the 16-bit codes in their Direct3D layouts,
-  `0x6D` A4R4G4B4 × 17, `0x7E` A1R5G5B5, `0x78` R5G6B5 (GF2); `0x64` is (255, 255, 255, a), `0x65` (L, L, L, a),
-  both read unsigned although the original asks for signed bytes (Q6). DX7 cannot create `0x64 0x65 0x6D 0x78 0x7B
-  0x7E` at all (`fsh::dx7_creatable`, GF1); FreeCity4 decodes and shows them.
+  `0x6D` A4R4G4B4 × 17, `0x7E` A1R5G5B5, `0x78` R5G6B5 (no renderer of the original shows them correctly, GF2);
+  `0x64` is (255, 255, 255, a), `0x65` (L, L, L, a), both read unsigned although the original asks for signed bytes
+  (Q6). DX7 cannot create `0x64 0x65 0x6D 0x78 0x7B 0x7E` at all (`fsh::dx7_creatable`) and draws a model using one
+  untextured, in its diffuse colour (GF1); FreeCity4 decodes and shows them, as the original's OpenGL renderer does
+  for all but `0x78`.
 - **`0x7B`** (8-bit index): the index goes **through the palette** (`0x24` B, G, R; `0x2A` B, G, R, A; `0x2D`
   A1R5G5B5; `0x29` R5G6B5), where the original uploads the indices as luminance; the shipped palettes are identity
-  grey ramps, so the result is the same (Q7). A `0x7B` frame without a 256 × 1 palette is rejected (the original
-  reads uninitialised data), in **every** frame, not just frame 0, and the palette's 256 entries must be inside the
-  record.
-- **Unpadded mips** (Q4, GF9): levels are read at the 16-byte-aligned offsets the game uses, and bytes beyond the
-  entry read as zero (167 shipped entries). An entry's own bytes end at its first attached block, another entry's
-  header or `size`, whichever comes first after its pixel start. Levels that would not fit even packed back to
-  back are rejected; when only the aligned layout overruns, the entry is the §2.8 mip-padding case.
-- A DXT level whose width or height is not a multiple of 4 decodes whole blocks with the missing bytes as zero, and
-  is cropped. A DXT texture is at least 4 × 4 (§2.7), so a 2 × 2 DXT entry decodes to 4 × 4.
+  grey ramps, so the result is the same (Q7). `Fsh::level_data` gives the raw indices, which the original's terrain
+  code reads on the CPU (GF4). Only **frame 0** must have a 256 × 1 palette with its 256 entries inside the record,
+  else the record is rejected (the original checks frame 0 only and reads uninitialised data when there is none,
+  FS4). A later frame uses its own palette when it is usable; otherwise it decodes as grey, (i, i, i, 255), the
+  original's luminance upload read unsigned.
+- **One (format, type) for every frame** (FS5): the pair is decided from frame 0's code and A; a later DXT1
+  frame's own A is never read. The pixels are the same either way.
+- **Unpadded mips** (Q4, GF9): levels are read at the 16-byte-aligned offsets the game uses, **from the record**:
+  in the 167 shipped entries the last level reads the first 8 bytes of the following `0x70` name block, as in the
+  game. Only bytes past `size` read as zero (none shipped). An entry's own bytes end at its first attached block,
+  another entry's header or `size`, whichever comes first after its pixel start (FS1: the original has no entry
+  end; this end only decides acceptance). Levels that would not fit even packed back to back are rejected; when only
+  the aligned layout overruns, the entry is the §2.8 mip-padding case (FS2, `Frame::zero_filled`, a name that
+  predates GF9).
+- A DXT level whose width is not a multiple of 4 decodes whole blocks read from the level's start, so the missing
+  bytes are the record's following bytes, as DX7 copies them (FS7; zero only past `size`), and is cropped. A DXT
+  texture is at least 4 × 4 (§2.7), so a 2 × 2 DXT entry decodes to 4 × 4.
 
 Other `[choice]` checks of the FSH reader (the original checks no offset, Q2): `size` must cover the header and
-directory, the record must hold `size` bytes (bytes after it are ignored), a record needs at least one entry, and
-every entry header, attachment header and palette must be inside `size`. A negative (sign-extended) height fails
-the power-of-two test; a negative width counts as below the minimum.
+directory, the record must hold `size` bytes (bytes after it are ignored), a record needs at least one entry (the
+original also fails a zero count, FS3), and every entry header, attachment header and frame 0's palette must be
+inside `size`. A negative (sign-extended) height fails the power-of-two test; a negative width counts as below the
+minimum (both as in the original, FS6).
 
 The S3D reader rejects, `[choice]`: an unknown vertex format (stride 0, Q11), a format whose stride is below 12
-(the bounding box reads 12 bytes per vertex), a legacy block whose stored stride is below the format's standard
-stride (the draw would read past it), an index size other than 2 (Q12) and more than 2 textures (Q13). It accepts a
-vertex block with no vertex, with the empty box (min 1, max 0). Element offsets use the plain kind-order layout
-(§3.5). A name without a NUL is its whole stored bytes; names are UTF-8 when valid, else Latin-1; REGP names are
-lower-cased in ASCII. PROP entries keep the file order. `Mesh::draw_calls` does not clip a primitive whose range
-leaves its buffers (it reports the index slice as `None`); `Mesh::ranges_fit` says whether every draw fits.
+(the bounding box reads 12 bytes per vertex, FS9), a legacy block whose stored stride is below the format's standard
+stride (the draw would read past it, FS10), an index size other than 2 (Q12) and more than 2 textures (Q13); the
+original loads all of these and misreads. It accepts a vertex block with no vertex, with the empty box (min 1,
+max 0). Element offsets use the plain kind-order layout (§3.5). A name without a NUL is its whole stored bytes;
+names are UTF-8 when valid, else Latin-1; REGP names are lower-cased, ASCII letters always and, in a valid UTF-8
+name, every letter by Unicode simple case mapping (FS12; the original uses `towlower` in the game's locale; all
+shipped names are ASCII). PROP entries are sorted stably by frame, signed and ascending (FS11; the original's
+`std::sort` keeps equal frames in file order only up to 16 entries; every shipped entry is frame 0). A material
+texture's filters (0, 0) are nearest without mipmaps: no render property overrides them in normal play (GF5). The
+vertex colour element is B, G, R, A (GF6). `Mesh::draw_calls` does not clip a primitive whose range leaves its
+buffers (it reports the index slice as `None`); `Mesh::ranges_fit` says whether every draw fits.
+
+`keys::resolve_texture` returns no texture (`None`) when neither texture key nor the fallback `0x07F94200` loads:
+the original leaves such a slot unbound with its ID set to 0 (FS13). `keys::model_key` returns no model for a zoom
+above 4 or too few values, clamps the detail to 0–2 and takes the rotation mod 4 (FS14). The detail is the
+original's `kModelLODOffset` render property (22) clamped to 0–2, set from Texture Quality: High 0, Medium 1, Low 2
+(GF8).
 
 ## Community descriptions versus the exe
 
