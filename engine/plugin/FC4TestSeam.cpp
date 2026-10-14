@@ -22,6 +22,7 @@
 #include "FC4PollutionShadow.h"
 #include "FC4Popups.h"
 #include "FC4RefAudit.h"
+#include "cFC4Demand.h"
 #include "cFC4Flammability.h"
 #include "cFC4Power.h"
 #include "fc4.h"
@@ -69,6 +70,11 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
         }
         case kFC4SeamPollutionShadow:
             return PollutionShadowTestDeliver(static_cast<const FC4PollutionShadowTestInput*>(a));
+        case kFC4SeamDemandCapacity: {
+            const auto* in = static_cast<const FC4DemandCapacityTestInput*>(a);
+            if (in == nullptr) return -1;
+            return DemandReportCapacities(nullptr, in->buildingType, in->profile, in->visit, in->ctx);
+        }
         case kFC4SeamRustPanic:
             fc4_debug_panic();
             return 1;  // only if the build unwinds

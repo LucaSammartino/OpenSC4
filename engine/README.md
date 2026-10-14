@@ -146,8 +146,24 @@ plugin.
      - `ordinance`: the ordinance simulator and the 21 standard ordinance classes (`cSC4OrdinanceSimulator`,
        ordinance spec; replaced together, §10.2; plugin ordinances are accepted through `cISC4Ordinance`);
      - `demand`: the demand simulator and the demand node class (`cSC4DemandSimulator`, `cSC4Demand`, demand
-       spec; the graph comes from the game's demand exemplars; building profile capacity lists and the region
-       view's population summary map are not read or written yet, see the code's `[choice]` notes).
+       spec; the graph comes from the game's demand exemplars). The building profile's capacity maps (§7.2) are
+       the game's STLport maps (docs/abi/allocators.md, layouts.md): `plugin/FC4GameMap.h` walks them read-only
+       (count, depth, link, key-order and step checks; a map that fails them, or faults, reports nothing) on any
+       executable. `GetLocalPopulationSummary` (§5) empties and fills the caller's STLport map with the game's own
+       subtree free and `operator[]` (docs/abi/direct-calls.md), only on the identified executable and under the
+       structured-exception guard; elsewhere the map is left untouched (logged once). Switches (default `1`,
+       environment `FC4_DEMAND_<KEY>`): `demand_capacity`, `demand_direct_calls`. Log lines:
+
+       ```
+       demand: capacity map read: building type 0x…, N map(s), M entries: 0x1010=12, …        (once)
+       demand: GetLocalPopulationSummary: N entries copied into the game's map (K old entries cleared, count now N;
+         main|another thread)                                                                 (once)
+       demand month: … export cities; capacity: reads=… entries=… units=… (occupancy: reads=… units=…) refused=…;
+         summary: calls=… copied=… untouched=… failed=…                                       (each month)
+       ```
+
+       `reads` counts building profiles read (census and §7.2), `occupancy` the §7.2 reads alone (StateChanged),
+       `refused` the profiles whose maps failed the checks; the month counters restart at each month line.
      - `power`: the power simulator (`cSC4PowerSimulator`, power spec; its powered grid is the game's own
        `cSC4SimGrid<uint8>`, created through GZCOM). Not yet done (logged once): power lines are not detached on
        terrain changes (the line's `GetConnectedPoles` is not in docs/abi), and the Nuclear Free Zone does not close

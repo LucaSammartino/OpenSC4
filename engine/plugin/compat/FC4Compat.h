@@ -28,6 +28,9 @@ enum class Direct : unsigned {
     PipeSetWateredState,   // cSC4PipeOccupant::SetWateredState: thiscall (bool), pop 4
     AirDispatchInit,       // air dispatch source Init: thiscall (), pop 0, AL
     AirDispatchShutdown,   // air dispatch source Shutdown: thiscall (), pop 0, AL
+    MapU32Index,           // STLport map<uint32_t, 4-byte T>::operator[]: thiscall (const uint32_t*), pop 4,
+                           //   EAX = the value's address (FC4GameMap.h)
+    MapEraseSubtree,       // the same maps' subtree free: thiscall (node* top), pop 4 (FC4GameMap.h)
     Count
 };
 

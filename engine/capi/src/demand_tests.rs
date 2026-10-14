@@ -578,3 +578,101 @@ fn shadow_matches_the_simulator() {
         destroy_nodes(&g);
     }
 }
+
+/// The plugin's building profile: purpose 1, and the capacity maps of
+/// [`CAPACITY_MAPS`] reported through the visitor, map by map, each in key
+/// order (as the plugin reads the game's STLport maps).
+const CAPACITY_MAPS: [&[(u32, u16)]; 2] = [&[(0x2010, 50), (0x3121, 12)], &[(0x3121, 3)]];
+
+thread_local! {
+    static DEV_TYPE: Cell<u32> = const { Cell::new(0) };
+    static PROFILE_CALLS: Cell<u32> = const { Cell::new(0) };
+}
+
+unsafe extern "C" fn capacity_profile(
+    _: *mut c_void,
+    bt: u32,
+    purpose: *mut u32,
+    visit: fc4_capacity_visitor,
+    ctx: *mut c_void,
+) -> bool {
+    PROFILE_CALLS.with(|c| c.set(c.get() + 1));
+    if bt != BUILDING {
+        return false;
+    }
+    *purpose = 1;
+    if let Some(visit) = visit {
+        for (i, map) in CAPACITY_MAPS.iter().enumerate() {
+            for &(dev, cap) in map.iter() {
+                visit(ctx, i as u32, dev, cap);
+            }
+        }
+    }
+    true
+}
+
+unsafe extern "C" fn capacity_dev_type(_: *mut c_void, purpose: u32, _: u32) -> u32 {
+    if purpose == 1 {
+        DEV_TYPE.with(Cell::get)
+    } else {
+        0
+    }
+}
+
+/// §7.2 through the C ABI: the capacity entries the host's building_profile
+/// reports (several maps) are summed for the developer type and go to its
+/// node's pending supply, + when the lot becomes occupied and − when it
+/// stops; entries of other developer types add nothing. §5: the population
+/// summary truncates toward zero.
+#[test]
+fn capacity_maps_and_population_summary() {
+    let g = make_game();
+    unsafe {
+        let mut host = g.host.get().unwrap();
+        host.building_profile = Some(capacity_profile);
+        host.developer_type = Some(capacity_dev_type);
+        g.host.set(Some(host));
+        let s = fc4_demand_sim_create(&host, 0x5000);
+        assert!(fc4_demand_sim_init(s));
+        let n3121 = node_handle(&g, fc4_demand_sim_get_demand(s, 0x3121, 0));
+        let n2010 = node_handle(&g, fc4_demand_sim_get_demand(s, 0x2010, 0));
+        let n13121 = node_handle(&g, fc4_demand_sim_get_demand(s, 0x3121, 0x10000));
+        assert!(!n3121.is_null() && !n2010.is_null() && !n13121.is_null());
+
+        // Occupied (1 -> 3): 12 + 3 from the two maps; the 0x2010 entry is another type.
+        DEV_TYPE.with(|d| d.set(0x3121));
+        PROFILE_CALLS.with(|c| c.set(0));
+        let supply2010 = fc4_demand_node_get(n2010, value::NEW_SUPPLY);
+        fc4_demand_sim_state_changed(s, 0x77, 1, 3, BUILDING, 1);
+        assert_eq!(PROFILE_CALLS.with(Cell::get), 1);
+        assert_eq!(fc4_demand_node_get(n3121, value::NEW_SUPPLY), 15.0);
+        assert_eq!(fc4_demand_node_get(n2010, value::NEW_SUPPLY), supply2010);
+        // Vacated (3 -> 1): the same amount back.
+        fc4_demand_sim_state_changed(s, 0x77, 3, 1, BUILDING, 1);
+        assert_eq!(fc4_demand_node_get(n3121, value::NEW_SUPPLY), 0.0);
+        // A developer type no map names: nothing.
+        DEV_TYPE.with(|d| d.set(0x1010));
+        fc4_demand_sim_state_changed(s, 0x77, 1, 2, BUILDING, 1);
+        assert_eq!(fc4_demand_node_get(n3121, value::NEW_SUPPLY), 0.0);
+        // A building the profile does not know: no capacity at all.
+        DEV_TYPE.with(|d| d.set(0x3121));
+        fc4_demand_sim_state_changed(s, 0x77, 1, 2, 0xCAFE, 1);
+        assert_eq!(fc4_demand_node_get(n3121, value::NEW_SUPPLY), 0.0);
+
+        // The summary: region use 1 -> trunc(supply), 2 -> trunc(demand), others nothing.
+        assert!(fc4_demand_node_set(n3121, value::SUPPLY, 1234.7));
+        assert!(fc4_demand_node_set_region_use(n2010, 2));
+        assert!(fc4_demand_node_set(n2010, value::DEMAND, -56.9));
+        assert_eq!(fc4_demand_node_region_use(n13121), 0);
+        let mut summary: Vec<(u32, i32)> = Vec::new();
+        unsafe extern "C" fn visit(ctx: *mut c_void, k: u32, v: i32) {
+            (*(ctx as *mut Vec<(u32, i32)>)).push((k, v));
+        }
+        let n = fc4_demand_sim_local_population_summary(s, Some(visit), &mut summary as *mut _ as *mut c_void);
+        assert_eq!((n, summary), (2, vec![(0x2010, -56), (0x3121, 1234)]));
+
+        assert!(fc4_demand_sim_shutdown(s));
+        fc4_demand_sim_destroy(s);
+        destroy_nodes(&g);
+    }
+}
