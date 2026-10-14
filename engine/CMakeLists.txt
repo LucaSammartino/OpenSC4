@@ -243,6 +243,14 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4GrowthProbeHook.cpp
         plugin/FC4GrowthProbeHook.h
         plugin/FC4GrowthProbeLogic.h
+        plugin/cFC4Development.cpp
+        plugin/cFC4Development.h
+        plugin/cFC4GrowthDeveloper.cpp
+        plugin/cFC4GrowthDeveloper.h
+        plugin/FC4DevelopmentShadow.cpp
+        plugin/FC4DevelopmentShadow.h
+        plugin/FC4DevelopmentInterfaces.h
+        plugin/FC4GameMapBuild.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -434,6 +442,17 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_residential_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-residential)
     set_tests_properties(plugin_ini_enable_residential_test PROPERTIES RUN_SERIAL TRUE)
+    # Development (building-development.md, growth-developer.md): `enable =
+    # development` (no city: neutral slots, AL returns, lifecycle, the record,
+    # threads, status lines).
+    add_test(NAME plugin_ini_enable_development_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-development)
+    set_tests_properties(plugin_ini_enable_development_test PROPERTIES RUN_SERIAL TRUE)
+    # The development shadow (FC4DevelopmentShadow.h): ON with the original
+    # unit, its list comparison and record bridge (seam op 34).
+    add_test(NAME plugin_ini_development_shadow_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-development-shadow)
+    set_tests_properties(plugin_ini_development_shadow_test PROPERTIES RUN_SERIAL TRUE)
     # Zones (zones.md): `enable = zones` (no city: the QI table, neutral getters,
     # the slots' return channels, lifecycle, the record round trip, status
     # lines) and, through seam op 38 with stub hosts, PlaceZone (reject, abort,

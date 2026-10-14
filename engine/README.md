@@ -362,6 +362,23 @@ plugin.
        `residential_grid_writes`, `residential_posts`, `residential_history`, `residential_lots`,
        `residential_terrain`, `residential_effects` (see `plugin/FC4Config.h`). The month line counts the
        buzzards: `effects=asked started=… failed=…`.
+     - `development`: the building development simulator and the growth developers, replaced as one unit
+       (`cSC4BuildingDevelopmentSimulator`, `cSC4GrowthDeveloper`; building-development and growth-developer
+       specs). The BDS's 59 slots, its two message targets and its record (version 4); each growth developer's 31
+       slots (full-EAX 0/1 for slots 10 and 28, AL for 19-22, ST0 for 24, AX for 29), its message target and its
+       record (version 1, five grids by reference). The containers the game reads keep the game's layouts: the
+       growth and decline lists (B vectors of 12-byte items), the style map, the developer map and the catalogue
+       profiles (STLport maps built with B), the special buildings (an SC4List). Every call into the cores holds
+       one process-wide lock; another thread waits at most 20 ms and then gets the values published after the last
+       main-thread call. `development_growth_attempts_per_day = N` is the daily growth budget (§4.4.1; default 0 =
+       unlimited) and `development_seed` (env `FC4_DEVELOPMENT_SEED`) the session seed of both generators (default:
+       the wall clock). The log has `development Init|Read|Shutdown: …`, `development month yyyy-mm-dd: …`,
+       `development decline plan yyyy-mm-dd: …`, `growth 0x<type> Init|Read: …` and one `growth 0x<type> update
+       yyyy-mm-dd: growth=… decline=… capacity=… phantom=… size=… …` per finished monthly update. Its game calls
+       have their own switches (default `1`, environment `FC4_DEVELOPMENT_<KEY>`): `development_map_writes`,
+       `development_occupants`, `development_zoning`, `development_lots`, `development_lot_developer`,
+       `development_demolition`, `development_advisor`, `development_posts`, `development_cheats`,
+       `development_tract`, `development_city` (see `plugin/FC4Config.h`).
    - Each budget behaviour that touches game objects has a switch. The switches are re-read at every city load
      (budget `Read`/`Init`). Each defaults to `1`; `0` makes the behaviour a no-op with a neutral result. The
      matching environment variable is `FC4_BUDGET_<KEY>`. `budget_default = 0` turns every unset switch off.
@@ -977,6 +994,42 @@ plugin.
      Success is `mismatches=0` on every cycle line (`clean` equal to `cycles`). The average shows as a range
      `x/lo..hi` when inputs changed in the cycle; a miss counted as `maybe hot` or `not counted` is reported but
      not counted.
+   - **Development shadow** (`development_shadow = 1`, env `FC4_DEVELOPMENT_SHADOW`; off by default;
+     `plugin/FC4DevelopmentShadow.h`): a same-process differential of the building development simulator and the
+     growth developers. It needs **our simulator and the original development unit** (do not enable
+     `development`); otherwise it logs `development shadow: requested … but INACTIVE` at game start. Its cores run
+     on read-only contexts: no post, registration, creation or write reaches the game.
+     - Growth developers: the shadow wraps the `SimIdle` / `SimNewDay` deliveries to each original developer's
+       agent (`cSC4GrowthDeveloper`). At the first delivery after the BDS started the monthly update
+       (`IsMapUpdateFinished` went from true to false), a new FreeCity4 core starts from the original's record (its
+       own `Write`, its five grids copied), Init with the developer exemplar and `StartMapUpdate`; every delivery
+       then goes to the original and, unchanged, to ours. When the original finishes, ours runs to its end if it is
+       behind and both are compared: D and the population tract by tract, the built and maximum capacity, the total
+       capacity, the growth list in order, the decline list (in order; industrial purposes 5-8 as a multiset: their
+       order comes from the original's wall-clock salt), `EstimateDesirability` at one cell per tract, and the
+       construction info, threshold and caps. Its own message target hands `ZoningChange` and `StateChanged` to
+       every core, so at the next baseline the previous core's month of bookkeeping (zoned counts, built and maximum
+       capacity, total, phantom sum) is compared with the original's record.
+     - BDS: after the original BDS's `SimNewMonth`, a read-only BDS core over the city (its catalogue loaded once
+       per process from the same exemplars) is compared once per city on the building types (in order and as a
+       set), every profile and the maximum density table, and every month on `IsSuitableForConstruction` for every
+       catalogue type (the result and the reason).
+     - What is not compared is listed once at game start (`development shadow: not compared or assumed: …`).
+       Lines (always written; longer ones continue on `development shadow (cont.)` lines):
+
+     ```
+     development shadow: ON (development_shadow from …): …                                  (game start)
+     development shadow growth 0x<type> update yyyy-mm-dd: tracts=XxZ D=ok population=ok capacity=ok
+       maxCapacity=ok total=…/… growth=…/… decline=…/… (in order) estimate=N cells tuning=ok; month bookkeeping
+       (… messages since …): zoned=ok capacity=ok maxCapacity=ok total=…/… phantom=…/…; ours: …; mismatches=N
+     development shadow growth 0x<type> update yyyy-mm-dd: INCOMPLETE (why); not compared
+     development shadow catalogue yyyy-mm-dd: types=…/… (same order) profiles=N (0 differ) density=N (0 differ);
+       mismatches=N                                                                         (once per city)
+     development shadow suitability yyyy-mm-dd: profiles=N suitable=…/… (original's reasons: …); mismatches=N
+     ```
+
+     Success is `mismatches=0` on every line and no `INCOMPLETE` line (the first update of a developer seen
+     mid-update is skipped without a line).
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,

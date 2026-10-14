@@ -55,9 +55,12 @@
 #include "FC4CrimeInterfaces.h"
 #include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
+#include "FC4DevelopmentShadow.h"
 #include "FC4GameMap.h"
 #include "FC4GrowthProbe.h"
 #include "cFC4Demand.h"
+#include "FC4DevelopmentInterfaces.h"
+#include "cGZPersistResourceKey.h"
 #include "FC4PollutionShadow.h"
 #include "FC4FlammabilityShadow.h"
 #include "FC4LandValueShadow.h"
@@ -4189,6 +4192,402 @@ int ResidentialEnableTest(const std::string& dll, const std::string& ini, const 
     return g_failures == 0 ? 0 : 1;
 }
 
+// ---- development (building-development.md, growth-developer.md): the BDS without a city ----------------
+constexpr uint32_t kCLSID_Development = 0x8990BE7A;
+constexpr uint32_t kIID_cISC4BuildingDevelopmentSimulator = 0x07813EAE;
+constexpr uint32_t kIID_cIGZMessageTargetDev = 0xE98B2F57;
+constexpr uint32_t kIID_cIGZMessageTarget2Dev = 0x452294AA;
+
+// The answers without a city or catalogue (§7.1), through the compiled
+// slots. The AL-only slots 42 / 43 are also called raw: the whole of EAX
+// must be the key (zero-extended).
+void CheckDevelopmentNeutral(cFC4ISC4BuildingDevelopmentSimulator* b, uint32_t t) {
+    void** vt = *reinterpret_cast<void***>(b);
+    uint32_t n = 5;
+    CHECK(b->GetAllBuildingTypesArray(nullptr, n) == 0 && n == 0);  // 12
+    CHECK(!b->IsBuildingTypeValid(t) && !b->IsBuildingFamilyTypeValid(t));
+    CHECK(b->IsBuildingInFamily(7, 7) && !b->IsBuildingInFamily(7, 8));  // 20: b == f
+    cGZPersistResourceKey key(1, 2, 3);
+    CHECK(!b->GetBuildingKeyFromType(t, key) && !b->GetFoundationKeyFromType(t, key) &&
+          !b->GetLotRetainingWallKeyFromType(t, key));
+    CHECK(b->GetDeveloperType(1, 2) == 0x1020 && b->GetWealth(0x1020) == 2);  // 30 / 31
+    CHECK(b->GetDeveloper(0x1020) == nullptr && b->GetDeveloperOf(1, 2) == nullptr);
+    CHECK(b->GetDevelopers() != nullptr);  // 34: the map object (empty)
+    CHECK(b->GetTractDeveloper() == nullptr && b->GetLotDeveloper() == nullptr);
+    CHECK(b->GetBuildingMap() == nullptr);
+    CHECK(b->GetSpecialBuildings() == nullptr);  // no allocator service: no list
+    CHECK(b->GetMaxCapacity(1, 1, 1) == 0.0f);
+    CHECK(b->GetCostOfFoundationDemolition(nullptr, 0) == 0);
+    float pos[3] = {0.0f, 0.0f, 0.0f};
+    CHECK(!b->AddNewFoundationOccupantAt(1, 0, pos, 0.0f, 0.0f, 0, 0.0f));  // 23: not specified, false
+    CHECK(!b->LoadFoundationProperties(nullptr, 1) && !b->LoadLotRetainingWallProperties(nullptr, 1));
+    CHECK(!b->CheatIgnorePlumbing() && !b->CheatIgnorePower() && !b->CheatIgnoreCaps() && !b->CheatDebugGrowth() &&
+          !b->CheatCoffeeBar());
+    // 42 / 43: 4p + w + 1, in EAX.
+    using KeyOfFn = uint32_t(__fastcall*)(void*, void*, uint32_t, uint32_t);
+    using KeyFn = uint32_t(__fastcall*)(void*, void*, uint32_t);
+    CHECK(b->GetBuildingMapKeyOf(1, 2) == 7);
+    CHECK(reinterpret_cast<KeyOfFn>(vt[42])(b, nullptr, 1, 2) == 7);
+    CHECK(reinterpret_cast<KeyOfFn>(vt[42])(b, nullptr, 3, 3) == 16);
+    // 40 / 39 / 43: an unknown type has no profile until 39 inserts a zero one (key 1).
+    CHECK(b->GetBuildingProfilePtr(t) == nullptr);
+    FC4BuildingProfile& p = b->GetBuildingProfile(t);
+    CHECK(&p == b->GetBuildingProfilePtr(t) && p.purpose == 0 && p.wealth == 0 && p.capacity == 0);
+    CHECK(reinterpret_cast<KeyFn>(vt[43])(b, nullptr, t) == 1);
+    // 37 / 38: "" inserted for an unknown type, the same object each time.
+    cIGZString* name = b->GetExemplarName(t + 1);
+    CHECK(name != nullptr && name->Strlen() == 0 && name == b->GetExemplarName(t + 1));
+    cIGZString* bname = b->GetBuildingName(t + 1);
+    CHECK(bname != nullptr && bname != name && bname->Strlen() == 0);
+}
+
+// Getters and a message from another thread (fc4.h: one process-wide lock;
+// the other thread waits at most 20 ms).
+void CheckDevelopmentThreads(cFC4ISC4BuildingDevelopmentSimulator* b, cIGZMessageTarget2* mt) {
+    int32_t freeRes = 9;
+    bool delivered = false, cheat = true;
+    cISC4GrowthDeveloper* dev = reinterpret_cast<cISC4GrowthDeveloper*>(1);
+    std::thread t([&] {
+        freeRes = b->GetFreeConstructionResources();
+        cheat = b->CheatCoffeeBar();
+        dev = b->GetDeveloper(0x1010);
+        TypeMessage day(kMsgSimNewDay);
+        delivered = mt->DoMessage(&day);
+    });
+    t.join();
+    CHECK(freeRes == b->GetFreeConstructionResources() && !cheat && dev == nullptr && delivered);
+}
+
+// ---- the growth developer (growth-developer.md) without a city ----------------------------------------
+constexpr uint32_t kCLSID_GrowthDeveloper = 0x0990C138;
+constexpr uint32_t kIID_cISC4GrowthDeveloperDev = 0xE7CDD662;
+constexpr uint32_t kMsgSimIdleDev = 0x6695681A;
+
+// QueryInterface (§1: +4, +8), the §2 values through the compiled slots
+// (10 and 28 raw: 0/1 in the whole of EAX), Init refused without a holder
+// or a city, the v1 record (§9), messages, another thread, and Read before
+// Init.
+void CheckGrowthDeveloper(cIGZCOMDirector* director) {
+    void* obj = nullptr;
+    CHECK(director->GetClassObject(kCLSID_GrowthDeveloper, kIID_cISC4GrowthDeveloperDev, &obj));
+    auto* g = static_cast<cFC4ISC4GrowthDeveloper*>(obj);
+    if (g == nullptr) return;
+    void* p = nullptr;
+    CHECK(g->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(g));
+    if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+    cIGZMessageTarget2* mt = nullptr;
+    CHECK(g->QueryInterface(kIID_cIGZMessageTarget2Dev, reinterpret_cast<void**>(&mt)) &&
+          static_cast<void*>(mt) == static_cast<void*>(reinterpret_cast<char*>(g) + 4));
+    cIGZSerializable* ser = nullptr;
+    CHECK(g->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) &&
+          static_cast<void*>(ser) == static_cast<void*>(reinterpret_cast<char*>(g) + 8));
+    if (ser != nullptr) CHECK(ser->GetGZCLSID() == kCLSID_GrowthDeveloper);
+    p = reinterpret_cast<void*>(0x1234);
+    CHECK(!g->QueryInterface(kIID_cISC4BuildingDevelopmentSimulator, &p) && p == reinterpret_cast<void*>(0x1234));
+    // §2: the constructor's values.
+    CHECK(g->GetType() == 0 && g->GetSubType() == 0 && g->GetPurpose() == 0 && g->GetWealth() == 0);
+    CHECK(g->GetPowerSupplyCap() == 0 && g->GetWaterSupplyCap() == 3 && g->GetFireCoverageCap() == 3 &&
+          g->GetParkCap() == 6);
+    CHECK(g->GetDesirabilityThreshold() == 80 && g->GetMonopolyUse() == 1 && g->GetTotalCapacity() == 0);
+    CHECK(g->GetSourceDemand() == nullptr && g->GetDesirabilityMap() == nullptr && g->GetCapacityMap() == nullptr &&
+          g->GetPopulationMap() == nullptr && g->GetMaxCapacityMap() == nullptr);
+    CHECK(g->GetGrowthList().size() == 0 && g->GetDeclineList().size() == 0 && g->GetStylePercentages() != nullptr);
+    int32_t mn = 0, mx = 0;
+    g->GetSubjectiveThresholds(0, mn, mx);  // no vectors: -4 / 20
+    CHECK(mn == -4 && mx == 20);
+    CHECK(g->GetAbandonmentThreshold(2) == 0.0f);
+    FC4ConstructionProfile prof{};
+    prof.buildingType = 0x77;
+    prof.x = 5;
+    g->GetConstructionInfo(prof);  // §6.2: the info fields only
+    CHECK(prof.buildingType == 0x77 && prof.x == 5 && prof.zone == 0);
+    void** vt = *reinterpret_cast<void***>(g);
+    using BoolFn = uint32_t(__fastcall*)(void*, void*);
+    CHECK(reinterpret_cast<BoolFn>(vt[10])(g, nullptr) == 1);  // state 0 < 17
+    CHECK(reinterpret_cast<BoolFn>(vt[28])(g, nullptr) == 1);  // state 0
+    g->StartMapUpdate();  // state 1: not initialised, so it stays there (§3.2)
+    CHECK(reinterpret_cast<BoolFn>(vt[28])(g, nullptr) == 0 && g->GrowthAndDeclineListsAreValid());
+    CHECK(!g->Init(nullptr));  // [choice] a null holder is refused
+    // §9: version 1 first.
+    std::vector<uint8_t> record;
+    if (ser != nullptr) {
+        ResidentialSegOStream out;
+        CHECK(ser->Write(out));
+        record = out.bytes;
+        CHECK(record.size() > 10 && record[0] == 1 && record[1] == 0);
+    }
+    if (mt != nullptr) {
+        ResidentialDayMessage idle(kMsgSimIdleDev, kJulian20000201);
+        CHECK(mt->DoMessage(&idle));
+        ResidentialDayMessage day(kMsgSimNewDay, kJulian20000201);
+        CHECK(mt->DoMessage(&day));  // elapsed 0: never blocks
+        TypeMessage other(0x12345678);
+        CHECK(mt->DoMessage(&other));
+    }
+    // Another thread takes the lock (nothing holds it) and reads the same values.
+    int32_t threshold = 0;
+    uint8_t park = 0;
+    std::thread t([&] {
+        threshold = g->GetDesirabilityThreshold();
+        park = g->GetParkCap();
+    });
+    t.join();
+    CHECK(threshold == 80 && park == 6);
+    if (ser != nullptr) ser->Release();
+    if (mt != nullptr) mt->Release();
+    CHECK(g->Shutdown());
+    CHECK(g->Release() == 0);
+    // Read runs before Init: the record loads into a new developer; a
+    // truncated one does not.
+    for (bool whole : {true, false}) {
+        obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_GrowthDeveloper, kIID_cISC4GrowthDeveloperDev, &obj));
+        auto* fresh = static_cast<cFC4ISC4GrowthDeveloper*>(obj);
+        if (fresh == nullptr) continue;
+        cIGZSerializable* s = nullptr;
+        CHECK(fresh->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&s)) && s != nullptr);
+        if (s != nullptr && !record.empty()) {
+            std::vector<uint8_t> bytes = record;
+            if (!whole) bytes.resize(5);
+            ResidentialSegIStream in(bytes);
+            CHECK(s->Read(in) == whole);
+            s->Release();
+        }
+        CHECK(fresh->Release() == 0);
+    }
+}
+
+int DevelopmentEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = development` registers the building
+    // development simulator and the growth developers.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_DEVELOPMENT_SEED", nullptr);
+    SetEnvironmentVariableA("FC4_DEVELOPMENT_GROWTH_ATTEMPTS_PER_DAY", nullptr);
+    SetEnvironmentVariableA("FC4_DEVELOPMENT_SHADOW", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = development\ndevelopment_seed = 42\n"
+                       "development_growth_attempts_per_day = 3\n[tools]\ndevelopment_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr);
+    SetGamePrecision();  // as the game's PreFrameWorkInit does: the simulator must leave it
+    std::vector<uint8_t> record;
+    if (director != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        // simulator (1) + budget (3) + development (2).
+        CHECK(classes.size() == 6);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Development) == 1);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_GrowthDeveloper) == 1);
+
+        void* obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Development, kIID_cISC4BuildingDevelopmentSimulator, &obj));
+        auto* bds = static_cast<cFC4ISC4BuildingDevelopmentSimulator*>(obj);
+        if (bds != nullptr) {
+            // §1.1: the primary for its IID and cIGZUnknown, the two message
+            // targets (+4, +8) and the serializable (+0xC); nothing else.
+            void* p = nullptr;
+            CHECK(bds->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(bds));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            p = nullptr;
+            CHECK(bds->QueryInterface(kIID_cISC4BuildingDevelopmentSimulator, &p) && p == static_cast<void*>(bds));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            p = nullptr;
+            CHECK(bds->QueryInterface(kIID_cIGZMessageTargetDev, &p) &&
+                  p == static_cast<void*>(reinterpret_cast<char*>(bds) + 4));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            cIGZMessageTarget2* mt = nullptr;
+            CHECK(bds->QueryInterface(kIID_cIGZMessageTarget2Dev, reinterpret_cast<void**>(&mt)) &&
+                  static_cast<void*>(mt) == static_cast<void*>(reinterpret_cast<char*>(bds) + 8));
+            cIGZSerializable* ser = nullptr;
+            CHECK(bds->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) &&
+                  static_cast<void*>(ser) == static_cast<void*>(reinterpret_cast<char*>(bds) + 0xC));
+            if (ser != nullptr) CHECK(ser->GetGZCLSID() == kCLSID_Development);
+            p = reinterpret_cast<void*>(0x1234);
+            CHECK(!bds->QueryInterface(0x12345678, &p) && p == reinterpret_cast<void*>(0x1234));
+            CheckDevelopmentNeutral(bds, 0x5150);
+            // The record before Init (§6: version 4).
+            if (ser != nullptr) {
+                ResidentialSegOStream out;
+                CHECK(ser->Write(out));
+                record = out.bytes;
+                CHECK(record.size() > 2 && record[0] == 4 && record[1] == 0);
+            }
+            // Without a city Init runs (no catalogue, no services); the
+            // status lines still come.
+            CHECK(bds->Init());
+            if (mt != nullptr) {
+                ResidentialDayMessage day(kMsgSimNewDay, kJulian20000201);
+                CHECK(mt->DoMessage(&day));
+                ResidentialDayMessage month(kMsgSimNewMonth, kJulian20000201);
+                CHECK(mt->DoMessage(&month));
+                CheckDevelopmentThreads(bds, mt);
+            }
+            CheckDevelopmentNeutral(bds, 0x5160);  // the catalogue mirror is process-wide: new types
+            if (ser != nullptr) ser->Release();
+            if (mt != nullptr) mt->Release();
+            CHECK(bds->Shutdown());
+            CHECK(bds->Release() == 0);
+        }
+        // Read runs before Init (§6): the record written above loads into a
+        // new simulator; a truncated one does not.
+        for (bool whole : {true, false}) {
+            obj = nullptr;
+            CHECK(director->GetClassObject(kCLSID_Development, kIID_cISC4BuildingDevelopmentSimulator, &obj));
+            auto* fresh = static_cast<cFC4ISC4BuildingDevelopmentSimulator*>(obj);
+            if (fresh == nullptr) continue;
+            cIGZSerializable* s = nullptr;
+            CHECK(fresh->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&s)) && s != nullptr);
+            if (s != nullptr && !record.empty()) {
+                std::vector<uint8_t> bytes = record;
+                if (!whole) bytes.resize(bytes.size() / 2);
+                ResidentialSegIStream in(bytes);
+                CHECK(s->Read(in) == whole);
+                s->Release();
+            }
+            CHECK(fresh->Release() == 0);  // the final Release shuts a never-initialised simulator down
+        }
+        CheckGrowthDeveloper(director);
+        // The development shadow's record bridge (seam op 34, mode 1): one of
+        // our developers' record read into a new read-only core.
+        auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+        CHECK(seam != nullptr);
+        if (seam != nullptr) {
+            void* g = nullptr;
+            CHECK(director->GetClassObject(kCLSID_GrowthDeveloper, kIID_cISC4GrowthDeveloperDev, &g) && g != nullptr);
+            if (g != nullptr) {
+                FC4DevelopmentShadowTestInput in{};
+                in.mode = 1;
+                in.developer = static_cast<cIGZUnknown*>(g);
+                CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 1);
+                CHECK(static_cast<cIGZUnknown*>(g)->Release() == 0);
+            }
+            FC4DevelopmentShadowTestInput none{};
+            none.mode = 1;
+            CHECK(seam(kFC4SeamDevelopmentShadow, &none, nullptr) == -1);
+        }
+        CheckCw("development");
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("subsystem 'development': enabled (2 classes replaced) by FreeCity4.ini (enable=)") !=
+          std::string::npos);
+    CHECK(text.find("development: process statics ") != std::string::npos);
+    CHECK(text.find(", session seed 0x0000002A (development_seed)") != std::string::npos);
+    CHECK(CountOf(text, "cFC4BuildingDevelopmentSimulator(") == 3);
+    CHECK(CountOf(text, "daily growth budget 3") == 3);
+    CHECK(text.find("development Write -> 1") != std::string::npos);
+    CHECK(text.find("development: no city; services not acquired") != std::string::npos);
+    CHECK(text.find("development Init: init=1") != std::string::npos);
+    CHECK(text.find("development month 2000-02-01: developers=0 built=0") != std::string::npos);
+    CHECK(text.find("development Read -> 1") != std::string::npos);
+    CHECK(text.find("development Read: init=0 loaded=1") != std::string::npos);
+    CHECK(text.find("development Read -> 0") != std::string::npos);
+    CHECK(text.find("development Shutdown: init=0") != std::string::npos);
+    CHECK(CountOf(text, "cFC4BuildingDevelopmentSimulator destroyed") == 3);
+    CHECK(text.find("development: AddNewFoundationOccupant (slot 23") != std::string::npos);
+    // The growth developers: one created and initialised (refused), two read.
+    CHECK(text.find("development: growth statics ") != std::string::npos);
+    CHECK(CountOf(text, "cFC4GrowthDeveloper(") == 8);  // created and destroyed (one for the shadow's bridge)
+    CHECK(text.find("growth 0x00000000 Init FAILED: init=0") != std::string::npos);
+    CHECK(text.find("growth 0x00000000 Write -> 1") != std::string::npos);
+    CHECK(text.find("growth 0x00000000 Read: init=0") != std::string::npos);
+    CHECK(text.find("growth 0x00000000 Read FAILED") != std::string::npos);
+    CHECK(CountOf(text, ") destroyed (0 updates, 0 calls answered without the lock)") == 4);
+    // The development shadow: inactive with ours; its record bridge.
+    CHECK(text.find("development shadow: requested (development_shadow from FreeCity4.ini) but INACTIVE: it needs "
+                    "FreeCity4's simulator and the original development unit (do not enable development); here the "
+                    "simulator is ours and development is ours") != std::string::npos);
+    CHECK(text.find("development shadow: ON") == std::string::npos);
+    CHECK(text.find("development shadow test: record v1 (30 bytes) phantom=0 total=0 -> read 1 (copies 0, failed 0; "
+                    "core total=0 phantom=0)") != std::string::npos);
+    // The catalogue mirror: built once per process, after the first Init loaded the catalogue.
+    CHECK(CountOf(text, "development catalogue: 0 building types, 0 families") == 1);
+    CHECK(CountOf(text, "development: the static-data cleanup is not registered") == 1);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    CHECK(text.find("streams: WARNING") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin development enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
+// ---- the development shadow (test seam op 34) ---------------------------------------------------------
+
+int DevelopmentShadowIniTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // `development_shadow = 1` with FreeCity4's simulator and the original
+    // development unit (the defaults): ON, and the shadow's list comparison.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_DEVELOPMENT_SHADOW", nullptr);
+    WriteTextFile(ini, "[tools]\ndevelopment_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_GrowthDeveloper) == 0);
+        const int32_t two[] = {1, 2, 1, 3, 4, 2};
+        const int32_t swapped[] = {3, 4, 2, 1, 2, 1};
+        const int32_t three[] = {1, 2, 1, 3, 4, 2, 5, 6, 1};
+        FC4DevelopmentShadowTestInput in{};
+        in.mode = 0;
+        in.original = two;
+        in.originalCount = 2;
+        in.ours = two;
+        in.oursCount = 2;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 0);
+        in.ours = swapped;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 2);  // both indices
+        in.asSet = 1;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 0);  // the industrial decline order
+        in.ours = three;
+        in.oursCount = 3;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 2);  // the count, one only in ours
+        in.asSet = 0;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 1);  // the count
+        in.ours = nullptr;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == -1);
+        CHECK(seam(kFC4SeamDevelopmentShadow, nullptr, nullptr) == -1);
+        FC4DevelopmentShadowTestInput other{};
+        other.mode = 9;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &other, nullptr) == -1);
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    const auto npos = std::string::npos;
+    CHECK(text.find("development shadow: ON (development_shadow from FreeCity4.ini): every ORIGINAL growth "
+                    "developer's monthly update") != npos);
+    CHECK(text.find("development shadow: not compared or assumed: the industrial decline order") != npos);
+    CHECK(text.find("development shadow: requested") == npos);
+    CHECK(text.find("development shadow test: lists 2/2 in order; mismatches=0") != npos);
+    CHECK(text.find("development shadow test: lists 2/2 in order; mismatches=2; differences (original/ours): "
+                    "list[0] (1,2) s1/(3,4) s2, list[1] (3,4) s2/(1,2) s1") != npos);
+    CHECK(text.find("development shadow test: lists 2/2 as a multiset; mismatches=0") != npos);
+    CHECK(text.find("development shadow test: lists 2/3 as a multiset; mismatches=2; differences (original/ours): "
+                    "list count 2/3, list (5,6) s1 only in ours") != npos);
+    CHECK(text.find("development shadow test: lists 2/3 in order; mismatches=1; differences (original/ours): "
+                    "list count 2/3") != npos);
+    CHECK(text.find("subsystem 'development': enabled") == npos);
+    CHECK(text.find("structured exception") == npos);
+    CHECK(text.find("config: WARNING unknown key") == npos);
+    CHECK(text.find("WARNING: released last reference") == npos);
+    CHECK(text.find("WARNING: over-release") == npos);
+    if (g_failures == 0) std::printf("plugin development shadow test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 // ---- zones (zones.md): the replacement without a city; PlaceZone and the dezone through stub hosts (op 38) -------
 constexpr uint32_t kCLSID_ZoneManager = 0x298F9B2D;
 constexpr uint32_t kIID_cISC4ZoneManager = 0x67652433;
@@ -7048,6 +7447,10 @@ int main(int argc, char** argv) {
     if (mode == "--ini-enable-zones") return ZonesEnableTest(dll, ini, log);
     // Neighbours (neighbors.md): the replacement, its objects, an original connection loaded.
     if (mode == "--ini-enable-neighbors") return NeighborsEnableTest(dll, ini, log);
+    // Development (building-development.md): the replacement without a city.
+    if (mode == "--ini-enable-development") return DevelopmentEnableTest(dll, ini, log);
+    // The development shadow: ON with the original unit, its list comparison (seam op 34).
+    if (mode == "--ini-development-shadow") return DevelopmentShadowIniTest(dll, ini, log);
     // Land value and flammability grid shadows on fake originals; both inactive with ours.
     if (mode == "--ini-landvalue-shadow") return LandValueShadowTest(dll, ini, log);
     if (mode == "--ini-flammability-shadow") return FlammabilityShadowTest(dll, ini, log);
@@ -7190,7 +7593,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 160): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 171): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -9084,11 +9487,11 @@ int main(int argc, char** argv) {
                     "residential EQ/HQ/LE=12.5000/34.2500/75\r\n") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 160 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 160 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 171 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 171 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 160): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 171): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);

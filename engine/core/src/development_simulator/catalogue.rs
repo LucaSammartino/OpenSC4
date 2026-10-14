@@ -36,6 +36,8 @@ impl BuildingProfile {
             .get(&developer_type(u32::from(purpose), u32::from(wealth)))
             .copied()
             .unwrap_or(0);
+        let category_values = props::u32s(h, prop::CATEGORIES).unwrap_or_default();
+        let category_flags = crate::development::category_flags_of(&category_values);
         let mut occupant_size = [0.0f32; 3];
         if let Some(v) = props::f32s(h, prop::OCCUPANT_SIZE) {
             for (slot, x) in occupant_size.iter_mut().zip(v) {
@@ -49,7 +51,8 @@ impl BuildingProfile {
             capacity,
             flag_27812836: props::bool_of(h, prop::FLAG_27812836).unwrap_or(false),
             value_499afa38: props::u32_of(h, prop::VALUE_499AFA38).map_or(30, |v| v as u8),
-            category_values: props::u32s(h, prop::CATEGORIES).unwrap_or_default(),
+            category_values,
+            category_flags,
             occupant_size,
             plop_cost: props::i64_of(h, prop::PLOP_COST).unwrap_or(0),
         }
