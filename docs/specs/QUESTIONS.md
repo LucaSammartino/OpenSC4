@@ -965,9 +965,16 @@ with aura was clean, 0 problems). The park, landmark and riot fields aside, **6 
   landmark {−100, 32}, radius 8 tracts, 193 tracts per cone) created on the 1st: their messages arrive after the
   original's states 2 and 3, so its maps catch up one cycle later. Two tiles in one tract give 193 tracts with −200;
   two tiles one tract apart give 208 tracts with −188.
-- **AU15 — rare large single-tract differences.** Three cycles have a base difference near 180 (cycle 3: 182,
+- ~~**AU15 — rare large single-tract differences.** Three cycles have a base difference near 180 (cycle 3: 182,
   cycle 7: 188, cycle 88: 175) while the aura grid differs by at most 54/60/47 there. A lot placed or removed during
-  the cycle? Which state reads the lots, and is a lot's effect clamped before or after it is added to the base?
+  the cycle? Which state reads the lots, and is a lot's effect clamped before or after it is added to the base?~~
+  **ANSWERED 2026-10-14** from the exe (state 5 `0x0068F37C`; `LotBaseAura` `0x0068CE00`; state 14
+  `0x0068F6FE`–`0x0068F94E`) and written into aura.md §6.5 ("Which lots, and where the clamps are") and §5.3
+  (worked example). **Yes, a residential lot seen by one side only.** 182 = 54 − (−128): one side's base is −128
+  (no lot), and the aura of a −128 tract is 0, so the aura differs by 54. Only state 5 reads lots for their value.
+  A lot's value is clamped before it is stamped (after the average and after the value/wealth term); every rule A
+  stage clamps. The base averages the work cells and clamps again, and a base that was −128 takes the new value at
+  once.
 
 ## From the residential education and health core (filed by the coordinator from the lane's report, 2026-10-14; merged)
 

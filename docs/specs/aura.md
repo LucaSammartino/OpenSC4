@@ -365,6 +365,19 @@ Uses the CPU-cycle limit timer (simulator §5.5) with a budget of `ms` milliseco
 `work := max(work, b)` (signed). When the iterator is exhausted → 6; otherwise the state stays 5 and the next call
 continues.
 
+**Which lots, and where the clamps are *[compat]*.** State 5 is the only state that reads lots for their value. It
+takes each lot as the iterator reaches it, between the end of state 4 and the end of state 5. A lot built,
+demolished or filled with residents outside that window counts in the next cycle. Rules R (states 8, 9, 11, 12) look
+up lots again, but only to choose cells. The clamps come in this order:
+1. A lot's value is clamped to −127..127 twice (§6.5.1: after the average, and after the value/wealth term).
+2. Stamping takes the maximum of the clamped values, cell by cell.
+3. Each of states 6–13 clamps every cell it changes (rule A).
+4. State 14 averages the cells of the tract that are not −128, adds `globalEffect` and clamps once more.
+
+A lot's value is never added to the base. When the old base is −128 (no lot until now), the base takes the clamped
+new value at once, not one decay step. So a residential lot that one run saw and the other did not, alone in its
+tract, makes the whole value differ: base 54 against −128 (difference 182) and aura 54 against 0 (§5.3).
+
 **Time slicing** (shared timer helper: constructor `0x0068CC20`, deadline `0x0068BF50`, check `0x0068BF80`,
 adaptation `0x0068B960`):
 - Deadline: `TSC now + trunc(float32(ms × MillisecsToCycles))` (simulator §5.5).
