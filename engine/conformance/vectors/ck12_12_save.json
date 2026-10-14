@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "ck12_12_save",
+  "spec": ["clock24 7", "clock24 12"],
+  "description": "Test 12. Write (shipped values, noon) gives the 26-byte example of 7: 02 00 | 0 | 135.0 | 2000.0 | 43200 | 20 | 1. A version-1 record of 36 bytes (the 10-byte timer record 02 | 0 x 8 | 00 after seconds) reads completely, skips the timer record and leaves the timer, the visual time and the minimum alone; rewriting gives version 2 (26 bytes) with the same values. A version-3 record reads as version 2. A record cut inside nightStart fails; the fields before it are stored. The 421 corpus records are not in the repository (see the coverage notes).",
+  "steps": [
+    {"op": "ck_create"},
+    {"op": "ck_call", "method": "init"},
+    {"op": "ck_record", "hex": "0200 00000000 00000743 0000FA44 C0A80000 14000000 01000000"},
+    {"op": "ck_env", "tuning": null},
+    {"op": "ck_create"},
+    {"op": "ck_record", "read": "010000000000000007430000FA4450C30000020000000000000000001400000001000000", "expect": true, "remaining": 0},
+    {"op": "ck_expect", "state": {"pause_count": 0, "magnification": 135, "max_magnification": 2000, "seconds": 50000, "night_start": 20, "night_end": 1, "visual_seconds": 43200, "timer_running": false, "timer_elapsed": 0, "min_magnification_bits": "0x3D4CCCCD"}},
+    {"op": "ck_record", "hex": "020000000000000007430000FA4450C300001400000001000000"},
+    {"op": "ck_create"},
+    {"op": "ck_record", "read": "030000000000000007430000FA4460EA00001400000001000000", "expect": true, "remaining": 0},
+    {"op": "ck_expect", "state": {"seconds": 60000, "night_start": 20, "night_end": 1}},
+    {"op": "ck_create"},
+    {"op": "ck_record", "read": "020000000000000007430000FA4460EA00001400", "expect": false},
+    {"op": "ck_expect", "state": {"seconds": 60000, "night_start": 20, "night_end": 4}}
+  ]
+}

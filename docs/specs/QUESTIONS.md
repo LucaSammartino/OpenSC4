@@ -2902,9 +2902,19 @@ exe and the shipped data alone.
   **ANSWERED 2026-10-14** from the exe (DX7 vertex format `0x008891C0`, diffuse flag at `0x008891EA`; copy for
   `0x80004101` `0x0088C7D0`) and written into graphics-formats §3.5. DX7 copies the 32-bit colour unchanged into the
   vertex's Direct3D diffuse colour, so the bytes are B, G, R, A. The bracket matches. OpenGL not traced.
-- **GF7 — §4.2:** layouts of RKT4 (`0x27812824`) and RKT5 (`0x27812825`), read by `GetAllModelInstanceIDs`
+- ~~**GF7 — §4.2:** layouts of RKT4 (`0x27812824`) and RKT5 (`0x27812825`), read by `GetAllModelInstanceIDs`
   (`0x00496C90`, `0x00497120`) and `IsStaticBuilding` (`0x00583B10`), not by `GetModelInstanceID`. [out of scope
-  here; for the building-rendering lane]
+  here; for the building-rendering lane]~~
+  **ANSWERED 2026-10-14** from the exe (`GetAllModelInstanceIDs` `0x00496C90`: zoom mask `0x00496D06`–`0x00496D25`,
+  RKT4 walk `0x00496F2E`–`0x00497078`, RKT5 `0x0049707D`–`0x004970CB`; occupant form `0x00497120`;
+  `IsStaticBuilding` `0x00583B10`) and a sweep of the shipped `.dat` files, and written into graphics-formats §4.2
+  ("All the models of an occupant"). RKT4 is a list of records, each (selector, x, y, z, kind) followed by an
+  RKT0–RKT3 value set of that kind (3 values for RKT0/RKT1, 30 for RKT2, 5 for RKT3). Every record whose selector
+  equals the occupant's state gives one instance and an offset (x, y, z as signed 16.16 fixed point). An unknown
+  kind or a short record ends the walk. RKT5 is RKT1 plus state × `0x10000`. Property `0x0ABFC024` is a zoom mask
+  checked first, and the occupant's flag `0x80` switches all six keys to `0x278129xx`. `IsStaticBuilding` only
+  tests that the keys are present. Shipped: RKT4 on 618 props, RKT5 on 5 flora; four streetlights carry a stray
+  value that stops their `0x27812924` walk after one record. The bracket (out of scope) is replaced by this answer.
 - ~~**GF8 — §4.2:** where the model detail global `0x00B216FC` (zoom remap table `0x00B094A4`) is set, and from which
   option. [unknown; 0 in the image]~~
   **ANSWERED 2026-10-14** from the exe (`cSC4ModelMaker::Init` `0x004948BE`–`0x004948DF`, message handler
@@ -3217,20 +3227,61 @@ RG1–RG22, RG13 in the budget core, PR14–PR16, PG15, DQ13, SV1–SV2, LF6 and
 the buzzards through the effects manager (new switch `residential_effects`, 160 switches). The current answer is in
 brackets.
 
-- **PR17:** Protection §5.1: what does `UpdateUnadjusted` do when `GetDispatchEffect` fails? [the return value is
-  ignored and the record is zeroed, so the centre adds 0]
-- **PR18:** Protection §7.2: what is in the caller's record? [a zeroed record]
-- **PR19:** The older "PR14/PR15" labels in the jail vectors, `protection/mod.rs` and `algo.rs` clash with the
-  QUESTIONS numbering. [left as they are]
-- **RG25:** RG1: the buzzard transform's bytes +2 and +3 are not stated. [0]
-- **RG26:** RG10: how does a host report "cannot be read"? [NaN or a NULL callback means missing; the outputs are left
-  alone]
-- **RG27:** RG1: does "cannot show" (a NULL callback or `FC4_EFFECT_NOT_SHOWN`) count as created? [yes: the second
-  draw is made and the flag set, but there is no altitude read, start or release]
-- **RG28:** RG7: which ordinance effects does the shadow use before its first state 0? [it reads them as they stand]
-- **NB19:** NB18: does `cISC4App::GetCity` return the same primary cISC4City address the game's city global holds?
-  [assumed yes]
-- **PG16:** PG15: should the n<0 wrap quirk on a damaged save be reproduced? [no, clamped: delta −s, supply 0]
+- ~~**PR17:** Protection §5.1: what does `UpdateUnadjusted` do when `GetDispatchEffect` fails? [the return value is
+  ignored and the record is zeroed, so the centre adds 0]~~
+  **ANSWERED 2026-10-14** from the exe (`UpdateUnadjusted` `0x006F5D83`–`0x006F5DFE`; `GetDispatchEffect` fire
+  `0x006AD720`, police `0x006E0CB0`) and written into protection.md §5.1 with a worked example. The AL is ignored,
+  as in the bracket, but **the record is not zeroed**. The dispatch loop reuses the station loop's stack record, and
+  a failed call zeroes only x, z and centre. The cone is drawn with `c = 0` and the leftover outer and radius from
+  the previous dispatch or the last station: an inverted cone, 0 at the centre rising towards the old outer.
+  **The bracket differs**, but only for custom stations: every shipped fire and police station has a non-zero
+  dispatch centre, so with shipped data the call never fails. *[choice]*: keep one record across both loops to
+  match; the zeroed record is acceptable as a known difference.
+- ~~**PR18:** Protection §7.2: what is in the caller's record? [a zeroed record]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006F5C87`, `0x006F5DA9`; handler `0x006F6221`) and written into
+  protection.md §7.2. **Never a zeroed record.** In `UpdateUnadjusted` it is the record shared by every station and
+  dispatch of the rebuild: the previous dispatch's values, else the last station's, else uninitialised stack. In
+  the active/inactive handler it is a fresh, uninitialised stack record. **The bracket differs** when the call
+  fails, and on success when the station lacks the outer or radius property (that field keeps the leftover).
+- ~~**PR19:** The older "PR14/PR15" labels in the jail vectors, `protection/mod.rs` and `algo.rs` clash with the
+  QUESTIONS numbering. [left as they are]~~
+  **ANSWERED 2026-10-14**: glue-only, no original behaviour; the implementer's choice stands.
+- ~~**RG25:** RG1: the buzzard transform's bytes +2 and +3 are not stated. [0]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006FA814`–`0x006FA819`; effect `SetTransform` `0x005BE880` →
+  `0x005BEC20`) and written into residential-education-health.md §4.7 step 3. The original never writes +2 and
+  +3: they are uninitialised stack bytes, the alignment gap after the two flag bytes. The effect copies only byte
+  +1 and the dwords +0x04 to +0x34, so it reads neither +0, +2 nor +3. **The bracket (0) is equivalent.**
+- ~~**RG26:** RG10: how does a host report "cannot be read"? [NaN or a NULL callback means missing; the outputs are left
+  alone]~~
+  **ANSWERED 2026-10-14**: glue-only, no original behaviour; the implementer's choice stands. Written into
+  residential-education-health.md §4.2. The only original "missing" is a null `GetDepartmentBudget` for an
+  existing item. A missing item gives 1.0 and must not be reported as missing. A NaN is a safe sentinel, because
+  a real funding fraction is never NaN.
+- ~~**RG27:** RG1: does "cannot show" (a NULL callback or `FC4_EFFECT_NOT_SHOWN`) count as created? [yes: the second
+  draw is made and the flag set, but there is no altitude read, start or release]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006FA6AA`–`0x006FA83E`) and written into
+  residential-education-health.md §4.7 step 3. **Yes.** After a successful create, only the second draw and the
+  flag change simulation state. The altitude read is a pure query, and `Start` and `Release` act only on the
+  effect. **The bracket matches**, as long as the second draw is never skipped.
+- ~~**RG28:** RG7: which ordinance effects does the shadow use before its first state 0? [it reads them as they stand]~~
+  **ANSWERED 2026-10-14** from the exe (callers `0x006FED0B` and `0x006FF5CA`, RG7) and written into
+  residential-education-health.md §4.3 with an example. Before its first state 0, the original uses the lists that
+  `Init` built: the ordinances on in the save, or none in a new city. The shadow has no original counterpart.
+  **The bracket is acceptable** while no ordinance has changed since `Init`. *[choice]*: to match always, read the
+  effects once at `Init` and then only at the original's state 0.
+- ~~**NB19:** NB18: does `cISC4App::GetCity` return the same primary cISC4City address the game's city global holds?
+  [assumed yes]~~
+  **ANSWERED 2026-10-14** from the exe (`cISC4App` slot 37 `+0x94` `0x0081F910`; `cSC4App::NewCity` `0x00454908`;
+  `PartialCloseCity` `0x00454AEC`; the global is cleared at `0x00602100` from the city destructor `0x0045A468`) and
+  written into neighbors.md §8.2. **Yes.** `GetCity` returns the application's city member, borrowed. NewCity
+  stores in it the address the constructor gave to the global `0x00B43CEC`: the primary `cISC4City`. The two can
+  differ only after the city's `Shutdown`. **The bracket matches.** The ABI row is in the re-answers9 report.
+- ~~**PG16:** PG15: should the n<0 wrap quirk on a damaged save be reproduced? [no, clamped: delta −s, supply 0]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006E3301`–`0x006E332F`) and written into pollution.md §8.1 with a table.
+  The original wraps only when a damaged save holds a supply within `|n|` of `−2^31`. It then stores the wrapped
+  positive sum. Every other negative supply goes to 0, the same as the clamp. Only a damaged save reaches this, so
+  the implementer's choice stands. **The bracket is acceptable**; reproducing the wrap is what a conformance test
+  against the original would expect.
 
 ## From applying the power, plumbing and landfill answers (filed by the coordinator from the `apply6b` lane's report, 2026-10-14)
 
@@ -3238,22 +3289,69 @@ PW1–PW8, PS1–PS8 and LG1–LG20 are applied or confirmed, except LG5 (orient
 to the view rotation) and LG16 (seagull effects are not implemented). LG1 and LG2 need an in-game check. The current
 answer is in brackets.
 
-- **AO1:** Foundations §13.4 ranks 2 and 5: what AddAgent names do the two port developers and the commercial
-  simulator use? [they count as unranked and keep registration order ahead of the month tail]
-- **AO2:** LG6 with the game's own simulators: the month order is heap-address order, which the glue cannot change.
-  [the order is logged at AddAgent, with a WARNING if landfill would run before pollution or the budget]
-- **LG21:** LG5: is there a documented route to SC4ViewUtilities `+0x10`, for example a docs/abi row for
-  `cISC43DRender` slot 8? [orientation 0]
-- **LG22:** Landfill §4.8.5: is the in-memory record that SetTextureSpecification takes laid out in the saved 14-byte
-  order, and what is its stride? [saved order; one record in a 16-byte buffer with zeroed padding]
-- **LG23:** LG8: a FreeCity4 save made while tiles were kept in FreeCity4 has no game tiles. [PostCityInit rebuilds
-  only the cells without a tile]
-- **LG24:** In the original, a zone that was never initialised never releases its zot at Shutdown. [we release our
-  reference at the developer's Shutdown, without RemovePropA]
-- **LG25:** `cISCExemplarPropertyHolder` has only one docs/abi row (slot 3); slot 4 `GetDefaultExemplar` has none.
-  [a reviewed slot count of 5 against 4; only slot 3 is called]
-- **LG26:** LG3: when InsertOccupant fails after Init, should the occupant be shut down? [released without Shutdown;
-  the tile is kept in FreeCity4]
+- ~~**AO1:** Foundations §13.4 ranks 2 and 5: what AddAgent names do the two port developers and the commercial
+  simulator use? [they count as unranked and keep registration order ahead of the month tail]~~
+  **ANSWERED 2026-10-14** from the exe (`cSC4PortDeveloper::Init` `0x006EA950`, string `0x00A89650`;
+  `cSC4CommercialSimulator::Init` `0x0069EF90`, string `0x00A89920`) and written into foundations §13.4 (tail agent
+  names). Both port developers register `"cSC4PortDeveloper"` at level 6 through their shared base `Init`; the
+  commercial simulator registers `"cSC4CommercialSimulator"` at levels 0, 10, 4, 6. **The bracket differs**: with the
+  names known, rank them (both port developers share rank 2; their mutual order is free, *[choice]* registration
+  order) instead of leaving them unranked.
+- ~~**AO2:** LG6 with the game's own simulators: the month order is heap-address order, which the glue cannot change.
+  [the order is logged at AddAgent, with a WARNING if landfill would run before pollution or the budget]~~
+  **ANSWERED 2026-10-14** from foundations §13.1 (the original's set is ordered by target pointer) and written into
+  foundations §13.4. No original behaviour can be imposed on the original simulator; the glue's rank follows its
+  object's address. **The bracket stands** as the minimum. *[choice]*: allocate the glue's month target from the game's
+  own heap at the original object's place in city `Init`, which reproduces the original's usual placement but cannot
+  guarantee it.
+- ~~**LG21:** LG5: is there a documented route to SC4ViewUtilities `+0x10`, for example a docs/abi row for
+  `cISC43DRender` slot 8? [orientation 0]~~
+  **ANSWERED 2026-10-14** from the exe (`SL::OnView3DInit` `0x00602590`; `0x0043FD00`; `0x007C9FB0`) and written
+  into landfill.md §4.7.5 and §8. **Yes, there is a route.** The global `0x00B43DD8` is filled from the city view as
+  `cISC4View3DWin` (IID `0xFA47B3F9`) slot 4 `GetRenderer`, then `cISC43DRender` slot 8 `GetViewUtilities`. Both
+  are pop 0, return EAX and give a borrowed pointer. The rotation is the 32-bit integer at `+0x10` of the view
+  utilities object, which is not a GZCOM object. Neither interface has a rotation getter, so that field read is
+  the only route. **The bracket (orientation 0) matches only at the first rotation.** *[choice]*: glue reads the
+  rotation through this route when it places the zot, and uses 0 when there is no view. ABI rows are in the
+  re-answers9 report.
+- ~~**LG22:** Landfill §4.8.5: is the in-memory record that SetTextureSpecification takes laid out in the saved 14-byte
+  order, and what is its stride? [saved order; one record in a 16-byte buffer with zeroed padding]~~
+  **ANSWERED 2026-10-14** from the exe (`SetTextureSpecification` `0x005E0B20`, `Write` `0x005DF1E0`,
+  `SetEmptyCellTexture` `0x006BA470`) and written into landfill.md §4.8.5. **Yes: the saved order, with a
+  16-byte stride.** The texture is at `+0x0`, x and z at `+4` and `+5`, orientation at `+6`, the configuration
+  byte at `+7`, the five unnamed bytes at `+8`–`+0xC`, the frame at `+0xD`, and padding at `+0xE`–`+0xF`. The
+  padding is copied into the vector but is never read or saved. The original's own record leaves it unset (stack
+  garbage). **The bracket matches.**
+- ~~**LG23:** LG8: a FreeCity4 save made while tiles were kept in FreeCity4 has no game tiles. [PostCityInit rebuilds
+  only the cells without a tile]~~
+  **ANSWERED 2026-10-14** from landfill.md §6.4 (LG8: the original saves its tiles and never rebuilds them on load)
+  and written into landfill.md §6.4. **No original behaviour exists for this case**, so the implementer's choice
+  stands. The original loading such a save shows no tiles until each heap next changes. **The bracket is
+  acceptable.** Define the cells to rebuild as those whose rule gives a tile other than `0x02F10000` and where
+  slot 33 finds no landfill occupant. On an original save that rebuilds nothing. The one exception is a cell left
+  without a tile by `AddRegionToZone` (§4.4.4 step 4), which the original fills only when its heaps next change.
+- ~~**LG24:** In the original, a zone that was never initialised never releases its zot at Shutdown. [we release our
+  reference at the developer's Shutdown, without RemovePropA]~~
+  **ANSWERED 2026-10-14** from the exe (developer `Shutdown` `0x006B94B0`, zone `FinalRelease` `0x006BB8C0`, zone
+  destructor `0x006BBBC0`) and written into landfill.md §4.4.9. **The premise is incomplete.** The zone's `Shutdown`
+  skips the zot, but the developer's `Shutdown` then releases the zone. Its last reference runs the destructor,
+  which releases the zot without `RemovePropA` and without nulling the field. **The bracket matches.**
+- ~~**LG25:** `cISCExemplarPropertyHolder` has only one docs/abi row (slot 3); slot 4 `GetDefaultExemplar` has none.
+  [a reviewed slot count of 5 against 4; only slot 3 is called]~~
+  **ANSWERED 2026-10-14** from the exe (vtables `0x00A8CD08` and `0x00A871A0`) and written into landfill.md §4.8.1
+  and §8. **The vtable has five slots**: 0 QI thunk, 1 `AddRef` thunk (`0x005E06A0`), 2 `Release` thunk
+  (`0x005E06B0`), 3 `SetDefaultExemplar` (`0x00458E60`, pop 4, void) and 4 `GetDefaultExemplar` (`0x0060CE80`,
+  pop 0, EAX, borrowed). A zero dword follows at `0x00A8CD1C`, then the next vtable. **The reviewed count of 5 is
+  right.** A declaration that stops before slot 4 is safe only for calling. The landfill calls only slot 3. The
+  missing rows (1, 2) are in the re-answers9 report; main's interfaces.tsv already has slots 0, 3 and 4.
+- ~~**LG26:** LG3: when InsertOccupant fails after Init, should the occupant be shut down? [released without Shutdown;
+  the tile is kept in FreeCity4]~~
+  **ANSWERED 2026-10-14** from the exe (callers `0x006BD234`/`0x006BD2A4`/`0x006BD310`/`0x006BD37E`;
+  `cSC4Occupant::Shutdown` `0x005E8980`; `Release` `0x005E8DF0`) and written into landfill.md §4.8.1. **No
+  Shutdown.** For a new tile the insert cannot fail, and no caller tests the result. Had it failed, the tile would
+  be freed when the queued `0x99EF1140` message released it, without `Shutdown` or its `0x99EF1141`. The original
+  keeps no tile list, so its later cell lookups would find no tile. **"Released without Shutdown" matches.** "Kept
+  in FreeCity4" has no counterpart. *[choice]*: keep it and log the failure.
 
 ## From applying the exemplar, zones draft and traffic-network answers (filed by the coordinator from the `apply8b` lane's report, 2026-10-14)
 
@@ -3261,21 +3359,66 @@ EX21–EX33, ZQ11–ZQ12 and TN26–TN28 are applied or cited. EX29 replaces the
 half-up, trimmed, cut at 63 characters, Float32 included); TN27 fixed a real bug (travel type −1 matched every
 connection type). The current answer is in brackets.
 
-- **EX34:** `_fcvt(x, 64)`: does it round again at the 64th place when the 17 digits reach past it (below 1e-47)?
-  [yes, half-up again; 9.5e-65 prints `0.` and 61 zeros after the cut]
-- **EX35:** Negative exponents: §4.3 says "divided", but EX23 explains `e-32` as 1/0, then 0 × ∞ (a reciprocal and
-  a multiply, two roundings). Which is it? [one divide, one rounding; the NaN comes out the same]
-- **EX36:** A leading `-` on a NaN result (`-e-32`): does the sign flip the NaN, as `fchs` would? [yes: `0x7FC00000`]
-- **EX37:** EX31 lookup cache: the original keeps a looked-up record; our store keeps no cache, so a lookup between
+- ~~**EX34:** `_fcvt(x, 64)`: does it round again at the 64th place when the 17 digits reach past it (below 1e-47)?
+  [yes, half-up again; 9.5e-65 prints `0.` and 61 zeros after the cut]~~
+  **ANSWERED 2026-10-14** from the exe (`_fcvt` `0x009F662C` → `_fpcvt` `0x009F65CF` → `_fptostr` `0x00A0264A`,
+  rounding at `0x00A0268E`–`0x00A0269E`) and written into data-formats.md §5.1 ("Below 10⁻⁴⁸ the digits are
+  rounded a second time"). Yes: `_fptostr` keeps 64 + decpt digits and rounds half-up again on the next one. It
+  happens below 10⁻⁴⁸ (decpt ≤ −48), not below 1e-47: from 1e-48 to 1e-47 all 17 digits still fit. 9.5e-65 prints
+  `0.` and 61 zeros (**the bracket matches**). The second rounding can show: 2e-49 prints `0.`, 48 zeros and `2`
+  instead of `…1999999999999`, and everything below 5e-65 prints `0`. Two findings on the way, also in §5.1: a tiny
+  negative value keeps its sign (−4e-65 prints `-0`, unlike −0.0), and a cut that falls among the fraction digits
+  strips trailing zeros (1.0000000000000002e-47 prints 49 characters, not 63).
+- ~~**EX35:** Negative exponents: §4.3 says "divided", but EX23 explains `e-32` as 1/0, then 0 × ∞ (a reciprocal and
+  a multiply, two roundings). Which is it? [one divide, one rounding; the NaN comes out the same]~~
+  **ANSWERED 2026-10-14** from the exe (`fld1`/`fdivrp` at `0x00910507`, `fmul` at `0x0091050B`; 10ⁿ from
+  `0x0091040D`) and written into data-formats.md §4.3 (Float32). A reciprocal and a multiply: 1/10ⁿ is rounded to
+  the caller's precision, then multiplied in, so there are two roundings. **The bracket differs** ("one divide, one
+  rounding"): at 24 bits `9e-1` gives `0x3F666667` (one division: `0x3F666666`), `5e-2` gives `0x3D4CCCCC`
+  (`0x3D4CCCCD`) and `2.5e-3` gives `0x3B23D70B` (`0x3B23D70A`); `1e-1`, `3e-1` and `1e-3` agree. The NaN of
+  `e-32` is the same either way, as the bracket says. A positive exponent is one multiply.
+- ~~**EX36:** A leading `-` on a NaN result (`-e-32`): does the sign flip the NaN, as `fchs` would? [yes: `0x7FC00000`]~~
+  **ANSWERED 2026-10-14** from the exe (`fchs` at `0x00910526`, after the exponent step) and written into
+  data-formats.md §4.3 (Exponent). Yes: the sign is applied last and flips the NaN, so `-e-32` gives `0x7FC00000`;
+  `-1e-32` gives −∞. **The bracket matches.**
+- ~~**EX37:** EX31 lookup cache: the original keeps a looked-up record; our store keeps no cache, so a lookup between
   two package loads sees the later package here and the cached record in the original. [no cache; the two agree
-  when every package loads before the first lookup]
-- **EX38:** EX31 late factory: may a factory added after packages are loaded be refused instead of applied to the
-  earlier packages? [refused; `add_factory` returns false]
-- **EX39:** EX33 scalar: the `props` vector readers give a scalar's one value where the original gives an empty
+  when every package loads before the first lookup]~~
+  **ANSWERED 2026-10-14** from the exe (the manager's constructor `0x009744B2` creates and registers one default
+  cache, vtable `0x00AD9428`, at `0x00974544`–`0x00974574`; lookup `0x0097C36E`, insert `0x0097C595`, purge
+  `0x0097C48F`) and written into data-formats.md §3 ("Cache") and §12 item 2. The original does keep every record
+  that loads, with a reference, and returns it before consulting any segment; registering or removing a segment
+  never touches the cache. An entry leaves only by key removal, a clear, or a purge of entries no one else holds
+  *[unsettled: their callers were not traced]*. **The bracket's condition holds**: the two agree whenever every
+  package is registered before the first lookup, which the shipped game does in one pass at startup, the city's
+  save going to the back (a lookup during that pass was not ruled out). *[choice]* No cache stands; a store that
+  registers packages after lookups must keep the first record of each key looked up.
+- ~~**EX38:** EX31 late factory: may a factory added after packages are loaded be refused instead of applied to the
+  earlier packages? [refused; `add_factory` returns false]~~
+  **ANSWERED 2026-10-14** from the exe (the loader, slot 46 `0x00972EAE`, picks the factory by type at every
+  uncached request from `GetResource` `0x009732EB`) and written into data-formats.md §3 ("A factory added late").
+  The original never refuses a factory: a late one serves every later request for its type, records in earlier
+  segments included. **The bracket differs from the original** but stands as *[choice]* on one condition: every
+  factory is added before the first package is loaded (condition 3 of §3 is then vacuous), which holds when
+  FreeCity4 registers all its factories at startup. A refused factory must be logged as an error.
+- ~~**EX39:** EX33 scalar: the `props` vector readers give a scalar's one value where the original gives an empty
   vector. This matters for the shipped `Uint8:0:{}` values of `0x88EDC795` and `0x88EDC796`, which no core reader
-  reads yet. [kept as one value; the doc says such a reader must treat it as empty]
-- **ZQ13:** Does a real-mode Place empty the draft cache even when the Place fails, and before the solve? [yes, at
-  the start of every real-mode Place; no vector depends on it]
+  reads yet. [kept as one value; the doc says such a reader must treat it as empty]~~
+  **ANSWERED 2026-10-14** from the exe (vector helpers `vec<u8>` `0x005FFB40` and `vec<s64>` `0x005FFD80`; readers
+  `0x0047A0EC`, `0x0047A16C`, `0x0047A20C`, `0x0060F690`, `0x0060F710`, `0x0069112B`, `0x0069131A`, `0x00693899`)
+  and a sweep of the shipped `.dat` files, written into data-formats.md §5.2 ("Shipped scalars that only a vector
+  helper reads"). **The bracket differs.** The scalar is not limited to the Living Mall text: 172 binary lot
+  configurations store `0x88EDC796` as a Uint8 scalar 0 (161 of them `0x88EDC795` too, 10 also `0x88EDC793`), and
+  two landfill tiles store the budget cost `0xEA54D286` as a Sint64 scalar, which the budget simulator reads with
+  `vec<s64>`. The original reads every one of them as empty. A vector reader must return an empty vector for a
+  scalar; only the converting getters keep the value (the landfill cost reads 1 and 10 that way).
+- ~~**ZQ13:** Does a real-mode Place empty the draft cache even when the Place fails, and before the solve? [yes, at
+  the start of every real-mode Place; no vector depends on it]~~
+  **ANSWERED 2026-10-14** from the exe (`PlaceNetworkOccupants` `0x00629210`: real-mode test and
+  `cSC4NetworkWorldCache::Clear` `0x00647B20` at `0x00629327`–`0x00629334`) and written into zones.md (the draft
+  cache's "Lifetime"). Yes: right after the bounds setup and before any solve, every real-mode Place empties the
+  cache, and nothing before that point can return early, so a Place that then fails has emptied it too. **The
+  bracket matches.**
 
 ## From the development glue and shadow (filed by the coordinator from the `devglue` lane's report, 2026-10-14)
 
@@ -3283,35 +3426,144 @@ The building development simulator and the growth developers are replaced as one
 building-development.md §9, growth-developer.md §12), with a read-only `development_shadow`. Each question is marked
 in the code; the implemented answer is in brackets.
 
-- **DG1:** The return channel of `AddToDemandValue`. [bool in AL; no x87]
-- **DG2:** The timer that slices state 18. [a real timer, QueryPerformanceCounter]
-- **DG3:** The layout behind `GetLotConfigurationMap`. [lot configuration manager slot 9 `GetLotConfigurationsByFilter`
-  with an accept-all filter, into a B hash_set]
-- **DG4:** The budget item cost at +0x38. [0]
-- **DG5:** How a building occupant's properties are loaded. [a GZCOM occupant, `SetBuildingType`, `GetResource`, QI
-  `0x0AC2B5F7` and `SetDefaultExemplar`; a failure gives false]
-- **DG6:** BDS slots 23, 26 and 29. [false, logged once]
-- **DG7:** The static cleanup through app slot 69. [not registered, logged]
-- **DG8:** "Declined by stage" in the month line. [counted by wealth only]
-- **DG9:** When the decline plan line is written. [at BDS state 4 → 0]
-- **DG10:** The `cSC4LotConfigurationObject` layout. [the SDK header]
-- **DG11:** An empty capacity vector against a present-but-empty one. [`n_capacities > 0` gives one map]
-- **DG12:** A zero profile inserted in advance. [replaced in place]
-- **DG13:** The cheat notification ID. [the cheat ID]
-- **DG14:** The name fallback. [GameString, otherwise cRZBaseString]
-- **DG15:** The lot slope read. [slot 19]
-- **DG16:** The advice subject. [not created]
-- **DG17:** The building type filter's slot 3. [bool(uint32)]
-- **DG18:** The `GrowthItem` stage width. [masked to uint8]
-- **DG19:** A zone type out of bounds. [0]
-- **DG20:** Lot configuration zones: 0..15, where `fc4.h` allows 0..16. [0..15]
-- **DG21:** An off-thread message arriving without the lock. [dropped]
-- **DG22:** ABI numbering after a merge. [renumbered by the coordinator: ABI 35]
-- **DG23:** The `wall_clock_seed` for the `0xFFFFFFFF` key seed. [the development session seed]
-- **DG24:** A null property holder. [false]
-- **DG25:** The shadow's `building_purpose`. [slot 40, no insert]
-- **DG26:** Growth developer slots 10 and 28. [the full EAX, 0 or 1]
-- **DG27:** The off-thread fallback for slot 30. [−4 / 20]
+- ~~**DG1:** The return channel of `AddToDemandValue`. [bool in AL; no x87]~~
+  **ANSWERED 2026-10-14** from the exe (`cSC4Demand::AddToDemandValue` `0x005D4C70`: load, add, store-and-pop, AL = 1,
+  `ret 4`) and written into growth-developer §5.3, §11 and §13.1 (quirk 11 withdrawn). It adds the amount to the
+  node's float32 demand value and returns true in AL; the x87 stack is left as found. **The bracket matches**; the spec's
+  old "ST0, never popped" was wrong (docs/abi already says `eax-or-void`). Bears on the run 102 record: the same
+  section now records that the original's constructor never initialises total capacity (`+0x108`), so the saved
+  `capacity=1036996237` (`0x3DCF4E8D`, a float bit pattern) is the original's own garbage, not a misread; zone, purpose,
+  wealth and source are tuning set by `Init` after `Read`, and five grid references of six is the record's shape
+  (growth-developer §2, §9). *[choice]* total capacity 0 for a new city.
+- ~~**DG2:** The timer that slices state 18. [a real timer, QueryPerformanceCounter]~~
+  **ANSWERED 2026-10-14** from the exe (adaptive helper `0x0068CC20`/`0x0068BF50`, growth developer step `0x00B49098`)
+  and written into growth-developer §5.2. The original reads the processor's time-stamp counter and converts the
+  budget with the simulator's `MillisecsToCycles` (simulator §5.5). **The bracket matches in effect**: any monotonic
+  real-time clock gives the same behaviour, since slicing changes only how much of state 18 runs per call.
+- ~~**DG3:** The layout behind `GetLotConfigurationMap`. [lot configuration manager slot 9 `GetLotConfigurationsByFilter`
+  with an accept-all filter, into a B hash_set]~~
+  **ANSWERED 2026-10-14** from the exe (slot 20 `0x00489720`, map `0x00B216C8`, begin `0x004B0390`; slot 9
+  `0x0048B1A0`, null-filter path `0x0048B2E7`) and written into building-development §4.7.4 (Inputs). Slot 20 returns
+  the manager's own STLport `hash_map` (allocators.md hash_set shape, 12-byte nodes `{next, key, config*}`), with no
+  reference. **The bracket matches**: slot 9 with a null (or accept-all) filter gives the same configurations, each
+  AddRef'd into a B `hash_set`; the caller must release each one. Order does not matter (the table keeps maxima).
+- ~~**DG4:** The budget item cost at +0x38. [0]~~
+  **ANSWERED 2026-10-14** from the exe (`LoadBuildingProperties` `0x0069BE00`–`0x0069BE3F`; profile readers after
+  BDS slots 39/40 and occupant slot 11 scanned) and written into building-development §4.7.1. The original stores the
+  sum of the `cost` fields of the exemplar's budget items (budget simulator slot 50), e.g. 120 + 80 = 200. **The
+  bracket differs**, but no reader of `+0x38` was found in the exe *[inferred]*, so 0 is not observable by the game;
+  *[choice]*: fill the sum when the budget simulator is reachable, else 0.
+- ~~**DG5:** How a building occupant's properties are loaded. [a GZCOM occupant, `SetBuildingType`, `GetResource`, QI
+  `0x0AC2B5F7` and `SetDefaultExemplar`; a failure gives false]~~
+  **ANSWERED 2026-10-14** from the exe (slot 7 `0x00698DE0`, loader `0x00698490`, constructor `0x00458E90`, GZCOM
+  factory `0x00458F40`, QI chain `0x004587D0` → `0x005E89C0` → `0x005FD310`) and written into building-development
+  §4.9.1. The original creates the building with the class's own allocator and constructor (count 0), AddRefs, then
+  `SetBuildingType`, the loader, `GetBoundingBox` / orientation swap / `SetBoundingBox`, the altitude, `SetPosition`,
+  `SetOrientation`, `Init`, the insert and one Release. The loader QIs `0x0AC2B5F7` on the `cISC4Occupant`, falls back
+  to `GetBuildingType` for type 0, looks the type up in the key map, `GetResource(key, 0xA52160F5)`,
+  `SetDefaultExemplar`, then sets the box to `(0,0,0)`–occupant size `0x27812810`; **it returns true on every path**.
+  The bracket differs in two points: a failed load does not give false (the building is still inserted, with an empty
+  box), and the box from `0x27812810` is part of the load. QI `0x0AC2B5F7` succeeds for buildings because their QI
+  chain ends in the property-holder base, which the landfill occupant's does not (in-game: 154 of 154 succeeded).
+  Bears on the five references on `0xA9BD882D`: `CreateInstance(0xA9BD882D)` already returns count 1 (the director's
+  QI AddRefs), so an AddRef copied from the BDS's `new` path leaves one reference per building. *[choice]*: no extra
+  AddRef after GZCOM creation; keep the original's always-true load.
+- ~~**DG6:** BDS slots 23, 26 and 29. [false, logged once]~~
+  **ANSWERED 2026-10-14** from the exe (slot 23 `0x00695AF0`, slot 26 `0x006982B0`, slot 29 `0x006983C0`, cell helper
+  `0x00695610`; callers: the lot developer's foundation code and the wall factory `0x005E3122`) and written into
+  building-development §4.9.2. **The bracket differs**: the original implements all three, and the original lot
+  developer and wall code depend on them; false gives no foundations and no retaining walls. Slot 26/29 set the
+  default exemplar from the foundation (`0x11`) / wall (`0x15`) key maps (26 also reads maximum height `0x88FCC3E3`);
+  slot 23 builds the foundation occupant (size from the lot developer's highest/lowest cell altitudes, height ≥ 0.5)
+  and inserts it. *[choice]* implement them as specified, or forward to an original BDS; never return false for valid
+  input.
+- ~~**DG7:** The static cleanup through app slot 69. [not registered, logged]~~
+  **ANSWERED 2026-10-14** from the exe (callback `0x0069B850`, registration in `Init`, app slots 69/70) and written
+  into building-development §1.3 step 1. The callback runs only at application shutdown: it clears the static flag,
+  unregisters itself and empties the nine catalogue containers. No in-session behaviour depends on it, so **the
+  bracket stands** (not registering is unobservable while the process lives).
+- ~~**DG8:** "Declined by stage" in the month line. [counted by wealth only]~~
+  **ANSWERED 2026-10-14**: glue-only (a log line). No original behaviour; the implementer's choice stands. (The
+  original counts nothing by stage; `ExecuteDeclinePlan`, building-development §4.5, knows each item's developer and
+  so its wealth.)
+- ~~**DG9:** When the decline plan line is written. [at BDS state 4 → 0]~~
+  **ANSWERED 2026-10-14**: glue-only (a log line). No original behaviour; the implementer's choice stands. State 4 → 0
+  is where the original finishes executing a plan (building-development §4.2), so the choice is consistent.
+- ~~**DG10:** The `cSC4LotConfigurationObject` layout. [the SDK header]~~
+  **ANSWERED 2026-10-14** from the exe (`0x00477B10` stride `0x34`, type byte at `+0`; reads at `0x0069C43E`,
+  `0x0069C6D0`–`0x0069C71E`) and written into building-development §4.7.4 (Inputs). **The bracket matches**: the
+  SDK's `cSC4LotConfigurationObject` is the exact `0x34`-byte layout (rotation `+0x02`, x `+0x04`, z `+0x0C`, ID
+  vector `+0x28`). Slot 24 returns the first object of type 0 (building), or null.
+- ~~**DG11:** An empty capacity vector against a present-but-empty one. [`n_capacities > 0` gives one map]~~
+  **ANSWERED 2026-10-14** from the exe (`0x0069BBB7` property test, pair loop `0x0069BC10`–`0x0069BC44`, push
+  `0x0069BC46`–`0x0069BC7E`) and written into building-development §4.7.1. **The bracket differs**: a present
+  `0x27812834` always pushes one map, even with no values (an empty map); only a missing property gives no map. The
+  difference reaches the lot's copied vector (`cSC4Lot::SetState`) but no capacity sum. *[choice]*: follow the
+  original (present → one map); ignore an unpaired last value.
+- ~~**DG12:** A zero profile inserted in advance. [replaced in place]~~
+  **ANSWERED 2026-10-14** from the exe (`AddBuildingData` passes true at `0x0069D0F2`; erase only for false,
+  `0x0069BF29`) and already in docs/abi/layouts.md (Building profile). **The bracket matches**: a zero profile
+  inserted earlier by `GetBuildingProfile(unknown)` is assigned over in place, so pointers to it stay valid.
+- ~~**DG13:** The cheat notification ID. [the cheat ID]~~
+  **ANSWERED 2026-10-14** from the exe (`Init` `0x0069D5E2`–`0x0069D649` and the third pair) and written into
+  building-development §1.3 step 10. **The bracket matches**: each cheat is registered (slot 3) and subscribed with
+  `AddNotification2(target, id)` using its own ID; the delivered message is `0x230E27AC` with data1 = that ID.
+- ~~**DG14:** The name fallback. [GameString, otherwise cRZBaseString]~~
+  **ANSWERED 2026-10-14** from the exe (`LoadBuildingProperties` `0x0069BA55`–`0x0069BAD1`; `SC4LoadExemplarString`
+  `0x00603220`) and written into building-development §4.7.1. Order: localized LTEXT via `0x8A416A99`, else property
+  `0x899AFBAD`, else "". The original stores both names as `cRZString` values in its name maps and returns borrowed
+  `cIGZString*`; the string class is not observable through the interface, so **the bracket stands** as long as the
+  content follows that order and the object outlives the call.
+- ~~**DG15:** The lot slope read. [slot 19]~~
+  **ANSWERED 2026-10-14** from the exe (`0x0069879C` lot `+0x4C`, `0x006987AA` lot developer `+0x78`) and written
+  into building-development §4.11. `lot.GetSlope()` is lot slot 19 (ST0); `GetLotSlope(lot, false)` is lot developer
+  slot 30 (pop 8, ST0). **The bracket matches.**
+- ~~**DG16:** The advice subject. [not created]~~
+  **ANSWERED 2026-10-14** from the exe (`DoBuildingChanged` `0x0069CA80`) and written into building-development §4.10.
+  The original creates and fills a subject, then pushes the event with a null subject and drops it. Not creating it is
+  unobservable, so **the bracket stands**, provided `highestStage` is updated and the event is still pushed with null.
+- ~~**DG17:** The building type filter's slot 3. [bool(uint32)]~~
+  **ANSWERED 2026-10-14** from the exe (`0x00699C8F`–`0x00699C97`: one push, AL tested) and written into
+  building-development §4.7.2. **The bracket matches**: `bool(uint32 type)`, pop 4, AL. The exe has no filter class and
+  no caller of BDS slot 17 *[inferred]*, so only plug-ins use it.
+- ~~**DG18:** The `GrowthItem` stage width. [masked to uint8]~~
+  **ANSWERED 2026-10-14** from the exe (growth developer writes the whole `int32` at `0x006B6FA8`; `Grow` reads the
+  low byte at `0x0069B349`) and written into building-development §4.4. **The bracket matches**: the tract developer
+  receives the low byte; shipped stages are 1..8.
+- ~~**DG19:** A zone type out of bounds. [0]~~
+  **ANSWERED 2026-10-14** from the exe (`GetMaxCapacity` `0x00696C20`: map lookup, 0 when absent; zone loop bound
+  `0x0069C975`) and written into building-development §4.7.4. **The bracket matches**: a zone outside 0..15 is never a
+  key of the table, so the lookup misses and the result is 0.0; `GrowthStageFitsInZone` / `BuildingFitsInZone` give
+  false for unknown zones (§4.7.3). No original path indexes an array by zone.
+- ~~**DG20:** Lot configuration zones: 0..15, where `fc4.h` allows 0..16. [0..15]~~
+  **ANSWERED 2026-10-14** from the exe (`0x0069C974`–`0x0069C978`: `z < 16`) and written into building-development
+  §4.7.4. **The bracket matches**: the BDS asks `IsCompatibleWithZoneType` for zones 0..15 only. A wider range in
+  `fc4.h` is harmless as long as the table loop stops at 15.
+- ~~**DG21:** An off-thread message arriving without the lock. [dropped]~~
+  **ANSWERED 2026-10-14**: glue-only. No original behaviour (the original's getters take no lock); the implementer's
+  choice stands.
+- ~~**DG22:** ABI numbering after a merge. [renumbered by the coordinator: ABI 35]~~
+  **ANSWERED 2026-10-14**: coordinator bookkeeping, not a behaviour question. No original behaviour; the coordinator's
+  numbering stands.
+- ~~**DG23:** The `wall_clock_seed` for the `0xFFFFFFFF` key seed. [the development session seed]~~
+  **ANSWERED 2026-10-14** from foundations §6.1 (`Seed` `0x00913667`) and growth-developer §7. The original derives
+  such a seed from `time()` and `clock()` (non-deterministic, probability 2⁻³² per tract and update). No original
+  behaviour can be matched; **the implementer's choice stands** (a session-derived seed keeps runs repeatable).
+- ~~**DG24:** A null property holder. [false]~~
+  **ANSWERED 2026-10-14** from the exe (`Init` `0x006B85EF`–`0x006B85F8`: AddRef on the holder without a null test) and
+  already in growth-developer §1.2 step 3. The original crashes on a null holder; **the bracket matches the spec's
+  *[choice]*** (false).
+- ~~**DG25:** The shadow's `building_purpose`. [slot 40, no insert]~~
+  **ANSWERED 2026-10-14** from building-development §4.7.2 (slots 39/40). The original's own readers use slot 39, which
+  inserts a zero profile for an unknown type; slot 40 returns null instead, and a null read as purpose 0 equals the
+  zero profile's purpose. **The bracket stands**: same value, and the read-only shadow does not grow the catalogue.
+- ~~**DG26:** Growth developer slots 10 and 28. [the full EAX, 0 or 1]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006B7530`, `0x006B75D0`: EAX zeroed, then set from the compare) and already in
+  growth-developer §10.1 ("EAX 0/1"). **The bracket matches**: slot 10 = `state < 17` (signed), slot 28 = `state = 0`,
+  both as the full EAX.
+- ~~**DG27:** The off-thread fallback for slot 30. [−4 / 20]~~
+  **ANSWERED 2026-10-14**: glue-only. No original behaviour; the implementer's choice stands. −4 / 20 are the values the
+  original's slot 30 gives for an index outside its vectors (growth-developer §10.1), so the fallback is consistent.
 
 ## From the apply6c follow-up (landfill game tiles; filed by the coordinator, 2026-10-14)
 
@@ -3513,3 +3765,99 @@ The lane's implemented answers are in brackets; most are glue choices that need 
   counted as a fallback]
 - **TG22:** units per slice against the original's 4 ms deadline (traffic-simulator §3.4). [16 deterministic units
   per slice; our turbo runs at about 43–46 game days/s with traffic against about 76 without]
+
+## From applying the REH, flora, residential and flammability answers (filed by the coordinator from the `apply9d` lane's report, 2026-10-14)
+
+apply9d applied AQ1–AQ10, RG24 and FL7–FL9 (merged `ccfe2b4`). Every in-game run stayed clean and exact:
+flammability 18/18 under turbo and 117/117 at normal speed, residential 384/384 and flora 25/25. Under turbo the
+flammability cycle-end message arrived up to 17 days after the wrap day.
+
+- **AQ11:** AQ2/AQ3: when there is no R$ EQ or HQ grid, which tract size do the R$$ and R$$$ variants and the
+  minimum and maximum coordinates use? [member E]
+- **AQ12:** AQ10: how should the stray reference from a failed `OpenOStream`/`OpenIStream` be audited? [as
+  acquired, then released as created-for-us]
+- **AQ13:** AQ7: is each end of a listing clamped to 0..191 on its own? [yes]
+- **FL10:** FL8: the tracts a new cycle visits come from a `rand()` draw. Which marks carry into the next cycle?
+  [every tract changed after the wrap day, a superset]
+- **FL11:** FL8: the day count starts when the shadow is created (the first event, before the original's first
+  day) and uses our own tractsPerDay. It is checked only against the number of cycle ends delivered, so an offset of
+  whole cycles is not detected. [once it is off, it stays off for that city and only the comparison's own poll
+  carries]
+- **FL12:** FL1/FL8: what is the bound on unvisited tracts under the turbo clock? [max(2 × tractsPerDay, the
+  new-cycle tracts the count gave at the previous comparison); in game the bound reached 7098 and the unvisited
+  count stayed at most 155]
+- **FL13:** FL7: what polls when there are no day polls, for example when the game's own simulator delivers the days?
+  [every forwarded message plus the cycle end. Polling still needs the host's `watered_grid` to be non-NULL, although
+  content polls read only slot 11]
+
+## From applying the zones, landfill, budget and crime answers (filed by the coordinator from the `apply9b` lane's report, 2026-10-14)
+
+apply9b applied ZG1–ZG17, LG27–LG29, BQ4, BQ7 and CQ23 (merged `969527d`). In game the zones shadow is exact (392/392,
+296/296), and landfill game tiles insert with no failures (`gameTiles=12 gameTileFailures=0`; the tile exemplar is set
+through the holder at occupant + 0x20).
+
+- **ZG18:** ZG3: with no exemplar, or no Zone Display Alpha property, does `Init` still copy the alpha to the default
+  alpha? [no: the saved alpha survives and the default alpha stays as it was (0xFF from the constructor); only the
+  exemplar's value is copied]
+- **ZG19:** ZG3 / §10.1: does `Read` set the default alpha? [no: the default alpha is not saved, so after `Read` and
+  before `Init` it is 0xFF]
+- **ZG20:** zones §15.2 still says "Type 16 → false", which conflicts with §6 and ZG17. [ZG17 followed: type 16
+  dezones; `zn15_02` updated. The spec text needs the fix]
+- **ZG21:** ZG2 and the §5.1 dezone: under the ZG2 choice, a network whose bounding cells cross the city edge has its
+  whole dezone refused. Before, the inside cells were dezoned, and the original dezones them too while touching
+  memory outside the grid. [refused whole, with error 0; not seen in game]
+
+## From applying the neighbours answers (filed by the coordinator from the `apply9a` lane's report, 2026-10-14)
+
+apply9a applied NG4–NG27 (merged `bf0e4b1`, ABI 45). The main in-game change: with our neighbours simulator active
+the original budget now reads slots 32/33 as int64 in EDX:EAX (NG11). Before, it read garbage
+(`income orig/ours=844424930136029/4061`); now 25/25 budget lines are exact. Konradshohe has no deals, connection
+requests or marker changes, so NG4, NG14, NG16, NG17, NG19, NG23 and NG25 are tested only outside the game.
+
+- **NG35:** NG14: there is no interface for `GenericConfirmationDialog`. What should happen when popups are on?
+  [confirm without asking; refuse when popups are off]
+- **NG36:** NG14: with no app reachable, is the popup flag taken as enabled? [enabled]
+- **NG37:** NG23: what does the original's `AddPropertyData` (holder slot 10) store? [ours stores a Uint8 array, so
+  `GetPropertyData` does not read it back]
+- **NG38:** NG17: should a failing `GetPosition` be checked? [unchecked: a zero vector, so cell (0, 0)]
+- **NG39:** NG25: what is the rectangle form of `GetCityProps` (prop manager slot 18)? [not called; the usage test is
+  added to the cell query]
+- **NG40:** NG7: what if the original's state bytes cannot be read (an unidentified vtable)? [ready = 1, everything
+  else 0, logged once]
+- **NG41:** NG7: the `initialized` byte has no shadow input. Should it be compared? [read and logged only]
+- **NG42:** NG4: is the foreign deal's reference released exactly when it leaves the list, or when nothing in the
+  core still holds it? [when the core object goes, which is list removal unless something else in the core holds it]
+- **NG43:** NG4: what should `AddDeal` return when the core cannot list the deal? [true, and the reference is given
+  back]
+- **NG44:** NG27: how do signed, 64-bit and float values convert, and what about an empty character array? [as C
+  converts them; the empty character array stays false]
+
+## From the history warehouse and 24-hour clock cores (filed by the coordinator from the `cores10a` lane's report, 2026-10-14)
+
+cores10a implemented both cores (merged `0757437`, ABI 46): every §12 test of history.md and clock24.md is a unit
+test and a conformance vector (`hw12_*`, `ck12_*`). The 421-save corpus checks (history §7.1, clock §12.12) are
+left for the coordinator or a glue lane, since engine lanes cannot read the saves.
+
+- **CK7:** clock §4.1: the percentage factor's bit pattern `0x37C22E45` is 1/43200 (1.0 at noon), but the decimal
+  value and §12.1 say 1/86400. [`0x37422E45`, 1/86400; a test pins it]
+- **CK8:** the clock step's signedness. [u32: a negative product wraps, then the 1200 clamp applies]
+- **CK9:** an elapsed time of 2^31 or more. [the float(uint32) idiom]
+- **CK10:** `atol` overflow (`Stopwatch magnify`). [wraps]
+- **CK11:** how cheat text is split. [on blanks; double quotes group and are removed]
+- **CK12:** the cheat registration order. [register, then subscribe, one cheat at a time]
+- **CK13:** `Shutdown` without a cheat manager. [it unregisters only when a manager exists]
+- **CK14:** a saved pause count of −1. [signed i32 counters: Resume does nothing, `IsPaused` is false, so the clock
+  runs]
+- **CK15:** timer `Restart` on a stopped timer. [starts it]
+- **HW5:** history §4.7: how `r` is grouped. [the product of the two standardised values, summed, then divided by n]
+- **HW6:** ranges: how they are walked, and a widened range with from > to and no point in it. [walked like a list;
+  the widened case takes the point before the first one at or after `from`, and that point]
+- **HW7:** a `Read` failure. [stops at the first failed read and returns false; series read completely stay, the
+  partial one is dropped; a date not after the previous one, with no point yet, is dropped]
+- **HW8:** `Store`'s full-queue test. [unsigned: a count at or above maxCount drops one point; maxCount 0 means
+  unlimited, so 0xFFFFFFFF never trims]
+- **HW9:** `GetMinMaxAverage` with from == to and no point on that date. [`GetPoint` is called twice and its value
+  counted twice, as written]
+- **HW10:** precision values other than 24. [all treated as 53 bits]
+- **HW11:** 24-bit sums of int32 operands. [the exact sum, rounded once]
+- **HW12:** `RecordHistoryData`'s return value. [true]

@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "ck12_05_five_minute_tick",
+  "spec": ["clock24 4.3", "clock24 4.4", "clock24 4.9", "clock24 12"],
+  "description": "Test 5. 12:09:00 (43,740) + 62 = 12:10:02: minute 9/5 = 1, 10/5 = 2: TimeTick (12, 10) and VisualTimeTick (12, 10). 12:05:00 + 61 = 12:06:01: the same 5-minute bucket, nothing. One step of 1200 from 12:06:01 to 12:26:01 crosses four boundaries and posts one tick (12, 26).",
+  "steps": [
+    {"op": "ck_create"},
+    {"op": "ck_call", "method": "init"},
+    {"op": "ck_set", "seconds": "12:09:00", "visual_seconds": "12:09:00"},
+    {"op": "ck_clear_events"},
+    {"op": "ck_idle", "elapsed": 459260},
+    {"op": "ck_expect", "state": {"seconds": 43802}},
+    {"op": "ck_expect_events", "events": [{"event": "post", "name": "TimeTick", "data2": 12, "data3": 10}, {"event": "post", "name": "VisualTimeTick", "data2": 12, "data3": 10}]},
+    {"op": "ck_set", "seconds": "12:05:00", "visual_seconds": "12:05:00"},
+    {"op": "ck_idle", "elapsed": 451852},
+    {"op": "ck_expect", "state": {"seconds": 43561}},
+    {"op": "ck_expect_event_count", "count": 0},
+    {"op": "ck_idle", "elapsed": 10000000},
+    {"op": "ck_expect", "state": {"seconds": 44761}},
+    {"op": "ck_expect_events", "events": [{"event": "post", "name": "TimeTick", "data2": 12, "data3": 26}, {"event": "post", "name": "VisualTimeTick", "data2": 12, "data3": 26}]}
+  ]
+}
