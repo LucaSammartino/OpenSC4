@@ -2145,7 +2145,7 @@ Every test also has a unit test in `fc4-core` (`landfill::tests::test_NN_…`).
 | 8 underfunding (5000) | `lf11_08_underfunding` |
 | 9 per-tile cap (20000, supply 30000) | `lf11_09_per_tile_cap` |
 | 10 global cap (code default 40000) | `lf11_10_global_cap` |
-| 11 disconnected (no intake, decay, the zot at centre + 3.0, excluded totals, removal on connect; the spiral past a cleared centre) | `lf11_11_disconnected` |
+| 11 disconnected (no intake, decay, the zot at centre + 3.0, excluded totals, removal on connect; §4.7.5's two spiral examples: (12, 21) past a dezoned centre, (14, 22) on the clipped ring 2) | `lf11_11_disconnected` |
 | 12 random draws (one `rand()` → interior or. 2; none from heap (0,0); one heap per month in play) | `lf11_12_random_draws` |
 | 13 redistribution (100, 50, 0 both ways) | `lf11_13_redistribution` |
 | 14 spill on dezone (80000, 67500 back to the supply, §4.4.2 order) | `lf11_14_spill_on_dezone` |
@@ -2159,8 +2159,8 @@ Every test also has a unit test in `fc4-core` (`landfill::tests::test_NN_…`).
 | 22 levelling target and refusal (vertex average, inert `f`, slope 41, NaN `maxAreaSlope`, ≥ 1000, finite limit; through the zone) | `lf11_22_levelling` |
 | 23 reason 5 ignored (also 0 and 4; reasons 1, 2, 3 dezone the empty cells) | `lf11_23_reason_5_ignored` |
 
-The zot's ring order (§4.7.5 "spiralling from the centre") is a *[choice]*: clockwise from the ring's top-left
-corner. Only the second half of `lf11_11` depends on it.
+The zot's ring order is §4.7.5's (LF4): ring r starts at `(cx + r, cz − r + 1)` and runs +z, −x, −z, +x. The second
+half of `lf11_11` was regenerated from the spec's two worked examples (it was built on a top-left-corner order).
 
 ## Coverage (neighbours §18)
 

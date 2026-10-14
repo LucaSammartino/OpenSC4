@@ -37,10 +37,10 @@ pub const SHIPPED_MAX_AREA_SLOPE: f32 = 40.0;
 pub struct ModifyTerrainHeight {
     /// The first argument: the literal 1 of test 22.
     pub first: bool,
-    /// The second argument: `true` in test 22. *[choice]* The spec does not
-    /// say which of `AttemptAreaLevelling`'s two bools it is; the core passes
-    /// `waterFlag` (the landfill passes `true` for both, so test 22 cannot
-    /// tell them apart; spec question).
+    /// The second argument: `true` in test 22. It is `AttemptAreaLevelling`'s
+    /// fourth argument, `waterFlag` (LF1, `0x006C44F0`); the third,
+    /// `withWater`, feeds the vertex average and the slope test. The landfill
+    /// passes literal 1 for both, so the order is unobservable from it.
     pub second: bool,
     /// The rect arguments: `x1, z1, x2 + 1, z2 + 1` of the caller's rect.
     pub x1: i32,

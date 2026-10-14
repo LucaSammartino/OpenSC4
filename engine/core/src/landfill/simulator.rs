@@ -203,10 +203,16 @@ impl LandfillDeveloper {
     /// `Shutdown` and `Release`; clear the list; release the department, then
     /// the services; `RemoveAgent`.
     ///
-    /// *[choice]* The original releases the message server right after the
-    /// unsubscribes and the city last; the core makes one
-    /// [`LandfillHost::release_services`] call after the zones are shut down,
-    /// so a zone's effects are stopped while the city still holds them.
+    /// *[choice]* The original (LF3, `0x006B94B0`) releases the message server
+    /// right after the unsubscribes, before the zones are shut down, and the
+    /// department, budget, pollution, terrain and city after them; the core
+    /// makes one [`LandfillHost::release_services`] call after the zones are
+    /// shut down, so a zone's effects are stopped while the city still holds
+    /// them. LF3 confirms the difference is unobservable (zone `Shutdown` uses
+    /// only its own references and posts nothing the developer subscribes
+    /// to). Matching it would split `release_services` into a separate
+    /// message-server release, a new host callback and so a C ABI change, so
+    /// the single call is kept.
     pub fn shutdown(&self) -> bool {
         for m in msg::SUBSCRIPTIONS {
             self.host.unsubscribe(m);
