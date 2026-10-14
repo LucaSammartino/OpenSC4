@@ -923,7 +923,13 @@ each cycle-completed message `0x2A09B21A`). The glue's current answer is in brac
   had it). **The bracket differs: the original merges and appends.** An existing department ID gets the new grid
   pointer (the old grid is not released), other IDs stay; hotspots are added after the ones already held. In play
   both give the same result, because the game reads into a fresh object; keep test 16's used-object case.
-- **AU2 — §10:** the transient tuning is read through properties, not the raw f32 copy. Same values? [properties]
+- ~~**AU2 — §10:** the transient tuning is read through properties, not the raw f32 copy. Same values? [properties]~~
+  **ANSWERED 2026-10-14** from the exe (copy helper `0x005FFCC0`, called at `0x0068D94E`; reads
+  `0x0068D958`–`0x0068D966`) and written into aura.md §10 ("Transient tuning in detail"). **Same values for the
+  shipped data** (Float32 arrays of 2). The original copies raw words and returns true even for count 0, then reads
+  `v[0]`, `v[1]` unchecked: a scalar or empty array crashes (null read), one value gives a garbage radius, other
+  element types are reinterpreted bit for bit. *[choice]* only a Float32 array of at least 2 values is used; anything
+  else keeps {0, 0}.
 - **AU3:** `GetPopulations` (lot slot 54) returns a container not in `docs/abi`; the glue calls `GetPopulation(type)`
   (slot 53) for the 12 developer types and keeps non-zero counts, so a mixed lot whose residential count is 0 reads
   −128 instead of 0. What is the container's layout (allocators.md)? [slot 53 loop]

@@ -638,6 +638,24 @@ other code *[inferred]*). The transient arrays: magnitude := `v[0]`, radius := `
 float vector (`0x005FFCC0`, at `0x0068D94E`) with no type check or conversion (corrected: not s32 converted to
 float; a property stored with another type would be reinterpreted bit for bit, data-formats.md §5).
 
+**Transient tuning in detail *[compat]*.** For each of the four properties, magnitude and radius are first set to 0
+and a local float vector is emptied. The copy helper (`0x005FFCC0`) returns false only when the property is missing.
+Otherwise it sizes the vector to the variant's count (slot 4) and copies that many raw 32-bit words from the
+variant's data (slot 111), and returns **true** even when the count is 0. The aura then reads `v[0]` and `v[1]`
+with no size check (`0x0068D958`–`0x0068D966`):
+
+| Property holds | Original |
+|---|---|
+| a Float32 array of 2 or more values (shipped) | magnitude `v[0]`, radius `v[1]`; extra values ignored |
+| a Float32 array of 1 value | magnitude `v[0]`; radius read past the end of the one-value block (garbage) |
+| a scalar (count 0) or an empty array | the vector is empty, so the read goes through a null pointer: **crash** |
+| a 32-bit integer array | the integer bits taken as floats (for example −20 becomes a NaN, 128 a denormal near 1.8e−43) |
+| an array of 8-, 16- or 64-bit values | `count` 32-bit words copied from a smaller (or larger) buffer: garbage |
+
+*[choice]* FreeCity4 uses `v[0]` and `v[1]` only for a Float32 array of at least 2 values; in every other case the
+type keeps {0, 0}, as if the property were missing. Reading the shipped values through the property's Float32 values
+gives exactly the raw copy's numbers.
+
 ## 11. Messages posted and persistence
 
 ### 11.1 Posted
