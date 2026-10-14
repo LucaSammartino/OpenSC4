@@ -2902,9 +2902,19 @@ exe and the shipped data alone.
   **ANSWERED 2026-10-14** from the exe (DX7 vertex format `0x008891C0`, diffuse flag at `0x008891EA`; copy for
   `0x80004101` `0x0088C7D0`) and written into graphics-formats §3.5. DX7 copies the 32-bit colour unchanged into the
   vertex's Direct3D diffuse colour, so the bytes are B, G, R, A. The bracket matches. OpenGL not traced.
-- **GF7 — §4.2:** layouts of RKT4 (`0x27812824`) and RKT5 (`0x27812825`), read by `GetAllModelInstanceIDs`
+- ~~**GF7 — §4.2:** layouts of RKT4 (`0x27812824`) and RKT5 (`0x27812825`), read by `GetAllModelInstanceIDs`
   (`0x00496C90`, `0x00497120`) and `IsStaticBuilding` (`0x00583B10`), not by `GetModelInstanceID`. [out of scope
-  here; for the building-rendering lane]
+  here; for the building-rendering lane]~~
+  **ANSWERED 2026-10-14** from the exe (`GetAllModelInstanceIDs` `0x00496C90`: zoom mask `0x00496D06`–`0x00496D25`,
+  RKT4 walk `0x00496F2E`–`0x00497078`, RKT5 `0x0049707D`–`0x004970CB`; occupant form `0x00497120`;
+  `IsStaticBuilding` `0x00583B10`) and a sweep of the shipped `.dat` files, and written into graphics-formats §4.2
+  ("All the models of an occupant"). RKT4 is a list of records, each (selector, x, y, z, kind) followed by an
+  RKT0–RKT3 value set of that kind (3 values for RKT0/RKT1, 30 for RKT2, 5 for RKT3). Every record whose selector
+  equals the occupant's state gives one instance and an offset (x, y, z as signed 16.16 fixed point). An unknown
+  kind or a short record ends the walk. RKT5 is RKT1 plus state × `0x10000`. Property `0x0ABFC024` is a zoom mask
+  checked first, and the occupant's flag `0x80` switches all six keys to `0x278129xx`. `IsStaticBuilding` only
+  tests that the keys are present. Shipped: RKT4 on 618 props, RKT5 on 5 flora; four streetlights carry a stray
+  value that stops their `0x27812924` walk after one record. The bracket (out of scope) is replaced by this answer.
 - ~~**GF8 — §4.2:** where the model detail global `0x00B216FC` (zoom remap table `0x00B094A4`) is set, and from which
   option. [unknown; 0 in the image]~~
   **ANSWERED 2026-10-14** from the exe (`cSC4ModelMaker::Init` `0x004948BE`–`0x004948DF`, message handler
