@@ -3095,5 +3095,9 @@ host gained connection, region, budget and drive-side methods. The current answe
   `0x0071165E`) and written into traffic-simulator §4.4. The original adds the count to `sum[strategy]` unchecked, so a
   strategy above 2 writes past the 12-byte array into the heap. Only a damaged save has one. The bracket (ignore it) is
   a *[choice]*, recommended.
-- **TS48:** A damaged travel type above 8. [adds nothing in ApplyRoute and fails ConfirmRoute; a choice]
+- ~~**TS48:** A damaged travel type above 8. [adds nothing in ApplyRoute and fails ConfirmRoute; a choice]~~
+  **ANSWERED 2026-10-14** from the exe (ApplyRoute `0x00719C2F`, `0x00719C4B`, `0x00719EE9`; type mask `0x3F` in the
+  reader `0x006D6572`) and written into traffic-simulator §4.5. The original checks nothing: a type up to 63 indexes the
+  9-entry network, generates-traffic and income tables and reads what follows them. ConfirmRoute reads unrelated record
+  words (§4.3). The bracket (add nothing, fail ConfirmRoute) is a *[choice]*, recommended.
 - **TS49:** A switch ID with no switch behind it in GetTransitSwitchQueryData. [returns false; a choice]

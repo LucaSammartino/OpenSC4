@@ -901,6 +901,11 @@ first trip's type.
 * At the last cell, unless mode 1: `ApplyTrafficToDestination(count, destX, destZ, lastTravelType, type)` (§4.2).
 * Finally `incomeAcc := incomeAcc + I` and `feeAcc := feeAcc + fees` (doubles, the additions rounded to 24 bits).
 
+*[choice]* A travel type above 8 (TS48; only in a damaged save, as the reader allows 0…63) adds nothing here. The
+original indexes its 9-entry tables with it unchecked: the type-to-network table (`0x00AB31A8`, read at
+`0x00719C2F`), the generates-traffic flags (`0x00719C4B`) and the income per tile (`0x00719EE9`). It reads whatever
+follows them and may add volume or income.
+
 **Off-map roots** (TS13). The original never produces a route whose root is off-map. Start nodes are seeded on rings
 clamped to the map: a neighbour-connection start rect `(−1, z)` seeds at `(0, z)` with entry side 0, and the ferry
 fallback starts on the in-city arrival cell (pathfinder.md §4.6). So the header's "off-map root → inner cell"
