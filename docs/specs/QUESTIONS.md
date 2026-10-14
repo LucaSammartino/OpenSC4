@@ -2593,7 +2593,9 @@ answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`0x006CF860`, `0x006CF8D0` and their eleven call sites) and written into
   neighbors §15.4. Both return an int64 in EDX:EAX, and every caller (finance advisor, budget simulator, budget
   windows) reads EDX. The bracket is wrong: return the full 64 bits. `docs/abi` rows 32/33 need `edx:eax`.
-- **NG12:** The return channel of the regional city getters 50–64. [double (x87)]
+- ~~**NG12:** The return channel of the regional city getters 50–64. [double (x87)]~~
+  **ANSWERED 2026-10-14** from the exe (regional-city vtable `0x00A8FB20`, slots 50–64) and noted in neighbors §15.4.
+  `double` on x87; the bracket matches and `docs/abi` is already right.
 - **NG13:** The return of deal `Copy`. [void]
 - **NG14:** `RequestCreateConnection`: the yes/no dialog. [confirmed without the dialog, logged once]
 - **NG15:** `GetCity` with out-of-range cells. [passed on as uint32]

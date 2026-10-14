@@ -1023,6 +1023,9 @@ Example: two sell deals costing 2,000,000 and 3,000,000 per month. The income is
 EAX = `0x004C4B40`, EDX = 0. If EDX were left at, say, `0x0012F8A0` (a stack address), the budget would book
 `0x0012F8A0004C4B40`, about 5.3 × 10^15.
 
+**NG12. Regional-city getters 50–64.** They return a `double` on the x87 stack (compiled slot table at the end of
+this spec). The bracket matches, and `docs/abi` already has these rows right.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
