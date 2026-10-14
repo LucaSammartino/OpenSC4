@@ -2141,7 +2141,11 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
     next wealth level may draw again, which shifts every later strike roll.
   - *[choice]* The core asks the host. A host that cannot show effects reports success, so the core makes both draws
     and sets the flag, as the original does with shipped data.
-- **RG2 — REH §4.1 step 4:** building slot 11 is read as `GetBuildingProfile()`, first u32. Right? [yes]
+- ~~**RG2 — REH §4.1 step 4:** building slot 11 is read as `GetBuildingProfile()`, first u32. Right? [yes]~~
+  **ANSWERED 2026-10-14** from the exe (call `0x006FB9CC`; building slot 11 `0x00459250` → BDS slot 39) and written
+  into REH §4.1 step 4. **Confirmed; the bracket matches.** Slot 11 returns the building's profile (or a static zero
+  profile without a building development simulator), and its first u32 is the purpose: the flag is set for purpose 1
+  (Residence). An early exit of the call skips the step.
 - **RG3:** query-record costs are 32-bit in the game but 64-bit in the core. [zero-extended in, low 32 bits written
   back]
 - **RG4:** slots 14/15 with a null group vector: the original dereferences it. [ours returns 0]

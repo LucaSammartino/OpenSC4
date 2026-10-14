@@ -182,8 +182,12 @@ data3 = `0x278128A0` (building occupant) and void1 = the occupant. The class ask
    after the hospital test. A building that passes both tests is put in both pending lists *[compat]*.
 3. Health-affecting buildings (properties `0x6A19F6B5` and `0xAA19F6EA` both > 0) are handled in residential.md
    §5.8. They go to a pending list, which state 0 moves into the health-affecting list.
-4. Finally, the building's slot-11 value is read and the dirty flag set when its first u32 is 1
-   *[inferred meaning]*.
+4. Finally, the building's slot 11 is called and the dirty flag set when the first u32 of the result is 1
+   (`0x006FB9CC`–`0x006FB9D4`, RG2). Slot 11 is `cISC4Building::GetBuildingProfile()` (`0x00459250`): it
+   returns the building development simulator's `GetBuildingProfile(type)` (slot 39) for the building's type
+   (`+0x38`), or a static all-zero profile when there is no such simulator. The first u32 is the profile's
+   purpose, and 1 is `Residence` (demand.md §6.3). So the flag is set for residential buildings. An
+   early exit of the call (a null department, §4.1 step 1) skips this step. The flag is never read (§2).
 
 **State 0 distribution** (§3). Each pending school is appended to the **first** group, in the order below, for
 which `IsOccupantGroup(group)` is true. Hospitals are handled the same way. Then the pending list is cleared.
