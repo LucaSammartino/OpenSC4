@@ -123,6 +123,59 @@ void OutcomeList(char* out, size_t cap, const uint32_t* now, const uint32_t* bas
     if (used == 0) strcpy_s(out, cap, "-");
 }
 
+// Write's diagnostics: the record goes through the game stream unchanged;
+// the first put that returned false (which, at which byte) is noted.
+struct TracedOut {
+    const fc4_ostream* inner = nullptr;
+    uint32_t bytes = 0;
+    const char* firstFailed = nullptr;
+    uint32_t failedAt = 0;
+    uint32_t failures = 0;
+    bool Note(bool ok, const char* what, uint32_t n) {
+        if (!ok) {
+            if (firstFailed == nullptr) {
+                firstFailed = what;
+                failedAt = bytes;
+            }
+            ++failures;
+        }
+        bytes += n;
+        return ok;
+    }
+};
+TracedOut& T(void* u) { return *static_cast<TracedOut*>(u); }
+bool TU8(void* u, uint8_t v) { return T(u).Note(T(u).inner->put_u8(T(u).inner->user, v), "u8", 1); }
+bool TU16(void* u, uint16_t v) { return T(u).Note(T(u).inner->put_u16(T(u).inner->user, v), "u16", 2); }
+bool TU32(void* u, uint32_t v) { return T(u).Note(T(u).inner->put_u32(T(u).inner->user, v), "u32", 4); }
+bool TU64(void* u, uint64_t v) { return T(u).Note(T(u).inner->put_u64(T(u).inner->user, v), "u64", 8); }
+bool TF32(void* u, float v) { return T(u).Note(T(u).inner->put_f32(T(u).inner->user, v), "f32", 4); }
+bool TF64(void* u, double v) { return T(u).Note(T(u).inner->put_f64(T(u).inner->user, v), "f64", 8); }
+bool TBytes(void* u, const uint8_t* d, size_t n) {
+    return T(u).Note(T(u).inner->put_bytes(T(u).inner->user, d, n), "bytes", static_cast<uint32_t>(n));
+}
+bool TStr(void* u, const uint8_t* d, size_t n) {
+    return T(u).Note(T(u).inner->put_str(T(u).inner->user, d, n), "str", static_cast<uint32_t>(4 + n));
+}
+bool TRef(void* u, const fc4_ref* r) { return T(u).Note(T(u).inner->put_ref(T(u).inner->user, r), "ref", 4); }
+int32_t TError(void* u) { return T(u).inner->error(T(u).inner->user); }
+
+fc4_ostream MakeTraced(TracedOut* t) {
+    fc4_ostream s{};
+    s.struct_size = sizeof(s);
+    s.user = t;
+    s.put_u8 = &TU8;
+    s.put_u16 = &TU16;
+    s.put_u32 = &TU32;
+    s.put_u64 = &TU64;
+    s.put_f32 = &TF32;
+    s.put_f64 = &TF64;
+    s.put_bytes = &TBytes;
+    s.put_str = &TStr;
+    s.put_ref = &TRef;
+    s.error = &TError;
+    return s;
+}
+
 }  // namespace
 
 namespace fc4 {
@@ -515,8 +568,24 @@ bool cFC4TractDeveloper::Write(cIGZOStream& s) {
     FC4_TRACE("TractDeveloper::Write");
     Section sec(this, true);
     fc4::OStreamAdapter a(s);
-    const bool ok = fc4_tract_write(core_, a.Get());
-    fc4::Log("tract Write -> %d", ok ? 1 : 0);
+    const int32_t errorBefore = s.GetError();
+    TracedOut t;
+    t.inner = a.Get();
+    const fc4_ostream traced = MakeTraced(&t);
+    const bool written = fc4_tract_write(core_, &traced);
+    const int32_t errorAfter = s.GetError();
+    // §6: Write returns GetError() = 0. The core ANDs the puts' results; a
+    // put that answered false while the stream's error stayed clear does
+    // not fail the record.
+    const bool ok = written || (core_ != nullptr && t.failures != 0 && errorAfter == 0);
+    if (written && t.failures == 0) {
+        fc4::Log("tract Write -> 1 (%u bytes)", t.bytes);
+    } else {
+        fc4::Log("tract Write -> %d (%u bytes; core %d; %u put(s) answered false, the first %s at byte %u; stream "
+                 "error %d before, %d after)",
+                 ok ? 1 : 0, t.bytes, written ? 1 : 0, t.failures, t.firstFailed ? t.firstFailed : "-", t.failedAt,
+                 errorBefore, errorAfter);
+    }
     LogState("Write");
     return ok;
 }

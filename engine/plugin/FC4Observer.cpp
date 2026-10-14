@@ -556,6 +556,7 @@ public:
                 AuraShadowCycle(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // aura_shadow = 1 only
                 break;
             case kMsgPreCityShutdown:
+                TractShadowCityShutdown();  // tract_shadow: the forwarder's core goes with the city
                 AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:

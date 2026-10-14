@@ -33,6 +33,7 @@
 #include "FC4Observer.h"
 #include "FC4Popups.h"
 #include "FC4Subsystems.h"
+#include "FC4TractShadow.h"
 #include "cFC4Simulator.h"
 
 #include "cIGZCOM.h"
@@ -328,6 +329,7 @@ public:
         fc4::FlammabilityShadowStop();
         fc4::LandValueShadowStop();
         fc4::GrowthProbeStop();
+        fc4::TractShadowStop();  // tract_shadow (FC4TractShadow.h): the original UpdatePopulation back
         fc4::ClockProbeStop();
         fc4::ObserverStop();
         return true;

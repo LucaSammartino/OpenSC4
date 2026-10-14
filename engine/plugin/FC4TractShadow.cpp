@@ -23,6 +23,7 @@
 #include "FC4TractInterfaces.h"
 #include "FC4WriteCapture.h"
 #include "cFC4TractDeveloper.h"
+#include "compat/FC4Compat.h"
 
 #include "cISC4BuildingDevelopmentSimulator.h"
 #include "cISC4City.h"
@@ -236,6 +237,192 @@ void ComparePopulation(void* ctx, uint64_t lot, uint32_t devType, uint16_t popul
     }
 }
 
+// ---- the UpdatePopulation forwarder (cISC4TractDeveloper slot 7) ----------------------------------------
+//
+// A month-end sample compares the lots' populations with what UpdatePopulation
+// would set now, but the original set them at its own last call, with the
+// desirability and capacities of that day: the sample drifts. The forwarder
+// compares at the call itself. On the identified executable only, and only
+// if the original tract developer's vtable slot 7 holds the original
+// UpdatePopulation (tract-developer.md §4.18, 0x00706BC0), that one entry is
+// pointed at this forwarder (same `this`, argument and EAX; callee-pop 4).
+// Per call: FreeCity4's shadow core computes the populations from the same
+// inputs first (reads only), then the original runs, then each lot's
+// population (slot 53) is compared with ours. Tract (0, 0) is forwarded
+// without a comparison (§4.18 [quirk]). The entry is put back at
+// PreAppShutdown and at DLL detach.
+
+constexpr uintptr_t kOriginalUpdatePopulation = 0x00706BC0;  // §4.18
+constexpr int kSlotUpdatePopulation = 7;
+
+using UpdatePopulationFn = int32_t(__fastcall*)(void* self, void* edx, const FC4GrowthProfile& profile);
+
+struct Expect {
+    cISC4Lot* lot;
+    uint32_t devType;
+    uint16_t population;
+};
+
+struct Hook {
+    bool tried = false;
+    bool installed = false;
+    void** entry = nullptr;
+    uintptr_t original = 0;
+    DWORD mainTid = 0;
+    // The shadow core the forwarder computes with (main thread), over a
+    // read-only table on the city's borrowed services.
+    TractContext ctx;
+    fc4_tract_host host{};
+    fc4_tract* core = nullptr;
+    bool inside = false;
+    std::vector<Expect> expect;
+    // Since the last line.
+    uint64_t calls = 0, compared = 0, origin = 0, lots = 0, mismatches = 0, failures = 0;
+    FirstList first;
+    uint64_t totalCalls = 0, totalCompared = 0, totalMismatches = 0;
+};
+Hook g_hook;
+
+void CollectExpected(void* ctx, uint64_t lot, uint32_t devType, uint16_t population) {
+    static_cast<std::vector<Expect>*>(ctx)->push_back(
+        Expect{reinterpret_cast<cISC4Lot*>(FromToken(lot)), devType, population});
+}
+
+struct HookStep {
+    const FC4GrowthProfile* profile = nullptr;
+    int32_t result = -1;
+    uint32_t mismatches = 0;
+};
+
+void OursStep(void* p) {
+    HookStep& s = *static_cast<HookStep*>(p);
+    fc4_tract_profile prof{};
+    prof.developer = TokenOf(s.profile->developer);
+    prof.x = s.profile->x;
+    prof.z = s.profile->z;
+    s.result = fc4_tract_shadow_update_population(g_hook.core, &prof, &CollectExpected, &g_hook.expect);
+}
+
+void CompareStep(void* p) {
+    HookStep& s = *static_cast<HookStep*>(p);
+    for (const Expect& e : g_hook.expect) {
+        if (e.lot == nullptr) continue;
+        const uint16_t now = AsGame(e.lot)->GetPopulation(static_cast<cFC4ISC4Lot::DeveloperType>(e.devType));
+        if (now != e.population) {
+            ++s.mismatches;
+            g_hook.first.Add("tract %d,%d lot %p dev 0x%X orig %u ours %u", s.profile->x, s.profile->z,
+                             static_cast<void*>(e.lot), e.devType, now, e.population);
+        }
+    }
+}
+
+int32_t __fastcall UpdatePopulationForwarder(void* self, void* edx, const FC4GrowthProfile& profile) {
+    const UpdatePopulationFn original = reinterpret_cast<UpdatePopulationFn>(g_hook.original);
+    ++g_hook.calls;
+    if (g_hook.core == nullptr || g_hook.inside || GetCurrentThreadId() != g_hook.mainTid) {
+        return original(self, edx, profile);
+    }
+    if (profile.x == 0 && profile.z == 0) {
+        ++g_hook.origin;  // §4.18 [quirk]: seeded from the clock in the original
+        return original(self, edx, profile);
+    }
+    g_hook.inside = true;
+    g_hook.expect.clear();
+    HookStep s;
+    s.profile = &profile;
+    const bool ours = SehGuard("tract shadow UpdatePopulation (ours)", &OursStep, &s);
+    const int32_t r = original(self, edx, profile);
+    if (ours && s.result >= 0 && SehGuard("tract shadow UpdatePopulation (compare)", &CompareStep, &s)) {
+        ++g_hook.compared;
+        g_hook.lots += g_hook.expect.size();
+        g_hook.mismatches += s.mismatches;
+    } else {
+        ++g_hook.failures;
+    }
+    TractReleaseHeld(&g_hook.ctx);  // the lots the shadow core's list holds
+    g_hook.expect.clear();
+    g_hook.inside = false;
+    return r;
+}
+
+void InstallHook() {
+    if (g_hook.tried) return;
+    g_hook.tried = true;
+    void** vt = nullptr;
+    uintptr_t grow = 0;
+    if (!compat::TractDeveloperGrow(&vt, &grow)) {
+        Log("tract shadow: UpdatePopulation forwarder NOT installed: the original tract developer vtable is not "
+            "available (see the compat lines); the population line samples tracts at each month instead");
+        return;
+    }
+    void** entry = vt + kSlotUpdatePopulation;
+    const uintptr_t found = reinterpret_cast<uintptr_t>(*entry);
+    if (found != kOriginalUpdatePopulation) {
+        Log("tract shadow: UpdatePopulation forwarder NOT installed: vtable %p slot 7 holds 0x%08lX, expected "
+            "0x%08lX; the population line samples tracts at each month instead",
+            static_cast<void*>(vt), static_cast<unsigned long>(found),
+            static_cast<unsigned long>(kOriginalUpdatePopulation));
+        return;
+    }
+    DWORD before = 0;
+    if (!VirtualProtect(entry, sizeof(void*), PAGE_READWRITE, &before)) {
+        Log("tract shadow: UpdatePopulation forwarder NOT installed: VirtualProtect failed (error %lu)",
+            GetLastError());
+        return;
+    }
+    g_hook.original = found;
+    g_hook.mainTid = GetCurrentThreadId();
+    *entry = reinterpret_cast<void*>(&UpdatePopulationForwarder);
+    DWORD ignored = 0;
+    const bool restored = VirtualProtect(entry, sizeof(void*), before, &ignored) != 0;
+    FlushInstructionCache(GetCurrentProcess(), entry, sizeof(void*));
+    g_hook.entry = entry;
+    g_hook.installed = true;
+    Log("tract shadow: UpdatePopulation forwarder installed at %p (vtable %p slot 7): 0x%08lX -> %p (FreeCity4.dll); "
+        "page protection 0x%lX %s; every call is compared lot by lot (tract (0, 0) forwarded only)",
+        static_cast<void*>(entry), static_cast<void*>(vt), static_cast<unsigned long>(found),
+        reinterpret_cast<void*>(&UpdatePopulationForwarder), before, restored ? "restored" : "NOT restored");
+}
+
+void RemoveHook(const char* why) {
+    if (!g_hook.installed) return;
+    DWORD before = 0;
+    if (!VirtualProtect(g_hook.entry, sizeof(void*), PAGE_READWRITE, &before)) {
+        Log("tract shadow: WARNING UpdatePopulation forwarder NOT removed (%s): VirtualProtect failed (error %lu)", why,
+            GetLastError());
+        return;
+    }
+    *g_hook.entry = reinterpret_cast<void*>(g_hook.original);
+    DWORD ignored = 0;
+    VirtualProtect(g_hook.entry, sizeof(void*), before, &ignored);
+    FlushInstructionCache(GetCurrentProcess(), g_hook.entry, sizeof(void*));
+    g_hook.installed = false;
+    Log("tract shadow: UpdatePopulation forwarder removed (%s): slot 7 holds 0x%08lX again; %llu call(s), %llu "
+        "compared, %llu mismatch(es) in all",
+        why, static_cast<unsigned long>(g_hook.original),
+        static_cast<unsigned long long>(g_hook.totalCalls + g_hook.calls),
+        static_cast<unsigned long long>(g_hook.totalCompared + g_hook.compared),
+        static_cast<unsigned long long>(g_hook.totalMismatches + g_hook.mismatches));
+}
+
+// The forwarder's core: made anew for each city (at its load), with the
+// tuning the original's Init read (§4.21); UpdatePopulation reads nothing
+// else of the core's state.
+void HookCoreFor(cISC4City* city) {
+    if (g_hook.core != nullptr) {
+        fc4_tract_destroy(g_hook.core);
+        g_hook.core = nullptr;
+    }
+    TractReleaseHeld(&g_hook.ctx);
+    g_hook.ctx.city = city;
+    if (city == nullptr || !g_hook.installed) return;
+    g_hook.ctx.readOnly = true;
+    g_hook.ctx.gated = false;
+    g_hook.host = MakeTractReadOnlyHost(&g_hook.ctx);
+    g_hook.core = fc4_tract_create_shadow(&g_hook.host);
+    if (g_hook.core != nullptr) fc4_tract_read_tuning(g_hook.core);
+}
+
 void RunStep(void* p) {
     Run& r = *static_cast<Run*>(p);
     cISC4TractDeveloper* raw = r.city->GetTractDeveloper();  // city slot 80, borrowed
@@ -348,8 +535,9 @@ void RunStep(void* p) {
         total += mismatches;
     }
 
-    // 3. UpdatePopulation (§4.18) on sample tracts.
-    if (s != nullptr) {
+    // 3. UpdatePopulation (§4.18) on sample tracts, unless the forwarder
+    // compares every call (the "calls" line).
+    if (s != nullptr && (r.test != nullptr || !g_hook.installed)) {
         body.clear();
         cISC4BuildingDevelopmentSimulator* bdsRaw = r.city->GetBuildingDevelopmentSimulator();
         cISC4LotManager* lmRaw = r.city->GetLotManager();
@@ -450,8 +638,8 @@ void TractShadowStartup(bool tractReplaced) {
     Log("tract shadow: ON (tract_shadow from %s): at PostCityInit and each SimNewMonth, the original tract "
         "developer's style state (slots 8, 9, 11, 13) against FreeCity4's core loaded from the original's own record "
         "(its Write into memory, then ReadTuning; the core's Write must give the same bytes), and UpdatePopulation "
-        "(the populations the core would set on up to %u sample tracts per growth developer, against the lots' "
-        "populations)",
+        "(at every call through a slot 7 forwarder on the identified executable, lot by lot; otherwise on up to %u "
+        "sample tracts per growth developer at each month)",
         src, static_cast<unsigned>(kSampleTracts));
     Log("tract shadow: NOT compared: Grow and Decline (they change the city and draw from the generators), the "
         "histogram, the filter map; tract (0, 0) (seeded from the clock in the original)");
@@ -461,13 +649,46 @@ void TractShadowCityLoaded(cISC4City* city) {
     if (!g_enabled || city == nullptr) return;
     cFC4ISC4Simulator* sim = AsGame(city->GetSimulator());
     const int32_t julian = sim != nullptr ? sim->GetSimDateNumber() : 0;
+    // The forwarder only for the original (RunOnce says when it is ours).
+    cISC4TractDeveloper* raw = city->GetTractDeveloper();
+    if (raw != nullptr && cFC4TractDeveloper::FromPrimary(raw) == nullptr) InstallHook();
+    HookCoreFor(city);
     RunOnce(city, julian, 0, nullptr);
 }
 
 void TractShadowMonth(cISC4City* city, int32_t julian) {
     if (!g_enabled || city == nullptr) return;
     RunOnce(city, julian, 1, nullptr);
+    if (!g_hook.installed) return;
+    fc4_date d{};
+    fc4_date_from_julian(julian, &d);
+    std::string line;
+    AppendF(line,
+            "tract shadow (calls) %04d-%02d-%02d month: calls=%llu compared=%llu origin=%llu failures=%llu lots=%llu "
+            "mismatches=%llu first=%s",
+            d.year, d.month, d.day_of_month, static_cast<unsigned long long>(g_hook.calls),
+            static_cast<unsigned long long>(g_hook.compared), static_cast<unsigned long long>(g_hook.origin),
+            static_cast<unsigned long long>(g_hook.failures), static_cast<unsigned long long>(g_hook.lots),
+            static_cast<unsigned long long>(g_hook.mismatches), g_hook.first.Str());
+    LogShadowLine("tract shadow (cont.)", reinterpret_cast<const uint8_t*>(line.data()), line.size());
+    g_hook.totalCalls += g_hook.calls;
+    g_hook.totalCompared += g_hook.compared;
+    g_hook.totalMismatches += g_hook.mismatches;
+    g_hook.calls = g_hook.compared = g_hook.origin = g_hook.failures = g_hook.lots = g_hook.mismatches = 0;
+    g_hook.first = FirstList{};
 }
+
+void TractShadowCityShutdown() {
+    if (g_hook.core == nullptr && g_hook.ctx.city == nullptr) return;
+    HookCoreFor(nullptr);
+}
+
+void TractShadowStop() {
+    HookCoreFor(nullptr);
+    RemoveHook("PreAppShutdown");
+}
+
+void TractShadowDetach() { RemoveHook("DLL detach"); }
 
 intptr_t TractShadowTestRun(cISC4City* city, int32_t julian, uint32_t event, const fc4_tract_host* testHost) {
     return RunOnce(city, julian, event, testHost);

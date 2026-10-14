@@ -27,13 +27,22 @@
 //      over a read-only host table on the city's borrowed services, then
 //      ReadTuning (§4.21, the fix-ups Init makes). Its Write must give the
 //      same bytes back and its getters must match the original's;
-//   3. UpdatePopulation (§4.18): for every growth developer of the BDS
-//      (GetDeveloper(purpose 1-8, wealth 1-3), slot 33) and up to
-//      kSampleTracts tracts holding lots (picked from cells drawn from the
-//      date), the populations the core would set (fc4_tract_shadow_update_
-//      population, nothing written) against what the lots hold now (lot slot
-//      53 GetPopulation(devType)). Tract (0, 0) is left out (§4.18 [quirk]:
-//      the original seeds it from the clock).
+//   3. UpdatePopulation (§4.18), at every call. On the identified executable,
+//      when the original tract developer's vtable slot 7 holds the original
+//      UpdatePopulation (0x00706BC0), that entry is pointed at a forwarder in
+//      this DLL at the first city load (same this, argument and EAX): per
+//      call the core computes the populations first (fc4_tract_shadow_update_
+//      population, nothing written), then the original runs, then each lot's
+//      population (lot slot 53 GetPopulation(devType)) is compared with
+//      ours. The entry is put back at PreAppShutdown and DLL detach. One
+//      "calls" line per month. Without the forwarder (another executable),
+//      a month-end sample instead: for every growth developer of the BDS
+//      (GetDeveloperOf(purpose 1-8, wealth 1-3), slot 33) and up to
+//      kSampleTracts tracts holding lots, the populations the core would set
+//      now against what the lots hold; that sample drifts (the original set
+//      them at its last call, with that day's desirability and capacities).
+//      Tract (0, 0) is never compared (§4.18 [quirk]: the original seeds it
+//      from the clock).
 //
 // Not compared (logged at game start): Grow and Decline (they change the
 // city and draw from the generators; a read-only rerun cannot reproduce
@@ -42,7 +51,9 @@
 // Log lines (always written, not the verbose channel), per run:
 //   tract shadow (styles) YYYY-MM-DD load|month: record=N bytes roundtrip=same|DIFFERENT current=0x... index=...
 //     styles=... all=... years=... mismatches=M first=...
+//   tract shadow (calls) YYYY-MM-DD month: calls=N compared=C origin=O failures=F lots=L mismatches=M first=...
 //   tract shadow (population) YYYY-MM-DD load|month: developers=D tracts=T lots=L mismatches=M first=...
+//     (the sample; only without the forwarder)
 // A run that cannot compare logs "... INCOMPLETE (why)" instead.
 #pragma once
 
@@ -61,8 +72,17 @@ void TractShadowStartup(bool tractReplaced);
 // FC4Observer.cpp at PostCityInit: one run. No-op unless tract_shadow = 1.
 void TractShadowCityLoaded(cISC4City* city);
 
-// FC4Observer.cpp at every SimNewMonth: one run. No-op unless tract_shadow = 1.
+// FC4Observer.cpp at every SimNewMonth: one run (and the forwarder's "calls"
+// line). No-op unless tract_shadow = 1.
 void TractShadowMonth(cISC4City* city, int32_t julian);
+
+// FC4Observer.cpp at PreCityShutdown: the forwarder's core goes with the city.
+void TractShadowCityShutdown();
+
+// cFC4Director PreAppShutdown / dllmain DLL_PROCESS_DETACH: the original
+// UpdatePopulation goes back into the vtable (no-op when not installed).
+void TractShadowStop();
+void TractShadowDetach();
 
 // Test seam (op 45, kFC4TractTestShadow): one run whatever the setting.
 // `event` 0 = load, 1 = month. With `testHost` set, its non-NULL callbacks
