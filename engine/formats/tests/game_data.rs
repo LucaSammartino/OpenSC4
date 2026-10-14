@@ -58,6 +58,8 @@ struct Stats {
     dir_size_mismatch: usize,
     exemplars_binary: usize,
     exemplars_text: usize,
+    /// Text exemplar and cohort lines with a negative decimal exponent (`1e-3`), the values EX35 changes.
+    negative_exponents: usize,
     cohorts: usize,
     reencode_identical: usize,
     reencode_different: usize,
@@ -169,6 +171,20 @@ fn sweep_installed_game_data() {
                                 }
                             }
                         }
+                        if ex.encoding == Encoding::Text {
+                            // EX35 (data-formats §4.3): a negative exponent is a rounded reciprocal, then a
+                            // multiply. Count the shipped lines that rule can reach.
+                            s.negative_exponents += data
+                                .split(|&b| b == b'\n')
+                                .filter(|l| {
+                                    l.windows(3).any(|w| {
+                                        (w[0].is_ascii_digit() || w[0] == b'.')
+                                            && matches!(w[1], b'e' | b'E')
+                                            && w[2] == b'-'
+                                    })
+                                })
+                                .count();
+                        }
                         if ex.encoding == Encoding::Binary {
                             if ex.to_binary() == data {
                                 s.reencode_identical += 1;
@@ -271,10 +287,12 @@ fn sweep_installed_game_data() {
             s.warnings
         );
         eprintln!(
-            "[{g}] exemplars binary {}, text {}, cohorts {}, binary re-encode identical {} / different {}, \
-             LTEXT {} (same type, not LTEXT: {:?}), QFS re-compress round trips {}, failures {}",
+            "[{g}] exemplars binary {}, text {} (lines with a negative exponent, EX35: {}), cohorts {}, \
+             binary re-encode identical {} / different {}, LTEXT {} (same type, not LTEXT: {:?}), \
+             QFS re-compress round trips {}, failures {}",
             s.exemplars_binary,
             s.exemplars_text,
+            s.negative_exponents,
             s.cohorts,
             s.reencode_identical,
             s.reencode_different,

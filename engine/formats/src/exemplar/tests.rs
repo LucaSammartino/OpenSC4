@@ -1100,9 +1100,29 @@ fn converting_getters() {
         f32_text(1e-40),
         "0.000000000000000000000000000000000000000099999461011147596"
     );
-    // [literal reading] `_fcvt(x, 64)` rounds at the 64th place: 9.5e-65 becomes 1e-64, whose text
-    // (`0.`, 63 zeros, `1`) is then cut to `0.` and 61 zeros.
+    // EX34: `_fcvt(x, 64)` rounds half-up a second time at the 64th place: 9.5e-65 becomes 1e-64, whose text
+    // (`0.`, 63 zeros, `1`) is then cut among the leading zeros to `0.` and 61 zeros, nothing stripped.
     assert_eq!(float_text(9.5e-65), format!("0.{}", "0".repeat(61)));
+    assert_eq!(float_text(-9.5e-65), format!("-0.{}", "0".repeat(60)));
+    // EX34: the second rounding starts below 1e-48 (decpt <= -48). 2e-49 (1.99999999999999987e-49) keeps 16 digits
+    // and rounds them up to `2`; one rounding would print `0.`, 48 zeros and `1999999999999` (cut).
+    assert_eq!(float_text(2e-49), format!("0.{}2", "0".repeat(48)));
+    assert_eq!(float_text(1e-48), format!("0.{}1", "0".repeat(47)));
+    // 4e-65 and 5e-65 (4.99999999999999998e-65) round to no digit; a tiny negative value keeps its sign (`-0`,
+    // unlike −0.0).
+    assert_eq!(float_text(4e-65), "0");
+    assert_eq!(float_text(5e-65), "0");
+    assert_eq!(float_text(-4e-65), "-0");
+    // EX34: a cut among the significant fraction digits strips trailing zeros: 1.0000000000000002e-47 needs 65
+    // characters, the cut keeps `0.`, 46 zeros and `100000000000000`, the strip leaves 49 characters.
+    let stripped = float_text(1.000_000_000_000_000_2e-47);
+    assert_eq!(stripped, format!("0.{}1", "0".repeat(46)));
+    assert_eq!(stripped.len(), 49);
+    // A text of exactly 64 characters (`0.`, 45 zeros, `10000000000000002`) is cut, not stripped: the 63 kept
+    // characters end in 15 zeros.
+    let exact64 = float_text(1.000_000_000_000_000_2e-46);
+    assert_eq!(exact64, format!("0.{}1000000000000000", "0".repeat(45)));
+    assert_eq!(exact64.len(), 63);
     // EX29: the cut applies to a Float32 too. The seven negative subnormals 0x80000001..=0x80000007 are the only
     // Float32 texts above 63 characters (`-0.`, 44 zeros, 17 digits); the 17th digit is lost.
     let tiny = f32_text(f32::from_bits(0x8000_0001));
@@ -1578,6 +1598,13 @@ fn t54_float32_text() {
     assert_eq!(f("1.#INF"), 1.0);
     assert_eq!(f("-2.5"), -2.5);
     assert_eq!(f("80"), 80.0);
+    // EX35: a negative exponent is a rounded reciprocal, then a multiply (two roundings, not one divide).
+    assert_eq!(f("9e-1").to_bits(), 0x3F66_6667);
+    assert_eq!(f("5e-2").to_bits(), 0x3D4C_CCCC);
+    assert_eq!(f("2.5e-3").to_bits(), 0x3B23_D70B);
+    // EX36: the sign is applied last and flips the NaN.
+    assert_eq!(f("-e-32").to_bits(), 0x7FC0_0000);
+    assert_eq!(f("-1e-32"), f32::NEG_INFINITY);
 }
 
 /// The game's float parser on its own (§4.3 worked examples): the 24-bit value before any Float32 store.
@@ -1616,6 +1643,32 @@ fn parse_float_worked_examples() {
     assert_eq!(parse_float(b"2.5e3"), 2500.0);
     assert_eq!(parse_float(b"25E-1"), 2.5);
     assert_eq!(parse_float(b""), 0.0);
+    // EX35 (§4.3): a negative exponent rounds 1/10ⁿ first (1/10 is 0x3DCCCCCD), then multiplies it in, so the
+    // result is rounded twice. One division would give 0x3F666666, 0x3D4CCCCD and 0x3B23D70A.
+    assert_eq!(bits("9e-1"), 0x3F66_6667);
+    assert_eq!(bits("5e-2"), 0x3D4C_CCCC);
+    assert_eq!(bits("2.5e-3"), 0x3B23_D70B);
+    assert_eq!(
+        crate::x87::store_f32(crate::x87::div(9.0, 10.0)).to_bits(),
+        0x3F66_6666,
+        "one division differs"
+    );
+    // These come out the same either way (§4.3).
+    for (text, one_div) in [
+        ("1e-1", 0.1f32),
+        ("3e-1", 0.3),
+        ("7e-1", 0.7),
+        ("1e-3", 0.001),
+        ("1.5e-2", 0.015),
+    ] {
+        assert_eq!(bits(text), one_div.to_bits(), "{text}");
+    }
+    // 1e-10 is about 7.09e-10 (10¹⁰ wraps to 1,410,065,408), positive exponents stay one multiply.
+    let wrapped = parse_float(b"1e-10");
+    assert!((wrapped - 7.09e-10).abs() < 1e-12, "{wrapped}");
+    // EX36: the sign is applied last (`fchs`), so it flips the default NaN: `-e-32` gives 0x7FC00000.
+    assert_eq!(bits("-e-32"), 0x7FC0_0000);
+    assert_eq!(parse_float(b"-1e-32"), f64::NEG_INFINITY);
     // Every result keeps a 24-bit significand, with the register's exponent range (no Float32 overflow yet).
     let big = parse_float(b"1e9e9");
     assert_eq!(big, 1e9);
