@@ -192,6 +192,14 @@ the total grid only changes at the end of state 7.
 Note the order 3 → 5 → 4 *[compat]* (slope before the altitude effect). A full pass needs at least
 9 + D calls, D = number of developers in the list (10 + D when the zoning fallback of state 3 triggers).
 
+**`GetAreaSlope` is read-only** *[compat]* (QUESTIONS LV3; lot developer slot 29, `0x006C5DC0`). It reads, for every
+terrain vertex `(vx, vz)` with `x1 ≤ vx ≤ x2 + 1` and `z1 ≤ vz ≤ z2 + 1`, the lot developer's own slot 15
+(`GetTerrainAltitudeByVertex`, `0x006C4310`): terrain slot 12 `GetAltitude(index)` and, because state 5 passes
+`true`, terrain slot 31 `GetWaterLevel(index)` (`0x007413C0`, `0x00744980`, both plain array reads). It keeps the
+lowest and highest value and their vertex positions in locals, computes the 2-D distance between those two vertices
+and returns the slope in ST0. It writes nothing outside its own stack frame: no member of the lot developer, the
+terrain or any grid. Calling it from a shadow, or more often than state 5 does, has no side effect.
+
 ## 7. Formulas *[compat]*
 
 ### 7.1 Water bonus (state 2)

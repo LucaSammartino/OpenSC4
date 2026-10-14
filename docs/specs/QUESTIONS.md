@@ -1653,7 +1653,9 @@ brackets.
   7 sees is never half-built and changes at most once before the comparison, so there are exactly two candidates:
   the map before the developer's last state-17 copy, and the live one. The developer's slot 10 tells a shadow when to
   snapshot the first.
-- **LV3:** is `GetAreaSlope` on the lot developer free of side effects? [assumed read-only]
+- ~~**LV3:** is `GetAreaSlope` on the lot developer free of side effects? [assumed read-only]~~ **ANSWERED 2026-10-14**
+  from the exe (`0x006C5DC0`, its vertex reader `0x006C4310`, terrain `0x007413C0`/`0x00744980`) and written into
+  landvalue.md §6. **Yes, read-only**: terrain altitude and water level reads, locals only.
 - **LV4:** `GetLandValueType` is sampled at each tract's first cell. Is the type uniform over a tract, or which
   cell does the original use? [first cell]
 - **FL1:** is 2 × tractsPerDay the right bound for tracts left unvisited at `SimCycleComplete`? It assumes the
