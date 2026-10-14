@@ -536,7 +536,8 @@ return c
    commute 7.
 4. Position: when `b`, `cfg` and `obj` exist, x and z from `GetPositionForBuilding` (slot 40) and `y := b`'s bounding
    box max y; otherwise the lot centre (`lot.GetCenter`, slot 15). Then `y := r24(y + 3.0)`.
-5. Orientation from the global object at `0x00B43DD8`, field +0x10 *[inferred: the current view rotation]*.
+5. Orientation: field `+0x10` of the global `SC4ViewUtilities` object `0x00B43DD8` (read at `0x006C99ED`), the
+   **current view rotation** 0…3 (§12.2 Q3; landfill.md §4.7.5).
 6. `occ := propManager.AddLotProp(propType, &pos, orientation)` (prop manager slot 26; not null-checked);
    `occ.SetRemovalFlags(3)` (occupant slot 12); add property `0x48E95539 = zot` to `occ`.
 
@@ -1342,8 +1343,8 @@ verified from the bodies).
 | 60 | +0xF0 | `bool RemoveBuildingFoundation(occupant)` | 4 | AL (via slot 52) | `0x006C4150` | ok |
 | 61 | +0xF4 | `bool UpdateLotFoundation(lot)` | 4 | AL (via call) | `0x006C3F80` | ok |
 | 62 | +0xF8 | `bool UpdateLotRetainingWalls(lot)` | 4 | AL of `0x005E37F0` | `0x006C4190` | ok |
-| 63 | +0xFC | `bool CreateLotProp(lot, uint32, uint32)` | 12 | AL | `0x006C6230` | ok |
-| 64 | +0x100 | `bool GetLotConfigurationObjectOccupant(lot, uint32, cISC4Occupant*&)` | 12 | AL | `0x006CB760` | ok |
+| 63 | +0xFC | `cISC4Occupant* CreateLotProp(lot, uint32 objectIndex, uint32 propID)` | 12 | **EAX = the new prop's occupant** (borrowed) or 0 (§15.5) | `0x006C6230` | **error**: SDK `bool`; the one caller uses the pointer |
+| 64 | +0x100 | `bool GetLotConfigurationObjectOccupant(lot, uint32 objectIndex, cISC4Occupant*& out)` | 12 | AL; `out` holds a reference (§15.5) | `0x006CB760` | ok |
 | 65 | +0x104 | scalar deleting destructor | 4 | EAX | `0x006C8810` | not in the interface |
 
 **What a replacement returns where the original is undefined**: slots 13, 14, 34, 35 → true; slot 44 → the lot;
@@ -1368,6 +1369,7 @@ Behaviour of the geometry and foundation slots (15–31, 39–41, 45, 48–64), 
 - 48–61: foundation occupants (type `0x68FD0C69`, IID `0xC8FCE101`) found by occupant, cell, position or lot;
   added through BDS slot 23; building foundation type from the primary building object, else building property
   `0x88FCD877`, else the `0x6916516B` default (§17.5). 42 / 43: boundary textures of empty lots (§17.7).
+- 63 / 64: one configuration object's prop, created or found (§15.5).
 
 ### 11.2 `cIGZMessageTarget2` (vtable `0x00AB1B88`, sub-object +4, 4 slots)
 
@@ -1445,7 +1447,12 @@ in metres.
 
 1. Q1. *Answered* in §6.7 (phase lengths, `SetState(3)` point, draws). What remains open is listed in §6.7.10.
 2. Q2. *Answered* in §6.7.8: `0xC0` is a priority (every-frame bucket); `data2` is the clamped frame delta in µs.
-3. Q3. The object at `0x00B43DD8` (+0x10 gives the zot orientation) *[inferred: view rotation]*.
+3. Q3. *Answered* (with landfill.md LG5): `0x00B43DD8` is the global `SC4ViewUtilities` pointer. `SL::OnView3DInit`
+   stores the 3D renderer's `GetViewUtilities()` there (renderer slot 8, store at `0x006025DD`; the region screen
+   does the same at `0x007AD0D0`), and `SL::OnView3DShutdown` clears it (`0x00602146`). `UpdateCameraPosition`
+   (`0x007F83F0`) copies the camera control's rotation (`+0x10C`) into `+0x10` (`0x007F84C0`), so `+0x10` is the
+   current view rotation 0…3. The lot developer reads it only for the zot orientation (§5.6, `0x006C99ED`); nothing
+   checks the global for null. A replacement uses the view rotation, or 0 without a view.
 4. Q4. *Answered* in §17: altitude helpers §17.2, the terrain writer §17.3, levelling §17.4, foundations §17.5,
    `GetPositionForLotConfigurationObject` §17.6, boundary textures §17.7; tests 28–38 of §16.
 5. Q5. *Answered* (§5.7 step 2): `GetLotsSurroundingRect` deduplicates against the output list before every append,
@@ -1453,7 +1460,10 @@ in metres.
    double-weighted.
 6. Q6. `GetLotsInCellRect`'s last argument (`true` in §9, `false` in `NeedsAnchorBuilding`): allocators.md documents
    `false`; the lot developer always passes an empty list, so the clearing step does not matter here.
-7. Q7. Which game code calls slots 12–14 and 63–64 (demolition tool, disasters, lot editor) *[not traced]*.
+7. Q7. *Answered* in §15.5: slots 12–14 are called only by the demolition utility (`DemolishRegion` and its
+   deferred-demolition message) and by the port developer's lot swap; disasters and the bulldozer reach them only
+   through `DemolishRegion`'s flags. Slot 63 is called only by the prop developer (timed props), slot 64 only by the
+   lot configuration editor.
 
 ### 12.3 Corrections to other documents
 
@@ -1565,12 +1575,17 @@ Pops from `docs/abi/interfaces.tsv` (checked rows) unless noted.
 ### 15.1 Who reaches into the lot developer
 
 - Only through `cISC4LotDeveloper`: the tract developer (slots 6, 8, 9, 29, 36), the BDS (16, 30, 37), the coffee
-  bar path of this class, and other tools *[Q7]*. The two direct readers of the global `0x00B43D20` (BDS `Init`
-  `0x0069D496`, tract developer `Init` `0x0070780B`) only store and AddRef the pointer.
+  bar path of this class, and the callers of slots 12–14, 63 and 64 listed in §15.5. The pointer is reached through
+  BDS slot 36, city slot 79 (`0x006E3000`, the city's `+0x13C`) or the global `0x00B43D20`. Five places read the
+  global: BDS `Init` (`0x0069D495`), tract developer `Init` (`0x0070780A`) and zone developer `Init` (`0x0073405C`)
+  store and AddRef it; `cSC4Lot::GetLotConfigurationObject` (`0x006BFEE8`) calls slot 39; the base-texture cell model
+  (`0x005DFA18`, in `0x005DF9E0`) calls slot 46. (An earlier version listed only the first two.)
 - No code outside the class reads its members *[inferred: no raw access found next to the global's readers]*.
 - The file-local generator `0x00B49AF0`, the slicer statics `0x00B49B08`–`0x00B49B10`, the dead bytes
-  `0x00B49AE8` / `0x00B49AE9` and the cached lot-configuration-manager pointer `0x00B49AEC` are private to the class's
-  translation unit.
+  `0x00B49AE8` / `0x00B49AE9` and the dword `0x00B49AEC` are private to the class's translation unit. `0x00B49AEC`
+  is never written: it is a zero (0.0) that five functions copy into a position vector before slot 39 fills it
+  (`0x006C6272`, `0x006C6DB2`, `0x006C9D43`, `0x006CA965`, `0x006CD310`). (An earlier version called it the cached
+  lot-configuration-manager pointer.)
 
 The class is replaceable through the GZCOM registry (class ID `0xA990BFE0`) provided the replacement:
 - implements the compiled slot table (§11.1), including the pop-8 slot 53 and pop-4 slot 23;
@@ -1612,6 +1627,80 @@ order (R4–R6), hash-set iteration (R7, `ConstructDefaultLot`).
 The lot developer **owns no grid** and reads none raw. Desirability (growth developer slot 13 → grid slot 7), trip
 length (traffic slot 13 → grid slot 7), power (`IsPowered`) and water (`IsCellWatered`) are all read through
 interface calls, one cell at a time. Grid ownership is the owners' business (simgrid §6.4).
+
+### 15.5 Outside callers of slots 12–14, 63 and 64 (§12.2 Q7) *[compat]*
+
+**How they were found.** Every value that BDS slot 36 (`0x00698CE0`) or city slot 79 returns, or that is read
+from `0x00B43D20`, was followed to calls through the lot developer's vtable at `+0x30`, `+0x34`, `+0x38`, `+0xFC`
+and `+0x100`. So was every member that caches the pointer:
+- demolition `+0x24` (`+0x20` from its message sub-object);
+- bulldozer tool `cSC4ViewInputControlDemolish` `+0x34`;
+- landfill zone `+0x6C`;
+- BDS `+0x6C`;
+- tract developer `+0x28`;
+- zone developer `+0x50`.
+
+Every 3-argument call at `+0xFC` and `+0x100` in the executable was checked as well.
+
+The lot developer never calls these five slots itself, and nothing calls their bodies directly: the only references
+are the vtable entries. No disaster, tool or editor calls slots 12–14 directly; they all go through
+`cISC4Demolition::DemolishRegion` (`0x00468410`).
+
+| Slot | Caller | Call site | Arguments | What the caller does with the result |
+|---|---|---|---|---|
+| 14 `ExplodeLot` | `DemolishRegion`, when committing (`doIt`), for each lot in the region whose configuration (lot slot 9) is null or not water-compatible (configuration slot 14), when `flags & 0x300` | `0x00468F1C` | `(lot, (flags & 0x1000) = 0)` | ignores it |
+| 12 `StartDemolishLot`, then 13 `EndDemolishLot` | `DemolishRegion`, every other lot when committing; it reads the zone type (lot slot 31) first, for the re-parcelling that follows | `0x00468F30`, `0x00468F39` | `(lot)`, `(lot)` | ignores it |
+| 13 `EndDemolishLot` | the demolition utility's handler for message `0xA9DED179` (`0x00466FF0`), if `lot.IsInitialized()` (lot slot 6). Nothing posts this message (demolition.md) | `0x00467047` | `(lot)` | ignores it |
+| 12, then 13 | the port developer's lot swap (`0x006E92A0`, airport and seaport growth, port-developers.md), through `BDS.GetLotDeveloper()` | `0x006E936B`, `0x006E9377` | `(old lot)`, `(old lot)`; then `ConstructDefaultLot(new lot, new configuration, 0, true)` (slot 7, `0x006E93E3`) | ignores it |
+| 63 `CreateLotProp` | the prop developer's `SelectAndCreateProp` (`0x006F1620`), when the timed-prop record's cell has a lot (`lotManager.GetLot(x, z, false)`) | `0x006F1887` | `(lot, the record's object index (+8), the prop ID it chose)` | uses EAX as an occupant pointer: AddRef; `SetPropertyValue(0x89A1C16C, time slot)` on its property holder (occupant slot 6); Release; returns true. EAX = 0 → returns false |
+| 64 `GetLotConfigurationObjectOccupant` | the lot configuration editor's `CycleSelectedObject` (`0x0047C660`), for a selected flora object (record type 4) | `0x0047C78F` | `(the editor lot at cell (1, 1), from lotManager.GetLot(1, 1, false); the selected record's index in the configuration's object array; &occ)` | on AL = 1: QueryInterface of `occ` for `cISC4FloraOccupant` (`0xC83DD057`), then it replaces the flora with the next type in the object's ID list (flora slots 19 and 17) |
+
+**Who sets the explode bits.** These callers pass `DemolishRegion` or `DemolishLots` a `flags` value with
+`0x300` set. demolition.md §9 lists every demolition caller.
+
+| Caller | Address | Flags | `ExplodeLot` burnt argument |
+|---|---|---|---|
+| the fire disaster's `ToastOccupant` | `0x00579948` | cause \| `0x300` | true |
+| a power plant's failure (`AgePowerPlant`; power.md) | `0x006ECB4E` | cause \| `0x300` | true |
+| the automata group scrubber command, Lua key `explode` or `createRubble` | parsed at `0x005A357E` / `0x005A35A1`; `0x005BD0F0` passes the parsed flags to `DemolishRegion` at `0x005BD22F` | `0x1300` | false |
+| the same command, Lua key `createBurntRubble` alone | `0x005A35C0` | `0x300` | true |
+
+The bulldozer, zoning, developers and ordinances never set `0x300`, so they always clear lots with slots 12 and 13.
+
+**`CreateLotProp(lot, objectIndex, propID)`** (slot 63, `0x006C6230`, pop 12). It returns the occupant in EAX, or
+0 (zero means "no prop"):
+1. If `lot` is null, or `cfg := lot.GetLotConfiguration()` (lot slot 9) is null: return 0.
+2. `obj := cfg`'s object array (configuration slot 23) `[objectIndex]` (0x34-byte records, §17.1). There is no
+   range check *[quirk]*.
+3. `pos := (0, 0, 0)`, `orient`. Call `GetPositionForLotConfigurationObject(lot, cfg, obj, pos, orient)` (slot 39,
+   through the vtable; §17.6).
+4. If `propID = 0`: return 0.
+5. `occ := propManager.AddLotProp(propID, &pos, orient)` (prop manager slot 26, `0x004A2670`). That calls
+   `AddPropWithUsage(…, 2)`, which inserts the prop and returns its `cISC4Occupant` without a reference for the
+   caller. If `occ` is null: return 0.
+6. `occ.SetLotTag(obj's tag +0x24)` (occupant slot 28); return `occ`.
+
+There is no draw. This is `CreateRandomLotProp` (§6) with the ID given rather than drawn.
+
+**`GetLotConfigurationObjectOccupant(lot, objectIndex, &out)`** (slot 64, `0x006CB760`, pop 12, AL):
+1. `out := null`. If `lot` is null: return false.
+2. Take a fresh A-side `ilist<cISC4Occupant*>`; its head comes from the cached allocator service `0x00B207E4`.
+3. `r := lot.GetBoundingRect()` (lot slot 14). Then `min := city.CellCornerToPosition(x1, z1)` and
+   `max := city.CellCornerToPosition(x2 + 1, z2 + 1)` (city slot 96, x and z only).
+4. If the lot has no configuration (lot slot 9): free the list and return false.
+5. `tag :=` the tag (+0x24) of the configuration's object `objectIndex`. There is no range check.
+6. `occupantManager.slot40(list, &(x1, z1), &(x2, z2), null filter, −1)` (`0x0049E250`, the lot's cell rectangle).
+   If it returns false: free the list and return false.
+7. For each occupant `o` in list order:
+   - Keep `o` only if its position (occupant slot 8) satisfies `min.x ≤ x ≤ max.x` and `min.z ≤ z ≤ max.z`
+     (float32 compares; NaN fails), and `o.GetLotTag(&t)` (occupant slot 27) returns true with `t = tag`.
+   - A kept `o` replaces `out`: the previous `out` is released and `o` is AddRef'd.
+   - Release `o`, whether or not it was kept.
+
+   So the **last** match in list order wins.
+8. Free the list. Return `out ≠ null`; the caller owns one reference to `out`.
+
+There is no draw.
 
 ---
 
@@ -1772,6 +1861,16 @@ Unless stated, tuning is the shipped exemplar and the file RNG is seeded explici
 38. **Interface returns** (§17): slot 19 returns the call count in EAX (not 0/1); slots 20 and 21 return
     `ModifyTerrainHeight`'s EAX; slot 18 reads an int32 rectangle; slot 42 has no defined return; slot 53 pops 8;
     slot 61 returns without any call when the lot's flags have neither bit 0 nor bit 1.
+39. **Callers of slots 12–14** (§15.5): `DemolishRegion(true, R, 0, 0x303, …)` over a lot that is not
+    water-compatible makes exactly one lot-developer call, `ExplodeLot(lot, true)`. Flags `0x1303` pass false.
+    Flags `0x301` with a water-compatible configuration call `StartDemolishLot(lot)` and then `EndDemolishLot(lot)`,
+    in that order.
+40. **CreateLotProp** (§15.5): a configuration whose object 2 has tag `0x1234`, and `propID = 0x5000`: one
+    `AddLotProp` with the position and orientation of slot 39, then `SetLotTag(0x1234)` on the result, and EAX is
+    that occupant. `propID = 0` makes no prop-manager call and returns 0, but slot 39 is still called once.
+41. **GetLotConfigurationObjectOccupant** (§15.5): two occupants on the lot carry the object's tag: the second in
+    list order is returned, with one reference. An occupant with that tag whose x equals `max.x` is kept. One whose
+    x is `max.x + 0.01` is skipped.
 
 ---
 
