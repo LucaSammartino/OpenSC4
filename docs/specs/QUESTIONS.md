@@ -3403,8 +3403,9 @@ answer is in brackets; each entry says what would settle it.
   simulators, 53-bit inside Lua calls (foundations §18). [FreeCity4 evaluates them per caller. A differential test
   through a Lua advisor call would confirm the 53-bit path]
 - **HW4:** Version 1 records turn `maxCount = 100` into 0, duplicate dates overwrite the last point, and nothing in the
-  executable posts `0x89EFA537`. Is the city getter for the warehouse slot 32 (`+0x80`)? [slot 32 by the SDK
-  order; docs/abi folds that slot's name. A runtime call through the city vtable would settle the slot]
+  executable posts `0x89EFA537`. Why `100 → 0`, and does any plugin post `0x89EFA537`? [reproduced; the message stays
+  handled for plugins. The city getter is settled: slot 32 (`+0x80`) returns the field that `CreateCityComponents`
+  fills with the warehouse (history.md §1); docs/abi still shows a folded name for it]
 - **CK1:** Does the clock run while the player pauses the simulation (pause button or speed 0)? [yes *[inferred]*:
   only hidden pauses (through `SC4GamePause` and the scrubber) stop it, and nothing links the simulator's `Pause()`
   or speed to the clock. An in-game check would settle it: pause, then watch the clock display and the lighting]

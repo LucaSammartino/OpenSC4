@@ -25,7 +25,11 @@ yearly pass thins the old points to one per month, half-year, year or five years
 
 | Class | CLSID | Interfaces (IID) | City component | City getter |
 |---|---|---|---|---|
-| history warehouse | `0x89EFA536` | `cISC4HistoryWarehouse` (`0x69F4A803`) and `cIGZUnknown` (`1`) at +0, `cIGZSerializable` (`0xE4FDA3D4`) at +8 | 1 | `cISC4City` slot 32 (`+0x80`, `GetHistoryWarehouse` by the SDK order) |
+| history warehouse | `0x89EFA536` | `cISC4HistoryWarehouse` (`0x69F4A803`) and `cIGZUnknown` (`1`) at +0, `cIGZSerializable` (`0xE4FDA3D4`) at +8 | 1 | `cISC4City` slot 32 (`+0x80`, `GetHistoryWarehouse`) |
+
+The getter at slot 32 (`0x006DC680`) returns the city's field `+0x128`, which `cSC4City::CreateCityComponents`
+(`0x0045AA10`) fills with this component. docs/abi names the slot after an identical-code fold
+(`cSC4PlumbingSimulator::GetWaterExported`).
 
 The object also has a `cIGZMessageTarget2` sub-object at +4 (used for its subscriptions and agents), but
 `QueryInterface` does **not** answer `0x452294AA` *[quirk]*; any IID other than the three above returns false.
