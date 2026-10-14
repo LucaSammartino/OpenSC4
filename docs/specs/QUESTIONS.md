@@ -513,7 +513,10 @@ vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
   right: `current`**, the record's second array at `+0x22`; `last` and `usage` are never written here. Also
   corrected: for style 2 the key-bit-1 record gets the **mirrored** index `4·exit + entry`, like `ApplyRoute`. The
   spec said "not mirrored" (also fixed in traffic-simulator.md §4.5).
-- **PF3 — §8:** which value does the pathfinder pass for `GetLot`'s bool? [left to the host]
+- ~~**PF3 — §8:** which value does the pathfinder pass for `GetLot`'s bool? [left to the host]~~ **ANSWERED
+  2026-10-14** from the exe and written into §8 and §4.6. **Always false** (`push 0` before slot 6 at `0x006D8B1D`
+  lot start, `0x006D7AC7` filter-0 goal, `0x006D8688` §4.5 step 5). The bool is `originOnly` (zones.md §8), so any
+  cell of a lot finds it. The host should pass false.
 - ~~**PF4 — §4.8.3 step 3:** `conn[t]` is shifted by the node's entry side `s`, not the loop's `s2`. [literally
   `s`]~~ **ANSWERED 2026-10-14** from the exe (`FindPath` `0x006D99D1`–`0x006D99E2`) and written into §4.8.3 step 3.
   **The bracket is right: `s`**, the popped node's own side, re-read in each pass of the `s2` loop. The test does

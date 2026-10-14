@@ -254,7 +254,8 @@ The starting cost of type `t` is `startCost[t]` (caller array or simulator defau
 
 **Start-edge table** (which entry sides a start node may have): start cell in city → all four sides; else x0 < 0 →
 side 0 only; else x0 ≥ W → side 2 only; else z0 < 0 → side 1 only; else side 3 only (`0x00AB21D8`…`0x00AB21E8`).
-**Lot start**: the start cell (x0, z0) is in city and the lot manager has a lot there.
+**Lot start**: the start cell (x0, z0) is in city and the lot manager has a lot there (`GetLot(x0, z0, false)`: a
+lot covering the cell, not only one whose origin it is; §8).
 
 **Rings.** For ring `d` = 1 … MaxDistanceOriginToNetwork (all rings, there is no early stop): the ring rect is the
 previous ring rect grown by one on every side and then clamped to the city (ring 0 = the start rect; the clamped
@@ -704,7 +705,7 @@ Virtual calls on other interfaces (compiled slot, offset, pop, return):
 | Interface | Slot (offset) | Method | pop | Return | Used for |
 |---|---|---|---|---|---|
 | `cISC4City` | 93 (+0x174), 94 (+0x178) | CellCountX, CellCountZ | 0 | EAX | Init |
-| `cISC4LotManager` | 6 (+0x18) | `GetLot(int x, int z, bool)` (`0x0072B410`) | 12 | EAX | lot start, destination lots |
+| `cISC4LotManager` | 6 (+0x18) | `GetLot(int x, int z, bool originOnly)` (`0x0072B410`), always called with **false** (any cell of the lot; zones.md §8 slot 6) at all three sites: `0x006D8B1D` (lot start), `0x006D7AC7` (filter 0 goal), `0x006D8688` (§4.5 step 5) | 12 | EAX | lot start, destination lots |
 | `cISC4Lot` | 3 (+0x0C) | `AsPropertyHolder()` | 0 | EAX | capacity check |
 | `cISC4Lot` | 14 (+0x38) | `GetBoundingRect(SC4Rect<int32>&)` (`0x006BF320`) | 4 | AL | end rect, clearing destinations |
 | `cISC4OccupantManager` | 40 (+0xA0) | `GetOccupantsByStandardCityCells` filter overload (`0x0049E250`) | 20 | AL | filter 2 |
