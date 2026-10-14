@@ -574,6 +574,13 @@ target: `SetDistressed(false)`, brokenCount −= 1; else if not distressed and b
 `SetDistressed(true)`, brokenCount += 1. Distressed poles still conduct (§5.3 ignores the state) *[inferred:
 visual only]*. *[quirk]* brokenFraction is not saved, so after a load it restarts at 0.
 
+After a load (PW4): only the constructor (`0x006EF8A7`, 0) and `ApplyPoleFunding` write brokenFraction; `Read`,
+`Write` and `Init` never touch it. The saved brokenCount is kept, so the first month after a load moves the broken
+poles towards the target of a fraction that starts again from 0. Example: 1,000 poles, 300 broken when saved.
+At 100 % funding the shipped curve gives 0.025, so the fraction is `clamp(0 − 0.025) = 0`, the target is 0, and the
+first month shuffles the poles and repairs all 300. At 0 % funding the curve gives −0.02, the fraction becomes 0.02,
+the target is 20, and 280 poles are repaired.
+
 ## 8. Tuning *[compat]*
 
 **"f32 × 0.01" properties** *[compat]*: the value is read with the float getter and multiplied by the `float32`

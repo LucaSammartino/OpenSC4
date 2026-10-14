@@ -1459,7 +1459,10 @@ shadow's current answer is in brackets.
   `0x006EF805`–`0x006EF80B`; `Read`, `Init` and `Write` never touch them): **0.** The bracket is safe but not
   needed: the shadow can start them at 0 and compare exactly. A save taken in state 2 or 3 makes the original's
   state 3 publish only the post-load share (all 0 for a state 3 save). Written into power.md §9.1 with an example.
-- **PW4:** `brokenFraction` is not saved; the shadow starts it at 0. The original's value after a load? [0]
+- ~~**PW4:** `brokenFraction` is not saved; the shadow starts it at 0. The original's value after a load? [0]~~
+  **ANSWERED 2026-10-14** from the exe (constructor `0x006EF8A7`; written only there and in `ApplyPoleFunding`
+  `0x006EC3F0`): **the bracket matches.** It is 0 after a load, while the saved brokenCount is kept, so the first
+  month repairs poles down to the new target (all of them at 100 % funding). Written into power.md §7.6.
 - **PW5 — §5.3:** the dirty rectangle is not saved; the shadow uses the bounding box of the changed wire bits. Can a
   larger rectangle give different wire bits?
 - **PW6:** the shortfall block probe tries starts 0 to min(count, 32768), assuming one `rand()` of at most 0x7FFF.
