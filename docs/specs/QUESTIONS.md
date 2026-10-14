@@ -2923,7 +2923,12 @@ variant (GF3). The current answer is in brackets.
   stride) and written into graphics-formats §3.4. The original loads both. With S below the standard stride the draw
   reads past the vertex data. An unknown legacy format is read and boxed with S but drawn with stride 0 and no known
   layout. Rejecting both (the bracket) stays the choice.
-- **FS11:** PROP is "sorted after reading", but the sort key is not given. [file order kept]
+- ~~**FS11:** PROP is "sorted after reading", but the sort key is not given. [file order kept]~~
+  **ANSWERED 2026-10-14** from the exe (PROP reader `0x00807EED`–`0x00808264`; sort `0x00806B40` compares the `s16` at
+  +2, the frame) and a sweep of the shipped models, and written into graphics-formats §3.10. The key is the frame,
+  signed and ascending, by `std::sort`. Equal frames keep file order up to 16 entries, not beyond. Every shipped entry is
+  (−1, 0). The bracket (file order) matches the shipped data but not the original in general. Sort stably by frame
+  *[choice]*.
 - **FS12:** REGP lower-casing: ASCII or locale-aware? Which encoding for byte names? [ASCII lower-casing; names
   decoded as UTF-8 when valid, else Latin-1]
 - **FS13:** §4.1 when the fallback texture itself does not load. [the fallback key is returned anyway]

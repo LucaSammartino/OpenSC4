@@ -575,9 +575,11 @@ per mesh:
 ### 3.10 PROP (1.1 and later) *[compat]*
 
 `u32` count, then per entry: `s16` mesh index, `s16` frame, `u8` length + key string, `u8` length + value string
-(both as in §3.9, NUL included). The array is kept on the model and sorted after reading (`0x00806B40`).
-Shipped: 58 models with 2 entries each, e.g. (−1, 0, `skeleton`, `adult`) and (−1, 0, `suit`,
-`RangerFFit_01`). Consumer not traced (GF11).
+(both as in §3.9, NUL included). The array is kept on the model and sorted after reading by frame, signed and
+ascending (`std::sort`, `0x00806B40`, then an insertion pass). Equal frames keep file order up to 16 entries;
+above 16 their order is not defined (FS11). FreeCity4 sorts stably by frame *[choice]*, which is the same on all
+shipped data. Shipped: 58 models with 2 entries each, e.g. (−1, 0, `skeleton`, `adult`) and (−1, 0, `suit`,
+`RangerFFit_01`); every entry is (−1, 0). Consumer not traced (GF11).
 
 ### 3.11 REGP (1.2 and later) *[compat]*
 
