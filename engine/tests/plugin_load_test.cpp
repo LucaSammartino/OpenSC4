@@ -55,6 +55,7 @@
 #include "FC4CrimeInterfaces.h"
 #include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
+#include "FC4DevelopmentShadow.h"
 #include "FC4GameMap.h"
 #include "FC4GrowthProbe.h"
 #include "cFC4Demand.h"
@@ -4298,8 +4299,9 @@ int DevelopmentEnableTest(const std::string& dll, const std::string& ini, const 
     SetEnvironmentVariableA("FC4_ENABLE", nullptr);
     SetEnvironmentVariableA("FC4_DEVELOPMENT_SEED", nullptr);
     SetEnvironmentVariableA("FC4_DEVELOPMENT_GROWTH_ATTEMPTS_PER_DAY", nullptr);
+    SetEnvironmentVariableA("FC4_DEVELOPMENT_SHADOW", nullptr);
     WriteTextFile(ini, "[subsystems]\nenable = development\ndevelopment_seed = 42\n"
-                       "development_growth_attempts_per_day = 3\n");
+                       "development_growth_attempts_per_day = 3\n[tools]\ndevelopment_shadow = 1\n");
     HMODULE hd = LoadLibraryA(dll.c_str());
     CHECK(hd != nullptr);
     if (hd == nullptr) return 1;
@@ -4384,6 +4386,24 @@ int DevelopmentEnableTest(const std::string& dll, const std::string& ini, const 
             CHECK(fresh->Release() == 0);  // the final Release shuts a never-initialised simulator down
         }
         CheckGrowthDeveloper(director);
+        // The development shadow's record bridge (seam op 34, mode 1): one of
+        // our developers' record read into a new read-only core.
+        auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+        CHECK(seam != nullptr);
+        if (seam != nullptr) {
+            void* g = nullptr;
+            CHECK(director->GetClassObject(kCLSID_GrowthDeveloper, kIID_cISC4GrowthDeveloperDev, &g) && g != nullptr);
+            if (g != nullptr) {
+                FC4DevelopmentShadowTestInput in{};
+                in.mode = 1;
+                in.developer = static_cast<cIGZUnknown*>(g);
+                CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 1);
+                CHECK(static_cast<cIGZUnknown*>(g)->Release() == 0);
+            }
+            FC4DevelopmentShadowTestInput none{};
+            none.mode = 1;
+            CHECK(seam(kFC4SeamDevelopmentShadow, &none, nullptr) == -1);
+        }
         CheckCw("development");
     }
     FreeLibrary(hd);
@@ -4407,12 +4427,19 @@ int DevelopmentEnableTest(const std::string& dll, const std::string& ini, const 
     CHECK(text.find("development: AddNewFoundationOccupant (slot 23") != std::string::npos);
     // The growth developers: one created and initialised (refused), two read.
     CHECK(text.find("development: growth statics ") != std::string::npos);
-    CHECK(CountOf(text, "cFC4GrowthDeveloper(") == 6);  // created and destroyed
+    CHECK(CountOf(text, "cFC4GrowthDeveloper(") == 8);  // created and destroyed (one for the shadow's bridge)
     CHECK(text.find("growth 0x00000000 Init FAILED: init=0") != std::string::npos);
     CHECK(text.find("growth 0x00000000 Write -> 1") != std::string::npos);
     CHECK(text.find("growth 0x00000000 Read: init=0") != std::string::npos);
     CHECK(text.find("growth 0x00000000 Read FAILED") != std::string::npos);
-    CHECK(CountOf(text, ") destroyed (0 updates, 0 calls answered without the lock)") == 3);
+    CHECK(CountOf(text, ") destroyed (0 updates, 0 calls answered without the lock)") == 4);
+    // The development shadow: inactive with ours; its record bridge.
+    CHECK(text.find("development shadow: requested (development_shadow from FreeCity4.ini) but INACTIVE: it needs "
+                    "FreeCity4's simulator and the original development unit (do not enable development); here the "
+                    "simulator is ours and development is ours") != std::string::npos);
+    CHECK(text.find("development shadow: ON") == std::string::npos);
+    CHECK(text.find("development shadow test: record v1 (30 bytes) phantom=0 total=0 -> read 1 (copies 0, failed 0; "
+                    "core total=0 phantom=0)") != std::string::npos);
     // The catalogue mirror: built once per process, after the first Init loaded the catalogue.
     CHECK(CountOf(text, "development catalogue: 0 building types, 0 families") == 1);
     CHECK(CountOf(text, "development: the static-data cleanup is not registered") == 1);
@@ -4422,6 +4449,77 @@ int DevelopmentEnableTest(const std::string& dll, const std::string& ini, const 
     CHECK(text.find("WARNING: over-release") == std::string::npos);
     CHECK(text.find("streams: WARNING") == std::string::npos);
     if (g_failures == 0) std::printf("plugin development enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
+// ---- the development shadow (test seam op 34) ---------------------------------------------------------
+
+int DevelopmentShadowIniTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // `development_shadow = 1` with FreeCity4's simulator and the original
+    // development unit (the defaults): ON, and the shadow's list comparison.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_DEVELOPMENT_SHADOW", nullptr);
+    WriteTextFile(ini, "[tools]\ndevelopment_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_GrowthDeveloper) == 0);
+        const int32_t two[] = {1, 2, 1, 3, 4, 2};
+        const int32_t swapped[] = {3, 4, 2, 1, 2, 1};
+        const int32_t three[] = {1, 2, 1, 3, 4, 2, 5, 6, 1};
+        FC4DevelopmentShadowTestInput in{};
+        in.mode = 0;
+        in.original = two;
+        in.originalCount = 2;
+        in.ours = two;
+        in.oursCount = 2;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 0);
+        in.ours = swapped;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 2);  // both indices
+        in.asSet = 1;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 0);  // the industrial decline order
+        in.ours = three;
+        in.oursCount = 3;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 2);  // the count, one only in ours
+        in.asSet = 0;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == 1);  // the count
+        in.ours = nullptr;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &in, nullptr) == -1);
+        CHECK(seam(kFC4SeamDevelopmentShadow, nullptr, nullptr) == -1);
+        FC4DevelopmentShadowTestInput other{};
+        other.mode = 9;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &other, nullptr) == -1);
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    const auto npos = std::string::npos;
+    CHECK(text.find("development shadow: ON (development_shadow from FreeCity4.ini): every ORIGINAL growth "
+                    "developer's monthly update") != npos);
+    CHECK(text.find("development shadow: not compared or assumed: the industrial decline order") != npos);
+    CHECK(text.find("development shadow: requested") == npos);
+    CHECK(text.find("development shadow test: lists 2/2 in order; mismatches=0") != npos);
+    CHECK(text.find("development shadow test: lists 2/2 in order; mismatches=2; differences (original/ours): "
+                    "list[0] (1,2) s1/(3,4) s2, list[1] (3,4) s2/(1,2) s1") != npos);
+    CHECK(text.find("development shadow test: lists 2/2 as a multiset; mismatches=0") != npos);
+    CHECK(text.find("development shadow test: lists 2/3 as a multiset; mismatches=2; differences (original/ours): "
+                    "list count 2/3, list (5,6) s1 only in ours") != npos);
+    CHECK(text.find("development shadow test: lists 2/3 in order; mismatches=1; differences (original/ours): "
+                    "list count 2/3") != npos);
+    CHECK(text.find("subsystem 'development': enabled") == npos);
+    CHECK(text.find("structured exception") == npos);
+    CHECK(text.find("config: WARNING unknown key") == npos);
+    CHECK(text.find("WARNING: released last reference") == npos);
+    CHECK(text.find("WARNING: over-release") == npos);
+    if (g_failures == 0) std::printf("plugin development shadow test: all checks passed\n");
     return g_failures == 0 ? 0 : 1;
 }
 
@@ -6292,6 +6390,8 @@ int main(int argc, char** argv) {
     if (mode == "--ini-enable-neighbors") return NeighborsEnableTest(dll, ini, log);
     // Development (building-development.md): the replacement without a city.
     if (mode == "--ini-enable-development") return DevelopmentEnableTest(dll, ini, log);
+    // The development shadow: ON with the original unit, its list comparison (seam op 34).
+    if (mode == "--ini-development-shadow") return DevelopmentShadowIniTest(dll, ini, log);
     // Land value and flammability grid shadows on fake originals; both inactive with ours.
     if (mode == "--ini-landvalue-shadow") return LandValueShadowTest(dll, ini, log);
     if (mode == "--ini-flammability-shadow") return FlammabilityShadowTest(dll, ini, log);

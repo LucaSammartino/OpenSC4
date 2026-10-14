@@ -215,7 +215,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "residential_shadow", "residential_shadow_cells", "residential_seed",
                                   "neighbours_shadow", "neighbors_seed", "neighbors_two_curves",
                                   "growth_probe",
-                                  "development_growth_attempts_per_day", "development_seed"};
+                                  "development_growth_attempts_per_day", "development_seed",
+                                  "development_shadow"};
 
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

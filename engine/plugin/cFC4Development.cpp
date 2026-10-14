@@ -209,6 +209,10 @@ bool Gate(void* u, fc4::Sw s, const char* what) {
     return false;
 }
 
+// The shadow's context (FC4DevelopmentShadow.h) never changes the game: its
+// posts, registrations, creations and every write callback do nothing.
+bool Writes(void* u) { return !Ctx(u)->readOnly; }
+
 cISC4Occupant* OccOf(uint64_t t) { return reinterpret_cast<cISC4Occupant*>(FromToken(t)); }
 cISC4Lot* LotOf(uint64_t t) { return reinterpret_cast<cISC4Lot*>(FromToken(t)); }
 cFC4ISC4Demand* NodeOf(uint64_t t) {
@@ -590,6 +594,7 @@ void RegisterStaticCleanup(void*) {
 
 // §5: kSC4MessageBuildingTypesUpdated, void1 null, data2 = the count, posted.
 void PostBuildingTypesUpdated(void* u, uint32_t count) {
+    if (!Writes(u)) return;
     if (!Gate(u, fc4::Sw::DevelopmentPosts, "development BuildingTypesUpdated post")) return;
     cIGZMessageServer2Ptr ms;
     if (!ms) return;
@@ -626,6 +631,7 @@ void Unsubscribe(void* u, const uint32_t* types, size_t n) {
 
 // §1.3 step 8: command server slot 6 RegisterCommand(id, name, null).
 void RegisterCommand(void* u, uint32_t id, const char* name, size_t len) {
+    if (!Writes(u)) return;
     fc4::DevelopmentContext* c = Ctx(u);
     if (c->commandId != 0 || name == nullptr) return;
     if (!Gate(u, fc4::Sw::DevelopmentCheats, "development PlaceBuilding command registration")) return;
@@ -683,6 +689,7 @@ void RemoveAgent(void* u) {
 // [spec question, choice] The notification is added for the cheat's id (as
 // the flora glue).
 void RegisterCheat(void* u, uint32_t id, const char* name, size_t len) {
+    if (!Writes(u)) return;
     fc4::DevelopmentContext* c = Ctx(u);
     if (c->target == nullptr || name == nullptr) return;
     if (!Gate(u, fc4::Sw::DevelopmentCheats, "development cheat registration")) return;
@@ -774,6 +781,7 @@ bool CensusSupply(void* u, uint32_t id, float* out) {
 
 // §1.3 step 7: a new cSC4Demand (GZCOM), one reference, not Inited.
 uint64_t CreateConstructionNode(void* u) {
+    if (!Writes(u)) return 0;
     cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
     void* p = nullptr;
     if (com == nullptr || !com->GetClassObject(kCLSID_cSC4Demand, kIID_cISC4Demand, &p) || p == nullptr) {
@@ -838,7 +846,7 @@ FC4GrowthProfile GameProfile(const fc4_growth_profile* p) {
 // Slot 5 Grow(profile, outcomes, flag): the outcome list is a B list made and
 // freed here (§9.2).
 int32_t TractGrow(void* u, const fc4_growth_profile* profile, bool* flag) {
-    if (profile == nullptr) return 0;
+    if (profile == nullptr || !Writes(u)) return 0;
     cFC4ISC4TractDeveloper* td = TractDeveloper(u, "development tract Grow (nothing built)");
     if (td == nullptr) return 0;
     fc4::GameList<int32_t> outcomes;
@@ -856,7 +864,7 @@ int32_t TractGrow(void* u, const fc4_growth_profile* profile, bool* flag) {
 }
 
 int32_t TractDecline(void* u, const fc4_growth_profile* profile) {
-    if (profile == nullptr) return 0;
+    if (profile == nullptr || !Writes(u)) return 0;
     cFC4ISC4TractDeveloper* td = TractDeveloper(u, "development tract Decline (nothing declined)");
     if (td == nullptr) return 0;
     ++Ctx(u)->declines;
@@ -969,6 +977,7 @@ float LotDeveloperSlope(void* u, uint64_t lot) {
 
 // Lot developer slot 37 UpdateLotElements(lot, kind): the whole 32-bit kind (§4.11).
 void UpdateLotElements(void* u, uint64_t lot, uint32_t kind) {
+    if (!Writes(u)) return;
     cISC4LotDeveloper* ld = LotDeveloper(u, "development UpdateLotElements");
     if (ld == nullptr || lot == 0) return;
     ld->UpdateLotElements(LotOf(lot), kind);
@@ -1047,7 +1056,7 @@ private:
 
 // §4.11: PlaceZone(region, zone 0, true, flag, false, true, true, null, null, 0).
 void Dezone(void* u, const fc4_cell_rect* r, bool flag) {
-    if (r == nullptr) return;
+    if (r == nullptr || !Writes(u)) return;
     cISC4ZoneManager* zm = Zones(u, "development dezoning PlaceZone");
     if (zm == nullptr) return;
     RegionBuffer rb;
@@ -1094,6 +1103,7 @@ uint8_t LandValue(void* u, int32_t x, int32_t z) {
 // §4.11: DemolishLots(true, lots, 0, 1, true, null, &cost, 0) (demolition slot
 // 7); the list holds one reference per lot, released by its destructor.
 int64_t DemolishLots(void* u, const uint64_t* lots, size_t n) {
+    if (!Writes(u)) return 0;
     if (!Gate(u, fc4::Sw::DevelopmentDemolition, "development DemolishLots (cost 0)")) return 0;
     cISC4City* c = CityOf(u);
     cISC4Demolition* d = c ? c->GetDemolitionUtility() : nullptr;
@@ -1127,6 +1137,7 @@ int64_t TotalFunds(void* u) {
 }
 
 void SetTotalFunds(void* u, int64_t v) {
+    if (!Writes(u)) return;
     if (cFC4ISC4BudgetSimulator* b = Budget(u)) b->SetTotalFunds(v);  // slot 5
 }
 
@@ -1136,6 +1147,7 @@ bool HasOccupantManager(void* u) { return Occupants(u, "development occupant man
 
 // Slot 20 InsertOccupant(occupant, 0) (§4.9: AsOccupant, false).
 bool InsertOccupant(void* u, uint64_t occ) {
+    if (!Writes(u)) return false;
     cISC4OccupantManager* om = Occupants(u, "development InsertOccupant (refused)");
     if (om == nullptr || occ == 0) return false;
     ++Ctx(u)->inserts;
@@ -1144,6 +1156,7 @@ bool InsertOccupant(void* u, uint64_t occ) {
 
 // Slot 21 RemoveOccupant(occupant, true, 0) (§4.9 slot 25).
 bool RemoveOccupant(void* u, uint64_t occ) {
+    if (!Writes(u)) return false;
     cISC4OccupantManager* om = Occupants(u, "development RemoveOccupant (refused)");
     if (om == nullptr || occ == 0) return false;
     ++Ctx(u)->removals;
@@ -1196,6 +1209,7 @@ void OccupantPosition(void* u, uint64_t occ, float* out3) {
 
 // §4.9: a new building occupant (GZCOM), one reference for the core.
 uint64_t CreateBuildingOccupant(void* u) {
+    if (!Writes(u)) return 0;
     if (!Gate(u, fc4::Sw::DevelopmentOccupants, "development building occupant creation (none)")) return 0;
     cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
     void* p = nullptr;
@@ -1305,6 +1319,7 @@ void InitOccupant(void* u, uint64_t occ) {
 // 7 and 18). [quirk, §4.10] The subject the core built is discarded: the
 // original pushes a null subject, so none is created here.
 void PushAdvisorEvent(void* u, uint32_t advisor, uint32_t event, const fc4_advice_subject*) {
+    if (!Writes(u)) return;
     if (!Gate(u, fc4::Sw::DevelopmentAdvisor, "development advisor event")) return;
     cISC4City* c = CityOf(u);
     cISC4AdvisorSystem* as = c ? c->GetAdvisorSystem() : nullptr;
@@ -1318,6 +1333,7 @@ void PushAdvisorEvent(void* u, uint32_t advisor, uint32_t event, const fc4_advic
 
 // §1.5: a cSC4GrowthDeveloper through GZCOM (class 0x0990C138), one reference.
 uint64_t CreateDeveloper(void* u, const fc4_res_key*) {
+    if (!Writes(u)) return 0;  // the shadow compares the original's developers
     cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
     void* p = nullptr;
     if (com == nullptr ||

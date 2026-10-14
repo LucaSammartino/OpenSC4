@@ -99,6 +99,9 @@
 //   development_seed = N          the development generators' session seed (default: the
 //                                 wall clock, building-development.md §4.14; env
 //                                 FC4_DEVELOPMENT_SEED)
+//   development_shadow = 0 / 1    the development shadow (default 0; needs FreeCity4's
+//                                 simulator and the ORIGINAL BDS and growth developers: do
+//                                 not enable development; FC4DevelopmentShadow.h)
 //   growth_probe = 0 / 1          the growth calibration probe (default 0; needs the
 //                                 ORIGINAL BDS and tract developer; counts the tract
 //                                 developer's Grow calls per game day; env

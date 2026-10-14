@@ -46,6 +46,7 @@
 #include "FC4ResidentialShadow.h"
 #include "cFC4Residential.h"
 #include "FC4NeighborsShadow.h"
+#include "FC4DevelopmentShadow.h"
 #include "cFC4Neighbors.h"
 #include "cFC4Development.h"
 #include "cFC4GrowthDeveloper.h"
@@ -339,6 +340,8 @@ void Resolve() {
     ResidentialShadowStartup(g_enabled[0], enabledKey("residential"));
     // The neighbours shadow (FC4NeighborsShadow.h; it compares the original neighbours simulator).
     NeighborsShadowStartup(g_enabled[0], enabledKey("neighbors"));
+    // The development shadow (FC4DevelopmentShadow.h; it compares the original BDS and growth developers).
+    DevelopmentShadowStartup(g_enabled[0], enabledKey("development"));
 }
 
 }  // namespace

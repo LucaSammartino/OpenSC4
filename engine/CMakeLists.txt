@@ -242,6 +242,8 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Development.h
         plugin/cFC4GrowthDeveloper.cpp
         plugin/cFC4GrowthDeveloper.h
+        plugin/FC4DevelopmentShadow.cpp
+        plugin/FC4DevelopmentShadow.h
         plugin/FC4DevelopmentInterfaces.h
         plugin/FC4GameMapBuild.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
@@ -434,6 +436,11 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_development_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-development)
     set_tests_properties(plugin_ini_enable_development_test PROPERTIES RUN_SERIAL TRUE)
+    # The development shadow (FC4DevelopmentShadow.h): ON with the original
+    # unit, its list comparison and record bridge (seam op 34).
+    add_test(NAME plugin_ini_development_shadow_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-development-shadow)
+    set_tests_properties(plugin_ini_development_shadow_test PROPERTIES RUN_SERIAL TRUE)
     # `enable = neighbors`: the neighbours simulator, its connections (an
     # original's accepted on load) and deals, through a fake city and region.
     add_test(NAME plugin_ini_enable_neighbors_test
