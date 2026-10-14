@@ -962,6 +962,18 @@ void cFC4ProtectionBase::LogState(const char* what) {
              static_cast<void*>(FromToken(st.adjusted_grid)), static_cast<void*>(FromToken(st.unadjusted_grid)),
              static_cast<void*>(FromToken(st.air_source)), st.reentrant_calls, fallbacks_.load(), ctx_.posts,
              ctx_.airInits, ctx_.controllers, months_, days_);
+    // A month with a coverage grid that has no tracts: the daily cycle (§5.3)
+    // cannot run, and the grid is never updated. `Init` takes the geometry
+    // from the grid (§4.1 base init steps 2 and 6); at `Read` a grid can still
+    // be 0 x 0, because the game reads its record later.
+    if (!emptyGridWarned_ && std::strcmp(what, "month") == 0 && st.adjusted_grid != 0 &&
+        (st.count_x <= 0 || st.count_z <= 0)) {
+        emptyGridWarned_ = true;
+        fc4::Log("protection (%s): WARNING the coverage grid %p has %dx%d tracts at a month (init=%u "
+                 "tractsPerDay=%d): no daily cycle runs (logged once)",
+                 ctx_.tag, static_cast<void*>(FromToken(st.adjusted_grid)), st.count_x, st.count_z, st.initialized,
+                 st.tracts_per_day);
+    }
     if (kind_ == 1) {
         fc4::Log("protection %s (police jails): jails=%u funded=%u jailbreaks=%u capacity=%d population=%d jailed=%d "
                  "arrestsLast=%d crimesLast=%d jailDepartment=%p",

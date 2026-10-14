@@ -1631,6 +1631,9 @@ int ProtectionEnableTest(const std::string& dll, const std::string& ini, const s
     CHECK(text.find("protection month (fire): init=0") != std::string::npos);
     CHECK(text.find("protection month (police): init=0") != std::string::npos);
     CHECK(text.find("protection month (police jails): jails=0") != std::string::npos);
+    // Without a grid there is no 0 x 0 grid to warn about (the WARNING needs
+    // a non-null coverage grid with no tracts).
+    CHECK(text.find("WARNING the coverage grid") == std::string::npos);
     CHECK(text.find("protection Init (fire): init=1") != std::string::npos);
     CHECK(text.find("protection Init (police): init=1") != std::string::npos);
     CHECK(text.find("fallbacks=0") != std::string::npos);
