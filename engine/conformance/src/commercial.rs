@@ -210,7 +210,12 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "shutdown" => w.sim().and_then(|s| check_expect(op, Json::Bool(s.shutdown()))),
         "add_ref" => w.sim().and_then(|s| check_expect(op, ji(s.add_ref()))),
         "release" => w.sim().and_then(|s| check_expect(op, ji(s.release()))),
-        "identity" => identity(op, query_interface, CLSID_COMMERCIAL_SIMULATOR, w.sim().map(|s| s.class_id())),
+        "identity" => identity(
+            op,
+            query_interface,
+            CLSID_COMMERCIAL_SIMULATOR,
+            w.sim().map(|s| s.class_id()),
+        ),
         "message" => message(&w, op),
         "idle" => idle(&w, op),
         "set" => set(&w, op),
@@ -241,7 +246,8 @@ fn industrial(w: &World, rest: &str, op: &Json) -> R<()> {
         "shutdown" => w.industrial().and_then(|s| check_expect(op, Json::Bool(s.shutdown()))),
         "message" => {
             let t = msg_type(field(op, "type")?)?;
-            w.industrial().and_then(|s| check_expect(op, Json::Bool(s.do_message(t))))
+            w.industrial()
+                .and_then(|s| check_expect(op, Json::Bool(s.do_message(t))))
         }
         "add_ref" => w.industrial().and_then(|s| check_expect(op, ji(s.add_ref()))),
         "release" => w.industrial().and_then(|s| check_expect(op, ji(s.release()))),
@@ -312,7 +318,10 @@ fn env(w: &World, op: &Json) -> R<()> {
     if let Some(v) = opt(op, "keys") {
         for e in arr(v, "keys")? {
             w.keys.borrow_mut().insert(
-                (u32_of(field(e, "purpose")?, "purpose")?, u32_of(field(e, "wealth")?, "wealth")?),
+                (
+                    u32_of(field(e, "purpose")?, "purpose")?,
+                    u32_of(field(e, "wealth")?, "wealth")?,
+                ),
                 u32_of(field(e, "key")?, "key")? as u8,
             );
         }
@@ -374,7 +383,9 @@ fn message(w: &World, op: &Json) -> R<()> {
         data3: opt(op, "data3").map_or(Ok(if occ_msg { OCCUPANT_TYPE_BUILDING } else { 0 }), |v| {
             u32_of(v, "data3")
         })?,
-        void1: opt(op, "occupant").map(|v| i64_of(v, "occupant").map(|t| t as u64)).transpose()?,
+        void1: opt(op, "occupant")
+            .map(|v| i64_of(v, "occupant").map(|t| t as u64))
+            .transpose()?,
     };
     check_expect(op, Json::Bool(s.do_message(&m)))
 }

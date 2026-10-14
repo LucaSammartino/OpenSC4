@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "civic_income",
+  "spec": ["civic-buildings 4.4", "civic-buildings 4.5", "civic-buildings 12.5"],
+  "description": "Activation of a business deal with an income item of 300 (department 0x2A5A723F) creates an income line (SetType 1) keyed by the building type, not by the item's line, and adds 300; the building is not maintained. Removal subtracts the income and deletes the line when the income drops below 1. A line with income 500 drops to 200 and stays. An existing line keeps its type (SetType runs only when the line is created).",
+  "steps": [
+    {"op": "civic_create"},
+    {"op": "civic_init", "expect": true},
+    {"op": "civic_building", "occupant": "0x50", "type": "0x033A0000"},
+    {"op": "civic_item", "occupant": "0x50", "purpose": "income", "department": "0x2A5A723F", "line": "0x99", "cost": 300},
+    {"op": "civic_clear_events"},
+    {"op": "civic_message", "type": "LotStateChanged", "lot": "0x51", "data2": 3, "expect": true},
+    {"op": "civic_expect_events", "events": [
+      {"event": "add_ref", "token": "0x51"},
+      {"event": "create_line", "department": "0x2A5A723F", "line": "0x033A0000", "local": false},
+      {"event": "set_line_type", "type": 1},
+      {"event": "release", "token": "0x51"}
+    ]},
+    {"op": "civic_expect_line", "department": "0x2A5A723F", "line": "0x033A0000", "state": {"income": 300, "type": 1}},
+    {"op": "civic_expect_line", "department": "0x2A5A723F", "line": "0x99", "absent": true},
+    {"op": "civic_expect", "state": {"landmark_count": 0, "maintained": []}},
+    {"op": "civic_message", "type": "OccupantRemoved", "occupant": "0x50", "expect": true},
+    {"op": "civic_expect_line", "department": "0x2A5A723F", "line": "0x033A0000", "absent": true},
+    {"op": "civic_expect_event_count", "filter": {"event": "remove_line", "department": "0x2A5A723F", "line": "0x033A0000"}, "count": 1},
+
+    {"op": "civic_call", "method": "lot_activated", "args": ["0x51"]},
+    {"op": "civic_call", "method": "lot_activated", "args": ["0x51"]},
+    {"op": "civic_expect_line", "department": "0x2A5A723F", "line": "0x033A0000", "state": {"income": 600}},
+    {"op": "civic_set_line", "department": "0x2A5A723F", "line": "0x033A0000", "income": 500},
+    {"op": "civic_call", "method": "building_removed", "args": ["0x50"]},
+    {"op": "civic_expect_line", "department": "0x2A5A723F", "line": "0x033A0000", "state": {"income": 200}},
+    {"op": "civic_set_line", "department": "0x2A5A723F", "line": "0x033A0000", "type": 0},
+    {"op": "civic_clear_events"},
+    {"op": "civic_call", "method": "lot_activated", "args": ["0x51"]},
+    {"op": "civic_expect_event_count", "filter": {"event": "set_line_type"}, "count": 0},
+    {"op": "civic_expect_line", "department": "0x2A5A723F", "line": "0x033A0000", "state": {"income": 500, "type": 0}}
+  ]
+}
