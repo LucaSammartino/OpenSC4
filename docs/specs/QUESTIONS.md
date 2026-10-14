@@ -3513,3 +3513,27 @@ The lane's implemented answers are in brackets; most are glue choices that need 
   counted as a fallback]
 - **TG22:** units per slice against the original's 4 ms deadline (traffic-simulator §3.4). [16 deterministic units
   per slice; our turbo runs at about 43–46 game days/s with traffic against about 76 without]
+
+## From applying the REH, flora, residential and flammability answers (filed by the coordinator from the `apply9d` lane's report, 2026-10-14)
+
+apply9d applied AQ1–AQ10, RG24 and FL7–FL9 (merged `ccfe2b4`). Every in-game run stayed clean and exact:
+flammability 18/18 under turbo and 117/117 at normal speed, residential 384/384 and flora 25/25. Under turbo the
+flammability cycle-end message arrived up to 17 days after the wrap day.
+
+- **AQ11:** AQ2/AQ3: when there is no R$ EQ or HQ grid, which tract size do the R$$ and R$$$ variants and the
+  minimum and maximum coordinates use? [member E]
+- **AQ12:** AQ10: how should the stray reference from a failed `OpenOStream`/`OpenIStream` be audited? [as
+  acquired, then released as created-for-us]
+- **AQ13:** AQ7: is each end of a listing clamped to 0..191 on its own? [yes]
+- **FL10:** FL8: the tracts a new cycle visits come from a `rand()` draw. Which marks carry into the next cycle?
+  [every tract changed after the wrap day, a superset]
+- **FL11:** FL8: the day count starts when the shadow is created (the first event, before the original's first
+  day) and uses our own tractsPerDay. It is checked only against the number of cycle ends delivered, so an offset of
+  whole cycles is not detected. [once it is off, it stays off for that city and only the comparison's own poll
+  carries]
+- **FL12:** FL1/FL8: what is the bound on unvisited tracts under the turbo clock? [max(2 × tractsPerDay, the
+  new-cycle tracts the count gave at the previous comparison); in game the bound reached 7098 and the unvisited
+  count stayed at most 155]
+- **FL13:** FL7: what polls when there are no day polls, for example when the game's own simulator delivers the days?
+  [every forwarded message plus the cycle end. Polling still needs the host's `watered_grid` to be non-NULL, although
+  content polls read only slot 11]
