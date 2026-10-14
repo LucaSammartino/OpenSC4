@@ -455,8 +455,11 @@ vectors `nb18_*`). The core's current answer is in brackets.
   [as given]~~ **ANSWERED 2026-10-14** from the exe (`0x006D494A`–`0x006D4A4F`): **the bracket does not match.** The
   height is `GetAltitude(px, pz)` at the **inner** cell's centre, the same point the prop is placed at. The
   connection cell is not used (neighbors.md §6.3, with an example).
-- **NB4 — §12 vs §7.1:** ProposeDeals reads `0xCA469346` (f32) in §12 but `0xCA46931F` in §7.1. [`0xCA46931F` for
-  proposals; `0xCA469346` as GetDealCost's f64 maximum markup]
+- ~~**NB4 — §12 vs §7.1:** ProposeDeals reads `0xCA469346` (f32) in §12 but `0xCA46931F` in §7.1. [`0xCA46931F` for
+  proposals; `0xCA469346` as GetDealCost's f64 maximum markup]~~ **ANSWERED 2026-10-14** from the exe: the bracket
+  matches. `ProposeDeals` reads both. The `0xCA469346` read (`0x006D22B4`) becomes `1 + v` in a local that is never
+  read; the budget test uses `0xCA46931F` (`0x006D24EE`). Both sections were right, and neighbors.md §12 now marks
+  the read as dead.
 - **NB5:** what does `UpdateCost` do with no current simulator? [nothing]
 - **NB6 — §2.2:** `neighbour_connection_cell` for an interior cell has no row. [`None`]
 - **NB7 — §13:** null or host references in the connection list are skipped on read. Correct? [skipped]
