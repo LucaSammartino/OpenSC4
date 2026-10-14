@@ -279,12 +279,12 @@ bool skipSizeCheck, bool checkLotInside, int64* outCost, int32* outError, std::s
 
 ```
 funds := budget.GetTotalFunds()                         (slot 6, int64)
-if type ≥ 16 (unsigned): fail (code 0)
+cost := 0 (int64);  accepted := [];  demolish := []        (lists, insertion order)
+if type ≥ 16 (unsigned): type := 0                        (the argument itself is replaced; ZG17)
 if !skipSizeCheck:
     w := x2 − x1 + 1;  h := z2 − z1 + 1
-    if w < min[type] or h < min[type]: error 3, fail
-    if w > max[type] or h > max[type]: error 4, fail
-cost := 0 (int64);  accepted := [];  demolish := []        (lists, insertion order)
+    if w < min[type] or h < min[type]: error 3, ABORT before the first cell
+    if w > max[type] or h > max[type]: error 4, ABORT before the first cell
 for x in x1..x2 (outer), z in z1..z2 (inner), only cells inside the city and set in the region:
     old := grid(x, z);  if old ≥ 16 unsigned: old := 0
     tile := city.GetTrafficNetwork().FindNetworkTile(x, z, 0x1F4F, 1)
@@ -337,6 +337,33 @@ Notes *[compat]*:
 
 - "ABORT" stops the cell loop with the error set; the post-loop block still runs (cost, outLots), then the call
   fails. Cells accepted before the abort stay set in the caller's region; rejected cells are already cleared.
+- **A failed size check is an ABORT too** (ZG17; `0x004DD82A` and `0x004DD846` jump to `0x004DDC31`, the abort
+  path). The cell loop does not run, so `accepted` and `demolish` are empty and the region is untouched, but the
+  post-loop block runs in full:
+  - for type 14 the cost is `landfillDeveloper.GetZoningCost(region)` (`0x004DDCC8`–`0x004DDCF5`, landfill §4.3)
+    over the whole request region; for every other type it stays 0;
+  - with `skipFunds` the cost is set to 0;
+  - otherwise a cost above the funds (signed int64, `0x004DDE34`) **replaces** error 3 or 4 with error 1
+    (`0x004DE023`);
+  - `*outCost := cost` and `*outError := code` are written as on every other exit (`0x004DE02B`–`0x004DE052`).
+
+  The same holds after the other aborts (errors 2 and 5): the type-14 landfill cost of the whole region is added,
+  and error 1 can replace the abort's code.
+
+  Worked example (regress rzones): a 1 × 1 landfill (type 14) dry run with the size check on, `checkSlope` on,
+  `commit = false`, `skipFunds = false`. `min[14] = 2`, so w = 1 < 2: error 3. No cell is examined. The cost is
+  `GetZoningCost` of the 1 × 1 region (landfill §4.3, shipped `kCostPerCellHeightChange` = 4):
+  - the cell lies in the rect of an existing landfill zone with level altitude 100 m, and the cell's altitude is
+    91 m: `round(4 × |100 − 91|)` = **36**. A 52 m difference gives 208. This is the in-game range; it varies with the
+    place and, month by month, with the zone's level and the terrain;
+  - the cell touches no landfill zone: one cell has variance 0 ≤ 5 (`kLevelToleranceThreshold`), so the cost is 0.
+
+  With the cost ≤ the funds, the call returns false with `*outError = 3` and `*outCost` = that cost; above the
+  funds, `*outError = 1`. Other types write 0: a 1 × 1 agriculture zone (type 7, `min = 4`) fails with error 3 and
+  `*outCost = 0`; a 1 × 1 residential zone (type 1, `min = 1`) passes the size check.
+- **Type out of range** (ZG17, `0x004DD7F9`–`0x004DD807`): a type ≥ 16 is not a failure. The type argument is
+  replaced by 0 and the call proceeds as a dezone, with the size limits of type 0 (corrects the earlier "fail
+  (code 0)").
 - The 5th argument (`checkAreaSlope` in the SDK) is used four ways: slope check, building-removal check,
   `DemolishLots` argument, `DoParcellization`'s street-removal flag (§7.9) and ZoningChange data4. It behaves as
   "this is a user action" *[inferred]*.

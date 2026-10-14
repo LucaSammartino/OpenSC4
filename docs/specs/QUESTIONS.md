@@ -2725,10 +2725,17 @@ developer stays original). The current answer is in brackets.
   without flags]
 - **ZG16:** Are `*outCost` and `*outError` written on an early size-check failure? [the shadow fills the original's
   with 0 first; our core writes 0]
-- **ZG17 — zones §6, in game (regress rzones, coordinator):** the zones shadow's 1×1 PlaceZone dry run (checkSlope,
+- ~~**ZG17 — zones §6, in game (regress rzones, coordinator):** the zones shadow's 1×1 PlaceZone dry run (checkSlope,
   size check, commit=false) with zone type 14 fails with error 3 on both sides, but the original writes a cost
   (36–208, varying by month and place) and ours writes 0. 15 of 92 months differ, only in this case. What does the
-  original write to `*outCost` when PlaceZone fails with error 3, and for which zone types? [ours: 0]
+  original write to `*outCost` when PlaceZone fails with error 3, and for which zone types? [ours: 0]~~
+  **ANSWERED 2026-10-14** from the exe (`PlaceZone` `0x004DD780`: size failures `0x004DD82A`/`0x004DD846` jump to the
+  abort path `0x004DDC31`; landfill cost `0x004DDCC8`–`0x004DDCF5`; funds test `0x004DDE34`; outputs
+  `0x004DE02B`) and written into zones §6 (notes, worked example). **A failed size check is an abort, not an early
+  return.** The cell loop is skipped but the post-loop block runs: for type 14 only, the cost is
+  `landfillDeveloper.GetZoningCost(region)` of the whole request region (0 with `skipFunds`; every other type: 0).
+  `*outCost` gets that cost and `*outError` 3 (or 4), unless the cost exceeds the funds, which turns the error into
+  1. Also corrected: a type ≥ 16 is replaced by 0 (dezone), not a failure.
 
 ## From the FSH and S3D readers (filed by the coordinator from the `formats3` lane's report, 2026-10-14)
 
