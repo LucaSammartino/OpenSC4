@@ -2747,10 +2747,15 @@ in brackets.
 graphics-formats.md specifies FSH and S3D as the 1.1.641 exe loads them. These are what it could not settle from the
 exe and the shipped data alone.
 
-- **GF1 — graphics-formats §2.6:** under DX7 (the default renderer) the FSH codes `0x64`, `0x65`, `0x6D`, `0x78`,
+- ~~**GF1 — graphics-formats §2.6:** under DX7 (the default renderer) the FSH codes `0x64`, `0x65`, `0x6D`, `0x78`,
   `0x7B` and `0x7E` load through the factory but `TranslateGDFormatToSourceFormat` (`0x0088D0B0`) cannot create a
   texture for them. What does a model show then (untextured, white, previous texture, not drawn)? None is shipped
-  on a model; plug-in textures may use them. [unknown; FreeCity4 decodes them and shows the texture, *[choice]*]
+  on a model; plug-in textures may use them. [unknown; FreeCity4 decodes them and shows the texture, *[choice]*]~~
+  **ANSWERED 2026-10-14** from the exe (DX7 stage set-up `0x00884320`, disable path `0x008844A6`, translation
+  `0x0088D0B0`) and written into graphics-formats §2.6. **Drawn untextured.** The texture has no surface, so the driver
+  disables the stage's colour and alpha operations and the model is drawn in its diffuse colour and alpha. It is not
+  skipped, and the previous texture is not sampled. Under OpenGL five of the six codes upload; `0x78` fails there too.
+  The bracket (decode and show) differs from DX7 but matches the OpenGL renderer for five codes; it stays *[choice]*.
 - **GF2 — §2.6, §2.11:** for `0x6D`, `0x7E` and `0x78` the factory asks for BGRA/BGR with the non-reversed packed
   types (4-4-4-4, 5-5-5-1, eGDType 11), which under OpenGL would read the channels in a different order from the
   Direct3D layouts (A4R4G4B4, A1R5G5B5, R5G6B5) that FSH tools write. Is there any renderer path where the game shows

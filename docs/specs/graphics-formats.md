@@ -150,7 +150,16 @@ Notes:
 - "Fails" means the DX7 driver's `TranslateGDFormatToSourceFormat` (`0x0088D0B0`) has no entry for the
   (format, type) pair: it accepts only BYTE/UBYTE with RGB, RGBA, BGR, BGRA and the three DXT formats, plus three
   packed 16-bit types (eGDType 10, 13, 14) that FSH never produces. The factory still accepts these codes
-  (the record loads); what a model shows when its texture cannot be created is GF1.
+  (the record loads), but the DX7 texture gets no surface.
+- **A model whose texture has no surface is drawn untextured** (GF1). When the DX7 driver sets up a texture stage
+  and finds no texture record, or a record whose surface pointer (+0x2C) is null (`0x00884320`), it sets that
+  stage's colour and alpha operations to *disable* (`0x008844A6`) and binds nothing. Stage 0 then passes the diffuse
+  colour and alpha (vertex colour and lighting) straight through: the model is still drawn, with its material's
+  depth, blending and alpha-test states, in its diffuse colour. The texture bound before stays bound but is not
+  sampled. Under OpenGL, `0x64`, `0x65`, `0x7B`, `0x6D` and `0x7E` do upload (signed bytes for the first three, the
+  channel order of §2.11 for the last two); `0x78` fails there too, as type 11 has no GL entry. FreeCity4 decodes
+  and shows all six *[choice]*: unlike DX7, the default renderer, but like the original's OpenGL renderer for five
+  of them.
 - Codes `0x64`, `0x65` and `0x7B` use type 0, which the OpenGL table maps to signed `GL_BYTE`: values 128–255 would
   clamp to 0 under GL *[quirk]*. FreeCity4 reads them unsigned *[choice]*.
 - A code with bit 7 set (a "compressed bitmap" code `0xE0`–`0xFF`) is outside `0x60`–`0x7F` and rejected.
@@ -648,7 +657,7 @@ readers wholesale (§10) and the renderer consumes the decoded data.
 | Q3 | Height must be a power of two (0 passes); width unchecked; frames compared on height, code, mips only | *[compat]* |
 | Q4 | Levels 16-byte aligned; DXT levels stop at 4 × 4; unpadded shipped DXT1 mips misread | *[compat]* *[quirk]* |
 | Q5 | 12-bit field A selects DXT1 RGB/RGBA; DX7 treats both alike | *[compat]*, decode as DX7 *[choice]* |
-| Q6 | Codes `0x64 0x65 0x6D 0x78 0x7B 0x7E` load but cannot be created under DX7; signed BYTE under GL | *[compat]* *[quirk]*, FreeCity4 decodes them *[choice]* |
+| Q6 | Codes `0x64 0x65 0x6D 0x78 0x7B 0x7E` load but cannot be created under DX7 (drawn untextured); signed BYTE under GL | *[compat]* *[quirk]*, FreeCity4 decodes them *[choice]* |
 | Q7 | `0x7B` needs a 256 × 1 palette but uploads the indices; no palette → uninitialised check | *[quirk]*, apply palette / reject *[choice]* |
 | Q8 | Only DBPF-level compression; bit-7 codes rejected | *[compat]* |
 | Q9 | S3D chunk and container lengths ignored; fixed chunk order | *[compat]* |
@@ -854,6 +863,7 @@ Common modding descriptions of FSH and S3D were the starting point. Where they d
 Also filed in QUESTIONS.md, "From the graphics formats spec", GF1–GF12.
 
 1. GF1: what a model shows when its texture cannot be created under DX7 (codes of Q6).
+   **Answered** (§2.6): drawn untextured, in its diffuse colour.
 2. GF2: channel layout of `0x6D`/`0x7E`/`0x78` (DX7 cannot create them; GL enums differ from the D3D layouts).
 3. GF3: whether DX7 really shows DXT1 index-3 texels as transparent when A = 0.
 4. GF4: who uses the 24 `0x7B` grey-ramp entries in group `0x891B0E1A`, and through which path.
