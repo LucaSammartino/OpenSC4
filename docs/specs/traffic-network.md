@@ -92,7 +92,10 @@ The full rebuild runs in **DoPostCityInit** (message `0x26D31EC1`, `0x00720430`)
 6. Clear the subnetwork labels (§4.11).
 7. Run `UpdateSubnetworks` (§4.11), then build the subnetwork info synchronously with no time limit (§4.12) and
    publish it.
-8. Mark every ferry terminal for re-routing and start the ferry-route pass at the first terminal (§4.9.3).
+8. **Only when the loaded work-cycle state is 19** (FerryRoutes): mark every ferry terminal for re-routing and start
+   the ferry-route pass at the first terminal (§4.9.3). *(Corrected, TS7: this is one case of a switch on the loaded
+   cycle state, `0x00720A0A`; in any other state nothing happens to the ferries at load.)* The simulator-side steps
+   that follow (cycle resume, strategy buckets, pacing, department costs) are traffic-simulator.md §3.5.
 
 ---
 
@@ -189,7 +192,7 @@ changes `flags`.
 | two f32 counters | saved, owned by traffic-simulator.md |
 | rules | vector of Rule records (below) |
 | kind-0 "to" mask | u16, OR of `1 << to` over the kind-0 rules |
-| property `0x0BFC0A4C` | u32, simulator use |
+| toll | f32, building property `0x0BFC0A4C`, read with the converting f32 getter (`0x00723C43`; absent → 0.0). The fee per unit of traffic that passes the switch (traffic-simulator.md §4.5), summed into the toll income. Shipped only on the four toll booths, all 0.1. |
 | counts as intersection | bool, building property `0x4BFC47B0` (§4.6) |
 
 **Rule**: `kind` (0 or 1), `side[4]` (bool per city side), `from` (travel type), `to` (travel type).
@@ -226,7 +229,8 @@ The tunnel table is keyed by the portal's cell key. Each record holds:
 - B's arrival cell (x2, z2) as two u16;
 - cost: f32 = `r24(cells × 0.01)`;
 - route: `vector<u8>` water route A → B (§4.10.3);
-- four u16 usage counters: (last, current) for two counts.
+- four u16 usage counters, in this order: last A, current A, last B, current B. A counts outbound-leg crossings and B
+  return-leg crossings in the link's direction (traffic-simulator.md §4.5, TS16).
 
 **NeighborLink**:
 
@@ -235,7 +239,8 @@ The tunnel table is keyed by the portal's cell key. Each record holds:
 - cost: f32, as for terminal links;
 - route to the edge: `vector<u8>`;
 - route from the edge: `vector<u8>`;
-- four u16 usage counters.
+- four u16 usage counters, ordered and counted as for terminal links (both directions of the crossing count on the
+  one link).
 
 The pathfinder uses these as follows (pathfinder.md §4.8.3):
 
@@ -434,7 +439,7 @@ traffic-simulator.md has the full list.
 
 | Message | Condition | Effect |
 |---|---|---|
-| `0x99EF1142` occupant inserted / `0x99EF1143` removed | data3 = `0xC772BF98` (network occupant), void1 = occupant, QI `0xA821EF94` (cISC4NetworkOccupant) succeeds | Simulator bookkeeping first: per-network-type counts and budget (DoRoadChanged for types 6, 0, then the first of 10/3/2/12; DoRailChanged for 1; DoSubwayChanged for 7 unless network flag `0x80000000`). If the occupant is of any network type that takes part (§4.1): (a) if it is a tunnel (QI `0x8A4BD52B`), §4.8; (b) cell = city `PositionToCell(occupant position)`; on **remove**, erase the 18 edge-density keys of that cell (traffic-simulator.md); (c) `DoConnectionsChanged(x, z, x, z)`. Always sets the simulator's "occupants changed" byte. |
+| `0x99EF1142` occupant inserted / `0x99EF1143` removed | data3 = `0xC772BF98` (network occupant), void1 = occupant, QI `0xA821EF94` (cISC4NetworkOccupant) succeeds | Simulator bookkeeping first: per-network-type counts, budget and the pothole sets (DoRoadChanged for types 6, 0, then the first of 10/3/2/12; DoRailChanged for 1; DoSubwayChanged for 7 unless network flag `0x80000000`; traffic-simulator.md §3.6). If the occupant is of any network type that takes part (§4.1): (a) if it is a tunnel (QI `0x8A4BD52B`), §4.8; (b) cell = city `PositionToCell(occupant position)`; on **remove**, erase the 18 edge-density keys of that cell (traffic-simulator.md); (c) `DoConnectionsChanged(x, z, x, z)`. Always sets the simulator's network-changed byte, which nothing reads (traffic-simulator.md §3.1, TS5). |
 | `0xE8BDA2E7` lot state changed | void1 QI `0xE818FCED` (a **copy** of the lot with empty trip list, lot-developer.md §3.2) | data1 = 3 → **lot deactivated** (§4.7.5, §4.9.4). Otherwise data2 = 3 → **lot activated** (§4.7.1, §4.9.1). |
 | `0x26D31EC1` post city init | | DoPostCityInit (§1) |
 
@@ -737,6 +742,11 @@ from the rules above *[quirk]*:
 - the mask ORs the raw `to` of the **kind-1** rules;
 - the flags also map `to = 5` to `0x20` (`0x007235FC`).
 
+Everything else in Read's flags is the same as above (TS33, `0x00722202`–`0x0072227D`). The flags start at 0, the
+other `to` values map as in the table, and `0x40` is added when (from, to) is (6, 7) or (7, 6), whatever the
+rule's kind. Read compares the full u16 `from` and `to`; the re-read's table uses the low byte of `to`. The two
+differ only for a `to` above 255, which shipped rules cannot hold.
+
 #### 4.7.3 TransitSwitchEntryCost(id) (non-virtual `0x0071CB20`, x87 return; used by pathfinder.md §4.8)
 
 1. Look up the switch with insert-if-missing semantics *[quirk]*: an unknown ID inserts a default switch.
@@ -899,7 +909,9 @@ For each terminal A in list order:
 
 When the list is exhausted, the pass posts message `0x2C06BA82` (§5).
 
-DoPostCityInit sets every flag and starts the pass, so links are computed after load. It does **only** that
+When the city was saved in work-cycle state 19, DoPostCityInit sets every flag and restarts the pass, so links are
+computed again after load; in any other saved state it leaves the ferries alone and the loaded links stand until the
+next state-19 pass (traffic-simulator.md §3.5 step 11; corrected by TS7). In state 19 it does **only** that
 (`0x00720C8A`–`0x00720CAE`): every terminal's re-route flag := 1, the pass points at the first terminal, and its
 sub-step := 0 (TN8). Unlike entering state 19:
 - it does **not** rotate any counter (riders and link counters keep their loaded values);

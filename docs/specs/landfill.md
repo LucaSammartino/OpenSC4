@@ -68,6 +68,36 @@ returns the new count. *[compat]*
 
 The sanitation department is **not** acquired here; it is fetched on PostCityInit (§3.2).
 
+**Where the services come from** *[compat]* (LG15; `0x006B9D98`–`0x006B9E87`). Init reads them from the
+global service pointers that the city fills, not from the city's getters:
+
+| Service | Global | Held |
+|---|---|---|
+| simulator, for `AddAgent` | `0x00B43D5C` | **no** (LG18) |
+| city | `0x00B43CEC` | yes (`+0x1C`) |
+| terrain | `0x00B43CF4` | yes (`+0x24`) |
+| pollution simulator | `0x00B43D9C` | yes (`+0x20`) |
+| budget simulator | `0x00B43D64` | yes (`+0x28`) |
+| message server | `0x00B43CCC` | yes (`+0x18`) |
+
+Each held service is taken with `AddRef`, and only if its field is still null. The five subscriptions are made
+only in the branch that takes the message server. With the server already held, there would be none.
+
+`Shutdown` releases the five held services (§1.2). Elsewhere the classes also use globals directly:
+- `getLandfillTileCost` takes the occupant manager from the global city (§4.9.1);
+- `PopulateZone` takes the network map from the global city (§4.4.5);
+- `AddZot` uses the terrain and prop manager globals `0x00B43CF4` and `0x00B43D10`.
+
+**The simulator** (LG18). `AddAgent` runs **before** any service is taken (step 2). It goes through the global
+`0x00B43D5C`, which `SL::OnCityInit` (`0x00601C20`) fills with `city.GetSimulator()` (city slot 50) and
+`SL::OnCityShutdown` (`0x00601FF0`) clears. Init does not check the global for null or hold a reference to it
+(`0x006B9D98`–`0x006B9DBA`). `Shutdown` fetches the simulator again from the global city's slot 50 for
+`RemoveAgent` (`0x006B95D3`–`0x006B95ED`, §1.2 step 5). Both calls therefore reach the city's own simulator.
+
+A held reference and a per-call fetch name the same object for the whole life of the city. So holding only the city
+and the message server changes reference counts and nothing else, provided nothing calls a service after the city
+has destroyed it. Nothing in §1.2 does.
+
 ### 1.2 Shutdown
 
 `Shutdown()` (slot 4): unsubscribe the five messages, release the message server; for every zone: zone
@@ -190,6 +220,33 @@ verified is that 5 is the levelling reason, and that the only routes to a `data4
 | `0x66956816` SimNewMonth | `DoMonthlySimulation` (§4.7.1). |
 | `0xC6CDBF1A` PreViewLevelChange | Only if the zone list is non-empty. `level := view3D.GetCurrentViewLevel()` (the 3D view stores the **new** level before sending this message). For each zone with a seagull effect: if `level = 1` and the effect is not started → `Start(0)`; if `level ≠ 1` and it is started → `Stop(1)`. Rendering only. |
 
+**The 3D view** (LG16; `0x006BA07F`–`0x006BA0D5`). The PreViewLevelChange handler reads the view from the global
+`0x00B43DC4` and calls its slot 22 (`GetCurrentViewLevel`). It does not check for null *[quirk]*: with landfill
+zones and no 3D view, the message crashes.
+- `cSC4View3DWin::Init` stores the view in that global through `SL::OnView3DCreate` (`0x00602120`) and gives it
+  window ID `0x9A47B417`.
+- `SL::OnView3DShutdown` clears the global.
+- Per zone with a seagull effect, `level = 1` calls the effect's slot 3 with 0 when its slot 5 says it is not
+  running; any other level calls slot 4 with 1 when it is.
+
+The same object can be reached through public interfaces. `cISC4App::GetMainWindow()`, then
+`GetChildWindowFromID(0x6104489A)`, then `GetChildAs(0x9A47B417, 0xFA47B3F9, &view)` gives the
+`cISC4View3DWin`. The SDK's `SC4UI::GetView3DWin()` does exactly this. *[choice]* Glue can use that route, and should
+skip the effect toggles when it returns null.
+
+**Threads** (LG20). The original `DoMessage` (`0x006B9EA0`) takes **no lock**. It switches on `GetType()` and
+handles every message it is given. All five subscriptions and the month agent are delivered on the main thread
+(foundations §18.2):
+- the zone manager and the terrain post their messages, and the message server delivers them on its main-thread
+  tick (§3.2, §4.4.8);
+- PostCityInit, FundsChanged and PreViewLevelChange come from main-thread code;
+- no worker thread of the game was found to send any of them.
+
+So the original never drops a message and never sees one from another thread. A lock in FreeCity4's glue has no
+counterpart in the original. *[choice]* Dropping on contention matches the original only while it never happens:
+a dropped `0x07699455` would leave a zone unextended, and a dropped `0x278E6003` would leave a terrain change
+unhandled. Each drop should be logged. Waiting for the lock would be the safer choice.
+
 ### 3.3 Ordering within the month level (foundations §13)
 
 The original runs month agents in object-address order. In the logged sessions the landfill developer has
@@ -210,6 +267,33 @@ Data links on the 1st of a month:
 (foundations §13.3). Registration order alone does not give it, so FreeCity4 orders this agent explicitly. FreeCity4's registration order (foundations §13.3, which
 puts the landfill developer second because it initialises early, §3.7) does not satisfy the first half. See
 §10.2 question 1.
+
+**What a wrong order changes** (LG6). If the landfill month runs **before** pollution and the budget, everything
+the landfill does on the 1st of a month reaches those two systems one month early. Nothing else changes: the
+landfill's own state, and the supply and capacity it leaves for pollution's daily steps, are the same in both
+orders.
+
+Example: a connected 2 × 2 landfill zoned in February. Its maintenance is still 0, because zoning does not book it
+(§4.4.1 step 3). On 1 March the landfill takes 10000 from the supply. Its one heap turns active, the four cells
+get `0x034E0000` tiles (cost 10 each), and line 30 is set to 40.
+
+| On the 1st of… | Original order (pollution, budget, then landfill) | Landfill first |
+|---|---|---|
+| March | pollution records and zeroes `landfilled` without the 10000. The budget settles line 30 at 0. | pollution's history `0xEA1101AA` and line 20's cost include the 10000. The budget settles line 30 at 40. |
+| April | pollution's history and line 20's cost include the 10000. The budget settles line 30 at 40 (the 1 March value). | the 10000 is not counted again. The budget settles line 30 at the value the landfill has just set on 1 April. |
+
+So every landfill entry in pollution's garbage history, every line 20 charge for landfilled garbage and every line 30
+settlement moves one month earlier. The total over a long run is the same. A conformance vector should assert the
+order, as §10.2 question 1 says.
+
+**How to get the order.**
+
+- With FreeCity4's simulator, use the rank of foundations §13.4. That section deferred the rank mechanism until a
+  tail agent's glue lands. The landfill glue has now landed, so the condition is met.
+- When the original simulator delivers the month, the order is the unsigned order of the `cIGZMessageTarget2`
+  pointers passed to `AddAgent` (foundations §13.1). Glue registered there inherits whatever address its object
+  gets. *[choice]* Such glue should, at registration, compare its pointer with pollution's and the budget's and log
+  when it is not above both.
 
 ## 4. Behaviour, formulas and tuning
 
@@ -257,7 +341,11 @@ item cost, budget §3):
 
 ### 4.2 Geometry helpers
 
-- **Cell centre**: `cISC4City::CellCenterToPosition(x, z) → (px, pz)` (slot 97).
+- **Cell centre**: `cISC4City::CellCenterToPosition(x, z) → (px, pz)` (slot 97). *[compat]* (LG10;
+  `0x00459440`, pop 16): `px := float32((x + 0.5) × cellSizeX)` and `pz := float32((z + 0.5) × cellSizeZ)`, from
+  `FILD`, a `+ 0.5f` and a multiply by the city's float cell sizes (`+0x108`, `+0x10C`, 16.0 in shipped cities).
+  Both are stored with `FSTP`, so the x87 stack is **empty** at `ret` and there is **no return value**. EAX holds
+  the `px` pointer by accident. Example: cell (37, 52) → (600.0, 840.0).
 - **Altitude at a cell**: `terrain.GetAltitude(px, pz)` (`cISTETerrain` slot 13) at the cell centre.
 - **Inclusive intersection** of two rects: `a.x0 ≤ b.x1 ∧ a.x1 ≥ b.x0 ∧ a.z0 ≤ b.z1 ∧ a.z1 ≥ b.z0`.
 - **Centre cell** of a rect: `((x0 + x1) / 2, (z0 + z1) / 2)` with C integer division (toward zero).
@@ -367,13 +455,26 @@ For each cell of the rect (x outer, z inner):
     (`FindNetworkTile(x, z, 0x1F4F, true)` ≠ null; flag mask as in flora §6.4.1): **clear its mask bit**;
   - else, if a landfill occupant (`0x6A11BD2B`) or a base-texture occupant (`0x497F6D9D`) is at the cell: keep
     it as is;
-  - else `RemoveIncompatibleOccupants(x, z)` (removes flora `0x74758926` in the cell) and
-    `SetEmptyCellTexture(x, z)` (inserts a `cSC4LotBaseTextureOccupant` with the landfill zone texture).
+  - else `RemoveIncompatibleOccupants(x, z)` (removes flora `0x74758926` in the cell, §4.8.4) and
+    `SetEmptyCellTexture(x, z)` (inserts a `cSC4LotBaseTextureOccupant` with the landfill zone texture, §4.8.5).
 - If it is **not** a mask cell at the start: `InvalidateSurroundingHeaps(x, z)`.
 
 *[quirk]* A cell dropped from the mask in this pass does **not** invalidate its heaps: heaps that include a road
 cell or a cell that failed to zone stay valid and receive capacity and garbage (until a later `PopulateZone` or
 `AddRegionToZone` pass sees the cell outside the mask).
+
+**The road test** (LG7; `0x006BCDF6`–`0x006BCE16`). The traffic network map is fetched for each cell, as
+`GetTrafficNetwork()` (slot 40) of the **global** city `0x00B43CEC`. The zone's own city pointer is not used. The
+returned tile is only tested for null and is not released. That is correct, because `FindNetworkTile` (`0x004B0B20`, pop 16)
+returns a **borrowed** pointer and makes no `AddRef` call *[compat]*. It returns the first network occupant
+listed at cell `(x, z)` for which `HasAnyNetworkFlag(0x1F4F)` (network occupant slot 9) is true. If there is none
+and the fourth argument is true, as here, it searches the map's multi-cell index under the key `(x << 16) | z`
+the same way. Otherwise it returns null. The zone type comes from the zone's own zone manager (slot 12).
+
+The map is the one the city creates in `CreateCityComponents` (`0x0045B07D`) with GZCOM
+`CreateInstance(0x6A0F82B2, 0xCA0F81B9, &city[+0x1E8])`. City slot 40 `GetTrafficNetwork` (`0x004596F0`) returns
+that field as it is: a `cISC4TrafficNetworkMap*` (IID `0xCA0F81B9`, vtable `0x00A8FED8`), with no `AddRef`. The
+SDK's `intptr_t` is that pointer. `PopulateZone` calls slot 8 on it directly, with no QI and no release (LG17).
 
 #### 4.4.6 `RemoveZone(Z, dezoneCells)`
 
@@ -393,7 +494,7 @@ in part.
 #### 4.4.8 `DezoneCell(x, z, changeZone, removeTexture)` (zone)
 
 1. If a zot exists: remove it (`RemovePropA`) and release it.
-2. If `removeTexture`: `RemoveLandfillTile(x, z)` (§4.8.3) and `RemoveBaseTexture(x, z)`.
+2. If `removeTexture`: `RemoveLandfillTile(x, z)` (§4.8.3) and `RemoveBaseTexture(x, z)` (§4.8.4).
 3. Clear the cell's mask bit. `InvalidateSurroundingHeaps(x, z)`.
 4. If `changeZone`: `zoneManager.PlaceZone(1×1 region at (x, z), zoneType 0, placeZone = true,
    skipFundsCheck = true, checkAreaSlope = false, skipZoneSizeCheck = true, checkLotSize = false, null, null, 0)`
@@ -432,6 +533,22 @@ the rect is never negative, so this is the floor). Then `CellCenterToPosition(cx
    - If a zot is held: remove it through the city's prop manager (`RemovePropA`, slot 29), then release it.
    - Destroy the zone's region (cell mask).
    - Release the services the zone acquired, the city last.
+
+**The zot on Shutdown** *[compat]* (LG13; `0x006BB766`–`0x006BB798`). The zone **removes the prop and then
+releases it**:
+
+1. If the city is held, take its prop manager (city slot 35).
+2. If there is one, call `RemovePropA(zot)` (prop manager slot 29).
+3. In every case, release the zot and null the pointer.
+
+In the shipped flows this removal is almost never the one that counts:
+- `RemoveZone` is always called with `dezoneCells = true` (§4.4.2, §4.5.1). Each `DezoneCell` removes the zot first
+  (§4.4.8 step 1), and a zone with no mask cell left already lost it to the `DezoneCell` that cleared its last cell.
+- So a zone reaches `Shutdown` still holding a zot only through the developer's own `Shutdown` (§1.2), when the city
+  closes.
+
+"Release only" differs from the original only there. It leaves the prop in the prop manager during the city
+teardown, which nothing saves. *[choice]* Matching the original costs one call and is recommended.
 
 ### 4.5 Terrain
 
@@ -577,6 +694,20 @@ Otherwise:
 `pollution.garbageCapacity` (the "valve", pollution §4.6.1–§4.6.2) is therefore the free capacity of the connected
 zones **after** this month's intake.
 
+**The supply never clamps during the month** *[compat]* (LG12). Let `s` be the supply at step 2:
+
+- `t ≤ s`;
+- each heap's `n` is at most the zone's `budget`, which is at most `remaining`, which starts at `t`;
+- so the intakes sum to at most `t`.
+
+Every `AddToGarbageSupply(−n)` therefore stays within pollution's no-clamp case (pollution §8.1, slot 29), and the
+supply after the month is exactly `s − Σ n`. The month makes no positive adds; those come only from
+`RecalculateCapacity` on zoning changes (§4.6.2). `GetGarbageSupply` returns `max(0, supply)` and **stores** that
+clamp, so it changes the value only when a damaged save left the supply negative.
+
+Example: supply 50000, one connected 2 × 2 zone with an empty heap. Then `t = 50000` and the zone's budget is
+`min(50000, 4 × 5000) = 20000`, so `n = 20000` and the supply ends at exactly 30000 (test 9).
+
 #### 4.7.2 `UpdateZone(&remaining)` (zone)
 
 1. `connected := IsZoneConnected()` (stored). If not connected: `AddZot()` (§4.7.5). If connected and a zot
@@ -663,6 +794,20 @@ to `(14, 22)`.**
 overload; `orientation` is read from a global view service) — `AddRef`, store, then `SetRemovalFlags(3)` (prop
 occupant slot 12). *[quirk]* No null check: a missing prop exemplar crashes. The zot is saved by reference.
 
+**The orientation** *[compat]* (LG5; `0x006BB510`–`0x006BB524`) is the **current view rotation**, 0 to 3. The code
+reads field `+0x10` of the global `SC4ViewUtilities` object (`0x00B43DD8`). `cSC4WinRegionScreen` fills that global
+from its renderer's `GetViewUtilities()` (`cISC43DRender` slot 8). `SC4ViewUtilities::UpdateCameraPosition`
+copies the field from the camera control's rotation (`+0x10C`) and uses `rotation × π/2` as the camera yaw.
+Nothing checks the global for null *[quirk]*. So the zot faces whichever way the player's view faced in the month
+it was placed. The value is saved in the prop's record (lot-records.md §10.1, field 5), and it is the only
+observable effect.
+
+No local save holds a landfill zot, because every saved landfill zone is connected. All 66 `0x107A0000` props in the
+saves are building zots placed through the same global (lot-developer.md §5.6), and all have orientation 0.
+
+*[choice]* A FreeCity4 core with no view uses 0, which matches the original whenever the view is at its first
+rotation. Glue running inside the game can read the same field.
+
 ### 4.8 Tile models (`UpdateSurroundingTiles(heap)`) and the random draws
 
 A heap's state change redraws the four cells it covers, in the order `(hx, hz)`, `(hx+1, hz)`, `(hx, hz+1)`,
@@ -693,16 +838,82 @@ written into the static rule table entry, harmless because it is rewritten befor
 heap state change, at most 4 × (number of heaps whose `active` flag changes) per zone per month. Nothing else in
 these classes draws random numbers.
 
+**Which generator** (LG19). `UpdateSurroundingTiles` (`0x006BCFC0`) calls the C runtime's `rand()` (`0x009EFB9F`) at
+`0x006BD201`, `0x006BD271`, `0x006BD2DD` and `0x006BD34B`, one site per redrawn cell. It reduces the result with
+`and 0x80000003` and a sign fix, which is `rand() mod 4`, the same as `& 3` because `rand() ≥ 0`, then doubles it.
+That `rand()` is the per-thread CRT generator of foundations §12.1. The landfill month runs on the simulation thread,
+so the draws share one sequence with every other `rand()` caller on that thread, and the values cannot be
+reproduced from a save (foundations §12.2).
+
+The rule-table entries are 12 bytes, `{mask, tile, orientation}`, at `0x00B0D2D0`. Before the first cell, the code
+also tests entry 0's tile against `0x02FA0000` (`0x006BD1BF`–`0x006BD1E0`). Entry 0 holds `0x02F10000`, so that test
+never draws.
+
+*[choice]* FreeCity4's own `CrtRand` per subsystem, seeded 1 (foundations §12.6), is the only reproducible option.
+It keeps the draw count and the formula. Only the values differ from a live game, and those cannot be matched
+anyway.
+
 #### 4.8.1 `CreateLandfillOccupant(x, z, tile, orientation)` → bool
 
 1. `RemoveIncompatibleOccupants(x, z)`.
 2. If `tile = 0x02F10000` (empty): if no base-texture occupant is at the cell, `SetEmptyCellTexture(x, z)`.
    Return true. No occupant is created; the landfill flag stays cleared.
-3. Otherwise: load the tile exemplar `(0x6534284A, 0x07BDDF1C, tile)` (*[quirk]* a missing exemplar is
-   dereferenced); create a `cSC4LandfillOccupant(tile, orientation)`, attach the exemplar to its property holder,
+3. Otherwise: load the tile exemplar `(0x6534284A, 0x07BDDF1C, tile)` (*[quirk]* a missing exemplar crashes, see
+   below); create a `cSC4LandfillOccupant(tile, orientation)`, attach the exemplar to its property holder,
    `SetFlag(4)`, `SetRemovalFlags(2)`; `pollution.SetIsActiveLandfill(x, z, true)`; `isEmpty := false`; position
    := cell centre with `y = altitude(x, z)`; `SetPosition`; `Init`; insert into the occupant manager
    (slot 20, `(occupant, 0)`) and return its result.
+
+**Step 3 in detail** *[compat]* (LG3; `0x006BC7CF`–`0x006BC92A`):
+
+1. `ex := resourceManager.GetResource({0x6534284A, 0x07BDDF1C, tile}, 0xA52160F5, &ex, 0, 0)` (resource manager
+   `0x00B43CA8`, slot 3; `0xA52160F5` is `cISCResExemplar`). If `ex` is null, the code jumps to step 8 with a null
+   occupant and crashes there (`0x006BC911`) *[quirk]*.
+2. `o := new cSC4LandfillOccupant(tile, orientation)` (`0x00477270`). This constructor stores the tile ID and the
+   orientation, sets type `0x6A11BD2B` and calls `SetFlag(4)`. Then `o.AddRef()`.
+3. Attach the exemplar: `SetDefaultExemplar(ex)` on the occupant's `cISCExemplarPropertyHolder` (IID `0x0AC2B5F7`,
+   the sub-object at `+0x20`, slot 3). It takes a reference to `ex` and releases any exemplar held before.
+4. `SetFlag(4)` again, `SetRemovalFlags(2)`, `pollution.SetIsActiveLandfill(x, z, true)`, `isEmpty := false`.
+5. `(px, pz) := CellCenterToPosition(x, z)`; `py := terrain.GetAltitude(px, pz)`, stored as float32;
+   `SetPosition((px, py, pz))`.
+6. `o.Init()`. `cSC4Occupant::Init` (`0x005E8C90`) posts `0x99EF1140`, and the queued message holds a counted
+   reference to the occupant (flora §9.1).
+7. Release `o` (the reference from step 2), then release `ex`. *[quirk]* Between here and step 8 the occupant is
+   kept alive only by the reference in step 6's queued message. A replacement should keep its own reference until
+   the insert.
+8. Return `occupantManager.InsertOccupant(o.AsOccupant(), 0)` (slot 20).
+
+Dead branch: `0x006BC88D`–`0x006BC8B4` handles `tile = 0x02F10000`. It calls `SetRemovalFlags(1)` and
+`SetIsActiveLandfill(x, z, false)`, sets `isEmpty := true`, then calls `SetEmptyCellTexture`. Step 2 of
+`CreateLandfillOccupant` has already returned for that tile, so this branch never runs. It is the only code found that
+sets `isEmpty` to true (§10.2 question 7).
+
+**`SetTileID` is not enough** (LG3). `SetTileID` (slot 6, `0x00477450`) neither loads nor attaches an exemplar.
+When `id` differs from the stored ID, it stores `id` and rewrites the instance in the key of the **attached**
+exemplar (`GetKey` and `SetKey`, exemplar slots 11 and 12):
+
+- With no exemplar attached, it dereferences null *[quirk]*.
+- With another tile's exemplar attached, that exemplar keeps its own properties (cost `0xEA54D286`, models) under
+  the new key. Every other holder of the cached exemplar sees the new key too (§7.3).
+
+*[choice]* To build a tile from outside the class, run steps 1–8 in the same order, through public interfaces:
+
+1. Create the occupant with GZCOM `CreateInstance(0x8A22BEBE, 0x2A15F262)` (factory `0x004776B0`). This uses
+   the default constructor `0x004774C0`: tile `0x02F10000`, orientation 0, and flag 4 **not** set.
+2. Attach the exemplar with `SetDefaultExemplar(ex)`, reached by QI `0x0AC2B5F7`.
+3. Call `SetTileID(tile)`. It is now harmless, because the key already has that instance.
+4. Call `SetOrientation(orientation)` (slot 8) and `SetFlag(4)`, then continue from step 4.
+
+**Who sees the tile occupants.** The pollution flag is what pollution reads. The tile occupants are also visible
+elsewhere, so tiles kept only inside FreeCity4 differ from the original:
+
+- The occupant manager saves them as class `0x8A22BEBE` (§6.4).
+- The flora blocking filter accepts them (flora §6.4.1). Without them, flora may be planted on a tiled cell.
+- `PlaceZone` asks the landfill occupant at a cell `CanRemove(2)` (zones.md §6).
+- The landfill's own reads use them: `GetMaintenanceCost` reads each tile's cost from the tile occupant
+  (§4.9.1), and `PopulateZone` and `HandleCellTerrainChange` test whether a tile occupant is there (§4.4.5,
+  §4.5.2).
+- The model maker draws them.
 
 #### 4.8.2 Effect on pollution's landfill flag
 
@@ -715,6 +926,96 @@ cell with mask 0 (no active neighbour heap) has no occupant and no flag.
 If a landfill occupant is at the cell: remove it (occupant manager slot 21, `(occupant, 1, 3)`). Then
 `pollution.SetIsActiveLandfill(x, z, false)` (always).
 
+#### 4.8.4 `RemoveIncompatibleOccupants(x, z)` and `RemoveBaseTexture(x, z)` (zone)
+
+*[compat]* (LG1). Both list the occupants at the cell through occupant manager slot 41 (`+0xA4`). The query
+passes the cell as both corners, a type filter and −1 as the last argument. Each listed occupant is then removed
+with slot 21, `RemoveOccupant(occupant, true, 3)`, the same arguments as §4.8.3:
+
+- `RemoveIncompatibleOccupants` (`0x006BC630`) lists type `0x74758926` (flora) and removes every entry, in list
+  order (`0x006BC6D8`–`0x006BC6DD`). Slot 48 (`+0xC0`) then releases each entry and empties the list.
+- `RemoveBaseTexture` (`0x006BC930`) lists type `0x497F6D9D` and asks each entry for
+  `cISC4LotBaseTextureOccupant` (`0x097F6D98`). Only an entry whose `GetUsage()` (that interface's slot 4) is
+  **1** is removed, through its `AsOccupant()` (slot 3) (`0x006BCA14`–`0x006BCA1F`). Usage 1 is what
+  `SetEmptyCellTexture` gives the landfill texture. A base texture with any other usage, such as a lot's, stays.
+  The function releases the interface and each listed occupant itself, then frees the list.
+
+`RemoveOccupant(occ, true, 3)` (`0x0049F240`, pop 12, returns AL) does this, in order:
+
+1. Take a reference to `occ`.
+2. If `occ.IsFlagSet(1)` (the occupant is in the manager):
+   - take it out of the cell buckets;
+   - call `occ.PostOccupantMessage(0x99EF1143, 3)` (flora §9.1: posted, data3 = the occupant type,
+     data4 = **3**);
+   - clear flag 1;
+   - release the manager's reference.
+3. The second argument is true, so call `occ.Shutdown()` (slot 4). This also happens when step 2 did not run.
+4. Release the reference from step 1.
+
+It returns true if and only if step 2 removed the occupant. Subscribers see the removal with data4 = 3 on a
+later message-server tick.
+
+#### 4.8.5 `SetEmptyCellTexture(x, z)` (zone)
+
+*[compat]* (LG2; `0x006BA470`, pop 8, no return value). The function gives one cell the landfill ground texture.
+It does not check for an existing texture; its callers do (§4.4.5, §4.8.1). In order:
+
+1. Build one texture record, the 14-byte record of lot-records.md §6:
+
+   | Field | Value |
+   |---|---|
+   | texture instance | `0x1005` (4101), a constant in the code. It equals entry 14 of the zone manager's texture array (zones.md §4, `0xE94825B6`), but that array is not read. |
+   | cell x, z | the low bytes of `x` and `z` |
+   | orientation | 0 |
+   | configuration object byte 3 | 0 |
+   | five unnamed bytes | `FF FF FF`, then `zoneManager.GetZoneDisplayAlpha()` (zone manager slot 16; shipped 170 = `0xAA`), then `01` |
+   | animation frame | 0, so `SetTextureSpecification` makes **no random draw** (lot-records.md §6 draws only for `0xFF`) |
+
+2. `GZCOM().CreateInstance(0xC97F987C, 0x097F6D98, &tex)`. If that fails, construct a `cSC4LotBaseTextureOccupant`
+   directly (`0x60` bytes, `0x005E05B0`). If that also fails, the code dereferences null *[quirk]*.
+3. `tex.AsOccupant().Init()` (base-texture slot 3, then occupant slot 3).
+4. `tex.SetUsage(1)` (slot 5). Usage 1 marks a landfill texture, which `RemoveBaseTexture` tests (§4.8.4); lots use
+   2.
+5. `tex.SetTextureSpecification(&record, 1, null)` (slot 8).
+6. Let `occ` be `tex.AsOccupant()`. If `occ.IsFlagSet(1)`: occupant manager slot 24 `(occ, 0)`, then
+   `occ.PostOccupantMessage(0x99EF1145, 0)`. Otherwise occupant manager slot 20 `InsertOccupant(occ, 0)`. A new
+   occupant takes the second branch. The result is not checked.
+7. Release `tex`.
+
+The texture occupant is saved by the occupant manager as a class `0xC97F987C` record (lot-records.md §6), so it
+is visible in a save. Every usage-1 base texture in the eleven local saves with buildings (94 in all, in
+Konradshohe, Fulham and the Big City Tutorial) holds exactly one record, texture `0x1005`, with the bytes
+`00 00 FF FF FF AA 01 00` after `x, z`.
+
+Example: `SetEmptyCellTexture(37, 52)` with display alpha 170 gives the record
+`05 10 00 00 | 25 | 34 | 00 | 00 | FF FF FF AA 01 | 00`.
+
+#### 4.8.6 Cell lookups (occupant manager slot 33)
+
+*[compat]* (LG4). "A landfill occupant (or base texture) is at the cell" in §4.4.5, §4.5.2, §4.8.1, §4.8.3 and
+§4.9.1 means occupant manager slot 33 (`+0x84`, `0x0049DCE0`, pop 16), `GetOccupantAtCell(&out, x, z, type)`:
+
+1. If the manager is not initialised, return false.
+2. Otherwise store `type` in the manager's own type filter and tail-jump to slot 32 (`0x0049E690`) with that
+   filter.
+3. Slot 32 walks the occupants of cell `(x, z)`'s bucket in bucket order. It returns the **first** occupant that
+   passes the filter and whose bounding box overlaps the cell's square in x and z.
+   - The square is `16x + 0.1 … 16x + 16 − 0.1` by `16z + 0.1 … 16z + 16 − 0.1` (float32).
+   - The overlap is four strict comparisons; y is not tested.
+
+**Ownership.** On a hit, slot 32 writes `*out` and calls **`AddRef`** on it (`0x0049E7DD`), then returns true. The
+caller owns that reference and must release it:
+
+- `getLandfillTileCost` releases it at `0x006BA454`.
+- `CreateLandfillOccupant` releases the base texture it found at `0x006BC7AB`.
+
+On a miss, `*out` is **not written** and the function returns false. The landfill's callers set `*out` to null
+first (for example `0x006BC794`).
+
+The glue's bracket uses the slot 41 list instead. That is equivalent for the presence tests, provided the list is
+released through slot 48 (§4.8.4). For the cost lookup (§4.9.1) it is equivalent while a cell holds at most one
+landfill occupant, which `CreateLandfillOccupant` ensures by removing the old tile first (§4.8).
+
 ### 4.9 Costs and budget
 
 #### 4.9.1 `GetMaintenanceCost()` (zone)
@@ -722,6 +1023,28 @@ If a landfill occupant is at the cell: remove it (occupant manager slot 21, `(oc
 `Σ over mask cells of tileCost(x, z)` (int64), where `tileCost` is the first s64 value of property `0xEA54D286`
 of the landfill occupant at the cell, or `kDefaultLandfillTileCost` when the cell has no landfill occupant (empty
 cells, including cells whose tile is mask 0). Shipped: an empty cell costs 5, a tile 10–40 (§4.1).
+
+**Where the tile cost comes from** *[compat]* (LG11; `getLandfillTileCost`, `0x006BA3C0`, pop 8, EDX:EAX). For
+each mask cell:
+
+1. Take the occupant manager from the **global** city (`0x00B43CEC`, slot 34) and hold it.
+2. Look up the landfill occupant at the cell (slot 33, type `0x6A11BD2B`, §4.8.6).
+3. If there is none, the cost is `kDefaultLandfillTileCost`.
+4. Otherwise the cost is `cSCPropertyHelp::GetPropertyValue(occupant.AsPropertyHolder(), 0xEA54D286, &v)` (occupant
+   slot 6), as an int64. It starts as `kDefaultLandfillTileCost` and is kept if the property is missing. The
+   occupant's holder has no properties of its own (every saved tile has none, §6.4), so the value comes from its
+   default exemplar, **the tile exemplar** attached in §4.8.1 step 3. Then release the occupant.
+5. Release the occupant manager.
+
+So the cost **is** read from the tile exemplar, through the occupant. A modded tile exemplar changes the
+maintenance.
+
+Examples with the shipped exemplars:
+- a 2 × 2 zone whose one heap is active has four corner tiles `0x034E0000`, so 4 × 10 = **40** (test 6);
+- a 3 × 3 zone with all four heaps active has four corners (10), four edges `0x02F90000` (20) and the centre
+  `0x02FA0000` (40), so **160**.
+
+With the default for every cell, those zones would cost 20 and 45.
 
 #### 4.9.2 `GetCurrentBudget()` and `GetEfficiency()`
 
@@ -836,6 +1159,41 @@ u8    isEmpty (0/1)
 Read requires version 3 (and 4 for the base record), sets `isEmpty := (byte = 1)`, recomputes the bounding box,
 returns `!GetError()`.
 
+**Tiles across a save and load** *[compat]* (LG8). The original **saves every tile occupant** and **does not
+rebuild tiles on load**:
+
+- The occupant manager writes one record per tile, with its tile ID, its orientation (including the random 0, 2, 4
+  or 6 of an interior tile), its position, and the exemplar key `(0x07BDDF1C, 0x6534284A, tile)` as the holder's
+  parent. On load the occupant manager restores each tile from its record. The developer's PostCityInit (§3.2)
+  runs zone `Init`, `UpdateBudgetRequirements` and `UpdateCapacityValues` only. There is no `PopulateZone`, no
+  `UpdateSurroundingTiles` and no `rand()` draw.
+- A tile is next redrawn only when the active state of a heap next to it changes (§4.8).
+
+Checked against the local saves. The three saved landfills (Konradshohe, Fulham, Big City Tutorial) cover 142 zone
+cells in all. Every cell's saved tile, or the absence of one, is exactly what the §4.8 rule table gives for the
+saved heaps' `active` flags. The 19 interior tiles have orientations 0 (4), 2 (7), 4 (4) and 6 (5). Every saved tile
+has flags `0x05` and `isEmpty = 0`.
+
+**FreeCity4's current choice against this.** FreeCity4 does not save tiles. It rebuilds them at PostCityInit, with
+interior orientation 0 and no draw.
+
+- *Loading an original save*: the rebuilt tile IDs match, because the saved tiles always agree with the saved
+  heaps. Each interior's orientation becomes 0 instead of its saved value, which is a visible difference only. The
+  draw count matches the original (none). The tiles can differ in one case: after `AddRegionToZone` moved heaps
+  without moving their tiles (§4.4.4 step 4), the original keeps the stale tiles until the heaps next change.
+- *A FreeCity4 save loaded by the original game*: the save has no tile records, so the original finds no tile
+  occupants. Until each heap next changes state, two things differ:
+  - every zone cell costs `kDefaultLandfillTileCost` (5) instead of 10–40 (§4.9.1);
+  - any terraforming (reasons 1–3) over a cell **dezones** it, because §4.5.2 step 1 sees no tile.
+
+  This is a simulation difference, not only a visual one.
+
+*[choice]* Recommended:
+- Save real tile occupants, created as in §4.8.1.
+- On loading an original save, take each tile's ID and orientation from its saved record, not from a rebuild.
+- If the rebuild is kept, it is acceptable for FreeCity4's own saves only, and the difference above should be
+  documented.
+
 ## 7. Interface slots
 
 ### 7.1 `cISC4LandfillDeveloper` (vtable `0x00AB157C`, 13 slots)
@@ -902,11 +1260,11 @@ The object also implements `cISC4Occupant` (at its second vtable; QI `0x26BB767E
 | `cISC4City` (`0x00A87620`) | 34 / +0x88 | GetOccupantManager | 0 | EAX | services |
 | | 35 / +0x8C | GetPropManager | 0 | EAX | zot removal |
 | | 36 / +0x90 | GetZoneManager | 0 | EAX | zone types, PlaceZone |
-| | 40 / +0xA0 | GetTrafficNetwork (traffic network map) | 0 | EAX | road test in `PopulateZone` |
+| | 40 / +0xA0 | GetTrafficNetwork → `cISC4TrafficNetworkMap*`, **borrowed** (`0x004596F0`: returns city `+0x1E8`, no `AddRef`; LG17) | 0 | EAX | road test in `PopulateZone` |
 | | 47 / +0xBC | GetAutomataControllerManager | 0 | EAX | effects |
 | | 50 / +0xC8 | GetSimulator | 0 | EAX | agents |
 | | 93, 94 / +0x174, +0x178 | cell counts X, Z | 0 | EAX | §3.2, §4.5.3 |
-| | 97 / +0x184 | CellCenterToPosition(x, z, &px, &pz) | 16 | — | everywhere |
+| | 97 / +0x184 | CellCenterToPosition(x, z, &px, &pz) | 16 | **none** (x87 stack empty; §4.2) | everywhere |
 | `cISC4Simulator` | 19 / +0x4C, 20 / +0x50 | AddAgent / RemoveAgent | 16 / 4 | AL | §1.1–1.2 |
 | `cISTETerrain` (`0x00AB3D18`) | 13 / +0x34 | GetAltitude(x, z) | 8 | ST0 | altitudes |
 | | 19 / +0x4C | GetAltitudeAtNearestGrid(x, z) | 8 | ST0 | §4.5.2, zot |
@@ -931,16 +1289,22 @@ The object also implements `cISC4Occupant` (at its second vtable; QI `0x26BB767E
 | `cISC4OccupantManager` (`0x00A8F7F0`) | 20 / +0x50 | insert(occupant, 0) | 8 | AL | §4.8.1 |
 | | 21 / +0x54 | remove(occupant, 1, 3) | 12 | AL | §4.8.3 |
 | | 24 / +0x60 | (occupant, 1) after a move | 8 | — | §4.5.2 |
-| | 33 / +0x84 | find(&occ, x, z, type) | 16 | AL | tile lookups |
+| | 33 / +0x84 | GetOccupantAtCell(&occ, x, z, type): first hit, `AddRef`ed; `occ` untouched on a miss | 16 | AL | §4.8.6 |
 | | 41 / +0xA4 | occupants at a cell by type | 20 | — | flora / texture removal |
+| | 48 / +0xC0 | release each entry of a slot-41 list and empty it | 4 | — | §4.8.4 |
 | `cISC4PropManager` (`0x00A8F928`) | 26 / +0x68 | AddLotProp(propID, pos, orientation) | 12 | EAX | zot |
 | | 29 / +0x74 | RemovePropA(occupant) | 4 | AL | zot |
 | `cISC4TrafficSimulator` (`0x00AB33D0`) | 41 / +0xA4 | GetSubnetworksInRegion(region, &ids) | 8 | — | §4.7.2 |
 | | 42 / +0xA8 | GetOccupantCountForAllSubnetworks(type, &counts) | 8 | — | §4.7.2 |
-| `cISC4TrafficNetworkMap` (`cSC4TrafficNetworkMap`, IID `0xCA0F81B9`, vtable **`0x00A8FED8`**, 52 slots, not in docs/abi) | 8 / +0x20 | FindNetworkTile(x, z, flagMask, flag) → tile or null | 16 | EAX | §4.4.5 |
+| `cISC4TrafficNetworkMap` (`cSC4TrafficNetworkMap`, IID `0xCA0F81B9`, vtable **`0x00A8FED8`**, 52 slots, not in docs/abi) | 8 / +0x20 | FindNetworkTile(x, z, flagMask, alsoMultiCell) → borrowed tile or null (`0x004B0B20`) | 16 | EAX | §4.4.5 |
 | `cISC4BuildingDevelopmentSimulator` (`0x00AB0AF8`) | 36 / +0x90 | GetLotDeveloper | 0 | EAX | §4.5.3 |
 | `cISC4LotDeveloper` (`0x00AB1B98`) | 21 / +0x54 | AttemptAreaLevelling(rect, float, bool, bool, float, lot*) | 24 | AL (ignored) | §4.5.3 |
 | `cISC4View3DWin` (`0x00ABCE40`) | 22 / +0x58 | GetCurrentViewLevel | 0 | EAX | §3.2 |
+| resource manager (`0x00B43CA8`) | 3 / +0x0C | GetResource(key, `0xA52160F5`, &out, 0, 0) | 20 | AL | §4.8.1 |
+| `cISCExemplarPropertyHolder` (IID `0x0AC2B5F7`) | 3 / +0x0C | SetDefaultExemplar(ex) | 4 | none (`0x00458E60` sets no result) | §4.8.1 |
+| `cIGZCOM` | 3 / +0x0C | CreateInstance(clsid, iid, void**) | 12 | AL | §4.8.5 |
+| `cISC4LotBaseTextureOccupant` (IID `0x097F6D98`) | 3, 4, 5, 8 | AsOccupant, GetUsage, SetUsage(1), SetTextureSpecification(rec*, 1, null) | | | §4.8.4, §4.8.5 |
+| `cISC4ZoneManager` | 16 / +0x40 | GetZoneDisplayAlpha | 0 | AL | §4.8.5 |
 | `cISC4Occupant` | 8, 9, 12, 15, 29 | GetPosition, SetPosition, SetRemovalFlags, (0x99EF1145, 0), SetFlag | | | tiles, zot |
 | `cIGZMessageServer2` | +0x0C, +0x14, +0x18 | MessageSend, subscribe, unsubscribe | | | |
 
@@ -956,8 +1320,25 @@ The object also implements `cISC4Occupant` (at its second vtable; QI `0x26BB767E
 | slot 9 `GetZoningCost` | zone manager `PlaceZone` (`0x004DDCE2`, adds EDX:EAX to the int64 cost for zone type 14) | must return int64 |
 | slot 10 `GetLandfillUsage` | advisors, query tool, neighbours, pollution, ordinance | as §4.6.5 |
 | slot 11 `GetLandfillTileCount` | pollution, automata behaviour template | |
-| slot 12 `GetLandfillZoneFromCell` | `cSC4CitySituationManager::SetTarget` (`0x00528B26`) | **blocker**: the result is stored in an auto-ref holder (`AddRef`/`Release` through vtable slots 1 and 2 of the returned object) and its raw memory is read: the dword at offset **+0xC** is followed as a pointer and the four dwords there (the zone's `x0, z0, x1, z1`, integers) are read as **floats** *[quirk: yields near-zero coordinates]*. A replacement must return null or an object laid out this way. |
+| slot 12 `GetLandfillZoneFromCell` | `cSC4CitySituationManager::SetTarget` (`0x00528B26`), and `GetDistanceToTarget` (`0x00526A20`) through the stored result | **blocker** if non-null. The result goes into an auto-ref holder, which calls `AddRef`/`Release` through slots 1 and 2 of the returned object. The dword at **+0xC** is then followed as a pointer to four **integers** `x0, z0, x1, z1`, which are read correctly. Null is handled (LG9, below). A replacement must return null or an object laid out this way. |
 | landfill occupant type `0x6A11BD2B` | flora blocking filter (flora §6.4.1), hover query filter, query tool, zone manager `PlaceZone` (calls the occupant's slot 14 with 2), model maker (`GetOrientation`) | the occupant class and its type must stay |
+
+**The city situation manager and a null zone** *[compat]* (LG9). `SetTarget` asks only when the new target occupant
+is in occupant group `0x1406` and the landfill developer global exists (`0x00528AB9`–`0x00528ACD`). Group `0x1406` is
+the landfill tiles' group: every tile exemplar's `0xAA1DD396` is `[0x1406]`. `SetTarget` then converts the target's
+position to a cell (city slot 95) and calls slot 12 with that cell (`0x00528B26`). After that:
+
+- **Non-null zone.** It copies `x0, z0, x1, z1` from `*(zone + 0xC)` and uses `(x0, z0, x1 + 1, z1 + 1)`
+  (`0x00528BD8`–`0x00528C0A`, integer `inc`). It hands that to a marker object, which converts it with `FILD`
+  (`0x0043FB60`). `GetDistanceToTarget` uses the same rect in metres, ×16 (integer `shl 4`, then `FILD`, from
+  `0x00526B3A`). It returns 0 inside the rect and the distance to its edge outside.
+- **Null zone**, or a null `+0xC` pointer. Both functions fall back to the target's lot (lot manager slot 14, then
+  lot slot 14 `GetBoundingRect`). A tile has no lot, so no zone marker is made, and `GetDistanceToTarget` returns the
+  plain 3D distance to the target occupant.
+
+So null is safe. It is also what the original itself returns for a tile in the zone's last row or column (§7.1).
+The only effect is on the situation's target area, a UI and mission feature, never on the simulation
+*[inferred: the U-Drive-It mission target]*.
 
 No other code reads the developer's or a zone's memory. The developer owns **no grid** (simgrid §6.4 does not
 apply); it writes pollution's garbage grid only through `SetIsActiveLandfill` and `AddToGarbageSupply`.
@@ -988,7 +1369,8 @@ and need not be reproduced beyond that.
     §4.9.2).
 13. `SetTileID` mutates the shared exemplar's key (§7.3).
 14. The magic round is wrong above 2^22 (§4).
-15. The city situation manager reads integer cell coordinates as floats (§9).
+15. *Withdrawn* (2026-10-14, LG9): the city situation manager reads the zone's cell coordinates as integers and
+    converts them correctly (§9). There is no quirk.
 
 ### 10.2 Open questions
 
@@ -1012,9 +1394,11 @@ and need not be reproduced beyond that.
 4. *Answered* (2026-10-13, verified): **no**. `PlaceZone` `MessagePost`s `0x07699455`, so §4.4.8 does not
    re-enter `DoZoneChange`. See §4.4.8.
 5. The meaning of occupant manager slot 24 and occupant slot 15 with `0x99EF1145` after a tile move (§4.5.2).
-6. The global that supplies the zot orientation (§4.7.5).
+6. *Answered* (2026-10-14, LG5): the zot orientation is the current view rotation, `SC4ViewUtilities` (`0x00B43DD8`)
+   `+0x10` (§4.7.5).
 7. `isEmpty` is never set true by the shipped code as far as found; the `IsEmptyLandfillTile` branches are dead
-   *[inferred]*.
+   *[inferred]*. The only writer of `true` found is a dead branch of `CreateLandfillOccupant` (§4.8.1); a loaded
+   record can still carry 1 (§6.4).
 8. History IDs `0x2A8C4696` / `0x2A8C4697` have no names in the symbols; the advisor/graph users were not traced.
 
 ## 11. Conformance tests
