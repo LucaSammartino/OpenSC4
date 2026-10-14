@@ -578,3 +578,20 @@ only once it is non-empty. The current answer is in brackets.
 - **HG1 — foundations (load order):** are all grid records read before any simulator's `Init`, so that the first
   non-empty geometry is the final one? Which order does the class store read records and resolve refs in, relative
   to `Read` and `Init`? [assumed yes]
+
+## From applying TN1–TN20 to the traffic network core (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/traffic-network.md`. The core's current answer is in brackets.
+
+- **TN21 — §4.6 / TN5:** if the intersection search's start cell is itself a tunnel cell, is it still extended?
+  [yes, the start cell is always extended]
+- **TN22 — §4.7.2:** what count does an object-reference or empty variant give for `0xE90E25A1`? [0: a switch
+  with no rules]
+- **TN23 — §4.7.2 TN3/TN4:** how do the DoPostCityInit walks treat a switch with building 0 (a default inserted by
+  a §4.7.3/§4.7.4 lookup), where the original would use a null building? [not re-read; flag 4 clear still clears the
+  access point; flag 4 set gets no NW cell]
+- **TN24 — §4.10.1 TN15:** when the unclamped dirty rectangle reaches past the map, are off-map cells asked or
+  written during the update? [only in-map cells]
+- **TN25 — §4.7.2 TN3:** FreeCity4 replaces the rules on the re-read, so the flags come from the property's rules;
+  the original takes them from the first n rules of the vector (the saved copy). They differ only when the saved
+  rules differ from the exemplar. Acceptable? [flags from the re-read rules]
