@@ -34,7 +34,9 @@ pub const MAX_PASSES: u32 = 256;
 /// wealth's passes, since a pass can only lower a value).
 ///
 /// Out-of-range map reads give 0 ([`TractGrid`]'s rule), which is not `key`
-/// for the residential keys 6–8, so they seed [`FAR`].
+/// for the residential keys 6–8, so they seed [`FAR`]. With no building map
+/// there is nothing to call: the original's helper returns at once and
+/// writes nothing, not even the edge (*[compat]* RG24).
 pub fn seed_proximity(target: &dyn TractGrid<u8>, map: &dyn TractGrid<u8>, key: u8) {
     let (st, sm) = (target.shift(), map.shift());
     let (cx, cz) = (
@@ -69,19 +71,6 @@ pub fn seed_proximity(target: &dyn TractGrid<u8>, map: &dyn TractGrid<u8>, key: 
             // [compat] (RG23): the row's first element, not (x, z).
             target.set(x, 0, hit(x, z));
         }
-    }
-}
-
-/// [choice] The seed with no building map: [`seed_proximity`] against a map
-/// that holds no key, so (x, 0) := [`FAR`] for every row of a grid with at
-/// least one z, and every other cell keeps its value (§5.3 step 1, RG23).
-pub fn seed_proximity_no_map(target: &dyn TractGrid<u8>) {
-    let cx = target.count_x().clamp(0, MAX_TRACTS);
-    if target.count_z() <= 0 {
-        return;
-    }
-    for x in 0..cx {
-        target.set(x, 0, FAR);
     }
 }
 
@@ -233,15 +222,6 @@ mod tests {
         // Two passes: pass 1 lowers the edge 255s to 1, pass 2 sees no change.
         seed_proximity(&*t, &*map, 6);
         assert_eq!(distance_to_convergence(&*t, 4, 4), 2);
-    }
-
-    /// [choice] No building map: the edge seeds FAR, the rest is kept.
-    #[test]
-    fn no_map_seeds_the_edge_far() {
-        let t = prox(3, 2);
-        t.set(1, 1, 9);
-        seed_proximity_no_map(&*t);
-        assert_eq!(rows(&t, 3, 2), vec![vec![FAR, 0], vec![FAR, 9], vec![FAR, 0]]);
     }
 
     /// §15 test 2: a 300 × 1 map with the key at (0, 0) caps at 255.

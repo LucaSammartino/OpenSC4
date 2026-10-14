@@ -125,9 +125,9 @@ pub struct fc4_flammability_host {
     // messages
     pub post: Option<unsafe extern "C" fn(U, u32)>,
     /// Plumbing slot 7 `GetWateredGrid()`: the published watered grid as a
-    /// token (0 = none). Its object alternates at every plumbing pass
-    /// (plumbing §2), so a change tells a pass ended (flammability.md §6.5,
-    /// FL5/FL6). Read by the flammability shadow only; NULL = not polled.
+    /// token (0 = none). Read by the flammability shadow only: non-NULL lets
+    /// it poll the watered state, by content (flammability.md §6.5, FL7,
+    /// FL9: the pointer is only counted); NULL = not polled.
     pub watered_grid: Option<unsafe extern "C" fn(U) -> u64>,
 }
 

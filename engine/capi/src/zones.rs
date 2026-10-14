@@ -86,9 +86,10 @@ pub const FC4_ZONES_SERVICE_BUDGET: u32 = 4;
 /// The IIDs `Read` asks for the five service references (§10.1), by `which`.
 const SERVICE_IIDS: [u32; 5] = [IID_CITY, IID_OCCUPANT_MANAGER, IID_TERRAIN, IID_POLLUTION, IID_BUDGET];
 
-/// The "Zone Manager" tuning exemplar (§4): type, group, instance. [question]
-/// The core's `TUNING_KEY` names type `0xA52160F5`; the spec's §4 names
-/// `0x6534284A`, which the host loads (the core only reads the holder).
+/// The "Zone Manager" tuning exemplar (§4): type, group, instance, as the
+/// core's `TUNING_KEY` (ZG1: `0xA52160F5` is the interface ID the original
+/// asks with this key, not the type). The host loads it; the core only reads
+/// the holder.
 pub const FC4_ZONES_TUNING_TYPE: u32 = 0x6534_284A;
 pub const FC4_ZONES_TUNING_GROUP: u32 = 0xE7E2_C2DB;
 pub const FC4_ZONES_TUNING_INSTANCE: u32 = 0xE948_2490;
@@ -1113,8 +1114,10 @@ pub unsafe extern "C" fn fc4_zones_do_message(
 /// NULL) receives every lot to demolish (`*outLots`, borrowed tokens; the
 /// caller takes its own references), called once per lot at the pricing
 /// call, before the commit. `out` (may be NULL) receives the outputs.
-/// [choice] A NULL region or one larger than 1,048,576 cells (or a side
-/// above 4096) fails with error 0 and cost 0, calling nothing.
+/// [choice] (ZG2, recommended; the original has no such failure) A NULL
+/// region or one larger than 1,048,576 cells (or a side above 4096) fails
+/// with error 0 and cost 0, calling nothing; so does a region with a set cell
+/// outside the city (the core's test, zones §6 "No city-bounds test").
 #[no_mangle]
 #[allow(clippy::too_many_arguments)]
 pub unsafe extern "C" fn fc4_zones_place_zone(

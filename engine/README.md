@@ -316,14 +316,19 @@ plugin.
        `cSC4LandfillOccupant`s made through GZCOM with their tile exemplar attached (`SetDefaultExemplar`), so the
        model is drawn, the query tool shows them, the maintenance reads each tile's cost from its exemplar and the
        game saves them; a tile that cannot be made is kept in FreeCity4 (the cell keeps pollution's
-       active-landfill flag; a load rebuilds only those). The first tile made is logged in full (`landfill: game
-       tile made (first one; …): tile 0x… orientation … at cell (x, z), position (…); exemplar holder by QI on the
-       occupant; tile cost 0xEA54D286 … found; type 0x6A11BD2B …; Init true, IsInitialized yes; bounding box …;
-       InsertOccupant true; flag 1 set`), and so are the first four failures, each with the step that failed and
-       what every step before it gave (`landfill: WARNING game tile failure N: tile … not made: <step>. Steps:
-       exemplar (0x6534284A, 0x07BDDF1C, 0x…) found; GZCOM GetClassObject(0x8A22BEBE, 0x2A15F262) made one;
-       AsOccupant ok; exemplar holder (QI 0x0AC2B5F7) …`); later failures are counted in `tilesFailed`. When the
-       occupant does not answer the exemplar-holder QI, its property holder (occupant slot 6) is asked.
+       active-landfill flag; a load rebuilds only those). No interface of the tile answers the exemplar-holder QI
+       `0x0AC2B5F7` (LG27), so `SetDefaultExemplar` is called, as the original does, on the holder at the
+       occupant + `0x20` (docs/abi/layouts.md), after checking that `AsOccupant` and `AsPropertyHolder` return
+       the documented sub-objects (+`0x04`, +`0x0C`). The first tile made is logged in full (`landfill: game tile
+       made (first one; …): tile 0x… orientation … at cell (x, z), position (…); exemplar holder at the occupant +
+       0x20 (LG27, …); GetDefaultExemplar returns it; tile cost 0xEA54D286 … found; type 0x6A11BD2B …; Init
+       true, IsInitialized yes; bounding box …; before the insert (LG29): flag 1 clear, AsPropertyHolder
+       non-null; InsertOccupant true; flag 1 set`), and so are the first four failures, each with the step that
+       failed and what every step before it gave (`landfill: WARNING game tile failure N: tile … not made: <step>.
+       Steps: exemplar (0x6534284A, 0x07BDDF1C, 0x…) found; GZCOM GetClassObject(0x8A22BEBE, 0x2A15F262) made
+       one; AsOccupant ok (object +0x4), AsPropertyHolder object +0xC; exemplar holder …`); a refused insert names
+       its LG29 case (flag 1 already set, a null `AsPropertyHolder`, or already listed in its first cell) and how
+       many landfill occupants the cell lists. Later failures are counted in `tilesFailed`.
        New landfill cells get the landfill ground texture (a
        usage-1 `cSC4LotBaseTextureOccupant`). At `Init` the log says how the month agent is ordered (`landfill:
        month agent registered with …`; with the game's simulator a `WARNING` when the landfill would run before
@@ -1125,17 +1130,24 @@ plugin.
      `fc4_flammability_shadow_cycle` compares: the raw grid exactly; each adjusted tract against the values the
      cycle could have written (its daily value from the raw values, multipliers and watered states it had, or
      its previous value: at most 2 × tractsPerDay tracts may be "unvisited", visited on the wrap day before the
-     previous comparison); the average against the range those values allow; the multiplier bitwise; the
-     hotspots against every rotation of the fixed visiting order; the getters on the mirror after it took the
-     original's state. The watered state is the one at the visit (flammability spec §6.5, FL5/FL6): the target
-     also hears the plumbing pass end (`0x6946DC34`), and every event first polls the plumbing simulator's
-     `GetWateredGrid` (slot 7), whose object alternates at every pass; on a new pointer the watered states are
-     read again, and a tract whose state changed in the cycle may hold its daily value under either state (no
-     other tract is loosened). The first cycle seen (and the one after a new simulator, a new geometry or an
-     `INCOMPLETE`) is the baseline. **Not compared** (said at game start and in every line): the fire roll (a
-     clock-seeded generator), the iterator start and the hotspot shuffle (C `rand()` draws), the random lot, the
-     candidate list and the zoned sum and count. Lines (always written; longer ones continue on `flammability
-     shadow (cont.)` lines):
+     previous comparison, or the day count's number of them when larger, as under the turbo clock); the average
+     against the range those values allow; the multiplier bitwise; the hotspots against every rotation of the
+     fixed visiting order; the getters on the mirror after it took the original's state. The watered state is
+     the one at the visit (flammability spec §6.5, FL5-FL7): plumbing slot 11 is read for every tract and
+     compared **by content** with the last poll (the published grid's pointer is only counted: an aborted pass
+     or a quick restart brings it back unseen, FL7, FL9). The polls: right after every `SimNewDay` our
+     simulator delivers to the original (`FlammabilityShadowDeliver`, in `cFC4Simulator`'s delivery: the
+     original reads the state only there), at every event (the target also hears the plumbing pass end
+     `0x6946DC34`) until the first such day, and at the cycle end. A tract whose state changed in the cycle may
+     hold its daily value under either state (no other tract is loosened). The changes seen after the last wrap
+     day are **carried** into the next cycle (FL8: the new cycle's first tracts were visited before them and
+     keep those values for a whole cycle); the wrap days come from counting days since the original's `Init`
+     (day 1 wraps at once, §6.5), checked against the cycle ends delivered; when the count is off or there are
+     no day polls, only the comparison's own poll is carried. The first cycle seen (and the one after a new
+     simulator, a new geometry or an `INCOMPLETE`) is the baseline. **Not compared** (said at game start and in
+     every line): the fire roll (a clock-seeded generator), the iterator start and the hotspot shuffle (C `rand()`
+     draws), the random lot, the candidate list and the zoned sum and count. Lines (always written; longer ones
+     continue on `flammability shadow (cont.)` lines):
 
      ```
      flammability shadow: ON (flammability_shadow from …): …                            (game start)
@@ -1143,11 +1155,14 @@ plugin.
      flammability shadow: following the original flammability simulator of city …; …    (each city)
      flammability shadow yyyy-mm-dd cycle N: baseline (why): our simulator takes the original's grids (…)
      flammability shadow yyyy-mm-dd cycle N: tracts=CXxCZ (S=1) tractsPerDay=d; raw cells=… mismatched=a
-       max|d|=…; adjusted cells=… mismatched=b max|d|=… (exact …, explained …, unvisited u of at most 2d); average
+       max|d|=…; adjusted cells=… mismatched=b max|d|=… (exact …, explained …, unvisited u of at most B); average
        orig/ours=x/y[..z]; multiplier orig/ours=…/…; hotspots orig/ours=h/h same (rotation k of n hot tracts) |
-       differ (…)[; first differing (x,z) orig/ours: …]; events=e; plumbing passes=p (tracts whose watered state
-       changed: t); hotspot getter orig/ours=v@(x,z)/…; average
-       getter orig/ours=…/…; flammable getter cells=… mismatched=…; mismatches=M; cycles=K clean=C; not compared: …
+       differ (…)[; first differing (x,z) orig/ours: …]; events=e; watered polls=P by content (at a day D, with a
+       change C; published grid pointer changes G); tracts whose watered state changed: t (k carried in); carried
+       into the next cycle: c (changed after the wrap day W (day d since Init; n tracts of the new cycle visited) |
+       the comparison's own poll only (no day polls | the day count is off: …)); hotspot getter
+       orig/ours=v@(x,z)/…; average getter orig/ours=…/…; flammable getter cells=… mismatched=…; mismatches=M;
+       cycles=K clean=C; not compared: …
      flammability shadow yyyy-mm-dd cycle N: INCOMPLETE (why); not compared, the next cycle is a new baseline
      ```
 

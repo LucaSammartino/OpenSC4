@@ -281,9 +281,10 @@ uint64_t ServiceRef(void* u, uint32_t which) {
 }
 
 // §10.1 Read: the token (its IID's interface) comes with one reference,
-// which replaces the service held. [question] The spec does not say what a
-// second Read does with the services the first one set: the literal
-// "references with IIDs ..." assigns them, so the old ones are released.
+// which replaces the service held. ZG4 (§10.1): on a second Read the
+// original nulls each field and reads the new reference without releasing
+// the old one (each leaks once). [choice] (recommended) the old ones are
+// released here.
 void AdoptService(void* u, uint32_t which, uint64_t token) {
     ZONES_TEST(adopt_service, which, token);
     fc4::ZonesContext* c = Ctx(u);
@@ -387,7 +388,8 @@ cFC4ISC4BudgetSimulator* Budget(void* u) {
     return b ? fc4::AsGame(b) : nullptr;
 }
 
-// Budget slot 6 (EDX:EAX). [choice] zones_budget off: unlimited funds.
+// Budget slot 6 (EDX:EAX). [choice] (ZG9: the original has no switches and
+// calls the budget with no null test) zones_budget off: unlimited funds.
 int64_t TotalFunds(void* u) {
     ZONES_TEST0(total_funds);
     if (!Gate(u, fc4::Sw::ZonesBudget, "zones GetTotalFunds (unlimited)")) return INT64_MAX;
@@ -1242,8 +1244,10 @@ bool cFC4ZoneManager::PlaceZone(SC4CellRegion<long>& region, int32_t type, bool 
     }
     std::vector<uint8_t> mask;
     fc4_zone_region r{};
-    // [question] A region the core cannot take (wrong layout, above 1,048,576
-    // cells or 4096 a side) fails with error 0 and touches nothing.
+    // [choice] (ZG2, recommended; the original dereferences a bad bitmap and
+    // reads and writes the grid unchecked) A region the core cannot take
+    // (wrong layout, above 1,048,576 cells or 4096 a side, a set cell outside
+    // the city) fails with error 0 and touches nothing.
     const bool have = fc4::ReadZoneRegion(&region, mask, &r, "zones");
     OutLotsSink sink{&ctx_, outLots};
     fc4_zones_place_result res{};
