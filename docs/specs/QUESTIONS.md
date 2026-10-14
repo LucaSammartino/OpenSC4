@@ -1351,7 +1351,12 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   `0x1108`). Its end cell moves the other way when pf started off-map at such a connection (any type). The
   direction follows the language's driving side (UK English and Japanese drive on the left). Also a *[quirk]*:
   with no lot at an in-city end cell, pf2's start rect is not written. Written into traffic-simulator.md §4.4.
-- **TS18 — §4.2:** when is the capacity property promoted from u16 to u32? [u16 until a value reaches 0xFFFF]
+- ~~**TS18 — §4.2:** when is the capacity property promoted from u16 to u32? [u16 until a value reaches 0xFFFF]~~
+  **ANSWERED 2026-10-14** from the exe (`0x0070DE70`): yes. It is created as 12 u16 zeros, and a write of a value
+  `≥ 0xFFFF` (0xFFFF included) copies all 12 elements into a u32 array, which never reverts. Any other variant type
+  is accessed as u32 with no count check (*[choice]*: treat it as missing). Also found: ApplyTrafficToDestination
+  stores the pool's new arrived total into the found connection's own `0x8A0B4100`. Written into
+  traffic-simulator.md §4.2.
 - **TS19:** does the pathfinder adapter's GetLot match any cell of a lot? [yes (`false`)]
 - **TS20:** is the traffic-source list a snapshot? [yes: lots, then connections, when the phase is entered]
 - **TS21:** when are `toReRoute` / `toSearch` zeroed? [on entering state 16]

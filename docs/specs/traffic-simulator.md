@@ -516,6 +516,24 @@ Each lot and neighbour pool carries property `0x8A0B4100`, an array of 12 u16 (p
 reaches `0xFFFF`): elements 0–3 = **max trip capacity** per destination type `k`, 4–7 = trips **arrived this
 cycle**, 8–11 = trips **arrived last cycle**.
 
+**Element store** (`SetTripCapacity`, `0x0070DE70`; TS18). Every write goes through it: slot 19, the arrived count
+in ApplyTrafficToDestination, the roll in ClearTripDestinations (§4.11) and the neighbour-capacity code.
+
+1. If the holder has no `0x8A0B4100`, it is created as 12 u16 zeros.
+2. If the property is a u16 array (variant type `0x8004`) and `value < 0xFFFF`, element `i := value` as a u16.
+3. If it is a u16 array and `value ≥ 0xFFFF` (so `0xFFFF` itself promotes), the 12 elements are copied
+   zero-extended into a 12-element u32 array, which replaces the data (`0x0070DF30`). Then the u32 element
+   `i := value`.
+4. Any other type: the u32 element `i := value`.
+
+A promoted property stays u32: no write turns it back. The type is saved with the holder's properties, so a save
+keeps it *[compat]*. The readers (slot 20, slot 21, `0x0070DFF0`) take the u16 element when the type is `0x8004`,
+else the u32 element. The variant type is the only check: neither side checks the element count, and "any other
+type" is accessed as u32 data. A short or mistyped property (only from damaged or custom data) is read and written
+past its end. *[choice]* Treat a `0x8A0B4100` that is not a 12-element u16 or u32 array as missing: read 0, and
+replace it with 12 u16 zeros before a write. Example: a pool holds `arrived[0] = 65530` (u16) and 10 commuters
+arrive. `65540 ≥ 0xFFFF`, so all twelve values become u32 with their old values, and element 4 := 65540.
+
 | Function | Result |
 |---|---|
 | `GetMaxTripCapacity(holder, k)` (slot 20) | element `k`, 0 if the property is missing |
@@ -537,9 +555,13 @@ cell and `type < 3` it also adds `count` to element `lastTravelType` of the u32[
 (nine zeros if missing) on the **neighbour connection's own** holder, the connection that
 `FindNeighborConnection(lastTravelType, x, z)` finds (`0x007147C9`). This is not the pool. If there is no such
 connection, nothing is added. *(Corrected: an earlier text said the pool's property.)* Then
-`arrivedThisCycle(type) += count`; if now `arrived ≥ max`, clear destination bit `type` over the destination lot's
-rect and decrement `freeDest[type]` *[quirk: decremented on every such call, also when the bit was already
-clear]*.
+`a := arrivedThisCycle(type) + count` (u32, wrapping) is stored on the holder (element `4 + type`). For an off-map cell
+where `FindNeighborConnection` found a connection, `a` is **also stored** into element `4 + type` of the
+connection's own holder's `0x8A0B4100`, whatever `type` (`0x007148C1`). That write is the pool's new total, not
+the connection's own count plus `count`, and it creates the property on the connection if needed. If `a ≥ max`
+(the holder's `GetMaxTripCapacity(type)`, read before the store), clear destination bit `type` over the destination
+lot's rect (for an off-map cell, the cell itself in the bordered destination map) and decrement `freeDest[type]`
+*[quirk: decremented on every such call, also when the bit was already clear]*.
 
 ### 4.3 StartRecalc and ConfirmTrips (states 0 and 16)
 
