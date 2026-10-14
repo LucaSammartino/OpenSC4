@@ -148,7 +148,7 @@ The data model, by meaning (offsets are deliberately not part of it):
 | `0x66956816` (month agent) | | `DoMonthlySimulation` (§4.12) |
 | `0x26D31EC1` | | `DoPostCityInit` (`0x00720430`, §3.5: builds the network model, traffic-network.md, then resumes the saved cycle) |
 | `0x08DAC3E7` | data2 = `0xC921CEEB` (mass transit) | `transitMultiplier` (the transit-switch entry cost multiplier, traffic-network.md §4.7.3) := curve `0xCA5F7821`(`r24(f × 100.0f)`), `f` = the department's funding fraction (slot 10 `+0x28` returns a pointer to it); also set the same way in DoPostCityInit; saved |
-| `0x8A0D15DA` / `0xEA0D163E` | | add / remove a neighbour connection (traffic-network.md) |
+| `0x8A0D15DA` / `0xEA0D163E` | | `AddNeighborConnection(data1 type, data2 x, data3 z)` (`0x007153C0`) / `RemoveNeighborConnection(type, x, z)` (`0x00713AB0`): they maintain the off-map cell's edge record (traffic-network.md §2.7.2–§2.7.3). Add sets the type bit, raises the trip cost and sets the pool. Remove clears the bit; once the mask is empty it also clears the pool, runs the pool sweep and frees the destination byte. Neither touches the network-changed byte (TS6) |
 | `0xC53D10AA` | data1 = `0xE7E2C2DB` and data2 = `0xC9133286` | re-read tuning (§4.14) |
 | `0xC2C09554` | | `UpdateTravelStrategies` (§4.1.2) |
 | `0x99EF1142` / `0x99EF1143` | data3 = `0xC772BF98` | network occupant inserted / removed: the cell-count and pothole-set bookkeeping (§3.6), then the network part (traffic-network.md); on remove the cell's edge-density records are erased. Any such message (even a failed cast) sets the network-changed byte (see `0x66956810`; never read) |

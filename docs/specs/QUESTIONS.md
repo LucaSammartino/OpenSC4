@@ -1269,7 +1269,11 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   read by nothing. No rebuild follows; the network is kept current incrementally and rebuilt only by
   DoPostCityInit. Keep the byte for the round trip, with no behaviour. Written into traffic-simulator.md §3.1 and
   §6.1, traffic-network.md §3, save-records.md §7.1.1.
-- **TS6 — §3.1:** what does the network part do on neighbour added / removed? [nothing]
+- ~~**TS6 — §3.1:** what does the network part do on neighbour added / removed? [nothing]~~ **ANSWERED 2026-10-14**
+  from the exe: not nothing. It is traffic-network.md §2.7.2 (written with PF6; re-checked against `0x007153C0` and
+  `0x00713AB0`, args data1 type, data2 x, data3 z). Add: `FindConnection`, type bit set, trip cost raised to the
+  other side's `0xCA947077` (ordered compare), one pool per established city. Remove: bit cleared; on an empty mask,
+  pool 0, the pool sweep and `freeDest` decrements for the destination byte. Pointer in traffic-simulator.md §3.1.
 - ~~**TS7:** DoPostCityInit steps 4 (neighbour connections) and 5 (destination-map boundary pass)? [skipped; the
   network rebuild runs, then the transit multiplier]~~ **ANSWERED 2026-10-14** from the exe (`0x00720430`): neither
   is skipped. Step 4 is an Add per neighbour connection plus one pool sweep, step 5 zeroes the destination byte of
