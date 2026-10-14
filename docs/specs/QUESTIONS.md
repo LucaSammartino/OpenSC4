@@ -2572,7 +2572,12 @@ answer is in brackets.
   returned and counted as a fallback]~~
   **ANSWERED 2026-10-14**: no original behaviour (the original simulator has no lock); the implementer's choice stands.
   Noted in neighbors §15.4.
-- **NG7:** The shadow's state it cannot read from the original. [ready = 1, uiDisabled = 0]
+- ~~**NG7:** The shadow's state it cannot read from the original. [ready = 1, uiDisabled = 0]~~
+  **ANSWERED 2026-10-14** from the exe (field writes in the simulator class; budget window `0x0077E6C5`,
+  `0x0077E735`, `0x0077A216`) and written into neighbors §15.4. The fields are bytes in the original object: ready
+  `+0x0C`, initialized `+0x0D`, dealsDirty `+0x3C`, statsDirty `+0x3D`, uiDisabled `+0x3E`, busy `+0x3F`. The bracket
+  is wrong before ConnectionsReady (ready 0) and while the budget window's neighbour tab is open (uiDisabled 1). Read
+  the bytes.
 - **NG8:** The volume-dirty flag. [true once after creation]
 - **NG9:** `SetType` and similar setters on foreign connections. [ignored]
 - **NG10:** The return of `CreateConnection`. [our pointer, borrowed; null if the connection already exists]

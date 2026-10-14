@@ -966,6 +966,29 @@ because no correct caller can reach an object it holds no reference to. The brac
 method runs on the caller's thread against the live fields. The 20 ms try-lock and its fallback are the
 implementer's choice.
 
+**NG7. Simulator state the shadow cannot see through the interface.** The original keeps it in byte fields of the
+simulator object (offsets from the `cISC4NeighborsSimulator` pointer, build 1.1.641):
+
+| Offset | Field | Written by |
+|---|---|---|
+| `+0x0C` | ready | 0 at construction; 1 by the ConnectionsReady handler. Never cleared, not even by `Shutdown` |
+| `+0x0D` | initialized | `Init` sets it, `Shutdown` clears it |
+| `+0x3C` / `+0x3D` | dealsDirty / statsDirty | §6.1, §11.1; cleared after each region push |
+| `+0x3E` | uiDisabled | `SetUIDisableFlag` (`0x006CDFE0`) only |
+| `+0x3F` | busy | set at the start of `simulate_deals`, cleared at its end (`0x006D0E99`, `0x006D15D2`) |
+
+The bracket (ready = 1, uiDisabled = 0) is wrong in two windows:
+
+- **Before ConnectionsReady.** `ready` is 0 from `Init` until the regional city posts ConnectionsReady (or for the
+  whole session if it never does, foundations §11.6). Meanwhile `simulate_deals` and `ProposeDeals` do nothing.
+- **While the budget window's neighbour tab is open.** `initNeighborBudget` calls `SetUIDisableFlag(true)`
+  (`0x0077E6C5`) and then `ProposeDeals(list, true)` (`0x0077E735`). `DestroySubBudgetWindow` calls
+  `SetUIDisableFlag(false)` (`0x0077A216`) and then `MarkDealsDirty` (`0x0077A21E`). While the tab is open, runs skip
+  the state machine (§7.3), and the tab's proposals stay Proposed instead of being activated (§7.1).
+
+*[choice]* The shadow holds the original object, so it should read these bytes at the offsets above rather than
+assume them.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
