@@ -656,7 +656,11 @@ It runs even when the simulator is not enabled.
 1. recompute := true; ageing := true.
 2. `ApplyPipeFunding(f)`, with f := `dept.GetFundingPercentage()` (department slot 10, which returns a pointer to
    the fraction):
-   1. cond := cond − `curve 0xCA7138C4 (f × 100)`. Clamp to [0, 1]. If numPipes = 0: cond := 0.
+   1. cond := cond − `curve 0xCA7138C4 (f × 100)` (`0x006DD119`–`0x006DD142`, stored as float32). Then
+      (`0x006DD13C`–`0x006DD172`): above 1 → cond := 1, and the pipe test is **skipped** *[quirk]*; below 0 →
+      0; otherwise, if numPipes = 0 → 0. So with no pipes cond stays 1 once a step takes it above 1 (only
+      after cond > 0.99 at funding below 50 %), and pipes laid later start from cond 1: all of them become
+      distressed at the next month if funding is still below 50 %.
    2. target := `trunc(float(u32 numPipes) × cond)`.
    3. bursts := `random.RandomSint32RangeGaussianFast(0, trunc(2 × float(int32 target) × burstProbability))`.
       This uses the simulator's own `cRZRandom`, **exactly 4 `NextRaw` draws every month**, including when the
@@ -676,6 +680,19 @@ It runs even when the simulator is not enabled.
          - if `dm` exists: `dm.AttemptDisasterStart(x, z)` (pipe-burst manager slot 6, `0x0057D180`, pop 8),
            with `(x, z)` from `GetOccupiedCell`;
          - `SetNetworkFlag(0x20000)`, numBurst += 1, bursts −= 1. This happens even when `dm` is null.
+
+**What cond means** (PS2) *[compat]*. cond is the fraction of pipes that should be distressed (step 2), and the
+curve is its **change per month**. The shipped curve is (0,−0.01)(20,−0.005)(50,0)(100,0.02)(110,0.05), clamped
+at both ends (foundations §4.3). So:
+
+- funding below 50 % raises cond, by up to 0.01 a month (1 % of the pipes at 0 %);
+- 50 % holds it;
+- above 50 % it falls, by 0.02 a month at 100 % and 0.05 at 110 % or more.
+
+It does not drop to 0 at once. It reads 0 at any funding of 50 % or more only while it is already 0, as after
+every load (below). Example (24-bit arithmetic, foundations §18): 400 pipes at 0 % funding for ten months give
+targets 4, 8, 12, 16, 19, 23, 27, 31, 35, 39 (cond accumulates in float32 and ends at 0.099999987). Then 100 %
+funding gives 31, 23, 15, 7, 0. Step 4.3 repairs the difference each month, in shuffled order.
 
 Because cond is not saved (§3), after a load the pipes start from cond 0. Distressed and burst flags live in the
 pipe occupants. numDistressed and numBurst are saved, so the counters persist.

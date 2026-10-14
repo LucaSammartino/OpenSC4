@@ -1505,7 +1505,12 @@ shadow's current answer is in brackets.
   PW1): **append order.** The list is walked from its head and the first type-5 connection to the deal's city with
   the visited bit clear is returned. This is the order of `GetConnectionsOfTypeToCity(5, city)` without the visited
   ones, so a shadow that walks that list over its own visited flags matches. Written into plumbing.md §6.2.
-- **PS2:** pipe condition is a distress fraction that drops to 0 at funding of 50% or more. Intended? [as stated]
+- ~~**PS2:** pipe condition is a distress fraction that drops to 0 at funding of 50% or more. Intended? [as stated]~~
+  **ANSWERED 2026-10-14** from the exe (`ApplyPipeFunding` `0x006DD110`): **the spec's formula is right, the summary
+  is not.** The curve is a monthly change: below 50 % cond grows (0.01 a month at 0 %), at 50 % it holds, and above
+  50 % it falls gradually (0.02 a month at 100 %). It is 0 at 50 % or more only when it was 0 already, as after a
+  load. New quirk: a step above 1 sets 1 and skips the "no pipes → 0" test. Written into plumbing.md §7.1 with a
+  400-pipe example.
 - **PS3:** the original's pipe condition is not saved and not observable; the shadow starts its own at 0, so the
   first month after a load assumes the original also restarts at 0. Right?
 - **PS4 — §5.3:** demand is a running sum the original builds as things are added; the shadow takes it from the
