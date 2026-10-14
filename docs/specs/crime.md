@@ -676,7 +676,7 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check`. "Byte
 | `cISC4LotManager` (`0x00AB37C0`) | 6 | `+0x18` | GetLot(int x, int z, bool) | 12 | EAX ptr |
 | | 13 | `+0x34` | GetRandomLot() | 0 | EAX ptr |
 | `cISC4Lot` (`0x00AB19B0`) | 14 | `+0x38` | GetBoundingRect(SC4Rect<long>&) | 4 | EAX |
-| | 15 | `+0x3C` | GetCenter(cS3DVector3&) (result in the out param; the `x87` tag in docs/abi is a heuristic miss: it ends with `fstp`) | 4 | EAX ptr |
+| | 15 | `+0x3C` | GetCenter(cS3DVector3& out) → `&out`: writes x = 8·(x1 + x2 + 1), y = the lot's altitude, z = 8·(z1 + z2 + 1) for the bounding cells of slot 14 (exact in `float32`). The **x87 stack is empty** on return (`0x006BF5B6` pops the last value); the `x87` tag in docs/abi is a heuristic miss. A caller must not pop ST0 | 4 | EAX = `&out` |
 | | 21 | `+0x54` | GetLocation(int& x, int& z) | 8 | bool |
 | | 35 | `+0x8C` | GetCondition → u8 | 0 | AL |
 | | 48 | `+0xC0` | GetBuilding → `cISC4BuildingOccupant*` | 0 | EAX ptr |
