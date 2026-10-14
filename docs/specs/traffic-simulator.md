@@ -830,8 +830,8 @@ At the end of the pass (`0x0071A5D7`–`0x0071A701`):
 
 Corpus check (read-only, the eleven shipped saves with record version ≥ 37):
 * The saved cell counts equal the published u16 counts in every one.
-* Road + Street + Avenue + OneWayRoad counts are twice the distinct road keys of the damage block, exactly in five
-  of them (Fulham: 538 + 458 = 996 = 2 × 498).
+* Road + Street + Avenue + OneWayRoad counts are twice the distinct road keys of the damage block, exactly in seven
+  of them, five distinct cities (Fulham: 538 + 458 = 996 = 2 × 498).
 * The tutorial city's rail count is 143 against 135 rail keys. The difference is consistent with level crossings,
   which DoRailChanged leaves out of the rail sets (§3.6).
 
