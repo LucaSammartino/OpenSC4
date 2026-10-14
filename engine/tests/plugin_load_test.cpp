@@ -5403,13 +5403,15 @@ void ZonesPlaceZoneTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
         CHECK(error == 2 && cost == 7);
         CHECK(stub.posts.empty() && stub.withdrawals == 0 && stub.grid[6][6] == 0);
     }
-    // A type >= 16 fails with error 0.
+    // ZG17: a type >= 16 is replaced by 0 (a dezone), not a failure. A dry
+    // run, so nothing is withdrawn, written or posted.
     {
         ZonesGameRegion g(0, 0, 0, 0);
         int64_t cost = -1;
         int32_t error = -1;
-        CHECK(!ZonesPlace(zm, g, 16, true, false, false, &cost, &error, nullptr));
+        CHECK(ZonesPlace(zm, g, 16, false, false, false, &cost, &error, nullptr));
         CHECK(error == 0 && cost == 0);
+        CHECK(stub.withdrawals == 0 && stub.commits == 0 && stub.posts.empty());
     }
     // Funds: the lot at (2, 2) is priced at 50 > 10.
     {
@@ -5621,7 +5623,8 @@ int ZonesEnableTest(const std::string& dll, const std::string& ini, const std::s
     CHECK(text.find("zones: test hooks installed") != std::string::npos);
     CHECK(text.find("zones PlaceZone: type=14 rect=6,6..6,6 cells=1 ok=0 error=2 cost=7 accepted=0") !=
           std::string::npos);
-    CHECK(text.find("zones PlaceZone: type=16 rect=0,0..0,0 cells=1 ok=0 error=0 cost=0") != std::string::npos);
+    // ZG17: the type-16 call is a dry run now (dezone), not logged as a commit.
+    CHECK(text.find("zones PlaceZone: type=16") == std::string::npos);
     CHECK(text.find("zones PlaceZone: type=1 rect=1,1..3,3 cells=9 ok=0 error=1 cost=50 accepted=0") !=
           std::string::npos);
     CHECK(text.find("zones PlaceZone: type=1 rect=1,1..3,3 cells=9 ok=1 error=0 cost=50 accepted=9 cleared=0 lots=1") !=
