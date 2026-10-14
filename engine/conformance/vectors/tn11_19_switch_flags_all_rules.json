@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "tn11_19_switch_flags_all_rules",
+  "spec": ["traffic-network 4.7.1", "traffic-network 4.7.2"],
+  "description": "TN19, the worked example of 4.7.2: the light-rail/subway station's bytes 81 F0 07 07, 82 F0 07 06, 81 F0 06 07, 82 F0 07 07 (a u8 array, count 16, 4 rules). Every rule has all four sides, so the facing does not matter. Rules: kind 0 7 -> 7, kind 1 7 -> 6, kind 0 6 -> 7, kind 1 7 -> 7. 'To' mask 0x0080 (kind-0 rules only), mode mask 0xC0 (kind-0 'from' 7 and 6). The flags come from all rules, whatever their kind: 0x08 (to 7) | 0x04 (to 6, from kind-1 rule 2) | 0x40 (a 7 <-> 6 rule) = 0x4C; kind-0 rules alone would give 0x48. Raw-byte reading of other shapes (4.7.2 quirk): a u32 array [0x01018000, 7] has count 2, so only its first 2 bytes (00 80); a scalar has count 0. Then a station lot (2,2)-(3,3) with a subway access occupant at (3,3): flag 4 is set, so activation gives the access point at the occupant's cell (4.7.1 step 3), and the mode grid holds 0xC0 over the lot.",
+  "steps": [
+    {"op": "tn_eval", "fn": "read_rule_property", "args": [0, {"u8": ["0x81", "0xF0", 7, 7, "0x82", "0xF0", 7, 6, "0x81", "0xF0", 6, 7, "0x82", "0xF0", 7, 7]}], "expect": {
+      "rules": [
+        {"kind": 0, "side": [true, true, true, true], "from": 7, "to": 7},
+        {"kind": 1, "side": [true, true, true, true], "from": 7, "to": 6},
+        {"kind": 0, "side": [true, true, true, true], "from": 6, "to": 7},
+        {"kind": 1, "side": [true, true, true, true], "from": 7, "to": 7}
+      ],
+      "to_mask": "0x0080", "flags": "0x4C", "mode_mask": "0xC0", "count": 16}},
+    {"op": "tn_eval", "fn": "read_rule_property", "args": [1, {"u8": ["0x81", "0xF0", 7, 7, "0x82", "0xF0", 7, 6, "0x81", "0xF0", 6, 7, "0x82", "0xF0", 7, 7]}], "expect": {"to_mask": "0x0080", "flags": "0x4C", "mode_mask": "0xC0"}},
+    {"op": "tn_eval", "fn": "read_rule_property", "args": [2, {"u8": ["0x81", "0xF0", 7, 7, "0x82", "0xF0", 7, 6, "0x81", "0xF0", 6, 7, "0x82", "0xF0", 7, 7]}], "expect": {"to_mask": "0x0080", "flags": "0x4C", "mode_mask": "0xC0"}},
+    {"op": "tn_eval", "fn": "read_rule_property", "args": [3, {"u8": ["0x81", "0xF0", 7, 7, "0x82", "0xF0", 7, 6, "0x81", "0xF0", 6, 7, "0x82", "0xF0", 7, 7]}], "expect": {"to_mask": "0x0080", "flags": "0x4C", "mode_mask": "0xC0"}},
+    {"op": "tn_eval", "fn": "rule_bytes", "args": [{"u32": ["0x01018000", 7]}], "expect": [0, 128]},
+    {"op": "tn_eval", "fn": "rule_bytes", "args": [{"u32": "0x01018000"}], "expect": []},
+    {"op": "tn_eval", "fn": "read_rule_property", "args": [1, {"u8": [0, 128, 1, 1]}], "expect": {"rules": [{"kind": 0, "side": [false, true, false, false], "from": 1, "to": 1}], "to_mask": 2, "flags": 0, "mode_mask": 2, "count": 4}, "note": "test 11's rule as bytes"},
+
+    {"op": "tn_env", "cells": [8, 8], "tuning": "shipped"},
+    {"op": "tn_init"},
+    {"op": "tn_occupant", "id": 40, "kind": "building", "cell": [2, 2], "bounding": [2, 2, 3, 3], "props": {"0xE90E25A1": {"u8": ["0x81", "0xF0", 7, 7, "0x82", "0xF0", 7, 6, "0x81", "0xF0", 6, 7, "0x82", "0xF0", 7, 7]}}},
+    {"op": "tn_occupant", "id": 50, "kind": "subway", "cell": [3, 3]},
+    {"op": "tn_lot", "id": 7, "rect": [2, 2, 3, 3], "building": 40},
+    {"op": "tn_call", "method": "lot_activated", "args": [7], "expect": true},
+    {"op": "tn_expect_switch", "id": 1, "switch": {"building": 40, "flags": "0x4C", "to_mask": "0x0080", "mode_mask": "0xC0", "has_access_point": true, "access": [3, 3]}},
+    {"op": "tn_expect_cell", "cells": [[2, 2], [3, 2], [2, 3], [3, 3]], "expect": {"switch_id": 1, "switch_mode": "0xC0"}}
+  ]
+}
