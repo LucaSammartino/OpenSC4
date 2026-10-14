@@ -133,8 +133,8 @@ mod tests;
 mod tuning;
 
 pub use simulator::{
-    nearest_water_ring, pipe_cost, trunc_i64, PlumbingSim, PlumbingState, Producer, ProducerInfo, Totals,
-    PLUMBING_RECORD_VERSION,
+    nearest_water_ring, pipe_cost, pipe_funding, trunc_i64, PipeFunding, PlumbingSim, PlumbingState, Producer,
+    ProducerInfo, Totals, PLUMBING_RECORD_VERSION,
 };
 pub use tuning::{id as tuning_id, Tuning, TUNING_KEY};
 

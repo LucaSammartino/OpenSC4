@@ -275,7 +275,9 @@ const _: () = {
 
 // ---- host adapter -----------------------------------------------------------------------------------
 
-struct CHost(fc4_power_host);
+/// The host table as a `PowerHost` (also the power shadow's live reads,
+/// power_shadow.rs).
+pub(crate) struct CHost(pub(crate) fc4_power_host);
 
 macro_rules! cb {
     ($s:expr, $f:ident, $default:expr $(, $arg:expr)*) => {

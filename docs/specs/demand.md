@@ -355,6 +355,64 @@ Summing R + C + I instead gives 29776.48046875, then 40359.58203125 (`0x471DA795
 give) rounds to the same `0x471DA795`. Only the original's order with two `float32` roundings gives
 `0x410F91CB`. This also confirms that the main thread was at 24-bit precision in that run.
 
+**`GetLocalPopulationSummary` conversion** *[compat]* (DQ3). Both region uses share one conversion: the CRT's
+`_ftol` at `0x009EEF04`, called at `0x006A6013`. The original stores **EAX** at `0x006A6018`.
+
+- **How `_ftol` converts.** It turns the value into a **64-bit** integer, rounding toward zero (foundations
+  §18.1), so EAX holds the low 32 bits of that `int64`.
+- **In range** (|v| < 2^31): plain truncation toward zero.
+- **2^31 ≤ |v| < 2^63**: the value **wraps** modulo 2^32. It does not saturate.
+- **NaN, ±∞ and |v| ≥ 2^63**: the 64-bit conversion produces the integer indefinite `0x8000000000000000`, and its
+  low 32 bits are **0**. So the result is 0, not `0x80000000`.
+
+Worked examples, for the supply or demand value as `float32`:
+
+| `v` | `float32` bits | Original | Saturating (`as i32`) |
+|---|---|---|---|
+| 1234.7 | `0x449A5666` | 1234 | 1234 |
+| −56.9 | `0xC263999A` | −56 | −56 |
+| 2147483648 (2^31) | `0x4F000000` | **−2147483648** | 2147483647 |
+| 3000000000 | `0x4F32D05E` | **−1294967296** (`0xB2D05E00`) | 2147483647 |
+| −3000000000 | `0xCF32D05E` | **1294967296** (`0x4D2FA200`) | −2147483648 |
+| 1e19 (above 2^63) | `0x5F0AC723` | **0** | 2147483647 |
+| +∞ | `0x7F800000` | **0** | 2147483647 |
+| NaN | — | 0 | 0 |
+
+*[choice]* Reproduce it exactly: 0 when `v` is NaN or |v| ≥ 2^63, otherwise the low 32 bits of `v` truncated to
+`i64` (in Rust, `(v as i64) as i32` after that check). It differs from saturation only for |v| ≥ 2^31 or ±∞. The
+shipped graph does not produce such values, but the result must match whatever the original stores.
+
+**A summary map whose count is 0 but whose tree is not empty** (DQ4). The game never builds one. The caller's map
+(regional city `+0x3C`) is only written by its constructor (`0x004AC09E`), by this method and by the regional
+city's reader. That reader inserts each saved pair with `operator[]` (`0x004AC841`, `0x004AC8A1`). Every one of
+these keeps the count equal to the number of nodes.
+
+If such a map did arrive, the original would behave like this:
+
+1. It **skips the clear** (step 1 tests only the count), so the stale nodes stay.
+2. `operator[]` searches the stale tree. A key that is already there gets its value overwritten without a new
+   node or a count increment. A new key gets a node linked into the stale tree.
+3. The final count is the number of new nodes only. The stale entries for keys that were not rewritten stay
+   visible to iteration.
+
+That is a corrupt map, not a contract. Refusing it is the implementer's choice, and that choice stands.
+
+**Who calls it, and on which thread** (DQ8). Its only caller is the regional city's `UpdateCityCache` (slot 24,
+`+0x60`, `0x004AD290`). The regional city's own message handler (`DoMessage`, `0x004ABD40`) calls that for two
+messages, and only when the message's city is non-null and belongs to this regional city:
+
+| Message | Call site | Sent by (the only senders) |
+|---|---|---|
+| `kSC4MessagePostCityInit` `0x26D31EC1` | `0x004ABE76` | `cSC4App::NewCity` (`0x00454963`) and `cSC4App::LoadCity` (`0x004558C5`) |
+| `kSC4MessagePreSave` `0x26C63343` | `0x004ABE9B` | `cSC4App::SaveCity` (`0x00456102`) |
+
+Every other reference to these two IDs in the exe is an `AddNotification` or `RemoveNotification`. The app
+sends or posts them through `cSC4App::PostCityMessage` (`0x00449AF0`) or the message server directly. Either way,
+there is no dispatch thread (foundations §19.1), so the summary is built on the thread that creates, loads or
+saves the city: the **main thread**. That happens once after a city is created or loaded, and
+once before each save. *[inferred: static; no thread trace]* The glue's log of its first call settles it at run
+time.
+
 
 ### 6.1 State
 
@@ -415,6 +473,18 @@ Notes *[compat]*:
   reproduce the per-cell visit and use whatever the lot interface returns.
 - `GetCellWorkforcePercent` returns a fraction (0…1) despite its name *[inferred from the residential spec notes]*.
 - The profile fields used here (`purpose` at +0x00) and the whole profile: [docs/abi/layouts.md](../abi/layouts.md) *Building profile*.
+- **How the original reads the profile** (DQ5). At every cell that passes the lot tests, it calls BDS slot 39
+  (`+0x9C`, `0x006A5A53`).
+  - Slot 39 returns a **reference** into the process-wide profile table. There is no copy and no walk of the
+    capacity maps.
+  - It reads only `purpose` (+0x00, `0x006A5A5D`) and accepts 1…8 (`dec`, `cmp 7`, `ja`).
+  - Cells without a lot, without capacity or with building type 0 never reach the call.
+  - **Side effect.** Slot 39 inserts a zero profile for an unknown type. A lot's building type is normally known,
+    so this does not fire in practice.
+
+  Walking the capacity maps at each cell therefore has no original counterpart. It is harmless as long as it is
+  read-only. *[choice]* Read `purpose` through the reference (or slot 40, which does not insert) and walk the
+  capacity maps only in `UpdateCapacity` (§7.2).
 
 ### 6.4 Applying the census
 
@@ -483,6 +553,31 @@ if node devType exists: node.AddToSupplyValue(occupied ? +c : −c)
 So the supply of a local R$/CS$/… node is the total capacity of occupied (or constructing) buildings of that type.
 
 The profile and its capacity list (offsets, element type, who fills it, a worked example): [docs/abi/layouts.md](../abi/layouts.md) *Building profile*, *How `UpdateCapacity` reads it*.
+
+**Header colour of the capacity maps** *[compat]* (DQ6). Every capacity map in a profile has a header colour of
+**0**:
+
+- **Copied maps.** The profile copy constructor `0x004D1230` copies a profile into its table node. Its vector copy
+  constructor `0x004CDF00` makes each map with the map copy constructor `0x004C9470` (`0x004CDF5F`). That constructor
+  allocates a new B header and writes colour 0 into it (`0x004C9499`) before it copies the nodes.
+- **Other maps.** The other constructors also write colour 0.
+- **Afterwards.** Nothing changes it (allocators.md *map and set*, *The header and the empty map*). The insert
+  rebalance, for one, stops at the root, which it colours black.
+
+A header with colour 1 therefore never occurs in a game map, and refusing one is the implementer's choice. With
+colour 1, the original's iterator decrement would no longer recognise the header (allocators.md *map and set*).
+
+**Sizes** (DQ7). The original has no fixed limit on any of these sizes:
+
+| Quantity | Original | Shipped data (all packages scanned) | What can exceed it |
+|---|---|---|---|
+| capacity maps per profile | `LoadBuildingProperties` pushes **at most one** map per load (`0x0069BC59` / `0x0069BC7E`), and nothing else builds a catalogue profile's vector | 0 or 1 | nothing |
+| entries in one capacity map | one per distinct key in property `0x27812834`, a `uint32` list of (key, amount) pairs of any length; a repeated key overwrites | **1**: each of the 558 exemplars with the property has exactly one pair | a plug-in exemplar with more distinct keys (only the 13 developer types of §2 have any effect) |
+| nodes in the population summary | one per demand node with region use 1 or 2; demand exemplars may come from any group (§4.1) | 40 | plug-in demand exemplars with region use |
+
+Limits of 16 maps, 128 entries and 4,096 summary nodes therefore hold for every shipped game. A larger value
+needs plug-in data well beyond any normal mod. Refusing above those limits is the implementer's choice, and that
+choice stands.
 
 ## 8. Monthly modifiers and cap relief
 

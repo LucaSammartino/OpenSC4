@@ -70,7 +70,9 @@ const Group kGroups[12] = {{0x1010, "R$"},   {0x1020, "R$$"},   {0x1030, "R$$$"}
 const uint32_t kCensusKeys[24] = {0x1011, 0x1021, 0x1031, 0x2111, 0x2112, 0x2113, 0x2114, 0x2121,
                                   0x2122, 0x2123, 0x2124, 0x2131, 0x2132, 0x2133, 0x2134, 0x3111,
                                   0x3121, 0x3131, 0x3321, 0x3331, 0x4101, 0x4201, 0x4301, 0x4401};
-// §5 GetNeutralTaxRate: the census sum nodes R, C, I.
+// §5 GetNeutralTaxRate: the census sum nodes R, C, I, passed in that order to
+// fc4_demand_shadow_neutral_tax_rate, which sums f32(f32(I + C) + R) like the
+// original (DQ9) through the simulator's own function.
 const uint32_t kCensusSums[3] = {0x1001, 0x3001, 0x4001};
 
 // ---- settings and run state (main thread only) ---------------------------------------------------

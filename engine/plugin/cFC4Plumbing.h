@@ -55,9 +55,40 @@ class cISTETerrain;
 static const uint32_t kFC4_CLSID_cSC4PlumbingSimulator = 0x0990C075;
 static const uint32_t kFC4_IID_cISC4PlumbingSimulator = 0x47782CCC;
 
+// The game services the plumbing host callbacks read (§11). The simulator
+// fills it with references of its own (AcquireServices); the plumbing shadow
+// (FC4PlumbingShadow.h) with the city's borrowed pointers, for one delivery.
+struct FC4PlumbingGame {
+    cISC4City* city = nullptr;
+    cISC4OccupantManager* occupantManager = nullptr;
+    cISC4LotManager* lotManager = nullptr;
+    cISC4PollutionSimulator* pollution = nullptr;
+    cISC4OrdinanceSimulator* ordinance = nullptr;
+    cISC4NeighborsSimulator* neighbors = nullptr;
+    cISC4BudgetSimulator* budget = nullptr;
+    cISTETerrain* terrain = nullptr;
+    // Gates the reads with the plumbing_* switches (ours); the shadow reads
+    // the original's inputs as they are.
+    bool gated = true;
+    // Game lists (and the references they hold) kept until the outermost call
+    // into the core returns (ours) or the shadowed delivery ends (shadow).
+    std::vector<std::shared_ptr<void>> held;
+    void Hold(std::shared_ptr<void> list) { held.push_back(std::move(list)); }
+};
+
+namespace fc4 {
+// A host table with the read callbacks only (city geometry, tuning, ordinance
+// factor, water pollution, occupant and pipe reads, lots, terrain, deals and
+// connections, department funding, line items and budget items) over `game`,
+// and a grid table with geometry and reads only (`grids` must outlive the
+// table). Every write callback is NULL. For the plumbing shadow.
+fc4_plumbing_host PlumbingReadOnlyHost(FC4PlumbingGame* game, const HostGridContext* grids);
+}  // namespace fc4
+
 class cFC4PlumbingSimulator final : public cFC4ISC4PlumbingSimulator,
                                     public cIGZMessageTarget2,
-                                    public cIGZSerializable {
+                                    public cIGZSerializable,
+                                    public FC4PlumbingGame {
 public:
     cFC4PlumbingSimulator();
     ~cFC4PlumbingSimulator();
@@ -106,14 +137,6 @@ public:
     uint32_t GetGZCLSID() override;
 
     // For the host callbacks (cFC4Plumbing.cpp).
-    cISC4City* City() const { return city_; }
-    cISC4OccupantManager* OccupantManager() const { return occupantManager_; }
-    cISC4LotManager* LotManager() const { return lotManager_; }
-    cISC4PollutionSimulator* Pollution() const { return pollution_; }
-    cISC4OrdinanceSimulator* Ordinance() const { return ordinance_; }
-    cISC4NeighborsSimulator* Neighbors() const { return neighbors_; }
-    cISC4BudgetSimulator* Budget() const { return budget_; }
-    cISTETerrain* Terrain() const { return terrain_; }
     cIGZMessageTarget2* Target() { return static_cast<cIGZMessageTarget2*>(this); }
     // The token the core knows this object by (its cISC4PlumbingSimulator*,
     // the same identity the primary QueryInterface hands out).
@@ -123,16 +146,13 @@ public:
     void AcquireServices();
     void ReleaseServices();
     void Subscribe(const uint32_t* ids, size_t count, bool add);
-    // Keeps a game list (and the references it holds) until the outermost
-    // call into the core returns.
-    void Hold(std::shared_ptr<void> list) { held_.push_back(std::move(list)); }
 
     // Counts the calls into the core; the outermost one drops the held lists.
     class CoreCall {
     public:
         explicit CoreCall(cFC4PlumbingSimulator* s) : s_(s) { ++s_->depth_; }
         ~CoreCall() {
-            if (--s_->depth_ == 0) s_->held_.clear();
+            if (--s_->depth_ == 0) s_->held.clear();
         }
         CoreCall(const CoreCall&) = delete;
         CoreCall& operator=(const CoreCall&) = delete;
@@ -150,16 +170,7 @@ private:
     fc4::HostGridContext gridCtx_{"plumbing", fc4::Sw::PlumbingGridWrites};
     fc4_plumbing_host host_{};
     fc4_plumbing* core_ = nullptr;
-    cISC4City* city_ = nullptr;
-    cISC4OccupantManager* occupantManager_ = nullptr;
-    cISC4LotManager* lotManager_ = nullptr;
-    cISC4PollutionSimulator* pollution_ = nullptr;
-    cISC4OrdinanceSimulator* ordinance_ = nullptr;
-    cISC4NeighborsSimulator* neighbors_ = nullptr;
-    cISC4BudgetSimulator* budget_ = nullptr;
-    cISTETerrain* terrain_ = nullptr;
     cIGZMessageServer2* msgServer_ = nullptr;
-    std::vector<std::shared_ptr<void>> held_;
     int depth_ = 0;
     uint32_t lastState_ = 9;
     uint32_t passes_ = 0;

@@ -512,9 +512,11 @@ public:
     virtual uint32_t GetFlags() const = 0;                                       // 12
     virtual bool SetFlags(uint32_t flags) = 0;                                   // 13
     virtual bool GetBoundingRect(SC4Rect<int32_t>& rect) const = 0;              // 14
-    // docs/abi: returns in ST0 (x87, high confidence; the SDK says bool). What
-    // the value is is not specified; the plugin does not call it.
-    virtual float GetCenter(float* center) const = 0;                            // 15
+    // docs/abi and crime.md §13 (CQ3): the result goes only through the out
+    // pointer (EAX = &out) and nothing is left on the x87 stack (the SDK says
+    // bool). The crime glue calls it through LotCenterRaw, which reads the out
+    // parameter and keeps an ST0 check only as a counted diagnostic.
+    virtual void GetCenter(float* center) const = 0;                             // 15
     virtual float GetAltitude() const = 0;                                       // 16
     virtual bool SetAltitude(float altitude) = 0;                                // 17
     virtual float GetSlope() const = 0;                                          // 18
@@ -1392,6 +1394,45 @@ public:
     virtual void* GetDispatchVehicleView() = 0;                                             // 22
 };
 
+// ---- landfill (docs/specs/landfill.md §7.1, §8) -------------------------------------------------------
+
+class cISC4LandfillDeveloper;
+
+// cISC4LandfillDeveloper (IID 0x8A09D502, vtable 0x00AB157C, 13 slots; §7.1).
+// SDK errors fixed: slot 5 returns the SC4Percentage through a hidden result
+// pointer (EAX = that pointer, pops 4; §7.4), slot 9 returns an int64 in
+// EDX:EAX (SDK: int32; the zone manager reads EDX:EAX, §9).
+class cFC4ISC4LandfillDeveloper : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                  // 3
+    virtual bool Shutdown() = 0;                                              // 4
+    virtual SC4Percentage* GetEfficiency(SC4Percentage* result) = 0;          // 5
+    virtual uint32_t GetSimulatorType() = 0;                                  // 6
+    virtual int64_t GetMaintenanceCosts() = 0;                                // 7
+    virtual int64_t GetCurrentBudget() = 0;                                   // 8
+    virtual int64_t GetZoningCost(SC4CellRegion<int32_t> const* region) = 0;  // 9
+    virtual void GetLandfillUsage(uint32_t& usage, uint32_t& capacity) = 0;   // 10
+    virtual int32_t GetLandfillTileCount() const = 0;                         // 11
+    // 12: a cSC4LandfillZone* (§9: callers read its memory) or null.
+    virtual intptr_t GetLandfillZoneFromCell(int32_t x, int32_t z) = 0;       // 12
+};
+
+// cISC4TrafficNetworkMap (cSC4TrafficNetworkMap, vtable 0x00A8FED8, 52 slots;
+// not in the SDK). The city's slot 40 (GetTrafficNetwork, SDK intptr_t)
+// returns it (landfill §8). Declared up to slot 8, the one the landfill
+// developer calls (§4.4.5); slots 5-7 by their argument size, never called.
+class cFC4ISC4TrafficNetworkMap : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                       // 3
+    virtual bool Shutdown() = 0;                                                   // 4
+    virtual void HandleTuningParametersChanged() = 0;                              // 5
+    virtual intptr_t ChooseWeightedEdge(intptr_t a, intptr_t b) = 0;               // 6 (pops 8)
+    virtual intptr_t NetworkMapSlot7(intptr_t a, intptr_t b, intptr_t c) = 0;      // 7 (pops 12)
+    // 8: the network tile at the cell whose flags match `flagMask` / `flag`,
+    // or null (a pointer into the map; no reference).
+    virtual void* FindNetworkTile(int32_t x, int32_t z, uint32_t flagMask, bool flag) = 0;  // 8
+};
+
 namespace fc4 {
 // A simulator handed out by the game (cISC4City::GetSimulator), seen through
 // the verified slot order instead of the SDK's declaration.
@@ -1487,4 +1528,9 @@ inline cFC4ISC4DispatchManager* AsGame(cISC4DispatchManager* p) {
     return reinterpret_cast<cFC4ISC4DispatchManager*>(p);
 }
 inline cISC4DispatchSource* AsSdk(cFC4ISC4DispatchSource* p) { return reinterpret_cast<cISC4DispatchSource*>(p); }
+// The landfill developer travels as the SDK's pointer (cISC4City slot 78);
+// call it only through the verified declaration (§7.1).
+inline cFC4ISC4LandfillDeveloper* AsGame(cISC4LandfillDeveloper* p) {
+    return reinterpret_cast<cFC4ISC4LandfillDeveloper*>(p);
+}
 }  // namespace fc4

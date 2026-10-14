@@ -19,11 +19,18 @@
 //                            The SDK order and argument sizes are right; only
 //                            GetCrimeIncidentArray's container differs: the
 //                            caller's vector is resized with the GAME's
-//                            allocator (§14.2), so it is declared as
+//                            STL node allocator (B; §11.4, §14.2, CQ1), so
+//                            it is declared as
 //                            fc4::GameVector (FC4GameList.h) instead of the
 //                            SDK's SC4Vector (allocator A).
 //   cFC4CrimePropRequester   cISC4PropRequester (IID 0x89C498BE, no SDK
 //                            header), slots 3-6 (§11.6).
+//   cFC4ISCStringDetokenizer cISCStringDetokenizer (no IID needed: reached
+//                            through cISC4App::GetStringDetokenizer), slots
+//                            3-11 in the verified order of lua-host.md §10.1.
+//                            The SDK declares the two Detokenize overloads
+//                            the other way round; here they have names of
+//                            their own. Crime calls slot 9 only (§7 step 3).
 // The police simulator is called through cFC4ISC4PoliceSimulator
 // (FC4Interfaces.h), whose slots 5 and 27 have the types §13 lists (crime
 // calls slots 5, 27, 30 and 38 only).
@@ -37,6 +44,8 @@
 
 #include <cstdint>
 
+class cGZPersistResourceKey;
+class cIGZString;
 class cISC4Automaton;
 class cISC4PropOccupant;
 class cS3DVector3;
@@ -94,4 +103,23 @@ public:
     virtual uint32_t GetRequesterSatisfactionId() = 0;                                   // 4
     virtual bool UsesCustomPropSelector() = 0;                                           // 5
     virtual uint32_t SelectProp(FC4U32VectorView const& props, int32_t cellX, int32_t cellZ) = 0;  // 6
+};
+
+// A token replacement callback (lua-host.md §10.1 step 4): cdecl.
+typedef bool (*FC4TokenReplacementFn)(cIGZString const& token, cIGZString& out, void* ctx);
+
+// cISCStringDetokenizer (vtable 0x00AA6DFC), lua-host.md §10.1. Slot 8 is the
+// resource-key overload, slot 9 the string overload (bool "every token
+// resolved"; it jumps to the class's PerformDetokenize).
+class cFC4ISCStringDetokenizer : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                                     // 3
+    virtual bool Shutdown() = 0;                                                                 // 4
+    virtual void SetTokenReplacementValue(cIGZString const& token, cIGZString const& value) = 0;  // 5
+    virtual void SetTokenReplacementMethod(cIGZString const& token, FC4TokenReplacementFn fn, void* ctx) = 0;  // 6
+    virtual void AddUnknownTokenReplacementMethod(FC4TokenReplacementFn fn, void* ctx, bool add) = 0;  // 7
+    virtual bool DetokenizeKey(cGZPersistResourceKey const& key, cIGZString& out) = 0;           // 8
+    virtual bool DetokenizeString(cIGZString const& text, cIGZString& out) = 0;                  // 9
+    virtual void SetHTMLCleanMode(bool on) = 0;                                                  // 10
+    virtual bool GetHTMLCleanMode() = 0;                                                         // 11
 };

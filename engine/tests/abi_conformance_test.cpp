@@ -108,6 +108,7 @@
 #include "cISC4FloraOccupant.h"
 #include "cIGZCheatCodeManager.h"
 #include "cIGZCommandServer.h"
+#include "cISC4LandfillOccupant.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -363,6 +364,9 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4FloraSimulator", 25, 26,
      "slot 25 is cSC4FloraSimulator's scalar deleting destructor (pops 4): class-private (flora spec section 11.1: "
      "3 + 22 interface slots + destructor; only the game's own Release calls it)"},
+    {"cISC4TrafficNetworkMap", 9, 52,
+     "cFC4ISC4TrafficNetworkMap declares slots 3-8 only: the landfill developer calls slot 8 (FindNetworkTile) "
+     "only (landfill §4.4.5, §8)"},
 };
 
 const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlots) {

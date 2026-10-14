@@ -837,7 +837,27 @@ fn call(w: &World, op: &Json) -> R<()> {
         }
         other => return Err(format!("unknown demand method '{other}'")),
     };
+    check_expect_bits(op, &got)?;
     check_expect(op, got)
+}
+
+/// `expect_bits` (a `"0x…"` string): the float32 bits of a float result,
+/// exactly (the `expect` tolerance cannot see 1 ulp).
+fn check_expect_bits(op: &Json, got: &Json) -> R<()> {
+    let Some(want) = opt(op, "expect_bits") else {
+        return Ok(());
+    };
+    let want = u32_of(want, "expect_bits")?;
+    match *got {
+        Json::Float(v) => {
+            let bits = (v as f32).to_bits();
+            if bits != want {
+                return Err(format!("returned {v} (bits 0x{bits:08X}), expected bits 0x{want:08X}"));
+            }
+            Ok(())
+        }
+        _ => Err("expect_bits needs a float result".into()),
+    }
 }
 
 fn node_of(w: &World, op: &Json) -> R<Rc<DemandNode>> {

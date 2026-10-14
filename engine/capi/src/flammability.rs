@@ -134,7 +134,7 @@ const _: () = {
 
 // ---- host adapter -----------------------------------------------------------------------------------
 
-struct CHost(fc4_flammability_host);
+pub(crate) struct CHost(pub(crate) fc4_flammability_host);
 
 macro_rules! cb {
     ($s:expr, $f:ident, $default:expr $(, $arg:expr)*) => {

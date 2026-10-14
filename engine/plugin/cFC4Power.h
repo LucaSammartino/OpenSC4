@@ -54,7 +54,40 @@ class cISC4ZoneManager;
 static const uint32_t kFC4_CLSID_cSC4PowerSimulator = 0x0990C005;
 static const uint32_t kFC4_IID_cISC4PowerSimulator = 0xE9E7BFF5;
 
-class cFC4PowerSimulator final : public cFC4ISC4PowerSimulator, public cIGZMessageTarget2, public cIGZSerializable {
+// The game services the power host callbacks read (§11.1). The simulator
+// fills it with references of its own (AcquireServices); the power shadow
+// (FC4PowerShadow.h) with the city's borrowed pointers, for one delivery.
+struct FC4PowerGame {
+    cISC4City* city = nullptr;
+    cISC4OccupantManager* occupantManager = nullptr;
+    cISC4ZoneManager* zoneManager = nullptr;
+    cISC4NeighborsSimulator* neighbors = nullptr;
+    cISC4BudgetSimulator* budget = nullptr;
+    cISC4Demolition* demolition = nullptr;
+    // False only for the power shadow's test seam: the city answers its cell
+    // geometry and nothing else (the ordinance factor reads 1, the sim time 0,
+    // there are no lots).
+    bool cityServices = true;
+    // Game lists (and the references they hold) kept until the outermost call
+    // into the core returns (ours) or the shadowed delivery ends (shadow).
+    std::vector<std::shared_ptr<void>> held;
+    void Hold(std::shared_ptr<void> list) { held.push_back(std::move(list)); }
+};
+
+namespace fc4 {
+// A host table with the read callbacks only (city geometry, tuning, ordinance
+// factor, sim time, occupants and their properties, poles, lines, network
+// occupants, the occupant query, zones, lots, deals, neighbour connections,
+// departments, line items, budget items) over `game`, and a grid table with
+// geometry and reads only (`grids` must outlive the table). Every write
+// callback is NULL. For the power shadow.
+fc4_power_host PowerReadOnlyHost(FC4PowerGame* game, const HostGridContext* grids);
+}  // namespace fc4
+
+class cFC4PowerSimulator final : public cFC4ISC4PowerSimulator,
+                                 public cIGZMessageTarget2,
+                                 public cIGZSerializable,
+                                 public FC4PowerGame {
 public:
     cFC4PowerSimulator();
     ~cFC4PowerSimulator();
@@ -125,21 +158,20 @@ public:
     uint32_t GetGZCLSID() override;
 
     // For the host callbacks (cFC4Power.cpp).
-    cISC4City* City() const { return city_; }
-    cISC4OccupantManager* OccupantManager() const { return occupantManager_; }
-    cISC4ZoneManager* ZoneManager() const { return zoneManager_; }
-    cISC4NeighborsSimulator* Neighbors() const { return neighbors_; }
-    cISC4BudgetSimulator* Budget() const { return budget_; }
+    cISC4City* City() const { return city; }
+    cISC4OccupantManager* OccupantManager() const { return occupantManager; }
+    cISC4ZoneManager* ZoneManager() const { return zoneManager; }
+    cISC4NeighborsSimulator* Neighbors() const { return neighbors; }
+    cISC4BudgetSimulator* Budget() const { return budget; }
     // Test seam only (PowerTestBudgetPath): a borrowed budget, cleared before release.
-    void TestSetBudget(cISC4BudgetSimulator* b) { budget_ = b; }
-    cISC4Demolition* Demolition() const { return demolition_; }
+    void TestSetBudget(cISC4BudgetSimulator* b) { budget = b; }
+    cISC4Demolition* Demolition() const { return demolition; }
     cIGZMessageTarget2* Target() { return static_cast<cIGZMessageTarget2*>(this); }
     void AcquireServices();
     void ReleaseServices();
     void Subscribe(const uint32_t* ids, size_t count, bool add);
-    // Keeps a game list (and the references it holds) until the outermost
-    // call into the core returns.
-    void Hold(std::shared_ptr<void> list) { held_.push_back(std::move(list)); }
+    // Hold (FC4PowerGame) keeps a game list (and the references it holds)
+    // until the outermost call into the core returns.
 
     struct ConsumptionMap;  // slot 18 (cFC4Power.cpp)
 
@@ -148,7 +180,7 @@ public:
     public:
         explicit CoreCall(cFC4PowerSimulator* s) : s_(s) { ++s_->depth_; }
         ~CoreCall() {
-            if (--s_->depth_ == 0) s_->held_.clear();
+            if (--s_->depth_ == 0) s_->held.clear();
         }
         CoreCall(const CoreCall&) = delete;
         CoreCall& operator=(const CoreCall&) = delete;
@@ -168,14 +200,7 @@ private:
     fc4::HostGridContext gridCtx_{"power", fc4::Sw::PowerGridWrites};
     fc4_power_host host_{};
     fc4_power* core_ = nullptr;
-    cISC4City* city_ = nullptr;
-    cISC4OccupantManager* occupantManager_ = nullptr;
-    cISC4ZoneManager* zoneManager_ = nullptr;
-    cISC4NeighborsSimulator* neighbors_ = nullptr;
-    cISC4BudgetSimulator* budget_ = nullptr;
     cIGZMessageServer2* msgServer_ = nullptr;
-    cISC4Demolition* demolition_ = nullptr;
-    std::vector<std::shared_ptr<void>> held_;
     int depth_ = 0;
     ConsumptionMap* map_ = nullptr;
     SC4Percentage strikeEfficiency_{};  // slot 47 returns its address

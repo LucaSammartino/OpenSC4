@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "demand_neutral_rate_sum_order",
+  "spec": ["demand 5", "demand 11.1", "foundations 4.3", "foundations 18"],
+  "description": "GetNeutralTaxRate's sum is s = f32(f32(I + C) + R), with I, C, R the supplies of 0x4001, 0x3001, 0x1001: two float32 additions in that order (DQ9, the demand.md 5 worked example; run 73, the demand shadow's one mismatch). R = 27207 (0x46D48E00), C = 2569.47998046875 (0x452097AE), I = 10583.1005859375 (0x46255C67): I + C = 13152.58056640625 is an exact tie -> 13152.580078125 (0x464D8252, to even); + R = 40359.580078125, again a tie -> 40359.578125 (0x471DA794). The curve's first segment (0, 9.0)-(150000, 8.9f) then gives 8.97309399 (0x410F91CB), the original's value. R + C + I (29776.48046875, then 0x471DA795), or one rounding of the exact sum, gives 8.97309303 (0x410F91CA), 1 ulp lower: expect_bits checks the exact bits, which the expect tolerance cannot. With no supply the rate is the curve's 9.0; R = 75000 alone (every order exact) gives f32(9.0 + f32(75000 x slope)) = 8.94999981 (0x410F3333), slope = f32(f32(8.9f - 9.0) / 150000) = 0xB532F529. Expected bits from an independent Python model of the float32 steps.",
+  "steps": [
+    {"op": "demand_tuning", "props": {
+      "0x4A1F38B5": {"f32": [0, 9.0, 150000, 8.9]}}},
+    {"op": "demand_exemplar", "instance": "0x1001"},
+    {"op": "demand_exemplar", "instance": "0x3001"},
+    {"op": "demand_exemplar", "instance": "0x4001"},
+    {"op": "demand_create"},
+    {"op": "demand_init"},
+    {"op": "demand_call", "method": "neutral_tax_rate", "expect": 9.0, "expect_bits": "0x41100000"},
+    {"op": "demand_node", "key": "0x1001", "method": "set_supply", "args": [27207]},
+    {"op": "demand_node", "key": "0x3001", "method": "set_supply", "args": [2569.47998046875]},
+    {"op": "demand_node", "key": "0x4001", "method": "set_supply", "args": [10583.1005859375]},
+    {"op": "demand_node", "key": "0x1001", "method": "supply", "expect": 27207},
+    {"op": "demand_node", "key": "0x3001", "method": "supply", "expect": 2569.47998046875},
+    {"op": "demand_node", "key": "0x4001", "method": "supply", "expect": 10583.1005859375},
+    {"op": "demand_call", "method": "neutral_tax_rate", "expect": 8.97309399, "expect_bits": "0x410F91CB"},
+
+    {"op": "demand_node", "key": "0x1001", "method": "set_supply", "args": [75000]},
+    {"op": "demand_node", "key": "0x3001", "method": "set_supply", "args": [0]},
+    {"op": "demand_node", "key": "0x4001", "method": "set_supply", "args": [0]},
+    {"op": "demand_call", "method": "neutral_tax_rate", "expect": 8.95, "expect_bits": "0x410F3333"}
+  ]
+}

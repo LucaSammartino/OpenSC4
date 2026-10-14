@@ -56,6 +56,13 @@ bool Has(const cISCPropertyHolder* holder, uint32_t id);
 // The variant type of a property (cIGZVariant::Type), 0 if absent.
 uint16_t TypeOf(const cISCPropertyHolder* holder, uint32_t id);
 
+// The raw storage of an ARRAY property, without conversion: the bytes the
+// variant's data pointer (RefUint8, slot 95) points at, count x element size
+// (bool, void and 8-bit chars 1, 16-bit 2, 32-bit and pointers 4, 64-bit 8),
+// as the crime effect is read (crime.md §6.10). False if the property is
+// absent, a scalar, an object array or of unknown type (out left empty).
+bool GetRawArrayBytes(const cISCPropertyHolder* holder, uint32_t id, std::vector<uint8_t>& out);
+
 // Numeric writes: replace the property on `holder` (an instance override)
 // with an array of the given type.
 bool SetU32s(cISCPropertyHolder* holder, uint32_t id, const std::vector<uint32_t>& values);

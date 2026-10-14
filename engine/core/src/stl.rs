@@ -426,6 +426,13 @@ impl StlHashSet {
     pub fn iter_order(&self) -> Vec<u32> {
         self.map.keys()
     }
+
+    /// `erase(value)`: removes `v` from its chain, keeping the order of the
+    /// others (the bucket array is not shrunk). Returns whether it was
+    /// present.
+    pub fn remove(&mut self, v: u32) -> bool {
+        self.map.remove(v).is_some()
+    }
 }
 
 #[cfg(test)]

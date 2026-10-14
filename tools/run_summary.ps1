@@ -57,8 +57,9 @@ if ($obs.Count -gt 0) {
         $obs.Count, $a[1].Value, $a[2].Value, $a[3].Value, $a[4].Value, $z[1].Value, $z[2].Value, $z[3].Value, $z[4].Value)
 }
 
-# Month status lines: "<name> month:", "<name> month (<part>):" or "<name> month yyyy-mm:" (crime).
-$months = Select-String -Path $Log -Pattern "\] ([a-z][a-z ]*?) month( \([a-z ]+\))?( \d{4}-\d\d)?:" -CaseSensitive
+# Month status lines: "<name> month:", "<name> month (<part>):", "<name> month yyyy-mm:" (crime) or
+# "<name> month yyyy-mm-dd:" (flora).
+$months = Select-String -Path $Log -Pattern "\] ([a-z][a-z ]*?) month( \([a-z ]+\))?( \d{4}-\d\d(-\d\d)?)?:" -CaseSensitive
 $groups = $months | Group-Object { $_.Matches[0].Groups[1].Value + $_.Matches[0].Groups[2].Value }
 if ($groups) {
     Write-Output ""
@@ -71,23 +72,26 @@ if ($groups) {
     }
 }
 
-# Shadow comparison lines: any "<name> shadow ... <date> ...: ... mismatches=N" line (budget and demand per day or
-# month, "pollution shadow month to <date>" and its day lines, "protection shadow (fire) <date>").
-$shadows = Select-String -Path $Log -Pattern "\] ([a-z]+) shadow [^:]*\d{4}-\d\d-\d\d[^:]*:.*mismatches=" -CaseSensitive
+# Shadow comparison lines: any "<name> shadow ... <date> ...: ..." line that reports "mismatches=N",
+# "mismatched N" / "mismatched=N" or a bare "clean" (budget and demand per day or month, "pollution shadow month to
+# <date>" and its day lines, "protection shadow (fire) <date>", "flora shadow month <date>: ... mismatched N",
+# "landfill shadow month to <date>: clean|mismatches=N"). A line differs when any of those counts is non-zero.
+$shadows = Select-String -Path $Log -Pattern "\] ([a-z]+) shadow [^:]*\d{4}-\d\d-\d\d[^:]*: .*(mismatch(es|ed)[= ]\d|: clean\b)" -CaseSensitive
+$differs = "mismatch(es|ed)[= ][1-9]|differences [1-9]"
 $sg = $shadows | Group-Object { $_.Matches[0].Groups[1].Value }
 if ($sg) {
     Write-Output ""
     Write-Output "shadow lines:"
     foreach ($g in $sg) {
-        $clean = @($g.Group | Where-Object { $_.Line -match "mismatches=0\b" -and $_.Line -notmatch "mismatches=[1-9]" }).Count
+        $clean = @($g.Group | Where-Object { $_.Line -notmatch $differs }).Count
         Write-Output ("  {0,-12} {1,5} lines, {2} with every mismatch count 0" -f $g.Name, $g.Count, $clean)
-        $bad = $g.Group | Where-Object { $_.Line -match "mismatches=[1-9]" } | Select-Object -First 2
+        $bad = $g.Group | Where-Object { $_.Line -match $differs } | Select-Object -First 2
         foreach ($b in $bad) { Write-Output ("    differs: " + (Body $b.Line)) }
     }
 }
 
-$shut = Select-String -Path $Log -Pattern "\] [a-zA-Z ]+ Shutdown( \(|$)" -CaseSensitive
+$shut = Select-String -Path $Log -Pattern "\] [a-zA-Z ]+ Shutdown( \(|:|$)" -CaseSensitive
 if ($shut) {
     Write-Output ""
-    Write-Output ("shutdown lines: " + (($shut | ForEach-Object { (Body $_.Line) -replace ' \(.*$', '' } | Select-Object -Unique) -join "; "))
+    Write-Output ("shutdown lines: " + (($shut | ForEach-Object { (Body $_.Line) -replace '( \(|:).*$', '' } | Select-Object -Unique) -join "; "))
 }

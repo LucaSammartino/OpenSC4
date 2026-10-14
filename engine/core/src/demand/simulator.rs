@@ -270,10 +270,13 @@ pub(super) fn propagate(
     st
 }
 
-/// `GetNeutralTaxRate()` (§5) from the supplies of `0x1001`, `0x3001` and
-/// `0x4001` (0 for a missing node), unclamped; 0 without the curve.
+/// `GetNeutralTaxRate()` (§5) from the supplies `r`, `c`, `i` of `0x1001`,
+/// `0x3001` and `0x4001` (0 for a missing node), unclamped; 0 without the
+/// curve. [compat] (§5, DQ9) The sum is `f32(f32(I + C) + R)`: two float32
+/// additions in that order, not R + C + I and not one rounding of the exact
+/// sum (1 ulp apart in run 73's census, `0x410F91CB` vs `0x410F91CA`).
 pub(super) fn neutral_tax_rate_of(tuning: &DemandTuning, r: f32, c: f32, i: f32) -> f32 {
-    let pop = r + c + i;
+    let pop = (i + c) + r;
     tuning.neutral_tax_curve.as_ref().map_or(0.0, |cv| cv.eval(pop))
 }
 

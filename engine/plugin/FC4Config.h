@@ -45,7 +45,7 @@
 //                                 original crime simulator; FC4CrimeShadow.h)
 //   crime_shadow_cells = N        its differing cells listed per month (default 8)
 //   crime_seed = N                the crime generator's session seed (default:
-//                                 the local wall clock; cFC4Crime.cpp)
+//                                 the cRZTime clock, crime.md §9; cFC4Crime.cpp)
 //   popup_dialogs = 0 / 1         unattended runs: 0 = cISC4App::SetPopupDialogsEnabled(false)
 //                                 once per process (advisor popups dropped without
 //                                 the hidden pause, generic dialogs answer without
@@ -63,6 +63,24 @@
 //   aura_shadow_cells = N         its differing tracts listed per grid (default 4)
 //   flora_shadow = 0 / 1          the flora census shadow (default 0; needs the
 //                                 original flora simulator; FC4FloraShadow.h)
+//   landfill_shadow = 0 / 1       the landfill shadow (default 0; needs the ORIGINAL
+//                                 landfill developer: do not enable landfill;
+//                                 FC4LandfillShadow.h)
+//   landfill_shadow_diffs = N     its differences listed per month (default 8)
+//   power_shadow = 0 / 1          the power shadow (default 0; needs FreeCity4's
+//                                 simulator and the ORIGINAL power simulator: do not
+//                                 enable power; FC4PowerShadow.h)
+//   power_shadow_cells = N        its differing cells listed per line (default 8)
+//   power_shadow_lines = N        its cycle lines with a difference per month
+//                                 (default 32; -1 = every cycle)
+//   landvalue_shadow = 0 / 1      the land value grid shadow (default 0; needs the
+//                                 ORIGINAL land value simulator: do not enable
+//                                 landvalue; FC4LandValueShadow.h)
+//   landvalue_shadow_cells = N    its differing tracts listed per grid (default 4)
+//   flammability_shadow = 0 / 1   the flammability grid shadow (default 0; needs the
+//                                 ORIGINAL flammability simulator: do not enable
+//                                 flammability; FC4FlammabilityShadow.h)
+//   flammability_shadow_cells = N its differing tracts listed per grid (default 4)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.
@@ -244,6 +262,24 @@ enum class Sw : unsigned {
     FloraPosts,      // flora_posts: FloraTypesUpdated (off: not posted)
     FloraCheats,     // flora_cheats: the "Flora" cheat and the PlaceFlora command registrations
     FloraExemplars,  // flora_exemplars: the flora exemplar enumeration (off: no flora types)
+    // Landfill developer host callbacks (cFC4Landfill.cpp), one per group of
+    // game calls; only used when the landfill subsystem is enabled.
+    LandfillTerrain,     // landfill_terrain: terrain altitude and sea level reads, SetAltitude,
+                         //   RedisplayTerrain (off: 0, nothing redrawn)
+    LandfillLevelling,   // landfill_levelling: the lot developer's AttemptAreaLevelling (off: not levelled)
+    LandfillPollution,   // landfill_pollution: the garbage supply and capacities, AddToGarbageSupply,
+                         //   SetGarbageCapacity, the active-landfill flag, GarbagePutInLandfill (off: 0)
+    LandfillBudget,      // landfill_budget: the sanitation department, its funding and line item 30
+                         //   (off: no department)
+    LandfillZoning,      // landfill_zoning: GetZoneCount, GetZoneType, PlaceZone (off: unzoned, refused)
+    LandfillOccupants,   // landfill_occupants: occupant lookups, removal, position, flags, messages,
+                         //   item costs, flora and base-texture removal (off: no occupants)
+    LandfillProps,       // landfill_props: AddLotProp / RemovePropA, the zot (off: no zot)
+    LandfillTraffic,     // landfill_traffic: FindNetworkTile, the traffic simulator's subnetworks
+                         //   (off: no road tile, no connection)
+    LandfillHistory,     // landfill_history: the history record messages (MessageSend)
+    LandfillEffects,     // landfill_effects: the zone effects (§4.10, rendering only; not implemented,
+                         //   logged once either way)
     Count
 };
 

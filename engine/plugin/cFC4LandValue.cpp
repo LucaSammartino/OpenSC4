@@ -333,6 +333,17 @@ bool ReadTuning(Tuning& t) {
 
 }  // namespace
 
+void FC4LandValueReadTuning(void (*f)(void* ctx, const fc4_landvalue_tuning* tuning), void* ctx) {
+    if (f == nullptr) return;
+    Tuning tuning;
+    if (!ReadTuning(tuning)) {
+        f(ctx, nullptr);
+        return;
+    }
+    const fc4_landvalue_tuning t = tuning.Get();
+    f(ctx, &t);
+}
+
 cIGZUnknown* CreateFC4LandValueSimulator() {
     return static_cast<cIGZUnknown*>(static_cast<cISC4LandValueSimulator*>(new cFC4LandValueSimulator()));
 }
