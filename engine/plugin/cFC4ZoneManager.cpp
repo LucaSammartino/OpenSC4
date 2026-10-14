@@ -1390,6 +1390,12 @@ uint32_t cFC4ZoneManager::GetGZCLSID() { return kFC4_CLSID_cSC4ZoneManager; }
 intptr_t ZonesTestSeam(const FC4ZonesTestInput* in) {
     if (in == nullptr) return -1;
     if (in->op == kFC4ZonesTestHooks) {
+        if (in->zoneManager == nullptr) {
+            // The outLots allocator only (null: back to the game's).
+            g_testSetAllocate = in->setAllocate;
+            g_testSetFree = in->setFree;
+            return 0;
+        }
         cFC4ZoneManager* z = cFC4ZoneManager::FromPrimary(in->zoneManager);
         if (z == nullptr) return -1;
         g_testSetAllocate = in->setAllocate;
@@ -1397,5 +1403,6 @@ intptr_t ZonesTestSeam(const FC4ZonesTestInput* in) {
         z->SetTestHooks(in->host, in->postSink, in->postSinkContext);
         return 1;
     }
+    if (in->op == kFC4ZonesTestLiveRegions) return static_cast<intptr_t>(cFC4ZoningChangeMessage::LiveRegions());
     return -1;
 }

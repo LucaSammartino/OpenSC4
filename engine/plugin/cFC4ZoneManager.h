@@ -303,13 +303,14 @@ cIGZUnknown* CreateFC4ZoneManager();
 
 // Test seam op 38 (FC4TestSeam.h, kFC4SeamZones): `a` is one of these.
 struct FC4ZonesTestInput {
-    uint32_t op;  // kFC4ZonesTestHooks or kFC4ZonesTestShadow
+    uint32_t op;  // kFC4ZonesTestHooks, kFC4ZonesTestShadow or kFC4ZonesTestLiveRegions
     // kFC4ZonesTestHooks: on `zoneManager` (FreeCity4's, any of its interfaces),
     // every non-NULL callback of `host` answers instead of the game (with
     // host->user); a `host` whose grids.create is set replaces the game grids;
     // every ZoningChange is handed to `postSink` before it is posted; the outLots
     // set's nodes come from `setAllocate` / `setFree` instead of the game's
-    // allocator. The core is created anew (call it before Init / Read).
+    // allocator. The core is created anew (call it before Init / Read). A null
+    // `zoneManager` sets the outLots allocator only (null: the game's again).
     cIGZUnknown* zoneManager;
     const fc4_zones_host* host;
     FC4PostSinkFn postSink;
@@ -322,8 +323,9 @@ struct FC4ZonesTestInput {
     int32_t julian;
     uint32_t event;
 };
-enum : uint32_t { kFC4ZonesTestHooks = 1, kFC4ZonesTestShadow = 2 };
-// Op 38's body: kFC4ZonesTestHooks returns 1 (installed) or -1 (not a
-// FreeCity4 zone manager); kFC4ZonesTestShadow returns what
-// ZonesShadowTestRun returns (FC4ZonesShadow.h).
+enum : uint32_t { kFC4ZonesTestHooks = 1, kFC4ZonesTestShadow = 2, kFC4ZonesTestLiveRegions = 3 };
+// Op 38's body: kFC4ZonesTestHooks returns 1 (installed), 0 (the allocator
+// only) or -1 (not a FreeCity4 zone manager); kFC4ZonesTestShadow returns what
+// ZonesShadowTestRun returns (FC4ZonesShadow.h); kFC4ZonesTestLiveRegions
+// returns the ZoningChange regions not yet freed (messages still alive).
 intptr_t ZonesTestSeam(const FC4ZonesTestInput* in);
