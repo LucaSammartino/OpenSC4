@@ -662,7 +662,12 @@ It runs even when the simulator is not enabled.
 
 1. recompute := true; ageing := true.
 2. `ApplyPipeFunding(f)`, with f := `dept.GetFundingPercentage()` (department slot 10, which returns a pointer to
-   the fraction):
+   the fraction). `dept` is the simulator's own department member (§3, object `+0xA4`, read at `0x006DF543`
+   with no null test), the same one that §7.2 (`0x006DC058`) and §7.3 (`0x006DA710`) read (PS5). `Init` creates
+   it as `0xAA4014B4` when none is held (`0x006DF238`–`0x006DF258`; `CreateDepartmentBudget` returns an existing
+   department unchanged, budget.md §6). After a load it is whatever the saved ref names. In every save checked
+   (Konradshohe, Tegel, Kensington, Big City Tutorial) that is the budget's department `0xAA4014B4`. It is
+   never null after `Init`. No building's budget item takes part:
    1. cond := cond − `curve 0xCA7138C4 (f × 100)` (`0x006DD119`–`0x006DD142`, stored as float32). Then
       (`0x006DD13C`–`0x006DD172`): above 1 → cond := 1, and the pipe test is **skipped** *[quirk]*; below 0 →
       0; otherwise, if numPipes = 0 → 0. So with no pipes cond stays 1 once a step takes it above 1 (only

@@ -1524,8 +1524,12 @@ shadow's current answer is in brackets.
   The original never recomputes it either. Take it at the comparison, not at the pass start (PS8). In the eight
   base-game saves with buildings the saved demand equals a recount of the saved buildings exactly (Konradshohe 23845),
   so here, unlike power (PW8), nothing is inherited. Written into plumbing.md §5.3.
-- **PS5:** the monthly funding comes from department `0xAA4014B4`, a choice the spec does not state. Which
-  department? [`0xAA4014B4`]
+- ~~**PS5:** the monthly funding comes from department `0xAA4014B4`, a choice the spec does not state. Which
+  department? [`0xAA4014B4`]~~ **ANSWERED 2026-10-14** from the exe (`DoMonthlySimulation` `0x006DF543` reads the
+  member `+0xA4`; `Init` `0x006DF238`–`0x006DF258` creates it as `0xAA4014B4`): **the bracket matches.** The funding is
+  the simulator's own held department. That is `0xAA4014B4` on a new city and the saved ref after a load, and the
+  saved ref is `0xAA4014B4` in every save checked. Production (§7.2) and ageing (§7.3) read the same member.
+  Written into plumbing.md §7.1.
 - **PS6:** a pass's start is seen only when state 2 changes a probe cell; if the next working grid already matches
   what state 2 would write, the start is missed and the pass is marked not exact. [as stated]
 - **PS7:** when a state 8 may have run unobserved, ageing is logged as `unknown` and producer condition is not
