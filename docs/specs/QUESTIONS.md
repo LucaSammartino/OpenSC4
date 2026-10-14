@@ -1437,6 +1437,11 @@ brackets.
   a 2×2 block of adjusted tracts, (7..8, 53..54), is 81 in the original and 65 in ours (max |d| 21; raw grid
   identical). One lot's flammability contribution changed in a way the mirror missed or counted differently: which
   event sets an adjusted tract outside the day visit (a lot condition or occupant change mid-cycle)?
+- **FL6 — second occurrence (run 83, coordinator):** 69 of 70 compared cycles exact; in cycle 15 (2027-08-11)
+  595 adjusted tracts differ (raw grid identical; max |d| 21), starting with the column (0, 42..46): 100/80,
+  106/85 original/ours, the city average 43 against 40..41. The original is about 1.25 times ours, the same ratio
+  as FL5's 81/65, so a ×1.25 factor reached a whole region mid-cycle. Which event applies it (a fire, a disaster or
+  an ordinance), and does it go through the day visit?
 
 ## From applying the data-format answers (filed by the coordinator from the `apply4a` lane's report, 2026-10-14)
 
