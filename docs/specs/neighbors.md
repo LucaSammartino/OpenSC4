@@ -71,6 +71,17 @@ none) at position `(qx, qz)` and size `(tx, tz)`:
 | West | `(tx·64, z mod 64 + (rz − qz)·64)` |
 | North | `(x mod 64 + (rx − qx)·64, tz·64)` |
 | South | `(x mod 64 + (rx − qx)·64, −1)` |
+| interior (none of the above) | `(0, 0)`, and success |
+
+The helper (`0x006CE920`) first sets its three outputs (neighbour city, cell x, cell z) to null, 0 and 0. It then
+fails (returns false) when there is no current regional record or no city at `(rx, rz)`. An **interior** cell
+(NB6) leaves `(rx, rz)` at our own position `(px, pz)`. The city found there is **our own** regional city, so the
+helper returns **true** with that city and the zeroed cell `(0, 0)` (the side switch has no interior case). Example:
+a 1 × 1 city at region (3, 3), with the cell (10, 20), gives true, our own regional city, and `(0, 0)`.
+
+The only in-simulator user, `FindConnectionOnOtherSide`, then asks our own regional record for a connection at
+`(0, 0)`. No connection lies inside the city, so it gets null, as for a failed conversion. *[compat]* The helper
+itself must return the row above, because the original regional city calls this conversion directly (§15.2).
 
 **Valid connection cell** for regional city `R` of size `(sx, sz)`: exactly one of `x ∈ {−1, 64·sx}` and
 `z ∈ {−1, 64·sz}` holds. The inverse conversion (neighbour cell → our connection cell) mirrors the table. Other

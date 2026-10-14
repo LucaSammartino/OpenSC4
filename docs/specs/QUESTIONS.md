@@ -464,7 +464,11 @@ vectors `nb18_*`). The core's current answer is in brackets.
   the original **crashes**. `UpdateCost` (`0x006CF9C0`) checks neither the global city nor `GetNeighborsSimulator()`
   (`0x006CF9E8`); only `SetAmount` guards both. The bracket is kept as a *[choice]*: no cost change and no report
   (neighbors.md §5.4).
-- **NB6 — §2.2:** `neighbour_connection_cell` for an interior cell has no row. [`None`]
+- ~~**NB6 — §2.2:** `neighbour_connection_cell` for an interior cell has no row. [`None`]~~ **ANSWERED 2026-10-14**
+  from the exe (`0x006CE920`): **the bracket does not match.** The outputs start as null, 0, 0. An interior cell
+  keeps our own region position, finds our own regional city there, and returns **true** with `(0, 0)`.
+  `FindConnectionOnOtherSide` still ends with null, so only the helper's result differs. neighbors.md §2.2 has the
+  row and an example.
 - **NB7 — §13:** null or host references in the connection list are skipped on read. Correct? [skipped]
 - **NB8 — §8.1:** does `existing` include the deal being priced? [yes: its own `UpdateCost` counts it; 262 in
   `nb18_03`]
