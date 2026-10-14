@@ -2156,7 +2156,11 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   **The bracket stands as a *[choice]*.** The original dereferences `groups` per building, so it crashes only when
   some group list holds a building; with no buildings it returns 0 after resetting the totals. Returning 0 for null
   matches the original wherever the original does not crash.
-- **RG5:** lot `GetCenter` goes through the FXAM-guarded raw call (crime CQ3). [as crime]
+- ~~**RG5:** lot `GetCenter` goes through the FXAM-guarded raw call (crime CQ3). [as crime]~~ **ANSWERED 2026-10-14**
+  from the exe (centre helper `0x006F7E00`; lot slot 15 `0x006BF560`) and written into REH §4.4 (GetCoveredTractList).
+  **Confirmed; the bracket matches.** The class gets the lot from the lot manager and calls the same `GetCenter` as
+  crime: it writes x, y (the lot's altitude) and z, returns the output's address in EAX and leaves the x87 stack
+  empty. Without a lot it uses the occupant's `GetPosition`.
 - **RG6:** the shadow cannot reproduce the original's clock-seeded strike rolls in state 0. [those fields are not
   compared]
 - **RG7:** does the original re-read ordinance effects outside state 0? [the shadow re-reads them]

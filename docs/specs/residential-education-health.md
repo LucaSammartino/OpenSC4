@@ -338,6 +338,12 @@ but still counts the tract's population. A second such building counts it again.
 
 - Centre: the lot's centre (`lotManager.GetOccupantLot(occ)` → `lot.GetCenter`). If there is no lot, the
   occupant's `GetPosition`.
+  - *[compat]* (RG5; `0x006F7E00`, called at `0x006F9CCF` and `0x006FDBA3`). The lot comes from the lot manager's
+    slot 14 (`+0x38`) and the centre from lot slot 15 (`+0x3C`, `0x006BF560`), the same call crime makes
+    (crime.md §13, CQ3). It writes x and z (8 · (x1 + x2 + 1), exact in float32) and y = the lot's altitude
+    (`+0x24`), returns EAX = the output's address and leaves the **x87 stack empty**. A raw call that guards the
+    x87 stack, as crime's glue does, therefore matches. Without a lot, the occupant's slot 8 (`+0x20`,
+    `GetPosition`) fills the same vector.
 - Calls `GetTractsInRadius(px, pz, r × slop, grid.GetTractWidthX(), countX, countZ, &list)`. slop = "coverage
   radius slop multiplier" (§4.13).
 
