@@ -378,6 +378,8 @@ Notes *[compat]*:
   part of the rect outside the city is read, and on a commit written, outside the grid. A bitmap smaller than its
   rect skips the cells it does not cover; a bitmap with bad row pointers is dereferenced. *[choice]* reject such a
   call with error 0 before touching anything; the original has no such failure.
+- `PlaceZone` calls the budget simulator's `GetTotalFunds` first, with no null test (`0x004DD78A`): without a budget
+  simulator the original crashes (ZG9).
 - The 5th argument (`checkAreaSlope` in the SDK) is used four ways: slope check, building-removal check,
   `DemolishLots` argument, `DoParcellization`'s street-removal flag (§7.9) and ZoningChange data4. It behaves as
   "this is a user action" *[inferred]*.

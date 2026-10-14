@@ -2873,9 +2873,13 @@ developer stays original). The current answer is in brackets.
   §10.1. A failed `Read` stops at the version and acquires nothing. The grid and services held are released by
   `Shutdown` only, which the final `Release` runs before the destructor; the destructor frees only the two count maps.
   The bracket matches, with "destruction" meaning the final `Release`.
-- **ZG9:** Glue behaviour with switches off or calls from another thread. [`zones_budget` off: unlimited funds,
+- ~~**ZG9:** Glue behaviour with switches off or calls from another thread. [`zones_budget` off: unlimited funds,
   nothing charged; no budget simulator: funds 0, withdraw false; PlaceZone from another thread without the lock:
-  false, error 0; such a message: dropped; SetZoneDisplayAlpha: unchanged; GetZoneType fallback: 0 outside the grid]
+  false, error 0; such a message: dropped; SetZoneDisplayAlpha: unchanged; GetZoneType fallback: 0 outside the grid]~~
+  **ANSWERED 2026-10-14** from the exe (`PlaceZone` `0x004DD78A`; `GetZoneType` `0x004DC740`) and written into zones
+  §6: no original behaviour; the implementer's choice stands. The original has no switches and no threads. Where it
+  meets these cases it does not cope: `PlaceZone` calls the budget simulator with no null test (a crash without one),
+  and `GetZoneType` reads outside the grid unchecked (§11.1).
 - **ZG10:** Is the loaded flag set before the version check, even on failure? [yes; the core changed to do this]
 - **ZG11:** Occupant manager slot 33. [called through the SDK overload, relying on MSVC's reversal of overloaded
   virtuals]
