@@ -2274,6 +2274,9 @@ Every REH §11 test is also a `fc4-core` unit test (`residential::tests::reh01_�
 | 24 slot rows (34, 10–14, 56, 57) | `reh11_24_slot_abi`, `rs15_22_slot_abi` |
 | extra: §4.1 building registration (the line change, the line item and its count, locally funded purposes, references; an unknown department) | `rs00_reh41_building_registration` |
 | extra: §4.2 funding percentages and efficiency (slots 19 / 20; the strike efficiency; question 1) | `rs00_reh42_funding_and_efficiency` |
+| extra: §4.3 the effect lists (an element per service and ordinance with any of its six properties; a curve alone counts; Init and state 0), m1 / m2 / m3, the decay products in the population tuning, an ordinance age curve and m2 in grading | `rs00_reh43_ordinance_effects` |
+| extra: §4.4 / §4.5 a building without a coverage radius (skipped; served, effective capacity and grade 0; the staff ratio kept) | `rs00_reh45_missing_radius` |
+| extra: §4.10 the auto-budget step (before the grading; the building's or the global flag; not graded; the max; a hospital without a vehicle item) | `rs00_reh410_auto_budget` |
 | extra: §4.11 slot 45's coverage geometry (the distance curve walk [quirk]; question 7) | `rs00_reh411_occupant_coverage` |
 | extra: state-0 list distribution and slots 46–49, 61 (§4.1) | `rs00_state0_lists` |
 | RS7 (the shipped LE curve) | `rs15_08_generational_reset` |

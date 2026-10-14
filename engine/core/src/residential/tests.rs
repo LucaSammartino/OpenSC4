@@ -3188,6 +3188,138 @@ fn occupant_coverage_geometry() {
     assert_eq!(fx.s.occupant_service(1), Some(&HOSPITAL));
 }
 
+/// REH §4.3: one effect element per service and ordinance that has at least
+/// one of the six properties (a curve alone counts), read at `Init` and,
+/// after clearing, in every state 0; m1 / m2 / m3 and the decay products
+/// multiply in list order; m2 scales the graded capacity.
+#[test]
+fn ordinance_effect_lists() {
+    let fx = Fx::constructed(CityDims::square(16), 4, Some(shipped_tuning()));
+    fx.h.enact(
+        0x10,
+        props(&[
+            (SCHOOL.ord_radius, f(50.0)),
+            (SCHOOL.ord_capacity, f(200.0)),
+            (SCHOOL.ord_effect, f(110.0)),
+            (SCHOOL.ord_decay, f(50.0)),
+        ]),
+    );
+    fx.h.enact(
+        0x11,
+        props(&[(HOSPITAL.ord_effect, f(110.0)), (HOSPITAL.ord_decay, f(200.0))]),
+    );
+    fx.h.enact(0x12, props(&[(SCHOOL.ord_age_curve, curve(&[0.0, 50.0, 100.0, 50.0]))]));
+    fx.h.enact(0x13, props(&[(0x1234_5678, u(7))]));
+    fx.h.enact(0x14, props(&[(SCHOOL.ord_effect, f(110.0))]));
+    assert!(fx.s.init());
+    let s = fx.s.snapshot();
+    assert_eq!((s.school_effects.len(), s.health_effects.len()), (3, 1));
+    let (m1, m2, m3) = ordinance_modifiers(&s.school_effects);
+    // 1.1f × 1.0 × 1.1f = 1.21 (0x3F9AE148), one float32 rounding each.
+    assert_eq!((m1, m2, m3.to_bits()), (0.5, 2.0, 0x3F9A_E148));
+    assert_eq!(s.school_effects[1].age_curve.eval(30.0), 50.0);
+    assert_eq!(s.school_effects[0].age_curve.eval(30.0), 100.0);
+    assert_eq!(ordinance_modifiers(&s.health_effects), (1.0, 1.0, pct(110.0)));
+    assert_eq!(fx.s.ordinance_decay_products(), (0.5, 2.0));
+    // State 0 clears and re-reads: 0x14 is off now.
+    fx.h.ordinances.borrow_mut().remove(&0x14);
+    fx.set_state(state::STRIKES_AND_LISTS);
+    fx.step();
+    let s = fx.s.snapshot();
+    assert_eq!((s.school_effects.len(), s.health_effects.len()), (2, 1));
+    assert_eq!(ordinance_modifiers(&s.school_effects), (0.5, 2.0, pct(110.0)));
+    // Grading: 0x12's age curve (50) halves the served population (8000 →
+    // 4000) and m2 = 2 doubles the effective capacity (2000): grade 0.5.
+    fx.set_tract(0, 0, steady([8000, 0, 0]));
+    service(&fx, 1, &SCHOOL, 0, 1000, 10.0, (32.0, 32.0));
+    cover_and_grade(&fx, true);
+    assert_eq!(fx.h.prop_u32(1, SCHOOL.served), Some(4000));
+    assert_eq!(fx.h.prop_u32(1, SCHOOL.effective_capacity), Some(2000));
+    assert_eq!(fx.h.prop_f32(1, SCHOOL.staff_ratio), Some(0.5));
+    assert_eq!(fx.h.prop_f32(1, SCHOOL.grade), Some(0.5));
+}
+
+/// REH §4.4 / §4.5: a building without a coverage radius is skipped by the
+/// coverage state; grading writes served 0, effective capacity 0 and grade
+/// 0.0 and leaves the staff ratio alone.
+#[test]
+fn grading_without_radius() {
+    let fx = Fx::new(16);
+    fx.set_tract(0, 0, steady([100, 0, 0]));
+    service(&fx, 1, &SCHOOL, 0, 1000, 10.0, (32.0, 32.0));
+    fx.h.props.borrow_mut().remove(&(1, SCHOOL.radius));
+    fx.h.set_prop(1, SCHOOL.staff_ratio, f(0.7));
+    fx.h.set_prop(1, SCHOOL.grade, f(0.9));
+    cover_and_grade(&fx, true);
+    assert_eq!(coverage(&fx, 0, 0, 0), 0);
+    assert_eq!(fx.s.snapshot().school_covered, 0);
+    assert_eq!(fx.h.prop_u32(1, SCHOOL.served), Some(0));
+    assert_eq!(fx.h.prop_u32(1, SCHOOL.effective_capacity), Some(0));
+    assert_eq!(fx.h.prop_f32(1, SCHOOL.grade), Some(0.0));
+    assert_eq!(fx.h.prop_f32(1, SCHOOL.staff_ratio), Some(0.7));
+}
+
+/// REH §4.10: the auto-budget step of states 6 / 8 runs before the building
+/// is graded (so on last cycle's served population) when the service's
+/// global flag or the building's own flag is set; only the staff
+/// percentage changes, the vehicle one is written back.
+#[test]
+fn auto_budget_step() {
+    let fx = Fx::new(16);
+    let (staff, vehicle) = (SCHOOL.staff_purpose, SCHOOL.vehicle_purpose);
+    let set_local = |fx: &Fx| -> Vec<Ev> {
+        fx.h.take_events()
+            .into_iter()
+            .filter(|e| matches!(e, Ev::SetLocal(..)))
+            .collect()
+    };
+    fx.set_tract(0, 0, steady([500, 0, 0]));
+    service(&fx, 1, &SCHOOL, 0, 1000, 10.0, (32.0, 32.0));
+    fx.h.department(0x77, 950, 0.8);
+    fx.h.department(0x78, 951, 0.75);
+    fx.h.item(1, staff, staff_item(0x77, 0, 0));
+    fx.h.item(1, vehicle, staff_item(0x78, 0, 1));
+    graded(&fx, 1, &SCHOOL, 1000, 500, 1.0);
+    // Neither flag: no step.
+    cover_and_grade(&fx, true);
+    assert!(set_local(&fx).is_empty());
+    assert_eq!(fx.h.prop_u32(1, SCHOOL.served), Some(500));
+    // The building's flag: ideal funding 500 / 1000 → 0.5; b = 0.75 back.
+    assert!(fx.s.set_auto_budget(1, true));
+    cover_and_grade(&fx, true);
+    assert_eq!(
+        set_local(&fx),
+        vec![Ev::SetLocal(950, 1, 0.5, staff), Ev::SetLocal(951, 1, 0.75, vehicle)]
+    );
+    // Not graded yet: EstimateIdealFunding fails, no step.
+    fx.h.set_prop(1, SCHOOL.served, u(NOT_GRADED));
+    cover_and_grade(&fx, true);
+    assert!(set_local(&fx).is_empty());
+    // The global flag alone, on last cycle's served 1500: r = 1.5 → the max.
+    assert!(fx.s.set_auto_budget(1, false));
+    fx.s.with_state(|s| s.school_auto_budget = true);
+    fx.h.set_prop(1, SCHOOL.served, u(1500));
+    cover_and_grade(&fx, true);
+    let max = f32::from_bits(0x3F99_9999);
+    assert_eq!(
+        set_local(&fx),
+        vec![Ev::SetLocal(950, 1, max, staff), Ev::SetLocal(951, 1, 0.75, vehicle)]
+    );
+    assert_eq!(fx.h.prop_u32(1, SCHOOL.served), Some(500));
+
+    // Hospitals (state 8): no vehicle item, so only the staff percentage is
+    // set before SetOccupantFundingPercentages stops.
+    service(&fx, 2, &HOSPITAL, 0, 1000, 10.0, (32.0, 32.0));
+    fx.h.department(0x79, 952, 1.0);
+    fx.h.item(2, HOSPITAL.staff_purpose, staff_item(0x79, 0, 0));
+    graded(&fx, 2, &HOSPITAL, 1000, 500, 1.0);
+    cover_and_grade(&fx, false);
+    assert!(set_local(&fx).is_empty());
+    fx.s.with_state(|s| s.hospital_auto_budget = true);
+    cover_and_grade(&fx, false);
+    assert_eq!(set_local(&fx), vec![Ev::SetLocal(952, 2, 0.5, HOSPITAL.staff_purpose)]);
+}
+
 /// RS13: the grade totals accumulate during grading and are reset by state
 /// 0; they are not saved.
 #[test]
