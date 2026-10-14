@@ -707,8 +707,8 @@ epilogues.
 | 2 | `+0x08` | Release (`0x006B3D00`) | 0 | EAX count | §1 |
 | 3 | `+0x0C` | Init(cISCPropertyHolder*) | 4 | AL | §1.2 |
 | 4 | `+0x10` | Shutdown() | 0 | AL (1) | §1.3 |
-| 5 | `+0x14` | GetType() → int32 target zone | 0 | EAX | |
-| 6 | `+0x18` | GetSubType() → developer type | 0 | EAX | |
+| 5 | `+0x14` | GetType() → int32 target zone | 0 | EAX | `+0xD0`: 1 R, 2 C, 3 I (tuning `0x87CD6300`). **Not** the developer type |
+| 6 | `+0x18` | GetSubType() → developer type | 0 | EAX | `+0xCC`: `0x1010` … `0x4400`, the developer exemplar's instance; the key of the BDS developer map. A reader that takes slot 5 as the type sees `0x0001`–`0x0003` and finds no developer exemplar (manual-checks run 101) |
 | 7 | `+0x1C` | GetPurpose() | 0 | EAX | |
 | 8 | `+0x20` | GetWealth() | 0 | EAX | |
 | 9 | `+0x24` | GetConstructionInfo(ConstructionProfile&) | 4 | none | §6.2 |
