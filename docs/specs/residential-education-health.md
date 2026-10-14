@@ -219,6 +219,9 @@ Calls: `CreateDepartmentBudget(id, 0x6A357B7F)`, AddRef, `SetDepartmentName(0x6A
 - For the staff purpose, then the vehicle purpose: `GetBudgetItemForPurpose`; if it succeeds,
   `GetDepartmentBudget(item.department)`, then `SetLocalFundingPercent(holder, x, purpose)`.
 - A missing item ends the call **with** the dirty flag set. A null department ends it **without**.
+- When both purposes succeed, the call also ends **with** the dirty flag set (`0x006F834A`, reached from the two
+  "no item" exits and after the second `SetLocalFundingPercent`). So the flag is set in every case except a null
+  department. The flag is never read (§2), so this is not observable.
 
 **Efficiency ratings** `GetOccupantEfficiencyRatings(occ, &e1, &e2, isSchool, ignoreStrike)`:
 

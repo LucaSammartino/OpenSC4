@@ -1044,7 +1044,10 @@ brackets; the module doc of `core/src/residential/education_health.rs` lists 1 t
   `0x006F8611`–`0x006F8621`) and written into REH §4.2. **Yes.** Both set a = b = 0.0 and always call slot 20 before
   the staff-item test. With a staff item whose department is missing, the curves are read at 0: shipped school e1 =
   0, e2 = 0.5, base = 0.
-- **EH2:** slot 19 sets both percentages: does it end with the dirty flag set? [yes]
+- ~~**EH2:** slot 19 sets both percentages: does it end with the dirty flag set? [yes]~~ **ANSWERED 2026-10-14** from
+  the exe (`SetOccupantFundingPercentages` `0x006F8290`; flag store `0x006F834A`) and written into REH §4.2. **Yes.**
+  The flag store is shared by both "no item" exits and the normal end; only a null department returns without it.
+  The flag is never read.
 - **EH3:** after `ChangeBudgetItemLine`, is the line item's line the building type? [yes]
 - **EH4:** on removal with no line item for the line, is the count step skipped? [skipped]
 - **EH5:** a building added without a capacity: is its effective capacity 0? [yes]
