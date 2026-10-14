@@ -469,7 +469,11 @@ vectors `nb18_*`). The core's current answer is in brackets.
   keeps our own region position, finds our own regional city there, and returns **true** with `(0, 0)`.
   `FindConnectionOnOtherSide` still ends with null, so only the helper's result differs. neighbors.md §2.2 has the
   row and an example.
-- **NB7 — §13:** null or host references in the connection list are skipped on read. Correct? [skipped]
+- ~~**NB7 — §13:** null or host references in the connection list are skipped on read. Correct? [skipped]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006CFE10`–`0x006CFEDD`). Failing references (wrong interface, unknown
+  class) are skipped: the bracket matches. A **null** reference succeeds: the original appends the null and then
+  releases it unchecked (`0x006CFEC5`), so it crashes inside `Read`. Skipping it is kept as a *[choice]*
+  (neighbors.md §13 table).
 - **NB8 — §8.1:** does `existing` include the deal being priced? [yes: its own `UpdateCost` counts it; 262 in
   `nb18_03`]
 - **NB9:** §5.2 says pricing ignores `0x3D` deals, but §8.1's `FindDeals` has no filter. [as §8.1]

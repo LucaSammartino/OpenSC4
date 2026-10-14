@@ -652,6 +652,18 @@ count × ref connection           (foundations §2.7, list order)
 `Read` fails unless `version == 2`; each reference is resolved as `cISC4NeighborConnection` (`0x0773FEF2`) and
 appended (the list is not cleared first).
 
+Each reference is read by the game's helper `SC4ReadGZSerializable` (`0x005D9730`; foundations §2.7). There are
+three cases (NB7; `0x006CFE10`–`0x006CFEDD`):
+
+| Reference | Helper result | Original | FreeCity4 |
+|---|---|---|---|
+| a connection | success, the object | appended (AddRef'd) | same |
+| non-null, failing: unknown class, failed creation, or an object without `0x0773FEF2` | failure, null | skipped (not appended); the loop goes on | same |
+| null (`objectID = 0`) | success, null | the null is **appended**, and then the local is released **without a null check** (`0x006CFEC5`): a null dereference, so the original crashes inside `Read` | *[choice]* skipped |
+
+At the end, `Read` returns true unless the stream is in the error state (an unknown class sets it, foundations
+§2.7).
+
 ## 14. Lifecycle
 
 ### 14.1 `Init()` → true
