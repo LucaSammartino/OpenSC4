@@ -415,10 +415,13 @@ Chooses the lot width/depth used by `Parcellize` from the developers that would 
    on the stack (vtable `0x00AB36FC`) holding `{purpose = best.GetPurpose(), wealth = best.GetWealth(), stage}`
    (growth developer slots 7, 8). Its `IsLotConfigurationIncluded(cfg)` (`0x0072A080`) is
    `cfg.IsCompatibleWithPurposeType(purpose)` (cfg slot 17) **and** `cfg.IsCompatibleWithWealthType(wealth)`
-   (slot 16) **and** `cfg.GetGrowthStage()` (slot 11, u8) ≤ stage. The filter is never registered, so the manager
-   takes its uncached path (`0x0048B2E7`): it walks all its configurations and inserts each one the filter accepts
-   into a fresh STLport `hash_set` (hint 100 → 193 buckets), with one AddRef. No best developer → no query and an
-   empty set.
+   (slot 16) **and** `cfg.GetGrowthStage()` (slot 11, u8) ≤ stage. That compare is signed, with the u8
+   zero-extended (`0x0072A0B7`–`0x0072A0BD`, ZQ8). It differs from an unsigned compare only when stage is negative,
+   which needs a negative `maxStage` in step 4. Then no configuration passes: with stage −1, a growth stage of 0
+   fails (0 ≤ −1 is false), where an unsigned compare would accept all of them. The filter is never registered, so
+   the manager takes its uncached path (`0x0048B2E7`): it walks all its configurations and inserts each one the
+   filter accepts into a fresh STLport `hash_set` (hint 100 → 193 buckets), with one AddRef. No best developer → no
+   query and an empty set.
 6. For each configuration of the set (order below) that has a primary building object (cfg slot 24; null →
    skipped) and whose size `(sx, sz)` (cfg slot 7) satisfies `2 ≤ sz ≤ 3`, `sx ≤ 3` (unsigned) and (not shallow or
    `sz ≤ 2`): `min := 0x7FFFFFFF`, `max := 0x80000000`. For each ID of the object's ID list, in list order, a fresh

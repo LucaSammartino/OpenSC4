@@ -55,8 +55,10 @@ happens when the BDS lacks one? [skipped: the first existing candidate becomes b
 the exe: the original reads each result's vtable at once (`0x00732C72`), so a missing developer crashes it. The
 bracket is kept as a *[choice]*, with no candidates at all taking the no-best path (zones.md §7.2.1 step 2).
 
-**ZQ8 — step 5: signedness of `GetGrowthStage() ≤ stage`.** The growth stage is a u8; the stage is an int32. Signed
-or unsigned compare? [zero-extended, compared signed; the two differ only for a negative `maxStage`]
+~~**ZQ8 — step 5: signedness of `GetGrowthStage() ≤ stage`.** The growth stage is a u8; the stage is an int32. Signed
+or unsigned compare? [zero-extended, compared signed; the two differ only for a negative `maxStage`]~~ **ANSWERED
+2026-10-14** from the exe: the bracket matches (`movzx`, then `setle` at `0x0072A0B7`–`0x0072A0BD`). zones.md §7.2.1
+step 5 now says so, with the negative-stage example.
 
 **ZQ9 — step 6: the initial best score, and wrap of `|v − bestDemand|`.** [the first scored configuration is always
 taken; the difference is computed without a 32-bit wrap]
