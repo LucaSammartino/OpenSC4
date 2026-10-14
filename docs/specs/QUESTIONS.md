@@ -2824,9 +2824,15 @@ in brackets.
   no slot distinguishes. The second candidate cannot be recovered. Since the state is 0 after construction, `Init` and a
   load, only a shadow that starts mid-update meets this. No original behaviour for the shadow; the implementer's choice
   (no snapshot) stands.
-- **FL7:** FL5/FL6: exactness assumes the plumbing pass-end message (posted in state 8) is delivered before the next
+- ~~**FL7:** FL5/FL6: exactness assumes the plumbing pass-end message (posted in state 8) is delivered before the next
   pass swaps its grid (end of state 6). Two passes between polls would bring the pointer back unseen. [assumed; polled
-  at every forwarded message and at the cycle end]
+  at every forwarded message and at the cycle end]~~
+  **ANSWERED 2026-10-14** from the original's pass structure (plumbing §5.1 abort, §6 restart rule and pass length,
+  state 6 swap and state 8 post; simulator §5.1 idle rounds; flammability §9 delivery) and written into flammability
+  §6.5. Not always. A pass aborted in state 7 by a water deal status message has swapped but posts nothing, and a pass
+  that ends with the recompute flag set restarts at once and can reach its next swap in the same frame, before its
+  pass-end message is delivered. Either way the pointer can come back unseen. *[choice]* (recommended): compare the
+  published grid's watered bits at every poll instead of the pointer.
 - **FL8:** FL5/FL6: a pass first seen by the comparison's own poll, after the wrap day's early visits. [those tracts
   are accepted by the existing previous-value rule, at most 2 × tractsPerDay "unvisited"; marks are not carried into
   the next cycle]
