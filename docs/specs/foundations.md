@@ -683,7 +683,7 @@ The game has two generator classes. Both are exact algorithms that our engine mu
 
 | Operation | Definition |
 |---|---|
-| `Seed(s)` | `lcg := mul := s`. If `s = 0xFFFFFFFF`, s is first derived from the wall clock (non-deterministic). |
+| `Seed(s)` | `lcg := mul := s`. If `s = 0xFFFFFFFF`, s is first derived from the wall clock (non-deterministic): s := `time(NULL) XOR ((c << 16) \| c)` with `c = clock()` read once (`0x00913667`; RG21). |
 | `NextRaw()` (`RandomUint32Uniform()`) | `t := lcg × 0x41C64E6D + 0x3039` computed in **64 bits**; `lcg := t mod 2^32`; result = `(t >> 16) mod 2^32`. The result's high 16 bits come from the upper half of the 64-bit product. |
 | `RandomUint32Uniform(n)` | `n = 0` → 0, no state change. Otherwise `(NextRaw() × n) >> 32` (64-bit product). |
 | `RandomSint32RangeUniform(lo, hi)` | `lo + RandomUint32Uniform(hi − lo)` (unsigned difference). |

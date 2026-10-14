@@ -2236,7 +2236,12 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   from the exe (calls `0x006FF863`, `0x006FF9E8`, `0x006FFB56`; seed helper `0x005E4FA0`, byte loads at `0x005E5049`,
   `0x005E5078`, `0x005E50CC`) and written into residential.md §5.3 step 1. **Confirmed; the bracket matches.** Slot 42
   sets only AL; the class passes EAX on, and the seed helper reads and compares the key as a byte.
-- **RG21:** the strike clock seed is `time() + 2177452800` (the cRZTime epoch), as in crime. [yes]
+- ~~**RG21:** the strike clock seed is `time() + 2177452800` (the cRZTime epoch), as in crime. [yes]~~ **ANSWERED
+  2026-10-14** from the exe (constructor `0x007005AA` → `cRZRandom(−1)` `0x00913A5C` → `Seed` `0x00913667`; `time`
+  `0x009EFB59`, `clock` `0x009F361F`) and written into REH §2 (the `cRZRandom` row) and foundations §6.1 (`Seed`).
+  **The bracket differs, but it cannot be observed.** The seed is `time(NULL) XOR ((clock() << 16) | clock())`, not
+  the `cRZTime` epoch value. No save or output exposes it. *[choice]* FreeCity4 uses `derive(0x4990C013)` from the
+  session seed, as foundations §6.3 prescribes for member generators.
 - **RG22 — `docs/abi`:** residential slots 37/38 (`GetCellEQByWealth`/`GetCellHQByWealth`) are `via-call`, low
   confidence, in `interfaces.tsv`, while residential.md §10.1 says ST0 (they end by calling the float grid's
   `GetTractValue`, x87 high). Should the rows say x87? [declared float, on the spec's word]
