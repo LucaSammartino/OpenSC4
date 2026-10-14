@@ -542,6 +542,35 @@ while k > 0:
 
 A full pass therefore takes about `period` months (24 shipped).
 
+*[compat]* **Which blocks visit a plant** (verified, FQ15). A block's query is the city-cell box
+`(32bx + 0.1, 32bz + 0.1) … (32bx + 31.9, 32bz + 31.9)` (§6.10.4), answered by the occupant manager's index
+(§6.4.2). A plant whose box spans several blocks is visited once by each block that returns it, at that block's
+place in the shuffled order. So a plant straddling a block edge is normally visited twice (or four times at a
+corner) per pass. **The exception is §6.4.2's window:** if the box is wider than 1 m on an axis and its low edge
+`m` on that axis lies in `[X − 0.164, X − 0.1)` below a 64 m line `X` (`X` a multiple of 64 in city metres),
+the block that ends at `X` overlaps the box but does not return it, and only the blocks from `X` up visit it.
+Testing every flora box directly against the block box adds those extra visits. With the shipped wild clumps
+the extra visits are visible, because their lifespans are 2–42 days against a visit every
+~`period` months: every visit by the block below finds the plant past its lifespan and gives it a rebirth
+(birth := that day, state 0) that the original does not perform. The shipped first in-game shadow (2048 m city,
+4096 blocks, 170 per month, propagation off) had six such trees, and they are the only plants that differed
+(23 differing tree-months in 94 months):
+
+| Occupant | Type | Position (x, z) | Box half-width | Axis | Line `X` | `X − m` | Months differing |
+|---|---|---|---|---|---|---|---|
+| `0x14C279F4` | `0x2A0C8216` Oak Tree clump 5 | (1726.9807, 328.84396) | 9 | z | 320 | 0.1560 | 7 |
+| `0x14C21600` | `0x2A0C8214` Oak Tree clump 3 | (1605.8865, 560.6062) | 6 | x | 1600 | 0.1135 | 4 |
+| `0x1492F0F8` | `0x2A0C8215` Oak Tree clump 4 | (327.88672, 151.14545) | 8 | x | 320 | 0.1133 | 3 |
+| `0x14BFBB08` | `0x16800000` LotFlora5x5x10_Pines1 | (1024.876, 1371.5037) | 1.0 | x | 1024 | 0.1240 | 1 |
+| `0x14C2F268` | `0x2A0C8216` Oak Tree clump 5 | (1736.8553, 401.34277) | 9 | x | 1728 | 0.1447 | 4 |
+| `0x14BEA68C` | `0x2A0C8213` Oak Tree clump 2 | (977.7621, 131.8909) | 4 | z | 128 | 0.1091 | 4 |
+
+*Example:* Oak Tree clump 5 `0x14C279F4` has the box x 1717.98 … 1735.98, z 319.84 … 337.84. It is listed in
+manager cells x 90–91, z 69 (from z 319.944, §6.4.2). Blocks (53, 10) and (54, 10) (z 320 … 352) visit it; blocks
+(53, 9) and (54, 9) (z 288 … 320) query z 288.1 … 319.9, which reads manager z cell 68 only, so they do not, although
+319.84 < 319.9. A tree 0.2 m below the line (box z 319.8 … 337.8, listed from 319.9 in z cell 68) is visited by all
+four blocks.
+
 #### 6.7.2 One flora occupant (`SimulateExistingFloraOccupant`)
 
 ```
@@ -1214,3 +1243,9 @@ Unless stated: record defaults of §3.3, shipped tuning (§7), a 64 × 64-cell c
     box (1717.9807, ·, 319.84396) … (1735.9807, ·, 337.84396) (x cells 90–91, z cell 69) is **not** returned by
     the query (1696.1, −FLT_MAX, 288.1) … (1727.9, +FLT_MAX, 319.9) and is returned by (1696.1, −FLT_MAX, 320.1) …
     (1727.9, +FLT_MAX, 351.9).
+38. **Monthly visits across a 64 m line** (§6.7.1): 2048² city, a flora occupant of a type with box half-width 9 at
+    (1726.9807, 328.84396) → the block queries of blocks (53, 10) and (54, 10) return it; those of (53, 9) and
+    (54, 9) do not. The same type at (1726.9807, 328.8) (box z from 319.8) → returned by all four blocks. A type
+    with half-width 0.4 (box 0.8 m wide, so no inset) at (1726.9807, 320.26) (box z 319.86 … 320.66, listed from
+    z cell 68) → returned by blocks (53, 9) and (53, 10). A month in which only block (53, 9) is visited leaves the
+    first occupant's birth date and state unchanged.

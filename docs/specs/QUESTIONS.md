@@ -1227,10 +1227,18 @@ part of §8 is not compared). The glue's current answer is in brackets.
   Side correction in §3.2: after a reload, `IsFloraTypeValid(0)` is false until the next `Init`.
 - Not done (each logged once): obliterated-city save/restore (FQ3), the app shutdown callback (FQ2),
   `GetFloraTypesByFilter` with a non-null filter (FQ9).
-- **FQ15 — first in-game shadow (run 80, coordinator):** the registry is identical and about 2,600 trees match each
+- ~~**FQ15 — first in-game shadow (run 80, coordinator):** the registry is identical and about 2,600 trees match each
   month, but exactly one tree differs in 23 of 94 months: 21 times its birth date (ours predicts a rebirth, e.g.
   birth 2461102 kept by the original where ours predicts 2461224) and twice its state (state 0, ours 2). What in
-  §6.7.2 keeps a tree from being reborn (a visit count, a random draw, the block's iterator position)?
+  §6.7.2 keeps a tree from being reborn (a visit count, a random draw, the block's iterator position)?~~
+  **ANSWERED 2026-10-14** from the exe (occupant manager slot 15 `0x0049E0E0`, listing `0x0049EF60` /
+  `0x0049F3C0`, query `0x004A0670`; see FQ6) and the run-80 differences, written into flora.md §6.7.1 (table of the
+  six trees, example) and §16 test 38. **Nothing in §6.7.2: the tree is not visited.** The monthly block query
+  goes through the occupant manager's 64 m index (§6.4.2). A box wider than 1 m whose low edge is 0.1–0.164 m
+  below a 64 m line is listed only from the cell above, so the block just below the line overlaps it but does
+  not return it. Six trees in run 80 sit in that window (one per month, 23 tree-months in all; e.g. Oak Tree
+  clump 5 `0x14C279F4`, box z from 319.844, is visited by blocks (53, 10) and (54, 10) only). Ours also visited
+  them from the block below, and since wild clumps live 2–42 days, every such extra visit was a rebirth.
 
 ## From the landfill developer glue and shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
 
