@@ -191,7 +191,12 @@ void ReleaseToken(void* u, uint64_t t) {
 // over (ReadGZSerializable, FC4Streams.h); the core keeps it as the
 // cISC4Ordinance, which is this QueryInterface's reference. [choice] When the
 // core holds a saved and an AddOrdinance reference on the same object, the
-// saved one is the first given back.
+// saved one is the first given back. SV2 (answered: "assumed no" differed,
+// "released as ours" holds): the only other holder is the city segment's
+// serializer table (foundations §2.7, SV1), until the next save or, in a
+// city never saved, city close after Shutdown; no other exe code keeps one.
+// So the simulator's reference is its own, and after a save its release is
+// the last (FC4_RELEASE_CREATED).
 uint64_t ForeignOrdinance(void* sim, uint64_t t) {
     cIGZUnknown* u = FromToken(t);
     if (u == nullptr) return 0;
