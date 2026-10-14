@@ -2630,7 +2630,10 @@ answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`0x006D4C10`; caller `0x0071E28E`) and written into neighbors §15.4. `AL` is 0,
   3 or undefined, and the only caller on a connection ignores it. "True" is safe; the bracket stands. `docs/abi`: slot
   4 of `cISC4TrafficSource` on connections is not a clean bool.
-- **NG22:** `cISCProperty` Write/Read. [through the segment stream]
+- ~~**NG22:** `cISCProperty` Write/Read. [through the segment stream]~~
+  **ANSWERED 2026-10-14** from the exe (`cSCProperty` `0x005FD870`/`0x005FD8B0`; holder writer `0x005FD990`) and
+  written into neighbors §15.4. Write and Read put foundations §10.1 on the given stream and return "not in error". The
+  original holder calls each stored property's own `Write`, so ours must write those exact bytes. The bracket matches.
 - **NG23:** The size query of `GetPropertyData`. [left open]
 - **NG24:** Regional cities held across calls. [AddRef until the outermost exit]
 - **NG25:** The marker query type. [`0xA823821E`]

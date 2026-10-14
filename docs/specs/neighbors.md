@@ -1091,6 +1091,19 @@ side (NG19). The one caller that reaches a connection's slot 4, the ConfirmTrips
 (`0x0071E28E`), ignores it. `SetupPathFinderForLot` calls slot 4 only on lots, and looks at the trip list rather
 than the result. So "true" is safe; the bracket stands.
 
+**NG22. `cISCProperty::Write` and `Read`.** The original property (`cSCProperty`, vtable `0x00AA6988`) writes and
+reads foundations §10.1 on the stream it is given:
+
+- `Write(stream)` (slot 8, `0x005FD870`): `stream.WriteUint32(propertyID)`, then the variant (foundations §9.2), then
+  returns "stream not in error".
+- `Read(stream)` (slot 9, `0x005FD8B0`): the same fields into the property, same result.
+
+Nothing calls these two directly; every call is virtual. The caller that matters is the original holder's record
+writer (`0x005FD990`): for each stored property it writes the key, then calls **that property's own** `Write` with
+the save's stream. A holder stores the object it is given (foundations §10.2), so a FreeCity4 property that game code
+puts into an original holder is written by its own `Write`, on the game's stream, in the middle of the game's
+record. It must produce exactly the bytes of foundations §10.1. The bracket (through the segment stream) matches.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
