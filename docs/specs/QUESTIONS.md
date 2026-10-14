@@ -1076,8 +1076,11 @@ brackets; the module doc of `core/src/residential/education_health.rs` lists 1 t
   has the school capacity `0x8922041B`, else hospital (unchecked). Slot 58: school if the school query succeeds,
   else hospital if the hospital query succeeds, else AL = 0. Also slot 45's "hospital wins" covers only the radius,
   kind and ordinance list; its school flag stays set. No shipped building has both capacities, so only mods see it.
-- **EH8:** slot 45 with no matching point or no radius? [AL = 1 whenever the building's kind is found, distance 0,
-  radius 0]
+- ~~**EH8:** slot 45 with no matching point or no radius? [AL = 1 whenever the building's kind is found, distance 0,
+  radius 0]~~ **ANSWERED 2026-10-14** from the exe (`GetOccupantCoverage` `0x006FD260`: radius local zeroed
+  `0x006FD308`, dist zeroed `0x006FD435`) and written into REH §4.11 ("Edge cases"). **The bracket matches**, with
+  one more case: a distance curve with no points (a property with fewer than two values) skips the step and leaves
+  dist unwritten (the caller's value). *[choice]* write 0 there too.
 - **EH9:** does the ideal funding test the served property itself for `0xFFFFFFFF`? [yes, the property]
 - **EH10:** does the hospital query fail on missing fields, testing the staff item last? [yes]
 - **EH11:** what does the ratings query's record start at? [zero]

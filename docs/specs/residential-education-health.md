@@ -701,6 +701,13 @@ SC4Percentage:
   - *[quirk]* The x_prev term has no 0.01 factor.
   - With the default flat curve (0,100)(100,100): level < 1 gives dist = 0, and level = 1 gives NaN.
 - AL = 1 when found.
+- **Edge cases** *[compat]* (`0x006FD260`): AL is the "kind found" flag alone, so it is 1 in all of these.
+  - No radius property: the radius local is set to 0 before the read (`0x006FD308`) and the read's result is not
+    tested, so radius := (e2 × m1) × 0 = **0**. dist is computed as usual and multiplied by 0.
+  - No point at or below the level: dist := **0** (written before the walk, `0x006FD435`).
+  - A distance curve with one point: dist := 0. A curve with **no** points (a property with fewer than two values,
+    foundations §4.1) skips the whole step, so dist is **not written** and keeps the caller's value *[quirk]*.
+    *[choice]* FreeCity4 writes 0.
 
 **Which service the three methods pick** (summary): slot 45 tests school then hospital (hospital properties win,
 flag above); slot 28 tests only the school capacity (school first); slot 58 tries the school query, then the
