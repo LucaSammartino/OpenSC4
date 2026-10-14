@@ -124,7 +124,7 @@ Subscriptions (message server, all on the +4 sub-object):
 | `0x8A09FA65` AdviceRemoved | the same test: **situation untriggered** (§4.2) |
 | `0x8A09FA67` AdviceRemovedAll | ignored (returns true) *[quirk]* |
 | `0x6BB350E4` | posted by its own popup's close button after a mission ended: leave the player-drive mode and `EndSituation` if the message's advice is the active one |
-| `0xEBB67EF7` show situation popup | IGZUnknown = advice, void1 = vehicle (optional): call the 3D view's slot 57 (`+0xE4`; the view pointer cached at `0x00B43DC4`), end an open MySim dialog, then show the popup (§4.3) |
+| `0xEBB67EF7` show situation popup | IGZUnknown = advice, void1 = vehicle (optional): hide the mission status panel (3D view slot 57, `+0xE4`, `HideMissionStatusPanel`; the view pointer cached at `0x00B43DC4`), end an open MySim dialog, then show the popup (§4.3) |
 | `0xCC0D905F` | if the active advice has situation flag 8: remember IGZUnknown as a window |
 | `0xAC1045EF` initiate by GUID | `InitiateSituationByGuid(data1, data2 ≠ 0, data3)` (slot 21) |
 | `0x26D31EC1` PostCityInit | if `loadedFromSave`: for each advice of advisor 29 that is a city-situation advice, **situation triggered** (§4.2) |
