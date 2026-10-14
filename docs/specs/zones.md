@@ -432,6 +432,15 @@ Chooses the lot width/depth used by `Parcellize` from the developers that would 
    `k := (1 << s) << s` with s the desirability map's tract shift (slot 11; k = cells per tract);
    `v := ftol(r24(r24(float(k) / float(sx · sz)) × float((min + max) / 2)))` (integer division; the product is
    unsigned); `score := |v − bestDemand|`. Keep the configuration with the smallest score (strict `<`: first wins).
+   The score is int32 arithmetic (ZQ9). The difference wraps mod 2³² (`0x007331AA`), and the absolute value is the
+   two's-complement one (`0x007331AC`–`0x007331AF`), so |−2³¹| stays −2³¹. The best score starts at `0x7FFFFFFF`
+   (`0x00732F77`), and a configuration is taken when its score is less, compared signed (`0x007331B1`). So a score of
+   exactly `0x7FFFFFFF` is never taken: if every scored configuration scores that, none is chosen and step 7 uses
+   (2, 2). A score that wraps to −2³¹ is taken and is never beaten. Example: bestDemand = −2147483643 and v = 5 give
+   5 + 2147483643 = 2³¹, which wraps to −2³¹; that configuration is kept. bestDemand = −2147483647 and v = 0 give
+   2147483647, which is never taken. Taking the first scored configuration always and skipping the wrap agrees
+   with this whenever every |v − bestDemand| < 2³¹ − 1, which covers all real data. *[compat]* Implement the int32
+   rule anyway, since it costs nothing.
    *[compat]* Implement the chain as written. For k ≤ 64 (tract size ≤ 8; the shipped 4 gives k = 16) it equals
    `⌊k · avg / (sx · sz)⌋` for every u16 `avg` (checked exhaustively), but not for larger k: with k = 256,
    `sx · sz = 3` and avg 49154 it gives 4194475 where the floor is 4194474, and k = 4096 (tract size 64, the
