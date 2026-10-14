@@ -1296,8 +1296,16 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   record counts also **replace** the cell counts that price the road and transit budgets; bridges drop out. A
   read-only corpus check agrees (saved cell counts = published counts; road counts = 2 × road keys). Written into
   traffic-simulator.md §4.9, §3.6 and §6.1 row 16, and save-records.md §7.1.1.
-- **TS10 — slot 7 SetupPathFinderForLot:** what else is configured? [the lot rectangle as start, plus SetupTrip
-  steps 3–4 only]
+- ~~**TS10 — slot 7 SetupPathFinderForLot:** what else is configured? [the lot rectangle as start, plus SetupTrip
+  steps 3–4 only]~~ **ANSWERED 2026-10-14** from the exe (`0x00711610`): more than the bracket.
+  * What it sets: SetupTrip step 4 and the start rect, without the work time. Also destination filter 0 with
+    destination flag `1 << ` the **first** trip's type. Then, for commuters, the 0x1CF/0x3 travel types and the
+    starting-cost array of the dominant strategy (by summed trip counts, ties to the lower index); for freight,
+    flag 1 and types 0x30.
+  * It returns false when `pf` or `lot` is null, when the lot has no trips even after one `UpdateTrafficVolume`, or
+    for a type > 3.
+  * It never sets density, work time, flag 4 or a forced start.
+  Written into traffic-simulator.md §4.4.
 - ~~**TS11 — slot 35 GetTransitSwitchQueryData:** the data fields? [returns the network core's query target only]~~
   **ANSWERED 2026-10-14** from the exe (`0x0071CB80`, field names from the Mac query readers): five u32/f32 fields,
   available capacity, maximum capacity, load fraction (f32), actual usage, monthly maintenance cost. A switch gives

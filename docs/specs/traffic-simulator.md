@@ -663,8 +663,30 @@ trip counts built in this pass are published (slot-34 stats and history, §4.12)
      fetched (`travelTypesUsed |=` pf2's mask), `ApplyRoute(route, mode 0)`, `ApplyRoute(returnRoute, mode 1)` unless
      probe.
 
-`SetupPathFinderForLot(pf, lot)` (slot 7, `0x00711610`) is the same configuration for outside callers (traffic
-automata, query tool) *[inferred]*.
+**SetupPathFinderForLot(pf, lot)** (slot 7, `0x00711610`, returns a bool in AL) configures a caller's pathfinder
+from a lot's trip list, for outside callers (TS10):
+
+1. If `pf` or `lot` is null: return false.
+2. `src := lot.AsTrafficSource()` (lot slot 4). If `src.GetTripDataList()` (slot 3) is empty, call
+   `src.UpdateTrafficVolume()` (slot 4, §4.1.1) **once**, which generates the lot's trips as a side effect, and look
+   again. If it is still empty, return false.
+3. `sum[s]` (u32, s = 0…2) := the `count`s of the list's trips by `strategy`. Then pick the dominant strategy:
+   `best := 0`; if `sum[1] > sum[0]` then `best := 1`; if `sum[2] > sum[best]` then `best := 2`. The comparisons are
+   unsigned and strict, so a tie keeps the lower index. Also `type :=` the **first** trip's `type`.
+4. `SetStartRect(src.GetSourceCells())`, `ClearAllFlags`, `ClearAllTravelTypeFlags`, `SetStartingCostArray(null)`,
+   `SetMaxTripLength(commuteMaxTime)`.
+5. `SetTripDestinationFilter(0)`, `ClearAllDestinationFlags`, `SetDestinationFlag(1 << type)`. There is no probe
+   case here: SetupTrip's 7 for a type-0 probe does not occur.
+6. By `type`:
+   * **Commuter** (`type ≤ 2`): `SetTravelTypeFlag(0x1CF, false)`, `SetTravelTypeFlag(0x3, true)`, and
+     `SetStartingCostArray` of `best`, with SetupTrip's mapping (0 mass transit, 1 car, 2 neutral). Return true.
+   * **Freight** (`type = 3`): `SetFlag(1)`, `SetTravelTypeFlag(0x30, true)`. Return true.
+   * **Anything else**: return false. Every exit path frees the strategy sums.
+
+Compared with SetupTrip, it never sets the traffic density, the work-time limit, flag 4 (continue search), a forced
+start type or a re-route end rect; those keep whatever the caller's pathfinder held. It makes no search and changes
+no trip. *[compat]* Two side effects remain: the trip generation of step 2 on a lot with no trips, and the use of the
+first trip's type.
 
 ### 4.5 Applying a route: ApplyRoute (`0x00719910`)
 
