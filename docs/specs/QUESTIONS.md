@@ -2559,7 +2559,10 @@ answer is in brackets.
   only original code that touches the concrete class constructs its own objects (`0x006D489B`, `0x004AC994`). The
   current city's regional record holds our objects after `UpdateCityCache` and writes them through
   `QueryInterface(0xE4FDA3D4)` → `Write`. The one layout contract is `GetTripDataList`'s STL list (already met).
-- **NG4:** `AddDeal` with a foreign (original) deal object. [copied into a deal of ours]
+- ~~**NG4:** `AddDeal` with a foreign (original) deal object. [copied into a deal of ours]~~
+  **ANSWERED 2026-10-14** from the exe (`AddDeal` `0x006D2870`; no caller through slot 26) and written into neighbors
+  §15.4. The original keeps the caller's object (AddRef), clears its Silent flag and simulates that object. The bracket
+  differs (pointer identity, later changes lost), but no shipped code calls `AddDeal`, so only mods can see it.
 - **NG5:** The lifetime of the deal wrapper objects. [created lazily, parked at zero references]
 - **NG6:** Getters called from other threads. [the lock is tried for 20 ms, then the mirror or a neutral value is
   returned and counted as a fallback]

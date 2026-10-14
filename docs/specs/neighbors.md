@@ -936,6 +936,17 @@ values.
 - So the bracket "dropped from the core sync" matches the original for every shipped path, provided the holder
   that game code calls still keeps the object until the property is removed or the connection dies.
 
+**NG4. `AddDeal` with a foreign deal.** `AddDeal(d)` (slot 26, `0x006D2870`) keeps **the caller's object**:
+`d.SetFlags(Silent, false)`, append `d` itself to the deal list (AddRef), push to the region (§9.2, both flags),
+return true. From then on the simulation, `FindDeals`, the status reports and the region's `SetLocalDeals` all hand
+out that same pointer, and the caller's later calls on `d` act on the simulated deal. No shipped code calls
+`AddDeal`, so only a mod can see the difference.
+
+- The bracket (copy into a deal of ours) differs: the caller's object stays outside the simulation, its later changes
+  are lost, and `FindDeals` returns a different pointer from the one that was added.
+- *[choice]* Keep the caller's object as the listed deal and drive it through `cISC4NeighborDeal`, as for the foreign
+  deals of §15.2. If the core must own its deals, the copy may stay as a deviation that only mods can observe.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
