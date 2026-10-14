@@ -792,7 +792,9 @@ from a lot's trip list, for outside callers (TS10):
 2. `src := lot.AsTrafficSource()` (lot slot 4). If `src.GetTripDataList()` (slot 3) is empty, call
    `src.UpdateTrafficVolume()` (slot 4, §4.1.1) **once**, which generates the lot's trips as a side effect, and look
    again. If it is still empty, return false.
-3. `sum[s]` (u32, s = 0…2) := the `count`s of the list's trips by `strategy`. Then pick the dominant strategy:
+3. `sum[s]` (u32, s = 0…2) := the `count`s of the list's trips by `strategy`. The strategy is not range-checked
+   (TS47, `0x00711680`–`0x00711687`): a strategy above 2, only in a damaged save, adds its count past the 12-byte
+   heap array of sums. *[choice]* Ignore such trips. Then pick the dominant strategy:
    `best := 0`; if `sum[1] > sum[0]` then `best := 1`; if `sum[2] > sum[best]` then `best := 2`. The comparisons are
    unsigned and strict, so a tie keeps the lower index. Also `type :=` the **first** trip's `type`.
 4. `SetStartRect(src.GetSourceCells())`, `ClearAllFlags`, `ClearAllTravelTypeFlags`, `SetStartingCostArray(null)`,

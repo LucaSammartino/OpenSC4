@@ -3090,6 +3090,10 @@ host gained connection, region, budget and drive-side methods. The current answe
   `0x0071CD6F`–`0x0071CD75`) and written into traffic-simulator §4.16, with a worked example. The int64 is loaded
   exactly (`fild`), multiplied by the f32 fraction with one rounding to 24 bits, then truncated. The bracket (f32 first,
   then r24) rounds twice and differs only for costs above 2^24 (16,777,217 at 0.75: 12,582,913 against 12,582,912).
-- **TS47:** A strategy above 2 in SetupPathFinderForLot. [ignored; a choice in code]
+- ~~**TS47:** A strategy above 2 in SetupPathFinderForLot. [ignored; a choice in code]~~
+  **ANSWERED 2026-10-14** from the exe (`SetupPathFinderForLot` `0x00711680`–`0x00711687`, sums allocated at
+  `0x0071165E`) and written into traffic-simulator §4.4. The original adds the count to `sum[strategy]` unchecked, so a
+  strategy above 2 writes past the 12-byte array into the heap. Only a damaged save has one. The bracket (ignore it) is
+  a *[choice]*, recommended.
 - **TS48:** A damaged travel type above 8. [adds nothing in ApplyRoute and fails ConfirmRoute; a choice]
 - **TS49:** A switch ID with no switch behind it in GetTransitSwitchQueryData. [returns false; a choice]
