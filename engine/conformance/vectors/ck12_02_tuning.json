@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "ck12_02_tuning",
+  "spec": ["clock24 6", "clock24 12"],
+  "description": "Test 2. The shipped exemplar gives magnification 135 and night 20 / 1. With no exemplar the constructor values stay (100, 20 / 4). An exemplar magnification of 5000 is clamped to 2000 and 0.01 to 0.05; missing hours keep theirs. A missing magnification property still passes the current value through the setter: with min/max 1/50 the 100 becomes 50.",
+  "steps": [
+    {"op": "ck_env", "tuning": "shipped"},
+    {"op": "ck_create"},
+    {"op": "ck_call", "method": "init", "expect": true},
+    {"op": "ck_expect", "state": {"magnification": 135, "night_start": 20, "night_end": 1}},
+    {"op": "ck_env", "tuning": null},
+    {"op": "ck_create"},
+    {"op": "ck_call", "method": "init", "expect": true},
+    {"op": "ck_expect", "state": {"magnification": 100, "night_start": 20, "night_end": 4}},
+    {"op": "ck_env", "tuning": {"magnification": 5000}},
+    {"op": "ck_create"},
+    {"op": "ck_call", "method": "init"},
+    {"op": "ck_expect", "state": {"magnification": 2000, "night_start": 20, "night_end": 4}},
+    {"op": "ck_env", "tuning": {"magnification": 0.01}},
+    {"op": "ck_create"},
+    {"op": "ck_call", "method": "init"},
+    {"op": "ck_expect", "state": {"magnification_bits": "0x3D4CCCCD"}},
+    {"op": "ck_env", "tuning": {"night_end": 30}},
+    {"op": "ck_create"},
+    {"op": "ck_call", "method": "set_time_magnification_min_max", "args": [1, 50], "expect": true},
+    {"op": "ck_call", "method": "init"},
+    {"op": "ck_expect", "state": {"magnification": 50, "night_start": 20, "night_end": 30}}
+  ]
+}

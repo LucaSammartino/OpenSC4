@@ -211,10 +211,11 @@ void ReadOriginal(cFC4ISC4ZoneManager* zm, Original& o) {
 }
 
 // The dry-run samples: size, mask and PlaceZone flags (skipFunds, checkSlope,
-// skipSizeCheck, checkLotInside). [choice] The spec names no caller of the
-// zone tool's drag; these mix the user-action form (checkSlope, with and
-// without the size check) with the BDS's DoTerrainChanged form (skipFunds,
-// size check skipped, lot inside) and a call with no flag.
+// skipSizeCheck, checkLotInside). [choice] (ZG15: the original's callers in
+// the spec all commit; the UI tool was not traced) These mix the user-action
+// form (checkSlope, with and without the size check) with the BDS's
+// DoTerrainChanged form (skipFunds, size check skipped, lot inside) and a
+// call with no flag.
 struct Sample {
     int32_t w, h;
     bool checker;

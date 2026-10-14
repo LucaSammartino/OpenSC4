@@ -11,7 +11,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use super::simulator::NeighborsSimulator;
-use super::{deal_type, flag, status, CLSID_NEIGHBOR_DEAL};
+use super::{deal_type, flag, status, NeighborsHost, CLSID_NEIGHBOR_DEAL};
 use crate::property::PropertyHolder;
 use crate::stream::{InStream, OutStream, SaveObject};
 
@@ -72,7 +72,40 @@ impl Default for DealData {
     }
 }
 
+/// A call on a foreign deal's `cISC4NeighborDeal` (§15.4 NG4): the
+/// simulation drives a deal `AddDeal` kept through the deal's own methods.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DealCall {
+    SetType(u32),
+    SetOtherSide(i32, i32),
+    SetCitySide(i32, i32),
+    SetLastAmount(i32),
+    SetLastIncAmount(i32),
+    SetIncAmount(i32),
+    SetIncAmount2(i32),
+    SetAmountUsed(i32),
+    SetStartDate(u32),
+    SetExpirationDate(u32),
+    SetCurrentDate(u32),
+    SetSuspensionDate(u32),
+    SetAmount(i32),
+    UpdateCost,
+    UpdateState,
+    Cancel,
+    Activate,
+    SetFlags(u32, bool),
+}
+
 /// `cISC4NeighborDeal` (§5).
+///
+/// A deal is either **ours** (its state below) or **foreign** (§15.4 NG4):
+/// a caller's object that `AddDeal` kept as the listed deal. A foreign deal
+/// keeps no state of its own: every read goes to the host object through
+/// [`NeighborsHost::foreign_deal`] and every write or behaviour through
+/// [`NeighborsHost::foreign_deal_call`], so the deal's own code runs and the
+/// caller's later calls act on the simulated deal. The reference `AddDeal`
+/// took is released ([`NeighborsHost::release_deal`]) when the core object
+/// goes, that is when no list, report or caller of the core holds it.
 #[derive(Default)]
 pub struct NeighborDeal {
     d: RefCell<DealData>,
@@ -80,11 +113,26 @@ pub struct NeighborDeal {
     /// neighbours simulator" of §5.4.
     sim: RefCell<Weak<NeighborsSimulator>>,
     token: Cell<u64>,
+    /// Set for a foreign deal: the host that answers for it (held strongly,
+    /// so the release at the end always reaches it).
+    foreign: RefCell<Option<Rc<dyn NeighborsHost>>>,
 }
 
 impl std::fmt::Debug for NeighborDeal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("NeighborDeal").field("data", &*self.d.borrow()).finish()
+        f.debug_struct("NeighborDeal")
+            .field("data", &*self.d.borrow())
+            .field("token", &self.token.get())
+            .field("foreign", &self.is_foreign())
+            .finish()
+    }
+}
+
+impl Drop for NeighborDeal {
+    fn drop(&mut self) {
+        if let Some(h) = self.foreign.get_mut().take() {
+            h.release_deal(self.token.get());
+        }
     }
 }
 
@@ -111,6 +159,47 @@ impl NeighborDeal {
         d
     }
 
+    /// A foreign deal (§15.4 NG4): the host object `token`, read and driven
+    /// through `host`. The core object holds the one reference the caller's
+    /// `AddDeal` took, released through [`NeighborsHost::release_deal`] when
+    /// the core object goes.
+    pub fn foreign(token: u64, host: &Rc<dyn NeighborsHost>) -> Rc<NeighborDeal> {
+        let d = NeighborDeal::new();
+        d.token.set(token);
+        *d.foreign.borrow_mut() = Some(host.clone());
+        d
+    }
+
+    /// A host object, not one of ours (NG4).
+    pub fn is_foreign(&self) -> bool {
+        self.foreign.borrow().is_some()
+    }
+
+    fn foreign_host(&self) -> Option<Rc<dyn NeighborsHost>> {
+        self.foreign.borrow().clone()
+    }
+
+    /// A call on a foreign deal; `None` for ours.
+    fn call(&self, c: DealCall) -> Option<bool> {
+        let h = self.foreign_host()?;
+        Some(h.foreign_deal_call(self.token.get(), c))
+    }
+
+    /// The live state of a foreign deal; `None` for ours, or when the host
+    /// cannot read it (the stored fields, all initial, answer then).
+    fn live(&self) -> Option<DealData> {
+        let h = self.foreign_host()?;
+        h.foreign_deal(self.token.get())
+    }
+
+    /// One field: live for a foreign deal, stored for ours.
+    fn get<R>(&self, f: impl FnOnce(&DealData) -> R) -> R {
+        match self.live() {
+            Some(d) => f(&d),
+            None => f(&self.d.borrow()),
+        }
+    }
+
     pub(crate) fn attach(&self, sim: &Rc<NeighborsSimulator>) {
         *self.sim.borrow_mut() = Rc::downgrade(sim);
     }
@@ -119,106 +208,136 @@ impl NeighborDeal {
         self.sim.borrow().upgrade()
     }
 
+    /// A deal of ours: the token of its host object (a foreign deal keeps
+    /// the token it was made with).
     pub fn set_token(&self, token: u64) {
-        self.token.set(token);
+        if !self.is_foreign() {
+            self.token.set(token);
+        }
     }
 
     pub fn token(&self) -> u64 {
         self.token.get()
     }
 
-    /// A copy of the whole state.
+    /// A copy of the whole state (a foreign deal's read through its
+    /// interface, with an empty property holder).
     pub fn data(&self) -> DealData {
-        self.d.borrow().clone()
+        self.get(DealData::clone)
     }
 
-    /// Replaces the whole state (test and load helper; no reports).
+    /// Replaces the whole state (test and load helper; no reports; the
+    /// stored state only).
     pub fn set_data(&self, data: DealData) {
         *self.d.borrow_mut() = data;
     }
 
-    // ---- plain accessors (§5.4) ----
+    // ---- plain accessors (§5.4); a foreign deal's through its interface ----
 
     pub fn deal_type(&self) -> u32 {
-        self.d.borrow().deal_type
+        self.get(|d| d.deal_type)
     }
     pub fn set_type(&self, t: u32) {
-        self.d.borrow_mut().deal_type = t;
+        if self.call(DealCall::SetType(t)).is_none() {
+            self.d.borrow_mut().deal_type = t;
+        }
     }
     pub fn other_side(&self) -> (i32, i32) {
-        self.d.borrow().other_side
+        self.get(|d| d.other_side)
     }
     pub fn set_other_side(&self, x: i32, z: i32) {
-        self.d.borrow_mut().other_side = (x, z);
+        if self.call(DealCall::SetOtherSide(x, z)).is_none() {
+            self.d.borrow_mut().other_side = (x, z);
+        }
     }
     pub fn city_side(&self) -> (i32, i32) {
-        self.d.borrow().city_side
+        self.get(|d| d.city_side)
     }
     pub fn set_city_side(&self, x: i32, z: i32) {
-        self.d.borrow_mut().city_side = (x, z);
+        if self.call(DealCall::SetCitySide(x, z)).is_none() {
+            self.d.borrow_mut().city_side = (x, z);
+        }
     }
     pub fn amount(&self) -> i32 {
-        self.d.borrow().amount
+        self.get(|d| d.amount)
     }
     pub fn last_amount(&self) -> i32 {
-        self.d.borrow().last_amount
+        self.get(|d| d.last_amount)
     }
     pub fn set_last_amount(&self, v: i32) {
-        self.d.borrow_mut().last_amount = v;
+        if self.call(DealCall::SetLastAmount(v)).is_none() {
+            self.d.borrow_mut().last_amount = v;
+        }
     }
     pub fn last_inc_amount(&self) -> i32 {
-        self.d.borrow().last_inc_amount
+        self.get(|d| d.last_inc_amount)
     }
     pub fn set_last_inc_amount(&self, v: i32) {
-        self.d.borrow_mut().last_inc_amount = v;
+        if self.call(DealCall::SetLastIncAmount(v)).is_none() {
+            self.d.borrow_mut().last_inc_amount = v;
+        }
     }
     pub fn inc_amount(&self) -> i32 {
-        self.d.borrow().inc_amount
+        self.get(|d| d.inc_amount)
     }
     pub fn set_inc_amount(&self, v: i32) {
-        self.d.borrow_mut().inc_amount = v;
+        if self.call(DealCall::SetIncAmount(v)).is_none() {
+            self.d.borrow_mut().inc_amount = v;
+        }
     }
     pub fn inc_amount2(&self) -> i32 {
-        self.d.borrow().inc_amount2
+        self.get(|d| d.inc_amount2)
     }
     pub fn set_inc_amount2(&self, v: i32) {
-        self.d.borrow_mut().inc_amount2 = v;
+        if self.call(DealCall::SetIncAmount2(v)).is_none() {
+            self.d.borrow_mut().inc_amount2 = v;
+        }
     }
     pub fn amount_used(&self) -> i32 {
-        self.d.borrow().amount_used
+        self.get(|d| d.amount_used)
     }
     pub fn set_amount_used(&self, v: i32) {
-        self.d.borrow_mut().amount_used = v;
+        if self.call(DealCall::SetAmountUsed(v)).is_none() {
+            self.d.borrow_mut().amount_used = v;
+        }
     }
     pub fn cost(&self) -> i64 {
-        self.d.borrow().cost
+        self.get(|d| d.cost)
     }
     pub fn start_date(&self) -> u32 {
-        self.d.borrow().start_date
+        self.get(|d| d.start_date)
     }
     pub fn set_start_date(&self, v: u32) {
-        self.d.borrow_mut().start_date = v;
+        if self.call(DealCall::SetStartDate(v)).is_none() {
+            self.d.borrow_mut().start_date = v;
+        }
     }
     pub fn expiration_date(&self) -> u32 {
-        self.d.borrow().expiration_date
+        self.get(|d| d.expiration_date)
     }
     pub fn set_expiration_date(&self, v: u32) {
-        self.d.borrow_mut().expiration_date = v;
+        if self.call(DealCall::SetExpirationDate(v)).is_none() {
+            self.d.borrow_mut().expiration_date = v;
+        }
     }
     pub fn current_date(&self) -> u32 {
-        self.d.borrow().current_date
+        self.get(|d| d.current_date)
     }
     pub fn set_current_date(&self, v: u32) {
-        self.d.borrow_mut().current_date = v;
+        if self.call(DealCall::SetCurrentDate(v)).is_none() {
+            self.d.borrow_mut().current_date = v;
+        }
     }
     pub fn suspension_date(&self) -> u32 {
-        self.d.borrow().suspension_date
+        self.get(|d| d.suspension_date)
     }
     pub fn set_suspension_date(&self, v: u32) {
-        self.d.borrow_mut().suspension_date = v;
+        if self.call(DealCall::SetSuspensionDate(v)).is_none() {
+            self.d.borrow_mut().suspension_date = v;
+        }
     }
     pub fn flags(&self) -> u32 {
-        self.d.borrow().flags
+        self.get(|d| d.flags)
     }
     /// `CheckFlagsAnd(f)`: all bits of `f` set.
     pub fn check_flags_and(&self, f: u32) -> bool {
@@ -262,6 +381,9 @@ impl NeighborDeal {
     /// report status 0 (**sent**), `UpdateCost()`. Otherwise ignored
     /// *[compat]*.
     pub fn set_amount(self: &Rc<Self>, a: i32) {
+        if self.call(DealCall::SetAmount(a)).is_some() {
+            return;
+        }
         let Some(sim) = self.simulator() else { return };
         if sim.host().current_city().is_none() {
             return;
@@ -281,6 +403,9 @@ impl NeighborDeal {
     /// reported; the original (`0x006CF9C0`) checks neither the global city
     /// nor its simulator and crashes.
     pub fn update_cost(self: &Rc<Self>) {
+        if self.call(DealCall::UpdateCost).is_some() {
+            return;
+        }
         if self.check_flags_or(flag::GRACE | flag::PROBATION) {
             return;
         }
@@ -299,6 +424,9 @@ impl NeighborDeal {
     /// `f`; when the flags changed and the deal is not Silent (after the
     /// change), report status 0 (posted). Returns true.
     pub fn set_flags(self: &Rc<Self>, f: u32, on: bool) -> bool {
+        if let Some(r) = self.call(DealCall::SetFlags(f, on)) {
+            return r;
+        }
         let changed = {
             let mut d = self.d.borrow_mut();
             let before = d.flags;
@@ -321,6 +449,9 @@ impl NeighborDeal {
 
     /// `Cancel()`: Cancelled on, Active off, `SetAmount(0)`.
     pub fn cancel(self: &Rc<Self>) {
+        if self.call(DealCall::Cancel).is_some() {
+            return;
+        }
         self.set_flags(flag::CANCELLED, true);
         self.set_flags(flag::ACTIVE, false);
         self.set_amount(0);
@@ -334,6 +465,9 @@ impl NeighborDeal {
     /// posts two. Cancelled is not in `0x38`: a cancelled proposal is
     /// activated too.
     pub fn activate(self: &Rc<Self>) -> bool {
+        if let Some(r) = self.call(DealCall::Activate) {
+            return r;
+        }
         let flags = self.flags();
         if flags & flag::PROPOSED == 0 || flags & flag::FAILURES != 0 {
             return false;
@@ -345,7 +479,8 @@ impl NeighborDeal {
     }
 
     /// `Copy(src)` (§5.4): type, flags, amount, amountUsed, cost, incAmount,
-    /// lastAmount, both region cells and the four dates.
+    /// lastAmount, both region cells and the four dates (into the stored
+    /// state: the core copies only into new deals of its own).
     pub fn copy_from(&self, src: &DealData) {
         let mut d = self.d.borrow_mut();
         d.deal_type = src.deal_type;
@@ -375,8 +510,11 @@ impl NeighborDeal {
         sim.host().city_at(x, z)
     }
 
-    /// `UpdateState()` (§7.3 step 1).
+    /// `UpdateState()` (§7.3 step 1); a foreign deal's own (NG4).
     pub fn update_state(self: &Rc<Self>) {
+        if self.call(DealCall::UpdateState).is_some() {
+            return;
+        }
         if let Some(sim) = self.simulator() {
             sim.update_deal_state(self);
         }

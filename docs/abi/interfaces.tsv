@@ -260,7 +260,7 @@ cIGZVariant	cRZVariant	00aa6788	107	+0x1AC	0060ce80	icf::cGZLua5Thread::GetID	0	
 cIGZVariant	cRZVariant	00aa6788	108	+0x1B0	00915239	cRZVariant::RefSint64	8	2	eax-or-void	medium	
 cIGZVariant	cRZVariant	00aa6788	109	+0x1B4	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
 cIGZVariant	cRZVariant	00aa6788	110	+0x1B8	009152ab	cRZVariant::RefFloat32	8	2	eax-or-void	medium	
-cIGZVariant	cRZVariant	00aa6788	111	+0x1BC	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	111	+0x1BC	0060ce80	cRZVariant::RefFloat32	0	0	eax	high	re-answers9 DG5: raw data pointer [this+4], no type or count check (folded)
 cIGZVariant	cRZVariant	00aa6788	112	+0x1C0	0091531d	cRZVariant::RefFloat64	8	2	eax-or-void	medium	
 cIGZVariant	cRZVariant	00aa6788	113	+0x1C4	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
 cIGZVariant	cRZVariant	00aa6788	114	+0x1C8	0091538f	cRZVariant::RefChar	8	2	eax-or-void	medium	
@@ -295,8 +295,8 @@ cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	15	+0x3C	005ff6d0	cSCPropertyHolde
 cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	16	+0x40	005fdfd0	cSCPropertyHolder::CopyAddProperty	8	2	via-call	low	
 cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	17	+0x44	005febc0	cSCPropertyHolder::RemoveProperty	8	2	eax-or-void	medium	
 cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	18	+0x48	005ff3c0	cSCPropertyHolder::RemoveAllProperties	4	1	eax-or-void	medium	
-cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	19	+0x4C	005fda80	cSCPropertyHolder::EnumProperties	12	3	via-call	low	
-cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	20	+0x50	005fda50	cSCPropertyHolder::EnumProperties	8	2	via-call	low	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	19	+0x4C	005fda80	cSCPropertyHolder::EnumProperties	12	3	via-call	low	re-answers9 DG29: walks the own list +0x08 only; the effective enumerator is slot 4 GetPropertyList
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	20	+0x50	005fda50	cSCPropertyHolder::EnumProperties	8	2	via-call	low	re-answers9 DG29: as slot 19
 cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	21	+0x54	005ff160	cSCPropertyHolder::CompactProperties	0	0	eax-or-void	medium	
 cIGZString	cRZString	00a80810	0	+0x0	0090e1d1	cRZString::QueryInterface	8	2	eax-or-void	medium	
 cIGZString	cRZString	00a80810	1	+0x4	0094d34f	icf::cGZWinFileBrowser::AddRef	0	0	eax-or-void	medium	
@@ -566,7 +566,7 @@ cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	3	+0
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	4	+0x10	0069a210	cSC4BuildingDevelopmentSimulator::Shutdown	0	0	eax-or-void	medium	
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	5	+0x14	00695590	cSC4BuildingDevelopmentSimulator::LocationIsOKForNewBuilding	12	3	eax-or-void	medium	
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	6	+0x18	006956a0		16	4	via-call	low	
-cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	7	+0x1C	00698de0		12	3	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	7	+0x1C	00698de0	cSC4BuildingDevelopmentSimulator::AddNewBuildingOccupant(type, pos*, orientation)	12	3	eax	high	re-answers9 DG5: occupant pointer (borrowed) or null; SDK says bool
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	8	+0x20	00695740		4	1	eax-or-void	medium	
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	9	+0x24	006afc80	cSC4FloraSimulator::GetCostOfOccupantDemolition	8	2	edx:eax	medium	
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	10	+0x28	00695700	cSC4BuildingDevelopmentSimulator::GetCostOfOccupantDemolition	8	2	edx:eax	medium	
@@ -576,19 +576,19 @@ cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	13	+
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	14	+0x38	00697dd0		8	2	eax-or-void	medium	
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	15	+0x3C	00697e30		4	1	eax-or-void	medium	
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	16	+0x40	00697e70		4	1	eax-or-void	medium	
-cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	17	+0x44	00699c50		8	2	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	17	+0x44	00699c50	cSC4BuildingDevelopmentSimulator::GetBuildingTypesByFilter	8	2	eax	high	re-answers9 DG17: returns a count; filter slot 3 is bool(uint32), pop 4, AL; no caller in the exe
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	18	+0x48	00697ef0		8	2	eax-or-void	medium	
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	19	+0x4C	00699d20		8	2	eax-or-void	medium	
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	20	+0x50	00697fe0		8	2	eax-or-void	medium	
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	21	+0x54	00698050		4	1	eax-or-void	medium	
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	22	+0x58	00698120		8	2	eax-or-void	medium	
-cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	23	+0x5C	00695af0	cSC4BuildingDevelopmentSimulator::AddNewFoundationOccupant	28	7	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	23	+0x5C	00695af0	cSC4BuildingDevelopmentSimulator::AddNewFoundationOccupant	28	7	al	high	re-answers9 DG6: called by the lot developer; implement, never false for valid input
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	24	+0x60	00695740		4	1	eax-or-void	medium	
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	25	+0x64	00695770		8	2	via-call	low	
-cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	26	+0x68	006982b0	cSC4BuildingDevelopmentSimulator::LoadFoundationProperties	8	2	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	26	+0x68	006982b0	cSC4BuildingDevelopmentSimulator::LoadFoundationProperties	8	2	al	high	re-answers9 DG6
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	27	+0x6C	00698180		4	1	eax-or-void	medium	
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	28	+0x70	00698250		8	2	eax-or-void	medium	
-cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	29	+0x74	006983c0		8	2	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	29	+0x74	006983c0	cSC4BuildingDevelopmentSimulator::LoadLotRetainingWallProperties	8	2	al	high	re-answers9 DG6: called by the wall factory 0x005E3122
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	30	+0x78	00698d60	cSC4BuildingDevelopmentSimulator::GetDeveloperType	8	2	eax-or-void	medium	
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	31	+0x7C	00698d80		4	1	eax-or-void	medium	
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	32	+0x80	00696c80	cSC4BuildingDevelopmentSimulator::GetDeveloper(DeveloperType)	4	1	eax-or-void	medium	
@@ -673,7 +673,7 @@ cISC4Demand	cSC4Demand	00aa2758	13	+0x34	005d4ac0		0	0	x87	high
 cISC4Demand	cSC4Demand	00aa2758	14	+0x38	006c2080	cSC4SimGrid<T>::GetTractWidthZ	0	0	x87	high	
 cISC4Demand	cSC4Demand	00aa2758	15	+0x3C	00477840	cSC4SimGrid<T>::GetOneOverTractWidthX	0	0	x87	high	
 cISC4Demand	cSC4Demand	00aa2758	16	+0x40	005d4c60	cSC4Demand::AddToSupplyValue	4	1	eax-or-void	medium	
-cISC4Demand	cSC4Demand	00aa2758	17	+0x44	005d4c70	cSC4Demand::AddToDemandValue	4	1	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	17	+0x44	005d4c70	cSC4Demand::AddToDemandValue	4	1	al	high	re-answers9 DG1: adds the float32 amount to the demand value, returns true; x87 stack left as found
 cISC4Demand	cSC4Demand	00aa2758	18	+0x48	005d4c80	cSC4Demand::SetSupplyValue	4	1	eax-or-void	medium	
 cISC4Demand	cSC4Demand	00aa2758	19	+0x4C	005d4c90	cSC4Demand::SetDemandValue	4	1	eax-or-void	medium	
 cISC4Demand	cSC4Demand	00aa2758	20	+0x50	005d4ca0	cSC4Demand::SetActiveDemandMax	4	1	eax-or-void	medium	
@@ -802,8 +802,8 @@ cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	28	+0x70	006d4670	cSC4Ne
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	29	+0x74	006d0840	cSC4NeighborsSimulator::FindDeals	12	3	eax-or-void	medium	
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	30	+0x78	006d0760	cSC4NeighborsSimulator::FindDeals	8	2	eax-or-void	medium	
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	31	+0x7C	006cfd70	cSC4NeighborsSimulator::MarkDealsDirty	0	0	unknown	low	
-cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	32	+0x80	006cf860	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealIncome	0	0	eax-or-void	medium	re-answers8 NG11: int64 in edx:eax, every caller reads EDX; ret column changes with the plugin fix (neighbours apply lane)
-cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	33	+0x84	006cf8d0	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealExpense	0	0	eax-or-void	medium	re-answers8 NG11: int64 in edx:eax, every caller reads EDX; ret column changes with the plugin fix (neighbours apply lane)
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	32	+0x80	006cf860	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealIncome	0	0	edx:eax	high	int64; every caller reads EDX (NG11)
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	33	+0x84	006cf8d0	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealExpense	0	0	edx:eax	high	int64; every caller reads EDX (NG11)
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	34	+0x88	006d2a20	cSC4NeighborsSimulator::UpdateCommodityStats	4	1	eax-or-void	medium	
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	35	+0x8C	006d3250	cSC4NeighborsSimulator::GetDealCost	16	4	x87	high	indirect-jump dword ptr [eax*4 + 0x6d35fc]
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	36	+0x90	006d3620	cSC4NeighborsSimulator::GetDealMaxAmount	8	2	x87	high	indirect-jump dword ptr [eax*4 + 0x6d38b8]
@@ -1711,8 +1711,8 @@ cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	1	+0x4	004f7ba0	icf::cSC43DRen
 cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	2	+0x8	006b3d00		0	0	eax-or-void	medium	
 cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	3	+0xC	006b8510	cSC4GrowthDeveloper::Init	4	1	eax-or-void	medium	
 cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	4	+0x10	006b59a0	cSC4GrowthDeveloper::Shutdown	0	0	eax-or-void	medium	
-cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	5	+0x14	00441080	cSC4PoliceSimulator::GetJailDepartmentBudget	0	0	eax-or-void	medium	
-cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	6	+0x18	00472e50		0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	5	+0x14	00441080	cSC4GrowthDeveloper::GetType	0	0	eax	high	re-answers9: target zone +0xD0 (1 R, 2 C, 3 I), not the developer type; folded getter
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	6	+0x18	00472e50	cSC4GrowthDeveloper::GetSubType	0	0	eax	high	re-answers9: developer type +0xCC (0x1010..0x4400), key of the BDS developer map
 cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	7	+0x1C	0080bc00	cSC4TrafficSimulator::GetCommercialTrafficMap (folded getter [ecx+38h])	0	0	eax-or-void	medium	
 cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	8	+0x20	008265c0	cSC4Simulator::GetSimSpeed	0	0	eax-or-void	medium	
 cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	9	+0x24	006b38e0	cSC4GrowthDeveloper::GetConstructionInfo	4	1	eax-or-void	medium	indirect-jump dword ptr [edx*4 + 0x6b394c]
@@ -1723,7 +1723,7 @@ cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	13	+0x34	007c9fb0	icf::cSC43DR
 cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	14	+0x38	004e82a0	icf::cSC43DRender::GetDrawContext	0	0	eax-or-void	medium	
 cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	15	+0x3C	007c1910	icf::cSC43DRender::GetLightingManager	0	0	eax-or-void	medium	
 cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	16	+0x40	007e56f0	icf::cSC4City::GetDemolitionUtility	0	0	eax-or-void	medium	
-cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	17	+0x44	004236f0	cSC4CitySituationAdvice::GetEvilTwinGuid	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	17	+0x44	004236f0	cSC4GrowthDeveloper::GetTotalCapacity	0	0	eax	medium	re-answers9 DG1: returns +0x108, never initialised by the constructor; no caller found
 cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	18	+0x48	00a6cab0	icf::cGZLuaScriptServer::GetLua	0	0	eax-or-void	medium	
 cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	19	+0x4C	006b7550	cSC4GrowthDeveloper::GetPowerSupplyCap	0	0	eax-or-void	medium	
 cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	20	+0x50	006b7560	cSC4GrowthDeveloper::GetWaterSupplyCap	0	0	eax-or-void	medium	
@@ -2731,18 +2731,18 @@ cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	0	+0x0	004587d0		8	2	eax-or-
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	1	+0x4	005e28f0	icf::cSC4Automaton::AddRef	0	0	eax-or-void	medium	tail->005e89b0
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	2	+0x8	005e2900	icf::cSC4Automaton::Release	0	0	eax-or-void	medium	tail->005e8df0
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	3	+0xC	005fd7e0	std::vector<unsigned_char,std::allocator<unsigned_char>>::operator[]	0	0	eax-or-void	medium	
-cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	4	+0x10	0080bc00	cSC4TrafficSimulator::GetCommercialTrafficMap (folded getter [ecx+38h])	0	0	eax-or-void	medium	
-cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	5	+0x14	006ce240	cSC4FloraOccupant::SetLotTag	4	1	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	4	+0x10	0080bc00	cSC4BuildingOccupant::GetBuildingType	0	0	eax	high	re-answers9 DG5: returns +0x38 (folded getter)
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	5	+0x14	006ce240	cSC4BuildingOccupant::SetBuildingType	4	1	eax-or-void	medium	re-answers9 DG5: stores +0x38; EAX = the argument, no defined result (folded)
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	6	+0x18	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	7	+0x1C	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
-cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	8	+0x20	00458c60	cSC4PropOccupant::SetBoundingBox	8	2	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	8	+0x20	00458c60	cSC4BuildingOccupant::SetBoundingBox	8	2	eax-or-void	medium	re-answers9 DG5: (min*, max*) copied to +0x3C..+0x50; no defined result
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	9	+0x24	00458810		0	0	eax-or-void	medium	
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	10	+0x28	00458820		4	1	eax-or-void	medium	
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	11	+0x2C	00459250		0	0	eax-or-void	medium	
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	12	+0x30	004590e0		0	0	eax-or-void	medium	
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	13	+0x34	00459050		0	0	eax-or-void	medium	
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	14	+0x38	00458830		0	0	eax-or-void	medium	
-cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	15	+0x3C	00458840		4	1	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	15	+0x3C	00458840	cSC4BuildingOccupant::SetOrientation	4	1	al	high	re-answers9 DG5: clamps to 0..3, stores a byte at +0x54, returns true
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	16	+0x40	00458870		0	0	eax-or-void	medium	
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	17	+0x44	00458c90	cSC4BuildingOccupant::SetLit	4	1	eax-or-void	medium	
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	18	+0x48	00458880		4	1	via-call	low	
@@ -2957,7 +2957,7 @@ cISC4View3DWin	cSC4View3DWin	00abce40	0	+0x0	007e5630	cSC4View3DWin::QueryInterf
 cISC4View3DWin	cSC4View3DWin	00abce40	1	+0x4	007e56d0	cSC4View3DWin::AddRef	0	0	eax-or-void	medium	tail->0094c47c
 cISC4View3DWin	cSC4View3DWin	00abce40	2	+0x8	007e56e0	cSC4View3DWin::Release	0	0	eax-or-void	medium	tail->0099b7a3
 cISC4View3DWin	cSC4View3DWin	00abce40	3	+0xC	005f8400	icf::cSC4PropOccupantAutomataController::AsOccupant	0	0	eax-or-void	medium	
-cISC4View3DWin	cSC4View3DWin	00abce40	4	+0x10	0043fd00	cSC4View3DWin::GetRenderer	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	4	+0x10	0043fd00	cSC4View3DWin::GetRenderer	0	0	eax	high	re-answers9 LG21: borrowed cISC43DRender*
 cISC4View3DWin	cSC4View3DWin	00abce40	5	+0x14	007f0fe0	cSC4View3DWin::GetModelMaker	0	0	eax-or-void	medium	
 cISC4View3DWin	cSC4View3DWin	00abce40	6	+0x18	007e60b0	cSC4View3DWin::GetViewManager	0	0	eax-or-void	medium	
 cISC4View3DWin	cSC4View3DWin	00abce40	7	+0x1C	007f1c10	cSC4View3DWin::ProcessCommand	12	3	eax-or-void	medium	indirect-jump dword ptr [ecx*4 + 0x7f3288]/dword ptr [eax*4 + 0x7f32ac]
@@ -3824,7 +3824,6 @@ cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	2	+0x8	0069eb50	cSC4Co
 cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	3	+0xC	0069ef90	cSC4CommercialSimulator::Init	0	0	eax-or-void	medium	
 cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	4	+0x10	0069eb80	cSC4CommercialSimulator::Shutdown	0	0	eax-or-void	medium	
 cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	5	+0x14	0069ead0	cSC4CommercialSimulator::GetProximityMap	4	1	eax-or-void	medium	
-cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	6	+0x18	0069eb20	deleting destructor	4	1	eax-or-void	high	not an interface method; re-specs9 commercial-industrial.md
 cIGZSerializable(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ac0	0	+0x0	00698d50		8	2	eax-or-void	medium	tail->00695290
 cIGZSerializable(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ac0	1	+0x4	00520110		0	0	eax-or-void	medium	tail->00695330
 cIGZSerializable(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ac0	2	+0x8	00698dd0		0	0	eax-or-void	medium	tail->006959b0
@@ -3874,7 +3873,7 @@ cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	16	+0x40	00489
 cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	17	+0x44	00489b40	cSC4LotConfigurationManager::LotConfigurationHasBuildingType	12	3	eax-or-void	medium	
 cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	18	+0x48	0048a660	cSC4LotConfigurationManager::RegisterLotConfigurationFilter	4	1	eax-or-void	medium	
 cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	19	+0x4C	0048a3f0	cSC4LotConfigurationManager::UnregisterLotConfigurationFilter	4	1	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	20	+0x50	00489720	cSC4LotConfigurationManager::GetLotConfigurationMap	0	0	eax-or-void	medium	
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	20	+0x50	00489720	cSC4LotConfigurationManager::GetLotConfigurationMap	0	0	eax	high	re-answers9 DG3: address of the STLport hash_map at 0x00B216C8, no reference; 12-byte nodes {next, key, config*}
 cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	21	+0x54	00489730	cSC4LotConfigurationManager::GetLotConfigurationFamilyIDSet	0	0	eax-or-void	medium	
 cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	22	+0x58	0048bcf0	cSC4LotConfigurationManager::CreateGenericLotConfiguration	8	2	eax-or-void	medium	
 cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	23	+0x5C	0048b3b0	cSC4LotConfigurationManager::FixLotConfiguration	4	1	eax-or-void	medium	
@@ -4170,6 +4169,8 @@ cIGZOStream(SC4DBSegment)	cSC4DBSegmentOStream	00aa2310	7	+0x1C	005d1e30	PutUint
 cIGZOStream(SC4DBSegment)	cSC4DBSegmentOStream	00aa2310	9	+0x24	005d1eb0	PutUint32	4	1	eax-or-void	high	re-answers4 FQ3: EAX
 cIGZOStream(SC4DBSegment)	cSC4DBSegmentOStream	00aa2310	18	+0x48	005d16b0	GetError	0	0	eax-or-void	high	re-answers4 FQ3: EAX; 1 = error, sticky
 cISCExemplarPropertyHolder	cSC4LandfillOccupant	00a8cd08	0	+0x0	00477260	QueryInterface (thunk, this-0x20 -> 0x00477130)	8	2	al	high	answers only 0x2A15F262, 1, 0x26BB767E, 0xE4FDA3D4; never 0x0AC2B5F7 (LG27)
+cISCExemplarPropertyHolder	cSC4LandfillOccupant	00a8cd08	1	+0x4	005e06a0	AddRef (thunk, this-0x20)	0	0	eax	high	re-answers9 LG25
+cISCExemplarPropertyHolder	cSC4LandfillOccupant	00a8cd08	2	+0x8	005e06b0	Release (thunk, this-0x20)	0	0	eax	high	re-answers9 LG25; 5 slots in all
 cISCExemplarPropertyHolder	cSC4LandfillOccupant	00a8cd08	3	+0xC	00458e60	SetDefaultExemplar	4	1	eax-or-void	medium	re-answers5 LG3: new row; no defined result
 cISCExemplarPropertyHolder	cSC4LandfillOccupant	00a8cd08	4	+0x10	0060ce80	GetDefaultExemplar	0	0	eax	high	returns [this+4] (object +0x24), no AddRef (LG27)
 cIGZWinMgr	cGZWinMgrW32	00ae46e8	0	+0x0	009daf24	cGZWinMgrBase::QueryInterface	8	2	eax-or-void	medium	tail->0091dd67; re-modal: framework service 0xA417445E, IID 0x5A4
@@ -4403,7 +4404,6 @@ cIGZMessageTarget(AudioEventHandler)	cSC4AudioEventHandler	00a94154	3	+0xC	004ef
 cISC4Occupant	cSC4LandfillOccupant	00a8cda0	0	+0x0	00477210	QueryInterface (thunk, this-4 -> 0x00477130)	8	2	al	high	same IID set as above (LG27)
 cISC4Occupant	cSC4LandfillOccupant	00a8cda0	6	+0x18	006c2040	AsPropertyHolder	0	0	eax	high	this+8, null for a null this; exemplar holder = result+0x14 (LG27)
 cISC4Occupant	cSC4LandfillOccupant	00a8cda0	7	+0x1C	006bdd80	GetType	0	0	eax	high	returns [this+0x24]; 0x6A11BD2B for landfill tiles (LG28)
-cIGZMessage2Standard	cRZMessage2Standard (ZoningChange subclass)	00a92d40	37	+0x94	004dcc10	scalar deleting destructor	4	1	eax	high	calls 0x004DCC30 (frees void2 with C); slots 0-36 identical to 00acec00
 cISC4RenderProperties	cSC4RenderProperties	00abb6c0	6	+0x18	007ddec0	GetBool(index)	4	1	al	high	byte at [this+0xC] + index*32 + 0x1C; interface name inferred (GF5)
 cISC4RenderProperties	cSC4RenderProperties	00abb6c0	7	+0x1C	007ddee0	GetInt(index)	4	1	eax	high	[this+0x18] + index*40 + 0x1C; kModelLODOffset = 22 (GF8)
 cISC4RenderProperties	cSC4RenderProperties	00abb6c0	8	+0x20	007ddf00	GetFloat(index)	4	1	x87	high	[this+0x24] + index*40 + 0x1C
@@ -4432,13 +4432,11 @@ cISC4Region	cSC4Region	00a8fa40	21	+0x54	004a4cc0	GetWaterPrefs	8	2	eax-or-void	
 cISC4Region	cSC4Region	00a8fa40	22	+0x58	004a5400	ResetTutorialCity	4	1	eax-or-void	medium	
 cISC4Region	cSC4Region	00a8fa40	23	+0x5C	004a4c20	GetCityLocations	4	1	eax-or-void	medium	
 cISC4Region	cSC4Region	00a8fa40	24	+0x60	004a45a0	GetBoundingRect	4	1	eax-or-void	medium	
-cISC4Region	cSC4Region	00a8fa40	25	+0x64	004a53e0	scalar deleting destructor	4	1	eax	medium	
 cISC4IndustrialSimulator	cSC4IndustrialSimulator	00ab1530	0	+0x0	006b8970	cSC4IndustrialSimulator::QueryInterface	8	2	eax-or-void	high	AL
 cISC4IndustrialSimulator	cSC4IndustrialSimulator	00ab1530	1	+0x4	004f7ba0	AddRef (shared code)	0	0	eax-or-void	high	EAX new count
 cISC4IndustrialSimulator	cSC4IndustrialSimulator	00ab1530	2	+0x8	006d5140	Release (shared with cSC4ParkManager)	0	0	eax-or-void	high	EAX new count; destroys at <=1 without decrementing
 cISC4IndustrialSimulator	cSC4IndustrialSimulator	00ab1530	3	+0xC	006b89f0	cSC4IndustrialSimulator::Init	0	0	eax-or-void	high	AL=1
 cISC4IndustrialSimulator	cSC4IndustrialSimulator	00ab1530	4	+0x10	006b8a10	cSC4IndustrialSimulator::Shutdown	0	0	eax-or-void	high	AL=1
-cISC4IndustrialSimulator	cSC4IndustrialSimulator	00ab1530	5	+0x14	006b8a40	deleting destructor	4	1	eax-or-void	high	not an interface method; re-specs9 commercial-industrial.md
 cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	0	+0x0	0069d6c0	cSC4CivicBuildingSimulator::QueryInterface	8	2	eax-or-void	high	AL
 cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	1	+0x4	004664a0	AddRef (shared code)	0	0	eax-or-void	high	EAX new count
 cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	2	+0x8	0069d7a0	cSC4CivicBuildingSimulator::Release	0	0	eax-or-void	high	EAX new count
@@ -4448,13 +4446,11 @@ cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	5	+0x14	0069e5b0
 cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	6	+0x18	0069d8d0	cSC4CivicBuildingSimulator::GetConditionalBuildingStatus	4	1	eax-or-void	high	EAX pointer into the map or null; callers write through it
 cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	7	+0x1C	0069e9f0	cSC4CivicBuildingSimulator::UpdateConditionalBuildingStatus	8	2	eax-or-void	low	no meaningful return although the SDK says bool; arg 2 is read only
 cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	8	+0x20	0069e5d0	cSC4CivicBuildingSimulator::GetLandmarkCount	0	0	eax-or-void	high	EAX; counts every maintained building
-cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	9	+0x24	0069e700	deleting destructor	4	1	eax-or-void	high	not an interface method; re-specs9 civic-buildings.md
 cISC4ParkManager	cSC4ParkManager	00ab20ac	0	+0x0	006d5060	cSC4ParkManager::QueryInterface	8	2	eax-or-void	high	AL
 cISC4ParkManager	cSC4ParkManager	00ab20ac	1	+0x4	004f7ba0	AddRef (shared code)	0	0	eax-or-void	high	EAX new count
 cISC4ParkManager	cSC4ParkManager	00ab20ac	2	+0x8	006d5140	cSC4ParkManager::Release (shared with the industrial simulator)	0	0	eax-or-void	high	EAX new count; 0 when destroyed
 cISC4ParkManager	cSC4ParkManager	00ab20ac	3	+0xC	006d5b00	cSC4ParkManager::Init	0	0	eax-or-void	high	AL=1
 cISC4ParkManager	cSC4ParkManager	00ab20ac	4	+0x10	006d5420	cSC4ParkManager::Shutdown	0	0	eax-or-void	high	AL=1
-cISC4ParkManager	cSC4ParkManager	00ab20ac	5	+0x14	006d5860	deleting destructor	4	1	eax-or-void	high	not an interface method; re-specs9 parks.md
 cISC424HourClock	cSC424HourClock	00a86588	0	+0x0	00444e40	cSC424HourClock::QueryInterface	8	2	eax-or-void	high	AL; other IIDs tail-call cRZSystemService::QueryInterface on this+0xC
 cISC424HourClock	cSC424HourClock	00a86588	1	+0x4	00825d60	cSC424HourClock::AddRef	0	0	eax-or-void	high	EAX new count (+0x2C)
 cISC424HourClock	cSC424HourClock	00a86588	2	+0x8	004451f0	cSC424HourClock::Release	0	0	eax-or-void	high	EAX new count; destroys at <=1 without decrementing
@@ -4485,3 +4481,5 @@ cISC424HourClock	cSC424HourClock	00a86588	26	+0x68	004455b0	cSC424HourClock::Hid
 cISC424HourClock	cSC424HourClock	00a86588	27	+0x6C	00703d60	IsHiddenPaused (shared with cSC4Simulator::IsHiddenPaused)	0	0	eax-or-void	high	EAX 0/1 (count at +0x34 > 0)
 cISC424HourClock	cSC424HourClock	00a86588	28	+0x70	004453e0	cSC424HourClock::IsNight	0	0	eax-or-void	high	EAX 0/1, visual hour
 cISC424HourClock	cSC424HourClock	00a86588	29	+0x74	00445620	cSC424HourClock::EnableDayNightTransitionNotifications	4	1	eax-or-void	high	void
+cISC43DRender	cSC43DRender	00abab60	8	+0x20	007c9fb0	cSC43DRender::GetViewUtilities	0	0	eax	high	re-answers9 LG21: borrowed, not a GZCOM object; view rotation int32 at +0x10
+cISC4App	cSC4App	00a86af0	37	+0x94	0081f910	cSC4App::GetCity	0	0	eax	high	re-answers9 NB19: borrowed app+0x5C; same pointer as global 0x00B43CEC until the city's Shutdown

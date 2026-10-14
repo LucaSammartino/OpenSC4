@@ -38,6 +38,7 @@
 #include "cIGZMessageServer2.h"
 #include "cIGZMessageTarget2.h"
 #include "cISC4App.h"
+#include "cGZPersistResourceKey.h"
 #include "cISC4BuildingDevelopmentSimulator.h"
 #include "cISC4City.h"
 #include "cISC4GrowthDeveloper.h"
@@ -469,6 +470,7 @@ struct State {
     bool catalogueCompared = false;
     uint32_t forwarded = 0;  // notifications handed to the cores (status)
     DWORD mainTid = 0;       // the thread of the first delivery (the simulator's)
+    LotFlow lotFlow;         // the original's StateChanged flow since the last lot line (tooling)
 };
 State g;
 
@@ -555,6 +557,14 @@ public:
             SehGuard("development shadow (city shutdown)", &DropAllGuarded, nullptr);
             return true;
         }
+        if (type == kMsgStateChanged) {  // tooling: the month's lot line (data1 old state, data2 new)
+            cIGZMessage2Standard* s = nullptr;
+            if (msg->QueryInterface(GZIID_cIGZMessage2Standard, reinterpret_cast<void**>(&s)) && s != nullptr) {
+                FC4_ACQUIRED(reinterpret_cast<cIGZUnknown*>(s), "QueryInterface");
+                g.lotFlow.Note(static_cast<uint32_t>(s->GetData1()), static_cast<uint32_t>(s->GetData2()));
+                FC4_RELEASE(reinterpret_cast<cIGZUnknown*>(s));
+            }
+        }
         if ((type == kMsgZoningChange || type == kMsgStateChanged) && !g.devs.empty()) {
             if (!SehGuard("development shadow (a notification)", &ForwardStep, msg)) g.disabledByFault = true;
         }
@@ -610,7 +620,9 @@ Dev* DevFor(cIGZMessageTarget2* target) {
             FC4_RELEASE(u);
         } else {
             d->orig = reinterpret_cast<cFC4ISC4GrowthDeveloper*>(u);
-            d->type = d->orig->GetType();  // slot 5
+            // The developer type (0x1010 ... 0x4400) is slot 6, GetSubType;
+            // slot 5, GetType, is the target zone (1, 2, 3), growth §10.1.
+            d->type = static_cast<int32_t>(d->orig->GetSubType());  // slot 6
         }
     }
     g.devs.push_back(std::move(d));
@@ -657,7 +669,35 @@ void CompareTuning(Dev& d) {
     for (int i = 0; i < 4; ++i) {
         if (oc[i] != caps[i]) df.Add(Fmt("cap %d %u/%u", 19 + i, oc[i], caps[i]));
     }
-    d.tuning = df.count == 0 ? "tuning=ok" : Fmt("tuning=%u differ", df.count);
+    // Slots 25 and 26, which the tract developer reads when it picks a
+    // building (tract-developer.md §4.16 steps 3 and 8).
+    // Slot 18, whose node the tract developer sizes a build by (§4.2): the
+    // same game demand object.
+    const void* osd = d.orig->GetSourceDemand();
+    const void* ssd = FromToken(fc4_growth_source_demand(d.gs->core));
+    if (osd != ssd) df.Add(Fmt("source demand %p/%p", osd, ssd));
+    const int32_t om = d.orig->GetMonopolyUse();
+    const uint32_t sm = fc4_growth_monopoly_use(d.gs->core);
+    if (static_cast<uint32_t>(om) != sm) df.Add(Fmt("monopoly %d/%u", om, sm));
+    std::vector<std::pair<uint32_t, uint32_t>> os, ss;  // (style, float bits)
+    const GameMapStatus ms = WalkGameMap(d.orig->GetStylePercentages(), 64, [&](const GameMapNode& n) {
+        os.emplace_back(n.key, n.value);
+    });
+    fc4_growth_styles(
+        d.gs->core,
+        [](void* c, uint32_t k, float v) {
+            uint32_t bits = 0;
+            std::memcpy(&bits, &v, sizeof(bits));
+            static_cast<std::vector<std::pair<uint32_t, uint32_t>>*>(c)->emplace_back(k, bits);
+        },
+        &ss);
+    if (ms != GameMapStatus::Ok) {
+        df.Add(Fmt("styles unreadable (%s)", GameMapStatusName(ms)));
+    } else if (os != ss) {
+        df.Add(Fmt("styles %u entries/%u entries", static_cast<unsigned>(os.size()), static_cast<unsigned>(ss.size())));
+    }
+    d.tuning = df.count == 0 ? Fmt("tuning=ok (styles %u)", static_cast<unsigned>(ss.size()))
+                             : Fmt("tuning=%u differ", df.count);
 }
 
 // The previous core against the record the original writes now (it saw the
@@ -735,7 +775,7 @@ void Baseline(Dev& d, cISC4City* city) {
                        static_cast<uint32_t>(d.type));
         return;
     }
-    if (!fc4_growth_init(gs->core, props::ToCoreAll(ex.Holder()))) {  // the props are consumed
+    if (!fc4_growth_init(gs->core, props::ToCoreAll(ex))) {  // the props are consumed
         d.failed = "the shadow core's Init failed (a service is missing)";
         return;
     }
@@ -1004,6 +1044,81 @@ void CompareCatalogue(cFC4ISC4BuildingDevelopmentSimulator* ob, uint32_t julian)
         }
         if (df.count != before) ++profileDiffs;
     }
+    // The exemplar keys (slot 14) of the common types.
+    uint32_t keyDiffs = 0;
+    for (uint32_t t : a) {
+        if (!std::binary_search(b.begin(), b.end(), t)) continue;
+        cGZPersistResourceKey ok;
+        fc4_res_key sk{};
+        const bool oh = ob->GetBuildingKeyFromType(t, ok);
+        const bool sh = fc4_development_catalogue_key(ShadowProcess(), 0, t, &sk);
+        if (oh != sh || (oh && (ok.type != sk.type_id || ok.group != sk.group || ok.instance != sk.instance))) {
+            ++keyDiffs;
+            df.Add(Fmt("0x%08X key %08X/%08X/%08X / %08X/%08X/%08X", t, ok.type, ok.group, ok.instance, sk.type_id,
+                       sk.group, sk.instance));
+        }
+    }
+    // The families (slot 13, hash order), each family's members (slot 18, the
+    // member list in load order) and the hash set the tract developer draws
+    // from (slot 19 into a fresh 193-bucket set, §4.16 step 8: its iteration
+    // order is part of the contract).
+    uint32_t famO = 0, famS = 0, memberDiffs = 0, setDiffs = 0;
+    bool famOrderSame = false;
+    if (StlNodeAllocator::Available()) {
+        GameVector<uint32_t> ofv;
+        ob->GetAllBuildingFamilyTypes(ofv);  // EAX is garbage (§8 slot 13)
+        const std::vector<uint32_t> of(ofv.begin(), ofv.end());
+        const size_t nf = fc4_development_catalogue_types(ShadowProcess(), 1, nullptr, 0);
+        std::vector<uint32_t> sf(nf);
+        if (nf != 0) fc4_development_catalogue_types(ShadowProcess(), 1, sf.data(), nf);
+        famO = static_cast<uint32_t>(of.size());
+        famS = static_cast<uint32_t>(sf.size());
+        famOrderSame = of == sf;
+        std::vector<uint32_t> fa = of, fb = sf;
+        std::sort(fa.begin(), fa.end());
+        std::sort(fb.begin(), fb.end());
+        std::vector<uint32_t> fOnlyO, fOnlyS;
+        std::set_difference(fa.begin(), fa.end(), fb.begin(), fb.end(), std::back_inserter(fOnlyO));
+        std::set_difference(fb.begin(), fb.end(), fa.begin(), fa.end(), std::back_inserter(fOnlyS));
+        for (uint32_t f : fOnlyO) df.Add(Fmt("family 0x%08X only in the original", f));
+        for (uint32_t f : fOnlyS) df.Add(Fmt("family 0x%08X only in ours", f));
+        if (!famOrderSame && fOnlyO.empty() && fOnlyS.empty()) df.Add("family order differs");
+        for (uint32_t f : fa) {
+            if (!std::binary_search(fb.begin(), fb.end(), f)) continue;
+            GameVector<uint32_t> omv;
+            ob->GetBuildingTypesByFamily(omv, f);
+            const std::vector<uint32_t> om(omv.begin(), omv.end());
+            const size_t nm = fc4_development_catalogue_family(ShadowProcess(), f, nullptr, 0);
+            std::vector<uint32_t> sm(nm);
+            if (nm != 0) fc4_development_catalogue_family(ShadowProcess(), f, sm.data(), nm);
+            if (om != sm) {
+                ++memberDiffs;
+                std::vector<uint32_t> ma = om, mb = sm;
+                std::sort(ma.begin(), ma.end());
+                std::sort(mb.begin(), mb.end());
+                df.Add(Fmt("family 0x%08X members %u/%u (%s)", f, static_cast<unsigned>(om.size()),
+                           static_cast<unsigned>(sm.size()), ma == mb ? "same set, order differs" : "sets differ"));
+                continue;
+            }
+            GameHashSetU32<> oset(193), sset(193);
+            ob->GetBuildingTypeSetByFamily(oset, f);
+            for (uint32_t t : sm) sset.insert(t);
+            std::vector<uint32_t> oi, si;
+            for (size_t k = 0; k < oset.bucket_count(); ++k) {
+                for (auto* n = oset.bucket(k); n != nullptr; n = n->next) oi.push_back(n->value);
+            }
+            for (size_t k = 0; k < sset.bucket_count(); ++k) {
+                for (auto* n = sset.bucket(k); n != nullptr; n = n->next) si.push_back(n->value);
+            }
+            if (oi != si) {
+                ++setDiffs;
+                df.Add(Fmt("family 0x%08X hash set order (%u/%u buckets)", f,
+                           static_cast<unsigned>(oset.bucket_count()), static_cast<unsigned>(sset.bucket_count())));
+            }
+        }
+    } else {
+        df.Add("families not compared (no STL allocator)");
+    }
     // The maximum density table (slot 45, ST0).
     uint32_t density = 0, densityDiffs = 0;
     for (int32_t zone = 0; zone < 16; ++zone) {
@@ -1021,10 +1136,60 @@ void CompareCatalogue(cFC4ISC4BuildingDevelopmentSimulator* ob, uint32_t julian)
             }
         }
     }
-    LogLine(Fmt("development shadow catalogue %s: types=%u/%u (%s) profiles=%u (%u differ) density=%u (%u differ)",
+    LogLine(Fmt("development shadow catalogue %s: types=%u/%u (%s) profiles=%u (%u differ) keys=%u differ "
+                "families=%u/%u (%s) members=%u differ hashSets=%u differ density=%u (%u differ)",
                 DateText(julian).c_str(), static_cast<unsigned>(ot.size()), static_cast<unsigned>(st.size()),
-                orderSame ? "same order" : "order DIFFERS", profiles, profileDiffs, density, densityDiffs) +
+                orderSame ? "same order" : "order DIFFERS", profiles, profileDiffs, keyDiffs, famO, famS,
+                famOrderSame ? "same order" : "order DIFFERS", memberDiffs, setDiffs, density, densityDiffs) +
             df.Tail());
+}
+
+// building-development §4.7.3 BuildingFitsInZone(bz, cz).
+bool FitsInZone(int32_t bz, int32_t cz) {
+    if (bz == cz) return true;
+    switch (cz) {
+        case 2:
+            return bz == 1;
+        case 3:
+            return bz == 1 || bz == 2;
+        case 5:
+            return bz == 4;
+        case 6:
+            return bz == 4 || bz == 5;
+        case 9:
+            return bz == 8;
+        case 0x0B:
+        case 0x0C:
+        case 0x0F:
+            return bz == 0;
+        default:
+            return false;
+    }
+}
+
+// A cell the suitability comparison can use: zoned, or holding a lot.
+struct SuitCell {
+    int32_t x, z;
+    int32_t zone;  // the zone manager's type, sign-extended (§4.8 check 1)
+    bool lot;      // GetLot(x, z, true) is not null (check 2)
+    bool state1;   // the lot's GetState() = 1 (check 5)
+};
+
+// Every zoned or lot-holding cell of the city, read through the shadow BDS's
+// host (the calls the core's check makes), once per month.
+std::vector<SuitCell> SuitabilityCells(int32_t cellsX, int32_t cellsZ) {
+    std::vector<SuitCell> cells;
+    const fc4_development_host& h = g.bdsHost;
+    if (h.zone_type == nullptr || h.lot_at == nullptr || h.lot_state == nullptr) return cells;
+    for (int32_t x = 0; x < cellsX; ++x) {
+        for (int32_t z = 0; z < cellsZ; ++z) {
+            const int32_t zone = h.zone_type(h.user, x, z);
+            const uint64_t lot = h.lot_at(h.user, x, z);  // borrowed
+            if (zone == 0 && lot == 0) continue;
+            cells.push_back(SuitCell{x, z, zone, lot != 0, lot != 0 && h.lot_state(h.user, lot) == 1});
+        }
+    }
+    return cells;
 }
 
 void CompareSuitability(cFC4ISC4BuildingDevelopmentSimulator* ob, cISC4City* city, uint32_t julian) {
@@ -1032,34 +1197,49 @@ void CompareSuitability(cFC4ISC4BuildingDevelopmentSimulator* ob, cISC4City* cit
     const std::vector<uint32_t> types = OurTypes();
     const int32_t cellsX = static_cast<int32_t>(city->CellCountX()), cellsZ = static_cast<int32_t>(city->CellCountZ());
     if (cellsX <= 0 || cellsZ <= 0) return;
-    uint32_t checked = 0, suitO = 0, suitS = 0;
+    const std::vector<SuitCell> cells = SuitabilityCells(cellsX, cellsZ);
+    uint32_t zoned = 0, lots = 0, state1 = 0;
+    for (const SuitCell& c : cells) {
+        zoned += c.zone != 0 ? 1 : 0;
+        lots += c.lot ? 1 : 0;
+        state1 += c.state1 ? 1 : 0;
+    }
+    uint32_t checked = 0, suitO = 0, suitS = 0, fitting = 0;
     uint32_t reasons[7] = {};  // the original's reasons 0..5, 6 = other
+    std::vector<const SuitCell*> groups[3];
     for (size_t i = 0; i < types.size(); ++i) {
         const uint32_t t = types[i];
         fc4_building_profile bp{};
         if (!fc4_development_catalogue_profile(ShadowProcess(), t, &bp, nullptr, nullptr)) continue;
-        // [choice] The profile a developer of the type's purpose and wealth
-        // gives (slot 9), at a cell of its growth list (slot 11, the tract
-        // spread over its cells by the type's index), else (no developer or
-        // an empty list) a cell spread over the city by the index.
+        // The profile a developer of the type's purpose and wealth gives
+        // (slot 9; no developer: zone 0 and no land value range).
         FC4ConstructionProfile gp{};
         gp.wealth = bp.wealth;
         gp.purpose = bp.purpose;
-        int32_t x = static_cast<int32_t>((i * 7) % static_cast<size_t>(cellsX));
-        int32_t z = static_cast<int32_t>((i * 13) % static_cast<size_t>(cellsZ));
         const uint32_t devType = fc4_development_developer_type(bp.purpose, bp.wealth);
         cISC4GrowthDeveloper* dev = devType ? ob->GetDeveloper(devType) : nullptr;  // slot 32, borrowed
-        if (dev != nullptr) {
-            cFC4ISC4GrowthDeveloper* gd = AsGame(dev);
-            gd->GetConstructionInfo(gp);
-            fc4::GameVector<FC4GrowthItem>& list = gd->GetGrowthList();
-            cISC4SimGrid<int16_t>* dmap = gd->GetDesirabilityMap();
-            if (!list.empty() && dmap != nullptr) {
-                const FC4GrowthItem& it = list[i % list.size()];
-                const int32_t s = dmap->GetTractShift(), mask = (1 << s) - 1;
-                x = std::min((it.x << s) + static_cast<int32_t>(i & static_cast<size_t>(mask)), cellsX - 1);
-                z = std::min((it.z << s) + static_cast<int32_t>((i >> s) & static_cast<size_t>(mask)), cellsZ - 1);
-            }
+        if (dev != nullptr) AsGame(dev)->GetConstructionInfo(gp);
+        // [choice] (DG30) The cell: one whose zone fits the profile's zone
+        // (check 1 passes), taken in turn from the cells with a lot in state
+        // 1 (every check is reached), with a lot in another state (check 5
+        // decides) and without a lot (check 2 decides), so that the later
+        // checks are compared too; a type that fits no cell gets a cell
+        // spread over the city by its index (check 1 decides).
+        for (auto& gr : groups) gr.clear();
+        for (const SuitCell& c : cells) {
+            if (!FitsInZone(gp.zone, c.zone)) continue;
+            groups[c.state1 ? 0 : (c.lot ? 1 : 2)].push_back(&c);
+        }
+        int32_t x = static_cast<int32_t>((i * 7) % static_cast<size_t>(cellsX));
+        int32_t z = static_cast<int32_t>((i * 13) % static_cast<size_t>(cellsZ));
+        for (size_t k = 0; k < 3; ++k) {
+            const std::vector<const SuitCell*>& gr = groups[(i + k) % 3];
+            if (gr.empty()) continue;
+            const SuitCell* c = gr[(i / 3) % gr.size()];
+            x = c->x;
+            z = c->z;
+            ++fitting;
+            break;
         }
         gp.buildingType = t;
         gp.orientation = 0;
@@ -1086,8 +1266,10 @@ void CompareSuitability(cFC4ISC4BuildingDevelopmentSimulator* ob, cISC4City* cit
         if (reasons[r] == 0) continue;
         rtext += Fmt("%s%s=%u", rtext.empty() ? "" : " ", r < 6 ? kReasonNames[r] : "other", reasons[r]);
     }
-    LogLine(Fmt("development shadow suitability %s: profiles=%u suitable=%u/%u (original's reasons: %s)%s",
-                DateText(julian).c_str(), checked, suitO, suitS, rtext.empty() ? "-" : rtext.c_str(),
+    LogLine(Fmt("development shadow suitability %s: profiles=%u at a fitting cell %u (cells: zoned %u, with a lot %u, "
+                "lot state 1 %u) suitable=%u/%u (original's reasons: %s)%s",
+                DateText(julian).c_str(), checked, fitting, zoned, lots, state1, suitO, suitS,
+                rtext.empty() ? "-" : rtext.c_str(),
                 ob->CheatIgnorePower() ? " (the original's ignore-power cheat is on; ours is off)" : "") +
             df.Tail());
 }
@@ -1106,6 +1288,12 @@ void BdsAfter(void* p) {
         CompareCatalogue(bd.ob, julian);
     }
     CompareSuitability(bd.ob, bd.city, julian);
+    // Tooling: the original's lots and month, to set beside "development lots
+    // ... (ours)" of a run with the development unit enabled.
+    const std::string flow = g.lotFlow.Take();
+    Log("development lots %s (the original's): %s; state changes %s; resources %d/%d stage %.2f",
+        DateText(julian).c_str(), LotCensus(bd.city).c_str(), flow.c_str(), bd.ob->GetFreeConstructionResources(),
+        bd.ob->GetTotalConstructionResources(), static_cast<double>(bd.ob->GetStagePopulationMultiplier()));
 }
 
 // The city the entries belong to: a different one drops them first.
@@ -1257,6 +1445,38 @@ intptr_t DevelopmentShadowTest(const FC4DevelopmentShadowTestInput* in) {
             rec.version, static_cast<unsigned>(cap.Bytes().size()), rec.phantom, rec.total, read ? 1 : 0, rs.copies,
             rs.copyFailures, st.total_capacity, st.last_phantom_sum);
         return read ? 1 : 0;
+    }
+    if (in->mode == 2) {
+        if (in->developer == nullptr) return -1;
+        // Only slot 0 (QueryInterface) is called on the agent.
+        auto* target = reinterpret_cast<cIGZMessageTarget2*>(in->developer);
+        const Dev* d = DevFor(target);
+        const intptr_t type = d != nullptr ? static_cast<intptr_t>(d->type) : -2;
+        if (d != nullptr) {
+            Log("development shadow test: developer 0x%04X (target zone %d), exemplar 0x%08X/0x%08X/0x%08X",
+                static_cast<unsigned>(d->type), static_cast<int>(d->orig->GetType()), kExemplarType, kDeveloperGroup,
+                static_cast<uint32_t>(d->type));
+        }
+        for (auto it = g.devs.begin(); it != g.devs.end(); ++it) {
+            if ((*it)->target != target) continue;
+            DropDev(**it);
+            g.devs.erase(it);
+            break;
+        }
+        return type;
+    }
+    if (in->mode == 3) {
+        if (in->holder == nullptr) return -1;
+        std::string ids;
+        for (const props::EffectiveProperty& e : props::EffectiveProperties(in->holder)) {
+            ids += Fmt(" 0x%08X%s", e.id, e.depth == 0 ? "" : Fmt("@%u", e.depth).c_str());
+        }
+        props::ToCoreAllStats st;
+        props::CoreProps p(props::ToCoreAll(in->holder, nullptr, &st));
+        const size_t n = p.Get() != nullptr ? fc4_props_count(p.Get()) : 0;
+        Log("development shadow test: holder properties %u (own %u, inherited %u):%s", static_cast<unsigned>(n), st.own,
+            st.inherited, ids.c_str());
+        return static_cast<intptr_t>(n);
     }
     return -1;
 }

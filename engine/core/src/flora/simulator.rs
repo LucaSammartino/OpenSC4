@@ -1186,7 +1186,9 @@ impl FloraSim {
             h.segment_close(s);
         }
         for (i, &o) in list.iter().enumerate() {
-            // [question] The flag is cleared only when the record opens.
+            // [compat] (§10.3, AQ4): the flag is cleared and set again only
+            // when the record opens; the list's references are the host's
+            // (released either way).
             if let Some(s) = self.open_record(seg, obliterated_occupant_key(i as u32), true) {
                 h.set_occupant_in_manager(o, false);
                 h.write_occupant(o, s);
@@ -1201,12 +1203,14 @@ impl FloraSim {
     /// count (0 unless its record opens) is read before the occupant-manager
     /// test: false without an occupant manager, else true. For each `i` below
     /// the count whose record opens: a new flora occupant, its `Read` (result
-    /// ignored), `Init`, `InsertOccupant`, `Release`.
+    /// ignored), `Init`, `InsertOccupant`, `Release`, then the record is
+    /// closed.
     pub fn restore_obliterated(&self, seg: SegmentId) -> bool {
         let h = self.host.clone();
         let mut count = 0u32;
         if let Some(s) = self.open_record(seg, OBLITERATED_COUNT_KEY, false) {
-            // [question] A failed GetUint32 leaves the count at 0.
+            // [compat] (§10.3, AQ6): a failed GetUint32 reads nothing, so the
+            // count keeps its 0 and nothing is restored.
             if let Some(v) = h.stream_get_u32(s) {
                 count = v;
             }
@@ -1215,6 +1219,8 @@ impl FloraSim {
         if !h.has_occupant_manager() {
             return false;
         }
+        // [choice] (§10.3, AQ8): at most MAX_OBLITERATED open attempts; the
+        // original makes `count` with no bound.
         for i in 0..count.min(MAX_OBLITERATED) {
             let Some(s) = self.open_record(seg, obliterated_occupant_key(i), false) else {
                 continue;
@@ -1224,11 +1230,14 @@ impl FloraSim {
                 continue;
             };
             h.read_occupant(occ, s);
-            // [question] The record is closed before Init and the insert.
-            h.segment_close(s);
             h.init_occupant(occ);
             h.insert_occupant(occ);
             h.release(occ);
+            // [compat] (§10.3, AQ5): the record helper lives for the whole
+            // iteration, so the record is closed only after Read, Init,
+            // InsertOccupant and Release (neither of those touches the
+            // segment).
+            h.segment_close(s);
         }
         true
     }

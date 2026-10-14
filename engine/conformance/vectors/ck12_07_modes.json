@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "ck12_07_modes",
+  "spec": ["clock24 4.5", "clock24 4.9", "clock24 12"],
+  "description": "Test 7. At visual 21:00 (night 20 / 1) SetVisualTimeMode(1) posts VisualHourChanged (12, 0), VisualTimeTick (12, 0) and DayNightChanged (1). A step (21:00:00 + 63 = 21:01:03, no game message) leaves the visual time at 43,200. Mode 2 moves it to 0 (hour 0 is night: DayNightChanged (0)). Mode 3 is only stored; steps leave the visual time. Mode 0 calls ChangeVisualTime(seconds): 0 -> 21:02:06, both night hours. The same mode again does nothing.",
+  "steps": [
+    {"op": "ck_create"},
+    {"op": "ck_call", "method": "init"},
+    {"op": "ck_set", "seconds": "21:00:00", "visual_seconds": "21:00:00"},
+    {"op": "ck_clear_events"},
+    {"op": "ck_call", "method": "set_visual_time_mode", "args": [1]},
+    {"op": "ck_expect_events", "events": [{"event": "post", "name": "VisualHourChanged", "data2": 12, "data3": 0}, {"event": "post", "name": "VisualTimeTick", "data2": 12, "data3": 0}, {"event": "post", "name": "DayNightChanged", "data2": 1, "data3": 0}]},
+    {"op": "ck_idle", "elapsed": 466676},
+    {"op": "ck_expect", "state": {"seconds": 75663, "visual_seconds": 43200, "visual_mode": 1}},
+    {"op": "ck_expect_event_count", "count": 0},
+    {"op": "ck_call", "method": "set_visual_time_mode", "args": [2]},
+    {"op": "ck_expect", "state": {"visual_seconds": 0}},
+    {"op": "ck_expect_events", "events": [{"event": "post", "name": "VisualHourChanged", "data2": 0, "data3": 0}, {"event": "post", "name": "VisualTimeTick", "data2": 0, "data3": 0}, {"event": "post", "name": "DayNightChanged", "data2": 0, "data3": 0}]},
+    {"op": "ck_call", "method": "set_visual_time_mode", "args": [3]},
+    {"op": "ck_call", "method": "visual_time_mode", "expect": 3},
+    {"op": "ck_idle", "elapsed": 466676},
+    {"op": "ck_expect", "state": {"seconds": 75726, "visual_seconds": 0}},
+    {"op": "ck_expect_event_count", "count": 0},
+    {"op": "ck_call", "method": "set_visual_time_mode", "args": [0]},
+    {"op": "ck_expect", "state": {"visual_seconds": 75726}},
+    {"op": "ck_expect_events", "events": [{"event": "post", "name": "VisualHourChanged", "data2": 21, "data3": 0}, {"event": "post", "name": "VisualTimeTick", "data2": 21, "data3": 0}]},
+    {"op": "ck_call", "method": "set_visual_time_mode", "args": [0]},
+    {"op": "ck_expect_event_count", "count": 0}
+  ]
+}

@@ -125,6 +125,11 @@ struct World {
     /// `ReloadCity` replaces the city object: the city moves to id + 0x100
     /// (§14.1 step 5 *[compat]*).
     reload_replaces: Cell<bool>,
+    /// Foreign deals (§15.4 NG4) by token: their state, the calls made on
+    /// them and the references released.
+    foreign_deals: RefCell<HashMap<u64, DealData>>,
+    deal_calls: RefCell<Vec<(u64, DealCall)>>,
+    released_deals: RefCell<Vec<u64>>,
 }
 
 fn ptr(d: &Rc<NeighborDeal>) -> usize {
@@ -156,6 +161,9 @@ impl World {
             released: RefCell::new(Vec::new()),
             next_object: Cell::new(0),
             reload_replaces: Cell::new(false),
+            foreign_deals: RefCell::new(HashMap::new()),
+            deal_calls: RefCell::new(Vec::new()),
+            released_deals: RefCell::new(Vec::new()),
         });
         w.add_city(R, (3, 3), (1, 1));
         w
@@ -464,6 +472,25 @@ impl NeighborsHost for World {
     }
     fn release_connection(&self, token: u64) {
         self.released.borrow_mut().push(token);
+    }
+    fn foreign_deal(&self, token: u64) -> Option<DealData> {
+        self.foreign_deals.borrow().get(&token).cloned()
+    }
+    fn foreign_deal_call(&self, token: u64, call: DealCall) -> bool {
+        self.deal_calls.borrow_mut().push((token, call));
+        let mut all = self.foreign_deals.borrow_mut();
+        let Some(d) = all.get_mut(&token) else { return false };
+        match call {
+            DealCall::SetFlags(f, on) if on => d.flags |= f,
+            DealCall::SetFlags(f, _) => d.flags &= !f,
+            DealCall::SetCurrentDate(t) => d.current_date = t,
+            DealCall::SetAmount(a) => d.amount = a,
+            _ => {}
+        }
+        true
+    }
+    fn release_deal(&self, token: u64) {
+        self.released_deals.borrow_mut().push(token);
     }
 }
 
@@ -1234,6 +1261,74 @@ fn test_06_life_cycle_cancelled_deal_is_removed() {
             .collect::<Vec<_>>(),
         vec![(status::CANCELLED, false), (0, true), (0, false)]
     );
+}
+
+/// §15.4 NG4: `AddDeal` with a deal that is not ours keeps the caller's
+/// object as the listed deal (Silent cleared through its interface), the
+/// simulation drives that object, and the core releases the reference it was
+/// given when the deal leaves the list. Also NG11: the totals are 64-bit.
+#[test]
+fn ng4_a_foreign_deal_is_listed_simulated_and_released() {
+    const F: u64 = 0xF00D;
+    const G: u64 = 0xF00E;
+    let (w, sim) = running();
+    let _c = sim.create_connection(conn_type::POWER_POLE, -1, 5, false).unwrap();
+    let state = |flags: u32, cost: i64| DealData {
+        deal_type: E1,
+        other_side: w.pos(W),
+        city_side: w.pos(R),
+        flags,
+        cost,
+        start_date: TODAY - 100,
+        current_date: TODAY - 1,
+        expiration_date: TODAY + 1000,
+        ..DealData::default()
+    };
+    w.foreign_deals
+        .borrow_mut()
+        .insert(F, state(flag::ACTIVE | flag::SILENT, 5_000_000_000));
+    w.foreign_deals
+        .borrow_mut()
+        .insert(G, state(flag::ACTIVE | flag::CANCELLED, 7));
+    w.clear();
+    assert!(sim.add_foreign_deal(F));
+    assert_eq!(
+        *w.deal_calls.borrow(),
+        vec![(F, DealCall::SetFlags(flag::SILENT, false))]
+    );
+    let all = sim.find_deals_all();
+    assert_eq!(all.len(), 1);
+    assert!(all[0].is_foreign());
+    assert_eq!(all[0].token(), F, "the caller's object is the listed deal");
+    assert_eq!(all[0].flags(), flag::ACTIVE, "read through the interface");
+    // AddDeal pushes both, the foreign deal in the lists handed over.
+    assert_eq!(w.count(|e| *e == Ev::SetLocal(W, 1)), 1);
+    drop(all);
+    // NG11: a cost past 2^32 sums in 64 bits.
+    assert_eq!(sim.total_monthly_income(), 5_000_000_000);
+    assert_eq!(sim.total_monthly_expense(), 0);
+
+    // The deal simulation drives the object: its own UpdateState, then the
+    // current date of an active deal.
+    assert!(sim.add_foreign_deal(G));
+    w.deal_calls.borrow_mut().clear();
+    run(&w, &sim, TODAY);
+    let calls = w.deal_calls.borrow().clone();
+    assert_eq!(calls[0], (F, DealCall::UpdateState));
+    assert!(calls.contains(&(F, DealCall::SetCurrentDate(TODAY))));
+    assert_eq!(w.foreign_deals.borrow()[&F].current_date, TODAY);
+    // The cancelled one is reported, SetAmount(0) goes to it, and it leaves
+    // the list: its reference is released, once.
+    assert!(calls.contains(&(G, DealCall::UpdateState)));
+    assert!(calls.contains(&(G, DealCall::SetAmount(0))));
+    assert_eq!(*w.released_deals.borrow(), vec![G]);
+    let all = sim.find_deals_all();
+    assert_eq!(all.iter().map(|d| d.token()).collect::<Vec<_>>(), vec![F]);
+    drop(all);
+
+    // Shutdown empties the list: the last reference goes.
+    assert!(sim.shutdown());
+    assert_eq!(*w.released_deals.borrow(), vec![G, F]);
 }
 
 #[test]

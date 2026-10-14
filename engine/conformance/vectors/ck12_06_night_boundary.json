@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "ck12_06_night_boundary",
+  "spec": ["clock24 4.1", "clock24 4.4", "clock24 12"],
+  "description": "Test 6. With 20 / 1 the night hours are 20 ... 23 and 0. Entering visual hour 20 posts DayNightChanged (0) after the visual hour messages; entering 1 posts (1). With notifications off only the hour messages are posted. The same visual time again posts nothing. With 20 / 4 the night hours are 20 ... 3; with 5 / 5 no hour is night. Hours of 24 or more only change the modular comparison: 26 / 3 makes hour 2 the only night hour.",
+  "steps": [
+    {"op": "ck_create"},
+    {"op": "ck_call", "method": "init"},
+    {"op": "ck_call", "method": "night_hours", "expect": [0, 20, 21, 22, 23]},
+    {"op": "ck_set", "visual_seconds": "19:59:59"},
+    {"op": "ck_clear_events"},
+    {"op": "ck_call", "method": "change_visual_time", "args": ["20:00:00"]},
+    {"op": "ck_expect_events", "events": [{"event": "post", "name": "VisualHourChanged", "data2": 20, "data3": 0}, {"event": "post", "name": "VisualTimeTick", "data2": 20, "data3": 0}, {"event": "post", "name": "DayNightChanged", "data2": 0, "data3": 0}]},
+    {"op": "ck_call", "method": "is_night", "expect": true},
+    {"op": "ck_call", "method": "change_visual_time", "args": ["01:00:00"]},
+    {"op": "ck_expect_events", "events": [{"event": "post", "name": "VisualHourChanged", "data2": 1, "data3": 0}, {"event": "post", "name": "VisualTimeTick", "data2": 1, "data3": 0}, {"event": "post", "name": "DayNightChanged", "data2": 1, "data3": 0}]},
+    {"op": "ck_call", "method": "enable_notifications", "args": [false]},
+    {"op": "ck_call", "method": "change_visual_time", "args": ["20:00:00"]},
+    {"op": "ck_expect_events", "events": [{"event": "post", "name": "VisualHourChanged", "data2": 20, "data3": 0}, {"event": "post", "name": "VisualTimeTick", "data2": 20, "data3": 0}]},
+    {"op": "ck_call", "method": "change_visual_time", "args": ["20:00:00"]},
+    {"op": "ck_expect_event_count", "count": 0},
+    {"op": "ck_set", "night": [20, 4]},
+    {"op": "ck_call", "method": "night_hours", "expect": [0, 1, 2, 3, 20, 21, 22, 23]},
+    {"op": "ck_set", "night": [5, 5]},
+    {"op": "ck_call", "method": "night_hours", "expect": []},
+    {"op": "ck_set", "night": [26, 3]},
+    {"op": "ck_call", "method": "night_hours", "expect": [2]}
+  ]
+}

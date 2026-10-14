@@ -79,6 +79,8 @@ struct Game {
     refuse_withdraw: Cell<bool>,
     price: Cell<i64>,
     landfill_cost: Cell<i64>,
+    /// The regions the landfill zoning cost was asked for: (rect, set cells).
+    landfill_regions: RefCell<Vec<(fc4_cell_rect, Cells)>>,
     /// (cell) → (occupant flag 1 set, street, demolition cost).
     tiles: RefCell<HashMap<(i32, i32), Tile>>,
     water: RefCell<BTreeSet<(i32, i32)>>,
@@ -345,7 +347,15 @@ unsafe extern "C" fn demolish_lots(
         g.price.get() * n as i64
     }
 }
-unsafe extern "C" fn landfill_zoning_cost(u: *mut c_void, _r: *const fc4_zone_region) -> i64 {
+unsafe extern "C" fn landfill_zoning_cost(u: *mut c_void, r: *const fc4_zone_region) -> i64 {
+    let r = &*r;
+    let rect = fc4_cell_rect {
+        x1: r.x0,
+        z1: r.z0,
+        x2: r.x1,
+        z2: r.z1,
+    };
+    game(u).landfill_regions.borrow_mut().push((rect, cells_of(r)));
     game(u).landfill_cost.get()
 }
 unsafe extern "C" fn find_network_tile(u: *mut c_void, x: i32, z: i32) -> u64 {
@@ -845,6 +855,8 @@ fn the_tuning_comes_from_the_exemplar_at_every_init() {
     unsafe {
         assert_eq!(fc4_zones_min_size(z2, 7), 9, "as read");
         assert_eq!(fc4_zones_display_alpha(z2), 33);
+        // ZG3: the default alpha is not saved; Read leaves it alone.
+        assert_eq!(fc4_zones_default_display_alpha(z2), 0xFF);
         assert!(fc4_zones_init(z2));
         assert_eq!(fc4_zones_min_size(z2, 7), 4, "the exemplar's");
         assert_eq!(fc4_zones_display_alpha(z2), 170);
@@ -861,6 +873,21 @@ fn the_tuning_comes_from_the_exemplar_at_every_init() {
     assert!(unsafe { fc4_zones_get_tuning(z3, &mut t) });
     assert_eq!((t.min_size, t.create_cost, t.display_alpha), ([0; 16], [0; 16], 0xFF));
     unsafe { fc4_zones_destroy(z3) };
+    // ZG3: without the exemplar the saved alpha survives Init. [question] The
+    // default alpha is then left as it was (only the exemplar's value is
+    // copied).
+    let g4 = Game::new(4, 4);
+    g4.no_tuning.set(true);
+    *g4.grid.borrow_mut() = vec![0; 16];
+    g4.refs.borrow_mut().insert(GRID, 1);
+    let z4 = unsafe { fc4_zones_create(&host(&g4)) };
+    assert!(read(z4, &g4, &b));
+    unsafe {
+        assert!(fc4_zones_init(z4));
+        assert_eq!(fc4_zones_display_alpha(z4), 33);
+        assert_eq!(fc4_zones_default_display_alpha(z4), 0xFF);
+        fc4_zones_destroy(z4);
+    }
 }
 
 // ---- PlaceZone ----------------------------------------------------------------------------------------
@@ -984,10 +1011,13 @@ fn place_zone_aborts_and_fails() {
     assert_eq!((res.ok, res.error, res.cost), (0, 3, 0));
     let mut r = Region::new(0, 0, 3, 3);
     assert_eq!(place(z, &g, &mut r, 7, false, false, false, false, true).error, 0);
-    // Type ≥ 16: error 0, nothing called but the funds.
+    // ZG17: a type ≥ 16 (unsigned) is replaced by 0, a dezone, not a failure
+    // (see a_type_above_15_dezones).
     let mut r = Region::new(0, 0, 1, 1);
     let res = place(z, &g, &mut r, 16, true, false, false, true, true);
-    assert_eq!((res.ok, res.error), (0, 0));
+    assert_eq!((res.ok, res.error, res.cost, res.accepted), (1, 0, 0, 4));
+    g.withdrawn.borrow_mut().clear();
+    g.posts.borrow_mut().clear();
     // Landfill on water: error 2, ABORT; the post-loop block still runs (the
     // landfill zoning cost), then the call fails with nothing committed.
     g.water.borrow_mut().insert((1, 0));
@@ -1067,6 +1097,140 @@ fn place_zone_aborts_and_fails() {
     huge.raw.x1 = 5000;
     assert_eq!(place(z, &g, &mut huge, 1, true, true, false, true, true).ok, 0);
     assert_eq!(g.withdrawn.borrow().len(), calls);
+    unsafe { fc4_zones_destroy(z) };
+}
+
+#[test]
+fn a_failed_size_check_still_prices_a_landfill() {
+    // ZG17 (§6): a failed size check is an ABORT. No cell is examined, but
+    // the post-loop block runs: type 14 costs GetZoningCost of the whole
+    // request region, skipFunds makes it 0, and a cost above the funds turns
+    // error 3 or 4 into 1. Both outputs are written.
+    let g = Game::new(64, 64);
+    let z = new_city(&g);
+    g.landfill_cost.set(36);
+    // 1 × 1 landfill, min[14] = 2: error 3, cost 36 (the regress worked
+    // example), the whole region priced, nothing else.
+    let mut r = Region::new(5, 6, 5, 6);
+    let res = place(z, &g, &mut r, 14, false, false, true, false, false);
+    assert_eq!((res.ok, res.error, res.cost, res.cleared), (0, 3, 36, 0));
+    assert_eq!(
+        *g.landfill_regions.borrow(),
+        vec![(
+            fc4_cell_rect {
+                x1: 5,
+                z1: 6,
+                x2: 5,
+                z2: 6
+            },
+            vec![(5, 6)]
+        )]
+    );
+    assert!(
+        g.events.borrow().is_empty(),
+        "no pricing call, no lot: {:?}",
+        g.events.borrow()
+    );
+    // The same on a commit: nothing withdrawn, written or posted.
+    let mut r = Region::new(5, 6, 5, 6);
+    let res = place(z, &g, &mut r, 14, true, false, true, false, false);
+    assert_eq!((res.ok, res.error, res.cost, res.committed), (0, 3, 36, 0));
+    assert!(g.withdrawn.borrow().is_empty() && g.posts.borrow().is_empty());
+    assert_eq!(g.cell(5, 6), 0);
+    // A cost above the funds replaces 3 with 1 (208 > 100); equal is not above.
+    g.landfill_cost.set(208);
+    g.funds.set(100);
+    let mut r = Region::new(5, 6, 5, 6);
+    let res = place(z, &g, &mut r, 14, false, false, true, false, false);
+    assert_eq!((res.ok, res.error, res.cost), (0, 1, 208));
+    g.funds.set(208);
+    let mut r = Region::new(5, 6, 5, 6);
+    assert_eq!(place(z, &g, &mut r, 14, false, false, true, false, false).error, 3);
+    // skipFunds: cost 0, error 3 kept.
+    g.funds.set(100);
+    let mut r = Region::new(5, 6, 5, 6);
+    let res = place(z, &g, &mut r, 14, false, true, true, false, false);
+    assert_eq!((res.ok, res.error, res.cost), (0, 3, 0));
+    // Too large (max[14] = 32): a 33 × 2 rect (min[14] = 2 is tested first)
+    // gives error 4, the region priced whole; the funds test replaces it too.
+    g.landfill_regions.borrow_mut().clear();
+    g.funds.set(1_000_000);
+    let mut r = Region::new(0, 0, 32, 1);
+    let res = place(z, &g, &mut r, 14, false, false, false, false, false);
+    assert_eq!((res.ok, res.error, res.cost), (0, 4, 208));
+    assert_eq!(g.landfill_regions.borrow()[0].1.len(), 66);
+    g.funds.set(0);
+    let mut r = Region::new(0, 0, 32, 1);
+    assert_eq!(place(z, &g, &mut r, 14, false, false, false, false, false).error, 1);
+    // Other types cost 0 (type 7, min 4): error 3 with funds ≥ 0, but 1 with
+    // negative funds (0 > −1, signed), as the original in game.
+    g.landfill_regions.borrow_mut().clear();
+    let mut r = Region::new(5, 6, 5, 6);
+    let res = place(z, &g, &mut r, 7, false, false, true, false, false);
+    assert_eq!((res.ok, res.error, res.cost), (0, 3, 0));
+    g.funds.set(-1);
+    let mut r = Region::new(5, 6, 5, 6);
+    let res = place(z, &g, &mut r, 7, false, false, true, false, false);
+    assert_eq!((res.ok, res.error, res.cost), (0, 1, 0));
+    assert!(
+        g.landfill_regions.borrow().is_empty(),
+        "only type 14 asks the landfill developer"
+    );
+    unsafe { fc4_zones_destroy(z) };
+}
+
+#[test]
+fn a_type_above_15_dezones() {
+    // ZG17 (§6 "Type out of range"): the type argument is replaced by 0 and
+    // the call proceeds as a dezone with type 0's size limits.
+    let g = Game::new(16, 16);
+    let z = new_city(&g);
+    let mut r = Region::new(2, 2, 3, 3);
+    assert_eq!(place(z, &g, &mut r, 1, true, false, false, true, true).ok, 1);
+    assert_eq!(g.cell(2, 2), 1);
+    g.posts.borrow_mut().clear();
+    for t in [16, 99, -1] {
+        let mut r = Region::new(2, 2, 3, 3);
+        let res = place(z, &g, &mut r, t, true, false, false, false, true);
+        // The first changes 4 cells from type 1 (destroy[1] = 1 each).
+        let cost = if t == 16 { 4 } else { 0 };
+        assert_eq!((res.ok, res.error, res.cost), (1, 0, cost), "type {t}");
+        assert_eq!(g.cell(2, 2), 0, "type {t}");
+        assert_eq!(g.posts.borrow().last().unwrap().2, 0, "posted as type 0");
+    }
+    let s = state(z);
+    assert_eq!((s.zone_count[0], s.zone_count[1]), (256, 0));
+    unsafe { fc4_zones_destroy(z) };
+}
+
+#[test]
+fn a_set_cell_outside_the_city_fails_with_error_0() {
+    // ZG2 [choice] (§6 "No city-bounds test"): the original reads and, on a
+    // commit, writes the grid outside the city; ours fails with error 0 and
+    // touches nothing.
+    let g = Game::new(16, 16);
+    let z = new_city(&g);
+    for (x0, z0, x1, z1) in [(15, 15, 16, 15), (-1, 0, 0, 0), (0, 15, 0, 16)] {
+        let mut r = Region::new(x0, z0, x1, z1);
+        let mask = r.mask.clone();
+        let res = place(z, &g, &mut r, 1, true, false, false, true, true);
+        assert_eq!(
+            (res.ok, res.error, res.cost, res.cleared),
+            (0, 0, 0, 0),
+            "{x0},{z0}..{x1},{z1}"
+        );
+        assert_eq!(r.mask, mask);
+    }
+    assert!(g.withdrawn.borrow().is_empty() && g.posts.borrow().is_empty());
+    assert!(g.events.borrow().is_empty());
+    assert_eq!(g.cell(15, 15), 0);
+    // A cell outside the city with its bit clear is skipped, as in the
+    // original: the call goes ahead.
+    let mut r = Region::new(14, 15, 16, 15);
+    r.mask[2] = 0;
+    let res = place(z, &g, &mut r, 1, true, false, false, true, true);
+    assert_eq!((res.ok, res.error, res.accepted), (1, 0, 2));
+    assert_eq!((g.cell(14, 15), g.cell(15, 15)), (1, 1));
     unsafe { fc4_zones_destroy(z) };
 }
 

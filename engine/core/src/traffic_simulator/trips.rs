@@ -286,6 +286,9 @@ impl Run<'_, '_> {
 
     /// `UpdateTrafficVolume` of a source (§4.1.1, §4.1.4).
     pub(crate) fn update_traffic_volume(&mut self, src: Source) {
+        if self.h.native_update_traffic_volume(src) {
+            return;
+        }
         match src {
             Source::Lot(l) => self.update_lot_volume(l),
             Source::Connection(c) => self.update_connection_volume(c),

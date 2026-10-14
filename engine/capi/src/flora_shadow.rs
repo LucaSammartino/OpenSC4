@@ -33,9 +33,11 @@
 //!    `[..index]`), the occupants of each visited block found as the game's
 //!    cell query finds them (§6.7.1, §6.4.2, FQ15: listed in one of the
 //!    block's 64 m occupant-manager cells, from its box with the 0.1 m
-//!    inset, and overlapping the block's world box strictly; [choice] the
-//!    listing is taken from the census box before the pass, as flora boxes
-//!    change only through `MoveOccupant`, which lists them again), and
+//!    inset, and overlapping the block's world box strictly; [choice] (AQ9:
+//!    no original behaviour) the listing is taken from the census box before
+//!    the pass, as flora boxes change only through `MoveOccupant`, which
+//!    lists them again: the original lists an occupant from its box at its
+//!    last insert or move, the same box), and
 //!    §6.7.2 applied visit by visit with
 //!    [`fc4_core::flora::predict_visit`] (the deterministic part: rebirth,
 //!    stage, removal, last seeding date), with the original's own records,

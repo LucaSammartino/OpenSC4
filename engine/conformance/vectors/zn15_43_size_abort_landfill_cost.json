@@ -1,0 +1,276 @@
+{
+  "format": 1,
+  "name": "zn15_43_size_abort_landfill_cost",
+  "spec": [
+    "zones 6",
+    "zones 4",
+    "landfill 4.3"
+  ],
+  "description": "ZG17 (\u00a76 notes, worked example): a failed size check is an ABORT, not an early return. No cell is examined, but the post-loop block runs: for type 14 the cost is the landfill developer's GetZoningCost of the whole request region (the world returns `landfill_cost`), 0 with skipFunds; a cost above the funds (signed int64) replaces error 3 or 4 with 1. Other types cost 0, so with negative funds they fail with error 1 too. A 1 \u00d7 1 landfill (min[14] = 2) with cost 36: error 3, cost 36, on a dry run and on a commit (nothing written). Cost 208 with funds 100: error 1; skipFunds: error 3, cost 0. A 33 \u00d7 2 landfill (max[14] = 32; the min check comes first, so the rect is 2 high): error 4, cost 208; with funds 0, error 1. A 1 \u00d7 1 agriculture zone (type 7, min 4): error 3, cost 0 with funds 0; error 1 with funds -1.",
+  "steps": [
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ],
+      "landfill_cost": 36
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          5,
+          6,
+          5,
+          6
+        ]
+      },
+      "type": 14,
+      "commit": false,
+      "skip_funds": false,
+      "check_slope": true,
+      "skip_size": false,
+      "check_lot_inside": false,
+      "expect": {
+        "ok": false,
+        "error": 3,
+        "cost": 36
+      }
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          5,
+          6,
+          5,
+          6
+        ]
+      },
+      "type": 14,
+      "commit": true,
+      "skip_funds": false,
+      "check_slope": true,
+      "skip_size": false,
+      "check_lot_inside": false,
+      "expect": {
+        "ok": false,
+        "error": 3,
+        "cost": 36
+      }
+    },
+    {
+      "op": "zone_expect",
+      "zones": [
+        [
+          5,
+          6,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "zone_env",
+      "funds": 100,
+      "landfill_cost": 208
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          5,
+          6,
+          5,
+          6
+        ]
+      },
+      "type": 14,
+      "commit": false,
+      "skip_funds": false,
+      "check_slope": true,
+      "skip_size": false,
+      "check_lot_inside": false,
+      "expect": {
+        "ok": false,
+        "error": 1,
+        "cost": 208
+      }
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          5,
+          6,
+          5,
+          6
+        ]
+      },
+      "type": 14,
+      "commit": false,
+      "skip_funds": true,
+      "check_slope": true,
+      "skip_size": false,
+      "check_lot_inside": false,
+      "expect": {
+        "ok": false,
+        "error": 3,
+        "cost": 0
+      }
+    },
+    {
+      "op": "zone_env",
+      "funds": 208
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          5,
+          6,
+          5,
+          6
+        ]
+      },
+      "type": 14,
+      "commit": false,
+      "skip_funds": false,
+      "check_slope": true,
+      "skip_size": false,
+      "check_lot_inside": false,
+      "expect": {
+        "ok": false,
+        "error": 3,
+        "cost": 208
+      }
+    },
+    {
+      "op": "zone_env",
+      "funds": 1000
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          0,
+          0,
+          32,
+          1
+        ]
+      },
+      "type": 14,
+      "commit": false,
+      "skip_funds": false,
+      "check_slope": true,
+      "skip_size": false,
+      "check_lot_inside": false,
+      "expect": {
+        "ok": false,
+        "error": 4,
+        "cost": 208
+      }
+    },
+    {
+      "op": "zone_env",
+      "funds": 0
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          0,
+          0,
+          32,
+          1
+        ]
+      },
+      "type": 14,
+      "commit": false,
+      "skip_funds": false,
+      "check_slope": true,
+      "skip_size": false,
+      "check_lot_inside": false,
+      "expect": {
+        "ok": false,
+        "error": 1,
+        "cost": 208
+      }
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          5,
+          6,
+          5,
+          6
+        ]
+      },
+      "type": 7,
+      "commit": false,
+      "skip_funds": false,
+      "check_slope": true,
+      "skip_size": false,
+      "check_lot_inside": false,
+      "expect": {
+        "ok": false,
+        "error": 3,
+        "cost": 0
+      }
+    },
+    {
+      "op": "zone_env",
+      "funds": -1
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          5,
+          6,
+          5,
+          6
+        ]
+      },
+      "type": 7,
+      "commit": false,
+      "skip_funds": false,
+      "check_slope": true,
+      "skip_size": false,
+      "check_lot_inside": false,
+      "expect": {
+        "ok": false,
+        "error": 1,
+        "cost": 0
+      }
+    },
+    {
+      "op": "zone_expect",
+      "zones": [
+        [
+          5,
+          6,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          32,
+          0,
+          0
+        ]
+      ]
+    }
+  ]
+}
