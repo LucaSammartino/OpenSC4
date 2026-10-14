@@ -1022,6 +1022,14 @@ Callee-pop values were checked with `abi_extract.py --check`; return channels by
 "garbage" means the original leaves an unrelated value in EAX. No caller found in the game tests it
 *[inferred]*. Slots 39–41 return borrowed pointers.
 
+**Callers of the "garbage" slots** (RG11). A scan for calls to these slots through the residential simulator global
+(`0x00B43DA4`) found 14 sites (slots 19, 21, 22, 23, 25, 28, 47 and 49), and none tests EAX or AL afterwards: `0x004C7B62`, `0x004C7C95`, `0x004C7CFA`,
+`0x004C7FF1`, `0x004C8114`, `0x004C8179` (query and budget UI), `0x0068DAD2` (aura), `0x0069FB24` and
+`0x0069FB3E` (crime), `0x0077BE7B` (sub-budget window), `0x007A1B53` and `0x007A1BC1` (map-view highlights),
+`0x007A32CC` and `0x007A32D1` (map-view update). So a replacement may return true from slots 19, 20, 21–25, 28,
+47 and 49. Callers that keep the simulator pointer in a member of their own were not all traced, so this stays
+*[inferred]* for them.
+
 ## 8. Dependencies
 
 | Interface (vtable) | Slot | Off | Method | Pop | Return |

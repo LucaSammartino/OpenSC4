@@ -2186,7 +2186,10 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   output untouched (both outputs for the staff department; only b for the vehicle department, after a is written). The
   class's own callers preset 0.0, so the curves see 0. The value 1.0 is used only when the budget item itself is
   missing. The host should report a missing department rather than return 1.0.
-- **RG11:** slots 19, 20, 21–25, 28, 47 and 49: always true? [true]
+- ~~**RG11:** slots 19, 20, 21–25, 28, 47 and 49: always true? [true]~~ **ANSWERED 2026-10-14** from the exe (the 14
+  call sites listed in REH §7) and written into REH §7. **Confirmed; the bracket matches.** No caller that reaches
+  these slots through the residential global tests EAX or AL afterwards, so returning true is safe. Callers that keep
+  the simulator pointer in a member of their own were not all traced; for them it stays *[inferred]*.
 - **RG12:** slot 45 returning false: are its outputs left untouched? [untouched]
 - **RG13:** does `SetLocalFundingPercent` set the budget item's local funding? [the shadow assumes so]
 - **RG14:** the dirty flag cannot be compared by the shadow. [not compared]
