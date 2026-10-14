@@ -502,7 +502,10 @@ vectors `nb18_*`). The core's current answer is in brackets.
   NaN when free = 0. Missing: the original divides by an **uninitialized** stack float (no default is written before
   the read, `0x006D2AE3`). Its result is undefined, so "missing gives 0" is kept as a *[choice]* (neighbors.md §8.2,
   §12).
-- **NB14:** the order of `GetAdjacentCities`. [choice: by region position, x then z]
+- ~~**NB14:** the order of `GetAdjacentCities`. [choice: by region position, x then z]~~ **ANSWERED 2026-10-14** from
+  the exe (`0x006D01E0`): the original collects into a `std::set<cISC4RegionalCity*>` with `std::less`, so the order
+  is ascending heap address, which cannot be reproduced. The *[choice]* stands. The order mainly affects list and
+  message order; the one effect on values is in `ProposeDeals(…, true)` (neighbors.md §9.1).
 - **NB15:** without a current regional city, the UpdateState budget test is skipped. [skipped]
 - **NB16:** a missing payer at renewal counts as "cannot afford". [yes]
 - **NB17:** the return types of `RequestCreateConnection` and `CreateConnection`. [choice: the request returns

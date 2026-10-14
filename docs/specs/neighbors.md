@@ -617,6 +617,25 @@ The regional cities in the region cells that touch the current city's footprint:
 east. Each city once; established only unless the flag is set. The original orders them by object address;
 *[choice]* FreeCity4 orders them by region position (x, then z).
 
+How the original orders them (NB14; `0x006D01E0`):
+
+- It collects the cities into a `std::set<cISC4RegionalCity*>` with `std::less`, then copies the set into the list.
+  The order is therefore ascending **heap address** of the regional-city objects, which depends on allocation
+  history and cannot be reproduced.
+- The north and south rows are scanned for each column, then the west and east cells for each row. This decides
+  only which cities are found, not their order.
+
+The order shows in four places:
+- the order of `ProposeDeals`' results;
+- the order of the per-city pushes in §9.2;
+- the order of `ReloadCity` in `Init` step 5;
+- the order of the cloned deals in `Init` step 7.
+
+Mostly only the order of messages and of list entries changes. There is one exception: with
+`ProposeDeals(…, true)`, the re-entrant runs (§7.1) refresh `R`'s statistics between cities. An earlier buy
+proposal's cost of 1 then enters `P`, `W` or `G`, and through them our cost per unit, which prices a later sell
+proposal's budget test. Because the original's order is not reproducible, the *[choice]* stands.
+
 ### 9.2 Pushing to the region (`update_deals_in_regional_cities(deals, stats)`) *[compat]*
 
 If either flag is set: for each adjacent established city, then for the current regional city:
