@@ -7,11 +7,20 @@
 //! The neighbour connection (§4): a connection cell one cell outside the
 //! city, its type, the region cell on the other side, two flag bits and a
 //! property holder.
+//!
+//! A connection is either **ours** (created by the core, §6.3; the host may
+//! wrap it in a GZCOM object, [`NeighborsHost::connection_object`]) or
+//! **foreign**: a host object the simulator's list accepted on load (§15.2:
+//! when the connection class is not replaced, the class store creates the
+//! original objects). A foreign connection keeps no state of its own; every
+//! read and write goes to the host object through
+//! [`NeighborsHost::foreign_connection`] and friends, because other
+//! simulators change it through its interface (§17 item 4).
 
 use std::cell::{Cell, RefCell};
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
-use super::{connection_inner_cell, neighbouring_region_cell, side_of, CLSID_NEIGHBOR_CONNECTION};
+use super::{connection_inner_cell, neighbouring_region_cell, side_of, NeighborsHost, CLSID_NEIGHBOR_CONNECTION};
 use crate::property::PropertyHolder;
 use crate::stream::{InStream, OutStream, SaveObject};
 
@@ -21,8 +30,19 @@ pub const CONNECTION_RECORD_VERSION: u16 = 1;
 const VISITED: u8 = 0x01;
 const INACTIVE: u8 = 0x02;
 
+/// The live state of a foreign connection, read through its interface
+/// (`GetType`, `GetConnectionCell`, `GetRegionCellOnOtherSideOfConnection`,
+/// `GetVisitedThisCycle`, `GetIsActive`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ConnectionState {
+    pub conn_type: u32,
+    pub cell: (i32, i32),
+    pub other_region_cell: (i32, i32),
+    pub visited: bool,
+    pub active: bool,
+}
+
 /// `cISC4NeighborConnection` (§4).
-#[derive(Debug)]
 pub struct NeighborConnection {
     conn_type: Cell<u32>,
     cell: Cell<(i32, i32)>,
@@ -33,6 +53,21 @@ pub struct NeighborConnection {
     /// Not saved (§4.1); the traffic spec owns the sync itself.
     needs_traffic_sync: Cell<bool>,
     token: Cell<u64>,
+    /// Set for a foreign connection: the host that answers for it.
+    foreign: RefCell<Option<Weak<dyn NeighborsHost>>>,
+}
+
+impl std::fmt::Debug for NeighborConnection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NeighborConnection")
+            .field("type", &self.conn_type())
+            .field("cell", &self.cell())
+            .field("other_region_cell", &self.other_region_cell())
+            .field("flags", &self.flags())
+            .field("token", &self.token.get())
+            .field("foreign", &self.is_foreign())
+            .finish()
+    }
 }
 
 impl Default for NeighborConnection {
@@ -45,6 +80,7 @@ impl Default for NeighborConnection {
             props: RefCell::new(PropertyHolder::new()),
             needs_traffic_sync: Cell::new(true),
             token: Cell::new(0),
+            foreign: RefCell::new(None),
         }
     }
 }
@@ -63,6 +99,46 @@ impl NeighborConnection {
         c
     }
 
+    /// A foreign connection (§15.2): the host object `token`, read and
+    /// written through `host`. The simulator's list holds one reference to
+    /// it, released through [`NeighborsHost::release_connection`].
+    pub fn foreign(token: u64, host: &Rc<dyn NeighborsHost>) -> Rc<NeighborConnection> {
+        let c = NeighborConnection::new();
+        c.token.set(token);
+        *c.foreign.borrow_mut() = Some(Rc::downgrade(host));
+        c
+    }
+
+    /// A host object, not one of ours (§15.2).
+    pub fn is_foreign(&self) -> bool {
+        self.foreign.borrow().is_some()
+    }
+
+    fn foreign_host(&self) -> Option<Rc<dyn NeighborsHost>> {
+        self.foreign.borrow().as_ref().and_then(Weak::upgrade)
+    }
+
+    /// The live state of a foreign connection; `None` for ours, or when the
+    /// host cannot read it (the stored fields, all initial, answer then).
+    fn live(&self) -> Option<ConnectionState> {
+        let host = self.foreign_host()?;
+        host.foreign_connection(self.token.get())
+    }
+
+    /// The whole state: live for a foreign connection, stored for ours.
+    pub fn state(&self) -> ConnectionState {
+        if let Some(s) = self.live() {
+            return s;
+        }
+        ConnectionState {
+            conn_type: self.conn_type.get(),
+            cell: self.cell.get(),
+            other_region_cell: self.other_region_cell.get(),
+            visited: self.flags.get() & VISITED != 0,
+            active: self.flags.get() & INACTIVE == 0,
+        }
+    }
+
     pub fn set_token(&self, token: u64) {
         self.token.set(token);
     }
@@ -73,16 +149,24 @@ impl NeighborConnection {
 
     /// `GetType()`.
     pub fn conn_type(&self) -> u32 {
-        self.conn_type.get()
+        match self.live() {
+            Some(s) => s.conn_type,
+            None => self.conn_type.get(),
+        }
     }
 
+    /// `SetType(t)` (ours only: `cISC4NeighborConnection` has no setter, so
+    /// a foreign connection keeps its type).
     pub fn set_type(&self, t: u32) {
         self.conn_type.set(t);
     }
 
     /// `GetConnectionCell`.
     pub fn cell(&self) -> (i32, i32) {
-        self.cell.get()
+        match self.live() {
+            Some(s) => s.cell,
+            None => self.cell.get(),
+        }
     }
 
     pub fn set_cell(&self, x: i32, z: i32) {
@@ -91,7 +175,10 @@ impl NeighborConnection {
 
     /// `GetRegionCellOnOtherSideOfConnection`.
     pub fn other_region_cell(&self) -> (i32, i32) {
-        self.other_region_cell.get()
+        match self.live() {
+            Some(s) => s.other_region_cell,
+            None => self.other_region_cell.get(),
+        }
     }
 
     pub fn set_other_region_cell(&self, x: i32, z: i32) {
@@ -114,28 +201,49 @@ impl NeighborConnection {
     }
 
     pub fn visited_this_cycle(&self) -> bool {
-        self.flags.get() & VISITED != 0
+        match self.live() {
+            Some(s) => s.visited,
+            None => self.flags.get() & VISITED != 0,
+        }
     }
 
+    /// `SetVisitedThisCycle(on)`; for a foreign connection, through its
+    /// interface.
     pub fn set_visited_this_cycle(&self, on: bool) {
+        if let Some(h) = self.foreign_host() {
+            h.set_foreign_connection_flags(self.token.get(), Some(on), None);
+            return;
+        }
         let f = self.flags.get();
         self.flags.set(if on { f | VISITED } else { f & !VISITED });
     }
 
     /// `GetIsActive`: bit 1 clear (§4.2).
     pub fn is_active(&self) -> bool {
-        self.flags.get() & INACTIVE == 0
+        match self.live() {
+            Some(s) => s.active,
+            None => self.flags.get() & INACTIVE == 0,
+        }
     }
 
-    /// `SetIsActive(true)` clears bit 1, `(false)` sets it.
+    /// `SetIsActive(true)` clears bit 1, `(false)` sets it; for a foreign
+    /// connection, through its interface.
     pub fn set_active(&self, on: bool) {
+        if let Some(h) = self.foreign_host() {
+            h.set_foreign_connection_flags(self.token.get(), None, Some(on));
+            return;
+        }
         let f = self.flags.get();
         self.flags.set(if on { f & !INACTIVE } else { f | INACTIVE });
     }
 
-    /// The saved flags byte.
+    /// The saved flags byte (for a foreign connection, composed from its two
+    /// getters).
     pub fn flags(&self) -> u8 {
-        self.flags.get()
+        match self.live() {
+            Some(s) => (if s.visited { VISITED } else { 0 }) | (if s.active { 0 } else { INACTIVE }),
+            None => self.flags.get(),
+        }
     }
 
     pub fn needs_traffic_sync(&self) -> bool {
@@ -165,7 +273,7 @@ impl NeighborConnection {
         let (rx, rz) = self.other_region_cell();
         out.put_i32(rx);
         out.put_i32(rz);
-        out.put_u8(self.flags.get());
+        out.put_u8(self.flags());
         let props = self.props.borrow().clone();
         props.write(out) && out.error() == 0
     }

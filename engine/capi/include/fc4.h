@@ -69,8 +69,10 @@ extern "C" {
  * 24 = adds the plumbing shadow (fc4_plumbing_shadow);
  * 25 = adds the land value and flammability shadows (fc4_landvalue_shadow / fc4_flammability_shadow);
  * 26 = adds the residential simulator (fc4_residential) and its shadow (fc4_residential_shadow);
- * 27 = adds fc4_protection_shadow_unadjusted_grid (protection.md §2, PR5). */
-#define FC4_ABI_VERSION 27u
+ * 27 = adds fc4_protection_shadow_unadjusted_grid (protection.md §2, PR5);
+ * 28 = adds the neighbours simulator (fc4_neighbors, fc4_neighbor_deal,
+ *      fc4_neighbor_connection) and its shadow (fc4_neighbors_shadow). */
+#define FC4_ABI_VERSION 28u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -3885,6 +3887,297 @@ bool fc4_residential_shadow_get_stats(fc4_residential_shadow* s, fc4_residential
 /* One line: what is not readable, hence not compared. */
 void fc4_residential_shadow_describe(fc4_bytes_sink sink, void* ctx);
 
+/* ---- neighbours (docs/specs/neighbors.md; engine/capi/src/neighbors.rs) ------
+ *
+ * The plugin's cISC4NeighborsSimulator forwards its slots to fc4_neighbors_*,
+ * its deals (cISC4NeighborDeal) to fc4_neighbor_deal_* and its connections
+ * (cISC4NeighborConnection) to fc4_neighbor_connection_*. Tokens are host
+ * identities (regional cities, the city, occupants, props, connections,
+ * deals); 0 is null. A connection or deal of ours is a core object behind a
+ * handle that its GZCOM object owns (the object destroys the handle when it
+ * dies); the core asks for the object through `connection_object` /
+ * `deal_object`. A foreign connection (an original accepted on load, §15.2)
+ * is read and written through the `foreign_connection` callbacks; foreign
+ * deals reach the core as data. The core is re-entrant: a message delivered
+ * during another call (the status report SetAmount SENDS, §5.3) is handled at
+ * once. Main thread only (the plugin serialises other threads). */
+typedef struct fc4_neighbors fc4_neighbors;
+typedef struct fc4_neighbor_deal fc4_neighbor_deal;
+typedef struct fc4_neighbor_connection fc4_neighbor_connection;
+
+/* A deal's state (§5.1; the property holder is not part of it). Dates are
+ * Julian days. */
+typedef struct fc4_neighbor_deal_data {
+    uint32_t deal_type;
+    int32_t other_x, other_z; /* regionCellOtherSide */
+    int32_t city_x, city_z;   /* regionCellCitySide */
+    int32_t amount, inc_amount, inc_amount2, last_amount, last_inc_amount, amount_used;
+    uint32_t flags;
+    int64_t cost;
+    uint32_t start_date, expiration_date, current_date, suspension_date;
+} fc4_neighbor_deal_data;
+
+/* A connection's state (§4.1). */
+typedef struct fc4_neighbor_connection_state {
+    uint32_t conn_type;
+    int32_t x, z;             /* the connection cell */
+    int32_t other_x, other_z; /* otherRegionCell */
+    uint8_t visited, active;
+    uint8_t reserved[2];
+} fc4_neighbor_connection_state;
+
+/* What UpdateCommodityStats reads (§8.2). A department is missing when its
+ * has_* byte is 0. */
+typedef struct fc4_neighbors_figures {
+    double total_funds, monthly_income;
+    double power_production, power_requirement;
+    double water_capacity, water_demand;
+    double garbage_recycled, waste_to_energy_capacity, incinerator_capacity, garbage_abducted, garbage_produced;
+    uint8_t has_power_department, has_water_department, has_sanitation_department;
+    uint8_t reserved[5];
+    double power_department_expenses, water_department_expenses, sanitation_department_expenses;
+    double waste_to_energy_expenses; /* line item 0x1F470000 of the power department */
+} fc4_neighbors_figures;
+
+typedef struct fc4_neighbors_message {
+    uint32_t msg_type, data1, data2, data3;
+    uint64_t occupant; /* GetVoid1() as cISC4Occupant (0xAA7A014D, 0x99EF1143); 0 = none */
+} fc4_neighbors_message;
+
+typedef struct fc4_neighbors_state {
+    uint32_t struct_size;
+    uint8_t initialized, ready, deals_dirty, stats_dirty, ui_disabled, busy;
+    uint8_t reserved0[2];
+    uint32_t connections, foreign_connections, deals, reserved1;
+    int64_t income, expense; /* §10.1 */
+} fc4_neighbors_state;
+
+typedef void (*fc4_neighbor_link_callback)(void* ctx, uint32_t conn_type, int32_t rx, int32_t rz);
+typedef void (*fc4_neighbor_deal_data_callback)(void* ctx, const fc4_neighbor_deal_data* data);
+/* One property in the game's native variant layout (as fc4_props_set_typed). */
+typedef void (*fc4_neighbor_property_callback)(void* ctx, uint32_t id, uint16_t mem_type, bool is_array,
+                                               const void* data, size_t count);
+
+/* One callback per NeighborsHost method (engine/core/src/neighbors/mod.rs), in
+ * the trait's order. */
+typedef struct fc4_neighbors_host {
+    uint32_t struct_size; /* sizeof(fc4_neighbors_host) */
+    void* user;
+    /* lifecycle */
+    fc4_props* (*tuning)(void* user); /* a NEW fc4_props (the core destroys it), NULL = missing */
+    void (*add_agent)(void* user, uint32_t level, const char* name, size_t len, uint32_t flags);
+    void (*remove_agents)(void* user);
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    /* city */
+    void (*cell_counts)(void* user, int32_t* x, int32_t* z);
+    uint32_t (*today)(void* user);
+    void (*utility_figures)(void* user, fc4_neighbors_figures* out);
+    void (*landfill_usage)(void* user, uint32_t* usage, uint32_t* capacity);
+    void (*send_history)(void* user, uint32_t series, int32_t value);
+    /* region */
+    uint64_t (*current_city)(void* user);
+    uint64_t (*current_city_object)(void* user);
+    uint64_t (*city_at)(void* user, int32_t rx, int32_t rz);
+    void (*city_position)(void* user, uint64_t city, int32_t* x, int32_t* z);
+    void (*city_size)(void* user, uint64_t city, int32_t* x, int32_t* z);
+    bool (*city_established)(void* user, uint64_t city);
+    /* stat: 0 exported, 1 imported, 2 produced, 3 demanded, 4 cost per unit */
+    double (*city_stat)(void* user, uint64_t city, uint32_t stat, int32_t commodity);
+    void (*set_city_stat)(void* user, uint64_t city, uint32_t stat, int32_t commodity, double value);
+    double (*city_budget)(void* user, uint64_t city);
+    void (*set_city_budget)(void* user, uint64_t city, double value);
+    void (*set_city_income)(void* user, uint64_t city, double value);
+    /* city.FindConnection(type, x, z): the connection (borrowed) and its GetIsActive; 0 = none */
+    uint64_t (*city_find_connection)(void* user, uint64_t city, uint32_t conn_type, int32_t x, int32_t z,
+                                     bool* active);
+    void (*city_connections)(void* user, uint64_t city, fc4_neighbor_link_callback cb, void* ctx);
+    void (*change_symmetric_connection)(void* user, uint64_t city, uint64_t conn, bool add);
+    void (*reload_city)(void* user, uint64_t city);
+    void (*update_local_deals)(void* user, uint64_t city);
+    void (*local_deals)(void* user, uint64_t city, fc4_neighbor_deal_data_callback cb, void* ctx);
+    /* SetLocalDeals with the deal objects deals[0..count]; kept[i] := 0 for
+     * every deal the region removed from the list. */
+    void (*set_local_deals)(void* user, uint64_t city, const uint64_t* deals, size_t count, uint8_t* kept);
+    void (*update_import_export)(void* user, uint64_t city);
+    /* messages: a status report (§5.3), deal 0 for the retry report */
+    void (*post_status)(void* user, uint64_t deal, uint32_t status);
+    void (*send_status)(void* user, uint64_t deal, uint32_t status);
+    void (*post_connection_message)(void* user, uint32_t msg_type, uint32_t conn_type, int32_t x, int32_t z);
+    /* markers */
+    void (*cell_center)(void* user, int32_t x, int32_t z, float* px, float* pz);
+    float (*marker_altitude)(void* user, float px, float pz);
+    float (*max_surface_level)(void* user, int32_t x, int32_t z);
+    /* position: 3 floats; bool_props[0..count] are set true; returns the prop (0 = none) */
+    uint64_t (*add_marker_prop)(void* user, const float* position, int32_t orientation, const uint32_t* bool_props,
+                                size_t count);
+    void (*marker_props)(void* user, int32_t x, int32_t z, fc4_token_callback cb, void* ctx);
+    void (*remove_prop)(void* user, uint64_t prop);
+    void (*move_prop)(void* user, uint64_t prop, const float* position);
+    /* occupants */
+    uint32_t (*occupant_type)(void* user, uint64_t occupant);
+    void (*occupant_networks)(void* user, uint64_t occupant, fc4_token_callback cb, void* ctx); /* type numbers */
+    void (*occupant_cell)(void* user, uint64_t occupant, int32_t* x, int32_t* z);
+    bool (*power_pole_flag)(void* user, uint64_t occupant);
+    /* objects (§15.2) */
+    /* The GZCOM object for a new connection of ours: takes the NEW handle,
+     * returns the object's token holding one reference for the list; 0 = none
+     * (the core destroys the handle). */
+    uint64_t (*connection_object)(void* user, fc4_neighbor_connection* handle);
+    /* The GZCOM object for a deal of ours (first handed to the host): takes
+     * the NEW handle, returns the token; no reference is held for the core. */
+    uint64_t (*deal_object)(void* user, fc4_neighbor_deal* handle);
+    bool (*foreign_connection)(void* user, uint64_t conn, fc4_neighbor_connection_state* out);
+    /* -1 = leave, 0 = false, 1 = true */
+    void (*set_foreign_connection_flags)(void* user, uint64_t conn, int32_t visited, int32_t active);
+    void (*repair_foreign_connection)(void* user, uint64_t conn, uint64_t city);
+    void (*release_connection)(void* user, uint64_t conn); /* the list's reference */
+} fc4_neighbors_host;
+
+/* `token`: the simulator's host identity; `session`: the session seed
+ * (foundations §6.3) of the proposal generator. NULL for a short table. */
+fc4_neighbors* fc4_neighbors_create(const fc4_neighbors_host* host, uint64_t token, uint32_t session);
+/* Also releases the connections a loaded, never initialised object holds. */
+void fc4_neighbors_destroy(fc4_neighbors* p);
+void fc4_neighbors_set_two_curves(fc4_neighbors* p, bool on); /* §8.3 [choice], off by default */
+bool fc4_neighbors_init(fc4_neighbors* p);                    /* §14.1 */
+bool fc4_neighbors_shutdown(fc4_neighbors* p);                /* §14.2 */
+bool fc4_neighbors_do_message(fc4_neighbors* p, const fc4_neighbors_message* m); /* §11.1 */
+bool fc4_neighbors_get_state(const fc4_neighbors* p, fc4_neighbors_state* out);
+bool fc4_neighbors_write(const fc4_neighbors* p, const fc4_ostream* out); /* §13 */
+bool fc4_neighbors_read(fc4_neighbors* p, const fc4_istream* in);         /* §13: false unless version 2 */
+/* 5: 0 = exists, 1 = ask the player (`neighbour`: the established neighbour, 0 = the default name). */
+int32_t fc4_neighbors_request_create_connection(fc4_neighbors* p, uint32_t t, int32_t x, int32_t z,
+                                                uint64_t* neighbour);
+uint64_t fc4_neighbors_create_connection(fc4_neighbors* p, uint32_t t, int32_t x, int32_t z, bool flip); /* 6 */
+void fc4_neighbors_delete_connection(fc4_neighbors* p, uint32_t t, int32_t x, int32_t z);                /* 7 */
+void fc4_neighbors_delete_occupant_connection(fc4_neighbors* p, uint64_t occupant);                     /* 8 */
+void fc4_neighbors_delete_all_connections_of_type(fc4_neighbors* p, uint32_t t);                        /* 9 */
+bool fc4_neighbors_has_connection(const fc4_neighbors* p, uint32_t t, int32_t x, int32_t z);            /* 10 */
+uint64_t fc4_neighbors_find_connection(const fc4_neighbors* p, uint32_t t, int32_t x, int32_t z);       /* 11 */
+uint64_t fc4_neighbors_find_city_on_other_side_of_connection(const fc4_neighbors* p, int32_t x, int32_t z); /* 12 */
+/* 13 / 14: the other city's connection (borrowed) and its GetIsActive. */
+uint64_t fc4_neighbors_find_connection_on_other_side(const fc4_neighbors* p, uint32_t t, int32_t x, int32_t z,
+                                                     bool* active);
+/* §2.2 with the current regional city: false without one. */
+bool fc4_neighbors_neighbouring_region_cell(const fc4_neighbors* p, int32_t x, int32_t z, int32_t* rx, int32_t* rz);
+uint64_t fc4_neighbors_find_unvisited_connection(const fc4_neighbors* p, uint32_t t, uint64_t city); /* 15 */
+/* 16-19: which 0 = all, 1 = of type, 2 = of type to city, 3 = to city. Borrowed tokens; returns the count. */
+size_t fc4_neighbors_connections(const fc4_neighbors* p, uint32_t which, uint32_t t, uint64_t city,
+                                 fc4_token_callback cb, void* ctx);
+/* 20-22: which 0 = adjacent, 1 = connected, 2 = all connected. Borrowed tokens. */
+size_t fc4_neighbors_cities(const fc4_neighbors* p, uint32_t which, bool include_unestablished,
+                            fc4_token_callback cb, void* ctx);
+uint64_t fc4_neighbors_find_connection_suitable_for_deal(const fc4_neighbors* p, uint32_t deal_type,
+                                                         uint64_t city); /* 23 */
+uint64_t fc4_neighbors_propose_deal(fc4_neighbors* p, uint32_t deal_type, uint64_t city); /* 24: 0 = none */
+size_t fc4_neighbors_propose_deals(fc4_neighbors* p, bool add, fc4_token_callback cb, void* ctx); /* 25 */
+bool fc4_neighbors_add_deal(fc4_neighbors* p, const fc4_neighbor_deal* deal);                      /* 26, ours */
+/* 26 for a foreign deal [choice]: a deal of ours with its state is added; its token. */
+uint64_t fc4_neighbors_add_deal_data(fc4_neighbors* p, const fc4_neighbor_deal_data* data);
+void fc4_neighbors_set_ui_disable_flag(fc4_neighbors* p, bool on); /* 27 */
+/* 28-30: which 0 = all, 1 = of type (slot 30), 2 = of type with city (slot 29). */
+size_t fc4_neighbors_find_deals(fc4_neighbors* p, uint32_t which, uint32_t deal_type, uint64_t city,
+                                fc4_token_callback cb, void* ctx);
+/* The deals' states in list order: returns the count, fills out[0..cap]. */
+size_t fc4_neighbors_deal_data(const fc4_neighbors* p, fc4_neighbor_deal_data* out, size_t cap);
+bool fc4_neighbors_holds_deal(const fc4_neighbors* p, const fc4_neighbor_deal* deal);
+void fc4_neighbors_claim_deal(fc4_neighbors* p, const fc4_neighbor_deal* deal); /* "the current simulator" */
+void fc4_neighbors_mark_deals_dirty(fc4_neighbors* p);                          /* 31 */
+int64_t fc4_neighbors_total_income(const fc4_neighbors* p);                     /* 32 */
+int64_t fc4_neighbors_total_expense(const fc4_neighbors* p);                    /* 33 */
+void fc4_neighbors_update_commodity_stats(fc4_neighbors* p, uint64_t city);     /* 34: the city object */
+double fc4_neighbors_deal_cost(const fc4_neighbors* p, uint32_t deal_type, double amount, uint64_t city); /* 35 */
+double fc4_neighbors_deal_max_amount(const fc4_neighbors* p, uint32_t deal_type, uint64_t city);          /* 36 */
+
+/* Deals (cISC4NeighborDeal). */
+fc4_neighbor_deal* fc4_neighbor_deal_create(void); /* Proposed + Silent, no simulator; the caller owns it */
+void fc4_neighbor_deal_destroy(fc4_neighbor_deal* h);
+void fc4_neighbor_deal_set_token(fc4_neighbor_deal* h, uint64_t token); /* the object that owns the handle */
+bool fc4_neighbor_deal_get(const fc4_neighbor_deal* h, fc4_neighbor_deal_data* out);
+/* field 0 type, 1 other side (a, b), 2 city side (a, b), 3 lastAmount, 4
+ * lastIncAmount, 5 incAmount, 6 incAmount2, 7 amountUsed, 8-11 start,
+ * expiration, current, suspension date (a). */
+void fc4_neighbor_deal_set_field(fc4_neighbor_deal* h, uint32_t field, int32_t a, int32_t b);
+void fc4_neighbor_deal_set_amount(fc4_neighbor_deal* h, int32_t a);
+void fc4_neighbor_deal_update_cost(fc4_neighbor_deal* h);
+void fc4_neighbor_deal_copy(fc4_neighbor_deal* h, const fc4_neighbor_deal_data* src);
+void fc4_neighbor_deal_update_state(fc4_neighbor_deal* h);
+void fc4_neighbor_deal_cancel(fc4_neighbor_deal* h);
+bool fc4_neighbor_deal_activate(fc4_neighbor_deal* h);
+bool fc4_neighbor_deal_set_flags(fc4_neighbor_deal* h, uint32_t f, bool on);
+fc4_neighbor_deal* fc4_neighbor_deal_clone(const fc4_neighbor_deal* h, bool silent); /* a NEW handle */
+bool fc4_neighbor_deal_write(const fc4_neighbor_deal* h, const fc4_ostream* out); /* §5.6 */
+bool fc4_neighbor_deal_read(fc4_neighbor_deal* h, const fc4_istream* in);
+
+/* Connections (cISC4NeighborConnection). */
+fc4_neighbor_connection* fc4_neighbor_connection_create(void);
+void fc4_neighbor_connection_destroy(fc4_neighbor_connection* h);
+bool fc4_neighbor_connection_get(const fc4_neighbor_connection* h, fc4_neighbor_connection_state* out);
+/* field 0 type (a), 1 cell (a, b), 2 other region cell (a, b), 3 visited (a != 0), 4 active (a != 0). */
+void fc4_neighbor_connection_set_field(fc4_neighbor_connection* h, uint32_t field, int32_t a, int32_t b);
+bool fc4_neighbor_connection_inner_cell(const fc4_neighbor_connection* h, int32_t count_x, int32_t count_z,
+                                        int32_t* x, int32_t* z);
+void fc4_neighbor_connection_repair(fc4_neighbor_connection* h, int32_t count_x, int32_t count_z, int32_t pos_x,
+                                    int32_t pos_z, int32_t size_x, int32_t size_z);
+void fc4_neighbor_connection_set_props(fc4_neighbor_connection* h, const fc4_props* props); /* a copy */
+size_t fc4_neighbor_connection_props(const fc4_neighbor_connection* h, fc4_neighbor_property_callback cb,
+                                     void* ctx);
+bool fc4_neighbor_connection_write(const fc4_neighbor_connection* h, const fc4_ostream* out); /* §4.3 */
+bool fc4_neighbor_connection_read(fc4_neighbor_connection* h, const fc4_istream* in);         /* version 1 only */
+uint32_t fc4_neighbor_connection_class_id(void);                                               /* 0x0A134F24 */
+
+/* ---- neighbours shadow (tooling; engine/capi/src/neighbors_shadow.rs) --------
+ *
+ * Our core's month on a snapshot of the ORIGINAL simulator's inputs, read
+ * through the game's interfaces only: an ordinary fc4_neighbors* whose host
+ * is the snapshot (every fc4_neighbors_* query works on it, and
+ * fc4_neighbors_do_message runs the month). Writes stay in the snapshot;
+ * status reports are counted (a SENT one is delivered to the shadow at
+ * once); UpdateImportExport is reproduced as a delta on the stored values. */
+typedef struct fc4_neighbors_shadow_city {
+    uint64_t token;
+    int32_t pos_x, pos_z, size_x, size_z;
+    uint8_t established;
+    uint8_t reserved[7];
+    double budget, income;
+    double stats[5][3]; /* [stat][commodity - 1]: exported, imported, produced, demanded, cost per unit */
+} fc4_neighbors_shadow_city;
+
+typedef struct fc4_neighbors_shadow_conn {
+    uint64_t city; /* the regional city holding it (the current city's: the original's list, in order) */
+    uint64_t token;
+    fc4_neighbor_connection_state state;
+} fc4_neighbors_shadow_conn;
+
+typedef struct fc4_neighbors_shadow_input {
+    uint32_t struct_size;
+    uint32_t today;
+    int32_t count_x, count_z;
+    uint64_t current_city, city_object;
+    uint32_t landfill_usage, landfill_capacity;
+    uint8_t ready, ui_disabled, two_curves;
+    uint8_t reserved[5];
+    fc4_neighbors_figures figures;
+    const fc4_props* tuning; /* borrowed (copied); NULL = missing */
+    const fc4_neighbors_shadow_city* cities;
+    size_t city_count;
+    const fc4_neighbors_shadow_conn* conns;
+    size_t conn_count;
+    const fc4_neighbor_deal_data* deals; /* the original's FindDealsAll, in order */
+    size_t deal_count;
+} fc4_neighbors_shadow_input;
+
+typedef struct fc4_neighbors_shadow_counters {
+    uint32_t posts, sends, retries, connection_messages, set_local_deals, update_import_export, history, reserved;
+} fc4_neighbors_shadow_counters;
+
+/* Everything is copied; destroy with fc4_neighbors_destroy. */
+fc4_neighbors* fc4_neighbors_shadow_create(const fc4_neighbors_shadow_input* input);
+/* A city of the snapshot as the shadow left it (false: not a shadow / unknown city). */
+bool fc4_neighbors_shadow_city_get(const fc4_neighbors* p, uint64_t city, fc4_neighbors_shadow_city* out);
+bool fc4_neighbors_shadow_get_counters(const fc4_neighbors* p, fc4_neighbors_shadow_counters* out);
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -4021,6 +4314,16 @@ static_assert(sizeof(fc4_residential_capture_ref) == 32, "fc4_residential_captur
 static_assert(sizeof(fc4_residential_capture) == (sizeof(void*) == 4 ? 24 : 40), "fc4_residential_capture layout");
 static_assert(sizeof(fc4_residential_shadow_scalars) == 24, "fc4_residential_shadow_scalars layout");
 static_assert(sizeof(fc4_residential_shadow_stats) == 72, "fc4_residential_shadow_stats layout");
+static_assert(sizeof(fc4_neighbor_deal_data) == 72, "fc4_neighbor_deal_data layout");
+static_assert(sizeof(fc4_neighbor_connection_state) == 24, "fc4_neighbor_connection_state layout");
+static_assert(sizeof(fc4_neighbors_figures) == 128, "fc4_neighbors_figures layout");
+static_assert(sizeof(fc4_neighbors_message) == 24, "fc4_neighbors_message layout");
+static_assert(sizeof(fc4_neighbors_state) == 48, "fc4_neighbors_state layout");
+static_assert(sizeof(fc4_neighbors_host) == (sizeof(void*) == 4 ? 204 : 408), "fc4_neighbors_host layout");
+static_assert(sizeof(fc4_neighbors_shadow_city) == 168, "fc4_neighbors_shadow_city layout");
+static_assert(sizeof(fc4_neighbors_shadow_conn) == 40, "fc4_neighbors_shadow_conn layout");
+static_assert(sizeof(fc4_neighbors_shadow_input) == (sizeof(void*) == 4 ? 208 : 232), "fc4_neighbors_shadow_input layout");
+static_assert(sizeof(fc4_neighbors_shadow_counters) == 32, "fc4_neighbors_shadow_counters layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
@@ -4029,6 +4332,8 @@ _Static_assert(sizeof(fc4_agent_info) == 16, "fc4_agent_info layout");
 _Static_assert(sizeof(fc4_power_capture_ref) == 32, "fc4_power_capture_ref layout");
 _Static_assert(sizeof(fc4_power_shadow_counts) == 24, "fc4_power_shadow_counts layout");
 _Static_assert(sizeof(fc4_power_shadow_stats) == 72, "fc4_power_shadow_stats layout");
+_Static_assert(sizeof(fc4_neighbor_deal_data) == 72, "fc4_neighbor_deal_data layout");
+_Static_assert(sizeof(fc4_neighbors_shadow_city) == 168, "fc4_neighbors_shadow_city layout");
 #endif
 
 #endif /* FC4_H */

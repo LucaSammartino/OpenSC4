@@ -40,6 +40,9 @@ public:
 
     // The exemplar as a property holder (nullptr if not loaded).
     const cISCPropertyHolder* Holder() const;
+    // The resource itself (nullptr if not loaded; no AddRef): what
+    // cISC4NeighborsSimulator::GetTuningExemplar hands out (neighbors.md §6.2).
+    cISCResExemplar* Resource() const { return res_; }
 
 private:
     cISCResExemplar* res_ = nullptr;

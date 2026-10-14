@@ -58,7 +58,7 @@ mod simulator;
 mod tests;
 mod tuning;
 
-pub use connection::{NeighborConnection, CONNECTION_RECORD_VERSION};
+pub use connection::{ConnectionState, NeighborConnection, CONNECTION_RECORD_VERSION};
 pub use deal::{DealData, NeighborDeal, DEAL_RECORD_VERSION, DEFAULT_DATE};
 pub use pricing::{deal_cost, deal_max_amount, CommodityStats, PriceInputs};
 pub use simulator::{answers_iid, ConnectionRequest, NeighborsSimulator, SimState, SIMULATOR_RECORD_VERSION};
@@ -528,6 +528,28 @@ pub trait NeighborsHost {
     /// `cISC4PowerPoleOccupant`'s 14th method (compiled slot 13) for a power
     /// pole (§11.1).
     fn power_pole_flag(&self, occupant: u64) -> bool;
+
+    // ---- connection objects (§15.2) ----
+    /// A new connection of ours (§6.3) needs a host object (the GZCOM
+    /// connection the region and the traffic simulator are given): the host
+    /// makes one and returns its token, which the core stores. The
+    /// simulator's list holds one reference to it. 0 = none (tests).
+    fn connection_object(&self, _conn: &Rc<NeighborConnection>) -> u64 {
+        0
+    }
+    /// The live state of a foreign connection (an original object accepted
+    /// on load, §15.2), read through `cISC4NeighborConnection`; `None` if
+    /// it cannot be read.
+    fn foreign_connection(&self, _token: u64) -> Option<ConnectionState> {
+        None
+    }
+    /// `SetVisitedThisCycle` / `SetIsActive` on a foreign connection.
+    fn set_foreign_connection_flags(&self, _token: u64, _visited: Option<bool>, _active: Option<bool>) {}
+    /// `Repair(city)` on a foreign connection (§14.1 step 4).
+    fn repair_foreign_connection(&self, _token: u64, _city: CityId) {}
+    /// The simulator's list let go of a connection (ours or foreign): the
+    /// reference the list held is released.
+    fn release_connection(&self, _token: u64) {}
 }
 
 /// A message as `DoMessage` sees it (§11.1).

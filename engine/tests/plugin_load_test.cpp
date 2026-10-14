@@ -39,6 +39,9 @@
 #include "cRZBaseVariant.h"
 #include "cSCBaseProperty.h"
 #include "cISC4Simulator.h"
+#include "cISC4NeighborConnection.h"
+#include "cISC4NeighborDeal.h"
+#include "cISC4TrafficSource.h"
 #include "SC4List.h"
 #include "SC4Percentage.h"
 #include "cRZBaseString.h"
@@ -5091,6 +5094,406 @@ int GrowthProbeIniTest(const std::string& dll, const std::string& ini, const std
     return g_failures == 0 ? 0 : 1;
 }
 
+
+// ---- neighbours (neighbors.md): the replacement, its objects, the shadow's start-up -------------------
+constexpr uint32_t kCLSID_NeighborsN = 0xC990C0A4;
+constexpr uint32_t kIID_cISC4NeighborsSimulatorN = 0x0773FEF0;
+constexpr uint32_t kIID_cISC4NeighborDealN = 0x0773FEF1;
+constexpr uint32_t kIID_cISC4NeighborConnectionN = 0x0773FEF2;
+constexpr uint32_t kCLSID_NeighborConnectionN = 0x0A134F24;
+constexpr uint32_t kCLSID_NeighborDealN = 0x2A134F42;
+constexpr uint32_t kIID_CoreObjectN = 0x7F4C0B1E;  // FreeCity4's core objects: never answered here (§15.2)
+constexpr uint32_t kIID_PropertyHolderN = 0x25216283;
+constexpr uint32_t kIID_MessageTarget2N = 0x452294AA;
+using NbType = cISC4NeighborsSimulator::ConnectionType;
+
+// An ORIGINAL connection (the game's class 0x0A134F24) as a save hands it
+// over: answers its interface and cIGZSerializable; counts its references.
+class NbOrigConnection final : public cISC4NeighborConnection, public cIGZSerializable {
+public:
+    explicit NbOrigConnection(uint32_t gameRefs) { c.refs = c.gameRefs = gameRefs; }
+    SavedRefCounts c;
+    int writes = 0;
+    cIGZSerializable* Ser() { return this; }
+    cISC4NeighborConnection* Conn() { return this; }
+    bool QueryInterface(uint32_t riid, void** p) override {
+        if (p == nullptr) return false;
+        if (riid == kIID_cISC4NeighborConnectionN || riid == GZIID_cIGZUnknown) {
+            *p = Conn();
+        } else if (riid == GZIID_cIGZSerializable) {
+            *p = Ser();
+        } else {
+            return false;
+        }
+        c.Take();
+        return true;
+    }
+    uint32_t AddRef() override { return c.Take(); }
+    uint32_t Release() override { return c.Give(); }
+    cISCPropertyHolder* AsISCPropertyHolder() override { return nullptr; }
+    cISC4TrafficSource* AsTrafficSource() override { return nullptr; }
+    NbType GetType() const override { return NbType::Rail; }
+    void GetConnectionCell(int32_t& x, int32_t& z) const override {
+        x = 3;
+        z = -1;
+    }
+    bool GetConnectionInnerCell(int32_t& x, int32_t& z) const override {
+        x = 3;
+        z = 0;
+        return true;
+    }
+    void GetRegionCellOnOtherSideOfConnection(int32_t& x, int32_t& z) const override {
+        x = 7;
+        z = 8;
+    }
+    cISC4RegionalCity* GetCityOnOtherSideOfConnection() const override { return nullptr; }
+    void Repair(cISC4RegionalCity*) override {}
+    bool GetVisitedThisCycle() const override { return false; }
+    void SetVisitedThisCycle(bool) override {}
+    bool GetIsActive() const override { return true; }
+    void SetIsActive(bool) override {}
+    bool Write(cIGZOStream&) override { return ++writes, true; }
+    bool Read(cIGZIStream&) override { return true; }
+    uint32_t GetGZCLSID() override { return kCLSID_NeighborConnectionN; }
+};
+
+// A foreign deal (another plugin's, or the original's): read through its
+// interface only; the dates through the caller's date (Set, slot 4).
+class NbForeignDeal final : public cISC4NeighborDeal {
+public:
+    SavedRefCounts c;
+    NbForeignDeal() { c.refs = c.gameRefs = 1; }
+    bool QueryInterface(uint32_t riid, void** p) override {
+        if (p == nullptr || (riid != kIID_cISC4NeighborDealN && riid != GZIID_cIGZUnknown)) return false;
+        *p = static_cast<cISC4NeighborDeal*>(this);
+        c.Take();
+        return true;
+    }
+    uint32_t AddRef() override { return c.Take(); }
+    uint32_t Release() override { return c.Give(); }
+    void SetRegionCellOnCitySideOfConnection(int32_t, int32_t) override {}
+    void GetRegionCellOnCitySideOfConnection(int32_t& x, int32_t& z) const override { x = 4, z = 5; }
+    void SetRegionCellOnOtherSideOfConnection(int32_t, int32_t) override {}
+    void GetRegionCellOnOtherSideOfConnection(int32_t& x, int32_t& z) const override { x = 6, z = 5; }
+    cISC4RegionalCity* GetCityOnOtherSideOfConnection() const override { return nullptr; }
+    int32_t GetType() const override { return 3; }
+    void SetType(int32_t) override {}
+    int32_t GetAmount() const override { return 50; }
+    void SetAmount(int32_t) override {}
+    int32_t GetLastAmount() const override { return 40; }
+    void SetLastAmount(int32_t) override {}
+    int32_t GetLastIncAmount() const override { return 4; }
+    void SetLastIncAmount(int32_t) override {}
+    int32_t GetIncAmount() const override { return 5; }
+    void SetIncAmount(int32_t) override {}
+    int32_t GetIncAmount2() const override { return 6; }
+    void SetIncAmount2(int32_t) override {}
+    int32_t GetAmountUsed() const override { return 30; }
+    void SetAmountUsed(int32_t) override {}
+    int64_t GetCost() const override { return 1234; }
+    void UpdateCost() override {}
+    void GetStartDate(cIGZDate& d) const override { fc4::AsGame(&d)->SetDayNumber(kJulian20000201); }
+    void SetStartDate(cIGZDate const&) override {}
+    void GetExpirationDate(cIGZDate& d) const override { fc4::AsGame(&d)->SetDayNumber(kJulian20000201 + 365); }
+    void SetExpirationDate(cIGZDate const&) override {}
+    void GetCurrentDate(cIGZDate& d) override { fc4::AsGame(&d)->SetDayNumber(kJulian20000201 + 10); }
+    void SetCurrentDate(cIGZDate const&) override {}
+    void GetSuspensionDate(cIGZDate& d) override { fc4::AsGame(&d)->SetDayNumber(0); }
+    void SetSuspensionDate(cIGZDate const&) override {}
+    void Copy(cISC4NeighborDeal const&) override {}
+    void UpdateState() override {}
+    void Cancel() override {}
+    bool Activate() override { return false; }
+    int32_t GetFlags() const override { return 0x2; }  // Active
+    void SetFlags(int32_t, bool) override {}
+    bool CheckFlagsAnd(int32_t f) const override { return (0x2 & f) == f; }
+    bool CheckFlagsOr(int32_t f) const override { return (0x2 & f) != 0; }
+    bool Clone(cISC4NeighborDeal**, bool) const override { return false; }
+};
+
+// A one-node caller list built in place (FindDealsAll reuses the node: list
+// assignment, allocators.md); the node's value is managed by the test.
+struct NbOneNodeList {
+    SC4ListNode<cISC4NeighborDeal*> head{}, node{};
+    SC4ListNode<cISC4NeighborDeal*>* root = nullptr;
+    explicit NbOneNodeList(cISC4NeighborDeal* v) {
+        head.next = &node;
+        head.prev = &node;
+        head.value = nullptr;
+        node.next = &head;
+        node.prev = &head;
+        node.value = v;
+        root = &head;
+    }
+    SC4List<cISC4NeighborDeal*>& Get() { return *reinterpret_cast<SC4List<cISC4NeighborDeal*>*>(&root); }
+    bool OneNode() const { return root == &head && head.next == &node && node.next == &head; }
+};
+
+template <class T>
+T* NbQuery(cIGZUnknown* u, uint32_t iid) {
+    void* p = nullptr;
+    return (u != nullptr && u->QueryInterface(iid, &p)) ? static_cast<T*>(p) : nullptr;
+}
+
+// Our deal (one reference held by the caller): its interfaces, its state as
+// copied from the foreign deal, Clone and the §5.6 record.
+void CheckNeighborDeal(cISC4NeighborDeal* d) {
+    void* p = reinterpret_cast<void*>(0x1234);
+    CHECK(!d->QueryInterface(kIID_CoreObjectN, &p) && p == reinterpret_cast<void*>(0x1234));
+    CHECK(!d->QueryInterface(kIID_PropertyHolderN, &p) && p == reinterpret_cast<void*>(0x1234));
+    auto* same = NbQuery<cISC4NeighborDeal>(d, kIID_cISC4NeighborDealN);
+    CHECK(same == d);
+    if (same != nullptr) same->Release();
+    CHECK(d->GetType() == 3 && d->GetAmount() == 50 && d->GetCost() == 1234 && d->GetAmountUsed() == 30);
+    CHECK(d->GetIncAmount() == 5 && d->GetLastAmount() == 40);
+    int32_t x = 0, z = 0;
+    d->GetRegionCellOnOtherSideOfConnection(x, z);
+    CHECK(x == 6 && z == 5);
+    d->GetRegionCellOnCitySideOfConnection(x, z);
+    CHECK(x == 4 && z == 5);
+    CHECK(d->CheckFlagsOr(0x2) && !d->CheckFlagsOr(0x80));
+    cISC4NeighborDeal* copy = nullptr;
+    CHECK(d->Clone(&copy, true) && copy != nullptr && copy != d);
+    if (copy != nullptr) {
+        CHECK(copy->GetType() == 3 && copy->GetAmount() == 50 && copy->CheckFlagsOr(0x80));  // Silent (§5.5)
+        CHECK(copy->Release() == 0);
+    }
+    auto* ser = NbQuery<cIGZSerializable>(d, GZIID_cIGZSerializable);
+    CHECK(ser != nullptr);
+    if (ser != nullptr) {
+        CHECK(ser->GetGZCLSID() == kCLSID_NeighborDealN);
+        ResidentialSegOStream out;
+        CHECK(ser->Write(out));
+        // §5.6: version 5, then the type.
+        CHECK(out.bytes.size() > 6 && out.bytes[0] == 5 && out.bytes[1] == 0 && out.bytes[2] == 3);
+        ser->Release();
+    }
+}
+
+// Our connection (borrowed from the list): its interfaces, state, holder,
+// traffic source and the §4.3 record (read back into the same object).
+void CheckNeighborConnection(cISC4NeighborConnection* c) {
+    void* p = reinterpret_cast<void*>(0x1234);
+    CHECK(!c->QueryInterface(kIID_CoreObjectN, &p) && p == reinterpret_cast<void*>(0x1234));
+    CHECK(!c->QueryInterface(kIID_PropertyHolderN, &p) && p == reinterpret_cast<void*>(0x1234));
+    auto* same = NbQuery<cISC4NeighborConnection>(c, kIID_cISC4NeighborConnectionN);
+    CHECK(same == c);
+    if (same != nullptr) same->Release();
+    CHECK(c->GetType() == NbType::Road);
+    int32_t x = 0, z = 0;
+    c->GetConnectionCell(x, z);
+    CHECK(x == -1 && z == 5);
+    CHECK(c->GetIsActive() && !c->GetVisitedThisCycle());
+    c->SetVisitedThisCycle(true);
+    CHECK(c->GetVisitedThisCycle());
+    c->SetVisitedThisCycle(false);
+    cISC4TrafficSource* ts = c->AsTrafficSource();
+    CHECK(ts != nullptr);
+    if (ts != nullptr) {
+        CHECK(ts->GetTripDataList() == nullptr);  // no game node allocator in this process
+        CHECK(ts->UpdateTrafficVolume());
+        SC4Rect<uint32_t> r;
+        CHECK(ts->GetSourceCells(r) && r.topLeftX == 0xFFFFFFFFu && r.topLeftY == 5 && r.bottomRightX == 0xFFFFFFFFu);
+    }
+    cISCPropertyHolder* h = c->AsISCPropertyHolder();
+    CHECK(h != nullptr);
+    if (h != nullptr) {
+        auto* gh = fc4::AsGame(h);
+        auto* hq = NbQuery<cIGZUnknown>(gh, kIID_PropertyHolderN);  // the holder answers itself
+        CHECK(hq == static_cast<void*>(gh));
+        if (hq != nullptr) hq->Release();
+        CHECK(gh->AddPropertyU32(0xAA9EA81D, 7, false));
+        uint32_t v = 0;
+        CHECK(gh->GetPropertyU32(0xAA9EA81D, v) && v == 7);
+    }
+    auto* ser = NbQuery<cIGZSerializable>(c, GZIID_cIGZSerializable);
+    CHECK(ser != nullptr);
+    if (ser != nullptr) {
+        CHECK(ser->GetGZCLSID() == kCLSID_NeighborConnectionN);
+        ResidentialSegOStream out;
+        CHECK(ser->Write(out));
+        // §4.3: version 1, type 2, cell (-1, 5).
+        CHECK(out.bytes.size() > 19 && out.bytes[0] == 1 && out.bytes[1] == 0 && out.bytes[2] == 2);
+        CHECK(out.bytes.size() > 10 && out.bytes[6] == 0xFF && out.bytes[10] == 5);
+        if (h != nullptr) fc4::AsGame(h)->RemoveAllProperties(false);
+        ResidentialSegIStream in(out.bytes);
+        CHECK(ser->Read(in));
+        uint32_t v = 0;
+        if (h != nullptr) CHECK(fc4::AsGame(h)->GetPropertyU32(0xAA9EA81D, v) && v == 7);  // the holder read back
+        ser->Release();
+    }
+}
+
+int NeighborsEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = neighbors` registers the neighbours simulator
+    // (no factory for its connection and deal classes, §15.2). The shadow (it
+    // compares against the original) is then inactive.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_NEIGHBOURS_SHADOW", nullptr);
+    SetEnvironmentVariableA("FC4_NEIGHBORS_SEED", nullptr);
+    SetEnvironmentVariableA("FC4_REFAUDIT", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = neighbors\nneighbors_seed = 42\n[tools]\nneighbours_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr);
+    SetGamePrecision();
+    static NbOrigConnection orig(1);  // the load's own reference
+    static NbForeignDeal foreign;
+    if (director != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        // simulator (1) + budget (3) + neighbours (1); no connection or deal factory.
+        CHECK(classes.size() == 5);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_NeighborsN) == 1);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_NeighborConnectionN) == 0);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_NeighborDealN) == 0);
+
+        void* obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_NeighborsN, kIID_cISC4NeighborsSimulatorN, &obj));
+        auto* sim = static_cast<cFC4ISC4NeighborsSimulator*>(obj);
+        if (sim != nullptr) {
+            // §1: the primary for its IID and cIGZUnknown, the message target
+            // and the serializable; nothing else (the out pointer untouched).
+            void* p = nullptr;
+            CHECK(sim->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(sim));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            auto* mt = NbQuery<cIGZMessageTarget2>(sim, kIID_MessageTarget2N);
+            auto* ser = NbQuery<cIGZSerializable>(sim, GZIID_cIGZSerializable);
+            CHECK(mt != nullptr && ser != nullptr);
+            if (ser != nullptr) CHECK(ser->GetGZCLSID() == kCLSID_NeighborsN);
+            p = reinterpret_cast<void*>(0x1234);
+            CHECK(!sim->QueryInterface(0x12345678, &p) && p == reinterpret_cast<void*>(0x1234));
+            CHECK(!sim->QueryInterface(kIID_CoreObjectN, &p) && p == reinterpret_cast<void*>(0x1234));
+            // Before Init: nothing; the record (§13) is version 2 with no connection.
+            CHECK(sim->GetTotalMonthlyNeighborDealIncome() == 0 && sim->GetTotalMonthlyNeighborDealExpense() == 0);
+            CHECK(sim->GetTuningExemplar() == nullptr);
+            CHECK(!sim->HasConnection(NbType::Road, -1, 5));
+            if (ser != nullptr) {
+                ResidentialSegOStream out;
+                CHECK(ser->Write(out));
+                CHECK(out.bytes == std::vector<uint8_t>({2, 0, 0, 0, 0, 0}));
+            }
+            CHECK(sim->Init());  // §14.1: true (no city here)
+            CHECK(sim->GetTuningExemplar() == nullptr);
+            cISC4NeighborConnection* conn = sim->CreateConnection(NbType::Road, -1, 5, false);
+            CHECK(conn != nullptr);
+            CHECK(sim->CreateConnection(NbType::Road, -1, 5, false) == nullptr);  // §6.3 step 1
+            CHECK(sim->HasConnection(NbType::Road, -1, 5) && sim->FindConnection(NbType::Road, -1, 5) == conn);
+            if (conn != nullptr) CheckNeighborConnection(conn);
+            // A foreign deal is added as a deal of ours [choice]; FindDealsAll
+            // reuses the caller's node (one reference for the caller).
+            CHECK(foreign.AddRef() == 2);  // the caller list's reference
+            NbOneNodeList list(&foreign);
+            CHECK(sim->AddDeal(&foreign));
+            sim->FindDealsAll(list.Get());
+            CHECK(list.OneNode());
+            cISC4NeighborDeal* ours = list.node.value;
+            CHECK(ours != nullptr && ours != &foreign);
+            CHECK(foreign.c.refs == 1 && foreign.c.overReleases == 0);  // the replaced element released
+            if (ours != nullptr && ours != &foreign) {
+                CheckNeighborDeal(ours);
+                CHECK(ours->Release() == 0);
+            }
+            cISC4NeighborDeal* proposed = nullptr;
+            CHECK(!sim->ProposeDeal(1, nullptr, &proposed) && proposed == nullptr);  // no city (§7.1)
+            sim->MarkDealsDirty();
+            sim->SetUIDisableFlag(false);
+            (void)sim->GetDealCost(1, 10.0, nullptr);
+            // Getters from another thread (the lock is free: answered by the core).
+            int32_t income = -1;
+            bool has = false;
+            std::thread t([&] {
+                income = sim->GetTotalMonthlyNeighborDealIncome();
+                has = sim->HasConnection(NbType::Road, -1, 5);
+            });
+            t.join();
+            CHECK(income == 0 && has);
+            if (mt != nullptr) {
+                ResidentialDayMessage month(kMsgSimNewMonth, kJulian20000201);
+                CHECK(mt->DoMessage(&month));
+            }
+            // The record holds our connection (§13; ours by reference).
+            if (ser != nullptr && conn != nullptr) {
+                auto* connSer = NbQuery<cIGZSerializable>(conn, GZIID_cIGZSerializable);
+                SavedSegOStream out;
+                out.objs = {connSer};
+                CHECK(ser->Write(out));
+                CHECK(out.ids == std::vector<uint32_t>({1}));
+                if (connSer != nullptr) connSer->Release();
+            }
+            sim->DeleteConnection(NbType::Road, -1, 5);
+            CHECK(!sim->HasConnection(NbType::Road, -1, 5));
+            if (ser != nullptr) ser->Release();
+            if (mt != nullptr) mt->Release();
+            CHECK(sim->Shutdown());
+            CHECK(sim->Release() == 0);
+        }
+        // Read runs before Init (§13): an original connection is accepted (a
+        // null reference skipped [choice]) and used through its interface;
+        // written back by reference; the never-initialised simulator's final
+        // Release gives the load's reference back. A version 3 record is refused.
+        for (uint16_t version : {2, 3}) {
+            obj = nullptr;
+            CHECK(director->GetClassObject(kCLSID_NeighborsN, kIID_cISC4NeighborsSimulatorN, &obj));
+            auto* fresh = static_cast<cFC4ISC4NeighborsSimulator*>(obj);
+            if (fresh == nullptr) continue;
+            auto* s = NbQuery<cIGZSerializable>(fresh, GZIID_cIGZSerializable);
+            CHECK(s != nullptr);
+            if (s != nullptr) {
+                SavedRecord rec;
+                rec.Put<uint16_t>(version).Put<uint32_t>(2).Put<uint32_t>(1).Put<uint32_t>(0);
+                SavedSegIStream in(rec.b);
+                in.objs = {orig.Ser()};
+                CHECK(s->Read(in) == (version == 2));
+                if (version == 2) {
+                    CHECK(orig.c.refs == 2);  // the load's and the list's
+                    CHECK(fresh->HasConnection(NbType::Rail, 3, -1));
+                    CHECK(fresh->FindConnection(NbType::Rail, 3, -1) == orig.Conn());
+                    SavedSegOStream out;
+                    out.objs = {orig.Ser()};
+                    CHECK(s->Write(out));
+                    CHECK(out.ids == std::vector<uint32_t>({1}));
+                    CHECK(orig.writes == 0);  // a reference, not the object's own record
+                }
+                s->Release();
+            }
+            CHECK(fresh->Release() == 0);
+            CHECK(orig.c.refs == orig.c.gameRefs && orig.c.overReleases == 0);
+        }
+        CHECK(foreign.c.refs == foreign.c.gameRefs && foreign.c.overReleases == 0);
+        CheckCw("neighbours");
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    const auto npos = std::string::npos;
+    CHECK(text.find("subsystem 'neighbors': enabled (1 class replaced) by FreeCity4.ini (enable=)") != npos);
+    CHECK(CountOf(text, ", session seed 0x0000002A (neighbors_seed)") == 3);
+    CHECK(text.find("neighbours Init: init=1 ready=0 connections=0 (foreign 0) deals=0") != npos);
+    CHECK(CountOf(text, "neighbours connection created: road (type 2) at (-1, 5)") == 1);
+    CHECK(CountOf(text, "neighbours connection deleted: road (type 2) at (-1, 5)") == 1);
+    CHECK(text.find("neighbours month to 2000-02-01: connections=1 (road=1) foreign=0 deals=1 (proposed 0 active 1") !=
+          npos);
+    CHECK(CountOf(text, "neighbours Write -> 1") == 3);
+    CHECK(text.find("neighbours Read -> 1") != npos);
+    CHECK(text.find("neighbours Read: init=0 ready=0 connections=1 (foreign 1)") != npos);
+    CHECK(text.find("neighbours Read -> 0") != npos);
+    CHECK(text.find("neighbours Shutdown: 1 months") != npos);
+    CHECK(text.find("neighbours shadow: requested (neighbours_shadow from FreeCity4.ini) but INACTIVE") != npos);
+    CHECK(text.find("neighbours shadow: ON") == npos);
+    CHECK(text.find("structured exception") == npos);
+    CHECK(text.find("config: WARNING unknown key") == npos);
+    CHECK(text.find("WARNING: released last reference") == npos);
+    CHECK(text.find("WARNING: over-release") == npos);
+    CHECK(text.find("streams: WARNING") == npos);
+    if (g_failures == 0) std::printf("plugin neighbours enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -5130,6 +5533,8 @@ int main(int argc, char** argv) {
     if (mode == "--ini-enable-landfill") return LandfillEnableTest(dll, ini, log);
     // Residential (residential.md): the replacement, and the shadow on fake originals.
     if (mode == "--ini-enable-residential") return ResidentialEnableTest(dll, ini, log);
+    // Neighbours (neighbors.md): the replacement, its objects, an original connection loaded.
+    if (mode == "--ini-enable-neighbors") return NeighborsEnableTest(dll, ini, log);
     // Land value and flammability grid shadows on fake originals; both inactive with ours.
     if (mode == "--ini-landvalue-shadow") return LandValueShadowTest(dll, ini, log);
     if (mode == "--ini-flammability-shadow") return FlammabilityShadowTest(dll, ini, log);
@@ -5272,7 +5677,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 136): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 145): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -7129,11 +7534,11 @@ int main(int argc, char** argv) {
                     "residential EQ/HQ/LE=12.5000/34.2500/75\r\n") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 136 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 136 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 145 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 145 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 136): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 145): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);
