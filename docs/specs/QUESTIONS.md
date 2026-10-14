@@ -3320,7 +3320,15 @@ in the code; the implemented answer is in brackets.
   Bears on the five references on `0xA9BD882D`: `CreateInstance(0xA9BD882D)` already returns count 1 (the director's
   QI AddRefs), so an AddRef copied from the BDS's `new` path leaves one reference per building. *[choice]*: no extra
   AddRef after GZCOM creation; keep the original's always-true load.
-- **DG6:** BDS slots 23, 26 and 29. [false, logged once]
+- ~~**DG6:** BDS slots 23, 26 and 29. [false, logged once]~~
+  **ANSWERED 2026-10-14** from the exe (slot 23 `0x00695AF0`, slot 26 `0x006982B0`, slot 29 `0x006983C0`, cell helper
+  `0x00695610`; callers: the lot developer's foundation code and the wall factory `0x005E3122`) and written into
+  building-development §4.9.2. **The bracket differs**: the original implements all three, and the original lot
+  developer and wall code depend on them; false gives no foundations and no retaining walls. Slot 26/29 set the
+  default exemplar from the foundation (`0x11`) / wall (`0x15`) key maps (26 also reads maximum height `0x88FCC3E3`);
+  slot 23 builds the foundation occupant (size from the lot developer's highest/lowest cell altitudes, height ≥ 0.5)
+  and inserts it. *[choice]* implement them as specified, or forward to an original BDS; never return false for valid
+  input.
 - **DG7:** The static cleanup through app slot 69. [not registered, logged]
 - **DG8:** "Declined by stage" in the month line. [counted by wealth only]
 - **DG9:** When the decline plan line is written. [at BDS state 4 → 0]

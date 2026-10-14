@@ -725,6 +725,66 @@ GZCOM returned, does **not** AddRef it again, and releases it once after step 13
 properties itself may treat a failed `GetResource` as the original does (insert the building anyway) or refuse the
 building; FreeCity4 keeps the original's behaviour.
 
+#### 4.9.2 Foundations and retaining walls (slots 23, 26, 29) *[compat]* (DG6)
+
+The growth path never uses these slots, but the **original lot developer and retaining-wall code call them**, so a
+replacement BDS must implement them: returning false means no building ever gets a foundation (lot developer
+§11.1 slots 48–61, "added through BDS slot 23") and no retaining wall is ever created (the wall factory
+`0x005E3122` gives up when slot 29 fails).
+
+**Catalogues.** Exemplars with `ExemplarType` `0x11` go into the **foundation key map** (`0x00B485B8`) and `0x15`
+into the **retaining-wall key map** (`0x00B485CC`) at the static initialisation (§1.3; `0x00698F50`,
+`0x00698FC0`): type = the exemplar's instance → its key, with the same hash map, insert and order rules as the
+building key map (§4.7.1.2). No properties are read at that time. Slots 21/22 and 27/28 read these maps (§4.7.2).
+
+**`LoadFoundationProperties(occ, type)`** (slot 26, `0x006982B0`, pop 8, AL):
+
+1. `o := occ.AsOccupant()`; `h := o.AsPropertyHolder()`; `x := o.QueryInterface(0x0AC2B5F7)` (the foundation's QI,
+   `0x005D6160`, answers `0xC8FCE101` and passes the rest to the same base chain as buildings, §4.9.1, so `x` is
+   object `+0x20`).
+2. If `type = 0`: `type := occ.GetFoundationType()` (slot 4).
+3. `type` not in the foundation key map → **false**. `GetResource(key, 0xA52160F5, &ex, 0, 0)` false → **false**.
+4. `x.SetDefaultExemplar(ex)`; if `h` has property `0x88FCC3E3` (read as float32, variant slot 37):
+   `occ.SetMaxHeight(value)` (slot 7). Release `ex`. **True.**
+5. Every exit releases `x` if it is not null.
+
+**`LoadLotRetainingWallProperties(occ, type)`** (slot 29, `0x006983C0`, pop 8, AL): the same steps 1–3 with the
+wall key map and `occ.GetRetainingWallType()` (slot 11) as the fallback; then `x.SetDefaultExemplar(ex)`, release
+`ex`, **true**. No property is read.
+
+**`AddNewFoundationOccupant(type, usage, float pos[3], sizeX, sizeZ, orientation, base)`** (slot 23, `0x00695AF0`,
+pop 28, AL):
+
+1. Create a foundation occupant with the class's pool allocator and constructor (`0x005D6220` / `0x005D6440`,
+   `0x5C` bytes, count 0) and AddRef it. `occ.SetFoundationType(type)` (slot 5).
+2. `LoadFoundationProperties(occ, type)` through the vtable (slot 26). False → release, return **false**.
+3. Rectangle (float32 stores; `hx := sizeX × 0.5`, `hz := sizeZ × 0.5`):
+   `x0 := pos.x − hx + 0.5`, `z0 := r24(pos.z − hz) + 0.5`, `x1 := r24(pos.x + hx) − 0.5`,
+   `z1 := r24(pos.z + hz) − 0.5`. Cells (`0x00695610`): each value × 0.0625, truncated toward zero; then
+   `x0 := max(x0, 0)`, `z0 := max(z0, 0)`, `x1 := min(x1, cellsX − 1)`, `z1 := min(z1, cellsZ − 1)` (the terrain cell
+   counts cached by `Init`, §1.3 step 5). No other clamp.
+4. If `pos.y < 0` (strictly; NaN does not count): `pos.y := lotDeveloper.GetLowestOrHighestAreaAltitude(cells,
+   false, true)` (slot 17, the integer overload: the **highest** altitude, with water). The caller's array is
+   written.
+5. `b := base` if `base ≥ 0` (NaN counts as ≥ 0), else `b := lotDeveloper` slot 17 `(cells, true, true)` (the
+   **lowest** altitude). `height := pos.y − b`; if `height < 0.5`, `height := 0.5` (NaN stays).
+6. `o.SetPosition(pos)` (occupant slot 9); `occ.SetSize({sizeX, height, sizeZ})` (slot 8);
+   `occ.SetUsage(usage)` (slot 10, stored as a byte); `occ.SetOrientation(orientation)` (slot 12, clamped to 0..3);
+   `o.Init()`.
+7. `ok := AddNewFoundationOccupant(occ)` (slot 24, through the vtable: the occupant manager insert of §4.9).
+   Release once. Return `ok`.
+
+Worked example: a 2 × 3-cell footprint (sizeX 32, sizeZ 48) centred at `pos = (96, −1, 184)` with base −1 on a 64 × 64
+city: `hx = 16`, `hz = 24`; rectangle (80.5, 160.5)–(111.5, 207.5); cells (5, 10)–(6, 12), exactly the footprint's
+2 × 3 cells (the 0.5 insets keep a cell-aligned footprint from reaching its neighbours). `pos.y` becomes the highest
+altitude over those cells, `b` the lowest; with 310 and 304 the size is (32, 6, 48); on flat ground the height is
+the minimum 0.5.
+
+Foundation occupant (type `0x68FD0C69`, IID `0xC8FCE101`) fields used here: foundation type `+0x38`, maximum height
+`+0x3C` (float), size `+0x4C`…`+0x54`, usage `+0x58` (int8; slot 9 sign-extends), orientation `+0x59` (int8).
+*[choice]* A replacement may create the occupant through GZCOM (then without the extra AddRef, §4.9.1), or forward the
+three slots to an original BDS kept alive for the purpose; it must not return false for valid input.
+
 ### 4.10 `DoBuildingChanged(lot, wealth, built)` (`0x0069CA80`)
 
 ```
@@ -937,13 +997,13 @@ EAX = 32-bit, EDX:EAX = 64-bit, ST0 = x87.
 | 20 | +0x50 | `bool IsBuildingInFamily(uint32 type, uint32 family)` | 8 | AL | | `0x00697FE0` |
 | 21 | +0x54 | `uint32 GetAllFoundationTypes(vector<uint32>&)` | 4 | EAX count | **SDK error**: count, not bool | `0x00698050` |
 | 22 | +0x58 | `bool GetFoundationKeyFromType(uint32, cGZPersistResourceKey&)` | 8 | AL | | `0x00698120` |
-| 23 | +0x5C | `bool AddNewFoundationOccupant(uint32, int32, f32*, f32, f32, int32, f32)` | 28 | AL | foundation placement (not used by growth) | `0x00695AF0` |
+| 23 | +0x5C | `bool AddNewFoundationOccupant(uint32 type, int32 usage, f32* pos, f32 sizeX, f32 sizeZ, int32 orientation, f32 base)` | 28 | AL | §4.9.2 (called by the lot developer) | `0x00695AF0` |
 | 24 | +0x60 | `bool AddNewFoundationOccupant(cISC4FoundationOccupant*)` | 4 | AL | §4.9 (same body as 8) | `0x00695740` |
 | 25 | +0x64 | `bool DemolishFoundationOccupant(cISC4FoundationOccupant*, uint32)` | 8 | AL (via call) | §4.9 | `0x00695770` |
-| 26 | +0x68 | `bool LoadFoundationProperties(cISC4FoundationOccupant*, uint32)` | 8 | AL | | `0x006982B0` |
+| 26 | +0x68 | `bool LoadFoundationProperties(cISC4FoundationOccupant*, uint32)` | 8 | AL | §4.9.2 | `0x006982B0` |
 | 27 | +0x6C | `uint32 GetAllLotRetainingWallTypes(vector<uint32>&)` | 4 | EAX count | **SDK error**: count, not bool | `0x00698180` |
 | 28 | +0x70 | `bool GetLotRetainingWallKeyFromType(uint32, cGZPersistResourceKey&)` | 8 | AL | | `0x00698250` |
-| 29 | +0x74 | `bool LoadLotRetainingWallProperties(cISC4LotRetainingWallOccupant*, uint32)` | 8 | AL | | `0x006983C0` |
+| 29 | +0x74 | `bool LoadLotRetainingWallProperties(cISC4LotRetainingWallOccupant*, uint32)` | 8 | AL | §4.9.2 (called by the retaining-wall code) | `0x006983C0` |
 | 30 | +0x78 | `DeveloperType GetDeveloperType(PurposeType, WealthType)` | 8 | EAX | §4.7.3 | `0x00698D60` |
 | 31 | +0x7C | `WealthType GetWealth(DeveloperType)` | 4 | EAX | §4.7.3 | `0x00698D80` |
 | 32 | +0x80 | `cISC4GrowthDeveloper* GetDeveloper(DeveloperType)` | 4 | EAX | map lookup, null if absent, **no AddRef** | `0x00696C80` |
