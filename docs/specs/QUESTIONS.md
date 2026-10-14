@@ -1153,9 +1153,16 @@ About `docs/specs/traffic-network.md`. The core's current answer is in brackets.
   stands as a *[choice]*.** The original asks about every cell of the rectangle and writes 0 for each off-map cell
   through the raw rows. That write lands outside the grid, so it is an out-of-bounds heap write. In-map cells get
   the same values either way.
-- **TN25 — §4.7.2 TN3:** FreeCity4 replaces the rules on the re-read, so the flags come from the property's rules;
+- ~~**TN25 — §4.7.2 TN3:** FreeCity4 replaces the rules on the re-read, so the flags come from the property's rules;
   the original takes them from the first n rules of the vector (the saved copy). They differ only when the saved
-  rules differ from the exemplar. Acceptable? [flags from the re-read rules]
+  rules differ from the exemplar. Acceptable? [flags from the re-read rules]~~ **ANSWERED 2026-10-14** from the exe
+  (flags from the vector's first n entries at `0x00715EF8`–`0x00715F6D`; the append-only re-read and the §4.7.4
+  rule order as already established for TN3/TN4) and written into traffic-network §4.7.2 ("When the saved rules
+  differ from the property", with a worked example). **The bracket stands as a *[choice]*, but the difference is
+  wider than the flags.** It arises only when the station's `0xE90E25A1` changed between the save and the load.
+  Then the original also keeps applying the old rules before the new ones, so their connections survive, and it
+  writes them back on every save. Its flags come from the old rules (plus new ones when m < n), so the access-point
+  walk can differ too. FreeCity4 follows the current property throughout.
 
 ## From the aura glue and grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
 

@@ -736,6 +736,29 @@ writes the same values, and the flags use the first n. The duplicates show only 
 doubled list, so the record grows by n rules per load. *[choice]* FreeCity4's re-read **replaces** the rules (clear,
 then read), so a load followed by a save reproduces the file.
 
+**When the saved rules differ from the property (TN25, from the exe).** This happens only when the building's
+`0xE90E25A1` changed between the save and the load (a plugin added, removed or edited). The lot and its facing are
+the same, so an unchanged property always matches. With m saved rules and n property rules, the original differs
+from FreeCity4's replacement in three ways:
+- **flags:** taken from the first n entries of the list (`0x00715EF8`–`0x00715F6D`). These are the old rules, plus
+  the first n − m new ones when m < n. FreeCity4 takes them from the n new rules, so the access-point walk can
+  disagree as well;
+- **connections:** §4.7.4 applies all m + n rules, the old ones first. So connections that only the old rules make
+  survive, and where an old and a new rule write the same switch nibble, the new one wins. FreeCity4 applies only
+  the new rules;
+- **persistence:** the old rules are never dropped. Each later save writes the whole list back, so the old rules
+  stay at the front after every later load.
+
+The "to" mask (from the n new entries) and the mode-mask grid (from the save) are the same in both.
+
+Worked example: a switch saved with `81 F0 07 07`, `82 F0 07 07` (m = 2, el train only), loaded after its exemplar
+became `81 F0 06 06`, `82 F0 06 06` (n = 2, subway only). The original's list holds all four rules. Its flags come
+from the first two, so they are `0x08`: flag 4 is clear and the access-point walk clears "has access point". Both the
+el-train and the subway connections are built. FreeCity4 holds the two subway rules with flags `0x04`. If the save had
+no access point, its walk then sets one at the NW cell, and only the subway connections are built. *[choice]*
+FreeCity4 follows the current property: a changed station plugin takes full effect on load. This only differs from
+the original for cities saved before the plugin changed.
+
 **Access points after the re-read (TN4, `0x007204E4`–`0x0072051E`).** Once every switch has been re-read,
 DoPostCityInit walks the table again. Each switch is handled on its own, so the order does not matter:
 
