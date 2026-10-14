@@ -88,8 +88,9 @@ extern "C" {
  * 45 = neighbours answers (neighbors.md §15.4): foreign deals are kept as the listed deal
  *      (fc4_neighbors_add_foreign_deal, fc4_neighbors_host's foreign_deal / foreign_deal_call /
  *      release_deal, NG4); the neighbours shadow input carries the original's deals_dirty /
- *      stats_dirty / busy bytes (NG7) (taken as 47 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 45u
+ *      stats_dirty / busy bytes (NG7) (taken as 47 on its lane; renumbered at merge);
+ * 50 = adds the history warehouse (fc4_history) and the 24-hour clock (fc4_clock24). */
+#define FC4_ABI_VERSION 50u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -5347,6 +5348,185 @@ uint32_t fc4_traffic_pf_compressed_route(const fc4_traffic* p, const fc4_traffic
 size_t fc4_traffic_pf_route(const fc4_traffic_pf* pf, fc4_traffic_bytes_callback cb, void* ctx);
 bool fc4_traffic_pf_get_state(const fc4_traffic_pf* pf, fc4_traffic_pf_state* out);
 
+/* ---- history warehouse (docs/specs/history.md; engine/capi/src/history.rs) ----
+ * cSC4HistoryWarehouse's core: the series, the yearly thinning pass, the
+ * queries and the record. The shim owns the GZCOM object (QueryInterface,
+ * reference count, the +4 message target, the agents) and turns cIGZDate
+ * arguments into day numbers (GetDayNumber). Dates are Julian day numbers. */
+typedef struct fc4_history fc4_history;
+
+typedef struct fc4_history_host {
+    uint32_t struct_size; /* sizeof(fc4_history_host) */
+    void* user;
+    /* cISC4Simulator slot 8: the simulation date number. */
+    uint32_t (*sim_date)(void* user);
+    /* A millisecond timer for the yearly pass (§4.3); only differences are used. */
+    uint32_t (*now_ms)(void* user);
+    /* Subscribes / unsubscribes the +4 message target to one message type. */
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    /* AddAgent(+4, level, name, flags) / RemoveAgent(+4) (both levels) on the simulator. */
+    void (*add_agent)(void* user, uint32_t level, const char* name, size_t name_len, uint32_t flags);
+    void (*remove_agent)(void* user);
+    /* MessageSend (synchronous) of a standard message: type, data1, data2. The
+     * shim may deliver it back to fc4_history_do_message from inside the call. */
+    void (*send)(void* user, uint32_t msg_type, uint32_t data1, uint32_t data2);
+} fc4_history_host;
+
+typedef struct fc4_history_point {
+    int32_t value;
+    uint32_t date;
+} fc4_history_point;
+
+typedef struct fc4_history_state {
+    uint32_t struct_size;
+    uint8_t initialized, has_cursor, pad[2];
+    uint32_t pass_state, cursor, pass_counter, series_count, total_points;
+} fc4_history_state;
+
+/* The host table is copied. NULL if the table is missing or too small. */
+fc4_history* fc4_history_create(const fc4_history_host* host);
+void fc4_history_destroy(fc4_history* h);
+/* QueryInterface (§1): true for 1, 0x69F4A803 and 0xE4FDA3D4 only (not
+ * cIGZMessageTarget2, [quirk]). */
+bool fc4_history_answers_iid(uint32_t iid);
+/* Init (slot 3) and Shutdown (slot 4), §3. */
+bool fc4_history_init(fc4_history* h);
+bool fc4_history_shutdown(fc4_history* h);
+/* DoMessage (§3): 0x89EFA536 record (data1 = key, data2 = value),
+ * 0x89EFA537 queue length, SimNewDay (the pass step; false = call again this
+ * interval), SimNewYear. True otherwise (and for a re-entrant call). */
+bool fc4_history_do_message(fc4_history* h, uint32_t msg_type, uint32_t data1, uint32_t data2);
+/* RecordHistoryData (slot 12, §4.1): sends the record message through the
+ * host's send without touching the warehouse. True for a live object. */
+bool fc4_history_record(const fc4_history* h, uint32_t key, int32_t value);
+/* SetHistoryDataQueueLength (slot 13, §4.2). */
+bool fc4_history_set_queue_length(fc4_history* h, uint32_t key, uint32_t n);
+/* Coalesce (slot 9, §4.4; granularity 0 month, 1 half-year, 2 year, 3 five
+ * years), Dispose (slot 10) and Dispose(key, from, to) (slot 11), §4.5. */
+bool fc4_history_coalesce(fc4_history* h, uint32_t key, uint32_t from, uint32_t to, int32_t granularity);
+bool fc4_history_dispose(fc4_history* h, uint32_t key);
+bool fc4_history_dispose_range(fc4_history* h, uint32_t key, uint32_t from, uint32_t to);
+/* Queries (slots 5-8, §4.6-§4.8). precision_bits = the caller's x87
+ * precision: 24 (the simulators) or 53 (Lua; any value other than 24).
+ * Outputs (may be NULL) are untouched when the result is false. */
+bool fc4_history_get_count(const fc4_history* h, uint32_t key, uint32_t from, uint32_t to, float* out);
+bool fc4_history_get_trend(const fc4_history* h, uint32_t key, uint32_t from, uint32_t to, uint32_t precision_bits,
+                           float* slope, float* intercept);
+bool fc4_history_get_point(const fc4_history* h, uint32_t key, uint32_t date, uint32_t precision_bits, float* out);
+bool fc4_history_get_min_max_average(const fc4_history* h, uint32_t key, uint32_t from, uint32_t to,
+                                     uint32_t precision_bits, float* min, float* max, float* avg);
+/* Diagnostics. fc4_history_keys copies at most `capacity` keys in ascending
+ * order (out may be NULL) and returns the key count. fc4_history_get_series
+ * copies at most `capacity` points (out may be NULL), sets *count to the
+ * point count; false for a missing key. */
+bool fc4_history_get_state(const fc4_history* h, fc4_history_state* out);
+size_t fc4_history_keys(const fc4_history* h, uint32_t* out, size_t capacity);
+bool fc4_history_get_series(const fc4_history* h, uint32_t key, uint32_t* max_count, fc4_history_point* out,
+                            size_t capacity, size_t* count);
+/* Persistence (§7): Write writes version 2; Read takes versions 0-2 and adds
+ * to the series already there. */
+bool fc4_history_write(const fc4_history* h, const fc4_ostream* out);
+bool fc4_history_read(fc4_history* h, const fc4_istream* in);
+
+/* ---- 24-hour clock (docs/specs/clock24.md; engine/capi/src/clock24.rs) ------
+ * cSC424HourClock's core: the time of day, the visual time, the pause
+ * counters, the cheats and the record. The shim owns the GZCOM object
+ * (QueryInterface, reference count, the system service, the message target)
+ * and reads the "Main Simulator" exemplar. Messages are posted (queued), so
+ * no callback re-enters the clock; call it from the main thread only. */
+typedef struct fc4_clock24 fc4_clock24;
+
+typedef struct fc4_clock24_host {
+    uint32_t struct_size; /* sizeof(fc4_clock24_host) */
+    void* user;
+    /* A monotonic clock in microseconds (the timer's unit 3, §4.3). */
+    uint64_t (*now_micros)(void* user);
+    /* MessagePost of a standard message (§3.3): void1 and the IGZUnknown
+     * field = the clock, data2, data3. */
+    void (*post)(void* user, uint32_t msg_type, uint32_t data2, uint32_t data3);
+    /* Init / Shutdown (§4.2): the framework's system services and on-idle list. */
+    void (*add_system_service)(void* user);
+    void (*remove_system_service)(void* user);
+    void (*add_to_on_idle)(void* user);
+    void (*remove_from_on_idle)(void* user);
+    /* The cheat code manager (§3.2): whether it exists, RegisterCheatCode,
+     * the message-target notification, UnregisterCheatCode. */
+    bool (*has_cheat_manager)(void* user);
+    void (*register_cheat)(void* user, uint32_t id, const char* name, size_t name_len);
+    void (*add_cheat_notification)(void* user, uint32_t id);
+    void (*remove_cheat_notification)(void* user, uint32_t id);
+    void (*unregister_cheat)(void* user, uint32_t id);
+} fc4_clock24_host;
+
+/* The "Main Simulator" exemplar's clock properties (§6): 0x897E709F
+ * magnification, 0x09B73421 night start, 0x09B73422 night end. has_* = 0:
+ * the property is missing. */
+typedef struct fc4_clock24_tuning {
+    uint32_t struct_size; /* sizeof(fc4_clock24_tuning) */
+    uint8_t has_magnification, has_night_start, has_night_end, pad;
+    float magnification;
+    uint32_t night_start, night_end;
+} fc4_clock24_tuning;
+
+typedef struct fc4_clock24_state {
+    uint32_t struct_size;
+    uint8_t initialized, day_night_notifications, timer_running, pad;
+    int32_t pause_count, hidden_pause_count;
+    float magnification, min_magnification, max_magnification;
+    uint32_t seconds, visual_seconds, night_start, night_end;
+    int32_t visual_mode;
+    uint64_t timer_elapsed_us;
+} fc4_clock24_state;
+
+/* The host table is copied. NULL if the table is missing or too small. */
+fc4_clock24* fc4_clock24_create(const fc4_clock24_host* host);
+void fc4_clock24_destroy(fc4_clock24* c);
+/* QueryInterface (§1): 1, 0x681BD53A, 0x452294AA, 0xE4FDA3D4 and the
+ * system service's 0x287FB697 [inferred]. */
+bool fc4_clock24_answers_iid(uint32_t iid);
+/* Init (slot 3, §4.2): tuning NULL = no exemplar (nothing changes); false for
+ * a too-small tuning struct. Shutdown (slot 4). */
+bool fc4_clock24_init(fc4_clock24* c, const fc4_clock24_tuning* tuning);
+bool fc4_clock24_shutdown(fc4_clock24* c);
+/* OnIdle (system-service slot 11, §4.3); the argument is not used. True. */
+bool fc4_clock24_on_idle(fc4_clock24* c, uint32_t idle_count);
+/* DoMessage (§4.8): the cheat message 0x230E27AC with data1 = the cheat ID and
+ * the typed text (text may be NULL). True. */
+bool fc4_clock24_do_message(fc4_clock24* c, uint32_t msg_type, uint32_t data1, const char* text, size_t text_len);
+/* cISC424HourClock slots 5-29 (§8; the game's forms, not the SDK's). */
+void fc4_clock24_set_visual_time_mode(fc4_clock24* c, int32_t mode);                   /* 5 */
+int32_t fc4_clock24_get_visual_time_mode(const fc4_clock24* c);                        /* 6 */
+void fc4_clock24_get_time_percentage(const fc4_clock24* c, float* out);                /* 7 */
+void fc4_clock24_set_time_percentage(fc4_clock24* c, float p);                         /* 8 */
+void fc4_clock24_get_visual_time_percentage(const fc4_clock24* c, float* out);         /* 9 */
+uint32_t fc4_clock24_get_hour(const fc4_clock24* c);                                   /* 10 */
+void fc4_clock24_set_hour(fc4_clock24* c, uint32_t hour);                              /* 11 */
+uint32_t fc4_clock24_get_visual_hour(const fc4_clock24* c);                            /* 12 */
+uint32_t fc4_clock24_get_minute(const fc4_clock24* c);                                 /* 13 */
+uint32_t fc4_clock24_set_minute(fc4_clock24* c, uint32_t minute);                      /* 14: the new seconds */
+uint32_t fc4_clock24_get_visual_minute(const fc4_clock24* c);                          /* 15 */
+uint32_t fc4_clock24_get_seconds(const fc4_clock24* c);                                /* 16 */
+uint32_t fc4_clock24_set_seconds(fc4_clock24* c, uint32_t seconds);                    /* 17: GetMinute */
+uint32_t fc4_clock24_get_visual_seconds(const fc4_clock24* c);                         /* 18 */
+uint32_t fc4_clock24_get_event_hour(const fc4_clock24* c, uint32_t index);             /* 19 */
+uint32_t fc4_clock24_get_time_magnification(const fc4_clock24* c, float* out);         /* 20: the bits */
+bool fc4_clock24_set_time_magnification(fc4_clock24* c, float m);                      /* 21 */
+uint32_t fc4_clock24_get_time_magnification_min_max(const fc4_clock24* c, float* min,
+                                                    float* max);                       /* 22: max's bits */
+bool fc4_clock24_set_time_magnification_min_max(fc4_clock24* c, float min, float max); /* 23 */
+bool fc4_clock24_pause(fc4_clock24* c, bool on);                                       /* 24 */
+bool fc4_clock24_is_paused(const fc4_clock24* c);                                      /* 25 */
+bool fc4_clock24_hidden_pause(fc4_clock24* c, bool on);                                /* 26 */
+bool fc4_clock24_is_hidden_paused(const fc4_clock24* c);                               /* 27 */
+bool fc4_clock24_is_night(const fc4_clock24* c);                                       /* 28 */
+void fc4_clock24_enable_day_night_notifications(fc4_clock24* c, bool on);              /* 29 */
+bool fc4_clock24_get_state(const fc4_clock24* c, fc4_clock24_state* out);
+/* Persistence (§7): Write writes version 2 (26 bytes); Read has no version
+ * check and skips version 1's timer record. */
+bool fc4_clock24_write(const fc4_clock24* c, const fc4_ostream* out);
+bool fc4_clock24_read(fc4_clock24* c, const fc4_istream* in);
+
 /* ---- turbo clock (tooling, not simulator.md; fc4_core::Turbo) --------------
  * Tooling deviation for test runs (the plugin's sim_turbo). Off (the default)
  * changes nothing. On: the day gate's "ready" (spec §5.2 step 3) is always true
@@ -5530,6 +5710,12 @@ static_assert(sizeof(fc4_neighbors_shadow_city) == 168, "fc4_neighbors_shadow_ci
 static_assert(sizeof(fc4_neighbors_shadow_conn) == 40, "fc4_neighbors_shadow_conn layout");
 static_assert(sizeof(fc4_neighbors_shadow_input) == (sizeof(void*) == 4 ? 208 : 232), "fc4_neighbors_shadow_input layout");
 static_assert(sizeof(fc4_neighbors_shadow_counters) == 32, "fc4_neighbors_shadow_counters layout");
+static_assert(sizeof(fc4_history_host) == (sizeof(void*) == 4 ? 36 : 72), "fc4_history_host layout");
+static_assert(sizeof(fc4_history_point) == 8, "fc4_history_point layout");
+static_assert(sizeof(fc4_history_state) == 28, "fc4_history_state layout");
+static_assert(sizeof(fc4_clock24_host) == (sizeof(void*) == 4 ? 52 : 104), "fc4_clock24_host layout");
+static_assert(sizeof(fc4_clock24_tuning) == 20, "fc4_clock24_tuning layout");
+static_assert(sizeof(fc4_clock24_state) == 56, "fc4_clock24_state layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
@@ -5540,6 +5726,12 @@ _Static_assert(sizeof(fc4_power_shadow_counts) == 24, "fc4_power_shadow_counts l
 _Static_assert(sizeof(fc4_power_shadow_stats) == 72, "fc4_power_shadow_stats layout");
 _Static_assert(sizeof(fc4_neighbor_deal_data) == 72, "fc4_neighbor_deal_data layout");
 _Static_assert(sizeof(fc4_neighbors_shadow_city) == 168, "fc4_neighbors_shadow_city layout");
+_Static_assert(sizeof(fc4_history_host) == (sizeof(void*) == 4 ? 36 : 72), "fc4_history_host layout");
+_Static_assert(sizeof(fc4_history_point) == 8, "fc4_history_point layout");
+_Static_assert(sizeof(fc4_history_state) == 28, "fc4_history_state layout");
+_Static_assert(sizeof(fc4_clock24_host) == (sizeof(void*) == 4 ? 52 : 104), "fc4_clock24_host layout");
+_Static_assert(sizeof(fc4_clock24_tuning) == 20, "fc4_clock24_tuning layout");
+_Static_assert(sizeof(fc4_clock24_state) == 56, "fc4_clock24_state layout");
 #endif
 
 #endif /* FC4_H */

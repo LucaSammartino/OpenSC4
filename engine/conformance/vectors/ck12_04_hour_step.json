@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "ck12_04_hour_step",
+  "spec": ["clock24 4.3", "clock24 4.4", "clock24 4.9", "clock24 12"],
+  "description": "Test 4. 46,799 (12:59:59) + 61 = 46,860 (13:01:00): HourChanged (13, 0), TimeTick (13, 0), VisualHourChanged (13, 0), VisualTimeTick (13, 0); 12 and 13 are both day, so no DayNightChanged. The evening of 4.9 (night 20 / 1, notifications on): 19:59:30 + 63 = 20:00:33 posts the four hour messages for 20 and DayNightChanged (0); 00:59:30 + 63 posts them for 1 and DayNightChanged (1). 23:59:59 + 61 wraps to 00:01:00 (60).",
+  "steps": [
+    {"op": "ck_create"},
+    {"op": "ck_call", "method": "init"},
+    {"op": "ck_set", "seconds": "12:59:59", "visual_seconds": "12:59:59"},
+    {"op": "ck_clear_events"},
+    {"op": "ck_idle", "elapsed": 451852},
+    {"op": "ck_expect", "state": {"seconds": 46860, "visual_seconds": 46860}},
+    {"op": "ck_call", "method": "minute", "expect": 1},
+    {"op": "ck_call", "method": "second", "expect": 0},
+    {"op": "ck_expect_events", "events": [{"event": "post", "name": "HourChanged", "data2": 13, "data3": 0}, {"event": "post", "name": "TimeTick", "data2": 13, "data3": 0}, {"event": "post", "name": "VisualHourChanged", "data2": 13, "data3": 0}, {"event": "post", "name": "VisualTimeTick", "data2": 13, "data3": 0}]},
+    {"op": "ck_set", "seconds": "19:59:30", "visual_seconds": "19:59:30"},
+    {"op": "ck_idle", "elapsed": 466676},
+    {"op": "ck_expect", "state": {"seconds": 72033}},
+    {"op": "ck_expect_events", "events": [{"event": "post", "name": "HourChanged", "data2": 20, "data3": 0}, {"event": "post", "name": "TimeTick", "data2": 20, "data3": 0}, {"event": "post", "name": "VisualHourChanged", "data2": 20, "data3": 0}, {"event": "post", "name": "VisualTimeTick", "data2": 20, "data3": 0}, {"event": "post", "name": "DayNightChanged", "data2": 0, "data3": 0}]},
+    {"op": "ck_set", "seconds": "00:59:30", "visual_seconds": "00:59:30"},
+    {"op": "ck_idle", "elapsed": 466676},
+    {"op": "ck_expect_events", "events": [{"event": "post", "name": "HourChanged", "data2": 1, "data3": 0}, {"event": "post", "name": "TimeTick", "data2": 1, "data3": 0}, {"event": "post", "name": "VisualHourChanged", "data2": 1, "data3": 0}, {"event": "post", "name": "VisualTimeTick", "data2": 1, "data3": 0}, {"event": "post", "name": "DayNightChanged", "data2": 1, "data3": 0}]},
+    {"op": "ck_set", "seconds": "23:59:59", "visual_seconds": "23:59:59"},
+    {"op": "ck_idle", "elapsed": 451852},
+    {"op": "ck_expect", "state": {"seconds": 60}}
+  ]
+}
