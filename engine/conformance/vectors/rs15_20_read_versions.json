@@ -1,8 +1,8 @@
 {
   "format": 1,
   "name": "residential_read_versions",
-  "spec": ["residential 9.1", "residential 9.2", "residential 15.20"],
-  "description": "Test 20. A version-7 record of an 8 x 8 city (all 25 grids and 4 departments present, empty lists) is 452 bytes: 2 version + the references and sizes up to the state at offset 230, then the scalars, two 53-byte department blocks, the lists (409 bytes end version 2), the 29-byte iterator and the 8-byte leSum (446, version 3), the running population (450, versions 4-6) and the two auto-budget bytes (452). Read as version 2 (409 bytes) a state-4 record becomes state 11 with leSum 0, running population 0, the iterator fresh at (0, 0) and both auto-budget flags 0. Version 3 reads the iterator and leSum, and keeps the constructed running population 0. Versions 4-6 read the running population 60 and no auto-budget bytes. Version 7 maps a saved state 1 -> 13, 2 -> 14, 3 -> 15 (other states are kept). Read returns true for every version and every truncation.",
+  "spec": ["residential 9.1", "residential 9.2", "residential 15.20", "RS9", "RS17"],
+  "description": "Test 20. A version-7 record of an 8 x 8 city (all 25 grids and 4 departments present, empty lists) is 452 bytes: 2 version + the references and sizes up to the state at offset 230, then the scalars, two 53-byte department blocks, the lists (409 bytes end version 2), the 29-byte iterator and the 8-byte leSum (446, version 3), the running population (450, versions 4-6) and the two auto-budget bytes (452). Read as version 2 (409 bytes) a state-4 record becomes state 11 with leSum 0, running population 0, the iterator fresh at (0, 0) and both auto-budget flags 0. Version 3 reads the iterator and leSum, and keeps the constructed running population 0. Versions 4-6 read the running population 60 and no auto-budget bytes. Version 7 maps a saved state 1 -> 13, 2 -> 14, 3 -> 15 (other states are kept). Read accepts every version (0, 1, 8 and 65535 included) and returns true. A truncated record is a stream error: Read returns false and leaves the simulator as it was (RS9 [choice]: as constructed for the class store's new simulator, untouched for a reused one), releasing every reference it took: the department tokens keep the count the successful reads left them (13: one per read, less the release of the Init.s departments that the reused read replaced, RS10).",
   "steps": [
     {"op": "residential_env", "cells": [8, 8]},
     {"op": "residential_create"},
@@ -40,12 +40,19 @@
     {"op": "residential_read", "slot": "a", "version": 1, "expect": true},
     {"op": "residential_read", "slot": "a", "version": 8, "expect": true},
     {"op": "residential_read", "slot": "a", "version": 65535, "expect": true},
-    {"op": "residential_read", "slot": "a", "length": 0, "expect": true},
-    {"op": "residential_expect", "state": {"city_started": true}},
-    {"op": "residential_read", "slot": "a", "length": 1, "expect": true},
-    {"op": "residential_read", "slot": "a", "length": 229, "expect": true},
-    {"op": "residential_read", "slot": "a", "length": 408, "expect": true},
-    {"op": "residential_read", "slot": "a", "length": 451, "expect": true},
-    {"op": "residential_expect", "state": {"city_started": true}}
+    {"op": "residential_expect_refs", "refs": {"900": 13, "903": 13}},
+    {"op": "residential_read", "slot": "a", "length": 0, "expect": false},
+    {"op": "residential_expect", "state": {"city_started": false, "initialized": false, "state": 0, "lists": {"other": []}, "departments": [null, null, null, null]}},
+    {"op": "residential_read", "slot": "a", "length": 1, "expect": false},
+    {"op": "residential_read", "slot": "a", "length": 229, "expect": false},
+    {"op": "residential_read", "slot": "a", "length": 408, "expect": false},
+    {"op": "residential_read", "slot": "a", "length": 451, "expect": false},
+    {"op": "residential_expect", "state": {"city_started": false, "state": 0, "le_sum": 0, "running_population": 0, "school_auto_budget": false}},
+    {"op": "residential_read", "slot": "a", "version": 3, "length": 445, "expect": false},
+    {"op": "residential_read", "slot": "a", "version": 2, "length": 408, "expect": false},
+    {"op": "residential_expect_refs", "refs": {"900": 13, "903": 13}},
+    {"op": "residential_set", "state": {"state": 6, "le_sum": 7}},
+    {"op": "residential_read", "slot": "a", "length": 300, "reuse": true, "expect": false},
+    {"op": "residential_expect", "state": {"state": 6, "le_sum": 7}}
   ]
 }

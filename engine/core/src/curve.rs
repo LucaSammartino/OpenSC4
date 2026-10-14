@@ -70,6 +70,13 @@ impl ResponseCurve {
         self.segments.is_empty()
     }
 
+    /// The kept points `(x, y)` in order (a dropped vertical step is not
+    /// among them), for callers that walk the curve's point list
+    /// (residential-education-health §4.11 `GetOccupantCoverage`).
+    pub fn points(&self) -> Vec<(f32, f32)> {
+        self.segments.iter().map(|s| (s.x, s.y)).collect()
+    }
+
     /// Evaluates the curve (§4.3): `py + (input − px) · slope` as three `f32`
     /// operations in that order (foundations §18); an empty curve returns 0.0.
     /// A NaN input with two or more kept points interpolates the last segment
@@ -185,5 +192,10 @@ mod tests {
         assert_eq!(one.eval(f32::NAN), 7.0);
         // Two input points with the second dropped (vertical, higher y): one kept.
         assert_eq!(c(&[3.0, 7.0, 3.0, 9.0]).eval(f32::NAN), 7.0);
+        assert_eq!(c(&[3.0, 7.0, 3.0, 9.0]).points(), vec![(3.0, 7.0)]);
+        assert_eq!(
+            c(&[0.0, 100.0, 100.0, 100.0]).points(),
+            vec![(0.0, 100.0), (100.0, 100.0)]
+        );
     }
 }
