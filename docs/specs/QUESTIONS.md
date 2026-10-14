@@ -567,7 +567,12 @@ About `docs/specs/crime.md` and its `docs/abi` rows. Ini: `enable = crime` (opti
   (the AddRef has no null check), before any month. "Left unchanged" means 1.0, the value `Init` step 9 sets. §16 Q1
   is closed: nothing posts OrdinanceUpdated after a load. Even with an ordinance simulator, a loaded city runs at
   1.0 until some ordinance's on flag changes. Then the handler re-reads the factor over all on ordinances.
-- **CQ7:** the prop requester is never unregistered at Shutdown; the spec is silent. [not unregistered]
+- ~~**CQ7:** the prop requester is never unregistered at Shutdown; the spec is silent. [not unregistered]~~
+  **ANSWERED 2026-10-14** from the exe (crime `Shutdown` `0x006A1860`; prop developer `AddPropRequester`
+  `0x006F21C0` and its `Shutdown` `0x006F2F70`–`0x006F2FCE`) and written into crime.md §4.2. **The bracket
+  matches.** Crime's `Shutdown` makes no prop-developer call. The prop developer AddRefs each requester on
+  registration (no duplicate check) and releases each one once at its own `Shutdown`, which empties the list. So
+  the crime object lives until then.
 - **CQ8 — §16.8:** crime type names: which LTEXT key, and the fallback when it is missing. [open]
 - **CQ9:** `Read` on a stream error. [returns false, no state changed]
 - **CQ10:** crime type list order. [ascending instance]

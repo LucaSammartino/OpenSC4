@@ -121,7 +121,13 @@ If not initialized, return true. Otherwise clear `initialized`. Shut down and re
 police, ordinance, occupant manager and city references. Clear the incident list (releasing each incident's lot).
 Unsubscribe `0xC2C09554`, `0xC53D10AA`, `0x99EF1142`, `0x99EF1143`, then release the message server. Remove the
 agent from all levels (`cISC4Simulator` slot `+0x50`, the single-argument overload).
-*[compat]* It does **not** unregister from the prop developer.
+*[compat]* It does **not** unregister from the prop developer (`0x006A1860`; no prop-developer call, unlike
+pollution, which calls `RemovePropRequester`). The registration ends on the prop developer's side:
+`AddPropRequester` (`0x006F21C0`) AddRefs the requester and appends it with no duplicate check, and the prop
+developer's own `Shutdown` (`0x006F2F70`–`0x006F2FCE`) releases each listed requester once and empties the
+list. So the shut-down crime object stays alive, held by the prop developer, until that `Shutdown`. An `Init`
+on a new city that is not preceded by the prop developer's `Shutdown` would register the requester a second
+time.
 
 ## 5. Scheduling and messages handled
 
