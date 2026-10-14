@@ -720,7 +720,7 @@ false, `running` set) *[compat]*.
 
   Example: a city saved in state 3 with pass import 500, export 200 and demand 6,000 publishes last import, export
   and demand 0, records 0 in histories `0x0AB2F224`, `0x4AB2F236` and `0xAA11F7D5`, and records `consumption − 0`
-  in `0xAA11F7D2`, 200 more than without the load. The next cycle is normal again. Production and consumption are
+  (times the factor) in `0xAA11F7D2`, 200 more than without the load at factor 1.0. The next cycle is normal again. Production and consumption are
   saved, so they and everything derived from them alone are unaffected.
 - The powered grid is saved by `ref` as its own object (simgrid §5).
 
