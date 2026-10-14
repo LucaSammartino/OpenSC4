@@ -442,7 +442,10 @@ impl Fsh {
         // [choice] Q2: the directory must fit inside `size`.
         let dir_end = HEADER_LEN as u64 + DIR_ENTRY_LEN as u64 * u64::from(count);
         if u64::from(size) < dir_end {
-            return Err(corrupt("FSH", format!("size {size} is below the header and {count} directory entries")));
+            return Err(corrupt(
+                "FSH",
+                format!("size {size} is below the header and {count} directory entries"),
+            ));
         }
         // §2.2: the loader reads `size` bytes; a shorter record fails, bytes after it are ignored.
         if (data.len() as u64) < u64::from(size) {
@@ -675,7 +678,10 @@ impl Fsh {
 /// block) until a palette code, or `next` = 0 (no palette). *\[choice\]* A block header outside the record fails
 /// the read. The chain always moves forward (`next` > 0), so it ends.
 fn find_palette(data: &[u8], entry: u32) -> Result<Option<Palette>> {
-    let (mut at, mut next) = (u64::from(entry), EntryHeader::parse(&data[entry as usize..]).map_or(0, |h| h.next));
+    let (mut at, mut next) = (
+        u64::from(entry),
+        EntryHeader::parse(&data[entry as usize..]).map_or(0, |h| h.next),
+    );
     while next != 0 {
         at += u64::from(next);
         let b = data
@@ -736,7 +742,13 @@ pub fn pixel_bytes(code: u8, width: u32, height: u32) -> Option<u64> {
 /// - `0x7D` B, G, R, A; `0x7F` B, G, R and alpha 255; `0x6D` A4R4G4B4 × 17; `0x7E` A1R5G5B5; `0x78` R5G6B5;
 ///   `0x64` (255, 255, 255, a); `0x65` (L, L, L, a); `0x7B` through the palette (alpha 255 unless the palette
 ///   has alpha).
-pub fn decode_pixels(code: u8, width: u32, height: u32, pixels: &[u8], palette: Option<PaletteData<'_>>) -> Result<Vec<u8>> {
+pub fn decode_pixels(
+    code: u8,
+    width: u32,
+    height: u32,
+    pixels: &[u8],
+    palette: Option<PaletteData<'_>>,
+) -> Result<Vec<u8>> {
     let need = pixel_bytes(code, width, height)
         .ok_or_else(|| corrupt("FSH decode", format!("code {code:#04X} has no decoder")))?;
     if (pixels.len() as u64) < need {
@@ -854,7 +866,12 @@ fn rgb565_px(c: u16) -> [u8; 4] {
 }
 
 fn argb1555(c: u16) -> [u8; 4] {
-    [expand5(c >> 10), expand5(c >> 5), expand5(c), if c & 0x8000 != 0 { 255 } else { 0 }]
+    [
+        expand5(c >> 10),
+        expand5(c >> 5),
+        expand5(c),
+        if c & 0x8000 != 0 { 255 } else { 0 },
+    ]
 }
 
 /// The 16 texels of an 8-byte S3TC colour block, row-major. `always_four` is the DXT3/DXT5 rule; DXT1 uses the

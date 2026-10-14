@@ -46,7 +46,9 @@ fn px(img: &Image) -> Vec<[u8; 4]> {
 }
 
 fn test1() -> Vec<u8> {
-    fsh1(&hex("60 00 00 00 04 00 04 00 00 00 00 00 00 00 00 00  00 F8 1F 00 E4 E4 E4 E4"))
+    fsh1(&hex(
+        "60 00 00 00 04 00 04 00 00 00 00 00 00 00 00 00  00 F8 1F 00 E4 E4 E4 E4",
+    ))
 }
 
 fn test5() -> Vec<u8> {
@@ -140,7 +142,14 @@ fn t03_dxt3() {
 
 #[test]
 fn t04_dxt5() {
-    let d = fsh1(&entry(0x62, 0, 4, 4, 0, &hex("FF 00 08 82 20 08 82 20 00 F8 00 F8 00 00 00 00")));
+    let d = fsh1(&entry(
+        0x62,
+        0,
+        4,
+        4,
+        0,
+        &hex("FF 00 08 82 20 08 82 20 00 F8 00 F8 00 00 00 00"),
+    ));
     assert_eq!(d.len(), 0x38);
     let f = accepted(&d);
     assert_eq!(f.format().0.number(), 10);
@@ -158,7 +167,12 @@ fn t05_8888() {
     assert_eq!(f.levels[0].size, 16);
     assert_eq!(
         px(&f.decode(0, 0).unwrap()),
-        [[0, 0, 255, 128], [0, 255, 0, 255], [255, 0, 0, 0], [0x33, 0x22, 0x11, 0x44]]
+        [
+            [0, 0, 255, 128],
+            [0, 255, 0, 255],
+            [255, 0, 0, 0],
+            [0x33, 0x22, 0x11, 0x44]
+        ]
     );
 }
 
@@ -171,7 +185,12 @@ fn t06_888() {
     assert_eq!(f.levels[0].size, 12);
     assert_eq!(
         px(&f.decode(0, 0).unwrap()),
-        [[0, 0, 255, 255], [0, 255, 0, 255], [255, 0, 0, 255], [0x30, 0x20, 0x10, 255]]
+        [
+            [0, 0, 255, 255],
+            [0, 255, 0, 255],
+            [255, 0, 0, 255],
+            [0x30, 0x20, 0x10, 255]
+        ]
     );
 }
 
@@ -179,12 +198,20 @@ fn t06_888() {
 fn t07_8bit_with_palette() {
     let d = test7(0x24, 256, 3, 0x20);
     assert_eq!(d.len(), 0x348);
-    assert_eq!(&d[0x38..0x48], &hex("24 00 00 00 00 01 01 00 00 01 00 00 00 00 00 00")[..]);
+    assert_eq!(
+        &d[0x38..0x48],
+        &hex("24 00 00 00 00 01 01 00 00 01 00 00 00 00 00 00")[..]
+    );
     let f = accepted(&d);
     assert_eq!((f.format().0.number(), f.format().1.number()), (5, 0));
     let pal = f.frames[0].palette.unwrap();
     assert_eq!((pal.offset, pal.code, pal.width, pal.height), (0x38, 0x24, 256, 1));
-    let grey = [[0, 0, 0, 255], [1, 1, 1, 255], [128, 128, 128, 255], [255, 255, 255, 255]];
+    let grey = [
+        [0, 0, 0, 255],
+        [1, 1, 1, 255],
+        [128, 128, 128, 255],
+        [255, 255, 255, 255],
+    ];
     assert_eq!(px(&f.decode(0, 0).unwrap()), grey);
     // 7a: palette width 255.
     assert!(rejected(&test7(0x24, 255, 3, 0x20)));
@@ -211,7 +238,10 @@ fn t07e_palette_chain_and_bounds() {
     }
     let f = accepted(&fsh1(&e));
     assert_eq!(f.frames[0].palette.unwrap().code, 0x29);
-    assert_eq!(f.attachments(0).iter().map(|a| a.code).collect::<Vec<_>>(), [0x70, 0x29]);
+    assert_eq!(
+        f.attachments(0).iter().map(|a| a.code).collect::<Vec<_>>(),
+        [0x70, 0x29]
+    );
     assert_eq!(f.decode(0, 0).unwrap().pixel(0, 0), Some([0, 0, 0, 255]));
     // A palette whose 256 entries leave the record is rejected [choice].
     let mut short = fsh1(&e);
@@ -242,7 +272,14 @@ fn u16s(v: &[u16]) -> Vec<u8> {
 
 #[test]
 fn t09_1555() {
-    let f = accepted(&fsh1(&entry(0x7E, 0, 2, 2, 0, &u16s(&[0xFC00, 0x03E0, 0x801F, 0x7FFF]))));
+    let f = accepted(&fsh1(&entry(
+        0x7E,
+        0,
+        2,
+        2,
+        0,
+        &u16s(&[0xFC00, 0x03E0, 0x801F, 0x7FFF]),
+    )));
     assert_eq!((f.format().0.number(), f.format().1.number()), (3, 9));
     assert_eq!(
         px(&f.decode(0, 0).unwrap()),
@@ -252,7 +289,14 @@ fn t09_1555() {
 
 #[test]
 fn t10_565() {
-    let f = accepted(&fsh1(&entry(0x78, 0, 2, 2, 0, &u16s(&[0xF800, 0x07E0, 0x001F, 0x0000]))));
+    let f = accepted(&fsh1(&entry(
+        0x78,
+        0,
+        2,
+        2,
+        0,
+        &u16s(&[0xF800, 0x07E0, 0x001F, 0x0000]),
+    )));
     assert_eq!((f.format().0.number(), f.format().1.number()), (2, 11));
     assert_eq!(
         px(&f.decode(0, 0).unwrap()),
@@ -266,7 +310,12 @@ fn t11_alpha_and_luminance_alpha() {
     assert_eq!(f.format().0.number(), 4);
     assert_eq!(
         px(&f.decode(0, 0).unwrap()),
-        [[255, 255, 255, 0], [255, 255, 255, 85], [255, 255, 255, 170], [255, 255, 255, 255]]
+        [
+            [255, 255, 255, 0],
+            [255, 255, 255, 85],
+            [255, 255, 255, 170],
+            [255, 255, 255, 255]
+        ]
     );
     let f = accepted(&fsh1(&entry(0x65, 0, 2, 2, 0, &hex("10 20 30 40 50 60 70 80"))));
     assert_eq!(f.format().0.number(), 6);
@@ -323,7 +372,10 @@ fn t14_level_layout() {
     assert_eq!(offsets(&t), [(0, 32), (32, 8), (48, 8), (64, 8)]);
     let t = level_table(0x7D, 4, 4, 2).unwrap();
     assert_eq!(offsets(&t), [(0, 64), (64, 16), (80, 4)]);
-    assert_eq!(t.iter().map(|l| (l.width, l.height)).collect::<Vec<_>>(), [(4, 4), (2, 2), (1, 1)]);
+    assert_eq!(
+        t.iter().map(|l| (l.width, l.height)).collect::<Vec<_>>(),
+        [(4, 4), (2, 2), (1, 1)]
+    );
     let t = level_table(0x61, 2, 2, 1).unwrap();
     assert_eq!(offsets(&t), [(0, 16), (16, 16)]);
     // The same tables through records with the padded layout: accepted, no zero-fill.
@@ -487,7 +539,14 @@ fn decoder_edges() {
     // Bit replication.
     assert_eq!(rgb565(0x8410), [132, 130, 132]);
     // DXT with a width that is not a multiple of 4: 6 × 4 reads 2 blocks, the second one zero-filled.
-    let f = accepted(&fsh1(&entry(0x60, 0, 6, 4, 0, &hex("00 F8 00 00 00 00 00 00 00 00 00 00"))));
+    let f = accepted(&fsh1(&entry(
+        0x60,
+        0,
+        6,
+        4,
+        0,
+        &hex("00 F8 00 00 00 00 00 00 00 00 00 00"),
+    )));
     assert_eq!(f.levels[0].size, 12);
     let img = f.decode(0, 0).unwrap();
     assert_eq!((img.width, img.height), (6, 4));
