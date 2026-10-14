@@ -17,7 +17,8 @@
 //
 // Exactly one line
 //   AUTOTEST VERDICT: clean|corrupt|stalled (foreign_exceptions=…,
-//   watchdog_stalls=…, rtc=…, overruns=…, ref_warnings=…, julian=…,
+//   watchdog_stalls=…, rtc=…, overruns=…, ref_warnings=…[, dialogs_closed=…
+//   (close_dialogs = 1 only, FC4Dialogs.h)], julian=…,
 //   switches_off=…, disabled=…)
 // is written, the log is flushed, and the process ends with
 // TerminateProcess(GetCurrentProcess(), 0):

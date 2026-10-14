@@ -417,6 +417,10 @@ plugin.
        ref_warnings=…, julian=…, date=…, real_seconds=…, days_per_second=…, switches_off=…, disabled=…)
      ```
 
+     With `close_dialogs = 1` (the dialog closer below) the line gains `, dialogs_closed=N` right after
+     `ref_warnings=…`: the game dialogs the closer ended (by button or by the EndModal fallback). Without it the
+     line is unchanged.
+
      - `clean`: at the deadline, with no foreign exception, RTC failure or out-parameter overrun.
      - `corrupt`: a first-chance exception outside `FreeCity4.dll` (written at once, after its report; the
        process ends 5 s later so a stall can still be logged), or RTC failures / overruns at the deadline.
@@ -530,6 +534,40 @@ plugin.
      `error` is PlaceZone's code (1 insufficient funds, 2 landfill on water, 3 too small, 4 too large, 5 blocked);
      `accepted` counts the cells whose bits PlaceZone left set. A date passed while no city ran is caught up at the
      next city's first new day; an action never runs twice in one game session.
+   - **Dialog closer** (`close_dialogs = 1`, env `FC4_CLOSE_DIALOGS`; off by default; `plugin/FC4Dialogs.h`; a
+     *tooling* switch, docs/specs/modal-dialogs.md §3.2): ends every game modal dialog from inside the game, through
+     its window manager, so an unattended run needs no screenshot and no click (several games at once, or a covered
+     window, are fine). At `PostAppInit`, before any city load (the edge-reconciliation and missing-plugin-pack
+     dialogs come before ConnectionsReady), it subscribes to the legacy message server's modal begin / end notices
+     (`0x62BA7B42` / `0x62BA7B43`). A begin notice records the window, its ID and its nesting depth; nothing is
+     called inside it. On a later frame (the modal loop keeps ticking the observer) the innermost dialog, 5 frames
+     after its begin notice, is checked (`IsWindowValid`, the nest count = depth + 1, the window's modal flag
+     `0x1000`) and gets button 0 (`PostMessageToTarget(window, 3, 0x287259F6, 0, 0)`, what a click does). A dialog
+     that ignores button 0 (edge reconciliation, missing plugin packs) gets `EndModal(window, 0)` 30 frames later,
+     after the same checks. Only button 0 is ever sent (never the city-situation popup's 1, 6 or 7); `SC4GameDelay`'s
+     invisible modal (recognised by the `cSC4WinGameDelay` vtable, compat table) is left alone; a window that is gone
+     is never called; Win32 message boxes are out of reach (no frame runs while they are open; detect them from
+     outside). Button 0 answers "no" / cancel, so a quit, close-city or go-to-region prompt the harness asks for
+     itself is refused; the autotest's quit asks nothing. Log (one line per dialog):
+
+     ```
+     dialogs: subscribed to the modal begin / end notices 0x62BA7B42 / 0x62BA7B43 (legacy message server 0x64063387) at PostAppInit
+     dialogs: closed 0x2A5CFB2C (window 0x0F3A1C40, depth 0) by button after 3 frame(s)
+     dialogs: closed 0x6A4D0A59 (window 0x0F3A2E80, depth 0) by EndModal fallback after 2 frame(s)
+     dialogs: left 0x… (window 0x…, depth 0) alone: SC4GameDelay's invisible modal ends itself
+     dialogs: 0x… (window 0x…, depth 0) ended by itself after K frame(s)
+     dialogs: WARNING could not close 0x… (window 0x…, depth N): the window is no longer valid (IsWindowValid
+       false) and no end notice came; record dropped, nothing called on it
+     dialogs: WARNING could not close …: not the current modal window for 30 frame(s) (nest count …, expected …;
+       modal flag …); still checked each frame
+     dialogs: WARNING could not close …: no end notice 30 frame(s) after EndModal; nothing more is called on it
+     ```
+
+     K counts frames from the button press (or `EndModal`) to the end notice. `0` (or unset) changes nothing: no
+     subscription, no call, no log line, and the autotest verdict keeps its format. As §3.4 says, the harness should
+     not use the `GameDelay` automation command or the debug plop-all commands while the closer is on; if it does,
+     the closer leaves the delay's window alone on the compat table's executable, and on any other one (it logs
+     `compat: cSC4WinGameDelay vtable NOT available`) would end the delay early.
    - **Clock probe** (`clock_probe = 1` or `2`, env `FC4_CLOCK_PROBE`; off by default; `plugin/FC4ClockProbe.h`):
      the M1 clock differential. From game start it logs every message the simulator posts (`CLOCK post day|week|
      month|year j=… c=…`, `CLOCK post pause|hidden|emergency|speed d1=…`), and at every city load it registers an
@@ -1223,7 +1261,13 @@ plugin.
   for it). `plugin_ini_script_test` runs a `script` through a stub zone manager on the fake city (slot 36; its
   slot 11 records the region layout and the arguments, and clears a bit as the game does) and our simulator;
   seam op 46 loads a refused, an unreadable, an empty, a late and a save script (the fake app's slot 16 counts
-  the saves, which wait for the observer tick in file order).
+  the saves, which wait for the observer tick in file order). `plugin_ini_dialogs_test` plays DoModalWin and its
+  loop on a fake window manager, legacy message server and windows (seam op 47; every slot the closer must not
+  call traps): button 0 on a later frame, never inside the begin notice; the EndModal fallback for a dialog that
+  ignores it; a stale window (no call after IsWindowValid); nested dialogs (inner first); SC4GameDelay's window
+  left alone; a window not yet modal; a late subscription that finds the open dialog through the focus; and, in
+  child processes, `close_dialogs = 0`, unset and not 0/1 (no subscription, no call, no line) and the
+  environment alone. A sixth autotest child checks `dialogs_closed=1` in the verdict.
 - Return types are part of the ABI too: SDK declarations can be wrong (budget erratum:
   `cISC4DepartmentBudget` slot 26 returns a float POINTER in EAX, not a float in ST0; `cIGZDate` slots 33–36
   return a `uint32` day number and leave the date alone; `cISC4Lot` slot 61 returns `SC4Percentage` by value
