@@ -1137,8 +1137,14 @@ part of §8 is not compared). The glue's current answer is in brackets.
   and written into flora.md §4.1 step 2 and §12. **Equivalent**, provided the filter accepts exactly the keys
   whose type is `0x6534284A` (any group, any instance): slot 18 is slot 17 with such a filter, and `EnumKeys`
   walks the same sequence that `Size`/`GetKey` index, first to last.
-- **FQ2 — §4.1 step 2:** the app shutdown callback is not registered: its timing against our DLL's unload is not
-  documented, and the records live for the whole process. [not registered]
+- ~~**FQ2 — §4.1 step 2:** the app shutdown callback is not registered: its timing against our DLL's unload is not
+  documented, and the records live for the whole process. [not registered]~~ **ANSWERED 2026-10-14** from the
+  exe (the callback `0x006B1070`; the app's list and its walk in `cSC4App::Shutdown` `0x0044C130`,
+  `0x0044A633`–`0x0044A650`; the framework's shutdown order `0x0087AB07`) and written into flora.md §3.2. **No
+  observable original behaviour; the implementer's choice stands.** The callback only drops the map's reference
+  to each record and empties the map and the type array at process exit. For the record: callbacks run inside
+  the app's `Shutdown`, in registration order, after PreAppShutdown and before PostAppShutdown reach the framework
+  hooks, so a DLL's callback would still be loaded when it runs.
 - **FQ3 — §10.3:** `cIGZPersistDBSegment`'s record read/write is not in `docs/abi`, so saving and restoring an
   obliterated city's trees is off (`SaveObliterated` writes nothing and returns true; a restore is logged when the
   segment at +0x204 is non-null). Layout and slots? [off]

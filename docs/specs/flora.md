@@ -95,6 +95,18 @@ Three containers are **static** (shared by every city of the process): a map *ty
 across cities. An application-shutdown callback releases each record, empties the map and the type array (not
 the family map).
 
+**The shutdown callback** (verified, FQ2). `0x006B1070`, registered once per process by §4.1 step 2 with data 0.
+If the "types loaded" flag is set it clears the flag, then for each map entry drops the map's reference to the
+record (a count of 1 destroys it: the held exemplar is released, the family vector and the record are freed;
+a higher count is only decremented, so records still held by flora occupants survive), erases every map node
+and empties the type array; it returns true. The app keeps the callbacks in a list in registration order and runs
+them inside its own `Shutdown` (`0x0044A633`–`0x0044A650`), each called with its data. The framework calls that
+`Shutdown` (`0x0087AB54`) after it has sent PreAppShutdown to every framework hook (`0x0087A376`, hook slot 6)
+and before PostAppShutdown (`0x0087A3C6`, slot 7) and PostSystemServiceShutdown (`0x0087A416`, slot 8), so plugin
+DLLs are still loaded when the callbacks run. Nothing after it reads the registry, and it posts no message and
+writes nothing: it only returns memory at process exit. **No observable behaviour depends on it**; *[choice]*
+FreeCity4 need not register it and may keep its records until the process ends (§13.2).
+
 Every `Init` also inserts a **default record** under key **0** into the map (only the map, not the type array).
 It is a fresh record with the defaults of §3.3 and an **uninitialised flags byte**. If key 0 is already present
 the new record leaks *[quirk]*. Consequences: `IsFloraTypeValid(0)` is true, `GetStaticFloraData(0)` is
