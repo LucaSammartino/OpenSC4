@@ -4,7 +4,7 @@
   "spec": [
     "pathfinder 4.6"
   ],
-  "description": "Extra (§4.6 off-map start fallback): start rect (-1,5,-1,5). The rings find no network, so for the neighbour connection whose link list has a link at (-1,5) (cost 2.0; the link to (-1,7) does not match) and Car in its mask, the start node is created at its in-city cell (0,3), side 0, key prefix 0x10, g = r24(0 + 2.0). The route runs east to (4,3) (g 8.0); trip length r24(8.0 - 2.0) = 6.0.",
+  "description": "Extra (§4.6 off-map start fallback, PF5): start rect (-1,5,-1,5). The rings find no network, so the fallback runs over the ferry terminals: the terminal (departing at (6,6), off the street; arrival (0,3); travel mask Car) has a neighbour link at (-1,5) (cost 2.0; the link at (-1,7) does not match), so the start node is created at its arrival cell (0,3), side 0, key prefix 0x10, g = r24(0 + 2.0). The route runs east to (4,3) (g 8.0); trip length r24(8.0 - 2.0) = 6.0.",
   "steps": [
     {
       "op": "pf_street",
@@ -28,20 +28,28 @@
       "note": "the start lot"
     },
     {
-      "op": "pf_connection",
+      "op": "pf_ferry",
       "cell": [
+        6,
+        6
+      ],
+      "arrival": [
         0,
         3
       ],
       "mask": 2,
-      "links": [
+      "neighbour_links": [
         [
           -1,
+          7,
+          0,
           7,
           9.0
         ],
         [
           -1,
+          5,
+          0,
           5,
           2.0
         ]

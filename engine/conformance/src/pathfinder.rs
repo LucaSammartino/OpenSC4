@@ -18,12 +18,12 @@ use fc4_core::curve::ResponseCurve;
 use fc4_core::grid::{CellRect, CityDims, CoreGrids, GridProvider};
 use fc4_core::pathfinder::{
     distance_to_rect, encode_route, heap_order, node_key, rect_contains, shared_work_check, start_ring_cells,
-    NeighborConnectionLinks, NodeStore, PathCx, Pathfinder, PathfinderHost, RouteNode, SharedWorkCheck, TravelTables,
-    WorkCheck, CARPOOL_ORDINANCE,
+    NodeStore, PathCx, Pathfinder, PathfinderHost, RouteNode, SharedWorkCheck, TravelTables, WorkCheck,
+    CARPOOL_ORDINANCE,
 };
 use fc4_core::traffic_network::{
     boundary_cells, cell_key, grow_clamp, net_type, travel, wormhole, CellConnection, FerryTerminal, NeighborLink,
-    NetworkState, TerminalLink, TransitSwitch, TunnelInfo, ARRAY_LEN, SWITCH_ID_GRID_ID,
+    NeighbourEdge, NetworkState, TerminalLink, TransitSwitch, TunnelInfo, ARRAY_LEN, SWITCH_ID_GRID_ID,
 };
 
 use crate::foundations::{hex_decode, hex_encode};
@@ -58,8 +58,6 @@ struct World {
     caps: RefCell<BTreeMap<u64, Capacity>>,
     lots: RefCell<Vec<Lot>>,
     pools: RefCell<BTreeMap<(i32, i32), u64>>,
-    neighbor_costs: RefCell<BTreeMap<(i32, i32), f32>>,
-    connections: RefCell<Vec<NeighborConnectionLinks>>,
     income: Cell<f64>,
     deadline_reached: Cell<bool>,
     net: RefCell<NetworkState>,
@@ -111,8 +109,6 @@ impl World {
             caps: RefCell::new(BTreeMap::new()),
             lots: RefCell::new(Vec::new()),
             pools: RefCell::new(BTreeMap::new()),
-            neighbor_costs: RefCell::new(BTreeMap::new()),
-            connections: RefCell::new(Vec::new()),
             income: Cell::new(0.0),
             deadline_reached: Cell::new(false),
             net: RefCell::new(empty_net(w, h)),
@@ -182,12 +178,6 @@ impl PathfinderHost for World {
     fn neighbor_pool_holder(&self, _t: u32, x: i32, z: i32) -> Option<u64> {
         self.pools.borrow().get(&(x, z)).copied()
     }
-    fn traffic_neighbor_connection_cost(&self, x: i32, z: i32) -> Option<f32> {
-        self.neighbor_costs.borrow().get(&(x, z)).copied()
-    }
-    fn neighbor_connections(&self) -> Vec<NeighborConnectionLinks> {
-        self.connections.borrow().clone()
-    }
     fn income_accumulator(&self) -> f64 {
         self.income.get()
     }
@@ -233,7 +223,6 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "volume" => volume(&w, op),
         "neighbor_cost" => neighbor_cost(&w, op),
         "pool" => pool(&w, op),
-        "connection" => connection(&w, op),
         "ferry" => ferry(&w, op),
         "tunnel" => tunnel(&w, op),
         "switch" => switch(&w, op),
@@ -616,10 +605,18 @@ fn volume(w: &World, op: &Json) -> R<()> {
     Ok(())
 }
 
+/// The neighbour edge record of an off-map cell (traffic-network.md §2.7.1),
+/// read by `GetTrafficNeighborConnection` in §4.13 step 3.
 fn neighbor_cost(w: &World, op: &Json) -> R<()> {
-    let c = pair(field(op, "cell")?, "cell")?;
+    let (x, z) = pair(field(op, "cell")?, "cell")?;
     let cost = fv(field(op, "cost")?, "cost")?;
-    w.neighbor_costs.borrow_mut().insert(c, cost);
+    let mask = opt(op, "mask").map(|v| u32_of(v, "mask")).transpose()?.unwrap_or(0) as u16;
+    let pool = opt(op, "pool").map(|v| u32_of(v, "pool")).transpose()?.unwrap_or(0) as u16;
+    let mut net = w.net.borrow_mut();
+    if net.neighbour_edge_index(x, z).is_none() {
+        return Err(format!("({x},{z}) is not an off-map edge cell"));
+    }
+    net.set_neighbour_edge(x, z, NeighbourEdge { mask, pool, cost });
     Ok(())
 }
 
@@ -634,29 +631,15 @@ fn pool(w: &World, op: &Json) -> R<()> {
     Ok(())
 }
 
-/// A neighbour connection with its link list (§4.6 off-map fallback).
-fn connection(w: &World, op: &Json) -> R<()> {
-    let cell = pair(field(op, "cell")?, "cell")?;
-    let mask = u32_of(field(op, "mask")?, "mask")? as u16;
-    let mut links = Vec::new();
-    for l in arr(field(op, "links")?, "links")? {
-        match arr(l, "links")? {
-            [x, z, c] => links.push(((i32_of(x, "x")?, i32_of(z, "z")?), fv(c, "cost")?)),
-            _ => return Err("each link is [x, z, cost]".into()),
-        }
-    }
-    w.connections.borrow_mut().push(NeighborConnectionLinks {
-        cell,
-        travel_mask: mask,
-        links,
-    });
-    Ok(())
-}
-
 /// A ferry terminal departing at `cell`: wormhole bit 4, the terminal
-/// list entry and the departure table entry.
+/// list entry and the departure table entry; `arrival` (default (0, 0)) is
+/// its arrival cell, where §4.6's off-map fallback puts the start node.
 fn ferry(w: &World, op: &Json) -> R<()> {
     let (x, z) = pair(field(op, "cell")?, "cell")?;
+    let (ax, az) = opt(op, "arrival")
+        .map(|v| pair(v, "arrival"))
+        .transpose()?
+        .unwrap_or((0, 0));
     let mask = u32_of(field(op, "mask")?, "mask")? as u16;
     let repeat = opt(op, "repeat").map(|v| u32_of(v, "repeat")).transpose()?.unwrap_or(1);
     let mut links = Vec::new();
@@ -698,6 +681,8 @@ fn ferry(w: &World, op: &Json) -> R<()> {
     net.ferries.push(FerryTerminal {
         dep_x: x as u16,
         dep_z: z as u16,
+        arr_x: ax as u16,
+        arr_z: az as u16,
         mask,
         links,
         neighbour_links,

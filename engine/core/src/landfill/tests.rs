@@ -743,9 +743,10 @@ fn test_11_disconnected() {
     assert_eq!(d.state().capacity_total, 270_000);
 }
 
-/// Test 11 (spiral): with the centre cell not a mask cell, the zot goes to
-/// the first mask cell of the ring around it [choice: clockwise from the
-/// top-left corner].
+/// Test 11 (spiral, §4.7.5 example 1, LF4): a 3 × 3 zone over
+/// `(10..12, 20..22)` with its centre `(11, 21)` dezoned. Ring 1 starts at
+/// `(cx+1, cz)`, so the zot goes to `(12, 21)` (a top-left-corner order would
+/// give `(10, 20)`).
 #[test]
 fn test_11_zot_spiral_skips_a_cleared_centre() {
     let w = World::new();
@@ -754,14 +755,37 @@ fn test_11_zot_spiral_skips_a_cleared_centre() {
     let z = only_zone(&d);
     let mut region = z.region();
     region.set(11, 21, false);
-    region.set(10, 20, false);
     z.set_region(region);
     month(&d);
     let zot = z.zot().unwrap();
-    // Ring 1 starts at (10, 20) (cleared), then (11, 20).
     assert_eq!(
         w.zots.borrow().get(&zot),
-        Some(&[11.0 * 16.0 + 8.0, 273.0, 20.0 * 16.0 + 8.0])
+        Some(&[12.0 * 16.0 + 8.0, 273.0, 21.0 * 16.0 + 8.0])
+    );
+}
+
+/// Test 11 (spiral, §4.7.5 example 2, LF4): a zone over `x 10..14, z 20..22`
+/// with only `(10, 20)` and `(14, 22)` set. Ring 1 has no set cell; ring 2
+/// clipped to the rect is `(14, 20)`, `(14, 21)`, `(14, 22)`, `(10, 22)`,
+/// `(10, 21)`, `(10, 20)`, so the zot goes to `(14, 22)`.
+#[test]
+fn test_11_zot_spiral_clipped_ring_two() {
+    let w = World::new();
+    let d = developer(&w);
+    zone(&d, rect(10, 20, 14, 22), 14);
+    let z = only_zone(&d);
+    let mut region = z.region();
+    for x in 10..=14 {
+        for zz in 20..=22 {
+            region.set(x, zz, (x, zz) == (10, 20) || (x, zz) == (14, 22));
+        }
+    }
+    z.set_region(region);
+    month(&d);
+    let zot = z.zot().unwrap();
+    assert_eq!(
+        w.zots.borrow().get(&zot),
+        Some(&[14.0 * 16.0 + 8.0, 273.0, 22.0 * 16.0 + 8.0])
     );
 }
 
@@ -972,6 +996,28 @@ fn test_17_save_round_trip() {
     assert!(d2.state().loaded);
 }
 
+/// Zone `Init` (§4.4.9, LF2): only an ordered equal compare with +0.0
+/// recomputes `levelAltitude`. The spec's example: a zone over x 3..6,
+/// z 10..10 reaching `Init` with −0.0 gets the altitude at the centre of cell
+/// (4, 10); a NaN and a denormal are kept.
+#[test]
+fn zone_init_level_altitude_exact_zero() {
+    let w = World::new();
+    w.set_alt(4, 10, 283.0);
+    let fresh = |v: f32| {
+        let z = LandfillZone::new(w.clone(), CellRegion::all_set(rect(3, 10, 6, 10)));
+        z.set_level_altitude(v);
+        z.init();
+        z.level_altitude()
+    };
+    assert_eq!(fresh(-0.0), 283.0);
+    assert_eq!(fresh(0.0), 283.0);
+    assert!(fresh(f32::NAN).is_nan());
+    let denormal = f32::from_bits(1);
+    assert_eq!(fresh(denormal).to_bits(), 1);
+    assert_eq!(fresh(270.5), 270.5);
+}
+
 /// Test 18: `usedTotal` 150 over `capacityTotal` 100 → `GetLandfillUsage` →
 /// (100, 100).
 #[test]
@@ -1133,6 +1179,31 @@ fn test_22_levelling_target_and_refusal() {
     assert_eq!(z.level_altitude(), 278.0);
     assert_eq!(z.cell_count(), 4);
     assert!(w.occupant_at(20, 20, OCCUPANT_TYPE_BASE_TEXTURE).is_some());
+}
+
+/// `AddRegionToZone` step 3 (§4.4.4, LF5): each region mask cell, x outer
+/// and z inner, calls `LevelRect((x, z, x+1, z+1))`; the rect is inclusive,
+/// so `ModifyTerrainHeight` levels the 2×2-cell block (vertices `x..x+2 ×
+/// z..z+2`), one cell past the region's +x and +z edges.
+#[test]
+fn add_region_levels_a_two_by_two_block_per_cell() {
+    let w = World::new();
+    let d = developer(&w);
+    zone(&d, rect(10, 20, 11, 21), 14);
+    let z = only_zone(&d);
+    z.set_level_altitude(275.0);
+    w.levelling.borrow_mut().clear();
+    w.modify.borrow_mut().clear();
+    z.add_region_to_zone(&CellRegion::all_set(rect(12, 20, 13, 21)));
+    let cells = [(12, 20), (12, 21), (13, 20), (13, 21)];
+    let calls: Vec<CellRect> = w.levelling.borrow().iter().map(|c| c.0).collect();
+    let want: Vec<CellRect> = cells.iter().map(|&(x, z)| rect(x, z, x + 1, z + 1)).collect();
+    assert_eq!(calls, want);
+    let blocks: Vec<(i32, i32, i32, i32)> = w.modify.borrow().iter().map(|m| (m.x1, m.z1, m.x2, m.z2)).collect();
+    let want: Vec<(i32, i32, i32, i32)> = cells.iter().map(|&(x, z)| (x, z, x + 2, z + 2)).collect();
+    assert_eq!(blocks, want);
+    assert!(w.modify.borrow().iter().all(|m| m.first && m.second && m.reason == 5));
+    assert_eq!(z.rect(), rect(10, 20, 13, 21));
 }
 
 /// Test 23: reason 5 is ignored; reasons 1, 2 and 3 dezone the empty cells.

@@ -12,10 +12,9 @@ use crate::x87::{r24, rhe};
 use super::{edge_to, PathCx, Pathfinder, PathfinderHost, CARPOOL_FACTOR_BITS, CARPOOL_ORDINANCE, NETWORK_OF_TRAVEL};
 
 /// Adds `qi` to counter `idx` of the edge-density record `key` (created if
-/// missing), saturating at `0xFFFF`. The pathfinder spec names the record's
-/// "16 counters" without saying which of the two arrays; FreeCity4 uses the
-/// `current` array, the one `ApplyRoute` accumulates into
-/// (traffic-simulator.md §4.5) *[inferred]*.
+/// missing), saturating at `0xFFFF`. The counters are the record's `current`
+/// array, its second u16[16] at `+0x22`; `last` and `usage` are never written
+/// here (PF2, §4.17 step 3).
 fn add_edge_density(net: &mut NetworkState, key: u32, idx: usize, qi: i32) {
     let rec = net.edge_density.entry(key, TrafficEdgeDensity::default);
     let v = i64::from(rec.current[idx]) + i64::from(qi);
@@ -81,8 +80,9 @@ impl Pathfinder {
                 }
                 // 3. Edge density: entry from the predecessor (or from the
                 // start rect), exit towards prev on unsigned bytes
-                // *[quirk]*; style 2 adds the same index to the other record
-                // (not mirrored).
+                // *[quirk]*; style 2 also adds to the key-bit-1 record at the
+                // **mirrored** index `4·exit + entry`, as `ApplyRoute` does
+                // (PF2, `0x006DA324`–`0x006DA330`).
                 let entry = match pred {
                     Some(p) => edge_to((p.x, p.z), (x, z)),
                     None => {
@@ -102,7 +102,8 @@ impl Pathfinder {
                 let key = NetworkState::edge_key(x, z, t as u32, style == 1);
                 add_edge_density(cx.net, key, idx, qi);
                 if style == 2 {
-                    add_edge_density(cx.net, NetworkState::edge_key(x, z, t as u32, true), idx, qi);
+                    let mirrored = 4 * exit + entry;
+                    add_edge_density(cx.net, NetworkState::edge_key(x, z, t as u32, true), mirrored, qi);
                 }
                 // 4. Income, with the uncarpooled count.
                 let per = r24(f64::from(self.arrived) * f64::from(tables.income_per_tile[t]));

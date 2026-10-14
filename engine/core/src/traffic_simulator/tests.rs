@@ -16,7 +16,6 @@ use std::rc::Rc;
 
 use super::*;
 use crate::grid::{CityDims, CoreGrids, GridProvider, TractGrid};
-use crate::pathfinder::NeighborConnectionLinks;
 use crate::property::PropertyHolder;
 use crate::rng::{FixedSeeds, RzRandomSuper};
 use crate::stream::{ByteReader, ByteWriter, RefResolver, RegisteredObject, SaveRegistry};
@@ -439,12 +438,6 @@ impl TrafficSimHost for World {
     }
     fn neighbor_pool_property_holder(&self, _t: u32, _x: i32, _z: i32) -> Option<u64> {
         None
-    }
-    fn traffic_neighbor_connection_cost(&self, _x: i32, _z: i32) -> Option<f32> {
-        None
-    }
-    fn neighbor_connection_links(&self) -> Vec<NeighborConnectionLinks> {
-        Vec::new()
     }
     fn workforce_percent(&self, _x: i32, _z: i32) -> f32 {
         self.workforce.get()

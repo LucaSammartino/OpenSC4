@@ -18,7 +18,6 @@ use std::rc::Rc;
 
 use fc4_core::curve::ResponseCurve;
 use fc4_core::grid::{CellRect, CityDims, CoreGrids, GridProvider, TractGrid};
-use fc4_core::pathfinder::NeighborConnectionLinks;
 use fc4_core::property::PropertyHolder;
 use fc4_core::rng::{FixedSeeds, RzRandomSuper};
 use fc4_core::stream::{ByteReader, ByteWriter, RefResolver, RefValue, RegisteredObject, SaveRegistry};
@@ -462,12 +461,6 @@ impl TrafficSimHost for World {
     }
     fn neighbor_pool_property_holder(&self, _t: u32, _x: i32, _z: i32) -> Option<u64> {
         None
-    }
-    fn traffic_neighbor_connection_cost(&self, _x: i32, _z: i32) -> Option<f32> {
-        None
-    }
-    fn neighbor_connection_links(&self) -> Vec<NeighborConnectionLinks> {
-        Vec::new()
     }
     fn workforce_percent(&self, _x: i32, _z: i32) -> f32 {
         self.workforce.get()

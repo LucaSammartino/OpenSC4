@@ -75,14 +75,11 @@
 //!   the area slope exceeds the lot developer's tuning (40) — is
 //!   [`attempt_area_levelling`], which a host may use with its own
 //!   [`LevellingSlots`].
-//! - **The zot spiral of §4.7.5** ("spiral outward from the centre cell,
-//!   clipped to the zone rect, centre first") is not pinned by the spec.
-//!   *[choice]* [`LandfillZone::spiral_cells`] walks Chebyshev rings
-//!   r = 0, 1, 2, … clipped to the zone rect, each ring clockwise from its
-//!   top-left corner (top row left→right, right column, bottom row
-//!   right→left, left column bottom→top). The first mask cell wins; with no
-//!   mask cell the centre cell is used. Only the position of a warning prop
-//!   depends on this (spec open question, filed in `docs/specs/QUESTIONS.md`).
+//! - **The zot spiral of §4.7.5** is the plumbing §7.2 `SpiralIterator` in
+//!   its clockwise mode over the zone rect (LF4): [`spiral_cells`] lists the
+//!   centre, then ring r from `(cx + r, cz − r + 1)` running +z, −x, −z, +x
+//!   to `(cx + r, cz − r)`, out-of-rect cells skipped one by one. The first
+//!   mask cell wins; with no mask cell the centre cell is used.
 //! - **The zot's orientation** comes from a global view service (§4.7.5,
 //!   spec open question 6): [`LandfillHost::zot_orientation`].
 //! - **The zone effects of §4.10** are rendering only and affect no

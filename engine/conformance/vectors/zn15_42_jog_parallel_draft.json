@@ -1,0 +1,206 @@
+{
+  "format": 1,
+  "name": "zn15_42_jog_parallel_draft",
+  "spec": [
+    "zones 7.12",
+    "zones 7.13",
+    "zones 8.8"
+  ],
+  "description": "Extra (ZQ4 correction): LayInJogStreets' parallel test has a draft branch (§7.12). LayInJogStreets(kind 3) on its own over the region x 10..15 × z 10..13 (the restriction region). Line 1 (z = 9): (12, 9) is test 23's dead end (one side, side 0 = the wanted side), so dead := true. (14, 9) is an isolated real street cell: its real occupant connects on no edge. (a) Highlight mode, no drafts: no parallel connection, so DrawStreet((10, 10) → (15, 10), perCell 1) lays the jog street as drafts: Place(10, 10, 15, 10) then Place(x, 10, x, 10) for x = 10..15. (b) The street stub's drafts dropped and a dirt-road draft at (14, 9) with mask {1, 0, 0, 0}. Scanning (14, 9): ExistsNetworkOfType(0x8) holds through the real street (no stub call). The side count asks, for each side s = 0..3 (edges 1, 2, 3, 0), the street stub (no draft) and then the dirt-road stub, which reports its draft, so its byte decides: only side 3 (edge 0) connects, which is not the wanted side. In the parallel test the avenue, road and one-way kinds have no network and ask no stub; the street kind is §7.13 written out inline: the real occupant does not connect on edge 0, the street stub has no draft, the dirt-road stub's byte 0 is set, so parallel := true and the scan stops before (15, 9). No street is laid. The stub calls at (14, 9) are therefore street, dirt road, five times (four sides, then the parallel test's edge 0). (c) Real mode with the same draft: the draft branch is not taken, no stub is called, and the jog street is laid as in test 23.",
+  "steps": [
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 3,
+          "rect": [
+            12,
+            5,
+            12,
+            9
+          ]
+        },
+        {
+          "kind": 3,
+          "cells": [
+            [
+              14,
+              9
+            ]
+          ]
+        }
+      ],
+      "note": "test 23's street (12, 5..9), dead end at (12, 9); an isolated street cell at (14, 9)"
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_clear_events",
+      "note": "(a) highlight mode, no draft at (14, 9): dead, no parallel"
+    },
+    {
+      "op": "zone_lay_in_jog_streets",
+      "region": {
+        "rect": [
+          10,
+          10,
+          15,
+          13
+        ]
+      },
+      "kind": 3,
+      "highlight": true
+    },
+    {
+      "op": "zone_expect_parcel_log",
+      "log": [
+        "P(10,10,15,10) draft",
+        "P(10,10,10,10) draft",
+        "P(11,10,11,10) draft",
+        "P(12,10,12,10) draft",
+        "P(13,10,13,10) draft",
+        "P(14,10,14,10) draft",
+        "P(15,10,15,10) draft"
+      ]
+    },
+    {
+      "op": "zone_draft",
+      "tool": 3,
+      "clear": true,
+      "note": "drop (a)'s street drafts"
+    },
+    {
+      "op": "zone_draft",
+      "tool": 11,
+      "cell": [
+        14,
+        9
+      ],
+      "mask": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "note": "(b) a dirt-road draft at (14, 9) with a connection on edge −x (a parallel edge of line 1)"
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_lay_in_jog_streets",
+      "region": {
+        "rect": [
+          10,
+          10,
+          15,
+          13
+        ]
+      },
+      "kind": 3,
+      "highlight": true
+    },
+    {
+      "op": "zone_expect_parcel_log",
+      "log": []
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists",
+        "x": 14,
+        "z": 9
+      },
+      "events": [
+        {
+          "tool": 3,
+          "flag": 8
+        },
+        {
+          "tool": 11,
+          "flag": 2048
+        },
+        {
+          "tool": 3,
+          "flag": 8
+        },
+        {
+          "tool": 11,
+          "flag": 2048
+        },
+        {
+          "tool": 3,
+          "flag": 8
+        },
+        {
+          "tool": 11,
+          "flag": 2048
+        },
+        {
+          "tool": 3,
+          "flag": 8
+        },
+        {
+          "tool": 11,
+          "flag": 2048
+        },
+        {
+          "tool": 3,
+          "flag": 8
+        },
+        {
+          "tool": 11,
+          "flag": 2048
+        }
+      ]
+    },
+    {
+      "op": "zone_clear_events",
+      "note": "(c) real mode with the same draft: the draft branch is not taken"
+    },
+    {
+      "op": "zone_lay_in_jog_streets",
+      "region": {
+        "rect": [
+          10,
+          10,
+          15,
+          13
+        ]
+      },
+      "kind": 3,
+      "highlight": false
+    },
+    {
+      "op": "zone_expect_parcel_log",
+      "log": [
+        "P(10,10,15,10)",
+        "P(10,10,10,10)",
+        "P(11,10,11,10)",
+        "P(12,10,12,10)",
+        "P(13,10,13,10)",
+        "P(14,10,14,10)",
+        "P(15,10,15,10)"
+      ]
+    },
+    {
+      "op": "zone_expect_event_count",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "count": 0
+    }
+  ]
+}
