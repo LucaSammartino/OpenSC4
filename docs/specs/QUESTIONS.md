@@ -1634,7 +1634,11 @@ About `docs/specs/crime.md` (CQ5, CQ8, CQ13 as applied). The glue's current answ
   check. With fewer values it reads past the data block, so `G` or `I` is heap garbage, and a scalar's inline
   value is used as a pointer. The lookup then almost always misses, and the fallback applies. **The bracket stands as
   a *[choice]*:** treat fewer than 3 values (or a scalar) as missing, which gives that usual outcome.
-- **CQ18 — CQ8:** there is no language manager. [Language 0, so only (group, instance) is tried.]
+- ~~**CQ18 — CQ8:** there is no language manager. [Language 0, so only (group, instance) is tried.]~~ **ANSWERED
+  2026-10-14** from the exe (`SC4LoadString` `0x00603063`–`0x0060306C`; `RZ::LM` `0x00913D7A`, system service
+  `0x441E5070` through `cRZSysServPtr` `0x00610800`) and written into crime.md §7 ("The language ID"). **The original
+  crashes**: it calls slot 7 through the null language-manager pointer, with no test. The game always has one.
+  **The bracket stands as a *[choice]*:** language 0, so only (group, instance) is tried.
 - **CQ19 — CQ8:** is the detokenizer returned by `GetStringDetokenizer` (`cISC4App +0xA8`) borrowed or owned?
   [Borrowed; the glue takes and releases its own reference around the call.]
 - **CQ20 — CQ8:** how does the original read the LTEXT: through the resource manager's `GetPrivateResource`, or a

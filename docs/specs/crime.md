@@ -487,6 +487,12 @@ With a garbage key the lookup of step 2 almost always misses, so the load fails 
 `0xAA12FCB0`. *[choice]* FreeCity4 treats a value with fewer than 3 elements, or a scalar, as a missing property:
 no lookup, the load fails. That gives the original's usual outcome without reading past the data.
 
+**The language ID** (QUESTIONS CQ18; `0x00603063`–`0x0060306C`). Step 2 asks `RZ::LM()` (`0x00913D7A`) for the
+language manager and calls its slot 7 for the ID. `RZ::LM()` fetches the framework system service `0x441E5070` once
+and caches the pointer. Neither function tests for null, so without a language manager the original calls through a
+null pointer and faults. The game always registers one. *[choice]* With no language manager FreeCity4 uses
+language ID 0, so step 2 tries only (`0x2026960B`, `G`, `I`).
+
 **Mask parsing**: each byte `b` sets bit `b − 1`. A byte 0 makes the mask `0xFFFFFFFF` (any). *[quirk]* A present
 but **empty** array gives mask 0, which never matches. A missing property gives `0xFFFFFFFF`. Byte values above
 32 wrap the shift count modulo 32 *[compat]*.
