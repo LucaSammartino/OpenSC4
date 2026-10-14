@@ -1433,3 +1433,7 @@ brackets.
 - **FL3:** a tract-size difference between the original and ours is reported as `INCOMPLETE`. [INCOMPLETE]
 - **FL4:** the message server's delivery order to the original's target and to the mirror is unspecified; both read
   the same game state. Is that enough? [assumed so]
+- **FL5 — first in-game shadow (run 82, coordinator):** 64 of 65 compared cycles exact; in cycle 66 (2033-03-15)
+  a 2×2 block of adjusted tracts, (7..8, 53..54), is 81 in the original and 65 in ours (max |d| 21; raw grid
+  identical). One lot's flammability contribution changed in a way the mirror missed or counted differently: which
+  event sets an adjusted tract outside the day visit (a lot condition or occupant change mid-cycle)?
