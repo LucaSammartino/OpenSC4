@@ -23,6 +23,7 @@
 pub mod aura;
 pub mod budget;
 pub mod calibration;
+pub mod civic;
 pub mod commercial;
 pub mod crime;
 pub mod curve;
