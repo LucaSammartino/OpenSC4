@@ -57,8 +57,9 @@ if ($obs.Count -gt 0) {
         $obs.Count, $a[1].Value, $a[2].Value, $a[3].Value, $a[4].Value, $z[1].Value, $z[2].Value, $z[3].Value, $z[4].Value)
 }
 
-# Month status lines: "<name> month:", "<name> month (<part>):" or "<name> month yyyy-mm:" (crime).
-$months = Select-String -Path $Log -Pattern "\] ([a-z][a-z ]*?) month( \([a-z ]+\))?( \d{4}-\d\d)?:" -CaseSensitive
+# Month status lines: "<name> month:", "<name> month (<part>):", "<name> month yyyy-mm:" (crime) or
+# "<name> month yyyy-mm-dd:" (flora).
+$months = Select-String -Path $Log -Pattern "\] ([a-z][a-z ]*?) month( \([a-z ]+\))?( \d{4}-\d\d(-\d\d)?)?:" -CaseSensitive
 $groups = $months | Group-Object { $_.Matches[0].Groups[1].Value + $_.Matches[0].Groups[2].Value }
 if ($groups) {
     Write-Output ""
@@ -89,8 +90,8 @@ if ($sg) {
     }
 }
 
-$shut = Select-String -Path $Log -Pattern "\] [a-zA-Z ]+ Shutdown( \(|$)" -CaseSensitive
+$shut = Select-String -Path $Log -Pattern "\] [a-zA-Z ]+ Shutdown( \(|:|$)" -CaseSensitive
 if ($shut) {
     Write-Output ""
-    Write-Output ("shutdown lines: " + (($shut | ForEach-Object { (Body $_.Line) -replace ' \(.*$', '' } | Select-Object -Unique) -join "; "))
+    Write-Output ("shutdown lines: " + (($shut | ForEach-Object { (Body $_.Line) -replace '( \(|:).*$', '' } | Select-Object -Unique) -join "; "))
 }
