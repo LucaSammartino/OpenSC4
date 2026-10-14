@@ -2089,7 +2089,11 @@ answer is in brackets.
     the default NaN (`0xFFC00000`), as `0e-32` does.
   - In the §5.1 round trip the classifier stops at an `e` with no digit before it, so `e5` there never reaches the
     parser.
-- **EX24 — EX8:** how is −0.0 printed? [`0`]
+- ~~**EX24 — EX8:** how is −0.0 printed? [`0`]~~ **ANSWERED 2026-10-14** from the exe (the runtime's `$I10_OUTPUT`
+  0x00A04942 resets the sign to positive on its zero path at 0x00A04BC1; `_fcvt` 0x009F662C reports sign = (sign is
+  '-'); printer 0x0091052A) and written into data-formats §5.1 ("Negative zero").
+  - `0`; the bracket matches. The sign of a zero is dropped inside the C runtime's conversion, so no `-` is printed,
+    for a Float32 or a Float64.
 - **EX25:** signed decimal text read into a Float32: one rounding from the exact value, unlike a Sint64 scalar,
   which goes through double? [one rounding, so `-16777217` gives −16777216.0]
 - **EX26:** a Bool scalar's "leading spaces trimmed": spaces only, or tabs too? [spaces only]
