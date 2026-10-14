@@ -2568,8 +2568,10 @@ answer is in brackets.
   into neighbors §15.4. An original deal lives until its last Release. The holders are the deal list, the regional
   cities' local lists, queued status reports, `FindDeals`/`ProposeDeals` lists and the utility advisor's advice. Lazy
   creation and parking are invisible, so the bracket stands, provided a removed deal keeps answering while referenced.
-- **NG6:** Getters called from other threads. [the lock is tried for 20 ms, then the mirror or a neutral value is
-  returned and counted as a fallback]
+- ~~**NG6:** Getters called from other threads. [the lock is tried for 20 ms, then the mirror or a neutral value is
+  returned and counted as a fallback]~~
+  **ANSWERED 2026-10-14**: no original behaviour (the original simulator has no lock); the implementer's choice stands.
+  Noted in neighbors §15.4.
 - **NG7:** The shadow's state it cannot read from the original. [ready = 1, uiDisabled = 0]
 - **NG8:** The volume-dirty flag. [true once after creation]
 - **NG9:** `SetType` and similar setters on foreign connections. [ignored]

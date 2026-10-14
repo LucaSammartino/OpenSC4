@@ -962,6 +962,10 @@ any of these holds it, and the same deal must keep the same pointer for as long 
 wrapper lazily cannot be seen by the game. Neither can keeping a wrapper at zero references for reuse ("parked"),
 because no correct caller can reach an object it holds no reference to. The bracket stands under those two rules.
 
+**NG6 (glue). Getters called from other threads.** The original simulator has no lock and no thread check: every
+method runs on the caller's thread against the live fields. The 20 ms try-lock and its fallback are the
+implementer's choice.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
