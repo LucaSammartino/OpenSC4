@@ -163,9 +163,12 @@ pub fn read_rules(facing: u32, entries: &[u32]) -> RuleSet {
 /// the element type. So the "byte size" of §4.7.1 step 1 is the element
 /// count: a u8 array (every shipped switch) gives all its bytes; a u32 array
 /// of N entries gives only its first N bytes, which are its first N/4
-/// entries whole *[quirk]*; a scalar has count 0 and gives none. An object
-/// reference (also a scalar) and an empty variant give none
-/// *[inferred: count 0]*.
+/// entries whole *[quirk]*; a scalar has count 0 and gives none. An empty
+/// variant and an object reference give none too (TN22, from the exe): the
+/// count is a field of its own, which the constructors and `Destroy` zero
+/// and the object-reference setter leaves alone. The property still counts
+/// as present, so DoLotActivated builds a switch with no rules (mode mask 0,
+/// flags 0, no access point); only an absent property skips the switch.
 pub fn rule_bytes(v: &Variant) -> Vec<u8> {
     fn push(bytes: &mut Vec<u8>, e: &Elem) {
         match *e {
@@ -329,14 +332,36 @@ impl Cx<'_> {
     /// mask and flags are rebuilt from them. The mode-mask grid is not
     /// touched.
     ///
+    /// *[choice]* (TN25) The flags come from the re-read rules. The original
+    /// takes them from the first n entries of its appended list, which after
+    /// a load are the saved rules, so the two agree whenever the building's
+    /// `0xE90E25A1` is unchanged since the save. When it changed, the
+    /// difference is wider than the flags: the original keeps the m old
+    /// rules in front of the n new ones, so §4.7.4 still builds the old
+    /// rules' connections (a new rule writing the same nibble wins), every
+    /// later save writes the old rules back, and its flags (old rules, plus
+    /// the first n − m new ones when m < n) can make the access-point walk
+    /// disagree. §4.7.2 worked example: saved `81 F0 07 07`, `82 F0 07 07`
+    /// (el train), exemplar now `81 F0 06 06`, `82 F0 06 06` (subway). The
+    /// original holds all four rules, flags `0x08` (flag 4 clear: no access
+    /// point) and builds both the el-train and the subway connections;
+    /// FreeCity4 holds the two subway rules, flags `0x04`, sets the NW-cell
+    /// access point when the save had none, and builds only the subway
+    /// connections. FreeCity4 follows the current property throughout.
+    ///
     /// Step 2, the access points (TN4), each switch on its own: flag 4 clear
     /// → no access point (the cell bytes stay); flag 4 set with an access
     /// point → kept; flag 4 set without one → the NW cell of the building's
     /// bounding cells, with no occupant search *[quirk]*.
     ///
-    /// A switch with no building (only a default one inserted by a lookup,
-    /// §4.7.3, §4.7.4) is not re-read and gets no NW-cell access point
-    /// *[choice: the original would dereference a null building]*.
+    /// A switch with building 0 (TN23: a default inserted by a §4.7.3 or
+    /// §4.7.4 lookup, or a loaded switch whose building reference was null)
+    /// *[choice]*: not re-read, so its rules, flags and "to" mask stay; flag
+    /// 4 clear → no access point, as for any switch; flag 4 set → "has access
+    /// point" and the cell stay as they are, with no building to take a NW
+    /// cell from. The original checks neither walk's building: a null one
+    /// crashes it, and an inserted switch holds a stale stack value as its
+    /// building (and stale load, capacity and flags).
     pub(crate) fn reread_switches(&mut self) {
         let ids = self.s.switches.keys();
         for &id in &ids {

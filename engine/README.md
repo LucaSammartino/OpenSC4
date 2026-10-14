@@ -232,7 +232,8 @@ plugin.
        simulator of the process, or `crime_seed = N` (env `FC4_CRIME_SEED`, decimal or `0x…`) for a repeatable
        run. Crime type names follow crime spec §7: the LTEXT (`0x2026960B`, group + language ID, instance), then
        (group, instance), detokenized by the game's string detokenizer, U+2022 → U+200B; `0xAA12FCB0` if that
-       fails. The log has a status line at `Init` and `Read` (`crime Init:
+       fails, else an empty name (a failed load never keeps the text, crime spec §7 / CQ16). The log has a
+       status line at `Init` and `Read` (`crime Init:
        init=… state=… types=… S=… decay=…`) and one every month from the first (`crime month yyyy-mm:
        crimes=N prevented=P arson=A/T incidents=I grid sum/max=… (tracts=…) average=… hotspot=(x,z)=v props
        requested=R selected=K/Q jailed=J released=L criminal base=B to commit=C attempts=… (no lot …) police

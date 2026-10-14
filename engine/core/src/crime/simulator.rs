@@ -1012,7 +1012,8 @@ impl SaveObject for CrimeSim {
 mod tests {
     use super::*;
     use crate::crime::{
-        shipped_tuning, shipped_type_exemplars, BuildingInfo, CrimeRandom, DemandValues, NearbyOccupant, CRIME_SIM_TYPE,
+        shipped_tuning, shipped_type_exemplars, BuildingInfo, CrimeRandom, DemandValues, NearbyOccupant,
+        CRIME_PROP_TYPE, CRIME_SIM_TYPE,
     };
     use crate::grid::{CityDims, GridProvider, SimGrid};
     use crate::property::PropertyHolder;
@@ -1619,6 +1620,39 @@ mod tests {
         sim.handle_message(msg(msg::ORDINANCE_UPDATED));
         sim.compute_crimes_to_commit();
         assert_eq!(sim.data().crimes_to_commit, 6, "13 × 0.5 = 6.5 → 6");
+    }
+
+    /// §14.1 (corrected 2026-10-14): the patrol car and the helicopter call
+    /// `GetNearestCrimeProp` with their position and radius 20, set the prop
+    /// found to state 1 and query again, at most five times. A prop in state
+    /// 1 no longer qualifies (§11.3), so each query returns the next nearest
+    /// one; nothing in the selection keeps state between queries.
+    #[test]
+    fn nearest_prop_patrol_loop() {
+        let prop = |token, x: f32| NearbyOccupant {
+            token,
+            occupant_type: CRIME_PROP_TYPE,
+            has_incident_property: true,
+            position: [x, 0.0, 0.0],
+            answers_iid: true,
+            ..Default::default()
+        };
+        // Seven props in the box, out of distance order; the one at 20 is
+        // not strictly inside the radius.
+        let mut props = [7.0, 3.0, 20.0, 1.0, 5.0, 2.0, 4.0].map(|x| prop(x as u64, x)).to_vec();
+        let mut set_to_state_1 = Vec::new();
+        for _ in 0..5 {
+            let Some(i) = nearest_of(NearestKind::Prop, [0.0; 3], 20.0, &props) else {
+                break;
+            };
+            props[i].prop_state = 1; // the vehicle's SetState(1), prop slot 11
+            set_to_state_1.push(props[i].token);
+        }
+        assert_eq!(set_to_state_1, [1, 2, 3, 4, 5]);
+        // The sixth query would find the prop at 7; the one at 20 never wins.
+        assert_eq!(nearest_of(NearestKind::Prop, [0.0; 3], 20.0, &props), Some(0));
+        props[0].prop_state = 1;
+        assert_eq!(nearest_of(NearestKind::Prop, [0.0; 3], 20.0, &props), None);
     }
 
     /// Test 16 and §11.3.

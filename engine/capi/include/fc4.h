@@ -2496,7 +2496,8 @@ size_t fc4_protection_shadow_unadjusted_grid(const fc4_protection* p, int16_t* o
  * fc4_crime_create seeds the generator with derive_seed(session_seed,
  * 0x6C09C3F6) (foundations §6.3); later objects share both. The original's
  * session value is cRZTime, u32 seconds since 1901-01-01 00:00 UTC
- * (time() + 2177452800, §9 / CQ5).
+ * (time() + 2177452800, §9 / CQ5), the value every clock-seeded generator
+ * shares (CQ21; fc4_core::rng::rz_time_from_unix).
  *
  * Threads (foundations §19): the game calls getters from a second thread while
  * the main thread is inside a call. The functions marked "any thread" read a
@@ -2588,8 +2589,9 @@ typedef struct fc4_crime_host {
      * instance) if that is missing and the language ID is not 0; copy the text
      * and detokenize it in place (skipped with no detokenizer). true: loaded,
      * the text went to the sink. false and text sent to the sink: the
-     * detokenizer returned false (the name keeps that text). false and nothing
-     * sent: no such LTEXT. The core replaces U+2022 itself (step 4). */
+     * detokenizer returned false. false and nothing sent: no such LTEXT. A
+     * failed load discards any text sent: the name is empty unless 0xAA12FCB0
+     * exists (CQ16). The core replaces U+2022 itself (step 4). */
     bool (*ltext)(void* user, uint32_t type_id, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx);
     /* residential and demand (§6.1, §6.2): three grid tokens, one reference each */
     void (*population_grids)(void* user, uint64_t* out3);
@@ -2615,8 +2617,9 @@ typedef struct fc4_crime_host {
     /* occupants and props (§6.10, §11.3, §11.6) */
     bool (*occupant_has_property)(void* user, uint64_t occ, uint32_t id);
     /* The raw storage of an array property (count x element size bytes, the
-     * variant's RefUint8 data whatever its type, no conversion; §6.10, CQ13);
-     * false if absent or not an array. */
+     * variant's RefUint8 data whatever its type, no conversion; §6.10, CQ13;
+     * a string is its stored bytes, "AB" gives m = 65, r = 66, CQ22); false
+     * if absent, a scalar or an object array (CQ22 [choice]). */
     bool (*occupant_property_bytes)(void* user, uint64_t occ, uint32_t id, fc4_bytes_sink sink, void* ctx);
     void (*occupant_position)(void* user, uint64_t occ, float* xyz);
     void (*occupants_in_box)(void* user, const float* min3, const float* max3, uint32_t kind,

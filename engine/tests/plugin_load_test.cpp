@@ -6486,6 +6486,11 @@ int main(int argc, char** argv) {
             put(3u, [&](cRZBaseVariant& v) { v.RefFloat32(f32s, 2); });
             put(4u, [&](cRZBaseVariant& v) { v.RefUint16(u16s, 1); });
             put(5u, [](cRZBaseVariant& v) { v.SetValUint8(100); });
+            char ab[2] = {'A', 'B'};
+            char a1[1] = {'A'};
+            put(7u, [&](cRZBaseVariant& v) { v.RefRZChar(ab, 2); });
+            put(8u, [&](cRZBaseVariant& v) { v.RefChar(ab, 2); });
+            put(9u, [&](cRZBaseVariant& v) { v.RefRZChar(a1, 1); });
             FC4RawArrayBytesTestIo io{};
             auto read = [&](uint32_t id) {
                 io = FC4RawArrayBytesTestIo{};
@@ -6503,6 +6508,12 @@ int main(int argc, char** argv) {
             CHECK(read(4) == 1 && io.len == 2 && io.bytes[0] == 0x64 && io.bytes[1] == 0x08);
             CHECK(read(5) == 0);  // [choice] a scalar: no bytes
             CHECK(read(6) == 0);  // absent
+            // CQ22: a string is its stored bytes, so "AB" gives m = 65, r = 66
+            // (RZChar and Char arrays alike).
+            CHECK(read(7) == 1 && io.len == 2 && io.bytes[0] == 65 && io.bytes[1] == 66);
+            CHECK(read(8) == 1 && io.len == 2 && io.bytes[0] == 65 && io.bytes[1] == 66);
+            // One character: one byte, which the core skips ([choice]).
+            CHECK(read(9) == 1 && io.len == 1 && io.bytes[0] == 65);
             CHECK(seam(kFC4SeamRawArrayBytes, nullptr, &io) == -1);
 
             // Test seam op 27. §13 (CQ3): lot GetCenter (slot 15) answers in the out

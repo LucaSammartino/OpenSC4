@@ -256,7 +256,8 @@ private:
     SC4Percentage pct_{0.0f};  // what GetPercentCoverage points at (stable)
     uint32_t months_ = 0;
     uint32_t days_ = 0;
-    // The month line's WARNING about a 0 x 0 coverage grid, once per object.
+    // The month line's WARNING about a 0 x 0 coverage grid (a grid saved as
+    // 0 x 0 stays empty, HG1), once per object.
     bool emptyGridWarned_ = false;
 };
 
