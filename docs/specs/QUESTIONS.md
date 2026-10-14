@@ -3065,7 +3065,11 @@ host gained connection, region, budget and drive-side methods. The current answe
   **ANSWERED 2026-10-14** from the exe (traffic `Read` `0x00722F60`–`0x00722FB3`; map find-or-insert `0x00714560`) and
   written into traffic-network §2.7. The last one wins: each entry's holder is stored through the map's find-or-insert,
   overwriting the earlier pointer, which is never released. The bracket matches.
-- **TS42:** Pool ID overflow. [pool 0]
+- ~~**TS42:** Pool ID overflow. [pool 0]~~
+  **ANSWERED 2026-10-14** from the exe (`AddNeighborConnection` ID search `0x0071555A`–`0x00715595`, store `0x007155A6`)
+  and written into traffic-network §2.7.2. The count wraps to ID 0: the record gets pool 0, the default pool, and the
+  new holder is stored in the map under key 0. If key 0 is taken too, the search never ends. Unreachable in the game.
+  The bracket (pool 0) matches.
 - **TS43:** A missing regional demand node. [0]
 - **TS44:** Which row-14 field holds the saved source cell? [`phase_positions` s16×2, the lot location]
 - **TS45:** Which cell is saved for the state-15 resume? [the same `phase_positions`]

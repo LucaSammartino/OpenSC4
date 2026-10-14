@@ -381,7 +381,11 @@ cell, and then runs the pool sweep (§2.7.3).
    `(px, pz) := city.GetPosition()` (regional-city slot 5, the region cell of the city's corner). Search the pools
    in ascending ID order for one whose holder has the s32 properties `0x4A23576B = px` and `0x4A23576C = pz`. If
    one is found, `rec.pool :=` its ID. If not, create a pool: a new property holder with only those two
-   properties, under the smallest unused ID ≥ 1. Then `rec.pool :=` that ID.
+   properties, under the smallest unused ID ≥ 1. Then `rec.pool :=` that ID. The search (`0x0071555A`–`0x00715595`)
+   counts in 32 bits but looks up the low 16 bits (TS42). With IDs 1…65535 all in use it reaches 65536 and looks
+   up 0; key 0 is normally free, so the new holder is stored under key 0 and `rec.pool := 0`, the default pool. With
+   key 0 taken as well, the search never ends. Neither can happen in the game: there is one pool per established
+   neighbouring city.
 
 So there is one pool per established neighbouring city. Every edge cell connected to that city shares the pool's
 capacity and arrival counts. Each Add sets the pool again, so the last Add at a cell decides it.
