@@ -87,6 +87,11 @@
 //   residential_shadow_cells = N  its differing cells listed per grid (default 4)
 //   residential_seed = N          the residential generator's session seed (default:
 //                                 the cRZTime clock, residential.md §3; cFC4Residential.cpp)
+//   growth_probe = 0 / 1          the growth calibration probe (default 0; needs the
+//                                 ORIGINAL BDS and tract developer; counts the tract
+//                                 developer's Grow calls per game day; env
+//                                 FC4_GROWTH_PROBE; read at PostAppInit;
+//                                 FC4GrowthProbe.h)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.

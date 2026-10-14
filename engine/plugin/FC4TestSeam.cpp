@@ -19,6 +19,7 @@
 #include "FC4DemandShadow.h"
 #include "FC4FlammabilityShadow.h"
 #include "FC4FloraShadow.h"
+#include "FC4GrowthProbe.h"
 #include "FC4LandValueShadow.h"
 #include "FC4LandfillShadow.h"
 #include "FC4Fpu.h"
@@ -159,6 +160,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
         case kFC4SeamProtectionShadowVtables:
             fc4::ProtectionShadowTestOriginalVtables(a, b);
             return 1;
+        case kFC4SeamGrowthProbe:
+            return GrowthProbeTest(static_cast<const FC4GrowthProbeTestInput*>(a));
         case kFC4SeamFpuReference:
             if (a == nullptr) {
                 fc4::FpuSetReference("test seam");
