@@ -3457,3 +3457,24 @@ the brackets below, marked *[choice]* in code.
 - **FS17:** §2.13 does not record the 15 shipped frames, in multi-frame DXT1 records, whose own A field would give the
   other DXT1 format (they report frame 0's format since FS5; the pixels are the same). Should it? [no code depends
   on it]
+
+## From the development glue fixes (filed by the coordinator from the `devglue2` lane's report, 2026-10-14)
+
+devglue2 made the development replacement work in game: the catalogue loads 744/744 types and 281 families (a
+building's own property list holds only its own properties; most building data sits in parent cohorts), the
+shadow is exact (305/305 lines), and the replacement grows like the original at equal pacing without going
+bankrupt. QI `0x0AC2B5F7` on new building occupants works (154 created, 0 failures), unlike the landfill tile (LG27).
+
+- **DG28:** the growth developer's special-building copy is released last, in its destructor; in an unsaved city
+  that release is the last reference (the five warnings on class `0xA9BD882D` in run 102). Does the original also
+  free those occupants there, after the load's object table has dropped its references? [yes, assumed; the release
+  is marked expected (`FC4_RELEASE_AT_DESTRUCTION`), and still warns if the reference was never taken]
+- **DG29:** data-formats §4.4 says `EnumProperties` gives the effective property list, but in game it lists only a
+  holder's own properties. Is there an effective enumerator, and what does the original's lookup do with cohorts?
+  [the glue walks the parent cohort chain itself (`EffectiveProperties`), with cycle detection]
+- **DG30:** the suitability comparison tests each building type at a cell whose zone fits it, rotating through lots
+  in state 1, lots in other states and empty cells. Tooling only. [accepted as tooling]
+- **DG31:** with the original simulators, a city run at about 85 game days per real second (`sim_turbo`) ends with
+  lower income (3540-3647 against 4202-4593 at 8-20 days/s) and negative funds. Which original work is bound to
+  frames or real time rather than game days? [unknown; compare runs only at equal pacing. Separately, our
+  development unit costs about 3× per game day: 23-29 days/s under turbo against the original's 80-90]
