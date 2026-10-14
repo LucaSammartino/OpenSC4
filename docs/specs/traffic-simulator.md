@@ -258,6 +258,9 @@ with a count of those units.
 - Consequently the work of one trip-phase day is the shortest run of whole slices whose end reaches the share
   `total · (dayIndex + 1) / days`: at least the share, and at most N − 1 units more.
 - **Default**: to be calibrated in the original (§12). N = 1 is the minimum (the day ends exactly at the share).
+  The original has no such constant (TS27): its slice is the 4 ms deadline of §3.3 step 1, tested once per unit,
+  so its units per slice depend on the machine. The default N is FreeCity4's choice until the §12 counters
+  calibrate it.
 - **Observable effect of the budget** (for the M5 exit tests):
   - Larger N means more work per day than the share, so the trip phases finish in fewer days and the **traffic
     cycle is shorter** (in game days). The commute, congestion, air-polluting and commercial maps are then

@@ -1398,7 +1398,9 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   the exe (`0x00710016`–`0x007101D7`): yes. Also: the lot's own cells and same-zone non-source lots are passed over
   without closing the direction. The value is the map byte at the cell found, and no donor writes 0 over the rect.
   Written into traffic-simulator.md §4.7.
-- **TS27:** default `trafficUnitsPerSlice`? [16 until calibrated]
+- ~~**TS27:** default `trafficUnitsPerSlice`? [16 until calibrated]~~ **ANSWERED 2026-10-14**: no original behaviour;
+  the implementer's choice stands. The original slices by a 4 ms wall-clock deadline tested once per unit (§3.3 step
+  1, §3.4), so it has no units-per-slice constant. Note added to traffic-simulator.md §3.4.
 - **TS28 — tuning reads with short or missing data:** fewer vector entries [the rest keep their value]; the
   strategy re-read with fewer than 3 values [missing ones unchanged]; missing ordinance offsets [0]; wealth above 3
   [zeros].
