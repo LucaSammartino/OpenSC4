@@ -626,7 +626,11 @@ For each cell:
       - `budget.GetLineItemFromBudgetItem(item)` (slot 57) `.AddToFullExpenses(cost − item.cost)`;
       - `budget.ChangeBudgetItemCost(holder, item.index, cost)` (slot 53, pop 16).
 2. last building-cell counts := pass counts.
-3. If the ageing flag is set: `AgeWaterProducer` for each producer (§7.3), then ageing := false.
+3. If the ageing flag is set: `AgeWaterProducer` for each producer (§7.3), then ageing := false. The flag is
+   set only by the month (§7.1, `0x006DF551`) and cleared only here (test `0x006DEDBD`, clear `0x006DEDD9`).
+   So the first state 8 after a month start ages, the later ones of that month do not, and two month starts
+   with no state 8 between them give one ageing. From outside, an ageing shows in each producer's `0xC910B4CF`
+   whenever its increment is not 0 (§7.3) (PS7).
 4. Post `0x6946DC34`, a new `cRZMessage2Standard` with `void1 = this` and `IGZUnknown = this`
    (`MessagePost(msg, false)`, server slot 4).
 5. last month totals := pass totals (produced, consumed, imported, exported).

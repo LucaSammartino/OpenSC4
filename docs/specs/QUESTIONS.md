@@ -1537,8 +1537,11 @@ shadow's current answer is in brackets.
   by state 0 and written otherwise only by the constructor and `Read`. A record read whose passCounter is one higher
   than the previous read means that call ran state 0, with no probe cell needed. *[choice]*: detect starts by
   passCounter. Written into plumbing.md §6.1.
-- **PS7:** when a state 8 may have run unobserved, ageing is logged as `unknown` and producer condition is not
-  compared. [as stated]
+- ~~**PS7:** when a state 8 may have run unobserved, ageing is logged as `unknown` and producer condition is not
+  compared. [as stated]~~ **ANSWERED 2026-10-14** from the exe (ageing flag: set `0x006DF551`, tested `0x006DEDBD`,
+  cleared `0x006DEDD9`): shadow glue, **no original behaviour; the implementer's choice stands.** Facts that can narrow
+  "unknown": exactly the first state 8 after a month start ages, and an ageing changes each producer's
+  `0xC910B4CF` whenever its increment is not 0, which the shadow can read. Written into plumbing.md §6.7.
 - Not compared: the pipes' watered states (only reachable through a non-virtual call), redisplay, posts, history,
   line-item expenses, lot conditions and deal flags; the original's pipe condition and pass state (not saved, not
   exposed). New bursts are range-checked only (random draw).
