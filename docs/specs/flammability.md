@@ -389,6 +389,15 @@ the plumbing did between polls. It costs one pass over the city cells per poll (
 also works with a plumbing simulator that keeps one fixed published grid, which plumbing §12.2 allows. Pointer
 detection depends on the original's alternation (plumbing §2) and misses both cases above.
 
+**A pass first seen at the comparison** (QUESTIONS FL8). The comparison runs when SimCycleComplete is delivered, at
+the next frame's message-server tick (§9), and all of a day's visits, before and after the wrap, run inside one
+`DoDailySimulation` call. So with a poll at every SimNewDay, a swap first seen by the comparison's own poll came after
+every visit of the last SimNewDay before it: the old cycle's last tracts **and** the new cycle's first ones (at most 2
+× `tractsPerDay`, §9) were visited under the state before the pass. The new cycle's early tracts keep those values
+until their next visit, a whole cycle later, so at the next comparison they still carry the old state's factor. The
+previous-value rule covers them at this comparison but not at the next. *[choice]* Mark such a pass in both cycles:
+carry its marks for the tracts that the new cycle has already visited.
+
 Each cycle visits every tract exactly once, `tractsPerDay` tracts per day; the wrap usually falls inside a day and
 that day continues into the next cycle. Because the iterator count is 0 after `Init` (§4.1), the **first** call
 after every `Init` (new city or load) wraps at once: an empty `EndOfCycle` runs on the first SimNewDay. For a

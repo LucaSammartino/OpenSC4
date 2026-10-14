@@ -2833,9 +2833,14 @@ in brackets.
   that ends with the recompute flag set restarts at once and can reach its next swap in the same frame, before its
   pass-end message is delivered. Either way the pointer can come back unseen. *[choice]* (recommended): compare the
   published grid's watered bits at every poll instead of the pointer.
-- **FL8:** FL5/FL6: a pass first seen by the comparison's own poll, after the wrap day's early visits. [those tracts
+- ~~**FL8:** FL5/FL6: a pass first seen by the comparison's own poll, after the wrap day's early visits. [those tracts
   are accepted by the existing previous-value rule, at most 2 × tractsPerDay "unvisited"; marks are not carried into
-  the next cycle]
+  the next cycle]~~
+  **ANSWERED 2026-10-14** from the original's timing (flammability §6.5 and §9) and written into flammability §6.5. The
+  original visits the new cycle's first tracts (at most 2 × `tractsPerDay`) under the same pre-pass state as the old
+  cycle's last ones, and they keep those values for a whole cycle. The bracket is right for the comparison in hand, but
+  with marks dropped at the boundary those tracts mismatch at the next comparison. *[choice]* Carry the pass's marks for
+  the tracts that the new cycle has already visited.
 - **FL9:** FL5/FL6 with FreeCity4's own plumbing: detection relies on its published grid alternating too, which it
   does today. [pointer detection only]
 
