@@ -597,8 +597,11 @@ About `docs/specs/crime.md` and its `docs/abi` rows. Ini: `enable = crime` (opti
   within each package the index hash-table buckets (`instance mod B`, B ≥ 53). All 14 shipped types are in
   `SimCity_1.dat` with instances below 53, so the order is ascending instance. Plug-in types can land elsewhere;
   ascending instance stays the §7 *[choice]*.
-- **CQ11:** police slot 5 returns a uint8 grid (the SDK says short) and slot 27 an int32 count, as protection
-  declares them. Confirm. [as protection]
+- ~~**CQ11:** police slot 5 returns a uint8 grid (the SDK says short) and slot 27 an int32 count, as protection
+  declares them. Confirm. [as protection]~~ **ANSWERED 2026-10-14** from the exe (slot 5 `0x006EFA50`, slot 27
+  `0x006E0A00`) and written into crime.md §13. **Confirmed; the bracket matches.** Slot 5 returns the adjusted grid
+  pointer at `+0x80`, the `uint8` grid, without an AddRef. Slot 27 returns its int32 count in EAX, after a float→int
+  conversion.
 - **CQ12:** arson calls `SetCause` whatever `IgniteOccupant` returns. Right? [yes]
 - **CQ13:** property 0xCA5B9306 is read with numeric conversion (`GetU32s`, low bytes). [as stated]
 - **CQ14:** a failed QueryInterface nulls the out pointer per crime.md §1; flammability, plumbing and pollution leave

@@ -731,8 +731,8 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check`. "Byte
 | | 95 | `+0x17C` | PositionToCell(f32 x, f32 z, int& cx, int& cz) | 16 | bool |
 | `cISC4Simulator` (`0x00AB2FB8`) | 19 | `+0x4C` | AddAgent(target, level, name, flags) | 16 | bool |
 | | 20 | `+0x50` | RemoveAgent(target) (all levels) | 4 | bool |
-| `cISC4PoliceSimulator` (`0x00AB2490`) | 5 | `+0x14` | GetPolicePowerGrid → `cISC4SimGrid<uint8>*` | 0 | EAX ptr |
-| | 27 | `+0x6C` | ResetUnjailedCriminals → s32 released count | 0 | EAX |
+| `cISC4PoliceSimulator` (`0x00AB2490`) | 5 | `+0x14` | GetPolicePowerGrid → `cISC4SimGrid<uint8>*` (`0x006EFA50`: the adjusted grid at `+0x80`, no AddRef; protection §2) | 0 | EAX ptr |
+| | 27 | `+0x6C` | ResetUnjailedCriminals → s32 released count (`0x006E0A00`: a `float`→int conversion, returned in EAX) | 0 | EAX |
 | | 30 | `+0x78` | GetJailPopulation → u32 (Σ rounded per-jail populations; protection §15.2) | 0 | EAX |
 | | 38 | `+0x98` | ProcessMonthlyCrimeStats (result ignored) | 0 | none used |
 | `cISC4ResidentialSimulator` (`0x00AB2C10`) | 23 | `+0x5C` | GetEQGrids(g0*&, g1*&, g2*&) | 12 | none (garbage) |
