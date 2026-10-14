@@ -1119,6 +1119,10 @@ With `length = 3` → true, `length = 3`, `01 02 03` copied. A `Uint32` property
 
 *[choice]* For a null `buffer`, return false and leave `length` unchanged.
 
+**NG24 (glue). Regional cities held across calls.** The original returns regional cities without AddRef (§4.2,
+§6.2) and holds them only inside one call (the list of `GetAdjacentCities` in `Init` and `ProposeDeals`). How long
+the glue holds its own references is the implementer's choice.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
