@@ -1377,8 +1377,12 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   The departure cell is cleared by the cell scan, because the ferry phase of every rebuild gives it network-info
   records. An explicit pass after the scan (no deadline test) clears each terminal's arrival cell. Written into
   traffic-simulator.md §4.8.
-- **TS23:** what does DoLotDeactivated do? [destination bytes over the lot := 0, its bucket entries removed,
-  `freeDest` unchanged]
+- ~~**TS23:** what does DoLotDeactivated do? [destination bytes over the lot := 0, its bucket entries removed,
+  `freeDest` unchanged]~~ **ANSWERED 2026-10-14** from the exe (`0x0071E2F0`): partly. The bytes over the rect do go
+  to 0, but only the one bucket entry matching the lot's location is erased. `freeDest[k]` is **decremented** for
+  each bit set at the rect's NW cell, unless in state 10. It also removes the switch (with a rebuild), the
+  `0xCA550301` budget item (`E −= cost`), the `0x0C3BF549` item and the ferry terminal. Written into
+  traffic-simulator.md §4.1.3.
 - **TS24:** is the direction towards a non-adjacent rectangle defined? [yes, always]
 - **TS25:** when is "the last switch seen" on a route updated? [at every in-city cell, so leaving and re-entering a
   station counts again]

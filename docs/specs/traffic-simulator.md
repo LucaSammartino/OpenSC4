@@ -506,8 +506,28 @@ step, and **none of the steps below runs**, not even the draw (TN1, traffic-netw
    `bits` into the destination byte of every cell of the lot rectangle (`0x00724167`). *(Corrected: the byte is
    replaced, not ORed into.)*
 
-`DoLotDeactivated` (`0x0071E2F0`) removes what activation added (destination bits, bucket entry, network rules)
-*[inferred: not traced line by line]*.
+`DoLotDeactivated(lot)` (`0x0071E2F0`, TS23) removes what activation added. `holder` is the lot's own property
+holder (lot slot 3). A null lot does nothing. In order:
+
+1. **Bucket entry.** If `holder` has `0x691C863C` (read as u32) = `b`: among the multimap entries under `b`, the
+   first whose cell equals the lot's location (lot slot 21) is erased. Only that one entry goes.
+2. **Transit switch** (traffic-network.md §4.7.5 step 1): the switch at the NW cell of the lot's bounding rect
+   (lot slot 14) is released and erased, the ID and mask grids over the rect are zeroed, and
+   `DoConnectionsChanged(x1 − 1, z1 − 1, x2 + 1, z2 + 1)` runs.
+3. **Budget items.** Budget simulator slot 51 `GetBudgetItemForPurpose(holder, 0xCA550301, item)`. If found:
+   slot 56 `RemoveBudgetItemFromBudget(holder, item.id)` and `E −= item.cost` (the int64 at record `+0x10`).
+   Then, **independently** (unlike activation, which asks the second purpose only when the first fails):
+   `GetBudgetItemForPurpose(holder, 0x0C3BF549, item)`, and if found `RemoveBudgetItemFromBudget(holder,
+   item.id)`, with no change to `E`.
+4. **Free destinations.** Unless the cycle is in state 10: for `k` = 0…3, if bit `k` of the destination byte at the
+   rect's NW cell `(x1, z1)` is set, `freeDest[k] −= 1` (`0x0071E570`). Only that one cell is read, so each lot is
+   counted once, as RefreshCommuteMap counts it.
+5. **Ferry terminal** (traffic-network.md §4.9.4): the first terminal whose lot cell is in the rect is removed.
+6. **Destination bytes** over the whole rect := 0 (`0x0071E7B7`), bit 3 included.
+
+Example: a 2 × 2 commercial lot at (10, 20)–(11, 21) with destination byte 3 at every cell (bits 0 and 1) is
+deactivated in state 18. `freeDest[0]` and `freeDest[1]` each drop by 1 and the four bytes become 0. Its bucket
+entry and its `0xCA550301` budget item go, and `E` drops by the item's cost.
 
 #### 4.1.4 Neighbour connection: `UpdateTrafficVolume` (`0x006D4C10`)
 
@@ -1442,9 +1462,9 @@ never read.
 
 Open questions:
 
-* **Q1** `UpdateStrikes`, `ApplyRoad/MassTransitFunding`, `UpdateRoads/MassTransitBudget` and
-  `DoLotDeactivated` were not traced line by line *[inferred]*; their observable outputs (strike state, department
-  costs) need differential tests.
+* **Q1** `UpdateStrikes`, `ApplyRoad/MassTransitFunding` and `UpdateRoads/MassTransitBudget` were not traced line
+  by line *[inferred]*; their observable outputs (strike state, department costs) need differential tests.
+  (`DoLotDeactivated` is traced in §4.1.3, TS23.)
 * **Q2** The meaning of the slot-59 lot link and of zones 8/9 in FinishTripMap (§4.7).
 * **Q3** *Answered* (§5): `0x0C05E4C3`, data1 = x, data2 = z, posted queued, no compiled receiver; rail accidents
   post nothing. Open: who calls `CheckRailAccident` and what the caller does with a true result.
