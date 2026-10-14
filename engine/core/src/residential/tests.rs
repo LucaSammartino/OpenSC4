@@ -3190,6 +3190,20 @@ fn eh12_system_totals() {
     assert_eq!((t.capacity, t.served, t.grade), (0, 0, 0.0));
 }
 
+/// AQ1 (REH §4.11): a farmer's market (a hospital without the staff item)
+/// counted first adds the record's +0x1C / +0x20 before any query wrote
+/// them: stack leftovers in the original, 0 in FreeCity4 (*[choice]*).
+#[test]
+fn aq1_totals_record_starts_at_0() {
+    let fx = Fx::new(4);
+    service(&fx, 2, &HOSPITAL, 0, 200, 10.0, (32.0, 32.0));
+    graded(&fx, 2, &HOSPITAL, 100, NOT_GRADED, 0.25);
+    let mut t = QueryData::default();
+    assert_eq!(fx.s.hospital_system_totals(&[0x1512], &mut t), 1);
+    assert_eq!((t.capacity, t.effective_capacity), (200, 100));
+    assert_eq!((t.capacity_per_staff, t.effective_per_staff), (0, 0));
+}
+
 /// EH10 (REH §4.11 "Order of the tests and partial writes"): a failed query
 /// leaves the fields it read (served raw) and every other field as the
 /// caller left it.
