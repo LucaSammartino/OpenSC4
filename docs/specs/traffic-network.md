@@ -312,6 +312,20 @@ found is the result; none found → none.
 | 4 | Light rail | `0x80` | LightRail |
 | 5 | Monorail | `0x800` | Monorail |
 
+**Travel types outside 0…8** (TN27). `net(t)` is a u32[9] table at `0x00AB31A8` (0, 1, 1, 2, 1, 2, 3, 4, 5 for
+t = 0…8). Both lookups index it, and then the mask table above, with no range check (`0x007104D7`, `0x007114ED`).
+For t ≥ 9 the original reads the read-only data that follows:
+
+- t = 9…26 find 0, so the mask is the pedestrian one, `0x704`;
+- t = 27…30 find 2, 1, 3 and 4;
+- t = 31 finds 6, whose mask word is 0;
+- larger t read further unrelated words.
+
+This never happens in the game. The callers pass −1 (the pool lookup only, `0x00713703`), 1 (`0x00716751`) or a
+trip's travel type, which is 0…8 (`0x006D79D7`, `0x007147B8`, `0x007147C9`). *[choice]* Use `wanted := 0` for any
+t outside 0…8, except t = −1 in the pool lookup, which keeps all bits. FindNeighborConnection then gives none. The
+pool lookup gives null, except at a record with the Ferry bit (step 2 below).
+
 **GetNeighborPoolPropertyHolder(t, x, z)** (`0x007114E0`) gives the property holder that carries the destination
 capacity of an off-map cell (traffic-simulator.md §4.2; pathfinder.md §4.10.1):
 

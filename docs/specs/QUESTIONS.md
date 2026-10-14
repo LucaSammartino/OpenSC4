@@ -2285,7 +2285,16 @@ About PF1–PF15, ZQ4/ZQ7–ZQ10, LF1–LF5 and NB1–NB17 as applied in the cor
   - Unreachable in the game: every region city is square.
   - The bracket is a sound *[choice]*: stop each loop at `min(X − 1, its length)`, which is the original for every
     square city.
-- **TN27 — §2.7:** `FindNeighborConnection` and the pool-ID lookup for travel types above 8. [no types match]
+- ~~**TN27 — §2.7:** `FindNeighborConnection` and the pool-ID lookup for travel types above 8. [no types match]~~
+  **ANSWERED 2026-10-14** from the exe (unchecked `net(t)` table u32[9] at 0x00AB31A8, read at 0x007104D7 and
+  0x007114ED; callers 0x006D79D7, 0x00713703, 0x007147B8/0x007147C9, 0x00716751) and written into traffic-network
+  §2.7.1 ("Travel types outside 0…8").
+  - The original indexes both tables without a check, so t ≥ 9 reads the read-only data that follows: t = 9…26 give
+    net 0 (the pedestrian mask `0x704`), t = 27…30 give nets 2, 1, 3, 4, t = 31 gives mask 0, and larger t read
+    further unrelated words.
+  - Unreachable: callers pass −1, 1 or a trip's travel type (0…8).
+  - The bracket differs from the literal original for t = 9…30, but as a *[choice]* for an unreachable input it
+    stands: `wanted := 0` (t = −1 keeps all bits in the pool lookup). A Ferry record still gets a pool through step 2.
 - **TN28 — §2.7:** `GetTrafficNeighborConnection` for a corner cell or a cell inside the city. [an empty record]
 - ~~**ZQ11 — zones test 33:** a second draft `Place` on the same cell. [the mask bytes are merged (OR); inferred]~~
   **ANSWERED 2026-10-14** from the exe (`PlaceNetworkOccupants` 0x00629210, cache clear only in real mode at
