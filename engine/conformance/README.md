@@ -1585,6 +1585,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 |---|---|
 | 1 funds | `b15_01_funds` |
 | 2 tax | `b15_02_tax` |
+| 2 tax: the total is a float32 running sum in lot order (BQ3, the §5.2 worked example: 6567 in list order, 6566 reversed, lines 3848 + 2718) | `b15_02b_tax_lot_order` |
 | 3 settlement | `b15_03_settlement` |
 | 4 year end | `b15_04_year_end` |
 | 5 bankruptcy | `b15_05_bankruptcy` |

@@ -278,6 +278,14 @@ if(FC4_IS_WIN32_X86)
     target_compile_options(fc4_game_map_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME game_map_test COMMAND fc4_game_map_test)
 
+    # The master lot list through the safe lot iterator
+    # (plugin/FC4SafeLotIterator.h, budget.md §5.2 BQ3) against fake lists
+    # built as aura.md §6.5 and docs/abi/allocators.md describe them.
+    add_executable(fc4_safe_lot_iterator_test tests/safe_lot_iterator_test.cpp)
+    target_include_directories(fc4_safe_lot_iterator_test PRIVATE plugin)
+    target_compile_options(fc4_safe_lot_iterator_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME safe_lot_iterator_test COMMAND fc4_safe_lot_iterator_test)
+
     # foundations §16: the slot layout of every game interface we implement.
     add_executable(fc4_vtable_layout_test tests/vtable_layout_test.cpp)
     target_include_directories(fc4_vtable_layout_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin tests)

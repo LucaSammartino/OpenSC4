@@ -467,13 +467,13 @@ typedef struct fc4_tax_scan {
     uint32_t struct_size; /* caller sets = sizeof(fc4_tax_scan) */
     uint32_t lots;        /* lots visited */
     float multiplier;     /* DifficultyTaxMultiplier[difficulty] */
-    float total;          /* the float32 running total */
+    float total;          /* the float32 running total, lot by lot in visit order (BQ3) */
     int64_t weighted_assessed[12];
     int64_t monthly_tax[12]; /* trunc(groupTax[t]) */
     int64_t tax_income[12];  /* GetTaxIncome(t) with the given rates */
     float group_tax[12];
     uint32_t counted[12];    /* lots counted per group */
-    int64_t total_tax;       /* ComputeTax's result, trunc(total) */
+    int64_t total_tax;       /* ComputeTax's result, trunc(total), never the sum of the lines */
 } fc4_tax_scan;
 
 typedef void (*fc4_tax_lot_callback)(void* ctx, uint32_t index, const fc4_lot_info* lot, const fc4_tax_lot* result);
@@ -501,6 +501,8 @@ typedef struct fc4_budget_host {
     int64_t (*ordinance_expense)(void* user);
     int64_t (*neighbor_income)(void* user);
     int64_t (*neighbor_expense)(void* user);
+    /* Every lot, in the lot manager's master-list order (§5.2): the tax total
+     * is a float32 running sum, so only that order matches it exactly (BQ3). */
     void (*for_each_lot)(void* user, fc4_lot_visitor visit, void* ctx);
     void (*record_history)(void* user, uint32_t series, int32_t value);
     void (*set_history_queue_length)(void* user, uint32_t series, uint32_t length);

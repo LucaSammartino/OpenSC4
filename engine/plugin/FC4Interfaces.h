@@ -472,6 +472,8 @@ public:
     virtual bool GetNeighborCellsAtEdgeOfLot(SC4Rect<long> const& cells, int32_t flags, SC4Rect<long>& out) = 0;  // 12
     virtual cISC4Lot* GetRandomLot() = 0;                                        // 13
     virtual cISC4Lot* GetOccupantLot(cISC4Occupant* occupant) = 0;              // 14
+    // [abi] 15: EAX = an 8-byte global-heap (C) block {current node, lot list
+    // object}, registered with the manager (aura.md §6.5; FC4SafeLotIterator.h).
     virtual intptr_t GetSafeLotIterator() = 0;                                   // 15
     virtual int32_t GetLotCount() = 0;                                           // 16
     virtual int32_t GetLotSavvyTerrainVertexAltitude(int32_t x, int32_t y, cISC4Lot* lot, bool& ok) = 0;  // 17
