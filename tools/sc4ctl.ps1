@@ -74,6 +74,19 @@ public static class FC4Ctl {
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr hdc, uint flags);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+    public delegate bool EnumProc(IntPtr h, IntPtr l);
+    [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc f, IntPtr l);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, System.Text.StringBuilder s, int n);
+    // The game's window by class; Process.MainWindowHandle is 0 at times for slot games.
+    public static IntPtr GameWindow(int pid) {
+        IntPtr found = IntPtr.Zero;
+        EnumWindows(delegate(IntPtr h, IntPtr l) {
+            uint p; GetWindowThreadProcessId(h, out p);
+            if (p == (uint)pid) { var c = new System.Text.StringBuilder(256); GetClassName(h, c, 256); if (c.ToString().StartsWith("GDriverClass")) { found = h; return false; } }
+            return true; }, IntPtr.Zero);
+        return found;
+    }
 }
 "@
 [FC4Ctl]::SetProcessDPIAware() | Out-Null
@@ -81,8 +94,9 @@ public static class FC4Ctl {
 function GameWindow {
     if ($GamePid -gt 0) { $p = Get-Process -Id $GamePid -ErrorAction SilentlyContinue }
     else { $p = Get-Process -Name "SimCity 4" -ErrorAction SilentlyContinue | Select-Object -First 1 }
-    if (-not $p -or $p.MainWindowHandle -eq [IntPtr]::Zero) { Write-Output ("NOT RUNNING" + $(if ($GamePid -gt 0) { " (pid $GamePid)" })); exit 2 }
-    return $p.MainWindowHandle
+    $h = if ($p) { [FC4Ctl]::GameWindow($p.Id) } else { [IntPtr]::Zero }
+    if ($h -eq [IntPtr]::Zero) { Write-Output ("NOT RUNNING" + $(if ($GamePid -gt 0) { " (pid $GamePid)" })); exit 2 }
+    return $h
 }
 function NoRealInput([string]$what) {
     if (-not $NoRealInput) { return }
@@ -101,7 +115,7 @@ function MakeLParam([int]$x, [int]$y) { return [IntPtr](($y -shl 16) -bor ($x -b
 # back to a copy of the screen rectangle, which reads whatever is on top. $script:CaptureMethod names the one used.
 function CaptureClient([IntPtr]$h) {
     Add-Type -AssemblyName System.Drawing
-    if ([FC4Ctl]::IsIconic($h)) { throw "the game window is minimized: no screenshot (restore it, or run without -Minimized)" }
+    if ([FC4Ctl]::IsIconic($h)) { throw "the game window is minimized: no screenshot (ingame_run -NoMinimize keeps a slot game visible)" }
     $r = New-Object FC4Ctl+RC; [FC4Ctl]::GetClientRect($h, [ref]$r) | Out-Null
     $bmp = New-Object Drawing.Bitmap $r.R, $r.B
     $g = [Drawing.Graphics]::FromImage($bmp); $hdc = $g.GetHdc()

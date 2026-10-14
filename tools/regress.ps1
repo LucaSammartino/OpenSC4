@@ -29,8 +29,9 @@ exceptions, INCOMPLETE shadow lines), and per shadow "clean/lines".
 
 Delta: after the table, one line per run verdict, problem count and shadow against an earlier regress, read from
 its build-runs\regress-<tag>.out (the coordinator's redirected output): -Baseline <tag> or a path; default the newest
-earlier regress-*.out with a PASS line and the same profile (normal or turbo). "better" / "worse" compare the share
-of lines with a mismatch. Any worse line adds "REGRESS <tag>: N worse (vs <baseline>)" after the verdict line.
+earlier regress-*.out with a PASS line and the same profile (normal or turbo). A shadow is "worse" when both the
+number and the share of its lines with a mismatch grew ("better" when both fell; a timed run's line count varies).
+Any worse line adds "REGRESS <tag>: N worse (vs <baseline>)" after the verdict line.
 #>
 param(
     [Parameter(Mandatory = $true)][string]$Tag,
@@ -190,8 +191,9 @@ if ($basePath) {
             $o = $b.shadows[$k]
             if (-not $c.shadows.Contains($k)) { $worse++; Write-Output ("  {0}: {1} {2}/{3} -> missing (worse)" -f $name, $k, $o[0], $o[1]); continue }
             $n = $c.shadows[$k]
-            $ro = Rate $o; $rn = Rate $n
-            $how = if ($rn -lt $ro) { "better" } elseif ($rn -gt $ro) { "worse" } else { "same" }
+            # Worse: more lines with a mismatch, and a larger share of them (a longer run has more lines).
+            $ro = Rate $o; $rn = Rate $n; $mo = $o[1] - $o[0]; $mn = $n[1] - $n[0]
+            $how = if ($mn -gt $mo -and $rn -gt $ro) { "worse" } elseif ($mn -lt $mo -and $rn -lt $ro) { "better" } else { "same" }
             if ($how -eq "worse") { $worse++ }
             Write-Output ("  {0}: {1} {2}/{3} -> {4}/{5} ({6})" -f $name, $k, $o[0], $o[1], $n[0], $n[1], $how)
         }

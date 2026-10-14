@@ -113,6 +113,16 @@ public static class FC4Run {
             return true; }, IntPtr.Zero);
         return r;
     }
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+    // The game's own window (class GDriverClass--DirectX). Process.MainWindowHandle is 0 at times for these games.
+    public static IntPtr GameWindow(int pid) {
+        IntPtr found = IntPtr.Zero;
+        EnumWindows(delegate(IntPtr h, IntPtr l) {
+            uint p; GetWindowThreadProcessId(h, out p);
+            if (p == (uint)pid) { StringBuilder c = new StringBuilder(256); GetClassName(h, c, 256); if (c.ToString().StartsWith("GDriverClass")) { found = h; return false; } }
+            return true; }, IntPtr.Zero);
+        return found;
+    }
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
@@ -331,8 +341,8 @@ while (-not $failedStart -and (Get-Date) - $start -lt [TimeSpan]::FromSeconds($S
     # has it: a game minimized while still active (SW_SHOWMINNOACTIVE) restores itself 3-4 s later, and one minimized
     # during the load can come back at its end, so this is checked again on every round (at most 5 times) until the
     # quit starts (the game shows its window again while it shuts down).
-    if ($Slot -gt 0 -and -not $NoMinimize -and $text -notmatch "RequestQuit|AUTOTEST VERDICT") {
-        $p.Refresh(); $h = $p.MainWindowHandle
+    if ($Slot -gt 0 -and -not $NoMinimize -and $text -notmatch "RequestQuit\(|AUTOTEST VERDICT") {
+        $h = [FC4Run]::GameWindow($p.Id)
         if ($h -ne [IntPtr]::Zero) {
             if (-not [FC4Run]::IsIconic($h) -and $minTries -lt 5) { [FC4Run]::ShowWindow($h, 6) | Out-Null; $minTries++ }
             $minimized = [FC4Run]::IsIconic($h)
@@ -360,7 +370,7 @@ while (-not $failedStart -and (Get-Date) - $start -lt [TimeSpan]::FromSeconds($S
 
     # Modal dialogs: a new HiddenPause after the load, or a frozen date with OnTick counting and nothing delivered.
     # (Best effort; a minimized slot game cannot be looked at, so it is only reported, see HELD above.)
-    if (-not $NoDismiss -and -not $minimized) {
+    if (-not $NoDismiss -and -not $minimized -and $text -notmatch "RequestQuit\(") {
         $hp = [regex]::Matches($text, "HiddenPause\(\) -> 1 \(pause=\d+ hidden=([1-9]\d*)").Count
         if ($null -eq $hpSeen) { $hpSeen = $hp }
         $why = $null
@@ -416,7 +426,7 @@ if ($p -and -not $p.HasExited) {
     # activation first).
     if ($Slot -gt 0 -and ($heldNote -or $verdict -notmatch "^AUTOTEST VERDICT")) {
         try {
-            $p.Refresh(); if ($minimized) { [FC4Run]::ShowWindow($p.MainWindowHandle, 4) | Out-Null; Start-Sleep -Seconds 1 }
+            if ($minimized) { [FC4Run]::ShowWindow([FC4Run]::GameWindow($p.Id), 4) | Out-Null; Start-Sleep -Seconds 1 }
             $snap = Ctl ("snap " + (Join-Path $OutDir "$Label-end.png")); Write-Output "  end picture: $snap"
         } catch { }
     }
