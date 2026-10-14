@@ -73,6 +73,12 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >     ops 26–27; CQ16–CQ22 filed); RE **`re-answers3`** complete (`4e389d6`, `68ad36d`: PF1–PF15, ZQ4/ZQ7–ZQ10,
 >     LF1–LF5, NB1–NB17, EX1–EX20 in the specs; **LF4 changes the zot spiral: `lf11_11` must be regenerated**; PF5,
 >     NB2, NB3, NB6, EX3–EX5, EX8, EX10, EX12, EX14, EX17 differ from our code).
+>   - **`apply4a`** (`8d014d8`: EX1–EX20 in `engine/formats` and the core variant, the 24-bit text parser,
+>     `df5_01`; EX21–EX33 filed); **x87 fix** (`5ee5c52`, includes `abi-x87`; seam ops 28–31; DQ10–DQ12 filed);
+>     **`apply4b`** (`58e1226`: PF1–PF15, ZQ4/ZQ7–ZQ10, LF1–LF5 (`lf11_11` regenerated), NB1–NB16 in the cores;
+>     TN26–TN28, ZQ11–ZQ12, LF6, NB18 filed); **residential glue + shadow** (`bc7ffa0`, M4; ABI 26; seam op 25;
+>     136 plugin switches; RG1–RG22 filed; not yet run in game).
+> - **Fixed on main (`5ee5c52`); runs 83/84 count 0 x87 leftovers, the 900 s soak over 35 game years included.**
 > - **Run 74, the likely cause (audit workflow + coordinator check of the instructions): our methods corrupt the
 >   game's x87 register stack.** The ABI extractor tagged as `x87` every method whose float work ends in a popping
 >   store (`fstp [mem]`), so we declared `float`/`double` where the game returns nothing (or a bool in AL): demand
@@ -106,28 +112,32 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   **Run 81 (`regress r571a`, first plumbing shadow)**: PASS; plumbing 186/191: the grid identical cell by cell in
 >   every replayed pass; 4 passes differ in `demand` only (PS8, like PW8), one pass reads a producer's production as
 >   0 (PS9, shadow-side).
+>   **Run 83 (`regress r7c5c`, the x87 fix)**: PASS, x87 leftovers 0; demand 2963/2963 after the jobs fix;
+>   flammability 69/70 (FL6: a region at about 1.25 times ours, the ratio of FL5). **Run 84 (soak 3 again, all
+>   thirteen replacements + simulator + budget, 900 s)**: clean, 0 leftovers, 2026 → 2061; **the city path differs
+>   from runs 77/78**: higher tax income from about 2041, and the collapse comes later (+79,924 at 2061-09 against
+>   about −80k). **Run 85** repeats the all-original soak with the same DLL to separate variance from a bias.
 > - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lanes in
 >   `.claude/worktrees/re-answers4`, `re-answers5`):
->   - **residential glue + shadow (M4, ABI 26, seam op 25)**;
->   - **x87 fix** (merges `abi-x87`; our float declarations of void/bool slots, the jobs record, city slots 96/97
->     callers (PR6), the regional-city setters, the plumbing over-release; an x87 leftover guard in OnTick and
->     deliveries with a heartbeat count; the crash report gains the FPU state). ABI 27 if it adds an entry point;
->     seam ops 28+;
+>   - **`apply3`**: PR1–PR13 (except PR4/PR6/PR7), DQ3–DQ8, PG4–PG13 (may take ABI 27, seam op 32);
+>   - **neighbours glue + shadow** (`cFC4NeighborsSimulator`, `neighbours_shadow`; ABI 28, seam op 33; renumber at
+>     merge);
 >   - RE `re-answers4` (AU13–AU15, AU1–AU12, EH1–EH14, FQ1–FQ15) and `re-answers5` (TS1–TS34, PW1–PW8, PS1–PS8,
 >     LG1–LG20).
 >   Merge order rule: merge one lane, then have the next lane `git merge main` itself (it knows its files), then
->   gate its worktree; renumber ABI/seam ops/switch counts at that point.
+>   gate its worktree; renumber ABI/seam ops/switch counts at that point. If `git merge-tree` shows no conflict,
+>   the coordinator may merge main into the lane's worktree itself and gate that.
 > - **Open follow-ups:**
->   - **after the x87 fix merges: soak 3 again** (all replacements, Konradshohe, 900 s) and read the new leftover
->     counter (it must be 0) and, if anything faults, the crash report's FPU block;
->   - **apply3** (after the x87 fix; prompt in the session scratchpad): PR1–PR13 (except PR4/PR6/PR7), DQ3–DQ8,
->     PG4–PG13;
->   - **apply4**: the re-answers3 answers that change code: PF5 (pathfinder), LF4 (`lf11_11`), NB2/NB3/NB6
->     (neighbours core), EX3–EX5/EX8/EX10/EX12/EX14/EX17 (engine/formats), ZQ9/ZQ10 (zones core);
->   - RE lane for TN21+, HG1, CQ16–CQ22, LV1–LV4, FL1–FL4 and the crime errata from the audit (§11.4 second caller
->     `0x7A2F60`, §14.1 the patrol car calls `GetNearestCrimeProp`);
->   - zones glue (M4); neighbours glue; traffic glue (M5);
->   - after each merge that stages a new DLL: `tools/regress.ps1 -Tag <tag>` (all shadows at once + all
+>   - **residential in game**: `tools/regress.ps1` now runs `residential_shadow`; add `residential` to the replace
+>     list once a run with it is clean;
+>   - **run 85** (all-original soak) against run 84: a bias in our replacements or variance;
+>   - **RE `re-answers6`** (prompt in the session scratchpad, launch when an RE lane finishes): LV1–LV4, FL1–FL6,
+>     DQ10–DQ12, CQ16–CQ22, TN21–TN25, HG1, and the crime errata from the audit (§11.4 second caller `0x7A2F60`,
+>     §14.1 the patrol car calls `GetNearestCrimeProp`); later RG1–RG22, TN26–TN28, ZQ11–ZQ12, LF6, NB18,
+>     EX21–EX33;
+>   - zones glue (M4); development glue (BDS, growth, tract and lot developers: building-development.md §9);
+>     traffic glue (M5);
+>   - after each merge that stages a new DLL: `tools/regress.ps1 -Tag <tag> -Dll <dll>` (all shadows at once + all
 >     replacements at once, one table; `tools/run_summary.ps1 -Log <log>` summarises any single run).
 > - **Coordinator gate:** `build-runs/coord-full-verify.ps1 -Engine <worktree>\engine -Tag <tag>` (cargo summed,
 >   clippy, configure/build/ctest; it copies the SDK into worktrees that lack the submodule), then `rustfmt --check`
