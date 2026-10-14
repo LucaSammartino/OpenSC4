@@ -22,7 +22,10 @@
 //   - an empty list, a cursor not at the first lot, a broken link and a cycle
 //     that avoids the head (bounded by GetLotCount) are refused;
 //   - unregistering unlinks exactly the block's node(s) and frees them with
-//     the given B free; a broken iterator ring is refused untouched.
+//     the given B free; a broken iterator ring is refused untouched;
+//   - the release (budget.md §5.2, BQ4) frees the block with C whether a node
+//     matched or not and with a null list object, and never after a refused
+//     ring.
 
 #include "FC4SafeLotIterator.h"
 
@@ -46,6 +49,8 @@ using fc4::safelots::Status;
 
 std::vector<void*> g_freed;
 void __cdecl FakeFree(void* p) { g_freed.push_back(p); }
+std::vector<void*> g_blocksFreed;  // allocator C
+void __cdecl FakeFreeBlock(void* p) { g_blocksFreed.push_back(p); }
 
 // A ring of `values` behind a head node (values in list order).
 struct Ring {
@@ -97,7 +102,8 @@ void TestWalkInListOrder() {
     CHECK(g_freed.size() == 1 && g_freed[0] == mine);
     CHECK(iters.Length() == 1 && iters.head.next->value == &other);
     CHECK(iters.head.next->next == &iters.head && iters.head.prev == iters.head.next);
-    // A second release finds nothing: the caller must not free the block.
+    // A second unregister finds nothing (BQ4: the release still frees the
+    // block with C, see TestReleaseFreesTheBlock).
     g_freed.clear();
     CHECK(fc4::safelots::Unregister(&block, &FakeFree, 16) == 0);
     CHECK(g_freed.empty());
@@ -194,6 +200,52 @@ void TestUnregisterRefusesBrokenRing() {
     CHECK(g_freed.size() == 2 && iters.Length() == 1 && iters.head.next->value == nullptr);
     CHECK(fc4::safelots::Unregister(nullptr, &FakeFree, 16) == -1);
     CHECK(fc4::safelots::Unregister(&block, nullptr, 16) == -1);
+    // BQ4: a null list object has nothing to unlink (0, nothing freed).
+    Block orphan{};
+    g_freed.clear();
+    CHECK(fc4::safelots::Unregister(&orphan, &FakeFree, 16) == 0);
+    CHECK(g_freed.empty());
+}
+
+// BQ4 (budget.md §5.2): after the unlink the block is freed with C in every
+// case the original reaches: a node matched, none matched, a null owner.
+void TestReleaseFreesTheBlock() {
+    Block block{};
+    Block other{};
+    Ring iters({&other, &block});
+    Ring master({});
+    ListObject list{&master.head, &iters.head};
+    block.listObject = &list;
+    // Matched: one node freed with B, the block with C.
+    g_freed.clear();
+    g_blocksFreed.clear();
+    CHECK(fc4::safelots::Release(&block, &FakeFree, &FakeFreeBlock, 16) == 1);
+    CHECK(g_freed.size() == 1 && iters.Length() == 1);
+    CHECK(g_blocksFreed.size() == 1 && g_blocksFreed[0] == &block);
+    // None matched (no longer registered): no node freed, the block still freed.
+    g_freed.clear();
+    g_blocksFreed.clear();
+    CHECK(fc4::safelots::Release(&block, &FakeFree, &FakeFreeBlock, 16) == 0);
+    CHECK(g_freed.empty() && iters.Length() == 1);
+    CHECK(g_blocksFreed.size() == 1 && g_blocksFreed[0] == &block);
+    // A null owner: nothing to unlink, the block freed.
+    Block orphan{};
+    g_blocksFreed.clear();
+    CHECK(fc4::safelots::Release(&orphan, &FakeFree, &FakeFreeBlock, 16) == 0);
+    CHECK(g_blocksFreed.size() == 1 && g_blocksFreed[0] == &orphan);
+    // [choice] A ring that fails the checks: nothing freed (leaked, still registered).
+    Block mine{};
+    Ring bad({&mine, nullptr});
+    ListObject lb{&master.head, &bad.head};
+    mine.listObject = &lb;
+    bad.nodes[1].prev = &bad.head;  // broken back link
+    g_freed.clear();
+    g_blocksFreed.clear();
+    CHECK(fc4::safelots::Release(&mine, &FakeFree, &FakeFreeBlock, 16) == -1);
+    CHECK(g_freed.empty() && g_blocksFreed.empty());
+    // No C free given: refused before anything.
+    CHECK(fc4::safelots::Release(&block, &FakeFree, nullptr, 16) == -1);
+    CHECK(g_blocksFreed.empty());
 }
 
 }  // namespace
@@ -203,6 +255,7 @@ int main() {
     TestEmptyAndBounds();
     TestRefusals();
     TestUnregisterRefusesBrokenRing();
+    TestReleaseFreesTheBlock();
     if (g_failures != 0) {
         std::printf("safe_lot_iterator_test: %d failure(s)\n", g_failures);
         return 1;
