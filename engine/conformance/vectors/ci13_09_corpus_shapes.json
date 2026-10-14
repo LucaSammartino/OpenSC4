@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "name": "commercial_corpus_shapes",
+  "spec": ["commercial-industrial 8.3", "commercial-industrial 13.9"],
+  "description": "Synthetic stand-in for the 421-save corpus test (the corpus is not available to this runner): the record shapes 8.3 reports read and re-write byte-identically: flag 1 with both grids all 0 (64 x 64 and 256 x 256), flag 0 with the edge pattern (128 x 128; that city keeps its maps until something marks them dirty), and the industrial 01 00.",
+  "steps": [
+    {"op": "commercial_env", "cells": 64},
+    {"op": "commercial_create"},
+    {"op": "commercial_init", "expect": true},
+    {"op": "commercial_write", "slot": "c64", "expect": true, "hex": "01 00 01 01 00 00 00 02 E6 B9 49 02 00 00 00 02 E6 B9 49"},
+    {"op": "commercial_read", "slot": "c64", "expect": true},
+    {"op": "commercial_write", "slot": "c64b", "expect": true},
+    {"op": "commercial_expect_record", "slot": "c64b", "same_as": "c64"},
+    {"op": "commercial_expect_grid", "grid": "CO2", "count": {"0": 4096}},
+
+    {"op": "commercial_env", "cells": 256},
+    {"op": "commercial_create"},
+    {"op": "commercial_init", "expect": true},
+    {"op": "commercial_write", "slot": "c256", "expect": true, "length": 19},
+    {"op": "commercial_read", "slot": "c256", "expect": true},
+    {"op": "commercial_write", "slot": "c256b", "expect": true},
+    {"op": "commercial_expect_record", "slot": "c256b", "same_as": "c256"},
+
+    {"op": "commercial_env", "cells": 128, "map": null},
+    {"op": "commercial_create"},
+    {"op": "commercial_init", "expect": true},
+    {"op": "commercial_idle", "count": 3},
+    {"op": "commercial_expect", "state": {"dirty": false, "state": 3}},
+    {"op": "commercial_write", "slot": "c128", "expect": true, "hex": "01 00 00 01 00 00 00 02 E6 B9 49 02 00 00 00 02 E6 B9 49"},
+    {"op": "commercial_read", "slot": "c128", "expect": true},
+    {"op": "commercial_write", "slot": "c128b", "expect": true},
+    {"op": "commercial_expect_record", "slot": "c128b", "same_as": "c128"},
+    {"op": "commercial_expect_grid", "grid": "CO2", "count": {"1": 128, "0": 16256}},
+    {"op": "commercial_init", "expect": true},
+    {"op": "commercial_idle"},
+    {"op": "commercial_expect", "state": {"state": 3, "dirty": false}},
+
+    {"op": "industrial_create"},
+    {"op": "industrial_read", "hex": "01 00", "expect": true},
+    {"op": "industrial_write", "expect": true, "hex": "01 00"}
+  ]
+}
