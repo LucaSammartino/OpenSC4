@@ -367,7 +367,7 @@ For each cell of the rect (x outer, z inner):
     (`FindNetworkTile(x, z, 0x1F4F, true)` ≠ null; flag mask as in flora §6.4.1): **clear its mask bit**;
   - else, if a landfill occupant (`0x6A11BD2B`) or a base-texture occupant (`0x497F6D9D`) is at the cell: keep
     it as is;
-  - else `RemoveIncompatibleOccupants(x, z)` (removes flora `0x74758926` in the cell) and
+  - else `RemoveIncompatibleOccupants(x, z)` (removes flora `0x74758926` in the cell, §4.8.4) and
     `SetEmptyCellTexture(x, z)` (inserts a `cSC4LotBaseTextureOccupant` with the landfill zone texture).
 - If it is **not** a mask cell at the start: `InvalidateSurroundingHeaps(x, z)`.
 
@@ -393,7 +393,7 @@ in part.
 #### 4.4.8 `DezoneCell(x, z, changeZone, removeTexture)` (zone)
 
 1. If a zot exists: remove it (`RemovePropA`) and release it.
-2. If `removeTexture`: `RemoveLandfillTile(x, z)` (§4.8.3) and `RemoveBaseTexture(x, z)`.
+2. If `removeTexture`: `RemoveLandfillTile(x, z)` (§4.8.3) and `RemoveBaseTexture(x, z)` (§4.8.4).
 3. Clear the cell's mask bit. `InvalidateSurroundingHeaps(x, z)`.
 4. If `changeZone`: `zoneManager.PlaceZone(1×1 region at (x, z), zoneType 0, placeZone = true,
    skipFundsCheck = true, checkAreaSlope = false, skipZoneSizeCheck = true, checkLotSize = false, null, null, 0)`
@@ -715,6 +715,35 @@ cell with mask 0 (no active neighbour heap) has no occupant and no flag.
 If a landfill occupant is at the cell: remove it (occupant manager slot 21, `(occupant, 1, 3)`). Then
 `pollution.SetIsActiveLandfill(x, z, false)` (always).
 
+#### 4.8.4 `RemoveIncompatibleOccupants(x, z)` and `RemoveBaseTexture(x, z)` (zone)
+
+*[compat]* (LG1). Both list the occupants at the cell through occupant manager slot 41 (`+0xA4`). The query
+passes the cell as both corners, a type filter and −1 as the last argument. Each listed occupant is then removed
+with slot 21, `RemoveOccupant(occupant, true, 3)`, the same arguments as §4.8.3:
+
+- `RemoveIncompatibleOccupants` (`0x006BC630`) lists type `0x74758926` (flora) and removes every entry, in list
+  order (`0x006BC6D8`–`0x006BC6DD`). Slot 48 (`+0xC0`) then releases each entry and empties the list.
+- `RemoveBaseTexture` (`0x006BC930`) lists type `0x497F6D9D` and asks each entry for
+  `cISC4LotBaseTextureOccupant` (`0x097F6D98`). Only an entry whose `GetUsage()` (that interface's slot 4) is
+  **1** is removed, through its `AsOccupant()` (slot 3) (`0x006BCA14`–`0x006BCA1F`). Usage 1 is what
+  `SetEmptyCellTexture` gives the landfill texture. A base texture with any other usage, such as a lot's, stays.
+  The function releases the interface and each listed occupant itself, then frees the list.
+
+`RemoveOccupant(occ, true, 3)` (`0x0049F240`, pop 12, returns AL) does this, in order:
+
+1. Take a reference to `occ`.
+2. If `occ.IsFlagSet(1)` (the occupant is in the manager):
+   - take it out of the cell buckets;
+   - call `occ.PostOccupantMessage(0x99EF1143, 3)` (flora §9.1: posted, data3 = the occupant type,
+     data4 = **3**);
+   - clear flag 1;
+   - release the manager's reference.
+3. The second argument is true, so call `occ.Shutdown()` (slot 4). This also happens when step 2 did not run.
+4. Release the reference from step 1.
+
+It returns true if and only if step 2 removed the occupant. Subscribers see the removal with data4 = 3 on a
+later message-server tick.
+
 ### 4.9 Costs and budget
 
 #### 4.9.1 `GetMaintenanceCost()` (zone)
@@ -933,6 +962,7 @@ The object also implements `cISC4Occupant` (at its second vtable; QI `0x26BB767E
 | | 24 / +0x60 | (occupant, 1) after a move | 8 | — | §4.5.2 |
 | | 33 / +0x84 | find(&occ, x, z, type) | 16 | AL | tile lookups |
 | | 41 / +0xA4 | occupants at a cell by type | 20 | — | flora / texture removal |
+| | 48 / +0xC0 | release each entry of a slot-41 list and empty it | 4 | — | §4.8.4 |
 | `cISC4PropManager` (`0x00A8F928`) | 26 / +0x68 | AddLotProp(propID, pos, orientation) | 12 | EAX | zot |
 | | 29 / +0x74 | RemovePropA(occupant) | 4 | AL | zot |
 | `cISC4TrafficSimulator` (`0x00AB33D0`) | 41 / +0xA4 | GetSubnetworksInRegion(region, &ids) | 8 | — | §4.7.2 |

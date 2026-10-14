@@ -1206,7 +1206,10 @@ About `docs/specs/landfill.md` and its `docs/abi` rows. Ini: `enable = landfill`
 switches); shadow `landfill_shadow = 1` (the original's SimNewMonth wrapped; its record read through its own Write
 before and after). The glue's current answer is in brackets.
 
-- **LG1 — §4.4.5, §4.8.1:** what arguments does RemoveOccupant take for flora and base-texture removal? [(true, 3)]
+- ~~**LG1 — §4.4.5, §4.8.1:** what arguments does RemoveOccupant take for flora and base-texture removal? [(true, 3)]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006BC6D8`, `0x006BCA14`; `RemoveOccupant` `0x0049F240`): both are
+  `(occupant, true, 3)`. The occupant is shut down after removal, and data4 of the posted `0x99EF1143` is 3. Only a
+  base texture with `GetUsage() = 1` is removed. **The bracket matches.** Written into landfill.md §4.8.4.
 - **LG2:** how is the base-texture occupant created and given the landfill texture (SetEmptyCellTexture)? [not done]
 - **LG3:** how is the tile occupant created; is the SDK's `SetTileID` (slot 6) enough to attach the tile exemplar?
   [tiles live in FreeCity4 only; pollution's active-landfill flag is still set, which is what the simulation reads]
