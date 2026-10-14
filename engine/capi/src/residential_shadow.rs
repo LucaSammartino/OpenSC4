@@ -54,25 +54,34 @@
 //! strike rolls (the original's clock-seeded `cRZRandom`), so on state-0 days
 //! the strike flags, strike start days and the buildings' strike days; the
 //! automata controllers, budget line items and locally funded objects; the
-//! visual effects (buzzards); the ordinance effects outside state 0 (re-read
-//! from the ordinances as they stand; the original keeps those of its last
-//! state 0); the dirty flag (saved as `dirty ∨ state ≠ 10`, so a record taken
-//! during a cycle does not hold it).
+//! visual effects (buzzards; RG1: our run counts them as created, both draws
+//! and the flag, as the original with shipped data); the ordinance effects
+//! before the shadow's first state 0 (read from the ordinances as they stand;
+//! RG7: afterwards the runs keep the lists of our last state 0, as the
+//! original keeps those of its last state 0); the dirty flag (saved as
+//! `dirty ∨ state ≠ 10`, so a record taken during a cycle does not hold it).
+//! RG6 (answered, no original behaviour): every draw of the class is a
+//! double draw that uses only the generator's `mul` word, so a shadow that
+//! read that word before state 0 could reproduce the strike rolls; this one
+//! does not, and does not compare them. RG13: the local funding we set is
+//! kept and compared as the item reads it back, float32(float32(q × 100.0f)
+//! × 0.01f).
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap};
 use std::ffi::c_void;
 use std::rc::Rc;
 
+use fc4_core::budget::{local_funding_fraction, local_funding_percent};
 use fc4_core::grid::{
     CityDims, GridElem, GridProvider, ScanIterator, ScanState, SimGrid, TractGeometry, TractGrid, MAX_TRACTS,
 };
 use fc4_core::julian::civil_from_julian;
 use fc4_core::property::PropertyHolder;
 use fc4_core::residential::{
-    msg, state as st, BudgetItem, EducationHealthHost, Grids, OrdinanceEffect, ResidentialHost, ResidentialMessage,
-    ResidentialRng, ResidentialSim, ResidentialState, SimulatorTuning, HOSPITAL, IID_DEPARTMENT_BUDGET, IID_OCCUPANT,
-    IID_SIM_GRID, MAX_LIST_COUNT, PROP_AUTO_BUDGET, PROP_STRIKE_DAY, SCHOOL,
+    msg, state as st, BudgetItem, CreatedEffect, EducationHealthHost, Grids, OrdinanceEffect, ResidentialHost,
+    ResidentialMessage, ResidentialRng, ResidentialSim, ResidentialState, SimulatorTuning, HOSPITAL,
+    IID_DEPARTMENT_BUDGET, IID_OCCUPANT, IID_SIM_GRID, MAX_LIST_COUNT, PROP_AUTO_BUDGET, PROP_STRIKE_DAY, SCHOOL,
 };
 use fc4_core::rng::FixedSeeds;
 use fc4_core::stream::{ByteReader, InStream, RefValue, SaveObject};
@@ -175,8 +184,9 @@ pub const NOT_COMPARED: &str =
      histogram, the coverage counters and the grade totals (not saved; history \
      inputs only); history values and posted strike messages; the state-0 strike rolls (the original's clock-seeded \
      cRZRandom), so on state-0 days the strike flags, strike start days and buildings' strike days; automata \
-     controllers, budget line items and locally funded objects; visual effects (buzzards); the ordinance effects \
-     outside state 0 (re-read from the ordinances as they stand; the original keeps those of its last state 0); the      dirty flag (saved as dirty or state != 10, so a record taken during a cycle does not hold it)";
+     controllers, budget line items and locally funded objects; visual effects (buzzards; counted as created, RG1); \
+     the ordinance effects before the shadow's first state 0 (read as they stand; afterwards those of our last state \
+     0, RG7); the dirty flag (saved as dirty or state != 10, so a record taken during a cycle does not hold it)";
 
 /// The saved grids in record order (§9.1).
 const GRID_COUNT: usize = 25;
@@ -317,6 +327,22 @@ macro_rules! cb {
 }
 
 impl ShadowHost {
+    fn new(c: fc4_residential_host) -> ShadowHost {
+        ShadowHost {
+            c,
+            cache: RefCell::new(HashMap::new()),
+            overlay: RefCell::new(HashMap::new()),
+            overlay_order: RefCell::new(Vec::new()),
+            funding: RefCell::new(BTreeMap::new()),
+            grids_u8: RefCell::new(HashMap::new()),
+            grids_u16: RefCell::new(HashMap::new()),
+            grids_f32: RefCell::new(HashMap::new()),
+            dev_maps: RefCell::new(HashMap::new()),
+            dims: Cell::new(CityDims::default()),
+            swallowed: Cell::new(0),
+        }
+    }
+
     fn read<T: Clone>(
         &self,
         key: Key,
@@ -495,8 +521,10 @@ impl ResidentialHost for ShadowHost {
     fn altitude(&self, x: f32, z: f32) -> f32 {
         cb!(self, altitude, 0.0, x, z)
     }
-    fn create_visual_effect(&self, _name: &str) -> Option<u64> {
-        None
+    fn create_visual_effect(&self, _name: &str) -> CreatedEffect {
+        // RG1 [choice]: read-only, so nothing is shown; treated as created
+        // (both draws and the flag), as the original with shipped data.
+        CreatedEffect::NotShown
     }
     fn set_effect_transform(&self, _effect: u64, _translation: [f32; 3]) {}
     fn start_and_release_effect(&self, _effect: u64) {}
@@ -557,7 +585,9 @@ impl EducationHealthHost for ShadowHost {
             },
             || self.live_budget_item(occupant, purpose),
         );
-        // [inferred] SetLocalFundingPercent sets the item's local funding.
+        // SetLocalFundingPercent sets the item's local funding (RG13,
+        // answered): `set_local_funding` below keeps the value the item reads
+        // back, not the fraction written.
         item.map(|mut i| {
             if let Some(&f) = self.funding.borrow().get(&(occupant, purpose)) {
                 i.local_funding = f;
@@ -572,16 +602,18 @@ impl EducationHealthHost for ShadowHost {
         let d = cb!(self, department_budget, 0, department_id);
         (d != 0).then_some(d)
     }
-    fn department_funding(&self, department: u64) -> f32 {
-        self.read(
+    fn department_funding(&self, department: u64) -> Option<f32> {
+        // RG10: no callback, or NaN, is "missing" (remembered as NaN).
+        let f = self.read(
             Key::Funding(department),
             Val::F,
             |v| match v {
                 Val::F(f) => Some(*f),
                 _ => None,
             },
-            || cb!(self, department_funding, 1.0, department),
-        )
+            || cb!(self, department_funding, f32::NAN, department),
+        );
+        (!f.is_nan()).then_some(f)
     }
     fn is_locally_funded(&self, department: u64, occupant: u64, purpose: u32) -> bool {
         self.read(
@@ -601,7 +633,12 @@ impl EducationHealthHost for ShadowHost {
         self.swallow();
     }
     fn set_local_funding(&self, _department: u64, occupant: u64, fraction: f32, purpose: u32) {
-        self.funding.borrow_mut().insert((occupant, purpose), fraction);
+        // REH §4.2 (RG13, answered; the bracket needed a correction): the
+        // item stores float32(q × 100.0f) and reads back float32(pct ×
+        // 0.01f), an inexact round trip (0.43 → 0.42999998), so the shadow
+        // keeps and compares the read-back value.
+        let back = local_funding_fraction(local_funding_percent(fraction));
+        self.funding.borrow_mut().insert((occupant, purpose), back);
     }
     fn line_item(&self, department: u64, line: u32) -> Option<u64> {
         let l = cb!(self, line_item, 0, department, line);
@@ -1125,6 +1162,11 @@ struct Shadow {
     host: Rc<ShadowHost>,
     max_cells: usize,
     pending: Option<Pending>,
+    /// The ordinance-effect lists (health, school) our run read in the last
+    /// state 0 (REH §4.3, RG7): the original reads them only in `Init` and in
+    /// state 0, so the runs in between use these. `None` until the shadow has
+    /// run a state 0.
+    effects: Option<(Vec<OrdinanceEffect>, Vec<OrdinanceEffect>)>,
     cycle: CycleAcc,
     stats: fc4_residential_shadow_stats,
 }
@@ -1240,7 +1282,8 @@ fn field_diffs(o: &RawRecord, b: &ResidentialState, strikes_excluded: bool) -> V
     );
     f("state", o.state.to_string(), b.state.to_string());
     // Not `dirty`: saved as `dirty ∨ state ≠ 10`, the record of a running
-    // cycle does not hold it (NOT_COMPARED).
+    // cycle does not hold it (NOT_COMPARED). RG14 (answered: the choice
+    // stands): no slot returns the flag and nothing in the class reads it.
     f("population", o.population.to_string(), b.population.to_string());
     for (name, ob, bb) in [
         ("health", &o.blocks[0], &b.health),
@@ -1432,30 +1475,45 @@ impl Shadow {
             return Err("our Read of the original's record failed".to_string());
         }
         // What Init sets and the record does not hold (§4.1 step 7, §7.2, REH
-        // §4.3), from the game as it stands. Init itself is not called (it
-        // would create grids and departments); the blocks keep their saved
-        // values (the tuning read's defaults go to copies).
+        // §4.3). Init itself is not called (it would create grids and
+        // departments); the blocks keep their saved values (the tuning read's
+        // defaults go to copies). The tuning from the game as it stands; the
+        // ordinance effects (RG7, answered: the original reads them only in
+        // Init and in state 0) from our last state 0, and only before the
+        // shadow has run one from the ordinances as they stand [choice].
+        let mut notes = Vec::new();
         let exemplar = h.tuning();
-        let ordinances: Vec<Rc<PropertyHolder>> = h
-            .ordinances_on()
-            .into_iter()
-            .filter_map(|id| h.ordinance_properties(id))
-            .collect();
+        let (health_effects, school_effects) = match &self.effects {
+            Some((health, school)) => (health.clone(), school.clone()),
+            None => {
+                if p.raw.state != st::STRIKES_AND_LISTS {
+                    notes.push("ordinance effects as they stand (no state 0 run yet)".to_string());
+                }
+                let ordinances: Vec<Rc<PropertyHolder>> = h
+                    .ordinances_on()
+                    .into_iter()
+                    .filter_map(|id| h.ordinance_properties(id))
+                    .collect();
+                (
+                    ordinances
+                        .iter()
+                        .filter_map(|o| OrdinanceEffect::read(o, &HOSPITAL))
+                        .collect(),
+                    ordinances
+                        .iter()
+                        .filter_map(|o| OrdinanceEffect::read(o, &SCHOOL))
+                        .collect(),
+                )
+            }
+        };
         sim.with_state(|s| {
             let (mut health, mut education) = (s.health, s.education);
             s.simulator_tuning = SimulatorTuning::read(exemplar.as_deref(), &mut health, &mut education);
-            s.health_effects = ordinances
-                .iter()
-                .filter_map(|o| OrdinanceEffect::read(o, &HOSPITAL))
-                .collect();
-            s.school_effects = ordinances
-                .iter()
-                .filter_map(|o| OrdinanceEffect::read(o, &SCHOOL))
-                .collect();
+            s.health_effects = health_effects;
+            s.school_effects = school_effects;
             s.initialized = true;
             s.message_server_held = true;
         });
-        let mut notes = Vec::new();
         // The temporary grid is not saved (`Read` turns states 1-3 into 13-15):
         // seed it first. [compat] (RG23): the seed writes only the z = 0 edge
         // and reads only `map[x][0]`; off the edge the original's grid holds
@@ -1529,6 +1587,13 @@ impl Shadow {
         } else {
             let run = self.run(&ready, Policy::Unbounded);
             let r = if run.is_ok() { 0 } else { -1 };
+            if let (st::STRIKES_AND_LISTS, Ok(done)) = (ready.raw.state, &run) {
+                // RG7: state 0 re-read the lists; keep them to the next.
+                self.effects = Some(
+                    done.sim
+                        .with_state(|s| (s.health_effects.clone(), s.school_effects.clone())),
+                );
+            }
             ready.run = Some(run);
             r
         };
@@ -1965,19 +2030,7 @@ pub unsafe extern "C" fn fc4_residential_shadow_create(
 ) -> *mut fc4_residential_shadow {
     guard(std::ptr::null_mut(), || match host.as_ref() {
         Some(h) if (h.struct_size as usize) >= std::mem::size_of::<fc4_residential_host>() && h.grids.complete() => {
-            let host = Rc::new(ShadowHost {
-                c: *h,
-                cache: RefCell::new(HashMap::new()),
-                overlay: RefCell::new(HashMap::new()),
-                overlay_order: RefCell::new(Vec::new()),
-                funding: RefCell::new(BTreeMap::new()),
-                grids_u8: RefCell::new(HashMap::new()),
-                grids_u16: RefCell::new(HashMap::new()),
-                grids_f32: RefCell::new(HashMap::new()),
-                dev_maps: RefCell::new(HashMap::new()),
-                dims: Cell::new(CityDims::default()),
-                swallowed: Cell::new(0),
-            });
+            let host = Rc::new(ShadowHost::new(*h));
             let max_cells = match max_cells {
                 0 => 4,
                 n => n.min(64) as usize,
@@ -1986,6 +2039,7 @@ pub unsafe extern "C" fn fc4_residential_shadow_create(
                 host,
                 max_cells,
                 pending: None,
+                effects: None,
                 cycle: CycleAcc::default(),
                 stats: fc4_residential_shadow_stats {
                     struct_size: std::mem::size_of::<fc4_residential_shadow_stats>() as u32,
@@ -2067,4 +2121,55 @@ pub unsafe extern "C" fn fc4_residential_shadow_get_stats(
 pub unsafe extern "C" fn fc4_residential_shadow_describe(sink: fc4_bytes_sink, ctx: *mut c_void) {
     let line = format!("residential shadow: not compared (not readable read-only): {NOT_COMPARED}");
     emit(&[line], sink, ctx);
+}
+
+#[cfg(test)]
+mod host_tests {
+    use super::*;
+
+    unsafe extern "C" fn item(_: *mut c_void, _o: u64, purpose: u32, out: *mut fc4_residential_budget_item) -> bool {
+        *out = fc4_residential_budget_item {
+            department: 1,
+            purpose,
+            local_funding: 1.0,
+            ..Default::default()
+        };
+        true
+    }
+
+    /// REH §4.2 (RG13, answered): the shadow keeps the local funding it sets
+    /// as the item reads it back (float32(float32(q × 100.0f) × 0.01f)), so
+    /// 0.43 compares as 0.42999998 and 0.5 survives.
+    #[test]
+    fn rg13_the_shadow_keeps_the_read_back_local_funding() {
+        // SAFETY: every member is an Option of a callback, a pointer or a
+        // number: all zero is "no callback".
+        let mut c: fc4_residential_host = unsafe { std::mem::zeroed() };
+        c.budget_item = Some(item);
+        let h = ShadowHost::new(c);
+        let purpose = SCHOOL.staff_purpose;
+        h.set_local_funding(9, 5, f32::from_bits(0x3EDC_28F6), purpose);
+        assert_eq!(h.funding.borrow()[&(5, purpose)].to_bits(), 0x3EDC_28F5);
+        let i = h.budget_item(5, purpose).expect("item");
+        assert_eq!(i.local_funding.to_bits(), 0x3EDC_28F5);
+        h.set_local_funding(9, 5, f32::from_bits(0x3F4C_CCCC), purpose);
+        assert_eq!(
+            h.budget_item(5, purpose).expect("item").local_funding.to_bits(),
+            0x3F4C_CCCB
+        );
+        h.set_local_funding(9, 5, 0.5, purpose);
+        assert_eq!(h.budget_item(5, purpose).expect("item").local_funding, 0.5);
+    }
+
+    /// RG1 [choice]: the read-only shadow shows no effect and counts it as
+    /// created.
+    #[test]
+    fn rg1_the_shadow_counts_the_buzzards_as_created() {
+        // SAFETY: as above.
+        let c: fc4_residential_host = unsafe { std::mem::zeroed() };
+        assert_eq!(
+            ShadowHost::new(c).create_visual_effect("buzzards"),
+            CreatedEffect::NotShown
+        );
+    }
 }

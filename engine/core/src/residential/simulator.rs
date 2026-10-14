@@ -29,7 +29,7 @@ use super::education_health::{OrdinanceEffect, Service};
 use super::geometry::{copy_proximity, distance_pass, distance_to_convergence, seed_proximity, seed_proximity_no_map};
 use super::tuning::{le_curve, new_ages_by_wealth, pct, workforce_curve, PopulationTuning, SimulatorTuning};
 use super::{
-    group, history, instance, msg, state as st, wealth, DepartmentBlock, OccupantLists, ResidentialHost,
+    group, history, instance, msg, state as st, wealth, CreatedEffect, DepartmentBlock, OccupantLists, ResidentialHost,
     ResidentialMessage, ResidentialRandom, AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, AGE_BUCKETS,
     BUILDING_PURPOSE_RESIDENTIAL, BUZZARDS_EFFECT, CLSID_RESIDENTIAL_SIMULATOR, DEFAULT_TRACT_SIZE,
     DEFAULT_WORK_BUDGET, DEVELOPERS, MAX_QUOTIENT, OCCUPANT_TYPE_BUILDING, PROP_AUTO_BUDGET, PROXIMITY_TRACT_SIZE,
@@ -283,7 +283,9 @@ pub fn age_bucket(age: i32) -> usize {
 }
 
 /// The class's shared `cRZRandom` (§3): buzzards (§5.5) and the monthly
-/// strike rolls (REH §4.9) draw from one stream.
+/// strike rolls (REH §4.9) draw from one stream. RG6 (answered, no original
+/// behaviour): every draw of the class is a double draw, which uses only the
+/// generator's `mul` word (`+0xBC`).
 pub struct ResidentialRng(pub RzRandom);
 
 impl ResidentialRng {
@@ -1056,20 +1058,31 @@ impl ResidentialSim {
             if hq_after < t.deaths_door_hq && !buzzard && get_p(w) != 0 {
                 let r = self.rng.borrow_mut().range_f64(0.0, 100.0);
                 if r < f64::from(t.effect_chance) {
-                    // No effect: nothing else happens, and a later wealth
-                    // level of the same tract may roll again.
-                    if let Some(effect) = h.create_visual_effect(BUZZARDS_EFFECT) {
-                        let geom = eq[w].as_ref().map(|g| g.geometry()).unwrap_or_default();
-                        // wx = float(width × x) + width × 0.5, each an f32 step.
-                        let wx = mul_i(i64::from(x), geom.width_x) + mul_d(geom.width_x, 0.5);
-                        let wz = mul_i(i64::from(z), geom.width_z) + mul_d(geom.width_z, 0.5);
-                        let base = h.altitude(wx, wz) + t.effect_height;
-                        let delta = f64::from(t.effect_delta);
-                        let dy = self.rng.borrow_mut().range_f64(-delta, delta);
-                        let y = (f64::from(base) + dy) as f32;
-                        h.set_effect_transform(effect, [wx, y, wz]);
-                        h.start_and_release_effect(effect);
-                        buzzard = true;
+                    // RG1 (REH §4.7 step 3): the game creates the effect. No
+                    // effect: nothing else happens, and a later wealth level
+                    // of the same tract may roll again. A host that cannot
+                    // show effects: treated as created [choice], so both
+                    // draws and the flag, as the original with shipped data.
+                    match h.create_visual_effect(BUZZARDS_EFFECT) {
+                        CreatedEffect::Failed => {}
+                        CreatedEffect::NotShown => {
+                            let delta = f64::from(t.effect_delta);
+                            let _ = self.rng.borrow_mut().range_f64(-delta, delta);
+                            buzzard = true;
+                        }
+                        CreatedEffect::Effect(effect) => {
+                            let geom = eq[w].as_ref().map(|g| g.geometry()).unwrap_or_default();
+                            // wx = float(width × x) + width × 0.5, each an f32 step.
+                            let wx = mul_i(i64::from(x), geom.width_x) + mul_d(geom.width_x, 0.5);
+                            let wz = mul_i(i64::from(z), geom.width_z) + mul_d(geom.width_z, 0.5);
+                            let base = h.altitude(wx, wz) + t.effect_height;
+                            let delta = f64::from(t.effect_delta);
+                            let dy = self.rng.borrow_mut().range_f64(-delta, delta);
+                            let y = (f64::from(base) + dy) as f32;
+                            h.set_effect_transform(effect, [wx, y, wz]);
+                            h.start_and_release_effect(effect);
+                            buzzard = true;
+                        }
                     }
                 }
             }

@@ -54,8 +54,8 @@ use std::thread::ThreadId;
 use fc4_core::grid::{GridElem, GridProvider, TractGeometry, TractGrid, MAX_TRACTS};
 use fc4_core::property::PropertyHolder;
 use fc4_core::residential::{
-    BudgetItem, EducationHealthHost, Grids, QueryData, ResidentialHost, ResidentialMessage, ResidentialRandom,
-    ResidentialRng, ResidentialSim, ResidentialState,
+    BudgetItem, CreatedEffect, EducationHealthHost, Grids, QueryData, ResidentialHost, ResidentialMessage,
+    ResidentialRandom, ResidentialRng, ResidentialSim, ResidentialState,
 };
 use fc4_core::rng::FixedSeeds;
 use fc4_core::stream::{RefValue, SaveObject};
@@ -302,7 +302,9 @@ pub struct fc4_residential_host {
     pub sim_month: Option<unsafe extern "C" fn(U) -> u32>,
     pub sim_day_number: Option<unsafe extern "C" fn(U) -> u32>,
     pub altitude: Option<unsafe extern "C" fn(U, f32, f32) -> f32>,
-    // visual effects (§5.5 step 2)
+    // visual effects (§5.5 step 2, RG1): the effect (one reference), 0 = the
+    // create failed, FC4_EFFECT_NOT_SHOWN = the host cannot show effects;
+    // NULL = cannot show effects.
     pub create_visual_effect: Option<unsafe extern "C" fn(U, *const c_char) -> u64>,
     pub set_effect_transform: Option<unsafe extern "C" fn(U, u64, *const f32)>,
     pub start_and_release_effect: Option<unsafe extern "C" fn(U, u64)>,
@@ -322,6 +324,8 @@ pub struct fc4_residential_host {
     pub change_budget_item_line: Option<unsafe extern "C" fn(U, u64, u32, u32)>,
     /// `GetDepartmentBudget(id)`: borrowed, 0 = none.
     pub department_budget: Option<unsafe extern "C" fn(U, u32) -> u64>,
+    /// `*GetFundingPercentage()`; NaN = cannot be read (RG10: the output is
+    /// left alone).
     pub department_funding: Option<unsafe extern "C" fn(U, u64) -> f32>,
     pub is_locally_funded: Option<unsafe extern "C" fn(U, u64, u64, u32) -> bool>,
     pub add_locally_funded: Option<unsafe extern "C" fn(U, u64, u64, u32)>,
@@ -429,6 +433,19 @@ impl Drop for HandingOut<'_> {
 
 fn opt(t: u64) -> Option<u64> {
     (t != 0).then_some(t)
+}
+
+/// `create_visual_effect`'s "the host cannot show effects" (fc4.h, RG1):
+/// treated as created ([`CreatedEffect::NotShown`]).
+pub const FC4_EFFECT_NOT_SHOWN: u64 = u64::MAX;
+
+/// A `create_visual_effect` result as the core sees it (RG1).
+pub(crate) fn effect_of(t: u64) -> CreatedEffect {
+    match t {
+        0 => CreatedEffect::Failed,
+        FC4_EFFECT_NOT_SHOWN => CreatedEffect::NotShown,
+        e => CreatedEffect::Effect(e),
+    }
 }
 
 /// A game grid read through the grid table without holding a reference:
@@ -640,9 +657,9 @@ impl ResidentialHost for CHost {
     fn altitude(&self, x: f32, z: f32) -> f32 {
         cb!(self, altitude, 0.0, x, z)
     }
-    fn create_visual_effect(&self, name: &str) -> Option<u64> {
+    fn create_visual_effect(&self, name: &str) -> CreatedEffect {
         let c = c_name(name);
-        opt(cb!(self, create_visual_effect, 0, c.as_ptr()))
+        effect_of(cb!(self, create_visual_effect, FC4_EFFECT_NOT_SHOWN, c.as_ptr()))
     }
     fn set_effect_transform(&self, effect: u64, translation: [f32; 3]) {
         cb!(self, set_effect_transform, (), effect, translation.as_ptr())
@@ -712,9 +729,11 @@ impl EducationHealthHost for CHost {
     fn department_budget(&self, department_id: u32) -> Option<u64> {
         opt(cb!(self, department_budget, 0, department_id))
     }
-    fn department_funding(&self, department: u64) -> f32 {
-        // [choice] No callback: full funding, the neutral value.
-        cb!(self, department_funding, 1.0, department)
+    fn department_funding(&self, department: u64) -> Option<f32> {
+        // RG10 (REH §4.2): no callback, or a NaN from it, is "missing" (the
+        // output keeps the caller's value), never 1.0.
+        let f = cb!(self, department_funding, f32::NAN, department);
+        (!f.is_nan()).then_some(f)
     }
     fn is_locally_funded(&self, department: u64, occupant: u64, purpose: u32) -> bool {
         cb!(self, is_locally_funded, false, department, occupant, purpose)
@@ -1411,7 +1430,10 @@ pub unsafe extern "C" fn fc4_residential_read(p: *mut fc4_residential, inp: *con
 
 /// Slots 8 / 9 `EndSchoolStrike` / `EndHealthStrike`: whether a strike was
 /// ended. [choice] Off the main thread (or during a call) the end is queued
-/// and the answer is the published strike flag.
+/// and the answer is the published strike flag. RG9 (answered: the choice
+/// stands): the original applies the call at once on the caller's thread
+/// and returns AL = the city strike flag before the call, which is what the
+/// published flag is.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_residential_end_strike(p: *mut fc4_residential, school: bool) -> bool {
     let Some(h) = handle(p) else { return false };
@@ -1520,7 +1542,11 @@ pub unsafe extern "C" fn fc4_residential_get_occupant_funding(
 /// Slots 21 / 22 `GetAverageEQGrid` / `GetAverageHQGrid`: a NEW float grid
 /// per call (instance `0x69D5C351` / `0x69D5C360`), handed to the caller with
 /// one reference (`hand_out`, then our reference released); 0 when none could
-/// be made. `min` / `max` get the range (255 / 0 without a grid).
+/// be made. `min` / `max` get the range (255 / 0 without a grid). RG8
+/// (answered: the choice stands): the original builds the float grid directly
+/// (global heap, inlined constructor), not through GZCOM; its callers are UI
+/// code on the main thread [inferred], so nothing constrains a call from
+/// another thread.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_residential_average_grid(
     p: *const fc4_residential,
@@ -1674,7 +1700,9 @@ pub unsafe extern "C" fn fc4_residential_quotient_min_max(
 }
 
 /// Slot 45 `GetOccupantCoverage`: false (outputs untouched) for a building
-/// that is neither a school nor a hospital.
+/// that is neither a school nor a hospital. RG12 (answered; the bracket
+/// matches): AL = 0 only when the building has neither capacity, and that
+/// path leaves `dist` and `radius` unwritten.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_residential_occupant_coverage(
     p: *const fc4_residential,

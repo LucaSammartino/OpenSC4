@@ -418,7 +418,6 @@ impl ProtectionSim {
                 self.host.release(o.token);
             }
         }
-        self.host.release_services(self.kind);
         let (dept, jail_dept) = {
             let mut d = self.d.borrow_mut();
             (d.department.take(), d.jail.jail_department.take())
@@ -429,13 +428,22 @@ impl ProtectionSim {
         true
     }
 
+    /// The base shutdown (`ProtectionShutdown`, §4.2, traced in full by PR15):
+    /// dispatch unregister, the station list, the nine unsubscriptions (in
+    /// their own order, [`msg::UNSUBSCRIPTIONS`]), `RemoveAgent`, the adjusted
+    /// then the unadjusted grid, and last the held services. The services
+    /// (message server, zone manager, budget simulator, city: one host call)
+    /// are therefore released **before** the class releases its jail lists
+    /// and departments (PR15). The original releases the message server right
+    /// after the unsubscriptions; it is the application's service, so moving
+    /// that release to step 6 with the others is not observable.
     fn base_shutdown(&self) {
         self.host.unregister_dispatch_source();
         let stations = std::mem::take(&mut self.d.borrow_mut().stations);
         for s in &stations {
             self.host.release(s.token);
         }
-        self.host.unsubscribe(&msg::SUBSCRIPTIONS);
+        self.host.unsubscribe(&msg::UNSUBSCRIPTIONS);
         self.host.remove_agent();
         let adjusted = self.adjusted.borrow_mut().take();
         if let Some(g) = adjusted {
@@ -445,6 +453,7 @@ impl ProtectionSim {
         if let Some(g) = unadjusted {
             self.host.shutdown_unadjusted(&g);
         }
+        self.host.release_services(self.kind);
     }
 
     pub fn is_initialized(&self) -> bool {
@@ -502,11 +511,16 @@ impl ProtectionSim {
             msg::DISPATCH_ACTIVE | msg::DISPATCH_INACTIVE => {
                 if m.data1 == p.dispatch_type {
                     if let Some(info) = self.host.dispatch_info(m.data2) {
-                        // [inferred] The radius of the source station's
-                        // dispatch effect, as UpdateUnadjusted reads it (§7.2,
-                        // PR2: its only caller passes the record's +0x20).
-                        let (_, e) = self.dispatch_effect(info.station);
-                        self.update_both_grids_by_position(info.x, info.z, e.radius);
+                        // §5 (PR14, `DoDispatchActivated`): the source
+                        // station's dispatch effect (the record's +0x20, as
+                        // UpdateUnadjusted reads it), scaled by its
+                        // efficiency (§7.2). The original ignores the AL and
+                        // uses a stack leftover as the radius when it fails
+                        // [quirk]; [choice] FreeCity4 skips the update then.
+                        let (ok, e) = self.dispatch_effect(info.station);
+                        if ok {
+                            self.update_both_grids_by_position(info.x, info.z, e.radius);
+                        }
                     }
                 }
             }
@@ -751,7 +765,11 @@ impl ProtectionSim {
         for &id in ids.iter().take(n as usize) {
             if let Some(info) = self.host.dispatch_info(id) {
                 if info.active {
-                    // §5.1 / §7.2 (PR2): the record's +0x20, the source station.
+                    // §5.1 / §7.2 (PR2, PR14): the record's +0x20, the source
+                    // station; the effect is scaled by its efficiency. [question]
+                    // §5.1 does not say what this loop does with a failed
+                    // effect: its AL is ignored here and the record, zeroed per
+                    // dispatch [choice], then holds centre 0, which adds 0.
                     let (_, mut e) = self.dispatch_effect(info.station);
                     e.x = info.x;
                     e.z = info.z;
@@ -1247,22 +1265,47 @@ impl ProtectionSim {
         }
     }
 
-    /// `GetDispatchEffect(station)` (§7.2, message-target slot 12): the
-    /// properties of the dispatch's source station (PR2; the shipped data
-    /// has them on the station exemplars only).
+    /// `GetDispatchEffect(station)` (§7.2, message-target slot 12) on a
+    /// zeroed record ([choice]: every FreeCity4 caller starts from 0, so an
+    /// absent outer or radius reads as 0); see [`Self::dispatch_effect_into`].
     pub fn dispatch_effect(&self, station: u64) -> (bool, Effect) {
+        let mut e = Effect::default();
+        let ok = self.dispatch_effect_into(station, &mut e);
+        (ok, e)
+    }
+
+    /// `GetDispatchEffect(station, record&)` (§7.2, message-target slot 12)
+    /// on the caller's record; the AL result. The properties are the
+    /// dispatch's source station's (PR2; the shipped data has them on the
+    /// station exemplars only). *[compat]* (PR14, corrected §7.2):
+    ///
+    /// 1. x := z := 0 and centre := 0, then the centre is read;
+    /// 2. an absent or zero centre fails (AL = 0): outer, radius and the
+    ///    original centre keep the caller's values;
+    /// 3. outer, then radius: an absent one keeps the caller's value;
+    /// 4. original centre := centre;
+    /// 5. the effect is **scaled** by `GetStationEfficiency(station)` (§6.2:
+    ///    funding, road access and strikes) through `AdjustProtectionEffect`
+    ///    (§7.1);
+    /// 6. AL = 1.
+    pub fn dispatch_effect_into(&self, station: u64, e: &mut Effect) -> bool {
         let p = self.kind.params();
-        let centre = self.prop_s32(station, p.dispatch_effect_props[0]);
-        let outer = self.prop_s32(station, p.dispatch_effect_props[1]);
-        let radius = self.prop_f32(station, p.dispatch_effect_props[2]);
-        let e = Effect {
-            radius: radius.unwrap_or(0.0),
-            centre: centre.unwrap_or(0),
-            outer: outer.unwrap_or(0),
-            original_centre: centre.unwrap_or(0),
-            ..Effect::default()
-        };
-        (centre.is_some() && outer.is_some() && radius.is_some(), e)
+        e.x = 0.0;
+        e.z = 0.0;
+        e.centre = self.prop_s32(station, p.dispatch_effect_props[0]).unwrap_or(0);
+        if e.centre == 0 {
+            return false;
+        }
+        if let Some(v) = self.prop_s32(station, p.dispatch_effect_props[1]) {
+            e.outer = v;
+        }
+        if let Some(v) = self.prop_f32(station, p.dispatch_effect_props[2]) {
+            e.radius = v;
+        }
+        e.original_centre = e.centre;
+        let eff = self.station_efficiency(station);
+        *e = algo::scale_effect(*e, eff);
+        true
     }
 
     /// `GetOccupantCoverage(s, p, cover&, station&)` (§7.3; fire slot 21,
