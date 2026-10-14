@@ -405,7 +405,12 @@ gradeGrid(x, z) := min(1.0, v)
 **GetPopulationServed** (r' and the tract list from above):
 
 - r' ≤ 0 → 0.
-- (tx, tz) := the building's tract in the R$ population grid (`PositionToTract`).
+- (tx, tz) := the building's tract in the R$ population grid: `PositionToTract` of the occupant's **own**
+  `GetPosition` (occupant slot 8, `0x006F8FB7`), with no lot lookup *[compat]*. The tract list (§4.4) and the
+  boost centre (§4.6) use the lot centre instead, so the two can name different tracts. Example with 64 m tracts:
+  a lot whose centre is at x = 128 m (tract 2) and a building whose position is x = 120 m (tract 1). The listed
+  tract x = 2 then gets `dx = float(u32(1 − 2))` ≈ 4.29e9 (the +x quirk below) instead of 0, so the distance curve
+  is read at its last point for that column.
 - For each listed tract (x, z) with n := `coverage[i](x, z)` > 0:
 
 ```

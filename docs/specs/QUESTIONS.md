@@ -1064,7 +1064,12 @@ brackets; the module doc of `core/src/residential/education_health.rs` lists 1 t
   item pointer, or older garbage), and grading uses the coverage-radius property ID as the capacity (not 0, as
   §4.5 had inferred). No shipped building lacks a capacity (all 18 school and hospital buildings checked).
   *[choice]* 0 in both places (the bracket).
-- **EH6:** do "served", the tract list and the boost all use the lot centre, else `GetPosition`? [yes, all three]
+- ~~**EH6:** do "served", the tract list and the boost all use the lot centre, else `GetPosition`? [yes, all three]~~
+  **ANSWERED 2026-10-14** from the exe (`GetCoveredTractList` `0x006F7E00`; `GetPopulationServed` `0x006F8F60`,
+  position at `0x006F8FB7`; boost centre in `ComputeOccupantGrade` `0x006FDE22`–`0x006FDE4E`) and written into REH
+  §4.5. **No, two of three.** The tract list and the boost use the lot centre, else `GetPosition`. "Served" takes
+  the building's own tract from the occupant's `GetPosition` only, with no lot lookup, so the two tracts can
+  differ (worked example in §4.5).
 - **EH7:** how do slots 28 and 58 pick the service? [like slot 45: hospital capacity first, then school]
 - **EH8:** slot 45 with no matching point or no radius? [AL = 1 whenever the building's kind is found, distance 0,
   radius 0]
