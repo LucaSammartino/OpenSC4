@@ -858,6 +858,50 @@ for the sequence of draws 3, 4, 6 and 7. The month order is fixed: pothole draws
 draws. No other draw exists in this class: trip generation, routing and the maps are deterministic, and the network
 part draws nothing (traffic-network.md §12).
 
+### 4.16 Station query: GetTransitSwitchQueryData(x, z, out) (slot 35, `0x0071CB80`) *[compat]*
+
+`out` is five 32-bit fields, all written on success (TS11). The names are those of the query window's readers in
+the Mac build (`cSC4ViewInputControlQuery::SetOrGetTransitStation…`):
+
+| Field | Meaning (query reader) | Transit switch at the cell | Ferry terminal in the lot at the cell |
+|---|---|---|---|
+| +0x00 u32 | available capacity (service quality numerator) | `low32(ftol(capacity))`; 0 during a strike | riders last period; 0 during a strike |
+| +0x04 u32 | maximum capacity | `low32(ftol(capacity))`, **also during a strike** | riders last period; 0 during a strike |
+| +0x08 f32 | load fraction (no query reader) | the switch's `ratio = min(load / capacity, 1)` written by the last CreateMaps (§4.9 step 4); 0.0 during a strike | 1.0; 0.0 during a strike |
+| +0x0C u32 | actual usage | `low32(ftol(prevUsage))` (the load seen by the last CreateMaps); 0 during a strike | riders last period; 0 during a strike |
+| +0x10 u32 | monthly maintenance cost | cost (below), whatever the strike | cost (below), whatever the strike |
+
+"During a strike" is the mass-transit strike state 1 (§4.12), for both kinds. `capacity` is the switch's building
+property `0xE90E25A3`; "riders last period" is the terminal's u16 rolled on entering state 19 (traffic-network.md
+§2.6). `ftol` truncates toward zero.
+
+1. `id :=` the switch-ID grid at `(x, z)` (grid slot 7). If `id ≠ 0`: the switch is looked up with insert-if-missing
+   (as traffic-network.md §4.7.3), the fields are filled from it, and the cost is taken from its building. Return
+   **true**.
+2. Else `lot := GetLot(x, z, false)`; none → return **false** (`out` untouched). Walk the ferry terminals in list
+   order; the first whose lot cell (x, z) lies inside the lot's bounding rect (lot slot 14, bounds inclusive) is
+   used, the cost taken from the lot's building (lot slot 48; no building → the cost stays 0). Return **true**. No
+   such terminal → return **false** (`out` untouched).
+
+**Cost**: `holder :=` the building's property holder; the budget simulator's `GetBudgetItemForPurpose(holder,
+0xCA550301, item)` (slot 51) gives the building's first budget item with that purpose (budget.md §2); then
+`dept := GetDepartmentBudget(item.department)` (slot 28). When both exist, cost `:= low32(ftol(r24(float(item.cost)
+× f)))`, `item.cost` the item's int64 monthly cost at 100 % and `f` the department's funding fraction (department slot
+10, a pointer to the fraction). Otherwise 0.
+
+The query window then shows: service quality `0` if the call fails or +0x00 is 0, `1` if +0x0C is 0, else
+`min(+0x00 / +0x0C, 1)`; usage percent `+0x0C / +0x04 × 100` (0 when +0x04 is 0); maximum capacity +0x04; usage
++0x0C; maintenance +0x10 *[inferred: from the Mac readers; the Windows readers were not traced]*.
+
+*[choice]* A switch ID in the grid with no switch behind it (only possible from a damaged save) makes the original
+insert a default switch with no building and crash on the cost step. FreeCity4 returns false and leaves `out`
+untouched.
+
+**Example.** A subway station with capacity 2500.0, last cycle's load 3100.0 (so ratio 1.0), no strike, budget item
+cost 150 for purpose `0xCA550301` in a department funded at 0.9: `out = {2500, 2500, 1.0f, 3100, 135}`
+(`r24(150 × 0.9) = 135.0`, truncated 135). The window shows service quality `min(2500/3100, 1) = 0.80645`, usage
+124 %. During a strike: `{0, 2500, 0.0f, 0, 135}`.
+
 ## 5. Messages posted
 
 | Message | When | Data |
@@ -984,7 +1028,7 @@ interfaces.tsv); return channel read from the epilogues. AL = bool/byte (upper E
 | 32 | +0x80 | `0x0071FFF0` | `uint32 GetFerryTerminalCount(uint32 type)` | 4 | EAX | |
 | 33 | +0x84 | `0x0070EC10` | `GetWaterRoute(…, vector<uint8>&)` | 20 | AL | traffic-network.md |
 | 34 | +0x88 | `0x00720000` | `const TrafficStats* GetTrafficStats()` | 0 | EAX | pointer to the statistics block (§4.9); **SDK**: `intptr_t` is a pointer |
-| 35 | +0x8C | `0x0071CB80` | `bool GetTransitSwitchQueryData(uint32, uint32, TransitSwitchQueryData&)` | 12 | AL | traffic-network.md |
+| 35 | +0x8C | `0x0071CB80` | `bool GetTransitSwitchQueryData(uint32 x, uint32 z, TransitSwitchQueryData&)` | 12 | AL | §4.16 (five 32-bit fields); target lookup traffic-network.md |
 | 36–41 | +0x90…+0xA4 | `0x00710540`, `0x00711A70`, `0x007106C0`, `0x00711B50`, `0x00718D20`, `0x00718F90` | AreLotsConnected, GetConnectedOccupantCount, GetConnectedDestinationCount, GetSubnetworksForLot, GetSubnetworksInRectangle, GetSubnetworksInRegion | 8 each | AL / EAX | traffic-network.md |
 | 42 | +0xA8 | `0x007143B0` | GetOccupantCountForAllSubnetworks | 8 | | traffic-network.md |
 | 43 | +0xAC | `0x007215A0` | scalar deleting destructor `(uint32 flags)` | 4 | EAX = this | not in the SDK; bit 0 frees with allocator C |

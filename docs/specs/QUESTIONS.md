@@ -1268,7 +1268,12 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
 - **TS9 — §4.9:** which records are "not excluded" from the statistics? [flag bit 0 clear]
 - **TS10 — slot 7 SetupPathFinderForLot:** what else is configured? [the lot rectangle as start, plus SetupTrip
   steps 3–4 only]
-- **TS11 — slot 35 GetTransitSwitchQueryData:** the data fields? [returns the network core's query target only]
+- ~~**TS11 — slot 35 GetTransitSwitchQueryData:** the data fields? [returns the network core's query target only]~~
+  **ANSWERED 2026-10-14** from the exe (`0x0071CB80`, field names from the Mac query readers): five u32/f32 fields,
+  available capacity, maximum capacity, load fraction (f32), actual usage, monthly maintenance cost. A switch gives
+  its capacity, ratio and previous load. A ferry terminal gives its last-period riders three times, and 1.0. A strike
+  zeroes all but the maximum capacity (switch) and the cost. The cost is the purpose-`0xCA550301` budget item's
+  cost × department funding, truncated. Written as traffic-simulator.md §4.16 with an example.
 - **TS12 — §4.12:** what does RecalculateNeighborConnectionCapacities do? [nothing]
 - **TS13 — §4.5:** a route with an off-map root is encoded as the in-city cell while its unit steps are relative to
   the off-map cell. [decoded literally: shifted by one cell]
