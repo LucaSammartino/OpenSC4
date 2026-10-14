@@ -24,21 +24,26 @@
 //! palette found through the attachment chain, §2.5). Frame 0's **height** must be a power of two (0 passes);
 //! the width is not checked. Every other frame must equal frame 0 in height, code and mip count (not width), and
 //! all frames are laid out with frame 0's dimensions. Levels follow §2.8 ([`level_table`]): each level starts
-//! 16-byte aligned from the entry's pixel start and DXT levels stop shrinking at 4 × 4.
+//! 16-byte aligned from the entry's pixel start and DXT levels stop shrinking at 4 × 4. The (format, type) pair
+//! is decided once, from frame 0, and every frame uses it (§2.10, FS5).
 //!
 //! # FreeCity4 choices
 //!
 //! The original checks no offset or length against the record (§2.2, Q2). FreeCity4 does *\[choice\]*:
 //! - `size` below `16 + 8 × count` is rejected, as is a record shorter than `size`; a record with no entry
-//!   (`count` 0) is rejected (the spec does not say what frame 0 is then).
-//! - Every entry header, attachment header and palette must lie inside the first `size` bytes.
+//!   (`count` 0) is rejected, as the original rejects it (§2.7, FS3).
+//! - Every entry header, attachment header and frame 0's palette must lie inside the first `size` bytes.
 //! - Each entry's own bytes end at the first of: its attached block (`next`), another entry's header, or `size`
-//!   (only positions at or after its pixel start count). The levels must fit there, except in the **mip-padding
-//!   case** of §2.8: when the levels packed back to back would fit but the 16-byte-aligned layout does not, the
-//!   aligned offsets are kept (as the game reads them) and the bytes beyond the entry read as zero
-//!   ([`Frame::zero_filled`], [`Fsh::level_data`]).
-//! - `0x7B` needs a 256 × 1 palette in **every** frame (the original checks frame 0 only, and reads uninitialised
-//!   data when there is none); the palette's 256 entries must fit in the record.
+//!   (only positions at or after its pixel start count; the original has no entry end, §2.8 FS1). The levels must
+//!   fit there, except in the **mip-padding case** of §2.8 (FS2): when the levels packed back to back would fit
+//!   but the 16-byte-aligned layout does not, the entry is accepted ([`Frame::zero_filled`]).
+//! - Levels are read at the aligned offsets from the record, as the game reads them, whatever lies there: bytes
+//!   past an entry's own data are the record's following bytes (the next attachment), and only bytes past `size`
+//!   read as zero (§2.8, GF9; [`Fsh::level_data`]). A DXT level whose width is not a multiple of 4 reads its whole
+//!   blocks the same way (FS7).
+//! - `0x7B`: only frame 0 must have a 256 × 1 palette whose 256 entries fit in the record (the original checks
+//!   frame 0 only, and reads uninitialised data when there is none; FS4). A later frame with no usable palette
+//!   is accepted and decodes as grey, (i, i, i, 255), the original's luminance upload read unsigned.
 //! - Pixels decode to RGBA8 as §2.11 says ([`decode_pixels`]); see the crate README for the decoding choices.
 
 use std::borrow::Cow;
@@ -164,8 +169,10 @@ pub fn format_and_type(code: u8, a: i16) -> Option<(TextureFormat, ComponentType
 }
 
 /// True if the default DX7 renderer can create a texture with this pair (§2.6, `TranslateGDFormatToSourceFormat`):
-/// the three DXT formats and BGR/BGRA with unsigned bytes. The other accepted codes load but cannot be created
-/// there (GF1); FreeCity4 decodes them anyway *\[choice\]*.
+/// the three DXT formats and BGR/BGRA with unsigned bytes. The other accepted codes (`0x64 0x65 0x6D 0x78 0x7B
+/// 0x7E`) load but get no surface there, so under DX7 a model using one is drawn untextured, in its diffuse
+/// colour and alpha (GF1). FreeCity4 decodes and shows them *\[choice\]*, as the original's OpenGL renderer
+/// does for all of them but `0x78`.
 pub fn dx7_creatable(format: TextureFormat, ty: ComponentType) -> bool {
     format.is_dxt() || (matches!(format, TextureFormat::Bgr | TextureFormat::Bgra) && ty == ComponentType::UnsignedByte)
 }
@@ -291,7 +298,8 @@ pub struct Level {
 /// down a level, w and h are each halved only while above m, and each halving halves the size. `None` for a code
 /// without a pixel width.
 ///
-/// *\[literal\]* A negative (sign-extended) width or height counts as below m, so it becomes m.
+/// A negative (sign-extended) width or height counts as below m, so it becomes m: the original's max is signed
+/// (§2.7, FS6). A negative height never gets here: it fails the power-of-two test.
 pub fn level_table(code: u8, width: i16, height: i16, mip_count: u8) -> Option<Vec<Level>> {
     let mul2 = u64::from(pixel_width_mul2(code)?);
     let m = min_level_dim(code);
@@ -335,16 +343,20 @@ pub struct Frame {
     /// Offset of the entry header from the record start.
     pub offset: u32,
     pub header: EntryHeader,
-    /// The (format, type) pair from this frame's own code and A (§2.6). Frames share the code; for DXT1, A may
-    /// differ between frames and this follows each frame's own A *\[literal\]*.
+    /// Frame 0's (format, type) pair (§2.6), the same in every frame: the original decides it once, from frame 0,
+    /// and creates every frame with it, so a later DXT1 frame's own A is never read (§2.10, FS5).
     pub format: TextureFormat,
     pub component_type: ComponentType,
-    /// The palette of a `0x7B` frame (§2.5); `None` for every other code.
+    /// The palette of a `0x7B` frame (§2.5); `None` for every other code. Always present in frame 0; `None` in a
+    /// later frame with no usable palette (not found, not 256 × 1, or not inside the record), which decodes as
+    /// grey (FS4).
     pub palette: Option<Palette>,
-    /// End of this entry's own bytes (exclusive): its attached block, another entry's header, or `size`.
+    /// End of this entry's own bytes (exclusive): its attached block, another entry's header, or `size`. Used
+    /// only to accept the entry (§2.8, FS1); the levels are read from the record whatever lies past it.
     pub data_end: u32,
-    /// True when the 16-byte-aligned levels run past [`Frame::data_end`] and the bytes beyond read as zero (the
-    /// §2.8 mip-padding case).
+    /// True in the §2.8 mip-padding case: the 16-byte-aligned levels run past [`Frame::data_end`] (only the
+    /// levels packed back to back fit). Those levels read the record's following bytes, as the game does (GF9);
+    /// only bytes past `size` read as zero. (The name predates GF9.)
     pub zero_filled: bool,
 }
 
@@ -455,7 +467,7 @@ impl Fsh {
                 available: data.len() as u64,
             });
         }
-        // [choice] the spec does not say what frame 0 is without an entry.
+        // §2.7 (FS3): a zero count fails the load before any entry is read.
         if count == 0 {
             return Err(corrupt("FSH", "no directory entry"));
         }
@@ -480,11 +492,11 @@ impl Fsh {
             .map(|d| header_at(d.offset, "FSH entry header"))
             .collect::<Result<Vec<_>>>()?;
 
-        // §2.7 rules 1-4, on frame 0.
+        // §2.7 rules 1-4, on frame 0. The (format, type) pair is decided here, once, from frame 0's code and A,
+        // and every frame is created with it (§2.10, FS5).
         let h0 = headers[0];
-        if format_and_type(h0.code, h0.a()).is_none() {
-            return Err(corrupt("FSH", format!("bitmap code {:#04X} is not accepted", h0.code)));
-        }
+        let (format, component_type) = format_and_type(h0.code, h0.a())
+            .ok_or_else(|| corrupt("FSH", format!("bitmap code {:#04X} is not accepted", h0.code)))?;
         let height = i32::from(h0.height);
         if height & height.wrapping_neg() != height {
             return Err(corrupt("FSH", format!("height {height} is not a power of two")));
@@ -511,10 +523,9 @@ impl Fsh {
 
         let mut frames = Vec::with_capacity(headers.len());
         for (i, (d, h)) in directory.iter().zip(&headers).enumerate() {
-            let (format, component_type) = format_and_type(h.code, h.a())
-                .ok_or_else(|| corrupt("FSH", format!("frame {i}: code {:#04X} is not accepted", h.code)))?;
             let pixel_start = u64::from(d.offset) + ENTRY_HEADER_LEN as u64;
-            // [choice] the entry's own bytes end at its attached block, another entry's header, or `size`.
+            // [choice] the entry's own bytes end at its attached block, another entry's header, or `size`. The
+            // original has no entry end (FS1); this end only decides acceptance.
             let mut data_end = u64::from(size);
             if h.next != 0 {
                 let attached = u64::from(d.offset) + u64::from(h.next);
@@ -529,7 +540,8 @@ impl Fsh {
                 }
             }
             let available = data_end.saturating_sub(pixel_start);
-            // [choice] Q2: the levels must fit, except the §2.8 mip-padding case (packed fits, aligned does not).
+            // [choice] Q2, FS2: the levels must fit, except the §2.8 mip-padding case (packed fits, aligned does
+            // not). The original accepts any layout.
             if packed > available {
                 return Err(Error::OutOfBounds {
                     what: "FSH pixel data",
@@ -538,27 +550,14 @@ impl Fsh {
                     limit: data_end,
                 });
             }
-            let palette = if h.code == code::INDEX8 {
-                let p = find_palette(data, d.offset)?
-                    .ok_or_else(|| corrupt("FSH", format!("frame {i}: code 0x7B without a palette")))?;
-                if (p.width, p.height) != (256, 1) {
-                    return Err(corrupt(
-                        "FSH",
-                        format!("frame {i}: palette is {} × {}, not 256 × 1", p.width, p.height),
-                    ));
-                }
-                let end = u64::from(p.offset) + ENTRY_HEADER_LEN as u64 + 256 * p.entry_size() as u64;
-                if end > u64::from(size) {
-                    return Err(Error::OutOfBounds {
-                        what: "FSH palette",
-                        offset: u64::from(p.offset),
-                        size: end - u64::from(p.offset),
-                        limit: u64::from(size),
-                    });
-                }
-                Some(p)
-            } else {
+            // §2.6 (FS4): the original checks frame 0's palette only. [choice] A later frame keeps its own
+            // palette when it is usable and otherwise has none (it decodes as grey); its chain is not an error.
+            let palette = if h.code != code::INDEX8 {
                 None
+            } else if i == 0 {
+                Some(index8_palette(data, d.offset, i)?)
+            } else {
+                index8_palette(data, d.offset, i).ok()
             };
             frames.push(Frame {
                 offset: d.offset,
@@ -601,43 +600,59 @@ impl Fsh {
         (self.frames[0].format, self.frames[0].component_type)
     }
 
-    /// The bytes of one level of one frame, at the §2.8 aligned offset; bytes beyond the entry's own data read as
-    /// zero (the mip-padding case, [`Frame::zero_filled`]). `None` for a frame or level that does not exist.
+    /// The bytes of one level of one frame ([`Level::size`] of them from the §2.8 aligned offset), read from the
+    /// record as the game reads them: in the mip-padding case ([`Frame::zero_filled`]) the last levels take the record's
+    /// following bytes (the next attachment's header, GF9), and only bytes past `size` read as zero *\[choice\]*.
+    /// These are the raw pixels; for a `0x7B` frame the 8-bit indices, which the original's terrain code reads on
+    /// the CPU (§2.13, GF4). `None` for a frame or level that does not exist.
     pub fn level_data(&self, frame: usize, level: usize) -> Option<Cow<'_, [u8]>> {
         let f = self.frames.get(frame)?;
         let l = self.levels.get(level)?;
-        let start = u64::from(f.pixel_start()) + l.offset;
-        let end = start + l.size;
-        let limit = u64::from(f.data_end);
+        Some(self.record_bytes(u64::from(f.pixel_start()) + l.offset, l.size))
+    }
+
+    /// `len` bytes of the record from `start`; bytes past `size` read as zero *\[choice\]* (the original would read
+    /// past its buffer; no shipped level does, §2.8).
+    fn record_bytes(&self, start: u64, len: u64) -> Cow<'_, [u8]> {
+        let end = start + len;
+        let limit = self.data.len() as u64;
         if end <= limit {
-            return Some(Cow::Borrowed(&self.data[start as usize..end as usize]));
+            return Cow::Borrowed(&self.data[start as usize..end as usize]);
         }
-        let mut out = vec![0u8; l.size as usize];
+        let mut out = vec![0u8; len as usize];
         if start < limit {
             let n = (limit - start) as usize;
-            out[..n].copy_from_slice(&self.data[start as usize..limit as usize]);
+            out[..n].copy_from_slice(&self.data[start as usize..]);
         }
-        Some(Cow::Owned(out))
+        Cow::Owned(out)
     }
 
     /// Decodes one level of one frame to RGBA8 (§2.11), at the level's working dimensions (a DXT texture is at
-    /// least 4 × 4). *\[choice\]* When the level's bytes do not cover every 4 × 4 block (a DXT width that is not a
-    /// multiple of 4), the missing bytes read as zero.
+    /// least 4 × 4). When the level's size does not cover every 4 × 4 block (a DXT width that is not a multiple of
+    /// 4), the whole blocks are read from the level's start, so the missing bytes are the record's following
+    /// bytes, as DX7 copies them (§2.8, FS7); only bytes past `size` read as zero. The image is cropped to the
+    /// level's width. A `0x7B` frame without a palette (a later frame, FS4) decodes as grey, (i, i, i, 255).
     pub fn decode(&self, frame: usize, level: usize) -> Result<Image> {
         let missing = || corrupt("FSH", format!("no frame {frame} level {level}"));
         let f = self.frames.get(frame).ok_or_else(missing)?;
         let l = self.levels.get(level).ok_or_else(missing)?;
-        let mut bytes = self.level_data(frame, level).ok_or_else(missing)?.into_owned();
         let need = pixel_bytes(f.header.code, l.width, l.height).ok_or_else(missing)?;
-        if (bytes.len() as u64) < need {
-            bytes.resize(need as usize, 0);
-        }
+        let bytes = self.record_bytes(u64::from(f.pixel_start()) + l.offset, need.max(l.size));
+        let grey: Vec<u8>;
         let palette = match f.palette {
             Some(p) => {
                 let start = p.offset as usize + ENTRY_HEADER_LEN;
                 Some(PaletteData {
                     code: p.code,
                     entries: &self.data[start..start + 256 * p.entry_size()],
+                })
+            }
+            None if f.header.code == code::INDEX8 => {
+                // FS4: the original uploads the indices as luminance; read unsigned, that is a grey ramp.
+                grey = (0..=255u8).flat_map(|i| [i, i, i]).collect();
+                Some(PaletteData {
+                    code: code::PALETTE_888,
+                    entries: &grey,
                 })
             }
             None => None,
@@ -672,6 +687,29 @@ impl Fsh {
         }
         out
     }
+}
+
+/// The palette of the `0x7B` entry at `entry` (frame `i`), checked as §2.6 checks frame 0's: found by the §2.5
+/// search, exactly 256 × 1, and *\[choice\]* its 256 entries inside the record (`data` is the first `size` bytes).
+fn index8_palette(data: &[u8], entry: u32, i: usize) -> Result<Palette> {
+    let p =
+        find_palette(data, entry)?.ok_or_else(|| corrupt("FSH", format!("frame {i}: code 0x7B without a palette")))?;
+    if (p.width, p.height) != (256, 1) {
+        return Err(corrupt(
+            "FSH",
+            format!("frame {i}: palette is {} × {}, not 256 × 1", p.width, p.height),
+        ));
+    }
+    let end = u64::from(p.offset) + ENTRY_HEADER_LEN as u64 + 256 * p.entry_size() as u64;
+    if end > data.len() as u64 {
+        return Err(Error::OutOfBounds {
+            what: "FSH palette",
+            offset: u64::from(p.offset),
+            size: end - u64::from(p.offset),
+            limit: data.len() as u64,
+        });
+    }
+    Ok(p)
 }
 
 /// The §2.5 palette search from the entry at `entry`: block to block along `next` (each relative to the current
@@ -735,13 +773,15 @@ pub fn pixel_bytes(code: u8, width: u32, height: u32) -> Option<u64> {
 /// [`pixel_bytes`] bytes; code `0x7B` needs a palette of 256 entries.
 ///
 /// - `0x60` DXT1: 5:6:5 colours expanded by bit replication; c0 > c1 (as `u16`) gives c2 = (2c0 + c1) / 3 and
-///   c3 = (c0 + 2c1) / 3, otherwise c2 = (c0 + c1) / 2 and c3 transparent black, whatever A says (the DX7
-///   behaviour, GF3); divisions on the 8-bit values, rounded down.
+///   c3 = (c0 + 2c1) / 3, otherwise c2 = (c0 + c1) / 2 and c3 transparent black, whatever A says: a Direct3D
+///   DXT1 surface, which DX7 makes for both DXT1 formats, always decodes 3-colour index 3 as (0, 0, 0, 0) (GF3);
+///   divisions on the 8-bit values, rounded down (FS8: the GPU does it in the original, nothing fixes it).
 /// - `0x61` DXT3: 4-bit alpha (pixel 0 in the low nibble of byte 0) × 17, colour block always in 4-colour mode.
 /// - `0x62` DXT5: interpolated alpha (6 or 4 interpolated values with 0 and 255), colour block in 4-colour mode.
-/// - `0x7D` B, G, R, A; `0x7F` B, G, R and alpha 255; `0x6D` A4R4G4B4 × 17; `0x7E` A1R5G5B5; `0x78` R5G6B5;
-///   `0x64` (255, 255, 255, a); `0x65` (L, L, L, a); `0x7B` through the palette (alpha 255 unless the palette
-///   has alpha).
+/// - `0x7D` B, G, R, A; `0x7F` B, G, R and alpha 255; `0x6D` A4R4G4B4 × 17; `0x7E` A1R5G5B5; `0x78` R5G6B5
+///   (the Direct3D layouts FSH tools write *\[choice\]*: no renderer of the original shows these three
+///   correctly, GF2); `0x64` (255, 255, 255, a); `0x65` (L, L, L, a); `0x7B` through the palette (alpha 255
+///   unless the palette has alpha).
 pub fn decode_pixels(
     code: u8,
     width: u32,
@@ -896,6 +936,7 @@ fn colour_block(b: &[u8], always_four: bool) -> [[u8; 4]; 16] {
             [p0[0], p0[1], p0[2], 255],
             [p1[0], p1[1], p1[2], 255],
             mix(1, 1, 2),
+            // GF3: what the Direct3D DXT1 surface gives, whatever A says.
             [0, 0, 0, 0],
         ]
     };
@@ -907,7 +948,7 @@ fn colour_block(b: &[u8], always_four: bool) -> [[u8; 4]; 16] {
     t
 }
 
-/// The eight DXT5 alpha values for a0, a1 (§2.11), divisions rounded down.
+/// The eight DXT5 alpha values for a0, a1 (§2.11), divisions rounded down *\[choice\]* (FS8; no DXT5 is shipped).
 fn dxt5_alphas(a0: u8, a1: u8) -> [u8; 8] {
     let (x, y) = (u32::from(a0), u32::from(a1));
     let mut a = [a0, a1, 0, 0, 0, 0, 0, 0];

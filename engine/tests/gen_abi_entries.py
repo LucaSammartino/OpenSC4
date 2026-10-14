@@ -36,6 +36,7 @@ SDK = os.path.join(ENGINE, "third_party", "gzcom-dll", "gzcom-dll", "include")
 FC4 = os.path.join(ENGINE, "plugin", "FC4Interfaces.h")
 FC4C = os.path.join(ENGINE, "plugin", "FC4CrimeInterfaces.h")
 FCD = os.path.join(ENGINE, "plugin", "FC4DevelopmentInterfaces.h")
+FCW = os.path.join(ENGINE, "plugin", "FC4WinInterfaces.h")
 
 # (table interface, class, header, required)
 #   required = the plugin implements or calls the interface through this
@@ -231,6 +232,14 @@ INTERFACES = [
     ("cISC4ZoneDeveloper", "cISC4ZoneDeveloper", "cISC4ZoneDeveloper.h", True),
     # Crime type names (crime.md section 7 step 3; lua-host.md section 10.1).
     ("cISCStringDetokenizer", "cFC4ISCStringDetokenizer", FC4C, True),
+    # The dialog closer (docs/specs/modal-dialogs.md section 3.2; tooling switch
+    # close_dialogs): the window manager and the window through the compiled
+    # slot order (the SDK headers are wrong for these slots), the legacy message
+    # server it subscribes to, and the message target it implements.
+    ("cIGZWinMgr", "cFC4IGZWinMgr", FCW, True),
+    ("cIGZWin", "cFC4IGZWin", FCW, True),
+    ("cIGZMessageServer", "cFC4IGZMessageServer", FCW, True),
+    ("cIGZMessageTarget(AudioEventHandler)", "cIGZMessageTarget", "cIGZMessageTarget.h", True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),
@@ -249,6 +258,8 @@ INTERFACES = [
     ("cISC4WeatherSimulator", "cISC4WeatherSimulator", "cISC4WeatherSimulator.h", False),
     ("cISC4GameDataRegistry", "cISC4GameDataRegistry", "cISC4GameDataRegistry.h", False),
     ("cISC4NetworkTool(PowerLine)", "cISC4NetworkTool", "cISC4NetworkTool.h", False),
+    # The cohort chain behind an exemplar (data-formats §4.4): FC4Properties.cpp EffectiveProperties.
+    ("cISCResExemplarCohort", "cISCResExemplarCohort", "cISCResExemplarCohort.h", True),
 ]
 
 BASE_HEADERS = {"cIGZSerializable": "cIGZSerializable.h"}

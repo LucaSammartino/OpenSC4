@@ -34,11 +34,14 @@
 //!
 //! *\[choice\]* rejections where the original misreads or overflows (Q11–Q13): an unknown vertex format (standard
 //! stride 0), an index size other than 2, more than 2 textures in a material. Also rejected *\[choice\]*: a vertex
-//! format whose stride is below 12 (the bounding box reads 12 bytes per vertex), and a legacy block whose stored
-//! stride is below the format's standard stride (the draw would read past the block). A vertex block with N = 0
-//! is accepted with the empty box. A name without a NUL is its whole stored bytes (test 36). Names are decoded as
-//! UTF-8 when valid, else Latin-1. PROP entries keep the file order (the spec says the array is sorted but not by
-//! what). REGP names are lower-cased in ASCII.
+//! format whose stride is below 12 (the bounding box reads 12 bytes per vertex, so the original reads past the
+//! vertex data, FS9), and a legacy block whose stored stride is below the format's standard stride (the draw
+//! would read past the block, FS10). A vertex block with N = 0 is accepted with the empty box. A name without a
+//! NUL is its whole stored bytes (test 36). Names are decoded as UTF-8 when valid, else Latin-1. PROP entries are
+//! sorted stably by frame, signed and ascending (§3.10, FS11; the original's `std::sort` keeps equal frames in
+//! file order only up to 16 entries). REGP names are lower-cased: ASCII letters always, and for a valid UTF-8
+//! name every letter by Unicode simple case mapping (§3.11, FS12; the original lowers non-ASCII names with
+//! `towlower` in the game language's locale).
 
 use std::collections::BTreeMap;
 
@@ -92,7 +95,8 @@ pub mod kind {
     pub const NORMAL: usize = 3;
     /// 4 bytes (bit 7).
     pub const KIND4: usize = 4;
-    /// 32-bit colour (bits 8–9; byte order GF6).
+    /// 32-bit colour (bits 8–9), bytes B, G, R, A: DX7 copies it unchanged into the Direct3D diffuse colour (§3.5,
+    /// GF6).
     pub const COLOUR: usize = 5;
     /// 1-component texture coordinates (bits 10–13).
     pub const TEX1: usize = 6;
@@ -406,9 +410,11 @@ pub struct MaterialTexture {
     pub id: u32,
     pub wrap_s: u8,
     pub wrap_t: u8,
-    /// Version 1.5 only; 0 (nearest) before.
+    /// Version 1.5 only; 0 (nearest) before. Nothing overrides the material's filters in normal play: the
+    /// render properties `kForcePointSampling` and `kForceBilinear` default to false and no shipped rule sets
+    /// them, so (0, 0) is nearest without mipmaps (§3.8, GF5).
     pub mag_filter: u8,
-    /// Version 1.5 only; 0 (nearest) before.
+    /// Version 1.5 only; 0 (nearest) before (see [`MaterialTexture::mag_filter`]).
     pub min_filter: u8,
     /// Read, ignored by the game.
     pub anim_rate: u16,
@@ -584,7 +590,7 @@ pub struct Model {
     pub primitive_blocks: Vec<Vec<Primitive>>,
     pub materials: Vec<Material>,
     pub anim: Anim,
-    /// `PROP` entries in file order (empty before 1.1).
+    /// `PROP` entries sorted stably by frame, signed and ascending (FS11; empty before 1.1).
     pub props: Vec<Prop>,
     /// `REGP` entries by lower-cased name; a repeated name appends (empty before 1.2).
     pub regions: BTreeMap<String, Vec<[f32; 7]>>,
@@ -701,6 +707,9 @@ impl Model {
                     value,
                 });
             }
+            // §3.10 (FS11): sorted by the frame (s16 at +2), signed and ascending. [choice] Stable: the original's
+            // `std::sort` keeps equal frames in file order only up to 16 entries.
+            props.sort_by_key(|p| p.frame);
         }
 
         let mut regions: BTreeMap<String, Vec<[f32; 7]>> = BTreeMap::new();
@@ -803,11 +812,13 @@ fn vertex_block(r: &mut Reader<'_>, version: Version) -> Result<VertexBlock> {
         (r.u32()?, None)
     };
     let standard = VertexFormat::from_stored(format).stride();
-    // [choice] Q11: an unknown format has stride 0 and the original's bounding box reads an empty buffer.
+    // [choice] Q11, FS10: an unknown format has stride 0 and the original's bounding box reads an empty buffer
+    // (an unknown legacy format is read and boxed with S but drawn with stride 0).
     if standard == 0 {
         return Err(corrupt("S3D", format!("unknown vertex format {format:#X}")));
     }
-    // [choice] the bounding box reads 3 floats of every vertex.
+    // [choice] FS9: the bounding box reads 3 floats at each vertex start whatever the format, so with S < 12 the
+    // original reads past the vertex data. A format with no position and S >= 12 is boxed from its first 12 bytes.
     if standard < 12 {
         return Err(corrupt(
             "S3D",
@@ -815,7 +826,8 @@ fn vertex_block(r: &mut Reader<'_>, version: Version) -> Result<VertexBlock> {
         ));
     }
     let stride = stored_stride.unwrap_or(standard);
-    // [choice] a legacy stride below the standard one would make the draw read past the block.
+    // [choice] FS10: a legacy stride below the standard one would make the draw read past the block (the
+    // original loads it).
     if stride < standard {
         return Err(corrupt(
             "S3D",
@@ -973,17 +985,27 @@ fn short_string<'a>(r: &mut Reader<'a>) -> Result<&'a [u8]> {
 }
 
 /// A C string: the bytes up to the first NUL, or all of them when there is none *\[choice\]*; UTF-8 when valid,
-/// else Latin-1. `lower` lower-cases ASCII letters (REGP names).
+/// else Latin-1. `lower` lower-cases the name (REGP names, §3.11 FS12): ASCII letters always; in a valid UTF-8
+/// name every character by Unicode simple case mapping *\[choice\]* (close to the original's `towlower` under a
+/// Western-language locale); in a Latin-1 name only ASCII letters.
 fn c_string(b: &[u8], lower: bool) -> String {
     let end = b.iter().position(|&c| c == 0).unwrap_or(b.len());
-    let mut bytes = b[..end].to_vec();
-    if lower {
-        bytes.make_ascii_lowercase();
+    let bytes = &b[..end];
+    match std::str::from_utf8(bytes) {
+        Ok(s) if lower => s.chars().map(simple_lowercase).collect(),
+        Ok(s) => s.to_owned(),
+        Err(_) => bytes
+            .iter()
+            .map(|&c| char::from(if lower { c.to_ascii_lowercase() } else { c }))
+            .collect(),
     }
-    match String::from_utf8(bytes) {
-        Ok(s) => s,
-        Err(e) => e.into_bytes().iter().map(|&c| c as char).collect(),
-    }
+}
+
+/// The Unicode simple lowercase mapping of a character (one character to one). `char::to_lowercase` is the full
+/// mapping; it differs only where the full mapping has several characters (U+0130 → `i` + U+0307), and there
+/// its first character is the simple mapping.
+fn simple_lowercase(c: char) -> char {
+    c.to_lowercase().next().unwrap_or(c)
 }
 
 #[cfg(test)]
