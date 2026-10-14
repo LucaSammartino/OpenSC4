@@ -541,7 +541,10 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   target keeps the low bits, so out-of-range values wrap (300.7 as Uint8 gives 44). NaN, ±∞ and |x| ≥ 2⁶³ give
   `0x8000000000000000`: 0 for targets of 32 bits or fewer, `0x8000000000000000` for 64-bit targets, true for Bool
   (data-formats.md §5.1, with examples).
-- **EX4:** is RZChar signed when widened? [zero-extended]
+- ~~**EX4:** is RZChar signed when widened? [zero-extended]~~ **ANSWERED 2026-10-14** from the exe (`0x00915AA5`,
+  `0x00915B85`): **the bracket does not match.** RZChar and Char are **sign-extended** for integer and float
+  targets: RZChar `0xE9` read as Uint32 gives `0xFFFFFFE9`, as Float32 −23.0. Only RZUnicodeChar is zero-extended
+  (data-formats.md §5.1).
 - **EX5:** what do the getters return for Empty or object values? [None]
 - **EX6:** Char, RZUnicodeChar and void arrays in the text round trip. [Char and RZUnicodeChar arrays as text; a void
   array gives its first byte as `%u`]

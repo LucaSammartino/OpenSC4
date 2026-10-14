@@ -401,7 +401,7 @@ If the stored type equals the requested type, the value is returned as is. Other
 |---|---|---|
 | scalar Bool…RZChar (memory types `0x01`–`0x0E`) | Float32 | value → float64 → **rounded to float32** |
 | scalar | Float64 | value → float64; unsigned types as unsigned, with the 24-bit rounding below for Uint32 ≥ 2³¹ and for every Uint64; signed types exact (Sint64 rounded to 53 bits) |
-| scalar | integer type, Bool, char types | value → int64 (unsigned types zero-extended, signed sign-extended, **floats truncated toward zero, not saturated**: see below), then the low bits of the target width; Bool = (int64 ≠ 0) |
+| scalar | integer type, Bool, char types | value → int64 (unsigned types zero-extended, signed sign-extended, Char and RZChar **sign-extended**, RZUnicodeChar zero-extended, **floats truncated toward zero, not saturated**: see below), then the low bits of the target width; Bool = (int64 ≠ 0) |
 | array (any element type), string, or a requested non-scalar type | any | **text round trip** (below) |
 
 **Unsigned 64-bit and large unsigned 32-bit values.** The to-double converter (`0x00915B85`) turns a Uint64 into a
@@ -422,6 +422,11 @@ Uint8 gives 300 mod 256 = **44**; Float32 3,000,000,000 read as Sint32 gives **�
 as Uint32 gives `0xFFFFFFFF`; NaN read as Uint32 gives **0** and read as Sint64 gives `0x8000000000000000`; Float32
 0.5 read as Bool gives **false** (it truncates to 0), NaN read as Bool gives **true**. A number parsed from text as
 floating point (round trip below) is truncated the same way for integer targets.
+
+**Char types.** Both converters (`0x00915AA5` to int64, `0x00915B85` to double) widen **Char (`0x0C`) and RZChar
+(`0x0E`) as signed bytes** and RZUnicodeChar (`0x0D`) as an unsigned 16-bit value. Worked example: RZChar `0xE9`
+read as Uint32 gives `0xFFFFFFE9`, as Sint16 −23, as Float32 −23.0, and as Uint8 `0xE9` (only the low byte is
+kept); RZUnicodeChar `0xFFE9` read as Uint32 gives 65,513.
 
 **Text round trip** (arrays and strings): the source is turned into text, then the text is parsed into the target.
 
