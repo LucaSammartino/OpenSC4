@@ -1243,7 +1243,13 @@ before and after). The glue's current answer is in brackets.
   (`0x004B0B20`; `PopulateZone` `0x006BCDF6`–`0x006BCE16`): **borrowed**. It makes no `AddRef` call, and
   `PopulateZone` only tests the result for null. The map is fetched each time from the global city's slot 40.
   **The bracket matches.** Written into landfill.md §4.4.5.
-- **LG8:** tiles are not saved; they are rebuilt at PostCityInit (interior orientation 0, no random draw). [choice]
+- ~~**LG8:** tiles are not saved; they are rebuilt at PostCityInit (interior orientation 0, no random draw). [choice]~~
+  **ANSWERED 2026-10-14** from the exe (PostCityInit, §3.2) and the saves. The original **saves** each tile (class
+  `0x8A22BEBE`, with tile, orientation and exemplar key) and **does not rebuild** on load. There is no draw. In the
+  three saved landfills, all 142 cells match the §4.8 rules for the saved heaps, and the interiors have orientations
+  0/2/4/6. **The choice matches** for loading original saves, except that interior orientations become 0. It
+  **does not match** for a FreeCity4 save loaded by the original: with no tiles, maintenance and the terrain dezoning
+  differ. Written into landfill.md §6.4.
 - **LG9:** is a null `GetLandfillZoneFromCell` acceptable to the city situation manager? [null]
 - **LG10:** city slot 97 returns a float in ST0 (`docs/abi`) where the spec says "—". Which is right? [discarded]
 - **LG11:** should the tile item cost be read from the tile exemplar? [no]

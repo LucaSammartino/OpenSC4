@@ -1025,6 +1025,42 @@ u8    isEmpty (0/1)
 Read requires version 3 (and 4 for the base record), sets `isEmpty := (byte = 1)`, recomputes the bounding box,
 returns `!GetError()`.
 
+**Tiles across a save and load** *[compat]* (LG8). The original **saves every tile occupant** and **does not
+rebuild tiles on load**:
+
+- The occupant manager writes one record per tile, with its tile ID, its orientation (including the random 0, 2, 4
+  or 6 of an interior tile), its position, and the exemplar key `(0x07BDDF1C, 0x6534284A, tile)` as the holder's
+  parent. On load the occupant manager restores each tile from its record. The developer's PostCityInit (§3.2)
+  runs zone `Init`, `UpdateBudgetRequirements` and `UpdateCapacityValues` only. There is no `PopulateZone`, no
+  `UpdateSurroundingTiles` and no `rand()` draw.
+- A tile is next redrawn only when the active state of a heap next to it changes (§4.8).
+
+Checked against the local saves. The three saved landfills (Konradshohe, Fulham, Big City Tutorial) cover 142 zone
+cells in all. Every cell's saved tile, or the absence of one, is exactly what the §4.8 rule table gives for the
+saved heaps' `active` flags. The 19 interior tiles have orientations 0 (4), 2 (7), 4 (4) and 6 (5). Every saved tile
+has flags `0x05` and `isEmpty = 0`.
+
+**FreeCity4's current choice against this.** FreeCity4 does not save tiles. It rebuilds them at PostCityInit, with
+interior orientation 0 and no draw.
+
+- *Loading an original save*: the rebuilt tile IDs match, because the saved tiles always agree with the saved
+  heaps. Each interior's orientation becomes 0 instead of its saved value, which is a visible difference only. The
+  draw count matches the original (none). The tiles can differ in one case: after `AddRegionToZone` moved heaps
+  without moving their tiles (§4.4.4 step 4), the original keeps the stale tiles until the heaps next change.
+- *A FreeCity4 save loaded by the original game*: the save has no tile records, so the original finds no tile
+  occupants. Until each heap next changes state, three things differ:
+  - every zone cell costs `kDefaultLandfillTileCost` (5) instead of 10–40 (§4.9.1);
+  - `PopulateZone` keeps the cells but gives them only textures;
+  - any terraforming (reasons 1–3) over a cell **dezones** it, because §4.5.2 step 1 sees no tile.
+
+  This is a simulation difference, not only a visual one.
+
+*[choice]* Recommended:
+- Save real tile occupants, created as in §4.8.1.
+- On loading an original save, take each tile's ID and orientation from its saved record, not from a rebuild.
+- If the rebuild is kept, it is acceptable for FreeCity4's own saves only, and the difference above should be
+  documented.
+
 ## 7. Interface slots
 
 ### 7.1 `cISC4LandfillDeveloper` (vtable `0x00AB157C`, 13 slots)
