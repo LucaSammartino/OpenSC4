@@ -960,8 +960,12 @@ each cycle-completed message `0x2A09B21A`). The glue's current answer is in brac
   magnitude)` and `end_strike(type)`. No shipped file calls them (every entry of `SimCity_1.dat`–`SimCity_5.dat` and
   `EP1.dat` searched): there are only the empty Lua placeholders and the `END_STRIKE_*` constants. Only mods would
   notice.
-- **AU7 — shadow timing:** the other inputs are read at the end of the original's cycle, so a mid-cycle change shows
-  as a difference; the tax baseline is taken at the first compared cycle. [as stated]
+- ~~**AU7 — shadow timing:** the other inputs are read at the end of the original's cycle, so a mid-cycle change shows
+  as a difference; the tax baseline is taken at the first compared cycle. [as stated]~~ **ANSWERED 2026-10-14**
+  (with AU13) and written into aura.md §5.3 and §14.3. **Right, and it explains AU13–AU15.** The original reads each
+  input in its own state's call (§5.3). Its tax baseline is the rate read in the first state 4 after the object was
+  created, so the first cycle after a load; a shadow that starts with that cycle and reads the rates in its state 4
+  matches. To remove the timing differences, follow the original's state field step by step (§14.3).
 - **AU8:** `GetCumulativeOffset` (ordinance slot 24): the SDK says int64, the spec and table int32 in EAX. [int32,
   declared as `GetCumulativeOffset32` in `cFC4ISC4OrdinanceSimulator`]
 - **AU9:** a cycle in an empty city keeps the lot iterator open until the next state 4. Intended? [as the spec]

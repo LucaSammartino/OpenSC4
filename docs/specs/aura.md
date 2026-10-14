@@ -942,6 +942,9 @@ same inputs:
 - For a per-step diagnostic, compare our work grid with the original's after each step from 5 to 13. The original's
   work grid keeps its values from state 13 until the next state 4, so at the end message it still holds the inputs
   of state 14.
+- Tax baseline: the original takes `previousTaxRate` in the first state 4 after its object was created, so in the
+  first cycle after a load (§6.5.2). A shadow that starts at the first cycle after the load and reads the tax rates
+  in our state 4 has the same baseline; one that starts later, or reads them at the end message, can differ.
 
 The original object, as offsets from its `cISC4AuraSimulator` pointer (constructor `0x0068D110`, `Init`
 `0x0068E6B0`): `cIGZMessageTarget2` sub-object +0x04 (the agent registered with the simulator), `cIGZSerializable`
