@@ -2796,7 +2796,10 @@ in brackets.
   each with B. It then frees the block with C unconditionally (`0x006920AF`), whether a node matched or not, and also
   when the owner is null. The bracket's leak differs; *[choice]* free the block with C in every case, as the original
   does (recommended).
-- **BQ5:** BQ3: does ComputeTax hold references on the lots it visits? [borrowed, no AddRef]
+- ~~**BQ5:** BQ3: does ComputeTax hold references on the lots it visits? [borrowed, no AddRef]~~
+  **ANSWERED 2026-10-14** from the exe (loop `0x00691EB0`–`0x00692077`; `cSC4Lot::GetBuilding` `0x006BFA30`) and written
+  into budget.md §5.2. Borrowed: the lot is the list node's value and the building is returned without a reference; the
+  loop has no `AddRef` or `Release`. The bracket matches.
 - **BQ6:** BQ3: the walk requires the master lot list object at lot manager + `0x5C`. [otherwise refused, with the
   `GetLotsInCellRect` fallback]
 - **BQ7:** BQ3: line and total values outside the int32 range. [the low 32 bits of `_ftol`]

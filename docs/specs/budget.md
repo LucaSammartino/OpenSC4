@@ -440,6 +440,9 @@ Afterwards `monthlyTax[t] := trunc(groupTax[t])` and the function returns `trunc
   - not livable (lot slot 37, `+0x94`, `IsInLivableState`, returns false);
   - an untaxed purpose/wealth cell (−1 in the tax-type table).
 - It has no bounds test, no other state test and no highlight check.
+- It takes no references (BQ5). Each lot is the list node's value, used as it is, and lot slot 48
+  (`cSC4Lot::GetBuilding`, `0x006BFA30`) releases its own `QueryInterface` reference before it returns the building.
+  The loop (`0x00691EB0`–`0x00692077`) calls no `AddRef` or `Release` on either.
 
 The master list and the cell → lot map that `GetLotsInCellRect` scans hold **the same lots** (zones.md §8):
 - **Created and deleted together.** `CreateLot` writes every cell of the lot and adds it to the list in the same
