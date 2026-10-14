@@ -1245,8 +1245,11 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   re-checked against `0x00714BE0`): per neighbour connection, copy `0xAA9EA81A + i` to `0xAA9EA81D + i` and zero it
   (i = 0…2), then arrived-last := arrived-this-cycle and arrived-this-cycle := 0 in `0x8A0B4100` (k = 0…3). One call;
   pointer added to traffic-simulator.md §3.2.
-- **TS3 — §4.8 state 3:** what does ReduceTransitSwitches do? [the switch load restarts from 0; CreateMaps keeps the
-  previous value in counter 1]
+- ~~**TS3 — §4.8 state 3:** what does ReduceTransitSwitches do? [the switch load restarts from 0; CreateMaps keeps the
+  previous value in counter 1]~~ **ANSWERED 2026-10-14** from the exe (`0x00713750`): the bracket holds for the
+  shipped tuning. Exactly: every switch's `load := r24(densityReduction × load)` with the volume-reset factor
+  `0x29136788` (shipped 0), nothing else; counter 1 (`prevUsage`) and the ratio are CreateMaps' (§4.9 step 4). Use the
+  factor, not a literal 0 (a tuning mod decays the load). Written into §4.8.
 - **TS4 — §3.1:** what do DoRoadChanged / DoRailChanged do on occupant messages? [on insert the cell joins the damage
   block's intact set unless present; on remove it leaves]
 - **TS5 — §3.1:** message `0x66956810` "marks the network as changed": which flag, and who rebuilds? [sets
