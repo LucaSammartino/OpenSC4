@@ -200,6 +200,12 @@ For each frame, level offsets are relative to that entry's pixel start (header +
 So every level starts **16-byte aligned** from the pixel start, and DXT levels stop shrinking at 4 × 4 (8 or 16
 bytes). Example: DXT1 8 × 8, M = 3: offsets 0, 32, 48, 64 (sizes 32, 8, 8, 8; padded total 80, unpadded 56).
 
+A DXT width that is not a multiple of 4 (none shipped) makes the formula smaller than the whole blocks: DXT1 6 × 8
+gives 24 bytes for 2 × 2 blocks of 8. DX7 copies the surface's whole compressed size from the level's start
+(`CopyToSurface` `0x0088A380`, linear-size path), so the missing bytes are the record bytes that follow, padding first
+(FS7; OpenGL not traced). FreeCity4 reads the whole blocks from the record the same way, decodes them and crops to
+the width *[choice]*.
+
 *[quirk]* 167 shipped DXT1 entries with mipmaps store their levels **without** the per-level padding (tools
 packed them back to back). The game still reads them at the aligned offsets. Only levels after the first 8-byte
 level move, so the two or three smallest levels show the wrong blocks, and the last level reads up to 8 bytes past

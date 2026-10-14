@@ -2900,8 +2900,13 @@ variant (GF3). The current answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`SerialRead` `0x0080094E`–`0x0080095A` power-of-two test on the 32-bit
   sign-extended height; `0x00800964`/`0x00800976` signed max) and written into graphics-formats §2.7. A negative height
   fails the test, and a negative width becomes m. The bracket matches.
-- **FS7:** A DXT width that is not a multiple of 4: the level size from the formula is smaller than the whole blocks.
-  [the missing bytes read as zero, whole blocks are decoded, and the image is cropped]
+- ~~**FS7:** A DXT width that is not a multiple of 4: the level size from the formula is smaller than the whole blocks.
+  [the missing bytes read as zero, whole blocks are decoded, and the image is cropped]~~
+  **ANSWERED 2026-10-14** from the exe (`nSGLDX7::cTextureManager::LoadTextureLevel` `0x0088ACD0`, `CopyToSurface`
+  `0x0088A380`: a compressed surface is filled with its whole linear size from the level pointer) and written into
+  graphics-formats §2.8. DX7 reads the whole blocks from the level's start, so the missing bytes are the record bytes
+  that follow, not zeros. Decoding whole blocks and cropping stands; take the missing bytes from the record (zero only
+  past `size`), as for GF9. OpenGL not traced.
 - **FS8:** The DXT5 alpha divisions (/7, /5) have no stated rounding. [rounded down, as for DXT1]
 - **FS9:** A vertex format with stride below 12, or with no position, while the bounding box reads 3 floats per
   vertex. [stride < 12 is rejected; no position with stride ≥ 12 is accepted and its box uses the first 12 bytes]
