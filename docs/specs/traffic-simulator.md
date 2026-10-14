@@ -977,7 +977,7 @@ record).
   r24(densityReduction × load)` (`0x29136788`, the same factor as the volume reset of §4.9 step 3). Nothing
   else: the two saved counters keep what CreateMaps (state 2, earlier in the same cycle) wrote, `prevUsage := load`
   and `ratio := min(load / capacity, 1)` (§4.9 step 4). Finishes in one call. With the shipped factor 0 the load
-  restarts from 0 for the coming trip phases (`0 × NaN` and `0 × ±∞` stay NaN; a negative load would become −0.0).
+  restarts from 0 for the coming trip phases (`0 × NaN` and `0 × ±∞` give NaN; a negative load would become −0.0).
   With a non-zero factor the load decays instead *[compat]* (TS3).
 * **GetTravelTimeRatio(x, z, t)** (slot 24, `0x007103B0`): 1.0 if `affectedByTraffic[t]` is false. Else
   `u := Σ` over travel types `i` with `generatesTraffic[i]` of `usage(x, z, i, 0) + usage(x, z, i, 1)` (u32), and with
