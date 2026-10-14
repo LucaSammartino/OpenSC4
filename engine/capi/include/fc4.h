@@ -1265,7 +1265,8 @@ bool fc4_demand_shadow_is_fed(const fc4_demand_shadow* s, uint32_t key);
  * order; may equal `input`); `stats` may be NULL. False on bad arguments. */
 bool fc4_demand_shadow_propagate(const fc4_demand_shadow* s, const fc4_demand_node_state* input, uint32_t count,
                                  fc4_demand_node_state* output, fc4_demand_shadow_stats* stats);
-/* GetNeutralTaxRate (unclamped) from the supplies of 0x1001, 0x3001, 0x4001. */
+/* GetNeutralTaxRate (unclamped) from the supplies r, c, i of 0x1001, 0x3001, 0x4001; the sum is
+ * f32(f32(i + c) + r), as the simulator's (demand §5, DQ9). */
 float fc4_demand_shadow_neutral_tax_rate(const fc4_demand_shadow* s, float r, float c, float i);
 /* §8.1 from those supplies, the saved CO / I economy bonuses, and host's today,
  * history_max, ordinance_factor and nation_economy_modifier (no other callback). */
