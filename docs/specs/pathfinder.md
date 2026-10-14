@@ -365,7 +365,10 @@ In this order, from the wormhole byte of `c`'s cell:
 2. If a mass-transit strike is on, skip 3 and 4.
 3. **Subway station** (bit 1): `t' = 0` (Walk) if `t = 6` (Subway), else `t' = 6`. For each side `s2` = 0…3: if
    `conn[t] >> 4s` (the **unmasked** shift: all higher nibbles count *[quirk]*) is non-zero: AddTripNode(same cell,
-   entry side `s2`, `t'`, cost 0.0, `maxCost[t']`). The allowed mask is not checked. *[quirk]* **Unreachable in 1.1.641**: no code sets
+   entry side `s2`, `t'`, cost 0.0, `maxCost[t']`). The shift is by the popped node's own entry side `s`, not by
+   `s2` (PF4, `0x006D99D1`–`0x006D99E2`: a 16-bit `shr` by `4 · node.side`, read again in each pass of the `s2`
+   loop). The test is therefore the same for all four `s2`: all four nodes are added, or none. The allowed mask is
+   not checked. *[quirk]* **Unreachable in 1.1.641**: no code sets
    wormhole bit 1 (the byte is only reset, `|= 2` and `|= 4`; traffic-network.md), so this branch never runs.
    *[compat]* FreeCity4 keeps the rule but never sets the bit.
 4. **Ferry** (bit 4), unless flag 16: look up the cell's ferry terminal; if its travel-type mask has `t`: for each

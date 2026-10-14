@@ -514,7 +514,11 @@ vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
   corrected: for style 2 the key-bit-1 record gets the **mirrored** index `4·exit + entry`, like `ApplyRoute`. The
   spec said "not mirrored" (also fixed in traffic-simulator.md §4.5).
 - **PF3 — §8:** which value does the pathfinder pass for `GetLot`'s bool? [left to the host]
-- **PF4 — §4.8.3 step 3:** `conn[t]` is shifted by the node's entry side `s`, not the loop's `s2`. [literally `s`]
+- ~~**PF4 — §4.8.3 step 3:** `conn[t]` is shifted by the node's entry side `s`, not the loop's `s2`. [literally
+  `s`]~~ **ANSWERED 2026-10-14** from the exe (`FindPath` `0x006D99D1`–`0x006D99E2`) and written into §4.8.3 step 3.
+  **The bracket is right: `s`**, the popped node's own side, re-read in each pass of the `s2` loop. The test does
+  not depend on `s2`, so all four nodes are added or none. The branch stays unreachable (no code sets wormhole
+  bit 1).
 - **PF5 — §4.6 fallback:** several links of one connection match the start cell: which link cost? [the first]
 - **PF6:** neighbour-connection link lists and `GetTrafficNeighborConnection` costs are not in the traffic network
   core. [host methods]
