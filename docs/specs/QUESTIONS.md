@@ -2131,7 +2131,11 @@ answer is in brackets.
     24-digit limit never takes effect. Float32 0.1 prints `0.10000000149011612`, not `0.100000001490116119384765`, and
     3.14159 prints `3.1415901184082031`. Any implementation of the EX8 rule needs the same change. Test 58 and the §11
     row are corrected.
-- **EX30 — EX17:** `get_void` with a buffer shorter than `length`? [copies what fits; the original would overrun]
+- ~~**EX30 — EX17:** `get_void` with a buffer shorter than `length`? [copies what fits; the original would overrun]~~
+  **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. The original (`0x00915714`) copies
+  `min(length, n)` bytes with a plain memory copy (`0x009F19B0`) and has no way to know the buffer's size, so the
+  bracket's description of it is right: it overruns a buffer shorter than `length` when the array is longer. No
+  shipped record has a void array, so this is not observable. Written into data-formats.md §5.2.
 - **EX31 — EX15:** when do factories run? [eagerly, inside `load_package`; a factory registered later applies from
   the next `load_package`]
 - **EX32:** a Float32 that no text reproduces under the 24-bit parser: what does the writer do? [`to_text` fails

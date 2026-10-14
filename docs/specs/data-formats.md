@@ -654,6 +654,11 @@ a void array `01 02 03` read with `length` 8 copies 3 bytes and sets `length` to
 bytes and leaves `length` at 2; a Uint8 array `01 02 03` gives false. No shipped record has a void array, so on
 shipped data slot 5 always returns false.
 
+The buffer's own size is not passed (EX30). The original trusts `length` as the room available and copies with a
+plain memory copy (`0x009F19B0`), so a caller whose buffer is shorter than `length` is overrun whenever the array is
+longer than the buffer. *[choice]* An interface that knows the buffer's size copies at most that many bytes. This is
+not observable on shipped data.
+
 Call sites using the `AsX()` and `RefX()` accessors expect a fixed stored type; with shipped data that type is
 always present. On a mismatch the original reads whatever bytes the variant holds: `AsX()` loads 1, 2, 4 or 8
 bytes from the value field at offset 4 (`0x0040CE50`, `0x0060CE80`, `0x005FD610`–`0x005FD640`). Worked
