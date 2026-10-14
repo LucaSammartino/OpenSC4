@@ -554,7 +554,11 @@ vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
   emits the low bytes of two uninitialised or stale stack variables. **It cannot happen in the game:** the root is
   always in city and jumped-to off-map nodes are ferry exits with a valid inner cell. **The bracket stands as a
   [choice].**
-- **PF11:** FindPath on an object that is not initialised. [returns 0, does nothing]
+- ~~**PF11:** FindPath on an object that is not initialised. [returns 0, does nothing]~~ **ANSWERED 2026-10-14**
+  from the exe (`FindPath` has no initialised test; constructor `0x006D89C0` leaves W, H and the table bases unset;
+  `Shutdown` `0x006D5D63` nulls the bases; first write `0x006D6060`) and written into §4.3. The original faults or
+  writes through garbage in `SetupDistanceTables`. It is unreachable (`CreatePathFinder` always runs `Init`).
+  **The bracket stands as a [choice].**
 - **PF12:** `LengthOfLine` precision. [the exact square root, rounded once to float]
 - **PF13:** a switch nibble naming a travel type above 8. [ignored]
 - **PF14:** distance-table indices outside −1…W / −1…H (unreachable). [the formula]

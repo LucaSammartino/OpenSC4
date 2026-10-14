@@ -185,6 +185,13 @@ resume). After 1: `GetTripLength`, `GetEndCell`, `GetTrafficArrived`, `GetLastTr
 or 2 there is no result node, the getters return their defaults (§4.14) and `GetTripLength` returns the max trip
 length that was set. *[quirk]*
 
+**FindPath on an object that is not initialised** (PF11). `FindPath` never tests the initialised flag. Before `Init`
+the city size W, H and the two distance-table base pointers are whatever the heap held (the constructor sets none of
+them); after `Shutdown` the base pointers are null. The first distance-table write (`SetupDistanceTables`,
+`0x006D6060`) then faults or writes through a garbage pointer. Every filter builds the tables, except that filter 0
+returns 0 first when §4.5 fails. This cannot happen in the game: `CreatePathFinder` always runs `Init`, and
+`Shutdown` runs only inside the last `Release`. *[choice]* FreeCity4 returns 0 and changes nothing.
+
 `SetMaxTripLength` and `GetTripLength` share one float. A successful search overwrites it with the trip length, so
 the next `FindPath` on the same object uses the previous trip length as its budget unless the caller sets the max trip
 length again. *[quirk][compat]* `Reset` (slot 22) only clears the suspended state; it does not clear results or the
