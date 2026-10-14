@@ -145,7 +145,8 @@ Per in-city cell and travel type `t`:
 * per transit network `n`: an optional *network info* (absent = network `n` not in this cell) with an inverse
   capacity (float), the network type (0–12) and an extra step cost (float).
 * the transit-switch map (u32 switch ID per cell, 0 = none) and `TransitSwitchEntryCost(id)` (float). An unknown ID
-  inserts a default switch whose cost is the float `0x7EFFFFFF` (traffic-network.md).
+  inserts a default switch. In the original that switch holds stack garbage, so its cost is not reproducible;
+  FreeCity4's all-zero switch costs the float `0x7EFFFFFF` *[choice]* (traffic-network.md §4.7.3, TN23).
 * the destination bitmask map, `(W+2) × (H+2)` bytes indexed `[x+1][z+1]` (so off-map cells have entries): bit `k`
   (k = 0…3) = the cell has a destination of type `k` with free capacity; plus the number of such destinations per
   type.

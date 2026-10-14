@@ -415,8 +415,9 @@ Afterwards `monthlyTax[t] := trunc(groupTax[t])` and the function returns `trunc
   integers that enter their first multiplication **exactly** (not rounded to `float32` first; foundations §18.3
   point 1). The order matters: `(assessed × multiplier) × rate` and `(rate × multiplier) × assessed` differ in the
   last bit often enough to move a truncated result by 1 (§15 test 2 has a case). The running sums `groupTax[t]` and
-  `total` are `float32` too. Totals then match the original to the simoleon for the same lots in the same order;
-  tests allow ±1 per 1000 lots only for the lot-order freedom above (§15).
+  `total` are `float32` sums too: they are stored as doubles, but every addition rounds to 24 bits (BQ3 below).
+  Totals then match the original to the simoleon for the same lots in the same order; tests allow ±1 per 1000 lots
+  only for the lot-order freedom above (§15).
 - `rate[t]` is the group's current rate (the original reads it through its own `GetTaxRate(t)`).
 - `value` is read with a converting 64-bit integer read: a scalar of any numeric type converts (a float is
   truncated). All shipped exemplars store `0xE91A0B5F` as a scalar sint64. *[choice]* An array value uses its first
@@ -464,6 +465,43 @@ first at its minimum (x, z) cell, scanning x outer. So on a city with no lots cr
 walks the same lots **in the same order**, and every `float32` sum is bit-identical. Lots created later are appended
 to the list in creation order (zones.md §8.5) but sit by position in the rect query. Deletions do not reorder the rest. Only
 lots created since the load use the order freedom of §15 (the ±1 per 1000 lots tolerance).
+
+**The total is not the sum of the lines (BQ3, from the exe).** `ComputeTax` keeps two kinds of running sum:
+- `total`, one double on the stack, starting at 0.0 (`0x00A80990`);
+- `groupTax[0..11]`, a vector of twelve doubles, all 0.0.
+
+For each taxed lot, `lotTax` is the product chain above, left in ST0. It is added **first to `total`**, then to its
+group (`0x0069205C`–`0x00692070`). Each `FADD` rounds to 24 bits on the main thread (foundations §18), and the result
+is stored as a double, which is exact. So both sums hold exactly the values of `float32` running sums. At the end
+(`0x006920B4`–`0x006920EB`):
+- the return value is `_ftol(total)`, truncated toward zero to 64 bits;
+- then, for t = 0..11, `monthlyTax[t] := _ftol(groupTax[t])`.
+
+The total is never built from the lines or from the group sums. It keeps the fractions that the twelve truncations
+drop, so it usually exceeds the sum of the lines by a few simoleons (by less than 12, up to rounding). BQ3's month
+shows this: the lines sum to 4835 and the month's income is 4839. The settlement then adds this 64-bit total to
+the other income (§5.1).
+
+The total depends on the **lot order**, because its additions round. The lines can match while the total differs.
+To match it to the simoleon, walk the lots in the master-list order above and add each lot's tax to `total` before
+its group. A rect-query walk, or a total formed from the twelve group sums, matches only within the §15 tolerance.
+Between 4096 and 8192 one `float32` step is 2^−11 ≈ 0.00049. So a reordering moves the truncated total only in
+the months where the total lies within a few such steps of a whole number.
+
+Worked example (medium, multiplier 1.1; rate 9 %; four lots whose assessed values are 104410 and 362120 in R$, then
+258840 and 70630 in CS$). The lot taxes are 861.38251 (`0x4457587B`), 2987.4900 (`0x453AB7D7`), 2135.4299
+(`0x450576E1`) and 582.69751 (`0x4411ACA4`). The exact sum is 796000 × 1.1 × 0.09 / 12 = 6567.
+
+| Running `total` after lot | List order 1, 2, 3, 4 | Reverse order 4, 3, 2, 1 |
+|---|---|---|
+| first | 861.38251 | 582.69751 |
+| second | 3848.8726 | 2718.1274 |
+| third | 5984.3027 | 5705.6172 |
+| fourth | **6567.0** (`0x45CD3800`) | **6566.9995** (`0x45CD37FF`) |
+| returned | **6567** | **6566** |
+
+Both orders give the same lines: R$ `trunc(3848.8726)` = 3848 and CS$ `trunc(2718.1274)` = 2718, which sum to
+6566. Only the list order's total is the original's.
 
 ### 5.3 Department expenses and income
 

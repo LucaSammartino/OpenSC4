@@ -603,6 +603,11 @@ For every car record (n = 1) whose type is not Highway:
 
      Only then are its sides 0…3 tried, in order. A side is taken when some entry side has an exit on it and the
      neighbour is in bounds.
+   - **The start cell gets the same checks** (TN21, from the exe). The search enters it at depth 0 like any other
+     cell (`0x0071BB01`–`0x0071BBBB`). Its car record has `connCount ≤ 2`, so the intersection test does nothing,
+     and depth 0 is below `best`. The tunnel test still applies, so **a tunnel start cell is not extended**. The
+     stack is empty, so the search ends at once (`0x0071BCFF` → `0x0071BD98`) with `best = N + 1`, and the cell
+     keeps its table value.
    - The search keeps no visited set: a cell can be reached again by another path while the depth limit holds.
      Backtracking resumes the parent at its next side.
    - The search's bounds check compares both coordinates with X−1 *[quirk]*. It matters only on non-square maps.
@@ -616,6 +621,10 @@ With the shipped values, a Street (100) gives:
 | distance 1 | `0x3C4CCCCC` | 80.00001 |
 | distance 2 | `0x3C360B61` | 90.0 |
 | distance 3 or more | `0x3C23D70A` (unchanged) | 100 |
+
+Worked example (TN21), with the shipped N = 3: a Street tunnel cell with 2 connections whose exit leads straight into
+a 4-way intersection one cell away. Extending the start cell would give `best = 1` and `0x3C4CCCCC` (80.00001). The
+original does not extend it, so the cell keeps `0x3C23D70A` (100). The intersection itself still gets `0x3C6A0EA1`.
 
 ### 4.7 Transit switches
 
@@ -706,6 +715,15 @@ They give N/4 rules, taken whole from the first N/4 entries (`b0` = each entry's
 DoLotActivated stops unless N is a multiple of 4. A scalar has count 0, so it gives a switch with no rules. FreeCity4
 reads the same raw bytes.
 
+**Empty and object-reference values (TN22, from the exe).** These have count 0 as well. The count is a field of its
+own (`+0x10`, read by `GetCount` `0x0040CE60`), not derived from the type:
+- the constructors and `Destroy` (`0x00914EA3`, run when the type changes) set it to 0;
+- storing an object reference (`0x00915A5F`, type `0x10`) does not touch it.
+
+So the copy takes 0 bytes, even though the raw accessor returns the object pointer. The property counts as present,
+so DoLotActivated passes step 1 (0 is a multiple of 4) and builds a switch with no rules: mode mask 0, flags 0, no
+access point. Only an absent property skips the switch (`0x005FFBF5` returns false).
+
 **After a load (TN3, from the exe).** The save **does** contain the rules: `Read` reads them for record versions
 above `0x1C` (§6). `DoPostCityInit` still calls this function for **every** switch in the table (`0x00720466`). The
 function appends and never clears: `0x00711CD0` only reserves room, and each rule is pushed after the existing ones.
@@ -723,6 +741,29 @@ writes the same values, and the flags use the first n. The duplicates show only 
 doubled list, so the record grows by n rules per load. *[choice]* FreeCity4's re-read **replaces** the rules (clear,
 then read), so a load followed by a save reproduces the file.
 
+**When the saved rules differ from the property (TN25, from the exe).** This happens only when the building's
+`0xE90E25A1` changed between the save and the load (a plugin added, removed or edited). The lot and its facing are
+the same, so an unchanged property always matches. With m saved rules and n property rules, the original differs
+from FreeCity4's replacement in three ways:
+- **flags:** taken from the first n entries of the list (`0x00715EF8`–`0x00715F6D`). These are the old rules, plus
+  the first n − m new ones when m < n. FreeCity4 takes them from the n new rules, so the access-point walk can
+  disagree as well;
+- **connections:** §4.7.4 applies all m + n rules, the old ones first. So connections that only the old rules make
+  survive, and where an old and a new rule write the same switch nibble, the new one wins. FreeCity4 applies only
+  the new rules;
+- **persistence:** the old rules are never dropped. Each later save writes the whole list back, so the old rules
+  stay at the front after every later load.
+
+The "to" mask (from the n new entries) and the mode-mask grid (from the save) are the same in both.
+
+Worked example: a switch saved with `81 F0 07 07`, `82 F0 07 07` (m = 2, el train only), loaded after its exemplar
+became `81 F0 06 06`, `82 F0 06 06` (n = 2, subway only). The original's list holds all four rules. Its flags come
+from the first two, so they are `0x08`: flag 4 is clear and the access-point walk clears "has access point". Both the
+el-train and the subway connections are built. FreeCity4 holds the two subway rules with flags `0x04`. If the save had
+no access point, its walk then sets one at the NW cell, and only the subway connections are built. *[choice]*
+FreeCity4 follows the current property: a changed station plugin takes full effect on load. This only differs from
+the original for cities saved before the plugin changed.
+
 **Access points after the re-read (TN4, `0x007204E4`–`0x0072051E`).** Once every switch has been re-read,
 DoPostCityInit walks the table again. Each switch is handled on its own, so the order does not matter:
 
@@ -735,6 +776,18 @@ DoPostCityInit walks the table again. Each switch is handled on its own, so the 
 So after a load, a switch's access point is the saved one when the save had one. Otherwise it is the NW cell, even
 when a fresh activation would have found an access occupant. The mode-mask grid is not touched: it comes from the
 save (§6), and DoPostCityInit does not rewrite it from the re-read rules.
+
+**A switch without a usable building (TN23, from the exe).** Neither walk checks the building:
+- the re-read dereferences it first, to get its property holder (`0x00715CCF`), before the mask is zeroed;
+- the access-point walk calls its slot 11 (`0x00720504`) when flag 4 is set and there is no access point.
+
+A null building therefore crashes the original's DoPostCityInit. A switch inserted by a §4.7.3 or §4.7.4 lookup does
+not even hold null (§4.7.3 step 1): its building is a stale stack value. *[choice]* FreeCity4's inserted switch is
+all zeros, and DoPostCityInit handles a switch with building 0 like this:
+- no re-read: the rules, the flags and the "to" mask stay as they are;
+- flag 4 clear: "has access point" := 0, as for any switch;
+- flag 4 set: "has access point" and the cell stay as they are, because there is no building to take a NW cell from.
+  This case needs a loaded switch whose building reference was null. An inserted switch has flags 0.
 
 For saves of version ≤ `0x1C` (most of the corpus is version 19), `Read` reads no rules and the re-read is their only
 source. `Read` also computes its own mask and flags. They survive only when the NW lot is missing, and they differ
@@ -749,7 +802,12 @@ differ only for a `to` above 255, which shipped rules cannot hold.
 
 #### 4.7.3 TransitSwitchEntryCost(id) (non-virtual `0x0071CB20`, x87 return; used by pathfinder.md §4.8)
 
-1. Look up the switch with insert-if-missing semantics *[quirk]*: an unknown ID inserts a default switch.
+1. Look up the switch with insert-if-missing semantics *[quirk]*: an unknown ID inserts a default switch. In the
+   original that switch is a copy of an **uninitialised** stack temporary (`0x006D90F0`). Only the second f32 counter
+   (`+0x18`) and the rules are zeroed (`0x006D9145`–`0x006D9155`). The building, load, time factor, capacity, flags,
+   access fields, "to" mask, property `0x0BFC0A4C` and intersection flag are whatever was on the stack *[quirk]*, so
+   the cost of an unknown ID is not reproducible. *[choice]* FreeCity4 inserts an all-zero switch: 0/0 is NaN, so the
+   cost is `1.7014117e38` (TN23).
 2. `q = r24(load / capacity)`.
 3. If `q < 5.0` (ordered): cost = `r24(r24(Curve(q) × transitMultiplier) × timeFactor)`. Curve is the
    simulator's congestion → inverse-speed curve (`0x00B4B2F0`). `transitMultiplier` is simulator-owned (1.0 at
@@ -1039,6 +1097,20 @@ z1, max x2, max z2).
 | `0x26D31EC1` | whole map dirty and updated at once |
 | `0x278E6003`, `0x678E6E3A` | dirty ∪= (data1 >> 16) − 1 … data1 & 0xFFFF, (data2 >> 16) − 1 … data2 & 0xFFFF, clamped to the map (terrain change) |
 | `0x99EF1142` / `0x99EF1143` with data3 = `0xC772BF98` | r = the occupant's (void data1) **bounding city cells** (occupant slot 11 `GetBoundingCityCells`). If the cell `(r.x1, r.z1)` is under water (terrain slot 34, NW corner only): dirty ∪= r, not grown and not clamped (bridges). TN15, `0x00724B19`–`0x00724BC8` |
+
+**The update** (UpdateDepthMap `0x00724840`) visits every cell of the dirty rectangle, x inner and z outer, then
+clears the flag. It does not clamp the rectangle and does not check bounds (TN24, from the exe). An off-map cell is
+both asked and written:
+- **asked:** surface water `IsNavigable` (`0x0073EBF0`) tests the city's `CellIsInBounds` (`0x004594D0`, called at
+  `0x0073ECA2`) first and returns false. So the depth is never read, and the cell's value is 0;
+- **written:** the 0 is stored through the grid's raw rows (`0x007249A6`–`0x007249B2`), at row x, byte z, with no
+  check. For x in the map and z past it, this writes past the end of row x. For x outside the map, it uses a row
+  pointer read from outside the row table. Either way it is an out-of-bounds heap write *[quirk]*.
+
+*[choice]* FreeCity4 visits only the in-map part of the rectangle. The in-map cells get the same values. Example on a
+256 × 256 map: a bridge occupant whose bounding cells are (250, 254)–(252, 256) makes the original write a 0 at byte
+256 of rows 250, 251 and 252. That is one byte past each 256-byte row. FreeCity4 updates (250…252, 254…255) and
+nothing else.
 
 #### 4.10.2 FindPath(sx, sz, tx, tz, &cells, fwd, back) (`0x00725170`, pop 28, AL)
 
@@ -1488,6 +1560,9 @@ Unless stated otherwise:
      - two cells away: `0x3C360B61`, GetCapacity 90.0.
    - Roads (1000): `0x3ABB3EE8` / `0x3AA3D70B` / `0x3A91A2B5`.
    - A Highway record is never reduced.
+   - The same cross with the arm cell next to the centre on one side marked as a tunnel (wormhole bit 2): that
+     cell keeps `0x3C23D70A` (100), because a tunnel start cell is not extended (TN21). So does the cell two away
+     on that arm, whose search stops at the tunnel cell (TN5). The centre is still `0x3C6A0EA1`.
 
 5. **Capacity table.** With shipped tuning, `invCapTable` = the §4.5 table. `GetCapacity` of an unreduced record of
    type Road = 999.99994 (`0x4479FFFF`), Highway = 3999.9998 (`0x4579FFFF`), OneWay = 1999.9999 (`0x44F9FFFF`).
@@ -1521,7 +1596,8 @@ Unless stated otherwise:
     - load 0, capacity 100: q = 0 → `Curve(0) × multiplier × timeFactor`.
     - load 600, capacity 100: q = 6 → `0x7EFFFFFF`.
     - load 0, capacity 0: NaN → `0x7EFFFFFF`.
-    - Unknown ID: inserts a default switch (capacity 0) → `0x7EFFFFFF`.
+    - Unknown ID: inserts a default switch (capacity 0) → `0x7EFFFFFF` *[choice]*. The original's inserted switch
+      holds stack garbage (§4.7.3 step 1), so this case is not differential.
 
 11. **Rule rotation.** Facing 1, rule u32 `0x01_01_80_00`:
     - b0 = 0x00 → kind 0;
