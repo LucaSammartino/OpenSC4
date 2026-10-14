@@ -694,11 +694,12 @@ result is a heap address. Only kind-1 properties (§4.6) hold objects, and no sh
   text of exactly 64 characters, is not stripped (`0x00910647`, `0x00910662`). Worked example: Float64
   1.0000000000000002e-47 (digits `10000000000000002` after 46 leading zeros) needs 65 characters; the cut keeps
   `0.`, 46 zeros and `100000000000000`, and the strip leaves `0.`, 46 zeros and `1`, 49 characters.
-  A Float32 reaches the cut only as a **negative subnormal below 1e-44 in magnitude**, the seven values `0x80000001` to `0x80000007`: `-0.`, 44 leading zeros and 17 digits make 64 characters, so the 17th
-  digit is lost. For example `0x80000001` (−1.40129846432481707…e-45, 17 digits `14012984643248171`) gives `-0.`,
-  44 zeros and `1401298464324817`, 63 characters. The positive values fit exactly (63 characters), and from
-  `0x80000008` (−1.12e-44) on there is one leading zero fewer. A Float64 reaches the cut more often: for example
-  −1e62 (`-` and 63 digits), 1e63 (64 digits), and tiny values whose fraction runs past 61 places.
+  A Float32 reaches the cut only as a **negative subnormal below 1e-44 in magnitude**, the seven values `0x80000001` to
+  `0x80000007`: `-0.`, 44 leading zeros and 17 digits make 64 characters, so the 17th digit is lost. For example
+  `0x80000001` (−1.40129846432481707…e-45, 17 digits `14012984643248171`) gives `-0.`, 44 zeros and `1401298464324817`,
+  63 characters. The positive values fit exactly (63 characters), and from `0x80000008` (−1.12e-44) on there is one
+  leading zero fewer. A Float64 reaches the cut more often: for example −1e62 (`-` and 63 digits), 1e63 (64 digits), and
+  tiny values whose fraction runs past 61 places.
 
   **Below 10⁻⁴⁸ the digits are rounded a second time** (EX34). `_fcvt(x, 64)` (`0x009F662C`) keeps digits only up
   to the 64th decimal place. With the 17-digit value written as 0.d₁d₂… × 10^decpt, `_fpcvt` (`0x009F65CF`) asks
@@ -840,15 +841,16 @@ stored as scalars (key type 0) in some records. The original reads each of those
 | `0xEA54D286` (budget item cost) | `vec<s64>`: `0x0069112B`, `0x0069131A`, `0x00693899` (budget simulator) | 2: landfill tiles `0x02F10000` (1) and `0x034E0000` (10) | no cost entry |
 
 The scalar records of the first three are 172 lot configurations (exemplar type 16): all 172 hold `0x88EDC796`
-as a scalar, 161 of them `0x88EDC795` too, and 10 of those also `0x88EDC793`. The budget simulator checks each index against each array's size and
-gives 0 for a missing entry (`0x006939A9`); whether it reads landfill tiles was not traced. The landfill
-maintenance cost reads the same property with the converting getter `0x005FD4B0` instead, so for it the two tiles
-cost 1 and 10 (landfill §4.9.1). So the original's result differs by reader, and only the vector helpers give
-"empty".
+as a scalar, 161 of them `0x88EDC795` too, and 10 of those also `0x88EDC793`. The budget simulator checks each index
+against each array's size and gives 0 for a missing entry (`0x006939A9`); whether it reads landfill tiles was not
+traced. The landfill maintenance cost reads the same property with the converting getter `0x005FD4B0` instead, so for it
+the two tiles cost 1 and 10 (landfill §4.9.1). So the original's result differs by reader, and only the vector helpers
+give "empty".
 
 A vector reader that returns a scalar's one value gives these 172 lot configurations a bit 0 in their purpose set
-(and, for some, in their wealth and zone sets) that the original does not give them. FreeCity4's vector readers must therefore return an **empty**
-vector for a scalar, as the original does, and keep the one value only in the converting getters (§5.1).
+(and, for some, in their wealth and zone sets) that the original does not give them. FreeCity4's vector readers must
+therefore return an **empty** vector for a scalar, as the original does, and keep the one value only in the converting
+getters (§5.1).
 
 On shipped data every raw read finds the type it expects except one, property `0xEA0232A0` (shipped Sint32, read
 with `vec<u32>`), where copying and converting give the same bits (§7.4). *[choice]* Converting every element as

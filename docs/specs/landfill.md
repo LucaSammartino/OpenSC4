@@ -1377,7 +1377,8 @@ and have none. With that rule:
 
 Example: an old FreeCity4 save holds one zone of 3×3 cells (2×2 heaps, all four active) and no tile occupants.
 Its nine cells, local x outer and z inner, have masks 4, 12, 8, 6, 15, 9, 2, 3, 1 (§4.8). None is 0, so all
-nine need a tile, have none, and are rebuilt. An original save of the same zone already holds those nine tiles, so nothing is rebuilt.
+nine need a tile, have none, and are rebuilt. An original save of the same zone already holds those nine tiles, so
+nothing is rebuilt.
 
 *[choice]* The bracket is acceptable.
 

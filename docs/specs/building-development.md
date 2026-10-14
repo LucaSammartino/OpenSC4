@@ -644,9 +644,10 @@ All pass → true (`reason` untouched).
   occupant (borrowed: the occupant manager holds the reference) or **null**.
   **References** *[compat]*: the BDS AddRefs the new occupant once (its creation reference, count 1) and releases
   that reference on **every** exit after creation (`0x00698F1B`): insert failure (slot 8 false) and success alike
-  (a property-load failure branch exists but cannot be taken, §4.9.1). On insert failure it therefore returns null and holds nothing; the occupant is destroyed
-  unless the occupant manager kept a reference of its own. On success the return value is the pointer after that
-  release, kept alive only by the occupant manager. A caller never releases the result.
+  (a property-load failure branch exists but cannot be taken, §4.9.1). On insert failure it therefore returns null and
+  holds nothing; the occupant is destroyed unless the occupant manager kept a reference of its own. On success the
+  return value is the pointer after that release, kept alive only by the occupant manager. A caller never releases the
+  result.
 - `AddNewBuildingOccupant(type, cx, cz, orientation)` (slot 6) = slot 7 with
   `pos = (centreX, terrain.GetAltitude(centreX, centreZ), centreZ)` of the cell (city `CellCenterToPosition`).
 - `PlopBuilding(profile)` (slot 47, `0x00695570`) = slot 6 (through the vtable) with

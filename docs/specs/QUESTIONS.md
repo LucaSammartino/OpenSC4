@@ -3391,8 +3391,8 @@ connection type). The current answer is in brackets.
   never touches the cache. An entry leaves only by key removal, a clear, or a purge of entries no one else holds
   *[unsettled: their callers were not traced]*. **The bracket's condition holds**: the two agree whenever every
   package is registered before the first lookup, which the shipped game does in one pass at startup, the city's
-  save going to the back (a lookup during that pass was not ruled out). *[choice]* No cache stands; a store that registers packages after lookups must keep the
-  first record of each key looked up.
+  save going to the back (a lookup during that pass was not ruled out). *[choice]* No cache stands; a store that
+  registers packages after lookups must keep the first record of each key looked up.
 - ~~**EX38:** EX31 late factory: may a factory added after packages are loaded be refused instead of applied to the
   earlier packages? [refused; `add_factory` returns false]~~
   **ANSWERED 2026-10-14** from the exe (the loader, slot 46 `0x00972EAE`, picks the factory by type at every

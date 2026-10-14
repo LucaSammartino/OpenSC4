@@ -427,11 +427,11 @@ their own points (dump of all 12 in the exemplar data):
 ### 5.2 State 18: population (time-sliced)
 
 Slicing: the shared adaptive helper with budget `ms` and this class's process-wide step `0x00B49098` (miss counter
-`0x00B4909C`, guard `0x00B490A0`) (`simulator.md` §5.5). The clock is the processor's time-stamp counter converted with the
-simulator's `MillisecsToCycles` (§5.5); a replacement may use any monotonic real-time clock such as
-`QueryPerformanceCounter` (DG2), because the slicing changes only how much of the pass runs per call, never its
-result. The deadline check comes **before** each tract. The
-tract developer is fetched once per call (BDS slot 35 `GetTractDeveloper`).
+`0x00B4909C`, guard `0x00B490A0`) (`simulator.md` §5.5). The clock is the processor's time-stamp counter converted with
+the simulator's `MillisecsToCycles` (§5.5); a replacement may use any monotonic real-time clock such as
+`QueryPerformanceCounter` (DG2), because the slicing changes only how much of the pass runs per call, never its result.
+The deadline check comes **before** each tract. The tract developer is fetched once per call (BDS slot 35
+`GetTractDeveloper`).
 
 For each `(x, z)` from the iterator (x inner, z outer) while time remains:
 
