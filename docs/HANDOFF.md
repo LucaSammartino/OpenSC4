@@ -125,6 +125,10 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   **Run 88 (save → reload, fourteen replacements)**: our residential's `Write`/`Read` work (population, wealth
 >   split and EQ/HQ restored); after the in-session save, land value's own `ReleaseGrid` released the last reference
 >   to its three grids from `Read` (3 reference warnings at Shutdown): lane below.
+>   **Run 89 (soak, fourteen replacements, 900 s)**: clean for 39 game years (2026 → 2065), `ref_warnings=0`, x87 0;
+>   funds inside the original's spread. Our residential's EQ falls 58 → 16 and HQ 69 → 18 by 2051; there is no
+>   original baseline yet (the observe line gains `residential EQ/HQ/LE=` in the land value lane), then an
+>   all-original soak gives one.
 > - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lanes in
 >   `.claude/worktrees/re-answers4`, `re-answers5`):
 >   - **neighbours glue + shadow** (`cFC4NeighborsSimulator`, `neighbours_shadow`; ABI 28, seam op 33; renumber at
