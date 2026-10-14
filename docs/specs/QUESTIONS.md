@@ -2674,7 +2674,9 @@ answer is in brackets.
 - ~~**NG33:** A message from another thread that cannot get the lock. [dropped, returns true]~~
   **ANSWERED 2026-10-14**: no original behaviour (no lock; every message is handled and `DoMessage` returns true); the
   implementer's choice stands. Noted in neighbors §15.4.
-- **NG34:** A null connection reference in a save. [skipped]
+- ~~**NG34:** A null connection reference in a save. [skipped]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006CFEC5`, NB7) and noted in neighbors §15.4. The original crashes; skipping
+  is the recorded choice of §13, and the bracket matches it.
 
 ## From applying the aura, education/health and flora answers (filed by the coordinator from the `apply5` lane's report, 2026-10-14)
 

@@ -1223,6 +1223,10 @@ it, with no lock, and never drops one. Its `DoMessage` returns true for every me
 `0x6AC28401`, which is also true in `AL`). Dropping a message is a deviation only if it happens; the choice is the
 implementer's.
 
+**NG34. A null connection reference in a save.** The original appends the null and then releases it without a check,
+so it crashes inside `Read` (§13, NB7; `0x006CFEC5`). Skipping it is the *[choice]* already recorded in §13; the
+bracket matches it.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
