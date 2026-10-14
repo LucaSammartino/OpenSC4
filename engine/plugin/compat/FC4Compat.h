@@ -73,6 +73,10 @@ struct ExecutableVersion {
     // §12.1): the aura shadow reads the object's pipeline state (§14.3) only
     // when its vtable is this one.
     uint32_t auraSimulatorVtableVA;
+    // The original neighbours simulator's cISC4NeighborsSimulator vtable
+    // (neighbors.md compiled slot table, §15.4 NG7): the neighbours shadow
+    // reads the object's state bytes only when its vtable is this one.
+    uint32_t neighborsSimulatorVtableVA;
 };
 
 // The running executable if it is a table entry loaded at its preferred base
@@ -133,6 +137,11 @@ uintptr_t DirectCall(Direct which);
 // address is not committed data inside its image whose first entry is code
 // inside the image. For the aura shadow's raw state read (§14.3).
 const void* AuraSimulatorVtable();
+
+// The original neighbours simulator's cISC4NeighborsSimulator vtable
+// (neighbors.md §15.4 NG7), or nullptr (logged once; the same checks). For
+// the neighbours shadow's raw read of the original's state bytes.
+const void* NeighborsSimulatorVtable();
 
 // The compatibility table.
 const ExecutableVersion* SupportedVersions(int* count);
