@@ -54,6 +54,7 @@
 #include "FC4PollutionShadow.h"
 #include "FC4LandfillShadow.h"
 #include "FC4PlumbingShadow.h"
+#include "FC4PowerShadow.h"
 #include "FC4Streams.h"
 #include "cS3DVector3.h"
 #include "cIGZOStream.h"
@@ -871,6 +872,173 @@ void InitFakeOrigPollution(FakeOrigPollution& o) {
 intptr_t PollutionShadowOnce(FC4TestSeamFn seam, FakeObject* city, cIGZMessageTarget2* target, uint32_t type) {
     FC4PollutionShadowTestInput in{reinterpret_cast<cISC4City*>(city), target, type, 2451576};  // 2000-02-01
     return seam(kFC4SeamPollutionShadow, &in, nullptr);
+}
+
+// ---- the power shadow (test seam op 21) ------------------------------------------------------------
+// An "original" power simulator on a 32 x 32 city without occupants, plants
+// or poles. QueryInterface answers its agent (cIGZMessageTarget2) and
+// cIGZSerializable, whose Write writes a §9.1 version-6 record: no
+// department, the powered grid's reference, a 32 x 32 consumption map, ring,
+// annual and per-type counts of zeros, no plants or poles, the four bitmaps
+// (32 words of zeros each) and `rec`'s ring index, recompute, agePlants and
+// state. The agent's DoMessage leaves `next` (what the original's update
+// did) and, when `poke` >= 0, writes `pokeValue` into that cell of the grid.
+// Slots 27-29 answer 0. The grid (cISC4SimGrid<uint8>, tract size 1, 32 x 32,
+// its own serializable with the grid class ID) holds `cells`. The city
+// answers GetPowerSimulator (compiled slot 67), CellWidthX / Z (91, 92) and
+// CellCountX / Z (93, 94). Any other call aborts.
+struct FakePowerRecord {
+    int32_t ringIndex;
+    uint8_t recompute;
+    uint8_t agePlants;
+    uint32_t state;
+};
+struct FakeOrigPower {
+    FakeVtable simVt, agentVt, serVt, gridVt, gridSerVt, cityVt;
+    FakeObject sim{}, agent{}, ser{}, grid{}, gridSer{}, city{}, other{};
+    FakePowerRecord rec{}, next{};
+    uint8_t cells[32 * 32]{};
+    int poke = -1;
+    uint8_t pokeValue = 0;
+    int refs = 1;
+    int deliveries = 0;
+    int writes = 0;
+};
+
+FakeOrigPower* g_ow = nullptr;
+
+bool __fastcall OwQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, agent, serializable)
+    if (out == nullptr) return false;
+    if (iid == 0x452294AA) {
+        *out = &g_ow->agent;  // cIGZMessageTarget2
+    } else if (iid == GZIID_cIGZSerializable) {
+        *out = &g_ow->ser;
+    } else {
+        return false;  // (the reference audit asks other IIDs)
+    }
+    ++g_ow->refs;
+    return true;
+}
+bool __fastcall OwGridQi(void*, void*, uint32_t iid, void** out) {  // 0 (grid, grid serializable)
+    if (out == nullptr) return false;
+    if (iid == 0xC9BD939A) {
+        *out = &g_ow->grid;  // cISC4SimGrid
+    } else if (iid == GZIID_cIGZSerializable) {
+        *out = &g_ow->gridSer;
+    } else {
+        return false;  // not an occupant, pole or department
+    }
+    ++g_ow->refs;
+    return true;
+}
+uint32_t __fastcall OwAddRef(void*, void*) { return static_cast<uint32_t>(++g_ow->refs); }   // 1
+uint32_t __fastcall OwRelease(void*, void*) { return static_cast<uint32_t>(--g_ow->refs); }  // 2
+bool __fastcall OwWrite(void*, void*, cIGZOStream* s) {                                       // serializable 3
+    ++g_ow->writes;
+    void* p = nullptr;
+    if (!s->QueryInterface(kFC4_IID_cISC4DBSegmentOStream, &p) || p == nullptr) return false;
+    auto* seg = static_cast<cFC4ISC4DBSegmentOStream*>(p);  // the capture stream: no reference taken
+    const FakePowerRecord& r = g_ow->rec;
+    s->SetUint16(6);
+    seg->WriteGZSerializable(nullptr);  // department
+    s->SetSint32(r.ringIndex);
+    s->SetUint32(0);     // production
+    s->SetUint32(0);     // consumption
+    s->SetFloat32(0.0f);  // deficit
+    for (int i = 0; i < 4; ++i) s->SetUint32(0);  // consumers, powered, unpowered, requirement
+    s->SetSint64(0);                               // costBase
+    for (int i = 0; i < 5; ++i) s->SetUint32(0);  // last production .. demand
+    seg->WriteGZSerializable(reinterpret_cast<cIGZSerializable*>(&g_ow->gridSer));
+    s->SetUint32(32);
+    s->SetUint32(32);
+    for (int i = 0; i < 32 * 32; ++i) s->SetSint16(0);   // consumption map
+    for (int i = 0; i < 12 * 10 + 10; ++i) s->SetSint32(0);  // ring, annual
+    s->SetSint32(0);                                     // plant count
+    for (int i = 0; i < 10; ++i) s->SetSint32(0);        // per type
+    s->SetUint32(0);                                     // pole count
+    s->SetUint32(0);                                     // broken count
+    s->SetUint32(32);                                    // words per bitmap
+    for (int i = 0; i < 4 * 32; ++i) s->SetUint32(0);    // mark, wire, powered current / next
+    s->SetUint8(0);                                      // unused
+    s->SetUint8(0);                                      // strike
+    s->SetSint32(0);                                     // strike start
+    s->SetUint8(r.recompute);
+    s->SetUint8(r.agePlants);
+    return s->SetUint32(r.state);
+}
+uint32_t __fastcall OwClsid(void*, void*) { return 0x0990C005; }      // serializable 5
+uint32_t __fastcall OwGridClsid(void*, void*) { return 0x49B9E602; }  // grid serializable 5
+int32_t __fastcall OwZero(void*, void*) { return 0; }                // simulator 27-29
+bool __fastcall OwDoMessage(void*, void*, cIGZMessage2*) {            // agent 3
+    ++g_ow->deliveries;
+    g_ow->rec = g_ow->next;
+    if (g_ow->poke >= 0) g_ow->cells[g_ow->poke] = g_ow->pokeValue;
+    return true;
+}
+int32_t __fastcall OwTractOne(void*, void*) { return 1; }               // grid 10
+int32_t __fastcall OwTractShift(void*, void*) { return 0; }             // grid 11
+int32_t __fastcall OwTractCount(void*, void*) { return 32; }            // grid 12, 13
+float __fastcall OwTractWidth(void*, void*) { return 16.0f; }           // grid 14, 15; city 91, 92
+float __fastcall OwTractInvWidth(void*, void*) { return 1.0f / 16.0f; }  // grid 16, 17
+uint8_t __fastcall OwTractValue(void*, void*, int32_t x, int32_t z) {    // grid 22
+    if (x < 0 || x > 31 || z < 0 || z > 31) return 0;
+    return g_ow->cells[x * 32 + z];
+}
+void* __fastcall OwCityPower(void*, void*) { return &g_ow->sim; }     // city 67
+uint32_t __fastcall OwCellCount(void*, void*) { return 32; }         // city 93, 94
+
+void InitFakeOrigPower(FakeOrigPower& o) {
+    g_ow = &o;
+    for (FakeVtable* vt : {&o.simVt, &o.agentVt, &o.serVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OwQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OwAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OwRelease);
+    }
+    for (FakeVtable* vt : {&o.gridVt, &o.gridSerVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OwGridQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OwAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OwRelease);
+    }
+    o.agentVt.slots[3] = reinterpret_cast<void*>(&OwDoMessage);
+    o.serVt.slots[3] = reinterpret_cast<void*>(&OwWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&OwClsid);
+    o.gridSerVt.slots[5] = reinterpret_cast<void*>(&OwGridClsid);
+    for (int s = 27; s <= 29; ++s) o.simVt.slots[s] = reinterpret_cast<void*>(&OwZero);
+    o.gridVt.slots[10] = reinterpret_cast<void*>(&OwTractOne);
+    o.gridVt.slots[11] = reinterpret_cast<void*>(&OwTractShift);
+    o.gridVt.slots[12] = reinterpret_cast<void*>(&OwTractCount);
+    o.gridVt.slots[13] = reinterpret_cast<void*>(&OwTractCount);
+    o.gridVt.slots[14] = reinterpret_cast<void*>(&OwTractWidth);
+    o.gridVt.slots[15] = reinterpret_cast<void*>(&OwTractWidth);
+    o.gridVt.slots[16] = reinterpret_cast<void*>(&OwTractInvWidth);
+    o.gridVt.slots[17] = reinterpret_cast<void*>(&OwTractInvWidth);
+    o.gridVt.slots[22] = reinterpret_cast<void*>(&OwTractValue);
+    o.cityVt.slots[67] = reinterpret_cast<void*>(&OwCityPower);
+    o.cityVt.slots[91] = reinterpret_cast<void*>(&OwTractWidth);
+    o.cityVt.slots[92] = reinterpret_cast<void*>(&OwTractWidth);
+    o.cityVt.slots[93] = reinterpret_cast<void*>(&OwCellCount);
+    o.cityVt.slots[94] = reinterpret_cast<void*>(&OwCellCount);
+    o.sim.vtbl = o.simVt.slots.data();
+    o.agent.vtbl = o.agentVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.grid.vtbl = o.gridVt.slots.data();
+    o.gridSer.vtbl = o.gridSerVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.other.vtbl = o.agentVt.slots.data();  // an agent, but not the simulator's
+}
+
+// The original before (`state`, ring index 0, nothing requested) and what its
+// update leaves (`next`).
+void OwSet(FakeOrigPower& o, uint32_t state, FakePowerRecord next) {
+    o.rec = FakePowerRecord{0, 0, 0, state};
+    o.next = next;
+    o.poke = -1;
+}
+
+intptr_t PowerShadowOnce(FC4TestSeamFn seam, FakeObject* city, cIGZMessageTarget2* target, uint32_t type,
+                         bool fresh) {
+    FC4PowerShadowTestInput in{reinterpret_cast<cISC4City*>(city), target, type, 2451576, fresh ? 1u : 0u};  // 2000-02-01
+    return seam(kFC4SeamPowerShadow, &in, nullptr);
 }
 
 // ---- the crime shadow (test seam op 13) ----------------------------------------------------------
@@ -3578,7 +3746,7 @@ int main(int argc, char** argv) {
         // the water simulator (plumbing.md §1).
         SetEnvironmentVariableA("FC4_DISABLE", nullptr);
         SetEnvironmentVariableA("FC4_ENABLE", nullptr);
-        WriteTextFile(ini, "[subsystems]\nenable = plumbing\n[tools]\nplumbing_shadow = 1\n");
+        WriteTextFile(ini, "[subsystems]\nenable = plumbing\n[tools]\nplumbing_shadow = 1\npower_shadow = 1\n");
         HMODULE hd = LoadLibraryA(dll.c_str());
         CHECK(hd != nullptr);
         if (hd == nullptr) return 1;
@@ -3663,6 +3831,10 @@ int main(int argc, char** argv) {
         CHECK(text.find("subsystem 'plumbing': enabled (1 class replaced) by FreeCity4.ini (enable=)") !=
               std::string::npos);
         CHECK(text.find("subsystem 'power': off by default") != std::string::npos);
+        // The power shadow can run here (our simulator, the original power).
+        CHECK(text.find("power shadow: ON (power_shadow from FreeCity4.ini): at each SimNewMonth, SimNewDay and "
+                        "working SimIdle of the ORIGINAL power simulator") != std::string::npos);
+        CHECK(text.find("power shadow: requested") == std::string::npos);
         CHECK(text.find("cFC4PlumbingSimulator(") != std::string::npos);
         CHECK(text.find("plumbing Init:") != std::string::npos);
         CHECK(text.find("plumbing Shutdown") != std::string::npos);
@@ -4398,6 +4570,50 @@ int main(int argc, char** argv) {
             CheckCw("pollution shadow");
         }
 
+        // The power shadow (op 21) next to an "original" power simulator on
+        // an empty 32 x 32 city. Clean month: the original advanced the ring
+        // and asked for the recompute and the ageing, as FreeCity4's §7.5
+        // does (0). Skewed month: its ring index is one further (1). The
+        // neighbours step (state 2 -> 3) and the statistics step (3 -> 4) are
+        // clean (0), then the original is idle: a SimIdle passes through
+        // (-3) while a SimNewDay is wrapped (0). A neighbours step whose
+        // update also wrote a powered value into an unwired cell: one grid
+        // cell differs (1), reported in the cycle line of the statistics step
+        // that follows (0). Not the original's agent, no city: left to the
+        // caller (-1, nothing delivered).
+        if (seam != nullptr) {
+            static FakeOrigPower ow;
+            InitFakeOrigPower(ow);
+            cIGZMessageTarget2* agent = reinterpret_cast<cIGZMessageTarget2*>(&ow.agent);
+            CHECK(PowerShadowOnce(seam, nullptr, agent, kMsgSimNewMonth, true) == -1);
+            CHECK(ow.deliveries == 0 && ow.writes == 0);
+            OwSet(ow, 4, FakePowerRecord{1, 1, 1, 4});
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimNewMonth, true) == 0);
+            CHECK(ow.deliveries == 1 && ow.writes == 2);
+            OwSet(ow, 4, FakePowerRecord{2, 1, 1, 4});
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimNewMonth, true) == 1);
+            OwSet(ow, 2, FakePowerRecord{0, 0, 0, 3});
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, true) == 0);
+            OwSet(ow, 3, FakePowerRecord{0, 0, 0, 4});
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, false) == 0);
+            OwSet(ow, 4, FakePowerRecord{0, 0, 0, 4});
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, false) == -3);
+            CHECK(ow.deliveries == 5 && ow.writes == 8);  // passed through: delivered, not captured
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimNewDay, false) == 0);
+            OwSet(ow, 2, FakePowerRecord{0, 0, 0, 3});
+            ow.poke = 5 * 32 + 7;
+            ow.pokeValue = 2;
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, true) == 1);
+            OwSet(ow, 3, FakePowerRecord{0, 0, 0, 4});
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, false) == 0);
+            std::memset(ow.cells, 0, sizeof(ow.cells));
+            CHECK(PowerShadowOnce(seam, &ow.city, reinterpret_cast<cIGZMessageTarget2*>(&ow.other), kMsgSimIdle,
+                                  true) == -1);
+            CHECK(ow.deliveries == 8 && ow.writes == 14);
+            CHECK(ow.refs == 1);  // every QueryInterface released
+            CheckCw("power shadow");
+        }
+
         // The crime shadow (op 13) next to an "original" crime simulator: one
         // month each (SimNewMonth, then SimNewDay until its pipeline state 4).
         // Clean: the original did what FreeCity4's state 4 does (0
@@ -4573,6 +4789,23 @@ int main(int argc, char** argv) {
           std::string::npos);
     CHECK(CountOf(text, "pollution shadow month to ") == 1);
     CHECK(text.find("pollution shadow: ON") == std::string::npos);  // off by default
+    // The power shadow (test seam op 21): two months (clean, ring index
+    // skewed), two cycles (clean; one grid cell off).
+    CHECK(text.find("power shadow: the original power simulator ") != std::string::npos);
+    CHECK(text.find("power shadow 2000-02-01 month: 1024 cells compared; production=0/0 consumption=0/0 import=0/0 "
+                    "export=0/0 demand=0/0 requirement=0/0 consumers=0/0 powered=0/0 unpowered=0/0 plants=0/0 "
+                    "aged=0/0 distressed=0/0 overworked=0/0 deficit=0/0 poles=0/0 broken=0/0; brokenFraction from 0 "
+                    "at the shadow's start (2000-02-01); not_exact=0; mismatches=0") != std::string::npos);
+    CHECK(text.find("broken=0/0; fields orig/ours: ringIndex=2/1; brokenFraction from 0 at the shadow's start "
+                    "(2000-02-01); not_exact=0; mismatches=1") != std::string::npos);
+    CHECK(CountOf(text, "power shadow 2000-02-01 bookkeeping: ") == 2);
+    CHECK(CountOf(text, "consumption map 0/1024 cells differ max|d|=0; wire 0 cells differ;") == 2);
+    CHECK(CountOf(text, "power shadow month to 2000-02-01: deliveries=1 steps=0 idle passed through=0 not "
+                        "enabled=0 cycles=0") == 2);
+    CHECK(text.find("power shadow 2000-02-01 cycle: steps 2 3 (cycle start not observed) on 32x32 cells; grid 2048 "
+                    "cells compared, max|d|=0; first differing cells: none;") != std::string::npos);
+    CHECK(CountOf(text, "power shadow 2000-02-01 cycle: ") == 2);
+    CHECK(text.find("power shadow: ON") == std::string::npos);  // off by default
     // The crime shadow (test seam op 13): a clean month, a skewed one, an
     // unobserved state 4; four runs, each a new "original".
     CHECK(CountOf(text, "crime shadow: tracking the original crime simulator ") == 4);

@@ -656,6 +656,56 @@ plugin.
      ```
 
      Success is `clean` on every month line and no `INCOMPLETE` line.
+   - **Power shadow** (`power_shadow = 1`, env `FC4_POWER_SHADOW`; off by default; `power_shadow_cells = N`, env
+     `FC4_POWER_SHADOW_CELLS`, default 8, 1..64, differing cells listed per line; `power_shadow_lines = N`, env
+     `FC4_POWER_SHADOW_LINES`, default 32, -1 = all, cycle lines with a difference per month): a same-process
+     differential of the power simulator. It needs **FreeCity4's simulator and the original power simulator**
+     (do not enable `power`); otherwise `power shadow: requested … but INACTIVE` at game start. Our simulator
+     wraps (`plugin/FC4PowerShadow.cpp`) every `SimNewMonth` and each `SimNewDay` / `SimIdle` that runs one step
+     of the original's `DoIdle` (power spec §6: 4 → 0 → 1 → 2 → 3); a delivery while the original is idle (state
+     4, no recompute requested, none of its §5 messages since) passes straight through. Before: the original's
+     own `Write` into a memory stream (the §9.1 record) and its plant counts (slots 27-29); FreeCity4's step (the
+     core code our power simulator runs, `fc4_power_shadow_begin`) runs on that record and a copy of the live
+     powered grid, reading every other input live through a read-only host table (no grid writes; occupant
+     properties, deal usage, connection flags and budget item costs go to overlays inside the shadow). Then the
+     original's delivery, unchanged; after: the record and the counts again, compared
+     (`fc4_power_shadow_finish`): every record field, the consumption map, the mark / wire / powered bitmaps, the
+     powered grid cell by cell, the plant counts and the property / deal / connection / item writes. A step whose
+     wire bits changed runs again with the changed bits' bounding box as the dirty rectangle (the original's is
+     not saved); a shortfall network whose result depends on the original's `rand()` (§6.3 step 6) runs again
+     with the original's powered bits as the block iterator's target, which recovers the original's draw when
+     the blocks are the same, else the cells are counted as `not_exact`. Nothing is written to the game. **Not
+     compared** (said in the start line): posted messages, history values, budget line items, demolitions, lot
+     conditions, the poles the month's `random_shuffle` picks (the broken count is compared), deal flags, the
+     original's pass import / export / demand before its first observed state 0 (`not_exact`), and its dirty
+     rectangle. Lines (always written; longer ones continue on `power shadow (cont.)` lines):
+
+     ```
+     power shadow: ON (power_shadow from …): …                                  (game start)
+     power shadow: comparing with the original power simulator … (city …); …    (each city)
+     power shadow yyyy-mm-dd cycle: steps 4>0 0 1 2 3 on WxH cells; grid N cells compared, max|d|=D; first
+       differing cells: grid(x,z) o/b [step] …; production=o/b consumption=o/b import=o/b export=o/b demand=o/b
+       requirement=o/b consumers=o/b powered=o/b unpowered=o/b plants=o/b aged=o/b distressed=o/b
+       overworked=o/b deficit=o/b poles=o/b broken=o/b; orders: floods=… order-dependent=… matched=…
+       unmatched=…; props a/b deals a/b connections a/b items a/b (compared/mismatched); not compared: posts=…
+       history=… budget=… lots=… demolitions=… other=…; [step] details …; not_exact=K; mismatches=M
+                                     (orig/ours; one per recompute cycle, at its state 3; `!` = step differs)
+     power shadow yyyy-mm-dd month: N cells compared; <the same scalars>[; fields orig/ours: …]; not_exact=K;
+       mismatches=M
+     power shadow yyyy-mm-dd bookkeeping: the original's running counts (orig) vs FreeCity4's insertion (§5.1)
+       of the N live occupants and a wire rebuild of the whole map (ours), orig/ours: consumers=…;
+       requirement=…; plantCount=…; poleCount=…; costBase=…; consumption map d/N cells differ max|d|=…; wire
+       … cells differ; …; mismatches=M
+     power shadow month to yyyy-mm-dd: deliveries=… steps=… idle passed through=… not enabled=… cycles=…
+       (clean …, lines …) incomplete=… reruns=… uncached=… factor=… pass totals known|unknown; not_exact=K;
+       mismatches=M
+     power shadow yyyy-mm-dd step|month: INCOMPLETE (why); not compared
+     ```
+
+     The first four clean cycles of each month are logged, later ones only counted (`power_shadow_lines` caps
+     the cycle lines with a difference a month). Success is `mismatches=0` on every cycle, month and bookkeeping line, `not_exact=0`
+     (or only on the first cycle, before a state 0 was seen) and no `INCOMPLETE` line. The bookkeeping line
+     can differ by a few when the original still has §5 messages queued at the month.
    - **Plumbing shadow** (`plumbing_shadow = 1`, env `FC4_PLUMBING_SHADOW`; off by default;
      `plumbing_shadow_cells = N`, env `FC4_PLUMBING_SHADOW_CELLS`, default 8, 1..64, the differing cells listed per
      line; `plumbing_shadow_passes = N`, env `FC4_PLUMBING_SHADOW_PASSES`, default 4, the passes replayed per game

@@ -176,6 +176,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "aura_shadow", "aura_shadow_cells",
                                   "flora_shadow",
                                   "landfill_shadow", "landfill_shadow_diffs",
+                                  "power_shadow", "power_shadow_cells", "power_shadow_lines",
                                   "plumbing_shadow", "plumbing_shadow_cells", "plumbing_shadow_passes"};
 
 // The switches that are off, for lock-free readers (autotest verdict).

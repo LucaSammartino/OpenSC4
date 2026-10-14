@@ -80,16 +80,21 @@
 //         a fake "original" landfill developer; returns the month's
 //         difference count, -1 (not taken) or -2 (delivered, nothing
 //         compared).
-//   op 22 kFC4SeamPlumbingShadow   a = const FC4PlumbingShadowTestInput*
-//         (FC4PlumbingShadow.h): a run of deliveries (SimIdle, SimNewDay,
-//         SimNewMonth) to a fake "original" plumbing simulator, one shadow for
-//         the run; returns the summed difference count of the passes and
-//         months compared, -1 (none taken) or -2 (taken, nothing compared).
 //   op 20 kFC4SeamDemandCapacity   a = const FC4DemandCapacityTestInput*
 //         (cFC4Demand.h): the demand glue's capacity-map read of a building
 //         profile (DemandReportCapacities, no simulator): the visitor gets
 //         every entry; returns the entries reported, 0 (switch off) or -1
 //         (refused, logged).
+//   op 21 kFC4SeamPowerShadow      a = const FC4PowerShadowTestInput*
+//         (FC4PowerShadow.h): one power-shadow delivery (SimNewDay, SimIdle
+//         or SimNewMonth) to a fake "original" power simulator; returns the
+//         delivery's difference count, -1 (not taken), -2 (delivered,
+//         nothing compared) or -3 (passed through: the original idle).
+//   op 22 kFC4SeamPlumbingShadow   a = const FC4PlumbingShadowTestInput*
+//         (FC4PlumbingShadow.h): a run of deliveries (SimIdle, SimNewDay,
+//         SimNewMonth) to a fake "original" plumbing simulator, one shadow for
+//         the run; returns the summed difference count of the passes and
+//         months compared, -1 (none taken) or -2 (taken, nothing compared).
 #pragma once
 
 #include <cstdint>
@@ -115,6 +120,7 @@ enum : uint32_t {
     kFC4SeamFloraShadow = 17,
     kFC4SeamLandfillShadow = 18,
     kFC4SeamDemandCapacity = 20,
+    kFC4SeamPowerShadow = 21,
     kFC4SeamPlumbingShadow = 22,
 };
 

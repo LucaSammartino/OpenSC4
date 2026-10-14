@@ -17,7 +17,7 @@ use super::{
     AGED_WEAR, DEFAULT_T1, DEFAULT_T2, DESTROY_EXTRA_FLAGS, GROW_ITERATIONS, MAX_CONNECTIONS_PER_DEAL,
     ORDINANCE_FACTOR_ID, PLANT_TYPES, PLANT_TYPE_NUCLEAR, PRODUCTION_RATIO,
 };
-use super::{FloodReport, PlantReport, Report};
+use super::{BlockDraw, FloodReport, PlantReport, Report};
 
 /// The 8 × 8 block rectangle of block (bx, bz).
 fn block_rect(bx: i32, bz: i32) -> CellRect {
@@ -376,6 +376,11 @@ impl Cx<'_> {
         let bz0 = row_min >> 3;
         let mut it = CellIterator::new(0, bz0, (cx / 8 - 1).max(0), bz0.max(row_max >> 3));
         it.reset(true, &mut self.i.crt);
+        let draw = self
+            .i
+            .blocks
+            .is_some()
+            .then(|| self.choose_block_start(&mut it, avail, (x, z)));
         let mut shortfall = false;
         let (mut consumers, mut powered_cells) = (0u32, 0u32);
         let demand_before = self.i.s.demand;
@@ -403,6 +408,12 @@ impl Cx<'_> {
                 avail -= need;
             } else {
                 shortfall = true;
+            }
+        }
+        if let Some(mut d) = draw {
+            d.shortfall = shortfall;
+            if let Some(b) = &mut self.i.blocks {
+                b.draws.push(d);
             }
         }
 
@@ -447,6 +458,92 @@ impl Cx<'_> {
 
         // 9. The plants of this network.
         self.mark_plants_visited(remaining as u32, supply.max(remaining as u32));
+    }
+
+    /// Tooling (the block probe, [`BlockDraw`]): records step 6's order and,
+    /// with a target, replaces the drawn start (`it` is already reset) by the
+    /// first start whose powered bits inside this network reproduce the
+    /// target. Reads only the simulator's own state.
+    fn choose_block_start(&mut self, it: &mut CellIterator, avail: u32, seed: (i32, i32)) -> BlockDraw {
+        let mut d = BlockDraw {
+            seed,
+            count: it.count,
+            start: it.current,
+            ..BlockDraw::default()
+        };
+        let w = it.x1.saturating_sub(it.x0).saturating_add(1).max(1);
+        let h = it.z1.saturating_sub(it.z0).saturating_add(1).max(1);
+        let n = (i64::from(w) * i64::from(h)).clamp(0, 1 << 20) as usize;
+        let s = &self.i.s;
+        let target = self.i.blocks.as_ref().and_then(|b| b.target.as_ref());
+        // Per block, numbered as the iterator numbers them ((bz − z0) · w +
+        // (bx − x0)): its need, and whether the target's bits inside the
+        // network agree with the block powered (every marked cell set) or
+        // left unpowered (the marked cells as before step 6).
+        let mut need = vec![0u32; n];
+        let mut ok_on = vec![true; n];
+        let mut ok_off = vec![true; n];
+        let mut total = 0u64;
+        for c in 0..n {
+            let (bx, bz) = (it.x0 + (c as i32) % w, it.z0 + (c as i32) / w);
+            let r = block_rect(bx, bz);
+            let mut nd = 0u32;
+            for x in r.x1..=r.x2 {
+                for z in r.z1..=r.z2 {
+                    if !s.mark.test(x, z) {
+                        continue;
+                    }
+                    let cons = s.consumption_at(x, z);
+                    if cons > 0 {
+                        nd = nd.wrapping_add(cons as u32);
+                    }
+                    if let Some(t) = target {
+                        let on = t.test(x, z);
+                        ok_on[c] &= on;
+                        ok_off[c] &= on == s.powered_next.test(x, z);
+                    }
+                }
+            }
+            need[c] = nd;
+            total += u64::from(nd);
+        }
+        d.order_dependent = avail != 0 && total >= u64::from(avail);
+        if target.is_none() || !d.order_dependent {
+            return d;
+        }
+        let mut first = None;
+        for start in 0..it.count.clamp(0, 32768) {
+            let mut trial = it.clone();
+            trial.current = start;
+            let mut left = avail;
+            let mut ok = true;
+            while let Some((bx, bz)) = trial.next_cell() {
+                let c = (i64::from(bz - it.z0) * i64::from(w) + i64::from(bx - it.x0)) as usize;
+                let Some(&nd) = need.get(c) else { continue };
+                let on = left != 0 && nd <= left;
+                if on {
+                    left -= nd;
+                }
+                if !(if on { ok_on[c] } else { ok_off[c] }) {
+                    ok = false;
+                    break;
+                }
+            }
+            d.tried += 1;
+            if ok {
+                d.matching += 1;
+                first.get_or_insert(start);
+            }
+        }
+        match first {
+            Some(start) => {
+                it.current = start;
+                d.start = start;
+                d.from_target = true;
+            }
+            None => d.unmatched_mark = Some(self.i.s.mark.clone()),
+        }
+        d
     }
 
     /// `MarkPowerPlantsAsVisited(a, b)` (§6.4): `ratio := f32(u32 a / u32 b)`

@@ -30,6 +30,7 @@
 #include "FC4PlumbingShadow.h"
 #include "cFC4Flammability.h"
 #include "FC4PollutionShadow.h"
+#include "FC4PowerShadow.h"
 #include "cFC4Pollution.h"
 #include "FC4ProtectionShadow.h"
 #include "cFC4Protection.h"
@@ -292,6 +293,8 @@ void Resolve() {
     FloraShadowStartup(g_enabled[0], enabledKey("flora"));
     // The landfill shadow (FC4LandfillShadow.h; it compares the original landfill developer).
     LandfillShadowStartup(g_enabled[0], enabledKey("landfill"));
+    // The power shadow (FC4PowerShadow.h; it compares the original power simulator).
+    PowerShadowStartup(g_enabled[0], enabledKey("power"));
     // The plumbing shadow (FC4PlumbingShadow.h; it compares the original plumbing simulator).
     PlumbingShadowStartup(g_enabled[0], enabledKey("plumbing"));
 }

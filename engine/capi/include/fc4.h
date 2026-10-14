@@ -65,6 +65,7 @@ extern "C" {
  * 20 = adds the aura simulator (fc4_aura) and its shadow (fc4_aura_shadow);
  * 21 = adds the flora simulator (fc4_flora, fc4_flora_registry) and its shadow (fc4_flora_shadow);
  * 22 = adds the landfill developer (fc4_landfill) and its shadow (fc4_landfill_shadow);
+ * 23 = adds the power shadow (fc4_power_shadow);
  * 24 = adds the plumbing shadow (fc4_plumbing_shadow). */
 #define FC4_ABI_VERSION 24u
 
@@ -1521,6 +1522,96 @@ void fc4_power_set_report(const fc4_power* p, bool on);
 bool fc4_power_take_report(const fc4_power* p, fc4_bytes_sink sink, void* ctx);
 bool fc4_power_write(const fc4_power* p, const fc4_ostream* out); /* §9 */
 bool fc4_power_read(fc4_power* p, const fc4_istream* in);         /* §9: false only for version > 6 */
+
+/* ---- power shadow (tooling; engine/capi/src/power_shadow.rs) -----------------
+ *
+ * With the ORIGINAL power simulator running, each of its SimNewMonth
+ * deliveries and each SimNewDay / SimIdle delivery that does work (one DoIdle
+ * step, §6) is wrapped: before it the plugin captures the original's §9.1
+ * record (its own Write into memory: primitives little-endian, references as
+ * u32 index + 1 (0 = null) then u32 class ID, each object listed once with its
+ * tokens) and its slots 27-29, and fc4_power_shadow_begin copies the live
+ * powered grid and runs FreeCity4's step on the record with every input read
+ * through a read-only host table (write callbacks NULL; grids: geometry and get
+ * only); a month also rebuilds the bookkeeping from scratch (§5.1 for every
+ * live occupant, a wire rebuild of the map). After the delivery the plugin
+ * captures again and fc4_power_shadow_finish compares the record's fields and
+ * bitmaps, the consumption map, the powered grid cell by cell, the counts and
+ * the occupant properties, deal usage, connection flags and budget item costs
+ * FreeCity4 wrote (kept in the shadow) with the game's. Not compared (not
+ * readable): posted messages, history, budget line items, demolitions, lot
+ * conditions, the poles the month's shuffle picks (the count is compared),
+ * deal flags. */
+typedef struct fc4_power_shadow fc4_power_shadow;
+
+/* fc4_power_capture_ref.flags: the object answers cISC4PowerPoleOccupant
+ * (0xA8C86142); the pole is known by `occupant`. */
+#define FC4_POWER_CAPTURE_POLE 1u
+
+typedef struct fc4_power_capture_ref {
+    uint64_t occupant;   /* cISC4Occupant 0x26BB767E (plants, poles); borrowed; 0 = none */
+    uint64_t grid;       /* cISC4SimGrid 0xC9BD939A */
+    uint64_t department; /* cISC4DepartmentBudget 0x223E2B67 */
+    uint32_t class_id;   /* GetGZCLSID() */
+    uint32_t flags;      /* FC4_POWER_CAPTURE_POLE */
+} fc4_power_capture_ref;
+
+typedef struct fc4_power_capture {
+    uint32_t struct_size;
+    uint32_t ok; /* non-zero: Write returned true and the stream stayed good */
+    const uint8_t* bytes;
+    size_t len;
+    const fc4_power_capture_ref* refs;
+    size_t ref_count;
+} fc4_power_capture;
+
+/* The original's unsaved plant counts: slots 27, 28, 29. */
+typedef struct fc4_power_shadow_counts {
+    uint32_t struct_size;
+    uint32_t ok; /* non-zero: read */
+    uint32_t overworked, aged, distressed;
+    uint32_t reserved;
+} fc4_power_shadow_counts;
+
+typedef struct fc4_power_shadow_options {
+    uint32_t struct_size;
+    uint32_t max_cells; /* differing cells listed per line (0 = 8, at most 64) */
+    uint32_t max_lines; /* cycle lines with a difference per month (0 = 32; UINT32_MAX = all) */
+    uint32_t reserved;
+    /* cISC4NeighborConnection::GetVisitedThisCycle (slot 11) of a connection
+     * token, called with the host table's `user`: the shadow emulates
+     * FindUnvisitedConnection with it. NULL: the live FindUnvisitedConnection. */
+    bool (*connection_visited)(void* user, uint64_t connection);
+} fc4_power_shadow_options;
+
+typedef struct fc4_power_shadow_stats {
+    uint32_t struct_size;
+    uint32_t deliveries, idle_skipped, steps, cycles, months, clean, incomplete, reruns, not_enabled;
+    int32_t last_mismatches; /* -1: not compared */
+    uint32_t uncached_reads;
+    uint64_t mismatches, not_exact, bookkeeping_mismatches;
+} fc4_power_shadow_stats;
+
+/* `options` may be NULL (defaults). NULL when the table is short or the grid
+ * table has no geometry / get. */
+fc4_power_shadow* fc4_power_shadow_create(const fc4_power_host* host, const fc4_power_shadow_options* options);
+void fc4_power_shadow_destroy(fc4_power_shadow* s);
+/* Whether to wrap this delivery: every SimNewMonth and SimNewDay; a SimIdle
+ * unless the original was idle after the last wrapped delivery (state 4, no
+ * recompute) and `event` is false (`event`: one of the original's §5
+ * messages arrived since). A delivery passed through is counted. */
+bool fc4_power_shadow_wants(fc4_power_shadow* s, uint32_t msg_type, bool event);
+/* 0 = ran, -1 = not run (finish reports why), -2 = not a day, idle or month.
+ * `counts` may be NULL. */
+int32_t fc4_power_shadow_begin(fc4_power_shadow* s, uint32_t msg_type, int32_t julian,
+                               const fc4_power_capture* before, const fc4_power_shadow_counts* counts);
+/* The delivery's difference count (-1 = not compared); log lines go to `sink`,
+ * one call per line (each ends in "mismatches=N"): the cycle line at the end
+ * of a recompute cycle (capped per month), the month, bookkeeping and month
+ * summary lines after a SimNewMonth, INCOMPLETE lines (at most 3 a month). */
+int32_t fc4_power_shadow_finish(fc4_power_shadow* s, const fc4_power_capture* after,
+                                const fc4_power_shadow_counts* counts, fc4_bytes_sink sink, void* ctx);
+bool fc4_power_shadow_get_stats(fc4_power_shadow* s, fc4_power_shadow_stats* out);
 
 /* ---- plumbing (docs/specs/plumbing.md) ---------------------------------------
  *
@@ -3369,6 +3460,11 @@ static_assert(sizeof(fc4_power_message) == 48, "fc4_power_message layout");
 static_assert(sizeof(fc4_power_found) == 32, "fc4_power_found layout");
 static_assert(sizeof(fc4_power_state) == 88, "fc4_power_state layout");
 static_assert(sizeof(fc4_power_host) == (sizeof(void*) == 4 ? 400 : 800), "fc4_power_host layout");
+static_assert(sizeof(fc4_power_capture_ref) == 32, "fc4_power_capture_ref layout");
+static_assert(sizeof(fc4_power_capture) == (sizeof(void*) == 4 ? 24 : 40), "fc4_power_capture layout");
+static_assert(sizeof(fc4_power_shadow_counts) == 24, "fc4_power_shadow_counts layout");
+static_assert(sizeof(fc4_power_shadow_options) == (sizeof(void*) == 4 ? 20 : 24), "fc4_power_shadow_options layout");
+static_assert(sizeof(fc4_power_shadow_stats) == 72, "fc4_power_shadow_stats layout");
 static_assert(sizeof(fc4_plumbing_budget_item) == 24, "fc4_plumbing_budget_item layout");
 static_assert(sizeof(fc4_plumbing_message) == 40, "fc4_plumbing_message layout");
 static_assert(sizeof(fc4_plumbing_producer_info) == 20, "fc4_plumbing_producer_info layout");
@@ -3431,6 +3527,9 @@ _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
 _Static_assert(sizeof(fc4_debug) == 76, "fc4_debug layout");
 _Static_assert(sizeof(fc4_agent_info) == 16, "fc4_agent_info layout");
+_Static_assert(sizeof(fc4_power_capture_ref) == 32, "fc4_power_capture_ref layout");
+_Static_assert(sizeof(fc4_power_shadow_counts) == 24, "fc4_power_shadow_counts layout");
+_Static_assert(sizeof(fc4_power_shadow_stats) == 72, "fc4_power_shadow_stats layout");
 #endif
 
 #endif /* FC4_H */

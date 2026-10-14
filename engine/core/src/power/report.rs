@@ -12,7 +12,7 @@
 
 use std::fmt::Write as _;
 
-use crate::grid::CellRect;
+use crate::grid::{Bitmap, CellRect};
 
 /// One plant as state 1 found it.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -151,4 +151,42 @@ impl Report {
         }
         t
     }
+}
+
+/// Tooling (the power shadow, `capi/src/power_shadow.rs`): how one
+/// `UpdatePowerGrid` call (§6.3 step 6) ordered its blocks. Recorded only
+/// while the host has switched the block probe on
+/// ([`super::PowerSim::set_block_probe`]); the host calls are the same either
+/// way.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BlockDraw {
+    /// The flood's seed cell.
+    pub seed: (i32, i32),
+    /// The iterator's count: the call can take `min(count, 32768)` orders,
+    /// one per start `rand() mod count` (foundations §12.4).
+    pub count: i32,
+    /// Some order can leave a block unpowered (`avail ≠ 0` and the blocks'
+    /// total need ≥ `avail`): the powered set may depend on the draw. When
+    /// false, every order powers every block (or, with `avail = 0`, none).
+    pub order_dependent: bool,
+    /// A block was left unpowered with the order used.
+    pub shortfall: bool,
+    /// With a target: the starts tried and how many of them reproduce the
+    /// target's bits inside this network.
+    pub tried: u32,
+    pub matching: u32,
+    /// The start used (`current` after the reset).
+    pub start: i32,
+    /// The start came from the target (the first matching one); false when
+    /// it was drawn with `rand()`.
+    pub from_target: bool,
+    /// With a target and no matching start: the network's marked cells.
+    pub unmatched_mark: Option<Bitmap>,
+}
+
+/// The block probe's state (see [`BlockDraw`]).
+#[derive(Clone, Debug, Default)]
+pub(crate) struct BlockProbe {
+    pub(crate) target: Option<Bitmap>,
+    pub(crate) draws: Vec<BlockDraw>,
 }
