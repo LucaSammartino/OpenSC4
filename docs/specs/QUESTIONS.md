@@ -954,7 +954,12 @@ each cycle-completed message `0x2A09B21A`). The glue's current answer is in brac
   manager + 0x5C}, registered in the list object's iterator list (+4) so lot removal moves it; nodes {next, prev,
   `cISC4Lot*`}; the walk ends at the head node; released by a non-virtual function (unregister, free with C).
   docs/abi/allocators.md table 1 already had the block and its allocator.
-- **AU6:** the game-data registry node "aura" is a stub. What does the original publish there? [stub]
+- ~~**AU6:** the game-data registry node "aura" is a stub. What does the original publish there? [stub]~~ **ANSWERED
+  2026-10-14** from the exe and the shipped data, written into aura.md §4.3. **The stub is acceptable.** The
+  original publishes what §4.3 says: the node `"aura"` and the commands `add_transient_effect(x, z, radius,
+  magnitude)` and `end_strike(type)`. No shipped file calls them (every entry of `SimCity_1.dat`–`SimCity_5.dat` and
+  `EP1.dat` searched): there are only the empty Lua placeholders and the `END_STRIKE_*` constants. Only mods would
+  notice.
 - **AU7 — shadow timing:** the other inputs are read at the end of the original's cycle, so a mid-cycle change shows
   as a difference; the tax baseline is taken at the first compared cycle. [as stated]
 - **AU8:** `GetCumulativeOffset` (ordinance slot 24): the SDK says int64, the spec and table int32 in EAX. [int32,

@@ -158,9 +158,12 @@ Callbacks (each returns true):
   `BustStrike(type)` (§8.4).
 
 The shipped base scripts only declare empty placeholders `sc4game.aura.add_transient_effect(x, z, radius,
-magnitude)` and `sc4game.aura.end_strike(department)` and define constants `END_STRIKE_ALL = 0`, `POLICE = 1`,
-`FIRE = 2`, `HEALTH = 3`, `EDUCATION = 4`; no call was found in the extracted base scripts *[inferred: Rush Hour
-scripts not searched]*. *[choice]* Publish the node when the registry is available; failure is not an error.
+magnitude)` and `sc4game.aura.end_strike(department)` (`SimCity_1.dat`, Lua `0xCA63E2A3 / 0x4A5E8EF6 /
+0xFFBF9CCF`) and define constants `END_STRIKE_ALL = 0`, `POLICE = 1`, `FIRE = 2`, `HEALTH = 3`, `EDUCATION = 4`
+(`0xFFA9DAF4`). No shipped file calls either command and none uses the constants: every decompressed entry of
+`SimCity_1.dat` to `SimCity_5.dat` and `EP1.dat` was searched. So the node matters only to mods. *[choice]* Publish
+the node when the registry is available; failure is not an error. A stub (no node) behaves the same with the
+shipped data.
 
 `Shutdown` removes the node (`RemoveChildEntry(cIGZUnknown*)`, slot 7); its children go with it.
 
