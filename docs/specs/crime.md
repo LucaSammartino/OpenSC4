@@ -342,7 +342,8 @@ For the chosen type:
    layer (`cISC4City +0x120`) is non-null, then:
    - get the fire manager with `GetDisasterManager(0x621CDA33)` and QI it for `cISC4DisasterManagerFire`
      `0x49B43F57`,
-   - `IgniteOccupant(building as cISC4Occupant)`, then `SetCause(2)` (arson *[inferred]*),
+   - `IgniteOccupant(building as cISC4Occupant)`, then `SetCause(2)` (arson *[inferred]*). `SetCause` is called
+     **whatever `IgniteOccupant` returns**: the bool result is discarded (`0x006A1D07`–`0x006A1D10`) *[compat]*,
    - release the manager.
 
    *[quirk]* The original checks neither the manager nor the QI result for null.
