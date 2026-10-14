@@ -413,7 +413,13 @@ About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answ
   - **Below 2³¹** the comparison is exact. For example, 2²⁴ + 1 > 16,777,216.0 is true.
   - **From 2³¹ up** the add rounds the value to `float32` under the 24-bit precision.
   - **In practice.** Both differ from a plain `f32` conversion only above 2²⁴. Steps 3 and 4 behave the same.
-- **PG9:** can landfill usage change within a day? [the shadow keeps the first value it reads]
+- ~~**PG9:** can landfill usage change within a day? [the shadow keeps the first value it reads]~~ **ANSWERED
+  2026-10-14** from the exe (`GetLandfillUsage` `0x006B9820` reads cached totals; they are written only by the ctor
+  `0x006B9780` and `UpdateCapacityValues` `0x006B8F20`; its callers are `0x006B9302` month, `0x006B9CE2` zoning,
+  `0x006B9F2B` PostCityInit) and written into pollution.md §4.6.1. **Not within one day pass, so the bracket
+  matches if the value is read again each day.** None of those callers runs inside pollution's day pass, which
+  finishes in one delivery. The values can change between day passes: after zoning, after the landfill month
+  agent, or after a load.
 - **PG10:** without an ordinance simulator, `cumulative_factor` returns 1.0. [choice]
 - **PG11 — slots 29/30:** they return int32 (the applied delta and the argument respectively) where the SDK has
   bool. Confirm. [int32]

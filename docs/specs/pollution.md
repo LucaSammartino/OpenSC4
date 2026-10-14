@@ -434,6 +434,24 @@ A replacement gets the same result by converting the value to `f64` (exact for e
 The remaining capacities are sums of the plants' unused capacities (§4.4.1). Every method agrees while they stay
 below 2²⁴.
 
+**Step 5's landfill values are constant within one day pass (PG9).** Step 5 calls `GetLandfillUsage` (slot 10,
+`0x006E3A73`) and `GetLandfillTileCount` (slot 11, `0x006E3A93`) on every `Dispose` call. Within one delivery of
+the day agent (§5.1; the agent finishes in one delivery), every call returns the same values.
+
+- **Usage and capacity** are cached totals in the landfill developer (landfill.md §4.6.5). `GetLandfillUsage`
+  (`0x006B9820`) only reads them. They are written only by the constructor (`0x006B9780`) and by
+  `UpdateCapacityValues` (`0x006B8F20`).
+- **`UpdateCapacityValues` has three callers.** They are the landfill month agent (`0x006B9302`), the zoning
+  message `0x07699455` (`0x006B9CE2`) and PostCityInit after a load (`0x006B9F2B`). None of them runs inside
+  pollution's day pass.
+- **Nothing the pass does reaches the landfill developer.** `AddToGarbageSupply` changes only pollution's own
+  `garbageSupply`. The garbage moves into landfill tiles only in the landfill month agent.
+- **The tile count** is a zone-14 cell count, which changes only through zoning.
+
+Between two day passes the values can change: after zoning, after the landfill month agent on the 1st, or after
+the PostCityInit that follows a load. Reading them once per day pass is therefore exact. They must be read again
+on each day.
+
 #### 4.6.2 Supply, capacity and landfill flags
 
 - `garbageSupply` is changed only by `AddToGarbageSupply` (saturating int32 add, then clamped ≥ 0).
