@@ -270,7 +270,11 @@ pub(crate) unsafe fn region_of(r: *const fc4_landfill_region) -> Option<CellRegi
         return Some(CellRegion::all_set(rect));
     }
     let n = r.len.min((w * h) as usize);
-    let bytes = if n == 0 { &[][..] } else { std::slice::from_raw_parts(r.mask, n) };
+    let bytes = if n == 0 {
+        &[][..]
+    } else {
+        std::slice::from_raw_parts(r.mask, n)
+    };
     Some(CellRegion::from_mask(rect, bytes.iter().map(|&b| b != 0).collect()))
 }
 
@@ -445,7 +449,9 @@ impl CHost {
 
     /// Pollution's active-landfill flag; `None` without the read callback.
     pub(crate) fn live_active(&self, x: i32, z: i32) -> Option<bool> {
-        self.c.is_active_landfill.map(|_| cb!(self, is_active_landfill, false, x, z))
+        self.c
+            .is_active_landfill
+            .map(|_| cb!(self, is_active_landfill, false, x, z))
     }
 
     fn swallow(&self) {
@@ -653,7 +659,11 @@ impl LandfillHost for CHost {
             // [choice] The tile's own holder, then its exemplar (§4.9.1: "the
             // first s64 value").
             let snap = o.snapshot();
-            return snap.base.holder.get(property).and_then(|v| v.items().first().map(|e| e.as_i64()));
+            return snap
+                .base
+                .holder
+                .get(property)
+                .and_then(|v| v.items().first().map(|e| e.as_i64()));
         }
         let mut v = 0i64;
         cb!(self, occupant_item_cost, false, occupant, property, &mut v).then_some(v)

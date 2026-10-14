@@ -184,7 +184,9 @@ unsafe extern "C" fn item_cost(u: *mut c_void, occ: u64, prop: u32, out: *mut i6
     }
     let (x, z) = (((occ >> 12) & 0xFFF) as i32, (occ & 0xFFF) as i32);
     let Some(t) = game(u).orig_tile(x, z) else { return false };
-    let Some(h) = shipped_tile_exemplar(t) else { return false };
+    let Some(h) = shipped_tile_exemplar(t) else {
+        return false;
+    };
     match h.get(prop) {
         Some(v) => {
             *out = v.items()[0].as_i64();
@@ -225,7 +227,12 @@ unsafe extern "C" fn remove_prop(u: *mut c_void, o: u64) -> bool {
     game(u).removed_props.borrow_mut().push(o);
     true
 }
-unsafe extern "C" fn subnetworks(u: *mut c_void, _r: *const fc4_landfill_region, cb: fc4_token_callback, ctx: *mut c_void) {
+unsafe extern "C" fn subnetworks(
+    u: *mut c_void,
+    _r: *const fc4_landfill_region,
+    cb: fc4_token_callback,
+    ctx: *mut c_void,
+) {
     if game(u).connected.get() {
         cb.unwrap()(ctx, 1);
     }
@@ -383,9 +390,7 @@ fn send(p: *mut fc4_landfill, msg_type: u32) {
 
 fn zone(p: *mut fc4_landfill, x0: i32, z0: i32, x1: i32, z1: i32) {
     let r = region(x0, z0, x1, z1);
-    assert!(unsafe {
-        fc4_landfill_do_message(p, msg::ZONING_CHANGE, 0, 0, ZONE_TYPE_LANDFILL as u32, 0, &r.raw)
-    });
+    assert!(unsafe { fc4_landfill_do_message(p, msg::ZONING_CHANGE, 0, 0, ZONE_TYPE_LANDFILL as u32, 0, &r.raw) });
 }
 
 fn state(p: *const fc4_landfill) -> fc4_landfill_state {
@@ -442,7 +447,15 @@ fn layout_and_identity() {
         assert_eq!(fc4_landfill_efficiency(null), 1.0);
         assert_eq!(fc4_landfill_maintenance_costs(null), 0);
         assert!(!fc4_landfill_init(null));
-        assert!(fc4_landfill_do_message(null, msg::SIM_NEW_MONTH, 0, 0, 0, 0, std::ptr::null()));
+        assert!(fc4_landfill_do_message(
+            null,
+            msg::SIM_NEW_MONTH,
+            0,
+            0,
+            0,
+            0,
+            std::ptr::null()
+        ));
         fc4_landfill_destroy(null);
     }
 }
@@ -486,7 +499,10 @@ fn zoning_and_the_month_move_garbage() {
     assert_eq!(s.capacity_reported, 1);
     // Every heap is full: 25 heaps of round(100 × 36 / 25) = 144.
     assert_eq!(g.capacity.get(), s.free_capacity);
-    assert_eq!((s.free_capacity, s.moved, s.capacity_total, s.used_total), (0, 3600, 3600, 3600));
+    assert_eq!(
+        (s.free_capacity, s.moved, s.capacity_total, s.used_total),
+        (0, 3600, 3600, 3600)
+    );
     assert_eq!(u64::try_from(s.moved).unwrap(), s.stored);
     assert_eq!(s.active_heaps, 25);
     // Every mask cell has a tile here and its pollution flag set.
@@ -580,7 +596,10 @@ fn save_round_trip_rebuilds_the_tiles() {
     g.refs.borrow_mut().insert(0x9001, 1);
     assert!(unsafe { fc4_landfill_read(q, &is) });
     let s = state(q);
-    assert_eq!((s.loaded, s.initialized, s.zones, s.zots, s.virtual_tiles), (1, 0, 1, 1, 0));
+    assert_eq!(
+        (s.loaded, s.initialized, s.zones, s.zots, s.virtual_tiles),
+        (1, 0, 1, 1, 0)
+    );
     assert!(unsafe { fc4_landfill_init(q) });
     send(q, msg::POST_CITY_INIT);
     let s2 = state(q);
@@ -705,7 +724,13 @@ fn shadowed_month(
     let maint = unsafe { fc4_landfill_maintenance_costs(orig) };
     let mut lines: Vec<String> = Vec::new();
     let r = unsafe {
-        fc4_landfill_shadow_finish(s, &after, maint, Some(collect), &mut lines as *mut Vec<String> as *mut c_void)
+        fc4_landfill_shadow_finish(
+            s,
+            &after,
+            maint,
+            Some(collect),
+            &mut lines as *mut Vec<String> as *mut c_void,
+        )
     };
     assert_eq!(lines.len(), 1);
     println!("{}", lines[0]);
@@ -771,7 +796,10 @@ fn shadow_without_a_capture_is_incomplete() {
     let g = city();
     let rt = read_table(&g);
     let s = unsafe { fc4_landfill_shadow_create(&rt, 0) };
-    assert_eq!(unsafe { fc4_landfill_shadow_begin(s, 2_452_000, std::ptr::null(), 0) }, -1);
+    assert_eq!(
+        unsafe { fc4_landfill_shadow_begin(s, 2_452_000, std::ptr::null(), 0) },
+        -1
+    );
     let mut lines: Vec<String> = Vec::new();
     let r = unsafe {
         fc4_landfill_shadow_finish(
