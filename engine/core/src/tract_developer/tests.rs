@@ -107,6 +107,12 @@ fn geometry_is_total() {
     assert_eq!(zone_family(9), 3);
     assert_eq!(zone_family(0), 0);
     assert_eq!(zone_family(i32::MIN), 0);
+    // Test 25 (§4.4 ConvertZoneToType): zones 0-10 and 15.
+    let zones = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15];
+    let types = [0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 0, 0];
+    for (z, t) in zones.iter().zip(types) {
+        assert_eq!(zone_family(*z), t, "zone {z}");
+    }
     assert!(answers_iid(IID_TRACT_DEVELOPER));
     assert!(!answers_iid(CLSID_TRACT_DEVELOPER));
 }

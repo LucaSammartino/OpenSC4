@@ -213,7 +213,6 @@ pub struct Candidate {
     pub avenue: [i32; 4],
     pub rail: [i32; 4],
     pub corner: bool,
-    pub capacity: i32,
 }
 
 impl Default for Candidate {
@@ -240,13 +239,12 @@ impl Default for Candidate {
             avenue: [0; 4],
             rail: [0; 4],
             corner: false,
-            capacity: 0,
         }
     }
 }
 
-/// [inferred] The target zone type a zone type converts to (§4.4): 1–3 →
-/// 1, 4–6 → 2, 7–9 → 3, others → 0.
+/// `cSC4GrowthDeveloper::ConvertZoneToType` (§4.4): lot zone type 1–3 →
+/// 1, 4–6 → 2, 7–9 → 3, anything else → 0.
 pub fn zone_family(zone: i32) -> i32 {
     match zone {
         1..=3 => 1,
@@ -677,6 +675,31 @@ impl TractDeveloper {
         None
     }
 
+    /// Every developer cap check that fails (§4.4, as corrected): the same
+    /// four checks as [`Self::caps_fail`], all evaluated, in the order power,
+    /// water, fire, park. The caller has already tested `CheatIgnoreCaps`.
+    fn caps_failures(&self, s: u32, x: i32, z: i32, pw: Option<u64>, fp: u64) -> Vec<u32> {
+        let h = &self.host;
+        let mut failed = Vec::new();
+        // [inferred] No developer for the building's profile: the power and
+        // water checks pass (the original would call through a null pointer).
+        if let Some(d) = pw {
+            if s > u32::from(h.dev_cap(d, Cap::Power)) && !h.cheat(Cheat::IgnorePower) && h.powered_value(x, z) < 2 {
+                failed.push(code::NO_POWER);
+            }
+            if s > u32::from(h.dev_cap(d, Cap::Water)) && !h.cheat(Cheat::IgnorePlumbing) && !h.is_cell_watered(x, z) {
+                failed.push(code::NO_WATER);
+            }
+        }
+        if s > u32::from(h.dev_cap(fp, Cap::Fire)) && h.fire_coverage(x, z) == 0 {
+            failed.push(code::NO_FIRE);
+        }
+        if s > u32::from(h.dev_cap(fp, Cap::Park)) && h.park_value(x, z) == 0 {
+            failed.push(code::NO_PARK);
+        }
+        failed
+    }
+
     /// The style a style-checked step compares against: purposes 1–3 with
     /// a non-empty active list.
     fn styles_apply(&self) -> bool {
@@ -825,7 +848,7 @@ impl TractDeveloper {
         }
     }
 
-    /// `TakeOverAbandoned` (§4.4): always ≥ 1.
+    /// `TakeOverAbandoned` (§4.4, as corrected): always ≥ 1.
     fn take_over_abandoned(&mut self) -> u32 {
         let h = self.host();
         let dev_type = self.w.sub_type;
@@ -840,9 +863,19 @@ impl TractDeveloper {
         let mut cands = Vec::new();
         let lots: Vec<u64> = self.w.lots.iter().copied().collect();
         for l in lots {
+            // State, occupant wealth, building wealth and developer wealth
+            // are read for every lot, eligible or not; signed compares.
             let state = h.lot_state(l);
+            let lw = h.lot_occupant_wealth(l) as i32;
+            let bt = h.lot_building_type(l);
+            let bw = if bt != 0 {
+                i32::from(h.building_profile(bt).wealth)
+            } else {
+                0
+            };
+            let dw = h.dev_wealth(self.w.dev) as i32;
             let eligible = state == lot_state::ABANDONED
-                || (self.tuning.kick_out && state == lot_state::OCCUPIED && h.lot_occupant_wealth(l) < self.w.wealth);
+                || (self.tuning.kick_out && state == lot_state::OCCUPIED && lw < dw && dw <= bw);
             if !eligible {
                 continue;
             }
@@ -850,6 +883,7 @@ impl TractDeveloper {
                 continue;
             }
             if h.lot_capacity(l, dev_type, true) == 0 {
+                self.hist(row::TAKE_OVER, code::DIFFERENT_PURPOSE);
                 best = best.max(code::DIFFERENT_PURPOSE);
                 continue;
             }
@@ -858,29 +892,46 @@ impl TractDeveloper {
                 best = best.max(r);
                 continue;
             }
+            // The anchor, facing and size are the lot's.
             let (x, z) = h.lot_location(l);
+            let (w, hh) = h.lot_size(l);
             let mut c = Candidate {
                 kind: 1,
                 lot: Some(l),
                 x,
                 z,
+                facing: h.lot_facing(l),
+                w: w as u8,
+                h: hh as u8,
                 ..Candidate::default()
             };
             self.find_existing_capacity(&mut c);
-            let mut cap = h.lot_available_capacity(l, dev_type, false);
+            let mut cap = c.abandoned;
             if cap == 0 {
-                cap = h.lot_capacity(l, dev_type, false);
+                cap = i32::from(h.lot_available_capacity(l, dev_type, true));
             }
-            let bt = h.lot_building_type(l);
-            let p = h.building_profile(bt);
-            let pw = h.developer_for(u32::from(p.purpose), u32::from(p.wealth));
-            if let Some(f) = self.caps_fail(c.stage, c.x, c.z, pw, self.w.dev) {
-                best = best.max(f);
-                continue;
+            if cap == 0 && state == lot_state::OCCUPIED {
+                cap = i32::from(h.lot_capacity(l, dev_type, true));
             }
-            c.capacity = i32::from(cap);
-            sum = sum.wrapping_add(i32::from(cap));
-            cands.push(c);
+            c.abandoned = cap;
+            let mut ok = cap > 0;
+            // The caps are skipped under CheatIgnoreCaps and for a lot
+            // without a configuration; otherwise all four run.
+            if ok && !h.cheat(Cheat::IgnoreCaps) {
+                if let Some(stage) = h.lot_configuration_stage(l) {
+                    let p = h.building_profile(h.lot_building_type(l));
+                    let pw = h.developer_for(u32::from(p.purpose), u32::from(p.wealth));
+                    for f in self.caps_failures(u32::from(stage), x, z, pw, self.w.dev) {
+                        self.hist(row::TAKE_OVER, f);
+                        best = best.max(f);
+                        ok = false;
+                    }
+                }
+            }
+            if ok {
+                sum = sum.wrapping_add(c.abandoned);
+                cands.push(c);
+            }
         }
         if !cands.is_empty() && sum > t0 {
             self.score_candidates(&mut cands);
@@ -892,8 +943,8 @@ impl TractDeveloper {
                     h.abandon_building(l, ABANDON_KICK_OUT);
                 }
                 h.reoccupy_building(l, dev_type);
-                self.w.built = self.w.built.wrapping_add(c.capacity);
-                taken = taken.wrapping_add(c.capacity);
+                self.w.built = self.w.built.wrapping_add(c.abandoned);
+                taken = taken.wrapping_add(c.abandoned);
                 if taken > t1 {
                     break;
                 }
@@ -1271,9 +1322,12 @@ impl TractDeveloper {
     /// `FindNetworks(c)` (§4.10.2).
     fn find_networks(&self, c: &mut Candidate) {
         let h = &self.host;
+        // GetBoundingRect caches c.rect for every type (a subdivision's is
+        // its first piece, §4.16); a subdivision scans around the parent lot.
+        let own = self.bounding_rect(c);
         let rect = match (c.kind, c.lot) {
             (4, Some(l)) => h.lot_bounding_rect(l),
-            _ => self.bounding_rect(c),
+            _ => own,
         };
         let (cx, cz) = h.city_cell_counts();
         // (side, fixed coordinate, true for a row): the cells are walked
@@ -1400,8 +1454,9 @@ impl TractDeveloper {
         let h = self.host();
         let mut same_facing = false;
         let mut zone: Option<i32> = None;
-        for z in rect.z1..=rect.z2 {
-            for x in rect.x1..=rect.x2 {
+        // x outer, z inner, both ascending (§4.13).
+        for x in rect.x1..=rect.x2 {
+            for z in rect.z1..=rect.z2 {
                 let Some(l) = h.get_lot(x, z) else { return false };
                 let r = self.is_lot_suitable(l, true);
                 if r == code::SUCCESS {
