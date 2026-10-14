@@ -1250,7 +1250,12 @@ before and after). The glue's current answer is in brackets.
   0/2/4/6. **The choice matches** for loading original saves, except that interior orientations become 0. It
   **does not match** for a FreeCity4 save loaded by the original: with no tiles, maintenance and the terrain dezoning
   differ. Written into landfill.md §6.4.
-- **LG9:** is a null `GetLandfillZoneFromCell` acceptable to the city situation manager? [null]
+- ~~**LG9:** is a null `GetLandfillZoneFromCell` acceptable to the city situation manager? [null]~~ **ANSWERED
+  2026-10-14** from the exe (`SetTarget` `0x00528AB9`–`0x00528C0A`, `GetDistanceToTarget` `0x00526A20`). **Yes.** A
+  null zone makes both functions fall back to the target's lot. A tile has none, so there is no zone marker, and the
+  distance is measured to the tile. The original returns null itself for a zone's last row and column, and the effect
+  is UI or mission only. **The bracket matches.** Correction: the zone rect is read as integers, not floats, so
+  landfill.md §10.1 quirk 15 is withdrawn. Written into landfill.md §9.
 - **LG10:** city slot 97 returns a float in ST0 (`docs/abi`) where the spec says "—". Which is right? [discarded]
 - **LG11:** should the tile item cost be read from the tile exemplar? [no]
 - **LG12:** should the shadow clamp GetGarbageSupply? [live plus delta, clamped]

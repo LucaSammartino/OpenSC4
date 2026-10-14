@@ -1186,8 +1186,25 @@ The object also implements `cISC4Occupant` (at its second vtable; QI `0x26BB767E
 | slot 9 `GetZoningCost` | zone manager `PlaceZone` (`0x004DDCE2`, adds EDX:EAX to the int64 cost for zone type 14) | must return int64 |
 | slot 10 `GetLandfillUsage` | advisors, query tool, neighbours, pollution, ordinance | as §4.6.5 |
 | slot 11 `GetLandfillTileCount` | pollution, automata behaviour template | |
-| slot 12 `GetLandfillZoneFromCell` | `cSC4CitySituationManager::SetTarget` (`0x00528B26`) | **blocker**: the result is stored in an auto-ref holder (`AddRef`/`Release` through vtable slots 1 and 2 of the returned object) and its raw memory is read: the dword at offset **+0xC** is followed as a pointer and the four dwords there (the zone's `x0, z0, x1, z1`, integers) are read as **floats** *[quirk: yields near-zero coordinates]*. A replacement must return null or an object laid out this way. |
+| slot 12 `GetLandfillZoneFromCell` | `cSC4CitySituationManager::SetTarget` (`0x00528B26`), and `GetDistanceToTarget` (`0x00526A20`) through the stored result | **blocker** if non-null. The result goes into an auto-ref holder, which calls `AddRef`/`Release` through slots 1 and 2 of the returned object. The dword at **+0xC** is then followed as a pointer to four **integers** `x0, z0, x1, z1`, which are read correctly. Null is handled (LG9, below). A replacement must return null or an object laid out this way. |
 | landfill occupant type `0x6A11BD2B` | flora blocking filter (flora §6.4.1), hover query filter, query tool, zone manager `PlaceZone` (calls the occupant's slot 14 with 2), model maker (`GetOrientation`) | the occupant class and its type must stay |
+
+**The city situation manager and a null zone** *[compat]* (LG9). `SetTarget` asks only when the new target occupant
+is in occupant group `0x1406` and the landfill developer global exists (`0x00528AB9`–`0x00528ACD`). Group `0x1406` is
+the landfill tiles' group: every tile exemplar's `0xAA1DD396` is `[0x1406]`. `SetTarget` then converts the target's
+position to a cell (city slot 95) and calls slot 12 with that cell (`0x00528B26`). After that:
+
+- **Non-null zone.** It copies `x0, z0, x1, z1` from `*(zone + 0xC)` and uses `(x0, z0, x1 + 1, z1 + 1)`
+  (`0x00528BD8`–`0x00528C0A`, integer `inc`). It hands that to a marker object, which converts it with `FILD`
+  (`0x0043FB60`). `GetDistanceToTarget` uses the same rect in metres, ×16 (integer `shl 4`, then `FILD`, from
+  `0x00526B3A`). It returns 0 inside the rect and the distance to its edge outside.
+- **Null zone**, or a null `+0xC` pointer. Both functions fall back to the target's lot (lot manager slot 14, then
+  lot slot 14 `GetBoundingRect`). A tile has no lot, so no zone marker is made, and `GetDistanceToTarget` returns the
+  plain 3D distance to the target occupant.
+
+So null is safe. It is also what the original itself returns for a tile in the zone's last row or column (§7.1).
+The only effect is on the situation's target area, a UI and mission feature, never on the simulation
+*[inferred: the U-Drive-It mission target]*.
 
 No other code reads the developer's or a zone's memory. The developer owns **no grid** (simgrid §6.4 does not
 apply); it writes pollution's garbage grid only through `SetIsActiveLandfill` and `AddToGarbageSupply`.
@@ -1218,7 +1235,8 @@ and need not be reproduced beyond that.
     §4.9.2).
 13. `SetTileID` mutates the shared exemplar's key (§7.3).
 14. The magic round is wrong above 2^22 (§4).
-15. The city situation manager reads integer cell coordinates as floats (§9).
+15. *Withdrawn* (2026-10-14, LG9): the city situation manager reads the zone's cell coordinates as integers and
+    converts them correctly (§9). There is no quirk.
 
 ### 10.2 Open questions
 
