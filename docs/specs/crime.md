@@ -709,8 +709,19 @@ Elements of incidents without a lot (possible after a load) are not written. Ret
 - Growing beyond the capacity allocates a new B buffer of `size + max(size, added)` elements (exactly the count
   when `out` is empty), copies the old elements and frees the old buffer with B. Shrinking only moves `end`, and
   a resize within the capacity keeps the buffer.
-- The only caller (the traffic effect manager, `0x00553370`) passes a zeroed vector (no buffer) on every call. It
-  frees the buffer with `0x0090CF63` afterwards, whatever the return value.
+- There are **two** callers (corrected 2026-10-14). Both pass a zeroed vector (no buffer) on every call and free
+  the buffer with `0x0090CF63` afterwards, whatever the return value:
+  - `cSC4TrafficAutomataManager::PopulateCrimeLayer` (`0x00553370`; call `0x005533CB`, free `0x00553547`). It is
+    slot 83 of the traffic automata manager's vtable `0x00A9BD88`, and the pedestrian manager (`0x00A9A470`) and
+    vehicle manager (`0x00A9D1E0`) inherit it. The name is *[inferred]* from the Mac build's vtable of the same
+    class, aligned by the slot 89 call it makes (`PopulateNetworkOccupantForCrimeLayer`). It is not a traffic
+    effect manager method: `0x00552B80` "StopEffect" is a different function. It uses the return value, skips
+    elements whose visuals flag is set and calls `SetVisualsCreated(i, true)` for each incident it populates.
+    Every 28 bytes it reads the cell, type and visuals fields. It stops after 5 ms of work;
+  - the map view's crime layer (`cSC4WinMapView::Update` `0x007A2F60`; call `0x007A41BD`, free `0x007A42C3`). It
+    ignores the return value and takes the count as `(end − begin) / 28`. For each element it reads `cellX`,
+    `cellZ` and the icon key and draws the icon at that cell, so an element left unwritten (no lot) is drawn from
+    its garbage cell with key (0, 0, 0).
 - A replacement must allocate the buffer with B and free any buffer it replaces with B. `SC4Vector` (allocator A)
   is not compatible.
 - New elements are copies of the resize's fill value. That is a stack temporary whose icon key (+0x10..+0x1B) is
@@ -719,8 +730,8 @@ Elements of incidents without a lot (possible after a load) are not written. Ret
   zero-fills new elements.
 
 `tCrimeEvent` is **28 bytes**: `u32 cellX; u32 cellZ; u32 typeID; u8 visualsCreated; 3 bytes padding;
-cGZPersistResourceKey iconKey (type, group, instance)`. *[compat]* The traffic effect manager walks the array
-with this stride (§14.1).
+cGZPersistResourceKey iconKey (type, group, instance)`. *[compat]* Both callers walk the array with this stride
+(§14.1).
 
 ### 11.5 `SetVisualsCreated(uint32 i, bool b)` / `GetVisualsCreated(uint32 i)`
 
@@ -866,20 +877,27 @@ vtable is `0x00A9E4DC`.
 | Safety advisor (`update_variables`) | `GetAverageCrime`, `GetMonthlyCrimeCount`, `GetCrimeHotspot`; it is the only writer of history `0xAA662693` (GA_CRIME), recording the low byte of `GetAverageCrime` (advisors.md §7.6) |
 | Aura simulator `DoIdle` | `GetCrimeGrid` → two-grid walker (simgrid §7.3) that reads the **grid memory** through `GetGridData` |
 | Growth developer `DoIdle` / `EstimateDesirability` | `GetCrimeGrid` → a two-grid walker (raw memory); `GetCellValue` → desirability curve |
-| Map view `Update` / `UpdateHighlights` | `GetCrimeGrid` → `GetGridData` (raw rows) for the crime layer; `GetCrimeHotspot` |
+| Map view `Update` / `UpdateHighlights` | `GetCrimeGrid` → `GetGridData` (raw rows) for the crime layer; `GetCrimeIncidentArray` (28-byte stride; icon per incident, §11.4); `GetCrimeHotspot` |
 | Query tool | `GetCrimeGrid` → `GetCellValue` |
 | MySim / MyStreetSim trip variables | `GetCrimeGrid` → cell values |
 | Ambience filter | `GetCrimeGrid` → `GetCellValue ≥ 200` (crime ambience) |
 | Getaway van `PostInit` | `GetCrimeGrid` |
-| Helicopter, patrol car | `GetNearestCrimeSim` (`+0x24`), `GetCrimeHotspot` |
-| Traffic effect manager `StopEffect` | `GetCrimeIncidentArray` with a 28-byte stride, then `SetVisualsCreated(i, true)` |
+| Helicopter, patrol car | `GetNearestCrimeSim` (`+0x24`), `GetNearestCrimeProp` (`+0x28`), `GetCrimeHotspot` (below) |
+| Traffic automata manager `PopulateCrimeLayer` (also the pedestrian and vehicle managers, which inherit it) | `GetCrimeIncidentArray` with a 28-byte stride, then `SetVisualsCreated(i, true)` (§11.4) |
 | Police simulator | subscribes to `0x0A159D95`; called by state 4 (`ProcessMonthlyCrimeStats`) |
 | Prop developer | calls the prop-requester slots; saves the requester by ref |
 | City / class store | creates, `Init`/`Shutdown`, save/load |
 
-No caller of `GetNearestCrimeProp` or `GetVisualsCreated` was found. No code outside the class calls its
-functions directly or reads its members. The only outside references are the COM director's class table
-(factory and `GetGZCLSID`).
+**`GetNearestCrimeProp` callers** (corrected 2026-10-14; an earlier version said there were none). All three use
+the vehicle's position (`+0x40`) and radius 20.0, right after a `GetNearestCrimeSim` with the same arguments:
+- patrol car `DoArrestTick` (`0x00544060`; `0x005440C3`, `0x005440E9`) and helicopter `RespondToCrimeScene`
+  (`0x00535760`; `0x00535785`, `0x005357A9`). When a crime prop is found they call its `SetState(1)` (prop
+  occupant slot 11) and query again, at most five times. A prop in state 1 no longer qualifies (§11.3), so each
+  query returns the next one. With no prop, a crime sim that was found gets an action call (sim slot 52, `+0xD0`).
+- patrol car `SetDispatchState` (`0x00543F60`; `0x00543FDD`), which tests whether either query found anything.
+
+No caller of `GetVisualsCreated` was found. No code outside the class calls its functions directly or reads its
+members. The only outside references are the COM director's class table (factory and `GetGZCLSID`).
 
 ### 14.2 Replaceability findings
 
