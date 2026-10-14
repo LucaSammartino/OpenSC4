@@ -1,0 +1,76 @@
+{
+  "format": 1,
+  "name": "ts11_23_accident_check",
+  "spec": [
+    "traffic-simulator 4.13"
+  ],
+  "description": "§4.13: without a view no accident check runs (the next check is still scheduled 60,000 ms on); with a view and the period elapsed an entry with p = 1 makes an accident of 20,000 ms at its cell and posts TrafficAccident (x, z).",
+  "steps": [
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "accident_check": [
+          [
+            3,
+            3,
+            1.0
+          ]
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_monthly_simulation"
+    },
+    {
+      "op": "ts_expect_world",
+      "state": {
+        "accidents": []
+      }
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "next_accident_check": 60000
+      }
+    },
+    {
+      "op": "ts_env",
+      "view": [
+        0,
+        0,
+        7,
+        7
+      ],
+      "clock": 60000
+    },
+    {
+      "op": "ts_call",
+      "method": "do_monthly_simulation"
+    },
+    {
+      "op": "ts_expect_world",
+      "state": {
+        "accidents": [
+          [
+            3,
+            3,
+            20000
+          ]
+        ]
+      },
+      "posted_includes": [
+        [
+          "0x0C05E4C3",
+          3,
+          3,
+          0
+        ]
+      ]
+    }
+  ]
+}

@@ -72,7 +72,9 @@ impl ResponseCurve {
 
     /// The kept points `(x, y)` in order (a dropped vertical step is not
     /// among them), for callers that walk the curve's point list
-    /// (residential-education-health §4.11 `GetOccupantCoverage`).
+    /// (residential-education-health §4.11 `GetOccupantCoverage`) or rebuild
+    /// a curve transformed point by point (the traffic simulator's inverted
+    /// congestion curve).
     pub fn points(&self) -> Vec<(f32, f32)> {
         self.segments.iter().map(|s| (s.x, s.y)).collect()
     }

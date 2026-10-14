@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "name": "ts11_24_day_one_income",
+  "spec": [
+    "traffic-simulator 3.3"
+  ],
+  "description": "§3.3: on day 1 the incomes go into the line items, truncated: transit 12.7 -> 12 into the mass transit item 2, tolls 3.2 -> 3 into the roads item 5; GetLastMonthlyIncome = r24(3.2 + 12.7) = 0x417E6666.",
+  "steps": [
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "transit_income": 12.7,
+        "toll_income": 3.2
+      }
+    },
+    {
+      "op": "ts_env",
+      "day": 1
+    },
+    {
+      "op": "ts_call",
+      "method": "do_daily_simulation"
+    },
+    {
+      "op": "ts_expect_world",
+      "state": {
+        "incomes": [
+          [
+            901,
+            2,
+            12
+          ],
+          [
+            900,
+            5,
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "last_monthly_income",
+      "expect": "0x417E6666"
+    }
+  ]
+}
