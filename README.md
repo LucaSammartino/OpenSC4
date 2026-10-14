@@ -47,9 +47,10 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] **Protection glue** (fire + police, merged 29b3fcb) and its **grid shadow: identical to the original, cell by cell, for 97 months** (run 70). The fire grid read 0×0 after a load; fixed in f7a9f16 (run 73: fire cycles running)
 - [x] **Crime glue** (merged 941c34f) and its **grid shadow: 96 of 96 months identical**, hotspot included (run 70b); the replacement runs clean for 97 months
 - [x] **Aura glue** and its shadow (merged 7c3f3a2; run 75b: the replacement runs clean; the shadow is close but not exact, AU13–AU15)
-- [x] **Flora glue** and census shadow (merged f8ebce0) and **landfill developer glue** and shadow (merged c2ada06); first in-game runs next
+- [x] **Flora glue** and census shadow (merged f8ebce0) and **landfill developer glue** and shadow (merged c2ada06); in game since run 80: landfill shadow exact (94/94), flora registry identical with one tree in some months (FQ15)
 - [x] **All ten replacements together track the original for 36 game years** (runs 77/78 on Konradshohe: the same funds curve and the same end in 2062)
-- [ ] Shadows for power, plumbing, land value and flammability (lanes running)
+- [x] Shadows for power (290093b), plumbing (571a47e), land value and flammability (9bb91f2): in game since runs 80–83. Power and plumbing grids identical cell by cell on every replayed pass; their bookkeeping lines are off by inherited counts (PW8, PS8: being applied); land value exact (57/57); flammability 69/70 (FL6)
+- [x] x87 return channels fixed (5ee5c52): our methods no longer leave values on the game's x87 stack (run 74's corruption); 0 leftovers in every run since, the 900 s soaks included
 - [ ] Grid snapshots match within tolerance (M3 exit)
 
 **M4: growth**
@@ -58,11 +59,12 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] **M4 cores complete (5 of 5)**; zones found and fixed a real `SimpleParcellize` Q=2 x-line bug during self-review (`zn15_31`)
 - [x] Zones follow-up (merged 8ee3253): ZQ2/ZQ3/ZQ5/ZQ6 answered from the exe and applied; `DetermineLotSize` filter in the core; tests 30–32 as vectors `zn15_32`–`zn15_35`. ZQ7–ZQ10 filed
 - [x] Landfill tests 1–23 (`lf11_*`) and the **neighbours core** with tests 1–12 (`nb18_*`) (merged 026fd9e)
-- [ ] Zones glue
+- [ ] Zones glue (phase 1, the zone manager: lane running)
 - [x] **Residential simulator core** (merged 737bcc5): all 24 residential §15 tests as unit tests and `rs15_*` vectors, the save record, RS1–RS6 applied; REH building work is left to host hooks. RS7–RS17 filed
-- [x] **Residential education and health core** (REH §2–§7, merged e520128): all 24 REH §11 tests as unit tests and `reh11_*` vectors (36 new vectors), RS7–RS17 applied, EH1–EH14 filed; the glue lane (M4) is next
+- [x] **Residential education and health core** (REH §2–§7, merged e520128): all 24 REH §11 tests as unit tests and `reh11_*` vectors (36 new vectors), RS7–RS17 applied, EH1–EH14 filed
+- [x] **Residential glue** and its shadow (merged bc7ffa0): in game since run 86. The replacement runs clean for 39 game years (run 89) and saves and reloads (runs 88, 91); the shadow matches the original on 12 of 15 daily states, every grid and scalar (the proximity states differ, RG23); the original's EQ/HQ path (run 90b) and ours (run 89) decline the same way
 - [x] GD/BD/TD spec questions answered in the named specs (8fdea4e)
-- [ ] Seeding rules (foundations §6.3) and the daily growth budget calibrated in the original
+- [ ] Seeding rules (foundations §6.3) and the daily growth budget calibrated in the original (the growth probe lane is running)
 - [ ] Glue, and the growth statistics distribution matches across seeded runs (M4 exit)
 
 **M5: traffic**

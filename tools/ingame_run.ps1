@@ -33,7 +33,10 @@ param(
     [switch]$NoDismiss,
     # The autoload city is backed up before the run and restored afterwards if the run changed it (a save action,
     # or a save by hand). -KeepSaves keeps the changed file.
-    [switch]$KeepSaves
+    [switch]$KeepSaves,
+    # The plugin's verdict timer starts at "clock started", a few seconds after the load line this script waits
+    # for, so its verdict can come just after -AfterLoadSeconds. Wait this long for it before falling back.
+    [int]$VerdictGraceSeconds = 30
 )
 
 $ErrorActionPreference = "Stop"
@@ -147,6 +150,13 @@ while ((Get-Date) - $start -lt [TimeSpan]::FromSeconds($Seconds)) {
     }
 
     if (((Get-Date) - $loadedAt).TotalSeconds -ge $AfterLoadSeconds) {
+        # Grace for the plugin's own verdict (regress r32d9: this fallback won by 0.6 s and killed a clean run).
+        $graceEnd = (Get-Date).AddSeconds($VerdictGraceSeconds)
+        while (-not $p.HasExited -and (Get-Date) -lt $graceEnd) {
+            Start-Sleep -Seconds 1
+            $text = ReadShared $Log
+            if ($text -match "AUTOTEST VERDICT: ([a-z]+)[^\r\n]*") { $verdict = $Matches[0]; break }
+        }
         if (-not $verdict) { $verdict = "clean (fallback): no foreign exception or stall $AfterLoadSeconds s after load" }
         break
     }

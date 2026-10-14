@@ -455,6 +455,30 @@ value, police, traffic, pollution, residential, weather, civic building**, disas
 traffic network map, vehicle / pedestrian / aircraft / watercraft managers, advisor system, city situation
 manager, tutorial system, MySim agent simulator, city detail manager.
 
+**When objects, grids included, are read (HG1, from the exe).** Every saved object is created and `Read` in step 3,
+before any `Init`:
+1. `LoadCity` runs the store load at `0x0045574C`, through `cSC4DBSegment::LoadClassObjects` (`0x005D2080`), into
+   the store's loader (`cSC4COMSerializer`, `0x005D38D0`).
+2. The loader puts the index's classes into a sorted map, so it walks them in ascending class ID whatever the file
+   order. Within a class it reads the entries in record order, and it calls each object's `Read` at `0x005D3C63`.
+3. A reference read inside some `Read` only creates the referenced object (empty, if it is new). The object's own
+   `Read` runs when the walk reaches its entry.
+4. Only after the store load come the root record, Load and PostLoad, PreCityInit (sent at `0x00455898`), and then
+   the city's `Init` (`cSC4City::Init` `0x0045BD20`, called at `0x004558A2`), which initialises the simulators.
+
+So every saved grid (classes `0x49B9E602`–`0x49B9E60B`, simgrid.md §2) has its saved geometry before any `Init`
+runs. Its entry is read once, so nothing later in the load changes that geometry. Whether a subsystem's `Read` sees
+its grids empty or already read depends only on its class ID:
+- **below `0x49B9E602`, read before the grids:** power `0x0990C005`, plumbing `0x0990C075`, fire protection
+  `0x2990C05A` (run 70's case), residential `0x4990C013` and others;
+- **above it, read after the grids:** police `0x6990C04F`, pollution `0x8990C065`, crime `0x8990C09A`, land value
+  `0xE990C18E` and others.
+
+*[compat]* A `Read` must therefore not use a referenced grid's size, and `Init` may. The first non-empty geometry a
+saved grid shows is its final one, except in a malformed save that lists the same object twice. One caveat for
+FreeCity4's host grid: a grid saved as 0 × 0 stays empty after its `Read`, so "empty" alone cannot tell it from a
+grid not yet read.
+
 ### 3.8 Retained records
 
 When a city is loaded, every record in group **`0xAB85E27D`** (up to 10,000,000 bytes each) is kept in memory
@@ -775,7 +799,9 @@ There is **no** single simulation RNG. Each subsystem uses its own instance:
   - The C runtime `rand()` is not seeded by the game and stays unseeded (§12).
 
 **File-local generators of the Windows build** (static initialisers at `0x00A71000`–`0x00A75300`; found by scanning
-for "clock XOR constant → generator constructor"):
+for "clock XOR constant → generator constructor"). "Clock" is the same value for all of them: each calls the
+`cRZTime()` constructor `0x00470B50`, whose value (seconds since 1901 rebuilt from the local calendar) crime.md §9
+specifies (CQ21):
 
 | Static | Class | `K` | Used by |
 |---|---|---|---|

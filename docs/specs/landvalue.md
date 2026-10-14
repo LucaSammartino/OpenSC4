@@ -192,6 +192,14 @@ the total grid only changes at the end of state 7.
 Note the order 3 → 5 → 4 *[compat]* (slope before the altitude effect). A full pass needs at least
 9 + D calls, D = number of developers in the list (10 + D when the zoning fallback of state 3 triggers).
 
+**`GetAreaSlope` is read-only** *[compat]* (QUESTIONS LV3; lot developer slot 29, `0x006C5DC0`). It reads, for every
+terrain vertex `(vx, vz)` with `x1 ≤ vx ≤ x2 + 1` and `z1 ≤ vz ≤ z2 + 1`, the lot developer's own slot 15
+(`GetTerrainAltitudeByVertex`, `0x006C4310`): terrain slot 12 `GetAltitude(index)` and, because state 5 passes
+`true`, terrain slot 31 `GetWaterLevel(index)` (`0x007413C0`, `0x00744980`, both plain array reads). It keeps the
+lowest and highest value and their vertex positions in locals, computes the 2-D distance between those two vertices
+and returns the slope in ST0. It writes nothing outside its own stack frame: no member of the lot developer, the
+terrain or any grid. Calling it from a shadow, or more often than state 5 does, has no side effect.
+
 ## 7. Formulas *[compat]*
 
 ### 7.1 Water bonus (state 2)
@@ -281,6 +289,21 @@ shipped tuning there is exactly one developer (ID `0x1030`), so order does not m
 developers in tuning order. A null developer (unknown ID) is not filtered: the original would crash in state 7
 *[quirk]*; *[choice]* FreeCity4 skips it.
 
+**What "address order" is** (QUESTIONS LV1, from the exe). The key is the pointer as an **unsigned 32-bit
+integer** (`map<uint32, float>` with `less`, filled by the tuning reader `0x006BE110`), and state 7 walks the map
+from its smallest key up. So the developers are applied in **ascending unsigned pointer value**. That value is
+fixed by the allocator, not by any listing:
+- each growth developer is a 0x13C-byte object allocated with the game's `operator new`;
+- in a new city the building development simulator creates them in its `Init`, one per exemplar of the resource
+  manager's enumeration (callback `0x00699E20`, creation `0x006991A0`), in that enumeration's order;
+- in a loaded city the class store creates them while reading the building development simulator's record (class
+  factory `0x006B7870`), and `Init` then only updates them.
+
+So the address order equals neither the tuning order (`0x47E2C330`) nor, in general, the creation order. A shadow
+of the original reproduces it exactly by sorting the pointers that `GetDeveloper(ID)` returns, unsigned and
+ascending; ties cannot occur (duplicate IDs give the same pointer and share one entry, the later weight winning).
+For FreeCity4's own developers the tuning-order *[choice]* above stands.
+
 For the current developer, with D = its desirability map (`GetDesirabilityMap()`, an `int16` grid) the helper
 `ProcessTwoGridsWithCallback` (simgrid.md §7.3) maps D onto scratch's tracts and calls, for every scratch tract,
 the step below. The desirability map's tract size is the growth developer's tuning property `0x87CD6310`, which
@@ -306,6 +329,29 @@ v := clamp( trunc(v + e × weight), 1, 255 )                 (truncation toward 
 where `d` is the matched desirability value (int16), `v` the scratch byte. Note the lower clamp **1**, not 0
 *[compat]*. With the shipped curve (−255,−255) (255,255) and weight 2.5: `v + 2.5·clamp(d, −255, 255)`.
 
+**Which desirability map state 7 sees** *[compat]* (QUESTIONS LV2, from the exe). The map is the developer's
+**published** grid D (growth developer slot 13, `0x007C9FB0`, the member at `+0x114`). The developer builds its
+next map in a separate working grid W and copies W into D as a whole, in one call, at state 17 of its update
+(growth-developer.md §3.2, §5.1). The building development simulator starts that update once a month (`StartMapUpdate`
+on every developer from its month agent). Nothing else writes D except the developer's own `SetTractSize`, `Read`
+and `Init`. State 7 fetches D through slot 13 and applies it in the same call. So:
+- state 7 never sees a half-built map: it sees either the map published before this month's developer update, or
+  the one published by it;
+- between state 7 and the delivery of LandValueMapChanged (§9, queued) D changes **at most once** in practice, by
+  that copy: both updates start at the month boundary, and a land value pass ends long before the next one (one
+  state per day or idle call, idle calls every frame).
+
+Both passes advance about one state per day or idle call. Land value reaches state 7 at its 8th call, the
+developer reaches state 17 at its 17th call at the earliest (state 15 can take several calls), so land value
+usually reads the **previous** month's map. Time-sliced states on either side can reverse that.
+
+A shadow that compares at LandValueMapChanged therefore needs exactly two candidates per developer: D as it was
+before the developer's last state-17 copy, and D now. The shadow's "rerun with the previous map and keep the better
+result" covers every case, provided "previous" is the D published before the latest copy. A shadow can capture it
+with the developer's slot 10, `GrowthAndDeclineListsAreValid` (`state < 17`): D changes only in a state-17 call,
+and slot 10 is false from the moment state 17 is pending, so D cannot change while slot 10 is true. The last
+snapshot of D taken while slot 10 was true is therefore the map from before the latest copy.
+
 ### 7.5 Average (state 8)
 
 For every tract with (`ignoreZoning` or `IsZoned(t)`) and `HasLand(t)` (ignoreZoning as left by state 3):
@@ -317,6 +363,12 @@ integer division) : 0. Then `HistoryWarehouse.RecordHistoryData(0x6A663AC8, aver
 - `GetLandValue(x, z)` = total grid `GetCellValue(x, z)` (**cell** coordinates, simgrid.md §4, no bounds check).
 - `GetLandValueType(x, z)`: v := `GetLandValue(x, z)`; v < `0x47E2C301[0]` → 1 (low); else v < `0x47E2C301[1]` →
   2 (medium); else 3 (high). Unsigned byte comparisons. Shipped boundaries 70 and 120.
+  **Uniform over a tract** *[compat]* (QUESTIONS LV4, `0x006BD700`): v is the total grid's `GetCellValue(x, z)`
+  (grid slot 7), which reads `data[x >> shift][z >> shift]` (simgrid §4). Every cell of a tract therefore gives the
+  same value and the same type, and no cell is preferred: sampling a tract at its first cell `(tx·S, tz·S)` gives
+  exactly what the original answers for any of its S × S cells. Example (S = 2, total(3, 5) = 95): cells (6, 10),
+  (7, 10), (6, 11) and (7, 11) all answer 95 and type 2. There is no bounds check (out-of-range cells read
+  outside the rows).
 - `GetAverageLandValue()` = averageLandValue; `GetModeAltitude()` = modeAlt (0 until the first state 3 after
   creation or load, because it is not saved).
 
