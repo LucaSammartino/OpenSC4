@@ -428,7 +428,7 @@ struct LotManagerProbe final : cFC4ISC4LotManager {
     intptr_t GetSafeLotIterator() override { g_hit = 15; return static_cast<intptr_t>(0); }
     int32_t GetLotCount() override { g_hit = 16; return static_cast<int32_t>(0); }
     int32_t GetLotSavvyTerrainVertexAltitude(int32_t x, int32_t y, cISC4Lot* lot, bool& ok) override { g_hit = 17; return static_cast<int32_t>(0); }
-    int32_t GetLotSavvyTerrainAltitude(float x, float y, bool& ok) override { g_hit = 18; return static_cast<int32_t>(0); }
+    float GetLotSavvyTerrainAltitude(float x, float z, bool* onLot) override { g_hit = 18; return static_cast<float>(0); }
     int32_t GetLotSavvyCellAltitude(int32_t cellX, int32_t cellZ, bool& ok) override { g_hit = 19; return static_cast<int32_t>(0); }
     int32_t CanCreateLot(int32_t x, int32_t z, int32_t w, int32_t h, bool zoneNotNeeded, bool ignoreConfig, cISC4LotConfiguration* config) override { g_hit = 20; return static_cast<int32_t>(0); }
     int32_t CanCreatePloppedLot(SC4Rect<long> bounds, int32_t n, cISC4LotConfiguration* config) override { g_hit = 21; return static_cast<int32_t>(0); }
@@ -447,7 +447,7 @@ const Expect kLotManager[] = {
     {11, 3, false, "GetVerticesAtEdgeOfLot"}, {12, 3, false, "GetNeighborCellsAtEdgeOfLot"},
     {13, 0, false, "GetRandomLot"}, {14, 1, false, "GetOccupantLot"}, {15, 0, false, "GetSafeLotIterator"},
     {16, 0, false, "GetLotCount"}, {17, 4, false, "GetLotSavvyTerrainVertexAltitude"},
-    {18, 3, false, "GetLotSavvyTerrainAltitude"}, {19, 3, false, "GetLotSavvyCellAltitude"},
+    {18, 3, true, "GetLotSavvyTerrainAltitude"}, {19, 3, false, "GetLotSavvyCellAltitude"},
     {20, 7, false, "CanCreateLot"}, {21, 6, false, "CanCreatePloppedLot"}, {22, 9, false, "CreateLotIfPossible"},
     {23, 6, false, "CreateLot"}, {24, 1, false, "DeleteLot"}, {25, 4, false, "DeleteLots"},
     {26, 4, false, "GetLotVertexAltitudeAdjustmentRange"}, {27, 0, false, "GetMaximumCapacityGrid"},

@@ -27,6 +27,9 @@
 //   GameVector<T>  {begin, end, capacity_end}; elements copied bitwise
 //   GameString     a cRZString {vtable, begin, end, capacity_end, refcount}
 //                  with a B character buffer and the game's vtable
+//   GameHashSetU32 STLport's hash_set<uint32_t> {functors, bucket vector,
+//                  count}: 8-byte B nodes, a B bucket buffer, prime bucket
+//                  counts (allocators.md, hash_set)
 // The game owns the containers it passes us by reference: we fill, clear and
 // grow them, never destroy them. Containers we create ourselves are destroyed
 // by their destructors (elements released / destroyed, memory freed to B).
@@ -290,5 +293,131 @@ private:
 };
 
 static_assert(sizeof(GameList<cIGZUnknown*>) == sizeof(void*), "list layout: the head pointer");
+
+// ---- hash sets ----------------------------------------------------------------------------------
+
+// The game's hash_set<uint32_t> (docs/abi/allocators.md, hash_set): STLport's,
+// declared with the default allocator. The object is 0x14 bytes: an empty
+// functor member padded to 4 bytes, the bucket vector {begin, end,
+// capacity_end} of Node*, and the element count. Nodes are 8 bytes {next,
+// value} from Alloc; the bucket buffer is an Alloc block. The hash is the
+// identity: v lives in the chain of bucket v mod n (n = end - begin).
+//
+// The game passes its sets by reference (flora slots 13 and 14): we insert,
+// never construct or destroy them. Sets we create ourselves (tests) are
+// destroyed by the destructor (nodes and buckets freed to Alloc).
+template <typename Alloc = StlNodeAllocator>
+class GameHashSetU32 {
+public:
+    struct Node {
+        Node* next;
+        uint32_t value;
+    };
+
+    // Only for sets we create: buckets for the first prime >= hint.
+    explicit GameHashSetU32(uint32_t hint) { Rehash(hint); }
+    GameHashSetU32(const GameHashSetU32&) = delete;
+    GameHashSetU32& operator=(const GameHashSetU32&) = delete;
+    ~GameHashSetU32() {
+        for (Node** b = begin_; b != end_; ++b) {
+            Node* n = *b;
+            while (n != nullptr) {
+                Node* next = n->next;
+                Alloc::Free(n);
+                n = next;
+            }
+            *b = nullptr;
+        }
+        Alloc::Free(begin_);
+        begin_ = end_ = capacityEnd_ = nullptr;
+        count_ = 0;
+    }
+
+    uint32_t size() const { return count_; }
+    size_t bucket_count() const { return static_cast<size_t>(end_ - begin_); }
+    Node* bucket(size_t i) const { return begin_[i]; }
+    Node** buckets() const { return begin_; }  // the bucket buffer (an Alloc block)
+
+    bool contains(uint32_t v) const {
+        const size_t n = bucket_count();
+        if (n == 0) return false;
+        for (Node* p = begin_[v % n]; p != nullptr; p = p->next) {
+            if (p->value == v) return true;
+        }
+        return false;
+    }
+
+    // As the game's insert (0x00624DD0): resize(count + 1) first, then a value
+    // already present is not inserted again, else a new node goes to the head
+    // of its chain. True if inserted; false if present or out of memory.
+    bool insert(uint32_t v) {
+        if (!Rehash(count_ + 1)) return false;
+        const size_t n = bucket_count();
+        if (n == 0) return false;
+        Node*& head = begin_[v % n];
+        for (Node* p = head; p != nullptr; p = p->next) {
+            if (p->value == v) return false;
+        }
+        Node* node = static_cast<Node*>(Alloc::Allocate(static_cast<uint32_t>(sizeof(Node))));
+        if (node == nullptr) return false;
+        node->value = v;
+        node->next = head;
+        head = node;
+        ++count_;
+        return true;
+    }
+
+    // The first bucket count >= h from STLport's prime table (the only counts
+    // the game creates); 4294967291 above it.
+    static uint32_t NextPrime(uint32_t h) {
+        static const uint32_t kPrimes[28] = {53u,        97u,        193u,       389u,       769u,        1543u,
+                                             3079u,      6151u,      12289u,     24593u,     49157u,      98317u,
+                                             196613u,    393241u,    786433u,    1572869u,   3145739u,    6291469u,
+                                             12582917u,  25165843u,  50331653u,  100663319u, 201326611u,  402653189u,
+                                             805306457u, 1610612741u, 3221225473u, 4294967291u};
+        for (uint32_t p : kPrimes) {
+            if (p >= h) return p;
+        }
+        return kPrimes[27];
+    }
+
+private:
+    // As the game's resize (0x004F0940): when `hint` exceeds the bucket count,
+    // a new zeroed bucket buffer for the first prime >= hint, every node moved
+    // (kept) to the head of its new chain, the old buffer freed to Alloc.
+    bool Rehash(uint32_t hint) {
+        const size_t old = bucket_count();
+        if (hint <= old) return true;
+        const uint32_t n = NextPrime(hint);
+        if (n > 0x0FFFFFFFu / sizeof(Node*)) return false;
+        Node** fresh = static_cast<Node**>(Alloc::Allocate(static_cast<uint32_t>(n * sizeof(Node*))));
+        if (fresh == nullptr) return false;
+        std::memset(static_cast<void*>(fresh), 0, n * sizeof(Node*));
+        for (size_t i = 0; i < old; ++i) {
+            Node* p = begin_[i];
+            while (p != nullptr) {
+                Node* next = p->next;
+                Node*& head = fresh[p->value % n];
+                p->next = head;
+                head = p;
+                p = next;
+            }
+            begin_[i] = nullptr;
+        }
+        Alloc::Free(begin_);
+        begin_ = fresh;
+        end_ = fresh + n;
+        capacityEnd_ = fresh + n;
+        return true;
+    }
+
+    uint32_t functors_ = 0;  // hasher, key-equal, key-extractor: empty, never read
+    Node** begin_ = nullptr;
+    Node** end_ = nullptr;
+    Node** capacityEnd_ = nullptr;
+    uint32_t count_ = 0;
+};
+
+static_assert(sizeof(void*) != 4 || sizeof(GameHashSetU32<>) == 0x14, "hash_set<uint32_t> is 0x14 bytes");
 
 }  // namespace fc4
