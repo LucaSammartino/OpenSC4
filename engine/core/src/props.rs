@@ -22,7 +22,12 @@
 //! scalar (count 0) gives an empty vector. *[choice]* (EX33, kept) Converting is
 //! not observable on shipped data: the only property read with another type,
 //! `0xEA0232A0` (Sint32 read as `vec<u32>`), has the same bits either way, and
-//! converting replaces the over-read with defined values.
+//! converting replaces the over-read with defined values. A reader of a
+//! property that shipped data writes as a scalar where the original reads it
+//! as a list must treat the scalar as empty itself: `LotConfigPropertyWealthTypes`
+//! (`0x88EDC795`) and `LotConfigPropertyPurposeTypes` (`0x88EDC796`) are
+//! `Uint8:0:{}` in a shipped text exemplar, and give the original's lot no
+//! types (data-formats §4.3).
 
 use crate::property::PropertyHolder;
 use crate::stream::ResKey;
