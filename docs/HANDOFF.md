@@ -27,14 +27,16 @@ Resume a paused lane with `SendMessage` to its agent ID; its worktree and transc
 | Lane | Agent ID | Worktree (`.claude/worktrees/`) / branch | Reserved | State |
 |---|---|---|---|---|
 | harness: `sim_turbo`, `autotest_end_date`, `script = <file>` | `a313b6961fe7dfb95` | `agent-a313b6961fe7dfb95` | ABI 41, seam op 46 | running |
+| game slots (tools only): several game instances at once (`-UserDir` per slot, the `SimCity 4 Mutex` handle swapped), `ingame_run -Slot`, `regress -Parallel`, a per-worktree run queue (`tools/game_queue.ps1`, `docs/harness.md`), regress deltas | `a7cd31c14f8cfa636` | `agent-a7cd31c14f8cfa636` | - | running; owns the game while it works |
 | development glue fixes (devglue2) | `a054ba812e30f4fd3` | `agent-a054ba812e30f4fd3` / `devglue2` | ABI 42 if needed | paused; fix list sent (below) |
 | traffic glue phase 1 (M5) | `ae77339e1cc706c17` | `agent-ae77339e1cc706c17` | ABI 37, seam op 42 | paused |
 | tract developer glue (M4) | `ae81a8bc4c10d6880` | `agent-ae81a8bc4c10d6880` | ABI 40, seam op 45 | paused |
 | RE answers 8 (ZG17, NG, GF, AQ, BQ, FL, ZG, TS35-49, FS) | `a8519c0be49880b49` | `re-answers8` | - | paused at the FS questions (tip `1f67fe1`) |
 | RE specs 9 (commercial, industrial, 24-hour clock, ...) | `a3547ddd1232ef1f1` | `re-specs9` | - | paused (tip `a82a2fd`) |
 
-When the harness lane merges: give `tools/regress.ps1` a turbo / end-date profile, replace UI-driven tests with
-`script` actions, then resume the paused lanes.
+When the harness and game-slots lanes merge: give `tools/regress.ps1` a turbo / end-date profile, replace UI-driven
+tests with `script` actions, start the run queue, add `docs/harness.md` to every lane prompt's reading list (lanes
+then test their own DLL in game, in parallel), and resume the paused lanes.
 
 ### Open items, most useful first
 
