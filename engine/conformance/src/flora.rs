@@ -17,10 +17,10 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::rc::{Rc, Weak};
 
 use fc4_core::flora::{
-    advance_cluster_type, blocks_flora, blocks_per_month, boxes_intersect, elevation_index, msg, occupant_type, prop,
-    query_interface, scale_wild_seeds, table_byte, CellRect, CommandParam, FloraHost, FloraInterface, FloraOccupant,
-    FloraRandom, FloraRecord, FloraRegistry, FloraRng, FloraSim, Message, OccupantFilter, OccupantId, RngState,
-    SegmentId, SharedRegistry, Vec3, CLSID_FLORA_SIMULATOR, IID_OCCUPANT,
+    advance_cluster_type, blocks_flora, blocks_per_month, elevation_index, msg, occupant_type, prop, query_interface,
+    scale_wild_seeds, table_byte, CellRect, CommandParam, FloraHost, FloraInterface, FloraOccupant, FloraRandom,
+    FloraRecord, FloraRegistry, FloraRng, FloraSim, Message, OccupantFilter, OccupantId, RngState, SegmentId,
+    SharedRegistry, Vec3, CLSID_FLORA_SIMULATOR, IID_OCCUPANT,
 };
 use fc4_core::grid::IteratorState;
 use fc4_core::property::PropertyHolder;
@@ -125,6 +125,14 @@ pub(crate) struct World {
 
 fn in_rect(r: &Rect, x: f32, z: f32) -> bool {
     r[0] <= x && x <= r[2] && r[1] <= z && z <= r[3]
+}
+
+/// The scripted occupant manager's box query (`GetOccupantsByBBox`): closed
+/// boxes, so point footprints and flat query boxes are found. This is the
+/// test host's own query, not the simulator's `BoundingBoxesIntersect`
+/// (strict, `boxes_intersect`), which the simulator applies on top (§6.4).
+fn query_meets(a: (Vec3, Vec3), b: (Vec3, Vec3)) -> bool {
+    (0..3).all(|i| a.0[i] <= b.1[i] && b.0[i] <= a.1[i])
 }
 
 /// A scripted generator: queued integers (range / uniform u32 results),
@@ -600,7 +608,7 @@ impl FloraHost for World {
                         OccupantFilter::Type(t) => o.t == t,
                         OccupantFilter::Blocking => blocks_flora(o.t, o.network),
                     }
-                    && boxes_intersect(self.bbox(o), (min, max))
+                    && query_meets(self.bbox(o), (min, max))
             })
             .map(|(k, _)| k)
             .collect()

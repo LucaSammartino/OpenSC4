@@ -53,9 +53,9 @@
 //! # Choices made where the spec is open (`[choice]`)
 //!
 //! - The key-0 default record (§3.2) gets the flags byte [`DEFAULT_RECORD_FLAGS`]
-//!   (the original leaves it uninitialised): the code-default bits 1 and 2
-//!   **plus bit 0**, so it is never picked automatically (the quirk of §14.1
-//!   then never fires). [`FloraRegistry::set_default_record_flags`] changes it.
+//!   = `0x01` (the original leaves it uninitialised): bit 0, so it is never
+//!   picked automatically (the quirk of §14.1 then never fires).
+//!   [`FloraRegistry::set_default_record_flags`] changes it.
 //! - The registry keeps records as `Rc<FloraRecord>`; the seed type is a
 //!   `Cell` because registering a type rewrites other records' seed types
 //!   (§6.11). A reload (§5 exemplar changed) drops the registry's records;
@@ -75,8 +75,9 @@
 //!   byte 0, so the score is 0.
 //! - The blocking filter (§6.4.1) is the pure [`blocks_flora`]; the host
 //!   applies it when [`FloraHost::occupants_in_bbox`] is called with
-//!   [`OccupantFilter::Blocking`]. `BoundingBoxesIntersect` (flags 0, 0) is
-//!   [`boxes_intersect`]: closed boxes, touching faces intersect.
+//!   [`OccupantFilter::Blocking`]. `BoundingBoxesIntersect` (null outputs) is
+//!   [`boxes_intersect`]: strict on every axis, touching faces do not
+//!   intersect, an unordered (NaN) compare overlaps (§6.4 [compat]).
 //! - Planting (§6.5): the cluster-merging loop runs at most
 //!   [`MAX_MERGE_ROUNDS`] rounds. A host that cannot create a flora occupant
 //!   makes planting return null after the location test (no draw).
@@ -126,7 +127,7 @@ mod tests;
 pub use registry::{
     advance_cluster_type, FloraRecord, FloraRegistry, SharedRegistry, DEFAULT_RECORD_FLAGS, DEFAULT_TABLE_BYTE,
 };
-pub use simulator::{FloraData, FloraSim, FLORA_RECORD_VERSION};
+pub use simulator::{predict_visit, FloraData, FloraSim, VisitOutcome, FLORA_RECORD_VERSION};
 
 use std::rc::Rc;
 
@@ -667,10 +668,11 @@ pub fn table_byte(v: f32) -> u8 {
 }
 
 /// `((cellsX × cellsZ) div period) >> 2`, unsigned (§4.1 step 6, §7);
-/// [choice] period 0 gives 0.
+/// [choice] period 0 divides by 1 (a full pass every month; the original
+/// faults).
 pub fn blocks_per_month(cells_x: i32, cells_z: i32, period: u32) -> u32 {
     let cells = (cells_x as u32).wrapping_mul(cells_z as u32);
-    cells.checked_div(period).unwrap_or(0) >> 2
+    (cells / period.max(1)) >> 2
 }
 
 /// The wild-seed scaling of §7:
@@ -692,8 +694,12 @@ pub fn blocks_flora(occ_type: u32, network_flags: Option<u32>) -> bool {
     }
 }
 
-/// `SC4GeometryUtilities::BoundingBoxesIntersect(a, b, 0, 0)`: [choice]
-/// closed boxes, so touching faces intersect.
+/// `SC4GeometryUtilities::BoundingBoxesIntersect(aMin, aMax, bMin, bMax,
+/// null, null)` (§6.4 [compat]): strict on every axis, `aMin < bMax` and
+/// `bMin < aMax`, so boxes that only touch do not intersect; an unordered
+/// compare (NaN) counts as overlapping on that axis.
 pub fn boxes_intersect(a: (Vec3, Vec3), b: (Vec3, Vec3)) -> bool {
-    (0..3).all(|i| a.0[i] <= b.1[i] && b.0[i] <= a.1[i])
+    // "Not separated": `x >= y` is false for NaN, so NaN overlaps.
+    let separated = |lo: f32, hi: f32| lo >= hi;
+    (0..3).all(|i| !separated(a.0[i], b.1[i]) && !separated(b.0[i], a.1[i]))
 }

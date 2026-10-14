@@ -19,6 +19,8 @@
 // Usage: fc4_plugin_load_test <path to FreeCity4.dll>
 
 #include "cIGZCOMDirector.h"
+#include "cISC4AuraSimulator.h"
+#include "SC4Point.h"
 #include "cIGZDate.h"
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageTarget2.h"
@@ -38,6 +40,11 @@
 #include "SC4List.h"
 #include "SC4Percentage.h"
 #include "cRZBaseString.h"
+#include "FC4AuraShadow.h"
+#include "FC4FloraShadow.h"
+#include "SC4Rect.h"
+#include "cFC4Flora.h"
+#include "cISC4FloraSimulator.h"
 #include "FC4BudgetShadow.h"
 #include "FC4CrimeInterfaces.h"
 #include "FC4CrimeShadow.h"
@@ -45,6 +52,9 @@
 #include "FC4GameMap.h"
 #include "cFC4Demand.h"
 #include "FC4PollutionShadow.h"
+#include "FC4LandfillShadow.h"
+#include "FC4PowerShadow.h"
+#include "FC4Streams.h"
 #include "cS3DVector3.h"
 #include "cIGZOStream.h"
 #include "FC4Interfaces.h"
@@ -889,6 +899,173 @@ void InitFakeOrigPollution(FakeOrigPollution& o) {
 intptr_t PollutionShadowOnce(FC4TestSeamFn seam, FakeObject* city, cIGZMessageTarget2* target, uint32_t type) {
     FC4PollutionShadowTestInput in{reinterpret_cast<cISC4City*>(city), target, type, 2451576};  // 2000-02-01
     return seam(kFC4SeamPollutionShadow, &in, nullptr);
+}
+
+// ---- the power shadow (test seam op 21) ------------------------------------------------------------
+// An "original" power simulator on a 32 x 32 city without occupants, plants
+// or poles. QueryInterface answers its agent (cIGZMessageTarget2) and
+// cIGZSerializable, whose Write writes a §9.1 version-6 record: no
+// department, the powered grid's reference, a 32 x 32 consumption map, ring,
+// annual and per-type counts of zeros, no plants or poles, the four bitmaps
+// (32 words of zeros each) and `rec`'s ring index, recompute, agePlants and
+// state. The agent's DoMessage leaves `next` (what the original's update
+// did) and, when `poke` >= 0, writes `pokeValue` into that cell of the grid.
+// Slots 27-29 answer 0. The grid (cISC4SimGrid<uint8>, tract size 1, 32 x 32,
+// its own serializable with the grid class ID) holds `cells`. The city
+// answers GetPowerSimulator (compiled slot 67), CellWidthX / Z (91, 92) and
+// CellCountX / Z (93, 94). Any other call aborts.
+struct FakePowerRecord {
+    int32_t ringIndex;
+    uint8_t recompute;
+    uint8_t agePlants;
+    uint32_t state;
+};
+struct FakeOrigPower {
+    FakeVtable simVt, agentVt, serVt, gridVt, gridSerVt, cityVt;
+    FakeObject sim{}, agent{}, ser{}, grid{}, gridSer{}, city{}, other{};
+    FakePowerRecord rec{}, next{};
+    uint8_t cells[32 * 32]{};
+    int poke = -1;
+    uint8_t pokeValue = 0;
+    int refs = 1;
+    int deliveries = 0;
+    int writes = 0;
+};
+
+FakeOrigPower* g_ow = nullptr;
+
+bool __fastcall OwQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, agent, serializable)
+    if (out == nullptr) return false;
+    if (iid == 0x452294AA) {
+        *out = &g_ow->agent;  // cIGZMessageTarget2
+    } else if (iid == GZIID_cIGZSerializable) {
+        *out = &g_ow->ser;
+    } else {
+        return false;  // (the reference audit asks other IIDs)
+    }
+    ++g_ow->refs;
+    return true;
+}
+bool __fastcall OwGridQi(void*, void*, uint32_t iid, void** out) {  // 0 (grid, grid serializable)
+    if (out == nullptr) return false;
+    if (iid == 0xC9BD939A) {
+        *out = &g_ow->grid;  // cISC4SimGrid
+    } else if (iid == GZIID_cIGZSerializable) {
+        *out = &g_ow->gridSer;
+    } else {
+        return false;  // not an occupant, pole or department
+    }
+    ++g_ow->refs;
+    return true;
+}
+uint32_t __fastcall OwAddRef(void*, void*) { return static_cast<uint32_t>(++g_ow->refs); }   // 1
+uint32_t __fastcall OwRelease(void*, void*) { return static_cast<uint32_t>(--g_ow->refs); }  // 2
+bool __fastcall OwWrite(void*, void*, cIGZOStream* s) {                                       // serializable 3
+    ++g_ow->writes;
+    void* p = nullptr;
+    if (!s->QueryInterface(kFC4_IID_cISC4DBSegmentOStream, &p) || p == nullptr) return false;
+    auto* seg = static_cast<cFC4ISC4DBSegmentOStream*>(p);  // the capture stream: no reference taken
+    const FakePowerRecord& r = g_ow->rec;
+    s->SetUint16(6);
+    seg->WriteGZSerializable(nullptr);  // department
+    s->SetSint32(r.ringIndex);
+    s->SetUint32(0);     // production
+    s->SetUint32(0);     // consumption
+    s->SetFloat32(0.0f);  // deficit
+    for (int i = 0; i < 4; ++i) s->SetUint32(0);  // consumers, powered, unpowered, requirement
+    s->SetSint64(0);                               // costBase
+    for (int i = 0; i < 5; ++i) s->SetUint32(0);  // last production .. demand
+    seg->WriteGZSerializable(reinterpret_cast<cIGZSerializable*>(&g_ow->gridSer));
+    s->SetUint32(32);
+    s->SetUint32(32);
+    for (int i = 0; i < 32 * 32; ++i) s->SetSint16(0);   // consumption map
+    for (int i = 0; i < 12 * 10 + 10; ++i) s->SetSint32(0);  // ring, annual
+    s->SetSint32(0);                                     // plant count
+    for (int i = 0; i < 10; ++i) s->SetSint32(0);        // per type
+    s->SetUint32(0);                                     // pole count
+    s->SetUint32(0);                                     // broken count
+    s->SetUint32(32);                                    // words per bitmap
+    for (int i = 0; i < 4 * 32; ++i) s->SetUint32(0);    // mark, wire, powered current / next
+    s->SetUint8(0);                                      // unused
+    s->SetUint8(0);                                      // strike
+    s->SetSint32(0);                                     // strike start
+    s->SetUint8(r.recompute);
+    s->SetUint8(r.agePlants);
+    return s->SetUint32(r.state);
+}
+uint32_t __fastcall OwClsid(void*, void*) { return 0x0990C005; }      // serializable 5
+uint32_t __fastcall OwGridClsid(void*, void*) { return 0x49B9E602; }  // grid serializable 5
+int32_t __fastcall OwZero(void*, void*) { return 0; }                // simulator 27-29
+bool __fastcall OwDoMessage(void*, void*, cIGZMessage2*) {            // agent 3
+    ++g_ow->deliveries;
+    g_ow->rec = g_ow->next;
+    if (g_ow->poke >= 0) g_ow->cells[g_ow->poke] = g_ow->pokeValue;
+    return true;
+}
+int32_t __fastcall OwTractOne(void*, void*) { return 1; }               // grid 10
+int32_t __fastcall OwTractShift(void*, void*) { return 0; }             // grid 11
+int32_t __fastcall OwTractCount(void*, void*) { return 32; }            // grid 12, 13
+float __fastcall OwTractWidth(void*, void*) { return 16.0f; }           // grid 14, 15; city 91, 92
+float __fastcall OwTractInvWidth(void*, void*) { return 1.0f / 16.0f; }  // grid 16, 17
+uint8_t __fastcall OwTractValue(void*, void*, int32_t x, int32_t z) {    // grid 22
+    if (x < 0 || x > 31 || z < 0 || z > 31) return 0;
+    return g_ow->cells[x * 32 + z];
+}
+void* __fastcall OwCityPower(void*, void*) { return &g_ow->sim; }     // city 67
+uint32_t __fastcall OwCellCount(void*, void*) { return 32; }         // city 93, 94
+
+void InitFakeOrigPower(FakeOrigPower& o) {
+    g_ow = &o;
+    for (FakeVtable* vt : {&o.simVt, &o.agentVt, &o.serVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OwQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OwAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OwRelease);
+    }
+    for (FakeVtable* vt : {&o.gridVt, &o.gridSerVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OwGridQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OwAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OwRelease);
+    }
+    o.agentVt.slots[3] = reinterpret_cast<void*>(&OwDoMessage);
+    o.serVt.slots[3] = reinterpret_cast<void*>(&OwWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&OwClsid);
+    o.gridSerVt.slots[5] = reinterpret_cast<void*>(&OwGridClsid);
+    for (int s = 27; s <= 29; ++s) o.simVt.slots[s] = reinterpret_cast<void*>(&OwZero);
+    o.gridVt.slots[10] = reinterpret_cast<void*>(&OwTractOne);
+    o.gridVt.slots[11] = reinterpret_cast<void*>(&OwTractShift);
+    o.gridVt.slots[12] = reinterpret_cast<void*>(&OwTractCount);
+    o.gridVt.slots[13] = reinterpret_cast<void*>(&OwTractCount);
+    o.gridVt.slots[14] = reinterpret_cast<void*>(&OwTractWidth);
+    o.gridVt.slots[15] = reinterpret_cast<void*>(&OwTractWidth);
+    o.gridVt.slots[16] = reinterpret_cast<void*>(&OwTractInvWidth);
+    o.gridVt.slots[17] = reinterpret_cast<void*>(&OwTractInvWidth);
+    o.gridVt.slots[22] = reinterpret_cast<void*>(&OwTractValue);
+    o.cityVt.slots[67] = reinterpret_cast<void*>(&OwCityPower);
+    o.cityVt.slots[91] = reinterpret_cast<void*>(&OwTractWidth);
+    o.cityVt.slots[92] = reinterpret_cast<void*>(&OwTractWidth);
+    o.cityVt.slots[93] = reinterpret_cast<void*>(&OwCellCount);
+    o.cityVt.slots[94] = reinterpret_cast<void*>(&OwCellCount);
+    o.sim.vtbl = o.simVt.slots.data();
+    o.agent.vtbl = o.agentVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.grid.vtbl = o.gridVt.slots.data();
+    o.gridSer.vtbl = o.gridSerVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.other.vtbl = o.agentVt.slots.data();  // an agent, but not the simulator's
+}
+
+// The original before (`state`, ring index 0, nothing requested) and what its
+// update leaves (`next`).
+void OwSet(FakeOrigPower& o, uint32_t state, FakePowerRecord next) {
+    o.rec = FakePowerRecord{0, 0, 0, state};
+    o.next = next;
+    o.poke = -1;
+}
+
+intptr_t PowerShadowOnce(FC4TestSeamFn seam, FakeObject* city, cIGZMessageTarget2* target, uint32_t type,
+                         bool fresh) {
+    FC4PowerShadowTestInput in{reinterpret_cast<cISC4City*>(city), target, type, 2451576, fresh ? 1u : 0u};  // 2000-02-01
+    return seam(kFC4SeamPowerShadow, &in, nullptr);
 }
 
 // ---- the crime shadow (test seam op 13) ----------------------------------------------------------
@@ -1813,6 +1990,916 @@ int ProtectionShadowTest(const std::string& dll, const std::string& ini, const s
     return g_failures == 0 ? 0 : 1;
 }
 
+// ---- aura (aura.md): the replacement without a city, and the grid shadow (test seam op 14) ----------
+constexpr uint32_t kCLSID_Aura = 0x0990BDD8;
+constexpr uint32_t kIID_cISC4AuraSimulator = 0xC773E880;
+constexpr uint32_t kIID_cIGZMessageTarget2Aura = 0x452294AA;
+
+// An "original" aura simulator whose record (its own Write, cIGZSerializable)
+// is the version alone (a uint16 9): no grid references, so the shadow takes
+// no baseline and reports each cycle INCOMPLETE without calling anything
+// else. The city answers GetAuraSimulator (compiled slot 51), CellWidthX / Z
+// (91, 92) and CellCountX / Z (93, 94); `noAura` returns null at 51, `ours`
+// our own simulator. Any other call aborts.
+struct FakeOrigAura {
+    FakeVtable simVt, serVt, cityVt, noAuraVt, oursVt;
+    FakeObject sim{}, ser{}, city{}, noAura{}, ours{};
+    void* ourSim = nullptr;
+    int refs = 1;
+    int writes = 0;
+};
+
+FakeOrigAura* g_oa = nullptr;
+
+bool __fastcall OaQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, serializable)
+    if (out == nullptr || iid != GZIID_cIGZSerializable) return false;  // (the reference audit asks other IIDs)
+    *out = &g_oa->ser;
+    ++g_oa->refs;
+    return true;
+}
+uint32_t __fastcall OaAddRef(void*, void*) { return static_cast<uint32_t>(++g_oa->refs); }   // 1
+uint32_t __fastcall OaRelease(void*, void*) { return static_cast<uint32_t>(--g_oa->refs); }  // 2
+bool __fastcall OaWrite(void*, void*, cIGZOStream* s) {                                       // serializable 3
+    ++g_oa->writes;
+    return s->SetUint16(9);
+}
+uint32_t __fastcall OaClsid(void*, void*) { return kCLSID_Aura; }  // serializable 5
+void* __fastcall OaCityAura(void*, void*) { return &g_oa->sim; }   // city 51
+void* __fastcall OaCityNoAura(void*, void*) { return nullptr; }    // city 51
+void* __fastcall OaCityOurs(void*, void*) { return g_oa->ourSim; }  // city 51
+float __fastcall OaCellWidth(void*, void*) { return 16.0f; }       // city 91, 92
+uint32_t __fastcall OaCellCount(void*, void*) { return 64; }       // city 93, 94
+
+void InitFakeOrigAura(FakeOrigAura& o) {
+    g_oa = &o;
+    for (FakeVtable* vt : {&o.simVt, &o.serVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OaQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OaAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OaRelease);
+    }
+    o.serVt.slots[3] = reinterpret_cast<void*>(&OaWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&OaClsid);
+    o.cityVt.slots[51] = reinterpret_cast<void*>(&OaCityAura);
+    o.cityVt.slots[91] = reinterpret_cast<void*>(&OaCellWidth);
+    o.cityVt.slots[92] = reinterpret_cast<void*>(&OaCellWidth);
+    o.cityVt.slots[93] = reinterpret_cast<void*>(&OaCellCount);
+    o.cityVt.slots[94] = reinterpret_cast<void*>(&OaCellCount);
+    o.noAuraVt.slots[51] = reinterpret_cast<void*>(&OaCityNoAura);
+    o.oursVt.slots[51] = reinterpret_cast<void*>(&OaCityOurs);
+    o.sim.vtbl = o.simVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.noAura.vtbl = o.noAuraVt.slots.data();
+    o.ours.vtbl = o.oursVt.slots.data();
+}
+
+intptr_t AuraShadowOnce(FC4TestSeamFn seam, FakeObject* city, int32_t julian, bool baseline) {
+    FC4AuraShadowTestInput in{reinterpret_cast<cISC4City*>(city), julian, baseline ? 1u : 0u};
+    return seam(kFC4SeamAuraShadow, &in, nullptr);
+}
+
+// The neutral answers without a city (§8: no grids, ratings 0).
+void CheckAuraNeutral(cISC4AuraSimulator* a) {
+    CHECK(a->GetMayorRating() == 0);
+    CHECK(a->GetAuraValue(3, 4) == 0);
+    SC4Point<long> p{7, 7};
+    CHECK(a->GetMaxMayorRating(p) == 0);
+    CHECK(a->GetMinMayorRating(p) == 0);
+    CHECK(a->GetAuraGrid() == nullptr);
+    CHECK(a->GetTransientAuraGrid() == nullptr);
+    CHECK(a->GetParkMap() == nullptr);
+    CHECK(a->GetLandmarkMap() == nullptr);
+}
+
+int AuraEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = aura` registers the aura simulator. The aura
+    // shadow (it compares against the original) is then inactive.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_AURA_SHADOW", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = aura\n[tools]\naura_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    static FakeOrigAura orig;
+    InitFakeOrigAura(orig);
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        // simulator (1) + budget (3) + aura (1); never the game's grid classes.
+        CHECK(classes.size() == 5);
+        for (uint32_t c : classes) CHECK(c < 0x49B9E600 || c > 0x49B9E60B);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Aura) == 1);
+
+        void* obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Aura, kIID_cISC4AuraSimulator, &obj));
+        auto* aura = static_cast<cISC4AuraSimulator*>(obj);
+        if (aura != nullptr) {
+            // §1: the primary for its IID and cIGZUnknown; the message target
+            // and serializable; nothing else (the out pointer untouched).
+            void* p = nullptr;
+            CHECK(aura->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(aura));
+            static_cast<cIGZUnknown*>(p)->Release();
+            cIGZMessageTarget2* mt = nullptr;
+            CHECK(aura->QueryInterface(kIID_cIGZMessageTarget2Aura, reinterpret_cast<void**>(&mt)) && mt != nullptr);
+            cIGZSerializable* ser = nullptr;
+            CHECK(aura->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser != nullptr);
+            if (ser != nullptr) {
+                CHECK(ser->GetGZCLSID() == kCLSID_Aura);
+                ser->Release();
+            }
+            p = reinterpret_cast<void*>(0x1234);
+            CHECK(!aura->QueryInterface(0x12345678, &p) && p == reinterpret_cast<void*>(0x1234));
+            CheckAuraNeutral(aura);
+            // Without a city: the month line before Init, a clean lifecycle,
+            // and the transient effects and strike busting do nothing harmful.
+            if (mt != nullptr) {
+                TypeMessage month(kMsgSimNewMonth);
+                CHECK(mt->DoMessage(&month));
+            }
+            CHECK(aura->Init());
+            CHECK(aura->Init());
+            CheckAuraNeutral(aura);
+            aura->AddTransientEffect(10.0f, 20.0f, 30.0f, 5.0f);
+            aura->AddTransientEffect(10.0f, 20.0f, 0x12345678u);
+            aura->BustStrike(cISC4AuraSimulator::StrikeBusterAll);
+            // Five days: states 1 -> 2 -> 3 -> 4, where a city without lots
+            // ends the cycle silently (§6.4 [quirk]): no cycle line, no post.
+            if (mt != nullptr) {
+                for (int i = 0; i < 5; ++i) {
+                    TypeMessage day(kMsgSimNewDay);
+                    CHECK(mt->DoMessage(&day));
+                }
+            }
+            // Getters from a second thread (they read the snapshot only).
+            int8_t rating = 99;
+            cISC4SimGrid<int8_t>* grid = reinterpret_cast<cISC4SimGrid<int8_t>*>(0x1);
+            std::thread t([&] {
+                rating = aura->GetMayorRating();
+                grid = aura->GetAuraGrid();
+            });
+            t.join();
+            CHECK(rating == 0 && grid == nullptr);
+            CheckAuraNeutral(aura);
+            // The shadow (test seam op 14) refuses our own simulator.
+            orig.ourSim = aura;
+            CHECK(AuraShadowOnce(seam, &orig.ours, 0, true) == -1);
+            if (mt != nullptr) mt->Release();
+            CHECK(aura->Shutdown());
+            CHECK(aura->Release() == 0);
+        }
+        // The shadow on fake originals: no city, a city without an aura
+        // simulator, then the original whose record does not parse: no
+        // baseline (0), and the cycle compares nothing (-2).
+        CHECK(AuraShadowOnce(seam, nullptr, 0, true) == -1);
+        CHECK(AuraShadowOnce(seam, &orig.noAura, 0, true) == -1);
+        CHECK(AuraShadowOnce(seam, &orig.city, 0, true) == 0);
+        CHECK(AuraShadowOnce(seam, &orig.city, 2451576, false) == -2);  // 2000-02-01
+        CHECK(orig.writes == 2);
+        CHECK(orig.refs == 1);  // every QueryInterface released
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("subsystem 'aura': enabled (1 class replaced) by FreeCity4.ini (enable=)") != std::string::npos);
+    CHECK(text.find("cFC4AuraSimulator(") != std::string::npos);
+    CHECK(text.find("aura month: init=0 state=1") != std::string::npos);
+    CHECK(text.find("aura Init: init=1") != std::string::npos);
+    CHECK(text.find("lot walks=0 lots=0; inputs none missing so far") != std::string::npos);
+    CHECK(text.find("aura cycle ") == std::string::npos);
+    CHECK(text.find("aura Shutdown (5 days, 1 months, 0 cycles)") != std::string::npos);
+    CHECK(text.find("cFC4AuraSimulator destroyed") != std::string::npos);
+    CHECK(text.find("aura shadow: requested (aura_shadow from FreeCity4.ini) but INACTIVE") != std::string::npos);
+    CHECK(text.find("aura shadow: ON") == std::string::npos);
+    CHECK(text.find("aura shadow: inactive: the city's aura simulator is FreeCity4's own") != std::string::npos);
+    CHECK(text.find("aura shadow: the city has no aura simulator; nothing compared") != std::string::npos);
+    CHECK(text.find("aura shadow: comparing with the original aura simulator") != std::string::npos);
+    CHECK(text.find("(city ") != std::string::npos && text.find("64 x 64 cells); differing tracts listed per grid: 4") !=
+                                                          std::string::npos);
+    CHECK(text.find("aura shadow: no baseline at city load (the original's record did not parse); the first cycle "
+                    "only takes one") != std::string::npos);
+    CHECK(text.find("aura shadow 2000-02-01 cycle 1: INCOMPLETE (the original's record did not parse); the next "
+                    "cycle only takes a baseline") != std::string::npos);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin aura enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
+// ---- flora (flora.md): the replacement without a city, and the census shadow (test seam op 17) -------
+constexpr uint32_t kCLSID_Flora = 0xC990C034;
+constexpr uint32_t kIID_cISC4FloraSimulatorT = 0x06C66177;
+constexpr uint32_t kIID_cIGZMessageTarget2Flora = 0x452294AA;
+
+// An "original" flora simulator whose record (its own Write,
+// cIGZSerializable) is the version alone (a uint16 2): the month is not
+// compared (INCOMPLETE). Its registry: no types (slot 9), and under key 0
+// (slot 7, slot 11) the block `key0` (the test hands it our own key-0 block,
+// so the registry check finds no difference). The agent (its
+// cIGZMessageTarget2) counts the deliveries. The city answers
+// GetFloraSimulator (compiled slot 59) only; `noFlora` returns null there,
+// `ours` our own simulator. Any other call aborts.
+struct FakeOrigFlora {
+    FakeVtable simVt, serVt, agentVt, cityVt, noFloraVt, oursVt;
+    FakeObject sim{}, ser{}, agent{}, city{}, noFlora{}, ours{};
+    void* ourSim = nullptr;
+    void* key0 = nullptr;
+    int refs = 1;
+    int writes = 0;
+    int delivered = 0;
+};
+
+FakeOrigFlora* g_ofl = nullptr;
+
+bool __fastcall OflQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, serializable, agent)
+    if (out == nullptr) return false;
+    if (iid == GZIID_cIGZSerializable) {
+        *out = &g_ofl->ser;
+    } else if (iid == kIID_cIGZMessageTarget2Flora) {
+        *out = &g_ofl->agent;
+    } else {
+        return false;  // (the reference audit asks other IIDs)
+    }
+    ++g_ofl->refs;
+    return true;
+}
+uint32_t __fastcall OflAddRef(void*, void*) { return static_cast<uint32_t>(++g_ofl->refs); }   // 1
+uint32_t __fastcall OflRelease(void*, void*) { return static_cast<uint32_t>(--g_ofl->refs); }  // 2
+void* __fastcall OflRecord(void*, void*, uint32_t type) { return type == 0 ? g_ofl->key0 : nullptr; }  // sim 7
+uint32_t __fastcall OflTypes(void*, void*, uint32_t*, uint32_t* count) {  // sim 9
+    if (count != nullptr) *count = 0;
+    return 0;
+}
+bool __fastcall OflValid(void*, void*, uint32_t type) { return type == 0 && g_ofl->key0 != nullptr; }  // sim 11
+bool __fastcall OflWrite(void*, void*, cIGZOStream* s) {  // serializable 3
+    ++g_ofl->writes;
+    return s->SetUint16(2);
+}
+uint32_t __fastcall OflClsid(void*, void*) { return kCLSID_Flora; }  // serializable 5
+bool __fastcall OflDoMessage(void*, void*, cIGZMessage2*) {        // agent 3
+    ++g_ofl->delivered;
+    return true;
+}
+void* __fastcall OflCityFlora(void*, void*) { return &g_ofl->sim; }  // city 59
+void* __fastcall OflCityNoFlora(void*, void*) { return nullptr; }   // city 59
+void* __fastcall OflCityOurs(void*, void*) { return g_ofl->ourSim; }  // city 59
+
+void InitFakeOrigFlora(FakeOrigFlora& o) {
+    g_ofl = &o;
+    for (FakeVtable* vt : {&o.simVt, &o.serVt, &o.agentVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OflQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OflAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OflRelease);
+    }
+    o.agentVt.slots[0] = o.simVt.slots[0];
+    o.simVt.slots[7] = reinterpret_cast<void*>(&OflRecord);
+    o.simVt.slots[9] = reinterpret_cast<void*>(&OflTypes);
+    o.simVt.slots[11] = reinterpret_cast<void*>(&OflValid);
+    o.serVt.slots[3] = reinterpret_cast<void*>(&OflWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&OflClsid);
+    o.agentVt.slots[3] = reinterpret_cast<void*>(&OflDoMessage);
+    o.cityVt.slots[59] = reinterpret_cast<void*>(&OflCityFlora);
+    o.noFloraVt.slots[59] = reinterpret_cast<void*>(&OflCityNoFlora);
+    o.oursVt.slots[59] = reinterpret_cast<void*>(&OflCityOurs);
+    o.sim.vtbl = o.simVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.agent.vtbl = o.agentVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.noFlora.vtbl = o.noFloraVt.slots.data();
+    o.ours.vtbl = o.oursVt.slots.data();
+}
+
+intptr_t FloraShadowOnce(FC4TestSeamFn seam, FakeObject* city, FakeObject* target, uint32_t type, int32_t julian,
+                         intptr_t* registry) {
+    FC4FloraShadowTestInput in{reinterpret_cast<cISC4City*>(city), reinterpret_cast<cIGZMessageTarget2*>(target),
+                               type, julian};
+    return seam(kFC4SeamFloraShadow, &in, registry);
+}
+
+// The calls that need a city do nothing without one (no occupant manager, no
+// terrain): nothing found, nothing planted, nothing removed.
+void CheckFloraNoCity(cISC4FloraSimulator* f) {
+    float pos[3] = {10.0f, 0.0f, 10.0f};
+    CHECK(f->AddNewFloraOccupant(0x12345678u, pos, false) == nullptr);  // not a registered type
+    CHECK(!f->AddNewFloraOccupant(static_cast<cISC4Occupant*>(nullptr)));
+    CHECK(!f->KillFloraOccupant(nullptr));
+    CHECK(!f->DemolishFloraOccupant(nullptr, 0));
+    SC4Rect<int32_t> rect{};
+    rect.topLeftX = 0;
+    rect.topLeftY = 0;
+    rect.bottomRightX = 4;
+    rect.bottomRightY = 4;
+    CHECK(f->DemolishFloraInCellArea(rect, 0));  // no flora there: true
+    const float mn[3] = {0.0f, -100.0f, 0.0f};
+    const float mx[3] = {64.0f, 100.0f, 64.0f};
+    CHECK(f->DemolishFloraInBoundingBox(mn, mx, 0));
+    CHECK(f->GetCostOfOccupantDemolition(nullptr, 0) == 0);
+    CHECK(f->SaveObliterated(nullptr));  // logged once: not saved
+}
+
+int FloraEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = flora` registers the flora simulator. The
+    // flora shadow (it compares against the original) is then inactive.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_FLORA_SHADOW", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = flora\n[tools]\nflora_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    static FakeOrigFlora orig;
+    InitFakeOrigFlora(orig);
+    // A record in the game layout (docs/abi/layouts.md) for slot 6; static:
+    // the registry keeps it (and its reference) for the life of the process.
+    static FC4FloraBlock added{};
+    added.type = 0x7E570001;
+    added.next = 0x7E570002;  // not registered: no record's seed type changes (§6.11), key 0's stays as built
+    added.flags = 0x01;
+    added.refCount = 0;
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        // simulator (1) + budget (3) + flora (1); never the flora occupant class.
+        CHECK(classes.size() == 5);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Flora) == 1);
+        CHECK(std::count(classes.begin(), classes.end(), 0xA9C05C85u) == 0);
+
+        void* obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Flora, kIID_cISC4FloraSimulatorT, &obj));
+        auto* flora = static_cast<cISC4FloraSimulator*>(obj);
+        if (flora != nullptr) {
+            // §1: the primary for its IID and cIGZUnknown; the message target
+            // and serializable; nothing else (the out pointer untouched).
+            void* p = nullptr;
+            CHECK(flora->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(flora));
+            static_cast<cIGZUnknown*>(p)->Release();
+            cIGZMessageTarget2* mt = nullptr;
+            CHECK(flora->QueryInterface(kIID_cIGZMessageTarget2Flora, reinterpret_cast<void**>(&mt)) && mt != nullptr);
+            cIGZSerializable* ser = nullptr;
+            CHECK(flora->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser != nullptr);
+            if (ser != nullptr) {
+                CHECK(ser->GetGZCLSID() == kCLSID_Flora);
+                ser->Release();
+            }
+            p = reinterpret_cast<void*>(0x1234);
+            CHECK(!flora->QueryInterface(0x12345678, &p) && p == reinterpret_cast<void*>(0x1234));
+            // Before the first Init of the process the registry is empty.
+            CHECK(flora->GetStaticFloraData(0) == nullptr);
+            CHECK(!flora->IsFloraTypeValid(0));
+            uint32_t n = 99;
+            flora->GetAllFloraTypes(nullptr, n);
+            CHECK(n == 0);
+            // The month line before Init; then a clean lifecycle without a city.
+            if (mt != nullptr) {
+                TypeMessage month(kMsgSimNewMonth);
+                CHECK(mt->DoMessage(&month));
+            }
+            CHECK(flora->Init());
+            CHECK(flora->Init());
+            // §3.2: the key-0 default record, a game-layout block (flags 0x01)
+            // that keeps our reference for the life of the process.
+            auto* key0 = reinterpret_cast<FC4FloraBlock*>(flora->GetStaticFloraData(0));
+            CHECK(key0 != nullptr);
+            if (key0 != nullptr) {
+                CHECK(key0->type == 0);
+                CHECK(key0->flags == 0x01);
+                CHECK(key0->refCount == 1);
+                CHECK(key0->exemplar == nullptr);
+                CHECK(key0->familyBegin == nullptr);
+            }
+            CHECK(flora->IsFloraTypeValid(0));
+            CHECK(flora->IsFloraFamilyTypeValid(0));  // §11.1 slot 12: a family ID or a registered type
+            n = 99;
+            flora->GetAllFloraTypes(nullptr, n);
+            CHECK(n == 0);  // key 0 is in the map only
+            // Slot 5 without a key or an exemplar; slot 6 with a record of
+            // ours: registered once, its reference taken (+0x170).
+            CHECK(!flora->AddStaticFloraData(static_cast<cGZPersistResourceKey*>(nullptr), nullptr));
+            CHECK(flora->AddStaticFloraData(reinterpret_cast<cSC4StaticFloraData*>(&added)));
+            CHECK(added.refCount == 1);
+            CHECK(!flora->AddStaticFloraData(reinterpret_cast<cSC4StaticFloraData*>(&added)));
+            CHECK(added.refCount == 1);
+            CHECK(flora->GetStaticFloraData(added.type) == reinterpret_cast<cSC4StaticFloraData*>(&added));
+            CHECK(flora->IsFloraTypeValid(added.type));
+            n = 0;
+            flora->GetAllFloraTypes(nullptr, n);
+            CHECK(n == 1);
+            uint32_t types[4] = {};
+            uint32_t cap = 4;
+            flora->GetAllFloraTypes(types, cap);
+            CHECK(cap == 1 && types[0] == added.type);
+            CheckFloraNoCity(flora);
+            float score = -1.0f;
+            CHECK(flora->GetBestFloraTypeForLocation(10.0f, 10.0f, score) == 0);
+            // Days and a month without a city.
+            if (mt != nullptr) {
+                for (int i = 0; i < 3; ++i) {
+                    TypeMessage day(kMsgSimNewDay);
+                    CHECK(mt->DoMessage(&day));
+                }
+                TypeMessage month(kMsgSimNewMonth);
+                CHECK(mt->DoMessage(&month));
+            }
+            // The registry getters from a second thread (the snapshot, no lock).
+            void* fromThread = nullptr;
+            bool validThread = false;
+            std::thread t([&] {
+                fromThread = flora->GetStaticFloraData(0);
+                validThread = flora->IsFloraTypeValid(added.type);
+            });
+            t.join();
+            CHECK(fromThread == static_cast<void*>(key0) && validThread);
+            // The shadow (test seam op 17) refuses our own simulator.
+            orig.ourSim = flora;
+            intptr_t reg = 0;
+            CHECK(FloraShadowOnce(seam, &orig.ours, &orig.agent, kMsgSimNewMonth, 0, &reg) == -1);
+            CHECK(reg == -1);
+            orig.key0 = key0;  // the fake original's key-0 record: our own block
+            if (mt != nullptr) mt->Release();
+            CHECK(flora->Shutdown());
+            CHECK(flora->Release() == 0);
+            // The registry outlives the simulator (§3.2).
+            CHECK(key0 == nullptr || key0->refCount == 1);
+        }
+        // The shadow on fake originals: no city, a city without a flora
+        // simulator, a day (not taken), then the original: the registry
+        // matches ours (no exemplars, key 0 the same), and its record does
+        // not parse, so the month compares nothing (-2).
+        intptr_t reg = 0;
+        CHECK(FloraShadowOnce(seam, nullptr, &orig.agent, kMsgSimNewMonth, 0, &reg) == -1);
+        CHECK(FloraShadowOnce(seam, &orig.noFlora, &orig.agent, kMsgSimNewMonth, 0, &reg) == -1);
+        CHECK(FloraShadowOnce(seam, &orig.city, &orig.agent, kMsgSimNewDay, 2451576, &reg) == -1);
+        CHECK(orig.delivered == 0);
+        CHECK(FloraShadowOnce(seam, &orig.city, &orig.agent, kMsgSimNewMonth, 2451576, &reg) == -2);  // 2000-02-01
+        CHECK(reg == 0);
+        CHECK(orig.delivered == 1);
+        CHECK(orig.writes == 2);
+        CHECK(orig.refs == 1);  // every QueryInterface released
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("subsystem 'flora': enabled (1 class replaced) by FreeCity4.ini (enable=)") != std::string::npos);
+    CHECK(text.find("flora: the process-wide flora registry") != std::string::npos);
+    CHECK(text.find("cFC4FloraSimulator(") != std::string::npos);
+    CHECK(text.find("flora month -: flora=- (no census: no occupant manager); planted=0(+0)") != std::string::npos);
+    CHECK(text.find("flora Init -: flora=- (no census: no occupant manager)") != std::string::npos);
+    CHECK(text.find("is not registered [choice]: the records are kept") != std::string::npos);
+    CHECK(text.find("flora: no resource manager; no flora exemplars") != std::string::npos);
+    CHECK(text.find("flora: SaveObliterated(") != std::string::npos);
+    CHECK(text.find("flora Shutdown (3 days, 2 months, ") != std::string::npos);
+    CHECK(text.find("cFC4FloraSimulator destroyed") != std::string::npos);
+    CHECK(text.find("flora shadow: requested (flora_shadow from FreeCity4.ini) but INACTIVE") != std::string::npos);
+    CHECK(text.find("flora shadow: ON") == std::string::npos);
+    CHECK(text.find("flora shadow: inactive: the city's flora simulator is FreeCity4's own") != std::string::npos);
+    CHECK(text.find("flora shadow: comparing with the original flora simulator") != std::string::npos);
+    CHECK(text.find("flora shadow registry: exemplars 0, types ours 0 original 0; records compared 1; key 0 compared "
+                    "(flags and plop cost not); differences 0") != std::string::npos);
+    CHECK(text.find("flora shadow month 2000-02-01: INCOMPLETE (before: the record is short)") != std::string::npos);
+    CHECK(text.find("flora shadow census 2000-02-01: before 0 (young 0, maturing 0, mature 0, burnt 0, dying 0, "
+                    "other 0; types 0) after 0") != std::string::npos);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin flora enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
+// ---- landfill (landfill.md): the replacement without a city, and the shadow (test seam op 18) -------
+constexpr uint32_t kCLSID_Landfill = 0xEA09D4AE;
+constexpr uint32_t kIID_cISC4LandfillDeveloper = 0x8A09D502;
+constexpr uint32_t kIID_cIGZMessageTarget2Landfill = 0x452294AA;
+
+// In-memory streams for the record (§6.1): primitives little-endian; no
+// segment stream, so no references (a record without zones has none).
+class LandfillOStream final : public cIGZOStream {
+public:
+    std::vector<uint8_t> bytes;
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    void Flush() override {}
+    bool SetSint8(int8_t v) override { return Put(&v, 1); }
+    bool SetUint8(uint8_t v) override { return Put(&v, 1); }
+    bool SetSint16(int16_t v) override { return Put(&v, 2); }
+    bool SetUint16(uint16_t v) override { return Put(&v, 2); }
+    bool SetSint32(int32_t v) override { return Put(&v, 4); }
+    bool SetUint32(uint32_t v) override { return Put(&v, 4); }
+    bool SetSint64(int64_t v) override { return Put(&v, 8); }
+    bool SetUint64(uint64_t v) override { return Put(&v, 8); }
+    bool SetFloat32(float v) override { return Put(&v, 4); }
+    bool SetFloat64(double v) override { return Put(&v, 8); }
+    bool SetRZCharStr(char const*) override { return false; }
+    bool SetGZStr(cIGZString const&) override { return false; }
+    bool SetGZSerializable(cIGZSerializable const&) override { return false; }
+    bool SetVoid(void const* p, uint32_t n) override { return Put(p, n); }
+    int32_t GetError() override { return 0; }
+    int32_t SetUserData(cIGZVariant*) override { return 0; }
+    int32_t GetUserData() override { return 0; }
+
+private:
+    bool Put(const void* p, size_t n) {
+        const uint8_t* b = static_cast<const uint8_t*>(p);
+        bytes.insert(bytes.end(), b, b + n);
+        return true;
+    }
+};
+
+class LandfillIStream final : public cIGZIStream {
+public:
+    explicit LandfillIStream(std::vector<uint8_t> b) : bytes(std::move(b)) {}
+    std::vector<uint8_t> bytes;
+    size_t at = 0;
+    int32_t error = 0;
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Skip(uint32_t n) override { return Get(nullptr, n); }
+    bool GetSint8(int8_t& v) override { return Get(&v, 1); }
+    bool GetUint8(uint8_t& v) override { return Get(&v, 1); }
+    bool GetSint16(int16_t& v) override { return Get(&v, 2); }
+    bool GetUint16(uint16_t& v) override { return Get(&v, 2); }
+    bool GetSint32(int32_t& v) override { return Get(&v, 4); }
+    bool GetUint32(uint32_t& v) override { return Get(&v, 4); }
+    bool GetSint64(int64_t& v) override { return Get(&v, 8); }
+    bool GetUint64(uint64_t& v) override { return Get(&v, 8); }
+    bool GetFloat32(float& v) override { return Get(&v, 4); }
+    bool GetFloat64(double& v) override { return Get(&v, 8); }
+    bool GetRZCharStr(char*, uint32_t) override { return Fail(); }
+    bool GetGZStr(cIGZString&) override { return Fail(); }
+    bool GetGZSerializable(cIGZSerializable&) override { return Fail(); }
+    bool GetVoid(void* p, uint32_t n) override { return Get(p, n); }
+    int32_t GetError() override { return error; }
+    int32_t SetUserData(cIGZVariant*) override { return 0; }
+    int32_t GetUserData() override { return 0; }
+
+private:
+    bool Fail() {
+        error = 1;
+        return false;
+    }
+    bool Get(void* p, size_t n) {
+        if (error != 0 || bytes.size() - at < n) return Fail();
+        if (p != nullptr && n != 0) std::memcpy(p, bytes.data() + at, n);
+        at += n;
+        return true;
+    }
+};
+
+// The game's SC4CellRegion<long> (zones.md, 0x24 bytes): the inclusive
+// rectangle and a cRZCellMap<bool> (vtable, width, height, words per row,
+// rows; bit dz % 32 of rows[dx][dz / 32]).
+struct LandfillGameRegion {
+    int32_t x1, z1, x2, z2;
+    const void* vtbl;
+    uint32_t width, height, words;
+    uint32_t** rows;
+};
+static_assert(sizeof(LandfillGameRegion) == 0x24, "SC4CellRegion<long> layout");
+
+// The neutral answers without a city (§7.1; efficiency 1.0 without maintenance).
+void CheckLandfillNeutral(cFC4ISC4LandfillDeveloper* d) {
+    SC4Percentage e{0.0f};
+    CHECK(d->GetEfficiency(&e) == &e && e.percentage == 1.0f);  // the hidden result pointer in EAX
+    CHECK(d->GetSimulatorType() == 0x2A398ED6u);
+    CHECK(d->GetMaintenanceCosts() == 0);
+    CHECK(d->GetCurrentBudget() == 0);
+    uint32_t usage = 9, capacity = 9;
+    d->GetLandfillUsage(usage, capacity);
+    CHECK(usage == 0 && capacity == 0);
+    CHECK(d->GetLandfillTileCount() == 0);
+    CHECK(d->GetLandfillZoneFromCell(3, 4) == 0);
+    CHECK(d->GetZoningCost(nullptr) == 0);
+}
+
+// GetZoningCost on game regions: a flat 2 x 3 region (no city: altitude 0
+// everywhere) costs nothing; a region whose cell map does not match its
+// rectangle is refused (logged once) and costs nothing.
+void CheckLandfillRegions(cFC4ISC4LandfillDeveloper* d) {
+    uint32_t col0[1] = {0x7u}, col1[1] = {0x5u};
+    uint32_t* rows[2] = {col0, col1};
+    LandfillGameRegion good{10, 20, 11, 22, nullptr, 2, 3, 1, rows};
+    CHECK(d->GetZoningCost(reinterpret_cast<SC4CellRegion<int32_t> const*>(&good)) == 0);
+    LandfillGameRegion bad = good;
+    bad.width = 5;  // the rectangle is 2 wide
+    CHECK(d->GetZoningCost(reinterpret_cast<SC4CellRegion<int32_t> const*>(&bad)) == 0);
+    CHECK(d->GetZoningCost(reinterpret_cast<SC4CellRegion<int32_t> const*>(&bad)) == 0);
+}
+
+// Threads (cFC4Landfill.h): getters from another thread while the main
+// thread holds the lock inside DoMessage wait about 20 ms each, then answer
+// from the snapshot (one fallback each).
+class LandfillLockHeldMessage final : public cIGZMessage2 {
+public:
+    explicit LandfillLockHeldMessage(cFC4ISC4LandfillDeveloper* d) : dev(d) {}
+    cFC4ISC4LandfillDeveloper* dev;
+    bool ran = false;
+    int64_t maintenance = 99;
+    int32_t tiles = 99;
+    uint32_t usage = 99, capacity = 99;
+    float efficiency = 0.0f;
+    DWORD ms = 0;
+    bool QueryInterface(uint32_t, void**) override {
+        ran = true;
+        const DWORD start = GetTickCount();
+        std::thread t([this] {
+            maintenance = dev->GetMaintenanceCosts();
+            tiles = dev->GetLandfillTileCount();
+            dev->GetLandfillUsage(usage, capacity);
+            SC4Percentage e{0.0f};
+            efficiency = dev->GetEfficiency(&e)->percentage;
+        });
+        t.join();
+        ms = GetTickCount() - start;
+        return false;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Create(uint32_t, void**) const override { return false; }
+    uint32_t GetType() const override { return kMsgSimNewDay; }
+    void SetType(uint32_t) override {}
+    bool operator==(cIGZMessage2 const&) const override { return false; }
+    bool operator<(cIGZMessage2 const&) const override { return false; }
+};
+
+void CheckLandfillThreads(cFC4ISC4LandfillDeveloper* d, cIGZMessageTarget2* mt) {
+    LandfillLockHeldMessage msg(d);
+    CHECK(mt->DoMessage(&msg));
+    CHECK(msg.ran);
+    CHECK(msg.maintenance == 0 && msg.tiles == 0 && msg.usage == 0 && msg.capacity == 0);  // the snapshot
+    CHECK(msg.efficiency == 1.0f);
+    CHECK(msg.ms >= 60 && msg.ms < 5000);  // four getters waited (about 20 ms each), none blocked
+    // Without contention another thread gets the lock at once (no fallback).
+    int64_t m = 99;
+    std::thread t([&] { m = d->GetMaintenanceCosts(); });
+    t.join();
+    CHECK(m == 0);
+}
+
+// An "original" landfill developer: QueryInterface answers its agent
+// (cIGZMessageTarget2) and cIGZSerializable, whose Write writes the record
+// version `version` and, for 3, a zone count of 0 (§6.1). Slot 7
+// (GetMaintenanceCosts, int64) returns `maintenance`; the month sets it to
+// `maintenanceAfter`. The city answers GetLandfillDeveloper (compiled slot
+// 78) only; `noDev` returns null there, `ours` our own developer. Any other
+// call hits a trap and aborts.
+struct FakeOrigLandfill {
+    FakeVtable devVt, agentVt, serVt, cityVt, noDevVt, oursVt;
+    FakeObject dev{}, agent{}, ser{}, city{}, noDev{}, ours{}, other{};
+    void* ourDev = nullptr;
+    int refs = 1;
+    int deliveries = 0;
+    int writes = 0;
+    uint16_t version = 3;
+    int64_t maintenance = 0;
+    int64_t maintenanceAfter = 0;
+};
+
+FakeOrigLandfill* g_ol = nullptr;
+
+bool __fastcall OlQi(void*, void*, uint32_t iid, void** out) {  // 0 (developer, agent, serializable)
+    if (out == nullptr) return false;
+    if (iid == kIID_cIGZMessageTarget2Landfill) {
+        *out = &g_ol->agent;
+    } else if (iid == GZIID_cIGZSerializable) {
+        *out = &g_ol->ser;
+    } else {
+        return false;  // (the reference audit asks other IIDs)
+    }
+    ++g_ol->refs;
+    return true;
+}
+uint32_t __fastcall OlAddRef(void*, void*) { return static_cast<uint32_t>(++g_ol->refs); }   // 1
+uint32_t __fastcall OlRelease(void*, void*) { return static_cast<uint32_t>(--g_ol->refs); }  // 2
+bool __fastcall OlWrite(void*, void*, cIGZOStream* s) {                                       // serializable 3
+    ++g_ol->writes;
+    if (!s->SetUint16(g_ol->version)) return false;
+    return g_ol->version != 3 || s->SetSint32(0);
+}
+uint32_t __fastcall OlClsid(void*, void*) { return kCLSID_Landfill; }  // serializable 5
+bool __fastcall OlDoMessage(void*, void*, cIGZMessage2*) {             // agent 3
+    ++g_ol->deliveries;
+    g_ol->maintenance = g_ol->maintenanceAfter;
+    return true;
+}
+int64_t __fastcall OlMaintenance(void*, void*) { return g_ol->maintenance; }  // developer 7 (EDX:EAX)
+void* __fastcall OlCityDev(void*, void*) { return &g_ol->dev; }               // city 78
+void* __fastcall OlCityNoDev(void*, void*) { return nullptr; }                // city 78
+void* __fastcall OlCityOurs(void*, void*) { return g_ol->ourDev; }            // city 78
+
+void InitFakeOrigLandfill(FakeOrigLandfill& o) {
+    g_ol = &o;
+    for (FakeVtable* vt : {&o.devVt, &o.agentVt, &o.serVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OlQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OlAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OlRelease);
+    }
+    o.devVt.slots[7] = reinterpret_cast<void*>(&OlMaintenance);
+    o.agentVt.slots[3] = reinterpret_cast<void*>(&OlDoMessage);
+    o.serVt.slots[3] = reinterpret_cast<void*>(&OlWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&OlClsid);
+    o.cityVt.slots[78] = reinterpret_cast<void*>(&OlCityDev);
+    o.noDevVt.slots[78] = reinterpret_cast<void*>(&OlCityNoDev);
+    o.oursVt.slots[78] = reinterpret_cast<void*>(&OlCityOurs);
+    o.dev.vtbl = o.devVt.slots.data();
+    o.agent.vtbl = o.agentVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.noDev.vtbl = o.noDevVt.slots.data();
+    o.ours.vtbl = o.oursVt.slots.data();
+    o.other.vtbl = o.agentVt.slots.data();  // an agent, but not the developer's
+}
+
+intptr_t LandfillShadowOnce(FC4TestSeamFn seam, FakeObject* city, cIGZMessageTarget2* target,
+                            uint32_t type = kMsgSimNewMonth) {
+    FC4LandfillShadowTestInput in{reinterpret_cast<cISC4City*>(city), target, type, 2451576};  // 2000-02-01
+    return seam(kFC4SeamLandfillShadow, &in, nullptr);
+}
+
+int LandfillEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = landfill` registers the landfill developer.
+    // The landfill shadow (it compares against the original) is then inactive.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_LANDFILL_SHADOW", nullptr);
+    SetEnvironmentVariableA("FC4_LANDFILL_SHADOW_DIFFS", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = landfill\n[tools]\nlandfill_shadow = 1\nlandfill_shadow_diffs = 4\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    static FakeOrigLandfill orig;
+    InitFakeOrigLandfill(orig);
+    SetGamePrecision();  // as the game's PreFrameWorkInit does: the shadow must leave it
+    std::vector<uint8_t> record;
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        // simulator (1) + budget (3) + landfill (1); never the game's grid classes.
+        CHECK(classes.size() == 5);
+        for (uint32_t c : classes) CHECK(c < 0x49B9E600 || c > 0x49B9E60B);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Landfill) == 1);
+
+        void* obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Landfill, kIID_cISC4LandfillDeveloper, &obj));
+        auto* dev = static_cast<cFC4ISC4LandfillDeveloper*>(obj);
+        if (dev != nullptr) {
+            // §1: the primary for its IID and cIGZUnknown; the message target
+            // and serializable; nothing else (the out pointer untouched).
+            void* p = nullptr;
+            CHECK(dev->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(dev));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            p = nullptr;
+            CHECK(dev->QueryInterface(kIID_cISC4LandfillDeveloper, &p) && p == static_cast<void*>(dev));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            cIGZMessageTarget2* mt = nullptr;
+            CHECK(dev->QueryInterface(kIID_cIGZMessageTarget2Landfill, reinterpret_cast<void**>(&mt)) &&
+                  mt != nullptr);
+            cIGZSerializable* ser = nullptr;
+            CHECK(dev->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser != nullptr);
+            if (ser != nullptr) CHECK(ser->GetGZCLSID() == kCLSID_Landfill);
+            p = reinterpret_cast<void*>(0x1234);
+            CHECK(!dev->QueryInterface(0x12345678, &p) && p == reinterpret_cast<void*>(0x1234));
+            CHECK(!dev->QueryInterface(0x2A398ED6, &p) && p == reinterpret_cast<void*>(0x1234));
+            CheckLandfillNeutral(dev);
+            CheckLandfillRegions(dev);
+            // Without a city: the month line before Init, the record (§6.1:
+            // version 3, no zones), a clean lifecycle, still neutral.
+            if (mt != nullptr) {
+                TypeMessage month(kMsgSimNewMonth);
+                CHECK(mt->DoMessage(&month));
+            }
+            if (ser != nullptr) {
+                LandfillOStream out;
+                CHECK(ser->Write(out));
+                record = out.bytes;
+                const std::vector<uint8_t> empty = {3, 0, 0, 0, 0, 0};
+                CHECK(record == empty);
+            }
+            CHECK(dev->Init());
+            CheckLandfillNeutral(dev);
+            if (mt != nullptr) {
+                TypeMessage month(kMsgSimNewMonth);
+                CHECK(mt->DoMessage(&month));
+                TypeMessage day(kMsgSimNewDay);
+                CHECK(mt->DoMessage(&day));
+                CheckLandfillThreads(dev, mt);
+            }
+            CheckLandfillNeutral(dev);
+            // The shadow (test seam op 18) refuses our own developer.
+            orig.ourDev = dev;
+            CHECK(LandfillShadowOnce(seam, &orig.ours, reinterpret_cast<cIGZMessageTarget2*>(&orig.agent)) == -1);
+            if (ser != nullptr) ser->Release();
+            if (mt != nullptr) mt->Release();
+            CHECK(dev->Shutdown());
+            CHECK(dev->Release() == 0);
+        }
+        // Read runs before Init (§6.1): the record written above loads into a
+        // new developer; a record of another version does not.
+        for (uint16_t version : {uint16_t{3}, uint16_t{4}}) {
+            obj = nullptr;
+            CHECK(director->GetClassObject(kCLSID_Landfill, kIID_cISC4LandfillDeveloper, &obj));
+            auto* fresh = static_cast<cFC4ISC4LandfillDeveloper*>(obj);
+            if (fresh == nullptr) continue;
+            cIGZSerializable* s = nullptr;
+            CHECK(fresh->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&s)) && s != nullptr);
+            if (s != nullptr) {
+                std::vector<uint8_t> bytes = record.empty() ? std::vector<uint8_t>{3, 0, 0, 0, 0, 0} : record;
+                bytes[0] = static_cast<uint8_t>(version);
+                LandfillIStream in(bytes);
+                CHECK(s->Read(in) == (version == 3));
+                s->Release();
+            }
+            CHECK(fresh->Release() == 0);  // the final Release shuts a never-initialised developer down
+        }
+        // The shadow on fake originals: no city, a city without a landfill
+        // developer and an agent that is not the original's are left to the
+        // caller (-1, nothing delivered); a SimNewDay is not taken. The
+        // original's agent gets its month exactly once, its record captured
+        // before and after (its own Write): version 4 is INCOMPLETE (-2,
+        // nothing compared); an empty version-3 record matches ours (0); a
+        // maintenance that changed in the original's month and not in ours is
+        // one difference.
+        cIGZMessageTarget2* agent = reinterpret_cast<cIGZMessageTarget2*>(&orig.agent);
+        CHECK(LandfillShadowOnce(seam, nullptr, agent) == -1);
+        CHECK(LandfillShadowOnce(seam, &orig.noDev, agent) == -1);
+        CHECK(orig.deliveries == 0 && orig.writes == 0);
+        CHECK(LandfillShadowOnce(seam, &orig.city, agent, kMsgSimNewDay) == -1);
+        CHECK(orig.deliveries == 0 && orig.writes == 0);
+        orig.version = 4;
+        CHECK(LandfillShadowOnce(seam, &orig.city, agent) == -2);
+        CHECK(orig.deliveries == 1 && orig.writes == 2);
+        orig.version = 3;
+        CHECK(LandfillShadowOnce(seam, &orig.city, agent) == 0);
+        CHECK(orig.deliveries == 2 && orig.writes == 4);
+        orig.maintenanceAfter = 77;
+        CHECK(LandfillShadowOnce(seam, &orig.city, agent) == 1);
+        CHECK(orig.deliveries == 3 && orig.writes == 6 && orig.maintenance == 77);
+        orig.maintenance = orig.maintenanceAfter = 0;
+        CHECK(LandfillShadowOnce(seam, &orig.city, reinterpret_cast<cIGZMessageTarget2*>(&orig.other)) == -1);
+        CHECK(orig.deliveries == 3 && orig.writes == 6);
+        CHECK(orig.refs == 1);  // every QueryInterface released
+        CheckCw("landfill shadow");
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("subsystem 'landfill': enabled (1 class replaced) by FreeCity4.ini (enable=)") !=
+          std::string::npos);
+    CHECK(text.find("cFC4LandfillDeveloper(") != std::string::npos);
+    // The month status line from the first month (before Init), Init's, Read's.
+    CHECK(text.find("landfill month: init=0 loaded=0 zones=0") != std::string::npos);
+    CHECK(text.find("landfill Init: init=1 loaded=0 zones=0") != std::string::npos);
+    CHECK(text.find("landfill month: init=1 loaded=0 zones=0") != std::string::npos);
+    CHECK(text.find("stored=0 capacity=0 used=0 free=") != std::string::npos);
+    CHECK(text.find("maintenance=0 activeCells=0") != std::string::npos);
+    CHECK(text.find("landfill: no city; services not acquired") != std::string::npos);
+    CHECK(text.find("landfill Write -> 1") != std::string::npos);
+    CHECK(text.find("landfill Read -> 1") != std::string::npos);
+    CHECK(text.find("landfill Read: init=0 loaded=1 zones=0") != std::string::npos);
+    CHECK(text.find("landfill Read -> 0") != std::string::npos);
+    CHECK(CountOf(text, "landfill: WARNING a cell region does not have the documented layout (rect 10,20..11,22, "
+                        "map 5x3, 1 words per row); it is ignored") == 1);
+    CHECK(text.find("landfill: GetLandfillZoneFromCell returns null") != std::string::npos);
+    CHECK(text.find("landfill Shutdown: 2 months, 4 fallbacks") != std::string::npos);
+    CHECK(text.find("cFC4LandfillDeveloper destroyed (4 fallbacks)") != std::string::npos);
+    CHECK(CountOf(text, "cFC4LandfillDeveloper destroyed (0 fallbacks)") == 2);
+    CHECK(text.find("landfill shadow: requested (landfill_shadow from FreeCity4.ini) but INACTIVE") !=
+          std::string::npos);
+    CHECK(text.find("landfill shadow: ON") == std::string::npos);
+    CHECK(text.find("landfill shadow: inactive: the city's landfill developer is FreeCity4's own") !=
+          std::string::npos);
+    CHECK(text.find("landfill shadow: comparing with the original landfill developer") != std::string::npos);
+    CHECK(text.find("differences listed per month: 4") != std::string::npos);
+    CHECK(text.find("landfill shadow month to 2000-02-01: INCOMPLETE (before: record version not 3); not compared") !=
+          std::string::npos);
+    CHECK(text.find("landfill shadow month to 2000-02-01: clean; zones orig/ours 0/0; heaps compared=0 mismatched=0") !=
+          std::string::npos);
+    CHECK(text.find("landfill shadow month to 2000-02-01: mismatches=1; zones orig/ours 0/0") != std::string::npos);
+    CHECK(text.find("maintenance orig/ours 77/0 (before 0, recomputed 0)") != std::string::npos);
+    CHECK(text.find("first differences: maintenance 77/0") != std::string::npos);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin landfill enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -1844,6 +2931,12 @@ int main(int argc, char** argv) {
     // Protection (protection.md): the replacement, and the grid shadow.
     if (mode == "--ini-enable-protection") return ProtectionEnableTest(dll, ini, log);
     if (mode == "--ini-protection-shadow") return ProtectionShadowTest(dll, ini, log);
+    // Aura (aura.md): the replacement, and the grid shadow on fake originals.
+    if (mode == "--ini-enable-aura") return AuraEnableTest(dll, ini, log);
+    // Flora (flora.md): the replacement, and the census shadow on fake originals.
+    if (mode == "--ini-enable-flora") return FloraEnableTest(dll, ini, log);
+    // Landfill (landfill.md): the replacement, and the shadow on fake originals.
+    if (mode == "--ini-enable-landfill") return LandfillEnableTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).
@@ -1978,7 +3071,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 93): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 125): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -2419,7 +3512,7 @@ int main(int argc, char** argv) {
         // the water simulator (plumbing.md §1).
         SetEnvironmentVariableA("FC4_DISABLE", nullptr);
         SetEnvironmentVariableA("FC4_ENABLE", nullptr);
-        WriteTextFile(ini, "[subsystems]\nenable = plumbing\n");
+        WriteTextFile(ini, "[subsystems]\nenable = plumbing\n[tools]\npower_shadow = 1\n");
         HMODULE hd = LoadLibraryA(dll.c_str());
         CHECK(hd != nullptr);
         if (hd == nullptr) return 1;
@@ -2504,6 +3597,10 @@ int main(int argc, char** argv) {
         CHECK(text.find("subsystem 'plumbing': enabled (1 class replaced) by FreeCity4.ini (enable=)") !=
               std::string::npos);
         CHECK(text.find("subsystem 'power': off by default") != std::string::npos);
+        // The power shadow can run here (our simulator, the original power).
+        CHECK(text.find("power shadow: ON (power_shadow from FreeCity4.ini): at each SimNewMonth, SimNewDay and "
+                        "working SimIdle of the ORIGINAL power simulator") != std::string::npos);
+        CHECK(text.find("power shadow: requested") == std::string::npos);
         CHECK(text.find("cFC4PlumbingSimulator(") != std::string::npos);
         CHECK(text.find("plumbing Init:") != std::string::npos);
         CHECK(text.find("plumbing Shutdown") != std::string::npos);
@@ -3310,6 +4407,50 @@ int main(int argc, char** argv) {
             CheckCw("pollution shadow");
         }
 
+        // The power shadow (op 21) next to an "original" power simulator on
+        // an empty 32 x 32 city. Clean month: the original advanced the ring
+        // and asked for the recompute and the ageing, as FreeCity4's §7.5
+        // does (0). Skewed month: its ring index is one further (1). The
+        // neighbours step (state 2 -> 3) and the statistics step (3 -> 4) are
+        // clean (0), then the original is idle: a SimIdle passes through
+        // (-3) while a SimNewDay is wrapped (0). A neighbours step whose
+        // update also wrote a powered value into an unwired cell: one grid
+        // cell differs (1), reported in the cycle line of the statistics step
+        // that follows (0). Not the original's agent, no city: left to the
+        // caller (-1, nothing delivered).
+        if (seam != nullptr) {
+            static FakeOrigPower ow;
+            InitFakeOrigPower(ow);
+            cIGZMessageTarget2* agent = reinterpret_cast<cIGZMessageTarget2*>(&ow.agent);
+            CHECK(PowerShadowOnce(seam, nullptr, agent, kMsgSimNewMonth, true) == -1);
+            CHECK(ow.deliveries == 0 && ow.writes == 0);
+            OwSet(ow, 4, FakePowerRecord{1, 1, 1, 4});
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimNewMonth, true) == 0);
+            CHECK(ow.deliveries == 1 && ow.writes == 2);
+            OwSet(ow, 4, FakePowerRecord{2, 1, 1, 4});
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimNewMonth, true) == 1);
+            OwSet(ow, 2, FakePowerRecord{0, 0, 0, 3});
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, true) == 0);
+            OwSet(ow, 3, FakePowerRecord{0, 0, 0, 4});
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, false) == 0);
+            OwSet(ow, 4, FakePowerRecord{0, 0, 0, 4});
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, false) == -3);
+            CHECK(ow.deliveries == 5 && ow.writes == 8);  // passed through: delivered, not captured
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimNewDay, false) == 0);
+            OwSet(ow, 2, FakePowerRecord{0, 0, 0, 3});
+            ow.poke = 5 * 32 + 7;
+            ow.pokeValue = 2;
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, true) == 1);
+            OwSet(ow, 3, FakePowerRecord{0, 0, 0, 4});
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, false) == 0);
+            std::memset(ow.cells, 0, sizeof(ow.cells));
+            CHECK(PowerShadowOnce(seam, &ow.city, reinterpret_cast<cIGZMessageTarget2*>(&ow.other), kMsgSimIdle,
+                                  true) == -1);
+            CHECK(ow.deliveries == 8 && ow.writes == 14);
+            CHECK(ow.refs == 1);  // every QueryInterface released
+            CheckCw("power shadow");
+        }
+
         // The crime shadow (op 13) next to an "original" crime simulator: one
         // month each (SimNewMonth, then SimNewDay until its pipeline state 4).
         // Clean: the original did what FreeCity4's state 4 does (0
@@ -3452,6 +4593,23 @@ int main(int argc, char** argv) {
           std::string::npos);
     CHECK(CountOf(text, "pollution shadow month to ") == 1);
     CHECK(text.find("pollution shadow: ON") == std::string::npos);  // off by default
+    // The power shadow (test seam op 21): two months (clean, ring index
+    // skewed), two cycles (clean; one grid cell off).
+    CHECK(text.find("power shadow: the original power simulator ") != std::string::npos);
+    CHECK(text.find("power shadow 2000-02-01 month: 1024 cells compared; production=0/0 consumption=0/0 import=0/0 "
+                    "export=0/0 demand=0/0 requirement=0/0 consumers=0/0 powered=0/0 unpowered=0/0 plants=0/0 "
+                    "aged=0/0 distressed=0/0 overworked=0/0 deficit=0/0 poles=0/0 broken=0/0; brokenFraction from 0 "
+                    "at the shadow's start (2000-02-01); not_exact=0; mismatches=0") != std::string::npos);
+    CHECK(text.find("broken=0/0; fields orig/ours: ringIndex=2/1; brokenFraction from 0 at the shadow's start "
+                    "(2000-02-01); not_exact=0; mismatches=1") != std::string::npos);
+    CHECK(CountOf(text, "power shadow 2000-02-01 bookkeeping: ") == 2);
+    CHECK(CountOf(text, "consumption map 0/1024 cells differ max|d|=0; wire 0 cells differ;") == 2);
+    CHECK(CountOf(text, "power shadow month to 2000-02-01: deliveries=1 steps=0 idle passed through=0 not "
+                        "enabled=0 cycles=0") == 2);
+    CHECK(text.find("power shadow 2000-02-01 cycle: steps 2 3 (cycle start not observed) on 32x32 cells; grid 2048 "
+                    "cells compared, max|d|=0; first differing cells: none;") != std::string::npos);
+    CHECK(CountOf(text, "power shadow 2000-02-01 cycle: ") == 2);
+    CHECK(text.find("power shadow: ON") == std::string::npos);  // off by default
     // The crime shadow (test seam op 13): a clean month, a skewed one, an
     // unobserved state 4; four runs, each a new "original".
     CHECK(CountOf(text, "crime shadow: tracking the original crime simulator ") == 4);
@@ -3484,6 +4642,10 @@ int main(int argc, char** argv) {
     CHECK(text.find("cFC4OrdinanceSimulator(") == std::string::npos);
     CHECK(text.find("subsystem 'demand': off by default") != std::string::npos);
     CHECK(text.find("cFC4DemandSimulator(") == std::string::npos);
+    CHECK(text.find("subsystem 'aura': off by default") != std::string::npos);
+    CHECK(text.find("cFC4AuraSimulator(") == std::string::npos);
+    CHECK(text.find("aura shadow: ON") == std::string::npos);  // off by default
+    CHECK(text.find("aura shadow: requested") == std::string::npos);
     CHECK(text.find("GetClassObject enter (clsid=0x2990C1E5, iid=0x8695664E") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x8695664E) -> 1") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x0BADF00D) -> 0") != std::string::npos);
@@ -3567,11 +4729,11 @@ int main(int argc, char** argv) {
                     "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 93 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 93 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 125 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 125 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 93): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 125): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);

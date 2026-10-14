@@ -1,0 +1,372 @@
+{
+  "format": 1,
+  "name": "ts11_02a_day_pacing_slices_of_3",
+  "spec": [
+    "traffic-simulator 3.3",
+    "traffic-simulator 3.4",
+    "traffic-simulator 4.3",
+    "traffic-simulator 11.2"
+  ],
+  "description": "Conformance test 2 (§11), N = 3. passTotal = 100 at the start of ConfirmTrips gives days = 5 and a share of 20 per day. Ten sources of four trips: day 1 runs sources 1-3 (processed 12 < 20, the call returns false and the day continues) and 4-6 (24 >= 20, the day ends); day 2 runs 7-9 (36 < 40) and source 10, after which the phase finishes and the day ends on entering 17 (toReRoute 0 -> days 1; toSearch 40).",
+  "steps": [
+    {
+      "op": "ts_lot",
+      "id": 100,
+      "rect": [
+        0,
+        6,
+        0,
+        6
+      ],
+      "holder": 500,
+      "trips": [
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        }
+      ],
+      "note": "ten zone-0 lots (no trip generation), four status-0 trips each"
+    },
+    {
+      "op": "ts_lot",
+      "id": 101,
+      "rect": [
+        1,
+        6,
+        1,
+        6
+      ],
+      "holder": 501,
+      "trips": [
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 102,
+      "rect": [
+        2,
+        6,
+        2,
+        6
+      ],
+      "holder": 502,
+      "trips": [
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 103,
+      "rect": [
+        3,
+        6,
+        3,
+        6
+      ],
+      "holder": 503,
+      "trips": [
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 104,
+      "rect": [
+        4,
+        6,
+        4,
+        6
+      ],
+      "holder": 504,
+      "trips": [
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 105,
+      "rect": [
+        5,
+        6,
+        5,
+        6
+      ],
+      "holder": 505,
+      "trips": [
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 106,
+      "rect": [
+        6,
+        6,
+        6,
+        6
+      ],
+      "holder": 506,
+      "trips": [
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 107,
+      "rect": [
+        7,
+        6,
+        7,
+        6
+      ],
+      "holder": 507,
+      "trips": [
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 108,
+      "rect": [
+        0,
+        6,
+        0,
+        6
+      ],
+      "holder": 508,
+      "trips": [
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 109,
+      "rect": [
+        1,
+        6,
+        1,
+        6
+      ],
+      "holder": 509,
+      "trips": [
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        },
+        {
+          "count": 1,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "units_per_slice": 3,
+        "pass_total": 100
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_daily_simulation",
+      "expect": false
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "total": 100,
+        "days": 5,
+        "processed": 12,
+        "source_pos": 3
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_daily_simulation",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "processed": 24,
+        "day_index": 1,
+        "source_pos": 6
+      }
+    },
+    {
+      "op": "ts_env",
+      "day": 6
+    },
+    {
+      "op": "ts_call",
+      "method": "do_daily_simulation",
+      "expect": false
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "processed": 36,
+        "source_pos": 9
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_daily_simulation",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "cycle_state": 17,
+        "total": 0,
+        "days": 1,
+        "to_search": 40
+      }
+    }
+  ]
+}

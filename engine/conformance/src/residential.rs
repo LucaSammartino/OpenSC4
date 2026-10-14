@@ -7,26 +7,27 @@
 //! Conformance ops for `docs/specs/residential.md`: a scripted city (the
 //! growth developers' population maps, the BDS building map, pollution
 //! source values, the month and day, terrain, the effects manager, occupants
-//! with groups and properties, departments), a scripted generator, and ops
-//! that drive the residential simulator (`fc4_core::residential`) and its
-//! save record. The education and health building work (REH) is outside
-//! this core: the world answers those hooks as a city without service
-//! buildings, except for the served counts, the strike chance and the
-//! building list it is told. See README.md ("Residential ops").
+//! with groups, properties, lots and budget items, departments, line items,
+//! ordinances), a scripted generator, and ops that drive the residential
+//! simulator (`fc4_core::residential`), its education and health half (REH)
+//! and its save record. See README.md ("Residential ops").
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::rc::{Rc, Weak};
 
 use fc4_core::grid::{CityDims, CoreGrids, GridElem, GridProvider, ScanState, SimGrid, TractGeometry, TractGrid};
 use fc4_core::property::PropertyHolder;
 use fc4_core::residential::{
-    age_bucket, msg, pct, query_interface, shipped_tuning, DepartmentBlock, EducationHealth, OccupantLists,
-    ResidentialHost, ResidentialMessage, ResidentialRandom, ResidentialRng, ResidentialSim, ResidentialState,
-    SimulatorTuning, SlotReturn, DEVELOPERS, GRID_TRIPLE_RESULT, OCCUPANT_TYPE_BUILDING, SLOTS,
+    age_bucket, msg, ordinance_modifiers, pct, query_interface, shipped_tuning, tracts_in_radius, BudgetItem,
+    DepartmentBlock, EducationHealthHost, OccupantLists, QueryData, ResidentialHost, ResidentialMessage,
+    ResidentialRandom, ResidentialRng, ResidentialSim, ResidentialState, SlotReturn, DEVELOPERS, GRID_TRIPLE_RESULT,
+    HOSPITAL, OCCUPANT_TYPE_BUILDING, SCHOOL, SLOTS,
 };
 use fc4_core::rng::FixedSeeds;
 use fc4_core::stream::{ByteReader, ByteWriter, RefResolver, RefValue, RegisteredObject, SaveObject, SaveRegistry};
+use fc4_core::variant::{Elem, Variant};
+use fc4_core::x87::rhe;
 
 use crate::foundations::{hex_decode, hex_encode};
 use crate::json::Json;
@@ -97,10 +98,26 @@ pub(crate) struct World {
     refs: RefCell<BTreeMap<u64, i64>>,
     bool_props: RefCell<BTreeMap<(u64, u32), bool>>,
     next_department: Cell<u64>,
-    ordinance: Cell<(f32, f32)>,
-    served: Cell<(i32, i32)>,
-    strike_chance: Cell<f32>,
-    building_dirty: Cell<bool>,
+    /// Occupant properties other than the bool ones.
+    props: RefCell<BTreeMap<(u64, u32), Variant>>,
+    building_types: RefCell<BTreeMap<u64, u32>>,
+    slot11: RefCell<BTreeMap<u64, u32>>,
+    lots: RefCell<BTreeMap<u64, (f32, f32)>>,
+    positions: RefCell<BTreeMap<u64, (f32, f32)>>,
+    /// Budget items by (occupant, purpose).
+    items: RefCell<BTreeMap<(u64, u32), BudgetItem>>,
+    /// `GetDepartmentBudget`: department ID → token.
+    departments: RefCell<BTreeMap<u32, u64>>,
+    funding: RefCell<BTreeMap<u64, f32>>,
+    locally_funded: RefCell<BTreeSet<(u64, u64, u32)>>,
+    /// Line items by (department token, line), and their counts.
+    line_items: RefCell<BTreeMap<(u64, u32), u64>>,
+    line_counts: RefCell<BTreeMap<u64, i64>>,
+    next_line_item: Cell<u64>,
+    /// The ordinances that are on, by ID, with their misc properties.
+    ordinances: RefCell<BTreeMap<u32, Rc<PropertyHolder>>>,
+    /// The `served` fixture, applied after the next successful `Init`.
+    served: Cell<Option<(u32, u32)>>,
     records: RefCell<BTreeMap<String, Record>>,
 }
 
@@ -127,10 +144,20 @@ impl World {
             refs: RefCell::new(BTreeMap::new()),
             bool_props: RefCell::new(BTreeMap::new()),
             next_department: Cell::new(900),
-            ordinance: Cell::new((1.0, 1.0)),
-            served: Cell::new((0, 0)),
-            strike_chance: Cell::new(0.0),
-            building_dirty: Cell::new(false),
+            props: RefCell::new(BTreeMap::new()),
+            building_types: RefCell::new(BTreeMap::new()),
+            slot11: RefCell::new(BTreeMap::new()),
+            lots: RefCell::new(BTreeMap::new()),
+            positions: RefCell::new(BTreeMap::new()),
+            items: RefCell::new(BTreeMap::new()),
+            departments: RefCell::new(BTreeMap::new()),
+            funding: RefCell::new(BTreeMap::new()),
+            locally_funded: RefCell::new(BTreeSet::new()),
+            line_items: RefCell::new(BTreeMap::new()),
+            line_counts: RefCell::new(BTreeMap::new()),
+            next_line_item: Cell::new(700),
+            ordinances: RefCell::new(BTreeMap::new()),
+            served: Cell::new(None),
             records: RefCell::new(BTreeMap::new()),
         });
         *w.me.borrow_mut() = Rc::downgrade(&w);
@@ -191,6 +218,99 @@ impl World {
     fn new_sim(&self, rng: Box<dyn ResidentialRandom>) -> Rc<ResidentialSim> {
         ResidentialSim::new(self.rc() as Rc<dyn ResidentialHost>, 77, rng)
     }
+
+    /// The `served: [s, h]` fixture: `s` schools (occupants 9001…) and `h`
+    /// hospitals (9101…) of capacity 100 (units 0 with the shipped chunks)
+    /// and radius 10 m at lot centre (32, 32), each in its service's first
+    /// group list with one reference, and population (1, 0, 0) on tract
+    /// (0, 0): each building counts that tract once in its coverage state
+    /// (REH §4.4 [quirk]), so the states serve `s` and `h`.
+    fn apply_served(&self, s: &ResidentialSim) -> R<()> {
+        let Some((schools, hospitals)) = self.served.take() else {
+            return Ok(());
+        };
+        for (svc, base, n) in [(&SCHOOL, 9001u64, schools), (&HOSPITAL, 9101u64, hospitals)] {
+            for occ in base..base + u64::from(n) {
+                self.groups.borrow_mut().insert(occ, vec![svc.groups[0]]);
+                self.props
+                    .borrow_mut()
+                    .insert((occ, svc.capacity), Variant::Scalar(Elem::U32(100)));
+                self.props
+                    .borrow_mut()
+                    .insert((occ, svc.radius), Variant::Scalar(Elem::F32(10.0)));
+                self.lots.borrow_mut().insert(occ, (32.0, 32.0));
+                *self.refs.borrow_mut().entry(occ).or_insert(0) += 1;
+                s.with_state(|st| {
+                    let l = if svc.school {
+                        &mut st.lists.school_groups[0]
+                    } else {
+                        &mut st.lists.hospital_groups[0]
+                    };
+                    l.push(Some(occ));
+                });
+            }
+        }
+        let g = s.snapshot().grids;
+        g.population[0].as_ref().ok_or("no population grid")?.set(0, 0, 1);
+        Ok(())
+    }
+}
+
+/// A purpose: a name (`school_staff`, `school_vehicle`, `hospital_staff`,
+/// `hospital_vehicle`) or an ID.
+fn purpose_of(j: &Json) -> R<u32> {
+    let named = |s: &str| match s {
+        "school_staff" => Some(SCHOOL.staff_purpose),
+        "school_vehicle" => Some(SCHOOL.vehicle_purpose),
+        "hospital_staff" => Some(HOSPITAL.staff_purpose),
+        "hospital_vehicle" => Some(HOSPITAL.vehicle_purpose),
+        _ => None,
+    };
+    match j.as_str().and_then(named) {
+        Some(p) => Ok(p),
+        None => u32_of(j, "purpose"),
+    }
+}
+
+/// A map key as an ID (decimal or `"0x…"`).
+fn key_id(k: &str) -> R<i64> {
+    Json::Str(k.to_string()).as_i64().ok_or_else(|| format!("bad ID '{k}'"))
+}
+
+/// A purpose map key (a name or an ID).
+fn key_purpose(k: &str) -> R<u32> {
+    purpose_of(&Json::Str(k.to_string()))
+}
+
+/// A property value as the world reports it: a u32 / i32 / f32 scalar as a
+/// number, a bool as a boolean, an array as an array of those.
+fn variant_json(v: &Variant) -> Json {
+    fn elem(e: &Elem) -> Json {
+        match e {
+            Elem::F32(x) => jf(*x),
+            Elem::Bool(b) => Json::Bool(*b),
+            other => ji(other.as_i64()),
+        }
+    }
+    match v {
+        Variant::Scalar(e) => elem(e),
+        v => Json::Array(v.items().iter().map(elem).collect()),
+    }
+}
+
+fn query_json(q: &QueryData) -> Json {
+    Json::Object(vec![
+        ("capacity".into(), ji(q.capacity)),
+        ("effective_capacity".into(), ji(q.effective_capacity)),
+        ("capacity_per_staff".into(), ji(q.capacity_per_staff)),
+        ("effective_per_staff".into(), ji(q.effective_per_staff)),
+        ("served".into(), ji(q.served)),
+        ("grade".into(), jf(q.grade)),
+        ("staff_funding".into(), jf(q.staff_funding)),
+        ("staff_cost".into(), ji(q.staff_cost)),
+        ("vehicle_funding".into(), jf(q.vehicle_funding)),
+        ("vehicle_cost".into(), ji(q.vehicle_cost)),
+    ])
 }
 
 fn instance_of<T: GridElem>(g: &Rc<dyn TractGrid<T>>) -> u32 {
@@ -285,6 +405,7 @@ impl ResidentialHost for World {
     }
     fn release_department(&self, department: u64) {
         self.ev("release_department", vec![("token", ji(department as i64))]);
+        *self.refs.borrow_mut().entry(department).or_insert(0) -= 1;
     }
     fn shutdown_grid_u8(&self, grid: &Rc<dyn TractGrid<u8>>) {
         self.ev("shutdown_grid", vec![("instance", ji(instance_of(grid)))]);
@@ -387,52 +508,171 @@ impl ResidentialHost for World {
     }
 }
 
-/// A city without schools, hospitals or ordinances (the REH hooks'
-/// defaults), except: the served counts of the coverage states, the
-/// combined strike chance, the ordinance decay products, and a building
-/// list that appends every inserted building occupant to the pending
-/// school list.
-impl EducationHealth for World {
-    fn refresh_ordinance_effects(&self) {
-        self.ev("ordinance_effects", vec![]);
+/// The budget simulator, the occupants' property holders and lots, the
+/// ordinance simulator and the automata controllers, as scripted by
+/// `residential_env`; every change the simulator makes is logged.
+impl EducationHealthHost for World {
+    fn budget_item(&self, occupant: u64, purpose: u32) -> Option<BudgetItem> {
+        self.items.borrow().get(&(occupant, purpose)).copied()
     }
-    fn ordinance_decay_products(&self) -> (f32, f32) {
-        self.ordinance.get()
-    }
-    fn strike_checks(
-        &self,
-        _lists: &OccupantLists,
-        _tuning: &SimulatorTuning,
-        _education: &mut DepartmentBlock,
-        _health: &mut DepartmentBlock,
-        _rng: &mut dyn ResidentialRandom,
-    ) {
-        self.ev("strike_checks", vec![]);
-    }
-    fn building_changed(&self, building: u64, inserted: bool, lists: &mut OccupantLists) -> bool {
+    fn change_budget_item_line(&self, occupant: u64, index: u32, line: u32) {
         self.ev(
-            "building_changed",
-            vec![("id", ji(building as i64)), ("inserted", Json::Bool(inserted))],
+            "change_line",
+            vec![
+                ("occupant", ji(occupant as i64)),
+                ("index", ji(index)),
+                ("line", ji(line)),
+            ],
         );
-        if inserted {
-            self.add_ref(building);
-            lists.pending_school.push(Some(building));
-        } else if lists.pending_school.contains(&Some(building)) {
-            lists.pending_school.retain(|&o| o != Some(building));
-            self.release(building);
-        }
-        self.building_dirty.get()
-    }
-    fn update_coverage(&self, school: bool, _state: &ResidentialState) -> i32 {
-        let (s, h) = self.served.get();
-        if school {
-            s
-        } else {
-            h
+        for ((o, _), item) in self.items.borrow_mut().iter_mut() {
+            if *o == occupant && item.index == index {
+                item.line = line;
+            }
         }
     }
-    fn chance_of_strike(&self, _school: bool, _state: &ResidentialState) -> f32 {
-        self.strike_chance.get()
+    fn department_budget(&self, department_id: u32) -> Option<u64> {
+        self.departments.borrow().get(&department_id).copied()
+    }
+    fn department_funding(&self, department: u64) -> f32 {
+        self.funding.borrow().get(&department).copied().unwrap_or(1.0)
+    }
+    fn is_locally_funded(&self, department: u64, occupant: u64, purpose: u32) -> bool {
+        self.locally_funded.borrow().contains(&(department, occupant, purpose))
+    }
+    fn add_locally_funded(&self, department: u64, occupant: u64, purpose: u32) {
+        self.ev(
+            "add_local",
+            vec![
+                ("department", ji(department as i64)),
+                ("occupant", ji(occupant as i64)),
+                ("purpose", ji(purpose)),
+            ],
+        );
+        self.locally_funded.borrow_mut().insert((department, occupant, purpose));
+    }
+    fn remove_locally_funded(&self, department: u64, occupant: u64, purpose: u32) {
+        self.ev(
+            "remove_local",
+            vec![
+                ("department", ji(department as i64)),
+                ("occupant", ji(occupant as i64)),
+                ("purpose", ji(purpose)),
+            ],
+        );
+        self.locally_funded
+            .borrow_mut()
+            .remove(&(department, occupant, purpose));
+    }
+    fn set_local_funding(&self, department: u64, occupant: u64, fraction: f32, purpose: u32) {
+        self.ev(
+            "set_local",
+            vec![
+                ("department", ji(department as i64)),
+                ("occupant", ji(occupant as i64)),
+                ("fraction", jf(fraction)),
+                ("purpose", ji(purpose)),
+            ],
+        );
+        if let Some(item) = self.items.borrow_mut().get_mut(&(occupant, purpose)) {
+            item.local_funding = fraction;
+        }
+    }
+    fn line_item(&self, department: u64, line: u32) -> Option<u64> {
+        self.line_items.borrow().get(&(department, line)).copied()
+    }
+    fn create_line_item_for_building_type(&self, department: u64, line: u32, local: bool) -> Option<u64> {
+        let t = self.next_line_item.get();
+        self.next_line_item.set(t + 1);
+        self.ev(
+            "create_line",
+            vec![
+                ("department", ji(department as i64)),
+                ("line", ji(line)),
+                ("local", Json::Bool(local)),
+                ("token", ji(t as i64)),
+            ],
+        );
+        self.line_items.borrow_mut().insert((department, line), t);
+        Some(t)
+    }
+    fn remove_line_item(&self, department: u64, line: u32) {
+        self.ev(
+            "remove_line",
+            vec![("department", ji(department as i64)), ("line", ji(line))],
+        );
+        self.line_items.borrow_mut().remove(&(department, line));
+    }
+    fn line_item_count(&self, line_item: u64) -> i64 {
+        self.line_counts.borrow().get(&line_item).copied().unwrap_or(0)
+    }
+    fn set_line_item_count(&self, line_item: u64, count: i64) {
+        self.ev(
+            "line_count",
+            vec![("line_item", ji(line_item as i64)), ("count", ji(count))],
+        );
+        self.line_counts.borrow_mut().insert(line_item, count);
+    }
+    fn set_line_item_display_flag(&self, line_item: u64, flag: u32, on: bool) {
+        self.ev(
+            "display_flag",
+            vec![
+                ("line_item", ji(line_item as i64)),
+                ("flag", ji(flag)),
+                ("on", Json::Bool(on)),
+            ],
+        );
+    }
+    fn occupant_property(&self, occupant: u64, id: u32) -> Option<Variant> {
+        self.props.borrow().get(&(occupant, id)).cloned()
+    }
+    fn set_occupant_u32(&self, occupant: u64, id: u32, value: u32) {
+        self.props
+            .borrow_mut()
+            .insert((occupant, id), Variant::Scalar(Elem::U32(value)));
+    }
+    fn set_occupant_f32(&self, occupant: u64, id: u32, value: f32) {
+        self.props
+            .borrow_mut()
+            .insert((occupant, id), Variant::Scalar(Elem::F32(value)));
+    }
+    fn building_type(&self, building: u64) -> u32 {
+        self.building_types.borrow().get(&building).copied().unwrap_or(0)
+    }
+    fn building_slot11(&self, building: u64) -> u32 {
+        self.slot11.borrow().get(&building).copied().unwrap_or(0)
+    }
+    fn occupant_lot_center(&self, occupant: u64) -> Option<(f32, f32)> {
+        self.lots.borrow().get(&occupant).copied()
+    }
+    fn occupant_position(&self, occupant: u64) -> (f32, f32) {
+        self.positions.borrow().get(&occupant).copied().unwrap_or((0.0, 0.0))
+    }
+    fn ordinances_on(&self) -> Vec<u32> {
+        self.ev("ordinance_effects", vec![]);
+        self.ordinances.borrow().keys().copied().collect()
+    }
+    fn ordinance_properties(&self, id: u32) -> Option<Rc<PropertyHolder>> {
+        self.ordinances.borrow().get(&id).cloned()
+    }
+    fn add_controllers(&self, name: &str, occupant: u64) {
+        self.ev(
+            "controllers",
+            vec![
+                ("name", Json::Str(name.into())),
+                ("occupant", ji(occupant as i64)),
+                ("added", Json::Bool(true)),
+            ],
+        );
+    }
+    fn remove_controllers(&self, name: &str, occupant: u64) {
+        self.ev(
+            "controllers",
+            vec![
+                ("name", Json::Str(name.into())),
+                ("occupant", ji(occupant as i64)),
+                ("added", Json::Bool(false)),
+            ],
+        );
     }
 }
 
@@ -446,7 +686,14 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
     Some(match rest {
         "env" => env(&w, op),
         "create" => create(&w, op),
-        "init" => w.sim().and_then(|s| check_expect(op, Json::Bool(s.init()))),
+        "init" => w.sim().and_then(|s| {
+            let ok = s.init();
+            if ok {
+                w.apply_served(&s)?;
+            }
+            check_expect(op, Json::Bool(ok))
+        }),
+        "expect_props" => expect_props(&w, op),
         "shutdown" => w.sim().and_then(|s| check_expect(op, Json::Bool(s.shutdown()))),
         "message" => message(&w, op),
         "run_to" => run_to(&w, op),
@@ -591,7 +838,6 @@ fn env(w: &World, op: &Json) -> R<()> {
         ("demand_node", &w.demand_node),
         ("message_server", &w.message_server),
         ("simulator", &w.simulator),
-        ("building_dirty", &w.building_dirty),
     ] {
         if let Some(v) = opt(op, k) {
             cell.set(bool_of(v, k)?);
@@ -599,16 +845,9 @@ fn env(w: &World, op: &Json) -> R<()> {
     }
     if let Some(v) = opt(op, "served") {
         let (s, h) = pair_i(v, "served")?;
-        w.served.set((s as i32, h as i32));
+        w.served.set(Some((s as u32, h as u32)));
     }
-    if let Some(v) = opt(op, "ordinance") {
-        let a = arr(v, "ordinance")?;
-        w.ordinance
-            .set((f32_of(&a[0], "ordinance")?, f32_of(&a[1], "ordinance")?));
-    }
-    if let Some(v) = opt(op, "strike_chance") {
-        w.strike_chance.set(f32_of(v, "strike_chance")?);
-    }
+    env_education_health(w, op)?;
     if let Some(v) = opt(op, "groups") {
         let mut g = w.groups.borrow_mut();
         for (k, list) in v.as_object().ok_or("groups must be an object")? {
@@ -628,6 +867,198 @@ fn env(w: &World, op: &Json) -> R<()> {
         }
     }
     Ok(())
+}
+
+fn pair_f(v: &Json, what: &str) -> R<(f32, f32)> {
+    let a = arr(v, what)?;
+    if a.len() != 2 {
+        return Err(format!("'{what}' must have two entries"));
+    }
+    Ok((float_of(&a[0], what)?, float_of(&a[1], what)?))
+}
+
+fn obj<'a>(v: &'a Json, what: &str) -> R<&'a [(String, Json)]> {
+    v.as_object().ok_or_else(|| format!("'{what}' must be an object"))
+}
+
+/// A per-occupant map `{"<occupant>": value | null}` into `map`.
+fn occupant_map<T>(op: &Json, key: &str, map: &RefCell<BTreeMap<u64, T>>, value: impl Fn(&Json) -> R<T>) -> R<()> {
+    if let Some(v) = opt(op, key) {
+        for (k, x) in obj(v, key)? {
+            let occ = key_id(k)? as u64;
+            match x {
+                Json::Null => {
+                    map.borrow_mut().remove(&occ);
+                }
+                x => {
+                    let t = value(x)?;
+                    map.borrow_mut().insert(occ, t);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The education / health part of `residential_env`: occupant properties,
+/// lots, positions, building types and slot-11 values, departments, budget
+/// items, the locally funded set, line items and the ordinances that are on.
+fn env_education_health(w: &World, op: &Json) -> R<()> {
+    if let Some(v) = opt(op, "props") {
+        let mut props = w.props.borrow_mut();
+        for (k, list) in obj(v, "props")? {
+            let occ = key_id(k)? as u64;
+            if matches!(list, Json::Null) {
+                props.retain(|(o, _), _| *o != occ);
+                continue;
+            }
+            for (id, x) in obj(list, "props")? {
+                let id = key_id(id)? as u32;
+                match x {
+                    Json::Null => {
+                        props.remove(&(occ, id));
+                    }
+                    x => {
+                        props.insert((occ, id), scalar::variant_of(x)?);
+                    }
+                }
+            }
+        }
+    }
+    occupant_map(op, "lots", &w.lots, |x| pair_f(x, "lot"))?;
+    occupant_map(op, "positions", &w.positions, |x| pair_f(x, "position"))?;
+    occupant_map(op, "building_types", &w.building_types, |x| u32_of(x, "type"))?;
+    occupant_map(op, "slot11", &w.slot11, |x| u32_of(x, "slot11"))?;
+    if let Some(v) = opt(op, "departments") {
+        for (k, x) in obj(v, "departments")? {
+            let id = key_id(k)? as u32;
+            match x {
+                Json::Null => {
+                    w.departments.borrow_mut().remove(&id);
+                }
+                x => {
+                    let token = i64_of(field(x, "token")?, "token")? as u64;
+                    w.departments.borrow_mut().insert(id, token);
+                    if let Some(f) = opt(x, "funding") {
+                        w.funding.borrow_mut().insert(token, float_of(f, "funding")?);
+                    }
+                }
+            }
+        }
+    }
+    if let Some(v) = opt(op, "items") {
+        let mut items = w.items.borrow_mut();
+        for (k, per) in obj(v, "items")? {
+            let occ = key_id(k)? as u64;
+            for (p, x) in obj(per, "items")? {
+                let purpose = key_purpose(p)?;
+                match x {
+                    Json::Null => {
+                        items.remove(&(occ, purpose));
+                    }
+                    x => {
+                        let num = |key: &str, d: i64| opt(x, key).map_or(Ok(d), |v| i64_of(v, key));
+                        let item = BudgetItem {
+                            department: u32_of(field(x, "department")?, "department")?,
+                            line: num("line", 0)? as u32,
+                            index: num("index", 0)? as u32,
+                            cost: num("cost", 0)?,
+                            local_funding: opt(x, "local").map_or(Ok(1.0), |v| float_of(v, "local"))?,
+                        };
+                        items.insert((occ, purpose), item);
+                    }
+                }
+            }
+        }
+    }
+    if let Some(v) = opt(op, "locally_funded") {
+        let mut set = w.locally_funded.borrow_mut();
+        set.clear();
+        for e in arr(v, "locally_funded")? {
+            let e = arr(e, "locally_funded")?;
+            if e.len() != 3 {
+                return Err("locally_funded entries are [department, occupant, purpose]".into());
+            }
+            set.insert((
+                i64_of(&e[0], "department")? as u64,
+                i64_of(&e[1], "occupant")? as u64,
+                purpose_of(&e[2])?,
+            ));
+        }
+    }
+    if let Some(v) = opt(op, "line_items") {
+        for e in arr(v, "line_items")? {
+            let e = arr(e, "line_items")?;
+            if e.len() != 4 {
+                return Err("line_items entries are [department, line, token, count]".into());
+            }
+            let (dept, line) = (i64_of(&e[0], "department")? as u64, u32_of(&e[1], "line")?);
+            let token = i64_of(&e[2], "token")? as u64;
+            w.line_items.borrow_mut().insert((dept, line), token);
+            w.line_counts.borrow_mut().insert(token, i64_of(&e[3], "count")?);
+        }
+    }
+    if let Some(v) = opt(op, "ordinances") {
+        for (k, x) in obj(v, "ordinances")? {
+            let id = key_id(k)? as u32;
+            match x {
+                Json::Null => {
+                    w.ordinances.borrow_mut().remove(&id);
+                }
+                x => {
+                    w.ordinances.borrow_mut().insert(id, Rc::new(scalar::holder_of(x)?));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// `props`: `{"<id>": value | null}` of one occupant (`null` = absent), a
+/// u32 compared as an integer and an f32 as a float (`bits` for exact
+/// float32 patterns). `locally_funded` checks the whole set.
+fn expect_props(w: &World, op: &Json) -> R<()> {
+    let mut errors = Vec::new();
+    if let Some(want) = opt(op, "props") {
+        let occ = i64_of(field(op, "occupant")?, "occupant")? as u64;
+        let props = w.props.borrow();
+        for (k, v) in obj(want, "props")? {
+            let id = key_id(k)? as u32;
+            let got = props
+                .get(&(occ, id))
+                .map_or(Json::Null, |p| with_bits(op, variant_json(p)));
+            if !scalar::matches(&got, v, false) {
+                errors.push(format!("{k}: got {}, expected {}", scalar::show(&got), scalar::show(v)));
+            }
+        }
+    }
+    if let Some(want) = opt(op, "locally_funded") {
+        let got = Json::Array(
+            w.locally_funded
+                .borrow()
+                .iter()
+                .map(|&(d, o, p)| Json::Array(vec![ji(d as i64), ji(o as i64), ji(p)]))
+                .collect(),
+        );
+        if !scalar::matches(&got, want, false) {
+            errors.push(format!("locally funded: {}", scalar::show(&got)));
+        }
+    }
+    if let Some(want) = opt(op, "line_counts") {
+        for (k, v) in obj(want, "line_counts")? {
+            let t = key_id(k)? as u64;
+            let got = w.line_counts.borrow().get(&t).copied();
+            let got = got.map_or(Json::Null, ji);
+            if !scalar::matches(&got, v, false) {
+                errors.push(format!("line item {k}: count {}", scalar::show(&got)));
+            }
+        }
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join("; "))
+    }
 }
 
 fn create(w: &World, op: &Json) -> R<()> {
@@ -841,6 +1272,14 @@ fn call(w: &World, op: &Json) -> R<()> {
         }
         "slot_count" => Some(ji(SLOTS.len() as i64)),
         "query_interface" => Some(Json::Bool(query_interface(u32_of(a(0)?, "iid")?))),
+        "rhe" => Some(ji(rhe(float_of(a(0)?, "x")?))),
+        "tracts_in_radius" => {
+            let fa = |i: usize| float_of(arg(op, i)?, "argument");
+            let list = tracts_in_radius(fa(0)?, fa(1)?, fa(2)?, fa(3)?, ai(4)?, ai(5)?);
+            Some(Json::Array(
+                list.into_iter().map(|(x, z)| Json::Array(vec![ji(x), ji(z)])).collect(),
+            ))
+        }
         _ => None,
     };
     if let Some(got) = pure {
@@ -945,6 +1384,84 @@ fn call(w: &World, op: &Json) -> R<()> {
             float_of(a(2)?, "vehicle")?,
             bool_of(a(3)?, "school")?,
         )),
+        "get_occupant_funding" => {
+            let start = |i: usize| op.get("args").and_then(Json::as_array).and_then(|v| v.get(i));
+            let mut fa = start(2).map_or(Ok(1.0), |v| float_of(v, "a"))?;
+            let mut fb = start(3).map_or(Ok(1.0), |v| float_of(v, "b"))?;
+            s.get_occupant_funding(
+                i64_of(a(0)?, "occupant")? as u64,
+                &mut fa,
+                &mut fb,
+                bool_of(a(1)?, "school")?,
+            );
+            floats(&[fa, fb])
+        }
+        "efficiency_ratings" => {
+            let (e1, e2) = s.efficiency_ratings(
+                i64_of(a(0)?, "occupant")? as u64,
+                bool_of(a(1)?, "school")?,
+                bool_of(a(2)?, "ignore_strike")?,
+            );
+            floats(&[e1, e2])
+        }
+        "base_staff_efficiency" => {
+            jf(s.base_staff_efficiency(i64_of(a(0)?, "occupant")? as u64, bool_of(a(1)?, "school")?))
+        }
+        "do_building_changed" => {
+            s.do_building_changed(i64_of(a(0)?, "occupant")? as u64, bool_of(a(1)?, "added")?);
+            Json::Null
+        }
+        "occupant_service" => match s.occupant_service(i64_of(a(0)?, "occupant")? as u64) {
+            None => Json::Null,
+            Some(svc) => Json::Str(if svc.school { "school" } else { "hospital" }.into()),
+        },
+        "ordinance_decay_products" => {
+            let (e, h) = s.ordinance_decay_products();
+            floats(&[e, h])
+        }
+        "ordinance_modifiers" => {
+            let st = s.snapshot();
+            let list = if bool_of(a(0)?, "school")? {
+                &st.school_effects
+            } else {
+                &st.health_effects
+            };
+            let (m1, m2, m3) = ordinance_modifiers(list);
+            floats(&[m1, m2, m3])
+        }
+        "school_system_rating" => jf(s.school_system_rating()),
+        "health_system_rating" => jf(s.health_system_rating()),
+        "school_system_totals" | "hospital_system_totals" => {
+            let groups = arr(a(0)?, "groups")?
+                .iter()
+                .map(|x| u32_of(x, "group"))
+                .collect::<R<Vec<u32>>>()?;
+            let mut q = QueryData::default();
+            let n = s.system_totals(method == "school_system_totals", &groups, &mut q);
+            Json::Object(vec![("count".into(), ji(n)), ("totals".into(), query_json(&q))])
+        }
+        "school_query_data" | "hospital_query_data" => {
+            let occ = i64_of(a(0)?, "occupant")? as u64;
+            let q = if method == "school_query_data" {
+                s.school_query_data(occ)
+            } else {
+                s.hospital_query_data(occ)
+            };
+            q.as_ref().map_or(Json::Null, query_json)
+        }
+        "estimate_occupant_capacity" => {
+            let (cap, staff) = s.estimate_occupant_capacity(i64_of(a(0)?, "occupant")? as u64);
+            Json::Array(vec![ji(cap), ji(staff)])
+        }
+        "occupant_coverage" => {
+            match s.occupant_coverage(i64_of(a(0)?, "occupant")? as u64, float_of(a(1)?, "level")?) {
+                None => Json::Null,
+                Some((d, r)) => floats(&[d, r]),
+            }
+        }
+        "estimate_ideal_funding" => s
+            .estimate_ideal_funding(i64_of(a(0)?, "occupant")? as u64)
+            .map_or(Json::Null, jf),
         "get_proximity" => match s.get_proximity_map(u32_of(a(0)?, "wealth")?) {
             None => Json::Null,
             Some(g) => ji(g.get(ai(1)?, ai(2)?)),
@@ -1250,6 +1767,10 @@ fn state_fields(s: &ResidentialState) -> Vec<(String, Json)> {
         ("school_auto_budget".into(), Json::Bool(s.school_auto_budget)),
         ("hospital_auto_budget".into(), Json::Bool(s.hospital_auto_budget)),
         ("temporary".into(), Json::Bool(s.grids.temporary.is_some())),
+        ("school_grade_total".into(), jf(s.school_grade_total)),
+        ("hospital_grade_total".into(), jf(s.hospital_grade_total)),
+        ("school_effects".into(), ji(s.school_effects.len() as i64)),
+        ("health_effects".into(), ji(s.health_effects.len() as i64)),
         (
             "departments".into(),
             Json::Array(vec![

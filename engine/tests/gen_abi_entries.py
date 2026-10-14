@@ -156,6 +156,31 @@ INTERFACES = [
     ("cISC4PropRequester(Crime)", "cFC4CrimePropRequester", FC4C, True),
     ("cISC4PropManager", "cISC4PropManager", "cISC4PropManager.h", True),
     ("cISC4PropOccupant", "cISC4PropOccupant", "cISC4PropOccupant.h", True),
+    # Aura (docs/specs/aura.md section 12): implemented (the SDK declaration;
+    # MSVC's overload reversal gives the AddTransientEffect order of 12.1),
+    # the sub-object interfaces of its own vtables, and the grids it creates.
+    ("cISC4AuraSimulator", "cISC4AuraSimulator", "cISC4AuraSimulator.h", True),
+    ("cIGZSerializable(Aura)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZMessageTarget2(Aura)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cISC4SimGrid<int8>", "cISC4SimGrid<int8_t>", "cISC4SimGrid.h", True),
+    ("cISC4SimGrid<uint16>", "cISC4SimGrid<uint16_t>", "cISC4SimGrid.h", True),
+    ("cISC4OrdinanceSimulator", "cFC4ISC4OrdinanceSimulator", FC4, True),
+    # Flora (docs/specs/flora.md section 11): implemented (the SDK declaration;
+    # MSVC's overload reversal gives the game's order of slots 5/6, 8/9 and
+    # 17/18), the sub-object interfaces of its own vtable, and the services it
+    # calls that are not listed above.
+    ("cISC4FloraSimulator", "cISC4FloraSimulator", "cISC4FloraSimulator.h", True),
+    ("cIGZSerializable(Flora)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZMessageTarget2(Flora)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cISC4FloraOccupant", "cISC4FloraOccupant", "cISC4FloraOccupant.h", True),
+    ("cIGZCheatCodeManager", "cIGZCheatCodeManager", "cIGZCheatCodeManager.h", True),
+    ("cIGZCommandServer", "cIGZCommandServer", "cIGZCommandServer.h", True),
+    # Landfill (docs/specs/landfill.md section 7): implemented through the
+    # compiled slot order (the SDK row above stays for the pollution glue's
+    # calls), and the services it calls that are not listed above.
+    ("cISC4LandfillDeveloper", "cFC4ISC4LandfillDeveloper", FC4, True),
+    ("cISC4LandfillOccupant", "cISC4LandfillOccupant", "cISC4LandfillOccupant.h", True),
+    ("cISC4TrafficNetworkMap", "cFC4ISC4TrafficNetworkMap", FC4, True),
     # Crime type names (crime.md section 7 step 3; lua-host.md section 10.1).
     ("cISCStringDetokenizer", "cFC4ISCStringDetokenizer", FC4C, True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.

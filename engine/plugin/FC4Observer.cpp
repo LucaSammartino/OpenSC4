@@ -13,6 +13,7 @@
 
 #include "FC4Observer.h"
 
+#include "FC4AuraShadow.h"
 #include "FC4Autoload.h"
 #include "FC4Autotest.h"
 #include "FC4Checked.h"
@@ -63,8 +64,12 @@ constexpr uint32_t kMsgSimNewMonth = 0x66956816;
 constexpr uint32_t kMsgConnectionsReady = 0x6AC284F3;  // foundations.md 11.6; popup_dialogs = 0 waits for it
 constexpr uint32_t kMsgPreCityShutdown = 0x26D31EC2;   // the autotest's "ended" verdict
 constexpr uint32_t kMsgPostCityShutdown = 0x26D31EC3;
+// The aura simulator's cycle-completed message (aura.md §11.1): the aura
+// shadow's clock (FC4AuraShadow.h).
+constexpr uint32_t kMsgAuraCycleCompleted = 0x2A09B21A;
 constexpr uint32_t kObserverMessages[] = {kMsgPostCityInit,     kMsgSimNewDay,       kMsgSimNewMonth,
-                                         kMsgConnectionsReady, kMsgPreCityShutdown, kMsgPostCityShutdown};
+                                         kMsgConnectionsReady, kMsgPreCityShutdown, kMsgPostCityShutdown,
+                                         kMsgAuraCycleCompleted};
 constexpr uint32_t kObserverServiceID = 0x5C7A43E2;  // random, FreeCity4's
 constexpr int32_t kObserverPriority = -1000000;      // [choice] tooling; any value works
 
@@ -510,6 +515,7 @@ public:
                 AutotestOnCityLoaded();
                 AutoloadOnCityLoaded();
                 PopupDialogsOnCityLoad();
+                AuraShadowCityLoaded(CurrentCity());  // aura_shadow = 1 only
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
@@ -517,6 +523,9 @@ public:
                 break;
             case kMsgConnectionsReady:
                 PopupDialogsOnConnectionsReady();
+                break;
+            case kMsgAuraCycleCompleted:
+                AuraShadowCycle(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // aura_shadow = 1 only
                 break;
             case kMsgPreCityShutdown:
                 AutotestOnCityShutdown(false);

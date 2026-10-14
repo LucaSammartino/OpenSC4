@@ -597,6 +597,14 @@ impl LandfillDeveloper {
         self.state.borrow().maintenance
     }
 
+    /// Replaces the stored `maintenance` (tooling, no spec behaviour): the
+    /// landfill shadow loads the original's record, which does not save it
+    /// (§2.1), and restores the original's slot 7 value before running the
+    /// month, whose step 3 reads it (§4.7.1).
+    pub fn set_maintenance(&self, maintenance: i64) {
+        self.edit(|st| st.maintenance = maintenance);
+    }
+
     /// `GetEfficiency()` (slot 5, §4.9.2): `float32(current / maintenance)`
     /// when the maintenance is positive — not clamped, so up to the
     /// department's maximum funding — else [`DEFAULT_EFFICIENCY`].
