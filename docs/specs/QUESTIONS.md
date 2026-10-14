@@ -2713,7 +2713,11 @@ shadow's riot roll (wall-clock RNG). The current answer is in brackets.
   iteration, so the record is closed only after `Read`, `Init`, `InsertOccupant` and `Release`. Neither `Init` nor
   `InsertOccupant` touches the segment, so the order cannot be seen. The bracket (yes) differs from the original; either
   order is safe.
-- **AQ6:** FQ3: a failed `GetUint32` of the count. [the count stays 0]
+- ~~**AQ6:** FQ3: a failed `GetUint32` of the count. [the count stays 0]~~
+  **ANSWERED 2026-10-14** from the exe (`LoadObliterated` `0x006B0660`, count := 0 at `0x006B067E`;
+  `cSC4DBSegmentIStream::GetUint32` `0x005D1A20`; record reads `0x00975DE5`, `0x0096D967`, `0x0096DAF8`) and written
+  into flora §10.3. Yes: a failed stream skips the read, and the record checks its size before it copies anything, so
+  the count keeps the 0 it starts with and nothing is restored. The bracket matches.
 - **AQ7:** FQ6: is the 64 m listing clamped to 0..191? [not clamped; only the query is]
 - **AQ8:** A bound on the obliteration open attempts. [choice: at most `MAX_OBLITERATED` = 2^24; the original has no
   bound]
