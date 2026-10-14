@@ -399,10 +399,14 @@ plugin.
        (default: the cRZTime clock); `tract_grow_log = 1` (env `FC4_TRACT_GROW_LOG`) adds one line per Grow call
        (`tract Grow dev=… tract=x,z stage=… -> built=… flag=… desired=…/… scored=… codes=… cfg=… building=0x…`).
        The log has `tract Init|Read|Write|NewYear|Shutdown: init=… configured=… style=0x… index=… years=…/…
-       styles=… filters=… grows=… built=… … filtersRegistered=…/… fallbacks=…` and one line per month:
+       styles=… filters=… grows=… built=… … filtersRegistered=…/… configRefs=… fallbacks=…` (`configRefs`: the
+       configuration references taken from the lot configuration manager and released after each call, kept
+       outside the reference audit) and one line per month:
        `tract month yyyy-mm-dd: grows=… built=… declines=… declined=… populations=… outcomes=code:count,…
        constructions=… reoccupations=… abandonments=… lotsCreated=… lotsDeleted=… demolitions=… style=0x… …
-       reentrant=… fallbacks=…` (the counts since the previous line; `reentrant` and `fallbacks` should stay 0).
+       reentrant=… fallbacks=…` (the counts since the previous line; `reentrant` and `fallbacks` should stay 0),
+       followed by the `tract tally (ours) …` line of the tract shadow below (the same format, for comparing a
+       replacement run with a shadow run of the original).
        Its game calls have their own switches (default `1`, environment `FC4_TRACT_<KEY>`): `tract_construction`,
        `tract_abandon`, `tract_lot_changes`, `tract_demolition`, `tract_population`, `tract_resources`,
        `tract_filters`, `tract_lot_lists`, `tract_traffic`, `tract_style_map`, `tract_roads`, `tract_family_sets`,
@@ -1207,7 +1211,12 @@ plugin.
      PreAppShutdown and at DLL detach. Tract (0, 0) is forwarded without a comparison (the original seeds it from
      the clock). Without the forwarder the population line samples up to 32 tracts per growth developer at each
      month instead (it drifts: the original set those populations at its last call). Grow and Decline are not
-     compared (they change the city and draw from the generators). Lines (always written):
+     compared (they change the city and draw from the generators): slots 5 (`0x0070D130`) and 6 (`0x00709200`)
+     are forwarded the same way and only counted. Per growth developer (its subtype) the tally keeps the Grow
+     calls, their results, the outcome codes they appended, their wall time, and the Decline calls and results;
+     the `tract tally` line gives them once a month and starts over. The BDS gives growth about 3 ms a day
+     (building-development.md §4.4), so the Grow time decides how many developers get a Grow call that day.
+     Lines (always written):
 
      ```
      tract shadow: ON (tract_shadow from …): …                                              (game start)
@@ -1215,6 +1224,10 @@ plugin.
      tract shadow (styles) yyyy-mm-dd load|month: record=31 bytes roundtrip=same current=0x… index=… styles=…
        all=… years=…/… mismatches=N first=…
      tract shadow (calls) yyyy-mm-dd month: calls=N compared=C origin=O failures=F lots=L mismatches=N first=…
+     tract shadow: Grow (tally) forwarder installed at … (vtable 00AB3118 slot 5): 0x0070D130 -> …
+     tract shadow: Decline (tally) forwarder installed at … (vtable 00AB3118 slot 6): 0x00709200 -> …
+     tract tally (original) yyyy-mm-dd month: grows=G built=B codes=A successes=S declines=D declined=X growMs=T
+       unlisted=U devs=0xSUBTYPE:gG/bB/dD/xX/tAVG,MAX/code:count,… (ascending subtype; Grow time in µs)
      tract shadow: UpdatePopulation forwarder removed (PreAppShutdown): slot 7 holds 0x00706BC0 again; …
      ```
 
