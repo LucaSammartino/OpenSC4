@@ -150,9 +150,24 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >     unavoidable);
 >   - **`apply6b`**: PW1–PW8, PS1–PS8, LG1–LG20 into the power, plumbing and landfill cores, glue and shadows (the
 >     PW8/PW3/PS4/PS8 shadow comparisons; LG2/LG3 landfill texture and tile exemplar; ABI 33, seam op 37 if needed);
->   - RE `re-answers6` (LV1–LV4, FL1–FL6, DQ10–DQ12, RG23, BQ3, CQ16–CQ22, TN21–TN25, HG1, the crime errata; then
->     RG, TN26–28, ZQ11–12, LF6, NB18, EX21–33). RE `re-answers4` is merged (`79d619c`; its `docs/abi` rows in
->     `83aa768`); RE `re-answers5` is merged (`fdc6893`; its `docs/abi` rows in `a9eef99`).
+>   - **`apply7a`**: RG23 (the proximity seed writes only the z = 0 edge), RG17, BQ3 (the budget total lot by lot),
+>     DQ10–DQ12, LV1–LV4 (the land value shadow sorts the developers by pointer), FL1–FL6 (the flammability mirror
+>     accepts either watered state); ABI 35 / seam op 40 if needed;
+>   - RE `re-answers7` (RG1–RG22 except RG17, PR14–PR16, PG15, DQ13, SV1–SV2, TN26–TN28, ZQ11–ZQ12, LF6, NB18,
+>     EX21–EX33). Merged RE lanes: `re-answers4` (`79d619c`; `docs/abi` rows `83aa768`), `re-answers5` (`fdc6893`;
+>     rows `a9eef99`), `re-answers6` (`d9db98f`: LV, FL, DQ10–12, RG23, RG17, BQ3, CQ16–22, TN21–25, HG1, the crime
+>     errata; row `bbee494`).
+>   - **`apply7b`**: CQ16–CQ22 (the clock-seed helper moves to `rng.rs`), the crime errata, TN21–TN25, HG1; ABI 36 /
+>     seam op 41 if needed;
+>   - RE **`re-formats2`** (M6): a new `docs/specs/graphics-formats.md` for FSH textures and S3D models, with a survey
+>     of the shipped data and conformance tests (GF questions); then an `engine/formats` lane;
+>   - **Next to launch, M5 traffic glue phase 1** (prompt in the session scratchpad, `trafficglue-task.txt`): the
+>     traffic simulator + pathfinder replacement unit (class `0x6990C1AA`, our slot-6 pathfinders, §6 record),
+>     ABI 37. Launch it once `apply6a` merges (TS1–TS34 change the core it hosts).
+> - **Restarts:** the coordinator's process exited twice on 2026-10-14; each time every lane stopped, and resumed
+>   through `SendMessage` with its worktree intact. Worktrees made by an elevated session are owned by
+>   Administrators, so a non-elevated session needs `safe.directory = C:/Users/tlori/FreeCity4/.claude/worktrees/*`
+>   (now in the global git config).
 >   Merge order rule: merge one lane, then have the next lane `git merge main` itself (it knows its files), then
 >   gate its worktree; renumber ABI/seam ops/switch counts at that point. If `git merge-tree` shows no conflict,
 >   the coordinator may merge main into the lane's worktree itself and gate that.

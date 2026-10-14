@@ -1115,26 +1115,60 @@ Run 70 found the fire replacement's grid at 0×0 after a load. The fire record's
 record is read later, so the grid is still empty during the simulator's `Read`. The host grid now keeps a geometry
 only once it is non-empty. The current answer is in brackets.
 
-- **HG1 — foundations (load order):** are all grid records read before any simulator's `Init`, so that the first
+- ~~**HG1 — foundations (load order):** are all grid records read before any simulator's `Init`, so that the first
   non-empty geometry is the final one? Which order does the class store read records and resolve refs in, relative
-  to `Read` and `Init`? [assumed yes]
+  to `Read` and `Init`? [assumed yes]~~ **ANSWERED 2026-10-14** from the exe (`LoadCity` runs the store load at
+  `0x0045574C` → `0x005D2080` → `0x005D38D0`, classes from a sorted map, `Read` at `0x005D3C63`; `cSC4City::Init`
+  only at `0x004558A2`, after PreCityInit at `0x00455898`) and written into foundations §3.7 ("When objects, grids
+  included, are read"). **The bracket matches: yes.** Every saved object is read in the store load, in ascending
+  class ID and record order, before the city's `Init` runs. A reference only creates an empty object; its `Read`
+  comes when the walk reaches its entry. Subsystems with class IDs below `0x49B9E602` (fire protection among them)
+  see their grids empty during `Read`; all see them final by `Init`. Caveat: a grid saved as 0 × 0 stays empty.
 
 ## From applying TN1–TN20 to the traffic network core (filed by the coordinator from the lane's report, 2026-10-14; merged)
 
 About `docs/specs/traffic-network.md`. The core's current answer is in brackets.
 
-- **TN21 — §4.6 / TN5:** if the intersection search's start cell is itself a tunnel cell, is it still extended?
-  [yes, the start cell is always extended]
-- **TN22 — §4.7.2:** what count does an object-reference or empty variant give for `0xE90E25A1`? [0: a switch
-  with no rules]
-- **TN23 — §4.7.2 TN3/TN4:** how do the DoPostCityInit walks treat a switch with building 0 (a default inserted by
+- ~~**TN21 — §4.6 / TN5:** if the intersection search's start cell is itself a tunnel cell, is it still extended?
+  [yes, the start cell is always extended]~~ **ANSWERED 2026-10-14** from the exe (UpdateIntersectionData
+  `0x0071B9A0`: the depth-0 entry runs the same tests, tunnel bit test `0x0071BBB8`, empty stack → `0x0071BD98`) and
+  written into traffic-network §4.6 (the start-cell bullet and a worked example). **The bracket does not match: no.**
+  The start cell goes through the same checks as every other cell. A tunnel start cell is not extended, so its
+  search ends at once with `best = N + 1` and it keeps its table value (a Street tunnel next to an intersection
+  stays at capacity 100, not 80).
+- ~~**TN22 — §4.7.2:** what count does an object-reference or empty variant give for `0xE90E25A1`? [0: a switch
+  with no rules]~~ **ANSWERED 2026-10-14** from the exe (`GetCount` `0x0040CE60` reads field `+0x10`; constructors
+  and `Destroy` `0x00914EA3` zero it; the object-reference setter `0x00915A5F` leaves it; the reader `0x005FFB40`
+  copies `count` bytes) and written into traffic-network §4.7.2 ("Empty and object-reference values"). **The bracket
+  matches.** Both give count 0, so 0 bytes are copied and DoLotActivated builds a switch with no rules (mode mask 0,
+  flags 0, no access point). Only an absent property skips the switch.
+- ~~**TN23 — §4.7.2 TN3/TN4:** how do the DoPostCityInit walks treat a switch with building 0 (a default inserted by
   a §4.7.3/§4.7.4 lookup), where the original would use a null building? [not re-read; flag 4 clear still clears the
-  access point; flag 4 set gets no NW cell]
-- **TN24 — §4.10.1 TN15:** when the unclamped dirty rectangle reaches past the map, are off-map cells asked or
-  written during the update? [only in-map cells]
-- **TN25 — §4.7.2 TN3:** FreeCity4 replaces the rules on the re-read, so the flags come from the property's rules;
+  access point; flag 4 set gets no NW cell]~~ **ANSWERED 2026-10-14** from the exe (re-read dereferences the
+  building at `0x00715CCF`; access walk calls its slot 11 at `0x00720504`; neither checks it; the map lookup
+  `0x006D90F0` copies an uninitialised temporary, zeroing only `+0x18` and the rules at `0x006D9145`–`0x006D9155`)
+  and written into traffic-network §4.7.2 ("A switch without a usable building"), §4.7.3 step 1 and §11 test 10.
+  **The premise does not hold, and the bracket stands as a *[choice]*.** A null building crashes the original. An
+  inserted switch's building is not null but a stale stack value, and so are its load, capacity, flags and other
+  fields. FreeCity4's all-zero switch is not re-read; flag 4 clear clears the access point; flag 4 set keeps it as it
+  is. The §11 test "unknown ID → `0x7EFFFFFF`" is now marked *[choice]*.
+- ~~**TN24 — §4.10.1 TN15:** when the unclamped dirty rectangle reaches past the map, are off-map cells asked or
+  written during the update? [only in-map cells]~~ **ANSWERED 2026-10-14** from the exe (UpdateDepthMap `0x00724840`:
+  no clamp and no bounds check; `IsNavigable` `0x0073EBF0` returns false through `CellIsInBounds` `0x004594D0`; the 0
+  is stored at `0x007249A6`–`0x007249B2`) and written into traffic-network §4.10.1 ("The update"). **The bracket
+  stands as a *[choice]*.** The original asks about every cell of the rectangle and writes 0 for each off-map cell
+  through the raw rows. That write lands outside the grid, so it is an out-of-bounds heap write. In-map cells get
+  the same values either way.
+- ~~**TN25 — §4.7.2 TN3:** FreeCity4 replaces the rules on the re-read, so the flags come from the property's rules;
   the original takes them from the first n rules of the vector (the saved copy). They differ only when the saved
-  rules differ from the exemplar. Acceptable? [flags from the re-read rules]
+  rules differ from the exemplar. Acceptable? [flags from the re-read rules]~~ **ANSWERED 2026-10-14** from the exe
+  (flags from the vector's first n entries at `0x00715EF8`–`0x00715F6D`; the append-only re-read and the §4.7.4
+  rule order as already established for TN3/TN4) and written into traffic-network §4.7.2 ("When the saved rules
+  differ from the property", with a worked example). **The bracket stands as a *[choice]*, but the difference is
+  wider than the flags.** It arises only when the station's `0xE90E25A1` changed between the save and the load.
+  Then the original also keeps applying the old rules before the new ones, so their connections survive, and it
+  writes them back on every save. Its flags come from the old rules (plus new ones when m < n), so the access-point
+  walk can differ too. FreeCity4 follows the current property throughout.
 
 ## From the aura glue and grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
 
@@ -1915,18 +1949,54 @@ shadow's current answer is in brackets.
 
 About `docs/specs/crime.md` (CQ5, CQ8, CQ13 as applied). The glue's current answer is in brackets.
 
-- **CQ16 — CQ8:** the LTEXT string loads but the game's detokenizer returns false. [The load counts as failed;
-  `0xAA12FCB0` replaces the name only if that property exists, otherwise the copied text stays.]
-- **CQ17 — CQ8:** property `0x8A416B2E` has fewer than 3 values. [No key, no lookup; the fallback is used.]
-- **CQ18 — CQ8:** there is no language manager. [Language 0, so only (group, instance) is tried.]
-- **CQ19 — CQ8:** is the detokenizer returned by `GetStringDetokenizer` (`cISC4App +0xA8`) borrowed or owned?
-  [Borrowed; the glue takes and releases its own reference around the call.]
-- **CQ20 — CQ8:** how does the original read the LTEXT: through the resource manager's `GetPrivateResource`, or a
-  string loader of its own? [Through `GetPrivateResource`, as the SDK does.]
-- **CQ21 — CQ5:** do other generators seeded from `cRZTime` use the same seconds-since-1901 value, so the helper
-  belongs to the RNG module? [Crime module only.]
-- **CQ22 — CQ13:** the crime effect property is an array whose elements are not plain numbers (strings, objects).
-  [Treated as absent.]
+- ~~**CQ16 — CQ8:** the LTEXT string loads but the game's detokenizer returns false. [The load counts as failed;
+  `0xAA12FCB0` replaces the name only if that property exists, otherwise the copied text stays.]~~ **ANSWERED
+  2026-10-14** from the exe (`SC4LoadString` `0x00603040`: detokenizer call `0x00603133`, failure exit
+  `0x00603202`; crime loader reset `0x006A0C9C`–`0x006A0CA6`) and written into crime.md §7 ("Name", steps 0 and
+  "A failure in steps 2 or 3"). **Half right.** The load does fail, and `0xAA12FCB0` replaces the name only if it
+  exists. But the copied text does not stay. `SC4LoadString`'s failure exit calls `Resize(0)` on the output, so
+  the name is empty. The loader had already emptied it before the load, so every failed load leaves the name
+  empty unless `0xAA12FCB0` exists.
+- ~~**CQ17 — CQ8:** property `0x8A416B2E` has fewer than 3 values. [No key, no lookup; the fallback is used.]~~
+  **ANSWERED 2026-10-14** from the exe (`SC4LoadExemplarString` `0x00603220` → `cSCPropertyHelp::GetPropertyValue`
+  `0x005FD5B0`, variant slot 103 `0x0060CE80`) and written into crime.md §7 ("How step 1 reads the key"). **The
+  original has no such rule:** it copies three `uint32` from the variant's data pointer with no type or count
+  check. With fewer values it reads past the data block, so `G` or `I` is heap garbage, and a scalar's inline
+  value is used as a pointer. The lookup then almost always misses, and the fallback applies. **The bracket stands as
+  a *[choice]*:** treat fewer than 3 values (or a scalar) as missing, which gives that usual outcome.
+- ~~**CQ18 — CQ8:** there is no language manager. [Language 0, so only (group, instance) is tried.]~~ **ANSWERED
+  2026-10-14** from the exe (`SC4LoadString` `0x00603063`–`0x0060306C`; `RZ::LM` `0x00913D7A`, system service
+  `0x441E5070` through `cRZSysServPtr` `0x00610800`) and written into crime.md §7 ("The language ID"). **The original
+  crashes**: it calls slot 7 through the null language-manager pointer, with no test. The game always has one.
+  **The bracket stands as a *[choice]*:** language 0, so only (group, instance) is tried.
+- ~~**CQ19 — CQ8:** is the detokenizer returned by `GetStringDetokenizer` (`cISC4App +0xA8`) borrowed or owned?
+  [Borrowed; the glue takes and releases its own reference around the call.]~~ **ANSWERED 2026-10-14** from the
+  exe (`cSC4App::GetStringDetokenizer` `0x0044B4D0`; cache `SL::OnAppInit1` `0x00602323`; use in `SC4LoadString`
+  `0x00603121`–`0x00603133`) and written into crime.md §7 ("The detokenizer is borrowed"). **The bracket matches.**
+  The getter returns the application's member with no `AddRef`, and the game caches it once in a global, also
+  with no `AddRef`. `SC4LoadString` uses that global when its caller passes none, and the crime loader passes
+  none. Nobody adds or releases a reference around the call. The glue's own `AddRef`/`Release` pair is harmless.
+- ~~**CQ20 — CQ8:** how does the original read the LTEXT: through the resource manager's `GetPrivateResource`, or a
+  string loader of its own? [Through `GetPrivateResource`, as the SDK does.]~~ **ANSWERED 2026-10-14** from the exe
+  (`SC4LoadString` `0x006030B8`/`0x006030F9`; resource manager slot 3 `0x009732EB`, slot 4 `0x00972D60`) and written
+  into crime.md §7 ("How the resources are read"). **The bracket matches.** The LTEXT is requested from slot 4,
+  `GetPrivateResource`, as a `cIGZString` (`0x089B7DC8`), with the last two arguments 0 and null. Slot 4 bypasses the
+  cache that slot 3 (`GetResource`) uses. Step 1's exemplar is also reloaded through slot 4 (`0x006032AE`), apart
+  from the loader's own cached `GetResource` load.
+- ~~**CQ21 — CQ5:** do other generators seeded from `cRZTime` use the same seconds-since-1901 value, so the helper
+  belongs to the RNG module? [Crime module only.]~~ **ANSWERED 2026-10-14** from the exe (34 static initialisers
+  `0x00A71CB0`–`0x00A75270`, construction occupant `0x005CEDAC`, prop developer `0x006F34A3`, all calling
+  `cRZTime::cRZTime` `0x00470B50`) and written into crime.md §9 ("The clock value is shared") and foundations §6.3.
+  **The bracket does not match: yes, they all use it.** Every clock-seeded generator calls the same `cRZTime()`
+  constructor: 34 file-local generators (each XOR its own constant), the construction occupant's plain reseed, and
+  the prop developer (value × 28). The helper belongs with the RNG module.
+- ~~**CQ22 — CQ13:** the crime effect property is an array whose elements are not plain numbers (strings, objects).
+  [Treated as absent.]~~ **ANSWERED 2026-10-14** from the exe (`DoOccupantChanged` `0x0069F27B`–`0x0069F2B1`, variant
+  raw accessor `0x0060CE80`) and written into crime.md §6.10. **Half right.** The original reads bytes 0 and 1 of the
+  variant's data block whatever its type. A **string** is an `RZChar` array, so it gives the codes of its first two
+  stored bytes (`"AB"`: m = 65, r = 66), a deterministic result; FreeCity4 should read it like any array, not treat
+  it as absent. An **object array** can only be stored by code, never by a data file, and gives the low bytes of
+  an object's address. Treating that as absent stays a *[choice]*.
 
 ## From the land value and flammability shadows (filed by the coordinator from the lane's report, 2026-10-14)
 
@@ -1936,29 +2006,63 @@ value shadow compares on `LandValueMapChanged` (`0x87CC75B3`, end of state 8); t
 `SimCycleComplete` (`0x08F415FE`), with a mirror fed the original's six messages. The shadow's current answer is in
 brackets.
 
-- **LV1:** with several growth developers, is the developers' address order the tuning's listing order? [not
-  compared]
-- **LV2:** a desirability map can change between the original's pass reading it and the comparison. [rerun with the
-  previous map and keep the better result]
-- **LV3:** is `GetAreaSlope` on the lot developer free of side effects? [assumed read-only]
-- **LV4:** `GetLandValueType` is sampled at each tract's first cell. Is the type uniform over a tract, or which
-  cell does the original use? [first cell]
-- **FL1:** is 2 × tractsPerDay the right bound for tracts left unvisited at `SimCycleComplete`? It assumes the
-  message is delivered queued, after the day agent. [2 × tractsPerDay]
-- **FL2:** the multiplier g is 0 until the first season or ordinance message; the mirror takes the original's g at
-  the baseline. Right? [taken at the baseline]
-- **FL3:** a tract-size difference between the original and ours is reported as `INCOMPLETE`. [INCOMPLETE]
-- **FL4:** the message server's delivery order to the original's target and to the mirror is unspecified; both read
-  the same game state. Is that enough? [assumed so]
-- **FL5 — first in-game shadow (run 82, coordinator):** 64 of 65 compared cycles exact; in cycle 66 (2033-03-15)
+- ~~**LV1:** with several growth developers, is the developers' address order the tuning's listing order? [not
+  compared]~~ **ANSWERED 2026-10-14** from the exe (tuning reader `0x006BE110`; developer creation `0x006991A0` from
+  the resource enumeration callback `0x00699E20`, load factory `0x006B7870`) and written into landvalue.md §7.4.
+  **No.** The list is a map keyed by the developer pointer as an unsigned 32-bit value, walked from the smallest:
+  ascending pointer order, fixed by the allocator. That matches neither the tuning order nor, in general, the
+  creation order. A shadow reproduces it exactly by sorting the pointers `GetDeveloper(ID)` returns.
+- ~~**LV2:** a desirability map can change between the original's pass reading it and the comparison. [rerun with the
+  previous map and keep the better result]~~ **ANSWERED 2026-10-14** from the exe (growth developer slot 13
+  `0x007C9FB0` returns the published grid; state 17 copies the working grid into it in one call; land value state 7
+  reads and applies it in one call) and written into landvalue.md §7.4. **The bracket is sound.** The map that state
+  7 sees is never half-built and changes at most once before the comparison, so there are exactly two candidates:
+  the map before the developer's last state-17 copy, and the live one. The developer's slot 10 tells a shadow when to
+  snapshot the first.
+- ~~**LV3:** is `GetAreaSlope` on the lot developer free of side effects? [assumed read-only]~~ **ANSWERED 2026-10-14**
+  from the exe (`0x006C5DC0`, its vertex reader `0x006C4310`, terrain `0x007413C0`/`0x00744980`) and written into
+  landvalue.md §6. **Yes, read-only**: terrain altitude and water level reads, locals only.
+- ~~**LV4:** `GetLandValueType` is sampled at each tract's first cell. Is the type uniform over a tract, or which
+  cell does the original use? [first cell]~~ **ANSWERED 2026-10-14** from the exe (`0x006BD700` calls the total grid's
+  `GetCellValue`, which shifts the cell to its tract) and written into landvalue.md §7.6. **Uniform**: every cell of
+  a tract gives the same value and type, so the first cell is exact.
+- ~~**FL1:** is 2 × tractsPerDay the right bound for tracts left unvisited at `SimCycleComplete`? It assumes the
+  message is delivered queued, after the day agent. [2 × tractsPerDay]~~ **ANSWERED 2026-10-14** from the exe
+  (framework `AddToTick` `0x00879BB9` / `OnTick` `0x0087A74B`; tick priorities 5,000,000 for the message server and
+  −2,000,000 for the simulator; message server tick `0x0092E040`) and written into flammability.md §9. **Right for
+  shipped tuning.** The message is delivered at the next frame's message-server tick, which comes before the
+  simulator's. Up to then the day agent visits the rest of the wrap day (≤ `tractsPerDay`) plus one more day only at
+  speed 2, where 50 ms per day fits in a 66 ms tick. A mod with a shorter day at speed 2 raises the bound.
+- ~~**FL2:** the multiplier g is 0 until the first season or ordinance message; the mirror takes the original's g at
+  the baseline. Right? [taken at the baseline]~~ **ANSWERED 2026-10-14** from the exe and written into
+  flammability.md §6.4. **Right.** Only the constructor, `Read` and the SeasonChange/OrdinanceUpdated branch of
+  `DoMessage` (`0x006AFB87`) write g.
+- ~~**FL3:** a tract-size difference between the original and ours is reported as `INCOMPLETE`. [INCOMPLETE]~~
+  **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. The original creates its grids
+  with tract size 1 and never changes it, so a difference needs a save the original did not write (flammability.md §2).
+- ~~**FL4:** the message server's delivery order to the original's target and to the mirror is unspecified; both read
+  the same game state. Is that enough? [assumed so]~~ **ANSWERED 2026-10-14** and written into flammability.md §5.
+  **Yes, and the order is not unspecified**: one send delivers to the subscribers in subscription order (foundations
+  §5.1), so the original, which subscribes in `Init`, gets each message just before a later-subscribed mirror. The
+  handlers read nothing that the subscribers in between write *[inferred]*.
+- ~~**FL5 — first in-game shadow (run 82, coordinator):** 64 of 65 compared cycles exact; in cycle 66 (2033-03-15)
   a 2×2 block of adjusted tracts, (7..8, 53..54), is 81 in the original and 65 in ours (max |d| 21; raw grid
   identical). One lot's flammability contribution changed in a way the mirror missed or counted differently: which
-  event sets an adjusted tract outside the day visit (a lot condition or occupant change mid-cycle)?
-- **FL6 — second occurrence (run 83, coordinator):** 69 of 70 compared cycles exact; in cycle 15 (2027-08-11)
+  event sets an adjusted tract outside the day visit (a lot condition or occupant change mid-cycle)?~~ **ANSWERED
+  2026-10-14** with FL6, from the exe (`DoDailySimulation` `0x006AF8D0`), and written into flammability.md §6.5, with a
+  worked example. **No event outside the day visit: it is the visit's no-water factor.** 81 = roundHE(65 × 1.25),
+  1.25 being the shipped no-water multiplier. The original visited those tracts while plumbing slot 11 said "not
+  watered". The plumbing pass published a watered state for them later, so a mirror that evaluates the watered state
+  at comparison time misses the factor.
+- ~~**FL6 — second occurrence (run 83, coordinator):** 69 of 70 compared cycles exact; in cycle 15 (2027-08-11)
   595 adjusted tracts differ (raw grid identical; max |d| 21), starting with the column (0, 42..46): 100/80,
   106/85 original/ours, the city average 43 against 40..41. The original is about 1.25 times ours, the same ratio
   as FL5's 81/65, so a ×1.25 factor reached a whole region mid-cycle. Which event applies it (a fire, a disaster or
-  an ordinance), and does it go through the day visit?
+  an ordinance), and does it go through the day visit?~~ **ANSWERED 2026-10-14** with FL5 (flammability.md §6.5).
+  **None of those: a plumbing pass that changed the watered state of a region mid-cycle, and yes, through the day
+  visit** (100 = 80 × 1.25, 106 = roundHE(85 × 1.25)). Fires and disasters only read the grid, and g is never 1.25 with
+  shipped tuning. The mirror must accept either watered state for tracts whose state changed during the cycle. A
+  change of the plumbing simulator's `GetWateredGrid()` pointer marks each pass.
 
 ## From applying the data-format answers (filed by the coordinator from the `apply4a` lane's report, 2026-10-14)
 
@@ -1993,13 +2097,31 @@ answer is in brackets.
 About `docs/specs/demand.md` §4.1 and §5 after the ABI correction (slot 8 `CalculateJobsPerUnitOfDemand` returns
 void and writes jobs[1..3] of a four-float record). The current answer is in brackets.
 
-- **DQ10 — §5:** `GetJobsBySensus` still reads `j0 + j1 + j2`, and ExtrapolateBusinessCensus reads `j[w]`,
+- ~~**DQ10 — §5:** `GetJobsBySensus` still reads `j0 + j1 + j2`, and ExtrapolateBusinessCensus reads `j[w]`,
   w = 0..2, but the outputs are now jobs[1..3]. Which elements are summed, and which one does wealth w read? [the
-  three outputs, summed in order: f32(f32(out1 + out2) + out3); extrapolation reads output w for wealth w + 1]
-- **DQ11 — §5:** in the original `GetJobsBySensus`, what is in the local record's jobs[0] when slot 8 returns, and
-  is it really summed with jobs[3] left out? [not modelled; the sum of the three outputs]
-- **DQ12 — §5 against §4.1:** §5 says `f32(percent) × 0.01f`, while §4.1 describes an exact FILD followed by a
-  single rounding. They agree for every percent below 2^24; which is the game's? [the §4.1 link factor]
+  three outputs, summed in order: f32(f32(out1 + out2) + out3); extrapolation reads output w for wealth w + 1]~~
+  **ANSWERED 2026-10-14** from the exe (`GetJobsBySensus` `0x006A3E60`, sum `0x006A3E8C`–`0x006A3E9C`;
+  ExtrapolateBusinessCensus `0x006A6BD8`–`0x006A6C83`) and written into demand.md §5 (slot 9 row and
+  "`GetJobsBySensus` arithmetic") and §9.2. **The elements are right, the order is not.** The three outputs are
+  summed **f32(f32(jobs[3] + jobs[2]) + jobs[1])**, last output first. Then `x := f32(supply × sum)` goes to `_ftol`
+  with no `≤ 0` clamp, and the function returns EAX. The order matters for whole percents: 1, 3, 96 sum to
+  0.99999994 in the original and 1.0 in the bracket's order, so supply 1000 gives 999, not 1000. The two orders
+  give different sums for 1198 of the 5151 splits of 100 %. **Extrapolation:** each wealth reads its own output. $
+  (`0x12010`, `0x2010`) reads jobs[1], $$ reads jobs[2] and $$$ reads jobs[3], each `f32(jobs[k] × n)`.
+- ~~**DQ11 — §5:** in the original `GetJobsBySensus`, what is in the local record's jobs[0] when slot 8 returns, and
+  is it really summed with jobs[3] left out? [not modelled; the sum of the three outputs]~~ **ANSWERED 2026-10-14**
+  from the exe (`0x006A3E82` passes the address of a 16-byte local; the `FLD`/`FADD`s at `0x006A3E8C`–`0x006A3E9C`
+  read its offsets `+0xC`, `+8`, `+4`) and written into demand.md §5. **The bracket matches.** jobs[0] is
+  uninitialised stack that nothing writes or reads, and jobs[3] is summed. "j0 + j1 + j2" was a misreading from
+  before the slot-8 correction. Nothing to model.
+- ~~**DQ12 — §5 against §4.1:** §5 says `f32(percent) × 0.01f`, while §4.1 describes an exact FILD followed by a
+  single rounding. They agree for every percent below 2^24; which is the game's? [the §4.1 link factor]~~
+  **ANSWERED 2026-10-14** from the exe (slot 8 `0x006A2469`–`0x006A24CD`, the graph builder's `0x006A5514`,
+  `0x006A5604`, `0x006A56F4`; the 2^32 constant at `0x00A80AA8`) and written into demand.md §4.1 and the §5 slot 8
+  row. **The bracket matches; both use the same instructions.** One correction for very large percents: below 2^31 it
+  is one rounding, `r24(percent × 0.01f)`. From 2^31 up, the `FADD` of 2^32 rounds the integer first, so it is
+  `r24(r24(percent) × 0.01f)`. Example: 3242996796 gives `0x4BF76BC7`, not `0x4BF76BC8`. The shipped percents (at most
+  1500) cannot tell any of these apart.
 - Not a spec question: whether the WOW64 `CONTEXT` TagWord is the full or the abridged tag. The crash report logs
   both; the lane's host test shows the full tag (0xFFFF empty, 0x3FFF with one value) next to FXSAVE's 0x00/0x80.
 
@@ -2029,8 +2151,13 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
 - **RG15:** a building's identity is its `AsOccupant()` pointer, used for the lists, the strike message's void1
   and IGZUnknown, and record references. Right? [yes]
 - **RG16:** per-building properties: scalars of their type (bool, u32, f32), or arrays? [scalars]
-- **RG17:** slots 47, 49 and 61 append to the caller's list with the game allocator. Is that so for slot 61?
-  [assumed]
+- ~~**RG17:** slots 47, 49 and 61 append to the caller's list with the game allocator. Is that so for slot 61?
+  [assumed]~~ **ANSWERED 2026-10-14** from the exe (slot 61 `0x006FAEC0`: allocations at `0x006FAF30` and
+  `0x006FAFBA`; slots 47/49 through `GetBuildings` `0x006FACE0`, allocation at `0x006FADA3`) and written into
+  residential.md §10.1 (slot 61 row). **The bracket matches: yes.** All three take each 12-byte node from the framework
+  allocator service (allocator A, the cached pointer at `0x00B207E4`, slot 3), link it at the tail of the caller's
+  list and `AddRef` the occupant. This is the allocator of the SDK's `SC4List`, so the caller frees the nodes the
+  usual way.
 - **RG18:** the simulator taken at Init step 4 is released after `RemoveAgent`; REH §4.2 has no matching release.
   [released]
 - **RG19:** what goes in a strike message's data1? [0]
@@ -2039,14 +2166,25 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
 - **RG22 — `docs/abi`:** residential slots 37/38 (`GetCellEQByWealth`/`GetCellHQByWealth`) are `via-call`, low
   confidence, in `interfaces.tsv`, while residential.md §10.1 says ST0 (they end by calling the float grid's
   `GetTractValue`, x87 high). Should the rows say x87? [declared float, on the spec's word]
-- **RG23 — first in-game residential shadow (run 86, coordinator):** every cycle, 12 of 15 daily states match
+- ~~**RG23 — first in-game residential shadow (run 86, coordinator):** every cycle, 12 of 15 daily states match
   exactly (all 25 grids, the saved fields, the per-building properties, funding and the scalars: population, EQ,
   HQ, life expectancy). States 1, 2 and 3 (the proximity grids R$, R$$, R$$$) differ in about 16,000 of 16,384
   cells: at the corner the original's grid reads 1, 0, 0, 0 along t(0,0..3) and ours 104, 103, 102, 101 (R$; R$$
   106.., R$$$ 116..). Ours looks like a distance ramp counting down from the corner; the original's is 0 or 1
   there. What do states 1–3 write into the proximity grid (a distance, a count within a radius, a flag), from
   which seed (the building map's keys `4p + w + 1`?), and how far does one state's call get? The shadow re-seeds
-  this temporary grid from the building map as it stands. [ours as residential.md reads today]
+  this temporary grid from the building map as it stands. [ours as residential.md reads today]~~ **ANSWERED
+  2026-10-14** from the exe (seed `0x005E4FA0`: row start loaded at `0x005E503B`, stores `0x005E505B`, `0x005E508A`,
+  `0x005E50FB`; states 13/14/15 at `0x006FF854`–`0x006FF87C` and on; pass loop `0x006FF8D0`–`0x006FF923`) and
+  written into residential.md §5.3 (worked example), §12 item 10 and §15 tests 1 and 3. **The bracket does not
+  match.** The seed uses the keys `4p + w + 1` (6, 7, 8) and the passes are as written. But the seed stores every
+  value in element 0 of row x, the cell (x, 0), and in the shipped equal-size case it also reads `map[x][0]`. So
+  only the z = 0 edge is seeded: 0 where `map[x][0]` is the key, 255 elsewhere. Every other cell keeps the
+  temporary grid's 0 (fresh grid, or the previous wealth's result, which is 0 off the edge). The passes then give
+  (x, 0) = 1 (or 0 under a key) and 0 everywhere else, which is the corner's 1, 0, 0, 0. States 1 and 2 converge
+  in two passes and state 3 in one, so one call normally completes the state; the time check sits between passes.
+  FreeCity4 must reproduce this *[compat]*, since the growth developers' 4 × 4 floor mean of these maps is then 0
+  for every tract. The commercial CO proximity maps use the same seed (simgrid §7.5).
 
 ## From applying the pathfinder, zones, landfill and neighbours answers (filed by the coordinator from the `apply4b` lane's report, 2026-10-14)
 
@@ -2085,12 +2223,23 @@ About PR1–PR13, DQ3–DQ8 and PG4–PG13 as applied. The current answer is in 
 
 ## From the budget shadow (coordinator, run 86)
 
-- **BQ3 — budget.md, the monthly settlement total:** in run 86 (`regress rbc7f`), 30 of 31 months match. In
+- ~~**BQ3 — budget.md, the monthly settlement total:** in run 86 (`regress rbc7f`), 30 of 31 months match. In
   2028-08 every one of the twelve tax lines is equal (1762, 767, 123, 98, 101, 30, 83, 34, 0, 1547, 290, 0), but the
   total income is 4839 in the original and 4840 in ours (net 792/793). The lines sum to 4835, so the total is not
   their integer sum: it comes from unrounded values. Which values does the original add for the total (float
   per-lot sums, or per-line floats before display rounding), in which order and width, and how is the total
-  rounded? First seen in this run; runs 80–83 had none in 93–95 months. [ours as budget.md reads today]
+  rounded? First seen in this run; runs 80–83 had none in 93–95 months. [ours as budget.md reads today]~~
+  **ANSWERED 2026-10-14** from the exe (`ComputeTax` `0x00691E20`: sums at `0x0069205C`–`0x00692070`, truncations at
+  `0x006920B4`–`0x006920EB`) and written into budget.md §5.2 ("The total is not the sum of the lines", worked
+  example). **The bracket matches what budget.md already said, now stated exactly.** The total is a separate running
+  sum over the **per-lot** tax products, not over the lines or the group sums. Each lot's tax is added to `total`
+  first, then to its group's sum. Both are doubles in memory, but each `FADD` rounds to 24 bits, so they equal
+  `float32` running sums. The order is the lot manager's master list. The total is truncated toward zero
+  (`_ftol`, 64-bit), and so is each line. The lines drop their fractions and the total keeps them, hence 4835
+  against 4839. A one-simoleon difference with all twelve lines equal is the lot-order effect: the worked example's
+  four lots give 6567 in list order and 6566 reversed, with the same lines. Matching it exactly needs both the
+  master-list order (creation order for lots made since the load) and a total formed lot by lot, not from the
+  group sums. Which of the two ours lacks cannot be seen from the exe side.
 
 ## From the save-reference audit (filed by the coordinator from the `lvrefs` lane's report, 2026-10-14)
 

@@ -233,6 +233,11 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Neighbors.h
         plugin/FC4NeighborsShadow.cpp
         plugin/FC4NeighborsShadow.h
+        plugin/FC4GrowthProbe.cpp
+        plugin/FC4GrowthProbe.h
+        plugin/FC4GrowthProbeHook.cpp
+        plugin/FC4GrowthProbeHook.h
+        plugin/FC4GrowthProbeLogic.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -303,6 +308,15 @@ if(FC4_IS_WIN32_X86)
     target_include_directories(fc4_fpu_logic_test PRIVATE plugin)
     target_compile_options(fc4_fpu_logic_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME fpu_logic_test COMMAND fc4_fpu_logic_test)
+
+    # The growth probe (building-development.md §12): the counting hook on a
+    # fake vtable in this process (forwarding, count, result, callee-pop,
+    # registers and x87 state, restore) and its day and summary lines.
+    add_executable(fc4_growth_probe_test tests/growth_probe_test.cpp plugin/FC4GrowthProbeHook.cpp)
+    target_include_directories(fc4_growth_probe_test PRIVATE plugin)
+    target_compile_definitions(fc4_growth_probe_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_growth_probe_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME growth_probe_test COMMAND fc4_growth_probe_test)
 
     # Every interface we implement or call against docs/abi/interfaces.tsv
     # (callee-pop bytes, return channel, slot count), read at run time.
@@ -409,6 +423,12 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_saved_refs_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --saved-refs)
     set_tests_properties(plugin_saved_refs_test PROPERTIES RUN_SERIAL TRUE)
+    # The growth calibration probe (building-development.md §12, seam op 39):
+    # `growth_probe = 1` on a fake tract developer vtable and a fake city (day
+    # lines, cut, summary, restore), and off by default.
+    add_test(NAME plugin_ini_growth_probe_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-growth-probe)
+    set_tests_properties(plugin_ini_growth_probe_test PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

@@ -93,6 +93,11 @@
 //   neighbors_seed = N            the deal proposal generator's session seed (default:
 //                                 the cRZTime clock; cFC4Neighbors.cpp)
 //   neighbors_two_curves = 0 / 1  neighbors.md §8.3 two price curves [choice] (default 0)
+//   growth_probe = 0 / 1          the growth calibration probe (default 0; needs the
+//                                 ORIGINAL BDS and tract developer; counts the tract
+//                                 developer's Grow calls per game day; env
+//                                 FC4_GROWTH_PROBE; read at PostAppInit;
+//                                 FC4GrowthProbe.h)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.
