@@ -248,6 +248,21 @@ Calls: `CreateDepartmentBudget(id, 0x6A357B7F)`, AddRef, `SetDepartmentName(0x6A
 - When both purposes succeed, the call also ends **with** the dirty flag set (`0x006F834A`, reached from the two
   "no item" exits and after the second `SetLocalFundingPercent`). So the flag is set in every case except a null
   department. The flag is never read (§2), so this is not observable.
+- **What `SetLocalFundingPercent` stores** *[compat]* (RG13; budget spec §7.3). It does set the budget item's local
+  funding, but as a **percentage**: the item's entry in the building's property `0xEA54D287` becomes
+  float32(q × 100.0f) (`0x00692DBD`). Reading the item back (`GetBudgetItemForPurpose` / `GetBudgetItemInfo`)
+  gives float32(pct × 0.01f) (`0x006939E6`; 0.01f is `0x3C23D70A`). The round trip is **not always exact**:
+
+  | q written | stored pct | q read back |
+  |---|---|---|
+  | 0.43 (`0x3EDC28F6`) | 43.0 | 0.42999998 (`0x3EDC28F5`) |
+  | 0.79999995 (`0x3F4CCCCC`) | 79.99999 (`0x429FFFFF`) | 0.7999999 (`0x3F4CCCCB`) |
+  | 0.5 | 50.0 | 0.5 |
+  | 1.2 (`0x3F99999A`) | 120.00001 (`0x42F00001`) | 1.2 |
+
+  The budget ignores the call unless 0 ≤ q ≤ the department's maximum, the (holder, purpose) pair is registered
+  and the item exists; the same call may also move the department's own percentage (budget spec §7.3). A shadow that compares the funding after an auto-budget step must compare the
+  read-back value, not q.
 
 **Efficiency ratings** `GetOccupantEfficiencyRatings(occ, &e1, &e2, isSchool, ignoreStrike)`:
 

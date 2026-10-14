@@ -2194,7 +2194,13 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   exe (`GetOccupantCoverage` `0x006FD260`; exit `0x006FD502`) and written into REH §4.11 (slot 45). **Confirmed; the
   bracket matches.** AL = 0 happens only when the building has neither capacity, and that path jumps to the epilogue
   before `dist` or `radius` is written.
-- **RG13:** does `SetLocalFundingPercent` set the budget item's local funding? [the shadow assumes so]
+- ~~**RG13:** does `SetLocalFundingPercent` set the budget item's local funding? [the shadow assumes so]~~ **ANSWERED
+  2026-10-14** from the exe (`ChangeBudgetItemLocalFunding` store `0x00692DBD`; `GetBudgetItemInfo` read `0x006939E6`)
+  and written into REH §4.2 with a table. **Yes, but not exactly: the bracket needs a correction.** The item's local
+  funding is stored as a percentage, float32(q × 100.0f), and read back as float32(pct × 0.01f), so q = 0.43 reads
+  back as 0.42999998 and 0.79999995 as 0.7999999 (0.5 and 1.2 survive). A shadow must compare the read-back value.
+  budget.md §2/§7 writes the read as "pct/100"; it is a multiplication by the float 0.01f (reported for the budget
+  spec's owner).
 - **RG14:** the dirty flag cannot be compared by the shadow. [not compared]
 - **RG15:** a building's identity is its `AsOccupant()` pointer, used for the lists, the strike message's void1
   and IGZUnknown, and record references. Right? [yes]
