@@ -69,8 +69,10 @@ extern "C" {
  * 24 = adds the plumbing shadow (fc4_plumbing_shadow);
  * 25 = adds the land value and flammability shadows (fc4_landvalue_shadow / fc4_flammability_shadow);
  * 26 = adds the residential simulator (fc4_residential) and its shadow (fc4_residential_shadow);
- * 27 = adds fc4_protection_shadow_unadjusted_grid (protection.md §2, PR5). */
-#define FC4_ABI_VERSION 27u
+ * 27 = adds fc4_protection_shadow_unadjusted_grid (protection.md §2, PR5);
+ * 33 = adds fc4_power_shadow_message and the power shadow's city start (options `flags`,
+ *      FC4_POWER_SHADOW_CITY_START; power.md PW3, PW4, PW5, PW7). */
+#define FC4_ABI_VERSION 33u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -1546,7 +1548,10 @@ bool fc4_power_read(fc4_power* p, const fc4_istream* in);         /* §9: false 
  * captures again and fc4_power_shadow_finish compares the record's fields and
  * bitmaps, the consumption map, the powered grid cell by cell, the counts and
  * the occupant properties, deal usage, connection flags and budget item costs
- * FreeCity4 wrote (kept in the shadow) with the game's. Not compared (not
+ * FreeCity4 wrote (kept in the shadow) with the game's. The unsaved values
+ * the step needs are mirrored: known from a city start
+ * (FC4_POWER_SHADOW_CITY_START), the dirty rectangle merged from the messages
+ * the plugin forwards (fc4_power_shadow_message). Not compared (not
  * readable): posted messages, history, budget line items, demolitions, lot
  * conditions, the poles the month's shuffle picks (the count is compared),
  * deal flags. */
@@ -1581,11 +1586,19 @@ typedef struct fc4_power_shadow_counts {
     uint32_t reserved;
 } fc4_power_shadow_counts;
 
+/* fc4_power_shadow_options.flags: created at the city's PostCityInit (a load
+ * or a new city), when the original was just constructed and initialised: its
+ * unsaved pass values and brokenFraction are 0, it has no dirty rectangle and
+ * its ordinance factor is the one read at creation (power.md §5.3, §7.6, §8,
+ * §9.1). Without it (a shadow started mid-city) they are unknown until the
+ * original shows them. (ABI 33; the field was `reserved`.) */
+#define FC4_POWER_SHADOW_CITY_START 1u
+
 typedef struct fc4_power_shadow_options {
     uint32_t struct_size;
     uint32_t max_cells; /* differing cells listed per line (0 = 8, at most 64) */
     uint32_t max_lines; /* cycle lines with a difference per month (0 = 32; UINT32_MAX = all) */
-    uint32_t reserved;
+    uint32_t flags;     /* FC4_POWER_SHADOW_CITY_START */
     /* cISC4NeighborConnection::GetVisitedThisCycle (slot 11) of a connection
      * token, called with the host table's `user`: the shadow emulates
      * FindUnvisitedConnection with it. NULL: the live FindUnvisitedConnection. */
@@ -1620,6 +1633,13 @@ int32_t fc4_power_shadow_begin(fc4_power_shadow* s, uint32_t msg_type, int32_t j
 int32_t fc4_power_shadow_finish(fc4_power_shadow* s, const fc4_power_capture* after,
                                 const fc4_power_shadow_counts* counts, fc4_bytes_sink sink, void* ctx);
 bool fc4_power_shadow_get_stats(fc4_power_shadow* s, fc4_power_shadow_stats* out);
+/* One of the original's messages as it is delivered to the original (the
+ * plugin's message target, inside or outside a wrapped delivery): a removal
+ * (void1 = the occupant's cISC4Occupant token) or a zoning change (rect)
+ * merges the rectangle the original merges into its dirty rectangle (§5.3,
+ * PW5); a tuning reload re-reads the tuning and the ordinance factor (§8,
+ * PW7). Reads go through the host table at once. True for these messages. */
+bool fc4_power_shadow_message(fc4_power_shadow* s, const fc4_power_message* m); /* ABI 33 */
 
 /* ---- plumbing (docs/specs/plumbing.md) ---------------------------------------
  *

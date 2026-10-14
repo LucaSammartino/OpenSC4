@@ -110,6 +110,20 @@ pub struct fc4_power_message {
     pub rect: fc4_cell_rect,
 }
 
+impl From<&fc4_power_message> for PowerMessage {
+    fn from(m: &fc4_power_message) -> PowerMessage {
+        PowerMessage {
+            msg_type: m.msg_type,
+            data1: m.data1,
+            data2: m.data2,
+            data3: m.data3,
+            data4: m.data4,
+            void1: m.void1,
+            rect: m.rect.into(),
+        }
+    }
+}
+
 /// `FindPowerPlants` (slot 30) results (fc4.h `fc4_power_found`).
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -793,15 +807,7 @@ pub unsafe extern "C" fn fc4_power_shutdown(p: *mut fc4_power) -> bool {
 #[no_mangle]
 pub unsafe extern "C" fn fc4_power_do_message(p: *mut fc4_power, m: *const fc4_power_message) -> bool {
     let Some(m) = m.as_ref() else { return true };
-    let msg = PowerMessage {
-        msg_type: m.msg_type,
-        data1: m.data1,
-        data2: m.data2,
-        data3: m.data3,
-        data4: m.data4,
-        void1: m.void1,
-        rect: m.rect.into(),
-    };
+    let msg = PowerMessage::from(m);
     with_power(p, true, |h| {
         if h.depth.get() > 0 {
             h.queue.borrow_mut().push(msg);

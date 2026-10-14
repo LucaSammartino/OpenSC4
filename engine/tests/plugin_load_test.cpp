@@ -1147,8 +1147,9 @@ void OwSet(FakeOrigPower& o, uint32_t state, FakePowerRecord next) {
 }
 
 intptr_t PowerShadowOnce(FC4TestSeamFn seam, FakeObject* city, cIGZMessageTarget2* target, uint32_t type,
-                         bool fresh) {
-    FC4PowerShadowTestInput in{reinterpret_cast<cISC4City*>(city), target, type, 2451576, fresh ? 1u : 0u};  // 2000-02-01
+                         bool fresh, bool midCity = false) {
+    FC4PowerShadowTestInput in{reinterpret_cast<cISC4City*>(city), target, type, 2451576, fresh ? 1u : 0u,
+                               midCity ? 1u : 0u};  // 2000-02-01
     return seam(kFC4SeamPowerShadow, &in, nullptr);
 }
 
@@ -6485,10 +6486,20 @@ int main(int argc, char** argv) {
             CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, true) == 1);
             OwSet(ow, 3, FakePowerRecord{0, 0, 0, 4});
             CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, false) == 0);
+            // The same on a shadow switched on mid-city: the original's
+            // ordinance factor is not known until a month start (power.md
+            // §8, PW7), so the neighbours step's difference is not exact (0).
+            std::memset(ow.cells, 0, sizeof(ow.cells));
+            OwSet(ow, 2, FakePowerRecord{0, 0, 0, 3});
+            ow.poke = 5 * 32 + 7;
+            ow.pokeValue = 2;
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, true, true) == 0);
+            OwSet(ow, 3, FakePowerRecord{0, 0, 0, 4});
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, false) == 0);
             std::memset(ow.cells, 0, sizeof(ow.cells));
             CHECK(PowerShadowOnce(seam, &ow.city, reinterpret_cast<cIGZMessageTarget2*>(&ow.other), kMsgSimIdle,
                                   true) == -1);
-            CHECK(ow.deliveries == 8 && ow.writes == 14);
+            CHECK(ow.deliveries == 10 && ow.writes == 18);
             CHECK(ow.refs == 1);  // every QueryInterface released
             CheckCw("power shadow");
         }
@@ -6687,21 +6698,29 @@ int main(int argc, char** argv) {
     CHECK(CountOf(text, "pollution shadow month to ") == 1);
     CHECK(text.find("pollution shadow: ON") == std::string::npos);  // off by default
     // The power shadow (test seam op 21): two months (clean, ring index
-    // skewed), two cycles (clean; one grid cell off).
+    // skewed), three cycles (clean; one grid cell off; the same mid-city, not
+    // exact).
     CHECK(text.find("power shadow: the original power simulator ") != std::string::npos);
     CHECK(text.find("power shadow 2000-02-01 month: 1024 cells compared; production=0/0 consumption=0/0 import=0/0 "
                     "export=0/0 demand=0/0 requirement=0/0 consumers=0/0 powered=0/0 unpowered=0/0 plants=0/0 "
                     "aged=0/0 distressed=0/0 overworked=0/0 deficit=0/0 poles=0/0 broken=0/0; brokenFraction from 0 "
-                    "at the shadow's start (2000-02-01); not_exact=0; mismatches=0") != std::string::npos);
-    CHECK(text.find("broken=0/0; fields orig/ours: ringIndex=2/1; brokenFraction from 0 at the shadow's start "
-                    "(2000-02-01); not_exact=0; mismatches=1") != std::string::npos);
+                    "at the city start, as the original's (power.md §7.6; first step 2000-02-01); not_exact=0; "
+                    "mismatches=0") != std::string::npos);
+    CHECK(text.find("broken=0/0; fields orig/ours: ringIndex=2/1; brokenFraction from 0 at the city start, as the "
+                    "original's (power.md §7.6; first step 2000-02-01); not_exact=0; mismatches=1") !=
+          std::string::npos);
+    CHECK(text.find("power shadow: comparing with the original power simulator ") != std::string::npos);
+    CHECK(text.find(") from the city start (its unsaved values known: ") != std::string::npos);
+    CHECK(text.find(") from mid-city (not known: the ordinance factor until the first month") != std::string::npos);
+    CHECK(text.find("NOT EXACT: the ordinance factor is not known until the first month (the shadow started "
+                    "mid-city; power.md §8)") != std::string::npos);
     CHECK(CountOf(text, "power shadow 2000-02-01 bookkeeping: ") == 2);
     CHECK(CountOf(text, "consumption map 0/1024 cells differ max|d|=0; wire 0 cells differ;") == 2);
     CHECK(CountOf(text, "power shadow month to 2000-02-01: deliveries=1 steps=0 idle passed through=0 not "
                         "enabled=0 cycles=0") == 2);
     CHECK(text.find("power shadow 2000-02-01 cycle: steps 2 3 (cycle start not observed) on 32x32 cells; grid 2048 "
                     "cells compared, max|d|=0; first differing cells: none;") != std::string::npos);
-    CHECK(CountOf(text, "power shadow 2000-02-01 cycle: ") == 2);
+    CHECK(CountOf(text, "power shadow 2000-02-01 cycle: ") == 3);
     CHECK(text.find("power shadow: ON") == std::string::npos);  // off by default
     // The crime shadow (test seam op 13): a clean month, a skewed one, an
     // unobserved state 4; four runs, each a new "original".

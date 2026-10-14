@@ -995,6 +995,9 @@ bool cFC4Simulator::DoMessage(cIGZMessage2* pMessage) {
                 fc4_sim_on_post_city_init(sim_);
                 fc4::SetCityRunning(true);
                 fc4::Log("PostCityInit: hidden pause released (hidden=%d)", fc4_sim_is_hidden_paused(sim_) ? 1 : 0);
+                // The power shadow (opt-in) of a city start: the original's
+                // unsaved values are known now (FC4PowerShadow.h).
+                fc4::PowerShadowCityInit();
             }
             break;
 
