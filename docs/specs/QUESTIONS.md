@@ -1345,7 +1345,12 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   terminal's riders also get `Qi` (twice in mode 2). The fare goes to the income, not the fees. The u16 counters
   wrap. A crossing in from a neighbour is counted at the first cell (`0x00719A4E`). Written into
   traffic-simulator.md §4.5 and traffic-network.md §2.6.
-- **TS17 — §4.4:** a highway-return adjustment for an off-map destination? [none]
+- ~~**TS17 — §4.4:** a highway-return adjustment for an off-map destination? [none]~~ **ANSWERED 2026-10-14** from
+  the exe (`0x0071C858`–`0x0071C987`, `0x0070DD30`): the bracket does not match. The return leg's start cell moves
+  one cell along the edge when pf ended off-map by car or bus at a Highway/Avenue/GroundHighway connection (mask
+  `0x1108`). Its end cell moves the other way when pf started off-map at such a connection (any type). The
+  direction follows the language's driving side (UK English and Japanese drive on the left). Also a *[quirk]*:
+  with no lot at an in-city end cell, pf2's start rect is not written. Written into traffic-simulator.md §4.4.
 - **TS18 — §4.2:** when is the capacity property promoted from u16 to u32? [u16 until a value reaches 0xFFFF]
 - **TS19:** does the pathfinder adapter's GetLot match any cell of a lot? [yes (`false`)]
 - **TS20:** is the traffic-source list a snapshot? [yes: lots, then connections, when the phase is entered]

@@ -651,14 +651,45 @@ trip counts built in this pass are published (slot-34 stats and history, §4.12)
      done.
    * `pf.WasTripReversible()`: flags |= 1; route as above; `ApplyRoute(…, mode 2)` unless probe; done.
    * Otherwise flags &= ~1 and the **return leg** is searched with **pf2**, configured by writing its fields
-     directly *[compat: the pathfinder's memory layout is shared with the simulator; pathfinder.md §9]*:
-     start rect = the destination lot's rect (or the destination cell; for an off-map neighbour connection the
-     highway-return adjustment of traffic-network.md applies), end rect = pf's start rect (or the highway return
-     tile), flags := 1 (no budget), traffic density := pf's traffic arrived, filter := 3, allowed types := pf's
-     allowed types, starting types := `1 << ` the travel type of pf's result node, starting cost array := pf's;
-     if pf recorded a park-and-ride cell, it is copied and flag 8 is set.
+     directly *[compat: the pathfinder's memory layout is shared with the simulator; pathfinder.md §9]*
+     (`0x0071C858`–`0x0071CA03`, TS17):
+     - **start rect**, from pf's end cell `(x, z)`. In the city: the bounding rect (lot slot 14) of
+       `GetLot(x, z, false)`. If there is no lot there, the start rect is **not written** and keeps pf2's previous
+       one *[quirk]*. Off the map: if the travel type of pf's result node is 1 (car) or 2 (bus), and the cell's
+       edge record (`GetTrafficNeighborConnection`, traffic-network.md §2.7.1) has a Highway, Avenue or
+       GroundHighway connection (mask `& 0x1108`), then `FindHighwayReturnTile(x, z, back = false)` (below). The
+       start rect is then the single cell `(x, z)`.
+     - **end rect**: pf's start rect when its `(x0, z0)` corner is in the city. Otherwise, if the edge record at
+       `(x0, z0)` has mask `& 0x1108` (whatever the travel type), the single cell
+       `FindHighwayReturnTile(x0, z0, back = true)`; else pf's start rect.
+     - flags := 1 (no budget), traffic density := pf's traffic arrived, filter := 3, allowed types := pf's allowed
+       types, starting types := `1 << ` the travel type of pf's result node, starting cost array := pf's; if pf
+       recorded a park-and-ride cell, it is copied and flag 8 is set.
      *[quirk]* pf2's max trip length is never set: it is the shared max-length/trip-length float (pathfinder.md §4.3),
      so it holds pf2's previous trip length; with flag 1 it is not used as a budget.
+
+     **FindHighwayReturnTile(x, z, back)** (`0x0070DD30`, its only callers are the two above) moves an off-map cell
+     one step along its map edge. So a car or bus that left by a divided road (highway, avenue, ground highway)
+     comes back on the other carriageway. First `right := true`. The language manager's utility for the current
+     language (`cIGZLanguageManager` slot 38 `GetLanguageUtility(0)`, then its slot 25
+     `GetLanguageRoadDrivingSide`) returns 0 (drive on the left) for UK English (language 2) and Japanese (15) and 1
+     for every other language. `right := (that value = 1)`; with no utility it stays true. If `back`,
+     `right := not right`. Then the first case that matches applies (`X`, `Z` the city size in cells):
+
+     | Cell | `right` | not `right` |
+     |---|---|---|
+     | `x < 0` | `z + 1` | `z − 1` |
+     | `x > X − 1` | `z − 1` | `z + 1` |
+     | `z < 0` | `x − 1` | `x + 1` |
+     | `z > Z − 1` | `x + 1` | `x − 1` |
+
+     An in-city cell is unchanged. The new cell is not checked: it may have no connection, or be a map corner when
+     the connection is the last cell of its edge. Example, English: a commuter drives out by a highway to `(−1, 40)`.
+     The return leg starts at `(−1, 41)` and searches back to its source lot. A trip from a neighbour connection at
+     `(−1, 40)` by highway has its return leg end at `(−1, 39)`. With UK English the shifts are reversed.
+
+     *[choice]* For the no-lot case, keep pf2's previous start rect, as the original does. It needs an in-city end
+     cell without a lot, which a found destination does not normally have.
    * `pf2.FindPath()`: 2 → suspended; 0 → not found (the whole trip fails). Found: both compressed routes are
      fetched (`travelTypesUsed |=` pf2's mask), `ApplyRoute(route, mode 0)`, `ApplyRoute(returnRoute, mode 1)` unless
      probe.
