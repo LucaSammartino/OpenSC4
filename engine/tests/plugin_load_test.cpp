@@ -10037,6 +10037,11 @@ int main(int argc, char** argv) {
                     "mid-city; power.md §8)") != std::string::npos);
     CHECK(CountOf(text, "power shadow 2000-02-01 bookkeeping: ") == 2);
     CHECK(CountOf(text, "consumption map 0/1024 cells differ max|d|=0; wire 0 cells differ;") == 2);
+    // Each a new shadow's first line: the bookkeeping baseline is the first
+    // line equal to the one before it (power.md §5.2 case 2 at the first).
+    CHECK(CountOf(text, "wire 0 cells differ; baseline not set yet (the first line since the city start; the "
+                        "baseline is the first line equal to the one before it, nothing counted until then): 0 "
+                        "differences; mismatches=0") == 2);
     CHECK(CountOf(text, "power shadow month to 2000-02-01: deliveries=1 steps=0 idle passed through=0 not "
                         "enabled=0 cycles=0") == 2);
     CHECK(text.find("power shadow 2000-02-01 cycle: steps 2 3 (cycle start not observed) on 32x32 cells; grid 2048 "

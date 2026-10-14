@@ -891,32 +891,50 @@ fn mid_city_the_factor_is_not_known_until_the_first_month() {
     assert_eq!(n, Some(1), "{:#?}", w.lines);
 }
 
+/// One wrapped SimNewMonth; its bookkeeping line.
+fn book_month(w: &mut World) -> String {
+    assert!(w.deliver(msg::SIM_NEW_MONTH, false, |_, _| {}).is_some());
+    w.last("bookkeeping:").to_string()
+}
+
+const INHERITED: &str = "inherited (as at the baseline line 2000-02-01, power.md §5.2 case 1)";
+const ABSENT: &str = "baseline entries absent (0 at this line: masked by a difference in flight; kept)";
+const WAITING: &str = "unchanged while others changed (not inherited; counted at the next line)";
+const PERSISTENT: &str =
+    "persistent (not inherited; unchanged since the last line with nothing in flight, or at three lines)";
+
 #[test]
 fn the_bookkeeping_line_sets_apart_inherited_and_in_flight() {
     // PW8 (§5.2): the original's running counts keep what each delivery
     // read. Consumer 11 consumed 500 when inserted and 400 now: the +100 is
-    // inherited from the first line on. An occupant the original has not
-    // been told of is in flight until it is, and only a difference that
-    // stays two lines without being inherited is a mismatch.
+    // inherited; the baseline is the first line equal to the one before it.
+    // An occupant the original has not been told of is in flight until it
+    // is, and only a difference that stays without being inherited is a
+    // mismatch.
     let mut w = World::new(Game::new(1000, &[500]), true);
     w.cycle();
     w.g.occupants.borrow_mut()[1].2 = 400;
-    let month = |w: &mut World| {
-        assert!(w.deliver(msg::SIM_NEW_MONTH, false, |_, _| {}).is_some());
-        w.last("bookkeeping:").to_string()
-    };
+    let month = book_month;
     let b = month(&mut w);
     assert!(
-        b.contains("baseline (the first line since the city start): 2 differences"),
+        b.contains(
+            "baseline not set yet (the first line since the city start; the baseline is the first line equal to \
+             the one before it, nothing counted until then): 2 differences [requirement +100, cell (13,1) +100]"
+        ),
         "{b}"
     );
-    assert!(b.contains("requirement +100") && b.contains("cell (13,1) +100"), "{b}");
     assert_eq!(mismatches(&b), 0);
     let b = month(&mut w);
     assert!(
-        b.contains("inherited (as at the baseline line 2000-02-01, power.md §5.2 case 1) 2"),
+        b.contains(
+            "baseline (the first line equal to the one before it since the city start, nothing in flight): 2 \
+             differences inherited from the save (power.md §5.2 case 1) [requirement +100, cell (13,1) +100]"
+        ),
         "{b}"
     );
+    assert_eq!(mismatches(&b), 0);
+    let b = month(&mut w);
+    assert!(b.contains(&format!("{INHERITED} 2")), "{b}");
     assert_eq!(mismatches(&b), 0, "{b}");
     // Built, not yet delivered to the original.
     w.g.occupants.borrow_mut().push((30, rect(30, 10, 31, 11), 50));
@@ -933,7 +951,152 @@ fn the_bookkeeping_line_sets_apart_inherited_and_in_flight() {
     w.g.occupants.borrow_mut().push((31, rect(24, 20, 25, 21), 70));
     assert_eq!(mismatches(&month(&mut w)), 0);
     let b = month(&mut w);
-    assert!(b.contains("persistent (the same at two lines, not inherited)"), "{b}");
+    // The requirement's +100 plus 31's -70: not the baseline's either. The
+    // wire bits of 31's neighbourhood: 36 more.
+    assert!(
+        b.contains(&format!(
+            "{PERSISTENT} 39 [consumers -1, requirement +30, cell (25,21) -70, wire (22,18) 0/1,"
+        )),
+        "{b}"
+    );
+    assert_eq!(mismatches(&b), 39, "{b}");
+    assert_eq!(w.stats().bookkeeping_mismatches, 39);
+}
+
+#[test]
+fn a_baseline_entry_masked_by_a_difference_in_flight_stays_inherited() {
+    // Run gsT1, 2027-12-01: the save's consumers +2 and two new buildings
+    // not yet delivered to the original gave consumers 660/660, and the +2
+    // was back the month after. It left the baseline at the 0 and was
+    // counted as persistent at every later line.
+    let mut w = World::new(Game::new(1000, &[500]), true);
+    w.cycle();
+    // Consumer 11 consumed 500 when inserted and nothing now: the original
+    // still counts it (consumers +1, requirement +500, cell (13,1) +500).
+    w.g.occupants.borrow_mut()[1].2 = 0;
+    book_month(&mut w);
+    let b = book_month(&mut w);
+    assert!(
+        b.contains("3 differences inherited from the save (power.md §5.2 case 1) [consumers +1, requirement +500, cell (13,1) +500]"),
+        "{b}"
+    );
+    // A consumer of 500 built, not yet delivered: consumers and requirement
+    // read 0, the cell is still inherited.
+    w.g.occupants.borrow_mut().push((30, rect(30, 10, 31, 11), 500));
+    let b = book_month(&mut w);
+    assert!(b.contains("consumers=1/1; requirement=500/500;"), "{b}");
+    assert!(b.contains(&format!("{INHERITED} 1 [cell (13,1) +500]")), "{b}");
+    assert!(
+        b.contains(&format!("{ABSENT} 2 [consumers +1, requirement +500]")),
+        "{b}"
+    );
+    assert!(b.contains("cell (31,11) -500"), "in flight: {b}");
+    assert_eq!(mismatches(&b), 0, "{b}");
+    // Delivered: the baseline's entries are back, inherited.
+    w.notify(msg::OCCUPANT_INSERTED, 30);
+    for _ in 0..3 {
+        let b = book_month(&mut w);
+        assert!(
+            b.contains(&format!(
+                "{INHERITED} 3 [consumers +1, requirement +500, cell (13,1) +500]"
+            )),
+            "{b}"
+        );
+        assert!(b.contains(&format!("{ABSENT} 0;")), "{b}");
+        assert!(b.contains(&format!("{PERSISTENT} 0;")), "{b}");
+        assert_eq!(mismatches(&b), 0, "{b}");
+    }
+    assert_eq!(w.stats().bookkeeping_mismatches, 0);
+}
+
+#[test]
+fn a_first_line_with_a_removal_in_flight_is_not_the_baseline() {
+    // Runs pt-base-turbo-1 and pt-base-normal-1, 2026-02-01: the first line
+    // had consumers +3, the save's +2 and +1 in flight; from the next line on
+    // +2, which was counted as persistent against the first line at every
+    // later line. Here the +1 in flight is a removal not yet delivered.
+    let mut w = World::new(Game::new(1000, &[500, 70]), true);
+    w.cycle();
+    // Inherited, as above.
+    w.g.occupants.borrow_mut()[1].2 = 0;
+    // Consumer 12 (70 at x 18..19) gone from the city, its removal message
+    // not yet delivered: the original still counts it.
+    w.g.gone.borrow_mut().push(12);
+    let b = book_month(&mut w);
+    assert!(
+        b.contains("baseline not set yet (the first line since the city start;"),
+        "{b}"
+    );
+    assert!(
+        b.contains("[consumers +2, requirement +570, cell (13,1) +500, cell (19,1) +70, wire"),
+        "{b}"
+    );
+    w.notify(msg::OCCUPANT_REMOVED, 12);
+    w.cycle(); // the original rebuilds the wires around the removal
+    let b = book_month(&mut w);
+    assert!(
+        b.contains("differences changed since the last line: in flight, power.md §5.2 case 2;"),
+        "{b}"
+    );
+    assert_eq!(mismatches(&b), 0, "{b}");
+    let b = book_month(&mut w);
+    assert!(
+        b.contains(
+            "baseline (the first line equal to the one before it since the city start, nothing in flight): 3 \
+             differences inherited from the save (power.md §5.2 case 1) [consumers +1, requirement +500, cell \
+             (13,1) +500]"
+        ),
+        "{b}"
+    );
+    for _ in 0..2 {
+        let b = book_month(&mut w);
+        assert!(b.contains(&format!("{INHERITED} 3 [")), "{b}");
+        assert_eq!(mismatches(&b), 0, "{b}");
+    }
+    assert_eq!(w.stats().bookkeeping_mismatches, 0);
+}
+
+#[test]
+fn two_buildings_in_flight_at_two_lines_are_not_a_mismatch() {
+    // Under the turbo clock a month line often has a building in flight;
+    // two lines in a row can show the same counts (consumers -1) but not the
+    // same cells. A difference that really stays is still counted, at the
+    // third line when the lines around it are not quiet.
+    let mut w = World::new(Game::new(1000, &[500]), true);
+    w.cycle();
+    book_month(&mut w);
+    let b = book_month(&mut w);
+    assert!(b.contains("nothing in flight): 0 differences"), "{b}");
+    w.g.occupants.borrow_mut().push((30, rect(30, 10, 31, 11), 50));
+    let b = book_month(&mut w);
+    assert!(b.contains("in flight (changed since the last line, case 2) "), "{b}");
+    assert_eq!(mismatches(&b), 0, "{b}");
+    // 30 delivered, 31 (the same 50) in flight.
+    w.notify(msg::OCCUPANT_INSERTED, 30);
+    w.g.occupants.borrow_mut().push((31, rect(24, 20, 25, 21), 50));
+    let b = book_month(&mut w);
+    assert!(
+        b.contains(&format!("{WAITING} 2 [consumers -1, requirement -50]")),
+        "{b}"
+    );
+    assert!(
+        b.contains("gone since the last line ") && b.contains("cell (31,11) -50"),
+        "{b}"
+    );
+    assert_eq!(mismatches(&b), 0, "{b}");
+    // 31 never delivered; 32 in flight: 31's cell unchanged at two lines,
+    // the counts changed.
+    w.g.occupants.borrow_mut().push((32, rect(24, 26, 25, 27), 20));
+    let b = book_month(&mut w);
+    assert!(b.contains("cell (25,21) -50"), "{b}");
+    assert!(b.contains(&format!("{PERSISTENT} 0;")), "{b}");
+    assert_eq!(mismatches(&b), 0, "{b}");
+    // 32 delivered: 31's cell unchanged at three lines, a mismatch.
+    w.notify(msg::OCCUPANT_INSERTED, 32);
+    let b = book_month(&mut w);
+    assert!(
+        b.contains(&format!("{PERSISTENT} ")) && b.contains("cell (25,21) -50"),
+        "{b}"
+    );
     assert!(mismatches(&b) > 0, "{b}");
-    assert!(w.stats().bookkeeping_mismatches > 0);
 }

@@ -941,10 +941,11 @@ plugin.
      power shadow yyyy-mm-dd bookkeeping: the original's running counts (orig) vs FreeCity4's insertion (§5.1)
        of the N live occupants and a wire rebuild of the whole map (ours), orig/ours: consumers=…;
        requirement=…; plantCount=…; poleCount=…; costBase=…; consumption map d/N cells differ max|d|=…; wire
-       … cells differ; baseline (the first line …): N differences …  (first line) | inherited (as at the
-       baseline line …) N [..]; in flight (changed since the last line) N [..]; gone since the last line N [..];
-       baseline entries gone (in flight then) N [..]; persistent (the same at two lines, not inherited) N [..];
-       mismatches=M
+       … cells differ; baseline not set yet (the first line … | N differences changed since the last line …):
+       N differences [..] | baseline (the first line equal to the one before it …): N differences [..] |
+       inherited (as at the baseline line …) N [..]; in flight (changed since the last line) N [..]; gone since
+       the last line N [..]; baseline entries absent (0 at this line …) N [..]; unchanged while others changed
+       (… counted at the next line) N [..]; persistent (…) N [..]; mismatches=M
      power shadow month to yyyy-mm-dd: deliveries=… steps=… idle passed through=… not enabled=… cycles=…
        (clean …, lines …) incomplete=… reruns=… uncached=… factor=…[ (not known)] pass totals known|unknown
        dirty rectangle known|unknown; not_exact=K; mismatches=M
@@ -955,9 +956,19 @@ plugin.
      the cycle lines with a difference a month). Success is `mismatches=0` on every cycle, month and bookkeeping
      line, `not_exact=0` from a city start (mid-city: only until the first month) and no `INCOMPLETE` line. The
      bookkeeping line (power spec §5.2, PW8) compares running counts the original inherits from the save and
-     never rebuilds: its first line is the baseline (differences inherited from the save, or occupants still in
-     flight); later a difference equal to the baseline's is inherited, one that changed since the last line is
-     in flight, and only one that stays the same at two lines without being inherited is a mismatch.
+     never rebuilds. The occupant messages are posted, so the original's counts lag the live occupants until the
+     next frame's message-server tick: at a month line, the buildings of that day (under the turbo clock, of every
+     day since the frame began) can be in flight. The baseline is the first line equal to the one before it
+     (nothing changed between them, so nothing was in flight; the first line itself can have a building in
+     flight, runs pt-base-turbo-1 / -normal-1); until then nothing is counted. It is never edited afterwards: a
+     baseline entry that reads 0 at a line (masked by a difference in flight that cancels it; run gsT1
+     2027-12-01, consumers 660/660) is listed as absent and is inherited again when it comes back. A difference
+     equal to the baseline's is inherited, one that changed since the last line is in flight, and one that is
+     unchanged since the last line without being inherited is a mismatch when nothing else changed at that line,
+     or when it is also unchanged since the line before (two buildings in flight at two lines can give the same
+     counts, never the same cells); otherwise it is listed as unchanged while others changed and judged at the
+     next line. Limit: a frame that opens two month days keeps the first one's messages in flight at the
+     second, which then looks settled.
    - **Plumbing shadow** (`plumbing_shadow = 1`, env `FC4_PLUMBING_SHADOW`; off by default;
      `plumbing_shadow_cells = N`, env `FC4_PLUMBING_SHADOW_CELLS`, default 8, 1..64, the differing cells listed per
      line; `plumbing_shadow_passes = N`, env `FC4_PLUMBING_SHADOW_PASSES`, default 4, the passes replayed per game
