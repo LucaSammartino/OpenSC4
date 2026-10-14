@@ -876,6 +876,44 @@ From the Windows caller data (direct calls) and the call-site survey:
   region with their own `Write`. FreeCity4 must therefore (a) handle foreign deals through `cISC4NeighborDeal`
   only, (b) implement `Clone` on its own deals, and (c) write the exact §5.6 format.
 
+### 15.3 How original code reaches a FreeCity4 connection object (NG3) *[compat]*
+
+**No original code outside the connection class reads a connection's fields or calls its code directly.** With the
+neighbours simulator replaced, every access to one of our connection objects goes through a virtual slot of
+`cISC4NeighborConnection` (§4.2, vtable `0x00AB2034`), of the traffic source (`0x00AB1FA0`, traffic-simulator.md
+§4.1), of the property holder (§17.2 of foundations) or of `cIGZSerializable`. Our objects may have any layout behind
+those interfaces. How this was checked:
+
+- **Direct calls.** A scan of the whole image for `call`/`jmp` rel32 targets and for stored pointers to every
+  method of the class (`0x006CDFF0`–`0x006D4C10` and the thunks `0x006D47A0`–`0x006D4853`) finds only the vtables,
+  the class's own thunks, the GZCOM class-factory registration (`0x00460A72`, the CLSID getter) and two calls to the
+  **constructor**: the original simulator's `CreateConnection` (`0x006D489B`) and the regional city's `Read`
+  (`0x004AC994`), which builds the regional city's own connection objects. The Mac build agrees: outside the class,
+  only the factory, `cSC4NeighborsSimulator::CreateConnection` and `cSC4RegionalCity::Read` call or name the
+  concrete class.
+- **Class identification.** The vtable constants (`0x00AB2034`, `0x00AB201C`, `0x00AB1FB8`, `0x00AB1FA0`) appear in
+  code only in the constructor (`0x006D4680`) and the destructor (`0x006D4BB0`). Nothing tests the vtable to
+  recognise an original connection.
+- **Field reads.** The 66 functions that use connections (Mac symbol names mapped to the Windows image) and the 55
+  that read the simulator global `0x00B43D8C` were scanned for reads at the class's field offsets (`+0x20`…`+0x43`)
+  through a pointer taken from a list node or from a call's result. None was found on a connection. The hits were
+  other objects: the traffic statistics block (`0x0041C80D`), new allocations (`0x0052B012`, the traffic simulator's
+  `Init` and `Read`) and the budget's own records.
+
+Where original code holds **our** objects, and what it calls:
+
+| Holder | How it gets them | What it calls |
+|---|---|---|
+| the current city's regional record (`cSC4RegionalCity`, list at `+0x90`) | `UpdateCityCache(city)` (`0x004AD290`; on PostCityInit and PreSave, foundations §11.3) calls our `GetAllConnections(&list)` at `0x004AD34E`, so the list then holds references to our objects | `Write` (`0x004A7D10`): `QueryInterface(0xE4FDA3D4)` and the serializable's `Write` (slot 3), so the current city's record contains our §4.3 records; `FindConnection` (slot 20, `0x004A7B40`): slots 5 and 6; `GetAllConnections` (slot 21): AddRef only |
+| `ChangeSymmetricConnection(conn, flag)` (`0x004A8DF0`) | our simulator passes the connection (§6.3, §6.4) | slots 6 (`GetConnectionCell`) and 5 (`GetType`); the pointer is not kept |
+| the traffic simulator | `GetAllConnections`, `GetConnectionsOfType`, `FindConnection`, the traffic-source iterator | `AsTrafficSource` (slot 4) and `AsISCPropertyHolder` (slot 3), then the traffic-source and holder slots |
+| demand, MySim, the query tool, advisors, network and power-line tools, surface water, watercraft, plumbing, power | the simulator's connection queries | the `cISC4NeighborConnection` slots only |
+
+The one layout contract behind an interface is the traffic source's slot 3 `GetTripDataList`: it returns a pointer
+to the source's own STL `std::list<cSC4TripData>` (allocator B), and the traffic simulator edits that list in place
+(traffic-simulator.md §4.1, §7). A FreeCity4 connection must therefore own a list of that exact STL layout, as it
+already does. Everything else about the object's memory is free.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).

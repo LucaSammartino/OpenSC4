@@ -2547,7 +2547,14 @@ answer is in brackets.
   (foundations §10.2, "Ownership"). With copies, the traffic simulator's trip-capacity store used a freed
   property and the game crashed.
 - **NG2:** Object-valued properties on our connection objects. [dropped from the core sync]
-- **NG3:** Does the region reach our connection objects non-virtually (by field offset)? [unknown; the risk is noted]
+- ~~**NG3:** Does the region reach our connection objects non-virtually (by field offset)? [unknown; the risk is noted]~~
+  **ANSWERED 2026-10-14** from the exe (image-wide scan for direct calls and pointers to the class's methods; vtable
+  constants only in `0x006D4680`/`0x006D4BB0`; field-read scan of the 66 connection users and the 55 readers of
+  `0x00B43D8C`; current-city record filled at `0x004AD34E`) and written into neighbors §15.3. **No; there is no such
+  site.** Every access is a virtual call through the connection, traffic-source, holder or serializable interface. The
+  only original code that touches the concrete class constructs its own objects (`0x006D489B`, `0x004AC994`). The
+  current city's regional record holds our objects after `UpdateCityCache` and writes them through
+  `QueryInterface(0xE4FDA3D4)` → `Write`. The one layout contract is `GetTripDataList`'s STL list (already met).
 - **NG4:** `AddDeal` with a foreign (original) deal object. [copied into a deal of ours]
 - **NG5:** The lifetime of the deal wrapper objects. [created lazily, parked at zero references]
 - **NG6:** Getters called from other threads. [the lock is tried for 20 ms, then the mirror or a neutral value is
