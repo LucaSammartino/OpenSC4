@@ -280,7 +280,7 @@ results, so flora's position in the month list (foundations §13.2: registration
 | TerrainHeightsChanged `0x278E6003` | Only if the terrain is initialized (terrain slot 5): cell rectangle `x0 = max(0, (data1 >> 16) − 1)`, `x1 = min(data1 & 0xFFFF, cellsX − 1)`, `z0 = max(0, (data2 >> 16) − 1)`, `z1 = min(data2 & 0xFFFF, cellsZ − 1)`; §6.10.2. |
 | CityEstablished `0x26D31EC4` | `propagation := propagationForced`. |
 | CityObliterated `0x26D31EC5` | `propagation := true`. |
-| PlaceFlora command `0xAB99A64B` | `params := void1` (command parameter set). type := param 0 as u32; `p1, p2` := params 1 and 2 as floats; `AddNewFloraOccupant(type, {p1, p2, −1}, false)`. *[quirk]* p2 lands in **y** and z = −1, so the location check always fails and nothing is planted (§14). |
+| PlaceFlora command `0xAB99A64B` | `params := void1` (command parameter set). type := param 0 as u32; `p1, p2` := params 1 and 2 as floats; `AddNewFloraOccupant(type, {p1, p2, −1}, false)`. *[quirk]* p2 lands in **y** and z = −1, so the location check always fails and nothing is planted (§14). Reads (verified, FQ10; `0x006B3497`–`0x006B34F6`): parameter-set slot 5 `operator[](0)`, `(1)`, `(2)` in that order, then variant slot 24 `GetValUint32()` for 0 and slot 36 `GetValFloat32()` for 1 and 2 (§12); a missing parameter reads the set's empty variant; the result of own slot 17 is ignored. |
 | Cheat `0x230E27AC` | If data1 = `0x095BDC9C` and the command line has ≥ 2 words: §5.2. Otherwise (another cheat, or a bare "Flora"): handled **exactly like `0xC53D10AA`** below *[quirk]*. |
 | Exemplar changed `0xC53D10AA` | `inst := data2` (data1 is read and ignored). If `GetStaticFloraData(inst)` is non-null: clear the type array, the type map and the family map (records are **not** released, *[quirk]* leak) and reload all flora types (§4.1 step 2, including the FloraTypesUpdated post). Then, if `inst = 0x1A2FDB6A`, re-read the tuning (§7). The group is never checked *[quirk]*. |
 | anything else | ignored |
@@ -956,7 +956,8 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check` and th
 | | 29 / 31 / 32 | `+0x74/+0x7C/+0x80` | SetFlag(1) / ClearFlag(1) / IsFlagSet(1) | 4 | AL (32) |
 | `cISC4NetworkOccupant` (IID `0xA821EF94`) | 12 | `+0x30` | GetNetworkFlag | 0 | EAX |
 | `cISC4FloraOccupant` (`0x00A88608`) | 3–14 | | §11.4 | | |
-| `cIGZCommandParameterSet` / `cIGZVariant` | 5; `+0x60`, `+0x90` | | GetParameter(i); value as u32 / as f32 (ST0) | | |
+| `cIGZCommandParameterSet` (game class `cGZCommandParameterSet`, vtable `0x00AD16C8`) | 5 | `+0x14` | `cIGZVariant* operator[](u32 index)` (`0x0092A162`): never null, an index the set lacks gives the set's own empty variant (slot 6 `GetParameter`, `0x0092A186`, would return null instead) | 4 | EAX ptr, borrowed |
+| `cIGZVariant` (`0x00AA6788`) | 24 / 36 | `+0x60` / `+0x90` | `u32 GetValUint32()` / `f32 GetValFloat32()`: call the converting getter of slot 25 / 37 (data-formats §5.1) on a local preset to 0 / 0.0 and return it (`0x0091560F`, `0x0091567A`) | 0 | EAX / ST0 |
 | non-virtual | | | `cSC4FloraOccupant` constructor (`0x00472B30`) with the pooled `operator new` (`0x00472960`); `cRZRandom` methods (foundations §6.1); `SC4GeometryUtilities::BoundingBoxesIntersect` (`0x005D6D80`, cdecl, 24 bytes of arguments popped by the caller, AL; §6.4); random cell iterator (`0x0049C820` SetRect, `0x0049CB10` GetNext, `0x0049D1C0` Reset); `cRZCmdLine` | | |
 
 ---

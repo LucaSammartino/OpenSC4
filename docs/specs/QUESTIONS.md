@@ -1192,8 +1192,12 @@ part of §8 is not compared). The glue's current answer is in brackets.
   `+0x0C` `bool (u32 floraType)` (pop 4, AL) for every map key in ascending order, key 0 included, inserts the
   accepted keys and returns how many it accepted. No exe caller passes a filter, so only plugins notice; the
   fix is a one-line call per key.
-- **FQ10:** `cIGZCommandParameterSet` is not in `docs/abi`. PlaceFlora reads its parameters through slot 5
-  (`operator[]`): param 0 via variant slot 24 (u32), params 1–2 via slot 36 (float). Right? [as stated]
+- ~~**FQ10:** `cIGZCommandParameterSet` is not in `docs/abi`. PlaceFlora reads its parameters through slot 5
+  (`operator[]`): param 0 via variant slot 24 (u32), params 1–2 via slot 36 (float). Right? [as stated]~~
+  **ANSWERED 2026-10-14** from the exe (`DoMessage` `0x006B3497`–`0x006B34F6`; the set's vtable `0x00AD16C8`,
+  slot 5 `0x0092A162`; variant slots `0x0091560F`, `0x0091567A`) and written into flora.md §5 and §12. **Right.**
+  Slot 5 `operator[](u32)` pops 4 and never returns null (a missing index gives the set's empty variant); slot 24
+  `GetValUint32()` (EAX) and slot 36 `GetValFloat32()` (ST0) wrap the converting getters with a 0 default.
 - **FQ11:** the cheat notification uses id `0x095BDC9C` as the spec says, but the budget and simulator glue pass 0.
   Which is right? [`0x095BDC9C` for flora]
 - **FQ12:** `RegisterCommand`'s parameter info is null, as the spec says. [null]
