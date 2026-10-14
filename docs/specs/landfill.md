@@ -374,9 +374,18 @@ in part.
 #### 4.4.9 Zone `Init` / `Shutdown`
 
 `Init` (once): acquire city, occupant manager, terrain, pollution, the city's effect service and automata
-controller manager, and the zone manager; `InitZoneEffects()`; if `levelAltitude` is exactly 0.0 (unordered
-compare), `levelAltitude := altitude(centre cell)`. Because `levelAltitude` is not saved, a loaded zone gets the
+controller manager, and the zone manager; `InitZoneEffects()`; if `levelAltitude` is exactly 0.0,
+`levelAltitude := altitude(centre cell)`. Because `levelAltitude` is not saved, a loaded zone gets the
 **centre altitude**, not the mean it was levelled to *[quirk]* (§4.3 then prices extensions against it).
+
+The test (LF2; `0x006BB6E2`–`0x006BB6F2`) is an x87 `FUCOMPP` of the float32 `levelAltitude` (`+0x38`) against
+the constant +0.0 (`0x00A81054`), then `TEST AH, 0x44` / `JP` to skip: it recomputes only when the compare is
+**ordered and equal**. So +0.0 and **−0.0** both count as zero (IEEE equality), a **NaN** does not (unordered: the
+NaN is kept), and every other value, however small (a denormal included), is kept. The centre cell is
+`cx := (x0 + x1) / 2`, `cz := (z0 + z1) / 2` of the region rect, by C integer division (truncating toward zero;
+the rect is never negative, so this is the floor). Then `CellCenterToPosition(cx, cz)` (city slot 97) and
+`terrain.GetAltitude(px, pz)` (slot 13), stored as float32. Example: a zone over x 3..6, z 10..10 that reaches
+`Init` with `levelAltitude = −0.0` gets the altitude at the centre of cell (4, 10).
 `Shutdown`: stop effects and release the services.
 
 ### 4.5 Terrain
