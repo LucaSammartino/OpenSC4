@@ -336,6 +336,37 @@ plumbing simulator nor the cached zone manager is null-checked (§4.1 step 5): w
 crashes at the first visited tract. *[choice]* FreeCity4: missing plumbing → not watered; missing zone manager →
 unzoned.
 
+**The watered state is the one at the visit** *[compat]* (QUESTIONS FL5, FL6, from the exe, `0x006AF8D0`). The
+no-water factor is applied only here, from plumbing slot 11 as it answers on the day the tract is visited. Slot 11
+reads the plumbing simulator's *published* grid, which changes only when a plumbing pass ends: the pass swaps its
+freshly built grid in whole (plumbing §2, §6.5). A pass runs at least once a month (plumbing §7.1), more often after
+pipe and building changes. So within one 40-day cycle a tract's watered state can change, and the adjusted grid
+then mixes both states: tracts visited before the change carry the old state's factor until their next visit. The
+plumbing simulator runs another pass after every building or pipe insertion or removal, pipe burst and water deal
+change (they set its recompute flag, plumbing §5.1–§6), so the watered map changes often while a city grows. The occupant handlers (§6.3) never
+apply the factor.
+
+Nothing else scales adjusted values:
+- fires, disasters and the fire manager only read the grid (§13.1);
+- an ordinance or season change sets g (§6.4), which is city-wide and never a ratio of 1.25 with shipped tuning
+  (g ∈ {0, 0.95, 1.0});
+- the shipped no-water factor `0x29B4013B` is exactly 1.25.
+
+A region at 1.25 times the expected value is therefore a set of tracts that were **not watered when visited** but
+are watered when compared. Plausible causes *[inferred: the run logs do not show the plumbing state]*: a building
+whose lot cells the plumbing pass had not yet marked when the visit came (FL5's 2 × 2 block), or a water network
+that grew or recovered from a shortage mid-cycle (FL6's 595 tracts). A change the other way gives 0.8.
+
+Worked example (Smoke Detectors, g = 0.95f; raw 68):
+- watered at the visit: `roundHE(68 × 0.95f)` = roundHE(64.6) = **65**;
+- not watered: `roundHE(65 × 1.25f)` = roundHE(81.25) = **81** (FL5's pair);
+- likewise raw 84 → 80 / 100 and raw 89 → 85 / 106 (FL6's column).
+
+A mirror that evaluates the watered state at comparison time must accept, for each tract whose watered state
+changed since the cycle began, the value under either state. The plumbing simulator's published grid object
+alternates at every pass (plumbing §2), so a change of `GetWateredGrid()`'s pointer tells the mirror that a pass
+ended. It can then record which tracts changed state.
+
 Each cycle visits every tract exactly once, `tractsPerDay` tracts per day; the wrap usually falls inside a day and
 that day continues into the next cycle. Because the iterator count is 0 after `Init` (§4.1), the **first** call
 after every `Init` (new city or load) wraps at once: an empty `EndOfCycle` runs on the first SimNewDay. For a

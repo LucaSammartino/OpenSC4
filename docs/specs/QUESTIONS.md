@@ -1679,15 +1679,24 @@ brackets.
   **Yes, and the order is not unspecified**: one send delivers to the subscribers in subscription order (foundations
   §5.1), so the original, which subscribes in `Init`, gets each message just before a later-subscribed mirror. The
   handlers read nothing that the subscribers in between write *[inferred]*.
-- **FL5 — first in-game shadow (run 82, coordinator):** 64 of 65 compared cycles exact; in cycle 66 (2033-03-15)
+- ~~**FL5 — first in-game shadow (run 82, coordinator):** 64 of 65 compared cycles exact; in cycle 66 (2033-03-15)
   a 2×2 block of adjusted tracts, (7..8, 53..54), is 81 in the original and 65 in ours (max |d| 21; raw grid
   identical). One lot's flammability contribution changed in a way the mirror missed or counted differently: which
-  event sets an adjusted tract outside the day visit (a lot condition or occupant change mid-cycle)?
-- **FL6 — second occurrence (run 83, coordinator):** 69 of 70 compared cycles exact; in cycle 15 (2027-08-11)
+  event sets an adjusted tract outside the day visit (a lot condition or occupant change mid-cycle)?~~ **ANSWERED
+  2026-10-14** with FL6, from the exe (`DoDailySimulation` `0x006AF8D0`), and written into flammability.md §6.5, with a
+  worked example. **No event outside the day visit: it is the visit's no-water factor.** 81 = roundHE(65 × 1.25),
+  1.25 being the shipped no-water multiplier. The original visited those tracts while plumbing slot 11 said "not
+  watered". The plumbing pass published a watered state for them later, so a mirror that evaluates the watered state
+  at comparison time misses the factor.
+- ~~**FL6 — second occurrence (run 83, coordinator):** 69 of 70 compared cycles exact; in cycle 15 (2027-08-11)
   595 adjusted tracts differ (raw grid identical; max |d| 21), starting with the column (0, 42..46): 100/80,
   106/85 original/ours, the city average 43 against 40..41. The original is about 1.25 times ours, the same ratio
   as FL5's 81/65, so a ×1.25 factor reached a whole region mid-cycle. Which event applies it (a fire, a disaster or
-  an ordinance), and does it go through the day visit?
+  an ordinance), and does it go through the day visit?~~ **ANSWERED 2026-10-14** with FL5 (flammability.md §6.5).
+  **None of those: a plumbing pass that changed the watered state of a region mid-cycle, and yes, through the day
+  visit** (100 = 80 × 1.25, 106 = roundHE(85 × 1.25)). Fires and disasters only read the grid, and g is never 1.25 with
+  shipped tuning. The mirror must accept either watered state for tracts whose state changed during the cycle. A
+  change of the plumbing simulator's `GetWateredGrid()` pointer marks each pass.
 
 ## From applying the data-format answers (filed by the coordinator from the `apply4a` lane's report, 2026-10-14)
 
