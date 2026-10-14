@@ -269,7 +269,9 @@ Each record holds:
 Init creates all four arrays with every record `(0, 0, 0.0)`. The records are not saved; DoPostCityInit rebuilds
 them (§2.7.2). The pools are saved (traffic-simulator.md §6 row 19: u32 count, then per pool its u16 ID and its
 property-holder record; `Write` `0x007132F4`, `Read` `0x00722F5D`–`0x00722FB3`), so the Adds after a load find
-them again by position, with their capacities and counts. Add and remove (messages
+them again by position, with their capacities and counts. A repeated ID in the record (TS41): each entry is stored
+through the map's find-or-insert (`0x00714560`, called at `0x00722FA2`), so the last entry wins; the earlier holder
+stays allocated, with its reference, and is never released. Add and remove (messages
 `0x8A0D15DA` and `0xEA0D163E`), the lookups, the pools and their capacities are in §2.7.1–§2.7.5.
 The graph uses these records only through **HasMapExit(x, z)**, which is defined for an off-map cell next to the map:
 
@@ -379,7 +381,11 @@ cell, and then runs the pool sweep (§2.7.3).
    `(px, pz) := city.GetPosition()` (regional-city slot 5, the region cell of the city's corner). Search the pools
    in ascending ID order for one whose holder has the s32 properties `0x4A23576B = px` and `0x4A23576C = pz`. If
    one is found, `rec.pool :=` its ID. If not, create a pool: a new property holder with only those two
-   properties, under the smallest unused ID ≥ 1. Then `rec.pool :=` that ID.
+   properties, under the smallest unused ID ≥ 1. Then `rec.pool :=` that ID. The search (`0x0071555A`–`0x00715595`)
+   counts in 32 bits but looks up the low 16 bits (TS42). With IDs 1…65535 all in use it reaches 65536 and looks
+   up 0; key 0 is normally free, so the new holder is stored under key 0 and `rec.pool := 0`, the default pool. With
+   key 0 taken as well, the search never ends. Neither can happen in the game: there is one pool per established
+   neighbouring city.
 
 So there is one pool per established neighbouring city. Every edge cell connected to that city shares the pool's
 capacity and arrival counts. Each Add sets the pool again, so the last Add at a cell decides it.
@@ -429,7 +435,9 @@ StartRecalc (traffic-simulator.md §4.3) ends with this pass. It runs on the mai
 
 1. **Regional jobs**: for w = 0…2, `J[w] :=` the demand simulator's `GetDemand(0x2010 + 0x10·w, 0x10000)` (the
    regional node, demand.md §9), its `QueryDemandValue()`, truncated toward zero to a 32-bit integer. The
-   original does not check for a missing node. *[choice]* Use 0 if the node is missing.
+   original does not check for a missing node: `GetDemand` returns null for one (demand.md §9) and the next call
+   goes through it, a crash (`0x00714ED9`–`0x00714EE0`, TS43). The shipped demand exemplars define the three
+   regional nodes, so this does not happen in the game *[inferred]*. *[choice]* Use 0 if the node is missing.
 2. **Cities**: the neighbours simulator's `GetConnectedCities(list, false)` (slot 21): the established cities
    reached by a transport connection (neighbors.md §6.2).
 3. **Totals**: for w = 0…2, `T[w] :=` the 32-bit integer sum over those cities of `E_c[w]`. Here
@@ -556,7 +564,9 @@ This rebuilds the graph over a rectangle. In this order:
          is looked up on its own. A missing one is inserted as an all-zero record (a copy of the shared zero record
          `0x00AB31D0`, `0x42` bytes). An existing one is left as it is, so its counts are **not** reset here.
 4. **Transit switches** over **R1** = R grown by 1 more and clamped (so the original rectangle + 3). See §4.7.4.
-5. **Tunnels**: every cell of R1 that is a key of the tunnel table gets `wormhole |= 2`.
+5. **Tunnels**: every cell of R1 that is a key of the tunnel table gets `wormhole |= 2`. The test is the key alone
+   (`0x0071B390`–`0x0071B3FF`): the bit is set whatever the tunnel record's network and mask and whatever type the
+   cell's own network records have (TN29).
 6. **Ferries**: every terminal is processed in list order (§4.9.2).
 7. Set the "subnetworks stale" and "network changed" flags. Free the occupant list.
 
@@ -672,6 +682,14 @@ With the shipped values, a Street (100) gives:
 Worked example (TN21), with the shipped N = 3: a Street tunnel cell with 2 connections whose exit leads straight into
 a 4-way intersection one cell away. Extending the start cell would give `best = 1` and `0x3C4CCCCC` (80.00001). The
 original does not extend it, so the cell keeps `0x3C23D70A` (100). The intersection itself still gets `0x3C6A0EA1`.
+
+**How a Street cell becomes a tunnel cell** (TN29). No Street portal has a tunnel record: Street (3) is not in the
+§4.8 type order, so its insert stops at step 2. The bit of §4.2 step 5 depends on the cell key only, so a cell whose
+car record is typed Street gets it when a portal of one of the listed types is keyed at that cell and the cell's car
+record ends up typed Street (in §4.2 step 3 the occupant order decides the type of a shared cell). The worked example
+is such a cell; vector tn11_04d builds it with a Road portal and a Street piece in one cell. Whether the game's
+network tools can put a Street piece in a portal's cell was not traced. A Road tunnel cell behaves the same way with
+the Road values.
 
 ### 4.7 Transit switches
 

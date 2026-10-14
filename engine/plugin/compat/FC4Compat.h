@@ -73,6 +73,11 @@ struct ExecutableVersion {
     // §12.1): the aura shadow reads the object's pipeline state (§14.3) only
     // when its vtable is this one.
     uint32_t auraSimulatorVtableVA;
+    // The dialog closer (modal-dialogs.md §3.4; tooling `close_dialogs`):
+    // cSC4WinGameDelay's primary vtable (docs/abi/vtables.tsv
+    // `cSC4WinGameDelay::vftable`, whose slots are the cIGZWin ones), so the
+    // closer can leave SC4GameDelay's invisible modal window alone.
+    uint32_t gameDelayWindowVtableVA;
 };
 
 // The running executable if it is a table entry loaded at its preferred base
@@ -133,6 +138,12 @@ uintptr_t DirectCall(Direct which);
 // address is not committed data inside its image whose first entry is code
 // inside the image. For the aura shadow's raw state read (§14.3).
 const void* AuraSimulatorVtable();
+
+// The dialog closer (modal-dialogs.md §3.4): cSC4WinGameDelay's primary
+// vtable, or nullptr (logged once) if the executable is not identified or the
+// address is not committed data inside its image whose first entry is code
+// inside the image. Compared, never called through.
+const void* GameDelayWindowVtable();
 
 // The compatibility table.
 const ExecutableVersion* SupportedVersions(int* count);
