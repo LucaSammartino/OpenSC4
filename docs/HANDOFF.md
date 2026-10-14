@@ -157,8 +157,17 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >     EX21–EX33). Merged RE lanes: `re-answers4` (`79d619c`; `docs/abi` rows `83aa768`), `re-answers5` (`fdc6893`;
 >     rows `a9eef99`), `re-answers6` (`d9db98f`: LV, FL, DQ10–12, RG23, RG17, BQ3, CQ16–22, TN21–25, HG1, the crime
 >     errata; row `bbee494`).
->   - **Next to launch, `apply7b`** (prompt in the session scratchpad, `apply7b-task.txt`): CQ16–CQ22, the crime
->     errata, TN21–TN25, HG1. Launch it once `apply6a` merges, because both touch the traffic network.
+>   - **`apply7b`**: CQ16–CQ22 (the clock-seed helper moves to `rng.rs`), the crime errata, TN21–TN25, HG1; ABI 36 /
+>     seam op 41 if needed;
+>   - RE **`re-formats2`** (M6): a new `docs/specs/graphics-formats.md` for FSH textures and S3D models, with a survey
+>     of the shipped data and conformance tests (GF questions); then an `engine/formats` lane;
+>   - **Next to launch, M5 traffic glue phase 1** (prompt in the session scratchpad, `trafficglue-task.txt`): the
+>     traffic simulator + pathfinder replacement unit (class `0x6990C1AA`, our slot-6 pathfinders, §6 record),
+>     ABI 37. Launch it once `apply6a` merges (TS1–TS34 change the core it hosts).
+> - **Restarts:** the coordinator's process exited twice on 2026-10-14; each time every lane stopped, and resumed
+>   through `SendMessage` with its worktree intact. Worktrees made by an elevated session are owned by
+>   Administrators, so a non-elevated session needs `safe.directory = C:/Users/tlori/FreeCity4/.claude/worktrees/*`
+>   (now in the global git config).
 >   Merge order rule: merge one lane, then have the next lane `git merge main` itself (it knows its files), then
 >   gate its worktree; renumber ABI/seam ops/switch counts at that point. If `git merge-tree` shows no conflict,
 >   the coordinator may merge main into the lane's worktree itself and gate that.
