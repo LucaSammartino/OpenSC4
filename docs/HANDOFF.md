@@ -187,7 +187,6 @@ lane implements it.
 3. Publish the repo (public).
 4. Delete the local KillaVolt clone (`external/sc4-decomp`, `external/extracted`); download the Mac Rev A binary.
 5. Keep or delete `build-runs/windown-backup-20261013/` (every lane it covered has committed).
-6. Word what extracted game facts may be committed (`re/tuning/*.json` and `re/class_id_table.tsv` are committed).
 
 ## 8. Working conventions
 

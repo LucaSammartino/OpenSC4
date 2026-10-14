@@ -55,5 +55,3 @@ formulas, state changes, ordering) still reaches engine authors only as a behavi
 - Decompiled or disassembled code (`decomp/` is git-ignored on purpose).
 - Anything from KillaVolt's repository, which grants no license and also ships EA's assets.
 
-Note: `re/tuning/*.json`, `re/class_id_table.tsv` and `re/rtti_classes.txt` are already committed. The user has to
-rule on how the first rule words which extracted facts may be committed.
