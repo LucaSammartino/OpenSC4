@@ -37,6 +37,8 @@
 #include "cFC4Aura.h"
 #include "FC4FloraShadow.h"
 #include "cFC4Flora.h"
+#include "FC4LandfillShadow.h"
+#include "cFC4Landfill.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -162,6 +164,11 @@ const ClassEntry kFloraClasses[] = {
     {kFC4_CLSID_cSC4FloraSimulator, "cSC4FloraSimulator", &CreateFC4FloraSimulator},
 };
 
+// docs/specs/landfill.md §1. Off by default (M3 glue trial): `enable = landfill`.
+const ClassEntry kLandfillClasses[] = {
+    {0xEA09D4AE, "cSC4LandfillDeveloper", &CreateFC4LandfillDeveloper},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -179,6 +186,7 @@ const Subsystem kSubsystems[] = {
     {"crime", nullptr, kCrimeClasses, sizeof(kCrimeClasses) / sizeof(kCrimeClasses[0]), false},
     {"aura", nullptr, kAuraClasses, sizeof(kAuraClasses) / sizeof(kAuraClasses[0]), false},
     {"flora", nullptr, kFloraClasses, sizeof(kFloraClasses) / sizeof(kFloraClasses[0]), false},
+    {"landfill", nullptr, kLandfillClasses, sizeof(kLandfillClasses) / sizeof(kLandfillClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -281,6 +289,8 @@ void Resolve() {
     AuraShadowStartup(enabledKey("aura"));
     // The flora census shadow (FC4FloraShadow.h; it compares the original flora simulator).
     FloraShadowStartup(g_enabled[0], enabledKey("flora"));
+    // The landfill shadow (FC4LandfillShadow.h; it compares the original landfill developer).
+    LandfillShadowStartup(g_enabled[0], enabledKey("landfill"));
 }
 
 }  // namespace
