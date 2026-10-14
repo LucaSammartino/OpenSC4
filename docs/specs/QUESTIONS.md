@@ -2689,7 +2689,13 @@ shadow's riot roll (wall-clock RNG). The current answer is in brackets.
   written into residential-education-health §4.11. The original does not start them at 0: only +0x10, +0x28, +0x2C and
   +0x34 are set, so +0x14..+0x24 hold stack leftovers until a query writes them. Shipped data reaches it: a farmer's
   market counted first adds two leftover words at +0x1C and +0x20. The bracket (0) is a *[choice]*, recommended.
-- **AQ2:** REH §4.8: S_EQ against member E. [E is kept]
+- ~~**AQ2:** REH §4.8: S_EQ against member E. [E is kept]~~
+  **ANSWERED 2026-10-14** from the exe (`GetCellEQ` `0x006F79C0`, `GetCellEQByWealth` `0x006F7A60`,
+  `GetEQMinAndMaxCellCoords` `0x006F7380`, `GetAverageEQGrid` `0x006FCF30`) and written into
+  residential-education-health §4.8 and residential §2 and §9.2. Only `GetAverageEQGrid` reads the member E, as the new
+  grid's tract size. Slots 35, 37 and 43 divide by the R$ EQ grid's own `GetTractSize()`, asked on every call. Both are
+  4 in every game-written city. The bracket (E) matches slot 21 only; elsewhere it is a *[choice]* that differs only in
+  a hand-made save, and asking the grid is recommended.
 - **AQ3:** S_EQ for the HQ variants. [E]
 - **AQ4:** FQ3 save: is flag 1 toggled only when the obliteration record opens? [yes]
 - **AQ5:** FQ3 restore: is the record closed right after `Read`, before `Init` and `InsertOccupant`? [yes]

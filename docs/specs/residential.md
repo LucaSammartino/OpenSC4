@@ -94,8 +94,10 @@ per simgrid §6.4 with the same element type, tract size and instance ID.
   come from the save (§9) and the grids keep their saved geometry. The coverage, grade and age grids use P; the
   EQ and HQ grids use E.
 - After a load, P and E are only **read** by `Init`, as the tract size of a grid it has to create because its
-  reference came back null (§4.1 step 8), and by `Write` (EH14). The simulation asks each grid for its own size:
-  state 4's S is the R$ population grid's `GetTractSize()` (§5.5).
+  reference came back null (§4.1 step 8), and by `Write` (EH14); E also by `GetAverageEQGrid` / `GetAverageHQGrid`
+  as the tract size of the grid they return (education-health §4.8, AQ2). The simulation asks each grid for its
+  own size: state 4's S is the R$ population grid's `GetTractSize()` (§5.5), and the EQ/HQ cell queries divide
+  by the R$ EQ or HQ grid's.
 - The population, EQ, HQ and age grids are indexed by the same tract coordinates (x, z); the code assumes P = E.
 - Grid contents are the model: population grid w at tract (x, z) is `pop_w`, and so on. Coverage and grade grids
   belong to the other spec.
@@ -782,10 +784,12 @@ the temporary grid are not saved. Which list is which belongs to the other spec 
     (`release_department`). This cannot be observed.
   - **Tract sizes** (EH14, from the exe). The proximity size, P and E are each read with one 32-bit read straight
     into the member (P `0x00700A02`, E `0x00700B92`) and never checked: zero, negative and huge values are all
-    kept. After the load only `Init` reads P and E, as the tract size it gives a grid that it creates because the
+    kept. After the load `Init` reads P and E only as the tract size it gives a grid that it creates because the
     grid's reference came back null (`SetTractSize(P)` for the population, age, coverage and grade grids at
     `0x006FEEB1`–`0x006FF15D`, `SetTractSize(E)` for EQ and HQ at `0x006FF1D1`/`0x006FF254`). `Write` writes them
-    back unchanged. So with every grid present, a negative P changes nothing. A recreated grid with a negative
+    back unchanged. The only other reader is `GetAverageEQGrid` / `GetAverageHQGrid`, which gives E to the grid
+    it returns (`0x006FCF8B`, `0x006FD02B`; education-health §4.8, AQ2). So with every grid present, a negative
+    P changes nothing. A recreated grid with a negative
     size has shift 0, the city's full cell counts and negative widths (simgrid §3); as the R$ population grid it
     hangs state 4 (§5.5, RS15). *[choice]* FreeCity4 rejects P or E outside 1…256 (§5.5).
   - Lists: cleared first; a count of 0 or ≥ 10,000,000 reads nothing more; null references are appended.
