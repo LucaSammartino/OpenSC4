@@ -1041,6 +1041,7 @@ class cISC4Ordinance;
 class cISC4ResidentialSimulator;
 class cISC4RegionalCity;
 class cISC4PlumbingSimulator;
+class cISC4PowerSimulator;
 
 // ---- plumbing (docs/specs/plumbing.md §10.1) -----------------------------------------------------
 
@@ -1415,6 +1416,12 @@ inline cFC4ISC4PlumbingSimulator* AsGame(cISC4PlumbingSimulator* p) {
 }
 inline cISC4PlumbingSimulator* AsSdk(cFC4ISC4PlumbingSimulator* p) {
     return reinterpret_cast<cISC4PlumbingSimulator*>(p);
+}
+// Power travels as the SDK's cISC4PowerSimulator* (the city getter's type);
+// single inheritance, vtable at offset 0. Call it only through the verified
+// declaration (the SDK's overloads are out of compiled order).
+inline cFC4ISC4PowerSimulator* AsGame(cISC4PowerSimulator* p) {
+    return reinterpret_cast<cFC4ISC4PowerSimulator*>(p);
 }
 // Pollution travels as the SDK's cISC4PollutionSimulator* (the city getter's
 // type); single inheritance, vtable at offset 0. Call slots 29, 30, 33-41,

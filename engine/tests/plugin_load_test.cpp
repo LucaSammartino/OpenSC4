@@ -415,6 +415,7 @@ void* __fastcall CityGetSimulator(void*, void*) { return g_world->sim; }        
 void* __fastcall CityGetBudgetSimulator(void*, void*) { return g_world->budget; }          // cISC4City 52
 void* __fastcall CityGetDemandSimulator(void*, void*) { return &g_world->demandSim; }      // cISC4City 56
 void* __fastcall CityGetResidentialSimulator(void*, void*) { return &g_world->res; }       // cISC4City 68
+void* __fastcall CityGetPowerSimulator(void*, void*) { return nullptr; }                  // cISC4City 67 (none)
 int32_t __fastcall ResGetPopulation(void*, void*) { return 1234; }                          // residential 16
 void* __fastcall DemandSimGetDemand(void*, void*, uint32_t id, uint32_t index) {           // demand sim 6
     ++g_world->demandCalls;
@@ -439,6 +440,7 @@ void InitFakeWorld(FakeWorld& w) {
     w.cityVt.slots[52] = reinterpret_cast<void*>(&CityGetBudgetSimulator);
     w.cityVt.slots[56] = reinterpret_cast<void*>(&CityGetDemandSimulator);
     w.cityVt.slots[68] = reinterpret_cast<void*>(&CityGetResidentialSimulator);
+    w.cityVt.slots[67] = reinterpret_cast<void*>(&CityGetPowerSimulator);  // observe month: power=-
     w.resVt.slots[16] = reinterpret_cast<void*>(&ResGetPopulation);
     w.demandSimVt.slots[6] = reinterpret_cast<void*>(&DemandSimGetDemand);
     w.demandVt.slots[8] = reinterpret_cast<void*>(&DemandQuerySupply);
