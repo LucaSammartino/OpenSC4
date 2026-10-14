@@ -493,6 +493,19 @@ allocator.
 The other lot-manager queries (slots 8–10) do not clear the list: they only append nodes from the STL node
 allocator. Their caller has the same obligations.
 
+## City components from re-specs9 (commercial, industrial, civic, parks, history, 24-hour clock)
+
+Read from the exe by the `re-specs9` lane (2026-10-14); not yet confirmed in game.
+- The component objects come from the global heap (**C**, `0x005E55E0`) and are freed with `0x005E5620`. Sizes:
+  commercial 0x3C, industrial 0x14, civic 0x48, park manager 0xA10, history warehouse 0x2C, 24-hour clock 0x90.
+  The commercial simulator's two proximity grids are 0x44 bytes each.
+- The civic simulator's `maintained` and `diseaseCenters` lists use the framework allocator service (**A**): their
+  type is `std::list<…, cGZAllocatorServiceSTLAllocator>`.
+- The park manager's lists are `ilist<cISC4Occupant*>`, so **A** by the rule of thumb above.
+- The civic hash tables, the history warehouse's map and lists, and the clock's string buffer use the STL node
+  allocator (**B**, `0x0090CF54`).
+- The clock's messages come from `operator new` (0x2C bytes each).
+
 ## Unresolved
 
 - `cISC4Simulator::EnumerateAgentsByName` (slot 24): no game caller was found. Neither the Windows code (call

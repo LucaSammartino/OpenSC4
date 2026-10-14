@@ -41,7 +41,12 @@ worktree: paste what it needs into the message, or copy files into its `build-ru
 | apply9b: zones ZG2-ZG17, landfill tiles LG27-LG29, budget BQ4/BQ7, crime CQ23 | `a2dc48d26cc52d9a2` | worktree | ABI 48, seam op 49 | running |
 | apply9c: graphics formats FS4-FS13, GF1-GF9 | `a1ec5d982a5986c5a` | worktree | - | running |
 | apply9d: education/health AQ1-AQ3, flora AQ7/AQ10, residential RG24, flammability FL7/FL8 | `a1a2a3d5ee6186779` | worktree | ABI 49, seam op 50 | running |
-| RE specs 9 (commercial, industrial, 24-hour clock, ...) | `a3547ddd1232ef1f1` | `re-specs9` | - | running |
+| RE specs 9 (commercial/industrial, civic, parks, history warehouse, 24-hour clock) | `a3547ddd1232ef1f1` | `re-specs9` | - | merged `a3599a0`; ABI rows `340ad36` |
+| cores10a: history warehouse + 24-hour clock cores | `aaba26b7267188fb1` | worktree | ABI 50 | running |
+| cores10b: commercial + industrial + civic buildings + park manager cores | `a195154e182349440` | worktree | ABI 51 | running |
+| RE specs 10: city situation manager, demolition utility, dispatch manager, airport/seaport developers, prop developer (city detail manager if time) | `a576c1f88a67e75e5` | `re-specs10` | - | running |
+| RE answers 9: DG1-DG27 (DG5 first: how a building occupant gets its exemplar), LG21-LG26, AO1-AO2, PR/RG/NB/PG, EX34-EX39, ZQ13 | `a847980b29901cc38` | `re-answers9` | - | running |
+| harness tooling 2: regress through the queue with coordinator priority, a safe slot count (4-6?), queue status, clearer rejections | `aebacb404dae356d7` | worktree | - | running; the coordinator restarts the queue after merging |
 
 Merged today, tooling: harness switches (`6147be6`, `0786064`), modal-dialog spec (`baa5d0a`), game slots and the
 run queue (`9e0fa74`: up to 3 games at once; `regress -Parallel` 164 s, `-Turbo -Parallel` 94 s to 2032), the
