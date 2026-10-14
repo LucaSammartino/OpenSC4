@@ -77,7 +77,8 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >     `df5_01`; EX21–EX33 filed); **x87 fix** (`5ee5c52`, includes `abi-x87`; seam ops 28–31; DQ10–DQ12 filed);
 >     **`apply4b`** (`58e1226`: PF1–PF15, ZQ4/ZQ7–ZQ10, LF1–LF5 (`lf11_11` regenerated), NB1–NB16 in the cores;
 >     TN26–TN28, ZQ11–ZQ12, LF6, NB18 filed); **residential glue + shadow** (`bc7ffa0`, M4; ABI 26; seam op 25;
->     136 plugin switches; RG1–RG22 filed; not yet run in game).
+>     136 plugin switches; RG1–RG23 filed); **`apply3`** (`1d1274d`: PR1–PR13, DQ3–DQ8, PG4–PG13; ABI 27, seam op 32:
+>     the protection shadow reads the original's unadjusted grids after a vtable check; PR14–PR16, PG15, DQ13 filed).
 > - **Fixed on main (`5ee5c52`); runs 83/84 count 0 x87 leftovers, the 900 s soak over 35 game years included.**
 > - **Run 74, the likely cause (audit workflow + coordinator check of the instructions): our methods corrupt the
 >   game's x87 register stack.** The ABI extractor tagged as `x87` every method whose float work ends in a popping
@@ -116,16 +117,28 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   flammability 69/70 (FL6: a region at about 1.25 times ours, the ratio of FL5). **Run 84 (soak 3 again, all
 >   thirteen replacements + simulator + budget, 900 s)**: clean, 0 leftovers, 2026 → 2061; **the city path differs
 >   from runs 77/78**: higher tax income from about 2041, and the collapse comes later (+79,924 at 2061-09 against
->   about −80k). **Run 85** repeats the all-original soak with the same DLL to separate variance from a bias.
+>   about −80k). **Run 85** (all original, same DLL) spans run 84: variance, not a bias.
+>   **Run 86 (`regress rbc7f`, first in-game residential)**: PASS with fourteen replacements; our residential clean
+>   for 7 game years; its shadow exact on 12 of 15 daily states (all grids, fields, properties and scalars), the
+>   proximity states 1–3 differ (RG23); budget 30/31 (BQ3). **Run 87 (`regress r1d12`, apply3)**: PASS; PR5's
+>   unadjusted grids equal every month. `tools/regress.ps1` now replaces residential by default.
+>   **Run 88 (save → reload, fourteen replacements)**: our residential's `Write`/`Read` work (population, wealth
+>   split and EQ/HQ restored); after the in-session save, land value's own `ReleaseGrid` released the last reference
+>   to its three grids from `Read` (3 reference warnings at Shutdown): lane below.
+>   **Run 89 (soak, fourteen replacements, 900 s)**: clean for 39 game years (2026 → 2065), `ref_warnings=0`, x87 0;
+>   funds inside the original's spread. Our residential's EQ falls 58 → 16 and HQ 69 → 18 by 2051; there is no
+>   original baseline yet (the observe line gains `residential EQ/HQ/LE=` in the land value lane), then an
+>   all-original soak gives one.
 > - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lanes in
 >   `.claude/worktrees/re-answers4`, `re-answers5`):
->   - **`apply3`**: PR1–PR13 (except PR4/PR6/PR7), DQ3–DQ8, PG4–PG13 (may take ABI 27, seam op 32);
 >   - **neighbours glue + shadow** (`cFC4NeighborsSimulator`, `neighbours_shadow`; ABI 28, seam op 33; renumber at
 >     merge);
 >   - **development glue + shadow** (BDS `0x8990BE7A` and the growth developers `0x0990C138` as one unit,
 >     `development_shadow`; ABI 29, seam op 34);
 >   - **`apply5`**: AU1–AU15 (the aura shadow rebuilt on the original's state field, §14.3), EH1–EH14, FQ1–FQ15 (the
 >     64 m index query of FQ15, inherited flora properties); ABI 30 / seam op 35 if needed;
+>   - **land value grid references after a save** (`FC4_RELEASE_CREATED` or the shared host grids; audit of every
+>     glue's Read → Shutdown references; seam op 36 if needed);
 >   - RE `re-answers5` (TS1–TS34, PW1–PW8, PS1–PS8, LG1–LG20) and `re-answers6` (LV1–LV4, FL1–FL6, DQ10–DQ12,
 >     CQ16–CQ22, TN21–TN25, HG1, the crime errata; then RG, TN26–28, ZQ11–12, LF6, NB18, EX21–33). RE `re-answers4`
 >     is merged (`79d619c`; its `docs/abi` rows in `83aa768`).
@@ -133,8 +146,8 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   gate its worktree; renumber ABI/seam ops/switch counts at that point. If `git merge-tree` shows no conflict,
 >   the coordinator may merge main into the lane's worktree itself and gate that.
 > - **Open follow-ups:**
->   - **residential in game**: `tools/regress.ps1` now runs `residential_shadow`; add `residential` to the replace
->     list once a run with it is clean;
+>   - residential: the RG23 answer (proximity grids), then an apply lane;
+>   - after the land value fix: run 88 again (save → reload), expecting `ref_warnings=0`;
 >   - run 85 settled run 84: the original's own path spans it (no bias; `docs/manual-checks.md`);
 >   - zones glue (M4); development glue (BDS, growth, tract and lot developers: building-development.md §9);
 >     traffic glue (M5);
