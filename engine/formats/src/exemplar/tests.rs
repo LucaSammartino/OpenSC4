@@ -1374,6 +1374,15 @@ fn t51_parent_cohort_fields() {
         Tgi::new(0, 0x0A64_ED55, 0),
         "nothing trimmed: ` 0x…` reads 0"
     );
+    // §4.3 worked examples: a decimal field survives a space (strtoul skips it), a missing type reads 0.
+    assert_eq!(parent_of("ParentCohort=Key:{0x1,0x2,0x3,0x4}"), Tgi::new(3, 1, 2));
+    assert_eq!(parent_of("ParentCohort=Key:{0x1, 0x2, 0x3}"), Tgi::new(0, 1, 0));
+    assert_eq!(parent_of("ParentCohort=Key:{1, 2, 3}"), Tgi::new(3, 1, 2));
+    let two = parse_ex(&text_rec("ParentCohort=Key:{0x1,0x2}", "PropCount=0", &[]));
+    assert_eq!(two.parent, Tgi::new(0, 1, 2));
+    let mut store = ExemplarStore::new();
+    store.insert(exemplar_key(1), two);
+    assert!(matches!(store.load(&exemplar_key(1)), Err(LoadError::Parent { .. })));
     // One field, and none.
     assert_eq!(parent_of("ParentCohort=Key:{0x10}"), Tgi::new(0, 0x10, 0));
     assert_eq!(parent_of("ParentCohort=Key:{}"), Tgi::default());
@@ -1394,6 +1403,10 @@ fn t52_reps_and_type_name() {
     assert_eq!(text_prop("Uint8:1A:{1}").len(), 26);
     assert_eq!(text_prop("Uint8: 2:{1}").len(), 2);
     assert_eq!(text_prop("Uint8:0x2:{1}").len(), 2);
+    assert_eq!(text_prop("Uint8: 3:{1}").len(), 3);
+    assert_eq!(text_prop("Uint8: 0x3:{1}").count(), 0, "` 0x3` is 0, a scalar");
+    // EX16: `Uint8:1:{}` is one value, 0.
+    assert_eq!(text_prop("Uint8:1:{}").u8s(), Some(&[0][..]));
 }
 
 /// §11 rows "text reps …" (EX12, EX13): values trimmed only in arrays, 64-bit hex without a sign.
