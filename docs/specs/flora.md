@@ -900,6 +900,13 @@ non-zero, close it again (`CloseOStream`, slot 9) and treat the record as not op
 `GetUint16` (slot 7; the value is kept by the helper and **never checked** by flora) and `CloseIStream` (slot 6).
 A segment that does not answer the IID, or a key that does not open, gives "not open": nothing is written or read.
 
+**A false open that writes a pointer** (AQ10). Only a plugin's segment can do this: the game's own clears the pointer
+first and sets it only on success (`0x005D274B`, `0x005D27EB`). The helper keeps the segment only after a successful
+open (`0x005D9D21`, `0x005D9E3B`), and the open test needs both the segment and the stream (`0x005D9670`), so the
+record is not open and nothing is read, written or closed. The pointer the call wrote stays in the helper's stream
+reference, and the helper's destructor (`0x005D9C30` read, `0x005D9D50` write) releases it once, without
+`CloseIStream` or `CloseOStream`. *[choice]* Releasing it once, as the original does, is recommended.
+
 - Save: the count record is written even when the count is 0. `i` is the occupant's position in the list and
   advances for every occupant, also when its record does not open. The count is written with `PutUint32`
   (stream slot 9) and the occupant record by the occupant's `cIGZSerializable::Write` on the same stream (the

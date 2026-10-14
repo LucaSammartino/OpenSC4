@@ -2732,8 +2732,13 @@ shadow's riot roll (wall-clock RNG). The current answer is in brackets.
   **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. Noted in flora §6.4.2 with the
   original's rule: the listing is made from the box at `InsertOccupant` or `MoveOccupant` time and kept in the occupant
   (`0x0049F094`) until the next move.
-- **AQ10:** Plugin: `OpenOStream`/`OpenIStream` returns false but writes a stream pointer. [treated as not open;
-  nothing released]
+- ~~**AQ10:** Plugin: `OpenOStream`/`OpenIStream` returns false but writes a stream pointer. [treated as not open;
+  nothing released]~~
+  **ANSWERED 2026-10-14** from the exe (record helpers `0x005D9C90` / `0x005D9DB0`, open test `0x005D9670`, destructors
+  `0x005D9C30` / `0x005D9D50`) and written into flora §10.3. Not open: the helper keeps the segment only on success, and
+  the open test needs both. But the written pointer stays in the helper's stream reference, and the helper releases it
+  once when it is destroyed, without a close call. The bracket's "nothing released" differs; *[choice]* release it once,
+  as the original does (recommended).
 
 ## From applying the crime, traffic network and HG answers (filed by the coordinator from the `apply7b` lane's report, 2026-10-14)
 
