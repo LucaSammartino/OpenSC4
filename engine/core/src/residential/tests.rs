@@ -3239,6 +3239,64 @@ fn ordinance_effect_lists() {
     assert_eq!(fx.h.prop_f32(1, SCHOOL.grade), Some(0.5));
 }
 
+/// REH §4.6: `AddRadiusEffectWithCurves` itself: the distance curve at the
+/// 0..1 fraction, the age curves, the n-share with pop', the cap, and the z
+/// centre an empty tract does not advance [quirk].
+#[test]
+fn add_radius_effect_curves_share_and_cap() {
+    let city = CityDims::square(16);
+    let target = SimGrid::<f32>::create(&city, 0, 4);
+    let pop = SimGrid::<u16>::create(&city, 0, 4);
+    let cov = SimGrid::<u8>::create(&city, 0, 4);
+    pop.set(0, 0, 100);
+    pop.set(0, 2, 50);
+    pop.set(1, 0, 10);
+    cov.set(0, 0, 2);
+    target.set(0, 0, 190.0);
+    let falling = crate::curve::ResponseCurve::from_points(&[(0.0, 100.0), (1.0, 0.0)]);
+    let e = RadiusEffect {
+        age: None,
+        target: &*target,
+        age_curves: &[],
+        x: 32.0,
+        z: 32.0,
+        radius: 200.0,
+        distance_curves: &[&falling],
+        value: 10.0,
+        max: 200.0,
+        units: 4,
+        coverage: Some(&*cov),
+        population: Some(&*pop),
+    };
+    let mut total = 0.0;
+    add_radius_effect_with_curves(&e, &mut total);
+    let near = |a: f32, b: f32| (a - b).abs() < 1e-4;
+    // (0, 0): d = 0 → 100 % → 10 × k (4 / 2) = 20, capped at 200; pop' 200.
+    assert_eq!(target.get(0, 0), 200.0);
+    // (0, 1) is empty, so (0, 2) is measured from (0, 1)'s centre: d = 64,
+    // xd = 0.32 → 68 % → 6.8 (6.4 from its own centre); n = 0 → pop' = 50.
+    assert_eq!(target.get(0, 1), 0.0);
+    assert!(near(target.get(0, 2), 6.8), "{}", target.get(0, 2));
+    assert!(near(target.get(1, 0), 6.8), "{}", target.get(1, 0));
+    assert!(near(total, 200.0 * 20.0 + 50.0 * 6.8 + 10.0 * 6.8), "{total}");
+
+    // An age curve of 50 % at every age: mult = (1.0 × 50) × 0.01.
+    let age = SimGrid::<u8>::create(&city, 0, 4);
+    age.fill(30);
+    let half = crate::curve::ResponseCurve::from_points(&[(0.0, 50.0), (100.0, 50.0)]);
+    let target = SimGrid::<f32>::create(&city, 0, 4);
+    let e = RadiusEffect {
+        age: Some(&*age),
+        target: &*target,
+        age_curves: &[&half],
+        ..e
+    };
+    let mut total = 0.0;
+    add_radius_effect_with_curves(&e, &mut total);
+    assert_eq!(target.get(0, 0), 10.0);
+    assert!(near(target.get(1, 0), 3.4), "{}", target.get(1, 0));
+}
+
 /// REH §4.4 / §4.5: a building without a coverage radius is skipped by the
 /// coverage state; grading writes served 0, effective capacity 0 and grade
 /// 0.0 and leaves the staff ratio alone.
