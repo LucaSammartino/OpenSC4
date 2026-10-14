@@ -1210,8 +1210,13 @@ part of §8 is not compared). The glue's current answer is in brackets.
   into flora.md §4.1 step 3 and §12. **Null is right.** The name is a plain `const char*` (`"PlaceFlora"`), the
   call is made only when the message server exists, and its result is ignored. With null info the server writes
   a default help text (`"Format: PlaceFlora\nOutput: <none>"`) when its help flag is set.
-- **FQ13:** `ToCoreAll` leaves out parent-cohort properties (existing plugin behaviour). Does flora need them?
-  [left out]
+- ~~**FQ13:** `ToCoreAll` leaves out parent-cohort properties (existing plugin behaviour). Does flora need them?
+  [left out]~~ **ANSWERED 2026-10-14** from the exe (`AddStaticFloraData` `0x006B12D0`; the `0x10` test
+  `0x005FD480` in `0x006B03B0`) and a scan of the shipped `.dat` files, written into flora.md §3.3. **The original
+  includes them.** Every flora property, and the `0x10 = 0x0F` test itself, is read through the effective list
+  (data-formats §4.4). The 22 shipped flora exemplars have no parent cohort, so the shipped game is unaffected;
+  a plugin whose flora values sit in a cohort would get defaults (or not be registered) if they are left out.
+  *[choice]* include them.
 - **FQ14 — §6.11:** adding a record whose next type is 0 set key 0's seed type to it in the test harness. Does
   §6.11 apply when next is 0? [the test avoids the case]
 - Not done (each logged once): obliterated-city save/restore (FQ3), the app shutdown callback (FQ2),

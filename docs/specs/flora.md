@@ -177,6 +177,19 @@ Flag use: bit 0 set → the type is never picked by `GetBestFloraTypeForLocation
 flora brush lists only types with bit 0 clear and bit 1 set *[inferred meaning: "wild/brush flora"]*. Bit 2 is
 not read by any code found.
 
+*[compat]* **Parent-cohort properties count** (verified, FQ13). Every value in the table is read through the
+exemplar's property-holder calls (slot 3 `HasProperty`, slot 8 `GetProperty(id, u32&)`, slot 9 `GetProperty(id)`
+and the typed helpers; `AddStaticFloraData` `0x006B12D0`, reads `0x006B13A6`–`0x006B159E`), and so does the
+`0x10 = 0x0F` test that admits an exemplar at all (§4.1 step 2). All of these use the **effective** property
+list (data-formats §4.4): a property the exemplar inherits from its parent cohort (or a grandparent) is used
+exactly as if it were its own, and an own property overrides the inherited one. The 22 shipped flora exemplars
+(all in `SimCity_1.dat`; none in `SimCity_2`–`5.dat` or `EP1.dat`) have no parent cohort, so on shipped data
+including or leaving out inherited properties gives the same registry. They differ only for a plugin.
+*Example:* a plugin exemplar with own properties `0x10 = 0x0F` and `0x21 = T` whose cohort holds `0x083DC35B` and
+`0x2A0348BA = N`: the original's record for T has the cohort's 14 floats and next type N; a reader that leaves the
+cohort out gives the code defaults (730, 730, 365, …) and next type 0. If `0x10 = 0x0F` itself is in the cohort,
+the original registers the type and such a reader skips it. *[choice]* Read flora exemplars with inheritance.
+
 Shipped example, **Burnt Tree** `0x29CFF3CB` (group `0xE83E0437`): floats {100, 100, 200, 3, 128, 15000, 15050,
 0.6, 0, 0, 1, 5, 1.5, 5}, `0xE9D117C3` = true, a propagation table that is mostly 0–0.9.
 
