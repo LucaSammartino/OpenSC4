@@ -1169,7 +1169,9 @@ bool fc4_demand_sim_shutdown(fc4_demand_sim* s);
  * added; 0 if none. */
 uint64_t fc4_demand_sim_get_demand(fc4_demand_sim* s, uint32_t demand_id, uint32_t demand_index);
 void fc4_demand_sim_update_occupant_effects(fc4_demand_sim* s, uint32_t building_type, float old_pct, float new_pct);
-/* CalculateJobsPerUnitOfDemand: out = 3 floats (may be NULL). */
+/* CalculateJobsPerUnitOfDemand: out = the 3 outputs (may be NULL), each
+ * f32(percent) x 0.01f. The game's record is four floats: the plugin writes
+ * them to jobs[1..3] and never touches jobs[0]. */
 void fc4_demand_sim_jobs_per_unit(const fc4_demand_sim* s, uint32_t demand_id, uint32_t demand_index, float* out);
 uint32_t fc4_demand_sim_jobs_by_census(const fc4_demand_sim* s, uint32_t census_type);
 float fc4_demand_sim_neutral_tax_rate(const fc4_demand_sim* s);

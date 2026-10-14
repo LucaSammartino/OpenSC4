@@ -622,7 +622,9 @@ pub unsafe extern "C" fn fc4_demand_sim_update_occupant_effects(
     with_sim(s, (), |x| x.update_occupant_effects(building_type, old_pct, new_pct))
 }
 
-/// `CalculateJobsPerUnitOfDemand` (§5): writes 3 floats to `out` (if not NULL).
+/// `CalculateJobsPerUnitOfDemand` (§5): writes the 3 outputs to `out` (if
+/// not NULL), each `f32(percent) × 0.01f`. The game's record is four floats:
+/// the plugin passes `&jobs[1]`, so `jobs[0]` is never touched.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_demand_sim_jobs_per_unit(
     s: *const fc4_demand_sim,
