@@ -995,7 +995,7 @@ Callee-pop checked with `tools/abi_extract.py --check`, return channels from the
 | | 58 | `+0xE8` | GetFlammabilitySimulator (fire, held only) | 0 | EAX ptr |
 | | 65 | `+0x104` | GetPoliceSimulator (fire end of cycle) | 0 | EAX ptr |
 | | 72 | `+0x120` | GetDisasterLayer | 0 | EAX ptr |
-| | 97 | `+0x184` | CellCenterToPosition | 16 | (outputs) |
+| | 97 | `+0x184` | CellCenterToPosition(int x, int z, float& px, float& pz) (below) | 16 | none: x87 stack left empty |
 | `cISC4Simulator` (`0x00AB2FB8`) | 7 | `+0x1C` | GetSimDate | 0 | EAX ptr |
 | | 19 | `+0x4C` | AddAgent(target, level, name, flags) | 16 | AL |
 | `cIGZDate` (`0x00ACEA38`) | 26 | `+0x68` | DayNumber | 0 | EAX |
@@ -1062,6 +1062,22 @@ vector. In a saved occupant they appear as a scalar `Uint32` property and as a 4
 defines one of these IDs, the setter therefore **changes the exemplar's property**, shared by every occupant of
 that exemplar, instead of adding one to the occupant. None of the IDs exists in any shipped exemplar (all shipped
 packages scanned). *[choice]* FreeCity4 writes onto the occupant itself.
+
+**`CellCenterToPosition`** (slot 97, body `0x00459440`) *[compat]* (PR6). It returns nothing, despite the
+`x87` return in `docs/abi/interfaces.tsv`. Both results go out through the pointers, and each `FSTP` pops its
+value, so the x87 stack is empty at `RET 0x10`. EAX is left holding `&px`, which no caller uses.
+
+- **Arithmetic**, at 24-bit precision: `px = f32(f32(x + 0.5) × cellX)`, and the same for `pz` with `cellZ`.
+  `0.5` is the constant at `0x00A84D2C`. `cellX` and `cellZ` are city `+0x108` and `+0x10C`, both set to `16.0` at
+  `0x0045A13C`. For every in-bounds cell both steps are exact.
+- **Worked example.** Cell (10, 20): px = 10.5 × 16 = **168.0**, pz = 20.5 × 16 = **328.0**.
+- **Callers.** None of the 83 indirect calls through `+0x184` in the exe reads ST0 afterwards. The next x87
+  instruction is always a load. The police call is at `0x006E1426` (the nearest station, §9.2).
+- **Calling it.** A caller that declares a float return would pop an empty register. It would get the x87
+  "indefinite" NaN and set the sticky invalid-operation flag. *[choice]* Declare it `void` and use only the two
+  outputs.
+- **Slot 96.** `CellCornerToPosition` (`0x00459410`) is the same function without the `+ 0.5`, and also returns
+  nothing.
 
 ---
 

@@ -523,7 +523,17 @@ About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The 
     use the grid's read-only slots. Each save also holds the grid as its own record.
   - **Spec correction.** The original builds both grids for a new city directly (global heap, inlined
     constructors), not through GZCOM.
-- **PR6:** city slot 97: interfaces.tsv says ST0, §14 lists only its outputs. [outputs used, ST0 discarded]
+- ~~**PR6:** city slot 97: interfaces.tsv says ST0, §14 lists only its outputs. [outputs used, ST0 discarded]~~
+  **ANSWERED 2026-10-14** from the exe (body `0x00459440`; constant `0x00A84D2C` = 0.5; cell size at city
+  `+0x108`/`+0x10C` = 16.0, set at `0x0045A13C`; all 83 indirect `+0x184` call sites) and written into protection.md
+  §14. **The bracket matches in effect, but there is no ST0 to discard.**
+  - **No return value.** The function returns nothing: both `FSTP`s pop, so the x87 stack is empty at `RET 0x10`.
+    The `x87` return in interfaces.tsv is wrong, and no caller reads ST0.
+  - **Arithmetic.** `px = (x + 0.5) × 16`, `pz = (z + 0.5) × 16`. Both steps are exact; for example, cell (10, 20)
+    gives (168.0, 328.0).
+  - *[choice]* Declare it `void`. A float return would pop an empty register, giving NaN and setting the
+    invalid-operation flag.
+  - **Slot 96** (`0x00459410`, the corner) is the same without the `+ 0.5`.
 - ~~**PR7:** which slots does the game call from its second thread, and are these fallbacks acceptable: lists return 0
   untouched; chance of strike, efficiency and radius return 0; strike length 0xFFFFFFFF with no date, else 0; scalars
   from the month-end snapshot? [as stated]~~ **ANSWERED 2026-10-14** from the exe (all 79 reads of the fire and police
