@@ -27,6 +27,7 @@
 #include "FC4Diag.h"
 #include "FC4FlammabilityShadow.h"
 #include "FC4Fpu.h"
+#include "FC4GrowthProbe.h"
 #include "FC4LandValueShadow.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
@@ -314,6 +315,7 @@ public:
         // Tooling that runs in every mode (autotest, digest, tick feed).
         fc4::ObserverStart();
         fc4::ClockProbeStart();  // clock_probe (FC4ClockProbe.h): the M1 clock differential
+        fc4::GrowthProbeStart();  // growth_probe (FC4GrowthProbe.h): building-development.md §12
         fc4::LandValueShadowStart();     // landvalue_shadow (FC4LandValueShadow.h)
         fc4::FlammabilityShadowStart();  // flammability_shadow (FC4FlammabilityShadow.h)
         fc4::FpuLog("hook PostAppInit (exit)");
@@ -325,6 +327,7 @@ public:
         fc4::FpuLog("hook PreAppShutdown");
         fc4::FlammabilityShadowStop();
         fc4::LandValueShadowStop();
+        fc4::GrowthProbeStop();
         fc4::ClockProbeStop();
         fc4::ObserverStop();
         return true;

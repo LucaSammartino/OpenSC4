@@ -19,6 +19,7 @@
 #include "FC4Diag.h"
 #include "FC4FailFast.h"
 #include "FC4Fpu.h"
+#include "FC4GrowthProbe.h"
 #include "FC4Log.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -44,6 +45,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
         }
         case DLL_PROCESS_DETACH:
             fc4::Log("DLL_PROCESS_DETACH (%s)", lpvReserved ? "process exit" : "FreeLibrary");
+            fc4::GrowthProbeDetach();  // the forwarder lives in this DLL: put the original Grow back
             fc4::DiagDetach();
             fc4::LogClose();
             break;

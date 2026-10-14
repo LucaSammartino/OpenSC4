@@ -52,6 +52,7 @@
 #include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
 #include "FC4GameMap.h"
+#include "FC4GrowthProbe.h"
 #include "cFC4Demand.h"
 #include "FC4PollutionShadow.h"
 #include "FC4FlammabilityShadow.h"
@@ -4832,6 +4833,264 @@ int SavedRefsTest(const std::string& dll, const std::string& ini, const std::str
     return g_failures == 0 ? 0 : 1;
 }
 
+// ---- the growth calibration probe (building-development.md §12; seam op 39) ---------------------
+// A fake city with the ORIGINAL classes' shape: a tract developer whose
+// vtable (on a read-only page, like the game's) the probe patches, a BDS
+// whose slot 34 gives a developer map built as docs/abi/allocators.md
+// describes it, growth developers (slot 18 GetSourceDemand), demands (slot
+// 12 QueryActiveDemandValue, ST0), a lot manager (slot 16) and a residential
+// simulator (slot 16). Every other slot traps.
+struct GrowthDev {
+    void** vtbl;
+    void* demand;  // GetSourceDemand (null: none)
+};
+
+struct GrowthDemand {
+    void** vtbl;
+    float active;
+};
+
+struct GrowthWorld {
+    FakeVtable cityVt, foreignCityVt, bdsVt, foreignBdsVt, devVt, demandVt, lotsVt, resVt, foreignTractVt;
+    FakeObject city{}, foreignCity{}, bds{}, foreignBds{}, lots{}, res{}, tract{}, foreignTract{};
+    GrowthDemand demands[4] = {{nullptr, 6.0f}, {nullptr, 5.9f}, {nullptr, 100.0f}, {nullptr, -3.0f}};
+    GrowthDev devs[5] = {};
+    fc4::GameMapNode header{}, nodes[5]{};
+    fc4::GameMapObject map{};
+    void** tractVt = nullptr;  // VirtualAlloc'd, PAGE_READONLY
+    int growCalls = 0;
+    int32_t growResult = 0;
+};
+
+GrowthWorld* g_growth = nullptr;
+
+void* __fastcall GwCityLots(void*, void*) { return &g_growth->lots; }              // cISC4City 33
+void* __fastcall GwCityBds(void*, void*) { return &g_growth->bds; }                // cISC4City 53
+void* __fastcall GwCityRes(void*, void*) { return &g_growth->res; }                // cISC4City 68
+void* __fastcall GwCityTract(void*, void*) { return &g_growth->tract; }            // cISC4City 80
+void* __fastcall GwForeignBds(void*, void*) { return &g_growth->foreignBds; }      // cISC4City 53
+void* __fastcall GwForeignTract(void*, void*) { return &g_growth->foreignTract; }  // cISC4City 80
+intptr_t __fastcall GwBdsDevelopers(void*, void*) {                                // BDS 34
+    return reinterpret_cast<intptr_t>(&g_growth->map);
+}
+void* __fastcall GwDevSourceDemand(void* self, void*) { return static_cast<GrowthDev*>(self)->demand; }  // 18
+float __fastcall GwDemandActive(void* self, void*) { return static_cast<GrowthDemand*>(self)->active; }  // 12
+int32_t __fastcall GwLotCount(void*, void*) { return 42; }      // lot manager 16
+int32_t __fastcall GwPopulation(void*, void*) { return 1234; }  // residential 16
+int32_t __fastcall GwGrow(void*, void*, const void*, void*, void* flag) {  // tract developer 5
+    ++g_growth->growCalls;
+    if (flag != nullptr) *static_cast<bool*>(flag) = true;
+    return g_growth->growResult;
+}
+
+void InitGrowthWorld(GrowthWorld& w) {
+    w.cityVt.slots[33] = reinterpret_cast<void*>(&GwCityLots);
+    w.cityVt.slots[53] = reinterpret_cast<void*>(&GwCityBds);
+    w.cityVt.slots[68] = reinterpret_cast<void*>(&GwCityRes);
+    w.cityVt.slots[80] = reinterpret_cast<void*>(&GwCityTract);
+    w.city.vtbl = w.cityVt.slots.data();
+    w.foreignCityVt.slots[53] = reinterpret_cast<void*>(&GwForeignBds);
+    w.foreignCityVt.slots[80] = reinterpret_cast<void*>(&GwForeignTract);
+    w.foreignCity.vtbl = w.foreignCityVt.slots.data();
+    w.bdsVt.slots[34] = reinterpret_cast<void*>(&GwBdsDevelopers);
+    w.bds.vtbl = w.bdsVt.slots.data();
+    w.foreignBds.vtbl = w.foreignBdsVt.slots.data();
+    w.foreignTract.vtbl = w.foreignTractVt.slots.data();
+    w.devVt.slots[18] = reinterpret_cast<void*>(&GwDevSourceDemand);
+    w.demandVt.slots[12] = reinterpret_cast<void*>(&GwDemandActive);
+    w.lotsVt.slots[16] = reinterpret_cast<void*>(&GwLotCount);
+    w.lots.vtbl = w.lotsVt.slots.data();
+    w.resVt.slots[16] = reinterpret_cast<void*>(&GwPopulation);
+    w.res.vtbl = w.resVt.slots.data();
+    for (GrowthDemand& d : w.demands) d.vtbl = w.demandVt.slots.data();
+    for (int i = 0; i < 5; ++i) {
+        w.devs[i].vtbl = w.devVt.slots.data();
+        w.devs[i].demand = i < 4 ? &w.demands[i] : nullptr;  // the fifth has no demand
+    }
+    // Developer type -> developer: root 0x1030; 0x1020 (left 0x1010), 0x1040 (right 0x3110).
+    const uint32_t keys[5] = {0x1010, 0x1020, 0x1030, 0x1040, 0x3110};
+    for (int i = 0; i < 5; ++i) {
+        w.nodes[i] = {};
+        w.nodes[i].key = keys[i];
+        w.nodes[i].value = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&w.devs[i]));
+    }
+    fc4::GameMapNode* n = w.nodes;
+    w.header.color = fc4::kGameMapRed;
+    w.header.parent = &n[2];
+    w.header.left = &n[0];
+    w.header.right = &n[4];
+    n[2].color = fc4::kGameMapBlack;
+    n[2].parent = &w.header;
+    n[2].left = &n[1];
+    n[2].right = &n[3];
+    n[1].color = fc4::kGameMapBlack;
+    n[1].parent = &n[2];
+    n[1].left = &n[0];
+    n[3].color = fc4::kGameMapBlack;
+    n[3].parent = &n[2];
+    n[3].right = &n[4];
+    n[0].color = fc4::kGameMapRed;
+    n[0].parent = &n[1];
+    n[4].color = fc4::kGameMapRed;
+    n[4].parent = &n[3];
+    w.map = {&w.header, 5, 0};
+    // The tract developer vtable: Grow in slot 5, on a read-only page.
+    w.tractVt = static_cast<void**>(VirtualAlloc(nullptr, 4096, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
+    if (w.tractVt != nullptr) {
+        FakeVtable traps;
+        std::memcpy(w.tractVt, traps.slots.data(), 16 * sizeof(void*));
+        w.tractVt[5] = reinterpret_cast<void*>(&GwGrow);
+        DWORD old = 0;
+        VirtualProtect(w.tractVt, 4096, PAGE_READONLY, &old);
+    }
+    w.tract.vtbl = w.tractVt;
+}
+
+DWORD PageProtection(const void* p) {
+    MEMORY_BASIC_INFORMATION mbi{};
+    if (VirtualQuery(p, &mbi, sizeof(mbi)) != sizeof(mbi)) return 0;
+    return mbi.Protect;
+}
+
+intptr_t GrowthSeam(FC4TestSeamFn seam, uint32_t action, cISC4City* city = nullptr, uint32_t type = 0,
+                    int32_t data1 = 0, uintptr_t expected = 0) {
+    FC4GrowthProbeTestInput in{};
+    in.action = action;
+    in.vtable = g_growth->tractVt;
+    in.expected = expected != 0 ? expected : reinterpret_cast<uintptr_t>(&GwGrow);
+    in.bdsVtable = g_growth->bdsVt.slots.data();
+    in.city = city;
+    in.msgType = type;
+    in.data1 = data1;
+    return seam(kFC4SeamGrowthProbe, &in, nullptr);
+}
+
+// One Grow call the way the BDS makes it: through the tract developer's
+// vtable slot 5, three dword arguments, callee-pop 12, EAX.
+bool GrowOnce(int32_t result) {
+    g_growth->growResult = result;
+    int profile = 0, outcomes = 0;
+    bool flag = false;
+    const fc4test::SlotCall r = fc4test::CallSlot(&g_growth->tract, 5,
+                                                  {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&profile)),
+                                                   static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&outcomes)),
+                                                   static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&flag))});
+    return r.espDelta == 0 && r.x87Pushed == 0 && static_cast<int32_t>(r.eax) == result && flag;
+}
+
+int GrowthProbeIniTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_GROWTH_PROBE", nullptr);
+    static GrowthWorld world;
+    g_growth = &world;
+    InitGrowthWorld(world);
+    CHECK(world.tractVt != nullptr);
+    if (world.tractVt == nullptr) return 1;
+    void* const grow = reinterpret_cast<void*>(&GwGrow);
+    constexpr uint32_t kNewDay = 0x66956814, kCityInit = 0x26D31EC1, kCityShutdown = 0x26D31EC2;
+    cISC4City* city = reinterpret_cast<cISC4City*>(&world.city);
+    cISC4City* foreign = reinterpret_cast<cISC4City*>(&world.foreignCity);
+
+    WriteTextFile(ini, "[tools]\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    int viaProbe = 0;
+    if (director != nullptr && seam != nullptr) {
+        CHECK(seam(kFC4SeamGrowthProbe, nullptr, nullptr) == -1);
+        // Off by default, and off for a value other than 0 / 1: nothing patched.
+        CHECK(GrowthSeam(seam, kFC4GrowthProbeTestStart) == 0);
+        WriteTextFile(ini, "[tools]\ngrowth_probe = 2\n");
+        CHECK(GrowthSeam(seam, kFC4GrowthProbeTestStart) == 0);
+        CHECK(world.tractVt[5] == grow);
+        CHECK(GrowthSeam(seam, kFC4GrowthProbeTestMessage, city, kNewDay, 2451576) == -1);  // not running
+        WriteTextFile(ini, "[tools]\ngrowth_probe = 1\n");
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);  // game start: the configuration
+        // Not the expected original: refused, nothing written.
+        CHECK(GrowthSeam(seam, kFC4GrowthProbeTestStart, nullptr, 0, 0, 0x0070D130u) == -1);
+        CHECK(world.tractVt[5] == grow);
+        // Installed: slot 5 holds the forwarder; the page stays read-only.
+        CHECK(GrowthSeam(seam, kFC4GrowthProbeTestStart) == 1);
+        CHECK(world.tractVt[5] != grow && world.tractVt[5] != nullptr);
+        CHECK(world.tractVt[4] != grow && world.tractVt[6] != grow);
+        CHECK(PageProtection(world.tractVt) == PAGE_READONLY);
+        CHECK(GrowthSeam(seam, kFC4GrowthProbeTestStart) == 1);  // already running
+        // City load: both classes are "the originals" here.
+        CHECK(GrowthSeam(seam, kFC4GrowthProbeTestMessage, city, kCityInit) == 0);
+        // Day 1: three Grow calls; two developers qualify (6.0, 100.0; not 5.9,
+        // -3.0, nor the one without a demand).
+        CHECK(GrowOnce(0x100));
+        CHECK(GrowOnce(-3));
+        CHECK(GrowOnce(7));
+        CHECK(GrowthSeam(seam, kFC4GrowthProbeTestMessage, city, kNewDay, 2451576) == 3);
+        // Day 2: one call for two qualifying developers: cut.
+        CHECK(GrowOnce(0));
+        CHECK(GrowthSeam(seam, kFC4GrowthProbeTestMessage, city, kNewDay, 2451577) == 1);
+        // Day 3: no city to read.
+        CHECK(GrowthSeam(seam, kFC4GrowthProbeTestMessage, nullptr, kNewDay, 2451578) == 0);
+        CHECK(GrowthSeam(seam, kFC4GrowthProbeTestMessage, city, 0x12345678u) == 0);  // not ours
+        CHECK(GrowthSeam(seam, kFC4GrowthProbeTestMessage, city, kCityShutdown) == 0);
+        // A city whose classes are not the originals.
+        CHECK(GrowthSeam(seam, kFC4GrowthProbeTestMessage, foreign, kCityInit) == 0);
+        viaProbe = world.growCalls;
+        // Stop: the original back, the page still read-only; no more counting.
+        CHECK(GrowthSeam(seam, kFC4GrowthProbeTestStop) == 1);
+        CHECK(world.tractVt[5] == grow);
+        CHECK(PageProtection(world.tractVt) == PAGE_READONLY);
+        CHECK(GrowOnce(5));
+        CHECK(GrowthSeam(seam, kFC4GrowthProbeTestMessage, city, kNewDay, 2451579) == -1);
+        CHECK(GrowthSeam(seam, kFC4GrowthProbeTestStop) == 0);
+        // Started again and never stopped: the DLL's detach puts the original back.
+        CHECK(GrowthSeam(seam, kFC4GrowthProbeTestStart) == 1);
+        CHECK(world.tractVt[5] != grow);
+        CHECK(GrowOnce(11));
+    }
+    FreeLibrary(hd);
+    CHECK(world.tractVt[5] == grow);
+    CHECK(PageProtection(world.tractVt) == PAGE_READONLY);
+    CHECK(viaProbe == 4 && world.growCalls == 6);
+    CHECK(GrowOnce(12));  // the original, directly
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    const auto npos = std::string::npos;
+    CHECK(text.find("growth probe: WARNING growth_probe='2' (FreeCity4.ini) is not 0/1; the probe stays off") !=
+          npos);
+    CHECK(CountOf(text, "growth probe: ON (growth_probe from FreeCity4.ini)") == 3);
+    CHECK(CountOf(text, "growth probe: NOTE cut=1 (attempts < qualifying) is approximate") == 3);
+    CHECK(text.find("growth probe: NOT installed: the entry does not hold the expected original") != npos);
+    CHECK(CountOf(text, "growth probe: hook installed at ") == 2);
+    CHECK(text.find("page protection 0x2 restored") != npos);  // PAGE_READONLY
+    CHECK(text.find("x87 check at the forwarder's exit: on (verbose)") != npos);
+    CHECK(text.find("is the original class (vtable ") != npos);
+    CHECK(text.find("its Grow calls are counted; BDS ") != npos);
+    CHECK(text.find("growth probe 2000-02-01: attempts=3 qualifying=2 cut=0 elapsed_us=") != npos);
+    CHECK(text.find("growth probe 2000-02-02: attempts=1 qualifying=2 cut=1 elapsed_us=") != npos);
+    CHECK(text.find("growth probe 2000-02-03: attempts=0 qualifying=- cut=- elapsed_us=0 per_attempt_us=- lots=- "
+                    "population=- max_us=0 cycles=0") != npos);
+    CHECK(CountOf(text, " lots=42 population=1234 max_us=") == 2);
+    CHECK(text.find("growth probe summary (city shutdown): days=3; attempts min/median/max=0/1/3 (total 4); cut "
+                    "days=1, attempts on cut days min/median/max=1/1/1; qualifying min/median/max=2/2/2 (unknown "
+                    "on 1 day(s)); mean_us_per_attempt=") != npos);
+    CHECK(text.find("growth probe summary (app shutdown)") == npos);  // nothing left after the city's
+    CHECK(text.find("its Grow calls are NOT counted (attempts stay 0)") != npos);
+    CHECK(text.find("is NOT the original class (vtable ") != npos);
+    CHECK(text.find("growth probe: hook removed: entry 0x") != npos);
+    CHECK(text.find("4 Grow call(s) counted in all, 3 day line(s)") != npos);
+    CHECK(text.find("growth probe: DLL detach: hook removed, the original restored") != npos);
+    CHECK(text.find("'growth probe Grow exit'") == npos);  // no x87 leftovers at the forwarder's exit
+    CHECK(text.find("config: WARNING unknown key") == npos);
+    CHECK(text.find("WARNING: released last reference") == npos);
+    CHECK(text.find("WARNING: over-release") == npos);
+    if (g_failures == 0) std::printf("plugin growth probe test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -4877,6 +5136,8 @@ int main(int argc, char** argv) {
     if (mode == "--ini-lvfl-shadow-inactive") return LvFlShadowInactiveTest(dll, ini, log);
     // References read from a save (in-game run 88): land value grids, a foreign ordinance.
     if (mode == "--saved-refs") return SavedRefsTest(dll, ini, log);
+    // The growth calibration probe (building-development.md §12, seam op 39).
+    if (mode == "--ini-growth-probe") return GrowthProbeIniTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).
