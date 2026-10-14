@@ -559,7 +559,12 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
 - ~~**EX7:** an RZChar scalar as a string. [that one character]~~ **ANSWERED 2026-10-14** from the exe
   (`0x00916EAA`): **the bracket matches.** Char and RZChar scalars give their one character; an RZUnicodeChar
   scalar gives one byte when it is `0xFF` or less, otherwise `?` (data-formats.md §5.1).
-- **EX8:** what `%.24g` prints for the exponent and for nan/inf. [2-digit exponent; "nan"/"inf"]
+- ~~**EX8:** what `%.24g` prints for the exponent and for nan/inf. [2-digit exponent; "nan"/"inf"]~~ **ANSWERED
+  2026-10-14** from the exe (`0x0091052A`): **the bracket does not match.** There is no `%.24g`: floats are printed
+  fixed-point, never with an exponent, with at most 24 digits after the fraction's leading zeros, cut, not rounded
+  (Float32 1e30 gives 31 digits). NaN and infinities print as `1.#INF`, `-1.#IND` and the like *[inferred from the
+  MSVC runtime]*. Values do not always survive the round trip: Float32 3.14159 comes back 2 ulps lower
+  (data-formats.md §5.1).
 - **EX9:** is the round-trip parse's `0x` case-sensitive, and what does "after a digit" mean? [lowercase only;
   anywhere after the first digit]
 - **EX10:** the ParentCohort line: field count and spacing. [exactly 3 fields, leading spaces trimmed]

@@ -443,14 +443,26 @@ result is a heap address. Only kind-1 properties (§4.6) hold objects, and no sh
 **Text round trip** (arrays and strings): the source is turned into text, then the text is parsed into the target.
 
 - Text of a numeric or Bool array is its **first element** only (`%u` / `%d` / `%llu` / `%lld` for integers, the
-  locale-free float formatter with up to 24 significant digits for floats, so float values survive exactly
-  *[inferred]*, `0`/`1` for Bool); an array of count 0 gives `0`. A **string** (RZChar array `0x800E`) and a
-  **Char array** (`0x800C`) give **all** their characters. An **RZUnicodeChar array** (`0x800D`) gives all its
-  characters, each UTF-16 unit below `0x80` as that byte and every other unit as `?` (`0x0090E901`). A **void
-  array** (`0x8000`) and a VoidPtr array (`0x800F`) give the **empty text**, which parses as 0. Worked examples
-  (`ConvertToString` `0x00916EAA`), read with `GetProperty(id, uint32&)`: void array `31 32` gives 0 (not 0x31);
-  Char array `31 32` ("12") gives 12; RZUnicodeChar array `0x00E9 0x0035` gives the text `?5`, which parses
+  float formatter below for floats, `0`/`1` for Bool); an array of count 0 gives `0`. A **string** (RZChar array
+  `0x800E`) and a **Char array** (`0x800C`) give **all** their characters. An **RZUnicodeChar array** (`0x800D`)
+  gives all its characters, each UTF-16 unit below `0x80` as that byte and every other unit as `?` (`0x0090E901`). A
+  **void array** (`0x8000`) and a VoidPtr array (`0x800F`) give the **empty text**, which parses as 0. Worked
+  examples (`ConvertToString` `0x00916EAA`), read with `GetProperty(id, uint32&)`: void array `31 32` gives 0 (not
+  0x31); Char array `31 32` ("12") gives 12; RZUnicodeChar array `0x00E9 0x0035` gives the text `?5`, which parses
   as 0.
+- **Floats as text** (`RZFtoaEnglishA` `0x0091052A`, called with a 64-byte buffer and 24 digits; a Float32 is
+  widened to double first) are **fixed-point, never with an exponent**: `-` for a negative value, the integer digits
+  in full (`0` when |x| < 1), then, if a non-zero fraction digit exists, `.`, the fraction's leading zeros, and at
+  most **24 further digits, cut, not rounded** (zeros at the end of a cut are kept; with nothing cut, trailing zeros
+  are not printed). The digits are those of the C runtime's `_fcvt(x, 64)`, so the exact binary value. Examples:
+  2.75 gives `2.75`; Float32 0.1 gives `0.100000001490116119384765`; Float32 0.001 gives
+  `0.00100000004749745130538940`; Float32 1e30 gives `1000000015047466219876688855040`. A Float64 whose text passes
+  63 characters is cut there. NaN and infinities come out as the C runtime prints them: `1.#INF`, `-1.#INF`,
+  `1.#QNAN`, `-1.#IND` (the default NaN) *[inferred from the MSVC runtime; its strings `1#INF`, `1#QNAN`, `1#SNAN`,
+  `1#IND` are in the exe]*, which parse back as ±1. **The round trip is not exact**: the parser (`RZStrtodEnglishA`,
+  §4.3 Float32) adds the digits one by one at the main thread's 24-bit precision, so Float32 3.14159 (`0x40490FD0`),
+  printed `3.141590118408203125`, reads back as `0x40490FCE`, and Float32 0.05 (`0x3D4CCCCD`) as `0x3D4CCCCC`.
+  2.75, 1.5 and other short binary fractions survive.
 - Text of a **scalar** (what `GetProperty(id, cIGZString&)` writes for one): integers with the formats above, Bool
   `0`/`1`, floats as for arrays, a Char or RZChar **its one character** (a zero byte gives a one-character text
   holding NUL), an RZUnicodeChar its character as one byte when it is `0xFF` or less, otherwise `?`. Worked
