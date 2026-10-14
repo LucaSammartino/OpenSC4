@@ -1454,9 +1454,10 @@ pub unsafe extern "C" fn fc4_residential_system_rating(p: *const fc4_residential
     query(p, 0.0, |s, _| s.system_rating(school))
 }
 
-/// Slots 14 / 15: adds the counted buildings' fields to `totals` (in/out)
-/// and returns their number. `groups` NULL reads as no group ([choice]: the
-/// original crashes).
+/// Slots 14 / 15 (REH §4.11, EH12): resets `totals` +0x14..+0x28 (in/out;
+/// the rest untouched), adds the query fields of every building that has one
+/// of `groups`, whatever its query returned, and returns their number.
+/// `groups` NULL reads as no group ([choice]: the original crashes).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_residential_system_totals(
     p: *const fc4_residential,
@@ -1544,7 +1545,8 @@ pub unsafe extern "C" fn fc4_residential_average_grid(
 }
 
 /// Slots 26 / 27: the query record (in/out, written field by field); false
-/// at the first missing field.
+/// at the first missing field, with the fields read before it written
+/// (EH10).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_residential_get_query_data(
     p: *const fc4_residential,

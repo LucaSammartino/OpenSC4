@@ -87,6 +87,8 @@ struct Host {
     simulator: Cell<bool>,
     /// `GetPollutionValue(kind, …)` at every cell.
     pollution: Cell<[u16; 3]>,
+    /// The number of `GetPollutionValue` calls.
+    pollution_calls: Cell<u32>,
     /// The growth developers' population maps (`int16`).
     developers: [Rc<SimGrid<i16>>; 3],
     building_map: RefCell<Option<Rc<SimGrid<u8>>>>,
@@ -134,6 +136,7 @@ impl Host {
             message_server: Cell::new(true),
             simulator: Cell::new(true),
             pollution: Cell::new([0; 3]),
+            pollution_calls: Cell::new(0),
             developers: std::array::from_fn(|_| SimGrid::<i16>::create(&city, 0, dev_size)),
             building_map: RefCell::new(None),
             effect: Cell::new(Some(500)),
@@ -343,6 +346,7 @@ impl ResidentialHost for Host {
         Some(self.developers[w].clone() as Rc<dyn TractGrid<i16>>)
     }
     fn pollution_value(&self, kind: u32, _cell_x: i32, _cell_z: i32) -> u16 {
+        self.pollution_calls.set(self.pollution_calls.get() + 1);
         self.pollution.get()[kind as usize]
     }
     fn sim_month(&self) -> u32 {
@@ -663,6 +667,9 @@ fn service(fx: &Fx, occ: u64, svc: &Service, i: usize, capacity: u32, radius: f3
     fx.h.set_prop(occ, svc.capacity, u(capacity));
     fx.h.set_prop(occ, svc.radius, f(radius));
     fx.h.lots.borrow_mut().insert(occ, centre);
+    // The building stands at its lot's centre ("served" reads GetPosition,
+    // EH6).
+    fx.h.positions.borrow_mut().insert(occ, centre);
     fx.h.add_ref(occ);
     fx.s.with_state(|s| {
         let l = if svc.school {
@@ -2840,6 +2847,10 @@ fn reh18_ideal_funding() {
     assert_eq!(fx.s.estimate_ideal_funding(2), None);
     fx.h.item(2, HOSPITAL.staff_purpose, BudgetItem::default());
     assert_eq!(fx.s.estimate_ideal_funding(2), Some(0.5));
+    // EH7: the school query first; it fails here (no school effective
+    // capacity), so the hospital query decides.
+    fx.h.set_prop(2, SCHOOL.capacity, u(1000));
+    assert_eq!(fx.s.estimate_ideal_funding(2), Some(0.5));
 }
 
 /// REH test 19: an ordinance's effect factor 110 → m3 = 1.1 for every
@@ -2890,7 +2901,11 @@ fn reh20_capacity_estimate() {
     );
     fx.h.set_prop(2, PROP_STRIKE_DAY, u(5));
     assert_eq!(fx.s.estimate_occupant_capacity(2), (500, 20));
+    // EH7: neither capacity reads as a hospital with capacity 0.
     assert_eq!(fx.s.estimate_occupant_capacity(99), (0, 0));
+    // EH7: the school capacity decides first (no school staff item: e1 1).
+    fx.h.set_prop(2, SCHOOL.capacity, u(600));
+    assert_eq!(fx.s.estimate_occupant_capacity(2), (600, 24));
 }
 
 /// REH test 21: the query data's per-staff fields: the school rounds up,
@@ -2944,7 +2959,143 @@ fn reh21_query_data() {
     );
     let mut t = QueryData::default();
     assert_eq!(fx.s.school_system_totals(&[0x1510], &mut t), 1);
-    assert_eq!(fx.s.hospital_system_totals(&[0x1512], &mut t), 0);
+    // EH12: the hospital's query fails (no staff item), and it still counts
+    // with what its query read (served raw), after the reset of +0x14..+0x28
+    // (+0x2C on are not touched).
+    t.staff_funding = 0.3;
+    assert_eq!(fx.s.hospital_system_totals(&[0x1512], &mut t), 1);
+    assert_eq!(
+        (
+            t.capacity,
+            t.effective_capacity,
+            t.capacity_per_staff,
+            t.effective_per_staff,
+            t.served,
+            t.grade,
+            t.staff_funding
+        ),
+        (1000, 991, 0, 0, NOT_GRADED, 0.0, 0.3)
+    );
+}
+
+/// EH12 (REH §4.11 "Totals"): every building that has one of the groups
+/// counts, whatever its query returned; one record serves every building, so
+/// a failed query adds the previous building's other fields; the group test
+/// is per building, over every list.
+#[test]
+fn eh12_system_totals() {
+    let fx = Fx::new(4);
+    // A hospital with its staff item, then one without (the farmer's market:
+    // a hospital through its groups only), in the same list.
+    service(&fx, 1, &HOSPITAL, 0, 1000, 10.0, (32.0, 32.0));
+    fx.h.item(1, HOSPITAL.staff_purpose, BudgetItem::default());
+    graded(&fx, 1, &HOSPITAL, 900, 300, 0.5);
+    service(&fx, 2, &HOSPITAL, 0, 200, 10.0, (32.0, 32.0));
+    graded(&fx, 2, &HOSPITAL, 100, NOT_GRADED, 0.25);
+    let mut t = QueryData {
+        capacity: 7,
+        served: 7,
+        grade: 7.0,
+        staff_funding: 0.5,
+        staff_cost: 9,
+        ..QueryData::default()
+    };
+    assert_eq!(fx.s.hospital_system_totals(&[0x1512], &mut t), 2);
+    // Building 2 adds its capacity, effective capacity and raw served
+    // (0xFFFFFFFF: −1 modulo 2³²), and building 1's per-staff fields (1000 /
+    // 30, 900 / 30) and grade.
+    assert_eq!(
+        (
+            t.capacity,
+            t.effective_capacity,
+            t.capacity_per_staff,
+            t.effective_per_staff,
+            t.served,
+            t.grade
+        ),
+        (1200, 1000, 66, 60, 299, 1.0)
+    );
+    assert_eq!((t.staff_funding, t.staff_cost), (0.5, 9));
+    // A building filed under 0x1512 that also has 0x151C counts for 0x151C.
+    fx.h.groups.borrow_mut().get_mut(&1).unwrap().push(0x151C);
+    assert_eq!(fx.s.hospital_system_totals(&[0x151C], &mut t), 1);
+    assert_eq!((t.capacity, t.served), (1000, 300));
+    assert_eq!(fx.s.hospital_system_totals(&[], &mut t), 0);
+    assert_eq!((t.capacity, t.served, t.grade), (0, 0, 0.0));
+}
+
+/// EH10 (REH §4.11 "Order of the tests and partial writes"): a failed query
+/// leaves the fields it read (served raw) and every other field as the
+/// caller left it.
+#[test]
+fn eh10_query_partial_writes() {
+    let fx = Fx::new(4);
+    service(&fx, 2, &HOSPITAL, 0, 1000, 10.0, (32.0, 32.0));
+    graded(&fx, 2, &HOSPITAL, 990, NOT_GRADED, 0.5);
+    let preset = QueryData {
+        capacity: 1,
+        effective_capacity: 2,
+        capacity_per_staff: 3,
+        effective_per_staff: 4,
+        served: 5,
+        grade: 6.0,
+        staff_funding: 7.0,
+        staff_cost: 8,
+        vehicle_funding: 9.0,
+        vehicle_cost: 10,
+    };
+    let read = |want: QueryData| {
+        let mut q = preset;
+        assert!(!fx.s.query_data_into(false, 2, &mut q));
+        assert_eq!(q, want);
+    };
+    // No staff item (tested last): capacity, effective capacity, raw served.
+    read(QueryData {
+        capacity: 1000,
+        effective_capacity: 990,
+        served: NOT_GRADED,
+        ..preset
+    });
+    // No grade: the same three.
+    fx.h.item(2, HOSPITAL.staff_purpose, BudgetItem::default());
+    fx.h.props.borrow_mut().remove(&(2, HOSPITAL.grade));
+    read(QueryData {
+        capacity: 1000,
+        effective_capacity: 990,
+        served: NOT_GRADED,
+        ..preset
+    });
+    // No effective capacity: the capacity alone.
+    fx.h.props.borrow_mut().remove(&(2, HOSPITAL.effective_capacity));
+    read(QueryData {
+        capacity: 1000,
+        ..preset
+    });
+    // A successful query maps served 0xFFFFFFFF to 0.
+    graded(&fx, 2, &HOSPITAL, 990, NOT_GRADED, 0.5);
+    let mut q = preset;
+    assert!(fx.s.query_data_into(false, 2, &mut q));
+    assert_eq!((q.served, q.capacity_per_staff, q.effective_per_staff), (0, 33, 33));
+}
+
+/// EH6 (REH §4.5): "served" takes the building's tract from its own
+/// `GetPosition`, while the tract list uses the lot centre. With the lot
+/// centre at x = 128 m (tract 2) and the building at x = 120 m (tract 1),
+/// the listed tract 2 gets dx = float(u32(1 − 2)) ≈ 4.29e9, so the distance
+/// curve is read at its last point.
+#[test]
+fn eh6_served_uses_the_position() {
+    let fx = Fx::new(16);
+    fx.set_tract(2, 0, steady([100, 0, 0]));
+    service(&fx, 1, &SCHOOL, 0, 500, 40.0, (128.0, 32.0));
+    fx.h.set_prop(1, SCHOOL.distance_curve, curve(&[0.0, 100.0, 100.0, 0.0]));
+    cover_and_grade(&fx, true);
+    assert_eq!(fx.h.prop_u32(1, SCHOOL.served), Some(100));
+    fx.h.positions.borrow_mut().insert(1, (120.0, 32.0));
+    fx.set_tract(2, 0, steady([100, 0, 0]));
+    cover_and_grade(&fx, true);
+    assert_eq!(coverage(&fx, 0, 2, 0), 1, "the tract list still has tract 2");
+    assert_eq!(fx.h.prop_u32(1, SCHOOL.served), Some(0));
 }
 
 // ---- REH §4.1: building registration ----
@@ -3183,9 +3334,27 @@ fn occupant_coverage_geometry() {
     fx.h.props.borrow_mut().remove(&(1, SCHOOL.radius));
     assert_eq!(fx.s.occupant_coverage(1, 0.5), Some((0.0, 0.0)));
     assert_eq!(fx.s.occupant_coverage(99, 0.5), None);
-    // The service: hospital first (question 7).
+    // The service: the hospital wins when both capacities exist (§4.11).
     fx.h.set_prop(1, HOSPITAL.capacity, u(10));
     assert_eq!(fx.s.occupant_service(1), Some(&HOSPITAL));
+
+    // EH7 [quirk]: with both capacities, the hospital's radius, but the
+    // school's distance curve (and funding): the school flag stays set.
+    let fx = Fx::new(4);
+    service(&fx, 3, &SCHOOL, 0, 1000, 200.0, (32.0, 32.0));
+    fx.h.set_prop(3, HOSPITAL.capacity, u(10));
+    fx.h.set_prop(3, HOSPITAL.radius, f(100.0));
+    fx.h.set_prop(3, SCHOOL.distance_curve, curve(&[0.0, 100.0, 50.0, 80.0, 100.0, 0.0]));
+    fx.h.set_prop(3, HOSPITAL.distance_curve, curve(&[0.0, 100.0, 100.0, 0.0]));
+    // (30 / 80 × 0.5) × 100 + 50 × 100 on the school curve (the hospital
+    // curve would give 50).
+    assert_eq!(fx.s.occupant_coverage(3, 0.5), Some((5018.75, 100.0)));
+    // EH8 [choice]: a distance property with fewer than two values has no
+    // points, so dist is 0 (the flat default would give NaN at level 1).
+    fx.h.set_prop(3, SCHOOL.distance_curve, f(5.0));
+    assert_eq!(fx.s.occupant_coverage(3, 1.0), Some((0.0, 100.0)));
+    fx.h.props.borrow_mut().remove(&(3, SCHOOL.distance_curve));
+    assert!(fx.s.occupant_coverage(3, 1.0).unwrap().0.is_nan());
 }
 
 /// REH §4.3: one effect element per service and ordinance that has at least
@@ -3445,10 +3614,47 @@ fn rs11_14_15_damaged_records() {
     let (ok, fx) = read(&patched(30, &256u32.to_le_bytes()));
     assert!(ok);
     assert_eq!(fx.s.snapshot().population_size, 256);
-    // [question] P is compared as signed: −1 is accepted.
-    let (ok, fx) = read(&patched(30, &(-1i32).to_le_bytes()));
+    // EH14 [choice]: P and E outside 1…256 as signed (E at offset 170).
+    assert_eq!(bytes[E_AT..E_AT + 4], 4i32.to_le_bytes());
+    for (what, at, v) in [
+        ("P -1", 30, -1i32),
+        ("P i32::MIN", 30, i32::MIN),
+        ("E 0", E_AT, 0),
+        ("E -1", E_AT, -1),
+        ("E 257", E_AT, 257),
+    ] {
+        let (ok, fx) = read(&patched(at, &v.to_le_bytes()));
+        assert!(!ok, "{what}");
+        assert_constructed(&fx);
+    }
+    let (ok, fx) = read(&patched(E_AT, &256i32.to_le_bytes()));
     assert!(ok);
-    assert_eq!(fx.s.snapshot().population_size, -1);
+    assert_eq!(fx.s.snapshot().eq_size, 256);
+    // EH14 [choice]: the loaded R$ population grid's own size (state 4's S).
+    for size in [0, -4, 512] {
+        let b = Fx::new(8);
+        let g = SimGrid::<u16>::create(&CityDims::square(8), 0, size);
+        b.s.with_state(|s| s.grids.population[0] = Some(g as Rc<dyn crate::grid::TractGrid<u16>>));
+        let (bytes, entries) = record(&b.s);
+        let fx = Fx::constructed(CityDims::square(8), 4, None);
+        assert!(!load(&fx, &bytes, &entries), "R$ population grid size {size}");
+        assert_constructed(&fx);
+    }
+}
+
+/// The offset of E in a version-7 record whose grids are all present.
+const E_AT: usize = STATE_AT - (2 * 4 + 6 * 8 + 4);
+
+/// EH14 (residential.md §5.5): state 4's S is the R$ population grid's own
+/// `GetTractSize()`, not the member P.
+#[test]
+fn eh14_state_4_tract_size_from_the_grid() {
+    let fx = Fx::new(8);
+    fx.s.with_state(|s| s.population_size = 2);
+    fx.h.pollution_calls.set(0);
+    fx.s.do_population_change(0, 0);
+    // Three pollution types × S² cells with S = 4 (P = 2 would give 12).
+    assert_eq!(fx.h.pollution_calls.get(), 48);
 }
 
 /// RS16: the average-LE guard is `population ≠ 0`, and the division is

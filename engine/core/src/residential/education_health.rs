@@ -30,43 +30,46 @@
 //! RS1). "u32→float" of a value with the top bit set adds 2³² with one
 //! rounding ([`u32_to_float`]).
 //!
-//! # Literal readings where REH is silent (`[question]`)
+//! # The answered questions (EH1 to EH13, `docs/specs/QUESTIONS.md`)
 //!
-//! Each is marked where it is implemented and listed in the lane report:
+//! The lane's literal readings 1 to 13 were answered from the exe and REH now
+//! states each one. The code follows REH and marks each place `EHn`:
 //!
-//! 1. `GetOccupantEfficiencyRatings` and `GetBaseStaffEfficiency` call
-//!    `GetOccupantFundingPercentages` with (a, b) starting at (0, 0), the
-//!    values the auto-budget step uses (§4.2, §4.10).
-//! 2. `SetOccupantFundingPercentages` that sets both percentages ends **with**
-//!    the dirty flag set, like a missing item (§2: the method sets dirty).
-//! 3. After `ChangeBudgetItemLine(…, GetBuildingType())`, the line used for
-//!    the line item is the building type (§4.1; budget.md §15's "GetLineItem or
-//!    CreateLineItemForBuildingType").
-//! 4. On removal with no line item for the line, the count step is skipped
-//!    (§4.1 creates one only when added).
-//! 5. A building added without a capacity property gets effective capacity 0
-//!    (§4.1; §4.5 reads a missing capacity as 0).
-//! 6. `GetPopulationServed`, the coverage tract list and the EQ/HQ boost all
-//!    take the building's position as its lot centre, else `GetPosition`
-//!    (§4.4 for the list; §4.5 names no position for `PositionToTract`).
-//! 7. Slots 28 and 58 pick the service the way slot 45 does: hospital if the
-//!    building has `0x69220415`, else school if it has `0x8922041B` (REH does
-//!    not say how they choose).
-//! 8. Slot 45 returns AL = 1 whenever the building's kind is found, with
-//!    distance 0 when no point falls to the level; a missing coverage radius
-//!    reads as 0.
-//! 9. `EstimateIdealFunding` tests the served **property** for `0xFFFFFFFF`
-//!    (the query record maps it to 0, which would make the test dead).
-//! 10. The hospital query also fails on a missing capacity, effective
-//!     capacity, served or grade (REH lists that rule for schools only), and it
-//!     tests the staff item after them.
-//! 11. The ratings' query record starts at zero (§4.11 says only that it is
-//!     not reset between buildings).
-//! 12. The system totals count only buildings whose query succeeds, and add
-//!     onto the caller's record.
-//! 13. In `AddRadiusEffectWithCurves`, a tract with coverage 0 keeps pop' =
-//!     pop (§4.6 defines pop' only for n ≠ 0); the coverage, population and
-//!     target grids are read at the same tract (x, z) (S = S_EQ).
+//! 1. EH1 (§4.2): the efficiency ratings and the base staff efficiency call
+//!    slot 20 with (a, b) = (0, 0) first, then test the staff item.
+//! 2. EH2 (§4.2): slot 19 ends with the dirty flag set in every case but a
+//!    null department, including when both percentages are set.
+//! 3. EH3 (§4.1): after `ChangeBudgetItemLine`, the call's own copy of the
+//!    item has the building type as its line, and every later step uses it.
+//! 4. EH4 (§4.1): on removal with no line item the original crashes;
+//!    *[choice]* the count step and `RemoveLineItem` are skipped.
+//! 5. EH5 (§4.1, §4.5): a building without a capacity property gets a stack
+//!    leftover as its effective capacity, and grading uses the radius
+//!    property ID as its capacity; *[choice]* 0 in both places.
+//! 6. EH6 (§4.5): the tract list and the boost use the lot centre, else
+//!    `GetPosition`; "served" takes the building's own tract from
+//!    `GetPosition` alone, so the two can differ.
+//! 7. EH7 (§4.10, §4.11): slot 28 is the school if the building has the
+//!    school capacity, else the hospital; slot 58 tries the school query, then
+//!    the hospital query; slot 45's "hospital wins" covers only the radius,
+//!    the kind and the ordinance list (the school flag stays set).
+//! 8. EH8 (§4.11): slot 45 returns AL = 1 whenever the kind is found; no
+//!    radius reads as 0 and no qualifying point gives dist 0. *[choice]* A
+//!    distance property with fewer than two values (no points; the original
+//!    leaves dist unwritten) also gives 0.
+//! 9. EH9 (§4.10): slot 58 tests the served **property** itself.
+//! 10. EH10 (§4.11): both queries read capacity, effective capacity, served
+//!     and grade, in that order; the hospital query then requires the staff
+//!     item. A failed query leaves the fields it read (served raw).
+//! 11. EH11 (§4.11): the ratings' record has stack leftovers; *[choice]* it
+//!     starts at 0.
+//! 12. EH12 (§4.11): the totals reset the caller's +0x14..+0x28 first, then
+//!     count and add **every** building that has one of the groups, whatever
+//!     its query returned.
+//! 13. EH13 (§4.6): with n = 0, eff and pop are used unscaled; population,
+//!     coverage and target are read at the same (x, z), the age grid at cell
+//!     (x × S_t, z × S_t). *[choice]* A tract outside a smaller source grid
+//!     reads as 0.
 //!
 //! # Choices (`[choice]`) where the original crashes or hangs
 //!
@@ -302,6 +305,16 @@ fn elem_f32(e: Elem) -> f32 {
     }
 }
 
+/// A curve property the loader turns into a curve with **no** points
+/// (foundations §4.1): a scalar or an array of fewer than two numbers.
+fn too_few_values(v: &Variant) -> bool {
+    match v {
+        Variant::Scalar(_) => true,
+        Variant::Array { elem, items } if *elem != mem::RZ_CHAR && *elem != 0 => items.len() < 2,
+        _ => false,
+    }
+}
+
 /// `float(a) / float(b)` of two u32 values, one rounding.
 fn ratio_u32(a: u32, b: u32) -> f32 {
     (u32_to_float(a as i32) / u32_to_float(b as i32)) as f32
@@ -444,7 +457,7 @@ pub fn add_radius_effect_with_curves(e: &RadiusEffect<'_>, total: &mut f32) {
                 }
                 let mut eff = mult * e.value;
                 let n = e.coverage.map_or(0, |c| c.get(x, z));
-                // [question 13] pop' = pop when n = 0.
+                // EH13: n = 0 leaves eff and pop' = pop unscaled.
                 let mut pop2 = u32::from(p);
                 if n != 0 {
                     let k = per_unit(e.units, n);
@@ -543,7 +556,8 @@ impl ResidentialSim {
     }
 
     /// The lot's centre (`GetOccupantLot` → `GetCenter`), else the occupant's
-    /// `GetPosition` (§4.4; [question 6] for §4.5 and §4.6).
+    /// `GetPosition`: the tract list (§4.4) and the boost centre (§4.6), EH6.
+    /// "Served" (§4.5) uses `GetPosition` alone.
     fn centre(&self, occ: u64) -> (f32, f32) {
         match self.host.occupant_lot_center(occ) {
             Some(c) => c,
@@ -551,16 +565,28 @@ impl ResidentialSim {
         }
     }
 
-    /// The service of a building by its capacity property (slot 45): hospital
-    /// if it has `0x69220415`, else school if it has `0x8922041B`.
+    /// The service of a building by its capacity property, as slot 45 picks
+    /// it (§4.11): school if it has `0x8922041B`, then hospital if it has
+    /// `0x69220415` (the hospital wins when both).
     pub fn occupant_service(&self, occ: u64) -> Option<&'static Service> {
-        if self.has_prop(occ, HOSPITAL.capacity) {
+        self.coverage_kind(occ).1
+    }
+
+    /// Slot 45's two tests (§4.11, EH7): the school test sets the school flag,
+    /// and the hospital test, run after it, picks the hospital's radius, kind
+    /// and ordinance list **without** clearing the flag *[quirk]*. Returns
+    /// `(school flag, service)`.
+    fn coverage_kind(&self, occ: u64) -> (bool, Option<&'static Service>) {
+        let school = self.has_prop(occ, SCHOOL.capacity);
+        let hospital = self.has_prop(occ, HOSPITAL.capacity);
+        let svc = if hospital {
             Some(&HOSPITAL)
-        } else if self.has_prop(occ, SCHOOL.capacity) {
+        } else if school {
             Some(&SCHOOL)
         } else {
             None
-        }
+        };
+        (school, svc)
     }
 
     // ---- ordinance effects (§4.3) ----
@@ -666,8 +692,8 @@ impl ResidentialSim {
     /// Slot 19 `SetOccupantFundingPercentages(occ, staff, vehicle, isSchool)`:
     /// `SetLocalFundingPercent` for the staff, then the vehicle purpose. A
     /// missing item ends the call with the dirty flag set, a null department
-    /// without it; [question 2] setting both also sets it. A replacement
-    /// returns true.
+    /// without it, and setting both also sets it (EH2). A replacement returns
+    /// true.
     pub fn set_occupant_funding(&self, occ: u64, staff: f32, vehicle: f32, is_school: bool) -> bool {
         let h = &*self.host;
         let svc = Service::of(is_school);
@@ -712,12 +738,13 @@ impl ResidentialSim {
     /// `effCurve(a × 100) × 0.01`, and e2 = `coverageCurve(b × 100) × 0.01`.
     pub fn efficiency_ratings(&self, occ: u64, is_school: bool, ignore_strike: bool) -> (f32, f32) {
         let svc = Service::of(is_school);
+        // EH1: (a, b) start at (0, 0), and slot 20 is always called, before
+        // the staff-item test.
+        let (mut a, mut b) = (0.0f32, 0.0f32);
+        self.get_occupant_funding(occ, &mut a, &mut b, is_school);
         if self.host.budget_item(occ, svc.staff_purpose).is_none() {
             return (1.0, 1.0);
         }
-        // [question 1] (a, b) start at (0, 0).
-        let (mut a, mut b) = (0.0f32, 0.0f32);
-        self.get_occupant_funding(occ, &mut a, &mut b, is_school);
         let striking = !ignore_strike && self.strike_day(occ) != 0;
         self.with_service_tuning(is_school, |eff, cov, strike_eff| {
             let e1 = if striking {
@@ -730,14 +757,16 @@ impl ResidentialSim {
     }
 
     /// `GetBaseStaffEfficiency(occ, isSchool)` (§4.2): `effCurve(a × 100) ×
-    /// 0.01` with a staff item, else 1.0; strikes are ignored.
+    /// 0.01` with a staff item, else a (1.0, set by slot 20); strikes are
+    /// ignored.
     pub fn base_staff_efficiency(&self, occ: u64, is_school: bool) -> f32 {
         let svc = Service::of(is_school);
-        if self.host.budget_item(occ, svc.staff_purpose).is_none() {
-            return 1.0;
-        }
+        // EH1: slot 20 first, from (0, 0).
         let (mut a, mut b) = (0.0f32, 0.0f32);
         self.get_occupant_funding(occ, &mut a, &mut b, is_school);
+        if self.host.budget_item(occ, svc.staff_purpose).is_none() {
+            return a;
+        }
         self.with_service_tuning(is_school, |eff, _, _| pct(eff.eval(a * 100.0)))
     }
 
@@ -772,7 +801,8 @@ impl ResidentialSim {
         if let Some(item) = item {
             let mut line = item.line;
             if line == 0 {
-                // [question 3] the line item is the building type's from here.
+                // EH3: the call's copy of the item has the building type as
+                // its line from here on.
                 line = h.building_type(b);
                 h.change_budget_item_line(b, item.index, line);
             }
@@ -794,7 +824,8 @@ impl ResidentialSim {
                 li
             } else {
                 h.remove_locally_funded(dept, b, svc.staff_purpose);
-                // [question 4] no line item: no count step.
+                // EH4: the original uses the line item unchecked (a crash
+                // without one); [choice] no count step and no RemoveLineItem.
                 h.line_item(dept, line)
             };
             if let Some(li) = line_item {
@@ -819,7 +850,7 @@ impl ResidentialSim {
             h.set_occupant_u32(b, svc.served, NOT_GRADED);
             h.set_occupant_f32(b, svc.grade, 1.0);
             h.set_occupant_f32(b, svc.staff_ratio, 1.0);
-            // [question 5] no capacity: 0.
+            // EH5: the original writes a stack leftover here; [choice] 0.
             let capacity = self.prop_u32(b, svc.capacity).unwrap_or(0);
             h.set_occupant_u32(b, svc.effective_capacity, capacity);
             h.add_ref(b);
@@ -1203,6 +1234,8 @@ impl ResidentialSim {
             h.set_occupant_f32(occ, svc.grade, 0.0);
             return;
         };
+        // EH5: the original grades a missing capacity as the radius
+        // property's ID (a stack leftover); [choice] 0.
         let capacity = self.prop_u32(occ, svc.capacity).unwrap_or(0);
         let (e1, e2) = self.efficiency_ratings(occ, svc.school, false);
         let base = self.base_staff_efficiency(occ, svc.school);
@@ -1275,7 +1308,9 @@ impl ResidentialSim {
         if g.r <= 0.0 {
             return 0;
         }
-        let (px, pz) = self.centre(g.occ);
+        // EH6 *[compat]*: the building's own tract from its `GetPosition`
+        // alone, with no lot lookup (the tract list used the lot centre).
+        let (px, pz) = self.host.occupant_position(g.occ);
         let (tx, tz) = f.population[0]
             .as_ref()
             .map_or((0, 0), |p| p.geometry().position_to_tract(px, pz));
@@ -1359,17 +1394,21 @@ impl ResidentialSim {
 
     /// Slot 58 `EstimateIdealFunding(occ, &f)` (§4.10): the first point of the
     /// grid r ± k × 0.01 where the efficiency reaches r = served / (capacity ×
-    /// m2), clamped to [0, max funding]; `None` (AL = 0) when the query data
-    /// fails or the building is not graded yet. [question 7] The service is
-    /// chosen as slot 45 chooses it.
+    /// m2), clamped to [0, max funding]; `None` (AL = 0) when neither query
+    /// succeeds or the building is not graded yet.
     pub fn estimate_ideal_funding(&self, occ: u64) -> Option<f32> {
-        let svc = self.occupant_service(occ)?;
+        // EH7 *[compat]*: the school query first, then the hospital query.
         let mut q = QueryData::default();
-        if !self.query_data_into(svc.school, occ, &mut q) {
+        let svc = if self.query_data_into(true, occ, &mut q) {
+            &SCHOOL
+        } else if self.query_data_into(false, occ, &mut q) {
+            &HOSPITAL
+        } else {
             return None;
-        }
-        // [question 9] the property, before the record's 0xFFFFFFFF → 0.
-        if self.prop_u32(occ, svc.served) == Some(NOT_GRADED) {
+        };
+        // EH9: the served property itself (read into a value preset to
+        // 0xFFFFFFFF, so a missing one fails too), not the record's +0x24.
+        if self.prop_u32(occ, svc.served).unwrap_or(NOT_GRADED) == NOT_GRADED {
             return None;
         }
         let effects = self.ordinance_effects_for(occ, svc, svc.ordinance_kind);
@@ -1415,10 +1454,12 @@ impl ResidentialSim {
 
     // ---- queries (§4.11) ----
 
-    /// The query record of slots 26 / 27, written field by field in the order
-    /// read; false (AL = 0) at the first missing field. The school query
-    /// fails only on a missing capacity, effective capacity, served or grade;
-    /// the hospital query also needs its staff item ([question 10]).
+    /// The query record of slots 26 / 27 (§4.11, EH10): capacity, effective
+    /// capacity and served (raw) are read straight into the record, then the
+    /// grade; the hospital query then requires its staff item. The first
+    /// missing one returns false (AL = 0) and leaves the fields read before
+    /// it. Only a successful query writes +0x1C..+0x38 and maps served
+    /// `0xFFFFFFFF` to 0.
     pub fn query_data_into(&self, school: bool, occ: u64, q: &mut QueryData) -> bool {
         let h = &*self.host;
         let svc = Service::of(school);
@@ -1438,6 +1479,22 @@ impl ResidentialSim {
             return false;
         };
         q.effective_capacity = eff;
+        let Some(served) = self.prop_u32(occ, svc.served) else {
+            return false;
+        };
+        q.served = served; // raw until the query succeeds
+        let Some(grade) = self.prop_f32(occ, svc.grade) else {
+            return false;
+        };
+        let staff = match h.budget_item(occ, svc.staff_purpose) {
+            Some(i) => (i.local_funding, i.cost),
+            None if school => (1.0, 0),
+            None => return false,
+        };
+        let vehicle = match h.budget_item(occ, svc.vehicle_purpose) {
+            Some(i) => (i.local_funding, i.cost),
+            None => (1.0, 0),
+        };
         q.capacity_per_staff = capacity.checked_div(divisor).unwrap_or(0);
         // *[quirk]* the school rounds up, the hospital down.
         q.effective_per_staff = if school {
@@ -1445,23 +1502,12 @@ impl ResidentialSim {
         } else {
             eff.checked_div(divisor).unwrap_or(0)
         };
-        let Some(served) = self.prop_u32(occ, svc.served) else {
-            return false;
-        };
-        q.served = if served == NOT_GRADED { 0 } else { served };
-        let Some(grade) = self.prop_f32(occ, svc.grade) else {
-            return false;
-        };
-        q.grade = grade;
-        match h.budget_item(occ, svc.staff_purpose) {
-            Some(i) => (q.staff_funding, q.staff_cost) = (i.local_funding, i.cost),
-            None if school => (q.staff_funding, q.staff_cost) = (1.0, 0),
-            None => return false,
+        if served == NOT_GRADED {
+            q.served = 0;
         }
-        (q.vehicle_funding, q.vehicle_cost) = match h.budget_item(occ, svc.vehicle_purpose) {
-            Some(i) => (i.local_funding, i.cost),
-            None => (1.0, 0),
-        };
+        q.grade = grade;
+        (q.staff_funding, q.staff_cost) = staff;
+        (q.vehicle_funding, q.vehicle_cost) = vehicle;
         true
     }
 
@@ -1478,8 +1524,8 @@ impl ResidentialSim {
     /// Slots 12 / 13 (hidden pointer): Σ effective capacity over the group
     /// lists ÷ the population, clamped to 1.0; 0 when the sum is 0, 1.0 when
     /// the population is 0. *[quirk]* The query record is not reset between
-    /// buildings, so a failed query adds the previous building's value again
-    /// ([question 11]: the record starts at 0).
+    /// buildings, so a failed query adds the previous building's value again.
+    /// EH11: the original's record starts with stack leftovers; *[choice]* 0.
     pub fn system_rating(&self, school: bool) -> f32 {
         let mut q = QueryData::default();
         let mut sum = 0u32;
@@ -1503,31 +1549,39 @@ impl ResidentialSim {
         self.system_rating(false)
     }
 
-    /// Slots 14 / 15: over the group lists whose ID is in `groups`, add the
-    /// query fields +0x14..+0x24 (u32) and +0x28 (grade) into `totals`; the
-    /// number of buildings counted (EAX). [question 12] Only successful
-    /// queries count. The original crashes on a null `groups` *[quirk]*; a
-    /// slice cannot be null.
+    /// Slots 14 / 15 (§4.11, EH12): the caller's +0x14..+0x24 := 0 and +0x28
+    /// := 0.0 first (+0x2C..+0x38 are not touched). Then every building of
+    /// every group list, in list order, that is in at least one of `groups`
+    /// (`IsOccupantGroup`, per building) runs the service's query into one
+    /// record, **whatever its result**, and adds the record's +0x14..+0x24
+    /// (u32, wrapping) and +0x28 (float32) to the totals. Returns the number
+    /// of buildings counted (EAX). A failed query adds what it read plus the
+    /// previous building's other fields. The original crashes on a null
+    /// `groups` *[quirk]*; a slice cannot be null.
     pub fn system_totals(&self, school: bool, groups: &[u32], totals: &mut QueryData) -> u32 {
         let svc = Service::of(school);
+        totals.capacity = 0;
+        totals.effective_capacity = 0;
+        totals.capacity_per_staff = 0;
+        totals.effective_per_staff = 0;
+        totals.served = 0;
+        totals.grade = 0.0;
+        // [question] The record starts with stack leftovers in +0x14..+0x24
+        // (+0x28 is 0); FreeCity4 starts it at 0, as EH11's ratings record.
+        let mut q = QueryData::default();
         let mut count = 0u32;
-        for (list, id) in self.group_lists(svc).iter().zip(svc.groups) {
-            if !groups.contains(id) {
+        for occ in self.group_lists(svc).into_iter().flatten().flatten() {
+            if !groups.iter().any(|&g| self.host.is_occupant_group(occ, g)) {
                 continue;
             }
-            for &occ in list.iter().flatten() {
-                let mut q = QueryData::default();
-                if !self.query_data_into(school, occ, &mut q) {
-                    continue;
-                }
-                totals.capacity = totals.capacity.wrapping_add(q.capacity);
-                totals.effective_capacity = totals.effective_capacity.wrapping_add(q.effective_capacity);
-                totals.capacity_per_staff = totals.capacity_per_staff.wrapping_add(q.capacity_per_staff);
-                totals.effective_per_staff = totals.effective_per_staff.wrapping_add(q.effective_per_staff);
-                totals.served = totals.served.wrapping_add(q.served);
-                totals.grade += q.grade;
-                count += 1;
-            }
+            self.query_data_into(school, occ, &mut q); // the result is ignored
+            totals.capacity = totals.capacity.wrapping_add(q.capacity);
+            totals.effective_capacity = totals.effective_capacity.wrapping_add(q.effective_capacity);
+            totals.capacity_per_staff = totals.capacity_per_staff.wrapping_add(q.capacity_per_staff);
+            totals.effective_per_staff = totals.effective_per_staff.wrapping_add(q.effective_per_staff);
+            totals.served = totals.served.wrapping_add(q.served);
+            totals.grade += q.grade;
+            count = count.wrapping_add(1);
         }
         count
     }
@@ -1541,11 +1595,14 @@ impl ResidentialSim {
     /// Slot 28 `EstimateCurrentOccupantCapacity(occ, &cap, &staff)` (§4.11):
     /// cap = trunc((capacity × e1) × m2) with e1 ignoring strikes, staff =
     /// ceil(cap / **school** divisor) for both services *[quirk]*.
-    /// [question 7] The service is chosen as slot 45 chooses it; [choice]
-    /// (0, 0) for a building that is neither.
     pub fn estimate_occupant_capacity(&self, occ: u64) -> (u32, u32) {
-        let Some(svc) = self.occupant_service(occ) else {
-            return (0, 0);
+        // EH7 *[compat]*: the school if the building has the school capacity,
+        // else the hospital, with no test that its capacity exists (a missing
+        // one reads as 0, so cap = staff = 0).
+        let svc = if self.has_prop(occ, SCHOOL.capacity) {
+            &SCHOOL
+        } else {
+            &HOSPITAL
         };
         let capacity = self.prop_u32(occ, svc.capacity).unwrap_or(0);
         let (e1, _) = self.efficiency_ratings(occ, svc.school, true);
@@ -1561,16 +1618,26 @@ impl ResidentialSim {
     /// neither a school nor a hospital. dist walks the distance curve's
     /// points from the second on, keeping the last one above `level × 100`,
     /// and interpolates at the first one at or below it; *[quirk]* the
-    /// `x_prev` term has no 0.01 factor. [question 8] AL = 1 whenever the
-    /// kind is found (dist 0 when no point qualifies); no radius reads as 0.
+    /// `x_prev` term has no 0.01 factor. EH8: AL = 1 whenever the kind is
+    /// found; no radius reads as 0; no qualifying point gives dist 0.
     pub fn occupant_coverage(&self, occ: u64, level: f32) -> Option<(f32, f32)> {
-        let svc = self.occupant_service(occ)?;
-        let (_, e2) = self.efficiency_ratings(occ, svc.school, false);
+        // EH7 *[quirk]*: the hospital wins the radius, kind and ordinance
+        // list; the efficiency ratings and the distance curve follow the
+        // school flag.
+        let (school_flag, svc) = self.coverage_kind(occ);
+        let svc = svc?;
+        let (_, e2) = self.efficiency_ratings(occ, school_flag, false);
         let effects = self.ordinance_effects_for(occ, svc, svc.ordinance_kind);
         let (m1, _, _) = ordinance_modifiers(&effects);
         let radius = (e2 * m1) * self.prop_f32(occ, svc.radius).unwrap_or(0.0);
         let l = level * 100.0;
-        let points = self.prop_curve(occ, svc.distance_curve).points();
+        let curve = Service::of(school_flag).distance_curve;
+        let points = match self.host.occupant_property(occ, curve) {
+            // EH8: no points; the original leaves dist unwritten, [choice] 0.
+            Some(v) if too_few_values(&v) => Vec::new(),
+            Some(v) => props::curve_of_variant(&v).unwrap_or_else(flat_curve).points(),
+            None => flat_curve().points(),
+        };
         let mut dist = 0.0f32;
         if let Some((&first, rest)) = points.split_first() {
             let mut prev = first;

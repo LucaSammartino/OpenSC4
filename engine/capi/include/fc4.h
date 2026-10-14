@@ -3787,8 +3787,10 @@ bool fc4_residential_read(fc4_residential* p, const fc4_istream* in); /* §9.2; 
 bool fc4_residential_end_strike(fc4_residential* p, bool school);
 float fc4_residential_strike_chance(const fc4_residential* p, bool school); /* 10 / 11 */
 float fc4_residential_system_rating(const fc4_residential* p, bool school); /* 12 / 13 */
-/* 14 / 15: adds the counted buildings' fields to `totals` (in/out) and
- * returns their number; `groups` NULL = no group. */
+/* 14 / 15 (REH §4.11, EH12): resets `totals` +0x14..+0x28 (in/out; the rest
+ * untouched), adds the query fields of every building that has one of
+ * `groups`, whatever its query returned, and returns their number; `groups`
+ * NULL = no group. */
 uint32_t fc4_residential_system_totals(const fc4_residential* p, bool school, const uint32_t* groups,
                                        uint32_t group_count, fc4_residential_query_data* totals);
 bool fc4_residential_set_occupant_funding(fc4_residential* p, uint64_t occ, float staff, float vehicle,
@@ -3799,7 +3801,8 @@ bool fc4_residential_get_occupant_funding(const fc4_residential* p, uint64_t occ
 /* 21 / 22: a NEW float grid per call handed out with one reference (0 = none);
  * `min` / `max` get the range (255 / 0 without a grid). */
 uint64_t fc4_residential_average_grid(const fc4_residential* p, bool is_eq, float* min, float* max);
-/* 26 / 27: the query record (in/out); false at the first missing field. */
+/* 26 / 27: the query record (in/out); false at the first missing field, with
+ * the fields read before it written (EH10). */
 bool fc4_residential_get_query_data(const fc4_residential* p, bool school, uint64_t occ, fc4_residential_query_data* data);
 bool fc4_residential_estimate_capacity(const fc4_residential* p, uint64_t occ, uint32_t* capacity,
                                        uint32_t* staff); /* 28: true */
