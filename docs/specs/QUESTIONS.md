@@ -1138,3 +1138,26 @@ shadow's current answer is in brackets.
   bookkeeping line differs a little: the original's running counts against our from-scratch insertion of the live
   occupants, e.g. consumers 725/722, requirement 6481/6480, 4 consumption-map cells (max |d| 2). Which occupants does
   the original count that a rebuild from the live occupants does not (or the other way round)?
+
+## From the plumbing grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/plumbing.md`. Ini: `plumbing_shadow = 1` (needs our simulator and the ORIGINAL plumbing simulator:
+do not enable `plumbing`); one line per pass at the original's swap and after its state 8, one per month. The
+shadow's current answer is in brackets.
+
+- **PS1:** the order in which unvisited water connections are listed is inferred; the read-only host cannot find
+  them, so the shadow reproduces it over its own visited flags. The original's order? [inferred]
+- **PS2:** pipe condition is a distress fraction that drops to 0 at funding of 50% or more. Intended? [as stated]
+- **PS3:** the original's pipe condition is not saved and not observable; the shadow starts its own at 0, so the
+  first month after a load assumes the original also restarts at 0. Right?
+- **PS4 — §5.3:** demand is a running sum the original builds as things are added; the shadow takes it from the
+  original's record instead of recomputing it. Acceptable? [taken from the record]
+- **PS5:** the monthly funding comes from department `0xAA4014B4`, a choice the spec does not state. Which
+  department? [`0xAA4014B4`]
+- **PS6:** a pass's start is seen only when state 2 changes a probe cell; if the next working grid already matches
+  what state 2 would write, the start is missed and the pass is marked not exact. [as stated]
+- **PS7:** when a state 8 may have run unobserved, ageing is logged as `unknown` and producer condition is not
+  compared. [as stated]
+- Not compared: the pipes' watered states (only reachable through a non-virtual call), redisplay, posts, history,
+  line-item expenses, lot conditions and deal flags; the original's pipe condition and pass state (not saved, not
+  exposed). New bursts are range-checked only (random draw).
