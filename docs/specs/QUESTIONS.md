@@ -532,7 +532,10 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   2026-10-14** from the exe: **the storage half matches.** Tag 0 has no value bytes; the property is added and holds
   an Empty variant (memory type 0, `GetCount()` 0), so `HasProperty` is true. The getter half does not match: see
   EX5. No shipped record uses tag 0 (data-formats.md §4.2, with an example).
-- **EX2:** Uint64 to float, signed or unsigned? [unsigned]
+- ~~**EX2:** Uint64 to float, signed or unsigned? [unsigned]~~ **ANSWERED 2026-10-14** from the exe (`0x00915B85`):
+  **the bracket matches**, with one addition. The value is unsigned (low 63 bits + 2⁶³), but the add runs at the
+  main thread's 24-bit precision, so a Uint64 keeps 24 significant bits even when read as Float64: 16,777,217
+  gives 16,777,216.0. Uint32 ≥ 2³¹ goes through the same kind of add (data-formats.md §5.1).
 - **EX3:** float to int when out of range or NaN? [saturates; NaN gives 0]
 - **EX4:** is RZChar signed when widened? [zero-extended]
 - **EX5:** what do the getters return for Empty or object values? [None]

@@ -400,9 +400,19 @@ If the stored type equals the requested type, the value is returned as is. Other
 | Stored | Requested | Result |
 |---|---|---|
 | scalar Bool…RZChar (memory types `0x01`–`0x0E`) | Float32 | value → float64 → **rounded to float32** |
-| scalar | Float64 | value → float64 (Uint32 ≥ 2³¹ corrected to unsigned) |
+| scalar | Float64 | value → float64; unsigned types as unsigned, with the 24-bit rounding below for Uint32 ≥ 2³¹ and for every Uint64; signed types exact (Sint64 rounded to 53 bits) |
 | scalar | integer type, Bool, char types | value → int64 (unsigned types zero-extended, signed sign-extended, **floats truncated toward zero**), then the low bits of the target width; Bool = (int64 ≠ 0) |
 | array (any element type), string, or a requested non-scalar type | any | **text round trip** (below) |
+
+**Unsigned 64-bit and large unsigned 32-bit values.** The to-double converter (`0x00915B85`) turns a Uint64 into a
+double as (its low 63 bits, loaded as a signed int64) + 2⁶³ when the top bit is set, + 0 otherwise, and a Uint32
+with the top bit set as (its value loaded as signed) + 2³². The add runs at the caller's x87 precision, 24-bit on
+the main thread (foundations §18.2), so the result keeps **24 significant bits even for a Float64 target**. For a
+Uint64 the add is done whether or not the top bit is set. Signed values and Uint32 below 2³¹ are loaded exactly.
+Worked example, `GetValFloat64` on the main thread: Uint64 16,777,217 (2²⁴ + 1) gives **16,777,216.0**; Sint64
+16,777,217 gives 16,777,217.0; Uint32 16,777,217 gives 16,777,217.0; Uint32 `0x80000001` gives
+**2,147,483,648.0**. Text parsed as an unsigned number for a Float32 or Float64 target (round trip below) takes the
+same path. FreeCity4 reproduces it by rounding these values to 24 significant bits (round to nearest even).
 
 **Text round trip** (arrays and strings): the source is turned into text, then the text is parsed into the target.
 
