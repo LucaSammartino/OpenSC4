@@ -415,7 +415,7 @@ Names in quotes are the official property names (community property list, re/pri
 | Property | Type | Default | Meaning |
 |---|---|---|---|
 | (exemplar instance) | — | — | crime type ID |
-| `0x8A416B2E` | u32 ×3 LTEXT key | — | display name, loaded with `SC4LoadExemplarString` (the key's group and instance select the LTEXT) |
+| `0x8A416B2E` | u32 ×3 LTEXT key | — | display name, loaded with `SC4LoadExemplarString` (below) |
 | `0xAA12FCB0` | **string** | empty | "Crime Name": an inline name, read **only when** the LTEXT load fails (no key property, or no such LTEXT). If it is absent too, the name stays empty |
 | `0xAA12FCB1` | u32 ×3 | `(0, 0, 0)` | "Icon Resource Key" (type, group, instance) |
 | `0xAA12FCB2` | u8 array | all bits | "Zone Filter" (zone mask) |
@@ -425,6 +425,22 @@ Names in quotes are the official property names (community property list, re/pri
 | `0xAA12FCB6` | u8 | 0 | "Trigger Fire": arson flag (non-zero = start a fire) |
 | `0xAA12FCB7` | u8 array | all bits | "Lot Condition Filter" |
 | `0xAA12FCB8` | f32 | 10 | "Relative Occurrance": selection weight |
+
+**Name** *[compat]* (`LoadCrimeTypeFromExemplar` `0x006A0D12`; `SC4LoadExemplarString` `0x00603270` →
+`0x00603220`; `SC4LoadString` `0x00603040`):
+
+1. Read property `0x8A416B2E` as three `u32` from the exemplar that the resource manager returns for the crime
+   type's own key. If it is missing, the load fails. Value [0] (the key's type) is **ignored**: the LTEXT type is
+   always `0x2026960B`. Value [1] is the LTEXT group `G` and value [2] the instance `I`.
+2. Look up (`0x2026960B`, `G` + current language ID, `I`). If that is missing and the language ID is not 0, look up
+   (`0x2026960B`, `G`, `I`) (data-formats §6.2). If both are missing, the load fails and the name is untouched.
+3. Copy the text into the name. Run the game's string detokenizer on it in place (the application's
+   `GetStringDetokenizer`, `cISCStringDetokenizer` slot 9). If it returns false, the load fails. With no
+   detokenizer the step is skipped.
+4. Replace every U+2022 by U+200B (data-formats §6.1). The load succeeds.
+
+If the load fails, read the string property `0xAA12FCB0` into the name. If that is missing too, the name stays
+as it was (empty for a new entry).
 
 **Mask parsing**: each byte `b` sets bit `b − 1`. A byte 0 makes the mask `0xFFFFFFFF` (any). *[quirk]* A present
 but **empty** array gives mask 0, which never matches. A missing property gives `0xFFFFFFFF`. Byte values above
@@ -452,12 +468,15 @@ name (property `0x20`), which the simulator does not read.
 | 0x12 | Pie Throwing | 40 | 4 | — | purpose [9, 1, 2, 3, 4, 6, 7, 8] | `0x4A63A9E4` | `0x7A5EA698` |
 | 0x13 | TPing | 40 | 4 | — | zone [1]; wealth [3, 2]; purpose [1] | `0x2A63A9F9` | `0x8A5EA698` |
 
-*[compat]* Shipped data quirks: Bank Robbery has the same icon and name key as Mugging. In the English
-`SimCityLocale.DAT` only `0xEA5EA698` exists in group `0x0A554AE0` (and its text is an unrelated building
-description); none of the other name keys exists in any shipped package. The other types' names therefore load
-empty (no `0xAA12FCB0` fallback), and Generic's name is that unrelated text *[inferred: `SC4LoadString`'s lookup
-order (other languages, LTEXT sources outside the packages) not traced]*. The name only feeds the incident
-record, the `0x0A159D95` message string and the save.
+*[compat]* Shipped data quirks: Bank Robbery has the same icon and name key as Mugging. In every one of the 13
+shipped language packages, `0xEA5EA698` is the only name key present in group `0x0A554AE0`, and its text is an
+unrelated building description. None of the other name keys exists in any shipped package, and no package has a
+group `0x0A554AE0` + language ID. Only the current language's package is loaded (data-formats §6.2), so another
+language cannot supply a name. In every language, the other 13 types therefore load **empty** (no `0xAA12FCB0`
+fallback), and Generic's name is that language's unrelated text, detokenized. The name only feeds the incident
+record, the `0x0A159D95` message string and the save. *[choice]* FreeCity4 reproduces the four steps above.
+Inside the game it may instead call the game's `SC4LoadString` (`0x00603040`, `cdecl`, arguments `(cIGZString&
+out, G, I, detokenizer or null)`), which gives the same text, detokenizer included.
 
 Purpose byte 9 is bit 8 (`0x100`), the value used for "no purpose / no building" (§6.7). "Condition [3]" is bit 2,
 which matches lot condition 4 only: an abandoned lot at its last decay stage (foundations §5.2).
@@ -845,8 +864,9 @@ Corrections to `docs/subsystems/grid-sims.md` §6:
    48 is `ReleaseOccupantList`.
 6. The meaning of the two unused saved `u32` values.
 7. The fire cause value 2 (arson) and what `SetCause` changes in the fire's behaviour.
-8. Crime type names (§7): the shipped name keys are missing from the shipped locale packages. Whether
-   `SC4LoadString` finds them elsewhere (for example in another language package) was not traced.
+8. *(resolved, §7)* Crime type names: the LTEXT key is (`0x2026960B`, `G` + language ID, `I`), then
+   (`0x2026960B`, `G`, `I`), from values [1] and [2] of `0x8A416B2E`; the fallback is the inline string
+   `0xAA12FCB0`, and then the name stays empty. With shipped data only Generic gets a (wrong) name.
 
 ## 17. Conformance tests (must exist in `engine/conformance`)
 

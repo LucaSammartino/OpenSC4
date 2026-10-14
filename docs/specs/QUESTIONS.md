@@ -573,7 +573,17 @@ About `docs/specs/crime.md` and its `docs/abi` rows. Ini: `enable = crime` (opti
   matches.** Crime's `Shutdown` makes no prop-developer call. The prop developer AddRefs each requester on
   registration (no duplicate check) and releases each one once at its own `Shutdown`, which empties the list. So
   the crime object lives until then.
-- **CQ8 — §16.8:** crime type names: which LTEXT key, and the fallback when it is missing. [open]
+- ~~**CQ8 — §16.8:** crime type names: which LTEXT key, and the fallback when it is missing. [open]~~
+  **ANSWERED 2026-10-14** from the exe (`LoadCrimeTypeFromExemplar` `0x006A0D12`, `SC4LoadExemplarString`
+  `0x00603270`/`0x00603220`, `SC4LoadString` `0x00603040`) and the 13 shipped language packages, and written into
+  crime.md §7, closing §16 Q8.
+  - **The key.** Values [1] and [2] of `0x8A416B2E` are the LTEXT group G and instance I; [0] is ignored. The
+    lookup is (`0x2026960B`, G + language ID, I), then (`0x2026960B`, G, I).
+  - **The text.** It is detokenized in place, then U+2022 becomes U+200B.
+  - **The fallback.** On failure the inline string `0xAA12FCB0` is used; without it the name stays empty.
+  - **Shipped data.** Only `0xEA5EA698` exists, in every language, so Generic gets an unrelated building text and
+    the other 13 types are empty.
+  - **Choice.** Reproduce the steps, or call the game's `SC4LoadString`.
 - **CQ9:** `Read` on a stream error. [returns false, no state changed]
 - **CQ10:** crime type list order. [ascending instance]
 - **CQ11:** police slot 5 returns a uint8 grid (the SDK says short) and slot 27 an int32 count, as protection
