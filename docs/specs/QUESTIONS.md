@@ -552,7 +552,14 @@ About `docs/specs/crime.md` and its `docs/abi` rows. Ini: `enable = crime` (opti
   `0xFFFFFFFF`. **The bracket is equivalent**, as long as the group or property test is applied to each listed
   occupant before it can become a candidate. Slot 37's filter is `GetType() == type`, and the walk and order are
   the same.
-- **CQ5:** the session seed "local wall-clock seconds". [`_mkgmtime(localtime(now))`]
+- ~~**CQ5:** the session seed "local wall-clock seconds". [`_mkgmtime(localtime(now))`]~~ **ANSWERED 2026-10-14**
+  from the exe (static initializer `0x00A74B70`; `cRZTime::cRZTime` `0x00470B50`) and written into crime.md §9.
+  **The bracket is not the original value.** The seed is `cRZTime()` XOR `0x6C09C3F6`, and `cRZTime()` is u32
+  seconds since **1901-01-01 00:00 UTC**, rebuilt from the `localtime` fields with `_timezone` and the library's
+  fixed old-US daylight rule. That is `time() + 2177452800` when the host's daylight rule agrees, one hour off when
+  it does not, and 0 in the library's spring-forward hour. The bracket counts local seconds from 1970 instead. No run
+  can observe the seed, so this is a *[choice]*: crime.md §9 recommends `(uint32)(time(NULL) + 2177452800) XOR
+  0x6C09C3F6`.
 - **CQ6 — §16.1:** the ordinance crime factor after a load with no ordinance simulator. [left unchanged]
 - **CQ7:** the prop requester is never unregistered at Shutdown; the spec is silent. [not unregistered]
 - **CQ8 — §16.8:** crime type names: which LTEXT key, and the fallback when it is missing. [open]

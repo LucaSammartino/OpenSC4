@@ -493,8 +493,34 @@ occupant property `0x029244DB` (preview occupants, foundations §5.2; occupants 
 ## 9. Random numbers *[compat]*
 
 **Generator**: one file-local `cRZRandomSuper` (MT19937, foundations §6.1), shared by all crime simulator
-instances. It is seeded at static initialization with the local wall-clock seconds XOR `0x6C09C3F6`, it is not
-saved, and only this class uses it.
+instances. It is seeded once per process at static initialization (`0x00A74B70`) with the `cRZTime` value for
+"now" XOR `0x6C09C3F6`, it is not saved, and only this class uses it.
+
+**Seed value.** `cRZTime()` (`0x00470B50`) is not the raw local wall clock. It takes `time()`, splits it with
+`localtime`, and rebuilds an **unsigned 32-bit count of seconds since 1901-01-01 00:00 UTC** (Julian day
+2415386) from the local calendar fields: local date and time, plus the CRT `_timezone`, minus 3600 when the
+library's own daylight rule says the local time is daylight time. That rule applies only when the CRT
+`_daylight` is non-zero, and it is the fixed pre-2007 US rule whatever the host zone: daylight time runs from
+the Sunday on or before April 8 at 02:00 to the Sunday on or before October 31 at 01:00 standard time. So:
+
+- when the host's own rule agrees with that one, the value is `time() + 2177452800` (2 177 452 800 = 25 202
+  days, 1901-01-01 to 1970-01-01), truncated to 32 bits;
+- where the two rules disagree (modern US dates between the second Sunday of March and the library's April
+  start, or between its October end and the first Sunday of November; any non-US zone with daylight time), it
+  is one hour off that value;
+- a local time that falls in the library's spring-forward hour is invalid and gives **0**, so the seed is then
+  `0x6C09C3F6` itself.
+
+Worked example: 2026-10-14 12:00:00 local in US Central (`_timezone` = 21600, `_daylight` = 1). The library rule
+runs from 2026-04-05 to 2026-10-25, so it is daylight time: 12:00 + 6 h − 1 h = 17:00 UTC, which is 3 969 450 000
+(`0xEC990010`) seconds after 1901-01-01, the same as `time() + 2177452800`. The seed is `0xEC990010 XOR
+0x6C09C3F6` = `0x8090C3E6`. The same instant on 2026-10-28 (still daylight time on the host, standard time by
+the library rule) gives 3600 more.
+
+*[choice]* The seed comes from the clock, so no run can observe the difference. FreeCity4 seeds with
+`(uint32)(time(NULL) + 2177452800) XOR 0x6C09C3F6`, which is the original's value whenever the two daylight rules
+agree, and skips the library's time-zone arithmetic. The other file-local generators seeded "with `cRZTime()`"
+(foundations §6) use the same value.
 
 | Operation | Method | Draws |
 |---|---|---|
