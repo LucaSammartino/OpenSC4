@@ -101,7 +101,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::grid::{CellRect, GridProvider, TractGrid};
-use crate::pathfinder::{NeighborConnectionLinks, Pathfinder};
+use crate::pathfinder::Pathfinder;
 use crate::property::PropertyHolder;
 use crate::stream::RefValue;
 use crate::traffic_network::{
@@ -470,12 +470,11 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     fn take_connection_volume_dirty(&self, connection: u64) -> bool;
     /// Neighbour simulator slot 11 `FindConnection(type, x, z)`.
     fn find_connection(&self, connection_type: u32, x: i32, z: i32) -> Option<u64>;
-    /// `GetNeighborPoolPropertyHolder(t, x, z)` (`0x007114E0`).
+    /// `GetNeighborPoolPropertyHolder(t, x, z)` (`0x007114E0`). The
+    /// pathfinder reads `GetTrafficNeighborConnection`'s cost and the ferry
+    /// terminals' neighbour links from the network state itself
+    /// (traffic-network.md §2.7.1, pathfinder.md §4.6, §4.13; PF5, PF6).
     fn neighbor_pool_property_holder(&self, t: u32, x: i32, z: i32) -> Option<u64>;
-    /// `GetTrafficNeighborConnection(x, z)` (`0x0070F970`): the cost.
-    fn traffic_neighbor_connection_cost(&self, x: i32, z: i32) -> Option<f32>;
-    /// The neighbour connections with their link lists (pathfinder.md §4.6).
-    fn neighbor_connection_links(&self) -> Vec<NeighborConnectionLinks>;
 
     // ---- other simulators ----
     /// Residential simulator slot 30 `GetCellWorkforcePercent(x, z)`.

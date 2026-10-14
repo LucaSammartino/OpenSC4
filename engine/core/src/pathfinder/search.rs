@@ -16,7 +16,7 @@ use crate::traffic_network::{
 };
 use crate::x87::r24;
 
-use super::nodes::{node_key, Node, EXIT_KEY_BIT};
+use super::nodes::{key_cell, node_key, Node, EXIT_KEY_BIT};
 use super::{
     edge_to, filter, flag, rect_contains, result, CellRect, PathCx, Pathfinder, PathfinderHost, WorkCheck,
     LEGAL_ENDING_SUBTYPE, LEGAL_STARTING_SUBTYPE, NETWORK_OF_TRAVEL, NO_EXCLUDED_RECT, NO_PARK_AND_RIDE,
@@ -57,6 +57,14 @@ pub fn distance_to_rect(x: i32, z: i32, r: CellRect) -> f32 {
             r24((dx * dx + dz * dz).sqrt()) as f32
         }
     }
+}
+
+/// The §4.9 step 5 test (PF1): whether a new `g` replaces an open or closed
+/// node's `node_g`. The original ignores the move when the ordered compare
+/// `node.g ≤ g` holds (`fcomp`, then only C0; unordered sets C0), so the node
+/// is taken when `g < node.g` or when either value is NaN.
+pub fn replaces_node_g(node_g: f32, g: f32) -> bool {
+    g < node_g || node_g.is_nan() || g.is_nan()
 }
 
 /// The cells of a start ring that §4.6 uses: the ring's cells in boundary
@@ -339,11 +347,15 @@ impl Pathfinder {
 
     // ---- §4.6 start nodes ----
 
-    /// Creates or fetches a start node, sets it up and pushes it (§4.6).
+    /// Creates or fetches a start node, sets it up and pushes it (§4.6). A
+    /// node that already exists has its `g` and `f` overwritten and is pushed
+    /// again (the heap then holds it twice) *[quirk]*. `H` is taken at the
+    /// passed cell; a new node's own cell comes from its key (§4.7), which is
+    /// the same cell for every start cell (in city, one byte each).
     fn push_start_node(&mut self, key: u32, cell: (i32, i32), t: usize, side: usize, g: f32) {
         let (id, _) = self
             .store
-            .find_or_create(key, || Node::new(key, cell, t as u8, side as u8));
+            .find_or_create(key, || Node::new(key, key_cell(key), t as u8, side as u8));
         let f = self.score(cell.0, cell.1, g);
         let n = &mut self.store.nodes[id as usize];
         n.g = g;
@@ -409,21 +421,32 @@ impl Pathfinder {
                 }
             }
         }
-        // The off-map start fallback.
+        // The off-map start fallback: ferry arrivals (PF5,
+        // `0x006D8B54`–`0x006D8F8E`). For each ferry terminal in list order,
+        // each of its neighbour links in list order whose off-map cell is the
+        // start cell, and each travel type in both the starting mask and the
+        // terminal's travel mask: the start node at the terminal's arrival
+        // cell, entry side 0, `g = r24(startCost[t] + link.cost)`. Nothing
+        // ends the loops and nothing checks for an existing node, so a
+        // repeated match overwrites the node's `g` and `f` (the last match
+        // wins) and pushes it again *[quirk][compat]*. The start-edge table
+        // and the cell's `conn` are not consulted.
         if created == 0 && !start_in_city {
-            for conn in host.neighbor_connections() {
-                let Some(&(_, link_cost)) = conn.links.iter().find(|(p, _)| *p == (x0, z0)) else {
-                    continue;
-                };
-                for (t, &cost) in start_costs.iter().enumerate() {
-                    if self.starting & conn.travel_mask & (1 << t) == 0 {
+            for term in &cx.net.ferries {
+                let arrival = (i32::from(term.arr_x), i32::from(term.arr_z));
+                for link in &term.neighbour_links {
+                    if (i32::from(link.off_x), i32::from(link.off_z)) != (x0, z0) {
                         continue;
                     }
-                    let (x, z) = conn.cell;
-                    let key = node_key(START_KEY_PREFIX, t as u32, x, z);
-                    let g = r24(f64::from(cost) + f64::from(link_cost)) as f32;
-                    self.push_start_node(key, (x, z), t, 0, g);
-                    created += 1;
+                    for (t, &cost) in start_costs.iter().enumerate() {
+                        if self.starting & term.mask & (1 << t) == 0 {
+                            continue;
+                        }
+                        let key = node_key(START_KEY_PREFIX, t as u32, arrival.0, arrival.1);
+                        let g = r24(f64::from(cost) + f64::from(link.cost)) as f32;
+                        self.push_start_node(key, arrival, t, 0, g);
+                        created += 1;
+                    }
                 }
             }
         }
@@ -689,18 +712,15 @@ impl Pathfinder {
             }
             return;
         }
-        // 5. Fetch or create; an open or closed node must get strictly
-        // better. A NaN g passes (the comparison is false when unordered).
-        let cell = if st.exit {
-            (st.cell.0 + DX[st.side], st.cell.1 + DZ[st.side])
-        } else {
-            st.cell
-        };
+        // 5. Fetch or create (a new node takes its cell from the key, §4.7:
+        // for an exit node the passed cell plus dir(side), PF15). An open or
+        // closed node is ignored when `node.g ≤ g`, an ordered compare: the
+        // node is taken when `g < node.g` or when either value is NaN (PF1).
         let (id, _) = self
             .store
-            .find_or_create(key, || Node::new(key, cell, t as u8, st.side as u8));
+            .find_or_create(key, || Node::new(key, key_cell(key), t as u8, st.side as u8));
         let existing = self.store.get(id);
-        if (existing.open || existing.closed) && existing.g <= g {
+        if (existing.open || existing.closed) && !replaces_node_g(existing.g, g) {
             return;
         }
         // 6. Predecessor, g, side, f (H at the passed cell); Update or Push.
@@ -939,14 +959,16 @@ impl Pathfinder {
         if l < 0.0 {
             l = 0.0;
         }
-        // 3. The neighbour connection cost (Windows: filters 0 and 3).
+        // 3. The neighbour connection cost (Windows: filters 0 and 3): the f32
+        // cost of the off-map cell's edge record (`GetTrafficNeighborConnection`,
+        // traffic-network.md §2.7.1). The lookup never fails: a cell where no
+        // connection was ever added has cost 0.0, and it is added all the same.
         if (self.filter == filter::STANDARD || self.filter == filter::END_RECT)
             && self.dest_type_reached != 3
             && !self.in_city(rn.x, rn.z)
         {
-            if let Some(cost) = cx.host.traffic_neighbor_connection_cost(rn.x, rn.z) {
-                l = r24(f64::from(cost) + f64::from(l)) as f32;
-            }
+            let cost = cx.net.traffic_neighbor_connection(rn.x, rn.z).cost;
+            l = r24(f64::from(cost) + f64::from(l)) as f32;
         }
         // 4.
         self.trip_length = l;
@@ -968,8 +990,10 @@ impl Pathfinder {
 
     /// `RecalculateNodeScores` (filter 0 with flag 4): in allocation order,
     /// `f = r24(g)` inside the search rect, else `r24(r24(H × w) + g)`; open
-    /// nodes are Updated, which only sifts up *[quirk]*.
-    fn recalculate_node_scores(&mut self) {
+    /// nodes are Updated, which only sifts up *[quirk]*. The cell is the
+    /// node's **own** cell: for an exit node its off-map cell, not the in-city
+    /// cell AddTripNode evaluated `H` at (PF8).
+    pub(super) fn recalculate_node_scores(&mut self) {
         for id in 0..self.store.len() as u32 {
             let n = *self.store.get(id);
             let f = if rect_contains(self.search_rect, n.x, n.z) {

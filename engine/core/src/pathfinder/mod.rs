@@ -29,14 +29,17 @@
 //! The pathfinder reads the network model of `traffic-network.md` directly
 //! (§8 "direct member reads of the owner"): the cell connection records, the
 //! network-info lists, the transit-switch ID map and table
-//! (`TransitSwitchEntryCost`), the tunnel and ferry tables, the edge-density
-//! map, the inverse max-speed table (`0x00B4B110`, the class static the
-//! tunnel costs also read) and the congestion curve (`0x00B4B2F0`). FreeCity4
-//! keeps all of these in [`NetworkState`], so the search takes the network
-//! state as part of its context ([`PathCx`]) instead of copying it. Everything
-//! else (volume grids, the destination bitmask map and free counts, the
-//! per-travel-type tables, lots, neighbour pools and connections, the income
-//! accumulator, the strike state, the work timer) comes through
+//! (`TransitSwitchEntryCost`), the tunnel and ferry tables (the terminal list
+//! with its neighbour links, which also feeds the ferry-arrival start nodes
+//! of §4.6), the edge-density map, the neighbour connection edge records
+//! (`GetTrafficNeighborConnection`, traffic-network.md §2.7.1, the trip-length
+//! cost of §4.13 step 3), the inverse max-speed table (`0x00B4B110`, the class
+//! static the tunnel costs also read) and the congestion curve
+//! (`0x00B4B2F0`). FreeCity4 keeps all of these in [`NetworkState`], so the
+//! search takes the network state as part of its context ([`PathCx`]) instead
+//! of copying it. Everything else (volume grids, the destination bitmask map
+//! and free counts, the per-travel-type tables, lots, neighbour pools, the
+//! income accumulator, the strike state, the work timer) comes through
 //! [`PathfinderHost`].
 //!
 //! # Re-entrancy
@@ -66,13 +69,21 @@
 //!   Q1).
 //! - `FindPath` on an object that is not initialised (no `Init`, or after
 //!   `Shutdown`) returns 0 without doing anything; the original reads through
-//!   null distance tables.
+//!   unset or null distance tables (PF11, §4.3; unreachable in the game).
 //! - A null occupant filter makes filter 2 never match (§4.10.3).
 //! - Off-map switch moves read "no switch, no info" (§10 Q4).
-//! - A switch nibble naming a type above 8 is ignored (the original indexes
-//!   its per-type tables with it).
-//! - Distance-table indices outside −1…W / −1…H (unreachable) use the table
-//!   formula instead of reading past the table.
+//! - A switch nibble naming a type above 8 is ignored (PF13, §4.8.2 (b); the
+//!   original indexes its 9-entry tables with it, but no game caller sets
+//!   such a bit in the allowed mask).
+//! - Distance-table indices outside −1…W / −1…H (unreachable, PF14) use the
+//!   table formula instead of reading past the table.
+//! - An Update whose recorded heap slot does not hold the node is a no-op
+//!   (PF9, §4.7 "Position"); the original would overwrite that slot. In the
+//!   game an open node's recorded slot always holds it.
+//! - The inner cell of an off-map route node whose
+//!   `GetNeighborConnectionInnerCell` fails (a corner cell) is the node's own
+//!   cell, low bytes (PF10, §4.15); the original writes stale stack bytes.
+//!   Unreachable in the game.
 //! - The process-wide work-check statics (§4.11) are one shared object
 //!   ([`SharedWorkCheck`]) handed to every pathfinder, like the other cores'
 //!   class statics.
@@ -86,10 +97,12 @@ mod traffic;
 #[cfg(test)]
 mod tests;
 
-pub use nodes::{heap_order, node_key, Node, NodeStore, OpenSet, BUCKETS, EXIT_KEY_BIT, HASH_MULTIPLIER, PAGE_NODES};
+pub use nodes::{
+    heap_order, key_cell, node_key, Node, NodeStore, OpenSet, BUCKETS, EXIT_KEY_BIT, HASH_MULTIPLIER, PAGE_NODES,
+};
 pub use object::{Pathfinder, RouteData};
 pub use route::{encode_route, RouteMap, RouteNode};
-pub use search::{distance_to_rect, start_ring_cells};
+pub use search::{distance_to_rect, replaces_node_g, start_ring_cells};
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -216,18 +229,6 @@ impl Default for TravelTables {
     }
 }
 
-/// One neighbour connection of the simulator as the off-map start fallback
-/// sees it (§4.6): its in-city cell, its travel-type mask and its link list.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct NeighborConnectionLinks {
-    /// The connection's in-city cell (where the start node is created).
-    pub cell: (i32, i32),
-    /// The connection's travel-type mask (`1 << t`).
-    pub travel_mask: u16,
-    /// The links in list order: (off-map point, link cost).
-    pub links: Vec<((i32, i32), f32)>,
-}
-
 /// Everything the pathfinder reads from, or does to, its owning traffic
 /// simulator and the city that the traffic network model does not hold (§8).
 /// Game objects are opaque `u64` tokens; 0 is null. Coordinates are city
@@ -284,14 +285,6 @@ pub trait PathfinderHost {
     /// `GetNeighborPoolPropertyHolder(t, x, z)` (`0x007114E0`).
     fn neighbor_pool_holder(&self, t: u32, x: i32, z: i32) -> Option<u64>;
 
-    // ---- neighbour connections (§4.6, §4.13) ----
-    /// `GetTrafficNeighborConnection(x, z)` (`0x0070F970`): the cost of the
-    /// connection at that cell, `None` without one.
-    fn traffic_neighbor_connection_cost(&self, x: i32, z: i32) -> Option<f32>;
-    /// The simulator's neighbour connections with their link lists, in list
-    /// order (the off-map start fallback, §4.6).
-    fn neighbor_connections(&self) -> Vec<NeighborConnectionLinks>;
-
     // ---- income (§4.17) ----
     /// The simulator's double income accumulator.
     fn income_accumulator(&self) -> f64;
@@ -299,8 +292,10 @@ pub trait PathfinderHost {
     fn set_income_accumulator(&self, v: f64);
 
     // ---- lots and occupants (§8) ----
-    /// `cISC4LotManager::GetLot(x, z, …)` (slot 6). The spec does not state
-    /// the bool argument the pathfinder passes; the host chooses.
+    /// `cISC4LotManager::GetLot(x, z, false)` (slot 6): the lot covering the
+    /// cell, not only one whose origin it is. The pathfinder always passes
+    /// `originOnly = false` (PF3, §8: the lot start, the filter-0 goal and
+    /// §4.5 step 5).
     fn lot_at(&self, x: i32, z: i32) -> Option<u64>;
     /// `cISC4Lot::AsPropertyHolder()` (slot 3); 0 = none.
     fn lot_holder(&self, lot: u64) -> u64;

@@ -26,7 +26,9 @@
 //!   DoPostCityInit, §3, §4.2–§4.4), `model.rs` (state, §4.5, §4.6, §4.13),
 //!   `switches.rs` (§4.7), `tunnels.rs` (§4.8), `ferries.rs` (§4.9),
 //!   `water.rs` (§4.10), `subnetworks.rs` (§4.11, §4.12), `neighbours.rs`
-//!   (§2.7) and [`tuning`] (§4.5).
+//!   (§2.7: the edge records and their record-level operations of
+//!   §2.7.1–§2.7.4; the pools, capacities and the neighbour roll are the
+//!   traffic simulator's, PF6) and [`tuning`] (§4.5).
 //! - [`NetworkHost`]: everything the model reads from, or does to, the rest
 //!   of the game (§8). Game objects are opaque `u64` tokens; 0 is null.
 //!
@@ -57,6 +59,10 @@
 //!   the file.
 //! - Host containers (occupant lists, path-info vectors, neighbour lists)
 //!   are plain `Vec`s; their allocators (§9) are the glue's business.
+//! - `GetTrafficNeighborConnection` for a corner or in-city cell gives an
+//!   empty record (§2.7.1; the original reads out of range or side-3 record
+//!   x). The pool sweep and the edge pass stop at the end of an array when
+//!   Z < X (§2.7.3, §2.7.4: they use the x bound for all four arrays).
 //!
 //! # Threading and re-entrancy (foundations §19)
 //!
@@ -92,7 +98,9 @@ pub use model::{
     boundary_cells, grow_clamp, union_rect, CellConnection, NetworkInfo, NetworkModel, NetworkState, SubnetworkInfo,
     SwitchQueryTarget, TrafficEdgeDensity, ARRAY_LEN, ARRAY_SIDE, EDGE_DENSITY_ZERO,
 };
-pub use neighbours::{Edge, NeighbourEdge};
+pub use neighbours::{
+    Edge, NeighbourEdge, ANY_TRAVEL_TYPE, CONN_MASK, FERRY_CONNECTION_BIT, MAX_NEIGHBOUR_CONNECTION_TYPE,
+};
 pub use switches::{read_rules, rule_bytes, rule_entries, LotActivation, Rule, RuleSet, TransitSwitch};
 pub use tuning::Tuning;
 pub use tunnels::{inverse_max_speed, tunnel_costs, tunnel_distance, InvMaxSpeed, TunnelInfo};

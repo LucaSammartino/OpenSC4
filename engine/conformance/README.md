@@ -1266,10 +1266,9 @@ hex byte strings; node keys and masks as `"0x…"` (8 hex digits).
 | `pf_capacity` | `holder`, `max?`, `used?` | `GetMaxTripCapacity` and the used capacity of a holder |
 | `pf_dest` | `cell`, `cells` or `rect`, `bits` | destination bitmask bytes (off-map cells allowed) |
 | `pf_volume` | `cell`, `cells` or `rect`, `n?` (1), `value` | volume grid values |
-| `pf_neighbor_cost` | `cell`, `cost` | `GetTrafficNeighborConnection` at an off-map cell (§4.13 step 3) |
+| `pf_neighbor_cost` | `cell` (an off-map edge cell), `cost`, `mask?` (0), `pool?` (0) | the network's neighbour edge record at that cell (traffic-network.md §2.7.1), read by `GetTrafficNeighborConnection` (§4.13 step 3) |
 | `pf_pool` | `cell`, `cells` or `rect`, `holder`, `max?`, `used?` | the neighbour pool's property holder at off-map cells (§4.10.1) |
-| `pf_connection` | `cell` (in city), `mask`, `links` (`[[x, z, cost]]`, off-map points) | a neighbour connection with its link list (§4.6 off-map fallback) |
-| `pf_ferry` | `cell`, `mask`, `links?` (`[[x, z, cost]]`), `repeat?` (1: the link list is repeated), `neighbour_links?` (`[[off x, off z, edge x, edge z, cost]]`) | a ferry terminal departing at `cell`: wormhole bit 4, the terminal list and the departure table |
+| `pf_ferry` | `cell`, `mask`, `arrival?` (`[x, z]`, (0, 0)), `links?` (`[[x, z, cost]]`), `repeat?` (1: the link list is repeated), `neighbour_links?` (`[[off x, off z, edge x, edge z, cost]]`) | a ferry terminal departing at `cell`: wormhole bit 4, the terminal list and the departure table; §4.6's off-map fallback runs over its neighbour links and starts at `arrival` |
 | `pf_tunnel` | `cell`, `other`, `mask?` (`0x1FE`), `cost?` (`[[t, v]]`) | a tunnel portal: wormhole bit 2 and the tunnel table |
 | `pf_switch` | `id`, any of `load`, `capacity`, `time_factor`, and `cell`, `cells` or `rect` | a transit switch table entry and the switch ID grid |
 | `pf_create` / `pf_new` | `pf?` | `CreatePathFinder` (constructor, AddRef, Init) / the bare constructor |
@@ -2234,7 +2233,7 @@ Not covered by a vector, and why:
 | extra: constructor values, QueryInterface, Init / Shutdown, configuration slots (§1, §2, §4.2) | `pf11_15_constructor_and_slots` |
 | extra: exit node (cost r24(f − g), key, goal off-map), neighbour connection cost for filter 3 (§10 Q1) | `pf11_16_exit_node_connection_cost` |
 | extra: exit cost outside the search rect (the heuristic term) | `pf11_17_exit_cost_heuristic` |
-| extra: off-map start fallback (§4.6) | `pf11_18_off_map_start` |
+| extra: off-map start fallback over the ferry terminals' neighbour links, at the arrival cell (§4.6, PF5) | `pf11_18_off_map_start` |
 | extra: switch move, park-and-ride cell, runs split by type, reversibility through a switch | `pf11_19_park_and_ride` |
 | extra: transit-switch entry cost, goal test skipped at switch cells, ApplyTraffic switch usage, per-type edges | `pf11_20_transit_switch` |
 | extra: the mass-transit strike masks switch transitions (§4.4 step 6) | `pf11_21_strike` |
@@ -2243,6 +2242,7 @@ Not covered by a vector, and why:
 | extra: flag 4 (continue) keeps the nodes and the open set | `pf11_26_continue` |
 | extra: flag 8 (park-and-ride return, §4.8.4) | `pf11_27_park_and_ride_return` |
 | extra: ApplyTraffic income with the uncarpooled count and the 24-bit accumulator add | `pf11_28_income` |
+| extra: off-map start fallback, two matching links: the last wins and the node is in the heap twice (§4.6, PF5) | `pf11_29_off_map_start_last_match` |
 
 Not covered by a vector, and why:
 
