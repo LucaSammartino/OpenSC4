@@ -559,6 +559,26 @@ In the shipped flows this removal is almost never the one that counts:
 "Release only" differs from the original only there. It leaves the prop in the prop manager during the city
 teardown, which nothing saves. *[choice]* Matching the original costs one call and is recommended.
 
+**A zone that was never initialised** *[compat]* (LG24; developer `Shutdown` `0x006B94B0`, zone `FinalRelease`
+`0x006BB8C0`, zone destructor `0x006BBBC0`). Such a zone skips step 2, so its `Shutdown` leaves the zot alone. The
+reference is still released, by the zone's destructor:
+
+1. The developer's `Shutdown` (only if the developer is initialised) walks its zone list. For each zone it calls
+   the zone's `Shutdown` (`0x006B9535`), then releases the list's reference through the zone's slot 2
+   (`0x006B953F`), and frees the list node.
+2. Slot 2 is `FinalRelease`. With more than one reference it only decrements the count. At the last reference it
+   calls `Shutdown` once more and then the deleting destructor (slot 4).
+3. The destructor releases the zot if one is held (`0x006BBBC9`–`0x006BBBD2`). It does not call `RemovePropA` and
+   does not null the field, because the object is being freed.
+
+So the original releases its zot reference at the developer's `Shutdown` without removing the prop, provided the
+list held the zone's last reference. An initialised zone has already released and nulled the zot in its own
+`Shutdown`, so the destructor's release matters only for a zone that never ran `Init`. That happens when a
+saved zone that holds a zot (version 4 or later, §6.2) is read but the city closes before PostCityInit runs.
+
+**The bracket matches**: releasing FreeCity4's reference at the developer's `Shutdown`, without `RemovePropA`, is
+what the original does.
+
 ### 4.5 Terrain
 
 #### 4.5.1 `DoTerrainChanged(rect)`
@@ -817,6 +837,30 @@ saves are building zots placed through the same global (lot-developer.md §5.6),
 *[choice]* A FreeCity4 core with no view uses 0, which matches the original whenever the view is at its first
 rotation. Glue running inside the game can read the same field.
 
+**Reaching the rotation through interfaces** *[compat]* (LG21; `SL::OnView3DInit` `0x00602590`). The global is
+filled from the city view by two interface getters, so glue can follow the same route:
+
+1. The `cISC4View3DWin` (IID `0xFA47B3F9`), found as in §3.2 (main window, child `0x6104489A`, then
+   `GetChildAs(0x9A47B417, 0xFA47B3F9, &view)`).
+2. `view.GetRenderer()`: `cISC4View3DWin` slot 4 (`+0x10`, `0x0043FD00`, pop 0). It returns the
+   `cISC43DRender*` the view holds, **borrowed** (no `AddRef`).
+3. `renderer.GetViewUtilities()`: `cISC43DRender` slot 8 (`+0x20`, vtable `0x00ABAB60`, `0x007C9FB0`, pop 0). It
+   returns a pointer to the view utilities object, also borrowed. That object is **not** a GZCOM object: it has no
+   `QueryInterface` and must not be released.
+4. The rotation is the 32-bit integer at `+0x10` of that object, 0 to 3.
+
+When a city view opens, `SL::OnView3DInit` stores the result of step 2 in the global `0x00B43DD0` and the result
+of step 3 in `0x00B43DD8`, the global that `AddZot` reads. `SL::OnView3DShutdown` (`0x00602130`) clears both. So
+in a loaded city, steps 1–4 give exactly the value the original reads. Neither interface has a getter that
+returns the rotation itself: `cISC43DRender` and `cISC4View3DWin` have only `SetRotation`, `RotateLeft` and
+`RotateRight`. The field read in step 4 is the only route.
+
+Example: the player has turned the view so that step 4 reads 1. A zot placed in that month is saved with
+orientation 1. A core that uses 0 saves 0 for the same zot.
+
+*[choice]* Glue should read the rotation by steps 1–4 at the moment it places the zot. If the view is null, it
+should use 0 instead of crashing.
+
 ### 4.8 Tile models (`UpdateSurroundingTiles(heap)`) and the random draws
 
 A heap's state change redraws the four cells it covers, in the order `(hx, hz)`, `(hx+1, hz)`, `(hx, hz+1)`,
@@ -906,6 +950,29 @@ the `Init` and the stored cell rectangle remain. A saved record's flags byte kee
 occupant read from one is refused by (2) unless the bit is cleared first; flora's obliteration save clears it around
 its `Write` (flora §10.3).
 
+**After a failed insert** *[compat]* (LG26; callers `0x006BD234`, `0x006BD2A4`, `0x006BD310`, `0x006BD37E`;
+`cSC4Occupant::Shutdown` `0x005E8980`, `cSC4Occupant::Release` `0x005E8DF0`). The original does nothing more:
+
+- **For a new tile the insert cannot fail.** The occupant is not null (a null exemplar crashes before this,
+  step 1). Its flag 1 is clear, because the constructor sets only flag 4. Its property holder exists. It is in no
+  cell list yet.
+- **No caller tests the result.** `CreateLandfillOccupant` returns the insert's result, and all four calls in
+  `UpdateSurroundingTiles` ignore it.
+- **There is no `Shutdown`.** Had an insert failed, the occupant would be freed when the queued `0x99EF1140`
+  message (step 6) dropped the last reference. `cSC4Occupant::Release` frees the object at count 0 without calling
+  `Shutdown`, and so without the `0x99EF1141` message that `Shutdown` posts for an initialised occupant.
+  Subscribers would see the tile created and never destroyed.
+- **Nothing keeps the tile.** The landfill keeps no list of its tiles: it finds them through occupant manager
+  slot 33 (§4.8.6). After a failed insert, that lookup finds no tile, so the cell costs the default 5 (§4.9.1)
+  and terraforming dezones it (§4.5.2), until the heaps next change.
+
+Example: if the occupant manager refused the tile at cell (12, 21), the original's monthly maintenance would
+count 5 for that cell, not the tile's 10 to 40.
+
+**The bracket**: "released without `Shutdown`" matches the original. "The tile is kept in FreeCity4" has no
+counterpart, because the original keeps no tile of its own. The case never arises in the original, so it
+cannot be compared. *[choice]* Keeping FreeCity4's tile and logging the failure is acceptable.
+
 Dead branch: `0x006BC88D`–`0x006BC8B4` handles `tile = 0x02F10000`. It calls `SetRemovalFlags(1)` and
 `SetIsActiveLandfill(x, z, false)`, sets `isEmpty := true`, then calls `SetEmptyCellTexture`. Step 2 of
 `CreateLandfillOccupant` has already returned for that tile, so this branch never runs. It is the only code found that
@@ -930,6 +997,22 @@ keeps the exemplar at its `+4` (object `+0x24`); slot 4 `GetDefaultExemplar` (`0
 reference. `cSC4Occupant`'s constructor fixes where the holder sits (property holder at occupant + 8, exemplar-holder
 vtable at occupant + 0x1C), so it is the same in every occupant class built on it: the exemplar holder is
 `AsPropertyHolder()` + 0x14 = `cISC4Occupant*` + 0x1C = `cISC4LandfillOccupant*` + 0x20.
+
+**The holder's slots** *[compat]* (LG25). The `cISCExemplarPropertyHolder` vtable has **five** slots. The dword
+after slot 4 (`0x00A8CD1C`) is 0, and the occupant's `cISCPropertyHolder` vtable starts right after it, at
+`0x00A8CD20`. The building occupant's holder (`0x00A871A0`, building-development.md §4.9.1) has the same
+slots 1–4 and its own `QueryInterface` thunk.
+
+| Slot | Off | Address | Method | Pop | Return | Behaviour |
+|---|---|---|---|---|---|---|
+| 0 | +0x00 | `0x00477260` | `QueryInterface(iid, out)` | 8 | AL | `this − 0x20`, then the occupant's QI `0x00477130` (LG27) |
+| 1 | +0x04 | `0x005E06A0` | `AddRef()` | 0 | EAX | `this − 0x20`, then the occupant's `AddRef` |
+| 2 | +0x08 | `0x005E06B0` | `Release()` | 0 | EAX | `this − 0x20`, then the occupant's `Release` |
+| 3 | +0x0C | `0x00458E60` | `void SetDefaultExemplar(cISCResExemplar*)` | 4 | none | `AddRef`s the new exemplar, stores it at `+4`, releases the old one; nothing if it is the same pointer |
+| 4 | +0x10 | `0x0060CE80` | `cISCResExemplar* GetDefaultExemplar()` | 0 | EAX | returns `+4`, borrowed (no `AddRef`); null when none is attached |
+
+The landfill developer calls only slot 3. A declaration that stops at slot 3 or 4 calls the game correctly.
+An object that the game is to call as this interface must have all five slots.
 
 **`SetTileID` is not enough** (LG3). `SetTileID` (slot 6, `0x00477450`) neither loads nor attaches an exemplar.
 When `id` differs from the stored ID, it stores `id` and rewrites the instance in the key of the **attached**
@@ -1043,6 +1126,32 @@ Konradshohe, Fulham and the Big City Tutorial) holds exactly one record, texture
 
 Example: `SetEmptyCellTexture(37, 52)` with display alpha 170 gives the record
 `05 10 00 00 | 25 | 34 | 00 | 00 | FF FF FF AA 01 | 00`.
+
+**The record in memory** *[compat]* (LG22; `SetTextureSpecification` `0x005E0B20`, `Write` `0x005DF1E0`,
+`SetEmptyCellTexture` `0x006BA470`). `SetTextureSpecification(records, n, …)` takes an array of `n` records with a
+**stride of 16 bytes**. Each record holds the 14 saved bytes in the saved order, then two padding bytes:
+
+| Offset | Size | Field |
+|---|---|---|
+| `+0x0` | 4 | texture instance |
+| `+0x4` | 1 | cell x |
+| `+0x5` | 1 | cell z |
+| `+0x6` | 1 | orientation |
+| `+0x7` | 1 | configuration object byte 3 |
+| `+0x8` | 5 | the five unnamed bytes |
+| `+0xD` | 1 | animation frame (`0xFF` = draw one, lot-records.md §6) |
+| `+0xE` | 2 | padding |
+
+- `SetTextureSpecification` steps through the array 16 bytes at a time, tests the frame byte at `+0xD`, and copies
+  each record into the occupant's vector as four 32-bit words, padding included.
+- `Write` writes `+0x0` as a u32 and `+0x4` to `+0xD` as ten single bytes. It never writes `+0xE` or `+0xF`.
+- Nothing in the class reads `+0xE` or `+0xF`. The original's own record leaves them unset: `SetEmptyCellTexture`
+  builds the record in a 16-byte stack buffer and writes only bytes `+0x0` to `+0xD`.
+
+So any value in the padding gives the same result. The record above, as passed in memory:
+`05 10 00 00 25 34 00 00 FF FF FF AA 01 00 ?? ??`, where `??` is anything.
+
+*[choice]* One record in a 16-byte buffer with zeroed padding, as FreeCity4 does, is equivalent to the original.
 
 #### 4.8.6 Cell lookups (occupant manager slot 33)
 
@@ -1248,6 +1357,30 @@ interior orientation 0 and no draw.
 - If the rebuild is kept, it is acceptable for FreeCity4's own saves only, and the difference above should be
   documented.
 
+**A FreeCity4 save without tiles** (LG23). FreeCity4 saves made while tiles were kept only inside FreeCity4 have
+no tile records. The original has no behaviour for this case, because it never rebuilds tiles on load: the
+original game loading such a save shows no tiles until each heap next changes (above). What FreeCity4 does with
+its own old saves is therefore a choice. The bracket rebuilds, at PostCityInit, only the cells that need a tile
+and have none. With that rule:
+
+- A cell **needs a tile and has none** when the §4.8 rule table gives a tile other than `0x02F10000` for the saved
+  heaps, and occupant manager slot 33 (§4.8.6) finds no landfill occupant (type `0x6A11BD2B`) at the cell. Cells
+  whose rule gives the empty tile are left alone, as the original's load leaves them.
+- **On an original save it rebuilds nothing** while every saved tile agrees with its heaps. That held for all 142
+  zone cells of the three local landfills. Each saved tile then keeps its saved ID and orientation, and no draw
+  is made, exactly as in the original.
+- **One case differs.** After `AddRegionToZone` moved heaps without moving their tiles (§4.4.4 step 4), a cell can
+  need a tile and have none. The original leaves it without a tile until its heaps next change. The rebuild
+  creates the tile at load. A cell that holds a stale tile with the wrong ID is kept as it is in both.
+- A rebuilt interior tile (mask 15) has no original value to match. Orientation 0, or one draw from FreeCity4's
+  own generator (§4.8), are both acceptable.
+
+Example: an old FreeCity4 save holds one zone of 3×3 cells (2×2 heaps, all four active) and no tile occupants.
+Its nine cells, local x outer and z inner, have masks 4, 12, 8, 6, 15, 9, 2, 3, 1 (§4.8). None is 0, so all
+nine need a tile, have none, and are rebuilt. An original save of the same zone already holds those nine tiles, so nothing is rebuilt.
+
+*[choice]* The bracket is acceptable.
+
 ## 7. Interface slots
 
 ### 7.1 `cISC4LandfillDeveloper` (vtable `0x00AB157C`, 13 slots)
@@ -1354,8 +1487,10 @@ The object also implements `cISC4Occupant` (at its second vtable; QI `0x26BB767E
 | `cISC4BuildingDevelopmentSimulator` (`0x00AB0AF8`) | 36 / +0x90 | GetLotDeveloper | 0 | EAX | §4.5.3 |
 | `cISC4LotDeveloper` (`0x00AB1B98`) | 21 / +0x54 | AttemptAreaLevelling(rect, float, bool, bool, float, lot*) | 24 | AL (ignored) | §4.5.3 |
 | `cISC4View3DWin` (`0x00ABCE40`) | 22 / +0x58 | GetCurrentViewLevel | 0 | EAX | §3.2 |
+| | 4 / +0x10 | GetRenderer → borrowed `cISC43DRender*` (`0x0043FD00`) | 0 | EAX | §4.7.5 (glue route only; the original reads the global) |
+| `cISC43DRender` (`cSC43DRender`, vtable `0x00ABAB60`) | 8 / +0x20 | GetViewUtilities → borrowed, not a GZCOM object (`0x007C9FB0`) | 0 | EAX | §4.7.5 (rotation at `+0x10`) |
 | resource manager (`0x00B43CA8`) | 3 / +0x0C | GetResource(key, `0xA52160F5`, &out, 0, 0) | 20 | AL | §4.8.1 |
-| `cISCExemplarPropertyHolder` (IID `0x0AC2B5F7`) | 3 / +0x0C | SetDefaultExemplar(ex) | 4 | none (`0x00458E60` sets no result) | §4.8.1 |
+| `cISCExemplarPropertyHolder` (IID `0x0AC2B5F7`, 5 slots, §4.8.1) | 3 / +0x0C | SetDefaultExemplar(ex) | 4 | none (`0x00458E60` sets no result) | §4.8.1 |
 | `cIGZCOM` | 3 / +0x0C | CreateInstance(clsid, iid, void**) | 12 | AL | §4.8.5 |
 | `cISC4LotBaseTextureOccupant` (IID `0x097F6D98`) | 3, 4, 5, 8 | AsOccupant, GetUsage, SetUsage(1), SetTextureSpecification(rec*, 1, null) | | | §4.8.4, §4.8.5 |
 | `cISC4ZoneManager` | 16 / +0x40 | GetZoneDisplayAlpha | 0 | AL | §4.8.5 |

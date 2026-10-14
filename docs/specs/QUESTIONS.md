@@ -3253,18 +3253,54 @@ answer is in brackets.
   object's address. **The bracket stands** as the minimum. *[choice]*: allocate the glue's month target from the game's
   own heap at the original object's place in city `Init`, which reproduces the original's usual placement but cannot
   guarantee it.
-- **LG21:** LG5: is there a documented route to SC4ViewUtilities `+0x10`, for example a docs/abi row for
-  `cISC43DRender` slot 8? [orientation 0]
-- **LG22:** Landfill §4.8.5: is the in-memory record that SetTextureSpecification takes laid out in the saved 14-byte
-  order, and what is its stride? [saved order; one record in a 16-byte buffer with zeroed padding]
-- **LG23:** LG8: a FreeCity4 save made while tiles were kept in FreeCity4 has no game tiles. [PostCityInit rebuilds
-  only the cells without a tile]
-- **LG24:** In the original, a zone that was never initialised never releases its zot at Shutdown. [we release our
-  reference at the developer's Shutdown, without RemovePropA]
-- **LG25:** `cISCExemplarPropertyHolder` has only one docs/abi row (slot 3); slot 4 `GetDefaultExemplar` has none.
-  [a reviewed slot count of 5 against 4; only slot 3 is called]
-- **LG26:** LG3: when InsertOccupant fails after Init, should the occupant be shut down? [released without Shutdown;
-  the tile is kept in FreeCity4]
+- ~~**LG21:** LG5: is there a documented route to SC4ViewUtilities `+0x10`, for example a docs/abi row for
+  `cISC43DRender` slot 8? [orientation 0]~~
+  **ANSWERED 2026-10-14** from the exe (`SL::OnView3DInit` `0x00602590`; `0x0043FD00`; `0x007C9FB0`) and written
+  into landfill.md §4.7.5 and §8. **Yes, there is a route.** The global `0x00B43DD8` is filled from the city view as
+  `cISC4View3DWin` (IID `0xFA47B3F9`) slot 4 `GetRenderer`, then `cISC43DRender` slot 8 `GetViewUtilities`. Both
+  are pop 0, return EAX and give a borrowed pointer. The rotation is the 32-bit integer at `+0x10` of the view
+  utilities object, which is not a GZCOM object. Neither interface has a rotation getter, so that field read is
+  the only route. **The bracket (orientation 0) matches only at the first rotation.** *[choice]*: glue reads the
+  rotation through this route when it places the zot, and uses 0 when there is no view. ABI rows are in the
+  re-answers9 report.
+- ~~**LG22:** Landfill §4.8.5: is the in-memory record that SetTextureSpecification takes laid out in the saved 14-byte
+  order, and what is its stride? [saved order; one record in a 16-byte buffer with zeroed padding]~~
+  **ANSWERED 2026-10-14** from the exe (`SetTextureSpecification` `0x005E0B20`, `Write` `0x005DF1E0`,
+  `SetEmptyCellTexture` `0x006BA470`) and written into landfill.md §4.8.5. **Yes: the saved order, with a
+  16-byte stride.** The texture is at `+0x0`, x and z at `+4` and `+5`, orientation at `+6`, the configuration
+  byte at `+7`, the five unnamed bytes at `+8`–`+0xC`, the frame at `+0xD`, and padding at `+0xE`–`+0xF`. The
+  padding is copied into the vector but is never read or saved. The original's own record leaves it unset (stack
+  garbage). **The bracket matches.**
+- ~~**LG23:** LG8: a FreeCity4 save made while tiles were kept in FreeCity4 has no game tiles. [PostCityInit rebuilds
+  only the cells without a tile]~~
+  **ANSWERED 2026-10-14** from landfill.md §6.4 (LG8: the original saves its tiles and never rebuilds them on load)
+  and written into landfill.md §6.4. **No original behaviour exists for this case**, so the implementer's choice
+  stands. The original loading such a save shows no tiles until each heap next changes. **The bracket is
+  acceptable.** Define the cells to rebuild as those whose rule gives a tile other than `0x02F10000` and where
+  slot 33 finds no landfill occupant. On an original save that rebuilds nothing. The one exception is a cell left
+  without a tile by `AddRegionToZone` (§4.4.4 step 4), which the original fills only when its heaps next change.
+- ~~**LG24:** In the original, a zone that was never initialised never releases its zot at Shutdown. [we release our
+  reference at the developer's Shutdown, without RemovePropA]~~
+  **ANSWERED 2026-10-14** from the exe (developer `Shutdown` `0x006B94B0`, zone `FinalRelease` `0x006BB8C0`, zone
+  destructor `0x006BBBC0`) and written into landfill.md §4.4.9. **The premise is incomplete.** The zone's `Shutdown`
+  skips the zot, but the developer's `Shutdown` then releases the zone. Its last reference runs the destructor,
+  which releases the zot without `RemovePropA` and without nulling the field. **The bracket matches.**
+- ~~**LG25:** `cISCExemplarPropertyHolder` has only one docs/abi row (slot 3); slot 4 `GetDefaultExemplar` has none.
+  [a reviewed slot count of 5 against 4; only slot 3 is called]~~
+  **ANSWERED 2026-10-14** from the exe (vtables `0x00A8CD08` and `0x00A871A0`) and written into landfill.md §4.8.1
+  and §8. **The vtable has five slots**: 0 QI thunk, 1 `AddRef` thunk (`0x005E06A0`), 2 `Release` thunk
+  (`0x005E06B0`), 3 `SetDefaultExemplar` (`0x00458E60`, pop 4, void) and 4 `GetDefaultExemplar` (`0x0060CE80`,
+  pop 0, EAX, borrowed). A zero dword follows at `0x00A8CD1C`, then the next vtable. **The reviewed count of 5 is
+  right.** A declaration that stops before slot 4 is safe only for calling. The landfill calls only slot 3. The
+  missing rows (1, 2) are in the re-answers9 report; main's interfaces.tsv already has slots 0, 3 and 4.
+- ~~**LG26:** LG3: when InsertOccupant fails after Init, should the occupant be shut down? [released without Shutdown;
+  the tile is kept in FreeCity4]~~
+  **ANSWERED 2026-10-14** from the exe (callers `0x006BD234`/`0x006BD2A4`/`0x006BD310`/`0x006BD37E`;
+  `cSC4Occupant::Shutdown` `0x005E8980`; `Release` `0x005E8DF0`) and written into landfill.md §4.8.1. **No
+  Shutdown.** For a new tile the insert cannot fail, and no caller tests the result. Had it failed, the tile would
+  be freed when the queued `0x99EF1140` message released it, without `Shutdown` or its `0x99EF1141`. The original
+  keeps no tile list, so its later cell lookups would find no tile. **"Released without Shutdown" matches.** "Kept
+  in FreeCity4" has no counterpart. *[choice]*: keep it and log the failure.
 
 ## From applying the exemplar, zones draft and traffic-network answers (filed by the coordinator from the `apply8b` lane's report, 2026-10-14)
 
