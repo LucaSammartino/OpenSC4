@@ -526,6 +526,12 @@ adaptation, return 0.
 z edge; if `z` is within the z range, the integer x distance; otherwise the Euclidean length (`LengthOfLine`
 `0x005D7660`, float) from the cell to the nearest corner.
 
+`LengthOfLine` takes the two points as 3-vectors `(x, 0, z)` of floats and computes the three differences, their
+squares and the sum on the x87 at the main thread's 24-bit precision, then `fsqrt` (PF12). For cell coordinates
+every step before the root is exact (integers far below 2^24), and `fsqrt` under 24-bit precision control is
+correctly rounded, so the result is **the exact square root rounded once to float32**. Examples: √2 = `0x3FB504F3`,
+√5 = `0x400F1BBD`, √10 = `0x404A62C2` (test 6).
+
 ### 4.13 Recording a successful trip
 
 1. Walk from the result node back to the root (the node without predecessor). Each time a node's predecessor is a

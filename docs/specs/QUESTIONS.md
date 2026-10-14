@@ -559,7 +559,11 @@ vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
   `Shutdown` `0x006D5D63` nulls the bases; first write `0x006D6060`) and written into §4.3. The original faults or
   writes through garbage in `SetupDistanceTables`. It is unreachable (`CreatePathFinder` always runs `Init`).
   **The bracket stands as a [choice].**
-- **PF12:** `LengthOfLine` precision. [the exact square root, rounded once to float]
+- ~~**PF12:** `LengthOfLine` precision. [the exact square root, rounded once to float]~~ **ANSWERED 2026-10-14**
+  from the exe (`0x005D7660`: three `fsub`, three `fmul`, two adds, `fsqrt`, all x87 at 24-bit precision; called
+  from `DistanceToRectangle` `0x006D5F01` etc. with `y = 0`) and written into §4.12 with examples. **The bracket is
+  right.** Every step before the root is exact for cell coordinates, and `fsqrt` under 24-bit precision control is
+  correctly rounded.
 - **PF13:** a switch nibble naming a travel type above 8. [ignored]
 - **PF14:** distance-table indices outside −1…W / −1…H (unreachable). [the formula]
 - **PF15:** the entry side of a ferry neighbour-link exit node. [`EdgeTo(off → edge)`; assumes adjacent cells]
