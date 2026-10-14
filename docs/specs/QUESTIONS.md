@@ -723,3 +723,19 @@ each cycle-completed message `0x2A09B21A`). The glue's current answer is in brac
 - **AU10:** with no land value simulator the land value type is 0; the spec is silent. [0]
 - **AU11 — §16 Q7:** the base-aura process table is not written. [not written]
 - **AU12:** the CPU-cycle limit timer runs on `QueryPerformanceCounter` instead of the TSC. Acceptable? [QPC]
+
+First in-game aura shadow (coordinator, `regress -Tag r7c3f`, Spandau, 98 cycles 2026-01 to 2034-02; the replace run
+with aura was clean, 0 problems). The park, landmark and riot fields aside, **6 of 98 cycles match exactly**:
+
+- **AU13 — small base differences every cycle.** 0 to 43 tracts of 1024 differ by 1 to 3 (most cycles 2 to 12
+  tracts, max|d| = 2), in both directions from one cycle to the next (cycle 1 `(6,21)` 59/58, cycle 2 58/59), and
+  the aura grid carries the same differences. The mayor rating is off by 1 in 11 cycles. The first cycles' tracts
+  sit in one area (x 4 to 13, z 21 to 28). Is this the AU7 timing (an input that changes during the original's
+  cycle: which inputs does the original read in which state, and on which day), or a rounding step the spec does
+  not give (the order of the sums, a truncation instead of a rounding)? Name the inputs read per state.
+- **AU14 — park and landmark maps in cycles 2 and 3 only.** 193 tracts (max|d| 200) in cycle 2 and 208 (max 188)
+  in cycle 3 differ in both maps, then 0 for the other 95 cycles. When does the original rebuild these maps (on
+  load, on the first cycle, when a park lot is added), and does it clear them first?
+- **AU15 — rare large single-tract differences.** Three cycles have a base difference near 180 (cycle 3: 182,
+  cycle 7: 188, cycle 88: 175) while the aura grid differs by at most 54/60/47 there. A lot placed or removed during
+  the cycle? Which state reads the lots, and is a lot's effect clamped before or after it is added to the base?
