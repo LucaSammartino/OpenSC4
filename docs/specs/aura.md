@@ -685,11 +685,13 @@ What `Read` (`0x0068E340`) does with state already in the object *[compat]*:
 - **Grid references** (the seven grids, and each department grid): the reference helper sets the destination to
   null first and then stores the resolved grid; the grid it held before is **not released** (foundations §2.7
   item 3). A failed reference leaves null.
-- **Department map: not cleared, merged.** For each saved entry, `map[departmentID] := grid` (map `operator[]`):
-  a new ID is inserted; an ID already present has its grid pointer **replaced** without releasing the old grid
-  (a leak); entries whose IDs are not in the record stay untouched. A version-8 record does not touch the map.
-- **Hotspot list: appended.** Each saved hotspot is appended at the end of the current list in record order; the
-  list is not cleared first, so hotspots already held stay in front (like flammability §10's hotspot read).
+- **Department map: not cleared, merged.** For each saved entry, `map[departmentID] := grid` (map `operator[]`
+  `0x00497A00`, called at `0x0068E45F`): a new ID is inserted; an ID already present has its grid pointer
+  **replaced** without releasing the old grid (a leak); entries whose IDs are not in the record stay untouched. A
+  version-8 record does not touch the map.
+- **Hotspot list: appended.** Each saved hotspot is appended at the end of the current list in record order (a node
+  linked in before the list's end, `0x0068E548`–`0x0068E552`); the list is not cleared first, so hotspots already
+  held stay in front (like flammability §10's hotspot read).
 - **Scalars** (`unusedRating`, `mayorRating`, the max/min locations and ratings) are overwritten.
 - The game calls `Read` on the object the class store has just created for the load (foundations §2.7), whose
   map and list are empty, so merge/append and replace give the same result in play *[inferred: no other caller

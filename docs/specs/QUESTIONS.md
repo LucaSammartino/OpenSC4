@@ -917,7 +917,12 @@ About `docs/specs/traffic-network.md`. The core's current answer is in brackets.
 About `docs/specs/aura.md` and its `docs/abi` rows. Ini: `enable = aura`; shadow `aura_shadow = 1` (compared at
 each cycle-completed message `0x2A09B21A`). The glue's current answer is in brackets.
 
-- **AU1 — §11.3:** does Read replace the departments and hotspots, or merge/append? [replace]
+- ~~**AU1 — §11.3:** does Read replace the departments and hotspots, or merge/append? [replace]~~ **ANSWERED
+  2026-10-14** from the exe (`Read` `0x0068E340`: map `operator[]` `0x00497A00` at `0x0068E45F`; list insert before
+  the end `0x0068E548`–`0x0068E552`) and written into aura.md §11.3 (addresses added; §16 Q12 and test 16 already
+  had it). **The bracket differs: the original merges and appends.** An existing department ID gets the new grid
+  pointer (the old grid is not released), other IDs stay; hotspots are added after the ones already held. In play
+  both give the same result, because the game reads into a fresh object; keep test 16's used-object case.
 - **AU2 — §10:** the transient tuning is read through properties, not the raw f32 copy. Same values? [properties]
 - **AU3:** `GetPopulations` (lot slot 54) returns a container not in `docs/abi`; the glue calls `GetPopulation(type)`
   (slot 53) for the 12 developer types and keeps non-zero counts, so a mixed lot whose residential count is 0 reads
