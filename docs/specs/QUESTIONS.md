@@ -1742,8 +1742,12 @@ void and writes jobs[1..3] of a four-float record). The current answer is in bra
   0.99999994 in the original and 1.0 in the bracket's order, so supply 1000 gives 999, not 1000. The two orders
   give different sums for 1198 of the 5151 splits of 100 %. **Extrapolation:** each wealth reads its own output. $
   (`0x12010`, `0x2010`) reads jobs[1], $$ reads jobs[2] and $$$ reads jobs[3], each `f32(jobs[k] × n)`.
-- **DQ11 — §5:** in the original `GetJobsBySensus`, what is in the local record's jobs[0] when slot 8 returns, and
-  is it really summed with jobs[3] left out? [not modelled; the sum of the three outputs]
+- ~~**DQ11 — §5:** in the original `GetJobsBySensus`, what is in the local record's jobs[0] when slot 8 returns, and
+  is it really summed with jobs[3] left out? [not modelled; the sum of the three outputs]~~ **ANSWERED 2026-10-14**
+  from the exe (`0x006A3E82` passes the address of a 16-byte local; the `FLD`/`FADD`s at `0x006A3E8C`–`0x006A3E9C`
+  read its offsets `+0xC`, `+8`, `+4`) and written into demand.md §5. **The bracket matches.** jobs[0] is
+  uninitialised stack that nothing writes or reads, and jobs[3] is summed. "j0 + j1 + j2" was a misreading from
+  before the slot-8 correction. Nothing to model.
 - **DQ12 — §5 against §4.1:** §5 says `f32(percent) × 0.01f`, while §4.1 describes an exact FILD followed by a
   single rounding. They agree for every percent below 2^24; which is the game's? [the §4.1 link factor]
 - Not a spec question: whether the WOW64 `CONTEXT` TagWord is the full or the abridged tag. The crash report logs
