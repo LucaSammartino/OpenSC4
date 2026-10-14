@@ -2616,7 +2616,8 @@ int main(int argc, char** argv) {
             auto* cr = static_cast<cFC4ISC4CrimeSimulator*>(obj);
             if (cr != nullptr) {
                 // §1: four interfaces and cIGZUnknown (the primary one), one
-                // reference count; any other IID: false and the out pointer null.
+                // reference count; any other IID: false and the out pointer
+                // untouched (CQ14).
                 void* p = nullptr;
                 CHECK(cr->QueryInterface(0x452294AAu, &p) && p != nullptr);
                 if (p) static_cast<cIGZUnknown*>(p)->Release();
@@ -2649,7 +2650,9 @@ int main(int argc, char** argv) {
                 if (u) static_cast<cIGZUnknown*>(u)->Release();
                 void* untouched = reinterpret_cast<void*>(0xDEADBEEF);
                 CHECK(!cr->QueryInterface(0xE98B2F57u, &untouched));  // cIGZMessageTarget: not answered
-                CHECK(untouched == nullptr);
+                CHECK(untouched == reinterpret_cast<void*>(0xDEADBEEF));
+                CHECK(!cr->QueryInterface(0x12345678u, &untouched));  // any other IID
+                CHECK(untouched == reinterpret_cast<void*>(0xDEADBEEF));
                 // Class slot 15 (class-private, after the destructor at 14):
                 // GetSimulatorType.
                 using TypeFn = uint32_t(__thiscall*)(void*);

@@ -871,9 +871,9 @@ bool cFC4CrimeSimulator::QueryInterface(uint32_t riid, void** ppvObj) {
             *ppvObj = static_cast<cIGZSerializable*>(this);
             break;
         default:
-            // §1: false and the out pointer null; in particular cIGZMessageTarget
-            // (0xE98B2F57) is not answered.
-            *ppvObj = nullptr;
+            // §1 (CQ14): false with the out pointer untouched, like every
+            // simulator class; in particular cIGZMessageTarget (0xE98B2F57) is
+            // not answered.
             return false;
     }
     AddRef();
