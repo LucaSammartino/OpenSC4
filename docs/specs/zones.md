@@ -354,7 +354,8 @@ Notes *[compat]*:
   - with `skipFunds` the cost is set to 0;
   - otherwise a cost above the funds (signed int64, `0x004DDE34`) **replaces** error 3 or 4 with error 1
     (`0x004DE023`);
-  - `*outCost := cost` and `*outError := code` are written as on every other exit (`0x004DE02B`–`0x004DE052`).
+  - `*outCost := cost` and `*outError := code` are written as on every other exit (`0x004DE02B`–`0x004DE052`), so
+    a caller's pre-filled values are always overwritten when the pointers are given (ZG16).
 
   The same holds after the other aborts (errors 2 and 5): the type-14 landfill cost of the whole region is added,
   and error 1 can replace the abort's code.

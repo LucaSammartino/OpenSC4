@@ -2915,8 +2915,13 @@ developer stays original). The current answer is in brackets.
   **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. The original's own callers of
   `PlaceZone` in this spec (the dezone, §5.1; the BDS, §6) both commit. The UI zoning tool, not traced, is the likely
   dry-run caller; tracing its calls to slot 11 would show which flags it uses.
-- **ZG16:** Are `*outCost` and `*outError` written on an early size-check failure? [the shadow fills the original's
-  with 0 first; our core writes 0]
+- ~~**ZG16:** Are `*outCost` and `*outError` written on an early size-check failure? [the shadow fills the original's
+  with 0 first; our core writes 0]~~
+  **ANSWERED 2026-10-14** from the exe (`PlaceZone` outputs `0x004DE02B`–`0x004DE052`; ZG17's trace) and written into
+  zones §6. Yes: both are written on every exit, the size-check failure included. `*outError` is 3 or 4, or 1 when the
+  cost exceeds the funds; `*outCost` is 0 for every type except 14, which gets the landfill zoning cost of the whole
+  region (0 with `skipFunds`). The shadow's pre-fill is harmless and is overwritten. Our core's 0 matches for every type
+  but 14 (ZG17).
 - ~~**ZG17 — zones §6, in game (regress rzones, coordinator):** the zones shadow's 1×1 PlaceZone dry run (checkSlope,
   size check, commit=false) with zone type 14 fails with error 3 on both sides, but the original writes a cost
   (36–208, varying by month and place) and ours writes 0. 15 of 92 months differ, only in this case. What does the
