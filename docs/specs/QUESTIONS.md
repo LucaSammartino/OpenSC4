@@ -568,3 +568,13 @@ current answer is in brackets.
 - **DQ7:** limits of 16 maps, 128 capacity entries and 4,096 summary nodes. Are larger real maps possible? [refused
   above them]
 - **DQ8:** which thread calls `GetLocalPopulationSummary`? [unspecified; the first success is logged with its thread]
+
+## From the protection fix: saved grid refs and their geometry (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+Run 70 found the fire replacement's grid at 0×0 after a load. The fire record's grid ref points to a grid whose own
+record is read later, so the grid is still empty during the simulator's `Read`. The host grid now keeps a geometry
+only once it is non-empty. The current answer is in brackets.
+
+- **HG1 — foundations (load order):** are all grid records read before any simulator's `Init`, so that the first
+  non-empty geometry is the final one? Which order does the class store read records and resolve refs in, relative
+  to `Read` and `Init`? [assumed yes]
