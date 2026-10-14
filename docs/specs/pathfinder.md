@@ -394,8 +394,19 @@ Arguments: cell, entry side, type `t`, step cost, predecessor `c`, `maxCost`, ex
 3. `g = r24(cost + c.g)`.
 4. Unless flag 1: if not `g ≤ maxCost` (also when `g` is NaN): the over-budget counter of `t` is incremented; when it
    exceeds 64 (the 65th rejection in this call), `t` is disabled for the rest of the call; ignore. *[compat]*
-5. Fetch or create the node. If it is open and not `g < node.g`, ignore. If it is closed and not `g < node.g`,
-   ignore. (A NaN `g` passes both tests.)
+5. Fetch or create the node (a new node is neither open nor closed, so neither test applies). If it is open and
+   `node.g ≤ g`, ignore. If it is closed and `node.g ≤ g`, ignore. Both are **ordered** IEEE compares
+   (`0x006D9070`, `0x006D9085`: `fcomp`, then only C0 is tested, and an unordered result sets C0 too), so the node is
+   taken when `g < node.g` **or when either value is NaN** *[compat]* (PF1):
+
+   | `node.g` | `g` | result |
+   |---|---|---|
+   | 3.0 | 2.5 | taken |
+   | 3.0 | 3.0 | ignored (an equal `g` never replaces) |
+   | 3.0 | NaN | taken |
+   | NaN | 5.0 | taken (a NaN `node.g` is replaced by any `g`) |
+
+   A NaN `g` reaches this step only with flag 1, because step 4 rejects it otherwise.
 6. Set predecessor = `c`, not closed, `g`, entry side, `f = r24(r24(H(x, z) × w) + g)` with `(x, z)` the passed cell
    (the in-city cell for an exit node). If it was open: Update; else Push and mark open. A closed node is re-opened.
 
@@ -739,7 +750,7 @@ ferries but not starts or same-type moves; subway-station transfer uses the unma
 allowed mask; switch moves skip the map-bounds check; exit cost = heuristic term; clamped start rings re-push nodes;
 the goal node is pushed back on success; RecalculateNodeScores only sifts up; filter 3 with flag 4 keeps stale
 scores; the excluded edge rect only exists for filter 0; the 65th over-budget rejection disables a travel type for
-the call; NaN costs pass the "better" test; ApplyTraffic's exit side uses unsigned bytes; the income double is
+the call; a NaN `g` (new or stored) passes the "better" test (§4.9 step 5); ApplyTraffic's exit side uses unsigned bytes; the income double is
 rounded to 24 bits; filter 0 overwrites the caller's end rect.
 
 Open questions:

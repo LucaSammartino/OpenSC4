@@ -502,8 +502,11 @@ About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The 
 About `docs/specs/pathfinder.md`. All fourteen §11 tests pass as unit tests and vectors `pf11_01`–`pf11_14`; extra
 vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
 
-- **PF1 — §4.9 step 5:** "not g < node.g → ignore" contradicts its note that a NaN g passes both tests.
-  [`node.g <= g → ignore`, so a NaN g passes]
+- ~~**PF1 — §4.9 step 5:** "not g < node.g → ignore" contradicts its note that a NaN g passes both tests.
+  [`node.g <= g → ignore`, so a NaN g passes]~~ **ANSWERED 2026-10-14** from the exe (`AddTripNode`
+  `0x006D9070`, `0x006D9085`) and written into §4.9 step 5, with a table. **The bracket is right.** Both tests are an
+  ordered `node.g ≤ g`: `fcomp`, then only C0 is tested, and an unordered result sets C0. So the node is taken when
+  `g < node.g` or when **either** value is NaN; a stored NaN `g` is replaced by any `g`. The old wording was wrong.
 - **PF2 — §4.17:** which of the record's two arrays do the "16 counters" go to? [`current`]
 - **PF3 — §8:** which value does the pathfinder pass for `GetLot`'s bool? [left to the host]
 - **PF4 — §4.8.3 step 3:** `conn[t]` is shifted by the node's entry side `s`, not the loop's `s2`. [literally `s`]
