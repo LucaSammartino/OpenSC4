@@ -515,6 +515,79 @@ plugin.
      Success is `base mismatches=0`, `aura mismatches=0` (or only in the transient-effect tracts), equal park
      and landmark maps, equal mayor rating, best / worst and `hotspots … (same)` on every cycle line, and no
      `INCOMPLETE` line after the first cycle.
+   - **Land value shadow** (`landvalue_shadow = 1`, env `FC4_LANDVALUE_SHADOW`; off by default;
+     `landvalue_shadow_cells = N`, env `FC4_LANDVALUE_SHADOW_CELLS`, default 4, 1..64): a same-process
+     differential of the land value grids. It needs the **original** land value simulator (do not enable
+     `landvalue`; otherwise `landvalue shadow: requested … but INACTIVE` at game start). Its own message target
+     (from `PostAppInit`) hears the original's `LandValueMapChanged` (`0x87CC75B3`, land value spec §9: posted
+     at the end of state 8, so the original has just finished a pass; a month boundary is not a pass boundary,
+     and the grids are written in place while a pass runs). Then the original's three grids (slots 7-9, every
+     tract), `GetLandValueType` (slot 5) at each total tract's first cell, the average (slot 10), the mode
+     altitude (slot 11) and its record (its own `Write` into memory: the dirty-or-running flag and the mean
+     altitude, which have no getter) are read, and FreeCity4's pass (states 0-8, the core code our simulator
+     runs, `fc4_landvalue_shadow_compare`) runs on local grids (the intrinsic grid starts as a copy of the
+     original's: state 4 keeps it without an altitude curve), reading the terrain, the zones, the lot developer's
+     area slope and the growth developers' desirability maps live and read-only. `SimNewDay` notes the listed
+     developers' desirability maps: when the total grid differs and a map changed after the original's pass read
+     it, our pass runs again with the previous map and the better result is kept (`desirability=previous map
+     …`). **Not compared** (said at game start): the scratch grid, the histogram, min / max altitude, pivot and
+     ranges (no getter, not saved), the pipeline state and the dirty flag apart (the record holds their OR,
+     logged as `settled`), the inputs as each state read them, and the order of several growth developers (the
+     shipped tuning lists one). Lines (always written; longer ones continue on `landvalue shadow (cont.)` lines):
+
+     ```
+     landvalue shadow: ON (landvalue_shadow from …): …                                    (game start)
+     landvalue shadow: NOT readable read-only (left out of the comparison): …            (game start)
+     landvalue shadow: comparing with the original land value simulator … (city …); tuning …   (each city)
+     landvalue shadow yyyy-mm-dd pass N: compared on CXxCZ tracts (S=s), slope SXxSZ (S=8): intrinsic cells=…
+       mismatched=a max|d|=…; total cells=… mismatched=b max|d|=…; slope cells=… mismatched=c max|d|=…; types
+       mismatched=t/T; average orig/ours=x/y; modeAlt orig/ours=…/…; meanAlt orig/ours=…/…; settled=0|1;
+       desirability=live (k developer(s)) | previous map (…) | none (…); mismatches=M; passes=P clean=C[; first
+       differing (x,z) orig/ours: total (x,z) a/b …]
+     landvalue shadow yyyy-mm-dd pass N: INCOMPLETE (why); not compared
+     ```
+
+     Success is `mismatches=0` on every pass line (`clean` equal to `passes`). A `!` marks a differing scalar;
+     the slope and the altitudes are compared bitwise. `settled=0` means the original's record says an input
+     changed after its pass started, so a difference on that line may be that change.
+   - **Flammability shadow** (`flammability_shadow = 1`, env `FC4_FLAMMABILITY_SHADOW`; off by default;
+     `flammability_shadow_cells = N`, env `FC4_FLAMMABILITY_SHADOW_CELLS`, default 4, 1..64): a same-process
+     differential of the flammability grids. It needs the **original** flammability simulator (do not enable
+     `flammability`; otherwise `flammability shadow: requested … but INACTIVE`). Its own message target hears the
+     original's six messages (occupant inserted / removed / changed, season change, ordinance updated, condition
+     changed, flammability spec §5), which go to a mirror simulator (ours, on its own grids; the occupants, lots,
+     ordinances, weather, plumbing and zones are read live and read-only), and the original's `SimCycleComplete`
+     (`0x08F415FE`, §9: posted by the end of a cycle, delivered queued after the day agent; every tract was
+     visited once in that cycle, and the average and the hotspots exist only per cycle). There the original's
+     record (its own `Write` into memory: the adjusted and raw grids through their references, the multiplier,
+     the average, the hotspots) and getters (slot 6 per city cell, slots 7, 8) are read and
+     `fc4_flammability_shadow_cycle` compares: the raw grid exactly; each adjusted tract against the values the
+     cycle could have written (its daily value from the raw values, multipliers and watered states it had, or
+     its previous value: at most 2 × tractsPerDay tracts may be "unvisited", visited on the wrap day before the
+     previous comparison); the average against the range those values allow; the multiplier bitwise; the
+     hotspots against every rotation of the fixed visiting order; the getters on the mirror after it took the
+     original's state. The first cycle seen (and the one after a new simulator, a new geometry or an
+     `INCOMPLETE`) is the baseline. **Not compared** (said at game start and in every line): the fire roll (a
+     clock-seeded generator), the iterator start and the hotspot shuffle (C `rand()` draws), the random lot, the
+     candidate list and the zoned sum and count. Lines (always written; longer ones continue on `flammability
+     shadow (cont.)` lines):
+
+     ```
+     flammability shadow: ON (flammability_shadow from …): …                            (game start)
+     flammability shadow: NOT readable read-only (left out of the comparison): …        (game start)
+     flammability shadow: following the original flammability simulator of city …; …    (each city)
+     flammability shadow yyyy-mm-dd cycle N: baseline (why): our simulator takes the original's grids (…)
+     flammability shadow yyyy-mm-dd cycle N: tracts=CXxCZ (S=1) tractsPerDay=d; raw cells=… mismatched=a
+       max|d|=…; adjusted cells=… mismatched=b max|d|=… (exact …, explained …, unvisited u of at most 2d); average
+       orig/ours=x/y[..z]; multiplier orig/ours=…/…; hotspots orig/ours=h/h same (rotation k of n hot tracts) |
+       differ (…)[; first differing (x,z) orig/ours: …]; events=e; hotspot getter orig/ours=v@(x,z)/…; average
+       getter orig/ours=…/…; flammable getter cells=… mismatched=…; mismatches=M; cycles=K clean=C; not compared: …
+     flammability shadow yyyy-mm-dd cycle N: INCOMPLETE (why); not compared, the next cycle is a new baseline
+     ```
+
+     Success is `mismatches=0` on every cycle line (`clean` equal to `cycles`). The average shows as a range
+     `x/lo..hi` when inputs changed in the cycle; a miss counted as `maybe hot` or `not counted` is reported but
+     not counted.
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,
