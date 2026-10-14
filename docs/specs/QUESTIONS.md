@@ -2254,3 +2254,45 @@ way.
   code as a reading, not a finding]
 - **SV2 — ordinance §9.1:** does anything other than the ordinance simulator hold a foreign (plugin) ordinance read
   from a save? [assumed no; released as ours]
+
+## From the neighbours glue and shadow (filed by the coordinator from the `neighglue` lane's report, 2026-10-14)
+
+About `docs/specs/neighbors.md` and the neighbours glue (`cFC4NeighborsSimulator`, `FC4NeighboursShadow`). The current
+answer is in brackets.
+
+- **NG1:** Property holder semantics for our own objects (connections, deals). [sorted by property id, values copied;
+  `GetPropertyList` returns false; data as a Uint8 array]
+- **NG2:** Object-valued properties on our connection objects. [dropped from the core sync]
+- **NG3:** Does the region reach our connection objects non-virtually (by field offset)? [unknown; the risk is noted]
+- **NG4:** `AddDeal` with a foreign (original) deal object. [copied into a deal of ours]
+- **NG5:** The lifetime of the deal wrapper objects. [created lazily, parked at zero references]
+- **NG6:** Getters called from other threads. [the lock is tried for 20 ms, then the mirror or a neutral value is
+  returned and counted as a fallback]
+- **NG7:** The shadow's state it cannot read from the original. [ready = 1, uiDisabled = 0]
+- **NG8:** The volume-dirty flag. [true once after creation]
+- **NG9:** `SetType` and similar setters on foreign connections. [ignored]
+- **NG10:** The return of `CreateConnection`. [our pointer, borrowed; null if the connection already exists]
+- **NG11:** Slots 32/33 (64-bit values). [the low 32 bits]
+- **NG12:** The return channel of the regional city getters 50–64. [double (x87)]
+- **NG13:** The return of deal `Copy`. [void]
+- **NG14:** `RequestCreateConnection`: the yes/no dialog. [confirmed without the dialog, logged once]
+- **NG15:** `GetCity` with out-of-range cells. [passed on as uint32]
+- **NG16:** Creating the connection marker. [`CreateProp` + `AddCityProp`, then our reference released]
+- **NG17:** The occupant cell of a connection. [the network's `GetOccupiedCell`, else the pole's `GetCell`]
+- **NG18:** A deal holder not reachable by QueryInterface. [left open]
+- **NG19:** No city on the other side of a connection. [targets 0]
+- **NG20:** The `GetSourceCells` rectangle. [(x, z, x, z)]
+- **NG21:** The return of `UpdateTrafficVolume`. [true]
+- **NG22:** `cISCProperty` Write/Read. [through the segment stream]
+- **NG23:** The size query of `GetPropertyData`. [left open]
+- **NG24:** Regional cities held across calls. [AddRef until the outermost exit]
+- **NG25:** The marker query type. [`0xA823821E`]
+- **NG26:** Traffic source `QueryInterface`. [forwarded to the connection]
+- **NG27:** `GetPropertyU32` on array properties. [the first element]
+- **NG28:** The shadow's statistics tolerance. [relative 1e-6]
+- **NG29:** Network flag bits used as type numbers. [left open]
+- **NG30:** `ReloadCity` through the SDK `cISC4Region`, which is not in `docs/abi`. [gated, with an identity check]
+- **NG31:** Status reports from deals with no host object. [left open]
+- **NG32:** The shadow's connection-state comparison. [the original's after-state against our before-state]
+- **NG33:** A message from another thread that cannot get the lock. [dropped, returns true]
+- **NG34:** A null connection reference in a save. [skipped]

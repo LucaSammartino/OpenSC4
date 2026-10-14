@@ -144,8 +144,9 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >     64 m index query of FQ15, inherited flora properties); ABI 30 / seam op 35 if needed;
 >   - **zones glue, phase 1** (`cFC4ZoneManager` replacement + `zones_shadow`; the zone developer / lot manager stays
 >     original; ABI 34, seam op 38);
->   - **growth probe** (`growth_probe`: counts the original tract developer's `Grow` calls per day through a vtable
->     hook, building-development.md §12, to set the `growthAttemptsPerDay` default; seam op 39 if needed);
+>   - **growth probe: merged** (`393a529`, seam op 39; DLL `83897a4b`). Run 93 (all original, 14,339 days):
+>     159 µs per attempt, Σattempts/Σqualifying 0.72, no cut days, so `growthAttemptsPerDay` stays unlimited
+>     (building-development.md §12.1, manual-checks row 93);
 >   - **`apply6a`**: TS1–TS34 into the traffic simulator core (`ts11_*` vectors; core only, no glue; ABI 32 only if
 >     unavoidable);
 >   - **`apply6b`**: PW1–PW8, PS1–PS8, LG1–LG20 into the power, plumbing and landfill cores, glue and shadows (the
@@ -157,15 +158,23 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >     EX21–EX33). Merged RE lanes: `re-answers4` (`79d619c`; `docs/abi` rows `83aa768`), `re-answers5` (`fdc6893`;
 >     rows `a9eef99`), `re-answers6` (`d9db98f`: LV, FL, DQ10–12, RG23, RG17, BQ3, CQ16–22, TN21–25, HG1, the crime
 >     errata; row `bbee494`).
->   - **Next to launch, `apply7b`** (prompt in the session scratchpad, `apply7b-task.txt`): CQ16–CQ22, the crime
->     errata, TN21–TN25, HG1. Launch it once `apply6a` merges, because both touch the traffic network.
+>   - **`apply7b`**: CQ16–CQ22 (the clock-seed helper moves to `rng.rs`), the crime errata, TN21–TN25, HG1; ABI 36 /
+>     seam op 41 if needed;
+>   - RE **`re-formats2`** (M6): a new `docs/specs/graphics-formats.md` for FSH textures and S3D models, with a survey
+>     of the shipped data and conformance tests (GF questions); then an `engine/formats` lane;
+>   - **Next to launch, M5 traffic glue phase 1** (prompt in the session scratchpad, `trafficglue-task.txt`): the
+>     traffic simulator + pathfinder replacement unit (class `0x6990C1AA`, our slot-6 pathfinders, §6 record),
+>     ABI 37. Launch it once `apply6a` merges (TS1–TS34 change the core it hosts).
+> - **Restarts:** the coordinator's process exited twice on 2026-10-14; each time every lane stopped, and resumed
+>   through `SendMessage` with its worktree intact. Worktrees made by an elevated session are owned by
+>   Administrators, so a non-elevated session needs `safe.directory = C:/Users/tlori/FreeCity4/.claude/worktrees/*`
+>   (now in the global git config).
 >   Merge order rule: merge one lane, then have the next lane `git merge main` itself (it knows its files), then
 >   gate its worktree; renumber ABI/seam ops/switch counts at that point. If `git merge-tree` shows no conflict,
 >   the coordinator may merge main into the lane's worktree itself and gate that.
 > - **Open follow-ups:**
 >   - residential: the RG23 answer (proximity grids), then an apply lane;
->   - run the growth probe in the original when it merges (a long soak with `growth_probe = 1`), and set the default
->     from its Shutdown summary (building-development.md §4.4.1, §12);
+>   - growth budget: done (run 93). Optional: the same probe on a large city (attempt cost grows with lots; §12.1);
 >   - run 85 settled run 84: the original's own path spans it (no bias; `docs/manual-checks.md`);
 >   - zones glue (M4); development glue (BDS, growth, tract and lot developers: building-development.md §9);
 >     traffic glue (M5);

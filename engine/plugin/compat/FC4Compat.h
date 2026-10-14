@@ -62,6 +62,13 @@ struct ExecutableVersion {
     // §15.1, §15.2): the protection shadow reads the unadjusted grid at
     // primary +0x84 only from an object with one of these (§2, PR5).
     uint32_t protectionVtableVA[2];
+    // The growth probe (building-development.md §12): the original tract
+    // developer's primary vtable and the Grow its slot 5 holds
+    // (tract-developer.md §1.1, §7.1; docs/abi/interfaces.tsv), and the
+    // original BDS's primary vtable (building-development.md §1.1, §7.1).
+    uint32_t tractDeveloperVtableVA;
+    uint32_t tractDeveloperGrowVA;
+    uint32_t bdsVtableVA;
 };
 
 // The running executable if it is a table entry loaded at its preferred base
@@ -99,6 +106,18 @@ const void* GameStringVtable();
 // executable is not identified or the address is not committed, readable
 // memory inside its image whose first entry is code inside the image.
 const void* ProtectionPrimaryVtable(unsigned kind);
+
+// The growth probe (building-development.md §12): the original tract
+// developer's primary vtable and the original Grow its slot 5 must hold, or
+// false (logged once) if the executable is not identified, the vtable is not
+// committed, readable memory inside its image whose first entry is code
+// inside the image, or the Grow address is not executable code inside the
+// image. The vtable is returned as it is; the probe checks the entry itself.
+bool TractDeveloperGrow(void*** vtable, uintptr_t* grow);
+
+// The original building development simulator's primary vtable
+// (building-development.md §7.1), or nullptr (logged once; same checks).
+const void* BuildingDevelopmentVtable();
 
 // The address of a direct-call target, or 0 (logged once per target) if the
 // executable is not identified or the address is not executable code inside

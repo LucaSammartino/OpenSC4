@@ -141,6 +141,11 @@
 //         classes' instead of the compat table's, to read the unadjusted grid
 //         at primary +0x84 (FC4ProtectionShadow.h, PR5); both null: back to
 //         the compat table. Returns 1.
+//   op 39 kFC4SeamGrowthProbe      a = const FC4GrowthProbeTestInput*
+//         (FC4GrowthProbe.h): the growth probe started on a given vtable
+//         (instead of the compat table's), one of its messages delivered
+//         with a given city, or the probe stopped; see GrowthProbeTest for
+//         the return values (-1: null argument).
 #pragma once
 
 #include <cstdint>
@@ -192,6 +197,7 @@ enum : uint32_t {
     kFC4SeamVariant = 30,
     kFC4SeamX87Check = 31,
     kFC4SeamProtectionShadowVtables = 32,
+    kFC4SeamGrowthProbe = 39,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);
