@@ -339,6 +339,20 @@ order (the first one when the cursor is −1):
 So N departments take N + 1 calls. If the cursor's department has disappeared from the map, the cursor is reset to
 −1 and the state moves to 4 **without** publishing *[quirk]*.
 
+**When the park and landmark maps change *[compat]*.** Only states 2 and 3 write them, once per cycle:
+- The park map is rebuilt in **every** state 2. Every tract is written from the raw park grid, so nothing needs
+  clearing first.
+- The landmark map is replaced in state 3, when the last department is done: landmark work is copied over it. The
+  first department overwrites landmark work, so nothing is cleared first either. With an empty department map the
+  landmark map is never written, so it keeps what it held (the loaded grid, or 0 from creation).
+- A load restores both maps from the save (§11.3). Nothing recomputes them at load or at `Init`.
+- Inserting or removing an occupant changes only the raw park grid, a department grid or the building-effect grid
+  (§7), and only when the posted message is delivered (§5.3). The park and landmark maps follow at the next state 2
+  or 3.
+
+So a park whose insert message is delivered after state 2 (or 3) of a cycle reaches the map one cycle later. §5.3
+has the worked example: the landfill tiles created on the 1st are in the maps of the following cycle.
+
 ### 6.4 State 4 — prepare
 Fill the work grid with −128. Get a fresh safe lot iterator from the lot manager. If `lotManager.GetLotCount() ==
 0` → state 0: the cycle ends **without** updating the rating or posting the end message *[quirk]*. Otherwise run

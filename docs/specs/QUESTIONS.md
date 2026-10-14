@@ -953,9 +953,18 @@ with aura was clean, 0 problems). The park, landmark and riot fields aside, **6 
   agents (traffic trip lengths and congestion, pollution) run when a day passes. Occupant cones arrive by posted
   messages. A base near equilibrium moves by at least 1 for any non-zero `d`, so one work cell off changes it by 1
   or 2. Track the original's state field (+0x70) and run our steps when it moves.
-- **AU14 — park and landmark maps in cycles 2 and 3 only.** 193 tracts (max|d| 200) in cycle 2 and 208 (max 188)
+- ~~**AU14 — park and landmark maps in cycles 2 and 3 only.** 193 tracts (max|d| 200) in cycle 2 and 208 (max 188)
   in cycle 3 differ in both maps, then 0 for the other 95 cycles. When does the original rebuild these maps (on
-  load, on the first cycle, when a park lot is added), and does it clear them first?
+  load, on the first cycle, when a park lot is added), and does it clear them first?~~ **ANSWERED 2026-10-14** from
+  the exe (`DoIdle` states 2 and 3, `0x0068F1D7` and `0x0068F222`; occupant handler `0x0068ECF0`) and written into
+  aura.md §6.3 ("When the park and landmark maps change") and §5.3 (worked example). **Every cycle, and no clear is
+  needed.** State 2 rewrites every tract of the park map. State 3 copies landmark work over the landmark map after
+  the last department (the first department overwrites landmark work); with no departments it never writes it. Load
+  restores both maps; an occupant change touches only the raw park, department and building-effect grids, and
+  only when its posted message is delivered. The differences are landfill tiles (group `0x07BDDF1C`, park and
+  landmark {−100, 32}, radius 8 tracts, 193 tracts per cone) created on the 1st: their messages arrive after the
+  original's states 2 and 3, so its maps catch up one cycle later. Two tiles in one tract give 193 tracts with −200;
+  two tiles one tract apart give 208 tracts with −188.
 - **AU15 — rare large single-tract differences.** Three cycles have a base difference near 180 (cycle 3: 182,
   cycle 7: 188, cycle 88: 175) while the aura grid differs by at most 54/60/47 there. A lot placed or removed during
   the cycle? Which state reads the lots, and is a lot's effect clamped before or after it is added to the base?
