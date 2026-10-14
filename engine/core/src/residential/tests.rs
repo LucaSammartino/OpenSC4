@@ -27,6 +27,7 @@ use crate::grid::{CityDims, CoreGrids, GridElem, ScanState, SimGrid};
 use crate::property::PropertyHolder;
 use crate::stream::{ByteReader, ByteWriter, RefResolver, RefValue, RegisteredObject, SaveObject, SaveRegistry};
 use crate::variant::{mem, Elem, Variant};
+use crate::x87::rhe;
 
 /// The class ID the fake host writes for its objects (occupants and
 /// departments).
@@ -1043,7 +1044,7 @@ fn t11_average_life_expectancy() {
     assert_eq!(fx.h.history()[0], (history::AVERAGE_LIFE_EXPECTANCY, 71));
 }
 
-/// §15 test 12 / REH test 11: the per-mille history, rounded half to even,
+/// §15 test 12 (REH test 11 is `reh11_…`): the per-mille history, rounded half to even,
 /// with the served counters filled by the coverage states (5, 7): three
 /// schools and one hospital of units 0 on a tract of population 1 count it
 /// once each (REH §4.4 [quirk]), and their EQ / HQ boosts of 1.0 per building
@@ -1077,15 +1078,6 @@ fn t12_per_mille() {
             (history::HOSPITAL_COVERAGE, 0),
         ]
     );
-    // REH 11: served 1234 of 5000 → 246.8 → 247.
-    let fx = Fx::new(4);
-    fx.s.with_state(|s| {
-        s.population = 5000;
-        s.school_covered = 1234;
-        s.state = state::HISTORY;
-    });
-    fx.step();
-    assert!(fx.h.history().contains(&(history::SCHOOL_COVERAGE, 247)));
     // Population 0: both 0, 0x4A8A3FE2 first.
     let fx = Fx::new(4);
     fx.s.with_state(|s| {
@@ -2506,4 +2498,828 @@ fn t21_init_after_load() {
     // The loaded departments are kept: none is created.
     assert!(!b.h.take_events().iter().any(|e| matches!(e, Ev::CreateDepartment(..))));
     assert_eq!(s.education.department1, Some(902));
+}
+
+// ================================================================ REH §11 (education and health)
+
+/// Runs the coverage state (5 or 7) of a service and the grading state that
+/// follows it.
+fn cover_and_grade(fx: &Fx, school: bool) {
+    fx.set_state(if school {
+        state::SCHOOL_COVERAGE
+    } else {
+        state::HOSPITAL_COVERAGE
+    });
+    fx.step();
+    fx.step();
+}
+
+fn coverage(fx: &Fx, i: usize, x: i32, z: i32) -> u8 {
+    fx.grids().school_coverage[i].as_ref().unwrap().get(x, z)
+}
+
+/// REH test 1: coverage units (K-6 chunk 500); saturation at 255 with the
+/// low-16-bit test of the sum [quirk].
+#[test]
+fn reh01_coverage_units() {
+    let fx = Fx::new(16);
+    service(&fx, 1, &SCHOOL, 0, 1500, 10.0, (32.0, 32.0));
+    fx.set_state(state::SCHOOL_COVERAGE);
+    assert_eq!(fx.step(), state::SCHOOL_GRADING);
+    assert_eq!(coverage(&fx, 0, 0, 0), 3);
+    assert_eq!((coverage(&fx, 0, 1, 0), coverage(&fx, 0, 0, 1)), (0, 0));
+    service(&fx, 2, &SCHOOL, 0, 1500, 10.0, (32.0, 32.0));
+    fx.set_state(state::SCHOOL_COVERAGE);
+    fx.step();
+    assert_eq!(coverage(&fx, 0, 0, 0), 6);
+
+    // 250 + 10 → 255; 250 + 65286 = 0x10000 → low 16 bits 0 → 0 [quirk].
+    for (second, want) in [(5000, 255), (65286 * 500, 0)] {
+        let fx = Fx::new(16);
+        service(&fx, 1, &SCHOOL, 0, 125_000, 10.0, (32.0, 32.0));
+        service(&fx, 2, &SCHOOL, 0, second, 10.0, (32.0, 32.0));
+        fx.set_state(state::SCHOOL_COVERAGE);
+        fx.step();
+        assert_eq!(coverage(&fx, 0, 0, 0), want, "second capacity {second}");
+    }
+}
+
+/// REH test 2: units 0 still serve, once per building [quirk]; a tract
+/// covered by a lower group is not counted.
+#[test]
+fn reh02_units_zero_still_serve() {
+    let fx = Fx::new(16);
+    fx.set_tract(0, 0, steady([10, 20, 0]));
+    service(&fx, 1, &SCHOOL, 0, 400, 10.0, (32.0, 32.0));
+    fx.set_state(state::SCHOOL_COVERAGE);
+    fx.step();
+    assert_eq!(coverage(&fx, 0, 0, 0), 0);
+    assert_eq!(fx.s.snapshot().school_covered, 30);
+    service(&fx, 2, &SCHOOL, 0, 400, 10.0, (32.0, 32.0));
+    fx.set_state(state::SCHOOL_COVERAGE);
+    fx.step();
+    assert_eq!(fx.s.snapshot().school_covered, 60);
+
+    // Group 0 covers the tract (units 1): the group-1 school does not count it.
+    let fx = Fx::new(16);
+    fx.set_tract(0, 0, steady([10, 20, 0]));
+    service(&fx, 1, &SCHOOL, 0, 500, 10.0, (32.0, 32.0));
+    service(&fx, 2, &SCHOOL, 1, 400, 10.0, (32.0, 32.0));
+    fx.set_state(state::SCHOOL_COVERAGE);
+    fx.step();
+    assert_eq!(fx.s.snapshot().school_covered, 30);
+    // The hospitals' state counts its own way.
+    service(&fx, 3, &HOSPITAL, 0, 400, 10.0, (32.0, 32.0));
+    fx.set_state(state::HOSPITAL_COVERAGE);
+    fx.step();
+    assert_eq!(fx.s.snapshot().hospital_covered, 30);
+}
+
+/// REH test 3: the tract list of `GetTractsInRadius` (width 64 m, 8 × 8).
+#[test]
+fn reh03_tract_list() {
+    assert_eq!(tracts_in_radius(32.0, 32.0, 60.0, 64.0, 8, 8), vec![(0, 0)]);
+    assert_eq!(
+        tracts_in_radius(32.0, 32.0, 100.0, 64.0, 8, 8),
+        vec![(0, 0), (0, 1), (1, 0), (1, 1)]
+    );
+    // x0 = trunc(−1.71875) = −1, clamped to 0.
+    assert_eq!(tracts_in_radius(-10.0, 32.0, 100.0, 64.0, 8, 8), vec![(0, 0), (0, 1)]);
+}
+
+/// REH test 4: staff ratio and grade of capacity 1000 (units 2, so k = 1
+/// and served = the covered population).
+#[test]
+fn reh04_staff_ratio_and_grade() {
+    for (pop, staff, grade) in [(1250, 0.8, 0.8), (0, 1.0, 1.0), (500, 1.0, 1.0)] {
+        let fx = Fx::new(16);
+        fx.set_tract(0, 0, steady([pop, 0, 0]));
+        service(&fx, 1, &SCHOOL, 0, 1000, 10.0, (32.0, 32.0));
+        cover_and_grade(&fx, true);
+        assert_eq!(fx.h.prop_u32(1, SCHOOL.served), Some(u32::from(pop)));
+        assert_eq!(fx.h.prop_f32(1, SCHOOL.staff_ratio), Some(staff), "pop {pop}");
+        assert_eq!(fx.h.prop_u32(1, SCHOOL.effective_capacity), Some(1000));
+        assert_eq!(fx.h.prop_f32(1, SCHOOL.grade), Some(grade), "pop {pop}");
+    }
+    // Hospitals grade the same way.
+    let fx = Fx::new(16);
+    fx.set_tract(0, 0, steady([1250, 0, 0]));
+    service(&fx, 1, &HOSPITAL, 0, 1000, 10.0, (32.0, 32.0));
+    cover_and_grade(&fx, false);
+    assert_eq!(fx.h.prop_f32(1, HOSPITAL.grade), Some(0.8));
+    assert_eq!(fx.h.prop_f32(1, HOSPITAL.staff_ratio), Some(0.8));
+}
+
+/// REH test 5: the grade-grid blend [quirk]. A (group 0, units 3, grade
+/// 0.5, n = 3, previous 0) → 0.5; B (group 2, units 3 at 50 % funding,
+/// grade 0.5, n = 3, previous 0.5) → 2 × 0.5 + 0.5 = 1.5, clamped to 1.0.
+#[test]
+fn reh05_grade_grid_blend() {
+    let grade_grid = |fx: &Fx| fx.grids().school_grade.as_ref().unwrap().get(0, 0);
+    let fx = Fx::new(16);
+    fx.set_tract(0, 0, steady([3000, 0, 0]));
+    service(&fx, 1, &SCHOOL, 0, 1500, 10.0, (32.0, 32.0));
+    cover_and_grade(&fx, true);
+    assert_eq!(fx.h.prop_f32(1, SCHOOL.grade), Some(0.5));
+    assert_eq!(grade_grid(&fx), 0.5);
+
+    service(&fx, 2, &SCHOOL, 2, 3000, 10.0, (32.0, 32.0));
+    fx.h.department(0x77, 950, 0.5);
+    fx.h.item(
+        2,
+        SCHOOL.staff_purpose,
+        BudgetItem {
+            department: 0x77,
+            ..BudgetItem::default()
+        },
+    );
+    assert_eq!(fx.s.efficiency_ratings(2, true, false), (0.5, 1.0));
+    cover_and_grade(&fx, true);
+    assert_eq!(coverage(&fx, 2, 0, 0), 3);
+    assert_eq!(fx.h.prop_u32(2, SCHOOL.effective_capacity), Some(1500));
+    assert_eq!(fx.h.prop_f32(2, SCHOOL.grade), Some(0.5));
+    assert_eq!(grade_grid(&fx), 1.0);
+}
+
+/// REH test 6: the served population is rounded half to even. A wealth
+/// curve of 50 % (0.5 per resident) over 5 residents → 2.5 → 2; 7 → 3.5 →
+/// 4; 49.998 % over 5 → 2.4999 → 2.
+#[test]
+fn reh06_served_rounding() {
+    assert_eq!((rhe(2.5), rhe(3.5), rhe(2.4999)), (2, 4, 2));
+    for (pop, level, served) in [(5, 50.0, 2), (7, 50.0, 4), (5, 49.998, 2)] {
+        let fx = Fx::new(16);
+        fx.set_tract(0, 0, steady([pop, 0, 0]));
+        service(&fx, 1, &SCHOOL, 0, 500, 10.0, (32.0, 32.0));
+        fx.h.set_prop(1, SCHOOL.wealth_curve, curve(&[0.0, level, 2.0, level]));
+        cover_and_grade(&fx, true);
+        assert_eq!(fx.h.prop_u32(1, SCHOOL.served), Some(served), "pop {pop}, {level} %");
+    }
+}
+
+/// REH test 7: the strike roll, one draw per eligible non-striking building
+/// (a building outside the can-strike group does not draw).
+#[test]
+fn reh07_strike_roll() {
+    let fx = Fx::new(4);
+    fx.h.today.set(1234);
+    striker(&fx, 1, &SCHOOL, 0, 0.4);
+    service(&fx, 2, &SCHOOL, 0, 100, 10.0, (32.0, 32.0));
+    striker(&fx, 3, &HOSPITAL, 0, 0.4);
+    // p = curve(40) = 50: 49.9 starts a strike, 50.0 does not.
+    fx.h.queue.borrow_mut().extend([49.9, 50.0]);
+    assert_eq!(fx.step(), state::SEED_LOW);
+    assert_eq!(*fx.h.draws.borrow(), vec![(0.0, 100.0), (0.0, 100.0)]);
+    assert_eq!(
+        fx.h.take_events(),
+        vec![
+            Ev::Controllers(STRIKING_EDUCATION.to_string(), 1, true),
+            Ev::Strike(msg::SCHOOL_STRIKE, Some(1), 1, 0),
+            Ev::Ordinance,
+        ]
+    );
+    assert_eq!(fx.h.prop_u32(1, PROP_STRIKE_DAY), Some(1234));
+    assert_eq!(fx.h.prop_u32(3, PROP_STRIKE_DAY), None);
+    assert!(fx.s.school_is_on_strike() && !fx.s.health_is_on_strike());
+}
+
+/// REH test 8: a building's strike ends after more than `duration` days or
+/// when its staff ratio reaches "min grade" [quirks]; with no striking
+/// building left the city-level strike ends (data2 0, data3 today − start).
+#[test]
+fn reh08_strike_end() {
+    for (today, staff, ends) in [(1501, 0.5, true), (1500, 0.9, true), (1500, 0.89, false)] {
+        let fx = Fx::new(4);
+        striker(&fx, 1, &SCHOOL, 0, 0.4);
+        fx.h.set_prop(1, PROP_STRIKE_DAY, u(1000));
+        fx.h.set_prop(1, SCHOOL.staff_ratio, f(staff));
+        fx.s.with_state(|s| {
+            s.education.strike_flag = 1;
+            s.education.strike_start = 1000;
+        });
+        fx.h.today.set(today);
+        fx.step();
+        assert!(fx.h.draws.borrow().is_empty());
+        let ev = fx.h.take_events();
+        if ends {
+            assert_eq!(
+                ev,
+                vec![
+                    Ev::Controllers(STRIKING_EDUCATION.to_string(), 1, false),
+                    Ev::Strike(msg::SCHOOL_STRIKE, None, 0, today - 1000),
+                    Ev::Ordinance,
+                ],
+                "today {today}, staff {staff}"
+            );
+            assert_eq!(fx.h.prop_u32(1, PROP_STRIKE_DAY), Some(0));
+            assert!(!fx.s.school_is_on_strike());
+        } else {
+            assert_eq!(ev, vec![Ev::Ordinance]);
+            assert_eq!(fx.h.prop_u32(1, PROP_STRIKE_DAY), Some(1000));
+            assert!(fx.s.school_is_on_strike());
+        }
+    }
+}
+
+/// REH test 10: the system ratings, with the stale query record [quirk].
+#[test]
+fn reh10_system_rating() {
+    let fx = Fx::new(4);
+    service(&fx, 1, &SCHOOL, 0, 1000, 10.0, (32.0, 32.0));
+    service(&fx, 2, &SCHOOL, 1, 2000, 10.0, (32.0, 32.0));
+    graded(&fx, 1, &SCHOOL, 1000, 0, 1.0);
+    graded(&fx, 2, &SCHOOL, 2000, 0, 1.0);
+    fx.s.with_state(|s| s.population = 4000);
+    assert_eq!(fx.s.school_system_rating(), 0.75);
+    fx.s.with_state(|s| s.population = 0);
+    assert_eq!(fx.s.school_system_rating(), 1.0);
+    fx.s.with_state(|s| s.population = 4000);
+    graded(&fx, 1, &SCHOOL, 0, 0, 1.0);
+    graded(&fx, 2, &SCHOOL, 0, 0, 1.0);
+    assert_eq!(fx.s.school_system_rating(), 0.0);
+    // A building whose query fails adds the previous building's value again.
+    graded(&fx, 1, &SCHOOL, 1000, 0, 1.0);
+    fx.h.props.borrow_mut().remove(&(2, SCHOOL.effective_capacity));
+    assert_eq!(fx.s.school_system_rating(), 0.5);
+    // Hospitals: no buildings → 0.
+    assert_eq!(fx.s.health_system_rating(), 0.0);
+}
+
+/// REH test 11: the coverage history per mille, rounded half to even.
+#[test]
+fn reh11_history_per_mille() {
+    let fx = Fx::new(4);
+    fx.s.with_state(|s| {
+        s.population = 5000;
+        s.school_covered = 1234;
+        s.state = state::HISTORY;
+    });
+    fx.step();
+    assert_eq!(
+        fx.h.history()[3..],
+        [(history::SCHOOL_COVERAGE, 247), (history::HOSPITAL_COVERAGE, 0)]
+    );
+    let fx = Fx::new(4);
+    fx.s.with_state(|s| {
+        s.school_covered = 1234;
+        s.state = state::HISTORY;
+    });
+    fx.step();
+    assert_eq!(
+        fx.h.history()[3..],
+        [(history::HOSPITAL_COVERAGE, 0), (history::SCHOOL_COVERAGE, 0)]
+    );
+}
+
+/// REH test 13: life expectancy from the shipped curve, as a byte.
+#[test]
+fn reh13_life_expectancy() {
+    let fx = Fx::new(4);
+    for (hq, le) in [(30.0, 57), (100.0, 75), (0.0, 50)] {
+        fx.set_tract(
+            0,
+            0,
+            Tract {
+                hq: [hq, 0.0, 0.0],
+                ..steady([1, 0, 0])
+            },
+        );
+        assert_eq!(fx.s.get_cell_life_expectancy(0, 0), le, "HQ {hq}");
+    }
+}
+
+/// REH test 14: EQ decay 0.2 (10 → 9.8; 0.1 → 0).
+#[test]
+fn reh14_eq_decay() {
+    let fx = Fx::new(4);
+    fx.set_tract(
+        0,
+        0,
+        Tract {
+            eq: [10.0, 0.1, 0.0],
+            age: 30,
+            ..steady([100, 100, 0])
+        },
+    );
+    fx.s.do_population_change(0, 0);
+    assert_eq!(fx.eq(0, 0)[..2], [9.8, 0.0]);
+}
+
+/// REH test 15: the HQ pollution decay byte (average 600 → index 88; 256 →
+/// index 0).
+#[test]
+fn reh15_hq_pollution_byte() {
+    let fx = Fx::new(4);
+    let t = fx.s.snapshot().population_tuning;
+    fx.h.pollution.set([600, 0, 0]);
+    assert_eq!(fx.s.hq_loss(&t, 4, 0, 0), 0.2 + t.pollution_curves[0].eval(88.0));
+    assert!((fx.s.hq_loss(&t, 4, 0, 0) - 0.217_187_5).abs() < 1e-6);
+    fx.h.pollution.set([256, 0, 0]);
+    assert_eq!(fx.s.hq_loss(&t, 4, 0, 0), 0.2);
+}
+
+/// REH test 18: ideal funding against the efficiency curve (0,0) (100,100)
+/// (120,110), limited to the max funding 1.2 (0x3F999999).
+#[test]
+fn reh18_ideal_funding() {
+    let fx = Fx::new(4);
+    service(&fx, 1, &SCHOOL, 0, 1000, 10.0, (32.0, 32.0));
+    graded(&fx, 1, &SCHOOL, 1000, 500, 1.0);
+    assert_eq!(fx.s.estimate_ideal_funding(1), Some(0.5));
+    graded(&fx, 1, &SCHOOL, 1000, 1500, 1.0);
+    assert_eq!(fx.s.estimate_ideal_funding(1).map(f32::to_bits), Some(0x3F99_9999));
+    // Not graded yet, or no query data: AL = 0.
+    graded(&fx, 1, &SCHOOL, 1000, NOT_GRADED, 1.0);
+    assert_eq!(fx.s.estimate_ideal_funding(1), None);
+    fx.h.props.borrow_mut().remove(&(1, SCHOOL.grade));
+    assert_eq!(fx.s.estimate_ideal_funding(1), None);
+    assert_eq!(fx.s.estimate_ideal_funding(99), None);
+    // A hospital needs its staff item for the query (question 10).
+    service(&fx, 2, &HOSPITAL, 0, 1000, 10.0, (32.0, 32.0));
+    graded(&fx, 2, &HOSPITAL, 1000, 500, 1.0);
+    assert_eq!(fx.s.estimate_ideal_funding(2), None);
+    fx.h.item(2, HOSPITAL.staff_purpose, BudgetItem::default());
+    assert_eq!(fx.s.estimate_ideal_funding(2), Some(0.5));
+}
+
+/// REH test 19: an ordinance's effect factor 110 → m3 = 1.1 for every
+/// school; the EQ boost scales by 1.1 from the next state 0 (the lists are
+/// re-read there, not when the ordinance is enacted).
+#[test]
+fn reh19_ordinance() {
+    let fx = Fx::new(16);
+    fx.set_tract(0, 0, steady([100, 0, 0]));
+    service(&fx, 1, &SCHOOL, 0, 500, 10.0, (32.0, 32.0));
+    cover_and_grade(&fx, true);
+    assert_eq!(fx.eq(0, 0)[0], 1.0);
+    fx.h.enact(0x10, props(&[(SCHOOL.ord_effect, f(110.0))]));
+    fx.set_tract(0, 0, steady([100, 0, 0]));
+    cover_and_grade(&fx, true);
+    assert_eq!(fx.eq(0, 0)[0], 1.0);
+    fx.set_state(state::STRIKES_AND_LISTS);
+    fx.step();
+    let s = fx.s.snapshot();
+    assert_eq!(ordinance_modifiers(&s.school_effects), (1.0, 1.0, 1.1));
+    assert!(s.health_effects.is_empty());
+    fx.set_tract(0, 0, steady([100, 0, 0]));
+    cover_and_grade(&fx, true);
+    assert_eq!(fx.eq(0, 0)[0], 1.1);
+    assert_eq!(fx.h.prop_f32(1, SCHOOL.grade), Some(1.0));
+}
+
+/// REH test 20: the capacity estimate; staff uses the school divisor for
+/// hospitals too [quirk].
+#[test]
+fn reh20_capacity_estimate() {
+    let fx = Fx::new(4);
+    service(&fx, 1, &SCHOOL, 0, 1000, 10.0, (32.0, 32.0));
+    assert_eq!(fx.s.estimate_occupant_capacity(1), (1000, 34));
+    let fx = Fx::with(4, Some(tuned(|t| t.add(id::SCHOOL_STAFF_DIVISOR, u(25)))));
+    service(&fx, 2, &HOSPITAL, 0, 1000, 10.0, (32.0, 32.0));
+    assert_eq!(fx.s.snapshot().simulator_tuning.hospital_staff_divisor, 30);
+    assert_eq!(fx.s.estimate_occupant_capacity(2), (1000, 40));
+    // At 50 % funding (e1 0.5, strikes ignored): 500 and ceil(500 / 25) = 20.
+    fx.h.department(0x77, 950, 0.5);
+    fx.h.item(
+        2,
+        HOSPITAL.staff_purpose,
+        BudgetItem {
+            department: 0x77,
+            ..BudgetItem::default()
+        },
+    );
+    fx.h.set_prop(2, PROP_STRIKE_DAY, u(5));
+    assert_eq!(fx.s.estimate_occupant_capacity(2), (500, 20));
+    assert_eq!(fx.s.estimate_occupant_capacity(99), (0, 0));
+}
+
+/// REH test 21: the query data's per-staff fields: the school rounds up,
+/// the hospital down [quirk].
+#[test]
+fn reh21_query_data() {
+    let fx = Fx::new(4);
+    service(&fx, 1, &SCHOOL, 0, 1000, 10.0, (32.0, 32.0));
+    service(&fx, 2, &HOSPITAL, 0, 1000, 10.0, (32.0, 32.0));
+    fx.h.item(
+        2,
+        HOSPITAL.staff_purpose,
+        BudgetItem {
+            cost: 250,
+            local_funding: 0.75,
+            ..BudgetItem::default()
+        },
+    );
+    for (eff, school, hospital) in [(990, 33, 33), (991, 34, 33)] {
+        graded(&fx, 1, &SCHOOL, eff, 77, 0.5);
+        graded(&fx, 2, &HOSPITAL, eff, NOT_GRADED, 0.5);
+        let q = fx.s.school_query_data(1).unwrap();
+        assert_eq!((q.capacity_per_staff, q.effective_per_staff), (33, school));
+        assert_eq!((q.served, q.staff_funding, q.staff_cost), (77, 1.0, 0));
+        assert_eq!((q.vehicle_funding, q.vehicle_cost), (1.0, 0));
+        let q = fx.s.hospital_query_data(2).unwrap();
+        assert_eq!((q.capacity_per_staff, q.effective_per_staff), (33, hospital));
+        assert_eq!((q.served, q.staff_funding, q.staff_cost), (0, 0.75, 250));
+    }
+    // No staff item: the hospital query fails; a missing field fails both.
+    fx.h.items.borrow_mut().clear();
+    assert!(fx.s.hospital_query_data(2).is_none());
+    fx.h.props.borrow_mut().remove(&(1, SCHOOL.served));
+    assert!(fx.s.school_query_data(1).is_none());
+    // Slot 14: the totals of the selected groups, counting successful queries.
+    graded(&fx, 1, &SCHOOL, 990, 77, 0.5);
+    service(&fx, 3, &SCHOOL, 1, 600, 10.0, (32.0, 32.0));
+    graded(&fx, 3, &SCHOOL, 600, 23, 0.25);
+    let mut t = QueryData::default();
+    assert_eq!(fx.s.school_system_totals(&[0x150F, 0x1510], &mut t), 2);
+    assert_eq!(
+        (
+            t.capacity,
+            t.effective_capacity,
+            t.capacity_per_staff,
+            t.effective_per_staff,
+            t.served,
+            t.grade
+        ),
+        (1600, 1590, 53, 53, 100, 0.75)
+    );
+    let mut t = QueryData::default();
+    assert_eq!(fx.s.school_system_totals(&[0x1510], &mut t), 1);
+    assert_eq!(fx.s.hospital_system_totals(&[0x1512], &mut t), 0);
+}
+
+// ---- REH §4.1: building registration ----
+
+fn staff_item(department: u32, line: u32, index: u32) -> BudgetItem {
+    BudgetItem {
+        department,
+        line,
+        index,
+        cost: 100,
+        local_funding: 1.0,
+    }
+}
+
+/// REH §4.1: a school with budget items is registered with the budget
+/// simulator (line item, locally funded) when added and unregistered when
+/// removed; a null department aborts the call.
+#[test]
+fn building_registration() {
+    let fx = Fx::new(4);
+    let (staff, vehicle) = (SCHOOL.staff_purpose, SCHOOL.vehicle_purpose);
+    fx.h.department(0x77, 950, 1.0);
+    fx.h.department(0x78, 951, 1.0);
+    for occ in [5, 6] {
+        fx.h.building(occ, &[0x150F]);
+        fx.h.building_types.borrow_mut().insert(occ, 0x1234);
+        fx.h.set_prop(occ, SCHOOL.capacity, u(1500));
+        fx.h.item(occ, staff, staff_item(0x77, 0, 3));
+        fx.h.item(occ, vehicle, staff_item(0x78, 9, 4));
+    }
+    fx.s.with_state(|s| s.dirty = false);
+    fx.s.do_building_changed(5, true);
+    assert_eq!(
+        fx.h.take_events(),
+        vec![
+            Ev::ChangeLine(5, 3, 0x1234),
+            Ev::CreateLine(950, 0x1234, true),
+            Ev::DisplayFlag(700, LINE_ITEM_DISPLAY_FLAG, true),
+            Ev::AddLocal(950, 5, staff),
+            Ev::LineCount(700, 1),
+            Ev::AddLocal(951, 5, vehicle),
+            Ev::AddRef(5),
+        ]
+    );
+    assert_eq!(fx.h.items.borrow()[&(5, staff)].line, 0x1234);
+    assert_eq!(fx.h.prop_u32(5, SCHOOL.effective_capacity), Some(1500));
+    let s = fx.s.snapshot();
+    assert!(s.dirty && s.lists.pending_school == vec![Some(5)]);
+    fx.s.do_building_changed(6, true);
+    assert_eq!(
+        fx.h.take_events(),
+        vec![
+            Ev::ChangeLine(6, 3, 0x1234),
+            Ev::AddLocal(950, 6, staff),
+            Ev::LineCount(700, 2),
+            Ev::AddLocal(951, 6, vehicle),
+            Ev::AddRef(6),
+        ]
+    );
+    // Removed: the line already is the building type.
+    fx.s.do_building_changed(5, false);
+    assert_eq!(
+        fx.h.take_events(),
+        vec![
+            Ev::RemoveLocal(950, 5, staff),
+            Ev::LineCount(700, 1),
+            Ev::RemoveLocal(951, 5, vehicle),
+            Ev::Release(5),
+        ]
+    );
+    fx.s.do_building_changed(6, false);
+    assert_eq!(
+        fx.h.take_events(),
+        vec![
+            Ev::RemoveLocal(950, 6, staff),
+            Ev::LineCount(700, 0),
+            Ev::RemoveLine(950, 0x1234),
+            Ev::RemoveLocal(951, 6, vehicle),
+            Ev::Release(6),
+        ]
+    );
+    assert!(fx.s.snapshot().lists.pending_school.is_empty());
+    assert_eq!((fx.h.ref_count(5), fx.h.ref_count(6)), (0, 0));
+
+    // A null staff department aborts after the line change; a null vehicle
+    // department after the staff registration.
+    fx.h.item(7, staff, staff_item(0x99, 0, 3));
+    fx.h.building(7, &[]);
+    fx.s.do_building_changed(7, true);
+    assert_eq!(fx.h.take_events(), vec![Ev::ChangeLine(7, 3, 0)]);
+    fx.h.item(8, staff, staff_item(0x77, 0x55, 3));
+    fx.h.item(8, vehicle, staff_item(0x99, 9, 4));
+    fx.h.building(8, &[]);
+    fx.s.do_building_changed(8, true);
+    assert_eq!(
+        fx.h.take_events(),
+        vec![
+            Ev::CreateLine(950, 0x55, true),
+            Ev::DisplayFlag(701, LINE_ITEM_DISPLAY_FLAG, true),
+            Ev::AddLocal(950, 8, staff),
+            Ev::LineCount(701, 1),
+        ]
+    );
+    assert!(fx.s.snapshot().lists.pending_school.is_empty());
+    // A hospital recognised by its group goes to the pending hospital list.
+    fx.h.building(9, &[0x151C]);
+    fx.s.do_building_changed(9, true);
+    assert_eq!(fx.h.take_events(), vec![Ev::AddRef(9)]);
+    assert_eq!(fx.s.snapshot().lists.pending_hospital, vec![Some(9)]);
+    assert_eq!(fx.h.prop_u32(9, HOSPITAL.effective_capacity), Some(0));
+}
+
+/// residential.md §5.8 (RS8): a building with both health-affecting
+/// properties above 0 joins the pending (other) list, which state 0 moves to
+/// the health-affecting list; removal erases and releases it.
+#[test]
+fn rs8_health_affecting() {
+    let fx = Fx::new(4);
+    let [p, q] = PROP_HEALTH_AFFECTING;
+    for (occ, a, b) in [(9, 1.0, 2.0), (10, 1.0, 0.0), (11, f32::NAN, 1.0)] {
+        fx.h.building(occ, &[]);
+        fx.h.set_prop(occ, p, f(a));
+        fx.h.set_prop(occ, q, f(b));
+    }
+    fx.s.with_state(|s| s.dirty = false);
+    fx.s.do_building_changed(10, true);
+    fx.s.do_building_changed(11, true);
+    assert!(fx.h.take_events().is_empty() && !fx.s.snapshot().dirty);
+    fx.s.do_building_changed(9, true);
+    assert_eq!(fx.h.take_events(), vec![Ev::AddRef(9)]);
+    let s = fx.s.snapshot();
+    assert!(s.dirty && s.lists.other == vec![Some(9)]);
+    assert_eq!(fx.s.health_affecting_buildings(), vec![9]);
+    fx.step();
+    let s = fx.s.snapshot();
+    assert!(s.lists.other.is_empty());
+    assert_eq!(s.lists.health_affecting, vec![Some(9)]);
+    fx.h.take_events();
+    fx.s.with_state(|s| s.dirty = false);
+    fx.s.do_building_changed(9, false);
+    assert_eq!(fx.h.take_events(), vec![Ev::Release(9)]);
+    let s = fx.s.snapshot();
+    assert!(s.dirty && s.lists.health_affecting.is_empty());
+    // Not in either list: nothing released, dirty still set.
+    fx.s.with_state(|s| s.dirty = false);
+    fx.s.do_building_changed(9, false);
+    assert!(fx.h.take_events().is_empty() && fx.s.snapshot().dirty);
+}
+
+/// REH §4.2: slots 19 and 20, the efficiency ratings and the base staff
+/// efficiency.
+#[test]
+fn funding_and_efficiency() {
+    let fx = Fx::new(4);
+    let (staff, vehicle) = (SCHOOL.staff_purpose, SCHOOL.vehicle_purpose);
+    let get = |occ: u64| {
+        let (mut a, mut b) = (0.3f32, 0.4f32);
+        fx.s.get_occupant_funding(occ, &mut a, &mut b, true);
+        (a, b)
+    };
+    // No staff item: 1.0 / 1.0, and the ratings (1, 1).
+    assert_eq!(get(1), (1.0, 1.0));
+    assert_eq!(fx.s.efficiency_ratings(1, true, false), (1.0, 1.0));
+    assert_eq!(fx.s.base_staff_efficiency(1, true), 1.0);
+    // A null staff department leaves both unchanged; the ratings start at
+    // (0, 0) (question 1): effCurve(0) = 0, coverageCurve(0) = 50.
+    fx.h.item(1, staff, staff_item(0x99, 0, 0));
+    assert_eq!(get(1), (0.3, 0.4));
+    assert_eq!(fx.s.efficiency_ratings(1, true, false), (0.0, 0.5));
+    // The department's funding, no vehicle item → b = 1.0.
+    fx.h.department(0x77, 950, 0.8);
+    fx.h.item(1, staff, staff_item(0x77, 0, 0));
+    assert_eq!(get(1), (0.8, 1.0));
+    // Locally funded: the item's own percentage.
+    fx.h.locally_funded.borrow_mut().insert((950, 1, staff));
+    fx.h.item(
+        1,
+        staff,
+        BudgetItem {
+            local_funding: 0.5,
+            ..staff_item(0x77, 0, 0)
+        },
+    );
+    assert_eq!(get(1), (0.5, 1.0));
+    // A vehicle item: its department's funding; a null one leaves b.
+    fx.h.department(0x78, 951, 0.75);
+    fx.h.item(1, vehicle, staff_item(0x78, 0, 1));
+    assert_eq!(get(1), (0.5, 0.75));
+    fx.h.item(1, vehicle, staff_item(0x98, 0, 1));
+    assert_eq!(get(1), (0.5, 0.4));
+    fx.h.item(1, vehicle, staff_item(0x78, 0, 1));
+    // Ratings: e1 = effCurve(50) × 0.01 = 0.5, e2 = coverageCurve(75) × 0.01
+    // = 87.5 × 0.01f; striking: a × strike efficiency (unless ignored).
+    let (e1, e2) = fx.s.efficiency_ratings(1, true, false);
+    assert_eq!((e1, e2), (0.5, pct(87.5)));
+    fx.h.set_prop(1, PROP_STRIKE_DAY, u(77));
+    let eff = fx.s.snapshot().education.strike_efficiency;
+    assert_eq!(fx.s.efficiency_ratings(1, true, false).0, 0.5 * eff);
+    assert_eq!(fx.s.efficiency_ratings(1, true, true).0, 0.5);
+    assert_eq!(fx.s.base_staff_efficiency(1, true), 0.5);
+
+    // Slot 19: staff then vehicle, dirty set.
+    fx.h.take_events();
+    fx.s.with_state(|s| s.dirty = false);
+    assert!(fx.s.set_occupant_funding(1, 0.5, 0.25, true));
+    assert_eq!(
+        fx.h.take_events(),
+        vec![Ev::SetLocal(950, 1, 0.5, staff), Ev::SetLocal(951, 1, 0.25, vehicle)]
+    );
+    assert!(fx.s.snapshot().dirty);
+    // No vehicle item: staff set, then dirty.
+    fx.h.items.borrow_mut().remove(&(1, vehicle));
+    fx.s.with_state(|s| s.dirty = false);
+    assert!(fx.s.set_occupant_funding(1, 0.9, 0.25, true));
+    assert_eq!(fx.h.take_events(), vec![Ev::SetLocal(950, 1, 0.9, staff)]);
+    assert!(fx.s.snapshot().dirty);
+    // A null staff department: nothing, dirty not set.
+    fx.h.item(1, staff, staff_item(0x99, 0, 0));
+    fx.s.with_state(|s| s.dirty = false);
+    assert!(fx.s.set_occupant_funding(1, 0.9, 0.25, true));
+    assert!(fx.h.take_events().is_empty() && !fx.s.snapshot().dirty);
+}
+
+/// REH §4.11 slot 45: the coverage distance at a level, with the missing
+/// 0.01 of the x_prev term [quirk].
+#[test]
+fn occupant_coverage_geometry() {
+    let fx = Fx::new(4);
+    service(&fx, 1, &SCHOOL, 0, 1000, 200.0, (32.0, 32.0));
+    fx.h.set_prop(1, SCHOOL.distance_curve, curve(&[0.0, 100.0, 50.0, 80.0, 100.0, 0.0]));
+    // Level 0.5: past (50, 80), at (100, 0): (30 / 80 × 0.5) × 200 + 50 × 200.
+    assert_eq!(fx.s.occupant_coverage(1, 0.5), Some((10_037.5, 200.0)));
+    assert_eq!(fx.s.occupant_coverage(1, 0.9), Some((50.0, 200.0)));
+    assert_eq!(fx.s.occupant_coverage(1, 0.0), Some((10_100.0, 200.0)));
+    // No radius: 0; neither a school nor a hospital: AL = 0.
+    fx.h.props.borrow_mut().remove(&(1, SCHOOL.radius));
+    assert_eq!(fx.s.occupant_coverage(1, 0.5), Some((0.0, 0.0)));
+    assert_eq!(fx.s.occupant_coverage(99, 0.5), None);
+    // The service: hospital first (question 7).
+    fx.h.set_prop(1, HOSPITAL.capacity, u(10));
+    assert_eq!(fx.s.occupant_service(1), Some(&HOSPITAL));
+}
+
+/// RS13: the grade totals accumulate during grading and are reset by state
+/// 0; they are not saved.
+#[test]
+fn rs13_grade_totals() {
+    let fx = Fx::new(16);
+    fx.set_tract(0, 0, steady([100, 0, 0]));
+    service(&fx, 1, &SCHOOL, 0, 500, 10.0, (32.0, 32.0));
+    cover_and_grade(&fx, true);
+    // 100 residents × the boost 1.0 (units 1, n 1).
+    assert_eq!(fx.s.snapshot().school_grade_total, 100.0);
+    let (bytes, _) = record(&fx.s);
+    fx.s.with_state(|s| s.school_grade_total = 0.0);
+    assert_eq!(record(&fx.s).0, bytes);
+    fx.s.with_state(|s| s.hospital_grade_total = 5.0);
+    fx.set_state(state::STRIKES_AND_LISTS);
+    fx.step();
+    let s = fx.s.snapshot();
+    assert_eq!((s.school_grade_total, s.hospital_grade_total), (0.0, 0.0));
+}
+
+// ================================================================ RS answers (record)
+
+/// RS11 / RS14 / RS15: a damaged record returns false and leaves the
+/// simulator as constructed.
+#[test]
+fn rs11_14_15_damaged_records() {
+    let a = Fx::new(8);
+    let (bytes, entries) = record(&a.s);
+    // Offsets: P at 30, the coverage vector counts at 66 and 126, the state
+    // at 230, the building-list vector counts at 357 and 389.
+    assert_eq!(bytes[66..70], 7u32.to_le_bytes());
+    assert_eq!(bytes[126..130], 3u32.to_le_bytes());
+    assert_eq!(bytes[357..361], 7u32.to_le_bytes());
+    assert_eq!(bytes[389..393], 3u32.to_le_bytes());
+    let patched = |at: usize, v: &[u8]| {
+        let mut b = bytes.clone();
+        b[at..at + v.len()].copy_from_slice(v);
+        b
+    };
+    let read = |b: &[u8]| {
+        let fx = Fx::constructed(CityDims::square(8), 4, None);
+        let ok = load(&fx, b, &entries);
+        (ok, fx)
+    };
+    for (what, at, v) in [
+        ("school coverage count 6", 66, 6u32),
+        ("school coverage count 8", 66, 8),
+        ("hospital coverage count 4", 126, 4),
+        ("school list count 6", 357, 6),
+        ("hospital list count 2", 389, 2),
+        ("state 16", STATE_AT, 16),
+        ("P 0", 30, 0),
+        ("P 257", 30, 257),
+    ] {
+        let (ok, fx) = read(&patched(at, &v.to_le_bytes()));
+        assert!(!ok, "{what}");
+        assert_constructed(&fx);
+        for t in 900..904 {
+            assert_eq!(fx.h.ref_count(t), 0, "{what}: department {t}");
+        }
+    }
+    let (ok, fx) = read(&patched(STATE_AT, &15u32.to_le_bytes()));
+    assert!(ok);
+    assert_eq!(fx.state(), state::SEED_HIGH);
+    let (ok, fx) = read(&patched(30, &256u32.to_le_bytes()));
+    assert!(ok);
+    assert_eq!(fx.s.snapshot().population_size, 256);
+    // [question] P is compared as signed: −1 is accepted.
+    let (ok, fx) = read(&patched(30, &(-1i32).to_le_bytes()));
+    assert!(ok);
+    assert_eq!(fx.s.snapshot().population_size, -1);
+}
+
+/// RS16: the average-LE guard is `population ≠ 0`, and the division is
+/// unsigned 64-bit by the sign-extended population.
+#[test]
+fn rs16_negative_population() {
+    let run = |running: i32, le_sum: u64| {
+        let fx = Fx::new(4);
+        fx.s.with_state(|s| {
+            s.running_population = running;
+            s.le_sum = le_sum;
+            s.state = state::POST_POPULATION;
+        });
+        fx.step();
+        fx.h.history()[0]
+    };
+    assert_eq!(run(-5, 28_600), (history::AVERAGE_LIFE_EXPECTANCY, 0));
+    // 2⁶⁴ − 5 divided by 2⁶⁴ − 5: 1 (a `> 0` guard would give 0).
+    assert_eq!(run(-5, (-5i64) as u64), (history::AVERAGE_LIFE_EXPECTANCY, 1));
+    assert_eq!(run(0, 28_600), (history::AVERAGE_LIFE_EXPECTANCY, 0));
+    assert_eq!(run(400, 28_600), (history::AVERAGE_LIFE_EXPECTANCY, 71));
+}
+
+/// RS17 (residential.md §9.3's example): four tracts of total 100 and LE
+/// 60, saved in state 4 with running population 200. After the load and
+/// `Init` the pass restarts: version ≥ 4 keeps 200 (population 600, LE
+/// history 40); version 3 keeps the constructor's 0 (400, 60).
+#[test]
+fn rs17_version_3_running_population() {
+    let tuning = || {
+        Some(tuned(|t| {
+            flat_le(t, 60.0);
+            no_decay(t);
+        }))
+    };
+    let a = Fx::with(8, tuning());
+    a.s.with_state(|s| {
+        s.state = state::POPULATION;
+        s.running_population = 200;
+        s.le_sum = 12_000;
+    });
+    let (bytes, entries) = record(&a.s);
+    for (v, len, population, le) in [(7, V7_LEN, 600, 40), (4, V4_LEN, 600, 40), (3, V3_LEN, 400, 60)] {
+        let b = Fx::constructed(CityDims::square(8), 4, tuning());
+        assert!(load(&b, &as_version(&bytes, v, len), &entries));
+        assert!(b.s.init());
+        assert_eq!(b.s.snapshot().le_sum, 0);
+        for (x, z) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+            b.set_tract(
+                x,
+                z,
+                Tract {
+                    age: 30,
+                    ..steady([100, 0, 0])
+                },
+            );
+        }
+        b.h.take_events();
+        assert_eq!(b.step(), state::POST_POPULATION);
+        assert_eq!(b.step(), state::SCHOOL_COVERAGE);
+        assert_eq!(b.s.get_population(), population, "version {v}");
+        assert_eq!(b.h.history()[0], (history::AVERAGE_LIFE_EXPECTANCY, le), "version {v}");
+    }
 }

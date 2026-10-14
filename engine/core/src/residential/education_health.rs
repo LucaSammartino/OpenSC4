@@ -852,8 +852,8 @@ impl ResidentialSim {
     }
 
     /// residential.md §5.8: a building with both health-affecting properties
-    /// > 0.0 (read as floats; NaN fails) is appended to the pending list ("the
-    /// other list") with `AddRef` when added; when removed it is erased from
+    /// above 0.0 (read as floats; NaN fails) is appended to the pending list
+    /// ("the other list") with `AddRef` when added; when removed it is erased from
     /// the health-affecting list, else from the pending list, and released if
     /// it was erased. Dirty is set either way.
     fn health_affecting_changed(&self, b: u64, added: bool) {
