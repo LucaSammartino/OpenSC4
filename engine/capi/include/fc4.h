@@ -84,8 +84,12 @@ extern "C" {
  *      and the development shadow (taken as 29 on its lane; renumbered at merge);
  * 41 = adds the turbo clock (tooling: fc4_sim_set_turbo / fc4_sim_get_turbo / fc4_sim_take_turbo_auto_off);
  * 44 = adds the traffic simulator, its network model and its pathfinders (fc4_traffic, fc4_traffic_pf)
- *      (taken as 37 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 44u
+ *      (taken as 37 on its lane; renumbered at merge);
+ * 45 = neighbours answers (neighbors.md §15.4): foreign deals are kept as the listed deal
+ *      (fc4_neighbors_add_foreign_deal, fc4_neighbors_host's foreign_deal / foreign_deal_call /
+ *      release_deal, NG4); the neighbours shadow input carries the original's deals_dirty /
+ *      stats_dirty / busy bytes (NG7) (taken as 47 on its lane; renumbered at merge). */
+#define FC4_ABI_VERSION 45u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -4830,7 +4834,25 @@ typedef struct fc4_neighbors_host {
     void (*set_foreign_connection_flags)(void* user, uint64_t conn, int32_t visited, int32_t active);
     void (*repair_foreign_connection)(void* user, uint64_t conn, uint64_t city);
     void (*release_connection)(void* user, uint64_t conn); /* the list's reference */
+    /* Foreign deals (neighbors.md §15.4 NG4; ABI 45, appended): a caller's
+     * deal object kept as the listed deal (fc4_neighbors_add_foreign_deal).
+     * foreign_deal reads its state through its interface (false =
+     * unreadable); foreign_deal_call runs FC4_NEIGHBOR_DEAL_CALL_* on it
+     * (returns the call's bool, true for the void ones); release_deal
+     * releases the reference the core was given. */
+    bool (*foreign_deal)(void* user, uint64_t deal, fc4_neighbor_deal_data* out);
+    bool (*foreign_deal_call)(void* user, uint64_t deal, uint32_t op, int64_t a, int64_t b);
+    void (*release_deal)(void* user, uint64_t deal);
 } fc4_neighbors_host;
+
+/* foreign_deal_call ops: 0-11 = the setters numbered as in
+ * fc4_neighbor_deal_set_field (a, b; dates are Julian days), then: */
+#define FC4_NEIGHBOR_DEAL_CALL_SET_AMOUNT     12u /* SetAmount(a) */
+#define FC4_NEIGHBOR_DEAL_CALL_UPDATE_COST    13u
+#define FC4_NEIGHBOR_DEAL_CALL_UPDATE_STATE   14u
+#define FC4_NEIGHBOR_DEAL_CALL_CANCEL         15u
+#define FC4_NEIGHBOR_DEAL_CALL_ACTIVATE       16u /* returns Activate's bool */
+#define FC4_NEIGHBOR_DEAL_CALL_SET_FLAGS      17u /* SetFlags(a, b != 0); returns its bool */
 
 /* `token`: the simulator's host identity; `session`: the session seed
  * (foundations §6.3) of the proposal generator. NULL for a short table. */
@@ -4871,8 +4893,12 @@ uint64_t fc4_neighbors_find_connection_suitable_for_deal(const fc4_neighbors* p,
 uint64_t fc4_neighbors_propose_deal(fc4_neighbors* p, uint32_t deal_type, uint64_t city); /* 24: 0 = none */
 size_t fc4_neighbors_propose_deals(fc4_neighbors* p, bool add, fc4_token_callback cb, void* ctx); /* 25 */
 bool fc4_neighbors_add_deal(fc4_neighbors* p, const fc4_neighbor_deal* deal);                      /* 26, ours */
-/* 26 for a foreign deal [choice]: a deal of ours with its state is added; its token. */
+/* 26 for a foreign deal, the old way: a deal of ours with its state is added; its token.
+ * Superseded by fc4_neighbors_add_foreign_deal (NG4). */
 uint64_t fc4_neighbors_add_deal_data(fc4_neighbors* p, const fc4_neighbor_deal_data* data);
+/* 26 for a foreign deal (NG4, ABI 45): the object itself is listed. `deal` holds one
+ * reference for the core, released through release_deal; on false it is still the caller's. */
+bool fc4_neighbors_add_foreign_deal(fc4_neighbors* p, uint64_t deal);
 void fc4_neighbors_set_ui_disable_flag(fc4_neighbors* p, bool on); /* 27 */
 /* 28-30: which 0 = all, 1 = of type (slot 30), 2 = of type with city (slot 29). */
 size_t fc4_neighbors_find_deals(fc4_neighbors* p, uint32_t which, uint32_t deal_type, uint64_t city,
@@ -4954,8 +4980,11 @@ typedef struct fc4_neighbors_shadow_input {
     int32_t count_x, count_z;
     uint64_t current_city, city_object;
     uint32_t landfill_usage, landfill_capacity;
+    /* The original's state bytes (neighbors.md §15.4 NG7: ready +0x0C, uiDisabled +0x3E,
+     * dealsDirty +0x3C, statsDirty +0x3D, busy +0x3F), as the shim read them. */
     uint8_t ready, ui_disabled, two_curves;
-    uint8_t reserved[5];
+    uint8_t deals_dirty, stats_dirty, busy; /* ABI 45; 0 before (the earlier fixed values) */
+    uint8_t reserved[2];
     fc4_neighbors_figures figures;
     const fc4_props* tuning; /* borrowed (copied); NULL = missing */
     const fc4_neighbors_shadow_city* cities;
@@ -5496,7 +5525,7 @@ static_assert(sizeof(fc4_neighbor_connection_state) == 24, "fc4_neighbor_connect
 static_assert(sizeof(fc4_neighbors_figures) == 128, "fc4_neighbors_figures layout");
 static_assert(sizeof(fc4_neighbors_message) == 24, "fc4_neighbors_message layout");
 static_assert(sizeof(fc4_neighbors_state) == 48, "fc4_neighbors_state layout");
-static_assert(sizeof(fc4_neighbors_host) == (sizeof(void*) == 4 ? 204 : 408), "fc4_neighbors_host layout");
+static_assert(sizeof(fc4_neighbors_host) == (sizeof(void*) == 4 ? 216 : 432), "fc4_neighbors_host layout");
 static_assert(sizeof(fc4_neighbors_shadow_city) == 168, "fc4_neighbors_shadow_city layout");
 static_assert(sizeof(fc4_neighbors_shadow_conn) == 40, "fc4_neighbors_shadow_conn layout");
 static_assert(sizeof(fc4_neighbors_shadow_input) == (sizeof(void*) == 4 ? 208 : 232), "fc4_neighbors_shadow_input layout");
