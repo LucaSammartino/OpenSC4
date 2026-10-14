@@ -7,6 +7,24 @@ operating knowledge that is still true.
 
 ## 0. Current state
 
+### Wind-down 2026-10-14 ~16:20 (usage limit): how to resume
+
+Every lane was asked to stop at a clean point, commit everything on its branch (`WIP:` commits where tests did not pass)
+and report its state. Worktrees are under `.claude/worktrees/` and are kept (never delete them). To resume a lane,
+`SendMessage` its agent ID if it is still reachable; otherwise start a fresh lane in the same worktree with the
+original prompt from `build-runs/lane-prompts/<lane>-prompt.txt` plus the "next steps" below.
+
+| Lane | Worktree / branch | Agent | State at the wind-down | Next steps |
+|---|---|---|---|---|
+| zones2 (zone developer / lot manager) | `agent-a04b0cfb664b373d3` | `a04b0cfb664b373d3` | `d2a3c81`: stage 1 (capi host `fc4_zonedev`, 38 functions, 12 tests) done; merged main; cargo 1948/0, clippy clean, ctest 45/45; no game runs | fix the lot manager slot return types in `FC4Interfaces.h` (§11.3: slots 8-10 count, 17/19 float ST0); `Direct::GlobalHeapAllocate`; write `cFC4ZoneDeveloper`; register; switches; shadow; seam op 53; `zonedev_shadow` turbo run. Lot creation waits for re-specs11's zones item. Questions 1-9 in its report |
+| histclock (history + clock glue) | `agent-ac7e10a873454fec7` | `ac7e10a873454fec7` | `40cc0c6`: stage 1, `cFC4HistoryWarehouse` (`enable = history`), clean in game (`hc-history-alone-1`, ref_warnings=0, 143 series); full cargo/clippy/ctest not rerun at this tip | history shadow (design in its report), then `cFC4Clock24`, the clock shadow, the save sweep mode; ABI 55 |
+| re-specs10 | `re-specs10` | `a576c1f88a67e75e5` | **merged** (`26a1c51`) | apply its ABI rows: `build-runs/pending-abi/re-specs10-rows.tsv` (215 interfaces.tsv rows + allocators.md + layouts.md parts; `genrows.py`/`finalize.py` rebuild it from the specs); file its suggested changes to other specs (in its report: foundations §6.2, lot-developer slot 63, pollution +0x9FC, protection §8.3, SDK errata) |
+| tractglue (tract developer) | `agent-ae81a8bc4c10d6880` | `ae81a8bc4c10d6880` | `41e8bf4`, **ready to gate and merge**: shadow exact (`tract-t6s`: 4092 calls compared, 0 mismatches; UpdatePopulation 601524 compared, 0), ours clean at normal speed to 2038 (`tract-t5r`); cargo 1946/0, clippy clean, ctest 46/46; ABI 48, seam op 45, 196 switches | gate, merge, regress. Optional: requeue `tract-t6t` (turbo replace) and `tract-t6v` (save) from its `done/` requests. 19 questions in its report (Grow is 1.5-2.5x the original; a pooled allocator for the staticlib would help all subsystems) |
+| lotglue (lot developer) | `agent-ab9c3d71e1a39f129` | `ab9c3d71e1a39f129` | `96844a5` **WIP, capi does not build**: §17 geometry in core (40 core tests, 30/30 `ld` vectors) with the host trait reworked | write vectors `ld16_28`-`ld16_38`; port `capi/src/lotdev.rs` and `fc4.h` to the new trait; full tests; then the plugin class, seam op 52, shadow, runs. Questions LD-Q1..LD-Q11 in its report; ABI 53 |
+| apply10a (DG answers) | `agent-a2141e71c5cc30e86` | `a2141e71c5cc30e86` | `e812753` **WIP, does not build**: core DG5/DG6 loaders and foundation slot 23; baseline runs clean (`a10a-base-dev` already has ref_warnings=0, so DG28 does not show) | capi host + `fc4.h` (ABI 56), plugin callbacks (foundation class `0x49C05C8F`, IID `0xC8FCE101`), `bd11_00` vector update, DG11 present flag, DG4 sum, citations, DG28 check, runs `a10a-after-*`. 5 questions in its report |
+| apply10b (EX/GF7/PR/LG/AO) | `agent-a852c6ec244071bc2` | `a852c6ec244071bc2` | `d069ab4`: EX35 (two roundings; 0 shipped values affected), EX36 cited, EX34 strip; formats tests pass; full suite not rerun; baseline runs clean | EX38 error log, GF7 readers (`fc4-dat models`; survey in its `build-runs/apply10b/rktprobe`), EX39 empty vectors (+ budget items question), PR17/PR18, AO1 ranks, LG21 view route; full tests; runs `apply10b-*-1` |
+| re-answers10 | `re-answers10` | `af850af1f5c7bf5b5` | group 1 **merged** (`622086f`): CK7 matches (spec typo), **CK14, HW6, HW7, HW12 differ** (to apply in histclock/history core) | group 2 TG1-TG22 (research notes in its report: TG1 likely differs; TG2 table of needed callbacks), then ZG18-21, NG35-44, AQ/FL, PW/FS/DG28, DG31 amounts, RN1, cores10b questions |
+
 *Last updated 2026-10-14, at the merge of cores10b (`9f0eed2`), after run 108.*
 
 - **main:** `FC4_ABI_VERSION` 47, 715 conformance vectors. Last gate: merged main at `9f0eed2` (main-10b), cargo 1936/0;
