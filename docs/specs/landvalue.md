@@ -363,6 +363,12 @@ integer division) : 0. Then `HistoryWarehouse.RecordHistoryData(0x6A663AC8, aver
 - `GetLandValue(x, z)` = total grid `GetCellValue(x, z)` (**cell** coordinates, simgrid.md §4, no bounds check).
 - `GetLandValueType(x, z)`: v := `GetLandValue(x, z)`; v < `0x47E2C301[0]` → 1 (low); else v < `0x47E2C301[1]` →
   2 (medium); else 3 (high). Unsigned byte comparisons. Shipped boundaries 70 and 120.
+  **Uniform over a tract** *[compat]* (QUESTIONS LV4, `0x006BD700`): v is the total grid's `GetCellValue(x, z)`
+  (grid slot 7), which reads `data[x >> shift][z >> shift]` (simgrid §4). Every cell of a tract therefore gives the
+  same value and the same type, and no cell is preferred: sampling a tract at its first cell `(tx·S, tz·S)` gives
+  exactly what the original answers for any of its S × S cells. Example (S = 2, total(3, 5) = 95): cells (6, 10),
+  (7, 10), (6, 11) and (7, 11) all answer 95 and type 2. There is no bounds check (out-of-range cells read
+  outside the rows).
 - `GetAverageLandValue()` = averageLandValue; `GetModeAltitude()` = modeAlt (0 until the first state 3 after
   creation or load, because it is not saved).
 

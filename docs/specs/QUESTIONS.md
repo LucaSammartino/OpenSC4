@@ -1656,8 +1656,10 @@ brackets.
 - ~~**LV3:** is `GetAreaSlope` on the lot developer free of side effects? [assumed read-only]~~ **ANSWERED 2026-10-14**
   from the exe (`0x006C5DC0`, its vertex reader `0x006C4310`, terrain `0x007413C0`/`0x00744980`) and written into
   landvalue.md §6. **Yes, read-only**: terrain altitude and water level reads, locals only.
-- **LV4:** `GetLandValueType` is sampled at each tract's first cell. Is the type uniform over a tract, or which
-  cell does the original use? [first cell]
+- ~~**LV4:** `GetLandValueType` is sampled at each tract's first cell. Is the type uniform over a tract, or which
+  cell does the original use? [first cell]~~ **ANSWERED 2026-10-14** from the exe (`0x006BD700` calls the total grid's
+  `GetCellValue`, which shifts the cell to its tract) and written into landvalue.md §7.6. **Uniform**: every cell of
+  a tract gives the same value and type, so the first cell is exact.
 - **FL1:** is 2 × tractsPerDay the right bound for tracts left unvisited at `SimCycleComplete`? It assumes the
   message is delivered queued, after the day agent. [2 × tractsPerDay]
 - **FL2:** the multiplier g is 0 until the first season or ordinance message; the mirror takes the original's g at
