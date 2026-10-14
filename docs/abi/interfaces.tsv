@@ -251,7 +251,7 @@ cIGZVariant	cRZVariant	00aa6788	98	+0x188	00914fa6	cRZVariant::RefUint16	8	2	eax
 cIGZVariant	cRZVariant	00aa6788	99	+0x18C	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
 cIGZVariant	cRZVariant	00aa6788	100	+0x190	00915159	cRZVariant::RefSint16	8	2	eax-or-void	medium	
 cIGZVariant	cRZVariant	00aa6788	101	+0x194	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
-cIGZVariant	cRZVariant	00aa6788	102	+0x198	00915014	cRZVariant::RefUint32	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	102	+0x198	00915014	cRZVariant::SetValUint32 (copying array: data, count)	8	2	eax-or-void	high	re-answers2 PR9
 cIGZVariant	cRZVariant	00aa6788	103	+0x19C	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
 cIGZVariant	cRZVariant	00aa6788	104	+0x1A0	009151c7	cRZVariant::RefSint32	8	2	eax-or-void	medium	
 cIGZVariant	cRZVariant	00aa6788	105	+0x1A4	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
@@ -504,7 +504,7 @@ cISC4Lot	cSC4Lot	00ab19b0	11	+0x2C	006bfea0	cSC4Lot::GetLotConfigurationObject	4
 cISC4Lot	cSC4Lot	00ab19b0	12	+0x30	006c2030	cSC4Lot::GetFlags	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	13	+0x34	006bf220	cSC4Lot::SetFlags	4	1	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	14	+0x38	006bf320	cSC4Lot::GetBoundingRect	4	1	eax-or-void	medium	
-cISC4Lot	cSC4Lot	00ab19b0	15	+0x3C	006bf560	cSC4Lot::GetCenter	4	1	x87	high	
+cISC4Lot	cSC4Lot	00ab19b0	15	+0x3C	006bf560	cSC4Lot::GetCenter	4	1	eax-or-void	high	re-answers2 CQ3: result through the out pointer; leaves the x87 stack empty (ends with FSTP)
 cISC4Lot	cSC4Lot	00ab19b0	16	+0x40	006c2060	cSC4Lot::GetAltitude	0	0	x87	high	
 cISC4Lot	cSC4Lot	00ab19b0	17	+0x44	006bf5c0	cSC4Lot::SetAltitude	4	1	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	18	+0x48	006c2070	cSC4SimGrid<T>::GetTractWidthX	0	0	x87	high	
@@ -1323,7 +1323,7 @@ cISC4PropRequester(Crime)	cSC4CrimeSimulator	00ab0d9c	1	+0x4	005200f0		0	0	eax-o
 cISC4PropRequester(Crime)	cSC4CrimeSimulator	00ab0d9c	2	+0x8	006a00b0		0	0	eax-or-void	medium	tail->0069f5d0
 cISC4PropRequester(Crime)	cSC4CrimeSimulator	00ab0d9c	3	+0xC	0069f710	cSC4CrimeSimulator::GetRequestedShare	4	1	eax-or-void	medium	
 cISC4PropRequester(Crime)	cSC4CrimeSimulator	00ab0d9c	4	+0x10	006a0060	cSC4CrimeSimulator::GetRequesterSatisfactionId	0	0	eax-or-void	medium	
-cISC4PropRequester(Crime)	cSC4CrimeSimulator	00ab0d9c	5	+0x14	00648f00	operator.new	0	0	eax-or-void	medium	
+cISC4PropRequester(Crime)	cSC4CrimeSimulator	00ab0d9c	5	+0x14	00648f00	UsesCustomPropSelector (folded body)	0	0	eax-or-void	medium	re-answers2
 cISC4PropRequester(Crime)	cSC4CrimeSimulator	00ab0d9c	6	+0x18	006a00d0	cSC4CrimeSimulator::SelectProp	12	3	eax-or-void	medium	
 cIGZMessageTarget2(Crime)	cSC4CrimeSimulator	00ab0db8	0	+0x0	006a0070		8	2	eax-or-void	medium	tail->0069f1b0
 cIGZMessageTarget2(Crime)	cSC4CrimeSimulator	00ab0db8	1	+0x4	005200d0		0	0	eax-or-void	medium	tail->00695330
@@ -1469,13 +1469,13 @@ cISC4City	cSC4City	00a87620	53	+0xD4	006197e0	cSC4City::GetBuildingDevelopmentSi
 cISC4City	cSC4City	00a87620	54	+0xD8	00459770	cSC4City::GetCommercialSimulator	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	55	+0xDC	004abce0	cSC4City::GetCrimeSimulator	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	56	+0xE0	00459780	cSC4City::GetDemandSimulator	0	0	eax-or-void	medium	
-cISC4City	cSC4City	00a87620	57	+0xE4	006dc690	cSC4PlumbingSimulator::GetNumPipes	0	0	eax-or-void	medium	
-cISC4City	cSC4City	00a87620	58	+0xE8	006dc6a0	cSC4PlumbingSimulator::GetNumDistressedPipes	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	57	+0xE4	006dc690	cSC4City::GetFireProtectionSimulator	0	0	eax-or-void	high	re-answers2 PR4 (name was an ICF fold)
+cISC4City	cSC4City	00a87620	58	+0xE8	006dc6a0	cSC4City::GetFlammabilitySimulator	0	0	eax-or-void	high	re-answers2 (name was an ICF fold)
 cISC4City	cSC4City	00a87620	59	+0xEC	007ff120	cSC4City::GetFloraSimulator	0	0	eax-or-void	medium	
-cISC4City	cSC4City	00a87620	60	+0xF0	007ff110	cS3DCamera::GetProjectionType	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	60	+0xF0	007ff110	cSC4City::GetIndustrialSimulator	0	0	eax-or-void	high	re-answers2 (name was an ICF fold)
 cISC4City	cSC4City	00a87620	61	+0xF4	00459790	cSC4City::GetLandValueSimulator	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	62	+0xF8	004597a0	cSC4City::GetNeighborsSimulator	0	0	eax-or-void	medium	
-cISC4City	cSC4City	00a87620	63	+0xFC	006dc6b0	cSC4PlumbingSimulator::GetNumWateredBuildings	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	63	+0xFC	006dc6b0	cSC4City::GetOrdinanceSimulator	0	0	eax-or-void	high	re-answers2 (name was an ICF fold)
 cISC4City	cSC4City	00a87620	64	+0x100	004597b0	cSC4City::GetPlumbingSimulator	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	65	+0x104	004597c0	cSC4City::GetPoliceSimulator	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	66	+0x108	00423850	icf::cSC4City::GetPollutionSimulator	0	0	eax-or-void	medium	
@@ -1508,8 +1508,8 @@ cISC4City	cSC4City	00a87620	92	+0x170	0045a3a0	cSC4City::CellWidthZ	0	0	x87	high
 cISC4City	cSC4City	00a87620	93	+0x174	007c1910	icf::cSC43DRender::GetLightingManager	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	94	+0x178	004e82a0	icf::cSC43DRender::GetDrawContext	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	95	+0x17C	004599e0	cSC4City::PositionToCell	16	4	eax-or-void	medium	
-cISC4City	cSC4City	00a87620	96	+0x180	00459410	cSC4City::CellCornerToPosition	16	4	x87	high	
-cISC4City	cSC4City	00a87620	97	+0x184	00459440	cSC4City::CellCenterToPosition	16	4	x87	high	
+cISC4City	cSC4City	00a87620	96	+0x180	00459410	cSC4City::CellCornerToPosition	16	4	eax-or-void	high	re-answers2 PR6: returns nothing (results through the out pointers); was tagged x87
+cISC4City	cSC4City	00a87620	97	+0x184	00459440	cSC4City::CellCenterToPosition	16	4	eax-or-void	high	re-answers2 PR6: returns nothing (results through the out pointers); was tagged x87
 cISC4City	cSC4City	00a87620	98	+0x188	00459470	cSC4City::LocationIsInBounds	8	2	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	99	+0x18C	004594d0	cSC4City::CellIsInBounds	8	2	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	100	+0x190	00459500	cSC4City::CellCornerIsInBounds	8	2	eax-or-void	medium	
@@ -1527,7 +1527,7 @@ cISC4ZoneManager	cSC4ZoneManager	00a92e00	1	+0x4	004f7ba0	icf::cSC43DRender::Add
 cISC4ZoneManager	cSC4ZoneManager	00a92e00	2	+0x8	004dc430	cSC4ZoneManager::Release	0	0	eax-or-void	medium	
 cISC4ZoneManager	cSC4ZoneManager	00a92e00	3	+0xC	004de170	cSC4ZoneManager::Init	0	0	eax-or-void	medium	
 cISC4ZoneManager	cSC4ZoneManager	00a92e00	4	+0x10	004dc230	cSC4ZoneManager::Shutdown	0	0	eax-or-void	medium	
-cISC4ZoneManager	cSC4ZoneManager	00a92e00	5	+0x14	00698cf0	cSC4TrafficSimulator::GetCongestionMap (folded getter [ecx+48h])	0	0	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	5	+0x14	00698cf0	cSC4ZoneManager::GetZoneGrid (folded getter [ecx+48h]; cISC4SimGrid<int8>*)	0	0	eax-or-void	high	re-answers2 PR10
 cISC4ZoneManager	cSC4ZoneManager	00a92e00	6	+0x18	004dc2d0	cSC4ZoneManager::GetZoneCount	4	1	eax-or-void	medium	
 cISC4ZoneManager	cSC4ZoneManager	00a92e00	7	+0x1C	004dc2f0	cSC4ZoneManager::GetUndevelopedTileCount	4	1	eax-or-void	medium	
 cISC4ZoneManager	cSC4ZoneManager	00a92e00	8	+0x20	004dc2e0	cSC4ZoneManager::GetUndevelopedTileCount	0	0	eax-or-void	medium	
@@ -2250,6 +2250,12 @@ cISC4EffectsManager	cSC4EffectsManager	00a9f264	7	+0x1C	005939b0	cSC4EffectsMana
 cISC4EffectsManager	cSC4EffectsManager	00a9f264	8	+0x20	0058da90	cSC4EffectsManager::GetStatsString	4	1	via-call	low	
 cISC4EffectsManager	cSC4EffectsManager	00a9f264	9	+0x24	0058fd40	cSC4EffectsManager::GetEffectMaps	0	0	eax-or-void	medium	
 cISC4EffectsManager	cSC4EffectsManager	00a9f264	10	+0x28	0058fd50	cSC4EffectsManager::GetTallestBuildingAltitude	0	0	x87	high	
+cISC4VisualEffect	(unnamed)	00aa1170	2	+0x08	005be840	Release	0	0	eax-or-void	high	re-answers2 PG4 (vtable has no RTTI)
+cISC4VisualEffect	(unnamed)	00aa1170	3	+0x0C	005be920	Start(bool)	4	1	eax-or-void	high	re-answers2 PG4
+cISC4VisualEffect	(unnamed)	00aa1170	4	+0x10	005beba0	Stop(bool)	4	1	eax-or-void	high	re-answers2 PG4
+cISC4VisualEffect	(unnamed)	00aa1170	5	+0x14	007d6680	IsStarted (AL; folded with cSC4LightingManager::IsNight)	0	0	eax-or-void	high	re-answers2 PG4
+cISC4VisualEffect	(unnamed)	00aa1170	8	+0x20	005be880	SetTransform(cS3DTransform const&)	4	1	eax-or-void	high	re-answers2 PG4; cS3DTransform is 0x38 bytes
+cISC4VisualEffect	(unnamed)	00aa1170	12	+0x30	005c05e0	SetParameter(uint32 index, float const*, uint32 count)	12	3	eax-or-void	high	re-answers2 PG4
 cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	0	+0x0	006afc90	cSC4FloraSimulator::QueryInterface	8	2	eax-or-void	medium	
 cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
 cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	2	+0x8	006b0480	cSC4FloraSimulator::Release	0	0	eax-or-void	medium	
