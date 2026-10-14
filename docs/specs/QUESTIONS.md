@@ -1281,9 +1281,16 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   and counts `freeDest`). Pointer added to traffic-simulator.md §4.12.
 - **TS13 — §4.5:** a route with an off-map root is encoded as the in-city cell while its unit steps are relative to
   the off-map cell. [decoded literally: shifted by one cell]
-- **TS14 — §4.3:** what does ConfirmRoute check? [during a strike any route using types 2, 3, 6, 7 or 8 fails; each
+- ~~**TS14 — §4.3:** what does ConfirmRoute check? [during a strike any route using types 2, 3, 6, 7 or 8 fails; each
   unit step leaving an in-city cell needs an exit on that side for its type, or the cell's switch for a type change;
-  jumps and off-map steps are not checked]
+  jumps and off-map steps are not checked]~~ **ANSWERED 2026-10-14** from the exe (`0x0070E320`): partly. The
+  strike test is not by travel type. During a strike, any type change after the first cell fails, and so does a step
+  that the connection word refuses at a ferry cell. A route that keeps one type passes. The unit-step test is
+  `conn[t]` bit `exit + 4·entry` (any entry at the first cell). If that bit is clear, the cell passes on the
+  tunnel wormhole bit, or on the ferry bit when there is no strike. Jumps are checked too: the cell before a jump
+  gets an exit side from the jump's direction, with a `+z` quirk for short and same-cell jumps. The first cell has
+  no strike test, the last cell is never tested, and an empty route is false. Written into traffic-simulator.md §4.3
+  with an example.
 - **TS15 — §4.5:** is the switch fee the switch's `0x0BFC0A4C` value read as f32? [yes]
 - **TS16 — §4.5:** the ferry-leg counters? [round(Q) to counter 1 (mode 0), 2 (mode 1) or both (mode 2), on the
   departure terminal's link to that cell, else its neighbour link]

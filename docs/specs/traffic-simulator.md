@@ -466,9 +466,8 @@ neighbour pool capacities and sets the destination bits of the off-map edge cell
 * Then for each trip (`processed += 1`):
   * **status 3** (routed):
     * if `CapacityStillAvailable`: status := 1 (re-route to the known destination), but 0 for freight. If not
-      `rerouteSource`, the old route is **confirmed** without a search: `ConfirmRoute(route)` (`0x0070E320`; walks
-      the compressed route and checks that each step still exists in the network and is not blocked by the strike,
-      traffic-network.md); on success:
+      `rerouteSource`, the old route is **confirmed** without a search: `ConfirmRoute(route)` (`0x0070E320`; below);
+      on success:
       * freight: `ApplyRoute(route, mode 0)` (§4.5) unless probe; status := 3;
       * reversible (flag 0): `ApplyRoute(route, mode 2)` unless probe; status := 3;
       * otherwise `ConfirmRoute(returnRoute)` must succeed too; then `ApplyRoute(route, mode 0)` and
@@ -476,6 +475,46 @@ neighbour pool capacities and sets the destination bits of the off-map edge cell
     * else (destination full): status := 0.
   * **status 5** (failed last time): status := 0.
   * afterwards status 1 counts towards `toReRoute`, status 0 towards `toSearch`.
+
+**ConfirmRoute(route)** (`0x0070E320`, one argument) *[compat]* (TS14). It replays the compressed route
+(pathfinder.md §4.15) with the route reader and tests each cell against the cell connection records
+(traffic-network.md §2.1). The reader turns the route into one record per visited cell, in route order:
+
+* the cell (x, z) and its travel type `t` (the type of the header or token that brought the route there);
+* the next type `t'` (the type of the following run or jump; `t' = t` at the last cell);
+* the **exit** side `x`: the direction of the following unit step; for the following **jump** to cell `(qx, qz)`,
+  with `dx = qx − cx` and `dz = qz − cz`: when both are non-zero, the one smaller in absolute value is set to 0
+  (`dx` when the magnitudes are equal); then `|dx| ≥ 2` → `+x` or `−x` by its sign; `dx = ±1` (so `dz = 0`) →
+  **none**, and the cell's own entry side also becomes none; `dx = 0` → `dz ≤ −2` gives `−z` and **every other `dz`
+  gives `+z`**, including `dz = −1` and `dz = 0` *[quirk]* (`0x006D65E0`–`0x006D666A`). The last cell's exit is
+  none.
+* the **entry** side `e`: none at the first cell; after a unit step or a jump with an exit, the side facing back
+  (`(x + 2) mod 4`); after a jump whose exit is none, the previous cell's entry side carries over unchanged.
+
+The test, with `strike := (strike state = 1)` (§4.12) read once at the start:
+
+1. An empty route: **false**.
+2. **First cell**, if inside the city and its exit is not none: when `t = t'`, some entry side `e' ∈ 0…3` must have
+   bit `x + 4e'` set in `conn[t]` (any entry may leave through `x`); when `t ≠ t'`, nibble `x` of `switch[t]` must
+   equal `t'`. No strike test and no wormhole test here.
+3. **Every later cell**, if inside the city (cells off the map are skipped) and its exit is not none (the last cell
+   and a cell before a jump with no exit are skipped):
+   * `t = t'`: pass when bit `x + 4e` of `conn[t]` is set (never when `e` is none). Otherwise pass when the cell's
+     wormhole byte has the tunnel bit (2); otherwise pass when it has the ferry bit (4) **and** there is no strike;
+     otherwise **false**.
+   * `t ≠ t'` (a type change): during a strike **false**; otherwise nibble `x` of `switch[t]` must equal `t'`, else
+     **false**.
+4. **true**.
+
+So a strike fails every confirmed route that changes travel type after its first cell or that crosses a ferry
+terminal's water link, whatever the types; a route that keeps one type (a car route, or a neighbour trip forced to
+start on the bus or a train and staying on it) still confirms. The last cell is never tested. *[choice]* A type
+byte above 8 (only in a damaged save) fails the test; the original reads unrelated words of the record.
+
+**Example** (§11 test 10's route `01 02 03 41 02 0A`): cells (2,3) type 1, exit `+x`, entry none; (3,3) type 1,
+entry `−x` side 0, exit `+x` side 2; (4,3), exit none. ConfirmRoute is true when (2,3)'s `conn[1]` has bit 2, 6, 10
+or 14 and (3,3)'s `conn[1]` has bit `2 + 4·0 = 2`; (4,3) is not looked at. The same with a walk-to-bus change at
+(3,3) (`t = 0`, `t' = 2`): during a strike false; otherwise nibble 2 of (3,3)'s `switch[0]` must be 2.
 
 ### 4.4 Path searches: ReRouteTrips and FullTrips (states 17 and 18)
 
