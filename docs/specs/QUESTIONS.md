@@ -2181,7 +2181,11 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   behaviour; the implementer's choice stands.** The original applies every setter at once on the caller's thread, and
   its callers are on the main thread *[inferred]*. `EndSchoolStrike` / `EndHealthStrike` return AL = the city strike
   flag before the call and post the end message when it was set, so returning the published flag matches.
-- **RG10:** department funding with no department? [1.0]
+- ~~**RG10:** department funding with no department? [1.0]~~ **ANSWERED 2026-10-14** from the exe (`0x006F8360` via
+  slot 20 `0x006F84B0`) and written into REH §4.2. **The bracket differs: not 1.0.** A null department leaves the
+  output untouched (both outputs for the staff department; only b for the vehicle department, after a is written). The
+  class's own callers preset 0.0, so the curves see 0. The value 1.0 is used only when the budget item itself is
+  missing. The host should report a missing department rather than return 1.0.
 - **RG11:** slots 19, 20, 21–25, 28, 47 and 49: always true? [true]
 - **RG12:** slot 45 returning false: are its outputs left untouched? [untouched]
 - **RG13:** does `SetLocalFundingPercent` set the budget item's local funding? [the shadow assumes so]

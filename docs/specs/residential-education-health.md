@@ -233,6 +233,12 @@ Calls: `CreateDepartmentBudget(id, 0x6A357B7F)`, AddRef, `SetDepartmentName(0x6A
 - Otherwise: a = `item.localFundingPercentage` if `dept.IsLocallyFundedObjectInDepartment(holder, staff)`, else
   `*dept.GetFundingPercentage()`.
 - b is found the same way with the vehicle purpose; b = 1.0 if there is no vehicle item.
+- *[compat]* (RG10; `0x006F8360`, reached from slot 20 `0x006F84B0`) A vehicle item whose department is null
+  returns at once: a has been written, **b is left unchanged**. In no case does the original read a funding
+  value for a missing department, and it never substitutes 1.0 for one: 1.0 appears only when the **item** is
+  missing. The outputs then keep what the caller put there; the class's own callers preset a = b = 0.0 (§4.2
+  efficiency ratings, §4.10), so a missing department reads as 0 in the curves. A host asked for a missing
+  department's funding must report "missing", and the core must then leave the output alone.
 
 **SetOccupantFundingPercentages(occ, &a, &b, isSchool)** (slot 19):
 
