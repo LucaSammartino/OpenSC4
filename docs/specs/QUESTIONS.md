@@ -2615,7 +2615,10 @@ answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`0x006CEF62` `GetPosition`, `0x006CEF7E` `PositionToCell`) and written into
   neighbors §6.5 and §15.4. The original converts the occupant's position to a cell for networks and poles alike. The
   bracket agrees whenever the occupant lies in its own cell; recommend the original's rule.
-- **NG18:** A deal holder not reachable by QueryInterface. [left open]
+- ~~**NG18:** A deal holder not reachable by QueryInterface. [left open]~~
+  **ANSWERED 2026-10-14** from the exe (deal QI `0x006CE260`; holder vtable `0x00AB1D58` only in the constructor and
+  destructor) and written into neighbors §15.4. The original deal's holder is not reachable either; it only travels with
+  the record. Nothing to expose: round-trip the record's properties.
 - **NG19:** No city on the other side of a connection. [targets 0]
 - **NG20:** The `GetSourceCells` rectangle. [(x, z, x, z)]
 - **NG21:** The return of `UpdateTrafficVolume`. [true]

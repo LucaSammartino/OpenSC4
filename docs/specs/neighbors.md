@@ -1065,6 +1065,14 @@ The bracket (the network's `GetOccupiedCell`, else the pole's `GetCell`) gives t
 position lies inside its own cell, which is the normal case. *[choice]* Use the original's rule; it costs nothing and
 removes the doubt for odd occupants.
 
+**NG18. A deal's property holder.** The original deal's holder is unreachable too. `cSC4NeighborDeal::QueryInterface`
+(`0x006CE260`) answers only `1` (IGZUnknown), `0x0773FEF1` (`cISC4NeighborDeal`) and `0xE4FDA3D4`
+(`cIGZSerializable`); the deal interface has no `AsISCPropertyHolder`; and the holder's vtable (`0x00AB1D58`) appears
+only in the deal's constructor and destructor. The holder exists only to be written and read with the deal record
+(§5.6). Nothing can add a property to it, so in practice it is always empty, except for properties read from a
+record. A FreeCity4 deal therefore needs no reachable holder: it must only keep the properties of a record it read
+and write them back.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
