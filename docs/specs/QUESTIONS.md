@@ -586,7 +586,11 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   and extra values are ignored. A huge reps crashes the original, because the buffer size (reps × element size,
   32-bit) wraps or cannot be allocated, and the result is not checked. Recommended *[choice]*: fill with 0 and
   fail the read above 16 MiB of values (data-formats.md §4.3).
-- **EX13:** are numeric values cut at `}` too? [no, only strings]
+- ~~**EX13:** are numeric values cut at `}` too? [no, only strings]~~ **ANSWERED 2026-10-14** from the exe
+  (`0x0067E780`): **the bracket matches in effect.** Only strings are cut at `}`; a number stops at the first
+  character that cannot continue it, so `}` ends it anyway (the last Float32 array value is split at `}`, with the
+  same result). Leading spaces are trimmed for array values only, which matters for `0x` in rule N. Uint64 and
+  Sint64 are hexadecimal with no sign (data-formats.md §4.3).
 - **EX14:** how is Float32 text parsed? [as f64, then rounded to f32; no hex/inf/nan]
 - **EX15:** what counts as a resolvable kind-1 resource key? [an exemplar or cohort that loads, or a key registered
   from the package index]

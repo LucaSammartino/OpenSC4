@@ -337,11 +337,17 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
   For `String` the reps field is ignored. It is read from the text right after the first `:`, **not trimmed**;
   rule N stops at the next `:`. So ` 3` gives 3, but ` 0x3` gives 0, a scalar. The `{` must follow the second `:`
   directly: `Uint32:0: {1}` fails the read.
-- **values**: must start with `{`. Values are separated by commas; leading spaces are trimmed. Per type:
+- **values**: must start with `{`. Values are separated by commas. In an **array** each value is trimmed of
+  leading spaces and tabs; a **scalar's** value is not, which matters only for rule N: `{ 0x10}` gives 0 as a
+  Uint32 scalar but 16 as a one-element array. Only `String` is cut at `}`. A number stops at the first character
+  that cannot continue it, `,` and `}` included, and any text after it is ignored (the last Float32 array value is
+  split at `}`, with the same result). Per type:
   - integer types up to 32 bits: rule N, then truncated to the type's width (two's complement);
-  - `Uint64` / `Sint64`: always read as **hexadecimal**, with or without `0x` *[inferred for the no-prefix case]*;
+  - `Uint64` / `Sint64`: always **hexadecimal** (`RZAtoUint64HexA` `0x0090FD90`): leading white space skipped, an
+    optional `0x` or `0X`, then at most 16 hex digits. There is no sign, so a negative Sint64 must be written in
+    two's complement: `10` gives 16 and `-1` gives 0;
   - `Float32`: decimal with `.` as separator, locale-independent; `80` gives 80.0;
-  - `Bool`: lower-cased, leading spaces trimmed; true exactly when it begins with `true`;
+  - `Bool`: lower-cased, leading spaces trimmed; true exactly when it begins with `true` (`1` gives false);
   - `String`: everything up to the first `}`, trimmed, then one leading `"` and one trailing `"` removed. A string
     cannot contain `}` *[quirk]*.
 - The reader does not check that the number of values matches `reps`, and there is **no cap** on `reps`
