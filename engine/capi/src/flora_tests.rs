@@ -997,12 +997,26 @@ fn getters_do_not_wait_and_calls_from_another_thread_do() {
         let t =
             std::thread::spawn(move || unsafe { fc4_flora_registry_record(reg as *const fc4_flora_registry, 0x1000) });
         assert_ne!(t.join().unwrap(), 0);
-        // A simulator call waits until the planting returns.
+        // A simulator call waits until the planting returns. The lock counts
+        // a thread when it starts to wait (the owner re-enters without being
+        // counted, so this thread can read the counter): wait until the
+        // other thread is counted, however long a busy machine takes to
+        // start it, instead of a fixed sleep.
+        let before = state(f as *const fc4_flora).lock_waits;
         let h = std::thread::spawn(move || unsafe {
             let mut s = fc4_flora_state::default();
             fc4_flora_get_state(f as *const fc4_flora, &mut s)
         });
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while state(f as *const fc4_flora).lock_waits == before {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the other thread never waited for the lock"
+            );
+            assert!(!h.is_finished(), "it finished without waiting for the lock");
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        // Counted: it is blocked until the planting returns.
         assert!(!h.is_finished(), "it waits for the lock");
         *o2.borrow_mut() = Some(h);
     }));
