@@ -150,6 +150,9 @@ pub(crate) struct World {
     next_token: Cell<u64>,
     // Services and flags.
     funds: Cell<i64>,
+    /// What the landfill developer's `GetZoningCost` returns (zones §6, type
+    /// 14 only; landfill §4.3 is not modelled here).
+    landfill_cost: Cell<i64>,
     services_ok: Cell<bool>,
     tuning: RefCell<Option<Rc<PropertyHolder>>>,
     insertion: RefCell<Option<InsertionPoint>>,
@@ -213,6 +216,7 @@ impl World {
             terrain: RefCell::new(BTreeMap::new()),
             next_token: Cell::new(0x1000),
             funds: Cell::new(1_000_000_000),
+            landfill_cost: Cell::new(0),
             services_ok: Cell::new(true),
             tuning: RefCell::new(Some(Rc::new(shipped_tuning()))),
             insertion: RefCell::new(None),
@@ -414,7 +418,7 @@ impl ZonesHost for World {
             .push("demolish_region", vec![("count", ji(region.count() as i64))]);
     }
     fn landfill_zoning_cost(&self, _region: &CellRegion) -> i64 {
-        0
+        self.landfill_cost.get()
     }
 
     // ---- networks ----
@@ -1010,8 +1014,8 @@ fn field_at(a: &[Json], i: usize) -> R<&Json> {
     a.get(i).ok_or_else(|| format!("missing element {i}"))
 }
 
-/// `zone_env`: `cells` (`[x, z]`), `funds`, `services_ok`, `tuning`
-/// (`"shipped"` or null).
+/// `zone_env`: `cells` (`[x, z]`), `funds`, `landfill_cost`, `services_ok`,
+/// `tuning` (`"shipped"` or null).
 fn env(w: &World, op: &Json) -> R<()> {
     if let Some(v) = opt(op, "cells") {
         let a = arr(v, "cells")?;
@@ -1022,6 +1026,9 @@ fn env(w: &World, op: &Json) -> R<()> {
     }
     if let Some(v) = opt(op, "funds") {
         w.funds.set(i64_of(v, "funds")?);
+    }
+    if let Some(v) = opt(op, "landfill_cost") {
+        w.landfill_cost.set(i64_of(v, "landfill_cost")?);
     }
     if let Some(v) = opt(op, "services_ok") {
         w.services_ok.set(bool_of(v, "services_ok")?);

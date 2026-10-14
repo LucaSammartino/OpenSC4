@@ -27,7 +27,8 @@
 //   - the iterator list is at list object + 4 (a game list: one pointer to
 //     its head node, B nodes whose values are the registered blocks);
 //   - release: unregister (std::list::remove on list object + 4), then free
-//     the block with C.
+//     the block with C in every case (BQ4: also when no node matched or the
+//     list object is null).
 //
 // Header-only, no game calls of its own (the caller passes the allocator B
 // free), so tests/safe_lot_iterator_test.cpp drives it over fake lists. A
@@ -113,12 +114,16 @@ using FreeFn = void(__cdecl*)(void* block);
 // every node whose value is `b` is unlinked and freed with `freeNode`
 // (allocator B), which is what std::list::remove (`0x00809580`) does on that
 // STLport list (a head pointer, no size field) *[abi: an equivalent, not the
-// game's own function]*. The whole ring is checked first (at most `bound`
-// nodes, each link pointing back); nothing is changed unless it passes.
-// Returns the number of nodes removed (the caller frees the block with C only
-// when it is 1 or more), or -1 when the ring failed the checks.
+// game's own function]*; the scan runs to the end, so duplicates go too
+// (budget.md §5.2, BQ4). A null list object has nothing to unlink: 0, as the
+// original skips the remove when the block's owner is null (BQ4). The whole
+// ring is checked first (at most `bound` nodes, each link pointing back);
+// nothing is changed unless it passes. Returns the number of nodes removed
+// (0 when none matched), or -1 when the ring failed the checks or `b` /
+// `freeNode` is null.
 inline int Unregister(Block* b, FreeFn freeNode, uint32_t bound) {
-    if (b == nullptr || b->listObject == nullptr || freeNode == nullptr) return -1;
+    if (b == nullptr || freeNode == nullptr) return -1;
+    if (b->listObject == nullptr) return 0;
     Node* const head = *reinterpret_cast<Node* const*>(static_cast<char*>(b->listObject) + sizeof(void*));
     if (head == nullptr || head->next == nullptr || head->prev == nullptr) return -1;
     uint32_t seen = 0;
@@ -139,6 +144,22 @@ inline int Unregister(Block* b, FreeFn freeNode, uint32_t bound) {
         }
         n = next;
     }
+    return removed;
+}
+
+// The release of ComputeTax's iterator (budget.md §5.2, BQ4): Unregister,
+// then the 8-byte block is freed with `freeBlock` (allocator C) in every case
+// the original reaches: after a remove that matched one node or more, one
+// that matched none, and with a null list object (the original frees the
+// block unconditionally at `0x006920AF`). [choice] When the ring fails
+// Unregister's checks (-1) the block stays registered, so it is leaked, never
+// freed: freeing it would leave a dangling node in the lot manager's ring (the
+// original would walk that ring and fault). Returns Unregister's result; the
+// block was freed exactly when it is 0 or more.
+inline int Release(Block* b, FreeFn freeNode, FreeFn freeBlock, uint32_t bound) {
+    if (freeBlock == nullptr) return -1;
+    const int removed = Unregister(b, freeNode, bound);
+    if (removed >= 0) freeBlock(b);
     return removed;
 }
 

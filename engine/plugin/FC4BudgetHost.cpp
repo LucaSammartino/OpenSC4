@@ -392,13 +392,15 @@ void MasterCopyFn(void* c) {
 struct MasterRelease {
     safelots::Block* block;
     safelots::FreeFn freeNode;
+    safelots::FreeFn freeBlock;
     int removed;
 };
 
-// Unlinks the block from the iterator ring and frees the nodes with B: under SehGuard.
+// Unlinks the block from the iterator ring, frees the nodes with B and the
+// block with C (BQ4: whether a node matched or not): under SehGuard.
 void MasterReleaseFn(void* c) {
     auto* m = static_cast<MasterRelease*>(c);
-    m->removed = safelots::Unregister(m->block, m->freeNode, kMaxRegisteredIterators);
+    m->removed = safelots::Release(m->block, m->freeNode, m->freeBlock, kMaxRegisteredIterators);
 }
 
 // The first few refusals are logged; ForEachLot then uses the rect query.
@@ -421,8 +423,11 @@ void MasterRefused(long scan, const char* why) {
 // visits nothing and returns false, and the caller falls back. The lots are
 // borrowed: the master list holds the manager's reference, and nothing here
 // removes a lot. The block is always unregistered (the equivalent of
-// std::list::remove, FC4SafeLotIterator.h) and freed with C; if it cannot be
-// unregistered it is leaked, never freed.
+// std::list::remove, FC4SafeLotIterator.h) from its own list object, as the
+// original does whatever that object is, and then freed with C whether a node
+// matched or not, and also when the list object is null (budget.md 5.2,
+// BQ4). [choice] Only after a faulted walk or release, or a ring that fails
+// the checks, is it leaked, never freed (the original would fault there).
 bool WalkMasterList(cFC4ISC4LotManager* lm, cISC4LandValueSimulator* lv, fc4_lot_visitor visit, void* ctx,
                     long scan) {
     const compat::ExecutableVersion* v = compat::IdentifiedVersion();
@@ -456,22 +461,29 @@ bool WalkMasterList(cFC4ISC4LotManager* lm, cISC4LandValueSimulator* lv, fc4_lot
                     safelots::Status::NoBlock,
                     false};
     const bool copied = SehGuard("budget master lot list walk", &MasterCopyFn, &copy);
-    MasterRelease release{block, reinterpret_cast<safelots::FreeFn>(freeNode), -1};
-    const bool unlinked = copied && !copy.wrongList &&
-                          SehGuard("budget safe lot iterator release", &MasterReleaseFn, &release);
-    if (unlinked && release.removed > 0) {
-        reinterpret_cast<safelots::FreeFn>(freeBlockVa)(block);  // allocator C
-    } else {
+    // BQ4: the release does not depend on the walk's list check (ComputeTax
+    // reads no lot manager field; it removes the block from the block's own
+    // owner, or skips that for a null owner, and frees the block with C).
+    const bool nullOwner = copied && block->listObject == nullptr;  // read without fault by the walk
+    MasterRelease release{block, reinterpret_cast<safelots::FreeFn>(freeNode),
+                          reinterpret_cast<safelots::FreeFn>(freeBlockVa), -1};
+    const bool released = copied && SehGuard("budget safe lot iterator release", &MasterReleaseFn, &release);
+    if (!released || release.removed < 0) {
         static volatile LONG leaks = 0;
         if (InterlockedIncrement(&leaks) <= 3) {
             Log("budget lot scan #%ld: WARNING the safe lot iterator %p could not be unregistered (%s); its block is "
                 "leaked, not freed",
                 scan, static_cast<void*>(block),
-                !copied            ? "the walk faulted"
-                : copy.wrongList   ? "unexpected list object"
-                : !unlinked        ? "the release faulted"
-                : release.removed < 0 ? "broken iterator ring"
-                                      : "not registered");
+                !copied     ? "the walk faulted"
+                : !released ? "the release faulted"
+                            : "broken iterator ring");
+        }
+    } else if (release.removed == 0) {
+        static volatile LONG unregistered = 0;
+        if (InterlockedIncrement(&unregistered) <= 3) {
+            Log("budget lot scan #%ld: the safe lot iterator %p was not in an iterator list (%s); its block was "
+                "freed with C all the same (BQ4)",
+                scan, static_cast<void*>(block), nullOwner ? "null list object" : "no node matched");
         }
     }
     if (!copied || copy.wrongList || copy.status != safelots::Status::Ok) {

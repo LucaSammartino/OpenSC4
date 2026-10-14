@@ -1162,7 +1162,7 @@ either the listed cells or the union of the listed rects (default: every cell of
 
 | op | Arguments | Effect |
 |---|---|---|
-| `zone_env` | any of `cells` (`[x, z]`), `funds`, `services_ok` (false = the developer's `Init` fails), `tuning` (`"shipped"`, a property map, or null) | the world; `cells` is read at `Init` |
+| `zone_env` | any of `cells` (`[x, z]`), `funds`, `landfill_cost` (what the landfill developer's `GetZoningCost` returns for a type-14 `PlaceZone`; default 0), `services_ok` (false = the developer's `Init` fails), `tuning` (`"shipped"`, a property map, or null) | the world; `cells` is read at `Init` |
 | `zone_create` | `session?` (`derive_seed(session, 0x8C09C68A)`, foundations §6.3; default session 0) or `seed?` (an exact seed), `trace?` (true), `manager?` (true), `developer?` (true) | the shared statics and the two classes |
 | `zone_rng` | `seed`, or `lcg` and `mul` | the file-local generator's state (§9) |
 | `zone_network` | `runs` (`[{kind, rect \| cells}]`), `add?` (keep the existing networks) | network runs with their edge connectivity |
@@ -1809,6 +1809,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | §11.3 nearest crime sim / prop | `c17_20_nearest` |
 | §6.8 arson | `c17_21_arson` |
 | §7 type names (CQ8: LTEXT key, U+2022, fallback) | `c17_24_type_names` |
+| §7 name and icon keys of other value types: the first 12 data bytes as three u32 (CQ23) | `c17_26_type_key_raw_bytes` |
 
 ## Coverage (aura §17)
 
@@ -2089,7 +2090,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | §15 item | Vector |
 |---|---|
 | 1 zone types (`IsRCIZone`, `GetZoneType`'s sign-extended int8) | `zn15_01_zone_types` |
-| 2 size errors (too large, too small, type ≥ 16) | `zn15_02_size_errors` |
+| 2 size errors (too large, too small; a type ≥ 16 dezones, ZG17) | `zn15_02_size_errors` |
 | 3 cost (60 / 66 / 0, funds, counts, insufficient funds) | `zn15_03_cost` |
 | 4 water (reject for type 1, accept for 12, error 2 for 14) | `zn15_04_water` |
 | 5 ZoningChange (one queued message, void2 rect and cells) | `zn15_05_zoning_change` |
@@ -2130,6 +2131,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | 33e highlight mode: test 23 as a preview (the drafts seen by the region and the scores) | `zn15_40_highlight_jog_street` |
 | extra: `DetermineLotSize`'s int32 score (ZQ9), `sx = 0` (ZQ10), missing candidates (ZQ7) | `zn15_41_determine_lot_size_int32_score` |
 | extra: `LayInJogStreets`' parallel test has a draft branch (§7.12, ZQ4) | `zn15_42_jog_parallel_draft` |
+| extra: a failed size check is an ABORT (§6, ZG17): the type-14 landfill cost of the whole region, skipFunds, error 1 replacing 3 or 4 | `zn15_43_size_abort_landfill_cost` |
 
 The two extras took the numbers 30 and 31 before §15 gained tests 30–32, so tests 30, 31 and 32 are the vectors
 numbered 32, 33 and 34.

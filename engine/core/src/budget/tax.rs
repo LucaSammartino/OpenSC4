@@ -80,7 +80,9 @@ pub struct TaxScan {
 }
 
 impl TaxScan {
-    /// `monthlyTax[t] := _ftol(groupTax[t])`, truncated toward zero.
+    /// `monthlyTax[t] := _ftol(groupTax[t])`, truncated toward zero to 64
+    /// bits. BQ7 (§5.2): never narrowed to 32 bits; only a NaN or a value at
+    /// or beyond ±2^63 gives `0x8000000000000000`.
     pub fn monthly_tax(&self) -> [i64; TAX_GROUPS] {
         self.group_tax.map(|g| ftol(f64::from(g)))
     }
@@ -88,6 +90,7 @@ impl TaxScan {
     /// `ComputeTax`'s result: `_ftol(total)`, truncated toward zero to 64
     /// bits (§5.2, BQ3). It keeps the fractions the twelve group truncations
     /// drop, so it usually exceeds the sum of [`monthly_tax`](Self::monthly_tax).
+    /// BQ7: a total outside the int32 range keeps all 64 bits.
     pub fn total_tax(&self) -> i64 {
         ftol(f64::from(self.total))
     }
@@ -318,6 +321,26 @@ mod tests {
         // The total is not the sum of the lines (6566).
         let lines: i64 = fwd.monthly_tax().iter().sum();
         assert_eq!(lines, 6566);
+    }
+
+    /// BQ7 (§5.2): the total and every group's tax are 64-bit `_ftol`
+    /// results; values above 2^31 are not cut to their low 32 bits.
+    #[test]
+    fn tax_beyond_int32_keeps_64_bits() {
+        let mut scan = TaxScan {
+            total: 3.0e9,
+            ..TaxScan::default()
+        };
+        scan.group_tax[0] = 5.0e9;
+        scan.group_tax[1] = -3.0e9;
+        assert_eq!(scan.total_tax(), 3_000_000_000);
+        assert_eq!(scan.monthly_tax()[0], 5_000_000_000);
+        assert_eq!(scan.monthly_tax()[1], -3_000_000_000);
+        // Only NaN and |x| >= 2^63 give 0x8000000000000000.
+        scan.total = f32::NAN;
+        scan.group_tax[2] = 1.0e19;
+        assert_eq!(scan.total_tax(), i64::MIN);
+        assert_eq!(scan.monthly_tax()[2], i64::MIN);
     }
 
     #[test]
