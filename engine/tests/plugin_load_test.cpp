@@ -36,6 +36,8 @@
 #include "cISC4Ordinance.h"
 #include "cISC4OrdinanceSimulator.h"
 #include "cISCPropertyHolder.h"
+#include "cISCResExemplar.h"
+#include "cISCResExemplarCohort.h"
 #include "cRZBaseVariant.h"
 #include "cSCBaseProperty.h"
 #include "cFC4Variant.h"
@@ -199,9 +201,9 @@ int ForeignFaultX87() {
 // A building's property holder with just what the budget reads and writes
 // (budget-item arrays), laid out like the game's (foundations §17.2): the
 // plugin calls holders only through those slots.
-class FakeHolder final : public cFC4ISCPropertyHolder {
+class FakeHolder : public cFC4ISCPropertyHolder {
 public:
-    ~FakeHolder() { RemoveAllProperties(false); }
+    virtual ~FakeHolder() { RemoveAllProperties(false); }
     bool QueryInterface(uint32_t riid, void** pp) override {
         if (riid != GZIID_cISCPropertyHolder && riid != GZIID_cIGZUnknown) return false;
         *pp = this;
@@ -4599,6 +4601,154 @@ int DevelopmentEnableTest(const std::string& dll, const std::string& ini, const 
 
 // ---- the development shadow (test seam op 34) ---------------------------------------------------------
 
+// An original growth developer as the shadow meets it (its agent answers
+// QueryInterface 0xE7CDD662): slot 5 is the target zone, slot 6 the type.
+class FakeGrowthDeveloper final : public cFC4ISC4GrowthDeveloper {
+public:
+    FakeGrowthDeveloper(int32_t zone, uint32_t type) : zone_(zone), type_(type) {}
+    bool QueryInterface(uint32_t riid, void** pp) override {
+        if (riid != 0xE7CDD662u && riid != GZIID_cIGZUnknown) return false;
+        *pp = static_cast<cFC4ISC4GrowthDeveloper*>(this);
+        AddRef();
+        return true;
+    }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return --refs; }  // stack object
+    bool Init(cISCPropertyHolder*) override { return true; }
+    bool Shutdown() override { return true; }
+    int32_t GetType() override { return zone_; }
+    uint32_t GetSubType() override { return type_; }
+    uint32_t GetPurpose() override { return 1; }
+    uint32_t GetWealth() override { return 1; }
+    void GetConstructionInfo(FC4ConstructionProfile&) override {}
+    bool GrowthAndDeclineListsAreValid() override { return false; }
+    fc4::GameVector<FC4GrowthItem>& GetGrowthList() override { return List(); }
+    fc4::GameVector<FC4GrowthItem>& GetDeclineList() override { return List(); }
+    cISC4SimGrid<int16_t>* GetDesirabilityMap() override { return nullptr; }
+    cISC4SimGrid<uint16_t>* GetCapacityMap() override { return nullptr; }
+    cISC4SimGrid<int16_t>* GetPopulationMap() override { return nullptr; }
+    cISC4SimGrid<uint16_t>* GetMaxCapacityMap() override { return nullptr; }
+    int32_t GetTotalCapacity() override { return 0; }
+    cISC4Demand* GetSourceDemand() override { return nullptr; }
+    uint8_t GetPowerSupplyCap() override { return 0; }
+    uint8_t GetWaterSupplyCap() override { return 0; }
+    uint8_t GetFireCoverageCap() override { return 0; }
+    uint8_t GetParkCap() override { return 0; }
+    int32_t GetDesirabilityThreshold() override { return 0; }
+    float GetAbandonmentThreshold(int32_t) override { return 0.0f; }
+    int32_t GetMonopolyUse() override { return 0; }
+    fc4::GameMapObject* GetStylePercentages() override { return nullptr; }
+    void StartMapUpdate() override {}
+    bool IsMapUpdateFinished() override { return true; }
+    int16_t EstimateDesirability(int32_t, int32_t) override { return 0; }
+    void GetSubjectiveThresholds(int32_t, int32_t& lo, int32_t& hi) override { lo = hi = 0; }
+    uint32_t refs = 1;
+
+private:
+    int32_t zone_;
+    uint32_t type_;
+    // An empty game vector (three null pointers) that is never constructed or
+    // destroyed: the shadow does not read it, and its destructor would need
+    // the game allocator.
+    alignas(void*) unsigned char list_[3 * sizeof(void*)] = {};
+    fc4::GameVector<FC4GrowthItem>& List() { return *reinterpret_cast<fc4::GameVector<FC4GrowthItem>*>(list_); }
+};
+
+class FakeCohort;
+
+// An exemplar's (or a cohort's) property holder as the game's behaves:
+// EnumProperties (slot 20) lists the OWN properties only; GetProperty (slot
+// 9) resolves the parent cohorts when `effective` (the exemplar's own
+// implementation does); QueryInterface 0xA52160F5 answers the exemplar.
+class ChainHolder final : public FakeHolder {
+public:
+    bool QueryInterface(uint32_t riid, void** pp) override {
+        if (riid == GZIID_cISCResExemplar && exemplar != nullptr) {
+            *pp = exemplar;
+            exemplar->AddRef();
+            return true;
+        }
+        return FakeHolder::QueryInterface(riid, pp);
+    }
+    cISCProperty* GetProperty(uint32_t id) const override;
+    bool EnumProperties(EnumFn fn, void* data) const override {
+        for (uint32_t id : own) fn(FakeHolder::GetProperty(id), data);
+        return true;
+    }
+    template <class T>
+    void SetOwn(uint32_t id, T value) {
+        Set(id, value);
+        if (std::find(own.begin(), own.end(), id) == own.end()) own.push_back(id);
+    }
+    std::vector<uint32_t> own;
+    cISCResExemplar* exemplar = nullptr;  // the owner, for an exemplar's holder
+    FakeCohort* parent = nullptr;          // the cohort whose properties GetProperty also resolves
+    bool effective = true;
+};
+
+class FakeCohort final : public cISCResExemplarCohort {
+public:
+    bool QueryInterface(uint32_t riid, void** pp) override {
+        if (riid != GZIID_cISCResExemplarCohort && riid != GZIID_cIGZUnknown) return false;
+        *pp = static_cast<cISCResExemplarCohort*>(this);
+        AddRef();
+        return true;
+    }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return --refs; }
+    bool Write(cIGZOStream&) override { return false; }
+    bool Read(cIGZIStream&) override { return false; }
+    uint32_t GetGZCLSID() override { return 0; }
+    cISCResExemplarCohort* GetParent() override { return parent; }
+    bool SetParent(cISCResExemplarCohort*, bool) override { return false; }
+    cISCPropertyHolder* AsISCPropertyHolder() override { return holder.AsSdk(); }
+    cISCPropertyHolder* AsISCPropertyHolder() const override { return const_cast<ChainHolder&>(holder).AsSdk(); }
+    bool IsPropertyLocal(uint32_t id) override { return holder.HasProperty(id); }
+    bool GetKey(cGZPersistResourceKey&) override { return false; }
+    bool SetKey(cGZPersistResourceKey const&) override { return false; }
+    bool CompactProperties() override { return true; }
+    ChainHolder holder;
+    FakeCohort* parent = nullptr;
+    uint32_t refs = 1;
+};
+
+cISCProperty* ChainHolder::GetProperty(uint32_t id) const {
+    if (cISCProperty* p = FakeHolder::GetProperty(id)) return p;
+    if (!effective) return nullptr;
+    for (const FakeCohort* c = parent; c != nullptr; c = c->parent) {
+        if (cISCProperty* p = c->holder.FakeHolder::GetProperty(id)) return p;
+    }
+    return nullptr;
+}
+
+class FakeExemplar final : public cISCResExemplar {
+public:
+    FakeExemplar() { holder.exemplar = this; }
+    bool QueryInterface(uint32_t riid, void** pp) override {
+        if (riid != GZIID_cISCResExemplar && riid != GZIID_cIGZUnknown) return false;
+        *pp = static_cast<cISCResExemplar*>(this);
+        AddRef();
+        return true;
+    }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return --refs; }
+    bool Write(cIGZOStream&) override { return false; }
+    bool Read(cIGZIStream&) override { return false; }
+    uint32_t GetGZCLSID() override { return 0; }
+    cISCPropertyHolder* AsISCPropertyHolder() override { return holder.AsSdk(); }
+    cISCPropertyHolder* AsISCPropertyHolder() const override { return const_cast<ChainHolder&>(holder).AsSdk(); }
+    bool IsPropertyLocal(uint32_t id) override { return holder.HasProperty(id); }
+    cISCResExemplarCohort* GetCohort() override { return cohort; }
+    bool SetCohort(cISCResExemplarCohort*, bool) override { return false; }
+    bool GetKey(cGZPersistResourceKey&) override { return false; }
+    bool SetKey(cGZPersistResourceKey const&) override { return false; }
+    bool CompactProperties() override { return true; }
+    ChainHolder holder;
+    FakeCohort* cohort = nullptr;
+    uint32_t refs = 1;
+};
+
+
 int DevelopmentShadowIniTest(const std::string& dll, const std::string& ini, const std::string& log) {
     // `development_shadow = 1` with FreeCity4's simulator and the original
     // development unit (the defaults): ON, and the shadow's list comparison.
@@ -4642,6 +4792,55 @@ int DevelopmentShadowIniTest(const std::string& dll, const std::string& ini, con
         FC4DevelopmentShadowTestInput other{};
         other.mode = 9;
         CHECK(seam(kFC4SeamDevelopmentShadow, &other, nullptr) == -1);
+
+        // Mode 2: the shadow names an original developer by its type (slot 6,
+        // 0x1010 ... 0x4400), not its target zone (slot 5): run 101 loaded the
+        // exemplars 0x00000001..3 and compared nothing.
+        FakeGrowthDeveloper r1(1, 0x1010), i8(3, 0x4400);
+        FC4DevelopmentShadowTestInput dev{};
+        dev.mode = 2;
+        dev.developer = &r1;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &dev, nullptr) == 0x1010);
+        CHECK(r1.refs == 1);  // the shadow's reference is dropped with the entry
+        dev.developer = &i8;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &dev, nullptr) == 0x4400);
+        CHECK(i8.refs == 1);
+        dev.developer = nullptr;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &dev, nullptr) == -1);
+
+        // Mode 3: an exemplar's effective properties (data-formats §4.4). The
+        // game's EnumProperties lists own properties only; a building whose
+        // ExemplarType, purpose and families sit in its cohorts must still
+        // reach the core (run 102: 91 of 744 building types).
+        FakeCohort grand, parent;
+        parent.parent = &grand;
+        grand.holder.SetOwn<uint32_t>(0x27812870, 0x5000);  // families, only in the grandparent
+        grand.holder.SetOwn<uint32_t>(0x27812833, 9);       // purpose, overridden by the parent
+        parent.holder.SetOwn<uint32_t>(0x10, 2);            // ExemplarType: a building
+        parent.holder.SetOwn<uint32_t>(0x27812833, 1);      // purpose
+        parent.holder.parent = &grand;
+        FakeExemplar ex;
+        ex.cohort = &parent;
+        ex.holder.parent = &parent;
+        ex.holder.SetOwn<uint32_t>(0x21, 0x12345);           // own
+        ex.holder.SetOwn<uint32_t>(0x27812833, 2);           // own purpose wins over both cohorts
+        FC4DevelopmentShadowTestInput hp{};
+        hp.mode = 3;
+        hp.holder = reinterpret_cast<const cISCPropertyHolder*>(ex.holder.AsSdk());
+        CHECK(seam(kFC4SeamDevelopmentShadow, &hp, nullptr) == 4);
+        ex.holder.effective = false;  // an exemplar whose GetProperty does not resolve: read from the cohort
+        CHECK(seam(kFC4SeamDevelopmentShadow, &hp, nullptr) == 4);
+        CHECK(ex.refs == 1 && parent.refs == 1 && grand.refs == 1);
+        grand.parent = &parent;  // a cycle stops at the repeated cohort
+        CHECK(seam(kFC4SeamDevelopmentShadow, &hp, nullptr) == 4);
+        CHECK(ex.refs == 1 && parent.refs == 1 && grand.refs == 1);
+        grand.parent = nullptr;
+        FakeHolder plain;  // not an exemplar: its own properties (none listed by its EnumProperties)
+        plain.Set<uint32_t>(0x10, 2);
+        hp.holder = reinterpret_cast<const cISCPropertyHolder*>(plain.AsSdk());
+        CHECK(seam(kFC4SeamDevelopmentShadow, &hp, nullptr) == 0);
+        hp.holder = nullptr;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &hp, nullptr) == -1);
     }
     FreeLibrary(hd);
     DeleteFileA(ini.c_str());
@@ -4652,6 +4851,13 @@ int DevelopmentShadowIniTest(const std::string& dll, const std::string& ini, con
     CHECK(text.find("development shadow: not compared or assumed: the industrial decline order") != npos);
     CHECK(text.find("development shadow: requested") == npos);
     CHECK(text.find("development shadow test: lists 2/2 in order; mismatches=0") != npos);
+    CHECK(text.find("development shadow test: developer 0x1010 (target zone 1), exemplar "
+                    "0x6534284A/0x67CD5FA1/0x00001010") != npos);
+    CHECK(text.find("development shadow test: developer 0x4400 (target zone 3), exemplar "
+                    "0x6534284A/0x67CD5FA1/0x00004400") != npos);
+    CHECK(CountOf(text, "development shadow test: holder properties 4 (own 2, inherited 2): 0x00000021 0x27812833 "
+                        "0x00000010@1 0x27812870@2") == 3);
+    CHECK(text.find("development shadow test: holder properties 0 (own 0, inherited 0):") != npos);
     CHECK(text.find("development shadow test: lists 2/2 in order; mismatches=2; differences (original/ours): "
                     "list[0] (1,2) s1/(3,4) s2, list[1] (3,4) s2/(1,2) s1") != npos);
     CHECK(text.find("development shadow test: lists 2/2 as a multiset; mismatches=0") != npos);
@@ -9893,6 +10099,12 @@ int main(int argc, char** argv) {
             static FakeObject temps[2] = {{tempVt.slots.data()}, {tempVt.slots.data()}};
             CHECK(seam(kFC4SeamRefAuditRelease, &temps[0], reinterpret_cast<void*>(intptr_t{3})) == 0);
             CHECK(seam(kFC4SeamRefAuditRelease, &temps[1], reinterpret_cast<void*>(intptr_t{1})) == 1);
+            // The growth developer's special-building copy released in its
+            // destructor (growth §1.3, DG28; run 102's five warnings): the
+            // last reference of an occupant the load's object table already
+            // dropped is the destructor's to free, as the original's is.
+            static FakeObject special{tempVt.slots.data()};
+            CHECK(seam(kFC4SeamRefAuditRelease, &special, reinterpret_cast<void*>(intptr_t{5})) == 0);
         }
 
         // The monthly digest (observer), read through the city's public
