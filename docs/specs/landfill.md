@@ -452,6 +452,11 @@ listed at cell `(x, z)` for which `HasAnyNetworkFlag(0x1F4F)` (network occupant 
 and the fourth argument is true, as here, it searches the map's multi-cell index under the key `(x << 16) | z`
 the same way. Otherwise it returns null. The zone type comes from the zone's own zone manager (slot 12).
 
+The map is the one the city creates in `CreateCityComponents` (`0x0045B07D`) with GZCOM
+`CreateInstance(0x6A0F82B2, 0xCA0F81B9, &city[+0x1E8])`. City slot 40 `GetTrafficNetwork` (`0x004596F0`) returns
+that field as it is: a `cISC4TrafficNetworkMap*` (IID `0xCA0F81B9`, vtable `0x00A8FED8`), with no `AddRef`. The
+SDK's `intptr_t` is that pointer. `PopulateZone` calls slot 8 on it directly, with no QI and no release (LG17).
+
 #### 4.4.6 `RemoveZone(Z, dezoneCells)`
 
 Remove `Z` from the list. If `dezoneCells`: for each mask cell, `Z.DezoneCell(x, z, true, true)`. Then
@@ -1220,7 +1225,7 @@ The object also implements `cISC4Occupant` (at its second vtable; QI `0x26BB767E
 | `cISC4City` (`0x00A87620`) | 34 / +0x88 | GetOccupantManager | 0 | EAX | services |
 | | 35 / +0x8C | GetPropManager | 0 | EAX | zot removal |
 | | 36 / +0x90 | GetZoneManager | 0 | EAX | zone types, PlaceZone |
-| | 40 / +0xA0 | GetTrafficNetwork (traffic network map) | 0 | EAX | road test in `PopulateZone` |
+| | 40 / +0xA0 | GetTrafficNetwork → `cISC4TrafficNetworkMap*`, **borrowed** (`0x004596F0`: returns city `+0x1E8`, no `AddRef`; LG17) | 0 | EAX | road test in `PopulateZone` |
 | | 47 / +0xBC | GetAutomataControllerManager | 0 | EAX | effects |
 | | 50 / +0xC8 | GetSimulator | 0 | EAX | agents |
 | | 93, 94 / +0x174, +0x178 | cell counts X, Z | 0 | EAX | §3.2, §4.5.3 |

@@ -1294,7 +1294,11 @@ before and after). The glue's current answer is in brackets.
   then child `0x6104489A`, then `GetChildAs(0x9A47B417, cISC4View3DWin 0xFA47B3F9)`, as the SDK's
   `SC4UI::GetView3DWin()` does. **"Not done" does not match** (the seagulls never toggle), but the effect is rendering
   only. Written into landfill.md §3.2.
-- **LG17:** the traffic network map comes through city slot 40 (`GetTrafficNetwork`, `intptr_t` in the SDK). Right?
+- ~~**LG17:** the traffic network map comes through city slot 40 (`GetTrafficNetwork`, `intptr_t` in the SDK). Right?~~
+  **ANSWERED 2026-10-14** from the exe (`0x004596F0`; created at `0x0045B07D`; used at `0x006BCDF6`). **Yes.** Slot 40
+  returns the city's `cISC4TrafficNetworkMap*`: the interface pointer created with IID `0xCA0F81B9`, **borrowed**, with
+  no `AddRef`. `PopulateZone` calls its slot 8 directly, with no QI and no release. Written into landfill.md §4.4.5
+  and §8.
 - **LG18 — §1.1/§1.2:** which simulator does the original use for AddAgent before services are acquired? [the app's
   city's simulator, held until RemoveAgent]
 - **LG19 — foundations §6/§12:** the core uses its own CRT-style generator per object (state 1), not the game's
