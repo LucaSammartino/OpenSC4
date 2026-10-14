@@ -589,6 +589,14 @@ Shipped: 1,810 models have entries, names such as `fx_00_highway_bridge_collumn_
 `fx_00_blue_blinking_light_slow`, C = 1. The 7 floats are a position and an orientation *[inferred]*; consumer not
 traced (GF11).
 
+Lower-casing is `cRZString::MakeLower` (`0x0090EAC5`, FS12). A name whose bytes are all below `0x7F` is lowered
+byte by byte with the C library's `tolower`; any other name is converted from UTF-8 to UTF-16, lowered with
+`towlower` and converted back. Both follow the C library locale, which `cRZLanguageManager::SetCurrentLanguage`
+(`0x00928021`) sets to the game's language, so non-ASCII letters are lowered too. Shipped: 3,025 names, all ASCII;
+299 have capitals, and 14 repeat an earlier name of the same model once lowered. FreeCity4 lowers ASCII letters and
+keeps the name's bytes (UTF-8 when valid, else Latin-1); for a valid UTF-8 name it also lowers non-ASCII letters
+with Unicode simple case mapping *[choice]*, close to the original under a Western-language locale.
+
 ### 3.12 Building and drawing a frame *[compat]*
 
 `GetModelFrame` (`0x00806C40`), for frame f < F, makes one mesh per animated mesh: vertex block, index block and

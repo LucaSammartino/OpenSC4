@@ -2929,8 +2929,13 @@ variant (GF3). The current answer is in brackets.
   signed and ascending, by `std::sort`. Equal frames keep file order up to 16 entries, not beyond. Every shipped entry is
   (−1, 0). The bracket (file order) matches the shipped data but not the original in general. Sort stably by frame
   *[choice]*.
-- **FS12:** REGP lower-casing: ASCII or locale-aware? Which encoding for byte names? [ASCII lower-casing; names
-  decoded as UTF-8 when valid, else Latin-1]
+- ~~**FS12:** REGP lower-casing: ASCII or locale-aware? Which encoding for byte names? [ASCII lower-casing; names
+  decoded as UTF-8 when valid, else Latin-1]~~
+  **ANSWERED 2026-10-14** from the exe (`cRZString::MakeLower` `0x0090EAC5`; `setlocale` from
+  `cRZLanguageManager::SetCurrentLanguage` `0x00928021`) and a sweep of the shipped models, and written into
+  graphics-formats §3.11. An all-ASCII name is lowered with `tolower`. Any other name goes UTF-8 → UTF-16 → `towlower`
+  → UTF-8 in the game language's locale, so its non-ASCII letters are lowered too. All 3,025 shipped names are ASCII.
+  The bracket matches for them. For a valid UTF-8 name, also lower non-ASCII letters *[choice]*.
 - **FS13:** §4.1 when the fallback texture itself does not load. [the fallback key is returned anyway]
 - **FS14:** RKT lookups with a zoom above 4, a detail above 2, a rotation above 3, or too few values. [no model
   (`None`); RKT0 ignores zoom and detail; the RKT1 addition wraps]
