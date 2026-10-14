@@ -180,7 +180,7 @@ fn fsh_cmd<S: fc4_formats::Source>(
             h.next,
             fr.data_end,
             if fr.zero_filled {
-                ", levels past the entry read as zero"
+                ", unpadded mips: the aligned levels past the entry read the following record bytes (GF9)"
             } else {
                 ""
             }
@@ -203,6 +203,8 @@ fn fsh_cmd<S: fc4_formats::Source>(
                 p.width,
                 p.height
             );
+        } else if h.code == fsh::code::INDEX8 {
+            say!(o, "  no usable palette: decodes as grey (FS4)");
         }
     }
     if let Some(path) = tga {
