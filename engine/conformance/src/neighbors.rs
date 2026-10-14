@@ -23,7 +23,7 @@ use std::rc::{Rc, Weak};
 use fc4_core::curve::ResponseCurve;
 use fc4_core::neighbors::{
     conn_type, connection_inner_cell, deal_cost, deal_max_amount, deal_type, inner_cell, is_valid_connection_cell, msg,
-    neighbour_connection_cell, neighbouring_region_cell, shipped_tuning, side_of, CityId, CommodityStats,
+    neighbour_connection_cell, neighbouring_region_cell, shipped_tuning, side_of, CityHandle, CityId, CommodityStats,
     ConnectionRequest, DealData, ForeignConnection, NeighborConnection, NeighborDeal, NeighborsHost, NeighborsMessage,
     NeighborsSimulator, PriceInputs, Side, Stat, UtilityFigures, CLSID_NEIGHBORS_SIMULATOR, CLSID_NEIGHBOR_CONNECTION,
     DEAL_PRICE_CURVE, GARBAGE_COST_CURVE,
@@ -86,6 +86,8 @@ pub(crate) struct World {
     session: Cell<u32>,
     cities: RefCell<BTreeMap<CityId, City>>,
     current: Cell<Option<CityId>>,
+    /// Whether the current city object ([`CITY_OBJECT`]) exists (§8.2, NB12).
+    city_object: Cell<bool>,
     cells: Cell<(i32, i32)>,
     today: Cell<u32>,
     figures: RefCell<UtilityFigures>,
@@ -95,6 +97,9 @@ pub(crate) struct World {
     next_prop: Cell<u64>,
     occupants: RefCell<BTreeMap<u64, Occ>>,
     altitude: Cell<f32>,
+    /// `GetAltitude(px, pz)` at given world positions (§6.3, NB3); any
+    /// other position reads `altitude`.
+    altitude_at: RefCell<Vec<([f32; 2], f32)>>,
     surface: Cell<f32>,
     deliver_sent: Cell<bool>,
     /// Posted status reports `(deal, data1)`, delivered by `neighbors_deliver`.
@@ -115,6 +120,7 @@ impl World {
             session: Cell::new(0x1234_5678),
             cities: RefCell::new(BTreeMap::new()),
             current: Cell::new(None),
+            city_object: Cell::new(true),
             cells: Cell::new((64, 64)),
             today: Cell::new(1000),
             figures: RefCell::new(UtilityFigures::default()),
@@ -124,6 +130,7 @@ impl World {
             next_prop: Cell::new(0x100),
             occupants: RefCell::new(BTreeMap::new()),
             altitude: Cell::new(270.0),
+            altitude_at: RefCell::new(Vec::new()),
             surface: Cell::new(280.0),
             deliver_sent: Cell::new(true),
             posted: RefCell::new(Vec::new()),
@@ -241,6 +248,9 @@ impl NeighborsHost for World {
     }
     fn current_city(&self) -> Option<CityId> {
         self.current.get()
+    }
+    fn current_city_object(&self) -> Option<CityHandle> {
+        self.city_object.get().then_some(CITY_OBJECT)
     }
     fn city_at(&self, rx: i32, rz: i32) -> Option<CityId> {
         self.cities
@@ -380,8 +390,11 @@ impl NeighborsHost for World {
     fn cell_center(&self, x: i32, z: i32) -> (f32, f32) {
         (x as f32 * CELL + 8.0, z as f32 * CELL + 8.0)
     }
-    fn marker_altitude(&self, _x: i32, _z: i32) -> f32 {
-        self.altitude.get()
+    fn marker_altitude(&self, px: f32, pz: f32) -> f32 {
+        let at = self.altitude_at.borrow();
+        at.iter()
+            .find(|(p, _)| *p == [px, pz])
+            .map_or(self.altitude.get(), |&(_, y)| y)
     }
     fn max_surface_level(&self, _x: i32, _z: i32) -> f32 {
         self.surface.get()
@@ -560,6 +573,21 @@ fn city_of(j: &Json) -> R<Option<CityId>> {
     }
 }
 
+/// The city object token of the current city (`cISC4City`, §8.2 NB12),
+/// distinct from every regional city ID a vector uses.
+const CITY_OBJECT: CityHandle = 0xC17_0000;
+
+/// A city object argument (§8.2, NB12): `"city"` is the current city object
+/// ([`CITY_OBJECT`]), a number any other handle (a regional city's ID
+/// included: a different object), null none.
+fn city_object_of(j: &Json) -> R<Option<CityHandle>> {
+    match j {
+        Json::Null => Ok(None),
+        Json::Str(s) if s == "city" => Ok(Some(CITY_OBJECT)),
+        v => Ok(Some(i64_of(v, "city object")? as CityHandle)),
+    }
+}
+
 /// A deal spec merged into `d`: `type`, `other` (a city: its position) or
 /// `other_side`, `city` or `city_side`, the amounts, `cost`, `flags`,
 /// `start`, `expiration`, `current`, `suspension`.
@@ -656,7 +684,9 @@ fn connection_state(c: &NeighborConnection) -> Vec<(String, Json)> {
 /// null), `session`, `tuning` ("shipped", null, or a property map),
 /// `tuning_remove` ([IDs] removed from the current tuning), `figures`
 /// (fields of `UtilityFigures`; department expenses may be null), `landfill`
-/// ([usage, capacity]), `altitude`, `surface`, `deliver_sent`.
+/// ([usage, capacity]), `altitude`, `altitude_at` ([[px, pz, y]]: the
+/// terrain altitude at those world positions), `surface`, `deliver_sent`,
+/// `city_object` (whether the current city object exists, default true).
 fn env(w: &World, op: &Json) -> R<()> {
     if let Some(v) = opt(op, "cells") {
         w.cells.set(pair(v, "cells")?);
@@ -725,11 +755,25 @@ fn env(w: &World, op: &Json) -> R<()> {
     if let Some(v) = opt(op, "altitude") {
         w.altitude.set(f32_of(v, "altitude")?);
     }
+    if let Some(v) = opt(op, "altitude_at") {
+        let mut at = Vec::new();
+        for e in arr(v, "altitude_at")? {
+            let e = arr(e, "altitude_at entry")?;
+            if e.len() != 3 {
+                return Err("altitude_at entries are [px, pz, y]".to_string());
+            }
+            at.push(([f32_of(&e[0], "px")?, f32_of(&e[1], "pz")?], f32_of(&e[2], "y")?));
+        }
+        *w.altitude_at.borrow_mut() = at;
+    }
     if let Some(v) = opt(op, "surface") {
         w.surface.set(f32_of(v, "surface")?);
     }
     if let Some(v) = opt(op, "deliver_sent") {
         w.deliver_sent.set(bool_of(v, "deliver_sent")?);
+    }
+    if let Some(v) = opt(op, "city_object") {
+        w.city_object.set(bool_of(v, "city_object")?);
     }
     Ok(())
 }
@@ -1069,7 +1113,7 @@ fn call(w: &World, op: &Json) -> R<()> {
             .trunc() as i64),
         "get_deal_max_amount" => Json::Float(s.get_deal_max_amount(deal_type_of(arg(0)?)?, city_of(arg(1)?)?)),
         "update_commodity_stats" => {
-            s.update_commodity_stats(city_of(arg(0)?)?);
+            s.update_commodity_stats(city_object_of(arg(0)?)?);
             Json::Null
         }
         "total_monthly_expense" => ji(s.total_monthly_expense()),
@@ -1111,7 +1155,7 @@ fn call(w: &World, op: &Json) -> R<()> {
 /// countX, countZ] → "west" | "north" | "east" | "south" | "interior"),
 /// `neighbouring_region_cell` ([side, x, z, pos, size]),
 /// `neighbour_connection_cell` ([side, x, z, regionCell, npos, nsize] →
-/// [x, z] or null), `is_valid_connection_cell` ([x, z, size]),
+/// [x, z]), `is_valid_connection_cell` ([x, z, size]),
 /// `connection_inner_cell` ([x, z, countX, countZ] → [x, z] or null),
 /// `inner_cell` (the same, clamped).
 fn geometry(op: &Json) -> R<()> {
@@ -1145,15 +1189,14 @@ fn geometry(op: &Json) -> R<()> {
             pair(arg(3)?, "pos")?,
             pair(arg(4)?, "size")?,
         )),
-        "neighbour_connection_cell" => neighbour_connection_cell(
+        "neighbour_connection_cell" => jpair(neighbour_connection_cell(
             side_arg(0)?,
             int(1)?,
             int(2)?,
             pair(arg(3)?, "region cell")?,
             pair(arg(4)?, "npos")?,
             pair(arg(5)?, "nsize")?,
-        )
-        .map_or(Json::Null, jpair),
+        )),
         "is_valid_connection_cell" => Json::Bool(is_valid_connection_cell(int(0)?, int(1)?, pair(arg(2)?, "size")?)),
         "connection_inner_cell" => connection_inner_cell(int(0)?, int(1)?, int(2)?, int(3)?).map_or(Json::Null, jpair),
         "inner_cell" => jpair(inner_cell(int(0)?, int(1)?, int(2)?, int(3)?)),
