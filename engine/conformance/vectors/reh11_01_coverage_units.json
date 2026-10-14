@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "reh11_coverage_units",
+  "spec": ["REH 4.4", "REH 11.1", "REH 10.2"],
+  "description": "REH test 1. K-6 schools (group 0x150F, chunk 500) of radius 10 m at lot centre (32, 32): the covered tract list (radius x slop 1.1) is tract (0, 0) only. State 5 zeroes coverage grid 0 and adds each school's units = capacity / chunk: capacity 1500 -> 3; two such schools over the same tract -> 6. Saturation: 250 (capacity 125000) plus units 10 (capacity 5000) -> 255. [quirk] The saturation tests the low 16 bits of the sum: 250 plus units 65286 (capacity 32643000) = 0x10000 -> low 16 bits 0, not > 255 -> stored as the low byte 0.",
+  "steps": [
+    {"op": "residential_env", "groups": {"1": ["0x150F"]}, "props": {"1": {"0x8922041B": {"u32": 1500}, "0x691B42B3": {"f32": 10}}}, "lots": {"1": [32, 32]}},
+    {"op": "residential_env", "groups": {"2": ["0x150F"]}, "props": {"2": {"0x8922041B": {"u32": 1500}, "0x691B42B3": {"f32": 10}}}, "lots": {"2": [32, 32]}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_set", "state": {"state": 5, "lists": {"school_groups": [[1]]}}},
+    {"op": "residential_run_to", "state": 6, "steps": 1},
+    {"op": "residential_expect_grid", "grid": "school_coverage0", "cells": [[0, 0, 3]], "others": 0},
+    {"op": "residential_set", "state": {"state": 5, "lists": {"school_groups": [[1, 2]]}}},
+    {"op": "residential_run_to", "state": 6, "steps": 1},
+    {"op": "residential_expect_grid", "grid": "school_coverage0", "cells": [[0, 0, 6]], "others": 0},
+    {"op": "residential_env", "props": {"1": {"0x8922041B": {"u32": 125000}}, "2": {"0x8922041B": {"u32": 5000}}}},
+    {"op": "residential_set", "state": {"state": 5}},
+    {"op": "residential_run_to", "state": 6, "steps": 1},
+    {"op": "residential_expect_grid", "grid": "school_coverage0", "cells": [[0, 0, 255]], "others": 0},
+    {"op": "residential_env", "props": {"2": {"0x8922041B": {"u32": 32643000}}}},
+    {"op": "residential_set", "state": {"state": 5}},
+    {"op": "residential_run_to", "state": 6, "steps": 1},
+    {"op": "residential_expect_grid", "grid": "school_coverage0", "all": 0},
+    {"op": "residential_expect", "state": {"school_covered": 0}}
+  ]
+}

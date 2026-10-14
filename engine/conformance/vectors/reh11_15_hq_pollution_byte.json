@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "reh11_hq_pollution_byte",
+  "spec": ["REH 4.7", "REH 11.15", "REH 10.7", "RS3"],
+  "description": "REH test 15 [quirk]: the HQ decay adds the air curve at the low byte of the tract's average air pollution source: average 600 -> 600 & 0xFF = 88 -> HQdec = 0.2 + air(88) = 0.2 + 0.0171875 = 0.2171875; average 256 -> index 0 -> 0.2. No water or garbage pollution.",
+  "steps": [
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_env", "pollution": [600, 0, 0]},
+    {"op": "residential_call", "method": "hq_loss", "args": [0, 0], "expect": 0.2171875},
+    {"op": "residential_env", "pollution": [256, 0, 0]},
+    {"op": "residential_call", "method": "hq_loss", "args": [0, 0], "bits": true, "expect": "0x3E4CCCCD"}
+  ]
+}

@@ -193,6 +193,8 @@ pub(crate) struct Inner {
     pub(crate) report_cycles: u32,
     pub(crate) report: Option<super::Report>,
     pub(crate) last_report: Option<super::Report>,
+    /// The block probe (tooling, the power shadow): switched on by the host.
+    pub(crate) blocks: Option<super::report::BlockProbe>,
 }
 
 /// The working context of one call: the host and the state taken out of
@@ -935,6 +937,31 @@ impl PowerSim {
     /// since the last call).
     pub fn take_report(&self) -> Option<super::Report> {
         self.inner.borrow_mut().last_report.take()
+    }
+
+    /// Tooling (the power shadow): `on` starts recording how each §6.3
+    /// step 6 orders its blocks ([`super::BlockDraw`], earlier records
+    /// dropped); `false` stops and drops them. With `target`, a network whose
+    /// powered set depends on the order takes the first start (`0 ..
+    /// min(count, 32768)`) whose powered bits inside the network reproduce
+    /// `target` (the start the original's `rand()` gave it, when FreeCity4
+    /// computes the same blocks); without a target, or when no start matches,
+    /// the start is drawn as usual. The `rand()` call is made either way.
+    pub fn set_block_probe(&self, on: bool, target: Option<crate::grid::Bitmap>) {
+        self.inner.borrow_mut().blocks = on.then(|| super::report::BlockProbe {
+            target,
+            draws: Vec::new(),
+        });
+    }
+
+    /// The block orders recorded since the probe was switched on (taken).
+    pub fn take_block_draws(&self) -> Vec<super::BlockDraw> {
+        self.inner
+            .borrow_mut()
+            .blocks
+            .as_mut()
+            .map(|b| std::mem::take(&mut b.draws))
+            .unwrap_or_default()
     }
 
     /// The subsystem's `rand()` generator.

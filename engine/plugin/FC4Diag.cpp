@@ -132,24 +132,36 @@ void LogForeign(EXCEPTION_POINTERS* ep, LONG report) {
                 "at most %ld for this address)", where, report, kReportsPerSite);
     LogException(0, prefix, ep->ExceptionRecord, ep->ContextRecord);
 #if defined(_M_IX86)
-    // Return addresses into our image on the faulting stack (who called the game).
+    // Registers, then the return addresses on the faulting stack, into the
+    // executable or our image (who called what). The game's own call chain is
+    // what tells a bad size or pointer we returned from a game-side failure.
     if (ep->ContextRecord != nullptr) {
+        const CONTEXT* c = ep->ContextRecord;
+        LogWait(0, "  registers: eax=0x%08lX ebx=0x%08lX ecx=0x%08lX edx=0x%08lX esi=0x%08lX edi=0x%08lX ebp=0x%08lX",
+                static_cast<unsigned long>(c->Eax), static_cast<unsigned long>(c->Ebx),
+                static_cast<unsigned long>(c->Ecx), static_cast<unsigned long>(c->Edx),
+                static_cast<unsigned long>(c->Esi), static_cast<unsigned long>(c->Edi),
+                static_cast<unsigned long>(c->Ebp));
         const NT_TIB* tib = reinterpret_cast<const NT_TIB*>(NtCurrentTeb());
         const uintptr_t top = reinterpret_cast<uintptr_t>(tib->StackBase);
-        const uintptr_t esp = ep->ContextRecord->Esp;
+        const uintptr_t esp = c->Esp;
         const uintptr_t* sp = reinterpret_cast<const uintptr_t*>(esp);
         int found = 0;
+        int ours = 0;
         if (esp >= reinterpret_cast<uintptr_t>(tib->StackLimit) && esp < top) {
             const unsigned words = static_cast<unsigned>((top - esp) / sizeof(uintptr_t));
-            for (unsigned i = 0; i < 256 && i < words && found < 8; ++i) {
-                if (InImage(sp[i]) && IsLikelyReturnAddress(sp[i])) {
-                    LogWait(0, "  stack[esp+0x%03X] = FreeCity4.dll+0x%lX", i * 4,
-                            static_cast<unsigned long>(sp[i] - g_base));
-                    ++found;
-                }
+            for (unsigned i = 0; i < 1024 && i < words && found < 24; ++i) {
+                const uintptr_t v = sp[i];
+                if (!(InImage(v) || InMainExe(v)) || !IsLikelyReturnAddress(v)) continue;
+                char w[96];
+                DescribeAddress(v, w, sizeof(w));
+                LogWait(0, "  stack[esp+0x%03X] = %s", i * 4, w);
+                ++found;
+                if (InImage(v)) ++ours;
             }
         }
-        if (found == 0) LogWait(0, "  no return address into FreeCity4.dll in the top 1 KiB of the stack");
+        if (found == 0) LogWait(0, "  no return address into the executable or FreeCity4.dll in the top 4 KiB of the stack");
+        else if (ours == 0) LogWait(0, "  no return address into FreeCity4.dll among them");
     }
 #endif
     DumpCallRingWait(0, "  ");

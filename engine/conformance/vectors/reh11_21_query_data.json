@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "reh11_query_data",
+  "spec": ["REH 4.11", "REH 11.21", "REH 10.13"],
+  "description": "REH test 21 (slots 26 / 27, record +0x14..+0x3C): capacity 1000, effective capacity 990, divisor 30 -> capacity per staff (+0x1C) = floor(1000 / 30) = 33 and effective per staff (+0x20) 33 for both (the school's ceil(990 / 30) = 33, the hospital's floor). Effective capacity 991 -> school ceil = 34, hospital floor = 33 [quirk]. Served 0xFFFFFFFF reads as 0. A school without a staff item reads funding 1.0 and cost 0; a hospital without one fails (AL 0). Slot 14: the totals of the selected groups add the u32 fields and the grade, and return the number counted.",
+  "steps": [
+    {"op": "residential_env", "groups": {"1": ["0x150F"], "2": ["0x1512"], "3": ["0x1510"]}, "props": {"1": {"0x8922041B": {"u32": 1000}, "0xE9244B2E": {"u32": 990}, "0x09220161": {"u32": 77}, "0x292453C5": {"f32": 0.5}}, "2": {"0x69220415": {"u32": 1000}, "0x49244B21": {"u32": 990}, "0xC922015C": {"u32": 4294967295}, "0x092453CB": {"f32": 0.5}}, "3": {"0x8922041B": {"u32": 600}, "0xE9244B2E": {"u32": 600}, "0x09220161": {"u32": 23}, "0x292453C5": {"f32": 0.25}}}, "items": {"2": {"hospital_staff": {"department": 0, "cost": 250, "local": 0.75}}}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_call", "method": "school_query_data", "args": [1], "expect": {"capacity": 1000, "effective_capacity": 990, "capacity_per_staff": 33, "effective_per_staff": 33, "served": 77, "grade": 0.5, "staff_funding": 1, "staff_cost": 0, "vehicle_funding": 1, "vehicle_cost": 0}},
+    {"op": "residential_call", "method": "hospital_query_data", "args": [2], "expect": {"capacity": 1000, "effective_capacity": 990, "capacity_per_staff": 33, "effective_per_staff": 33, "served": 0, "grade": 0.5, "staff_funding": 0.75, "staff_cost": 250, "vehicle_funding": 1, "vehicle_cost": 0}},
+    {"op": "residential_env", "props": {"1": {"0xE9244B2E": {"u32": 991}}, "2": {"0x49244B21": {"u32": 991}}}},
+    {"op": "residential_call", "method": "school_query_data", "args": [1], "partial": true, "expect": {"capacity_per_staff": 33, "effective_per_staff": 34}},
+    {"op": "residential_call", "method": "hospital_query_data", "args": [2], "partial": true, "expect": {"capacity_per_staff": 33, "effective_per_staff": 33}},
+    {"op": "residential_env", "items": {"2": {"hospital_staff": null}}},
+    {"op": "residential_call", "method": "hospital_query_data", "args": [2], "expect": null},
+    {"op": "residential_env", "props": {"1": {"0xE9244B2E": {"u32": 990}}}},
+    {"op": "residential_set", "state": {"lists": {"school_groups": [[1], [3]]}}},
+    {"op": "residential_call", "method": "school_system_totals", "args": [["0x150F", "0x1510"]], "expect": {"count": 2, "totals": {"capacity": 1600, "effective_capacity": 1590, "capacity_per_staff": 53, "effective_per_staff": 53, "served": 100, "grade": 0.75, "staff_funding": 0, "staff_cost": 0, "vehicle_funding": 0, "vehicle_cost": 0}}},
+    {"op": "residential_call", "method": "school_system_totals", "args": [["0x1510"]], "partial": true, "expect": {"count": 1}},
+    {"op": "residential_call", "method": "school_system_totals", "args": [[]], "partial": true, "expect": {"count": 0}},
+    {"op": "residential_call", "method": "slot", "args": [14], "expect": ["GetSchoolSystemTotals", 8, "EAX"]}
+  ]
+}

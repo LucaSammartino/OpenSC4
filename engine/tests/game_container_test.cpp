@@ -494,6 +494,59 @@ int main() {
                     g_stl.frees, g_alloc.allocs, g_alloc.frees);
     }
 
+    // 12. GetFloraTypesByFilter / ByFamily (flora slots 13, 14): the game
+    // builds a hash_set<uint32_t> with 193 buckets (hint 100), we insert with
+    // B (growing it past 193 elements), the game walks and destroys it (each
+    // node, then the bucket buffer, freed with B).
+    {
+        g_alloc.Reset();
+        g_stl.Reset();
+        using Set = fc4::GameHashSetU32<TestStlAlloc>;
+        CHECK(Set::NextPrime(100) == 193 && Set::NextPrime(1) == 53 && Set::NextPrime(194) == 389);
+        CHECK(Set::NextPrime(4294967291u) == 4294967291u && Set::NextPrime(0xFFFFFFFFu) == 4294967291u);
+        alignas(8) static unsigned char raw[sizeof(Set)];
+        auto* set = new (raw) Set(100);  // game-owned: never destroyed by us
+        CHECK(set->bucket_count() == 193 && set->size() == 0);
+        // Head insertion: two values of one chain come out newest first.
+        CHECK(set->insert(5) && set->insert(5 + 193));
+        CHECK(!set->insert(5));  // present: not inserted again
+        CHECK(set->bucket(5) != nullptr && set->bucket(5)->value == 5 + 193 && set->bucket(5)->next->value == 5);
+        for (uint32_t v = 1000; v < 1250; ++v) set->insert(v * 7919u);
+        CHECK(set->size() == 252 && set->bucket_count() == 389);  // resize(count + 1) at 194 -> 389
+        size_t nodes = 0;
+        bool placed = true;
+        for (size_t b = 0; b < set->bucket_count(); ++b) {
+            for (auto* p = set->bucket(b); p != nullptr; p = p->next) {
+                ++nodes;
+                placed = placed && (p->value % set->bucket_count()) == b;
+            }
+        }
+        CHECK(nodes == set->size() && placed);
+        CHECK(set->contains(5) && set->contains(5 + 193) && set->contains(1000u * 7919u) && !set->contains(6));
+        // The game destroys it (0x008EBA60, then the bucket buffer).
+        for (size_t b = 0; b < set->bucket_count(); ++b) {
+            for (auto* p = set->bucket(b); p != nullptr;) {
+                auto* next = p->next;
+                g_stl.Deallocate(p);
+                p = next;
+            }
+        }
+        g_stl.Deallocate(set->buckets());
+        CHECK(g_stl.Live() == 0 && g_stl.doubleFrees == 0 && g_stl.foreignFrees == 0);
+        CHECK(g_alloc.allocs == 0);
+        // Our own set frees everything to B; no allocator: nothing inserted.
+        {
+            Set own(1);
+            for (uint32_t v = 0; v < 60; ++v) own.insert(v);
+            CHECK(own.size() == 60 && own.bucket_count() == 97);
+        }
+        CHECK(g_stl.Live() == 0 && g_stl.doubleFrees == 0 && g_stl.foreignFrees == 0);
+        fc4::GameHashSetU32<NoAlloc> none(100);
+        CHECK(none.bucket_count() == 0 && !none.insert(1) && none.size() == 0);
+        std::printf("GameHashSetU32: STL instance %d allocations / %d frees, service %d / %d\n", g_stl.allocs,
+                    g_stl.frees, g_alloc.allocs, g_alloc.frees);
+    }
+
     g_stl.Reset();
     g_alloc.Reset();
     if (g_failures != 0) {

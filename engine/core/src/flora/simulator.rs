@@ -123,6 +123,91 @@ fn seed_count(v: f32) -> i64 {
     }
 }
 
+/// The deterministic outcome of one visit of §6.7.2
+/// ([`predict_visit`]): what `SimulateExistingFloraOccupant` does to the
+/// occupant itself, without the seeds it drops (random positions, §8).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct VisitOutcome {
+    /// The record was found (no record: nothing happens).
+    pub known: bool,
+    /// Rebirth: birth date := today, state := 0 (nothing else).
+    pub reborn: bool,
+    /// The state after the visit.
+    pub state: i8,
+    /// Removed from the occupant manager (a change to stage 0 or 4).
+    pub removed: bool,
+    /// The seeding loop ran at least once: last seeding date := now.
+    pub seeded: bool,
+    /// The visit read the score (no rebirth).
+    pub scored: bool,
+}
+
+/// One visit of §6.7.2 as a pure function of the occupant's values, its
+/// record (`None`: unknown type), `today`, `propagation`, the simulator's
+/// day number `now` and its score at the occupant's position (`score` is
+/// only called when the original reads it). The same rule as
+/// [`FloraSim::simulate_existing`] (tested against it); the flora
+/// shadow applies it to the original's census.
+pub fn predict_visit(
+    rec: Option<&FloraRecord>,
+    fo: &FloraOccupant,
+    today: u32,
+    propagation: bool,
+    now: u32,
+    score: impl FnOnce() -> f32,
+) -> VisitOutcome {
+    let Some(rec) = rec else {
+        return VisitOutcome {
+            state: fo.state,
+            ..VisitOutcome::default()
+        };
+    };
+    let age = today.wrapping_sub(fo.birth_date);
+    let a = f64::from(age);
+    let st = fo.state;
+    let mut stage = if a >= f64::from(rec.max_age) {
+        state::DYING
+    } else if a >= f64::from(rec.lifespan) {
+        state::BURNT
+    } else if a >= f64::from(rec.maturity_age) {
+        state::MATURE
+    } else if a >= f64::from(0.5 * rec.maturity_age) {
+        state::MATURING
+    } else {
+        state::YOUNG
+    };
+    if st >= state::BURNT || stage >= state::BURNT {
+        return VisitOutcome {
+            known: true,
+            reborn: true,
+            state: state::YOUNG,
+            ..VisitOutcome::default()
+        };
+    }
+    let s = score();
+    let mut can_seed = false;
+    if propagation || !rec.has_flag(flag::SKIP_SCORE) {
+        if s < rec.min_score {
+            stage = state::DYING;
+        } else if a >= f64::from(rec.seeding_age) {
+            can_seed = true;
+        }
+    }
+    let removed = stage != st && (stage == state::YOUNG || stage == state::DYING);
+    let seeded = propagation
+        && can_seed
+        && f64::from(r24(f64::from(fo.last_seeding_date) + f64::from(rec.seeding_interval))) < f64::from(now)
+        && seed_count(rec.seeds_per_cycle) > 0;
+    VisitOutcome {
+        known: true,
+        reborn: false,
+        state: stage,
+        removed,
+        seeded,
+        scored: true,
+    }
+}
+
 /// The digits a `blast` word starts with ([choice], saturating).
 fn parse_unsigned(w: Option<&&str>) -> u32 {
     let Some(w) = w else { return 0 };

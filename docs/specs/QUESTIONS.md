@@ -365,20 +365,89 @@ About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answ
   **The bracket is right: AL, a bool.** The fraction goes through the reference and the x87 stack is empty on
   return. Also added to the row: the property is read through the shared percentage getter, so it is × 0.01f
   (float32), like slot 55.
-- **PG4 — §4.10 visual effects:** the effects manager's `CreateVisualEffect` and the `cISC4VisualEffect` /
-  `cS3DTransform` layouts are not in `docs/abi`. [visual effects not implemented]
-- **PG5 — §10.2 Q1:** is the prop requester re-added after a load? [open in the spec]
-- **PG6 — shadow method:** the shadow captures the original's state by calling the original's own `Write`. Is that
-  acceptable as read-only? [used]
-- **PG7:** `radiationSum` is not saved, so the radiation history at the end of a cycle after a load diverges from a
-  run without the load. Intended? [as the spec]
-- **PG8 — §4.6.1 step 3:** is the unsigned `wteRemaining` converted to float as signed or unsigned? [as written]
-- **PG9:** can landfill usage change within a day? [the shadow keeps the first value it reads]
-- **PG10:** without an ordinance simulator, `cumulative_factor` returns 1.0. [choice]
-- **PG11 — slots 29/30:** they return int32 (the applied delta and the argument respectively) where the SDK has
-  bool. Confirm. [int32]
-- **PG12 — §5.2 posts:** no void or IGZUnknown is set on them, since the spec names none. Confirm. [none set]
-- **PG13 — slot 5:** what does it return for a type above 3? [null; choice]
+- ~~**PG4 — §4.10 visual effects:** the effects manager's `CreateVisualEffect` and the `cISC4VisualEffect` /
+  `cS3DTransform` layouts are not in `docs/abi`. [visual effects not implemented]~~ **ANSWERED 2026-10-14** from the
+  exe (calls `0x006E6836`–`0x006E693D`; `CreateVisualEffect` `0x00593AE0`; effect vtable `0x00AA1170`; transform
+  copy `0x005BEC20`; RNG `0x00B49BD0`) and written into pollution.md §4.10. **Not drawing them is the implementer's
+  choice, but part of the pass must stay.**
+  - **The interfaces.** `CreateVisualEffect` is effects manager slot 6 (pop 12, AL; `*out` is AddRef'd). The
+    effect's slots are 3 `Start`, 4 `Stop`, 5 `IsStarted`, 8 `SetTransform`, 12 `SetParameter(index, float*,
+    count)` and 2 `Release`.
+  - **`cS3DTransform`** is 0x38 bytes: a counter byte, a flags byte, a 3×3 matrix at `+0x04`, the translation at
+    `+0x28` and the scale at `+0x34`.
+  - **Must still run without effects.** The pass's one `rand()` call (the effect iterator's reset) shares the
+    main-thread stream, and the worst tracts feed slots 17–19.
+  - **Safe to drop.** The water-position draws use a `cRZRandomSuper` that nothing else uses.
+- ~~**PG5 — §10.2 Q1:** is the prop requester re-added after a load? [open in the spec]~~ **ANSWERED 2026-10-14**
+  from the exe (prop developer `Write` `0x006F1970`–`0x006F19B6`, `Read` `0x006F3680`–`0x006F36C8`;
+  `AddPropRequester` `0x006F21C0`) and written into pollution.md §4.1 and §10.2 Q1. **No; the prop developer's own
+  save restores it.**
+  - **How it is restored.** The prop developer writes its requester vector by ref and reads it back with IID
+    `0x89C498BE`. A loaded city therefore still gets garbage props.
+  - **Do not re-add it.** `AddPropRequester` has no duplicate check, so adding it again would register it twice.
+  - **For a replacement.** It must answer `0x89C498BE` and be saved by ref.
+- ~~**PG6 — shadow method:** the shadow captures the original's state by calling the original's own `Write`. Is that
+  acceptable as read-only? [used]~~ **ANSWERED 2026-10-14** from the exe (`Write` `0x006E3380`–`0x006E371A`; ref
+  helper `0x005D99A0`; list writer `0x005DAFF0`; iterator writer `0x005DAB70`) and written into pollution.md §6.
+  **Yes; the bracket stands.**
+  - **No stores.** `Write` stores to no member of the simulator, clears no dirty flag and allocates nothing.
+  - **Refs depend on the stream.** If the stream refuses `cISC4DBSegmentOStream` (`0x6999A8FB`), every ref writes
+    nothing and the referenced objects are not touched. The capture then has no grid refs, no list entries (the
+    counts remain) and no department.
+  - **If the stream answers,** each object is QueryInterface'd and released again, so its reference count does not
+    change. A save's own stream would also register the object with the class-object store, so never capture
+    through it.
+- ~~**PG7:** `radiationSum` is not saved, so the radiation history at the end of a cycle after a load diverges from a
+  run without the load. Intended? [as the spec]~~ **ANSWERED 2026-10-14** from the exe (`Write` skips the field
+  between `developedTracts` and `avgGarbage`; `Read` never touches it; ctor `0x006E206A` sets it to 0; new-city
+  zeroing `0x006E7288`; end-of-cycle zeroing `0x006E7A34`) and written into pollution.md §6 with a worked example.
+  **The bracket matches; reproduce it as a *[quirk]*.** After a load the sum restarts at 0. Only the first end of
+  cycle after the load differs, by one entry each in `0xEA110137` and `0xEA110138`. Whether it was intended
+  cannot be read from the exe.
+- ~~**PG8 — §4.6.1 step 3:** is the unsigned `wteRemaining` converted to float as signed or unsigned? [as written]~~
+  **ANSWERED 2026-10-14** from the exe (waste-to-energy `0x006E38EA`–`0x006E3903`, incinerators
+  `0x006E39A5`–`0x006E39BE`; constant `4294967296.0f` at `0x00A80AA8`) and written into pollution.md §4.6.1 with a
+  table. **Unsigned, so the bracket matches, but it is not rounded to `float32`.**
+  - **How it converts.** The value is loaded as signed, and 2³² is added when its top bit is set. It is then
+    compared on the x87 stack with the `float32` `g`.
+  - **Below 2³¹** the comparison is exact. For example, 2²⁴ + 1 > 16,777,216.0 is true.
+  - **From 2³¹ up** the add rounds the value to `float32` under the 24-bit precision.
+  - **In practice.** Both differ from a plain `f32` conversion only above 2²⁴. Steps 3 and 4 behave the same.
+- ~~**PG9:** can landfill usage change within a day? [the shadow keeps the first value it reads]~~ **ANSWERED
+  2026-10-14** from the exe (`GetLandfillUsage` `0x006B9820` reads cached totals; they are written only by the ctor
+  `0x006B9780` and `UpdateCapacityValues` `0x006B8F20`; its callers are `0x006B9302` month, `0x006B9CE2` zoning,
+  `0x006B9F2B` PostCityInit) and written into pollution.md §4.6.1. **Not within one day pass, so the bracket
+  matches if the value is read again each day.** None of those callers runs inside pollution's day pass, which
+  finishes in one delivery. The values can change between day passes: after zoning, after the landfill month
+  agent, or after a load.
+- ~~**PG10:** without an ordinance simulator, `cumulative_factor` returns 1.0. [choice]~~ **ANSWERED 2026-10-14**
+  from the exe (52 unchecked calls through the held pointer, `0x006E83DD`–`0x006E8479`) and written into
+  pollution.md §4.4.3. **The original has no such path: a null pointer crashes on the first read, and the city
+  always creates the simulator.** The *[choice]* of 1.0 stands. It equals `GetCumulativeFactor` with no enacted
+  ordinance carrying the property (ordinance.md §6.1).
+- ~~**PG11 — slots 29/30:** they return int32 (the applied delta and the argument respectively) where the SDK has
+  bool. Confirm. [int32]~~ **ANSWERED 2026-10-14** from the exe (slot 29 `0x006E32E0`, slot 30 `0x006E5050`; every
+  call site checked) and written into pollution.md §8.1 with a table. **Confirmed; the bracket matches.**
+  - **Neither is a `bool`.** EAX holds the applied delta (taken before the final clamp at 0) and the argument
+    respectively. AL is just the low byte, so `AddToGarbageSupply(256)` gives AL 0.
+  - **No caller reads either value.** That covers the landfill developer, the landfill zones and the simulator
+    itself.
+- ~~**PG12 — §5.2 posts:** no void or IGZUnknown is set on them, since the spec names none. Confirm. [none set]~~
+  **ANSWERED 2026-10-14** from the exe (post sites `0x006E70EA`, `0x006E7A64`–`0x006E7AB2`, `0x006E7B3D`; helper
+  `0x005F98C0` → `0x005F9800`; message ctor `0x009134D6`) and written into pollution.md §5.2. **Confirmed; the
+  bracket matches.** The helper sets the IGZUnknown explicitly to the argument pollution passes, which is always
+  null. void1 is never set and stays null from the constructor, which zeroes every field. The messages are queued
+  with `MessagePost(msg, false)`.
+- ~~**PG13 — slot 5:** what does it return for a type above 3? [null; choice]~~ **ANSWERED 2026-10-14** from the
+  exe (`GetPollutionGrid` `0x006E3360`; every caller found checked) and written into pollution.md §8.1 slot 5.
+  **Never a grid; the null *[choice]* stands.**
+  - **What the original returns.** Type 3 is special-cased. Every other type reads the member at
+    `this + 0x50 + 4 × type` with no bounds check:
+    - 4 and 5 return `cellX` / `cellZ` as a pointer;
+    - 6–9 return the four occupant lists' head pointers;
+    - larger types read past the object and can fault.
+  - **No caller passes a type above 3.** MySim, the query tool, the growth developer, the map view and aura all
+    pass a constant or loop over 0..3.
 - ~~**PG14 — in-game differential (run 68, coordinator): `dirtyWater` after a day.** With the original pollution
   simulator and `pollution_shadow = 1`, our core matched all eight grids cell by cell for 94 months (2026-02 →
   2033-11; 1.4 M cells a month, 0 mismatches) and every saved field except one: on 104 of about 2,800 days the
@@ -471,12 +540,41 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
 
 About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The glue's current answer is in brackets.
 
-- **PR1 — §5 dispatch record:** "callID" is taken as the record's `+0x08` field (vehicle slot) and "active" as the
-  `+0x10` flag (state 5). [inferred]
-- **PR2:** the dispatch automaton is handed to the core by a `cISC4Occupant` (`0x26BB767E`) QueryInterface, treated
-  as borrowed. Right identity? [as stated]
-- **PR3:** `AddControllersFromOccupantGroup(name, occ, 0)` and its Remove: the name as an `SC4String` gives slots 10
-  and 12. Right overload? [yes]
+- ~~**PR1 — §5 dispatch record:** "callID" is taken as the record's `+0x08` field (vehicle slot) and "active" as the
+  `+0x10` flag (state 5). [inferred]~~ **ANSWERED 2026-10-14** from the exe (`GetDispatchInfo` `0x00469D40`,
+  `InitDispatch` `0x00469E50`, the active setter `0x00469BE0`, `EndDispatch` `0x0046ACE0`; `UpdateUnadjusted`
+  `0x006F5D94`; end handler `0x006F5A40`) and written into protection.md §5. **Confirmed; the bracket matches.**
+  - **`+0x08`** is the unit's call ID (`base + i`), from the source's dispatch call or the pylon's
+    `GetCallNumber`.
+  - **`+0x10`** is a byte set to (dispatch state == 5) by `0x00469BE0`. It posts active or inactive on a change,
+    and `EndDispatch` clears it.
+  - **Also.** The record is 44 bytes, copied with no AddRef. `+0x14`–`+0x1C` is the position and `+0x20` the
+    source station. `EndDispatch` already revokes the unit, so the simulator's own revoke on the end message fails
+    harmlessly.
+- ~~**PR2:** the dispatch automaton is handed to the core by a `cISC4Occupant` (`0x26BB767E`) QueryInterface, treated
+  as borrowed. Right identity? [as stated]~~ **ANSWERED 2026-10-14** from the exe (`UpdateUnadjusted` `0x006F5DB1`;
+  `InitDispatch` `0x00469E50`) and the shipped exemplars, and written into protection.md §7.2 and §5.1.
+  **Borrowed is right; "automaton" is the wrong identity.** The occupant passed to `GetDispatchEffect` is the
+  record's `+0x20`, the **source station** the unit left from, already a `cISC4Occupant*`. The original does no QI
+  and no AddRef. The dispatch effect properties (`0x29233E9A–C`, `0x48D71ED9–DB`) exist only on the shipped station
+  exemplars. A QI for `0x26BB767E` returns the same object plus a reference, which the glue must release.
+- ~~**PR3:** `AddControllersFromOccupantGroup(name, occ, 0)` and its Remove: the name as an `SC4String` gives slots 10
+  and 12. Right overload? [yes]~~ **ANSWERED 2026-10-14** from the exe (call sites `0x006ADD5E`/`0x006ADD65`,
+  `0x006E19BD`/`0x006E19C4`, `0x006E1C46`; slots 10/12 `0x00517150`/`0x0051AB00`; group lookup `0x0051CFC0` →
+  `0x0051C9F0`) and written into protection.md §6.3 and §14.
+  - **The overload: yes, the bracket matches.** Slots 10 and 12 are the by-name overloads. Slots 9 and 11 take a
+    `u32` group ID.
+  - **Caveat: the string layout.** The lookup reads the argument's string directly as the game's `cRZString`
+    layout: begin pointer at `+0x04`, end at `+0x08`. It makes no virtual call. An `SC4String` works only if it
+    has exactly that layout. A class with an inline small-string buffer at `+0x04` makes the game dereference
+    text as an address and crash.
+  - **How to call it.** Build the name with the game's own `cRZString(const char*)` (`0x00408480`) and its
+    destructor, or with a layout-identical struct, as the original does.
+  - **Testing.** The path runs only when a station starts or ends a strike, or on a jailbreak start, so a quiet
+    test city may never reach it.
+  - **The glue is safe.** The coordinator checked the glue: its `SC4String` has exactly this layout (begin, end,
+    capacity, refcount; 0x14 bytes; always a heap buffer). So there is no crash risk. The layout goes into
+    `docs/abi/layouts.md`.
 - ~~**PR4:** the fire simulator getter is city slot 57, inferred from the SDK order; the shadow depends on it. §14 lists
   only police slot 65. [57]~~ **ANSWERED 2026-10-14** from the exe (slot 57 body `0x006DC690`; city new-city path
   `0x0045ADF7`; city `Read` `0x0045CEDB`; cache fill `0x00601E8A` → `0x00B43D78`) and written into protection.md §1.
@@ -484,9 +582,27 @@ About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The 
   fire class `0x2990C05A` with IID `0x88F54C7B`, and loads it from component ref #25. The neighbouring getters follow
   the component order: slot 55 crime `+0x16C`, 56 demand, 57 fire, 58 flammability, 59 flora, 60 industrial, 61
   land value.
-- **PR5:** is there a read-only way to get the original's unadjusted int16 grid? [no; only the adjusted grid is
-  compared]
-- **PR6:** city slot 97: interfaces.tsv says ST0, §14 lists only its outputs. [outputs used, ST0 discarded]
+- ~~**PR5:** is there a read-only way to get the original's unadjusted int16 grid? [no; only the adjusted grid is
+  compared]~~ **ANSWERED 2026-10-14** from the exe (slot 5 `0x006EFA50`; fire `Init` `0x006AE304`, police `Init`
+  `0x006E28A0`; `ProtectionInit` `0x006F6C18`–`0x006F6CDE`) and written into protection.md §2. **No interface returns
+  it, but there is a read-only way.**
+  - **Where it lives.** Both original classes keep the unadjusted `int16` grid pointer at primary-interface
+    offset `+0x84`, next to the adjusted one at `+0x80`.
+  - **How to read it.** A shadow that knows it is facing the original class can read that pointer, borrowed, and
+    use the grid's read-only slots. Each save also holds the grid as its own record.
+  - **Spec correction.** The original builds both grids for a new city directly (global heap, inlined
+    constructors), not through GZCOM.
+- ~~**PR6:** city slot 97: interfaces.tsv says ST0, §14 lists only its outputs. [outputs used, ST0 discarded]~~
+  **ANSWERED 2026-10-14** from the exe (body `0x00459440`; constant `0x00A84D2C` = 0.5; cell size at city
+  `+0x108`/`+0x10C` = 16.0, set at `0x0045A13C`; all 83 indirect `+0x184` call sites) and written into protection.md
+  §14. **The bracket matches in effect, but there is no ST0 to discard.**
+  - **No return value.** The function returns nothing: both `FSTP`s pop, so the x87 stack is empty at `RET 0x10`.
+    The `x87` return in interfaces.tsv is wrong, and no caller reads ST0.
+  - **Arithmetic.** `px = (x + 0.5) × 16`, `pz = (z + 0.5) × 16`. Both steps are exact; for example, cell (10, 20)
+    gives (168.0, 328.0).
+  - *[choice]* Declare it `void`. A float return would pop an empty register, giving NaN and setting the
+    invalid-operation flag.
+  - **Slot 96** (`0x00459410`, the corner) is the same without the `+ 0.5`.
 - ~~**PR7:** which slots does the game call from its second thread, and are these fallbacks acceptable: lists return 0
   untouched; chance of strike, efficiency and radius return 0; strike length 0xFFFFFFFF with no date, else 0; scalars
   from the month-end snapshot? [as stated]~~ **ANSWERED 2026-10-14** from the exe (all 79 reads of the fire and police
@@ -498,16 +614,70 @@ About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The 
   original returns live values with no locking. If the fallbacks ever fire, they differ from it. A `Mutex` that
   answers exactly from any thread would be closer than fallbacks. *[inferred: no thread trace; static reachability
   through the globals only]*
-- **PR8:** slots 21/22/32, dispatch-source slot 6 and slot 42 (non-empty) clear the caller's list without releasing
-  its elements, which leaks the caller's references as the original does. Intended? [reproduced]
-- **PR9:** the property setters `0x005FE3C0` / `0x005FE6B0`: scalar u32 or a one-element vector? [open]
-- **PR10 — §5.3:** the zone manager's slot-5 grid class is not in docs/abi; `GetZoneType(x, z)` (slot 12) is used
-  instead, 0 outside the city. Same values? [slot 12]
-- **PR11 — §12:** "void1 = the simulator" posts the primary interface pointer. Right pointer? [primary]
-- **PR12 — §4.1:** the simulator, flammability and crime simulators are not held (never called); only reference
-  counts differ. Acceptable? [not held]
-- **PR13 — §13.2:** the air sources are created through GZCOM and their Init/Shutdown called by address while our
-  replacement classes are active. Intended reading? [yes; no air dispatch on an unidentified executable]
+- ~~**PR8:** slots 21/22/32, dispatch-source slot 6 and slot 42 (non-empty) clear the caller's list without releasing
+  its elements, which leaks the caller's references as the original does. Intended? [reproduced]~~ **ANSWERED
+  2026-10-14** from the exe (shared helper `0x006DFC70`; list clear `0x00413E60`; every original caller) and written
+  into protection.md §15.4 and §16 quirk 7. **Confirmed; the bracket matches.**
+  - **What the helper does.** It clears the list with the plain list clear, which frees the nodes and never calls
+    `Release`. Then it appends the simulator's list, calling `AddRef` on each element.
+  - **Original callers are not affected.** Every one passes a fresh empty list and calls `ReleaseOccupantList`
+    afterwards: `0x00416189`, `0x004164B1`, `0x007A1A8E`, `0x007A1AF0`, and the dispatch manager at `0x0046AFA2` and
+    `0x0046B116`. So the leak happens only for a plug-in caller that passes a non-empty list.
+  - *[choice]* Reproduce it. Releasing instead would over-release a list of borrowed pointers.
+- ~~**PR9:** the property setters `0x005FE3C0` / `0x005FE6B0`: scalar u32 or a one-element vector? [open]~~
+  **ANSWERED 2026-10-14** from the exe (setters `0x005FE3C0`/`0x005FE6B0`; variant slot 26 `0x0091587D` and slot 102
+  `0x00915014`; every protection call site) and written into protection.md §14.
+  - **`0x005FE3C0`** writes a **scalar** `Uint32` (variant type 6), not a one-element vector. It is used for the
+    strike start, the availability masks, the base call numbers, the jail population and the air sources'
+    properties.
+  - **`0x005FE6B0`** writes a `Uint32` **array** of the vector's length (type `0x8006`, elements copied). It is
+    used only for the station statistics `0x8A70A0B9`, always 4 elements.
+  - **Both** add the property when it is missing and replace the variant's type.
+  - **Quirk.** The lookup falls back to the occupant's exemplar, so an ID defined in a plug-in exemplar would be
+    changed there. No shipped exemplar has any of these IDs. *[choice]* Write onto the occupant.
+- ~~**PR10 — §5.3:** the zone manager's slot-5 grid class is not in docs/abi; `GetZoneType(x, z)` (slot 12) is used
+  instead, 0 outside the city. Same values? [slot 12]~~ **ANSWERED 2026-10-14** from the exe (slot 5 `0x00698CF0`
+  returns `+0x48`; created in zone manager `Init` at `0x004DE26F`–`0x004DE2D0`; `GetZoneType` `0x004DC740`; tract
+  test `0x006F6180`) and written into protection.md §5.3. **Same values; the bracket matches inside the city.**
+  - **The grid.** It is a `cSC4SimGrid<int8>` (vtable `0x00A87950`, CLSID `0x49B9E603`, tract size 1).
+  - **Same byte.** `GetZoneType` reads the same byte of the same grid, sign-extended. So "≠ 0" agrees for every
+    in-grid cell.
+  - **Outside the grid.** Neither the original's raw read nor `GetZoneType` checks bounds, so there is no original
+    value. "0 outside" is the implementer's choice, and it never triggers for grids the game creates.
+- ~~**PR11 — §12:** "void1 = the simulator" posts the primary interface pointer. Right pointer? [primary]~~
+  **ANSWERED 2026-10-14** from the exe (cycle-end posts fire `0x006AD3A3`, police `0x006E0616`; QIs fire
+  `0x006ACEFE`, police `0x006E008E`; police posts `0x006E0B92`, `0x006E166F`, `0x006E1DD8`, `0x006E1BFA`,
+  `0x006E1D55`; message slots 12 `0x00913322`, 33 `0x0091346B`) and written into protection.md §12. **Confirmed;
+  the bracket matches.**
+  - **The pointer.** Every "the simulator" field is the primary interface pointer (vtables `0x00AB1160` /
+    `0x00AB2490`).
+  - **How it is obtained.** At a cycle end it comes from `QueryInterface(1)`, which returns the primary itself and
+    is released after the post. The station and jailbreak posts use `this` or `this − 8` directly.
+  - **How the message holds it.** void1 is stored raw. IGZUnknown is a counted reference.
+- ~~**PR12 — §4.1:** the simulator, flammability and crime simulators are not held (never called); only reference
+  counts differ. Acceptable? [not held]~~ **ANSWERED 2026-10-14** from the exe (fire `Init` `0x006AE2D4`–`0x006AE2ED`,
+  police `Init` `0x006E285E`–`0x006E286F`; `Shutdown` fire `0x006AD222`, police `0x006E03AF`; `ProtectionInit`
+  `0x006F6BC7`–`0x006F6E09`) and written into protection.md §4.1. **Acceptable; the bracket matches.**
+  - **Flammability and crime.** The original holds each at `+0xCC` from `Init` to `Shutdown`. No other code in
+    either class reads it, at any sub-object offset.
+  - **The simulator.** The original does not hold it at all: it reads the cache global `0x00B43D5C` for
+    `AddAgent`.
+  - **Spec correction.** Base init holds the city, the **budget simulator** and the **zone manager**. It holds the
+    message server and subscribes only when the server is not held yet.
+  - **Effect of not holding.** Only the reference counts, and so the objects' lifetimes, differ. Neither class can
+    observe that.
+- ~~**PR13 — §13.2:** the air sources are created through GZCOM and their Init/Shutdown called by address while our
+  replacement classes are active. Intended reading? [yes; no air dispatch on an unidentified executable]~~
+  **ANSWERED 2026-10-14** from the exe (fire `Init` `0x006AE323`–`0x006AE373`; police `0x006E28BE`–`0x006E290D`;
+  factories `0x006ACEA0` / `0x006E0030`, registered at `0x00460B33`–`0x00460B52`; source QI `0x006AC550`) and
+  written into protection.md §4.1, §8.4 and §13.2. **Yes; the GZCOM path gives the original's object.**
+  - **Same object both ways.** The registered factories do exactly what `Init` does: `GlobalHeapAlloc(0x28)` plus
+    the same constructor. The original itself creates the sources through the registry when it loads a save with
+    a source ref. So the spec's "operator new" is corrected.
+  - **Which IID to request.** Ask GZCOM for IID `0xC9C00435`, which gives the object start that `Init` and
+    `Shutdown` need in ECX. The sources refuse IID 1 (`cIGZUnknown`).
+  - **Unidentified executables.** Skipping air dispatch there has no original behaviour; the implementer's choice
+    stands.
 - Not implemented: the 14 extra message-target slots 4–17 (§15.3; no outside caller found).
 
 ## From the pathfinder core (filed by the coordinator from the lane's report, 2026-10-14; merged)
@@ -647,16 +817,58 @@ About `docs/specs/demand.md` (§6.3 capacity, `GetLocalPopulationSummary`) and t
 `docs/abi/allocators.md`. Switches `demand_capacity` and `demand_direct_calls` (both on by default). The glue's
 current answer is in brackets.
 
-- **DQ3:** a NaN or out-of-range summary value: Rust `as i32` saturates and gives 0 for NaN; the game's CRT
-  conversion gives 0x80000000. Which does the original produce? [saturating]
-- **DQ4:** a map with count 0 but a non-empty tree shape. The spec only says "with a count of 0, the map is left
-  untouched". [refused]
-- **DQ5:** the census asks for the profile at every cell, so the capacity walk runs there too, although §6.3 needs
-  only the purpose. Intended? [walks at every cell]
-- **DQ6:** the header colour of a copied capacity map is assumed to be 0. [colour 1 refused]
-- **DQ7:** limits of 16 maps, 128 capacity entries and 4,096 summary nodes. Are larger real maps possible? [refused
-  above them]
-- **DQ8:** which thread calls `GetLocalPopulationSummary`? [unspecified; the first success is logged with its thread]
+- ~~**DQ3:** a NaN or out-of-range summary value: Rust `as i32` saturates and gives 0 for NaN; the game's CRT
+  conversion gives 0x80000000. Which does the original produce? [saturating]~~ **ANSWERED 2026-10-14** from the exe
+  (`GetLocalPopulationSummary` `0x006A6013`/`0x006A6018`; `_ftol` `0x009EEF04`) and written into demand.md §5.
+  **Neither: the original wraps, and the bracket matches only for NaN and in-range values.**
+  - **How the CRT converts.** It truncates to a **64-bit** integer, and the summary keeps the low 32 bits.
+  - **NaN, ±∞ and |v| ≥ 2^63** give 0. The integer indefinite is `0x8000000000000000`, whose low half is 0, so the
+    result is not `0x80000000`.
+  - **2^31 ≤ |v| < 2^63** wraps modulo 2^32. For example, 3e9 → −1294967296 and 2^31 → −2147483648, where
+    saturation gives 2147483647. +∞ gives 0, not `i32::MAX`.
+  - *[choice]* Reproduce it: 0 when `v` is NaN or |v| ≥ 2^63, else `(v as i64) as i32`.
+- ~~**DQ4:** a map with count 0 but a non-empty tree shape. The spec only says "with a count of 0, the map is left
+  untouched". [refused]~~ **ANSWERED 2026-10-14** from the exe (clear `0x006A5F95`–`0x006A5FB7`; the writers of
+  regional city `+0x3C`: constructor `0x004AC09E` and the reader's `operator[]` at `0x004AC841`/`0x004AC8A1`) and
+  written into demand.md §5. **No original behaviour; the implementer's choice stands.**
+  - **Unreachable in the game.** Every writer keeps the count equal to the number of nodes.
+  - **What the original would do.** It skips the clear, keeps the stale nodes and inserts into the stale tree,
+    overwriting matching keys in place. The count ends as the number of new nodes only.
+  - **Verdict.** That is a corrupt map, so refusing it is fine.
+- ~~**DQ5:** the census asks for the profile at every cell, so the capacity walk runs there too, although §6.3 needs
+  only the purpose. Intended? [walks at every cell]~~ **ANSWERED 2026-10-14** from the exe (`PerformCensus`: BDS
+  slot 39 at `0x006A5A53`, `purpose` read at `0x006A5A5D`) and written into demand.md §6.3. **Not intended: the
+  original does no walk.**
+  - **What the original does.** At each cell that passes the lot tests, slot 39 returns a reference into the
+    profile table, and only `purpose` (+0x00) is read. Nothing is copied or walked.
+  - **The glue's walk.** Walking the capacity maps per cell has no original counterpart. It is harmless while it is
+    read-only.
+  - *[choice]* Read `purpose` only, and walk the maps only in `UpdateCapacity` (§7.2).
+- ~~**DQ6:** the header colour of a copied capacity map is assumed to be 0. [colour 1 refused]~~ **ANSWERED
+  2026-10-14** from the exe (map copy constructor `0x004C9470`, colour write `0x004C9499`; called from the vector
+  copy `0x004CDF5F` under the profile copy `0x004D1230`) and written into demand.md §7.2. **Confirmed: 0.** The copy
+  constructor writes colour 0 into its new header before copying the nodes, as every other map constructor does,
+  and nothing changes it later. Colour 1 never occurs in the game, so refusing it is the implementer's choice, and
+  that choice stands.
+- ~~**DQ7:** limits of 16 maps, 128 capacity entries and 4,096 summary nodes. Are larger real maps possible? [refused
+  above them]~~ **ANSWERED 2026-10-14** from the exe (`LoadBuildingProperties` pushes `0x0069BC59`/`0x0069BC7E`) and
+  every shipped package (property `0x27812834`; demand exemplars) and written into demand.md §7.2. **Not in the
+  shipped game; the implementer's choice stands.**
+  - **Capacity maps.** A profile holds at most 1 map, by construction.
+  - **Capacity entries.** All 558 shipped capacity properties carry exactly one (key, amount) pair, so each map
+    has 1 entry.
+  - **Summary nodes.** The shipped summary has 40 nodes.
+  - **What could exceed the limits.** The original sets no limit, so only plug-in data could: an exemplar with more
+    than 128 distinct capacity keys, or more than 4,096 demand nodes with region use.
+- ~~**DQ8:** which thread calls `GetLocalPopulationSummary`? [unspecified; the first success is logged with its thread]~~
+  **ANSWERED 2026-10-14** from the exe (regional city `DoMessage` `0x004ABD40`, calls `0x004ABE76`/`0x004ABE9B`;
+  senders `cSC4App::NewCity` `0x00454963`, `LoadCity` `0x004558C5`, `SaveCity` `0x00456102`) and written into
+  demand.md §5. **The main thread** *[inferred: static; no thread trace]*.
+  - **When it runs.** Its only caller, the regional city's `UpdateCityCache`, runs on `PostCityInit`
+    (`0x26D31EC1`) and `PreSave` (`0x26C63343`) for its own city.
+  - **Where those messages come from.** Only the app's new-city, load-city and save-city paths send them, and the
+    game has no message dispatch thread.
+  - **Settling it at run time.** The glue's log of its first call would confirm the thread.
 - ~~**DQ9 — §5 `GetNeutralTaxRate` precision (in-game differential, run 73, coordinator):** with census supply
   R/C/I = 27207 / 2569.47998 / 10583.1006 (C and I fractional, now that the demand glue reads capacity), the
   original returns **8.97309399** and our core **8.97309303** (1 ulp; the demand shadow's only mismatch in 2,955
@@ -723,3 +935,198 @@ each cycle-completed message `0x2A09B21A`). The glue's current answer is in brac
 - **AU10:** with no land value simulator the land value type is 0; the spec is silent. [0]
 - **AU11 — §16 Q7:** the base-aura process table is not written. [not written]
 - **AU12:** the CPU-cycle limit timer runs on `QueryPerformanceCounter` instead of the TSC. Acceptable? [QPC]
+
+First in-game aura shadow (coordinator, `regress -Tag r7c3f`, Spandau, 98 cycles 2026-01 to 2034-02; the replace run
+with aura was clean, 0 problems). The park, landmark and riot fields aside, **6 of 98 cycles match exactly**:
+
+- **AU13 — small base differences every cycle.** 0 to 43 tracts of 1024 differ by 1 to 3 (most cycles 2 to 12
+  tracts, max|d| = 2), in both directions from one cycle to the next (cycle 1 `(6,21)` 59/58, cycle 2 58/59), and
+  the aura grid carries the same differences. The mayor rating is off by 1 in 11 cycles. The first cycles' tracts
+  sit in one area (x 4 to 13, z 21 to 28). Is this the AU7 timing (an input that changes during the original's
+  cycle: which inputs does the original read in which state, and on which day), or a rounding step the spec does
+  not give (the order of the sums, a truncation instead of a rounding)? Name the inputs read per state.
+- **AU14 — park and landmark maps in cycles 2 and 3 only.** 193 tracts (max|d| 200) in cycle 2 and 208 (max 188)
+  in cycle 3 differ in both maps, then 0 for the other 95 cycles. When does the original rebuild these maps (on
+  load, on the first cycle, when a park lot is added), and does it clear them first?
+- **AU15 — rare large single-tract differences.** Three cycles have a base difference near 180 (cycle 3: 182,
+  cycle 7: 188, cycle 88: 175) while the aura grid differs by at most 54/60/47 there. A lot placed or removed during
+  the cycle? Which state reads the lots, and is a lot's effect clamped before or after it is added to the base?
+
+## From the residential education and health core (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/residential-education-health.md` (REH) §2 to §7. RS7 to RS17 are applied. The lane's answer is in
+brackets; the module doc of `core/src/residential/education_health.rs` lists 1 to 13.
+
+- **EH1:** do the efficiency ratings and the base staff efficiency start (a, b) at (0, 0)? [yes]
+- **EH2:** slot 19 sets both percentages: does it end with the dirty flag set? [yes]
+- **EH3:** after `ChangeBudgetItemLine`, is the line item's line the building type? [yes]
+- **EH4:** on removal with no line item for the line, is the count step skipped? [skipped]
+- **EH5:** a building added without a capacity: is its effective capacity 0? [yes]
+- **EH6:** do "served", the tract list and the boost all use the lot centre, else `GetPosition`? [yes, all three]
+- **EH7:** how do slots 28 and 58 pick the service? [like slot 45: hospital capacity first, then school]
+- **EH8:** slot 45 with no matching point or no radius? [AL = 1 whenever the building's kind is found, distance 0,
+  radius 0]
+- **EH9:** does the ideal funding test the served property itself for `0xFFFFFFFF`? [yes, the property]
+- **EH10:** does the hospital query fail on missing fields, testing the staff item last? [yes]
+- **EH11:** what does the ratings query's record start at? [zero]
+- **EH12:** do the system totals count only successful queries and add onto the caller's record? [yes]
+- **EH13:** in `AddRadiusEffectWithCurves`, with n = 0 is pop' = pop, and is the same tract index used for all
+  grids? [yes]
+- **EH14:** P is a signed 32-bit value: is a negative P accepted on Read (`record.rs`)? [accepted]
+- Not testable by vectors: the unsigned versus signed upper-bound compare (no output differs); the §4.13 tuning
+  values that are loaded but unused (minimum acceptable funding, maximum EQ/HQ boost). REH §11 test 24's calling
+  conventions (slot 34 leaves the x87 stack unchanged; slots 10 to 13 return through the hidden pointer) belong
+  to the residential glue.
+
+## From the flora glue and census shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/flora.md` and its `docs/abi` rows. Ini: `enable = flora` (ten `flora_*` bisection switches);
+shadow `flora_shadow = 1` (registry once per city, then the deterministic part of each monthly pass; the random
+part of §8 is not compared). The glue's current answer is in brackets.
+
+- **FQ1:** exemplars are enumerated with `GetAvailableResourceList` and an exemplar-type filter (the demand glue's
+  pattern), not slot 18 `GetAvailableResourceListForType`, and keys are read by index (`Size`/`GetKey`), not
+  `EnumKeys`. Equivalent? [assumed]
+- **FQ2 — §4.1 step 2:** the app shutdown callback is not registered: its timing against our DLL's unload is not
+  documented, and the records live for the whole process. [not registered]
+- **FQ3 — §10.3:** `cIGZPersistDBSegment`'s record read/write is not in `docs/abi`, so saving and restoring an
+  obliterated city's trees is off (`SaveObliterated` writes nothing and returns true; a restore is logged when the
+  segment at +0x204 is non-null). Layout and slots? [off]
+- **FQ4:** `cISC4OccupantFilter` is not in `docs/abi`. Instead of the filter overload (slot 36) the glue calls the
+  typed box query (slot 37) for flora, building, landfill and prop, then for networks keeping those with
+  `GetNetworkFlag() & 0x1F4F` non-zero. Same set? [as stated]
+- **FQ5:** weather `GetMoistureType` is read as a `uint8_t` in AL (`FC4Interfaces.h`). Right? [AL]
+- **FQ6:** "occupant in a visited block" (shadow) uses a closed box, edges included, like the host's box query.
+  [closed]
+- **FQ7:** the shadow takes the elevation scale from the tuning exemplar's `0xC9DBDD02`; the record does not save
+  it. [as stated]
+- **FQ8:** blocks are never freed and the registry is never cleared at app shutdown. [as stated]
+- **FQ9:** `cISC4FloraTypeFilter` (slot 3) is not in `docs/abi`. Slot 13 with a non-null filter inserts nothing and
+  returns 0; with a null filter it inserts every key. [as stated]
+- **FQ10:** `cIGZCommandParameterSet` is not in `docs/abi`. PlaceFlora reads its parameters through slot 5
+  (`operator[]`): param 0 via variant slot 24 (u32), params 1–2 via slot 36 (float). Right? [as stated]
+- **FQ11:** the cheat notification uses id `0x095BDC9C` as the spec says, but the budget and simulator glue pass 0.
+  Which is right? [`0x095BDC9C` for flora]
+- **FQ12:** `RegisterCommand`'s parameter info is null, as the spec says. [null]
+- **FQ13:** `ToCoreAll` leaves out parent-cohort properties (existing plugin behaviour). Does flora need them?
+  [left out]
+- **FQ14 — §6.11:** adding a record whose next type is 0 set key 0's seed type to it in the test harness. Does
+  §6.11 apply when next is 0? [the test avoids the case]
+- Not done (each logged once): obliterated-city save/restore (FQ3), the app shutdown callback (FQ2),
+  `GetFloraTypesByFilter` with a non-null filter (FQ9).
+
+## From the landfill developer glue and shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/landfill.md` and its `docs/abi` rows. Ini: `enable = landfill` (ten `landfill_*` bisection
+switches); shadow `landfill_shadow = 1` (the original's SimNewMonth wrapped; its record read through its own Write
+before and after). The glue's current answer is in brackets.
+
+- **LG1 — §4.4.5, §4.8.1:** what arguments does RemoveOccupant take for flora and base-texture removal? [(true, 3)]
+- **LG2:** how is the base-texture occupant created and given the landfill texture (SetEmptyCellTexture)? [not done]
+- **LG3:** how is the tile occupant created; is the SDK's `SetTileID` (slot 6) enough to attach the tile exemplar?
+  [tiles live in FreeCity4 only; pollution's active-landfill flag is still set, which is what the simulation reads]
+- **LG4:** who owns the reference in occupant manager slot 33's out-parameter? [slot 41 lists used instead]
+- **LG5 — open question 6:** where does the zot orientation come from? [0]
+- **LG6 — §3.3, foundations §13.4:** must the month run after pollution and budget? [not enforced]
+- **LG7:** does FindNetworkTile's return carry a reference? [borrowed]
+- **LG8:** tiles are not saved; they are rebuilt at PostCityInit (interior orientation 0, no random draw). [choice]
+- **LG9:** is a null `GetLandfillZoneFromCell` acceptable to the city situation manager? [null]
+- **LG10:** city slot 97 returns a float in ST0 (`docs/abi`) where the spec says "—". Which is right? [discarded]
+- **LG11:** should the tile item cost be read from the tile exemplar? [no]
+- **LG12:** should the shadow clamp GetGarbageSupply? [live plus delta, clamped]
+- **LG13:** on Shutdown, does a zone release its zot or also remove the prop? [release only]
+- **LG14:** the shadow's supply is live plus delta, clamped. [choice]
+- **LG15 — §1.1:** only the city and the message server are held; terrain, pollution and budget are fetched per
+  call. [as stated]
+- **LG16:** the 3D view level is not reachable through a documented interface. [not done]
+- **LG17:** the traffic network map comes through city slot 40 (`GetTrafficNetwork`, `intptr_t` in the SDK). Right?
+- **LG18 — §1.1/§1.2:** which simulator does the original use for AddAgent before services are acquired? [the app's
+  city's simulator, held until RemoveAgent]
+- **LG19 — foundations §6/§12:** the core uses its own CRT-style generator per object (state 1), not the game's
+  unseeded per-thread `rand()` sequence. Acceptable?
+- **LG20:** a message from another thread that cannot get the lock is dropped. Acceptable?
+- Not done (each logged once): tile models, `SetEmptyCellTexture`, zone effects (trucks, seagulls), zot
+  orientation, the 3D view level, `GetLandfillZoneFromCell`. The shadow cannot compare the zots, trucks and seagulls
+  the original drew, the tile occupants it changed, the expenses it booked or the history it sent.
+
+## From the traffic simulator core (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/traffic-simulator.md`. All §11 tests 1 to 15 are unit tests and `ts11_*` vectors (29 vectors).
+TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's answer is in brackets.
+
+- **TS1 — §3.3:** does the pacing reset keep `rerouteBucket` (pass counter 2)? [kept; the other counters are zeroed]
+- **TS2 — §3.2 state 11:** what does UpdateNeighborConnections (`0x00714BE0`) do? [nothing]
+- **TS3 — §4.8 state 3:** what does ReduceTransitSwitches do? [the switch load restarts from 0; CreateMaps keeps the
+  previous value in counter 1]
+- **TS4 — §3.1:** what do DoRoadChanged / DoRailChanged do on occupant messages? [on insert the cell joins the damage
+  block's intact set unless present; on remove it leaves]
+- **TS5 — §3.1:** message `0x66956810` "marks the network as changed": which flag, and who rebuilds? [sets
+  `network_changed`, consumed by the trip phases]
+- **TS6 — §3.1:** what does the network part do on neighbour added / removed? [nothing]
+- **TS7:** DoPostCityInit steps 4 (neighbour connections) and 5 (destination-map boundary pass)? [skipped; the
+  network rebuild runs, then the transit multiplier]
+- **TS8 — §4.9 step 2:** what is the commercial traffic window? [the 4 × 4 block at (x, z); travel types car 1,
+  el-train 7, monorail 8; maximum morning usage plus maximum evening usage]
+- **TS9 — §4.9:** which records are "not excluded" from the statistics? [flag bit 0 clear]
+- **TS10 — slot 7 SetupPathFinderForLot:** what else is configured? [the lot rectangle as start, plus SetupTrip
+  steps 3–4 only]
+- **TS11 — slot 35 GetTransitSwitchQueryData:** the data fields? [returns the network core's query target only]
+- **TS12 — §4.12:** what does RecalculateNeighborConnectionCapacities do? [nothing]
+- **TS13 — §4.5:** a route with an off-map root is encoded as the in-city cell while its unit steps are relative to
+  the off-map cell. [decoded literally: shifted by one cell]
+- **TS14 — §4.3:** what does ConfirmRoute check? [during a strike any route using types 2, 3, 6, 7 or 8 fails; each
+  unit step leaving an in-city cell needs an exit on that side for its type, or the cell's switch for a type change;
+  jumps and off-map steps are not checked]
+- **TS15 — §4.5:** is the switch fee the switch's `0x0BFC0A4C` value read as f32? [yes]
+- **TS16 — §4.5:** the ferry-leg counters? [round(Q) to counter 1 (mode 0), 2 (mode 1) or both (mode 2), on the
+  departure terminal's link to that cell, else its neighbour link]
+- **TS17 — §4.4:** a highway-return adjustment for an off-map destination? [none]
+- **TS18 — §4.2:** when is the capacity property promoted from u16 to u32? [u16 until a value reaches 0xFFFF]
+- **TS19:** does the pathfinder adapter's GetLot match any cell of a lot? [yes (`false`)]
+- **TS20:** is the traffic-source list a snapshot? [yes: lots, then connections, when the phase is entered]
+- **TS21:** when are `toReRoute` / `toSearch` zeroed? [on entering state 16]
+- **TS22:** does ReduceEdgeDensities also clear ferry terminal cells? [yes, departure and arrival; missing records
+  are not created]
+- **TS23:** what does DoLotDeactivated do? [destination bytes over the lot := 0, its bucket entries removed,
+  `freeDest` unchanged]
+- **TS24:** is the direction towards a non-adjacent rectangle defined? [yes, always]
+- **TS25:** when is "the last switch seen" on a route updated? [at every in-city cell, so leaving and re-entering a
+  station counts again]
+- **TS26:** FinishTripMap donor search order? [distance first, then −x, −z, +x, +z]
+- **TS27:** default `trafficUnitsPerSlice`? [16 until calibrated]
+- **TS28 — tuning reads with short or missing data:** fewer vector entries [the rest keep their value]; the
+  strategy re-read with fewer than 3 values [missing ones unchanged]; missing ordinance offsets [0]; wealth above 3
+  [zeros].
+- **TS29:** max funding conversion from percent? [`r24(v / 100)`]
+- **TS30:** does Read commit only on success? [yes: parsed first; a failed Read leaves the simulator unchanged]
+- **TS31:** an unknown iterator-state byte in the record? [Done]
+- **TS32:** record versions above 0x29? [read with the 0x29 layout]
+- **TS33:** Read's own switch flags: is 0x40 set for a subway / el-train rule? [yes, as the re-read does; TN25]
+- **TS34 (fixtures only):** every cell reports a network occupant; department funding defaults to 1.0; department
+  tokens are 900+.
+- Not covered by vectors: path searches over a real network (the vector world has no network occupants; test 10
+  drives ApplyRoute with the spec's route bytes); switches, tunnels and ferries in the save record round-trip only
+  as empty lists (Read's switch mask and flags have a unit test). No plugin or capi integration yet (M5 glue).
+
+## From the power grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/power.md`. Ini: `power_shadow = 1` (needs our simulator and the ORIGINAL power simulator: do not
+enable `power`); one line per recompute cycle at state 3, plus month, bookkeeping and month-summary lines. The
+shadow's current answer is in brackets.
+
+- **PW1:** `FindUnvisitedConnection` is not in the spec. The shadow takes the first connection from
+  `GetConnectionsOfTypeToCity` whose visited flag is false. The original's search order? [first unvisited]
+- **PW2:** the log date for SimNewDay, SimIdle and SimNewMonth comes from the message's `data1` as a julian date.
+  Does SimIdle's `data1` carry the date? [assumed]
+- **PW3:** the pass import, export and demand are not saved. What does the original hold after a load, before its
+  first state 0? [counted as `not_exact` until then]
+- **PW4:** `brokenFraction` is not saved; the shadow starts it at 0. The original's value after a load? [0]
+- **PW5 — §5.3:** the dirty rectangle is not saved; the shadow uses the bounding box of the changed wire bits. Can a
+  larger rectangle give different wire bits?
+- **PW6:** the shortfall block probe tries starts 0 to min(count, 32768), assuming one `rand()` of at most 0x7FFF.
+  True for networks with more than 32768 blocks?
+- **PW7 — §7.5:** the ordinance factor is read live when the shadow starts, then each month. Does the original read
+  it anywhere else (at load, on an ordinance change)?
+- Not compared (cannot be read without changing the game): posted messages, history values, budget line items,
+  demolitions and lot conditions, which poles the month's shuffle breaks (the broken count is compared), deal
+  flags, the dirty rectangle.

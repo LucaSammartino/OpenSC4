@@ -84,6 +84,10 @@ pub use ferries::{
     ferry_mask, route_cost, FerryPass, FerryRouteInfo, FerryTerminal, NeighborLink, TerminalLink, FERRY_NEIGHBOUR_TYPE,
     MAX_TERMINALS_PER_TYPE,
 };
+/// The operation context (host and state taken out of the model), for the
+/// owning traffic simulator (traffic-simulator.md), which drives the network
+/// operations from inside its own work.
+pub(crate) use model::Cx;
 pub use model::{
     boundary_cells, grow_clamp, union_rect, CellConnection, NetworkInfo, NetworkModel, NetworkState, SubnetworkInfo,
     SwitchQueryTarget, TrafficEdgeDensity, ARRAY_LEN, ARRAY_SIDE, EDGE_DENSITY_ZERO,

@@ -737,7 +737,11 @@ pub mod crime;
 pub mod demand;
 pub mod flammability;
 pub mod flammability_shadow;
+pub mod flora;
+pub mod flora_shadow;
 pub mod hostgrid;
+pub mod landfill;
+pub mod landfill_shadow;
 pub mod landvalue;
 pub mod landvalue_shadow;
 pub mod ordinance;
@@ -746,6 +750,7 @@ pub mod plumbing;
 pub mod pollution;
 pub mod pollution_shadow;
 pub mod power;
+pub mod power_shadow;
 pub mod props;
 pub mod protection;
 pub mod stream;
@@ -767,6 +772,12 @@ mod crime_tests;
 mod demand_tests;
 
 #[cfg(test)]
+mod flora_tests;
+
+#[cfg(test)]
+mod landfill_tests;
+
+#[cfg(test)]
 mod landvalue_tests;
 
 #[cfg(test)]
@@ -783,6 +794,9 @@ mod pollution_tests;
 
 #[cfg(test)]
 mod power_tests;
+
+#[cfg(test)]
+mod power_shadow_tests;
 
 #[cfg(test)]
 mod protection_tests;
