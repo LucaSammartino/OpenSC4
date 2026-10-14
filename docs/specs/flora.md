@@ -454,6 +454,13 @@ test every occupant; it reads a coarse index (verified, FQ6):
   box at that moment; on x and on z separately, if `max − min > 1.0` (`0x00A81228`), move both ends inwards by
   `0.1f` (`0x00A8F768`, `float32` add and subtract). The occupant is listed in every cell from
   `(cell(min.x), cell(min.z))` to `(cell(max.x), cell(max.z))`. y plays no part.
+  **Not clamped** (AQ7; `InsertOccupant` loop `0x0049F0B6`–`0x0049F1BA`, `MoveOccupant` the same through
+  `0x0049DAC0`): each cell is kept as its low byte and the loops run over those bytes with no test against 192. An
+  edge (after the 0.1 m shrink) below about −4096.06 m or from about 8191.94 m on, more than a city width outside the
+  largest city, gives a cell outside 0..191. A byte from 192 to 255 makes the listing write past the index's 192 rows
+  or columns (heap corruption); a cell below 0 or above 255 wraps, and when the low end's byte ends up above the high
+  end's the occupant is listed nowhere on that axis. *[choice]* Clamping such cells to 0..191, like the query, is
+  recommended; it changes nothing inside the index.
 - **Query**: map the query box's two corners to cells, clamped to 0..191 (`0x0049DF00`). The candidates are the
   occupants listed in that cell rectangle, each taken once. A candidate is returned if the filter (if any)
   accepts it (§6.4.1) and its **current** box overlaps the query box **strictly** on x, y and z:

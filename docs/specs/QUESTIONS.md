@@ -2718,7 +2718,12 @@ shadow's riot roll (wall-clock RNG). The current answer is in brackets.
   `cSC4DBSegmentIStream::GetUint32` `0x005D1A20`; record reads `0x00975DE5`, `0x0096D967`, `0x0096DAF8`) and written
   into flora §10.3. Yes: a failed stream skips the read, and the record checks its size before it copies anything, so
   the count keeps the 0 it starts with and nothing is restored. The bracket matches.
-- **AQ7:** FQ6: is the 64 m listing clamped to 0..191? [not clamped; only the query is]
+- ~~**AQ7:** FQ6: is the 64 m listing clamped to 0..191? [not clamped; only the query is]~~
+  **ANSWERED 2026-10-14** from the exe (`InsertOccupant` `0x0049EF60`, listing loop `0x0049F0B6`–`0x0049F1BA`;
+  `MoveOccupant` `0x0049F3C0` through `0x0049DAC0`; the query's clamp `0x0049DF00`) and written into flora §6.4.2. Not
+  clamped: the listing keeps each cell's low byte and never tests it against 192, so an edge more than a city width
+  outside the city writes past the index or is listed nowhere. The bracket matches; for such boxes clamping is a
+  *[choice]*, recommended.
 - **AQ8:** A bound on the obliteration open attempts. [choice: at most `MAX_OBLITERATED` = 2^24; the original has no
   bound]
 - **AQ9:** Flora shadow: which box gives the 64 m listing? [choice: the census box taken before the pass]
