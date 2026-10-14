@@ -1,0 +1,174 @@
+{
+  "format": 1,
+  "name": "ts11_13_capacity",
+  "spec": [
+    "traffic-simulator 4.2",
+    "traffic-simulator 4.5",
+    "traffic-simulator 11.13"
+  ],
+  "description": "Conformance test 13 (§11). max[1] = 30, arrived 25: a trip of count 5 -> CapacityStillAvailable true; count 6 -> false. ApplyTrafficToDestination(5, ..., type 1) makes arrived 30 -> destination bit 1 cleared over the lot (4,4)-(5,5) and freeDest[1] decremented.",
+  "steps": [
+    {
+      "op": "ts_lot",
+      "id": 1,
+      "rect": [
+        4,
+        4,
+        5,
+        5
+      ],
+      "holder": 12,
+      "capacity": [
+        0,
+        30,
+        0,
+        0,
+        0,
+        25
+      ]
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "capacity_still_available",
+      "args": [
+        {
+          "count": 5,
+          "type": 1,
+          "status": 3,
+          "dest": [
+            4,
+            4
+          ]
+        }
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "capacity_still_available",
+      "args": [
+        {
+          "count": 6,
+          "type": 1,
+          "status": 3,
+          "dest": [
+            4,
+            4
+          ]
+        }
+      ],
+      "expect": false
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "dest": [
+          [
+            4,
+            4,
+            3
+          ],
+          [
+            5,
+            4,
+            3
+          ],
+          [
+            4,
+            5,
+            3
+          ],
+          [
+            5,
+            5,
+            3
+          ]
+        ],
+        "free": [
+          0,
+          7
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_traffic_to_destination",
+      "args": [
+        5,
+        5,
+        5,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 12,
+      "id": "0x8A0B4100",
+      "expect": [
+        0,
+        30,
+        0,
+        0,
+        0,
+        30,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        4,
+        4
+      ],
+      "expect": 1
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        5,
+        4
+      ],
+      "expect": 1
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        4,
+        5
+      ],
+      "expect": 1
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        5,
+        5
+      ],
+      "expect": 1
+    },
+    {
+      "op": "ts_call",
+      "method": "free_destinations",
+      "expect": [
+        0,
+        6,
+        0,
+        0
+      ]
+    }
+  ]
+}

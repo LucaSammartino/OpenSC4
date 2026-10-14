@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "name": "ts11_03_congestion_scale",
+  "spec": [
+    "traffic-simulator 4.14",
+    "traffic-simulator 11.3"
+  ],
+  "description": "Conformance test 3 (§11). The shipped congestion curve after Init: each point's y replaced by r24(1/y), so (2, 0x3FC4EC4F) and (3, 0x40555555) with (0, 1) and (1, 1) unchanged; congestionScale = r24(255 / r24(lastY - 1)) = 0x42DA924A (109.28572).",
+  "steps": [
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "congestion_points": [
+          [
+            0,
+            "0x3F800000"
+          ],
+          [
+            "0x3F800000",
+            "0x3F800000"
+          ],
+          [
+            "0x40000000",
+            "0x3FC4EC4F"
+          ],
+          [
+            "0x40400000",
+            "0x40555555"
+          ]
+        ],
+        "congestion_scale": "0x42DA924A"
+      }
+    }
+  ]
+}

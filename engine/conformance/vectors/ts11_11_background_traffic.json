@@ -1,0 +1,135 @@
+{
+  "format": 1,
+  "name": "ts11_11_background_traffic",
+  "spec": [
+    "traffic-simulator 4.9",
+    "traffic-simulator 11.11"
+  ],
+  "description": "Conformance test 11 (§11). R = 100 (developer 0x1010), C = 10 (0x3110), I = 0 at the road cell (2,3): r24(r24(100 x 0.05f) + r24(10 x 0.2f)) = 7.0 (0x40E00000), added to the road volume after the reset, so the next CreateMaps sees 7.0 there. A road cell without traffic still gets peak volume 1.",
+  "steps": [
+    {
+      "op": "ts_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "holder": 11,
+      "note": "lot A, the source"
+    },
+    {
+      "op": "ts_lot",
+      "id": 2,
+      "rect": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "holder": 12,
+      "capacity": [
+        100
+      ],
+      "note": "job lot B, max[0] = 100"
+    },
+    {
+      "op": "ts_env",
+      "dev_pop": [
+        [
+          "0x1010",
+          2,
+          3,
+          100
+        ],
+        [
+          "0x3110",
+          2,
+          3,
+          10
+        ]
+      ]
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "road info {invCapacity 0.0625, Street, 3 connections} at (0,3)...(4,3)"
+    },
+    {
+      "op": "ts_call",
+      "method": "background_traffic",
+      "args": [
+        2,
+        3
+      ],
+      "expect": "0x40E00000"
+    },
+    {
+      "op": "ts_call",
+      "method": "enter_cycle_state",
+      "args": [
+        2
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "work_on_sim_cycle",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_grid",
+      "grid": "volume",
+      "values": [
+        [
+          2,
+          3,
+          "0x40E00000"
+        ],
+        [
+          3,
+          3,
+          0
+        ]
+      ],
+      "n": 1
+    },
+    {
+      "op": "ts_call",
+      "method": "enter_cycle_state",
+      "args": [
+        2
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "work_on_sim_cycle",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_grid",
+      "grid": "peak_volume",
+      "values": [
+        [
+          2,
+          3,
+          "0x40E00000"
+        ],
+        [
+          3,
+          3,
+          "0x3F800000"
+        ]
+      ]
+    }
+  ]
+}

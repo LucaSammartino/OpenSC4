@@ -1,0 +1,122 @@
+{
+  "format": 1,
+  "name": "ts11_14_neighbour_reconcile",
+  "spec": [
+    "traffic-simulator 4.1",
+    "traffic-simulator 4.4",
+    "traffic-simulator 11.14"
+  ],
+  "description": "Conformance test 14 (§11). Property 0xAA9EA81D = {0, 50, 0, ...} on the connection's holder and an empty trip list -> one trip {count 50, type 0, strategy 1, flags 4, status 0}; the volume-dirty flag is consumed, so a second update changes nothing. SetupTrip then allows only start type car (allowed 0x1CF, starting 0x2), from the connection cell, density 50, destination flags 1.",
+  "steps": [
+    {
+      "op": "ts_connection",
+      "id": 77,
+      "cell": [
+        -1,
+        3
+      ],
+      "holder": 70,
+      "targets": [
+        [
+          0,
+          [
+            0,
+            50,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      ]
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "update_traffic_volume",
+      "args": [
+        [
+          "connection",
+          77
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_trips",
+      "source": [
+        "connection",
+        77
+      ],
+      "trips": [
+        {
+          "count": 50,
+          "type": 0,
+          "strategy": 1,
+          "flags": 4,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "op": "ts_trips",
+      "source": [
+        "connection",
+        77
+      ],
+      "trips": []
+    },
+    {
+      "op": "ts_call",
+      "method": "update_traffic_volume",
+      "args": [
+        [
+          "connection",
+          77
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_trips",
+      "source": [
+        "connection",
+        77
+      ],
+      "trips": []
+    },
+    {
+      "op": "ts_call",
+      "method": "setup_trip",
+      "args": [
+        {
+          "count": 50,
+          "type": 0,
+          "strategy": 1,
+          "flags": 4,
+          "status": 0
+        },
+        [
+          "connection",
+          77
+        ]
+      ],
+      "expect": {
+        "allowed": "0x1CF",
+        "starting": 2,
+        "start_rect": [
+          -1,
+          3,
+          -1,
+          3
+        ],
+        "density": 50,
+        "destination_flags": 1
+      }
+    }
+  ]
+}

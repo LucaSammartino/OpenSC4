@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "name": "ts11_05_air_polluting_map",
+  "spec": [
+    "traffic-simulator 4.10",
+    "traffic-simulator 11.5"
+  ],
+  "description": "Conformance test 5 (§11). Peak volume -> air-polluting byte round(v / 10), half to even, clamped: 150 -> 15; 15.0 -> 2 (1.5 rounds to even 2); 25.0 -> 2 (2.5 rounds to even 2); 2.0 -> 0; 3000 -> 255.",
+  "steps": [
+    {
+      "op": "ts_eval",
+      "fn": "air_polluting_byte",
+      "args": [
+        150.0
+      ],
+      "expect": 15
+    },
+    {
+      "op": "ts_eval",
+      "fn": "air_polluting_byte",
+      "args": [
+        15.0
+      ],
+      "expect": 2
+    },
+    {
+      "op": "ts_eval",
+      "fn": "air_polluting_byte",
+      "args": [
+        25.0
+      ],
+      "expect": 2
+    },
+    {
+      "op": "ts_eval",
+      "fn": "air_polluting_byte",
+      "args": [
+        2.0
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ts_eval",
+      "fn": "air_polluting_byte",
+      "args": [
+        3000.0
+      ],
+      "expect": 255
+    }
+  ]
+}

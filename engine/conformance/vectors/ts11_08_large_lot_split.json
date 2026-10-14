@@ -1,0 +1,65 @@
+{
+  "format": 1,
+  "name": "ts11_08_large_lot_split",
+  "spec": [
+    "traffic-simulator 4.1",
+    "traffic-simulator 11.8"
+  ],
+  "description": "Conformance test 8 (§11). 50 commuters or more are split round(r24(float(n) x pct[s])): 200 with (80, 20, 0) -> 160, 40, 0; 75 with (30, 0, 70) -> 22, 0, 52 (total 74: 22.499998 rounds down, 52.5 rounds to even 52).",
+  "steps": [
+    {
+      "op": "ts_eval",
+      "fn": "residential_split",
+      "args": [
+        200,
+        [
+          "0x3F4CCCCC",
+          "0x3E4CCCCC",
+          0
+        ],
+        0
+      ],
+      "expect": [
+        160,
+        40,
+        0
+      ]
+    },
+    {
+      "op": "ts_eval",
+      "fn": "residential_split_pct",
+      "args": [
+        200,
+        [
+          80,
+          20,
+          0
+        ],
+        0
+      ],
+      "expect": [
+        160,
+        40,
+        0
+      ]
+    },
+    {
+      "op": "ts_eval",
+      "fn": "residential_split_pct",
+      "args": [
+        75,
+        [
+          30,
+          0,
+          70
+        ],
+        0
+      ],
+      "expect": [
+        22,
+        0,
+        52
+      ]
+    }
+  ]
+}

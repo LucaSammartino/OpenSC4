@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "name": "ts11_16_trip_record_version_1",
+  "spec": [
+    "traffic-simulator 6.3"
+  ],
+  "description": "§6.3: a version-1 trip record has no travel-type mask (it reads as 0); a vector count at or above 1,000,000 keeps the previous route and reads nothing; a short record fails.",
+  "steps": [
+    {
+      "op": "ts_eval",
+      "fn": "read_trip",
+      "args": [
+        "0100000040420f0001000000ab09000000000100030200030000000040",
+        {
+          "route": "010203",
+          "mask": "0xFF"
+        }
+      ],
+      "expect": {
+        "route": "010203",
+        "return_route": "ab",
+        "count": 9,
+        "type": 0,
+        "strategy": 1,
+        "flags": 0,
+        "status": 3,
+        "dest": [
+          2,
+          3
+        ],
+        "length": "0x40000000",
+        "mask": 0
+      }
+    },
+    {
+      "op": "ts_eval",
+      "fn": "read_trip",
+      "args": [
+        "0100000040420f000100"
+      ],
+      "expect": null,
+      "note": "a short record"
+    }
+  ]
+}

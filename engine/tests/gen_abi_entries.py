@@ -175,6 +175,12 @@ INTERFACES = [
     ("cISC4FloraOccupant", "cISC4FloraOccupant", "cISC4FloraOccupant.h", True),
     ("cIGZCheatCodeManager", "cIGZCheatCodeManager", "cIGZCheatCodeManager.h", True),
     ("cIGZCommandServer", "cIGZCommandServer", "cIGZCommandServer.h", True),
+    # Landfill (docs/specs/landfill.md section 7): implemented through the
+    # compiled slot order (the SDK row above stays for the pollution glue's
+    # calls), and the services it calls that are not listed above.
+    ("cISC4LandfillDeveloper", "cFC4ISC4LandfillDeveloper", FC4, True),
+    ("cISC4LandfillOccupant", "cISC4LandfillOccupant", "cISC4LandfillOccupant.h", True),
+    ("cISC4TrafficNetworkMap", "cFC4ISC4TrafficNetworkMap", FC4, True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),
