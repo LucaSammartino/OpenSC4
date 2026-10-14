@@ -1048,9 +1048,8 @@ interior orientation 0 and no draw.
   draw count matches the original (none). The tiles can differ in one case: after `AddRegionToZone` moved heaps
   without moving their tiles (§4.4.4 step 4), the original keeps the stale tiles until the heaps next change.
 - *A FreeCity4 save loaded by the original game*: the save has no tile records, so the original finds no tile
-  occupants. Until each heap next changes state, three things differ:
+  occupants. Until each heap next changes state, two things differ:
   - every zone cell costs `kDefaultLandfillTileCost` (5) instead of 10–40 (§4.9.1);
-  - `PopulateZone` keeps the cells but gives them only textures;
   - any terraforming (reasons 1–3) over a cell **dezones** it, because §4.5.2 step 1 sees no tile.
 
   This is a simulation difference, not only a visual one.
