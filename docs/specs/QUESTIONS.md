@@ -2917,8 +2917,12 @@ variant (GF3). The current answer is in brackets.
   format test) and written into graphics-formats §3.4. The original boxes the first 12 bytes of each vertex whatever the
   format, so with S < 12 the last vertex reads past the vertex data. The bracket (reject S < 12; accept no position with
   S ≥ 12 and box its first 12 bytes) matches where the original is defined.
-- **FS10:** A legacy VERT stride S below the format's standard stride, or a legacy block with an unknown format. [both
-  rejected]
+- ~~**FS10:** A legacy VERT stride S below the format's standard stride, or a legacy block with an unknown format. [both
+  rejected]~~
+  **ANSWERED 2026-10-14** from the exe (legacy VERT keeps S as read; `RenderMesh` `0x007D4A80` draws with the standard
+  stride) and written into graphics-formats §3.4. The original loads both. With S below the standard stride the draw
+  reads past the vertex data. An unknown legacy format is read and boxed with S but drawn with stride 0 and no known
+  layout. Rejecting both (the bracket) stays the choice.
 - **FS11:** PROP is "sorted after reading", but the sort key is not given. [file order kept]
 - **FS12:** REGP lower-casing: ASCII or locale-aware? Which encoding for byte names? [ASCII lower-casing; names
   decoded as UTF-8 when valid, else Latin-1]

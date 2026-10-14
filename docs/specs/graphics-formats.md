@@ -382,7 +382,10 @@ S × N bytes          interleaved vertices
 - At draw time the vertex pointer is set with stride 0, so the renderer uses the **standard** stride of the format,
   not S (`RenderMesh` `0x007D4A80`, `InterleavedArrays` `0x00881EC0`). A legacy block whose S differs from the
   standard stride is read with S and drawn with the standard one *[quirk]*. Every shipped legacy block has format 2
-  and S = 20, which agree.
+  and S = 20, which agree. With S below the standard stride the draw reads past the block's S × N bytes; a legacy
+  block with an unknown format reads its S × N bytes and is boxed with S, but is drawn with the format's standard
+  stride, 0 (FS10; the draw is not traced further). FreeCity4 rejects both *[choice]*: the original draws from
+  outside, or without a layout for, the vertex data.
 - A new vertex block starts as format 2, stride 20, with an empty box (min (1, 1, 1), max (0, 0, 0); `0x00802B90`).
   The bounding-box pass seeds the box from vertex 0 **without checking N or the buffer**, then takes N − 1 more.
   So N = 0, or a stride of 0, reads through an empty buffer (and N = 0 then loops about 2³² times) *[quirk]*; no
