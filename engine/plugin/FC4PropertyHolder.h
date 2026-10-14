@@ -18,16 +18,31 @@
 // cFC4Variant (the game's variant slot order, never the SDK variant).
 //
 // Behaviour (foundations §10.2): the properties are kept sorted by ascending
-// unsigned ID, at most one per ID; adding an ID that is present replaces the
-// value IN PLACE (a cISCProperty* handed out earlier stays valid and sees the
-// new value); adding never fails; the bool arguments have no effect.
-// [choice, spec question] Values are copies (the caller's variant, string or
-// buffer is copied); AddPropertyData stores a Uint8 array; GetPropertyList is
-// not supported (false).
+// unsigned ID, at most one per ID; adding never fails; the bool arguments have
+// no effect.
+//
+// Ownership (foundations §10.2 "Ownership", NG1 answered): the holder keeps
+// OBJECTS, not copies. AddProperty(cISCProperty*) (slot 15, AddPropertyRecord)
+// stores the caller's object itself with a reference of ours; an entry of the
+// same ID is replaced and released. GetProperty (slot 9) returns the stored
+// object borrowed, and the callers write its variant in place (the array data
+// getters, slots 99 / 103, and the copying setter, slot 102): every read here
+// (the getters, ToCore for the record) goes through the stored object's
+// variant at the point of use, so those writes are seen. An entry is either
+// one of ours (cFC4Property) or the caller's object (the game's cSCProperty);
+// both are used through cISCProperty and the game's variant slot order only.
+// The value adders (slots 10-14) and CopyAddProperty (16) write the value of
+// the entry for that ID in place (a new cFC4Property if there is none)
+// [choice]. AddPropertyData stores a Uint8 array; GetPropertyList is not
+// supported (false) [choice].
 //
 // Lifetime: AddRef / Release go to the owner (the object the holder is part
-// of). Thread safety: a recursive lock per holder around the map; callbacks of
-// EnumProperties run on a snapshot (each entry AddRef'd), outside the lock.
+// of). The entries are released at removal, replacement and Clear (holder
+// destruction); the holder may hold an entry's last reference (the caller
+// released its own after AddProperty), so that release is the expected free
+// (FC4_RELEASE_CREATED). Thread safety: a recursive lock per holder around the
+// map; callbacks of EnumProperties run on a snapshot (each entry AddRef'd),
+// outside the lock.
 #pragma once
 
 #include "FC4Interfaces.h"
@@ -135,13 +150,18 @@ public:
     size_t Count() const;
 
 private:
-    // The entry for `id`, created (empty) if absent; the lock must be held.
-    cFC4Property* Slot(uint32_t id);
-    const cFC4Property* Find(uint32_t id) const;
+    // The entry for `id`, a new (empty) cFC4Property if absent; the lock must be held.
+    cISCProperty* Slot(uint32_t id);
+    cISCProperty* Find(uint32_t id) const;
+    // The entry's variant (borrowed, the game's slot order); null if it has none.
+    static cFC4IGZVariant* ValueOf(cISCProperty* p);
+    void Drop(cISCProperty* p) const;  // releases one entry reference of ours
 
     cIGZUnknown* owner_;
     mutable std::recursive_mutex lock_;
-    std::map<uint32_t, cFC4Property*> props_;  // ascending ID; one reference each
+    // Ascending ID; one reference of ours each: a cFC4Property, or the
+    // caller's object stored by AddProperty(cISCProperty*).
+    std::map<uint32_t, cISCProperty*> props_;
 };
 
 namespace fc4 {

@@ -1949,8 +1949,8 @@ cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	33	+0x84	006f7870	cS
 cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	34	+0x88	006fc9e0	cSC4ResidentialSimulator::GetGlobalLE	0	0	eax-or-void	medium	
 cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	35	+0x8C	006f79c0	cSC4ResidentialSimulator::GetCellEQ	8	2	x87	high	
 cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	36	+0x90	006f7a10	cSC4ResidentialSimulator::GetCellHQ	8	2	x87	high	
-cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	37	+0x94	006f7a60	cSC4ResidentialSimulator::GetCellEQByWealth	12	3	via-call	low	
-cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	38	+0x98	006f7ab0	cSC4ResidentialSimulator::GetCellHQByWealth	12	3	via-call	low	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	37	+0x94	006f7a60	cSC4ResidentialSimulator::GetCellEQByWealth	12	3	x87	high	ST0 left by cSC4SimGrid<float>::GetTractValue (0045f210); re-answers7 RG22
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	38	+0x98	006f7ab0	cSC4ResidentialSimulator::GetCellHQByWealth	12	3	x87	high	ST0 left by cSC4SimGrid<float>::GetTractValue (0045f210); re-answers7 RG22
 cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	39	+0x9C	00809240	icf::cS3DTextureBindingFactory::GetResGroup	0	0	eax-or-void	medium	
 cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	40	+0xA0	00407ac0	icf::cSC424HourClock::GetVisualTimeMode	0	0	eax-or-void	medium	
 cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	41	+0xA4	006aaeb0	icf::cSC4PowerSimulator::GetMonthlyConsumption	0	0	eax-or-void	medium	

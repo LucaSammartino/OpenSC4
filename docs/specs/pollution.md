@@ -1017,6 +1017,24 @@ last value the body computed.
 
   The supply becomes `s + delta`, then is set to 0 if negative. That last case is reachable only when `s` was
   already negative, from a damaged save. EAX = the delta **before** that last clamp.
+
+  **How the n > 0 row is computed** *[compat]* (PG15). The original does not subtract first: it forms
+  `t := s + n` in int32 (wrapping) and keeps delta = n when `t ≥ s` (signed compare); only when the sum wrapped
+  (`t < s`) does it compute delta := `0x7FFFFFFF − s` in int32 (`0x006E32E9`–`0x006E32FB`). The subtraction is
+  reached only for s > 0, where it cannot wrap. With a negative s (damaged save) and n > 0 the sum cannot wrap
+  either, so delta is exactly n. The `min` in the table is therefore the exact (unbounded) minimum, never a
+  wrapped one.
+
+  | s | n | delta (EAX) | supply after |
+  |---|---|---|---|
+  | −1,000 | 256 | 256 | −744 → clamped to 0 |
+  | `0x7FFFFF00` | `0x200` | `0xFF` | `0x7FFFFFFF` |
+  | 1,000 | 256 | 256 | 1,256 |
+
+  *[quirk]* The n < 0 row has the mirror case: with a negative s (damaged save only) `s + n` can wrap to a
+  positive value; the test `s + n ≥ 0` then keeps delta = n and the supply becomes that wrapped positive sum,
+  with no clamp. For s ≥ 0 this cannot happen. *[choice]* FreeCity4 may reproduce it or clamp; only a damaged
+  save can hold a negative supply.
 - **Slot 30, `SetGarbageCapacity(n)`** (`0x006E5050`) stores `n`. EAX = `n`.
 
 No caller in the executable reads either value. The landfill developer (`0x006B9230`, `0x006B92F6`), the landfill

@@ -447,6 +447,31 @@ found by `IsOrdinanceOn(id)` / `RemoveOrdinance(id)` after a load, and `AddOrdin
 ordinance has been read. This is a documented difference from the original; when two entries end with the same
 ID, the one first in class-ID order wins (as creation would keep the first).
 
+**Who else holds a loaded ordinance** *[compat]* (SV2). An ordinance object that the load created (shipped or
+plugin class alike) has exactly two holders in the original:
+
+1. The simulator's map: +1 from the typed reference read (QI to `cISC4Ordinance`, foundations §2.7).
+2. The **object table of the city segment's serializer** (foundations §2.7, "References the load keeps"): +1 until
+   the next save, or, if the city is never saved, until the segment is closed at city close, which comes after
+   the city's `Shutdown` and after the city is released.
+
+Nothing else in the exe holds one:
+
+- The only `QueryInterface` for `cISC4Ordinance` (`0xAA5E2247`) outside the ordinance class's own
+  (`0x0080C924`) is this `Read` (`0x0080E96B`). No other class reads an ordinance reference from the save.
+- The messages of §7.1 carry the simulator, not the ordinance.
+- `GetOrdinanceByID` and `GetOrdinanceByName` do no AddRef, and every caller in the exe uses the pointer at once,
+  without an AddRef and without storing it: the LUA extensions (`0x0040B3B1`, `0x0040B4F1`), the residential
+  simulator (`0x006FE27E`, `0x0071192B`, `0x00767458`) and the budget window (`0x0077AE7E`, `0x0077AE9E`,
+  `0x0077AED9`, `0x0077C70E`, `0x0077C726`).
+
+So the reference that the simulator takes in `Read` is its own, and it releases it when it is destroyed (§8.2).
+In a loaded city that has been saved, that release is the last one and destroys the ordinance. In a loaded city
+that has not been saved, the ordinance outlives the simulator until the segment closes, and the table's release
+destroys it. Nothing can observe the difference: no code reaches the ordinance after the simulator is gone. A
+plugin DLL that keeps a pointer from `GetOrdinanceByID` without an AddRef is outside this contract in the
+original too.
+
 ### 9.2 Ordinance (`GetGZCLSID()` = the class ID of §3.6) *[compat]*
 
 ```
