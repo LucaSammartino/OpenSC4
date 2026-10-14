@@ -113,6 +113,14 @@ Where the documentation was silent or wrong, the code decides and tags the decis
 - Duplicates: `Package::find` returns the **first** index entry with a key, and the first DIR record wins
   (data-formats §2.3, §2.5); inside an exemplar the last property with an ID wins (§4.5), and both property lists
   are sorted by unsigned ID; `ExemplarStore` lets a later insert replace an earlier one (load order).
+- Floats as text (the getters' round trip, data-formats §5.1, EX29): fixed point, the first 17 significant digits
+  rounded half-up, trailing fraction zeros dropped, cut at 63 characters (a Float32 too); −0.0 prints `0` (EX24) and
+  a signalling NaN prints `1.#QNAN` (EX28). In text exemplars a Bool is trimmed of leading spaces and tabs (EX26), a
+  String of spaces and tabs at both ends before its quotes are removed (EX27).
+- `ExemplarStore` reads records eagerly, under the conditions of data-formats §3 (EX31): only the first entry with a
+  key in a package is read, a later package's record wins even when it fails to read (the key then fails with
+  `LoadError::Unreadable`, no fallback), and `add_factory` refuses a type that a loaded package already holds, so
+  register factories before loading packages.
 - Index entries are 20 bytes and the index minor version is ignored (data-formats §2.1). `[choice]`: when the
   index size is exactly `24 × count` the entries are read as index 7.1, with a warning (the original cannot open
   such a package). The DIR record is always 16 bytes per key.
