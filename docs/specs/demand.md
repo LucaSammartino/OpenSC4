@@ -551,6 +551,18 @@ The profile and its capacity list (offsets, element type, who fills it, a worked
 A header with colour 1 therefore never occurs in a game map, and refusing one is the implementer's choice. With
 colour 1, the original's iterator decrement would no longer recognise the header (allocators.md *map and set*).
 
+**Sizes** (DQ7). The original has no fixed limit on any of these sizes:
+
+| Quantity | Original | Shipped data (all packages scanned) | What can exceed it |
+|---|---|---|---|
+| capacity maps per profile | `LoadBuildingProperties` pushes **at most one** map per load (`0x0069BC59` / `0x0069BC7E`), and nothing else builds a catalogue profile's vector | 0 or 1 | nothing |
+| entries in one capacity map | one per distinct key in property `0x27812834`, a `uint32` list of (key, amount) pairs of any length; a repeated key overwrites | **1**: each of the 558 exemplars with the property has exactly one pair | a plug-in exemplar with more distinct keys (only the 13 developer types of §2 have any effect) |
+| nodes in the population summary | one per demand node with region use 1 or 2; demand exemplars may come from any group (§4.1) | 40 | plug-in demand exemplars with region use |
+
+Limits of 16 maps, 128 entries and 4,096 summary nodes therefore hold for every shipped game. A larger value
+needs plug-in data well beyond any normal mod. Refusing above those limits is the implementer's choice, and that
+choice stands.
+
 ## 8. Monthly modifiers and cap relief
 
 ### 8.1 Tax and economy modifiers (census state 0)

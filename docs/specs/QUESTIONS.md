@@ -781,8 +781,16 @@ current answer is in brackets.
   constructor writes colour 0 into its new header before copying the nodes, as every other map constructor does,
   and nothing changes it later. Colour 1 never occurs in the game, so refusing it is the implementer's choice, and
   that choice stands.
-- **DQ7:** limits of 16 maps, 128 capacity entries and 4,096 summary nodes. Are larger real maps possible? [refused
-  above them]
+- ~~**DQ7:** limits of 16 maps, 128 capacity entries and 4,096 summary nodes. Are larger real maps possible? [refused
+  above them]~~ **ANSWERED 2026-10-14** from the exe (`LoadBuildingProperties` pushes `0x0069BC59`/`0x0069BC7E`) and
+  every shipped package (property `0x27812834`; demand exemplars) and written into demand.md §7.2. **Not in the
+  shipped game; the implementer's choice stands.**
+  - **Capacity maps.** A profile holds at most 1 map, by construction.
+  - **Capacity entries.** All 558 shipped capacity properties carry exactly one (key, amount) pair, so each map
+    has 1 entry.
+  - **Summary nodes.** The shipped summary has 40 nodes.
+  - **What could exceed the limits.** The original sets no limit, so only plug-in data could: an exemplar with more
+    than 128 distinct capacity keys, or more than 4,096 demand nodes with region use.
 - **DQ8:** which thread calls `GetLocalPopulationSummary`? [unspecified; the first success is logged with its thread]
 - ~~**DQ9 — §5 `GetNeutralTaxRate` precision (in-game differential, run 73, coordinator):** with census supply
   R/C/I = 27207 / 2569.47998 / 10583.1006 (C and I fractional, now that the demand glue reads capacity), the
