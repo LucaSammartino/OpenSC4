@@ -169,7 +169,18 @@ void ScriptParseTests() {
         CHECK(p.errors.empty() && p.actions.size() == 1 && p.actions[0].op == ScriptOp::Mark);
         CHECK(p.actions[0].text == "hello   world");
     }
+    {
+        const ParsedScript p = One("2000-01-09 save   # in place, a full save");
+        CHECK(p.errors.empty() && p.actions.size() == 1 && p.actions[0].op == ScriptOp::Save);
+        CHECK(!p.actions[0].fast && p.actions[0].text.empty());
+    }
+    {
+        const ParsedScript p = One("2000-01-09 SAVE Fast");
+        CHECK(p.errors.empty() && p.actions.size() == 1 && p.actions[0].op == ScriptOp::Save && p.actions[0].fast);
+        CHECK(p.actions[0].text == "Fast");
+    }
     CHECK(ScriptOpName(ScriptOp::PriceZone) == std::string("pricezone"));
+    CHECK(ScriptOpName(ScriptOp::Save) == std::string("save"));
 
     // Every error, with the message the log shows.
     CHECK(ErrorIs("2000-13-01 zone 1 1 2 2 1", "'2000-13-01' is not a date YYYY-MM-DD"));
@@ -178,7 +189,7 @@ void ScriptParseTests() {
     CHECK(ErrorIs("2000-01-01", "a date with no action"));
     CHECK(ErrorIs("2000-01-01   # just a date", "a date with no action"));
     CHECK(ErrorIs("2000-01-01 plop 1 2",
-                  "unknown action 'plop' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark)"));
+                  "unknown action 'plop' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark, save)"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 4"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4 1 9", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 6"));
     CHECK(ErrorIs("2000-01-01 pricezone 1 2 3", "pricezone takes 5 argument(s) (x0 z0 x1 z1 type), not 3"));
@@ -201,6 +212,11 @@ void ScriptParseTests() {
     CHECK(ErrorIs("2000-01-01 turbo maybe", "turbo 'maybe' is not on or off"));
     CHECK(ErrorIs("2000-01-01 mark", "mark takes a text"));
     CHECK(ErrorIs("2000-01-01 mark # only a comment", "mark takes a text"));
+    CHECK(ErrorIs("2000-01-01 save slow", "save 'slow' is not fast (save, or save fast)"));
+    CHECK(ErrorIs("2000-01-01 save fast now", "save takes 0 or 1 argument(s) (fast), not 2"));
+    CHECK(ErrorIs("2000-01-01 save_as test1",
+                  "save_as is not available (an open question: what saving a city under another path does to the "
+                  "city and its region is not documented); save saves in place"));
 
     // A whole file: a byte order mark, CRLF, comments and blank lines; every
     // error is reported with its line, and the good lines are still read.

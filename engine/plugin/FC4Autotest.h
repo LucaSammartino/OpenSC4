@@ -43,7 +43,9 @@
 // tooling): the run ends at the first SimNewDay on or after that date, as
 // autotest_end says (verdict as at the deadline); autotest_seconds stays a
 // timeout, whichever comes first ends the run. With an end date alone the
-// autotest is on, without a timeout.
+// autotest is on, without a timeout. A script `save` (FC4Script.h) still
+// waiting for its tick at the end date runs first: the verdict then comes at
+// that tick, after it.
 // The verdict line also gives, after julian=, `date=YYYY-MM-DD` (that
 // julian), `real_seconds=S.mmm` since the clock started and
 // `days_per_second=X.YY` (new days since the clock started over those
