@@ -600,8 +600,8 @@ impl Fsh {
         (self.frames[0].format, self.frames[0].component_type)
     }
 
-    /// The bytes of one level of one frame, `size` bytes from the §2.8 aligned offset, read from the record as the
-    /// game reads them: in the mip-padding case ([`Frame::zero_filled`]) the last levels take the record's
+    /// The bytes of one level of one frame ([`Level::size`] of them from the §2.8 aligned offset), read from the
+    /// record as the game reads them: in the mip-padding case ([`Frame::zero_filled`]) the last levels take the record's
     /// following bytes (the next attachment's header, GF9), and only bytes past `size` read as zero *\[choice\]*.
     /// These are the raw pixels; for a `0x7B` frame the 8-bit indices, which the original's terrain code reads on
     /// the CPU (§2.13, GF4). `None` for a frame or level that does not exist.
