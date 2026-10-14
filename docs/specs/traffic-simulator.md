@@ -213,7 +213,9 @@ own static step state); slicing only splits the work, the results do not depend 
    * `finished := WorkOnSimCycle(deadline)`;
    * if finished, by the **new** state `s`:
      * `s = 16`: `total := passTotal` (the number of trips counted in the last cycle, §4.6), `days := max(1, total
-       div 20)`; day index and processed := 0; `toReRoute`, `toSearch` := 0; of the ten pass counters that follow
+       div 20)`; day index and processed := 0; `toReRoute`, `toSearch` := 0 (`0x0072184B`, the only place they are
+       zeroed; Read restores them, ConfirmTrips counts them and states 17 and 18 add to `toSearch`, §4.4, TS21); of
+       the ten pass counters that follow
        them (§6.1 row 15 and two unsaved ones; §10 Q4) all are zeroed **except** counter 1 (the re-route counter,
        incremented by ReRouteTrips; zeroed on entering 17 instead) and counter 2 = `rerouteBucket` (kept: only
        StartRecalc advances it). Counter 3, the source counter of §4.3, is zeroed here, so it restarts at 0 every
@@ -650,6 +652,9 @@ or 14 and (3,3)'s `conn[1]` has bit `2 + 4·0 = 2`; (4,3) is not looked at. The 
 result found → status 3 and `tripLength := pf.GetTripLength()`; not found → status 5. Then, for the same source, a
 merge of status-0 trips (each absorbs the later ones of the same type and strategy whose status is not 3). A
 network change (`DoConnectionsChanged`) aborts a suspended search: both pathfinders `Reset` and the context restarts.
+Counters (TS21): a trip sent back to status 0 for lack of capacity adds 1 to `toSearch` and to pass counter 4
+(`0x0071D20D`), not to `processed`. So the next state's `total` (§3.3) includes it. Each search that is not
+suspended adds 1 to `processed`; a found one also adds 1 to pass counter 1, the re-route counter.
 
 **FullTrips** (`0x0071D440`) takes, for each source, the status-0 trips: `SetupTrip`, `PerformPathSearch`;
 
@@ -658,6 +663,10 @@ network change (`DoConnectionsChanged`) aborts a suspended search: both pathfind
   original keeps `arrived`; the copy is searched next with the *continue* flag (pathfinder flag 4) so the search
   resumes from the previous open set (`continueSearch := true`); otherwise `continueSearch := false`;
 * not found: status 5, `continueSearch := false`.
+
+Counters (TS21): each search that is not suspended adds 1 to `processed`. Each split adds 1 to `toSearch`, to the
+phase's `total` and to pass counter 9 (`0x0071D75A`). The day shares of the running phase (§3.3) therefore stretch
+with the splits: `total` was `toSearch` on entering 18 and grows as copies are made.
 
 After each source's list: `CompleteTripSourceCalculations(source)` (§4.6). At the end of the phase the per-travel-type
 trip counts built in this pass are published (slot-34 stats and history, §4.12).
