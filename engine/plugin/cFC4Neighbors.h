@@ -264,7 +264,8 @@ public:
     FC4ConnectionMirror State() const;
     // Refreshes the mirror (the lock is held).
     void RefreshMirror();
-    // §4.1 needsTrafficSync: true once (then false) after creation [choice].
+    // §4.1 needsTrafficSync: true once (then false) after creation (NG8,
+    // §15.4: set only by the constructor, so each object syncs once).
     bool TakeVolumeDirty() { return volumeDirty_.exchange(false); }
     cFC4PropertyHolder& Holder() { return holder_; }
 
@@ -479,7 +480,17 @@ private:
 // Factory for the subsystem table (reference count 0).
 cIGZUnknown* CreateFC4NeighborsSimulator();
 
+class cISC4App;
+
 namespace fc4 {
 // Calls answered from a mirror or with the neutral value (any thread).
 uint32_t NeighborsFallbacks();
+// Test seam (FC4TestSeam.h op 48): an app whose GetPopupDialogsEnabled
+// (slot 23) RequestCreateConnection reads instead of the framework's
+// (borrowed: never queried or released; null: back to the framework's).
+void NeighborsTestSetApp(cISC4App* app);
+// Test seam (op 48 with `b`): a new deal of ours with `src`'s state (Copy,
+// §5.4), one reference for the caller in `*out`. AddDeal now keeps a
+// foreign deal itself (NG4), so the tests make their deal of ours here.
+bool NeighborsTestCopyDeal(cISC4NeighborDeal* src, cISC4NeighborDeal** out);
 }  // namespace fc4

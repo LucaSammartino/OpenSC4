@@ -39,6 +39,7 @@
 #include "cFC4Demand.h"
 #include "cFC4Flammability.h"
 #include "cFC4Landfill.h"
+#include "cFC4Neighbors.h"
 #include "cFC4Plumbing.h"
 #include "cFC4Power.h"
 #include "cFC4ZoneManager.h"
@@ -173,6 +174,15 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return GrowthProbeTest(static_cast<const FC4GrowthProbeTestInput*>(a));
         case kFC4SeamScript:  // the harness lane (FC4Script.h)
             return fc4::ScriptLoad(static_cast<const char*>(a), "test seam");
+        case kFC4SeamNeighborsApp:  // the neighbours apply lane (NG14, NG4)
+            if (b != nullptr) {
+                return fc4::NeighborsTestCopyDeal(static_cast<cISC4NeighborDeal*>(a),
+                                                  static_cast<cISC4NeighborDeal**>(b))
+                           ? 1
+                           : 0;
+            }
+            fc4::NeighborsTestSetApp(static_cast<cISC4App*>(a));
+            return 1;
         case kFC4SeamFpuReference:
             if (a == nullptr) {
                 fc4::FpuSetReference("test seam");

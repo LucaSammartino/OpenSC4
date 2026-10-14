@@ -165,6 +165,14 @@
 //         FC4Script.h): loads that script in place of the current one, as the
 //         `script` setting does at game start. Returns the number of actions
 //         it will run, -1 (cannot be read), -2 (refused: parse errors).
+//   op 48 kFC4SeamNeighborsApp    a = cISC4App* (borrowed; null: the
+//         framework's again): the app whose GetPopupDialogsEnabled (slot 23)
+//         the neighbours simulator's RequestCreateConnection reads (NG14,
+//         cFC4Neighbors.h NeighborsTestSetApp). Returns 1. With `b`
+//         non-null instead: a = cISC4NeighborDeal* (borrowed), b =
+//         cISC4NeighborDeal** receiving a new deal of ours with a's state
+//         (one reference for the caller; NeighborsTestCopyDeal, NG4).
+//         Returns 1, 0 if none was made.
 #pragma once
 
 #include <cstdint>
@@ -221,6 +229,7 @@ enum : uint32_t {
     kFC4SeamZones = 38,
     kFC4SeamGrowthProbe = 39,
     kFC4SeamScript = 46,  // the harness lane
+    kFC4SeamNeighborsApp = 48,  // the neighbours apply lane (NG14)
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);
