@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "name": "park_shipped_threshold",
+  "spec": ["parks 4.4", "parks 6", "parks 12.6", "QUESTIONS PK1"],
+  "description": "Quirk PK1: the shipped threshold 25.0 (meant in percent) is compared with a fraction. At f = 1.2 the first monthly pass after Init sets condition 2 on every park lot, and nothing restores it (any f <= 25 keeps the latch). The latch is not saved: a new manager runs the lots down again.",
+  "steps": [
+    {"op": "park_env", "tuning": "shipped", "funding": {"0x8A4260A6": 1.2}},
+    {"op": "park_create"},
+    {"op": "park_init", "expect": true},
+    {"op": "park_expect", "state": {"threshold": 25.0}},
+    {"op": "park_building", "occupant": "0x20", "groups": ["park"], "lot": "0x21"},
+    {"op": "park_building", "occupant": "0x22", "groups": ["park"], "lot": "0x23"},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x20", "expect": true},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x22", "expect": true},
+    {"op": "park_clear_events"},
+    {"op": "park_message", "type": "SimNewMonth", "expect": true},
+    {"op": "park_expect_events", "events": [
+      {"event": "set_condition", "lot": "0x21", "condition": 2},
+      {"event": "set_condition", "lot": "0x23", "condition": 2}
+    ]},
+    {"op": "park_expect", "state": {"underfunded": true}},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_env", "funding": {"0x8A4260A6": 1.0}},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_env", "funding": {"0x8A4260A6": 25.0}},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_expect_events", "events": []},
+    {"op": "park_expect_conditions", "conditions": {"0x21": 2, "0x23": 2}},
+    {"op": "park_env", "funding": {"0x8A4260A6": 25.000002}},
+    {"op": "park_call", "method": "monthly", "note": "only a fraction above 25 (2500 %) would restore"},
+    {"op": "park_expect_conditions", "conditions": {"0x21": 0, "0x23": 0}},
+
+    {"op": "park_write", "slot": "a", "expect": true},
+    {"op": "park_env", "funding": {"0x8A4260A6": 1.2}},
+    {"op": "park_read", "slot": "a", "expect": true},
+    {"op": "park_init", "expect": true},
+    {"op": "park_expect", "state": {"underfunded": false, "threshold": 25.0}},
+    {"op": "park_clear_events"},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_expect_events", "events": [
+      {"event": "set_condition", "lot": "0x21", "condition": 2},
+      {"event": "set_condition", "lot": "0x23", "condition": 2}
+    ]}
+  ]
+}

@@ -274,6 +274,49 @@ results; aura §6.5 gives the details. *[choice]* FreeCity4 may keep the step pe
 
 This is the compiled layout; MSVC produces it from the SDK header's source order (foundations §16). Every other `cISC4Simulator` slot matches the SDK.
 
+### 5.7 Work bound to frames or real time, not to game days *[compat]* (DG31)
+
+The calendar (§5.2) makes day-level work complete before the next day, but three kinds of original work are paced by
+**frames and milliseconds**, so the same city evolves differently at different days per real second. The amount
+that matters is the **idle work per game day**: idle agents get one delivery per idle pass (§5.4), each with at most
+`frameBudgetMs / 3` ms, every frame, however many days that frame advances. At the shipped cheetah speed (50 ms per
+day, §7: 20 days per second) the idle level gets on the order of 50 ms per day; at 85 days per second it gets about 12
+ms per day minus the day-level work, and agents that do one step per delivery get roughly one idle step per day.
+
+1. **Idle-driven cycles with a per-day bound.** One step per NewDay plus any number of idle steps, and the day is held
+   open once the cycle falls behind (`state < today − start` returns "not finished"): growth developers
+   (growth-developer §3.1: the monthly map update, states 1–20), aura (aura §5.1, the SimNewDay rule), and plumbing
+   (plumbing §6: states 6 and 7 time out with "not finished"). At normal speed idle steps finish the cycle within its
+   first day; at high speed it runs on the daily step and finishes up to about 20 game days later (growth developers).
+   Nothing is skipped, but every reader sees older maps for longer, and work that waits for the cycle moves later in the
+   month: the BDS's decline plan (building-development §4.2) and the growth/decline lists (valid only while
+   `state < 17`).
+2. **Idle-driven cycles without a per-day bound** that a month message restarts only when they have finished: the
+   demand census (demand §6.2: `DoIdle(5)` per day plus idle; a census still running at month start is not
+   restarted, and the tax and economy modifiers of demand §8.1 are recomputed only at the start of each census),
+   land value (landvalue §5: a pass starts at a month only if the previous one ended), crime (crime §5: a pipeline of
+   steps, one per day or idle delivery), power (power §4.3: one step per day or idle delivery) and the BDS monthly
+   rebuild (building-development §4.1: a month that arrives while the developers' updates are still running is skipped,
+   with its construction-resource update). When a cycle takes longer than a month in game days, whole months are
+   skipped: the census-driven supplies (R/C/I census, demand §6.4) and with them the BDS construction resources and the
+   developers' demand change less often.
+3. **Real-time budgets inside day work.** The BDS daily growth stops after 3 ms (building-development §4.4); the
+   developers it does not reach get **no attempt that day**. This depends on the machine and its load, not on the
+   speed, as long as the cycle calibration of §5.5 is maintained. The other CPU-cycle budgets (lot developer 5 ms,
+   the adaptive helper users of §5.5) return "not finished" and resume, so they cost real time but lose nothing.
+4. **Frame-bound delivery.** Messages that are posted (not sent) are delivered at a later message-server tick
+   (foundations §5.1): `SimNewDay` / `SimNewMonth` broadcasts to subscribers that are not agents, and lot
+   `StateChanged` (`0xE8BDA2E7`, lot-developer §3.2), which the demand simulator, the BDS and the growth developers
+   handle. When one frame advances several days, those handlers run after the agents of all of those days.
+
+Consequences for comparisons: original runs are comparable only at equal pacing, and only at speeds where the idle
+level finishes its cycles within a day or so (the shipped speeds, up to about 10–20 days per second). *[choice]*
+FreeCity4's own engine does not depend on frames: each cycle of kind 1 and 2 runs to completion at the step where
+the original, at normal speed, would have finished it (within the day it starts), the 3 ms cut of kind 3 is replaced
+by the daily growth budget (building-development §4.4.1), and posted messages are delivered before the next day's
+agents. A harness that drives the original faster than about 20 days per second measures the pacing, not the
+simulation.
+
 ## 6. Speed and pause
 
 | Method | Behaviour |

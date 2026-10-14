@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "name": "park_remove",
+  "spec": ["parks 4.3", "parks 4.6", "parks 12.4"],
+  "description": "Removing a park removes every entry equal to it, releases it once, and takes its item's cost and one from the secondary field of the item's line item; the line item is never removed, even at 0 and 0. Three 1x1 grass parks (cost 5, line 0) give 15 and 3; removing all three leaves 0 and 0. A park listed twice is removed with one release (one reference stays). A zoo is removed and released once; the release happens also when the occupant was not listed (literal reading). A preview occupant is ignored.",
+  "steps": [
+    {"op": "park_create"},
+    {"op": "park_init", "expect": true},
+    {"op": "park_building", "occupant": "0x10", "type": "0x0A0000F1", "groups": ["park"]},
+    {"op": "park_building", "occupant": "0x11", "type": "0x0A0000F1", "groups": ["park"]},
+    {"op": "park_building", "occupant": "0x12", "type": "0x0A0000F1", "groups": ["park"]},
+    {"op": "park_item", "occupant": "0x10", "department": "0x8A4260A6", "cost": 5},
+    {"op": "park_item", "occupant": "0x11", "department": "0x8A4260A6", "cost": 5},
+    {"op": "park_item", "occupant": "0x12", "department": "0x8A4260A6", "cost": 5},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x10", "expect": true},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x11", "expect": true},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x12", "expect": true},
+    {"op": "park_expect_line", "department": "0x8A4260A6", "line": "0x0A0000F1", "state": {"expenses": 15, "secondary": 3}},
+    {"op": "park_clear_events"},
+    {"op": "park_message", "type": "OccupantRemoved", "occupant": "0x10", "expect": true},
+    {"op": "park_expect_events", "events": [
+      {"event": "release", "token": "0x10"}
+    ]},
+    {"op": "park_expect_line", "department": "0x8A4260A6", "line": "0x0A0000F1", "state": {"expenses": 10, "secondary": 2}},
+    {"op": "park_message", "type": "OccupantRemoved", "occupant": "0x11", "expect": true},
+    {"op": "park_message", "type": "OccupantRemoved", "occupant": "0x12", "expect": true},
+    {"op": "park_expect_line", "department": "0x8A4260A6", "line": "0x0A0000F1", "state": {"expenses": 0, "secondary": 0, "display": [2]}},
+    {"op": "park_expect", "state": {"parks": []}},
+    {"op": "park_expect_refs", "refs": {"0x10": 0, "0x11": 0, "0x12": 0}},
+    {"op": "park_expect_event_count", "filter": {"event": "create_line"}, "count": 0},
+
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x10", "expect": true},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x10", "expect": true},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x11", "expect": true},
+    {"op": "park_expect", "state": {"parks": ["0x10", "0x10", "0x11"]}},
+    {"op": "park_expect_line", "department": "0x8A4260A6", "line": "0x0A0000F1", "state": {"expenses": 15, "secondary": 3}},
+    {"op": "park_clear_events"},
+    {"op": "park_message", "type": "OccupantRemoved", "occupant": "0x10", "expect": true},
+    {"op": "park_expect_events", "events": [
+      {"event": "release", "token": "0x10"}
+    ]},
+    {"op": "park_expect", "state": {"parks": ["0x11"]}},
+    {"op": "park_expect_refs", "refs": {"0x10": 1, "0x11": 1}},
+    {"op": "park_expect_line", "department": "0x8A4260A6", "line": "0x0A0000F1", "state": {"expenses": 10, "secondary": 2}},
+
+    {"op": "park_building", "occupant": "0x16", "type": "0x0A000002", "groups": ["zoo"]},
+    {"op": "park_building", "occupant": "0x17", "type": "0x0A000002", "groups": ["zoo"]},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x16", "expect": true},
+    {"op": "park_clear_events"},
+    {"op": "park_message", "type": "OccupantRemoved", "occupant": "0x16", "expect": true},
+    {"op": "park_message", "type": "OccupantRemoved", "occupant": "0x17", "expect": true, "note": "not listed: released anyway"},
+    {"op": "park_expect_events", "events": [
+      {"event": "release", "token": "0x16"},
+      {"event": "release", "token": "0x17"}
+    ]},
+    {"op": "park_expect", "state": {"zoos": []}},
+    {"op": "park_expect_refs", "refs": {"0x16": 0, "0x17": -1}},
+
+    {"op": "park_building", "occupant": "0x11", "type": "0x0A0000F1", "groups": ["park"], "preview": true},
+    {"op": "park_message", "type": "OccupantRemoved", "occupant": "0x11", "expect": true},
+    {"op": "park_expect_events", "events": []},
+    {"op": "park_expect", "state": {"parks": ["0x11"]}}
+  ]
+}

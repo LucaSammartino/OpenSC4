@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "commercial_dirty_marking",
+  "spec": ["commercial-industrial 3", "commercial-industrial 13.3"],
+  "description": "An occupant inserted or removed with data3 = 0x278128A0 whose building profile has purpose 3 (office) sets dirty; purpose 1 does not; data3 = 0xC772BF98 (a network) does not; an occupant that is not a building does not. There is no preview test, so a preview building of purpose 3 (occupant 3 here) marks the maps too. Other messages return true and change nothing.",
+  "steps": [
+    {"op": "commercial_env", "cells": 8, "purposes": {"1": 3, "2": 1, "3": 3}},
+    {"op": "commercial_create"},
+    {"op": "commercial_init", "expect": true},
+    {"op": "commercial_set", "dirty": false},
+    {"op": "commercial_message", "type": "OccupantInserted", "occupant": 2, "expect": true},
+    {"op": "commercial_expect", "state": {"dirty": false}},
+    {"op": "commercial_message", "type": "OccupantInserted", "occupant": 1, "data3": "0xC772BF98", "expect": true},
+    {"op": "commercial_expect", "state": {"dirty": false}},
+    {"op": "commercial_message", "type": "OccupantInserted", "occupant": 99, "expect": true},
+    {"op": "commercial_expect", "state": {"dirty": false}},
+    {"op": "commercial_message", "type": "OccupantInserted", "occupant": 1, "expect": true},
+    {"op": "commercial_expect", "state": {"dirty": true}},
+    {"op": "commercial_set", "dirty": false},
+    {"op": "commercial_message", "type": "OccupantRemoved", "occupant": 3, "expect": true},
+    {"op": "commercial_expect", "state": {"dirty": true}},
+    {"op": "commercial_set", "dirty": false},
+    {"op": "commercial_message", "type": "SimBegin", "expect": true},
+    {"op": "commercial_message", "type": "SimNewMonth", "expect": true},
+    {"op": "commercial_message", "type": "0x12345678", "expect": true},
+    {"op": "commercial_expect", "state": {"dirty": false, "state": 3}}
+  ]
+}

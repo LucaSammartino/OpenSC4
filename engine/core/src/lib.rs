@@ -23,7 +23,9 @@
 pub mod aura;
 pub mod budget;
 pub mod calibration;
+pub mod civic;
 pub mod clock24;
+pub mod commercial;
 pub mod crime;
 pub mod curve;
 pub mod demand;
@@ -42,6 +44,7 @@ pub mod landvalue;
 pub mod lot_developer;
 pub mod neighbors;
 pub mod ordinance;
+pub mod parks;
 pub mod pathfinder;
 pub mod plumbing;
 pub mod pollution;

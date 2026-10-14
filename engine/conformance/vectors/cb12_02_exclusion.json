@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "civic_exclusion",
+  "spec": ["civic-buildings 4.3", "civic-buildings 11", "civic-buildings 12.2"],
+  "description": "Inserting a building whose occupant has property 0xEA2E078B = 0x8A9AE664 makes IsBuildingExcluded(0x8A9AE664) true; removing it makes it false. A non-building occupant with the property changes nothing. Quirks: there is no preview test, and removing one of two buildings that carry the same ID erases the ID.",
+  "steps": [
+    {"op": "civic_create"},
+    {"op": "civic_init", "expect": true},
+    {"op": "civic_building", "occupant": "0x20", "type": "0x03390000", "exclusion": "0x8A9AE664"},
+    {"op": "civic_call", "method": "is_building_excluded", "args": ["0x8A9AE664"], "expect": false},
+    {"op": "civic_message", "type": "OccupantInserted", "occupant": "0x20", "expect": true},
+    {"op": "civic_call", "method": "is_building_excluded", "args": ["0x8A9AE664"], "expect": true},
+    {"op": "civic_expect", "state": {"exclusions": ["0x8A9AE664"]}},
+    {"op": "civic_message", "type": "OccupantRemoved", "occupant": "0x20", "expect": true},
+    {"op": "civic_call", "method": "is_building_excluded", "args": ["0x8A9AE664"], "expect": false},
+    {"op": "civic_building", "occupant": "0x21", "occupant_type": "0xC772BF98", "building": false, "exclusion": "0x8A9AE664"},
+    {"op": "civic_message", "type": "OccupantInserted", "occupant": "0x21", "expect": true},
+    {"op": "civic_call", "method": "is_building_excluded", "args": ["0x8A9AE664"], "expect": false},
+    {"op": "civic_message", "type": "OccupantInserted", "occupant": "0x20", "expect": true},
+    {"op": "civic_building", "occupant": "0x22", "type": "0x03390000", "exclusion": "0x8A9AE664"},
+    {"op": "civic_message", "type": "OccupantInserted", "occupant": "0x22", "expect": true},
+    {"op": "civic_message", "type": "OccupantRemoved", "occupant": "0x22", "expect": true},
+    {"op": "civic_call", "method": "is_building_excluded", "args": ["0x8A9AE664"], "expect": false}
+  ]
+}

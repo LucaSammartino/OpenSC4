@@ -253,6 +253,12 @@ Calls: `CreateDepartmentBudget(id, 0x6A357B7F)`, AddRef, `SetDepartmentName(0x6A
   missing. The outputs then keep what the caller put there; the class's own callers preset a = b = 0.0 (§4.2
   efficiency ratings, §4.10), so a missing department reads as 0 in the curves. A host asked for a missing
   department's funding must report "missing", and the core must then leave the output alone.
+- (RG26) **How a host reports "missing"** has no original counterpart, because the original asks the budget
+  simulator directly. The only original condition is `GetDepartmentBudget(item.department)` returning null for a
+  purpose whose item exists. A missing **item** is not "missing" here: it gives 1.0, as above. The
+  implementer's choice (a NaN or a null callback means missing, and the outputs are left alone) stands. It is
+  safe because a real funding fraction is never NaN. The host must keep the two cases apart: no item gives 1.0,
+  and an item without a department gives "missing".
 
 **SetOccupantFundingPercentages(occ, &a, &b, isSchool)** (slot 19):
 
@@ -307,6 +313,21 @@ first. `Init` does not, but the lists are empty then.
 function `0x006FE0F0` has no other code or data reference). An ordinance enacted or repealed mid-cycle changes
 nothing until the next state 0, and neither does a slot call: every reader of the effects (§4.4–§4.11) uses the
 lists as state 0 left them.
+
+**Before the first state 0** (RG28). Until then the readers use the lists that `Init` built. In a loaded city
+those are the ordinances that were on in the save: the ordinance simulator's `Read` has run before any `Init`
+(ordinance §9.1). In a new city every ordinance starts off, so the lists are empty. An ordinance enacted or
+repealed after `Init` changes nothing until that first state 0.
+
+The shadow is FreeCity4's own tool, with no original counterpart. "Reading them as they stand" gives the original's
+lists as long as no ordinance has changed since `Init`, which holds for every shadow comparison made before the
+player first changes an ordinance. *[choice]* To match in every case, the shadow should read the effects once at
+city `Init` (or PostCityInit; nothing can change an ordinance between the two), and again only at each of the
+original's state 0. The bracket is acceptable when the shadow starts with the city.
+
+Example: a loaded city has the free clinics ordinance on. The player repeals it on day 3, and the first state 0
+comes on day 10. From day 3 to day 10 the original still applies the clinics' health effect. A shadow that reads
+the ordinances as they stand stops applying it on day 3, so for those days the two differ.
 
 - The ordinance list comes from `GetOrdinanceOnCount` and `GetOrdinanceOnArray`, in ascending ID order
   (ordinance §4).
@@ -608,6 +629,11 @@ decay factors. The education/health steps, in order:
      the translation (x, y, z) at +0x28/+0x2C/+0x30 and the scale 1.0 at +0x34. The effect then gets
      `SetTransform` (slot 8, `+0x20`), `Start(0)` (slot 3, `+0x0C`) and `Release` (slot 2), and the tract's
      flag is set.
+   - **Bytes +2 and +3** *[compat]* (RG25; `0x006FA814`–`0x006FA819`, `0x005BEC20`). The original never writes
+     them: the record is a stack buffer, and only bytes +0 and +1 are stored before the matrix. They are the
+     alignment gap after the two flag bytes. The effect's `SetTransform` (`0x005BE880`, which forwards to
+     `0x005BEC20`) copies the dwords +0x04 to +0x34 and byte +1. It reads neither +0, +2 nor +3 (it counts its own
+     changes instead of copying +0). So any value there gives the same effect, and 0 is equivalent.
    - **If the create fails**, only the first draw has been made, the flag stays clear, and the next wealth level
      of the same tract may draw again. The shared generator therefore advances by a different number of draws,
      which shifts every later strike roll (§4.9).
@@ -615,6 +641,16 @@ decay factors. The education/health steps, in order:
    *[choice]* FreeCity4 asks the host to create the effect. When the host cannot show effects (standalone, tests),
    the core treats the create as **successful**: it makes both draws and sets the flag, as the original does with
    shipped data. A host that reports a real failure gets the original's one-draw path.
+
+   **"Cannot show" counts as created** (RG27). In the original, the steps after a successful create, in order, are:
+   the two tract widths, the terrain altitude (slot 13), the second draw, the transform, `Start(0)`, `Release`,
+   and the flag. Of these, only the second draw and the flag change simulation state. The width and altitude
+   queries are pure reads, and `Start` and `Release` act only on the effect object. So a core that makes the
+   second draw and sets the flag, and skips the altitude read, the start and the release, leaves the generator,
+   the flag and every grid exactly as the original does with shipped data. The original has no "cannot show"
+   state of its own: with shipped data its create always succeeds (above). **The bracket matches.** One
+   condition applies: a host that skips the effect must not also skip the second draw, or every later strike
+   roll shifts (§4.9).
 4. **New population** (residential.md). If new > old for wealth w, with delta := int16(new − old):
    ```
    m      := EQ_old > 0 ? 2 : 1
