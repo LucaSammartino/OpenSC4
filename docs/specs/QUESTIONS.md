@@ -2318,3 +2318,91 @@ shadow's riot roll (wall-clock RNG). The current answer is in brackets.
 - **AQ9:** Flora shadow: which box gives the 64 m listing? [choice: the census box taken before the pass]
 - **AQ10:** Plugin: `OpenOStream`/`OpenIStream` returns false but writes a stream pointer. [treated as not open;
   nothing released]
+
+## From applying the crime, traffic network and HG answers (filed by the coordinator from the `apply7b` lane's report, 2026-10-14)
+
+CQ16–CQ22, the crime errata, TN21–TN25 and HG1 are applied (CQ16 and TN21 changed behaviour; the clock-seed helper
+moved to `rng.rs`). Not done: the development simulator's own clock seed still XORs by itself (the development glue
+lane owns those files); TN22/TN24 have unit tests but no vectors. The current answer is in brackets.
+
+- **CQ23:** CQ17 follow-up: what does a name key `0x8A416B2E` stored as a non-u32 array of 3 or more elements give?
+  The original copies 12 raw bytes. [FreeCity4 converts the values to numbers, so a u8 array [a, b, c] gives G = b, I
+  = c; a string counts as missing]
+- **CQ24:** CQ20 follow-up: the original reads the name key from a second, uncached load of the type's exemplar.
+  [FreeCity4 reads it from the same cached load as the other properties; the two differ only if the cached copy was
+  changed in memory]
+- **TN29:** TN21 worked example: Street (3) is not in the §4.8 tunnel type order, so a Street portal never gets a
+  tunnel record. How does a "Street tunnel cell" get the tunnel bit in the game? [any tunnel record keyed by the cell
+  sets the bit; the test and vector tn11_04d put a Road portal over a Street piece]
+
+## From applying the residential, budget, demand, land value and flammability answers (filed by the coordinator from the `apply7a` lane's report, 2026-10-14)
+
+RG23 (+RG17), BQ3, DQ10–DQ12, LV1–LV4 and FL1–FL6 are applied: the proximity seed writes only `z = 0`; the budget
+total is a float32 running sum in master-list lot order; the land value shadow orders developers by pointer and
+snapshots maps while slot 10 is true; the flammability shadow polls the plumbing watered grid. The current answer is
+in brackets.
+
+- **RG24:** RG23: what does the proximity seed do when there is no building map? [writes FAR to `(x, 0)` only and
+  keeps every other cell; a choice]
+- **BQ4:** BQ3: releasing the safe lot iterator. The lane unlinks its nodes by hand, the same as `std::list::remove`
+  at `0x00809580`, and frees each with allocator B, instead of calling `0x00809580`. [an equivalent unlink; the block
+  is leaked, not freed, if no node is found]
+- **BQ5:** BQ3: does ComputeTax hold references on the lots it visits? [borrowed, no AddRef]
+- **BQ6:** BQ3: the walk requires the master lot list object at lot manager + `0x5C`. [otherwise refused, with the
+  `GetLotsInCellRect` fallback]
+- **BQ7:** BQ3: line and total values outside the int32 range. [the low 32 bits of `_ftol`]
+- **BQ8:** The land value and flammability host tables grew (new last callbacks) without an ABI bump, so a table of
+  the old size is now refused by the `struct_size` check. [no bump; refused]
+- **LV5:** LV2: a developer first seen while its slot 10 is false gets no snapshot until slot 10 turns true, so there
+  is no second candidate in that window. [no snapshot]
+- **FL7:** FL5/FL6: exactness assumes the plumbing pass-end message (posted in state 8) is delivered before the next
+  pass swaps its grid (end of state 6). Two passes between polls would bring the pointer back unseen. [assumed; polled
+  at every forwarded message and at the cycle end]
+- **FL8:** FL5/FL6: a pass first seen by the comparison's own poll, after the wrap day's early visits. [those tracts
+  are accepted by the existing previous-value rule, at most 2 × tractsPerDay "unvisited"; marks are not carried into
+  the next cycle]
+- **FL9:** FL5/FL6 with FreeCity4's own plumbing: detection relies on its published grid alternating too, which it
+  does today. [pointer detection only]
+
+## From the graphics formats spec (re-formats2 lane, 2026-10-14)
+
+graphics-formats.md specifies FSH and S3D as the 1.1.641 exe loads them. These are what it could not settle from the
+exe and the shipped data alone.
+
+- **GF1 — graphics-formats §2.6:** under DX7 (the default renderer) the FSH codes `0x64`, `0x65`, `0x6D`, `0x78`,
+  `0x7B` and `0x7E` load through the factory but `TranslateGDFormatToSourceFormat` (`0x0088D0B0`) cannot create a
+  texture for them. What does a model show then (untextured, white, previous texture, not drawn)? None is shipped
+  on a model; plug-in textures may use them. [unknown; FreeCity4 decodes them and shows the texture, *[choice]*]
+- **GF2 — §2.6, §2.11:** for `0x6D`, `0x7E` and `0x78` the factory asks for BGRA/BGR with the non-reversed packed
+  types (4-4-4-4, 5-5-5-1, eGDType 11), which under OpenGL would read the channels in a different order from the
+  Direct3D layouts (A4R4G4B4, A1R5G5B5, R5G6B5) that FSH tools write. Is there any renderer path where the game shows
+  them correctly, and which layout should FreeCity4 follow? [the Direct3D layouts, *[choice]*]
+- **GF3 — §2.4, §2.11:** DXT1 with A = 0 (13,762 shipped entries) asks for "DXT1 RGB", but DX7 translates both DXT1
+  formats to the same surface. Does DX7 then show 3-colour-mode index-3 texels as transparent (so alpha-tested
+  materials cut them out)? An in-game check on a model with such texels would settle it. [yes, inferred from the
+  translation; FreeCity4 decodes them transparent]
+- **GF4 — §2.13:** the 24 `0x7B` entries (64 × 64 and similar, identity grey-ramp `0x24` palettes) are in group
+  `0x891B0E1A`, used by terrain brushes, water and underground code (`0x0074D730`, `0x00752240`, `0x0065D810`).
+  Which of them reads these, and does it go through the texture path (which DX7 cannot create) or read the pixels
+  from `cS3DShapeFile` directly? [inferred: CPU reads of intensity maps]
+- **GF5 — §3.8:** `SetTexFiltering` (`0x007D4280`) overrides the material's filters with (nearest, nearest) or
+  (linear, linear-mipmap-linear) when one of two draw settings is on, and `0x007D41E0` can override wrap. Which
+  settings are these, what are their defaults, and which is on in normal play? Without an override, 137,480 shipped
+  1.5 textures have filters (0, 0), i.e. nearest. [unknown; probably the trilinear override is on by default]
+- **GF6 — §3.5:** byte order of the 32-bit vertex colour element (only `0x80004101`, 2 shipped blocks in model
+  `0xCB93E2B4`). [inferred: Direct3D colour, bytes B, G, R, A]
+- **GF7 — §4.2:** layouts of RKT4 (`0x27812824`) and RKT5 (`0x27812825`), read by `GetAllModelInstanceIDs`
+  (`0x00496C90`, `0x00497120`) and `IsStaticBuilding` (`0x00583B10`), not by `GetModelInstanceID`. [out of scope
+  here; for the building-rendering lane]
+- **GF8 — §4.2:** where the model detail global `0x00B216FC` (zoom remap table `0x00B094A4`) is set, and from which
+  option. [unknown; 0 in the image]
+- **GF9 — §2.8:** 167 shipped DXT1 entries store their mip levels without the 16-byte padding, and the game reads
+  the smallest two or three levels from the wrong offsets (the last one past the pixel data). Reproduce, or read
+  them as stored? [reproduce, zero-filling past the entry, *[choice]*]
+- **GF10 — §3.9:** semantics of ANIM frame rate (30, 10, 3, 2, 1, 0 shipped), mode (always 3), flags and
+  displacement (always 0), as the animated model instance uses them. [not traced; for the rendering spec]
+- **GF11 — §3.10, §3.11:** consumers of PROP (`skeleton`/`suit` pairs on 58 people models) and REGP (`fx_…` names on
+  1,810 models), and the meaning of REGP's seven floats. [inferred: effect attachment points, position and
+  orientation; not traced]
+- **GF12 — §2.4:** does anything outside the 3D texture path read the FSH centre fields (non-zero in 722 entries) or
+  bits 12–27 of `+0x0C` (non-zero in 294)? [none found]

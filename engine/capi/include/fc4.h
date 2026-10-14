@@ -71,8 +71,10 @@ extern "C" {
  * 26 = adds the residential simulator (fc4_residential) and its shadow (fc4_residential_shadow);
  * 27 = adds fc4_protection_shadow_unadjusted_grid (protection.md §2, PR5);
  * 28 = adds the neighbours simulator (fc4_neighbors, fc4_neighbor_deal,
- *      fc4_neighbor_connection) and its shadow (fc4_neighbors_shadow). */
-#define FC4_ABI_VERSION 28u
+ *      fc4_neighbor_connection) and its shadow (fc4_neighbors_shadow);
+ * 30 = the aura shadow follows the original step by step (fc4_aura_shadow_before_step / _step / _occupant);
+ *      fc4_flora_host's obliteration segment callbacks become record streams (§10.3). */
+#define FC4_ABI_VERSION 30u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -469,13 +471,13 @@ typedef struct fc4_tax_scan {
     uint32_t struct_size; /* caller sets = sizeof(fc4_tax_scan) */
     uint32_t lots;        /* lots visited */
     float multiplier;     /* DifficultyTaxMultiplier[difficulty] */
-    float total;          /* the float32 running total */
+    float total;          /* the float32 running total, lot by lot in visit order (BQ3) */
     int64_t weighted_assessed[12];
     int64_t monthly_tax[12]; /* trunc(groupTax[t]) */
     int64_t tax_income[12];  /* GetTaxIncome(t) with the given rates */
     float group_tax[12];
     uint32_t counted[12];    /* lots counted per group */
-    int64_t total_tax;       /* ComputeTax's result, trunc(total) */
+    int64_t total_tax;       /* ComputeTax's result, trunc(total), never the sum of the lines */
 } fc4_tax_scan;
 
 typedef void (*fc4_tax_lot_callback)(void* ctx, uint32_t index, const fc4_lot_info* lot, const fc4_tax_lot* result);
@@ -503,6 +505,8 @@ typedef struct fc4_budget_host {
     int64_t (*ordinance_expense)(void* user);
     int64_t (*neighbor_income)(void* user);
     int64_t (*neighbor_expense)(void* user);
+    /* Every lot, in the lot manager's master-list order (§5.2): the tax total
+     * is a float32 running sum, so only that order matches it exactly (BQ3). */
     void (*for_each_lot)(void* user, fc4_lot_visitor visit, void* ctx);
     void (*record_history)(void* user, uint32_t series, int32_t value);
     void (*set_history_queue_length)(void* user, uint32_t series, uint32_t length);
@@ -716,7 +720,8 @@ typedef struct fc4_landvalue_host {
     float (*min_allowed_height)(void* user);
     float (*max_allowed_height)(void* user);
     uint32_t (*zone_type)(void* user, int32_t x, int32_t z);
-    /* Lot developer GetAreaSlope({x1, z1, x2, z2}, true), inclusive cells. */
+    /* Lot developer GetAreaSlope({x1, z1, x2, z2}, true), inclusive cells;
+     * read-only in the original (landvalue.md §6, LV3). */
     float (*area_slope)(void* user, int32_t x1, int32_t z1, int32_t x2, int32_t z2);
     uint64_t (*developer)(void* user, uint32_t developer_type); /* growth developer or 0 */
     uint64_t (*desirability_map)(void* user, uint64_t developer); /* int16 grid (borrowed) or 0 */
@@ -734,6 +739,11 @@ typedef struct fc4_landvalue_host {
     void (*set_history_queue_length)(void* user, uint32_t series, uint32_t length);
     void (*record_history)(void* user, uint32_t series, int32_t value);
     void (*post)(void* user, uint32_t msg_type); /* type-only MessagePost */
+    /* Growth developer slot 10 GrowthAndDeclineListsAreValid (state < 17) of
+     * a developer: true while its desirability map cannot change
+     * (landvalue.md §7.4, LV2). Read by the land value shadow only; NULL =
+     * unknown. */
+    bool (*developer_lists_valid)(void* user, uint64_t developer);
 } fc4_landvalue_host;
 
 /* The tuning exemplar (§8). A NULL array means the property is absent (a
@@ -1175,10 +1185,13 @@ bool fc4_demand_sim_shutdown(fc4_demand_sim* s);
  * added; 0 if none. */
 uint64_t fc4_demand_sim_get_demand(fc4_demand_sim* s, uint32_t demand_id, uint32_t demand_index);
 void fc4_demand_sim_update_occupant_effects(fc4_demand_sim* s, uint32_t building_type, float old_pct, float new_pct);
-/* CalculateJobsPerUnitOfDemand: out = the 3 outputs (may be NULL), each
- * f32(percent) x 0.01f. The game's record is four floats: the plugin writes
+/* CalculateJobsPerUnitOfDemand: out = the 3 outputs (may be NULL), each the
+ * demand.md 4.1 link factor, percent x 0.01f (DQ12: rounded once below 2^31,
+ * twice from 2^31 up). The game's record is four floats: the plugin writes
  * them to jobs[1..3] and never touches jobs[0]. */
 void fc4_demand_sim_jobs_per_unit(const fc4_demand_sim* s, uint32_t demand_id, uint32_t demand_index, float* out);
+/* GetJobsBySensus (DQ10): (jobs[3] + jobs[2]) + jobs[1] times the supply,
+ * the low 32 bits of _ftol, no clamp; slot 9 returns it in EAX. */
 uint32_t fc4_demand_sim_jobs_by_census(const fc4_demand_sim* s, uint32_t census_type);
 float fc4_demand_sim_neutral_tax_rate(const fc4_demand_sim* s);
 /* GetLocalPopulationSummary: (key, value) in key order; returns the count. */
@@ -1995,6 +2008,11 @@ typedef struct fc4_flammability_host {
     void (*set_fire_cause)(void* user, uint32_t cause);
     /* messages: MessagePost with void1 = IGZUnknown = the simulator (§9). */
     void (*post)(void* user, uint32_t msg_type);
+    /* Plumbing slot 7 GetWateredGrid(): the published watered grid as a
+     * token (0 = none). Its object alternates at every plumbing pass
+     * (plumbing §2), so a change tells a pass ended (§6.5, FL5/FL6). Read by
+     * the flammability shadow only; NULL = not polled. */
+    uint64_t (*watered_grid)(void* user);
 } fc4_flammability_host;
 
 fc4_flammability* fc4_flammability_create(const fc4_flammability_host* host, uint64_t token, uint32_t wall_clock_seed,
@@ -2496,7 +2514,8 @@ size_t fc4_protection_shadow_unadjusted_grid(const fc4_protection* p, int16_t* o
  * fc4_crime_create seeds the generator with derive_seed(session_seed,
  * 0x6C09C3F6) (foundations §6.3); later objects share both. The original's
  * session value is cRZTime, u32 seconds since 1901-01-01 00:00 UTC
- * (time() + 2177452800, §9 / CQ5).
+ * (time() + 2177452800, §9 / CQ5), the value every clock-seeded generator
+ * shares (CQ21; fc4_core::rng::rz_time_from_unix).
  *
  * Threads (foundations §19): the game calls getters from a second thread while
  * the main thread is inside a call. The functions marked "any thread" read a
@@ -2588,8 +2607,9 @@ typedef struct fc4_crime_host {
      * instance) if that is missing and the language ID is not 0; copy the text
      * and detokenize it in place (skipped with no detokenizer). true: loaded,
      * the text went to the sink. false and text sent to the sink: the
-     * detokenizer returned false (the name keeps that text). false and nothing
-     * sent: no such LTEXT. The core replaces U+2022 itself (step 4). */
+     * detokenizer returned false. false and nothing sent: no such LTEXT. A
+     * failed load discards any text sent: the name is empty unless 0xAA12FCB0
+     * exists (CQ16). The core replaces U+2022 itself (step 4). */
     bool (*ltext)(void* user, uint32_t type_id, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx);
     /* residential and demand (§6.1, §6.2): three grid tokens, one reference each */
     void (*population_grids)(void* user, uint64_t* out3);
@@ -2615,8 +2635,9 @@ typedef struct fc4_crime_host {
     /* occupants and props (§6.10, §11.3, §11.6) */
     bool (*occupant_has_property)(void* user, uint64_t occ, uint32_t id);
     /* The raw storage of an array property (count x element size bytes, the
-     * variant's RefUint8 data whatever its type, no conversion; §6.10, CQ13);
-     * false if absent or not an array. */
+     * variant's RefUint8 data whatever its type, no conversion; §6.10, CQ13;
+     * a string is its stored bytes, "AB" gives m = 65, r = 66, CQ22); false
+     * if absent, a scalar or an object array (CQ22 [choice]). */
     bool (*occupant_property_bytes)(void* user, uint64_t occ, uint32_t id, fc4_bytes_sink sink, void* ctx);
     void (*occupant_position)(void* user, uint64_t occ, float* xyz);
     void (*occupants_in_box)(void* user, const float* min3, const float* max3, uint32_t kind,
@@ -2769,7 +2790,8 @@ typedef struct fc4_aura_lot {
     uint64_t building;
 } fc4_aura_lot;
 
-/* One (developer type, count) pair of GetPopulations (slot 54). */
+/* One (developer type, count) pair of GetPopulations (slot 54): every entry
+ * of every map, counts of 0 included (aura.md 6.5.1). */
 typedef void (*fc4_aura_population_sink)(void* ctx, uint32_t developer_type, int32_t count);
 
 /* What any thread may read: slots 8-10 and the four grid tokens of slots
@@ -2821,6 +2843,8 @@ typedef struct fc4_aura_host {
     bool (*lot_next)(void* user, uint64_t it, fc4_aura_lot* out, fc4_aura_population_sink sink, void* ctx);
     void (*lot_iterator_release)(void* user, uint64_t it);
     bool (*lot_at)(void* user, int32_t x, int32_t z, fc4_aura_lot* out); /* GetLot(x, z, false) */
+    /* GetLandValueType(x, z); negative = no land value simulator (aura.md 6.5.1,
+     * AU10: the value/wealth term is skipped); NULL reads as none */
     int32_t (*land_value_type)(void* user, int32_t x, int32_t z);
     /* occupants */
     bool (*occupant_has_property)(void* user, uint64_t occ, uint32_t id);
@@ -2875,15 +2899,21 @@ bool fc4_aura_read(fc4_aura* p, const fc4_istream* in);         /* §11.3; Read 
 
 /* ---- aura shadow (tooling; engine/capi/src/aura_shadow.rs) -----------------
  *
- * With the ORIGINAL aura simulator running: at its cycle-completed message
- * (0x2A09B21A, the end of state 17) the plugin captures its record (its own
- * Write into memory: primitives little-endian, references as u32 index + 1
- * (0 = null) then u32 class ID, each object listed once with its grid token)
- * and FreeCity4's cycle runs on it, from the previous record's base and
- * transient grids, reading every other input live through a read-only host
- * table (write callbacks NULL; grids: geometry and get only). Compared tract
- * by tract: base and aura grids (and park map, landmark map, transient), the
- * mayor rating, best / worst, hotspots. The riot roll is not compared. */
+ * With the ORIGINAL aura simulator running, FreeCity4's pipeline follows it
+ * step by step (aura.md §14.3). The plugin reads the original's state (s32
+ * at +0x70) before and after each SimIdle / SimNewDay / SimNewMonth delivery
+ * to its agent; when it moved, fc4_aura_shadow_step runs our steps from..to-1
+ * at once (a return to 0: to the end of our cycle), reading every input live
+ * through a read-only host table (write callbacks NULL; grids: geometry and
+ * get only). Occupant inserted / removed reach ours when the original
+ * receives them (fc4_aura_shadow_occupant). When the original's state
+ * returns to 0 the plugin captures its record (its own Write into memory:
+ * primitives little-endian, references as u32 index + 1 (0 = null) then u32
+ * class ID, each object listed once with its grid token) and
+ * fc4_aura_shadow_cycle compares it tract by tract with ours (base, aura,
+ * park map, landmark map, transient; the work grid after each step 5..13;
+ * mayor rating, best / worst, hotspots); ours then restarts from the record.
+ * The riot roll is not compared. */
 typedef struct fc4_aura_shadow fc4_aura_shadow;
 
 typedef struct fc4_aura_capture_ref {
@@ -2904,22 +2934,45 @@ typedef struct fc4_aura_capture {
 typedef struct fc4_aura_shadow_stats {
     uint32_t struct_size;
     uint32_t cycles, compared, clean, incomplete;
-    int32_t last_mismatches; /* base + aura + rating differences of the last cycle; -1 = not compared */
+    int32_t last_mismatches; /* fc4_aura_shadow_cycle's result for the last cycle; -1 = not compared */
     uint32_t rating_mismatches;
-    uint32_t reserved;
+    uint32_t desynced; /* compared cycles in which our state did not follow the original's */
     uint64_t tracts, base_mismatches, aura_mismatches;
-    uint64_t aura_transient; /* aura differences in tracts that got a transient effect */
+    uint64_t aura_transient; /* aura differences in tracts whose final transient differs */
 } fc4_aura_shadow_stats;
+
+/* One move of the original's state, in one delivery to its agent (ABI 30). */
+typedef struct fc4_aura_shadow_step_in {
+    uint32_t struct_size;
+    int32_t from, to;   /* the original's state before / after (0..17) */
+    int32_t julian;     /* the current date */
+    uint64_t work_grid; /* the original's work grid (+0x44) as cISC4SimGrid<int8>, borrowed; 0 = not compared */
+} fc4_aura_shadow_step_in;
 
 /* `cells_x` / `cells_z`: the city's cell counts; `max_cells`: differing tracts
  * listed per grid and line (0 = 4, at most 64). */
 fc4_aura_shadow* fc4_aura_shadow_create(const fc4_aura_host* host, int32_t cells_x, int32_t cells_z,
                                         uint32_t max_cells);
 void fc4_aura_shadow_destroy(fc4_aura_shadow* s);
-/* City load (PostCityInit): the record becomes the first baseline. One line. */
+/* City load (PostCityInit): ours starts from the record (Read, then Init:
+ * state 1, as the original's), with a fresh tax baseline. One line. */
 bool fc4_aura_shadow_baseline(fc4_aura_shadow* s, const fc4_aura_capture* capture, fc4_bytes_sink sink, void* ctx);
-/* A completed original cycle: compare, one line; the record becomes the next
- * baseline. Returns the differences, -1 when nothing was compared. */
+/* ABI 30. Before a delivery that finds the original in `state`: for 15 and
+ * 17 (they read the transient grid; 17 decays it) the original's transient
+ * grid (GetTransientAuraGrid, borrowed) is copied into ours. True when copied. */
+bool fc4_aura_shadow_before_step(fc4_aura_shadow* s, int32_t state, uint64_t transient_grid);
+/* ABI 30. The original's state moved: our steps from..to-1 run now (to 0: to
+ * the end of our cycle), and our work grid is compared after a step 5..13.
+ * Returns our pipeline calls, -1 when nothing ran. */
+int32_t fc4_aura_shadow_step(fc4_aura_shadow* s, const fc4_aura_shadow_step_in* step);
+/* ABI 30. The original received occupant inserted (`inserted`) or removed:
+ * ours receives the same. False when there is no simulator of ours yet. */
+bool fc4_aura_shadow_occupant(fc4_aura_shadow* s, uint64_t occupant, bool inserted);
+/* The original's state returned to 0: the cycle followed is compared with
+ * its record, one line; ours then restarts from the record (state 0).
+ * Returns the differences (base + aura + park map + landmark map + transient
+ * tracts, work cells, one each for the rating, best / worst and hotspots),
+ * -1 when nothing was compared. */
 int32_t fc4_aura_shadow_cycle(fc4_aura_shadow* s, const fc4_aura_capture* capture, int32_t julian,
                               fc4_bytes_sink sink, void* ctx);
 bool fc4_aura_shadow_get_stats(fc4_aura_shadow* s, fc4_aura_shadow_stats* out);
@@ -3098,15 +3151,21 @@ typedef struct fc4_flora_host {
     void (*occupants_in_cells)(void* user, const fc4_cell_rect* rect, uint32_t occ_type, fc4_token_callback cb,
                                void* ctx);
     void (*occupants_in_manager_cells)(void* user, uint32_t occ_type, fc4_token_callback cb, void* ctx);
-    /* obliteration segment (§10.3) */
-    bool (*segment_write_u32)(void* user, uint64_t seg, uint32_t type, uint32_t group, uint32_t instance,
-                              uint32_t value);
-    bool (*segment_read_u32)(void* user, uint64_t seg, uint32_t type, uint32_t group, uint32_t instance,
-                             uint32_t* out);
-    bool (*segment_write_occupant)(void* user, uint64_t seg, uint32_t type, uint32_t group, uint32_t instance,
-                                   uint64_t occ);
-    uint64_t (*segment_read_flora_occupant)(void* user, uint64_t seg, uint32_t type, uint32_t group,
-                                            uint32_t instance);
+    /* obliteration segment (§10.3, ABI 30): QueryInterface for cISC4DBSegment,
+     * then OpenOStream(key, &s, true) (`write`) or OpenIStream(key, &s); the
+     * stream token, 0 = not open. The core puts / gets each record's u16
+     * version itself. */
+    uint64_t (*segment_open)(void* user, uint64_t seg, uint32_t type, uint32_t group, uint32_t instance,
+                             bool write);
+    void (*segment_close)(void* user, uint64_t stream); /* Close*Stream, then both references released */
+    bool (*stream_put_u16)(void* user, uint64_t stream, uint16_t v);
+    bool (*stream_put_u32)(void* user, uint64_t stream, uint32_t v);
+    bool (*stream_get_u16)(void* user, uint64_t stream, uint16_t* out); /* false: failed, *out untouched */
+    bool (*stream_get_u32)(void* user, uint64_t stream, uint32_t* out);
+    bool (*stream_error)(void* user, uint64_t stream); /* GetError() != 0 */
+    /* the occupant's cIGZSerializable::Write / Read on the stream */
+    bool (*write_occupant)(void* user, uint64_t occ, uint64_t stream);
+    bool (*read_occupant)(void* user, uint64_t occ, uint64_t stream);
 } fc4_flora_host;
 
 /* The registry (one per process; the host table is copied). */
@@ -3114,7 +3173,8 @@ fc4_flora_registry* fc4_flora_registry_create(const fc4_flora_registry_host* hos
 void fc4_flora_registry_destroy(fc4_flora_registry* r); /* the simulators keep theirs alive */
 /* Any thread: */
 uint64_t fc4_flora_registry_record(const fc4_flora_registry* r, uint32_t type_id); /* slot 7; 0 = none */
-bool fc4_flora_registry_is_type_valid(const fc4_flora_registry* r, uint32_t type_id);   /* slot 11 */
+/* Slot 11; 0 is valid after an Init, invalid after an exemplar-change reload until the next Init (FQ14). */
+bool fc4_flora_registry_is_type_valid(const fc4_flora_registry* r, uint32_t type_id);
 bool fc4_flora_registry_is_family_valid(const fc4_flora_registry* r, uint32_t id);      /* slot 12 */
 /* Slot 9: NULL buffer: *count := N; else copies min(*count, N) and stores it. */
 uint32_t fc4_flora_registry_types_into(const fc4_flora_registry* r, uint32_t* buffer, uint32_t* count);
@@ -3465,7 +3525,7 @@ typedef struct fc4_landvalue_shadow_stats {
     int32_t last_mismatches; /* -1 = not compared */
     uint32_t intrinsic_mismatches, total_mismatches, slope_mismatches, type_mismatches, scalar_mismatches;
     uint32_t desirability_reruns;  /* passes compared with a developer's previous desirability map */
-    uint32_t desirability_changes; /* map changes seen by note_day */
+    uint32_t desirability_changes; /* snapshot changes (note_day and after each comparison; LV2) */
 } fc4_landvalue_shadow_stats;
 
 /* `host`: only its read callbacks are called (create_grid, the writes,
@@ -3475,8 +3535,12 @@ typedef struct fc4_landvalue_shadow_stats {
 fc4_landvalue_shadow* fc4_landvalue_shadow_create(const fc4_landvalue_host* host, const fc4_landvalue_tuning* tuning,
                                                   uint32_t max_cells);
 void fc4_landvalue_shadow_destroy(fc4_landvalue_shadow* s);
-/* SimNewDay: notes each listed developer's desirability map (read-only);
- * returns how many changed since the previous note. */
+/* SimNewDay: snapshots each listed developer's desirability map (read-only)
+ * while its slot 10 (host->developer_lists_valid) is true or unknown, so the
+ * snapshot before a change is the map from before the developer's last
+ * state-17 copy (landvalue.md §7.4, LV2); returns how many snapshots
+ * changed. Our pass applies the developers in ascending pointer order, as
+ * the original does (LV1). */
 uint32_t fc4_landvalue_shadow_note_day(fc4_landvalue_shadow* s);
 /* The end of an original pass: one line to `sink`. Returns the differences,
  * -1 when nothing was compared (INCOMPLETE). */
@@ -3540,11 +3604,16 @@ typedef struct fc4_flammability_shadow_stats {
 fc4_flammability_shadow* fc4_flammability_shadow_create(const fc4_flammability_host* host, uint32_t max_cells);
 void fc4_flammability_shadow_destroy(fc4_flammability_shadow* s);
 /* One of the original's six messages; false when not mirrored (no baseline
- * yet, or another type). */
+ * yet, or another type). Every call (any type, e.g. the plumbing pass end
+ * WaterMapChanged 0x6946DC34) first polls host->watered_grid: a changed
+ * pointer means a plumbing pass ended, and the tracts whose watered state
+ * changed are marked for the cycle (§6.5, FL5/FL6). */
 bool fc4_flammability_shadow_message(fc4_flammability_shadow* s, const fc4_flammability_message* m);
 /* The original's cycle end: the first (or after a new simulator) is the
- * baseline; later ones are compared. One line. Returns the differences, -1
- * when nothing was compared. */
+ * baseline; later ones are compared (after a poll of host->watered_grid; a
+ * tract marked by a pass in the cycle may hold its value under either
+ * watered state). One line. Returns the differences, -1 when nothing was
+ * compared. */
 int32_t fc4_flammability_shadow_cycle(fc4_flammability_shadow* s, const fc4_flammability_original* orig,
                                       int32_t julian, fc4_bytes_sink sink, void* ctx);
 /* The counters as the last call that finished left them (callable from the
@@ -3765,8 +3834,10 @@ bool fc4_residential_read(fc4_residential* p, const fc4_istream* in); /* §9.2; 
 bool fc4_residential_end_strike(fc4_residential* p, bool school);
 float fc4_residential_strike_chance(const fc4_residential* p, bool school); /* 10 / 11 */
 float fc4_residential_system_rating(const fc4_residential* p, bool school); /* 12 / 13 */
-/* 14 / 15: adds the counted buildings' fields to `totals` (in/out) and
- * returns their number; `groups` NULL = no group. */
+/* 14 / 15 (REH §4.11, EH12): resets `totals` +0x14..+0x28 (in/out; the rest
+ * untouched), adds the query fields of every building that has one of
+ * `groups`, whatever its query returned, and returns their number; `groups`
+ * NULL = no group. */
 uint32_t fc4_residential_system_totals(const fc4_residential* p, bool school, const uint32_t* groups,
                                        uint32_t group_count, fc4_residential_query_data* totals);
 bool fc4_residential_set_occupant_funding(fc4_residential* p, uint64_t occ, float staff, float vehicle,
@@ -3777,7 +3848,8 @@ bool fc4_residential_get_occupant_funding(const fc4_residential* p, uint64_t occ
 /* 21 / 22: a NEW float grid per call handed out with one reference (0 = none);
  * `min` / `max` get the range (255 / 0 without a grid). */
 uint64_t fc4_residential_average_grid(const fc4_residential* p, bool is_eq, float* min, float* max);
-/* 26 / 27: the query record (in/out); false at the first missing field. */
+/* 26 / 27: the query record (in/out); false at the first missing field, with
+ * the fields read before it written (EH10). */
 bool fc4_residential_get_query_data(const fc4_residential* p, bool school, uint64_t occ, fc4_residential_query_data* data);
 bool fc4_residential_estimate_capacity(const fc4_residential* p, uint64_t occ, uint32_t* capacity,
                                        uint32_t* staff); /* 28: true */
@@ -4209,7 +4281,7 @@ static_assert(sizeof(fc4_tax_lot) == 24, "fc4_tax_lot layout");
 static_assert(sizeof(fc4_tax_scan) == 408, "fc4_tax_scan layout");
 static_assert(sizeof(fc4_grid_geometry) == 32, "fc4_grid_geometry layout");
 static_assert(sizeof(fc4_landvalue_state) == 56, "fc4_landvalue_state layout");
-static_assert(sizeof(fc4_landvalue_host) == (sizeof(void*) == 4 ? 92 : 184), "fc4_landvalue_host layout");
+static_assert(sizeof(fc4_landvalue_host) == (sizeof(void*) == 4 ? 96 : 192), "fc4_landvalue_host layout");
 static_assert(sizeof(fc4_landvalue_tuning) == (sizeof(void*) == 4 ? 72 : 128), "fc4_landvalue_tuning layout");
 static_assert(sizeof(fc4_weather_state) == 56, "fc4_weather_state layout");
 static_assert(sizeof(fc4_weather_host) == (sizeof(void*) == 4 ? 56 : 112), "fc4_weather_host layout");
@@ -4251,7 +4323,7 @@ static_assert(sizeof(fc4_plumbing_original) == (sizeof(void*) == 4 ? 28 : 56), "
 static_assert(sizeof(fc4_plumbing_shadow_stats) == 72, "fc4_plumbing_shadow_stats layout");
 static_assert(sizeof(fc4_flammability_message) == 24, "fc4_flammability_message layout");
 static_assert(sizeof(fc4_flammability_state) == 80, "fc4_flammability_state layout");
-static_assert(sizeof(fc4_flammability_host) == (sizeof(void*) == 4 ? 132 : 264), "fc4_flammability_host layout");
+static_assert(sizeof(fc4_flammability_host) == (sizeof(void*) == 4 ? 136 : 272), "fc4_flammability_host layout");
 static_assert(sizeof(fc4_pollution_budget_item) == 32, "fc4_pollution_budget_item layout");
 static_assert(sizeof(fc4_pollution_grid_stats) == 24, "fc4_pollution_grid_stats layout");
 static_assert(sizeof(fc4_pollution_state) == 408, "fc4_pollution_state layout");
@@ -4280,13 +4352,14 @@ static_assert(sizeof(fc4_aura_host) == (sizeof(void*) == 4 ? 176 : 352), "fc4_au
 static_assert(sizeof(fc4_aura_capture_ref) == 16, "fc4_aura_capture_ref layout");
 static_assert(sizeof(fc4_aura_capture) == (sizeof(void*) == 4 ? 24 : 40), "fc4_aura_capture layout");
 static_assert(sizeof(fc4_aura_shadow_stats) == 64, "fc4_aura_shadow_stats layout");
+static_assert(sizeof(fc4_aura_shadow_step_in) == 24, "fc4_aura_shadow_step_in layout");
 static_assert(sizeof(fc4_flora_record) == 360, "fc4_flora_record layout");
 static_assert(sizeof(fc4_flora_occupant) == 16, "fc4_flora_occupant layout");
 static_assert(sizeof(fc4_flora_param) == 8, "fc4_flora_param layout");
 static_assert(sizeof(fc4_flora_message) == (sizeof(void*) == 4 ? 40 : 56), "fc4_flora_message layout");
 static_assert(sizeof(fc4_flora_state) == 180, "fc4_flora_state layout");
 static_assert(sizeof(fc4_flora_registry_host) == (sizeof(void*) == 4 ? 20 : 40), "fc4_flora_registry_host layout");
-static_assert(sizeof(fc4_flora_host) == (sizeof(void*) == 4 ? 240 : 480), "fc4_flora_host layout");
+static_assert(sizeof(fc4_flora_host) == (sizeof(void*) == 4 ? 260 : 520), "fc4_flora_host layout");
 static_assert(sizeof(fc4_flora_census_entry) == 72, "fc4_flora_census_entry layout");
 static_assert(sizeof(fc4_flora_shadow_month_in) == (sizeof(void*) == 4 ? 56 : 96),
               "fc4_flora_shadow_month_in layout");

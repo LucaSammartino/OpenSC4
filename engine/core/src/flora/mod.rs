@@ -30,7 +30,11 @@
 //!   (foundations §12.6).
 //! - Pure helpers: [`elevation_index`], [`score_from_table`],
 //!   [`table_byte`], [`blocks_per_month`], [`scale_wild_seeds`],
-//!   [`blocks_flora`], [`boxes_intersect`].
+//!   [`blocks_flora`], [`boxes_intersect`], and the occupant manager's
+//!   64 m index as flora's queries see it (§6.4.2, §6.10.4; for hosts that
+//!   model the occupant manager and for the census shadow):
+//!   [`manager_cell`], [`manager_listing`], [`manager_query_cells`],
+//!   [`manager_query_returns`], [`cell_query_box`].
 //!
 //! The simulator keeps **no grid** (§2): flora lives in the occupant
 //! manager (occupant type `0x74758926`, the type the flammability simulator
@@ -112,8 +116,12 @@
 //!   (`ReleaseOccupantList`) and empties it. `Read` releases the references
 //!   of the list it clears; null or unresolvable references are not kept; a
 //!   failed iterator or generator read keeps the previous one.
-//! - Obliteration (§10.3): a missing count record restores nothing (true);
-//!   at most [`MAX_OBLITERATED`] records are read.
+//! - Obliteration (§10.3): at most [`MAX_OBLITERATED`] occupant records are
+//!   opened (the original has no bound). [question] An occupant whose record
+//!   does not open keeps flag 1 (it is cleared and set again only around its
+//!   `Write`); a restored occupant's record is closed right after its
+//!   `Read`, before `Init` and `InsertOccupant`; a count record whose
+//!   `GetUint32` fails leaves the count at 0.
 //! - Reference count: `Release` from a count ≤ 1 calls `Shutdown`, returns 0
 //!   and marks the object destroyed; the plugin then drops it (§1).
 //! - Interface returns: "AL only" slots return a clean bool (§11.1's own
@@ -338,6 +346,8 @@ pub const MAX_OBLITERATED: u32 = 1 << 24;
 pub type OccupantId = u64;
 /// An obliteration segment handle (a `cIGZPersistDBSegment*`).
 pub type SegmentId = u64;
+/// An open record stream of the obliteration segment (host handle, §10.3).
+pub type StreamId = u64;
 /// An inclusive cell rectangle `(x0, z0, x1, z1)` (`SC4Rect<long>`).
 pub type CellRect = (i32, i32, i32, i32);
 /// A box corner (x, y, z), world metres.
@@ -460,7 +470,7 @@ pub trait FloraHost {
     fn face_normal(&self, x: f32, z: f32) -> Vec3;
     /// `cISC4LotManager::GetLotSavvyTerrainAltitude(x, z, &onLot)`.
     fn lot_savvy_altitude(&self, x: f32, z: f32) -> (f32, bool);
-    /// `cISC4WeatherSimulator::GetMoistureType(x, z)` (all of EAX).
+    /// `cISC4WeatherSimulator::GetMoistureType(x, z)` (all of EAX, §6.2, FQ5).
     fn moisture_type(&self, x: f32, z: f32) -> u32;
 
     // ---- occupants ----
@@ -523,16 +533,29 @@ pub trait FloraHost {
     fn occupants_in_manager_cells(&self, occ_type: u32) -> Vec<OccupantId>;
 
     // ---- obliteration segment (§10.3) ----
-    /// Writes a record holding one `u32`.
-    fn segment_write_u32(&self, seg: SegmentId, key: ResKey, value: u32) -> bool;
-    /// Reads the `u32` of a record; `None` if it does not open.
-    fn segment_read_u32(&self, seg: SegmentId, key: ResKey) -> Option<u32>;
-    /// Writes the occupant's own serialized form (`cIGZSerializable::Write`)
-    /// into a record.
-    fn segment_write_occupant(&self, seg: SegmentId, key: ResKey, occ: OccupantId) -> bool;
-    /// If the record opens: a new `cSC4FloraOccupant` (one reference for the
-    /// caller) after its `Read` from the record (result ignored).
-    fn segment_read_flora_occupant(&self, seg: SegmentId, key: ResKey) -> Option<OccupantId>;
+    /// Opens record `key` of the segment: `QueryInterface` for
+    /// `cISC4DBSegment` (`0x499899DA`), then `OpenOStream(key, &s, true)`
+    /// (slot 8) when `write`, else `OpenIStream(key, &s)` (slot 5). `None`:
+    /// not open (the segment does not answer, or the key does not open). The
+    /// simulator puts or gets the record's `u16` version itself.
+    fn segment_open(&self, seg: SegmentId, key: ResKey, write: bool) -> Option<StreamId>;
+    /// `CloseOStream` / `CloseIStream` (slot 9 / 6), then both references
+    /// (the stream's and the segment interface's) released.
+    fn segment_close(&self, s: StreamId);
+    /// `PutUint16` (stream slot 7).
+    fn stream_put_u16(&self, s: StreamId, v: u16);
+    /// `PutUint32` (stream slot 9).
+    fn stream_put_u32(&self, s: StreamId, v: u32);
+    /// `GetUint16` (stream slot 7); `None` when the call fails.
+    fn stream_get_u16(&self, s: StreamId) -> Option<u16>;
+    /// `GetUint32` (stream slot 9); `None` when the call fails.
+    fn stream_get_u32(&self, s: StreamId) -> Option<u32>;
+    /// `GetError()` (stream slot 18) is non-zero (sticky).
+    fn stream_error(&self, s: StreamId) -> bool;
+    /// The occupant's own `cIGZSerializable::Write` on the stream.
+    fn write_occupant(&self, occ: OccupantId, s: StreamId) -> bool;
+    /// The occupant's own `cIGZSerializable::Read` from the stream.
+    fn read_occupant(&self, occ: OccupantId, s: StreamId) -> bool;
 }
 
 /// The draws the flora simulator makes from its `cRZRandom` (§8).
@@ -702,4 +725,86 @@ pub fn boxes_intersect(a: (Vec3, Vec3), b: (Vec3, Vec3)) -> bool {
     // "Not separated": `x >= y` is false for NaN, so NaN overlaps.
     let separated = |lo: f32, hi: f32| lo >= hi;
     (0..3).all(|i| !separated(a.0[i], b.1[i]) && !separated(b.0[i], a.1[i]))
+}
+
+// ---- the occupant manager's 64 m index (§6.4.2, FQ6, FQ15) ----------------------------------------
+
+/// The side of the occupant manager's index in cells (§6.4.2): 192 × 192
+/// cells of 64 m; city (0, 0) is cell (64, 64).
+pub const MANAGER_GRID: i32 = 192;
+
+/// `cell(p)` of the occupant manager's index (§6.4.2, slot 15):
+/// `rhe(f32(f32(p + 4096) × (1/64)) − 0.499f)`, every step a `float32`
+/// operation and `rhe` the original's idiom ([`crate::x87::rhe`]). That is
+/// `floor((p + 4096) / 64)`, except that a coordinate less than about
+/// 0.064 m below a 64 m line maps to the cell above the line.
+pub fn manager_cell(p: f32) -> i32 {
+    let s = (p + 4096.0f32) * 0.015625f32;
+    crate::x87::rhe(s - 0.499f32)
+}
+
+/// The cells `(x0, z0, x1, z1)` an occupant is listed in (§6.4.2,
+/// `InsertOccupant` / `MoveOccupant`), from its box at that moment: on x and
+/// on z separately, a box wider than 1 m (`max − min > 1.0`, `float32`) has
+/// both ends moved inwards by `0.1f` first. y plays no part. [question] The
+/// range is not clamped to the grid (an occupant outside it is listed in no
+/// cell a query reads).
+pub fn manager_listing(min: Vec3, max: Vec3) -> CellRect {
+    let inset = |lo: f32, hi: f32| {
+        if hi - lo > 1.0 {
+            (lo + 0.1f32, hi - 0.1f32)
+        } else {
+            (lo, hi)
+        }
+    };
+    let (x0, x1) = inset(min[0], max[0]);
+    let (z0, z1) = inset(min[2], max[2]);
+    (manager_cell(x0), manager_cell(z0), manager_cell(x1), manager_cell(z1))
+}
+
+/// The cells a box query reads (§6.4.2): both corners mapped to cells and
+/// clamped to `0..=191`.
+pub fn manager_query_cells(min: Vec3, max: Vec3) -> CellRect {
+    let c = |p: f32| manager_cell(p).clamp(0, MANAGER_GRID - 1);
+    (c(min[0]), c(min[2]), c(max[0]), c(max[2]))
+}
+
+/// Whether a box query `q` (occupant manager slot 36, §6.4.2) returns an
+/// occupant listed in `listed` ([`manager_listing`]) whose current box is
+/// `occ`: listed in one of the query's cells ([`manager_query_cells`]) and
+/// overlapping it strictly on x, y and z ([`boxes_intersect`]). The type
+/// filter, if any, is the caller's.
+pub fn manager_query_returns(listed: CellRect, occ: (Vec3, Vec3), q: (Vec3, Vec3)) -> bool {
+    let (qx0, qz0, qx1, qz1) = manager_query_cells(q.0, q.1);
+    let (lx0, lz0, lx1, lz1) = listed;
+    let meets = |a0: i32, a1: i32, b0: i32, b1: i32| a0 <= a1 && b0 <= b1 && a0 <= b1 && b0 <= a1;
+    meets(qx0, qx1, lx0, lx1) && meets(qz0, qz1, lz0, lz1) && boxes_intersect(occ, q)
+}
+
+/// The world box of a standard-city-cell query (§6.10.4, slot 40) for the
+/// cells `(x0, z0)..(x1, z1)` once the corners are settled:
+/// `(16·x0 + 0.1f, −FLT_MAX, 16·z0 + 0.1f) … (16·(x1 + 1) − 0.1f, +FLT_MAX,
+/// 16·(z1 + 1) − 0.1f)`, each a `float32` add or subtract. A monthly
+/// block `(bx, bz)` is the cells `(2bx, 2bz)..(2bx + 1, 2bz + 1)` (§6.7.1).
+pub fn cell_query_box(cells: CellRect) -> (Vec3, Vec3) {
+    let (x0, z0, x1, z1) = cells;
+    let lo = |c: i32| 16.0 * c as f32 + 0.1f32;
+    let hi = |c: i32| 16.0 * c.wrapping_add(1) as f32 - 0.1f32;
+    ([lo(x0), -f32::MAX, lo(z0)], [hi(x1), f32::MAX, hi(z1)])
+}
+
+/// The corners of `GetOccupantsByStandardCityCells` (§6.10.4) for a city of
+/// `cells` standard cells: null corners (`None`) are cell (0, 0) and
+/// `(nx, nz)` (not `n − 1`); given corners are clamped to `[0, n − 1]` per
+/// axis.
+pub fn standard_cell_corners(rect: Option<CellRect>, cells: (i32, i32)) -> CellRect {
+    let (nx, nz) = cells;
+    match rect {
+        None => (0, 0, nx, nz),
+        Some((x0, z0, x1, z1)) => {
+            let cx = |v: i32| v.min(nx - 1).max(0);
+            let cz = |v: i32| v.min(nz - 1).max(0);
+            (cx(x0), cz(z0), cx(x1), cz(z1))
+        }
+    }
 }

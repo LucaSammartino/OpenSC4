@@ -182,9 +182,12 @@ impl WaterPathFinder {
     }
 
     /// Updates the dirty rectangle from the surface water (§4.10.1), then
-    /// clears the flag. Only the in-map cells of the rectangle are asked
-    /// and written; an unclamped rectangle (TN15) can reach past the map
-    /// *[inferred: there is no depth byte to write there]*.
+    /// clears the flag. *[choice]* (TN24) Only the in-map cells of the
+    /// rectangle are asked and written; an unclamped rectangle (TN15) can
+    /// reach past the map. The original asks about every cell of it
+    /// (`IsNavigable` is false off the map) and writes 0 for each off-map
+    /// cell through the raw rows, an out-of-bounds heap write; in-map cells
+    /// get the same values either way.
     pub fn update(&mut self, host: &dyn NetworkHost) {
         if !self.dirty {
             return;

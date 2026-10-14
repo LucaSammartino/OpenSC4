@@ -2379,72 +2379,265 @@ int ProtectionShadowTest(const std::string& dll, const std::string& ini, const s
     return g_failures == 0 ? 0 : 1;
 }
 
-// ---- aura (aura.md): the replacement without a city, and the grid shadow (test seam op 14) ----------
+// ---- aura (aura.md): the replacement without a city, and the shadow (test seam ops 14 and 35) --------
 constexpr uint32_t kCLSID_Aura = 0x0990BDD8;
 constexpr uint32_t kIID_cISC4AuraSimulator = 0xC773E880;
 constexpr uint32_t kIID_cIGZMessageTarget2Aura = 0x452294AA;
+constexpr uint32_t kIID_cISC4SimGridAura = 0xC9BD939A;
+constexpr uint32_t kIID_cISC4OccupantAura = 0x26BB767E;
+constexpr uint32_t kCLSID_SimGridSint8 = 0x49B9E603;
+constexpr uint32_t kMsgOccupantInsertedAura = 0x99EF1142;
 
-// An "original" aura simulator whose record (its own Write, cIGZSerializable)
-// is the version alone (a uint16 9): no grid references, so the shadow takes
-// no baseline and reports each cycle INCOMPLETE without calling anything
-// else. The city answers GetAuraSimulator (compiled slot 51), CellWidthX / Z
-// (91, 92) and CellCountX / Z (93, 94); `noAura` returns null at 51, `ours`
-// our own simulator. Any other call aborts.
+// A game int8 grid (cISC4SimGrid<int8_t> slots 0-2, 10-17 and 22) and its
+// cIGZSerializable face for the record (slots 0-2 and 5).
+struct OaGrid {
+    void** vtbl;
+    int32_t tractSize, count;
+    int8_t v[64 * 64];
+};
+struct OaGridSer {
+    void** vtbl;
+    OaGrid* grid;
+};
+
+// An "original" aura simulator laid out as aura.md §14.3 gives it: the
+// cISC4AuraSimulator vtable at +0, its cIGZMessageTarget2 at +4 and
+// cIGZSerializable at +8; grids at +0x40 (aura), +0x44 (work), +0x48 (base)
+// and +0x4C (transient); the pipeline state at +0x70.
+struct OaObject {
+    void** vtbl;
+    void** mtVtbl;
+    void** serVtbl;
+    uint8_t pad0[0x40 - 0x0C];
+    OaGrid* aura;
+    OaGrid* work;
+    OaGrid* base;
+    OaGrid* transient;
+    uint8_t pad1[0x70 - 0x50];
+    int32_t state;
+    uint8_t pad2[0x98 - 0x74];
+};
+static_assert(offsetof(OaObject, mtVtbl) == 0x04 && offsetof(OaObject, serVtbl) == 0x08 &&
+                  offsetof(OaObject, aura) == 0x40 && offsetof(OaObject, work) == 0x44 &&
+                  offsetof(OaObject, transient) == 0x4C && offsetof(OaObject, state) == 0x70,
+              "the aura.md §14.3 layout");
+
+// The original's agent runs an empty city's cycle (§6.4): SimNewMonth 0 -> 1,
+// each SimIdle / SimNewDay 1 -> 2 -> 3 -> 4 -> 0. Its record (Write) is
+// version 9 with its aura, base and transient grids, the other references
+// null and everything else 0. The city answers GetAuraSimulator (compiled
+// slot 51), CellWidthX / Z (91, 92), CellCountX / Z (93, 94, 64 cells) and
+// PositionToCell (95, cell (0, 0)); GetLotManager (33), GetSimulator (50) and
+// GetBudgetSimulator (52) are null. `noAura` returns null at 51, `ours` our
+// own simulator. `occ` is an occupant without a property holder; `notOcc`
+// answers no interface. Any other call aborts.
 struct FakeOrigAura {
-    FakeVtable simVt, serVt, cityVt, noAuraVt, oursVt;
-    FakeObject sim{}, ser{}, city{}, noAura{}, ours{};
+    FakeVtable simVt, mtVt, serVt, cityVt, noAuraVt, oursVt, gridVt, gridSerVt, occVt, notOccVt;
+    OaObject sim{};
+    FakeObject city{}, noAura{}, ours{}, occ{}, notOcc{};
+    OaGrid aura{}, work{}, base{}, transient{};
+    OaGridSer auraSer{}, baseSer{}, transientSer{};
     void* ourSim = nullptr;
-    int refs = 1;
-    int writes = 0;
+    int refs = 1, gridRefs = 1, occRefs = 1;
+    int writes = 0, deliveries = 0;
 };
 
 FakeOrigAura* g_oa = nullptr;
 
-bool __fastcall OaQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, serializable)
-    if (out == nullptr || iid != GZIID_cIGZSerializable) return false;  // (the reference audit asks other IIDs)
-    *out = &g_oa->ser;
+bool __fastcall OaQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, agent, serializable)
+    if (out == nullptr) return false;
+    if (iid == GZIID_cIGZSerializable) {
+        *out = &g_oa->sim.serVtbl;
+    } else if (iid == kIID_cIGZMessageTarget2Aura) {
+        *out = &g_oa->sim.mtVtbl;
+    } else {
+        return false;  // (the reference audit asks other IIDs)
+    }
     ++g_oa->refs;
     return true;
 }
 uint32_t __fastcall OaAddRef(void*, void*) { return static_cast<uint32_t>(++g_oa->refs); }   // 1
 uint32_t __fastcall OaRelease(void*, void*) { return static_cast<uint32_t>(--g_oa->refs); }  // 2
-bool __fastcall OaWrite(void*, void*, cIGZOStream* s) {                                       // serializable 3
+void* __fastcall OaAuraGrid(void*, void*) { return g_oa->sim.aura; }                         // simulator 12
+void* __fastcall OaTransientGrid(void*, void*) { return g_oa->sim.transient; }               // simulator 13
+bool __fastcall OaDoMessage(void*, void*, cIGZMessage2* m) {                                 // agent 3
+    ++g_oa->deliveries;
+    int32_t& s = g_oa->sim.state;
+    if (m->GetType() == kMsgSimNewMonth) {
+        if (s == 0) s = 1;
+    } else if (s >= 1 && s <= 3) {
+        ++s;
+    } else if (s == 4) {
+        s = 0;  // no lots: the cycle ends (§6.4)
+    }
+    return true;
+}
+bool __fastcall OaWrite(void*, void*, cIGZOStream* s) {  // serializable 3 (§11.2)
     ++g_oa->writes;
-    return s->SetUint16(9);
+    s->SetUint16(9);
+    void* p = nullptr;
+    if (s->QueryInterface(kFC4_IID_cISC4DBSegmentOStream, &p) && p != nullptr) {
+        auto* db = static_cast<cFC4ISC4DBSegmentOStream*>(p);
+        // aura, park map, raw park, base, transient, building effect, landmark map
+        db->WriteGZSerializable(reinterpret_cast<cIGZSerializable*>(&g_oa->auraSer));
+        db->WriteGZSerializable(nullptr);
+        db->WriteGZSerializable(nullptr);
+        db->WriteGZSerializable(reinterpret_cast<cIGZSerializable*>(&g_oa->baseSer));
+        db->WriteGZSerializable(reinterpret_cast<cIGZSerializable*>(&g_oa->transientSer));
+        db->WriteGZSerializable(nullptr);
+        db->WriteGZSerializable(nullptr);
+        db->Release();
+    }
+    s->SetUint32(0);  // departments
+    s->SetSint32(0);  // unused rating
+    s->SetSint32(0);  // mayor rating
+    for (int i = 0; i < 2; ++i) {  // max, min: x, z, rating
+        s->SetSint32(0);
+        s->SetSint32(0);
+        s->SetSint16(0);
+    }
+    return s->SetUint32(0);  // hotspots
 }
 uint32_t __fastcall OaClsid(void*, void*) { return kCLSID_Aura; }  // serializable 5
 void* __fastcall OaCityAura(void*, void*) { return &g_oa->sim; }   // city 51
-void* __fastcall OaCityNoAura(void*, void*) { return nullptr; }    // city 51
+void* __fastcall OaCityNull(void*, void*) { return nullptr; }      // city 33, 50, 52; noAura 51
 void* __fastcall OaCityOurs(void*, void*) { return g_oa->ourSim; }  // city 51
 float __fastcall OaCellWidth(void*, void*) { return 16.0f; }       // city 91, 92
 uint32_t __fastcall OaCellCount(void*, void*) { return 64; }       // city 93, 94
+bool __fastcall OaPositionToCell(void*, void*, float, float, int* x, int* z) {  // city 95
+    *x = 0;
+    *z = 0;
+    return true;
+}
+bool __fastcall OgQi(void*, void*, uint32_t, void**) { return false; }                     // grid 0
+uint32_t __fastcall OgAddRef(void*, void*) { return static_cast<uint32_t>(++g_oa->gridRefs); }   // 1
+uint32_t __fastcall OgRelease(void*, void*) { return static_cast<uint32_t>(--g_oa->gridRefs); }  // 2
+int32_t __fastcall OgTractSize(OaGrid* g, void*) { return g->tractSize; }                      // 10
+int32_t __fastcall OgShift(OaGrid* g, void*) { return g->tractSize == 4 ? 2 : 0; }             // 11
+int32_t __fastcall OgCount(OaGrid* g, void*) { return g->count; }                              // 12, 13
+float __fastcall OgWidth(OaGrid* g, void*) { return 16.0f * static_cast<float>(g->tractSize); }  // 14, 15
+float __fastcall OgInvWidth(OaGrid* g, void*) { return 1.0f / (16.0f * static_cast<float>(g->tractSize)); }  // 16, 17
+int8_t __fastcall OgGet(OaGrid* g, void*, int32_t x, int32_t z) {  // 22
+    return (x >= 0 && x < g->count && z >= 0 && z < g->count) ? g->v[x * g->count + z] : 0;
+}
+bool __fastcall OgsQi(OaGridSer* self, void*, uint32_t iid, void** out) {  // grid serializable 0
+    if (out == nullptr || iid != kIID_cISC4SimGridAura) return false;
+    *out = self->grid;
+    ++g_oa->gridRefs;
+    return true;
+}
+uint32_t __fastcall OgsClsid(void*, void*) { return kCLSID_SimGridSint8; }  // grid serializable 5
+bool __fastcall OccQi(void* self, void*, uint32_t iid, void** out) {     // occupant 0
+    if (out == nullptr || iid != kIID_cISC4OccupantAura) return false;
+    *out = self;
+    ++g_oa->occRefs;
+    return true;
+}
+uint32_t __fastcall OccAddRef(void*, void*) { return static_cast<uint32_t>(++g_oa->occRefs); }   // 1
+uint32_t __fastcall OccRelease(void*, void*) { return static_cast<uint32_t>(--g_oa->occRefs); }  // 2
+void* __fastcall OccHolder(void*, void*) { return nullptr; }                                     // 6
+int32_t __fastcall OccType(void*, void*) { return 0; }                                           // 7
+bool __fastcall OccPosition(void*, void*, float* v) {                                            // 8
+    v[0] = v[1] = v[2] = 0.0f;
+    return true;
+}
+bool __fastcall NoQi(void*, void*, uint32_t, void**) { return false; }  // notOcc 0
+
+void InitOaGrid(OaGrid& g, FakeVtable& vt, int32_t tractSize, int8_t fill) {
+    g.vtbl = vt.slots.data();
+    g.tractSize = tractSize;
+    g.count = 64 / tractSize;
+    std::fill(std::begin(g.v), std::end(g.v), fill);
+}
 
 void InitFakeOrigAura(FakeOrigAura& o) {
     g_oa = &o;
-    for (FakeVtable* vt : {&o.simVt, &o.serVt}) {
+    for (FakeVtable* vt : {&o.simVt, &o.mtVt, &o.serVt}) {
         vt->slots[0] = reinterpret_cast<void*>(&OaQi);
         vt->slots[1] = reinterpret_cast<void*>(&OaAddRef);
         vt->slots[2] = reinterpret_cast<void*>(&OaRelease);
     }
+    o.simVt.slots[12] = reinterpret_cast<void*>(&OaAuraGrid);
+    o.simVt.slots[13] = reinterpret_cast<void*>(&OaTransientGrid);
+    o.mtVt.slots[3] = reinterpret_cast<void*>(&OaDoMessage);
     o.serVt.slots[3] = reinterpret_cast<void*>(&OaWrite);
     o.serVt.slots[5] = reinterpret_cast<void*>(&OaClsid);
     o.cityVt.slots[51] = reinterpret_cast<void*>(&OaCityAura);
+    for (int s : {33, 50, 52}) o.cityVt.slots[s] = reinterpret_cast<void*>(&OaCityNull);
     o.cityVt.slots[91] = reinterpret_cast<void*>(&OaCellWidth);
     o.cityVt.slots[92] = reinterpret_cast<void*>(&OaCellWidth);
     o.cityVt.slots[93] = reinterpret_cast<void*>(&OaCellCount);
     o.cityVt.slots[94] = reinterpret_cast<void*>(&OaCellCount);
-    o.noAuraVt.slots[51] = reinterpret_cast<void*>(&OaCityNoAura);
+    o.cityVt.slots[95] = reinterpret_cast<void*>(&OaPositionToCell);
+    o.noAuraVt.slots[51] = reinterpret_cast<void*>(&OaCityNull);
     o.oursVt.slots[51] = reinterpret_cast<void*>(&OaCityOurs);
+    o.gridVt.slots[0] = reinterpret_cast<void*>(&OgQi);
+    o.gridVt.slots[1] = reinterpret_cast<void*>(&OgAddRef);
+    o.gridVt.slots[2] = reinterpret_cast<void*>(&OgRelease);
+    o.gridVt.slots[10] = reinterpret_cast<void*>(&OgTractSize);
+    o.gridVt.slots[11] = reinterpret_cast<void*>(&OgShift);
+    o.gridVt.slots[12] = reinterpret_cast<void*>(&OgCount);
+    o.gridVt.slots[13] = reinterpret_cast<void*>(&OgCount);
+    o.gridVt.slots[14] = reinterpret_cast<void*>(&OgWidth);
+    o.gridVt.slots[15] = reinterpret_cast<void*>(&OgWidth);
+    o.gridVt.slots[16] = reinterpret_cast<void*>(&OgInvWidth);
+    o.gridVt.slots[17] = reinterpret_cast<void*>(&OgInvWidth);
+    o.gridVt.slots[22] = reinterpret_cast<void*>(&OgGet);
+    o.gridSerVt.slots[0] = reinterpret_cast<void*>(&OgsQi);
+    o.gridSerVt.slots[1] = reinterpret_cast<void*>(&OgAddRef);
+    o.gridSerVt.slots[2] = reinterpret_cast<void*>(&OgRelease);
+    o.gridSerVt.slots[5] = reinterpret_cast<void*>(&OgsClsid);
+    o.occVt.slots[0] = reinterpret_cast<void*>(&OccQi);
+    o.occVt.slots[1] = reinterpret_cast<void*>(&OccAddRef);
+    o.occVt.slots[2] = reinterpret_cast<void*>(&OccRelease);
+    o.occVt.slots[6] = reinterpret_cast<void*>(&OccHolder);
+    o.occVt.slots[7] = reinterpret_cast<void*>(&OccType);
+    o.occVt.slots[8] = reinterpret_cast<void*>(&OccPosition);
+    o.notOccVt.slots[0] = reinterpret_cast<void*>(&NoQi);
+    InitOaGrid(o.aura, o.gridVt, 4, 0);
+    InitOaGrid(o.work, o.gridVt, 1, -128);
+    InitOaGrid(o.base, o.gridVt, 4, -128);
+    InitOaGrid(o.transient, o.gridVt, 4, 0);
+    o.base.v[2 * 16 + 3] = 7;  // one tract with data
+    o.aura.v[2 * 16 + 3] = 7;
+    o.auraSer = {o.gridSerVt.slots.data(), &o.aura};
+    o.baseSer = {o.gridSerVt.slots.data(), &o.base};
+    o.transientSer = {o.gridSerVt.slots.data(), &o.transient};
     o.sim.vtbl = o.simVt.slots.data();
-    o.ser.vtbl = o.serVt.slots.data();
+    o.sim.mtVtbl = o.mtVt.slots.data();
+    o.sim.serVtbl = o.serVt.slots.data();
+    o.sim.aura = &o.aura;
+    o.sim.work = &o.work;
+    o.sim.base = &o.base;
+    o.sim.transient = &o.transient;
+    o.sim.state = 1;  // after Init (§4.1)
     o.city.vtbl = o.cityVt.slots.data();
     o.noAura.vtbl = o.noAuraVt.slots.data();
     o.ours.vtbl = o.oursVt.slots.data();
+    o.occ.vtbl = o.occVt.slots.data();
+    o.notOcc.vtbl = o.notOccVt.slots.data();
 }
 
-intptr_t AuraShadowOnce(FC4TestSeamFn seam, FakeObject* city, int32_t julian, bool baseline) {
-    FC4AuraShadowTestInput in{reinterpret_cast<cISC4City*>(city), julian, baseline ? 1u : 0u};
-    return seam(kFC4SeamAuraShadow, &in, nullptr);
+FC4AuraShadowDeliverInput AuraShadowInput(FakeObject* city, const void* vtable, uint32_t type = 0, int32_t julian = 0,
+                                          FakeObject* void1 = nullptr) {
+    FC4AuraShadowDeliverInput in{};
+    in.city = reinterpret_cast<cISC4City*>(city);
+    in.target = g_oa != nullptr ? reinterpret_cast<cIGZMessageTarget2*>(&g_oa->sim.mtVtbl) : nullptr;
+    in.vtable = vtable;
+    in.type = type;
+    in.julian = julian;
+    in.void1 = reinterpret_cast<cIGZUnknown*>(void1);
+    return in;
+}
+
+intptr_t AuraShadowLoad(FC4TestSeamFn seam, FakeObject* city, const void* vtable) {
+    const FC4AuraShadowDeliverInput in = AuraShadowInput(city, vtable);
+    return seam(kFC4SeamAuraShadow, const_cast<FC4AuraShadowDeliverInput*>(&in), nullptr);
+}
+
+intptr_t AuraShadowSend(FC4TestSeamFn seam, uint32_t type, int32_t julian, FakeObject* void1 = nullptr) {
+    const FC4AuraShadowDeliverInput in = AuraShadowInput(&g_oa->city, g_oa->sim.vtbl, type, julian, void1);
+    return seam(kFC4SeamAuraShadowDeliver, const_cast<FC4AuraShadowDeliverInput*>(&in), nullptr);
 }
 
 // The neutral answers without a city (§8: no grids, ratings 0).
@@ -2536,20 +2729,33 @@ int AuraEnableTest(const std::string& dll, const std::string& ini, const std::st
             CheckAuraNeutral(aura);
             // The shadow (test seam op 14) refuses our own simulator.
             orig.ourSim = aura;
-            CHECK(AuraShadowOnce(seam, &orig.ours, 0, true) == -1);
+            CHECK(AuraShadowLoad(seam, &orig.ours, orig.sim.vtbl) == -1);
             if (mt != nullptr) mt->Release();
             CHECK(aura->Shutdown());
             CHECK(aura->Release() == 0);
         }
         // The shadow on fake originals: no city, a city without an aura
-        // simulator, then the original whose record does not parse: no
-        // baseline (0), and the cycle compares nothing (-2).
-        CHECK(AuraShadowOnce(seam, nullptr, 0, true) == -1);
-        CHECK(AuraShadowOnce(seam, &orig.noAura, 0, true) == -1);
-        CHECK(AuraShadowOnce(seam, &orig.city, 0, true) == 0);
-        CHECK(AuraShadowOnce(seam, &orig.city, 2451576, false) == -2);  // 2000-02-01
-        CHECK(orig.writes == 2);
-        CHECK(orig.refs == 1);  // every QueryInterface released
+        // simulator, an original whose vtable is not the expected one (not
+        // followed), then one laid out as aura.md §14.3 gives it: ours starts
+        // from its record at city load and follows two empty-city cycles
+        // (§6.4) step by step, with occupant messages between them.
+        CHECK(AuraShadowLoad(seam, nullptr, orig.sim.vtbl) == -1);
+        CHECK(AuraShadowLoad(seam, &orig.noAura, orig.sim.vtbl) == -1);
+        static void* otherVtable[4] = {};
+        CHECK(AuraShadowLoad(seam, &orig.city, otherVtable) == -1);
+        CHECK(orig.writes == 0);
+        CHECK(AuraShadowLoad(seam, &orig.city, orig.sim.vtbl) == 1);
+        for (int32_t s : {2, 3, 4, 0}) CHECK(AuraShadowSend(seam, kMsgSimIdle, 2451576) == s);  // 2000-02-01
+        CHECK(AuraShadowSend(seam, kMsgSimIdle, 2451576) == 0);  // idle in state 0: no move
+        CHECK(AuraShadowSend(seam, kMsgOccupantInsertedAura, 0, &orig.notOcc) == 0);
+        CHECK(AuraShadowSend(seam, kMsgOccupantInsertedAura, 0, &orig.occ) == 1);
+        CHECK(AuraShadowSend(seam, kMsgSimNewMonth, 2451605) == 1);  // 2000-03-01
+        for (int32_t s : {2, 3, 4, 0}) CHECK(AuraShadowSend(seam, kMsgSimNewDay, 2451605) == s);
+        CHECK(orig.deliveries == 10);
+        CHECK(orig.writes == 3);  // the city load and the two cycle ends
+        CHECK(orig.refs == 1);    // every QueryInterface released
+        CHECK(orig.gridRefs == 1);
+        CHECK(orig.occRefs == 1);
     }
     FreeLibrary(hd);
     DeleteFileA(ini.c_str());
@@ -2566,13 +2772,26 @@ int AuraEnableTest(const std::string& dll, const std::string& ini, const std::st
     CHECK(text.find("aura shadow: ON") == std::string::npos);
     CHECK(text.find("aura shadow: inactive: the city's aura simulator is FreeCity4's own") != std::string::npos);
     CHECK(text.find("aura shadow: the city has no aura simulator; nothing compared") != std::string::npos);
+    CHECK(text.find("is NOT followed: its vtable is not the original's (compat table); nothing compared") !=
+          std::string::npos);
+    CHECK(text.find("aura shadow: following the original aura simulator ") != std::string::npos);
+    CHECK(text.find("): state 1 at +0x70; work grid diagnostic on (+0x44)") != std::string::npos);
     CHECK(text.find("aura shadow: comparing with the original aura simulator") != std::string::npos);
     CHECK(text.find("(city ") != std::string::npos && text.find("64 x 64 cells); differing tracts listed per grid: 4") !=
                                                           std::string::npos);
-    CHECK(text.find("aura shadow: no baseline at city load (the original's record did not parse); the first cycle "
-                    "only takes one") != std::string::npos);
-    CHECK(text.find("aura shadow 2000-02-01 cycle 1: INCOMPLETE (the original's record did not parse); the next "
-                    "cycle only takes a baseline") != std::string::npos);
+    CHECK(text.find("aura shadow: city load: ours starts from the original's record (Read, then Init: state 1): base "
+                    "1 of 256 tracts with data, transient 0 nonzero, 0 departments, 0 hotspots") != std::string::npos);
+    const std::string clean =
+        "tracts=256; base mismatches=0 max|d|=0; aura mismatches=0 max|d|=0; park map missing; landmark map missing; "
+        "transient mismatches=0 max|d|=0 (copied before states 15 and 17: 0 times); work after states 5-13: "
+        "-,-,-,-,-,-,-,-,-; mayor rating orig/ours=0/0; max orig/ours=0@(0,0)/0@(0,0); min orig/ours=0@(0,0)/0@(0,0); "
+        "hotspots orig/ours=0/0 (same); tax baseline: not taken (no tax-change curve); ended in state 4 (no lots: no "
+        "rating, no end message, ";
+    CHECK(text.find("aura shadow 2000-02-01 cycle 1 (followed states 1-4 over 0 days: 4 moves, 4 calls, 0 occupant "
+                    "messages): " + clean) != std::string::npos);
+    CHECK(text.find("aura shadow 2000-03-01 cycle 2 (followed states 1-4 over 0 days: 5 moves, 4 calls, 1 occupant "
+                    "messages): " + clean) != std::string::npos);
+    CHECK(CountOf(text, "; riot roll not compared (wall-clock RNG); inputs not available (neutral): tuning") == 2);
     CHECK(text.find("structured exception") == std::string::npos);
     CHECK(text.find("config: WARNING unknown key") == std::string::npos);
     CHECK(text.find("WARNING: released last reference") == std::string::npos);
@@ -2671,6 +2890,85 @@ intptr_t FloraShadowOnce(FC4TestSeamFn seam, FakeObject* city, FakeObject* targe
     return seam(kFC4SeamFloraShadow, &in, registry);
 }
 
+// An obliteration segment (flora §10.3, FQ3): the segment answers
+// cISC4DBSegment (0x499899DA) only; that interface opens one write stream
+// (slot 8) and closes it (slot 9); the stream keeps what its PutUint16 /
+// PutUint32 (slots 7 / 9) get, little-endian, and reports no error (slot 18).
+// `refs` starts with the caller's own reference. Any other call aborts.
+struct FakeSegment {
+    FakeVtable segVt, dbVt, outVt;
+    FakeObject seg{}, db{}, out{};
+    int refs = 1;
+    int opens = 0;
+    int closes = 0;
+    uint32_t key[3] = {};  // type, group, instance
+    std::vector<uint8_t> bytes;
+};
+
+FakeSegment* g_fseg = nullptr;
+
+bool __fastcall FsegQi(void* self, void*, uint32_t iid, void** out) {  // 0 (segment)
+    if (out == nullptr || self != &g_fseg->seg || iid != 0x499899DAu) return false;
+    *out = &g_fseg->db;
+    ++g_fseg->refs;
+    return true;
+}
+bool __fastcall FsegNoQi(void*, void*, uint32_t, void**) { return false; }                    // 0 (db, stream)
+uint32_t __fastcall FsegAddRef(void*, void*) { return static_cast<uint32_t>(++g_fseg->refs); }   // 1
+uint32_t __fastcall FsegRelease(void*, void*) { return static_cast<uint32_t>(--g_fseg->refs); }  // 2
+bool __fastcall FsegOpenO(void*, void*, const uint32_t* key, void** out, bool) {                // db 8
+    ++g_fseg->opens;
+    std::memcpy(g_fseg->key, key, sizeof(g_fseg->key));
+    *out = &g_fseg->out;
+    ++g_fseg->refs;
+    return true;
+}
+void __fastcall FsegCloseO(void*, void*, void*) { ++g_fseg->closes; }  // db 9
+bool __fastcall FsegPut16(void*, void*, uint16_t v) {                 // stream 7
+    for (int i = 0; i < 2; ++i) g_fseg->bytes.push_back(static_cast<uint8_t>(v >> (8 * i)));
+    return true;
+}
+bool __fastcall FsegPut32(void*, void*, uint32_t v) {  // stream 9
+    for (int i = 0; i < 4; ++i) g_fseg->bytes.push_back(static_cast<uint8_t>(v >> (8 * i)));
+    return true;
+}
+int32_t __fastcall FsegError(void*, void*) { return 0; }  // stream 18
+
+void InitFakeSegment(FakeSegment& s) {
+    g_fseg = &s;
+    for (FakeVtable* vt : {&s.segVt, &s.dbVt, &s.outVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&FsegNoQi);
+        vt->slots[1] = reinterpret_cast<void*>(&FsegAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&FsegRelease);
+    }
+    s.segVt.slots[0] = reinterpret_cast<void*>(&FsegQi);
+    s.dbVt.slots[8] = reinterpret_cast<void*>(&FsegOpenO);
+    s.dbVt.slots[9] = reinterpret_cast<void*>(&FsegCloseO);
+    s.outVt.slots[7] = reinterpret_cast<void*>(&FsegPut16);
+    s.outVt.slots[9] = reinterpret_cast<void*>(&FsegPut32);
+    s.outVt.slots[18] = reinterpret_cast<void*>(&FsegError);
+    s.seg.vtbl = s.segVt.slots.data();
+    s.db.vtbl = s.dbVt.slots.data();
+    s.out.vtbl = s.outVt.slots.data();
+}
+
+// A plugin's flora type filter (flora §11.1 slot 13, FQ9): slot 3 accepts one
+// type and records every type it is asked about. Any other call aborts (the
+// simulator takes no reference on it).
+struct FakeFloraFilter {
+    FakeVtable vt;
+    FakeObject obj{};
+    uint32_t accept = 0;
+    std::vector<uint32_t> asked;
+};
+
+FakeFloraFilter* g_ffilt = nullptr;
+
+bool __fastcall FfiltIncluded(void*, void*, uint32_t type) {  // 3
+    g_ffilt->asked.push_back(type);
+    return type == g_ffilt->accept;
+}
+
 // The calls that need a city do nothing without one (no occupant manager, no
 // terrain): nothing found, nothing planted, nothing removed.
 void CheckFloraNoCity(cISC4FloraSimulator* f) {
@@ -2689,7 +2987,7 @@ void CheckFloraNoCity(cISC4FloraSimulator* f) {
     const float mx[3] = {64.0f, 100.0f, 64.0f};
     CHECK(f->DemolishFloraInBoundingBox(mn, mx, 0));
     CHECK(f->GetCostOfOccupantDemolition(nullptr, 0) == 0);
-    CHECK(f->SaveObliterated(nullptr));  // logged once: not saved
+    CHECK(f->SaveObliterated(nullptr));  // no segment: nothing opens, true (§10.3)
 }
 
 int FloraEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
@@ -2788,6 +3086,32 @@ int FloraEnableTest(const std::string& dll, const std::string& ini, const std::s
             flora->GetAllFloraTypes(types, cap);
             CHECK(cap == 1 && types[0] == added.type);
             CheckFloraNoCity(flora);
+            // §10.3 (FQ3): without a city there are no occupants, so
+            // SaveObliterated writes the count record alone, u16 0 then u32 0,
+            // through the segment's cISC4DBSegment, closes it and releases
+            // both references.
+            static FakeSegment fseg;
+            InitFakeSegment(fseg);
+            CHECK(flora->SaveObliterated(reinterpret_cast<cIGZPersistDBSegment*>(&fseg.seg)));
+            CHECK(fseg.opens == 1 && fseg.closes == 1);
+            CHECK(fseg.key[0] == 0xC9BB3FC6u && fseg.key[1] == 0xC9BB3FC7u && fseg.key[2] == 1u);
+            CHECK((fseg.bytes == std::vector<uint8_t>{0, 0, 0, 0, 0, 0}));
+            CHECK(fseg.refs == 1);
+            // §11.1 slot 13 (FQ9): the map {0, added} in ascending order, each
+            // key asked of the filter's slot 3; the accepted count returned.
+            // (No game allocator here: the inserts fail, the count does not
+            // depend on them.)
+            static FakeFloraFilter filt;
+            g_ffilt = &filt;
+            filt.vt.slots[3] = reinterpret_cast<void*>(&FfiltIncluded);
+            filt.obj.vtbl = filt.vt.slots.data();
+            filt.accept = added.type;
+            intptr_t set[5] = {};  // an empty hash_set<uint32_t> (0x14 bytes)
+            CHECK(flora->GetFloraTypesByFilter(set[0], reinterpret_cast<cISC4FloraTypeFilter*>(&filt.obj)) == 1);
+            CHECK((filt.asked == std::vector<uint32_t>{0u, added.type}));
+            filt.accept = 0x12345678u;
+            CHECK(flora->GetFloraTypesByFilter(set[0], reinterpret_cast<cISC4FloraTypeFilter*>(&filt.obj)) == 0);
+            CHECK(flora->GetFloraTypesByFilter(set[0], nullptr) == 2);  // null: every key
             float score = -1.0f;
             CHECK(flora->GetBestFloraTypeForLocation(10.0f, 10.0f, score) == 0);
             // Days and a month without a city.
@@ -2845,7 +3169,7 @@ int FloraEnableTest(const std::string& dll, const std::string& ini, const std::s
     CHECK(text.find("flora Init -: flora=- (no census: no occupant manager)") != std::string::npos);
     CHECK(text.find("is not registered [choice]: the records are kept") != std::string::npos);
     CHECK(text.find("flora: no resource manager; no flora exemplars") != std::string::npos);
-    CHECK(text.find("flora: SaveObliterated(") != std::string::npos);
+    CHECK(text.find("flora: SaveObliterated(00000000) -> 1") != std::string::npos);
     CHECK(text.find("flora Shutdown (3 days, 2 months, ") != std::string::npos);
     CHECK(text.find("cFC4FloraSimulator destroyed") != std::string::npos);
     CHECK(text.find("flora shadow: requested (flora_shadow from FreeCity4.ini) but INACTIVE") != std::string::npos);
@@ -3808,6 +4132,7 @@ constexpr uint32_t kIID_cISC4SimGrid = 0xC9BD939A;
 constexpr uint32_t kIID_cISC4Lot = 0xE818FCED;
 constexpr uint32_t kMsgInsertOccupantFl = 0x99EF1142;
 constexpr uint32_t kMsgConditionChangedFl = 0xE99B3D4D;
+constexpr uint32_t kMsgWaterMapChangedFl = 0x6946DC34;  // the plumbing pass end (FL5/FL6)
 
 // A fake simulation grid (cISC4SimGrid<T>, simgrid.md): the geometry slots
 // (10-17) and GetTractValue (22), values x outer; AddRef / Release (1, 2)
@@ -4201,6 +4526,9 @@ int FlammabilityShadowTest(const std::string& dll, const std::string& ini, const
         CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgInsertOccupantFl) == 1);
         CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgConditionChangedFl, nullptr, &orig.notLot) == 1);
         CHECK(orig.notLotQi == 1);
+        // The plumbing pass end: polled (the fake city has no plumbing
+        // simulator: the published grid reads 0, no pass), not mirrored.
+        CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgWaterMapChangedFl) == 0);
         // 1. Clean.
         CHECK(FlShadowOnce(seam, &orig.city, 2451586, 1) == 0);  // 2000-02-11
         // 2. One wrong tract: adjusted (3, 4) became 9 although its raw value is 0.
@@ -4241,7 +4569,7 @@ int FlammabilityShadowTest(const std::string& dll, const std::string& ini, const
     CHECK(text.find("raw cells=64 mismatched=0 max|d|=0; adjusted cells=64 mismatched=0 max|d|=0") !=
           std::string::npos);
     CHECK(text.find("average orig/ours=0/0; multiplier orig/ours=1/1; hotspots orig/ours=0/0") != std::string::npos);
-    CHECK(text.find("events=2;") != std::string::npos);
+    CHECK(text.find("events=2; plumbing passes=0 (tracts whose watered state changed: 0);") != std::string::npos);
     CHECK(text.find("flammable getter cells=64 mismatched=0; mismatches=0; cycles=1 clean=1") != std::string::npos);
     CHECK(text.find("flammability shadow 2000-03-22 cycle 3: ") != std::string::npos);
     CHECK(text.find("adjusted cells=64 mismatched=1 max|d|=9") != std::string::npos);
@@ -5803,7 +6131,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 145): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 146): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -6612,6 +6940,11 @@ int main(int argc, char** argv) {
             put(3u, [&](cRZBaseVariant& v) { v.RefFloat32(f32s, 2); });
             put(4u, [&](cRZBaseVariant& v) { v.RefUint16(u16s, 1); });
             put(5u, [](cRZBaseVariant& v) { v.SetValUint8(100); });
+            char ab[2] = {'A', 'B'};
+            char a1[1] = {'A'};
+            put(7u, [&](cRZBaseVariant& v) { v.RefRZChar(ab, 2); });
+            put(8u, [&](cRZBaseVariant& v) { v.RefChar(ab, 2); });
+            put(9u, [&](cRZBaseVariant& v) { v.RefRZChar(a1, 1); });
             FC4RawArrayBytesTestIo io{};
             auto read = [&](uint32_t id) {
                 io = FC4RawArrayBytesTestIo{};
@@ -6629,6 +6962,12 @@ int main(int argc, char** argv) {
             CHECK(read(4) == 1 && io.len == 2 && io.bytes[0] == 0x64 && io.bytes[1] == 0x08);
             CHECK(read(5) == 0);  // [choice] a scalar: no bytes
             CHECK(read(6) == 0);  // absent
+            // CQ22: a string is its stored bytes, so "AB" gives m = 65, r = 66
+            // (RZChar and Char arrays alike).
+            CHECK(read(7) == 1 && io.len == 2 && io.bytes[0] == 65 && io.bytes[1] == 66);
+            CHECK(read(8) == 1 && io.len == 2 && io.bytes[0] == 65 && io.bytes[1] == 66);
+            // One character: one byte, which the core skips ([choice]).
+            CHECK(read(9) == 1 && io.len == 1 && io.bytes[0] == 65);
             CHECK(seam(kFC4SeamRawArrayBytes, nullptr, &io) == -1);
 
             // Test seam op 27. §13 (CQ3): lot GetCenter (slot 15) answers in the out
@@ -7649,11 +7988,11 @@ int main(int argc, char** argv) {
                     "residential EQ/HQ/LE=12.5000/34.2500/75\r\n") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 145 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 145 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 146 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 146 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 145): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 146): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);

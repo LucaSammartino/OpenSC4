@@ -31,6 +31,9 @@ enum class Direct : unsigned {
     MapU32Index,           // STLport map<uint32_t, 4-byte T>::operator[]: thiscall (const uint32_t*), pop 4,
                            //   EAX = the value's address (FC4GameMap.h)
     MapEraseSubtree,       // the same maps' subtree free: thiscall (node* top), pop 4 (FC4GameMap.h)
+    GlobalHeapFree,        // allocator C free (the game's operator delete): cdecl void (void*)
+                           //   (docs/abi/allocators.md; FC4SafeLotIterator.h frees the
+                           //   safe lot iterator's block with it)
     Count
 };
 
@@ -66,6 +69,10 @@ struct ExecutableVersion {
     uint32_t tractDeveloperVtableVA;
     uint32_t tractDeveloperGrowVA;
     uint32_t bdsVtableVA;
+    // The original aura simulator's cISC4AuraSimulator vtable (aura.md
+    // §12.1): the aura shadow reads the object's pipeline state (§14.3) only
+    // when its vtable is this one.
+    uint32_t auraSimulatorVtableVA;
 };
 
 // The running executable if it is a table entry loaded at its preferred base
@@ -120,6 +127,12 @@ const void* BuildingDevelopmentVtable();
 // executable is not identified or the address is not executable code inside
 // its image. Never guessed.
 uintptr_t DirectCall(Direct which);
+
+// The original aura simulator's cISC4AuraSimulator vtable (aura.md §12.1),
+// or nullptr (logged once) if the executable is not identified or the
+// address is not committed data inside its image whose first entry is code
+// inside the image. For the aura shadow's raw state read (§14.3).
+const void* AuraSimulatorVtable();
 
 // The compatibility table.
 const ExecutableVersion* SupportedVersions(int* count);

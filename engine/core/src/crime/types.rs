@@ -71,8 +71,11 @@ pub fn mask_of(h: &PropertyHolder, id: u32) -> u32 {
 /// slot 95) points at, `count × element size`, each element little-endian,
 /// whatever the element type (bool 1 byte, a pointer 4, as in the 32-bit
 /// game). No numeric conversion: `Uint32 {100, 8}` gives `64 00 00 00 08 00
-/// 00 00`, so m = 100, r = 0. [choice] `None` for a scalar (the original
-/// dereferences its value as a pointer), an object or an empty value.
+/// 00 00`, so m = 100, r = 0. A string (an `RZChar` array, tag `0x800C`
+/// in a file) is its stored bytes, so `"AB"` gives m = 65, r = 66 (CQ22).
+/// [choice] `None` for a scalar (the original dereferences its value as a
+/// pointer), an object or object array (the original reads the low bytes of
+/// an address; CQ22) or an empty value.
 pub fn raw_array_bytes(v: &Variant) -> Option<Vec<u8>> {
     let Variant::Array { items, .. } = v else {
         return None;
@@ -112,12 +115,11 @@ pub enum LtextLoad {
     /// The text was found, copied into the name and detokenized in place
     /// (the step is skipped with no detokenizer).
     Loaded(Vec<u8>),
-    /// The text was copied into the name, but the detokenizer returned
-    /// false: the load fails and the name holds the text the detokenizer
-    /// left. [choice] §7's steps read literally: step 3 has already copied
-    /// the text, so the `0xAA12FCB0` fallback replaces it only when that
-    /// property exists (spec question).
-    DetokenizeFailed(Vec<u8>),
+    /// The text was found and copied, but the detokenizer returned false:
+    /// the load fails and the copied text is discarded. A failure in step 2
+    /// or 3 empties the name (CQ16: `SC4LoadString`'s failure exit resizes
+    /// the string to 0), so the name is empty unless `0xAA12FCB0` exists.
+    DetokenizeFailed,
 }
 
 impl From<Option<Vec<u8>>> for LtextLoad {
@@ -130,8 +132,12 @@ impl From<Option<Vec<u8>>> for LtextLoad {
 /// The LTEXT key of a crime type's name (§7 step 1): values [1] and [2] of
 /// `0x8A416B2E` are the group and instance, [0] is ignored and the type is
 /// always [`NAME_LTEXT_TYPE`]. `None` (the load fails) when the property is
-/// missing or not numeric, or [choice] has fewer than 3 values (spec
-/// question; the original reads three).
+/// missing or not numeric. [choice] (CQ17) A value with fewer than 3
+/// elements, or a scalar, counts as missing: no lookup, the load fails. The
+/// original copies three `uint32` from the value's data pointer with no type
+/// or count check, so it reads past a short value (garbage, or a fault for a
+/// scalar) and its lookup almost always misses; this gives that usual
+/// outcome without reading past the data.
 pub fn name_ltext_key(h: &PropertyHolder) -> Option<ResKey> {
     props::u32s(h, prop::TYPE_NAME_KEY)
         .filter(|v| v.len() >= 3)
@@ -160,29 +166,21 @@ impl CrimeType {
     /// Builds a type from its exemplar (§7). `ltext` runs steps 2 and 3 of
     /// the name load for the key of [`name_ltext_key`] (CQ8).
     ///
-    /// Name: (1) the LTEXT key; (2)-(3) the host's lookup and detokenizer;
-    /// (4) U+2022 → U+200B. If the load fails, the string `0xAA12FCB0`
-    /// replaces the name when it exists; otherwise the name stays as the
-    /// load left it (empty for a new entry, §7).
+    /// Name: (0) the entry starts empty; (1) the LTEXT key; (2)-(3) the
+    /// host's lookup and detokenizer; (4) U+2022 → U+200B. A failed load
+    /// leaves the name **empty** in every case (CQ16: step 0 empties it, and
+    /// a failure in step 2 or 3 discards the copied text), and the string
+    /// `0xAA12FCB0` replaces it only when that property exists.
     pub fn from_exemplar(instance: u32, h: &PropertyHolder, ltext: &dyn Fn(ResKey) -> LtextLoad) -> CrimeType {
-        let mut name = Vec::new();
-        let loaded = match name_ltext_key(h).map(ltext) {
-            None | Some(LtextLoad::Missing) => false,
+        let name = match name_ltext_key(h).map(ltext) {
             Some(LtextLoad::Loaded(mut text)) => {
                 bullets_to_zero_width_spaces(&mut text);
-                name = text;
-                true
+                text
             }
-            Some(LtextLoad::DetokenizeFailed(text)) => {
-                name = text;
-                false
+            None | Some(LtextLoad::Missing | LtextLoad::DetokenizeFailed) => {
+                props::string_of(h, prop::TYPE_NAME).unwrap_or_default()
             }
         };
-        if !loaded {
-            if let Some(inline) = props::string_of(h, prop::TYPE_NAME) {
-                name = inline;
-            }
-        }
         let icon_values = props::u32s(h, prop::TYPE_ICON).unwrap_or_default();
         let part = |i: usize| icon_values.get(i).copied().unwrap_or(0);
         CrimeType {
@@ -495,12 +493,24 @@ mod tests {
         assert_eq!(arr(mem::UINT16, vec![Elem::U16(0x0864)]), [0x64, 0x08]);
         assert_eq!(arr(mem::BOOL, vec![Elem::Bool(true), Elem::Bool(false)]), [1, 0]);
         assert_eq!(raw_array_bytes(&Variant::string(b"ab")), Some(b"ab".to_vec()));
-        // Too short for {m, r}: the simulator skips it ([choice]).
+        // CQ22: a string gives the codes of its first two bytes.
+        let ab = raw_array_bytes(&Variant::string(b"AB")).unwrap();
+        assert_eq!((ab[0], ab[1]), (65, 66));
+        // Too short for {m, r}: the simulator skips it ([choice]), a
+        // one-character string included (CQ22).
         assert_eq!(arr(mem::UINT8, vec![Elem::U8(100)]), [100]);
         assert!(arr(mem::UINT8, vec![]).is_empty());
-        // Scalars, objects and empty values: none ([choice]).
+        assert_eq!(raw_array_bytes(&Variant::string(b"A")), Some(vec![65]));
+        // Scalars, objects and empty values: none ([choice]; CQ22 for an
+        // object value, whose storage is an address in the original).
         assert_eq!(raw_array_bytes(&Variant::Scalar(Elem::U8(100))), None);
         assert_eq!(raw_array_bytes(&Variant::Scalar(Elem::U32(0x0864))), None);
+        assert_eq!(raw_array_bytes(&Variant::Object(crate::stream::RefValue::Null)), None);
+        let host = crate::stream::RefValue::Host {
+            token: 0x1234,
+            class_id: 7,
+        };
+        assert_eq!(raw_array_bytes(&Variant::Object(host)), None);
         assert_eq!(raw_array_bytes(&Variant::Empty), None);
     }
 
@@ -591,13 +601,13 @@ mod tests {
         let bullets = "a\u{2022}b\u{2022}\u{2022}".as_bytes().to_vec();
         let t = CrimeType::from_exemplar(1, &h, &|_| LtextLoad::Loaded(bullets.clone()));
         assert_eq!(t.name, "a\u{200B}b\u{200B}\u{200B}".as_bytes());
-        // The detokenizer returned false: the load fails; with no 0xAA12FCB0
-        // the name keeps the copied text, unreplaced ([choice]).
-        let t = CrimeType::from_exemplar(1, &h, &|_| LtextLoad::DetokenizeFailed(bullets.clone()));
-        assert_eq!(t.name, bullets);
+        // CQ16: the detokenizer returned false: the load fails and the
+        // copied text is discarded, so with no 0xAA12FCB0 the name is empty.
+        let t = CrimeType::from_exemplar(1, &h, &|_| LtextLoad::DetokenizeFailed);
+        assert!(t.name.is_empty());
         // With 0xAA12FCB0 the fallback replaces it.
         h.add(prop::TYPE_NAME, Variant::string(b"inline"));
-        let t = CrimeType::from_exemplar(1, &h, &|_| LtextLoad::DetokenizeFailed(bullets.clone()));
+        let t = CrimeType::from_exemplar(1, &h, &|_| LtextLoad::DetokenizeFailed);
         assert_eq!(t.name, b"inline");
         // The inline string is read only when the load fails.
         let t = CrimeType::from_exemplar(1, &h, &|_| LtextLoad::Loaded(b"ltext".to_vec()));
@@ -614,6 +624,18 @@ mod tests {
         assert_eq!(name_ltext_key(&short), None);
         let t = CrimeType::from_exemplar(1, &short, &|_| panic!("no lookup without a key"));
         assert_eq!(t.name, b"inline");
+        // CQ17 [choice]: one value or a scalar counts as missing too, and
+        // with no 0xAA12FCB0 the name stays empty.
+        for key in [
+            Variant::array(mem::UINT32, vec![Elem::U32(1)]),
+            Variant::Scalar(Elem::U32(0x0A55_4AE0)),
+        ] {
+            let mut short = PropertyHolder::new();
+            short.add(prop::TYPE_NAME_KEY, key);
+            assert_eq!(name_ltext_key(&short), None);
+            let t = CrimeType::from_exemplar(1, &short, &|_| panic!("no lookup without a key"));
+            assert!(t.name.is_empty());
+        }
         // Other bytes stay, a cut-off sequence too.
         let mut v = vec![0xE2, 0x80, 0xA2, 0xE2, 0x80];
         bullets_to_zero_width_spaces(&mut v);

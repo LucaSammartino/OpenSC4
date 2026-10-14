@@ -773,6 +773,39 @@ void TestCapacityRead() {
     CHECK(r.status == GameMapStatus::NullMap);
 }
 
+// ---- a lot's populations (aura.md §6.5.1: lot slot 54 returns the vector itself) ---------------------
+
+void TestLotPopulations() {
+    // aura.md §6.5.1 / test 5: {R$ 0, CS$ 40} and a second map {R$ 10}: the
+    // count-0 entry is kept, every map in vector order, each in key order.
+    std::vector<GameMapObject> maps(2);
+    InitMap(&maps[0]);
+    InitMap(&maps[1]);
+    PutU16(&maps[0], 0x3110, 40);
+    PutU16(&maps[0], 0x1010, 0);
+    PutU16(&maps[1], 0x1010, 10);
+    const void* lotVector[3] = {maps.data(), maps.data() + 2, maps.data() + 2};
+    fc4::GameCapacityRead r;
+    fc4::ReadGameMapVectorU16(lotVector, &r);
+    CHECK(r.status == GameMapStatus::Ok && r.maps == 2 && r.count == 3);
+    CHECK(r.entries[0].map == 0 && r.entries[0].devType == 0x1010 && r.entries[0].amount == 0);
+    CHECK(r.entries[1].map == 0 && r.entries[1].devType == 0x3110 && r.entries[1].amount == 40);
+    CHECK(r.entries[2].map == 1 && r.entries[2].devType == 0x1010 && r.entries[2].amount == 10);
+
+    // A lot with no maps (never pushed), and no vector at all.
+    const void* none[3] = {nullptr, nullptr, nullptr};
+    fc4::ReadGameMapVectorU16(none, &r);
+    CHECK(r.status == GameMapStatus::Ok && r.maps == 0 && r.count == 0);
+    fc4::ReadGameMapVectorU16(nullptr, &r);
+    CHECK(r.status == GameMapStatus::NullMap && r.count == 0);
+
+    // A corrupt map: nothing.
+    maps[1].count = 3;
+    fc4::ReadGameMapVectorU16(lotVector, &r);
+    CHECK(r.status == GameMapStatus::CountMismatch && r.badMap == 1 && r.count == 0);
+    maps[1].count = 1;
+}
+
 }  // namespace
 
 int main() {
@@ -784,6 +817,7 @@ int main() {
     TestCorrupt();
     TestFillRefuses();
     TestCapacityRead();
+    TestLotPopulations();
     CHECK(g_badFrees == 0);
     ReleaseAllBlocks();
     if (g_failures != 0) {

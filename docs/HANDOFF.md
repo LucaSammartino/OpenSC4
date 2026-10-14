@@ -134,14 +134,18 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   shadow's scalars are identical on every state-0 line; only the proximity states 1–3 differ (RG23).
 >   **`lvrefs` merged** (`32d9d84`): land value and ordinance release the references a save handed over as ours;
 >   SV1–SV2 filed. **Run 91 (save → reload again)**: both runs clean, `ref_warnings=0` (run 88 had 3).
+>   **Merged since (2026-10-14, late morning):** `growprobe` (`393a529`; run 93 calibrated the growth budget:
+>   unlimited), `neighglue` (`50e2dc5`, ABI 28), `apply7b` (`c3dbe33`), `apply5` (`7f3c562`, ABI 30, 146 switches),
+>   `apply7a` (`29adf9a`). **Regress r50e2** (neighbours DLL `eeae4a5d`): every shadow clean, neighbours 89/89, but
+>   `enable = neighbors` crashed a month in. Our connection holder copied the property the traffic simulator adds and
+>   then writes in place (foundations §10.2 "Ownership", NG1 answered), and Init kept regional cities that ReloadCity
+>   had replaced (neighbors §14.1). The neighbours lane is fixing both on its branch; `tools/regress.ps1` already lists
+>   neighbours, so its replace half fails until that fix merges.
 > - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lanes in
 >   `.claude/worktrees/re-answers4`, `re-answers5`):
->   - **neighbours glue + shadow** (`cFC4NeighborsSimulator`, `neighbours_shadow`; ABI 28, seam op 33; renumber at
->     merge);
+>   - **neighbours fix** (merged lane, back on its branch): holder ownership and the ReloadCity re-fetch (r50e2);
 >   - **development glue + shadow** (BDS `0x8990BE7A` and the growth developers `0x0990C138` as one unit,
 >     `development_shadow`; ABI 29, seam op 34);
->   - **`apply5`**: AU1–AU15 (the aura shadow rebuilt on the original's state field, §14.3), EH1–EH14, FQ1–FQ15 (the
->     64 m index query of FQ15, inherited flora properties); ABI 30 / seam op 35 if needed;
 >   - **zones glue, phase 1** (`cFC4ZoneManager` replacement + `zones_shadow`; the zone developer / lot manager stays
 >     original; ABI 34, seam op 38);
 >   - **growth probe: merged** (`393a529`, seam op 39; DLL `83897a4b`). Run 93 (all original, 14,339 days):
@@ -151,15 +155,10 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >     unavoidable);
 >   - **`apply6b`**: PW1–PW8, PS1–PS8, LG1–LG20 into the power, plumbing and landfill cores, glue and shadows (the
 >     PW8/PW3/PS4/PS8 shadow comparisons; LG2/LG3 landfill texture and tile exemplar; ABI 33, seam op 37 if needed);
->   - **`apply7a`**: RG23 (the proximity seed writes only the z = 0 edge), RG17, BQ3 (the budget total lot by lot),
->     DQ10–DQ12, LV1–LV4 (the land value shadow sorts the developers by pointer), FL1–FL6 (the flammability mirror
->     accepts either watered state); ABI 35 / seam op 40 if needed;
 >   - RE `re-answers7` (RG1–RG22 except RG17, PR14–PR16, PG15, DQ13, SV1–SV2, TN26–TN28, ZQ11–ZQ12, LF6, NB18,
 >     EX21–EX33). Merged RE lanes: `re-answers4` (`79d619c`; `docs/abi` rows `83aa768`), `re-answers5` (`fdc6893`;
 >     rows `a9eef99`), `re-answers6` (`d9db98f`: LV, FL, DQ10–12, RG23, RG17, BQ3, CQ16–22, TN21–25, HG1, the crime
 >     errata; row `bbee494`).
->   - **`apply7b`**: CQ16–CQ22 (the clock-seed helper moves to `rng.rs`), the crime errata, TN21–TN25, HG1; ABI 36 /
->     seam op 41 if needed;
 >   - RE **`re-formats2`** (M6): a new `docs/specs/graphics-formats.md` for FSH textures and S3D models, with a survey
 >     of the shipped data and conformance tests (GF questions); then an `engine/formats` lane;
 >   - **Next to launch, M5 traffic glue phase 1** (prompt in the session scratchpad, `trafficglue-task.txt`): the

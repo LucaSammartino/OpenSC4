@@ -76,9 +76,13 @@ constexpr uint32_t kMsgConditionChanged = 0xE99B3D4D;
 // §9: posted by EndOfCycle, void1 = IGZUnknown = the simulator.
 constexpr uint32_t kMsgSimCycleComplete = 0x08F415FE;
 constexpr uint32_t kMsgPostCityShutdown = 0x26D31EC3;
-constexpr uint32_t kMessages[] = {kMsgInsertOccupant,   kMsgRemoveOccupant,    kMsgChangeOccupant,
-                                  kMsgSeasonChange,     kMsgOrdinanceUpdated,  kMsgConditionChanged,
-                                  kMsgSimCycleComplete, kMsgPostCityShutdown};
+// The plumbing pass end (plumbing.md §6.7 step 4, after the grid swap of
+// state 6): forwarded so the shadow polls the published watered grid once per
+// pass (flammability.md §6.5, FL5/FL6). Not one of the original's six.
+constexpr uint32_t kMsgWaterMapChanged = 0x6946DC34;
+constexpr uint32_t kMessages[] = {kMsgInsertOccupant,   kMsgRemoveOccupant,   kMsgChangeOccupant,
+                                  kMsgSeasonChange,     kMsgOrdinanceUpdated, kMsgConditionChanged,
+                                  kMsgSimCycleComplete, kMsgPostCityShutdown, kMsgWaterMapChanged};
 
 constexpr uint16_t kRecordVersion = 2;  // §10
 // The record's hotspot count is trusted up to this many (a tract each at most).
@@ -234,6 +238,15 @@ int32_t IsCellWatered(void*, int32_t x, int32_t z) {
     return AsGame(p)->IsCellWatered(x, z) ? 1 : 0;
 }
 
+// Plumbing slot 7 GetWateredGrid (plumbing.md §10.1): the published grid,
+// borrowed. Its object alternates at every pass (§2), so the shadow polls the
+// pointer to see a pass end and then reads slot 11 again (flammability.md
+// §6.5, FL5/FL6). Only the pointer is used, never the grid.
+uint64_t WateredGrid(void*) {
+    cISC4PlumbingSimulator* p = g_city ? g_city->GetPlumbingSimulator() : nullptr;  // borrowed
+    return p ? TokenOf(AsGame(p)->GetWateredGrid()) : 0;
+}
+
 bool ZoneType(void*, int32_t x, int32_t z, uint32_t* out) {
     cISC4ZoneManager* zm = g_city ? g_city->GetZoneManager() : nullptr;  // borrowed
     if (zm == nullptr) return false;
@@ -260,6 +273,7 @@ fc4_flammability_host ReadOnlyHost() {
     h.current_season = &CurrentSeason;
     h.is_cell_watered = &IsCellWatered;
     h.zone_type = &ZoneType;
+    h.watered_grid = &WateredGrid;
     return h;
 }
 
@@ -465,7 +479,11 @@ intptr_t OnEvent(cISC4City* city, int32_t julian, const fc4_flammability_message
 
 // One of the six messages, with its objects as the original takes them
 // (§5): void1 queried for cISC4Occupant, IGZUnknown for cISC4Lot; both
-// references are released after the call.
+// references are released after the call. [compat] (§5, FL4): one send
+// delivers in subscription order, so the original (subscribed in its Init)
+// handles each message just before this later target, on the same state.
+// The plumbing pass end comes here too, without objects: the core polls the
+// published watered grid and mirrors nothing.
 intptr_t OnMessage(cISC4City* city, uint32_t type, cIGZUnknown* void1, cIGZUnknown* unknown) {
     if (OriginalOf(city) == nullptr) return -1;
     fc4_flammability_message m{};
@@ -557,7 +575,9 @@ void FlammabilityShadowStartup(bool flammabilityReplaced) {
         "follows the ORIGINAL flammability simulator's six messages on its live inputs, read-only; at each of the "
         "original's cycle ends (SimCycleComplete 0x08F415FE) the original's record (its own Write: adjusted and raw "
         "grids, multiplier, average, hotspots) and getters (slots 6-8) are compared with it; the first cycle seen is "
-        "the baseline; one line per cycle; differing tracts listed per grid: %ld",
+        "the baseline; one line per cycle; differing tracts listed per grid: %ld; a tract whose watered state changed "
+        "at a plumbing pass in the cycle (the pass end 0x6946DC34 and GetWateredGrid's pointer, polled at every "
+        "event) may hold its value under either state, as the day visit applies the no-water factor (FL5/FL6)",
         src, g_cells);
     Log("flammability shadow: NOT readable read-only (left out of the comparison): the iterator start and the "
         "hotspot shuffle (C rand() draws), the fire roll (a clock-seeded generator) and the random lot, the "
@@ -577,7 +597,8 @@ void FlammabilityShadowStart() {
     bool ok = true;
     for (uint32_t m : kMessages) ok = ms->AddNotification(static_cast<cIGZMessageTarget2*>(&TheTarget()), m) && ok;
     g_started = true;
-    Log("flammability shadow: listening (the six messages, SimCycleComplete, PostCityShutdown)%s",
+    Log("flammability shadow: listening (the six messages, SimCycleComplete, PostCityShutdown, the plumbing pass "
+        "end)%s",
         ok ? "" : " [WARNING a notification was refused]");
 }
 

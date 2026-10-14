@@ -56,6 +56,38 @@ pub fn derive_seed(session: u32, k: u32) -> u32 {
     }
 }
 
+/// Seconds from 1901-01-01 00:00 UTC (the `cRZTime` epoch) to 1970-01-01
+/// 00:00 UTC: 25 202 days (crime.md §9).
+pub const RZ_TIME_UNIX_OFFSET: i64 = 2_177_452_800;
+
+/// The `cRZTime` value for a `time()` value (crime.md §9, CQ5): `time() +
+/// 2177452800` truncated to 32 bits, u32 seconds since 1901-01-01 00:00 UTC.
+///
+/// The value is shared, not crime's own (CQ21, foundations §6.3): every
+/// clock-seeded generator of the original calls the same `cRZTime()`
+/// constructor, so the file-local generators of [`file_seed`] (each XORing
+/// its own constant, [`clock_seed`]), the construction occupant's plain
+/// reseed and the prop developer's generator all start from this value.
+/// FreeCity4 normally replaces the clock with the session seed
+/// ([`derive_seed`]); this is the value when the original's own is wanted.
+///
+/// [choice] (crime.md §9) This skips the library's own time-zone
+/// arithmetic: the original rebuilds the value from the local calendar
+/// fields with a fixed pre-2007 US daylight rule, so it is one hour off
+/// where the host's rule disagrees, and 0 in that rule's spring-forward
+/// hour.
+pub fn rz_time_from_unix(unix_seconds: i64) -> u32 {
+    unix_seconds.wrapping_add(RZ_TIME_UNIX_OFFSET) as u32
+}
+
+/// The original's clock seed of a file-local generator (foundations §6.3):
+/// the `cRZTime` value ([`rz_time_from_unix`]) XOR the generator's constant
+/// `k` ([`file_seed`]). [`derive_seed`]`(S, k)` gives the same value when
+/// `S` is the `cRZTime` value, except where XOR gives 0 or `0xFFFFFFFF`.
+pub fn clock_seed(rz_time: u32, k: u32) -> u32 {
+    rz_time ^ k
+}
+
 /// The constants `K` of the Windows build's file-local generators
 /// (foundations §6.3 table): the original seeds each with the local wall
 /// clock XOR its constant, FreeCity4 with [`derive_seed`]`(S, K)`. The
@@ -588,6 +620,27 @@ mod tests {
         assert_eq!(r.next_u32(), 0xAAE6_4AC3);
         assert_eq!(r.next_u32(), 0x5E7C_47DA);
         assert_eq!(r.next_u32(), 0xB98E_8121);
+    }
+
+    /// CQ21: the shared `cRZTime` value, with crime.md §9's worked example
+    /// (2026-10-14 12:00:00 US Central daylight time = 17:00:00 UTC,
+    /// `time()` = 1 791 997 200).
+    #[test]
+    fn rz_time_value_cq21() {
+        let rz = rz_time_from_unix(1_791_997_200);
+        assert_eq!(rz, 3_969_450_000);
+        assert_eq!(rz, 0xEC99_0010);
+        assert_eq!(clock_seed(rz, file_seed::CRIME), 0x8090_C3E6);
+        assert_eq!(derive_seed(rz, file_seed::CRIME), 0x8090_C3E6);
+        // The epoch, and the u32 wrap (2037-02-07 06:28:16 UTC).
+        assert_eq!(rz_time_from_unix(0), 2_177_452_800);
+        assert_eq!(rz_time_from_unix(-RZ_TIME_UNIX_OFFSET), 0);
+        assert_eq!(rz_time_from_unix(4_294_967_296 - RZ_TIME_UNIX_OFFSET), 0);
+        assert_eq!(rz_time_from_unix(4_294_967_295 - RZ_TIME_UNIX_OFFSET), u32::MAX);
+        // A cRZTime of 0 (the library's spring-forward hour) seeds with the
+        // constant itself; the construction occupant's plain reseed is K = 0.
+        assert_eq!(clock_seed(0, file_seed::CRIME), file_seed::CRIME);
+        assert_eq!(clock_seed(rz, 0), rz);
     }
 
     #[test]

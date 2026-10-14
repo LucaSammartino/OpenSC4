@@ -29,8 +29,8 @@
 // that the flora occupant, the flora tool and the terrain brush read and
 // reference-count directly. The plugin builds one block per record of the
 // process-wide registry and keeps one reference on it for the life of the
-// process [choice, §13.2], so no game Release ever frees one (the blocks and
-// the exemplars they hold are never freed).
+// process [choice, §13.2, FQ8], so no game Release ever frees one (the blocks
+// and the exemplars they hold are never freed).
 //
 // The subsystem is OFF by default: FreeCity4.ini `enable = flora` turns it on
 // (FC4Subsystems.h); `disable` still wins. The flora_* switches (FC4Config.h)
@@ -42,10 +42,11 @@
 // re-entrant lock (CoreCall), the same order as the core's own lock, so a
 // second thread waits for a month in progress instead of racing it.
 //
-// Not implemented (logged once, spec questions): the obliteration save and
-// restore (§10.3: cIGZPersistDBSegment's record I/O is not in docs/abi), the
-// application shutdown callback (§4.1 step 2), and GetFloraTypesByFilter with
-// a non-null filter (cISC4FloraTypeFilter is not in docs/abi).
+// The obliterated city's trees (§10.3, FQ3): SaveObliterated and Init's
+// restore go through the segment's cISC4DBSegment and its record streams (the
+// flora_obliteration switch). [choice] The application shutdown callback
+// (§4.1 step 2) is not registered: it has no observable original behaviour
+// (FQ2, FQ8), and the records live for the whole process.
 #pragma once
 
 #include "FC4Interfaces.h"

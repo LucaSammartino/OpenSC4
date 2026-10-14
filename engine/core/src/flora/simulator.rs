@@ -15,16 +15,16 @@ use crate::grid::{CellIterator, MODE_TABLE};
 use crate::property::PropertyHolder;
 use crate::props::{self, round_half_even_f32};
 use crate::rng::CrtRand;
-use crate::stream::{InStream, OutStream, SaveObject};
+use crate::stream::{InStream, OutStream, ResKey, SaveObject};
 
 use super::registry::{advance_cluster_type, FloraRecord, SharedRegistry};
 use super::{
     blocks_flora, blocks_per_month, boxes_intersect, elevation_index, flag, ftol, msg, obliterated_occupant_key,
     occupant_type, prop, scale_wild_seeds, score_from_table, state, CellRect, FloraHost, FloraOccupant, FloraRandom,
-    Message, OccupantFilter, OccupantId, RngState, SegmentId, Vec3, AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, BURNT_TREE,
-    CLSID_FLORA_SIMULATOR, FLORA_CHEAT, FLORA_CHEAT_NAME, FLORA_EXEMPLAR_TYPE, IID_OCCUPANT, MAX_BLAST_CENTRES,
-    MAX_BLAST_SEEDS, MAX_BLOCKS_PER_MONTH, MAX_BURNT_COUNT, MAX_MERGE_ROUNDS, MAX_OBLITERATED, MAX_SEEDS_PER_CYCLE,
-    MAX_WILD_SEEDS, OBLITERATED_COUNT_KEY, PLACE_FLORA_COMMAND, PLACE_FLORA_NAME, TUNING_INSTANCE,
+    Message, OccupantFilter, OccupantId, RngState, SegmentId, StreamId, Vec3, AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME,
+    BURNT_TREE, CLSID_FLORA_SIMULATOR, FLORA_CHEAT, FLORA_CHEAT_NAME, FLORA_EXEMPLAR_TYPE, IID_OCCUPANT,
+    MAX_BLAST_CENTRES, MAX_BLAST_SEEDS, MAX_BLOCKS_PER_MONTH, MAX_BURNT_COUNT, MAX_MERGE_ROUNDS, MAX_OBLITERATED,
+    MAX_SEEDS_PER_CYCLE, MAX_WILD_SEEDS, OBLITERATED_COUNT_KEY, PLACE_FLORA_COMMAND, PLACE_FLORA_NAME, TUNING_INSTANCE,
 };
 
 /// The record version (§10.1); every other version is rejected.
@@ -1154,33 +1154,81 @@ impl FloraSim {
 
     // ---- obliteration (§10.3) ----------------------------------------------------------------------
 
-    /// `SaveObliterated(segment)` (slot 24). Always true.
+    /// Opens one obliteration record (§10.3, the game's record-stream
+    /// helpers): the segment's stream, then the record's `u16` version (0
+    /// written; read and never checked). A stream with `GetError()` set is
+    /// closed again and the record is "not open".
+    fn open_record(&self, seg: SegmentId, key: ResKey, write: bool) -> Option<StreamId> {
+        let h = &self.host;
+        let s = h.segment_open(seg, key, write)?;
+        if write {
+            h.stream_put_u16(s, 0);
+        } else {
+            let _version = h.stream_get_u16(s);
+        }
+        if h.stream_error(s) {
+            h.segment_close(s);
+            return None;
+        }
+        Some(s)
+    }
+
+    /// `SaveObliterated(segment)` (slot 24, §10.3): the count record
+    /// (`u16 0`, `u32 count`, also for 0), then record `i` for the i-th
+    /// flora occupant of the list (`i` advances for every occupant): `u16 0`
+    /// and the occupant's own `Write`, with its flag 1 cleared around it.
+    /// Always true.
     pub fn save_obliterated(&self, seg: SegmentId) -> bool {
         let h = self.host.clone();
         let list = h.occupants_in_manager_cells(occupant_type::FLORA);
-        h.segment_write_u32(seg, OBLITERATED_COUNT_KEY, list.len() as u32);
+        if let Some(s) = self.open_record(seg, OBLITERATED_COUNT_KEY, true) {
+            h.stream_put_u32(s, list.len() as u32);
+            h.segment_close(s);
+        }
         for (i, &o) in list.iter().enumerate() {
-            h.set_occupant_in_manager(o, false);
-            h.segment_write_occupant(seg, obliterated_occupant_key(i as u32), o);
-            h.set_occupant_in_manager(o, true);
+            // [question] The flag is cleared only when the record opens.
+            if let Some(s) = self.open_record(seg, obliterated_occupant_key(i as u32), true) {
+                h.set_occupant_in_manager(o, false);
+                h.write_occupant(o, s);
+                h.set_occupant_in_manager(o, true);
+                h.segment_close(s);
+            }
         }
         true
     }
 
-    /// Restores the obliterated city's flora (§10.3, `Init` step 12); false
-    /// only without an occupant manager.
+    /// Restores the obliterated city's flora (§10.3, `Init` step 12). The
+    /// count (0 unless its record opens) is read before the occupant-manager
+    /// test: false without an occupant manager, else true. For each `i` below
+    /// the count whose record opens: a new flora occupant, its `Read` (result
+    /// ignored), `Init`, `InsertOccupant`, `Release`.
     pub fn restore_obliterated(&self, seg: SegmentId) -> bool {
         let h = self.host.clone();
+        let mut count = 0u32;
+        if let Some(s) = self.open_record(seg, OBLITERATED_COUNT_KEY, false) {
+            // [question] A failed GetUint32 leaves the count at 0.
+            if let Some(v) = h.stream_get_u32(s) {
+                count = v;
+            }
+            h.segment_close(s);
+        }
         if !h.has_occupant_manager() {
             return false;
         }
-        let count = h.segment_read_u32(seg, OBLITERATED_COUNT_KEY).unwrap_or(0);
         for i in 0..count.min(MAX_OBLITERATED) {
-            if let Some(occ) = h.segment_read_flora_occupant(seg, obliterated_occupant_key(i)) {
-                h.init_occupant(occ);
-                h.insert_occupant(occ);
-                h.release(occ);
-            }
+            let Some(s) = self.open_record(seg, obliterated_occupant_key(i), false) else {
+                continue;
+            };
+            let Some(occ) = h.create_flora_occupant() else {
+                h.segment_close(s);
+                continue;
+            };
+            h.read_occupant(occ, s);
+            // [question] The record is closed before Init and the insert.
+            h.segment_close(s);
+            h.init_occupant(occ);
+            h.insert_occupant(occ);
+            h.release(occ);
         }
         true
     }

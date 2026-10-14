@@ -42,7 +42,7 @@ use fc4_core::grid::{GridElem, GridProvider, TractGeometry, TractGrid};
 use fc4_core::property::PropertyHolder;
 use fc4_core::rng::FixedSeeds;
 use fc4_core::stream::{RefValue, SaveObject};
-use fc4_core::variant::{mem, Variant, ARRAY};
+use fc4_core::variant::{mem, Variant};
 
 use crate::guard;
 use crate::hostgrid::{create_grid, fc4_grid_api, grid_token, read_property, resolve_grid, take_props};
@@ -188,6 +188,9 @@ pub struct fc4_aura_host {
     pub lot_iterator_release: Option<unsafe extern "C" fn(U, u64)>,
     /// `GetLot(x, z, false)`: false = no lot (`building` is not needed).
     pub lot_at: Option<unsafe extern "C" fn(U, i32, i32, *mut fc4_aura_lot) -> bool>,
+    /// `GetLandValueType(x, z)`; negative = the city has no land value
+    /// simulator (§6.5.1, AU10: the value/wealth term is skipped). A NULL
+    /// callback reads as none.
     pub land_value_type: Option<unsafe extern "C" fn(U, i32, i32) -> i32>,
     // occupants
     pub occupant_has_property: Option<unsafe extern "C" fn(U, u64, u32) -> bool>,
@@ -387,13 +390,17 @@ impl GridProvider<i16> for CHost {
     }
 }
 
-/// `RefSint32()` of a property (§7). [choice] Only 32-bit integer variants
-/// are read (a Uint32 one bit for bit, as the array pointer would be); any
-/// other type reads as absent (the original's reinterpretation of other
-/// element sizes is not reproduced; the shipped properties are Sint32).
+/// `RefSint32()` of a property (§7 "How the values are read"). [choice]
+/// (AU4) Only a Sint32 or Uint32 **array** (a Uint32 one bit for bit, as the
+/// original's raw read gives) of at least two values is read; anything else
+/// (a scalar, one value, another element type) reads as absent: no cone.
+/// The original reads the word at variant + 4 as an int32 array whatever
+/// the type and count; the shipped properties are Sint32 arrays of 2.
 pub(crate) fn sint32s(v: &Variant) -> Option<Vec<i32>> {
-    match v.mem_type() & !ARRAY {
-        mem::SINT32 | mem::UINT32 => Some(v.items().iter().map(|e| e.as_i64() as i32).collect()),
+    match v {
+        Variant::Array { elem, items } if (*elem == mem::SINT32 || *elem == mem::UINT32) && items.len() >= 2 => {
+            Some(items.iter().map(|e| e.as_i64() as i32).collect())
+        }
         _ => None,
     }
 }
@@ -431,8 +438,9 @@ impl AuraHost for CHost {
         let mut l = fc4_aura_lot::default();
         cb!(self, lot_at, false, x, z, &mut l).then(|| CHost::lot_info(&l))
     }
-    fn land_value_type(&self, x: i32, z: i32) -> i32 {
-        cb!(self, land_value_type, 0, x, z)
+    fn land_value_type(&self, x: i32, z: i32) -> Option<i32> {
+        let t = cb!(self, land_value_type, -1, x, z);
+        (t >= 0).then_some(t)
     }
     fn occupant_has_property(&self, occupant: u64, prop: u32) -> bool {
         cb!(self, occupant_has_property, false, occupant, prop)

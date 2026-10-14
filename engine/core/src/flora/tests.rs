@@ -261,17 +261,27 @@ impl FloraHost for Host {
     fn occupants_in_manager_cells(&self, t: u32) -> Vec<OccupantId> {
         self.occupants_in_cells(None, t)
     }
-    fn segment_write_u32(&self, _: SegmentId, _: ResKey, _: u32) -> bool {
-        true
+    /// Only the count record opens (and reads `u32::MAX`).
+    fn segment_open(&self, _: SegmentId, key: ResKey, _: bool) -> Option<StreamId> {
+        (key == OBLITERATED_COUNT_KEY).then_some(1)
     }
-    fn segment_read_u32(&self, _: SegmentId, _: ResKey) -> Option<u32> {
+    fn segment_close(&self, _: StreamId) {}
+    fn stream_put_u16(&self, _: StreamId, _: u16) {}
+    fn stream_put_u32(&self, _: StreamId, _: u32) {}
+    fn stream_get_u16(&self, _: StreamId) -> Option<u16> {
+        Some(0)
+    }
+    fn stream_get_u32(&self, _: StreamId) -> Option<u32> {
         Some(u32::MAX)
     }
-    fn segment_write_occupant(&self, _: SegmentId, _: ResKey, _: OccupantId) -> bool {
+    fn stream_error(&self, _: StreamId) -> bool {
+        false
+    }
+    fn write_occupant(&self, _: OccupantId, _: StreamId) -> bool {
         true
     }
-    fn segment_read_flora_occupant(&self, _: SegmentId, _: ResKey) -> Option<OccupantId> {
-        None
+    fn read_occupant(&self, _: OccupantId, _: StreamId) -> bool {
+        true
     }
 }
 
@@ -482,6 +492,22 @@ fn seed_types_depend_on_registration_order() {
     assert_eq!(reg.types(), &[0x110, 0x120]);
 }
 
+/// §6.11 test of next type 0 (FQ14): after `Init` (key 0 in the map), A with
+/// next 0 takes key 0's seed type 0; B with next 0 then finds no seed type 0.
+#[test]
+fn next_type_0_takes_key_0s_seed_type() {
+    let mut reg = FloraRegistry::new();
+    reg.insert_default();
+    assert_eq!(reg.get(0).unwrap().seed_type.get(), 0);
+    assert!(reg.add(record(0xA, 0)));
+    assert_eq!(reg.get(0xA).unwrap().seed_type.get(), 0xA);
+    assert_eq!(reg.get(0).unwrap().seed_type.get(), 0xA);
+    assert!(reg.add(record(0xB, 0)));
+    assert_eq!(reg.get(0xB).unwrap().seed_type.get(), 0xB);
+    assert_eq!(reg.get(0).unwrap().seed_type.get(), 0xA);
+    assert_eq!(reg.get(0xA).unwrap().seed_type.get(), 0xA);
+}
+
 #[test]
 fn advance_cluster_type_terminates() {
     let mut reg = FloraRegistry::new();
@@ -666,7 +692,85 @@ fn hostile_loops_are_bounded() {
     let fo = host.flora_occupant(9).unwrap();
     s.simulate_existing(9, fo);
     // The obliteration count is bounded and nothing is read.
+    let before = host.next.get();
     assert!(s.restore_obliterated(1));
+    assert_eq!(host.next.get(), before, "no occupant record opens: nothing created");
+}
+
+// ---- the occupant manager's 64 m index (§6.4.2, test 37) ----------------------------------------------
+
+#[test]
+fn manager_index_cells_and_listing() {
+    // cell(p): floor((p + 4096) / 64) but for less than ~0.064 m below a line.
+    for (p, c) in [
+        (0.0, 64),
+        (63.93, 64),
+        (63.94, 65),
+        (64.0, 65),
+        (-0.5, 63),
+        (319.936, 68),
+        (319.937, 69),
+    ] {
+        assert_eq!(manager_cell(p), c, "cell({p})");
+    }
+    // Listing: a box wider than 1 m is inset by 0.1 on that axis only.
+    assert_eq!(
+        manager_listing([100.0, 0.0, 5.0], [101.0, 9.0, 5.0]).0,
+        manager_cell(100.0)
+    );
+    let l = manager_listing([100.0, 0.0, 63.0], [102.0, 9.0, 63.9]);
+    assert_eq!((l.0, l.2), (manager_cell(100.1), manager_cell(101.9)));
+    assert_eq!((l.1, l.3), (manager_cell(63.0), manager_cell(63.9)));
+    // Strict: touching boxes are not returned.
+    let occ = ([10.0, 0.0, 10.0], [20.0, 5.0, 20.0]);
+    let listed = manager_listing(occ.0, occ.1);
+    let q = |x0: f32, x1: f32| ([x0, -f32::MAX, 0.0], [x1, f32::MAX, 30.0]);
+    assert!(!manager_query_returns(listed, occ, q(0.0, 10.0)));
+    assert!(!manager_query_returns(listed, occ, q(20.0, 30.0)));
+    assert!(manager_query_returns(listed, occ, q(0.0, 10.000001)));
+    // The listing window: Oak Tree clump 5 (§6.7.1 example).
+    let oak = ([1717.9807, 0.0, 319.84396], [1735.9807, 10.0, 337.84396]);
+    let listed = manager_listing(oak.0, oak.1);
+    assert_eq!(listed, (90, 69, 91, 69));
+    let below = ([1696.1, -f32::MAX, 288.1], [1727.9, f32::MAX, 319.9]);
+    let above = ([1696.1, -f32::MAX, 320.1], [1727.9, f32::MAX, 351.9]);
+    assert!(boxes_intersect(oak, below), "it overlaps the block below");
+    assert!(!manager_query_returns(listed, oak, below));
+    assert!(manager_query_returns(listed, oak, above));
+    // The block query boxes (§6.10.4) and the corners.
+    assert_eq!(cell_query_box((10, 10, 11, 11)), below_box(160.1, 191.9));
+    assert_eq!(cell_query_box((106, 18, 107, 19)), below);
+    assert_eq!(standard_cell_corners(Some((-5, 3, 70, 3)), (64, 64)), (0, 3, 63, 3));
+    assert_eq!(standard_cell_corners(None, (64, 64)), (0, 0, 64, 64));
+    // A query beyond the grid reads the edge cells.
+    assert_eq!(
+        manager_query_cells([-9000.0, 0.0, 0.0], [9000.0, 0.0, 0.0]),
+        (0, 64, 191, 64)
+    );
+}
+
+fn below_box(lo: f32, hi: f32) -> (Vec3, Vec3) {
+    ([lo, -f32::MAX, lo], [hi, f32::MAX, hi])
+}
+
+// ---- after a reload, key 0 is gone until the next Init (FQ14) -------------------------------------------
+
+#[test]
+fn reload_drops_key_0_until_init() {
+    let host = Host::new();
+    let s = sim_with(&host, &[exemplar(0x1000, &[])]);
+    assert!(s.is_flora_type_valid(0), "Init inserts key 0 (§4.1 step 8)");
+    s.exemplar_changed(0x1000);
+    assert!(s.is_flora_type_valid(0x1000));
+    assert!(
+        !s.is_flora_type_valid(0),
+        "the reload clears the map, key 0 included (§5)"
+    );
+    assert!(s.static_flora_data(0).is_none());
+    // A second simulator's Init (a new city) puts it back.
+    let s2 = FloraSim::new(host.clone() as Rc<dyn FloraHost>, s.registry(), 2, rng());
+    assert!(s2.init());
+    assert!(s2.is_flora_type_valid(0));
 }
 
 #[test]

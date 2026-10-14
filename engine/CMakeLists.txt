@@ -289,6 +289,14 @@ if(FC4_IS_WIN32_X86)
     target_compile_options(fc4_game_map_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME game_map_test COMMAND fc4_game_map_test)
 
+    # The master lot list through the safe lot iterator
+    # (plugin/FC4SafeLotIterator.h, budget.md §5.2 BQ3) against fake lists
+    # built as aura.md §6.5 and docs/abi/allocators.md describe them.
+    add_executable(fc4_safe_lot_iterator_test tests/safe_lot_iterator_test.cpp)
+    target_include_directories(fc4_safe_lot_iterator_test PRIVATE plugin)
+    target_compile_options(fc4_safe_lot_iterator_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME safe_lot_iterator_test COMMAND fc4_safe_lot_iterator_test)
+
     # foundations §16: the slot layout of every game interface we implement.
     add_executable(fc4_vtable_layout_test tests/vtable_layout_test.cpp)
     target_include_directories(fc4_vtable_layout_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin tests)
@@ -381,7 +389,8 @@ if(FC4_IS_WIN32_X86)
     set_tests_properties(plugin_ini_enable_protection_test plugin_ini_protection_shadow_test
         PROPERTIES RUN_SERIAL TRUE)
     # Aura (aura.md): `enable = aura` (no city: neutral getters, lifecycle,
-    # status lines) and the aura grid shadow on a fake original (seam op 14).
+    # status lines) and the aura shadow following a fake original step by step
+    # (seam ops 14 and 35).
     add_test(NAME plugin_ini_enable_aura_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-aura)
     set_tests_properties(plugin_ini_enable_aura_test PROPERTIES RUN_SERIAL TRUE)
