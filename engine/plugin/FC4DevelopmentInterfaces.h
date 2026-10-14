@@ -44,6 +44,7 @@
 
 class cGZPersistResourceKey;
 class cIGZString;
+class cISC4BuildingDevelopmentSimulator;
 class cISC4BuildingOccupant;
 class cISC4BuildingTypeFilter;
 class cISC4Demand;
@@ -244,4 +245,7 @@ namespace fc4 {
 inline cFC4ISC4GrowthDeveloper* AsGame(cISC4GrowthDeveloper* p) { return reinterpret_cast<cFC4ISC4GrowthDeveloper*>(p); }
 inline cISC4GrowthDeveloper* AsSdk(cFC4ISC4GrowthDeveloper* p) { return reinterpret_cast<cISC4GrowthDeveloper*>(p); }
 inline cFC4ISC4TractDeveloper* AsGame(cISC4TractDeveloper* p) { return reinterpret_cast<cFC4ISC4TractDeveloper*>(p); }
+inline cFC4ISC4BuildingDevelopmentSimulator* AsGame(cISC4BuildingDevelopmentSimulator* p) {
+    return reinterpret_cast<cFC4ISC4BuildingDevelopmentSimulator*>(p);
+}
 }  // namespace fc4

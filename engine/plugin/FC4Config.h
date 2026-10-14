@@ -337,10 +337,11 @@ enum class Sw : unsigned {
     NeighborsHistory,       // neighbors_history: history records (MessageSend)
     NeighborsFigures,       // neighbors_figures: the budget, utility and landfill figures of
                             //   UpdateCommodityStats (off: 0, no departments)
-    // Building development simulator host callbacks (cFC4Development.cpp), one
-    // per group of game calls; only used when the development subsystem is
-    // enabled.
-    DevelopmentMapWrites,   // development_map_writes: SetTractValue on the building map (off: not written)
+    // Building development simulator and growth developer host callbacks
+    // (cFC4Development.cpp, cFC4GrowthDeveloper.cpp), one per group of game
+    // calls; only used when the development subsystem is enabled.
+    DevelopmentMapWrites,   // development_map_writes: SetTractValue on the building map and the growth
+                            //   developers' grids (off: not written)
     DevelopmentOccupants,   // development_occupants: building occupant creation, loading, insertion, removal
                             //   and reads (off: nothing placed, no occupant found)
     DevelopmentZoning,      // development_zoning: GetZoneType and the dezoning PlaceZone (off: unzoned, not dezoned)
@@ -351,8 +352,10 @@ enum class Sw : unsigned {
     DevelopmentAdvisor,     // development_advisor: the CityPlanning advisor event (off: not pushed)
     DevelopmentPosts,       // development_posts: kSC4MessageBuildingTypesUpdated (MessagePost; off: not posted)
     DevelopmentCheats,      // development_cheats: the three cheats and the PlaceBuilding command (off: not registered)
-    DevelopmentTract,       // development_tract: the tract developer's Grow and Decline (off: nothing built or declined)
-    DevelopmentCity,        // development_city: land value, power and terrain altitude reads (off: 0, unpowered)
+    DevelopmentTract,       // development_tract: the tract developer's Grow, Decline and UpdatePopulation
+                            //   (off: nothing built, declined or populated)
+    DevelopmentCity,        // development_city: land value, power and terrain altitude reads and the growth
+                            //   developers' source maps (off: 0, unpowered, no map)
     Count
 };
 

@@ -318,7 +318,7 @@ pub const CLOCK_SEED_XOR: u32 = crate::rng::file_seed::BUILDING_DEVELOPMENT;
 /// `cRZTime() XOR 0x0C09C0B8` (§4.14), for a shim that seeds like the
 /// original.
 pub fn clock_seed(time: u32) -> u32 {
-    time ^ CLOCK_SEED_XOR
+    crate::rng::clock_seed(time, CLOCK_SEED_XOR)
 }
 
 /// A growth developer (`cISC4GrowthDeveloper*` in the plugin).

@@ -121,6 +121,7 @@
 #include "cISC4LotConfigurationFilter.h"
 #include "cISC4LotConfigurationManager.h"
 #include "cISCExemplarPropertyHolder.h"
+#include "cISC4CommercialSimulator.h"
 
 #include <algorithm>
 #include <cstdint>

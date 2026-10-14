@@ -48,6 +48,7 @@
 #include "FC4NeighborsShadow.h"
 #include "cFC4Neighbors.h"
 #include "cFC4Development.h"
+#include "cFC4GrowthDeveloper.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -196,6 +197,7 @@ const ClassEntry kNeighborsClasses[] = {
 const ClassEntry kDevelopmentClasses[] = {
     {kFC4_CLSID_cSC4BuildingDevelopmentSimulator, "cSC4BuildingDevelopmentSimulator",
      &CreateFC4BuildingDevelopmentSimulator},
+    {kFC4_CLSID_cSC4GrowthDeveloper, "cSC4GrowthDeveloper", &CreateFC4GrowthDeveloper},
 };
 
 const Subsystem kSubsystems[] = {

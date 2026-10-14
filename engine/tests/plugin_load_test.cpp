@@ -4191,9 +4191,108 @@ void CheckDevelopmentThreads(cFC4ISC4BuildingDevelopmentSimulator* b, cIGZMessag
     CHECK(freeRes == b->GetFreeConstructionResources() && !cheat && dev == nullptr && delivered);
 }
 
+// ---- the growth developer (growth-developer.md) without a city ----------------------------------------
+constexpr uint32_t kCLSID_GrowthDeveloper = 0x0990C138;
+constexpr uint32_t kIID_cISC4GrowthDeveloperDev = 0xE7CDD662;
+constexpr uint32_t kMsgSimIdleDev = 0x6695681A;
+
+// QueryInterface (§1: +4, +8), the §2 values through the compiled slots
+// (10 and 28 raw: 0/1 in the whole of EAX), Init refused without a holder
+// or a city, the v1 record (§9), messages, another thread, and Read before
+// Init.
+void CheckGrowthDeveloper(cIGZCOMDirector* director) {
+    void* obj = nullptr;
+    CHECK(director->GetClassObject(kCLSID_GrowthDeveloper, kIID_cISC4GrowthDeveloperDev, &obj));
+    auto* g = static_cast<cFC4ISC4GrowthDeveloper*>(obj);
+    if (g == nullptr) return;
+    void* p = nullptr;
+    CHECK(g->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(g));
+    if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+    cIGZMessageTarget2* mt = nullptr;
+    CHECK(g->QueryInterface(kIID_cIGZMessageTarget2Dev, reinterpret_cast<void**>(&mt)) &&
+          static_cast<void*>(mt) == static_cast<void*>(reinterpret_cast<char*>(g) + 4));
+    cIGZSerializable* ser = nullptr;
+    CHECK(g->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) &&
+          static_cast<void*>(ser) == static_cast<void*>(reinterpret_cast<char*>(g) + 8));
+    if (ser != nullptr) CHECK(ser->GetGZCLSID() == kCLSID_GrowthDeveloper);
+    p = reinterpret_cast<void*>(0x1234);
+    CHECK(!g->QueryInterface(kIID_cISC4BuildingDevelopmentSimulator, &p) && p == reinterpret_cast<void*>(0x1234));
+    // §2: the constructor's values.
+    CHECK(g->GetType() == 0 && g->GetSubType() == 0 && g->GetPurpose() == 0 && g->GetWealth() == 0);
+    CHECK(g->GetPowerSupplyCap() == 0 && g->GetWaterSupplyCap() == 3 && g->GetFireCoverageCap() == 3 &&
+          g->GetParkCap() == 6);
+    CHECK(g->GetDesirabilityThreshold() == 80 && g->GetMonopolyUse() == 1 && g->GetTotalCapacity() == 0);
+    CHECK(g->GetSourceDemand() == nullptr && g->GetDesirabilityMap() == nullptr && g->GetCapacityMap() == nullptr &&
+          g->GetPopulationMap() == nullptr && g->GetMaxCapacityMap() == nullptr);
+    CHECK(g->GetGrowthList().size() == 0 && g->GetDeclineList().size() == 0 && g->GetStylePercentages() != nullptr);
+    int32_t mn = 0, mx = 0;
+    g->GetSubjectiveThresholds(0, mn, mx);  // no vectors: -4 / 20
+    CHECK(mn == -4 && mx == 20);
+    CHECK(g->GetAbandonmentThreshold(2) == 0.0f);
+    FC4ConstructionProfile prof{};
+    prof.buildingType = 0x77;
+    prof.x = 5;
+    g->GetConstructionInfo(prof);  // §6.2: the info fields only
+    CHECK(prof.buildingType == 0x77 && prof.x == 5 && prof.zone == 0);
+    void** vt = *reinterpret_cast<void***>(g);
+    using BoolFn = uint32_t(__fastcall*)(void*, void*);
+    CHECK(reinterpret_cast<BoolFn>(vt[10])(g, nullptr) == 1);  // state 0 < 17
+    CHECK(reinterpret_cast<BoolFn>(vt[28])(g, nullptr) == 1);  // state 0
+    g->StartMapUpdate();  // state 1: not initialised, so it stays there (§3.2)
+    CHECK(reinterpret_cast<BoolFn>(vt[28])(g, nullptr) == 0 && g->GrowthAndDeclineListsAreValid());
+    CHECK(!g->Init(nullptr));  // [choice] a null holder is refused
+    // §9: version 1 first.
+    std::vector<uint8_t> record;
+    if (ser != nullptr) {
+        ResidentialSegOStream out;
+        CHECK(ser->Write(out));
+        record = out.bytes;
+        CHECK(record.size() > 10 && record[0] == 1 && record[1] == 0);
+    }
+    if (mt != nullptr) {
+        ResidentialDayMessage idle(kMsgSimIdleDev, kJulian20000201);
+        CHECK(mt->DoMessage(&idle));
+        ResidentialDayMessage day(kMsgSimNewDay, kJulian20000201);
+        CHECK(mt->DoMessage(&day));  // elapsed 0: never blocks
+        TypeMessage other(0x12345678);
+        CHECK(mt->DoMessage(&other));
+    }
+    // Another thread takes the lock (nothing holds it) and reads the same values.
+    int32_t threshold = 0;
+    uint8_t park = 0;
+    std::thread t([&] {
+        threshold = g->GetDesirabilityThreshold();
+        park = g->GetParkCap();
+    });
+    t.join();
+    CHECK(threshold == 80 && park == 6);
+    if (ser != nullptr) ser->Release();
+    if (mt != nullptr) mt->Release();
+    CHECK(g->Shutdown());
+    CHECK(g->Release() == 0);
+    // Read runs before Init: the record loads into a new developer; a
+    // truncated one does not.
+    for (bool whole : {true, false}) {
+        obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_GrowthDeveloper, kIID_cISC4GrowthDeveloperDev, &obj));
+        auto* fresh = static_cast<cFC4ISC4GrowthDeveloper*>(obj);
+        if (fresh == nullptr) continue;
+        cIGZSerializable* s = nullptr;
+        CHECK(fresh->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&s)) && s != nullptr);
+        if (s != nullptr && !record.empty()) {
+            std::vector<uint8_t> bytes = record;
+            if (!whole) bytes.resize(5);
+            ResidentialSegIStream in(bytes);
+            CHECK(s->Read(in) == whole);
+            s->Release();
+        }
+        CHECK(fresh->Release() == 0);
+    }
+}
+
 int DevelopmentEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
     // Off by default; `enable = development` registers the building
-    // development simulator.
+    // development simulator and the growth developers.
     SetEnvironmentVariableA("FC4_DISABLE", nullptr);
     SetEnvironmentVariableA("FC4_ENABLE", nullptr);
     SetEnvironmentVariableA("FC4_DEVELOPMENT_SEED", nullptr);
@@ -4211,9 +4310,10 @@ int DevelopmentEnableTest(const std::string& dll, const std::string& ini, const 
     if (director != nullptr) {
         std::vector<uint32_t> classes;
         director->EnumClassObjects(&CollectClass, &classes);
-        // simulator (1) + budget (3) + development (1).
-        CHECK(classes.size() == 5);
+        // simulator (1) + budget (3) + development (2).
+        CHECK(classes.size() == 6);
         CHECK(std::count(classes.begin(), classes.end(), kCLSID_Development) == 1);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_GrowthDeveloper) == 1);
 
         void* obj = nullptr;
         CHECK(director->GetClassObject(kCLSID_Development, kIID_cISC4BuildingDevelopmentSimulator, &obj));
@@ -4282,12 +4382,13 @@ int DevelopmentEnableTest(const std::string& dll, const std::string& ini, const 
             }
             CHECK(fresh->Release() == 0);  // the final Release shuts a never-initialised simulator down
         }
+        CheckGrowthDeveloper(director);
         CheckCw("development");
     }
     FreeLibrary(hd);
     DeleteFileA(ini.c_str());
     const std::string text = ReadFile(log);
-    CHECK(text.find("subsystem 'development': enabled (1 class replaced) by FreeCity4.ini (enable=)") !=
+    CHECK(text.find("subsystem 'development': enabled (2 classes replaced) by FreeCity4.ini (enable=)") !=
           std::string::npos);
     CHECK(text.find("development: process statics ") != std::string::npos);
     CHECK(text.find(", session seed 0x0000002A (development_seed)") != std::string::npos);
@@ -4303,6 +4404,14 @@ int DevelopmentEnableTest(const std::string& dll, const std::string& ini, const 
     CHECK(text.find("development Shutdown: init=0") != std::string::npos);
     CHECK(CountOf(text, "cFC4BuildingDevelopmentSimulator destroyed") == 3);
     CHECK(text.find("development: AddNewFoundationOccupant (slot 23") != std::string::npos);
+    // The growth developers: one created and initialised (refused), two read.
+    CHECK(text.find("development: growth statics ") != std::string::npos);
+    CHECK(CountOf(text, "cFC4GrowthDeveloper(") == 6);  // created and destroyed
+    CHECK(text.find("growth 0x00000000 Init FAILED: init=0") != std::string::npos);
+    CHECK(text.find("growth 0x00000000 Write -> 1") != std::string::npos);
+    CHECK(text.find("growth 0x00000000 Read: init=0") != std::string::npos);
+    CHECK(text.find("growth 0x00000000 Read FAILED") != std::string::npos);
+    CHECK(CountOf(text, ") destroyed (0 updates, 0 calls answered without the lock)") == 3);
     // The catalogue mirror: built once per process, after the first Init loaded the catalogue.
     CHECK(CountOf(text, "development catalogue: 0 building types, 0 families") == 1);
     CHECK(CountOf(text, "development: the static-data cleanup is not registered") == 1);

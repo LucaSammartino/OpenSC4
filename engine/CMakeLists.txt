@@ -240,6 +240,8 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4GrowthProbeLogic.h
         plugin/cFC4Development.cpp
         plugin/cFC4Development.h
+        plugin/cFC4GrowthDeveloper.cpp
+        plugin/cFC4GrowthDeveloper.h
         plugin/FC4DevelopmentInterfaces.h
         plugin/FC4GameMapBuild.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
