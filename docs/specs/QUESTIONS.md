@@ -2130,8 +2130,17 @@ void and writes jobs[1..3] of a four-float record). The current answer is in bra
 About `docs/specs/residential-education-health.md` (REH) and the residential glue (`cFC4Residential`,
 `FC4ResidentialShadow`). The current answer is in brackets.
 
-- **RG1:** buzzards (the visual effects): what creates them? [not created: the effect callback returns 0, logged
-  once]
+- ~~**RG1:** buzzards (the visual effects): what creates them? [not created: the effect callback returns 0, logged
+  once]~~ **ANSWERED 2026-10-14** from the exe (`0x006FA649`–`0x006FA83E`; effects manager slot 7 `0x005939B0`; name
+  string `0x00AB2BD8`; the shipped effect directory in `SimCity_1.dat`) and written into REH §4.7 step 3. **The
+  bracket differs: the game creates them.**
+  - **Who creates them.** The class calls the city's effects manager (city slot 85, cached in `0x00B43D1C`), slot 7
+    `CreateVisualEffect("buzzards", &out)`. It positions the effect, starts it and releases it.
+  - **Shipped data.** The effect directory defines `buzzards`, so the create always succeeds and both draws happen. An
+    unknown name returns AL = 0 with `out` untouched; then only one draw is made, the tract flag stays clear and the
+    next wealth level may draw again, which shifts every later strike roll.
+  - *[choice]* The core asks the host. A host that cannot show effects reports success, so the core makes both draws
+    and sets the flag, as the original does with shipped data.
 - **RG2 — REH §4.1 step 4:** building slot 11 is read as `GetBuildingProfile()`, first u32. Right? [yes]
 - **RG3:** query-record costs are 32-bit in the game but 64-bit in the core. [zero-extended in, low 32 bits written
   back]

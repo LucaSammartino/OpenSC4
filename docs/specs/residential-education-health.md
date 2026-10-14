@@ -540,6 +540,31 @@ decay factors. The education/health steps, in order:
    - y = terrain.GetAltitude(x, z) + tv.height + `RandomDoubleRangeUniform(−delta, +delta)` (a 2nd draw);
    - the effect is positioned, started and released;
    - only after a successful create is the per-tract flag set.
+
+   **Who creates the effect** *[compat]* (RG1; `0x006FA649`–`0x006FA83E`). The game itself does, through the
+   city's effects manager (city slot 85 `+0x154`, cached in `0x00B43D1C`). It calls the manager's slot 7 (`+0x1C`,
+   `0x005939B0`, pop 8): `bool CreateVisualEffect(const char* name, cISC4VisualEffect** out)`, with the name
+   `"buzzards"` (`0x00AB2BD8`).
+   - The manager lowercases the name and looks it up in its two effect tables. An unknown name returns AL = 0 and
+     leaves `*out` alone. A known one creates the effect with one reference, stores it in `*out` and returns
+     AL = 1. The caller tests `out`, not AL.
+   - The shipped effect directory (`SimCity_1.dat`, type `0xEA5118B0`, group `0xEA5118B1`, instance 1) defines
+     `buzzards`, so the create always succeeds with shipped data.
+   - Geometry, all float32: width := the w-th EQ grid's `GetTractWidthX()` (slot 14) and `GetTractWidthZ()`
+     (slot 15) for z; x := (width × tx) + width × 0.5, z likewise with tz. y := float32(double(altitude +
+     tv.height) + `RandomDoubleRangeUniform(−delta, +delta)`). The altitude is the terrain's slot 13 (`+0x34`)
+     at (x, z).
+   - The transform record (0x38 bytes) has bytes +0 and +1 set to 1, an identity 3 × 3 matrix at +0x04..+0x24,
+     the translation (x, y, z) at +0x28/+0x2C/+0x30 and the scale 1.0 at +0x34. The effect then gets
+     `SetTransform` (slot 8, `+0x20`), `Start(0)` (slot 3, `+0x0C`) and `Release` (slot 2), and the tract's
+     flag is set.
+   - **If the create fails**, only the first draw has been made, the flag stays clear, and the next wealth level
+     of the same tract may draw again. The shared generator therefore advances by a different number of draws,
+     which shifts every later strike roll (§4.9).
+
+   *[choice]* FreeCity4 asks the host to create the effect. When the host cannot show effects (standalone, tests),
+   the core treats the create as **successful**: it makes both draws and sets the flag, as the original does with
+   shipped data. A host that reports a real failure gets the original's one-draw path.
 4. **New population** (residential.md). If new > old for wealth w, with delta := int16(new − old):
    ```
    m      := EQ_old > 0 ? 2 : 1
