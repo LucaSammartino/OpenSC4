@@ -424,6 +424,14 @@ In this order, from the wormhole byte of `c`'s cell:
    of the terminal, AddTripNode(exit node at the edge's off-map point, reached from the edge's in-city cell, `t`,
    edge cost, `maxCost[t]`). List order as stored by the simulator (traffic-network.md).
 
+   The neighbour edge is a NeighborLink (traffic-network.md §2.6): off-map cell `O` at `+8`/`+0xA`, in-city edge
+   cell `E` at `+0xC`/`+0xE`, cost at `+0x10`. The call passes cell `E`, entry side `EdgeTo(O → E)` and the exit flag
+   (PF15, `0x006D9B55`–`0x006D9BA5`). The exit node's cell is therefore `E + dir(EdgeTo(O → E))` (§4.7), one step
+   from `E` towards `O`, and its `H` is taken at `E` (§4.9 step 6). Every link the game makes has `E` =
+   `GetNeighborConnectionInnerCell(O)` (traffic-network.md §4.9.3), adjacent to `O`, so the node's cell is `O`.
+   Example: `O = (−1, 7)`, `E = (0, 7)`: `EdgeTo(O → E) = 0`, cell `(0 − 1, 7) = O`. Only a damaged save could pair
+   cells that are not adjacent; the node then lands one step from `E` (the x direction first).
+
 #### 4.8.4 Park-and-ride return (flag 8)
 
 If `c`'s cell equals the park-and-ride cell `P` recorded by the previous trip (§4.13): `b = P + dir(Pside)`;
