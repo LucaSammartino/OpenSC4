@@ -1736,6 +1736,12 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
     } else if (scenario == "enddate-quit") {  // an end date already past at the city load; autotest_end = quit
         WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 60\nautotest_end = quit\n"
                            "autotest_end_date = 2000-01-15\n");
+    } else if (scenario == "enddate-save") {  // a script save waits for its tick on the end date
+        const std::string dir = ini.substr(0, ini.find_last_of("\\/") + 1);
+        WriteTextFile(dir + "fc4_script_endsave.txt",
+                      "2000-02-26 mark the day before\n2000-02-27 save\n2000-02-27 mark after the save\n");
+        WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_end_date = 2000-02-27\n[harness]\n"
+                           "script = fc4_script_endsave.txt\n");
     } else if (scenario == "enddate-bad") {  // not a date: ignored, the timeout ends the run
         WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 1\n"
                            "autotest_end_date = 2000-02-30\n");
@@ -1783,6 +1789,7 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
     if (scenario.compare(0, 7, "enddate") == 0) {
         // The city loads, the clock starts at the first tick, then one new day
         // per tick from 2000-02-25 (2451600) until the DLL ends the process.
+        if (scenario == "enddate-save") seam(kFC4SeamObserverApp, &world.app, nullptr);
         seam(kFC4SeamObserverCity, &world.city, nullptr);
         seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgPostCityInit)), nullptr);
         seam(kFC4SeamObserverTick, nullptr, nullptr);
@@ -7750,6 +7757,7 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
     const std::string bad = dir + "fc4_script_bad.txt";
     const std::string empty = dir + "fc4_script_empty.txt";
     const std::string late = dir + "fc4_script_late.txt";
+    const std::string saves = dir + "fc4_script_save.txt";
     WriteTextFile(script,
                   "# FreeCity4 script test (the harness lane)\n"
                   "2000-01-03 zone 10 20 12 22 1        # a 3x3 residential block\n"
@@ -7768,6 +7776,12 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
     WriteTextFile(bad, "# two errors\n2000-01-10 zonee 1 1 2 2 1\n2000-01-10 zone 1 1 2 2 16\n2000-01-10 mark fine\n");
     WriteTextFile(empty, "# nothing to do\n\n");
     WriteTextFile(late, "2000-01-01 dezone 5 6 5 6\n");
+    WriteTextFile(saves,
+                  "2000-01-12 mark before the save\n"
+                  "2000-01-12 save\n"
+                  "2000-01-12 mark after the save, on its day\n"
+                  "2000-01-13 save fast\n"
+                  "2000-01-14 mark a later day\n");
     WriteTextFile(ini, "[harness]\nscript = fc4_script_test.txt   # relative: next to FreeCity4.ini\n");
 
     static FakeWorld world;
@@ -7848,11 +7862,26 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
     CHECK(zones.calls.size() == 6);
     if (zones.calls.size() == 6) CHECK(ScriptCallIs(zones.calls[5], 5, 6, 5, 6, 1, 0, true));
 
+    // save: cISC4App 16 (the fake returns true for a full save). It waits for
+    // the observer's next tick, and every action due after it waits behind it.
+    seam(kFC4SeamObserverApp, &world.app, nullptr);
+    CHECK(seam(kFC4SeamScript, const_cast<char*>("fc4_script_save.txt"), nullptr) == 5);
+    newDay(2451556);  // 2000-01-12: the first mark runs; the save and the mark after it wait
+    newDay(2451557);  // 2000-01-13: the fast save queues behind them
+    newDay(2451558);  // 2000-01-14: so does the last mark (file order holds)
+    CHECK(world.saveCalls == 0);
+    seam(kFC4SeamObserverTick, nullptr, nullptr);  // all four, in order
+    CHECK(world.saveCalls == 2);
+    seam(kFC4SeamObserverTick, nullptr, nullptr);  // nothing left
+    newDay(2451559);
+    CHECK(world.saveCalls == 2);
+    seam(kFC4SeamObserverApp, nullptr, nullptr);
+
     seam(kFC4SeamObserverCity, nullptr, nullptr);
     CHECK(sim->Shutdown());
     sim->Release();
     FreeLibrary(hd);
-    for (const std::string& f : {script, bad, empty, late, ini}) DeleteFileA(f.c_str());
+    for (const std::string& f : {script, bad, empty, late, saves, ini}) DeleteFileA(f.c_str());
 
     text = ReadFile(log);
     // A relative path is resolved against FreeCity4.ini's folder as the DLL
@@ -7894,9 +7923,10 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
         if (found != std::string::npos) at = found;
     }
     CHECK(linesBefore == 13);
-    CHECK(CountOf(text, "script: line ") == 14);  // the 13, then the late script's one
+    // the 13, the late script's one, the save script's 5 and its "waits" line
+    CHECK(CountOf(text, "script: line ") == 20);
     CHECK(text.find("script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, speed, pause, resume, "
-                    "turbo, digest, mark)") != std::string::npos);
+                    "turbo, digest, mark, save)") != std::string::npos);
     CHECK(text.find("script: ERROR line 3: zone type '16' is not 0..15") != std::string::npos);
     CHECK(text.find("script: REFUSED '" + winDir + "fc4_script_bad.txt' (test seam): 2 parse error(s); no action of "
                     "it runs") != std::string::npos);
@@ -7908,6 +7938,31 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
           std::string::npos);  // an absolute path as given
     CHECK(text.find("script: line 1 2000-01-01 dezone 5 6 5 6 -> ok=1 error=0 (none) cost=10 accepted=1 of 1 "
                     "cell(s) (run on 2000-01-11)") != std::string::npos);
+    {
+        const std::string saveOrder[] = {
+            "script: loaded '" + winDir + "fc4_script_save.txt' (test seam; tooling): 5 action(s), 2000-01-12 to "
+            "2000-01-14",
+            "script: line 1 2000-01-12 mark before the save -> marked\r\n",
+            "script: line 2 2000-01-12 save: waits for the next framework tick (not run inside SimNewDay); the "
+            "actions due after it wait behind it",
+            "script: line 2 2000-01-12 save -> ok=1 (SaveCity(full) in ",
+            " ms) (run on 2000-01-14)",
+            "script: line 3 2000-01-12 mark after the save, on its day -> marked (run on 2000-01-14)",
+            "script: line 4 2000-01-13 save fast -> ok=0 (SaveCity(fast) in ",
+            " ms) (run on 2000-01-14)",
+            "script: line 5 2000-01-14 mark a later day -> marked\r\n",
+            "script: all 5 action(s) of '",
+        };
+        size_t from = 0;
+        for (const std::string& e : saveOrder) {
+            const size_t found = text.find(e, from);
+            if (found == std::string::npos) std::printf("script save test: not found (in order): %s\n", e.c_str());
+            CHECK(found != std::string::npos);
+            if (found != std::string::npos) from = found;
+        }
+        CHECK(CountOf(text, ": waits for the next framework tick") == 1);
+        CHECK(text.find("[structured exception in SaveCity]") == std::string::npos);
+    }
     CHECK(text.find("config: WARNING unknown key") == std::string::npos);  // script is a known key
     if (g_failures == 0) std::printf("plugin script test: all checks passed\n");
     return g_failures == 0 ? 0 : 1;
@@ -8173,6 +8228,49 @@ int main(int argc, char** argv) {
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the observer (autotest_end = quit)") !=
               std::string::npos);
         CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
+
+        // 5e. A script save due on the end date waits for the observer's tick;
+        // the verdict waits for it and comes at that tick, after the save.
+        CHECK(RunChild(dllArg + "--autotest-child-enddate-save", 30000, &ms) == 0);
+        std::printf("autotest end-date save child: %lu ms\n", static_cast<unsigned long>(ms));
+        CHECK(ms < 15000);
+        DeleteFileA((ini.substr(0, ini.find_last_of("\\/") + 1) + "fc4_script_endsave.txt").c_str());
+        text = ReadFile(log);
+        {
+            const char* const order[] = {
+                "script: line 1 2000-02-26 mark the day before -> marked",
+                "script: line 2 2000-02-27 save: waits for the next framework tick (not run inside SimNewDay); the "
+                "actions due after it wait behind it",
+                "autotest: end date 2000-02-27 reached at the new day 2000-02-27 (julian 2451602), ",
+                "s after the clock started; the script's waiting action(s) first, then the verdict and "
+                "TerminateProcess at the next tick",
+                "script: line 2 2000-02-27 save -> ok=1 (SaveCity(full) in ",
+                "script: line 3 2000-02-27 mark after the save -> marked",
+                "script: all 3 action(s) of '",
+                "autotest: end date 2000-02-27 reached (autotest_end_date)",
+                "AUTOTEST VERDICT:",
+                "autotest: TerminateProcess(exit code 0) from the observer (autotest_end_date)",
+            };
+            size_t at = 0;
+            for (const char* e : order) {
+                const size_t found = text.find(e, at);
+                if (found == std::string::npos) std::printf("end-date save: not found (in order): %s\n", e);
+                CHECK(found != std::string::npos);
+                if (found != std::string::npos) at = found;
+            }
+        }
+        CHECK(text.find("s after the clock started; verdict, then TerminateProcess") == std::string::npos);
+        CHECK(NormalVerdict(text, true) ==
+              "AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, "
+              "julian=2451602, date=2000-02-27, real_seconds=S, days_per_second=R, switches_off=-, "
+              "disabled=simulator,budget)");
+        {
+            const double days = VerdictDays(text);
+            std::printf("autotest end-date save child: rate x seconds = %.3f days (3 expected)\n", days);
+            CHECK(days > 2.8 && days < 3.2);
+        }
+        CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
+        CHECK(text.find("config: WARNING unknown key") == std::string::npos);
 
         // 5d. Not a date: a WARNING, ignored; the 1 s timeout ends the run.
         CHECK(RunChild(dllArg + "--autotest-child-enddate-bad", 30000, &ms) == 0);

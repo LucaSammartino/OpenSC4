@@ -19,8 +19,13 @@
 // game start; every parse error is logged with its line number and a script
 // with any error is refused (no action of it runs). Each action runs once, on
 // the main thread, inside the observer's SimNewDay at the first new day on or
-// after its date; several on one date run in file order. Actions, all through
-// the game's interfaces (ours or the original's, whichever the city has):
+// after its date; several on one date run in file order. A `save` is the
+// exception: it waits for the observer's next framework tick ([choice], as
+// the save autotest: not inside a simulator message), and every action due
+// after it waits behind it, so the file order holds (under turbo several days
+// can pass before that tick; the log shows "(run on <date>)"). Actions, all
+// through the game's interfaces (ours or the original's, whichever the city
+// has):
 //   zone x0 z0 x1 z1 type      cISC4ZoneManager::PlaceZone (city slot 36, zone
 //                              manager slot 11, zones.md §6): commit = 1, the
 //                              normal funds rules; the region in the §11.4
@@ -33,8 +38,13 @@
 //   turbo on|off               our simulator's turbo clock (FC4Turbo.h)
 //   digest                     the observer's DIGEST line, now
 //   mark <text>                a log line
+//   save [fast]                cISC4App::SaveCity(fast) (docs/abi/vtables.tsv
+//                              cSC4App::vftable_3 slot 16, pop 4): the city
+//                              saved in place, a full save unless `fast`;
+//                              logs `-> ok=<0|1> (SaveCity(full|fast) in N ms)`
 // Log: `script: line N <date> <action> <args> -> <result>`. Off (no key),
-// nothing is read and nothing runs.
+// nothing is read and nothing runs. Not available: `save_as <name>` (saving
+// under another path; engine/README.md says why).
 #pragma once
 
 #include <cstdint>
@@ -47,7 +57,13 @@ void ScriptReload();
 // of the current one. Returns the number of actions it will run, -1 when the
 // file cannot be read, -2 when it is refused (parse errors). `why` is logged.
 int ScriptLoad(const char* path, const char* why);
-// The observer's SimNewDay (main thread): runs the actions due.
+// The observer's SimNewDay (main thread): runs the actions due (a `save`
+// and the actions after it wait for ScriptOnTick).
 void ScriptOnNewDay(int32_t julian);
+// The observer's OnTick (main thread): runs the waiting actions, in order.
+void ScriptOnTick();
+// True while actions wait for the next tick (the autotest's end date waits
+// for them: FC4Autotest.cpp).
+bool ScriptWaiting();
 
 }  // namespace fc4

@@ -20,6 +20,7 @@
 #include "FC4Log.h"
 #include "FC4Observer.h"
 #include "FC4Turbo.h"
+#include "FC4Watchdog.h"
 #include "cFC4ZoneManager.h"
 
 #include "cISC4City.h"
@@ -40,13 +41,19 @@
 //   cISC4City 36 GetZoneManager (borrowed), 50 GetSimulator (borrowed);
 //   cISC4ZoneManager 11 PlaceZone (pop 40, AL);
 //   cISC4Simulator 9 Pause, 12 Resume, 15 IsPaused, 27 GetSimSpeed,
-//   28 SetSimSpeed (pop 4) - all eax-or-void.
+//   28 SetSimSpeed (pop 4) - all eax-or-void;
+//   save: cISC4App 16 SaveCity(bool) (docs/abi/vtables.tsv cSC4App::vftable_3,
+//   pop 4, eax-or-void), called by the observer (ObserverSaveCity).
 
 namespace fc4 {
 namespace {
 
 harness::ScriptSchedule g_schedule;  // main thread only (game start, SimNewDay)
 std::string g_path;                  // the loaded script, "" = none
+// A `save` and every action due after it, waiting for the observer's next
+// tick (pointers into g_schedule; cleared whenever it is reloaded).
+std::vector<const harness::ScriptAction*> g_waiting;
+bool g_inTick = false;  // ScriptOnTick is running the waiting actions
 
 constexpr unsigned long long kMaxScriptBytes = 4ull << 20;  // [choice] a text file of actions, not a save
 
@@ -170,6 +177,19 @@ std::string RunSimulator(const harness::ScriptAction& a, cISC4City* city) {
     return b;
 }
 
+// ---- save: cISC4App::SaveCity(fast), at a framework tick -------------------------------------------
+
+std::string RunSave(const harness::ScriptAction& a, cISC4City* city) {
+    // [choice] No city, no call: what SaveCity does without one is not specified.
+    if (city == nullptr) return "ok=0 (skipped: no city)";
+    const ObserverSave r = ObserverSaveCity(a.fast);
+    if (!r.haveApp) return "ok=0 (skipped: no cISC4App)";
+    char b[160];
+    std::snprintf(b, sizeof(b), "ok=%d (SaveCity(%s) in %lu ms)%s", r.result ? 1 : 0, a.fast ? "fast" : "full", r.ms,
+                  r.clean ? "" : " [structured exception in SaveCity]");
+    return b;
+}
+
 void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) {
     using harness::ScriptOp;
     std::string result;
@@ -194,6 +214,7 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
             digest = true;
             break;
         case ScriptOp::Mark: result = "marked"; break;
+        case ScriptOp::Save: result = RunSave(a, city); break;
     }
     std::string late;
     if (julian != a.julian) late = " (run on " + harness::FormatDate(harness::CivilFromJulian(julian)) + ")";
@@ -202,9 +223,15 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
     if (digest) ObserverWriteDigest(julian);
 }
 
+void NoteAllRun() {
+    if (g_schedule.Size() == 0 || g_schedule.Remaining() != 0 || !g_waiting.empty()) return;
+    Log("script: all %u action(s) of '%s' have run", static_cast<unsigned>(g_schedule.Size()), g_path.c_str());
+}
+
 }  // namespace
 
 int ScriptLoad(const char* rawPath, const char* why) {
+    g_waiting.clear();
     g_schedule.Load({});
     g_path.clear();
     const std::string path = ResolvePath(rawPath ? Trimmed(rawPath) : std::string());
@@ -237,6 +264,7 @@ int ScriptLoad(const char* rawPath, const char* why) {
 void ScriptReload() {
     const std::string v = Trimmed(Setting("script", "FC4_SCRIPT"));
     if (v.empty()) {  // off: nothing read, nothing logged
+        g_waiting.clear();
         g_schedule.Load({});
         g_path.clear();
         return;
@@ -248,12 +276,37 @@ void ScriptOnNewDay(int32_t julian) {
     if (g_schedule.Remaining() == 0) return;
     const std::vector<const harness::ScriptAction*> due = g_schedule.Due(julian);
     if (due.empty()) return;
-    // [choice] Run inside the SimNewDay message, not at the next tick.
+    // [choice] Run inside the SimNewDay message, not at the next tick; a
+    // `save` and what follows it wait for the tick (FC4Script.h).
     cISC4City* city = ObserverCity();
-    for (const harness::ScriptAction* a : due) RunAction(*a, julian, city);
-    if (g_schedule.Remaining() == 0) {
-        Log("script: all %u action(s) of '%s' have run", static_cast<unsigned>(g_schedule.Size()), g_path.c_str());
+    for (const harness::ScriptAction* a : due) {
+        if (g_waiting.empty() && !g_inTick && a->op != harness::ScriptOp::Save) {
+            RunAction(*a, julian, city);
+            continue;
+        }
+        if (g_waiting.empty()) {
+            Log("script: line %d %s %s%s%s: waits for the next framework tick (not run inside SimNewDay); the "
+                "actions due after it wait behind it",
+                a->line, harness::FormatDate(a->date).c_str(), harness::ScriptOpName(a->op), a->text.empty() ? "" : " ",
+                a->text.c_str());
+        }
+        g_waiting.push_back(a);
     }
+    NoteAllRun();
 }
+
+void ScriptOnTick() {
+    if (g_waiting.empty() || g_inTick) return;
+    std::vector<const harness::ScriptAction*> run;
+    run.swap(g_waiting);
+    g_inTick = true;  // a SimNewDay during these calls queues behind them
+    const int32_t julian = static_cast<int32_t>(PublishedJulian());
+    cISC4City* city = ObserverCity();
+    for (const harness::ScriptAction* a : run) RunAction(*a, julian, city);
+    g_inTick = false;
+    NoteAllRun();
+}
+
+bool ScriptWaiting() { return !g_waiting.empty(); }
 
 }  // namespace fc4

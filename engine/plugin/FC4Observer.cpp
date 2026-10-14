@@ -509,6 +509,9 @@ public:
             loadSnapshotDue_ = false;
             WriteObserve(&SnapshotStep, "observe snapshot", 0, "after load");
         }
+        // script = <path>: a `save` and the actions behind it (FC4Script.h);
+        // before the save autotest and before AutotestOnTick's quit or end.
+        ScriptOnTick();
         if (saveDue_) {
             saveDue_ = false;
             SaveAndEnd();  // does not return
@@ -742,5 +745,17 @@ void ObserverTestMessage(uint32_t type, intptr_t data1) {
 // The harness lane's script (FC4Script.h).
 cISC4City* ObserverCity() { return CurrentCity(); }
 void ObserverWriteDigest(int32_t julian) { WriteDigest(julian); }
+ObserverSave ObserverSaveCity(bool fast) {
+    ObserverSave r;
+    AppRef app;  // the test seam's app (kFC4SeamObserverApp), else the framework's (one reference)
+    if (app.app == nullptr) return r;
+    r.haveApp = true;
+    SaveCall call{app.app, fast, false};
+    const DWORD start = GetTickCount();
+    r.clean = SehGuard("script SaveCity", &SaveStep, &call);
+    r.ms = static_cast<unsigned long>(GetTickCount() - start);
+    r.result = call.result;
+    return r;
+}
 
 }  // namespace fc4
