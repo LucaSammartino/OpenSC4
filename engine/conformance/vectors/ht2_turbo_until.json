@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "name": "turbo_until",
+  "spec": ["tooling: turbo clock (not simulator.md)"],
+  "description": "Tooling deviation (the harness lane's turbo clock, fc4_core::Turbo). until = 2000-01-11 (Julian 2451555): turbo opens days 2451546 .. 2451555 at one per loop pass, switches itself off on the first day on or after the date, clears until and records the day once for the plugin's log line. The rest of that tick (budget still 250) and the next ticks wait for msPerDay 5000 again, with the §5.1 budget. A date already past when turbo is set switches it off at the next day.",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "agents": {
+    "D": {"finish_after": 1},
+    "Burn": {"finish_after": 1, "cost_ms": 1}
+  },
+  "steps": [
+    {"op": "add_agent", "agent": "D", "level": 4, "flags": 3},
+    {"op": "add_agent", "agent": "Burn", "level": 10, "flags": 3},
+    {"op": "init"},
+    {"op": "post_city_init"},
+    {"op": "tick", "note": "turbo off; delivers the start day; t = 0 .. 33"},
+    {"op": "clear_events"},
+
+    {"op": "set_turbo", "on": true, "until": 2451555},
+    {"op": "expect_turbo", "on": true, "frame_ms": 250, "until": 2451555},
+    {"op": "tick", "note": "t = 33 .. 283; days at 33 .. 42, then none"},
+    {"op": "expect_state", "state": {"frame_budget_ms": 250, "julian": 2451555}},
+    {"op": "expect_events", "filter": {"event": "post", "type": "SimNewDay"}, "events": [
+      {"data1": 2451546, "t": 33}, {"data1": 2451547, "t": 34}, {"data1": 2451548, "t": 35}, {"data1": 2451549, "t": 36},
+      {"data1": 2451550, "t": 37}, {"data1": 2451551, "t": 38}, {"data1": 2451552, "t": 39}, {"data1": 2451553, "t": 40},
+      {"data1": 2451554, "t": 41}, {"data1": 2451555, "t": 42}
+    ]},
+    {"op": "expect_turbo", "on": false, "frame_ms": 250, "until": 0},
+    {"op": "take_turbo_auto_off", "expect": 2451555},
+    {"op": "take_turbo_auto_off", "expect": null},
+
+    {"op": "clear_events"},
+    {"op": "tick", "note": "frame elapsed 250 -> the §5.1 budget, floored at 15"},
+    {"op": "expect_state", "state": {"frame_budget_ms": 15, "julian": 2451555}},
+    {"op": "tick", "count": 20},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewDay"}, "count": 0},
+    {"op": "expect_turbo", "on": false},
+
+    {"op": "set_turbo", "on": true, "until": 2451500, "note": "already past"},
+    {"op": "clear_events"},
+    {"op": "tick"},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewDay"}, "count": 1},
+    {"op": "expect_state", "state": {"julian": 2451556}},
+    {"op": "take_turbo_auto_off", "expect": 2451556},
+    {"op": "expect_turbo", "on": false, "until": 0},
+
+    {"op": "set_turbo", "on": true, "note": "no date: runs until switched off"},
+    {"op": "clear_events"},
+    {"op": "tick"},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewDay"}, "count": 250},
+    {"op": "take_turbo_auto_off", "expect": null},
+    {"op": "expect_turbo", "on": true}
+  ]
+}

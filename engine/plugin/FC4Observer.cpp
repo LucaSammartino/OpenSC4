@@ -24,6 +24,7 @@
 #include "FC4Log.h"
 #include "FC4Popups.h"
 #include "FC4ProtectionShadow.h"
+#include "FC4Script.h"
 #include "FC4Subsystems.h"
 #include "FC4Watchdog.h"
 #include "FC4ZonesShadow.h"
@@ -554,6 +555,10 @@ public:
                 bool ok = false;
                 const int64_t j = DataOf(msg, &ok);
                 if (ok) PublishJulian(static_cast<int32_t>(j));
+                // script = <path>: the actions due today (FC4Script.h), then
+                // autotest_end_date and the verdict's day count (FC4Autotest.h).
+                ScriptOnNewDay(ok ? static_cast<int32_t>(j) : static_cast<int32_t>(PublishedJulian()));
+                AutotestOnNewDay(ok ? static_cast<int32_t>(j) : static_cast<int32_t>(PublishedJulian()));
                 break;
             }
             case kMsgSimNewMonth: {
@@ -729,5 +734,9 @@ void ObserverTestMessage(uint32_t type, intptr_t data1) {
     Observer().DoMessage(msg);
     msg->Release();
 }
+
+// The harness lane's script (FC4Script.h).
+cISC4City* ObserverCity() { return CurrentCity(); }
+void ObserverWriteDigest(int32_t julian) { WriteDigest(julian); }
 
 }  // namespace fc4

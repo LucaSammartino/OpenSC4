@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "name": "turbo_days_without_interval_wait",
+  "spec": ["tooling: turbo clock (not simulator.md)"],
+  "description": "Tooling deviation (the harness lane's turbo clock, fc4_core::Turbo). The clock is frozen; the only thing that consumes time is an idle agent costing 1 ms per call, so one loop of OnTick costs 1 ms. Speed 0 (msPerDay 5000): without turbo no day can open within a tick. With turbo on (frame_ms 250) the day gate's ready is always true, so a new day opens on every loop pass once the day agent has finished the previous one: the first tick (turbo off) delivered the start day, so all 250 passes of the turbo tick open a day, one per millisecond. The budget is 250 at any speed. Switching turbo off restores the msPerDay wait and the §5.1 budget.",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "agents": {
+    "D": {"finish_after": 1},
+    "Burn": {"finish_after": 1, "cost_ms": 1, "description": "idle agent; makes simulated time pass"}
+  },
+  "steps": [
+    {"op": "add_agent", "agent": "D", "level": 4, "flags": 3},
+    {"op": "add_agent", "agent": "Burn", "level": 10, "flags": 3},
+    {"op": "init"},
+    {"op": "expect_turbo", "on": false, "frame_ms": 250, "until": 0},
+    {"op": "post_city_init"},
+    {"op": "clear_events"},
+
+    {"op": "tick", "note": "turbo off: msPerDay 5000, no day in a 33 ms tick"},
+    {"op": "expect_state", "state": {"frame_budget_ms": 33, "julian": 2451545, "ms_per_day": 5000}},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewDay"}, "count": 0},
+    {"op": "clear_events"},
+
+    {"op": "set_turbo", "on": true, "expect": true},
+    {"op": "expect_turbo", "on": true, "frame_ms": 250, "until": 0},
+    {"op": "tick", "note": "t = 33 .. 283; a day at every pass"},
+    {"op": "expect_state", "state": {"frame_budget_ms": 250, "julian": 2451795, "in_tick": false}},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewDay"}, "count": 250},
+    {"op": "expect_spacing", "filter": {"event": "post", "type": "SimNewDay"}, "min_ms": 1, "max_ms": 1},
+    {"op": "expect_sequence", "filter": {"event": "post", "type": "SimNewDay"}, "field": "data1", "start": 2451546, "step": 1},
+    {"op": "expect_sequence", "filter": {"agent": "D"}, "field": "data1", "start": 2451546, "step": 1},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewMonth"}, "count": 8},
+    {"op": "take_turbo_auto_off", "expect": null},
+
+    {"op": "set_speed", "speed": 2},
+    {"op": "clear_events"},
+    {"op": "set_turbo", "on": true, "frame_ms": 40},
+    {"op": "tick", "note": "the turbo budget holds at speed 2 too"},
+    {"op": "expect_state", "state": {"frame_budget_ms": 40, "julian": 2451835, "ms_per_day": 100}},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewDay"}, "count": 40},
+
+    {"op": "set_turbo", "on": false},
+    {"op": "clear_events"},
+    {"op": "tick", "note": "frame elapsed 40 -> budget 66 - 40 = 26; days wait for msPerDay 100 again"},
+    {"op": "expect_state", "state": {"frame_budget_ms": 26, "julian": 2451835}},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewDay"}, "count": 0},
+    {"op": "tick", "count": 5, "note": "budgets 40, 26, 40, 26, 40 end at t = 521; the day due at 322 + 100 = 422 opens"},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewDay"}, "count": 1}
+  ]
+}

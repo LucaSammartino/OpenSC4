@@ -414,7 +414,7 @@ plugin.
 
      ```
      AUTOTEST VERDICT: clean|corrupt|stalled|ended (foreign_exceptions=…, watchdog_stalls=…, rtc=…, overruns=…,
-       ref_warnings=…, julian=…, switches_off=…, disabled=…)
+       ref_warnings=…, julian=…, date=…, real_seconds=…, days_per_second=…, switches_off=…, disabled=…)
      ```
 
      - `clean`: at the deadline, with no foreign exception, RTC failure or out-parameter overrun.
@@ -438,6 +438,74 @@ plugin.
        `PostSystemServiceShutdown`, so it counts reference warnings from every subsystem's `Shutdown`. Its `julian`
        is the last day played. A quit that has not reached that hook in 90 s is `stalled`; a process still alive
        30 s after the verdict is terminated.
+     - The run figures (the harness lane; `plugin/FC4HarnessLogic.h`): `date` is `julian` as `YYYY-MM-DD`,
+       `real_seconds` the time since the autotest clock started (`S.mmm`), and `days_per_second` the new days
+       (`SimNewDay` messages) seen since then over that time (`X.YY`); `-` where unknown (no clock: the save
+       autotest without `autotest_seconds`).
+     - `autotest_end_date = YYYY-MM-DD` (env `FC4_AUTOTEST_END_DATE`; tooling): the run ends at the first new day
+       on or after that date, as `autotest_end` says (verdict as at the deadline, then `TerminateProcess`, or the
+       quit at the next tick). It is checked inside the observer's `SimNewDay`, so a terminate run stops on that
+       very day even under the turbo clock. `autotest_seconds` stays a timeout: whichever comes first ends the
+       run; with an end date alone the autotest is on with no timeout. A city loaded after the end date ends at
+       its first new day. Not a date: a WARNING and ignored. Lines:
+
+       ```
+       autotest: end date 2001-01-01 (julian 2451911): the run ends at the first new day on or after it
+       autotest: clock started; verdict at 2001-01-01 (autotest_end_date), no timeout
+       autotest: end date 2001-01-01 reached at the new day 2001-01-01 (julian 2451911), 29.312 s after the clock
+         started; verdict, then TerminateProcess
+       AUTOTEST VERDICT: clean (…, julian=2451911, date=2001-01-01, real_seconds=29.312, days_per_second=12.48, …)
+       ```
+   - **Turbo clock** (`sim_turbo = 1`, env `FC4_SIM_TURBO`; off by default; `plugin/FC4Turbo.h`; a *tooling
+     deviation* from simulator.md §5, our simulator only): days are no longer paced by msPerDay. The day gate's
+     `ready` (§5.2 step 3) is always true, so a day opens as soon as its agents have finished the previous one;
+     the frame budget is `sim_turbo_frame_ms` (env `FC4_SIM_TURBO_FRAME_MS`, 1..10000, default 250) at any
+     speed while running (the §5.1 value while paused); pause and hidden pause stop time as before.
+     `sim_turbo_until = YYYY-MM-DD` (env `FC4_SIM_TURBO_UNTIL`) switches it off at the first new day on or after
+     that date. Off, nothing changes (the conformance vectors all pass again with turbo configured off). Lines:
+
+     ```
+     simulator: turbo ON (sim_turbo = 1; tooling deviation from simulator.md section 5): days not paced by
+       msPerDay, frame budget 250 ms at any speed; until 2001-01-01 (julian 2451911)      (game start)
+     simulator: turbo ON (sim_turbo) at 2000-01-01: frame budget 250 ms, until 2001-01-01     (each city's Init)
+     simulator: turbo month 2000-02-01: 31 day(s) in 2.480 s real = 12.50 days/s, 4.03 fps (10 frames)
+     simulator: turbo OFF at 2001-01-01 (sim_turbo_until reached); days paced by msPerDay again
+     simulator: WARNING sim_turbo = 1 has no effect: our simulator is disabled (disable = simulator), ...
+     ```
+   - **Scripted actions** (`script = <path>`, env `FC4_SCRIPT`; off by default; `plugin/FC4Script.h`, the grammar
+     in `plugin/FC4HarnessLogic.h`; tooling): a text file of dated in-city actions, one per line,
+     `YYYY-MM-DD <action> <args>`, `#` comments anywhere, blank lines allowed. A relative path is relative to the
+     folder of `FreeCity4.ini`. The whole file is parsed at game start; every error is logged with its line
+     number and a script with any error is refused. Each action runs once, on the main thread, inside the
+     observer's `SimNewDay` at the first new day on or after its date (several on one date in file order; dates
+     already past all run at the first new day, by date then file order). Everything goes through the game's
+     interfaces, so it works with the original's classes and with ours:
+
+     | Action | Call |
+     |---|---|
+     | `zone x0 z0 x1 z1 type` | `cISC4ZoneManager::PlaceZone` (city slot 36, slot 11; zones.md §6): commit = 1, skipFunds = 0, checkSlope = 1, skipSizeCheck = 0, checkLotInside = 1, outLots = null; the region (§11.4) in our memory, every cell of the inclusive rectangle set |
+     | `pricezone x0 z0 x1 z1 type` | the same with commit = 0 (a dry run) |
+     | `dezone x0 z0 x1 z1` | the same with type 0, commit = 1 |
+     | `speed 0\|1\|2`, `pause`, `resume` | the city simulator's `SetSimSpeed` / `Pause` / `Resume` (one call) |
+     | `turbo on\|off` | our simulator's turbo clock (`sim_turbo_frame_ms`, no end date); no effect with `disable = simulator` |
+     | `digest` | the observer's `DIGEST` line, now |
+     | `mark <text>` | a log line |
+
+     Coordinates are cells 0..4095 with x0 <= x1 and z0 <= z1; zone types 0..15 (zones.md §2). Lines:
+
+     ```
+     script: loaded '…\script.txt' (script setting; tooling): 3 action(s), 2000-01-03 to 2000-01-05; …
+     script: line 2 2000-01-03 zone 10 20 12 22 1 -> ok=1 error=0 (none) cost=… accepted=9 of 9 cell(s)
+     script: line 3 2000-01-03 pricezone 30 20 32 22 4 -> dry run: ok=1 error=0 (none) cost=… accepted=9 of 9 cell(s)
+     script: line 4 2000-01-05 dezone 10 20 11 22 -> ok=1 error=0 (none) cost=… accepted=6 of 6 cell(s)
+     script: all 3 action(s) of '…\script.txt' have run
+     script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark)
+     script: REFUSED '…\script.txt' (script setting): 1 parse error(s); no action of it runs
+     ```
+
+     `error` is PlaceZone's code (1 insufficient funds, 2 landfill on water, 3 too small, 4 too large, 5 blocked);
+     `accepted` counts the cells whose bits PlaceZone left set. A date passed while no city ran is caught up at the
+     next city's first new day; an action never runs twice in one game session.
    - **Clock probe** (`clock_probe = 1` or `2`, env `FC4_CLOCK_PROBE`; off by default; `plugin/FC4ClockProbe.h`):
      the M1 clock differential. From game start it logs every message the simulator posts (`CLOCK post day|week|
      month|year j=… c=…`, `CLOCK post pause|hidden|emergency|speed d1=…`), and at every city load it registers an
@@ -1125,7 +1193,11 @@ plugin.
   tests that load it without a game: a sink that sees every budget message as posted (budget §10: void1 =
   IGZUnknown = the sender), a fake city for the observer, and direct observer ticks and messages. The game
   never calls it. `plugin_autotest_test` runs child processes (clean, corrupt, stalled, ended, save, and a Rust
-  panic) that end through the autotest's `TerminateProcess` (the panic through fail-fast).
+  panic) that end through the autotest's `TerminateProcess` (the panic through fail-fast). The harness lane adds
+  four with `autotest_end_date`: an end date alone, a timeout that comes first, an end date already past with
+  `autotest_end = quit`, and a value that is not a date. `plugin_ini_script_test` runs a `script` through a stub
+  zone manager on the fake city (slot 36; its slot 11 records the region layout and the arguments, and clears a
+  bit as the game does) and our simulator; seam op 46 loads a refused, an unreadable, an empty and a late script.
 - Return types are part of the ABI too: SDK declarations can be wrong (budget erratum:
   `cISC4DepartmentBudget` slot 26 returns a float POINTER in EAX, not a float in ST0; `cIGZDate` slots 33–36
   return a `uint32` day number and leave the date alone; `cISC4Lot` slot 61 returns `SC4Percentage` by value
