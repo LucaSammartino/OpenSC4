@@ -13,9 +13,11 @@
 
 #include "FC4TestSeam.h"
 
+#include "FC4AuraShadow.h"
 #include "FC4BudgetShadow.h"
 #include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
+#include "FC4FloraShadow.h"
 #include "FC4Fpu.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
@@ -56,6 +58,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return DemandShadowTestDeliver(static_cast<const FC4DemandShadowTestInput*>(a));
         case kFC4SeamCrimeShadow:
             return CrimeShadowTestRun(static_cast<const FC4CrimeShadowTestInput*>(a));
+        case kFC4SeamAuraShadow:
+            return AuraShadowTestCycle(static_cast<const FC4AuraShadowTestInput*>(a));
         case kFC4SeamRefAuditRelease: {
             cIGZUnknown* o = static_cast<cIGZUnknown*>(a);
             const intptr_t mode = reinterpret_cast<intptr_t>(b);
@@ -70,6 +74,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
         }
         case kFC4SeamPollutionShadow:
             return PollutionShadowTestDeliver(static_cast<const FC4PollutionShadowTestInput*>(a));
+        case kFC4SeamFloraShadow:
+            return FloraShadowTestDeliver(static_cast<const FC4FloraShadowTestInput*>(a), static_cast<intptr_t*>(b));
         case kFC4SeamDemandCapacity: {
             const auto* in = static_cast<const FC4DemandCapacityTestInput*>(a);
             if (in == nullptr) return -1;

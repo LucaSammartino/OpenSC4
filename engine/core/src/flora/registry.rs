@@ -21,8 +21,8 @@ use super::{flag, prop, table_byte};
 pub const DEFAULT_TABLE_BYTE: u8 = 0x99;
 
 /// [choice] The flags byte of the key-0 default record (uninitialised in the
-/// original, §3.2): the code-default bits 1 and 2 plus bit 0.
-pub const DEFAULT_RECORD_FLAGS: u8 = flag::NEVER_AUTO | flag::SKIP_SCORE | flag::BIT2;
+/// original, §3.2): `0x01`, bit 0 only (never chosen automatically).
+pub const DEFAULT_RECORD_FLAGS: u8 = flag::NEVER_AUTO;
 
 /// One static flora record (`cSC4StaticFloraData`, §3.3).
 #[derive(Clone, Debug, PartialEq)]

@@ -19,6 +19,8 @@
 // Usage: fc4_plugin_load_test <path to FreeCity4.dll>
 
 #include "cIGZCOMDirector.h"
+#include "cISC4AuraSimulator.h"
+#include "SC4Point.h"
 #include "cIGZDate.h"
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageTarget2.h"
@@ -38,6 +40,11 @@
 #include "SC4List.h"
 #include "SC4Percentage.h"
 #include "cRZBaseString.h"
+#include "FC4AuraShadow.h"
+#include "FC4FloraShadow.h"
+#include "SC4Rect.h"
+#include "cFC4Flora.h"
+#include "cISC4FloraSimulator.h"
 #include "FC4BudgetShadow.h"
 #include "FC4CrimeInterfaces.h"
 #include "FC4CrimeShadow.h"
@@ -1785,6 +1792,492 @@ int ProtectionShadowTest(const std::string& dll, const std::string& ini, const s
     return g_failures == 0 ? 0 : 1;
 }
 
+// ---- aura (aura.md): the replacement without a city, and the grid shadow (test seam op 14) ----------
+constexpr uint32_t kCLSID_Aura = 0x0990BDD8;
+constexpr uint32_t kIID_cISC4AuraSimulator = 0xC773E880;
+constexpr uint32_t kIID_cIGZMessageTarget2Aura = 0x452294AA;
+
+// An "original" aura simulator whose record (its own Write, cIGZSerializable)
+// is the version alone (a uint16 9): no grid references, so the shadow takes
+// no baseline and reports each cycle INCOMPLETE without calling anything
+// else. The city answers GetAuraSimulator (compiled slot 51), CellWidthX / Z
+// (91, 92) and CellCountX / Z (93, 94); `noAura` returns null at 51, `ours`
+// our own simulator. Any other call aborts.
+struct FakeOrigAura {
+    FakeVtable simVt, serVt, cityVt, noAuraVt, oursVt;
+    FakeObject sim{}, ser{}, city{}, noAura{}, ours{};
+    void* ourSim = nullptr;
+    int refs = 1;
+    int writes = 0;
+};
+
+FakeOrigAura* g_oa = nullptr;
+
+bool __fastcall OaQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, serializable)
+    if (out == nullptr || iid != GZIID_cIGZSerializable) return false;  // (the reference audit asks other IIDs)
+    *out = &g_oa->ser;
+    ++g_oa->refs;
+    return true;
+}
+uint32_t __fastcall OaAddRef(void*, void*) { return static_cast<uint32_t>(++g_oa->refs); }   // 1
+uint32_t __fastcall OaRelease(void*, void*) { return static_cast<uint32_t>(--g_oa->refs); }  // 2
+bool __fastcall OaWrite(void*, void*, cIGZOStream* s) {                                       // serializable 3
+    ++g_oa->writes;
+    return s->SetUint16(9);
+}
+uint32_t __fastcall OaClsid(void*, void*) { return kCLSID_Aura; }  // serializable 5
+void* __fastcall OaCityAura(void*, void*) { return &g_oa->sim; }   // city 51
+void* __fastcall OaCityNoAura(void*, void*) { return nullptr; }    // city 51
+void* __fastcall OaCityOurs(void*, void*) { return g_oa->ourSim; }  // city 51
+float __fastcall OaCellWidth(void*, void*) { return 16.0f; }       // city 91, 92
+uint32_t __fastcall OaCellCount(void*, void*) { return 64; }       // city 93, 94
+
+void InitFakeOrigAura(FakeOrigAura& o) {
+    g_oa = &o;
+    for (FakeVtable* vt : {&o.simVt, &o.serVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OaQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OaAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OaRelease);
+    }
+    o.serVt.slots[3] = reinterpret_cast<void*>(&OaWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&OaClsid);
+    o.cityVt.slots[51] = reinterpret_cast<void*>(&OaCityAura);
+    o.cityVt.slots[91] = reinterpret_cast<void*>(&OaCellWidth);
+    o.cityVt.slots[92] = reinterpret_cast<void*>(&OaCellWidth);
+    o.cityVt.slots[93] = reinterpret_cast<void*>(&OaCellCount);
+    o.cityVt.slots[94] = reinterpret_cast<void*>(&OaCellCount);
+    o.noAuraVt.slots[51] = reinterpret_cast<void*>(&OaCityNoAura);
+    o.oursVt.slots[51] = reinterpret_cast<void*>(&OaCityOurs);
+    o.sim.vtbl = o.simVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.noAura.vtbl = o.noAuraVt.slots.data();
+    o.ours.vtbl = o.oursVt.slots.data();
+}
+
+intptr_t AuraShadowOnce(FC4TestSeamFn seam, FakeObject* city, int32_t julian, bool baseline) {
+    FC4AuraShadowTestInput in{reinterpret_cast<cISC4City*>(city), julian, baseline ? 1u : 0u};
+    return seam(kFC4SeamAuraShadow, &in, nullptr);
+}
+
+// The neutral answers without a city (§8: no grids, ratings 0).
+void CheckAuraNeutral(cISC4AuraSimulator* a) {
+    CHECK(a->GetMayorRating() == 0);
+    CHECK(a->GetAuraValue(3, 4) == 0);
+    SC4Point<long> p{7, 7};
+    CHECK(a->GetMaxMayorRating(p) == 0);
+    CHECK(a->GetMinMayorRating(p) == 0);
+    CHECK(a->GetAuraGrid() == nullptr);
+    CHECK(a->GetTransientAuraGrid() == nullptr);
+    CHECK(a->GetParkMap() == nullptr);
+    CHECK(a->GetLandmarkMap() == nullptr);
+}
+
+int AuraEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = aura` registers the aura simulator. The aura
+    // shadow (it compares against the original) is then inactive.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_AURA_SHADOW", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = aura\n[tools]\naura_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    static FakeOrigAura orig;
+    InitFakeOrigAura(orig);
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        // simulator (1) + budget (3) + aura (1); never the game's grid classes.
+        CHECK(classes.size() == 5);
+        for (uint32_t c : classes) CHECK(c < 0x49B9E600 || c > 0x49B9E60B);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Aura) == 1);
+
+        void* obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Aura, kIID_cISC4AuraSimulator, &obj));
+        auto* aura = static_cast<cISC4AuraSimulator*>(obj);
+        if (aura != nullptr) {
+            // §1: the primary for its IID and cIGZUnknown; the message target
+            // and serializable; nothing else (the out pointer untouched).
+            void* p = nullptr;
+            CHECK(aura->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(aura));
+            static_cast<cIGZUnknown*>(p)->Release();
+            cIGZMessageTarget2* mt = nullptr;
+            CHECK(aura->QueryInterface(kIID_cIGZMessageTarget2Aura, reinterpret_cast<void**>(&mt)) && mt != nullptr);
+            cIGZSerializable* ser = nullptr;
+            CHECK(aura->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser != nullptr);
+            if (ser != nullptr) {
+                CHECK(ser->GetGZCLSID() == kCLSID_Aura);
+                ser->Release();
+            }
+            p = reinterpret_cast<void*>(0x1234);
+            CHECK(!aura->QueryInterface(0x12345678, &p) && p == reinterpret_cast<void*>(0x1234));
+            CheckAuraNeutral(aura);
+            // Without a city: the month line before Init, a clean lifecycle,
+            // and the transient effects and strike busting do nothing harmful.
+            if (mt != nullptr) {
+                TypeMessage month(kMsgSimNewMonth);
+                CHECK(mt->DoMessage(&month));
+            }
+            CHECK(aura->Init());
+            CHECK(aura->Init());
+            CheckAuraNeutral(aura);
+            aura->AddTransientEffect(10.0f, 20.0f, 30.0f, 5.0f);
+            aura->AddTransientEffect(10.0f, 20.0f, 0x12345678u);
+            aura->BustStrike(cISC4AuraSimulator::StrikeBusterAll);
+            // Five days: states 1 -> 2 -> 3 -> 4, where a city without lots
+            // ends the cycle silently (§6.4 [quirk]): no cycle line, no post.
+            if (mt != nullptr) {
+                for (int i = 0; i < 5; ++i) {
+                    TypeMessage day(kMsgSimNewDay);
+                    CHECK(mt->DoMessage(&day));
+                }
+            }
+            // Getters from a second thread (they read the snapshot only).
+            int8_t rating = 99;
+            cISC4SimGrid<int8_t>* grid = reinterpret_cast<cISC4SimGrid<int8_t>*>(0x1);
+            std::thread t([&] {
+                rating = aura->GetMayorRating();
+                grid = aura->GetAuraGrid();
+            });
+            t.join();
+            CHECK(rating == 0 && grid == nullptr);
+            CheckAuraNeutral(aura);
+            // The shadow (test seam op 14) refuses our own simulator.
+            orig.ourSim = aura;
+            CHECK(AuraShadowOnce(seam, &orig.ours, 0, true) == -1);
+            if (mt != nullptr) mt->Release();
+            CHECK(aura->Shutdown());
+            CHECK(aura->Release() == 0);
+        }
+        // The shadow on fake originals: no city, a city without an aura
+        // simulator, then the original whose record does not parse: no
+        // baseline (0), and the cycle compares nothing (-2).
+        CHECK(AuraShadowOnce(seam, nullptr, 0, true) == -1);
+        CHECK(AuraShadowOnce(seam, &orig.noAura, 0, true) == -1);
+        CHECK(AuraShadowOnce(seam, &orig.city, 0, true) == 0);
+        CHECK(AuraShadowOnce(seam, &orig.city, 2451576, false) == -2);  // 2000-02-01
+        CHECK(orig.writes == 2);
+        CHECK(orig.refs == 1);  // every QueryInterface released
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("subsystem 'aura': enabled (1 class replaced) by FreeCity4.ini (enable=)") != std::string::npos);
+    CHECK(text.find("cFC4AuraSimulator(") != std::string::npos);
+    CHECK(text.find("aura month: init=0 state=1") != std::string::npos);
+    CHECK(text.find("aura Init: init=1") != std::string::npos);
+    CHECK(text.find("lot walks=0 lots=0; inputs none missing so far") != std::string::npos);
+    CHECK(text.find("aura cycle ") == std::string::npos);
+    CHECK(text.find("aura Shutdown (5 days, 1 months, 0 cycles)") != std::string::npos);
+    CHECK(text.find("cFC4AuraSimulator destroyed") != std::string::npos);
+    CHECK(text.find("aura shadow: requested (aura_shadow from FreeCity4.ini) but INACTIVE") != std::string::npos);
+    CHECK(text.find("aura shadow: ON") == std::string::npos);
+    CHECK(text.find("aura shadow: inactive: the city's aura simulator is FreeCity4's own") != std::string::npos);
+    CHECK(text.find("aura shadow: the city has no aura simulator; nothing compared") != std::string::npos);
+    CHECK(text.find("aura shadow: comparing with the original aura simulator") != std::string::npos);
+    CHECK(text.find("(city ") != std::string::npos && text.find("64 x 64 cells); differing tracts listed per grid: 4") !=
+                                                          std::string::npos);
+    CHECK(text.find("aura shadow: no baseline at city load (the original's record did not parse); the first cycle "
+                    "only takes one") != std::string::npos);
+    CHECK(text.find("aura shadow 2000-02-01 cycle 1: INCOMPLETE (the original's record did not parse); the next "
+                    "cycle only takes a baseline") != std::string::npos);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin aura enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
+// ---- flora (flora.md): the replacement without a city, and the census shadow (test seam op 17) -------
+constexpr uint32_t kCLSID_Flora = 0xC990C034;
+constexpr uint32_t kIID_cISC4FloraSimulatorT = 0x06C66177;
+constexpr uint32_t kIID_cIGZMessageTarget2Flora = 0x452294AA;
+
+// An "original" flora simulator whose record (its own Write,
+// cIGZSerializable) is the version alone (a uint16 2): the month is not
+// compared (INCOMPLETE). Its registry: no types (slot 9), and under key 0
+// (slot 7, slot 11) the block `key0` (the test hands it our own key-0 block,
+// so the registry check finds no difference). The agent (its
+// cIGZMessageTarget2) counts the deliveries. The city answers
+// GetFloraSimulator (compiled slot 59) only; `noFlora` returns null there,
+// `ours` our own simulator. Any other call aborts.
+struct FakeOrigFlora {
+    FakeVtable simVt, serVt, agentVt, cityVt, noFloraVt, oursVt;
+    FakeObject sim{}, ser{}, agent{}, city{}, noFlora{}, ours{};
+    void* ourSim = nullptr;
+    void* key0 = nullptr;
+    int refs = 1;
+    int writes = 0;
+    int delivered = 0;
+};
+
+FakeOrigFlora* g_ofl = nullptr;
+
+bool __fastcall OflQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, serializable, agent)
+    if (out == nullptr) return false;
+    if (iid == GZIID_cIGZSerializable) {
+        *out = &g_ofl->ser;
+    } else if (iid == kIID_cIGZMessageTarget2Flora) {
+        *out = &g_ofl->agent;
+    } else {
+        return false;  // (the reference audit asks other IIDs)
+    }
+    ++g_ofl->refs;
+    return true;
+}
+uint32_t __fastcall OflAddRef(void*, void*) { return static_cast<uint32_t>(++g_ofl->refs); }   // 1
+uint32_t __fastcall OflRelease(void*, void*) { return static_cast<uint32_t>(--g_ofl->refs); }  // 2
+void* __fastcall OflRecord(void*, void*, uint32_t type) { return type == 0 ? g_ofl->key0 : nullptr; }  // sim 7
+uint32_t __fastcall OflTypes(void*, void*, uint32_t*, uint32_t* count) {  // sim 9
+    if (count != nullptr) *count = 0;
+    return 0;
+}
+bool __fastcall OflValid(void*, void*, uint32_t type) { return type == 0 && g_ofl->key0 != nullptr; }  // sim 11
+bool __fastcall OflWrite(void*, void*, cIGZOStream* s) {  // serializable 3
+    ++g_ofl->writes;
+    return s->SetUint16(2);
+}
+uint32_t __fastcall OflClsid(void*, void*) { return kCLSID_Flora; }  // serializable 5
+bool __fastcall OflDoMessage(void*, void*, cIGZMessage2*) {        // agent 3
+    ++g_ofl->delivered;
+    return true;
+}
+void* __fastcall OflCityFlora(void*, void*) { return &g_ofl->sim; }  // city 59
+void* __fastcall OflCityNoFlora(void*, void*) { return nullptr; }   // city 59
+void* __fastcall OflCityOurs(void*, void*) { return g_ofl->ourSim; }  // city 59
+
+void InitFakeOrigFlora(FakeOrigFlora& o) {
+    g_ofl = &o;
+    for (FakeVtable* vt : {&o.simVt, &o.serVt, &o.agentVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OflQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OflAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OflRelease);
+    }
+    o.agentVt.slots[0] = o.simVt.slots[0];
+    o.simVt.slots[7] = reinterpret_cast<void*>(&OflRecord);
+    o.simVt.slots[9] = reinterpret_cast<void*>(&OflTypes);
+    o.simVt.slots[11] = reinterpret_cast<void*>(&OflValid);
+    o.serVt.slots[3] = reinterpret_cast<void*>(&OflWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&OflClsid);
+    o.agentVt.slots[3] = reinterpret_cast<void*>(&OflDoMessage);
+    o.cityVt.slots[59] = reinterpret_cast<void*>(&OflCityFlora);
+    o.noFloraVt.slots[59] = reinterpret_cast<void*>(&OflCityNoFlora);
+    o.oursVt.slots[59] = reinterpret_cast<void*>(&OflCityOurs);
+    o.sim.vtbl = o.simVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.agent.vtbl = o.agentVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.noFlora.vtbl = o.noFloraVt.slots.data();
+    o.ours.vtbl = o.oursVt.slots.data();
+}
+
+intptr_t FloraShadowOnce(FC4TestSeamFn seam, FakeObject* city, FakeObject* target, uint32_t type, int32_t julian,
+                         intptr_t* registry) {
+    FC4FloraShadowTestInput in{reinterpret_cast<cISC4City*>(city), reinterpret_cast<cIGZMessageTarget2*>(target),
+                               type, julian};
+    return seam(kFC4SeamFloraShadow, &in, registry);
+}
+
+// The calls that need a city do nothing without one (no occupant manager, no
+// terrain): nothing found, nothing planted, nothing removed.
+void CheckFloraNoCity(cISC4FloraSimulator* f) {
+    float pos[3] = {10.0f, 0.0f, 10.0f};
+    CHECK(f->AddNewFloraOccupant(0x12345678u, pos, false) == nullptr);  // not a registered type
+    CHECK(!f->AddNewFloraOccupant(static_cast<cISC4Occupant*>(nullptr)));
+    CHECK(!f->KillFloraOccupant(nullptr));
+    CHECK(!f->DemolishFloraOccupant(nullptr, 0));
+    SC4Rect<int32_t> rect{};
+    rect.topLeftX = 0;
+    rect.topLeftY = 0;
+    rect.bottomRightX = 4;
+    rect.bottomRightY = 4;
+    CHECK(f->DemolishFloraInCellArea(rect, 0));  // no flora there: true
+    const float mn[3] = {0.0f, -100.0f, 0.0f};
+    const float mx[3] = {64.0f, 100.0f, 64.0f};
+    CHECK(f->DemolishFloraInBoundingBox(mn, mx, 0));
+    CHECK(f->GetCostOfOccupantDemolition(nullptr, 0) == 0);
+    CHECK(f->SaveObliterated(nullptr));  // logged once: not saved
+}
+
+int FloraEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = flora` registers the flora simulator. The
+    // flora shadow (it compares against the original) is then inactive.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_FLORA_SHADOW", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = flora\n[tools]\nflora_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    static FakeOrigFlora orig;
+    InitFakeOrigFlora(orig);
+    // A record in the game layout (docs/abi/layouts.md) for slot 6; static:
+    // the registry keeps it (and its reference) for the life of the process.
+    static FC4FloraBlock added{};
+    added.type = 0x7E570001;
+    added.next = 0x7E570002;  // not registered: no record's seed type changes (§6.11), key 0's stays as built
+    added.flags = 0x01;
+    added.refCount = 0;
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        // simulator (1) + budget (3) + flora (1); never the flora occupant class.
+        CHECK(classes.size() == 5);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Flora) == 1);
+        CHECK(std::count(classes.begin(), classes.end(), 0xA9C05C85u) == 0);
+
+        void* obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Flora, kIID_cISC4FloraSimulatorT, &obj));
+        auto* flora = static_cast<cISC4FloraSimulator*>(obj);
+        if (flora != nullptr) {
+            // §1: the primary for its IID and cIGZUnknown; the message target
+            // and serializable; nothing else (the out pointer untouched).
+            void* p = nullptr;
+            CHECK(flora->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(flora));
+            static_cast<cIGZUnknown*>(p)->Release();
+            cIGZMessageTarget2* mt = nullptr;
+            CHECK(flora->QueryInterface(kIID_cIGZMessageTarget2Flora, reinterpret_cast<void**>(&mt)) && mt != nullptr);
+            cIGZSerializable* ser = nullptr;
+            CHECK(flora->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser != nullptr);
+            if (ser != nullptr) {
+                CHECK(ser->GetGZCLSID() == kCLSID_Flora);
+                ser->Release();
+            }
+            p = reinterpret_cast<void*>(0x1234);
+            CHECK(!flora->QueryInterface(0x12345678, &p) && p == reinterpret_cast<void*>(0x1234));
+            // Before the first Init of the process the registry is empty.
+            CHECK(flora->GetStaticFloraData(0) == nullptr);
+            CHECK(!flora->IsFloraTypeValid(0));
+            uint32_t n = 99;
+            flora->GetAllFloraTypes(nullptr, n);
+            CHECK(n == 0);
+            // The month line before Init; then a clean lifecycle without a city.
+            if (mt != nullptr) {
+                TypeMessage month(kMsgSimNewMonth);
+                CHECK(mt->DoMessage(&month));
+            }
+            CHECK(flora->Init());
+            CHECK(flora->Init());
+            // §3.2: the key-0 default record, a game-layout block (flags 0x01)
+            // that keeps our reference for the life of the process.
+            auto* key0 = reinterpret_cast<FC4FloraBlock*>(flora->GetStaticFloraData(0));
+            CHECK(key0 != nullptr);
+            if (key0 != nullptr) {
+                CHECK(key0->type == 0);
+                CHECK(key0->flags == 0x01);
+                CHECK(key0->refCount == 1);
+                CHECK(key0->exemplar == nullptr);
+                CHECK(key0->familyBegin == nullptr);
+            }
+            CHECK(flora->IsFloraTypeValid(0));
+            CHECK(flora->IsFloraFamilyTypeValid(0));  // §11.1 slot 12: a family ID or a registered type
+            n = 99;
+            flora->GetAllFloraTypes(nullptr, n);
+            CHECK(n == 0);  // key 0 is in the map only
+            // Slot 5 without a key or an exemplar; slot 6 with a record of
+            // ours: registered once, its reference taken (+0x170).
+            CHECK(!flora->AddStaticFloraData(static_cast<cGZPersistResourceKey*>(nullptr), nullptr));
+            CHECK(flora->AddStaticFloraData(reinterpret_cast<cSC4StaticFloraData*>(&added)));
+            CHECK(added.refCount == 1);
+            CHECK(!flora->AddStaticFloraData(reinterpret_cast<cSC4StaticFloraData*>(&added)));
+            CHECK(added.refCount == 1);
+            CHECK(flora->GetStaticFloraData(added.type) == reinterpret_cast<cSC4StaticFloraData*>(&added));
+            CHECK(flora->IsFloraTypeValid(added.type));
+            n = 0;
+            flora->GetAllFloraTypes(nullptr, n);
+            CHECK(n == 1);
+            uint32_t types[4] = {};
+            uint32_t cap = 4;
+            flora->GetAllFloraTypes(types, cap);
+            CHECK(cap == 1 && types[0] == added.type);
+            CheckFloraNoCity(flora);
+            float score = -1.0f;
+            CHECK(flora->GetBestFloraTypeForLocation(10.0f, 10.0f, score) == 0);
+            // Days and a month without a city.
+            if (mt != nullptr) {
+                for (int i = 0; i < 3; ++i) {
+                    TypeMessage day(kMsgSimNewDay);
+                    CHECK(mt->DoMessage(&day));
+                }
+                TypeMessage month(kMsgSimNewMonth);
+                CHECK(mt->DoMessage(&month));
+            }
+            // The registry getters from a second thread (the snapshot, no lock).
+            void* fromThread = nullptr;
+            bool validThread = false;
+            std::thread t([&] {
+                fromThread = flora->GetStaticFloraData(0);
+                validThread = flora->IsFloraTypeValid(added.type);
+            });
+            t.join();
+            CHECK(fromThread == static_cast<void*>(key0) && validThread);
+            // The shadow (test seam op 17) refuses our own simulator.
+            orig.ourSim = flora;
+            intptr_t reg = 0;
+            CHECK(FloraShadowOnce(seam, &orig.ours, &orig.agent, kMsgSimNewMonth, 0, &reg) == -1);
+            CHECK(reg == -1);
+            orig.key0 = key0;  // the fake original's key-0 record: our own block
+            if (mt != nullptr) mt->Release();
+            CHECK(flora->Shutdown());
+            CHECK(flora->Release() == 0);
+            // The registry outlives the simulator (§3.2).
+            CHECK(key0 == nullptr || key0->refCount == 1);
+        }
+        // The shadow on fake originals: no city, a city without a flora
+        // simulator, a day (not taken), then the original: the registry
+        // matches ours (no exemplars, key 0 the same), and its record does
+        // not parse, so the month compares nothing (-2).
+        intptr_t reg = 0;
+        CHECK(FloraShadowOnce(seam, nullptr, &orig.agent, kMsgSimNewMonth, 0, &reg) == -1);
+        CHECK(FloraShadowOnce(seam, &orig.noFlora, &orig.agent, kMsgSimNewMonth, 0, &reg) == -1);
+        CHECK(FloraShadowOnce(seam, &orig.city, &orig.agent, kMsgSimNewDay, 2451576, &reg) == -1);
+        CHECK(orig.delivered == 0);
+        CHECK(FloraShadowOnce(seam, &orig.city, &orig.agent, kMsgSimNewMonth, 2451576, &reg) == -2);  // 2000-02-01
+        CHECK(reg == 0);
+        CHECK(orig.delivered == 1);
+        CHECK(orig.writes == 2);
+        CHECK(orig.refs == 1);  // every QueryInterface released
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("subsystem 'flora': enabled (1 class replaced) by FreeCity4.ini (enable=)") != std::string::npos);
+    CHECK(text.find("flora: the process-wide flora registry") != std::string::npos);
+    CHECK(text.find("cFC4FloraSimulator(") != std::string::npos);
+    CHECK(text.find("flora month -: flora=- (no census: no occupant manager); planted=0(+0)") != std::string::npos);
+    CHECK(text.find("flora Init -: flora=- (no census: no occupant manager)") != std::string::npos);
+    CHECK(text.find("is not registered [choice]: the records are kept") != std::string::npos);
+    CHECK(text.find("flora: no resource manager; no flora exemplars") != std::string::npos);
+    CHECK(text.find("flora: SaveObliterated(") != std::string::npos);
+    CHECK(text.find("flora Shutdown (3 days, 2 months, ") != std::string::npos);
+    CHECK(text.find("cFC4FloraSimulator destroyed") != std::string::npos);
+    CHECK(text.find("flora shadow: requested (flora_shadow from FreeCity4.ini) but INACTIVE") != std::string::npos);
+    CHECK(text.find("flora shadow: ON") == std::string::npos);
+    CHECK(text.find("flora shadow: inactive: the city's flora simulator is FreeCity4's own") != std::string::npos);
+    CHECK(text.find("flora shadow: comparing with the original flora simulator") != std::string::npos);
+    CHECK(text.find("flora shadow registry: exemplars 0, types ours 0 original 0; records compared 1; key 0 compared "
+                    "(flags and plop cost not); differences 0") != std::string::npos);
+    CHECK(text.find("flora shadow month 2000-02-01: INCOMPLETE (before: the record is short)") != std::string::npos);
+    CHECK(text.find("flora shadow census 2000-02-01: before 0 (young 0, maturing 0, mature 0, burnt 0, dying 0, "
+                    "other 0; types 0) after 0") != std::string::npos);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin flora enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -1816,6 +2309,10 @@ int main(int argc, char** argv) {
     // Protection (protection.md): the replacement, and the grid shadow.
     if (mode == "--ini-enable-protection") return ProtectionEnableTest(dll, ini, log);
     if (mode == "--ini-protection-shadow") return ProtectionShadowTest(dll, ini, log);
+    // Aura (aura.md): the replacement, and the grid shadow on fake originals.
+    if (mode == "--ini-enable-aura") return AuraEnableTest(dll, ini, log);
+    // Flora (flora.md): the replacement, and the census shadow on fake originals.
+    if (mode == "--ini-enable-flora") return FloraEnableTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).
@@ -1950,7 +2447,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 93): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 115): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -3377,6 +3874,10 @@ int main(int argc, char** argv) {
     CHECK(text.find("cFC4OrdinanceSimulator(") == std::string::npos);
     CHECK(text.find("subsystem 'demand': off by default") != std::string::npos);
     CHECK(text.find("cFC4DemandSimulator(") == std::string::npos);
+    CHECK(text.find("subsystem 'aura': off by default") != std::string::npos);
+    CHECK(text.find("cFC4AuraSimulator(") == std::string::npos);
+    CHECK(text.find("aura shadow: ON") == std::string::npos);  // off by default
+    CHECK(text.find("aura shadow: requested") == std::string::npos);
     CHECK(text.find("GetClassObject enter (clsid=0x2990C1E5, iid=0x8695664E") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x8695664E) -> 1") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x0BADF00D) -> 0") != std::string::npos);
@@ -3460,11 +3961,11 @@ int main(int argc, char** argv) {
                     "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 93 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 93 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 115 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 115 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 93): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 115): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);

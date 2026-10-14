@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "residential_negative_population",
+  "spec": ["residential 5.6", "RS16"],
+  "description": "RS16: state 12's average life expectancy is leSum / population as an unsigned 64-bit division by the population sign-extended to 64 bits, guarded by population != 0. Population -5 (a damaged record) with leSum 28600 -> 28600 / (2^64 - 5) = 0; with leSum 2^64 - 5 -> 1 (a '> 0' guard would give 0). Population 0 -> 0. Population 400 -> 71.",
+  "steps": [
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_set", "state": {"state": 12, "running_population": -5, "le_sum": 28600}},
+    {"op": "residential_clear_events"},
+    {"op": "residential_run_to", "state": 5, "steps": 1},
+    {"op": "residential_expect_events", "events": [{"value": 0}], "filter": {"event": "history", "series": "0x2A5E7009"}},
+    {"op": "residential_expect", "state": {"population": -5}},
+    {"op": "residential_set", "state": {"state": 12, "running_population": -5, "le_sum": -5}},
+    {"op": "residential_clear_events"},
+    {"op": "residential_run_to", "state": 5, "steps": 1},
+    {"op": "residential_expect_events", "events": [{"value": 1}], "filter": {"event": "history", "series": "0x2A5E7009"}},
+    {"op": "residential_expect", "state": {"population": -5}},
+    {"op": "residential_set", "state": {"state": 12, "running_population": 0, "le_sum": 28600}},
+    {"op": "residential_clear_events"},
+    {"op": "residential_run_to", "state": 5, "steps": 1},
+    {"op": "residential_expect_events", "events": [{"value": 0}], "filter": {"event": "history", "series": "0x2A5E7009"}},
+    {"op": "residential_expect", "state": {"population": 0}},
+    {"op": "residential_set", "state": {"state": 12, "running_population": 400, "le_sum": 28600}},
+    {"op": "residential_clear_events"},
+    {"op": "residential_run_to", "state": 5, "steps": 1},
+    {"op": "residential_expect_events", "events": [{"value": 71}], "filter": {"event": "history", "series": "0x2A5E7009"}},
+    {"op": "residential_expect", "state": {"population": 400}}
+  ]
+}

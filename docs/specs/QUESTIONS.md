@@ -477,14 +477,27 @@ About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The 
   as borrowed. Right identity? [as stated]
 - **PR3:** `AddControllersFromOccupantGroup(name, occ, 0)` and its Remove: the name as an `SC4String` gives slots 10
   and 12. Right overload? [yes]
-- **PR4:** the fire simulator getter is city slot 57, inferred from the SDK order; the shadow depends on it. §14 lists
-  only police slot 65. [57]
+- ~~**PR4:** the fire simulator getter is city slot 57, inferred from the SDK order; the shadow depends on it. §14 lists
+  only police slot 65. [57]~~ **ANSWERED 2026-10-14** from the exe (slot 57 body `0x006DC690`; city new-city path
+  `0x0045ADF7`; city `Read` `0x0045CEDB`; cache fill `0x00601E8A` → `0x00B43D78`) and written into protection.md §1.
+  **Confirmed; the bracket matches.** Slot 57 (`+0xE4`) returns city `+0x174`. The city creates that member as the
+  fire class `0x2990C05A` with IID `0x88F54C7B`, and loads it from component ref #25. The neighbouring getters follow
+  the component order: slot 55 crime `+0x16C`, 56 demand, 57 fire, 58 flammability, 59 flora, 60 industrial, 61
+  land value.
 - **PR5:** is there a read-only way to get the original's unadjusted int16 grid? [no; only the adjusted grid is
   compared]
 - **PR6:** city slot 97: interfaces.tsv says ST0, §14 lists only its outputs. [outputs used, ST0 discarded]
-- **PR7:** which slots does the game call from its second thread, and are these fallbacks acceptable: lists return 0
+- ~~**PR7:** which slots does the game call from its second thread, and are these fallbacks acceptable: lists return 0
   untouched; chance of strike, efficiency and radius return 0; strike length 0xFFFFFFFF with no date, else 0; scalars
-  from the month-end snapshot? [as stated]
+  from the month-end snapshot? [as stated]~~ **ANSWERED 2026-10-14** from the exe (all 79 reads of the fire and police
+  globals `0x00B43D78`/`0x00B43D98`, by containing function; the ambience condition evaluators
+  `0x004E2AA0`–`0x004E2CB0`) and written into protection.md §13.1. **None is known; no original behaviour; the
+  implementer's choice stands.** Every reader of the protection globals is main-thread code: simulator agents, view
+  input controls, UI windows, automata, the disaster layer, the advisors. The measured off-main caller (`IsPaused`,
+  foundations §19.2) fits the ambience sound system, whose conditions read only the simulator and view globals. The
+  original returns live values with no locking. If the fallbacks ever fire, they differ from it. A `Mutex` that
+  answers exactly from any thread would be closer than fallbacks. *[inferred: no thread trace; static reachability
+  through the globals only]*
 - **PR8:** slots 21/22/32, dispatch-source slot 6 and slot 42 (non-empty) clear the caller's list without releasing
   its elements, which leaks the caller's references as the original does. Intended? [reproduced]
 - **PR9:** the property setters `0x005FE3C0` / `0x005FE6B0`: scalar u32 or a one-element vector? [open]
@@ -527,27 +540,103 @@ vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
 About `docs/specs/crime.md` and its `docs/abi` rows. Ini: `enable = crime` (optional `crime_seed`); shadow
 `crime_shadow = 1`. The glue's current answer is in brackets.
 
-- **CQ1:** `GetCrimeIncidentArray`: allocators.md does not list its container. [the game's allocator]
-- **CQ2:** `PropProfile.crimeIncidentID` is read at offset 24, from the SDK layout; layouts.md does not list
-  `PropProfile`. [24]
-- **CQ3:** lot `GetCenter` (slot 15): docs/abi says ST0, §13 says the out parameter with nothing left on the x87
-  stack. [both handled; the month line counts which one happens as `center st0=a/b`]
-- **CQ4:** `GetOccupantsByBBox`: §13 names the filter overload (slot 36). [the typed overload, slot 37, last
-  argument 0xFFFFFFFF]
-- **CQ5:** the session seed "local wall-clock seconds". [`_mkgmtime(localtime(now))`]
-- **CQ6 — §16.1:** the ordinance crime factor after a load with no ordinance simulator. [left unchanged]
-- **CQ7:** the prop requester is never unregistered at Shutdown; the spec is silent. [not unregistered]
-- **CQ8 — §16.8:** crime type names: which LTEXT key, and the fallback when it is missing. [open]
-- **CQ9:** `Read` on a stream error. [returns false, no state changed]
-- **CQ10:** crime type list order. [ascending instance]
-- **CQ11:** police slot 5 returns a uint8 grid (the SDK says short) and slot 27 an int32 count, as protection
-  declares them. Confirm. [as protection]
-- **CQ12:** arson calls `SetCause` whatever `IgniteOccupant` returns. Right? [yes]
-- **CQ13:** property 0xCA5B9306 is read with numeric conversion (`GetU32s`, low bytes). [as stated]
-- **CQ14:** a failed QueryInterface nulls the out pointer per crime.md §1; flammability, plumbing and pollution leave
-  it untouched. Which is the original's rule per class? [crime nulls]
-- **CQ15:** the return value of the residential `GetPopulationGrids` / `GetEQGrids` is ignored; only the three out
-  pointers are used. [ignored]
+- ~~**CQ1:** `GetCrimeIncidentArray`: allocators.md does not list its container. [the game's allocator]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006A1960`, resize `0x006A1380`, growth `0x0069FE90`; caller
+  `0x00553370`) and written into crime.md §11.4 and §14.2. **The bracket is right, and the allocator is B** (the
+  STL node allocator, `0x0090CF54`/`0x0090CF63`): `out` is a default-allocator `std::vector`. The only caller
+  passes an empty vector and frees the buffer with B. New elements of lot-less incidents are a fill value with a
+  zero icon key and 16 uninitialised bytes; *[choice]* zero-fill. allocators.md needs a row (coordinator).
+- ~~**CQ2:** `PropProfile.crimeIncidentID` is read at offset 24, from the SDK layout; layouts.md does not list
+  `PropProfile`. [24]~~ **ANSWERED 2026-10-14** from the exe (`SelectProp` `0x006A016B`–`0x006A016E`: prop
+  manager slot 13, then `mov eax, [eax+0x18]`) and written into crime.md §11.6 and §13. **The bracket is right:
+  24** (`u32`). Nothing else of the profile is read by crime.
+- ~~**CQ3:** lot `GetCenter` (slot 15): docs/abi says ST0, §13 says the out parameter with nothing left on the x87
+  stack. [both handled; the month line counts which one happens as `center st0=a/b`]~~ **ANSWERED 2026-10-14**
+  from the exe (`cSC4Lot::GetCenter` `0x006BF560`, the only implementation) and written into crime.md §13. **§13
+  is right; docs/abi is wrong.** The result is only in the out parameter, and EAX = `&out`. Four `fild`s feed two
+  `fstp` stores, and the last value is popped (`fstp st(0)`, `0x006BF5B6`), so the **x87 stack is empty** on
+  return. Declare it returning the pointer (or void), never `float`: popping ST0 after the call would underflow
+  the x87 stack. The glue's ST0 branch should never fire. The abi row is the coordinator's to fix.
+- ~~**CQ4:** `GetOccupantsByBBox`: §13 names the filter overload (slot 36). [the typed overload, slot 37, last
+  argument 0xFFFFFFFF]~~ **ANSWERED 2026-10-14** from the exe (`GetNearestCrimeSim` `0x006A121D`,
+  `GetNearestCrimeProp` `0x006A0F7D`; filters `0x0069F4D0`/`0x0069F490`; slot 37 `0x0049DD40`; the manager's
+  typed filter `0x004BDF90` → `0x005E9740`) and written into crime.md §11.3 and §13, closing §16 Q5. The original
+  calls **slot 36** with a per-call filter object of its own (type plus group, or type plus property) and flags
+  `0xFFFFFFFF`. **The bracket is equivalent**, as long as the group or property test is applied to each listed
+  occupant before it can become a candidate. Slot 37's filter is `GetType() == type`, and the walk and order are
+  the same.
+- ~~**CQ5:** the session seed "local wall-clock seconds". [`_mkgmtime(localtime(now))`]~~ **ANSWERED 2026-10-14**
+  from the exe (static initializer `0x00A74B70`; `cRZTime::cRZTime` `0x00470B50`) and written into crime.md §9.
+  **The bracket is not the original value.** The seed is `cRZTime()` XOR `0x6C09C3F6`, and `cRZTime()` is u32
+  seconds since **1901-01-01 00:00 UTC**, rebuilt from the `localtime` fields with `_timezone` and the library's
+  fixed old-US daylight rule. That is `time() + 2177452800` when the host's daylight rule agrees, one hour off when
+  it does not, and 0 in the library's spring-forward hour. The bracket counts local seconds from 1970 instead. No run
+  can observe the seed, so this is a *[choice]*: crime.md §9 recommends `(uint32)(time(NULL) + 2177452800) XOR
+  0x6C09C3F6`.
+- ~~**CQ6 — §16.1:** the ordinance crime factor after a load with no ordinance simulator. [left unchanged]~~
+  **ANSWERED 2026-10-14** from the exe (crime `Init` step 6; OrdinanceUpdated handler `0x006A22D5`; the only poster
+  of `0xC2C09554` is `SetOrdinanceOn`, `0x0080D714`) and written into crime.md §4.1 and §16 Q1. **No original
+  behaviour; the implementer's choice stands.** With no ordinance simulator the original crashes in `Init` step 6
+  (the AddRef has no null check), before any month. "Left unchanged" means 1.0, the value `Init` step 9 sets. §16 Q1
+  is closed: nothing posts OrdinanceUpdated after a load. Even with an ordinance simulator, a loaded city runs at
+  1.0 until some ordinance's on flag changes. Then the handler re-reads the factor over all on ordinances.
+- ~~**CQ7:** the prop requester is never unregistered at Shutdown; the spec is silent. [not unregistered]~~
+  **ANSWERED 2026-10-14** from the exe (crime `Shutdown` `0x006A1860`; prop developer `AddPropRequester`
+  `0x006F21C0` and its `Shutdown` `0x006F2F70`–`0x006F2FCE`) and written into crime.md §4.2. **The bracket
+  matches.** Crime's `Shutdown` makes no prop-developer call. The prop developer AddRefs each requester on
+  registration (no duplicate check) and releases each one once at its own `Shutdown`, which empties the list. So
+  the crime object lives until then.
+- ~~**CQ8 — §16.8:** crime type names: which LTEXT key, and the fallback when it is missing. [open]~~
+  **ANSWERED 2026-10-14** from the exe (`LoadCrimeTypeFromExemplar` `0x006A0D12`, `SC4LoadExemplarString`
+  `0x00603270`/`0x00603220`, `SC4LoadString` `0x00603040`) and the 13 shipped language packages, and written into
+  crime.md §7, closing §16 Q8.
+  - **The key.** Values [1] and [2] of `0x8A416B2E` are the LTEXT group G and instance I; [0] is ignored. The
+    lookup is (`0x2026960B`, G + language ID, I), then (`0x2026960B`, G, I).
+  - **The text.** It is detokenized in place, then U+2022 becomes U+200B.
+  - **The fallback.** On failure the inline string `0xAA12FCB0` is used; without it the name stays empty.
+  - **Shipped data.** Only `0xEA5EA698` exists, in every language, so Generic gets an unrelated building text and
+    the other 13 types are empty.
+  - **Choice.** Reproduce the steps, or call the game's `SC4LoadString`.
+- ~~**CQ9:** `Read` on a stream error. [returns false, no state changed]~~ **ANSWERED 2026-10-14** from the exe
+  (`cSC4CrimeSimulator::Read` `0x006A05E0`) and written into crime.md §12. **The bracket is not the original but
+  matches the §12 *[choice]*, which stands.** The only early exit is the version test. On a stream error the
+  original reads on and sets `loadedFromSave`, then returns false. It nulls the grid refs, resizes the iterator
+  table to the stream pointer's value, and loops over an uninitialised incident count, so it reads garbage. The
+  following `Init` then leaves the simulator unusable.
+- ~~**CQ10:** crime type list order. [ascending instance]~~ **ANSWERED 2026-10-14** from the exe
+  (`LoadAllCrimeTypesFromExemplars` `0x006A1450`, `GetAvailableResourceList` `0x009739CB`, the package hash-table walk
+  `0x0096F9AB`) and already written into crime.md §7 ("Order of the list"). **The bracket matches the original for
+  the shipped types.** The original uses the resource manager's key-list order. That order is segment order, and
+  within each package the index hash-table buckets (`instance mod B`, B ≥ 53). All 14 shipped types are in
+  `SimCity_1.dat` with instances below 53, so the order is ascending instance. Plug-in types can land elsewhere;
+  ascending instance stays the §7 *[choice]*.
+- ~~**CQ11:** police slot 5 returns a uint8 grid (the SDK says short) and slot 27 an int32 count, as protection
+  declares them. Confirm. [as protection]~~ **ANSWERED 2026-10-14** from the exe (slot 5 `0x006EFA50`, slot 27
+  `0x006E0A00`) and written into crime.md §13. **Confirmed; the bracket matches.** Slot 5 returns the adjusted grid
+  pointer at `+0x80`, the `uint8` grid, without an AddRef. Slot 27 returns its int32 count in EAX, after a float→int
+  conversion.
+- ~~**CQ12:** arson calls `SetCause` whatever `IgniteOccupant` returns. Right? [yes]~~ **ANSWERED 2026-10-14** from
+  the exe (`0x006A1D07`–`0x006A1D10`) and written into crime.md §6.8. **Yes; the bracket matches.** AL from
+  `IgniteOccupant` (slot 4) is not tested. `SetCause(2)` (slot 9) follows unconditionally on the same manager.
+- ~~**CQ13:** property 0xCA5B9306 is read with numeric conversion (`GetU32s`, low bytes). [as stated]~~
+  **ANSWERED 2026-10-14** from the exe (`DoOccupantChanged` `0x0069F27B`–`0x0069F2B1`; variant slot 95 `0x0060CE80`)
+  and written into crime.md §6.10. **The bracket differs from the original but is equivalent for shipped data.** The
+  original takes the variant's raw data pointer whatever its type, and reads bytes 0 and 1 with no conversion and no
+  checks. That equals `GetU32s` + low bytes only for byte arrays, and all 6 shipped buildings are `Uint8` ×2. A
+  `Uint32` array {100, 8} gives m = 100, r = 0. A scalar is dereferenced as a pointer, which crashes or reads
+  garbage. *[choice]*: read raw bytes 0 and 1, and skip scalars and arrays shorter than 2 bytes.
+- ~~**CQ14:** a failed QueryInterface nulls the out pointer per crime.md §1; flammability, plumbing and pollution leave
+  it untouched. Which is the original's rule per class? [crime nulls]~~ **ANSWERED 2026-10-14** from the exe (crime
+  `0x0069F1FC`, flammability `0x006AE3D5`, plumbing `0x006DA405`, pollution `0x006E2D1C`; 64 implementations
+  checked) and written into crime.md §1, which was wrong. **The bracket is wrong.** Crime returns AL = 0 and leaves
+  the out pointer **untouched**, like flammability, plumbing, pollution and every other simulator class. The only
+  class seen nulling it is `cSCResExemplarCohort`, on entry (`0x0067C15D`). One rule for all simulators: false with
+  the out pointer untouched.
+- ~~**CQ15:** the return value of the residential `GetPopulationGrids` / `GetEQGrids` is ignored; only the three out
+  pointers are used. [ignored]~~ **ANSWERED 2026-10-14** from the exe (`DoCensus` `0x0069FB24`/`0x0069FB3E`) and
+  written into crime.md §13. **Confirmed; the bracket matches.** EAX is never read after either call (the next
+  instruction clears EBX and the loop reads the out pointers). The order is `GetPopulationGrids` (slot 25) first,
+  then `GetEQGrids` (slot 23).
 - Not compared by the shadow (stated on every line): the number of crimes to commit (needs
   `ResetUnjailedCriminals`, which has side effects), which attempts the police stopped and each crime's type (the
   original's draws), which lots were tried (the lot manager's generator), the crime-effect grid (no interface).
@@ -568,6 +657,21 @@ current answer is in brackets.
 - **DQ7:** limits of 16 maps, 128 capacity entries and 4,096 summary nodes. Are larger real maps possible? [refused
   above them]
 - **DQ8:** which thread calls `GetLocalPopulationSummary`? [unspecified; the first success is logged with its thread]
+- ~~**DQ9 — §5 `GetNeutralTaxRate` precision (in-game differential, run 73, coordinator):** with census supply
+  R/C/I = 27207 / 2569.47998 / 10583.1006 (C and I fractional, now that the demand glue reads capacity), the
+  original returns **8.97309399** and our core **8.97309303** (1 ulp; the demand shadow's only mismatch in 2,955
+  lines, on all 27 days of that census month). Every other demand value is bit-identical. Which precision and order
+  does the original use for `node[0x1001].supply + node[0x3001].supply + node[0x4001].supply` (float32 or x87
+  extended, left to right?), and for the curve interpolation (foundations §4.3) on the way to the float32 return?
+  [ours: as the spec reads today]~~ **ANSWERED 2026-10-14** from the exe (`GetNeutralTaxRate` `0x006A3DD0`,
+  `FADD dword` at `0x006A3E39`/`0x006A3E3D`; curve `0x005F4250`) and written into demand.md §5, with a worked example
+  on these inputs. **The bracket (the spec's left-to-right reading) is wrong.**
+  - **The sum.** It is `float32`, in the order **(I + C) + R**: node `0x4001`'s supply stays in ST0, the `0x3001`
+    local is added to it, then the `0x1001` local. Each `FADD` rounds to 24 bits at the main thread's precision.
+    Both roundings here are exact ties, resolved to even: 13152.580078125, then 40359.578125 (`0x471DA794`).
+  - **The curve.** It is unchanged: three `float32` operations (foundations §4.3). The result is 8.97309399
+    (`0x410F91CB`), the original's value.
+  - **What ours does.** Both R + C + I and one rounding of the exact sum give `0x471DA795` and 8.97309303.
 
 ## From the protection fix: saved grid refs and their geometry (filed by the coordinator from the lane's report, 2026-10-14; merged)
 
@@ -595,3 +699,106 @@ About `docs/specs/traffic-network.md`. The core's current answer is in brackets.
 - **TN25 — §4.7.2 TN3:** FreeCity4 replaces the rules on the re-read, so the flags come from the property's rules;
   the original takes them from the first n rules of the vector (the saved copy). They differ only when the saved
   rules differ from the exemplar. Acceptable? [flags from the re-read rules]
+
+## From the aura glue and grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/aura.md` and its `docs/abi` rows. Ini: `enable = aura`; shadow `aura_shadow = 1` (compared at
+each cycle-completed message `0x2A09B21A`). The glue's current answer is in brackets.
+
+- **AU1 — §11.3:** does Read replace the departments and hotspots, or merge/append? [replace]
+- **AU2 — §10:** the transient tuning is read through properties, not the raw f32 copy. Same values? [properties]
+- **AU3:** `GetPopulations` (lot slot 54) returns a container not in `docs/abi`; the glue calls `GetPopulation(type)`
+  (slot 53) for the 12 developer types and keeps non-zero counts, so a mixed lot whose residential count is 0 reads
+  −128 instead of 0. What is the container's layout (allocators.md)? [slot 53 loop]
+- **AU4:** `RefSint32` on a non-Sint32 property: a Uint32 is accepted bitwise, anything else counts as absent.
+  Right? [as stated]
+- **AU5:** the safe lot iterator's layout is not in `docs/abi`; the glue walks cells with `GetLot(x, z, false)`,
+  takes each lot once and re-checks the pointer at the next step. Layout of the iterator? [cell walk]
+- **AU6:** the game-data registry node "aura" is a stub. What does the original publish there? [stub]
+- **AU7 — shadow timing:** the other inputs are read at the end of the original's cycle, so a mid-cycle change shows
+  as a difference; the tax baseline is taken at the first compared cycle. [as stated]
+- **AU8:** `GetCumulativeOffset` (ordinance slot 24): the SDK says int64, the spec and table int32 in EAX. [int32,
+  declared as `GetCumulativeOffset32` in `cFC4ISC4OrdinanceSimulator`]
+- **AU9:** a cycle in an empty city keeps the lot iterator open until the next state 4. Intended? [as the spec]
+- **AU10:** with no land value simulator the land value type is 0; the spec is silent. [0]
+- **AU11 — §16 Q7:** the base-aura process table is not written. [not written]
+- **AU12:** the CPU-cycle limit timer runs on `QueryPerformanceCounter` instead of the TSC. Acceptable? [QPC]
+
+First in-game aura shadow (coordinator, `regress -Tag r7c3f`, Spandau, 98 cycles 2026-01 to 2034-02; the replace run
+with aura was clean, 0 problems). The park, landmark and riot fields aside, **6 of 98 cycles match exactly**:
+
+- **AU13 — small base differences every cycle.** 0 to 43 tracts of 1024 differ by 1 to 3 (most cycles 2 to 12
+  tracts, max|d| = 2), in both directions from one cycle to the next (cycle 1 `(6,21)` 59/58, cycle 2 58/59), and
+  the aura grid carries the same differences. The mayor rating is off by 1 in 11 cycles. The first cycles' tracts
+  sit in one area (x 4 to 13, z 21 to 28). Is this the AU7 timing (an input that changes during the original's
+  cycle: which inputs does the original read in which state, and on which day), or a rounding step the spec does
+  not give (the order of the sums, a truncation instead of a rounding)? Name the inputs read per state.
+- **AU14 — park and landmark maps in cycles 2 and 3 only.** 193 tracts (max|d| 200) in cycle 2 and 208 (max 188)
+  in cycle 3 differ in both maps, then 0 for the other 95 cycles. When does the original rebuild these maps (on
+  load, on the first cycle, when a park lot is added), and does it clear them first?
+- **AU15 — rare large single-tract differences.** Three cycles have a base difference near 180 (cycle 3: 182,
+  cycle 7: 188, cycle 88: 175) while the aura grid differs by at most 54/60/47 there. A lot placed or removed during
+  the cycle? Which state reads the lots, and is a lot's effect clamped before or after it is added to the base?
+
+## From the residential education and health core (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/residential-education-health.md` (REH) §2 to §7. RS7 to RS17 are applied. The lane's answer is in
+brackets; the module doc of `core/src/residential/education_health.rs` lists 1 to 13.
+
+- **EH1:** do the efficiency ratings and the base staff efficiency start (a, b) at (0, 0)? [yes]
+- **EH2:** slot 19 sets both percentages: does it end with the dirty flag set? [yes]
+- **EH3:** after `ChangeBudgetItemLine`, is the line item's line the building type? [yes]
+- **EH4:** on removal with no line item for the line, is the count step skipped? [skipped]
+- **EH5:** a building added without a capacity: is its effective capacity 0? [yes]
+- **EH6:** do "served", the tract list and the boost all use the lot centre, else `GetPosition`? [yes, all three]
+- **EH7:** how do slots 28 and 58 pick the service? [like slot 45: hospital capacity first, then school]
+- **EH8:** slot 45 with no matching point or no radius? [AL = 1 whenever the building's kind is found, distance 0,
+  radius 0]
+- **EH9:** does the ideal funding test the served property itself for `0xFFFFFFFF`? [yes, the property]
+- **EH10:** does the hospital query fail on missing fields, testing the staff item last? [yes]
+- **EH11:** what does the ratings query's record start at? [zero]
+- **EH12:** do the system totals count only successful queries and add onto the caller's record? [yes]
+- **EH13:** in `AddRadiusEffectWithCurves`, with n = 0 is pop' = pop, and is the same tract index used for all
+  grids? [yes]
+- **EH14:** P is a signed 32-bit value: is a negative P accepted on Read (`record.rs`)? [accepted]
+- Not testable by vectors: the unsigned versus signed upper-bound compare (no output differs); the §4.13 tuning
+  values that are loaded but unused (minimum acceptable funding, maximum EQ/HQ boost). REH §11 test 24's calling
+  conventions (slot 34 leaves the x87 stack unchanged; slots 10 to 13 return through the hidden pointer) belong
+  to the residential glue.
+
+## From the flora glue and census shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/flora.md` and its `docs/abi` rows. Ini: `enable = flora` (ten `flora_*` bisection switches);
+shadow `flora_shadow = 1` (registry once per city, then the deterministic part of each monthly pass; the random
+part of §8 is not compared). The glue's current answer is in brackets.
+
+- **FQ1:** exemplars are enumerated with `GetAvailableResourceList` and an exemplar-type filter (the demand glue's
+  pattern), not slot 18 `GetAvailableResourceListForType`, and keys are read by index (`Size`/`GetKey`), not
+  `EnumKeys`. Equivalent? [assumed]
+- **FQ2 — §4.1 step 2:** the app shutdown callback is not registered: its timing against our DLL's unload is not
+  documented, and the records live for the whole process. [not registered]
+- **FQ3 — §10.3:** `cIGZPersistDBSegment`'s record read/write is not in `docs/abi`, so saving and restoring an
+  obliterated city's trees is off (`SaveObliterated` writes nothing and returns true; a restore is logged when the
+  segment at +0x204 is non-null). Layout and slots? [off]
+- **FQ4:** `cISC4OccupantFilter` is not in `docs/abi`. Instead of the filter overload (slot 36) the glue calls the
+  typed box query (slot 37) for flora, building, landfill and prop, then for networks keeping those with
+  `GetNetworkFlag() & 0x1F4F` non-zero. Same set? [as stated]
+- **FQ5:** weather `GetMoistureType` is read as a `uint8_t` in AL (`FC4Interfaces.h`). Right? [AL]
+- **FQ6:** "occupant in a visited block" (shadow) uses a closed box, edges included, like the host's box query.
+  [closed]
+- **FQ7:** the shadow takes the elevation scale from the tuning exemplar's `0xC9DBDD02`; the record does not save
+  it. [as stated]
+- **FQ8:** blocks are never freed and the registry is never cleared at app shutdown. [as stated]
+- **FQ9:** `cISC4FloraTypeFilter` (slot 3) is not in `docs/abi`. Slot 13 with a non-null filter inserts nothing and
+  returns 0; with a null filter it inserts every key. [as stated]
+- **FQ10:** `cIGZCommandParameterSet` is not in `docs/abi`. PlaceFlora reads its parameters through slot 5
+  (`operator[]`): param 0 via variant slot 24 (u32), params 1–2 via slot 36 (float). Right? [as stated]
+- **FQ11:** the cheat notification uses id `0x095BDC9C` as the spec says, but the budget and simulator glue pass 0.
+  Which is right? [`0x095BDC9C` for flora]
+- **FQ12:** `RegisterCommand`'s parameter info is null, as the spec says. [null]
+- **FQ13:** `ToCoreAll` leaves out parent-cohort properties (existing plugin behaviour). Does flora need them?
+  [left out]
+- **FQ14 — §6.11:** adding a record whose next type is 0 set key 0's seed type to it in the test harness. Does
+  §6.11 apply when next is 0? [the test avoids the case]
+- Not done (each logged once): obliterated-city save/restore (FQ3), the app shutdown callback (FQ2),
+  `GetFloraTypesByFilter` with a non-null filter (FQ9).

@@ -5,31 +5,38 @@
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
 //! The save record (§9): `Write` writes version 7; `Read` accepts every
-//! version, never fails and ignores stream errors (§9.2).
+//! version (§9.2, RS9).
 //!
-//! `Read` parses into a copy of the state, field by field, in record order.
-//! At the first stream failure it stops and **keeps what it read** (a field
-//! is either read whole or left as it was; a list keeps the references read
-//! before the failure). Then the fix-ups of §9.2 run and the copy replaces
-//! the state:
+//! `Read` parses into a copy of the state, field by field, in record order,
+//! then runs the fix-ups of §9.2 and commits the copy:
 //!
 //! - department blocks: a version < 5 record converts f0, max funding,
 //!   strike efficiency and init funding with `× 0.01f`, a version < 6 record
-//!   min grade — each field as it is read, so a field the stream did not
-//!   deliver is not converted ([choice]);
+//!   min grade;
 //! - version < 3: iterator `Reset(0, 0)`, leSum := 0, running population :=
-//!   0, state 4 → 11; version < 7: both auto-budget flags 0;
+//!   0, state 4 → 11; version 3 keeps the running population it had (RS17:
+//!   the constructor's 0); version < 7: both auto-budget flags 0;
 //! - always: state 1 → 13, 2 → 14, 3 → 15, tuningLoaded := false,
 //!   cityStarted := true.
 //!
-//! [choice] A record whose version cannot be read gets only the "always"
-//! fix-ups. References the record replaces are released after the commit
-//! ([choice]: §9.2's "cleared first" leaves this open; `Read` normally runs
-//! on a fresh object, where there is nothing to release): the departments
-//! with `release_department` (as `Shutdown` releases them), then the
-//! occupant list entries with `release`. A coverage or building-list vector with more entries than the
-//! simulator has (7 school, 3 hospital) reads the extra ones and drops them;
-//! one with fewer leaves the rest null / empty ([choice]).
+//! *[choice]* (§9.2, RS9 / RS11 / RS14 / RS15) A stream error or a **damaged**
+//! record makes `Read` return false and leave the simulator as it was (on
+//! the original's only path, as constructed, so cityStarted stays false): no
+//! field is committed and every reference the parse acquired is released
+//! (occupants with `release`, departments with `release_department`; grids
+//! are dropped). A record is damaged when a coverage or building-list vector
+//! count is not 7 (school) / 3 (hospital), the saved state is above 15, or
+//! the population tract size P is 0 or above 256 (P is an s32 compared as
+//! signed, so a negative P is accepted *[question]*).
+//!
+//! *[choice]* (RS12) Null list entries are dropped, not appended: a null
+//! reference or one the host cannot resolve never reaches a list, so no pass
+//! sees one and the counts leave them out.
+//!
+//! *[choice]* (RS10) The references a successful `Read` replaces are released
+//! after the commit (`Read` normally runs on a fresh object, where there is
+//! nothing to release): the departments with `release_department` (as
+//! `Shutdown` releases them), then the occupant list entries with `release`.
 
 use std::any::Any;
 use std::rc::Rc;
@@ -46,6 +53,16 @@ use super::{
 
 /// The version `Write` produces (§9.1).
 pub const RECORD_VERSION: u16 = 7;
+
+/// The school and hospital vector sizes (§9.2 RS11): any other count is a
+/// damaged record.
+pub const SCHOOL_VECTOR_LEN: u32 = 7;
+pub const HOSPITAL_VECTOR_LEN: u32 = 3;
+/// The largest saved state (§5.1, RS14); above it the record is damaged.
+pub const MAX_SAVED_STATE: u32 = 15;
+/// The largest population tract size `Read` accepts (§5.5 RS15); 0 is
+/// damaged too.
+pub const MAX_SAVED_TRACT_SIZE: i32 = 256;
 
 fn put_grid<T: GridElem>(out: &mut dyn OutStream, g: &Option<Rc<dyn TractGrid<T>>>) {
     out.put_ref(&g.as_ref().map_or(RefValue::Null, |g| g.save_ref()));
@@ -93,11 +110,16 @@ fn put_iterator(out: &mut dyn OutStream, it: &ScanIterator) {
     }
 }
 
-/// The parse in progress: the state copy plus the references it replaced.
+/// The parse in progress: the state copy, the references it acquired and
+/// the references it replaced.
 struct Parse<'a> {
     h: &'a (dyn ResidentialHost + 'static),
     s: ResidentialState,
-    version: Option<u16>,
+    version: u16,
+    /// Occupant and department references resolved by the parse: released
+    /// when the record is rejected.
+    acquired: Vec<u64>,
+    acquired_departments: Vec<u64>,
     /// Occupant references the record replaced, released after the commit.
     replaced: Vec<u64>,
     /// Departments the record replaced, released after the commit with
@@ -118,147 +140,105 @@ impl Parse<'_> {
         })
     }
 
-    fn grids3<T: GridElem>(&self, inp: &mut dyn InStream, dest: &mut [Option<Rc<dyn TractGrid<T>>>; 3]) -> Option<()>
+    fn grids3<T: GridElem>(&self, inp: &mut dyn InStream) -> Option<[Option<Rc<dyn TractGrid<T>>>; 3]>
     where
         dyn ResidentialHost: GridProvider<T>,
     {
-        for slot in dest.iter_mut() {
-            *slot = self.grid(inp)?;
-        }
-        Some(())
+        Some([self.grid(inp)?, self.grid(inp)?, self.grid(inp)?])
     }
 
-    /// `u32 n, n × ref`: the first `N` go to the vector, the rest are
-    /// dropped; missing entries are null.
+    /// `u32 n, n × ref` with n = `N` (any other count is damaged, RS11).
     fn grid_vector<const N: usize>(&self, inp: &mut dyn InStream) -> Option<[Option<Rc<dyn TractGrid<u8>>>; N]> {
-        let n = inp.get_u32()?;
+        if inp.get_u32()? != N as u32 {
+            return None;
+        }
         let mut v: [Option<Rc<dyn TractGrid<u8>>>; N] = std::array::from_fn(|_| None);
-        for i in 0..n {
-            let g = self.grid(inp)?;
-            if let Some(slot) = v.get_mut(i as usize) {
-                *slot = g;
-            }
+        for slot in v.iter_mut() {
+            *slot = self.grid(inp)?;
         }
         Some(v)
     }
 
     fn token(&mut self, inp: &mut dyn InStream, iid: u32) -> Option<Option<u64>> {
         let r = inp.get_ref_as(iid)?;
-        Some(if r.is_null() { None } else { self.h.resolve_ref(&r, iid) })
+        let t = if r.is_null() { None } else { self.h.resolve_ref(&r, iid) };
+        if let Some(t) = t {
+            if iid == IID_DEPARTMENT_BUDGET {
+                self.acquired_departments.push(t);
+            } else {
+                self.acquired.push(t);
+            }
+        }
+        Some(t)
     }
 
-    /// One department block, field by field, with the version < 5 / < 6
-    /// conversions (`× 0.01f`, RS1) applied to each converted field as it
-    /// is read.
+    /// One department block, with the version < 5 / < 6 conversions (`×
+    /// 0.01f`, RS1).
     fn block(&mut self, inp: &mut dyn InStream, health: bool) -> Option<()> {
-        let v = self.version.unwrap_or(RECORD_VERSION);
-        let (old5, old6) = (v < 5, v < 6);
+        let (old5, old6) = (self.version < 5, self.version < 6);
         let conv = |x: f32, old: bool| if old { pct(x) } else { x };
         let mut b = if health { self.s.health } else { self.s.education };
-        // Each field is stored the moment it is read, so a failure keeps the
-        // fields read so far.
-        let result = (|| -> Option<()> {
-            b.f0 = conv(inp.get_f32()?, old5);
-            b.max_funding = conv(inp.get_f32()?, old5);
-            b.strike_efficiency = conv(inp.get_f32()?, old5);
-            b.strike_duration = inp.get_i32()?;
-            b.min_grade = conv(inp.get_f32()?, old6);
-            b.strike_flag = inp.get_u8()?;
-            b.strike_start = inp.get_i32()?;
-            Some(())
-        })();
-        let store = |p: &mut Parse<'_>, b: DepartmentBlock| {
-            if health {
-                p.s.health = b;
-            } else {
-                p.s.education = b;
-            }
-        };
-        store(self, b);
-        result?;
+        b.f0 = conv(inp.get_f32()?, old5);
+        b.max_funding = conv(inp.get_f32()?, old5);
+        b.strike_efficiency = conv(inp.get_f32()?, old5);
+        b.strike_duration = inp.get_i32()?;
+        b.min_grade = conv(inp.get_f32()?, old6);
+        b.strike_flag = inp.get_u8()?;
+        b.strike_start = inp.get_i32()?;
         for second in [false, true] {
             let t = self.token(inp, IID_DEPARTMENT_BUDGET)?;
             let slot = if second { &mut b.department2 } else { &mut b.department1 };
             if let Some(old) = std::mem::replace(slot, t) {
                 self.replaced_departments.push(old);
             }
-            store(self, b);
         }
-        let result = (|| -> Option<()> {
-            b.init_funding = conv(inp.get_f32()?, old5);
-            b.hundred = inp.get_f32()?;
-            b.id = inp.get_u32()?;
-            Some(())
-        })();
-        store(self, b);
-        result
-    }
-
-    /// `u32 count, count × ref occupant`: the list is cleared first (its old
-    /// references released); a count of 0 or ≥ 10,000,000 reads nothing
-    /// more; null references are appended.
-    fn list(&mut self, inp: &mut dyn InStream, which: ListId) -> Option<()> {
-        let old = self.list_opt(which).map(std::mem::take).unwrap_or_default();
-        self.replaced.extend(old.into_iter().flatten());
-        let n = inp.get_u32()?;
-        if n == 0 || n >= MAX_LIST_COUNT {
-            return Some(());
-        }
-        for _ in 0..n {
-            let t = self.token(inp, IID_OCCUPANT)?;
-            if let Some(list) = self.list_opt(which) {
-                list.push(t);
-            }
+        b.init_funding = conv(inp.get_f32()?, old5);
+        b.hundred = inp.get_f32()?;
+        b.id = inp.get_u32()?;
+        if health {
+            self.s.health = b;
+        } else {
+            self.s.education = b;
         }
         Some(())
     }
 
-    fn list_opt(&mut self, which: ListId) -> Option<&mut Vec<Option<u64>>> {
-        let l = &mut self.s.lists;
-        match which {
-            ListId::PendingSchool => Some(&mut l.pending_school),
-            ListId::PendingHospital => Some(&mut l.pending_hospital),
-            ListId::Other => Some(&mut l.other),
-            ListId::School(i) => l.school_groups.get_mut(i),
-            ListId::Hospital(i) => l.hospital_groups.get_mut(i),
-            ListId::HealthAffecting => Some(&mut l.health_affecting),
-        }
-    }
-
-    /// `u32 n, n × list`: lists past the simulator's `len` are read and their
-    /// references released; lists the record does not have are emptied.
-    fn list_vector(&mut self, inp: &mut dyn InStream, len: usize, make: fn(usize) -> ListId) -> Option<()> {
+    /// `u32 count, count × ref occupant`: a count of 0 or ≥ 10,000,000 reads
+    /// nothing more; a null or unresolved reference is dropped (RS12).
+    fn list(&mut self, inp: &mut dyn InStream) -> Option<Vec<Option<u64>>> {
         let n = inp.get_u32()?;
-        for i in n as usize..len {
-            let old = self.list_opt(make(i)).map(std::mem::take).unwrap_or_default();
-            self.replaced.extend(old.into_iter().flatten());
-        }
-        for i in 0..n as usize {
-            if i < len {
-                self.list(inp, make(i))?;
-            } else {
-                self.extra_list(inp)?;
-            }
-        }
-        Some(())
-    }
-
-    /// A list beyond the simulator's vector: read and released.
-    fn extra_list(&mut self, inp: &mut dyn InStream) -> Option<()> {
-        let n = inp.get_u32()?;
+        let mut list = Vec::new();
         if n == 0 || n >= MAX_LIST_COUNT {
-            return Some(());
+            return Some(list);
         }
         for _ in 0..n {
             if let Some(t) = self.token(inp, IID_OCCUPANT)? {
-                self.replaced.push(t);
+                list.push(Some(t));
             }
         }
-        Some(())
+        Some(list)
+    }
+
+    /// Replaces a list of the copy, keeping its old entries for release.
+    fn set_list(&mut self, list: Vec<Option<u64>>, which: impl FnOnce(&mut ResidentialState) -> &mut Vec<Option<u64>>) {
+        let old = std::mem::replace(which(&mut self.s), list);
+        self.replaced.extend(old.into_iter().flatten());
+    }
+
+    /// `u32 n, n × list` with n = `N` (RS11).
+    fn list_vector<const N: usize>(&mut self, inp: &mut dyn InStream) -> Option<[Vec<Option<u64>>; N]> {
+        if inp.get_u32()? != N as u32 {
+            return None;
+        }
+        let mut v: [Vec<Option<u64>>; N] = std::array::from_fn(|_| Vec::new());
+        for slot in v.iter_mut() {
+            *slot = self.list(inp)?;
+        }
+        Some(v)
     }
 
     fn iterator(&mut self, inp: &mut dyn InStream) -> Option<()> {
-        let it = &mut self.s.iterator;
+        let mut it = self.s.iterator.clone();
         // [choice] A state byte other than 0/1/2 reads as done.
         it.state = match inp.get_i8()? {
             0 => ScanState::Fresh,
@@ -273,80 +253,86 @@ impl Parse<'_> {
         it.z0 = inp.get_i32()?;
         it.x1 = inp.get_i32()?;
         it.z1 = inp.get_i32()?;
+        self.s.iterator = it;
         Some(())
     }
 
-    /// The record in order (§9.1); `None` at the first stream failure.
+    /// The record in order (§9.1); `None` at the first stream failure or
+    /// damaged field.
     fn record(&mut self, inp: &mut dyn InStream) -> Option<()> {
-        let version = inp.get_u16()?;
-        self.version = Some(version);
+        self.version = inp.get_u16()?;
         self.s.proximity_size = inp.get_i32()?;
-        let mut g = self.s.grids.proximity.clone();
-        let r = self.grids3(inp, &mut g);
-        self.s.grids.proximity = g;
-        r?;
-        self.s.population_size = inp.get_i32()?;
-        let mut g = self.s.grids.population.clone();
-        let r = self.grids3(inp, &mut g);
-        self.s.grids.population = g;
-        r?;
+        self.s.grids.proximity = self.grids3(inp)?;
+        let p = inp.get_i32()?;
+        if p == 0 || p > MAX_SAVED_TRACT_SIZE {
+            return None; // RS15
+        }
+        self.s.population_size = p;
+        self.s.grids.population = self.grids3(inp)?;
         self.s.grids.age = self.grid(inp)?;
-        self.s.grids.school_coverage = self.grid_vector::<7>(inp)?;
-        self.s.grids.hospital_coverage = self.grid_vector::<3>(inp)?;
+        self.s.grids.school_coverage = self.grid_vector::<{ SCHOOL_VECTOR_LEN as usize }>(inp)?;
+        self.s.grids.hospital_coverage = self.grid_vector::<{ HOSPITAL_VECTOR_LEN as usize }>(inp)?;
         self.s.grids.school_grade = self.grid(inp)?;
         self.s.grids.hospital_grade = self.grid(inp)?;
         self.s.eq_size = inp.get_i32()?;
-        let mut g = self.s.grids.eq.clone();
-        let r = self.grids3(inp, &mut g);
-        self.s.grids.eq = g;
-        r?;
-        let mut g = self.s.grids.hq.clone();
-        let r = self.grids3(inp, &mut g);
-        self.s.grids.hq = g;
-        r?;
+        self.s.grids.eq = self.grids3(inp)?;
+        self.s.grids.hq = self.grids3(inp)?;
         self.s.unused_float1 = inp.get_f32()?;
         self.s.unused_float2 = inp.get_f32()?;
-        self.s.state = inp.get_u32()?;
+        let state = inp.get_u32()?;
+        if state > MAX_SAVED_STATE {
+            return None; // RS14
+        }
+        self.s.state = state;
         self.s.dirty = inp.get_u8()? != 0;
         self.s.population = inp.get_i32()?;
         self.block(inp, true)?;
         self.block(inp, false)?;
-        self.list(inp, ListId::PendingSchool)?;
-        self.list(inp, ListId::PendingHospital)?;
-        self.list(inp, ListId::Other)?;
-        self.list_vector(inp, 7, ListId::School)?;
-        self.list_vector(inp, 3, ListId::Hospital)?;
-        self.list(inp, ListId::HealthAffecting)?;
-        if version >= 3 {
+        let l = self.list(inp)?;
+        self.set_list(l, |s| &mut s.lists.pending_school);
+        let l = self.list(inp)?;
+        self.set_list(l, |s| &mut s.lists.pending_hospital);
+        let l = self.list(inp)?;
+        self.set_list(l, |s| &mut s.lists.other);
+        let v = self.list_vector::<{ SCHOOL_VECTOR_LEN as usize }>(inp)?;
+        for (i, l) in v.into_iter().enumerate() {
+            self.set_list(l, |s| &mut s.lists.school_groups[i]);
+        }
+        let v = self.list_vector::<{ HOSPITAL_VECTOR_LEN as usize }>(inp)?;
+        for (i, l) in v.into_iter().enumerate() {
+            self.set_list(l, |s| &mut s.lists.hospital_groups[i]);
+        }
+        let l = self.list(inp)?;
+        self.set_list(l, |s| &mut s.lists.health_affecting);
+        if self.version >= 3 {
             self.iterator(inp)?;
             self.s.le_sum = inp.get_u64()?;
         }
-        if version >= 4 {
+        // Version 3 keeps the running population it had (RS17).
+        if self.version >= 4 {
             self.s.running_population = inp.get_i32()?;
         }
-        if version >= 7 {
+        if self.version >= 7 {
             self.s.school_auto_budget = inp.get_u8()? != 0;
             self.s.hospital_auto_budget = inp.get_u8()? != 0;
         }
         Some(())
     }
 
-    /// The fix-ups of §9.2 after the parse.
+    /// The fix-ups of §9.2 after a complete parse.
     fn finish(&mut self) {
         let s = &mut self.s;
-        if let Some(v) = self.version {
-            if v < 3 {
-                s.iterator.reset(0, 0);
-                s.le_sum = 0;
-                s.running_population = 0;
-                if s.state == st::POPULATION {
-                    s.state = st::HISTOGRAM_RESET;
-                }
+        if self.version < 3 {
+            s.iterator.reset(0, 0);
+            s.le_sum = 0;
+            s.running_population = 0;
+            if s.state == st::POPULATION {
+                s.state = st::HISTOGRAM_RESET;
             }
-            if v < 7 {
-                s.school_auto_budget = false;
-                s.hospital_auto_budget = false;
-            }
+        }
+        if self.version < 7 {
+            s.school_auto_budget = false;
+            s.hospital_auto_budget = false;
         }
         // The temporary grid is not saved: the proximity states re-seed.
         s.state = match s.state {
@@ -358,17 +344,6 @@ impl Parse<'_> {
         s.tuning_loaded = false;
         s.city_started = true;
     }
-}
-
-/// Which occupant list a record entry fills (§9.1 order).
-#[derive(Clone, Copy)]
-enum ListId {
-    PendingSchool,
-    PendingHospital,
-    Other,
-    School(usize),
-    Hospital(usize),
-    HealthAffecting,
 }
 
 impl SaveObject for ResidentialSim {
@@ -420,16 +395,35 @@ impl SaveObject for ResidentialSim {
         true
     }
 
-    /// §9.2: every version, never fails (AL = 1), stream errors ignored.
+    /// §9.2: every version is accepted; a stream error or a damaged record
+    /// returns false and leaves the simulator unchanged (RS9 *[choice]*).
     fn read(&self, inp: &mut dyn InStream) -> bool {
         let mut p = Parse {
             h: &*self.host,
             s: self.snapshot(),
-            version: None,
+            version: 0,
+            acquired: Vec::new(),
+            acquired_departments: Vec::new(),
             replaced: Vec::new(),
             replaced_departments: Vec::new(),
         };
-        let _ = p.record(inp);
+        if p.record(inp).is_none() {
+            let Parse {
+                s,
+                acquired,
+                acquired_departments,
+                ..
+            } = p;
+            // The copy holds the acquired grids; drop it before releasing.
+            drop(s);
+            for t in acquired_departments {
+                self.host.release_department(t);
+            }
+            for t in acquired {
+                self.host.release(t);
+            }
+            return false;
+        }
         p.finish();
         let Parse {
             s,

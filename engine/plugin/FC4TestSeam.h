@@ -59,11 +59,22 @@
 //         SimNewDay up to pipeline state 4) to a fake "original" crime
 //         simulator; returns the month's mismatch count, -1 (not taken) or
 //         -2 (delivered, nothing compared).
+//   op 14 kFC4SeamAuraShadow       a = const FC4AuraShadowTestInput*
+//         (FC4AuraShadow.h): the aura shadow on a fake city whose aura
+//         simulator is the "original": the city-load baseline or one
+//         cycle-completed comparison; returns the cycle's difference count
+//         (a baseline: 1 taken, 0 not), -1 (not run) or -2 (ran, nothing
+//         compared).
 //   op 16 kFC4SeamPollutionShadow  a = const FC4PollutionShadowTestInput*
 //         (FC4PollutionShadow.h): one pollution-shadow delivery (SimNewDay or
 //         SimNewMonth) to a fake "original" pollution simulator; returns the
 //         delivery's difference count, -1 (not taken) or -2 (delivered,
-//         nothing compared). (14 and 15 are left to the parallel glue lanes.)
+//         nothing compared). (15 is left to the parallel glue lanes.)
+//   op 17 kFC4SeamFloraShadow      a = const FC4FloraShadowTestInput*,
+//         b = intptr_t* (or null) for the registry check's difference count
+//         (FC4FloraShadow.h): one flora-shadow SimNewMonth to a fake
+//         "original" flora simulator; returns the month's mismatch count, -1
+//         (not taken) or -2 (delivered, nothing compared).
 //   op 20 kFC4SeamDemandCapacity   a = const FC4DemandCapacityTestInput*
 //         (cFC4Demand.h): the demand glue's capacity-map read of a building
 //         profile (DemandReportCapacities, no simulator): the visitor gets
@@ -89,7 +100,9 @@ enum : uint32_t {
     kFC4SeamDemandShadow = 11,
     kFC4SeamRefAuditRelease = 12,
     kFC4SeamCrimeShadow = 13,
+    kFC4SeamAuraShadow = 14,
     kFC4SeamPollutionShadow = 16,
+    kFC4SeamFloraShadow = 17,
     kFC4SeamDemandCapacity = 20,
 };
 

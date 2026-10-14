@@ -156,6 +156,25 @@ INTERFACES = [
     ("cISC4PropRequester(Crime)", "cFC4CrimePropRequester", FC4C, True),
     ("cISC4PropManager", "cISC4PropManager", "cISC4PropManager.h", True),
     ("cISC4PropOccupant", "cISC4PropOccupant", "cISC4PropOccupant.h", True),
+    # Aura (docs/specs/aura.md section 12): implemented (the SDK declaration;
+    # MSVC's overload reversal gives the AddTransientEffect order of 12.1),
+    # the sub-object interfaces of its own vtables, and the grids it creates.
+    ("cISC4AuraSimulator", "cISC4AuraSimulator", "cISC4AuraSimulator.h", True),
+    ("cIGZSerializable(Aura)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZMessageTarget2(Aura)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cISC4SimGrid<int8>", "cISC4SimGrid<int8_t>", "cISC4SimGrid.h", True),
+    ("cISC4SimGrid<uint16>", "cISC4SimGrid<uint16_t>", "cISC4SimGrid.h", True),
+    ("cISC4OrdinanceSimulator", "cFC4ISC4OrdinanceSimulator", FC4, True),
+    # Flora (docs/specs/flora.md section 11): implemented (the SDK declaration;
+    # MSVC's overload reversal gives the game's order of slots 5/6, 8/9 and
+    # 17/18), the sub-object interfaces of its own vtable, and the services it
+    # calls that are not listed above.
+    ("cISC4FloraSimulator", "cISC4FloraSimulator", "cISC4FloraSimulator.h", True),
+    ("cIGZSerializable(Flora)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZMessageTarget2(Flora)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cISC4FloraOccupant", "cISC4FloraOccupant", "cISC4FloraOccupant.h", True),
+    ("cIGZCheatCodeManager", "cIGZCheatCodeManager", "cIGZCheatCodeManager.h", True),
+    ("cIGZCommandServer", "cIGZCommandServer", "cIGZCommandServer.h", True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),

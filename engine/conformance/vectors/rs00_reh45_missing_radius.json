@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "residential_missing_radius",
+  "spec": ["REH 4.4", "REH 4.5", "REH 4.13"],
+  "description": "REH 4.4 / 4.5: a school without a coverage radius (0x691B42B3) is skipped by the coverage state (no units, no served count) and graded as served 0, effective capacity 0, grade 0.0, with its staff ratio (0.7) left alone.",
+  "steps": [
+    {"op": "residential_env", "groups": {"1": ["0x150F"]}, "props": {"1": {"0x8922041B": {"u32": 1000}, "0x2A976C20": {"f32": 0.7}, "0x292453C5": {"f32": 0.9}}}, "lots": {"1": [32, 32]}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_set", "state": {"lists": {"school_groups": [[1]]}}},
+    {"op": "residential_tract", "x": 0, "z": 0, "steady": [100, 0, 0]},
+    {"op": "residential_set", "state": {"state": 5}},
+    {"op": "residential_run_to", "state": 7, "steps": 2},
+    {"op": "residential_expect_grid", "grid": "school_coverage0", "all": 0},
+    {"op": "residential_expect", "state": {"school_covered": 0}},
+    {"op": "residential_expect_props", "occupant": 1, "props": {"0x09220161": 0, "0xE9244B2E": 0, "0x292453C5": 0.0, "0x2A976C20": 0.7}}
+  ]
+}

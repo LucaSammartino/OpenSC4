@@ -452,7 +452,8 @@ public:
     virtual bool CompactProperties() = 0;                                                    // 21
 };
 
-// cISC4LotManager (28 slots; foundations §17.8). SDK error fixed: slot 22.
+// cISC4LotManager (28 slots; foundations §17.8). SDK errors fixed: slots 18
+// (flora.md §12: a float in ST0) and 22.
 class cFC4ISC4LotManager : public cIGZUnknown {
 public:
     virtual bool Init() = 0;                                                     // 3
@@ -474,7 +475,8 @@ public:
     virtual intptr_t GetSafeLotIterator() = 0;                                   // 15
     virtual int32_t GetLotCount() = 0;                                           // 16
     virtual int32_t GetLotSavvyTerrainVertexAltitude(int32_t x, int32_t y, cISC4Lot* lot, bool& ok) = 0;  // 17
-    virtual int32_t GetLotSavvyTerrainAltitude(float x, float y, bool& ok) = 0;  // 18
+    // flora.md §12, §13.2: returns a float in ST0 (SDK: int32), pop 12.
+    virtual float GetLotSavvyTerrainAltitude(float x, float z, bool* onLot) = 0;  // 18
     virtual int32_t GetLotSavvyCellAltitude(int32_t cellX, int32_t cellZ, bool& ok) = 0;  // 19
     virtual int32_t CanCreateLot(int32_t x, int32_t z, int32_t w, int32_t h, bool zoneNotNeeded, bool ignoreConfig,
                                  cISC4LotConfiguration* config) = 0;             // 20
@@ -691,6 +693,41 @@ public:
     virtual bool ForceAvailable(bool isAvailable) = 0;                            // 27
     virtual bool ForceOn(bool isOn) = 0;                                          // 28
     virtual bool ForceMonthlyAdjustedIncome(int64_t monthlyAdjustedIncome) = 0;   // 29
+};
+
+// cISC4OrdinanceSimulator (IID 0x41193C3A), 26 slots (docs/abi; the SDK
+// order), called on whatever ordinance simulator the city has (the aura glue:
+// aura.md section 6.3). One return channel differs from the SDK: slot 24
+// returns the 32-bit sum in EAX and leaves EDX unset (SDK: int64). It is named
+// apart from the SDK's GetCumulativeOffset so that abi_conformance_test's
+// waiver scan, which finds calls by name, never takes it for the SDK one.
+class cISC4Ordinance;
+class cISC4OrdinanceSimulator;
+class cFC4ISC4OrdinanceSimulator : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                             // 3
+    virtual bool Shutdown() = 0;                                                         // 4
+    virtual bool AddOrdinance(cISC4Ordinance& ordinance) = 0;                            // 5
+    virtual bool RemoveOrdinance(cISC4Ordinance& ordinance) = 0;                         // 6
+    virtual bool IsOrdinanceAvailable(uint32_t clsid) = 0;                               // 7
+    virtual bool IsOrdinanceOn(uint32_t clsid) = 0;                                      // 8
+    virtual bool IsOrdinanceAvailableButOff(uint32_t clsid) = 0;                         // 9
+    virtual bool SetOrdinanceAvailable(uint32_t clsid, bool available) = 0;              // 10
+    virtual uint32_t GetOrdinanceAvailableCount() = 0;                                   // 11
+    virtual uint32_t GetOrdinanceAvailableArray(uint32_t* clsids, uint32_t& count) = 0;  // 12
+    virtual bool SetOrdinanceOn(uint32_t clsid, bool on) = 0;                            // 13
+    virtual uint32_t GetOrdinanceOnCount() = 0;                                          // 14
+    virtual uint32_t GetOrdinanceOnArray(uint32_t* clsids, uint32_t& count) = 0;         // 15
+    virtual bool IsOrdinanceEnabled(uint32_t clsid) = 0;                                 // 16
+    virtual bool SetOrdinanceEnabled(uint32_t clsid, bool enabled) = 0;                  // 17
+    virtual uint32_t GetOrdinanceIDArray(uint32_t* clsids, uint32_t& count) = 0;         // 18
+    virtual uint32_t GetOrdinanceIDByName(cIGZString const& name) = 0;                  // 19
+    virtual cISC4Ordinance* GetOrdinanceByID(uint32_t clsid) = 0;                        // 20
+    virtual cISC4Ordinance* GetOrdinanceByName(cIGZString const& name) = 0;              // 21
+    virtual int64_t GetOrdinanceMonthlyExpense() = 0;                                    // 22
+    virtual int64_t GetOrdinanceMonthlyIncome() = 0;                                     // 23
+    virtual int32_t GetCumulativeOffset32(uint32_t prop, uint32_t index) = 0;            // 24 (SDK: int64)
+    virtual float GetCumulativeFactor(uint32_t prop, uint32_t index) = 0;                // 25
 };
 
 // cISC4Demand (IID 0x0797A4E8), 34 slots (demand spec §3.2, "Compiled slot
@@ -1398,6 +1435,10 @@ inline cFC4ISC4NeighborsSimulator* AsGame(cISC4NeighborsSimulator* p) {
 // at offset 0); slot 10 is only ever called through cFC4ISC4Ordinance.
 inline cFC4ISC4Ordinance* AsGame(cISC4Ordinance* p) { return reinterpret_cast<cFC4ISC4Ordinance*>(p); }
 inline cISC4Ordinance* AsSdk(cFC4ISC4Ordinance* p) { return reinterpret_cast<cISC4Ordinance*>(p); }
+// The ordinance simulator: slot 24 only ever through cFC4ISC4OrdinanceSimulator.
+inline cFC4ISC4OrdinanceSimulator* AsGame(cISC4OrdinanceSimulator* p) {
+    return reinterpret_cast<cFC4ISC4OrdinanceSimulator*>(p);
+}
 // Demand nodes travel as the SDK's cISC4Demand* (single inheritance); slots
 // 16, 17 and 30 are only ever called through cFC4ISC4Demand.
 inline cFC4ISC4Demand* AsGame(cISC4Demand* p) { return reinterpret_cast<cFC4ISC4Demand*>(p); }
