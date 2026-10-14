@@ -48,6 +48,7 @@
 #include "FC4GameMap.h"
 #include "cFC4Demand.h"
 #include "FC4PollutionShadow.h"
+#include "FC4LandfillShadow.h"
 #include "cS3DVector3.h"
 #include "cIGZOStream.h"
 #include "FC4Interfaces.h"
@@ -1990,6 +1991,430 @@ int AuraEnableTest(const std::string& dll, const std::string& ini, const std::st
     return g_failures == 0 ? 0 : 1;
 }
 
+// ---- landfill (landfill.md): the replacement without a city, and the shadow (test seam op 17) -------
+constexpr uint32_t kCLSID_Landfill = 0xEA09D4AE;
+constexpr uint32_t kIID_cISC4LandfillDeveloper = 0x8A09D502;
+constexpr uint32_t kIID_cIGZMessageTarget2Landfill = 0x452294AA;
+
+// In-memory streams for the record (§6.1): primitives little-endian; no
+// segment stream, so no references (a record without zones has none).
+class LandfillOStream final : public cIGZOStream {
+public:
+    std::vector<uint8_t> bytes;
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    void Flush() override {}
+    bool SetSint8(int8_t v) override { return Put(&v, 1); }
+    bool SetUint8(uint8_t v) override { return Put(&v, 1); }
+    bool SetSint16(int16_t v) override { return Put(&v, 2); }
+    bool SetUint16(uint16_t v) override { return Put(&v, 2); }
+    bool SetSint32(int32_t v) override { return Put(&v, 4); }
+    bool SetUint32(uint32_t v) override { return Put(&v, 4); }
+    bool SetSint64(int64_t v) override { return Put(&v, 8); }
+    bool SetUint64(uint64_t v) override { return Put(&v, 8); }
+    bool SetFloat32(float v) override { return Put(&v, 4); }
+    bool SetFloat64(double v) override { return Put(&v, 8); }
+    bool SetRZCharStr(char const*) override { return false; }
+    bool SetGZStr(cIGZString const&) override { return false; }
+    bool SetGZSerializable(cIGZSerializable const&) override { return false; }
+    bool SetVoid(void const* p, uint32_t n) override { return Put(p, n); }
+    int32_t GetError() override { return 0; }
+    int32_t SetUserData(cIGZVariant*) override { return 0; }
+    int32_t GetUserData() override { return 0; }
+
+private:
+    bool Put(const void* p, size_t n) {
+        const uint8_t* b = static_cast<const uint8_t*>(p);
+        bytes.insert(bytes.end(), b, b + n);
+        return true;
+    }
+};
+
+class LandfillIStream final : public cIGZIStream {
+public:
+    explicit LandfillIStream(std::vector<uint8_t> b) : bytes(std::move(b)) {}
+    std::vector<uint8_t> bytes;
+    size_t at = 0;
+    int32_t error = 0;
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Skip(uint32_t n) override { return Get(nullptr, n); }
+    bool GetSint8(int8_t& v) override { return Get(&v, 1); }
+    bool GetUint8(uint8_t& v) override { return Get(&v, 1); }
+    bool GetSint16(int16_t& v) override { return Get(&v, 2); }
+    bool GetUint16(uint16_t& v) override { return Get(&v, 2); }
+    bool GetSint32(int32_t& v) override { return Get(&v, 4); }
+    bool GetUint32(uint32_t& v) override { return Get(&v, 4); }
+    bool GetSint64(int64_t& v) override { return Get(&v, 8); }
+    bool GetUint64(uint64_t& v) override { return Get(&v, 8); }
+    bool GetFloat32(float& v) override { return Get(&v, 4); }
+    bool GetFloat64(double& v) override { return Get(&v, 8); }
+    bool GetRZCharStr(char*, uint32_t) override { return Fail(); }
+    bool GetGZStr(cIGZString&) override { return Fail(); }
+    bool GetGZSerializable(cIGZSerializable&) override { return Fail(); }
+    bool GetVoid(void* p, uint32_t n) override { return Get(p, n); }
+    int32_t GetError() override { return error; }
+    int32_t SetUserData(cIGZVariant*) override { return 0; }
+    int32_t GetUserData() override { return 0; }
+
+private:
+    bool Fail() {
+        error = 1;
+        return false;
+    }
+    bool Get(void* p, size_t n) {
+        if (error != 0 || bytes.size() - at < n) return Fail();
+        if (p != nullptr && n != 0) std::memcpy(p, bytes.data() + at, n);
+        at += n;
+        return true;
+    }
+};
+
+// The game's SC4CellRegion<long> (zones.md, 0x24 bytes): the inclusive
+// rectangle and a cRZCellMap<bool> (vtable, width, height, words per row,
+// rows; bit dz % 32 of rows[dx][dz / 32]).
+struct LandfillGameRegion {
+    int32_t x1, z1, x2, z2;
+    const void* vtbl;
+    uint32_t width, height, words;
+    uint32_t** rows;
+};
+static_assert(sizeof(LandfillGameRegion) == 0x24, "SC4CellRegion<long> layout");
+
+// The neutral answers without a city (§7.1; efficiency 1.0 without maintenance).
+void CheckLandfillNeutral(cFC4ISC4LandfillDeveloper* d) {
+    SC4Percentage e{0.0f};
+    CHECK(d->GetEfficiency(&e) == &e && e.percentage == 1.0f);  // the hidden result pointer in EAX
+    CHECK(d->GetSimulatorType() == 0x2A398ED6u);
+    CHECK(d->GetMaintenanceCosts() == 0);
+    CHECK(d->GetCurrentBudget() == 0);
+    uint32_t usage = 9, capacity = 9;
+    d->GetLandfillUsage(usage, capacity);
+    CHECK(usage == 0 && capacity == 0);
+    CHECK(d->GetLandfillTileCount() == 0);
+    CHECK(d->GetLandfillZoneFromCell(3, 4) == 0);
+    CHECK(d->GetZoningCost(nullptr) == 0);
+}
+
+// GetZoningCost on game regions: a flat 2 x 3 region (no city: altitude 0
+// everywhere) costs nothing; a region whose cell map does not match its
+// rectangle is refused (logged once) and costs nothing.
+void CheckLandfillRegions(cFC4ISC4LandfillDeveloper* d) {
+    uint32_t col0[1] = {0x7u}, col1[1] = {0x5u};
+    uint32_t* rows[2] = {col0, col1};
+    LandfillGameRegion good{10, 20, 11, 22, nullptr, 2, 3, 1, rows};
+    CHECK(d->GetZoningCost(reinterpret_cast<SC4CellRegion<int32_t> const*>(&good)) == 0);
+    LandfillGameRegion bad = good;
+    bad.width = 5;  // the rectangle is 2 wide
+    CHECK(d->GetZoningCost(reinterpret_cast<SC4CellRegion<int32_t> const*>(&bad)) == 0);
+    CHECK(d->GetZoningCost(reinterpret_cast<SC4CellRegion<int32_t> const*>(&bad)) == 0);
+}
+
+// Threads (cFC4Landfill.h): getters from another thread while the main
+// thread holds the lock inside DoMessage wait about 20 ms each, then answer
+// from the snapshot (one fallback each).
+class LandfillLockHeldMessage final : public cIGZMessage2 {
+public:
+    explicit LandfillLockHeldMessage(cFC4ISC4LandfillDeveloper* d) : dev(d) {}
+    cFC4ISC4LandfillDeveloper* dev;
+    bool ran = false;
+    int64_t maintenance = 99;
+    int32_t tiles = 99;
+    uint32_t usage = 99, capacity = 99;
+    float efficiency = 0.0f;
+    DWORD ms = 0;
+    bool QueryInterface(uint32_t, void**) override {
+        ran = true;
+        const DWORD start = GetTickCount();
+        std::thread t([this] {
+            maintenance = dev->GetMaintenanceCosts();
+            tiles = dev->GetLandfillTileCount();
+            dev->GetLandfillUsage(usage, capacity);
+            SC4Percentage e{0.0f};
+            efficiency = dev->GetEfficiency(&e)->percentage;
+        });
+        t.join();
+        ms = GetTickCount() - start;
+        return false;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Create(uint32_t, void**) const override { return false; }
+    uint32_t GetType() const override { return kMsgSimNewDay; }
+    void SetType(uint32_t) override {}
+    bool operator==(cIGZMessage2 const&) const override { return false; }
+    bool operator<(cIGZMessage2 const&) const override { return false; }
+};
+
+void CheckLandfillThreads(cFC4ISC4LandfillDeveloper* d, cIGZMessageTarget2* mt) {
+    LandfillLockHeldMessage msg(d);
+    CHECK(mt->DoMessage(&msg));
+    CHECK(msg.ran);
+    CHECK(msg.maintenance == 0 && msg.tiles == 0 && msg.usage == 0 && msg.capacity == 0);  // the snapshot
+    CHECK(msg.efficiency == 1.0f);
+    CHECK(msg.ms >= 60 && msg.ms < 5000);  // four getters waited (about 20 ms each), none blocked
+    // Without contention another thread gets the lock at once (no fallback).
+    int64_t m = 99;
+    std::thread t([&] { m = d->GetMaintenanceCosts(); });
+    t.join();
+    CHECK(m == 0);
+}
+
+// An "original" landfill developer: QueryInterface answers its agent
+// (cIGZMessageTarget2) and cIGZSerializable, whose Write writes the record
+// version `version` and, for 3, a zone count of 0 (§6.1). Slot 7
+// (GetMaintenanceCosts, int64) returns `maintenance`; the month sets it to
+// `maintenanceAfter`. The city answers GetLandfillDeveloper (compiled slot
+// 78) only; `noDev` returns null there, `ours` our own developer. Any other
+// call hits a trap and aborts.
+struct FakeOrigLandfill {
+    FakeVtable devVt, agentVt, serVt, cityVt, noDevVt, oursVt;
+    FakeObject dev{}, agent{}, ser{}, city{}, noDev{}, ours{}, other{};
+    void* ourDev = nullptr;
+    int refs = 1;
+    int deliveries = 0;
+    int writes = 0;
+    uint16_t version = 3;
+    int64_t maintenance = 0;
+    int64_t maintenanceAfter = 0;
+};
+
+FakeOrigLandfill* g_ol = nullptr;
+
+bool __fastcall OlQi(void*, void*, uint32_t iid, void** out) {  // 0 (developer, agent, serializable)
+    if (out == nullptr) return false;
+    if (iid == kIID_cIGZMessageTarget2Landfill) {
+        *out = &g_ol->agent;
+    } else if (iid == GZIID_cIGZSerializable) {
+        *out = &g_ol->ser;
+    } else {
+        return false;  // (the reference audit asks other IIDs)
+    }
+    ++g_ol->refs;
+    return true;
+}
+uint32_t __fastcall OlAddRef(void*, void*) { return static_cast<uint32_t>(++g_ol->refs); }   // 1
+uint32_t __fastcall OlRelease(void*, void*) { return static_cast<uint32_t>(--g_ol->refs); }  // 2
+bool __fastcall OlWrite(void*, void*, cIGZOStream* s) {                                       // serializable 3
+    ++g_ol->writes;
+    if (!s->SetUint16(g_ol->version)) return false;
+    return g_ol->version != 3 || s->SetSint32(0);
+}
+uint32_t __fastcall OlClsid(void*, void*) { return kCLSID_Landfill; }  // serializable 5
+bool __fastcall OlDoMessage(void*, void*, cIGZMessage2*) {             // agent 3
+    ++g_ol->deliveries;
+    g_ol->maintenance = g_ol->maintenanceAfter;
+    return true;
+}
+int64_t __fastcall OlMaintenance(void*, void*) { return g_ol->maintenance; }  // developer 7 (EDX:EAX)
+void* __fastcall OlCityDev(void*, void*) { return &g_ol->dev; }               // city 78
+void* __fastcall OlCityNoDev(void*, void*) { return nullptr; }                // city 78
+void* __fastcall OlCityOurs(void*, void*) { return g_ol->ourDev; }            // city 78
+
+void InitFakeOrigLandfill(FakeOrigLandfill& o) {
+    g_ol = &o;
+    for (FakeVtable* vt : {&o.devVt, &o.agentVt, &o.serVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OlQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OlAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OlRelease);
+    }
+    o.devVt.slots[7] = reinterpret_cast<void*>(&OlMaintenance);
+    o.agentVt.slots[3] = reinterpret_cast<void*>(&OlDoMessage);
+    o.serVt.slots[3] = reinterpret_cast<void*>(&OlWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&OlClsid);
+    o.cityVt.slots[78] = reinterpret_cast<void*>(&OlCityDev);
+    o.noDevVt.slots[78] = reinterpret_cast<void*>(&OlCityNoDev);
+    o.oursVt.slots[78] = reinterpret_cast<void*>(&OlCityOurs);
+    o.dev.vtbl = o.devVt.slots.data();
+    o.agent.vtbl = o.agentVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.noDev.vtbl = o.noDevVt.slots.data();
+    o.ours.vtbl = o.oursVt.slots.data();
+    o.other.vtbl = o.agentVt.slots.data();  // an agent, but not the developer's
+}
+
+intptr_t LandfillShadowOnce(FC4TestSeamFn seam, FakeObject* city, cIGZMessageTarget2* target,
+                            uint32_t type = kMsgSimNewMonth) {
+    FC4LandfillShadowTestInput in{reinterpret_cast<cISC4City*>(city), target, type, 2451576};  // 2000-02-01
+    return seam(kFC4SeamLandfillShadow, &in, nullptr);
+}
+
+int LandfillEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = landfill` registers the landfill developer.
+    // The landfill shadow (it compares against the original) is then inactive.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_LANDFILL_SHADOW", nullptr);
+    SetEnvironmentVariableA("FC4_LANDFILL_SHADOW_DIFFS", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = landfill\n[tools]\nlandfill_shadow = 1\nlandfill_shadow_diffs = 4\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    static FakeOrigLandfill orig;
+    InitFakeOrigLandfill(orig);
+    SetGamePrecision();  // as the game's PreFrameWorkInit does: the shadow must leave it
+    std::vector<uint8_t> record;
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        // simulator (1) + budget (3) + landfill (1); never the game's grid classes.
+        CHECK(classes.size() == 5);
+        for (uint32_t c : classes) CHECK(c < 0x49B9E600 || c > 0x49B9E60B);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Landfill) == 1);
+
+        void* obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Landfill, kIID_cISC4LandfillDeveloper, &obj));
+        auto* dev = static_cast<cFC4ISC4LandfillDeveloper*>(obj);
+        if (dev != nullptr) {
+            // §1: the primary for its IID and cIGZUnknown; the message target
+            // and serializable; nothing else (the out pointer untouched).
+            void* p = nullptr;
+            CHECK(dev->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(dev));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            p = nullptr;
+            CHECK(dev->QueryInterface(kIID_cISC4LandfillDeveloper, &p) && p == static_cast<void*>(dev));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            cIGZMessageTarget2* mt = nullptr;
+            CHECK(dev->QueryInterface(kIID_cIGZMessageTarget2Landfill, reinterpret_cast<void**>(&mt)) &&
+                  mt != nullptr);
+            cIGZSerializable* ser = nullptr;
+            CHECK(dev->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser != nullptr);
+            if (ser != nullptr) CHECK(ser->GetGZCLSID() == kCLSID_Landfill);
+            p = reinterpret_cast<void*>(0x1234);
+            CHECK(!dev->QueryInterface(0x12345678, &p) && p == reinterpret_cast<void*>(0x1234));
+            CHECK(!dev->QueryInterface(0x2A398ED6, &p) && p == reinterpret_cast<void*>(0x1234));
+            CheckLandfillNeutral(dev);
+            CheckLandfillRegions(dev);
+            // Without a city: the month line before Init, the record (§6.1:
+            // version 3, no zones), a clean lifecycle, still neutral.
+            if (mt != nullptr) {
+                TypeMessage month(kMsgSimNewMonth);
+                CHECK(mt->DoMessage(&month));
+            }
+            if (ser != nullptr) {
+                LandfillOStream out;
+                CHECK(ser->Write(out));
+                record = out.bytes;
+                const std::vector<uint8_t> empty = {3, 0, 0, 0, 0, 0};
+                CHECK(record == empty);
+            }
+            CHECK(dev->Init());
+            CheckLandfillNeutral(dev);
+            if (mt != nullptr) {
+                TypeMessage month(kMsgSimNewMonth);
+                CHECK(mt->DoMessage(&month));
+                TypeMessage day(kMsgSimNewDay);
+                CHECK(mt->DoMessage(&day));
+                CheckLandfillThreads(dev, mt);
+            }
+            CheckLandfillNeutral(dev);
+            // The shadow (test seam op 17) refuses our own developer.
+            orig.ourDev = dev;
+            CHECK(LandfillShadowOnce(seam, &orig.ours, reinterpret_cast<cIGZMessageTarget2*>(&orig.agent)) == -1);
+            if (ser != nullptr) ser->Release();
+            if (mt != nullptr) mt->Release();
+            CHECK(dev->Shutdown());
+            CHECK(dev->Release() == 0);
+        }
+        // Read runs before Init (§6.1): the record written above loads into a
+        // new developer; a record of another version does not.
+        for (uint16_t version : {uint16_t{3}, uint16_t{4}}) {
+            obj = nullptr;
+            CHECK(director->GetClassObject(kCLSID_Landfill, kIID_cISC4LandfillDeveloper, &obj));
+            auto* fresh = static_cast<cFC4ISC4LandfillDeveloper*>(obj);
+            if (fresh == nullptr) continue;
+            cIGZSerializable* s = nullptr;
+            CHECK(fresh->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&s)) && s != nullptr);
+            if (s != nullptr) {
+                std::vector<uint8_t> bytes = record.empty() ? std::vector<uint8_t>{3, 0, 0, 0, 0, 0} : record;
+                bytes[0] = static_cast<uint8_t>(version);
+                LandfillIStream in(bytes);
+                CHECK(s->Read(in) == (version == 3));
+                s->Release();
+            }
+            CHECK(fresh->Release() == 0);  // the final Release shuts a never-initialised developer down
+        }
+        // The shadow on fake originals: no city, a city without a landfill
+        // developer and an agent that is not the original's are left to the
+        // caller (-1, nothing delivered); a SimNewDay is not taken. The
+        // original's agent gets its month exactly once, its record captured
+        // before and after (its own Write): version 4 is INCOMPLETE (-2,
+        // nothing compared); an empty version-3 record matches ours (0); a
+        // maintenance that changed in the original's month and not in ours is
+        // one difference.
+        cIGZMessageTarget2* agent = reinterpret_cast<cIGZMessageTarget2*>(&orig.agent);
+        CHECK(LandfillShadowOnce(seam, nullptr, agent) == -1);
+        CHECK(LandfillShadowOnce(seam, &orig.noDev, agent) == -1);
+        CHECK(orig.deliveries == 0 && orig.writes == 0);
+        CHECK(LandfillShadowOnce(seam, &orig.city, agent, kMsgSimNewDay) == -1);
+        CHECK(orig.deliveries == 0 && orig.writes == 0);
+        orig.version = 4;
+        CHECK(LandfillShadowOnce(seam, &orig.city, agent) == -2);
+        CHECK(orig.deliveries == 1 && orig.writes == 2);
+        orig.version = 3;
+        CHECK(LandfillShadowOnce(seam, &orig.city, agent) == 0);
+        CHECK(orig.deliveries == 2 && orig.writes == 4);
+        orig.maintenanceAfter = 77;
+        CHECK(LandfillShadowOnce(seam, &orig.city, agent) == 1);
+        CHECK(orig.deliveries == 3 && orig.writes == 6 && orig.maintenance == 77);
+        orig.maintenance = orig.maintenanceAfter = 0;
+        CHECK(LandfillShadowOnce(seam, &orig.city, reinterpret_cast<cIGZMessageTarget2*>(&orig.other)) == -1);
+        CHECK(orig.deliveries == 3 && orig.writes == 6);
+        CHECK(orig.refs == 1);  // every QueryInterface released
+        CheckCw("landfill shadow");
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("subsystem 'landfill': enabled (1 class replaced) by FreeCity4.ini (enable=)") !=
+          std::string::npos);
+    CHECK(text.find("cFC4LandfillDeveloper(") != std::string::npos);
+    // The month status line from the first month (before Init), Init's, Read's.
+    CHECK(text.find("landfill month: init=0 loaded=0 zones=0") != std::string::npos);
+    CHECK(text.find("landfill Init: init=1 loaded=0 zones=0") != std::string::npos);
+    CHECK(text.find("landfill month: init=1 loaded=0 zones=0") != std::string::npos);
+    CHECK(text.find("stored=0 capacity=0 used=0 free=") != std::string::npos);
+    CHECK(text.find("maintenance=0 activeCells=0") != std::string::npos);
+    CHECK(text.find("landfill: no city; services not acquired") != std::string::npos);
+    CHECK(text.find("landfill Write -> 1") != std::string::npos);
+    CHECK(text.find("landfill Read -> 1") != std::string::npos);
+    CHECK(text.find("landfill Read: init=0 loaded=1 zones=0") != std::string::npos);
+    CHECK(text.find("landfill Read -> 0") != std::string::npos);
+    CHECK(CountOf(text, "landfill: WARNING a cell region does not have the documented layout (rect 10,20..11,22, "
+                        "map 5x3, 1 words per row); it is ignored") == 1);
+    CHECK(text.find("landfill: GetLandfillZoneFromCell returns null") != std::string::npos);
+    CHECK(text.find("landfill Shutdown: 2 months, 4 fallbacks") != std::string::npos);
+    CHECK(text.find("cFC4LandfillDeveloper destroyed (4 fallbacks)") != std::string::npos);
+    CHECK(CountOf(text, "cFC4LandfillDeveloper destroyed (0 fallbacks)") == 2);
+    CHECK(text.find("landfill shadow: requested (landfill_shadow from FreeCity4.ini) but INACTIVE") !=
+          std::string::npos);
+    CHECK(text.find("landfill shadow: ON") == std::string::npos);
+    CHECK(text.find("landfill shadow: inactive: the city's landfill developer is FreeCity4's own") !=
+          std::string::npos);
+    CHECK(text.find("landfill shadow: comparing with the original landfill developer") != std::string::npos);
+    CHECK(text.find("differences listed per month: 4") != std::string::npos);
+    CHECK(text.find("landfill shadow month to 2000-02-01: INCOMPLETE (before: record version not 3); not compared") !=
+          std::string::npos);
+    CHECK(text.find("landfill shadow month to 2000-02-01: clean; zones orig/ours 0/0; heaps compared=0 mismatched=0") !=
+          std::string::npos);
+    CHECK(text.find("landfill shadow month to 2000-02-01: mismatches=1; zones orig/ours 0/0") != std::string::npos);
+    CHECK(text.find("maintenance orig/ours 77/0 (before 0, recomputed 0)") != std::string::npos);
+    CHECK(text.find("first differences: maintenance 77/0") != std::string::npos);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin landfill enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -2023,6 +2448,8 @@ int main(int argc, char** argv) {
     if (mode == "--ini-protection-shadow") return ProtectionShadowTest(dll, ini, log);
     // Aura (aura.md): the replacement, and the grid shadow on fake originals.
     if (mode == "--ini-enable-aura") return AuraEnableTest(dll, ini, log);
+    // Landfill (landfill.md): the replacement, and the shadow on fake originals.
+    if (mode == "--ini-enable-landfill") return LandfillEnableTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).

@@ -70,6 +70,11 @@
 //         SimNewMonth) to a fake "original" pollution simulator; returns the
 //         delivery's difference count, -1 (not taken) or -2 (delivered,
 //         nothing compared). (15 is left to the parallel glue lanes.)
+//   op 17 kFC4SeamLandfillShadow   a = const FC4LandfillShadowTestInput*
+//         (FC4LandfillShadow.h): one landfill-shadow SimNewMonth delivery to
+//         a fake "original" landfill developer; returns the month's
+//         difference count, -1 (not taken) or -2 (delivered, nothing
+//         compared).
 //   op 20 kFC4SeamDemandCapacity   a = const FC4DemandCapacityTestInput*
 //         (cFC4Demand.h): the demand glue's capacity-map read of a building
 //         profile (DemandReportCapacities, no simulator): the visitor gets
@@ -97,6 +102,7 @@ enum : uint32_t {
     kFC4SeamCrimeShadow = 13,
     kFC4SeamAuraShadow = 14,
     kFC4SeamPollutionShadow = 16,
+    kFC4SeamLandfillShadow = 17,
     kFC4SeamDemandCapacity = 20,
 };
 

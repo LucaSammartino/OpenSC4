@@ -35,6 +35,8 @@
 #include "cFC4Crime.h"
 #include "FC4AuraShadow.h"
 #include "cFC4Aura.h"
+#include "FC4LandfillShadow.h"
+#include "cFC4Landfill.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -154,6 +156,11 @@ const ClassEntry kAuraClasses[] = {
     {0x0990BDD8, "cSC4AuraSimulator", &CreateFC4AuraSimulator},
 };
 
+// docs/specs/landfill.md §1. Off by default (M3 glue trial): `enable = landfill`.
+const ClassEntry kLandfillClasses[] = {
+    {0xEA09D4AE, "cSC4LandfillDeveloper", &CreateFC4LandfillDeveloper},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -170,6 +177,7 @@ const Subsystem kSubsystems[] = {
     {"protection", nullptr, kProtectionClasses, sizeof(kProtectionClasses) / sizeof(kProtectionClasses[0]), false},
     {"crime", nullptr, kCrimeClasses, sizeof(kCrimeClasses) / sizeof(kCrimeClasses[0]), false},
     {"aura", nullptr, kAuraClasses, sizeof(kAuraClasses) / sizeof(kAuraClasses[0]), false},
+    {"landfill", nullptr, kLandfillClasses, sizeof(kLandfillClasses) / sizeof(kLandfillClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -270,6 +278,8 @@ void Resolve() {
     CrimeShadowStartup(g_enabled[0], enabledKey("crime"));
     // The aura grid shadow (FC4AuraShadow.h; it compares the original aura simulator).
     AuraShadowStartup(enabledKey("aura"));
+    // The landfill shadow (FC4LandfillShadow.h; it compares the original landfill developer).
+    LandfillShadowStartup(g_enabled[0], enabledKey("landfill"));
 }
 
 }  // namespace
