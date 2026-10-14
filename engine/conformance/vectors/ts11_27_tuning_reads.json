@@ -1,0 +1,496 @@
+{
+  "format": 1,
+  "name": "ts11_27_tuning_reads",
+  "spec": [
+    "traffic-simulator 4.14",
+    "traffic-simulator 4.1.2"
+  ],
+  "description": "§4.14 'Short and missing arrays' (TS28), 'Funding percents' (TS29) and §4.1.2 (the strategy bytes). Over the shipped tuning: max speed of type 1 with 3 entries keeps them and resets the rest, and every missing type is reset to 0; tile costs with 2 entries fill 0.0; income per tile fills 0.0 [choice]; the bool vector fills true; a short start-cost array fills 0.0 (the shipped 0.4 goes) while a missing one is unchanged; background fills 1.0. Funding: u32 120 -> r24(120 x 0.01f) = 0x3F999999 (one ulp below 1.2), s32 50 -> 0.5. Strategy bytes are the raw little-endian bytes: u32 (10, 20, 70) -> (10, 0, 0); u16 300 -> (0x2C, 0x01) and the third keeps its 0 [choice]. Over the code defaults: a bool funding property leaves 1.2 (0x3F99999A); f32 120 also gives 0x3F999999; the missing tile costs and speeds are 0.",
+  "steps": [
+    {
+      "op": "ts_eval",
+      "fn": "read_tuning",
+      "args": [
+        "shipped",
+        {
+          "0x491332E8": {
+            "f32": [
+              31,
+              0,
+              82
+            ]
+          },
+          "0x6A84493E": {
+            "f32": [
+              1.5,
+              2
+            ]
+          },
+          "0xA92356B1": {
+            "f32": [
+              2,
+              3
+            ]
+          },
+          "0xA92356B4": {
+            "u8": [
+              0,
+              1
+            ]
+          },
+          "0xA92356BC": {
+            "f32": [
+              0.25
+            ]
+          },
+          "0xA92356BE": {
+            "f32": [
+              0.5
+            ]
+          },
+          "0xA92356AE": {
+            "u32": 120
+          },
+          "0xA92356AF": {
+            "i32": 50
+          },
+          "0x4953E8A4": {
+            "u8": [
+              80,
+              20,
+              0
+            ]
+          },
+          "0x4953E8A5": {
+            "u32": [
+              10,
+              20,
+              70
+            ]
+          },
+          "0x4953E8A6": {
+            "u16": [
+              300
+            ]
+          }
+        },
+        [
+          "max_speed",
+          "tile_costs",
+          "income_per_tile",
+          "generates_traffic",
+          "start_neutral",
+          "start_car",
+          "background",
+          "roads_funding",
+          "transit_funding",
+          "pct"
+        ]
+      ],
+      "expect": {
+        "max_speed": [
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            "0x41F80000",
+            0,
+            "0x42A40000",
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "tile_costs": [
+          "0x3FC00000",
+          "0x40000000",
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "income_per_tile": [
+          "0x40000000",
+          "0x40400000",
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "generates_traffic": [
+          false,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "start_neutral": [
+          "0x3E800000",
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "start_car": [
+          "0x3DCCCCCD",
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "background": [
+          "0x3F000000",
+          "0x3F800000",
+          "0x3F800000"
+        ],
+        "roads_funding": "0x3F999999",
+        "transit_funding": "0x3F000000",
+        "pct": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            80,
+            20,
+            0
+          ],
+          [
+            10,
+            0,
+            0
+          ],
+          [
+            44,
+            1,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "op": "ts_eval",
+      "fn": "read_tuning",
+      "args": [
+        "code",
+        {
+          "0xA92356AE": {
+            "bool": true
+          },
+          "0xA92356AF": {
+            "f32": 120
+          }
+        },
+        [
+          "roads_funding",
+          "transit_funding",
+          "tile_costs",
+          "max_speed"
+        ]
+      ],
+      "expect": {
+        "roads_funding": "0x3F99999A",
+        "transit_funding": "0x3F999999",
+        "tile_costs": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "max_speed": [
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ]
+      }
+    }
+  ]
+}

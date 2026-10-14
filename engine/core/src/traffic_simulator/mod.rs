@@ -73,6 +73,7 @@ mod adapters;
 mod cycle;
 mod maps;
 mod monthly;
+mod pools;
 mod record;
 mod route;
 mod state;
@@ -82,18 +83,22 @@ pub mod tuning;
 #[cfg(test)]
 mod tests;
 
-pub use adapters::{capacity_element, capacity_values, set_capacity_element, NetAdapter, CAPACITY_LEN};
+pub use adapters::{
+    capacity_element, capacity_values, set_capacity_element, HolderStore, Holders, NetAdapter, CAPACITY_LEN,
+};
 pub use maps::{air_polluting_byte, background_value, congestion_byte};
 pub use monthly::{damage_target, kind as damage_kind, STRIKE_KEEP, STRIKE_MAX_MONTHS, STRIKE_SCALE, STRIKE_START};
+pub use pools::{pool_of_token, pool_token, Pools, POOL_CITY_X, POOL_CITY_Z, POOL_TOKEN_BASE};
 pub use record::{legacy_density, read_mask_and_flags, read_trip, write_trip, TRIP_RECORD_VERSION};
-pub use route::{decode_route, RouteCell};
+pub use route::{decode_route, read_route, RouteCell, RouteStep};
 pub use state::{
-    AccidentEntry, DamageBlock, DamageState, SaveExtras, StatRow, State, StatsSet, SwitchStat, PC_REROUTE_BUCKET,
-    PC_SOURCE_COUNTER,
+    AccidentEntry, DamageBlock, DamageState, SaveExtras, SourceIter, StatRow, State, StatsSet, SwitchStat,
+    PC_REROUTE_BUCKET, PC_SOURCE_COUNTER,
 };
 pub use trips::{
-    ceil_idiom, floor_idiom, industrial_trips, merge_routed, merge_search, reconcile_connection, reconcile_lot,
-    residential_commuters, residential_split, trip_length_byte, COMMUTER_START, COMMUTER_TYPES, FREIGHT_TYPES,
+    ceil_idiom, find_highway_return_tile, floor_idiom, industrial_trips, merge_routed, merge_search,
+    reconcile_connection, reconcile_lot, residential_commuters, residential_split, trip_length_byte, COMMUTER_START,
+    COMMUTER_TYPES, DIVIDED_ROAD_MASK, FREIGHT_TYPES,
 };
 pub use tuning::{invert_congestion_curve, SimTuning};
 
@@ -104,9 +109,7 @@ use crate::grid::{CellRect, GridProvider, TractGrid};
 use crate::pathfinder::Pathfinder;
 use crate::property::PropertyHolder;
 use crate::stream::RefValue;
-use crate::traffic_network::{
-    FerryRouteInfo, NetworkHost, NetworkModel, SwitchQueryTarget, TrafficEdgeDensity, EDGE_DENSITY_ZERO,
-};
+use crate::traffic_network::{FerryRouteInfo, NetworkHost, NetworkModel, TrafficEdgeDensity, EDGE_DENSITY_ZERO};
 use crate::variant::Variant;
 
 pub use crate::traffic_network::{CLSID_TRAFFIC_SIMULATOR, IID_TRAFFIC_SIMULATOR};
@@ -370,6 +373,34 @@ pub struct Message {
     pub object: u64,
 }
 
+/// An established neighbouring city reached by a transport connection, as
+/// the pool capacities need it (traffic-network.md §2.7.4 steps 2–4).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NeighbourCity {
+    /// `GetPosition()` (regional-city slot 5): the region cell of the
+    /// city's corner.
+    pub position: (i32, i32),
+    /// `GetExtrapolatedPopulation(0x2010 + 0x10·w)` (regional-city slot 17),
+    /// w = 0…2.
+    pub population: [i32; 3],
+}
+
+/// The five fields of `GetTransitSwitchQueryData`'s `out` (§4.16), named
+/// after the query window's readers.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct SwitchQueryData {
+    /// `+0x00`: the available capacity (service quality numerator).
+    pub available: u32,
+    /// `+0x04`: the maximum capacity.
+    pub max_capacity: u32,
+    /// `+0x08`: the load fraction.
+    pub load_fraction: f32,
+    /// `+0x0C`: the actual usage.
+    pub usage: u32,
+    /// `+0x10`: the monthly maintenance cost.
+    pub cost: u32,
+}
+
 /// A `u8` grid.
 pub type GridU8 = Rc<dyn TractGrid<u8>>;
 /// An `f32` grid.
@@ -383,6 +414,8 @@ pub type GridF32 = Rc<dyn TractGrid<f32>>;
 /// except for three questions the simulator answers itself
 /// (`max_trip_capacity`, `is_road_damaged`, `neighbor_pool_holder`): a host
 /// may implement those three as it likes, the simulator never calls them.
+/// The neighbour pools are the simulator's ([`Pools`]); their holder tokens
+/// are reserved ([`POOL_TOKEN_BASE`]).
 ///
 /// Host callbacks must not call back into the simulator (a re-entrant call
 /// finds no state and does nothing).
@@ -433,6 +466,19 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     /// the int64 to add to the total `E` (non-zero only on the `0xCA550301`
     /// path).
     fn activate_budget_items(&self, building: u64, lot: Option<u64>) -> i64;
+    /// §4.1.3 DoLotDeactivated step 3 (TS23): with the lot's own holder,
+    /// slot 51 for `0xCA550301` and, if found, slot 56; then, independently,
+    /// the same for `0x0C3BF549`. Returns the `0xCA550301` item's cost (the
+    /// int64 at `+0x10`) to subtract from `E`, 0 when there is none.
+    fn deactivate_budget_items(&self, holder: u64) -> i64;
+    /// Budget simulator slot 51 `GetBudgetItemForPurpose(holder, purpose,
+    /// item)` on the building's property holder (§4.16, TS11): the
+    /// building's first budget item with that purpose, as its department
+    /// ID and its int64 monthly cost at 100 %; `None` when there is none.
+    fn budget_item_for_purpose(&self, building: u64, purpose: u32) -> Option<(u32, i64)>;
+    /// Budget simulator slot 28 `GetDepartmentBudget(id)` (§4.16): the
+    /// department, `None` when there is none.
+    fn department_budget(&self, department_id: u32) -> Option<u64>;
 
     // ---- history (§4.12) ----
     fn record_history(&self, series: u32, value: u32);
@@ -463,18 +509,32 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     /// Replaces the source's trip list.
     fn set_trip_list(&self, source: Source, trips: Vec<TripData>);
 
-    // ---- neighbour connections (§4.1.4, §4.6) ----
-    /// Neighbour simulator slot 13: the connection's property holder.
+    // ---- neighbour connections (§4.1.4, §4.6; traffic-network.md §2.7) ----
+    /// The connection's own property holder (connection slot 3,
+    /// traffic-network.md §2.7.5).
     fn connection_holder(&self, connection: u64) -> u64;
     /// Reads and clears the connection's "volume dirty" flag (§4.1.4).
     fn take_connection_volume_dirty(&self, connection: u64) -> bool;
     /// Neighbour simulator slot 11 `FindConnection(type, x, z)`.
     fn find_connection(&self, connection_type: u32, x: i32, z: i32) -> Option<u64>;
-    /// `GetNeighborPoolPropertyHolder(t, x, z)` (`0x007114E0`). The
-    /// pathfinder reads `GetTrafficNeighborConnection`'s cost and the ferry
-    /// terminals' neighbour links from the network state itself
-    /// (traffic-network.md §2.7.1, pathfinder.md §4.6, §4.13; PF5, PF6).
-    fn neighbor_pool_property_holder(&self, t: u32, x: i32, z: i32) -> Option<u64>;
+    /// The connection's neighbour-connection type (the type DoPostCityInit
+    /// passes to Add, traffic-network.md §2.7.2).
+    fn connection_type(&self, connection: u64) -> u32;
+    /// Neighbour simulator slot 13 `FindConnectionOnOtherSide(conn)`: the
+    /// neighbouring city's end of the connection (§2.7.2 step 3).
+    fn connection_on_other_side(&self, connection: u64) -> Option<u64>;
+    /// §2.7.2 step 5: the city on the other side (connection slot 9) when
+    /// there is one and it is established (regional-city slot 43), as its
+    /// `GetPosition()` (slot 5); `None` otherwise.
+    fn established_city_position(&self, connection: u64) -> Option<(i32, i32)>;
+    /// Neighbour simulator slot 21 `GetConnectedCities(list, false)`, in
+    /// list order, with each city's position and extrapolated populations
+    /// (§2.7.4 steps 2–4).
+    fn connected_cities(&self) -> Vec<NeighbourCity>;
+    /// The regional jobs of wealth `w` (§2.7.4 step 1): the demand
+    /// simulator's `GetDemand(0x2010 + 0x10·w, 0x10000)` and its
+    /// `QueryDemandValue()`; `None` when the node is missing.
+    fn regional_demand(&self, w: u32) -> Option<f32>;
 
     // ---- other simulators ----
     /// Residential simulator slot 30 `GetCellWorkforcePercent(x, z)`.
@@ -491,12 +551,22 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     // ---- occupants ----
     /// `QueryInterface(0xA821EF94)` on a message object (§3.1).
     fn as_network_occupant(&self, object: u64) -> Option<u64>;
+    /// `cISC4NetworkOccupant` slot 59: the network occupant's own cell
+    /// (DoRailChanged, §3.6 step 3).
+    fn network_occupant_cell(&self, occ: u64) -> (i32, i32);
     /// Occupant manager slot 40 over a cell rectangle (pathfinder filter 2).
     fn occupants_in_cells(&self, rect: CellRect) -> Vec<u64>;
     /// `cISC4OccupantFilter::IsOccupantIncluded`.
     fn occupant_filter_includes(&self, filter: u64, occupant: u64) -> bool;
     /// The accident check's occupant test (§4.13, grid slot 14 of `+0x1C`).
     fn cell_has_network_occupant(&self, x: i32, z: i32) -> bool;
+
+    // ---- language (§4.4) ----
+    /// The language manager's utility for the current language (slot 38
+    /// `GetLanguageUtility(0)`, then its slot 25 `GetLanguageRoadDrivingSide`)
+    /// = 1: false for UK English (2) and Japanese (15), true for every other
+    /// language and when there is no utility (TS17).
+    fn drives_on_right(&self) -> bool;
 
     // ---- accidents (§4.13) ----
     /// The visible cell rectangle from the view, `None` without a view.
@@ -513,6 +583,9 @@ pub struct TrafficSimulator {
     pub(crate) net: Rc<NetworkModel>,
     /// The damage sets, shared with the network adapter (`IsRoadDamaged`).
     pub(crate) damage: Rc<RefCell<DamageState>>,
+    /// The neighbour pools, shared with the network adapter
+    /// (traffic-network.md §2.7.3).
+    pub(crate) pools: Rc<RefCell<Pools>>,
     pub(crate) st: RefCell<Option<Box<State>>>,
 }
 
@@ -523,9 +596,11 @@ impl TrafficSimulator {
     /// *[choice]*).
     pub fn new(host: Rc<dyn TrafficSimHost>, session_seed: u32) -> Rc<TrafficSimulator> {
         let damage = Rc::new(RefCell::new(DamageState::default()));
+        let pools = Rc::new(RefCell::new(Pools::default()));
         let adapter: Rc<dyn NetworkHost> = Rc::new(NetAdapter {
             host: host.clone(),
             damage: damage.clone(),
+            pools: pools.clone(),
         });
         let net = NetworkModel::new(adapter);
         let seed = crate::rng::derive_seed(session_seed, RNG_K);
@@ -533,6 +608,7 @@ impl TrafficSimulator {
             host,
             net,
             damage,
+            pools,
             st: RefCell::new(Some(Box::new(State::new(seed)))),
         })
     }
@@ -555,6 +631,25 @@ impl TrafficSimulator {
     /// Changes the damage sets directly (hosts restoring state, tests).
     pub fn update_damage<R>(&self, f: impl FnOnce(&mut DamageState) -> R) -> R {
         f(&mut self.damage.borrow_mut())
+    }
+
+    /// The neighbour pools.
+    pub fn pools(&self) -> std::cell::Ref<'_, Pools> {
+        self.pools.borrow()
+    }
+
+    /// Changes the pools directly (hosts restoring state, tests).
+    pub fn update_pools<R>(&self, f: impl FnOnce(&mut Pools) -> R) -> R {
+        f(&mut self.pools.borrow_mut())
+    }
+
+    /// The simulator's view of the property holders: pool tokens are its
+    /// pools, any other token the host's.
+    pub fn holders(&self) -> Holders<'_> {
+        Holders {
+            h: &*self.host,
+            pools: &self.pools,
+        }
     }
 
     /// Runs `f` with the state taken out (see the module documentation);
@@ -580,6 +675,7 @@ impl TrafficSimulator {
                 st: &mut st,
                 cx,
                 dmg: &self.damage,
+                pools: &self.pools,
             };
             f(&mut run)
         });
@@ -668,24 +764,11 @@ impl TrafficSimulator {
         self.run(|r| r.find_path_with(pf))
     }
 
-    /// `SetupPathFinderForLot(pf, lot)` (slot 7, §4.4 *[inferred]*): the lot's
-    /// rect as start rect and SetupTrip steps 3–4 (flags and travel types
-    /// cleared, the default starting costs, the commute max time)
-    /// *[question: the rest of the configuration is not specified]*. False
-    /// without a lot.
+    /// `SetupPathFinderForLot(pf, lot)` (slot 7, `0x00711610`, §4.4, TS10):
+    /// configures a caller's pathfinder from the lot's trip list. False for
+    /// lot 0 (the null pointer) or a lot with no trips.
     pub fn setup_path_finder_for_lot(&self, pf: &mut Pathfinder, lot: u64) -> bool {
-        if lot == 0 {
-            return false;
-        }
-        let rect = self.host.lot_bounding_rect(lot);
-        let max_len = self.read_state(|s| s.tuning.commute_max_time);
-        pf.set_max_work_time(0);
-        pf.set_start_rect(rect);
-        pf.clear_all_flags();
-        pf.clear_all_travel_type_flags();
-        pf.set_starting_cost_array(None);
-        pf.set_max_trip_length(max_len);
-        true
+        self.run(|r| r.setup_path_finder_for_lot(pf, lot))
     }
 
     // ---- slots 8–10, 13: maps ----
@@ -780,24 +863,25 @@ impl TrafficSimulator {
 
     // ---- slots 19–21: capacities (§4.2) ----
 
-    /// `SetMaxTripCapacity(holder, k, value)` (slot 19).
+    /// `SetMaxTripCapacity(holder, k, value)` (slot 19), through the
+    /// element store (§4.2, TS18). A pool token reaches the pool.
     pub fn set_max_trip_capacity(&self, holder: u64, k: u32, value: u32) {
-        adapters::set_capacity_element(&*self.host, holder, k as usize, value);
+        adapters::set_capacity_element(&self.holders(), holder, k as usize, value);
     }
 
     /// `GetMaxTripCapacity(holder, k)` (slot 20).
     pub fn max_trip_capacity(&self, holder: u64, k: u32) -> u32 {
-        adapters::capacity_element(&*self.host, holder, k as usize)
+        adapters::capacity_element(&self.holders(), holder, k as usize)
     }
 
     /// `GetTrafficArrived(holder, k)` (slot 21): arrived **last** cycle.
     pub fn traffic_arrived(&self, holder: u64, k: u32) -> u32 {
-        adapters::capacity_element(&*self.host, holder, 8 + k as usize)
+        adapters::capacity_element(&self.holders(), holder, 8 + k as usize)
     }
 
     /// The trips arrived this cycle (`0x0070DFF0`).
     pub fn traffic_arrived_this_cycle(&self, holder: u64, k: u32) -> u32 {
-        adapters::capacity_element(&*self.host, holder, 4 + k as usize)
+        adapters::capacity_element(&self.holders(), holder, 4 + k as usize)
     }
 
     // ---- slots 22–27 ----
@@ -879,11 +963,10 @@ impl TrafficSimulator {
         self.read_state(|s| s.stats_last.clone())
     }
 
-    /// `GetTransitSwitchQueryData(x, z)` (slot 35): what is at the cell. The
-    /// data fields are not specified (traffic-network.md §7.1 defers them to
-    /// this spec, which does not list them) *[question]*.
-    pub fn transit_switch_query_data(&self, x: i32, z: i32) -> Option<SwitchQueryTarget> {
-        self.net.transit_switch_query_target(x, z)
+    /// `GetTransitSwitchQueryData(x, z, out)` (slot 35, `0x0071CB80`, §4.16,
+    /// TS11): `out`, or `None` for false (`out` untouched).
+    pub fn transit_switch_query_data(&self, x: i32, z: i32) -> Option<SwitchQueryData> {
+        self.run(|r| r.transit_switch_query_data(x, z))
     }
 
     /// `AreLotsConnected` (slot 36).
@@ -981,6 +1064,13 @@ impl TrafficSimulator {
             let rect = r.source_rect(source);
             r.setup_trip(pf, pf2, trip, rect);
         });
+    }
+
+    /// The return leg's start rect (`None`: pf2 keeps its own) and end rect
+    /// from pf's end cell, its result node's travel type and its start rect
+    /// (§4.4, TS17).
+    pub fn return_leg_rects(&self, end: (i32, i32), end_type: u8, pf_start: CellRect) -> (Option<CellRect>, CellRect) {
+        self.run(|r| r.return_leg_rects(end, end_type, pf_start))
     }
 
     /// `CapacityStillAvailable(trip)` (§4.2).

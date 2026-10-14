@@ -200,7 +200,7 @@ pub mod prop {
     pub const SWITCH_TIME_FACTOR: u32 = 0xE90E_25A2;
     /// Transit-switch capacity (f32).
     pub const SWITCH_CAPACITY: u32 = 0xE90E_25A3;
-    /// Simulator-use u32 (§2.4).
+    /// The toll, f32 (§2.4, TS15).
     pub const SWITCH_SIMULATOR: u32 = 0x0BFC_0A4C;
     /// "Counts as intersection" bool (§4.6).
     pub const COUNTS_AS_INTERSECTION: u32 = 0x4BFC_47B0;
@@ -489,6 +489,14 @@ pub trait NetworkHost: GridProvider<u32> + GridProvider<u8> {
     /// `GetNeighborPoolPropertyHolder(1, x, z)` (non-virtual `0x007114E0`),
     /// asked with the neighbour connection's own (off-map) cell (§4.12).
     fn neighbor_pool_holder(&self, x: i32, z: i32) -> Option<u64>;
+    /// The same question with the network state at hand, which is what the
+    /// model asks: a host that keeps the pools resolves the record's pool
+    /// ID here (and resets a stale one, §2.7.1). The default ignores the
+    /// state and asks [`NetworkHost::neighbor_pool_holder`].
+    fn neighbor_pool_holder_in(&self, s: &mut NetworkState, x: i32, z: i32) -> Option<u64> {
+        let _ = s;
+        self.neighbor_pool_holder(x, z)
+    }
     /// `IsRoadDamaged(x, z)` (slot 16): the cell key is in the simulator's
     /// pothole table (§4.15).
     fn is_road_damaged(&self, x: i32, z: i32) -> bool;

@@ -1,0 +1,235 @@
+{
+  "format": 1,
+  "name": "ts11_37_lot_deactivation",
+  "spec": [
+    "traffic-simulator 4.1.3"
+  ],
+  "description": "§4.1.3 worked example (TS23): a 2 x 2 lot at (10, 20)-(11, 21) with destination byte 3 at every cell is deactivated in state 18. freeDest[0] and freeDest[1] each drop by 1 (the bits at the NW cell only), the four bytes become 0, the one bucket entry under its 0x691C863C (4) at its location (10, 20) goes (the first of two), and E drops by its 0xCA550301 item's cost (250, the stub's budget_items). Deactivated in state 10, lot 2's byte goes to 0 but freeDest is kept.",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        32,
+        32
+      ],
+      "budget_items": 250
+    },
+    {
+      "op": "ts_lot",
+      "id": 1,
+      "rect": [
+        10,
+        20,
+        11,
+        21
+      ],
+      "holder": 11
+    },
+    {
+      "op": "ts_lot",
+      "id": 2,
+      "rect": [
+        14,
+        20,
+        14,
+        20
+      ],
+      "holder": 12
+    },
+    {
+      "op": "ts_prop",
+      "holder": 11,
+      "id": "0x691C863C",
+      "value": {
+        "u32": 4
+      }
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "cycle_state": 18,
+        "dest": [
+          [
+            10,
+            20,
+            3
+          ],
+          [
+            11,
+            20,
+            3
+          ],
+          [
+            10,
+            21,
+            3
+          ],
+          [
+            11,
+            21,
+            3
+          ],
+          [
+            14,
+            20,
+            1
+          ]
+        ],
+        "free": [
+          5,
+          5,
+          5,
+          5
+        ],
+        "buckets": [
+          [
+            4,
+            [
+              [
+                14,
+                20
+              ],
+              [
+                10,
+                20
+              ],
+              [
+                10,
+                20
+              ]
+            ]
+          ]
+        ],
+        "budget_total": 1000
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0xE8BDA2E7",
+        3,
+        0,
+        0,
+        1
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "free_destinations",
+      "args": [],
+      "expect": [
+        4,
+        4,
+        5,
+        5
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        10,
+        20
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        11,
+        20
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        10,
+        21
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        11,
+        21
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "buckets": [
+          [
+            4,
+            [
+              [
+                14,
+                20
+              ],
+              [
+                10,
+                20
+              ]
+            ]
+          ]
+        ],
+        "budget_total": 750
+      }
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "cycle_state": 10
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0xE8BDA2E7",
+        3,
+        0,
+        0,
+        2
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        14,
+        20
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ts_call",
+      "method": "free_destinations",
+      "args": [],
+      "expect": [
+        4,
+        4,
+        5,
+        5
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "budget_total": 500
+      }
+    }
+  ]
+}

@@ -745,7 +745,7 @@ impl Pathfinder {
     fn at_goal(&mut self, cx: &mut PathCx<'_>, c: u32, cannot_end: bool) -> bool {
         let n = *self.store.get(c);
         match self.filter {
-            filter::STANDARD => self.goal_standard(cx.host, n, cannot_end),
+            filter::STANDARD => self.goal_standard(cx.host, &mut *cx.net, n, cannot_end),
             filter::OCCUPANT => self.goal_occupant(cx.host, n.x, n.z),
             filter::END_RECT => self.goal_end_rect(n.x, n.z, cannot_end),
             _ => false,
@@ -765,7 +765,7 @@ impl Pathfinder {
     }
 
     /// Filter 0 (§4.10.1).
-    fn goal_standard(&mut self, host: &dyn PathfinderHost, n: Node, cannot_end: bool) -> bool {
+    fn goal_standard(&mut self, host: &dyn PathfinderHost, net: &mut NetworkState, n: Node, cannot_end: bool) -> bool {
         let (x, z) = (n.x, n.z);
         let flags = self.dest_flags;
         if self.in_city(x, z) || rect_contains(self.start_rect, x, z) || rect_contains(self.excluded_rect, x, z) {
@@ -812,7 +812,7 @@ impl Pathfinder {
         } else {
             // Off-map and not in those rects: the neighbour pool; cannotEnd
             // is ignored.
-            let Some(holder) = host.neighbor_pool_holder(u32::from(n.t), x, z) else {
+            let Some(holder) = host.neighbor_pool_holder_in(net, u32::from(n.t), x, z) else {
                 return false;
             };
             for k in 0..4u32 {

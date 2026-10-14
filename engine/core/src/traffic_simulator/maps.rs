@@ -10,22 +10,18 @@
 
 use crate::curve::ResponseCurve;
 use crate::traffic_network::{NetworkState, NET_OF_TRAVEL};
-use crate::x87::{r24, rhe};
+use crate::x87::{ftol, r24, rhe};
 
-use super::adapters::{capacity_element, update_capacity};
+use super::adapters::{capacity_element, set_capacity_element};
 use super::cycle::Run;
-use super::state::{AccidentEntry, StatRow};
+use super::state::{AccidentEntry, StatRow, BRIDGE_SLOT};
 use super::tuning::SimTuning;
-use super::{msg, SimMessage, TrafficSimHost};
+use super::{msg, prop, SimMessage, SwitchQueryData, TrafficSimHost};
 
 /// The BDS developer types of the background traffic (§4.9).
 const BG_RESIDENTIAL: [u32; 3] = [0x1010, 0x1020, 0x1030];
 const BG_COMMERCIAL: [u32; 5] = [0x3110, 0x3120, 0x3130, 0x3320, 0x3330];
 const BG_INDUSTRIAL: [u32; 4] = [0x4100, 0x4200, 0x4300, 0x4400];
-
-/// The travel types of the commercial traffic window (§4.9 step 2: road,
-/// el-train and monorail *[choice: car 1, el-train 7, monorail 8]*).
-const COMMERCIAL_TYPES: [u32; 3] = [1, 7, 8];
 
 /// `0.1f` (`0x00A8C950`).
 const TENTH: f32 = 0.1;
@@ -119,56 +115,102 @@ pub fn congestion_byte(b: f32, d: f32, curve: &ResponseCurve, scale: f32) -> u8 
     }
 }
 
-impl Run<'_, '_> {
-    /// The commercial traffic window (`0x00714AA0`, §4.9 step 2
-    /// *[question: the window]*): over the 4 × 4 block at (x, z) and the
-    /// types of [`COMMERCIAL_TYPES`], the maximum morning (evening 0) usage
-    /// plus the maximum evening usage.
-    fn commercial_window(&self, x: i32, z: i32) -> u32 {
-        let (mut m0, mut m1) = (0u16, 0u16);
-        for cx in x..x + 4 {
-            for cz in z..z + 4 {
-                for &t in &COMMERCIAL_TYPES {
-                    m0 = m0.max(self.net().edge_density_at(cx, cz, t, false).usage);
-                    m1 = m1.max(self.net().edge_density_at(cx, cz, t, true).usage);
-                }
-            }
-        }
-        u32::from(m0) + u32::from(m1)
-    }
+/// The cell value `cv(x, z, k)` of the commercial traffic window
+/// (`0x00714940`, §4.9 step 2, TS8): the maximum (u16) of the road sum
+/// `usage(Car) + usage(Bus) + usage(FreightTruck)` (u16, wrapping), the
+/// el-train `usage(7)` and the monorail `usage(8)`. The record key takes the
+/// low byte of `x` (§4.8).
+pub fn commercial_cell_value(s: &NetworkState, x: i32, z: i32, evening: bool) -> u16 {
+    let u = |t: u32| s.edge_density_at(x, z, t, evening).usage;
+    let road = u(1).wrapping_add(u(2)).wrapping_add(u(4));
+    road.max(u(7)).max(u(8))
+}
 
+/// The commercial traffic window value of block `(bx, bz)` (`0x00714AA0`,
+/// §4.9 step 2, TS8). With `X0 = 4·bx`, `Z0 = 4·bz`: a plus shape, z from
+/// `max(0, Z0 − 2)` to `min(H, Z0 + 6) − 1`; on the block's own rows x from
+/// `max(0, X0 − 2)` to `X0 + 5` (no upper clamp *[compat]*), on the others
+/// x from `X0` to `X0 + 3`. `v := (maxM + maxE) mod 2¹⁶`, the morning and
+/// evening maxima taken independently.
+pub fn commercial_window(s: &NetworkState, bx: i32, bz: i32) -> u16 {
+    let (x0, z0) = (4 * bx, 4 * bz);
+    let (mut m, mut e) = (0u16, 0u16);
+    for z in (z0 - 2).max(0)..(z0 + 6).min(s.count_z) {
+        let (xa, xb) = if (z0..z0 + 4).contains(&z) {
+            ((x0 - 2).max(0), x0 + 5)
+        } else {
+            (x0, x0 + 3)
+        };
+        for x in xa..=xb {
+            m = m.max(commercial_cell_value(s, x, z, false));
+            e = e.max(commercial_cell_value(s, x, z, true));
+        }
+    }
+    m.wrapping_add(e)
+}
+
+impl Run<'_, '_> {
     /// CreateMaps (state 2, `0x0071A0C0`, §4.9).
     pub(crate) fn create_maps(&mut self) {
-        let mut cells_per_type = [0u32; 13];
         while let Some((x, z)) = self.st.scan.next_cell() {
-            self.create_maps_cell(x, z, &mut cells_per_type);
+            self.create_maps_cell(x, z);
         }
-        // The end of the pass: the averages become the published set.
-        let mut last = self.st.stats_work.clone();
-        for row in last.rows.iter_mut().chain(std::iter::once(&mut last.aggregate)) {
-            row.sum = average(row);
+        // The end of the pass (`0x0071A5D7`–`0x0071A701`).
+        // 1. The averages; the five fields of each slot with records go to
+        // the published set. A slot with no record publishes (0, 0, 0, 0,
+        // 0) *[question: §4.9 says it "keeps (0, 0, 0, 0, 0)" while the
+        // entry reset leaves max −1.0]*.
+        let w = &mut self.st.stats_work;
+        let last = &mut self.st.stats_last;
+        let counts = self.st.stat_counts;
+        let work_rows = w.rows.iter_mut().chain(std::iter::once(&mut w.bridge));
+        let last_rows = last.rows.iter_mut().chain(std::iter::once(&mut last.bridge));
+        for ((wr, lr), &n) in work_rows.zip(last_rows).zip(counts.iter()) {
+            if n != 0 {
+                wr.sum = r24(f64::from(wr.sum) / r24(f64::from(n))) as f32;
+                *lr = *wr;
+            } else {
+                *lr = StatRow::default();
+            }
         }
-        self.st.stats_last = last;
-        self.st.cells_per_type = cells_per_type;
-        let costs = self.st.tuning.tile_costs;
-        if let Some(d) = self.st.roads {
-            self.h.update_network_costs(d, false, &cells_per_type, &costs);
-        }
-        if let Some(d) = self.st.mass_transit {
-            self.h.update_network_costs(d, true, &cells_per_type, &costs);
-        }
+        // 2. The record counts replace the published counts and the cell
+        // counts; the bridge records are neither (TS9).
+        last.records = w.records;
+        self.st.cells_per_type = w.records.map(u32::from);
+        // 3. The department costs.
+        self.update_roads_budget();
+        self.update_mass_transit_budget();
+        // 4.
         self.st.accident_check = std::mem::take(&mut self.st.accidents);
     }
 
-    fn create_maps_cell(&mut self, x: i32, z: i32, cells_per_type: &mut [u32; 13]) {
+    /// `UpdateRoadsBudget` (`0x0070D8A0`, §4.9): the roads department's
+    /// monthly costs from the cell counts.
+    pub(crate) fn update_roads_budget(&mut self) {
+        if let Some(d) = self.st.roads {
+            self.h
+                .update_network_costs(d, false, &self.st.cells_per_type, &self.st.tuning.tile_costs);
+        }
+    }
+
+    /// `UpdateMassTransitBudget` (`0x0070DA40`, §4.9).
+    pub(crate) fn update_mass_transit_budget(&mut self) {
+        if let Some(d) = self.st.mass_transit {
+            self.h
+                .update_network_costs(d, true, &self.st.cells_per_type, &self.st.tuning.tile_costs);
+        }
+    }
+
+    fn create_maps_cell(&mut self, x: i32, z: i32) {
         // 1.
         let mut b = 0.0f32;
         let mut d = 0.0f32;
         // 2.
         if x % 4 == 0 && z % 4 == 0 {
-            let v = self.commercial_window(x, z);
+            let v = commercial_window(self.net(), x / 4, z / 4);
             let scale = self.st.tuning.commercial_scale;
-            let g = rhe(r24(r24(f64::from(v)) * f64::from(scale)) as f32) as u32;
+            // Ties to even (the `+ 12582912.0f` trick, `0x0071A271`).
+            let g = rhe(r24(f64::from(v) * f64::from(scale)) as f32) as u32;
             if let Some(grid) = &self.st.commercial_work {
                 grid.set(x / 4, z / 4, g.min(255) as u8);
             }
@@ -197,24 +239,30 @@ impl Run<'_, '_> {
                     }
                 }
             }
-            let ty = usize::from(e.net_type);
-            if ty < 13 {
-                cells_per_type[ty] = cells_per_type[ty].wrapping_add(1);
-                // Statistics for records without flag bit 0
-                // *[question: "not excluded"]*.
-                if e.flags & 1 == 0 {
-                    let w = &mut self.st.stats_work;
-                    let row = &mut w.rows[ty];
-                    row.sum = r24(f64::from(row.sum) + f64::from(r)) as f32;
-                    row.count = row.count.wrapping_add(1);
-                    if r > row.max {
-                        row.max = r;
-                        row.max_x = x;
-                        row.max_z = z;
-                    }
-                    if r > 1.0 {
-                        w.over[ty] = w.over[ty].wrapping_add(1);
-                    }
+            // Statistics (TS9): every record counts; flag bit 0 (network
+            // flag 0x40000) picks the bridge slot 13, else the type's slot.
+            let slot = if e.flags & 1 != 0 {
+                Some(BRIDGE_SLOT)
+            } else {
+                Some(usize::from(e.net_type)).filter(|&t| t < 13)
+            };
+            if let Some(s) = slot {
+                let w = &mut self.st.stats_work;
+                let (row, records) = if s == BRIDGE_SLOT {
+                    (&mut w.bridge, &mut w.bridge_records)
+                } else {
+                    (&mut w.rows[s], &mut w.records[s])
+                };
+                row.sum = r24(f64::from(row.sum) + f64::from(r)) as f32;
+                self.st.stat_counts[s] = self.st.stat_counts[s].wrapping_add(1);
+                *records = records.wrapping_add(1);
+                if r > row.max {
+                    row.max = r;
+                    row.max_x = x;
+                    row.max_z = z;
+                }
+                if r > 1.0 {
+                    row.congested = row.congested.wrapping_add(1);
                 }
             }
             let mut nv = r24(f64::from(self.st.tuning.density_reduction) * f64::from(vol)) as f32;
@@ -265,17 +313,81 @@ impl Run<'_, '_> {
         self.h.post_message(SimMessage::of_type(msg::TRAFFIC_MAP_CHANGED));
     }
 
-    /// ClearTripDestinations (state 5, §4.11).
+    /// `GetTransitSwitchQueryData(x, z, out)` (slot 35, `0x0071CB80`, §4.16,
+    /// TS11), "strike" = strike state 1. A switch at the cell (switch-ID
+    /// grid): `{capacity, capacity, ratio, prevUsage, cost}` from the last
+    /// CreateMaps (§4.9 step 4: `counter_b`, `counter_a`), with the
+    /// capacity truncated; during a strike only the maximum capacity and the
+    /// cost stay. Else the first ferry terminal (list order) whose lot cell
+    /// lies in the bounding rect of `GetLot(x, z, false)`: riders last
+    /// period in the three counts and 1.0, all 0 during a strike, the cost
+    /// from the lot's building. `None` (false, `out` untouched) for neither,
+    /// and for a switch ID with no switch *[choice]*.
+    pub(crate) fn transit_switch_query_data(&self, x: i32, z: i32) -> Option<SwitchQueryData> {
+        let strike = self.st.strike_state == 1;
+        let s = self.net();
+        let id = s.switch_id_at(x, z);
+        if id != 0 {
+            let sw = s.switches.get(id)?;
+            let cap = ftol(f64::from(sw.capacity)) as u32;
+            return Some(SwitchQueryData {
+                available: if strike { 0 } else { cap },
+                max_capacity: cap,
+                load_fraction: if strike { 0.0 } else { sw.counter_b },
+                usage: if strike {
+                    0
+                } else {
+                    ftol(f64::from(sw.counter_a)) as u32
+                },
+                cost: self.query_cost(Some(sw.building)),
+            });
+        }
+        let lot = self.h.lot_at(x, z, false)?;
+        let r = self.h.lot_bounding_rect(lot);
+        let t = s.ferries.iter().find(|t| {
+            let (lx, lz) = (i32::from(t.lot_x), i32::from(t.lot_z));
+            lx >= r.x1 && lx <= r.x2 && lz >= r.z1 && lz <= r.z2
+        })?;
+        let riders = if strike { 0 } else { u32::from(t.riders_last) };
+        Some(SwitchQueryData {
+            available: riders,
+            max_capacity: riders,
+            load_fraction: if strike { 0.0 } else { 1.0 },
+            usage: riders,
+            cost: self.query_cost(self.h.lot_building(lot)),
+        })
+    }
+
+    /// The query's maintenance cost (§4.16): the building's first
+    /// `0xCA550301` budget item and its department; `low32(ftol(r24(float(
+    /// cost) × funding)))`, 0 when either is missing or with no building.
+    fn query_cost(&self, building: Option<u64>) -> u32 {
+        let Some(b) = building.filter(|&b| b != 0) else {
+            return 0;
+        };
+        let Some((dept_id, cost)) = self.h.budget_item_for_purpose(b, prop::BUDGET_ITEM) else {
+            return 0;
+        };
+        let Some(dept) = self.h.department_budget(dept_id) else {
+            return 0;
+        };
+        let f = self.h.department_funding(dept);
+        let c = r24(cost as f64);
+        ftol(r24(c * f64::from(f))) as u32
+    }
+
+    /// ClearTripDestinations (state 5, §4.11): each lot once, at its origin
+    /// cell; the roll goes through the element store (TS18), so a lot
+    /// without the property gets one.
     pub(crate) fn clear_trip_destinations(&mut self) {
         while let Some((x, z)) = self.st.scan.next_cell() {
             let Some(lot) = self.h.lot_at(x, z, true) else { continue };
             let holder = self.h.lot_holder(lot);
-            update_capacity(self.h, holder, |v| {
-                for k in 0..4 {
-                    v[8 + k] = v[4 + k];
-                    v[4 + k] = 0;
-                }
-            });
+            for k in 0..4 {
+                let v = capacity_element(self.h, holder, 4 + k);
+                set_capacity_element(self.h, holder, 8 + k, v);
+                set_capacity_element(self.h, holder, 4 + k, 0);
+            }
             for k in 0..3 {
                 let c = capacity_element(self.h, holder, k);
                 self.st.job_capacity[k] = self.st.job_capacity[k].wrapping_add(c);
@@ -306,15 +418,5 @@ impl Run<'_, '_> {
             }
             self.st.set_dest_byte(x, z, byte);
         }
-    }
-}
-
-/// The average of a statistics row (`sum / count`); a row without cells
-/// keeps 0 *[choice]*.
-fn average(row: &StatRow) -> f32 {
-    if row.count == 0 {
-        0.0
-    } else {
-        r24(f64::from(row.sum) / r24(f64::from(row.count))) as f32
     }
 }
