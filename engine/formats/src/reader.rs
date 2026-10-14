@@ -53,6 +53,12 @@ impl<'a> Reader<'a> {
     pub(crate) fn u64(&mut self) -> Result<u64> {
         Ok(u64::from_le_bytes(self.array()?))
     }
+    pub(crate) fn i16(&mut self) -> Result<i16> {
+        Ok(i16::from_le_bytes(self.array()?))
+    }
+    pub(crate) fn f32(&mut self) -> Result<f32> {
+        Ok(f32::from_le_bytes(self.array()?))
+    }
 
     /// Checks that `count` elements of `elem` bytes fit in the rest of the data, before anything is allocated.
     pub(crate) fn ensure(&self, count: u64, elem: u64) -> Result<()> {

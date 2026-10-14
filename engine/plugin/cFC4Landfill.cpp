@@ -346,8 +346,10 @@ void ReleaseHeld(T*& field) {
 }
 
 // §1.2 steps 2 and 4: the message server, then the budget, pollution,
-// terrain and city, each released only if held and then nulled (one call
-// after the zones' Shutdown, which §1.2 shows is not observable).
+// terrain and city, each released only if held and then nulled. LF6
+// (answered; the choice stands): one call after the zones shut down; the
+// message server's release is never its last, so when it happens cannot be
+// observed.
 void ReleaseServices(void* u) {
     fc4::LandfillContext* c = Ctx(u);
     ReleaseHeld(c->msgServer);

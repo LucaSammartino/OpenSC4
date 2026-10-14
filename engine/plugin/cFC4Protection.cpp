@@ -186,7 +186,12 @@ void AcquireServices(void* u, uint32_t) {
     }
 }
 
-// §4.2: the last step of Shutdown (after the unsubscriptions).
+// §4.2: the last step of the base Shutdown, after the grids (PR15, answered:
+// the bracket matches). The original releases the zone manager, then the
+// budget simulator, then the city, as here; the message server goes first
+// (its release is never the last, so the timing cannot be observed). A
+// read-only shadow host holds nothing and asks the city each time, which
+// PR15 says cannot be told apart.
 void ReleaseServices(void* u, uint32_t) {
     fc4::ProtectionContext* c = Ctx(u);
     if (c->msgServer != nullptr) FC4_RELEASE(c->msgServer);

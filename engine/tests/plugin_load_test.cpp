@@ -7190,7 +7190,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 159): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 160): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -8394,9 +8394,10 @@ int main(int argc, char** argv) {
                     CHECK(found.x87Pushed == 0 && otherPurpose.x87Pushed == 0 && noHolder.x87Pushed == 0);
                     CHECK(found.eax != 0 && otherPurpose.eax != 0 && noHolder.eax != 0);
                     if (found.eax != 0) {
-                        // The item's local-funding fraction: property value / 100.
+                        // The item's local-funding fraction: float32(property value × 0.01f)
+                        // (budget.md §6, RG13: a multiplication, not pct / 100).
                         const float q = reinterpret_cast<const float*>(found.eax)[0];
-                        CHECK(q == holder.Get32f(0xEA54D287) / 100.0f);
+                        CHECK(q == holder.Get32f(0xEA54D287) * 0.01f);
                         CHECK(q == 0.5f);  // AddLocallyFundedObject wrote the department's 50 %
                     }
                     if (otherPurpose.eax != 0) CHECK(reinterpret_cast<const float*>(otherPurpose.eax)[0] == 0.0f);
@@ -9083,11 +9084,11 @@ int main(int argc, char** argv) {
                     "residential EQ/HQ/LE=12.5000/34.2500/75\r\n") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 159 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 159 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 160 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 160 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 159): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 160): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);

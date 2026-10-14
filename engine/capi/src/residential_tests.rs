@@ -17,7 +17,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use fc4_core::residential::{
-    grid_class, history, instance, msg, shipped_tuning, AGENT_LEVELS, AGENT_NAME, OCCUPANT_TYPE_BUILDING,
+    grid_class, history, instance, msg, shipped_tuning, CreatedEffect, AGENT_LEVELS, AGENT_NAME, OCCUPANT_TYPE_BUILDING,
 };
 use fc4_core::variant::mem;
 
@@ -545,6 +545,74 @@ fn a_month_publishes_the_population() {
     unsafe { fc4_residential_destroy(p) };
 }
 
+unsafe extern "C" fn rg10_staff_item(
+    _: *mut c_void,
+    occ: u64,
+    purpose: u32,
+    out: *mut fc4_residential_budget_item,
+) -> bool {
+    if occ != SCHOOL || purpose != fc4_core::residential::SCHOOL.staff_purpose {
+        return false;
+    }
+    *out = fc4_residential_budget_item {
+        department: 0x77,
+        local_funding: 1.0,
+        ..Default::default()
+    };
+    true
+}
+unsafe extern "C" fn rg10_department(_: *mut c_void, id: u32) -> u64 {
+    if id == 0x77 {
+        950
+    } else {
+        0
+    }
+}
+unsafe extern "C" fn rg10_unreadable(_: *mut c_void, _d: u64) -> f32 {
+    f32::NAN
+}
+unsafe extern "C" fn rg10_funding(_: *mut c_void, _d: u64) -> f32 {
+    0.8
+}
+
+/// REH §4.7 step 3 (RG1): the C result of create_visual_effect as the core
+/// sees it: 0 = the create failed, FC4_EFFECT_NOT_SHOWN = cannot show (counted
+/// as created), anything else the effect.
+#[test]
+fn rg1_create_visual_effect_results() {
+    assert_eq!(effect_of(0), CreatedEffect::Failed);
+    assert_eq!(effect_of(FC4_EFFECT_NOT_SHOWN), CreatedEffect::NotShown);
+    assert_eq!(effect_of(0x1234), CreatedEffect::Effect(0x1234));
+}
+
+type FundingFn = unsafe extern "C" fn(*mut c_void, u64) -> f32;
+
+/// REH §4.2 (RG10, answered; the bracket "1.0" differed): through the C ABI,
+/// slot 20 with a department whose funding cannot be read (no callback, or
+/// NaN) leaves the caller's values; a readable one is written.
+#[test]
+fn rg10_an_unreadable_department_leaves_slot_20_outputs() {
+    let g = Game::new();
+    let cases: [(Option<FundingFn>, (f32, f32)); 3] = [
+        (None, (0.3, 0.4)),
+        (Some(rg10_unreadable), (0.3, 0.4)),
+        (Some(rg10_funding), (0.8, 1.0)),
+    ];
+    for (funding, want) in cases {
+        let mut h = host(&g);
+        h.budget_item = Some(rg10_staff_item);
+        h.department_budget = Some(rg10_department);
+        h.department_funding = funding;
+        let p = unsafe { fc4_residential_create(&h, 0xA0, 7) };
+        assert!(!p.is_null() && unsafe { fc4_residential_init(p) });
+        let (mut a, mut b) = (0.3f32, 0.4f32);
+        assert!(unsafe { fc4_residential_get_occupant_funding(p, SCHOOL, &mut a, &mut b, true) });
+        assert_eq!((a, b), want);
+        assert!(unsafe { fc4_residential_shutdown(p) });
+        unsafe { fc4_residential_destroy(p) };
+    }
+}
+
 #[test]
 fn getters_on_another_thread_run_on_a_view() {
     let g = Game::new();
@@ -1047,6 +1115,11 @@ fn the_shadow_of_our_own_simulator_finds_no_difference_through_a_cycle() {
         lines[0].starts_with("residential shadow 2000-01-01 state 0 (strikes and lists) [strike rolls not compared]")
     );
     assert!(lines.iter().all(|l| l.contains("residential shadow")));
+    // RG7: from state 0 on, the runs keep the lists of our last state 0.
+    assert!(
+        lines.iter().all(|l| !l.contains("ordinance effects as they stand")),
+        "{lines:#?}"
+    );
     assert!(lines[..15].iter().all(|l| l.ends_with("mismatches=0")), "{lines:#?}");
     let grading = lines.iter().find(|l| l.contains("state 6 (school grading)")).unwrap();
     assert!(
@@ -1058,6 +1131,29 @@ fn the_shadow_of_our_own_simulator_finds_no_difference_through_a_cycle() {
         SHADOW_WRITES.load(std::sync::atomic::Ordering::SeqCst),
         0,
         "nothing written to the game"
+    );
+    unsafe { fc4_residential_shadow_destroy(s) };
+    assert!(unsafe { fc4_residential_shutdown(p) });
+    unsafe { fc4_residential_destroy(p) };
+}
+
+/// REH §4.3 (RG7, answered; the bracket "re-read" differed): a shadow that
+/// starts after state 0 has no lists of its own yet and says so; after its
+/// first state 0 it keeps that state's lists.
+#[test]
+fn a_shadow_started_mid_cycle_reads_the_ordinance_effects_as_they_stand() {
+    let g = Game::new();
+    let p = shadowed_city(&g);
+    assert!(day(p), "state 0 without the shadow");
+    let h = shadow_host(&g);
+    let s = unsafe { fc4_residential_shadow_create(&h, 0) };
+    assert!(!s.is_null());
+    let mut lines = Vec::new();
+    let (b, f) = shadowed_day(s, p, JULIAN_2000_01_01 + 1, &mut lines, || {});
+    assert_eq!((b, f), (0, 0), "{lines:#?}");
+    assert!(
+        lines[0].contains("ordinance effects as they stand (no state 0 run yet)"),
+        "{lines:#?}"
     );
     unsafe { fc4_residential_shadow_destroy(s) };
     assert!(unsafe { fc4_residential_shutdown(p) });

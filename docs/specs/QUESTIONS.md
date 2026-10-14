@@ -2796,3 +2796,26 @@ brackets.
 - **NB19:** NB18: does `cISC4App::GetCity` return the same primary cISC4City address the game's city global holds?
   [assumed yes]
 - **PG16:** PG15: should the n<0 wrap quirk on a damaged save be reproduced? [no, clamped: delta −s, supply 0]
+
+## From applying the power, plumbing and landfill answers (filed by the coordinator from the `apply6b` lane's report, 2026-10-14)
+
+PW1–PW8, PS1–PS8 and LG1–LG20 are applied or confirmed, except LG5 (orientation stays 0; there is no documented route
+to the view rotation) and LG16 (seagull effects are not implemented). LG1 and LG2 need an in-game check. The current
+answer is in brackets.
+
+- **AO1:** Foundations §13.4 ranks 2 and 5: what AddAgent names do the two port developers and the commercial
+  simulator use? [they count as unranked and keep registration order ahead of the month tail]
+- **AO2:** LG6 with the game's own simulators: the month order is heap-address order, which the glue cannot change.
+  [the order is logged at AddAgent, with a WARNING if landfill would run before pollution or the budget]
+- **LG21:** LG5: is there a documented route to SC4ViewUtilities `+0x10`, for example a docs/abi row for
+  `cISC43DRender` slot 8? [orientation 0]
+- **LG22:** Landfill §4.8.5: is the in-memory record that SetTextureSpecification takes laid out in the saved 14-byte
+  order, and what is its stride? [saved order; one record in a 16-byte buffer with zeroed padding]
+- **LG23:** LG8: a FreeCity4 save made while tiles were kept in FreeCity4 has no game tiles. [PostCityInit rebuilds
+  only the cells without a tile]
+- **LG24:** In the original, a zone that was never initialised never releases its zot at Shutdown. [we release our
+  reference at the developer's Shutdown, without RemovePropA]
+- **LG25:** `cISCExemplarPropertyHolder` has only one docs/abi row (slot 3); slot 4 `GetDefaultExemplar` has none.
+  [a reviewed slot count of 5 against 4; only slot 3 is called]
+- **LG26:** LG3: when InsertOccupant fails after Init, should the occupant be shut down? [released without Shutdown;
+  the tile is kept in FreeCity4]

@@ -40,6 +40,7 @@
 #include "cISC4City.h"
 #include "cISC4Demand.h"
 #include "cISC4DemandSimulator.h"
+#include "cISC4EffectsManager.h"
 #include "cISC4GrowthDeveloper.h"
 #include "cISC4HistoryWarehouse.h"
 #include "cISC4LineItem.h"
@@ -52,6 +53,7 @@
 #include "cISC4PollutionSimulator.h"
 #include "cISC4SimGrid.h"
 #include "cISC4Simulator.h"
+#include "cISC4VisualEffect.h"
 #include "cISCPropertyHolder.h"
 #include "cISTETerrain.h"
 #include "cRZBaseString.h"
@@ -65,6 +67,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -245,12 +248,8 @@ cFC4ISC4BudgetSimulator* Budget(void* u) {
 }
 
 cFC4ISC4Simulator* Simulator(void* u) {
-    fc4::ResidentialContext* c = Ctx(u);
-    cISC4Simulator* s = c->agentSim;
-    if (s == nullptr) {
-        cISC4City* city = City(u);
-        s = city ? city->GetSimulator() : nullptr;  // city slot 50, borrowed
-    }
+    cISC4City* city = City(u);
+    cISC4Simulator* s = city ? city->GetSimulator() : nullptr;  // city slot 50, borrowed (RG18)
     if (s == nullptr) NoteMissing(u, kNoSimulator, "no simulator: the date reads as 0");
     return s ? fc4::AsGame(s) : nullptr;
 }
@@ -316,35 +315,41 @@ bool AcquireBudgetSimulator(void* u) {
     return c->budget != nullptr;
 }
 
-// §4.1 step 4: the simulator (city slot 50), held until RemoveAgent.
-// [choice] The original takes it without a matching release in §4.2; it is
-// released after RemoveAgent here so the reference audit balances.
-bool HasSimulator(void* u) {
+// §4.1 step 4 / §4.2 (RG18, answered: the bracket "released" differed). The
+// original reads the simulator without AddRef and keeps no member: it is
+// borrowed. Init only checks it; AddAgent and RemoveAgent (Shutdown asks the
+// city again) take it from the city each time and release nothing.
+cFC4ISC4Simulator* AgentSimulator(void* u) {
     fc4::ResidentialContext* c = Ctx(u);
-    if (c->agentSim == nullptr) {
-        cISC4City* city = c->city != nullptr ? c->city : AppCity();
-        Hold(c->agentSim, city != nullptr ? city->GetSimulator() : nullptr);
-    }
-    if (c->agentSim == nullptr) fc4::Log("residential: no simulator; Init fails (§4.1 step 4)");
-    return c->agentSim != nullptr;
+    cISC4City* city = c->city != nullptr ? c->city : AppCity();
+    cISC4Simulator* s = city != nullptr ? city->GetSimulator() : nullptr;  // city slot 50, borrowed
+    return s ? fc4::AsGame(s) : nullptr;
+}
+
+bool HasSimulator(void* u) {
+    const bool ok = AgentSimulator(u) != nullptr;
+    if (!ok) fc4::Log("residential: no simulator; Init fails (§4.1 step 4)");
+    return ok;
 }
 
 // §4.3: AddAgent(target, level, name, flags) (simulator slot 19).
 void AddAgent(void* u, uint32_t level, const char* name, uint32_t flags) {
     fc4::ResidentialContext* c = Ctx(u);
-    if (c->agentSim == nullptr || c->target == nullptr || name == nullptr) return;
+    cFC4ISC4Simulator* s = AgentSimulator(u);
+    if (s == nullptr || c->target == nullptr || name == nullptr) return;
     const cRZBaseString n(name);
-    fc4::AsGame(c->agentSim)->AddAgent(c->target, level, n, flags);
+    s->AddAgent(c->target, level, n, flags);
     c->agentsRegistered = true;
 }
 
-// §4.2: RemoveAgent(target) (simulator slot 20), then the simulator goes.
+// §4.2: RemoveAgent(target) (simulator slot 20), on the simulator the city
+// gives now (RG18: nothing to release).
 void RemoveAgent(void* u) {
     fc4::ResidentialContext* c = Ctx(u);
-    if (c->agentSim == nullptr) return;
-    if (c->agentsRegistered) fc4::AsGame(c->agentSim)->RemoveAgentAllLevels(c->target);
+    if (!c->agentsRegistered) return;
+    cFC4ISC4Simulator* s = AgentSimulator(u);
+    if (s != nullptr) s->RemoveAgentAllLevels(c->target);
     c->agentsRegistered = false;
-    Unhold(c->agentSim);
 }
 
 void Subscribe(void* u, uint32_t type) {
@@ -437,7 +442,9 @@ uint64_t BuildingMap(void* u) {
     return static_cast<uint64_t>(static_cast<uintptr_t>(g));
 }
 
-// BDS slot 42 GetBuildingMapKey(purpose, wealth) (AL).
+// BDS slot 42 GetBuildingMapKey(purpose, wealth) (AL). RG20 (answered; the
+// bracket matches): slot 42 sets only AL and the seed helper reads and
+// compares the key as a byte, so the low 8 bits are the key.
 uint8_t BuildingMapKey(void* u, uint32_t purpose, uint32_t wealth) {
     if (!Gate(u, fc4::Sw::ResidentialDevelopers, "residential GetBuildingMapKey (0)")) return 0;
     cISC4BuildingDevelopmentSimulator* b = Bds(u);
@@ -508,13 +515,76 @@ float Altitude(void* u, float x, float z) {
     return t->GetAltitude(x, z);  // compiled slot 13 (foundations §16), ST0
 }
 
-// §5.5 step 2: [choice, spec question] no visual effect (buzzards) is
-// created: the effects manager is not part of the verified interfaces. The
-// core then skips the effect (CreateVisualEffect returned none).
-uint64_t CreateVisualEffect(void* u, const char*) {
-    ++Ctx(u)->effects;
-    NoteMissing(u, kNoEffects, "visual effects (buzzards, §5.5 step 2) are not created");
-    return 0;
+// §5.5 step 2, REH §4.7 step 3 (RG1, answered: the game creates the
+// buzzards). The city's effects manager (city slot 85, borrowed), slot 7
+// CreateVisualEffect(name, &out) (pop 8): the caller tests out, not AL. A
+// created effect carries one reference, ours until StartAndReleaseEffect.
+// No effects manager, or the switch off: the host cannot show effects,
+// which the core treats as created ([choice], RG1). The shadow's read-only
+// table has no callback (also "cannot show").
+uint64_t CreateVisualEffect(void* u, const char* name) {
+    fc4::ResidentialContext* c = Ctx(u);
+    ++c->effects;
+    if (!Gate(u, fc4::Sw::ResidentialEffects, "residential CreateVisualEffect (not shown, counted as created)")) {
+        return FC4_EFFECT_NOT_SHOWN;
+    }
+    cISC4City* city = City(u);
+    cISC4EffectsManager* m = city ? city->GetEffectsManager() : nullptr;  // city slot 85
+    if (m == nullptr || name == nullptr) {
+        NoteMissing(u, kNoEffects, "no effects manager: buzzards not shown (counted as created, RG1)");
+        return FC4_EFFECT_NOT_SHOWN;
+    }
+    cISC4VisualEffect* e = nullptr;
+    m->CreateVisualEffect(name, &e);  // slot 7: AL ignored, out tested (REH §4.7 step 3)
+    if (e == nullptr) {
+        ++c->effectsFailed;
+        return 0;  // an unknown name: the original's one-draw path
+    }
+    FC4_ACQUIRED(e, "CreateVisualEffect");
+    return TokenOf(e);
+}
+
+// The 0x38-byte transform record of REH §4.7 step 3: bytes +0 and +1 set
+// to 1, an identity 3x3 matrix at +0x04..+0x24, the translation at
+// +0x28/+0x2C/+0x30 and the scale 1.0 at +0x34. [choice, spec question]
+// Bytes +2 and +3 are not stated; they are 0 here.
+struct EffectTransform {
+    uint8_t flags[4];
+    float matrix[9];
+    float translation[3];
+    float scale;
+};
+static_assert(sizeof(EffectTransform) == 0x38, "cS3DTransform is 0x38 bytes (REH §4.7 step 3)");
+
+cISC4VisualEffect* EffectOf(uint64_t t) {
+    return reinterpret_cast<cISC4VisualEffect*>(static_cast<uintptr_t>(t));
+}
+
+// cISC4VisualEffect slot 8 (+0x20, SDK SetSourceTransform; docs/abi
+// SetTransform): identity rotation, the translation, scale 1.
+void SetEffectTransform(void*, uint64_t effect, const float* xyz) {
+    cISC4VisualEffect* e = EffectOf(effect);
+    if (e == nullptr || effect == FC4_EFFECT_NOT_SHOWN || xyz == nullptr) return;
+    EffectTransform t{};
+    t.flags[0] = 1;
+    t.flags[1] = 1;
+    t.matrix[0] = 1.0f;
+    t.matrix[4] = 1.0f;
+    t.matrix[8] = 1.0f;
+    t.translation[0] = xyz[0];
+    t.translation[1] = xyz[1];
+    t.translation[2] = xyz[2];
+    t.scale = 1.0f;
+    e->SetSourceTransform(*reinterpret_cast<const cS3DTransform*>(&t));  // slot 8
+}
+
+// Slot 3 Start(0), then slot 2 Release of the created effect's reference.
+void StartAndReleaseEffect(void* u, uint64_t effect) {
+    cISC4VisualEffect* e = EffectOf(effect);
+    if (e == nullptr || effect == FC4_EFFECT_NOT_SHOWN) return;
+    e->Start(static_cast<cISC4VisualEffect::tTransitionType>(0));  // slot 3
+    ++Ctx(u)->effectsStarted;
+    FC4_RELEASE_CREATED(e);
 }
 
 // ---- messages (§8, REH §5) --------------------------------------------------------------------------
@@ -540,7 +610,9 @@ void RecordHistory(void* u, uint32_t series, int32_t value) {
 
 // REH §5: MessagePost(msg, false) of a new standard message: a strike start
 // carries void1 = IGZUnknown = the building's occupant and data2 = 1; an end
-// data2 = 0 and data3 = its length in days.
+// data2 = 0 and data3 = its length in days. RG19 (answered; the bracket
+// matches): data1 is 0, the constructor zeroes every field and neither strike
+// call sets it. RG15: void1 and IGZUnknown are the AsOccupant() pointer.
 void PostStrikeMessage(void* u, uint32_t type, uint64_t occ, uint32_t data2, uint32_t data3) {
     if (!Gate(u, fc4::Sw::ResidentialPosts, "residential strike message post")) return;
     cIGZMessageServer2* ms = Server(u);
@@ -560,11 +632,12 @@ void PostStrikeMessage(void* u, uint32_t type, uint64_t occ, uint32_t data2, uin
 
 // ---- occupants (§4.3, §6.6, REH §2, §4.1) -----------------------------------------------------------
 
-// §4.3: void1 queried for cISC4BuildingOccupant (0x87DDA3A9). [choice, spec
-// question] The core knows a building by its cISC4Occupant identity
-// (AsOccupant), the identity the public slots take (19, 20, 26, 27, 45, 56,
-// 57, 58), the lists hand out (47, 49, 61) and the record reads (§9.2,
-// IID 0x26BB767E).
+// §4.3: void1 queried for cISC4BuildingOccupant (0x87DDA3A9). The core knows
+// a building by its cISC4Occupant identity (AsOccupant), the identity the
+// public slots take (19, 20, 26, 27, 45, 56, 57, 58), the lists hand out (47,
+// 49, 61) and the record reads (§9.2, IID 0x26BB767E). RG15 (answered; the
+// bracket matches): the lists hold AsOccupant() pointers and removal compares
+// AsOccupant().
 uint64_t OccupantAsBuilding(void* u, uint64_t occ) {
     if (occ == 0 || !Gate(u, fc4::Sw::ResidentialOccupants, "residential building QueryInterface (not a building)")) {
         return 0;
@@ -591,7 +664,9 @@ bool OccupantBoolProperty(void* u, uint64_t occ, uint32_t id, bool* out) {
     return true;
 }
 
-// [choice, spec question] Written as a scalar bool (variant type 0x01).
+// Written as a scalar bool (variant type 0x01). RG16 (answered; the bracket
+// matches): the original's helper creates a missing property and calls the
+// variant's scalar setter, which replaces any other content.
 bool SetOccupantBoolProperty(void* u, uint64_t occ, uint32_t id, bool value) {
     if (occ == 0 || !Gate(u, fc4::Sw::ResidentialOccupants, "residential occupant bool property write")) return false;
     if (!Gate(u, fc4::Sw::PropertyWrites, "residential occupant bool property write")) return false;
@@ -608,8 +683,10 @@ bool OccupantProperty(void* u, uint64_t occ, uint32_t id, fc4_props* out) {
     return h != nullptr && fc4::props::CopyToCore(h, id, out);
 }
 
-// [choice, spec question] REH §2's per-building values are written as
-// scalars of their type (uint32 0x06, float32 0x0A).
+// REH §2's per-building values are written as scalars of their type (uint32
+// 0x06, float32 0x0A). RG16 (answered; the bracket matches): each helper
+// creates the property if missing and calls the scalar setter, which replaces
+// any other content (an array too) with one value of the property's type.
 void SetOccupantTyped(void* u, uint64_t occ, uint32_t id, uint16_t type, const void* data) {
     if (occ == 0 || !Gate(u, fc4::Sw::ResidentialOccupants, "residential occupant property write")) return;
     if (!Gate(u, fc4::Sw::PropertyWrites, "residential occupant property write")) return;
@@ -637,6 +714,8 @@ uint32_t BuildingType(void* u, uint64_t occ) {
 }
 
 // Building slot 11 (GetBuildingProfile): its first u32 (REH §4.1 step 4).
+// RG2 (answered; the bracket matches): slot 11 returns the profile (BDS slot
+// 39), whose first u32 is the purpose; 1 (Residence) sets the flag.
 uint32_t BuildingSlot11(void* u, uint64_t occ) {
     cISC4BuildingOccupant* b = BuildingOf(u, occ, "residential building slot 11 (0)");
     if (b == nullptr) return 0;
@@ -656,7 +735,9 @@ uint32_t BuildingSlot11(void* u, uint64_t occ) {
 // the month line, 0 in the game) and logged once; nothing is popped or pushed
 // to compensate (a leftover is the x87 leftover guard's to report, FC4Fpu.h).
 // Returns the values the call left (TOP before minus TOP after, mod 8; 7 =
-// one popped).
+// one popped). RG5 (answered; the bracket matches): the class calls the same
+// GetCenter as crime (x, the lot's altitude, z; EAX = the output; the x87
+// stack empty), and without a lot the occupant's GetPosition.
 int LotCenterRaw(cISC4Lot* lot, float* out3) {
     void* self = lot;
     void* fn = (*reinterpret_cast<void***>(lot))[15];
@@ -782,10 +863,13 @@ uint64_t DepartmentBudget(void* u, uint32_t id) {
     return b ? TokenOf(b->GetDepartmentBudget(id)) : 0;
 }
 
+// REH §4.2 (RG10, answered): the original never substitutes 1.0 for a
+// missing department. A department whose funding cannot be read returns NaN,
+// "missing", and the core leaves the output as the caller set it.
 float DepartmentFunding(void*, uint64_t dept) {
     cFC4ISC4DepartmentBudget* d = DeptOf(dept);
     SC4Percentage* p = d ? d->GetFundingPercentage() : nullptr;  // slot 10
-    return p ? p->percentage : 1.0f;
+    return p ? p->percentage : std::numeric_limits<float>::quiet_NaN();
 }
 
 bool IsLocallyFunded(void* u, uint64_t dept, uint64_t occ, uint32_t purpose) {
@@ -932,13 +1016,20 @@ uint32_t SessionSeed(bool* fixed) {
         }
     }
     *fixed = false;
+    // RG21 (answered: the bracket differed, unobservable). The original seeds
+    // its generator with time(NULL) XOR ((clock() << 16) | clock()), not this
+    // value; no save or output exposes the seed. [choice] The session seed S
+    // is the wall clock (foundations §6.3) and the core uses derive(S,
+    // 0x4990C013), the class's GZCLSID, for its member generator.
     constexpr int64_t kRzTimeUnixOffset = 2177452800;  // 1901-01-01 to 1970-01-01
     return static_cast<uint32_t>(static_cast<int64_t>(std::time(nullptr)) + kRzTimeUnixOffset);
 }
 
 // The game's query record <-> the core's (REH §4.11): the costs are 32-bit
-// in the record. [choice, spec question] Widened as unsigned, written back
-// as their low 32 bits.
+// in the record. Widened as unsigned, written back as their low 32 bits.
+// RG3 (answered; the bracket matches): the record holds the low dword of the
+// item's 64-bit cost; zero or sign extension differ only for a negative
+// cost, and shipped costs are positive.
 fc4_residential_query_data ToCore(const FC4ResidentialQueryData& d) {
     fc4_residential_query_data q{};
     q.capacity = d.capacity;
@@ -1071,8 +1162,10 @@ fc4_residential_host MakeResidentialHost(ResidentialContext* ctx, const HostGrid
     h.release = &ReleaseToken;
     h.hand_out = &HandOut;
     h.resolve_ref = &ResolveRef;
-    // effects (none, §5.5 step 2), messages
+    // effects (§5.5 step 2, RG1), messages
     h.create_visual_effect = &CreateVisualEffect;
+    h.set_effect_transform = &SetEffectTransform;
+    h.start_and_release_effect = &StartAndReleaseEffect;
     h.record_history = &RecordHistory;
     h.post_strike_message = &PostStrikeMessage;
     // occupant writes
@@ -1203,13 +1296,15 @@ void cFC4ResidentialSimulator::LogMonth() {
     fc4::Log("residential month %04d-%02d-%02d: pop=%d (R$ %u R$$ %u R$$$ %u) EQ=%.3f HQ=%.3f LE=%u school "
              "covered=%d buildings=%d strike=%u hospital covered=%d buildings=%d strike=%u state=%u iterator=(%d,%d) "
              "tracts=%dx%d departments=%u/4 grids=%u/25 dirty=%u reentrant=%u deferred=%u views=%u offMain=%u "
-             "posts=%u history=%u controllers=%u effects=%u center x87=%u/%u days=%u months=%u cycles=%u",
+             "posts=%u history=%u controllers=%u effects=%u started=%u failed=%u center x87=%u/%u days=%u "
+             "months=%u cycles=%u",
              d.year, d.month, d.day_of_month, st.population, st.population_by_wealth[0], st.population_by_wealth[1],
              st.population_by_wealth[2], st.global_eq, st.global_hq, st.global_le, st.school_covered,
              st.school_buildings, st.school_strike, st.hospital_covered, st.hospital_buildings, st.health_strike,
              st.state, st.iterator_x, st.iterator_z, st.tracts_x, st.tracts_z, st.departments, st.grids, st.dirty,
              st.reentrant_calls, st.deferred_calls, st.view_calls, offMainMessages_.load(), ctx_.posts, ctx_.history,
-             ctx_.controllers, ctx_.effects, ctx_.centerX87, ctx_.centers, days_, months_, cycles_);
+             ctx_.controllers, ctx_.effects, ctx_.effectsStarted, ctx_.effectsFailed, ctx_.centerX87, ctx_.centers,
+             days_, months_, cycles_);
 }
 
 // One per monthly cycle that reached state 10 (§5.1: state 9, history, done).
@@ -1291,7 +1386,10 @@ SC4Percentage cFC4ResidentialSimulator::GetHealthSystemRating() {
 }
 
 // Slots 14 / 15 (REH §4.11): the number of buildings counted. [choice] A
-// null group vector (the original dereferences it) counts nothing.
+// null group vector (the original dereferences it) counts nothing. RG4
+// (answered: the choice stands): the original crashes only when a group list
+// holds a building; with no buildings it returns 0 after resetting the
+// totals, as here.
 uint32_t cFC4ResidentialSimulator::GetSchoolSystemTotals(FC4ResidentialQueryData* totals,
                                                         SC4Vector<uint32_t> const* groups) {
     if (totals == nullptr || core_ == nullptr) return 0;
@@ -1318,7 +1416,8 @@ int32_t cFC4ResidentialSimulator::GetPopulation() { return Snapshot().population
 int32_t cFC4ResidentialSimulator::GetTotalCityEducationUpkeepCost() { return 0; }  // §10.1: always 0
 int32_t cFC4ResidentialSimulator::GetTotalCityHealthUpkeepCost() { return 0; }
 
-// Slot 19: [choice] true (§10.1).
+// Slot 19: [choice] true (§10.1). RG11 (answered; the bracket matches): no
+// caller through the residential global tests the result.
 bool cFC4ResidentialSimulator::SetOccupantFundingPercentages(cISC4Occupant* occupant, SC4Percentage const& staff,
                                                              SC4Percentage const& vehicle, bool isSchool) {
     if (core_ != nullptr) {
@@ -1456,6 +1555,7 @@ float cFC4ResidentialSimulator::GetCellHQ(uint32_t cellX, uint32_t cellZ) {
                : 0.0f;
 }
 
+// Slots 37/38 return in x87 ST0 (RG22, answered: the bracket matches; docs/abi now says x87).
 float cFC4ResidentialSimulator::GetCellEQByWealth(uint32_t cellX, uint32_t cellZ, WealthType wealth) {
     return core_ ? fc4_residential_cell_quotient_by_wealth(core_, true, static_cast<int32_t>(cellX),
                                                            static_cast<int32_t>(cellZ), static_cast<uint8_t>(wealth))
