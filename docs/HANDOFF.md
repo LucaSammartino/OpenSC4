@@ -7,10 +7,10 @@ operating knowledge that is still true.
 
 ## 0. Current state
 
-*Last updated 2026-10-14, at the merge of apply9d (`ccfe2b4`), after run 105.*
+*Last updated 2026-10-14, at the merge of cores10a (`40fb73a`), after run 108.*
 
-- **main:** `FC4_ABI_VERSION` 44, 661 conformance vectors. Last gate: merged main at `ccfe2b4` (main-9d), cargo 1746/0;
-  clippy clean, ctest 44/45: `cargo_test` failed once on the timing-sensitive flora thread test under load and passes alone (fix with apply9d). Test switches `sim_turbo`, `autotest_end_date`, `script`, `close_dialogs` (engine/README). Every glue except the simulator and the budget is off by default (`enable = <key>`).
+- **main:** `FC4_ABI_VERSION` 46, 688 conformance vectors. Last gate: merged main at `40fb73a` (main-10a), cargo 1831/0;
+  clippy clean, ctest 45/45. Test switches `sim_turbo`, `autotest_end_date`, `script`, `close_dialogs` (engine/README). Every glue except the simulator and the budget is off by default (`enable = <key>`).
 - **Milestones** (details in the README): M0, M1 and M2 done. **M3 exit met in run 103** (regress r6c): every grid
   shadow exact, including power 463/463, plumbing 179/179 and landfill 89/89, zero INCOMPLETE lines. M4: all cores
   merged; glue merged for residential, zones phase 1 and development (BDS + growth developers, opt-in), but the
@@ -42,13 +42,17 @@ worktree: paste what it needs into the message, or copy files into its `build-ru
 | apply9c: graphics formats FS4-FS14, GF1-GF9 | `a1ec5d982a5986c5a` | worktree | - | merged `f427e44`; FS15-FS17 |
 | apply9d: education/health AQ1-AQ3, flora AQ7/AQ10, residential RG24, flammability FL7/FL8 | `a1a2a3d5ee6186779` | worktree | - (none used) | merged `ccfe2b4`; AQ11-AQ13, FL10-FL13 |
 | RE specs 9 (commercial/industrial, civic, parks, history warehouse, 24-hour clock) | `a3547ddd1232ef1f1` | `re-specs9` | - | merged `a3599a0`; ABI rows `340ad36` |
-| cores10a: history warehouse + 24-hour clock cores | `aaba26b7267188fb1` | worktree | ABI 50 | running |
+| cores10a: history warehouse + 24-hour clock cores | `aaba26b7267188fb1` | worktree | ABI 46 | merged `0757437`; CK7-CK15, HW5-HW12; glue not started |
 | cores10b: commercial + industrial + civic buildings + park manager cores | `a195154e182349440` | worktree | ABI 51 | running |
 | RE specs 10: city situation manager, demolition utility, dispatch manager, airport/seaport developers, prop developer (city detail manager if time) | `a576c1f88a67e75e5` | `re-specs10` | - | running |
-| RE answers 9: DG1-DG27 (DG5 first: how a building occupant gets its exemplar), LG21-LG26, AO1-AO2, PR/RG/NB/PG, EX34-EX39, ZQ13 | `a847980b29901cc38` | `re-answers9` | - | running |
+| RE answers 9: DG1-DG27, DG29, DG31, LG21-LG26, AO1-AO2, PR/RG/NB/PG, EX34-EX39, ZQ13, GF7 | `a847980b29901cc38` | `re-answers9` | - | merged `364894a`; ABI rows `c422501` |
+| RE answers 10: CK7-CK15, HW5-HW12 (first), TG1-TG22, ZG18-ZG21, NG35-NG44, AQ11-AQ13, FL10-FL13, PW9-PW11, FS15-FS17, DG28, DG31 per-day amounts | `af850af1f5c7bf5b5` | `re-answers10` | - | running |
 | RE specs 11: lot developer geometry (levelling, foundations, slot 39, boundary textures; Q3, Q7), graphics GF7/GF10/GF11, zones §14.3 Q2-Q8 and lot creation (for zones phase 2) | `a51611144f724e0f2` | `re-specs11` | - | running |
 | lotglue: lot developer replacement (`enable = lotdev`) and shadow (`lotdev_shadow = 1`); Q4 slots wait for re-specs11 | `ab9c3d71e1a39f129` | worktree | ABI 53, seam op 52 | running |
 | zones2: zone developer / lot manager replacement (`enable = zonedev`) and shadow (`zonedev_shadow = 1`); lot creation waits for re-specs11 | `a04b0cfb664b373d3` | worktree | ABI 54, seam op 53 | running |
+| histclock: history warehouse and 24-hour clock glue (`enable = history`, `clock24`), shadows, save sweep for the corpus | `ac7e10a873454fec7` | worktree | ABI 55, seam op 54 | running |
+| apply10a: development answers DG4, DG5 (no extra AddRef; DG28), DG6 (BDS foundation and wall slots 23/26/29), DG11 | `a2141e71c5cc30e86` | worktree | ABI 56, seam op 55 | running |
+| apply10b: exemplar EX34/EX35/EX38/EX39, GF7 readers, protection PR17/PR18, landfill LG21, agent order AO1 | `a852c6ec244071bc2` | worktree | ABI 57, seam op 56 | running |
 | harness tooling 2: regress through the queue with coordinator priority, 6 slots, queue status, clearer rejections | `aebacb404dae356d7` | worktree | - | merged `4e489e9`; queue restarted with `-Slots 6` at 14:51 |
 
 Merged today, tooling: harness switches (`6147be6`, `0786064`), modal-dialog spec (`baa5d0a`), game slots and the

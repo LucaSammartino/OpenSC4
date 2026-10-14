@@ -90,7 +90,7 @@ budget is off by default (enable = <key>). Milestones are defined in
 - [ ] Tract developer glue (lane running)
 - [ ] Lot developer glue (lane running); zone developer and lot manager, zones phase 2 (lane running); re-specs11 fills their spec gaps (lot developer levelling and foundations, creating game lots)
 - [x] Specs: commercial and industrial simulators, civic buildings, park manager, history warehouse, 24-hour clock (re-specs9, a3599a0)
-- [ ] Cores for them (two lanes running: history warehouse + 24-hour clock; commercial + industrial + civic + parks), then glue
+- [ ] Cores for them: **history warehouse and 24-hour clock merged** (0757437: every §12 test, `hw12_*` and `ck12_*` vectors; glue lane running); commercial + industrial + civic + parks (lane running); then glue
 - [ ] The growth statistics distribution matches across seeded runs (M4 exit)
 
 **M5: traffic**

@@ -314,6 +314,14 @@ impl<V> StlHashMap<V> {
         self.buckets = fresh;
     }
 
+    /// `resize(n)` as a public call: grows the table to the listed prime
+    /// ≥ `n` when `n` exceeds the bucket count (the size a table reaches by
+    /// inserting `n` keys one by one). Readers that rebuild a saved
+    /// iteration order use it so that no growth happens while they insert.
+    pub fn reserve(&mut self, n: usize) {
+        self.resize(n);
+    }
+
     pub fn get(&self, k: u32) -> Option<&V> {
         self.buckets
             .get(self.bucket_of(k))
@@ -420,6 +428,11 @@ impl StlHashSet {
     /// chain unless present. Returns whether it was inserted.
     pub fn insert(&mut self, v: u32) -> bool {
         self.map.entry_inserted(v, || ()).1
+    }
+
+    /// [`StlHashMap::reserve`].
+    pub fn reserve(&mut self, n: usize) {
+        self.map.reserve(n);
     }
 
     /// The elements in iteration order.

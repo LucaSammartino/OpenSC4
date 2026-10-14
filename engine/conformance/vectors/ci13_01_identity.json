@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "name": "commercial_identity",
+  "spec": ["commercial-industrial 1", "commercial-industrial 9", "commercial-industrial 13.1"],
+  "description": "Both classes answer QueryInterface for their own IID, 1, 0x452294AA and 0xE4FDA3D4 and refuse the other's IID, the grid IID and 0; GetGZCLSID is 0x8990C080 (commercial) and 0xA990C022 (industrial).",
+  "steps": [
+    {"op": "commercial_create"},
+    {"op": "commercial_identity", "class": "0x8990C080",
+      "iids": {"0x1": true, "0x077ABEB2": true, "0x452294AA": true, "0xE4FDA3D4": true,
+               "0x477A9E7D": false, "0xC9BD939A": false, "0x0": false, "0x2E8A9CB6": false}},
+    {"op": "industrial_create"},
+    {"op": "industrial_identity", "class": "0xA990C022",
+      "iids": {"0x1": true, "0x477A9E7D": true, "0x452294AA": true, "0xE4FDA3D4": true,
+               "0x077ABEB2": false, "0xC9BD939A": false, "0x0": false}}
+  ]
+}

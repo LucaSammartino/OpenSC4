@@ -89,6 +89,9 @@ extern "C" {
  *      (fc4_neighbors_add_foreign_deal, fc4_neighbors_host's foreign_deal / foreign_deal_call /
  *      release_deal, NG4); the neighbours shadow input carries the original's deals_dirty /
  *      stats_dirty / busy bytes (NG7) (taken as 47 on its lane; renumbered at merge);
+ * 46 = adds the history warehouse (fc4_history) and the 24-hour clock (fc4_clock24);
+ * 47 = adds the commercial simulator and industrial stub (fc4_commercial / fc4_industrial),
+ *      the civic building simulator (fc4_civic) and the park manager (fc4_park);
  * 54 = adds the zone developer / lot manager (fc4_zonedev, zones.md §1.2, §7-§11.3) and its shadow mode
  *      (fc4_zonedev_create_shadow). */
 #define FC4_ABI_VERSION 54u
@@ -5565,6 +5568,527 @@ uint32_t fc4_traffic_pf_compressed_route(const fc4_traffic* p, const fc4_traffic
 size_t fc4_traffic_pf_route(const fc4_traffic_pf* pf, fc4_traffic_bytes_callback cb, void* ctx);
 bool fc4_traffic_pf_get_state(const fc4_traffic_pf* pf, fc4_traffic_pf_state* out);
 
+/* ---- history warehouse (docs/specs/history.md; engine/capi/src/history.rs) ----
+ * cSC4HistoryWarehouse's core: the series, the yearly thinning pass, the
+ * queries and the record. The shim owns the GZCOM object (QueryInterface,
+ * reference count, the +4 message target, the agents) and turns cIGZDate
+ * arguments into day numbers (GetDayNumber). Dates are Julian day numbers. */
+typedef struct fc4_history fc4_history;
+
+typedef struct fc4_history_host {
+    uint32_t struct_size; /* sizeof(fc4_history_host) */
+    void* user;
+    /* cISC4Simulator slot 8: the simulation date number. */
+    uint32_t (*sim_date)(void* user);
+    /* A millisecond timer for the yearly pass (§4.3); only differences are used. */
+    uint32_t (*now_ms)(void* user);
+    /* Subscribes / unsubscribes the +4 message target to one message type. */
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    /* AddAgent(+4, level, name, flags) / RemoveAgent(+4) (both levels) on the simulator. */
+    void (*add_agent)(void* user, uint32_t level, const char* name, size_t name_len, uint32_t flags);
+    void (*remove_agent)(void* user);
+    /* MessageSend (synchronous) of a standard message: type, data1, data2. The
+     * shim may deliver it back to fc4_history_do_message from inside the call. */
+    void (*send)(void* user, uint32_t msg_type, uint32_t data1, uint32_t data2);
+} fc4_history_host;
+
+typedef struct fc4_history_point {
+    int32_t value;
+    uint32_t date;
+} fc4_history_point;
+
+typedef struct fc4_history_state {
+    uint32_t struct_size;
+    uint8_t initialized, has_cursor, pad[2];
+    uint32_t pass_state, cursor, pass_counter, series_count, total_points;
+} fc4_history_state;
+
+/* The host table is copied. NULL if the table is missing or too small. */
+fc4_history* fc4_history_create(const fc4_history_host* host);
+void fc4_history_destroy(fc4_history* h);
+/* QueryInterface (§1): true for 1, 0x69F4A803 and 0xE4FDA3D4 only (not
+ * cIGZMessageTarget2, [quirk]). */
+bool fc4_history_answers_iid(uint32_t iid);
+/* Init (slot 3) and Shutdown (slot 4), §3. */
+bool fc4_history_init(fc4_history* h);
+bool fc4_history_shutdown(fc4_history* h);
+/* DoMessage (§3): 0x89EFA536 record (data1 = key, data2 = value),
+ * 0x89EFA537 queue length, SimNewDay (the pass step; false = call again this
+ * interval), SimNewYear. True otherwise (and for a re-entrant call). */
+bool fc4_history_do_message(fc4_history* h, uint32_t msg_type, uint32_t data1, uint32_t data2);
+/* RecordHistoryData (slot 12, §4.1): sends the record message through the
+ * host's send without touching the warehouse. True for a live object. */
+bool fc4_history_record(const fc4_history* h, uint32_t key, int32_t value);
+/* SetHistoryDataQueueLength (slot 13, §4.2). */
+bool fc4_history_set_queue_length(fc4_history* h, uint32_t key, uint32_t n);
+/* Coalesce (slot 9, §4.4; granularity 0 month, 1 half-year, 2 year, 3 five
+ * years), Dispose (slot 10) and Dispose(key, from, to) (slot 11), §4.5. */
+bool fc4_history_coalesce(fc4_history* h, uint32_t key, uint32_t from, uint32_t to, int32_t granularity);
+bool fc4_history_dispose(fc4_history* h, uint32_t key);
+bool fc4_history_dispose_range(fc4_history* h, uint32_t key, uint32_t from, uint32_t to);
+/* Queries (slots 5-8, §4.6-§4.8). precision_bits = the caller's x87
+ * precision: 24 (the simulators) or 53 (Lua; any value other than 24).
+ * Outputs (may be NULL) are untouched when the result is false. */
+bool fc4_history_get_count(const fc4_history* h, uint32_t key, uint32_t from, uint32_t to, float* out);
+bool fc4_history_get_trend(const fc4_history* h, uint32_t key, uint32_t from, uint32_t to, uint32_t precision_bits,
+                           float* slope, float* intercept);
+bool fc4_history_get_point(const fc4_history* h, uint32_t key, uint32_t date, uint32_t precision_bits, float* out);
+bool fc4_history_get_min_max_average(const fc4_history* h, uint32_t key, uint32_t from, uint32_t to,
+                                     uint32_t precision_bits, float* min, float* max, float* avg);
+/* Diagnostics. fc4_history_keys copies at most `capacity` keys in ascending
+ * order (out may be NULL) and returns the key count. fc4_history_get_series
+ * copies at most `capacity` points (out may be NULL), sets *count to the
+ * point count; false for a missing key. */
+bool fc4_history_get_state(const fc4_history* h, fc4_history_state* out);
+size_t fc4_history_keys(const fc4_history* h, uint32_t* out, size_t capacity);
+bool fc4_history_get_series(const fc4_history* h, uint32_t key, uint32_t* max_count, fc4_history_point* out,
+                            size_t capacity, size_t* count);
+/* Persistence (§7): Write writes version 2; Read takes versions 0-2 and adds
+ * to the series already there. */
+bool fc4_history_write(const fc4_history* h, const fc4_ostream* out);
+bool fc4_history_read(fc4_history* h, const fc4_istream* in);
+
+/* ---- 24-hour clock (docs/specs/clock24.md; engine/capi/src/clock24.rs) ------
+ * cSC424HourClock's core: the time of day, the visual time, the pause
+ * counters, the cheats and the record. The shim owns the GZCOM object
+ * (QueryInterface, reference count, the system service, the message target)
+ * and reads the "Main Simulator" exemplar. Messages are posted (queued), so
+ * no callback re-enters the clock; call it from the main thread only. */
+typedef struct fc4_clock24 fc4_clock24;
+
+typedef struct fc4_clock24_host {
+    uint32_t struct_size; /* sizeof(fc4_clock24_host) */
+    void* user;
+    /* A monotonic clock in microseconds (the timer's unit 3, §4.3). */
+    uint64_t (*now_micros)(void* user);
+    /* MessagePost of a standard message (§3.3): void1 and the IGZUnknown
+     * field = the clock, data2, data3. */
+    void (*post)(void* user, uint32_t msg_type, uint32_t data2, uint32_t data3);
+    /* Init / Shutdown (§4.2): the framework's system services and on-idle list. */
+    void (*add_system_service)(void* user);
+    void (*remove_system_service)(void* user);
+    void (*add_to_on_idle)(void* user);
+    void (*remove_from_on_idle)(void* user);
+    /* The cheat code manager (§3.2): whether it exists, RegisterCheatCode,
+     * the message-target notification, UnregisterCheatCode. */
+    bool (*has_cheat_manager)(void* user);
+    void (*register_cheat)(void* user, uint32_t id, const char* name, size_t name_len);
+    void (*add_cheat_notification)(void* user, uint32_t id);
+    void (*remove_cheat_notification)(void* user, uint32_t id);
+    void (*unregister_cheat)(void* user, uint32_t id);
+} fc4_clock24_host;
+
+/* The "Main Simulator" exemplar's clock properties (§6): 0x897E709F
+ * magnification, 0x09B73421 night start, 0x09B73422 night end. has_* = 0:
+ * the property is missing. */
+typedef struct fc4_clock24_tuning {
+    uint32_t struct_size; /* sizeof(fc4_clock24_tuning) */
+    uint8_t has_magnification, has_night_start, has_night_end, pad;
+    float magnification;
+    uint32_t night_start, night_end;
+} fc4_clock24_tuning;
+
+typedef struct fc4_clock24_state {
+    uint32_t struct_size;
+    uint8_t initialized, day_night_notifications, timer_running, pad;
+    int32_t pause_count, hidden_pause_count;
+    float magnification, min_magnification, max_magnification;
+    uint32_t seconds, visual_seconds, night_start, night_end;
+    int32_t visual_mode;
+    uint64_t timer_elapsed_us;
+} fc4_clock24_state;
+
+/* The host table is copied. NULL if the table is missing or too small. */
+fc4_clock24* fc4_clock24_create(const fc4_clock24_host* host);
+void fc4_clock24_destroy(fc4_clock24* c);
+/* QueryInterface (§1): 1, 0x681BD53A, 0x452294AA, 0xE4FDA3D4 and the
+ * system service's 0x287FB697 [inferred]. */
+bool fc4_clock24_answers_iid(uint32_t iid);
+/* Init (slot 3, §4.2): tuning NULL = no exemplar (nothing changes); false for
+ * a too-small tuning struct. Shutdown (slot 4). */
+bool fc4_clock24_init(fc4_clock24* c, const fc4_clock24_tuning* tuning);
+bool fc4_clock24_shutdown(fc4_clock24* c);
+/* OnIdle (system-service slot 11, §4.3); the argument is not used. True. */
+bool fc4_clock24_on_idle(fc4_clock24* c, uint32_t idle_count);
+/* DoMessage (§4.8): the cheat message 0x230E27AC with data1 = the cheat ID and
+ * the typed text (text may be NULL). True. */
+bool fc4_clock24_do_message(fc4_clock24* c, uint32_t msg_type, uint32_t data1, const char* text, size_t text_len);
+/* cISC424HourClock slots 5-29 (§8; the game's forms, not the SDK's). */
+void fc4_clock24_set_visual_time_mode(fc4_clock24* c, int32_t mode);                   /* 5 */
+int32_t fc4_clock24_get_visual_time_mode(const fc4_clock24* c);                        /* 6 */
+void fc4_clock24_get_time_percentage(const fc4_clock24* c, float* out);                /* 7 */
+void fc4_clock24_set_time_percentage(fc4_clock24* c, float p);                         /* 8 */
+void fc4_clock24_get_visual_time_percentage(const fc4_clock24* c, float* out);         /* 9 */
+uint32_t fc4_clock24_get_hour(const fc4_clock24* c);                                   /* 10 */
+void fc4_clock24_set_hour(fc4_clock24* c, uint32_t hour);                              /* 11 */
+uint32_t fc4_clock24_get_visual_hour(const fc4_clock24* c);                            /* 12 */
+uint32_t fc4_clock24_get_minute(const fc4_clock24* c);                                 /* 13 */
+uint32_t fc4_clock24_set_minute(fc4_clock24* c, uint32_t minute);                      /* 14: the new seconds */
+uint32_t fc4_clock24_get_visual_minute(const fc4_clock24* c);                          /* 15 */
+uint32_t fc4_clock24_get_seconds(const fc4_clock24* c);                                /* 16 */
+uint32_t fc4_clock24_set_seconds(fc4_clock24* c, uint32_t seconds);                    /* 17: GetMinute */
+uint32_t fc4_clock24_get_visual_seconds(const fc4_clock24* c);                         /* 18 */
+uint32_t fc4_clock24_get_event_hour(const fc4_clock24* c, uint32_t index);             /* 19 */
+uint32_t fc4_clock24_get_time_magnification(const fc4_clock24* c, float* out);         /* 20: the bits */
+bool fc4_clock24_set_time_magnification(fc4_clock24* c, float m);                      /* 21 */
+uint32_t fc4_clock24_get_time_magnification_min_max(const fc4_clock24* c, float* min,
+                                                    float* max);                       /* 22: max's bits */
+bool fc4_clock24_set_time_magnification_min_max(fc4_clock24* c, float min, float max); /* 23 */
+bool fc4_clock24_pause(fc4_clock24* c, bool on);                                       /* 24 */
+bool fc4_clock24_is_paused(const fc4_clock24* c);                                      /* 25 */
+bool fc4_clock24_hidden_pause(fc4_clock24* c, bool on);                                /* 26 */
+bool fc4_clock24_is_hidden_paused(const fc4_clock24* c);                               /* 27 */
+bool fc4_clock24_is_night(const fc4_clock24* c);                                       /* 28 */
+void fc4_clock24_enable_day_night_notifications(fc4_clock24* c, bool on);              /* 29 */
+bool fc4_clock24_get_state(const fc4_clock24* c, fc4_clock24_state* out);
+/* Persistence (§7): Write writes version 2 (26 bytes); Read has no version
+ * check and skips version 1's timer record. */
+bool fc4_clock24_write(const fc4_clock24* c, const fc4_ostream* out);
+bool fc4_clock24_read(fc4_clock24* c, const fc4_istream* in);
+
+/* ---- commercial and industrial (docs/specs/commercial-industrial.md) ---------
+ * The commercial simulator (cSC4CommercialSimulator, 0x8990C080) and the
+ * industrial stub (0xA990C022). The shim owns the GZCOM objects (the
+ * message-target and serializable sub-objects, the agent) and forwards
+ * their slots here. Tokens are opaque host identities: occupants, the two
+ * demand nodes and grids. The CO$$ / CO$$$ proximity grids are the game's
+ * own cSC4SimGrid<uint8> objects made through `grids` (the core holds one
+ * reference on each); fc4_commercial_proximity_map returns the grid's
+ * token, which the shim turns back into the game's interface pointer. The
+ * building map is read through the same table without a reference. A
+ * missing callback reads as 0 / false / none. */
+typedef struct fc4_commercial fc4_commercial;
+typedef struct fc4_industrial fc4_industrial;
+
+typedef struct fc4_commercial_host {
+    uint32_t struct_size; /* sizeof(fc4_commercial_host) */
+    void* user;
+    /* AddAgent(messageTarget, level, name, flags) / RemoveAgent on the city's simulator (§4.1, §4.2). */
+    void (*add_agent)(void* user, uint32_t level, const char* name, uint32_t flags);
+    void (*remove_agent)(void* user);
+    /* Hold the cached message server; false = none. Called only while none is held. */
+    bool (*acquire_message_server)(void* user);
+    /* Message server slots 5 / 6 with the message-target sub-object. */
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    void (*release_message_server)(void* user);
+    /* Hold the cached city / building development simulator; false = none (§4.1 step 4). */
+    bool (*acquire_city)(void* user);
+    void (*release_city)(void* user);
+    bool (*acquire_bds)(void* user);
+    void (*release_bds)(void* user);
+    /* city.GetDemandSimulator() (slot 56) is not NULL. */
+    bool (*has_demand_simulator)(void* user);
+    /* GetDemand(demand_id, 0), AddRef'ed for the core (0 = none); released with release_demand_node. */
+    uint64_t (*demand_node)(void* user, uint32_t demand_id);
+    void (*release_demand_node)(void* user, uint64_t node);
+    /* BDS slot 41 GetBuildingMap(): a grid token readable through `grids`, not held (0 = none). */
+    uint64_t (*building_map)(void* user);
+    /* BDS slot 42 GetBuildingMapKey(purpose, wealth); only the low byte matters. */
+    uint8_t (*building_map_key)(void* user, uint32_t purpose, uint32_t wealth);
+    /* occupant QueryInterface(0x87DDA3A9), then the building profile's first u32
+     * (the purpose); false when not a building occupant. The host releases the
+     * interface. */
+    bool (*building_purpose)(void* user, uint64_t occupant, uint32_t* purpose);
+    /* The game's grids (required: a full-size table). */
+    fc4_grid_api grids;
+} fc4_commercial_host;
+
+typedef struct fc4_commercial_state {
+    uint32_t struct_size;
+    uint8_t initialized, dirty, city_held, bds_held, message_server_held, destroyed;
+    uint8_t flag; /* the saved flag byte (§8.1): dirty || state != 3 */
+    uint8_t reserved0;
+    int32_t state; /* the DoIdle state machine (§4.3) */
+    uint32_t ref_count, reserved1;
+    uint64_t demand_nodes[2];
+    uint64_t co2_grid, co3_grid; /* the CO$$ / CO$$$ grid tokens (0 = none) */
+} fc4_commercial_state;
+
+/* Constructed, not initialised, reference count 0. The host table is copied;
+ * NULL for a NULL or short table, or an incomplete `grids`. */
+fc4_commercial* fc4_commercial_create(const fc4_commercial_host* host);
+/* Frees the handle (and the grids' references if they are still held). */
+void fc4_commercial_destroy(fc4_commercial* c);
+/* QueryInterface (§1): the IIDs the object answers. */
+bool fc4_commercial_query_interface(uint32_t iid);
+uint32_t fc4_commercial_add_ref(fc4_commercial* c);
+/* Release (§2.3): 0 when the object was destroyed (Shutdown ran); the handle
+ * stays valid until fc4_commercial_destroy. */
+uint32_t fc4_commercial_release(fc4_commercial* c);
+bool fc4_commercial_init(fc4_commercial* c);
+bool fc4_commercial_shutdown(fc4_commercial* c);
+/* DoMessage (§3): the idle and day messages run one DoIdle step; an occupant
+ * insert / remove (data3 = occupant type, void1 = the occupant) may mark the
+ * maps dirty. Always true. */
+bool fc4_commercial_do_message(fc4_commercial* c, uint32_t msg_type, uint32_t data1, uint32_t data2,
+                               uint32_t data3, uint64_t void1);
+/* One DoIdle step (§4.3). */
+void fc4_commercial_do_idle(fc4_commercial* c);
+/* Slot 5 GetProximityMap(developerType) (§4.6): the grid token, 0 for any other
+ * type or no grid. No reference is added. */
+uint64_t fc4_commercial_proximity_map(const fc4_commercial* c, uint32_t developer_type);
+bool fc4_commercial_get_state(const fc4_commercial* c, fc4_commercial_state* out);
+/* Persistence (§8.1): 19 bytes when both grids exist. Read: false unless the
+ * version is 1; the grid references are read with IID 0xC9BD939A and each one
+ * the stream hands over becomes the core's reference. */
+bool fc4_commercial_write(const fc4_commercial* c, const fc4_ostream* out);
+bool fc4_commercial_read(fc4_commercial* c, const fc4_istream* in);
+
+/* The industrial stub (§7): constructed, reference count 0. */
+fc4_industrial* fc4_industrial_create(void);
+void fc4_industrial_destroy(fc4_industrial* p);
+bool fc4_industrial_query_interface(uint32_t iid);
+uint32_t fc4_industrial_add_ref(fc4_industrial* p);
+uint32_t fc4_industrial_release(fc4_industrial* p);
+bool fc4_industrial_init(fc4_industrial* p);
+bool fc4_industrial_shutdown(fc4_industrial* p);
+bool fc4_industrial_do_message(fc4_industrial* p, uint32_t msg_type);
+bool fc4_industrial_is_initialized(const fc4_industrial* p);
+/* Persistence (§8.2): `01 00`; Read is false unless the version is 1. */
+bool fc4_industrial_write(const fc4_industrial* p, const fc4_ostream* out);
+bool fc4_industrial_read(fc4_industrial* p, const fc4_istream* in);
+
+/* ---- civic building simulator (docs/specs/civic-buildings.md) ----------------
+ * cSC4CivicBuildingSimulator (0x0A413481). The shim owns the GZCOM objects and
+ * forwards their slots here. Tokens are opaque host identities: occupants (a
+ * building and its occupant are one token), departments, line items and
+ * lots. The core holds one reference on the Landmarks department and on
+ * every list entry. Statuses (§4.7): the original's slot 6 returns a pointer
+ * callers write through; the core keeps the statuses, fc4_civic_get_status
+ * copies one out and fc4_civic_update_status writes one back, so a shim that
+ * hands out a stable ConditionalBuildingStatus* keeps a mirror and writes it
+ * back. A missing callback reads as 0 / false / none. */
+typedef struct fc4_civic fc4_civic;
+
+typedef struct fc4_civic_host {
+    uint32_t struct_size; /* sizeof(fc4_civic_host) */
+    void* user;
+    /* AddAgent(+4, level, name, flags) / RemoveAgent(+4) on the city's simulator. */
+    void (*add_agent)(void* user, uint32_t level, const char* name, uint32_t flags);
+    void (*remove_agent)(void* user);
+    /* Message server slots 5 / 6 with the message-target sub-object. */
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    /* Init step 6: the Lua table `civic` with get_landmark_count() (=
+     * fc4_civic_landmark_count); Shutdown unregisters it. */
+    void (*register_lua)(void* user);
+    void (*unregister_lua)(void* user);
+    /* AddRef / Release on a host object. */
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* The token of a save reference (a token the host's fc4_istream handed over)
+     * read with `iid`; the reference is transferred to the core. 0 = none (the
+     * host drops it). */
+    uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid);
+    /* budget.GetDepartmentBudget(id) (not held; 0 = none) and
+     * CreateDepartmentBudget(id, group) (the core AddRefs the one it holds). */
+    uint64_t (*department_budget)(void* user, uint32_t id);
+    uint64_t (*create_department_budget)(void* user, uint32_t id, uint32_t group);
+    void (*set_department_name)(void* user, uint64_t dept, uint32_t group, uint32_t instance);
+    void (*set_max_funding)(void* user, uint64_t dept, float max);
+    /* *dept.GetFundingPercentage() (a fraction); false when unreadable. */
+    bool (*department_funding)(void* user, uint64_t dept, float* out);
+    /* budget.GetBudgetItemForPurpose(holder, purpose, &item); false when it fails. */
+    bool (*budget_item)(void* user, uint64_t occupant, uint32_t purpose, fc4_budget_item* out);
+    void (*change_budget_item_line)(void* user, uint64_t occupant, int32_t index, uint32_t line);
+    void (*remove_budget_item)(void* user, uint64_t occupant, int32_t index);
+    /* dept.GetLineItem(line) / CreateLineItemForBuildingType(line, isLocal) (0 = none) / RemoveLineItem(line). */
+    uint64_t (*line_item)(void* user, uint64_t dept, uint32_t line);
+    uint64_t (*create_line_item)(void* user, uint64_t dept, uint32_t line, bool local);
+    void (*remove_line_item)(void* user, uint64_t dept, uint32_t line);
+    /* Line item AddToFullExpenses / AddToIncome / GetIncome / SetIncome (clamps at 0) / SetType. */
+    void (*add_to_full_expenses)(void* user, uint64_t line, int64_t amount);
+    void (*add_to_income)(void* user, uint64_t line, int64_t amount);
+    int64_t (*line_income)(void* user, uint64_t line);
+    void (*set_line_income)(void* user, uint64_t line, int64_t income);
+    void (*set_line_type)(void* user, uint64_t line, uint32_t line_type);
+    /* occ.GetType(); a bool / u32 property of occ.AsPropertyHolder() (false = absent). */
+    uint32_t (*occupant_type)(void* user, uint64_t occupant);
+    bool (*occupant_bool_property)(void* user, uint64_t occupant, uint32_t id, bool* out);
+    bool (*occupant_u32_property)(void* user, uint64_t occupant, uint32_t id, uint32_t* out);
+    /* occ.QueryInterface(0x87DDA3A9) succeeds (the host releases the interface). */
+    bool (*is_building_occupant)(void* user, uint64_t occupant);
+    uint32_t (*building_type)(void* user, uint64_t building);
+    /* BDS.GetBuildingKeyFromType(b.GetBuildingType()) (slot 14): the key's instance; false when it fails. */
+    bool (*building_key_instance)(void* user, uint64_t building, uint32_t* instance);
+    bool (*is_occupant_group)(void* user, uint64_t occupant, uint32_t group);
+    /* The lot-state message's IGZUnknown QueryInterface(0xE818FCED): the lot, with a
+     * reference the core releases (0 = not a lot). */
+    uint64_t (*message_lot)(void* user, uint64_t unknown);
+    /* lot.GetBuilding() (slot 48) as the building's occupant token (0 = none). */
+    uint64_t (*lot_building)(void* user, uint64_t lot);
+    /* lotManager.GetOccupantLot(occ) (slot 14) (0 = none). */
+    uint64_t (*occupant_lot)(void* user, uint64_t occupant);
+    uint32_t (*lot_condition)(void* user, uint64_t lot);
+    void (*set_lot_condition)(void* user, uint64_t lot, uint32_t condition);
+    /* city.GetAutomataControllerManager(), if any: AddControllersFromOccupantGroup(name, occ, 0). */
+    void (*add_controllers)(void* user, const char* name, uint64_t occupant);
+} fc4_civic_host;
+
+typedef struct fc4_civic_state {
+    uint32_t struct_size;
+    uint8_t initialized, destroyed;
+    uint16_t reserved0;
+    uint32_t ref_count, exclusions, statuses, disease_centers;
+    uint32_t maintained;  /* GetLandmarkCount() */
+    uint32_t temporaries; /* temporary generators made so far (§5) */
+    uint64_t landmarks;   /* the Landmarks department (0 = none) */
+} fc4_civic_state;
+
+/* Constructed, reference count 0. The host table is copied (NULL for a NULL or
+ * short table). `session_seed` is foundations §6.3's S (the ape escape's
+ * temporary generators, §5). */
+fc4_civic* fc4_civic_create(const fc4_civic_host* host, uint32_t session_seed);
+void fc4_civic_destroy(fc4_civic* c);
+bool fc4_civic_query_interface(uint32_t iid);
+uint32_t fc4_civic_add_ref(fc4_civic* c);
+/* 0 when the object was destroyed (Shutdown ran); the handle stays valid until fc4_civic_destroy. */
+uint32_t fc4_civic_release(fc4_civic* c);
+bool fc4_civic_init(fc4_civic* c);
+bool fc4_civic_shutdown(fc4_civic* c);
+/* DoMessage (§3): SimNewMonth, occupant inserted / removed (void1 = the
+ * occupant), lot state changed (data2 = the new state, `unknown` = the lot
+ * message's IGZUnknown). Always true. */
+bool fc4_civic_do_message(fc4_civic* c, uint32_t msg_type, uint32_t data1, uint32_t data2, uint32_t data3,
+                          uint64_t void1, uint64_t unknown);
+/* Slot 5 IsBuildingExcluded(id). */
+bool fc4_civic_is_building_excluded(const fc4_civic* c, uint32_t id);
+/* Slot 6 GetConditionalBuildingStatus(key), copied out: false when there is no
+ * entry. The tooltip is copied NUL-terminated into `text` (truncated to
+ * capacity - 1) and its full byte length stored in `text_len`. Every out
+ * pointer may be NULL. */
+bool fc4_civic_get_status(const fc4_civic* c, uint32_t key, uint8_t* status, uint16_t* building_count,
+                          char* text, size_t capacity, size_t* text_len);
+/* Slot 7 UpdateConditionalBuildingStatus(key, status): find or insert `key`,
+ * then copy the status, count and text_len bytes of `text` (NULL = empty).
+ * Returns true. */
+bool fc4_civic_update_status(fc4_civic* c, uint32_t key, uint8_t status, uint16_t building_count,
+                             const char* text, size_t text_len);
+/* The status keys / exclusion IDs in hash order (the record's order). Return
+ * the count; copy at most `capacity` (`out` may be NULL). */
+size_t fc4_civic_status_keys(const fc4_civic* c, uint32_t* out, size_t capacity);
+size_t fc4_civic_exclusions(const fc4_civic* c, uint32_t* out, size_t capacity);
+/* Slot 8 GetLandmarkCount(). */
+uint32_t fc4_civic_landmark_count(const fc4_civic* c);
+/* `which` 0 = disease centers, 1 = maintained buildings, as tokens (0 = a null
+ * entry). As fc4_civic_status_keys. */
+size_t fc4_civic_list(const fc4_civic* c, uint32_t which, uint64_t* out, size_t capacity);
+bool fc4_civic_get_state(const fc4_civic* c, fc4_civic_state* out);
+/* Persistence (§7). Read: false unless the version is 6; references come back
+ * through resolve_ref (the department with IID 0x223E2B67, list entries with
+ * 0x26BB767E). */
+bool fc4_civic_write(const fc4_civic* c, const fc4_ostream* out);
+bool fc4_civic_read(fc4_civic* c, const fc4_istream* in);
+
+/* ---- park manager (docs/specs/parks.md) ---------------------------------------
+ * cSC4ParkManager (0xAA3FE6BC). The shim owns the GZCOM objects and forwards
+ * their slots here. Tokens are opaque host identities: occupants (a building
+ * and its occupant are one token), the department, line items and lots. The
+ * core holds one reference on the department and on every list entry; the
+ * city, budget simulator, message server and lot manager are held through
+ * the acquire_* / release_* pairs. A missing callback reads as 0 / false /
+ * none. */
+typedef struct fc4_park fc4_park;
+
+typedef struct fc4_park_host {
+    uint32_t struct_size; /* sizeof(fc4_park_host) */
+    void* user;
+    /* AddAgent(+4, level, name, flags) / RemoveAgent(+4) on the city's simulator. */
+    void (*add_agent)(void* user, uint32_t level, const char* name, uint32_t flags);
+    void (*remove_agent)(void* user);
+    /* Hold the message server; false = none. Called only while none is held. */
+    bool (*acquire_message_server)(void* user);
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    void (*release_message_server)(void* user);
+    /* Hold the city / the budget simulator / the lot manager; false = none. */
+    bool (*acquire_city)(void* user);
+    void (*release_city)(void* user);
+    bool (*acquire_budget)(void* user);
+    void (*release_budget)(void* user);
+    bool (*acquire_lot_manager)(void* user);
+    void (*release_lot_manager)(void* user);
+    /* AddRef / Release on a host object; resolve_ref as fc4_civic_host. */
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid);
+    /* The department, as fc4_civic_host. */
+    uint64_t (*department_budget)(void* user, uint32_t id);
+    uint64_t (*create_department_budget)(void* user, uint32_t id, uint32_t group);
+    void (*set_department_name)(void* user, uint64_t dept, uint32_t group, uint32_t instance);
+    void (*set_max_funding)(void* user, uint64_t dept, float max);
+    bool (*department_funding)(void* user, uint64_t dept, float* out);
+    /* budget.GetBudgetItemForPurpose / ChangeBudgetItemLine / GetLineItemFromBudgetItem. */
+    bool (*budget_item)(void* user, uint64_t occupant, uint32_t purpose, fc4_budget_item* out);
+    void (*change_budget_item_line)(void* user, uint64_t occupant, int32_t index, uint32_t line);
+    uint64_t (*line_item_from_budget_item)(void* user, const fc4_budget_item* item);
+    /* dept.GetLineItem / CreateLineItemForBuildingType (0 = none). */
+    uint64_t (*line_item)(void* user, uint64_t dept, uint32_t line);
+    uint64_t (*create_line_item)(void* user, uint64_t dept, uint32_t line, bool local);
+    /* Line item SetDisplayFlag / AddToFullExpenses / Get- and SetSecondaryInfoField (64-bit). */
+    void (*set_line_display_flag)(void* user, uint64_t line, uint32_t flag, bool on);
+    void (*add_to_full_expenses)(void* user, uint64_t line, int64_t amount);
+    int64_t (*line_secondary)(void* user, uint64_t line);
+    void (*set_line_secondary)(void* user, uint64_t line, int64_t value);
+    /* occ.GetType(); occ.AsPropertyHolder() has property `id` (any value); IsOccupantGroup. */
+    uint32_t (*occupant_type)(void* user, uint64_t occupant);
+    bool (*occupant_has_property)(void* user, uint64_t occupant, uint32_t id);
+    bool (*is_occupant_group)(void* user, uint64_t occupant, uint32_t group);
+    /* occ.QueryInterface(0x87DDA3A9) succeeds (the host releases the interface). */
+    bool (*is_building_occupant)(void* user, uint64_t occupant);
+    uint32_t (*building_type)(void* user, uint64_t building);
+    /* The lot manager's GetLot(cellX, cellZ, false) at the cell city.PositionToCell
+     * gives for the occupant's position (0 = none); lot.SetCondition(c). */
+    uint64_t (*occupant_position_lot)(void* user, uint64_t occupant);
+    void (*set_lot_condition)(void* user, uint64_t lot, uint32_t condition);
+    /* Posts 0xAA667CE2: a new standard message with void1 = the manager
+     * (`manager`, the token given at creation) and IGZUnknown = the zoo,
+     * MessagePost(msg, false). */
+    void (*post_zoo_escape)(void* user, uint64_t manager, uint64_t zoo);
+    /* city.GetAutomataControllerManager(), if any: AddControllersFromOccupantGroup(name, occ, 0). */
+    void (*add_controllers)(void* user, const char* name, uint64_t occupant);
+} fc4_park_host;
+
+typedef struct fc4_park_state {
+    uint32_t struct_size;
+    uint8_t initialized, destroyed, tuning_read, underfunded;
+    uint8_t city_held, budget_held, message_server_held, lot_manager_held;
+    uint32_t ref_count, parks, zoos;
+    float distress_threshold;
+    uint32_t curve_points; /* kept points of the escape curve */
+    uint32_t reserved;
+    uint64_t department; /* Parks and Recreation (0 = none) */
+} fc4_park_state;
+
+/* Constructed, reference count 0. The host table is copied (NULL for a NULL or
+ * short table). `session_seed` seeds the member generator (§5:
+ * derive(0xAA3FE6BC)); `manager` is the manager's own token (void1 of ZooEscape). */
+fc4_park* fc4_park_create(const fc4_park_host* host, uint32_t session_seed, uint64_t manager);
+void fc4_park_destroy(fc4_park* p);
+bool fc4_park_query_interface(uint32_t iid);
+uint32_t fc4_park_add_ref(fc4_park* p);
+/* Release (§8): 0 when the object was destroyed (Shutdown ran); the handle stays valid until fc4_park_destroy. */
+uint32_t fc4_park_release(fc4_park* p);
+/* Init (§4.1). `tuning` = the "Parks Manager" exemplar's properties (copied;
+ * NULL = none); read at the object's first Init only. */
+bool fc4_park_init(fc4_park* p, const fc4_props* tuning);
+bool fc4_park_shutdown(fc4_park* p);
+/* DoMessage (§3): SimNewMonth, occupant inserted / removed (void1 = the occupant). Always true. */
+bool fc4_park_do_message(fc4_park* p, uint32_t msg_type, uint32_t data1, uint32_t data2, uint32_t data3,
+                         uint64_t void1);
+/* §4.4 step 5's escape probability for a funding fraction, with the object's curve. */
+double fc4_park_escape_probability(const fc4_park* p, float funding);
+/* `which` 0 = parks, 1 = zoos, as tokens (0 = a null entry). Returns the
+ * length; copies at most `capacity` (`out` may be NULL). */
+size_t fc4_park_list(const fc4_park* p, uint32_t which, uint64_t* out, size_t capacity);
+bool fc4_park_get_state(const fc4_park* p, fc4_park_state* out);
+/* Persistence (§7). Read: false unless the version is 2; list entries come
+ * back through resolve_ref (IID 0x26BB767E). */
+bool fc4_park_write(const fc4_park* p, const fc4_ostream* out);
+bool fc4_park_read(fc4_park* p, const fc4_istream* in);
+
 /* ---- turbo clock (tooling, not simulator.md; fc4_core::Turbo) --------------
  * Tooling deviation for test runs (the plugin's sim_turbo). Off (the default)
  * changes nothing. On: the day gate's "ready" (spec §5.2 step 3) is always true
@@ -5752,6 +6276,18 @@ static_assert(sizeof(fc4_neighbors_shadow_city) == 168, "fc4_neighbors_shadow_ci
 static_assert(sizeof(fc4_neighbors_shadow_conn) == 40, "fc4_neighbors_shadow_conn layout");
 static_assert(sizeof(fc4_neighbors_shadow_input) == (sizeof(void*) == 4 ? 208 : 232), "fc4_neighbors_shadow_input layout");
 static_assert(sizeof(fc4_neighbors_shadow_counters) == 32, "fc4_neighbors_shadow_counters layout");
+static_assert(sizeof(fc4_history_host) == (sizeof(void*) == 4 ? 36 : 72), "fc4_history_host layout");
+static_assert(sizeof(fc4_history_point) == 8, "fc4_history_point layout");
+static_assert(sizeof(fc4_history_state) == 28, "fc4_history_state layout");
+static_assert(sizeof(fc4_clock24_host) == (sizeof(void*) == 4 ? 52 : 104), "fc4_clock24_host layout");
+static_assert(sizeof(fc4_clock24_tuning) == 20, "fc4_clock24_tuning layout");
+static_assert(sizeof(fc4_clock24_state) == 56, "fc4_clock24_state layout");
+static_assert(sizeof(fc4_commercial_state) == 56, "fc4_commercial_state layout");
+static_assert(sizeof(fc4_commercial_host) == (sizeof(void*) == 4 ? 112 : 224), "fc4_commercial_host layout");
+static_assert(sizeof(fc4_civic_state) == 40, "fc4_civic_state layout");
+static_assert(sizeof(fc4_civic_host) == (sizeof(void*) == 4 ? 160 : 320), "fc4_civic_host layout");
+static_assert(sizeof(fc4_park_state) == 48, "fc4_park_state layout");
+static_assert(sizeof(fc4_park_host) == (sizeof(void*) == 4 ? 160 : 320), "fc4_park_host layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
@@ -5762,6 +6298,15 @@ _Static_assert(sizeof(fc4_power_shadow_counts) == 24, "fc4_power_shadow_counts l
 _Static_assert(sizeof(fc4_power_shadow_stats) == 72, "fc4_power_shadow_stats layout");
 _Static_assert(sizeof(fc4_neighbor_deal_data) == 72, "fc4_neighbor_deal_data layout");
 _Static_assert(sizeof(fc4_neighbors_shadow_city) == 168, "fc4_neighbors_shadow_city layout");
+_Static_assert(sizeof(fc4_history_host) == (sizeof(void*) == 4 ? 36 : 72), "fc4_history_host layout");
+_Static_assert(sizeof(fc4_history_point) == 8, "fc4_history_point layout");
+_Static_assert(sizeof(fc4_history_state) == 28, "fc4_history_state layout");
+_Static_assert(sizeof(fc4_clock24_host) == (sizeof(void*) == 4 ? 52 : 104), "fc4_clock24_host layout");
+_Static_assert(sizeof(fc4_clock24_tuning) == 20, "fc4_clock24_tuning layout");
+_Static_assert(sizeof(fc4_clock24_state) == 56, "fc4_clock24_state layout");
+_Static_assert(sizeof(fc4_commercial_state) == 56, "fc4_commercial_state layout");
+_Static_assert(sizeof(fc4_civic_state) == 40, "fc4_civic_state layout");
+_Static_assert(sizeof(fc4_park_state) == 48, "fc4_park_state layout");
 #endif
 
 #endif /* FC4_H */

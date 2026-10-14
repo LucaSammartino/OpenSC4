@@ -271,7 +271,7 @@ nothing is read and every value keeps its previous (constructor) value. Readers:
 | `0x6916516B` | (unnamed) | uint32 | default building foundation type (slots 58 / 59) *[inferred]* | `0x890B7312` | absent |
 | `0xE900EA27` | kShouldAttemptLotLevelling | bool | `StartConstruction` | true | 1 |
 | `0xE900EA28` | kShouldAttemptInternalLotLevelling | bool | `StartConstruction` | true | 1 |
-| `0xE900EA29` | kLotAutoLevelInternalAltitudeDelta | float32 | **read but never used** *[quirk]* | 0.0 | 20 |
+| `0xE900EA29` | kLotAutoLevelInternalAltitudeDelta | float32 | `LevelAreaInternalVertices` (slot 19): an interior vertex more than this above the target is levelled (§17.4) | 0.0 | 20 |
 | `0xE900EA2A` | MaxAreaSlopeAllowedForLevelling | float32 | `AttemptAreaLevelling` callers | 0.0 | 40 |
 | `0xE900EA2B` | Night Update Interval | uint32 | written into the night **accumulator**, not a threshold; the threshold is a hard-coded 200 *[quirk]* | 200 | 100 |
 | `0xE900EA2C` | Night Update Count | uint32 | buildings per night batch | 8 | 10 |
@@ -840,7 +840,7 @@ and walk every lot with a fresh safe iterator: `f` → `SetEmptyLotBaseTexture(l
 `SetNormalLotBaseTexture(lot, lot.GetLotConfiguration(), true)` (draws). The iterator is unregistered and freed.
 
 `SetEmptyLotBaseTexture` (slot 43) and `GetBoundaryLotTexture` (slot 42) compute empty-lot textures from the
-boundary rules; no draw. Their geometry is not specified here (§12.2 Q4).
+boundary rules; no draw. Both are specified in §17.7.
 
 ### 6.7 Construction occupant (`cSC4ConstructionOccupant`, class `0xA97F909E`) *[compat]*
 
@@ -1261,6 +1261,9 @@ its draws are listed in §6.7.7, not here. None of them affects the lot develope
 - **Init on a loaded city**: R4 for every lot with a configuration, in lot-list order (§1.3 step 12).
 - **ExplodeLot**: rubble draws per index i: corners R9 [R10]; interiors R11, R12, R13, R14.
 - **UpdateLotElements** (slot 37, called by the BDS): R8 when it adds a foundation.
+- **AddLotFoundation with walls** (slot 55, §17.5.4): R8 in slot 54 first; then, after the retaining wall,
+  `UpdateSurroundingLotFoundations` runs `UpdateLotFoundation` (slot 61) on each surrounding lot with foundation
+  flags, in list order: R8 for each one whose foundation occupant is missing (slot 54 path), none otherwise.
 
 ---
 
@@ -1294,10 +1297,10 @@ verified from the bodies).
 | 15 | +0x3C | `float GetTerrainAltitudeByVertex(int32 x, int32 z, bool withWater)` | 12 | ST0 | `0x006C4310` | ok |
 | 16 | +0x40 | `float GetLowestOrHighestAreaAltitude(SC4Rect<float> const&, bool lowest, bool withWater)` | 12 | ST0 | `0x006C56C0` | order reversed vs header |
 | 17 | +0x44 | `float GetLowestOrHighestAreaAltitude(SC4Rect<int32> const&, bool lowest, bool withWater)` | 12 | ST0 | `0x006C5620` | order reversed |
-| 18 | +0x48 | `float GetAverageAreaAltitude(SC4Rect<float> const&, bool)` | 8 | ST0 | `0x006C5B70` | ok |
-| 19 | +0x4C | `bool LevelAreaInternalVertices(SC4Rect<int32> const&, float, bool, bool, lot)` | 20 | AL | `0x006C43D0` | ok |
-| 20 | +0x50 | `bool LevelBorderingVertices(SC4Rect<int32> const&, float, bool, lot)` | 16 | AL (via call) | `0x006C44B0` | ok |
-| 21 | +0x54 | `bool AttemptAreaLevelling(SC4Rect<int32> const&, float maxSlope, bool, bool water, float maxAreaSlope, lot)` | 24 | AL | `0x006C44F0` | ok |
+| 18 | +0x48 | `float GetAverageAreaAltitude(SC4Rect<int32> const&, bool withWater)` | 8 | ST0 | `0x006C5B70` | **error**: SDK `SC4Rect<float>`; the code reads int32 cells (§17.2) |
+| 19 | +0x4C | `LevelAreaInternalVertices(SC4Rect<int32> const&, float target, bool skipWater, bool force, lot)` | 20 | **EAX = number of `ModifyTerrainHeight` calls** (§17.4) | `0x006C43D0` | SDK `bool`: AL is the count's low byte |
+| 20 | +0x50 | `LevelBorderingVertices(SC4Rect<int32> const&, float h, bool unused, lot)` | 16 | EAX of `ModifyTerrainHeight` (a count) | `0x006C44B0` | SDK `bool` (same caveat) |
+| 21 | +0x54 | `AttemptAreaLevelling(SC4Rect<int32> const&, float unused, bool withWater, bool perVertex, float maxAreaSlope, lot)` | 24 | EAX = 0, or `ModifyTerrainHeight`'s count | `0x006C44F0` | SDK `bool` (same caveat); arguments as landfill.md §4.5.3 |
 | 22 | +0x58 | `bool GetOccupantCellCoverage(occupant, SC4Rect<int32>&)` | 8 | AL (via call) | `0x006C4590` | ok |
 | 23 | +0x5C | `bool IsAreaDeveloped(SC4Rect<int32> const&)` → always false | **4** | AL = 0 | `0x005DEB40` (shared stub) | **error**: SDK `(void)`, pop 0 |
 | 24 | +0x60 | `bool IsLotDeveloped(lot)` = slot 23 on the lot rectangle → false | 4 | AL | `0x006C5C00` | ok |
@@ -1315,10 +1318,10 @@ verified from the bodies).
 | 36 | +0x90 | `bool NeedsAnchorBuilding(SC4Rect<int32> const&, int32 purpose)` | 8 | AL | `0x006C7A70` | ok |
 | 37 | +0x94 | `bool UpdateLotElements(lot, uint32 kind)` (terrain-change kind; only `kind ≠ 5` is tested, §6.4) | 8 | AL = 1 | `0x006CC880` | ok |
 | 38 | +0x98 | `cISC4BuildingOccupant* GetFirstBuilding(lot)` | 4 | EAX, **no reference** | `0x006C9100` | **error**: SDK `cISC4Occupant*` (the pointer is the IID `0x87DDA3A9` interface) |
-| 39 | +0x9C | `bool GetPositionForLotConfigurationObject(lot, cfg, obj, float* pos, int32& orient)` | 20 | AL | `0x006C4EF0` | ok |
-| 40 | +0xA0 | `bool GetPositionForBuilding(lot, float* pos, int32& orient)` | 12 | AL of 39; 0 when no configuration or primary object | `0x006C3CF0` | ok |
+| 39 | +0x9C | `GetPositionForLotConfigurationObject(lot, cfg, obj, float* pos, int32& orient)` | 20 | **EAX = `&orient`** (AL is a pointer's low byte) | `0x006C4EF0` | **error**: SDK `bool` |
+| 40 | +0xA0 | `GetPositionForBuilding(lot, float* pos, int32& orient)` | 12 | EAX of 39 (`&orient`); EAX = 0 when no configuration or primary object | `0x006C3CF0` | SDK `bool` (nonzero = found) |
 | 41 | +0xA4 | `bool GetLotBaseTextureOccupant(lot, cISC4LotBaseTextureOccupant*&, bool create)` | 12 | AL | `0x006C41A0` | ok |
-| 42 | +0xA8 | `GetBoundaryLotTexture(BoundaryType*, uint32&, uint8&, bool&)` | 16 | **EAX = a map node pointer** (AL meaningless) | `0x006C6CF0` | **error**: SDK `bool` |
+| 42 | +0xA8 | `GetBoundaryLotTexture(BoundaryType*, uint32&, uint8&, bool&)` | 16 | **EAX = a map node pointer**, AL replaced by the flip byte | `0x006C6CF0` | **error**: SDK `bool` |
 | 43 | +0xAC | `void SetEmptyLotBaseTexture(lot)` | 4 | none | `0x006CC970` | ok |
 | 44 | +0xB0 | `SetNormalLotBaseTexture(lot, cfg, bool)` | 12 | **undefined** | `0x006CA8A0` | **error**: SDK returns `cISC4Lot*` |
 | 45 | +0xB4 | `bool UpdateLotBaseTextureOccupant(lot, bool)` | 8 | AL (via call) | `0x006C4290` | ok |
@@ -1347,23 +1350,24 @@ verified from the bodies).
 slot 42 → nonzero when a map entry was found; slot 2 → 0. No game caller reads those values *[inferred: the callers
 found discard EAX]*.
 
-Behaviour of the geometry and foundation slots (15–31, 39–41, 45, 48–64), in short *[compat for the stated parts;
-the levelling and foundation geometry is not specified further, §12.2 Q4]*:
+Behaviour of the geometry and foundation slots (15–31, 39–41, 45, 48–64), in short *[compat]*; slots 15–22, 39–40,
+42–43 and 48–61 are specified in full in §17:
 - 15: `alt := terrain.GetAltitude(x + z · vertsX)` (terrain slot 12, vertex index); with `withWater`, the larger of
   `alt` and `terrain.GetWaterLevel` at the same index (slot 31; NaN → `alt`).
-- 16 / 17: minimum (start `+FLT_MAX`) or maximum (start `−FLT_MAX`) of slot 15 over the vertices `x1 .. x2 + 1`,
-  `z1 .. z2 + 1` (the float overload converts the rectangle first).
+- 17: minimum (start `+FLT_MAX`) or maximum (start `−FLT_MAX`) of slot 15 over the vertices `x1 .. x2 + 1`,
+  `z1 .. z2 + 1`. 16 (float rectangle in metres) clamps it, samples the interior vertices with slot 15 and the four
+  edges every 4 m with the terrain's position getters (§17.2).
 - 18: average of slot 15 over the vertices. 25: altitude range within `0xE900EA24`. 27: max − min over the vertices.
 - 22: the occupant's bounding box shrunk by 0.05 on each side, converted with `city.PositionToCell` (slot 95).
-- 19 / 20 / 21: terrain levelling inside / around a rectangle; 21 compares the area's slope with its arguments
-  before levelling.
-- 39: position and orientation of a configuration object on a lot (×0.0625 cell maths, `CellCornerToPosition`,
-  lot facing). 40: slot 39 for the primary building object.
+- 19 / 20 / 21: terrain levelling inside / around a rectangle through `cISC4Demolition::ModifyTerrainHeight`;
+  21 compares the area's slope with its arguments before levelling (§17.3, §17.4).
+- 39: position and orientation of a configuration object on a lot (`CellCornerToPosition`, lot facing, §17.6).
+  40: slot 39 for the primary building object.
 - 41: finds the lot's base-texture occupant (`0x497F6D9D`), creating a `cSC4LotBaseTextureOccupant` (class
   `0xC97F987C`) when `create`. 45: refreshes it.
-- 48–53, 55–61: foundation occupants (type `0x68FD0C69`, IID `0xC8FCE101`) found by occupant, cell, position or
-  lot; added through BDS slot 23; building foundation type from building property `0x88FCD877`, else the
-  `0x6916516B` default.
+- 48–61: foundation occupants (type `0x68FD0C69`, IID `0xC8FCE101`) found by occupant, cell, position or lot;
+  added through BDS slot 23; building foundation type from the primary building object, else building property
+  `0x88FCD877`, else the `0x6916516B` default (§17.5). 42 / 43: boundary textures of empty lots (§17.7).
 
 ### 11.2 `cIGZMessageTarget2` (vtable `0x00AB1B88`, sub-object +4, 4 slots)
 
@@ -1429,7 +1433,8 @@ in metres.
    sizes match (§6.5).
 9. New buildings join the night deque unlit; `litFlag` is never set at run time (§8.1).
 10. The night interval property only seeds the accumulator; the threshold is a hard-coded 200 (§3.5, §8.3).
-11. `0xE900EA29` is read but unused; `0x47E2C401` is read without a count check (§3.5).
+11. `0x47E2C401` is read without a count check (§3.5). (An earlier version said `0xE900EA29` was unused: it is
+    the slot 19 threshold, §17.4.)
 12. `GetAreaSlope` scales the distance in cascade (§11.4).
 13. `EndDemolishLot` leaves a kept lot in state 1, after setting 6 (§7.2).
 14. `Release` returns 0, not the remaining count (§1.4).
@@ -1441,9 +1446,8 @@ in metres.
 1. Q1. *Answered* in §6.7 (phase lengths, `SetState(3)` point, draws). What remains open is listed in §6.7.10.
 2. Q2. *Answered* in §6.7.8: `0xC0` is a priority (every-frame bucket); `data2` is the clamped frame delta in µs.
 3. Q3. The object at `0x00B43DD8` (+0x10 gives the zot orientation) *[inferred: view rotation]*.
-4. Q4. Detailed geometry of levelling (slots 19–21), foundations (slots 48–61), `GetPositionForLotConfigurationObject`
-   (39) and the boundary-texture rules (42, 43). They draw nothing except slot 54 (R8); a later terrain / lot-content
-   spec should own them.
+4. Q4. *Answered* in §17: altitude helpers §17.2, the terrain writer §17.3, levelling §17.4, foundations §17.5,
+   `GetPositionForLotConfigurationObject` §17.6, boundary textures §17.7; tests 28–38 of §16.
 5. Q5. *Answered* (§5.7 step 2): `GetLotsSurroundingRect` deduplicates against the output list before every append,
    and all four side-flag calls share that one list, so a lot can never appear twice and no neighbour is
    double-weighted.
@@ -1469,6 +1473,10 @@ in metres.
 | `foundations.md` | §12.5 | construction occupant's linear iterators / "crews" | the iterators run in table mode (refill 0..n − 1, `random_shuffle` `0x006DB010`, n − 1 `rand()` per reset); they shuffle the 8 lot areas, the 4 spark sides and the ground / roof prop lists (§6.7.7) |
 | Ghidra project names | `0x005CFE20`, `0x00913761` | `cRZRandom::RandomDoubleRangeGaussianFast`, `cSC4ParticlesEffect::RandomRange` | `0x005CFE20` is the construction occupant's spark scatter (tail-jumped from `DoDailySim` state 1); `0x00913761` is `cRZRandom::RandomDoubleRangeUniform` |
 | gzcom-dll SDK `cISC4Lot.h` | slot 61 | `float GetOccupancy() const` | `void GetOccupancy(float& out)`, pop 4, result written through the pointer (`0x006C0CF0`, store at `0x006C0E8A`) |
+| `demolition.md` | §4.7 | per-vertex is the only mode of `ModifyTerrainHeight` in shipped use | StartConstruction passes the configuration's water compatibility as slot 21's `perVertex`, so lots that are not water-compatible are levelled in area mode (§17.3, §17.4) |
+| gzcom-dll SDK `cISC4LotDeveloper.h` | slots 18, 19–21, 39, 40, 42 | `SC4Rect<float>` for slot 18; `bool` returns | slot 18 reads `SC4Rect<int32>`; 19 returns a call count, 20 / 21 `ModifyTerrainHeight`'s count, 39 / 40 `&orient`, 42 a map node pointer (§11.1, §17) |
+| this document (earlier version) | §3.5, §12.1 quirk 11 | `0xE900EA29` read but never used | used by slot 19 as the interior-vertex threshold (`0x006C43D0`, §17.4) |
+| `lot-records.md` | Q4 | the five `0xFF` colour bytes of a base-texture record are unexplained | for empty-lot textures they are zone colour bytes 3, 2, 1, the zone alpha and 3 (`0x006CC970`, §17.7); for normal textures they stay `0xFF` |
 
 ---
 
@@ -1510,7 +1518,7 @@ Pops from `docs/abi/interfaces.tsv` (checked rows) unless noted.
 | `cISC4City` (`0x00B43CEC`) | 31 / 33 / 34 / 35 / 50 / 53 / 56 / 59 / 64 / 67 / 69 / 84 / 86 | service getters | 0 | EAX |
 | | 91 / 92 | CellWidthX / Z | 0 | ST0 |
 | | 93 / 94 | cell counts X / Z | 0 | EAX |
-| | 95 / 96 | PositionToCell / CellCornerToPosition | 16 | EAX / ST0 |
+| | 95 / 96 / 97 | PositionToCell / CellCornerToPosition / CellCenterToPosition | 16 | results through the out pointers (no ST0) |
 | `cISC4Simulator` (`0x00B43D5C`) | 8 | GetSimDateNumber | 0 | EAX |
 | | 19 / 20 | AddAgent(target, level, name, flags) / RemoveAgent(target) | 16 / 4 | AL |
 | `cIGZMessageServer2` (`0x00B43CCC`) | 4 / 5 / 6 | MessagePost(msg, bool) / AddNotification / RemoveNotification | 8 | AL |
@@ -1522,6 +1530,7 @@ Pops from `docs/abi/interfaces.tsv` (checked rows) unless noted.
 | `cISC4Lot` (vtable `0x00AB19B0`) | 3, 9, 10, 12–15, 20–22, 25–31, 33–37, 40, 41, 43, 44, 46–48, 52, 55, 57–61, 63–67, 69 | as named in this spec | per `interfaces.tsv` (e.g. 34 SetState 12, 36 SetCondition 4, 61 GetOccupancy 4, 63 GetTravelJobs 4 ST0) | |
 | `cISC4OccupantManager` (`0x00B43D0C`) | 20 / 21 / 24 | InsertOccupant(occ, 0) / RemoveOccupant(occ, a, b) / occupant changed (occ, 0) | 8 / 12 / 8 | AL |
 | | 36 | GetOccupantsByBBox(list, min, max, filter, flags) | 20 | AL |
+| | 37 | GetOccupantsByBBox(list, min, max, occupant type, flags) (type filter, forwards to 36) | 20 | AL |
 | | 41 | GetOccupantsByStandardCityCells(list, min, max, type, flags) | 20 | AL |
 | | 48 | ReleaseOccupantList(list) | 4 | |
 | `cISC4PropManager` (`0x00B43D10`) | 15 / 24 / 25 / 26 / 28 / 29 / 38 | CreateProp / GetLotProps(list, lot) / AddLotProp(lot, occ) / AddLotProp(type, pos, orient) → occ / RemoveLotProps(lot) / RemovePropA / RemoveBuildingProps | 8 / 8 / 8 / 12 / 4 / 4 / 4 | AL or EAX |
@@ -1533,7 +1542,12 @@ Pops from `docs/abi/interfaces.tsv` (checked rows) unless noted.
 | `cISC4FloraSimulator` (`0x00B43D80`) | 11 / 14 / 17 / 20 | IsFloraTypeValid / GetFloraTypesByFamily / AddNewFloraOccupant / DemolishFloraInCellArea | 4 / 8 / 12 / 8 | |
 | `cISC4GrowthDeveloper` | 7 / 13 / 20 | GetPurpose / GetDesirabilityMap / GetWaterSupplyCap | 0 | EAX |
 | `cISTETerrain` (`0x00B43CF4`) | 6 / 7 / 8 / 12 / 31 | CellWidth / counts / GetAltitude(index) / GetWaterLevel(index) | 0 / 0 / 0 / 4 / 4 | ST0 / EAX / EAX / ST0 / ST0 |
+| | 13 / 30 / 34 / 37 | GetAltitude(x, z) / GetWaterLevel(x, z) (float positions) / CellHasWater(x, z) / IsWaterVertex(x, z) | 8 | ST0 / ST0 / AL / AL |
 | `cISC4Demolition` (`0x00B43D00`) | 7 / 8 | DemolishLots (8 args) / DemolishOccupant (7 args) | 32 / 28 | AL |
+| | 9 | ModifyTerrainHeight (10 args, §17.3; it calls terrain 14, 37, 49, 51, 68) | 40 | EAX (count) |
+| `cISC4ZoneManager` (`0x00B43D14`) | 15 / 16 | GetZoneDragColor(zone) / GetZoneDisplayAlpha | 4 / 0 | EAX / AL |
+| `cISC4FoundationOccupant` (IID `0xC8FCE101`) | 3 / 4 / 9 | AsOccupant / GetFoundationType / GetKind (§17.5 table) | 0 | EAX |
+| `cISC4LotBaseTextureOccupant` (vtable `0x00AA2E18`) | 3 / 8 | AsOccupant / SetTextureSpecification(records, count, 0) | 0 / 12 | EAX / — |
 | `cISC4LotConfigurationManager` (`0x00B43D18`) | 8 / 27 | GetLotConfiguration / GetObjectIDArray | 4 / 8 | EAX |
 | `cISC4LotConfiguration` | 3, 7, 10, 11, 14, 23, 24, 26, 27 | GetID, GetSize, GetMaximumSlopeBeforeFoundation (ST0), GetGrowthStage (AL), IsCompatibleWithWater, GetLotConfigurationObjectArray, GetPrimaryBuildingConfigurationObject, GetPrimaryFoundationConfigurationObject, HasObjectsOfType | | |
 | `cISC4BuildingOccupant` | 3 / 11 / 17 | AsOccupant / (struct getter) / SetLit(bool) | 0 / 0 / 4 | |
@@ -1710,3 +1724,495 @@ Unless stated, tuning is the shipped exemplar and the file RNG is seeded explici
     slope before foundation is below the lot slope: kind 5 → no `AddLotFoundation`, `UpdateLotBaseTextureOccupant`
     gets false; kind 0x105 → foundation added (one `AddLotFoundation` call), texture call gets true; kind 0x100
     (low byte 0) → foundation added as well.
+28. **Float-rectangle altitude** (§17.2, slot 16), terrain flat at 50 except as stated, no water: rectangle
+    `(100, 200, 110, 230)` makes 26 `GetAltitude(x, z)` calls in the order of §17.2 (none through slot 15); with
+    `withWater` each is followed by one `GetWaterLevel(x, z)`. `(0, 0, 64, 64)` makes 16 slot-15 reads (vertices
+    1…4 × 1…4, x outer) and then 68 edge samples. `(−5, −5, 1e9, 20)` is clamped to `(0, 0, extentX − 0.1, 20)`.
+    With every altitude 50 except `GetAltitude(110, 216) = 80`, highest = 80 and lowest = 50.
+29. **Average and area levelling** (§17.4 worked example 2): `GetAverageAreaAltitude((0, 0, 1, 1), true)` =
+    100.44444 (`0x42C8E38E`); `AttemptAreaLevelling(rect, 123.0, true, true, FLT_MAX, lot)` writes the 9 vertices
+    with `SetAltitude(x, z, 100.44444)` (x outer), redisplays `(0, 0, 3, 3)` with reason 5 and returns 9; with
+    `perVertex = false` one `SetAltitude((0, 0, 2, 2), 100.44444, 0, 5)`, returns 9. With vertex `(2, 2) = 260`:
+    returns 0 and makes no terrain call. With `maxAreaSlope = 1000` the slope is not computed and the 260 case
+    levels too. The second argument (123.0) changes nothing.
+30. **Internal levelling** (§17.4 worked example 1): one `ModifyTerrainHeight(1, 1, 11, 11, 11, 11, 102.8125, lot,
+    5, null)`, return value 1; `force = true` → four calls in the order (11, 11), (11, 12), (12, 11), (12, 12),
+    return 4; a 2-cell-wide rectangle → no call, return 0. With `lotAutoLevelInternalAltitudeDelta = 30` the
+    first case makes no call.
+31. **ModifyTerrainHeight per vertex** (§17.3): `h = 100`, vertex (5, 5) at 100.04 → skipped (|d| < 0.05); at
+    100.05 → written; a water vertex → skipped; a vertex under an immovable building whose bounding box spans z 70…90 and has min.x =
+    94.4 (`16·5 + 14.5 = 94.5 ≥ 94.4`) → skipped; min.x = 94.6 → written. A neighbouring lot with locked vertices in
+    one of the four cells around the vertex → skipped; the same lock on `exempt` → written.
+32. **Lot foundation** (§17.5.4 worked example 3): one `SetAltitude(x, z, 101.25)` per vertex 4…6 × 4…6 (9), then
+    BDS slot 23 with `(0x890B7312, 2, (80, 101.25, 80), 32, 32, 0, 100)`, foundation size `(32, 1.25, 32)`, lot
+    altitude 101.25, lot flags `(old & ~4) | 3`, then `AddRetainingWallOccupant(lot, 1)`. Facings 1, 2, 3 give tops
+    103.25, 102, 100 (facing 3: `100 < 104`, walls added). With `useLotAltitude = true` and lot altitude 104: no
+    corner read, top 104, no walls. A 3 × 3 lot with `level` calls slot 19 with target `top − 0.5` and
+    `force = true` before slot 20.
+33. **R8** (§17.5.4), file RNG seeded 12345 (first raw `0x0C63D3DC`): a primary foundation object with IDs
+    {A, B, C} → one draw `Uniform(3) = 0` → type A, drawn before any terrain call; IDs empty and `+0x20 = T` → no
+    draw, type T; no primary foundation object → no draw, type `0x890B7312`; type 0 → AL = 0 and no slot 55.
+    `UpdateLotFoundation` on a lot with flags bit 0 and no foundation occupant draws once (through slot 54).
+34. **Foundation lookup by position** (§17.5.1): a lot foundation whose box covers x ∈ [100, 132], z ∈ [100, 132]:
+    `GetFoundationByPosition(2, 100.04, 120)` → null (the query line is at x = 99.99); `(2, 131.9, 99.96)` → found
+    (line at (131.85, 100.01)) *[inferred: the occupant manager's box query keeps an occupant whose box contains
+    the line]*. The result carries no reference (its count is unchanged by the call).
+35. **Object positions** (§17.6 worked example 4): the four facings give the table's positions and orientations;
+    `f = 5` gives `pos.x = pos.z = 0` and orientation `(1 + 5) mod 4 = 2`. The returned EAX equals the address of
+    the `orient` argument. A lot with flag bit 0 and altitude 77 gives `pos.y = 77.5` for every object type.
+36. **Boundary rules** (§17.7): `GetBoundaryLotTexture({2, 0, 1, 1})` → `(0x2700, 0, false)`; `{2, 1, 1, 0}` →
+    `(0x2700, 0, true)`; `{1, 1, 1, 1}` (absent) → `(0x3000, 0, false)`; `{0, 0, 0, 0}` → `(0x3000, 0, false)`;
+    `{0, 2, 0, 1}` → `(0x2900, 1, false)`.
+37. **Empty-lot textures** (§17.7 worked example 5), zone colour `0xFFB23300`, alpha `0xAA`: the 2 × 1 lot passes two
+    records, `00 27 00 00 03 07 00 00 FF B2 33 AA 03 FF` and `00 27 00 00 04 07 00 01 FF B2 33 AA 03 FF` (first 14
+    bytes, little-endian texture, frame byte still `0xFF`), in that order, through one
+    `SetTextureSpecification(records, 2, 0)`. Zone 15
+    (or 0, 11, 12) → no record; every base-texture occupant on the lot is removed and shut down. A zone-8 1 × 1 lot
+    → one record with texture `0x3000`, rotation 0. A cell outside the city is skipped.
+38. **Interface returns** (§17): slot 19 returns the call count in EAX (not 0/1); slots 20 and 21 return
+    `ModifyTerrainHeight`'s EAX; slot 18 reads an int32 rectangle; slot 42 has no defined return; slot 53 pops 8;
+    slot 61 returns without any call when the lot's flags have neither bit 0 nor bit 1.
+
+---
+
+## 17. Geometry: altitudes, levelling, foundations, object positions, boundary textures *[compat]*
+
+This section answers §12.2 Q4. It specifies slots 15–22, 39–40, 42–43 and 48–61 and the private helpers they use,
+verified from the instruction bytes at the cited addresses (re-specs11, 2026-10-14).
+
+**Conventions.**
+- A **cell** `(x, z)` has the corner **vertices** `(x, z)`, `(x+1, z)`, `(x+1, z+1)`, `(x, z+1)`. A cell rectangle
+  `(x1, z1, x2, z2)` is inclusive (lot slot 14 gives one), so its vertices run `x1 … x2+1` by `z1 … z2+1`.
+- The vertex index is `x + z · vertsX` (`+0x40`, §1.3 step 5). No slot below checks it against the terrain size.
+- `r24(·)` rounds to float32 (the x87 runs at 24-bit precision); *trunc* is `_ftol`, toward zero. "Strict, NaN no"
+  means a comparison that is false when either side is NaN.
+- City conversions: `PositionToCell` (city slot 95) floors `p / cellWidth`; `CellCornerToPosition` (slot 96) gives
+  `r24(x · cellWidth)`; `CellCenterToPosition` (slot 97) gives `r24((x + 0.5) · cellWidth)`. Constants written
+  here as `16`, `0.0625` or `14.5` are **literals** in the code, not the city's cell width (16 in every shipped city).
+- **Random draws**: only slot 54 (R8, §10.2). Slot 43 hands records with frame byte `0xFF` to the base-texture
+  occupant, which draws its **own** generator `0x00B23078` (lot-records.md §6), not the lot developer's.
+- **Terrain writes** happen only inside `cISC4Demolition::ModifyTerrainHeight` (§17.3), reached from slots 19, 20
+  and 21 (and from slot 55 through 19 and 20). No slot here calls a terrain setter itself.
+
+### 17.1 The lot-configuration object record (0x34 bytes)
+
+`cISC4LotConfiguration` slot 23 returns the array of records; slot 24 (`GetPrimaryBuildingConfigurationObject`) and
+slot 26 (`GetPrimaryFoundationConfigurationObject`) return a pointer to one record, or null. The configuration
+builds each record from its lot-object property `0x88EDC900 + i`, a list of u32 values `v0, v1, …`
+(`ConvertPropertiesToObjectArray`, `0x00479D10`). The lot developer reads the record raw:
+
+| Offset | Type | Value | Read by |
+|---|---|---|---|
+| +0x00 | u8 | object type `v0` (this class uses 1 prop, 2 base texture, 4 flora; the primary building object is the building) | §6, slot 39 |
+| +0x01 | u8 | `v1` | — |
+| +0x02 | u8 | orientation, low byte of `v2` | slot 39 |
+| +0x03 | u8 | `(v2 >> 31) & 1`, the mirror flag | base-texture records (§6.6 "object byte 3") |
+| +0x04, +0x08, +0x0C | float | offsets x, y, z: `v3`, `v4`, `v5` as signed 16.16 fixed point (`fild`, multiply by the double `2^-16`, store float) | slot 39 |
+| +0x10, +0x14 | float | footprint max x, max z: `v8`, `v9` (16.16) | slot 39 |
+| +0x18, +0x1C | float | footprint min x, min z: `v6`, `v7` (16.16) | slot 39 |
+| +0x20 | u32 | `v10`: slot 54's foundation type when the ID list is empty; slot 58's building foundation type when non-zero | slots 54, 58 |
+| +0x24 | u32 | lot tag: `v11`, or a generated serial number (`0x00B2166C`) for configurations whose objects carry no tag | `SetLotTag` (§6.5) |
+| +0x28 | `vector<u32>` (begin, end, capacity) | the remaining values (`v12 …`, or `v11 …` when the tag is generated) | slots 43, 54; §6.5 |
+
+### 17.2 Altitude helpers (slots 15–18, 22)
+
+**`GetTerrainAltitudeByVertex(x, z, withWater)`** (slot 15, `0x006C4310`, pop 12, ST0): `i := x + z · vertsX`;
+`a := r24(terrain.GetAltitude(i))` (`cISTETerrain` slot 12). With `withWater`: `w := terrain.GetWaterLevel(i)`
+(slot 31) and the result is `w` if `w > a` (strict, NaN no), else `a`.
+
+**`GetCornerAltitudes(rect, float out[4], withWater)`** (`0x006C4360`, private, pop 12): slot 15 at `(x1, z1)`,
+`(x2+1, z1)`, `(x2+1, z2+1)`, `(x1, z2+1)` into `out[0..3]`. Corner `k` is the start of the side the lot faces when
+its facing is `k` (§17.8).
+
+**`GetLowestOrHighestAreaAltitude(SC4Rect<int32>, lowest, withWater)`** (slot 17, `0x006C5620`, pop 12, ST0):
+`acc := lowest ? +FLT_MAX : −FLT_MAX`; for `x := x1 … x2+1` (outer), `z := z1 … z2+1` (inner): `v := slot 15(x, z,
+withWater)`, and `acc := v` when `v < acc` (lowest) or `v > acc` (highest), strict, NaN no. Returns `acc`
+(`±FLT_MAX` for an empty rectangle).
+
+**`GetLowestOrHighestAreaAltitude(SC4Rect<float>, lowest, withWater)`** (slot 16, `0x006C56C0`, pop 12, ST0). The
+rectangle is in metres, `(fx1, fz1, fx2, fz2)`, worked on a copy:
+1. **Clamp**: `fx1 < 0 → 0`; `fz1 < 0 → 0`; `fx2 ≥ extentX` (`+0x44`) `→ r24(extentX − 0.1)`; `fz2 ≥ extentZ`
+   (`+0x48`) `→ r24(extentZ − 0.1)`. NaN is never clamped.
+2. **Interior vertices**: `vx` from `trunc(r24(r24(fx1 + 16) · 0.0625))` to `trunc(r24(fx2 · 0.0625))`, `vz` the
+   same with `fz1`, `fz2`. When both ranges are non-empty, every `(vx, vz)` (vx outer) is sampled with slot 15
+   (`withWater` passed through).
+3. **Edges**, each a sweep `t := start, start + 4, start + 8, …` (step `r24(t + 4)`) while `t` is below the end,
+   with the step that would reach or pass the end replaced by the end itself, so the end is always sampled. A
+   sample at `(px, pz)` is `h := terrain.GetAltitude(px, pz)` (`cISTETerrain` slot 13, float position); with
+   `withWater`, `h := terrain.GetWaterLevel(px, pz)` (slot 30) when that is larger (strict, NaN no). Order:
+   a. if `fx1 < fx2`: `px` sweeps `fx1 → fx2` at `pz = fz1`;
+   b. if `fz1 < fz2`: `pz` sweeps `fz1 → fz2` at `px = fx2`;
+   c. if `fx1 < fx2`: `px` sweeps `fx1 → fx2` at `pz = fz2`;
+   d. if `fz1 < fz2`: `pz` sweeps `fz1 → fz2` at `px = fx1`.
+4. Every sample updates `acc` as in slot 17. Return `acc`.
+
+Example: `(100, 200, 110, 230)` has no interior vertex (`vx` from `trunc(116 / 16) = 7` to `trunc(6.875) = 6`) and
+26 edge samples: x = 100, 104, 108, 110 at z = 200; z = 200, 204, …, 228, 230 at x = 110 (9); x = 100 … 110 at
+z = 230 (4); z = 200 … 230 at x = 100 (9). `(0, 0, 64, 64)` (in a city wider than 64 m) samples the 16 interior
+vertices `(1..4, 1..4)` first, then 4 × 17 edge points (0, 4, …, 64).
+
+**`GetAverageAreaAltitude(SC4Rect<int32>, withWater)`** (slot 18, `0x006C5B70`, pop 8, ST0). The SDK's
+`SC4Rect<float>` is wrong: the code reads int32 cells. `sum := 0`, `n := 0`; for `x := x1 … x2+1` (outer),
+`z := z1 … z2+1` (inner): `sum := r24(slot 15(x, z, withWater) + sum)`, `n += 1`. Returns `r24(sum / float(n))`
+(an empty rectangle gives 0 / 0 = NaN).
+
+**`GetOccupantCellCoverage(occ, SC4Rect<int32>&)`** (slot 22, `0x006C4590`, pop 8): `(min, max) :=
+occ.GetBoundingBox()` (occupant slot 10); `min.x`, `min.z` += 0.05 and `max.x`, `max.z` −= 0.05 (r24);
+`(x1, z1) := city.PositionToCell(min.x, min.z)`, `(x2, z2) := city.PositionToCell(max.x, max.z)` (slot 95). AL is
+the second `PositionToCell`'s.
+
+### 17.3 The terrain writer (`cISC4Demolition::ModifyTerrainHeight`)
+
+`ModifyTerrainHeight(doIt, perVertex, x0, z0, x1, z1, float h, cISC4Lot* exempt, uint32 reason, int64* cost)` is
+slot 9 of the demolition utility (`+0x20`, global `0x00B43D00`; `0x00467BB0`, pop 40, EAX = a count). Its owner
+spec is demolition.md §4.7 (re-specs10 lane). What the lot developer relies on, re-checked from the bytes:
+
+`Q := (max(x0 − 1, 0), max(z0 − 1, 0), min(x1, cellsX − 1), min(z1, cellsZ − 1))` (cells). The immovable occupants
+in `Q` are listed first (occupant manager slot 40 with the demolition filter; at most one in area mode).
+
+**Per-vertex mode** (`perVertex` true). For `x := x0 … x1` (outer), `z := z0 … z1` (inner), a vertex is skipped
+when:
+1. `terrain.IsWaterVertex(x, z)` (`cISTETerrain` slot 37); or
+2. `|terrain.GetAltitudeAtVertex(x, z) − h| < 0.05` (slot 14; strict, NaN not skipped); or
+3. a lot in the cells `(x−1, z−1) … (x, z)` (lot manager slot 7), other than `exempt`, reports
+   `GetVerticesAreLocked()` (lot slot 68); or
+4. an immovable occupant's bounding box (occupant slot 10) meets the closed square `[16x − 14.5, 16x + 14.5] ×
+   [16z − 14.5, 16z + 14.5]` (x and z only).
+
+Every other vertex is counted and, when `doIt`, written: **`terrain.SetAltitude(x, z, h)`** (`cISTETerrain`
+slot 51, pop 12). After the loop, if the count is > 0: **`terrain.RedisplayTerrain(1, 1, (Q.x0, Q.z0, Q.x1 + 1,
+Q.z1 + 1), reason)`** (slot 68), also in a dry run. Returns the count.
+
+**Area mode** (`perVertex` false). If an immovable occupant is in `Q`: return 0. `n :=` the number of vertices in
+`[x0, x1] × [z0, z1]` with `|GetAltitudeAtVertex − h| > 0.05` (strict, NaN no; water vertices count). `n = 0` →
+return 0. If no lot in `Q` other than `exempt` has locked vertices, and `doIt`: **`terrain.SetAltitude(R, h, 0,
+reason)`** (slot 49, pop 16) with the vertex rectangle `R = (max(x0, 0), max(z0, 0), min(x1, cellsX), min(z1,
+cellsZ))`, then `RedisplayTerrain(1, 1, R, reason)`. Returns `n`, **also when a locked lot stopped the write**
+*[quirk]*.
+
+The lot developer always passes `doIt = 1`, `reason = 5`, `cost = null`, and `exempt =` the lot being built, so the
+vertex lock that StartConstruction sets on that lot (§6.1) never blocks its own levelling. `RedisplayTerrain` posts
+`0x278E6003` with `data4 = 5` (landfill.md §4.5.3).
+
+*Correction to demolition.md §4.7*: per-vertex mode is **not** the only mode in shipped use. StartConstruction
+passes the configuration's water compatibility as slot 21's `perVertex` (§17.4), so every lot whose configuration
+is not water-compatible is levelled in area mode.
+
+### 17.4 Levelling (slots 19, 20, 21)
+
+**`LevelAreaInternalVertices(rect, float target, bool skipWater, bool force, lot)`** (slot 19, `0x006C43D0`,
+pop 20). Returns **EAX = the number of `ModifyTerrainHeight` calls**, not a bool (as a bool, AL is the count's low
+byte, so 256 calls read as false *[quirk]*; no caller tests it).
+1. If `target < 0` (strict, NaN no): `target := r24(GetAverageAreaAltitude(rect, true))` (slot 18).
+2. For `x := x1 + 1 … x2` (outer), `z := z1 + 1 … z2` (inner) — the **interior** vertices only; there are none when
+   the rectangle is 1 cell wide in either direction:
+   - if `skipWater` and `terrain.IsWaterVertex(x, z)` (slot 37): next vertex;
+   - `a := GetTerrainAltitudeByVertex(x, z, true)` (slot 15);
+   - if `force`, or `r24(a − target) > lotAutoLevelInternalAltitudeDelta` (`+0xE4`, tuning `0xE900EA29`, shipped
+     20; strict, NaN no): `ModifyTerrainHeight(1, 1, x, z, x, z, target, lot, 5, null)` and count += 1.
+3. Return the count.
+
+Without `force` only vertices **above** the target by more than the delta are lowered; vertices below it are
+never raised. Each call writes at most the one vertex `(x, z) := target` (per-vertex rules of §17.3) and redisplays
+cells `(x−1, z−1) … (x, z)` when it wrote.
+
+**`LevelBorderingVertices(rect, float h, bool unused, lot)`** (slot 20, `0x006C44B0`, pop 16): returns the EAX of
+`ModifyTerrainHeight(1, 1, x1, z1, x2 + 1, z2 + 1, h, lot, 5, null)`. The third argument is never read. Despite the
+name, the range is **every vertex** of the rectangle, border and interior.
+
+**`AttemptAreaLevelling(rect, float unused, bool withWater, bool perVertex, float maxAreaSlope, lot)`** (slot 21,
+`0x006C44F0`, pop 24; EAX = 0 or `ModifyTerrainHeight`'s count; same reading as landfill.md §4.5.3):
+1. `avg := GetAverageAreaAltitude(rect, withWater)` (slot 18).
+2. `m := maxAreaSlope`; if `m` is `FLT_MAX` or NaN: `m := maxAreaSlopeForLevelling` (`+0xE8`, `0xE900EA2A`,
+   shipped 40).
+3. If `m < 1000` (strict, NaN no) and `GetAreaSlope(rect, withWater) > m` (slot 29, §11.4; strict, NaN no):
+   return 0, nothing written.
+4. Return `ModifyTerrainHeight(1, perVertex, x1, z1, x2 + 1, z2 + 1, avg, lot, 5, null)`.
+
+The second argument is never read. The SDK and §11.1 called the fourth argument `water`: it is the
+`ModifyTerrainHeight` mode.
+
+**Callers** (all pass the lot being built as `lot`):
+
+| Caller | Call | Mode reached |
+|---|---|---|
+| StartConstruction (§6.1), internal levelling | slot 19 (lot rect, −1.0, water, false, lot) | per-vertex, one vertex per call |
+| StartConstruction, lot slope | slot 21 (lot rect, cfg max slope, true, water, maxAreaSlopeForLevelling, lot) | per-vertex if the configuration is water-compatible, else **area** |
+| StartConstruction, building slope | slot 21 (slot 22 coverage of the building, maxSlopeForFlatness, true, water, maxAreaSlopeForLevelling, lot) | same |
+| `AddLotFoundation` (slot 55) with `level` | slot 19 (lot rect, `r24(top − 0.5)`, true, true, lot) if `x2 − x1 > 1` and `z2 − z1 > 1`; then slot 20 (lot rect, top, true, lot) | per-vertex |
+| landfill `LevelRect` (landfill.md §4.5.3) | slot 21 (rect, 0.0, true, true, `FLT_MAX`, null) | per-vertex |
+
+**Worked example 1 (slot 19 from StartConstruction).** Lot `(10, 10, 12, 12)`, dry, vertices flat at 100 except
+`(11, 11) = 130` and `(12, 12) = 115`; no other lot or occupant nearby. `target := 1645 / 16 = 102.8125`. Interior
+vertices: `(11, 11)` +27.1875, `(11, 12)` −2.8125, `(12, 11)` −2.8125, `(12, 12)` +12.1875. One call,
+`ModifyTerrainHeight(1, 1, 11, 11, 11, 11, 102.8125, lot, 5, null)`: vertex `(11, 11)` becomes 102.8125 (terrain
+slot 51) and cells `(10, 10, 12, 12)` are redisplayed. Returns 1. With `force` (from slot 55) the four interior
+vertices are all passed, and all four are written because each differs from the target by at least 0.05.
+
+**Worked example 2 (slot 21).** Cells `(0, 0, 1, 1)`, vertices 0…2, dry, flat at 100 except `(2, 2) = 104`;
+`maxAreaSlope = FLT_MAX` → 40. `avg = 904 / 9 = 100.44444` (`0x42C8E38E`). Slope: lowest `(0, 0)`, highest
+`(2, 2)`, `d = 2.828427`, slope `4 / d = 1.4142135` ≤ 40. Per-vertex: 9 `SetAltitude(x, z, 100.44444)` calls (x
+outer, z inner) and `RedisplayTerrain(1, 1, (0, 0, 3, 3), 5)`; returns 9. Area mode: `SetAltitude((0, 0, 2, 2),
+100.44444, 0, 5)` and `RedisplayTerrain(1, 1, (0, 0, 2, 2), 5)`; returns 9. With `(2, 2) = 260` the slope is
+`160 / 2.828427 = 56.568542` > 40: returns 0 and writes nothing.
+
+### 17.5 Foundations (slots 48–61)
+
+A foundation is a `cSC4FoundationOccupant` (0x5C bytes), occupant type `0x68FD0C69`, interface
+`cISC4FoundationOccupant` (IID `0xC8FCE101`, vtable `0x00AA29A0`):
+
+| Slot | Method | Pop | Return | Address |
+|---|---|---|---|---|
+| 3 | `AsOccupant()` (this + 4; null-safe) | 0 | EAX | `0x005FD7E0` |
+| 4 | `GetFoundationType()` (u32 +0x38) | 0 | EAX | `0x0080BC00` (shared getter) |
+| 5 | `SetFoundationType(u32)` | 4 | — | `0x006CE240` (shared setter) |
+| 6 / 7 | get / set the float at +0x3C (property `0x88FCC3E3`) | 0 / 4 | ST0 / — | `0x005D4AC0` / `0x006CE230` |
+| 8 | `SetSize(const float[3])` (+0x4C … +0x54) | 4 | AL = 1 | `0x005D6400` |
+| 9 / 10 | `GetKind()` (sign-extended byte +0x58) / `SetKind(int8)` | 0 / 4 | EAX / — | `0x005D6140` / `0x005D6150` |
+| 11 / 12 | `GetOrientation()` (byte +0x59) / `SetOrientation(int32)` clamped to 0…3 | 0 / 4 | EAX / AL = 1 | `0x005D6190` / `0x005D61A0` |
+
+**Kinds**: 1 building, 2 lot, 3 prop, 4 other. **Lot flags** bits 0–1 (lot slots 12 / 13) mean "has a lot
+foundation"; bit 0 also makes slot 39 use the lot's altitude.
+
+#### 17.5.1 Lookup
+
+- **Slot 49** `GetFoundationByStandardCityCell(kind, x, z)` (`0x006C9480`, pop 12, EAX):
+  `occupantManager.GetOccupantsByStandardCityCells(list, &(x, z), &(x, z), 0x68FD0C69, −1)` (slot 41, A list); the
+  first element in list order that answers `QueryInterface(0xC8FCE101)` and whose `GetKind()` (slot 9) is `kind`.
+  It is returned **without a reference** (the QueryInterface reference and the list's references are released).
+  Null when none.
+- **Slot 50** `GetFoundationByPosition(kind, float x, float z)` (`0x006C95E0`, pop 12, EAX): takes and AddRefs the
+  occupant manager `0x00B43D0C` into `+0x28` if that is null. Query: occupant manager slot 37 (box query with an
+  occupant-type filter; it forwards to slot 36) with `(list, min, max, 0x68FD0C69, −1)`, `min = (x − 0.05, −FLT_MAX,
+  z + 0.05)`, `max = (x − 0.05, +FLT_MAX, z + 0.05)`: a **vertical line** at `(x − 0.05, z + 0.05)`, not a 0.1 m
+  square *[quirk]*. Same match rule and no reference.
+- **Slot 48** `GetFoundationByOccupant(occ)` (`0x006C3E10`, pop 4): `p := occ.GetPosition()` (occupant slot 8);
+  `kind := 1` if the occupant type is `0x278128A0` (building), 3 if `0xA823821E` (prop), else 4; return slot 50(kind,
+  p.x, p.z).
+- **Slot 51** `GetLotFoundation(lot)` (`0x006C3E70`, pop 4): `(x, z) := lot.GetLocation()` (lot slot 21); slot 49(2,
+  x, z).
+
+#### 17.5.2 Removal
+
+- **Slot 52** `RemoveFoundation(kind, float x, float z)` (`0x006C54E0`, pop 12, AL): `f := slot 50(kind, x, z)`;
+  if found: `o := f.AsOccupant()`, AddRef, `occupantManager.RemoveOccupant(o, 1, 0)` (slot 21: shut down, data4 0),
+  Release; AL = 1, else 0. If `kind = 2`: `L := lotManager.GetLot(trunc(x · 0.0625), trunc(z · 0.0625), false)`
+  (slot 6) and, if found, `L.SetFlags(L.GetFlags() & ~3)`, **whether or not a foundation was found**.
+- **Slot 53** `RemoveLotFoundation(int32 x, int32 z)` (`0x006C3EB0`, pop 8, AL): slot 49(2, x, z), removed as in
+  slot 52; then `GetLot(x, z, false)` and its flags `& ~3`.
+- **`RemoveLotFoundation(lot)`** (`0x006C3F30`, private, pop 4): `(x, z) := lot.GetLocation()`; slot 53(x, z); then
+  `lot.SetFlags(lot.GetFlags() & ~3)` again; AL of slot 53.
+- **Slot 60** `RemoveBuildingFoundation(occ)` (`0x006C4150`, pop 4): slot 52(1, position x, position z).
+
+#### 17.5.3 Creating a foundation (BDS slot 23)
+
+`cISC4BuildingDevelopmentSimulator::AddNewFoundationOccupant(type, kind, float* pos, float dx, float dz, int32
+orient, float bottom)` (`0x00695AF0`, pop 28, AL):
+1. `f :=` a new foundation occupant (`0x005D6220` / constructor `0x005D6440`), AddRef; `f.SetFoundationType(type)`.
+2. `LoadFoundationProperties(f, type)` (BDS slot 26, `0x006982B0`): looks the type up in the BDS foundation table
+   (`0x00B485BC`), loads its exemplar as the occupant's default exemplar (QueryInterface `0x0AC2B5F7`) and stores
+   the float property `0x88FCC3E3` with `f` slot 7. On failure: release `f`, return 0.
+3. `hx := dx · 0.5`, `hz := dz · 0.5` (double constant). World rectangle `(r24(pos.x − hx) + 0.5, r24(pos.z − hz) +
+   0.5, r24(pos.x + hx) − 0.5, r24(pos.z + hz) − 0.5)`; cells `C` := each value × 0.0625, truncated (`0x00695610`),
+   with `x1, z1 ≥ 0` and `x2 ≤ cellsX − 1`, `z2 ≤ cellsZ − 1` (BDS `+0x40`, `+0x44`).
+4. If `pos.y < 0`: `pos.y := lotDeveloper.slot 17(C, highest, true)`, **written into the caller's array**.
+5. `bot := bottom`, or `slot 17(C, lowest, true)` when `bottom < 0` or NaN.
+6. `depth := r24(pos.y − bot)`, raised to 0.5 when below 0.5 (NaN kept).
+7. `o := f`'s occupant: `o.SetPosition(pos)` (occupant slot 9), `f.SetSize({dx, depth, dz})`, `f.SetKind(kind)`,
+   `f.SetOrientation(orient)`, `o.Init()` (occupant slot 3); BDS slot 24 (`0x00695740`) inserts it:
+   `occupantManager.InsertOccupant(o, 0)` (slot 20). Release `f`; AL of the insertion.
+
+The foundation's position is its **top** centre (`pos.y`), and its height is `depth`.
+
+#### 17.5.4 Lot foundations (slots 54, 55, 61)
+
+**Slot 54** `AddLotFoundation(lot, cfg, useLotAltitude, level, walls)` (`0x006C5460`, pop 20, AL):
+1. Null `lot` or `cfg` → 0.
+2. `type := kDefaultLotFoundationType` (`+0xD8`, shipped `0x890B7312`). `obj := cfg.GetPrimaryFoundation…()` (cfg
+   slot 26). If `obj`: `n :=` its ID count; if `n > 0`: **R8** `type := ids[Uniform(n)]` (file RNG, the call at
+   `0x006C549A`); else `type := obj.+0x20`.
+3. `type = 0` → 0. Otherwise return slot 55(lot, type, useLotAltitude, level, walls).
+
+R8 is drawn **before** any terrain or occupant change of the call.
+
+**Slot 55** `AddLotFoundation(lot, type, useLotAltitude, level, walls)` (`0x006C8AB0`, pop 20, AL):
+1. `c := lot.GetCenter()` (lot slot 15: `(8·(x1+x2+1), altitude, 8·(z1+z2+1))`); `r := lot.GetBoundingRect()`;
+   `f := lot.GetFacing()`.
+2. `dx := float(16 · (x2 − x1 + 1))`, `dz := float(16 · (z2 − z1 + 1))`.
+3. `bottom := GetLotFoundationBottomAltitude(lot)` (below); `hi := slot 17(r, highest, true)`.
+4. `top := useLotAltitude ? lot.GetAltitude() : PickLotFoundationAltitude(lot, corners)` with `corners :=
+   GetCornerAltitudes(r, true)` (computed only on that branch). `c.y := top`.
+5. If `level`: if `x2 − x1 > 1` and `z2 − z1 > 1`: slot 19(r, `r24(top − 0.5)`, true, true, lot); then slot 20(r,
+   top, true, lot). The terrain is written here (§17.4), **after** `bottom` and `hi` were taken.
+6. `ok := BDS.AddNewFoundationOccupant(type, 2, &c, dx, dz, f, bottom)` (§17.5.3; may replace `c.y` when it is
+   negative).
+7. `lot.SetAltitude(c.y)` (lot slot 17); `lot.SetFlags((lot.GetFlags() & ~4) | 3)`.
+8. If `walls` and `c.y < hi` (strict, NaN no): `cSC4LotRetainingWallOccupant::AddRetainingWallOccupant(lot, 1)`
+   (`0x005E3070`), `UpdateSurroundingLotFoundations(lot)`, `cSC4LotRetainingWallOccupant::
+   UpdateSurroundingRetainingWalls(lot)` (`0x005E3960`), in that order.
+9. Return `ok`.
+
+**`PickLotFoundationAltitude(lot, bottom, hi, corners)`** (`0x006C5360`, private, pop 16; `bottom` and `hi` are
+unused):
+- If the lot's configuration exists and `IsCompatibleWithWater()`: for each cell of the lot rectangle (x outer, z
+  inner), the first one with `terrain.CellHasWater(x, z)` (`cISTETerrain` slot 34) gives `(px, pz) :=
+  city.CellCenterToPosition(x, z)` (slot 97) and the result `terrain.GetWaterLevel(px, pz) + 0.5` (slot 30).
+- Otherwise (or with no water cell): `a := corners[f]`, `b := corners[(f + 1) mod 4]` — the two corners of the
+  side the lot faces — and the result is `r24(min(a, b) + r24(r24(max − min) · 0.5))`.
+
+**`GetLotFoundationBottomAltitude(lot)`** (`0x006C7630`, private, pop 4, ST0): `b := slot 17(lot rect, lowest,
+true)`; for each lot from `lotManager.GetLotsSurroundingLot(lot, list, 0xF)` (slot 9; B list) whose flags have
+bit 0 or 1: `b := n.GetAltitude()` when that is lower (strict, NaN no).
+
+**`UpdateSurroundingLotFoundations(lot)`** (`0x006C7720`, private): for each lot from `GetLotsSurroundingLot(lot,
+list, 0xF)` with flags bit 0 or 1, in list order: slot 61 on it.
+
+**Slot 61** `UpdateLotFoundation(lot)` (`0x006C3F80`, pop 4):
+- If `lot.GetFlags() & 3 = 0`: return (AL = the flags' low byte; no defined value).
+- `F := GetLotFoundation(lot)` (slot 51). If `F`: `t := F.GetFoundationType()`; `RemoveLotFoundation(lot)`
+  (`0x006C3F30`); return slot 55(lot, t, true, false, false).
+- Else: return slot 54(lot, lot.GetLotConfiguration(), true, false, false) (**R8** possible).
+
+So a refresh keeps the lot's altitude as the top, never levels and never adds walls.
+
+**Worked example 3 (slot 55).** Lot `(4, 4, 5, 5)`, facing 0, configuration not water-compatible, no lot around
+it, vertex altitudes (rows z = 4, 5, 6; columns x = 4, 5, 6): `100 101 102.5 / 100 101 103 / 100 101 104`; call
+slot 54(lot, cfg, false, true, true) with no primary foundation object (type `0x890B7312`, no draw):
+- `c = (80, ·, 80)`, `dx = dz = 32`, `bottom = 100`, `hi = 104`, corners `[100, 102.5, 104, 100]`;
+- `top = 100 + 2.5 · 0.5 = 101.25` (facing 1 → 103.25, facing 2 → 102, facing 3 → 100);
+- the lot is 2 cells wide, so no slot 19; slot 20 → `ModifyTerrainHeight(1, 1, 4, 4, 6, 6, 101.25, lot, 5, null)`:
+  all 9 vertices differ by ≥ 0.05 and are set to 101.25;
+- BDS slot 23(`0x890B7312`, 2, &(80, 101.25, 80), 32, 32, 0, 100): world rectangle (64.5, 64.5, 95.5, 95.5), cells
+  `(4, 4, 5, 5)`, size `(32, 1.25, 32)`;
+- lot altitude 101.25, flags `| 3`; `101.25 < 104`, so the retaining walls are added.
+
+#### 17.5.5 Building foundations (slots 56–59)
+
+- **Slot 56** `IsLotObjectFoundationRequired(occ)` (`0x006C3FF0`, pop 4, EAX 0/1): `GetOccupantSlope(occ, true)`
+  (slot 31) `> kMaxSlopeForFlatness` (`+0xD4`; strict, NaN no).
+- **Slot 57** `IsLotObjectFoundationRequired(float* min, float* max)` (`0x006C5590`, pop 8, EAX 0/1): `(a, b) :=
+  PositionToCell(min.x, min.z)`, `(c, d) := PositionToCell(max.x, max.z)`; `GetAreaSlope((a, b, c + 1, d + 1),
+  true) > +0xD4`. The rectangle is one cell larger than the box's cells in x and z *[quirk]*.
+- **Slot 58** `AddBuildingFoundation(b, cfg)` (`0x006C40E0`, pop 8, AL): `type := +0xDC` (property `0x6916516B`,
+  code default `0x890B7312`); `obj := cfg.GetPrimaryBuildingConfigurationObject()` (cfg slot 24; `cfg` is not
+  null-checked). If `obj` and `obj.+0x20 ≠ 0`: `type := obj.+0x20`; otherwise the building's u32 property
+  `0x88FCD877` replaces `type` when present. `type = 0` → 0; else slot 59(b, type).
+- **Slot 59** `AddBuildingFoundation(b, type)` (`0x006C4020`, pop 8, AL): `pos := b.AsOccupant().GetPosition()`;
+  `(min, max) :=` its bounding box; `o := b.GetOrientation()` (building slot 14, byte +0x54). If `type = 0`: the
+  property `0x88FCD877`, and `+0xDC` if that is 0 or absent. Return `BDS.AddNewFoundationOccupant(type, 1, &pos,
+  r24(max.x − min.x), r24(max.z − min.z), o, −1.0)`: the top is the building's position y, the bottom the lowest
+  vertex under it (§17.5.3 step 5).
+
+### 17.6 Object positions (slots 39, 40)
+
+**`GetPositionForLotConfigurationObject(lot, cfg, obj, float* pos, int32& orient)`** (slot 39, `0x006C4EF0`,
+pop 20). Returns **EAX = `&orient`** (the SDK's bool is wrong; AL is the low byte of a stack address and can be 0
+*[quirk]*; no caller tests it).
+1. `r := lot.GetBoundingRect()`; `(c0x, c0z) := city.CellCornerToPosition(x1, z1)`; `(c1x, c1z) :=
+   CellCornerToPosition(x2 + 1, z2 + 1)`; `f := lot.GetFacing()` (lot slot 23).
+2. `(ox, oy, oz) := obj` +0x04, +0x08, +0x0C. If the object type is 2 (base texture): `ox := (trunc(r24(ox ·
+   0.0625)) + 0.5) · 16` and the same for `oz` (the centre of the lot-space cell; truncation toward zero).
+3. With `mnX, mnZ = obj +0x18, +0x1C` and `mxX, mxZ = obj +0x10, +0x14`, each value one r24 add or subtract:
+
+   | f | pos.x | pos.z | footprint `R = (x1, z1, x2, z2)` |
+   |---|---|---|---|
+   | 0 | `c1x − ox` | `c1z − oz` | `(c1x − mxX, c1z − mxZ, c1x − mnX, c1z − mnZ)` |
+   | 1 | `c0x + oz` | `c1z − ox` | `(c0x + mnZ, c1z − mxX, c0x + mxZ, c1z − mnX)` |
+   | 2 | `c0x + ox` | `c0z + oz` | `(c0x + mnX, c0z + mnZ, c0x + mxX, c0z + mxZ)` |
+   | 3 | `c1x − oz` | `c0z + ox` | `(c1x − mxZ, c0z + mnX, c1x − mnZ, c0z + mxX)` |
+   | other | 0 | 0 | `(0, 1, 0, 1)` |
+
+4. Ground `y`:
+   - if `lot.GetFlags() & 1`: `y := lot.GetAltitude()` (lot slot 16);
+   - else if `F := GetLotFoundation(lot)` (slot 51): `y :=` the y of `F.AsOccupant().GetPosition()`;
+   - else, with `w := cfg ? cfg.IsCompatibleWithWater() : false`: object types 1, 2 and 4: `y :=
+     terrain.GetAltitude(pos.x, pos.z)` (`cISTETerrain` slot 13; water ignored); any other type (0, 3, ≥ 5):
+     `y := GetLowestOrHighestAreaAltitude(R, highest, w)` (slot 16).
+5. `pos.y := r24(oy + y)`; `orient := (obj byte +0x02 + f) mod 4`.
+
+**Slot 40** `GetPositionForBuilding(lot, float* pos, int32& orient)` (`0x006C3CF0`, pop 12): `cfg :=
+lot.GetLotConfiguration()`; `obj := cfg.GetPrimaryBuildingConfigurationObject()`; if either is null, EAX = 0 and
+nothing is written; otherwise slot 39(lot, cfg, obj, pos, orient) and its EAX.
+
+**Worked example 4.** Lot `(10, 20, 11, 21)`, cell width 16: `c0 = (160, 320)`, `c1 = (192, 352)`. A prop
+(type 1) at `(8, 0.5, 4)`, orientation byte 1, footprint min `(6, 2)` max `(10, 6)`; no flag bit 0, no foundation,
+terrain flat at 50:
+
+| f | pos | orient |
+|---|---|---|
+| 0 | (184, 50.5, 348) | 1 |
+| 1 | (164, 50.5, 344) | 2 |
+| 2 | (168, 50.5, 324) | 3 |
+| 3 | (188, 50.5, 328) | 0 |
+
+The same object as type 0 with `f = 2` has `R = (166, 322, 170, 326)`: slot 16 samples no interior vertex and the
+edge points x = 166, 170 / z = 322, 326, so `y = 50`. A base texture (type 2) at `ox = 20.5`, `oz = 7.25` with
+`f = 2` snaps to `(24, 8)` and lands at `(184, ·, 328)`, cell `(11, 20)` in §6.6.
+
+### 17.7 Boundary textures (slots 42, 43)
+
+**The boundary map** (`+0xFC`, a `std::map<int32, rule>`, filled by `InitBoundaryRules` `0x006CA160` at `Init`,
+§1.3 step 11). A **side code** describes one cell: `s0` is the side towards `z − 1`, `s1` towards `x + 1`, `s2`
+towards `z + 1`, `s3` towards `x − 1`, each 0 (the neighbour cell is the same lot), 1 (a boundary) or 2 (the
+boundary the lot faces). `key := s0·0x1000 + s1·0x100 + s2·0x10 + s3`. Each rule is a texture instance, a rotation
+and a flip. The 47 rules, by texture (key: rotation; "f" = flip 1, otherwise 0):
+
+| Texture | Rules |
+|---|---|
+| `0x00003000` | `0x0000`: 0 |
+| `0x00002000` | `0x1000`: 0, `0x0100`: 1, `0x0010`: 2, `0x0001`: 3 |
+| `0x00002600` | `0x2000`: 0, `0x0200`: 1, `0x0020`: 2, `0x0002`: 3 |
+| `0x00002100` | `0x1001`: 0, `0x1100`: 1, `0x0110`: 2, `0x0011`: 3 |
+| `0x00002400` | `0x2001`: 0, `0x1200`: 1, `0x0120`: 2, `0x0012`: 3, `0x2100`: 0 f, `0x0210`: 1 f, `0x0021`: 2 f, `0x1002`: 3 f |
+| `0x00002500` | `0x1010`: 0, `0x0101`: 1 |
+| `0x00002900` | `0x2010`: 0, `0x0201`: 1, `0x1020`: 2, `0x0102`: 3 |
+| `0x00002200` | `0x1101`: 0, `0x1110`: 1, `0x0111`: 2, `0x1011`: 3 |
+| `0x00002700` | `0x2011`: 0, `0x1201`: 1, `0x1120`: 2, `0x0112`: 3, `0x2110`: 0 f, `0x0211`: 1 f, `0x1021`: 2 f, `0x1102`: 3 f |
+| `0x00002800` | `0x2101`: 0, `0x1210`: 1, `0x0121`: 2, `0x1012`: 3 |
+| `0x00002300` | `0x2111`: 0, `0x1211`: 1, `0x1121`: 2, `0x1112`: 3 |
+
+Every code slot 43 can produce (one side at most is 2, the facing side is 0 or 2) is in the table.
+
+**Slot 42** `GetBoundaryLotTexture(const int32 sides[4], uint32& texture, uint8& rotation, bool& flip)`
+(`0x006C6CF0`, pop 16): `key := ((s0 · 16 + s1) · 16 + s2) · 16 + s3` (int32, no masking); look it up; if absent,
+look up key 0 instead; write the rule's three fields. There is no defined return: EAX is the map node, with AL
+replaced by the flip byte.
+
+**Slot 43** `SetEmptyLotBaseTexture(lot)` (`0x006CC970`, pop 4, no return):
+1. `zone := lot.GetZoneType()` (lot slot 31). If `zone` is 0, 11, 12 or 15 (none, airport, seaport, plopped; byte
+   table `0x006CCE1C`): **`RemoveLotBaseTextures(lot)`** (`0x006CAAF0`) and return. That lists the base-texture
+   occupants (type `0x497F6D9D`) on the lot rectangle (occupant manager slot 41, A list, flags −1) and for each:
+   if it is inserted (occupant slot 32 with 1), `occupantManager.RemoveOccupant(o, 0, 0)` (slot 21); then
+   `o.Shutdown()` (occupant slot 4) and Release. A null lot or occupant manager does nothing.
+2. Every other zone (1–10, 13, 14 and any value above 15):
+   - `colour := zoneManager.GetZoneDragColor(zone)` (`0x00B43D14` slot 15), `alpha :=
+     zoneManager.GetZoneDisplayAlpha()` (slot 16, AL);
+   - `maxZ := city slot 94 − 1`, `maxX := city slot 93 − 1`; `r := lot.GetBoundingRect()`;
+   - `boundaries := true`, except for zones 7, 8 and 9 when `lot.GetSize()` (lot slot 22) is 1 × 1;
+   - for `x := x1 … x2` (outer), `z := z1 … z2` (inner), skipping cells with `x ≥ cellsX` (`+0x50`) or
+     `z ≥ cellsZ` (`+0x4C`):
+     - if `boundaries`, for the neighbours in the order `(x, z − 1)` → s0, `(x, z + 1)` → s2, `(x − 1, z)` → s3,
+       `(x + 1, z)` → s1: `n := lotManager.GetLot(nx, nz, false)` (slot 6) when `0 ≤ nx ≤ maxX` and
+       `0 ≤ nz ≤ maxZ`, else null; the side is 0 if `n` is the lot, else 2 if `lot.GetFacing()` (slot 23) is that
+       side's number (0 → s0, 1 → s1, 2 → s2, 3 → s3), else 1. Without `boundaries` all four sides are 0;
+     - `GetBoundaryLotTexture(sides, …)` (slot 42, through the vtable);
+     - append the record `{texture, x, z, rotation, flip ≠ 0, colour >> 24, (colour >> 16) & 0xFF,
+       (colour >> 8) & 0xFF, alpha, 3, frame 0xFF}` (the 14-byte record of lot-records.md §6; 16 bytes in memory,
+       a vector with B growth: double, at least 1);
+   - `GetLotBaseTextureOccupant(lot, &occ, true)` (slot 41); if it returns true:
+     `occ.SetTextureSpecification(records, count, 0)` (base-texture slot 8, `0x005E0B20`; called even with 0
+     records); `o := occ.AsOccupant()`; if `o.IsFlagSet(1)`: occupant manager slot 24 `(o, 0)` and
+     `o.PostOccupantMessage(0x99EF1145, 0)` (occupant slot 15); else `occupantManager.InsertOccupant(o, 0)` (slot 20).
+     Release `occ`.
+
+The five bytes after the flip are therefore the zone's drag colour (top three bytes), the display alpha and 3 for
+empty-lot textures (the T6 sample `FF B2 33 AA 03` of lot-records.md §6 is one), and stay `0xFF` for normal
+textures (§6.6). This answers the empty-lot half of lot-records.md Q4.
+
+**Worked example 5.** A 2 × 1 lot, cells `(3, 7)` and `(4, 7)`, zone 1, facing 0, no lot around it:
+- `(3, 7)`: s0 = 2 (facing side), s1 = 0 (`(4, 7)` is the lot), s2 = 1, s3 = 1 → `0x2011` → `0x2700`, rotation 0;
+- `(4, 7)`: s0 = 2, s1 = 1, s2 = 1, s3 = 0 → `0x2110` → `0x2700`, rotation 0, flip.
+
+A 1 × 1 lot facing 2 in zone 1 gives `0x1121` → `0x2300`, rotation 2. A 1 × 1 lot in zone 8 gives code 0 →
+`0x3000`. Every interior cell of a 3 × 3 lot gives `0x3000`. A 1 × 3 lot (x = 5, z = 0 … 2) facing 0 gives
+`0x2101` → `0x2800` / 0, `0x0101` → `0x2500` / 1 and `0x0111` → `0x2200` / 2.

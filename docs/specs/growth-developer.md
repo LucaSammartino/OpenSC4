@@ -132,7 +132,7 @@ The stage curves, the special-building list, the growth and decline lists and th
 | special-building list + cursor | empty | no | copy of the BDS list, one reference per element |
 | growth list, decline list | empty | no | vectors of `GrowthItem` (§5) |
 | last phantom sum (int32) | 0 | **yes** | §5.3 |
-| total capacity (int32) | 0 | **yes** | §6.3 |
+| total capacity (int32) | **not initialised** (DG1) | **yes** | §6.3. The constructor writes `+0xEC`…`+0x104` and `+0x10C` but skips this field at `+0x108`, so a new city's developers start from whatever the block held (an operator-new block of `0x13C` bytes, `0x005E55E0`, created at `0x006991F4`). A load overwrites it. *[choice]* 0 |
 | six grids | null | five by reference | §1.2 |
 | source demand node | null | no | tuning `0x87CD6301` |
 
@@ -427,8 +427,11 @@ their own points (dump of all 12 in the exemplar data):
 ### 5.2 State 18: population (time-sliced)
 
 Slicing: the shared adaptive helper with budget `ms` and this class's process-wide step `0x00B49098` (miss counter
-`0x00B4909C`, guard `0x00B490A0`) (`simulator.md` §5.5). The deadline check comes **before** each tract. The
-tract developer is fetched once per call (BDS slot 35 `GetTractDeveloper`).
+`0x00B4909C`, guard `0x00B490A0`) (`simulator.md` §5.5). The clock is the processor's time-stamp counter converted with
+the simulator's `MillisecsToCycles` (§5.5); a replacement may use any monotonic real-time clock such as
+`QueryPerformanceCounter` (DG2), because the slicing changes only how much of the pass runs per call, never its result.
+The deadline check comes **before** each tract. The tract developer is fetched once per call (BDS slot 35
+`GetTractDeveloper`).
 
 For each `(x, z)` from the iterator (x inner, z outer) while time remains:
 
@@ -465,8 +468,9 @@ if delta ≠ 0:
 
 The delta step runs **even when the flag is off** (sum = 0): a save with a non-zero `lastPhantomSum` gives one
 correction of `−lastPhantomSum` *[compat]*. Shipped: the flag is off on all developers, so `lastPhantomSum` stays
-0. `AddToDemandValue` returns a float in ST0 that the original never pops (one x87 stack slot leaks per call)
-*[quirk]*; a replacement simply discards it.
+0. `AddToDemandValue` (`cSC4Demand`, `0x005D4C70`) adds the amount to the node's float32 demand value and returns
+**true in AL**; it leaves the x87 stack as it found it (DG1; an earlier version of this section said ST0). The
+result is ignored.
 
 ### 5.4 State 20: sort, decline list, filter
 
@@ -671,7 +675,7 @@ None.
 |---|---|---|
 | 1 | u16 | version = 1 |
 | 2 | s32 | last phantom sum (§5.3) |
-| 3 | u32 | total capacity (§6.3) |
+| 3 | u32 | total capacity (§6.3; garbage plus the built capacity for a city whose developers were created by the original's BDS, §2) |
 | 4 | ref | zoned-cell count grid (`uint8`) |
 | 5 | ref | desirability D (`int16`) |
 | 6 | ref | population (`int16`) |
@@ -703,8 +707,8 @@ epilogues.
 | 2 | `+0x08` | Release (`0x006B3D00`) | 0 | EAX count | §1 |
 | 3 | `+0x0C` | Init(cISCPropertyHolder*) | 4 | AL | §1.2 |
 | 4 | `+0x10` | Shutdown() | 0 | AL (1) | §1.3 |
-| 5 | `+0x14` | GetType() → int32 target zone | 0 | EAX | |
-| 6 | `+0x18` | GetSubType() → developer type | 0 | EAX | |
+| 5 | `+0x14` | GetType() → int32 target zone | 0 | EAX | `+0xD0`: 1 R, 2 C, 3 I (tuning `0x87CD6300`). **Not** the developer type |
+| 6 | `+0x18` | GetSubType() → developer type | 0 | EAX | `+0xCC`: `0x1010` … `0x4400`, the developer exemplar's instance; the key of the BDS developer map. A reader that takes slot 5 as the type sees `0x0001`–`0x0003` and finds no developer exemplar (manual-checks run 101) |
 | 7 | `+0x1C` | GetPurpose() | 0 | EAX | |
 | 8 | `+0x20` | GetWealth() | 0 | EAX | |
 | 9 | `+0x24` | GetConstructionInfo(ConstructionProfile&) | 4 | none | §6.2 |
@@ -715,7 +719,7 @@ epilogues.
 | 14 | `+0x38` | GetCapacityMap() → `cISC4SimGrid<uint16>*` | 0 | EAX | built capacity |
 | 15 | `+0x3C` | GetPopulationMap() → `cISC4SimGrid<int16>*` | 0 | EAX | |
 | 16 | `+0x40` | GetMaxCapacityMap() → `cISC4SimGrid<uint16>*` | 0 | EAX | |
-| 17 | `+0x44` | GetTotalCapacity() | 0 | EAX | §6.3 (may be negative as int32) |
+| 17 | `+0x44` | GetTotalCapacity() | 0 | EAX | §6.3 (may be negative as int32); returns `+0x108`, uninitialised in a new city (§2). No caller found *[inferred]* |
 | 18 | `+0x48` | GetSourceDemand() → `cISC4Demand*` | 0 | EAX, no AddRef | |
 | 19–22 | `+0x4C`–`+0x58` | GetPowerSupplyCap / GetWaterSupplyCap / GetFireCoverageCap / GetParkCap | 0 | AL | |
 | 23 | `+0x5C` | GetDesirabilityThreshold() | 0 | EAX | growth threshold |
@@ -781,7 +785,7 @@ SDK comparison (`cISC4GrowthDeveloper.h`): slot order, argument sizes and pointe
 | `cISC4TrafficSimulator` (`0x00AB33D0`) | 9 `+0x24`, 13 `+0x34` | commercial traffic map, trip-length map (`uint8`) | 0 | EAX | |
 | `cISC4DemandSimulator` (`0x00AB0E48`) | 6 `+0x18` | GetDemand(id, index) | 8 | EAX (no AddRef) | tuning, §5.5 |
 | `cISC4Demand` (`0x00AA2758`) | 8 `+0x20` | QuerySupplyValue | 0 | ST0 | §5.5 |
-| | 17 `+0x44` | AddToDemandValue(float) | 4 | ST0 (SDK: bool), **never popped** | §5.3 |
+| | 17 `+0x44` | AddToDemandValue(float) | 4 | AL (true); nothing on the x87 stack | §5.3 |
 | `cISC4NeighborsSimulator` (`0x00AB1EE0`) | 21 `+0x54`, 22 `+0x58` | GetConnectedCities / GetAllConnectedCities(list&, 0) | 8 | | §5.5 |
 | `cISC4Lot` (`0x00AB19B0`) | 9, 14, 21, 22, 46, 50 | GetLotConfiguration, GetBoundingRect, GetLocation, GetSize, GetBuildingType(bool), GetCapacity(devType, bool) | 0, 4, 8, 8, 4, 8 | EAX / AX (50) | §6.3 |
 | `cISC4Occupant` (`0x00AA41D8`) | 6 `+0x18`, 8 `+0x20` | AsPropertyHolder, GetPosition(cS3DVector3&) | 0, 4 | | §4.4 |
@@ -844,7 +848,8 @@ city and only uses the GZCOM factory when loading.
 9. Out-of-bounds reads: `0x4A5F7315` triples, `0x87CD6380` with fewer than 3 values, odd `0x87CD63A0`; *[choice]*
    treat missing values as absent.
 10. Missing tract-size property → iterator rectangle unset; *[choice]* always set it.
-11. `AddToDemandValue` result left on the x87 stack.
+11. *Withdrawn* (DG1): `AddToDemandValue` returns true in AL and leaves nothing on the x87 stack; there is no quirk
+    to reproduce.
 12. `UpdatePopulation` receives an uninitialised stage byte; *[choice]* 0.
 13. `GetBuildingProfile` and `GetAbandonmentThreshold` insert defaults on lookup.
 14. Lot pointer taken from the message without `QueryInterface`.

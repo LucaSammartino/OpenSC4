@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "civic_counts",
+  "spec": ["civic-buildings 4.3", "civic-buildings 12.3"],
+  "description": "A conditional building (0xEA3209F8 = true) whose key instance has a status entry: insert -> count 1, remove -> 0; the count is 16-bit and wraps (remove again -> 65535, insert -> 0). A building without a status entry changes nothing (no entry is created); 0xEA3209F8 = false changes nothing; a building whose key lookup fails changes nothing.",
+  "steps": [
+    {"op": "civic_create"},
+    {"op": "civic_init", "expect": true},
+    {"op": "civic_call", "method": "update_status", "args": ["0x032B0000", 0, 0, ""], "expect": true},
+    {"op": "civic_building", "occupant": "0x30", "type": "0x03000001", "key": "0x032B0000", "conditional": true},
+    {"op": "civic_message", "type": "OccupantInserted", "occupant": "0x30", "expect": true},
+    {"op": "civic_call", "method": "get_status", "args": ["0x032B0000"], "expect": {"status": 0, "count": 1, "tooltip": ""}},
+    {"op": "civic_message", "type": "OccupantRemoved", "occupant": "0x30", "expect": true},
+    {"op": "civic_call", "method": "get_status", "args": ["0x032B0000"], "expect": {"status": 0, "count": 0, "tooltip": ""}},
+    {"op": "civic_message", "type": "OccupantRemoved", "occupant": "0x30", "expect": true},
+    {"op": "civic_call", "method": "get_status", "args": ["0x032B0000"], "expect": {"status": 0, "count": 65535, "tooltip": ""}},
+    {"op": "civic_message", "type": "OccupantInserted", "occupant": "0x30", "expect": true},
+    {"op": "civic_call", "method": "get_status", "args": ["0x032B0000"], "expect": {"status": 0, "count": 0, "tooltip": ""}},
+
+    {"op": "civic_building", "occupant": "0x31", "type": "0x03000002", "key": "0x09990000", "conditional": true},
+    {"op": "civic_message", "type": "OccupantInserted", "occupant": "0x31", "expect": true},
+    {"op": "civic_call", "method": "get_status", "args": ["0x09990000"], "expect": null},
+    {"op": "civic_expect", "state": {"status_keys": ["0x032B0000"]}},
+
+    {"op": "civic_building", "occupant": "0x30", "type": "0x03000001", "key": "0x032B0000", "conditional": false},
+    {"op": "civic_message", "type": "OccupantInserted", "occupant": "0x30", "expect": true},
+    {"op": "civic_call", "method": "get_status", "args": ["0x032B0000"], "expect": {"count": 0, "status": 0, "tooltip": ""}},
+    {"op": "civic_building", "occupant": "0x30", "type": "0x03000001", "conditional": true},
+    {"op": "civic_message", "type": "OccupantInserted", "occupant": "0x30", "expect": true},
+    {"op": "civic_call", "method": "get_status", "args": ["0x032B0000"], "expect": {"count": 0, "status": 0, "tooltip": ""}}
+  ]
+}

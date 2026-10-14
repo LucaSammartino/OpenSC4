@@ -1,0 +1,98 @@
+{
+  "format": 1,
+  "name": "park_insert",
+  "spec": ["parks 3", "parks 4.2", "parks 4.6", "parks 12.3"],
+  "description": "A park (group 0x1006) with a park budget item (cost 10, line 0) is held and listed; the item's line becomes the building type, the department's line item for it is created (not local) with display flag 2, full expenses +10 and secondary +1. A second park of the same type: 20 and 2, no new line. A preview occupant (property 0x029244DB present, even false) and a non-building occupant change nothing. A zoo (group 0x1702) is held and listed; a park that is also a zoo is in both lists. An item with a line keeps it. Quirks and choices: a building that fails QueryInterface(0x87DDA3A9) stays listed as a park but skips the zoo test; an item naming a missing department charges nothing; a line item that cannot be created is skipped.",
+  "steps": [
+    {"op": "park_create"},
+    {"op": "park_init", "expect": true},
+    {"op": "park_building", "occupant": "0x10", "type": "0x0A000001", "groups": ["park"]},
+    {"op": "park_item", "occupant": "0x10", "department": "0x8A4260A6", "line": 0, "cost": 10},
+    {"op": "park_clear_events"},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x10", "expect": true},
+    {"op": "park_expect_events", "events": [
+      {"event": "add_ref", "token": "0x10"},
+      {"event": "change_line", "occupant": "0x10", "index": 0, "line": "0x0A000001"},
+      {"event": "create_line", "department": "0x8A4260A6", "line": "0x0A000001", "local": false},
+      {"event": "display_flag", "flag": 2, "on": true}
+    ]},
+    {"op": "park_expect_item", "occupant": "0x10", "state": {"line": "0x0A000001", "cost": 10}},
+    {"op": "park_expect_line", "department": "0x8A4260A6", "line": "0x0A000001", "state": {"expenses": 10, "secondary": 1, "display": [2]}},
+
+    {"op": "park_building", "occupant": "0x12", "type": "0x0A000001", "groups": ["park"]},
+    {"op": "park_item", "occupant": "0x12", "department": "0x8A4260A6", "line": 0, "cost": 10},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x12", "expect": true},
+    {"op": "park_expect_events", "events": [
+      {"event": "add_ref", "token": "0x12"},
+      {"event": "change_line", "occupant": "0x12", "index": 0, "line": "0x0A000001"}
+    ]},
+    {"op": "park_expect_line", "department": "0x8A4260A6", "line": "0x0A000001", "state": {"expenses": 20, "secondary": 2}},
+    {"op": "park_expect", "state": {"parks": ["0x10", "0x12"], "zoos": []}},
+    {"op": "park_expect_refs", "refs": {"0x10": 1, "0x12": 1}},
+
+    {"op": "park_building", "occupant": "0x14", "type": "0x0A000001", "groups": ["park", "zoo"], "preview": true},
+    {"op": "park_item", "occupant": "0x14", "department": "0x8A4260A6", "line": 0, "cost": 10},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x14", "expect": true},
+    {"op": "park_building", "occupant": "0x15", "occupant_type": "0xC772BF98", "groups": ["park", "zoo"]},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x15", "expect": true},
+    {"op": "park_message", "type": "OccupantInserted", "expect": true, "note": "no occupant"},
+    {"op": "park_expect_events", "events": []},
+    {"op": "park_expect_line", "department": "0x8A4260A6", "line": "0x0A000001", "state": {"expenses": 20, "secondary": 2}},
+
+    {"op": "park_building", "occupant": "0x16", "type": "0x0A000002", "groups": ["zoo"]},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x16", "expect": true},
+    {"op": "park_building", "occupant": "0x18", "type": "0x0A000003", "groups": ["park", "zoo"]},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x18", "expect": true},
+    {"op": "park_expect_events", "events": [
+      {"event": "add_ref", "token": "0x16"},
+      {"event": "add_ref", "token": "0x18"},
+      {"event": "add_ref", "token": "0x18"}
+    ]},
+    {"op": "park_expect", "state": {"parks": ["0x10", "0x12", "0x18"], "zoos": ["0x16", "0x18"]}},
+
+    {"op": "park_building", "occupant": "0x1A", "type": "0x0A000004", "groups": ["park"]},
+    {"op": "park_item", "occupant": "0x1A", "department": "0x8A4260A6", "line": "0x77", "cost": 5},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x1A", "expect": true},
+    {"op": "park_expect_events", "events": [
+      {"event": "add_ref", "token": "0x1A"},
+      {"event": "create_line", "department": "0x8A4260A6", "line": "0x77", "local": false},
+      {"event": "display_flag", "flag": 2, "on": true}
+    ]},
+    {"op": "park_expect_line", "department": "0x8A4260A6", "line": "0x77", "state": {"expenses": 5, "secondary": 1}},
+    {"op": "park_expect_line", "department": "0x8A4260A6", "line": "0x0A000004", "absent": true},
+
+    {"op": "park_building", "occupant": "0x1C", "type": "0x0A000005", "groups": ["park", "zoo"], "building": false},
+    {"op": "park_item", "occupant": "0x1C", "department": "0x8A4260A6", "cost": 10},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x1C", "expect": true},
+    {"op": "park_expect_events", "events": [
+      {"event": "add_ref", "token": "0x1C"}
+    ]},
+    {"op": "park_expect", "state": {"parks": ["0x10", "0x12", "0x18", "0x1A", "0x1C"], "zoos": ["0x16", "0x18"]}},
+
+    {"op": "park_building", "occupant": "0x1E", "type": "0x0A000006", "groups": ["park"]},
+    {"op": "park_item", "occupant": "0x1E", "department": "0x12345678", "cost": 10},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x1E", "expect": true},
+    {"op": "park_expect_events", "events": [
+      {"event": "add_ref", "token": "0x1E"}
+    ]},
+
+    {"op": "park_env", "create_lines": false},
+    {"op": "park_building", "occupant": "0x20", "type": "0x0A000007", "groups": ["park"]},
+    {"op": "park_item", "occupant": "0x20", "department": "0x8A4260A6", "cost": 10},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x20", "expect": true},
+    {"op": "park_expect_events", "events": [
+      {"event": "add_ref", "token": "0x20"},
+      {"event": "change_line", "occupant": "0x20", "index": 0, "line": "0x0A000007"},
+      {"event": "create_line", "department": "0x8A4260A6", "line": "0x0A000007", "local": false}
+    ]},
+    {"op": "park_expect_line", "department": "0x8A4260A6", "line": "0x0A000007", "absent": true},
+
+    {"op": "park_building", "occupant": "0x22", "type": 0, "groups": ["park"]},
+    {"op": "park_item", "occupant": "0x22", "department": "0x8A4260A6", "cost": 10},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x22", "expect": true},
+    {"op": "park_expect_events", "events": [
+      {"event": "add_ref", "token": "0x22"},
+      {"event": "change_line", "occupant": "0x22", "index": 0, "line": 0}
+    ]}
+  ]
+}
