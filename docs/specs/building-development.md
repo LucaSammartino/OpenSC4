@@ -845,7 +845,7 @@ EAX = 32-bit, EDX:EAX = 64-bit, ST0 = x87.
 | 31 | +0x7C | `WealthType GetWealth(DeveloperType)` | 4 | EAX | §4.7.3 | `0x00698D80` |
 | 32 | +0x80 | `cISC4GrowthDeveloper* GetDeveloper(DeveloperType)` | 4 | EAX | map lookup, null if absent, **no AddRef** | `0x00696C80` |
 | 33 | +0x84 | `cISC4GrowthDeveloper* GetDeveloper(PurposeType, WealthType)` | 8 | EAX | slot 32 of slot 30, both through the vtable | `0x006958B0` |
-| 34 | +0x88 | `std::map<uint32, cISC4GrowthDeveloper*>* GetDevelopers()` | 0 | EAX | the internal map itself (MSVC `std::map`, B nodes); SDK `intptr_t` | `0x00698CD0` |
+| 34 | +0x88 | `std::map<uint32, cISC4GrowthDeveloper*>* GetDevelopers()` | 0 | EAX | the internal map itself (BDS + 0x5C; the STLport map of [docs/abi/allocators.md](../abi/allocators.md) *map and set*, B header and 0x18-byte B nodes, one reference held per developer); SDK `intptr_t` | `0x00698CD0` |
 | 35 | +0x8C | `cISC4TractDeveloper* GetTractDeveloper()` | 0 | EAX | cached, no AddRef | `0x0068D1D0` |
 | 36 | +0x90 | `cISC4LotDeveloper* GetLotDeveloper()` | 0 | EAX | cached, no AddRef | `0x00698CE0` |
 | 37 | +0x94 | `cIGZString* GetExemplarName(uint32)` | 4 | EAX | §4.7.2 | `0x0069AB20` |
@@ -949,10 +949,10 @@ No new interface vtables are needed for the dependencies beyond those already in
 ### 9.1 Who reaches into the BDS
 
 - **Raw containers through the interface** (a replacement must provide the game's layouts): the developer map
-  (slot 34, an MSVC `std::map<uint32, cISC4GrowthDeveloper*>` with B nodes; iterated by the demand simulator,
+  (slot 34, an STLport `std::map<uint32, cISC4GrowthDeveloper*>` with B nodes, [docs/abi/allocators.md](../abi/allocators.md) *map and set*; iterated by the demand simulator,
   demand spec §8, and others *[callers not enumerated]*); the special-building list (slot 44, `ilist<cISC4Occupant*>`,
-  allocator A); the building profiles (slots 39/40: the game's `BuildingProfile` with an MSVC vector of `std::map`
-  capacity tables, B); names as `cRZString` objects inside the static maps (slots 37/38).
+  allocator A); the building profiles (slots 39/40: the game's `BuildingProfile` with a vector of STLport `std::map<uint32, uint16>`
+  capacity tables, B; layout in [docs/abi/layouts.md](../abi/layouts.md) *Building profile*); names as `cRZString` objects inside the static maps (slots 37/38).
 - **Raw grid**: the building map (slot 41) is read raw by the residential simulator (residential spec §4, cells
   through `GetGridData`) and the commercial proximity maps *[inferred: commercial]*. The BDS itself writes it raw
   (§4.10). Simgrid §6.4 applies: a replacement creates the grid through GZCOM (class `0x49B9E602`).

@@ -9,7 +9,7 @@ and on `i686-pc-windows-msvc`.
 |---|---|
 | `dbpf` | DBPF 1.x packages (`.dat`, `.sc4`, `.sc4lot`, `.sc4desc`, `.sc4model`): header, index 7.0 (20-byte entries; 7.1 24-byte entries only as a flagged standalone extension), the DIR record of compressed entries, random-access reads from a file (`Package::open`) or any byte buffer such as a caller-owned memory map (`Package::from_bytes`). `PackageBuilder` writes DBPF 1.0 packages (used by the tests; foundations §3.1 compression rule available as `Compression::Auto`). |
 | `qfs` | QFS/RefPack with the SimCity 4 header (`10 FB` / `11 FB` only): decompressor and a greedy hash-chain compressor |
-| `exemplar` | Exemplars and cohorts, binary (`EQZB1###`/`CQZB1###`) and text (`EQZT1###`/`CQZT1###`); typed property API; `ExemplarStore` with cohort inheritance |
+| `exemplar` | Exemplars and cohorts, binary (`EQZB`/`CQZB`) and text (`EQZT`/`CQZT`), read as the original's factories read them (data-formats §4); raw and converting property getters (§5); `ExemplarStore` loads records with their parent cohorts into `LoadedExemplar`s (own and effective property lists) |
 | `ltext` | LTEXT records (UTF-16 and 8-bit forms, 24-bit count, trailing bytes ignored) |
 
 `fc4-dat` is a small local inspection tool:
@@ -30,7 +30,8 @@ truncation and garbage inputs for every parser.
 `tests/game_data.rs` sweeps the installed game when present: `FC4_GAME_DIR`, or the default GOG path
 `C:\Program Files (x86)\GOG Galaxy\Games\SimCity 4 Deluxe Edition`. It opens every `.dat`, `.sc4`, `.sc4lot`,
 `.sc4desc` and `.sc4model` file below it (read-only), reads and decompresses every entry, re-compresses a sample,
-parses every exemplar, cohort and LTEXT record, resolves every exemplar's cohort chain, and prints counts. It
+parses every exemplar, cohort and LTEXT record (exemplars with the factory's type check), loads every `.dat`
+exemplar and cohort with its parent chain (a record that does not load is a failure), and prints counts. It
 passes with a note when no game data is found. For the statistics:
 
 ```sh
@@ -40,7 +41,12 @@ cargo test -p fc4-formats --release --test game_data -- --nocapture
 Result on SimCity 4 Deluxe (GOG), 2026-10-12: 22 DBPF `.dat` files (`unins000.dat` is not DBPF) with 183,205
 entries (1.8 GB unpacked, 110,410 compressed), 417 city saves with 49,096 entries; 8,957 binary and 2 text
 exemplars and 388 cohorts, all parsed, all binary ones re-encode byte-identically; 77,537 + 1,359 LTEXT
-records; every cohort chain resolves (deepest 3 levels); no failures.
+records; every cohort chain resolves (deepest 3 levels); no failures. 2026-10-14, with the data-formats §4 reader:
+the same counts, and all 9,347 `.dat` exemplars and cohorts load (every binary record already has its properties
+in ascending ID order with no duplicates, so the re-encode is still identical). Two text properties of
+`Plugin_002_TheLivingMall.dat` read differently: `LotConfigPropertyWealthTypes` and
+`LotConfigPropertyPurposeTypes` are `Uint8:0:{}`, which §4.3 reads as a scalar 0 (`reps` 0 is one value, missing
+values are 0), where the old reader made an empty array.
 
 ## Sources
 
@@ -52,6 +58,8 @@ Written from public format documentation, checked against the shipped data:
 - Exemplar and cohort binary layout and value types: [SimsWiki "EXMP"](https://db.modthesims.info/wiki.php?title=EXMP)
 - Exemplar value-type numbering, the original writer's compression rule, the DIR key: `docs/specs/foundations.md`
   §3.1, §9.2, §10
+- How the original reads all of these, and where it differs from the public documentation:
+  `docs/specs/data-formats.md` (§11 lists the differences)
 - LTEXT layout and the text-exemplar syntax: common modding knowledge (SC4Devotion wiki, which refused automated
   access), then confirmed and corrected on the shipped data as described below.
 
@@ -75,14 +83,21 @@ Where the documentation was silent or wrong, the code decides and tags the decis
 - **LTEXT has an 8-bit form**: encoding byte `0x00` followed by `count` bytes (each locale file has one; city
   saves use it for names such as `Temp.png`). Besides the documented UTF-16 form (encoding byte `0x10`). The
   count is 24 bits and bytes after the string are ignored (data-formats §6.1).
-- Binary exemplar key type `0x00` is a single value (the following byte is unused), `0x80` an array with a `u32`
-  count; strings are always arrays whose count is the byte length. Text exemplars write `reps` 0 for single
-  values (strings included) and allow an empty `{}` value.
-- The value-type table also accepts the codes of foundations §9.2 that the exemplar page does not list
-  (Uint64 `0x0400`, Sint8 `0x0500`, Sint16 `0x0600`, Float64 `0x0A00`); none occur in the install.
+- **Exemplars follow data-formats §4** (the public "value type, key type, unused byte" description is the same
+  bytes): only the first 4 signature bytes are checked; each binary property is a kind byte (0 value, 1 resource
+  key) and a `u32` foundations §9.2 disk tag, so the "unused" and key-type high bytes must be 0; tag `0x000C` is
+  one RZChar byte, not a string; Empty, void, Char and RZUnicodeChar arrays and the Uint64 / Sint8 / Sint16 /
+  Float64 types are read. A parent key that does not load as a cohort, or a kind-1 resource that does not load,
+  fails the whole record. `[choice]`: cycles and chains deeper than 32 fail the load (the original recurses).
+- Text exemplars follow §4.3: the 2 bytes after the signature are skipped unchecked, numbers use rule N (`10` is
+  decimal, `1A` hexadecimal), type names are case-sensitive, exactly `PropCount` lines are read, `reps` values are
+  taken with missing ones 0, 64-bit values are hexadecimal, and a string ends at the first `}`.
+- Getters follow §5: `as_u32` / `u32s` / `count` ... are the raw accessors (`[choice]` a type mismatch is a missing
+  value), `get_u32` / `get_f32` / `get_string` ... convert (int64 or float64 for scalars, a text round trip of the
+  first element for arrays and strings).
 - Duplicates: `Package::find` returns the **first** index entry with a key, and the first DIR record wins
-  (data-formats §2.3, §2.5); exemplar lookups return the last property with an ID; `ExemplarStore` lets a later
-  insert replace an earlier one (load order).
+  (data-formats §2.3, §2.5); inside an exemplar the last property with an ID wins (§4.5), and both property lists
+  are sorted by unsigned ID; `ExemplarStore` lets a later insert replace an earlier one (load order).
 - Index entries are 20 bytes and the index minor version is ignored (data-formats §2.1). `[choice]`: when the
   index size is exactly `24 × count` the entries are read as index 7.1, with a warning (the original cannot open
   such a package). The DIR record is always 16 bytes per key.

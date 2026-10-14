@@ -20,6 +20,7 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] `FreeCity4.dll` loads in SC4 1.1.641 and replaces `cSC4Simulator`
 - [x] Unattended in-game runs: autoload a city, autotest verdict, monthly observer (`tools/ingame_run.ps1`)
 - [x] Hands-free game control: advisor popups and the save box closed automatically, scripted UI actions (`-Actions`), the test city restored after a save (`tools/sc4ctl.ps1`)
+- [x] Popups off without side effects: `popup_dialogs = 0` now waits for ConnectionsReady (d161d20). Set earlier, it silently kept power, plumbing and neighbours disabled (runs 58–64; foundations §11.6)
 
 **M1: the clock**
 - [x] Simulator core and spec
@@ -35,20 +36,26 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] x87 precision: diagnosed **and worked around** — the game runs 24-bit all session; our DLL's presence raises it to 53-bit (foundations §18.2). Since 63e88f1 the plugin re-asserts 24-bit at `PostAppInit`, and the control word reads `0x007F` for the rest of the session. The *trigger* is still not located (foundations §19.4); the re-assert makes it moot for differential work
 - [x] Budget differential: **ours matches the original exactly** (run 39, the same-process shadow differential, merged 6ca4b65). On the same lots at the same moment, all 12 tax types, total tax, income, expense and net were identical: 5 of 5 month-ends on Spandau (run 39) and 35 of 35 on Konradshohe, 2026-02 to 2028-12 with about 700 lots (run 41), with 0 mismatches. Separate-run comparisons (runs 35/36) could not settle per-type tax, because the original is not deterministic from run to run; the shadow (`budget_shadow = 1` with `disable = budget`) removes that
 - [x] Budget and demand match the original (M2 exit). **Budget:** identical on every month-end, 5 of 5 on Spandau (run 39) and 35 of 35 on Konradshohe (run 41). **Demand:** bit-identical, 160 of 160 days and 6 of 6 modifier checks (run 44), after the one difference the shadow found was traced to the exe (tax ratio = maxRate·0.1f × a float32 reciprocal of neutral; demand.md §8.1) and fixed in 42f7649. Both checks are same-process shadow differentials (`budget_shadow`, `demand_shadow`), opt-in
+- [x] Demand glue reads the building-profile capacity maps and fills `GetLocalPopulationSummary` through the game's own STLport map (merged ae82e65); run 61's soak had found demand frozen without them
 
 **M3: grid sims**
 - [x] Cores: SimGrid, land value, pollution, crime, aura, flammability, power, plumbing, protection, flora
 - [x] Land value glue (off by default)
 - [x] Power glue (merged 63e88f1; runs 27/28 clean, production 5997→6000, 409 cells powered, 0 unpowered)
 - [x] Plumbing and flammability glue (merged 9f741de), **now run in game** (runs 33–38): the water pass on a real network (2 producers, 403 pipes, watered = building cells), fire rolls about every 40 days, and the cross-subsystem `IsCellWatered` read is live. Run 37 caught a use-after-free on fire ignition (a borrowed manager was released), fixed in 95db886; run 38 went through a real fire and a full Shutdown with 0 reference warnings
-- [ ] Protection, flora, pollution, crime and aura glue
+- [x] **Pollution glue** (merged d743db2; run 67 clean over 73 months) and its same-process **grid shadow: identical to the original on all eight grids, cell by cell, for 94 months** (run 68). The one difference is a `dirtyWater` flag on 104 days with identical grids (PG14, being traced in the exe)
+- [x] **Protection glue** (fire + police, merged 29b3fcb) and its **grid shadow: identical to the original, cell by cell, for 97 months** (run 70). Known bug: after a load the fire replacement's grid is 0×0, so its daily cycle never runs (fix in a lane)
+- [x] **Crime glue** (merged 941c34f) and its **grid shadow: 96 of 96 months identical**, hotspot included (run 70b); the replacement runs clean for 97 months
+- [ ] Flora, aura and landfill glue (lanes running)
 - [ ] Grid snapshots match within tolerance (M3 exit)
 
 **M4: growth**
 - [x] Specs: building development, growth, tract, lot and zone developers
 - [x] Cores: building development simulator, growth developer, tract developer, **lot developer** (merged 9889f65; 5,254 lines, 36 unit tests, 18 conformance vectors), **zones** (merged f56e52a; ~10,900 lines, 30 conformance vectors covering all 29 §15 tests)
 - [x] **M4 cores complete (5 of 5)**; zones found and fixed a real `SimpleParcellize` Q=2 x-line bug during self-review (`zn15_31`)
-- [ ] Zones glue. Spec questions: ZQ1, ZQ2, RS1–RS6 answered from the exe on 2026-10-13 (RS1: every percentage × 0.01 is a float32 `0.01f`); ZQ3–ZQ6 (`DetermineLotSize`, city-border behaviour) still open in [docs/specs/QUESTIONS.md](docs/specs/QUESTIONS.md)
+- [x] Zones follow-up (merged 8ee3253): ZQ2/ZQ3/ZQ5/ZQ6 answered from the exe and applied; `DetermineLotSize` filter in the core; tests 30–32 as vectors `zn15_32`–`zn15_35`. ZQ7–ZQ10 filed
+- [x] Landfill tests 1–23 (`lf11_*`) and the **neighbours core** with tests 1–12 (`nb18_*`) (merged 026fd9e)
+- [ ] Zones glue
 - [x] **Residential simulator core** (merged 737bcc5): all 24 residential §15 tests as unit tests and `rs15_*` vectors, the save record, RS1–RS6 applied; REH building work is left to host hooks. RS7–RS17 filed
 - [x] GD/BD/TD spec questions answered in the named specs (8fdea4e)
 - [ ] Seeding rules (foundations §6.3) and the daily growth budget calibrated in the original
@@ -61,7 +68,8 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 
 **M6+: beyond simulation**
 - [x] Specs: game data formats (DBPF, exemplars, tuning catalogue, 601f3a9), lot/occupant save records (0460f3a), city save records validated against 417 saves (e69009f)
-- [x] `engine/formats` matches spec §11 for DBPF, QFS and LTEXT (merged b5bdf8a; the sweep over real game data shows 0 failures across 22 .dat files and 1,004 saves). The `exemplar.rs` rows of §11 are still open
+- [x] `engine/formats` matches spec §11 for DBPF, QFS and LTEXT (merged b5bdf8a; the sweep over real game data shows 0 failures across 22 .dat files and 1,004 saves)
+- [x] `exemplar.rs` matches data-formats §4, §5 and the §11 exemplar rows (merged 64a25d2): the install sweep loads 9,347 of 9,347 exemplars and re-encodes 9,345 binary records byte-identically. EX1–EX20 filed
 - [ ] Rendering, UI, audio, region; a standalone executable
 
 **Cross-cutting**

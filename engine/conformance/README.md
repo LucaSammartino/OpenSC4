@@ -1220,7 +1220,7 @@ strings (`"0000004005aa02"`).
 | `tn_damaged` | `cells` | the pothole cells (`IsRoadDamaged`) |
 | `tn_connection` | `id`, `type`, `cell`, `pool?` (holder token), `pool_cells?` (the cells `GetNeighborPoolPropertyHolder` answers at; default `cell`), `trip_caps?` | a neighbour connection |
 | `tn_curve` | `points` (`[[x, y]]`), `multiplier?` (1.0) | the congestion curve and transit multiplier (§4.7.3) |
-| `tn_switch` | `id`, any of `load`, `capacity`, `time_factor` | a switch table entry, inserted if missing (test setup, §11 test 10) |
+| `tn_switch` | `id`, any of `load`, `capacity`, `time_factor`, `building`, `flags`, `to_mask`, `has_access_point`, `access` (`[x, z]`), `rules` (`[{kind, side, from, to}]`), `cells` (`[[x, z]]`: writes this ID into the switch ID grid and `mode_mask?` (0) into the mode grid there) | a switch table entry, inserted if missing (test setup: §11 test 10, and a switch as a load leaves it for the DoPostCityInit re-read, §4.7.2) |
 | `tn_set_cell` | `cell` or `cells`, `prior_car` | pokes cell connection records (test setup, §11 test 6) |
 | `tn_rng` | `seed` | a `cRZRandom` the model never sees (§11 test 12) |
 
@@ -1228,15 +1228,62 @@ strings (`"0000004005aa02"`).
 
 | op | Arguments | Effect / check |
 |---|---|---|
-| `tn_call` | `method`, `args?`, `expect?` | `occupant_changed [id, removed?]`, `do_post_city_init`, `post_city_init_rebuild`, `post_city_init_finish`, `do_connections_changed [x1, z1, x2, z2]`, `set_connection [x, z, e, x', t]`, `update_intersection_data`, `get_capacity [n, x, z]` (bits), `get_connection_count [n, x, z]`, `are_lots_connected [a, b]`, `get_connected_occupant_count [lot, type]`, `get_connected_destination_count [lot, k]`, `get_subnetworks_for_lot [lot]` (`{ids, ok}`), `get_subnetworks_in_rectangle [x1, z1, x2, z2]`, `get_subnetworks_in_region [x1, z1, x2, z2, [[x, z]]]`, `get_occupant_count_for_all_subnetworks [type]`, `transit_switch_entry_cost [id]` (bits), `lot_activated [lot]`, `lot_deactivated [lot]`, `get_transit_switches`, `transit_switch_query_target [x, z]` (`{switch}` / `{ferry}` / null), `tunnel_changed [id, removed]`, `find_water_path [sx, sz, tx, tz]` (`{cells, g, forward, backward}` or null), `get_water_route [x1, z1, x2, z2, initial hex]` (`{ok, route}`), `water_terrain_changed [data1, data2]`, `water_update`, `has_map_exit [x, z]`, `neighbor_connection_inner_cell [x, z]` (`[x, z, side]` or null), `set_neighbour_edge [x, z, mask, pool, cost]`, `begin_ferry_pass`, `work_on_ferry_routes [max]`, `ferry_terminal_count [type]`, `all_ferry_routes`, `ferry_route_between_tiles [x1, z1, x2, z2]`, `ferry_routes_in_use`, `clear_subnetworks`, `update_subnetworks`, `fill [x, z, e]`, `begin_subnetwork_info`, `work_on_subnetwork_info [max]`, `update_subnetwork_info` |
-| `tn_eval` | `fn`, `args`, `expect` (objects partial) | pure functions: `depth_byte [navigable, w]`, `step_cost [depth, g]`, `heuristic [dx, dz]`, `route_cost [cells]`, `encode_route [[[x, z]]]`, `side_of [ax, az, bx, bz]`, `tunnel_distance [dx, dy, dz]`, `inverse_max_speed [v, cell width]`, `read_rules [facing, [entries]]` (`{rules, to_mask, flags, mode_mask}`) |
+| `tn_call` | `method`, `args?`, `expect?` | `occupant_changed [id, removed?]`, `do_post_city_init`, `post_city_init_rebuild`, `post_city_init_finish`, `do_connections_changed [x1, z1, x2, z2]`, `set_connection [x, z, e, x', t]`, `update_intersection_data`, `get_capacity [n, x, z]` (bits), `get_connection_count [n, x, z]`, `are_lots_connected [a, b]`, `get_connected_occupant_count [lot, type]`, `get_connected_destination_count [lot, k]`, `get_subnetworks_for_lot [lot]` (`{ids, ok}`), `get_subnetworks_in_rectangle [x1, z1, x2, z2]`, `get_subnetworks_in_region [x1, z1, x2, z2, [[x, z]]]`, `get_occupant_count_for_all_subnetworks [type]`, `transit_switch_entry_cost [id]` (bits), `lot_activated [lot]` (whether a switch was created), `lot_activated_outcome [lot]` (`{outcome, switch_created, continues}`, outcome `no_building` / `returned` / `done`; `continues` = the simulator's step 7 follows, §4.7.1), `lot_deactivated [lot]`, `get_transit_switches`, `transit_switch_query_target [x, z]` (`{switch}` / `{ferry}` / null), `tunnel_changed [id, removed]`, `find_water_path [sx, sz, tx, tz]` (`{cells, g, forward, backward}` or null), `get_water_route [x1, z1, x2, z2, initial hex]` (`{ok, route}`), `water_terrain_changed [data1, data2]`, `water_update`, `has_map_exit [x, z]`, `neighbor_connection_inner_cell [x, z]` (`[x, z, side]` or null), `set_neighbour_edge [x, z, mask, pool, cost]`, `begin_ferry_pass`, `work_on_ferry_routes [max]`, `ferry_terminal_count [type]`, `all_ferry_routes`, `ferry_route_between_tiles [x1, z1, x2, z2]`, `ferry_routes_in_use`, `clear_subnetworks`, `update_subnetworks`, `fill [x, z, e]`, `begin_subnetwork_info`, `work_on_subnetwork_info [max]`, `update_subnetwork_info` |
+| `tn_eval` | `fn`, `args`, `expect` (objects partial) | pure functions: `depth_byte [navigable, w]`, `step_cost [depth, g]`, `heuristic [dx, dz]`, `route_cost [cells]`, `encode_route [[[x, z]]]`, `side_of [ax, az, bx, bz]`, `tunnel_distance [dx, dy, dz]`, `inverse_max_speed [v, cell width]`, `read_rules [facing, [entries]]` (`{rules, to_mask, flags, mode_mask}`), `rule_bytes [property]` (the raw bytes of a property value such as `{"u8": [..]}`, §4.7.2), `read_rule_property [facing, property]` (as `read_rules` over those bytes, plus `count`) |
 | `tn_expect_cell` | `cell` or `cells`, `expect` (partial: `conn` [9], `switch` [9], `prior_car` [4], `wormhole`, `switch_id`, `switch_mode`, `records` (each `{net, conn_count, type, inv_cap, extra_cost, flags, subnet}`, partial), `car` (the first car record, or null), `water_depth`) | the cell connection record, the network-info list and the grids |
-| `tn_expect_state` | `state` (partial: `count`, `subnet_counter`, `working_len`, `published_len`, `published` (`[{population, capacity}]`), `intersection_dirty`, `intersection_rect`, `subnetworks_stale`, `network_changed`, `occupants_changed`, `next_switch_id`, `switch_ids`, `ferry_counts`, `terminal_count`, `ferry_pass_running`, `ferry_pass_terminal`, `edge_density_keys`, `inv_cap_table`, `intersection_values`, `damaged_road_cost`, `posted`, `refs`) | the model state and the world's posted messages and references |
+| `tn_expect_state` | `state` (partial: `count`, `subnet_counter`, `working_len`, `published_len`, `published` (`[{population, capacity}]`), `intersection_dirty`, `intersection_rect`, `subnetworks_stale`, `network_changed`, `occupants_changed`, `next_switch_id`, `switch_ids`, `ferry_counts`, `terminal_count`, `ferry_pass_running`, `ferry_pass_terminal`, `water_dirty`, `water_dirty_rect` (`[x1, z1, x2, z2]`), `edge_density_keys`, `inv_cap_table`, `intersection_values`, `damaged_road_cost`, `posted`, `refs`) | the model state and the world's posted messages and references |
 | `tn_expect_tunnel` | `cell`, `record` (null, or partial `{other, mask, type, cost}` with `cost` keyed by travel type) | the tunnel table |
 | `tn_expect_lot` | `lot`, `subnetworks` (null = property `0x2A4F9C74` absent) | the lot's list |
 | `tn_expect_switch` | `id`, `switch` (null, or partial `{building, load, time_factor, capacity, flags, to_mask, mode_mask, has_access_point, access, simulator_value, counts_as_intersection, rules}`) | the switch table (read without inserting) |
 | `tn_expect_ferry` | `index`, `terminal` (null, or partial `{departure, arrival, water, lot, type, mask, reroute, links, neighbour_links}`) | the ferry terminal list |
 | `tn_expect_rng` | `expect?` | the generator's next `RandomUint32Uniform(100)` equals a fresh generator's with the same seed |
+
+## Pathfinder ops
+
+The pathfinder vectors (`pf11_…`) drive `fc4_core::pathfinder::Pathfinder` (`docs/specs/pathfinder.md`) over one
+scripted traffic simulator and city implementing `PathfinderHost`, with the network model's `NetworkState` set up cell
+by cell (no occupants: cell records, network info, switches, tunnels and ferry terminals are written directly). Every
+op name starts with `pf_`. The default world is the §11 preamble: an 8 × 8 city, `invMaxSpeed[Car][Street] = 1.5`
+(every other entry `FLT_MAX`), `Curve(0.0) = 1.0`, `affectedByTraffic[Car] = canReachDestination[Car] =
+generatesTraffic[Car] = true` (everything else false or 0, including the default starting costs and `incomePerTile`),
+NearestDestinationAttractiveness 1.0, MaxDistanceOriginToNetwork 1, no strike (state 0), trip scale 1.0, no carpool,
+all volumes and destination bytes 0, free counts 0. The timer never expires unless `deadline_reached` is set. The
+work-check statics (§4.11) are fresh for each vector ("fresh process") and shared by its pathfinders. Pathfinders are
+numbered by `pf?` (default 0).
+
+Floats are given and compared as exact bit patterns `"0x3C23D70A"` (upper case, 8 hex digits; a plain number is also
+accepted as input and converted to float32); the income accumulator (a double) as 16 hex digits; routes as lower-case
+hex byte strings; node keys and masks as `"0x…"` (8 hex digits).
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `pf_env` | any of `cells` (`[x, z]`: replaces the network with an empty one of that size, with the preamble speed and curve), `can_reach` / `generates` / `affected` (lists of travel types, replacing the table), `income_per_tile` (`[[t, v]]`), `default_start_cost` (9 values), `inv_max_speed` (`[[t, type, v]]`), `curve` (`[[x, y]]`), `transit_multiplier`, `attractiveness`, `max_distance`, `strike` (1 = strike), `trip_scale`, `carpool`, `free` (4 counts), `income` (the accumulator), `deadline_reached` | the simulator's tables and inputs |
+| `pf_cell` | `cell`, `cells` or `rect`, any of `conn` / `switch` (`[[t, word]]`), `prior_car` (4 words), `wormhole`, `info` (`[[network, type, inv_cap, extra_cost]]`, appended) | pokes cell connection records and network info |
+| `pf_street` | `cell`, `cells` or `rect` | the §11 preamble street cell: road info `{0.0625, Street, 0.0}`, `conn[Car] = 0x0104`, `switch[Car] = 0xFFFF`, `priorCar = 0xFFFF`, wormhole 0 |
+| `pf_lot` | `id`, `rect`, `holder?` (id + `0x10000`), `max?` / `used?` (the holder's 4 trip capacities), `dest?` (destination bits written on every cell of the lot) | a lot (`GetLot`, its holder, its bounding rect) |
+| `pf_capacity` | `holder`, `max?`, `used?` | `GetMaxTripCapacity` and the used capacity of a holder |
+| `pf_dest` | `cell`, `cells` or `rect`, `bits` | destination bitmask bytes (off-map cells allowed) |
+| `pf_volume` | `cell`, `cells` or `rect`, `n?` (1), `value` | volume grid values |
+| `pf_neighbor_cost` | `cell`, `cost` | `GetTrafficNeighborConnection` at an off-map cell (§4.13 step 3) |
+| `pf_pool` | `cell`, `cells` or `rect`, `holder`, `max?`, `used?` | the neighbour pool's property holder at off-map cells (§4.10.1) |
+| `pf_connection` | `cell` (in city), `mask`, `links` (`[[x, z, cost]]`, off-map points) | a neighbour connection with its link list (§4.6 off-map fallback) |
+| `pf_ferry` | `cell`, `mask`, `links?` (`[[x, z, cost]]`), `repeat?` (1: the link list is repeated), `neighbour_links?` (`[[off x, off z, edge x, edge z, cost]]`) | a ferry terminal departing at `cell`: wormhole bit 4, the terminal list and the departure table |
+| `pf_tunnel` | `cell`, `other`, `mask?` (`0x1FE`), `cost?` (`[[t, v]]`) | a tunnel portal: wormhole bit 2 and the tunnel table |
+| `pf_switch` | `id`, any of `load`, `capacity`, `time_factor`, and `cell`, `cells` or `rect` | a transit switch table entry and the switch ID grid |
+| `pf_create` / `pf_new` | `pf?` | `CreatePathFinder` (constructor, AddRef, Init) / the bare constructor |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `pf_call` | `pf?`, `method`, `args?`, `expect?` | the slots: `query_interface [iid]`, `add_ref`, `release`, `init`, `shutdown`, `set_flag [bits]`, `clear_flag [bits]`, `clear_all_flags`, `set_route_info [bool]` (a fresh deque or none), `set_trip_destination_filter [f]`, `set_destination_flag [bits]`, `clear_destination_flag [bits]`, `clear_all_destination_flags`, `set_travel_type_flag [mask, also starting]`, `clear_travel_type_flag [mask]`, `clear_all_travel_type_flags`, `set_starting_cost_array [9 floats or null]`, `set_max_trip_length [v]`, `set_traffic_density [n]`, `set_start_rect [x1, z1, x2, z2]`, `set_end_rect [x1, z1, x2, z2]`, `set_max_work_time [ms]`, `reset`, `find_path`, `get_traffic_arrived`, `get_trip_length` (bits), `get_trip_length_scaled_for_display` (bits), `get_end_cell` (`[x, z]`), `get_last_travel_type`, `get_compressed_route [initial hex?]` (`{bytes, mask}`), `was_trip_reversible`, `apply_traffic [style]`, `release_path_nodes`; and the internal `heuristic [x, z]` and `score [x, z, g]` (bits) |
+| `pf_expect` | `pf?`, `state` (partial: `ref_count`, `destroyed`, `initialised`, `city_size`, `flags`, `filter`, `destination_flags`, `allowed`, `starting`, `start_costs`, `trip_length`, `density`, `arrived`, `start_rect`, `end_rect`, `search_rect`, `excluded_rect`, `route` (`[[x, z, t]]` or null), `max_work_time`, `suspended`, `max_cost` (9), `weight`, `over_budget` (9), `disabled`, `node_count`, `nodes` (allocation order, each partial `{index, key, cell, t, side, g, f, parent, open, closed}`; the list length must match), `open_set` (node indices in heap order), `result` (node index or null), `end_cell`, `last_travel_type`, `destination_type_reached`, `park_and_ride` (`[x, z, side]`), `work_counter`) | the object's state |
+| `pf_work_check` | `set?` (`[m, a]`), `expect?` (`[m, a]`) | the shared work-check multiplier and adaptation counter |
+| `pf_expect_world` | `state` (partial: `volumes` (`[[n, x, z, bits]]`, every value written, sorted), `dest` (`[[x, z, bits]]`, every byte written, sorted), `free`, `income`, `edge_density_keys` (sorted), `switch_loads` (`[[id, bits]]`)) | the simulator side |
+| `pf_expect_edge` | `cell`, `t?` (1), `evening?` (false), `counts` (`[[entry, exit, value]]`) | the record's `current` counters: the listed ones, every other counter 0 (a missing record reads as zeros) |
+| `pf_eval` | `fn`, `args`, `expect` | pure functions: `heap_order [[f]]` (the pop order of pushes, §4.7), `boundary_cells [rect]`, `start_ring_cells [start, ring]`, `grow_clamp [rect, d]` (clamped to the world's city), `encode_route [[[x, z, t]]]` (`{bytes, mask}`, over the world's network), `encode_unit_steps [x0, z0, t, code, count]`, `distance_to_rect [x, z, rect]` (bits), `node_key [prefix, t, x, z]`, `bucket [key]` |
 
 ## Residential ops
 
@@ -1292,6 +1339,120 @@ Residential events:
 - the month pass: `get_month`, `effect` (`name`), `transform` (`effect`, `pos`), `start_effect` (`effect`), `history` (`series`, `value`), `rng` (`lo`, `hi`, `value`);
 - the REH hooks: `strike` (`type`, `occupant`, `data2`, `data3`), `ordinance_effects`, `strike_checks`, `building_changed` (`id`, `inserted`).
 
+## Landfill ops
+
+The landfill vectors (`lf11_…`) drive `fc4_core::landfill` (`docs/specs/landfill.md`) over one scripted city
+implementing `LandfillHost`. Every op name starts with `landfill_`. The default world is the one §11 states: a
+64 × 64-cell city, flat at 270 m, sea level 250, the shipped tuning (§4.1), `tileCap` 30000, sanitation funding
+100 %, every cell of zone type 14, no roads, not connected, supply 0. Cell centres are at `16·x + 8`. Landfill tiles
+are core objects the world keeps per cell; the zot is a prop whose position the world records.
+
+The lot developer's `AttemptAreaLevelling` (slot 21) is the core function `attempt_area_levelling` (§4.5.3) over the
+world's stubbed slots, as test 22 asks: `GetAverageAreaAltitude` returns the stubbed `avg` (or, when none is set, the
+mean of the rect's cell altitudes), `GetAreaSlope` the stubbed `slope` (0), the lot developer's tuning
+`maxAreaSlopeAllowedForLevelling` the stubbed `tuning` (40); `ModifyTerrainHeight` is logged and, with `apply` (true),
+sets the cells of `[x1, x2) × [z1, z2)` to the target and posts `0x278E6003` with `data4 = 5`. `PlaceZone` rezones the
+cells and **posts** the zoning message (§4.4.8); posted messages wait until `landfill_deliver`.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `landfill_env` | any of `cells` (`[w, h]`), `sea`, `altitude` (the flat ground), `tuning` (`"shipped"`, null = the code defaults, or a property map), `supply`, `tile_capacity`, `uncollected`, `funding`, `current` (line item 30's current expenses), `department` (bool), `connected`, `networks` (`[[x, z]]`), `zone_type` (the default zone type), `view_level`, `levelling` (`{avg, slope, tuning, apply}`; `avg` null = the cell mean; `"FLT_MAX"` / `"NaN"` allowed) | the world |
+| `landfill_altitude` | `cells` (`[[x, z, a]]`) and/or `rect` with `value` | cell altitudes |
+| `landfill_zone_types` | `cells` (`[[x, z, type]]`) | the zone manager's map |
+| `landfill_create` | `post_city_init?` (true), `expect?` (Init's result) | a developer and its `Init` |
+| `landfill_heaps` | `zone?` (0) and `heaps` (`[[hx, hz, valid, active, capacity, contained]]`, replaces the vector), or `index` with `heap`, or `contained` (every heap) | test setup |
+| `landfill_set` | `zone?`, any of `level_altitude`, `connected`, `clear_cells` (`[[x, z]]`) | test setup |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `landfill_zone` | `rect`, `type?` (14), `expect?` | the zoning message `0x07699455` over the whole rect (§3.2, §4.4.1) |
+| `landfill_message` | `type`, `data1?` … `data4?`, `rect?` (the region), `expect?` | `DoMessage` |
+| `landfill_month` | `count?` (1) | SimNewMonth (§4.7.1) |
+| `landfill_terrain` | `rect`, `reason?` (1), `altitude?` (sets the rect's cells first) | `0x278E6003` over the rect with `data4 = reason` (§3.2) |
+| `landfill_deliver` | `count?` | delivers the posted messages in order |
+| `landfill_shutdown` | | the developer's `Shutdown` |
+| `landfill_dezone_cell` | `zone?`, `cell`, `change_zone?` (false), `remove_texture?` (false) | `DezoneCell` (§4.4.8) |
+| `landfill_decay` / `landfill_redistribute` | `zone?`, `index` (decay) | `DecayGarbage` (§4.7.3, the developer's tuning) / `RedistributeGarbage` (§4.7.4) |
+| `landfill_update_tiles` | `zone?`, `index`, `seed?` (1), `draws?` | `UpdateSurroundingTiles` (§4.8) with a CRT `rand()` at `seed`; `draws` = the expected number of `rand()` calls |
+| `landfill_levelling` | `args` (`[rect, f, withWater, waterFlag, maxAreaSlope]`), `expect` | `AttemptAreaLevelling` (§4.5.3) over the stubbed slots |
+| `landfill_call` | `method`, `args?`, `zone?`, `expect?` | `get_zoning_cost [rect]` (`[low, high]`), `get_landfill_usage` (`[usage, capacity]`), `get_landfill_tile_count`, `get_maintenance_costs`, `get_current_budget`, `get_efficiency`, `update_capacity_values`, `get_landfill_zone_from_cell [[x, z]]` (the zone's index or null), `recalculate_capacity`, `get_capacity` (`[available, contained, capacity]`), `is_zone_connected` |
+| `landfill_expect` | `state` (partial: `zones`, `maintenance`, `capacity_total`, `used_total`, `loaded`, `department`, `crt_state`, `supply`, `tiles` (`[[x, z, tile, orientation, y]]` by z then x), `active_landfill_cells`, `zots`, `posted`), `zone?` with `zone_state` (partial: `rect`, `cells`, `mask` (x outer, z inner), `w`, `h`, `heaps`, `valid_heaps`, `connected`, `zot` (`[x, y, z]` or null), `level_altitude`, `completely_dezoned`), `zone_types` (`[[x, z, type]]`) | the developer, a zone and the world |
+| `landfill_record` | `hex` or `hex_prefix` | the developer's record (§6.1) |
+| `landfill_zone_record` | `read` (a §6.2 record), `expect?`, `rewrite?` (the write reproduces the bytes), `init?`, `zone_state?` | a fresh zone read from bytes |
+| `landfill_reload` | `expect?` (true), `post_city_init?` (false) | writes the developer's record and reads it into a new developer (zones with a zot cannot be reloaded: the record holds a reference) |
+| `landfill_expect_events` / `landfill_expect_event_count` / `landfill_clear_events` | see the shared conventions | host calls |
+
+Landfill events: `add_agent` (`name`, `level`, `flags`), `remove_agent`, `subscribe` / `unsubscribe` (`type`),
+`supply` (`delta`), `put_in` (`value`), `garbage_capacity` (`value`), `full_expenses` (`line`, `value`), `release`
+(`token`), `place_zone` (`rect`, `type`), `set_altitude` (`rect`, `altitude`), `redisplay` (`rect`), `tile` (`x`, `z`,
+`tile`, `orientation`, `y`), `tile_remove` (`x`, `z`), `tile_move` (`x`, `z`, `y`), `zot_add` (`pos`), `zot_remove`,
+`levelling` (`rect`, `f`, `with_water`, `water_flag`, `max`, `result`), `modify_terrain` (`first`, `second`, `rect`,
+`altitude`, `lot`, `reason`, `cost_out`), `truck` (`enabled`), `seagull` (`on`), `history` (`series`, `value`).
+
+## Neighbours ops
+
+The neighbours vectors (`nb18_…`) drive `fc4_core::neighbors` (`docs/specs/neighbors.md`) over one scripted region
+implementing `NeighborsHost`. Every op name starts with `neighbors_`. The default world: a 64 × 64-cell city, today
+1000 (Julian day), no regional cities and no current regional city (vectors add them), the shipped tuning (§12),
+session seed `0x12345678`, terrain altitude 270 (`GetAltitude`, the marker height at creation) and surface 280
+(`GetMaxSurfaceLevel`), every utility figure 0 and every department missing, landfill usage and capacity 0. Cell
+centres are at `16·x + 8`; marker props get tokens 256, 257, … and live in the cell of their position.
+
+Regional cities are numbered by the vector. `FindConnectionOnOtherSide` asks the neighbour's own connection list
+(`conns`); `GetAllConnections` of another city is its `links`. `SetLocalDeals` reproduces the foundations §11.3 quirk:
+deals with a missing region city on either side leave the simulator's list. Status reports the simulator **posts**
+are logged and queued (`neighbors_deliver` delivers them as `0xEA418D8F` with `data1` = the status); reports
+`SetAmount` **sends** are logged and delivered at once (unless `deliver_sent` is false), as the message server does.
+
+Deals are named by integers: a vector names its own (`neighbors_deal`, `id`); a deal the core created (clones,
+proposals, Init's rebuilt list) gets 1000, 1001, … in the order the runner first sees it (an event or a result).
+Deal types may be written `"E0"` … `"E5"` (§3), connection types by their SDK names in lower case (`"road"`,
+`"power_pole"`, `"ground_highway"`, …) or numbers.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `neighbors_env` | any of `cells` (`[w, h]`), `today`, `current` (a city or null), `session`, `tuning` (`"shipped"`, null, or a property map), `tuning_remove` (`[IDs]`), `figures` (fields of `UtilityFigures`: `total_funds`, `monthly_income`, `power_production`, `power_requirement`, `water_capacity`, `water_demand`, `garbage_recycled`, `waste_to_energy_capacity`, `incinerator_capacity`, `garbage_abducted`, `garbage_produced`, `waste_to_energy_expenses`, and the departments' `power_department_expenses`, `water_department_expenses`, `sanitation_department_expenses`, null = missing), `landfill` (`[usage, capacity]`), `altitude`, `surface`, `deliver_sent` | the world |
+| `neighbors_city` | `id`, any of `pos`, `size` (`[1, 1]`), `established` (true), `budget`, `income`, `stats` (`{name: [power, water, garbage]}` for `exported`, `imported`, `produced`, `demanded`, `cost_per_unit`; merged), `conns` (`[[type, x, z, active]]`), `links` (`[[type, rx, rz]]`), `local_deals` (`[deal spec]`) | adds or updates a regional city |
+| `neighbors_occupant` | `id`, `kind` (`"network"`, `"power_pole"` or a number), `networks?`, `cell?`, `pole_flag?` | an occupant for §6.5 / §11.1 |
+| `neighbors_create` | `init?` (true; `expect` = its result), `ready?` (false: ConnectionsReady) | a new simulator (replaces the old one) |
+| `neighbors_deal` | `id`, a deal spec, `adopt?` (true: appended to the simulator's list, no push) | a deal |
+| `neighbors_deal_set` | `deal`, a deal spec | overwrites the deal's fields (no reports) |
+| `neighbors_connection_set` | `connection` (`[type, x, z]`), `active?`, `visited?` | one of our connections |
+
+A deal spec: `type`, `other` (a city: its position) or `other_side` (`[x, z]`), `city` or `city_side` (default: the
+current city's position), `amount`, `inc_amount`, `inc_amount2`, `last_amount`, `last_inc_amount`, `amount_used`,
+`cost`, `flags` (default `0x81`), `start`, `expiration`, `current`, `suspension`, `properties`.
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `neighbors_message` | `type`, `data1?` … `data3?`, `occupant?`, `expect?` | `DoMessage` |
+| `neighbors_month` | `today?`, `count?` (1) | SimNewMonth |
+| `neighbors_deliver` | `max?` (1000), `count?` | delivers the posted status reports in order, including the ones posted meanwhile |
+| `neighbors_call` | `method`, `args?`, `expect?` | `init`, `shutdown`, `create_connection [t, x, z, flag]` (true = created), `request_create_connection [t, x, z]` (`"exists"` or `{confirm: city or null}`), `delete_connection`, `delete_occupant_connection [occ]`, `delete_all_connections_of_type [t]`, `has_connection`, `find_city_on_other_side_of_connection [x, z]`, `find_connection_on_other_side [t, x, z]` (`{token, active}` or null), `neighbour_cell [x, z]` (`[city, x, z]`), `connections`, `connections_of_type [t]`, `connections_to_city [c]`, `connections_of_type_to_city [t, c]`, `find_unvisited_connection [t, c]`, `find_connection_suitable_for_deal [type, c]` (connections as `[type, x, z]`), `adjacent_cities [flag]`, `connected_cities [flag]`, `all_connected_cities [flag]`, `get_deal_cost [type, amount, c]`, `get_deal_cost_trunc` (the same, truncated), `get_deal_max_amount [type, c]`, `update_commodity_stats [c]`, `total_monthly_expense`, `total_monthly_income`, `propose_deal [type, c]`, `propose_deals [add]` (deal IDs), `add_deal [deal]`, `set_ui_disable_flag [b]`, `mark_deals_dirty`, `find_deals_all`, `find_deals [type]`, `find_deals_with [type, c]`, `clone_deal_data [spec, silent]`, `simulate_deals`, `set_two_curves [b]` |
+| `neighbors_deal_call` | `deal`, `method`, `args?`, `expect?` | `set_amount [a]`, `set_flags [f, on]`, `cancel`, `activate`, `update_cost`, `update_state`, `clone [silent]` (the clone's ID), `check_flags_and [f]`, `check_flags_or [f]`, `other_city` |
+| `neighbors_geometry` | `fn`, `args`, `expect` | the static helpers of §2: `side [x, z, countX, countZ]` (`"west"`, `"north"`, `"east"`, `"south"`, `"interior"`), `neighbouring_region_cell [side, x, z, pos, size]`, `neighbour_connection_cell [side, x, z, regionCell, npos, nsize]` (null for interior), `is_valid_connection_cell [x, z, size]`, `connection_inner_cell [x, z, countX, countZ]` (null inside or at a corner), `inner_cell` |
+| `neighbors_price` | `buyer`, `seller` (statistics), `inputs` (`base`, `scale`, `min_markup`, `max_markup` as f32 values widened, `existing`), `curve` (`"scarcity"`, `"garbage"` or a flat array), `amount?`, `expect?`, `expect_unit?`, `expect_trunc?` | §8.1 as pure functions: with `amount` `GetDealCost`, without `GetDealMaxAmount` |
+| `neighbors_expect` | `state` (partial: `initialized`, `ready`, `deals_dirty`, `stats_dirty`, `ui_disabled`, `busy`, `connections`, `deals`, `tuning`, `rng` (`[lcg, mul]` or null), `posted`, `props`, `today`), `deal` with `deal_state` (partial: `type`, `other_side`, `city_side`, the amounts, `cost`, `flags`, `start`, `expiration`, `current`, `suspension`, `in_list`, `other_city`), `connection` with `connection_state` (partial: `type`, `cell`, `other_region_cell`, `active`, `visited`, `flags`, `needs_traffic_sync`), `city` with `city_state` (partial: `budget`, `income`, `exported`, `imported`, `produced`, `demanded`, `cost_per_unit`), `deals` (the list's IDs in order), `props` (marker positions in token order) | the simulator, a deal, a connection, a city |
+| `neighbors_record` | `hex`, or `read` with `expect?` and `connections?` | the simulator's record (§13; references numbered 1, 2, … in list order), or a fresh simulator reading bytes (each reference a fresh connection) |
+| `neighbors_deal_record` | `deal` with `hex`, or `read` with `expect?`, `rewrite?`, `remaining?`, `id?`, `deal_state?` | the deal record (§5.6) |
+| `neighbors_connection_record` | `connection` with `hex`, or `read` with `expect?`, `rewrite?`, `connection_state?` | the connection record (§4.3) |
+| `neighbors_save` / `neighbors_load` / `neighbors_expect_save` / `neighbors_patch` | `slot`; `expect?` (load: the store loaded cleanly); patch: `class` (`"simulator"`, `"connection"` or a CLSID) and the shared patch arguments | the class-object store round trip; the store ignores `Read`'s result (foundations §3.5) |
+| `neighbors_expect_events` / `neighbors_expect_event_count` / `neighbors_clear_events` | see the shared conventions | host calls |
+
+Neighbours events: `add_agent` (`level`, `name`, `flags`), `remove_agents`, `subscribe` / `unsubscribe` (`msg`),
+`history` (`series`, `value`), `symmetric` (`city`, `type`, `x`, `z`, `add`), `reload_city`, `update_local_deals`,
+`update_import_export` (`city`), `set_local_deals` (`city`, `deals`: the IDs after the region's pruning), `status`
+(`deal`: an ID or null, `status`, `flags` at the time, `sent`), `connection_created` / `connection_deleted` (`type`,
+`x`, `z`), `prop_add` (`prop`, `pos`, `orientation`, `props`), `prop_remove` (`prop`), `prop_move` (`prop`, `pos`).
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
@@ -1301,8 +1462,8 @@ Residential events:
    `pw15_…` (power §15), `pl14_…` (plumbing §14),
    `pr18_…` (protection §18), `fo16_…` (flora §16), `bd11_…` (building development §11),
    `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `ld16_…` (lot developer §16),
-   `zn15_…` (zones §15), `tn11_…` (traffic network §11), `rs15_…` (residential §15) and `rs00_…` (other
-   residential behaviour).
+   `zn15_…` (zones §15), `lf11_…` (landfill §11), `nb18_…` (neighbours §18), `tn11_…` (traffic network §11),
+   `pf11_…` (pathfinder §11), `rs15_…` (residential §15) and `rs00_…` (other residential behaviour).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -1505,6 +1666,7 @@ Residential events:
 | 4 skip (and the lists and budget of §4.2.3–4.2.4) | `p11_04_skip_lists_budget` |
 | 5 relaxation | `p11_05_08_tract_visit` |
 | 6 water stop at 1 | `p11_05_08_tract_visit` |
+| 6 the special case always writes: v = 1 kept, `dirtyWater` set (§4.4.4 step 10, PG14) | `p11_28_water_special_case_dirty` |
 | 7 traffic | `p11_05_08_tract_visit` |
 | 8 zone averaging | `p11_05_08_tract_visit` |
 | 9 garbage production | `p11_09_12_garbage` |
@@ -1887,6 +2049,63 @@ Not covered by a vector, and why:
 - **The untraced helpers** `0x00731F60` / `0x00732450` (§5.2 step 3) are one host call and `0x0072B180` (§7.2 step 7)
   is left out, so no vector pins them.
 
+## Coverage (landfill §11)
+
+Every test also has a unit test in `fc4-core` (`landfill::tests::test_NN_…`).
+
+| §11 item | Vector |
+|---|---|
+| 1 heap capacity (4×4: 9 × 53333 = 479997; 2×2: 120000; 1×5: no heaps) | `lf11_01_heap_capacity` |
+| 2 zoning cost, flat (0, EDX 0) | `lf11_02_zoning_cost_flat` |
+| 3 zoning cost, slope (variance 20, mean 278, 112) | `lf11_03_zoning_cost_slope` |
+| 4 zoning cost, extension (`levelAltitude` 275, 40; no tolerance test) | `lf11_04_zoning_cost_extension` |
+| 5 sea-level clamp (mean 256, raw-altitude cost 124) | `lf11_05_sea_level_clamp` |
+| 6 first intake (the full host-call sequence, four corner tiles, no draw) | `lf11_06_first_intake` |
+| 7 decay (9300, 4, 38500) | `lf11_07_decay` |
+| 8 underfunding (5000) | `lf11_08_underfunding` |
+| 9 per-tile cap (20000, supply 30000) | `lf11_09_per_tile_cap` |
+| 10 global cap (code default 40000) | `lf11_10_global_cap` |
+| 11 disconnected (no intake, decay, the zot at centre + 3.0, excluded totals, removal on connect; the spiral past a cleared centre) | `lf11_11_disconnected` |
+| 12 random draws (one `rand()` → interior or. 2; none from heap (0,0); one heap per month in play) | `lf11_12_random_draws` |
+| 13 redistribution (100, 50, 0 both ways) | `lf11_13_redistribution` |
+| 14 spill on dezone (80000, 67500 back to the supply, §4.4.2 order) | `lf11_14_spill_on_dezone` |
+| 15 narrow remainder (6 posted type-0 `PlaceZone`s, zone removed, no re-entrancy) | `lf11_15_narrow_remainder` |
+| 16 adjacency merge (union rect, 8 cells, heaps (0,0) and (2,2)) | `lf11_16_adjacency_merge` |
+| 17 save round trip (§6.3 bytes, `levelAltitude` from the centre, the last-column quirk) | `lf11_17_save_round_trip` |
+| 18 usage clamp (100, 100) | `lf11_18_usage_clamp` |
+| 19 `GetLandfillZoneFromCell` (half-open rect) | `lf11_19_zone_from_cell` |
+| 20 efficiency (1.0, 1.2) | `lf11_20_efficiency` |
+| 21 terrain move (271; 0.2 unchanged; empty cell dezoned; sea-level floor) | `lf11_21_terrain_move` |
+| 22 levelling target and refusal (vertex average, inert `f`, slope 41, NaN `maxAreaSlope`, ≥ 1000, finite limit; through the zone) | `lf11_22_levelling` |
+| 23 reason 5 ignored (also 0 and 4; reasons 1, 2, 3 dezone the empty cells) | `lf11_23_reason_5_ignored` |
+
+The zot's ring order (§4.7.5 "spiralling from the centre") is a *[choice]*: clockwise from the ring's top-left
+corner. Only the second half of `lf11_11` depends on it.
+
+## Coverage (neighbours §18)
+
+Every test also has at least one unit test in `fc4-core` (`neighbors::tests::test_NN_…`).
+
+| Test (§18) | Vector |
+|---|---|
+| 1 geometry (sides, region cells, neighbour connection cells, corners invalid; through the region) | `nb18_01_geometry` |
+| 2 connections (one object, one `0x8A0D15DA`, one marker, orientations for both flags, none for Ferry, pipe / subway / elevated markers; road + rail occupant deletes Rail; corner deletes two; records, store round trip, version 3 rejected) | `nb18_02_connections` |
+| 3 price (2.6314286 / 263 scarcity, 2.2150418 / 221 garbage; through the simulator) | `nb18_03_price` |
+| 4 max amount (950, 1050, 100) | `nb18_04_max_amount` |
+| 5 curve bug (221 after `UpdateCommodityStats` with a sanitation department; 263 without it or the property) | `nb18_05_curve_bug` |
+| 6 life cycle (activation, first strike, Grace ignores failures, Probation at 90 days, removal with status 3, Probation clears at 180 days, cancelled status 2, expiry 6, renewal 7 or CannotAfford) | `nb18_06_life_cycle` |
+| 7 garbage capacity (60 + 60 against exported 100 and capacity 50) | `nb18_07_garbage_capacity` |
+| 8 totals (flags `0x01 0x04 0x08 0x10 0x20` exclude; `0x40 0x80 0x100 0x200` do not) | `nb18_08_totals` |
+| 9 re-entrancy (retry 8 during a run; 0 / 8 → statsDirty, others dealsDirty) | `nb18_09_reentrancy` |
+| 10 proposals (term today + 365, amount 0, cost 1; none with an existing deal, budget ≤ 5000 or ≤ 60 × cost) | `nb18_10_proposals` |
+| 11 clone (swap with E0 ↔ E1, Cancelled on a missing city, Silent follows the argument) | `nb18_11_clone` |
+| 12 deal record (version 5 byte-identical, second `amountUsed` kept, version 4 without the suspension date) | `nb18_12_deal_record` |
+
+*[choice]* items the vectors depend on: `CreateConnection`'s result (`nb18_02`); unknown types and a null city
+price at 0 (`nb18_03`); the two-curve switch (`nb18_05`, last part). Test 7 puts both deals in Probation so that
+NoLandfill shows as a removal (status 5); in Grace or before the first strike the flag is cleared again in the same
+run (§7.3 step 3).
+
 ## Coverage (traffic network §11)
 
 | §11 item | Vector |
@@ -1909,6 +2128,13 @@ Not covered by a vector, and why:
 | extra: lane continuity (the last flagged occupant decides) | `tn11_15_lane_continuity` |
 | extra: neighbour capacity counted per labelled entry side | `tn11_16_neighbour_capacity` |
 | extra: `GetNeighborConnectionInnerCell` and `HasMapExit` (§2.7) | `tn11_17_map_edge` |
+| extra: a partial rule returns from DoLotActivated; the raw-byte count of u8, u32 and scalar properties (§4.7.1 step 1, §4.7.2, TN1) | `tn11_18_switch_partial_rule` |
+| extra: switch flags from all rules, the station worked example (`0x4C`), its access point (§4.7.2, TN19) | `tn11_19_switch_flags_all_rules` |
+| extra: the DoPostCityInit re-read (rules replaced, mask and flags) and the access points after it (§1, §4.7.2, TN3, TN4) | `tn11_20_post_load_switches` |
+| extra: the water cell is the neighbour N and an earlier one stays; type 2 never activates; counts of types ≥ 2 are 0 (§4.9.1, §4.9.5, TN10, TN18) | `tn11_21_ferry_water_cell_and_type` |
+| extra: a network occupant dirties its bounding cells when the NW cell is under water, not clamped (§4.10.1, TN15) | `tn11_22_water_occupant_bounds` |
+| 3 the ring in boundary order (TN7); `GetConnectedDestinationCount` with k < 0 is 0 (TN17) | `tn11_03_lot_lists` |
+| 8 the float32 step constants: byte 47 → `0x4081EB85` (TN14) | `tn11_08_water_route` |
 
 Not covered by a vector, and why:
 
@@ -1918,6 +2144,44 @@ Not covered by a vector, and why:
   are traffic-simulator.md's and not part of `fc4_core::traffic_network`.
 - **`GetFerryRoutesInUse` (§4.9.5)** needs rider counters, which only the simulator's ferry trips write; the vector
   world has no way to set them, so only the empty result is reachable (unit tests cover the list shape).
+
+## Coverage (pathfinder §11)
+
+| §11 item | Vector |
+|---|---|
+| 1 open-set tie order (d, e, b, c, a) | `pf11_01_open_set_tie_order` |
+| 2 straight street (ring cells, start nodes, node keys and order, the pushed-back goal, results, route, reversible) | `pf11_02_straight_street` |
+| 3 compressed route of test 2 | `pf11_03_compressed_route` |
+| 4 ApplyTraffic(0), style 2, carpool | `pf11_04a_apply_traffic`, `pf11_04b_apply_traffic_style2`, `pf11_04c_apply_traffic_carpool` |
+| 5 starting cost `0.4f` (the bits of every g, trip length) | `pf11_05_starting_cost` |
+| 6 budget (over-budget count 2, the max kept), the flag-2 fallback, the shared trip length as the next budget | `pf11_06a_budget`, `pf11_06b_nearest_on_failure`, `pf11_06c_shared_trip_length` |
+| 7 the 65th rejection disables the type; 64 do not | `pf11_07a_over_budget_disable`, `pf11_07b_over_budget_64` |
+| 8 boundary order | `pf11_08_boundary_order` |
+| 9 standard destination order | `pf11_09_standard_destination_order` |
+| 10 heuristic | `pf11_10_heuristic` |
+| 11 compressed route with jumps | `pf11_11_compressed_route_jumps` |
+| 12 run length limit | `pf11_12_run_length_limit` |
+| 13 check-interval adaptation | `pf11_13_check_interval_adaptation` |
+| 14 lifetime | `pf11_14_lifetime` |
+| extra: constructor values, QueryInterface, Init / Shutdown, configuration slots (§1, §2, §4.2) | `pf11_15_constructor_and_slots` |
+| extra: exit node (cost r24(f − g), key, goal off-map), neighbour connection cost for filter 3 (§10 Q1) | `pf11_16_exit_node_connection_cost` |
+| extra: exit cost outside the search rect (the heuristic term) | `pf11_17_exit_cost_heuristic` |
+| extra: off-map start fallback (§4.6) | `pf11_18_off_map_start` |
+| extra: switch move, park-and-ride cell, runs split by type, reversibility through a switch | `pf11_19_park_and_ride` |
+| extra: transit-switch entry cost, goal test skipped at switch cells, ApplyTraffic switch usage, per-type edges | `pf11_20_transit_switch` |
+| extra: the mass-transit strike masks switch transitions (§4.4 step 6) | `pf11_21_strike` |
+| extra: filter 0 in city (capacity, arrived), a stale destination cleared, the neighbour pool off-map | `pf11_22_standard_destination`, `pf11_23_stale_destination`, `pf11_24_neighbour_pool` |
+| extra: tunnel move and the jump record | `pf11_25_tunnel` |
+| extra: flag 4 (continue) keeps the nodes and the open set | `pf11_26_continue` |
+| extra: flag 8 (park-and-ride return, §4.8.4) | `pf11_27_park_and_ride_return` |
+| extra: ApplyTraffic income with the uncarpooled count and the 24-bit accumulator add | `pf11_28_income` |
+
+Not covered by a vector, and why:
+
+- **Suspension (§4.11)** is wall-clock dependent; the spec says conformance runs use max work time 0 (test 13 uses a
+  timer that never expires). A unit test drives the scripted timer through a suspend and resume.
+- **Filter 2 (§4.10.3)** has no setter in the interface (§10 Q2); the vector world answers no occupants.
+- **Subway-station transfers (§4.8.3 step 3)** are unreachable in 1.1.641 (no code sets wormhole bit 1).
 
 ## Coverage (residential §15)
 

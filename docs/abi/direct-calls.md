@@ -141,3 +141,70 @@ therefore safe before the last Release, which would call it anyway.
 
 Callers in the original: fire `Init` `0x006AE373`, police `Init` `0x006E290D`; fire `Shutdown` `0x006AD200`,
 police `Shutdown` `0x006E0334`, and the classes' `Release` `0x006DFB03`.
+
+## STLport `map<uint32_t, 4-byte value>`: `operator[]` `0x00497A00` and subtree free `0x004A79A0`
+
+A replacement of `cISC4DemandSimulator::GetLocalPopulationSummary` (slot 11) must empty and fill a
+`std::map<uint32_t, int32_t>` that the game owns. The layout, the invariants and the original's exact contract
+are in [allocators.md](allocators.md) (*map and set*, *GetLocalPopulationSummary*). These two game functions do
+the work with the game's own code. Both bodies are shared by every game map of `uint32_t` to a 4-byte value
+(0x18-byte nodes), and both are pure container code:
+- they touch only the map in ECX, its nodes and the STL node allocator (B, `0x0090CF54` / `0x0090CF63`);
+- they make no virtual calls and take or release no references;
+- they read no other global.
+
+The allocator brackets each allocation and free with its instance's virtual slots 1 and 2 (a lock and an
+unlock *[inferred]*). **The map itself is not locked**: call them on the thread that called the plugin's method,
+as the original does.
+
+### operator[] `0x00497A00`
+
+`T& map<uint32_t, T>::operator[](const uint32_t& key)`, for any 4-byte T (`int32_t` here)
+
+| | |
+|---|---|
+| Convention | `__thiscall` |
+| `this` | the game's 12-byte map object (the reference the game passed; for slot 11, regional city + 0x3C). Never a map built by an MSVC `std::map` or by the SDK |
+| Arguments | `key`: a **pointer** to the `uint32_t` key (a reference) |
+| Pops | 4 |
+| Return | EAX = pointer to the value (node + 0x14). Write the `int32_t` through it |
+| Key present | returns the existing node's value; nothing is allocated |
+| Key absent | allocates one 0x18-byte node with B, stores (key, 0), links and rebalances it, adds 1 to the count, and returns the new value's address |
+| Frees | nothing. The map owns the new node, and the game frees it later with B |
+
+This is the call the original uses (`0x006A5FEE` and `0x006A6005` in `0x006A5F80`).
+
+Alternative: `insert_unique` `0x004FB6C0` (`__thiscall`, stack `(result* out, const pair* v)`, pop 8; EAX = `out`;
+`out+0` = node, byte `out+4` = inserted). It does not overwrite an existing key's value.
+
+### Subtree free `0x004A79A0`
+
+`void _M_erase(node* top)`: frees `top` and every node below it with B.
+
+| | |
+|---|---|
+| Convention | `__thiscall` |
+| `this` | any value: it is only passed on to the recursive calls. Pass the map object |
+| Arguments | `top`: the root, header + 4 (`header.parent`); null is allowed and does nothing |
+| Pops | 4 |
+| Return | none (EAX is garbage) |
+| Does **not** | touch the header or the count. Values are freed as raw bytes, with no destructor |
+
+To empty a map the way the original does (`0x006A5F95`–`0x006A5FB7`), do these steps when the count (map + 4) is
+not 0:
+1. call `0x004A79A0` with the header's `parent`;
+2. set header.left (+8) := header;
+3. set header.parent (+4) := null;
+4. set header.right (+0xC) := header;
+5. set the count := 0.
+
+Never free the header: the game keeps using this map object.
+
+**Judgement: safe for a plugin**, behind the usual executable check:
+- both functions keep the map in the state the game's own code leaves;
+- they allocate only from B, the allocator that the game's own clear of this map frees with (the original's
+  next call, `0x006A5FA0` → `0x004A79A0` → `0x0090CF63`);
+- they have no side effects outside the map.
+
+They require a live, consistent game map in ECX: header non-null, count equal to the number of nodes.
+`0x00497A00` must not be used on a map whose value is not 4 bytes: the `uint16_t` maps have their own `0x00699030`.

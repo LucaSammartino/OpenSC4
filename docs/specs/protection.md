@@ -46,7 +46,7 @@ releases and jailbreaks (§9). Crime events from the crime simulator become arre
 | `cIGZSerializable` `0xE4FDA3D4` | serializable sub-object (§15.5) | same |
 | Not answered | everything else → AL = 0 | same |
 | City component | slot **#25** (foundations §3.6) | slot **#33** |
-| City getter | `cISC4City` slot 57 `+0xE4` *[inferred from the SDK order; the body is a folded one-line getter]*; the game caches it in global `0x00B43D78` | `cISC4City` slot 65 `+0x104` `GetPoliceSimulator`; cached in global `0x00B43D98` |
+| City getter | `cISC4City` slot 57 `+0xE4` (`GetFireProtectionSimulator`). Its body `0x006DC690`, a folded one-line getter, returns the city's `+0x174`. The new-city path creates that member as class `0x2990C05A` / IID `0x88F54C7B` (`0x0045ADF7`), and the city `Read` fills it from component ref #25 (`0x0045CEDB`). The game caches it in global `0x00B43D78` (`0x00601E8A`) | `cISC4City` slot 65 `+0x104` `GetPoliceSimulator`; cached in global `0x00B43D98` |
 | Init order (foundations §3.7) | after crime, before flammability | after land value, before traffic |
 | Object size | 0x108 bytes (factory `0x006ADB80`) | 0x168 bytes (factory `0x006E2720`) |
 
@@ -879,6 +879,22 @@ All are posted (queued) through the message server with `cRZMessage2Standard`.
 | Coverage-radius helper | police 22 / fire 7, `GetPoliceStations` / `GetFireStations`, `GetOccupantCoverage` with p = 0.5 (fallback radius 32) |
 | Map view (`cSC4WinMapView::Update`) | both adjusted grids **raw** through `GetGridData() const` |
 | Map highlights | `GetFireStations`, `GetPoliceStations` |
+
+**Threads** *[inferred]*. The original has no locking (foundations §19.1). Every one of the 79 reads of the two
+globals sits in a function of one of these kinds:
+
+- a simulator agent or message handler;
+- a view input control (query, lot placement);
+- a UI window (budget, map view);
+- an automaton (fire truck, patrol car, getaway van);
+- the disaster layer, the advisors, a MySim;
+- the coverage-radius helper or the city-init/shutdown cache fill.
+
+All of these are driven from the main thread. The one off-main caller measured so far, `IsPaused` on a game thread
+(foundations §19.2), fits the ambience sound system. Its condition objects (evaluators `0x004E2AA0`–`0x004E2CB0`,
+for example `0x004E2C20` = `IsPaused() and not IsEmergencyPaused()`) read only the simulator global `0x00B43D5C`
+and view globals, never `0x00B43D78` or `0x00B43D98`. So no protection slot is known to be called off the main
+thread, and a replacement's off-main fallbacks are not original behaviour.
 
 ### 13.2 Replaceability findings
 

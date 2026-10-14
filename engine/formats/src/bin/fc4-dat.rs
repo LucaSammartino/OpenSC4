@@ -172,13 +172,15 @@ fn exemplar<S: fc4_formats::Source>(
         "{kind} {key} ({:?}), parent {}, {} properties",
         ex.encoding,
         ex.parent,
-        ex.properties.len()
+        ex.properties().len()
     );
     if key.type_id != TYPE_EXEMPLAR && key.type_id != TYPE_COHORT {
         eprintln!("note: type {:08X} is not the exemplar or cohort type", key.type_id);
+    } else if let Err(e) = Exemplar::parse_record(key.type_id, &data) {
+        eprintln!("note: the game's factory would reject this record: {e}");
     }
     if !resolve {
-        for p in &ex.properties {
+        for p in ex.properties() {
             print_prop(o, 0, p)?;
         }
         return Ok(());
@@ -195,8 +197,14 @@ fn exemplar<S: fc4_formats::Source>(
     match end {
         ChainEnd::Root => say!(o, "  chain complete"),
         ChainEnd::Missing(t) => say!(o, "  parent {t} is not in this file; inherited values stop there"),
+        ChainEnd::NotCohort(t) => say!(o, "  parent {t} is not a cohort; inherited values stop there"),
         ChainEnd::Cycle(t) => say!(o, "  parent chain loops back to {t}"),
         ChainEnd::TooDeep => say!(o, "  parent chain too deep"),
+    }
+    // The game's rule (data-formats §4.2): a parent that does not load fails the whole exemplar.
+    match store.load(&key) {
+        Ok(_) => say!(o, "  loads with this file alone"),
+        Err(e) => say!(o, "  does not load with this file alone: {e}"),
     }
     for (depth, p) in store.resolved_properties(&ex) {
         print_prop(o, depth, p)?;

@@ -327,12 +327,34 @@ The full table is in the data files. FreeCity4 must not embed it.
 | `UpdateOccupantEffects(buildingType, oldPct, newPct)` | If `oldPct ≠ newPct`: **AddAgentEffect(buildingType, remove, oldPct)**, then **AddAgentEffect(buildingType, add, newPct)** (§7.1). Re-scales a building's demand effects, for example when its funding or effectiveness changes. *[compat]* The SDK declares the first parameter as `SC4Percentage` by value. It is really the `uint32` building type (same size and slot). |
 | `CalculateJobsPerUnitOfDemand(float out[3], demandID, demandIndex)` | Set `out[0..2] := 0`. Load the exemplar `0x6534284A / 0xC7BB4816 / (demandID + demandIndex)` from the resource manager (the current data, not the link table). For each Drives pair `(target, percent)`: if `target = demandIndex + 0x2010` then `out[0] := percent / 100`; `+0x2020` → `out[1]`; `+0x2030` → `out[2]`. Missing exemplar or property: all zero. |
 | `GetJobsBySensus(type)` | 0 if `type` ∈ {`0x1011`, `0x1021`, `0x1031`}. Otherwise `CalculateJobsPerUnitOfDemand(j, type, 0)`; `x := (j0 + j1 + j2) · node[type].supply`; return `x ≤ 0 ? 0 : trunc(x)` as uint32. *[choice]* A missing node returns 0 (the original crashes). |
-| `GetNeutralTaxRate()` | `curveNeutral(node[0x1001].supply + node[0x3001].supply + node[0x4001].supply)` (§11.1), **unclamped**. *[choice]* If the curve is absent or a node is missing, its term is 0 and an absent curve yields 0 (the original crashes). |
-| `GetLocalPopulationSummary(map<uint32,int32>&)` | Clear the map. For each node in key order: regionUse 1 → `map[key] := trunc(supply)`; regionUse 2 → `map[key] := trunc(demand)`; others skipped. This is the per-city summary the region view stores for neighbours *[inferred]*. |
+| `GetNeutralTaxRate()` | `curveNeutral(s)` (§11.1), **unclamped**, with `s := f32(f32(I + C) + R)`, where `I`, `C`, `R` are `node[0x4001]`, `node[0x3001]`, `node[0x1001]` `.supply`. The sum is evaluated **I + C first, then + R**, each addition rounded to `float32` (below). *[choice]* If the curve is absent or a node is missing, its term is 0 and an absent curve yields 0 (the original crashes). |
+| `GetLocalPopulationSummary(map<uint32,int32>&)` | Clear the map. For each node in key order: regionUse 1 → `map[key] := trunc(supply)`; regionUse 2 → `map[key] := trunc(demand)`; others skipped. This is the per-city summary the region view stores for neighbours *[inferred]*. The game's map layout, the original's insert and a worked example: [docs/abi/allocators.md](../abi/allocators.md) *map and set*, *GetLocalPopulationSummary*. |
 
 "Curve" means a response curve (§11.1).
 
-## 6. Census
+**`GetNeutralTaxRate` arithmetic** *[compat]* (`0x006A3DD0`). The original looks up the three nodes in the order
+`0x1001`, `0x3001`, `0x4001`, and stores the first two supplies to `float32` locals. `QuerySupplyValue`
+(`0x005D4C40`) loads the `float32` member, so each value is an exact `float32`. The third supply stays in ST0. The
+original then adds the `0x3001` local and then the `0x1001` local (`FADD dword`, `0x006A3E39`, `0x006A3E3D`), and
+stores the sum to `float32`. On the main thread's 24-bit x87 precision (foundations §18), each `FADD` rounds to a
+24-bit significand. So the sum is two `float32` additions, in the order **(I + C) + R**. It is neither R + C + I
+nor one rounding of the exact sum. The curve then evaluates as three `float32` operations (foundations §4.3,
+`0x005F4250`) and returns in ST0. The caller stores it to `float32` (§8.1).
+
+Worked example (run 73, the demand shadow's one mismatch): R = 27207 (`0x46D48E00`), C = 2569.47998
+(`0x452097AE`), I = 10583.1006 (`0x46255C67`).
+
+| Step | Exact | `float32` result |
+|---|---|---|
+| I + C | 13152.58056640625, an exact tie between two `float32`s | 13152.580078125 (`0x464D8252`), to even |
+| + R | 40359.580078125, again an exact tie | **40359.578125** (`0x471DA794`), to even |
+| curve segment 0: (0, 9.0) to (150000, 8.9f), slope `0xB532F529` (−6.6666922e−7) | `(s − 0) · slope` = `0xBCDC6AFF`, then `9.0 +` | **8.97309399** (`0x410F91CB`) |
+
+Summing R + C + I instead gives 29776.48046875, then 40359.58203125 (`0x471DA795`), and the result is 8.97309303
+(`0x410F91CA`), 1 ulp lower. One rounding of the exact sum (40359.58056640625, as an extended-precision x87 would
+give) rounds to the same `0x471DA795`. Only the original's order with two `float32` roundings gives
+`0x410F91CB`. This also confirms that the main thread was at 24-bit precision in that run.
+
 
 ### 6.1 State
 
@@ -392,6 +414,7 @@ Notes *[compat]*:
   contributes once per cell it covers, unless `GetCapacity` itself returns a per-cell share (§15 Q3). FreeCity4 must
   reproduce the per-cell visit and use whatever the lot interface returns.
 - `GetCellWorkforcePercent` returns a fraction (0…1) despite its name *[inferred from the residential spec notes]*.
+- The profile fields used here (`purpose` at +0x00) and the whole profile: [docs/abi/layouts.md](../abi/layouts.md) *Building profile*.
 
 ### 6.4 Applying the census
 
@@ -458,6 +481,8 @@ if node devType exists: node.AddToSupplyValue(occupied ? +c : −c)
 ```
 
 So the supply of a local R$/CS$/… node is the total capacity of occupied (or constructing) buildings of that type.
+
+The profile and its capacity list (offsets, element type, who fills it, a worked example): [docs/abi/layouts.md](../abi/layouts.md) *Building profile*, *How `UpdateCapacity` reads it*.
 
 ## 8. Monthly modifiers and cap relief
 

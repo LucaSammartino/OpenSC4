@@ -17,6 +17,7 @@
 #include "FC4Checked.h"
 #include "FC4Config.h"
 #include "FC4BudgetShadow.h"
+#include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
@@ -29,6 +30,11 @@
 #include "cFC4Flammability.h"
 #include "FC4PollutionShadow.h"
 #include "cFC4Pollution.h"
+#include "FC4ProtectionShadow.h"
+#include "cFC4Protection.h"
+#include "cFC4Crime.h"
+#include "FC4AuraShadow.h"
+#include "cFC4Aura.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -131,6 +137,23 @@ const ClassEntry kPollutionClasses[] = {
     {0x8990C065, "cSC4PollutionSimulator", &CreateFC4PollutionSimulator},
 };
 
+// docs/specs/protection.md §1, §13.2. Off by default (M3 glue trial):
+// `enable = protection` replaces both simulators together ([choice] §13.2).
+const ClassEntry kProtectionClasses[] = {
+    {0x2990C05A, "cSC4FireProtectionSimulator", &CreateFC4FireProtectionSimulator},
+    {0x6990C04F, "cSC4PoliceSimulator", &CreateFC4PoliceSimulator},
+};
+
+// docs/specs/crime.md §1. Off by default (M3 glue trial): `enable = crime`.
+const ClassEntry kCrimeClasses[] = {
+    {0x8990C09A, "cSC4CrimeSimulator", &CreateFC4CrimeSimulator},
+};
+
+// docs/specs/aura.md §1. Off by default (M3 glue trial): `enable = aura`.
+const ClassEntry kAuraClasses[] = {
+    {0x0990BDD8, "cSC4AuraSimulator", &CreateFC4AuraSimulator},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -144,6 +167,9 @@ const Subsystem kSubsystems[] = {
     {"flammability", nullptr, kFlammabilityClasses, sizeof(kFlammabilityClasses) / sizeof(kFlammabilityClasses[0]),
      false},
     {"pollution", nullptr, kPollutionClasses, sizeof(kPollutionClasses) / sizeof(kPollutionClasses[0]), false},
+    {"protection", nullptr, kProtectionClasses, sizeof(kProtectionClasses) / sizeof(kProtectionClasses[0]), false},
+    {"crime", nullptr, kCrimeClasses, sizeof(kCrimeClasses) / sizeof(kCrimeClasses[0]), false},
+    {"aura", nullptr, kAuraClasses, sizeof(kAuraClasses) / sizeof(kAuraClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -229,10 +255,21 @@ void Resolve() {
     // kSubsystems[0] is the simulator, [1] the budget, [5] demand.
     BudgetShadowStartup(g_enabled[0], g_enabled[1]);
     DemandShadowStartup(g_enabled[0], g_enabled[5]);
-    // The pollution shadow (FC4PollutionShadow.h), by key.
+    // The pollution shadow (FC4PollutionShadow.h) and the protection grid shadow
+    // (FC4ProtectionShadow.h; it compares the original simulators), by key.
     for (size_t i = 0; i < kSubsystemCount; ++i) {
         if (strcmp(kSubsystems[i].key, "pollution") == 0) PollutionShadowStartup(g_enabled[0], g_enabled[i]);
+        if (strcmp(kSubsystems[i].key, "protection") == 0) ProtectionShadowStartup(g_enabled[i]);
     }
+    const auto enabledKey = [](const char* key) {
+        for (size_t i = 0; i < kSubsystemCount; ++i) {
+            if (strcmp(kSubsystems[i].key, key) == 0) return g_enabled[i];
+        }
+        return false;
+    };
+    CrimeShadowStartup(g_enabled[0], enabledKey("crime"));
+    // The aura grid shadow (FC4AuraShadow.h; it compares the original aura simulator).
+    AuraShadowStartup(enabledKey("aura"));
 }
 
 }  // namespace

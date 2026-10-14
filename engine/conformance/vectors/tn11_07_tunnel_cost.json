@@ -28,7 +28,7 @@
           3.5
         ]
       ],
-      "note": "Car on Road 31 (§4.8 example); Walk on Road 3.5, inferred from the stated Walk cost; PassengerTrain on Road has no speed"
+      "note": "shipped speeds (test 7, traffic-simulator.md 4.14, TN20): Car on Road 31, Walk on Road 3.5, PassengerTrain on Road 0"
     },
     {
       "op": "tn_init"

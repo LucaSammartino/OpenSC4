@@ -1,0 +1,156 @@
+{
+  "format": 1,
+  "name": "pf11_28_income",
+  "spec": [
+    "pathfinder 4.17"
+  ],
+  "description": "Extra (§4.17 step 4 and the final add). incomePerTile[Car] = 0.5, carpool on: each in-city route cell adds r24(arrived x 0.5) = 5.0 with the uncarpooled count 10, so I = 15.0; the accumulator 1/3 becomes r24(15.0 + 1/3) = 15.333333f, stored as a double (0x402EAAAAA0000000). Volumes use the carpooled 8.",
+  "steps": [
+    {
+      "op": "pf_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "the preamble street (0,3)...(4,3)"
+    },
+    {
+      "op": "pf_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "note": "the start lot"
+    },
+    {
+      "op": "pf_env",
+      "income_per_tile": [
+        [
+          1,
+          0.5
+        ]
+      ],
+      "carpool": true,
+      "income": 0.3333333333333333
+    },
+    {
+      "op": "pf_create"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_travel_type_flag",
+      "args": [
+        2,
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_starting_cost_array",
+      "args": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_route_info",
+      "args": [
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_traffic_density",
+      "args": [
+        10
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 1
+    },
+    {
+      "op": "pf_call",
+      "method": "apply_traffic",
+      "args": [
+        0
+      ]
+    },
+    {
+      "op": "pf_expect_world",
+      "state": {
+        "income": "0x402EAAAAA0000000",
+        "volumes": [
+          [
+            1,
+            2,
+            3,
+            "0x41000000"
+          ],
+          [
+            1,
+            3,
+            3,
+            "0x41000000"
+          ],
+          [
+            1,
+            4,
+            3,
+            "0x41000000"
+          ]
+        ]
+      }
+    }
+  ]
+}

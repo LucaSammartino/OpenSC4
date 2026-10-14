@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "name": "nb18_10_proposals",
+  "spec": ["neighbors 7.1", "neighbors 12", "neighbors 18"],
+  "description": "Conformance test 10, with the shipped tuning (term 1..1 years, budget > 5000 and > 60 x cost). Only a sell-power deal (E1) to W can be proposed: our power pole is active, W has no matching connection (so E0 is unsuitable) and there are no pipes or roads. With our power cost per unit 0 the cost is 0: W's budget 5000 gives no proposal, 5000.5 gives one: type E1, other side W's cell (2,3), city side ours (3,3), amount 0 and cost 1, currentDate = startDate = today (1007), expirationDate = today + 365, Proposed + Silent, not added. With cost per unit 1.0 (5001 / (5000 + 0 + 1)) GetDealCost(E1, 1000, W) = 1311.43: a budget of 78684 (<= 60 x cost) gives none, 78687 gives one. Added (add = true): the deal joins the list (not Silent, amount 0, cost 1) and a second round proposes nothing because a deal of that type with W exists. Not ready: nothing.",
+  "steps": [
+    {"op": "neighbors_env", "current": 1, "today": 1000, "figures": {"power_production": 5000, "power_requirement": 1000, "power_department_expenses": 0}},
+    {"op": "neighbors_city", "id": 1, "pos": [3, 3], "size": [1, 1]},
+    {"op": "neighbors_city", "id": 2, "pos": [1, 3], "size": [2, 2], "budget": 5000, "stats": {"demanded": [2000, 0, 0]}},
+    {"op": "neighbors_create", "ready": false},
+    {"op": "neighbors_call", "method": "create_connection", "args": ["power_pole", -1, 5, false], "expect": true},
+    {"op": "neighbors_city", "id": 2, "budget": 1e9},
+    {"op": "neighbors_call", "method": "propose_deals", "args": [false], "expect": []},
+    {"op": "neighbors_message", "type": "0x6AC284F3"},
+    {"op": "neighbors_expect", "state": {"ready": true, "rng": null}},
+
+    {"op": "neighbors_city", "id": 2, "budget": 5000},
+    {"op": "neighbors_call", "method": "propose_deals", "args": [false], "expect": []},
+    {"op": "neighbors_city", "id": 2, "budget": 5000.5},
+    {"op": "neighbors_env", "today": 1007},
+    {"op": "neighbors_call", "method": "propose_deals", "args": [false], "expect": [1000]},
+    {"op": "neighbors_expect", "deal": 1000, "deal_state": {"type": "0x4773FFE1", "other_side": [2, 3], "city_side": [3, 3], "amount": 0, "cost": 1, "current": 1007, "start": 1007, "expiration": 1372, "flags": "0x81", "in_list": false}},
+    {"op": "neighbors_expect", "deals": []},
+
+    {"op": "neighbors_env", "figures": {"power_department_expenses": 5001}},
+    {"op": "neighbors_call", "method": "update_commodity_stats", "args": [1]},
+    {"op": "neighbors_expect", "city": 1, "city_state": {"cost_per_unit": [1.0, 0.00001, 0.00001]}},
+    {"op": "neighbors_call", "method": "get_deal_cost", "args": ["E1", 1000, 2], "expect": 1311.4286},
+    {"op": "neighbors_city", "id": 2, "budget": 78684},
+    {"op": "neighbors_call", "method": "propose_deals", "args": [false], "expect": []},
+    {"op": "neighbors_city", "id": 2, "budget": 78687},
+    {"op": "neighbors_call", "method": "propose_deals", "args": [false], "expect": [1001]},
+
+    {"op": "neighbors_env", "figures": {"power_department_expenses": 0}},
+    {"op": "neighbors_city", "id": 2, "budget": 1e9},
+    {"op": "neighbors_call", "method": "propose_deals", "args": [true], "expect": [1002]},
+    {"op": "neighbors_expect", "deals": [1002]},
+    {"op": "neighbors_expect", "deal": 1002, "deal_state": {"type": "0x4773FFE1", "amount": 0, "cost": 1, "current": 1007, "start": 1007, "expiration": 1372, "in_list": true}},
+    {"op": "neighbors_deal_call", "deal": 1002, "method": "check_flags_or", "args": ["0x80"], "expect": false},
+    {"op": "neighbors_call", "method": "find_deals", "args": ["E1"], "expect": [1002]},
+    {"op": "neighbors_call", "method": "propose_deals", "args": [true], "expect": []},
+    {"op": "neighbors_call", "method": "propose_deals", "args": [false], "expect": []}
+  ]
+}

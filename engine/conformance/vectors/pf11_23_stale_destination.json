@@ -1,0 +1,182 @@
+{
+  "format": 1,
+  "name": "pf11_23_stale_destination",
+  "spec": [
+    "pathfinder 4.10.1"
+  ],
+  "description": "Extra (filter 0, a full destination): as pf11_22 with used = max = 5. CheckDestinationCapacity fails, so bit 0 is cleared over the lot and the free count goes 1 -> 0; the search goes on, finds nothing else (the exit node at (-1,3) has no neighbour pool) and returns 0.",
+  "steps": [
+    {
+      "op": "pf_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "the preamble street (0,3)...(4,3)"
+    },
+    {
+      "op": "pf_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "note": "the start lot"
+    },
+    {
+      "op": "pf_env",
+      "free": [
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "pf_lot",
+      "id": 2,
+      "rect": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "holder": 202,
+      "max": [
+        5,
+        0,
+        0,
+        0
+      ],
+      "used": [
+        5,
+        0,
+        0,
+        0
+      ],
+      "dest": 1
+    },
+    {
+      "op": "pf_create"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_travel_type_flag",
+      "args": [
+        2,
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_starting_cost_array",
+      "args": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_route_info",
+      "args": [
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_traffic_density",
+      "args": [
+        10
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        0
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_destination_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_expect_world",
+      "state": {
+        "dest": [
+          [
+            4,
+            4,
+            0
+          ]
+        ],
+        "free": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "get_traffic_arrived",
+      "expect": 0
+    }
+  ]
+}

@@ -342,7 +342,8 @@ int32_t PowerPlantCount(void*, int32_t type) {
 uint32_t PoliceStationCount(void*) {
     cISC4City* c = City();
     cISC4PoliceSimulator* p = c ? c->GetPoliceSimulator() : nullptr;
-    return p ? p->GetPoliceStationCount() : 0;
+    // Slot 24, through the verified declaration (protection.md §15.2).
+    return p ? fc4::AsGame(p)->GetPoliceStationCount() : 0;
 }
 
 // §3.6 TrashPresort: the getter returns a POINTER to an f32 fraction in EAX

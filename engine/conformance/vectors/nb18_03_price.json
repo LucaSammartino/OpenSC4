@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "nb18_03_price",
+  "spec": ["neighbors 8.1", "neighbors 8.3", "neighbors 12", "neighbors 18"],
+  "description": "Conformance test 3. A power buy of 100 with buyer demanded 500, exported 0, produced 300, imported 0 and seller produced 2000, imported 0, demanded 1000, exported 0, cost per unit 2.0; base 1000, scale 2.5, markups 0.1 / 0.5 (f32 values read as f64): with the scarcity curve unit 2.6314286, cost trunc 263; with the garbage curve unit 2.2150418, cost 221. Below 1e-8 the cost is 0. Through the simulator after Init (scarcity curve loaded): GetDealCost(E0, 100, W) = 263.14..., a deal of 100 in the list is its own `existing` deal (the first of FindDeals(E0, W)), so its UpdateCost prices x1 = -2.99, x2 = 0.5 and stores trunc(262.857) = 262; [choice] unknown types and a null city price at 0.",
+  "steps": [
+    {"op": "neighbors_price", "amount": 100, "curve": "scarcity",
+     "buyer": {"demanded": 500, "exported": 0, "produced": 300, "imported": 0},
+     "seller": {"produced": 2000, "imported": 0, "demanded": 1000, "exported": 0, "cost_per_unit": 2.0},
+     "inputs": {"base": 1000, "scale": 2.5, "min_markup": 0.1, "max_markup": 0.5},
+     "expect_unit": 2.6314286, "expect_trunc": 263},
+    {"op": "neighbors_price", "amount": 100, "curve": "garbage",
+     "buyer": {"demanded": 500, "exported": 0, "produced": 300, "imported": 0},
+     "seller": {"produced": 2000, "imported": 0, "demanded": 1000, "exported": 0, "cost_per_unit": 2.0},
+     "inputs": {"base": 1000, "scale": 2.5, "min_markup": 0.1, "max_markup": 0.5},
+     "expect_unit": 2.2150418, "expect_trunc": 221},
+    {"op": "neighbors_price", "amount": 1e-9, "curve": "scarcity",
+     "buyer": {"demanded": 500, "produced": 300},
+     "seller": {"produced": 2000, "demanded": 1000, "cost_per_unit": 2.0},
+     "inputs": {"base": 1000, "scale": 2.5, "min_markup": 0.1, "max_markup": 0.5},
+     "expect": 0},
+
+    {"op": "neighbors_env", "current": 1},
+    {"op": "neighbors_city", "id": 1, "pos": [3, 3], "size": [1, 1], "stats": {"demanded": [500, 0, 0], "exported": [0, 0, 0], "produced": [300, 0, 0], "imported": [0, 0, 0]}},
+    {"op": "neighbors_city", "id": 2, "pos": [1, 3], "size": [2, 2], "stats": {"produced": [2000, 0, 0], "imported": [0, 0, 0], "demanded": [1000, 0, 0], "exported": [0, 0, 0], "cost_per_unit": [2.0, 0, 0]}},
+    {"op": "neighbors_create"},
+    {"op": "neighbors_call", "method": "get_deal_cost", "args": ["E0", 100, 2], "expect": 263.14286},
+    {"op": "neighbors_call", "method": "get_deal_cost_trunc", "args": ["E0", 100, 2], "expect": 263},
+    {"op": "neighbors_deal", "id": 1, "type": "E0", "other": 2, "amount": 100, "flags": 2},
+    {"op": "neighbors_deal_call", "deal": 1, "method": "update_cost"},
+    {"op": "neighbors_expect", "deal": 1, "deal_state": {"cost": 262}},
+    {"op": "neighbors_call", "method": "get_deal_cost", "args": ["0x1234", 100, 2], "expect": 0},
+    {"op": "neighbors_call", "method": "get_deal_cost", "args": ["E0", 100, null], "expect": 0}
+  ]
+}

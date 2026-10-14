@@ -41,6 +41,11 @@
 //   demand_shadow = 0 / 1         the demand shadow differential (default 0;
 //                                 needs the original demand; FC4DemandShadow.h)
 //   demand_shadow_nodes = N       its node lines per mismatched day (default 8)
+//   crime_shadow = 0 / 1          the crime grid shadow (default 0; needs the
+//                                 original crime simulator; FC4CrimeShadow.h)
+//   crime_shadow_cells = N        its differing cells listed per month (default 8)
+//   crime_seed = N                the crime generator's session seed (default:
+//                                 the local wall clock; cFC4Crime.cpp)
 //   popup_dialogs = 0 / 1         unattended runs: 0 = cISC4App::SetPopupDialogsEnabled(false)
 //                                 once per process (advisor popups dropped without
 //                                 the hidden pause, generic dialogs answer without
@@ -50,6 +55,12 @@
 //   pollution_shadow = 0 / 1      the pollution grid shadow (default 0; needs the
 //                                 original pollution simulator; FC4PollutionShadow.h)
 //   pollution_shadow_cells = N    its differing cells listed per grid (default 4)
+//   protection_shadow = 0 / 1     the fire / police grid shadow (default 0; needs
+//                                 the ORIGINAL protection simulators: do not enable
+//                                 protection; FC4ProtectionShadow.h)
+//   aura_shadow = 0 / 1           the aura grid shadow (default 0; needs the ORIGINAL
+//                                 aura simulator: do not enable aura; FC4AuraShadow.h)
+//   aura_shadow_cells = N         its differing tracts listed per grid (default 4)
 //   flora_shadow = 0 / 1          the flora census shadow (default 0; needs the
 //                                 original flora simulator; FC4FloraShadow.h)
 //
@@ -159,6 +170,63 @@ enum class Sw : unsigned {
     PollutionPopulation,  // pollution_population: the residential simulator's GetPopulation (off: 0)
     PollutionProps,       // pollution_props: Add / RemovePropRequester on the prop developer
     PollutionTerrain,     // pollution_terrain: terrain altitude reads (off: 0)
+    // Fire and police protection host callbacks (cFC4Protection.cpp), one per
+    // group of game calls; only used when the protection subsystem is enabled.
+    ProtectionOccupants,   // protection_occupants: occupant type, properties (reads and writes),
+                           //   position, the prop QI, lots (road access, the crime message's lot)
+                           //   (off: occupants look empty, no lot)
+    ProtectionBudget,      // protection_budget: departments, budget items, locally funded objects
+                           //   (off: no department, no budget item)
+    ProtectionDispatch,    // protection_dispatch: the dispatch manager (register / unregister the
+                           //   dispatch source, dispatch counts, IDs and records) (off: no dispatches)
+    ProtectionAutomata,    // protection_automata: Add / RemoveControllersFromOccupantGroup
+    ProtectionGridWrites,  // protection_grid_writes: SetTractValue / SetTractValues on the two grids
+    ProtectionPosts,       // protection_posts: the messages the protection simulators post
+    ProtectionHistory,     // protection_history: RecordHistoryData
+    ProtectionAirSources,  // protection_air_sources: create the fire plane / police helicopter
+                           //   dispatch source through GZCOM and call its non-virtual Init /
+                           //   Shutdown (docs/abi/direct-calls.md; identified executable only)
+    // Crime simulator host callbacks (cFC4Crime.cpp), one per group of game
+    // calls; only used when the crime subsystem is enabled.
+    CrimeLots,         // crime_lots: lot manager and lot calls (GetRandomLot, GetLot, bounding rect,
+                       //   location, condition, building, GetCenter) (off: no lot, so no crime)
+    CrimePolice,       // crime_police: police grid, GetJailPopulation, ResetUnjailedCriminals,
+                       //   ProcessMonthlyCrimeStats (off: no coverage, 0 jailed, 0 released)
+    CrimeResidential,  // crime_residential: GetPopulationGrids / GetEQGrids (off: empty census)
+    CrimeDemand,       // crime_demand: GetDemand active value / max / min (off: absent)
+    CrimeOrdinance,    // crime_ordinance: GetCumulativeFactor (off: the factor stays as it is)
+    CrimeOccupants,    // crime_occupants: occupant properties and position, the nearest-occupant box
+                       //   query (off: no crime effect, no nearest crime sim / prop)
+    CrimeFire,         // crime_fire: disaster layer, IgniteOccupant / SetCause (off: arson starts no fire)
+    CrimeProps,        // crime_props: AddPropRequester, GetPropProfile (off: not registered; every prop generic)
+    CrimePosts,        // crime_posts: the crime-committed and crime-map-updated messages
+    CrimeGridWrites,   // crime_grid_writes: SetTractValue / SetTractValues on the two crime grids
+    CrimeZoning,       // crime_zoning: GetZoneType (off: unzoned, so no crime type matches a zone mask)
+    // Demand simulator (cFC4Demand.cpp); only used when the demand subsystem is enabled.
+    DemandCapacity,        // demand_capacity: read the building profile's capacity maps (§7.2;
+                           //   plain reads, any executable) (off: no capacity, as before)
+    DemandDirectCalls,     // demand_direct_calls: fill GetLocalPopulationSummary's map with the
+                           //   game's map functions (docs/abi/direct-calls.md; identified executable
+                           //   only) (off: the caller's map is left untouched)
+    // Aura simulator host callbacks (cFC4Aura.cpp), one per group of game
+    // calls; only used when the aura subsystem is enabled.
+    AuraLots,         // aura_lots: lot count, the lot walk (GetLot per cell), bounding rect, zone,
+                      //   wealth, building (off: no lots; the cycle ends at state 4)
+    AuraPopulations,  // aura_lot_populations: GetPopulation(type) (lot slot 53) for the twelve
+                      //   developer types (off: no pairs, every lot -128)
+    AuraOccupants,    // aura_occupants: occupant HasProperty / properties / type / position
+                      //   (off: occupants look empty)
+    AuraBudget,       // aura_budget: GetBudgetItemForPurpose, department funding, tax rates
+                      //   (off: no department, funding missing, tax rate 0)
+    AuraOrdinance,    // aura_ordinance: GetCumulativeOffset (off: 0)
+    AuraLandValue,    // aura_land_value: GetLandValueType (off: 0)
+    AuraInputs,       // aura_inputs: the other simulators' grids (pollution, grade maps, crime,
+                      //   traffic, population grids) (off: none, the stages are skipped)
+    AuraGridWrites,   // aura_grid_writes: SetTractValue / SetTractValues on the aura's grids
+    AuraPosts,        // aura_posts: the cycle-completed message
+    AuraHistory,      // aura_history: RecordHistoryData of the mayor rating
+    AuraDisaster,     // aura_disaster: the riot manager's AttemptDisasterStart
+    AuraStrikes,      // aura_strikes: police / fire EndStrike, residential End*Strike (BustStrike)
     // Flora simulator host callbacks (cFC4Flora.cpp), one per group of game
     // calls; only used when the flora subsystem is enabled.
     FloraOccupants,  // flora_occupants: occupant type, property, position, box, flag 1, network flags,

@@ -126,20 +126,105 @@ record is a C block with a B (or null) family buffer and a counted (or null) exe
 can free it, or the plugin keeps one reference for the life of the process, so that no game Release ever sees a
 count of 1 or less.
 
-## Building profile header (`cISC4BuildingOccupant::BuildingProfile`)
+## Building profile (`cISC4BuildingOccupant::BuildingProfile`, 0x40 bytes)
 
-`cISC4BuildingOccupant::GetBuildingProfile` (compiled slot 11, `+0x2C`, body `0x00459250`) returns a reference to
-the building **type's** shared profile. It forwards to `cISC4BuildingDevelopmentSimulator` compiled slot 39
-(`+0x9C`, `0x0069CA60`) with the building type. That call inserts a zero profile for an unknown type
-(allocators.md). Read only; never free or modify it.
+There is one profile per **building type**, shared by every building of that type and by every city. Two calls
+hand it out:
+- `cISC4BuildingDevelopmentSimulator::GetBuildingProfile(uint32 type)` (compiled slot 39, `+0x9C`, `0x0069CA60`,
+  pop 4) returns a reference in EAX. It inserts a zero profile for an unknown type.
+- `GetBuildingProfilePtr(type)` (slot 40, `+0xA0`, `0x006985C0`, pop 4) returns a pointer, or null for an unknown
+  type.
 
-| Offset | Type | Field (SDK name) | Read by |
-|---|---|---|---|
-| +0x00 | uint32 | `purpose` (`PurposeType`, 0..9) | `cSC4BudgetSimulator::ComputeTax` `0x00691F04` (table row) |
-| +0x04 | uint32 | `wealth` (`WealthType`, 0..3) | `ComputeTax` `0x00691FC9` (waning-wealth index) |
+`cISC4BuildingOccupant::GetBuildingProfile` (compiled slot 11, `+0x2C`, `0x00459250`) forwards to slot 39 with the
+occupant's type (occupant + 0x38). When the BDS global is null, it returns a static zero profile instead. **Read
+only**: never free or modify a profile.
 
-The SDK struct has these two fields at these offsets (both enums are `uint32_t`). Its later fields were not
-checked here.
+Both BDS calls ignore `this`. The profiles live in one process-wide STLport `hash_map<uint32_t, BuildingProfile>`
+at `0x00B48584` (the 0x14-byte hash table of allocators.md *hash_set*: bucket vector at `0x00B48588`–`0x00B48590`,
+count at `0x00B48594`, identity hash).
+- Each entry is a **0x50-byte B node**: next pointer at +0x00, the key (the building type) at +0x08, and the
+  profile at **+0x10** (the pair is 8-aligned because of the `int64` fields). Allocation `0x0069B683`; the profile
+  is copied in by the copy constructor `0x004D1230`.
+- A profile does not move while it exists: inserting other types only relinks nodes.
+- When a type's exemplar is loaded again, `LoadBuildingProperties` replaces its profile:
+  - with its last argument false, it first erases the entry (`0x0069BF29` → `0x0069B550`), so a new node is made;
+  - otherwise it assigns over the old profile in place, which reallocates the capacity vector (`0x0069C098`).
+
+  A held pointer or reference is therefore valid only until the type is reloaded *[inferred: reloads happen while
+  the catalogue is built (`AddBuildingData` `0x0069D0FF`), not during a simulation tick]*.
+
+| Offset | Size | Type | Field | Filled from (`LoadBuildingProperties` `0x0069B910`) | Read by (examples) |
+|---|---|---|---|---|---|
+| +0x00 | 4 | uint32 | `purpose` (`PurposeType`, 0..9; 0 = none) | property `0x27812833` (uint8, zero-extended); absent → 0 (`0x0069BB9F`) | `cSC4BudgetSimulator::ComputeTax` `0x00691F04`; demand `UpdateCapacity` `0x006A2C96` and `PerformCensus` `0x006A5A5D`; BDS `CalculateMaxCapacity` `0x0069C7B9` and `DoBuildingChanged` `0x0069CACC`; `cSC4Lot::SetState` `0x006C3157`; `cSC4Lot::UpdateNeedsPower` `0x006BFD74`; `cSC4GrowthDeveloper::UpdatePopulationCount` `0x006B51E0` |
+| +0x04 | 4 | uint32 | `wealth` (`WealthType`, 0..3) | property `0x27812832` (uint8); outside 0..3 → 0 with a debug message; absent → 0 (`0x0069BAFF`) | `ComputeTax` `0x00691FC9`; `DoBuildingChanged` `0x0069CB47`; `UpdateNeedsPower` `0x006BFD7A` |
+| +0x08 | 2 | uint16 | **capacity**: the entry for this building's own developer type, `GetDeveloperType(purpose, wealth)`, in the capacity map; 0 when that key is absent or the property is missing | `0x0069BCA7`–`0x0069BCAA`, `0x0069BCF2` | `CalculateMaxCapacity` `0x0069C7C6`; `cSC4Lot::SetState` `0x006C3160` (releases construction resources); tract developer `Build` (building-development.md §4.6) |
+| +0x0A | 1 | uint8 | construction duration in days | property `0x499AFA38` (uint8); absent → 30 (`0x0069BD45`) | lot developer construction (lot-developer.md §6.7.4) |
+| +0x0B | 1 | | padding | | |
+| +0x0C | 4 | `map*` | capacity maps: vector `begin` | property `0x27812834` (below) | demand `UpdateCapacity` `0x006A2CB0`; `cSC4Lot::GetCapacity` `0x006C05D9`; `GetAvailableCapacity` `0x006C068C`; `GetOccupancy` `0x006C0D27`; `GetOccupancyByType` `0x006C1158`; `SetPopulation` `0x006C1980`; `SetState` `0x006C31F3` (copies each map into the lot) |
+| +0x10 | 4 | `map*` | vector `end` | | the same |
+| +0x14 | 4 | `map*` | vector `capacity_end` | | |
+| +0x18 | 1 | bool | flag from property `0x27812836` (bool) *[meaning not traced]* | absent → false (`0x0069BD00`; stored at `0x0069BD1C`) | no reader found |
+| +0x19 | 3 | | padding | | |
+| +0x1C | 4 | uint32 | building category flags (occupant groups, building-development.md §4.7.1.1) | property `0xAA1DD396` via `SetBuildingCategoryFlags` `0x00696B80` (`0x00696B9A`, `0x00696BF4`) | |
+| +0x20 | 12 | float[3] | occupant size (x, y, z) | property `0x27812810`; absent → 0, 0, 0 (`0x0069BD7E`–`0x0069BDAC`) | |
+| +0x2C | 4 | | padding: never written. The copy constructor and the assignment skip it | | |
+| +0x30 | 8 | int64 | plop cost | property `0x49CAC341` (`int64`); absent → 0 (`0x0069BDBB`) | `cSC4ViewInputControlPlaceLot::Init` `0x004C16A7` |
+| +0x38 | 8 | int64 | the sum of the `cost` fields (`BudgetItem` + 0x10) of the building's budget items | budget simulator slot 50 `GetBudgetItemInfo(holder, vector&)` (`0x0069BE00`), summed at `0x0069BE20` | |
+
+Total 0x40 bytes, 8-aligned. Evidence: the copy constructor `0x004D1230` (+0x00, +0x04, word +0x08, byte +0x0A,
+vector at +0x0C, byte +0x18, +0x1C, 12 bytes at +0x20, +0x30..+0x3F), the zero profile built in `0x0069B720`, and
+the field-by-field store at the end of `LoadBuildingProperties` (`0x0069C071`–`0x0069C0DF`). The Mac build's
+constructor and copy constructor (Mac `0x0065093E`, `0x00658A5E`) have the same members in the same order. Without
+the 8-byte alignment of `int64` there, the two `int64`s sit 4 bytes lower.
+
+The SDK names only `purpose` and `wealth`. Both are `uint32_t` enums at these offsets.
+
+### The capacity maps (+0x0C)
+
+- **Element type**: `std::map<uint32_t, uint16_t>`, the STLport map of allocators.md *map and set*. The vector's
+  elements are the 12-byte map objects (header pointer, count, comparator); `end − begin` is a multiple of 12.
+  Each map has its own B header, and 0x18-byte B nodes: key at +0x10, `uint16_t` at +0x14.
+- **Key**: a **developer type**, which is the demand ID of the local capacity node it feeds: 0x1010 / 0x1020 /
+  0x1030 (R$ / R$$ / R$$$), 0x3110 / 0x3120 / 0x3130 (CS), 0x3320 / 0x3330 (CO), 0x4100 / 0x4200 / 0x4300 /
+  0x4400 (I-R, I-D, I-M, I-HT) (demand.md §2).
+- **Value**: capacity units of that type: residents for R, jobs for C and I.
+- **Filled** by `LoadBuildingProperties` (`0x0069BBA9`–`0x0069BC83`), once per building exemplar, while the
+  building catalogue is built (its only caller is `AddBuildingData`, `0x0069D0FF`):
+  - property `0x27812834` is a `uint32` list read as pairs (key, amount). Each pair sets `map[key] := low 16 bits
+    of amount` (`0x00699030`); a key repeated later overwrites the earlier one;
+  - the map is then **pushed** into the vector (`0x0069BC59` / `0x0069BC7E`, B buffer).
+  - Without the property, nothing is pushed and the vector stays empty (begin = end = null).
+- **One element at most.** `LoadBuildingProperties` is the only code found that builds a catalogue profile's
+  vector, and it pushes at most one map. So in the shipped game the vector holds **0 or 1** maps. The other
+  profile copies the game makes copy the profile **out** into locals:
+  - the occupant filters around `0x004E4260`–`0x004E49B0` (assignment `0x004E41F0` into a stack copy);
+  - `cSC4ViewInputControlQuery::GetBuildingWealth` (`0x004D3260`).
+- **Readers.** The type is a vector, so code must not assume one map:
+  - the demand simulator's `UpdateCapacity` (`0x006A2C80`) **adds up** the entry for the developer type over
+    every map;
+  - `cSC4Lot::GetCapacity` (`0x006C05A0`) returns the entry of the **first** map that contains it.
+
+  With 0 or 1 map the two agree.
+- **Never modified afterwards.** `cSC4Lot::SetState` copies the maps into the lot's own vector when a building is
+  set (`0x006C31F3`, copy constructor `0x004C9470`), and the lot's occupancy code works on those copies.
+
+### How `UpdateCapacity` reads it (demand.md §7.2)
+
+`0x006A2C80`, from the demand simulator's `kMessageStateChanged` handler:
+1. `GetBuildingProfile(bt)` (slot 39). If `purpose` (+0x00) is 0, stop.
+2. Get `devType := GetDeveloperType(purpose, wealth)` (BDS slot 30, `+0x78`). The wealth here is the message's
+   `data4`, not the profile's +0x04.
+3. For each 12-byte map from +0x0C to +0x10, look up `devType` (a lower-bound search from the map's root,
+   `0x006A2CC0`–`0x006A2CEE`). When found, add the `uint16_t` at node + 0x14, zero-extended, to a 32-bit sum
+   (`0x006A2CF2`).
+4. If the demand node `devType` exists (the simulator's map at + 0x50), call its `AddToSupplyValue` (slot 16,
+   `+0x40`) with `float(±sum)`: + when the lot becomes occupied, − when it stops being occupied
+   (`0x006A2D34`–`0x006A2D4F`; the sum is negated as an integer, then converted).
+
+**Worked example.** A low-wealth house whose exemplar has `0x27812834` = (0x1010, 12) has purpose 1 and wealth 1,
+and its vector holds one map {0x1010 → 12}. With `data4` = 1, `GetDeveloperType(1, 1)` = 0x1010, the sum is 12,
+and the R$ node's supply moves by +12.0 or −12.0. With `data4` = 2 the lookup is 0x1020, which is absent, so the
+sum is 0 and node 0x1020 still gets a call with 0.0.
 
 ## Lot and occupant getters used by the property tax (verified 2026-10-12)
 

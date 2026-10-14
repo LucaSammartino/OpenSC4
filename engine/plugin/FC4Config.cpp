@@ -109,6 +109,39 @@ const SwitchInfo kSwitches[kCount] = {
     {"pollution_population", "FC4_POLLUTION_POPULATION"},
     {"pollution_props", "FC4_POLLUTION_PROPS"},
     {"pollution_terrain", "FC4_POLLUTION_TERRAIN"},
+    {"protection_occupants", "FC4_PROTECTION_OCCUPANTS"},
+    {"protection_budget", "FC4_PROTECTION_BUDGET"},
+    {"protection_dispatch", "FC4_PROTECTION_DISPATCH"},
+    {"protection_automata", "FC4_PROTECTION_AUTOMATA"},
+    {"protection_grid_writes", "FC4_PROTECTION_GRID_WRITES"},
+    {"protection_posts", "FC4_PROTECTION_POSTS"},
+    {"protection_history", "FC4_PROTECTION_HISTORY"},
+    {"protection_air_sources", "FC4_PROTECTION_AIR_SOURCES"},
+    {"crime_lots", "FC4_CRIME_LOTS"},
+    {"crime_police", "FC4_CRIME_POLICE"},
+    {"crime_residential", "FC4_CRIME_RESIDENTIAL"},
+    {"crime_demand", "FC4_CRIME_DEMAND"},
+    {"crime_ordinance", "FC4_CRIME_ORDINANCE"},
+    {"crime_occupants", "FC4_CRIME_OCCUPANTS"},
+    {"crime_fire", "FC4_CRIME_FIRE"},
+    {"crime_props", "FC4_CRIME_PROPS"},
+    {"crime_posts", "FC4_CRIME_POSTS"},
+    {"crime_grid_writes", "FC4_CRIME_GRID_WRITES"},
+    {"crime_zoning", "FC4_CRIME_ZONING"},
+    {"demand_capacity", "FC4_DEMAND_CAPACITY"},
+    {"demand_direct_calls", "FC4_DEMAND_DIRECT_CALLS"},
+    {"aura_lots", "FC4_AURA_LOTS"},
+    {"aura_lot_populations", "FC4_AURA_LOT_POPULATIONS"},
+    {"aura_occupants", "FC4_AURA_OCCUPANTS"},
+    {"aura_budget", "FC4_AURA_BUDGET"},
+    {"aura_ordinance", "FC4_AURA_ORDINANCE"},
+    {"aura_land_value", "FC4_AURA_LAND_VALUE"},
+    {"aura_inputs", "FC4_AURA_INPUTS"},
+    {"aura_grid_writes", "FC4_AURA_GRID_WRITES"},
+    {"aura_posts", "FC4_AURA_POSTS"},
+    {"aura_history", "FC4_AURA_HISTORY"},
+    {"aura_disaster", "FC4_AURA_DISASTER"},
+    {"aura_strikes", "FC4_AURA_STRIKES"},
     {"flora_occupants", "FC4_FLORA_OCCUPANTS"},
     {"flora_create", "FC4_FLORA_CREATE"},
     {"flora_manager", "FC4_FLORA_MANAGER"},
@@ -128,7 +161,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "budget_shadow", "budget_shadow_lots", "demand_shadow",
                                   "demand_shadow_nodes",
                                   "popup_dialogs", "clock_probe", "autotest_end",
-                                  "pollution_shadow", "pollution_shadow_cells",
+                                  "pollution_shadow", "pollution_shadow_cells", "protection_shadow",
+                                  "crime_shadow", "crime_shadow_cells", "crime_seed",
+                                  "aura_shadow", "aura_shadow_cells",
                                   "flora_shadow"};
 
 // The switches that are off, for lock-free readers (autotest verdict).
@@ -139,9 +174,17 @@ volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // pollution
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               // protection
+                               1, 1, 1, 1, 1, 1, 1, 1,
+                               // crime
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               // demand
+                               1, 1,
+                               // aura
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // flora
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-static_assert(kCount == 82, "g_on: one 1 per switch");
+static_assert(kCount == 115, "g_on: one 1 per switch");
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};

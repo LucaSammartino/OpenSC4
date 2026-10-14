@@ -34,6 +34,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ENGINE = os.path.dirname(HERE)
 SDK = os.path.join(ENGINE, "third_party", "gzcom-dll", "gzcom-dll", "include")
 FC4 = os.path.join(ENGINE, "plugin", "FC4Interfaces.h")
+FC4C = os.path.join(ENGINE, "plugin", "FC4CrimeInterfaces.h")
 
 # (table interface, class, header, required)
 #   required = the plugin implements or calls the interface through this
@@ -93,7 +94,8 @@ INTERFACES = [
     ("cISC4Ordinance", "cFC4ISC4Ordinance", FC4, True),
     ("vt:cSC4OrdinanceSimulator::vftable_2", "cIGZSerializable", "cIGZSerializable.h", True),
     ("cISC4LandfillDeveloper", "cISC4LandfillDeveloper", "cISC4LandfillDeveloper.h", True),
-    ("cISC4PoliceSimulator", "cISC4PoliceSimulator", "cISC4PoliceSimulator.h", True),
+    # (the SDK police simulator is reported only: cFC4ISC4PoliceSimulator below)
+    ("cISC4PoliceSimulator", "cISC4PoliceSimulator", "cISC4PoliceSimulator.h", False),
     ("cISC4PowerSimulator", "cISC4PowerSimulator", "cISC4PowerSimulator.h", True),
     ("cISC4PollutionSimulator", "cISC4PollutionSimulator", "cISC4PollutionSimulator.h", True),
     # Power (docs/specs/power.md §10, §11.1): implemented, and the services it calls.
@@ -132,6 +134,37 @@ INTERFACES = [
     ("cISC4DisasterManagerFire", "cISC4DisasterManagerFire", "cISC4DisasterManagerFire.h", True),
     ("cISC4DisasterLayer", "cISC4DisasterLayer", "cISC4DisasterLayer.h", True),
     ("cISC4TutorialSystem", "cISC4TutorialSystem", "cISC4TutorialSystem.h", True),
+    # Protection (docs/specs/protection.md §14, §15): both simulators, the
+    # sub-object interfaces of their own vtables, and the services they call.
+    ("cISC4FireProtectionSimulator", "cFC4ISC4FireProtectionSimulator", FC4, True),
+    ("cISC4PoliceSimulator", "cFC4ISC4PoliceSimulator", FC4, True),
+    ("cISC4DispatchSource(Fire)", "cFC4ISC4DispatchSource", FC4, True),
+    ("cISC4DispatchSource(Police)", "cFC4ISC4DispatchSource", FC4, True),
+    ("cIGZSerializable(Fire)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZSerializable(Police)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZMessageTarget2(Fire)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cIGZMessageTarget2(Police)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("vt:cSC4DispatchManager::vftable", "cFC4ISC4DispatchManager", FC4, True),
+    ("vt:cSC4AutomataControllerManager::vftable", "cISC4AutomataControllerManager",
+     "cISC4AutomataControllerManager.h", True),
+    # Crime (docs/specs/crime.md section 1, sections 11 and 13): implemented, the sub-object
+    # interfaces of its own vtables, and the services it calls (police through
+    # cFC4ISC4PoliceSimulator above).
+    ("cISC4CrimeSimulator", "cFC4ISC4CrimeSimulator", FC4C, True),
+    ("cIGZSerializable(Crime)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZMessageTarget2(Crime)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cISC4PropRequester(Crime)", "cFC4CrimePropRequester", FC4C, True),
+    ("cISC4PropManager", "cISC4PropManager", "cISC4PropManager.h", True),
+    ("cISC4PropOccupant", "cISC4PropOccupant", "cISC4PropOccupant.h", True),
+    # Aura (docs/specs/aura.md section 12): implemented (the SDK declaration;
+    # MSVC's overload reversal gives the AddTransientEffect order of 12.1),
+    # the sub-object interfaces of its own vtables, and the grids it creates.
+    ("cISC4AuraSimulator", "cISC4AuraSimulator", "cISC4AuraSimulator.h", True),
+    ("cIGZSerializable(Aura)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZMessageTarget2(Aura)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cISC4SimGrid<int8>", "cISC4SimGrid<int8_t>", "cISC4SimGrid.h", True),
+    ("cISC4SimGrid<uint16>", "cISC4SimGrid<uint16_t>", "cISC4SimGrid.h", True),
+    ("cISC4OrdinanceSimulator", "cFC4ISC4OrdinanceSimulator", FC4, True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),

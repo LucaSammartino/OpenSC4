@@ -38,6 +38,7 @@
 // Usage: fc4_abi_conformance_test [--dump] [--plugin-dir DIR] [path/to/interfaces.tsv]
 //   --dump  print every declared slot next to its table row
 
+#include "FC4CrimeInterfaces.h"
 #include "FC4Interfaces.h"
 
 #include "SC4Vector.h"
@@ -99,6 +100,10 @@
 #include "cISC4DisasterManagerFire.h"
 #include "cISC4TutorialSystem.h"
 #include "cISC4PropDeveloper.h"
+#include "cISC4AutomataControllerManager.h"
+#include "cISC4PropManager.h"
+#include "cISC4PropOccupant.h"
+#include "cISC4AuraSimulator.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -339,6 +344,18 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISTETerrain", 91, 98,
      "slot 91 is cSTETerrain's destructor and slots 92-97 (GetWaterDepthAtVertex, Flip*Triangulation, "
      "Load/SaveObliterated, Load, Save) are cSTETerrain's own virtuals, past the SDK interface"},
+    {"cIGZMessageTarget2(Fire)", 4, 18,
+     "slot 4 is the scalar deleting destructor and slots 5-17 the protection base's own virtuals (protection "
+     "§15.3): no outside caller (§13.2), and FreeCity4 replaces both protection classes together"},
+    {"cIGZMessageTarget2(Police)", 4, 18,
+     "slot 4 is the scalar deleting destructor and slots 5-17 the protection base's own virtuals (protection "
+     "§15.3): no outside caller (§13.2), and FreeCity4 replaces both protection classes together"},
+    {"cISC4CrimeSimulator", 14, 16,
+     "slot 14 is cSC4CrimeSimulator's scalar deleting destructor (pops 4) and slot 15 its GetSimulatorType: "
+     "class-private (crime spec section 1: 14 interface slots; cFC4CrimeSimulator declares both)"},
+    {"cISC4AuraSimulator", 16, 17,
+     "slot 16 is cSC4AuraSimulator's scalar deleting destructor (pops 4): class-private (aura spec section 12.1: "
+     "16 interface slots + destructor)"},
 };
 
 const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlots) {
@@ -394,22 +411,25 @@ const Waiver kWaivers[] = {
     {"cISC4SimGrid<int16>", "cISC4SimGrid<int16_t>", 21, "TractCenterToPosition", "the game returns in ST0 (SDK: bool)"},
     {"cISC4SimGrid<float>", "cISC4SimGrid<float>", 20, "TractCornerToPosition", "the game returns in ST0 (SDK: bool)"},
     {"cISC4SimGrid<float>", "cISC4SimGrid<float>", 21, "TractCenterToPosition", "the game returns in ST0 (SDK: bool)"},
+    // The aura simulator's grids (aura.md section 14.2).
+    {"cISC4SimGrid<int8>", "cISC4SimGrid<int8_t>", 20, "TractCornerToPosition", "the game returns in ST0 (SDK: bool)"},
+    {"cISC4SimGrid<int8>", "cISC4SimGrid<int8_t>", 21, "TractCenterToPosition", "the game returns in ST0 (SDK: bool)"},
+    {"cISC4SimGrid<uint16>", "cISC4SimGrid<uint16_t>", 20, "TractCornerToPosition",
+     "the game returns in ST0 (SDK: bool)"},
+    {"cISC4SimGrid<uint16>", "cISC4SimGrid<uint16_t>", 21, "TractCenterToPosition",
+     "the game returns in ST0 (SDK: bool)"},
     {"cISTETerrain", "cISTETerrain", 6, "CellWidth", "the game returns in ST0 (SDK: 32-bit)"},
     {"cISTETerrain", "cISTETerrain", 27, "GetLerpedNormal", "the game returns in ST0 (SDK: 32-bit)"},
     {"cISTETerrain", "cISTETerrain", 59, "BeginBrushScrub", "pops 8 (SDK: 4 bytes)"},
     {"cISC4LotDeveloper", "cISC4LotDeveloper", 23, "IsAreaDeveloped", "pops 4 (SDK: no argument)"},
     {"cISC4LotDeveloper", "cISC4LotDeveloper", 53, "RemoveLotFoundation", "pops 8 (SDK: 4 bytes)"},
     // City services read by the standard ordinances (ordinance.md §3.6); the
-    // plugin calls GetLandfillUsage, GetPoliceStationCount, GetPowerPlantCount(type)
-    // and GetRecyclingCenterEffect only.
+    // plugin calls GetLandfillUsage, GetPowerPlantCount(type) and
+    // GetRecyclingCenterEffect only (GetPoliceStationCount goes through
+    // cFC4ISC4PoliceSimulator).
     {"cISC4LandfillDeveloper", "cISC4LandfillDeveloper", 9, "GetZoningCost", "returns 64 bits in edx:eax (SDK: 32)"},
-    {"cISC4PoliceSimulator", "cISC4PoliceSimulator", 11, "GetChanceOfStrike", "pops 4, returns in eax (SDK: none, float)"},
-    {"cISC4PoliceSimulator", "cISC4PoliceSimulator", 19, "GetPercentCoverage", "returns in eax (SDK: float)"},
-    {"cISC4PoliceSimulator", "cISC4PoliceSimulator", 25, "GetStationEfficiency", "pops 8 (SDK: 4 bytes)"},
-    {"cISC4PoliceSimulator", "cISC4PoliceSimulator", 36, "GetJailedPercentage", "pops 4 (SDK: no argument)"},
-    {"cISC4PoliceSimulator", "cISC4PoliceSimulator", 37, "GetJailCurrentUpkeepCost", "pops 4 (SDK: no argument)"},
-    {"cISC4PoliceSimulator", "cISC4PoliceSimulator", 39, "IsInJailbreak", "pops 4 (SDK: no argument)"},
-    {"cISC4PoliceSimulator", "cISC4PoliceSimulator", 40, "BeginJailbreak", "returns in eax (SDK: float)"},
+    // The props the crime simulator reads (crime.md section 11.6): GetState only.
+    {"cISC4PropOccupant", "cISC4PropOccupant", 14, "GetTimeOfDayRange", "the game returns in ST0 (SDK: 32-bit)"},
     {"cISC4PowerSimulator", "cISC4PowerSimulator", 45, "GetCurrentPlantEfficiencyPercent",
      "pops 8, returns in eax (SDK: 4 bytes, float)"},
     {"cISC4PowerSimulator", "cISC4PowerSimulator", 46, "GetCurrentPlantConditionPercent",
@@ -443,15 +463,14 @@ const Waiver kWaivers[] = {
      "returns 64 bits in edx:eax (SDK: 32)"},
     {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 41, "GetGarbageLandfilledLastMonth",
      "returns 64 bits in edx:eax (SDK: 32)"},
-    {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 51, "GarbagePutInLandfill", "returns in eax (SDK: int64)"},
-    {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 55, "GetRecyclingCenterCurrentCapacity",
-     "returns in ST0 (SDK: 32-bit)"},
-    // FreeCity4's pollution simulator (cFC4ISC4PollutionSimulator) follows
-    // docs/specs/pollution.md §8.1 where the table disagrees (spec questions):
-    {"cISC4PollutionSimulator", "cFC4ISC4PollutionSimulator", 51, "GarbagePutInLandfill",
-     "§8.1: the new total in edx:eax (the table: eax-or-void)"},
-    {"cISC4PollutionSimulator", "cFC4ISC4PollutionSimulator", 55, "GetRecyclingCenterCurrentCapacity",
-     "§8.1: a bool in AL (the table: ST0)"},
+    // Pollution slots 51, 54 and 55 needed no waiver once the table was corrected (QUESTIONS PG1-PG3).
+    // The automata controller manager, called by the protection simulators
+    // (protection §14): AddControllersFromOccupantGroup and
+    // RemoveControllersFromOccupantGroup (the name overloads, slots 10 and 12) only.
+    {"vt:cSC4AutomataControllerManager::vftable", "cISC4AutomataControllerManager", 17, "GetController",
+     "pops 20 (SDK: 12 bytes)"},
+    {"vt:cSC4AutomataControllerManager::vftable", "cISC4AutomataControllerManager", 23,
+     "GetCompositeAttractionCommotion", "returns in ST0 (SDK: a pointer)"},
 };
 
 const Waiver* FindWaiver(const char* table, const char* cls, int slot) {
