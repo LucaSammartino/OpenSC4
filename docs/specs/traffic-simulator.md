@@ -176,7 +176,7 @@ when the subnetwork data need no rebuild *[inferred: flag meaning, traffic-netwo
 | 2 | CreateMaps (`0x0071A0C0`) | §4.9 | scanning iterator reset; per-network-type statistics reset; commercial work grid := 0 |
 | 4 | CreateFinalMap (`0x0070F460`) | §4.10 | scanning iterator reset; commercial traffic grid := commercial work grid (copy of the grid data) |
 | 5 | ClearTripDestinations (`0x0070E4F0`) | §4.11 | scanning iterator reset |
-| 11 | UpdateNeighborConnections (`0x00714BE0`) | traffic-network.md §2.7.5 | |
+| 11 | UpdateNeighborConnections (`0x00714BE0`) | traffic-network.md §2.7.5 (not a no-op: on every neighbour connection it rolls the per-travel-type arrival arrays `0xAA9EA81A + i` into `0xAA9EA81D + i` and the arrival counts of `0x8A0B4100`, elements 4–7 into 8–11; TS2) | |
 | 3 | ReduceTransitSwitches (`0x00713750`) | §4.8 | |
 | 7 | DumpEdgeDensities (`0x007137D0`) | §4.8 | |
 | 6 | ReduceEdgeDensities (`0x007110B0`) | §4.8 | scanning iterator reset |
