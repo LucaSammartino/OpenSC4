@@ -3217,20 +3217,61 @@ RG1–RG22, RG13 in the budget core, PR14–PR16, PG15, DQ13, SV1–SV2, LF6 and
 the buzzards through the effects manager (new switch `residential_effects`, 160 switches). The current answer is in
 brackets.
 
-- **PR17:** Protection §5.1: what does `UpdateUnadjusted` do when `GetDispatchEffect` fails? [the return value is
-  ignored and the record is zeroed, so the centre adds 0]
-- **PR18:** Protection §7.2: what is in the caller's record? [a zeroed record]
-- **PR19:** The older "PR14/PR15" labels in the jail vectors, `protection/mod.rs` and `algo.rs` clash with the
-  QUESTIONS numbering. [left as they are]
-- **RG25:** RG1: the buzzard transform's bytes +2 and +3 are not stated. [0]
-- **RG26:** RG10: how does a host report "cannot be read"? [NaN or a NULL callback means missing; the outputs are left
-  alone]
-- **RG27:** RG1: does "cannot show" (a NULL callback or `FC4_EFFECT_NOT_SHOWN`) count as created? [yes: the second
-  draw is made and the flag set, but there is no altitude read, start or release]
-- **RG28:** RG7: which ordinance effects does the shadow use before its first state 0? [it reads them as they stand]
-- **NB19:** NB18: does `cISC4App::GetCity` return the same primary cISC4City address the game's city global holds?
-  [assumed yes]
-- **PG16:** PG15: should the n<0 wrap quirk on a damaged save be reproduced? [no, clamped: delta −s, supply 0]
+- ~~**PR17:** Protection §5.1: what does `UpdateUnadjusted` do when `GetDispatchEffect` fails? [the return value is
+  ignored and the record is zeroed, so the centre adds 0]~~
+  **ANSWERED 2026-10-14** from the exe (`UpdateUnadjusted` `0x006F5D83`–`0x006F5DFE`; `GetDispatchEffect` fire
+  `0x006AD720`, police `0x006E0CB0`) and written into protection.md §5.1 with a worked example. The AL is ignored,
+  as in the bracket, but **the record is not zeroed**. The dispatch loop reuses the station loop's stack record, and
+  a failed call zeroes only x, z and centre. The cone is drawn with `c = 0` and the leftover outer and radius from
+  the previous dispatch or the last station: an inverted cone, 0 at the centre rising towards the old outer.
+  **The bracket differs**, but only for custom stations: every shipped fire and police station has a non-zero
+  dispatch centre, so with shipped data the call never fails. *[choice]*: keep one record across both loops to
+  match; the zeroed record is acceptable as a known difference.
+- ~~**PR18:** Protection §7.2: what is in the caller's record? [a zeroed record]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006F5C87`, `0x006F5DA9`; handler `0x006F6221`) and written into
+  protection.md §7.2. **Never a zeroed record.** In `UpdateUnadjusted` it is the record shared by every station and
+  dispatch of the rebuild: the previous dispatch's values, else the last station's, else uninitialised stack. In
+  the active/inactive handler it is a fresh, uninitialised stack record. **The bracket differs** when the call
+  fails, and on success when the station lacks the outer or radius property (that field keeps the leftover).
+- ~~**PR19:** The older "PR14/PR15" labels in the jail vectors, `protection/mod.rs` and `algo.rs` clash with the
+  QUESTIONS numbering. [left as they are]~~
+  **ANSWERED 2026-10-14**: glue-only, no original behaviour; the implementer's choice stands.
+- ~~**RG25:** RG1: the buzzard transform's bytes +2 and +3 are not stated. [0]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006FA814`–`0x006FA819`; effect `SetTransform` `0x005BE880` →
+  `0x005BEC20`) and written into residential-education-health.md §4.7 step 3. The original never writes +2 and
+  +3: they are uninitialised stack bytes, the alignment gap after the two flag bytes. The effect copies only byte
+  +1 and the dwords +0x04 to +0x34, so it reads neither +0, +2 nor +3. **The bracket (0) is equivalent.**
+- ~~**RG26:** RG10: how does a host report "cannot be read"? [NaN or a NULL callback means missing; the outputs are left
+  alone]~~
+  **ANSWERED 2026-10-14**: glue-only, no original behaviour; the implementer's choice stands. Written into
+  residential-education-health.md §4.2. The only original "missing" is a null `GetDepartmentBudget` for an
+  existing item. A missing item gives 1.0 and must not be reported as missing. A NaN is a safe sentinel, because
+  a real funding fraction is never NaN.
+- ~~**RG27:** RG1: does "cannot show" (a NULL callback or `FC4_EFFECT_NOT_SHOWN`) count as created? [yes: the second
+  draw is made and the flag set, but there is no altitude read, start or release]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006FA6AA`–`0x006FA83E`) and written into
+  residential-education-health.md §4.7 step 3. **Yes.** After a successful create, only the second draw and the
+  flag change simulation state. The altitude read is a pure query, and `Start` and `Release` act only on the
+  effect. **The bracket matches**, as long as the second draw is never skipped.
+- ~~**RG28:** RG7: which ordinance effects does the shadow use before its first state 0? [it reads them as they stand]~~
+  **ANSWERED 2026-10-14** from the exe (callers `0x006FED0B` and `0x006FF5CA`, RG7) and written into
+  residential-education-health.md §4.3 with an example. Before its first state 0, the original uses the lists that
+  `Init` built: the ordinances on in the save, or none in a new city. The shadow has no original counterpart.
+  **The bracket is acceptable** while no ordinance has changed since `Init`. *[choice]*: to match always, read the
+  effects once at `Init` and then only at the original's state 0.
+- ~~**NB19:** NB18: does `cISC4App::GetCity` return the same primary cISC4City address the game's city global holds?
+  [assumed yes]~~
+  **ANSWERED 2026-10-14** from the exe (`cISC4App` slot 37 `+0x94` `0x0081F910`; `cSC4App::NewCity` `0x00454908`;
+  `PartialCloseCity` `0x00454AEC`; the global is cleared at `0x00602100` from the city destructor `0x0045A468`) and
+  written into neighbors.md §8.2. **Yes.** `GetCity` returns the application's city member, borrowed. NewCity
+  stores in it the address the constructor gave to the global `0x00B43CEC`: the primary `cISC4City`. The two can
+  differ only after the city's `Shutdown`. **The bracket matches.** The ABI row is in the re-answers9 report.
+- ~~**PG16:** PG15: should the n<0 wrap quirk on a damaged save be reproduced? [no, clamped: delta −s, supply 0]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006E3301`–`0x006E332F`) and written into pollution.md §8.1 with a table.
+  The original wraps only when a damaged save holds a supply within `|n|` of `−2^31`. It then stores the wrapped
+  positive sum. Every other negative supply goes to 0, the same as the clamp. Only a damaged save reaches this, so
+  the implementer's choice stands. **The bracket is acceptable**; reproducing the wrap is what a conformance test
+  against the original would expect.
 
 ## From applying the power, plumbing and landfill answers (filed by the coordinator from the `apply6b` lane's report, 2026-10-14)
 

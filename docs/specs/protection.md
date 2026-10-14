@@ -334,6 +334,34 @@ fails cannot normally be in the list (insert requires success, §5.2), so this o
 properties change after insertion. The radius is divided by the tract width (metres → tracts); simgrid §7.1
 rounds it for the loop bounds and clamps to `int16`. *[compat]*
 
+**When `GetDispatchEffect` fails** *[compat]* (PR17; `0x006F5D83`–`0x006F5DFE`). The dispatch loop passes the
+**same** stack record as the station loop (`[esp+0x24]` at both `0x006F5C87` and `0x006F5DA9`). It ignores the
+call's AL and always draws the cone. A failed call (the source station's dispatch centre is absent or 0, §7.2)
+has written only x, z and centre (all 0). The radius and outer value are still in the record from the previous
+effect read into it:
+
+- the previous dispatch's `GetDispatchEffect`, when an earlier dispatch in this rebuild got that far;
+- otherwise the last station's `GetStationEffect` (§7.1: its scaled values on success, or what a failed read left);
+- otherwise, with no station in the list and no earlier dispatch, uninitialised stack data *[quirk]*.
+
+The cone therefore has `c = 0` and the leftover `o` and `r`. Unless `o = 0` or `r ≤ 0`, it does not add 0: it adds
+an **inverted cone**, 0 at the dispatch's tract and rising towards `o` near the leftover radius.
+
+With shipped data the call never fails. The three fire station exemplars (group `0x07BDDF1C`, instances
+`0x030B0000`, `0x038E0000`, `0x03100000`) all have dispatch centre 96, outer 32 and radius 128.0. The four police
+stations (`0x03860000`, `0x03880000`, `0x030F0000`, `0x030C0000`) all have 200, 20 and 48.0. `EP1.dat` adds
+none. Only a custom station without the dispatch centre reaches this case.
+
+Example (tract width 32 m): the last station drawn had the scaled effect outer 10 and radius 150.0 m. A
+dispatch whose station has no dispatch centre then draws `r = 150 / 32 = 4.6875` tracts with `c = 0`, `o = 10`,
+so `k = float32(−10 / 4.6875) = −2.1333334`. Its tract gets `+0`; tracts at distance 1, 2, 3 and 4 get `+2`, `+4`,
+`+6` and `+9`; the tract at table distance 4.472 gets `+10`. Tracts at distance ≥ 4.6875 get nothing.
+
+*[choice]* To match the original, keep one effect record across both loops, zero only x, z and centre on a
+failed dispatch read, and draw the cone. A zeroed record (nothing added) is acceptable as a known difference,
+but it differs whenever a dispatch's source station lacks the dispatch centre. For the uninitialised case, zero
+is the only reproducible value.
+
 ### 5.2 Station insert, remove and change
 
 **Insert** (`0x006F6610`), for occupants of type building `0x278128A0` whose `GetStationEffect` succeeds:
@@ -640,6 +668,18 @@ Fire `0x006AD720`, police `0x006E0CB0`, the same steps:
 
 Example: a fire station with dispatch centre 100, outer 20 and radius 300.0 at efficiency 0.5 gives centre 50,
 outer 10, radius 150.0 and original centre 100.
+
+**The caller's record** *[compat]* (PR18). Neither caller zeroes the record, and both ignore AL:
+
+| Caller | Record passed | What a failed call leaves in radius, outer and original centre |
+|---|---|---|
+| `UpdateUnadjusted` (`0x006F5DB1`) | the station loop's record, shared by every station and dispatch of the rebuild | the previous dispatch's values, else the last station's (§5.1, PR17), else uninitialised stack data |
+| `DoDispatchActivated` (`0x006F6221`) | a fresh, uninitialised stack record | uninitialised stack data; only the radius is used (§5) |
+
+So "the caller's values" in steps 2 and 3 are never a zeroed record in the original. *[choice]* FreeCity4 may
+pass a zeroed record. That reproduces the original when the call succeeds and the station has both the outer
+and the radius property, which every shipped station has. An absent one keeps the leftover in the original
+and 0 in a zeroed record. On failure, see §5.1 for the rebuild and §5 for the handler (skip the update).
 
 *Which occupant* *[compat]* (PR2; corrected: an earlier version called it the automaton). There are **two**
 callers (corrected, PR14): `UpdateUnadjusted` (`0x006F5DB1`) and the dispatch active / inactive handler
