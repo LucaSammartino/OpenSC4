@@ -663,6 +663,19 @@ to `(14, 22)`.**
 overload; `orientation` is read from a global view service) — `AddRef`, store, then `SetRemovalFlags(3)` (prop
 occupant slot 12). *[quirk]* No null check: a missing prop exemplar crashes. The zot is saved by reference.
 
+**The orientation** *[compat]* (LG5; `0x006BB510`–`0x006BB524`) is the **current view rotation**, 0 to 3. The code
+reads field `+0x10` of the global `SC4ViewUtilities` object (`0x00B43DD8`). `cSC4WinRegionScreen` fills that global
+from its renderer's `GetViewUtilities()` (`cISC43DRender` slot 8). The view utilities copy the field from the camera
+control's rotation whenever the camera changes, and use `rotation × π/2` as the camera yaw. Nothing checks the
+global for null *[quirk]*. So the zot faces whichever way the player's view faced in the month it was placed. The
+value is saved in the prop's record (lot-records.md §10.1, field 5), and it is the only observable effect.
+
+No local save holds a landfill zot, because every saved landfill zone is connected. All 66 `0x107A0000` props in the
+saves are building zots placed through the same global (lot-developer.md §6), and all have orientation 0.
+
+*[choice]* A FreeCity4 core with no view uses 0, which matches the original whenever the view is at its first
+rotation. Glue running inside the game can read the same field.
+
 ### 4.8 Tile models (`UpdateSurroundingTiles(heap)`) and the random draws
 
 A heap's state change redraws the four cells it covers, in the order `(hx, hz)`, `(hx+1, hz)`, `(hx, hz+1)`,
@@ -1159,7 +1172,8 @@ and need not be reproduced beyond that.
 4. *Answered* (2026-10-13, verified): **no**. `PlaceZone` `MessagePost`s `0x07699455`, so §4.4.8 does not
    re-enter `DoZoneChange`. See §4.4.8.
 5. The meaning of occupant manager slot 24 and occupant slot 15 with `0x99EF1145` after a tile move (§4.5.2).
-6. The global that supplies the zot orientation (§4.7.5).
+6. *Answered* (2026-10-14, LG5): the zot orientation is the current view rotation, `SC4ViewUtilities` (`0x00B43DD8`)
+   `+0x10` (§4.7.5).
 7. `isEmpty` is never set true by the shipped code as far as found; the `IsEmptyLandfillTile` branches are dead
    *[inferred]*. The only writer of `true` found is a dead branch of `CreateLandfillOccupant` (§4.8.1); a loaded
    record can still carry 1 (§6.4).

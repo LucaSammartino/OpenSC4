@@ -1228,7 +1228,11 @@ before and after). The glue's current answer is in brackets.
   landfill at `0x006BA454` and `0x006BC7AB`): **the caller**. A hit is `AddRef`ed; a miss leaves `*out` unwritten.
   **The bracket is equivalent** for presence tests if the slot 41 lists are released through slot 48. Written into
   landfill.md §4.8.6.
-- **LG5 — open question 6:** where does the zot orientation come from? [0]
+- ~~**LG5 — open question 6:** where does the zot orientation come from? [0]~~ **ANSWERED 2026-10-14** from the exe
+  (`0x006BB510`–`0x006BB524`; `SC4ViewUtilities` `+0x10`, set from the camera rotation): it is the **current view
+  rotation** (0 to 3) at placement, and it is saved in the prop record. **The bracket matches** while the view is at
+  rotation 0. All 66 zot props in the local saves have 0. Written into landfill.md §4.7.5. The same answer closes
+  lot-developer.md §12.2 Q3.
 - **LG6 — §3.3, foundations §13.4:** must the month run after pollution and budget? [not enforced]
 - **LG7:** does FindNetworkTile's return carry a reference? [borrowed]
 - **LG8:** tiles are not saved; they are rebuilt at PostCityInit (interior orientation 0, no random draw). [choice]
