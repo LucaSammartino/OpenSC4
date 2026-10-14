@@ -140,16 +140,22 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   `apply5` (`7f3c562`, ABI 30), `apply7a` (`29adf9a`), `zoneglue` phase 1 (ABI 34, seam op 38; regress rzones PASS
 >   with 16 replacements, run 97), `apply6a` (`46258e4`, TS1–TS34 in the traffic simulator core), `formats3`
 >   (`2db780b`, FSH/S3D readers, 43 tests), `apply8a` (`9f50bdc`, RG/PR/PG/DQ/LF/NB/SV answers, 160 switches incl.
->   `residential_effects`). `tools/regress.ps1` replaces 16 subsystems by default (adds neighbours and zones).
+>   `residential_effects`; regress r8a PASS, run 98), `apply6b` (`a11e714`, PW/PS/LG answers; regress r6b checks
+>   whether the power and plumbing shadows are now exact). `tools/regress.ps1` replaces 16 subsystems by default
+>   (adds neighbours and zones). **Run 99:** our zone manager's `PlaceZone` commit path and the dezone handler ran
+>   in game for the first time (two zone drags with the new `sc4ctl realdrag`), clean.
 > - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lane in
 >   `.claude/worktrees/re-answers8`):
 >   - **development glue + shadow** (`agent-a054ba812e30f4fd3`; BDS `0x8990BE7A` and the growth developers
 >     `0x0990C138` as one unit, `development_shadow`; ABI 29, seam op 34 to renumber at merge);
->   - **`apply6b`** (`agent-a9d0a277ba7ec2790`): PW1–PW8, PS1–PS8, LG1–LG20 done (1637 tests, ctest 38/38); merging
->     main 9f50bdc itself (conflicts in cFC4Landfill.cpp and abi_conformance_test.cpp), then the coordinator gates
->     it. Its questions are filed (AO1–AO2, LG21–LG26);
->   - **`apply8b`** (`agent-a9c519e998dcff4f5`): EX21–EX33 (EX29 corrects EX8), ZQ11–ZQ12, TN26–TN28; ABI 39 / seam
->     op 44 if needed;
+>   - **`apply8b`** (`agent-a9c519e998dcff4f5`, tip `1e99780`): EX21–EX33, ZQ11–ZQ12, TN26–TN28 done (1677 tests);
+>     gate `apply8b` failed only two flora lock-timing tests under load (they pass 3/3 alone; the lane does not touch
+>     flora), so gate `apply8b2` reruns it; merge on green. Questions filed (EX34–EX39, ZQ13);
+>   - **tract developer glue** (`tractglue` prompt in the scratchpad): `cSC4TractDeveloper` `0x2990C142` replaced
+>     through GZCOM plus `tract_shadow`; ABI 40, seam op 45;
+>   - **harness** (`harness` prompt): `sim_turbo` (our clock without the msPerDay wait), `autotest_end_date`, and
+>     `script = <file>` with dated in-city actions (zone, pricezone, dezone, speed, turbo, digest) through the game's
+>     interfaces; ABI 41, seam op 46. Once merged: give regress a turbo profile and replace UI-driven tests;
 >   - **M5 traffic glue phase 1** (`agent-ae77339e1cc706c17`; prompt `trafficglue-prompt.txt` in the session
 >     scratchpad): the traffic simulator + pathfinder replacement unit (class `0x6990C1AA`), ABI 37 / seam op 42;
 >   - **`re-answers8`** (RE, branch `re-answers8`): ZG17 first, then NG2–NG34, GF, AQ1–AQ10, BQ4–BQ8, FL7–FL9,
@@ -816,6 +822,10 @@ The pattern that worked, and that a next coordinator can reuse:
 4. Delete the local KillaVolt clone, and download the Mac Rev A binary (5.6).
 
 ## 8. Working conventions
+
+- **Bootstrap the harness with the engine** (the user, 2026-10-14): as more of the game is ours, use it to make the
+  feedback loops short and automated (a turbo clock, plugin-side scripted actions instead of screen clicks, end
+  dates instead of timeouts). Prefer a tooling switch in the plugin (off by default, logged) over UI automation.
 
 - **Branches and merges:** lanes work on `worktree-agent-*` branches. The coordinator merges them into `main` after
   tests pass:
