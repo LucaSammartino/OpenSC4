@@ -665,13 +665,13 @@ occupant slot 12). *[quirk]* No null check: a missing prop exemplar crashes. The
 
 **The orientation** *[compat]* (LG5; `0x006BB510`–`0x006BB524`) is the **current view rotation**, 0 to 3. The code
 reads field `+0x10` of the global `SC4ViewUtilities` object (`0x00B43DD8`). `cSC4WinRegionScreen` fills that global
-from its renderer's `GetViewUtilities()` (`cISC43DRender` slot 8). The view utilities copy the field from the camera
-control's rotation whenever the camera changes, and use `rotation × π/2` as the camera yaw. Nothing checks the
+from its renderer's `GetViewUtilities()` (`cISC43DRender` slot 8). `SC4ViewUtilities::UpdateCameraPosition` copies the field
+from the camera control's rotation (`+0x10C`) and uses `rotation × π/2` as the camera yaw. Nothing checks the
 global for null *[quirk]*. So the zot faces whichever way the player's view faced in the month it was placed. The
 value is saved in the prop's record (lot-records.md §10.1, field 5), and it is the only observable effect.
 
 No local save holds a landfill zot, because every saved landfill zone is connected. All 66 `0x107A0000` props in the
-saves are building zots placed through the same global (lot-developer.md §6), and all have orientation 0.
+saves are building zots placed through the same global (lot-developer.md §5.6), and all have orientation 0.
 
 *[choice]* A FreeCity4 core with no view uses 0, which matches the original whenever the view is at its first
 rotation. Glue running inside the game can read the same field.
