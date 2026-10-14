@@ -3031,7 +3031,12 @@ variant (GF3). The current answer is in brackets.
 TS1–TS34 are applied to the traffic simulator core (vectors ts11_27–ts11_46 new; ts11_10a and ts11_25 adjusted). The
 host gained connection, region, budget and drive-side methods. The current answer is in brackets.
 
-- **TS35:** Does entering state 18 zero pass counter 1? [yes]
+- ~~**TS35:** Does entering state 18 zero pass counter 1? [yes]~~
+  **ANSWERED 2026-10-14** from the exe (`DoDailySimulation`: state 17 `0x007218B4`–`0x007218F2`, state 18
+  `0x007217BF`–`0x007217FD`; the 16/17/18 entry action in `WorkOnSimCycle` `0x007210B0`) and written into
+  traffic-simulator §3.3. No: entering 18 zeroes the day index, `processed` and `passTotal`, not pass counter 1
+  (+0x94C). Only entering 17 zeroes it, so it keeps state 17's re-route count through state 18. The bracket (yes) is
+  wrong.
 - **TS36:** After a dx = ±1 jump, what entry does the cell carry? [none]
 - **TS37:** Does a missing funding percent leave the default? [unchanged]
 - **TS38:** §8 and §4.1.4 name slot 13 differently from §2.7.2. Which is right? [the code keeps its existing naming]

@@ -222,7 +222,9 @@ own static step state); slicing only splits the work, the results do not depend 
        cycle (TS1); continue;
      * `s = 17`: `total := toReRoute`, `days := max(1, total div 18)`, reset (day index, processed and pass
        counter 1 := 0), return **true**;
-     * `s = 18`: `total := toSearch`, `days := max(1, total div 18)`, reset, `passTotal := 0`, return **true**;
+     * `s = 18` (`0x007217BF`–`0x007217FD`): `total := toSearch`, `days := max(1, total div 18)`, day index and
+       processed := 0, `passTotal := 0`, return **true**. Pass counter 1 is **not** zeroed here (TS35): it keeps
+       the re-route count of state 17 through state 18, and a save taken then holds it;
      * `s = 2` or `s = 11`: return **true**;
      * otherwise continue;
    * if not finished: if `16 ≤ state ≤ 18`, `dayIndex < days` and `processed ≥ total · (dayIndex + 1) / days`
