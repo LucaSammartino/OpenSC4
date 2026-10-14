@@ -631,6 +631,9 @@ bool PowerShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIGZM
         msg == nullptr || finished == nullptr) {
         return false;
     }
+    // data1 is the simulator date's julian day for all three, SimIdle
+    // included (power.md §4.3, PW2: read once per SimulateAgents /
+    // SimulateIdleTime call).
     const int32_t julian = static_cast<int32_t>(data1);
     if (!g_testMode && type == kMsgSimNewDay && julian != g_settingsJulian) {
         g_settingsJulian = julian;
