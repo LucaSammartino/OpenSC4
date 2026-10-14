@@ -895,3 +895,26 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
 - Not covered by vectors: path searches over a real network (the vector world has no network occupants; test 10
   drives ApplyRoute with the spec's route bytes); switches, tunnels and ferries in the save record round-trip only
   as empty lists (Read's switch mask and flags have a unit test). No plugin or capi integration yet (M5 glue).
+
+## From the power grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/power.md`. Ini: `power_shadow = 1` (needs our simulator and the ORIGINAL power simulator: do not
+enable `power`); one line per recompute cycle at state 3, plus month, bookkeeping and month-summary lines. The
+shadow's current answer is in brackets.
+
+- **PW1:** `FindUnvisitedConnection` is not in the spec. The shadow takes the first connection from
+  `GetConnectionsOfTypeToCity` whose visited flag is false. The original's search order? [first unvisited]
+- **PW2:** the log date for SimNewDay, SimIdle and SimNewMonth comes from the message's `data1` as a julian date.
+  Does SimIdle's `data1` carry the date? [assumed]
+- **PW3:** the pass import, export and demand are not saved. What does the original hold after a load, before its
+  first state 0? [counted as `not_exact` until then]
+- **PW4:** `brokenFraction` is not saved; the shadow starts it at 0. The original's value after a load? [0]
+- **PW5 — §5.3:** the dirty rectangle is not saved; the shadow uses the bounding box of the changed wire bits. Can a
+  larger rectangle give different wire bits?
+- **PW6:** the shortfall block probe tries starts 0 to min(count, 32768), assuming one `rand()` of at most 0x7FFF.
+  True for networks with more than 32768 blocks?
+- **PW7 — §7.5:** the ordinance factor is read live when the shadow starts, then each month. Does the original read
+  it anywhere else (at load, on an ordinance change)?
+- Not compared (cannot be read without changing the game): posted messages, history values, budget line items,
+  demolitions and lot conditions, which poles the month's shuffle breaks (the broken count is compared), deal
+  flags, the dirty rectangle.
