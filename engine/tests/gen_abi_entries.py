@@ -229,6 +229,13 @@ INTERFACES = [
     ("cIGZSerializable(ZoneManager)", "cIGZSerializable", "cIGZSerializable.h", True),
     ("cIGZMessageTarget2(ZoneManager)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
     ("cISC4ZoneDeveloper", "cISC4ZoneDeveloper", "cISC4ZoneDeveloper.h", True),
+    # Traffic (docs/specs/traffic-simulator.md section 7, pathfinder.md): the simulator through
+    # the compiled slot order (the SDK row above stays for the demand glue's call), its
+    # serializable, the pathfinders of slot 6, and the u32 grids it creates.
+    ("cISC4TrafficSimulator", "cFC4ISC4TrafficSimulator", FC4, True),
+    ("vt:cSC4TrafficSimulator::vftable_2", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cISC4PathFinder", "cFC4ISC4PathFinder", FC4, True),
+    ("cISC4SimGrid<uint32>", "cISC4SimGrid<uint32_t>", "cISC4SimGrid.h", True),
     # Crime type names (crime.md section 7 step 3; lua-host.md section 10.1).
     ("cISCStringDetokenizer", "cFC4ISCStringDetokenizer", FC4C, True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.

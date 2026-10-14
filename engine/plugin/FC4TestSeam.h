@@ -161,6 +161,11 @@
 //         (instead of the compat table's), one of its messages delivered
 //         with a given city, or the probe stopped; see GrowthProbeTest for
 //         the return values (-1: null argument).
+//   op 42 kFC4SeamTraffic          a = const FC4TrafficTestInput*
+//         (cFC4TrafficSimulator.h): the traffic simulator's test hooks (a
+//         host table answering instead of the game, a post sink), or the
+//         count of live slot-6 pathfinders. Returns what TrafficTestSeam
+//         returns, -1 for a null argument.
 //   op 46 kFC4SeamScript          a = const char* path (the harness lane,
 //         FC4Script.h): loads that script in place of the current one, as the
 //         `script` setting does at game start. Returns the number of actions
@@ -220,6 +225,7 @@ enum : uint32_t {
     kFC4SeamAuraShadowDeliver = 35,
     kFC4SeamZones = 38,
     kFC4SeamGrowthProbe = 39,
+    kFC4SeamTraffic = 42,
     kFC4SeamScript = 46,  // the harness lane
 };
 
