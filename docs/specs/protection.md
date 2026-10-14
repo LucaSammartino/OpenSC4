@@ -198,6 +198,22 @@ after the unsubscriptions was not traced in full]*
 | police only: crime | `0x0A159D95` | §9.2 |
 | police only: funding percentage changed | `0x08DAC3E7` | additionally, if data2 == the jail department's ID: recalculate jails (§9.3) |
 
+**The dispatch record** *[compat]* (PR1). `GetDispatchInfo(id, &info)` (`0x00469D40`) copies the dispatch
+manager's record: 11 `u32`, 44 bytes, **with no AddRef**. The simulator reads these fields:
+
+| Offset | Field | Set by |
+|---|---|---|
+| `+0x00` | dispatch type (fire 1, police 0) | the dispatch request |
+| `+0x04` | dispatch ID | the dispatch manager |
+| `+0x08` | **call ID**, the unit number `base + i` | written by the source's `DispatchFromStation` / `DispatchFromNearestStation` (§8.2), or taken from the pylon's `GetCallNumber` (`InitDispatch` `0x00469E50`) |
+| `+0x10` | **active** (byte) | `0x00469BE0`: active := (the dispatch state == 5). On a change it posts `0xE94671EC` (became active) or `0xE94671ED` (became inactive), data1 = type, data2 = ID. `EndDispatch` (`0x0046ACEE`) clears it |
+| `+0x14`, `+0x18`, `+0x1C` | position x, y, z (`float32`) | the dispatch request |
+| `+0x20` | the **source station** occupant (`cISC4Occupant*`, held by the record) | the station returned by `DispatchFromNearestStation`, or the pylon's source occupant |
+
+`EndDispatch` itself calls the source's `RevokeDispatchFromStation(+0x20, +0x08)` before the end message reaches
+the simulator. So the simulator's own revoke on `0x894671F6` finds the unit's bit already set, and fails with no
+effect. *[compat]*
+
 The class `DoMessage` (message-target slot 3) always returns true (finished; simulator spec); the base handler
 it calls returns false for messages it does not handle, but that value is not passed on. The simulator receives the day message once per
 day and the month message once per month; its rank among other month agents does not matter for its own state,

@@ -471,8 +471,17 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
 
 About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The glue's current answer is in brackets.
 
-- **PR1 — §5 dispatch record:** "callID" is taken as the record's `+0x08` field (vehicle slot) and "active" as the
-  `+0x10` flag (state 5). [inferred]
+- ~~**PR1 — §5 dispatch record:** "callID" is taken as the record's `+0x08` field (vehicle slot) and "active" as the
+  `+0x10` flag (state 5). [inferred]~~ **ANSWERED 2026-10-14** from the exe (`GetDispatchInfo` `0x00469D40`,
+  `InitDispatch` `0x00469E50`, the active setter `0x00469BE0`, `EndDispatch` `0x0046ACE0`; `UpdateUnadjusted`
+  `0x006F5D94`; end handler `0x006F5A40`) and written into protection.md §5. **Confirmed; the bracket matches.**
+  - **`+0x08`** is the unit's call ID (`base + i`), from the source's dispatch call or the pylon's
+    `GetCallNumber`.
+  - **`+0x10`** is a byte set to (dispatch state == 5) by `0x00469BE0`. It posts active or inactive on a change,
+    and `EndDispatch` clears it.
+  - **Also.** The record is 44 bytes, copied with no AddRef. `+0x14`–`+0x1C` is the position and `+0x20` the
+    source station. `EndDispatch` already revokes the unit, so the simulator's own revoke on the end message fails
+    harmlessly.
 - **PR2:** the dispatch automaton is handed to the core by a `cISC4Occupant` (`0x26BB767E`) QueryInterface, treated
   as borrowed. Right identity? [as stated]
 - **PR3:** `AddControllersFromOccupantGroup(name, occ, 0)` and its Remove: the name as an `SC4String` gives slots 10
