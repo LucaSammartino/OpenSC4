@@ -739,3 +739,29 @@ with aura was clean, 0 problems). The park, landmark and riot fields aside, **6 
 - **AU15 — rare large single-tract differences.** Three cycles have a base difference near 180 (cycle 3: 182,
   cycle 7: 188, cycle 88: 175) while the aura grid differs by at most 54/60/47 there. A lot placed or removed during
   the cycle? Which state reads the lots, and is a lot's effect clamped before or after it is added to the base?
+
+## From the residential education and health core (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/residential-education-health.md` (REH) §2 to §7. RS7 to RS17 are applied. The lane's answer is in
+brackets; the module doc of `core/src/residential/education_health.rs` lists 1 to 13.
+
+- **EH1:** do the efficiency ratings and the base staff efficiency start (a, b) at (0, 0)? [yes]
+- **EH2:** slot 19 sets both percentages: does it end with the dirty flag set? [yes]
+- **EH3:** after `ChangeBudgetItemLine`, is the line item's line the building type? [yes]
+- **EH4:** on removal with no line item for the line, is the count step skipped? [skipped]
+- **EH5:** a building added without a capacity: is its effective capacity 0? [yes]
+- **EH6:** do "served", the tract list and the boost all use the lot centre, else `GetPosition`? [yes, all three]
+- **EH7:** how do slots 28 and 58 pick the service? [like slot 45: hospital capacity first, then school]
+- **EH8:** slot 45 with no matching point or no radius? [AL = 1 whenever the building's kind is found, distance 0,
+  radius 0]
+- **EH9:** does the ideal funding test the served property itself for `0xFFFFFFFF`? [yes, the property]
+- **EH10:** does the hospital query fail on missing fields, testing the staff item last? [yes]
+- **EH11:** what does the ratings query's record start at? [zero]
+- **EH12:** do the system totals count only successful queries and add onto the caller's record? [yes]
+- **EH13:** in `AddRadiusEffectWithCurves`, with n = 0 is pop' = pop, and is the same tract index used for all
+  grids? [yes]
+- **EH14:** P is a signed 32-bit value: is a negative P accepted on Read (`record.rs`)? [accepted]
+- Not testable by vectors: the unsigned versus signed upper-bound compare (no output differs); the §4.13 tuning
+  values that are loaded but unused (minimum acceptable funding, maximum EQ/HQ boost). REH §11 test 24's calling
+  conventions (slot 34 leaves the x87 stack unchanged; slots 10 to 13 return through the hidden pointer) belong
+  to the residential glue.

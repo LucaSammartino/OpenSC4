@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "reh11_tract_quotient",
+  "spec": ["REH 4.8", "REH 11.12"],
+  "description": "REH test 12: tract (0, 0) with population (10, 20, 0) and EQ (100, 50, 0): GetCellEQ = (10 x 100 + 20 x 50) / 30 = 2000 / 30 = 66.666664 (float32 0x42855555); the average EQ grid stores float(trunc(66.666664)) = 66.0.",
+  "steps": [
+    {"op": "residential_env", "cells": [8, 8]},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_tract", "x": 0, "z": 0, "pop": [10, 20, 0], "eq": [100, 50, 0]},
+    {"op": "residential_call", "method": "get_cell_eq", "args": [0, 0], "bits": true, "expect": "0x42855555"},
+    {"op": "residential_call", "method": "tract_quotient", "args": ["eq", 0, 0], "bits": true, "expect": "0x42855555"},
+    {"op": "residential_call", "method": "average_grid", "args": ["eq"], "partial": true, "expect": {"values": [66, 0, 0, 0]}}
+  ]
+}

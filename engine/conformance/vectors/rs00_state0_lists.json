@@ -1,8 +1,8 @@
 {
   "format": 1,
   "name": "residential_state0_lists",
-  "spec": ["REH 4.1", "residential 10.1"],
-  "description": "State 0 (REH 4.1) distributes the pending school and hospital lists: each building goes to the first group in table order (schools 0x150F, 0x1510, 0x1514, 0x1504, 0x1505, 0x1506, 0x151B; hospitals 0x1512, 0x1513, 0x151C) it belongs to; a building in no group is dropped without Release [quirk]; a null entry is dropped [choice]. The other list moves as a whole to the end of the health-affecting list [inferred]. Slots 46 / 48 count the group lists plus the pending list. Slots 47 / 49 return the groups selected by the ID list (all for null, none for an empty list) and then always the pending list, AddRef'ing each. Slot 61 returns the health-affecting list then the other list, AddRef'ing each.",
+  "spec": ["REH 4.1", "REH 3", "residential 5.8", "residential 10.1", "RS8"],
+  "description": "State 0 (REH 4.1) distributes the pending school and hospital lists: each building goes to the first group in table order (schools 0x150F, 0x1510, 0x1514, 0x1504, 0x1505, 0x1506, 0x151B; hospitals 0x1512, 0x1513, 0x151C) it belongs to; a building in no group is dropped without Release [quirk]; a null entry is dropped [choice]. The other list (the pending health-affecting list, residential 5.8) moves as a whole, in order, to the end of the health-affecting list (RS8). With no school or hospital building in a can-strike group the monthly strike checks touch nothing, and the ordinance effects are re-read (GetOrdinanceOnArray). Slots 46 / 48 count the group lists plus the pending list. Slots 47 / 49 return the groups selected by the ID list (all for null, none for an empty list) and then always the pending list, AddRef'ing each. Slot 61 returns the health-affecting list then the other list, AddRef'ing each.",
   "steps": [
     {"op": "residential_env", "groups": {"1": ["0x1510"], "2": ["0x151B", "0x150F"], "3": ["0x9999"], "4": ["0x1513"]}},
     {"op": "residential_create"},
@@ -12,7 +12,7 @@
     {"op": "residential_call", "method": "hospital_building_count", "expect": 1},
     {"op": "residential_clear_events"},
     {"op": "residential_run_to", "state": 13, "steps": 1},
-    {"op": "residential_expect_events", "events": [{"event": "strike_checks"}, {"event": "ordinance_effects"}]},
+    {"op": "residential_expect_events", "events": [{"event": "ordinance_effects"}]},
     {"op": "residential_expect", "state": {"lists": {
       "pending_school": [], "pending_hospital": [], "other": [],
       "school_groups": [[2], [1], [], [], [], [], []],

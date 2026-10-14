@@ -57,6 +57,7 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] Landfill tests 1–23 (`lf11_*`) and the **neighbours core** with tests 1–12 (`nb18_*`) (merged 026fd9e)
 - [ ] Zones glue
 - [x] **Residential simulator core** (merged 737bcc5): all 24 residential §15 tests as unit tests and `rs15_*` vectors, the save record, RS1–RS6 applied; REH building work is left to host hooks. RS7–RS17 filed
+- [x] **Residential education and health core** (REH §2–§7, merged e520128): all 24 REH §11 tests as unit tests and `reh11_*` vectors (36 new vectors), RS7–RS17 applied, EH1–EH14 filed; the glue lane (M4) is next
 - [x] GD/BD/TD spec questions answered in the named specs (8fdea4e)
 - [ ] Seeding rules (foundations §6.3) and the daily growth budget calibrated in the original
 - [ ] Glue, and the growth statistics distribution matches across seeded runs (M4 exit)
