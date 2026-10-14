@@ -145,7 +145,8 @@ Does nothing (but still returns true) when already initialised. Otherwise marks 
    `SetDepartmentName(0x6A3FF01C, 0xAA4935FE)` (a localised string key, group and instance),
    `SetMaxAllowedFundingPercentage(maxFunding)`, `CreateLineItem(1, true)`, then
    `GetLineItem(1).SetDisplayFlag(1, false)`.
-5. Get the flammability simulator from the city (`+0xE8`) and hold it. It is never called (flammability spec).
+5. Get the flammability simulator (city `+0xE8`, through the cache global `0x00B43D7C`) and hold it at `+0xCC`
+   (`AddRef`). It is never called (PR12, below).
 6. `SetInstanceID` on both grids (§2).
 7. If there is no plane source: create a `cSC4FirePlaneDispatchSource` (class ID `0x4C0AE114`) **with
    `operator new` and its constructor** (not through GZCOM). Always call its `Init` (§8.4).
@@ -160,26 +161,44 @@ Does nothing (but still returns true) when already initialised. Otherwise marks 
    0xAA493855)`, max funding := police max funding, line item 1 created and hidden as for fire.
 5. If there is no jail department: department `0xA2963984` (group `0x4A357B40`), named `(0x6A3FF01C,
    0x4A4FC955)`, max funding := the **same** police max funding, line item 1 as above.
-6. Hold the crime simulator (city `+0xDC`). It is never called.
+6. Hold the crime simulator (city `+0xDC`, through the cache global `0x00B43D70`) at `+0xCC` (`AddRef`). It is never
+   called (PR12, below).
 7. Subscribe to the crime message `0x0A159D95` (§9.2).
 8. `SetInstanceID` on both grids.
 9. Create the `cSC4PoliceHelicopterDispatchSource` (`0x0C0B06E8`) if absent (same pattern as fire) and `Init` it.
 
 **Base init** (`ProtectionInit`, `0x006F6BC0`) *[compat]*:
-1. Hold city, simulator and message server. Create the grids if absent (§2).
+1. Hold the city (global `0x00B43CEC`), the budget simulator (city slot 52) and the zone manager (global
+   `0x00B43D14`), each with `AddRef` and only if not already held (`0x006F6BC7`–`0x006F6C0B`). Create the grids if
+   absent (§2). *(Corrected: the simulator is not held here, and the message server is held in step 4.)*
 2. Iterator rectangle := `[0, countX − 1] × [0, countZ − 1]` of the adjusted grid (an empty range is widened
    to one tract). The iterator is not reset here, so a new city's first daily call ends a cycle at once
    (simgrid §7.4: a never-reset iterator yields nothing).
-3. Register two agents with the simulator (`AddAgent`, simulator slot 19): level **4** (day) and level **6**
+3. Register two agents with the simulator (`AddAgent`, simulator slot 19; the simulator is read from the cache
+   global `0x00B43D5C` at `0x006F6D22`, not held, and the step is skipped when it is null): level **4** (day) and level **6**
    (month), both with flags **2** (only while the city is established) and the agent name
    **"cSC4ProtectionSimulator"** — the same name for fire and police.
-4. Subscribe to the nine messages of §5 (`AddNotification`, one call each) in this order: `0x99EF1142`,
+4. Only if the message server is not held yet: hold it (global `0x00B43CCC`, `AddRef`) and subscribe to the nine
+   messages of §5 (`AddNotification`, one call each; the whole step is skipped otherwise, `0x006F6D7A`) in this order: `0x99EF1142`,
    `0x99EF1143`, `0xC8DAC052`, `0x08DAC3E7`, `0xE94671EB`, `0x894671F6`, `0xE94671EC`, `0xE94671ED`, `0xC53D10AA`
    (`0x006F6D93`–`0x006F6E09`). The two day/month IDs are not subscribed; they arrive through the agents. Each ID has
    one handler in this class, so the order has no effect inside the class; it only fixes this target's position in
    the server's per-message notification lists, relative to targets that subscribe later. *[compat]*
 5. Register itself (the dispatch-source sub-object) with the dispatch manager (`RegisterDispatchSource`).
 6. tracts per day := `countX × countZ / period`.
+
+**Held but never called** *[compat]* (PR12):
+
+- **Fire's flammability simulator and police's crime simulator.** Each is held at `+0xCC` of its class. `Init`
+  takes the reference (fire `0x006AE2D4`–`0x006AE2ED`, police `0x006E285E`–`0x006E286F`) and `Shutdown` releases
+  it (fire `0x006AD222`, police `0x006E03AF`).
+- **No other code reads them.** Apart from the constructors, which zero the member, there is no access to that
+  member in either class. The check covered all offsets that reach it from the primary or from the `+0x08`,
+  `+0x0C` and `+0x10` sub-objects.
+- **The simulator (`cISC4Simulator`) is never held**; step 3 reads the cache global each time.
+- **Not holding them** changes only those objects' reference counts. If the city dropped its own reference
+  first, the object would also be destroyed earlier. Nothing in either class can observe that. *[choice]*
+  FreeCity4 holds none of the three.
 
 ### 4.2 `Shutdown()` → AL = 1
 

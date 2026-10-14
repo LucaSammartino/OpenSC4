@@ -585,8 +585,18 @@ About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The 
   - **How it is obtained.** At a cycle end it comes from `QueryInterface(1)`, which returns the primary itself and
     is released after the post. The station and jailbreak posts use `this` or `this − 8` directly.
   - **How the message holds it.** void1 is stored raw. IGZUnknown is a counted reference.
-- **PR12 — §4.1:** the simulator, flammability and crime simulators are not held (never called); only reference
-  counts differ. Acceptable? [not held]
+- ~~**PR12 — §4.1:** the simulator, flammability and crime simulators are not held (never called); only reference
+  counts differ. Acceptable? [not held]~~ **ANSWERED 2026-10-14** from the exe (fire `Init` `0x006AE2D4`–`0x006AE2ED`,
+  police `Init` `0x006E285E`–`0x006E286F`; `Shutdown` fire `0x006AD222`, police `0x006E03AF`; `ProtectionInit`
+  `0x006F6BC7`–`0x006F6E09`) and written into protection.md §4.1. **Acceptable; the bracket matches.**
+  - **Flammability and crime.** The original holds each at `+0xCC` from `Init` to `Shutdown`. No other code in
+    either class reads it, at any sub-object offset.
+  - **The simulator.** The original does not hold it at all: it reads the cache global `0x00B43D5C` for
+    `AddAgent`.
+  - **Spec correction.** Base init holds the city, the **budget simulator** and the **zone manager**. It holds the
+    message server and subscribes only when the server is not held yet.
+  - **Effect of not holding.** Only the reference counts, and so the objects' lifetimes, differ. Neither class can
+    observe that.
 - **PR13 — §13.2:** the air sources are created through GZCOM and their Init/Shutdown called by address while our
   replacement classes are active. Intended reading? [yes; no air dispatch on an unidentified executable]
 - Not implemented: the 14 extra message-target slots 4–17 (§15.3; no outside caller found).
