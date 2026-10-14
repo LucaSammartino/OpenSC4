@@ -392,6 +392,30 @@ plugin.
        `development_occupants`, `development_zoning`, `development_lots`, `development_lot_developer`,
        `development_demolition`, `development_advisor`, `development_posts`, `development_cheats`,
        `development_tract`, `development_city` (see `plugin/FC4Config.h`).
+     - `tract`: the tract developer (`cSC4TractDeveloper`, CLSID `0x2990C142`; tract-developer spec), the class
+       that grows, declines and populates the lots of a tract for the growth developers. Its 15 slots with the §7.1
+       return channels (slot 7 returns 0, slots 12 and 14 `this`, slot 10 the address of slot 9's style vector),
+       the agent (Month and Year) and the record (version 3, 19 + 4 x styles bytes). It works with the original
+       BDS, growth developers, lot developer and lot manager (or ours) through their interfaces only; the outcome
+       list, the style vector and every list or set it makes use the game's allocator B. The configuration filters
+       (one per wealth and purpose) are registered with the lot configuration manager and unregistered at Shutdown.
+       Every call into the core holds the object's lock; another thread waits at most 20 ms and then answers from
+       the values published after the last call. `tract_seed = N` (env `FC4_TRACT_SEED`) fixes the session seed
+       (default: the cRZTime clock); `tract_grow_log = 1` (env `FC4_TRACT_GROW_LOG`) adds one line per Grow call
+       (`tract Grow dev=… tract=x,z stage=… -> built=… flag=… desired=…/… scored=… codes=… cfg=… building=0x…`).
+       The log has `tract Init|Read|Write|NewYear|Shutdown: init=… configured=… style=0x… index=… years=…/…
+       styles=… filters=… grows=… built=… … filtersRegistered=…/… configRefs=… fallbacks=…` (`configRefs`: the
+       configuration references taken from the lot configuration manager and released after each call, kept
+       outside the reference audit) and one line per month:
+       `tract month yyyy-mm-dd: grows=… built=… declines=… declined=… populations=… outcomes=code:count,…
+       constructions=… reoccupations=… abandonments=… lotsCreated=… lotsDeleted=… demolitions=… style=0x… …
+       reentrant=… fallbacks=…` (the counts since the previous line; `reentrant` and `fallbacks` should stay 0),
+       followed by the `tract tally (ours) …` line of the tract shadow below (the same format, for comparing a
+       replacement run with a shadow run of the original).
+       Its game calls have their own switches (default `1`, environment `FC4_TRACT_<KEY>`): `tract_construction`,
+       `tract_abandon`, `tract_lot_changes`, `tract_demolition`, `tract_population`, `tract_resources`,
+       `tract_filters`, `tract_lot_lists`, `tract_traffic`, `tract_style_map`, `tract_roads`, `tract_family_sets`,
+       `tract_agents` (see `plugin/FC4Config.h`).
    - Each budget behaviour that touches game objects has a switch. The switches are re-read at every city load
      (budget `Read`/`Init`). Each defaults to `1`; `0` makes the behaviour a no-op with a neutral result. The
      matching environment variable is `FC4_BUDGET_<KEY>`. `budget_default = 0` turns every unset switch off.
@@ -1205,6 +1229,40 @@ plugin.
 
      Success is `mismatches=0` on every line and no `INCOMPLETE` line (the first update of a developer seen
      mid-update is skipped without a line).
+   - **Tract shadow** (`tract_shadow = 1`, env `FC4_TRACT_SHADOW`; off by default; `plugin/FC4TractShadow.h`): a
+     same-process differential of the tract developer. It needs the **original** tract developer (do not enable
+     `tract`); otherwise it logs `tract shadow: requested … but INACTIVE` at game start. At PostCityInit and each
+     SimNewMonth it reads the original's style state (slots 8, 9, 11, 13; never a setter) and its record (its own
+     `Write` into memory), loads the record into a FreeCity4 core in shadow mode (then ReadTuning, as the
+     original's Init does), and compares the core's `Write` bytes and getters with the original's. UpdatePopulation
+     is compared at every call: on the identified executable, when the original's vtable slot 7 holds the
+     original UpdatePopulation (`0x00706BC0`), that one entry is pointed at a forwarder in FreeCity4.dll at the
+     first city load (same `this`, argument and EAX); per call the core computes the populations first (nothing
+     written), the original runs, and each lot's population is compared with ours. The entry is put back at
+     PreAppShutdown and at DLL detach. Tract (0, 0) is forwarded without a comparison (the original seeds it from
+     the clock). Without the forwarder the population line samples up to 32 tracts per growth developer at each
+     month instead (it drifts: the original set those populations at its last call). Grow and Decline are not
+     compared (they change the city and draw from the generators): slots 5 (`0x0070D130`) and 6 (`0x00709200`)
+     are forwarded the same way and only counted. Per growth developer (its subtype) the tally keeps the Grow
+     calls, their results, the outcome codes they appended, their wall time, and the Decline calls and results;
+     the `tract tally` line gives them once a month and starts over. The BDS gives growth about 3 ms a day
+     (building-development.md §4.4), so the Grow time decides how many developers get a Grow call that day.
+     Lines (always written):
+
+     ```
+     tract shadow: ON (tract_shadow from …): …                                              (game start)
+     tract shadow: UpdatePopulation forwarder installed at … (vtable 00AB3118 slot 7): 0x00706BC0 -> …
+     tract shadow (styles) yyyy-mm-dd load|month: record=31 bytes roundtrip=same current=0x… index=… styles=…
+       all=… years=…/… mismatches=N first=…
+     tract shadow (calls) yyyy-mm-dd month: calls=N compared=C origin=O failures=F lots=L mismatches=N first=…
+     tract shadow: Grow (tally) forwarder installed at … (vtable 00AB3118 slot 5): 0x0070D130 -> …
+     tract shadow: Decline (tally) forwarder installed at … (vtable 00AB3118 slot 6): 0x00709200 -> …
+     tract tally (original) yyyy-mm-dd month: grows=G built=B codes=A successes=S declines=D declined=X growMs=T
+       unlisted=U devs=0xSUBTYPE:gG/bB/dD/xX/tAVG,MAX/code:count,… (ascending subtype; Grow time in µs)
+     tract shadow: UpdatePopulation forwarder removed (PreAppShutdown): slot 7 holds 0x00706BC0 again; …
+     ```
+
+     Success is `roundtrip=same`, `mismatches=0` and `failures=0` on every line.
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,

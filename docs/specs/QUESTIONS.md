@@ -2930,11 +2930,24 @@ exe and the shipped data alone.
   graphics-formats §2.8. All 167 are in group `0x1ABE787D` and each is followed by a `0x70` name block. The last level
   always reads that block's first 8 bytes, and no read passes the record end. Reproduce, as the bracket says, but with
   the record's bytes rather than zeros: zero only past `size`, which no shipped entry reaches *[choice]*.
-- **GF10 — §3.9:** semantics of ANIM frame rate (30, 10, 3, 2, 1, 0 shipped), mode (always 3), flags and
-  displacement (always 0), as the animated model instance uses them. [not traced; for the rendering spec]
-- **GF11 — §3.10, §3.11:** consumers of PROP (`skeleton`/`suit` pairs on 58 people models) and REGP (`fx_…` names on
+- ~~**GF10 — §3.9:** semantics of ANIM frame rate (30, 10, 3, 2, 1, 0 shipped), mode (always 3), flags and
+  displacement (always 0), as the animated model instance uses them. [not traced; for the rendering spec]~~
+  **ANSWERED 2026-10-14** from the exe (animated instance `0x007FD870`, `SetFrame` `0x007FDAF0`, `Step`
+  `0x007FDB80`, `SetSpeed` `0x007FC170`, `Advance` `0x007FC1C0`, `SetAnimMode` `0x007FAFC0`; prop driver
+  `0x005ECFB0`) and written into graphics-formats §3.9. The rate is frames per second (speed = rate × 0.001 per
+  ms); rate 0 never advances. The file's mode, flags and displacement are never read. The instance has its own
+  mode: 3 (default) loops, 2 ping-pongs, other values play once and hold; automata attach with mode 1. `Advance`
+  steps at most one frame per call.
+- ~~**GF11 — §3.10, §3.11:** consumers of PROP (`skeleton`/`suit` pairs on 58 people models) and REGP (`fx_…` names on
   1,810 models), and the meaning of REGP's seven floats. [inferred: effect attachment points, position and
-  orientation; not traced]
+  orientation; not traced]~~
+  **ANSWERED 2026-10-14** from the exe (`cSC4ModelRegEffects` `0x005E8320`, `0x005E8810`, `0x005E6160`; fire crew
+  `0x00548F10`, `0x00548BD0`; airplane `Init` `0x005017C0`) and a sweep of the shipped models, and written into
+  graphics-formats §3.10 and §3.11. PROP has no consumer. REGP `fx_` names become visual effects on automata,
+  helicopters, tanks and bridges (not on buildings, props or flora); `regpoint01` gives fire crews a point. There
+  is one record per animation frame (C = F in all 3,025 entries). The data hold a position and a unit quaternion,
+  but the exe reads the last four floats as an axis and an angle in radians. The bracket is right about the
+  position, not about the orientation.
 - ~~**GF12 — §2.4:** does anything outside the 3D texture path read the FSH centre fields (non-zero in 722 entries) or
   bits 12–27 of `+0x0C` (non-zero in 294)? [none found]~~
   **ANSWERED 2026-10-14** from the exe (entry-header decoder `0x00808D70` and its callers `0x008008EE`,
@@ -3838,26 +3851,145 @@ cores10a implemented both cores (merged `0757437`, ABI 46): every §12 test of h
 test and a conformance vector (`hw12_*`, `ck12_*`). The 421-save corpus checks (history §7.1, clock §12.12) are
 left for the coordinator or a glue lane, since engine lanes cannot read the saves.
 
-- **CK7:** clock §4.1: the percentage factor's bit pattern `0x37C22E45` is 1/43200 (1.0 at noon), but the decimal
-  value and §12.1 say 1/86400. [`0x37422E45`, 1/86400; a test pins it]
-- **CK8:** the clock step's signedness. [u32: a negative product wraps, then the 1200 clamp applies]
-- **CK9:** an elapsed time of 2^31 or more. [the float(uint32) idiom]
-- **CK10:** `atol` overflow (`Stopwatch magnify`). [wraps]
-- **CK11:** how cheat text is split. [on blanks; double quotes group and are removed]
-- **CK12:** the cheat registration order. [register, then subscribe, one cheat at a time]
-- **CK13:** `Shutdown` without a cheat manager. [it unregisters only when a manager exists]
-- **CK14:** a saved pause count of −1. [signed i32 counters: Resume does nothing, `IsPaused` is false, so the clock
-  runs]
-- **CK15:** timer `Restart` on a stopped timer. [starts it]
-- **HW5:** history §4.7: how `r` is grouped. [the product of the two standardised values, summed, then divided by n]
-- **HW6:** ranges: how they are walked, and a widened range with from > to and no point in it. [walked like a list;
-  the widened case takes the point before the first one at or after `from`, and that point]
-- **HW7:** a `Read` failure. [stops at the first failed read and returns false; series read completely stay, the
-  partial one is dropped; a date not after the previous one, with no point yet, is dropped]
-- **HW8:** `Store`'s full-queue test. [unsigned: a count at or above maxCount drops one point; maxCount 0 means
-  unlimited, so 0xFFFFFFFF never trims]
-- **HW9:** `GetMinMaxAverage` with from == to and no point on that date. [`GetPoint` is called twice and its value
-  counted twice, as written]
-- **HW10:** precision values other than 24. [all treated as 53 bits]
-- **HW11:** 24-bit sums of int32 operands. [the exact sum, rounded once]
-- **HW12:** `RecordHistoryData`'s return value. [true]
+- ~~**CK7:** clock §4.1: the percentage factor's bit pattern `0x37C22E45` is 1/43200 (1.0 at noon), but the decimal
+  value and §12.1 say 1/86400. [`0x37422E45`, 1/86400; a test pins it]~~ **ANSWERED 2026-10-14 (re-answers10):** the exe's constant (`0x00A86508`) is `0x37422E45` = f32(1/86400); the spec's `0x37C22E45` was a typo. `GetTimePercentage` at noon writes exactly 0.5 (`0x3F000000`); the product is rounded once to float. The bracket MATCHES (clock24 §4.1, test 14).
+- ~~**CK8:** the clock step's signedness. [u32: a negative product wraps, then the 1200 clamp applies]~~ **ANSWERED 2026-10-14 (re-answers10):** the step is the low 32 bits of `_ftol`'s int64 truncation toward zero, compared unsigned with 60 and 1200: a product of −1 or less wraps and is clamped to 1200; between −1 and 0, or NaN, gives 0 (no step). The bracket MATCHES (clock24 §4.3, test 15).
+- ~~**CK9:** an elapsed time of 2^31 or more. [the float(uint32) idiom]~~ **ANSWERED 2026-10-14 (re-answers10):** the unsigned-to-float idiom (exact load, plus 2^32 when the top bit is set); below 2^31 the product uses the exact `e`, rounded once. The bracket MATCHES (clock24 §4.3).
+- ~~**CK10:** `atol` overflow (`Stopwatch magnify`). [wraps]~~ **ANSWERED 2026-10-14 (re-answers10):** the CRT `atol` (`0x009EF7C2`) skips leading white space, takes one sign and accumulates in wrapping 32-bit arithmetic. The bracket MATCHES. Also: `WhatTimeIzIt -1` gives hour 15, and `magnify` converts the signed result (clock24 §4.8, test 18).
+- ~~**CK11:** how cheat text is split. [on blanks; double quotes group and are removed]~~ **ANSWERED 2026-10-14 (re-answers10):** the separators are exactly space, tab and newline, and runs count as one. A separator splits only when an even number of quotes has been seen in the current argument, and only an argument that both starts and ends with a quote loses that outer pair. The bracket MATCHES for ordinary text but **DIFFERS** if FreeCity4 removes inner quotes or splits on other white space (clock24 §4.8).
+- ~~**CK12:** the cheat registration order. [register, then subscribe, one cheat at a time]~~ **ANSWERED 2026-10-14 (re-answers10):** register `WhatTimeIzIt`, subscribe it, then register `Stopwatch`, subscribe it. The bracket MATCHES (clock24 §4.2).
+- ~~**CK13:** `Shutdown` without a cheat manager. [it unregisters only when a manager exists]~~ **ANSWERED 2026-10-14 (re-answers10):** without a cheat manager nothing is unregistered; with one, each cheat in turn has its notification removed, then is unregistered. The bracket MATCHES (clock24 §4.2).
+- ~~**CK14:** a saved pause count of −1. [signed i32 counters: Resume does nothing, `IsPaused` is false, so the clock
+  runs]~~ **ANSWERED 2026-10-14 (re-answers10):** the counters are signed, `Pause(false)` does nothing at −1 and `IsPaused` is false, but `Init` starts the timer only when both counters are **exactly** 0. So the timer never starts, every step is 0 and the clock stays frozen until `Stopwatch pause` brings the count to 0 and a hidden pause cycle (or pause and resume) starts the timer. The bracket **DIFFERS** ("the clock runs") (clock24 §4.7, test 16).
+- ~~**CK15:** timer `Restart` on a stopped timer. [starts it]~~ **ANSWERED 2026-10-14 (re-answers10):** `Restart` sets the elapsed time to 0 and the start tick to now, whether or not the timer ran, so a stopped timer starts. The bracket MATCHES. Also: `Start` does not test whether the timer runs (clock24 §4.3 timer model).
+- ~~**HW5:** history §4.7: how `r` is grouped. [the product of the two standardised values, summed, then divided by n]~~ **ANSWERED 2026-10-14 (re-answers10):** the grouping MATCHES (the product of the two standardised values, summed, then divided by n), but the standardised values are `(x − meanX) × (1/sx)` and `(value − meanY) × (1/sy)`, with each reciprocal rounded once; dividing by `sx` changes the result (history §4.7, test 12).
+- ~~**HW6:** ranges: how they are walked, and a widened range with from > to and no point in it. [walked like a list;
+  the widened case takes the point before the first one at or after `from`, and that point]~~ **ANSWERED 2026-10-14 (re-answers10):** walked like a list from the first point, with unsigned dates. With `from > to` the widened range is the **first point after `to` and its predecessor** (after the two pre-checks: the last point if `from` is after it, the first point if `to` is before it). The bracket (the point before the first at or after `from`, and that point) **DIFFERS** whenever a point lies between `to` and `from` (history §4.6, test 11).
+- ~~**HW7:** a `Read` failure. [stops at the first failed read and returns false; series read completely stay, the
+  partial one is dropped; a date not after the previous one, with no point yet, is dropped]~~ **ANSWERED 2026-10-14 (re-answers10):** `Read` tests no individual read and runs on with the values the failed reads left, so the series being read keeps the points read before the failure. A duplicate key makes `Read` return false **at once** (the rest of the record is unread); the old spec said it was only discarded. The bracket's stop-and-drop is accepted as *[choice]* for corrupt records; it **DIFFERS** from the original only in the partial series. A date ≤ prev with no point (only date 0) is dropped: MATCHES (history §7, test 14).
+- ~~**HW8:** `Store`'s full-queue test. [unsigned: a count at or above maxCount drops one point; maxCount 0 means
+  unlimited, so 0xFFFFFFFF never trims]~~ **ANSWERED 2026-10-14 (re-answers10):** the u32 count is compared unsigned with `maxCount`, and 0 means unlimited. The bracket MATCHES (history §4.1).
+- ~~**HW9:** `GetMinMaxAverage` with from == to and no point on that date. [`GetPoint` is called twice and its value
+  counted twice, as written]~~ **ANSWERED 2026-10-14 (re-answers10):** both flags are tested after the loop, so with `from = to` and no point on that date, `GetPoint` runs twice and its value counts twice. The bracket MATCHES (history §4.7, test 13).
+- ~~**HW10:** precision values other than 24. [all treated as 53 bits]~~ **ANSWERED 2026-10-14 (re-answers10):** glue-only: the game never selects the 64-bit mode, so only 24 and 53 occur. The choice is confirmed (history §4.7).
+- ~~**HW11:** 24-bit sums of int32 operands. [the exact sum, rounded once]~~ **ANSWERED 2026-10-14 (re-answers10):** each addition takes the exact integer operand and the stored sum and rounds once at the caller's precision. The bracket MATCHES (history §4.7).
+- ~~**HW12:** `RecordHistoryData`'s return value. [true]~~ **ANSWERED 2026-10-14 (re-answers10):** the original returns the final `Release`'s EAX, which is 0 (false) because nothing keeps the message. No shipped caller reads it (48 call sites checked). The bracket **DIFFERS**: return false *[compat]* (history §4.1).
+
+## From the commercial, industrial, civic and park cores (filed by the coordinator from the `cores10b` lane's report, 2026-10-14)
+
+cores10b implemented the four cores (merged `ab3c1c3`, ABI 47). Every listed spec test is a unit test and a
+conformance vector (`ci13_*`, `cb12_*`, `pk12_*`). The 421-save corpus tests (commercial-industrial §13.9, civic §12.10,
+parks §12.8) wait for a glue lane's save sweep, which the coordinator runs.
+
+- **CM4:** commercial `Init` after a failed `Init` (§4.1 sets `initialized` in step 1). [returns true at once and
+  creates no grids]
+- **CM5:** commercial rebuild with no building map: RG24 says the shared seed helper `0x005E4FA0` writes nothing; do the
+  passes of helper `0x005E5130` still run? [yes: nothing is seeded, then the passes run, so a fresh grid stays 0 and a
+  loaded grid is only lowered]
+- **CM6:** a commercial grid absent at a rebuild (failed `Init`, or an unresolved save reference). [the rebuild does
+  nothing; the state machine still advances]
+- **CM7:** a commercial state outside 0..3. [nothing happens]
+- **CM8:** commercial `Read`. [atomic; the old grids are released before being replaced (§8.1 quirk)]
+- **CM9:** the commercial message server. [unsubscribe and release only when one is held]
+- **IN2:** industrial `Shutdown`: the spec gives only "AL (1)". [clears `initialized`, returns true]
+- **CB6:** civic `Read` order: inserting the file's entries in order, as STLport does, would reverse each bucket chain,
+  so §12 test 9 could not be byte-identical. [grow the table first, then insert in reverse; a key already present, or
+  repeated in the file, keeps its first value]
+- **CB7:** civic `Release` (slot 2). [sibling rule: above 1 it decrements; otherwise Shutdown, destroy, return 0]
+- **CB8:** civic null list entries. [the monthly pass skips them; an ape escape that draws one does nothing]
+- **CB9:** a business-deal income line that cannot be created (CB5). [skipped]
+- **CB10:** a civic department that cannot be created in `Init`. [no name or maximum is set and nothing is held]
+- **CB11:** a civic department whose funding cannot be read in the monthly pass. [that entry is skipped]
+- **CB12:** civic `DoBuildingRemoved` step 3. [releases only when a matching entry was found and erased]
+- **CB13:** civic `Read`. [atomic; the old Landmarks department is released, the old list entries are not]
+- **CB14:** the civic temporary generators' counter n is not saved. [seed derive(S, 0x0A413481 ^ n), n counting the
+  generators this object has made]
+- **PK4:** park tuning with no exemplar. [threshold 0.25 and an empty curve, which gives 0, so no zoo escapes; the
+  tuning is read once per object]
+- **PK5:** park insert when the item names a missing department, or a line item cannot be created. [steps 5–7 are
+  skipped; the line item is skipped]
+- **PK6:** park monthly pass with no held department or unreadable funding. [stops after step 1]
+- **PK7:** park zoo removal of an occupant that was not listed. [released once anyway: the literal reading]
+- **PK8:** park `Read`. [atomic; the lists are replaced without releasing their old entries]
+- **PK9:** the park generator. [`cRZRandomSuper` seeded with derive(S, 0xAA3FE6BC)]
+- **RN1:** foundations §6: in a mutation check, session seeds `0x1234` and `0x1235` gave identical park draws. Since
+  `derive` is an XOR, the generator seems to ignore bit 0 of its seed. Does the original `cRZRandomSuper` (or its
+  seeding) also drop bit 0, and does it matter for any other generator? [not investigated]
+
+## From the city situation, demolition, dispatch, port, prop developer and city detail specs (re-specs10 lane, 2026-10-14)
+
+Open points from city-situation.md, demolition.md, dispatch.md, port-developers.md, prop-developer.md and
+city-detail.md. The current answer is in brackets; each entry says what would settle it. "Turbo run" means the
+in-game harness with the FreeCity4 turbo clock and a message log.
+
+- ~~**CS1:** what does 3D view slot 57 do when the situation popup is shown (`0xEBB67EF7`)? [hides the mission status
+  panel]~~ **ANSWERED 2026-10-14** in this lane from the exe (3D view vtable slot 57, `+0xE4`,
+  `HideMissionStatusPanel`) and written into city-situation.md §3.
+- **CS2:** the argument meanings of city situation manager slots 22–25 (`InitiateSituationForOccupant`,
+  `InitiateSituationByAutomataGroup`, `StartJoyride`, `TreatAutomatonAsGroup`). [the symbol port's names; the
+  argument counts are verified from the pops (8, 12, 12, 8 bytes); nothing FreeCity4 replaces calls them. A call
+  trace of the four slots while the shipped situations run (car chase, UFO, joyride) in a turbo run would settle it]
+- **CS3:** who posts `0x2C16BDE7` (the situation popup without an advice)? [no code in the executable; only a script
+  or a plugin could. A turbo run that triggers every shipped situation should log 0 posts of `0x2C16BDE7`]
+- **DM1:** demolition filter step 7: in a view level other than 1, networks with any flag of `0x1F4F` are refused.
+  Is that mask the surface networks, so that only pipes and subways can be demolished underground? [yes, from the bit
+  layout. In a turbo run, demolish a rectangle over a road crossing a pipe in the underground view: the road must
+  stay and the pipe go]
+- **DM2:** `ModifyTerrainHeight` (slot 9) returns a vertex count and never writes `*cost`. [as specified; no shipped
+  caller passes a cost pointer. A call trace of slot 9 with the level and raise tools would confirm both]
+- **DM3:** `0xA9DED179` has a handler and no poster. [no poster in the exe; FreeCity4 keeps the handler. A turbo
+  run with demolitions, disasters and terrain edits should log 0 posts]
+- **DM4:** occupant flag 1 means "inserted in the occupant manager", so poles removed earlier in the same call are
+  skipped. [yes, inferred from the occupant manager's insert and remove paths; flora.md agrees. A breakpoint on the
+  occupant manager's insert and remove watching flag 1 would settle it]
+- **DP1:** dispatch types 2, 3, 4 and 7: no shipped source handles them. [unused in the shipped game; a plugin may
+  use them, so FreeCity4 keeps them as plain numbers]
+- **DP2:** 409 template saves hold `toolType` 4, while the shipped tool's "none" is 8. [written by an earlier build;
+  every value loads the same and is overwritten when the tool opens. Nothing more to settle unless a value other
+  than 4–8 turns up]
+- **DP3:** dispatch states: 0 idle, 3 dispatched and 5 working are inferred names; who sets the others? [the automata
+  controllers; only state 5 changes `active`. A trace of `UpdateDispatchState` while a fire engine answers a fire in
+  a turbo run would list the states in order]
+- **PD1:** `GetLeastEfficientPort` loops forever with two or more ports. Does anything call it? [no caller in the exe
+  and no Lua binding found; FreeCity4 returns the least efficient port (*[choice]*). Searching the shipped Lua
+  (`SimCity_1.dat` advisor scripts) for a binding, then a turbo run with two airports and every advisor open, would
+  settle it]
+- **PD2:** the port's monthly `UpdateOccupantEffects(building, old ratio, new ratio)` adds the usage-ratio change on
+  top of the demand effects the building already has as an occupied building. Do both apply? [yes: the port call
+  moves the effect by the ratio change only. Logging the demand caps (demand.md §8) before and after an airport's
+  first month with known office jobs in a turbo run would settle it]
+- **PD3:** what does lot condition 2 mean on a port lot (set when the port is stressed for more than 90 days)?
+  [what it means on any lot (lot-developer.md §5.5): the presentation of a distressed lot; the port developer resets
+  it to 0 each month it is not stressed. A turbo run with an airport above 96 % usage for four months, logging
+  condition and state changes of its lot, would show whether anything else reacts]
+- **PD4:** the seaport type declares an 11 × 5 terrain grid but ships 72 values (12 × 6). Data error, or are the
+  dimensions counted in cells while the values are vertices? [data error as far as the code goes: the grid is
+  rejected, so seaports never re-level terrain. Plopping a seaport on an uneven coast and comparing vertex heights
+  before and after would settle it]
+- **PV1:** the prop developer's night batch size (`+0xA34`) is not initialised; 225 shipped records hold
+  `0xBAADF00D`. [never read while the night mode is 0; *[choice]* FreeCity4 writes 0 for a new city and writes a
+  loaded value back unchanged. A new city saved by the original would show what the GOG build writes]
+- **PV2:** a tagged prop whose tag names no object of its lot's configuration lowers the block's slot count by one.
+  Which props have such tags in practice? [props left over from a different configuration (a lot redeveloped with a
+  new configuration, or a lower detail level before the city detail manager's reduce); reproduced. Counting, in a
+  corpus city, lot props whose tag matches no object of their lot's configuration would show how common it is]
+- **PV3:** `UpdateAllOptionalProps` (slot 7) has no caller. [none in the exe; FreeCity4 implements it as specified
+  (every block, x outer). A plugin scan or a call trace in a long turbo run would settle it]
+- **PV4:** the block step runs on every Idle delivery, also while paused, so props develop at a frame-rate-dependent
+  speed. Does the original really grow optional props while paused? [yes, from simulator.md §5.4. In a turbo run,
+  pause a fresh city with zoned growth for 60 s of real time and log `0x99EF1142` for props carrying `0x89A1C16C`:
+  posts while paused confirm it]
+- **PV5:** the requester index stored on a prop is not bounds-checked, and `RemovePropRequester` shifts later
+  indexes. [only pollution removes its requester, at `Shutdown`; an index ≥ the requester count cannot occur in the
+  shipped game. *[choice]* FreeCity4 treats it as "no index". Nothing to settle in game]
+- **PV6:** a power change switches night-lit **street** props at once but leaves night-lit **lot** props until the
+  next dusk, dawn or switch. [reproduced, from the exe. At night in a turbo run, cut the power line to a lit block and
+  watch a lit lot prop and a lit street lamp: the lamp goes dark at once, the lot prop at dawn]
+- **CD1:** which lot configuration objects are dropped at each city detail level? [the lot configuration manager
+  filters objects by the detail preference when it builds configurations (it passes the preference to the
+  configuration's reader); the exact field belongs to a lot configuration spec. Comparing one lot configuration's
+  object count at detail 1 and 3 would settle it]
+- **CD2:** after a detail change every network lot is redeveloped (network lot manager slot 12). Does that change
+  saved state, such as street props drawn from the network lot manager's generator? [yes, inferred: redevelopment
+  re-creates the network lot's objects. Saving a city, reopening it at another detail level and saving again, then
+  comparing the street prop records, would settle it]

@@ -807,6 +807,7 @@ pub mod residential;
 pub mod residential_shadow;
 pub mod stream;
 pub mod traffic;
+pub mod tract_developer;
 pub mod weather;
 pub mod zonedev;
 pub mod zones;
@@ -888,6 +889,8 @@ mod test_streams;
 
 #[cfg(test)]
 mod traffic_tests;
+#[cfg(test)]
+mod tract_developer_tests;
 
 #[cfg(test)]
 mod weather_tests;
