@@ -53,6 +53,10 @@
 //   protection_shadow = 0 / 1     the fire / police grid shadow (default 0; needs
 //                                 the ORIGINAL protection simulators: do not enable
 //                                 protection; FC4ProtectionShadow.h)
+//   landfill_shadow = 0 / 1       the landfill shadow (default 0; needs the ORIGINAL
+//                                 landfill developer: do not enable landfill;
+//                                 FC4LandfillShadow.h)
+//   landfill_shadow_diffs = N     its differences listed per month (default 8)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.
@@ -176,6 +180,24 @@ enum class Sw : unsigned {
     ProtectionAirSources,  // protection_air_sources: create the fire plane / police helicopter
                            //   dispatch source through GZCOM and call its non-virtual Init /
                            //   Shutdown (docs/abi/direct-calls.md; identified executable only)
+    // Landfill developer host callbacks (cFC4Landfill.cpp), one per group of
+    // game calls; only used when the landfill subsystem is enabled.
+    LandfillTerrain,     // landfill_terrain: terrain altitude and sea level reads, SetAltitude,
+                         //   RedisplayTerrain (off: 0, nothing redrawn)
+    LandfillLevelling,   // landfill_levelling: the lot developer's AttemptAreaLevelling (off: not levelled)
+    LandfillPollution,   // landfill_pollution: the garbage supply and capacities, AddToGarbageSupply,
+                         //   SetGarbageCapacity, the active-landfill flag, GarbagePutInLandfill (off: 0)
+    LandfillBudget,      // landfill_budget: the sanitation department, its funding and line item 30
+                         //   (off: no department)
+    LandfillZoning,      // landfill_zoning: GetZoneCount, GetZoneType, PlaceZone (off: unzoned, refused)
+    LandfillOccupants,   // landfill_occupants: occupant lookups, removal, position, flags, messages,
+                         //   item costs, flora and base-texture removal (off: no occupants)
+    LandfillProps,       // landfill_props: AddLotProp / RemovePropA, the zot (off: no zot)
+    LandfillTraffic,     // landfill_traffic: FindNetworkTile, the traffic simulator's subnetworks
+                         //   (off: no road tile, no connection)
+    LandfillHistory,     // landfill_history: the history record messages (MessageSend)
+    LandfillEffects,     // landfill_effects: the zone effects (§4.10, rendering only; not implemented,
+                         //   logged once either way)
     Count
 };
 

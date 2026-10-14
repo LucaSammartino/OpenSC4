@@ -2285,6 +2285,220 @@ bool fc4_protection_shadow_run(fc4_protection* p, const fc4_grid_geometry* geom,
                                size_t count, uint64_t department, bool strike_flag);
 size_t fc4_protection_shadow_grid(const fc4_protection* p, uint8_t* out, size_t n);
 
+/* ---- landfill developer (docs/specs/landfill.md) ----------------------------
+ *
+ * cSC4LandfillDeveloper (0xEA09D4AE). Tokens: the sanitation department, the
+ * zot props and every game occupant by its cISC4Occupant identity; 0 is null.
+ * The core owns one reference on the department (get_department_budget hands
+ * out a borrowed one; the core add_refs it on PostCityInit) and on every zot
+ * (add_lot_prop hands out a borrowed one; the core add_refs it; a zot read
+ * back by fc4_landfill_read arrives with one, or gets one through add_ref when
+ * fc4_ref.core_handle is set). Shutdown releases them.
+ *
+ * Landfill tiles are kept in this layer, not in the game (attaching a tile
+ * exemplar to a game cSC4LandfillOccupant is not documented): the host's
+ * occupant callbacks never see them, and the cells keep pollution's
+ * active-landfill flag. Tiles are not saved; after a load they are rebuilt on
+ * PostCityInit from is_active_landfill over the zones' mask cells. Landfill
+ * tiles of the original developer (a city it saved) are game occupants and
+ * are found through occupant_at as usual.
+ *
+ * A message delivered while another call into the same object is running is
+ * queued and handled when that call returns.
+ *
+ * Threads: the core is single-threaded. The caller serialises every call on
+ * one handle (the plugin holds a per-object lock). */
+typedef struct fc4_landfill fc4_landfill;
+
+/* A cell region (SC4CellRegion<long>): the inclusive rectangle and
+ * (x1 - x0 + 1) * (z1 - z0 + 1) mask bytes, index (z - z0) * width + (x - x0),
+ * non-zero = a mask cell. mask NULL: every cell set. A short mask is padded
+ * with cleared cells; a rectangle of more than 2^20 cells is refused. */
+typedef struct fc4_landfill_region {
+    int32_t x0, z0, x1, z1;
+    const uint8_t* mask;
+    size_t len;
+} fc4_landfill_region;
+
+/* The zone effects init_zone_effects created (§4.10): one reference each for
+ * the core, 0 = none. */
+typedef struct fc4_landfill_effects {
+    uint64_t truck;
+    uint64_t seagull;
+} fc4_landfill_effects;
+
+/* Diagnostics. `moved`, `supply_delta`, `free_capacity` and
+ * `capacity_reported` are the last SimNewMonth's. */
+typedef struct fc4_landfill_state {
+    uint32_t struct_size;
+    uint8_t initialized, loaded, capacity_reported, reserved0;
+    uint32_t zones, connected_zones;
+    uint32_t cells;           /* mask cells over all zones */
+    uint32_t heaps, valid_heaps, active_heaps;
+    uint32_t zots;            /* zones with a zot prop */
+    uint32_t virtual_tiles;   /* tiles kept in this layer */
+    uint32_t active_cells;    /* cells this object flagged (and the rebuild found flagged) */
+    uint32_t reentrant_calls;
+    uint32_t capacity_total, used_total;
+    int32_t free_capacity;    /* the last SetGarbageCapacity value */
+    uint32_t rebuilt_tiles;   /* tiles rebuilt at the last PostCityInit after a load */
+    uint64_t stored;          /* sum of contained over every heap */
+    int64_t moved;            /* sum of GarbagePutInLandfill */
+    int64_t supply_delta;     /* sum of AddToGarbageSupply */
+    int64_t maintenance;      /* slot 7 */
+    uint64_t department;      /* borrowed; 0 = none */
+} fc4_landfill_state;
+
+/* What the landfill developer needs from the game (one callback per
+ * LandfillHost method that reaches the game, engine/core/src/landfill/mod.rs,
+ * §8, plus two pollution reads). Missing callbacks read as 0 / false / no-op
+ * (department funding as 1.0). Returned tokens are borrowed unless stated. */
+typedef struct fc4_landfill_host {
+    uint32_t struct_size; /* sizeof(fc4_landfill_host) */
+    void* user;
+    /* lifecycle (§1.1, §1.2) */
+    void (*acquire_services)(void* user);
+    void (*release_services)(void* user);
+    void (*add_agent)(void* user, uint32_t level, const char* name, size_t len, uint32_t flags);
+    void (*remove_agent)(void* user);
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    fc4_props* (*tuning)(void* user);                                                     /* NEW or NULL */
+    fc4_props* (*exemplar)(void* user, uint32_t type, uint32_t group, uint32_t instance); /* NEW or NULL */
+    /* city (slots 93, 94, 97) */
+    void (*cell_counts)(void* user, int32_t* x, int32_t* z);
+    void (*cell_center_to_position)(void* user, int32_t x, int32_t z, float* px, float* pz);
+    /* terrain (slots 13, 19, 29, 49, 68) */
+    float (*altitude)(void* user, float px, float pz);
+    float (*altitude_at_nearest_grid)(void* user, float px, float pz);
+    float (*sea_level)(void* user);
+    void (*set_altitude)(void* user, int32_t x1, int32_t z1, int32_t x2, int32_t z2, float altitude);
+    void (*redisplay_terrain)(void* user, int32_t x1, int32_t z1, int32_t x2, int32_t z2);
+    /* pollution simulator (slots 20, 21, 24, 29, 30, 50, 51; reads 22, 49) */
+    uint32_t (*garbage_supply)(void* user);
+    uint32_t (*landfill_tile_capacity)(void* user);
+    int32_t (*total_garbage_uncollected)(void* user);
+    void (*add_to_garbage_supply)(void* user, int32_t delta);
+    void (*set_garbage_capacity)(void* user, int32_t available);
+    void (*set_is_active_landfill)(void* user, int32_t x, int32_t z, bool on);
+    void (*garbage_put_in_landfill)(void* user, int32_t n);
+    int32_t (*garbage_capacity)(void* user);
+    bool (*is_active_landfill)(void* user, int32_t x, int32_t z);
+    /* budget (§4.9) */
+    uint64_t (*get_department_budget)(void* user, uint32_t id);
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    float (*department_funding_percentage)(void* user, uint64_t dept);
+    bool (*line_item_current_expenses)(void* user, uint64_t dept, uint32_t line, int64_t* out);
+    void (*set_line_item_full_expenses)(void* user, uint64_t dept, uint32_t line, int64_t value);
+    /* the first value of `property` of the occupant's property holder */
+    bool (*occupant_item_cost)(void* user, uint64_t occ, uint32_t property, int64_t* out);
+    /* zone manager (slots 6, 11, 12) */
+    int32_t (*zone_count)(void* user, int32_t zone_type);
+    int32_t (*zone_type)(void* user, int32_t x, int32_t z);
+    bool (*place_zone)(void* user, const fc4_landfill_region* region, int32_t zone_type);
+    /* occupants (game occupants only) */
+    uint64_t (*occupant_at)(void* user, int32_t x, int32_t z, uint32_t occupant_type);
+    bool (*occupant_remove)(void* user, uint64_t occ);
+    void (*occupant_changed)(void* user, uint64_t occ);
+    void (*occupant_position)(void* user, uint64_t occ, float* xyz);
+    void (*occupant_set_position)(void* user, uint64_t occ, const float* xyz);
+    void (*occupant_set_removal_flags)(void* user, uint64_t occ, uint32_t flags);
+    void (*occupant_post_message)(void* user, uint64_t occ, uint32_t message);
+    bool (*is_landfill_occupant)(void* user, uint64_t occ);
+    bool (*is_empty_landfill_tile)(void* user, uint64_t occ);
+    void (*remove_incompatible_occupants)(void* user, int32_t x, int32_t z);
+    void (*set_empty_cell_texture)(void* user, int32_t x, int32_t z);
+    void (*remove_base_texture)(void* user, int32_t x, int32_t z);
+    /* prop manager (slots 26, 29) */
+    uint64_t (*add_lot_prop)(void* user, uint32_t prop_id, const float* xyz, int32_t orientation);
+    bool (*remove_prop)(void* user, uint64_t occ);
+    int32_t (*zot_orientation)(void* user);
+    /* traffic */
+    uint64_t (*find_network_tile)(void* user, int32_t x, int32_t z, uint32_t flag_mask, bool flag);
+    void (*subnetworks_in_region)(void* user, const fc4_landfill_region* region, fc4_token_callback cb, void* ctx);
+    void (*occupant_count_for_all_subnetworks)(void* user, uint32_t developer_type, fc4_token_callback cb,
+                                               void* ctx);
+    /* lot developer (slot 21) */
+    bool (*attempt_area_levelling)(void* user, int32_t x1, int32_t z1, int32_t x2, int32_t z2, float f,
+                                   bool with_water, bool water_flag, float max_area_slope);
+    /* 3D view */
+    uint32_t (*current_view_level)(void* user);
+    /* zone effects (§4.10, rendering only) */
+    void (*init_zone_effects)(void* user, int32_t cx, int32_t cz, int32_t x1, int32_t z1, int32_t x2, int32_t z2,
+                              fc4_landfill_effects* out);
+    void (*shutdown_zone_effects)(void* user, uint64_t truck, uint64_t seagull, bool seagull_started);
+    void (*set_truck_enabled)(void* user, uint64_t truck, bool enabled);
+    void (*start_seagull)(void* user, uint64_t seagull, uint32_t flag);
+    void (*stop_seagull)(void* user, uint64_t seagull, uint32_t flag);
+    /* history (§5): MessageSend of 0x89EFA536 */
+    void (*send_history)(void* user, uint32_t series, uint32_t value);
+} fc4_landfill_host;
+
+/* QueryInterface (§1): whether the class answers `iid`. */
+bool fc4_landfill_query_interface(uint32_t iid);
+/* GetGZCLSID: 0xEA09D4AE. */
+uint32_t fc4_landfill_class_id(void);
+/* The table is copied; `token` is the developer's own identity. NULL for a
+ * NULL or short table. */
+fc4_landfill* fc4_landfill_create(const fc4_landfill_host* host, uint64_t token);
+/* Releases what a never-initialised (loaded) object still holds. */
+void fc4_landfill_destroy(fc4_landfill* p);
+bool fc4_landfill_init(fc4_landfill* p);
+/* Also releases the zots' references and drops the tiles kept here. */
+bool fc4_landfill_shutdown(fc4_landfill* p);
+/* DoMessage (§3.2): `region` is the zoning message's GetVoid2 (copied), NULL
+ * otherwise. Always true. */
+bool fc4_landfill_do_message(fc4_landfill* p, uint32_t msg_type, uint32_t data1, uint32_t data2, uint32_t data3,
+                             uint32_t data4, const fc4_landfill_region* region);
+float fc4_landfill_efficiency(const fc4_landfill* p);          /* slot 5, a fraction */
+int64_t fc4_landfill_maintenance_costs(const fc4_landfill* p); /* slot 7 */
+int64_t fc4_landfill_current_budget(const fc4_landfill* p);    /* slot 8 */
+/* Slot 9 (an int64, high dword 0); 0 for a NULL or empty region. */
+int64_t fc4_landfill_zoning_cost(const fc4_landfill* p, const fc4_landfill_region* region);
+void fc4_landfill_usage(const fc4_landfill* p, uint32_t* usage, uint32_t* capacity); /* slot 10 */
+int32_t fc4_landfill_tile_count(const fc4_landfill* p);                              /* slot 11 */
+/* The tile kept here for a cell: false when there is none. */
+bool fc4_landfill_tile_at(const fc4_landfill* p, int32_t x, int32_t z, uint32_t* tile_id, int32_t* orientation);
+bool fc4_landfill_get_state(const fc4_landfill* p, fc4_landfill_state* out);
+/* §6.1; the zot references go out with class 0. Read runs before Init. */
+bool fc4_landfill_write(const fc4_landfill* p, const fc4_ostream* out);
+bool fc4_landfill_read(fc4_landfill* p, const fc4_istream* in);
+
+/* ---- landfill shadow (tooling, no spec behaviour) ----------------------------
+ *
+ * With the ORIGINAL developer running: before its SimNewMonth, capture its
+ * record (its own Write, in the fc4_pollution_capture format with the
+ * occupant field of each reference set) and read its slot 7; begin loads the
+ * record into a private developer in shadow mode (every write recorded, never
+ * sent; no reference taken), restores that maintenance and runs our month.
+ * After the original's delivery, capture again and read slot 7 again; finish
+ * compares the zones and heaps, the free capacity with garbage_capacity, the
+ * garbage moved with the supply's change, the maintenance, and the
+ * active-landfill flags with is_active_landfill, and hands one line to
+ * `sink`. The shadow only calls the table's read callbacks. */
+typedef struct fc4_landfill_shadow fc4_landfill_shadow;
+
+typedef struct fc4_landfill_shadow_stats {
+    uint32_t struct_size;
+    uint32_t months, clean, incomplete;
+    int32_t last_mismatches; /* -1: not compared */
+    uint32_t reserved;
+    uint64_t zones_compared, heaps_compared, heap_mismatches;
+    uint64_t cells_compared, cell_mismatches, field_mismatches;
+} fc4_landfill_shadow_stats;
+
+/* max_diffs: the differences listed per month (0 -> 8, at most 64). */
+fc4_landfill_shadow* fc4_landfill_shadow_create(const fc4_landfill_host* host, uint32_t max_diffs);
+void fc4_landfill_shadow_destroy(fc4_landfill_shadow* s);
+/* 0 = ran; -1 = not run (finish reports why). */
+int32_t fc4_landfill_shadow_begin(fc4_landfill_shadow* s, int32_t julian, const fc4_pollution_capture* before,
+                                  int64_t maintenance);
+/* The difference count, -1 when not compared. */
+int32_t fc4_landfill_shadow_finish(fc4_landfill_shadow* s, const fc4_pollution_capture* after, int64_t maintenance,
+                                   fc4_bytes_sink sink, void* ctx);
+bool fc4_landfill_shadow_get_stats(fc4_landfill_shadow* s, fc4_landfill_shadow_stats* out);
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -2365,6 +2579,11 @@ static_assert(sizeof(fc4_protection_dispatch_info) == 32, "fc4_protection_dispat
 static_assert(sizeof(fc4_protection_message) == 32, "fc4_protection_message layout");
 static_assert(sizeof(fc4_protection_state) == 152, "fc4_protection_state layout");
 static_assert(sizeof(fc4_protection_host) == (sizeof(void*) == 4 ? 220 : 440), "fc4_protection_host layout");
+static_assert(sizeof(fc4_landfill_region) == (sizeof(void*) == 4 ? 24 : 32), "fc4_landfill_region layout");
+static_assert(sizeof(fc4_landfill_effects) == 16, "fc4_landfill_effects layout");
+static_assert(sizeof(fc4_landfill_state) == 104, "fc4_landfill_state layout");
+static_assert(sizeof(fc4_landfill_host) == (sizeof(void*) == 4 ? 248 : 496), "fc4_landfill_host layout");
+static_assert(sizeof(fc4_landfill_shadow_stats) == 72, "fc4_landfill_shadow_stats layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
