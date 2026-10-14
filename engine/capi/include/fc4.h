@@ -90,9 +90,9 @@ extern "C" {
  *      release_deal, NG4); the neighbours shadow input carries the original's deals_dirty /
  *      stats_dirty / busy bytes (NG7) (taken as 47 on its lane; renumbered at merge);
  * 46 = adds the history warehouse (fc4_history) and the 24-hour clock (fc4_clock24);
- * 51 = adds the commercial simulator and industrial stub (fc4_commercial / fc4_industrial),
+ * 47 = adds the commercial simulator and industrial stub (fc4_commercial / fc4_industrial),
  *      the civic building simulator (fc4_civic) and the park manager (fc4_park). */
-#define FC4_ABI_VERSION 51u
+#define FC4_ABI_VERSION 47u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
