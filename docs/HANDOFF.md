@@ -46,6 +46,7 @@ worktree: paste what it needs into the message, or copy files into its `build-ru
 | cores10b: commercial + industrial + civic buildings + park manager cores | `a195154e182349440` | worktree | ABI 51 | running |
 | RE specs 10: city situation manager, demolition utility, dispatch manager, airport/seaport developers, prop developer (city detail manager if time) | `a576c1f88a67e75e5` | `re-specs10` | - | running |
 | RE answers 9: DG1-DG27, DG29, DG31, LG21-LG26, AO1-AO2, PR/RG/NB/PG, EX34-EX39, ZQ13, GF7 | `a847980b29901cc38` | `re-answers9` | - | merged `364894a`; ABI rows `c422501` |
+| RE answers 10: CK7-CK15, HW5-HW12 (first), TG1-TG22, ZG18-ZG21, NG35-NG44, AQ11-AQ13, FL10-FL13, PW9-PW11, FS15-FS17, DG28, DG31 per-day amounts | `af850af1f5c7bf5b5` | `re-answers10` | - | running |
 | RE specs 11: lot developer geometry (levelling, foundations, slot 39, boundary textures; Q3, Q7), graphics GF7/GF10/GF11, zones §14.3 Q2-Q8 and lot creation (for zones phase 2) | `a51611144f724e0f2` | `re-specs11` | - | running |
 | lotglue: lot developer replacement (`enable = lotdev`) and shadow (`lotdev_shadow = 1`); Q4 slots wait for re-specs11 | `ab9c3d71e1a39f129` | worktree | ABI 53, seam op 52 | running |
 | zones2: zone developer / lot manager replacement (`enable = zonedev`) and shadow (`zonedev_shadow = 1`); lot creation waits for re-specs11 | `a04b0cfb664b373d3` | worktree | ABI 54, seam op 53 | running |
