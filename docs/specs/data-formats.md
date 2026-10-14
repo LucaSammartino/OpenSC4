@@ -279,6 +279,13 @@ byte of the value type, the two key-type bytes, the "unused" byte) form the litt
 - The "unused" byte and the key type's high byte must be **0**, otherwise the tag is invalid and the read fails.
 - Tags accepted: scalars `0x00`–`0x0C`, arrays `0x8000`–`0x800C`, `0x8010`, `0x8011` (foundations §9.2 reader
   set). The value types `0x0400` Uint64, `0x0500` Sint8, `0x0600` Sint16, `0x0A00` Float64 are valid.
+- **Tag 0 (Empty)** has no value bytes: the next property starts right after the tag. The property is added like
+  any other and holds an **Empty** variant (memory type 0, no data, `GetCount()` 0), so `HasProperty` and
+  `IsPropertyLocal` are true for it. What the getters return for it is in §5.1 ("Empty and object values"). For
+  example count 2, `10 00 00 00 | 00 | 00 00 00 00` then `11 00 00 00 | 00 | 03 00 00 00 | 07 00 00 00`: `0x10` is
+  Empty and `0x11` is Uint32 7. Tag `0x8000` is a **void array** (memory type `0x8000`: a `uint32` count, then
+  that many raw bytes). No shipped record uses tag 0, tag `0x8000`, kind 1 or the char tags `0x10`, `0x11`,
+  `0x8010`, `0x8011` (sweep of the 9,345 binary exemplar and cohort records in the install, 2026-10-14).
 - Key type `0x80` gives an **array** even for one element (count 1); key type `0x00` gives a scalar. Arrays may
   have count 0.
 - A string is tag `0x800C`: the count is the §2.3 string header (top byte `0x10` = UTF-16, quirks of §2.3
@@ -393,15 +400,74 @@ If the stored type equals the requested type, the value is returned as is. Other
 | Stored | Requested | Result |
 |---|---|---|
 | scalar Bool…RZChar (memory types `0x01`–`0x0E`) | Float32 | value → float64 → **rounded to float32** |
-| scalar | Float64 | value → float64 (Uint32 ≥ 2³¹ corrected to unsigned) |
-| scalar | integer type, Bool, char types | value → int64 (unsigned types zero-extended, signed sign-extended, **floats truncated toward zero**), then the low bits of the target width; Bool = (int64 ≠ 0) |
+| scalar | Float64 | value → float64; unsigned types as unsigned, with the 24-bit rounding below for Uint32 ≥ 2³¹ and for every Uint64; signed types exact (Sint64 rounded to 53 bits) |
+| scalar | integer type, Bool, char types | value → int64 (unsigned types zero-extended, signed sign-extended, Char and RZChar **sign-extended**, RZUnicodeChar zero-extended, **floats truncated toward zero, not saturated**: see below), then the low bits of the target width; Bool = (int64 ≠ 0) |
 | array (any element type), string, or a requested non-scalar type | any | **text round trip** (below) |
+
+**Unsigned 64-bit and large unsigned 32-bit values.** The to-double converter (`0x00915B85`) turns a Uint64 into a
+double as (its low 63 bits, loaded as a signed int64) + 2⁶³ when the top bit is set, + 0 otherwise, and a Uint32
+with the top bit set as (its value loaded as signed) + 2³². The add runs at the caller's x87 precision, 24-bit on
+the main thread (foundations §18.2), so the result keeps **24 significant bits even for a Float64 target**. For a
+Uint64 the add is done whether or not the top bit is set. Signed values and Uint32 below 2³¹ are loaded exactly.
+Worked example, `GetValFloat64` on the main thread: Uint64 16,777,217 (2²⁴ + 1) gives **16,777,216.0**; Sint64
+16,777,217 gives 16,777,217.0; Uint32 16,777,217 gives 16,777,217.0; Uint32 `0x80000001` gives
+**2,147,483,648.0**. Text parsed as an unsigned number for a Float32 or Float64 target (round trip below) takes the
+same path. FreeCity4 reproduces it by rounding these values to 24 significant bits (round to nearest even).
+
+**Floats to integers.** A Float32 or Float64 is truncated toward zero to an int64 by the C runtime's `_ftol`
+(`0x009EEF04`, foundations §18.1), and the target keeps the low bits: out-of-range values **wrap**, they do not
+saturate. NaN, ±∞ and magnitudes ≥ 2⁶³ give the int64 `0x8000000000000000`, so **0** for targets of 32 bits or
+fewer, `0x8000000000000000` for Uint64 and Sint64, and **true** for Bool. Worked examples: Float32 300.7 read as
+Uint8 gives 300 mod 256 = **44**; Float32 3,000,000,000 read as Sint32 gives **−1,294,967,296**; Float32 −1.5 read
+as Uint32 gives `0xFFFFFFFF`; NaN read as Uint32 gives **0** and read as Sint64 gives `0x8000000000000000`; Float32
+0.5 read as Bool gives **false** (it truncates to 0), NaN read as Bool gives **true**. A number parsed from text as
+floating point (round trip below) is truncated the same way for integer targets.
+
+**Char types.** Both converters (`0x00915AA5` to int64, `0x00915B85` to double) widen **Char (`0x0C`) and RZChar
+(`0x0E`) as signed bytes** and RZUnicodeChar (`0x0D`) as an unsigned 16-bit value. Worked example: RZChar `0xE9`
+read as Uint32 gives `0xFFFFFFE9`, as Sint16 −23, as Float32 −23.0, and as Uint8 `0xE9` (only the low byte is
+kept); RZUnicodeChar `0xFFE9` read as Uint32 gives 65,513.
+
+**Empty and object values.** An Empty value (memory type 0, §4.2) and an object value (IGZUnknown `0x10`) always
+take the text round trip: `ConvertTypes` (`0x00917350`) sends memory type 0 and every type above `0x0E` there.
+Empty becomes the empty text, which parses as the unsigned number 0, so every converting getter **succeeds**:
+integer and char targets 0, Float32 and Float64 0.0, Bool false; `GetProperty(id, uint32&)` returns true and 0. An
+object becomes the object's own text if it answers `cIGZString` (`0x089B7DC8`), otherwise its address printed as
+`0x%08x`; that text parses as hexadecimal, so `GetProperty(id, uint32&)` returns true and the **object's address**
+(0 for a null object). `GetValString`, and with it `GetProperty(id, cIGZString&)` (`0x009172A1`), returns true only
+for a string (RZChar array) or a string object. For every other type, Empty included, it **writes the round-trip
+text into the output and returns false**: a Uint32 7 gives the text `7` and false. *[choice]* FreeCity4 does the
+same for Empty, and treats an object value as a missing property (false, output unchanged), because the original's
+result is a heap address. Only kind-1 properties (§4.6) hold objects, and no shipped record has one.
 
 **Text round trip** (arrays and strings): the source is turned into text, then the text is parsed into the target.
 
-- Text of an array is its **first element** only (`%u` / `%d` / `%llu` / `%lld` for integers, the locale-free
-  float formatter with up to 24 significant digits for floats, so float values survive exactly *[inferred]*,
-  `0`/`1` for Bool); an array of count 0 gives `0`. A string gives its text.
+- Text of a numeric or Bool array is its **first element** only (`%u` / `%d` / `%llu` / `%lld` for integers, the
+  float formatter below for floats, `0`/`1` for Bool); an array of count 0 gives `0`. A **string** (RZChar array
+  `0x800E`) and a **Char array** (`0x800C`) give **all** their characters. An **RZUnicodeChar array** (`0x800D`)
+  gives all its characters, each UTF-16 unit below `0x80` as that byte and every other unit as `?` (`0x0090E901`). A
+  **void array** (`0x8000`) and a VoidPtr array (`0x800F`) give the **empty text**, which parses as 0. Worked
+  examples (`ConvertToString` `0x00916EAA`), read with `GetProperty(id, uint32&)`: void array `31 32` gives 0 (not
+  0x31); Char array `31 32` ("12") gives 12; RZUnicodeChar array `0x00E9 0x0035` gives the text `?5`, which parses
+  as 0.
+- **Floats as text** (`RZFtoaEnglishA` `0x0091052A`, called with a 64-byte buffer and 24 digits; a Float32 is
+  widened to double first) are **fixed-point, never with an exponent**: `-` for a negative value, the integer digits
+  in full (`0` when |x| < 1), then, if a non-zero fraction digit exists, `.`, the fraction's leading zeros, and at
+  most **24 further digits, cut, not rounded** (zeros at the end of a cut are kept; with nothing cut, trailing zeros
+  are not printed). The digits are those of the C runtime's `_fcvt(x, 64)`, so the exact binary value. Examples:
+  2.75 gives `2.75`; Float32 0.1 gives `0.100000001490116119384765`; Float32 0.001 gives
+  `0.00100000004749745130538940`; Float32 1e30 gives `1000000015047466219876688855040`. A Float64 whose text passes
+  63 characters is cut there. NaN and infinities come out as the C runtime prints them: `1.#INF`, `-1.#INF`,
+  `1.#QNAN`, `-1.#IND` (the default NaN) *[inferred from the MSVC runtime; its strings `1#INF`, `1#QNAN`, `1#SNAN`,
+  `1#IND` are in the exe]*, which parse back as ±1. **The round trip is not exact**: the parser (`RZStrtodEnglishA`,
+  §4.3 Float32) adds the digits one by one at the main thread's 24-bit precision, so Float32 3.14159 (`0x40490FD0`),
+  printed `3.141590118408203125`, reads back as `0x40490FCE`, and Float32 0.05 (`0x3D4CCCCD`) as `0x3D4CCCCC`.
+  2.75, 1.5 and other short binary fractions survive.
+- Text of a **scalar** (what `GetProperty(id, cIGZString&)` writes for one): integers with the formats above, Bool
+  `0`/`1`, floats as for arrays, a Char or RZChar **its one character** (a zero byte gives a one-character text
+  holding NUL), an RZUnicodeChar its character as one byte when it is `0xFF` or less, otherwise `?`. Worked
+  example: RZChar `0x41` gives `A`; RZUnicodeChar `0x00E9` gives the byte `0xE9`, `0x20AC` gives `?` (note the
+  array rule above keeps only units below `0x80`).
 - Parsing: `t` or `true` → 1, `f` or `false` → 0 *[inferred: case-sensitive]*; text beginning `0x` followed by a hex digit →
   unsigned hexadecimal; text containing `.` or `e`/`E` after a digit → floating point (then truncated toward zero
   for integer targets); text containing `-` → signed int64; otherwise unsigned int64; then the target width as in

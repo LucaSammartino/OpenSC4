@@ -74,6 +74,23 @@ The sanitation department is **not** acquired here; it is fetched on PostCityIni
 `Shutdown`, `Release`; clear the zone list; release the department, budget, pollution, terrain and city;
 `simulator.RemoveAgent(messageTarget)` (the simulator is taken from the city, `cISC4City` slot 50). Return true.
 
+The exact order (LF3; `0x006B94B0`), all inside "if initialized" (otherwise the call just returns true):
+
+1. Clear the initialized flag.
+2. If the message server is held: unsubscribe `0x07699455`, `0x26D31EC1`, `0x0772FAD4`, `0x278E6003`,
+   `0xC6CDBF1A` (in that order), release the server, null the pointer.
+3. For each zone in list order: zone `Shutdown` (§4.4.9), zone `Release`, unlink and free the list node. The list
+   ends empty.
+4. Release, each only if held and then nulled: the department, the budget simulator, the pollution simulator, the
+   terrain, the city.
+5. Take the simulator from the **global** city pointer (`0x00B43CEC`, slot 50), not from the developer's own
+   field (already released), and, if there is one, `RemoveAgent(messageTarget)`.
+
+So the developer stops receiving messages **before** any zone is shut down. Zone `Shutdown` uses only the zone's own
+service references, never the developer's, and posts nothing the developer subscribes to; so releasing the message
+server together with the other services after the zones (one `release_services` call) is not observable. Matching
+the original order costs nothing and is recommended.
+
 ## 2. State
 
 ### 2.1 Developer
@@ -311,6 +328,28 @@ Afterwards, if `Z.GetNumValidHeaps() < 1`: set `Z.completelyDezoned := true` (st
 2. New rect := union of the zone rect and the region rect. New mask := old mask cells ∪ region mask cells.
 3. For each region mask cell (x outer, z inner): `LevelRect((x, z, x+1, z+1), levelAltitude, false)`. This
    includes cells already in the zone.
+
+   *[compat]* (LF5; `0x006BC150`, the call follows the mask-bit set for that cell). The rect is an **inclusive**
+   cell rect, like the other rect passed to `LevelRect` (§4.4.1 step 3 passes the new zone's `{x0, z0, x1, z1}`). So
+   each region cell levels the **2 × 2-cell block** `(x..x+1, z..z+1)`:
+   - the average is over the 3 × 3 vertices `x..x+2 × z..z+2`;
+   - the slope test is over the same block;
+   - the call is `ModifyTerrainHeight(1, 1, x, z, x+2, z+2, avg, null, 5, null)` (§4.5.3).
+
+   This is what the original does, and it must be reproduced as written. Three consequences follow:
+   - The levelling reaches **one cell past** the region's +x and +z edges, onto cells that may not be landfill.
+   - The cells are levelled one after another. Each cell's average is taken **after** the earlier cells' blocks
+     were levelled, so the order (x outer, z inner) matters.
+   - Each block is tested for slope on its own, so some blocks may be skipped (slope > 40) while others are
+     levelled.
+
+   Example: the region is the single cell (5, 5). The vertices 5..7 × 5..7 are averaged. If the terrain is flat
+   at 100 m except vertex (7, 7) at 109 m, then `avg = (8 × 100 + 109) / 9 = 101`. The call is
+   `ModifyTerrainHeight(1, 1, 5, 5, 7, 7, 101.0, null, 5, null)`, whose vertex range covers cells (5..6, 5..6).
+   `levelAltitude` is passed as `f` and is not read (§4.5.3).
+
+   With a 2 × 1 region (5, 5), (6, 5), cell (5, 5) is levelled as above first. Then cell (6, 5) averages the
+   vertices 6..8 × 5..7, which by then include the six vertices 6..7 × 5..7 written by the first call.
 4. Rebuild the heap grid for the new `W × H`: all heaps new (valid, inactive, empty, positioned by their new
    local coordinates); then each **old** heap is copied, with all its fields, to index `old.hz × W + old.hx`.
    *[quirk]* The old local coordinates are not translated: when the zone grows toward smaller `x` or `z`, the
@@ -374,10 +413,25 @@ in part.
 #### 4.4.9 Zone `Init` / `Shutdown`
 
 `Init` (once): acquire city, occupant manager, terrain, pollution, the city's effect service and automata
-controller manager, and the zone manager; `InitZoneEffects()`; if `levelAltitude` is exactly 0.0 (unordered
-compare), `levelAltitude := altitude(centre cell)`. Because `levelAltitude` is not saved, a loaded zone gets the
+controller manager, and the zone manager; `InitZoneEffects()`; if `levelAltitude` is exactly 0.0,
+`levelAltitude := altitude(centre cell)`. Because `levelAltitude` is not saved, a loaded zone gets the
 **centre altitude**, not the mean it was levelled to *[quirk]* (§4.3 then prices extensions against it).
-`Shutdown`: stop effects and release the services.
+
+The test (LF2; `0x006BB6E2`–`0x006BB6F2`) is an x87 `FUCOMPP` of the float32 `levelAltitude` (`+0x38`) against
+the constant +0.0 (`0x00A81054`), then `TEST AH, 0x44` / `JP` to skip: it recomputes only when the compare is
+**ordered and equal**. So +0.0 and **−0.0** both count as zero (IEEE equality), a **NaN** does not (unordered: the
+NaN is kept), and every other value, however small (a denormal included), is kept. The centre cell is
+`cx := (x0 + x1) / 2`, `cz := (z0 + z1) / 2` of the region rect, by C integer division (truncating toward zero;
+the rect is never negative, so this is the floor). Then `CellCenterToPosition(cx, cz)` (city slot 97) and
+`terrain.GetAltitude(px, pz)` (slot 13), stored as float32. Example: a zone over x 3..6, z 10..10 that reaches
+`Init` with `levelAltitude = −0.0` gets the altitude at the centre of cell (4, 10).
+`Shutdown` (`0x006BB750`):
+
+1. Stop and release the zone's effects (§4.10; this runs even when the zone was never initialized).
+2. Only if initialized: clear the flag.
+   - If a zot is held: remove it through the city's prop manager (`RemovePropA`, slot 29), then release it.
+   - Destroy the zone's region (cell mask).
+   - Release the services the zone acquired, the city last.
 
 ### 4.5 Terrain
 
@@ -411,7 +465,15 @@ For each mask cell of `rect ∩ zone rect`:
 - `direct = true` (never used by the shipped code): `terrain.SetAltitude(clamped rect, altitude, 1, 5)` (slot 49)
   with the rect clamped to `[0, cellCountX] × [0, cellCountZ]`.
 - `direct = false`: `buildingDevelopment.GetLotDeveloper().AttemptAreaLevelling(rect, 0.0, true, true,
-  FLT_MAX, null)` (lot developer slot 21; result ignored).
+  FLT_MAX, null)` (lot developer slot 21; result ignored). The rect is the **unclamped** argument (`push ebx` at
+  `0x006BA78B`): the clamp above is computed on both paths but used only by the direct one.
+
+  *Which `true` is which* (LF1): the call site pushes the literals `1` (`0x006BA787`) and `1` (`0x006BA785`) as the
+  third and fourth arguments, `withWater` and `waterFlag`. Inside `0x006C44F0` the third argument is the one that
+  reaches `GetAverageAreaAltitude` and `GetAreaSlope` (steps 1 and 3 below); the fourth goes only to
+  `ModifyTerrainHeight`, as its **second** bool (step 4; the first is the literal `1`). The landfill's second
+  `true` is therefore `waterFlag`. Because both are `true`, swapping them changes nothing the landfill can
+  observe.
 
 **What `AttemptAreaLevelling(rect, f, withWater, waterFlag, maxAreaSlope, lot)` actually does** *[compat]*
 (`0x006C44F0`, pop 24; verified from the assembly — Ghidra's decompilation of this function is unreliable, it
@@ -431,7 +493,8 @@ renders the float argument as a pointer and drops the vertex average):
    `cISC4Demolition`), a ten-argument terrain call whose last two arguments are the literal `5` and a null
    pointer, and return its result. The SDK names this `cISC4Demolition::ModifyTerrainHeight(bool, bool, int, int,
    int, int, float, cISC4Lot*, uint32_t, int64_t*)`, i.e. **reason 5** and no cost output; the rect arguments are
-   `x1, z1, x2 + 1, z2 + 1` and the float is the step-1 average. **The terrain is levelled to `avg`.**
+   `x1, z1, x2 + 1, z2 + 1` and the float is the step-1 average. **The terrain is levelled to `avg`.** The full
+   argument list is `(1, waterFlag, x1, z1, x2 + 1, z2 + 1, avg, lot, 5, null)` (`0x006C4552`–`0x006C457D`).
 
 *[quirk]* **The float argument `f` is never read** — no instruction in `0x006C44F0` touches the second parameter's
 stack slot. Passing `0.0` is therefore harmless *and* meaningless: the target altitude is always the vertex
@@ -558,6 +621,44 @@ excess to the supply.
 
 If no zot: spiral outward from the centre cell (clipped to the zone rect, centre first) to the first mask cell;
 if none, use the centre cell. Position := cell centre, `y := terrain.GetAltitudeAtNearestGrid(x, z) + 3.0`.
+
+**The spiral** *[compat]* (LF4; `0x006BB3B0`–`0x006BB4DA`). It is the same `SpiralIterator`, in the same mode
+(clockwise), as plumbing.md §7.2 step 4. The settings are:
+
+- Start: the centre `(cx, cz) := ((x0 + x1) / 2, (z0 + z1) / 2)`, by C integer division.
+- Box: the zone rect `[x0, x1] × [z0, z1]`.
+
+The order is `(cx, cz)`, then ring by ring.
+
+- Ring r starts at `(cx + r, cz − r + 1)` and runs **+z** up the column `x = cx + r` to `(cx + r, cz + r)`.
+- It then runs **−x** along the row `z = cz + r`, **−z** down the column `x = cx − r`, and **+x** along the row
+  `z = cz − r`.
+- It ends at the corner `(cx + r, cz − r)`.
+
+Ring 1 is therefore `(cx+1, cz)`, `(cx+1, cz+1)`, `(cx, cz+1)`, `(cx−1, cz+1)`, `(cx−1, cz)`, `(cx−1, cz−1)`,
+`(cx, cz−1)`, `(cx+1, cz−1)`.
+
+Clipping is as in plumbing §7.2:
+
+- Cells outside the rect are skipped one by one.
+- Every rect cell is visited exactly once.
+- The walk ends after ring `max(cx − x0, x1 − cx, cz − z0, z1 − cz)`.
+
+The test at each cell is the zone's mask bit (`(x − x0) < W` and `(z − z0) < H` unsigned, then the bit). The
+code tests `(cx, cz)` **before** the first `GetNext`, and that first `GetNext` returns `(cx, cz)` again. So the
+centre is tested twice, which has no effect. If no cell has its bit set, the centre cell is used.
+
+The hit is the first mask cell in this order. It is **not** "clockwise from each ring's top-left corner": that
+order starts ring 1 at `(cx−1, cz−1)`.
+
+Example: a 3 × 3 zone over `(10..12, 20..22)` whose centre cell `(11, 21)` has been dezoned (mask bit clear), with
+every other bit set. The centre is `(11, 21)`, its bit is clear, and the first ring-1 cell is `(12, 21)`, which is
+set. **The zot goes to cell `(12, 21)`.** A top-left-corner order would give `(10, 20)`.
+
+Example with clipping: a zone over `x 10..14, z 20..22` with only `(10, 20)` and `(14, 22)` set. The centre is
+`(12, 21)`, and none of ring 1's eight cells is set. Ring 2 clipped to the rect is `(14, 20)`, `(14, 21)`,
+`(14, 22)`, `(10, 22)`, `(10, 21)`, `(10, 20)`, because its `z = 23` and `z = 19` rows are skipped. **The zot goes
+to `(14, 22)`.**
 `zot := propManager.AddLotProp(0x107A0000, position, orientation)` (slot 26, the `(propID, pos, orientation)`
 overload; `orientation` is read from a global view service) — `AddRef`, store, then `SetRemovalFlags(3)` (prop
 occupant slot 12). *[quirk]* No null check: a missing prop exemplar crashes. The zot is saved by reference.
@@ -946,6 +1047,13 @@ funding 100 %, zone cells all zone type 14, no roads inside.
 11. **Disconnected**: zone not connected → no intake, decay still applies, a zot `0x107A0000` is placed at the
     first mask cell spiralling from the centre, 3.0 m above the terrain; the zone is excluded from
     `capacityTotal`, `usedTotal` and `avail`. Connecting it removes the zot at the next month.
+
+    The spiral order is §4.7.5's: ring r starts at `(cx + r, cz − r + 1)` and runs +z first. Include both of
+    §4.7.5's examples:
+    - the 3 × 3 zone with its centre dezoned → `(12, 21)`;
+    - the clipped ring 2 → `(14, 22)`.
+
+    A vector built on another ring order (the second half of `lf11_11`) must be regenerated.
 12. **Random draws**: a 3×3 zone (2×2 heaps) with heaps (0,0), (1,0), (0,1) active; heap (1,1) becomes active →
     its redraw visits cells (1,1), (2,1), (1,2), (2,2); only the centre cell (1,1) has mask 15 → exactly **one**
     `rand()` call, tile `0x02FA0000`, orientation `2 × (rand() & 3)`. With the CRT seeded to 1 and no earlier

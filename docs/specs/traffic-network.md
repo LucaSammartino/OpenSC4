@@ -85,8 +85,10 @@ The full rebuild runs in **DoPostCityInit** (message `0x26D31EC1`, `0x00720430`)
 1. Re-read the rules of every loaded transit switch (§4.7.2).
 2. Refresh the switches' subway access points (§4.7.2, "Access points after the re-read").
 3. Rebuild the whole city with `DoConnectionsChanged(0, 0, X−1, Z−1)` (§4.2).
-4. Register the neighbour connections (traffic-simulator.md).
-5. The destination-map boundary pass (traffic-simulator.md).
+4. Register the neighbour connections: Add for each of them, then the pool sweep (§2.7.2, §2.7.3).
+5. The destination-map boundary pass (`0x00720660`–`0x007206B9`): for every cell of the ring around the map
+   (x ∈ {−1, X} or z ∈ {−1, Z}, corners included), if `HasMapExit` (§2.7) is false, the cell's destination byte
+   is set to 0. `freeDest` is not changed.
 6. Clear the subnetwork labels (§4.11).
 7. Run `UpdateSubnetworks` (§4.11), then build the subnetwork info synchronously with no time limit (§4.12) and
    publish it.
@@ -244,20 +246,26 @@ The pathfinder uses these as follows (pathfinder.md §4.8.3):
 
 ### 2.7 Neighbour connection edge records
 
-There are four arrays of 8-byte records, one per map edge:
+There are four arrays of 8-byte records, one per map edge. They are named here by the side `d` of pathfinder.md
+§4.1, which is also the order the loops below visit them:
 
-- x < 0, indexed by z;
-- x > X−1, indexed by z;
-- z < 0, indexed by x;
-- z > Z−1, indexed by x.
+- side 0: x < 0, indexed by z (Z records);
+- side 1: z < 0, indexed by x (X records);
+- side 2: x > X−1, indexed by z (Z records);
+- side 3: z > Z−1, indexed by x (X records).
 
 Each record holds:
 
-- a u16 mask of neighbour-connection types (bit = type);
-- a u16 neighbour pool ID;
-- an f32 cost.
+- a u16 mask of neighbour-connection types (bit = type: 1 Rail, 2 Road, 3 Highway, 6 Subway, 7 LightRail,
+  8 Avenue, 9 Ferry, 10 DirtRoad, 11 Monorail, 12 GroundHighway; neighbors.md);
+- a u16 neighbour pool ID (0 = the default pool);
+- an f32 cost, the extra trip length of a trip that ends at that off-map cell (pathfinder.md §4.13).
 
-Add and remove (messages `0x8A0D15DA` and `0xEA0D163E`), the pools and the costs belong to traffic-simulator.md.
+Init creates all four arrays with every record `(0, 0, 0.0)`. The records are not saved; DoPostCityInit rebuilds
+them (§2.7.2). The pools are saved (traffic-simulator.md §6 row 19: u32 count, then per pool its u16 ID and its
+property-holder record; `Write` `0x007132F4`, `Read` `0x00722F5D`–`0x00722FB3`), so the Adds after a load find
+them again by position, with their capacities and counts. Add and remove (messages
+`0x8A0D15DA` and `0xEA0D163E`), the lookups, the pools and their capacities are in §2.7.1–§2.7.5.
 The graph uses these records only through **HasMapExit(x, z)**, which is defined for an off-map cell next to the map:
 
 - Map the off-map cell to its in-city cell and the side facing out (`GetNeighborConnectionInnerCell`, below).
@@ -273,6 +281,149 @@ The graph uses these records only through **HasMapExit(x, z)**, which is defined
 - x > X−1 → (X−1, z), side 2.
 - z < 0 → (x, 0), side 1.
 - z > Z−1 → (x, Z−1), side 3.
+
+#### 2.7.1 Lookups
+
+**GetTrafficNeighborConnection(x, z)** (`0x0070F970`) returns the record of an off-map cell. It tests in this
+order: x < 0 → side-0 record z; x > X−1 → side-2 record z; z < 0 → side-1 record x; otherwise side-3 record x.
+It never fails and checks no range: a corner cell such as (−1, −1) reads index −1 of the side-0 array, and an
+in-city cell gets side-3 record x. Every caller passes an off-map edge cell, so neither happens in the game.
+*[choice]* Return an empty record (mask 0, pool 0, cost 0.0) for any other cell.
+
+**FindNeighborConnection(t, x, z)** (`0x007104A0`) finds the neighbour connection that a trip of travel type `t`
+uses at an off-map cell. For an in-city cell the result is none. Otherwise let `wanted := connMask(net(t))` (table
+below) and `rec` the cell's record. For connection type `c` = 0…12 in ascending order, with bit `c` set in both
+`wanted` and `rec.mask`, ask the neighbours simulator `FindConnection(c, x, z)` (slot 11). The first connection
+found is the result; none found → none.
+
+`connMask(n)`, connection types per transit network (`0x00AB322C`, u32[6]) *[compat]*:
+
+| n | Transit network | Mask | Connection types |
+|---|---|---|---|
+| 0 | Pedestrian | `0x704` | Road, Avenue, Ferry, DirtRoad |
+| 1 | Road | `0x170C` | Road, Highway, Avenue, Ferry, DirtRoad, GroundHighway |
+| 2 | Rail | `0x2` | Rail |
+| 3 | Subway | `0x40` | Subway |
+| 4 | Light rail | `0x80` | LightRail |
+| 5 | Monorail | `0x800` | Monorail |
+
+**GetNeighborPoolPropertyHolder(t, x, z)** (`0x007114E0`) gives the property holder that carries the destination
+capacity of an off-map cell (traffic-simulator.md §4.2; pathfinder.md §4.10.1):
+
+1. `wanted :=` all bits if `t = −1`, else `connMask(net(t))`.
+2. `rec :=` the cell's record. If `rec.mask & wanted` is 0 **and** mask bit 9 (Ferry) is clear, the result is
+   null. A ferry connection therefore gives a holder to every travel type.
+3. If `rec.pool ≠ 0` and a pool with that ID exists, the result is that pool. If no pool has that ID, the lookup
+   writes `rec.pool := 0` and continues *[compat]*.
+4. The result is the default pool.
+
+#### 2.7.2 Adding and removing connection types
+
+NeighborConnectionCreated `0x8A0D15DA` calls Add and NeighborConnectionDeleted `0xEA0D163E` calls Remove, with
+data1 = type, data2 = x, data3 = z (neighbors.md §6.3–§6.4). DoPostCityInit (§1, step 4) calls Add for every
+connection of the neighbours simulator (slot 16 `GetAllConnections`, in list order) with the connection's type and
+cell, and then runs the pool sweep (§2.7.3).
+
+**AddNeighborConnection(type, x, z)** (`0x007153C0`):
+
+1. `conn :=` the neighbours simulator's `FindConnection(type, x, z)` (slot 11). If there is none, nothing happens.
+2. `rec :=` the cell's record; `rec.mask |= 1 << type`.
+3. Cost candidate `f := commuteMaxTime` (traffic-simulator.md §4.14, tuning `0xA92356BA`, default 90.0). If the
+   neighbours simulator's `FindConnectionOnOtherSide(conn)` (slot 13) gives a connection whose property holder has
+   property `0xCA947077`, then `f :=` that value. It is the average trip length that the neighbouring city stored
+   on its side of the connection when it last ran (traffic-simulator.md §4.6).
+4. If `rec.cost < f`, then `rec.cost := f`. The comparison is ordered: a NaN on either side changes nothing. The
+   cost only grows. Nothing lowers or resets it, Remove included *[quirk]*.
+5. Pool. `city := conn.GetCityOnOtherSideOfConnection()` (connection slot 9). If there is none, or it is not
+   established (regional-city slot 43, `GetEstablished`), then `rec.pool := 0`. Otherwise
+   `(px, pz) := city.GetPosition()` (regional-city slot 5, the region cell of the city's corner). Search the pools
+   in ascending ID order for one whose holder has the s32 properties `0x4A23576B = px` and `0x4A23576C = pz`. If
+   one is found, `rec.pool :=` its ID. If not, create a pool: a new property holder with only those two
+   properties, under the smallest unused ID ≥ 1. Then `rec.pool :=` that ID.
+
+So there is one pool per established neighbouring city. Every edge cell connected to that city shares the pool's
+capacity and arrival counts. Each Add sets the pool again, so the last Add at a cell decides it.
+
+**RemoveNeighborConnection(type, x, z)** (`0x00713AB0`) does not consult the neighbours simulator:
+
+1. `rec :=` the cell's record; `rec.mask &= ~(1 << type)`. If the mask is still non-zero, stop.
+2. Otherwise `rec.pool := 0`, and the pool sweep runs (§2.7.3).
+3. For each bit `k` = 0…3 set in the off-map cell's destination byte (the destination map has a one-cell border,
+   traffic-simulator.md §6), `freeDest[k] −= 1`. Then the byte is set to 0.
+
+The cost is kept.
+
+#### 2.7.3 Pools
+
+A pool is a property holder kept in a map ordered by its u16 ID (≥ 1). The **default pool** is a separate holder:
+Init creates it new and calls `SetMaxTripCapacity(default, 3, 0xFFFFFFFF)`. It therefore accepts freight (type 3)
+without limit and no commuters.
+
+**Pool sweep** (`0x007138B0`, called by Remove and by DoPostCityInit, not by Add):
+
+1. Collect the pool IDs of records 0 … X−2 of each of the four arrays. The bound is X−1 for all four arrays
+   *[quirk]*: the last record of every array is never looked at. The z-indexed arrays use the x bound, which is
+   the same in the game's square cities.
+2. Release every pool whose ID was not collected, and remove it from the map.
+
+A pool used only by the last cell of an edge (z = Z−1 on sides 0 and 2, x = X−1 on sides 1 and 3) is therefore
+dropped while still in use. That record keeps the stale ID. GetNeighborPoolPropertyHolder or the edge pass of
+§2.7.4 then resets it to 0, unless a pool created in the meantime took the same ID; in that case the record
+silently belongs to the new pool *[quirk]*.
+
+#### 2.7.4 Pool capacities and edge destinations (`0x00714E60`, run by StartRecalc in state 0)
+
+StartRecalc (traffic-simulator.md §4.3) ends with this pass. It runs on the main thread (x87 24-bit precision,
+`r24` below).
+
+1. **Regional jobs**: for w = 0…2, `J[w] :=` the demand simulator's `GetDemand(0x2010 + 0x10·w, 0x10000)` (the
+   regional node, demand.md §9), its `QueryDemandValue()`, truncated toward zero to a 32-bit integer. The
+   original does not check for a missing node. *[choice]* Use 0 if the node is missing.
+2. **Cities**: the neighbours simulator's `GetConnectedCities(list, false)` (slot 21): the established cities
+   reached by a transport connection (neighbors.md §6.2).
+3. **Totals**: for w = 0…2, `T[w] :=` the 32-bit integer sum over those cities of `E_c[w]`. Here
+   `E_c[w] := c.GetExtrapolatedPopulation(0x2010 + 0x10·w)` (regional-city slot 17, demand.md §9.1).
+4. **Per city** `c`, in list order: `(px, pz) := c.GetPosition()`. Take the first pool, in ascending ID order,
+   with `0x4A23576B = px` and `0x4A23576C = pz`. If there is none, skip the city. Otherwise:
+   - for w = 0…2: `cap := trunc(r24(r24(float(E_c[w]) / float(T[w])) × float(J[w])))`, keeping the low 32 bits of
+     the integer. `T` and `J` are converted as **unsigned** 32-bit values and `E_c` as signed. Then
+     `SetMaxTripCapacity(pool, w, cap)` (slot 19) and arrived-this-cycle `[w] := 0` (element 4 + w,
+     traffic-simulator.md §4.2). With `T[w] = 0` the quotient is NaN and `cap` is 0.
+   - `SetMaxTripCapacity(pool, 3, 0xFFFFFFFF)` and arrived-this-cycle `[3] := 0`.
+   Pools that match no city keep their old capacities and counts.
+5. **Default pool**: arrived-this-cycle `[3] := 0`.
+6. **Edge pass**: for side d = 0…3 and index j = 0 … X−2 (the same bound as the sweep, *[quirk]*), skip records
+   with mask 0. The off-map cell is (−1, j), (j, −1), (X, j) or (j, Z) for d = 0, 1, 2, 3. If `HasMapExit(cell)`
+   is true, take the holder: pool 0 → the default pool; an ID with no pool → `rec.pool := 0` and the default pool;
+   otherwise that pool. There is no mask test here. Then for k = 0…3: if `GetMaxTripCapacity(holder, k) ≠ 0`
+   (slot 20), set bit k in the cell's destination byte and `freeDest[k] += 1`. The count goes up even when the
+   bit was already set *[quirk]*. RefreshCommuteMap (state 10) zeroes `freeDest` later in the cycle.
+
+The connection on the last cell of an edge never gets destination bits from step 6. It is therefore never a
+filter-0 destination (pathfinder.md §4.10.1) *[quirk]*.
+
+**Example.** The regional node `0x12010` has demand value 800.0, so `J[0] = 800`. Two established neighbours are
+connected: A with `E_A[0] = 300` and B with `E_B[0] = 100`, so `T[0] = 400`. A's pool gets
+`r24(300/400) = 0.75`, × 800 = 600, so capacity 600. B's pool gets 0.25 × 800 = 200. For w = 1, take `J[1] = 10`,
+`E_A[1] = 1` and `E_B[1] = 2`. A gets `r24(1/3) = 0.333333343` × 10 = 3.33333349, so 3. B gets
+`r24(2/3) = 0.666666687` × 10 = 6.66666698, so 6. Truncation loses one job of the 10. Say A's road
+connection is at (−1, 5), with pool 1 and a road exit (HasMapExit true). The edge pass then sets bits 0, 1 and 3
+of the destination byte of (−1, 5), and bit 2 as well if A's capacity for w = 2 is non-zero.
+
+#### 2.7.5 Neighbour roll (UpdateNeighborConnections, cycle state 11, `0x00714BE0`)
+
+This state visits each connection of the neighbours simulator (slot 16 `GetAllConnections`, in list order) and
+works on the connection's **own** property holder (connection slot 3):
+
+1. For i = 0…2: if the u32[9] property `0xAA9EA81A + i` is present, copy its value to `0xAA9EA81D + i`. Then
+   set `0xAA9EA81A + i` to nine zeros, even if it was absent. The `0xAA9EA81A + i` array counts trips of
+   destination type i that ended at this connection, by last travel type (traffic-simulator.md §4.2). The other
+   city reads the copied arrays `0xAA9EA81D + i` (neighbors.md §4.2, traffic volume sync).
+2. For k = 0…3: `v :=` element 4 + k of `0x8A0B4100`, or 0 if the property is missing. Set element 8 + k to `v`,
+   then element 4 + k to 0. The 12-element property is created if it is missing.
+
+After one cycle both properties are therefore present on every connection, and they are saved with it
+(neighbors.md §4.3) *[compat]*. The state finishes in one call.
 
 ---
 

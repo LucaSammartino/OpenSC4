@@ -185,6 +185,13 @@ resume). After 1: `GetTripLength`, `GetEndCell`, `GetTrafficArrived`, `GetLastTr
 or 2 there is no result node, the getters return their defaults (§4.14) and `GetTripLength` returns the max trip
 length that was set. *[quirk]*
 
+**FindPath on an object that is not initialised** (PF11). `FindPath` never tests the initialised flag. Before `Init`
+the city size W, H and the two distance-table base pointers are whatever the heap held (the constructor sets none of
+them); after `Shutdown` the base pointers are null. The first distance-table write (`SetupDistanceTables`,
+`0x006D6060`) then faults or writes through a garbage pointer. Every filter builds the tables, except that filter 0
+returns 0 first when §4.5 fails. This cannot happen in the game: `CreatePathFinder` always runs `Init`, and
+`Shutdown` runs only inside the last `Release`. *[choice]* FreeCity4 returns 0 and changes nothing.
+
 `SetMaxTripLength` and `GetTripLength` share one float. A successful search overwrites it with the trip length, so
 the next `FindPath` on the same object uses the previous trip length as its budget unless the caller sets the max trip
 length again. *[quirk][compat]* `Reset` (slot 22) only clears the suspended state; it does not clear results or the
@@ -218,6 +225,13 @@ At every call, in this order:
 
 **Distance tables** (from the end rect `(ex0, ez0, ex1, ez1)`): for `i` = −1 … W, `dX[i] = ex0 − i` if `i < ex0`,
 `0` if `ex0 ≤ i ≤ ex1`, `i − ex1` if `i > ex1`; `dZ` likewise over −1 … H. Integers.
+
+**Index range** (PF14). The tables are read only for cells outside the search rect: `H` (`0x006D6160`) at the
+cell AddTripNode or CreateStartNodes is given, and RecalculateNodeScores at a node's own cell (§4.18). In every game
+flow those cells are in the city or one cell off it: in-city cells for moves, tunnels, ferry links and starts, and
+the in-city cell for an exit node (§4.8.2), whose own cell is one step off the map. So the index stays in −1…W and
+−1…H. The original does not check it; an index outside would read the heap next to the table. *[choice]* For such an
+index FreeCity4 applies the formula above (`ex0 − i` or `i − ex1`).
 
 **Heuristic** `H(x, z)`: 0.0 if `(x, z)` is inside the search rect (inclusive); otherwise the float conversion of the
 integer `dX[x] + dZ[z]` (exact). The score of a node is `f = r24(r24(H(x, z) × w) + g)`. So the search is plain
@@ -254,7 +268,8 @@ The starting cost of type `t` is `startCost[t]` (caller array or simulator defau
 
 **Start-edge table** (which entry sides a start node may have): start cell in city → all four sides; else x0 < 0 →
 side 0 only; else x0 ≥ W → side 2 only; else z0 < 0 → side 1 only; else side 3 only (`0x00AB21D8`…`0x00AB21E8`).
-**Lot start**: the start cell (x0, z0) is in city and the lot manager has a lot there.
+**Lot start**: the start cell (x0, z0) is in city and the lot manager has a lot there (`GetLot(x0, z0, false)`: a
+lot covering the cell, not only one whose origin it is; §8).
 
 **Rings.** For ring `d` = 1 … MaxDistanceOriginToNetwork (all rings, there is no early stop): the ring rect is the
 previous ring rect grown by one on every side and then clamped to the city (ring 0 = the start rect; the clamped
@@ -271,20 +286,39 @@ Because the ring rect is clamped, the start rect's own cells can be visited when
 and a later ring can revisit the same edge cells; the same node is then pushed again (the heap holds it twice).
 *[quirk]*
 
-**Off-map start fallback.** If no node was created and the start cell is off-map: for every neighbour connection of
-the simulator whose link list has a link whose off-map point equals the start cell, and every travel type `t` in both
-the starting mask and that connection's travel-type mask, create the start node at the connection's in-city cell
-with entry side 0, `g = r24(startCost[t] + linkCost)`, `f` as above (H at the in-city cell), and push it. Start nodes
-created here ignore the start-edge table and the cell's `conn`. If the start cell is in city and no node was created,
-`FindPath` returns 0.
+**Off-map start fallback** (ferry arrivals; `0x006D8B54`–`0x006D8F8E`). If no node was created and the start cell
+`(x0, z0)` is off-map (unsigned `x0 ≥ W` or `z0 ≥ H`), the trip may begin by ferry. The loops run over the
+simulator's **ferry terminals** (its terminal list, in list order; traffic-network.md §2.6), not over its neighbour
+connections, as an earlier version of this section said. For each terminal, for each of its **neighbour links** in
+list order whose off-map cell equals `(x0, z0)`, and for each travel type `t` = 0…8 in both the starting mask and the
+terminal's travel mask:
+
+* fetch or create the start node at the terminal's **arrival cell** `(x2, z2)` with entry side 0 (key
+  `(0x10 << 24) | t << 16 | x2 << 8 | z2`);
+* set `g = r24(startCost[t] + link.cost)` (the link cost of traffic-network.md §4.9.3), `f = r24(r24(H(x2, z2) × w) +
+  g)`, no parent, open, not closed, and push it.
+
+Nothing ends the loops early, and nothing checks whether the node already exists (PF5). When several links match
+(two links of one terminal with the same off-map cell, or terminals sharing an arrival cell), each match overwrites
+`g` and `f` of the same node and pushes it again. The node keeps the **last** match's cost, and the heap holds it
+once per match, each entry placed by the `f` it had when pushed (as with the clamped rings above) *[quirk][compat]*.
+Example: one terminal, travel mask Car, links L1 (cost 0.5) then L2 (cost 0.3), both to the start cell, start cost
+0: the Car start node ends with `g = 0.3` and is in the heap twice.
+
+Start nodes created here ignore the start-edge table and the cell's `conn`. If the start cell is in city and no
+node was created, `FindPath` returns 0.
 
 ### 4.7 Search nodes and the open set
 
 **Node identity.** A node is a (cell, travel type, entry side, predecessor's entry side) state. Its 32-bit key is
 `((pSide << 2 | side) << 24) | (t << 16) | (x & 0xFF) << 8 | (z & 0xFF)` where `pSide` is the entry side of the
-node it was reached from; start nodes use `((0x10 | side) << 24) | …` (off-map fallback start nodes: side 0);
+node it was reached from; start nodes use `((0x10 | side) << 24) | …` (ferry-arrival start nodes, §4.6: side 0);
 **exit nodes** (nodes for an off-map cell, §4.8.2) set bit 31 and are keyed on the in-city cell they were reached
-from, with `side` = the direction of the move: the node's cell is that in-city cell plus `dir(side)`. Including
+from, with `side` = the direction of the move: the node's cell is that in-city cell plus `dir(side)`. A new node
+gets its cell, type and side from the key (`0x006D5DF0`): `x = (key >> 8) & 0xFF` and `z = key & 0xFF`
+zero-extended, and for bit 31 plus `dir(side)` added as a 16-bit value. For every exit node the game makes (§4.8.2
+moves and the ferry exits of §4.8.3, whose in-city cell is adjacent to the off-map cell) this is the true off-map
+cell: `0 − 1 = −1` and `255 + 1 = 256` come out right. Including
 `pSide` in the identity is what makes the car turn rule (§4.8.2) a property of the state. The key decides identity
 only; a key that has been seen in this search always maps to the same node.
 
@@ -302,6 +336,14 @@ and chain order matter only for the failure fallback (§4.12).
   than the moving entry's `f`, then the right child if its `f` is strictly less than the chosen one's; stop if
   neither; swap and continue while the new position is below `count`.
 * **Update** (a node already open got a lower `f`): sift up from its current position with the Push rule. Only up.
+* **Position.** Each node records the slot where it was last written (`+0x20`): Push and Update set it at the slot
+  where the node comes to rest, and every sift move sets it for the entry it moves. Pop does not clear the popped
+  node's record. Update (`0x006D6460`) starts from the recorded slot **without checking** that the slot holds the
+  node, and ends by writing the node into its final slot (PF9). A node in the heap twice (§4.6) records whichever
+  copy was written last, and Update moves that copy only. In the game an open node's recorded slot always holds it:
+  the only open node whose slot can be stale is the one being expanded (it stays flagged open until §4.8.5), and no
+  move of §4.8 produces a node's own key, so it never receives an Update. *[choice]* FreeCity4 may treat an Update
+  whose recorded slot does not hold the node as a no-op; the original would overwrite that slot's entry.
 * Capacity grows to `2 × count` entries when full (initial capacity 99).
 
 Equal-`f` nodes are therefore not served first-in-first-out (conformance test 1).
@@ -354,6 +396,12 @@ Then for each direction `d` = 0, 1, 2, 3:
 
 The bit `d` of `exits` is not required for a switch move.
 
+A nibble `t2` of 9…14 (no shipped switch rule produces one) passes only if bit `t2` of the allowed mask is set
+(`0x006D97D1`–`0x006D97DD`: `test` of the u16 mask against `1 << t2`). No game caller sets a bit above 8 (the masks
+are `0x1CF`, `0x3`, `0x30`, `0x2`, `1 << strategy` with strategy 0…8, and copies of them; traffic-simulator.md §4.4),
+so such a nibble is ignored in practice. With such a bit set, the original would index its 9-entry tables
+(`network`, `maxCost`, `invMaxSpeed`) past their ends. *[choice]* FreeCity4 ignores a nibble above 8 (PF13).
+
 #### 4.8.3 Wormholes (in-city node)
 
 In this order, from the wormhole byte of `c`'s cell:
@@ -365,7 +413,10 @@ In this order, from the wormhole byte of `c`'s cell:
 2. If a mass-transit strike is on, skip 3 and 4.
 3. **Subway station** (bit 1): `t' = 0` (Walk) if `t = 6` (Subway), else `t' = 6`. For each side `s2` = 0…3: if
    `conn[t] >> 4s` (the **unmasked** shift: all higher nibbles count *[quirk]*) is non-zero: AddTripNode(same cell,
-   entry side `s2`, `t'`, cost 0.0, `maxCost[t']`). The allowed mask is not checked. *[quirk]* **Unreachable in 1.1.641**: no code sets
+   entry side `s2`, `t'`, cost 0.0, `maxCost[t']`). The shift is by the popped node's own entry side `s`, not by
+   `s2` (PF4, `0x006D99D1`–`0x006D99E2`: a 16-bit `shr` by `4 · node.side`, read again in each pass of the `s2`
+   loop). The test is therefore the same for all four `s2`: all four nodes are added, or none. The allowed mask is
+   not checked. *[quirk]* **Unreachable in 1.1.641**: no code sets
    wormhole bit 1 (the byte is only reset, `|= 2` and `|= 4`; traffic-network.md), so this branch never runs.
    *[compat]* FreeCity4 keeps the rule but never sets the bit.
 4. **Ferry** (bit 4), unless flag 16: look up the cell's ferry terminal; if its travel-type mask has `t`: for each
@@ -373,11 +424,22 @@ In this order, from the wormhole byte of `c`'s cell:
    of the terminal, AddTripNode(exit node at the edge's off-map point, reached from the edge's in-city cell, `t`,
    edge cost, `maxCost[t]`). List order as stored by the simulator (traffic-network.md).
 
+   The neighbour edge is a NeighborLink (traffic-network.md §2.6): off-map cell `O` at `+8`/`+0xA`, in-city edge
+   cell `E` at `+0xC`/`+0xE`, cost at `+0x10`. The call passes cell `E`, entry side `EdgeTo(O → E)` and the exit flag
+   (PF15, `0x006D9B55`–`0x006D9BA5`). The exit node's cell is therefore `E + dir(EdgeTo(O → E))` (§4.7), one step
+   from `E` towards `O`, and its `H` is taken at `E` (§4.9 step 6). Every link the game makes has `E` =
+   `GetNeighborConnectionInnerCell(O)` (traffic-network.md §4.9.3), adjacent to `O`, so the node's cell is `O`.
+   Example: `O = (−1, 7)`, `E = (0, 7)`: `EdgeTo(O → E) = 0`, cell `(0 − 1, 7) = O`. Only a damaged save could pair
+   cells that are not adjacent; the node then lands one step from `E` (the x direction first).
+
 #### 4.8.4 Park-and-ride return (flag 8)
 
 If `c`'s cell equals the park-and-ride cell `P` recorded by the previous trip (§4.13): `b = P + dir(Pside)`;
-AddTripNode(`b`, EdgeTo(`P`→`b`), **Car**, cost 0.0, `maxCost[t]` (of `c`'s type), exit = `b` is off-map). When `b`
-is off-map the exit-node rule moves the node back by `dir(side)`, so it lands on `P` itself. *[quirk]*
+AddTripNode(`b`, EdgeTo(`P`→`b`), **Car**, cost 0.0, `maxCost[t]` (of `c`'s type), exit = `b` is off-map). `b` is the cell of the car
+predecessor recorded with `P` (§4.13 step 1); that predecessor was expanded, so it is in city and `b` is never
+off-map in practice. If it were, the exit-node key would hold `b`'s low bytes and the decode (§4.7) would add
+`dir(EdgeTo(P → b))`, which points back at `P`: that gives `P` past the +x/+z edges of a city narrower than 256
+cells, but 256 past the −x/−z edges (the byte 255 plus 1). *[quirk, unreachable]*
 
 #### 4.8.5 Close and time check
 
@@ -394,8 +456,19 @@ Arguments: cell, entry side, type `t`, step cost, predecessor `c`, `maxCost`, ex
 3. `g = r24(cost + c.g)`.
 4. Unless flag 1: if not `g ≤ maxCost` (also when `g` is NaN): the over-budget counter of `t` is incremented; when it
    exceeds 64 (the 65th rejection in this call), `t` is disabled for the rest of the call; ignore. *[compat]*
-5. Fetch or create the node. If it is open and not `g < node.g`, ignore. If it is closed and not `g < node.g`,
-   ignore. (A NaN `g` passes both tests.)
+5. Fetch or create the node (a new node is neither open nor closed, so neither test applies). If it is open and
+   `node.g ≤ g`, ignore. If it is closed and `node.g ≤ g`, ignore. Both are **ordered** IEEE compares
+   (`0x006D9070`, `0x006D9085`: `fcomp`, then only C0 is tested, and an unordered result sets C0 too), so the node is
+   taken when `g < node.g` **or when either value is NaN** *[compat]* (PF1):
+
+   | `node.g` | `g` | result |
+   |---|---|---|
+   | 3.0 | 2.5 | taken |
+   | 3.0 | 3.0 | ignored (an equal `g` never replaces) |
+   | 3.0 | NaN | taken |
+   | NaN | 5.0 | taken (a NaN `node.g` is replaced by any `g`) |
+
+   A NaN `g` reaches this step only with flag 1, because step 4 rejects it otherwise.
 6. Set predecessor = `c`, not closed, `g`, entry side, `f = r24(r24(H(x, z) × w) + g)` with `(x, z)` the passed cell
    (the in-city cell for an exit node). If it was open: Update; else Push and mark open. A closed node is re-opened.
 
@@ -449,8 +522,11 @@ The timer is a time-stamp-counter deadline: `now + _ftol(maxWorkTime × ticksPer
 the counter reaches it (`0x0068BF80`). With max work time 0 the search never suspends.
 
 To keep timer reads rare, a process-wide multiplier `m` (initially 1024, power of two, 1…1024) is used: a per-call
-counter starts at 0 and gains `m` (the value at call entry) after each expanded node; the timer is read only when the
-counter is a multiple of 1024. At every return after the search started (found, suspended, exhausted), with
+counter starts at 0 and, when a max work time is set, gains `m` (the value at call entry) for every popped node that
+is not a goal, at its close (§4.8.5). Off-map nodes (exit nodes) are closed without expansion and still count
+(PF7: the off-map branch at `0x006D9540` jumps straight to the close at `0x006D9C81`, which advances the counter at
+`0x006D9C97`). A goal node does not count. The timer is read only when the counter is a multiple of 1024. With max
+work time 0 the counter stays 0, so `k = 0` below and the adaptation never runs. At every return after the search started (found, suspended, exhausted), with
 `k = counter >> 10` (the number of timer reads this call) and a process-wide adaptation counter `a`:
 `k = 0` → nothing; `k > 20` → `a += 1`, and when `a ≥ 16`: `a = 0` and `m = m / 2` if `m > 1`; `1 ≤ k < 5` →
 `a −= 1`, and when `a ≤ −4`: `a = 0` and `m = 2m` if `m < 1024`. The multiplier is shared by all pathfinders.
@@ -471,6 +547,12 @@ adaptation, return 0.
 z edge; if `z` is within the z range, the integer x distance; otherwise the Euclidean length (`LengthOfLine`
 `0x005D7660`, float) from the cell to the nearest corner.
 
+`LengthOfLine` takes the two points as 3-vectors `(x, 0, z)` of floats and computes the three differences, their
+squares and the sum on the x87 at the main thread's 24-bit precision, then `fsqrt` (PF12). For cell coordinates
+every step before the root is exact (integers far below 2^24), and `fsqrt` under 24-bit precision control is
+correctly rounded, so the result is **the exact square root rounded once to float32**. Examples: √2 = `0x3FB504F3`,
+√5 = `0x400F1BBD`, √10 = `0x404A62C2` (test 6).
+
 ### 4.13 Recording a successful trip
 
 1. Walk from the result node back to the root (the node without predecessor). Each time a node's predecessor is a
@@ -478,9 +560,11 @@ z edge; if `z` is within the z range, the integer x distance; otherwise the Eucl
    EdgeTo(predecessor's cell → node's cell), i.e. the direction from the node back to the car predecessor; the last record
    of the walk (the transition nearest the start) wins.
 2. Trip length `L = r24(result.g − root.g)`; if `L < 0` then `L = +0.0` (NaN is kept).
-3. Windows: if the filter is 0 **or 3**, the destination type reached is not 3, the result cell is off-map and the
-   simulator has a neighbour connection at that cell: `L = r24(connectionCost + L)`. (The Mac build does this for
-   filter 0 only.) For filter 3 the destination type reached is whatever the last filter-0 success on this object
+3. Windows: if the filter is 0 **or 3**, the destination type reached is not 3 and the result cell is off-map
+   (`x ≥ W` or `z ≥ H`, unsigned): `L = r24(cost + L)`, where `cost` is the f32 of the cell's edge record
+   (`GetTrafficNeighborConnection`, traffic-network.md §2.7.1 and §2.7.2). The lookup never fails, so the null
+   test at `0x006D87F2` is dead; a cell where no connection was ever added has cost 0.0. (The Mac build does this
+   for filter 0 only.) For filter 3 the destination type reached is whatever the last filter-0 success on this object
    left there, uninitialised on a fresh object (§10 Q1). *[quirk]*
 4. The trip length is stored in the shared max-trip-length/trip-length float.
 5. If a route deque is set: clear it, then push to the **front** one `RouteData {u8 x, u8 z, u8 travelType}` per node
@@ -520,6 +604,16 @@ map view and the network layout view, and it is stored in the trip data saved wi
 
 Unit steps to and from off-map cells are ordinary unit steps (an exit node is one cell from its predecessor).
 
+**Inner cell of an off-map node** (PF10). "Its connection's in-city cell" is `GetNeighborConnectionInnerCell(x, z)`
+(`0x0070DDD0`, traffic-network.md §2.7), a clamp onto the map, not a connection lookup: it needs exactly one
+coordinate off the map, and it writes nothing and returns −1 otherwise (`0x0070DE01`, `0x0070DE10`).
+`GetCompressedRoute` ignores the result and writes the low bytes of its two output variables (`0x006D71E2`,
+`0x006D7550`), which then hold stack garbage or the previous call's values. The failure cannot occur: the root is
+always in city (ring cells are clamped to the map and ferry-arrival nodes sit on the arrival cell, §4.6), and an
+off-map node reached by a jump is a ferry exit whose off-map cell had a valid inner cell when its link was made
+(traffic-network.md §4.9.3; only a damaged save could hold a corner cell). *[choice]* FreeCity4 writes the node's
+own cell, low bytes.
+
 ### 4.16 WasTripReversible
 
 True when there is no result node. Otherwise walk from the result node towards the root over pairs (node `c`, its
@@ -558,8 +652,11 @@ Adds the trips of the result to the simulator. Nothing happens when there is no 
      Exit side = EdgeTo(prev → cell) (the direction from the cell to `prev`), computed on the **unsigned byte**
      coordinates of `prev` (an off-map −1 compares as 255 *[quirk]*). The simulator's edge-density
      record with key `(style = 1) << 24 | t << 16 | (x & 0xFF) << 8 | (z & 0xFF)` (created if missing) gets
-     `count[entry][exit] = min(count + Qi, 0xFFFF)` (u16, 16 counters, index `4·entry + exit`). For style 2 the record
-     with key `1 << 24 | t << 16 | …` gets the same addition at the same index (not mirrored).
+     `current[4·entry + exit] := min(current + Qi, 0xFFFF)`. `current` is the record's **second** u16[16] array, at
+     `+0x22` (traffic-simulator.md §4.8: `last[16]` at `+0x00`, `usage` at `+0x20`, `current[16]` at `+0x22`); this
+     slot never writes `last` or `usage`, which only the state-7 dump sets (PF2, `0x006DA2D3`). For style 2 the
+     record with key `1 << 24 | t << 16 | …` gets the same addition at the **mirrored** index
+     `current[4·exit + entry]` (`0x006DA324`–`0x006DA330`), as `ApplyRoute` does (traffic-simulator.md §4.5).
   4. Income: `I = r24(I + r24(float(trafficArrived) × incomePerTile[t]))` (`I` starts at +0.0; this uses the
      uncarpooled count).
 * Finally the simulator's double income accumulator `= r24-precision(I + accumulator)` stored as a double (the add is
@@ -573,9 +670,13 @@ No game caller of slot 29 was identified; the traffic simulator applies saved co
 **ReleasePathNodes** (slot 31): reset the page cursor to the first page (pages are kept), empty all buckets, empty
 the open set, forget the result node.
 
-**RecalculateNodeScores** (filter 0 with flag 4): for every stored node in allocation order: `f = r24(g)` if the
-cell is inside the search rect (no multiplication by `w`), else `f = r24(r24(H × w) + g)`; open nodes are then
-Updated, which only sifts **up** (a raised `f` leaves the heap out of order). *[quirk]*
+**RecalculateNodeScores** (filter 0 with flag 4, `0x006D6780`): for every stored node in allocation order:
+`f = r24(g)` if the cell is inside the search rect (no multiplication by `w`), else `f = r24(r24(H × w) + g)`; open
+nodes are then Updated, which only sifts **up** (a raised `f` leaves the heap out of order). *[quirk]* The cell is the
+node's **own** cell (`+0x14`/`+0x16`, `0x006D67FF`, `0x006D6825`). For an exit node that is its off-map cell (§4.7),
+not the in-city cell at which AddTripNode evaluated `H` (§4.9 step 6), so a recomputed exit node's `H` is usually 1
+more or 1 less than before (PF8). Example: end rect `(10, 5, 10, 5)`, search rect not containing the cells, exit
+node from `(0, 5)` to `(−1, 5)`: AddTripNode used `H(0, 5) = 10`, the recomputation uses `H(−1, 5) = 11`.
 
 ### 4.19 Precision summary
 
@@ -586,9 +687,9 @@ Updated, which only sifts **up** (a raised `f` leaves the heap out of order). *[
 | step cost (affected) | `r24(r24(Curve(q) × invMaxSpeed) + extraCost)` |
 | step cost (not affected) | `r24(invMaxSpeed + extraCost)` |
 | exit cost | `r24(c.f − c.g)` |
-| g | `r24(cost + parent.g)`; start: `startCost[t]`; off-map start: `r24(startCost[t] + linkCost)` |
+| g | `r24(cost + parent.g)`; start: `startCost[t]`; ferry-arrival start: `r24(startCost[t] + link.cost)` |
 | f | `r24(r24(float(dX + dZ) × w) + g)` or `r24(r24(0.0 × w) + g)` inside the search rect |
-| trip length | `r24(goal.g − root.g)`, clamp below at +0.0, then `r24(connectionCost + L)` |
+| trip length | `r24(goal.g − root.g)`, clamp below at +0.0, then `r24(edgeRecord.cost + L)` (§4.13 step 3) |
 | display trip length | `r24(scale × L)` |
 | carpool count | `float32(ceil(double(r24(N × 0.8f))))` |
 | ApplyTraffic | `Qi` by `1.5·2^23`; volumes `r24(vol + Q)`; income `r24(I + r24(N × incomePerTile))`, then a 24-bit double add |
@@ -669,7 +770,7 @@ Virtual calls on other interfaces (compiled slot, offset, pop, return):
 | Interface | Slot (offset) | Method | pop | Return | Used for |
 |---|---|---|---|---|---|
 | `cISC4City` | 93 (+0x174), 94 (+0x178) | CellCountX, CellCountZ | 0 | EAX | Init |
-| `cISC4LotManager` | 6 (+0x18) | `GetLot(int x, int z, bool)` (`0x0072B410`) | 12 | EAX | lot start, destination lots |
+| `cISC4LotManager` | 6 (+0x18) | `GetLot(int x, int z, bool originOnly)` (`0x0072B410`), always called with **false** (any cell of the lot; zones.md §8 slot 6) at all three sites: `0x006D8B1D` (lot start), `0x006D7AC7` (filter 0 goal), `0x006D8688` (§4.5 step 5) | 12 | EAX | lot start, destination lots |
 | `cISC4Lot` | 3 (+0x0C) | `AsPropertyHolder()` | 0 | EAX | capacity check |
 | `cISC4Lot` | 14 (+0x38) | `GetBoundingRect(SC4Rect<int32>&)` (`0x006BF320`) | 4 | AL | end rect, clearing destinations |
 | `cISC4OccupantManager` | 40 (+0xA0) | `GetOccupantsByStandardCityCells` filter overload (`0x0049E250`) | 20 | AL | filter 2 |
@@ -688,13 +789,13 @@ traffic-simulator.md must specify their results):
 | `0x0070FB30` | GetNetworkInfo | `(transitNetwork, x, z)` → network info pointer or null |
 | `0x0071CB20` | TransitSwitchEntryCost | `(switchId)` → float (x87) |
 | `0x0070DFF0` | used trip capacity | `(holder, k)` → u32 |
-| `0x007114E0` | GetNeighborPoolPropertyHolder | `(t, x, z)` → holder or null |
-| `0x0070F970` | GetTrafficNeighborConnection | `(x, z)` → connection (cost float) or null |
+| `0x007114E0` | GetNeighborPoolPropertyHolder | `(t, x, z)` → holder or null (traffic-network.md §2.7.1) |
+| `0x0070F970` | GetTrafficNeighborConnection | `(x, z)` → the cell's edge record (f32 cost at +4), never null (traffic-network.md §2.7.1) |
 | `0x0070DDD0` | GetNeighborConnectionInnerCell | `(x, z, &ix, &iz)` |
 | `0x006D90F0`, `0x006D7820` | transit-switch map and edge-density map `operator[]` | insert-if-missing |
 
 Direct member reads of the owner (Windows layout, owned by traffic-network.md / traffic-simulator.md): the cell
-connection array, destination bitmask map and free counts, tunnel and ferry hash tables, neighbour connection list,
+connection array, destination bitmask map and free counts, tunnel and ferry hash tables, ferry terminal list (§4.6),
 volume-grid vector, transit-switch grid, strike state, the per-travel-type tables (default start cost, can reach,
 generates traffic, income per tile), MaxDistanceOriginToNetwork, NearestDestinationAttractiveness, the income
 accumulator; class statics `invMaxSpeed[9][13]` (`0x00B4B110`), `affectedByTraffic[9]` (`0x00B4B100`), the
@@ -736,10 +837,11 @@ inclusive), `LengthOfLine` (`0x005D7660`).
 
 Quirks reproduced (all marked above): shared max-trip-length/trip-length float; strike blocks subway stations and
 ferries but not starts or same-type moves; subway-station transfer uses the unmasked connection shift and ignores the
-allowed mask; switch moves skip the map-bounds check; exit cost = heuristic term; clamped start rings re-push nodes;
+allowed mask; switch moves skip the map-bounds check; exit cost = heuristic term; clamped start rings re-push nodes, and so does a repeated
+ferry-arrival match (§4.6);
 the goal node is pushed back on success; RecalculateNodeScores only sifts up; filter 3 with flag 4 keeps stale
 scores; the excluded edge rect only exists for filter 0; the 65th over-budget rejection disables a travel type for
-the call; NaN costs pass the "better" test; ApplyTraffic's exit side uses unsigned bytes; the income double is
+the call; a NaN `g` (new or stored) passes the "better" test (§4.9 step 5); ApplyTraffic's exit side uses unsigned bytes; the income double is
 rounded to 24 bits; filter 0 overwrites the caller's end rect.
 
 Open questions:
@@ -751,9 +853,10 @@ Open questions:
   `SetTripDestinationFilter(2)` found by a byte scan (`0x00545328`, `0x0060F588`, `0x006A1D10`, `0x0070E0BE`) are other
   interfaces (stream writes), not the pathfinder.
 * **Q3** No caller of `ApplyTraffic` (slot 29) was found *[inferred]*. The simulator applies routes with its own
-  `ApplyRoute` (`0x00719910`, traffic-simulator.md), which **does** mirror style 2 (the second add uses index
-  4·exit + entry) and adds transit-switch usage once; this slot does not mirror. For the first route cell
-  `ApplyRoute` tests `z < sz0 → 3` where this slot tests `z ≤ sz1 → 3`; the two agree for cells outside the rect.
+  `ApplyRoute` (`0x00719910`, traffic-simulator.md). Both mirror style 2 (the second add uses index
+  4·exit + entry; corrected by PF2, an earlier version said this slot does not mirror). `ApplyRoute` adds
+  transit-switch usage once, this slot `r24(Q + Q)` for style 2. For the first route cell `ApplyRoute` tests
+  `z < sz0 → 3` where this slot tests `z ≤ sz1 → 3`; the two agree for cells outside the rect.
 * **Q4** A switch move towards an off-map cell reads the transit-switch map and the network info outside the map; the
   result there depends on the simulator's accessor bounds handling (traffic-network.md). FreeCity4 treats it as "no
   switch, no info" *[choice]*.
@@ -783,11 +886,13 @@ cells and networks are empty. Start rect `(2,2,2,2)` with a lot at `(2,2)`; end 
    `FindPath` = 1; trip length `3.0` (`0x40400000`); end cell `(4,4)`; traffic arrived 10; last travel type 1;
    route deque `(2,3,1) (3,3,1) (4,3,1)`; `WasTripReversible` = true.
 3. **Compressed route** of test 2: bytes `01 02 03 41 02 0A`, mask `0x00000002`.
-4. **ApplyTraffic(0)** after test 2: road volume `(2,3)`, `(3,3)`, `(4,3)` = 10.0 each; edge density, all with style
-   bit 0 and type 1: cell `(4,3)` `count[0][3] = 10`, `(3,3)` `count[0][2] = 10`, `(2,3)` `count[1][2] = 10`
-   (root: entry from the start rect = side 1). With style 2 instead: volumes 20.0 and the same counts in both the
-   key-bit-0 and key-bit-1 records. With the carpool ordinance on and density 10: `Q = 8.0` (`r24(10 × 0.8f) = 8.0`,
-   ceil 8), volumes 8.0, counts 8.
+4. **ApplyTraffic(0)** after test 2: road volume `(2,3)`, `(3,3)`, `(4,3)` = 10.0 each; edge density, all in the
+   `current` array (`+0x22`), with style bit 0 and type 1: cell `(4,3)` `current[4·0 + 3] = 10`, `(3,3)`
+   `current[4·0 + 2] = 10`, `(2,3)` `current[4·1 + 2] = 10` (root: entry from the start rect = side 1); `last` and
+   `usage` stay 0. With style 2 instead: volumes 20.0, the same three counts in the key-bit-0 records, and the
+   mirrored counts in the key-bit-1 records: `(4,3)` `current[4·3 + 0] = 10`, `(3,3)` `current[4·2 + 0] = 10`,
+   `(2,3)` `current[4·2 + 1] = 10`. With the carpool ordinance on and density 10: `Q = 8.0`
+   (`r24(10 × 0.8f) = 8.0`, ceil 8), volumes 8.0, counts 8.
 5. **Starting cost.** As test 2 but starting cost `[0, 0.4f, 0, …]`: start `g = 0.4f` (`0x3ECCCCCD`), `(3,3)`
    `g = 1.9f` (`0x3FF33333`), `(4,3)` `g = 3.4000001f` (`0x4059999A`), trip length `r24(3.4000001f − 0.4f) = 3.0`
    (`0x40400000`).
