@@ -38,6 +38,7 @@
 #include "cIGZMessageServer2.h"
 #include "cIGZMessageTarget2.h"
 #include "cISC4App.h"
+#include "cGZPersistResourceKey.h"
 #include "cISC4BuildingDevelopmentSimulator.h"
 #include "cISC4City.h"
 #include "cISC4GrowthDeveloper.h"
@@ -659,7 +660,30 @@ void CompareTuning(Dev& d) {
     for (int i = 0; i < 4; ++i) {
         if (oc[i] != caps[i]) df.Add(Fmt("cap %d %u/%u", 19 + i, oc[i], caps[i]));
     }
-    d.tuning = df.count == 0 ? "tuning=ok" : Fmt("tuning=%u differ", df.count);
+    // Slots 25 and 26, which the tract developer reads when it picks a
+    // building (tract-developer.md §4.16 steps 3 and 8).
+    const int32_t om = d.orig->GetMonopolyUse();
+    const uint32_t sm = fc4_growth_monopoly_use(d.gs->core);
+    if (static_cast<uint32_t>(om) != sm) df.Add(Fmt("monopoly %d/%u", om, sm));
+    std::vector<std::pair<uint32_t, uint32_t>> os, ss;  // (style, float bits)
+    const GameMapStatus ms = WalkGameMap(d.orig->GetStylePercentages(), 64, [&](const GameMapNode& n) {
+        os.emplace_back(n.key, n.value);
+    });
+    fc4_growth_styles(
+        d.gs->core,
+        [](void* c, uint32_t k, float v) {
+            uint32_t bits = 0;
+            std::memcpy(&bits, &v, sizeof(bits));
+            static_cast<std::vector<std::pair<uint32_t, uint32_t>>*>(c)->emplace_back(k, bits);
+        },
+        &ss);
+    if (ms != GameMapStatus::Ok) {
+        df.Add(Fmt("styles unreadable (%s)", GameMapStatusName(ms)));
+    } else if (os != ss) {
+        df.Add(Fmt("styles %u entries/%u entries", static_cast<unsigned>(os.size()), static_cast<unsigned>(ss.size())));
+    }
+    d.tuning = df.count == 0 ? Fmt("tuning=ok (styles %u)", static_cast<unsigned>(ss.size()))
+                             : Fmt("tuning=%u differ", df.count);
 }
 
 // The previous core against the record the original writes now (it saw the
@@ -1006,6 +1030,81 @@ void CompareCatalogue(cFC4ISC4BuildingDevelopmentSimulator* ob, uint32_t julian)
         }
         if (df.count != before) ++profileDiffs;
     }
+    // The exemplar keys (slot 14) of the common types.
+    uint32_t keyDiffs = 0;
+    for (uint32_t t : a) {
+        if (!std::binary_search(b.begin(), b.end(), t)) continue;
+        cGZPersistResourceKey ok;
+        fc4_res_key sk{};
+        const bool oh = ob->GetBuildingKeyFromType(t, ok);
+        const bool sh = fc4_development_catalogue_key(ShadowProcess(), 0, t, &sk);
+        if (oh != sh || (oh && (ok.type != sk.type_id || ok.group != sk.group || ok.instance != sk.instance))) {
+            ++keyDiffs;
+            df.Add(Fmt("0x%08X key %08X/%08X/%08X / %08X/%08X/%08X", t, ok.type, ok.group, ok.instance, sk.type_id,
+                       sk.group, sk.instance));
+        }
+    }
+    // The families (slot 13, hash order), each family's members (slot 18, the
+    // member list in load order) and the hash set the tract developer draws
+    // from (slot 19 into a fresh 193-bucket set, §4.16 step 8: its iteration
+    // order is part of the contract).
+    uint32_t famO = 0, famS = 0, memberDiffs = 0, setDiffs = 0;
+    bool famOrderSame = false;
+    if (StlNodeAllocator::Available()) {
+        GameVector<uint32_t> ofv;
+        ob->GetAllBuildingFamilyTypes(ofv);  // EAX is garbage (§8 slot 13)
+        const std::vector<uint32_t> of(ofv.begin(), ofv.end());
+        const size_t nf = fc4_development_catalogue_types(ShadowProcess(), 1, nullptr, 0);
+        std::vector<uint32_t> sf(nf);
+        if (nf != 0) fc4_development_catalogue_types(ShadowProcess(), 1, sf.data(), nf);
+        famO = static_cast<uint32_t>(of.size());
+        famS = static_cast<uint32_t>(sf.size());
+        famOrderSame = of == sf;
+        std::vector<uint32_t> fa = of, fb = sf;
+        std::sort(fa.begin(), fa.end());
+        std::sort(fb.begin(), fb.end());
+        std::vector<uint32_t> fOnlyO, fOnlyS;
+        std::set_difference(fa.begin(), fa.end(), fb.begin(), fb.end(), std::back_inserter(fOnlyO));
+        std::set_difference(fb.begin(), fb.end(), fa.begin(), fa.end(), std::back_inserter(fOnlyS));
+        for (uint32_t f : fOnlyO) df.Add(Fmt("family 0x%08X only in the original", f));
+        for (uint32_t f : fOnlyS) df.Add(Fmt("family 0x%08X only in ours", f));
+        if (!famOrderSame && fOnlyO.empty() && fOnlyS.empty()) df.Add("family order differs");
+        for (uint32_t f : fa) {
+            if (!std::binary_search(fb.begin(), fb.end(), f)) continue;
+            GameVector<uint32_t> omv;
+            ob->GetBuildingTypesByFamily(omv, f);
+            const std::vector<uint32_t> om(omv.begin(), omv.end());
+            const size_t nm = fc4_development_catalogue_family(ShadowProcess(), f, nullptr, 0);
+            std::vector<uint32_t> sm(nm);
+            if (nm != 0) fc4_development_catalogue_family(ShadowProcess(), f, sm.data(), nm);
+            if (om != sm) {
+                ++memberDiffs;
+                std::vector<uint32_t> ma = om, mb = sm;
+                std::sort(ma.begin(), ma.end());
+                std::sort(mb.begin(), mb.end());
+                df.Add(Fmt("family 0x%08X members %u/%u (%s)", f, static_cast<unsigned>(om.size()),
+                           static_cast<unsigned>(sm.size()), ma == mb ? "same set, order differs" : "sets differ"));
+                continue;
+            }
+            GameHashSetU32<> oset(193), sset(193);
+            ob->GetBuildingTypeSetByFamily(oset, f);
+            for (uint32_t t : sm) sset.insert(t);
+            std::vector<uint32_t> oi, si;
+            for (size_t k = 0; k < oset.bucket_count(); ++k) {
+                for (auto* n = oset.bucket(k); n != nullptr; n = n->next) oi.push_back(n->value);
+            }
+            for (size_t k = 0; k < sset.bucket_count(); ++k) {
+                for (auto* n = sset.bucket(k); n != nullptr; n = n->next) si.push_back(n->value);
+            }
+            if (oi != si) {
+                ++setDiffs;
+                df.Add(Fmt("family 0x%08X hash set order (%u/%u buckets)", f,
+                           static_cast<unsigned>(oset.bucket_count()), static_cast<unsigned>(sset.bucket_count())));
+            }
+        }
+    } else {
+        df.Add("families not compared (no STL allocator)");
+    }
     // The maximum density table (slot 45, ST0).
     uint32_t density = 0, densityDiffs = 0;
     for (int32_t zone = 0; zone < 16; ++zone) {
@@ -1023,9 +1122,11 @@ void CompareCatalogue(cFC4ISC4BuildingDevelopmentSimulator* ob, uint32_t julian)
             }
         }
     }
-    LogLine(Fmt("development shadow catalogue %s: types=%u/%u (%s) profiles=%u (%u differ) density=%u (%u differ)",
+    LogLine(Fmt("development shadow catalogue %s: types=%u/%u (%s) profiles=%u (%u differ) keys=%u differ "
+                "families=%u/%u (%s) members=%u differ hashSets=%u differ density=%u (%u differ)",
                 DateText(julian).c_str(), static_cast<unsigned>(ot.size()), static_cast<unsigned>(st.size()),
-                orderSame ? "same order" : "order DIFFERS", profiles, profileDiffs, density, densityDiffs) +
+                orderSame ? "same order" : "order DIFFERS", profiles, profileDiffs, keyDiffs, famO, famS,
+                famOrderSame ? "same order" : "order DIFFERS", memberDiffs, setDiffs, density, densityDiffs) +
             df.Tail());
 }
 
