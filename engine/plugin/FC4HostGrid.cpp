@@ -33,6 +33,7 @@ constexpr uint32_t kClsU8 = 0x49B9E602;
 constexpr uint32_t kClsI8 = 0x49B9E603;
 constexpr uint32_t kClsU16 = 0x49B9E604;
 constexpr uint32_t kClsI16 = 0x49B9E605;
+constexpr uint32_t kClsU32 = 0x49B9E606;
 constexpr uint32_t kClsF32 = 0x49B9E60A;
 
 const HostGridContext* Ctx(void* u) { return static_cast<const HostGridContext*>(u); }
@@ -44,7 +45,7 @@ cISC4SimGrid<T>* As(uint64_t t) {
 
 bool Supported(uint32_t kind) {
     return kind == kClsU8 || kind == kClsBool || kind == kClsI8 || kind == kClsU16 || kind == kClsI16 ||
-           kind == kClsF32;
+           kind == kClsU32 || kind == kClsF32;
 }
 
 template <class T>
@@ -89,6 +90,7 @@ double Get(void*, uint64_t t, uint32_t kind, int32_t x, int32_t z) {
         case kClsI16: return As<int16_t>(t)->GetTractValue(x, z);
         case kClsI8: return As<int8_t>(t)->GetTractValue(x, z);
         case kClsU16: return As<uint16_t>(t)->GetTractValue(x, z);
+        case kClsU32: return As<uint32_t>(t)->GetTractValue(x, z);
         case kClsF32: return As<float>(t)->GetTractValue(x, z);
         case kClsU8:
         case kClsBool: return As<uint8_t>(t)->GetTractValue(x, z);
@@ -114,6 +116,7 @@ void Set(void* u, uint64_t t, uint32_t kind, int32_t x, int32_t z, double v) {
         case kClsI16: As<int16_t>(t)->SetTractValue(x, z, Narrow<int16_t>(v)); break;
         case kClsI8: As<int8_t>(t)->SetTractValue(x, z, Narrow<int8_t>(v)); break;
         case kClsU16: As<uint16_t>(t)->SetTractValue(x, z, Narrow<uint16_t>(v)); break;
+        case kClsU32: As<uint32_t>(t)->SetTractValue(x, z, Narrow<uint32_t>(v)); break;
         case kClsF32: As<float>(t)->SetTractValue(x, z, Narrow<float>(v)); break;
         case kClsU8:
         case kClsBool: As<uint8_t>(t)->SetTractValue(x, z, Narrow<uint8_t>(v)); break;
@@ -127,6 +130,7 @@ void Fill(void* u, uint64_t t, uint32_t kind, double v) {
         case kClsI16: As<int16_t>(t)->SetTractValues(Narrow<int16_t>(v)); break;
         case kClsI8: As<int8_t>(t)->SetTractValues(Narrow<int8_t>(v)); break;
         case kClsU16: As<uint16_t>(t)->SetTractValues(Narrow<uint16_t>(v)); break;
+        case kClsU32: As<uint32_t>(t)->SetTractValues(Narrow<uint32_t>(v)); break;
         case kClsF32: As<float>(t)->SetTractValues(Narrow<float>(v)); break;
         case kClsU8:
         case kClsBool: As<uint8_t>(t)->SetTractValues(Narrow<uint8_t>(v)); break;
@@ -162,6 +166,8 @@ uint64_t CreateGameGrid(const char* tag, uint32_t kind, uint32_t instance, int32
         Setup<int8_t>(p, tractSize, instance);
     } else if (kind == kClsU16) {
         Setup<uint16_t>(p, tractSize, instance);
+    } else if (kind == kClsU32) {
+        Setup<uint32_t>(p, tractSize, instance);
     } else if (kind == kClsF32) {
         Setup<float>(p, tractSize, instance);
     } else {

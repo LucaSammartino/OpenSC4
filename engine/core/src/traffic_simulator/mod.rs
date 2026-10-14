@@ -503,6 +503,16 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     /// Lot slots 12/13: clears a lot flag (§4.7).
     fn clear_lot_flag(&self, lot: u64, flag: u32);
 
+    /// `cISC4TrafficSource::UpdateTrafficVolume` (slot 4) run by the source
+    /// itself (§4.1: the simulator calls the source's own method; a lot's is
+    /// §4.1.1, a connection's §4.1.4). True when the host ran it; false (the
+    /// default) lets the simulator compute it from [`TrafficSimHost::lot_zone`]
+    /// and the other lot and connection facts below.
+    fn native_update_traffic_volume(&self, source: Source) -> bool {
+        let _ = source;
+        false
+    }
+
     // ---- trip lists (cISC4TrafficSource slot 3) ----
     /// A copy of the source's trip list.
     fn trip_list(&self, source: Source) -> Vec<TripData>;
@@ -762,6 +772,36 @@ impl TrafficSimulator {
     /// owner pointer).
     pub fn find_path(&self, pf: &mut Pathfinder) -> u32 {
         self.run(|r| r.find_path_with(pf))
+    }
+
+    /// `Init` (pathfinder slot 3) of an outside caller's pathfinder, again
+    /// after its `Shutdown` (pathfinder.md §1).
+    pub fn init_path_finder(&self, pf: &mut Pathfinder) -> bool {
+        self.run(|r| r.init_path_finder(pf))
+    }
+
+    /// `ApplyTraffic(style)` (pathfinder slot 29, pathfinder.md §4.17) of an
+    /// outside caller's pathfinder.
+    pub fn apply_path_finder_traffic(&self, pf: &mut Pathfinder, style: u32) {
+        self.run(|r| r.apply_path_finder_traffic(pf, style))
+    }
+
+    /// `GetTripLengthScaledForDisplay` (pathfinder slot 26, pathfinder.md
+    /// §4.14): `r24(GetTripScaleForDisplay() × tripLength)`.
+    pub fn path_finder_display_length(&self, pf: &Pathfinder) -> f32 {
+        let scale = self.trip_scale_for_display();
+        crate::x87::r24(f64::from(scale) * f64::from(pf.get_trip_length())) as f32
+    }
+
+    /// `GetCompressedRoute(out, mask)` (pathfinder slot 32, pathfinder.md
+    /// §4.15) of a pathfinder over the simulator's network; returns the mask.
+    pub fn path_finder_compressed_route(&self, pf: &Pathfinder, out: &mut Vec<u8>) -> u32 {
+        pf.get_compressed_route(&self.net.state(), out)
+    }
+
+    /// `WasTripReversible` (pathfinder slot 30, pathfinder.md §4.16).
+    pub fn path_finder_was_reversible(&self, pf: &Pathfinder) -> bool {
+        pf.was_trip_reversible(&self.net.state())
     }
 
     /// `SetupPathFinderForLot(pf, lot)` (slot 7, `0x00711610`, §4.4, TS10):

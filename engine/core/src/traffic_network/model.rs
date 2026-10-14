@@ -732,9 +732,15 @@ impl NetworkModel {
             // Step 4: every record of the cell connection array reset.
             s.conn = vec![CellConnection::default(); ARRAY_LEN];
             // Step 5: the switch grids, created through the host as the
-            // game's grid classes (simgrid §6.4), tract size 1.
-            s.switch_mode = super::GridProvider::<u8>::create_grid(cx.h, super::SWITCH_MODE_GRID_ID, 1);
-            s.switch_id = super::GridProvider::<u32>::create_grid(cx.h, super::SWITCH_ID_GRID_ID, 1);
+            // game's grid classes (simgrid §6.4), tract size 1. A grid a
+            // `Read` resolved is kept (`Read` runs before `Init` on a load,
+            // foundations §3.7) *[choice]*.
+            if s.switch_mode.is_none() {
+                s.switch_mode = super::GridProvider::<u8>::create_grid(cx.h, super::SWITCH_MODE_GRID_ID, 1);
+            }
+            if s.switch_id.is_none() {
+                s.switch_id = super::GridProvider::<u32>::create_grid(cx.h, super::SWITCH_ID_GRID_ID, 1);
+            }
             // Step 6: the water pathfinder.
             s.water.init(s.count_x, s.count_z);
             // The neighbour connection edge records, all (0, 0, 0.0) (§2.7).

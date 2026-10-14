@@ -368,6 +368,9 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4TrafficSimulator", 43, 44,
      "slot 43 is cSC4TrafficSimulator's scalar deleting destructor (pops 4; docs/abi rows added in main): "
      "class-private"},
+    {"cISC4PathFinder", 33, 34,
+     "slot 33 is cSC4PathFinder's scalar deleting destructor (pops 4): class-private (pathfinder.md section 7: "
+     "33 interface slots + destructor)"},
     {"cISC4Demolition", 12, 13,
      "slot 12 is cSC4Demolition's destructor (pops 4): class-private. The plugin calls slot 7 (DemolishLots) "
      "only (power §5.5)"},
@@ -408,6 +411,9 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cIGZWin", 68, 148,
      "cFC4IGZWin declares slots 3-67 only: the dialog closer calls slot 67 (GetFlag) only (modal-dialogs.md "
      "section 3.2). Slots 68-147 are not declared"},
+    {"cISC4CommercialSimulator", 6, 7,
+     "slot 6 is cSC4CommercialSimulator's deleting destructor (pops 4; re-specs9 row, commercial-industrial.md): "
+     "class-private, not an interface method"},
 };
 
 const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlots) {
@@ -464,6 +470,11 @@ const Waiver kWaivers[] = {
     {"cISC4SimGrid<int16>", "cISC4SimGrid<int16_t>", 21, "TractCenterToPosition", "the game returns in ST0 (SDK: bool)"},
     {"cISC4SimGrid<float>", "cISC4SimGrid<float>", 20, "TractCornerToPosition", "the game returns in ST0 (SDK: bool)"},
     {"cISC4SimGrid<float>", "cISC4SimGrid<float>", 21, "TractCenterToPosition", "the game returns in ST0 (SDK: bool)"},
+    // The traffic simulator's u32 grids (traffic-simulator.md section 1 step 4; FC4HostGrid.h).
+    {"cISC4SimGrid<uint32>", "cISC4SimGrid<uint32_t>", 20, "TractCornerToPosition",
+     "the game returns in ST0 (SDK: bool)"},
+    {"cISC4SimGrid<uint32>", "cISC4SimGrid<uint32_t>", 21, "TractCenterToPosition",
+     "the game returns in ST0 (SDK: bool)"},
     // The aura simulator's grids (aura.md section 14.2).
     {"cISC4SimGrid<int8>", "cISC4SimGrid<int8_t>", 20, "TractCornerToPosition", "the game returns in ST0 (SDK: bool)"},
     {"cISC4SimGrid<int8>", "cISC4SimGrid<int8_t>", 21, "TractCenterToPosition", "the game returns in ST0 (SDK: bool)"},
