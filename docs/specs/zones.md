@@ -228,6 +228,10 @@ Only `kSC4MessageInsertOccupant` `0x99EF1142` whose data3 is the network occupan
 So every ordinary road, street, rail etc. dezones its bounding rectangle, free of charge, and the zone developer
 re-parcels the remains (§7.9). This corrects `development.md` §2 (“a building lacking occupant group 0x80200090”).
 
+**Re-entry** (ZG6). The handler has no guard. When a network occupant is inserted while a `PlaceZone` commit runs
+(for example a street drawn by the parcelling, §7.10), the message is sent synchronously, so this dezone runs at once,
+nested inside the outer `PlaceZone` *[inferred: synchronous delivery, §5.2]*.
+
 ### 5.2 Zone developer `DoMessage` (`0x007328D0`)
 
 | Message | Action |

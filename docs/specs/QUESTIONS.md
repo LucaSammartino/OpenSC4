@@ -2858,7 +2858,11 @@ developer stays original). The current answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`PlaceZone` `0x004DDFDB` message slot 12, `0x004DDFE3` slot 33; standard
   message vtable `0x00A92D40`) and written into zones §5.3. `SetVoid1` stores the zone manager raw and `SetIGZUnknown`
   AddRefs it, so the message holds one reference. The bracket matches.
-- **ZG6:** A dezone arriving during a PlaceZone. [runs at once and is counted]
+- ~~**ZG6:** A dezone arriving during a PlaceZone. [runs at once and is counted]~~
+  **ANSWERED 2026-10-14** from the exe (`DoMessage` `0x004DCA70`, no re-entry guard; `PlaceZone` `0x004DD780`)
+  and written into zones §5.1. It runs at once. The InsertOccupant is delivered synchronously, so a network occupant
+  inserted during a `PlaceZone` commit (for example a street drawn by the parcelling) runs the dezone `PlaceZone` nested
+  inside it. The original counts nothing; the counting is glue, the implementer's choice.
 - **ZG7:** When are `outLots` inserted? [at the pricing call]
 - **ZG8:** What is released after a failed `Read`? [the grid, at Shutdown or destruction]
 - **ZG9:** Glue behaviour with switches off or calls from another thread. [`zones_budget` off: unlimited funds,
