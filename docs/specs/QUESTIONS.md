@@ -2775,3 +2775,24 @@ host gained connection, region, budget and drive-side methods. The current answe
 - **TS47:** A strategy above 2 in SetupPathFinderForLot. [ignored; a choice in code]
 - **TS48:** A damaged travel type above 8. [adds nothing in ApplyRoute and fails ConfirmRoute; a choice]
 - **TS49:** A switch ID with no switch behind it in GetTransitSwitchQueryData. [returns false; a choice]
+
+## From applying the residential, protection and save-reference answers (filed by the coordinator from the `apply8a` lane's report, 2026-10-14)
+
+RG1–RG22, RG13 in the budget core, PR14–PR16, PG15, DQ13, SV1–SV2, LF6 and NB18 are applied or cited. RG1 creates
+the buzzards through the effects manager (new switch `residential_effects`, 160 switches). The current answer is in
+brackets.
+
+- **PR17:** Protection §5.1: what does `UpdateUnadjusted` do when `GetDispatchEffect` fails? [the return value is
+  ignored and the record is zeroed, so the centre adds 0]
+- **PR18:** Protection §7.2: what is in the caller's record? [a zeroed record]
+- **PR19:** The older "PR14/PR15" labels in the jail vectors, `protection/mod.rs` and `algo.rs` clash with the
+  QUESTIONS numbering. [left as they are]
+- **RG25:** RG1: the buzzard transform's bytes +2 and +3 are not stated. [0]
+- **RG26:** RG10: how does a host report "cannot be read"? [NaN or a NULL callback means missing; the outputs are left
+  alone]
+- **RG27:** RG1: does "cannot show" (a NULL callback or `FC4_EFFECT_NOT_SHOWN`) count as created? [yes: the second
+  draw is made and the flag set, but there is no altitude read, start or release]
+- **RG28:** RG7: which ordinance effects does the shadow use before its first state 0? [it reads them as they stand]
+- **NB19:** NB18: does `cISC4App::GetCity` return the same primary cISC4City address the game's city global holds?
+  [assumed yes]
+- **PG16:** PG15: should the n<0 wrap quirk on a damaged save be reproduced? [no, clamped: delta −s, supply 0]
