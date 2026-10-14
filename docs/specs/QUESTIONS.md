@@ -597,8 +597,18 @@ About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The 
     message server and subscribes only when the server is not held yet.
   - **Effect of not holding.** Only the reference counts, and so the objects' lifetimes, differ. Neither class can
     observe that.
-- **PR13 — §13.2:** the air sources are created through GZCOM and their Init/Shutdown called by address while our
-  replacement classes are active. Intended reading? [yes; no air dispatch on an unidentified executable]
+- ~~**PR13 — §13.2:** the air sources are created through GZCOM and their Init/Shutdown called by address while our
+  replacement classes are active. Intended reading? [yes; no air dispatch on an unidentified executable]~~
+  **ANSWERED 2026-10-14** from the exe (fire `Init` `0x006AE323`–`0x006AE373`; police `0x006E28BE`–`0x006E290D`;
+  factories `0x006ACEA0` / `0x006E0030`, registered at `0x00460B33`–`0x00460B52`; source QI `0x006AC550`) and
+  written into protection.md §4.1, §8.4 and §13.2. **Yes; the GZCOM path gives the original's object.**
+  - **Same object both ways.** The registered factories do exactly what `Init` does: `GlobalHeapAlloc(0x28)` plus
+    the same constructor. The original itself creates the sources through the registry when it loads a save with
+    a source ref. So the spec's "operator new" is corrected.
+  - **Which IID to request.** Ask GZCOM for IID `0xC9C00435`, which gives the object start that `Init` and
+    `Shutdown` need in ECX. The sources refuse IID 1 (`cIGZUnknown`).
+  - **Unidentified executables.** Skipping air dispatch there has no original behaviour; the implementer's choice
+    stands.
 - Not implemented: the 14 extra message-target slots 4–17 (§15.3; no outside caller found).
 
 ## From the pathfinder core (filed by the coordinator from the lane's report, 2026-10-14; merged)

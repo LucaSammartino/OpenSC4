@@ -148,8 +148,9 @@ Does nothing (but still returns true) when already initialised. Otherwise marks 
 5. Get the flammability simulator (city `+0xE8`, through the cache global `0x00B43D7C`) and hold it at `+0xCC`
    (`AddRef`). It is never called (PR12, below).
 6. `SetInstanceID` on both grids (§2).
-7. If there is no plane source: create a `cSC4FirePlaneDispatchSource` (class ID `0x4C0AE114`) **with
-   `operator new` and its constructor** (not through GZCOM). Always call its `Init` (§8.4).
+7. If there is no plane source, create a `cSC4FirePlaneDispatchSource` (class ID `0x4C0AE114`) directly:
+   `GlobalHeapAlloc(0x28)` and its constructor `0x006ACE00` (`0x006AE323`–`0x006AE362`). That is the same object
+   its GZCOM factory builds (§8.4). Always call its `Init` (§8.4).
 
 **Police** (`0x006E2740`):
 1. Once per process, register a shutdown callback with the app (`cISC4App` slot 69 `+0x114`
@@ -667,12 +668,29 @@ grid update; the cone is removed by the inactive message, which the dispatch man
 ### 8.4 Air dispatch sources
 
 `cSC4FirePlaneDispatchSource` (`0x4C0AE114`) and `cSC4PoliceHelicopterDispatchSource` (`0x0C0B06E8`) are
-GZCOM-registered classes, but the simulators create them with `operator new` and call their **non-virtual**
+GZCOM-registered classes, but the simulators create them directly and call their **non-virtual**
 `Init` (`0x006DF8C0`) and `Shutdown` (`0x006AC860`). `Init` holds the city and the message server, subscribes to
 `0x99EF1142`, `0x99EF1143`, `0xE94671EB`, `0x894671F6`, `0xE94671EC`, `0xE94671ED` and registers the source with
 the dispatch manager. Their save record is `u16 1`, `u32 n` + n occupant refs, `u32` (meaning unknown) (`Write`
 `0x006AC930`). The fire class's Read (`0x006AC970`) accepts version 1 only; the police class's Read (`0x006DF970`)
 accepts 0 and 1 *[quirk]* (save-records.md §7.4). Their behaviour belongs to a later dispatch spec.
+
+**How they are created** *[compat]* (PR13):
+
+- **Direct creation.** Each simulator's `Init` does `GlobalHeapAlloc(0x28)` and calls the constructor: fire
+  `0x006ACE00`, police `0x006DFF70`. It keeps the object start and takes one reference.
+- **The GZCOM factory builds the same object.** The factories are registered with `AddCls` at
+  `0x00460B33`–`0x00460B52`: fire `0x006ACEA0`, police `0x006E0030`. Each is that same allocation and
+  constructor, so `GetClassObject(0x4C0AE114 / 0x0C0B06E8, …)` gives an object identical to the direct one.
+- **The original itself uses the factory path.** When a save holds a source ref, `Read` loads the ref through the
+  class registry (IID `0xC9C00435`), and `Init` then runs on that object.
+- **Ask for IID `0xC9C00435`.** Both sources answer `QueryInterface` (fire `0x006AC550`) for only three IIDs:
+  `0xC9C00435` → the object start, `0x452294AA` (`cIGZMessageTarget2`) → `+4`, and `0xE4FDA3D4`
+  (`cIGZSerializable`) → `+8`. **IID 1 (`cIGZUnknown`) is refused**, so a GZCOM request for it fails and the object
+  is released.
+- **Calling `Init` and `Shutdown`.** Both take the object start in ECX. The original pairs them with the reference:
+  `Init` after creation or load, and `Shutdown`, then `Release`, in the simulator's `Shutdown`
+  (fire `0x006AD1F0`–`0x006AD217`).
 
 ---
 
@@ -1009,8 +1027,9 @@ thread, and a replacement's off-main fallbacks are not original behaviour.
 - **Grids**: the map view reads both adjusted grids through `GetGridData`; the grid ownership rule applies
   (simgrid §6.4). The replacement must create both grids as game grids with the class IDs, tract size and
   instance IDs of §2 and save them by ref.
-- **Air dispatch sources**: the original creates them with `operator new` and calls non-virtual `Init`
-  (`0x006DF8C0`) / `Shutdown` (`0x006AC860`). A replacement cannot do that through GZCOM. *[choice]* FreeCity4
+- **Air dispatch sources**: the original creates them directly (§8.4) and calls non-virtual `Init`
+  (`0x006DF8C0`) / `Shutdown` (`0x006AC860`). The same object can be made through GZCOM (§8.4, PR13), but the two
+  non-virtual calls can only be made by address. *[choice]* FreeCity4
   either reimplements both sources (and must then save a ref to an object that answers `0xC9C00435` and
   `cIGZSerializable` under `0x4C0AE114` / `0x0C0B06E8`), or calls those two functions by address while the
   original classes are in use. No save of the corpus refers to these classes (fire v2 and police v7 have no
