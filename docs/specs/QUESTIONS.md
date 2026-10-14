@@ -2075,8 +2075,12 @@ answer is in brackets.
   0x00AA2028) and written into data-formats §4.3 ("Details of the arithmetic").
   - The double constant 0.1, used as a double operand: each scale step rounds the exact product scale × 0.1 once, to
     the caller's precision. The bracket matches. With `0.1f`, `0.05` would give `0x3D4CCCCE` instead of `0x3D4CCCCC`.
-- **EX22 — §4.3:** is `value × 10 + digit` rounded once or twice (after the multiply and after the add)? [twice,
-  each to 24 bits]
+- ~~**EX22 — §4.3:** is `value × 10 + digit` rounded once or twice (after the multiply and after the add)? [twice,
+  each to 24 bits]~~ **ANSWERED 2026-10-14** from the exe (`fmul` then `faddp` at 0x00910476–0x0091048A, each result
+  rounded under the precision control) and written into data-formats §4.3 ("Details of the arithmetic").
+  - Twice, each to 24 bits on the main thread. The bracket matches. A fraction digit rounds three times (scale × 0.1,
+    digit × scale, + value).
+  - Worked example: `33573415` gives 33,573,412.0, where one rounding would give 33,573,416.0.
 - **EX23 — §4.3:** does the exponent accept a `+`, and is it read when no mantissa digit came first? [yes to both]
 - **EX24 — EX8:** how is −0.0 printed? [`0`]
 - **EX25:** signed decimal text read into a Float32: one rounding from the exact value, unlike a Sint64 scalar,

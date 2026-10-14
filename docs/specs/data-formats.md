@@ -367,6 +367,12 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
     - **Constants** (EX21). 10.0 (`0x00AA2028`) and 0.1 (`0x00A9EFE0`, bits `0x3FB999999999999A`) are doubles,
       used directly as double operands. So each scale step rounds the exact product scale × 0.1 (double) once. With
       `0.1f` instead, `0.05` would give `0x3D4CCCCE`.
+    - **Roundings per digit** (EX22). An integer digit rounds twice: value × 10 (`fmul`), then + digit (`faddp`),
+      each to the caller's precision (`0x00910476`–`0x0091048A`). A fraction digit rounds three times: scale × 0.1,
+      digit × scale, then + value (`0x009104A7`–`0x009104BB`). Storing each partial value as a double between digits
+      loses nothing more. Worked example (24-bit): `33573415` gives 33,573,412.0. The steps are 3,357,341 × 10 =
+      33,573,410, which rounds (a tie, to even) to 33,573,408; then + 5 = 33,573,413, which rounds to 33,573,412. One
+      rounding of the exact 33,573,415 would give 33,573,416.0.
 
     Shipped text Float32 values are small integers, which are exact. *[inferred: text exemplars are read on the
     main thread at 24-bit precision; at 53-bit precision `0.05` would give `0x3D4CCCCD`]*
