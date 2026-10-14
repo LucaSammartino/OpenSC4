@@ -103,6 +103,8 @@ constexpr uint32_t kMsgSimBegin = 0x66956810;
 constexpr uint32_t kMsgDay = 0x66956814;
 constexpr uint32_t kMsgMonth = 0x66956816;
 constexpr uint32_t kMsgLot = 0xE8BDA2E7;
+constexpr uint32_t kMsgInsertOccupant = 0x99EF1142;
+constexpr uint32_t kMsgRemoveOccupant = 0x99EF1143;
 constexpr uint32_t kMsgTrafficMapChanged = 0x69247DC7;
 constexpr uint32_t kMsgStrikeFirst = 0x69247DC3;
 constexpr uint32_t kMsgStrikeLast = 0x69247DC6;
@@ -2115,9 +2117,16 @@ bool cFC4TrafficSimulator::DoMessage(cIGZMessage2* pMessage) {
         d1 = static_cast<uint32_t>(s->GetData1());
         d2 = static_cast<uint32_t>(s->GetData2());
         d3 = static_cast<uint32_t>(s->GetData3());
-        // §3.1: the lot message's object is its IGZUnknown, the others' void1.
-        cIGZUnknown* o = type == kMsgLot ? s->GetIGZUnknown() : static_cast<cIGZUnknown*>(s->GetVoid1());
-        if (o != nullptr && type != kMsgDay && type != kMsgMonth && type != kMsgSimBegin) {
+        // §3.1: only two messages carry an object: the lot message (its
+        // IGZUnknown) and the occupant messages (void1, the occupant). The
+        // others are data only (their void1 is not read).
+        cIGZUnknown* o = nullptr;
+        if (type == kMsgLot) {
+            o = s->GetIGZUnknown();
+        } else if (type == kMsgInsertOccupant || type == kMsgRemoveOccupant) {
+            o = static_cast<cIGZUnknown*>(s->GetVoid1());
+        }
+        if (o != nullptr) {
             // A message delivered during another call is queued by the core
             // and run when that call ends: its object stays alive until then.
             if (depth_ > 1) {
