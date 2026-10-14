@@ -2896,8 +2896,11 @@ developer stays original). The current answer is in brackets.
   `0x004DC234`–`0x004DC246`) and written into zones §1. Yes, `Shutdown` runs twice: the final `Release` calls it before
   the deleting destructor. The second call finds the initialised flag clear, does nothing and returns 1. The bracket
   matches.
-- **ZG13:** Shadow: "our core's bookkeeping after it has loaded the same grid". [the core loads the original's own
-  record through its Write]
+- ~~**ZG13:** Shadow: "our core's bookkeeping after it has loaded the same grid". [the core loads the original's own
+  record through its Write]~~
+  **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. The original has no shadow. For
+  reference, its `Write` (`0x004DC7A0`) record (zones §10.1) carries the counts, both count maps, the tuning arrays and
+  the alpha, but not the max slopes or the default alpha; `Init` re-reads the tuning after a load (§4, ZG3).
 - **ZG14:** Is a PlaceZone dry run (commit=false, outLots null) on the original safe? `CanRemove(2)` is an inferred
   name. [yes, per §6 and §13.2; `CanRemove(2)` assumed to be a query]
 - **ZG15:** Dry-run sample regions and flags (the spec names no UI caller). [four seeded regions: 1×1 checkSlope with
