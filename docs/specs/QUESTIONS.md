@@ -1660,8 +1660,13 @@ brackets.
   cell does the original use? [first cell]~~ **ANSWERED 2026-10-14** from the exe (`0x006BD700` calls the total grid's
   `GetCellValue`, which shifts the cell to its tract) and written into landvalue.md §7.6. **Uniform**: every cell of
   a tract gives the same value and type, so the first cell is exact.
-- **FL1:** is 2 × tractsPerDay the right bound for tracts left unvisited at `SimCycleComplete`? It assumes the
-  message is delivered queued, after the day agent. [2 × tractsPerDay]
+- ~~**FL1:** is 2 × tractsPerDay the right bound for tracts left unvisited at `SimCycleComplete`? It assumes the
+  message is delivered queued, after the day agent. [2 × tractsPerDay]~~ **ANSWERED 2026-10-14** from the exe
+  (framework `AddToTick` `0x00879BB9` / `OnTick` `0x0087A74B`; tick priorities 5,000,000 for the message server and
+  −2,000,000 for the simulator; message server tick `0x0092E040`) and written into flammability.md §9. **Right for
+  shipped tuning.** The message is delivered at the next frame's message-server tick, which comes before the
+  simulator's. Up to then the day agent visits the rest of the wrap day (≤ `tractsPerDay`) plus one more day only at
+  speed 2, where 50 ms per day fits in a 66 ms tick. A mod with a shorter day at speed 2 raises the bound.
 - **FL2:** the multiplier g is 0 until the first season or ordinance message; the mirror takes the original's g at
   the baseline. Right? [taken at the baseline]
 - **FL3:** a tract-size difference between the original and ours is reported as `INCOMPLETE`. [INCOMPLETE]

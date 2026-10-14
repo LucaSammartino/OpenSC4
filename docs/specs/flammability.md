@@ -438,6 +438,30 @@ No subscriber of `0x08F415FE` was found in the executable *[inferred]*. The fire
 fire manager's own messages. History type `0x2A11CB48` has no other reference in the executable; graph
 definitions in data files may read it *[inferred]*.
 
+**When SimCycleComplete arrives** *[compat]* (QUESTIONS FL1, from the exe). The message is queued during the day
+agent and delivered at the start of the **next frame**, so a subscriber sees the new cycle already under way:
+- The framework ticks its services in descending tick priority (insertion in `AddToTick` `0x00879BB9`, walk in
+  `OnTick` `0x0087A74B`). The message server's priority is 5,000,000 (`0x0092EB23`) and the simulator's is
+  −2,000,000 (`0x00704120`), so in every frame the message server ticks **before** the simulator.
+- The message server's tick (`0x0092E040`) sends queued messages until the queue is empty, including messages
+  posted during that tick (its drain flag is set to 1 by the constructor).
+- The post happens inside the simulator's tick (§6.5, during `DoDailySimulation`). It therefore waits for the next
+  frame's message-server tick, and nothing can deliver it in between except a nested framework tick.
+
+Between the post and the delivery the flammability day agent keeps running: the rest of the wrap day (up to
+`tractsPerDay` tracts, all in the new cycle's order; it is `tractsPerDay` exactly when the previous cycle ended on
+the last tract of a day), plus one more `tractsPerDay` for every further SimNewDay the simulator opens in the same
+tick. A further day needs `msPerDay` to elapse within one simulator tick (simulator §5.1–§5.2). The tick lasts at
+most about `1000 / targetFps` ms: 66 ms at speed 2, 50 ms at speed 1, 33 ms at speed 0. With the shipped
+`msPerDay` {2000, 1000, 50} a second day fits only at speed 2. So at delivery, **at most 2 × `tractsPerDay`**
+tracts have been visited in the new cycle (at most `tractsPerDay` at speeds 0 and 1). A shadow's bound of
+2 × `tractsPerDay` is right for shipped tuning. A mod with a shorter day at speed 2 raises it to about
+(1 + ⌊66 / msPerDay⌋) × `tractsPerDay`.
+
+Example (128² city, `tractsPerDay` 409, speed 2): the cycle ends after 300 tracts of a day. The day visits its last
+109 tracts in the new cycle; if a second day opens in the same tick, 409 more. The comparison then sees up to 518
+new-cycle tracts; the bound is 818.
+
 ## 10. Persistence (`cIGZSerializable`, `GetGZCLSID() = 0xE990C045`) *[compat]*
 
 ```
