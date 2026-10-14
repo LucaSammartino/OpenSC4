@@ -542,6 +542,14 @@ loads to it (`0x009732EB`); slot 4 loads without the cache and asks the result f
 
 There is no string loader of its own.
 
+**The two exemplar loads agree** (QUESTIONS CQ24). The crime simulator calls the loader for every key of type
+`0x6534284A` and group `0xEA12F32C` that the resource manager lists (`0x006A1455`–`0x006A145A`, call `0x006A14FE`).
+The loader's cached load (`0x006A0BC0`) and step 1's uncached load (`0x006032AE`) therefore use the same key and read
+the same record from the same packages. They can differ only if code changed the cached copy in memory after it was
+loaded (the loader only reads it; other writers were not traced), or if the uncached load alone fails, for example for
+lack of memory. Then step 1 fails and the name falls back to `0xAA12FCB0`, as for a missing key. Reading the key from
+the cached load is not observable on shipped data.
+
 **Mask parsing**: each byte `b` sets bit `b − 1`. A byte 0 makes the mask `0xFFFFFFFF` (any). *[quirk]* A present
 but **empty** array gives mask 0, which never matches. A missing property gives `0xFFFFFFFF`. Byte values above
 32 wrap the shift count modulo 32 *[compat]*.

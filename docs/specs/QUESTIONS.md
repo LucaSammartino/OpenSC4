@@ -2756,9 +2756,14 @@ lane owns those files); TN22/TN24 have unit tests but no vectors. The current an
   `e[4] + (e[5] << 16)`, a 32-bit array the bits of `e[1]` and `e[2]`, a string its bytes). A u8 array [a, b, c] has 3
   bytes, so both come from past the block. The bracket differs. *[choice]* (recommended): reinterpret when there are at
   least 12 bytes, otherwise treat the key as missing. Not observable on shipped data.
-- **CQ24:** CQ20 follow-up: the original reads the name key from a second, uncached load of the type's exemplar.
+- ~~**CQ24:** CQ20 follow-up: the original reads the name key from a second, uncached load of the type's exemplar.
   [FreeCity4 reads it from the same cached load as the other properties; the two differ only if the cached copy was
-  changed in memory]
+  changed in memory]~~
+  **ANSWERED 2026-10-14** from the exe (loader caller `0x006A1455`–`0x006A14FE`, cached load `0x006A0BC0`, uncached load
+  `0x006032AE`) and written into crime.md ("The two exemplar loads agree"). Both loads use the same key (type
+  `0x6534284A`, group `0xEA12F32C`), so they read the same record. They differ only if the cached copy was changed in
+  memory (the loader only reads it; other writers were not traced) or if the uncached load alone fails, which sends the
+  name to `0xAA12FCB0`. The bracket matches; the implementer's choice stands.
 - **TN29:** TN21 worked example: Street (3) is not in the §4.8 tunnel type order, so a Street portal never gets a
   tunnel record. How does a "Street tunnel cell" get the tunnel bit in the game? [any tunnel record keyed by the cell
   sets the bit; the test and vector tn11_04d put a Road portal over a Street piece]
