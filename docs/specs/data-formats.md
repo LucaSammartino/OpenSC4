@@ -1455,6 +1455,33 @@ Header used below: `45 51 5A 42 31 23 23 23` (`EQZB1###`), parent `00`×12, then
 50. `SC4LoadString(out, G, I)` with language ID 1: key (`0x2026960B`, G + 1, I) is used if present, else
     (`0x2026960B`, G, I).
 
+### 10.7 Text exemplar and getter details
+
+Text lines below go into a record shaped like test 37, with `PropCount` set to match.
+
+51. **ParentCohort fields** (§4.3): `Key:{0,0}` gives three zeros, so no parent.
+    `Key:{0x0A64ED55,0x00000001,0x05342861,0x99}` asks for cohort (`0x05342861`, `0x0A64ED55`, 1); the fourth
+    field is ignored. `Key:{0x0A64ED55, 0x00000001, 0x05342861}` asks for (0, `0x0A64ED55`, 0).
+52. **reps and type name**: `Uint32: 0x2:{1,2}` gives a scalar 1. `Uint32:4:{1,2}` gives {1, 2, 0, 0}.
+    `Uint32:1:{1,2}` gives {1}. `Uint32 :0:{1}` and `Uint32:0: {1}` fail the read.
+53. **Values**: `Uint32:0:{ 0x10}` gives 0, and `Uint32:1:{ 0x10}` gives {16}. `Uint64:0:{10}` gives 16, and
+    `Sint64:0:{-1}` gives 0. `Bool:0:{1}` gives false.
+54. **Float32 text** (main thread, 24-bit): `Float32:0:{0.05}` gives the bits `0x3D4CCCCC`. `{1e10}` gives
+    1,410,065,408.0, `{1e32}` gives 0.0 and `{inf}` gives 0.0.
+55. **Too few lines**: `PropCount=3` followed by two property lines fails the read.
+56. **Round-trip parse** (§5.1), `GetProperty(id, uint32&)` on string properties: `0X1F` gives 0, `TRUE` gives
+    0, `true` gives 1, `12 apples` gives 12, `-5` gives `0xFFFFFFFB`, `1.2.3` gives 1, `1e3` gives 1000, and
+    `.5` gives 0. `GetValBool` on the string `0.5` gives true. `GetValRZChar` on the string `A` gives 0 and true.
+57. **Scalar conversions** (§5.1): Float32 300.7 read as Uint8 gives 44. A Float32 NaN read as Uint32 gives 0,
+    and read as Bool gives true. RZChar `0xE9` read as Uint32 gives `0xFFFFFFE9`. `GetValFloat64` on Uint64
+    16,777,217 gives 16,777,216.0.
+58. **Float text round trip**: Float32 `0x40490FD0` (3.14159) read with `GetProperty(id, cIGZString&)` gives
+    `3.141590118408203125` and false. A string holding that text, read with `GetValFloat32`, gives `0x40490FCE`.
+59. **Empty and void**: a tag-0 property read with `GetProperty(id, uint32&)` gives true and 0, and with
+    `GetProperty(id, cIGZString&)` gives false and the empty text. A void array `31 32` read with
+    `GetProperty(id, uint32&)` gives true and 0. Read with slot 5 and `length` 8, it copies `31 32` and sets
+    `length` to 2.
+
 ---
 
 ## 11. Original versus engine/formats
