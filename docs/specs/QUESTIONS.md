@@ -2596,7 +2596,9 @@ answer is in brackets.
 - ~~**NG12:** The return channel of the regional city getters 50–64. [double (x87)]~~
   **ANSWERED 2026-10-14** from the exe (regional-city vtable `0x00A8FB20`, slots 50–64) and noted in neighbors §15.4.
   `double` on x87; the bracket matches and `docs/abi` is already right.
-- **NG13:** The return of deal `Copy`. [void]
+- ~~**NG13:** The return of deal `Copy`. [void]~~
+  **ANSWERED 2026-10-14** from the exe (`Copy` `0x006CE2E0`, its only caller `Clone` `0x006CF3E0`) and noted in
+  neighbors §15.4. Nothing meaningful is returned and nothing reads it; the bracket stands.
 - **NG14:** `RequestCreateConnection`: the yes/no dialog. [confirmed without the dialog, logged once]
 - **NG15:** `GetCity` with out-of-range cells. [passed on as uint32]
 - **NG16:** Creating the connection marker. [`CreateProp` + `AddCityProp`, then our reference released]
