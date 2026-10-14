@@ -21,10 +21,10 @@ use fc4_core::grid::{CellRect, CityDims, CoreGrids, GridProvider, TractGrid};
 use fc4_core::property::PropertyHolder;
 use fc4_core::rng::{FixedSeeds, RzRandomSuper};
 use fc4_core::stream::{ByteReader, ByteWriter, RefResolver, RefValue, RegisteredObject, SaveRegistry};
-use fc4_core::traffic_network::{NetworkHost, PathInfo};
+use fc4_core::traffic_network::{FerryTerminal, NeighborLink, NetworkHost, PathInfo, TerminalLink, TransitSwitch};
 use fc4_core::traffic_simulator::{
     air_polluting_byte, background_value, capacity_element, cell_key16, congestion_byte, damage_target, decode_route,
-    industrial_trips, invert_congestion_curve, legacy_density, pool_of_token, pool_token, read_trip,
+    industrial_trips, invert_congestion_curve, legacy_density, pool_of_token, pool_token, read_route, read_trip,
     reconcile_connection, reconcile_lot, residential_commuters, residential_split, trip_length_byte, write_trip,
     AccidentEntry, DamageBlock, HolderStore, Message, NeighbourCity, SimMessage, SimTuning, Source, TrafficSimHost,
     TrafficSimulator, TripData, CARPOOL_ORDINANCE,
@@ -622,6 +622,7 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "occupant" => occupant(&w, op),
         "edge" => set_edge(&w, op),
         "grid" => set_grid(&w, op),
+        "net" => set_net(&w, op),
         "call" => call(&w, op),
         "eval" => eval(op),
         "save" => save(&w, op),
@@ -635,6 +636,7 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "expect_trips" => expect_trips(&w, op),
         "expect_damage" => expect_damage(&w, op),
         "expect_network" => expect_network(&w, op),
+        "expect_net" => expect_net(&w, op),
         _ => Err(format!("unknown op '{name}'")),
     })
 }
@@ -1238,6 +1240,15 @@ fn state(w: &World, op: &Json) -> R<()> {
                     }
                     "potholes" => st.stats_last.potholes = u32_of(v, &k)? as u16,
                     "income_acc" => st.income_acc.set(dv(v, &k)?),
+                    "fee_acc" => st.fee_acc = dv(v, &k)?,
+                    "ferry_fare" => st.tuning.ferry_fare = fv(v, &k)?,
+                    "income_per_tile" => {
+                        let v = arr(v, &k)?.iter().map(|e| fv(e, &k)).collect::<R<Vec<f32>>>()?;
+                        if v.len() != 9 {
+                            return Err("income_per_tile needs 9 values".into());
+                        }
+                        st.tuning.income_per_tile.copy_from_slice(&v);
+                    }
                     other => return Err(format!("unknown state field '{other}'")),
                 }
                 Ok(())
@@ -1334,6 +1345,111 @@ fn set_edge(w: &World, op: &Json) -> R<()> {
     Ok(())
 }
 
+/// Rows of integers (`[[a, b, …]]`, each of length `n`).
+fn int_rows(j: &Json, what: &str, n: usize) -> R<Vec<Vec<i64>>> {
+    arr(j, what)?
+        .iter()
+        .map(|e| {
+            let row = arr(e, what)?.iter().map(|v| i64_of(v, what)).collect::<R<Vec<i64>>>()?;
+            if row.len() == n {
+                Ok(row)
+            } else {
+                Err(format!("each '{what}' entry has {n} values"))
+            }
+        })
+        .collect()
+}
+
+/// Network-model setup for the route ops (§4.3, §4.5): `conn` and `switch`
+/// (`[[x, z, t, word]]`), `wormhole` (`[[x, z, byte]]`), `switch_ids`
+/// (`[[x, z, id]]`), `switches` (`[[id, toll]]`, inserted with the toll's
+/// f32 bits) and `terminals` (`[{dep, arr, links: [[x, z]] (the other
+/// terminal's departure cell), neighbour_links: [[off_x, off_z, edge_x,
+/// edge_z]]}]`, appended with both keys registered).
+fn set_net(w: &World, op: &Json) -> R<()> {
+    let s = w.sim()?;
+    let rows =
+        |key: &str, n: usize| -> R<Vec<Vec<i64>>> { opt(op, key).map_or(Ok(Vec::new()), |v| int_rows(v, key, n)) };
+    let conn = rows("conn", 4)?;
+    let switch = rows("switch", 4)?;
+    let wormhole = rows("wormhole", 3)?;
+    let ids = rows("switch_ids", 3)?;
+    let mut tolls = Vec::new();
+    if let Some(v) = opt(op, "switches") {
+        for e in arr(v, "switches")? {
+            match arr(e, "switches")? {
+                [id, toll] => tolls.push((u32_of(id, "id")?, fv(toll, "toll")?)),
+                _ => return Err("each 'switches' entry is [id, toll]".into()),
+            }
+        }
+    }
+    let mut terminals = Vec::new();
+    if let Some(v) = opt(op, "terminals") {
+        for e in arr(v, "terminals")? {
+            let (dx, dz) = pair(field(e, "dep")?, "dep")?;
+            let (ax, az) = pair(field(e, "arr")?, "arr")?;
+            let links = opt(e, "links").map_or(Ok(Vec::new()), |v| int_rows(v, "links", 2))?;
+            let nls = opt(e, "neighbour_links").map_or(Ok(Vec::new()), |v| int_rows(v, "neighbour_links", 4))?;
+            terminals.push(FerryTerminal {
+                dep_x: dx as u16,
+                dep_z: dz as u16,
+                arr_x: ax as u16,
+                arr_z: az as u16,
+                links: links
+                    .iter()
+                    .map(|l| TerminalLink {
+                        to_key: fc4_core::traffic_network::cell_key(l[0] as i32, l[1] as i32),
+                        ..TerminalLink::default()
+                    })
+                    .collect(),
+                neighbour_links: nls
+                    .iter()
+                    .map(|l| NeighborLink {
+                        off_x: l[0] as i16,
+                        off_z: l[1] as i16,
+                        edge_x: l[2] as u16,
+                        edge_z: l[3] as u16,
+                        ..NeighborLink::default()
+                    })
+                    .collect(),
+                ..FerryTerminal::default()
+            });
+        }
+    }
+    s.network().update_state(|n| -> R<()> {
+        for r in &conn {
+            let c = n.conn_mut(r[0] as i32, r[1] as i32).ok_or("no cell connection array")?;
+            *c.conn.get_mut(r[2] as usize).ok_or("conn type above 8")? = r[3] as u16;
+        }
+        for r in &switch {
+            let c = n.conn_mut(r[0] as i32, r[1] as i32).ok_or("no cell connection array")?;
+            *c.switch.get_mut(r[2] as usize).ok_or("switch type above 8")? = r[3] as u16;
+        }
+        for r in &wormhole {
+            n.conn_mut(r[0] as i32, r[1] as i32)
+                .ok_or("no cell connection array")?
+                .wormhole = r[2] as u8;
+        }
+        if !ids.is_empty() {
+            let g = n.switch_id.clone().ok_or("no switch ID grid")?;
+            for r in &ids {
+                g.set(r[0] as i32, r[1] as i32, r[2] as u32);
+            }
+        }
+        for &(id, toll) in &tolls {
+            n.switches.entry(id, TransitSwitch::default).simulator_value = toll.to_bits();
+        }
+        for t in terminals {
+            let pos = n.ferries.len() as u32;
+            let (dk, ak) = (u32::from(t.departure_key()), u32::from(t.arrival_key()));
+            n.ferries.push(t);
+            n.ferry_departures.entry(dk, || pos);
+            n.ferry_arrivals.entry(ak, || pos);
+        }
+        Ok(())
+    })
+}
+
 type U8Grid = Rc<dyn TractGrid<u8>>;
 type F32Grid = Rc<dyn TractGrid<f32>>;
 
@@ -1417,6 +1533,7 @@ fn call(w: &Rc<World>, op: &Json) -> R<()> {
             s.enter_cycle_state(uarg(op, 0)? as u8);
             Json::Null
         }
+        "confirm_route" => jb(s.confirm_route(&hex_of(arg(op, 0)?, "route")?)),
         "apply_route" => {
             let route = hex_of(arg(op, 0)?, "route")?;
             s.apply_route(
@@ -1735,6 +1852,23 @@ fn eval(op: &Json) -> R<()> {
             decode_route(&hex_of(arg(op, 0)?, "route")?)
                 .iter()
                 .map(|c| Json::Array(vec![ji(c.x), ji(c.z), ji(c.t), jb(c.jump)]))
+                .collect(),
+        ),
+        "read_route" => Json::Array(
+            read_route(&hex_of(arg(op, 0)?, "route")?)
+                .iter()
+                .map(|c| {
+                    let side = |s: Option<usize>| s.map_or(Json::Null, |v| ji(v as i64));
+                    Json::Array(vec![
+                        ji(c.x),
+                        ji(c.z),
+                        ji(c.t),
+                        ji(c.t_next),
+                        side(c.entry),
+                        side(c.exit),
+                        jb(c.ferry_jump_next),
+                    ])
+                })
                 .collect(),
         ),
         "legacy_density" => ji(legacy_density(farg(op, 0)?)),
@@ -2263,4 +2397,73 @@ fn expect_network(w: &World, op: &Json) -> R<()> {
         };
     }
     check_fields(&got, want, "record")
+}
+
+/// The network model's route results: `switches` (`[[id, null | {load,
+/// toll}]]`, read without inserting) and `terminals` (`[[index,
+/// {riders_current, links: [counters], neighbour_links: [counters]}]]`).
+fn expect_net(w: &World, op: &Json) -> R<()> {
+    let s = w.sim()?;
+    let mut errors = Vec::new();
+    if let Some(v) = opt(op, "switches") {
+        for e in arr(v, "switches")? {
+            let [id, want] = arr(e, "switches")? else {
+                return Err("each 'switches' entry is [id, switch]".into());
+            };
+            let id = u32_of(id, "id")?;
+            let got = s.network().update_state(|n| {
+                n.switches.get(id).map_or(Json::Null, |sw| {
+                    obj(vec![("load", fb(sw.load)), ("toll", ji(sw.simulator_value))])
+                })
+            });
+            let r = if got == Json::Null || *want == Json::Null {
+                if matches(&got, want, false) {
+                    Ok(())
+                } else {
+                    Err(format!("switch {id}: {}, expected {}", show(&got), show(want)))
+                }
+            } else {
+                check_fields(&got, want, &format!("switch {id}"))
+            };
+            if let Err(m) = r {
+                errors.push(m);
+            }
+        }
+    }
+    if let Some(v) = opt(op, "terminals") {
+        for e in arr(v, "terminals")? {
+            let [i, want] = arr(e, "terminals")? else {
+                return Err("each 'terminals' entry is [index, terminal]".into());
+            };
+            let i = u32_of(i, "index")? as usize;
+            let got = s.network().update_state(|n| {
+                n.ferries.get(i).map(|t| {
+                    obj(vec![
+                        ("riders_current", ji(t.riders_current)),
+                        ("riders_last", ji(t.riders_last)),
+                        (
+                            "links",
+                            Json::Array(t.links.iter().map(|l| jlist(&l.counters)).collect()),
+                        ),
+                        (
+                            "neighbour_links",
+                            Json::Array(t.neighbour_links.iter().map(|l| jlist(&l.counters)).collect()),
+                        ),
+                    ])
+                })
+            });
+            let Some(got) = got else {
+                errors.push(format!("no terminal {i}"));
+                continue;
+            };
+            if let Err(m) = check_fields(&got, want, &format!("terminal {i}")) {
+                errors.push(m);
+            }
+        }
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join("; "))
+    }
 }

@@ -189,7 +189,7 @@ pub mod prop {
     pub const SWITCH_TIME_FACTOR: u32 = 0xE90E_25A2;
     /// Transit-switch capacity (f32).
     pub const SWITCH_CAPACITY: u32 = 0xE90E_25A3;
-    /// Simulator-use u32 (§2.4).
+    /// The toll, f32 (§2.4, TS15).
     pub const SWITCH_SIMULATOR: u32 = 0x0BFC_0A4C;
     /// "Counts as intersection" bool (§4.6).
     pub const COUNTS_AS_INTERSECTION: u32 = 0x4BFC_47B0;

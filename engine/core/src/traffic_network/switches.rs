@@ -96,7 +96,8 @@ pub struct TransitSwitch {
     pub rules: Vec<Rule>,
     /// The kind-0 "to" mask.
     pub to_mask: u16,
-    /// Property `0x0BFC0A4C` (u32), simulator use.
+    /// The toll, building property `0x0BFC0A4C` read as f32 (absent: 0.0),
+    /// kept as its bits (§2.4; traffic-simulator.md §4.5, TS15).
     pub simulator_value: u32,
     /// "Counts as intersection", building property `0x4BFC47B0` (§4.6).
     pub counts_as_intersection: bool,
@@ -262,7 +263,7 @@ impl Cx<'_> {
             building,
             time_factor: f32_prop(h, building, prop::SWITCH_TIME_FACTOR),
             capacity: f32_prop(h, building, prop::SWITCH_CAPACITY),
-            simulator_value: u32_prop(h, building, prop::SWITCH_SIMULATOR),
+            simulator_value: f32_prop(h, building, prop::SWITCH_SIMULATOR).to_bits(),
             counts_as_intersection: u32_prop(h, building, prop::COUNTS_AS_INTERSECTION) != 0,
             flags: rs.flags,
             to_mask: rs.to_mask,

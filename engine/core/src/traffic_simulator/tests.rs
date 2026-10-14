@@ -2488,3 +2488,438 @@ fn ts22_reduce_ferry_arrival_cells() {
     assert_eq!(s.traffic_edge_density(6, 6, 1, false).current, [0; 16]);
     assert_eq!(s.traffic_edge_density(1, 1, 1, false).current, [7; 16]);
 }
+
+// ---- §4.3 ConfirmRoute and §4.5 ApplyRoute (TS14, TS15, TS16, TS24, TS25) ----
+
+/// Switch IDs over cells and the tolls of the switches (§4.5 step 2).
+fn set_switches(s: &TrafficSimulator, cells: &[(i32, i32, u32)], tolls: &[(u32, f32)]) {
+    s.network().update_state(|n| {
+        let g = n.switch_id.clone().expect("switch ID grid");
+        for &(x, z, id) in cells {
+            g.set(x, z, id);
+        }
+        for &(id, toll) in tolls {
+            n.switches
+                .entry(id, crate::traffic_network::TransitSwitch::default)
+                .simulator_value = toll.to_bits();
+        }
+    });
+}
+
+fn switch_load(s: &TrafficSimulator, id: u32) -> Option<f32> {
+    s.network().update_state(|n| n.switches.get(id).map(|sw| sw.load))
+}
+
+/// A terminal with departure and arrival cells, links keyed by the other
+/// terminals' departure cells and neighbour links `[off_x, off_z, edge_x,
+/// edge_z]`.
+fn terminal(
+    dep: (u16, u16),
+    arr: (u16, u16),
+    links: &[(i32, i32)],
+    neighbours: &[[i32; 4]],
+) -> crate::traffic_network::FerryTerminal {
+    use crate::traffic_network::{cell_key, FerryTerminal, NeighborLink, TerminalLink};
+    FerryTerminal {
+        dep_x: dep.0,
+        dep_z: dep.1,
+        arr_x: arr.0,
+        arr_z: arr.1,
+        links: links
+            .iter()
+            .map(|&(x, z)| TerminalLink {
+                to_key: cell_key(x, z),
+                ..TerminalLink::default()
+            })
+            .collect(),
+        neighbour_links: neighbours
+            .iter()
+            .map(|&[ox, oz, ex, ez]| NeighborLink {
+                off_x: ox as i16,
+                off_z: oz as i16,
+                edge_x: ex as u16,
+                edge_z: ez as u16,
+                ..NeighborLink::default()
+            })
+            .collect(),
+        ..FerryTerminal::default()
+    }
+}
+
+/// Appends terminals with both keys registered (traffic-network §2.6).
+fn add_terminals(s: &TrafficSimulator, list: Vec<crate::traffic_network::FerryTerminal>) {
+    s.network().update_state(|n| {
+        for t in list {
+            let pos = n.ferries.len() as u32;
+            let (dk, ak) = (u32::from(t.departure_key()), u32::from(t.arrival_key()));
+            n.ferries.push(t);
+            n.ferry_departures.entry(dk, || pos);
+            n.ferry_arrivals.entry(ak, || pos);
+        }
+    });
+}
+
+fn ferry(s: &TrafficSimulator, i: usize) -> crate::traffic_network::FerryTerminal {
+    s.network().update_state(|n| n.ferries[i].clone())
+}
+
+/// The ferry fare 0.01 and no per-tile income, so `I` is the fare alone.
+fn fare_only(s: &TrafficSimulator) {
+    s.update_state(|st| {
+        st.tuning.ferry_fare = 0.01;
+        st.tuning.income_per_tile = [0.0; 9];
+    });
+}
+
+fn income(s: &TrafficSimulator) -> f64 {
+    s.read_state(|st| st.income_acc.get())
+}
+
+/// `r24(30 × 0.01f)` = 0.29999998 (§4.5 step 4 example).
+const FARE_30: u32 = 0x3E99_9999;
+
+/// §4.3 (TS14): the route reader's records over runs and jumps. A jump to
+/// an x-neighbour has no exit and clears the cell's entry, which is what
+/// carries over [question]; a same-cell jump and `dz = −1` give `+z`;
+/// equal magnitudes zero `dx`; the `0x80` flag marks the cell before.
+#[test]
+fn ts14_route_reader_records() {
+    use super::route::{read_route, RouteStep};
+    let r = |x, z, t, t_next, entry, exit, ferry_jump_next| RouteStep {
+        x,
+        z,
+        t,
+        t_next,
+        entry,
+        exit,
+        ferry_jump_next,
+    };
+    assert_eq!(
+        read_route(&ROUTE_10),
+        vec![
+            r(2, 3, 1, 1, None, Some(2), false),
+            r(3, 3, 1, 1, Some(0), Some(2), false),
+            r(4, 3, 1, 1, Some(0), None, false),
+        ]
+    );
+    let route = [
+        0x01, 5, 5, 0x41, 1, 0x02, 0x01, 7, 5, 0x41, 1, 0x03, 0x02, 7, 6, 0x02, 7, 4, 0x82, 4, 5, 0x02, 4, 4, 0x02, 2,
+        2,
+    ];
+    assert_eq!(
+        read_route(&route),
+        vec![
+            r(5, 5, 1, 1, None, Some(2), false),
+            r(6, 5, 1, 1, None, None, false),
+            r(7, 5, 1, 1, None, Some(3), false),
+            r(7, 6, 1, 2, Some(1), Some(3), false),
+            r(7, 6, 2, 2, Some(1), Some(1), false),
+            r(7, 4, 2, 2, Some(3), Some(0), true),
+            r(4, 5, 2, 2, Some(2), Some(3), false),
+            r(4, 4, 2, 2, Some(1), Some(1), false),
+            r(2, 2, 2, 2, Some(3), None, false),
+        ]
+    );
+    assert!(read_route(&[]).is_empty());
+}
+
+/// §4.3 worked example (TS14): ConfirmRoute over test 10's route, the
+/// wormhole passes, the strike and the walk-to-bus change at (3,3).
+#[test]
+fn ts14_confirm_route_example() {
+    use crate::traffic_network::wormhole;
+    let w = World::new();
+    let s = sim(&w);
+    let conn = |x: i32, z: i32, t: usize, v: u16| {
+        s.network().update_state(|n| n.conn_mut(x, z).unwrap().conn[t] = v);
+    };
+    let switch = |x: i32, z: i32, t: usize, v: u16| {
+        s.network().update_state(|n| n.conn_mut(x, z).unwrap().switch[t] = v);
+    };
+    let worm = |x: i32, z: i32, v: u8| {
+        s.network().update_state(|n| n.conn_mut(x, z).unwrap().wormhole = v);
+    };
+    assert!(!s.confirm_route(&[]), "an empty route");
+    assert!(!s.confirm_route(&ROUTE_10));
+    // (3,3) needs bit 2 + 4·0; (2,3) any entry through +x; (4,3) is never
+    // looked at.
+    conn(3, 3, 1, 1 << 2);
+    for bit in [2, 6, 10, 14] {
+        conn(2, 3, 1, 1 << bit);
+        assert!(s.confirm_route(&ROUTE_10), "bit {bit}");
+    }
+    conn(2, 3, 1, 1 << 3);
+    assert!(!s.confirm_route(&ROUTE_10), "the first cell's exit is +x");
+    conn(2, 3, 1, 1 << 6);
+    conn(3, 3, 1, 1 << 6);
+    assert!(!s.confirm_route(&ROUTE_10), "entry −x, not −z");
+    worm(3, 3, wormhole::TUNNEL);
+    assert!(s.confirm_route(&ROUTE_10), "the tunnel bit");
+    worm(3, 3, wormhole::FERRY);
+    assert!(s.confirm_route(&ROUTE_10), "the ferry bit, no strike");
+    s.update_state(|st| st.strike_state = 1);
+    assert!(!s.confirm_route(&ROUTE_10), "the ferry bit during a strike");
+    conn(3, 3, 1, 1 << 2);
+    assert!(s.confirm_route(&ROUTE_10), "one type confirms during a strike");
+    // Walk to bus at (3,3): t = 0, t' = 2, nibble 2 of switch[0].
+    let route = [0x00, 2, 3, 0x40, 1, 0x02, 0x42, 1, 0x02];
+    conn(2, 3, 0, 1 << 2);
+    switch(3, 3, 0, 0xF2FF);
+    assert!(!s.confirm_route(&route), "a type change during a strike");
+    s.update_state(|st| st.strike_state = 0);
+    assert!(s.confirm_route(&route));
+    switch(3, 3, 0, 0xFFFF);
+    assert!(!s.confirm_route(&route));
+    // A type change at the first cell: the switch nibble only, no strike
+    // test.
+    s.update_state(|st| st.strike_state = 1);
+    let route = [0x00, 2, 3, 0x42, 1, 0x02];
+    switch(2, 3, 0, 0xF2FF);
+    assert!(s.confirm_route(&route));
+    switch(2, 3, 0, 0xF3FF);
+    assert!(!s.confirm_route(&route));
+}
+
+/// §4.5 step 2 worked example (TS15): 37 commuters by car through a toll
+/// booth with toll 0.1 (f32 0.100000001): fees `r24(37 × 0.1)` =
+/// 3.70000005; usage 37. Mode 2 counts and charges once.
+#[test]
+fn ts15_toll_example() {
+    let (_, s) = test10();
+    set_switches(&s, &[(3, 3, 5)], &[(5, 0.1)]);
+    s.apply_route(&ROUTE_10, 37, CellRect::new(2, 2, 2, 2), (4, 4), 0, 0);
+    assert_eq!(s.read_state(|st| st.fee_acc), f64::from(f32::from_bits(0x406C_CCCD)));
+    assert_eq!(switch_load(&s, 5), Some(37.0));
+    s.apply_route(&ROUTE_10, 37, CellRect::new(2, 2, 2, 2), (4, 4), 2, 0);
+    assert_eq!(s.read_state(|st| st.fee_acc), f64::from(f32::from_bits(0x40EC_CCCD)));
+    assert_eq!(switch_load(&s, 5), Some(74.0));
+}
+
+/// §4.5 step 2 (TS25): `last` follows every in-city cell (a bus route over
+/// IDs 0, 7, 7, 0, 7 counts switch 7 twice); the subway exception looks at
+/// the next record (the last record is its own next); a missing switch is
+/// inserted.
+#[test]
+fn ts25_switch_last_and_subway() {
+    let w = World::new();
+    let s = sim(&w);
+    set_switches(
+        &s,
+        &[
+            (2, 1, 7),
+            (3, 1, 7),
+            (5, 1, 7),
+            (1, 2, 4),
+            (2, 2, 9),
+            (2, 3, 11),
+            (1, 4, 12),
+        ],
+        &[(7, 0.5), (4, 0.5), (9, 0.5)],
+    );
+    // Bus: (1,1) +x four times to (5,1).
+    s.apply_route(
+        &[0x02, 1, 1, 0x42, 4, 0xAA],
+        10,
+        CellRect::new(0, 1, 0, 1),
+        (6, 1),
+        0,
+        0,
+    );
+    assert_eq!(switch_load(&s, 7), Some(20.0));
+    assert_eq!(s.read_state(|st| st.fee_acc), 10.0);
+    // Subway (1,2) then (2,2), walking on to (3,2): (1,2)'s next record is
+    // subway (not counted), (2,2)'s is walking (counted).
+    s.apply_route(
+        &[0x06, 1, 2, 0x46, 1, 0x02, 0x40, 1, 0x02],
+        10,
+        CellRect::new(0, 2, 0, 2),
+        (4, 2),
+        0,
+        0,
+    );
+    assert_eq!(switch_load(&s, 4), Some(0.0));
+    assert_eq!(switch_load(&s, 9), Some(10.0));
+    assert_eq!(s.read_state(|st| st.fee_acc), 15.0);
+    // A subway last cell inside switch 11: never counted.
+    s.apply_route(
+        &[0x06, 1, 3, 0x46, 1, 0x02],
+        10,
+        CellRect::new(0, 3, 0, 3),
+        (3, 3),
+        0,
+        0,
+    );
+    assert_eq!(switch_load(&s, 11), None);
+    // Switch 12 is not in the table: inserted, toll 0.
+    s.apply_route(
+        &[0x02, 1, 4, 0x42, 1, 0x02],
+        10,
+        CellRect::new(0, 4, 0, 4),
+        (3, 4),
+        0,
+        0,
+    );
+    assert_eq!(switch_load(&s, 12), Some(10.0));
+    assert_eq!(s.read_state(|st| st.fee_acc), 15.0);
+}
+
+/// §4.5 step 4 worked example (TS16), mode 2: 30 pedestrians cross from
+/// terminal A to terminal B with the fare 0.01. A's riders += 60, `I` +=
+/// 0.29999998, A's link to B current A += 30, B's link to A current B += 30.
+/// Modes 0 and 1 count A's riders once and A's link's current A or B.
+#[test]
+fn ts16_ferry_leg_example() {
+    // (1,2) +x (2,2) = A's departure; the 0x80 jump to (6,3) = B's arrival;
+    // +x (7,3).
+    let route = [0x00, 1, 2, 0x40, 1, 0x02, 0x80, 6, 3, 0x40, 1, 0x02];
+    for (mode, riders, a_link, b_link) in [
+        (2u8, 60u16, [0u16, 30, 0, 0], [0u16, 0, 0, 30]),
+        (0, 30, [0, 30, 0, 0], [0; 4]),
+        (1, 30, [0, 0, 0, 30], [0; 4]),
+    ] {
+        let w = World::new();
+        let s = sim(&w);
+        fare_only(&s);
+        add_terminals(
+            &s,
+            vec![
+                terminal((2, 2), (2, 1), &[(6, 2)], &[]),
+                terminal((6, 2), (6, 3), &[(2, 2)], &[]),
+            ],
+        );
+        s.apply_route(&route, 30, CellRect::new(0, 2, 0, 2), (7, 4), mode, 0);
+        let (a, b) = (ferry(&s, 0), ferry(&s, 1));
+        assert_eq!(a.riders_current, riders, "mode {mode}");
+        assert_eq!(b.riders_current, 0);
+        assert_eq!(a.links[0].counters, a_link, "mode {mode}");
+        assert_eq!(b.links[0].counters, b_link, "mode {mode}");
+        assert_eq!(income(&s), f64::from(f32::from_bits(FARE_30)), "mode {mode}");
+    }
+}
+
+/// §4.5 step 4 (TS16): a crossing to a neighbour; the next record holds the
+/// link's in-city edge cell. Mode 2 bumps current A and B.
+#[test]
+fn ts16_ferry_leg_to_neighbour() {
+    let w = World::new();
+    let s = sim(&w);
+    fare_only(&s);
+    add_terminals(&s, vec![terminal((3, 6), (3, 7), &[], &[[-1, 6, 0, 6]])]);
+    // (4,6) −x (3,6), the 0x80 jump to the edge cell (0,6).
+    s.apply_route(
+        &[0x00, 4, 6, 0x40, 1, 0x00, 0x80, 0, 6],
+        30,
+        CellRect::new(5, 6, 5, 6),
+        (-1, 6),
+        2,
+        0,
+    );
+    let t = ferry(&s, 0);
+    assert_eq!(t.riders_current, 60);
+    assert_eq!(t.neighbour_links[0].counters, [0, 30, 0, 30]);
+    assert_eq!(income(&s), f64::from(f32::from_bits(FARE_30)));
+}
+
+/// §4.5 (TS16, `0x00719A4E`): the crossing in from a neighbour at the first
+/// cell. The first cell is beside `R` on x only, is T's arrival cell, and
+/// T's neighbour link has `R`'s first corner as its off-map cell: the link
+/// is bumped by mode and `I := r24(Q × fare)`; T's riders are not counted.
+/// Beside `R` on both coordinates, nothing.
+#[test]
+fn ts16_first_cell_neighbour_crossing() {
+    let route = [0x00, 0, 5, 0x40, 1, 0x02];
+    let w = World::new();
+    let s = sim(&w);
+    fare_only(&s);
+    add_terminals(&s, vec![terminal((3, 6), (0, 5), &[], &[[-1, 5, 0, 5]])]);
+    s.apply_route(&route, 30, CellRect::new(-1, 5, -1, 5), (2, 5), 0, 0);
+    let t = ferry(&s, 0);
+    assert_eq!(t.neighbour_links[0].counters, [0, 30, 0, 0]);
+    assert_eq!(t.riders_current, 0);
+    assert_eq!(income(&s), f64::from(f32::from_bits(FARE_30)));
+    // R = (−1, 4): beside on x and z.
+    let w = World::new();
+    let s = sim(&w);
+    fare_only(&s);
+    add_terminals(&s, vec![terminal((3, 6), (0, 5), &[], &[[-1, 4, 0, 4]])]);
+    s.apply_route(&route, 30, CellRect::new(-1, 4, -1, 4), (2, 5), 0, 0);
+    assert_eq!(ferry(&s, 0).neighbour_links[0].counters, [0; 4]);
+    assert_eq!(income(&s), 0.0);
+}
+
+/// §4.5 step 3 (TS24): in mode 1, `R` is the destination lot's rect (the
+/// first entry faces it) and the last exit faces `sourceRect`; in mode 0 a
+/// destination two cells away leaves the last cell's exit undefined (no
+/// update there only).
+#[test]
+fn ts24_return_leg_sides() {
+    let w = World::new();
+    w.add_lot(1, Lot::new(CellRect::new(2, 2, 2, 2), 11));
+    w.add_lot(2, Lot::new(CellRect::new(3, 4, 5, 5), 12));
+    let s = sim(&w);
+    street(&s);
+    // (4,3) −x twice to (2,3); destination (5,5) in lot 2.
+    s.apply_route(
+        &[0x01, 4, 3, 0x41, 2, 0x00],
+        40,
+        CellRect::new(2, 2, 2, 2),
+        (5, 5),
+        1,
+        0,
+    );
+    assert_eq!(current(&s, 4, 3, true), one(4 * 3, 40));
+    assert_eq!(current(&s, 3, 3, true), one(4 * 2, 40));
+    assert_eq!(current(&s, 2, 3, true), one(4 * 2 + 1, 40));
+    for x in 2..=4 {
+        assert_eq!(current(&s, x, 3, false), [0; 16]);
+    }
+    assert_eq!(capacity(&w, 12, 4), 0, "no destination step in mode 1");
+
+    let (_w, s) = test10();
+    s.apply_route(&ROUTE_10, 40, CellRect::new(2, 2, 2, 2), (4, 5), 0, 0);
+    assert_eq!(current(&s, 2, 3, false), one(4 + 2, 40));
+    assert_eq!(current(&s, 3, 3, false), one(2, 40));
+    assert_eq!(current(&s, 4, 3, false), [0; 16]);
+    assert_eq!(bits(volume(&s, 1, 4, 3)), 0x4220_0000);
+}
+
+/// §4.5 step 3 (TS24): an undefined side at an in-city cell before the last
+/// (here the jump to the x-neighbour (4,3)) ends ApplyRoute: the volume,
+/// switch usage and densities already added stay; `I`, the fees, the later
+/// cells and the destination step are lost.
+#[test]
+fn ts24_undefined_side_ends_apply_route() {
+    let (w, s) = test10();
+    s.update_state(|st| st.tuning.income_per_tile = [1.0; 9]);
+    set_switches(&s, &[(3, 3, 5)], &[(5, 0.5)]);
+    let route = [0x01, 2, 3, 0x41, 1, 0x02, 0x01, 4, 3, 0x41, 1, 0x03];
+    s.apply_route(&route, 40, CellRect::new(2, 2, 2, 2), (4, 4), 0, 0);
+    assert_eq!(volume(&s, 1, 2, 3), 40.0);
+    assert_eq!(volume(&s, 1, 3, 3), 40.0);
+    assert_eq!(volume(&s, 1, 4, 3), 0.0);
+    assert_eq!(switch_load(&s, 5), Some(40.0));
+    assert_eq!(current(&s, 2, 3, false), one(4 + 2, 40));
+    assert_eq!(current(&s, 3, 3, false), [0; 16]);
+    assert_eq!(income(&s), 0.0);
+    assert_eq!(s.read_state(|st| st.fee_acc), 0.0);
+    assert_eq!(capacity(&w, 12, 4), 0);
+}
+
+/// §4.5 step 5 (`0x00719C06`): income for every cell, off-map cells
+/// included; steps 1–4 for in-city cells only.
+#[test]
+fn apply_route_income_counts_off_map_cells() {
+    let w = World::new();
+    let s = sim(&w);
+    s.update_state(|st| st.tuning.income_per_tile = [1.0; 9]);
+    // (1,3) −x (0,3) −x (−1,3).
+    s.apply_route(
+        &[0x01, 1, 3, 0x41, 2, 0x00],
+        40,
+        CellRect::new(2, 3, 2, 3),
+        (-1, 3),
+        1,
+        0,
+    );
+    assert_eq!(income(&s), 120.0);
+}

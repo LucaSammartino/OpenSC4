@@ -90,7 +90,7 @@ pub use maps::{air_polluting_byte, background_value, congestion_byte};
 pub use monthly::{damage_target, kind as damage_kind, STRIKE_KEEP, STRIKE_MAX_MONTHS, STRIKE_SCALE, STRIKE_START};
 pub use pools::{pool_of_token, pool_token, Pools, POOL_CITY_X, POOL_CITY_Z, POOL_TOKEN_BASE};
 pub use record::{legacy_density, read_mask_and_flags, read_trip, write_trip, TRIP_RECORD_VERSION};
-pub use route::{decode_route, RouteCell};
+pub use route::{decode_route, read_route, RouteCell, RouteStep};
 pub use state::{
     AccidentEntry, DamageBlock, DamageState, SaveExtras, SourceIter, StatRow, State, StatsSet, SwitchStat,
     PC_REROUTE_BUCKET, PC_SOURCE_COUNTER,

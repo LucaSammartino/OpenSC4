@@ -1012,4 +1012,9 @@ impl TrafficSimulator {
     pub fn apply_route(&self, route: &[u8], count: u32, source: CellRect, dest: (i32, i32), mode: u8, trip_type: u8) {
         self.run(|r| r.apply_route(route, count, source, dest, mode, trip_type));
     }
+
+    /// `ConfirmRoute(route)` on the simulator (§4.3), with its strike state.
+    pub fn confirm_route(&self, route: &[u8]) -> bool {
+        self.run(|r| super::route::confirm_route(r.net(), r.st.strike_state, route))
+    }
 }
