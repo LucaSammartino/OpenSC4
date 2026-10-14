@@ -368,7 +368,7 @@ For each cell of the rect (x outer, z inner):
   - else, if a landfill occupant (`0x6A11BD2B`) or a base-texture occupant (`0x497F6D9D`) is at the cell: keep
     it as is;
   - else `RemoveIncompatibleOccupants(x, z)` (removes flora `0x74758926` in the cell, §4.8.4) and
-    `SetEmptyCellTexture(x, z)` (inserts a `cSC4LotBaseTextureOccupant` with the landfill zone texture).
+    `SetEmptyCellTexture(x, z)` (inserts a `cSC4LotBaseTextureOccupant` with the landfill zone texture, §4.8.5).
 - If it is **not** a mask cell at the start: `InvalidateSurroundingHeaps(x, z)`.
 
 *[quirk]* A cell dropped from the mask in this pass does **not** invalidate its heaps: heaps that include a road
@@ -744,6 +744,41 @@ with slot 21, `RemoveOccupant(occupant, true, 3)`, the same arguments as §4.8.3
 It returns true if and only if step 2 removed the occupant. Subscribers see the removal with data4 = 3 on a
 later message-server tick.
 
+#### 4.8.5 `SetEmptyCellTexture(x, z)` (zone)
+
+*[compat]* (LG2; `0x006BA470`, pop 8, no return value). The function gives one cell the landfill ground texture.
+It does not check for an existing texture; its callers do (§4.4.5, §4.8.1). In order:
+
+1. Build one texture record, the 14-byte record of lot-records.md §6:
+
+   | Field | Value |
+   |---|---|
+   | texture instance | `0x1005` (4101), a constant in the code. It equals entry 14 of the zone manager's texture array (zones.md §4, `0xE94825B6`), but that array is not read. |
+   | cell x, z | the low bytes of `x` and `z` |
+   | orientation | 0 |
+   | configuration object byte 3 | 0 |
+   | five unnamed bytes | `FF FF FF`, then `zoneManager.GetZoneDisplayAlpha()` (zone manager slot 16; shipped 170 = `0xAA`), then `01` |
+   | animation frame | 0, so `SetTextureSpecification` makes **no random draw** (lot-records.md §6 draws only for `0xFF`) |
+
+2. `GZCOM().CreateInstance(0xC97F987C, 0x097F6D98, &tex)`. If that fails, construct a `cSC4LotBaseTextureOccupant`
+   directly (`0x60` bytes, `0x005E05B0`). If that also fails, the code dereferences null *[quirk]*.
+3. `tex.AsOccupant().Init()` (base-texture slot 3, then occupant slot 3).
+4. `tex.SetUsage(1)` (slot 5). Usage 1 marks a landfill texture, which `RemoveBaseTexture` tests (§4.8.4); lots use
+   2.
+5. `tex.SetTextureSpecification(&record, 1, null)` (slot 8).
+6. Let `occ` be `tex.AsOccupant()`. If `occ.IsFlagSet(1)`: occupant manager slot 24 `(occ, 0)`, then
+   `occ.PostOccupantMessage(0x99EF1145, 0)`. Otherwise occupant manager slot 20 `InsertOccupant(occ, 0)`. A new
+   occupant takes the second branch. The result is not checked.
+7. Release `tex`.
+
+The texture occupant is saved by the occupant manager as a class `0xC97F987C` record (lot-records.md §6), so it
+is visible in a save. Every usage-1 base texture in the eleven local saves with buildings (94 in all, in
+Konradshohe, Fulham and the Big City Tutorial) holds exactly one record, texture `0x1005`, with the bytes
+`00 00 FF FF FF AA 01 00` after `x, z`.
+
+Example: `SetEmptyCellTexture(37, 52)` with display alpha 170 gives the record
+`05 10 00 00 | 25 | 34 | 00 | 00 | FF FF FF AA 01 | 00`.
+
 ### 4.9 Costs and budget
 
 #### 4.9.1 `GetMaintenanceCost()` (zone)
@@ -971,6 +1006,9 @@ The object also implements `cISC4Occupant` (at its second vtable; QI `0x26BB767E
 | `cISC4BuildingDevelopmentSimulator` (`0x00AB0AF8`) | 36 / +0x90 | GetLotDeveloper | 0 | EAX | §4.5.3 |
 | `cISC4LotDeveloper` (`0x00AB1B98`) | 21 / +0x54 | AttemptAreaLevelling(rect, float, bool, bool, float, lot*) | 24 | AL (ignored) | §4.5.3 |
 | `cISC4View3DWin` (`0x00ABCE40`) | 22 / +0x58 | GetCurrentViewLevel | 0 | EAX | §3.2 |
+| `cIGZCOM` | 3 / +0x0C | CreateInstance(clsid, iid, void**) | 12 | AL | §4.8.5 |
+| `cISC4LotBaseTextureOccupant` (IID `0x097F6D98`) | 3, 4, 5, 8 | AsOccupant, GetUsage, SetUsage(1), SetTextureSpecification(rec*, 1, null) | | | §4.8.4, §4.8.5 |
+| `cISC4ZoneManager` | 16 / +0x40 | GetZoneDisplayAlpha | 0 | AL | §4.8.5 |
 | `cISC4Occupant` | 8, 9, 12, 15, 29 | GetPosition, SetPosition, SetRemovalFlags, (0x99EF1145, 0), SetFlag | | | tiles, zot |
 | `cIGZMessageServer2` | +0x0C, +0x14, +0x18 | MessageSend, subscribe, unsubscribe | | | |
 

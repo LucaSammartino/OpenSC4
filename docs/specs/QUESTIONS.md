@@ -1210,7 +1210,12 @@ before and after). The glue's current answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`0x006BC6D8`, `0x006BCA14`; `RemoveOccupant` `0x0049F240`): both are
   `(occupant, true, 3)`. The occupant is shut down after removal, and data4 of the posted `0x99EF1143` is 3. Only a
   base texture with `GetUsage() = 1` is removed. **The bracket matches.** Written into landfill.md §4.8.4.
-- **LG2:** how is the base-texture occupant created and given the landfill texture (SetEmptyCellTexture)? [not done]
+- ~~**LG2:** how is the base-texture occupant created and given the landfill texture (SetEmptyCellTexture)? [not done]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006BA470`) and the saves. It calls GZCOM `CreateInstance(0xC97F987C,
+  0x097F6D98)`, then Init, `SetUsage(1)`, `SetTextureSpecification` with one record (texture `0x1005`, the cell,
+  `00 00 FF FF FF <zone display alpha> 01 00`, no random draw) and `InsertOccupant(occ, 0)`. All 94 usage-1
+  textures in the local saves match. **"Not done" does not match**: the texture is saved, and §4.4.5 tests for it.
+  Written into landfill.md §4.8.5.
 - **LG3:** how is the tile occupant created; is the SDK's `SetTileID` (slot 6) enough to attach the tile exemplar?
   [tiles live in FreeCity4 only; pollution's active-landfill flag is still set, which is what the simulation reads]
 - **LG4:** who owns the reference in occupant manager slot 33's out-parameter? [slot 41 lists used instead]
