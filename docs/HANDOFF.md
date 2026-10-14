@@ -7,9 +7,9 @@ operating knowledge that is still true.
 
 ## 0. Current state
 
-*Last updated 2026-10-14, at the merge of the dialog closer (`dba09eb`), after run 103.*
+*Last updated 2026-10-14, at the merge of apply9c (`f427e44`), after run 103.*
 
-- **main:** `FC4_ABI_VERSION` 41, 171 plugin switches, 658 conformance vectors. Last gate (dialogs): cargo 1717/0,
+- **main:** `FC4_ABI_VERSION` 41, 171 plugin switches, 658 conformance vectors. Last gates: dialogs cargo 1717/0, powerturbo 1721/0, apply9c 1723/0 (a merged main has not been gated as a whole);
   clippy clean, ctest 44/44. Test switches `sim_turbo`, `autotest_end_date`, `script`, `close_dialogs` (engine/README). Every glue except the simulator and the budget is off by default (`enable = <key>`).
 - **Milestones** (details in the README): M0, M1 and M2 done. **M3 exit met in run 103** (regress r6c): every grid
   shadow exact, including power 463/463, plumbing 179/179 and landfill 89/89, zero INCOMPLETE lines. M4: all cores
@@ -35,11 +35,11 @@ worktree: paste what it needs into the message, or copy files into its `build-ru
 | development glue fixes (devglue2) | `a054ba812e30f4fd3` | `agent-a054ba812e30f4fd3` / `devglue2` | ABI 42 | running |
 | traffic glue phase 1 (M5) | `ae77339e1cc706c17` | `agent-ae77339e1cc706c17` | ABI 44, seam op 42 | running |
 | tract developer glue (M4) | `ae81a8bc4c10d6880` | `agent-ae81a8bc4c10d6880` | ABI 45, seam op 45 | running |
-| power shadow under turbo (306/352 in gsT1, exact at normal speed) | `affee80aaa8e17945` | `agent-affee80aaa8e17945` | ABI 46 if needed | running |
+| power shadow under turbo | `affee80aaa8e17945` | `agent-affee80aaa8e17945` | - | merged `c367684`: exact under turbo and at normal speed (the shadow's bookkeeping, not the core); PW9-PW11 |
 | RE answers 8 | `a8519c0be49880b49` | `re-answers8` | - | merged `957e766`; ABI rows `a6e3d36` |
 | apply9a: neighbours NG4-NG25, incl. NG11 (slots 32/33 return int64 in EDX:EAX; the plugin declares int32) | `a56eb55371f9ce77d` | worktree | ABI 47, seam op 48 | running |
 | apply9b: zones ZG2-ZG17, landfill tiles LG27-LG29, budget BQ4/BQ7, crime CQ23 | `a2dc48d26cc52d9a2` | worktree | ABI 48, seam op 49 | running |
-| apply9c: graphics formats FS4-FS13, GF1-GF9 | `a1ec5d982a5986c5a` | worktree | - | running |
+| apply9c: graphics formats FS4-FS14, GF1-GF9 | `a1ec5d982a5986c5a` | worktree | - | merged `f427e44`; FS15-FS17 |
 | apply9d: education/health AQ1-AQ3, flora AQ7/AQ10, residential RG24, flammability FL7/FL8 | `a1a2a3d5ee6186779` | worktree | ABI 49, seam op 50 | running |
 | RE specs 9 (commercial/industrial, civic, parks, history warehouse, 24-hour clock) | `a3547ddd1232ef1f1` | `re-specs9` | - | merged `a3599a0`; ABI rows `340ad36` |
 | cores10a: history warehouse + 24-hour clock cores | `aaba26b7267188fb1` | worktree | ABI 50 | running |
