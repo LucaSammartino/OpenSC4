@@ -17,6 +17,7 @@
 #include "FC4BudgetShadow.h"
 #include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
+#include "FC4DevelopmentShadow.h"
 #include "FC4FloraShadow.h"
 #include "FC4Fpu.h"
 #include "FC4LandfillShadow.h"
@@ -355,6 +356,9 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
     // original residential simulator's SimNewDay deliveries.
     // The aura shadow (opt-in, FC4AuraShadow.h) wraps the original aura
     // simulator's SimIdle / SimNewDay / SimNewMonth deliveries.
+    // The development shadow (opt-in, FC4DevelopmentShadow.h) wraps the
+    // original growth developers' SimIdle / SimNewDay and the original BDS's
+    // SimNewMonth deliveries.
     bool finished = false;
     if (!fc4::BudgetShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::DemandShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
@@ -366,7 +370,8 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
         !fc4::PlumbingShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::ResidentialShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::AuraShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
-        !fc4::NeighborsShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) {
+        !fc4::NeighborsShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
+        !fc4::DevelopmentShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) {
         finished = target->DoMessage(m);
     }
     fc4::DeliveryEnd();

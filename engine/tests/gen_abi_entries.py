@@ -35,6 +35,7 @@ ENGINE = os.path.dirname(HERE)
 SDK = os.path.join(ENGINE, "third_party", "gzcom-dll", "gzcom-dll", "include")
 FC4 = os.path.join(ENGINE, "plugin", "FC4Interfaces.h")
 FC4C = os.path.join(ENGINE, "plugin", "FC4CrimeInterfaces.h")
+FCD = os.path.join(ENGINE, "plugin", "FC4DevelopmentInterfaces.h")
 
 # (table interface, class, header, required)
 #   required = the plugin implements or calls the interface through this
@@ -198,6 +199,28 @@ INTERFACES = [
     ("cISC4ResidentialSimulator", "cFC4ISC4ResidentialSimulator", FC4, True),
     ("cIGZSerializable(Residential)", "cIGZSerializable", "cIGZSerializable.h", True),
     ("cIGZMessageTarget2(Residential)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    # Development (docs/specs/building-development.md section 7, growth-developer.md):
+    # the simulator implemented through the compiled slot order (the SDK row
+    # above stays for the other glue's calls), the sub-object interfaces of its
+    # own vtables, the growth developers it calls, and the services it calls
+    # that are not listed above (the lot configuration filter is implemented).
+    ("cISC4BuildingDevelopmentSimulator", "cFC4ISC4BuildingDevelopmentSimulator", FCD, True),
+    ("cIGZMessageTarget(BuildingDevelopment)", "cIGZMessageTarget", "cIGZMessageTarget.h", True),
+    ("cIGZMessageTarget2(BuildingDevelopment)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cIGZSerializable(BuildingDevelopment)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cISC4GrowthDeveloper", "cFC4ISC4GrowthDeveloper", FCD, True),
+    ("cIGZMessageTarget2(GrowthDeveloper)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cIGZSerializable(GrowthDeveloper)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cISC4TractDeveloper", "cFC4ISC4TractDeveloper", FCD, True),
+    ("cISC4CommercialSimulator", "cISC4CommercialSimulator", "cISC4CommercialSimulator.h", True),
+    ("cISC4LotConfiguration", "cISC4LotConfiguration", "cISC4LotConfiguration.h", True),
+    ("cISC4LotConfigurationFilter", "cISC4LotConfigurationFilter", "cISC4LotConfigurationFilter.h", True),
+    ("cISC4LotConfigurationManager", "cISC4LotConfigurationManager", "cISC4LotConfigurationManager.h", True),
+    ("cISC4AdvisorSystem", "cISC4AdvisorSystem", "cISC4AdvisorSystem.h", True),
+    ("cISC4Advisor", "cISC4Advisor", "cISC4Advisor.h", True),
+    ("cIGZCommandParameterSet", "cIGZCommandParameterSet", "cIGZCommandParameterSet.h", True),
+    ("cIGZMessageServer2", "cIGZMessageServer2", "cIGZMessageServer2.h", True),
+    ("cISC4DemandSimulator", "cISC4DemandSimulator", "cISC4DemandSimulator.h", True),
     # Zones (docs/specs/zones.md section 11): the zone manager, implemented through
     # the compiled slot order (the SDK row above stays for other glue's calls),
     # its sub-object interfaces, and the zone developer and lot configurations
@@ -206,7 +229,6 @@ INTERFACES = [
     ("cIGZSerializable(ZoneManager)", "cIGZSerializable", "cIGZSerializable.h", True),
     ("cIGZMessageTarget2(ZoneManager)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
     ("cISC4ZoneDeveloper", "cISC4ZoneDeveloper", "cISC4ZoneDeveloper.h", True),
-    ("cISC4LotConfiguration", "cISC4LotConfiguration", "cISC4LotConfiguration.h", True),
     # Crime type names (crime.md section 7 step 3; lua-host.md section 10.1).
     ("cISCStringDetokenizer", "cFC4ISCStringDetokenizer", FC4C, True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.

@@ -197,6 +197,17 @@ const SwitchInfo kSwitches[kCount] = {
     {"neighbors_posts", "FC4_NEIGHBORS_POSTS"},
     {"neighbors_history", "FC4_NEIGHBORS_HISTORY"},
     {"neighbors_figures", "FC4_NEIGHBORS_FIGURES"},
+    {"development_map_writes", "FC4_DEVELOPMENT_MAP_WRITES"},
+    {"development_occupants", "FC4_DEVELOPMENT_OCCUPANTS"},
+    {"development_zoning", "FC4_DEVELOPMENT_ZONING"},
+    {"development_lots", "FC4_DEVELOPMENT_LOTS"},
+    {"development_lot_developer", "FC4_DEVELOPMENT_LOT_DEVELOPER"},
+    {"development_demolition", "FC4_DEVELOPMENT_DEMOLITION"},
+    {"development_advisor", "FC4_DEVELOPMENT_ADVISOR"},
+    {"development_posts", "FC4_DEVELOPMENT_POSTS"},
+    {"development_cheats", "FC4_DEVELOPMENT_CHEATS"},
+    {"development_tract", "FC4_DEVELOPMENT_TRACT"},
+    {"development_city", "FC4_DEVELOPMENT_CITY"},
 };
 
 // Keys that are not switches.
@@ -219,6 +230,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "zones_shadow",
                                   "neighbours_shadow", "neighbors_seed", "neighbors_two_curves",
                                   "growth_probe",
+                                  "development_growth_attempts_per_day", "development_seed",
+                                  "development_shadow",
                                   // the harness lane's tooling (FC4Turbo.h)
                                   "sim_turbo", "sim_turbo_frame_ms", "sim_turbo_until"};
 
@@ -247,8 +260,10 @@ volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // zones
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // neighbours
-                               1, 1, 1, 1, 1, 1, 1, 1, 1};
-static_assert(kCount == 160, "g_on: one 1 per switch");
+                               1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               // development
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+static_assert(kCount == 171, "g_on: one 1 per switch");
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};

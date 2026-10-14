@@ -95,6 +95,15 @@
 //   neighbors_seed = N            the deal proposal generator's session seed (default:
 //                                 the cRZTime clock; cFC4Neighbors.cpp)
 //   neighbors_two_curves = 0 / 1  neighbors.md §8.3 two price curves [choice] (default 0)
+//   development_growth_attempts_per_day = N  the BDS's daily growth budget
+//                                 (building-development.md §4.4.1; default 0 = unlimited;
+//                                 cFC4Development.cpp)
+//   development_seed = N          the development generators' session seed (default: the
+//                                 wall clock, building-development.md §4.14; env
+//                                 FC4_DEVELOPMENT_SEED)
+//   development_shadow = 0 / 1    the development shadow (default 0; needs FreeCity4's
+//                                 simulator and the ORIGINAL BDS and growth developers: do
+//                                 not enable development; FC4DevelopmentShadow.h)
 //   growth_probe = 0 / 1          the growth calibration probe (default 0; needs the
 //                                 ORIGINAL BDS and tract developer; counts the tract
 //                                 developer's Grow calls per game day; env
@@ -351,6 +360,25 @@ enum class Sw : unsigned {
     NeighborsHistory,       // neighbors_history: history records (MessageSend)
     NeighborsFigures,       // neighbors_figures: the budget, utility and landfill figures of
                             //   UpdateCommodityStats (off: 0, no departments)
+    // Building development simulator and growth developer host callbacks
+    // (cFC4Development.cpp, cFC4GrowthDeveloper.cpp), one per group of game
+    // calls; only used when the development subsystem is enabled.
+    DevelopmentMapWrites,   // development_map_writes: SetTractValue on the building map and the growth
+                            //   developers' grids (off: not written)
+    DevelopmentOccupants,   // development_occupants: building occupant creation, loading, insertion, removal
+                            //   and reads (off: nothing placed, no occupant found)
+    DevelopmentZoning,      // development_zoning: GetZoneType and the dezoning PlaceZone (off: unzoned, not dezoned)
+    DevelopmentLots,        // development_lots: lot and lot manager reads (off: no lot)
+    DevelopmentLotDeveloper,  // development_lot_developer: UpdateLotElements, GetLotSlope and the area altitude
+                              //   (off: not updated, 0)
+    DevelopmentDemolition,  // development_demolition: DemolishLots and the funds it charges (off: not demolished)
+    DevelopmentAdvisor,     // development_advisor: the CityPlanning advisor event (off: not pushed)
+    DevelopmentPosts,       // development_posts: kSC4MessageBuildingTypesUpdated (MessagePost; off: not posted)
+    DevelopmentCheats,      // development_cheats: the three cheats and the PlaceBuilding command (off: not registered)
+    DevelopmentTract,       // development_tract: the tract developer's Grow, Decline and UpdatePopulation
+                            //   (off: nothing built, declined or populated)
+    DevelopmentCity,        // development_city: land value, power and terrain altitude reads and the growth
+                            //   developers' source maps (off: 0, unpowered, no map)
     Count
 };
 
