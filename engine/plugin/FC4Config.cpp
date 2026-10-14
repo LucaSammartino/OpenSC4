@@ -109,6 +109,16 @@ const SwitchInfo kSwitches[kCount] = {
     {"pollution_population", "FC4_POLLUTION_POPULATION"},
     {"pollution_props", "FC4_POLLUTION_PROPS"},
     {"pollution_terrain", "FC4_POLLUTION_TERRAIN"},
+    {"flora_occupants", "FC4_FLORA_OCCUPANTS"},
+    {"flora_create", "FC4_FLORA_CREATE"},
+    {"flora_manager", "FC4_FLORA_MANAGER"},
+    {"flora_queries", "FC4_FLORA_QUERIES"},
+    {"flora_terrain", "FC4_FLORA_TERRAIN"},
+    {"flora_weather", "FC4_FLORA_WEATHER"},
+    {"flora_records", "FC4_FLORA_RECORDS"},
+    {"flora_posts", "FC4_FLORA_POSTS"},
+    {"flora_cheats", "FC4_FLORA_CHEATS"},
+    {"flora_exemplars", "FC4_FLORA_EXEMPLARS"},
 };
 
 // Keys that are not switches.
@@ -118,7 +128,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "budget_shadow", "budget_shadow_lots", "demand_shadow",
                                   "demand_shadow_nodes",
                                   "popup_dialogs", "clock_probe", "autotest_end",
-                                  "pollution_shadow", "pollution_shadow_cells"};
+                                  "pollution_shadow", "pollution_shadow_cells",
+                                  "flora_shadow"};
 
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
@@ -127,8 +138,10 @@ volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // pollution
-                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-static_assert(kCount == 72, "g_on: one 1 per switch");
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               // flora
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+static_assert(kCount == 82, "g_on: one 1 per switch");
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};
