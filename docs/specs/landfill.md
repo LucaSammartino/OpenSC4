@@ -616,6 +616,20 @@ Otherwise:
 `pollution.garbageCapacity` (the "valve", pollution §4.6.1–§4.6.2) is therefore the free capacity of the connected
 zones **after** this month's intake.
 
+**The supply never clamps during the month** *[compat]* (LG12). Let `s` be the supply at step 2:
+
+- `t ≤ s`;
+- each heap's `n` is at most the zone's `budget`, which is at most `remaining`, which starts at `t`;
+- so the intakes sum to at most `t`.
+
+Every `AddToGarbageSupply(−n)` therefore stays within pollution's no-clamp case (pollution §7, slot 29), and the
+supply after the month is exactly `s − Σ n`. The month makes no positive adds; those come only from
+`RecalculateCapacity` on zoning changes (§4.6.2). `GetGarbageSupply` returns `max(0, supply)` and **stores** that
+clamp, so it changes the value only when a damaged save left the supply negative.
+
+Example: supply 50000, one connected 2 × 2 zone with an empty heap. Then `t = 50000` and the zone's budget is
+`min(50000, 4 × 5000) = 20000`, so `n = 20000` and the supply ends at exactly 30000 (test 9).
+
 #### 4.7.2 `UpdateZone(&remaining)` (zone)
 
 1. `connected := IsZoneConnected()` (stored). If not connected: `AddZot()` (§4.7.5). If connected and a zot
