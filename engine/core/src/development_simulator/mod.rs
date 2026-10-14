@@ -387,9 +387,6 @@ pub struct AdviceSubject {
 /// |---|---|
 /// | `create_developer` | `GrowthDeveloper::new` + `add_ref` (the BDS's reference) |
 /// | `developer_init` | `init(Some(exemplar))` |
-///
-/// Both receive the exemplar's resource key too: a host whose developers
-/// are game objects passes them the game's own holder of that key.
 /// | `developer_shutdown` | `shutdown()` |
 /// | `developer_release` | `release()` |
 /// | `developer_sub_type` | `developer_type()` (`GetSubType`, slot 6) |
@@ -400,6 +397,9 @@ pub struct AdviceSubject {
 /// | `developer_start_map_update` | `start_map_update()` (slot 27) |
 /// | `developer_map_update_finished` | `is_map_update_finished()` (slot 28) |
 /// | `developer_ref` / `resolve_developer` | the developer as a `SaveObject` (`RefValue::Object`, class `0x0990C138`) / `RefValue::object::<GrowthDeveloper>()` |
+///
+/// Both receive the exemplar's resource key too: a host whose developers
+/// are game objects passes them the game's own holder of that key.
 pub trait GrowthDevelopers {
     /// A new `cSC4GrowthDeveloper` (§1.5) holding one reference for the
     /// BDS; `exemplar` is the developer exemplar it is about to be
