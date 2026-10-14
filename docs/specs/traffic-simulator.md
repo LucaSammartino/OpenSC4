@@ -815,8 +815,10 @@ first trip's type.
      last cell the "next" record is the last record itself, so a subway last cell inside a switch is never counted.
      The switch is looked up with insert-if-missing (as in §4.16); only a damaged save has an ID with no switch.
      *(Corrected: an earlier text said the previous step.)* Example: a bus route whose in-city cells have IDs
-     0, 7, 7, 0, 7 counts switch 7 twice, at the second and the fifth cell. `switchFee` is the switch's toll, the f32 building
-     property `0x0BFC0A4C` (traffic-network.md §2.4; absent → 0.0), so only toll booths charge (TS15). Example: 37
+     0, 7, 7, 0, 7 counts switch 7 twice, at the second and the fifth cell.
+
+     `switchFee` is the switch's toll, the f32 building property `0x0BFC0A4C` (traffic-network.md §2.4; absent →
+     0.0), so only toll booths charge (TS15). Example: 37
      commuters by car, Carpool off, `Q = 37.0`, through a toll booth with toll 0.1 (f32 `0.100000001`):
      `r24(37 × 0.1)` = 3.70000005 (the f32 nearest 3.7), added to `fees` and at month end to the toll income
      (§4.12). A return leg through the same booth is a separate ApplyRoute and charges again; mode 2 charges once.
