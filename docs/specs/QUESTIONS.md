@@ -2338,9 +2338,15 @@ About PF1–PF15, ZQ4/ZQ7–ZQ10, LF1–LF5 and NB1–NB17 as applied in the cor
   - What could be observed is the unsubscription, which the original does before the zones shut down. One
     `release_services` call afterwards is equivalent while no message reaches the developer in between, which holds
     (LF3).
-- **NB18 — NB12:** the shim supplies the game's global `cISC4City` pointer through the new host method
-  `current_city_object`. Is that the object `UpdateCommodityStats` compares against? [yes; the test hosts use a
-  token distinct from every regional city ID]
+- ~~**NB18 — NB12:** the shim supplies the game's global `cISC4City` pointer through the new host method
+  `current_city_object`. Is that the object `UpdateCommodityStats` compares against? [yes; the test hosts use a token
+  distinct from every regional city ID]~~ **ANSWERED 2026-10-14** from the exe (identity test at 0x006D2A40 against
+  the global 0x00B43CEC; the global is written only by the city constructor through 0x00601C10 at 0x0045A34A, and
+  cleared by `SL::OnCityShutdown` at 0x0060210E) and written into neighbors §8.2.
+  - Yes. The global holds the city object's own address, its `cISC4City` interface, from construction to city
+    shutdown. `current_city_object` must return exactly that pointer: the test compares addresses, so another
+    interface pointer or a wrapper would make the call do nothing.
+  - The bracket matches. The test hosts' token is glue: no original behaviour; the implementer's choice stands.
 - Not applied: PF6 beyond the record level (pools, capacities and the roll stay traffic-simulator host methods, as
   the answer says); NB12/NB17 glue (there is no neighbours glue yet).
 

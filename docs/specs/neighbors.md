@@ -593,6 +593,18 @@ simulator itself in §7.1, §7.3 and §14. The regional-city object of our own c
 here, it would do nothing. FreeCity4 must therefore key this call on the city: a handle that is either the current
 city or not.
 
+**Which pointer is "the current city"** (NB18). The test is raw pointer equality with the global at `0x00B43CEC`
+(`0x006D2A40`). The only writes to that global are:
+- the city's constructor (`cSC4City::cSC4City`, through the setter `0x00601C10` at `0x0045A34A`), which stores the
+  object's own address, its primary `cISC4City` interface;
+- `SL::OnCityShutdown` (`0x0060210E`), which stores null.
+
+So the global holds the city object's `cISC4City*` from construction until city shutdown, and a host method that
+returns exactly that pointer gives the subject the original compares against. The match is by address. Any other
+interface pointer of the same object, or a wrapper around it, does not match, and the call then does nothing. How
+a test host represents "the current city" is glue: no original behaviour, and the implementer's choice of a token
+distinct from every regional-city ID stands.
+
 `R` is then fetched from the region without a null check (`0x006D2A6C`). With no current regional city the original
 crashes; *[choice]* FreeCity4 returns at once in that case.
 
