@@ -1454,8 +1454,11 @@ shadow's current answer is in brackets.
   `0x00702E38`, `SimulateAgents` `0x007038E7`): **the bracket matches.** Both read the simulator date's number
   (`GetSimDateNumber`, julian day) once per call and pass it as `data1` of every agent message, SimIdle included.
   Written into power.md §4.3.
-- **PW3:** the pass import, export and demand are not saved. What does the original hold after a load, before its
-  first state 0? [counted as `not_exact` until then]
+- ~~**PW3:** the pass import, export and demand are not saved. What does the original hold after a load, before its
+  first state 0? [counted as `not_exact` until then]~~ **ANSWERED 2026-10-14** from the exe (constructor
+  `0x006EF805`–`0x006EF80B`; `Read`, `Init` and `Write` never touch them): **0.** The bracket is safe but not
+  needed: the shadow can start them at 0 and compare exactly. A save taken in state 2 or 3 makes the original's
+  state 3 publish only the post-load share (all 0 for a state 3 save). Written into power.md §9.1 with an example.
 - **PW4:** `brokenFraction` is not saved; the shadow starts it at 0. The original's value after a load? [0]
 - **PW5 — §5.3:** the dirty rectangle is not saved; the shadow uses the bounding box of the changed wire bits. Can a
   larger rectangle give different wire bits?

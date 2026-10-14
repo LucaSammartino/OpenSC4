@@ -709,6 +709,19 @@ new-city path. A rejected version (> 6) keeps the original behaviour above (cons
 false, `running` set) *[compat]*.
 - Recomputed on load: nothing. The tuning, the ordinance factor, enabled, wireDirty and brokenFraction are reset by
   construction/`Init`.
+- **The unsaved pass values after a load** (PW3). The class store reads into a fresh object, and neither `Read`
+  nor `Init` writes the pass import, export or demand, so all three are the constructor's **0**
+  (`0x006EF805`–`0x006EF80B`) until state 0 zeroes them again. The saved state then continues (§6):
+  - saved in state 4, 0 or 1: nothing changes. In state 4 and 0 the old pass values are zeroed by state 0 before
+    anything adds to them, and a state 1 save comes right after state 0, when they were 0 already;
+  - saved in state 2: the imports, exports and demand that state 1 added are lost, so state 3 publishes only state
+    2's share (the networks reached from buy-deal connections);
+  - saved in state 3: state 3 publishes 0 for all three.
+
+  Example: a city saved in state 3 with pass import 500, export 200 and demand 6,000 publishes last import, export
+  and demand 0, records 0 in histories `0x0AB2F224`, `0x4AB2F236` and `0xAA11F7D5`, and records `consumption − 0`
+  in `0xAA11F7D2`, 200 more than without the load. The next cycle is normal again. Production and consumption are
+  saved, so they and everything derived from them alone are unaffected.
 - The powered grid is saved by `ref` as its own object (simgrid §5).
 
 ### 9.2 History IDs
