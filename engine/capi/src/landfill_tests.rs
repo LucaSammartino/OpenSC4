@@ -65,10 +65,13 @@ struct Game {
     reenter: Cell<usize>,
     /// Game tiles made through insert_landfill_tile: cell -> (tile,
     /// orientation, position, token).
-    tiles: RefCell<BTreeMap<(i32, i32), (u32, i32, [f32; 3], u64)>>,
+    tiles: RefCell<BTreeMap<(i32, i32), GameTile>>,
     /// insert_landfill_tile answers 0.
     refuse_tiles: Cell<bool>,
 }
+
+/// A game tile: (tile, orientation, position, token).
+type GameTile = (u32, i32, [f32; 3], u64);
 
 fn game(u: *mut c_void) -> &'static Game {
     unsafe { &*(u as *const Game) }

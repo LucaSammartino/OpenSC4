@@ -41,6 +41,10 @@ public:
     // The exemplar as a property holder (nullptr if not loaded).
     const cISCPropertyHolder* Holder() const;
 
+    // The loaded exemplar itself (borrowed; nullptr if not loaded), for an
+    // interface that takes its own reference (SetDefaultExemplar).
+    cISCResExemplar* Res() const { return res_; }
+
 private:
     cISCResExemplar* res_ = nullptr;
 };

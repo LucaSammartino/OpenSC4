@@ -634,7 +634,10 @@ impl LandfillHost for CHost {
             return live;
         }
         // [choice] The supply as the original's run would see it: the live
-        // value plus our own changes, clamped to the u32 range.
+        // value plus our own changes, clamped to the u32 range. LG12/LG14
+        // (§4.7.1): the month's intakes sum to at most the supply, so the
+        // clamp never engages except for a negative supply from a damaged
+        // save, and "live plus delta" equals the original's.
         let v = i64::from(live) + self.rec.borrow().supply_delta;
         v.clamp(0, i64::from(u32::MAX)) as u32
     }

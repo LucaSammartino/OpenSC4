@@ -75,6 +75,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -3022,6 +3023,52 @@ public:
     bool operator<(cIGZMessage2 const&) const override { return false; }
 };
 
+// LG20: a DoMessage from another thread waits for the lock instead of being
+// dropped. The probe records when the developer asks it for its standard
+// interface (after taking the lock); the holder keeps the lock for 60 ms
+// while another thread delivers the probe.
+class LandfillProbeMessage final : public cIGZMessage2 {
+public:
+    std::atomic<bool> handled{false};
+    std::atomic<DWORD> at{0};
+    bool QueryInterface(uint32_t, void**) override {
+        at = GetTickCount();
+        handled = true;
+        return false;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Create(uint32_t, void**) const override { return false; }
+    uint32_t GetType() const override { return kMsgSimNewDay; }
+    void SetType(uint32_t) override {}
+    bool operator==(cIGZMessage2 const&) const override { return false; }
+    bool operator<(cIGZMessage2 const&) const override { return false; }
+};
+
+class LandfillHoldMessage final : public cIGZMessage2 {
+public:
+    LandfillHoldMessage(cIGZMessageTarget2* t, LandfillProbeMessage* p) : mt(t), probe(p) {}
+    cIGZMessageTarget2* mt;
+    LandfillProbeMessage* probe;
+    std::thread worker;
+    bool probeBeforeRelease = true;
+    DWORD released = 0;
+    bool QueryInterface(uint32_t, void**) override {
+        worker = std::thread([this] { mt->DoMessage(probe); });
+        Sleep(60);
+        probeBeforeRelease = probe->handled.load();
+        released = GetTickCount();
+        return false;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Create(uint32_t, void**) const override { return false; }
+    uint32_t GetType() const override { return kMsgSimNewDay; }
+    void SetType(uint32_t) override {}
+    bool operator==(cIGZMessage2 const&) const override { return false; }
+    bool operator<(cIGZMessage2 const&) const override { return false; }
+};
+
 void CheckLandfillThreads(cFC4ISC4LandfillDeveloper* d, cIGZMessageTarget2* mt) {
     LandfillLockHeldMessage msg(d);
     CHECK(mt->DoMessage(&msg));
@@ -3034,6 +3081,15 @@ void CheckLandfillThreads(cFC4ISC4LandfillDeveloper* d, cIGZMessageTarget2* mt) 
     std::thread t([&] { m = d->GetMaintenanceCosts(); });
     t.join();
     CHECK(m == 0);
+    // LG20: the other thread's message waited 60 ms (well past the getters'
+    // 20) and was then handled, after the holder let go.
+    LandfillProbeMessage probe;
+    LandfillHoldMessage hold(mt, &probe);
+    CHECK(mt->DoMessage(&hold));
+    if (hold.worker.joinable()) hold.worker.join();
+    CHECK(!hold.probeBeforeRelease);
+    CHECK(probe.handled.load());
+    CHECK(probe.at.load() >= hold.released);
 }
 
 // An "original" landfill developer: QueryInterface answers its agent
@@ -3264,6 +3320,8 @@ int LandfillEnableTest(const std::string& dll, const std::string& ini, const std
     CHECK(CountOf(text, "landfill: WARNING a cell region does not have the documented layout (rect 10,20..11,22, "
                         "map 5x3, 1 words per row); it is ignored") == 1);
     CHECK(text.find("landfill: GetLandfillZoneFromCell returns null") != std::string::npos);
+    // LG20: the one message from another thread was logged and waited (no fallback).
+    CHECK(CountOf(text, "(not the main thread); it waits for the lock") == 1);
     CHECK(text.find("landfill Shutdown: 2 months, 4 fallbacks") != std::string::npos);
     CHECK(text.find("cFC4LandfillDeveloper destroyed (4 fallbacks)") != std::string::npos);
     CHECK(CountOf(text, "cFC4LandfillDeveloper destroyed (0 fallbacks)") == 2);

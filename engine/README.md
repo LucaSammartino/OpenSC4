@@ -307,20 +307,26 @@ plugin.
        (`GarbagePutInLandfill`), sets the active-landfill flag of every tile cell, levels the zone through the lot
        developer, books line item 30 of the sanitation department, and places the zot prop, all through the game's
        interfaces. The getters are answered from any thread (another thread waits up to 20 ms for the object's
-       lock, then answers from the last snapshot and counts a fallback). Landfill tiles are kept in FreeCity4,
-       not in the game: attaching a tile exemplar to the game's `cSC4LandfillOccupant` is not documented, so the
-       cells keep pollution's active-landfill flag (what the simulation reads) but no tile model is drawn, the
-       query tool shows no tile, and the tiles are rebuilt from the flags at `PostCityInit` after a load. Left
-       out and logged once: `SetEmptyCellTexture` (the base-texture occupant's factory is not documented: no
-       landfill ground texture), the zone effects (garbage trucks and seagulls, §4.10, rendering only), the zot's
-       orientation (the view service of §4.7.5 is not documented: 0), the 3D view level, and
-       `GetLandfillZoneFromCell` (null, which §9 allows). The log has a status line at `Init`, `Read` and every
-       month from the first (`landfill month: init=… loaded=… zones=… connected=… cells=… heaps=… valid=…
+       lock, then answers from the last snapshot and counts a fallback); `DoMessage` waits for the lock on every
+       thread and logs the first few messages from a thread other than the main one (`landfill: DoMessage 0x…
+       on thread … (not the main thread); it waits for the lock`). Landfill tiles are game
+       `cSC4LandfillOccupant`s made through GZCOM with their tile exemplar attached (`SetDefaultExemplar`), so the
+       model is drawn, the query tool shows them, the maintenance reads each tile's cost from its exemplar and the
+       game saves them; a tile that cannot be made is kept in FreeCity4 (the cell keeps pollution's
+       active-landfill flag; a load rebuilds only those). New landfill cells get the landfill ground texture (a
+       usage-1 `cSC4LotBaseTextureOccupant`). At `Init` the log says how the month agent is ordered (`landfill:
+       month agent registered with …`; with the game's simulator a `WARNING` when the landfill would run before
+       pollution or the budget). Left out and logged once: the zone effects (garbage trucks and seagulls, §4.10,
+       rendering only), the zot's orientation (the view rotation of §4.7.5 is not read: 0), the 3D view level,
+       and `GetLandfillZoneFromCell` (null, which §9 allows). The log has a status line at `Init`, `Read` and
+       every month from the first (`landfill month: init=… loaded=… zones=… connected=… cells=… heaps=… valid=…
        active=… stored=… capacity=… used=… free=… reported=… moved=… supplyDelta=… maintenance=… activeCells=…
-       tiles=… rebuilt=… zots=… department=… reentrant=… fallbacks=… placeZones=… zotsPlaced=… zotsFailed=…
-       zotsRemoved=… occupantsRemoved=… levellings=… history=… months=…`), `landfill Write -> 1`, `landfill
-       Read -> 1`, `landfill Shutdown: M months, F fallbacks` and `cFC4LandfillDeveloper destroyed (F
-       fallbacks)`. A cell region whose cell map does not match its rectangle is ignored and logged once
+       tiles=… rebuilt=… gameTiles=… gameTileFailures=… zots=… department=… reentrant=… fallbacks=…
+       offThreadMessages=… placeZones=… zotsPlaced=… zotsFailed=… zotsRemoved=… occupantsRemoved=…
+       tilesInserted=… tilesFailed=… textures=… texturesFailed=… texturesRemoved=… levellings=… history=…
+       months=…`), `landfill Write -> 1`, `landfill Read -> 1`, `landfill Shutdown: M months, F fallbacks` and
+       `cFC4LandfillDeveloper destroyed (F fallbacks)`. A cell region whose cell map does not match its
+       rectangle is ignored and logged once
        (`landfill: WARNING a cell region does not have the documented layout …`). Its game calls have their own
        switches (default `1`, environment `FC4_LANDFILL_<KEY>`): `landfill_terrain`, `landfill_levelling`,
        `landfill_pollution`, `landfill_budget`, `landfill_zoning`, `landfill_occupants`, `landfill_props`,
