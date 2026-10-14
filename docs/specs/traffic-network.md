@@ -749,6 +749,18 @@ So after a load, a switch's access point is the saved one when the save had one.
 when a fresh activation would have found an access occupant. The mode-mask grid is not touched: it comes from the
 save (§6), and DoPostCityInit does not rewrite it from the re-read rules.
 
+**A switch without a usable building (TN23, from the exe).** Neither walk checks the building:
+- the re-read dereferences it first, to get its property holder (`0x00715CCF`), before the mask is zeroed;
+- the access-point walk calls its slot 11 (`0x00720504`) when flag 4 is set and there is no access point.
+
+A null building therefore crashes the original's DoPostCityInit. A switch inserted by a §4.7.3 or §4.7.4 lookup does
+not even hold null (§4.7.3 step 1): its building is a stale stack value. *[choice]* FreeCity4's inserted switch is
+all zeros, and DoPostCityInit handles a switch with building 0 like this:
+- no re-read: the rules, the flags and the "to" mask stay as they are;
+- flag 4 clear: "has access point" := 0, as for any switch;
+- flag 4 set: "has access point" and the cell stay as they are, because there is no building to take a NW cell from.
+  This case needs a loaded switch whose building reference was null. An inserted switch has flags 0.
+
 For saves of version ≤ `0x1C` (most of the corpus is version 19), `Read` reads no rules and the re-read is their only
 source. `Read` also computes its own mask and flags. They survive only when the NW lot is missing, and they differ
 from the rules above *[quirk]*:
@@ -757,7 +769,12 @@ from the rules above *[quirk]*:
 
 #### 4.7.3 TransitSwitchEntryCost(id) (non-virtual `0x0071CB20`, x87 return; used by pathfinder.md §4.8)
 
-1. Look up the switch with insert-if-missing semantics *[quirk]*: an unknown ID inserts a default switch.
+1. Look up the switch with insert-if-missing semantics *[quirk]*: an unknown ID inserts a default switch. In the
+   original that switch is a copy of an **uninitialised** stack temporary (`0x006D90F0`). Only the second f32 counter
+   (`+0x18`) and the rules are zeroed (`0x006D9145`–`0x006D9155`). The building, load, time factor, capacity, flags,
+   access fields, "to" mask, property `0x0BFC0A4C` and intersection flag are whatever was on the stack *[quirk]*, so
+   the cost of an unknown ID is not reproducible. *[choice]* FreeCity4 inserts an all-zero switch: 0/0 is NaN, so the
+   cost is `1.7014117e38` (TN23).
 2. `q = r24(load / capacity)`.
 3. If `q < 5.0` (ordered): cost = `r24(r24(Curve(q) × transitMultiplier) × timeFactor)`. Curve is the
    simulator's congestion → inverse-speed curve (`0x00B4B2F0`). `transitMultiplier` is simulator-owned (1.0 at
@@ -1530,7 +1547,8 @@ Unless stated otherwise:
     - load 0, capacity 100: q = 0 → `Curve(0) × multiplier × timeFactor`.
     - load 600, capacity 100: q = 6 → `0x7EFFFFFF`.
     - load 0, capacity 0: NaN → `0x7EFFFFFF`.
-    - Unknown ID: inserts a default switch (capacity 0) → `0x7EFFFFFF`.
+    - Unknown ID: inserts a default switch (capacity 0) → `0x7EFFFFFF` *[choice]*. The original's inserted switch
+      holds stack garbage (§4.7.3 step 1), so this case is not differential.
 
 11. **Rule rotation.** Facing 1, rule u32 `0x01_01_80_00`:
     - b0 = 0x00 → kind 0;

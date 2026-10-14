@@ -1136,9 +1136,16 @@ About `docs/specs/traffic-network.md`. The core's current answer is in brackets.
   copies `count` bytes) and written into traffic-network §4.7.2 ("Empty and object-reference values"). **The bracket
   matches.** Both give count 0, so 0 bytes are copied and DoLotActivated builds a switch with no rules (mode mask 0,
   flags 0, no access point). Only an absent property skips the switch.
-- **TN23 — §4.7.2 TN3/TN4:** how do the DoPostCityInit walks treat a switch with building 0 (a default inserted by
+- ~~**TN23 — §4.7.2 TN3/TN4:** how do the DoPostCityInit walks treat a switch with building 0 (a default inserted by
   a §4.7.3/§4.7.4 lookup), where the original would use a null building? [not re-read; flag 4 clear still clears the
-  access point; flag 4 set gets no NW cell]
+  access point; flag 4 set gets no NW cell]~~ **ANSWERED 2026-10-14** from the exe (re-read dereferences the
+  building at `0x00715CCF`; access walk calls its slot 11 at `0x00720504`; neither checks it; the map lookup
+  `0x006D90F0` copies an uninitialised temporary, zeroing only `+0x18` and the rules at `0x006D9145`–`0x006D9155`)
+  and written into traffic-network §4.7.2 ("A switch without a usable building"), §4.7.3 step 1 and §11 test 10.
+  **The premise does not hold, and the bracket stands as a *[choice]*.** A null building crashes the original. An
+  inserted switch's building is not null but a stale stack value, and so are its load, capacity, flags and other
+  fields. FreeCity4's all-zero switch is not re-read; flag 4 clear clears the access point; flag 4 set keeps it as it
+  is. The §11 test "unknown ID → `0x7EFFFFFF`" is now marked *[choice]*.
 - **TN24 — §4.10.1 TN15:** when the unclamped dirty rectangle reaches past the map, are off-map cells asked or
   written during the update? [only in-map cells]
 - **TN25 — §4.7.2 TN3:** FreeCity4 replaces the rules on the re-read, so the flags come from the property's rules;
