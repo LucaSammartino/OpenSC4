@@ -206,6 +206,14 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Aura.h
         plugin/FC4AuraShadow.cpp
         plugin/FC4AuraShadow.h
+        plugin/cFC4Flora.cpp
+        plugin/cFC4Flora.h
+        plugin/FC4FloraShadow.cpp
+        plugin/FC4FloraShadow.h
+        plugin/cFC4Landfill.cpp
+        plugin/cFC4Landfill.h
+        plugin/FC4LandfillShadow.cpp
+        plugin/FC4LandfillShadow.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -343,6 +351,18 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_aura_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-aura)
     set_tests_properties(plugin_ini_enable_aura_test PROPERTIES RUN_SERIAL TRUE)
+    # Flora (flora.md): `enable = flora` (no city: the registry's key-0 record,
+    # neutral calls, lifecycle, status lines) and the census shadow on a fake
+    # original (seam op 17).
+    add_test(NAME plugin_ini_enable_flora_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-flora)
+    set_tests_properties(plugin_ini_enable_flora_test PROPERTIES RUN_SERIAL TRUE)
+    # Landfill (landfill.md): `enable = landfill` (no city: neutral getters,
+    # regions, lifecycle, the record, threads, status lines) and the landfill
+    # shadow on fake originals (seam op 18).
+    add_test(NAME plugin_ini_enable_landfill_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-landfill)
+    set_tests_properties(plugin_ini_enable_landfill_test PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

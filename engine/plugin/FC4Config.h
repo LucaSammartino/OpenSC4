@@ -61,6 +61,12 @@
 //   aura_shadow = 0 / 1           the aura grid shadow (default 0; needs the ORIGINAL
 //                                 aura simulator: do not enable aura; FC4AuraShadow.h)
 //   aura_shadow_cells = N         its differing tracts listed per grid (default 4)
+//   flora_shadow = 0 / 1          the flora census shadow (default 0; needs the
+//                                 original flora simulator; FC4FloraShadow.h)
+//   landfill_shadow = 0 / 1       the landfill shadow (default 0; needs the ORIGINAL
+//                                 landfill developer: do not enable landfill;
+//                                 FC4LandfillShadow.h)
+//   landfill_shadow_diffs = N     its differences listed per month (default 8)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.
@@ -225,6 +231,41 @@ enum class Sw : unsigned {
     AuraHistory,      // aura_history: RecordHistoryData of the mayor rating
     AuraDisaster,     // aura_disaster: the riot manager's AttemptDisasterStart
     AuraStrikes,      // aura_strikes: police / fire EndStrike, residential End*Strike (BustStrike)
+    // Flora simulator host callbacks (cFC4Flora.cpp), one per group of game
+    // calls; only used when the flora subsystem is enabled.
+    FloraOccupants,  // flora_occupants: occupant type, property, position, box, flag 1, network flags,
+                     //   flora values and setters, change posts (off: occupants look empty, nothing set)
+    FloraCreate,     // flora_create: new flora occupants through GZCOM class 0xA9C05C85 and their Init
+                     //   (off: none created, so nothing is planted)
+    FloraManager,    // flora_manager: InsertOccupant / RemoveOccupant / MoveOccupant (off: refused, nothing done)
+    FloraQueries,    // flora_queries: the occupant manager's box and cell queries, and the month line's
+                     //   census (off: no occupants found)
+    FloraTerrain,    // flora_terrain: terrain altitude, sea level, face normal, initialized, and the lot
+                     //   manager's GetLotSavvyTerrainAltitude (off: 0, flat, not initialized)
+    FloraWeather,    // flora_weather: the weather simulator's GetMoistureType (off: moisture 0)
+    FloraRecords,    // flora_records: the game-layout record blocks (docs/abi/layouts.md) and
+                     //   SetStaticFloraData (off: no blocks, GetStaticFloraData returns null)
+    FloraPosts,      // flora_posts: FloraTypesUpdated (off: not posted)
+    FloraCheats,     // flora_cheats: the "Flora" cheat and the PlaceFlora command registrations
+    FloraExemplars,  // flora_exemplars: the flora exemplar enumeration (off: no flora types)
+    // Landfill developer host callbacks (cFC4Landfill.cpp), one per group of
+    // game calls; only used when the landfill subsystem is enabled.
+    LandfillTerrain,     // landfill_terrain: terrain altitude and sea level reads, SetAltitude,
+                         //   RedisplayTerrain (off: 0, nothing redrawn)
+    LandfillLevelling,   // landfill_levelling: the lot developer's AttemptAreaLevelling (off: not levelled)
+    LandfillPollution,   // landfill_pollution: the garbage supply and capacities, AddToGarbageSupply,
+                         //   SetGarbageCapacity, the active-landfill flag, GarbagePutInLandfill (off: 0)
+    LandfillBudget,      // landfill_budget: the sanitation department, its funding and line item 30
+                         //   (off: no department)
+    LandfillZoning,      // landfill_zoning: GetZoneCount, GetZoneType, PlaceZone (off: unzoned, refused)
+    LandfillOccupants,   // landfill_occupants: occupant lookups, removal, position, flags, messages,
+                         //   item costs, flora and base-texture removal (off: no occupants)
+    LandfillProps,       // landfill_props: AddLotProp / RemovePropA, the zot (off: no zot)
+    LandfillTraffic,     // landfill_traffic: FindNetworkTile, the traffic simulator's subnetworks
+                         //   (off: no road tile, no connection)
+    LandfillHistory,     // landfill_history: the history record messages (MessageSend)
+    LandfillEffects,     // landfill_effects: the zone effects (§4.10, rendering only; not implemented,
+                         //   logged once either way)
     Count
 };
 

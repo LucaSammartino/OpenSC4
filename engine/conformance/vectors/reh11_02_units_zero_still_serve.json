@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "reh11_units_zero_still_serve",
+  "spec": ["REH 4.4", "REH 11.2", "REH 10.1"],
+  "description": "REH test 2 [quirk]. A K-6 school of capacity 400 (chunk 500 -> units 0) over tract (0, 0) with population (10, 20, 0), not covered by a lower group: the coverage stays 0 but the served counter adds 30. A second identical school adds 30 again (60): the test reads the old value, which units 0 never raise. A group-0 school of units 1 covers the tract first, so a group-1 school (high school, chunk 750) of units 0 does not count it (30). Hospitals (state 7, clinic chunk 500) count the same way.",
+  "steps": [
+    {"op": "residential_env", "groups": {"1": ["0x150F"]}, "props": {"1": {"0x8922041B": {"u32": 400}, "0x691B42B3": {"f32": 10}}}, "lots": {"1": [32, 32]}},
+    {"op": "residential_env", "groups": {"2": ["0x150F"]}, "props": {"2": {"0x8922041B": {"u32": 400}, "0x691B42B3": {"f32": 10}}}, "lots": {"2": [32, 32]}},
+    {"op": "residential_env", "groups": {"3": ["0x150F"]}, "props": {"3": {"0x8922041B": {"u32": 500}, "0x691B42B3": {"f32": 10}}}, "lots": {"3": [32, 32]}},
+    {"op": "residential_env", "groups": {"4": ["0x1510"]}, "props": {"4": {"0x8922041B": {"u32": 400}, "0x691B42B3": {"f32": 10}}}, "lots": {"4": [32, 32]}},
+    {"op": "residential_env", "groups": {"5": ["0x1512"]}, "props": {"5": {"0x69220415": {"u32": 400}, "0x091B42A2": {"f32": 10}}}, "lots": {"5": [32, 32]}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_tract", "x": 0, "z": 0, "pop": [10, 20, 0]},
+    {"op": "residential_set", "state": {"state": 5, "school_covered": 99, "lists": {"school_groups": [[1]]}}},
+    {"op": "residential_run_to", "state": 6, "steps": 1},
+    {"op": "residential_expect", "state": {"school_covered": 30}},
+    {"op": "residential_expect_grid", "grid": "school_coverage0", "all": 0},
+    {"op": "residential_set", "state": {"state": 5, "lists": {"school_groups": [[1, 2]]}}},
+    {"op": "residential_run_to", "state": 6, "steps": 1},
+    {"op": "residential_expect", "state": {"school_covered": 60}},
+    {"op": "residential_set", "state": {"state": 5, "lists": {"school_groups": [[3], [4]]}}},
+    {"op": "residential_run_to", "state": 6, "steps": 1},
+    {"op": "residential_expect", "state": {"school_covered": 30}},
+    {"op": "residential_expect_grid", "grid": "school_coverage0", "cells": [[0, 0, 1]], "others": 0},
+    {"op": "residential_expect_grid", "grid": "school_coverage1", "all": 0},
+    {"op": "residential_set", "state": {"state": 7, "lists": {"hospital_groups": [[5]]}}},
+    {"op": "residential_run_to", "state": 8, "steps": 1},
+    {"op": "residential_expect", "state": {"hospital_covered": 30}}
+  ]
+}

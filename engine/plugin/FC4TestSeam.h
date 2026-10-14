@@ -70,6 +70,16 @@
 //         SimNewMonth) to a fake "original" pollution simulator; returns the
 //         delivery's difference count, -1 (not taken) or -2 (delivered,
 //         nothing compared). (15 is left to the parallel glue lanes.)
+//   op 17 kFC4SeamFloraShadow      a = const FC4FloraShadowTestInput*,
+//         b = intptr_t* (or null) for the registry check's difference count
+//         (FC4FloraShadow.h): one flora-shadow SimNewMonth to a fake
+//         "original" flora simulator; returns the month's mismatch count, -1
+//         (not taken) or -2 (delivered, nothing compared).
+//   op 18 kFC4SeamLandfillShadow   a = const FC4LandfillShadowTestInput*
+//         (FC4LandfillShadow.h): one landfill-shadow SimNewMonth delivery to
+//         a fake "original" landfill developer; returns the month's
+//         difference count, -1 (not taken) or -2 (delivered, nothing
+//         compared).
 //   op 22 kFC4SeamPlumbingShadow   a = const FC4PlumbingShadowTestInput*
 //         (FC4PlumbingShadow.h): a run of deliveries (SimIdle, SimNewDay,
 //         SimNewMonth) to a fake "original" plumbing simulator, one shadow for
@@ -102,6 +112,8 @@ enum : uint32_t {
     kFC4SeamCrimeShadow = 13,
     kFC4SeamAuraShadow = 14,
     kFC4SeamPollutionShadow = 16,
+    kFC4SeamFloraShadow = 17,
+    kFC4SeamLandfillShadow = 18,
     kFC4SeamDemandCapacity = 20,
     kFC4SeamPlumbingShadow = 22,
 };

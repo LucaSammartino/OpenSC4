@@ -158,6 +158,36 @@ CpuTimes Cpu() {
     return t;
 }
 
+// The process's memory: address space used and the largest free block (a
+// 32-bit game fails large allocations once its address space fragments),
+// and the private bytes. Walks the address space (a few thousand
+// VirtualQuery calls): heartbeats only.
+void DescribeMemory(char* out, size_t cap) {
+    MEMORYSTATUSEX ms{};
+    ms.dwLength = sizeof(ms);
+    unsigned long long used = 0, total = 0, largest = 0;
+    if (GlobalMemoryStatusEx(&ms)) {
+        total = ms.ullTotalVirtual;
+        used = ms.ullTotalVirtual - ms.ullAvailVirtual;
+    }
+    MEMORY_BASIC_INFORMATION mbi;
+    for (uintptr_t a = 0x10000; VirtualQuery(reinterpret_cast<const void*>(a), &mbi, sizeof(mbi)) == sizeof(mbi);) {
+        if (mbi.State == MEM_FREE && mbi.RegionSize > largest) largest = mbi.RegionSize;
+        const uintptr_t next = reinterpret_cast<uintptr_t>(mbi.BaseAddress) + mbi.RegionSize;
+        if (next <= a) break;
+        a = next;
+    }
+    PROCESS_MEMORY_COUNTERS_EX pmc{};
+    pmc.cb = sizeof(pmc);
+    unsigned long long priv = 0;
+    if (GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&pmc), sizeof(pmc))) {
+        priv = pmc.PrivateUsage;
+    }
+    _snprintf_s(out, cap, _TRUNCATE,
+                "memory: address space used %llu of %llu MiB, largest free block %llu MiB, private %llu MiB", used >> 20,
+                total >> 20, largest >> 20, priv >> 20);
+}
+
 // "what the main thread is doing" into `out`.
 void DescribeActivity(DWORD now, char* out, size_t cap) {
     out[0] = 0;
@@ -199,15 +229,17 @@ void Heartbeat(const char* why, bool deltas) {
     char activity[512];
     DescribeActivity(GetTickCount(), activity, sizeof(activity));
     const CpuTimes cpu = Cpu();
+    char memory[160];
+    DescribeMemory(memory, sizeof(memory));
     if (deltas) {
         LogWait(1000,
                 "heartbeat (%s): %04d-%02d-%02d (julian %ld) speed %ld pause %ld hidden %ld emergency %ld city %s | "
                 "+%ld OnTick, +%ld deliveries, +%ld interface calls, +%ld verbose lines suppressed, +%ld foreign "
-                "exceptions | main: %s | cpu: process %llu ms, main thread %llu ms | log lines written unlocked %lu",
+                "exceptions | main: %s | cpu: process %llu ms, main thread %llu ms | log lines written unlocked %lu | %s",
                 why, d.year, d.month, d.day_of_month, g_julian, g_speed, g_pause, g_hidden, g_emergency,
                 g_cityRunning ? "running" : "not running", ticks - lastTicks, deliveries - lastDeliveries,
                 calls - lastCalls, suppressed - lastSuppressed, foreign - lastForeign, activity, cpu.processMs,
-                cpu.mainMs, LogUnlockedLines());
+                cpu.mainMs, LogUnlockedLines(), memory);
         lastTicks = ticks;
         lastDeliveries = deliveries;
         lastCalls = calls;
@@ -216,9 +248,9 @@ void Heartbeat(const char* why, bool deltas) {
     } else {
         Log("heartbeat (%s): %04d-%02d-%02d (julian %ld) speed %ld pause %ld hidden %ld emergency %ld | totals: %ld "
             "OnTick, %ld deliveries, %ld interface calls, %ld verbose lines suppressed, %ld foreign exceptions | cpu: "
-            "process %llu ms, main thread %llu ms",
+            "process %llu ms, main thread %llu ms | %s",
             why, d.year, d.month, d.day_of_month, g_julian, g_speed, g_pause, g_hidden, g_emergency, ticks,
-            deliveries, calls, suppressed, foreign, cpu.processMs, cpu.mainMs);
+            deliveries, calls, suppressed, foreign, cpu.processMs, cpu.mainMs, memory);
     }
 }
 

@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "reh11_deaths_door",
+  "spec": ["REH 4.7", "REH 11.23", "residential 5.5"],
+  "description": "REH test 23: HQ after decay 1.0 < 2 with residents, draw 1.2 < 1.5 -> the 'buzzards' effect, with a second draw RandomDoubleRangeUniform(-10, 10) for the height (terrain 7 + 50 + 3 = 60) at the tract centre (32, 32); one effect per tract. Draw 1.5 -> nothing, and the second wealth draws too.",
+  "steps": [
+    {"op": "residential_env", "altitude": 7},
+    {"op": "residential_create", "rng": {"draws": [1.2, 3.0]}},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_clear_events"},
+    {"op": "residential_tract", "x": 0, "z": 0, "steady": [100, 100, 0], "hq": [1.2, 1.2, 0]},
+    {"op": "residential_call", "method": "do_population_change", "args": [0, 0]},
+    {"op": "residential_expect_events", "events": [{"event": "rng", "lo": 0, "hi": 100, "value": 1.2}, {"event": "effect", "name": "buzzards"}, {"event": "rng", "lo": -10, "hi": 10, "value": 3}, {"event": "transform", "effect": 500, "pos": [32, 60, 32]}, {"event": "start_effect", "effect": 500}, {"event": "get_month"}]},
+    {"op": "residential_create", "rng": {"draws": [1.5, 1.5]}},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_clear_events"},
+    {"op": "residential_tract", "x": 0, "z": 0, "steady": [100, 100, 0], "hq": [1.2, 1.2, 0]},
+    {"op": "residential_call", "method": "do_population_change", "args": [0, 0]},
+    {"op": "residential_expect_events", "events": [{"event": "rng", "lo": 0, "hi": 100, "value": 1.5}, {"event": "rng", "lo": 0, "hi": 100, "value": 1.5}, {"event": "get_month"}]}
+  ]
+}

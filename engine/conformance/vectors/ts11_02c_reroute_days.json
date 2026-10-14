@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "ts11_02c_reroute_days",
+  "spec": [
+    "traffic-simulator 3.3",
+    "traffic-simulator 4.4",
+    "traffic-simulator 11.2"
+  ],
+  "description": "Conformance test 2 (§11): toReRoute = 17 at the start of ReRouteTrips gives days = 1 (total 17).",
+  "steps": [
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "cycle_state": 16,
+        "to_reroute": 17
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_daily_simulation",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "cycle_state": 17,
+        "total": 17,
+        "days": 1
+      }
+    }
+  ]
+}
