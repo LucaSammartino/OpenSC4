@@ -2546,7 +2546,11 @@ answer is in brackets.
   holder keeps the caller's object (AddRef) and returns it borrowed; callers write its variant in place
   (foundations §10.2, "Ownership"). With copies, the traffic simulator's trip-capacity store used a freed
   property and the game crashed.
-- **NG2:** Object-valued properties on our connection objects. [dropped from the core sync]
+- ~~**NG2:** Object-valued properties on our connection objects. [dropped from the core sync]~~
+  **ANSWERED 2026-10-14** from the exe (holder slot 11 `0x005FF950`; the connection properties seen in samples and
+  code) and written into neighbors §15.4. The original holder keeps an object-valued property (a reference), returns
+  it through slots 6 and 9, writes it as a reference on save and drops it on load. No shipped code puts one on a
+  connection. The bracket is fine for the core sync and the save, as long as the game-facing holder keeps the object.
 - ~~**NG3:** Does the region reach our connection objects non-virtually (by field offset)? [unknown; the risk is noted]~~
   **ANSWERED 2026-10-14** from the exe (image-wide scan for direct calls and pointers to the class's methods; vtable
   constants only in `0x006D4680`/`0x006D4BB0`; field-read scan of the 66 connection users and the 55 readers of

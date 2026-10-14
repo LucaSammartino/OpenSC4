@@ -914,6 +914,28 @@ to the source's own STL `std::list<cSC4TripData>` (allocator B), and the traffic
 (traffic-simulator.md §4.1, §7). A FreeCity4 connection must therefore own a list of that exact STL layout, as it
 already does. Everything else about the object's memory is free.
 
+### 15.4 Original behaviour behind the glue's choices (NG2–NG34) *[compat]*
+
+The neighbours glue (`cFC4NeighborsSimulator`, `FC4NeighboursShadow`) made a choice wherever the spec was silent.
+Each item below gives what the original does, then whether that choice matches. Items marked *glue* have no
+original behaviour behind them; the implementer's choice stands.
+
+**NG2. Object-valued properties on a connection.** The original connection's holder is the plain holder of
+foundations §10.2. `AddProperty(id, cIGZUnknown*, bool)` (holder slot 11, `0x005FF950`) stores the object in the
+property's variant and keeps a reference to it. `GetProperty(id, riid, &ppv)` (slot 6) and `GetProperty(id)` (slot 9)
+return it like any other value. On save the holder writes it as a reference (marker `0xA9BEE9AC`, foundations §9.2,
+§10.2), so the object also gets its own record in the save. On load the holder drops it. No shipped code adds an
+object-valued property to a connection. The properties seen on connections in the sample saves are the traffic
+arrays `0x8A0B4100` and `0xAA9EA81A`–`0xAA9EA81F` and the float `0xCA947077` (foundations §10.6 (b)), all plain
+values.
+
+- While the city runs, the game-facing holder must keep such a property like any other (a mod may add one and read
+  it back). Dropping it there would be visible.
+- Leaving it out of the core mirror and out of the save is invisible to any reader: the original drops it on load.
+  Only the bytes of the save differ, and only when a mod has added one.
+- So the bracket "dropped from the core sync" matches the original for every shipped path, provided the holder
+  that game code calls still keeps the object until the property is removed or the connection dies.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
