@@ -214,6 +214,20 @@ verified is that 5 is the levelling reason, and that the only routes to a `data4
 | `0x66956816` SimNewMonth | `DoMonthlySimulation` (§4.7.1). |
 | `0xC6CDBF1A` PreViewLevelChange | Only if the zone list is non-empty. `level := view3D.GetCurrentViewLevel()` (the 3D view stores the **new** level before sending this message). For each zone with a seagull effect: if `level = 1` and the effect is not started → `Start(0)`; if `level ≠ 1` and it is started → `Stop(1)`. Rendering only. |
 
+**The 3D view** (LG16; `0x006BA07F`–`0x006BA0D5`). The PreViewLevelChange handler reads the view from the global
+`0x00B43DC4` and calls its slot 22 (`GetCurrentViewLevel`). It does not check for null *[quirk]*: with landfill
+zones and no 3D view, the message crashes.
+- `cSC4View3DWin::Init` stores the view in that global through `SL::OnView3DCreate` (`0x00602120`) and gives it
+  window ID `0x9A47B417`.
+- `SL::OnView3DShutdown` clears the global.
+- Per zone with a seagull effect, `level = 1` calls the effect's slot 3 with 0 when its slot 5 says it is not
+  running; any other level calls slot 4 with 1 when it is.
+
+The same object can be reached through public interfaces. `cISC4App::GetMainWindow()`, then
+`GetChildWindowFromID(0x6104489A)`, then `GetChildAs(0x9A47B417, 0xFA47B3F9, &view)` gives the
+`cISC4View3DWin`. The SDK's `SC4UI::GetView3DWin()` does exactly this. *[choice]* Glue can use that route, and should
+skip the effect toggles when it returns null.
+
 ### 3.3 Ordering within the month level (foundations §13)
 
 The original runs month agents in object-address order. In the logged sessions the landfill developer has

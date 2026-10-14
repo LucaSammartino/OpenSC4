@@ -1288,7 +1288,12 @@ before and after). The glue's current answer is in brackets.
   **five** services, all with `AddRef` from the global service pointers: city, terrain, pollution, budget and message
   server. It does not hold the simulator. **The bracket is acceptable**: only reference counts differ, because each
   per-call fetch names the same object for the city's life. Written into landfill.md §1.1.
-- **LG16:** the 3D view level is not reachable through a documented interface. [not done]
+- ~~**LG16:** the 3D view level is not reachable through a documented interface. [not done]~~ **ANSWERED 2026-10-14**
+  from the exe (`0x006BA07F`–`0x006BA0D5`; `SL::OnView3DCreate` `0x00602120`). The original uses the 3D view global
+  `0x00B43DC4`, slot 22, with no null check. The same view **is** reachable through public interfaces: app main window,
+  then child `0x6104489A`, then `GetChildAs(0x9A47B417, cISC4View3DWin 0xFA47B3F9)`, as the SDK's
+  `SC4UI::GetView3DWin()` does. **"Not done" does not match** (the seagulls never toggle), but the effect is rendering
+  only. Written into landfill.md §3.2.
 - **LG17:** the traffic network map comes through city slot 40 (`GetTrafficNetwork`, `intptr_t` in the SDK). Right?
 - **LG18 — §1.1/§1.2:** which simulator does the original use for AddAgent before services are acquired? [the app's
   city's simulator, held until RemoveAgent]
