@@ -979,8 +979,8 @@ cSC4PropOccupant::vftable_2	00a87238	4	+0x10	00458800	cSC4PropOccupant::Shutdown
 cSC4PropOccupant::vftable_2	00a87238	5	+0x14	00458a40	cSC4Occupant::IsInitialized	0	0	eax-or-void	medium	
 cSC4PropOccupant::vftable_2	00a87238	6	+0x18	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
 cSC4PropOccupant::vftable_2	00a87238	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
-cSC4PropOccupant::vftable_2	00a87238	8	+0x20	00458ba0	cSC4PropOccupant::GetPosition	4	1	x87	high	
-cSC4PropOccupant::vftable_2	00a87238	9	+0x24	00458bd0	cSC4PropOccupant::SetPosition	4	1	x87	high	
+cSC4PropOccupant::vftable_2	00a87238	8	+0x20	00458ba0	cSC4PropOccupant::GetPosition	4	1	eax-or-void	medium	
+cSC4PropOccupant::vftable_2	00a87238	9	+0x24	00458bd0	cSC4PropOccupant::SetPosition	4	1	eax-or-void	medium	
 cSC4PropOccupant::vftable_2	00a87238	10	+0x28	00458c30	cSC4PropOccupant::GetBoundingBox	8	2	eax-or-void	medium	
 cSC4PropOccupant::vftable_2	00a87238	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
 cSC4PropOccupant::vftable_2	00a87238	12	+0x30	005e8a60	cSC4Occupant::SetRemovalFlags	4	1	eax-or-void	medium	
@@ -1132,8 +1132,8 @@ cSC4City::vftable	00a87620	92	+0x170	0045a3a0	cSC4City::CellWidthZ	0	0	x87	high
 cSC4City::vftable	00a87620	93	+0x174	007c1910	icf::cSC43DRender::GetLightingManager	0	0	eax-or-void	medium	
 cSC4City::vftable	00a87620	94	+0x178	004e82a0	icf::cSC43DRender::GetDrawContext	0	0	eax-or-void	medium	
 cSC4City::vftable	00a87620	95	+0x17C	004599e0	cSC4City::PositionToCell	16	4	eax-or-void	medium	
-cSC4City::vftable	00a87620	96	+0x180	00459410	cSC4City::CellCornerToPosition	16	4	x87	high	
-cSC4City::vftable	00a87620	97	+0x184	00459440	cSC4City::CellCenterToPosition	16	4	x87	high	
+cSC4City::vftable	00a87620	96	+0x180	00459410	cSC4City::CellCornerToPosition	16	4	eax-or-void	medium	
+cSC4City::vftable	00a87620	97	+0x184	00459440	cSC4City::CellCenterToPosition	16	4	eax-or-void	medium	
 cSC4City::vftable	00a87620	98	+0x188	00459470	cSC4City::LocationIsInBounds	8	2	eax-or-void	medium	
 cSC4City::vftable	00a87620	99	+0x18C	004594d0	cSC4City::CellIsInBounds	8	2	eax-or-void	medium	
 cSC4City::vftable	00a87620	100	+0x190	00459500	cSC4City::CellCornerIsInBounds	8	2	eax-or-void	medium	
@@ -1370,7 +1370,7 @@ cSC4FloraOccupant::vftable_1	00a88580	6	+0x18	006c2040	icf::cSC4DBSegment::AsIGZ
 cSC4FloraOccupant::vftable_1	00a88580	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
 cSC4FloraOccupant::vftable_1	00a88580	8	+0x20	005d6360	icf::cSC4FloraOccupant::GetPosition	4	1	eax-or-void	medium	
 cSC4FloraOccupant::vftable_1	00a88580	9	+0x24	005d6380	icf::cSC4FloraOccupant::SetPosition	4	1	eax-or-void	medium	
-cSC4FloraOccupant::vftable_1	00a88580	10	+0x28	00472ab0	cSC4FloraOccupant::GetBoundingBox	8	2	x87	high	
+cSC4FloraOccupant::vftable_1	00a88580	10	+0x28	00472ab0	cSC4FloraOccupant::GetBoundingBox	8	2	eax-or-void	medium	
 cSC4FloraOccupant::vftable_1	00a88580	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
 cSC4FloraOccupant::vftable_1	00a88580	12	+0x30	005e8a60	cSC4Occupant::SetRemovalFlags	4	1	eax-or-void	medium	
 cSC4FloraOccupant::vftable_1	00a88580	13	+0x34	005e8aa0	cSC4Occupant::UnsetRemovalFlags	4	1	eax-or-void	medium	
@@ -1406,9 +1406,9 @@ cSC4HistoryWarehouse::vftable	00a8ccb4	2	+0x8	00476aa0	cSC4HistoryWarehouse::Rel
 cSC4HistoryWarehouse::vftable	00a8ccb4	3	+0xC	004766f0	cSC4HistoryWarehouse::Init	0	0	eax-or-void	medium	
 cSC4HistoryWarehouse::vftable	00a8ccb4	4	+0x10	004758d0	cSC4HistoryWarehouse::Shutdown	0	0	eax-or-void	medium	
 cSC4HistoryWarehouse::vftable	00a8ccb4	5	+0x14	00476160	cSC4HistoryWarehouse::GetCount	16	4	eax-or-void	medium	
-cSC4HistoryWarehouse::vftable	00a8ccb4	6	+0x18	004761f0	cSC4HistoryWarehouse::GetTrend	20	5	x87|eax	low	
+cSC4HistoryWarehouse::vftable	00a8ccb4	6	+0x18	004761f0	cSC4HistoryWarehouse::GetTrend	20	5	eax-or-void	medium	
 cSC4HistoryWarehouse::vftable	00a8ccb4	7	+0x1C	00476280	cSC4HistoryWarehouse::GetMinMaxAverage	24	6	eax-or-void	medium	
-cSC4HistoryWarehouse::vftable	00a8ccb4	8	+0x20	00476490	cSC4HistoryWarehouse::GetPoint	12	3	x87|eax	low	
+cSC4HistoryWarehouse::vftable	00a8ccb4	8	+0x20	00476490	cSC4HistoryWarehouse::GetPoint	12	3	eax-or-void	medium	
 cSC4HistoryWarehouse::vftable	00a8ccb4	9	+0x24	00476520	cSC4HistoryWarehouse::Coalesce	16	4	eax-or-void	medium	
 cSC4HistoryWarehouse::vftable	00a8ccb4	10	+0x28	00476650	cSC4HistoryWarehouse::Dispose	4	1	eax-or-void	medium	
 cSC4HistoryWarehouse::vftable	00a8ccb4	11	+0x2C	004765c0	cSC4HistoryWarehouse::Dispose	12	3	eax-or-void	medium	
@@ -1423,7 +1423,7 @@ cSC4PowerLineOccupant::vftable_1	00a8cda0	5	+0x14	00458a40	cSC4Occupant::IsIniti
 cSC4PowerLineOccupant::vftable_1	00a8cda0	6	+0x18	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
 cSC4PowerLineOccupant::vftable_1	00a8cda0	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
 cSC4PowerLineOccupant::vftable_1	00a8cda0	8	+0x20	005b2b00	cSC4PowerLineOccupant::GetPosition	4	1	eax-or-void	medium	
-cSC4PowerLineOccupant::vftable_1	00a8cda0	9	+0x24	00477600		4	1	x87	high	
+cSC4PowerLineOccupant::vftable_1	00a8cda0	9	+0x24	00477600		4	1	eax-or-void	medium	
 cSC4PowerLineOccupant::vftable_1	00a8cda0	10	+0x28	00477420		8	2	eax-or-void	medium	
 cSC4PowerLineOccupant::vftable_1	00a8cda0	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
 cSC4PowerLineOccupant::vftable_1	00a8cda0	12	+0x30	005e8a60	cSC4Occupant::SetRemovalFlags	4	1	eax-or-void	medium	
@@ -2162,7 +2162,7 @@ cSC4ToxicOccupant::vftable_1	00a8fd20	6	+0x18	006c2040	icf::cSC4DBSegment::AsIGZ
 cSC4ToxicOccupant::vftable_1	00a8fd20	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
 cSC4ToxicOccupant::vftable_1	00a8fd20	8	+0x20	004adb30	cSC4ToxicOccupant::GetPosition	4	1	eax-or-void	medium	
 cSC4ToxicOccupant::vftable_1	00a8fd20	9	+0x24	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
-cSC4ToxicOccupant::vftable_1	00a8fd20	10	+0x28	004adae0	cSC4ToxicOccupant::GetBoundingBox	8	2	x87	high	
+cSC4ToxicOccupant::vftable_1	00a8fd20	10	+0x28	004adae0	cSC4ToxicOccupant::GetBoundingBox	8	2	eax-or-void	medium	
 cSC4ToxicOccupant::vftable_1	00a8fd20	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
 cSC4ToxicOccupant::vftable_1	00a8fd20	12	+0x30	005e8a60	cSC4Occupant::SetRemovalFlags	4	1	eax-or-void	medium	
 cSC4ToxicOccupant::vftable_1	00a8fd20	13	+0x34	005e8aa0	cSC4Occupant::UnsetRemovalFlags	4	1	eax-or-void	medium	
@@ -3276,9 +3276,9 @@ cSC4AutomataController::vftable	00a95d90	16	+0x40	005d4a10	_purecall			pure
 cSC4AutomataController::vftable	00a95d90	17	+0x44	00602f90	cSLString::SetKey	4	1	eax-or-void	medium	
 cSC4AutomataController::vftable	00a95d90	18	+0x48	00516aa0	cSC4AutomataController::Activate	4	1	eax-or-void	medium	
 cSC4AutomataController::vftable	00a95d90	19	+0x4C	00517ef0	cSC4AutomataController::SetLifetime	4	1	eax-or-void	medium	
-cSC4AutomataController::vftable	00a95d90	20	+0x50	00516ec0	cSC4AutomataController::GetOccupantBoundingBox	8	2	x87|eax	low	
+cSC4AutomataController::vftable	00a95d90	20	+0x50	00516ec0	cSC4AutomataController::GetOccupantBoundingBox	8	2	eax-or-void	medium	
 cSC4AutomataController::vftable	00a95d90	21	+0x54	00515bd0	cSC4AutomataController::GetBoundingBox	8	2	via-call	low	
-cSC4AutomataController::vftable	00a95d90	22	+0x58	00516c40	cSC4AutomataController::GetLotFacingPoint	4	1	x87|eax	low	indirect-jump dword ptr [eax*4 + 0x516ea4]
+cSC4AutomataController::vftable	00a95d90	22	+0x58	00516c40	cSC4AutomataController::GetLotFacingPoint	4	1	eax-or-void	medium	indirect-jump dword ptr [eax*4 + 0x516ea4]
 cSC4AutomataController::vftable	00a95d90	23	+0x5C	00515a80	cSC4AutomataController::IsPointWithinRadius	8	2	eax-or-void	medium	
 cSC4AutomataController::vftable	00a95d90	24	+0x60	006f7dc0	icf::cSC4AutomataController::CheckTimeOfDay	8	2	unknown	low	
 cSC4AutomataController::vftable	00a95d90	25	+0x64	00516b40	cSC4AutomataController::CheckEffectTriggers	0	0	eax-or-void	medium	
@@ -3316,9 +3316,9 @@ cSC4AutomataAttractor::vftable	00a95e48	16	+0x40	00518a00	cSC4AutomataAttractor:
 cSC4AutomataAttractor::vftable	00a95e48	17	+0x44	00602f90	cSLString::SetKey	4	1	eax-or-void	medium	
 cSC4AutomataAttractor::vftable	00a95e48	18	+0x48	00516aa0	cSC4AutomataController::Activate	4	1	eax-or-void	medium	
 cSC4AutomataAttractor::vftable	00a95e48	19	+0x4C	00517ef0	cSC4AutomataController::SetLifetime	4	1	eax-or-void	medium	
-cSC4AutomataAttractor::vftable	00a95e48	20	+0x50	00516ec0	cSC4AutomataController::GetOccupantBoundingBox	8	2	x87|eax	low	
+cSC4AutomataAttractor::vftable	00a95e48	20	+0x50	00516ec0	cSC4AutomataController::GetOccupantBoundingBox	8	2	eax-or-void	medium	
 cSC4AutomataAttractor::vftable	00a95e48	21	+0x54	00515bd0	cSC4AutomataController::GetBoundingBox	8	2	via-call	low	
-cSC4AutomataAttractor::vftable	00a95e48	22	+0x58	00516c40	cSC4AutomataController::GetLotFacingPoint	4	1	x87|eax	low	indirect-jump dword ptr [eax*4 + 0x516ea4]
+cSC4AutomataAttractor::vftable	00a95e48	22	+0x58	00516c40	cSC4AutomataController::GetLotFacingPoint	4	1	eax-or-void	medium	indirect-jump dword ptr [eax*4 + 0x516ea4]
 cSC4AutomataAttractor::vftable	00a95e48	23	+0x5C	00515a80	cSC4AutomataController::IsPointWithinRadius	8	2	eax-or-void	medium	
 cSC4AutomataAttractor::vftable	00a95e48	24	+0x60	006f7dc0	icf::cSC4AutomataController::CheckTimeOfDay	8	2	unknown	low	
 cSC4AutomataAttractor::vftable	00a95e48	25	+0x64	00516b40	cSC4AutomataController::CheckEffectTriggers	0	0	eax-or-void	medium	
@@ -3356,9 +3356,9 @@ cSC4AutomataGenerator::vftable	00a95f00	16	+0x40	00518a20	cSC4AutomataGenerator:
 cSC4AutomataGenerator::vftable	00a95f00	17	+0x44	00602f90	cSLString::SetKey	4	1	eax-or-void	medium	
 cSC4AutomataGenerator::vftable	00a95f00	18	+0x48	00517240	cSC4AutomataGenerator::Activate	4	1	eax-or-void	medium	
 cSC4AutomataGenerator::vftable	00a95f00	19	+0x4C	00517ef0	cSC4AutomataController::SetLifetime	4	1	eax-or-void	medium	
-cSC4AutomataGenerator::vftable	00a95f00	20	+0x50	00516ec0	cSC4AutomataController::GetOccupantBoundingBox	8	2	x87|eax	low	
+cSC4AutomataGenerator::vftable	00a95f00	20	+0x50	00516ec0	cSC4AutomataController::GetOccupantBoundingBox	8	2	eax-or-void	medium	
 cSC4AutomataGenerator::vftable	00a95f00	21	+0x54	00515bd0	cSC4AutomataController::GetBoundingBox	8	2	via-call	low	
-cSC4AutomataGenerator::vftable	00a95f00	22	+0x58	00516c40	cSC4AutomataController::GetLotFacingPoint	4	1	x87|eax	low	indirect-jump dword ptr [eax*4 + 0x516ea4]
+cSC4AutomataGenerator::vftable	00a95f00	22	+0x58	00516c40	cSC4AutomataController::GetLotFacingPoint	4	1	eax-or-void	medium	indirect-jump dword ptr [eax*4 + 0x516ea4]
 cSC4AutomataGenerator::vftable	00a95f00	23	+0x5C	00515a80	cSC4AutomataController::IsPointWithinRadius	8	2	eax-or-void	medium	
 cSC4AutomataGenerator::vftable	00a95f00	24	+0x60	00515200	cSC4AutomataGenerator::CheckTimeOfDay	8	2	eax-or-void	medium	
 cSC4AutomataGenerator::vftable	00a95f00	25	+0x64	00516b40	cSC4AutomataController::CheckEffectTriggers	0	0	eax-or-void	medium	
@@ -3377,7 +3377,7 @@ cSC4AutomataGenerator::vftable	00a95f00	37	+0x94	00518330	cSC4AutomataController
 cSC4AutomataGenerator::vftable	00a95f00	38	+0x98	00515e60	cSC4AutomataGenerator::DoAnimationTick	12	3	eax-or-void	medium	indirect-jump dword ptr [eax*4 + 0x515ff8]
 cSC4AutomataGenerator::vftable	00a95f00	39	+0x9C	00519340	icf::cSC4AutomataController::Write	0	0	unknown	low	
 cSC4AutomataGenerator::vftable	00a95f00	40	+0xA0	00518340		4	1	eax-or-void	medium	
-cSC4AutomataGenerator::vftable	00a95f00	41	+0xA4	005198a0	cSC4AutomataGenerator::TriggerGenerator	8	2	x87|eax	low	
+cSC4AutomataGenerator::vftable	00a95f00	41	+0xA4	005198a0	cSC4AutomataGenerator::TriggerGenerator	8	2	eax-or-void	medium	
 cSC4AutomataControllerManager::vftable_3	00a96020	0	+0x0	0051a340		8	2	eax-or-void	medium	tail->00514d10
 cSC4AutomataControllerManager::vftable_3	00a96020	1	+0x4	00520110		0	0	eax-or-void	medium	tail->00695330
 cSC4AutomataControllerManager::vftable_3	00a96020	2	+0x8	0051b3d0		0	0	eax-or-void	medium	tail->0051b1c0
@@ -3841,7 +3841,7 @@ cSC4PathInfo::vftable	00a99e70	6	+0x18	0053e150	cSC4PathInfo::GetPathsNearStartP
 cSC4PathInfo::vftable	00a99e70	7	+0x1C	0053e350	cSC4PathInfo::GetPathsNearEndPoint	24	6	eax-or-void	medium	
 cSC4PathInfo::vftable	00a99e70	8	+0x20	0053fa40	cSC4PathInfo::GetRandomPath	20	5	eax-or-void	medium	
 cSC4PathInfo::vftable	00a99e70	9	+0x24	0053fb80	cSC4PathInfo::GetRandomPathWildcard	24	6	eax-or-void	medium	
-cSC4PathInfo::vftable	00a99e70	10	+0x28	0053dd90	cSC4PathInfo::GetPathLength	4	1	x87|eax	low	
+cSC4PathInfo::vftable	00a99e70	10	+0x28	0053dd90	cSC4PathInfo::GetPathLength	4	1	x87	high	
 cSC4PathInfo::vftable	00a99e70	11	+0x2C	0053d030	cSC4PathInfo::GetPathLength	16	4	via-call	low	
 cSC4PathInfo::vftable	00a99e70	12	+0x30	0053eaa0	cSC4PathInfo::GetLaneCount	12	3	eax-or-void	medium	
 cSC4PathInfo::vftable	00a99e70	13	+0x34	0053d0a0	cSC4PathInfo::IsIntersection	4	1	eax-or-void	medium	
@@ -3850,7 +3850,7 @@ cSC4PathInfo::vftable	00a99e70	15	+0x3C	0053e990	cSC4PathInfo::GetPathsToExitEdg
 cSC4PathInfo::vftable	00a99e70	16	+0x40	005403a0	cSC4PathInfo::UseElevation	0	0	eax-or-void	medium	
 cSC4PathInfo::vftable	00a99e70	17	+0x44	005403b0	cSC4PathInfo::SetUseElevationFlag	4	1	eax-or-void	medium	
 cSC4PathInfo::vftable	00a99e70	18	+0x48	0053d6c0	cSC4PathInfo::GetDestinationPoint	16	4	eax-or-void	medium	
-cSC4PathInfo::vftable	00a99e70	19	+0x4C	0053d2e0	cSC4PathInfo::SnapPointToPath	8	2	x87|eax	low	
+cSC4PathInfo::vftable	00a99e70	19	+0x4C	0053d2e0	cSC4PathInfo::SnapPointToPath	8	2	eax-or-void	medium	
 cSC4PathInfo::vftable	00a99e70	20	+0x50	0053ece0	cSC4PathInfo::SnapPointToAnyPath	12	3	eax-or-void	medium	
 cSC4PathInfo::vftable	00a99e70	21	+0x54	0053ee90	cSC4PathInfo::GetDispatchDestination	16	4	eax-or-void	medium	
 cSC4PathInfo::vftable	00a99e70	22	+0x58	0053d890	cSC4PathInfo::GetPathMidpoint	8	2	eax-or-void	medium	
@@ -4937,9 +4937,9 @@ cSC4ViewInputControlTorch::vftable	00a9eb40	29	+0x74	005fb0e0	icf::cSC4MySimInpu
 cSC4DecalEffect::vftable	00a9ee78	0	+0x0	00582090	cSC4DecalEffect::Start	4	1	eax-or-void	medium	
 cSC4DecalEffect::vftable	00a9ee78	1	+0x4	00581ff0	cSC4DecalEffect::Stop	4	1	eax-or-void	medium	
 cSC4DecalEffect::vftable	00a9ee78	2	+0x8	008264b0	cSC4DecalEffect::IsStarted	0	0	eax-or-void	medium	
-cSC4DecalEffect::vftable	00a9ee78	3	+0xC	00582600	cSC4DecalEffect::SetTransforms	8	2	x87|eax	low	
+cSC4DecalEffect::vftable	00a9ee78	3	+0xC	00582600	cSC4DecalEffect::SetTransforms	8	2	eax-or-void	medium	
 cSC4DecalEffect::vftable	00a9ee78	4	+0x10	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
-cSC4DecalEffect::vftable	00a9ee78	5	+0x14	00582f00	cSC4DecalEffect::SetFloatParams	12	3	x87|eax	low	
+cSC4DecalEffect::vftable	00a9ee78	5	+0x14	00582f00	cSC4DecalEffect::SetFloatParams	12	3	eax-or-void	medium	
 cSC4DecalEffect::vftable	00a9ee78	6	+0x18	00582040	cSC4DecalEffect::SetVoidParams	12	3	eax-or-void	medium	
 cSC4DecalEffect::vftable	00a9ee78	7	+0x1C	005f47f0	icf::cGZCommandSystemSupport::AddRef	0	0	eax-or-void	medium	
 cSC4DecalEffect::vftable	00a9ee78	8	+0x20	005833a0	cSC4DecalEffect::Release	0	0	eax-or-void	medium	
@@ -5230,7 +5230,7 @@ cSC4ConstructionOccupant::vftable_2	00aa21b8	4	+0x10	005d0ce0	cSC4ConstructionOc
 cSC4ConstructionOccupant::vftable_2	00aa21b8	5	+0x14	00458a40	cSC4Occupant::IsInitialized	0	0	eax-or-void	medium	
 cSC4ConstructionOccupant::vftable_2	00aa21b8	6	+0x18	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
 cSC4ConstructionOccupant::vftable_2	00aa21b8	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
-cSC4ConstructionOccupant::vftable_2	00aa21b8	8	+0x20	005ca7d0	cSC4ConstructionOccupant::GetPosition	4	1	x87	high	
+cSC4ConstructionOccupant::vftable_2	00aa21b8	8	+0x20	005ca7d0	cSC4ConstructionOccupant::GetPosition	4	1	eax-or-void	medium	
 cSC4ConstructionOccupant::vftable_2	00aa21b8	9	+0x24	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
 cSC4ConstructionOccupant::vftable_2	00aa21b8	10	+0x28	005ca820	cSC4ConstructionOccupant::GetBoundingBox	8	2	eax-or-void	medium	
 cSC4ConstructionOccupant::vftable_2	00aa21b8	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
@@ -5452,7 +5452,7 @@ cSC4FoundationOccupant::vftable_1	00aa2918	6	+0x18	006c2040	icf::cSC4DBSegment::
 cSC4FoundationOccupant::vftable_1	00aa2918	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
 cSC4FoundationOccupant::vftable_1	00aa2918	8	+0x20	005d6360	icf::cSC4FloraOccupant::GetPosition	4	1	eax-or-void	medium	
 cSC4FoundationOccupant::vftable_1	00aa2918	9	+0x24	005d6380	icf::cSC4FloraOccupant::SetPosition	4	1	eax-or-void	medium	
-cSC4FoundationOccupant::vftable_1	00aa2918	10	+0x28	005d63a0	cSC4FoundationOccupant::GetBoundingBox	8	2	x87	high	
+cSC4FoundationOccupant::vftable_1	00aa2918	10	+0x28	005d63a0	cSC4FoundationOccupant::GetBoundingBox	8	2	eax-or-void	medium	
 cSC4FoundationOccupant::vftable_1	00aa2918	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
 cSC4FoundationOccupant::vftable_1	00aa2918	12	+0x30	005e8a60	cSC4Occupant::SetRemovalFlags	4	1	eax-or-void	medium	
 cSC4FoundationOccupant::vftable_1	00aa2918	13	+0x34	005e8aa0	cSC4Occupant::UnsetRemovalFlags	4	1	eax-or-void	medium	
@@ -5540,7 +5540,7 @@ cSC4LotBaseTextureOccupant::vftable_1	00aa2d90	4	+0x10	005dea60	cSC4LotBaseTextu
 cSC4LotBaseTextureOccupant::vftable_1	00aa2d90	5	+0x14	00458a40	cSC4Occupant::IsInitialized	0	0	eax-or-void	medium	
 cSC4LotBaseTextureOccupant::vftable_1	00aa2d90	6	+0x18	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
 cSC4LotBaseTextureOccupant::vftable_1	00aa2d90	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
-cSC4LotBaseTextureOccupant::vftable_1	00aa2d90	8	+0x20	005ded20	cSC4LotBaseTextureOccupant::GetPosition	4	1	x87	high	
+cSC4LotBaseTextureOccupant::vftable_1	00aa2d90	8	+0x20	005ded20	cSC4LotBaseTextureOccupant::GetPosition	4	1	eax-or-void	medium	
 cSC4LotBaseTextureOccupant::vftable_1	00aa2d90	9	+0x24	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
 cSC4LotBaseTextureOccupant::vftable_1	00aa2d90	10	+0x28	005ded60	icf::cSC4LotBaseTextureOccupant::GetBoundingBox	8	2	eax-or-void	medium	
 cSC4LotBaseTextureOccupant::vftable_1	00aa2d90	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
@@ -5638,7 +5638,7 @@ cSC4PowerLineOccupant::vftable_1	00aa2ff8	6	+0x18	006c2040	icf::cSC4DBSegment::A
 cSC4PowerLineOccupant::vftable_1	00aa2ff8	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
 cSC4PowerLineOccupant::vftable_1	00aa2ff8	8	+0x20	007ff230	cS3DCamera::GetPosition	4	1	eax-or-void	medium	
 cSC4PowerLineOccupant::vftable_1	00aa2ff8	9	+0x24	005e2c10		4	1	eax-or-void	medium	
-cSC4PowerLineOccupant::vftable_1	00aa2ff8	10	+0x28	005e2c30		8	2	x87	high	
+cSC4PowerLineOccupant::vftable_1	00aa2ff8	10	+0x28	005e2c30		8	2	eax-or-void	medium	
 cSC4PowerLineOccupant::vftable_1	00aa2ff8	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
 cSC4PowerLineOccupant::vftable_1	00aa2ff8	12	+0x30	005e8a60	cSC4Occupant::SetRemovalFlags	4	1	eax-or-void	medium	
 cSC4PowerLineOccupant::vftable_1	00aa2ff8	13	+0x34	005e8aa0	cSC4Occupant::UnsetRemovalFlags	4	1	eax-or-void	medium	
@@ -5752,8 +5752,8 @@ cSC4PropOccupantTerrainDecal::vftable_3	00aa4698	4	+0x10	005ee4b0	cSC4PropOccupa
 cSC4PropOccupantTerrainDecal::vftable_3	00aa4698	5	+0x14	00458a40	cSC4Occupant::IsInitialized	0	0	eax-or-void	medium	
 cSC4PropOccupantTerrainDecal::vftable_3	00aa4698	6	+0x18	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
 cSC4PropOccupantTerrainDecal::vftable_3	00aa4698	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
-cSC4PropOccupantTerrainDecal::vftable_3	00aa4698	8	+0x20	005ed1f0		4	1	x87	high	
-cSC4PropOccupantTerrainDecal::vftable_3	00aa4698	9	+0x24	005ee6d0	cSC4PropOccupantTerrainDecal::SetPosition	4	1	x87	high	
+cSC4PropOccupantTerrainDecal::vftable_3	00aa4698	8	+0x20	005ed1f0		4	1	eax-or-void	medium	
+cSC4PropOccupantTerrainDecal::vftable_3	00aa4698	9	+0x24	005ee6d0	cSC4PropOccupantTerrainDecal::SetPosition	4	1	eax-or-void	medium	
 cSC4PropOccupantTerrainDecal::vftable_3	00aa4698	10	+0x28	005ded60	icf::cSC4LotBaseTextureOccupant::GetBoundingBox	8	2	eax-or-void	medium	
 cSC4PropOccupantTerrainDecal::vftable_3	00aa4698	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
 cSC4PropOccupantTerrainDecal::vftable_3	00aa4698	12	+0x30	005e8a60	cSC4Occupant::SetRemovalFlags	4	1	eax-or-void	medium	
@@ -5792,7 +5792,7 @@ cSC4PropOccupantTerrainDecal::vftable_1	00aa4730	10	+0x28	005ec9e0	icf::cSC4Prop
 cSC4PropOccupantTerrainDecal::vftable_1	00aa4730	11	+0x2C	005ed290	cSC4PropOccupant::SetState	4	1	eax-or-void	medium	
 cSC4PropOccupantTerrainDecal::vftable_1	00aa4730	12	+0x30	005ed560	cSC4PropOccupant::GetState	0	0	eax-or-void	medium	
 cSC4PropOccupantTerrainDecal::vftable_1	00aa4730	13	+0x34	005ed400	cSC4PropOccupant::SetTimeOfDayRange	8	2	eax-or-void	medium	
-cSC4PropOccupantTerrainDecal::vftable_1	00aa4730	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	x87	high	
+cSC4PropOccupantTerrainDecal::vftable_1	00aa4730	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	eax-or-void	medium	
 cSC4PropOccupantTerrainDecal::vftable_1	00aa4730	15	+0x3C	005eeff0	cSC4PropOccupant::SetSimulatorDateRange	16	4	via-call	low	
 cSC4PropOccupantTerrainDecal::vftable_1	00aa4730	16	+0x40	005ee230	cSC4PropOccupant::TickSimulatorDate	4	1	eax-or-void	medium	
 cSC4PropOccupantTerrainDecal::vftable_1	00aa4730	17	+0x44	007c2740	icf::cSC43DRender::EnableTransparentBackground	4	1	eax-or-void	medium	
@@ -5848,8 +5848,8 @@ cSC4PropOccupant::vftable_2	00aa4868	4	+0x10	005ee160		0	0	eax-or-void	medium	ta
 cSC4PropOccupant::vftable_2	00aa4868	5	+0x14	00458a40	cSC4Occupant::IsInitialized	0	0	eax-or-void	medium	
 cSC4PropOccupant::vftable_2	00aa4868	6	+0x18	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
 cSC4PropOccupant::vftable_2	00aa4868	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
-cSC4PropOccupant::vftable_2	00aa4868	8	+0x20	005ed1f0		4	1	x87	high	
-cSC4PropOccupant::vftable_2	00aa4868	9	+0x24	005ede00	cS3DBoundingBox::Translate	4	1	x87	high	
+cSC4PropOccupant::vftable_2	00aa4868	8	+0x20	005ed1f0		4	1	eax-or-void	medium	
+cSC4PropOccupant::vftable_2	00aa4868	9	+0x24	005ede00	cS3DBoundingBox::Translate	4	1	eax-or-void	medium	
 cSC4PropOccupant::vftable_2	00aa4868	10	+0x28	005ded60	icf::cSC4LotBaseTextureOccupant::GetBoundingBox	8	2	eax-or-void	medium	
 cSC4PropOccupant::vftable_2	00aa4868	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
 cSC4PropOccupant::vftable_2	00aa4868	12	+0x30	005e8a60	cSC4Occupant::SetRemovalFlags	4	1	eax-or-void	medium	
@@ -5888,7 +5888,7 @@ cSC4PropOccupant::vftable	00aa4900	10	+0x28	005ec9e0	icf::cSC4PropOccupant::SetO
 cSC4PropOccupant::vftable	00aa4900	11	+0x2C	005ed290	cSC4PropOccupant::SetState	4	1	eax-or-void	medium	
 cSC4PropOccupant::vftable	00aa4900	12	+0x30	005ed560	cSC4PropOccupant::GetState	0	0	eax-or-void	medium	
 cSC4PropOccupant::vftable	00aa4900	13	+0x34	005ed400	cSC4PropOccupant::SetTimeOfDayRange	8	2	eax-or-void	medium	
-cSC4PropOccupant::vftable	00aa4900	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	x87	high	
+cSC4PropOccupant::vftable	00aa4900	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	eax-or-void	medium	
 cSC4PropOccupant::vftable	00aa4900	15	+0x3C	005eeff0	cSC4PropOccupant::SetSimulatorDateRange	16	4	via-call	low	
 cSC4PropOccupant::vftable	00aa4900	16	+0x40	005ee230	cSC4PropOccupant::TickSimulatorDate	4	1	eax-or-void	medium	
 cSC4PropOccupant::vftable	00aa4900	17	+0x44	007c2740	icf::cSC43DRender::EnableTransparentBackground	4	1	eax-or-void	medium	
@@ -5937,8 +5937,8 @@ cSC4PropOccupantBurntBuilding::vftable_2	00aa4a98	4	+0x10	005efd20	cSC4PropOccup
 cSC4PropOccupantBurntBuilding::vftable_2	00aa4a98	5	+0x14	00458a40	cSC4Occupant::IsInitialized	0	0	eax-or-void	medium	
 cSC4PropOccupantBurntBuilding::vftable_2	00aa4a98	6	+0x18	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
 cSC4PropOccupantBurntBuilding::vftable_2	00aa4a98	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
-cSC4PropOccupantBurntBuilding::vftable_2	00aa4a98	8	+0x20	005ed1f0		4	1	x87	high	
-cSC4PropOccupantBurntBuilding::vftable_2	00aa4a98	9	+0x24	005ede00	cS3DBoundingBox::Translate	4	1	x87	high	
+cSC4PropOccupantBurntBuilding::vftable_2	00aa4a98	8	+0x20	005ed1f0		4	1	eax-or-void	medium	
+cSC4PropOccupantBurntBuilding::vftable_2	00aa4a98	9	+0x24	005ede00	cS3DBoundingBox::Translate	4	1	eax-or-void	medium	
 cSC4PropOccupantBurntBuilding::vftable_2	00aa4a98	10	+0x28	005ded60	icf::cSC4LotBaseTextureOccupant::GetBoundingBox	8	2	eax-or-void	medium	
 cSC4PropOccupantBurntBuilding::vftable_2	00aa4a98	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
 cSC4PropOccupantBurntBuilding::vftable_2	00aa4a98	12	+0x30	005e8a60	cSC4Occupant::SetRemovalFlags	4	1	eax-or-void	medium	
@@ -5977,7 +5977,7 @@ cSC4PropOccupantBurntBuilding::vftable	00aa4b30	10	+0x28	005ec9e0	icf::cSC4PropO
 cSC4PropOccupantBurntBuilding::vftable	00aa4b30	11	+0x2C	005ed290	cSC4PropOccupant::SetState	4	1	eax-or-void	medium	
 cSC4PropOccupantBurntBuilding::vftable	00aa4b30	12	+0x30	005ed560	cSC4PropOccupant::GetState	0	0	eax-or-void	medium	
 cSC4PropOccupantBurntBuilding::vftable	00aa4b30	13	+0x34	005ed400	cSC4PropOccupant::SetTimeOfDayRange	8	2	eax-or-void	medium	
-cSC4PropOccupantBurntBuilding::vftable	00aa4b30	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	x87	high	
+cSC4PropOccupantBurntBuilding::vftable	00aa4b30	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	eax-or-void	medium	
 cSC4PropOccupantBurntBuilding::vftable	00aa4b30	15	+0x3C	005eeff0	cSC4PropOccupant::SetSimulatorDateRange	16	4	via-call	low	
 cSC4PropOccupantBurntBuilding::vftable	00aa4b30	16	+0x40	005ee230	cSC4PropOccupant::TickSimulatorDate	4	1	eax-or-void	medium	
 cSC4PropOccupantBurntBuilding::vftable	00aa4b30	17	+0x44	007c2740	icf::cSC43DRender::EnableTransparentBackground	4	1	eax-or-void	medium	
@@ -6026,8 +6026,8 @@ cSC4PropOccupantAutomataController::vftable_3	00aa4c30	4	+0x10	005eedd0	cSC4Prop
 cSC4PropOccupantAutomataController::vftable_3	00aa4c30	5	+0x14	00458a40	cSC4Occupant::IsInitialized	0	0	eax-or-void	medium	
 cSC4PropOccupantAutomataController::vftable_3	00aa4c30	6	+0x18	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
 cSC4PropOccupantAutomataController::vftable_3	00aa4c30	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
-cSC4PropOccupantAutomataController::vftable_3	00aa4c30	8	+0x20	005ed1f0		4	1	x87	high	
-cSC4PropOccupantAutomataController::vftable_3	00aa4c30	9	+0x24	005ede00	cS3DBoundingBox::Translate	4	1	x87	high	
+cSC4PropOccupantAutomataController::vftable_3	00aa4c30	8	+0x20	005ed1f0		4	1	eax-or-void	medium	
+cSC4PropOccupantAutomataController::vftable_3	00aa4c30	9	+0x24	005ede00	cS3DBoundingBox::Translate	4	1	eax-or-void	medium	
 cSC4PropOccupantAutomataController::vftable_3	00aa4c30	10	+0x28	005ded60	icf::cSC4LotBaseTextureOccupant::GetBoundingBox	8	2	eax-or-void	medium	
 cSC4PropOccupantAutomataController::vftable_3	00aa4c30	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
 cSC4PropOccupantAutomataController::vftable_3	00aa4c30	12	+0x30	005e8a60	cSC4Occupant::SetRemovalFlags	4	1	eax-or-void	medium	
@@ -6066,7 +6066,7 @@ cSC4PropOccupantAutomataController::vftable_1	00aa4cc8	10	+0x28	005ec9e0	icf::cS
 cSC4PropOccupantAutomataController::vftable_1	00aa4cc8	11	+0x2C	005f0530	cSC4PropOccupantAutomataController::SetState	4	1	eax-or-void	medium	
 cSC4PropOccupantAutomataController::vftable_1	00aa4cc8	12	+0x30	005ed560	cSC4PropOccupant::GetState	0	0	eax-or-void	medium	
 cSC4PropOccupantAutomataController::vftable_1	00aa4cc8	13	+0x34	005ed400	cSC4PropOccupant::SetTimeOfDayRange	8	2	eax-or-void	medium	
-cSC4PropOccupantAutomataController::vftable_1	00aa4cc8	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	x87	high	
+cSC4PropOccupantAutomataController::vftable_1	00aa4cc8	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	eax-or-void	medium	
 cSC4PropOccupantAutomataController::vftable_1	00aa4cc8	15	+0x3C	005eeff0	cSC4PropOccupant::SetSimulatorDateRange	16	4	via-call	low	
 cSC4PropOccupantAutomataController::vftable_1	00aa4cc8	16	+0x40	005ee230	cSC4PropOccupant::TickSimulatorDate	4	1	eax-or-void	medium	
 cSC4PropOccupantAutomataController::vftable_1	00aa4cc8	17	+0x44	007c2740	icf::cSC43DRender::EnableTransparentBackground	4	1	eax-or-void	medium	
@@ -6122,7 +6122,7 @@ cSC4PropOccupantVisualEffect::vftable_3	00aa4de0	4	+0x10	005ee790	cSC4PropOccupa
 cSC4PropOccupantVisualEffect::vftable_3	00aa4de0	5	+0x14	00458a40	cSC4Occupant::IsInitialized	0	0	eax-or-void	medium	
 cSC4PropOccupantVisualEffect::vftable_3	00aa4de0	6	+0x18	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
 cSC4PropOccupantVisualEffect::vftable_3	00aa4de0	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
-cSC4PropOccupantVisualEffect::vftable_3	00aa4de0	8	+0x20	005ed1f0		4	1	x87	high	
+cSC4PropOccupantVisualEffect::vftable_3	00aa4de0	8	+0x20	005ed1f0		4	1	eax-or-void	medium	
 cSC4PropOccupantVisualEffect::vftable_3	00aa4de0	9	+0x24	005ef220	cSC4PropOccupantVisualEffect::SetPosition	4	1	eax-or-void	medium	
 cSC4PropOccupantVisualEffect::vftable_3	00aa4de0	10	+0x28	005ded60	icf::cSC4LotBaseTextureOccupant::GetBoundingBox	8	2	eax-or-void	medium	
 cSC4PropOccupantVisualEffect::vftable_3	00aa4de0	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
@@ -6162,7 +6162,7 @@ cSC4PropOccupantVisualEffect::vftable_1	00aa4e78	10	+0x28	005ef280	cSC4PropOccup
 cSC4PropOccupantVisualEffect::vftable_1	00aa4e78	11	+0x2C	005ef2c0	cSC4PropOccupantVisualEffect::SetState	4	1	eax-or-void	medium	
 cSC4PropOccupantVisualEffect::vftable_1	00aa4e78	12	+0x30	005ed560	cSC4PropOccupant::GetState	0	0	eax-or-void	medium	
 cSC4PropOccupantVisualEffect::vftable_1	00aa4e78	13	+0x34	005ed400	cSC4PropOccupant::SetTimeOfDayRange	8	2	eax-or-void	medium	
-cSC4PropOccupantVisualEffect::vftable_1	00aa4e78	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	x87	high	
+cSC4PropOccupantVisualEffect::vftable_1	00aa4e78	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	eax-or-void	medium	
 cSC4PropOccupantVisualEffect::vftable_1	00aa4e78	15	+0x3C	005eeff0	cSC4PropOccupant::SetSimulatorDateRange	16	4	via-call	low	
 cSC4PropOccupantVisualEffect::vftable_1	00aa4e78	16	+0x40	005ee230	cSC4PropOccupant::TickSimulatorDate	4	1	eax-or-void	medium	
 cSC4PropOccupantVisualEffect::vftable_1	00aa4e78	17	+0x44	007c2740	icf::cSC43DRender::EnableTransparentBackground	4	1	eax-or-void	medium	
@@ -6323,7 +6323,7 @@ cSC4SignpostOccupant::vftable_3	00aa5380	4	+0x10	005f5e20	cSC4SignpostOccupant::
 cSC4SignpostOccupant::vftable_3	00aa5380	5	+0x14	00458a40	cSC4Occupant::IsInitialized	0	0	eax-or-void	medium	
 cSC4SignpostOccupant::vftable_3	00aa5380	6	+0x18	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
 cSC4SignpostOccupant::vftable_3	00aa5380	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
-cSC4SignpostOccupant::vftable_3	00aa5380	8	+0x20	005ed1f0		4	1	x87	high	
+cSC4SignpostOccupant::vftable_3	00aa5380	8	+0x20	005ed1f0		4	1	eax-or-void	medium	
 cSC4SignpostOccupant::vftable_3	00aa5380	9	+0x24	005f4e90	cSC4SignpostOccupant::SetPosition	4	1	via-call	low	
 cSC4SignpostOccupant::vftable_3	00aa5380	10	+0x28	005ded60	icf::cSC4LotBaseTextureOccupant::GetBoundingBox	8	2	eax-or-void	medium	
 cSC4SignpostOccupant::vftable_3	00aa5380	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
@@ -6363,7 +6363,7 @@ cSC4SignpostOccupant::vftable_1	00aa5418	10	+0x28	005ec9e0	icf::cSC4PropOccupant
 cSC4SignpostOccupant::vftable_1	00aa5418	11	+0x2C	005ed290	cSC4PropOccupant::SetState	4	1	eax-or-void	medium	
 cSC4SignpostOccupant::vftable_1	00aa5418	12	+0x30	005ed560	cSC4PropOccupant::GetState	0	0	eax-or-void	medium	
 cSC4SignpostOccupant::vftable_1	00aa5418	13	+0x34	005ed400	cSC4PropOccupant::SetTimeOfDayRange	8	2	eax-or-void	medium	
-cSC4SignpostOccupant::vftable_1	00aa5418	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	x87	high	
+cSC4SignpostOccupant::vftable_1	00aa5418	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	eax-or-void	medium	
 cSC4SignpostOccupant::vftable_1	00aa5418	15	+0x3C	005eeff0	cSC4PropOccupant::SetSimulatorDateRange	16	4	via-call	low	
 cSC4SignpostOccupant::vftable_1	00aa5418	16	+0x40	005ee230	cSC4PropOccupant::TickSimulatorDate	4	1	eax-or-void	medium	
 cSC4SignpostOccupant::vftable_1	00aa5418	17	+0x44	007c2740	icf::cSC43DRender::EnableTransparentBackground	4	1	eax-or-void	medium	
@@ -6420,7 +6420,7 @@ cSC4TextDecalOccupant::vftable_3	00aa5588	4	+0x10	005f76c0	cSC4TextDecalOccupant
 cSC4TextDecalOccupant::vftable_3	00aa5588	5	+0x14	00458a40	cSC4Occupant::IsInitialized	0	0	eax-or-void	medium	
 cSC4TextDecalOccupant::vftable_3	00aa5588	6	+0x18	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
 cSC4TextDecalOccupant::vftable_3	00aa5588	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
-cSC4TextDecalOccupant::vftable_3	00aa5588	8	+0x20	005ed1f0		4	1	x87	high	
+cSC4TextDecalOccupant::vftable_3	00aa5588	8	+0x20	005ed1f0		4	1	eax-or-void	medium	
 cSC4TextDecalOccupant::vftable_3	00aa5588	9	+0x24	005f7aa0	cSC4TextDecalOccupant::SetPosition	4	1	eax-or-void	medium	
 cSC4TextDecalOccupant::vftable_3	00aa5588	10	+0x28	005ded60	icf::cSC4LotBaseTextureOccupant::GetBoundingBox	8	2	eax-or-void	medium	
 cSC4TextDecalOccupant::vftable_3	00aa5588	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
@@ -6460,7 +6460,7 @@ cSC4TextDecalOccupant::vftable_1	00aa5620	10	+0x28	005ec9e0	icf::cSC4PropOccupan
 cSC4TextDecalOccupant::vftable_1	00aa5620	11	+0x2C	005ed290	cSC4PropOccupant::SetState	4	1	eax-or-void	medium	
 cSC4TextDecalOccupant::vftable_1	00aa5620	12	+0x30	005ed560	cSC4PropOccupant::GetState	0	0	eax-or-void	medium	
 cSC4TextDecalOccupant::vftable_1	00aa5620	13	+0x34	005ed400	cSC4PropOccupant::SetTimeOfDayRange	8	2	eax-or-void	medium	
-cSC4TextDecalOccupant::vftable_1	00aa5620	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	x87	high	
+cSC4TextDecalOccupant::vftable_1	00aa5620	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	eax-or-void	medium	
 cSC4TextDecalOccupant::vftable_1	00aa5620	15	+0x3C	005eeff0	cSC4PropOccupant::SetSimulatorDateRange	16	4	via-call	low	
 cSC4TextDecalOccupant::vftable_1	00aa5620	16	+0x40	005ee230	cSC4PropOccupant::TickSimulatorDate	4	1	eax-or-void	medium	
 cSC4TextDecalOccupant::vftable_1	00aa5620	17	+0x44	007c2740	icf::cSC43DRender::EnableTransparentBackground	4	1	eax-or-void	medium	
@@ -6703,7 +6703,7 @@ cSCResProperty::vftable_2	00aa69e8	37	+0x94	00917852	cRZVariant::GetValFloat32	4
 cSCResProperty::vftable_2	00aa69e8	38	+0x98	0091669a	cRZVariant::SetValFloat32	4	1	eax-or-void	medium	
 cSCResProperty::vftable_2	00aa69e8	39	+0x9C	00915694	cRZVariant::GetValFloat64	0	0	x87	high	
 cSCResProperty::vftable_2	00aa69e8	40	+0xA0	009178b2	cRZVariant::GetValFloat64	4	1	eax-or-void	medium	
-cSCResProperty::vftable_2	00aa69e8	41	+0xA4	009166aa	cRZVariant::SetValFloat64	8	2	x87	high	
+cSCResProperty::vftable_2	00aa69e8	41	+0xA4	009166aa	cRZVariant::SetValFloat64	8	2	eax-or-void	medium	
 cSCResProperty::vftable_2	00aa69e8	42	+0xA8	009156af	cRZVariant::GetValChar	0	0	eax-or-void	medium	
 cSCResProperty::vftable_2	00aa69e8	43	+0xAC	00917911	cRZVariant::GetValChar	4	1	eax-or-void	medium	
 cSCResProperty::vftable_2	00aa69e8	44	+0xB0	009166bb	cRZVariant::SetValChar	4	1	eax-or-void	medium	
@@ -7324,7 +7324,7 @@ cSC4PipeOccupant::vftable_1	00aa9730	4	+0x10	00652e50		0	0	eax-or-void	medium	ta
 cSC4PipeOccupant::vftable_1	00aa9730	5	+0x14	00458a40	cSC4Occupant::IsInitialized	0	0	eax-or-void	medium	
 cSC4PipeOccupant::vftable_1	00aa9730	6	+0x18	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
 cSC4PipeOccupant::vftable_1	00aa9730	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
-cSC4PipeOccupant::vftable_1	00aa9730	8	+0x20	0065a720	cSC4UndergroundOccupant::GetPosition	4	1	x87	high	
+cSC4PipeOccupant::vftable_1	00aa9730	8	+0x20	0065a720	cSC4UndergroundOccupant::GetPosition	4	1	eax-or-void	medium	
 cSC4PipeOccupant::vftable_1	00aa9730	9	+0x24	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
 cSC4PipeOccupant::vftable_1	00aa9730	10	+0x28	00659b00	cSC4UndergroundOccupant::GetBoundingBox	8	2	eax-or-void	medium	
 cSC4PipeOccupant::vftable_1	00aa9730	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
@@ -7480,7 +7480,7 @@ cSC4PowerPoleOccupant::vftable_2	00aa9e18	6	+0x18	006c2040	icf::cSC4DBSegment::A
 cSC4PowerPoleOccupant::vftable_2	00aa9e18	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
 cSC4PowerPoleOccupant::vftable_2	00aa9e18	8	+0x20	00649da0	cSC4PowerPoleOccupant::GetPosition	4	1	eax-or-void	medium	
 cSC4PowerPoleOccupant::vftable_2	00aa9e18	9	+0x24	0064c540	cSC4PowerPoleOccupant::SetPosition	4	1	eax-or-void	medium	
-cSC4PowerPoleOccupant::vftable_2	00aa9e18	10	+0x28	00649a00	cSC4PowerPoleOccupant::GetBoundingBox	8	2	x87	high	
+cSC4PowerPoleOccupant::vftable_2	00aa9e18	10	+0x28	00649a00	cSC4PowerPoleOccupant::GetBoundingBox	8	2	eax-or-void	medium	
 cSC4PowerPoleOccupant::vftable_2	00aa9e18	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
 cSC4PowerPoleOccupant::vftable_2	00aa9e18	12	+0x30	005e8a60	cSC4Occupant::SetRemovalFlags	4	1	eax-or-void	medium	
 cSC4PowerPoleOccupant::vftable_2	00aa9e18	13	+0x34	005e8aa0	cSC4Occupant::UnsetRemovalFlags	4	1	eax-or-void	medium	
@@ -7619,7 +7619,7 @@ cSC4SubwayOccupant::vftable_1	00aaa340	4	+0x10	00652e50		0	0	eax-or-void	medium	
 cSC4SubwayOccupant::vftable_1	00aaa340	5	+0x14	00458a40	cSC4Occupant::IsInitialized	0	0	eax-or-void	medium	
 cSC4SubwayOccupant::vftable_1	00aaa340	6	+0x18	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
 cSC4SubwayOccupant::vftable_1	00aaa340	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
-cSC4SubwayOccupant::vftable_1	00aaa340	8	+0x20	0065a720	cSC4UndergroundOccupant::GetPosition	4	1	x87	high	
+cSC4SubwayOccupant::vftable_1	00aaa340	8	+0x20	0065a720	cSC4UndergroundOccupant::GetPosition	4	1	eax-or-void	medium	
 cSC4SubwayOccupant::vftable_1	00aaa340	9	+0x24	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
 cSC4SubwayOccupant::vftable_1	00aaa340	10	+0x28	00659b00	cSC4UndergroundOccupant::GetBoundingBox	8	2	eax-or-void	medium	
 cSC4SubwayOccupant::vftable_1	00aaa340	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
@@ -7715,7 +7715,7 @@ cSC4UndergroundOccupant::vftable_1	00aaacb8	4	+0x10	0065cfe0		0	0	eax-or-void	me
 cSC4UndergroundOccupant::vftable_1	00aaacb8	5	+0x14	00458a40	cSC4Occupant::IsInitialized	0	0	eax-or-void	medium	
 cSC4UndergroundOccupant::vftable_1	00aaacb8	6	+0x18	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
 cSC4UndergroundOccupant::vftable_1	00aaacb8	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
-cSC4UndergroundOccupant::vftable_1	00aaacb8	8	+0x20	0065a720	cSC4UndergroundOccupant::GetPosition	4	1	x87	high	
+cSC4UndergroundOccupant::vftable_1	00aaacb8	8	+0x20	0065a720	cSC4UndergroundOccupant::GetPosition	4	1	eax-or-void	medium	
 cSC4UndergroundOccupant::vftable_1	00aaacb8	9	+0x24	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
 cSC4UndergroundOccupant::vftable_1	00aaacb8	10	+0x28	00659b00	cSC4UndergroundOccupant::GetBoundingBox	8	2	eax-or-void	medium	
 cSC4UndergroundOccupant::vftable_1	00aaacb8	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
@@ -11561,7 +11561,7 @@ cSC4AuraSimulator::vftable	00ab07c8	3	+0xC	0068e6b0	cSC4AuraSimulator::Init	0	0	
 cSC4AuraSimulator::vftable	00ab07c8	4	+0x10	0068dec0	cSC4AuraSimulator::Shutdown	0	0	eax-or-void	medium	
 cSC4AuraSimulator::vftable	00ab07c8	5	+0x14	0068bab0	cSC4AuraSimulator::GetAuraValue			forward	medium	indirect-jump dword ptr [eax + 0x1c]
 cSC4AuraSimulator::vftable	00ab07c8	6	+0x18	0068bad0	cSC4AuraSimulator::AddTransientEffect(float,float,TransientAuraEffect)	12	3	eax-or-void	medium	
-cSC4AuraSimulator::vftable	00ab07c8	7	+0x1C	0068bb30	cSC4AuraSimulator::AddTransientEffect(float,float,float,float)	16	4	x87|eax	low	
+cSC4AuraSimulator::vftable	00ab07c8	7	+0x1C	0068bb30	cSC4AuraSimulator::AddTransientEffect(float,float,float,float)	16	4	eax-or-void	medium	
 cSC4AuraSimulator::vftable	00ab07c8	8	+0x20	0068bac0	cSC4AuraSimulator::GetMayorRating	0	0	eax-or-void	medium	
 cSC4AuraSimulator::vftable	00ab07c8	9	+0x24	0068d1e0	cSC4AuraSimulator::GetMaxMayorRating	4	1	eax-or-void	medium	
 cSC4AuraSimulator::vftable	00ab07c8	10	+0x28	0068d200	cSC4AuraSimulator::GetMinMayorRating	4	1	eax-or-void	medium	
@@ -11703,7 +11703,7 @@ cSC4DemandSimulator::vftable	00ab0e48	4	+0x10	006a3a20	cSC4DemandSimulator::Shut
 cSC4DemandSimulator::vftable	00ab0e48	5	+0x14	006a2390	cSC4DemandSimulator::GetSimulatorType	0	0	eax-or-void	medium	
 cSC4DemandSimulator::vftable	00ab0e48	6	+0x18	006a2960	cSC4DemandSimulator::GetDemand	8	2	eax-or-void	medium	
 cSC4DemandSimulator::vftable	00ab0e48	7	+0x1C	006a6c90	cSC4DemandSimulator::UpdateOccupantEffects	12	3	eax-or-void	medium	
-cSC4DemandSimulator::vftable	00ab0e48	8	+0x20	006a23a0	cSC4DemandSimulator::CalculateJobsPerUnitOfDemand	12	3	x87	high	
+cSC4DemandSimulator::vftable	00ab0e48	8	+0x20	006a23a0	cSC4DemandSimulator::CalculateJobsPerUnitOfDemand	12	3	eax-or-void	medium	
 cSC4DemandSimulator::vftable	00ab0e48	9	+0x24	006a3e60	cSC4DemandSimulator::GetJobsBySensus	4	1	edx:eax?	low	
 cSC4DemandSimulator::vftable	00ab0e48	10	+0x28	006a3dd0	cSC4DemandSimulator::GetNeutralTaxRate	0	0	x87	high	
 cSC4DemandSimulator::vftable	00ab0e48	11	+0x2C	006a5f80	cSC4DemandSimulator::GetLocalPopulationSummary	4	1	eax-or-void	medium	
@@ -11796,7 +11796,7 @@ cSC4LandfillDeveloper::vftable	00ab157c	1	+0x4	004f7ba0	icf::cSC43DRender::AddRe
 cSC4LandfillDeveloper::vftable	00ab157c	2	+0x8	006b9d20	cSC4LandfillDeveloper::Release	0	0	eax-or-void	medium	
 cSC4LandfillDeveloper::vftable	00ab157c	3	+0xC	006b9d70	cSC4LandfillDeveloper::Init	0	0	eax-or-void	medium	
 cSC4LandfillDeveloper::vftable	00ab157c	4	+0x10	006b94b0	cSC4LandfillDeveloper::Shutdown	0	0	eax-or-void	medium	
-cSC4LandfillDeveloper::vftable	00ab157c	5	+0x14	006b8d50	cSC4LandfillDeveloper::GetEfficiency	4	1	x87|eax	low	
+cSC4LandfillDeveloper::vftable	00ab157c	5	+0x14	006b8d50	cSC4LandfillDeveloper::GetEfficiency	4	1	eax-or-void	medium	
 cSC4LandfillDeveloper::vftable	00ab157c	6	+0x18	006b9840	cSC4LandfillDeveloper::GetSimulatorType	0	0	eax-or-void	medium	
 cSC4LandfillDeveloper::vftable	00ab157c	7	+0x1C	006b9850	icf::cSC4BudgetSimulator::GetTotalBorrowed	0	0	edx:eax	medium	
 cSC4LandfillDeveloper::vftable	00ab157c	8	+0x20	006b8ba0	cSC4LandfillDeveloper::GetCurrentBudget			forward	medium	indirect-jump dword ptr [edx + 0x2c]
@@ -11881,7 +11881,7 @@ cSC4Lot::vftable	00ab19b0	11	+0x2C	006bfea0	cSC4Lot::GetLotConfigurationObject	4
 cSC4Lot::vftable	00ab19b0	12	+0x30	006c2030	cSC4Lot::GetFlags	0	0	eax-or-void	medium	
 cSC4Lot::vftable	00ab19b0	13	+0x34	006bf220	cSC4Lot::SetFlags	4	1	eax-or-void	medium	
 cSC4Lot::vftable	00ab19b0	14	+0x38	006bf320	cSC4Lot::GetBoundingRect	4	1	eax-or-void	medium	
-cSC4Lot::vftable	00ab19b0	15	+0x3C	006bf560	cSC4Lot::GetCenter	4	1	x87	high	
+cSC4Lot::vftable	00ab19b0	15	+0x3C	006bf560	cSC4Lot::GetCenter	4	1	eax-or-void	medium	
 cSC4Lot::vftable	00ab19b0	16	+0x40	006c2060	cSC4Lot::GetAltitude	0	0	x87	high	
 cSC4Lot::vftable	00ab19b0	17	+0x44	006bf5c0	cSC4Lot::SetAltitude	4	1	eax-or-void	medium	
 cSC4Lot::vftable	00ab19b0	18	+0x48	006c2070	cSC4SimGrid<T>::GetTractWidthX	0	0	x87	high	
@@ -11927,10 +11927,10 @@ cSC4Lot::vftable	00ab19b0	57	+0xE4	006c0550	cSC4Lot::ResetTravelPopulation	0	0	e
 cSC4Lot::vftable	00ab19b0	58	+0xE8	006c0ba0	cSC4Lot::AddTravelPopulation	4	1	eax-or-void	medium	
 cSC4Lot::vftable	00ab19b0	59	+0xEC	0081f910	icf::cRZNetSocket::GetAsyncNotificationTarget	0	0	eax-or-void	medium	
 cSC4Lot::vftable	00ab19b0	60	+0xF0	006bf660	cSC4Lot::SetTravelDesignate	4	1	eax-or-void	medium	
-cSC4Lot::vftable	00ab19b0	61	+0xF4	006c0cf0	cSC4Lot::GetOccupancy	4	1	x87|eax	low	
+cSC4Lot::vftable	00ab19b0	61	+0xF4	006c0cf0	cSC4Lot::GetOccupancy	4	1	eax-or-void	medium	
 cSC4Lot::vftable	00ab19b0	62	+0xF8	006c10f0	cSC4Lot::GetOccupancyByType	4	1	eax-or-void	medium	
 cSC4Lot::vftable	00ab19b0	63	+0xFC	006bf350	cSC4Lot::GetTravelJobs	4	1	x87	high	
-cSC4Lot::vftable	00ab19b0	64	+0x100	006bf800	cSC4Lot::GetJobs	4	1	x87|eax	low	
+cSC4Lot::vftable	00ab19b0	64	+0x100	006bf800	cSC4Lot::GetJobs	4	1	eax-or-void	medium	
 cSC4Lot::vftable	00ab19b0	65	+0x104	006c21a0	cSC4Lot::GetNeedsPower	0	0	eax-or-void	medium	
 cSC4Lot::vftable	00ab19b0	66	+0x108	006c21b0	cSC4Lot::GetHasPower	0	0	eax-or-void	medium	
 cSC4Lot::vftable	00ab19b0	67	+0x10C	006c21c0	cSC4Lot::SetHasPower	4	1	eax-or-void	medium	
@@ -11951,7 +11951,7 @@ cSC4LotDeveloper::vftable	00ab1b98	11	+0x2C	006cb940	cSC4LotDeveloper::RemoveBui
 cSC4LotDeveloper::vftable	00ab1b98	12	+0x30	006cc1d0	cSC4LotDeveloper::StartDemolishLot	4	1	unknown	low	
 cSC4LotDeveloper::vftable	00ab1b98	13	+0x34	006c90a0	cSC4LotDeveloper::EndDemolishLot	4	1	via-call	low	
 cSC4LotDeveloper::vftable	00ab1b98	14	+0x38	006cc250	cSC4LotDeveloper::ExplodeLot	8	2	via-call	low	
-cSC4LotDeveloper::vftable	00ab1b98	15	+0x3C	006c4310	cSC4LotDeveloper::GetTerrainAltitudeByVertex	12	3	x87|eax	low	
+cSC4LotDeveloper::vftable	00ab1b98	15	+0x3C	006c4310	cSC4LotDeveloper::GetTerrainAltitudeByVertex	12	3	x87	high	
 cSC4LotDeveloper::vftable	00ab1b98	16	+0x40	006c56c0	cSC4LotDeveloper::GetLowestOrHighestAreaAltitude	12	3	x87	high	
 cSC4LotDeveloper::vftable	00ab1b98	17	+0x44	006c5620	cSC4LotDeveloper::GetLowestOrHighestAreaAltitude	12	3	x87	high	
 cSC4LotDeveloper::vftable	00ab1b98	18	+0x48	006c5b70	cSC4LotDeveloper::GetAverageAreaAltitude	8	2	x87	high	
@@ -12069,7 +12069,7 @@ cSC4NeighborsSimulator::vftable	00ab1ee0	32	+0x80	006cf860	cSC4NeighborsSimulato
 cSC4NeighborsSimulator::vftable	00ab1ee0	33	+0x84	006cf8d0	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealExpense	0	0	eax-or-void	medium	
 cSC4NeighborsSimulator::vftable	00ab1ee0	34	+0x88	006d2a20	cSC4NeighborsSimulator::UpdateCommodityStats	4	1	eax-or-void	medium	
 cSC4NeighborsSimulator::vftable	00ab1ee0	35	+0x8C	006d3250	cSC4NeighborsSimulator::GetDealCost	16	4	x87	high	indirect-jump dword ptr [eax*4 + 0x6d35fc]
-cSC4NeighborsSimulator::vftable	00ab1ee0	36	+0x90	006d3620	cSC4NeighborsSimulator::GetDealMaxAmount	8	2	x87|eax	low	indirect-jump dword ptr [eax*4 + 0x6d38b8]
+cSC4NeighborsSimulator::vftable	00ab1ee0	36	+0x90	006d3620	cSC4NeighborsSimulator::GetDealMaxAmount	8	2	x87	high	indirect-jump dword ptr [eax*4 + 0x6d38b8]
 cSC4NeighborsSimulator::vftable	00ab1ee0	37	+0x94	0060fb80	icf::cGZDrawContext::GetEngine	0	0	eax-or-void	medium	
 cSC4NeighborsSimulator::vftable	00ab1ee0	38	+0x98	006d09d0	cSC4NeighborsSimulator::~cSC4NeighborsSimulator	4	1	eax-or-void	medium	
 cSC4NeighborConnection::vftable_2	00ab1fb8	0	+0x0	006d47c0		8	2	eax-or-void	medium	tail->006ce000
@@ -12147,7 +12147,7 @@ cSC4PathFinder::vftable	00ab2150	25	+0x64	006d6e90	cSC4PathFinder::GetTripLength
 cSC4PathFinder::vftable	00ab2150	26	+0x68	006d6030	cSC4PathFinder::GetTripLengthScaledForDisplay	0	0	x87	high	
 cSC4PathFinder::vftable	00ab2150	27	+0x6C	006d6ea0	cSC4PathFinder::GetEndCell	8	2	eax-or-void	medium	
 cSC4PathFinder::vftable	00ab2150	28	+0x70	006d6ec0	cSC4PathFinder::GetLastTravelType	0	0	eax-or-void	medium	
-cSC4PathFinder::vftable	00ab2150	29	+0x74	006da060	cSC4PathFinder::ApplyTraffic	4	1	x87|eax	low	
+cSC4PathFinder::vftable	00ab2150	29	+0x74	006da060	cSC4PathFinder::ApplyTraffic	4	1	eax-or-void	medium	
 cSC4PathFinder::vftable	00ab2150	30	+0x78	006d61e0	cSC4PathFinder::WasTripReversible	0	0	eax-or-void	medium	
 cSC4PathFinder::vftable	00ab2150	31	+0x7C	006d6730	cSC4PathFinder::ReleasePathNodes	0	0	eax-or-void	medium	
 cSC4PathFinder::vftable	00ab2150	32	+0x80	006d7070	cSC4PathFinder::GetCompressedRoute	8	2	eax-or-void	medium	
@@ -12231,7 +12231,7 @@ cSC4PoliceSimulator::vftable	00ab2490	21	+0x54	006e0180	icf::cSC4FireProtectionS
 cSC4PoliceSimulator::vftable	00ab2490	22	+0x58	006e01c0	cSC4PoliceSimulator::IsPoliceStation			forward	medium	indirect-jump dword ptr [edx + 0xc]
 cSC4PoliceSimulator::vftable	00ab2490	23	+0x5C	006e0f60	icf::cSC4FireProtectionSimulator::GetStationDispatchRadius	4	1	x87	high	
 cSC4PoliceSimulator::vftable	00ab2490	24	+0x60	006ada30	cSC4FireProtectionSimulator::GetFireStationCount	0	0	eax-or-void	medium	
-cSC4PoliceSimulator::vftable	00ab2490	25	+0x64	006e0e70	cSC4PoliceSimulator::GetStationEfficiency	8	2	x87|eax	low	
+cSC4PoliceSimulator::vftable	00ab2490	25	+0x64	006e0e70	cSC4PoliceSimulator::GetStationEfficiency	8	2	eax-or-void	medium	
 cSC4PoliceSimulator::vftable	00ab2490	26	+0x68	006e1390	cSC4PoliceSimulator::GetTotalDispatchCount	0	0	eax-or-void	medium	
 cSC4PoliceSimulator::vftable	00ab2490	27	+0x6C	006e0a00	cSC4PoliceSimulator::ResetUnjailedCriminals	0	0	eax-or-void	medium	
 cSC4PoliceSimulator::vftable	00ab2490	28	+0x70	006e0ac0	cSC4PoliceSimulator::GetJailCapacity	4	1	eax-or-void	medium	
@@ -12346,7 +12346,7 @@ cSC4PortDeveloper::vftable	00ab2790	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	
 cSC4PortDeveloper::vftable	00ab2790	2	+0x8	006e8f90	cSC4PortDeveloper::Release	0	0	eax-or-void	medium	
 cSC4PortDeveloper::vftable	00ab2790	3	+0xC	006ea950	cSC4PortDeveloper::Init	0	0	eax-or-void	medium	
 cSC4PortDeveloper::vftable	00ab2790	4	+0x10	006e9f60	cSC4PortDeveloper::Shutdown	0	0	eax-or-void	medium	
-cSC4PortDeveloper::vftable	00ab2790	5	+0x14	006e9900	cSC4PortDeveloper::GetAvgEfficiency	4	1	x87|eax	low	
+cSC4PortDeveloper::vftable	00ab2790	5	+0x14	006e9900	cSC4PortDeveloper::GetAvgEfficiency	4	1	eax-or-void	medium	
 cSC4PortDeveloper::vftable	00ab2790	6	+0x18	005d4a10	_purecall			pure		
 cSC4PortDeveloper::vftable	00ab2790	7	+0x1C	006e9520	cSC4PortDeveloper::GetLeastEfficientPort	8	2	eax-or-void	medium	
 cSC4PortDeveloper::vftable	00ab2790	8	+0x20	006ea2f0	cSC4PortDeveloper::GetAllPortLots	4	1	eax-or-void	medium	
@@ -12603,7 +12603,7 @@ cSC4TrafficSimulator::vftable	00ab33d0	22	+0x58	00720010	cSC4TrafficSimulator::G
 cSC4TrafficSimulator::vftable	00ab33d0	23	+0x5C	00710320	cSC4TrafficSimulator::GetCapacity	12	3	x87	high	
 cSC4TrafficSimulator::vftable	00ab33d0	24	+0x60	007103b0	cSC4TrafficSimulator::GetTravelTimeRatio	12	3	x87	high	
 cSC4TrafficSimulator::vftable	00ab33d0	25	+0x64	00710370	cSC4TrafficSimulator::GetConnectionCount	12	3	eax-or-void	medium	
-cSC4TrafficSimulator::vftable	00ab33d0	26	+0x68	00718bb0	cSC4TrafficSimulator::GetTravelStrategyPercentages	8	2	x87	high	
+cSC4TrafficSimulator::vftable	00ab33d0	26	+0x68	00718bb0	cSC4TrafficSimulator::GetTravelStrategyPercentages	8	2	eax-or-void	medium	
 cSC4TrafficSimulator::vftable	00ab33d0	27	+0x6C	0071ffe0	cSC4TrafficSimulator::GetFreightScalingFactor	0	0	x87	high	
 cSC4TrafficSimulator::vftable	00ab33d0	28	+0x70	00714460	cSC4TrafficSimulator::GetTransitSwitches	4	1	eax-or-void	medium	
 cSC4TrafficSimulator::vftable	00ab33d0	29	+0x74	00713b70	cSC4TrafficSimulator::GetFerryRouteBetweenTiles	16	4	eax-or-void	medium	
@@ -12642,7 +12642,7 @@ cSC4WeatherSimulator::vftable	00ab3610	7	+0x1C	00477860	icf::cSC4LotConfiguratio
 cSC4WeatherSimulator::vftable	00ab3610	8	+0x20	004abad0	icf::cSC4CatalogItem::GetCost	0	0	eax-or-void	medium	
 cSC4WeatherSimulator::vftable	00ab3610	9	+0x24	006aac50	cSC4TrafficSimulator::GetAirPollutingTrafficMap (shared/folded getter: mov eax,[ecx+30h])	0	0	eax-or-void	medium	
 cSC4WeatherSimulator::vftable	00ab3610	10	+0x28	007255c0	cSC4WeatherSimulator::PositionToCell	16	4	edx:eax?	low	
-cSC4WeatherSimulator::vftable	00ab3610	11	+0x2C	007255f0	cSC4WeatherSimulator::CellToPosition	16	4	x87	high	
+cSC4WeatherSimulator::vftable	00ab3610	11	+0x2C	007255f0	cSC4WeatherSimulator::CellToPosition	16	4	eax-or-void	medium	
 cSC4WeatherSimulator::vftable	00ab3610	12	+0x30	00725610	cSC4WeatherSimulator::CellToStandardCityCell	16	4	eax-or-void	medium	
 cSC4WeatherSimulator::vftable	00ab3610	13	+0x34	00725640	cSC4WeatherSimulator::StandardCityCellToCell	16	4	edx:eax	medium	
 cSC4WeatherSimulator::vftable	00ab3610	14	+0x38	00725660	cSC4WeatherSimulator::GetCurrentSeason	0	0	eax-or-void	medium	
@@ -12706,7 +12706,7 @@ cSTESurfaceWater::vftable	00ab3b00	6	+0x18	0073d210	cSTESurfaceWater::GetWaterDe
 cSTESurfaceWater::vftable	00ab3b00	7	+0x1C	0073cef0	cSTESurfaceWater::IsNavigable	20	5	via-call	low	
 cSTESurfaceWater::vftable	00ab3b00	8	+0x20	0073ebf0	cSTESurfaceWater::IsNavigable	16	4	eax-or-void	medium	
 cSTESurfaceWater::vftable	00ab3b00	9	+0x24	0068d1c0	cSC4AuraSimulator::GetTransientAuraGrid	0	0	eax-or-void	medium	
-cSTESurfaceWater::vftable	00ab3b00	10	+0x28	0073d4f0	cSTESurfaceWater::AltitudeAtWhichFloodingWillOccur	8	2	x87|eax	low	
+cSTESurfaceWater::vftable	00ab3b00	10	+0x28	0073d4f0	cSTESurfaceWater::AltitudeAtWhichFloodingWillOccur	8	2	x87	high	
 cSTESurfaceWater::vftable	00ab3b00	11	+0x2C	0073d7c0	cSTESurfaceWater::GetWaterVelocity	8	2	eax-or-void	medium	
 cSTESurfaceWater::vftable	00ab3b00	12	+0x30	0073d7f0	cSTESurfaceWater::GetWaterType	8	2	eax-or-void	medium	
 cSTESurfaceWater::vftable	00ab3b00	13	+0x34	0073cdb0	cSTESurfaceWater::HasDraftClearance	8	2	eax-or-void	medium	
@@ -12735,16 +12735,16 @@ cSTETerrain::vftable	00ab3d18	14	+0x38	007413e0	cSTETerrain::GetAltitudeAtVertex
 cSTETerrain::vftable	00ab3d18	15	+0x3C	00742a00	cSTETerrain::GetAltitudes	16	4	eax-or-void	medium	
 cSTETerrain::vftable	00ab3d18	16	+0x40	007443c0	cSTETerrain::GetWaterDepths	16	4	eax-or-void	medium	
 cSTETerrain::vftable	00ab3d18	17	+0x44	007415f0	cSTETerrain::GetCellCornerAltitudes	12	3	eax-or-void	medium	
-cSTETerrain::vftable	00ab3d18	18	+0x48	00744620	cSTETerrain::GetMaxSurfaceLevel	8	2	x87|eax	low	
+cSTETerrain::vftable	00ab3d18	18	+0x48	00744620	cSTETerrain::GetMaxSurfaceLevel	8	2	x87	high	
 cSTETerrain::vftable	00ab3d18	19	+0x4C	00741420	cSTETerrain::GetAltitudeAtNearestGrid	8	2	x87	high	
-cSTETerrain::vftable	00ab3d18	20	+0x50	007414a0	cSTETerrain::GetAltitudeCheckSum	4	1	x87|eax	low	
+cSTETerrain::vftable	00ab3d18	20	+0x50	007414a0	cSTETerrain::GetAltitudeCheckSum	4	1	x87	high	
 cSTETerrain::vftable	00ab3d18	21	+0x54	0074c670	cSTETerrain::MinHeight	0	0	x87	high	
 cSTETerrain::vftable	00ab3d18	22	+0x58	0074c680	cSTETerrain::MaxHeight	0	0	x87	high	
 cSTETerrain::vftable	00ab3d18	23	+0x5C	0074c690	cSTETerrain::MinAllowedHeight	0	0	x87	high	
 cSTETerrain::vftable	00ab3d18	24	+0x60	0074c6a0	cSTETerrain::MaxAllowedHeight	0	0	x87	high	
 cSTETerrain::vftable	00ab3d18	25	+0x64	0074c6b0	cSTETerrain::GetTerrainGridIndex	8	2	eax-or-void	medium	
-cSTETerrain::vftable	00ab3d18	26	+0x68	00742b10	cSTETerrain::GetFaceNormal	12	3	x87|eax	low	
-cSTETerrain::vftable	00ab3d18	27	+0x6C	00742cf0	cSTETerrain::GetLerpedNormal	12	3	x87	high	
+cSTETerrain::vftable	00ab3d18	26	+0x68	00742b10	cSTETerrain::GetFaceNormal	12	3	eax-or-void	medium	
+cSTETerrain::vftable	00ab3d18	27	+0x6C	00742cf0	cSTETerrain::GetLerpedNormal	12	3	eax-or-void	medium	
 cSTETerrain::vftable	00ab3d18	28	+0x70	007417d0	cSTETerrain::GetVertexNormal	12	3	eax-or-void	medium	
 cSTETerrain::vftable	00ab3d18	29	+0x74	00741760	cSTETerrain::GetSeaLevel	0	0	x87	high	
 cSTETerrain::vftable	00ab3d18	30	+0x78	007449b0	cSTETerrain::GetWaterLevel	8	2	x87	high	
@@ -12760,14 +12760,14 @@ cSTETerrain::vftable	00ab3d18	39	+0x9C	00740750	cSTETerrain::AreSeaVertices	4	1	
 cSTETerrain::vftable	00ab3d18	40	+0xA0	00749540	cSTETerrain::DoPostCityInit	0	0	eax-or-void	medium	
 cSTETerrain::vftable	00ab3d18	41	+0xA4	00749a00	cSTETerrain::SetTerrainType	4	1	eax-or-void	medium	
 cSTETerrain::vftable	00ab3d18	42	+0xA8	0040cf10	cSC4SimGrid<T>::GetTractSize	0	0	eax-or-void	medium	
-cSTETerrain::vftable	00ab3d18	43	+0xAC	0074a220	cSTETerrain::CreateFlatAreas	4	1	x87|eax	low	
+cSTETerrain::vftable	00ab3d18	43	+0xAC	0074a220	cSTETerrain::CreateFlatAreas	4	1	eax-or-void	medium	
 cSTETerrain::vftable	00ab3d18	44	+0xB0	0074c0f0	cSTETerrain::CreateShoreCliffs	4	1	eax-or-void	medium	
 cSTETerrain::vftable	00ab3d18	45	+0xB4	00743550	cSTETerrain::SetSeaLevel	4	1	eax-or-void	medium	
 cSTETerrain::vftable	00ab3d18	46	+0xB8	00740850	cSTETerrain::ChangeSeaLevel	4	1	via-call	low	
 cSTETerrain::vftable	00ab3d18	47	+0xBC	0074c660	cSTETerrain::GetDefaultTerrainRaiseLowerAmount	0	0	x87	high	
 cSTETerrain::vftable	00ab3d18	48	+0xC0	00746440	cSTETerrain::ChangeTerrainLevel	8	2	via-call	low	
 cSTETerrain::vftable	00ab3d18	49	+0xC4	00744f10	cSTETerrain::SetAltitude	16	4	eax-or-void	medium	
-cSTETerrain::vftable	00ab3d18	50	+0xC8	00744e60	cSTETerrain::SetAltitudeAtVertex	8	2	x87|eax	low	
+cSTETerrain::vftable	00ab3d18	50	+0xC8	00744e60	cSTETerrain::SetAltitudeAtVertex	8	2	eax-or-void	medium	
 cSTETerrain::vftable	00ab3d18	51	+0xCC	00744f90	cSTETerrain::SetAltitude	12	3	x87|eax	low	
 cSTETerrain::vftable	00ab3d18	52	+0xD0	00741f90	cSTETerrain::LockAltitude	8	2	eax-or-void	medium	
 cSTETerrain::vftable	00ab3d18	53	+0xD4	00744b40	cSTETerrain::NumberOfWaterVertices	4	1	eax-or-void	medium	
@@ -13083,7 +13083,7 @@ cSC4LineGraph::vftable_1	00ab4c28	21	+0x54	009b202f	cGZGraph::SetAxisLabelFont	1
 cSC4LineGraph::vftable_1	00ab4c28	22	+0x58	009b207b	cGZGraph::SetAxisLabelRotation	8	2	eax-or-void	medium	
 cSC4LineGraph::vftable_1	00ab4c28	23	+0x5C	009b208d	cGZGraph::SetMajorTickUsage	8	2	eax-or-void	medium	
 cSC4LineGraph::vftable_1	00ab4c28	24	+0x60	009b20a0	cGZGraph::SetMajorTickSpacing	8	2	eax-or-void	medium	
-cSC4LineGraph::vftable_1	00ab4c28	25	+0x64	009b20b2	cGZGraph::SetMajorTickDivisions	12	3	x87	high	
+cSC4LineGraph::vftable_1	00ab4c28	25	+0x64	009b20b2	cGZGraph::SetMajorTickDivisions	12	3	eax-or-void	medium	
 cSC4LineGraph::vftable_1	00ab4c28	26	+0x68	009b211a	cGZGraph::SetMajorTickGridUsage	8	2	eax-or-void	medium	
 cSC4LineGraph::vftable_1	00ab4c28	27	+0x6C	009b212d	cGZGraph::SetMajorTickDecimalPlaces	8	2	eax-or-void	medium	
 cSC4LineGraph::vftable_1	00ab4c28	28	+0x70	009b214f	cGZGraph::SetMajorTickLength	8	2	eax-or-void	medium	
@@ -15840,7 +15840,7 @@ cSC4WinRegionScreen::vftable_2	00ab923c	3	+0xC	007b0af0	cSC4WinRegionScreen::DoM
 cSC4WinRegionScreen::vftable	00ab9260	0	+0x0	007aa640	cSC4WinRegionScreen::QueryInterface	8	2	eax-or-void	medium	
 cSC4WinRegionScreen::vftable	00ab9260	1	+0x4	007be160	icf::cSC4WinAdviceList::AddRef	0	0	eax-or-void	medium	tail->0094c47c
 cSC4WinRegionScreen::vftable	00ab9260	2	+0x8	007be170	icf::cSC4WinAdviceList::Release	0	0	eax-or-void	medium	tail->0099b7a3
-cSC4WinRegionScreen::vftable	00ab9260	3	+0xC	007ab9f0	cSC4WinRegionScreen::DoMessage	4	1	x87|eax	low	tail->0099ccf0
+cSC4WinRegionScreen::vftable	00ab9260	3	+0xC	007ab9f0	cSC4WinRegionScreen::DoMessage	4	1	eax-or-void	medium	tail->0099ccf0
 cSC4WinRegionScreen::vftable	00ab9260	4	+0x10	007b1900	cSC4WinRegionScreen::Init	0	0	eax-or-void	medium	
 cSC4WinRegionScreen::vftable	00ab9260	5	+0x14	007b0f60	cSC4WinRegionScreen::Shutdown	0	0	eax-or-void	medium	
 cSC4WinRegionScreen::vftable	00ab9260	6	+0x18	009d7e63	cRZString::ToChar	0	0	eax-or-void	medium	
@@ -16948,7 +16948,7 @@ cSC43DRender::vftable	00abab60	13	+0x34	007c1960	cSC43DRender::SetSubpixelImageB
 cSC43DRender::vftable	00abab60	14	+0x38	007c9fc0	cSC43DRender::GetCamera	0	0	eax-or-void	medium	
 cSC43DRender::vftable	00abab60	15	+0x3C	007c1980	cSC43DRender::SetCamera	4	1	eax-or-void	medium	
 cSC43DRender::vftable	00abab60	16	+0x40	007c9fd0	icf::cSC43DRender::GetCameraControl	0	0	eax-or-void	medium	
-cSC43DRender::vftable	00abab60	17	+0x44	007c1a00	cSC43DRender::SetCameraControl	4	1	x87	high	
+cSC43DRender::vftable	00abab60	17	+0x44	007c1a00	cSC43DRender::SetCameraControl	4	1	eax-or-void	medium	
 cSC43DRender::vftable	00abab60	18	+0x48	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	
 cSC43DRender::vftable	00abab60	19	+0x4C	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	
 cSC43DRender::vftable	00abab60	20	+0x50	007c7dd0	cSC43DRender::ForceFullRedraw	0	0	edx:eax?	low	tail->007c6d80
@@ -16976,7 +16976,7 @@ cSC43DRender::vftable	00abab60	41	+0xA4	007c2320	cSC43DRender::SetZoomAndRotatio
 cSC43DRender::vftable	00abab60	42	+0xA8	007cacd0	cSC43DRender::StartScreenShake	8	2	eax-or-void	medium	
 cSC43DRender::vftable	00abab60	43	+0xAC	007c6bc0	cSC43DRender::StartScreenShake	8	2	eax-or-void	medium	
 cSC43DRender::vftable	00abab60	44	+0xB0	007c8630	cSC43DRender::StopScreenShake	4	1	eax-or-void	medium	
-cSC43DRender::vftable	00abab60	45	+0xB4	007c2330	cSC43DRender::GetShakeOffsets	8	2	x87	high	
+cSC43DRender::vftable	00abab60	45	+0xB4	007c2330	cSC43DRender::GetShakeOffsets	8	2	eax-or-void	medium	
 cSC43DRender::vftable	00abab60	46	+0xB8	007c2350	cSC43DRender::SetViewportClearColor	4	1	eax-or-void	medium	
 cSC43DRender::vftable	00abab60	47	+0xBC	007c3f80	cSC43DRender::ClearViewport	4	1	eax-or-void	medium	
 cSC43DRender::vftable	00abab60	48	+0xC0	007c3350	cSC43DRender::ClearViewportWithSolidColor	12	3	via-call	low	
@@ -17033,21 +17033,21 @@ cSC4LightingManager::vftable	00abb530	10	+0x28	007d6b20	cSC4LightingManager::Get
 cSC4LightingManager::vftable	00abb530	11	+0x2C	007d8550	cSC4LightingManager::GetModelLight	8	2	eax-or-void	medium	
 cSC4LightingManager::vftable	00abb530	12	+0x30	007d8b20	cSC4LightingManager::GetTerrainLighting	16	4	eax-or-void	medium	
 cSC4LightingManager::vftable	00abb530	13	+0x34	007d6b50	cSC4LightingManager::GetShadowDirection	4	1	eax-or-void	medium	
-cSC4LightingManager::vftable	00abb530	14	+0x38	007d6b70	cSC4LightingManager::GetShadowParams	12	3	x87	high	
-cSC4LightingManager::vftable	00abb530	15	+0x3C	007d6bb0	cSC4LightingManager::GetShadowStrengthFromLocation	4	1	x87|eax	low	
-cSC4LightingManager::vftable	00abb530	16	+0x40	007da490	cSC4LightingManager::GetDecalShadowParams	28	7	x87|eax	low	
+cSC4LightingManager::vftable	00abb530	14	+0x38	007d6b70	cSC4LightingManager::GetShadowParams	12	3	eax-or-void	medium	
+cSC4LightingManager::vftable	00abb530	15	+0x3C	007d6bb0	cSC4LightingManager::GetShadowStrengthFromLocation	4	1	x87	high	
+cSC4LightingManager::vftable	00abb530	16	+0x40	007da490	cSC4LightingManager::GetDecalShadowParams	28	7	eax-or-void	medium	
 cSC4LightingManager::vftable	00abb530	17	+0x44	007d8c80	cSC4LightingManager::CalcShadowProjection	20	5	eax-or-void	medium	
 cSC4LightingManager::vftable	00abb530	18	+0x48	007d6cc0	cSC4LightingManager::CalcShadowTerrainRect	16	4	eax-or-void	medium	
 cSC4LightingManager::vftable	00abb530	19	+0x4C	007d7840	cSC4LightingManager::GetColor	20	5	eax-or-void	medium	
 cSC4LightingManager::vftable	00abb530	20	+0x50	007d7730	cSC4LightingManager::GetColor	16	4	eax-or-void	medium	
 cSC4LightingManager::vftable	00abb530	21	+0x54	007d7420	cSC4LightingManager::GetColor	12	3	via-call	low	
 cSC4LightingManager::vftable	00abb530	22	+0x58	007d77c0	cSC4LightingManager::GetColor	12	3	eax-or-void	medium	
-cSC4LightingManager::vftable	00abb530	23	+0x5C	007d7460	cSC4LightingManager::GetColor	8	2	x87	high	
+cSC4LightingManager::vftable	00abb530	23	+0x5C	007d7460	cSC4LightingManager::GetColor	8	2	eax-or-void	medium	
 cSC4LightingManager::vftable	00abb530	24	+0x60	007d73e0	cSC4LightingManager::GetColor	4	1	eax-or-void	medium	
 cSC4LightingManager::vftable	00abb530	25	+0x64	007d7940	cSC4LightingManager::GetTerrainColor	20	5	eax-or-void	medium	
 cSC4LightingManager::vftable	00abb530	26	+0x68	007d7ae0	cSC4LightingManager::GetTerrainColorFloor	20	5	eax-or-void	medium	
 cSC4LightingManager::vftable	00abb530	27	+0x6C	007d7bf0	cSC4LightingManager::GetVertexColors	24	6	edx:eax	medium	
-cSC4LightingManager::vftable	00abb530	28	+0x70	007d7f00	cSC4LightingManager::GetTerrainVertexColors	28	7	x87|eax	low	
+cSC4LightingManager::vftable	00abb530	28	+0x70	007d7f00	cSC4LightingManager::GetTerrainVertexColors	28	7	eax-or-void	medium	
 cSC4LightingManager::vftable	00abb530	29	+0x74	007da670	cSC4LightingManager::~cSC4LightingManager	4	1	eax-or-void	medium	
 _GLOBAL__N__AspyrBuild_depot_SC4RH_RH_Merge_SC4000_SC4000App_source_SC4RuleParser.cpp_00000000_1AEDF898::cRuleCommand::vftable	00abbea0	0	+0x0	007e3c40	icf::(anonymous_namespace)::cDecalEffectCommand::~cDecalEffectCommand	4	1	eax-or-void	medium	
 _GLOBAL__N__AspyrBuild_depot_SC4RH_RH_Merge_SC4000_SC4000App_source_SC4RuleParser.cpp_00000000_1AEDF898::cRuleCommand::vftable	00abbea0	1	+0x4	007e3b10	icf::nSCRes::cBlockCommandT<cSC4EffectsParser>::Parse	8	2	via-call	low	
@@ -17254,7 +17254,7 @@ cSC4View3DWin::vftable	00abce40	30	+0x78	007e8030	cSC4View3DWin::RemoveAllPersis
 cSC4View3DWin::vftable	00abce40	31	+0x7C	007e56f0	icf::cSC4City::GetDemolitionUtility	0	0	eax-or-void	medium	
 cSC4View3DWin::vftable	00abce40	32	+0x80	007e5700	cSC4View3DWin::SetKeyAccelerator	4	1	eax-or-void	medium	
 cSC4View3DWin::vftable	00abce40	33	+0x84	007f64f0	cSC4View3DWin::SetScrolling	12	3	eax-or-void	medium	
-cSC4View3DWin::vftable	00abce40	34	+0x88	007e5740	cSC4View3DWin::ScrollStop	0	0	x87|eax	low	
+cSC4View3DWin::vftable	00abce40	34	+0x88	007e5740	cSC4View3DWin::ScrollStop	0	0	eax-or-void	medium	
 cSC4View3DWin::vftable	00abce40	35	+0x8C	007e7f90	cSC4View3DWin::KillKeyboardScrolling	0	0	eax-or-void	medium	tail->007e6c60
 cSC4View3DWin::vftable	00abce40	36	+0x90	007e5840	cSC4View3DWin::PickTerrain	16	4	eax-or-void	medium	
 cSC4View3DWin::vftable	00abce40	37	+0x94	007e5890	cSC4View3DWin::PickOccupant	12	3	eax-or-void	medium	
@@ -17330,7 +17330,7 @@ cS3DResSpriteAnimFactory::vftable	00abd714	6	+0x18	009754e8	cGZPersistResourceFa
 cS3DResSpriteAnimFactory::vftable	00abd714	7	+0x1C	00808b70	cS3DResSpriteAnimFactory::~cS3DResSpriteAnimFactory	4	1	eax-or-void	medium	
 cS3DResSpriteAnimFactory::vftable	00abd714	8	+0x20	0093ff03	icf::cGZBufferResourceFactory::CreateInstance	12	3	via-call	low	
 cS3DResSpriteAnimFactory::vftable	00abd714	9	+0x24	00808bd0		12	3	eax-or-void	medium	
-cS3DResSpriteAnimFactory::vftable	00abd714	10	+0x28	00808b20	cS3DResSpriteAnimFactory::SerialRead	8	2	x87|eax	low	
+cS3DResSpriteAnimFactory::vftable	00abd714	10	+0x28	00808b20	cS3DResSpriteAnimFactory::SerialRead	8	2	eax-or-void	medium	
 cS3DResSpriteAnimFactory::vftable	00abd714	11	+0x2C	0062c980	icf::cIGZWinProc::DoWinProcMessage	8	2	eax-or-void	medium	
 cS3DTextureBindingFactory::vftable_3	00abd86c	0	+0x0	00809980		8	2	eax-or-void	medium	tail->00809130
 cS3DTextureBindingFactory::vftable_3	00abd86c	1	+0x4	00809990		0	0	eax-or-void	medium	tail->008091b0
@@ -17778,8 +17778,8 @@ cGZDrawContext::vftable	00ac16c8	3	+0xC	0082cfe0	cGZDrawContext::PushTransform	0
 cGZDrawContext::vftable	00ac16c8	4	+0x10	0082bec0	cGZDrawContext::ClipReset	0	0	eax-or-void	medium	
 cGZDrawContext::vftable	00ac16c8	5	+0x14	0082c6d0	cGZDrawContext::Clip	4	1	via-call	low	
 cGZDrawContext::vftable	00ac16c8	6	+0x18	0082c190	cGZDrawContext::ClipAbsolute	4	1	via-call	low	
-cGZDrawContext::vftable	00ac16c8	7	+0x1C	0082bee0	cGZDrawContext::Offset	4	1	x87	high	
-cGZDrawContext::vftable	00ac16c8	8	+0x20	0082bf00	cGZDrawContext::OffsetAbsolute	4	1	x87	high	
+cGZDrawContext::vftable	00ac16c8	7	+0x1C	0082bee0	cGZDrawContext::Offset	4	1	eax-or-void	medium	
+cGZDrawContext::vftable	00ac16c8	8	+0x20	0082bf00	cGZDrawContext::OffsetAbsolute	4	1	eax-or-void	medium	
 cGZDrawContext::vftable	00ac16c8	9	+0x24	0082c780	cGZDrawContext::PopTransform	0	0	eax-or-void	medium	
 cGZDrawContext::vftable	00ac16c8	10	+0x28	0082cff0	cGZDrawContext::PushState	0	0	edx:eax?	low	
 cGZDrawContext::vftable	00ac16c8	11	+0x2C	0082c7d0	cGZDrawContext::PopState	0	0	eax-or-void	medium	
@@ -18042,7 +18042,7 @@ cSCLua::vftable_3	00ac4148	27	+0x6C	00880c10		4	1	eax-or-void	medium	tail->00880
 cSCLua::vftable_3	00ac4148	28	+0x70	00880c20		4	1	eax-or-void	medium	tail->00880310
 cSCLua::vftable_3	00ac4148	29	+0x74	00880c30		4	1	eax-or-void	medium	tail->00880320
 cSCLua::vftable_3	00ac4148	30	+0x78	00880c40		0	0	eax-or-void	medium	tail->00880330
-cSCLua::vftable_3	00ac4148	31	+0x7C	00880c50		8	2	x87	high	tail->00880340
+cSCLua::vftable_3	00ac4148	31	+0x7C	00880c50		8	2	eax-or-void	medium	tail->00880340
 cSCLua::vftable_3	00ac4148	32	+0x80	00880c60		8	2	eax-or-void	medium	tail->00880360
 cSCLua::vftable_3	00ac4148	33	+0x84	00880c70		4	1	eax-or-void	medium	tail->00880370
 cSCLua::vftable_3	00ac4148	34	+0x88	00880c80		8	2	eax-or-void	medium	tail->00880380
@@ -18153,7 +18153,7 @@ cSCLua::vftable_1	00ac42c0	45	+0xB4	008802f0	cSCLua::ToCFunction	4	1	eax-or-void
 cSCLua::vftable_1	00ac42c0	46	+0xB8	00880300	cSCLua::ToUserData	4	1	eax-or-void	medium	tail->008b7830
 cSCLua::vftable_1	00ac42c0	47	+0xBC	008b7880	cGZLua5Thread::ToThread	4	1	eax-or-void	medium	
 cSCLua::vftable_1	00ac42c0	48	+0xC0	00880330	cSCLua::PushNil	0	0	eax-or-void	medium	tail->008b78d0
-cSCLua::vftable_1	00ac42c0	49	+0xC4	00880340	cSCLua::PushNumber	8	2	x87	high	
+cSCLua::vftable_1	00ac42c0	49	+0xC4	00880340	cSCLua::PushNumber	8	2	eax-or-void	medium	
 cSCLua::vftable_1	00ac42c0	50	+0xC8	00880360	cSCLua::PushLString	8	2	eax-or-void	medium	tail->008b7960
 cSCLua::vftable_1	00ac42c0	51	+0xCC	00880370	cSCLua::PushString	4	1	eax-or-void	medium	tail->008b79b0
 cSCLua::vftable_1	00ac42c0	52	+0xD0	00880380	cSCLua::PushCClosure	8	2	eax-or-void	medium	tail->008b7a00
@@ -18401,9 +18401,9 @@ cGZFont::vftable	00ac55d8	25	+0x64	00898a5a	cGZFont::IsCodePageAvailable	4	1	eax
 cGZFont::vftable	00ac55d8	26	+0x68	00896684	cGZFont::IsCharEncodingAvailable	4	1	eax-or-void	medium	
 cGZFont::vftable	00ac55d8	27	+0x6C	00899ca7	cGZFont::IsCharAvailable	8	2	eax-or-void	medium	
 cGZFont::vftable	00ac55d8	28	+0x70	00899d2a	cGZFont::PreloadChars	8	2	eax-or-void	medium	
-cGZFont::vftable	00ac55d8	29	+0x74	00896692	cGZFont::GetScaling	8	2	x87	high	
+cGZFont::vftable	00ac55d8	29	+0x74	00896692	cGZFont::GetScaling	8	2	eax-or-void	medium	
 cGZFont::vftable	00ac55d8	30	+0x78	0089854e	cGZFont::SetScaling	8	2	eax-or-void	medium	
-cGZFont::vftable	00ac55d8	31	+0x7C	008966a7	cGZFont::GetAdvanceScaling	8	2	x87	high	
+cGZFont::vftable	00ac55d8	31	+0x7C	008966a7	cGZFont::GetAdvanceScaling	8	2	eax-or-void	medium	
 cGZFont::vftable	00ac55d8	32	+0x80	0089865f	cGZFont::SetAdvanceScaling	8	2	eax-or-void	medium	
 cGZFont::vftable	00ac55d8	33	+0x84	008966bb	cGZFont::GetSpacingAdjustment	8	2	eax-or-void	medium	
 cGZFont::vftable	00ac55d8	34	+0x88	008966d0	cGZFont::SetSpacingAdjustment	8	2	eax-or-void	medium	
@@ -19378,7 +19378,7 @@ cGZLua5Thread::vftable_1	00ac8dd0	45	+0xB4	008b77e0	cGZLua5Thread::ToCFunction	4
 cGZLua5Thread::vftable_1	00ac8dd0	46	+0xB8	008b7830	cGZLua5Thread::ToUserData	4	1	eax-or-void	medium	
 cGZLua5Thread::vftable_1	00ac8dd0	47	+0xBC	008b7880	cGZLua5Thread::ToThread	4	1	eax-or-void	medium	
 cGZLua5Thread::vftable_1	00ac8dd0	48	+0xC0	008b78d0	cGZLua5Thread::PushNil	0	0	eax-or-void	medium	
-cGZLua5Thread::vftable_1	00ac8dd0	49	+0xC4	008b7910	cGZLua5Thread::PushNumber	8	2	x87	high	
+cGZLua5Thread::vftable_1	00ac8dd0	49	+0xC4	008b7910	cGZLua5Thread::PushNumber	8	2	eax-or-void	medium	
 cGZLua5Thread::vftable_1	00ac8dd0	50	+0xC8	008b7960	cGZLua5Thread::PushLString	8	2	eax-or-void	medium	
 cGZLua5Thread::vftable_1	00ac8dd0	51	+0xCC	008b79b0	cGZLua5Thread::PushString	4	1	eax-or-void	medium	
 cGZLua5Thread::vftable_1	00ac8dd0	52	+0xD0	008b7a00	cGZLua5Thread::PushCClosure	8	2	eax-or-void	medium	
@@ -19496,7 +19496,7 @@ cGZLua5::vftable_1	00ac8fc0	45	+0xB4	008b77e0	cGZLua5Thread::ToCFunction	4	1	eax
 cGZLua5::vftable_1	00ac8fc0	46	+0xB8	008b7830	cGZLua5Thread::ToUserData	4	1	eax-or-void	medium	
 cGZLua5::vftable_1	00ac8fc0	47	+0xBC	008b7880	cGZLua5Thread::ToThread	4	1	eax-or-void	medium	
 cGZLua5::vftable_1	00ac8fc0	48	+0xC0	008b78d0	cGZLua5Thread::PushNil	0	0	eax-or-void	medium	
-cGZLua5::vftable_1	00ac8fc0	49	+0xC4	008b7910	cGZLua5Thread::PushNumber	8	2	x87	high	
+cGZLua5::vftable_1	00ac8fc0	49	+0xC4	008b7910	cGZLua5Thread::PushNumber	8	2	eax-or-void	medium	
 cGZLua5::vftable_1	00ac8fc0	50	+0xC8	008b7960	cGZLua5Thread::PushLString	8	2	eax-or-void	medium	
 cGZLua5::vftable_1	00ac8fc0	51	+0xCC	008b79b0	cGZLua5Thread::PushString	4	1	eax-or-void	medium	
 cGZLua5::vftable_1	00ac8fc0	52	+0xD0	008b7a00	cGZLua5Thread::PushCClosure	8	2	eax-or-void	medium	
@@ -19702,7 +19702,7 @@ nSGLDX7::cGDriver::vftable_3	00acc4d8	54	+0xD8	008dc080		8	2	edx:eax?	low
 nSGLDX7::cGDriver::vftable_3	00acc4d8	55	+0xDC	006f7dc0	icf::cSC4AutomataController::CheckTimeOfDay	8	2	unknown	low	
 nSGLDX7::cGDriver::vftable_3	00acc4d8	56	+0xE0	008dbf70		8	2	eax-or-void	medium	indirect-jump dword ptr [eax*4 + 0x8dc054]/dword ptr [edx*4 + 0x8dc064]
 nSGLDX7::cGDriver::vftable_3	00acc4d8	57	+0xE4	008dbed0		8	2	edx:eax?	low	indirect-jump dword ptr [eax*4 + 0x8dbf50]
-nSGLDX7::cGDriver::vftable_3	00acc4d8	58	+0xE8	008db680		8	2	x87	high	
+nSGLDX7::cGDriver::vftable_3	00acc4d8	58	+0xE8	008db680		8	2	eax-or-void	medium	
 nSGLDX7::cGDriver::vftable_3	00acc4d8	59	+0xEC	008db700		4	1	eax-or-void	medium	
 nSGLDX7::cGDriver::vftable_3	00acc4d8	60	+0xF0	008db720		20	5	eax-or-void	medium	
 nSGLDX7::cGDriver::vftable_3	00acc4d8	61	+0xF4	008db190		40	10	eax-or-void	medium	
@@ -19711,7 +19711,7 @@ nSGLDX7::cGDriver::vftable_3	00acc4d8	63	+0xFC	008dc6c0		0	0	eax-or-void	medium
 nSGLDX7::cGDriver::vftable_3	00acc4d8	64	+0x100	008dc320		4	1	unknown	low	
 nSGLDX7::cGDriver::vftable_3	00acc4d8	65	+0x104	008dc920		8	2	via-call	low	
 nSGLDX7::cGDriver::vftable_3	00acc4d8	66	+0x108	008e1610		16	4	eax-or-void	medium	
-nSGLDX7::cGDriver::vftable_3	00acc4d8	67	+0x10C	008dc0f0		4	1	x87|eax	low	indirect-jump dword ptr [eax*4 + 0x8dc148]
+nSGLDX7::cGDriver::vftable_3	00acc4d8	67	+0x10C	008dc0f0		4	1	eax-or-void	medium	indirect-jump dword ptr [eax*4 + 0x8dc148]
 nSGLDX7::cGDriver::vftable_3	00acc4d8	68	+0x110	008ea320		36	9	via-call	low	
 nSGLDX7::cGDriver::vftable_3	00acc4d8	69	+0x114	008eadf0		44	11	edx:eax?	low	
 nSGLDX7::cGDriver::vftable_3	00acc4d8	70	+0x118	008ea360	nSGLDX7::cGDriver::BitBltAlpha	40	10	via-call	low	
@@ -20315,7 +20315,7 @@ cSCProperty::vftable_1	00acecd0	37	+0x94	00917852	cRZVariant::GetValFloat32	4	1	
 cSCProperty::vftable_1	00acecd0	38	+0x98	0091669a	cRZVariant::SetValFloat32	4	1	eax-or-void	medium	
 cSCProperty::vftable_1	00acecd0	39	+0x9C	00915694	cRZVariant::GetValFloat64	0	0	x87	high	
 cSCProperty::vftable_1	00acecd0	40	+0xA0	009178b2	cRZVariant::GetValFloat64	4	1	eax-or-void	medium	
-cSCProperty::vftable_1	00acecd0	41	+0xA4	009166aa	cRZVariant::SetValFloat64	8	2	x87	high	
+cSCProperty::vftable_1	00acecd0	41	+0xA4	009166aa	cRZVariant::SetValFloat64	8	2	eax-or-void	medium	
 cSCProperty::vftable_1	00acecd0	42	+0xA8	009156af	cRZVariant::GetValChar	0	0	eax-or-void	medium	
 cSCProperty::vftable_1	00acecd0	43	+0xAC	00917911	cRZVariant::GetValChar	4	1	eax-or-void	medium	
 cSCProperty::vftable_1	00acecd0	44	+0xB0	009166bb	cRZVariant::SetValChar	4	1	eax-or-void	medium	
@@ -21673,9 +21673,9 @@ cGZSndSys::vftable_3	00ad7110	2	+0x8	00968399		0	0	eax-or-void	medium	tail->0096
 cGZSndSys::vftable_3	00ad7110	3	+0xC	009683e7		0	0	eax-or-void	medium	tail->00967fe4
 cGZSndSys::vftable_3	00ad7110	4	+0x10	0096876b		0	0	eax-or-void	medium	tail->009683ef
 cGZSndSys::vftable_3	00ad7110	5	+0x14	00966fd9	cGZSndSys::CommitDeferredSettings	0	0	via-call	low	
-cGZSndSys::vftable_3	00ad7110	6	+0x18	009667ca	cGZSndSys::GetPosition	12	3	x87	high	
+cGZSndSys::vftable_3	00ad7110	6	+0x18	009667ca	cGZSndSys::GetPosition	12	3	eax-or-void	medium	
 cGZSndSys::vftable_3	00ad7110	7	+0x1C	00967056	cGZSndSys::SetPosition	12	3	eax-or-void	medium	
-cGZSndSys::vftable_3	00ad7110	8	+0x20	009667f1	cGZSndSys::GetOrientation	24	6	x87	high	
+cGZSndSys::vftable_3	00ad7110	8	+0x20	009667f1	cGZSndSys::GetOrientation	24	6	eax-or-void	medium	
 cGZSndSys::vftable_3	00ad7110	9	+0x24	00967109	cGZSndSys::SetOrientation	24	6	eax-or-void	medium	
 cGZSndSys::vftable_3	00ad7110	10	+0x28	009683a1	__ZThn12_N9cGZSndSys20AsIGZSnd3DListenerExEv	0	0	eax-or-void	medium	tail->0096830f
 cGZSndSys::vftable_1	00ad714c	0	+0x0	00968359		8	2	eax-or-void	medium	tail->00966723
@@ -24385,7 +24385,7 @@ cGZGraph::vftable	00ade188	157	+0x274	00949b73	icf::cGZGraph::SetGraphAreaOutlin
 cGZGraph::vftable	00ade188	158	+0x278	009b5ade		4	1	eax-or-void	medium	
 cGZGraph::vftable	00ade188	159	+0x27C	009b5b16		4	1	eax-or-void	medium	
 cGZGraph::vftable	00ade188	160	+0x280	009b3d71		12	3	eax-or-void	medium	
-cGZGraph::vftable	00ade188	161	+0x284	009b3e23	icf::cGZGraph::SetGraphArea	12	3	x87|eax	low	
+cGZGraph::vftable	00ade188	161	+0x284	009b3e23	icf::cGZGraph::SetGraphArea	12	3	x87	high	
 cGZGraph::vftable	00ade188	162	+0x288	009b3efb		8	2	edx:eax?	low	
 cGZGraph::vftable	00ade188	163	+0x28C	009b3f5c		8	2	x87	high	
 cGZGraph::vftable	00ade188	164	+0x290	009b2568		4	1	x87	high	
@@ -24400,8 +24400,8 @@ cGZGraph::vftable	00ade188	172	+0x2B0	009b799d		4	1	eax-or-void	medium
 cGZGraph::vftable	00ade188	173	+0x2B4	009b7b57		8	2	eax-or-void	medium	
 cGZGraph::vftable	00ade188	174	+0x2B8	009b2301		8	2	x87	high	
 cGZGraph::vftable	00ade188	175	+0x2BC	009b2333		8	2	x87	high	
-cGZGraph::vftable	00ade188	176	+0x2C0	009b23f6		8	2	x87	high	
-cGZGraph::vftable	00ade188	177	+0x2C4	009b2417		8	2	x87	high	
+cGZGraph::vftable	00ade188	176	+0x2C0	009b23f6		8	2	eax-or-void	medium	
+cGZGraph::vftable	00ade188	177	+0x2C4	009b2417		8	2	eax-or-void	medium	
 cGZGraph::vftable_1	00ade450	0	+0x0	009b771e	__ZThn228_N8cGZGraph14QueryInterfaceEmPPv	8	2	eax-or-void	medium	tail->009b1e73
 cGZGraph::vftable_1	00ade450	1	+0x4	0095ba81		0	0	eax-or-void	medium	tail->008fb729
 cGZGraph::vftable_1	00ade450	2	+0x8	0095ba8c		0	0	eax-or-void	medium	tail->008fb72e
@@ -24427,7 +24427,7 @@ cGZGraph::vftable_1	00ade450	21	+0x54	009b202f	cGZGraph::SetAxisLabelFont	12	3	e
 cGZGraph::vftable_1	00ade450	22	+0x58	009b207b	cGZGraph::SetAxisLabelRotation	8	2	eax-or-void	medium	
 cGZGraph::vftable_1	00ade450	23	+0x5C	009b208d	cGZGraph::SetMajorTickUsage	8	2	eax-or-void	medium	
 cGZGraph::vftable_1	00ade450	24	+0x60	009b20a0	cGZGraph::SetMajorTickSpacing	8	2	eax-or-void	medium	
-cGZGraph::vftable_1	00ade450	25	+0x64	009b20b2	cGZGraph::SetMajorTickDivisions	12	3	x87	high	
+cGZGraph::vftable_1	00ade450	25	+0x64	009b20b2	cGZGraph::SetMajorTickDivisions	12	3	eax-or-void	medium	
 cGZGraph::vftable_1	00ade450	26	+0x68	009b211a	cGZGraph::SetMajorTickGridUsage	8	2	eax-or-void	medium	
 cGZGraph::vftable_1	00ade450	27	+0x6C	009b212d	cGZGraph::SetMajorTickDecimalPlaces	8	2	eax-or-void	medium	
 cGZGraph::vftable_1	00ade450	28	+0x70	009b214f	cGZGraph::SetMajorTickLength	8	2	eax-or-void	medium	
@@ -24486,7 +24486,7 @@ cGZBarGraph::vftable_1	00ade568	21	+0x54	009b202f	cGZGraph::SetAxisLabelFont	12	
 cGZBarGraph::vftable_1	00ade568	22	+0x58	009b207b	cGZGraph::SetAxisLabelRotation	8	2	eax-or-void	medium	
 cGZBarGraph::vftable_1	00ade568	23	+0x5C	009b208d	cGZGraph::SetMajorTickUsage	8	2	eax-or-void	medium	
 cGZBarGraph::vftable_1	00ade568	24	+0x60	009b20a0	cGZGraph::SetMajorTickSpacing	8	2	eax-or-void	medium	
-cGZBarGraph::vftable_1	00ade568	25	+0x64	009b20b2	cGZGraph::SetMajorTickDivisions	12	3	x87	high	
+cGZBarGraph::vftable_1	00ade568	25	+0x64	009b20b2	cGZGraph::SetMajorTickDivisions	12	3	eax-or-void	medium	
 cGZBarGraph::vftable_1	00ade568	26	+0x68	009b211a	cGZGraph::SetMajorTickGridUsage	8	2	eax-or-void	medium	
 cGZBarGraph::vftable_1	00ade568	27	+0x6C	009b212d	cGZGraph::SetMajorTickDecimalPlaces	8	2	eax-or-void	medium	
 cGZBarGraph::vftable_1	00ade568	28	+0x70	009b214f	cGZGraph::SetMajorTickLength	8	2	eax-or-void	medium	
@@ -24541,7 +24541,7 @@ cGZScatterGraph::vftable_1	00ade9b0	21	+0x54	009b202f	cGZGraph::SetAxisLabelFont
 cGZScatterGraph::vftable_1	00ade9b0	22	+0x58	009b207b	cGZGraph::SetAxisLabelRotation	8	2	eax-or-void	medium	
 cGZScatterGraph::vftable_1	00ade9b0	23	+0x5C	009b208d	cGZGraph::SetMajorTickUsage	8	2	eax-or-void	medium	
 cGZScatterGraph::vftable_1	00ade9b0	24	+0x60	009b20a0	cGZGraph::SetMajorTickSpacing	8	2	eax-or-void	medium	
-cGZScatterGraph::vftable_1	00ade9b0	25	+0x64	009b20b2	cGZGraph::SetMajorTickDivisions	12	3	x87	high	
+cGZScatterGraph::vftable_1	00ade9b0	25	+0x64	009b20b2	cGZGraph::SetMajorTickDivisions	12	3	eax-or-void	medium	
 cGZScatterGraph::vftable_1	00ade9b0	26	+0x68	009b211a	cGZGraph::SetMajorTickGridUsage	8	2	eax-or-void	medium	
 cGZScatterGraph::vftable_1	00ade9b0	27	+0x6C	009b212d	cGZGraph::SetMajorTickDecimalPlaces	8	2	eax-or-void	medium	
 cGZScatterGraph::vftable_1	00ade9b0	28	+0x70	009b214f	cGZGraph::SetMajorTickLength	8	2	eax-or-void	medium	
@@ -24596,7 +24596,7 @@ cGZPieGraph::vftable_1	00adede0	21	+0x54	009b202f	cGZGraph::SetAxisLabelFont	12	
 cGZPieGraph::vftable_1	00adede0	22	+0x58	009b207b	cGZGraph::SetAxisLabelRotation	8	2	eax-or-void	medium	
 cGZPieGraph::vftable_1	00adede0	23	+0x5C	009b208d	cGZGraph::SetMajorTickUsage	8	2	eax-or-void	medium	
 cGZPieGraph::vftable_1	00adede0	24	+0x60	009b20a0	cGZGraph::SetMajorTickSpacing	8	2	eax-or-void	medium	
-cGZPieGraph::vftable_1	00adede0	25	+0x64	009b20b2	cGZGraph::SetMajorTickDivisions	12	3	x87	high	
+cGZPieGraph::vftable_1	00adede0	25	+0x64	009b20b2	cGZGraph::SetMajorTickDivisions	12	3	eax-or-void	medium	
 cGZPieGraph::vftable_1	00adede0	26	+0x68	009b211a	cGZGraph::SetMajorTickGridUsage	8	2	eax-or-void	medium	
 cGZPieGraph::vftable_1	00adede0	27	+0x6C	009b212d	cGZGraph::SetMajorTickDecimalPlaces	8	2	eax-or-void	medium	
 cGZPieGraph::vftable_1	00adede0	28	+0x70	009b214f	cGZGraph::SetMajorTickLength	8	2	eax-or-void	medium	
@@ -24783,11 +24783,11 @@ cGZPieGraph::vftable	00adeec0	153	+0x264	009b3994		4	1	via-call	low
 cGZPieGraph::vftable	00adeec0	154	+0x268	009b24e1		4	1	via-call	low	
 cGZPieGraph::vftable	00adeec0	155	+0x26C	009b3a85		8	2	via-call	low	
 cGZPieGraph::vftable	00adeec0	156	+0x270	009b7de9		8	2	eax-or-void	medium	
-cGZPieGraph::vftable	00adeec0	157	+0x274	009b6ae5	cGZPieGraph::DrawGraphData	4	1	x87|eax	low	
+cGZPieGraph::vftable	00adeec0	157	+0x274	009b6ae5	cGZPieGraph::DrawGraphData	4	1	eax-or-void	medium	
 cGZPieGraph::vftable	00adeec0	158	+0x278	009b5ade		4	1	eax-or-void	medium	
 cGZPieGraph::vftable	00adeec0	159	+0x27C	009b5b16		4	1	eax-or-void	medium	
 cGZPieGraph::vftable	00adeec0	160	+0x280	009b3d71		12	3	eax-or-void	medium	
-cGZPieGraph::vftable	00adeec0	161	+0x284	009b3e23	icf::cGZGraph::SetGraphArea	12	3	x87|eax	low	
+cGZPieGraph::vftable	00adeec0	161	+0x284	009b3e23	icf::cGZGraph::SetGraphArea	12	3	x87	high	
 cGZPieGraph::vftable	00adeec0	162	+0x288	009b3efb		8	2	edx:eax?	low	
 cGZPieGraph::vftable	00adeec0	163	+0x28C	009b3f5c		8	2	x87	high	
 cGZPieGraph::vftable	00adeec0	164	+0x290	009b2568		4	1	x87	high	
@@ -24802,8 +24802,8 @@ cGZPieGraph::vftable	00adeec0	172	+0x2B0	009b799d		4	1	eax-or-void	medium
 cGZPieGraph::vftable	00adeec0	173	+0x2B4	009b7b57		8	2	eax-or-void	medium	
 cGZPieGraph::vftable	00adeec0	174	+0x2B8	009b2301		8	2	x87	high	
 cGZPieGraph::vftable	00adeec0	175	+0x2BC	009b2333		8	2	x87	high	
-cGZPieGraph::vftable	00adeec0	176	+0x2C0	009b23f6		8	2	x87	high	
-cGZPieGraph::vftable	00adeec0	177	+0x2C4	009b2417		8	2	x87	high	
+cGZPieGraph::vftable	00adeec0	176	+0x2C0	009b23f6		8	2	eax-or-void	medium	
+cGZPieGraph::vftable	00adeec0	177	+0x2C4	009b2417		8	2	eax-or-void	medium	
 cGZPieGraph::vftable_2	00adf188	0	+0x0	009ba312		8	2	eax-or-void	medium	tail->009b2bef
 cGZPieGraph::vftable_2	00adf188	1	+0x4	009b9ec8		0	0	eax-or-void	medium	tail->008fb729
 cGZPieGraph::vftable_2	00adf188	2	+0x8	009b9ed3		0	0	eax-or-void	medium	tail->008fb72e
@@ -24814,9 +24814,9 @@ cGZPieGraph::vftable_2	00adf188	6	+0x18	009b2c77	cGZPieGraph::Set3DViewMaskBuffe
 cGZPieGraph::vftable_2	00adf188	7	+0x1C	009b2deb	cGZPieGraph::GetLineFromCenterOfDiskToEdge	12	3	edx:eax?	low	
 cGZPieGraph::vftable_2	00adf188	8	+0x20	009b2f12	cGZPieGraph::GetPositionForPercentageText	12	3	eax-or-void	medium	
 cGZPieGraph::vftable_2	00adf188	9	+0x24	009b69a6	cGZPieGraph::GetPositionForPercentageText	8	2	via-call	low	
-cGZPieGraph::vftable_2	00adf188	10	+0x28	009b952d	cGZPieGraph::MakeNormalizedDataArray	8	2	x87|eax	low	
+cGZPieGraph::vftable_2	00adf188	10	+0x28	009b952d	cGZPieGraph::MakeNormalizedDataArray	8	2	eax-or-void	medium	
 cGZPieGraph::vftable_2	00adf188	11	+0x2C	009ba0d0		4	1	via-call	low	tail->009b2935
-cGZPieGraph::vftable_2	00adf188	12	+0x30	009ba33e	__ZThn548_N11cGZPieGraph13DrawGraphDataEP10cIGZBuffer	4	1	x87|eax	low	tail->009b6ae5
+cGZPieGraph::vftable_2	00adf188	12	+0x30	009ba33e	__ZThn548_N11cGZPieGraph13DrawGraphDataEP10cIGZBuffer	4	1	eax-or-void	medium	tail->009b6ae5
 cGZPieGraph::vftable_2	00adf188	13	+0x34	009ba328		4	1	eax-or-void	medium	tail->009b2f92
 cGZPieGraph::vftable_2	00adf188	14	+0x38	009b2c26	cGZPieGraph::SetPercentageTextDecimalPlaces	4	1	eax-or-void	medium	
 cGZPieGraph::vftable_2	00adf188	15	+0x3C	009b28fb	cGZPieGraph::SetPercentageTextFont	8	2	eax-or-void	medium	
@@ -24832,7 +24832,7 @@ cGZPieGraph::vftable_2	00adf188	24	+0x60	009bb8b8	cGZPieGraph::InsertSeriesInfo	
 cGZPieGraph::vftable_2	00adf188	25	+0x64	009bb8f7	cGZPieGraph::RemoveSeriesInfo	4	1	edx:eax?	low	
 cGZPieGraph::vftable_2	00adf188	26	+0x68	009b96d4	cGZPieGraph::InsertData	8	2	eax-or-void	medium	
 cGZPieGraph::vftable_2	00adf188	27	+0x6C	009b65a0	cGZPieGraph::RemoveData	4	1	eax-or-void	medium	
-cGZPieGraph::vftable_2	00adf188	28	+0x70	009b58ab	cGZPieGraph::SetData	8	2	x87|eax	low	
+cGZPieGraph::vftable_2	00adf188	28	+0x70	009b58ab	cGZPieGraph::SetData	8	2	eax-or-void	medium	
 cGZPieGraph::vftable_2	00adf188	29	+0x74	009b9ef4		0	0	eax-or-void	medium	tail->0095ba6f
 cGZPieGraph::vftable_2	00adf188	30	+0x78	009ba2f4	cGZPieGraph::AsIGZGraph	0	0	eax-or-void	medium	
 cGZWinBMP::vftable_1	00adf66c	0	+0x0	009bc31a	__ZThn228_N9cGZWinBMP14QueryInterfaceEmPPv	8	2	eax-or-void	medium	tail->009bc06a

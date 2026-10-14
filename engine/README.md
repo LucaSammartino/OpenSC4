@@ -88,8 +88,11 @@ plugin.
      structured-exception guard. A first-chance vectored handler also logs every exception raised inside
      `FreeCity4.dll`'s image, with code, address and offset from the DLL base, and passes it on unhandled.
      Exceptions outside our image are reported at most twice per faulting address (16 addresses), as
-     `module+offset`, with the registers, the return addresses into `SimCity 4.exe` and `FreeCity4.dll` in the
-     top 4 KiB of the stack (map the executable's with `python tools/addr2func.py --log <log>`, coordinator
+     `module+offset`, with the registers, the x87 state (`  fpu: CW=0x027F SW=0x0000 (TOP=0 SF=0 IE=0 C1=0)
+     TW=0xFFFF occupied=0 [FXSAVE FTW=0x00 occupied=0] indefinite NaN: none`: TW decoded as the full tag word,
+     the FXSAVE part when the context carries it; `indefinite NaN` lists the registers that hold the x87 default
+     NaN), the first 8 raw dwords at esp (`  esp dwords: 0x… ×8 (at esp=0x…)`), the return addresses into
+     `SimCity 4.exe` and `FreeCity4.dll` in the top 4 KiB of the stack (map the executable's with `python tools/addr2func.py --log <log>`, coordinator
      only: it reads RE material) and the last interface calls. The handler never
      blocks: it takes the log lock only with a time-limited try-lock and otherwise writes through a spare
      handle. Stack overflows are only counted. `FC4_DIAG_SELFTEST=1` raises one deliberate access violation at
@@ -98,7 +101,18 @@ plugin.
      and a `heartbeat (periodic)` line every `FC4_HEARTBEAT_MS` (default 10000) with the julian date, speed,
      the pause/hidden/emergency flags, and since the last heartbeat the `OnTick` count, agent deliveries,
      interface calls and verbose lines suppressed by caps, then the memory: address space used, the largest
-     free block (the game is a 2 GiB process) and the private bytes.
+     free block (the game is a 2 GiB process) and the private bytes, and last `x87 leftovers: N` (with the three
+     sites with the most findings when N > 0, e.g. `x87 leftovers: 12 (deliver (after) 8, tick 4)`).
+   - x87 leftover guard (always on, `plugin/FC4Fpu.h`): every x87 exception is masked in the game, so a value a
+     wrong return channel leaves on the x87 register stack (or takes off it) does not fault; eight leftovers later
+     loads yield NaN. On the main thread, the plugin FXSAVEs and counts the occupied registers at the entry and the
+     end of our `OnTick`, at each framework tick, before and after every agent delivery, at the entry and exit of
+     every `DoMessage` of ours, after our synchronous `MessageSend`, and at every `fpu …` line (which includes the
+     monthly observation). Nothing is popped. Each finding is counted per site; the first per site per game month
+     is logged: `x87 leftovers at '<site>' (msg 0x<type>, '<agent>'): N register(s) occupied (FSW=0x…. TOP=t,
+     FTW=0x..), indefinite NaN: <ST list|none>; previous check '<site>' had M; game month YYYY-MM, K at this site,
+     T in all`. The first time the sticky stack-fault flag is seen: `x87: the stack-fault flag is set at '<site>'
+     (FSW=0x….: SF=1 IE=. C1=., a stack overflow|underflow …). Logged once.`
    - Hang watchdog: a background thread watches markers the simulation thread publishes without locks (inside
      `OnTick`, the agent delivery in progress with level, message and agent name, core `fc4_*` calls, our
      interface methods). If the simulation thread stays inside our code for more than `FC4_WATCHDOG_STALL_MS`

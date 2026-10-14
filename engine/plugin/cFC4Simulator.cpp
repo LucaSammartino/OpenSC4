@@ -17,6 +17,7 @@
 #include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
 #include "FC4FloraShadow.h"
+#include "FC4Fpu.h"
 #include "FC4LandfillShadow.h"
 #include "FC4PlumbingShadow.h"
 #include "FC4PollutionShadow.h"
@@ -307,6 +308,12 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
         if (it != stats.end()) name = it->second.name.c_str();
     }
     fc4::DeliveryBegin(LevelOfType(msg->type), msg->type, target, name);
+    // The x87 leftover guard around every delivery to an agent (FC4Fpu.h):
+    // what was left before it, and what the agent (ours, the game's, or a
+    // shadowed original) left behind.
+    static fc4::X87Site beforeSite = {"deliver (before)", 0, 0, 0, nullptr};
+    static fc4::X87Site afterSite = {"deliver (after)", 0, 0, 0, nullptr};
+    fc4::X87Check(beforeSite, msg->type, name);
     // The budget and demand shadows (opt-in, FC4BudgetShadow.h,
     // FC4DemandShadow.h) wrap the original budget's SimNewMonth and the
     // original demand simulator's SimNewDay / SimIdle deliveries; otherwise
@@ -338,6 +345,7 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
         finished = target->DoMessage(m);
     }
     fc4::DeliveryEnd();
+    fc4::X87Check(afterSite, msg->type, name);
     m->Release();
     if (user != nullptr && fc4::LogLevel() >= fc4::kLogVerbose) {
         static_cast<cFC4Simulator*>(user)->RecordDelivery(target, *msg, finished);
@@ -932,6 +940,7 @@ cIGZSystemService* cFC4Simulator::SetServiceRunning(bool bRunning) {
 
 bool cFC4Simulator::OnTick(uint32_t unknown1) {
     fc4::TickScope tick;
+    FC4_X87_SCOPE("simulator OnTick", 0);  // x87 leftover guard at the entry and the end (FC4Fpu.h)
     ++ticks_;
     if (ticks_ == 1 || ticks_ % 1000 == 0) {
         fc4_state st{};
@@ -965,6 +974,7 @@ int32_t cFC4Simulator::GetServiceTickPriority() { return kServicePriority; }  //
 
 bool cFC4Simulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr) return true;
+    FC4_X87_SCOPE("simulator DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     if (messagesLogged_ < 50) {
         ++messagesLogged_;
         FC4_LOGV("DoMessage(type=0x%08X)", pMessage->GetType());

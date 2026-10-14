@@ -16,6 +16,7 @@
 #include "FC4Config.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
@@ -1093,6 +1094,7 @@ uint32_t cFC4PollutionSimulator::SelectProp(fc4::GameVector<uint32_t> const&, in
 
 bool cFC4PollutionSimulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("pollution DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     const uint32_t type = pMessage->GetType();
     const bool day = type == kMsgSimNewDay, month = type == kMsgSimNewMonth;
     // A service the city created after our Init (§4.1 step 4 runs once).

@@ -120,13 +120,34 @@
 //         scalar or object array) or -1 (null argument).
 //   op 27 kFC4SeamLotCenter        a = cISC4Lot*, b = float[3]: the crime
 //         glue's lot GetCenter thunk (slot 15, crime.md §13 / CQ3) into b;
-//         returns 1 if ST0 held a value after the call (popped), 0 if the
-//         x87 stack was empty (the original), -1 (null argument).
+//         returns the values the call left on the x87 stack (TOP change mod
+//         8: 0 = unchanged, the original; 1 = one pushed, NOT popped, so the
+//         caller must pop it; 7 = one popped), -1 (null argument).
+//   op 28 kFC4SeamCellCenter       a = cISC4City*, b = FC4CellCenterTestIo*:
+//         the protection and the landfill glue's city slot 97
+//         CellCenterToPosition calls (void, pop 16; docs/abi corrected
+//         2026-10-14) for (b->cx, b->cz); returns 1, or -1 (null argument).
+//   op 29 kFC4SeamPipeBurst        a = cISC4City*, b = const int32_t[2]
+//         (x, z): the plumbing glue's AttemptPipeBurst (plumbing.md §7.1
+//         step 4); its result is ignored, never released. Returns 1 (the
+//         manager existed), 0 (none) or -1 (null argument).
+//   op 30 kFC4SeamVariant          a = cFC4IGZVariant** (out): a heap
+//         variant of the plugin's own class (the one handed to the game),
+//         with one reference for the caller; returns 1, or -1.
+//   op 31 kFC4SeamX87Check         the x87 leftover guard (FC4Fpu.h) at the
+//         site "test seam"; returns the occupied x87 registers it found.
 #pragma once
 
 #include <cstdint>
 
 class cIGZMessage2Standard;
+
+// kFC4SeamCellCenter's in/out block: the cell, then each glue's position.
+struct FC4CellCenterTestIo {
+    int32_t cx, cz;
+    float protectionX, protectionZ;
+    float landfillX, landfillZ;
+};
 
 // kFC4SeamRawArrayBytes's in/out block.
 struct FC4RawArrayBytesTestIo {
@@ -161,6 +182,10 @@ enum : uint32_t {
     kFC4SeamResidentialShadow = 25,
     kFC4SeamRawArrayBytes = 26,
     kFC4SeamLotCenter = 27,
+    kFC4SeamCellCenter = 28,
+    kFC4SeamPipeBurst = 29,
+    kFC4SeamVariant = 30,
+    kFC4SeamX87Check = 31,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

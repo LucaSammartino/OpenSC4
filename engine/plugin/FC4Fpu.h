@@ -58,4 +58,65 @@ void FpuTick();
 // The guard alone (no line unless it fires).
 void FpuCheck(const char* where);
 
+// ---- the x87 leftover guard -------------------------------------------------
+//
+// At every point where the main thread's x87 register stack must be empty
+// (MSVC code keeps nothing on it across calls), FXSAVE into a stack buffer
+// and count the occupied registers in the abridged tag. A non-empty stack
+// means some call left a value there (a float declaration where the callee
+// returns nothing) or the game handed it to us that way; with every x87
+// exception masked, the eighth leftover turns the next load into the
+// indefinite NaN. Diagnostic only: nothing is popped or cleared.
+//
+// Sites: the entry and end of our OnTick, each framework tick (observer),
+// before and after every message we deliver to a game agent, the entry and
+// exit of every DoMessage of ours, after our synchronous MessageSend, and
+// every FpuLog (which includes the monthly observation). Cheap when clean:
+// one FXSAVE, no allocation, no log line. Each finding is counted per site;
+// the first per site per game month is logged:
+//   x87 leftovers at '<site>' (msg 0x<type>, '<agent>'): N register(s) occupied
+//   (FSW=0x.... TOP=t, FTW=0x..), indefinite NaN: <ST list|none>; previous
+//   check '<site>' had M; game month YYYY-MM, K at this site, T in all
+// and the heartbeat carries `x87 leftovers: T` (FC4Watchdog.cpp). The first
+// time the sticky stack-fault flag (SF) is seen set, one line says so
+// (C1 = 1: overflow, 0: underflow). Main thread only (any thread before the
+// main thread is known, as in the host tests).
+struct X87Site {
+    const char* name;
+    volatile long count;        // findings at this site
+    volatile long loggedMonth;  // the game month last logged (0 = never)
+    volatile long registered;   // 1 once linked into the registry
+    X87Site* volatile next;     // registry link (sites with findings only)
+};
+
+// The guard at `site`. `msg` (0 = none) and `who` (null = none) only go into
+// the log line. Returns the occupied registers (0 = clean).
+int X87Check(X87Site& site, uint32_t msg = 0, const char* who = nullptr);
+// The occupied registers now (no counting, no log line).
+int X87Occupied();
+// Findings at every site since the DLL was loaded.
+long X87LeftoverTotal();
+// "x87 leftovers: T" plus, when T > 0, the (at most) three sites with the
+// most findings: "x87 leftovers: 12 (crime DoMessage exit 8, ...)".
+void X87DescribeLeftovers(char* out, size_t cap);
+
+// Checks `entry` now and `exit` when the scope ends (a DoMessage, an OnTick).
+class X87Scope {
+public:
+    X87Scope(X87Site& entry, X87Site& exit, uint32_t msg) : exit_(exit), msg_(msg) { X87Check(entry, msg); }
+    ~X87Scope() { X87Check(exit_, msg_); }
+    X87Scope(const X87Scope&) = delete;
+    X87Scope& operator=(const X87Scope&) = delete;
+
+private:
+    X87Site& exit_;
+    uint32_t msg_;
+};
+
 }  // namespace fc4
+
+// One guard site (a string literal name), checked here.
+#define FC4_X87_CHECK(name)                                        do {                                                               static ::fc4::X87Site fc4_x87_site_ = {name, 0, 0, 0, nullptr};         ::fc4::X87Check(fc4_x87_site_);                            } while (0)
+// Two sites, "<name> entry" now and "<name> exit" at the end of the enclosing
+// scope; `msg` is the message type for the log line (0 = none).
+#define FC4_X87_SCOPE(name, msg)                                                             static ::fc4::X87Site fc4_x87_entry_ = {name " entry", 0, 0, 0, nullptr};                static ::fc4::X87Site fc4_x87_exit_ = {name " exit", 0, 0, 0, nullptr};                  ::fc4::X87Scope fc4_x87_scope_(fc4_x87_entry_, fc4_x87_exit_, (msg))

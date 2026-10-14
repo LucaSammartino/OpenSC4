@@ -17,6 +17,7 @@
 #include "FC4Checked.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4GameList.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
@@ -1505,6 +1506,7 @@ bool cFC4PowerSimulator::SetPowerPlantFundingPercentage(cISC4Occupant* o, SC4Per
 
 bool cFC4PowerSimulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("power DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     CoreCall call(this);
     fc4_power_message m{};
     m.msg_type = pMessage->GetType();

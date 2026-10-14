@@ -60,7 +60,7 @@ public:
     cISC4Demand* GetDemand(uint32_t demandID, uint32_t demandIndex) override;
     void UpdateOccupantEffects(uint32_t buildingType, SC4Percentage const& oldPct,
                                SC4Percentage const& newPct) override;
-    float CalculateJobsPerUnitOfDemand(float* jobs, uint32_t demandID, uint32_t demandIndex) override;
+    void CalculateJobsPerUnitOfDemand(float* jobs, uint32_t demandID, uint32_t demandIndex) override;
     uint32_t GetJobsBySensus(uint32_t type) override;
     float GetNeutralTaxRate() override;
     void GetLocalPopulationSummary(std::map<uint32_t, int32_t>& summary) const override;
@@ -156,8 +156,8 @@ public:
     float QueryEconomyModifier() const override;
     float QueryActiveDemandMax() const override;
     float QueryActiveDemandMin() const override;
-    float AddToSupplyValue(float value) override;
-    float AddToDemandValue(float value) override;
+    bool AddToSupplyValue(float value) override;
+    bool AddToDemandValue(float value) override;
     bool SetSupplyValue(float value) override;
     bool SetDemandValue(float value) override;
     bool SetActiveDemandMax(float value) override;

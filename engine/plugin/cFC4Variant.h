@@ -82,10 +82,7 @@ public:
     void SetValFloat32(float value) override { v_.SetValFloat32(value); }
     double GetValFloat64() const override { return v_.GetValFloat64(); }
     bool GetValFloat64To(double& value) const override { return v_.GetValFloat64(value); }
-    double SetValFloat64(double value) override {  // [choice] returns the stored value (see FC4Interfaces.h)
-        v_.SetValFloat64(value);
-        return value;
-    }
+    void SetValFloat64(double value) override { v_.SetValFloat64(value); }  // nothing in ST0 (FC4Interfaces.h)
     char GetValChar() const override { return v_.GetValChar(); }
     bool GetValCharTo(char& value) const override { return v_.GetValChar(value); }
     void SetValChar(char value) override { v_.SetValChar(value); }

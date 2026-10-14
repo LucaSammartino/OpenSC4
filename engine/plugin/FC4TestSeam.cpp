@@ -34,7 +34,11 @@
 #include "cFC4Crime.h"
 #include "cFC4Demand.h"
 #include "cFC4Flammability.h"
+#include "cFC4Landfill.h"
+#include "cFC4Plumbing.h"
 #include "cFC4Power.h"
+#include "cFC4Protection.h"
+#include "cFC4Variant.h"
 #include "fc4.h"
 
 #include <cstring>
@@ -116,6 +120,38 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
         }
         case kFC4SeamLotCenter:
             return fc4::CrimeTestLotCenter(a, static_cast<float*>(b));
+        case kFC4SeamCellCenter: {
+            auto* io = static_cast<FC4CellCenterTestIo*>(b);
+            if (a == nullptr || io == nullptr) return -1;
+            fc4::ProtectionContext pc;
+            pc.readOnly = true;
+            pc.city = static_cast<cISC4City*>(a);
+            const fc4_protection_host ph = fc4::MakeProtectionReadOnlyHost(&pc);
+            ph.cell_center_to_position(ph.user, io->cx, io->cz, &io->protectionX, &io->protectionZ);
+            fc4::LandfillContext lc;
+            lc.readOnly = true;
+            lc.city = static_cast<cISC4City*>(a);
+            const fc4_landfill_host lh = fc4::MakeLandfillReadOnlyHost(&lc);
+            lh.cell_center_to_position(lh.user, io->cx, io->cz, &io->landfillX, &io->landfillZ);
+            return 1;
+        }
+        case kFC4SeamPipeBurst: {
+            const int32_t* xz = static_cast<const int32_t*>(b);
+            if (a == nullptr || xz == nullptr) return -1;
+            return fc4::PlumbingTestPipeBurst(static_cast<cISC4City*>(a), xz[0], xz[1]);
+        }
+        case kFC4SeamVariant: {
+            if (a == nullptr) return -1;
+            const cFC4Variant proto;
+            cFC4IGZVariant* copy = nullptr;
+            if (!proto.CreateCopy(&copy)) return -1;
+            *static_cast<cFC4IGZVariant**>(a) = copy;
+            return 1;
+        }
+        case kFC4SeamX87Check: {
+            static fc4::X87Site site = {"test seam", 0, 0, 0, nullptr};
+            return fc4::X87Check(site);
+        }
         case kFC4SeamRustPanic:
             fc4_debug_panic();
             return 1;  // only if the build unwinds

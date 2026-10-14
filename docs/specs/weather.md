@@ -99,7 +99,7 @@ every `Init` (§8) even after a load.
 | `CellWidthX()` / `CellWidthZ()` | 16 (the stored widths). |
 | `CellCountX()` / `CellCountZ()` | countX / countZ. |
 | `PositionToCell(x, z, &cx, &cz)` | `cx := trunc(x / cellWidthX)`, `cz := trunc(z / cellWidthZ)`. The original returns no meaningful value; *[choice]* return 0. |
-| `CellToPosition(cx, cz, &x, &z)` | `x := cx × cellWidthX`, `z := cz × cellWidthZ`. |
+| `CellToPosition(cx, cz, &x, &z)` | `x := f32(cx) × cellWidthX`, `z := f32(cz) × cellWidthZ`. **Returns nothing, and leaves nothing on the x87 stack** (slot 11, pop 16; corrected 2026-10-14). |
 | `CellToStandardCityCell(cx, cz, &sx, &sz)` | `sx := cx × cityCellsPerCellX`; **`sz := cx × cityCellsPerCellZ`** *[quirk, compat]*: the z output uses the x input. |
 | `StandardCityCellToCell(sx, sz, &cx, &cz)` | `cx := sx / cityCellsPerCellX`, `cz := sz / cityCellsPerCellZ` (integer division). |
 | `GetCurrentSeason()` | `(GetCurrentSeasonMonth() − 1) / 3`: 0 = Winter (months 1–3), 1 = Spring, 2 = Summer, 3 = Fall. |

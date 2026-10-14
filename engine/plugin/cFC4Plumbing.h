@@ -83,6 +83,10 @@ namespace fc4 {
 // and a grid table with geometry and reads only (`grids` must outlive the
 // table). Every write callback is NULL. For the plumbing shadow.
 fc4_plumbing_host PlumbingReadOnlyHost(FC4PlumbingGame* game, const HostGridContext* grids);
+// Test seam only (op 29, kFC4SeamPipeBurst): the glue's AttemptPipeBurst on
+// `city` (borrowed). Returns 1 if the pipe-burst manager existed (and was
+// called), 0 if not.
+int PlumbingTestPipeBurst(cISC4City* city, int32_t x, int32_t z);
 }  // namespace fc4
 
 class cFC4PlumbingSimulator final : public cFC4ISC4PlumbingSimulator,

@@ -331,10 +331,10 @@ public:
     virtual void SetValFloat32(float value) = 0;                                           // 38
     virtual double GetValFloat64() const = 0;                                              // 39
     virtual bool GetValFloat64To(double& value) const = 0;                                 // 40
-    // [choice] docs/abi: the game's SetValFloat64 returns a double in ST0
-    // (x87, high confidence; the SDK says void). The value is not specified;
-    // ours returns the value stored.
-    virtual double SetValFloat64(double value) = 0;                                        // 41
+    // docs/abi (corrected 2026-10-14): the game's SetValFloat64 returns
+    // nothing (eax-or-void; it stores and pops). A double declaration here
+    // would leave one value on the caller's x87 stack per call.
+    virtual void SetValFloat64(double value) = 0;                                          // 41
     virtual char GetValChar() const = 0;                                                   // 42
     virtual bool GetValCharTo(char& value) const = 0;                                      // 43
     virtual void SetValChar(char value) = 0;                                               // 44
@@ -515,7 +515,7 @@ public:
     // docs/abi and crime.md §13 (CQ3): the result goes only through the out
     // pointer (EAX = &out) and nothing is left on the x87 stack (the SDK says
     // bool). The crime glue calls it through LotCenterRaw, which reads the out
-    // parameter and keeps an ST0 check only as a counted diagnostic.
+    // parameter and counts any x87 stack depth change (never compensated).
     virtual void GetCenter(float* center) const = 0;                             // 15
     virtual float GetAltitude() const = 0;                                       // 16
     virtual bool SetAltitude(float altitude) = 0;                                // 17
@@ -628,12 +628,13 @@ public:
 };
 
 // cISC4WeatherSimulator (IID 0xC6C66245), 24 slots (weather spec "Compiled
-// slot tables": the SDK order). Implemented by cFC4WeatherSimulator. Two
-// return channels differ from the SDK (docs/abi: CellToPosition returns in
-// ST0, StandardCityCellToCell in EDX:EAX); no game code calls either
-// (weather §11.2), but a replacement keeps the channels so a caller's x87
-// stack stays balanced. GetMoistureValueMapPtr takes the caller's pointer
-// variable (§11.2 [compat]; the SDK says a vector reference).
+// slot tables": the SDK order). Implemented by cFC4WeatherSimulator. One
+// return channel differs from the SDK (docs/abi: StandardCityCellToCell
+// returns in EDX:EAX); no game code calls it (weather §11.2), but a
+// replacement keeps the channel. CellToPosition returns nothing and leaves
+// nothing on the x87 stack (weather §4, corrected 2026-10-14; it was declared
+// float). GetMoistureValueMapPtr takes the caller's pointer variable (§11.2
+// [compat]; the SDK says a vector reference).
 struct FC4ByteGridVector;  // SC4Vector<SC4Vector<uint8_t>>-compatible (cFC4Weather.h)
 class cS3DVector2;
 class cFC4ISC4WeatherSimulator : public cIGZUnknown {
@@ -646,7 +647,7 @@ public:
     virtual uint32_t CellCountX() = 0;                                            // 8
     virtual uint32_t CellCountZ() = 0;                                            // 9
     virtual int32_t PositionToCell(float x, float z, int32_t& cx, int32_t& cz) = 0;     // 10
-    virtual float CellToPosition(int32_t cx, int32_t cz, float& x, float& z) = 0;       // 11  (SDK: void)
+    virtual void CellToPosition(int32_t cx, int32_t cz, float& x, float& z) = 0;        // 11
     virtual void CellToStandardCityCell(int32_t cx, int32_t cz, int32_t& sx, int32_t& sz) = 0;  // 12
     virtual int64_t StandardCityCellToCell(int32_t sx, int32_t sz, int32_t& cx, int32_t& cz) = 0;  // 13  (SDK: void)
     virtual int32_t GetCurrentSeason() = 0;                                       // 14  (SDK: enum Season)
@@ -734,8 +735,10 @@ public:
 
 // cISC4Demand (IID 0x0797A4E8), 34 slots (demand spec §3.2, "Compiled slot
 // tables": the SDK order). Implemented by cFC4Demand. Return channels as the
-// game has them (docs/abi): AddToSupplyValue / AddToDemandValue return in ST0
-// (SDK: bool), EndOfCycle returns a bool in EAX (SDK: float; §3.2 [compat]).
+// game has them (docs/abi): AddToSupplyValue / AddToDemandValue return true
+// as a bool in AL with nothing on the x87 stack (§3.2, corrected 2026-10-14;
+// they were declared float, which left one value on the game's x87 stack per
+// call), EndOfCycle returns a bool in EAX (SDK: float; §3.2 [compat]).
 class cFC4ISC4Demand : public cIGZUnknown {
 public:
     virtual bool Init() = 0;                                                      // 3
@@ -751,8 +754,8 @@ public:
     virtual float QueryEconomyModifier() const = 0;                               // 13
     virtual float QueryActiveDemandMax() const = 0;                               // 14
     virtual float QueryActiveDemandMin() const = 0;                               // 15
-    virtual float AddToSupplyValue(float value) = 0;                              // 16  (SDK: bool)
-    virtual float AddToDemandValue(float value) = 0;                              // 17  (SDK: bool)
+    virtual bool AddToSupplyValue(float value) = 0;                               // 16
+    virtual bool AddToDemandValue(float value) = 0;                               // 17
     virtual bool SetSupplyValue(float value) = 0;                                 // 18
     virtual bool SetDemandValue(float value) = 0;                                 // 19
     virtual bool SetActiveDemandMax(float value) = 0;                             // 20
@@ -773,8 +776,10 @@ public:
 
 // cISC4DemandSimulator (IID 0x47967E16), 12 slots (demand spec §5, "Compiled
 // slot tables"). Implemented by cFC4DemandSimulator. SDK errors fixed: slot 7
-// takes the building type (uint32) first (§5 [compat]); slot 8 returns in ST0
-// (docs/abi; SDK: void).
+// takes the building type (uint32) first (§5 [compat]). Slot 8 returns
+// nothing and leaves the x87 stack as it found it (§5, corrected 2026-10-14;
+// it was declared float); `jobs` is a four-float record whose jobs[1..3] it
+// writes (never jobs[0]).
 class cFC4ISC4DemandSimulator : public cIGZUnknown {
 public:
     virtual bool Init() = 0;                                                      // 3
@@ -783,7 +788,7 @@ public:
     virtual cISC4Demand* GetDemand(uint32_t demandID, uint32_t demandIndex) = 0;  // 6
     virtual void UpdateOccupantEffects(uint32_t buildingType, SC4Percentage const& oldPct,
                                        SC4Percentage const& newPct) = 0;          // 7
-    virtual float CalculateJobsPerUnitOfDemand(float* jobs, uint32_t demandID, uint32_t demandIndex) = 0;  // 8
+    virtual void CalculateJobsPerUnitOfDemand(float* jobs, uint32_t demandID, uint32_t demandIndex) = 0;  // 8
     virtual uint32_t GetJobsBySensus(uint32_t type) = 0;                          // 9
     virtual float GetNeutralTaxRate() = 0;                                        // 10
     virtual void GetLocalPopulationSummary(std::map<uint32_t, int32_t>& summary) const = 0;  // 11
@@ -909,8 +914,9 @@ public:
 // UpdateCityCache overloads slots 24 (city) / 25 (preferences). SDK errors
 // fixed: slot 13 returns 32 bits in EAX (SDK: float) [choice: the f32 bits,
 // see the demand host]; slot 48 is the elevation SETTER (the SDK names it
-// GetWorldBaseElevation); the setters 51, 53, 55 ... 63 take a double and
-// return in ST0 (SDK: float argument, void).
+// GetWorldBaseElevation); the setters 51, 53, 55 ... 63 take a double (SDK:
+// float) and return nothing (docs/abi, corrected 2026-10-14: they were
+// declared float, which would pop a value the game never pushed).
 // An element of GetPointsOfInterest's vector: 12 bytes (allocators.md); the
 // fields are not specified.
 struct FC4PointOfInterest {
@@ -968,19 +974,19 @@ public:
     virtual void SetWorldBaseElevation(float elevation) = 0;                      // 48  (SDK: GetWorldBaseElevation)
     virtual cISC4City::WorldHemisphere GetWorldHemisphere() const = 0;            // 49
     virtual float GetBudget() const = 0;                                          // 50
-    virtual float SetBudget(double budget) = 0;                                   // 51
+    virtual void SetBudget(double budget) = 0;                                    // 51
     virtual float GetIncome() const = 0;                                          // 52
-    virtual float SetIncome(double income) = 0;                                   // 53
+    virtual void SetIncome(double income) = 0;                                    // 53
     virtual float GetExported(int32_t commodity) const = 0;                       // 54
-    virtual float SetExported(int32_t commodity, double value) = 0;               // 55
+    virtual void SetExported(int32_t commodity, double value) = 0;                // 55
     virtual float GetImported(int32_t commodity) const = 0;                       // 56
-    virtual float SetImported(int32_t commodity, double value) = 0;               // 57
+    virtual void SetImported(int32_t commodity, double value) = 0;                // 57
     virtual float GetProduced(int32_t commodity) const = 0;                       // 58
-    virtual float SetProduced(int32_t commodity, double value) = 0;              // 59
+    virtual void SetProduced(int32_t commodity, double value) = 0;                // 59
     virtual float GetDemanded(int32_t commodity) const = 0;                       // 60
-    virtual float SetDemanded(int32_t commodity, double value) = 0;               // 61
+    virtual void SetDemanded(int32_t commodity, double value) = 0;                // 61
     virtual float GetCostPerUnit(int32_t commodity) const = 0;                    // 62
-    virtual float SetCostPerUnit(int32_t commodity, double value) = 0;            // 63
+    virtual void SetCostPerUnit(int32_t commodity, double value) = 0;             // 63
     virtual float GetCommodityBalance(int32_t commodity) const = 0;               // 64
     virtual uint32_t GetTutorialGUID() const = 0;                                 // 65
     virtual void SetTutorialGUID(uint32_t guid) = 0;                              // 66

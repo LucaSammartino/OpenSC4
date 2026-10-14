@@ -14,6 +14,7 @@
 #include "FC4Diag.h"
 
 #include "FC4Autotest.h"
+#include "FC4DiagContext.h"
 #include "FC4Log.h"
 #include "FC4Watchdog.h"
 
@@ -142,10 +143,22 @@ void LogForeign(EXCEPTION_POINTERS* ep, LONG report) {
                 static_cast<unsigned long>(c->Ecx), static_cast<unsigned long>(c->Edx),
                 static_cast<unsigned long>(c->Esi), static_cast<unsigned long>(c->Edi),
                 static_cast<unsigned long>(c->Ebp));
+        // The x87 state at the fault (FC4DiagContext.h): a stack full of
+        // leftovers or the indefinite NaN points at a wrong return channel.
+        char line[256];
+        FormatContextFpu(c, line, sizeof(line));
+        LogWait(0, "  %s", line);
         const NT_TIB* tib = reinterpret_cast<const NT_TIB*>(NtCurrentTeb());
         const uintptr_t top = reinterpret_cast<uintptr_t>(tib->StackBase);
         const uintptr_t esp = c->Esp;
         const uintptr_t* sp = reinterpret_cast<const uintptr_t*>(esp);
+        // The first 8 raw dwords at esp (arguments of the faulting call),
+        // read only within the thread's own stack.
+        const bool espReadable = esp >= reinterpret_cast<uintptr_t>(tib->StackLimit) && esp < top &&
+                                 top - esp >= 8 * sizeof(uint32_t);
+        FormatEspDwords(line, sizeof(line), static_cast<uint32_t>(esp),
+                        espReadable ? reinterpret_cast<const uint32_t*>(esp) : nullptr);
+        LogWait(0, "  %s", line);
         int found = 0;
         int ours = 0;
         if (esp >= reinterpret_cast<uintptr_t>(tib->StackLimit) && esp < top) {

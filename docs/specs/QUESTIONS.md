@@ -1437,3 +1437,80 @@ brackets.
   a 2×2 block of adjusted tracts, (7..8, 53..54), is 81 in the original and 65 in ours (max |d| 21; raw grid
   identical). One lot's flammability contribution changed in a way the mirror missed or counted differently: which
   event sets an adjusted tract outside the day visit (a lot condition or occupant change mid-cycle)?
+
+## From applying the data-format answers (filed by the coordinator from the `apply4a` lane's report, 2026-10-14)
+
+About `docs/specs/data-formats.md` (EX1–EX20 as applied in `engine/formats` and the core variant). The current
+answer is in brackets.
+
+- **EX21 — §4.3:** "multiply the scale by 0.1": the double constant 0.1 or the float `0.1f`? [double 0.1: it
+  reproduces every worked example, while `0.1f` turns `0.05` into `0x3D4CCCCE`]
+- **EX22 — §4.3:** is `value × 10 + digit` rounded once or twice (after the multiply and after the add)? [twice,
+  each to 24 bits]
+- **EX23 — §4.3:** does the exponent accept a `+`, and is it read when no mantissa digit came first? [yes to both]
+- **EX24 — EX8:** how is −0.0 printed? [`0`]
+- **EX25:** signed decimal text read into a Float32: one rounding from the exact value, unlike a Sint64 scalar,
+  which goes through double? [one rounding, so `-16777217` gives −16777216.0]
+- **EX26:** a Bool scalar's "leading spaces trimmed": spaces only, or tabs too? [spaces only]
+- **EX27:** a String value is "trimmed" of what? [spaces and tabs]
+- **EX28 — EX8:** a Float32 signalling NaN as text? [the x87 load quiets it: `1.#QNAN`; a Float64 sNaN gives
+  `1.#SNAN`]
+- **EX29 — EX8:** does the 63-character cut also apply to Float32 text (a subnormal reaches it)? [yes]
+- **EX30 — EX17:** `get_void` with a buffer shorter than `length`? [copies what fits; the original would overrun]
+- **EX31 — EX15:** when do factories run? [eagerly, inside `load_package`; a factory registered later applies from
+  the next `load_package`]
+- **EX32:** a Float32 that no text reproduces under the 24-bit parser: what does the writer do? [`to_text` fails
+  with `Unsupported`]
+- **EX33 — §5.1:** the core property readers apply the scalar conversion steps to every array element (e.g. a
+  Float32 array read as `u32`). Right for readers that use raw access plus their own conversion? [every element]
+- Not applied: the scalar RZUnicodeChar text rule (one byte when ≤ 0xFF): the reader cannot produce that scalar
+  (tag `0x0D` is not read).
+
+## From the x87 fix: demand's corrected return channels (filed by the coordinator from the `x87fix` lane's report, 2026-10-14)
+
+About `docs/specs/demand.md` §4.1 and §5 after the ABI correction (slot 8 `CalculateJobsPerUnitOfDemand` returns
+void and writes jobs[1..3] of a four-float record). The current answer is in brackets.
+
+- **DQ10 — §5:** `GetJobsBySensus` still reads `j0 + j1 + j2`, and ExtrapolateBusinessCensus reads `j[w]`,
+  w = 0..2, but the outputs are now jobs[1..3]. Which elements are summed, and which one does wealth w read? [the
+  three outputs, summed in order: f32(f32(out1 + out2) + out3); extrapolation reads output w for wealth w + 1]
+- **DQ11 — §5:** in the original `GetJobsBySensus`, what is in the local record's jobs[0] when slot 8 returns, and
+  is it really summed with jobs[3] left out? [not modelled; the sum of the three outputs]
+- **DQ12 — §5 against §4.1:** §5 says `f32(percent) × 0.01f`, while §4.1 describes an exact FILD followed by a
+  single rounding. They agree for every percent below 2^24; which is the game's? [the §4.1 link factor]
+- Not a spec question: whether the WOW64 `CONTEXT` TagWord is the full or the abridged tag. The crash report logs
+  both; the lane's host test shows the full tag (0xFFFF empty, 0x3FFF with one value) next to FXSAVE's 0x00/0x80.
+
+## From the residential glue and shadow (filed by the coordinator from the `resglue` lane's report, 2026-10-14)
+
+About `docs/specs/residential-education-health.md` (REH) and the residential glue (`cFC4Residential`,
+`FC4ResidentialShadow`). The current answer is in brackets.
+
+- **RG1:** buzzards (the visual effects): what creates them? [not created: the effect callback returns 0, logged
+  once]
+- **RG2 — REH §4.1 step 4:** building slot 11 is read as `GetBuildingProfile()`, first u32. Right? [yes]
+- **RG3:** query-record costs are 32-bit in the game but 64-bit in the core. [zero-extended in, low 32 bits written
+  back]
+- **RG4:** slots 14/15 with a null group vector: the original dereferences it. [ours returns 0]
+- **RG5:** lot `GetCenter` goes through the FXAM-guarded raw call (crime CQ3). [as crime]
+- **RG6:** the shadow cannot reproduce the original's clock-seeded strike rolls in state 0. [those fields are not
+  compared]
+- **RG7:** does the original re-read ordinance effects outside state 0? [the shadow re-reads them]
+- **RG8:** slots 21/22 called off the main thread create grids through GZCOM. Allowed? [yes]
+- **RG9:** setters off the main thread: deferred, and `EndStrike` off the main thread returns the published flag?
+  [yes]
+- **RG10:** department funding with no department? [1.0]
+- **RG11:** slots 19, 20, 21–25, 28, 47 and 49: always true? [true]
+- **RG12:** slot 45 returning false: are its outputs left untouched? [untouched]
+- **RG13:** does `SetLocalFundingPercent` set the budget item's local funding? [the shadow assumes so]
+- **RG14:** the dirty flag cannot be compared by the shadow. [not compared]
+- **RG15:** a building's identity is its `AsOccupant()` pointer, used for the lists, the strike message's void1
+  and IGZUnknown, and record references. Right? [yes]
+- **RG16:** per-building properties: scalars of their type (bool, u32, f32), or arrays? [scalars]
+- **RG17:** slots 47, 49 and 61 append to the caller's list with the game allocator. Is that so for slot 61?
+  [assumed]
+- **RG18:** the simulator taken at Init step 4 is released after `RemoveAgent`; REH §4.2 has no matching release.
+  [released]
+- **RG19:** what goes in a strike message's data1? [0]
+- **RG20:** `GetBuildingMapKey` returns 32 bits; only the low 8 are used. Right? [yes]
+- **RG21:** the strike clock seed is `time() + 2177452800` (the cRZTime epoch), as in crime. [yes]
