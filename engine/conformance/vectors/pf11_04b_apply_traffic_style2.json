@@ -1,0 +1,256 @@
+{
+  "format": 1,
+  "name": "pf11_04b_apply_traffic_style2",
+  "spec": [
+    "pathfinder 4.17",
+    "pathfinder 11.4"
+  ],
+  "description": "Conformance test 4 (§11), style 2: volumes 20.0 (two separate adds) and the same counts (same index, not mirrored) in both the key-bit-0 and key-bit-1 records.",
+  "steps": [
+    {
+      "op": "pf_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "the preamble street (0,3)...(4,3)"
+    },
+    {
+      "op": "pf_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "note": "the start lot"
+    },
+    {
+      "op": "pf_create"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_travel_type_flag",
+      "args": [
+        2,
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_starting_cost_array",
+      "args": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_route_info",
+      "args": [
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_traffic_density",
+      "args": [
+        10
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 1
+    },
+    {
+      "op": "pf_call",
+      "method": "apply_traffic",
+      "args": [
+        2
+      ]
+    },
+    {
+      "op": "pf_expect_world",
+      "state": {
+        "volumes": [
+          [
+            1,
+            2,
+            3,
+            "0x41A00000"
+          ],
+          [
+            1,
+            3,
+            3,
+            "0x41A00000"
+          ],
+          [
+            1,
+            4,
+            3,
+            "0x41A00000"
+          ]
+        ],
+        "income": "0x0000000000000000"
+      },
+      "note": "road volumes (network 1) of the three route cells; incomePerTile[Car] = 0"
+    },
+    {
+      "op": "pf_expect_edge",
+      "cell": [
+        4,
+        3
+      ],
+      "t": 1,
+      "evening": false,
+      "counts": [
+        [
+          0,
+          3,
+          10
+        ]
+      ]
+    },
+    {
+      "op": "pf_expect_edge",
+      "cell": [
+        4,
+        3
+      ],
+      "t": 1,
+      "evening": true,
+      "counts": [
+        [
+          0,
+          3,
+          10
+        ]
+      ]
+    },
+    {
+      "op": "pf_expect_edge",
+      "cell": [
+        3,
+        3
+      ],
+      "t": 1,
+      "evening": false,
+      "counts": [
+        [
+          0,
+          2,
+          10
+        ]
+      ]
+    },
+    {
+      "op": "pf_expect_edge",
+      "cell": [
+        3,
+        3
+      ],
+      "t": 1,
+      "evening": true,
+      "counts": [
+        [
+          0,
+          2,
+          10
+        ]
+      ]
+    },
+    {
+      "op": "pf_expect_edge",
+      "cell": [
+        2,
+        3
+      ],
+      "t": 1,
+      "evening": false,
+      "counts": [
+        [
+          1,
+          2,
+          10
+        ]
+      ]
+    },
+    {
+      "op": "pf_expect_edge",
+      "cell": [
+        2,
+        3
+      ],
+      "t": 1,
+      "evening": true,
+      "counts": [
+        [
+          1,
+          2,
+          10
+        ]
+      ]
+    },
+    {
+      "op": "pf_expect_world",
+      "state": {
+        "edge_density_keys": [
+          "0x00010203",
+          "0x00010303",
+          "0x00010403",
+          "0x01010203",
+          "0x01010303",
+          "0x01010403"
+        ]
+      }
+    }
+  ]
+}

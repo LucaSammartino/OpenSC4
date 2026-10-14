@@ -57,8 +57,8 @@ if ($obs.Count -gt 0) {
         $obs.Count, $a[1].Value, $a[2].Value, $a[3].Value, $a[4].Value, $z[1].Value, $z[2].Value, $z[3].Value, $z[4].Value)
 }
 
-# Month status lines: "<name> month:" or "<name> month (<part>):".
-$months = Select-String -Path $Log -Pattern "\] ([a-z][a-z ]*?) month( \([a-z ]+\))?:" -CaseSensitive
+# Month status lines: "<name> month:", "<name> month (<part>):" or "<name> month yyyy-mm:" (crime).
+$months = Select-String -Path $Log -Pattern "\] ([a-z][a-z ]*?) month( \([a-z ]+\))?( \d{4}-\d\d)?:" -CaseSensitive
 $groups = $months | Group-Object { $_.Matches[0].Groups[1].Value + $_.Matches[0].Groups[2].Value }
 if ($groups) {
     Write-Output ""
@@ -71,8 +71,9 @@ if ($groups) {
     }
 }
 
-# Shadow month lines: "<name> shadow month ..." or "<name> shadow (<part>) <date>:".
-$shadows = Select-String -Path $Log -Pattern "\] ([a-z]+) shadow (month|\([a-z ]+\) \d{4}-)" -CaseSensitive
+# Shadow comparison lines: any "<name> shadow ... <date> ...: ... mismatches=N" line (budget and demand per day or
+# month, "pollution shadow month to <date>" and its day lines, "protection shadow (fire) <date>").
+$shadows = Select-String -Path $Log -Pattern "\] ([a-z]+) shadow [^:]*\d{4}-\d\d-\d\d[^:]*:.*mismatches=" -CaseSensitive
 $sg = $shadows | Group-Object { $_.Matches[0].Groups[1].Value }
 if ($sg) {
     Write-Output ""

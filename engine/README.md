@@ -146,8 +146,24 @@ plugin.
      - `ordinance`: the ordinance simulator and the 21 standard ordinance classes (`cSC4OrdinanceSimulator`,
        ordinance spec; replaced together, §10.2; plugin ordinances are accepted through `cISC4Ordinance`);
      - `demand`: the demand simulator and the demand node class (`cSC4DemandSimulator`, `cSC4Demand`, demand
-       spec; the graph comes from the game's demand exemplars; building profile capacity lists and the region
-       view's population summary map are not read or written yet, see the code's `[choice]` notes).
+       spec; the graph comes from the game's demand exemplars). The building profile's capacity maps (§7.2) are
+       the game's STLport maps (docs/abi/allocators.md, layouts.md): `plugin/FC4GameMap.h` walks them read-only
+       (count, depth, link, key-order and step checks; a map that fails them, or faults, reports nothing) on any
+       executable. `GetLocalPopulationSummary` (§5) empties and fills the caller's STLport map with the game's own
+       subtree free and `operator[]` (docs/abi/direct-calls.md), only on the identified executable and under the
+       structured-exception guard; elsewhere the map is left untouched (logged once). Switches (default `1`,
+       environment `FC4_DEMAND_<KEY>`): `demand_capacity`, `demand_direct_calls`. Log lines:
+
+       ```
+       demand: capacity map read: building type 0x…, N map(s), M entries: 0x1010=12, …        (once)
+       demand: GetLocalPopulationSummary: N entries copied into the game's map (K old entries cleared, count now N;
+         main|another thread)                                                                 (once)
+       demand month: … export cities; capacity: reads=… entries=… units=… (occupancy: reads=… units=…) refused=…;
+         summary: calls=… copied=… untouched=… failed=…                                       (each month)
+       ```
+
+       `reads` counts building profiles read (census and §7.2), `occupancy` the §7.2 reads alone (StateChanged),
+       `refused` the profiles whose maps failed the checks; the month counters restart at each month line.
      - `power`: the power simulator (`cSC4PowerSimulator`, power spec; its powered grid is the game's own
        `cSC4SimGrid<uint8>`, created through GZCOM). Not yet done (logged once): power lines are not detached on
        terrain changes (the line's `GetConnectedPoles` is not in docs/abi), and the Nuclear Free Zone does not close
@@ -182,6 +198,20 @@ plugin.
        maxCoverage=… avg=… pct=… dispatches=… units=… strike=… reentrant=… fallbacks=… posts=…` (police adds
        `protection month (police jails): jails=… capacity=… population=…`), `protection Read/Write (…) -> 1`,
        `protection Shutdown (…)`, `cFC4…Simulator destroyed (N fallbacks)`.
+     - `crime`: the crime simulator (`cSC4CrimeSimulator`, crime spec; its crime and crime-effect grids are the
+       game's own `cSC4SimGrid<uint8>`, created through GZCOM; police coverage comes through whatever police
+       simulator the city has). The getters are answered from any thread (they read a snapshot); the prop
+       requester's calls run on the main thread only (a call from another thread is answered 0 and logged once).
+       The random generator is seeded with `derive_seed(S, 0x6C09C3F6)`, `S` the session seed: the local wall
+       clock in seconds at the first crime simulator of the process, or `crime_seed = N` (env `FC4_CRIME_SEED`,
+       decimal or `0x…`) for a repeatable run. The log has a status line at `Init` and `Read` (`crime Init:
+       init=… state=… types=… S=… decay=…`) and one every month from the first (`crime month yyyy-mm:
+       crimes=N prevented=P arson=A/T incidents=I grid sum/max=… (tracts=…) average=… hotspot=(x,z)=v props
+       requested=R selected=K/Q jailed=J released=L criminal base=B to commit=C attempts=… (no lot …) police
+       grid=yes|no ordinance=… posts=…/… state=… types=… days=… months=…`). Its game calls have their own
+       switches (default `1`, environment `FC4_CRIME_<KEY>`): `crime_lots`, `crime_police`, `crime_residential`,
+       `crime_demand`, `crime_ordinance`, `crime_occupants`, `crime_fire`, `crime_props`, `crime_posts`,
+       `crime_grid_writes`, `crime_zoning` (see `plugin/FC4Config.h`).
    - Each budget behaviour that touches game objects has a switch. The switches are re-read at every city load
      (budget `Read`/`Init`). Each defaults to `1`; `0` makes the behaviour a no-op with a neutral result. The
      matching environment variable is `FC4_BUDGET_<KEY>`. `budget_default = 0` turns every unset switch off.
@@ -387,6 +417,35 @@ plugin.
 
      Success: `mismatches=0` on every line with `expectExact=1`, `efficiency mismatches=0/S`, `radius
      mismatches=0/S`, equal chance and total dispatch.
+   - **Crime shadow** (`crime_shadow = 1`, env `FC4_CRIME_SHADOW`; off by default; `crime_shadow_cells = N`, env
+     `FC4_CRIME_SHADOW_CELLS`, default 8, 0..64): a same-process differential of the crime grid. It needs **our
+     simulator and the original crime simulator** (do not enable `crime`); otherwise it logs `crime shadow:
+     requested … but INACTIVE` at game start. The shadow follows the original's pipeline (crime spec §5) from our
+     simulator's deliveries to its agent (`cSC4CrimeSimulator`): a new or loaded city starts in state 6,
+     `SimNewMonth` sets 6 → 0, each `SimNewDay` / `SimIdle` runs one step. It wraps the delivery that runs state 4
+     (decay, commit this month's crimes, average): just before, the crime grid (every tract) and the hotspot are
+     read; just after, the grid, hotspot, monthly count, average, the incident list (into a vector of ours) and
+     each incident's lot rectangle and the zone type at every tract corner. FreeCity4's state-4 grid work (the core
+     code our crime simulator runs) is then replayed on the grid read before with the original's incidents, and
+     compared cell by cell, with the hotspot, count and average. Only getters are called on the original, its grid,
+     the lot and zone managers and lots; both halves run under the structured-exception guard. **Not compared**
+     (said in every line): the number of crimes to commit (it needs `ResetUnjailedCriminals`, which has side
+     effects), which attempts the police stopped and the type each crime got (the original's random draws), the
+     lots tried (the lot manager's generator) and the crime-effect grid (no interface exposes it). Lines (always
+     written):
+
+     ```
+     crime shadow: tracking the original crime simulator …     (each city)
+     crime shadow yyyy-mm-dd: state 4 compared on CxZ tracts (S=s; …): cells mismatched=M max|orig-ours|=D
+       [cells (x,z) orig/ours: (x,z) a/b pre p, …]; hotspot orig/ours=(x,z)=v/(x,z)=v (before: …, replayed from …);
+       count orig/ours=a/b; average orig/ours=a/b; incidents=I (…); mismatches=N; months=K clean=C; not compared: …
+     crime shadow yyyy-mm-dd: state 4 NOT OBSERVED in this delivery …   (the mirror is out of step: resynchronised
+                                                                          at the next SimNewMonth)
+     crime shadow yyyy-mm-dd: INCOMPLETE (why); not compared
+     ```
+
+     Success is `mismatches=0` on every month line (`clean` equal to `months`) and no `NOT OBSERVED` or
+     `INCOMPLETE` line. A `!` marks a differing hotspot, count or average.
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,

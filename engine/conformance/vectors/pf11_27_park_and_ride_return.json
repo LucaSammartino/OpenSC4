@@ -1,0 +1,288 @@
+{
+  "format": 1,
+  "name": "pf11_27_park_and_ride_return",
+  "spec": [
+    "pathfinder 4.4",
+    "pathfinder 4.8.4",
+    "pathfinder 4.13"
+  ],
+  "description": "Extra (flag 8). The trip of pf11_19 records the park-and-ride cell P = (4,3), side 0. A second search on the same object with flag 8 keeps P: start rect (4,4) gives Car start nodes at (4,3) (sides 0 and 2); popping a node at P adds the Car node P + dir(0) = (3,3) with entry side EdgeTo((4,3) -> (3,3)) = 2 at cost 0.0. The trip to the end rect (1,4) then costs 0 + 1.5 + 1.5 = 3.0 instead of 4.5. Without flag 8, P is reset to (-2,-2) and the trip costs 4.5.",
+  "steps": [
+    {
+      "op": "pf_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "the preamble street (0,3)...(4,3)"
+    },
+    {
+      "op": "pf_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "note": "the start lot"
+    },
+    {
+      "op": "pf_env",
+      "can_reach": [
+        0,
+        1
+      ],
+      "inv_max_speed": [
+        [
+          0,
+          3,
+          1.0
+        ]
+      ]
+    },
+    {
+      "op": "pf_cell",
+      "cell": [
+        3,
+        3
+      ],
+      "switch": [
+        [
+          1,
+          61695
+        ]
+      ]
+    },
+    {
+      "op": "pf_cell",
+      "cell": [
+        4,
+        3
+      ],
+      "info": [
+        [
+          0,
+          3,
+          0.0625,
+          0.0
+        ]
+      ]
+    },
+    {
+      "op": "pf_create"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_travel_type_flag",
+      "args": [
+        2,
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_starting_cost_array",
+      "args": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_route_info",
+      "args": [
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_traffic_density",
+      "args": [
+        10
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_travel_type_flag",
+      "args": [
+        1,
+        false
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 1
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "park_and_ride": [
+          4,
+          3,
+          0
+        ]
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "set_flag",
+      "args": [
+        8
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        1,
+        4,
+        1,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 1
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "route": [
+          [
+            4,
+            3,
+            1
+          ],
+          [
+            3,
+            3,
+            1
+          ],
+          [
+            2,
+            3,
+            1
+          ],
+          [
+            1,
+            3,
+            1
+          ]
+        ],
+        "park_and_ride": [
+          4,
+          3,
+          0
+        ]
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "get_trip_length",
+      "expect": "0x40400000"
+    },
+    {
+      "op": "pf_call",
+      "method": "clear_flag",
+      "args": [
+        8
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 1
+    },
+    {
+      "op": "pf_call",
+      "method": "get_trip_length",
+      "expect": "0x40900000",
+      "note": "4.5"
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "route": [
+          [
+            4,
+            3,
+            1
+          ],
+          [
+            3,
+            3,
+            1
+          ],
+          [
+            2,
+            3,
+            1
+          ],
+          [
+            1,
+            3,
+            1
+          ]
+        ]
+      }
+    }
+  ]
+}

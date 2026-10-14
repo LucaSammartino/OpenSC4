@@ -67,6 +67,12 @@ volatile LONG g_quitRequested = 0;
 volatile DWORD g_quitAt = 0;
 volatile LONG g_quitJulian = 0;  // the last day played (Shutdown resets the published date)
 constexpr DWORD kQuitGraceMs = 90000;         // [choice] the whole shutdown, city and app
+// The game shut the city down by itself before the deadline (PreCityShutdown
+// with no quit of ours): the run ends at its PostCityShutdown with verdict
+// "ended" (quitting the game first with autotest_end = quit).
+volatile LONG g_cityEnded = 0;
+volatile DWORD g_endedAt = 0;
+volatile LONG g_endedJulian = 0;  // the last day played before that shutdown
 constexpr DWORD kExitAfterVerdictMs = 30000;  // [choice] then the process should be gone
 
 AutotestCounters Counters() {
@@ -78,6 +84,8 @@ AutotestCounters Counters() {
     c.refWarnings = RefWarningCount();
     return c;
 }
+
+Verdict EndVerdict() { return VerdictAtEnd(Counters(), g_cityEnded != 0); }
 
 // Writes the verdict once (the first caller wins).
 // `julian` < 0: the published day. Returns true if written.
@@ -110,7 +118,16 @@ DWORD WINAPI ThreadProc(void*) {
         if (!g_started || g_verdict != 0) continue;
         if (g_quitRequested) {
             if (ElapsedMs(now, g_quitAt) > kQuitGraceMs) {
-                WriteVerdict(Verdict::Stalled, 1000, "the quit requested at the deadline did not finish in 90 s");
+                WriteVerdict(Verdict::Stalled, 1000,
+                             g_cityEnded ? "the quit requested after the game ended the city did not finish in 90 s"
+                                         : "the quit requested at the deadline did not finish in 90 s");
+                Terminate(1000, "autotest thread");
+            }
+            continue;
+        }
+        if (g_cityEnded) {
+            if (ElapsedMs(now, g_endedAt) > kQuitGraceMs) {
+                WriteVerdict(Verdict::Stalled, 1000, "the city shutdown the game started did not finish in 90 s");
                 Terminate(1000, "autotest thread");
             }
             continue;
@@ -156,9 +173,9 @@ void StartThread() {
 
 // Main thread: asks the game to quit (no dialog, no save), or ends the run as
 // usual if it cannot.
-void RequestQuitNow() {
+void RequestQuitNow(long julian) {
     g_quitAt = GetTickCount();
-    InterlockedExchange(&g_quitJulian, PublishedJulian());
+    InterlockedExchange(&g_quitJulian, julian);
     InterlockedExchange(&g_quitRequested, 1);
     cIGZFrameWork* fw = RZGetFrameWork();
     cIGZApp* app = fw ? fw->Application() : nullptr;  // borrowed from the framework
@@ -173,7 +190,9 @@ void RequestQuitNow() {
     } else {
         Log("autotest: no cISC4App to quit through");
     }
-    AutotestFinish("deadline reached, but the quit could not be requested", "observer (autotest_end = quit)");
+    AutotestFinish(g_cityEnded ? "the game ended the city before the deadline, and the quit could not be requested"
+                               : "deadline reached, but the quit could not be requested",
+                   "observer (autotest_end = quit)");
 }
 
 std::string LowerTrim(std::string s) {
@@ -226,7 +245,7 @@ void AutotestOnCityLoaded() {
 int AutotestOnTick() {
     if (!AutotestEnabled() || !g_cityLoaded) return 0;
     if (g_quitDue && !g_quitRequested && g_verdict == 0) {
-        RequestQuitNow();
+        RequestQuitNow(PublishedJulian());
         return 0;
     }
     const DWORD now = GetTickCount();
@@ -248,18 +267,42 @@ int AutotestOnTick() {
 }
 
 void AutotestFinish(const char* reason, const char* from) {
-    WriteVerdict(VerdictAtDeadline(Counters()), 1000, reason);
+    WriteVerdict(EndVerdict(), 1000, reason, g_cityEnded ? g_endedJulian : -1);
     Terminate(1000, from);
 }
 
 void AutotestOnShutdownComplete(const char* hook) {
     if (!g_quitRequested || g_verdict != 0) return;
     char reason[128];
-    _snprintf_s(reason, sizeof(reason), _TRUNCATE, "the game quit at the deadline and reached %s", hook);
-    if (!WriteVerdict(VerdictAtDeadline(Counters()), 1000, reason, g_quitJulian)) return;
+    _snprintf_s(reason, sizeof(reason), _TRUNCATE,
+                g_cityEnded ? "the game ended the city before the deadline; the quit after it reached %s"
+                            : "the game quit at the deadline and reached %s",
+                hook);
+    if (!WriteVerdict(EndVerdict(), 1000, reason, g_quitJulian)) return;
     // The game exits by itself from here; if it does not, the thread ends it.
     g_terminateAt = GetTickCount() + kExitAfterVerdictMs;
     InterlockedExchange(&g_terminateArmed, 1);
+}
+
+void AutotestOnCityShutdown(bool post) {
+    if (!AutotestEnabled() || !g_started || g_quitDue || g_quitRequested || g_verdict != 0) return;
+    if (!post) {
+        if (InterlockedExchange(&g_cityEnded, 1) != 0) return;
+        g_endedAt = GetTickCount();
+        InterlockedExchange(&g_endedJulian, PublishedJulian());
+        Log("autotest: WARNING the game is shutting the city down by itself %lu s after the clock started, before the "
+            "%ld s deadline (julian %ld); the run ends at its PostCityShutdown with verdict \"ended\"",
+            static_cast<unsigned long>(ElapsedMs(g_endedAt, g_startMs) / 1000), static_cast<long>(g_seconds),
+            static_cast<long>(g_endedJulian));
+        return;
+    }
+    if (!g_cityEnded) return;
+    if (g_endQuit) {
+        Log("autotest: the city the game ended has shut down; quitting (autotest_end = quit)");
+        RequestQuitNow(g_endedJulian);
+        return;
+    }
+    AutotestFinish("the game ended the city before the deadline (PostCityShutdown)", "observer (city ended)");
 }
 
 void AutotestOnForeignException() {

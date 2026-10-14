@@ -1,0 +1,241 @@
+{
+  "format": 1,
+  "name": "pf11_22_standard_destination",
+  "spec": [
+    "pathfinder 4.5",
+    "pathfinder 4.10.1"
+  ],
+  "description": "Extra (filter 0). Destination bit 0 at the lot (4,4) (holder max [5, ...], used [2, ...]), free count 1. Ring 2 of the start rect finds (4,4); the end rect becomes its lot. The search ends at (4,3), next to (4,4): traffic arrived = min(5 - 2, 10) = 3, destination type reached 0, end cell (4,4), trip length 3.0.",
+  "steps": [
+    {
+      "op": "pf_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "the preamble street (0,3)...(4,3)"
+    },
+    {
+      "op": "pf_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "note": "the start lot"
+    },
+    {
+      "op": "pf_env",
+      "free": [
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "pf_lot",
+      "id": 2,
+      "rect": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "holder": 202,
+      "max": [
+        5,
+        0,
+        0,
+        0
+      ],
+      "used": [
+        2,
+        0,
+        0,
+        0
+      ],
+      "dest": 1
+    },
+    {
+      "op": "pf_create"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_travel_type_flag",
+      "args": [
+        2,
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_starting_cost_array",
+      "args": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_route_info",
+      "args": [
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_traffic_density",
+      "args": [
+        10
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        0
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_destination_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 1
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "end_rect": [
+          4,
+          4,
+          4,
+          4
+        ],
+        "destination_type_reached": 0,
+        "route": [
+          [
+            2,
+            3,
+            1
+          ],
+          [
+            3,
+            3,
+            1
+          ],
+          [
+            4,
+            3,
+            1
+          ]
+        ],
+        "excluded_rect": [
+          -2,
+          -2,
+          -2,
+          -2
+        ]
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "get_traffic_arrived",
+      "expect": 3
+    },
+    {
+      "op": "pf_call",
+      "method": "get_end_cell",
+      "expect": [
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "get_trip_length",
+      "expect": "0x40400000"
+    },
+    {
+      "op": "pf_expect_world",
+      "state": {
+        "dest": [
+          [
+            4,
+            4,
+            1
+          ]
+        ],
+        "free": [
+          1,
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  ]
+}

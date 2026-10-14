@@ -36,6 +36,7 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] x87 precision: diagnosed **and worked around** — the game runs 24-bit all session; our DLL's presence raises it to 53-bit (foundations §18.2). Since 63e88f1 the plugin re-asserts 24-bit at `PostAppInit`, and the control word reads `0x007F` for the rest of the session. The *trigger* is still not located (foundations §19.4); the re-assert makes it moot for differential work
 - [x] Budget differential: **ours matches the original exactly** (run 39, the same-process shadow differential, merged 6ca4b65). On the same lots at the same moment, all 12 tax types, total tax, income, expense and net were identical: 5 of 5 month-ends on Spandau (run 39) and 35 of 35 on Konradshohe, 2026-02 to 2028-12 with about 700 lots (run 41), with 0 mismatches. Separate-run comparisons (runs 35/36) could not settle per-type tax, because the original is not deterministic from run to run; the shadow (`budget_shadow = 1` with `disable = budget`) removes that
 - [x] Budget and demand match the original (M2 exit). **Budget:** identical on every month-end, 5 of 5 on Spandau (run 39) and 35 of 35 on Konradshohe (run 41). **Demand:** bit-identical, 160 of 160 days and 6 of 6 modifier checks (run 44), after the one difference the shadow found was traced to the exe (tax ratio = maxRate·0.1f × a float32 reciprocal of neutral; demand.md §8.1) and fixed in 42f7649. Both checks are same-process shadow differentials (`budget_shadow`, `demand_shadow`), opt-in
+- [x] Demand glue reads the building-profile capacity maps and fills `GetLocalPopulationSummary` through the game's own STLport map (merged ae82e65); run 61's soak had found demand frozen without them
 
 **M3: grid sims**
 - [x] Cores: SimGrid, land value, pollution, crime, aura, flammability, power, plumbing, protection, flora
@@ -43,7 +44,9 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] Power glue (merged 63e88f1; runs 27/28 clean, production 5997→6000, 409 cells powered, 0 unpowered)
 - [x] Plumbing and flammability glue (merged 9f741de), **now run in game** (runs 33–38): the water pass on a real network (2 producers, 403 pipes, watered = building cells), fire rolls about every 40 days, and the cross-subsystem `IsCellWatered` read is live. Run 37 caught a use-after-free on fire ignition (a borrowed manager was released), fixed in 95db886; run 38 went through a real fire and a full Shutdown with 0 reference warnings
 - [x] **Pollution glue** (merged d743db2; run 67 clean over 73 months) and its same-process **grid shadow: identical to the original on all eight grids, cell by cell, for 94 months** (run 68). The one difference is a `dirtyWater` flag on 104 days with identical grids (PG14, being traced in the exe)
-- [ ] Protection (gated), crime, flora, aura and landfill glue (lanes running)
+- [x] **Protection glue** (fire + police, merged 29b3fcb) and its **grid shadow: identical to the original, cell by cell, for 97 months** (run 70). Known bug: after a load the fire replacement's grid is 0×0, so its daily cycle never runs (fix in a lane)
+- [x] **Crime glue** (merged 941c34f) and its **grid shadow: 96 of 96 months identical**, hotspot included (run 70b); the replacement runs clean for 97 months
+- [ ] Flora, aura and landfill glue (lanes running)
 - [ ] Grid snapshots match within tolerance (M3 exit)
 
 **M4: growth**

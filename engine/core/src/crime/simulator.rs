@@ -21,8 +21,8 @@ use super::algo::{
 };
 use super::types::{choose_candidate, CrimeType, LotBits};
 use super::{
-    msg, prop, CrimeHost, CrimeShared, CrimeTuning, LotRef, NearestKind, AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME,
-    ARSON_CAUSE, CLSID_CRIME_SIMULATOR, CRIME_TYPE_GROUP, DEMAND_IDS, IID_LOT, INSTANCE_CRIME_GRID,
+    msg, prop, CrimeHost, CrimeShared, CrimeTuning, LotRef, NearbyOccupant, NearestKind, AGENT_FLAGS, AGENT_LEVELS,
+    AGENT_NAME, ARSON_CAUSE, CLSID_CRIME_SIMULATOR, CRIME_TYPE_GROUP, DEMAND_IDS, IID_LOT, INSTANCE_CRIME_GRID,
     INSTANCE_EFFECT_GRID, PROP_SATISFACTION_ID, SIMULATOR_TYPE, TUNING_KEY,
 };
 
@@ -85,6 +85,11 @@ pub struct CrimeData {
     /// Jobless factor per wealth (§6.2).
     pub jobless: [f32; 3],
     pub tuning: CrimeTuning,
+    /// Not saved, not in the original: bumped whenever the incident list
+    /// changes (cleared, appended to, or extended by a load), so a host that
+    /// mirrors the list (cross-thread getters, foundations §19) knows when to
+    /// rebuild its copy. The visuals flags do not bump it.
+    pub incident_epoch: u32,
 }
 
 impl Default for CrimeData {
@@ -110,6 +115,7 @@ impl Default for CrimeData {
             census: [[0; 4]; 3],
             jobless: [0.0; 3],
             tuning: CrimeTuning::default(),
+            incident_epoch: 0,
         }
     }
 }
@@ -290,7 +296,11 @@ impl CrimeSim {
     }
 
     fn clear_incidents(&self) {
-        let old = std::mem::take(&mut self.d.borrow_mut().incidents);
+        let old = {
+            let mut d = self.d.borrow_mut();
+            d.incident_epoch = d.incident_epoch.wrapping_add(1);
+            std::mem::take(&mut d.incidents)
+        };
         for i in old {
             if let Some(lot) = i.lot {
                 self.host.release(lot.token);
@@ -455,14 +465,7 @@ impl CrimeSim {
         };
         let value = match grid {
             Some(g) => {
-                for x in 0..clamp_count(g.count_x()) {
-                    for z in 0..clamp_count(g.count_z()) {
-                        let v = g.get(x, z);
-                        if v != 0 {
-                            g.set(x, z, decay_value(v, decay));
-                        }
-                    }
-                }
+                decay_grid(&*g, decay);
                 i32::from(g.get(hx, hz))
             }
             None => 0,
@@ -511,28 +514,13 @@ impl CrimeSim {
         count
     }
 
-    /// §6.6 step 7: adds `s` to every tract of the lot's rectangle (x outer,
-    /// z inner), saturating at 255, and moves the hotspot to the first
-    /// strictly larger cell. [choice] Tracts outside the grid are skipped.
+    /// §6.6 step 7 ([`stamp_rect`]) with the simulator's hotspot.
     fn stamp(&self, g: &dyn TractGrid<u8>, rect: [i32; 4], s: u8) {
-        let geo = g.geometry();
-        let sh = geo.safe_shift();
-        let (nx, nz) = (clamp_count(geo.count_x), clamp_count(geo.count_z));
-        let (tx1, tz1) = ((rect[0] >> sh).max(0), (rect[1] >> sh).max(0));
-        let (tx2, tz2) = ((rect[2] >> sh).min(nx - 1), (rect[3] >> sh).min(nz - 1));
         let mut hot = {
             let d = self.d.borrow();
             (d.hotspot_x, d.hotspot_z, d.hotspot_value)
         };
-        for x in tx1..=tx2 {
-            for z in tz1..=tz2 {
-                let cell = (u32::from(g.get(x, z)) + u32::from(s)).min(255) as u8;
-                g.set(x, z, cell);
-                if i32::from(cell) > hot.2 {
-                    hot = (x, z, i32::from(cell));
-                }
-            }
-        }
+        stamp_rect(g, rect, s, &mut hot);
         let mut d = self.d.borrow_mut();
         d.hotspot_x = hot.0;
         d.hotspot_z = hot.1;
@@ -571,13 +559,17 @@ impl CrimeSim {
     /// the posted message; returns the severity.
     pub fn record_incident(&self, lot: LotRef, t: &CrimeType) -> u8 {
         self.host.add_ref(lot.token);
-        self.d.borrow_mut().incidents.push(Incident {
-            lot: Some(lot),
-            type_id: t.id,
-            name: t.name.clone(),
-            icon: t.icon,
-            visuals_created: false,
-        });
+        {
+            let mut d = self.d.borrow_mut();
+            d.incident_epoch = d.incident_epoch.wrapping_add(1);
+            d.incidents.push(Incident {
+                lot: Some(lot),
+                type_id: t.id,
+                name: t.name.clone(),
+                icon: t.icon,
+                visuals_created: false,
+            });
+        }
         if t.arson {
             if let Some(b) = self.host.lot_building(lot.token) {
                 if self.host.disaster_layer_present() {
@@ -592,25 +584,10 @@ impl CrimeSim {
     /// `ComputeAverageCrime` (§6.9).
     pub fn compute_average_crime(&self) {
         let grid = self.d.borrow().crime_grid.clone();
-        let mut sum = 0u64;
-        let mut count = 0u64;
-        if let Some(g) = grid {
-            // S is the grid's own tract size, not the tuning's (§6.9).
-            let s = g.geometry().tract_size;
-            for x in 0..clamp_count(g.count_x()) {
-                for z in 0..clamp_count(g.count_z()) {
-                    if self.host.zone_type(x.wrapping_mul(s), z.wrapping_mul(s)) != 0 {
-                        sum += u64::from(g.get(x, z));
-                        count += 1;
-                    }
-                }
-            }
-        }
-        let average = if count == 0 {
-            // 0/0: the x87 default NaN, stored and saved as such (§6.9).
-            f32::from_bits(DEFAULT_NAN)
-        } else {
-            (sum as f64 / count as f64) as f32
+        let average = match grid {
+            Some(g) => zoned_average(&*g, |x, z| self.host.zone_type(x, z)),
+            // No grid: no tract, 0/0 (§6.9).
+            None => f32::from_bits(DEFAULT_NAN),
         };
         self.d.borrow_mut().average_crime = average;
     }
@@ -680,24 +657,9 @@ impl CrimeSim {
     /// `GetNearestCrimeSim` / `GetNearestCrimeProp` (§11.3): the borrowed
     /// occupant, or `None`.
     pub fn nearest(&self, kind: NearestKind, pos: [f32; 3], radius: f32) -> Option<u64> {
-        let min = [pos[0] - radius, -f32::MAX, pos[2] - radius];
-        let max = [pos[0] + radius, f32::MAX, pos[2] + radius];
-        let mut best = radius;
-        let mut candidate = None;
-        for o in self.host.occupants_in_box(min, max, kind) {
-            if !kind.filter_accepts(&o) {
-                continue;
-            }
-            // One f32 operation per step, in the order of §11.3 [compat]:
-            // sqrt((dy² + dz²) + dx²).
-            let [dx, dy, dz] = [0, 1, 2].map(|i| o.position[i] - pos[i]);
-            let d = ((dy * dy + dz * dz) + dx * dx).sqrt();
-            if d < best && kind.qualifies(&o) {
-                candidate = Some(o.token);
-                best = d;
-            }
-        }
-        candidate
+        let (min, max) = nearest_box(pos, radius);
+        let found = self.host.occupants_in_box(min, max, kind);
+        nearest_of(kind, pos, radius, &found).map(|i| found[i].token)
     }
 
     /// `GetCrimeIncidentArray(out)` (§11.4): resizes `out` to the incident
@@ -860,6 +822,101 @@ impl CrimeSim {
     }
 }
 
+// ---- the grid steps as free functions -------------------------------------------------------------
+//
+// The simulator's own steps call these; they are public so that a host can run
+// the same arithmetic on grids it read from elsewhere (the plugin's crime
+// shadow replays the original simulator's month with them).
+
+/// §6.5 on one grid: every **non-zero** tract becomes `decay_value(v, decay)`
+/// (x outer, z inner). The caller then reads the hotspot tract's new value.
+pub fn decay_grid(g: &dyn TractGrid<u8>, decay: f32) {
+    for x in 0..clamp_count(g.count_x()) {
+        for z in 0..clamp_count(g.count_z()) {
+            let v = g.get(x, z);
+            if v != 0 {
+                g.set(x, z, decay_value(v, decay));
+            }
+        }
+    }
+}
+
+/// §6.6 step 7: adds `s` to every tract of the inclusive cell rectangle
+/// `[x1, z1, x2, z2]` shifted right by the grid's tract shift (x outer, z
+/// inner), saturating at 255, and moves the hotspot `(x, z, value)` to the
+/// first strictly larger cell. [choice] Tracts outside the grid are skipped.
+pub fn stamp_rect(g: &dyn TractGrid<u8>, rect: [i32; 4], s: u8, hot: &mut (i32, i32, i32)) {
+    let geo = g.geometry();
+    let sh = geo.safe_shift();
+    let (nx, nz) = (clamp_count(geo.count_x), clamp_count(geo.count_z));
+    let (tx1, tz1) = ((rect[0] >> sh).max(0), (rect[1] >> sh).max(0));
+    let (tx2, tz2) = ((rect[2] >> sh).min(nx - 1), (rect[3] >> sh).min(nz - 1));
+    for x in tx1..=tx2 {
+        for z in tz1..=tz2 {
+            let cell = (u32::from(g.get(x, z)) + u32::from(s)).min(255) as u8;
+            g.set(x, z, cell);
+            if i32::from(cell) > hot.2 {
+                *hot = (x, z, i32::from(cell));
+            }
+        }
+    }
+}
+
+/// §6.9 on one grid: the mean value of the tracts whose corner cell
+/// `(x·S, z·S)` has a zone type ≠ 0, `S` the grid's own tract size; the x87
+/// default NaN (`0xFFC00000`) when no tract is zoned.
+pub fn zoned_average(g: &dyn TractGrid<u8>, zone_type: impl Fn(i32, i32) -> u32) -> f32 {
+    let s = g.geometry().tract_size;
+    let mut sum = 0u64;
+    let mut count = 0u64;
+    for x in 0..clamp_count(g.count_x()) {
+        for z in 0..clamp_count(g.count_z()) {
+            if zone_type(x.wrapping_mul(s), z.wrapping_mul(s)) != 0 {
+                sum += u64::from(g.get(x, z));
+                count += 1;
+            }
+        }
+    }
+    if count == 0 {
+        // 0/0: the x87 default NaN, stored and saved as such (§6.9).
+        f32::from_bits(DEFAULT_NAN)
+    } else {
+        (sum as f64 / count as f64) as f32
+    }
+}
+
+/// The query box of §11.3: `(pos.x − r, −FLT_MAX, pos.z − r)` to
+/// `(pos.x + r, +FLT_MAX, pos.z + r)`, each corner a `float32`.
+pub fn nearest_box(pos: [f32; 3], radius: f32) -> ([f32; 3], [f32; 3]) {
+    (
+        [pos[0] - radius, -f32::MAX, pos[2] - radius],
+        [pos[0] + radius, f32::MAX, pos[2] + radius],
+    )
+}
+
+/// The selection of §11.3 over the occupants the box query returned, in its
+/// order: the index of the candidate, or `None`. It starts with
+/// `best := radius`; an occupant the kind's filter accepts wins when its
+/// distance is strictly below `best` and it qualifies (the QI step).
+pub fn nearest_of(kind: NearestKind, pos: [f32; 3], radius: f32, occupants: &[NearbyOccupant]) -> Option<usize> {
+    let mut best = radius;
+    let mut candidate = None;
+    for (i, o) in occupants.iter().enumerate() {
+        if !kind.filter_accepts(o) {
+            continue;
+        }
+        // One f32 operation per step, in the order of §11.3 [compat]:
+        // sqrt((dy² + dz²) + dx²).
+        let [dx, dy, dz] = [0, 1, 2].map(|k| o.position[k] - pos[k]);
+        let d = ((dy * dy + dz * dz) + dx * dx).sqrt();
+        if d < best && kind.qualifies(o) {
+            candidate = Some(i);
+            best = d;
+        }
+    }
+    candidate
+}
+
 impl SaveObject for CrimeSim {
     fn class_id(&self) -> u32 {
         CLSID_CRIME_SIMULATOR
@@ -931,6 +988,7 @@ impl SaveObject for CrimeSim {
         for i in d.incidents.iter_mut() {
             i.visuals_created = false;
         }
+        d.incident_epoch = d.incident_epoch.wrapping_add(1);
         d.loaded_from_save = true;
         true
     }
@@ -1445,6 +1503,63 @@ mod tests {
         assert_eq!((g.get(3, 3), sim.data().hotspot_value), (160, 160));
         sim.data_mut().hotspot_value = 0;
         assert_eq!(sim.crime_hotspot(), None);
+    }
+
+    /// The free grid steps on a plain grid (tests 1, 8, 12) and the incident
+    /// epoch.
+    #[test]
+    fn free_grid_steps_and_epoch() {
+        let g = SimGrid::<u8>::create(&city(), 0, 2);
+        g.set(0, 0, 200);
+        g.set(1, 0, 255);
+        g.set(2, 0, 1);
+        decay_grid(&*g, 0.8);
+        assert_eq!((g.get(0, 0), g.get(1, 0), g.get(2, 0), g.get(3, 0)), (160, 204, 0, 0));
+        // Test 8: cells (10, 10)-(13, 11) → tracts x 5..6, z 5.
+        g.set(6, 5, 200);
+        let mut hot = (0, 0, 0);
+        stamp_rect(&*g, [10, 10, 13, 11], 60, &mut hot);
+        assert_eq!((g.get(5, 5), g.get(6, 5), hot), (60, 255, (6, 5, 255)));
+        // Strictly larger only: an equal cell does not move the hotspot.
+        stamp_rect(&*g, [0, 0, 1, 1], 95, &mut hot);
+        assert_eq!((g.get(0, 0), hot), (255, (6, 5, 255)));
+        // Off-grid parts are skipped.
+        stamp_rect(&*g, [-4, -4, 0, 0], 1, &mut hot);
+        assert_eq!(g.get(0, 0), 255);
+        let zoned = |x: i32, z: i32| u32::from(z == 0 && x <= 2);
+        assert_eq!(zoned_average(&*g, zoned), (255.0 + 204.0) / 2.0);
+        assert_eq!(zoned_average(&*g, |_, _| 0).to_bits(), DEFAULT_NAN);
+        let o = |x: f32, ok: bool| NearbyOccupant {
+            occupant_type: CRIME_SIM_TYPE,
+            in_crime_group: true,
+            position: [x, 0.0, 0.0],
+            answers_iid: ok,
+            ..Default::default()
+        };
+        let found = [o(5.0, true), o(3.0, false), o(4.0, true), o(4.0, true)];
+        assert_eq!(
+            nearest_of(NearestKind::Sim, [0.0; 3], 10.0, &found),
+            Some(2),
+            "the first at 4"
+        );
+        assert_eq!(nearest_of(NearestKind::Prop, [0.0; 3], 10.0, &found), None);
+        assert_eq!(
+            nearest_box([1.0, 2.0, 3.0], 0.5),
+            ([0.5, -f32::MAX, 2.5], [1.5, f32::MAX, 3.5])
+        );
+
+        let (f, sim) = setup(&[0.0]);
+        sim.init();
+        let e0 = sim.data().incident_epoch;
+        f.lot(1, Lot::default());
+        let t = sim.shared().types().unwrap()[0].clone();
+        sim.record_incident(lot_ref(1), &t);
+        let e1 = sim.data().incident_epoch;
+        assert_ne!(e0, e1);
+        sim.set_visuals_created(0, true);
+        assert_eq!(sim.data().incident_epoch, e1, "visuals flags do not bump it");
+        sim.shutdown();
+        assert_ne!(sim.data().incident_epoch, e1, "cleared");
     }
 
     /// Census, factors, base and crimes through the host (tests 2–6).

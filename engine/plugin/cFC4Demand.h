@@ -77,11 +77,27 @@ public:
     cISC4City* City() const { return city_; }
     cIGZUnknown* AsUnknown() { return static_cast<cIGZUnknown*>(static_cast<cFC4ISC4DemandSimulator*>(this)); }
 
+    // What the glue moved since the last month line (LogState("month", true)).
+    struct GlueMonth {
+        uint32_t profileReads = 0;     // BuildingProfile answered (census §6.3 and occupancy §7.2)
+        uint32_t occupancyReads = 0;   // of those, while a StateChanged message was handled (§7.2)
+        uint32_t entries = 0;          // capacity entries reported to the core
+        uint64_t units = 0;            // their amounts, summed
+        uint64_t occupancyUnits = 0;   // the same, §7.2 only
+        uint32_t refused = 0;          // profiles whose capacity maps failed the checks
+        uint32_t summaryCalls = 0;     // GetLocalPopulationSummary
+        uint32_t summaryCopied = 0;    // entries written into the game's map
+        uint32_t summaryUntouched = 0; // calls that left the map alone (unidentified executable, switch off)
+        uint32_t summaryFailed = 0;    // calls whose map failed the checks, or that faulted
+    };
+    GlueMonth& Glue() const { return glue_; }
+    bool InStateChanged() const { return inStateChanged_; }
+
 private:
     bool Initialized() const;
     void RegisterAgents(bool add);
     void Subscribe(bool add);
-    void LogState(const char* what);
+    void LogState(const char* what, bool glue = false);
 
     uint32_t refCount_ = 0;
     bool destroying_ = false;
@@ -90,7 +106,25 @@ private:
     cISC4City* city_ = nullptr;
     cIGZMessageServer2* msgServer_ = nullptr;
     bool agentsRegistered_ = false;
+    bool inStateChanged_ = false;
     mutable bool summaryNoted_ = false;
+    mutable GlueMonth glue_{};
+};
+
+// The capacity maps of the building profile at `profile` (the 0x40-byte
+// struct BDS slot 39 returns; docs/abi/layouts.md) to `visit`, as the demand
+// host's building_profile callback reports them (read only; FC4GameMap.h
+// checks; switch demand_capacity). `sim` (may be null) gets the counts.
+// Returns the entries reported, 0 with the switch off, -1 when refused.
+int DemandReportCapacities(cFC4DemandSimulator* sim, uint32_t buildingType, const void* profile,
+                           fc4_capacity_visitor visit, void* ctx);
+
+// Test seam op 20 (FC4TestSeam.h): DemandReportCapacities without a simulator.
+struct FC4DemandCapacityTestInput {
+    const void* profile;  // a 0x40-byte building profile
+    uint32_t buildingType;
+    fc4_capacity_visitor visit;
+    void* ctx;
 };
 
 // A demand node (§3) of our own.

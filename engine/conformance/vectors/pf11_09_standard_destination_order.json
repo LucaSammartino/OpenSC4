@@ -1,0 +1,100 @@
+{
+  "format": 1,
+  "name": "pf11_09_standard_destination_order",
+  "spec": [
+    "pathfinder 4.5",
+    "pathfinder 11.9"
+  ],
+  "description": "Conformance test 9 (§11). 16 x 16 city, start rect (5,5,5,5), destination flags bit 0, free count 1, destination bit 0 at (4,6) and (6,4) (one-cell lots). Ring 1 scans the left column x = 4 first and finds (4,6), then (6,4) in the right column; both at Manhattan distance 2, the first wins: the end rect becomes the lot at (4,6). There is no network, so no start node is created and FindPath returns 0 after the end rect was chosen.",
+  "steps": [
+    {
+      "op": "pf_env",
+      "cells": [
+        16,
+        16
+      ],
+      "free": [
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "pf_lot",
+      "id": 10,
+      "rect": [
+        4,
+        6,
+        4,
+        6
+      ],
+      "dest": 1
+    },
+    {
+      "op": "pf_lot",
+      "id": 11,
+      "rect": [
+        6,
+        4,
+        6,
+        4
+      ],
+      "dest": 1
+    },
+    {
+      "op": "pf_create"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        5,
+        5,
+        5,
+        5
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        0
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_destination_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "end_rect": [
+          4,
+          6,
+          4,
+          6
+        ],
+        "node_count": 0
+      }
+    }
+  ]
+}

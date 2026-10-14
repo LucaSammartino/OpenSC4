@@ -18,11 +18,14 @@
 #include "FC4CoreProps.h"
 #include "FC4DemandShadow.h"
 #include "FC4Diag.h"
+#include "FC4GameMap.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
+#include "FC4Watchdog.h"
 #include "cFC4Date.h"
 #include "cFC4Message2Standard.h"
+#include "compat/FC4Compat.h"
 
 #include "GZServPtrs.h"
 #include "SC4List.h"
@@ -66,6 +69,8 @@
 
 #include <cmath>
 #include <cstring>
+#include <string>
+#include <utility>
 #include <vector>
 
 using fc4::FromToken;
@@ -340,19 +345,107 @@ bool CensusLot(void* u, int32_t x, int32_t z, uint32_t* buildingType, uint32_t* 
     return true;
 }
 
-bool g_capacityNoted = false;
+// ---- building profile capacity maps (§7.2; docs/abi/layouts.md, Building profile) -----------------
 
-// §6.3 / §7.2: the building profile's purpose. [choice] Its capacity list
-// (a vector of maps in the game's STL) is not reported: its memory layout is
-// not specified, so UpdateCapacity adds nothing (spec question).
-bool BuildingProfile(void* u, uint32_t buildingType, uint32_t* purpose, fc4_capacity_visitor, void*) {
+bool g_capacityFirstLogged = false;  // the first non-empty capacity map read (once per process)
+int g_capacityRefusedLogged = 0;     // refused profiles logged (at most kRefusedLines)
+bool g_capacityFaultLogged = false;
+constexpr int kRefusedLines = 5;
+// The population summary map the game hands in holds the previous call's
+// entries (40 local nodes have a region use in the shipped data, §4.5); a
+// larger count is not believed.
+constexpr uint32_t kSummaryMaxNodes = 4096;
+
+struct CapacityStep {
+    const void* profile;
+    fc4::GameCapacityRead* read;
+};
+
+// Plain reads of the game's memory (no game call): under fc4::SehGuard.
+void CapacityStepFn(void* c) {
+    auto* s = static_cast<CapacityStep*>(c);
+    fc4::ReadProfileCapacities(s->profile, s->read);
+}
+
+}  // namespace
+
+// The capacity maps of the 0x40-byte profile at `profile` (the reference BDS
+// slot 39 returns) to `visit`: (map index, developer type, amount) for every
+// entry of every map, map by map, each in key order. Read only, on any
+// executable; a map that fails the checks of FC4GameMap.h (or faults) reports
+// nothing at all. Returns the entries reported, 0 when the switch is off, or
+// -1 when refused.
+int DemandReportCapacities(cFC4DemandSimulator* sim, uint32_t buildingType, const void* profile,
+                           fc4_capacity_visitor visit, void* ctx) {
+    if (!fc4::On(fc4::Sw::DemandCapacity)) {
+        fc4::NoteSkipped(fc4::Sw::DemandCapacity, "demand building profile capacity maps (none reported)");
+        return 0;
+    }
+    fc4::GameCapacityRead r;
+    CapacityStep step{profile, &r};
+    const bool clean = fc4::SehGuard("demand capacity map read", &CapacityStepFn, &step);
+    cFC4DemandSimulator::GlueMonth* m = sim ? &sim->Glue() : nullptr;
+    const bool occupancy = sim != nullptr && sim->InStateChanged();
+    if (m != nullptr) {
+        ++m->profileReads;
+        if (occupancy) ++m->occupancyReads;
+    }
+    if (!clean || r.status != fc4::GameMapStatus::Ok) {
+        if (m != nullptr) ++m->refused;
+        if (!clean) {
+            if (!g_capacityFaultLogged) {
+                g_capacityFaultLogged = true;
+                fc4::Log("demand: WARNING building type 0x%08X: reading its capacity maps faulted; no capacity reported",
+                         buildingType);
+            }
+        } else if (g_capacityRefusedLogged < kRefusedLines) {
+            ++g_capacityRefusedLogged;
+            fc4::Log("demand: WARNING building type 0x%08X: capacity map %u of %u refused (%s); no capacity reported%s",
+                     buildingType, r.badMap, r.maps, fc4::GameMapStatusName(r.status),
+                     g_capacityRefusedLogged == kRefusedLines ? " (no more of these lines)" : "");
+        }
+        return -1;
+    }
+    if (r.count != 0 && !g_capacityFirstLogged) {
+        g_capacityFirstLogged = true;
+        std::string list;
+        for (uint32_t i = 0; i < r.count && i < 16; ++i) {
+            char item[48];
+            if (r.maps > 1) {
+                _snprintf_s(item, sizeof(item), _TRUNCATE, "%s[%u]0x%X=%u", i == 0 ? "" : ", ", r.entries[i].map,
+                            r.entries[i].devType, static_cast<unsigned>(r.entries[i].amount));
+            } else {
+                _snprintf_s(item, sizeof(item), _TRUNCATE, "%s0x%X=%u", i == 0 ? "" : ", ", r.entries[i].devType,
+                            static_cast<unsigned>(r.entries[i].amount));
+            }
+            list += item;
+        }
+        fc4::Log("demand: capacity map read: building type 0x%08X, %u map(s), %u entries: %s%s", buildingType, r.maps,
+                 r.count, list.c_str(), r.count > 16 ? ", ..." : "");
+    }
+    for (uint32_t i = 0; i < r.count; ++i) {
+        const fc4::GameCapacityEntry& e = r.entries[i];
+        if (visit != nullptr) visit(ctx, e.map, e.devType, e.amount);
+        if (m != nullptr) {
+            ++m->entries;
+            m->units += e.amount;
+            if (occupancy) m->occupancyUnits += e.amount;
+        }
+    }
+    return static_cast<int>(r.count);
+}
+
+namespace {
+
+// §6.3 / §7.2: the building profile (BDS slot 39, read only): its purpose,
+// and its capacity maps through `visit` (the core sums the entries of the
+// developer type, §7.2).
+bool BuildingProfile(void* u, uint32_t buildingType, uint32_t* purpose, fc4_capacity_visitor visit, void* ctx) {
     cISC4BuildingDevelopmentSimulator* b = Bds(u);
     if (b == nullptr || purpose == nullptr) return false;
     const cISC4BuildingOccupant::BuildingProfile& p = b->GetBuildingProfile(buildingType);
     *purpose = static_cast<uint32_t>(p.purpose);
-    NoteOnce(g_capacityNoted,
-             "demand: building profile capacity lists are not read (layout not specified); occupancy changes "
-             "move no capacity (§7.2)");
+    if (visit != nullptr) DemandReportCapacities(u ? Self(u) : nullptr, buildingType, &p, visit, ctx);
     return true;
 }
 
@@ -772,13 +865,31 @@ bool cFC4DemandSimulator::Initialized() const {
     return fc4_demand_sim_get_state(core_, &st) && st.initialized != 0;
 }
 
-void cFC4DemandSimulator::LogState(const char* what) {
+// With `glue` (the month line): what the glue moved since the last month
+// line, then those counters restart. capacity: profiles read (BuildingProfile
+// for the census and for §7.2), entries and units (the amounts summed)
+// reported to the core, the same for the §7.2 occupancy changes alone, and
+// the profiles refused by the map checks; summary: GetLocalPopulationSummary
+// calls, entries copied into the game's map, calls that left it untouched
+// (unidentified executable, switch off) and calls that failed.
+void cFC4DemandSimulator::LogState(const char* what, bool glue) {
     fc4_demand_sim_state st{};
     st.struct_size = sizeof(st);
     if (!fc4_demand_sim_get_state(core_, &st)) return;
-    fc4::Log("demand %s: %u nodes, %u links, census state %u, loaded=%u, relief C %.1f I %.1f, %u export cities", what,
-             st.node_count, st.link_count, st.census_state, st.loaded_from_save, st.commercial_relief,
-             st.industrial_relief, st.export_city_count);
+    char extra[320] = "";
+    if (glue) {
+        const GlueMonth& g = glue_;
+        _snprintf_s(extra, sizeof(extra), _TRUNCATE,
+                    "; capacity: reads=%u entries=%u units=%llu (occupancy: reads=%u units=%llu) refused=%u; summary: "
+                    "calls=%u copied=%u untouched=%u failed=%u",
+                    g.profileReads, g.entries, static_cast<unsigned long long>(g.units), g.occupancyReads,
+                    static_cast<unsigned long long>(g.occupancyUnits), g.refused, g.summaryCalls, g.summaryCopied,
+                    g.summaryUntouched, g.summaryFailed);
+        glue_ = GlueMonth{};
+    }
+    fc4::Log("demand %s: %u nodes, %u links, census state %u, loaded=%u, relief C %.1f I %.1f, %u export cities%s",
+             what, st.node_count, st.link_count, st.census_state, st.loaded_from_save, st.commercial_relief,
+             st.industrial_relief, st.export_city_count, extra);
 }
 
 // ---- lifecycle (§13) ----------------------------------------------------------------------------------
@@ -891,14 +1002,104 @@ uint32_t cFC4DemandSimulator::GetJobsBySensus(uint32_t type) { return fc4_demand
 
 float cFC4DemandSimulator::GetNeutralTaxRate() { return fc4_demand_sim_neutral_tax_rate(core_); }
 
-// [choice] The caller's map is the game's STL map, whose memory layout is not
-// specified: it is left untouched (spec question). The summary is logged once.
-void cFC4DemandSimulator::GetLocalPopulationSummary(std::map<uint32_t, int32_t>&) const {
-    const size_t n = fc4_demand_sim_local_population_summary(core_, nullptr, nullptr);
-    if (!summaryNoted_) {
-        summaryNoted_ = true;
-        fc4::Log("demand: GetLocalPopulationSummary: %u entries not copied (the game's map layout is not specified)",
-                 static_cast<unsigned>(n));
+namespace {
+
+void CollectSummary(void* ctx, uint32_t key, int32_t value) {
+    static_cast<std::vector<std::pair<uint32_t, int32_t>>*>(ctx)->emplace_back(key, value);
+}
+
+struct SummaryStep {
+    fc4::GameMapObject* map;
+    const uint32_t* keys;
+    const int32_t* values;
+    uint32_t count;
+    fc4::GameMapIndexFn index;
+    fc4::GameMapEraseFn erase;
+    fc4::GameMapFill result;
+};
+
+// The game's own map functions on the caller's map: under fc4::SehGuard.
+void SummaryStepFn(void* c) {
+    auto* s = static_cast<SummaryStep*>(c);
+    fc4::FillGameMapI32(s->map, s->keys, s->values, s->count, s->index, s->erase, kSummaryMaxNodes, &s->result);
+}
+
+bool g_summarySwitchNoted = false;
+int g_summaryFailedLogged = 0;
+
+}  // namespace
+
+// §5: clear the caller's map, then map[key] := trunc(supply) (region use 1)
+// or trunc(demand) (region use 2) for each node in key order (the core's
+// fc4_demand_sim_local_population_summary). The map is the game's STLport
+// map<uint32_t, int32_t> (docs/abi/allocators.md, GetLocalPopulationSummary;
+// the SDK's std::map& is only its address), emptied and filled with the
+// game's own subtree free and operator[] (docs/abi/direct-calls.md) on the
+// calling thread, as the original does. Only on the identified executable,
+// after a read-only check of the map, under the structured-exception guard;
+// otherwise the map is left untouched (logged once).
+void cFC4DemandSimulator::GetLocalPopulationSummary(std::map<uint32_t, int32_t>& summary) const {
+    FC4_TRACE("DemandSimulator::GetLocalPopulationSummary");
+    std::vector<std::pair<uint32_t, int32_t>> entries;
+    const size_t n = fc4_demand_sim_local_population_summary(core_, &CollectSummary, &entries);
+    ++glue_.summaryCalls;
+    if (!fc4::On(fc4::Sw::DemandDirectCalls)) {
+        fc4::NoteSkipped(fc4::Sw::DemandDirectCalls, "demand GetLocalPopulationSummary (map left untouched)");
+        ++glue_.summaryUntouched;
+        NoteOnce(g_summarySwitchNoted,
+                 "demand: GetLocalPopulationSummary: entries not copied (demand_direct_calls = 0); the caller's map "
+                 "is left untouched");
+        return;
+    }
+    const uintptr_t indexVa = fc4::compat::DirectCall(fc4::compat::Direct::MapU32Index);
+    const uintptr_t eraseVa = fc4::compat::DirectCall(fc4::compat::Direct::MapEraseSubtree);
+    if (indexVa == 0 || eraseVa == 0) {
+        ++glue_.summaryUntouched;
+        if (!summaryNoted_) {
+            summaryNoted_ = true;
+            fc4::Log("demand: GetLocalPopulationSummary: %u entries not copied (the executable is not identified, so "
+                     "the game's map functions cannot be called); the caller's map is left untouched",
+                     static_cast<unsigned>(n));
+        }
+        return;
+    }
+    std::vector<uint32_t> keys;
+    std::vector<int32_t> values;
+    keys.reserve(entries.size());
+    values.reserve(entries.size());
+    for (const auto& e : entries) {
+        keys.push_back(e.first);
+        values.push_back(e.second);
+    }
+    SummaryStep step{reinterpret_cast<fc4::GameMapObject*>(&summary),
+                     keys.data(),
+                     values.data(),
+                     static_cast<uint32_t>(keys.size()),
+                     reinterpret_cast<fc4::GameMapIndexFn>(indexVa),
+                     reinterpret_cast<fc4::GameMapEraseFn>(eraseVa),
+                     {}};
+    const bool clean = fc4::SehGuard("demand GetLocalPopulationSummary (the game's map operator[] / subtree free)",
+                                     &SummaryStepFn, &step);
+    const fc4::GameMapFill& r = step.result;
+    glue_.summaryCopied += r.written;
+    if (clean && r.status == fc4::GameMapStatus::Ok) {
+        if (!summaryNoted_) {
+            summaryNoted_ = true;
+            fc4::Log("demand: GetLocalPopulationSummary: %u entries copied into the game's map (%u old entries "
+                     "cleared, count now %u; %s thread)",
+                     r.written, r.cleared, r.countAfter, fc4::OnMainThread() ? "main" : "another");
+        }
+        return;
+    }
+    ++glue_.summaryFailed;
+    if (g_summaryFailedLogged < kRefusedLines) {
+        ++g_summaryFailedLogged;
+        // Before any write the map is untouched; once cleared it holds what was written.
+        fc4::Log("demand: WARNING GetLocalPopulationSummary: %s (%s); cleared=%u written=%u of %u, count now %u%s",
+                 !clean ? "faulted" : (r.cleared == 0 && r.written == 0 ? "map left untouched" : "stopped"),
+                 clean ? fc4::GameMapStatusName(r.status) : "structured exception", r.cleared, r.written,
+                 static_cast<unsigned>(keys.size()), r.countAfter,
+                 g_summaryFailedLogged == kRefusedLines ? " (no more of these lines)" : "");
     }
 }
 
@@ -923,9 +1124,12 @@ bool cFC4DemandSimulator::DoMessage(cIGZMessage2* pMessage) {
             lot = TokenOf(l);
         }
         if (m != nullptr) {
+            // §7.2 reads the profile's capacity maps here (counted as occupancy reads).
+            inStateChanged_ = true;
             fc4_demand_sim_state_changed(core_, lot, static_cast<uint32_t>(m->GetData1()),
                                          static_cast<uint32_t>(m->GetData2()), static_cast<uint32_t>(m->GetData3()),
                                          static_cast<uint32_t>(m->GetData4()));
+            inStateChanged_ = false;
         }
         if (l != nullptr) FC4_RELEASE(l);
     } else {
@@ -933,7 +1137,7 @@ bool cFC4DemandSimulator::DoMessage(cIGZMessage2* pMessage) {
         const uint32_t d2 = m ? static_cast<uint32_t>(m->GetData2()) : 0;
         const uint32_t d3 = m ? static_cast<uint32_t>(m->GetData3()) : 0;
         fc4_demand_sim_handle_message(core_, type, d1, d2, d3);
-        if (type == kMsgSimNewMonth) LogState("month");
+        if (type == kMsgSimNewMonth) LogState("month", true);
     }
     if (m != nullptr) FC4_RELEASE(m);
     return true;  // §10.2: always

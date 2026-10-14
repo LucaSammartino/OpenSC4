@@ -1,0 +1,184 @@
+{
+  "format": 1,
+  "name": "pf11_15_constructor_and_slots",
+  "spec": [
+    "pathfinder 1",
+    "pathfinder 2",
+    "pathfinder 4.2",
+    "pathfinder 7"
+  ],
+  "description": "Extra (§1, §2, §4.2): the constructor values (count 0, not initialised, weight 1.0, trip length 0.0, both masks 0x0002, filter 3, no route, no starting cost array, max work time 0), QueryInterface for 0xAA0DB766 and 1 (each AddRefs through the vtable, §7 slot 0), Init and Shutdown twice, and the travel-type slots.",
+  "steps": [
+    {
+      "op": "pf_new"
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "ref_count": 0,
+        "initialised": false,
+        "weight": "0x3F800000",
+        "trip_length": "0x00000000",
+        "allowed": 2,
+        "starting": 2,
+        "filter": 3,
+        "destination_flags": 0,
+        "flags": 0,
+        "route": null,
+        "start_costs": null,
+        "max_work_time": 0,
+        "suspended": false,
+        "density": 0,
+        "arrived": 0,
+        "result": null,
+        "node_count": 0,
+        "last_travel_type": 0
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "query_interface",
+      "args": [
+        2853025638
+      ],
+      "expect": true
+    },
+    {
+      "op": "pf_call",
+      "method": "query_interface",
+      "args": [
+        1
+      ],
+      "expect": true
+    },
+    {
+      "op": "pf_call",
+      "method": "query_interface",
+      "args": [
+        4660
+      ],
+      "expect": false
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "ref_count": 2
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "init",
+      "expect": true
+    },
+    {
+      "op": "pf_call",
+      "method": "init",
+      "expect": false
+    },
+    {
+      "op": "pf_call",
+      "method": "shutdown",
+      "expect": true
+    },
+    {
+      "op": "pf_call",
+      "method": "shutdown",
+      "expect": false
+    },
+    {
+      "op": "pf_call",
+      "method": "set_travel_type_flag",
+      "args": [
+        48,
+        false
+      ]
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "allowed": 50,
+        "starting": 2
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "set_travel_type_flag",
+      "args": [
+        1,
+        true
+      ]
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "allowed": 51,
+        "starting": 3
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "clear_travel_type_flag",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "allowed": 48,
+        "starting": 0
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "clear_all_travel_type_flags"
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "allowed": 0,
+        "starting": 0
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "set_destination_flag",
+      "args": [
+        5
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "clear_destination_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "destination_flags": 4
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "set_flag",
+      "args": [
+        9
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "clear_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "flags": 8
+      }
+    }
+  ]
+}
