@@ -802,8 +802,8 @@ cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	28	+0x70	006d4670	cSC4Ne
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	29	+0x74	006d0840	cSC4NeighborsSimulator::FindDeals	12	3	eax-or-void	medium	
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	30	+0x78	006d0760	cSC4NeighborsSimulator::FindDeals	8	2	eax-or-void	medium	
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	31	+0x7C	006cfd70	cSC4NeighborsSimulator::MarkDealsDirty	0	0	unknown	low	
-cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	32	+0x80	006cf860	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealIncome	0	0	eax-or-void	medium	re-answers8 NG11: int64 in edx:eax, every caller reads EDX; ret column changes with the plugin fix (neighbours apply lane)
-cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	33	+0x84	006cf8d0	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealExpense	0	0	eax-or-void	medium	re-answers8 NG11: int64 in edx:eax, every caller reads EDX; ret column changes with the plugin fix (neighbours apply lane)
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	32	+0x80	006cf860	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealIncome	0	0	edx:eax	high	int64; every caller reads EDX (NG11)
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	33	+0x84	006cf8d0	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealExpense	0	0	edx:eax	high	int64; every caller reads EDX (NG11)
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	34	+0x88	006d2a20	cSC4NeighborsSimulator::UpdateCommodityStats	4	1	eax-or-void	medium	
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	35	+0x8C	006d3250	cSC4NeighborsSimulator::GetDealCost	16	4	x87	high	indirect-jump dword ptr [eax*4 + 0x6d35fc]
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	36	+0x90	006d3620	cSC4NeighborsSimulator::GetDealMaxAmount	8	2	x87	high	indirect-jump dword ptr [eax*4 + 0x6d38b8]

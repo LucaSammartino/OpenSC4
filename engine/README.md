@@ -316,14 +316,19 @@ plugin.
        `cSC4LandfillOccupant`s made through GZCOM with their tile exemplar attached (`SetDefaultExemplar`), so the
        model is drawn, the query tool shows them, the maintenance reads each tile's cost from its exemplar and the
        game saves them; a tile that cannot be made is kept in FreeCity4 (the cell keeps pollution's
-       active-landfill flag; a load rebuilds only those). The first tile made is logged in full (`landfill: game
-       tile made (first one; …): tile 0x… orientation … at cell (x, z), position (…); exemplar holder by QI on the
-       occupant; tile cost 0xEA54D286 … found; type 0x6A11BD2B …; Init true, IsInitialized yes; bounding box …;
-       InsertOccupant true; flag 1 set`), and so are the first four failures, each with the step that failed and
-       what every step before it gave (`landfill: WARNING game tile failure N: tile … not made: <step>. Steps:
-       exemplar (0x6534284A, 0x07BDDF1C, 0x…) found; GZCOM GetClassObject(0x8A22BEBE, 0x2A15F262) made one;
-       AsOccupant ok; exemplar holder (QI 0x0AC2B5F7) …`); later failures are counted in `tilesFailed`. When the
-       occupant does not answer the exemplar-holder QI, its property holder (occupant slot 6) is asked.
+       active-landfill flag; a load rebuilds only those). No interface of the tile answers the exemplar-holder QI
+       `0x0AC2B5F7` (LG27), so `SetDefaultExemplar` is called, as the original does, on the holder at the
+       occupant + `0x20` (docs/abi/layouts.md), after checking that `AsOccupant` and `AsPropertyHolder` return
+       the documented sub-objects (+`0x04`, +`0x0C`). The first tile made is logged in full (`landfill: game tile
+       made (first one; …): tile 0x… orientation … at cell (x, z), position (…); exemplar holder at the occupant +
+       0x20 (LG27, …); GetDefaultExemplar returns it; tile cost 0xEA54D286 … found; type 0x6A11BD2B …; Init
+       true, IsInitialized yes; bounding box …; before the insert (LG29): flag 1 clear, AsPropertyHolder
+       non-null; InsertOccupant true; flag 1 set`), and so are the first four failures, each with the step that
+       failed and what every step before it gave (`landfill: WARNING game tile failure N: tile … not made: <step>.
+       Steps: exemplar (0x6534284A, 0x07BDDF1C, 0x…) found; GZCOM GetClassObject(0x8A22BEBE, 0x2A15F262) made
+       one; AsOccupant ok (object +0x4), AsPropertyHolder object +0xC; exemplar holder …`); a refused insert names
+       its LG29 case (flag 1 already set, a null `AsPropertyHolder`, or already listed in its first cell) and how
+       many landfill occupants the cell lists. Later failures are counted in `tilesFailed`.
        New landfill cells get the landfill ground texture (a
        usage-1 `cSC4LotBaseTextureOccupant`). At `Init` the log says how the month agent is ordered (`landfill:
        month agent registered with …`; with the game's simulator a `WARNING` when the landfill would run before
@@ -1260,7 +1265,7 @@ plugin.
   `cFC4Date`), `cFC4IGZVariant` (implemented by `cFC4Variant`, the only variant we hand to the game; never pass
   the SDK's `cRZBaseVariant`, whose slots 8 and 60 differ from the game's), `cFC4ISCPropertyHolder`,
   `cFC4ISC4LotManager`, `cFC4ISC4Lot`, and `cFC4ISC4NeighborsSimulator` (from the ABI table: slots 32/33
-  return 32 bits). `cFC4ISCStringDetokenizer` (`plugin/FC4CrimeInterfaces.h`) follows lua-host §10.1, whose
+  return an int64 in EDX:EAX, neighbours NG11). `cFC4ISCStringDetokenizer` (`plugin/FC4CrimeInterfaces.h`) follows lua-host §10.1, whose
   slot 8 is the resource-key `Detokenize` and slot 9 the string one. Interfaces still used through SDK declarations: `cIGZString`, `cISC4LineItem`,
   `cISC4BuildingDevelopmentSimulator`, `cISC4DisasterManager`, `cIGZPersistResourceManager`,
   `cISC4HistoryWarehouse`, `cISC4OrdinanceSimulator`, `cISCResExemplar`.
