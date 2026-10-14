@@ -2816,8 +2816,14 @@ in brackets.
   the old size is now refused by the `struct_size` check. [no bump; refused]~~
   **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. The host tables and their
   `struct_size` check are FreeCity4's plugin ABI; the original has nothing to compare with.
-- **LV5:** LV2: a developer first seen while its slot 10 is false gets no snapshot until slot 10 turns true, so there
-  is no second candidate in that window. [no snapshot]
+- ~~**LV5:** LV2: a developer first seen while its slot 10 is false gets no snapshot until slot 10 turns true, so there
+  is no second candidate in that window. [no snapshot]~~
+  **ANSWERED 2026-10-14** from the growth developer's state machine (growth-developer §2, §3.2: slot 10 is `state < 17`,
+  slot 28 is `state == 0`) and written into landvalue.md §7.4. Slot 10 is false only in states 17–20, and D changes in
+  that window's first call, so a developer first seen there has already published unless it is still in state 17, which
+  no slot distinguishes. The second candidate cannot be recovered. Since the state is 0 after construction, `Init` and a
+  load, only a shadow that starts mid-update meets this. No original behaviour for the shadow; the implementer's choice
+  (no snapshot) stands.
 - **FL7:** FL5/FL6: exactness assumes the plumbing pass-end message (posted in state 8) is delivered before the next
   pass swaps its grid (end of state 6). Two passes between polls would bring the pointer back unseen. [assumed; polled
   at every forwarded message and at the cycle end]
