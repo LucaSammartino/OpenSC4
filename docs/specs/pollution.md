@@ -574,6 +574,41 @@ Runs monthly, on PostCityInit `0x26D31EC1`, when `effectsVisible` changes, and a
 3. Random draws: the water effect's position uses the pollution file's own `cRZRandomSuper` (foundations §6.2)
    with `RandomDoubleRangeUniform` — **2 draws per newly created water effect** (x then z), none otherwise.
 
+**Calls and layouts** *[compat]* (PG4). The air path's calls are at `0x006E6836`–`0x006E693D`; the water path's
+are the same.
+
+| Object | Slot | Call | Pop | Return |
+|---|---|---|---|---|
+| `cISC4EffectsManager` (`0x00A9F264`, simulator `+0x38`) | 6 `+0x18` | `CreateVisualEffect(uint32 effect, uint32 kind, cISC4VisualEffect** out)` (`0x00593AE0`). It returns false and leaves `*out` alone for an unknown effect; otherwise it stores a new effect in `*out` with one reference. The original tests `*out`, not AL | 12 | AL |
+| visual effect (vtable `0x00AA1170`) | 3 `+0x0C` | `Start(bool)`, always with 0 here | 4 | — |
+| | 4 `+0x10` | `Stop(bool)`, always with 0 here | 4 | — |
+| | 5 `+0x14` | `IsStarted()`: the byte at `+0x24` (`0x007D6680`, a folded getter) | 0 | AL |
+| | 8 `+0x20` | `SetTransform(const cS3DTransform*)` (`0x005BE880`) | 4 | — |
+| | 12 `+0x30` | `SetParameter(uint32 index, const float* values, uint32 count)`, here `(2 or 3, &s, 1)` | 12 | — |
+| | 2 `+0x08` | `Release` | 0 | — |
+
+`cS3DTransform` is 0x38 bytes. The copy it is read by (`0x005BEC20`) takes byte `+0x01` and the 13 floats at
+`+0x04`–`+0x37`:
+
+| Offset | Field | Set by the pollution code |
+|---|---|---|
+| `+0x00` | byte, a revision counter (the receiver keeps its own) | 0, then incremented to 1 |
+| `+0x01` | byte, flags | bit 0 set *[meaning not traced]* |
+| `+0x04`–`+0x27` | 3 × 3 rotation matrix, 9 floats, row by row | identity: 1.0 at `+0x04`, `+0x14`, `+0x24`; 0 elsewhere |
+| `+0x28`–`+0x33` | translation x, y, z | the world position of the table above |
+| `+0x34` | uniform scale | 1.0 |
+
+**Not drawing the effects.** That is the implementer's choice, but two parts of this pass are not visual and
+must still run:
+
+- **The `rand()` call.** The effect iterator's reset makes one C `rand()` call (step 1). That stream is shared
+  with every other main-thread `rand()` user, such as iterator shuffles (foundations §12.1, §12.3). Skipping the
+  pass would shift every later draw.
+- **The worst tracts.** Slots 17–19 return them (§8.1).
+
+The two water-position draws are safe to drop. The `cRZRandomSuper` at `0x00B49BD0` is used only at `0x006E668C`
+and `0x006E66DB` (and its static constructor `0x00A74E41`).
+
 ### 4.11 Prop requests (`cISC4PropRequester`)
 
 `GetRequestedShare(rect)`: sum `GetGarbageValue` (own slot 9) over every cell of the inclusive cell rectangle,

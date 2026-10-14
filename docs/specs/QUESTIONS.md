@@ -365,8 +365,19 @@ About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answ
   **The bracket is right: AL, a bool.** The fraction goes through the reference and the x87 stack is empty on
   return. Also added to the row: the property is read through the shared percentage getter, so it is × 0.01f
   (float32), like slot 55.
-- **PG4 — §4.10 visual effects:** the effects manager's `CreateVisualEffect` and the `cISC4VisualEffect` /
-  `cS3DTransform` layouts are not in `docs/abi`. [visual effects not implemented]
+- ~~**PG4 — §4.10 visual effects:** the effects manager's `CreateVisualEffect` and the `cISC4VisualEffect` /
+  `cS3DTransform` layouts are not in `docs/abi`. [visual effects not implemented]~~ **ANSWERED 2026-10-14** from the
+  exe (calls `0x006E6836`–`0x006E693D`; `CreateVisualEffect` `0x00593AE0`; effect vtable `0x00AA1170`; transform
+  copy `0x005BEC20`; RNG `0x00B49BD0`) and written into pollution.md §4.10. **Not drawing them is the implementer's
+  choice, but part of the pass must stay.**
+  - **The interfaces.** `CreateVisualEffect` is effects manager slot 6 (pop 12, AL; `*out` is AddRef'd). The
+    effect's slots are 3 `Start`, 4 `Stop`, 5 `IsStarted`, 8 `SetTransform`, 12 `SetParameter(index, float*,
+    count)` and 2 `Release`.
+  - **`cS3DTransform`** is 0x38 bytes: a counter byte, a flags byte, a 3×3 matrix at `+0x04`, the translation at
+    `+0x28` and the scale at `+0x34`.
+  - **Must still run without effects.** The pass's one `rand()` call (the effect iterator's reset) shares the
+    main-thread stream, and the worst tracts feed slots 17–19.
+  - **Safe to drop.** The water-position draws use a `cRZRandomSuper` that nothing else uses.
 - ~~**PG5 — §10.2 Q1:** is the prop requester re-added after a load? [open in the spec]~~ **ANSWERED 2026-10-14**
   from the exe (prop developer `Write` `0x006F1970`–`0x006F19B6`, `Read` `0x006F3680`–`0x006F36C8`;
   `AddPropRequester` `0x006F21C0`) and written into pollution.md §4.1 and §10.2 Q1. **No; the prop developer's own
