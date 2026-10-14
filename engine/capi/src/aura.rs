@@ -783,7 +783,7 @@ pub unsafe extern "C" fn fc4_aura_bust_strike(p: *mut fc4_aura, kind: u32) {
 /// the last main-thread call. Any thread. False (and `out` untouched) for
 /// NULL.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_aura_ratings(p: *const fc4_aura, out: *mut fc4_aura_ratings) -> bool {
+pub unsafe extern "C" fn fc4_aura_get_ratings(p: *const fc4_aura, out: *mut fc4_aura_ratings) -> bool {
     let (Some(h), Some(o)) = (handle(p), out.as_mut()) else {
         return false;
     };

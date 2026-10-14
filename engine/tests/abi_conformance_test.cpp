@@ -103,6 +103,7 @@
 #include "cISC4AutomataControllerManager.h"
 #include "cISC4PropManager.h"
 #include "cISC4PropOccupant.h"
+#include "cISC4AuraSimulator.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -352,6 +353,9 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4CrimeSimulator", 14, 16,
      "slot 14 is cSC4CrimeSimulator's scalar deleting destructor (pops 4) and slot 15 its GetSimulatorType: "
      "class-private (crime spec section 1: 14 interface slots; cFC4CrimeSimulator declares both)"},
+    {"cISC4AuraSimulator", 16, 17,
+     "slot 16 is cSC4AuraSimulator's scalar deleting destructor (pops 4): class-private (aura spec section 12.1: "
+     "16 interface slots + destructor)"},
 };
 
 const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlots) {
@@ -407,6 +411,13 @@ const Waiver kWaivers[] = {
     {"cISC4SimGrid<int16>", "cISC4SimGrid<int16_t>", 21, "TractCenterToPosition", "the game returns in ST0 (SDK: bool)"},
     {"cISC4SimGrid<float>", "cISC4SimGrid<float>", 20, "TractCornerToPosition", "the game returns in ST0 (SDK: bool)"},
     {"cISC4SimGrid<float>", "cISC4SimGrid<float>", 21, "TractCenterToPosition", "the game returns in ST0 (SDK: bool)"},
+    // The aura simulator's grids (aura.md section 14.2).
+    {"cISC4SimGrid<int8>", "cISC4SimGrid<int8_t>", 20, "TractCornerToPosition", "the game returns in ST0 (SDK: bool)"},
+    {"cISC4SimGrid<int8>", "cISC4SimGrid<int8_t>", 21, "TractCenterToPosition", "the game returns in ST0 (SDK: bool)"},
+    {"cISC4SimGrid<uint16>", "cISC4SimGrid<uint16_t>", 20, "TractCornerToPosition",
+     "the game returns in ST0 (SDK: bool)"},
+    {"cISC4SimGrid<uint16>", "cISC4SimGrid<uint16_t>", 21, "TractCenterToPosition",
+     "the game returns in ST0 (SDK: bool)"},
     {"cISTETerrain", "cISTETerrain", 6, "CellWidth", "the game returns in ST0 (SDK: 32-bit)"},
     {"cISTETerrain", "cISTETerrain", 27, "GetLerpedNormal", "the game returns in ST0 (SDK: 32-bit)"},
     {"cISTETerrain", "cISTETerrain", 59, "BeginBrushScrub", "pops 8 (SDK: 4 bytes)"},

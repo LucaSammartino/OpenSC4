@@ -2656,7 +2656,7 @@ void fc4_aura_add_transient_effect_type(fc4_aura* p, float x, float z, uint32_t 
 void fc4_aura_add_transient_effect(fc4_aura* p, float x, float z, float radius, float magnitude); /* slot 7 */
 void fc4_aura_bust_strike(fc4_aura* p, uint32_t type);                                          /* slot 11 */
 /* Any thread: the snapshot (false for NULL), one grid token of it. */
-bool fc4_aura_ratings(const fc4_aura* p, fc4_aura_ratings* out);
+bool fc4_aura_get_ratings(const fc4_aura* p, fc4_aura_ratings* out);
 uint64_t fc4_aura_grid(const fc4_aura* p, uint32_t which);
 bool fc4_aura_get_state(const fc4_aura* p, fc4_aura_state* out);
 bool fc4_aura_write(const fc4_aura* p, const fc4_ostream* out); /* §11.2 */

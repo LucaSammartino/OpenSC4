@@ -151,7 +151,7 @@ impl Game {
         std::thread::spawn(move || {
             let p = p as *const fc4_aura;
             let mut r = fc4_aura_ratings::default();
-            let ok = unsafe { fc4_aura_ratings(p, &mut r) };
+            let ok = unsafe { fc4_aura_get_ratings(p, &mut r) };
             let g = unsafe { fc4_aura_grid(p, FC4_AURA_GRID_AURA) };
             let _ = tx.send((ok, r.aura_grid, g));
         });
@@ -462,7 +462,7 @@ fn state_of(p: *const fc4_aura) -> fc4_aura_state {
 
 fn ratings_of(p: *const fc4_aura) -> fc4_aura_ratings {
     let mut r = fc4_aura_ratings::default();
-    assert!(unsafe { fc4_aura_ratings(p, &mut r) });
+    assert!(unsafe { fc4_aura_get_ratings(p, &mut r) });
     r
 }
 
@@ -509,7 +509,7 @@ fn create_rejects_short_tables_and_null_handles_answer_fallbacks() {
         fc4_aura_add_transient_effect_type(p, 0.0, 0.0, 0);
         fc4_aura_bust_strike(p, 0);
         let mut r = fc4_aura_ratings::default();
-        assert!(!fc4_aura_ratings(p, &mut r));
+        assert!(!fc4_aura_get_ratings(p, &mut r));
         assert_eq!(fc4_aura_grid(p, 0), 0);
         let mut s = fc4_aura_state::default();
         assert!(!fc4_aura_get_state(p, &mut s));

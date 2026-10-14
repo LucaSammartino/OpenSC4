@@ -210,8 +210,8 @@ enum class Sw : unsigned {
     // calls; only used when the aura subsystem is enabled.
     AuraLots,         // aura_lots: lot count, the lot walk (GetLot per cell), bounding rect, zone,
                       //   wealth, building (off: no lots; the cycle ends at state 4)
-    AuraPopulations,  // aura_lot_populations: the raw read of GetPopulations (STLport maps,
-                      //   docs/abi/allocators.md) (off: no pairs, every lot -128)
+    AuraPopulations,  // aura_lot_populations: GetPopulation(type) (lot slot 53) for the twelve
+                      //   developer types (off: no pairs, every lot -128)
     AuraOccupants,    // aura_occupants: occupant HasProperty / properties / type / position
                       //   (off: occupants look empty)
     AuraBudget,       // aura_budget: GetBudgetItemForPurpose, department funding, tax rates
