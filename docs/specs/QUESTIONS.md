@@ -3838,26 +3838,26 @@ cores10a implemented both cores (merged `0757437`, ABI 46): every §12 test of h
 test and a conformance vector (`hw12_*`, `ck12_*`). The 421-save corpus checks (history §7.1, clock §12.12) are
 left for the coordinator or a glue lane, since engine lanes cannot read the saves.
 
-- **CK7:** clock §4.1: the percentage factor's bit pattern `0x37C22E45` is 1/43200 (1.0 at noon), but the decimal
-  value and §12.1 say 1/86400. [`0x37422E45`, 1/86400; a test pins it]
-- **CK8:** the clock step's signedness. [u32: a negative product wraps, then the 1200 clamp applies]
-- **CK9:** an elapsed time of 2^31 or more. [the float(uint32) idiom]
-- **CK10:** `atol` overflow (`Stopwatch magnify`). [wraps]
-- **CK11:** how cheat text is split. [on blanks; double quotes group and are removed]
-- **CK12:** the cheat registration order. [register, then subscribe, one cheat at a time]
-- **CK13:** `Shutdown` without a cheat manager. [it unregisters only when a manager exists]
-- **CK14:** a saved pause count of −1. [signed i32 counters: Resume does nothing, `IsPaused` is false, so the clock
-  runs]
-- **CK15:** timer `Restart` on a stopped timer. [starts it]
-- **HW5:** history §4.7: how `r` is grouped. [the product of the two standardised values, summed, then divided by n]
-- **HW6:** ranges: how they are walked, and a widened range with from > to and no point in it. [walked like a list;
-  the widened case takes the point before the first one at or after `from`, and that point]
-- **HW7:** a `Read` failure. [stops at the first failed read and returns false; series read completely stay, the
-  partial one is dropped; a date not after the previous one, with no point yet, is dropped]
-- **HW8:** `Store`'s full-queue test. [unsigned: a count at or above maxCount drops one point; maxCount 0 means
-  unlimited, so 0xFFFFFFFF never trims]
-- **HW9:** `GetMinMaxAverage` with from == to and no point on that date. [`GetPoint` is called twice and its value
-  counted twice, as written]
-- **HW10:** precision values other than 24. [all treated as 53 bits]
-- **HW11:** 24-bit sums of int32 operands. [the exact sum, rounded once]
-- **HW12:** `RecordHistoryData`'s return value. [true]
+- ~~**CK7:** clock §4.1: the percentage factor's bit pattern `0x37C22E45` is 1/43200 (1.0 at noon), but the decimal
+  value and §12.1 say 1/86400. [`0x37422E45`, 1/86400; a test pins it]~~ **ANSWERED 2026-10-14 (re-answers10):** the exe's constant (`0x00A86508`) is `0x37422E45` = f32(1/86400); the spec's `0x37C22E45` was a typo. `GetTimePercentage` at noon writes exactly 0.5 (`0x3F000000`); the product is rounded once to float. The bracket MATCHES (clock24 §4.1, test 14).
+- ~~**CK8:** the clock step's signedness. [u32: a negative product wraps, then the 1200 clamp applies]~~ **ANSWERED 2026-10-14 (re-answers10):** the step is the low 32 bits of `_ftol`'s int64 truncation toward zero, compared unsigned with 60 and 1200: a product of −1 or less wraps and is clamped to 1200; between −1 and 0, or NaN, gives 0 (no step). The bracket MATCHES (clock24 §4.3, test 15).
+- ~~**CK9:** an elapsed time of 2^31 or more. [the float(uint32) idiom]~~ **ANSWERED 2026-10-14 (re-answers10):** the unsigned-to-float idiom (exact load, plus 2^32 when the top bit is set); below 2^31 the product uses the exact `e`, rounded once. The bracket MATCHES (clock24 §4.3).
+- ~~**CK10:** `atol` overflow (`Stopwatch magnify`). [wraps]~~ **ANSWERED 2026-10-14 (re-answers10):** the CRT `atol` (`0x009EF7C2`) skips leading white space, takes one sign and accumulates in wrapping 32-bit arithmetic. The bracket MATCHES. Also: `WhatTimeIzIt -1` gives hour 15, and `magnify` converts the signed result (clock24 §4.8, test 18).
+- ~~**CK11:** how cheat text is split. [on blanks; double quotes group and are removed]~~ **ANSWERED 2026-10-14 (re-answers10):** the separators are exactly space, tab and newline, and runs count as one. A separator splits only when an even number of quotes has been seen in the current argument, and only an argument that both starts and ends with a quote loses that outer pair. The bracket MATCHES for ordinary text but **DIFFERS** if FreeCity4 removes inner quotes or splits on other white space (clock24 §4.8).
+- ~~**CK12:** the cheat registration order. [register, then subscribe, one cheat at a time]~~ **ANSWERED 2026-10-14 (re-answers10):** register `WhatTimeIzIt`, subscribe it, then register `Stopwatch`, subscribe it. The bracket MATCHES (clock24 §4.2).
+- ~~**CK13:** `Shutdown` without a cheat manager. [it unregisters only when a manager exists]~~ **ANSWERED 2026-10-14 (re-answers10):** without a cheat manager nothing is unregistered; with one, each cheat in turn has its notification removed, then is unregistered. The bracket MATCHES (clock24 §4.2).
+- ~~**CK14:** a saved pause count of −1. [signed i32 counters: Resume does nothing, `IsPaused` is false, so the clock
+  runs]~~ **ANSWERED 2026-10-14 (re-answers10):** the counters are signed, `Pause(false)` does nothing at −1 and `IsPaused` is false, but `Init` starts the timer only when both counters are **exactly** 0. So the timer never starts, every step is 0 and the clock stays frozen until `Stopwatch pause` brings the count to 0 and a hidden pause cycle (or pause and resume) starts the timer. The bracket **DIFFERS** ("the clock runs") (clock24 §4.7, test 16).
+- ~~**CK15:** timer `Restart` on a stopped timer. [starts it]~~ **ANSWERED 2026-10-14 (re-answers10):** `Restart` sets the elapsed time to 0 and the start tick to now, whether or not the timer ran, so a stopped timer starts. The bracket MATCHES. Also: `Start` does not test whether the timer runs (clock24 §4.3 timer model).
+- ~~**HW5:** history §4.7: how `r` is grouped. [the product of the two standardised values, summed, then divided by n]~~ **ANSWERED 2026-10-14 (re-answers10):** the grouping MATCHES (the product of the two standardised values, summed, then divided by n), but the standardised values are `(x − meanX) × (1/sx)` and `(value − meanY) × (1/sy)`, with each reciprocal rounded once; dividing by `sx` changes the result (history §4.7, test 12).
+- ~~**HW6:** ranges: how they are walked, and a widened range with from > to and no point in it. [walked like a list;
+  the widened case takes the point before the first one at or after `from`, and that point]~~ **ANSWERED 2026-10-14 (re-answers10):** walked like a list from the first point, with unsigned dates. With `from > to` the widened range is the **first point after `to` and its predecessor** (after the two pre-checks: the last point if `from` is after it, the first point if `to` is before it). The bracket (the point before the first at or after `from`, and that point) **DIFFERS** whenever a point lies between `to` and `from` (history §4.6, test 11).
+- ~~**HW7:** a `Read` failure. [stops at the first failed read and returns false; series read completely stay, the
+  partial one is dropped; a date not after the previous one, with no point yet, is dropped]~~ **ANSWERED 2026-10-14 (re-answers10):** `Read` tests no individual read and runs on with the values the failed reads left, so the series being read keeps the points read before the failure. A duplicate key makes `Read` return false **at once** (the rest of the record is unread); the old spec said it was only discarded. The bracket's stop-and-drop is accepted as *[choice]* for corrupt records; it **DIFFERS** from the original only in the partial series. A date ≤ prev with no point (only date 0) is dropped: MATCHES (history §7, test 14).
+- ~~**HW8:** `Store`'s full-queue test. [unsigned: a count at or above maxCount drops one point; maxCount 0 means
+  unlimited, so 0xFFFFFFFF never trims]~~ **ANSWERED 2026-10-14 (re-answers10):** the u32 count is compared unsigned with `maxCount`, and 0 means unlimited. The bracket MATCHES (history §4.1).
+- ~~**HW9:** `GetMinMaxAverage` with from == to and no point on that date. [`GetPoint` is called twice and its value
+  counted twice, as written]~~ **ANSWERED 2026-10-14 (re-answers10):** both flags are tested after the loop, so with `from = to` and no point on that date, `GetPoint` runs twice and its value counts twice. The bracket MATCHES (history §4.7, test 13).
+- ~~**HW10:** precision values other than 24. [all treated as 53 bits]~~ **ANSWERED 2026-10-14 (re-answers10):** glue-only: the game never selects the 64-bit mode, so only 24 and 53 occur. The choice is confirmed (history §4.7).
+- ~~**HW11:** 24-bit sums of int32 operands. [the exact sum, rounded once]~~ **ANSWERED 2026-10-14 (re-answers10):** each addition takes the exact integer operand and the stored sum and rounds once at the caller's precision. The bracket MATCHES (history §4.7).
+- ~~**HW12:** `RecordHistoryData`'s return value. [true]~~ **ANSWERED 2026-10-14 (re-answers10):** the original returns the final `Release`'s EAX, which is 0 (false) because nothing keeps the message. No shipped caller reads it (48 call sites checked). The bracket **DIFFERS**: return false *[compat]* (history §4.1).
