@@ -244,6 +244,8 @@ private:
     SC4Percentage pct_{0.0f};  // what GetPercentCoverage points at (stable)
     uint32_t months_ = 0;
     uint32_t days_ = 0;
+    // The month line's WARNING about a 0 x 0 coverage grid, once per object.
+    bool emptyGridWarned_ = false;
 };
 
 class cFC4FireProtectionSimulator final : public cFC4ISC4FireProtectionSimulator, public cFC4ProtectionBase {

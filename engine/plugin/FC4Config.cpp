@@ -128,6 +128,8 @@ const SwitchInfo kSwitches[kCount] = {
     {"crime_posts", "FC4_CRIME_POSTS"},
     {"crime_grid_writes", "FC4_CRIME_GRID_WRITES"},
     {"crime_zoning", "FC4_CRIME_ZONING"},
+    {"demand_capacity", "FC4_DEMAND_CAPACITY"},
+    {"demand_direct_calls", "FC4_DEMAND_DIRECT_CALLS"},
 };
 
 // Keys that are not switches.
@@ -151,8 +153,10 @@ volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // protection
                                1, 1, 1, 1, 1, 1, 1, 1,
                                // crime
-                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-static_assert(kCount == 91, "g_on: one 1 per switch");
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               // demand
+                               1, 1};
+static_assert(kCount == 93, "g_on: one 1 per switch");
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};

@@ -104,6 +104,11 @@ int main() {
         c.overruns = 2;
         CHECK(VerdictAtDeadline(c) == Verdict::Corrupt);
         CHECK(VerdictName(Verdict::Stalled)[0] == 's');
+        CHECK(VerdictAtEnd(c, true) == Verdict::Corrupt);  // corruption decides first
+        c.overruns = 0;
+        CHECK(VerdictAtEnd(c, false) == Verdict::Clean);
+        CHECK(VerdictAtEnd(c, true) == Verdict::Ended);
+        CHECK(VerdictName(Verdict::Ended)[0] == 'e');
     }
     CHECK(!DeadlineVerdictDue(9999, 10000, 9999));
     CHECK(DeadlineVerdictDue(10000, 10000, 9500));

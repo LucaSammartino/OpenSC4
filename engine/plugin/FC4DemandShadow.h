@@ -56,6 +56,13 @@
 //   same history, ordinance and nation getters, and compared. The saved CO/I
 //   economy bonuses cannot be read; they are taken as 0 (§15 Q5).
 //
+// Not covered: §7.2 UpdateCapacity (building profile capacity maps) and §5
+// GetLocalPopulationSummary. Capacity reaches the original's nodes as pending
+// supply on a StateChanged notification, not through an agent delivery; both
+// sides then start NewDay from the same pending values read in step 1, so the
+// propagation compares like with like whatever capacity did. The read-only
+// host has no building_profile, and no shadow step runs UpdateCapacity.
+//
 // Read-only: the core gets a host table with the exemplar reads and the §8.1
 // getters only (DemandReadOnlyHost); only getters are called on the original
 // simulator and its nodes (QueryInterface for the agent is released at once).

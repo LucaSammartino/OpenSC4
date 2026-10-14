@@ -42,6 +42,8 @@
 #include "FC4CrimeInterfaces.h"
 #include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
+#include "FC4GameMap.h"
+#include "cFC4Demand.h"
 #include "FC4PollutionShadow.h"
 #include "cS3DVector3.h"
 #include "cIGZOStream.h"
@@ -109,6 +111,35 @@ constexpr uint32_t kCLSID_Crime = 0x8990C09A;
 constexpr uint32_t kIID_cISC4CrimeSimulator = 0x67659555;
 
 void CollectClass(uint32_t clsid, uint32_t, void* ctx) { static_cast<std::vector<uint32_t>*>(ctx)->push_back(clsid); }
+
+// demand capacity seam (op 20): every (map, developer type, amount) reported.
+void CollectCapacity(void* ctx, uint32_t map, uint32_t devType, uint16_t amount) {
+    static_cast<std::vector<std::array<uint32_t, 3>>*>(ctx)->push_back({map, devType, amount});
+}
+
+// A building profile with one capacity map {0x1010: 12, 0x1020: 7, 0x1030: 3}, built as
+// docs/abi/allocators.md ("map and set") and layouts.md (the vector at +0x0C) describe it:
+// root 0x1020 black, 0x1010 and 0x1030 red; the high half of each value is junk.
+struct FakeCapacityProfile {
+    fc4::GameMapNode header{}, a{}, r{}, c{};
+    fc4::GameMapObject map{};
+    unsigned char bytes[0x40]{};
+    FakeCapacityProfile() {
+        header.color = fc4::kGameMapRed;
+        header.parent = &r;
+        header.left = &a;
+        header.right = &c;
+        r = {fc4::kGameMapBlack, {}, &header, &a, &c, 0x1020, 0xDEAD0007u};
+        a = {fc4::kGameMapRed, {}, &r, nullptr, nullptr, 0x1010, 0xDEAD000Cu};
+        c = {fc4::kGameMapRed, {}, &r, nullptr, nullptr, 0x1030, 0xDEAD0003u};
+        map = {&header, 3, 0};
+        SetVector(&map, &map + 1, &map + 1);
+    }
+    void SetVector(const void* begin, const void* end, const void* cap) {
+        const void* v[3] = {begin, end, cap};
+        std::memcpy(bytes + fc4::kProfileCapacityVectorOffset, v, sizeof(v));
+    }
+};
 
 // A handled access violation in the HOST's code (not the DLL's): the DLL's
 // vectored handler must log it with the call ring.
@@ -1084,7 +1115,7 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
         WriteTextFile(ini, "[autotest]\nautotest_save_after_months = 2\nautotest_save_fast = 0\nobserve = 1\n");
     } else if (scenario == "panic") {
         WriteTextFile(ini, "[autotest]\n");
-    } else {  // stalled: passthrough (the observer alone)
+    } else {  // stalled, ended: passthrough (the observer alone)
         WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 60\n");
     }
     HMODULE h = LoadLibraryA(dll.c_str());
@@ -1140,6 +1171,13 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
             ForeignFault();  // then keep ticking until the DLL ends the process
         }
         if (scenario == "stalled" && ms >= 500) Sleep(INFINITE);  // the main thread stops ticking
+        if (scenario == "ended" && ms >= 500) {
+            // The game shuts the city down by itself (a bankrupt city) long
+            // before the 60 s deadline: the run ends at PostCityShutdown.
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(0x26D31EC2u)), nullptr);
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(0x26D31EC3u)), nullptr);
+            return 3;  // not reached: the DLL terminates the process
+        }
         if (ms > 60000) return 3;
     }
 }
@@ -1593,6 +1631,9 @@ int ProtectionEnableTest(const std::string& dll, const std::string& ini, const s
     CHECK(text.find("protection month (fire): init=0") != std::string::npos);
     CHECK(text.find("protection month (police): init=0") != std::string::npos);
     CHECK(text.find("protection month (police jails): jails=0") != std::string::npos);
+    // Without a grid there is no 0 x 0 grid to warn about (the WARNING needs
+    // a non-null coverage grid with no tracts).
+    CHECK(text.find("WARNING the coverage grid") == std::string::npos);
     CHECK(text.find("protection Init (fire): init=1") != std::string::npos);
     CHECK(text.find("protection Init (police): init=1") != std::string::npos);
     CHECK(text.find("fallbacks=0") != std::string::npos);
@@ -1826,6 +1867,22 @@ int main(int argc, char** argv) {
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the watchdog thread") != std::string::npos);
         CHECK(text.find("for 4294967") == std::string::npos);  // no unsigned underflow in any duration
 
+        // 3b. Ended (passthrough): the game shuts the city down 0.5 s into a 60 s
+        // run; verdict "ended" at its PostCityShutdown, with the last day played.
+        CHECK(RunChild(dllArg + "--autotest-child-ended", 30000, &ms) == 0);
+        std::printf("autotest ended child: %lu ms\n", static_cast<unsigned long>(ms));
+        CHECK(ms < 15000);
+        text = ReadFile(log);
+        CHECK(text.find("autotest: WARNING the game is shutting the city down by itself 0 s after the clock started, "
+                        "before the 60 s deadline (julian 2451600)") != std::string::npos);
+        CHECK(text.find("autotest: the game ended the city before the deadline (PostCityShutdown)") !=
+              std::string::npos);
+        CHECK(text.find("AUTOTEST VERDICT: ended (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, "
+                        "ref_warnings=0, julian=2451600, switches_off=-, disabled=simulator,budget)") !=
+              std::string::npos);
+        CHECK(text.find("autotest: TerminateProcess(exit code 0) from the observer (city ended)") != std::string::npos);
+        CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
+
         // A Rust panic in the core: reported in the log (message, location,
         // backtrace, the last interface calls) before the abort.
         {
@@ -1893,7 +1950,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 91): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 93): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -2208,9 +2265,46 @@ int main(int argc, char** argv) {
                 CHECK(jobs[0] == 0.0f && jobs[1] == 0.0f && jobs[2] == 0.0f);
                 SC4Percentage full{1.0f}, half{0.5f};
                 sim->UpdateOccupantEffects(0xBEEF, full, half);  // no effects: nothing happens
+                // Not the identified executable: the game's map functions cannot be
+                // called, so the caller's map is left untouched (logged once).
                 std::map<uint32_t, int32_t> summary;
                 sim->GetLocalPopulationSummary(summary);
-                CHECK(summary.empty());  // [choice] the caller's map is not written
+                CHECK(summary.empty());
+
+                // The building profile's capacity maps (seam op 20: the read the
+                // census and §7.2 make through the host's building_profile).
+                auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+                CHECK(seam != nullptr);
+                if (seam != nullptr) {
+                    FakeCapacityProfile prof;
+                    std::vector<std::array<uint32_t, 3>> got;
+                    FC4DemandCapacityTestInput in{prof.bytes, 0xBEEF, &CollectCapacity, &got};
+                    CHECK(seam(kFC4SeamDemandCapacity, &in, nullptr) == 3);
+                    CHECK(got.size() == 3);
+                    if (got.size() == 3) {
+                        CHECK((got[0] == std::array<uint32_t, 3>{0, 0x1010, 12}));
+                        CHECK((got[1] == std::array<uint32_t, 3>{0, 0x1020, 7}));
+                        CHECK((got[2] == std::array<uint32_t, 3>{0, 0x1030, 3}));
+                    }
+                    // No capacity property: no maps, nothing reported.
+                    got.clear();
+                    prof.SetVector(nullptr, nullptr, nullptr);
+                    CHECK(seam(kFC4SeamDemandCapacity, &in, nullptr) == 0 && got.empty());
+                    // A wrong count: refused as a whole.
+                    prof.SetVector(&prof.map, &prof.map + 1, &prof.map + 1);
+                    prof.map.count = 4;
+                    CHECK(seam(kFC4SeamDemandCapacity, &in, nullptr) == -1 && got.empty());
+                    // A cycle (the largest node's right link back at the root).
+                    prof.map.count = 3;
+                    prof.c.right = &prof.r;
+                    CHECK(seam(kFC4SeamDemandCapacity, &in, nullptr) == -1 && got.empty());
+                    prof.c.right = nullptr;
+                    // A vector that points at unreadable memory: the fault is caught.
+                    prof.SetVector(reinterpret_cast<void*>(0x10), reinterpret_cast<void*>(0x1C),
+                                   reinterpret_cast<void*>(0x1C));
+                    CHECK(seam(kFC4SeamDemandCapacity, &in, nullptr) == -1 && got.empty());
+                    CHECK(seam(kFC4SeamDemandCapacity, nullptr, nullptr) == -1);
+                }
 
                 // A node, created through GZCOM (as the class store does).
                 void* o = nullptr;
@@ -2269,7 +2363,22 @@ int main(int argc, char** argv) {
         CHECK(text.find("subsystem 'ordinance': off by default") != std::string::npos);
         CHECK(text.find("demand Init: ok=1") != std::string::npos);
         CHECK(text.find("demand month: 0 nodes") != std::string::npos);
-        CHECK(text.find("GetLocalPopulationSummary: 0 entries not copied") != std::string::npos);
+        // The month line: what the glue moved (the seam's reads have no simulator, so they are not counted).
+        CHECK(text.find("export cities; capacity: reads=0 entries=0 units=0 (occupancy: reads=0 units=0) "
+                        "refused=0; summary: calls=1 copied=0 untouched=1 failed=0") != std::string::npos);
+        CHECK(text.find("demand: GetLocalPopulationSummary: 0 entries not copied (the executable is not "
+                        "identified") != std::string::npos);
+        CHECK(text.find("compat: direct call map operator[] NOT available (executable not identified)") !=
+              std::string::npos);
+        CHECK(text.find("demand: capacity map read: building type 0x0000BEEF, 1 map(s), 3 entries: 0x1010=12, "
+                        "0x1020=7, 0x1030=3") != std::string::npos);
+        CHECK(text.find("demand: WARNING building type 0x0000BEEF: capacity map 0 of 1 refused (node count "
+                        "differs from the map's count); no capacity reported") != std::string::npos);
+        CHECK(text.find("demand: WARNING building type 0x0000BEEF: capacity map 0 of 1 refused (inconsistent "
+                        "link)") != std::string::npos);
+        CHECK(text.find("STRUCTURED EXCEPTION caught in demand capacity map read") != std::string::npos);
+        CHECK(text.find("demand: WARNING building type 0x0000BEEF: reading its capacity maps faulted") !=
+              std::string::npos);
         CHECK(text.find("demand Shutdown") != std::string::npos);
         CHECK(text.find("cFC4DemandSimulator destroyed") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key") == std::string::npos);
@@ -3351,11 +3460,11 @@ int main(int argc, char** argv) {
                     "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 91 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 91 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 93 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 93 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 91): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 93): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);

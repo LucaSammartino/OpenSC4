@@ -146,8 +146,24 @@ plugin.
      - `ordinance`: the ordinance simulator and the 21 standard ordinance classes (`cSC4OrdinanceSimulator`,
        ordinance spec; replaced together, §10.2; plugin ordinances are accepted through `cISC4Ordinance`);
      - `demand`: the demand simulator and the demand node class (`cSC4DemandSimulator`, `cSC4Demand`, demand
-       spec; the graph comes from the game's demand exemplars; building profile capacity lists and the region
-       view's population summary map are not read or written yet, see the code's `[choice]` notes).
+       spec; the graph comes from the game's demand exemplars). The building profile's capacity maps (§7.2) are
+       the game's STLport maps (docs/abi/allocators.md, layouts.md): `plugin/FC4GameMap.h` walks them read-only
+       (count, depth, link, key-order and step checks; a map that fails them, or faults, reports nothing) on any
+       executable. `GetLocalPopulationSummary` (§5) empties and fills the caller's STLport map with the game's own
+       subtree free and `operator[]` (docs/abi/direct-calls.md), only on the identified executable and under the
+       structured-exception guard; elsewhere the map is left untouched (logged once). Switches (default `1`,
+       environment `FC4_DEMAND_<KEY>`): `demand_capacity`, `demand_direct_calls`. Log lines:
+
+       ```
+       demand: capacity map read: building type 0x…, N map(s), M entries: 0x1010=12, …        (once)
+       demand: GetLocalPopulationSummary: N entries copied into the game's map (K old entries cleared, count now N;
+         main|another thread)                                                                 (once)
+       demand month: … export cities; capacity: reads=… entries=… units=… (occupancy: reads=… units=…) refused=…;
+         summary: calls=… copied=… untouched=… failed=…                                       (each month)
+       ```
+
+       `reads` counts building profiles read (census and §7.2), `occupancy` the §7.2 reads alone (StateChanged),
+       `refused` the profiles whose maps failed the checks; the month counters restart at each month line.
      - `power`: the power simulator (`cSC4PowerSimulator`, power spec; its powered grid is the game's own
        `cSC4SimGrid<uint8>`, created through GZCOM). Not yet done (logged once): power lines are not detached on
        terrain changes (the line's `GetConnectedPoles` is not in docs/abi), and the Nuclear Free Zone does not close
@@ -162,7 +178,8 @@ plugin.
        of §4.10 (`cISC4VisualEffect` / `cS3DTransform` are not in docs/abi). The log has a status line at `Init`,
        `Read` and every month (`pollution month: init=… cells=… lists wtp/inc/wte/rec=… avg air/water/garbage=…
        supply=… capacity=… last month produced/…/landfilled=… cost=…; grids airSrc nonzero/tracts sum [min..max],
-       …`). Its game calls have their own switches (default `1`, environment `FC4_POLLUTION_<KEY>`):
+       …`; at `Read` a grid can still have 0 tracts, its record is read later; a month that finds one so logs
+       `pollution: WARNING grid … has 0 tracts at a month …` once). Its game calls have their own switches (default `1`, environment `FC4_POLLUTION_<KEY>`):
        `pollution_occupants`, `pollution_lots`, `pollution_neighbors`, `pollution_budget`,
        `pollution_grid_writes`, `pollution_posts`, `pollution_history`, `pollution_ordinance`,
        `pollution_traffic`, `pollution_zoning`, `pollution_power`, `pollution_landfill`, `pollution_population`,
@@ -181,7 +198,11 @@ plugin.
        grid=… air=…`, once per game month `protection month (fire|police): … stations=… coveredCells=…
        maxCoverage=… avg=… pct=… dispatches=… units=… strike=… reentrant=… fallbacks=… posts=…` (police adds
        `protection month (police jails): jails=… capacity=… population=…`), `protection Read/Write (…) -> 1`,
-       `protection Shutdown (…)`, `cFC4…Simulator destroyed (N fallbacks)`.
+       `protection Shutdown (…)`, `cFC4…Simulator destroyed (N fallbacks)`. The grids' geometry (tracts, tracts per
+       day, the iterator rectangle) is taken at `Init`: on a loaded city the `Read` line can show `tracts=0x0` with a
+       non-null `grid=`, because the game reads the grid's own record after the simulator's. A month that still
+       finds the coverage grid without tracts logs `protection (fire|police): WARNING the coverage grid … has 0x0
+       tracts at a month (init=… tractsPerDay=…): no daily cycle runs (logged once)`.
      - `crime`: the crime simulator (`cSC4CrimeSimulator`, crime spec; its crime and crime-effect grids are the
        game's own `cSC4SimGrid<uint8>`, created through GZCOM; police coverage comes through whatever police
        simulator the city has). The getters are answered from any thread (they read a snapshot); the prop
@@ -222,7 +243,7 @@ plugin.
      flushes the log and ends the game with `TerminateProcess(…, 0)`:
 
      ```
-     AUTOTEST VERDICT: clean|corrupt|stalled (foreign_exceptions=…, watchdog_stalls=…, rtc=…, overruns=…,
+     AUTOTEST VERDICT: clean|corrupt|stalled|ended (foreign_exceptions=…, watchdog_stalls=…, rtc=…, overruns=…,
        ref_warnings=…, julian=…, switches_off=…, disabled=…)
      ```
 
@@ -232,6 +253,11 @@ plugin.
      - `stalled`: the watchdog saw the main thread stuck for more than 10 s (inside our code, or no tick while
        a city runs). The watchdog thread writes it and terminates. Under autotest the no-tick threshold is
        lowered to `FC4_WATCHDOG_STALL_MS`.
+     - `ended`: the game shut the city down by itself before the deadline (for example a bankrupt city; run 69),
+       with no corruption seen. The observer sees `PreCityShutdown` `0x26D31EC2` that the autotest did not ask for
+       (logged as a WARNING with the last day played), and at `PostCityShutdown` `0x26D31EC3` the run ends: with
+       `autotest_end = quit` through `RequestQuit` (verdict at `PostSystemServiceShutdown`), otherwise the verdict
+       is written and the process terminated. Its `julian` is the last day played before that shutdown.
      - `switches_off` lists the budget switches that are off, `disabled` the subsystems left to the game.
      - `autotest_unpause = 1` or `2` (env `FC4_AUTOTEST_UNPAUSE`): after the load, resume the city's simulator
        (`Resume` while `IsPaused`) and set that speed, through the simulator's own interface (ours or the
@@ -509,8 +535,8 @@ plugin.
 - **Test seam:** `FreeCity4.dll` exports `FC4TestSeam` ([`plugin/FC4TestSeam.h`](plugin/FC4TestSeam.h)) for
   tests that load it without a game: a sink that sees every budget message as posted (budget §10: void1 =
   IGZUnknown = the sender), a fake city for the observer, and direct observer ticks and messages. The game
-  never calls it. `plugin_autotest_test` runs three child processes (clean, corrupt, stalled) that end through
-  the autotest's `TerminateProcess`.
+  never calls it. `plugin_autotest_test` runs child processes (clean, corrupt, stalled, ended, save, and a Rust
+  panic) that end through the autotest's `TerminateProcess` (the panic through fail-fast).
 - Return types are part of the ABI too: SDK declarations can be wrong (budget erratum:
   `cISC4DepartmentBudget` slot 26 returns a float POINTER in EAX, not a float in ST0; `cIGZDate` slots 33–36
   return a `uint32` day number and leave the date alone; `cISC4Lot` slot 61 returns `SC4Percentage` by value

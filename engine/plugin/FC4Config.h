@@ -197,6 +197,12 @@ enum class Sw : unsigned {
     CrimePosts,        // crime_posts: the crime-committed and crime-map-updated messages
     CrimeGridWrites,   // crime_grid_writes: SetTractValue / SetTractValues on the two crime grids
     CrimeZoning,       // crime_zoning: GetZoneType (off: unzoned, so no crime type matches a zone mask)
+    // Demand simulator (cFC4Demand.cpp); only used when the demand subsystem is enabled.
+    DemandCapacity,        // demand_capacity: read the building profile's capacity maps (§7.2;
+                           //   plain reads, any executable) (off: no capacity, as before)
+    DemandDirectCalls,     // demand_direct_calls: fill GetLocalPopulationSummary's map with the
+                           //   game's map functions (docs/abi/direct-calls.md; identified executable
+                           //   only) (off: the caller's map is left untouched)
     Count
 };
 

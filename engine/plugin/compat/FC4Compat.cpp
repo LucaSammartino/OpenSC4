@@ -46,6 +46,8 @@ const ExecutableVersion kVersions[] = {
             0x00648540,  // cSC4PipeOccupant::SetWateredState
             0x006DF8C0,  // air dispatch source Init
             0x006AC860,  // air dispatch source Shutdown
+            0x00497A00,  // STLport map<uint32_t, 4-byte T>::operator[] (docs/abi/direct-calls.md)
+            0x004A79A0,  // the same maps' subtree free (_M_erase)
         },
     },
 };
@@ -319,8 +321,8 @@ const void* GameStringVtable() {    static int state = 0;  // 0 unknown, 1 avail
 }
 
 uintptr_t DirectCall(Direct which) {
-    static const char* const kNames[] = {"RemoveConnection", "SetWateredState", "air dispatch Init",
-                                         "air dispatch Shutdown"};
+    static const char* const kNames[] = {"RemoveConnection",      "SetWateredState", "air dispatch Init",
+                                         "air dispatch Shutdown", "map operator[]",  "map subtree free"};
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused
     static uintptr_t address[static_cast<unsigned>(Direct::Count)] = {};

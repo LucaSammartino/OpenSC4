@@ -79,13 +79,16 @@ inline const char* StallKindName(StallKind k) {
 
 // ---- autotest ----------------------------------------------------------------------------------
 
-enum class Verdict { None, Clean, Corrupt, Stalled };
+// Ended: the game shut the loaded city down before the deadline by itself (for
+// example a bankrupt city), with no corruption seen.
+enum class Verdict { None, Clean, Corrupt, Stalled, Ended };
 
 inline const char* VerdictName(Verdict v) {
     switch (v) {
         case Verdict::Clean: return "clean";
         case Verdict::Corrupt: return "corrupt";
         case Verdict::Stalled: return "stalled";
+        case Verdict::Ended: return "ended";
         default: return "none";
     }
 }
@@ -103,6 +106,14 @@ struct AutotestCounters {
 // reference warnings and finished stalls are reported but do not decide.
 inline Verdict VerdictAtDeadline(const AutotestCounters& c) {
     return (c.foreignExceptions > 0 || c.rtc > 0 || c.overruns > 0) ? Verdict::Corrupt : Verdict::Clean;
+}
+
+// The verdict when the run ends: as at the deadline, except that a city the
+// game shut down by itself before the deadline gives "ended" (corruption still
+// decides first).
+inline Verdict VerdictAtEnd(const AutotestCounters& c, bool cityEndedEarly) {
+    const Verdict v = VerdictAtDeadline(c);
+    return (v == Verdict::Clean && cityEndedEarly) ? Verdict::Ended : v;
 }
 
 // Autotest stall rule: a stall reported by the watchdog becomes the verdict

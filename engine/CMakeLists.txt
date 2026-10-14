@@ -243,6 +243,14 @@ if(FC4_IS_WIN32_X86)
     target_compile_options(fc4_game_container_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME game_container_test COMMAND fc4_game_container_test)
 
+    # The game's STLport map (plugin/FC4GameMap.h): the read-only walk, the
+    # building profile capacity maps and the GetLocalPopulationSummary fill,
+    # against fake maps built as docs/abi/allocators.md describes them.
+    add_executable(fc4_game_map_test tests/game_map_test.cpp)
+    target_include_directories(fc4_game_map_test PRIVATE plugin)
+    target_compile_options(fc4_game_map_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME game_map_test COMMAND fc4_game_map_test)
+
     # foundations §16: the slot layout of every game interface we implement.
     add_executable(fc4_vtable_layout_test tests/vtable_layout_test.cpp)
     target_include_directories(fc4_vtable_layout_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin tests)
