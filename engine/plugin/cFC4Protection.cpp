@@ -16,6 +16,7 @@
 #include "FC4Config.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
@@ -442,18 +443,14 @@ bool LotLocation(void*, uint64_t unknown, int32_t* x, int32_t* z) {
     return true;
 }
 
-// City slot 97 (pop 16). [abi] The game returns a float in ST0 (docs/abi
-// interfaces.tsv: x87, high), where the SDK declares void: called through a
-// declaration that pops ST0. The outputs are what the core uses; the ST0
-// value is discarded (§14 lists only the outputs).
-using CellCenterFn = float(__fastcall*)(void* self, void* edx, int32_t cx, int32_t cz, float* x, float* z);
-
+// City slot 97 CellCenterToPosition (pop 16). docs/abi (corrected
+// 2026-10-14): returns nothing, the results come through the out references,
+// as the SDK declares it. Calling it through a float declaration popped an
+// empty x87 register on every call (stack underflow). §14 lists only the
+// outputs.
 void CellCenter(void* u, int32_t cx, int32_t cz, float* x, float* z) {
     float a = 0.0f, b = 0.0f;
-    if (cISC4City* c = City(u)) {
-        void** vtbl = *reinterpret_cast<void***>(c);
-        reinterpret_cast<CellCenterFn>(vtbl[97])(c, nullptr, cx, cz, &a, &b);
-    }
+    if (cISC4City* c = City(u)) c->CellCenterToPosition(cx, cz, a, b);
     if (x != nullptr) *x = a;
     if (z != nullptr) *z = b;
 }
@@ -1265,6 +1262,7 @@ uint32_t cFC4ProtectionBase::StationCrimeCountImpl(cISC4Occupant* s) {
 
 bool cFC4ProtectionBase::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("protection DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     Section sec(this);
     if (!sec.ok()) return true;  // [choice] a message from another thread that cannot get the lock is dropped
     fc4_protection_message m{};

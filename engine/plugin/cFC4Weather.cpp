@@ -16,6 +16,7 @@
 #include "FC4Checked.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
@@ -413,11 +414,10 @@ int32_t cFC4WeatherSimulator::PositionToCell(float x, float z, int32_t& cx, int3
     return fc4_weather_position_to_cell(core_, x, z, &cx, &cz);
 }
 
-// [choice] Returns the z position (the original leaves a value in ST0; no
-// caller reads it).
-float cFC4WeatherSimulator::CellToPosition(int32_t cx, int32_t cz, float& x, float& z) {
+// §4 (corrected 2026-10-14): returns nothing and leaves nothing on the x87
+// stack; the results are the out parameters only.
+void cFC4WeatherSimulator::CellToPosition(int32_t cx, int32_t cz, float& x, float& z) {
     fc4_weather_cell_to_position(core_, cx, cz, &x, &z);
-    return z;
 }
 
 void cFC4WeatherSimulator::CellToStandardCityCell(int32_t cx, int32_t cz, int32_t& sx, int32_t& sz) {
@@ -469,6 +469,7 @@ float cFC4WeatherSimulator::GetWindAtCell(int32_t, int32_t, cS3DVector2& wind) {
 
 bool cFC4WeatherSimulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("weather DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     const uint32_t type = pMessage->GetType();
     uint32_t data1 = 0, data3 = 0;
     cIGZMessage2Standard* m = nullptr;
