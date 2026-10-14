@@ -39,6 +39,7 @@
 #include "cFC4Landfill.h"
 #include "cFC4Plumbing.h"
 #include "cFC4Power.h"
+#include "cFC4ZoneManager.h"
 #include "cFC4Protection.h"
 #include "cFC4Variant.h"
 #include "fc4.h"
@@ -162,6 +163,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
         case kFC4SeamProtectionShadowVtables:
             fc4::ProtectionShadowTestOriginalVtables(a, b);
             return 1;
+        case kFC4SeamZones:
+            return a == nullptr ? -1 : ZonesTestSeam(static_cast<const FC4ZonesTestInput*>(a));
         case kFC4SeamGrowthProbe:
             return GrowthProbeTest(static_cast<const FC4GrowthProbeTestInput*>(a));
         case kFC4SeamFpuReference:

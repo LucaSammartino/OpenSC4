@@ -16,21 +16,32 @@ use crate::traffic_network::{inverse_max_speed, Cx, NetworkState};
 use crate::variant::{Elem, Variant};
 use crate::x87::{ftol, r24};
 
-use super::adapters::{capacity_element, PfAdapter};
-use super::state::{DamageState, State, PASS_COUNTERS, PC_REROUTE_BUCKET};
+use super::adapters::{capacity_element, set_capacity_element, Holders, PfAdapter};
+use super::pools::{pool_token, Pools};
+use super::state::{DamageBlock, DamageState, StatRow, State, PASS_COUNTERS, PC_REROUTE_BUCKET, PC_REROUTE_COUNTER};
 use super::{
-    cell_key16, cycle_state as cs, dept, grid_id, msg, prop, Message, Source, TrafficSimHost, TrafficSimulator,
-    AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME,
+    cell_key16, cycle_state as cs, dept, grid_id, msg, prop, Message, TrafficSimHost, TrafficSimulator, AGENT_FLAGS,
+    AGENT_LEVELS, AGENT_NAME,
 };
 
 /// The network-occupant type of the occupant messages (§3.1).
 const NETWORK_OCCUPANT_TYPE: u32 = crate::traffic_network::occupant_type::NETWORK;
 
-/// The network types whose occupants change the road damage set, and the
-/// rail one (traffic-network.md §3: DoRoadChanged for 6, 0, 10, 3, 2, 12;
-/// DoRailChanged for 1).
-const ROAD_TYPES: [u32; 6] = [6, 0, 10, 3, 2, 12];
-const RAIL_TYPE: u32 = 1;
+/// The network types of the bookkeeping calls (§3.6, TS4): Avenue and Road
+/// each, then the first of OneWayRoad, Street, Highway, GroundHighway; Rail;
+/// Subway.
+const AVENUE: u32 = 6;
+const ROAD: u32 = 0;
+const ROAD_LIKE: [u32; 4] = [10, 3, 2, 12];
+const RAIL: u32 = 1;
+const SUBWAY: u32 = 7;
+/// Highway and GroundHighway are not in the pothole sets (§3.6).
+const HIGHWAYS: [u32; 2] = [2, 12];
+/// The network flag that keeps a subway occupant out of the count (§3.6
+/// step 5, slot 8).
+const SUBWAY_SKIP_FLAG: u32 = 0x8000_0000;
+/// The level-crossing test of DoRailChanged (slot 9, any of Road | Street).
+const LEVEL_CROSSING_MASK: u32 = 9;
 
 /// The context of every operation that touches both the simulator state and
 /// the network state (see the module documentation of `mod.rs`).
@@ -39,9 +50,18 @@ pub(crate) struct Run<'r, 'c> {
     pub(crate) st: &'r mut State,
     pub(crate) cx: &'r mut Cx<'c>,
     pub(crate) dmg: &'r RefCell<DamageState>,
+    pub(crate) pools: &'r RefCell<Pools>,
 }
 
 impl Run<'_, '_> {
+    /// The property holders as the simulator sees them (pools included).
+    pub(crate) fn holders(&self) -> Holders<'_> {
+        Holders {
+            h: self.h,
+            pools: self.pools,
+        }
+    }
+
     // ---- pathfinders ----
 
     /// `CreatePathFinder` (slot 6): a pathfinder initialised against the
@@ -50,6 +70,7 @@ impl Run<'_, '_> {
         let host = PfAdapter {
             h: self.h,
             st: &*self.st,
+            pools: self.pools,
         };
         Pathfinder::create(&host, self.st.shared.clone())
     }
@@ -59,6 +80,7 @@ impl Run<'_, '_> {
         let host = PfAdapter {
             h: self.h,
             st: &*self.st,
+            pools: self.pools,
         };
         pf.find_path(&mut PathCx {
             net: &mut *self.cx.s,
@@ -90,15 +112,33 @@ impl Run<'_, '_> {
             if finished {
                 match s {
                     cs::CONFIRM_TRIPS => {
+                        // `toReRoute` and `toSearch` are zeroed here and only
+                        // here (`0x0072184B`, TS21), with every pass counter
+                        // except 1 (the re-route counter) and 2
+                        // (`rerouteBucket`): the source counter (3) restarts
+                        // at 0 every cycle (TS1).
                         self.start_pacing(self.st.pass_total, 20);
+                        self.st.to_reroute = 0;
+                        self.st.to_search = 0;
+                        for i in 0..PASS_COUNTERS {
+                            if i != PC_REROUTE_COUNTER && i != PC_REROUTE_BUCKET {
+                                self.st.pass_counters[i] = 0;
+                            }
+                        }
                         continue;
                     }
                     cs::REROUTE_TRIPS => {
                         self.start_pacing(self.st.to_reroute, 18);
+                        // Counter 1 is zeroed on entering 17 (`0x007218F2`).
+                        self.st.pass_counters[PC_REROUTE_COUNTER] = 0;
                         return true;
                     }
                     cs::FULL_TRIPS => {
+                        // "reset" as for 17, so counter 1 too *[question:
+                        // §3.3 says "reset" for 18 after spelling out 17's
+                        // reset; TS1 names only the 17 site]*.
                         self.start_pacing(self.st.to_search, 18);
+                        self.st.pass_counters[PC_REROUTE_COUNTER] = 0;
                         self.st.pass_total = 0;
                         return true;
                     }
@@ -106,9 +146,12 @@ impl Run<'_, '_> {
                     _ => continue,
                 }
             }
-            if (cs::CONFIRM_TRIPS..=cs::FULL_TRIPS).contains(&s) {
-                let share =
-                    (self.st.total as u32).wrapping_mul(self.st.day_index.wrapping_add(1)) / self.st.days.max(1);
+            // The share test (`0x0072191E`, all unsigned), with the
+            // `dayIndex < days` guard: once the day index has reached `days`
+            // (more trips than the last cycle, or `days = 0` after a load,
+            // §3.5 step 13) no share ends the day.
+            if (cs::CONFIRM_TRIPS..=cs::FULL_TRIPS).contains(&s) && self.st.day_index < self.st.days {
+                let share = (self.st.total as u32).wrapping_mul(self.st.day_index.wrapping_add(1)) / self.st.days;
                 if self.st.processed as u32 >= share {
                     self.st.day_index = self.st.day_index.wrapping_add(1);
                     return true;
@@ -120,23 +163,12 @@ impl Run<'_, '_> {
     }
 
     /// The pacing reset of §3.3: `total`, `days := max(1, total div k)`, day
-    /// index and processed 0, the pass counters 0. *[question]* `rerouteBucket`
-    /// is pass counter 2 (§6.1 row 15) and §4.3 needs it to survive the
-    /// cycle, so it is kept; the other nine are zeroed.
+    /// index and processed 0. The pass counters are the caller's (TS1).
     fn start_pacing(&mut self, total: i32, k: i32) {
         self.st.total = total;
         self.st.days = (total / k).max(1) as u32;
         self.st.day_index = 0;
         self.st.processed = 0;
-        self.reset_pass_counters();
-    }
-
-    fn reset_pass_counters(&mut self) {
-        for i in 0..PASS_COUNTERS {
-            if i != PC_REROUTE_BUCKET {
-                self.st.pass_counters[i] = 0;
-            }
-        }
     }
 
     /// Day 1 (§3.3): the incomes into the line items and the last monthly
@@ -222,9 +254,10 @@ impl Run<'_, '_> {
                 self.clear_trip_destinations();
                 true
             }
-            // UpdateNeighborConnections (`0x00714BE0`): traffic-network.md
-            // does not specify it *[question]*; nothing to do.
-            cs::UPDATE_NEIGHBOURS => true,
+            cs::UPDATE_NEIGHBOURS => {
+                self.update_neighbor_connections();
+                true
+            }
             cs::REDUCE_SWITCHES => {
                 self.reduce_transit_switches();
                 true
@@ -277,31 +310,28 @@ impl Run<'_, '_> {
     pub(crate) fn enter_state(&mut self, s: u8) {
         match s {
             cs::CONFIRM_TRIPS | cs::REROUTE_TRIPS | cs::FULL_TRIPS => {
-                // The traffic-source iterator (§4.1): lots, then neighbour
-                // connections, as listed now *[choice: a snapshot]*.
-                let mut sources: Vec<Source> = self.h.lots().into_iter().map(Source::Lot).collect();
-                sources.extend(self.h.all_connections().into_iter().map(Source::Connection));
-                self.st.sources = sources;
+                // The traffic-source iterator's `Reset` (§4.1, TS20): the
+                // connections a snapshot, the lots walked live.
+                self.reset_sources();
                 self.st.source_pos = 0;
                 self.st.trip_pos = 0;
                 self.st.continue_search = false;
-                self.reset_pass_counters();
-                if s == cs::CONFIRM_TRIPS {
-                    // The counts ConfirmTrips builds *[choice: zeroed here]*.
-                    self.st.to_reroute = 0;
-                    self.st.to_search = 0;
-                }
+                // The pass counters, `toReRoute` and `toSearch` are reset by
+                // the day agent's pacing (§3.3, TS1, TS21), not here.
                 if s == cs::FULL_TRIPS {
                     self.st.type_count_building = [0; 9];
                 }
             }
             cs::CREATE_MAPS => {
                 self.reset_scan();
+                // The statistics reset (§4.9): max −1.0, the copied fields
+                // and the record counts 0.
                 let w = &mut self.st.stats_work;
-                w.rows = Default::default();
-                w.aggregate = Default::default();
-                w.over = [0; 13];
-                w.aggregate_over = 0;
+                w.rows = [StatRow::RESET; 13];
+                w.bridge = StatRow::RESET;
+                w.records = [0; 13];
+                w.bridge_records = 0;
+                self.st.stat_counts = [0; 14];
                 if let Some(g) = &self.st.commercial_work {
                     g.fill(0);
                 }
@@ -337,6 +367,7 @@ impl Run<'_, '_> {
     pub(crate) fn reset_scan(&mut self) {
         let (x0, z0) = (self.st.scan.x0, self.st.scan.z0);
         self.st.scan.reset(x0, z0);
+        self.st.extras.scan_state_byte = None;
     }
 
     // ---- §4.8 the small edge and switch phases ----
@@ -353,10 +384,12 @@ impl Run<'_, '_> {
         }
     }
 
-    /// `ReduceEdgeDensities` (state 6): `current := 0` for the 9 travel types
-    /// and both evening values at every cell with network info or a transit
-    /// switch, and at the ferry terminals' departure and arrival cells
-    /// *[choice: the terminal cells]*. Missing records are not created.
+    /// `ReduceEdgeDensities` (state 6, `0x007110B0`, §4.8, TS22): `current
+    /// := 0` for the 9 travel types and both evening values at every cell
+    /// with network info or a transit switch (the scan), then at each ferry
+    /// terminal's arrival cell, in list order (the departure cell has
+    /// network info from the ferry phase of every rebuild). Missing records
+    /// are not created.
     fn reduce_edge_densities(&mut self) {
         let mut cells = Vec::new();
         while let Some((x, z)) = self.st.scan.next_cell() {
@@ -365,7 +398,6 @@ impl Run<'_, '_> {
             }
         }
         for t in &self.cx.s.ferries {
-            cells.push((i32::from(t.dep_x), i32::from(t.dep_z)));
             cells.push((i32::from(t.arr_x), i32::from(t.arr_z)));
         }
         for (x, z) in cells {
@@ -379,48 +411,224 @@ impl Run<'_, '_> {
         }
     }
 
-    /// `ReduceTransitSwitches` (state 3): rolls the usage for the next cycle
-    /// *[question: traffic-network.md does not specify it]*: the load
-    /// restarts from 0 (CreateMaps keeps the previous one in counter 1).
+    /// `ReduceTransitSwitches` (state 3, `0x00713750`, §4.8, TS3): for every
+    /// switch in table order, `load := r24(densityReduction × load)` with the
+    /// volume-reset factor `0x29136788`, nothing else. With the shipped 0 the
+    /// load restarts from 0 (`0 × NaN` and `0 × ±∞` give NaN, a negative load
+    /// becomes −0.0); a non-zero factor decays it. The two counters keep what
+    /// CreateMaps wrote (§4.9 step 4).
     fn reduce_transit_switches(&mut self) {
+        let f = f64::from(self.st.tuning.density_reduction);
         for id in self.cx.s.switches.keys() {
             if let Some(sw) = self.cx.s.switches.get_mut(id) {
-                sw.load = 0.0;
+                sw.load = r24(f * f64::from(sw.load)) as f32;
             }
         }
     }
 
     // ---- §3.1 messages that need both states ----
 
-    /// The occupant messages (§3.1, traffic-network.md §3).
+    /// The occupant messages (§3.1, traffic-network.md §3): the bookkeeping
+    /// of §3.6 first (`0x00724334`–`0x0072442E`, TS4), then the network part.
     fn occupant_message(&mut self, object: u64, removed: bool) {
         let Some(occ) = self.h.as_network_occupant(object) else {
             // A failed cast still marks the occupants as changed.
             self.cx.s.occupants_changed = true;
             return;
         };
-        // The simulator's bookkeeping first (DoRoadChanged / DoRailChanged):
-        // FreeCity4 keeps the damage blocks' intact sets
-        // *[question: the functions are not specified]*.
-        let road = ROAD_TYPES.iter().any(|&t| self.h.is_of_type(occ, t));
-        let rail = self.h.is_of_type(occ, RAIL_TYPE);
-        if road || rail {
-            let p = self.h.occupant_position(occ);
-            let (x, z) = self.h.position_to_cell(p[0], p[2]);
-            let key = cell_key16(x, z);
-            let mut guard = self.dmg.borrow_mut();
-            let d = &mut *guard;
-            for (hit, block) in [(road, &mut d.road), (rail, &mut d.rail)] {
-                if hit {
-                    if removed {
-                        block.remove_cell(key);
-                    } else {
-                        block.insert_cell(key);
-                    }
+        let ins = !removed;
+        let has = |t: u32| self.h.is_of_type(occ, t);
+        let (avenue, road) = (has(AVENUE), has(ROAD));
+        let road_like = ROAD_LIKE.into_iter().find(|&t| has(t));
+        let rail = has(RAIL);
+        let subway = has(SUBWAY) && !self.h.has_network_flag(occ, SUBWAY_SKIP_FLAG);
+        if avenue {
+            self.do_road_changed(occ, ins, AVENUE);
+        }
+        if road {
+            self.do_road_changed(occ, ins, ROAD);
+        }
+        if let Some(t) = road_like {
+            self.do_road_changed(occ, ins, t);
+        }
+        if rail {
+            self.do_rail_changed(occ, ins);
+        }
+        if subway {
+            self.do_subway_changed(ins);
+        }
+        self.cx.occupant_changed(occ, removed);
+    }
+
+    /// `bump(t)` (§3.6): `cells[t] += 1` on insert; on remove `cells[t] −= 1`
+    /// only when it is above 0.
+    fn bump(&mut self, t: u32, ins: bool) {
+        let Some(c) = self.st.cells_per_type.get_mut(t as usize) else {
+            return;
+        };
+        if ins {
+            *c = c.wrapping_add(1);
+        } else if *c > 0 {
+            *c -= 1;
+        }
+    }
+
+    /// `DoRoadChanged(occ, ins, t)` (`0x007155D0`, §3.6).
+    fn do_road_changed(&mut self, occ: u64, ins: bool, t: u32) {
+        let p = self.h.occupant_position(occ);
+        let (x, z) = self.h.position_to_cell(p[0], p[2]);
+        self.bump(t, ins);
+        self.update_roads_budget();
+        if HIGHWAYS.contains(&t) {
+            return;
+        }
+        let repaired = {
+            let mut d = self.dmg.borrow_mut();
+            change_cell(&mut d.road, cell_key16(x, z), ins)
+        };
+        if repaired {
+            self.repaired_cell(x, z);
+        }
+    }
+
+    /// `DoRailChanged(occ, ins)` (`0x00715790`, §3.6): a level crossing (Road
+    /// or Street) skips the rail sets.
+    fn do_rail_changed(&mut self, occ: u64, ins: bool) {
+        self.bump(RAIL, ins);
+        if !self.h.has_any_network_flag(occ, LEVEL_CROSSING_MASK) {
+            let (x, z) = self.h.network_occupant_cell(occ);
+            let repaired = {
+                let mut d = self.dmg.borrow_mut();
+                change_cell(&mut d.rail, cell_key16(x, z), ins)
+            };
+            if repaired {
+                // The road pothole count, also for rail *[quirk]*.
+                self.repaired_cell(x, z);
+            }
+        }
+        self.update_mass_transit_budget();
+    }
+
+    /// `DoSubwayChanged(ins)` (`0x0070EA70`, §3.6).
+    fn do_subway_changed(&mut self, ins: bool) {
+        self.bump(SUBWAY, ins);
+        self.update_mass_transit_budget();
+    }
+
+    /// A damaged cell repaired by removal (§3.6): the published pothole
+    /// count −= 1 (wrapping) and `0x69247DC8 (x, z, 0)` is posted.
+    fn repaired_cell(&mut self, x: i32, z: i32) {
+        let p = &mut self.st.stats_last.potholes;
+        *p = p.wrapping_sub(1);
+        self.h.post_message(super::SimMessage {
+            msg_type: msg::CELL_DAMAGE,
+            data1: x as u32,
+            data2: z as u32,
+            data3: 0,
+        });
+    }
+
+    // ---- §3.5 DoPostCityInit ----
+
+    /// DoPostCityInit step 5 (`0x00720660`–`0x007206B9`, traffic-network.md
+    /// §1): every cell of the ring around the map (corners included) whose
+    /// `HasMapExit` is false gets destination byte 0; `freeDest` is not
+    /// changed.
+    pub(crate) fn destination_boundary_pass(&mut self) {
+        let r = self.cx.s.city_rect();
+        for x in r.x1 - 1..=r.x2 + 1 {
+            for z in r.z1 - 1..=r.z2 + 1 {
+                let ring = x < r.x1 || x > r.x2 || z < r.z1 || z > r.z2;
+                if ring && !self.cx.s.has_map_exit(x, z) {
+                    self.st.set_dest_byte(x, z, 0);
                 }
             }
         }
-        self.cx.occupant_changed(occ, removed);
+    }
+
+    /// DoPostCityInit step 11: resume the interrupted phase, by the loaded
+    /// cycle state.
+    pub(crate) fn resume_loaded_phase(&mut self) {
+        match self.st.cycle_state {
+            cs::CONFIRM_TRIPS | cs::REROUTE_TRIPS | cs::FULL_TRIPS => {
+                // The re-route context's search state := idle.
+                for pf in [self.st.pf.as_mut(), self.st.pf2.as_mut()].into_iter().flatten() {
+                    pf.reset();
+                }
+                self.st.continue_search = false;
+                // The iterator advanced to the source at the saved cell,
+                // which becomes the held current source; none: reset again.
+                let [px, pz] = self.st.extras.phase_positions;
+                let want = (i32::from(px), i32::from(pz));
+                self.reset_sources();
+                let mut taken = 0;
+                let mut held = None;
+                while let Some(src) = self.next_source() {
+                    taken += 1;
+                    if self.source_cell(src) == want {
+                        held = Some(src);
+                        break;
+                    }
+                }
+                match held {
+                    Some(src) => {
+                        self.st.current = Some(src);
+                        self.st.source_pos = taken - 1;
+                    }
+                    None => {
+                        self.reset_sources();
+                        self.st.source_pos = 0;
+                    }
+                }
+                self.st.trip_pos = 0;
+            }
+            cs::FINISH_TRIP_MAP => {
+                // The lot iterator reset, then past the lot at the saved
+                // cell when there is one (*[question: the same row-14 pair
+                // as the trip phases']*); a lot the walk never meets
+                // restarts it from the first lot.
+                let [px, pz] = self.st.extras.phase_positions;
+                self.st.finish_resume = self
+                    .h
+                    .lot_at(i32::from(px), i32::from(pz), false)
+                    .filter(|l| self.h.lots().contains(l));
+            }
+            cs::FERRY_ROUTES => self.cx.post_city_init_ferries(),
+            cs::LOT_SWEEP | 14 => {
+                // Never saved by 1.1.641 (§3.2).
+                for k in 0..4 {
+                    self.st.set_free(k, 0);
+                }
+                self.reset_scan();
+                self.clear_trip_destinations();
+                self.reset_scan();
+                self.refresh_commute_map();
+                self.st.cycle_state = cs::START_RECALC;
+            }
+            _ => {}
+        }
+    }
+
+    /// DoPostCityInit step 12: the bucket multimap rebuilt from the lots, in
+    /// list order, each lot with `0x691C863C` under that value with its
+    /// location (lot slot 21).
+    pub(crate) fn rebuild_strategy_buckets(&mut self) {
+        self.st.buckets.clear();
+        for lot in self.h.lots() {
+            let holder = self.h.lot_holder(lot);
+            if holder == 0 {
+                continue;
+            }
+            let Some(b) = self
+                .h
+                .holder_property(holder, prop::STRATEGY_BUCKET)
+                .and_then(|v| v.items().first().map(|e| e.as_i64() as u32))
+            else {
+                continue;
+            };
+            let at = self.h.lot_location(lot);
+            self.st.buckets.entry(b).or_default().push(at);
+        }
     }
 
     /// `DoLotActivated` (§4.1.3; the network part is traffic-network.md
@@ -447,8 +655,10 @@ impl Run<'_, '_> {
                 self.h
                     .set_holder_property(holder, prop::STRATEGY_BUCKET, Variant::Scalar(Elem::U32(b)));
             }
-            // The lot cell: the rectangle's corner *[choice]*.
-            self.st.buckets.entry(b).or_default().push((rect.x1, rect.z1));
+            // The lot cell: its location (lot slot 21), as the deactivation
+            // and the load rebuild use it (§4.1.3, §3.5 step 12).
+            let at = self.h.lot_location(real);
+            self.st.buckets.entry(b).or_default().push(at);
             // Step 2: the draw.
             let v = self.st.rng.uniform_u32(100);
             if holder != 0 {
@@ -477,21 +687,71 @@ impl Run<'_, '_> {
         }
     }
 
-    /// `DoLotDeactivated` (§4.1.3 *[inferred]*): the network part, then the
-    /// destination bytes over the lot rectangle := 0 and the lot's bucket
-    /// entries removed *[choice: not traced; `freeDest` is not changed]*.
+    /// `DoLotDeactivated(lot)` (`0x0071E2F0`, §4.1.3, TS23). The network
+    /// part (the switch, step 2, and the ferry terminal, step 5) runs as one
+    /// call; none of the other steps reads what it changes.
     fn lot_deactivated(&mut self, lot: u64) {
-        self.cx.lot_deactivated(lot);
+        let holder = self.h.lot_holder(lot);
         let rect = self.h.lot_bounding_rect(lot);
+        // 1. The one bucket entry under the lot's `0x691C863C` at its
+        // location.
+        if holder != 0 {
+            if let Some(b) = self
+                .h
+                .holder_property(holder, prop::STRATEGY_BUCKET)
+                .and_then(|v| v.items().first().map(|e| e.as_i64() as u32))
+            {
+                let at = self.h.lot_location(lot);
+                if let Some(cells) = self.st.buckets.get_mut(&b) {
+                    if let Some(i) = cells.iter().position(|&c| c == at) {
+                        cells.remove(i);
+                    }
+                }
+            }
+        }
+        // 2, 5.
+        self.cx.lot_deactivated(lot);
+        // 3. The budget items: `E −= cost` of the `0xCA550301` item.
+        let cost = self.h.deactivate_budget_items(holder);
+        self.st.budget_total = self.st.budget_total.wrapping_sub(cost);
+        // 4. Unless in state 10: `freeDest[k] −= 1` per bit set at the NW
+        // cell.
+        if self.st.cycle_state != cs::REFRESH_COMMUTE {
+            let b = self.st.dest_byte(rect.x1, rect.z1);
+            for k in 0..4 {
+                if b & (1 << k) != 0 {
+                    self.st.set_free(k, self.st.free(k).wrapping_sub(1));
+                }
+            }
+        }
+        // 6. The bytes over the rect, bit 3 included.
         for x in rect.x1..=rect.x2 {
             for z in rect.z1..=rect.z2 {
                 self.st.set_dest_byte(x, z, 0);
             }
         }
-        for cells in self.st.buckets.values_mut() {
-            cells.retain(|&c| c != (rect.x1, rect.z1));
-        }
     }
+}
+
+/// Steps 5–6 of DoRoadChanged on one damage block (§3.6). Insert: the key
+/// joins the intact set unless already there (the damaged set is not looked
+/// at), and `cellCount += 1` in every case. Remove: the key leaves the
+/// intact set, or else the damaged set (`damagedCount −= 1`; the result is
+/// true); `cellCount −= 1` in every case (u32, wrapping *[compat]*).
+fn change_cell(b: &mut DamageBlock, key: u16, ins: bool) -> bool {
+    let k = u32::from(key);
+    if ins {
+        b.intact.insert(k);
+        b.cell_count = b.cell_count.wrapping_add(1);
+        return false;
+    }
+    let mut repaired = false;
+    if !b.intact.remove(k) && b.damaged.remove(k) {
+        b.damaged_count = b.damaged_count.wrapping_sub(1);
+        repaired = true;
+    }
+    b.cell_count = b.cell_count.wrapping_sub(1);
+    repaired
 }
 
 impl TrafficSimulator {
@@ -531,6 +791,7 @@ impl TrafficSimulator {
             s.size_dest(w, hgt);
             // Step 5: the scanning iterator over the city rect.
             s.scan = ScanIterator::new(0, 0, w - 1, hgt - 1);
+            s.extras.scan_state_byte = None;
         });
         // Step 5: the network model (cell connection array, switch grids,
         // water pathfinder), outside any operation.
@@ -542,6 +803,11 @@ impl TrafficSimulator {
             s.roads = roads;
             s.mass_transit = transit;
         });
+        // Step 7 (here, before the pathfinders): the default pool,
+        // `SetMaxTripCapacity(default, 3, 0xFFFFFFFF)` (traffic-network.md
+        // §2.7.3).
+        *self.pools.borrow_mut() = Pools::default();
+        set_capacity_element(&self.holders(), pool_token(0), 3, u32::MAX);
         // Step 6: the two pathfinders.
         self.run(|r| {
             let pf = r.create_path_finder();
@@ -644,9 +910,9 @@ impl TrafficSimulator {
     pub fn do_message(&self, m: &Message) -> bool {
         match m.msg_type {
             msg::SIM_BEGIN => {
-                // "Marks the network as changed" *[question: which flag, and
-                // who rebuilds]*: the flag the trip phases consume.
-                self.net.update_state(|n| n.network_changed = true);
+                // The network-changed byte := 1 (TS5): saved and loaded, read
+                // by nothing. No rebuild follows (DoPostCityInit does it).
+                self.update_state(|s| s.extras.network_changed_byte = true);
             }
             msg::DAY => return self.do_daily_simulation(),
             msg::MONTH => self.do_monthly_simulation(),
@@ -656,9 +922,14 @@ impl TrafficSimulator {
                     self.update_transit_multiplier();
                 }
             }
-            // Adding / removing a neighbour connection: neither spec says
-            // what the network part does *[question]*.
-            msg::NEIGHBOUR_ADDED | msg::NEIGHBOUR_REMOVED => {}
+            // traffic-network.md §2.7.2 (TS6): data1 type, data2 x, data3 z.
+            // Neither touches the network-changed byte.
+            msg::NEIGHBOUR_ADDED => {
+                self.run(|r| r.add_neighbor_connection(m.data1, m.data2 as i32, m.data3 as i32));
+            }
+            msg::NEIGHBOUR_REMOVED => {
+                self.run(|r| r.remove_neighbor_connection(m.data1, m.data2 as i32, m.data3 as i32));
+            }
             msg::TUNING_RELOAD => {
                 if m.data1 == msg::TUNING_GROUP && m.data2 == msg::TUNING_INSTANCE {
                     self.read_tunable_values();
@@ -669,6 +940,9 @@ impl TrafficSimulator {
                 if m.data3 == NETWORK_OCCUPANT_TYPE {
                     let removed = m.msg_type == msg::OCCUPANT_REMOVED;
                     self.run(|r| r.occupant_message(m.object, removed));
+                    // Any such message, even a failed cast, sets the
+                    // network-changed byte (§3.1, TS5).
+                    self.update_state(|s| s.extras.network_changed_byte = true);
                 }
             }
             msg::LOT_STATE_CHANGED => {
@@ -685,16 +959,42 @@ impl TrafficSimulator {
         true
     }
 
-    /// `DoPostCityInit` (`0x00720430`, traffic-network.md §1): the network
-    /// rebuild; steps 4 (the neighbour connections) and 5 (the destination
-    /// map boundary pass) are not specified *[question]*; then the transit
-    /// multiplier.
+    /// `DoPostCityInit` (`0x00720430`, §3.5, TS7), in order.
     pub fn do_post_city_init(&self) {
         self.run(|r| {
+            // 1–3 (traffic-network.md §1).
             r.cx.post_city_init_rebuild();
-            r.cx.post_city_init_finish();
+            // 4. An Add per neighbour connection, in list order, then one
+            // pool sweep (traffic-network.md §2.7.2–§2.7.3).
+            for conn in r.h.all_connections() {
+                let (x, z) = r.h.connection_cell(conn);
+                r.add_neighbor_connection(r.h.connection_type(conn), x, z);
+            }
+            r.pool_sweep();
+            // 5. The destination-map boundary pass.
+            r.destination_boundary_pass();
+            // 6, 7, and the water pathfinder's own handler of the message.
+            r.cx.post_city_init_subnetworks();
+            r.cx.water_post_city_init();
+            // 8. The subnetwork work was just done in full.
+            if matches!(r.st.cycle_state, cs::UPDATE_SUBNETWORKS | cs::SUBNETWORK_INFO) {
+                r.st.cycle_state = cs::FINAL_CALCULATIONS;
+            }
         });
+        // 9.
         self.update_transit_multiplier();
+        self.run(|r| {
+            // 10. The cell-count rebuild never runs in 1.1.641 *[compat]*.
+            // 11.
+            r.resume_loaded_phase();
+            // 12.
+            r.rebuild_strategy_buckets();
+            // 13. No `max(1, …)`: 0 with fewer than 18 lots.
+            r.st.days = (r.h.lots().len() as u32) / 18;
+            // 14.
+            r.update_mass_transit_budget();
+            r.update_roads_budget();
+        });
     }
 
     /// `DoDailySimulation` (§3.3): the day agent.
@@ -711,5 +1011,10 @@ impl TrafficSimulator {
     #[allow(clippy::too_many_arguments)]
     pub fn apply_route(&self, route: &[u8], count: u32, source: CellRect, dest: (i32, i32), mode: u8, trip_type: u8) {
         self.run(|r| r.apply_route(route, count, source, dest, mode, trip_type));
+    }
+
+    /// `ConfirmRoute(route)` on the simulator (§4.3), with its strike state.
+    pub fn confirm_route(&self, route: &[u8]) -> bool {
+        self.run(|r| super::route::confirm_route(r.net(), r.st.strike_state, route))
     }
 }

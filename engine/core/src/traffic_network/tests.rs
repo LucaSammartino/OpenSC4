@@ -1412,6 +1412,8 @@ fn transit_switch_lot_activation_and_removal() {
     props.insert(prop::SWITCH_RULES, u8_prop(&[0x00, 0x80, 0x01, 0x01]));
     props.insert(prop::SWITCH_CAPACITY, Variant::Scalar(Elem::F32(100.0)));
     props.insert(prop::SWITCH_TIME_FACTOR, Variant::Scalar(Elem::F32(0.5)));
+    // The toll, read as f32 (§2.4, traffic-simulator.md §4.5, TS15).
+    props.insert(prop::SWITCH_SIMULATOR, Variant::Scalar(Elem::F32(0.1)));
     w.add(
         40,
         Occ {
@@ -1443,6 +1445,7 @@ fn transit_switch_lot_activation_and_removal() {
         assert_eq!(sw.building, 40);
         assert_eq!(sw.capacity, 100.0);
         assert_eq!(sw.time_factor, 0.5);
+        assert_eq!(sw.simulator_value, 0.1f32.to_bits());
         assert_eq!(sw.to_mask, 0x0002);
     }
     assert_eq!(w.refs.borrow().get(&40), Some(&1));

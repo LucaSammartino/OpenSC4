@@ -63,8 +63,10 @@ pub mod id {
     pub const STRATEGY_PCT: u32 = 0x4953_E8A3;
 }
 
-/// The default `trafficUnitsPerSlice` (§3.4): to be calibrated in the
-/// original (§12) *[choice: 16 until then]*.
+/// The default `trafficUnitsPerSlice` (§3.4) *[choice: 16]*. The original
+/// has no such constant (TS27): it slices by a 4 ms wall-clock deadline
+/// tested once per unit, so this stays FreeCity4's choice until the §12
+/// counters calibrate it.
 pub const DEFAULT_UNITS_PER_SLICE: u32 = 16;
 
 /// The tuning values (§4.14) with the constructor's code defaults.
@@ -183,24 +185,96 @@ impl Default for SimTuning {
     }
 }
 
-/// Copies the first `min(count, N)` floats of a property over `dst`
-/// (§4.14 "vector" helpers: unchanged when missing) *[choice: entries past
-/// the property's count keep their value]*.
-fn read_f32s(h: &PropertyHolder, id: u32, dst: &mut [f32]) {
+/// Copies the first `min(count, N)` floats of a property over `dst` and
+/// sets the rest to `fill` (§4.14 "Short and missing arrays", TS28). A
+/// missing property leaves `dst` unchanged.
+fn read_f32s(h: &PropertyHolder, id: u32, dst: &mut [f32], fill: f32) {
     if let Some(v) = props::f32s(h, id) {
-        for (d, s) in dst.iter_mut().zip(v) {
-            *d = s;
+        for (i, d) in dst.iter_mut().enumerate() {
+            *d = v.get(i).copied().unwrap_or(fill);
         }
     }
 }
 
-/// As [`read_f32s`] for bools (any non-zero value is true).
+/// As [`read_f32s`] for bools (any non-zero value is true); the rest are
+/// true (TS28).
 fn read_bools(h: &PropertyHolder, id: u32, dst: &mut [bool]) {
     if let Some(v) = props::i64s(h, id) {
-        for (d, s) in dst.iter_mut().zip(v) {
-            *d = s != 0;
+        for (i, d) in dst.iter_mut().enumerate() {
+            *d = v.get(i).map_or(true, |&s| s != 0);
         }
     }
+}
+
+/// The f32 `0.01f` of the percent getter (`0x3C23D70A`, `0x00A823A4`).
+const PERCENT: f32 = 0.01;
+
+/// The percent getter `0x005FDAC0` (§4.14 "Funding percents", TS29): any
+/// numeric property type (u8, s8, u16, s16, u32 as unsigned, s32, 64-bit,
+/// f32, f64) is **multiplied** by `0.01f` and rounded once to f32,
+/// `r24(v × 0.01f)`. `None` for a missing property or one of another type
+/// (bool, string), which leave the target unchanged *[choice: "leaves the
+/// code default" read as "does not write"]*.
+fn percent_fraction(h: &PropertyHolder, id: u32) -> Option<f32> {
+    let e = match h.get(id)? {
+        Variant::Scalar(e) => *e,
+        Variant::Array { items, .. } => *items.first()?,
+        _ => return None,
+    };
+    let i = match e {
+        Elem::F32(v) => return Some(r24(f64::from(v) * f64::from(PERCENT)) as f32),
+        Elem::F64(v) => return Some(mul_f64_f32(v, PERCENT)),
+        Elem::U8(_) | Elem::I8(_) | Elem::U16(_) | Elem::I16(_) | Elem::U32(_) | Elem::I32(_) => e.as_i64(),
+        Elem::U64(v) => v as i64,
+        Elem::I64(v) => v,
+        Elem::Bool(_) | Elem::Char(_) | Elem::UnicodeChar(_) | Elem::RzChar(_) | Elem::VoidPtr(_) => return None,
+    };
+    Some(crate::x87::mul_i64_f32(i, PERCENT))
+}
+
+/// `fld qword` then `fmul dword` under 24-bit precision: the f64 enters
+/// exactly and the product is rounded once to f32.
+fn mul_f64_f32(v: f64, f: f32) -> f32 {
+    if !v.is_finite() || v == 0.0 {
+        return (v * f64::from(f)) as f32;
+    }
+    // v = m · 2^e with |m| < 2^53, so the integer product is exact.
+    let bits = v.to_bits();
+    let exp = ((bits >> 52) & 0x7FF) as i32;
+    let frac = (bits & 0xF_FFFF_FFFF_FFFF) as i64;
+    let (m, e) = if exp == 0 {
+        (frac, -1074)
+    } else {
+        (frac | (1 << 52), exp - 1075)
+    };
+    let m = if v < 0.0 { -m } else { m };
+    (f64::from(crate::x87::mul_i64_f32(m, f)) * 2f64.powi(e)) as f32
+}
+
+/// A property's data as the raw little-endian bytes of its values at their
+/// own widths (floats as bits); a string gives its characters, an empty or
+/// object property nothing.
+fn raw_bytes(v: &Variant) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut one = |e: &Elem| match *e {
+        Elem::Bool(b) => out.push(u8::from(b)),
+        Elem::U8(x) | Elem::Char(x) | Elem::RzChar(x) => out.push(x),
+        Elem::I8(x) => out.push(x as u8),
+        Elem::U16(x) | Elem::UnicodeChar(x) => out.extend_from_slice(&x.to_le_bytes()),
+        Elem::I16(x) => out.extend_from_slice(&x.to_le_bytes()),
+        Elem::U32(x) => out.extend_from_slice(&x.to_le_bytes()),
+        Elem::I32(x) => out.extend_from_slice(&x.to_le_bytes()),
+        Elem::F32(x) => out.extend_from_slice(&x.to_bits().to_le_bytes()),
+        Elem::U64(x) | Elem::VoidPtr(x) => out.extend_from_slice(&x.to_le_bytes()),
+        Elem::I64(x) => out.extend_from_slice(&x.to_le_bytes()),
+        Elem::F64(x) => out.extend_from_slice(&x.to_bits().to_le_bytes()),
+    };
+    match v {
+        Variant::Scalar(e) => one(e),
+        Variant::Array { items, .. } => items.iter().for_each(one),
+        _ => {}
+    }
+    out
 }
 
 fn read_f32(h: &PropertyHolder, id: u32, dst: &mut f32) {
@@ -247,23 +321,34 @@ impl SimTuning {
     pub fn read(&mut self, exemplar: Option<&PropertyHolder>) {
         let Some(h) = exemplar else { return };
         read_f32(h, id::VOLUME_PER_POPULATION, &mut self.volume_per_population);
+        // The short and missing arrays (TS28): each has its own fill.
+        // Max speed: missing → all 13 of type t reset (speed 0, inverse
+        // FLT_MAX); fewer → the rest reset the same way.
         for (t, row) in self.max_speed.iter_mut().enumerate() {
-            read_f32s(h, id::MAX_SPEED + t as u32, row);
+            let v = props::f32s(h, id::MAX_SPEED + t as u32).unwrap_or_default();
+            *row = std::array::from_fn(|i| v.get(i).copied().unwrap_or(0.0));
         }
         read_f32(h, id::DENSITY_REDUCTION, &mut self.density_reduction);
         read_f32(h, id::UNUSED_29136789, &mut self.unused_29136789);
-        read_f32s(h, id::TILE_COSTS, &mut self.tile_costs);
-        // Percent → fraction *[choice: r24(v / 100)]*.
-        if let Some(v) = props::f32_of(h, id::MAX_ROADS_FUNDING) {
-            self.max_roads_funding = r24(f64::from(v) / 100.0) as f32;
+        // Tile costs: no presence test (`0x00716D34`), so missing → all 0.0;
+        // fewer → the rest 0.0.
+        let v = props::f32s(h, id::TILE_COSTS).unwrap_or_default();
+        self.tile_costs = std::array::from_fn(|i| v.get(i).copied().unwrap_or(0.0));
+        // Percent → fraction: `r24(v × 0.01f)` (TS29; shipped 120 gives
+        // 0x3F999999, one ulp below the code default 1.2).
+        if let Some(v) = percent_fraction(h, id::MAX_ROADS_FUNDING) {
+            self.max_roads_funding = v;
         }
-        if let Some(v) = props::f32_of(h, id::MAX_TRANSIT_FUNDING) {
-            self.max_transit_funding = r24(f64::from(v) / 100.0) as f32;
+        if let Some(v) = percent_fraction(h, id::MAX_TRANSIT_FUNDING) {
+            self.max_transit_funding = v;
         }
         read_u32(h, id::STRATEGY_PERIOD, &mut self.strategy_period);
         read_u32(h, id::STRATEGY_BUCKETS, &mut self.strategy_buckets);
         read_u32(h, id::MAX_DISTANCE_ORIGIN, &mut self.max_distance_origin);
-        read_f32s(h, id::INCOME_PER_TILE, &mut self.income_per_tile);
+        // Income per tile: missing → unchanged; fewer → the original copies 9
+        // with no count check (`0x00716E07`) *[quirk]*; FreeCity4 fills 0.0
+        // *[choice]*.
+        read_f32s(h, id::INCOME_PER_TILE, &mut self.income_per_tile, 0.0);
         read_bools(h, id::GENERATES_TRAFFIC, &mut self.generates_traffic);
         read_bools(h, id::AFFECTED_BY_TRAFFIC, &mut self.affected_by_traffic);
         read_bools(h, id::CAN_REACH, &mut self.can_reach);
@@ -273,18 +358,17 @@ impl SimTuning {
             self.congestion_scale = scale;
         }
         read_f32(h, id::COMMUTE_MAX_TIME, &mut self.commute_max_time);
-        read_f32s(h, id::START_NEUTRAL, &mut self.start_neutral);
-        read_f32s(h, id::START_MASS_TRANSIT, &mut self.start_mass_transit);
-        read_f32s(h, id::START_CAR, &mut self.start_car);
+        // Start costs: missing → unchanged; fewer → the rest 0.0.
+        read_f32s(h, id::START_NEUTRAL, &mut self.start_neutral, 0.0);
+        read_f32s(h, id::START_MASS_TRANSIT, &mut self.start_mass_transit, 0.0);
+        read_f32s(h, id::START_CAR, &mut self.start_car, 0.0);
         read_f32(h, id::JOB_SCALING, &mut self.job_scaling);
         read_f32(h, id::FREIGHT_SCALING, &mut self.freight_scaling);
         read_f32(h, id::NEAREST_ATTRACTIVENESS, &mut self.nearest_attractiveness);
         read_f32(h, id::TRIP_DISPLAY_MULTIPLIER, &mut self.trip_display_multiplier);
         read_f32(h, id::MAX_MASS_TRANSIT_TRIP, &mut self.max_mass_transit_trip_length);
-        if let Some(v) = props::f32s(h, id::BACKGROUND) {
-            // Missing entries are 1.0.
-            self.background = std::array::from_fn(|i| v.get(i).copied().unwrap_or(1.0));
-        }
+        // Background: missing → unchanged; fewer → the rest 1.0.
+        read_f32s(h, id::BACKGROUND, &mut self.background, 1.0);
         let d = SimTuning::default();
         self.switch_curve = read_default_curve(h, id::SWITCH_CURVE, d.switch_curve);
         self.accident_congestion_curve =
@@ -304,15 +388,17 @@ impl SimTuning {
         self.network.reload(Some(h));
     }
 
-    /// The strategy re-read of `UpdateTravelStrategies` (§4.1.2): the first
-    /// 3 values of `0x4953E8A3 + w` as bytes. A property with fewer than 3
-    /// values leaves the missing ones unchanged *[choice: the original reads
-    /// past the end]*.
+    /// The strategy re-read of `UpdateTravelStrategies` (§4.1.2, TS28): a
+    /// present `0x4953E8A3 + w` is read as raw bytes with no type check, and
+    /// its first three bytes are copied whatever its length (`0x00711899`).
+    /// With fewer than 3 bytes the original reads past the copied data;
+    /// the missing ones keep their value *[choice]*. A missing property
+    /// leaves `pct[w]` unchanged.
     pub fn read_strategies(&mut self, h: &PropertyHolder) {
         for (w, row) in self.pct.iter_mut().enumerate() {
-            if let Some(v) = props::i64s(h, id::STRATEGY_PCT + w as u32) {
-                for (d, s) in row.iter_mut().zip(v) {
-                    *d = s as u8;
+            if let Some(v) = h.get(id::STRATEGY_PCT + w as u32) {
+                for (d, s) in row.iter_mut().zip(raw_bytes(v)) {
+                    *d = s;
                 }
             }
         }

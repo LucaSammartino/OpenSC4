@@ -8,9 +8,14 @@
 //! with every Read gate) and the trip record (§6.3).
 //!
 //! Write produces version 41 (`A = 13`, `B = 1`, `C = 13`, `D = 9`). Read
-//! accepts versions 19…41 (and anything newer, read as 41 *[choice]*),
-//! parses into copies and commits only when the whole record was read;
-//! a failed Read leaves the simulator unchanged *[choice]*.
+//! accepts versions 19…41, and anything newer is read exactly as 41: the
+//! original has no upper bound and every gate is an unsigned ordered test
+//! (§6.4, TS32). Read parses into copies and commits only when the whole
+//! record was read, so a failed Read leaves the simulator unchanged
+//! *[choice]*; the original writes as it reads and leaves a partly loaded
+//! simulator with null refs (§6.1 "A failed Read", TS30).
+
+use std::collections::BTreeMap;
 
 use crate::grid::{CellRect, GridProvider, ScanIterator, ScanState};
 use crate::property::PropertyHolder;
@@ -22,6 +27,7 @@ use crate::traffic_network::{
 };
 
 use super::cycle::Run;
+use super::pools::Pools;
 use super::state::{DamageBlock, DamageState, StatRow, State, StatsSet, SwitchStat, SWITCH_STATS};
 use super::{ref_iid, GridF32, GridU8, TrafficSimHost, TrafficSimulator, TripData, MIN_RECORD_VERSION, RECORD_VERSION};
 
@@ -101,11 +107,14 @@ fn grid_ref<T: crate::grid::GridElem>(g: &Option<std::rc::Rc<dyn crate::grid::Tr
     g.as_ref().map_or(RefValue::Null, |g| g.save_ref())
 }
 
-fn put_iterator(out: &mut dyn OutStream, it: &ScanIterator) {
-    out.put_i8(match it.state {
-        ScanState::Fresh => 0,
-        ScanState::Running => 1,
-        ScanState::Done => 2,
+/// The scanning iterator; `raw` is the loaded state byte kept while the
+/// scan runs (TS31).
+fn put_iterator(out: &mut dyn OutStream, it: &ScanIterator, raw: Option<u8>) {
+    out.put_u8(match (it.state, raw) {
+        (ScanState::Fresh, _) => 0,
+        (ScanState::Running, Some(b)) => b,
+        (ScanState::Running, None) => 1,
+        (ScanState::Done, _) => 2,
     });
     out.put_i32(it.x);
     out.put_i32(it.z);
@@ -117,7 +126,7 @@ fn put_iterator(out: &mut dyn OutStream, it: &ScanIterator) {
 
 fn put_row(out: &mut dyn OutStream, r: &StatRow) {
     out.put_f32(r.sum);
-    out.put_u32(r.count);
+    out.put_u32(r.congested);
     out.put_i32(r.max_x);
     out.put_i32(r.max_z);
     out.put_f32(r.max);
@@ -127,12 +136,12 @@ fn put_stats(out: &mut dyn OutStream, s: &StatsSet) {
     for r in &s.rows {
         put_row(out, r);
     }
-    put_row(out, &s.aggregate);
-    for &o in &s.over {
+    put_row(out, &s.bridge);
+    for &o in &s.records {
         out.put_u16(o);
     }
-    out.put_u16(s.aggregate_over);
-    out.put_u16(s.extra_u16);
+    out.put_u16(s.bridge_records);
+    out.put_u16(s.potholes);
     out.put_i32(SWITCH_STATS as i32);
     for e in &s.switch_stats {
         out.put_u16(e.a);
@@ -201,7 +210,14 @@ fn put_terminal(out: &mut dyn OutStream, t: &FerryTerminal) {
 }
 
 /// `Write` (`0x00712400`): version 41.
-fn write_record(out: &mut dyn OutStream, h: &dyn TrafficSimHost, s: &State, n: &NetworkState, d: &DamageState) {
+fn write_record(
+    out: &mut dyn OutStream,
+    h: &dyn TrafficSimHost,
+    s: &State,
+    n: &NetworkState,
+    d: &DamageState,
+    pools: &Pools,
+) {
     let obj = |t: u64| if t == 0 { RefValue::Null } else { h.object_ref(t) };
     out.put_u16(RECORD_VERSION);
     for v in [DIM_A, DIM_B, DIM_C, DIM_D] {
@@ -285,14 +301,14 @@ fn write_record(out: &mut dyn OutStream, h: &dyn TrafficSimHost, s: &State, n: &
     put_damage(out, &d.road);
     put_damage(out, &d.rail);
     out.put_u8(s.cycle_state);
-    put_iterator(out, &s.scan);
+    put_iterator(out, &s.scan, s.extras.scan_state_byte);
     out.put_bool(n.intersection_dirty);
     let r = n.intersection_rect;
     for v in [r.x1, r.z1, r.x2, r.z2] {
         out.put_i32(v);
     }
     let e = &s.extras;
-    out.put_bool(e.bool_after_rect);
+    out.put_bool(e.network_changed_byte);
     out.put_u32(s.strategy_bucket_counter);
     out.put_u32(s.strategy_bucket);
     out.put_i16(e.phase_positions[0]);
@@ -357,9 +373,10 @@ fn write_record(out: &mut dyn OutStream, h: &dyn TrafficSimHost, s: &State, n: &
     for k in 0..4 {
         out.put_u32(s.free(k));
     }
-    out.put_u32(e.holder_map.len() as u32);
-    for (key, holder) in &e.holder_map {
-        out.put_u16(*key);
+    // The neighbour pools, by ascending ID (traffic-network.md §2.7.3).
+    out.put_u32(pools.map.len() as u32);
+    for (id, holder) in &pools.map {
+        out.put_u16(*id);
         holder.write(out);
     }
     for i in 0..9 {
@@ -399,6 +416,8 @@ struct Parse<'a> {
     s: State,
     n: NetPart,
     dmg: DamageState,
+    /// The neighbour pools of row 19.
+    pools: BTreeMap<u16, PropertyHolder>,
 }
 
 /// A float edge-density value of a v < 20 record: round half to even,
@@ -415,7 +434,8 @@ pub fn legacy_density(v: f32) -> u16 {
 /// Read's own mask and flags of a switch (traffic-network.md §4.7.2, after
 /// a load *[quirk]*): the mask ORs the raw `to` of the kind-1 rules; the
 /// flags map 2 → 1, 3 → 2, 5 → 0x20, 6 → 4, 7 → 8, 8 → 0x10 over all rules,
-/// plus 0x40 for a subway–el-train rule *[choice: as the re-read does]*.
+/// plus 0x40 for a subway–el-train rule (6, 7) or (7, 6) of any kind, as the
+/// re-read does (`0x0072225E`–`0x0072227D`, TS33).
 pub fn read_mask_and_flags(rules: &[Rule]) -> (u16, u8) {
     let mut mask = 0u16;
     let mut flags = 0u8;
@@ -472,12 +492,16 @@ impl Parse<'_> {
         Some(if r.is_null() { None } else { self.h.resolve_ref(&r, iid) })
     }
 
-    fn iterator(inp: &mut dyn InStream) -> Option<ScanIterator> {
-        let state = match inp.get_i8()? {
-            0 => ScanState::Fresh,
-            1 => ScanState::Running,
-            // Any other byte reads as done *[choice]*.
-            _ => ScanState::Done,
+    /// The scanning iterator and its raw state byte (§6.1, TS31): the inline
+    /// GetNext tests only 2 (done) and 0 (fresh), so 1 and every unknown
+    /// byte 3…255 act as running; an unknown byte is kept for the next save.
+    fn iterator(inp: &mut dyn InStream) -> Option<(ScanIterator, Option<u8>)> {
+        let byte = inp.get_u8()?;
+        let (state, raw) = match byte {
+            0 => (ScanState::Fresh, None),
+            2 => (ScanState::Done, None),
+            1 => (ScanState::Running, None),
+            b => (ScanState::Running, Some(b)),
         };
         let x = inp.get_i32()?;
         let z = inp.get_i32()?;
@@ -488,13 +512,13 @@ impl Parse<'_> {
         it.x = x;
         it.z = z;
         it.state = state;
-        Some(it)
+        Some((it, raw))
     }
 
     fn row(inp: &mut dyn InStream) -> Option<StatRow> {
         Some(StatRow {
             sum: inp.get_f32()?,
-            count: inp.get_u32()?,
+            congested: inp.get_u32()?,
             max_x: inp.get_i32()?,
             max_z: inp.get_i32()?,
             max: inp.get_f32()?,
@@ -523,13 +547,13 @@ impl Parse<'_> {
             for i in 0..self.b {
                 let r = Self::row(inp)?;
                 if i == 0 {
-                    s.aggregate = r;
+                    s.bridge = r;
                 }
             }
         }
         for i in 0..self.a {
             let o = inp.get_u16()?;
-            if let Some(slot) = s.over.get_mut(i) {
+            if let Some(slot) = s.records.get_mut(i) {
                 *slot = o;
             }
         }
@@ -537,11 +561,11 @@ impl Parse<'_> {
             for i in 0..self.b {
                 let o = inp.get_u16()?;
                 if i == 0 {
-                    s.aggregate_over = o;
+                    s.bridge_records = o;
                 }
             }
         }
-        s.extra_u16 = inp.get_u16()?;
+        s.potholes = inp.get_u16()?;
         let e = if v >= 34 { inp.get_i32()?.max(0) as usize } else { 3 };
         for i in 0..e {
             let a = inp.get_u16()?;
@@ -792,11 +816,11 @@ impl Parse<'_> {
             self.dmg.rail = Self::damage(inp)?;
         }
         self.s.cycle_state = inp.get_u8()?;
-        self.s.scan = Self::iterator(inp)?;
+        (self.s.scan, self.s.extras.scan_state_byte) = Self::iterator(inp)?;
         self.n.intersection_dirty = inp.get_bool()?;
         self.n.intersection_rect = CellRect::new(inp.get_i32()?, inp.get_i32()?, inp.get_i32()?, inp.get_i32()?);
         let e = &mut self.s.extras;
-        e.bool_after_rect = inp.get_bool()?;
+        e.network_changed_byte = inp.get_bool()?;
         self.s.strategy_bucket_counter = inp.get_u32()?;
         self.s.strategy_bucket = inp.get_u32()?;
         let e = &mut self.s.extras;
@@ -907,17 +931,18 @@ impl Parse<'_> {
         for (k, f) in free.iter().enumerate() {
             self.s.set_free(k, *f);
         }
+        // The neighbour pools; a repeated ID keeps the last *[choice]*.
         let n = inp.get_u32()?;
-        let mut map = Vec::new();
+        let mut map = BTreeMap::new();
         for _ in 0..n {
             let key = inp.get_u16()?;
             let mut holder = PropertyHolder::new();
             if !holder.read(inp) {
                 return None;
             }
-            map.push((key, holder));
+            map.insert(key, holder);
         }
-        self.s.extras.holder_map = map;
+        self.pools = map;
         if v >= 27 {
             for i in 0..self.d {
                 let a = inp.get_u32()?;
@@ -972,6 +997,7 @@ impl Run<'_, '_> {
                 intersection_rect: CellRect::new(0, 0, 0, 0),
             },
             dmg: DamageState::default(),
+            pools: BTreeMap::new(),
         };
         if p.record(inp).is_none() || inp.error() != 0 {
             // Release what the parse resolved.
@@ -1019,6 +1045,8 @@ impl Run<'_, '_> {
             }
         }
         *self.dmg.borrow_mut() = p.dmg;
+        // The pools are replaced; the default pool is Init's.
+        self.pools.borrow_mut().map = p.pools;
         for b in old_buildings {
             self.cx.h.release(b);
         }
@@ -1034,13 +1062,63 @@ impl TrafficSimulator {
     pub fn write(&self, out: &mut dyn OutStream) -> bool {
         self.run(|r| {
             let d = r.dmg.borrow().clone();
-            write_record(out, r.h, r.st, r.cx.s, &d);
+            let pools = r.pools.borrow().clone();
+            write_record(out, r.h, r.st, r.cx.s, &d, &pools);
             true
         }) && out.error() == 0
     }
 
-    /// `Read` (`0x00721990`): versions 19…41 (save-records §7.1.1).
+    /// `Read` (`0x00721990`): versions 19…41 (save-records §7.1.1); newer
+    /// versions read as 41 (§6.4, TS32). Below 19 it returns false having
+    /// read only the version; a failed Read leaves the simulator as it was
+    /// *[choice]* (§6.1, TS30).
     pub fn read(&self, inp: &mut dyn InStream) -> bool {
         self.run(|r| r.read_record(inp))
+    }
+}
+
+#[cfg(test)]
+mod iterator_tests {
+    use super::*;
+    use crate::stream::{ByteReader, ByteWriter};
+
+    fn round(it: &ScanIterator, raw: Option<u8>) -> Vec<u8> {
+        let mut w = ByteWriter::new();
+        put_iterator(&mut w, it, raw);
+        w.into_bytes()
+    }
+
+    /// §6.1 "The scanning iterator in row 14" (TS31): state byte 7, current
+    /// (5, 3), step 1, rectangle [0, 63]²: the next GetNext returns (6, 3)
+    /// and the byte is written back unchanged; a byte of 2 ends at once.
+    #[test]
+    fn unknown_state_byte_acts_as_running() {
+        let mut it = ScanIterator::new(0, 0, 63, 63);
+        it.x = 5;
+        it.z = 3;
+        it.state = ScanState::Running;
+        let mut bytes = round(&it, None);
+        assert_eq!(bytes[0], 1);
+        bytes[0] = 7;
+        let (mut got, raw) = Parse::iterator(&mut ByteReader::new(&bytes)).unwrap();
+        assert_eq!((got.state, raw), (ScanState::Running, Some(7)));
+        assert_eq!(got.next_cell(), Some((6, 3)));
+        assert_eq!(round(&got, raw)[0], 7);
+        // A finished scan writes 2, a reset one 0.
+        got.state = ScanState::Done;
+        assert_eq!(round(&got, raw)[0], 2);
+        got.reset(0, 0);
+        assert_eq!(round(&got, None)[0], 0);
+        bytes[0] = 2;
+        let (mut done, raw) = Parse::iterator(&mut ByteReader::new(&bytes)).unwrap();
+        assert_eq!((done.state, raw), (ScanState::Done, None));
+        assert_eq!(done.next_cell(), None);
+        for b in [0u8, 1, 3, 255] {
+            bytes[0] = b;
+            let (it, raw) = Parse::iterator(&mut ByteReader::new(&bytes)).unwrap();
+            let want = if b == 0 { ScanState::Fresh } else { ScanState::Running };
+            assert_eq!(it.state, want, "byte {b}");
+            assert_eq!(round(&it, raw)[0], b);
+        }
     }
 }

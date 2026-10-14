@@ -110,6 +110,8 @@
 #include "cIGZCheatCodeManager.h"
 #include "cIGZCommandServer.h"
 #include "cISC4LandfillOccupant.h"
+#include "cISC4LotConfiguration.h"
+#include "cISC4ZoneDeveloper.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -441,6 +443,10 @@ const Waiver kWaivers[] = {
     // GetRecyclingCenterEffect only (GetPoliceStationCount goes through
     // cFC4ISC4PoliceSimulator).
     {"cISC4LandfillDeveloper", "cISC4LandfillDeveloper", 9, "GetZoningCost", "returns 64 bits in edx:eax (SDK: 32)"},
+    // Lot configurations read by the zone manager (zones.md section 6): slot 15
+    // (IsCompatibleWithZoneType) only.
+    {"cISC4LotConfiguration", "cISC4LotConfiguration", 19, "IsCompatibleWithMonopolyPieceUse",
+     "pops 4 (SDK: no argument)"},
     // The props the crime simulator reads (crime.md section 11.6): GetState only.
     {"cISC4PropOccupant", "cISC4PropOccupant", 14, "GetTimeOfDayRange", "the game returns in ST0 (SDK: 32-bit)"},
     {"cISC4PowerSimulator", "cISC4PowerSimulator", 45, "GetCurrentPlantEfficiencyPercent",

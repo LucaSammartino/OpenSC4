@@ -1,0 +1,206 @@
+{
+  "format": 1,
+  "name": "ts11_34_pool_record",
+  "spec": [
+    "traffic-simulator 6.1",
+    "traffic-network 2.7"
+  ],
+  "description": "§6.1 row 19: the pools are saved (u32 count, then per pool its u16 ID and its property-holder record) and read back by ID with their properties; the default pool is not saved (Init makes it). Two Adds create pools 1 and 2; pool 2 gets capacity 70000 (u32). After both Removes swept them, loading the record brings them back, and a second save is byte-identical.",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        8,
+        8
+      ]
+    },
+    {
+      "op": "ts_connection",
+      "id": 77,
+      "cell": [
+        -1,
+        5
+      ],
+      "holder": 70,
+      "type": 2,
+      "city": [
+        10,
+        20
+      ]
+    },
+    {
+      "op": "ts_connection",
+      "id": 78,
+      "cell": [
+        8,
+        2
+      ],
+      "holder": 71,
+      "type": 2,
+      "city": [
+        -3,
+        7
+      ]
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0x8A0D15DA",
+        2,
+        -1,
+        5,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0x8A0D15DA",
+        2,
+        8,
+        2,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "set_max_trip_capacity",
+      "args": [
+        {
+          "pool": 2
+        },
+        0,
+        70000
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "set_max_trip_capacity",
+      "args": [
+        {
+          "pool": 1
+        },
+        5,
+        3
+      ]
+    },
+    {
+      "op": "ts_save",
+      "slot": "a"
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0xEA0D163E",
+        2,
+        -1,
+        5,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0xEA0D163E",
+        2,
+        8,
+        2,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "pool_ids",
+      "args": [],
+      "expect": []
+    },
+    {
+      "op": "ts_load",
+      "slot": "a",
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "pool_ids",
+      "args": [],
+      "expect": [
+        1,
+        2
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "max_trip_capacity",
+      "args": [
+        {
+          "pool": 2
+        },
+        0
+      ],
+      "expect": 70000
+    },
+    {
+      "op": "ts_call",
+      "method": "traffic_arrived_this_cycle",
+      "args": [
+        {
+          "pool": 1
+        },
+        1
+      ],
+      "expect": 3
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": {
+        "pool": 1
+      },
+      "id": "0x4A23576B",
+      "expect": [
+        10
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": {
+        "pool": 2
+      },
+      "id": "0x4A23576C",
+      "expect": [
+        7
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "max_trip_capacity",
+      "args": [
+        {
+          "pool": 0
+        },
+        3
+      ],
+      "expect": 4294967295
+    },
+    {
+      "op": "ts_save",
+      "slot": "b"
+    },
+    {
+      "op": "ts_expect_same_save",
+      "a": "a",
+      "b": "b"
+    }
+  ]
+}

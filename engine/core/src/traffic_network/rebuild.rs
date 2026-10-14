@@ -244,24 +244,36 @@ impl Cx<'_> {
         self.do_connections_changed(all);
     }
 
+    /// Steps 6–8 and the water pathfinder's handler, as the network model
+    /// alone runs them (it has no work-cycle state, so step 8 always runs).
+    /// The traffic simulator calls [`Self::post_city_init_subnetworks`] and
+    /// runs step 8 only in state 19 (traffic-simulator.md §3.5, TS7).
     pub(crate) fn post_city_init_finish(&mut self) {
-        // Step 6: clear the labels. Step 7: label, then the subnetwork info
-        // synchronously, published.
+        self.post_city_init_subnetworks();
+        self.post_city_init_ferries();
+        // The water pathfinder's own handler of the message (§4.10.1).
+        self.water_post_city_init();
+    }
+
+    /// Steps 6 and 7: clear the labels; label, then the subnetwork info
+    /// synchronously, published.
+    pub(crate) fn post_city_init_subnetworks(&mut self) {
         self.s.clear_subnetworks();
         self.s.update_subnetworks();
         self.begin_subnetwork_info();
         self.work_on_subnetwork_info(usize::MAX);
-        // Step 8: every terminal marked for re-routing; the pass starts at
-        // the first terminal (the neighbour-cell vector and the counters are
-        // left as they are: only entering the work-cycle state rebuilds and
-        // rotates them).
+    }
+
+    /// Step 8 (only when the loaded work-cycle state is 19, TS7): every
+    /// terminal marked for re-routing; the pass starts at the first
+    /// terminal (the neighbour-cell vector and the counters are left as they
+    /// are: only entering the work-cycle state rebuilds and rotates them).
+    pub(crate) fn post_city_init_ferries(&mut self) {
         for t in &mut self.s.ferries {
             t.reroute = true;
         }
         self.s.ferry_pass.running = true;
         self.s.ferry_pass.terminal = 0;
-        // The water pathfinder's own handler of the message (§4.10.1).
-        self.water_post_city_init();
     }
 }
 
@@ -291,7 +303,8 @@ impl NetworkModel {
         self.run(|cx| cx.post_city_init_rebuild());
     }
 
-    /// DoPostCityInit steps 6–8 (§1) and the water pathfinder's handler.
+    /// DoPostCityInit steps 6–8 (§1) and the water pathfinder's handler, as
+    /// the network model alone runs them (step 8 unconditionally).
     pub fn post_city_init_finish(&self) {
         self.run(|cx| cx.post_city_init_finish());
     }
