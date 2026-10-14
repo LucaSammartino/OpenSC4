@@ -493,6 +493,13 @@ and caches the pointer. Neither function tests for null, so without a language m
 null pointer and faults. The game always registers one. *[choice]* With no language manager FreeCity4 uses
 language ID 0, so step 2 tries only (`0x2026960B`, `G`, `I`).
 
+**The detokenizer is borrowed** (QUESTIONS CQ19). The crime loader passes no detokenizer (`0x006A0CF1` pushes 0),
+so `SC4LoadString` falls back to the game's global one (`0x00603121`–`0x00603133`). That global is the
+application's `GetStringDetokenizer` (`cISC4App` slot 42, `+0xA8`; `0x0044B4D0` returns the application's member
+with no `AddRef`), cached once at start-up by `SL::OnAppInit1` (`0x00602323`), again with no `AddRef`.
+`SC4LoadString` calls its slot 9 with no `AddRef` or `Release` around the call. Nothing in this path owns a
+reference. A caller may take and release its own reference around the call; the original does not.
+
 **Mask parsing**: each byte `b` sets bit `b − 1`. A byte 0 makes the mask `0xFFFFFFFF` (any). *[quirk]* A present
 but **empty** array gives mask 0, which never matches. A missing property gives `0xFFFFFFFF`. Byte values above
 32 wrap the shift count modulo 32 *[compat]*.

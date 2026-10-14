@@ -1639,8 +1639,13 @@ About `docs/specs/crime.md` (CQ5, CQ8, CQ13 as applied). The glue's current answ
   `0x441E5070` through `cRZSysServPtr` `0x00610800`) and written into crime.md §7 ("The language ID"). **The original
   crashes**: it calls slot 7 through the null language-manager pointer, with no test. The game always has one.
   **The bracket stands as a *[choice]*:** language 0, so only (group, instance) is tried.
-- **CQ19 — CQ8:** is the detokenizer returned by `GetStringDetokenizer` (`cISC4App +0xA8`) borrowed or owned?
-  [Borrowed; the glue takes and releases its own reference around the call.]
+- ~~**CQ19 — CQ8:** is the detokenizer returned by `GetStringDetokenizer` (`cISC4App +0xA8`) borrowed or owned?
+  [Borrowed; the glue takes and releases its own reference around the call.]~~ **ANSWERED 2026-10-14** from the
+  exe (`cSC4App::GetStringDetokenizer` `0x0044B4D0`; cache `SL::OnAppInit1` `0x00602323`; use in `SC4LoadString`
+  `0x00603121`–`0x00603133`) and written into crime.md §7 ("The detokenizer is borrowed"). **The bracket matches.**
+  The getter returns the application's member with no `AddRef`, and the game caches it once in a global, also
+  with no `AddRef`. `SC4LoadString` uses that global when its caller passes none, and the crime loader passes
+  none. Nobody adds or releases a reference around the call. The glue's own `AddRef`/`Release` pair is harmless.
 - **CQ20 — CQ8:** how does the original read the LTEXT: through the resource manager's `GetPrivateResource`, or a
   string loader of its own? [Through `GetPrivateResource`, as the SDK does.]
 - **CQ21 — CQ5:** do other generators seeded from `cRZTime` use the same seconds-since-1901 value, so the helper
