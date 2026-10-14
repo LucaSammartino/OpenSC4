@@ -1437,3 +1437,31 @@ brackets.
   a 2×2 block of adjusted tracts, (7..8, 53..54), is 81 in the original and 65 in ours (max |d| 21; raw grid
   identical). One lot's flammability contribution changed in a way the mirror missed or counted differently: which
   event sets an adjusted tract outside the day visit (a lot condition or occupant change mid-cycle)?
+
+## From applying the data-format answers (filed by the coordinator from the `apply4a` lane's report, 2026-10-14)
+
+About `docs/specs/data-formats.md` (EX1–EX20 as applied in `engine/formats` and the core variant). The current
+answer is in brackets.
+
+- **EX21 — §4.3:** "multiply the scale by 0.1": the double constant 0.1 or the float `0.1f`? [double 0.1: it
+  reproduces every worked example, while `0.1f` turns `0.05` into `0x3D4CCCCE`]
+- **EX22 — §4.3:** is `value × 10 + digit` rounded once or twice (after the multiply and after the add)? [twice,
+  each to 24 bits]
+- **EX23 — §4.3:** does the exponent accept a `+`, and is it read when no mantissa digit came first? [yes to both]
+- **EX24 — EX8:** how is −0.0 printed? [`0`]
+- **EX25:** signed decimal text read into a Float32: one rounding from the exact value, unlike a Sint64 scalar,
+  which goes through double? [one rounding, so `-16777217` gives −16777216.0]
+- **EX26:** a Bool scalar's "leading spaces trimmed": spaces only, or tabs too? [spaces only]
+- **EX27:** a String value is "trimmed" of what? [spaces and tabs]
+- **EX28 — EX8:** a Float32 signalling NaN as text? [the x87 load quiets it: `1.#QNAN`; a Float64 sNaN gives
+  `1.#SNAN`]
+- **EX29 — EX8:** does the 63-character cut also apply to Float32 text (a subnormal reaches it)? [yes]
+- **EX30 — EX17:** `get_void` with a buffer shorter than `length`? [copies what fits; the original would overrun]
+- **EX31 — EX15:** when do factories run? [eagerly, inside `load_package`; a factory registered later applies from
+  the next `load_package`]
+- **EX32:** a Float32 that no text reproduces under the 24-bit parser: what does the writer do? [`to_text` fails
+  with `Unsupported`]
+- **EX33 — §5.1:** the core property readers apply the scalar conversion steps to every array element (e.g. a
+  Float32 array read as `u32`). Right for readers that use raw access plus their own conversion? [every element]
+- Not applied: the scalar RZUnicodeChar text rule (one byte when ≤ 0xFF): the reader cannot produce that scalar
+  (tag `0x0D` is not read).
