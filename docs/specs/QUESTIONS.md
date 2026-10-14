@@ -2366,9 +2366,20 @@ Shutdown was the last reference; on a loaded city without a save, the game still
 lane now treats every reference a glue holds from `Read` as its own (`FC4_RELEASE_CREATED`), which is correct either
 way.
 
-- **SV1 — foundations §2.7:** which references does the game's load (the persistent resource manager's object table,
+- ~~**SV1 — foundations §2.7:** which references does the game's load (the persistent resource manager's object table,
   `ReadGZSerializable`) keep on the objects it creates or resolves, and when does it drop them: at the end of the
   load, at the next save, or at city Shutdown? [our reading: the load keeps one until the next save; marked in the
-  code as a reading, not a finding]
+  code as a reading, not a finding]~~ **ANSWERED 2026-10-14** from the exe (serializer resolver 0x005D2DD0, reset
+  0x005D3250, segment Close 0x005D20C0, SaveCity 0x00455E20 at 0x0045641B/0x00456449/0x0045662F, PartialCloseCity
+  0x00454A60 at 0x00454AF3) and written into foundations §2.7 "References the load keeps".
+  - The table is the object table of the city segment's COM serializer. It keeps exactly one reference on each object
+    the load **creates**, none on an object it only resolves; the loader's own local is released after `Read`, and the
+    typed helper nets +1 for the destination.
+  - It drops them all when the segment that loaded the city is closed: at the **next save** (the save switches to a
+    fresh read-only segment with an empty table), or, if no save came first, at **city close after the city's
+    `Shutdown`**, or on a failed load. Not at the end of the load.
+  - The bracket matches, with one addition: in a loaded city that is never saved, the table still holds its reference
+    during every `Shutdown`, so a subsystem's release there is not the last one. Treating every reference from `Read`
+    as the glue's own stays correct.
 - **SV2 — ordinance §9.1:** does anything other than the ordinance simulator hold a foreign (plugin) ordinance read
   from a save? [assumed no; released as ours]

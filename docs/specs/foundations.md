@@ -179,6 +179,47 @@ Consequences for every `Read` implementation *[compat]*:
   later initialisation message.
 - Cycles (A refers to B, B refers to A) are allowed and common, for example a department and its line items.
 
+**References the load keeps** *[compat]* (SV1). The registry of step 2 is the **object table of the city
+segment's COM serializer** (`cSC4COMSerializer`; the segment `cSC4DBSegment` creates one in its constructor,
+`0x005D3740`, holds it at `+0x1CC` and returns it from its slot 4, `0x005D2070`). The table is a map from class ID to a
+map from object ID to an auto-ref-counted pointer (`+0x1C`; resolver `0x005D2DD0`).
+
+| Event | References |
+|---|---|
+| a reference read **creates** an object | +1 from `GetClassObject`, handed to the destination; +1 kept by the table entry |
+| a reference read **resolves** a known object | +1 for the destination (`AddRef`); the table adds none |
+| the typed helper (`0x005D9730` → `0x005D96C0`) | QIs the result to the requested IID (+1 into the destination) and releases the `cIGZSerializable` pointer (−1): net +1 per successful read; a failed QI releases it and leaves null |
+| the loader reaches an entry (§3.5) | resolves into a local (+1), calls `Read`, releases the local (`0x005D3D58`): net 0 |
+
+So after a load **every object the load created holds exactly one extra reference, owned by the table**, on top of
+the references held by whatever stored the destination pointers. The table drops them all at once when the
+serializer is destroyed, which happens when the **segment that loaded the city is closed** (segment `Close`
+`0x005D20C0` releases the serializer; its destructor `0x005D3800` calls the reset `0x005D3250`, which releases
+every entry). That happens:
+
+1. **At the next save.** `cSC4App::SaveCity` (`0x00455E20`) writes the city through a **new** segment, whose own
+   table holds one reference per object the save registers (writing a reference registers the object,
+   `0x005D43F0`) until that segment is closed at the end of the write (`0x0045641B`). It then unregisters and
+   closes the loaded segment (`0x00456449` → `UnregisterCityDBSegment` `0x00454A10`), which drops the load's
+   references, and registers the saved file as the new city segment (`0x0045662F` → `0x00454B20`). That segment
+   is only opened for reading, and its table stays empty. After a save, the table holds no reference on
+   anything.
+2. **At city close, if no save came first.** `PartialCloseCity` (`0x00454A60`) posts `0x26D31EC2`, calls the
+   city's `Shutdown`, posts `0x26D31EC3`, releases its city pointer and only then unregisters the segment
+   (`0x00454AF3`). So during every subsystem's `Shutdown` in a loaded, unsaved city the table still holds its
+   reference: a subsystem's release in `Shutdown` is **not** the last one, and the objects are destroyed when the
+   segment closes.
+3. **On a failed load** (`0x00455957`), the same way.
+
+Not at the end of the load: `LoadCity` (`0x004555F0`) keeps the segment open, registered with the resource
+manager and the app.
+
+The reset releases the entries in **descending class ID**, and within a class in descending object ID (the
+saved IDs, which are the saving session's addresses). FreeCity4's core does not need to reproduce this order: it
+holds no reference for the game, and its objects are destroyed by their own last release. A glue layer that
+compares reference counts with the original must count the table's reference (one per loaded object) until the
+next save or the city's close.
+
 ### 2.8 Variants
 
 `WriteVariant` writes a `uint32` **marker** (0, or `0xA9BEE9AC` for an object-valued variant) and then a
