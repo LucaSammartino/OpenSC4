@@ -551,3 +551,20 @@ About `docs/specs/crime.md` and its `docs/abi` rows. Ini: `enable = crime` (opti
 - Not compared by the shadow (stated on every line): the number of crimes to commit (needs
   `ResetUnjailedCriminals`, which has side effects), which attempts the police stopped and each crime's type (the
   original's draws), which lots were tried (the lot manager's generator), the crime-effect grid (no interface).
+
+## From the demand glue: capacity maps and population summary (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/demand.md` (§6.3 capacity, `GetLocalPopulationSummary`) and the STLport map layout in
+`docs/abi/allocators.md`. Switches `demand_capacity` and `demand_direct_calls` (both on by default). The glue's
+current answer is in brackets.
+
+- **DQ3:** a NaN or out-of-range summary value: Rust `as i32` saturates and gives 0 for NaN; the game's CRT
+  conversion gives 0x80000000. Which does the original produce? [saturating]
+- **DQ4:** a map with count 0 but a non-empty tree shape. The spec only says "with a count of 0, the map is left
+  untouched". [refused]
+- **DQ5:** the census asks for the profile at every cell, so the capacity walk runs there too, although §6.3 needs
+  only the purpose. Intended? [walks at every cell]
+- **DQ6:** the header colour of a copied capacity map is assumed to be 0. [colour 1 refused]
+- **DQ7:** limits of 16 maps, 128 capacity entries and 4,096 summary nodes. Are larger real maps possible? [refused
+  above them]
+- **DQ8:** which thread calls `GetLocalPopulationSummary`? [unspecified; the first success is logged with its thread]
