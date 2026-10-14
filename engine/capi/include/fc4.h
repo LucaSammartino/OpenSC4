@@ -72,7 +72,6 @@ extern "C" {
  * 27 = adds fc4_protection_shadow_unadjusted_grid (protection.md §2, PR5);
  * 28 = adds the neighbours simulator (fc4_neighbors, fc4_neighbor_deal,
  *      fc4_neighbor_connection) and its shadow (fc4_neighbors_shadow);
- * 29 = adds the building development simulator and growth developers (fc4_development / fc4_growth);
  * 30 = the aura shadow follows the original step by step (fc4_aura_shadow_before_step / _step / _occupant);
  *      fc4_flora_host's obliteration segment callbacks become record streams (§10.3);
  * 33 = adds fc4_power_shadow_message and the power shadow's city start (options `flags`,
@@ -80,8 +79,10 @@ extern "C" {
  *      fc4_plumbing_shadow_city_start and fc4_plumbing_original.pass_counter (plumbing.md
  *      PS3, PS6); the landfill host's insert_landfill_tile and fc4_landfill_state's
  *      game_tiles / game_tile_failures (landfill.md LG3, LG8);
- * 34 = adds the zone manager (fc4_zones, zones.md) and its shadow mode (fc4_zones_create_shadow). */
-#define FC4_ABI_VERSION 34u
+ * 34 = adds the zone manager (fc4_zones, zones.md) and its shadow mode (fc4_zones_create_shadow);
+ * 35 = adds the building development simulator and growth developers (fc4_development / fc4_growth)
+ *      and the development shadow (taken as 29 on its lane; renumbered at merge). */
+#define FC4_ABI_VERSION 35u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
