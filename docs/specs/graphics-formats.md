@@ -215,6 +215,13 @@ The original has no notion of where an entry ends (FS1): it reads every level at
 (below): an entry ends at the first of its attached block (`next`), another entry's header, or `size`, counting
 only positions at or after its pixel start *[choice]*. The bytes it decodes still come from the record, as above.
 
+Acceptance (FS2). The original accepts any layout (§2.7): a truncated entry shows the bytes that follow it, and a
+read past `size` would show heap bytes. FreeCity4 accepts an entry whose levels fit before its end at the aligned
+offsets, or whose levels fit there packed back to back while the aligned layout overruns (the mip-padding case,
+read from the record as above); it rejects an entry whose levels do not fit even packed *[choice]*. Shipped: 167
+entries of the second kind, none of the third. In all 167 the aligned layout overruns the end by exactly 8 bytes,
+and the entry holds the packed levels, in 163 of them followed by 8 bytes of padding.
+
 ### 2.9 Info-only open *[compat]*
 
 When the factory is asked for info only, `OpenInfoOnly` reads the header plus `roundup16(8 × count) + 16` bytes

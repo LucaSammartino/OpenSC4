@@ -2870,9 +2870,14 @@ variant (GF3). The current answer is in brackets.
   `size`-byte buffer, whatever lies there. The bracket's end (attached block, next entry header or `size`, at or after
   the pixel start) is the implementer's choice for the acceptance test, and it reproduces the 167. But the bytes decoded
   past that end are the record's own, not zero (GF9).
-- **FS2:** Q2 rejects what does not fit "except the mip-padding case": how is that case told from a truncated entry?
+- ~~**FS2:** Q2 rejects what does not fit "except the mip-padding case": how is that case told from a truncated entry?
   [if the levels fit packed back to back but the 16-byte-aligned layout overruns, zero-fill; if even the packed levels
-  do not fit, reject. Shipped data: exactly 167 zero-filled, 0 rejected]
+  do not fit, reject. Shipped data: exactly 167 zero-filled, 0 rejected]~~
+  **ANSWERED 2026-10-14** from the exe (`SerialRead` `0x00800860` checks no sizes) and a sweep of all 45,387 shipped
+  entries, and written into graphics-formats §2.8. The original makes no such distinction: it accepts every layout and
+  reads whatever follows. The bracket's test (packed fits, aligned overruns: accept; not even packed: reject) is the
+  implementer's choice and stands. The sweep reproduces it independently: 167 accepted that way, 0 rejected. In every
+  one of the 167 the aligned layout overruns by exactly 8 bytes.
 - **FS3:** A record with `count` = 0 has no frame 0. [rejected]
 - **FS4:** The original checks the `0x7B` palette on frame 0 only. [every `0x7B` frame needs a 256 × 1 palette with
   all 256 entries inside the record]
