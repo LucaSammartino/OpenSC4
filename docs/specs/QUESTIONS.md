@@ -3265,8 +3265,13 @@ step and adds a fallback. The current answer is in brackets.
   It calls `SetDefaultExemplar` (slot 3) directly on the sub-object at +0x20, after the constructor and before `Init`
   and the insert. The bracket cannot work, as run 103 shows. *[choice]* Use the holder at `cISC4LandfillOccupant*` +
   0x20 (= `AsPropertyHolder()` + 0x14), or the layout-free `Read` route in §4.8.1.
-- **LG28:** Does the GZCOM default constructor `0x004774C0` set type `0x6A11BD2B`, as the tile constructor
+- ~~**LG28:** Does the GZCOM default constructor `0x004774C0` set type `0x6A11BD2B`, as the tile constructor
   `0x00477270` does? If not, does InsertOccupant accept the type it leaves? [left as the constructor sets it; the
-  type is logged]
+  type is logged]~~
+  **ANSWERED 2026-10-14** from the exe (default constructor `0x004774C0`, type stored at `0x00477553`; `cSC4Occupant`
+  constructor flag byte at `0x005E9265`) and written into landfill §2.3 and §4.8.1. Yes: it sets type `0x6A11BD2B` like
+  the tile constructor. Flag 4 is set by the base constructor for every occupant, so the two constructors differ only in
+  tile and orientation (the spec's "flag 4 not set" was wrong and is corrected). InsertOccupant never reads the type
+  (LG29). The bracket matches.
 - **LG29:** When does InsertOccupant (`0x0049EF60`) return false: already inserted, not initialised, its box, or its
   type? [each failure is logged with those values]

@@ -182,7 +182,8 @@ An occupant of type **`0x6A11BD2B`** (set by the constructor) with:
 | bounding box | from position | no | `(x−8, y, z−8) … (x+8, y+16, z+8)` metres, recomputed on `Read` and `SetPosition` |
 | base occupant state | | yes | `cSC4Occupant` record (§6.4) |
 
-The constructor also sets occupant flag 4 (`SetFlag(4)`).
+The constructor also calls `SetFlag(4)` (visible). That changes nothing: `cSC4Occupant`'s constructor already sets
+flag 4 for every occupant (`0x005E9265`) (LG28).
 
 ## 3. Agents, messages and cadence
 
@@ -929,11 +930,13 @@ exemplar (`GetKey` and `SetKey`, exemplar slots 11 and 12):
 *[choice]* To build a tile from outside the class, run steps 1–8 in the same order:
 
 1. Create the occupant with GZCOM `CreateInstance(0x8A22BEBE, 0x2A15F262)` (factory `0x004776B0`). This uses
-   the default constructor `0x004774C0`: tile `0x02F10000`, orientation 0, and flag 4 **not** set.
+   the default constructor `0x004774C0`: tile `0x02F10000`, orientation 0, the same type `0x6A11BD2B` (`0x00477553`)
+   and, from the `cSC4Occupant` constructor, flag 4 (LG28). It differs from the tile constructor only in the tile and
+   the orientation.
 2. Attach the exemplar with `SetDefaultExemplar(ex)` (slot 3) on the holder at `cISC4LandfillOccupant*` + 0x20, as the
    original does (LG27). QueryInterface cannot reach it (above).
 3. Call `SetTileID(tile)`. It is now harmless, because the key already has that instance.
-4. Call `SetOrientation(orientation)` (slot 8) and `SetFlag(4)`, then continue from step 4.
+4. Call `SetOrientation(orientation)` (slot 8), then continue from step 4 (its `SetFlag(4)` is a no-op, LG28).
 
 The layout-free alternative is the load path: QI the new occupant for `cIGZSerializable` (`0xE4FDA3D4`) and `Read` a
 §6.4 record from a memory stream, with the holder key (group `0x07BDDF1C`, type `0x6534284A`, instance `tile`) and a
