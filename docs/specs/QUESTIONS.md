@@ -2820,8 +2820,12 @@ exe and the shipped data alone.
 - **GF11 — §3.10, §3.11:** consumers of PROP (`skeleton`/`suit` pairs on 58 people models) and REGP (`fx_…` names on
   1,810 models), and the meaning of REGP's seven floats. [inferred: effect attachment points, position and
   orientation; not traced]
-- **GF12 — §2.4:** does anything outside the 3D texture path read the FSH centre fields (non-zero in 722 entries) or
-  bits 12–27 of `+0x0C` (non-zero in 294)? [none found]
+- ~~**GF12 — §2.4:** does anything outside the 3D texture path read the FSH centre fields (non-zero in 722 entries) or
+  bits 12–27 of `+0x0C` (non-zero in 294)? [none found]~~
+  **ANSWERED 2026-10-14** from the exe (entry-header decoder `0x00808D70` and its callers `0x008008EE`,
+  `0x00808FBB`, `0x008090A0`) and written into graphics-formats §2.4. The decoder never copies the centre fields or bits
+  12–27; it keeps code, width, height, the directory tag, the pixel pointer, A and M. No other code parses FSH. The
+  bracket (none) matches.
 
 ## From the zones glue and shadow (filed by the coordinator from the `zoneglue` lane's report, 2026-10-14)
 

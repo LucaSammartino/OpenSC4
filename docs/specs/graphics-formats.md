@@ -107,8 +107,9 @@ offset size  field
 - **A** is used only by DXT1 (code `0x60`): A ≠ 0 selects the "DXT1 with 1-bit alpha" texture format, A = 0 plain
   DXT1 (`0x00800690`, §2.10). It is stored as the low 16 bits of the sign-extended value, so any non-zero 12-bit
   value counts. For every other code A is ignored.
-- Bits 12–27 and the centre fields are ignored by the 3D path. Other subsystems may read the centre fields through
-  their own code; nothing found does *[inferred]*.
+- Bits 12–27 and the centre fields are read by nothing (GF12). The one entry-header decoder (`0x00808D70`) keeps the
+  code, width, height, the entry's directory tag, the pixel pointer, A (bits 0–11) and M (bits 28–31), and its only
+  callers are `SerialRead`, `Open` and `OpenInfoOnly`; `cS3DShapeFile` is the only `SHPI` parser (§2.1).
 
 ### 2.5 Attached blocks and palettes *[compat]*
 
@@ -976,3 +977,4 @@ Also filed in QUESTIONS.md, "From the graphics formats spec", GF1–GF12.
 10. GF10: semantics of ANIM frame rate, mode, flags and displacement.
 11. GF11: consumers of PROP and REGP, and the meaning of REGP's 7 floats.
 12. GF12: whether anything reads the FSH centre fields or the bits 12–27 of `+0x0C`.
+    **Answered** (§2.4): nothing reads them.
