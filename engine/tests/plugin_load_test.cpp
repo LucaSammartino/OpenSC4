@@ -1084,7 +1084,7 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
         WriteTextFile(ini, "[autotest]\nautotest_save_after_months = 2\nautotest_save_fast = 0\nobserve = 1\n");
     } else if (scenario == "panic") {
         WriteTextFile(ini, "[autotest]\n");
-    } else {  // stalled: passthrough (the observer alone)
+    } else {  // stalled, ended: passthrough (the observer alone)
         WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 60\n");
     }
     HMODULE h = LoadLibraryA(dll.c_str());
@@ -1140,6 +1140,13 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
             ForeignFault();  // then keep ticking until the DLL ends the process
         }
         if (scenario == "stalled" && ms >= 500) Sleep(INFINITE);  // the main thread stops ticking
+        if (scenario == "ended" && ms >= 500) {
+            // The game shuts the city down by itself (a bankrupt city) long
+            // before the 60 s deadline: the run ends at PostCityShutdown.
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(0x26D31EC2u)), nullptr);
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(0x26D31EC3u)), nullptr);
+            return 3;  // not reached: the DLL terminates the process
+        }
         if (ms > 60000) return 3;
     }
 }
@@ -1825,6 +1832,22 @@ int main(int argc, char** argv) {
               std::string::npos);
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the watchdog thread") != std::string::npos);
         CHECK(text.find("for 4294967") == std::string::npos);  // no unsigned underflow in any duration
+
+        // 3b. Ended (passthrough): the game shuts the city down 0.5 s into a 60 s
+        // run; verdict "ended" at its PostCityShutdown, with the last day played.
+        CHECK(RunChild(dllArg + "--autotest-child-ended", 30000, &ms) == 0);
+        std::printf("autotest ended child: %lu ms\n", static_cast<unsigned long>(ms));
+        CHECK(ms < 15000);
+        text = ReadFile(log);
+        CHECK(text.find("autotest: WARNING the game is shutting the city down by itself 0 s after the clock started, "
+                        "before the 60 s deadline (julian 2451600)") != std::string::npos);
+        CHECK(text.find("autotest: the game ended the city before the deadline (PostCityShutdown)") !=
+              std::string::npos);
+        CHECK(text.find("AUTOTEST VERDICT: ended (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, "
+                        "ref_warnings=0, julian=2451600, switches_off=-, disabled=simulator,budget)") !=
+              std::string::npos);
+        CHECK(text.find("autotest: TerminateProcess(exit code 0) from the observer (city ended)") != std::string::npos);
+        CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
 
         // A Rust panic in the core: reported in the log (message, location,
         // backtrace, the last interface calls) before the abort.

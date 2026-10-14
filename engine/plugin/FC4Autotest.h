@@ -61,6 +61,12 @@ int AutotestOnTick();
 // the verdict as at the deadline (unless one was written), then
 // TerminateProcess like every autotest ending.
 [[noreturn]] void AutotestFinish(const char* reason, const char* from);
+// PreCityShutdown (post = false) and PostCityShutdown (post = true) seen by the
+// observer (main thread). A shutdown the autotest did not ask for, after the
+// clock started and before the verdict, ends the run with verdict "ended": at
+// PostCityShutdown it quits the game (autotest_end = quit; the verdict follows
+// at PostSystemServiceShutdown) or writes the verdict and terminates.
+void AutotestOnCityShutdown(bool post);
 // The director's last shutdown hook (main thread): with autotest_end = quit,
 // writes the verdict once the requested quit got this far.
 void AutotestOnShutdownComplete(const char* hook);
