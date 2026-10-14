@@ -331,6 +331,13 @@ Score(type, x, z):
     return record.table[e][m] × (1/255 as f32)        (x87 result in ST0)
 ```
 
+*[compat]* **The moisture value's width** (verified, FQ5). The weather's `GetMoistureType` (slot 19, `0x007256D0`)
+returns its own `GetMoistureValue(x, z)` (slot 17, `0x00726150`: a zero-extended byte, 0 off the grid) shifted
+right by 4, so EAX is always 0..15 with the upper 24 bits zero. `Score` (`0x006B0939`–`0x006B095B`) and
+`GetBestFloraTypeForLocation` add the whole EAX to `16·e` as the byte offset into the 256-byte table. Against the
+original weather, reading only AL therefore gives the same index; a FreeCity4 weather must still return the
+clean 32-bit value (§13.2), because original callers use all of EAX.
+
 **No weather simulator.** `Init` takes the weather from the game's cached service pointer and holds it only if
 it is non-null (`Shutdown` releases it only if non-null), but neither `Score` (`0x006B0900`) nor
 `GetBestFloraTypeForLocation` (`0x006B07B0`) tests it: both call `GetMoistureType` through it, so without a

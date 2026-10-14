@@ -1161,7 +1161,12 @@ part of §8 is not compared). The glue's current answer is in brackets.
   flora.md §6.4.1. **Same set; only the order differs, and nothing observes it.** Slot 37 is slot 36 with the
   manager's one-type filter; slot 36 calls only the filter's slot 3 `bool IsOccupantIncluded(cISC4Occupant*)`
   (pop 4, AL). A network occupant that does not answer `cISC4NetworkOccupant` does not block.
-- **FQ5:** weather `GetMoistureType` is read as a `uint8_t` in AL (`FC4Interfaces.h`). Right? [AL]
+- ~~**FQ5:** weather `GetMoistureType` is read as a `uint8_t` in AL (`FC4Interfaces.h`). Right? [AL]~~
+  **ANSWERED 2026-10-14** from the exe (`GetMoistureType` `0x007256D0`, `GetMoistureValue` `0x00726150`, the flora
+  reader `0x006B0939`) and written into flora.md §6.2. **Right for reading the original weather**: it returns
+  `value >> 4` from a zero-extended byte, so EAX is 0..15 with the upper bits zero and AL loses nothing. The
+  declaration should still be a 32-bit return: original flora uses all of EAX as the table offset, so a
+  FreeCity4 weather must return a clean EAX (already in §13.2).
 - **FQ6:** "occupant in a visited block" (shadow) uses a closed box, edges included, like the host's box query.
   [closed]
 - **FQ7:** the shadow takes the elevation scale from the tuning exemplar's `0xC9DBDD02`; the record does not save
