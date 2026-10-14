@@ -10,7 +10,7 @@
 //! streams, re-entrant messages and the grid shadow.
 
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::{c_char, c_void};
 
 use fc4_core::protection::{msg, prop, shipped_tuning, ProtectionKind, AGENT_NAME, IID_DISPATCH_SOURCE};
@@ -70,6 +70,10 @@ struct Game {
     air: RefCell<Vec<&'static str>>,
     dispatches: RefCell<Vec<(u32, fc4_protection_dispatch_info)>>,
     capacities: RefCell<Vec<u32>>,
+    /// Grids the game made for a saved reference whose own record it has not
+    /// read yet: their geometry is still 0 × 0 (the in-game fire grid at
+    /// fire's `Read`).
+    unread: RefCell<HashSet<u64>>,
     /// Re-entrancy test: post() delivers a day message to this handle.
     target: Cell<usize>,
     reenter: Cell<u32>,
@@ -145,8 +149,12 @@ fn geometry() -> fc4_grid_geometry {
         inv_width_z: 1.0 / 32.0,
     }
 }
-unsafe extern "C" fn g_geometry(_: *mut c_void, _t: u64, out: *mut fc4_grid_geometry) {
-    *out = geometry();
+unsafe extern "C" fn g_geometry(u: *mut c_void, t: u64, out: *mut fc4_grid_geometry) {
+    *out = if game(u).unread.borrow().contains(&t) {
+        fc4_grid_geometry::default()
+    } else {
+        geometry()
+    };
 }
 unsafe extern "C" fn g_get(u: *mut c_void, t: u64, kind: u32, x: i32, z: i32) -> f64 {
     let grids = game(u).grids.borrow();
@@ -875,6 +883,100 @@ fn save_round_trip_and_read_before_init() {
     }
     for t in &adj_unadj {
         assert_eq!(g.grids.borrow()[t].refs, 0);
+    }
+}
+
+/// A loaded city whose grid records come after the simulator's own record
+/// (the in-game fire case: `Read (fire): tracts=0x0` with a non-null grid,
+/// then `Init (fire): tracts=0x0 tractsPerDay=0` and no daily cycle for the
+/// whole run). At `Read` both grids are still the empty objects the game made
+/// for the refs; the game reads their records before `Init`. `Init` takes the
+/// geometry as it is then (§4.1 base init steps 2 and 6, §11 "recomputed on
+/// load"), for fire and police, and does not rebuild the adjusted grid (§11).
+#[test]
+fn init_takes_the_geometry_of_grids_read_after_the_simulator() {
+    for kind in [0u32, 1] {
+        let pk = if kind == 0 {
+            ProtectionKind::Fire
+        } else {
+            ProtectionKind::Police
+        };
+        let g = Game::default();
+        g.station(STATION, pk, 100, 20, 96.0, [176.0, 0.0, 176.0], 2);
+        let p = create(&g, kind);
+        let mut out = Out::default();
+        let (adj, unadj) = unsafe {
+            assert!(fc4_protection_init(p));
+            insert(p, STATION);
+            let s = state(p);
+            let os = ostream(&mut out);
+            assert!(fc4_protection_write(p, &os));
+            assert!(fc4_protection_shutdown(p));
+            fc4_protection_destroy(p);
+            (s.adjusted_grid, s.unadjusted_grid)
+        };
+        let saved = g.grid_values(adj);
+        assert!(saved.iter().any(|&v| v > 0.0));
+        // The stream hands each reference over with one reference. Both
+        // grids are the game's empty objects until their records are read.
+        for &(t, _) in &out.refs {
+            if t == adj || t == unadj {
+                g.grids.borrow_mut().get_mut(&t).unwrap().refs += 1;
+            } else if t != 0 {
+                *g.refs.borrow_mut().entry(t).or_insert(0) += 1;
+            }
+        }
+        g.unread.borrow_mut().extend([adj, unadj]);
+
+        let q = create(&g, kind);
+        let mut inp = In::new(&out.bytes);
+        unsafe {
+            let is = istream(&mut inp);
+            assert!(fc4_protection_read(q, &is));
+            // What the plugin's Read status line sees (and the core must not
+            // keep): the grid is there, its geometry not yet.
+            let s = state(q);
+            assert_eq!(s.loaded, 1, "kind {kind}");
+            assert_eq!(s.adjusted_grid, adj, "kind {kind}");
+            assert_eq!((s.count_x, s.count_z, s.tracts), (0, 0, 0), "kind {kind}");
+            assert_eq!(s.tracts_per_day, 0, "kind {kind}");
+
+            // The game reads the grids' records, then calls Init.
+            g.unread.borrow_mut().clear();
+            assert!(fc4_protection_init(q));
+            let s = state(q);
+            assert_eq!(s.initialized, 1, "kind {kind}");
+            assert_eq!(
+                (s.count_x, s.count_z, s.tracts),
+                (TRACTS, TRACTS, (TRACTS * TRACTS) as u32),
+                "kind {kind}"
+            );
+            // 16 × 16 tracts: fire 256 / 50 = 5, police 256 / 40 = 6.
+            assert_eq!(s.tracts_per_day, TRACTS * TRACTS / pk.params().period, "kind {kind}");
+            assert!(s.tracts_per_day > 0, "kind {kind}");
+            // §11: the adjusted grid is whatever was saved.
+            assert_eq!(g.grid_values(adj), saved, "kind {kind}");
+            assert!(s.covered_tracts > 0, "kind {kind}");
+
+            // The daily cycle runs. The saved iterator was never reset, so
+            // the first day ends a cycle at once (§4.1 base init step 2),
+            // then visits tracts-per-day tracts (every cell is zoned here).
+            let posts = g.posts.borrow().len();
+            let day = fc4_protection_message {
+                msg_type: msg::SIM_NEW_DAY,
+                ..Default::default()
+            };
+            assert!(fc4_protection_do_message(q, &day));
+            let s = state(q);
+            assert_eq!(s.zoned, s.tracts_per_day, "kind {kind}");
+            assert_eq!(
+                g.posts.borrow()[posts..].to_vec(),
+                vec![(pk.params().msg_cycle, 0)],
+                "kind {kind}"
+            );
+            assert!(fc4_protection_shutdown(q));
+            fc4_protection_destroy(q);
+        }
     }
 }
 

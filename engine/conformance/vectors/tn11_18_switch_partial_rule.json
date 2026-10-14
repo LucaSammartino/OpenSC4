@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "name": "tn11_18_switch_partial_rule",
+  "spec": ["traffic-network 4.7.1", "traffic-network 4.7.2", "traffic-network 12"],
+  "description": "TN1 (4.7.1 step 1, 4.7.2): 0xE90E25A1 is read as raw bytes, GetCount() bytes of the variant's data, so its byte size is the element count. A 16 x 16 city; each lot is a single cell with an unannounced Street piece (0 -> 2, 2 -> 0) that only a DoConnectionsChanged over the lot (R = the lot grown by 2, 4.2) would pick up; the lots are 5 cells apart so no R reaches another lot. Lot 7 at (1,1): a u8 array of 6 bytes (00 80 01 01 00 80) plus a ferry type 0: DoLotActivated returns at once, so no switch (next ID stays 1, both grids 0), no ferry activation, no rebuild (no record at (1,1)) and no step 7 (continues = false). Lot 8 at (6,1): a u32 array of 2 entries has count 2, the same. Lot 9 at (11,1): a u32 array of 4 entries has count 4, so only its first 4 bytes are copied: one rule, entry 0 whole (00 80 01 01: kind 0, side ROT[0][0] = 2, Car -> Car); switch 1 is created and the lot rebuilt (the piece gets its car record). Lot 10 at (1,8): a scalar has count 0: switch 2 with no rules. Lot 11 at (6,8): a building with neither property: no switch and no rebuild, but step 7 follows. Lot 12 at (11,8) has no building: nothing.",
+  "steps": [
+    {"op": "tn_env", "cells": [16, 16], "tuning": "shipped"},
+    {"op": "tn_init"},
+    {"op": "tn_occupant", "id": 1, "cell": [1, 1], "types": [3], "conns": [[0, 2], [2, 0]]},
+    {"op": "tn_occupant", "id": 2, "cell": [6, 1], "types": [3], "conns": [[0, 2], [2, 0]]},
+    {"op": "tn_occupant", "id": 3, "cell": [11, 1], "types": [3], "conns": [[0, 2], [2, 0]]},
+    {"op": "tn_occupant", "id": 4, "cell": [6, 8], "types": [3], "conns": [[0, 2], [2, 0]]},
+
+    {"op": "tn_occupant", "id": 40, "kind": "building", "cell": [1, 1], "props": {"0xE90E25A1": {"u8": [0, 128, 1, 1, 0, 128]}, "0x0BD86FD3": {"u8": 0}}},
+    {"op": "tn_lot", "id": 7, "rect": [1, 1, 1, 1], "building": 40},
+    {"op": "tn_call", "method": "lot_activated_outcome", "args": [7], "expect": {"outcome": "returned", "switch_created": false, "continues": false}},
+    {"op": "tn_expect_state", "state": {"next_switch_id": 1, "switch_ids": [], "terminal_count": 0}},
+    {"op": "tn_expect_cell", "cell": [1, 1], "expect": {"switch_id": 0, "switch_mode": 0, "records": [], "car": null}},
+
+    {"op": "tn_occupant", "id": 41, "kind": "building", "cell": [6, 1], "props": {"0xE90E25A1": {"u32": ["0x01018000", "0x01018000"]}}},
+    {"op": "tn_lot", "id": 8, "rect": [6, 1, 6, 1], "building": 41},
+    {"op": "tn_call", "method": "lot_activated_outcome", "args": [8], "expect": {"outcome": "returned", "switch_created": false, "continues": false}},
+    {"op": "tn_expect_state", "state": {"next_switch_id": 1, "switch_ids": []}},
+    {"op": "tn_expect_cell", "cell": [6, 1], "expect": {"switch_id": 0, "records": []}},
+
+    {"op": "tn_occupant", "id": 42, "kind": "building", "cell": [11, 1], "props": {"0xE90E25A1": {"u32": ["0x01018000", "0x02018000", "0x03018000", "0x04018000"]}}},
+    {"op": "tn_lot", "id": 9, "rect": [11, 1, 11, 1], "building": 42},
+    {"op": "tn_call", "method": "lot_activated_outcome", "args": [9], "expect": {"outcome": "done", "switch_created": true, "continues": true}},
+    {"op": "tn_expect_switch", "id": 1, "switch": {"building": 42, "to_mask": 2, "flags": 0, "rules": [{"kind": 0, "side": [false, false, true, false], "from": 1, "to": 1}]}},
+    {"op": "tn_expect_cell", "cell": [11, 1], "expect": {"switch_id": 1, "switch_mode": 2, "car": {"net": 1, "type": 3}}},
+
+    {"op": "tn_occupant", "id": 43, "kind": "building", "cell": [1, 8], "props": {"0xE90E25A1": {"u32": "0x01018000"}}},
+    {"op": "tn_lot", "id": 10, "rect": [1, 8, 1, 8], "building": 43},
+    {"op": "tn_call", "method": "lot_activated_outcome", "args": [10], "expect": {"outcome": "done", "switch_created": true, "continues": true}},
+    {"op": "tn_expect_switch", "id": 2, "switch": {"building": 43, "to_mask": 0, "flags": 0, "rules": []}},
+
+    {"op": "tn_occupant", "id": 44, "kind": "building", "cell": [6, 8]},
+    {"op": "tn_lot", "id": 11, "rect": [6, 8, 6, 8], "building": 44},
+    {"op": "tn_call", "method": "lot_activated_outcome", "args": [11], "expect": {"outcome": "done", "switch_created": false, "continues": true}},
+    {"op": "tn_expect_cell", "cell": [6, 8], "expect": {"switch_id": 0, "records": []}, "note": "no rebuild without either property"},
+
+    {"op": "tn_lot", "id": 12, "rect": [11, 8, 11, 8]},
+    {"op": "tn_call", "method": "lot_activated_outcome", "args": [12], "expect": {"outcome": "no_building", "switch_created": false, "continues": false}},
+
+    {"op": "tn_expect_state", "state": {"next_switch_id": 3, "switch_ids": [1, 2], "terminal_count": 0, "refs": {"42": 1, "43": 1}}}
+  ]
+}

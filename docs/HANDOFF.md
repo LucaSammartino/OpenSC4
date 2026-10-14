@@ -47,10 +47,14 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >     **pathfinder core** (`36ababe`; 28 `pf11_*` vectors; PF1–PF15);
 >   - RE: `re-abi` (`4611f56`: STLport map/set layout, map `operator[]` direct call, BuildingProfile layout);
 >   - harness: observe line shows the power getters (`7c94135`), `tools/regress.ps1` + `tools/run_summary.ps1`,
->     and **autotest verdict `ended`** when the game shuts the city down by itself (`0173fe3`; run 69 had none).
+>     **autotest verdict `ended`** when the game shuts the city down by itself (`0173fe3`; run 69 had none),
+>     `tools/compare_soaks.ps1` (two soaks side by side), and an `ingame_run` verdict read race fixed (`e5fd34a`);
+>   - **protection fix** (`f7a9f16`): a host grid keeps its geometry only once non-empty (fire was 0×0 after a load;
+>     pollution had the same latent fault; HG1 filed);
+>   - **answers applied** (`4619a6f`): PG14 `dirtyWater`, TN1–TN20 in the traffic network core (TN21–TN25 filed).
 > - **In game this session after the merges:** run 69 (soak 2, 8 replacements): the game ended the city in 2057,
->   bankrupt (funds −103,047), with power requirement climbing while consumers fell; next step, the same soak with
->   the original power simulator. Run 70 (`regress r941c`): PASS; **protection shadow 194/194 clean (first in-game
+>   bankrupt (funds −103,047). **Runs 71/72 settle it: with our power and with the original's, the city follows the
+>   same path and ends in 2060-12 at about −100k funds** (aging plants, no player); our power tracks the original. Run 70 (`regress r941c`): PASS; **protection shadow 194/194 clean (first in-game
 >   protection run)**; **but the fire replacement's grid is 0×0 after a load, so its cycle never runs** (lane below).
 >   Crime shadow clean (0 mismatched cells, hotspot equal) in the first crime run.
 > - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lanes in
@@ -59,12 +63,10 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >     `python tests/gen_abi_entries.py`, fix the plugin switch-count checks in `plugin_load_test`);
 >   - traffic simulator core (M5), on the merged pathfinder;
 >   - REH core (education/health), also applying RS7–RS17 to the residential core;
->   - answers-apply: pollution PG14 (`dirtyWater`) and the traffic network TN1–TN20 answers (stays out of the
->     traffic simulator's §4.14/§6 parts);
->   - protection fix: the fire grid's geometry taken at Init, not Read (and the same check on every other glue);
+>   - **power shadow** (`power_shadow = 1`): our power core on the original's live inputs, to settle run 69;
 >   - RE `re-answers2` (CQ, PR, DQ, PG4–PG13) and `re-answers3` (PF, ZQ, LF, NB, EX).
 > - **Open follow-ups:**
->   - original-power soak versus run 69; possibly a power shadow lane;
+>   - grid shadows still missing for the M3 exit: land value, flammability, plumbing (power's is in a lane);
 >   - residential glue (after REH) and zones glue (M4); neighbours glue;
 >   - after each merge that stages a new DLL: `tools/regress.ps1 -Tag <tag>` (all shadows at once + all
 >     replacements at once, one table; `tools/run_summary.ps1 -Log <log>` summarises any single run).

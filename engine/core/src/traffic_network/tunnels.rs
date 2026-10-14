@@ -81,9 +81,9 @@ impl Cx<'_> {
 
     /// `DoTunnelChanged` (§4.8). **Remove** erases the portal's key; the
     /// rebuild that follows clears wormhole bit 2. **Insert** computes the
-    /// record and stores it under the portal's key (replacing an existing
-    /// record [choice: `operator[]` assignment]). Returns whether a record
-    /// was written.
+    /// record and stores it under the portal's key, overwriting an existing
+    /// record (find-or-insert, then the whole record copied over it: TN11).
+    /// Returns whether a record was written.
     pub(crate) fn tunnel_changed(&mut self, occ: u64, removed: bool) -> bool {
         let (x, z) = self.occupant_cell(occ);
         let key = key32(x, z);
@@ -92,8 +92,8 @@ impl Cx<'_> {
             return false;
         }
         let h = self.h;
-        // Step 1: the paired portal and its cell. Without one, no record
-        // [choice].
+        // Step 1: the paired portal and its cell. Without one, return: no
+        // record is created or changed (TN11).
         let Some(other) = h.tunnel_paired_portal(occ) else {
             return false;
         };
