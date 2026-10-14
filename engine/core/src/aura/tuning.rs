@@ -102,6 +102,23 @@ fn curve(h: &PropertyHolder, id: u32) -> Option<ResponseCurve> {
     props::curve(h, id).filter(|c| !c.is_empty())
 }
 
+/// One transient type's {magnitude, radius} (§10 "Transient tuning in
+/// detail"). The original copies the variant's raw 32-bit words and reads
+/// `v[0]`, `v[1]` unchecked (a crash for a scalar or an empty array, garbage
+/// past a one-value array, integer bits taken as floats). [choice] Only a
+/// Float32 array of at least 2 values is used (extra values ignored: the raw
+/// copy reads the same numbers); anything else keeps {0, 0}, as if the
+/// property were missing.
+fn transient_pair(v: Option<&Variant>) -> (f32, f32) {
+    let Some(Variant::Array { elem, items }) = v else {
+        return (0.0, 0.0);
+    };
+    match items.as_slice() {
+        [Elem::F32(magnitude), Elem::F32(radius), ..] if *elem == mem::FLOAT32 => (*magnitude, *radius),
+        _ => (0.0, 0.0),
+    }
+}
+
 impl AuraTuning {
     /// Deletes every curve (§4.2).
     pub fn delete_curves(&mut self) {
@@ -142,10 +159,9 @@ impl AuraTuning {
         self.tax_change = curve(h, prop::TAX_CHANGE_CURVE);
         self.value_wealth = curve(h, prop::VALUE_WEALTH_CURVE);
         for (i, &id) in prop::TRANSIENT.iter().enumerate() {
-            let v = props::i64s(h, id).unwrap_or_default();
-            let at = |k: usize| v.get(k).copied().unwrap_or(0) as i32;
-            self.transient_magnitude[i] = at(0) as f32;
-            self.transient_radius[i] = at(1) as f32;
+            let (magnitude, radius) = transient_pair(h.get(id));
+            self.transient_magnitude[i] = magnitude;
+            self.transient_radius[i] = radius;
         }
         self.hotspot = match props::i64s(h, prop::HOTSPOT) {
             Some(v) if v.len() == 3 => [v[0] as i32, v[1] as i32, v[2] as i32],
@@ -228,10 +244,12 @@ pub fn shipped_tuning() -> PropertyHolder {
         prop::VALUE_WEALTH_CURVE,
         curve(&[(-2.0, 5.0), (-1.0, 3.0), (0.0, 0.0), (1.0, -3.0), (2.0, -5.0)]),
     );
-    h.add(prop::TRANSIENT[0], s32s(&[-20, 128]));
-    h.add(prop::TRANSIENT[1], s32s(&[3, 32]));
-    h.add(prop::TRANSIENT[2], s32s(&[25, 128]));
-    h.add(prop::TRANSIENT[3], s32s(&[0, 0]));
+    // Float32 arrays of 2, as shipped (§10).
+    let f32s = |v: &[f32]| Variant::array(mem::FLOAT32, v.iter().map(|&x| Elem::F32(x)).collect());
+    h.add(prop::TRANSIENT[0], f32s(&[-20.0, 128.0]));
+    h.add(prop::TRANSIENT[1], f32s(&[3.0, 32.0]));
+    h.add(prop::TRANSIENT[2], f32s(&[25.0, 128.0]));
+    h.add(prop::TRANSIENT[3], f32s(&[0.0, 0.0]));
     h.add(prop::HOTSPOT, s32s(&[-50, 3, 4]));
     h.add(
         prop::RIOT_CURVE,
@@ -269,14 +287,48 @@ mod tests {
         );
         h.add(prop::PARK_CURVE, Variant::array(mem::FLOAT32, vec![]));
         h.add(prop::CRIME_CURVE, Variant::Scalar(Elem::F32(3.0)));
-        h.add(prop::TRANSIENT[0], Variant::array(mem::SINT32, vec![Elem::I32(9)]));
+        h.add(prop::TRANSIENT[0], Variant::array(mem::FLOAT32, vec![Elem::F32(9.0)]));
         t.read(&h);
         assert_eq!((t.long_decay, t.short_decay), (0.6, 0.4));
         assert_eq!(t.base_aura, [3, 4, 5], "kept when absent");
         assert_eq!(t.hotspot, DEFAULT_HOTSPOT);
         assert!(t.park.is_none(), "an empty curve is absent [choice]");
         assert!(t.crime.is_none() && t.riot.is_none() && t.tax_change.is_none());
-        assert_eq!((t.transient_magnitude[0], t.transient_radius[0]), (9.0, 0.0));
+        assert_eq!(
+            (t.transient_magnitude[0], t.transient_radius[0]),
+            (0.0, 0.0),
+            "one Float32 value: {{0, 0}} [choice] (AU2)"
+        );
         assert_eq!(t.transient_magnitude[1], 0.0, "reset before each read");
+    }
+
+    /// §10 "Transient tuning in detail" (AU2): only a Float32 array of at
+    /// least 2 values is used; every other shape keeps {0, 0}.
+    #[test]
+    fn transient_tuning_shapes() {
+        let f = |v: &[f32]| Variant::array(mem::FLOAT32, v.iter().map(|&x| Elem::F32(x)).collect());
+        let cases: [(Variant, (f32, f32)); 7] = [
+            (f(&[-20.0, 128.0]), (-20.0, 128.0)),
+            (f(&[3.0, 32.0, 99.0]), (3.0, 32.0)),
+            (f(&[9.0]), (0.0, 0.0)),
+            (f(&[]), (0.0, 0.0)),
+            (Variant::Scalar(Elem::F32(5.0)), (0.0, 0.0)),
+            (
+                Variant::array(mem::SINT32, vec![Elem::I32(-20), Elem::I32(128)]),
+                (0.0, 0.0),
+            ),
+            (
+                Variant::array(mem::UINT32, vec![Elem::U32(25), Elem::U32(128)]),
+                (0.0, 0.0),
+            ),
+        ];
+        for (v, want) in cases {
+            let mut h = PropertyHolder::new();
+            h.add(prop::TRANSIENT[2], v.clone());
+            let mut t = AuraTuning::default();
+            t.read(&shipped_tuning());
+            t.read(&h);
+            assert_eq!((t.transient_magnitude[2], t.transient_radius[2]), want, "{v:?}");
+        }
     }
 }

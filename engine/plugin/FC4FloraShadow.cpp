@@ -389,7 +389,7 @@ void TakeCensus(Census& c, bool inputs) {
         e.bbox_max[1] = mx.fY;
         e.bbox_max[2] = mx.fZ;
         if (inputs) {
-            e.moisture = g_d.weather ? static_cast<uint32_t>(AsGame(g_d.weather)->GetMoistureType(pos.fX, pos.fZ)) : 0;
+            e.moisture = g_d.weather ? AsGame(g_d.weather)->GetMoistureType(pos.fX, pos.fZ) : 0;
             e.altitude = g_d.terrain ? g_d.terrain->GetAltitude(pos.fX, pos.fZ) : 0.0f;  // compiled slot 13
         }
         c.entries.push_back(e);

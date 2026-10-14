@@ -13,6 +13,7 @@
 
 #include "cFC4Simulator.h"
 
+#include "FC4AuraShadow.h"
 #include "FC4BudgetShadow.h"
 #include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
@@ -333,6 +334,8 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
     // plumbing simulator's SimIdle / SimNewDay / SimNewMonth deliveries.
     // The residential shadow (opt-in, FC4ResidentialShadow.h) wraps the
     // original residential simulator's SimNewDay deliveries.
+    // The aura shadow (opt-in, FC4AuraShadow.h) wraps the original aura
+    // simulator's SimIdle / SimNewDay / SimNewMonth deliveries.
     bool finished = false;
     if (!fc4::BudgetShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::DemandShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
@@ -343,6 +346,7 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
         !fc4::PowerShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::PlumbingShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::ResidentialShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
+        !fc4::AuraShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::NeighborsShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) {
         finished = target->DoMessage(m);
     }
@@ -662,25 +666,33 @@ void cFC4Simulator::RegisterCheats() {
     cIGZCheatCodeManager* cm = sc4->GetCheatCodeManager();
     if (cm != nullptr && cm->QueryInterface(kIID_cIGZCheatCodeManager, reinterpret_cast<void**>(&cheatMgr_))) {
         FC4_ACQUIRED(cheatMgr_, "QueryInterface");
+        // Spec §9 step 9 (flora.md §4.1 step 11, FQ11): each cheat is
+        // subscribed with its own ID, never 0. The manager delivers a cheat
+        // to the pairs whose ID equals it or is 0, so 0 would also deliver
+        // every other cheat; a pair already present is refused.
+        cIGZMessageTarget2* target = static_cast<cIGZMessageTarget2*>(this);
         cheatMgr_->RegisterCheatCode(kCheatFPS, cRZBaseString("FPS"));
+        cheatMgr_->AddNotification2(target, kCheatFPS);
         if (sc4->GetDebugFunctionalityEnabled()) {
             cheatMgr_->RegisterCheatCode(kCheatSimDate, cRZBaseString("SimDate"));
+            cheatMgr_->AddNotification2(target, kCheatSimDate);
             simDateCheatRegistered_ = true;
         }
-        // [choice] One subscription covers both cheats: the SDK documents the
-        // message-ID argument as unused, so subscribing twice could double-deliver.
-        cheatMgr_->AddNotification2(static_cast<cIGZMessageTarget2*>(this), 0);
     }
     FC4_RELEASE(sc4);
 }
 
 void cFC4Simulator::UnregisterCheats() {
     if (cheatMgr_ == nullptr) return;
+    // Spec §9 Shutdown step 1 (FQ11): the same (target, ID) pairs as Init.
+    cIGZMessageTarget2* target = static_cast<cIGZMessageTarget2*>(this);
     cheatMgr_->UnregisterCheatCode(kCheatFPS);
-    if (simDateCheatRegistered_) cheatMgr_->UnregisterCheatCode(kCheatSimDate);
+    cheatMgr_->RemoveNotification2(target, kCheatFPS);
+    if (simDateCheatRegistered_) {
+        cheatMgr_->UnregisterCheatCode(kCheatSimDate);
+        cheatMgr_->RemoveNotification2(target, kCheatSimDate);
+    }
     simDateCheatRegistered_ = false;
-    // [choice] Also unsubscribe so the manager never calls a dead object.
-    cheatMgr_->RemoveNotification2(static_cast<cIGZMessageTarget2*>(this), 0);
     FC4_RELEASE(cheatMgr_);
     cheatMgr_ = nullptr;
 }

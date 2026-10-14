@@ -121,9 +121,10 @@
 //!   `DoBuildingChanged` appends a health-affecting building to it, and state
 //!   0 appends every entry to the health-affecting list and clears it.
 //! - **`Read`** (§9.2) accepts every version. A stream error or a damaged
-//!   record (vector counts other than 7 / 3, a state above 15, P = 0 or P >
-//!   256) returns false and leaves the simulator as it was (RS9, RS11, RS14,
-//!   RS15 *[choice]*; see `record.rs`). A list count of 0 or ≥
+//!   record (vector counts other than 7 / 3, a state above 15, P, E or the
+//!   loaded R$ population grid's tract size outside 1…256 as signed) returns
+//!   false and leaves the simulator as it was (RS9, RS11, RS14, RS15, EH14
+//!   *[choice]*; see `record.rs`). A list count of 0 or ≥
 //!   [`MAX_LIST_COUNT`] reads no references.
 //! - **Histograms** (§9.3 *[choice]*): zeroed at construction, so a save
 //!   taken during state 4 gives that month's age-group history zeros rather

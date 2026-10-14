@@ -76,7 +76,9 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
         case kFC4SeamCrimeShadow:
             return CrimeShadowTestRun(static_cast<const FC4CrimeShadowTestInput*>(a));
         case kFC4SeamAuraShadow:
-            return AuraShadowTestCycle(static_cast<const FC4AuraShadowTestInput*>(a));
+            return AuraShadowTestCityLoad(static_cast<const FC4AuraShadowDeliverInput*>(a));
+        case kFC4SeamAuraShadowDeliver:
+            return AuraShadowTestDeliver(static_cast<const FC4AuraShadowDeliverInput*>(a));
         case kFC4SeamRefAuditRelease: {
             cIGZUnknown* o = static_cast<cIGZUnknown*>(a);
             const intptr_t mode = reinterpret_cast<intptr_t>(b);

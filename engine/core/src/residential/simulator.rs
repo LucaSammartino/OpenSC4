@@ -72,7 +72,9 @@ pub struct ResidentialState {
     pub message_server_held: bool,
     /// The proximity tract size (§3): 1.
     pub proximity_size: i32,
-    /// The population tract size P (§2).
+    /// The population tract size P (§2). After a load only `Init` (for a grid
+    /// it recreates) and `Write` read it; state 4's S is the R$ population
+    /// grid's own size (EH14).
     pub population_size: i32,
     /// The EQ tract size E (§2).
     pub eq_size: i32,
@@ -1015,7 +1017,12 @@ impl ResidentialSim {
         let (s_size, t, eq, hq, pop, age_grid) = {
             let s = self.s.borrow();
             (
-                s.population_size,
+                // §5.5, EH14: S is the R$ population grid's own
+                // `GetTractSize()`, not P. [choice] P without that grid
+                // (`Init` always creates it).
+                s.grids.population[wealth::LOW]
+                    .as_ref()
+                    .map_or(s.population_size, |g| g.geometry().tract_size),
                 s.population_tuning.clone(),
                 s.grids.eq.clone(),
                 s.grids.hq.clone(),
