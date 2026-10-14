@@ -307,7 +307,7 @@ default shown.
 ```
 u16   v                                      Read: v < 19 → return false (nothing else read)
 s32   A = 13   commute/network-type count    only if v ≥ 24, else A = 8
-s32   B = 1    aggregate-row count           only if v ≥ 37, else B = 1
+s32   B = 1    bridge-row count              only if v ≥ 37, else B = 1
 s32   C = 13   legacy row count              only if v ≥ 28, else C = 4
 s32   D = 9    travel-type count             only if v ≥ 28, else D = 7
 6 × ref        the six published grids of traffic-simulator §6.1 row 3 (IID 0xC9BD939A); classes seen:
@@ -341,7 +341,7 @@ u8             cycle state
 29 bytes       scanning iterator: s8 state, s32 x, s32 z, u32 step, s32 x0, z0, x1, z1
 bool           intersection-dirty flag
 4 × s32        intersection dirty rectangle
-bool
+bool           network-changed byte (traffic-simulator §3.1; set by SimBegin and occupant messages, never read)
 u32            strategy bucket counter
 u32            strategy bucket
 2 × s16        phase positions               if v ≥ 25; else 2 × u8
@@ -404,7 +404,7 @@ f32   counter 1
 f32   counter 2      v < 23: stored × 100 (Read multiplies by 0.01)
 u32   n rules        only if v ≥ 29
 n × { bool kind; 4 × bool side; u16 from; u16 to }
-f32   0x0BFC0A4C value            only if v ≥ 33, else 0
+f32   toll (0x0BFC0A4C)           only if v ≥ 33, else 0
 bool  counts as intersection      only if v ≥ 33, else false
 ```
 
@@ -417,10 +417,11 @@ intact cell keys; u32 n, n × u16 damaged cell keys`.
 
 ```
 R rows × { f32 sum; u32 count; s32 maxX; s32 maxZ; f32 max }    R = A if v ≥ 35, else C
-B rows × the same 5 fields (aggregate)                            only if v ≥ 37
-A × u16    over-capacity counts
-B × u16                                                           only if v ≥ 37
-u16
+                 (f32: the sum in the working set, the average in the published one; u32: the count of r > 1; traffic-simulator §4.9)
+B rows × the same 5 fields (the bridge row)                       only if v ≥ 37
+A × u16    network-info records per type (published: = the cell counts)
+B × u16    bridge records (never published)                       only if v ≥ 37
+u16        pothole count in the published set (traffic-simulator §3.6)
 s32 E (12)                                                        only if v ≥ 34, else E = 3
 E × { u16; f32; s32; s32; f32 }                                   v < 23: both f32 × 0.01 on read
 f32, f32
