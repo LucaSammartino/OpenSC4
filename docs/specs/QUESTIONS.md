@@ -1205,7 +1205,11 @@ part of §8 is not compared). The glue's current answer is in brackets.
   three.** The original budget and simulator also pass their own cheat IDs. ID 0 means "every cheat": the
   manager delivers a cheat to each pair whose ID matches it or is 0, so the budget and simulator glue with 0
   receive all cheats (and must remove the pair with the same ID they added).
-- **FQ12:** `RegisterCommand`'s parameter info is null, as the spec says. [null]
+- ~~**FQ12:** `RegisterCommand`'s parameter info is null, as the spec says. [null]~~ **ANSWERED 2026-10-14** from
+  the exe (flora `0x006B2A0C`–`0x006B2A1F`; command server slot 6 `0x0092B075`, slot 8 `0x0092AD10`) and written
+  into flora.md §4.1 step 3 and §12. **Null is right.** The name is a plain `const char*` (`"PlaceFlora"`), the
+  call is made only when the message server exists, and its result is ignored. With null info the server writes
+  a default help text (`"Format: PlaceFlora\nOutput: <none>"`) when its help flag is set.
 - **FQ13:** `ToCoreAll` leaves out parent-cohort properties (existing plugin behaviour). Does flora need them?
   [left out]
 - **FQ14 — §6.11:** adding a record whose next type is 0 set key 0's seed type to it in the test harness. Does
