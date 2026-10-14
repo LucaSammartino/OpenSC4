@@ -1421,7 +1421,10 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   `0x005DA410`, inline GetNext e.g. `0x0071A1A5`): the bracket does not match. Read stores the byte unchecked, and
   GetNext tests only 2 (done) and 0 (fresh); any other byte acts as running, so the scan steps on from the saved
   cell, and the byte is written back unchanged until the scan ends. Written into traffic-simulator.md §6.1.
-- **TS32:** record versions above 0x29? [read with the 0x29 layout]
+- ~~**TS32:** record versions above 0x29? [read with the 0x29 layout]~~ **ANSWERED 2026-10-14** from the exe
+  (`Read` `0x00721990`): **the bracket matches.** There is no upper bound and every gate is an unsigned ordered
+  test (none an equality), so versions `0x2A`…`0xFFFF` read as `0x29`; trailing bytes are skipped by the loader's
+  entry framing. Written into traffic-simulator.md §6.4.
 - **TS33:** Read's own switch flags: is 0x40 set for a subway / el-train rule? [yes, as the re-read does; TN25]
 - **TS34 (fixtures only):** every cell reports a network occupant; department funding defaults to 1.0; department
   tokens are 900+.

@@ -1465,6 +1465,12 @@ older record is not an option: the six published grids are separate objects that
 the destination map, damage and switch state would be lost. An old record is written back as version `0x29`; a
 byte-exact round trip is expected only for versions 40 and 41 (save-records.md §7.1.4).
 
+**Versions above `0x29`** (TS32). Read has no upper bound. Every gate, including the three that hold the constant
+in a register (`0x007223B6`, `0x0072290F`, `0x00722C4D`), is an unsigned ordered test of the u16 version (`jb`,
+`jae` or `jbe`); none tests for equality. A record of version `0x2A`…`0xFFFF` is therefore read exactly as version
+`0x29`. Bytes left at the end of the entry are skipped by the class-store loader, which moves to the next entry
+(foundations §3.5), and Write writes it back as `0x29`.
+
 ## 7. Interface: cISC4TrafficSimulator (vtable `0x00AB33D0`, 44 slots)
 
 All slots `__thiscall`. "pop" = bytes popped by the callee (checked with `tools/abi_extract.py`, docs/abi
