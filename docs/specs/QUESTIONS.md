@@ -2634,7 +2634,10 @@ answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`cSCProperty` `0x005FD870`/`0x005FD8B0`; holder writer `0x005FD990`) and
   written into neighbors §15.4. Write and Read put foundations §10.1 on the given stream and return "not in error". The
   original holder calls each stored property's own `Write`, so ours must write those exact bytes. The bracket matches.
-- **NG23:** The size query of `GetPropertyData`. [left open]
+- ~~**NG23:** The size query of `GetPropertyData`. [left open]~~
+  **ANSWERED 2026-10-14** from the exe (holder slot 5 `0x005FD290`, variant slot 57 `0x00915714`) and written into
+  neighbors §15.4. No size query: only a raw-byte (`0x8000`) value is copied, `length := min(length, count)`, else false.
+  A null buffer crashes the original; recommend false with `length` unchanged.
 - **NG24:** Regional cities held across calls. [AddRef until the outermost exit]
 - **NG25:** The marker query type. [`0xA823821E`]
 - **NG26:** Traffic source `QueryInterface`. [forwarded to the connection]

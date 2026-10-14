@@ -1104,6 +1104,21 @@ the save's stream. A holder stores the object it is given (foundations §10.2), 
 puts into an original holder is written by its own `Write`, on the game's stream, in the middle of the game's
 record. It must produce exactly the bytes of foundations §10.1. The bracket (through the segment stream) matches.
 
+**NG23. `GetProperty(id, void* buffer, uint32& length)` (holder slot 5).** There is no size query. The original
+(`0x005FD290`) finds the property (slot 9) and asks its variant for raw bytes (variant slot 57, `0x00915714`):
+
+1. No property → false.
+2. The variant's type is not exactly `0x8000` (raw bytes, foundations §9) → false; `length` is unchanged.
+3. Otherwise `length := min(length, count)`, copy `length` bytes into `buffer`, return true.
+
+A caller therefore cannot learn the size: `length = 0` returns true with 0, and a `length` below the count is left as
+it was. A null `buffer` with a non-zero `length` and count makes the original copy to address 0 and crash.
+
+Example: a property holding the 5 bytes `01 02 03 04 05`. With `length = 8` → true, `length = 5`, 5 bytes copied.
+With `length = 3` → true, `length = 3`, `01 02 03` copied. A `Uint32` property → false.
+
+*[choice]* For a null `buffer`, return false and leave `length` unchanged.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
