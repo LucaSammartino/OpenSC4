@@ -59,7 +59,8 @@ Interfaces (IID → sub-object). Every recognised IID AddRefs and returns AL = 1
 | | `0xE4FDA3D4` | `cIGZSerializable` | +0xC | `0x00AB3794` (6) |
 
 `Release` of the zone manager (`0x004DC430`): count > 1 → decrement; otherwise `Shutdown` then the deleting
-destructor.
+destructor. A `Shutdown` followed by the final `Release` therefore runs `Shutdown` twice (ZG12); the second does
+nothing and returns 1, because the first cleared the initialised flag (`0x004DC234`–`0x004DC246`).
 
 ### 1.1 Zone manager `Init` (slot 3, `0x004DE170`) → AL
 
@@ -186,7 +187,9 @@ inserts a zero entry (§11.1), which then appears in the next save *[quirk]*.
 ## 4. Tuning *[compat]*
 
 Exemplar "Zone Manager" `0xE9482490`, type `0x6534284A`, group `0xE7E2C2DB`, read by `ReadSimulatorTunableValues`
-(`0x004DC460`) at every `Init`. The two cost arrays are zeroed first. Each array property is read as **exactly 16**
+(`0x004DC460`) at every `Init`. The key is built as (type `0x6534284A`, group `0xE7E2C2DB`, instance `0xE9482490`)
+(`0x004DC49B`–`0x004DC4AB`); `0xA52160F5` is the interface ID passed with it to the resource manager (slot 3,
+`0x004DC4B6`), not a type (ZG1). The two cost arrays are zeroed first. Each array property is read as **exactly 16**
 values through the variant's `Ref*` accessor, with no count or type check; a missing exemplar or property leaves the
 array unchanged. Names from `re/tuning/simulators.md`.
 
@@ -226,6 +229,10 @@ Only `kSC4MessageInsertOccupant` `0x99EF1142` whose data3 is the network occupan
 So every ordinary road, street, rail etc. dezones its bounding rectangle, free of charge, and the zone developer
 re-parcels the remains (§7.9). This corrects `development.md` §2 (“a building lacking occupant group 0x80200090”).
 
+**Re-entry** (ZG6). The handler has no guard. When a network occupant is inserted while a `PlaceZone` commit runs
+(for example a street drawn by the parcelling, §7.10), the message is sent synchronously, so this dezone runs at once,
+nested inside the outer `PlaceZone` *[inferred: synchronous delivery, §5.2]*.
+
 ### 5.2 Zone developer `DoMessage` (`0x007328D0`)
 
 | Message | Action |
@@ -259,7 +266,9 @@ by the dezone) unless the lot's zone is not dezoned by `OnDezone` (§7.9).
 | DeferOccupantOperations `0x49D968C4` | zone developer `OnZone` (normal path) and `OnDezone` | at start (data1 = 1) and end (data1 = 0) | data1 | `MessagePost(m, 0)` |
 
 The ZoningChange message is a subclass of the standard message (vtable `0x00A92D40`) whose destructor
-(`0x004DCC30`) frees the void2 region with C. Consumers read the rect from the first 16 bytes of void2
+(`0x004DCC30`) frees the void2 region with C. The zone manager is stored twice (ZG5): `SetVoid1` (message slot 12,
+`0x004DDFDB`) keeps the raw pointer and `SetIGZUnknown` (slot 33, `0x004DDFE3`) AddRefs it, so the message holds one
+reference. Consumers read the rect from the first 16 bytes of void2
 (growth developers' `UpdateMaxCapacity`, `growth-developer.md` §6.1). Because it is **posted**, consumers see it on a
 later message tick, after the zone developer has already re-parcelled (synchronously, inside `PlaceZone`).
 
@@ -279,13 +288,13 @@ bool skipSizeCheck, bool checkLotInside, int64* outCost, int32* outError, std::s
 
 ```
 funds := budget.GetTotalFunds()                         (slot 6, int64)
-if type ≥ 16 (unsigned): fail (code 0)
+cost := 0 (int64);  accepted := [];  demolish := []        (lists, insertion order)
+if type ≥ 16 (unsigned): type := 0                        (the argument itself is replaced; ZG17)
 if !skipSizeCheck:
     w := x2 − x1 + 1;  h := z2 − z1 + 1
-    if w < min[type] or h < min[type]: error 3, fail
-    if w > max[type] or h > max[type]: error 4, fail
-cost := 0 (int64);  accepted := [];  demolish := []        (lists, insertion order)
-for x in x1..x2 (outer), z in z1..z2 (inner), only cells inside the city and set in the region:
+    if w < min[type] or h < min[type]: error 3, ABORT before the first cell
+    if w > max[type] or h > max[type]: error 4, ABORT before the first cell
+for x in x1..x2 (outer), z in z1..z2 (inner), only cells inside the region's bitmap and set (ZG2):
     old := grid(x, z);  if old ≥ 16 unsigned: old := 0
     tile := city.GetTrafficNetwork().FindNetworkTile(x, z, 0x1F4F, 1)
     if tile and tile.AsOccupant().IsFlagSet(1) and type ≠ 14:
@@ -337,14 +346,70 @@ Notes *[compat]*:
 
 - "ABORT" stops the cell loop with the error set; the post-loop block still runs (cost, outLots), then the call
   fails. Cells accepted before the abort stay set in the caller's region; rejected cells are already cleared.
+- **A failed size check is an ABORT too** (ZG17; `0x004DD82A` and `0x004DD846` jump to `0x004DDC31`, the abort
+  path). The cell loop does not run, so `accepted` and `demolish` are empty and the region is untouched, but the
+  post-loop block runs in full:
+  - for type 14 the cost is `landfillDeveloper.GetZoningCost(region)` (`0x004DDCC8`–`0x004DDCF5`, landfill §4.3)
+    over the whole request region; for every other type it stays 0;
+  - with `skipFunds` the cost is set to 0;
+  - otherwise a cost above the funds (signed int64, `0x004DDE34`) **replaces** error 3 or 4 with error 1
+    (`0x004DE023`);
+  - `*outCost := cost` and `*outError := code` are written as on every other exit (`0x004DE02B`–`0x004DE052`), so
+    a caller's pre-filled values are always overwritten when the pointers are given (ZG16).
+
+  The same holds after the other aborts (errors 2 and 5): the type-14 landfill cost of the whole region is added,
+  and error 1 can replace the abort's code.
+
+  Worked example (regress rzones): a 1 × 1 landfill (type 14) dry run with the size check on, `checkSlope` on,
+  `commit = false`, `skipFunds = false`. `min[14] = 2`, so w = 1 < 2: error 3. No cell is examined. The cost is
+  `GetZoningCost` of the 1 × 1 region (landfill §4.3, shipped `kCostPerCellHeightChange` = 4):
+  - the cell lies in the rect of an existing landfill zone with level altitude 100 m, and the cell's altitude is
+    91 m: `round(4 × |100 − 91|)` = **36**. A 52 m difference gives 208. This is the in-game range; it varies with the
+    place and, month by month, with the zone's level and the terrain;
+  - the cell touches no landfill zone: one cell has variance 0 ≤ 5 (`kLevelToleranceThreshold`), so the cost is 0.
+
+  With the cost ≤ the funds, the call returns false with `*outError = 3` and `*outCost` = that cost; above the
+  funds, `*outError = 1`. Other types write 0: a 1 × 1 agriculture zone (type 7, `min = 4`) fails with error 3 and
+  `*outCost = 0`; a 1 × 1 residential zone (type 1, `min = 1`) passes the size check.
+- **Type out of range** (ZG17, `0x004DD7F9`–`0x004DD807`): a type ≥ 16 is not a failure. The type argument is
+  replaced by 0 and the call proceeds as a dezone, with the size limits of type 0 (corrects the earlier "fail
+  (code 0)").
+- **No city-bounds test** (ZG2, `0x004DD8B0`–`0x004DD913`). The loop skips a cell only when it lies outside the
+  region's own bitmap (its width and height, unsigned offsets) or its bit is clear. It then reads the zone grid with
+  no bounds check, and a commit writes it the same way. The size check limits the rect's size, not its position: any
+  part of the rect outside the city is read, and on a commit written, outside the grid. A bitmap smaller than its
+  rect skips the cells it does not cover; a bitmap with bad row pointers is dereferenced. *[choice]* reject such a
+  call with error 0 before touching anything; the original has no such failure.
+- `PlaceZone` calls the budget simulator's `GetTotalFunds` first, with no null test (`0x004DD78A`): without a budget
+  simulator the original crashes (ZG9).
+- **Occupant manager slot 33** (ZG11) is the SDK's `GetFirstOccupantByStandardCityCell(out, x, z, uint32 type)`.
+  The SDK declares it before its filter overload; MSVC groups overloaded virtuals and reverses them, so the typed
+  one is slot 33 and the filter one slot 32, as in the exe (every typed/filter pair of slots 28–35 is laid out this
+  way, the typed one forwarding). Slot 33 (`0x0049DCE0`) returns false when the manager is not initialised;
+  otherwise it stores the type in the manager's own filter object and continues in slot 32 with that filter.
+  Calling it through the SDK declaration works with MSVC and clang-cl, not with a compiler that keeps declaration
+  order (GCC).
 - The 5th argument (`checkAreaSlope` in the SDK) is used four ways: slope check, building-removal check,
   `DemolishLots` argument, `DoParcellization`'s street-removal flag (§7.9) and ZoningChange data4. It behaves as
   "this is a user action" *[inferred]*.
 - Re-zoning a cell to its own type costs nothing and leaves the counts unchanged, but the cell still counts as
   accepted: a ZoningChange is posted and the developer re-parcels it.
-- The demolition utility (`0x00B43D00`) is called twice; the first call (`false`) only prices the lots.
+- The demolition utility (`0x00B43D00`) is called twice; the first call (`false`) only prices the lots. It goes to
+  `DemolishRegion` (`0x00468410`) with argument 1 false; the per-occupant removal step (`0x00468EEC`) and
+  `UpdateNetworks` (`0x004681A0`, called at `0x00469056`) run only when that argument is true.
+- **A dry run** (`commit = false`) changes no game state (ZG14). There is no withdrawal, grid write, demolition,
+  parcelling or message (`0x004DDE5E`–`0x004DDE67` skip to the outputs), and a null `outLots` is skipped
+  (`0x004DDC9B`). It does write the caller's region (rejected bits), the occupant manager's shared filter type (slot
+  33, above) and the demolition utility's scratch fields (`DemolishRegion` stores the request on itself,
+  `0x00468459`). Not every callee of the pricing pass was traced. `CanRemove` is the SDK name of occupant slot 14.
+  Its implementation, `cSC4Occupant::CanRemove` (`0x005E8AE0`; no override found), is a pure query: with flag bit 0
+  it returns whether the removal counter at +0x2D is 0, else with bit 1 whether the counter at +0x2C is 0, else
+  true. `SetRemovalFlags` / `UnsetRemovalFlags` (slots 12, 13) raise and lower those 8-bit counters, so
+  `CanRemove(2)` means "no one has blocked removal with flag 2".
 - The input region is modified (rejected bits cleared). `outLots` is a `std::set` of lots (B nodes); inserted
-  elements are AddRef'd (allocator rows: §13.2).
+  elements are AddRef'd (allocator rows: §13.2). The set is filled right after the pricing call (ZG7,
+  `0x004DDC94`–`0x004DDCC6`), before the landfill cost and the funds test: also on a dry run, after an abort and
+  when the call then fails with error 1.
 
 Callers relevant to growth: the zone manager's own dezone (§5.1); the BDS `DoTerrainChanged`
 (`building-development.md` §4.11: `PlaceZone(region, 0, true, kind ∈ {1, 2}, false, true, true, null, null, null)`).
@@ -1163,11 +1228,27 @@ Record (little-endian; references as in foundations §2.7):
 
 `Write` returns `GetError() = 0`. Max slopes and the default alpha are not saved.
 
-`Read`: sets the loaded flag; version ≠ 1 → false (nothing more read). Grid reference with IID `0xC9BD939A`; the
+`Read`: sets the loaded flag first (`0x004DD415`, before the version is read at `0x004DD41D`, so also when the check
+fails; ZG10); version ≠ 1 → false (nothing more read). Grid reference with IID `0xC9BD939A`; the
 fields in the same order; each map is cleared first if non-empty, entries inserted uniquely (duplicates dropped);
 references with IIDs `0x66BA4DB5` (city), `0xC6BB8334` (occupant manager), `0xC70BD37E` (terrain), `0x877181EC`
 (pollution), `0x6772BD23` (budget). Returns `GetError() = 0`. The tuning arrays read here are overwritten by
 `Init` (§4); `Init` skips the count reset because the loaded flag is set and keeps the loaded grid.
+
+A failed `Read` acquires nothing, so nothing is released for it (ZG8). The grid and services the manager holds are
+released only by `Shutdown` (`0x004DC230`), which the final `Release` runs first (§1); the destructor body
+(`0x004DCC70`) frees only the two count maps. After a failed `Read` the loaded flag is set, so `Init` skips the count
+reset (`0x004DE220`) and, with no grid, creates a new one (`0x004DE26A`).
+
+The display alpha read here (`0x004DD58E`, the byte at +0x360) lasts only until `Init` (ZG3). `Init` calls
+`ReadSimulatorTunableValues` (`0x004DE192`), which overwrites it with the exemplar's Zone Display Alpha (shipped 170)
+and copies that to the default alpha (`0x004DC65E`–`0x004DC675`). The saved alpha survives only when the exemplar or
+the property is missing.
+
+A second `Read` (ZG4) overwrites the grid and service references without releasing the old ones. All six go through
+the reference reader `0x005D9730` (`0x004DD43F`, `0x004DD714`–`0x004DD75B`), which sets the field to null
+(`0x005D9742`) before reading and never releases what was there, so each reference held before leaks once.
+*[choice]* release them.
 
 ### 10.2 Zone developer (`cIGZSerializable` at +0xC; `Write` `0x0072AB40`, `Read` `0x00734380`)
 
@@ -1298,11 +1379,11 @@ Pops are bytes (from `docs/abi/interfaces.tsv` argument counts or `--check`).
 | | 98 (+0x188) | `LocationIsInBounds` | 8 | AL | lot manager slot 5 |
 | traffic network | 8 | `FindNetworkTile(x, z, 0x1F4F, 1)` | 16 | EAX | PlaceZone |
 | network tile | 22, 48, 63 | `IsOfType(3)`, `AsOccupant`, `GetCostOfDemolition` (int64 EDX:EAX) | | | PlaceZone |
-| `cISC4Occupant` | 7, 8, 11, 14, 32 | `GetType`, `GetPosition`, `GetBoundingCityCells`, `CanRemove(2)` *[inferred name]*, `IsFlagSet(1)` | | | PlaceZone, DoMessage, ExamineCell |
+| `cISC4Occupant` | 7, 8, 11, 14, 32 | `GetType`, `GetPosition`, `GetBoundingCityCells`, `CanRemove(2)` (a query, §6), `IsFlagSet(1)` | | | PlaceZone, DoMessage, ExamineCell |
 | `cISC4NetworkOccupant` (IID `0xA821EF94`) | 9 (+0x24) | `HasAnyNetworkFlag(flags)` | 4 | AL | DoMessage, ExistsNetworkOfType |
 | `cISTETerrain` (`0x00B43CF4`) | 13, 14, 34 | `GetAltitude(x, z)`, `GetAltitudeAtVertex`, `CellHasWater` | 8 each | ST0, ST0, AL | lot manager 17–19, PlaceZone, IsCellWater |
 | `cISC4OccupantManager` (`0x00B43D0C`) | 21 (+0x54) | `RemoveOccupant(occ, 1, 0)` | 12 | | DeleteLot |
-| | 33 (+0x84) | occupant at cell by type (`0x6A11BD2B`) | 16 | | PlaceZone |
+| | 33 (+0x84) | `GetFirstOccupantByStandardCityCell(out, x, z, uint32 type)`, type `0x6A11BD2B` (§6, ZG11) | 16 | AL | PlaceZone |
 | | 41 (+0xA4) | `GetOccupantsByStandardCityCells(list, &cell, &cell, type, −1)` (list from A) | 20 | | ExistsNetworkOfType, ExamineCell |
 | | 48 (+0xC0) | `ReleaseOccupantList` | 4 | | same |
 | `cISC4BudgetSimulator` (`0x00B43D64`) | 6, 8 | `GetTotalFunds` (EDX:EAX), `WithdrawFunds(int64)` (pop 8, AL) | 0, 8 | | PlaceZone |

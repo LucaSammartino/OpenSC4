@@ -367,6 +367,37 @@ changed since the cycle began, the value under either state. The plumbing simula
 alternates at every pass (plumbing §2), so a change of `GetWateredGrid()`'s pointer tells the mirror that a pass
 ended. It can then record which tracts changed state.
 
+**When the pointer test misses a pass** (QUESTIONS FL7). The swap comes at the end of plumbing state 6; the pass-end
+message `0x6946DC34` is posted in state 8 and delivered at the next frame's message-server tick (§9). Two swaps can
+fall between two polls in the original:
+- **A pass aborted after its swap.** A water deal status message (`0xEA418D8F` with data1 0, plumbing §5.1) sets state
+  9 and the recompute flag in any state. If it arrives in state 7, the pass has swapped but never reaches state 8, so
+  it posts no pass-end message. The restart swaps again after 2N + 5 calls (N networks, plumbing §6). The pass's own
+  water deal flag changes in state 4 post such messages (those of state 8 come after its pass-end message).
+- **A restart in the same frame.** A pass that ends with the recompute flag already set (by a building or pipe change,
+  a pipe burst or the month, plumbing §5 and §7.1) restarts at the next call (plumbing §6, step 2). The simulator
+  repeats its idle round until the frame budget is spent (simulator §5.1), one plumbing call per round, so the restart
+  can reach its swap before the first pass's message is delivered.
+
+Either way the published pointer can be back at the object seen at the last poll while its content has changed. How
+often this happens depends on frame time and on the other idle agents' work *[inferred]*.
+
+*[choice]* (recommended; FL7, FL9) Detect a pass by content: keep a copy of bit 0 of the published grid and compare it
+at every poll. The flammability simulator reads the watered state only inside `DoDailySimulation`, so a content poll
+made in the same SimNewDay delivery, right after the original's visits, sees every state that a visit used, whatever
+the plumbing did between polls. It costs one pass over the city cells per poll (16,384 bytes on a 128 × 128 city). It
+also works with a plumbing simulator that keeps one fixed published grid, which plumbing §12.2 allows. Pointer
+detection depends on the original's alternation (plumbing §2) and misses both cases above.
+
+**A pass first seen at the comparison** (QUESTIONS FL8). The comparison runs when SimCycleComplete is delivered, at
+the next frame's message-server tick (§9), and all of a day's visits, before and after the wrap, run inside one
+`DoDailySimulation` call. So with a poll at every SimNewDay, a swap first seen by the comparison's own poll came after
+every visit of the last SimNewDay before it: the old cycle's last tracts **and** the new cycle's first ones (at most 2
+× `tractsPerDay`, §9) were visited under the state before the pass. The new cycle's early tracts keep those values
+until their next visit, a whole cycle later, so at the next comparison they still carry the old state's factor. The
+previous-value rule covers them at this comparison but not at the next. *[choice]* Mark such a pass in both cycles:
+carry its marks for the tracts that the new cycle has already visited.
+
 Each cycle visits every tract exactly once, `tractsPerDay` tracts per day; the wrap usually falls inside a day and
 that day continues into the next cycle. Because the iterator count is 0 after `Init` (§4.1), the **first** call
 after every `Init` (new city or load) wraps at once: an empty `EndOfCycle` runs on the first SimNewDay. For a
