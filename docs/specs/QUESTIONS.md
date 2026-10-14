@@ -1279,7 +1279,10 @@ before and after). The glue's current answer is in brackets.
   manager when there is one, then releases the zot. **The bracket does not match**, but the difference is unobservable
   in the shipped flows: every `RemoveZone` dezones cells, which already removes the zot. Only the city-close shutdown
   still holds one. Written into landfill.md §4.4.9.
-- **LG14:** the shadow's supply is live plus delta, clamped. [choice]
+- ~~**LG14:** the shadow's supply is live plus delta, clamped. [choice]~~ **ANSWERED 2026-10-14** together with LG12
+  (landfill.md §4.7.1). This is shadow glue: **no original behaviour; the implementer's choice stands.** In the
+  original month the supply ends at exactly `s − Σ n`, and no clamp engages, so "live plus delta" equals the
+  original and the clamp is inert. The only exception is a negative supply from a damaged save.
 - **LG15 — §1.1:** only the city and the message server are held; terrain, pollution and budget are fetched per
   call. [as stated]
 - **LG16:** the 3D view level is not reachable through a documented interface. [not done]
