@@ -70,6 +70,13 @@ impl ResponseCurve {
         self.segments.is_empty()
     }
 
+    /// The kept points (x, y) in order: the points `from_points` did not
+    /// drop. A curve transformed point by point (the traffic simulator's
+    /// inverted congestion curve) is rebuilt from these.
+    pub fn points(&self) -> Vec<(f32, f32)> {
+        self.segments.iter().map(|s| (s.x, s.y)).collect()
+    }
+
     /// Evaluates the curve (§4.3): `py + (input − px) · slope` as three `f32`
     /// operations in that order (foundations §18); an empty curve returns 0.0.
     /// A NaN input with two or more kept points interpolates the last segment
