@@ -619,8 +619,11 @@ About `docs/specs/crime.md` and its `docs/abi` rows. Ini: `enable = crime` (opti
   the out pointer **untouched**, like flammability, plumbing, pollution and every other simulator class. The only
   class seen nulling it is `cSCResExemplarCohort`, on entry (`0x0067C15D`). One rule for all simulators: false with
   the out pointer untouched.
-- **CQ15:** the return value of the residential `GetPopulationGrids` / `GetEQGrids` is ignored; only the three out
-  pointers are used. [ignored]
+- ~~**CQ15:** the return value of the residential `GetPopulationGrids` / `GetEQGrids` is ignored; only the three out
+  pointers are used. [ignored]~~ **ANSWERED 2026-10-14** from the exe (`DoCensus` `0x0069FB24`/`0x0069FB3E`) and
+  written into crime.md §13. **Confirmed; the bracket matches.** EAX is never read after either call (the next
+  instruction clears EBX and the loop reads the out pointers). The order is `GetPopulationGrids` (slot 25) first,
+  then `GetEQGrids` (slot 23).
 - Not compared by the shadow (stated on every line): the number of crimes to commit (needs
   `ResetUnjailedCriminals`, which has side effects), which attempts the police stopped and each crime's type (the
   original's draws), which lots were tried (the lot manager's generator), the crime-effect grid (no interface).

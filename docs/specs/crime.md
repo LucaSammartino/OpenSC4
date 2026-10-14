@@ -757,8 +757,8 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check`. "Byte
 | | 27 | `+0x6C` | ResetUnjailedCriminals → s32 released count (`0x006E0A00`: a `float`→int conversion, returned in EAX) | 0 | EAX |
 | | 30 | `+0x78` | GetJailPopulation → u32 (Σ rounded per-jail populations; protection §15.2) | 0 | EAX |
 | | 38 | `+0x98` | ProcessMonthlyCrimeStats (result ignored) | 0 | none used |
-| `cISC4ResidentialSimulator` (`0x00AB2C10`) | 23 | `+0x5C` | GetEQGrids(g0*&, g1*&, g2*&) | 12 | none (garbage) |
-| | 25 | `+0x64` | GetPopulationGrids(g0*&, g1*&, g2*&) | 12 | none (garbage) |
+| `cISC4ResidentialSimulator` (`0x00AB2C10`) | 23 | `+0x5C` | GetEQGrids(g0*&, g1*&, g2*&); called second (`0x0069FB3E`) | 12 | none (garbage; EAX is not read) |
+| | 25 | `+0x64` | GetPopulationGrids(g0*&, g1*&, g2*&); called first (`0x0069FB24`) | 12 | none (garbage; EAX is not read) |
 | `cISC4DemandSimulator` (`0x00AB0E48`) | 6 | `+0x18` | GetDemand(id, 0) | 8 | EAX ptr |
 | `cISC4Demand` (`0x00AA2758`) | 12, 14, 15 | `+0x30/+0x38/+0x3C` | active value / max / min (demand spec §3) | 0 | ST0 float |
 | `cISC4OrdinanceSimulator` (`0x00ABEAC0`) | 25 | `+0x64` | GetCumulativeFactor(id, 0) | 8 | ST0 float |
