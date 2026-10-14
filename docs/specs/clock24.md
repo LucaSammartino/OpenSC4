@@ -179,8 +179,9 @@ return true
   24-bit x87 precision (foundations §18), `float32` arithmetic reproduces them.
 - `trunc` truncates toward zero.
 - Until more than 60 game seconds have built up, the timer is **not** restarted, so short idle passes add up.
-- Each step discards the fraction of a game second and the time between the threshold and the idle pass that
-  noticed it *[quirk]* (CK5).
+- Each step discards the fraction of a game second left after truncation: less than 1 of at least 61, so the day
+  runs up to about 1.6 % slower than the magnification says *[quirk]* (CK5). The time between crossing the threshold
+  and the idle pass that notices it is not lost; it is part of `e`.
 - A long stall (more than 1200 / magnification real seconds) advances the clock by **at most 20 game minutes**.
 
 **Timer model.** `Start` starts the timer if it is stopped and keeps the elapsed time it already has. `Stop` adds the

@@ -3342,3 +3342,83 @@ step and adds a fallback. The current answer is in brackets.
   occupant whose flag 1 ("inserted") is already set, a null `AsPropertyHolder()` (never for game occupants), or an
   occupant already listed in its first cell. Never for the type, the initialised state (the insert calls `Init` itself)
   or the box. Logging these is the implementer's choice; the bracket stands.
+
+## From the commercial, industrial, civic, park, history and clock specs (re-specs9 lane, 2026-10-14)
+
+Open points from commercial-industrial.md, civic-buildings.md, parks.md, history.md and clock24.md. The current
+answer is in brackets; each entry says what would settle it.
+
+- **CM1:** AO1, the commercial part: which AddAgent name does the commercial simulator use, and does it count at the
+  month level? [`cSC4CommercialSimulator`. It registers a one-shot, an idle, a day and a month agent; the month agent
+  ignores its message but still takes a place in the month order (commercial-industrial.md §3). AO1 and
+  foundations §13.4 can take this name. The two port developers are still open]
+- **CM2:** If FreeCity4 ever corrects RG23 (the proximity seed covers only the z = 0 edge), the CO$$ and CO$$$ maps
+  stop being constant and offices start to affect growth. Should the correction be offered? [no: compatibility
+  keeps the defect. A correction would be a separate *[choice]* behind an option, off by default. This is a
+  coordinator decision, not an RE question]
+- **CM3:** The demand nodes `0x3000` and `0x3800` are held but never read, yet `Init` fails without them. Can the
+  shipped game reach `Init` without them? [no case found: the demand simulator creates them first, and FreeCity4
+  keeps the failure path. A load test with a city whose demand record is missing would settle it]
+- **IN1:** Does anything call the industrial simulator beyond the city's lifecycle calls? [no other reference to its
+  interface or class ID was found, so the implementation is a stub with a version record. A runtime call trace on
+  its vtable would settle it]
+- **CB1:** Lot placement and exclusion IDs. The civic simulator has no preview-occupant test, so a preview occupant
+  of a building with `0xEA2E078B` adds that ID and then erases it. If the preview's removal came after the real
+  building's insertion, the ID would be lost and the building could be placed twice. [in the shipped game a placed
+  reward building is disabled in the menu, so either the preview's removal comes first or the preview is never
+  inserted. FreeCity4 must keep the original message order. An in-game check (place the Mayor's House, look at the
+  menu) with a message log would settle it]
+- **CB2:** A lot that returns to state 3 (for example after abandonment) is charged a second time and listed in
+  `maintained` a second time. Does the shipped game send state 3 twice for a civic lot? [reproduced as is. The
+  corpus holds 7 `maintained` entries in 5 cities and no duplicate. A lot-state message log for an abandoned and
+  restored civic building would settle it]
+- **CB3:** Status bytes 4, 5 and 6 occur in the corpus (15, 8 and 32 entries). The SDK calls bit 4 "advisor event
+  data set". Who sets it, and does anything read it back? [carried through `Read` and `Write` unchanged; the
+  advisors write through `GetConditionalBuildingStatus`. A trace of the writers of the status byte would settle it]
+- **CB4:** `buildingCount` is a u16 that wraps. A removal without a matching insert gives 65,535: for example a
+  building inserted before its status entry existed, or removed before activation. [reproduce the wrap. Counts
+  above 0 occur in only 13 entries of 5 cities, and none has wrapped. A save that loads with a building but
+  without its status entry would show it]
+- **CB5:** The income line is keyed by the building type, not by the item's line. The line that
+  `CreateLineItemForBuildingType` returns is used without a null check. [keep the keying. *[choice]* FreeCity4
+  skips the income when creation fails, which the shipped budget never does for a new type]
+- **PK1:** The shipped distress threshold 25.0 is compared with a fraction. So the first monthly pass of each session
+  marks every park lot run down (condition 2), and the park manager never restores it. Yet in the corpus every park
+  lot is at condition 0 (one at 1). What resets the condition? [the lot developer's condition test
+  (lot-developer.md §5.5) *[inferred]*. An in-game check would settle it: play one month with a park, then save,
+  or watch the lot condition in the query tool]
+- **PK2:** The zoo escape runs only when the park list is not empty. A park budget item that names a missing
+  department crashes the original. [the shipped zoo is in both groups, so the first point cannot show in the
+  shipped game. *[choice]* FreeCity4 skips the charge for a missing department (parks.md §4.2)]
+- **PK3:** Park line items are never removed. A removal message releases the occupant once even when it was not
+  listed. [reproduced; an empty line stays in the budget panel at 0 and 0. A budget-panel check after demolishing
+  every park of one type would confirm the visible effect]
+- **HW1:** The yearly thinning keeps the last point of every `Dispose` range and leaves the last group of every
+  `Coalesce` range open. Is that an off-by-one in the original, or intended? [reproduced as is; Konradshohe's 296
+  points match this model exactly]
+- **HW2:** `GetPoint` at an interior point returns the regression value through three points (a smoothing), and
+  `GetCount` counts the widened range. Do the graph windows depend on this? [reproduced; the graph and Lua callers
+  are not traced yet. A trace of the graph window's calls would settle it]
+- **HW3:** The regression sums are `double` variables, but they follow the caller's x87 precision: 24-bit from the
+  simulators, 53-bit inside Lua calls (foundations §18). [FreeCity4 evaluates them per caller. A differential test
+  through a Lua advisor call would confirm the 53-bit path]
+- **HW4:** Version 1 records turn `maxCount = 100` into 0, duplicate dates overwrite the last point, and nothing in the
+  executable posts `0x89EFA537`. Is the city getter for the warehouse slot 32 (`+0x80`)? [slot 32 by the SDK
+  order; docs/abi folds that slot's name. A runtime call through the city vtable would settle the slot]
+- **CK1:** Does the clock run while the player pauses the simulation (pause button or speed 0)? [yes *[inferred]*:
+  only hidden pauses (through `SC4GamePause` and the scrubber) stop it, and nothing links the simulator's `Pause()`
+  or speed to the clock. An in-game check would settle it: pause, then watch the clock display and the lighting]
+- **CK2:** Is the clock timer's unit 3 microseconds? [yes *[inferred]* from the `1e-6` factor, which gives a
+  640-second day at magnification 135. The unit factors from `0x00B54360` onwards are calibrated at runtime.
+  Reading that table in a running game, or timing one game day, would settle it]
+- **CK3:** What is the object at `+0x8C` that `Shutdown` hands the string at `+0x78` to? [dead: nothing in the clock
+  sets it, so FreeCity4 omits both fields. A write breakpoint on `+0x8C` would settle it]
+- **CK4:** A saved `pauseCount > 0` leaves the clock stopped after the load, and only `Stopwatch resume` restarts it.
+  [reproduced; the corpus has no such save]
+- **CK5:** Each step loses the fraction of a game second left after truncation, so the day is up to about 1.6 %
+  longer than 86,400 / magnification real seconds, depending on the idle cadence. [FreeCity4 reproduces the formula. The
+  visible day length follows FreeCity4's own idle cadence, which conformance does not test]
+- **CK6:** The SDK header declares `GetTimePercentage` and `GetVisualTimePercentage` as `float (void)`, but the game
+  takes an out pointer and pops 4 bytes. `GetEventHour` takes a dword index, not a `bool`. [the game's form is
+  binding (clock24.md §8), and docs/abi should note it. Plugins built on the SDK declaration would corrupt the
+  stack in the original too]
