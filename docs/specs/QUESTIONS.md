@@ -2260,8 +2260,11 @@ way.
 About `docs/specs/neighbors.md` and the neighbours glue (`cFC4NeighborsSimulator`, `FC4NeighboursShadow`). The current
 answer is in brackets.
 
-- **NG1:** Property holder semantics for our own objects (connections, deals). [sorted by property id, values copied;
-  `GetPropertyList` returns false; data as a Uint8 array]
+- ~~**NG1:** Property holder semantics for our own objects (connections, deals). [sorted by property id, values copied;
+  `GetPropertyList` returns false; data as a Uint8 array]~~ **ANSWERED 2026-10-14** (coordinator, run r50e2): copies are wrong. The
+  holder keeps the caller's object (AddRef) and returns it borrowed; callers write its variant in place
+  (foundations §10.2, "Ownership"). With copies, the traffic simulator's trip-capacity store used a freed
+  property and the game crashed.
 - **NG2:** Object-valued properties on our connection objects. [dropped from the core sync]
 - **NG3:** Does the region reach our connection objects non-virtually (by field offset)? [unknown; the risk is noted]
 - **NG4:** `AddDeal` with a foreign (original) deal object. [copied into a deal of ours]
@@ -2296,3 +2299,22 @@ answer is in brackets.
 - **NG32:** The shadow's connection-state comparison. [the original's after-state against our before-state]
 - **NG33:** A message from another thread that cannot get the lock. [dropped, returns true]
 - **NG34:** A null connection reference in a save. [skipped]
+
+## From applying the aura, education/health and flora answers (filed by the coordinator from the `apply5` lane's report, 2026-10-14)
+
+AU1–AU15, EH1–EH14 and FQ1–FQ15 are applied (the aura shadow follows the original's state field; the flora obliteration
+record goes through record streams, switch `flora_obliteration`). Not applied: a call-order test for EH1, and the aura
+shadow's riot roll (wall-clock RNG). The current answer is in brackets.
+
+- **AQ1:** REH: the totals record's leftover fields +0x14..+0x24. [they start at 0]
+- **AQ2:** REH §4.8: S_EQ against member E. [E is kept]
+- **AQ3:** S_EQ for the HQ variants. [E]
+- **AQ4:** FQ3 save: is flag 1 toggled only when the obliteration record opens? [yes]
+- **AQ5:** FQ3 restore: is the record closed right after `Read`, before `Init` and `InsertOccupant`? [yes]
+- **AQ6:** FQ3: a failed `GetUint32` of the count. [the count stays 0]
+- **AQ7:** FQ6: is the 64 m listing clamped to 0..191? [not clamped; only the query is]
+- **AQ8:** A bound on the obliteration open attempts. [choice: at most `MAX_OBLITERATED` = 2^24; the original has no
+  bound]
+- **AQ9:** Flora shadow: which box gives the 64 m listing? [choice: the census box taken before the pass]
+- **AQ10:** Plugin: `OpenOStream`/`OpenIStream` returns false but writes a stream pointer. [treated as not open;
+  nothing released]
