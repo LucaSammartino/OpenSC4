@@ -386,11 +386,14 @@ storage. So:
 |---|---|---|
 | `Uint8` / `Sint8` array (all 6 shipped buildings are `Uint8` ×2; data-formats §7.3) | elements 0 and 1 | m = 100, r = 8 |
 | wider array (`Uint16`, `Uint32`, `Sint32`, `Float32`, …) | bytes 0 and 1 of element 0, little-endian | `Uint32`: m = 100, r = 0 (no cell changes); `Float32`: m = 0, r = 0 |
+| string (an `RZChar` array, tag `0x800C`: the only non-numeric type a data file can hold) | its first two stored bytes: for ASCII text, the codes of its first two characters | `"AB"`: m = 65, r = 66 |
+| an array of objects (only code can store one; no file can) | the low two bytes of the first object's address | — (an address) |
 | any scalar | the scalar's value used as a pointer: a crash or garbage | — |
 
-*[choice]* FreeCity4 reads bytes 0 and 1 of the value's raw little-endian storage, so every array type behaves
-as in the original. It skips scalars and arrays shorter than 2 bytes. A numeric conversion (`GetU32s`, then the
-low bytes) would equal the original only for byte arrays.
+*[choice]* FreeCity4 reads bytes 0 and 1 of the value's raw little-endian storage, so every numeric array type and
+a string behave as in the original. It skips scalars, values shorter than 2 bytes (a one-character string
+included) and object arrays (QUESTIONS CQ22): the original's result for them is a pointer's bytes. A numeric
+conversion (`GetU32s`, then the low bytes) would equal the original only for byte arrays.
 
 ```
 value  := +m when inserted, −m when removed

@@ -1660,8 +1660,13 @@ About `docs/specs/crime.md` (CQ5, CQ8, CQ13 as applied). The glue's current answ
   **The bracket does not match: yes, they all use it.** Every clock-seeded generator calls the same `cRZTime()`
   constructor: 34 file-local generators (each XOR its own constant), the construction occupant's plain reseed, and
   the prop developer (value × 28). The helper belongs with the RNG module.
-- **CQ22 — CQ13:** the crime effect property is an array whose elements are not plain numbers (strings, objects).
-  [Treated as absent.]
+- ~~**CQ22 — CQ13:** the crime effect property is an array whose elements are not plain numbers (strings, objects).
+  [Treated as absent.]~~ **ANSWERED 2026-10-14** from the exe (`DoOccupantChanged` `0x0069F27B`–`0x0069F2B1`, variant
+  raw accessor `0x0060CE80`) and written into crime.md §6.10. **Half right.** The original reads bytes 0 and 1 of the
+  variant's data block whatever its type. A **string** is an `RZChar` array, so it gives the codes of its first two
+  stored bytes (`"AB"`: m = 65, r = 66), a deterministic result; FreeCity4 should read it like any array, not treat
+  it as absent. An **object array** can only be stored by code, never by a data file, and gives the low bytes of
+  an object's address. Treating that as absent stays a *[choice]*.
 
 ## From the land value and flammability shadows (filed by the coordinator from the lane's report, 2026-10-14)
 
