@@ -456,9 +456,9 @@ stored type differs from the requested one; §7 records it per property where th
 
 ### 5.1 Converting getters
 
-`cISCPropertyHolder` slot 8 `GetProperty(id, uint32&)`, slot 7 `GetProperty(id, cIGZString&)`, slot 5
-`GetProperty(id, void*, uint32&)` (foundations §17.2), and every `bool cIGZVariant::GetValX(X&)` (foundations
-§17.1). Missing property: return false, output unchanged.
+`cISCPropertyHolder` slot 8 `GetProperty(id, uint32&)`, slot 7 `GetProperty(id, cIGZString&)` (foundations
+§17.2), and every `bool cIGZVariant::GetValX(X&)` (foundations §17.1) except `GetValVoid`. Missing property:
+return false, output unchanged. Slot 5 `GetProperty(id, void*, uint32&)` does not convert (§5.2).
 
 If the stored type equals the requested type, the value is returned as is. Otherwise:
 
@@ -577,9 +577,20 @@ Consequences that matter for tuning *[compat]*:
 `RefX()` (slots 93–123, no argument) return the data pointer without a check *[compat] [quirk]*. On an array
 `AsUint32()` returns the **pointer** value; on a scalar `RefFloat32()` returns the value bits as a pointer. This is
 what foundations §4.1 describes for curves ("reinterprets the raw bytes of other value types as floats").
-`GetCount()` is 0 for a scalar and the element count for an array. Call sites using these accessors expect a fixed
-stored type; with shipped data that type is always present. *[choice]* FreeCity4 converts element-wise where a
-spec says so, and otherwise treats a type mismatch as a missing property.
+`GetCount()` is 0 for a scalar and the element count for an array.
+
+`cISCPropertyHolder` slot 5 `GetProperty(id, void* buffer, uint32& length)` (`0x005FD290`, for exemplars and
+cohorts too) calls the variant's `GetValVoid` (`0x00915714`). It requests a **void array** (memory type `0x8000`,
+disk tag `0x8000`, §4.2) and nothing else. For a void array of `n` bytes it lowers `length` to `n` if it was
+larger, copies `length` bytes into the buffer, and returns true. For **any other type**, strings and other arrays
+included, it returns **false** and leaves both outputs unchanged: there is no text round trip. Worked example:
+a void array `01 02 03` read with `length` 8 copies 3 bytes and sets `length` to 3; with `length` 2 it copies 2
+bytes and leaves `length` at 2; a Uint8 array `01 02 03` gives false. No shipped record has a void array, so on
+shipped data slot 5 always returns false.
+
+Call sites using the `AsX()` and `RefX()` accessors expect a fixed stored type; with shipped data that type is
+always present. *[choice]* FreeCity4 converts element-wise where a spec says so, and otherwise treats a type
+mismatch as a missing property.
 
 ### 5.3 Exemplar lookup helper
 

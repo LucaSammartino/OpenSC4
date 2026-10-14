@@ -606,7 +606,12 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   **the bracket matches.** The original stores a scalar Uint8 0. Both readers of these properties use a byte-list
   getter that copies `GetCount()` bytes, 0 for a scalar, so the lot gets no wealth or purpose types. That is
   the same as an empty array, so the difference is not observable (data-formats.md §4.3).
-- **EX17:** slot 5 `GetProperty(id, void*, uint32&)`: what type does the caller request? [not implemented]
+- ~~**EX17:** slot 5 `GetProperty(id, void*, uint32&)`: what type does the caller request? [not implemented]~~
+  **ANSWERED 2026-10-14** from the exe (`0x005FD290`, `0x00915714`): **the bracket does not match.** The original
+  implements it as a raw copy from a **void array** only (memory type `0x8000`): at most `length` bytes, with
+  `length` lowered to the array's size. Any other type returns false, with no conversion. No shipped record has a
+  void array, so on shipped data it always returns false, and "not implemented" (always false) is not
+  observable there (data-formats.md §5.2).
 - **EX18:** are §10.3 tests 18–22 (resource-manager load order) in scope for `engine/formats`? [out of scope]
 - **EX19:** how is depth counted for `MAX_PARENT_DEPTH`? [at most 32 nested loads below the record; a record that
   fails only on depth is retried when reached shallower]
