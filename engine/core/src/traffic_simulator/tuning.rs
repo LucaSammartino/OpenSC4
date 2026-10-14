@@ -293,7 +293,11 @@ impl SimTuning {
         read_f32(h, id::ACCIDENT_DURATION, &mut self.accident_duration);
         read_f32(h, id::ACCIDENT_CHECK_PERIOD, &mut self.accident_check_period);
         self.damage_curve = read_default_curve(h, id::DAMAGE_CURVE, d.damage_curve);
-        read_f32(h, id::RAIL_DAMAGE_ACCIDENT_FACTOR, &mut self.rail_damage_accident_factor);
+        read_f32(
+            h,
+            id::RAIL_DAMAGE_ACCIDENT_FACTOR,
+            &mut self.rail_damage_accident_factor,
+        );
         read_f32(h, id::FERRY_FARE, &mut self.ferry_fare);
         read_f32(h, id::COMMERCIAL_SCALE, &mut self.commercial_scale);
         // The network properties 0xA92356B0, B3, BB (traffic-network.md §4.5).
@@ -363,10 +367,16 @@ impl SimTuning {
         h.add(id::MAX_ROADS_FUNDING, f(120.0));
         h.add(id::MAX_TRANSIT_FUNDING, f(120.0));
         h.add(id::MAX_DISTANCE_ORIGIN, Variant::Scalar(Elem::U32(1)));
-        h.add(id::CONGESTION_CURVE, pts(&[(0.0, 1.0), (1.0, 1.0), (2.0, 0.65), (3.0, 0.3)]));
+        h.add(
+            id::CONGESTION_CURVE,
+            pts(&[(0.0, 1.0), (1.0, 1.0), (2.0, 0.65), (3.0, 0.3)]),
+        );
         h.add(id::COMMUTE_MAX_TIME, f(6.0));
         h.add(id::START_NEUTRAL, arr(&[0.0, 0.4, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
-        h.add(id::START_MASS_TRANSIT, arr(&[0.0, 1.95, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
+        h.add(
+            id::START_MASS_TRANSIT,
+            arr(&[0.0, 1.95, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        );
         h.add(id::START_CAR, arr(&[0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
         h.add(id::JOB_SCALING, f(1.2));
         h.add(id::FREIGHT_SCALING, f(0.05));

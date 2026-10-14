@@ -86,7 +86,7 @@ pub use adapters::{capacity_values, NetAdapter};
 pub use record::{read_trip, write_trip, TRIP_RECORD_VERSION};
 pub use route::{decode_route, RouteCell};
 pub use state::{
-    AccidentEntry, DamageBlock, DamageState, SaveExtras, State, StatRow, StatsSet, SwitchStat, PC_REROUTE_BUCKET,
+    AccidentEntry, DamageBlock, DamageState, SaveExtras, StatRow, State, StatsSet, SwitchStat, PC_REROUTE_BUCKET,
     PC_SOURCE_COUNTER,
 };
 pub use tuning::SimTuning;
@@ -608,7 +608,10 @@ impl TrafficSimulator {
     /// `QueryInterface` (slot 0): 1, `0x68027F37`, `0x452294AA`, `0xE4FDA3D4`
     /// (the three faces of the object), with an `AddRef`.
     pub fn query_interface(&self, iid: u32) -> bool {
-        let ok = matches!(iid, IID_UNKNOWN | IID_TRAFFIC_SIMULATOR | IID_MESSAGE_TARGET2 | IID_SERIALIZABLE);
+        let ok = matches!(
+            iid,
+            IID_UNKNOWN | IID_TRAFFIC_SIMULATOR | IID_MESSAGE_TARGET2 | IID_SERIALIZABLE
+        );
         if ok {
             self.add_ref();
         }
@@ -649,7 +652,8 @@ impl TrafficSimulator {
     /// work-check statics (pathfinder.md §1). The caller runs it with
     /// [`TrafficSimulator::find_path`].
     pub fn create_path_finder(&self) -> Pathfinder {
-        self.run(|r| r.create_path_finder()).unwrap_or_else(|| Pathfinder::new(crate::pathfinder::shared_work_check()))
+        self.run(|r| Some(r.create_path_finder()))
+            .unwrap_or_else(|| Pathfinder::new(crate::pathfinder::shared_work_check()))
     }
 
     /// Runs an outside caller's pathfinder over the simulator's network and

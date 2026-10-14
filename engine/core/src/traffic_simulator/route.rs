@@ -227,8 +227,11 @@ impl Run<'_, '_> {
             if let Some(e) = v.get_mut(usize::from(last_t)) {
                 *e = e.wrapping_add(count);
             }
-            self.h
-                .set_holder_property(holder, id, Variant::array(mem::UINT32, v.into_iter().map(Elem::U32).collect()));
+            self.h.set_holder_property(
+                holder,
+                id,
+                Variant::array(mem::UINT32, v.into_iter().map(Elem::U32).collect()),
+            );
         }
         let arrived = capacity_element(self.h, holder, 4 + k).wrapping_add(count);
         set_capacity_element(self.h, holder, 4 + k, arrived);
@@ -337,11 +340,12 @@ impl Run<'_, '_> {
             // 4. Ferry legs.
             if c.jump && i > 0 {
                 let p = cells[i - 1];
-                if self.cx.s.in_city(p.x, p.z) && self.cx.s.wormhole_at(p.x, p.z) & wormhole::FERRY != 0 {
-                    if self.apply_ferry_leg((p.x, p.z), here, mode, qi) {
-                        let fare = r24(f64::from(q) * f64::from(self.st.tuning.ferry_fare));
-                        income = r24(f64::from(income) + fare) as f32;
-                    }
+                if self.cx.s.in_city(p.x, p.z)
+                    && self.cx.s.wormhole_at(p.x, p.z) & wormhole::FERRY != 0
+                    && self.apply_ferry_leg((p.x, p.z), here, mode, qi)
+                {
+                    let fare = r24(f64::from(q) * f64::from(self.st.tuning.ferry_fare));
+                    income = r24(f64::from(income) + fare) as f32;
                 }
             }
             // 5. Income.
@@ -383,7 +387,11 @@ impl Run<'_, '_> {
             add(&mut l.counters);
             return true;
         }
-        if let Some(l) = term.neighbour_links.iter_mut().find(|l| (l.edge_x, l.edge_z) == (tx, tz)) {
+        if let Some(l) = term
+            .neighbour_links
+            .iter_mut()
+            .find(|l| (l.edge_x, l.edge_z) == (tx, tz))
+        {
             add(&mut l.counters);
             return true;
         }

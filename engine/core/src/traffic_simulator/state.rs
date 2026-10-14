@@ -465,7 +465,9 @@ impl State {
 
     /// The destination byte at (x, z) (0 outside the map).
     pub fn dest_byte(&self, x: i32, z: i32) -> u8 {
-        self.dest_index(x, z).and_then(|i| self.dest.get(i)).map_or(0, Cell::get)
+        self.dest_index(x, z)
+            .and_then(|i| self.dest.get(i))
+            .map_or(0, Cell::get)
     }
 
     /// Writes the destination byte at (x, z) (ignored outside the map).
@@ -479,7 +481,9 @@ impl State {
     pub fn size_dest(&mut self, w: i32, h: i32) {
         self.dest_rows = w.max(0) + 2;
         self.dest_cols = h.max(0) + 2;
-        self.dest = (0..(self.dest_rows * self.dest_cols) as usize).map(|_| Cell::new(0)).collect();
+        self.dest = (0..(self.dest_rows * self.dest_cols) as usize)
+            .map(|_| Cell::new(0))
+            .collect();
     }
 
     /// `freeDest[k]`.
