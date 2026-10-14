@@ -21,6 +21,7 @@
 #include "FC4DemandShadow.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
+#include "FC4Dialogs.h"  // the harness lane: close_dialogs
 #include "FC4Popups.h"
 #include "FC4RefAudit.h"
 #include "cFC4Demand.h"
@@ -281,6 +282,7 @@ void Resolve() {
     AutotestReload();
     ObserverReload();
     PopupDialogsReload();  // popup_dialogs (FC4Popups.h); the call itself is made at PostAppInit
+    DialogsReload();       // close_dialogs (FC4Dialogs.h); the subscription is made at PostAppInit
     // FreeCity4.ini `disable = ...` wins over FC4_DISABLE.
     const char* source = "";
     const std::string disable = Lower(Setting("disable", "FC4_DISABLE", &source));
