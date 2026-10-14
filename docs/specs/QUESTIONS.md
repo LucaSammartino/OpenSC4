@@ -590,7 +590,13 @@ About `docs/specs/crime.md` and its `docs/abi` rows. Ini: `enable = crime` (opti
   original reads on and sets `loadedFromSave`, then returns false. It nulls the grid refs, resizes the iterator
   table to the stream pointer's value, and loops over an uninitialised incident count, so it reads garbage. The
   following `Init` then leaves the simulator unusable.
-- **CQ10:** crime type list order. [ascending instance]
+- ~~**CQ10:** crime type list order. [ascending instance]~~ **ANSWERED 2026-10-14** from the exe
+  (`LoadAllCrimeTypesFromExemplars` `0x006A1450`, `GetAvailableResourceList` `0x009739CB`, the package hash-table walk
+  `0x0096F9AB`) and already written into crime.md §7 ("Order of the list"). **The bracket matches the original for
+  the shipped types.** The original uses the resource manager's key-list order. That order is segment order, and
+  within each package the index hash-table buckets (`instance mod B`, B ≥ 53). All 14 shipped types are in
+  `SimCity_1.dat` with instances below 53, so the order is ascending instance. Plug-in types can land elsewhere;
+  ascending instance stays the §7 *[choice]*.
 - **CQ11:** police slot 5 returns a uint8 grid (the SDK says short) and slot 27 an int32 count, as protection
   declares them. Confirm. [as protection]
 - **CQ12:** arson calls `SetCause` whatever `IgniteOccupant` returns. Right? [yes]
