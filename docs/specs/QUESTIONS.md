@@ -2891,7 +2891,11 @@ developer stays original). The current answer is in brackets.
   `GetFirstOccupantByStandardCityCell(out, x, z, uint32)`, declared before its filter overload and placed after it by
   MSVC's reversal; every typed/filter pair in slots 28–35 follows the same pattern. The bracket matches; it holds for
   MSVC and clang-cl, not GCC.
-- **ZG12:** Shutdown followed by the final Release. [Shutdown runs twice]
+- ~~**ZG12:** Shutdown followed by the final Release. [Shutdown runs twice]~~
+  **ANSWERED 2026-10-14** from the exe (`Release` `0x004DC441`–`0x004DC44E`; `Shutdown` guard
+  `0x004DC234`–`0x004DC246`) and written into zones §1. Yes, `Shutdown` runs twice: the final `Release` calls it before
+  the deleting destructor. The second call finds the initialised flag clear, does nothing and returns 1. The bracket
+  matches.
 - **ZG13:** Shadow: "our core's bookkeeping after it has loaded the same grid". [the core loads the original's own
   record through its Write]
 - **ZG14:** Is a PlaceZone dry run (commit=false, outLots null) on the original safe? `CanRemove(2)` is an inferred

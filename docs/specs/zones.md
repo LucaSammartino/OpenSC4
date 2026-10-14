@@ -59,7 +59,8 @@ Interfaces (IID → sub-object). Every recognised IID AddRefs and returns AL = 1
 | | `0xE4FDA3D4` | `cIGZSerializable` | +0xC | `0x00AB3794` (6) |
 
 `Release` of the zone manager (`0x004DC430`): count > 1 → decrement; otherwise `Shutdown` then the deleting
-destructor.
+destructor. A `Shutdown` followed by the final `Release` therefore runs `Shutdown` twice (ZG12); the second does
+nothing and returns 1, because the first cleared the initialised flag (`0x004DC234`–`0x004DC246`).
 
 ### 1.1 Zone manager `Init` (slot 3, `0x004DE170`) → AL
 
