@@ -1412,7 +1412,11 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   (`0x005FDAC0`, `0x00716D67`): the bracket does not match. The percent getter multiplies by the f32 constant 0.01f
   for every numeric type, `r24(v × 0.01f)`; shipped 120 gives 0x3F999999 (1.1999999), not 1.2. Written into
   traffic-simulator.md §4.14.
-- **TS30:** does Read commit only on success? [yes: parsed first; a failed Read leaves the simulator unchanged]
+- ~~**TS30:** does Read commit only on success? [yes: parsed first; a failed Read leaves the simulator unchanged]~~
+  **ANSWERED 2026-10-14** from the exe (`Read` `0x00721990`, ref helper `0x005D9730`): the bracket is not the
+  original but stands as a *[choice]*. Past the version test (< `0x13`: false, nothing changed) the original writes
+  into the simulator as it reads, nulls each ref before reading it, sizes the destination map from uninitialised
+  locals on an error, and returns `!GetError()`, which the loader ignores. Written into traffic-simulator.md §6.1.
 - **TS31:** an unknown iterator-state byte in the record? [Done]
 - **TS32:** record versions above 0x29? [read with the 0x29 layout]
 - **TS33:** Read's own switch flags: is 0x40 set for a subway / el-train rule? [yes, as the re-read does; TN25]

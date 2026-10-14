@@ -1372,6 +1372,21 @@ cost 150 for purpose `0xCA550301` in a department funded at 0.9: `out = {2500, 2
 Version **0x29** (41). Read accepts versions ≥ `0x13` and returns false below that; the version gates are listed
 in §6.4. Primitive encodings are foundations §2.2.
 
+**A failed Read** (TS30). The original does not parse first. Its only early exit is the version test: below `0x13`
+it returns false having consumed only the version, and nothing has changed. Otherwise it writes into the simulator
+as it goes and never stops on an error:
+
+- each failed stream read leaves its destination unchanged;
+- each ref (the grids, the switch buildings, the departments) is first set to null by the ref helper
+  (`0x005D9730`), which does not release the old object, so on an error the ref stays null;
+- counts are read into locals, some never initialised (the destination-map dimensions, `0x00721ACA` and
+  `0x00721ADA`), so after an error the map is resized to, and loops run over, garbage counts.
+
+At the end it returns `!stream.GetError()` (stream slot 18, `0x007235E5`), and the class-store loader ignores that
+result (foundations §3.5). A failed Read therefore leaves a partly loaded simulator with null grids, which is
+unusable. *[choice]* FreeCity4 parses the whole record first and commits only on success; a failed Read returns
+false and leaves the simulator as it was before the call.
+
 **Corrected (M6):** the authoritative byte layout, with every Read version gate, is save-records.md §7.1.1; it
 parses all 417 corpus records. The table below is kept as a field overview; where it differs, save-records.md
 wins. The differences (§7.1.2 there): the grids (rows 3, 5, 6, 9), the switch building (row 10) and the
