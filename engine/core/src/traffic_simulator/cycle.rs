@@ -161,11 +161,10 @@ impl Run<'_, '_> {
                         return true;
                     }
                     cs::FULL_TRIPS => {
-                        // "reset" as for 17, so counter 1 too *[question:
-                        // §3.3 says "reset" for 18 after spelling out 17's
-                        // reset; TS1 names only the 17 site]*.
+                        // `0x007217BF`–`0x007217FD`: day index, processed
+                        // and `passTotal`, **not** pass counter 1 (TS35): it
+                        // keeps state 17's re-route count through state 18.
                         self.start_pacing(self.st.to_search, 18);
-                        self.st.pass_counters[PC_REROUTE_COUNTER] = 0;
                         self.st.pass_total = 0;
                         return true;
                     }
@@ -343,6 +342,10 @@ impl Run<'_, '_> {
                 self.st.source_pos = 0;
                 self.st.trip_pos = 0;
                 self.st.continue_search = false;
+                // The saved source cell, the two s16 phase positions of row
+                // 14, := (0, 0) (§3.2, TS44: the table's "pass counters
+                // reset" was these two).
+                self.st.extras.phase_positions = [0, 0];
                 // The pass counters, `toReRoute` and `toSearch` are reset by
                 // the day agent's pacing (§3.3, TS1, TS21), not here.
                 if s == cs::FULL_TRIPS {
@@ -351,14 +354,16 @@ impl Run<'_, '_> {
             }
             cs::CREATE_MAPS => {
                 self.reset_scan();
-                // The statistics reset (§4.9): max −1.0, the copied fields
-                // and the record counts 0.
+                // The statistics reset (§4.9, TS40): the five fields of
+                // every working row and the record counts 0, the separate
+                // per-slot comparison value −1.0.
                 let w = &mut self.st.stats_work;
                 w.rows = [StatRow::RESET; 13];
                 w.bridge = StatRow::RESET;
                 w.records = [0; 13];
                 w.bridge_records = 0;
                 self.st.stat_counts = [0; 14];
+                self.st.stat_max_cmp = [-1.0; 14];
                 if let Some(g) = &self.st.commercial_work {
                     g.fill(0);
                 }
@@ -583,16 +588,18 @@ impl Run<'_, '_> {
                     pf.reset();
                 }
                 self.st.continue_search = false;
-                // The iterator advanced to the source at the saved cell,
-                // which becomes the held current source; none: reset again.
-                let [px, pz] = self.st.extras.phase_positions;
-                let want = (i32::from(px), i32::from(pz));
+                // The iterator advanced to the source at the saved cell (the
+                // two s16 phase positions, TS44), which becomes the held
+                // current source; none: reset again. x and z are compared
+                // as 16-bit values (`0x00720C17`–`0x00720C25`).
+                let want = self.st.extras.phase_positions;
                 self.reset_sources();
                 let mut taken = 0;
                 let mut held = None;
                 while let Some(src) = self.next_source() {
                     taken += 1;
-                    if self.source_cell(src) == want {
+                    let (x, z) = self.source_cell(src);
+                    if [x as i16, z as i16] == want {
                         held = Some(src);
                         break;
                     }
@@ -611,9 +618,10 @@ impl Run<'_, '_> {
             }
             cs::FINISH_TRIP_MAP => {
                 // The lot iterator reset, then past the lot at the saved
-                // cell when there is one (*[question: the same row-14 pair
-                // as the trip phases']*); a lot the walk never meets
-                // restarts it from the first lot.
+                // cell when there is one: the same two phase positions,
+                // which FinishTripMap sets to each lot's location as it
+                // takes it (TS45, `0x00720B2C`–`0x00720B46`); a lot the walk
+                // never meets restarts it from the first lot.
                 let [px, pz] = self.st.extras.phase_positions;
                 self.st.finish_resume = self
                     .h

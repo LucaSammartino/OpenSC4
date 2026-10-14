@@ -57,13 +57,15 @@ pub struct StatRow {
 }
 
 impl StatRow {
-    /// The state-2 entry reset (§4.9): `max := −1.0`, the other fields 0.
+    /// The state-2 entry reset (`0x00721196`–`0x007211D6`, §4.9, TS40): the
+    /// five fields 0. The −1.0 start is the separate comparison value
+    /// ([`State::stat_max_cmp`]), not the row's `max`.
     pub const RESET: StatRow = StatRow {
         sum: 0.0,
         congested: 0,
         max_x: 0,
         max_z: 0,
-        max: -1.0,
+        max: 0.0,
     };
 }
 
@@ -269,11 +271,11 @@ pub struct SaveExtras {
     /// scan ends or the iterator is reset. `None` writes the iterator's own
     /// byte.
     pub scan_state_byte: Option<u8>,
-    /// The two phase positions (s16; u8 before version 25). The trip phases
-    /// store the cell of the source they take here, and the DoPostCityInit
-    /// resume (§3.5 step 11) looks for it *[question: §3.5 names "the saved
-    /// source cell" of row 14 without naming the field; these are the
-    /// row's only cell-sized pair besides the re-route context's]*.
+    /// The two phase positions (s16; u8 before version 25), the saved
+    /// source or lot cell x, z (§6.1 row 14, +0x90C/+0x90E; TS44, TS45).
+    /// The trip phases store the cell of the source they take here and
+    /// FinishTripMap each lot's location; the 16–18 entry action zeroes
+    /// them; the DoPostCityInit resume (§3.5 step 11) looks for them.
     pub phase_positions: [i16; 2],
     /// The lot iterator position (30 bytes: s8, s8, 7 × s32).
     pub lot_iter: [u8; 30],
@@ -379,6 +381,11 @@ pub struct State {
     /// The per-slot record counts `count[s]` (u32, s = 0…13) the averages
     /// divide by (§4.9). Not saved: CreateMaps runs in one call.
     pub stat_counts: [u32; 14],
+    /// The per-slot comparison value a record's `r` must beat to write the
+    /// row's max fields (§4.9 step 1, TS40): −1.0 after the state-2 entry
+    /// reset, then the largest `r` so far. Separate from the row's `max`,
+    /// which the reset zeroes. Not saved *[choice: −1.0 at construction]*.
+    pub stat_max_cmp: [f32; 14],
     /// `cells[t]`, the cell counts per network type (§3.6, saved in §6.1 row
     /// 18): bumped by the occupant messages, replaced by the record counts
     /// at the end of every CreateMaps pass (§4.9, TS9).
@@ -519,6 +526,7 @@ impl State {
             stats_last: StatsSet::default(),
             stats_work: StatsSet::default(),
             stat_counts: [0; 14],
+            stat_max_cmp: [-1.0; 14],
             cells_per_type: [0; 13],
             budget_total: 0,
             transit_income: 0.0,

@@ -88,7 +88,10 @@ pub use adapters::{
 };
 pub use maps::{air_polluting_byte, background_value, congestion_byte};
 pub use monthly::{damage_target, kind as damage_kind, STRIKE_KEEP, STRIKE_MAX_MONTHS, STRIKE_SCALE, STRIKE_START};
-pub use pools::{pool_of_token, pool_token, Pools, POOL_CITY_X, POOL_CITY_Z, POOL_TOKEN_BASE};
+pub use pools::{
+    is_pool_token, map_pool_token, pool_of_token, pool_token, Pools, POOL_CITY_X, POOL_CITY_Z, POOL_KEY0_TOKEN,
+    POOL_TOKEN_BASE,
+};
 pub use record::{legacy_density, read_mask_and_flags, read_trip, write_trip, TRIP_RECORD_VERSION};
 pub use route::{decode_route, read_route, RouteCell, RouteStep};
 pub use state::{
@@ -530,8 +533,11 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     /// The connection's neighbour-connection type (the type DoPostCityInit
     /// passes to Add, traffic-network.md §2.7.2).
     fn connection_type(&self, connection: u64) -> u32;
-    /// Neighbour simulator slot 13 `FindConnectionOnOtherSide(conn)`: the
-    /// neighbouring city's end of the connection (§2.7.2 step 3).
+    /// Neighbour simulator slot 13 `FindConnectionOnOtherSide(conn)`
+    /// (`0x006CDFA0`, pop 4; TS38: §4.1.4 and traffic-network.md §2.7.2 name
+    /// it right): the neighbouring city's end of the connection, from the
+    /// neighbour's regional record (slot 14), whose properties the caller
+    /// reads (§2.7.2 step 3).
     fn connection_on_other_side(&self, connection: u64) -> Option<u64>;
     /// §2.7.2 step 5: the city on the other side (connection slot 9) when
     /// there is one and it is established (regional-city slot 43), as its

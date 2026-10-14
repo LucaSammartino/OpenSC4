@@ -931,7 +931,10 @@ impl Parse<'_> {
         for (k, f) in free.iter().enumerate() {
             self.s.set_free(k, *f);
         }
-        // The neighbour pools; a repeated ID keeps the last *[choice]*.
+        // The neighbour pools. A repeated ID keeps the last entry (TS41:
+        // stored through the map's find-or-insert, `0x00714560` called at
+        // `0x00722FA2`; the original never releases the earlier holder,
+        // which nothing can reach).
         let n = inp.get_u32()?;
         let mut map = BTreeMap::new();
         for _ in 0..n {

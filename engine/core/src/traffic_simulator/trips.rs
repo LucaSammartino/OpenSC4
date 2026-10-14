@@ -395,8 +395,9 @@ impl Run<'_, '_> {
         }
     }
 
-    /// A trip phase takes `src`: its cell is stored for the load resume
-    /// (§3.5 step 11, §6.1 row 14 *[question: the field]*).
+    /// A trip phase takes `src`: its cell is stored in the two s16 phase
+    /// positions for the load resume (§3.5 step 11, §6.1 row 14, TS44;
+    /// `0x0071E276`, `0x0071D0FD`, `0x0071D51C`).
     fn take_source(&mut self, src: Source) {
         let (x, z) = self.source_cell(src);
         self.st.extras.phase_positions = [x as i16, z as i16];
@@ -699,8 +700,10 @@ impl Run<'_, '_> {
             return false;
         };
         // 3. The dominant strategy (unsigned, strict: a tie keeps the lower
-        // index); a strategy above 2 is not summed *[choice]*. The type is
-        // the first trip's.
+        // index). A strategy above 2 is not summed *[choice]* (TS47: the
+        // original adds it past its 12-byte heap array of sums,
+        // `0x00711680`–`0x00711687`; only a damaged save has one). The type
+        // is the first trip's.
         let mut sum = [0u32; 3];
         for t in &trips {
             if let Some(s) = sum.get_mut(usize::from(t.strategy)) {
@@ -951,6 +954,11 @@ impl Run<'_, '_> {
             }
         }
         for lot in lots {
+            // The lot's location into the phase positions as the walk takes
+            // it (TS45, `0x0070FFD3`–`0x0070FFE7`): the state-15 resume of
+            // §3.5 step 11 reads them back.
+            let (lx, lz) = h.lot_location(lot);
+            self.st.extras.phase_positions = [lx as i16, lz as i16];
             h.clear_lot_flag(lot, 0x80);
             let zone = h.lot_zone(lot);
             if !(zone == 8 || zone == 9) || h.lot_has_road_access(lot) {

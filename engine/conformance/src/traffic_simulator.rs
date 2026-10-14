@@ -27,7 +27,7 @@ use fc4_core::traffic_network::{
 };
 use fc4_core::traffic_simulator::{
     air_polluting_byte, background_value, capacity_element, cell_key16, congestion_byte, damage_target, decode_route,
-    find_highway_return_tile, industrial_trips, invert_congestion_curve, legacy_density, pool_of_token, pool_token,
+    find_highway_return_tile, industrial_trips, invert_congestion_curve, is_pool_token, legacy_density, pool_token,
     read_route, read_trip, reconcile_connection, reconcile_lot, residential_commuters, residential_split,
     trip_length_byte, write_trip, AccidentEntry, DamageBlock, HolderStore, Message, NeighbourCity, SimMessage,
     SimTuning, Source, TrafficSimHost, TrafficSimulator, TripData, CARPOOL_ORDINANCE,
@@ -205,14 +205,14 @@ impl World {
     /// A property of a holder token: a pool token (`{"pool": id}`) reads
     /// the simulator's pool, any other the stub's holder.
     fn any_prop(&self, holder: u64, id: u32) -> R<Option<Variant>> {
-        if pool_of_token(holder).is_some() {
+        if is_pool_token(holder) {
             return Ok(self.sim()?.holders().get_property(holder, id));
         }
         Ok(self.prop(holder, id))
     }
 
     fn set_any_prop(&self, holder: u64, id: u32, v: Variant) -> R<()> {
-        if pool_of_token(holder).is_some() {
+        if is_pool_token(holder) {
             self.sim()?.holders().put_property(holder, id, v);
         } else {
             self.set_prop(holder, id, v);

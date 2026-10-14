@@ -2598,10 +2598,11 @@ fn income(s: &TrafficSimulator) -> f64 {
 /// `r24(30 × 0.01f)` = 0.29999998 (§4.5 step 4 example).
 const FARE_30: u32 = 0x3E99_9999;
 
-/// §4.3 (TS14): the route reader's records over runs and jumps. A jump to
-/// an x-neighbour has no exit and clears the cell's entry, which is what
-/// carries over [question]; a same-cell jump and `dz = −1` give `+z`;
-/// equal magnitudes zero `dx`; the `0x80` flag marks the cell before.
+/// §4.3 (TS14, TS36): the route reader's records over runs and jumps. A
+/// jump to an x-neighbour has no exit and blanks the cell's entry in its
+/// own record; the landing cell carries the entry the cell before the jump
+/// had on arrival (TS36); a same-cell jump and `dz = −1` give `+z`; equal
+/// magnitudes zero `dx`; the `0x80` flag marks the cell before (TS39).
 #[test]
 fn ts14_route_reader_records() {
     use super::route::{read_route, RouteStep};
@@ -2631,7 +2632,7 @@ fn ts14_route_reader_records() {
         vec![
             r(5, 5, 1, 1, None, Some(2), false),
             r(6, 5, 1, 1, None, None, false),
-            r(7, 5, 1, 1, None, Some(3), false),
+            r(7, 5, 1, 1, Some(0), Some(3), false),
             r(7, 6, 1, 2, Some(1), Some(3), false),
             r(7, 6, 2, 2, Some(1), Some(1), false),
             r(7, 4, 2, 2, Some(3), Some(0), true),
@@ -2641,6 +2642,37 @@ fn ts14_route_reader_records() {
         ]
     );
     assert!(read_route(&[]).is_empty());
+    // TS36: the entry is none only when the cell before the jump is the
+    // first cell: (5, 5) jumps to (6, 5) at once.
+    assert_eq!(
+        read_route(&[0x01, 5, 5, 0x01, 6, 5, 0x41, 1, 0x02]),
+        vec![
+            r(5, 5, 1, 1, None, None, false),
+            r(6, 5, 1, 1, None, Some(2), false),
+            r(7, 5, 1, 1, Some(0), None, false),
+        ]
+    );
+    // The spec example: a step +x into (5, 3), entry −x, then a jump to
+    // (6, 3): (5, 3) has entry and exit none, (6, 3) entry −x.
+    assert_eq!(
+        read_route(&[0x01, 4, 3, 0x41, 1, 0x02, 0x01, 6, 3]),
+        vec![
+            r(4, 3, 1, 1, None, Some(2), false),
+            r(5, 3, 1, 1, None, None, false),
+            r(6, 3, 1, 1, Some(0), None, false),
+        ]
+    );
+    // Two x-neighbour jumps in a row carry the same arrival side on.
+    assert_eq!(
+        read_route(&[0x01, 4, 3, 0x41, 1, 0x02, 0x01, 6, 3, 0x01, 7, 3, 0x41, 1, 0x03]),
+        vec![
+            r(4, 3, 1, 1, None, Some(2), false),
+            r(5, 3, 1, 1, None, None, false),
+            r(6, 3, 1, 1, None, None, false),
+            r(7, 3, 1, 1, Some(0), Some(3), false),
+            r(7, 4, 1, 1, Some(1), None, false),
+        ]
+    );
 }
 
 /// §4.3 worked example (TS14): ConfirmRoute over test 10's route, the
