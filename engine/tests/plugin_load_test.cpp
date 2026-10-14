@@ -2986,12 +2986,15 @@ intptr_t FloraShadowOnce(FC4TestSeamFn seam, FakeObject* city, FakeObject* targe
 // (slot 8) and closes it (slot 9); the stream keeps what its PutUint16 /
 // PutUint32 (slots 7 / 9) get, little-endian, and reports no error (slot 18).
 // `refs` starts with the caller's own reference. Any other call aborts.
+// `falseOpen`: slot 8 still writes the stream (with its reference) but
+// returns false (AQ10).
 struct FakeSegment {
     FakeVtable segVt, dbVt, outVt;
     FakeObject seg{}, db{}, out{};
     int refs = 1;
     int opens = 0;
     int closes = 0;
+    bool falseOpen = false;
     uint32_t key[3] = {};  // type, group, instance
     std::vector<uint8_t> bytes;
 };
@@ -3012,7 +3015,7 @@ bool __fastcall FsegOpenO(void*, void*, const uint32_t* key, void** out, bool) {
     std::memcpy(g_fseg->key, key, sizeof(g_fseg->key));
     *out = &g_fseg->out;
     ++g_fseg->refs;
-    return true;
+    return !g_fseg->falseOpen;
 }
 void __fastcall FsegCloseO(void*, void*, void*) { ++g_fseg->closes; }  // db 9
 bool __fastcall FsegPut16(void*, void*, uint16_t v) {                 // stream 7
@@ -3188,6 +3191,16 @@ int FloraEnableTest(const std::string& dll, const std::string& ini, const std::s
             CHECK(fseg.key[0] == 0xC9BB3FC6u && fseg.key[1] == 0xC9BB3FC7u && fseg.key[2] == 1u);
             CHECK((fseg.bytes == std::vector<uint8_t>{0, 0, 0, 0, 0, 0}));
             CHECK(fseg.refs == 1);
+            // AQ10 (§10.3): an open that returns false but writes a stream:
+            // not open (nothing written, no close), and that stream's
+            // reference is released once.
+            static FakeSegment fsegFalse;
+            InitFakeSegment(fsegFalse);
+            fsegFalse.falseOpen = true;
+            CHECK(flora->SaveObliterated(reinterpret_cast<cIGZPersistDBSegment*>(&fsegFalse.seg)));
+            CHECK(fsegFalse.opens == 1 && fsegFalse.closes == 0);
+            CHECK(fsegFalse.bytes.empty());
+            CHECK(fsegFalse.refs == 1);
             // §11.1 slot 13 (FQ9): the map {0, added} in ascending order, each
             // key asked of the filter's slot 3; the accepted count returned.
             // (No game allocator here: the inserts fail, the count does not
