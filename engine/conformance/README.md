@@ -1666,6 +1666,7 @@ Neighbours events: `add_agent` (`level`, `name`, `flags`), `remove_agents`, `sub
 | 4 skip (and the lists and budget of §4.2.3–4.2.4) | `p11_04_skip_lists_budget` |
 | 5 relaxation | `p11_05_08_tract_visit` |
 | 6 water stop at 1 | `p11_05_08_tract_visit` |
+| 6 the special case always writes: v = 1 kept, `dirtyWater` set (§4.4.4 step 10, PG14) | `p11_28_water_special_case_dirty` |
 | 7 traffic | `p11_05_08_tract_visit` |
 | 8 zone averaging | `p11_05_08_tract_visit` |
 | 9 garbage production | `p11_09_12_garbage` |
