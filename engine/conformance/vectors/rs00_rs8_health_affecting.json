@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "residential_health_affecting",
+  "spec": ["residential 5.8", "RS8"],
+  "description": "residential 5.8 (RS8): a building whose two health-affecting properties 0x6A19F6B5 and 0xAA19F6EA are both > 0 is appended to the pending health-affecting list (the 'other' list) with one reference and dirty set; one at 0 is not. State 0 appends the pending list, in order, to the health-affecting list. Removed, the building is erased from the health-affecting list (else the pending list) and released, and dirty is set.",
+  "steps": [
+    {"op": "residential_env", "groups": {"9": [], "10": []}, "props": {"9": {"0x6A19F6B5": {"f32": 1}, "0xAA19F6EA": {"f32": 2}}, "10": {"0x6A19F6B5": {"f32": 1}, "0xAA19F6EA": {"f32": 0}}}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_set", "state": {"dirty": false}},
+    {"op": "residential_clear_events"},
+    {"op": "residential_message", "type": "OccupantInserted", "occupant": 10, "expect": true},
+    {"op": "residential_expect_events", "events": []},
+    {"op": "residential_expect", "state": {"dirty": false, "lists": {"other": []}}},
+    {"op": "residential_message", "type": "OccupantInserted", "occupant": 9, "expect": true},
+    {"op": "residential_expect_events", "events": [{"event": "add_ref", "id": 9}]},
+    {"op": "residential_expect", "state": {"dirty": true, "lists": {"other": [9], "health_affecting": []}}},
+    {"op": "residential_run_to", "state": 13, "steps": 1},
+    {"op": "residential_expect", "state": {"lists": {"other": [], "health_affecting": [9]}}},
+    {"op": "residential_set", "state": {"dirty": false}},
+    {"op": "residential_clear_events"},
+    {"op": "residential_message", "type": "OccupantRemoved", "occupant": 9, "expect": true},
+    {"op": "residential_expect_events", "events": [{"event": "release", "id": 9}]},
+    {"op": "residential_expect", "state": {"dirty": true, "lists": {"other": [], "health_affecting": []}}},
+    {"op": "residential_expect_refs", "refs": {"9": 0}}
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "reh11_history_per_mille",
+  "spec": ["REH 4.12", "REH 11.11", "residential 5.7"],
+  "description": "REH test 11: state 9 records each coverage per mille of the population, rounded half to even: served 1234 of 5000 -> 246.8 -> 247 (school series 0x4A8A3FE5 first). Population 0 -> both 0, hospital series 0x4A8A3FE2 first.",
+  "steps": [
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_set", "state": {"population": 5000, "school_covered": 1234, "hospital_covered": 0, "state": 9}},
+    {"op": "residential_clear_events"},
+    {"op": "residential_run_to", "state": 10, "steps": 1},
+    {"op": "residential_expect_events", "events": [{"series": "0xAA1A2864"}, {"series": "0xAA1A2866"}, {"series": "0xAA1A2CCA", "value": 5000}, {"series": "0x4A8A3FE5", "value": 247}, {"series": "0x4A8A3FE2", "value": 0}], "filter": {"event": "history"}},
+    {"op": "residential_set", "state": {"population": 0, "school_covered": 1234, "hospital_covered": 7, "state": 9}},
+    {"op": "residential_run_to", "state": 10, "steps": 1},
+    {"op": "residential_expect_events", "events": [{"series": "0xAA1A2864"}, {"series": "0xAA1A2866"}, {"series": "0xAA1A2CCA", "value": 0}, {"series": "0x4A8A3FE2", "value": 0}, {"series": "0x4A8A3FE5", "value": 0}], "filter": {"event": "history"}}
+  ]
+}
