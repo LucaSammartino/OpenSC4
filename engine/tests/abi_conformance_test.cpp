@@ -104,6 +104,10 @@
 #include "cISC4PropManager.h"
 #include "cISC4PropOccupant.h"
 #include "cISC4AuraSimulator.h"
+#include "cISC4FloraSimulator.h"
+#include "cISC4FloraOccupant.h"
+#include "cIGZCheatCodeManager.h"
+#include "cIGZCommandServer.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -356,6 +360,9 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4AuraSimulator", 16, 17,
      "slot 16 is cSC4AuraSimulator's scalar deleting destructor (pops 4): class-private (aura spec section 12.1: "
      "16 interface slots + destructor)"},
+    {"cISC4FloraSimulator", 25, 26,
+     "slot 25 is cSC4FloraSimulator's scalar deleting destructor (pops 4): class-private (flora spec section 11.1: "
+     "3 + 22 interface slots + destructor; only the game's own Release calls it)"},
 };
 
 const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlots) {
@@ -394,6 +401,9 @@ const Waiver kWaivers[] = {
      "the SDK says int64, the game returns 32 bits in eax; cFC4OrdinanceSimulator implements it with the "
      "sign-extended sum in edx:eax, so a caller reading eax sees the original's value"},
     {"vt:cSC4City::vftable", "cISC4City", 96, "CellCornerToPosition", "the game returns in ST0"},
+    {"cIGZCheatCodeManager", "cIGZCheatCodeManager", 14, "HasUserUsedCheat",
+     "the SDK says bool, the game returns 64 bits in edx:eax; the flora glue calls slots 3, 4, 7 and 8 only "
+     "(flora spec sections 4.1 and 4.2)"},
     {"vt:cSC4City::vftable", "cISC4City", 97, "CellCenterToPosition", "the game returns in ST0"},
     // cISC4ResidentialSimulator, cISC4DemandSimulator, cISC4Demand and
     // cISC4RegionalCity are declared in FC4Interfaces.h (demand spec §14);

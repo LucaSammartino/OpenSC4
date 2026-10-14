@@ -2961,7 +2961,7 @@ typedef struct fc4_flora_census_entry {
     uint32_t reserved2;
 } fc4_flora_census_entry;
 
-typedef struct fc4_flora_shadow_month {
+typedef struct fc4_flora_shadow_month_in {
     uint32_t struct_size;
     uint32_t julian;   /* data1 */
     uint32_t sim_date; /* GetSimDateNumber() */
@@ -2976,7 +2976,7 @@ typedef struct fc4_flora_shadow_month {
     size_t after_count;
     const fc4_flora_record* records; /* the original's, from its blocks, by type_id */
     size_t record_count;
-} fc4_flora_shadow_month;
+} fc4_flora_shadow_month_in;
 
 typedef struct fc4_flora_shadow_stats {
     uint32_t struct_size;
@@ -3001,7 +3001,7 @@ int32_t fc4_flora_shadow_registry(fc4_flora_shadow* s,
                                   fc4_bytes_sink sink, void* ctx);
 /* One line to `sink`; returns the mismatches, -2 = not compared (the line
  * says why), -1 = bad arguments. */
-int32_t fc4_flora_shadow_month(fc4_flora_shadow* s, const fc4_flora_shadow_month* m, fc4_bytes_sink sink,
+int32_t fc4_flora_shadow_month(fc4_flora_shadow* s, const fc4_flora_shadow_month_in* m, fc4_bytes_sink sink,
                                void* ctx);
 bool fc4_flora_shadow_get_stats(fc4_flora_shadow* s, fc4_flora_shadow_stats* out);
 
@@ -3109,7 +3109,8 @@ static_assert(sizeof(fc4_flora_state) == 180, "fc4_flora_state layout");
 static_assert(sizeof(fc4_flora_registry_host) == (sizeof(void*) == 4 ? 20 : 40), "fc4_flora_registry_host layout");
 static_assert(sizeof(fc4_flora_host) == (sizeof(void*) == 4 ? 240 : 480), "fc4_flora_host layout");
 static_assert(sizeof(fc4_flora_census_entry) == 72, "fc4_flora_census_entry layout");
-static_assert(sizeof(fc4_flora_shadow_month) == (sizeof(void*) == 4 ? 56 : 96), "fc4_flora_shadow_month layout");
+static_assert(sizeof(fc4_flora_shadow_month_in) == (sizeof(void*) == 4 ? 56 : 96),
+              "fc4_flora_shadow_month_in layout");
 static_assert(sizeof(fc4_flora_shadow_stats) == 64, "fc4_flora_shadow_stats layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");

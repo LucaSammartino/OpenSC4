@@ -1020,8 +1020,8 @@ fn shadow_registry_and_month_compare_a_faithful_original() {
             assert!(fc4_flora_write(fx.f, &ostream(&mut a)));
             let ca = census(w);
             let all = [rec(0x1000), rec(0x2000)];
-            let m = fc4_flora_shadow_month {
-                struct_size: std::mem::size_of::<fc4_flora_shadow_month>() as u32,
+            let m = fc4_flora_shadow_month_in {
+                struct_size: std::mem::size_of::<fc4_flora_shadow_month_in>() as u32,
                 julian,
                 sim_date: w.date.get(),
                 sea_level: 250.0,
@@ -1062,8 +1062,8 @@ fn shadow_registry_and_month_compare_a_faithful_original() {
             }
         }
         let all = [rec(0x1000), rec(0x2000)];
-        let mut m = fc4_flora_shadow_month {
-            struct_size: std::mem::size_of::<fc4_flora_shadow_month>() as u32,
+        let mut m = fc4_flora_shadow_month_in {
+            struct_size: std::mem::size_of::<fc4_flora_shadow_month_in>() as u32,
             julian: 5210,
             sim_date: w.date.get(),
             sea_level: 250.0,

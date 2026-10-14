@@ -104,10 +104,10 @@ pub struct fc4_flora_census_entry {
     pub reserved2: u32,
 }
 
-/// One monthly delivery (fc4.h `fc4_flora_shadow_month`).
+/// One monthly delivery (fc4.h `fc4_flora_shadow_month_in`).
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-pub struct fc4_flora_shadow_month {
+pub struct fc4_flora_shadow_month_in {
     pub struct_size: u32,
     /// The message's data1 (`today`).
     pub julian: u32,
@@ -157,7 +157,9 @@ pub struct fc4_flora_shadow_stats {
 const _: () = {
     assert!(std::mem::size_of::<fc4_flora_census_entry>() == 72);
     assert!(std::mem::size_of::<fc4_flora_shadow_stats>() == 64);
-    assert!(std::mem::size_of::<fc4_flora_shadow_month>() == if cfg!(target_pointer_width = "32") { 56 } else { 96 });
+    assert!(
+        std::mem::size_of::<fc4_flora_shadow_month_in>() == if cfg!(target_pointer_width = "32") { 56 } else { 96 }
+    );
 };
 
 // ---- the original's record --------------------------------------------------------------------------
@@ -618,13 +620,13 @@ fn same_pos(a: &Vec3, b: &Vec3) -> bool {
 #[no_mangle]
 pub unsafe extern "C" fn fc4_flora_shadow_month(
     p: *mut fc4_flora_shadow,
-    m: *const fc4_flora_shadow_month,
+    m: *const fc4_flora_shadow_month_in,
     sink: fc4_bytes_sink,
     ctx: *mut c_void,
 ) -> i32 {
     let Some(s) = shadow(p) else { return -1 };
     let Some(m) = m.as_ref() else { return -1 };
-    if (m.struct_size as usize) < std::mem::size_of::<fc4_flora_shadow_month>() {
+    if (m.struct_size as usize) < std::mem::size_of::<fc4_flora_shadow_month_in>() {
         return -1;
     }
     let before = slice(m.before, m.before_len);
