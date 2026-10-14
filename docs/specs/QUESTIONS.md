@@ -2069,8 +2069,12 @@ brackets.
 About `docs/specs/data-formats.md` (EX1–EX20 as applied in `engine/formats` and the core variant). The current
 answer is in brackets.
 
-- **EX21 — §4.3:** "multiply the scale by 0.1": the double constant 0.1 or the float `0.1f`? [double 0.1: it
-  reproduces every worked example, while `0.1f` turns `0.05` into `0x3D4CCCCE`]
+- ~~**EX21 — §4.3:** "multiply the scale by 0.1": the double constant 0.1 or the float `0.1f`? [double 0.1: it
+  reproduces every worked example, while `0.1f` turns `0.05` into `0x3D4CCCCE`]~~ **ANSWERED 2026-10-14** from the exe
+  (`fmul` with the double operand at 0x00A9EFE0 = `0x3FB999999999999A`, at 0x009104A7; 10.0 is the double at
+  0x00AA2028) and written into data-formats §4.3 ("Details of the arithmetic").
+  - The double constant 0.1, used as a double operand: each scale step rounds the exact product scale × 0.1 once, to
+    the caller's precision. The bracket matches. With `0.1f`, `0.05` would give `0x3D4CCCCE` instead of `0x3D4CCCCC`.
 - **EX22 — §4.3:** is `value × 10 + digit` rounded once or twice (after the multiply and after the add)? [twice,
   each to 24 bits]
 - **EX23 — §4.3:** does the exponent accept a `+`, and is it read when no mantissa digit came first? [yes to both]

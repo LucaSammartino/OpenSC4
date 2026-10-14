@@ -363,6 +363,11 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
     - `1e32` and any larger exponent give 0 (10ⁿ mod 2³² is 0 from n = 32), `1e-32` gives +∞ and `0e-32` gives
       NaN.
 
+    Details of the arithmetic (`0x00910426`):
+    - **Constants** (EX21). 10.0 (`0x00AA2028`) and 0.1 (`0x00A9EFE0`, bits `0x3FB999999999999A`) are doubles,
+      used directly as double operands. So each scale step rounds the exact product scale × 0.1 (double) once. With
+      `0.1f` instead, `0.05` would give `0x3D4CCCCE`.
+
     Shipped text Float32 values are small integers, which are exact. *[inferred: text exemplars are read on the
     main thread at 24-bit precision; at 53-bit precision `0.05` would give `0x3D4CCCCD`]*
   - `Bool`: lower-cased, leading spaces trimmed; true exactly when it begins with `true` (`1` gives false);
