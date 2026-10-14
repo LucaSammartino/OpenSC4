@@ -802,3 +802,96 @@ part of §8 is not compared). The glue's current answer is in brackets.
   §6.11 apply when next is 0? [the test avoids the case]
 - Not done (each logged once): obliterated-city save/restore (FQ3), the app shutdown callback (FQ2),
   `GetFloraTypesByFilter` with a non-null filter (FQ9).
+
+## From the landfill developer glue and shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/landfill.md` and its `docs/abi` rows. Ini: `enable = landfill` (ten `landfill_*` bisection
+switches); shadow `landfill_shadow = 1` (the original's SimNewMonth wrapped; its record read through its own Write
+before and after). The glue's current answer is in brackets.
+
+- **LG1 — §4.4.5, §4.8.1:** what arguments does RemoveOccupant take for flora and base-texture removal? [(true, 3)]
+- **LG2:** how is the base-texture occupant created and given the landfill texture (SetEmptyCellTexture)? [not done]
+- **LG3:** how is the tile occupant created; is the SDK's `SetTileID` (slot 6) enough to attach the tile exemplar?
+  [tiles live in FreeCity4 only; pollution's active-landfill flag is still set, which is what the simulation reads]
+- **LG4:** who owns the reference in occupant manager slot 33's out-parameter? [slot 41 lists used instead]
+- **LG5 — open question 6:** where does the zot orientation come from? [0]
+- **LG6 — §3.3, foundations §13.4:** must the month run after pollution and budget? [not enforced]
+- **LG7:** does FindNetworkTile's return carry a reference? [borrowed]
+- **LG8:** tiles are not saved; they are rebuilt at PostCityInit (interior orientation 0, no random draw). [choice]
+- **LG9:** is a null `GetLandfillZoneFromCell` acceptable to the city situation manager? [null]
+- **LG10:** city slot 97 returns a float in ST0 (`docs/abi`) where the spec says "—". Which is right? [discarded]
+- **LG11:** should the tile item cost be read from the tile exemplar? [no]
+- **LG12:** should the shadow clamp GetGarbageSupply? [live plus delta, clamped]
+- **LG13:** on Shutdown, does a zone release its zot or also remove the prop? [release only]
+- **LG14:** the shadow's supply is live plus delta, clamped. [choice]
+- **LG15 — §1.1:** only the city and the message server are held; terrain, pollution and budget are fetched per
+  call. [as stated]
+- **LG16:** the 3D view level is not reachable through a documented interface. [not done]
+- **LG17:** the traffic network map comes through city slot 40 (`GetTrafficNetwork`, `intptr_t` in the SDK). Right?
+- **LG18 — §1.1/§1.2:** which simulator does the original use for AddAgent before services are acquired? [the app's
+  city's simulator, held until RemoveAgent]
+- **LG19 — foundations §6/§12:** the core uses its own CRT-style generator per object (state 1), not the game's
+  unseeded per-thread `rand()` sequence. Acceptable?
+- **LG20:** a message from another thread that cannot get the lock is dropped. Acceptable?
+- Not done (each logged once): tile models, `SetEmptyCellTexture`, zone effects (trucks, seagulls), zot
+  orientation, the 3D view level, `GetLandfillZoneFromCell`. The shadow cannot compare the zots, trucks and seagulls
+  the original drew, the tile occupants it changed, the expenses it booked or the history it sent.
+
+## From the traffic simulator core (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/traffic-simulator.md`. All §11 tests 1 to 15 are unit tests and `ts11_*` vectors (29 vectors).
+TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's answer is in brackets.
+
+- **TS1 — §3.3:** does the pacing reset keep `rerouteBucket` (pass counter 2)? [kept; the other counters are zeroed]
+- **TS2 — §3.2 state 11:** what does UpdateNeighborConnections (`0x00714BE0`) do? [nothing]
+- **TS3 — §4.8 state 3:** what does ReduceTransitSwitches do? [the switch load restarts from 0; CreateMaps keeps the
+  previous value in counter 1]
+- **TS4 — §3.1:** what do DoRoadChanged / DoRailChanged do on occupant messages? [on insert the cell joins the damage
+  block's intact set unless present; on remove it leaves]
+- **TS5 — §3.1:** message `0x66956810` "marks the network as changed": which flag, and who rebuilds? [sets
+  `network_changed`, consumed by the trip phases]
+- **TS6 — §3.1:** what does the network part do on neighbour added / removed? [nothing]
+- **TS7:** DoPostCityInit steps 4 (neighbour connections) and 5 (destination-map boundary pass)? [skipped; the
+  network rebuild runs, then the transit multiplier]
+- **TS8 — §4.9 step 2:** what is the commercial traffic window? [the 4 × 4 block at (x, z); travel types car 1,
+  el-train 7, monorail 8; maximum morning usage plus maximum evening usage]
+- **TS9 — §4.9:** which records are "not excluded" from the statistics? [flag bit 0 clear]
+- **TS10 — slot 7 SetupPathFinderForLot:** what else is configured? [the lot rectangle as start, plus SetupTrip
+  steps 3–4 only]
+- **TS11 — slot 35 GetTransitSwitchQueryData:** the data fields? [returns the network core's query target only]
+- **TS12 — §4.12:** what does RecalculateNeighborConnectionCapacities do? [nothing]
+- **TS13 — §4.5:** a route with an off-map root is encoded as the in-city cell while its unit steps are relative to
+  the off-map cell. [decoded literally: shifted by one cell]
+- **TS14 — §4.3:** what does ConfirmRoute check? [during a strike any route using types 2, 3, 6, 7 or 8 fails; each
+  unit step leaving an in-city cell needs an exit on that side for its type, or the cell's switch for a type change;
+  jumps and off-map steps are not checked]
+- **TS15 — §4.5:** is the switch fee the switch's `0x0BFC0A4C` value read as f32? [yes]
+- **TS16 — §4.5:** the ferry-leg counters? [round(Q) to counter 1 (mode 0), 2 (mode 1) or both (mode 2), on the
+  departure terminal's link to that cell, else its neighbour link]
+- **TS17 — §4.4:** a highway-return adjustment for an off-map destination? [none]
+- **TS18 — §4.2:** when is the capacity property promoted from u16 to u32? [u16 until a value reaches 0xFFFF]
+- **TS19:** does the pathfinder adapter's GetLot match any cell of a lot? [yes (`false`)]
+- **TS20:** is the traffic-source list a snapshot? [yes: lots, then connections, when the phase is entered]
+- **TS21:** when are `toReRoute` / `toSearch` zeroed? [on entering state 16]
+- **TS22:** does ReduceEdgeDensities also clear ferry terminal cells? [yes, departure and arrival; missing records
+  are not created]
+- **TS23:** what does DoLotDeactivated do? [destination bytes over the lot := 0, its bucket entries removed,
+  `freeDest` unchanged]
+- **TS24:** is the direction towards a non-adjacent rectangle defined? [yes, always]
+- **TS25:** when is "the last switch seen" on a route updated? [at every in-city cell, so leaving and re-entering a
+  station counts again]
+- **TS26:** FinishTripMap donor search order? [distance first, then −x, −z, +x, +z]
+- **TS27:** default `trafficUnitsPerSlice`? [16 until calibrated]
+- **TS28 — tuning reads with short or missing data:** fewer vector entries [the rest keep their value]; the
+  strategy re-read with fewer than 3 values [missing ones unchanged]; missing ordinance offsets [0]; wealth above 3
+  [zeros].
+- **TS29:** max funding conversion from percent? [`r24(v / 100)`]
+- **TS30:** does Read commit only on success? [yes: parsed first; a failed Read leaves the simulator unchanged]
+- **TS31:** an unknown iterator-state byte in the record? [Done]
+- **TS32:** record versions above 0x29? [read with the 0x29 layout]
+- **TS33:** Read's own switch flags: is 0x40 set for a subway / el-train rule? [yes, as the re-read does; TN25]
+- **TS34 (fixtures only):** every cell reports a network occupant; department funding defaults to 1.0; department
+  tokens are 900+.
+- Not covered by vectors: path searches over a real network (the vector world has no network occupants; test 10
+  drives ApplyRoute with the spec's route bytes); switches, tunnels and ferries in the save record round-trip only
+  as empty lists (Read's switch mask and flags have a unit test). No plugin or capi integration yet (M5 glue).
