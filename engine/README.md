@@ -212,6 +212,30 @@ plugin.
        switches (default `1`, environment `FC4_CRIME_<KEY>`): `crime_lots`, `crime_police`, `crime_residential`,
        `crime_demand`, `crime_ordinance`, `crime_occupants`, `crime_fire`, `crime_props`, `crime_posts`,
        `crime_grid_writes`, `crime_zoning` (see `plugin/FC4Config.h`).
+     - `aura`: the aura (mayor rating) simulator (`cSC4AuraSimulator`, aura spec; its base, aura, transient,
+       park, landmark and work grids are the game's own `cSC4SimGrid<int8>` / `<int16>`, created through GZCOM,
+       because the map view reads the aura grid and the park map as raw memory, §14.2). The getters are answered
+       from any thread (they read a snapshot the core publishes after every main-thread call). The random
+       generator is seeded from the wall clock at construction (§9), as the original's. Inputs come only through
+       the game's interfaces, whichever simulator is active; one that is not there (no pollution, crime, traffic
+       or residential simulator, or a null grid) is logged once (`aura: input … not available (…); its stage is
+       skipped (the spec's neutral value)`) and listed on the cycle line. [choice]s, logged once where they show:
+       the lots are found by `GetLot(x, z, false)` over every cell (the safe lot iterator's layout is not in
+       docs/abi); lot populations are read with `GetPopulation(type)` (lot slot 53) for the 12 developer types,
+       not `GetPopulations` (its container is not in docs/abi); the game-data registry node `aura` is not
+       published (as budget's); the base auras are not copied to the process-wide developer-type table (§16
+       question 7); the CPU-cycle limit timer runs on `QueryPerformanceCounter`. The log has a status line at
+       `Init`, `Read` and every month (`aura month: init=… state=… mayor rating=R max=M@(x,z) min=m@(x,z) aura
+       tracts=N sum=S [lo..hi] base tracts with data=… hotspots=H riot roll=P departments=… global effect=…
+       base auras=…/…/… decay long/short=… slice step/miss=… reentrant=… days=… months=… cycles=… lot walks=…
+       lots=…; inputs none missing so far | not available (neutral): …`), one line per completed cycle (`aura
+       cycle N completed (day D, started day D0): mayor rating=… max=… min=… aura tracts=… sum=… [..] base
+       tracts with data=… hotspots=… riot roll=… lots=…; inputs all read | not available (neutral): …`), `aura
+       Write -> 1`, `aura Read -> 1`, `aura Shutdown (D days, M months, C cycles)`, and `aura: riot roll won:
+       AttemptDisasterStart(x, z) on manager 0x… (called)` when a riot starts. Its game calls have their own
+       switches (default `1`, environment `FC4_AURA_<KEY>`): `aura_lots`, `aura_lot_populations`,
+       `aura_occupants`, `aura_budget`, `aura_ordinance`, `aura_land_value`, `aura_inputs`, `aura_grid_writes`,
+       `aura_posts`, `aura_history`, `aura_disaster`, `aura_strikes` (see `plugin/FC4Config.h`).
    - Each budget behaviour that touches game objects has a switch. The switches are re-read at every city load
      (budget `Read`/`Init`). Each defaults to `1`; `0` makes the behaviour a no-op with a neutral result. The
      matching environment variable is `FC4_BUDGET_<KEY>`. `budget_default = 0` turns every unset switch off.
@@ -446,6 +470,41 @@ plugin.
 
      Success is `mismatches=0` on every month line (`clean` equal to `months`) and no `NOT OBSERVED` or
      `INCOMPLETE` line. A `!` marks a differing hotspot, count or average.
+   - **Aura shadow** (`aura_shadow = 1`, env `FC4_AURA_SHADOW`; off by default; `aura_shadow_cells = N`, env
+     `FC4_AURA_SHADOW_CELLS`, default 4, 1..64): a same-process differential of the aura grids. It needs the
+     **original** aura simulator (do not enable `aura`; otherwise `aura shadow: requested … but INACTIVE` at
+     game start); our simulator or the original may run the clock. The observer subscribes to the original's
+     cycle-completed message (`0x2A09B21A`, aura spec §11.1: posted, queued, at the end of state 17; the
+     original is then idle in state 0 until the next month, so its record is a finished cycle). At city load the
+     original's own `Write` (`cIGZSerializable`) goes into a memory stream and becomes the baseline; at every
+     cycle-completed message it is captured again, FreeCity4's cycle (states 1-17, the core code our simulator
+     runs, `fc4_aura_shadow_cycle`) runs on core copies of the record's grids with the previous record's base and
+     transient grids, reading every other input live and read-only (lots, populations, land value, occupants,
+     funding, tax rates, ordinances, the other simulators' grids; the host table has no write callback), and the
+     result is compared tract by tract with the record. Nothing is written to the game. **Not compared** (said in
+     the start line): the riot roll (the original's generator is seeded from the wall clock, §9), and the
+     posts, history, riots and strikes (writes). The inputs are read at the end of the original's cycle, not at
+     the moment each of its states read them, so an input that changed during the cycle (a lot built, a
+     funding change) shows as a difference. Lines (always written; longer ones continue on `aura shadow
+     (cont.)` lines):
+
+     ```
+     aura shadow: ON (aura_shadow from …): …                               (game start)
+     aura shadow: comparing with the original aura simulator … (city …, X x Z cells); …   (each city)
+     aura shadow: baseline from the original's record at city load: base B of T tracts with data, transient K
+       nonzero
+     aura shadow yyyy-mm-dd cycle N: tracts=T; base mismatches=a max|d|=…; aura mismatches=b max|d|=… (m in the
+       k tracts that got a transient effect during the cycle); park map mismatches=…; landmark map
+       mismatches=…; mayor rating orig/ours=r/r; max orig/ours=v@(x,z)/v@(x,z); min orig/ours=…; hotspots
+       orig/ours=h/h (same|differ)[; first differing (x,z) orig/ours: base (x,z) a/b …; aura …]; riot roll not
+       compared (wall-clock RNG); inputs: all read | inputs not available (neutral): …
+     aura shadow yyyy-mm-dd cycle N: INCOMPLETE (why); the next cycle only takes a baseline
+     aura shadow yyyy-mm-dd cycle N: baseline taken (no previous record); nothing compared
+     ```
+
+     Success is `base mismatches=0`, `aura mismatches=0` (or only in the transient-effect tracts), equal park
+     and landmark maps, equal mayor rating, best / worst and `hotspots … (same)` on every cycle line, and no
+     `INCOMPLETE` line after the first cycle.
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,
