@@ -122,6 +122,11 @@ struct World {
     demand: RefCell<[Option<f32>; 3]>,
     /// The cost of a deactivated lot's `0xCA550301` budget item (§4.1.3).
     item_cost: Cell<i64>,
+    /// The `0xCA550301` budget item of a building, `(department ID, cost)`
+    /// (§4.16).
+    query_items: RefCell<HashMap<u64, (u32, i64)>>,
+    /// The language drives on the left (§4.4, TS17).
+    drive_left: Cell<bool>,
 }
 
 fn inside(r: CellRect, x: i32, z: i32) -> bool {
@@ -422,6 +427,18 @@ impl TrafficSimHost for World {
     fn deactivate_budget_items(&self, _holder: u64) -> i64 {
         self.item_cost.get()
     }
+    fn budget_item_for_purpose(&self, building: u64, purpose: u32) -> Option<(u32, i64)> {
+        if purpose != prop::BUDGET_ITEM {
+            return None;
+        }
+        self.query_items.borrow().get(&building).copied()
+    }
+    fn department_budget(&self, department_id: u32) -> Option<u64> {
+        let d = self.departments.borrow();
+        d.iter()
+            .rposition(|e| e.0 == department_id)
+            .map(|i| self.dept_base.get() + i as u64)
+    }
     fn record_history(&self, series: u32, value: u32) {
         self.history.borrow_mut().push((series, value));
     }
@@ -537,6 +554,9 @@ impl TrafficSimHost for World {
     /// Fixture stand-in (TS34): every cell reports a network occupant.
     fn cell_has_network_occupant(&self, _x: i32, _z: i32) -> bool {
         true
+    }
+    fn drives_on_right(&self) -> bool {
+        !self.drive_left.get()
     }
     fn view_cell_rect(&self) -> Option<CellRect> {
         self.view.get()
@@ -2922,4 +2942,199 @@ fn apply_route_income_counts_off_map_cells() {
         0,
     );
     assert_eq!(income(&s), 120.0);
+}
+
+// ---- §4.4 SetupPathFinderForLot and the return leg, §4.16, §4.11 (TS10, TS11, TS17, TS19) ----
+
+/// §4.4 (TS17): FindHighwayReturnTile, the worked example (English drives
+/// on the right: out by highway to (−1, 40) the return leg starts at
+/// (−1, 41); in from (−1, 40) it ends at (−1, 39); UK English reversed) and
+/// the other three edges; an in-city cell is unchanged.
+#[test]
+fn ts17_find_highway_return_tile() {
+    let size = (64, 64);
+    assert_eq!(find_highway_return_tile(-1, 40, false, true, size), (-1, 41));
+    assert_eq!(find_highway_return_tile(-1, 40, true, true, size), (-1, 39));
+    assert_eq!(find_highway_return_tile(-1, 40, false, false, size), (-1, 39));
+    assert_eq!(find_highway_return_tile(-1, 40, true, false, size), (-1, 41));
+    assert_eq!(find_highway_return_tile(64, 10, false, true, size), (64, 9));
+    assert_eq!(find_highway_return_tile(10, -1, false, true, size), (9, -1));
+    assert_eq!(find_highway_return_tile(10, 64, false, true, size), (11, 64));
+    // The first matching row: a corner moves along x < 0.
+    assert_eq!(find_highway_return_tile(-1, -1, false, true, size), (-1, 0));
+    assert_eq!(find_highway_return_tile(5, 5, false, true, size), (5, 5));
+}
+
+/// §4.4 (TS17, TS19): the return leg's rects. Start: an off-map end cell
+/// moves for a car or bus at a divided-road edge record (mask `0x1108`),
+/// not for walking or at a road; an in-city end cell gives the bounding
+/// rect of the lot at any of its cells, or nothing without a lot. End: pf's
+/// start rect, or at an off-map divided-road corner (any type) the cell
+/// moved back. Driving on the left reverses both.
+#[test]
+fn ts17_return_leg_rects() {
+    use crate::traffic_network::NeighbourEdge;
+    let w = World::new();
+    w.add_lot(1, Lot::new(CellRect::new(4, 4, 5, 5), 11));
+    let s = sim(&w);
+    let edge = |x: i32, z: i32, mask: u16| {
+        s.network().update_state(|n| {
+            n.set_neighbour_edge(
+                x,
+                z,
+                NeighbourEdge {
+                    mask,
+                    ..NeighbourEdge::default()
+                },
+            )
+        });
+    };
+    edge(-1, 4, 1 << 3); // Highway
+    edge(-1, 6, 1 << 2); // Road
+    edge(-1, 2, 1 << 8); // Avenue
+    edge(8, 3, 1 << 12); // GroundHighway
+    let lot = CellRect::new(4, 4, 5, 5);
+    let cell = |x, z| CellRect::new(x, z, x, z);
+    assert_eq!(s.return_leg_rects((-1, 4), 1, lot), (Some(cell(-1, 5)), lot));
+    assert_eq!(s.return_leg_rects((-1, 4), 2, lot), (Some(cell(-1, 5)), lot));
+    assert_eq!(s.return_leg_rects((-1, 4), 0, lot), (Some(cell(-1, 4)), lot));
+    assert_eq!(s.return_leg_rects((-1, 6), 1, lot), (Some(cell(-1, 6)), lot));
+    assert_eq!(s.return_leg_rects((8, 3), 1, lot), (Some(cell(8, 2)), lot));
+    // In the city: any cell of the lot; no lot, no start rect.
+    assert_eq!(s.return_leg_rects((5, 5), 1, cell(-1, 6)), (Some(lot), cell(-1, 6)));
+    assert_eq!(s.return_leg_rects((6, 6), 1, cell(-1, 6)), (None, cell(-1, 6)));
+    // pf started off the map at an avenue: the end moves back, any type.
+    assert_eq!(s.return_leg_rects((5, 5), 0, cell(-1, 2)), (Some(lot), cell(-1, 1)));
+    // Driving on the left.
+    w.drive_left.set(true);
+    assert_eq!(
+        s.return_leg_rects((-1, 4), 1, cell(-1, 2)),
+        (Some(cell(-1, 3)), cell(-1, 3))
+    );
+}
+
+/// §4.4 (TS10): SetupPathFinderForLot. The dominant strategy by summed
+/// counts (a tie keeps the lower index), the first trip's type, the lot's
+/// rect; density and work time are the caller's.
+#[test]
+fn ts10_setup_path_finder_for_lot() {
+    let w = World::new();
+    w.add_lot(1, Lot::new(CellRect::new(2, 2, 3, 3), 11));
+    w.add_lot(2, Lot::new(CellRect::new(5, 5, 5, 5), 12));
+    w.add_lot(3, Lot::new(CellRect::new(6, 6, 6, 6), 13));
+    w.set_trips(
+        Source::Lot(1),
+        vec![
+            TripData::new(10, 0, 0, 0, 0),
+            TripData::new(30, 0, 2, 0, 0),
+            TripData::new(30, 1, 1, 0, 0),
+        ],
+    );
+    w.set_trips(Source::Lot(3), vec![TripData::new(5, 4, 0, 0, 0)]);
+    let s = sim(&w);
+    let tu = s.read_state(|st| st.tuning.clone());
+    let mut pf = s.create_path_finder();
+    assert!(!s.setup_path_finder_for_lot(&mut pf, 0));
+    pf.set_traffic_density(77);
+    pf.set_max_work_time(9);
+    assert!(s.setup_path_finder_for_lot(&mut pf, 1));
+    assert_eq!(pf.start_rect(), CellRect::new(2, 2, 3, 3));
+    assert_eq!(pf.trip_destination_filter(), crate::pathfinder::filter::STANDARD);
+    assert_eq!(pf.destination_flags(), 1);
+    assert_eq!(pf.allowed_travel_types(), COMMUTER_TYPES);
+    assert_eq!(pf.starting_travel_types(), COMMUTER_START);
+    // sum = [10, 30, 30]: 1 beats 0, 2 only ties 1.
+    assert_eq!(pf.starting_cost_array(), Some(tu.start_car));
+    assert_eq!(pf.flags(), 0);
+    assert_eq!((pf.traffic_density(), pf.max_work_time()), (77, 9));
+    // No trips and none generated (zone 0): false.
+    assert!(!s.setup_path_finder_for_lot(&mut pf, 2));
+    // Type 4: the destination flag is set, then false.
+    assert!(!s.setup_path_finder_for_lot(&mut pf, 3));
+    assert_eq!(pf.destination_flags(), 1 << 4);
+    // An industrial lot with no trips: UpdateTrafficVolume makes its freight.
+    let mut ind = Lot::new(CellRect::new(1, 6, 1, 6), 14);
+    ind.zone = 7;
+    ind.pops = vec![(0x4100, 400)];
+    w.add_lot(4, ind);
+    let mut pf = s.create_path_finder();
+    assert!(s.setup_path_finder_for_lot(&mut pf, 4));
+    let trips = w.get_trips(Source::Lot(4));
+    assert!(!trips.is_empty());
+    assert_eq!(trips[0].trip_type, FREIGHT);
+    assert_eq!(pf.flags(), crate::pathfinder::flag::NO_BUDGET);
+    assert_eq!(pf.allowed_travel_types(), FREIGHT_TYPES);
+    assert_eq!(pf.destination_flags(), 1 << FREIGHT);
+    assert_eq!(pf.starting_cost_array(), None);
+}
+
+/// §4.16 worked example (TS11): a subway station with capacity 2500, last
+/// cycle's load 3100 (ratio 1.0), a budget item of 150 in a department
+/// funded at 0.9: `{2500, 2500, 1.0, 3100, 135}`; during a strike
+/// `{0, 2500, 0.0, 0, 135}`. A ferry terminal in the lot at the cell:
+/// riders last period and 1.0. Nothing at the cell, or a switch ID with no
+/// switch: false.
+#[test]
+fn ts11_transit_switch_query_data_example() {
+    let w = World::new();
+    w.add_lot(1, Lot::new(CellRect::new(6, 6, 7, 7), 11));
+    let s = sim(&w);
+    let dept = w.department_budget(dept::MASS_TRANSIT).expect("mass transit");
+    w.funding.borrow_mut().insert(dept, 0.9);
+    w.query_items.borrow_mut().insert(900, (dept::MASS_TRANSIT, 150));
+    w.query_items.borrow_mut().insert(1011, (dept::MASS_TRANSIT, 100));
+    set_switches(&s, &[(3, 3, 5), (1, 1, 6)], &[(5, 0.0)]);
+    s.network().update_state(|n| {
+        let sw = n.switches.get_mut(5).unwrap();
+        sw.building = 900;
+        sw.capacity = 2500.0;
+        sw.counter_a = 3100.0;
+        sw.counter_b = 1.0;
+        n.ferries.push(crate::traffic_network::FerryTerminal {
+            lot_x: 7,
+            lot_z: 6,
+            riders_last: 42,
+            ..Default::default()
+        });
+    });
+    let q = |available, max_capacity, load_fraction, usage, cost| SwitchQueryData {
+        available,
+        max_capacity,
+        load_fraction,
+        usage,
+        cost,
+    };
+    assert_eq!(s.transit_switch_query_data(3, 3), Some(q(2500, 2500, 1.0, 3100, 135)));
+    // The lot's building 1000 + 11 at 0.9: r24(100 × 0.9) = 90.
+    assert_eq!(s.transit_switch_query_data(7, 7), Some(q(42, 42, 1.0, 42, 90)));
+    assert_eq!(s.transit_switch_query_data(2, 2), None);
+    assert_eq!(s.transit_switch_query_data(1, 1), None);
+    s.update_state(|st| st.strike_state = 1);
+    assert_eq!(s.transit_switch_query_data(3, 3), Some(q(0, 2500, 0.0, 0, 135)));
+    assert_eq!(s.transit_switch_query_data(6, 6), Some(q(0, 0, 0.0, 0, 90)));
+}
+
+/// §4.11 (TS19): ClearTripDestinations asks `GetLot(x, z, true)`, so a
+/// 2 × 2 lot is rolled and counted once; RefreshCommuteMap sets the bits at
+/// every cell but counts `freeDest` once.
+#[test]
+fn ts19_get_lot_origin_only_in_state_5_and_10() {
+    let w = World::new();
+    w.add_lot(1, Lot::new(CellRect::new(2, 2, 3, 3), 11));
+    w.set_prop(11, prop::TRIP_CAPACITY, u16s(&[6, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0]));
+    let s = sim(&w);
+    s.enter_cycle_state(cycle_state::CLEAR_DESTINATIONS);
+    assert!(s.work_on_sim_cycle());
+    assert_eq!(
+        w.prop(11, prop::TRIP_CAPACITY),
+        Some(u16s(&[6, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0]))
+    );
+    assert_eq!(s.read_state(|st| st.job_capacity), [6, 0, 0]);
+    s.update_state(|st| st.set_free(0, 0));
+    s.enter_cycle_state(cycle_state::REFRESH_COMMUTE);
+    assert!(s.work_on_sim_cycle());
+    for (x, z) in [(2, 2), (3, 2), (2, 3), (3, 3)] {
+        assert_eq!(s.destination_byte(x, z), 1);
+    }
+    assert_eq!(s.free_destinations()[0], 1);
 }

@@ -10,13 +10,13 @@
 
 use crate::curve::ResponseCurve;
 use crate::traffic_network::{NetworkState, NET_OF_TRAVEL};
-use crate::x87::{r24, rhe};
+use crate::x87::{ftol, r24, rhe};
 
 use super::adapters::{capacity_element, set_capacity_element};
 use super::cycle::Run;
 use super::state::{AccidentEntry, StatRow, BRIDGE_SLOT};
 use super::tuning::SimTuning;
-use super::{msg, SimMessage, TrafficSimHost};
+use super::{msg, prop, SimMessage, SwitchQueryData, TrafficSimHost};
 
 /// The BDS developer types of the background traffic (§4.9).
 const BG_RESIDENTIAL: [u32; 3] = [0x1010, 0x1020, 0x1030];
@@ -311,6 +311,69 @@ impl Run<'_, '_> {
             }
         }
         self.h.post_message(SimMessage::of_type(msg::TRAFFIC_MAP_CHANGED));
+    }
+
+    /// `GetTransitSwitchQueryData(x, z, out)` (slot 35, `0x0071CB80`, §4.16,
+    /// TS11), "strike" = strike state 1. A switch at the cell (switch-ID
+    /// grid): `{capacity, capacity, ratio, prevUsage, cost}` from the last
+    /// CreateMaps (§4.9 step 4: `counter_b`, `counter_a`), with the
+    /// capacity truncated; during a strike only the maximum capacity and the
+    /// cost stay. Else the first ferry terminal (list order) whose lot cell
+    /// lies in the bounding rect of `GetLot(x, z, false)`: riders last
+    /// period in the three counts and 1.0, all 0 during a strike, the cost
+    /// from the lot's building. `None` (false, `out` untouched) for neither,
+    /// and for a switch ID with no switch *[choice]*.
+    pub(crate) fn transit_switch_query_data(&self, x: i32, z: i32) -> Option<SwitchQueryData> {
+        let strike = self.st.strike_state == 1;
+        let s = self.net();
+        let id = s.switch_id_at(x, z);
+        if id != 0 {
+            let sw = s.switches.get(id)?;
+            let cap = ftol(f64::from(sw.capacity)) as u32;
+            return Some(SwitchQueryData {
+                available: if strike { 0 } else { cap },
+                max_capacity: cap,
+                load_fraction: if strike { 0.0 } else { sw.counter_b },
+                usage: if strike {
+                    0
+                } else {
+                    ftol(f64::from(sw.counter_a)) as u32
+                },
+                cost: self.query_cost(Some(sw.building)),
+            });
+        }
+        let lot = self.h.lot_at(x, z, false)?;
+        let r = self.h.lot_bounding_rect(lot);
+        let t = s.ferries.iter().find(|t| {
+            let (lx, lz) = (i32::from(t.lot_x), i32::from(t.lot_z));
+            lx >= r.x1 && lx <= r.x2 && lz >= r.z1 && lz <= r.z2
+        })?;
+        let riders = if strike { 0 } else { u32::from(t.riders_last) };
+        Some(SwitchQueryData {
+            available: riders,
+            max_capacity: riders,
+            load_fraction: if strike { 0.0 } else { 1.0 },
+            usage: riders,
+            cost: self.query_cost(self.h.lot_building(lot)),
+        })
+    }
+
+    /// The query's maintenance cost (§4.16): the building's first
+    /// `0xCA550301` budget item and its department; `low32(ftol(r24(float(
+    /// cost) × funding)))`, 0 when either is missing or with no building.
+    fn query_cost(&self, building: Option<u64>) -> u32 {
+        let Some(b) = building.filter(|&b| b != 0) else {
+            return 0;
+        };
+        let Some((dept_id, cost)) = self.h.budget_item_for_purpose(b, prop::BUDGET_ITEM) else {
+            return 0;
+        };
+        let Some(dept) = self.h.department_budget(dept_id) else {
+            return 0;
+        };
+        let f = self.h.department_funding(dept);
+        let c = r24(cost as f64);
+        ftol(r24(c * f64::from(f))) as u32
     }
 
     /// ClearTripDestinations (state 5, §4.11): each lot once, at its origin

@@ -96,8 +96,9 @@ pub use state::{
     PC_REROUTE_BUCKET, PC_SOURCE_COUNTER,
 };
 pub use trips::{
-    ceil_idiom, floor_idiom, industrial_trips, merge_routed, merge_search, reconcile_connection, reconcile_lot,
-    residential_commuters, residential_split, trip_length_byte, COMMUTER_START, COMMUTER_TYPES, FREIGHT_TYPES,
+    ceil_idiom, find_highway_return_tile, floor_idiom, industrial_trips, merge_routed, merge_search,
+    reconcile_connection, reconcile_lot, residential_commuters, residential_split, trip_length_byte, COMMUTER_START,
+    COMMUTER_TYPES, DIVIDED_ROAD_MASK, FREIGHT_TYPES,
 };
 pub use tuning::{invert_congestion_curve, SimTuning};
 
@@ -108,9 +109,7 @@ use crate::grid::{CellRect, GridProvider, TractGrid};
 use crate::pathfinder::Pathfinder;
 use crate::property::PropertyHolder;
 use crate::stream::RefValue;
-use crate::traffic_network::{
-    FerryRouteInfo, NetworkHost, NetworkModel, SwitchQueryTarget, TrafficEdgeDensity, EDGE_DENSITY_ZERO,
-};
+use crate::traffic_network::{FerryRouteInfo, NetworkHost, NetworkModel, TrafficEdgeDensity, EDGE_DENSITY_ZERO};
 use crate::variant::Variant;
 
 pub use crate::traffic_network::{CLSID_TRAFFIC_SIMULATOR, IID_TRAFFIC_SIMULATOR};
@@ -386,6 +385,22 @@ pub struct NeighbourCity {
     pub population: [i32; 3],
 }
 
+/// The five fields of `GetTransitSwitchQueryData`'s `out` (§4.16), named
+/// after the query window's readers.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct SwitchQueryData {
+    /// `+0x00`: the available capacity (service quality numerator).
+    pub available: u32,
+    /// `+0x04`: the maximum capacity.
+    pub max_capacity: u32,
+    /// `+0x08`: the load fraction.
+    pub load_fraction: f32,
+    /// `+0x0C`: the actual usage.
+    pub usage: u32,
+    /// `+0x10`: the monthly maintenance cost.
+    pub cost: u32,
+}
+
 /// A `u8` grid.
 pub type GridU8 = Rc<dyn TractGrid<u8>>;
 /// An `f32` grid.
@@ -456,6 +471,14 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     /// the same for `0x0C3BF549`. Returns the `0xCA550301` item's cost (the
     /// int64 at `+0x10`) to subtract from `E`, 0 when there is none.
     fn deactivate_budget_items(&self, holder: u64) -> i64;
+    /// Budget simulator slot 51 `GetBudgetItemForPurpose(holder, purpose,
+    /// item)` on the building's property holder (§4.16, TS11): the
+    /// building's first budget item with that purpose, as its department
+    /// ID and its int64 monthly cost at 100 %; `None` when there is none.
+    fn budget_item_for_purpose(&self, building: u64, purpose: u32) -> Option<(u32, i64)>;
+    /// Budget simulator slot 28 `GetDepartmentBudget(id)` (§4.16): the
+    /// department, `None` when there is none.
+    fn department_budget(&self, department_id: u32) -> Option<u64>;
 
     // ---- history (§4.12) ----
     fn record_history(&self, series: u32, value: u32);
@@ -537,6 +560,13 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     fn occupant_filter_includes(&self, filter: u64, occupant: u64) -> bool;
     /// The accident check's occupant test (§4.13, grid slot 14 of `+0x1C`).
     fn cell_has_network_occupant(&self, x: i32, z: i32) -> bool;
+
+    // ---- language (§4.4) ----
+    /// The language manager's utility for the current language (slot 38
+    /// `GetLanguageUtility(0)`, then its slot 25 `GetLanguageRoadDrivingSide`)
+    /// = 1: false for UK English (2) and Japanese (15), true for every other
+    /// language and when there is no utility (TS17).
+    fn drives_on_right(&self) -> bool;
 
     // ---- accidents (§4.13) ----
     /// The visible cell rectangle from the view, `None` without a view.
@@ -734,24 +764,11 @@ impl TrafficSimulator {
         self.run(|r| r.find_path_with(pf))
     }
 
-    /// `SetupPathFinderForLot(pf, lot)` (slot 7, §4.4 *[inferred]*): the lot's
-    /// rect as start rect and SetupTrip steps 3–4 (flags and travel types
-    /// cleared, the default starting costs, the commute max time)
-    /// *[question: the rest of the configuration is not specified]*. False
-    /// without a lot.
+    /// `SetupPathFinderForLot(pf, lot)` (slot 7, `0x00711610`, §4.4, TS10):
+    /// configures a caller's pathfinder from the lot's trip list. False for
+    /// lot 0 (the null pointer) or a lot with no trips.
     pub fn setup_path_finder_for_lot(&self, pf: &mut Pathfinder, lot: u64) -> bool {
-        if lot == 0 {
-            return false;
-        }
-        let rect = self.host.lot_bounding_rect(lot);
-        let max_len = self.read_state(|s| s.tuning.commute_max_time);
-        pf.set_max_work_time(0);
-        pf.set_start_rect(rect);
-        pf.clear_all_flags();
-        pf.clear_all_travel_type_flags();
-        pf.set_starting_cost_array(None);
-        pf.set_max_trip_length(max_len);
-        true
+        self.run(|r| r.setup_path_finder_for_lot(pf, lot))
     }
 
     // ---- slots 8–10, 13: maps ----
@@ -946,11 +963,10 @@ impl TrafficSimulator {
         self.read_state(|s| s.stats_last.clone())
     }
 
-    /// `GetTransitSwitchQueryData(x, z)` (slot 35): what is at the cell. The
-    /// data fields are not specified (traffic-network.md §7.1 defers them to
-    /// this spec, which does not list them) *[question]*.
-    pub fn transit_switch_query_data(&self, x: i32, z: i32) -> Option<SwitchQueryTarget> {
-        self.net.transit_switch_query_target(x, z)
+    /// `GetTransitSwitchQueryData(x, z, out)` (slot 35, `0x0071CB80`, §4.16,
+    /// TS11): `out`, or `None` for false (`out` untouched).
+    pub fn transit_switch_query_data(&self, x: i32, z: i32) -> Option<SwitchQueryData> {
+        self.run(|r| r.transit_switch_query_data(x, z))
     }
 
     /// `AreLotsConnected` (slot 36).
@@ -1048,6 +1064,13 @@ impl TrafficSimulator {
             let rect = r.source_rect(source);
             r.setup_trip(pf, pf2, trip, rect);
         });
+    }
+
+    /// The return leg's start rect (`None`: pf2 keeps its own) and end rect
+    /// from pf's end cell, its result node's travel type and its start rect
+    /// (§4.4, TS17).
+    pub fn return_leg_rects(&self, end: (i32, i32), end_type: u8, pf_start: CellRect) -> (Option<CellRect>, CellRect) {
+        self.run(|r| r.return_leg_rects(end, end_type, pf_start))
     }
 
     /// `CapacityStillAvailable(trip)` (§4.2).

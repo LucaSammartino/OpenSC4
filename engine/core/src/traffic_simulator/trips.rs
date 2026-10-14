@@ -14,9 +14,38 @@ use crate::pathfinder::{filter, flag, result, Pathfinder, NO_PARK_AND_RIDE};
 use crate::variant::{Elem, Variant};
 use crate::x87::{r24, rhe};
 
+use crate::traffic_network::NetworkState;
+
 use super::cycle::Run;
 use super::route::{confirm_route, mode};
 use super::{prop, status, trip_flag, Source, TripData, FREIGHT};
+
+/// The neighbour-connection types of a divided road (§4.4, TS17): Highway
+/// (3), Avenue (8) and GroundHighway (12) (traffic-network.md §2.7.1).
+pub const DIVIDED_ROAD_MASK: u16 = 0x1108;
+
+/// `FindHighwayReturnTile(x, z, back)` (`0x0070DD30`, §4.4, TS17): moves an
+/// off-map cell one step along its map edge, so a car or bus that left by a
+/// divided road comes back on the other carriageway. `right` is the
+/// language's driving side, inverted when `back`; then the first matching
+/// row: `x < 0` → `z ± 1`, `x > X − 1` → `z ∓ 1`, `z < 0` → `x ∓ 1`,
+/// `z > Z − 1` → `x ± 1` (upper signs when `right`). An in-city cell is
+/// unchanged; the new cell is not checked.
+pub fn find_highway_return_tile(x: i32, z: i32, back: bool, drives_on_right: bool, size: (i32, i32)) -> (i32, i32) {
+    let right = drives_on_right != back;
+    let d = if right { 1 } else { -1 };
+    if x < 0 {
+        (x, z + d)
+    } else if x > size.0 - 1 {
+        (x, z - d)
+    } else if z < 0 {
+        (x - d, z)
+    } else if z > size.1 - 1 {
+        (x + d, z)
+    } else {
+        (x, z)
+    }
+}
 
 /// The travel types a commuter may use (§4.4 step 5): walk, car, bus,
 /// passenger train, subway, el-train, monorail.
@@ -242,8 +271,8 @@ impl Run<'_, '_> {
     }
 
     /// The destination rectangle of a cell (§4.4): the lot's bounding rect
-    /// when the cell is in the city and holds a lot (`GetLot(x, z, false)`
-    /// *[choice]*), else the cell.
+    /// when the cell is in the city and holds a lot (`GetLot(x, z, false)`,
+    /// any cell of the lot, TS19), else the cell.
     fn dest_rect(&self, x: i32, z: i32) -> CellRect {
         if self.net().in_city(x, z) {
             if let Some(l) = self.h.lot_at(x, z, false) {
@@ -624,14 +653,7 @@ impl Run<'_, '_> {
                 pf.set_travel_type_flag(1u16.checked_shl(u32::from(t.strategy)).unwrap_or(0), true);
             } else {
                 pf.set_travel_type_flag(COMMUTER_START, true);
-                let tu = &self.st.tuning;
-                let costs = match t.strategy {
-                    0 => Some(tu.start_mass_transit),
-                    1 => Some(tu.start_car),
-                    2 => Some(tu.start_neutral),
-                    // No array for another strategy *[choice]*.
-                    _ => None,
-                };
+                let costs = self.strategy_costs(t.strategy);
                 if costs.is_some() {
                     pf.set_starting_cost_array(costs);
                 }
@@ -641,6 +663,118 @@ impl Run<'_, '_> {
             pf.set_flag(flag::NO_BUDGET);
             pf.set_travel_type_flag(FREIGHT_TYPES, true);
         }
+    }
+
+    /// The starting cost array of a strategy (§4.4 step 5): 0 mass transit,
+    /// 1 car, 2 neutral; none for another strategy *[choice]*.
+    fn strategy_costs(&self, strategy: u8) -> Option<[f32; 9]> {
+        let tu = &self.st.tuning;
+        match strategy {
+            0 => Some(tu.start_mass_transit),
+            1 => Some(tu.start_car),
+            2 => Some(tu.start_neutral),
+            _ => None,
+        }
+    }
+
+    /// `SetupPathFinderForLot(pf, lot)` (slot 7, `0x00711610`, §4.4, TS10).
+    /// Unlike SetupTrip it never sets the traffic density, the work-time
+    /// limit, flag 4, a forced start type or a re-route end rect.
+    pub(crate) fn setup_path_finder_for_lot(&mut self, pf: &mut Pathfinder, lot: u64) -> bool {
+        // 1.
+        if lot == 0 {
+            return false;
+        }
+        // 2. An empty list: UpdateTrafficVolume once, then look again.
+        let src = Source::Lot(lot);
+        let mut trips = self.h.trip_list(src);
+        if trips.is_empty() {
+            self.update_traffic_volume(src);
+            trips = self.h.trip_list(src);
+        }
+        let Some(first) = trips.first() else {
+            return false;
+        };
+        // 3. The dominant strategy (unsigned, strict: a tie keeps the lower
+        // index); a strategy above 2 is not summed *[choice]*. The type is
+        // the first trip's.
+        let mut sum = [0u32; 3];
+        for t in &trips {
+            if let Some(s) = sum.get_mut(usize::from(t.strategy)) {
+                *s = s.wrapping_add(t.count);
+            }
+        }
+        let mut best = 0;
+        if sum[1] > sum[0] {
+            best = 1;
+        }
+        if sum[2] > sum[best] {
+            best = 2;
+        }
+        let ty = first.trip_type;
+        // 4.
+        pf.set_start_rect(self.source_rect(src));
+        pf.clear_all_flags();
+        pf.clear_all_travel_type_flags();
+        pf.set_starting_cost_array(None);
+        pf.set_max_trip_length(self.st.tuning.commute_max_time);
+        // 5.
+        pf.set_trip_destination_filter(filter::STANDARD);
+        pf.clear_all_destination_flags();
+        pf.set_destination_flag(1u8.checked_shl(u32::from(ty)).unwrap_or(0));
+        // 6.
+        if ty <= 2 {
+            pf.set_travel_type_flag(COMMUTER_TYPES, false);
+            pf.set_travel_type_flag(COMMUTER_START, true);
+            pf.set_starting_cost_array(self.strategy_costs(best as u8));
+            true
+        } else if ty == FREIGHT {
+            pf.set_flag(flag::NO_BUDGET);
+            pf.set_travel_type_flag(FREIGHT_TYPES, true);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// The return leg's start and end rects (§4.4, `0x0071C858`–`0x0071C987`,
+    /// TS17) from pf's end cell, its result node's travel type and its start
+    /// rect. Start: in the city the bounding rect of `GetLot(x, z, false)`,
+    /// or `None` without a lot (pf2 keeps its previous start rect
+    /// *[quirk]*); off the map the single cell, moved by
+    /// [`find_highway_return_tile`] (`back` false) for a car or bus at an
+    /// edge record with a divided road. End: pf's start rect, or when its
+    /// `(x0, z0)` corner is off the map at such a record (any type) the
+    /// single cell moved with `back` true.
+    pub(crate) fn return_leg_rects(
+        &self,
+        end: (i32, i32),
+        end_type: u8,
+        pf_start: CellRect,
+    ) -> (Option<CellRect>, CellRect) {
+        let s: &NetworkState = self.net();
+        let size = (s.count_x, s.count_z);
+        let right = self.h.drives_on_right();
+        let divided = |x: i32, z: i32| s.traffic_neighbor_connection(x, z).mask & DIVIDED_ROAD_MASK != 0;
+        let (x, z) = end;
+        let start = if s.in_city(x, z) {
+            self.h.lot_at(x, z, false).map(|l| self.h.lot_bounding_rect(l))
+        } else {
+            let (x, z) = if (end_type == 1 || end_type == 2) && divided(x, z) {
+                find_highway_return_tile(x, z, false, right, size)
+            } else {
+                (x, z)
+            };
+            Some(CellRect::new(x, z, x, z))
+        };
+        let (x0, z0) = (pf_start.x1, pf_start.z1);
+        let end = if !s.in_city(x0, z0) && divided(x0, z0) {
+            let (x, z) = find_highway_return_tile(x0, z0, true, right, size);
+            CellRect::new(x, z, x, z)
+        } else {
+            pf_start
+        };
+        (start, end)
     }
 
     /// `PerformPathSearch(trip)` (`0x0071C6C0`, §4.4). A suspended search
@@ -681,11 +815,12 @@ impl Run<'_, '_> {
             return true;
         }
         t.flags &= !trip_flag::REVERSIBLE;
-        // The return leg on pf2, configured field by field (§4.4). The
-        // highway-return adjustment for an off-map destination is not
-        // specified *[question]*: none.
-        pf2.set_start_rect(self.dest_rect(ex, ez));
-        pf2.set_end_rect(pf.start_rect());
+        // The return leg on pf2, configured field by field (§4.4, TS17).
+        let (start, end) = self.return_leg_rects((ex, ez), pf.get_last_travel_type(), pf.start_rect());
+        if let Some(r) = start {
+            pf2.set_start_rect(r);
+        }
+        pf2.set_end_rect(end);
         pf2.set_flags(flag::NO_BUDGET);
         pf2.set_traffic_density(arrived);
         pf2.set_trip_destination_filter(filter::END_RECT);

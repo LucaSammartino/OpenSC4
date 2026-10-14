@@ -410,7 +410,7 @@ impl PathfinderHost for PfAdapter<'_> {
         self.st.income_acc.set(v);
     }
     /// `GetLot(x, z, false)`: any cell of a lot; the pathfinder always passes
-    /// false (PF3, pathfinder.md §8).
+    /// false (PF3, pathfinder.md §8; TS19).
     fn lot_at(&self, x: i32, z: i32) -> Option<u64> {
         self.h.lot_at(x, z, false)
     }
