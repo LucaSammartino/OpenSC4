@@ -796,10 +796,12 @@ impl ZoneManager {
         ok & (out.error() == 0)
     }
 
-    /// `Read` (§10.1). Sets the loaded flag; a version other than 1 fails
-    /// without reading more. A stream error fails and keeps the previous
-    /// state; references already read are released.
+    /// `Read` (§10.1). Sets the loaded flag first ("sets the loaded flag;
+    /// version ≠ 1 → false"), so a failed read leaves it set too; a version
+    /// other than 1 fails without reading more. A stream error fails and keeps
+    /// the rest of the previous state; references already read are released.
     pub fn read_record(&self, inp: &mut dyn InStream) -> bool {
+        self.st.borrow_mut().loaded = true;
         let Some(version) = inp.get_u16() else { return false };
         if version != MANAGER_RECORD_VERSION {
             return false;
