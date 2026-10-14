@@ -67,8 +67,9 @@ extern "C" {
  * 22 = adds the landfill developer (fc4_landfill) and its shadow (fc4_landfill_shadow);
  * 23 = adds the power shadow (fc4_power_shadow);
  * 24 = adds the plumbing shadow (fc4_plumbing_shadow);
- * 25 = adds the land value and flammability shadows (fc4_landvalue_shadow / fc4_flammability_shadow). */
-#define FC4_ABI_VERSION 25u
+ * 25 = adds the land value and flammability shadows (fc4_landvalue_shadow / fc4_flammability_shadow);
+ * 26 = adds the residential simulator (fc4_residential) and its shadow (fc4_residential_shadow). */
+#define FC4_ABI_VERSION 26u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -3539,6 +3540,339 @@ int32_t fc4_flammability_shadow_cycle(fc4_flammability_shadow* s, const fc4_flam
  * sink or a host callback). */
 bool fc4_flammability_shadow_get_stats(const fc4_flammability_shadow* s, fc4_flammability_shadow_stats* out);
 
+/* ---- residential (docs/specs/residential.md, residential-education-health.md) ----
+ *
+ * The residential simulator, education and health included (class 0x4990C013).
+ * Tokens: occupants (the cISC4Occupant identity), departments
+ * (cISC4DepartmentBudget), line items, visual effects, grids; 0 is null. The
+ * residential grids are the game's own cSC4SimGrid<T> through fc4_grid_api
+ * (uint8 0x49B9E602, uint16 0x49B9E604, float 0x49B9E60A); the building map
+ * and the growth developers' population maps are BORROWED grid tokens read
+ * through the same table.
+ *
+ * Threads: the core is main-thread only. After every outermost main-thread
+ * call a snapshot and a detached copy of the state are published; a getter on
+ * the main thread with no call running uses the core, anywhere else it runs on
+ * a throw-away view of the detached copy (grids borrowed, writes ignored). A
+ * state change made anywhere else (a message, a strike end, a funding or
+ * auto-budget setter) is queued, its occupant held, and handled when the next
+ * outermost main-thread call returns. Init, Shutdown, Read, get_state and
+ * set_work_budget are refused off the main thread or during a call. */
+typedef struct fc4_residential fc4_residential;
+
+/* `which` of fc4_residential_buildings (slots 47, 49, 61). */
+#define FC4_RESIDENTIAL_LIST_SCHOOL           0u
+#define FC4_RESIDENTIAL_LIST_HOSPITAL         1u
+#define FC4_RESIDENTIAL_LIST_HEALTH_AFFECTING 2u
+
+/* GetBudgetItemForPurpose's item (budget.md §2). */
+typedef struct fc4_residential_budget_item {
+    uint32_t department;
+    uint32_t line; /* 0 = use the building type */
+    uint32_t purpose;
+    uint32_t index;
+    int64_t cost;
+    float local_funding; /* a fraction (1.0 = 100 %) */
+    uint32_t reserved;
+} fc4_residential_budget_item;
+
+/* The query record of slots 14, 15, 26 and 27 (REH §4.11): the game record's
+ * fields after its leading cRZString (+0x14 .. +0x38 in order), the two costs
+ * widened to 64 bits. */
+typedef struct fc4_residential_query_data {
+    uint32_t capacity, effective_capacity, capacity_per_staff, effective_per_staff, served;
+    float grade, staff_funding;
+    uint32_t reserved0;
+    int64_t staff_cost;
+    float vehicle_funding;
+    uint32_t reserved1;
+    int64_t vehicle_cost;
+} fc4_residential_query_data;
+
+/* Slots 43 / 44. */
+typedef struct fc4_residential_min_max {
+    uint32_t min_x, min_z, max_x, max_z;
+    float min, max;
+} fc4_residential_min_max;
+
+/* What any thread may read: published after every outermost main-thread call.
+ * Grid tokens are borrowed (0 = none). */
+typedef struct fc4_residential_snapshot {
+    uint32_t struct_size;
+    uint8_t initialized;
+    uint8_t school_strike, health_strike;             /* slots 6 / 7 */
+    uint8_t school_auto_budget, hospital_auto_budget; /* slots 52 / 54 */
+    uint8_t pad[3];
+    uint32_t state;                                         /* the daily state machine (§5.1) */
+    int32_t population;                                     /* slot 16 */
+    int32_t school_building_count, hospital_building_count; /* slots 46 / 48 */
+    int32_t population_size, eq_size;
+    uint32_t reserved;
+    uint64_t proximity[3];                 /* slot 5 (R$, R$$, R$$$) */
+    uint64_t population_grids[3];          /* slot 25 */
+    uint64_t age;                          /* slot 41 */
+    uint64_t school_grade, hospital_grade; /* slots 39 / 40 */
+    uint64_t eq[3], hq[3];                 /* slots 23 / 24 */
+} fc4_residential_snapshot;
+
+/* Diagnostics (main thread with no call running). */
+typedef struct fc4_residential_state {
+    uint32_t struct_size;
+    uint8_t initialized, city_started, dirty, tuning_loaded;
+    uint8_t school_strike, health_strike, school_auto_budget, hospital_auto_budget;
+    uint32_t state;
+    int32_t population, running_population;
+    uint32_t population_by_wealth[3]; /* the sum of each population grid's tracts */
+    uint32_t global_le;               /* slot 34 */
+    uint64_t le_sum;
+    float global_eq, global_hq;               /* slots 32 / 33 */
+    int32_t school_covered, hospital_covered; /* the last coverage states' counters (REH §4.4) */
+    int32_t school_buildings, hospital_buildings;
+    uint32_t pending_school, pending_hospital, health_affecting, other;
+    int32_t population_size, eq_size;
+    int32_t tracts_x, tracts_z;     /* the population R$ grid */
+    int32_t iterator_x, iterator_z; /* state 4's scan position */
+    int32_t school_strike_start, health_strike_start;
+    uint32_t departments, grids; /* held (of 4 / of 25) */
+    uint32_t reentrant_calls, deferred_calls, view_calls;
+    uint32_t reserved;
+} fc4_residential_state;
+
+/* What the residential simulator needs from the game: one callback per
+ * ResidentialHost / EducationHealthHost method of the core
+ * (engine/core/src/residential), in the traits' order, plus hand_out. Missing
+ * callbacks behave as "nothing there" (0, false, no object), except
+ * department_funding (1.0). */
+typedef struct fc4_residential_host {
+    uint32_t struct_size; /* sizeof(fc4_residential_host) */
+    void* user;
+    fc4_grid_api grids;
+    /* lifecycle (§4.1, §4.2) */
+    void (*acquire_services)(void* user);
+    void (*acquire_developers)(void* user);
+    bool (*acquire_demand_node)(void* user);
+    bool (*acquire_message_server)(void* user);
+    bool (*acquire_budget_simulator)(void* user);
+    bool (*has_simulator)(void* user);
+    void (*add_agent)(void* user, uint32_t level, const char* name, uint32_t flags);
+    void (*remove_agent)(void* user);
+    void (*subscribe)(void* user, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t msg_type);
+    void (*release_message_server_and_budget)(void* user);
+    void (*release_services)(void* user);
+    void (*set_history_queue_length)(void* user, uint32_t series, uint32_t length);
+    /* CreateDepartmentBudget, AddRef, name, max and initial funding (and the
+     * secondary departments' local line item): a token holding one reference,
+     * 0 = none. */
+    uint64_t (*create_department)(void* user, uint32_t id, uint32_t name, float max_funding, float initial_funding);
+    void (*release_department)(void* user, uint64_t dept);
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* AddRef for a reference handed to the game (slots 21, 22, 47, 49, 61);
+     * NULL = add_ref. */
+    void (*hand_out)(void* user, uint64_t token);
+    /* resources (§7): a NEW fc4_props (the core destroys it), NULL if missing */
+    fc4_props* (*tuning)(void* user);
+    /* the monthly pass's inputs (§5.3, §5.5) */
+    uint64_t (*building_map)(void* user); /* BDS slot 41: BORROWED cISC4SimGrid<uint8>, 0 = none */
+    uint8_t (*building_map_key)(void* user, uint32_t purpose, uint32_t wealth);
+    /* growth developer slot 15 of the developer type: BORROWED cISC4SimGrid<int16>, 0 = none */
+    uint64_t (*developer_population_map)(void* user, uint32_t developer_type);
+    uint16_t (*pollution_value)(void* user, uint32_t kind, int32_t cell_x, int32_t cell_z);
+    uint32_t (*sim_month)(void* user);
+    uint32_t (*sim_day_number)(void* user);
+    float (*altitude)(void* user, float x, float z);
+    /* visual effects (§5.5 step 2; 0 = none) */
+    uint64_t (*create_visual_effect)(void* user, const char* name);
+    void (*set_effect_transform)(void* user, uint64_t effect, const float* translation_xyz);
+    void (*start_and_release_effect)(void* user, uint64_t effect);
+    /* messages (§5.7, §8, REH §5) */
+    void (*record_history)(void* user, uint32_t series, int32_t value);
+    void (*post_strike_message)(void* user, uint32_t msg_type, uint64_t occ, uint32_t data2, uint32_t data3);
+    /* occupants (§4.3, §6.6) */
+    uint64_t (*occupant_as_building)(void* user, uint64_t occ);
+    bool (*is_occupant_group)(void* user, uint64_t occ, uint32_t group);
+    bool (*occupant_bool_property)(void* user, uint64_t occ, uint32_t id, bool* out);
+    bool (*set_occupant_bool_property)(void* user, uint64_t occ, uint32_t id, bool value);
+    /* a reference read with `iid` (one reference handed over): the token the
+     * core keeps, 0 = refused */
+    uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid);
+    /* education and health: budget (REH §4.1, §4.2) */
+    bool (*budget_item)(void* user, uint64_t occ, uint32_t purpose, fc4_residential_budget_item* out);
+    void (*change_budget_item_line)(void* user, uint64_t occ, uint32_t index, uint32_t line);
+    uint64_t (*department_budget)(void* user, uint32_t id); /* borrowed, 0 = none */
+    float (*department_funding)(void* user, uint64_t dept);
+    bool (*is_locally_funded)(void* user, uint64_t dept, uint64_t occ, uint32_t purpose);
+    void (*add_locally_funded)(void* user, uint64_t dept, uint64_t occ, uint32_t purpose);
+    void (*remove_locally_funded)(void* user, uint64_t dept, uint64_t occ, uint32_t purpose);
+    void (*set_local_funding)(void* user, uint64_t dept, uint64_t occ, float fraction, uint32_t purpose);
+    uint64_t (*line_item)(void* user, uint64_t dept, uint32_t line); /* borrowed, 0 = none */
+    uint64_t (*create_line_item_for_building_type)(void* user, uint64_t dept, uint32_t line, bool local_funding);
+    void (*remove_line_item)(void* user, uint64_t dept, uint32_t line);
+    int64_t (*line_item_count)(void* user, uint64_t line_item);
+    void (*set_line_item_count)(void* user, uint64_t line_item, int64_t count);
+    void (*set_line_item_display_flag)(void* user, uint64_t line_item, uint32_t flag, bool on);
+    /* education and health: occupants (REH §2, §4.1, §4.4-§4.6) */
+    bool (*occupant_property)(void* user, uint64_t occ, uint32_t id, fc4_props* out);
+    void (*set_occupant_u32)(void* user, uint64_t occ, uint32_t id, uint32_t value);
+    void (*set_occupant_f32)(void* user, uint64_t occ, uint32_t id, float value);
+    uint32_t (*building_type)(void* user, uint64_t occ);
+    uint32_t (*building_slot11)(void* user, uint64_t occ);
+    bool (*occupant_lot_center)(void* user, uint64_t occ, float* xz); /* false = no lot */
+    void (*occupant_position)(void* user, uint64_t occ, float* xz);
+    /* ordinances (REH §4.3) */
+    void (*ordinances_on)(void* user, fc4_u32_callback cb, void* ctx);
+    fc4_props* (*ordinance_properties)(void* user, uint32_t id); /* a NEW fc4_props, NULL = skip it */
+    /* automata (REH §4.9) */
+    void (*add_controllers)(void* user, const char* group_name, uint64_t occ);
+    void (*remove_controllers)(void* user, const char* group_name, uint64_t occ);
+} fc4_residential_host;
+
+/* Constructor values (§3). `token`: the simulator's own identity; the class's
+ * cRZRandom is seeded with derive_seed(session_seed, 0x4990C013). The calling
+ * thread becomes the main thread. */
+fc4_residential* fc4_residential_create(const fc4_residential_host* host, uint64_t token, uint32_t session_seed);
+/* Queued calls are dropped (their occupants released); grids still held are released. */
+void fc4_residential_destroy(fc4_residential* p);
+bool fc4_residential_init(fc4_residential* p);     /* §4.1: false without the demand node, server or simulator */
+bool fc4_residential_shutdown(fc4_residential* p); /* §4.2 */
+/* §4.3: the step's "finished" value (false only when a time-sliced NewDay
+ * state ran out of budget). `void1`: the occupant token of the occupant
+ * messages. Queued (true) off the main thread or during a call. */
+bool fc4_residential_do_message(fc4_residential* p, uint32_t msg_type, uint32_t data1, uint32_t data2, uint32_t data3,
+                                uint64_t void1);
+void fc4_residential_set_work_budget(fc4_residential* p, uint32_t units); /* §5.2 [choice]; default unbounded */
+bool fc4_residential_get_snapshot(const fc4_residential* p, fc4_residential_snapshot* out); /* any thread */
+bool fc4_residential_get_state(const fc4_residential* p, fc4_residential_state* out);
+/* §9.2: the version-7 record; grids as fc4_ref {token, grid CLSID}, occupants
+ * and departments as {token, 0}. Off the main thread the detached state is
+ * written. */
+bool fc4_residential_write(const fc4_residential* p, const fc4_ostream* out);
+bool fc4_residential_read(fc4_residential* p, const fc4_istream* in); /* §9.2; before Init */
+/* Slots 8 / 9: whether a strike was ended. Off the main thread the end is
+ * queued and the answer is the published strike flag. */
+bool fc4_residential_end_strike(fc4_residential* p, bool school);
+float fc4_residential_strike_chance(const fc4_residential* p, bool school); /* 10 / 11 */
+float fc4_residential_system_rating(const fc4_residential* p, bool school); /* 12 / 13 */
+/* 14 / 15: adds the counted buildings' fields to `totals` (in/out) and
+ * returns their number; `groups` NULL = no group. */
+uint32_t fc4_residential_system_totals(const fc4_residential* p, bool school, const uint32_t* groups,
+                                       uint32_t group_count, fc4_residential_query_data* totals);
+bool fc4_residential_set_occupant_funding(fc4_residential* p, uint64_t occ, float staff, float vehicle,
+                                          bool school); /* 19: true */
+/* 20: `staff` / `vehicle` in/out; true. */
+bool fc4_residential_get_occupant_funding(const fc4_residential* p, uint64_t occ, float* staff, float* vehicle,
+                                          bool school);
+/* 21 / 22: a NEW float grid per call handed out with one reference (0 = none);
+ * `min` / `max` get the range (255 / 0 without a grid). */
+uint64_t fc4_residential_average_grid(const fc4_residential* p, bool is_eq, float* min, float* max);
+/* 26 / 27: the query record (in/out); false at the first missing field. */
+bool fc4_residential_get_query_data(const fc4_residential* p, bool school, uint64_t occ, fc4_residential_query_data* data);
+bool fc4_residential_estimate_capacity(const fc4_residential* p, uint64_t occ, uint32_t* capacity,
+                                       uint32_t* staff); /* 28: true */
+uint8_t fc4_residential_cell_life_expectancy(const fc4_residential* p, int32_t x, int32_t z);     /* 29 */
+float fc4_residential_cell_workforce(const fc4_residential* p, int32_t x, int32_t z);           /* 30 */
+float fc4_residential_global_workforce(const fc4_residential* p);                               /* 31 */
+float fc4_residential_global_quotient(const fc4_residential* p, bool is_eq);                    /* 32 / 33 */
+uint8_t fc4_residential_global_le(const fc4_residential* p);                                    /* 34 */
+float fc4_residential_cell_quotient(const fc4_residential* p, bool is_eq, int32_t x, int32_t z); /* 35 / 36 */
+float fc4_residential_cell_quotient_by_wealth(const fc4_residential* p, bool is_eq, int32_t x, int32_t z,
+                                              uint8_t wealth); /* 37 / 38 (wealth 1..3) */
+uint8_t fc4_residential_new_age_by_wealth(const fc4_residential* p, uint8_t wealth); /* 42 */
+/* 43 / 44: false (all outputs 0) when the population is 0. */
+bool fc4_residential_quotient_min_max(const fc4_residential* p, bool is_eq, fc4_residential_min_max* out);
+/* 45: false (outputs untouched) for a building that is neither a school nor a hospital. */
+bool fc4_residential_occupant_coverage(const fc4_residential* p, uint64_t occ, float level, float* distance,
+                                       float* radius);
+/* 47 / 49 / 61 (FC4_RESIDENTIAL_LIST_*): each occupant goes to `sink` with one
+ * reference handed out for the caller's list. `groups` NULL = every group;
+ * slot 61 ignores `groups`. Returns the count. */
+uint32_t fc4_residential_buildings(const fc4_residential* p, uint32_t which, const uint32_t* groups,
+                                   uint32_t group_count, fc4_token_callback sink, void* ctx);
+bool fc4_residential_set_global_auto_budget(fc4_residential* p, bool school, bool on); /* 53 / 55: the value */
+bool fc4_residential_auto_budget(const fc4_residential* p, uint64_t occ);              /* 56 */
+bool fc4_residential_set_auto_budget(const fc4_residential* p, uint64_t occ, bool on); /* 57 */
+bool fc4_residential_ideal_funding(const fc4_residential* p, uint64_t occ, float* out); /* 58 */
+
+/* ---- residential shadow (tooling) ---------------------------------------------
+ *
+ * With the ORIGINAL residential simulator running, each SimNewDay delivery to
+ * its agent is wrapped (one state of the monthly cycle per day, §5.1): before
+ * it, the plugin captures the original's record (its own Write into a capture
+ * stream) and calls fc4_residential_shadow_begin, which copies the 25 live
+ * grids the record refers to, loads the record into a private core over the
+ * copies, restores the simulator tuning and ordinance effects from the game
+ * and runs FreeCity4's daily state, reading every input through the host
+ * table (read callbacks and the grid table's geometry / get only; nothing is
+ * written to the game). States 1, 2 and 4 run at the finish instead, where
+ * the original's progress is known (a state it stopped part-way runs as far
+ * as it got). After the delivery the plugin captures the record again, reads
+ * the original's population, global EQ / HQ and LE, and calls
+ * fc4_residential_shadow_finish, which compares the 25 grids cell by cell,
+ * the saved fields, the occupant properties and local funding, and the four
+ * scalars. fc4_residential_shadow_describe gives the one start-up line of
+ * what is not readable (hence not compared). */
+typedef struct fc4_residential_shadow fc4_residential_shadow;
+
+/* One reference of a captured record, queried for each interface the reader
+ * asks for (0 = the object does not answer it); borrowed identities. */
+typedef struct fc4_residential_capture_ref {
+    uint64_t grid;       /* cISC4SimGrid 0xC9BD939A */
+    uint64_t occupant;   /* cISC4Occupant 0x26BB767E */
+    uint64_t department; /* cISC4DepartmentBudget 0x223E2B67 */
+    uint32_t class_id;   /* GetGZCLSID() */
+    uint32_t reserved;
+} fc4_residential_capture_ref;
+
+/* A captured record: primitives little-endian, references as uint32
+ * objectID (index into `refs` + 1, 0 = null) then uint32 classID. */
+typedef struct fc4_residential_capture {
+    uint32_t struct_size;
+    uint32_t ok; /* Write returned true and the stream stayed good */
+    const uint8_t* bytes;
+    size_t len;
+    const fc4_residential_capture_ref* refs;
+    size_t ref_count;
+} fc4_residential_capture;
+
+/* The original's getters after its delivery. */
+typedef struct fc4_residential_shadow_scalars {
+    uint32_t struct_size;
+    int32_t population;         /* slot 16 */
+    float global_eq, global_hq; /* slots 32 / 33 */
+    uint32_t global_le;         /* slot 34 (AL, zero-extended) */
+    uint32_t reserved;
+} fc4_residential_shadow_scalars;
+
+typedef struct fc4_residential_shadow_stats {
+    uint32_t struct_size;
+    uint32_t deliveries, compared, clean, incomplete;
+    uint32_t idle;            /* state-10 days (not compared) */
+    uint32_t cycles;          /* monthly cycles seen to end (state 9 -> 10) */
+    int32_t last_mismatches;  /* -1: not compared */
+    uint64_t cells, cell_mismatches, field_mismatches;
+    uint64_t prop_mismatches; /* occupant properties and local funding */
+    uint64_t scalar_mismatches;
+} fc4_residential_shadow_stats;
+
+/* `max_cells`: differing cells listed per grid and line (0 = 4, at most 64). */
+fc4_residential_shadow* fc4_residential_shadow_create(const fc4_residential_host* host, uint32_t max_cells);
+void fc4_residential_shadow_destroy(fc4_residential_shadow* s);
+/* Before a SimNewDay delivery (`julian` = its data1): 0 = ready, -1 = not
+ * run (finish reports why), -2 = state 10 (the original does nothing; a
+ * finish returns -2 and logs nothing). */
+int32_t fc4_residential_shadow_begin(fc4_residential_shadow* s, int32_t julian, const fc4_residential_capture* before);
+/* The delivery's difference count (-1 = not compared, -2 = nothing to
+ * compare); log lines go to `sink`, one call per line: one per delivery
+ * ("residential shadow YYYY-MM-DD state N (name): ...; mismatches=N", or
+ * INCOMPLETE and why) and, after the delivery that ends a cycle, the cycle
+ * line. `scalars` NULL: not compared. */
+int32_t fc4_residential_shadow_finish(fc4_residential_shadow* s, const fc4_residential_capture* after,
+                                      const fc4_residential_shadow_scalars* scalars, fc4_bytes_sink sink, void* ctx);
+bool fc4_residential_shadow_get_stats(fc4_residential_shadow* s, fc4_residential_shadow_stats* out);
+/* One line: what is not readable, hence not compared. */
+void fc4_residential_shadow_describe(fc4_bytes_sink sink, void* ctx);
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -3665,6 +3999,16 @@ static_assert(sizeof(fc4_landvalue_shadow_stats) == 48, "fc4_landvalue_shadow_st
 static_assert(sizeof(fc4_flammability_shadow_hotspot) == 12, "fc4_flammability_shadow_hotspot layout");
 static_assert(sizeof(fc4_flammability_original) == (sizeof(void*) == 4 ? 128 : 144), "fc4_flammability_original layout");
 static_assert(sizeof(fc4_flammability_shadow_stats) == 48, "fc4_flammability_shadow_stats layout");
+static_assert(sizeof(fc4_residential_budget_item) == 32, "fc4_residential_budget_item layout");
+static_assert(sizeof(fc4_residential_query_data) == 56, "fc4_residential_query_data layout");
+static_assert(sizeof(fc4_residential_min_max) == 24, "fc4_residential_min_max layout");
+static_assert(sizeof(fc4_residential_snapshot) == 160, "fc4_residential_snapshot layout");
+static_assert(sizeof(fc4_residential_state) == 144, "fc4_residential_state layout");
+static_assert(sizeof(fc4_residential_host) == (sizeof(void*) == 4 ? 292 : 584), "fc4_residential_host layout");
+static_assert(sizeof(fc4_residential_capture_ref) == 32, "fc4_residential_capture_ref layout");
+static_assert(sizeof(fc4_residential_capture) == (sizeof(void*) == 4 ? 24 : 40), "fc4_residential_capture layout");
+static_assert(sizeof(fc4_residential_shadow_scalars) == 24, "fc4_residential_shadow_scalars layout");
+static_assert(sizeof(fc4_residential_shadow_stats) == 72, "fc4_residential_shadow_stats layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");

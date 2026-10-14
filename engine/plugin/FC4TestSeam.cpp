@@ -27,6 +27,7 @@
 #include "FC4PlumbingShadow.h"
 #include "FC4PollutionShadow.h"
 #include "FC4PowerShadow.h"
+#include "FC4ResidentialShadow.h"
 #include "FC4Popups.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
@@ -105,6 +106,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return LandValueShadowTest(static_cast<const FC4LandValueShadowTestInput*>(a));
         case kFC4SeamFlammabilityShadow:
             return FlammabilityShadowTest(static_cast<const FC4FlammabilityShadowTestInput*>(a));
+        case kFC4SeamResidentialShadow:
+            return ResidentialShadowTestDeliver(static_cast<const FC4ResidentialShadowTestInput*>(a));
         case kFC4SeamRawArrayBytes: {
             auto* io = static_cast<FC4RawArrayBytesTestIo*>(b);
             if (a == nullptr || io == nullptr) return -1;

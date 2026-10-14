@@ -325,6 +325,29 @@ plugin.
        switches (default `1`, environment `FC4_LANDFILL_<KEY>`): `landfill_terrain`, `landfill_levelling`,
        `landfill_pollution`, `landfill_budget`, `landfill_zoning`, `landfill_occupants`, `landfill_props`,
        `landfill_traffic`, `landfill_history`, `landfill_effects` (see `plugin/FC4Config.h`).
+     - `residential`: the residential simulator, education and health included (`cSC4ResidentialSimulator`,
+       residential and residential-education-health specs). All 60 interface slots, the class slots 60-63, the
+       message target and the record (version 7, grids by reference). The AL-only getters (cell and global life
+       expectancy, average new age) return the value zero-extended in EAX; the by-value percentages use the hidden
+       result pointer. Its grids are the game's own `cSC4SimGrid<T>`, created through GZCOM with the game's class
+       IDs, tract sizes and instance IDs. It reads the game only through its interfaces: the BDS building map and
+       keys, the growth developers' population maps, pollution, terrain, the simulator date, occupants and their
+       properties, the four education and health departments, budget items and line items, ordinances, lot
+       centres and the automata controllers; it sends history records and posts the strike messages. An input
+       that cannot be read is logged once (`residential: …`) and answers the spec's neutral value. Left out and
+       logged once: the buzzards (visual effects, §5.5 step 2). Its generator's session seed is
+       `residential_seed` (env `FC4_RESIDENTIAL_SEED`), else the clock. The log has `residential Init: …`,
+       `residential Read: …` (the state), `residential Write -> 1`, a month line from the first day after `Init`
+       and at every `SimNewMonth` (`residential month yyyy-mm-dd: pop=N (R$ a R$$ b R$$$ c) EQ=… HQ=… LE=…
+       school covered=… buildings=… strike=0|1 hospital covered=… buildings=… strike=0|1 state=S … center x87=c/n
+       …`; `c` counts the lot `GetCenter` calls of `n` that changed the x87 stack depth: 0 in the game, the first
+       is logged once as `residential: WARNING lot GetCenter (slot 15) changed the x87 stack depth by …`), one line
+       per completed monthly cycle (`residential cycle N done yyyy-mm-dd: …`), `residential Shutdown: …` and
+       `cFC4ResidentialSimulator destroyed (…)`. Its game calls have their own switches (default `1`,
+       environment `FC4_RESIDENTIAL_<KEY>`): `residential_occupants`, `residential_budget`,
+       `residential_developers`, `residential_pollution`, `residential_ordinance`, `residential_automata`,
+       `residential_grid_writes`, `residential_posts`, `residential_history`, `residential_lots`,
+       `residential_terrain` (see `plugin/FC4Config.h`).
    - Each budget behaviour that touches game objects has a switch. The switches are re-read at every city load
      (budget `Read`/`Init`). Each defaults to `1`; `0` makes the behaviour a no-op with a neutral result. The
      matching environment variable is `FC4_BUDGET_<KEY>`. `budget_default = 0` turns every unset switch off.
@@ -676,6 +699,34 @@ plugin.
      ```
 
      Success is `clean` on every month line and no `INCOMPLETE` line.
+   - **Residential shadow** (`residential_shadow = 1`, env `FC4_RESIDENTIAL_SHADOW`; off by default;
+     `residential_shadow_cells = N`, env `FC4_RESIDENTIAL_SHADOW_CELLS`, default 4, 1..64, differing cells listed
+     per grid): a same-process differential of the residential simulator. It needs **our simulator and the
+     original residential simulator** (do not enable `residential`); otherwise it logs `residential shadow:
+     requested … but INACTIVE` at game start. It wraps each `SimNewDay` delivery to the original's agent
+     (`cSC4ResidentialSimulator`): the original runs one state of its monthly cycle per day, and a time-sliced
+     state can stop part-way, so only a per-delivery wrap sees the inputs that state read and where it stopped.
+     Just before, the original's own `Write` goes into a memory stream; FreeCity4's state runs on that record and
+     copies of the 25 grids it refers to, reading every input live and read-only (states 1, 2 and 4 read nothing
+     the delivery changes and run just after, with the original's progress). Just after, the record is read
+     again with the original's population, global EQ / HQ and LE (slots 16, 32-34), and compared: the 25 grids
+     cell by cell, the saved fields, the occupant properties and local funding, and the four scalars. A day in
+     state 10 (waiting for `SimNewMonth`) is not compared. What is not readable read-only is listed once at game
+     start (`residential shadow: not compared (not readable read-only): …`). Lines (always written; longer ones
+     continue on `residential shadow (cont.)` lines):
+
+     ```
+     residential shadow: ON (residential_shadow from …): …                              (game start)
+     residential shadow: comparing with the original residential simulator … (city …); differing cells listed
+       per grid: N
+     residential shadow yyyy-mm-dd state N (name): …; mismatches=N                    (one per delivery)
+     residential shadow yyyy-mm-dd …: INCOMPLETE (why); not compared
+     residential shadow cycle to yyyy-mm-dd: deliveries=… compared=… clean=… incomplete=…; cells=…
+       mismatches=…; grids with differences: none | …; …                    (after the state 9 -> 10 delivery)
+     ```
+
+     Success is `mismatches=0` on every delivery line, `mismatches=0` and `incomplete=0` on every cycle line,
+     and no `INCOMPLETE` line.
    - **Power shadow** (`power_shadow = 1`, env `FC4_POWER_SHADOW`; off by default; `power_shadow_cells = N`, env
      `FC4_POWER_SHADOW_CELLS`, default 8, 1..64, differing cells listed per line; `power_shadow_lines = N`, env
      `FC4_POWER_SHADOW_LINES`, default 32, -1 = all, cycle lines with a difference per month): a same-process

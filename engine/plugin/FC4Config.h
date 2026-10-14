@@ -81,6 +81,12 @@
 //                                 ORIGINAL flammability simulator: do not enable
 //                                 flammability; FC4FlammabilityShadow.h)
 //   flammability_shadow_cells = N its differing tracts listed per grid (default 4)
+//   residential_shadow = 0 / 1    the residential shadow (default 0; needs FreeCity4's
+//                                 simulator and the ORIGINAL residential simulator: do
+//                                 not enable residential; FC4ResidentialShadow.h)
+//   residential_shadow_cells = N  its differing cells listed per grid (default 4)
+//   residential_seed = N          the residential generator's session seed (default:
+//                                 the cRZTime clock, residential.md §3; cFC4Residential.cpp)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.
@@ -280,6 +286,22 @@ enum class Sw : unsigned {
     LandfillHistory,     // landfill_history: the history record messages (MessageSend)
     LandfillEffects,     // landfill_effects: the zone effects (§4.10, rendering only; not implemented,
                          //   logged once either way)
+    // Residential simulator host callbacks (cFC4Residential.cpp), one per
+    // group of game calls; only used when the residential subsystem is enabled.
+    ResidentialOccupants,  // residential_occupants: the building QueryInterface, occupant groups, positions,
+                           //   building type / slot 11 and the per-building properties (off: not a building)
+    ResidentialBudget,     // residential_budget: the four departments, budget items, local funding and line
+                           //   items (off: no department, no item)
+    ResidentialDevelopers,  // residential_developers: the BDS building map and keys, the growth developers'
+                            //   population maps (off: no map, population 0)
+    ResidentialPollution,  // residential_pollution: GetPollutionValue (off: 0)
+    ResidentialOrdinance,  // residential_ordinance: the ordinances on and their properties (off: no effects)
+    ResidentialAutomata,   // residential_automata: Add / RemoveControllersFromOccupantGroup (off: not changed)
+    ResidentialGridWrites,  // residential_grid_writes: SetTractValue / fill on the residential grids
+    ResidentialPosts,      // residential_posts: the strike start / end messages (MessagePost; off: not posted)
+    ResidentialHistory,    // residential_history: history records (MessageSend) and queue lengths
+    ResidentialLots,       // residential_lots: GetOccupantLot and its centre (off: the building's position)
+    ResidentialTerrain,    // residential_terrain: GetAltitude (off: 0)
     Count
 };
 

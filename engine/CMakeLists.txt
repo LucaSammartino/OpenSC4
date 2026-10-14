@@ -223,6 +223,10 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4LandValueShadow.h
         plugin/FC4FlammabilityShadow.cpp
         plugin/FC4FlammabilityShadow.h
+        plugin/cFC4Residential.cpp
+        plugin/cFC4Residential.h
+        plugin/FC4ResidentialShadow.cpp
+        plugin/FC4ResidentialShadow.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -382,6 +386,12 @@ if(FC4_IS_WIN32_X86)
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-lvfl-shadow-inactive)
     set_tests_properties(plugin_ini_landvalue_shadow_test plugin_ini_flammability_shadow_test
         plugin_ini_lvfl_shadow_inactive_test PROPERTIES RUN_SERIAL TRUE)
+    # Residential (residential.md, residential-education-health.md): `enable =
+    # residential` (no city: neutral getters, AL returns, lifecycle, the record,
+    # status lines) and the residential shadow on fake originals (seam op 25).
+    add_test(NAME plugin_ini_enable_residential_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-residential)
+    set_tests_properties(plugin_ini_enable_residential_test PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()
