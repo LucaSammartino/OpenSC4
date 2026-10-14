@@ -2800,8 +2800,12 @@ in brackets.
   **ANSWERED 2026-10-14** from the exe (loop `0x00691EB0`–`0x00692077`; `cSC4Lot::GetBuilding` `0x006BFA30`) and written
   into budget.md §5.2. Borrowed: the lot is the list node's value and the building is returned without a reference; the
   loop has no `AddRef` or `Release`. The bracket matches.
-- **BQ6:** BQ3: the walk requires the master lot list object at lot manager + `0x5C`. [otherwise refused, with the
-  `GetLotsInCellRect` fallback]
+- ~~**BQ6:** BQ3: the walk requires the master lot list object at lot manager + `0x5C`. [otherwise refused, with the
+  `GetLotsInCellRect` fallback]~~
+  **ANSWERED 2026-10-14**: no original behaviour for the refusal; the implementer's choice stands. Facts from the exe,
+  written into budget.md §5.2: the original's slot 15 (`0x00734850`) always registers on its member at `+0x5C`, and
+  `ComputeTax` reads no lot manager field itself. With a null owner in the block it visits nothing and frees the block.
+  A walk through slot 15 needs only the block and node layout, not the manager's.
 - **BQ7:** BQ3: line and total values outside the int32 range. [the low 32 bits of `_ftol`]
 - **BQ8:** The land value and flammability host tables grew (new last callbacks) without an ABI bump, so a table of
   the old size is now refused by the `struct_size` check. [no bump; refused]

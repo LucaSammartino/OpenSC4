@@ -443,6 +443,10 @@ Afterwards `monthlyTax[t] := trunc(groupTax[t])` and the function returns `trunc
 - It takes no references (BQ5). Each lot is the list node's value, used as it is, and lot slot 48
   (`cSC4Lot::GetBuilding`, `0x006BFA30`) releases its own `QueryInterface` reference before it returns the building.
   The loop (`0x00691EB0`–`0x00692077`) calls no `AddRef` or `Release` on either.
+- It reaches the list only through slot 15 (BQ6). The original's slot 15 (`0x00734850`) registers the iterator on its
+  member at `+0x5C`, which always exists, so it never fails. `ComputeTax` reads no lot manager field itself. It tests
+  the block's owner (`0x00691EA1`, `0x00691EB3`): with a null owner it visits no lot and still frees the block. A null
+  block would fault (`0x00691E9E`).
 
 The master list and the cell → lot map that `GetLotsInCellRect` scans hold **the same lots** (zones.md §8):
 - **Created and deleted together.** `CreateLot` writes every cell of the lot and adds it to the list in the same
