@@ -7,10 +7,10 @@ operating knowledge that is still true.
 
 ## 0. Current state
 
-*Last updated 2026-10-14, at the merge of apply9d (`ccfe2b4`), after run 105.*
+*Last updated 2026-10-14, at the merge of cores10a (`40fb73a`), after run 108.*
 
-- **main:** `FC4_ABI_VERSION` 44, 661 conformance vectors. Last gate: merged main at `ccfe2b4` (main-9d), cargo 1746/0;
-  clippy clean, ctest 44/45: `cargo_test` failed once on the timing-sensitive flora thread test under load and passes alone (fix with apply9d). Test switches `sim_turbo`, `autotest_end_date`, `script`, `close_dialogs` (engine/README). Every glue except the simulator and the budget is off by default (`enable = <key>`).
+- **main:** `FC4_ABI_VERSION` 46, 688 conformance vectors. Last gate: merged main at `40fb73a` (main-10a), cargo 1831/0;
+  clippy clean, ctest 45/45. Test switches `sim_turbo`, `autotest_end_date`, `script`, `close_dialogs` (engine/README). Every glue except the simulator and the budget is off by default (`enable = <key>`).
 - **Milestones** (details in the README): M0, M1 and M2 done. **M3 exit met in run 103** (regress r6c): every grid
   shadow exact, including power 463/463, plumbing 179/179 and landfill 89/89, zero INCOMPLETE lines. M4: all cores
   merged; glue merged for residential, zones phase 1 and development (BDS + growth developers, opt-in), but the
@@ -49,6 +49,7 @@ worktree: paste what it needs into the message, or copy files into its `build-ru
 | RE specs 11: lot developer geometry (levelling, foundations, slot 39, boundary textures; Q3, Q7), graphics GF7/GF10/GF11, zones §14.3 Q2-Q8 and lot creation (for zones phase 2) | `a51611144f724e0f2` | `re-specs11` | - | running |
 | lotglue: lot developer replacement (`enable = lotdev`) and shadow (`lotdev_shadow = 1`); Q4 slots wait for re-specs11 | `ab9c3d71e1a39f129` | worktree | ABI 53, seam op 52 | running |
 | zones2: zone developer / lot manager replacement (`enable = zonedev`) and shadow (`zonedev_shadow = 1`); lot creation waits for re-specs11 | `a04b0cfb664b373d3` | worktree | ABI 54, seam op 53 | running |
+| histclock: history warehouse and 24-hour clock glue (`enable = history`, `clock24`), shadows, save sweep for the corpus | `ac7e10a873454fec7` | worktree | ABI 55, seam op 54 | running |
 | harness tooling 2: regress through the queue with coordinator priority, 6 slots, queue status, clearer rejections | `aebacb404dae356d7` | worktree | - | merged `4e489e9`; queue restarted with `-Slots 6` at 14:51 |
 
 Merged today, tooling: harness switches (`6147be6`, `0786064`), modal-dialog spec (`baa5d0a`), game slots and the
