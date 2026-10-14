@@ -902,6 +902,9 @@ const ABSENT: &str = "baseline entries absent (0 at this line: masked by a diffe
 const WAITING: &str = "unchanged while others changed (not inherited; counted at the next line)";
 const PERSISTENT: &str =
     "persistent (not inherited; unchanged since the last line with nothing in flight, or at three lines)";
+const WIRE_BITS: &str = "; wire bits, not counted (the original's running bitmap after its dirty-rectangle \
+                         rebuilds vs one rebuild of the whole map, power.md §5.3: PW5, unclipped bits, no insertion \
+                         filters; each rebuild is compared on the cycle lines)";
 
 #[test]
 fn the_bookkeeping_line_sets_apart_inherited_and_in_flight() {
@@ -952,15 +955,15 @@ fn the_bookkeeping_line_sets_apart_inherited_and_in_flight() {
     assert_eq!(mismatches(&month(&mut w)), 0);
     let b = month(&mut w);
     // The requirement's +100 plus 31's -70: not the baseline's either. The
-    // wire bits of 31's neighbourhood: 36 more.
+    // wire bits of 31's neighbourhood are listed, not counted.
     assert!(
         b.contains(&format!(
-            "{PERSISTENT} 39 [consumers -1, requirement +30, cell (25,21) -70, wire (22,18) 0/1,"
+            "{PERSISTENT} 3 [consumers -1, requirement +30, cell (25,21) -70]{WIRE_BITS} 36 [wire (22,18) 0/1,"
         )),
         "{b}"
     );
-    assert_eq!(mismatches(&b), 39, "{b}");
-    assert_eq!(w.stats().bookkeeping_mismatches, 39);
+    assert_eq!(mismatches(&b), 3, "{b}");
+    assert_eq!(w.stats().bookkeeping_mismatches, 3);
 }
 
 #[test]
@@ -1028,9 +1031,12 @@ fn a_first_line_with_a_removal_in_flight_is_not_the_baseline() {
         "{b}"
     );
     assert!(
-        b.contains("[consumers +2, requirement +570, cell (13,1) +500, cell (19,1) +70, wire"),
+        b.contains(&format!(
+            "[consumers +2, requirement +570, cell (13,1) +500, cell (19,1) +70]{WIRE_BITS} "
+        )),
         "{b}"
     );
+    assert!(b.contains("1/0"), "12's wire bits, the original's only: {b}");
     w.notify(msg::OCCUPANT_REMOVED, 12);
     w.cycle(); // the original rebuilds the wires around the removal
     let b = book_month(&mut w);
@@ -1099,4 +1105,44 @@ fn two_buildings_in_flight_at_two_lines_are_not_a_mismatch() {
         "{b}"
     );
     assert!(mismatches(&b) > 0, "{b}");
+}
+
+#[test]
+fn wire_bits_a_rectangle_rebuild_lost_are_listed_not_counted() {
+    // PW5 (§5.3), as in runs pt-fix1-turbo-1 / -2: a building along x = 10
+    // wires x 8..12 and the zoned cell (11,15) wires x 9..13 × z 13..17.
+    // Building 21 at x 14..18 × z 14..16 is removed; the original rebuilds
+    // its rectangle x 12..20 × z 12..18, which does not hold (11,15), so
+    // (13,13..17) lose their bits for good. One rebuild of the whole map
+    // keeps them. The cycle line compares the original's rebuild exactly.
+    let g = Game::new(1000, &[]);
+    g.occupants.borrow_mut().push((20, rect(10, 0, 10, 31), 0));
+    g.occupants.borrow_mut().push((21, rect(14, 14, 18, 16), 0));
+    g.zones.borrow_mut().push((11, 15));
+    let mut w = World::new(g, true);
+    w.cycle();
+    book_month(&mut w);
+    let b = book_month(&mut w);
+    assert!(
+        b.contains(&format!(
+            "nothing in flight): 0 differences inherited from the save (power.md §5.2 case 1){WIRE_BITS} 0;"
+        )),
+        "{b}"
+    );
+    w.g.gone.borrow_mut().push(21);
+    w.notify(msg::OCCUPANT_REMOVED, 21);
+    assert!(w.cycle().iter().all(|&n| n == 0), "{:#?}", w.lines);
+    assert!(!unsafe { fc4_power_is_wired(w.p, 13, 15) });
+    for _ in 0..3 {
+        let b = book_month(&mut w);
+        assert!(b.contains("wire 5 cells differ;"), "{b}");
+        assert!(
+            b.contains(&format!(
+                "{PERSISTENT} 0{WIRE_BITS} 5 [wire (13,13) 0/1, wire (13,14) 0/1, wire (13,15) 0/1, wire (13,16) \
+                 0/1, wire (13,17) 0/1]; mismatches=0"
+            )),
+            "{b}"
+        );
+    }
+    assert_eq!(w.stats().bookkeeping_mismatches, 0);
 }

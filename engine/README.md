@@ -945,7 +945,8 @@ plugin.
        N differences [..] | baseline (the first line equal to the one before it …): N differences [..] |
        inherited (as at the baseline line …) N [..]; in flight (changed since the last line) N [..]; gone since
        the last line N [..]; baseline entries absent (0 at this line …) N [..]; unchanged while others changed
-       (… counted at the next line) N [..]; persistent (…) N [..]; mismatches=M
+       (… counted at the next line) N [..]; persistent (…) N [..]; wire bits, not counted (…) N [..];
+       mismatches=M
      power shadow month to yyyy-mm-dd: deliveries=… steps=… idle passed through=… not enabled=… cycles=…
        (clean …, lines …) incomplete=… reruns=… uncached=… factor=…[ (not known)] pass totals known|unknown
        dirty rectangle known|unknown; not_exact=K; mismatches=M
@@ -967,7 +968,11 @@ plugin.
      unchanged since the last line without being inherited is a mismatch when nothing else changed at that line,
      or when it is also unchanged since the line before (two buildings in flight at two lines can give the same
      counts, never the same cells); otherwise it is listed as unchanged while others changed and judged at the
-     next line. Limit: a frame that opens two month days keeps the first one's messages in flight at the
+     next line. The wire bits are listed apart and not counted, nor used for the baseline: ours are one rebuild
+     of the whole map, the original's what its dirty-rectangle rebuilds left, and power spec §5.3 makes those
+     depend on the rectangles (PW5: a bit whose only source is a zoned cell outside the rectangle is lost; runs
+     pt-fix1-turbo-1 / -2 kept such bits 0/1 for eight or nine months). Each rebuild is compared exactly on the
+     cycle lines. Limit: a frame that opens two month days keeps the first one's messages in flight at the
      second, which then looks settled.
    - **Plumbing shadow** (`plumbing_shadow = 1`, env `FC4_PLUMBING_SHADOW`; off by default;
      `plumbing_shadow_cells = N`, env `FC4_PLUMBING_SHADOW_CELLS`, default 8, 1..64, the differing cells listed per

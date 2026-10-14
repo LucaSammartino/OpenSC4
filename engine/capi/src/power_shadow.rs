@@ -60,8 +60,10 @@
 //! stays without being inherited counts as a mismatch [choice, power.md
 //! §5.2]. The baseline is the first line equal to the line before it (the
 //! first line can have messages in flight too), and it is never edited (an
-//! entry masked by a difference in flight comes back as inherited); see
-//! `Shadow::bookkeeping_line`.
+//! entry masked by a difference in flight comes back as inherited). The wire
+//! bits are listed and not counted: a whole-map rebuild differs from the
+//! original's rectangle-by-rectangle bitmap by design (§5.3, PW5), and each
+//! rebuild is compared on the cycle lines; see `Shadow::bookkeeping_line`.
 //!
 //! Not readable, hence not compared: the posted messages, history values,
 //! budget line items, demolitions and lot conditions, the poles the month's
@@ -2320,6 +2322,19 @@ impl Shadow {
     /// mismatch when nothing else changed at this line, or when it is also
     /// unchanged since the line before (two buildings in flight at two
     /// lines can show the same count, never the same cells).
+    ///
+    /// The wire bits are listed apart and not counted, nor used for the
+    /// baseline or the quiet test [choice; QUESTIONS, power shadow wire
+    /// bits]. Ours are one rebuild of the whole map; the original's are what
+    /// its insertions and its dirty-rectangle rebuilds left, and power.md §5.3
+    /// makes those depend on the rectangles: a rebuild loses a bit whose only
+    /// source is a zoned cell outside the rectangle (PW5), sets bits outside
+    /// it that only a later rebuild clears, and wires what the insertion
+    /// filters of §5.1 skip. Run pt-fix1-turbo-1 had wire 0/1 at
+    /// (39..,37..38) for nine months after the rebuild over (0,37)-(44,111),
+    /// run pt-fix1-turbo-2 two at (46,37..38) for eight months, with every
+    /// cycle line exact; each rebuild's bits are compared exactly on the
+    /// cycle lines.
     fn bookkeeping_line(&mut self, p: &Pending, b: &Result<Bookkeeping, String>) -> String {
         let head = format!("power shadow {} bookkeeping", date(p.julian));
         let b = match b {
@@ -2399,18 +2414,19 @@ impl Shadow {
                 }
             }
         }
-        let mut wires = 0u64;
+        // The wire bits stay out of `diff`: listed, not counted (see above).
+        let mut wire_bits: Vec<(BookKey, i64)> = Vec::new();
         if o.wire.words() != s.wire.words() {
             for x in 0..cx {
                 for z in 0..cz {
                     let (a, c) = (o.wire.test(x, z), s.wire.test(x, z));
                     if a != c {
-                        wires += 1;
-                        put(BookKey::Wire(x, z), if a { 1 } else { -1 });
+                        wire_bits.push((BookKey::Wire(x, z), if a { 1 } else { -1 }));
                     }
                 }
             }
         }
+        let wires = wire_bits.len();
         parts.push(format!(
             "consumption map {cells}/{} cells differ max|d|={maxd}; wire {wires} cells differ",
             i64::from(cx) * i64::from(cz)
@@ -2432,6 +2448,12 @@ impl Shadow {
         } else {
             "since the shadow started mid-city"
         };
+        let wire_part = format!(
+            "; wire bits, not counted (the original's running bitmap after its dirty-rectangle rebuilds vs one \
+             rebuild of the whole map, power.md §5.3: PW5, unclipped bits, no insertion filters; each rebuild is \
+             compared on the cycle lines) {wires}{}",
+            list(&wire_bits)
+        );
         let intro = format!(
             "{head}: the original's running counts (orig) vs FreeCity4's insertion (§5.1) of the {} live occupants \
              and a wire rebuild of the whole map (ours), orig/ours: {}",
@@ -2451,7 +2473,7 @@ impl Shadow {
                 hist.base_date = Some(p.julian);
                 format!(
                     "{intro}; baseline (the first line equal to the one before it {since}, nothing in flight): {} \
-                     differences inherited from the save (power.md §5.2 case 1){}; mismatches=0",
+                     differences inherited from the save (power.md §5.2 case 1){}{wire_part}; mismatches=0",
                     all.len(),
                     list(&all)
                 )
@@ -2465,7 +2487,7 @@ impl Shadow {
                 };
                 format!(
                     "{intro}; baseline not set yet ({why}; the baseline is the first line equal to the one before \
-                     it, nothing counted until then): {} differences{}; mismatches=0",
+                     it, nothing counted until then): {} differences{}{wire_part}; mismatches=0",
                     all.len(),
                     list(&all)
                 )
@@ -2505,7 +2527,7 @@ impl Shadow {
              last line, case 2) {}{}; gone since the last line {}{}; baseline entries absent (0 at this line: masked \
              by a difference in flight; kept) {}{}; unchanged while others changed (not inherited; counted at the \
              next line) {}{}; persistent (not inherited; unchanged since the last line with nothing in flight, or \
-             at three lines) {}{}; mismatches={n}",
+             at three lines) {}{}{wire_part}; mismatches={n}",
             base_date.map_or("?".to_string(), date),
             inherited.len(),
             list(&inherited),
