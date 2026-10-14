@@ -2201,7 +2201,10 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   back as 0.42999998 and 0.79999995 as 0.7999999 (0.5 and 1.2 survive). A shadow must compare the read-back value.
   budget.md §2/§7 writes the read as "pct/100"; it is a multiplication by the float 0.01f (reported for the budget
   spec's owner).
-- **RG14:** the dirty flag cannot be compared by the shadow. [not compared]
+- ~~**RG14:** the dirty flag cannot be compared by the shadow. [not compared]~~ **ANSWERED 2026-10-14** from the exe
+  (byte `+0xA0`; constructor `0x007005B2`; the setters listed in REH §2) and written into REH §2 (the dirty-flag row).
+  **No original behaviour; the implementer's choice stands.** No interface slot returns the flag and nothing in the
+  class reads it; it shows only in the save, as `dirty ∨ state ≠ 10`.
 - **RG15:** a building's identity is its `AsOccupant()` pointer, used for the lists, the strike message's void1
   and IGZUnknown, and record references. Right? [yes]
 - **RG16:** per-building properties: scalars of their type (bool, u32, f32), or arrays? [scalars]
