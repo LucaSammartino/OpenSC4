@@ -3579,3 +3579,33 @@ requests or marker changes, so NG4, NG14, NG16, NG17, NG19, NG23 and NG25 are te
   back]
 - **NG44:** NG27: how do signed, 64-bit and float values convert, and what about an empty character array? [as C
   converts them; the empty character array stays false]
+
+## From the history warehouse and 24-hour clock cores (filed by the coordinator from the `cores10a` lane's report, 2026-10-14)
+
+cores10a implemented both cores (merged `0757437`, ABI 46): every §12 test of history.md and clock24.md is a unit
+test and a conformance vector (`hw12_*`, `ck12_*`). The 421-save corpus checks (history §7.1, clock §12.12) are
+left for the coordinator or a glue lane, since engine lanes cannot read the saves.
+
+- **CK7:** clock §4.1: the percentage factor's bit pattern `0x37C22E45` is 1/43200 (1.0 at noon), but the decimal
+  value and §12.1 say 1/86400. [`0x37422E45`, 1/86400; a test pins it]
+- **CK8:** the clock step's signedness. [u32: a negative product wraps, then the 1200 clamp applies]
+- **CK9:** an elapsed time of 2^31 or more. [the float(uint32) idiom]
+- **CK10:** `atol` overflow (`Stopwatch magnify`). [wraps]
+- **CK11:** how cheat text is split. [on blanks; double quotes group and are removed]
+- **CK12:** the cheat registration order. [register, then subscribe, one cheat at a time]
+- **CK13:** `Shutdown` without a cheat manager. [it unregisters only when a manager exists]
+- **CK14:** a saved pause count of −1. [signed i32 counters: Resume does nothing, `IsPaused` is false, so the clock
+  runs]
+- **CK15:** timer `Restart` on a stopped timer. [starts it]
+- **HW5:** history §4.7: how `r` is grouped. [the product of the two standardised values, summed, then divided by n]
+- **HW6:** ranges: how they are walked, and a widened range with from > to and no point in it. [walked like a list;
+  the widened case takes the point before the first one at or after `from`, and that point]
+- **HW7:** a `Read` failure. [stops at the first failed read and returns false; series read completely stay, the
+  partial one is dropped; a date not after the previous one, with no point yet, is dropped]
+- **HW8:** `Store`'s full-queue test. [unsigned: a count at or above maxCount drops one point; maxCount 0 means
+  unlimited, so 0xFFFFFFFF never trims]
+- **HW9:** `GetMinMaxAverage` with from == to and no point on that date. [`GetPoint` is called twice and its value
+  counted twice, as written]
+- **HW10:** precision values other than 24. [all treated as 53 bits]
+- **HW11:** 24-bit sums of int32 operands. [the exact sum, rounded once]
+- **HW12:** `RecordHistoryData`'s return value. [true]
