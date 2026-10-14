@@ -3,7 +3,7 @@
 //!
 //! - [`resolve_texture`]: a material texture ID → FSH key, in the §4.1 order: the shared texture group
 //!   `0x1ABE787D`, then the model's own group, then the fallback texture `0x07F94200` (and the slot's ID becomes
-//!   0 so it is not looked up again).
+//!   0 so it is not looked up again); no texture when the fallback does not load either (FS13).
 //! - [`model_key`]: the RKT0–RKT3 instance arithmetic of §4.2, with the zoom remap by model detail
 //!   ([`remap_zoom`]) and the view rotation ([`view_rotation`]).
 
@@ -36,8 +36,9 @@ pub struct TextureBinding {
 }
 
 /// Resolves a material texture slot (§4.1). `loads` says whether an FSH key loads (exists and passes the
-/// factory). A slot with ID 0 is not looked up (`None`). When neither key loads the fallback is bound whether or
-/// not it loads itself (the spec does not say what happens then).
+/// factory). `None` means the slot draws without a texture and its ID is (or becomes) 0: a slot with ID 0 is not
+/// looked up, and when neither key nor the fallback loads, the original leaves the slot with no binding and its
+/// ID set to 0, so it is never retried (FS13; FreeCity4 resolves it to no texture *\[choice\]*).
 pub fn resolve_texture(
     model_group: u32,
     texture_id: u32,
@@ -61,6 +62,11 @@ pub fn resolve_texture(
             step: TextureStep::ModelGroup,
             slot_id: texture_id,
         });
+    }
+    // FS13: the fallback lookup's result is not tested by the original; a fallback that does not load leaves
+    // the slot untextured.
+    if !loads(&FALLBACK_TEXTURE) {
+        return None;
     }
     Some(TextureBinding {
         key: FALLBACK_TEXTURE,
@@ -90,6 +96,11 @@ pub const ZOOM_REMAP: [u8; 15] = [0, 1, 2, 3, 4, 0, 1, 2, 3, 3, 0, 0, 1, 2, 3];
 
 /// z = table[zoom + 5 × detail] for a zoom index 0–4 and a detail 0–2; `None` outside those *\[choice\]* (the
 /// table has no other entries).
+///
+/// The detail is the original's model detail global: the integer render property `kModelLODOffset` (22),
+/// clamped to 0–2 when it is read, which `Graphics Rules.sgr` sets from the Texture Quality option (High 0,
+/// Medium 1, Low 2; registered default 0) (§4.2, GF8). FreeCity4 has no such option yet; callers pass the
+/// detail they want.
 pub fn remap_zoom(zoom: u32, detail: u32) -> Option<u32> {
     if zoom > 4 || detail > 2 {
         return None;
@@ -162,12 +173,20 @@ mod tests {
         let mut asked = Vec::new();
         let b = resolve_texture(g, x, |k| {
             asked.push(*k);
-            false
+            *k == FALLBACK_TEXTURE
         })
         .unwrap();
         assert_eq!((b.key, b.step, b.slot_id), (FALLBACK_TEXTURE, TextureStep::Fallback, 0));
-        assert_eq!(asked, [shared, own]);
+        assert_eq!(asked, [shared, own, FALLBACK_TEXTURE]);
         assert_eq!(FALLBACK_TEXTURE, Tgi::new(0x7AB5_0E44, 0x1ABE_787D, 0x07F9_4200));
+        // FS13: when the fallback does not load either, the slot has no texture.
+        let mut asked = Vec::new();
+        let b = resolve_texture(g, x, |k| {
+            asked.push(*k);
+            false
+        });
+        assert_eq!(b, None);
+        assert_eq!(asked, [shared, own, FALLBACK_TEXTURE]);
         // ID 0 is never looked up.
         assert_eq!(resolve_texture(g, 0, |_| panic!("looked up")), None);
         // The binding cache ignores the type.
