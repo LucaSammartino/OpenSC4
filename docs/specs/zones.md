@@ -1204,6 +1204,11 @@ references with IIDs `0x66BA4DB5` (city), `0xC6BB8334` (occupant manager), `0xC7
 (pollution), `0x6772BD23` (budget). Returns `GetError() = 0`. The tuning arrays read here are overwritten by
 `Init` (§4); `Init` skips the count reset because the loaded flag is set and keeps the loaded grid.
 
+The display alpha read here (`0x004DD58E`, the byte at +0x360) lasts only until `Init` (ZG3). `Init` calls
+`ReadSimulatorTunableValues` (`0x004DE192`), which overwrites it with the exemplar's Zone Display Alpha (shipped 170)
+and copies that to the default alpha (`0x004DC65E`–`0x004DC675`). The saved alpha survives only when the exemplar or
+the property is missing.
+
 ### 10.2 Zone developer (`cIGZSerializable` at +0xC; `Write` `0x0072AB40`, `Read` `0x00734380`)
 
 | # | Field |

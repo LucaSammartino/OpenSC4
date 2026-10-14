@@ -2842,7 +2842,12 @@ developer stays original). The current answer is in brackets.
   bitmap or with the bit clear, then reads (and on a commit writes) the zone grid unchecked. A rect past the city edge
   therefore reads and writes outside the grid, and a bad bitmap is dereferenced. The bracket (fail with error 0, touch
   nothing) is a *[choice]*, recommended. Also corrected: §6's "only cells inside the city".
-- **ZG3:** The zone display alpha after `Read`. [the alpha read]
+- ~~**ZG3:** The zone display alpha after `Read`. [the alpha read]~~
+  **ANSWERED 2026-10-14** from the exe (`Read` `0x004DD58E`; `Init` `0x004DE192`; `ReadSimulatorTunableValues`
+  `0x004DC65E`–`0x004DC675`) and written into zones §10.1. Right after `Read` the alpha is the saved byte, as
+  bracketed. But `Init`, which follows every load, overwrites it with the exemplar's Zone Display Alpha (shipped 170)
+  and sets the default alpha to the same value. The saved alpha survives only when the exemplar or the property is
+  missing.
 - **ZG4:** A second `Read`: the services the first one set. [replaced; the old ones released]
 - **ZG5:** ZoningChange `void1` / `IGZUnknown`. [SetVoid1 plus SetIGZUnknown on the zone manager; the message holds a
   reference]
