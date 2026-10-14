@@ -6,7 +6,7 @@
 
 //! The tract developer's state and behaviour (§1–§6).
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
@@ -305,6 +305,8 @@ pub struct TractDeveloper {
     histogram_enabled: bool,
     histogram: Vec<[u32; HIST_COLUMNS]>,
     w: Work,
+    /// Candidates scored by the last `grow` (§4.14; diagnostics).
+    scored: Cell<u32>,
 }
 
 fn rect_wh(r: CellRect) -> (i32, i32) {
@@ -358,6 +360,7 @@ impl TractDeveloper {
             histogram_enabled: false,
             histogram: vec![[0; HIST_COLUMNS]; HIST_ROWS],
             w: Work::default(),
+            scored: Cell::new(0),
         }
     }
 
@@ -682,10 +685,9 @@ impl TractDeveloper {
 
     // ---- Grow (§4.3) ----
 
-    /// `Grow(profile, outcomes&, outFlag&)` (slot 5, §4.3): returns the
-    /// capacity started (possibly negative). Appends one code per build
-    /// attempt and per pass without candidates; never clears `outcomes`.
-    pub fn grow(&mut self, profile: &GrowthProfile, outcomes: &mut Vec<Outcome>, out_flag: &mut bool) -> i32 {
+    /// `Grow`'s setup (§4.3 steps 1–2): the working state of §2.2 for
+    /// `profile`, read from the developer.
+    fn setup(&mut self, profile: &GrowthProfile) {
         let h = self.host();
         let dev = profile.developer;
         let mut w = Work {
@@ -695,7 +697,6 @@ impl TractDeveloper {
             max_stage: u32::from(profile.stage as u8),
             ..Work::default()
         };
-        // Setup.
         w.purpose = h.dev_purpose(dev);
         w.info = h.dev_construction_info(dev);
         w.wealth = w.info.wealth;
@@ -706,6 +707,16 @@ impl TractDeveloper {
         w.target_zone = h.dev_target_zone(dev);
         w.sub_type = h.dev_subtype(dev);
         self.w = w;
+    }
+
+    /// `Grow(profile, outcomes&, outFlag&)` (slot 5, §4.3): returns the
+    /// capacity started (possibly negative). Appends one code per build
+    /// attempt and per pass without candidates; never clears `outcomes`.
+    pub fn grow(&mut self, profile: &GrowthProfile, outcomes: &mut Vec<Outcome>, out_flag: &mut bool) -> i32 {
+        let h = self.host();
+        let dev = profile.developer;
+        self.setup(profile);
+        self.scored.set(0);
         for r in self.histogram.iter_mut() {
             *r = [0; HIST_COLUMNS];
         }
@@ -1433,6 +1444,7 @@ impl TractDeveloper {
 
     /// `ScoreCandidateLots` (§4.14): every operation is float32.
     fn score_candidates(&self, cands: &mut [Candidate]) {
+        self.scored.set(self.scored.get().wrapping_add(cands.len() as u32));
         for c in cands.iter_mut() {
             if c.kind != 1 {
                 self.find_existing_capacity(c);
@@ -1858,6 +1870,40 @@ impl TractDeveloper {
     /// The configuration chosen by the last `PickBuilding`.
     pub fn chosen(&self) -> (Option<u64>, u32) {
         (self.w.chosen_cfg, self.w.chosen_building)
+    }
+
+    /// The candidates the last `grow` scored (§4.14), takeover candidates
+    /// included (diagnostics).
+    pub fn last_scored(&self) -> u32 {
+        self.scored.get()
+    }
+
+    // ---- read-only probes (tooling: the shadow) ----
+
+    /// `Grow`'s setup (§4.3 steps 1–2) for `profile` without a pass: the
+    /// working state the predicates below read, with `relaxed` as given. Only
+    /// host reads; no draw, no histogram.
+    pub fn probe_setup(&mut self, profile: &GrowthProfile, relaxed: bool) {
+        self.setup(profile);
+        self.w.relaxed = relaxed;
+    }
+
+    /// `IsLotConfigurationSuitable(cfg)` (§4.7) on the probe's working state,
+    /// not counted.
+    pub fn probe_configuration_suitable(&self, cfg: u64) -> u32 {
+        self.lot_configuration_suitable(cfg)
+    }
+
+    /// `IsLotSuitable(lot, false)` (§4.8) on the probe's working state, not
+    /// counted and not cached.
+    pub fn probe_lot_suitable(&self, lot: u64) -> u32 {
+        self.lot_suitable(lot, false)
+    }
+
+    /// `IsBuildingCompatible(b, c)` (§4.17) with the capacity window
+    /// `[lo, hi]`, on the probe's working state, not counted.
+    pub fn probe_building_compatible(&self, b: u32, lo: i32, hi: i32) -> u32 {
+        self.building_compatible(b, lo, hi)
     }
 }
 

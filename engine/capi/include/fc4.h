@@ -79,8 +79,10 @@ extern "C" {
  *      fc4_plumbing_shadow_city_start and fc4_plumbing_original.pass_counter (plumbing.md
  *      PS3, PS6); the landfill host's insert_landfill_tile and fc4_landfill_state's
  *      game_tiles / game_tile_failures (landfill.md LG3, LG8);
- * 34 = adds the zone manager (fc4_zones, zones.md) and its shadow mode (fc4_zones_create_shadow). */
-#define FC4_ABI_VERSION 34u
+ * 34 = adds the zone manager (fc4_zones, zones.md) and its shadow mode (fc4_zones_create_shadow);
+ * 40 = adds the tract developer (fc4_tract, tract-developer.md) and its shadow mode
+ *      (fc4_tract_create_shadow, the fc4_tract_probe_* functions). */
+#define FC4_ABI_VERSION 40u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -4509,6 +4511,307 @@ fc4_neighbors* fc4_neighbors_shadow_create(const fc4_neighbors_shadow_input* inp
 bool fc4_neighbors_shadow_city_get(const fc4_neighbors* p, uint64_t city, fc4_neighbors_shadow_city* out);
 bool fc4_neighbors_shadow_get_counters(const fc4_neighbors* p, fc4_neighbors_shadow_counters* out);
 
+/* ---- tract developer (docs/specs/tract-developer.md §1-§4, §6, §7) -------------
+ *
+ * The tract developer (cSC4TractDeveloper, class 0x2990C142, city component 17):
+ * Grow (§4.3), Decline (§4.19), UpdatePopulation (§4.18), the style rotation
+ * (§4.20, the only saved state, §6) and the tuning (§4.21). It owns no grid. The
+ * BDS, the growth developers, the lot developer, the lot manager and the lot
+ * configuration manager are reached through the host, whoever implements them.
+ *
+ * Tokens: growth developers, lots, lot configurations, configuration filters and
+ * network tiles; 0 = none. Every token the host hands out is BORROWED and must
+ * stay valid until the top-level call that received it returns (the core never
+ * AddRefs or releases): a host keeps the references its lists gave it until
+ * then. The core orders lots and configurations by token (the original orders
+ * them by address, §9.5 item 1): hand out the object addresses.
+ *
+ * Statics (§9.1): the first fc4_tract_create of the process seeds the shared
+ * file-local generator with derive_seed(session_seed, 0x4C09C113) (foundations
+ * §6.3, §4.22 [choice]); later objects share it. The C rand() of R1 / R8 is the
+ * core's own (state 1, foundations §12.6).
+ *
+ * Threads: single-threaded; the plugin serialises the calls on one object. A
+ * call while the object is already inside the core (a host callback coming
+ * back) gets the fallback and is counted (fc4_tract_state.reentrant).
+ *
+ * Shadow mode (fc4_tract_create_shadow): reads go to the game; writes are
+ * swallowed and counted (services, agents, the message server, construction,
+ * abandonment, reoccupation, lots created / deleted / turned / state changes,
+ * demolition, terrain, construction resources, filters); SetPopulation calls
+ * are recorded for fc4_tract_shadow_update_population. Own statics. */
+
+typedef struct fc4_tract fc4_tract;
+
+/* The "Building Development" tuning exemplar (§4.21). */
+#define FC4_TRACT_TUNING_TYPE 0x6534284Au
+#define FC4_TRACT_TUNING_GROUP 0xE7E2C2DBu
+#define FC4_TRACT_TUNING_INSTANCE 0xE8DA7677u
+
+/* dev_cap's `which` (growth developer slots 19-22) and cheat's (BDS slots 54-57). */
+#define FC4_TRACT_CAP_POWER 0u
+#define FC4_TRACT_CAP_WATER 1u
+#define FC4_TRACT_CAP_FIRE 2u
+#define FC4_TRACT_CAP_PARK 3u
+#define FC4_TRACT_CHEAT_IGNORE_PLUMBING 0u
+#define FC4_TRACT_CHEAT_IGNORE_POWER 1u
+#define FC4_TRACT_CHEAT_IGNORE_CAPS 2u
+#define FC4_TRACT_CHEAT_DEBUG_GROWTH 3u
+/* The most bits cfg_required_roads may report (the core reads four). */
+#define FC4_TRACT_MAX_ROAD_BITS 32u
+
+/* GrowthProfile as the slots read it (§7.1); only the low byte of stage is used (Grow). */
+typedef struct fc4_tract_profile {
+    uint64_t developer;
+    int32_t x, z;
+    int32_t stage;
+    int32_t reserved;
+} fc4_tract_profile;
+
+/* GetConstructionInfo's fields the tract developer reads (growth-developer §6.2). */
+typedef struct fc4_tract_construction {
+    int32_t zone;
+    int32_t unknown2;
+    uint32_t wealth;
+    uint32_t purpose;
+    uint8_t land_value_min, land_value_max;
+    uint8_t reserved[2];
+    uint32_t building_type;
+    int32_t x, z;
+} fc4_tract_construction;
+
+/* BuildingProfile purpose (+0x00), wealth (+0x04), capacity (+0x08) (docs/abi
+ * layouts.md); an unknown type reads as zeros. */
+typedef struct fc4_tract_building_profile {
+    uint32_t purpose;
+    uint32_t wealth;
+    uint16_t capacity;
+    uint16_t reserved;
+} fc4_tract_building_profile;
+
+typedef void (*fc4_tract_style_callback)(void* ctx, uint32_t group, float fraction);
+typedef void (*fc4_tract_population_callback)(void* ctx, uint64_t lot, uint32_t dev_type, uint16_t population);
+
+/* Missing callbacks answer neutrally (0, false, empty, none). */
+typedef struct fc4_tract_host {
+    uint32_t struct_size;
+    void* user;
+    /* lifecycle (§1.3, §1.4): false = a service (or the simulator, the message server) is missing */
+    bool (*acquire_services)(void* user);
+    bool (*add_agent)(void* user, uint32_t level, uint32_t message);
+    bool (*acquire_message_server)(void* user);
+    void (*release_message_server)(void* user);
+    void (*remove_agent)(void* user);
+    void (*release_services)(void* user);
+    /* A NEW fc4_props with the tuning exemplar's properties (§4.21), or NULL. */
+    fc4_props* (*tuning)(void* user);
+    /* growth developer (growth-developer.md): slots 5, 6, 7, 8, 9; the desirability
+     * map's (slot 13) tract size, shift and tract value; the capacity map's (slot 14)
+     * tract value; GetSourceDemand (18) then cISC4Demand slot 12 (false: no node);
+     * the caps (19-22); GetMonopolyUse (25); GetStylePercentages (26) in key order. */
+    int32_t (*dev_target_zone)(void* user, uint64_t dev);
+    uint32_t (*dev_subtype)(void* user, uint64_t dev);
+    uint32_t (*dev_purpose)(void* user, uint64_t dev);
+    uint32_t (*dev_wealth)(void* user, uint64_t dev);
+    void (*dev_construction_info)(void* user, uint64_t dev, fc4_tract_construction* out);
+    int32_t (*dev_desirability_tract_size)(void* user, uint64_t dev);
+    uint32_t (*dev_desirability_shift)(void* user, uint64_t dev);
+    int16_t (*dev_desirability_value)(void* user, uint64_t dev, int32_t tx, int32_t tz);
+    uint32_t (*dev_capacity_value)(void* user, uint64_t dev, int32_t tx, int32_t tz);
+    bool (*dev_source_demand)(void* user, uint64_t dev, float* out);
+    uint8_t (*dev_cap)(void* user, uint64_t dev, uint32_t which);
+    int32_t (*dev_monopoly_use)(void* user, uint64_t dev);
+    void (*dev_style_percentages)(void* user, uint64_t dev, fc4_tract_style_callback cb, void* ctx);
+    /* BDS (building-development.md): slot 39; slot 19 (the types in an order whose
+     * insertion into a 193-bucket STLport hash_set reproduces the set); slot 14 +
+     * IsOccupantGroup; the bool property 0x2781283F; the uint32 array property
+     * 0x29B55F73 (false: absent); slot 33 (no reference); slots 50, 51; 54-57. */
+    void (*building_profile)(void* user, uint32_t building, fc4_tract_building_profile* out);
+    void (*building_types_by_family)(void* user, uint32_t family, fc4_u32_callback cb, void* ctx);
+    bool (*building_in_occupant_group)(void* user, uint32_t building, uint32_t group);
+    bool (*building_is_monopoly)(void* user, uint32_t building);
+    bool (*building_field_ids)(void* user, uint32_t building, fc4_u32_callback cb, void* ctx);
+    uint64_t (*developer_for)(void* user, uint32_t purpose, uint32_t wealth);
+    bool (*claim_construction_resources)(void* user, uint16_t amount);
+    void (*release_construction_resources)(void* user, uint16_t amount);
+    bool (*cheat)(void* user, uint32_t which);
+    /* lot developer (lot-developer.md): slots 36, 6, 8, 9, 29 */
+    bool (*needs_anchor_building)(void* user, const fc4_cell_rect* rect, uint32_t purpose);
+    bool (*start_construction)(void* user, uint64_t lot, uint64_t cfg, uint32_t building, bool flag);
+    bool (*abandon_building)(void* user, uint64_t lot, uint32_t reason);
+    bool (*reoccupy_building)(void* user, uint64_t lot, uint32_t dev_type);
+    float (*area_slope)(void* user, const fc4_cell_rect* rect);
+    /* lot manager (zones.md): slots 6, 7, 9, 10, 20, 22, 24 */
+    uint64_t (*get_lot)(void* user, int32_t x, int32_t z);
+    void (*lots_in_cell_rect)(void* user, const fc4_cell_rect* rect, fc4_token_callback cb, void* ctx);
+    void (*lots_surrounding_lot)(void* user, uint64_t lot, uint32_t flags, fc4_token_callback cb, void* ctx);
+    void (*lots_surrounding_rect)(void* user, const fc4_cell_rect* rect, uint32_t flags, fc4_token_callback cb,
+                                  void* ctx);
+    int32_t (*can_create_lot)(void* user, int32_t x, int32_t z, int32_t w, int32_t h);
+    uint64_t (*create_lot_if_possible)(void* user, int32_t x, int32_t z, int32_t w, int32_t h, int32_t facing);
+    bool (*delete_lot)(void* user, uint64_t lot);
+    /* lots (cISC4Lot) */
+    void (*lot_bounding_rect)(void* user, uint64_t lot, fc4_cell_rect* out);
+    float (*lot_slope)(void* user, uint64_t lot);
+    void (*lot_location)(void* user, uint64_t lot, int32_t* x, int32_t* z);
+    void (*lot_size)(void* user, uint64_t lot, uint32_t* w, uint32_t* h);
+    int32_t (*lot_facing)(void* user, uint64_t lot);
+    void (*lot_set_facing)(void* user, uint64_t lot, int32_t facing);
+    bool (*lot_has_road_access)(void* user, uint64_t lot);
+    bool (*lot_has_organic_road_access)(void* user, uint64_t lot, uint32_t purpose);
+    int32_t (*lot_zone_type)(void* user, uint64_t lot);
+    uint32_t (*lot_state)(void* user, uint64_t lot);
+    void (*lot_set_state)(void* user, uint64_t lot, uint32_t state, uint32_t wealth, uint32_t reason);
+    bool (*lot_is_livable)(void* user, uint64_t lot);
+    bool (*lot_has_capacity)(void* user, uint64_t lot);
+    uint32_t (*lot_days_since_state_change)(void* user, uint64_t lot);
+    uint32_t (*lot_occupant_wealth)(void* user, uint64_t lot);
+    bool (*lot_is_historical)(void* user, uint64_t lot);
+    uint32_t (*lot_building_type)(void* user, uint64_t lot);
+    uint16_t (*lot_capacity)(void* user, uint64_t lot, uint32_t dev_type, bool flag);
+    uint16_t (*lot_available_capacity)(void* user, uint64_t lot, uint32_t dev_type, bool flag);
+    void (*lot_set_population)(void* user, uint64_t lot, uint32_t dev_type, uint16_t population);
+    /* The growth stage of the lot's configuration; -1 without one. */
+    int32_t (*lot_configuration_stage)(void* user, uint64_t lot);
+    /* lot configurations (cISC4LotConfiguration slots 7, 9, 8, 11, 12, 13, 15-18, 21, 24) */
+    void (*cfg_size)(void* user, uint64_t cfg, uint32_t* w, uint32_t* h);
+    float (*cfg_min_slope)(void* user, uint64_t cfg);
+    float (*cfg_max_slope)(void* user, uint64_t cfg);
+    uint8_t (*cfg_growth_stage)(void* user, uint64_t cfg);
+    uint16_t (*cfg_min_capacity)(void* user, uint64_t cfg);
+    uint16_t (*cfg_max_capacity)(void* user, uint64_t cfg);
+    bool (*cfg_compatible_zone)(void* user, uint64_t cfg, int32_t zone);
+    bool (*cfg_compatible_wealth)(void* user, uint64_t cfg, uint32_t wealth);
+    bool (*cfg_compatible_purpose)(void* user, uint64_t cfg, uint32_t purpose);
+    bool (*cfg_compatible_style)(void* user, uint64_t cfg, uint32_t style);
+    /* Writes up to `cap` bytes (0 / 1) and returns the bit count. */
+    size_t (*cfg_required_roads)(void* user, uint64_t cfg, uint8_t* bits, size_t cap);
+    /* false: no primary building object; else its object-ID list. */
+    bool (*cfg_primary_building_ids)(void* user, uint64_t cfg, fc4_u32_callback cb, void* ctx);
+    /* lot configuration manager: slot 8; a filter {wealth, purpose} allocated and
+     * registered (slot 18); unregistered (slot 19) and freed; slot 9 */
+    uint64_t (*get_lot_configuration)(void* user, uint32_t id);
+    uint64_t (*register_configuration_filter)(void* user, uint32_t wealth, uint32_t purpose);
+    void (*unregister_configuration_filter)(void* user, uint64_t filter);
+    void (*configurations_by_filter)(void* user, uint64_t filter, fc4_token_callback cb, void* ctx);
+    /* city grids and services: zone manager slot 12; land value slot 6; the powered
+     * grid's cell value; plumbing slot 11; the fire grid (uint8); the park map
+     * (int16); the trip length map (§4.8 row 7); city slots 93 / 94; FindNetworkTile
+     * (x, z, 0xC4B, 1); network occupant IsOfType; DemolishLots(true, [lot], 0, 0x800,
+     * false, 0, 0, 0); RedisplayTerrain(0, 0, rect, 0). */
+    int32_t (*zone_at)(void* user, int32_t x, int32_t z);
+    uint8_t (*land_value)(void* user, int32_t x, int32_t z);
+    int32_t (*powered_value)(void* user, int32_t x, int32_t z);
+    bool (*is_cell_watered)(void* user, int32_t x, int32_t z);
+    uint8_t (*fire_coverage)(void* user, int32_t x, int32_t z);
+    int16_t (*park_value)(void* user, int32_t x, int32_t z);
+    int32_t (*road_access_value)(void* user, int32_t x, int32_t z);
+    void (*city_cell_counts)(void* user, int32_t* x, int32_t* z);
+    uint64_t (*find_network_tile)(void* user, int32_t x, int32_t z);
+    bool (*network_is_of_type)(void* user, uint64_t tile, uint32_t network_type);
+    bool (*demolish_lot)(void* user, uint64_t lot);
+    void (*redisplay_terrain)(void* user, const fc4_cell_rect* rect);
+} fc4_tract_host;
+
+typedef struct fc4_tract_grow_result {
+    uint32_t struct_size;
+    int32_t built;            /* the return value (may be negative) */
+    uint8_t out_flag;
+    uint8_t reserved[3];
+    uint32_t outcome_count;   /* codes appended to the outcome list */
+    uint32_t outcomes[16];    /* the first 16 of them */
+    uint32_t scored;          /* candidates scored (§4.14) */
+    int32_t desired, desired_max;
+    uint32_t reserved1;
+    uint64_t chosen_cfg;      /* PickBuilding's last choice (0: none) */
+    uint32_t chosen_building;
+    uint32_t reserved2;
+} fc4_tract_grow_result;
+
+/* The style state, flags and counters (counters from creation). */
+typedef struct fc4_tract_state {
+    uint32_t struct_size;
+    uint8_t initialized, configured, all_styles, reserved;
+    uint32_t current_style;
+    int32_t current_style_index;
+    int32_t years_since_style_change;
+    int32_t years_between_style_changes;
+    uint32_t active_style_count;
+    uint32_t active_styles[16];
+    uint32_t filters;
+    uint32_t grow_calls, decline_calls, update_population_calls;
+    uint32_t reserved1;
+    int64_t built_total, declined_total;
+    uint32_t outcomes[28];    /* outcome codes appended, by code (§4.1) */
+    uint32_t scored;
+    uint32_t constructions, reoccupations, abandonments, lots_created, lots_deleted, demolitions, populations_set,
+        resource_claims;
+    uint32_t reentrant;       /* calls refused: the object was inside the core */
+    uint32_t swallowed;       /* shadow: game writes swallowed */
+    uint32_t reserved2;
+} fc4_tract_state;
+
+typedef struct fc4_tract_tuning {
+    uint32_t struct_size;
+    float overbuild;
+    float reoccupy[2];
+    float redevelop_size;
+    float demolition_costs[2];
+    float new_lot_costs[2];
+    float occupancy_variation;
+    float min_vacancy[2];
+    uint8_t kick_out;
+    uint8_t reserved[3];
+    uint32_t available_style_count;
+    uint32_t available_styles[16];
+} fc4_tract_tuning;
+
+/* QueryInterface (§1.1): 1, 0xA818ED1B, 0x452294AA, 0xE4FDA3D4. */
+bool fc4_tract_query_interface(uint32_t iid);
+uint32_t fc4_tract_class_id(void); /* 0x2990C142 */
+/* The configuration filter's IsLotConfigurationIncluded (§4.6, §7.4) through
+ * `host`'s configuration reads; needs no object. */
+bool fc4_tract_filter_includes(const fc4_tract_host* host, uint64_t cfg, uint32_t wealth, uint32_t purpose);
+
+/* The host table is copied; NULL when it is incomplete. */
+fc4_tract* fc4_tract_create(const fc4_tract_host* host, uint32_t session_seed);
+fc4_tract* fc4_tract_create_shadow(const fc4_tract_host* host);
+void fc4_tract_destroy(fc4_tract* p);
+bool fc4_tract_init(fc4_tract* p);                       /* §1.3 */
+bool fc4_tract_shutdown(fc4_tract* p);                   /* §1.4: true; the style state is kept */
+bool fc4_tract_do_message(fc4_tract* p, uint32_t msg);   /* §3: Year runs NewYear; true */
+/* Slot 5 (§4.3): returns built; each appended code goes to `outcome` (may be NULL), in order. */
+int32_t fc4_tract_grow(fc4_tract* p, const fc4_tract_profile* profile, fc4_u32_callback outcome, void* ctx,
+                       bool* out_flag, fc4_tract_grow_result* out);
+int32_t fc4_tract_decline(fc4_tract* p, const fc4_tract_profile* profile);           /* slot 6 (§4.19) */
+void fc4_tract_update_population(fc4_tract* p, const fc4_tract_profile* profile);    /* slot 7 (§4.18) */
+uint32_t fc4_tract_current_style(const fc4_tract* p);                                /* slot 8 */
+/* Slot 9: copies up to `cap` styles to `out` (may be NULL); returns the count. */
+size_t fc4_tract_active_styles(const fc4_tract* p, uint32_t* out, size_t cap);
+void fc4_tract_set_active_styles(fc4_tract* p, const uint32_t* v, size_t n);         /* slot 10 */
+bool fc4_tract_is_using_all_styles(const fc4_tract* p);                              /* slot 11 */
+void fc4_tract_use_all_styles(fc4_tract* p, bool all);                               /* slot 12 */
+int32_t fc4_tract_years_between_style_changes(const fc4_tract* p);                   /* slot 13 */
+void fc4_tract_set_years_between_style_changes(fc4_tract* p, int32_t years);         /* slot 14 */
+/* The §4.1 debug histogram (off by default; reset by each Grow): 13 x 28, row-major. */
+void fc4_tract_set_histogram(fc4_tract* p, bool on);
+bool fc4_tract_histogram(const fc4_tract* p, uint32_t* out, size_t cap);
+bool fc4_tract_get_state(const fc4_tract* p, fc4_tract_state* out);
+bool fc4_tract_get_tuning(const fc4_tract* p, fc4_tract_tuning* out);
+/* ReadTuning and its style fix-ups (§4.21) without the rest of Init. */
+void fc4_tract_read_tuning(fc4_tract* p);
+bool fc4_tract_write(const fc4_tract* p, const fc4_ostream* out);   /* §6 */
+bool fc4_tract_read(fc4_tract* p, const fc4_istream* in);           /* §6; before Init */
+/* Shadow cores only (-1 / false otherwise): UpdatePopulation with each SetPopulation
+ * handed to `cb` instead of the game (returns the count); Grow's setup for the
+ * probes; the probes (§4.7, §4.8 with redevelop false, §4.17), not counted. */
+int32_t fc4_tract_shadow_update_population(fc4_tract* p, const fc4_tract_profile* profile,
+                                           fc4_tract_population_callback cb, void* ctx);
+bool fc4_tract_probe_setup(fc4_tract* p, const fc4_tract_profile* profile, bool relaxed);
+int32_t fc4_tract_probe_configuration_suitable(const fc4_tract* p, uint64_t cfg);
+int32_t fc4_tract_probe_lot_suitable(const fc4_tract* p, uint64_t lot);
+int32_t fc4_tract_probe_building_compatible(const fc4_tract* p, uint32_t building, int32_t lo, int32_t hi);
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -4662,6 +4965,13 @@ static_assert(sizeof(fc4_neighbors_shadow_city) == 168, "fc4_neighbors_shadow_ci
 static_assert(sizeof(fc4_neighbors_shadow_conn) == 40, "fc4_neighbors_shadow_conn layout");
 static_assert(sizeof(fc4_neighbors_shadow_input) == (sizeof(void*) == 4 ? 208 : 232), "fc4_neighbors_shadow_input layout");
 static_assert(sizeof(fc4_neighbors_shadow_counters) == 32, "fc4_neighbors_shadow_counters layout");
+static_assert(sizeof(fc4_tract_profile) == 24, "fc4_tract_profile layout");
+static_assert(sizeof(fc4_tract_construction) == 32, "fc4_tract_construction layout");
+static_assert(sizeof(fc4_tract_building_profile) == 12, "fc4_tract_building_profile layout");
+static_assert(sizeof(fc4_tract_host) == (sizeof(void*) == 4 ? 368 : 736), "fc4_tract_host layout");
+static_assert(sizeof(fc4_tract_grow_result) == 112, "fc4_tract_grow_result layout");
+static_assert(sizeof(fc4_tract_state) == 288, "fc4_tract_state layout");
+static_assert(sizeof(fc4_tract_tuning) == 120, "fc4_tract_tuning layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
