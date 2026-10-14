@@ -939,12 +939,20 @@ each cycle-completed message `0x2A09B21A`). The glue's current answer is in brac
 First in-game aura shadow (coordinator, `regress -Tag r7c3f`, Spandau, 98 cycles 2026-01 to 2034-02; the replace run
 with aura was clean, 0 problems). The park, landmark and riot fields aside, **6 of 98 cycles match exactly**:
 
-- **AU13 — small base differences every cycle.** 0 to 43 tracts of 1024 differ by 1 to 3 (most cycles 2 to 12
+- ~~**AU13 — small base differences every cycle.** 0 to 43 tracts of 1024 differ by 1 to 3 (most cycles 2 to 12
   tracts, max|d| = 2), in both directions from one cycle to the next (cycle 1 `(6,21)` 59/58, cycle 2 58/59), and
   the aura grid carries the same differences. The mayor rating is off by 1 in 11 cycles. The first cycles' tracts
   sit in one area (x 4 to 13, z 21 to 28). Is this the AU7 timing (an input that changes during the original's
   cycle: which inputs does the original read in which state, and on which day), or a rounding step the spec does
-  not give (the order of the sums, a truncation instead of a rounding)? Name the inputs read per state.
+  not give (the order of the sums, a truncation instead of a rounding)? Name the inputs read per state.~~
+  **ANSWERED 2026-10-14** from the exe (`DoIdle` `0x0068F190`; lot value `0x0068CE00`; rule A callbacks
+  `0x0068BBB0`–`0x0068BEE0`; state 14 `0x0068F6FE`–`0x0068F94E`; state 15 `0x0068DA80`) and written into aura.md
+  §5.3 (inputs per state, worked examples) and §14.3 (step-by-step shadow, the original's field offsets). **Timing,
+  not rounding.** The arithmetic has no step beyond §6. Each state reads its inputs in its own `DoIdle` call. Every
+  other idle agent (growth developers, land value, residential, crime, …) runs between two steps, and the day
+  agents (traffic trip lengths and congestion, pollution) run when a day passes. Occupant cones arrive by posted
+  messages. A base near equilibrium moves by at least 1 for any non-zero `d`, so one work cell off changes it by 1
+  or 2. Track the original's state field (+0x70) and run our steps when it moves.
 - **AU14 — park and landmark maps in cycles 2 and 3 only.** 193 tracts (max|d| 200) in cycle 2 and 208 (max 188)
   in cycle 3 differ in both maps, then 0 for the other 95 cycles. When does the original rebuild these maps (on
   load, on the first cycle, when a park lot is added), and does it clear them first?

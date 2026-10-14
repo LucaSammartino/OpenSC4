@@ -207,7 +207,7 @@ agent (level 6) sets state 1, so state 1 runs on the next `DoIdle` (usually the 
 
 Data read from other simulators in the same cycle (residential population and education/health grids, crime,
 pollution, traffic, land value) is whatever they hold at the moment of the step; no ordering with their monthly
-work is guaranteed (foundations §13).
+work is guaranteed (foundations §13). §5.3 lists which state reads what.
 
 ### 5.2 Subscribed messages
 
@@ -217,6 +217,74 @@ work is guaranteed (foundations §13).
 | occupant inserted `0x99EF1142` / removed `0x99EF1143` | `occupant := void1`. If its property holder **has** property `0x029244DB` (presence test; the preview-occupant marker, foundations §5.2) → ignore. Otherwise `OccupantChanged(occupant, add = (type == 0x99EF1142))` (§7). |
 | ordinance updated `0xC2C09554` | `globalEffect := ordinance.GetCumulativeOffset(0xAA5B8407, 0)` (ordinance §6.1; int32). |
 | `0xC53D10AA` | if `data1 == 0xE7E2C2DB` and `data2 == 0xAA023079` (the tuning exemplar's group and instance) → re-read the tuning (§10). |
+
+### 5.3 What each state reads, and when *[compat]*
+
+Each `DoIdle` call runs **one** step (§5.1). So each input is read at the moment its state runs, not at the end of
+the cycle. The inputs, by state:
+
+| State | Reads | Owner of the data |
+|---|---|---|
+| 1 | `GetSimDateNumber()` | simulator |
+| 2 | Parks funding (`GetDepartmentBudget(0x8A4260A6)`, `GetFundingPercentage`); the raw park grid | budget; own grid, changed by §7 |
+| 3 | the department map; one department's landmark grid and its funding per call | own grids (§7); budget |
+| 4 | `GetLotCount()`; the 12 `GetTaxRate(t)` (only when the tax curve exists) | lot manager; budget |
+| 5 | per lot: `GetBuilding`, `GetPopulations`, `GetBoundingRect`, `GetOccupantWealth`, and `GetLandValueType` at the lot centre | lots (growth, lot developer); land value simulator |
+| 6 | the park map (state 2's result) | own |
+| 7 | the four pollution grids | pollution simulator |
+| 8 / 9 | the school / hospital grade map; for rule R, `GetLot(x, z, false)` and `GetZoneType` per cell | residential simulator; lots |
+| 10 | the crime grid | crime simulator |
+| 11 / 12 | the trip-length / congestion map; rule R as in 8 | traffic simulator; lots |
+| 13 | the building-effect grid | own, changed by §7 |
+| 14 | `GetCumulativeOffset(0xAA5B8407, 0)` | ordinance simulator |
+| 15 | the base and transient grids; the three population grids (`GetPopulationGrids`) | own; residential simulator |
+| 16 | the random generator; the riot manager | own; disaster layer |
+| 17 | the transient grid | own |
+
+**When.** State 1 runs at the first idle pass after the month agent (§5.1), normally on the 1st of the month. Every
+later step is one `SimIdle` delivery (one per idle pass) or one `SimNewDay` delivery. Between two aura steps, every
+other idle agent gets its own call in the same pass: growth developers, building development, commercial, crime,
+land value, residential, the prop developer, power, plumbing, neighbours and demand (the order logged in run
+r7c3f). When a day boundary falls inside the cycle, that day's day agents also run between two steps. These include
+the traffic simulator, which rewrites the trip length of each source it finishes (traffic-simulator.md §4.6) and the
+congestion map in its state 4, and pollution's day pass. So the grids read by the later states can be newer than
+those read by the earlier ones.
+
+**Occupant changes arrive late.** The occupant inserted and removed messages are **posted** (queued, flora.md §9).
+The cones of §7 therefore reach the raw park grid, the department landmark grids and the building-effect grid only
+at a later message-server tick (foundations §5). A cycle that runs in the same frame as the insertion uses the
+grids from before it in states 2, 3 and 13. The park and landmark maps then catch up one cycle later.
+
+**The end message arrives late too.** `0x2A09B21A` is posted at state 17 (§11.1). It reaches its subscribers at a
+later message-server tick, after any occupant messages posted before it. At that moment the inputs can differ from
+what the states read. In run r7c3f the cycle that starts on the 1st was delivered on day 1 to day 5 of the month.
+
+**Arithmetic.** State 5's lot value (`0x0068CE00`), the rule A and rule R callbacks (`0x0068BBB0`, `0x0068BDA0`,
+`0x0068BE10`, `0x0068BE70`, `0x0068BEE0`), state 14 (`0x0068F6FE`–`0x0068F94E`) and state 15 (`0x0068DA80`) were
+checked against the instructions. They have no rounding step beyond §6:
+- the lot value is an integer division then an integer clamp, then `trunc(curve)` added and clamped again;
+- each rule A stage is one `_ftol` of `work + curve(source)`, summed at 24-bit precision;
+- the base is an integer division, `+ globalEffect`, the decay step of §6.14 and one clamp.
+
+A comparison taken at the end message, rather than when each state runs, therefore shows timing differences, not
+rounding differences. §14.3 gives a way to read the inputs at the original's own moments.
+
+**Worked examples** (the first in-game aura shadow, run r7c3f, Spandau, 32 × 32 tracts).
+- *Park and landmark maps, cycles 2 and 3.* A landfill tile occupant (group `0x07BDDF1C`) carries both a park and a
+  landmark effect of {−100, 32}. Its cone has radius 32 / 4 = 8 tracts and covers exactly **193** tracts (simgrid
+  §7.1). Two tiles in one tract give 193 tracts with a centre of −200. Two tiles in neighbouring tracts give **208**
+  tracts with a maximum of −100 + round(−100 + 1 × 12.5) = **−188**. These match the reported 193 / 200 and 208 /
+  188.
+  The landfill developer creates tiles in its month agent on the 1st (landfill.md §4.8). Their posted insert
+  messages arrive after the original's states 2 and 3 of that cycle, but before the end message.
+- *Single tracts near 180.* `|d| = 182` in the base grid with `|d| = 54` in the aura grid means one side holds
+  **−128** (no data) and the other holds 54: 54 − (−128) = 182, and the aura of a −128 tract is 0 (§6.15). The same
+  holds for 188 / 60 and 175 / 47. In such a tract, one side saw a residential lot with a building and a non-zero
+  count, and the other did not. A tract that was −128 takes `clamp(new)` at once (§6.14), so the gap is the whole
+  value, not one decay step.
+- *Differences of 1 to 3.* A base near its equilibrium has `d` close to 0, and any non-zero `d` moves it by at least
+  one (§6.14). So a block average that is one unit off, which one cell's work value can cause, already changes the
+  base by 1. A `d` of +1 on one side against −1 on the other changes it by 2.
 
 ## 6. The monthly pipeline *[compat]*
 
@@ -752,6 +820,30 @@ parameters are outputs (`cISC4SimGrid<uint16>*&`), the SDK declares only the fir
   grids as `cSC4SimGrid` objects so the original can load them.
 - `GetParkMap`/`GetLandmarkMap` are inputs to the growth and tract developers' desirability: their scale (park cone
   magnitudes × funding fraction) must match.
+
+### 14.3 Running beside the original (shadow comparison) *[choice]*
+
+A shadow that runs a whole cycle when `0x2A09B21A` arrives reads every input later than the original did (§5.3). It
+therefore shows timing differences, which hide real ones. A shadow that tracks the original **step by step** reads the
+same inputs:
+
+- After each delivery of SimIdle or SimNewDay to the original's agent, read the original's **state** (s32). When it
+  has moved from s to s′, run our steps s, s+1, …, s′−1 at once, before any other agent runs. If the original went
+  back to 0 from state 4 (empty lot list) or from state 17, run up to the end of the cycle.
+- State 5 is spread over several calls. The simplest match is to run our whole state 5 in the call where the original
+  leaves it. A lot added or removed between two of the original's slices can still differ; the work grid comparison
+  below shows such lots.
+- Apply occupant inserted and removed to our raw park, department and building-effect grids when the original
+  receives them (the same posted message, §5.3), not when the occupant is created.
+- For a per-step diagnostic, compare our work grid with the original's after each step from 5 to 13. The original's
+  work grid keeps its values from state 13 until the next state 4, so at the end message it still holds the inputs
+  of state 14.
+
+The original object, as offsets from its `cISC4AuraSimulator` pointer (constructor `0x0068D110`, `Init`
+`0x0068E6B0`): `cIGZMessageTarget2` sub-object +0x04 (the agent registered with the simulator), `cIGZSerializable`
++0x08; grids: aura +0x40, work +0x44, base +0x48, transient +0x4C, building effect +0x50, raw park +0x54, park map
++0x58, department map +0x5C, landmark map +0x68, landmark work +0x6C; state (s32) +0x70; cycleStartDay +0x74; lot
+iterator +0x78; departmentCursor +0x7C; mayorRating +0x84; globalEffect +0x88; previousTaxRate[12] (f32) +0x94.
 
 ## 15. Original quirks (reproduced)
 
