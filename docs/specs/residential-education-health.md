@@ -78,8 +78,8 @@ item is part of the class's save record (residential.md §3 and §9.1 are normat
 | Served counters ×2 | 0 | no | Population covered for the first time in the cycle (§4.4). They feed the history (§4.12). |
 | Grade totals ×2 (`float`) | 0 | no | Members `+0x314` (schools) and `+0x318` (hospitals). Accumulated by the EQ/HQ boost (§4.6) in states 6 and 8 (ComputeOccupantGrade gets their addresses, `0x006FFED3`, `0x00700053`), and reset at the start of state 0 (`0x006FF567`). **Never read** otherwise: these four are the only references in the class (`0x006F6E50`–`0x00700E90`), no interface slot returns them, and `Read`/`Write` skip them (RS13). They belong to this half; residential.md's frame only triggers the reset with the rest of state 0. |
 | Global auto-budget flags (schools, hospitals) | false, false | yes (version ≥ 7) | Slots 52–55 (§4.10). |
-| `cRZRandom` member | wall-clock seed at construction | no | Strike rolls and death's-door effect (foundations §6.2). |
-| Dirty flag | see residential.md §3 | yes (residential.md §9.1) | Set by the month message when the cycle is late, by every building add/remove and by `SetOccupantFundingPercentages`. **Never read** *[inferred: no reader in the class]*. |
+| `cRZRandom` member (`+0xB8`: `lcg` at `+0xB8`, `mul` at `+0xBC`) | wall-clock seed at construction | no | Strike rolls and death's-door effect (foundations §6.2). Every draw of this class is a double draw, which reads and advances only `mul` (RG6). **Seed** (RG21): the constructor (`0x007005AA`) calls `Seed(0xFFFFFFFF)` (`0x00913667`), so `lcg := mul := time(NULL) XOR ((c << 16) \| c)` with `c = clock()` read once (milliseconds since process start; `time` `0x009EFB59`, `clock` `0x009F361F`). This is **not** the `cRZTime` value (`time() + 2177452800`) that crime's generator uses. *[choice]* FreeCity4 seeds it with `derive(0x4990C013)`, the class ID (foundations §6.3). |
+| Dirty flag | see residential.md §3 | yes (residential.md §9.1) | Set by the month message when the cycle is late, by every building add/remove and by `SetOccupantFundingPercentages`. **Never read** *[inferred: no reader in the class]*. A byte at `+0xA0`, 1 after construction (`0x007005B2`); the month message clears or sets it through the message-target sub-object (`0x007003A4`, `0x007003B9`), and every other access in the class (`0x006F834A`, `0x006FB354`, `0x006FB572`, `0x006FB910`, `0x006FB9C1`, `0x006FB9D4`) writes 1. No interface slot returns it. Its only trace outside the object is the saved byte, written as `dirty ∨ state ≠ 10` (residential.md §9.1), so a shadow can only compare it through a save; leaving it out is the implementer's choice (RG14). |
 
 **Per-building state** is kept in the building's own property holder and saved with the building:
 
@@ -91,6 +91,14 @@ item is part of the class's save record (residential.md §3 and §9.1 are normat
 | staff ratio | `0x2A976C20` | `0xAA976BE7` | f32 | grading; 1.0 on add |
 | strike start day (0 = not striking) | `0xEAA69F83` | `0xEAA69F83` | u32 | strikes (§4.9) |
 | auto-budget | `0x6C05FC4D` | `0x6C05FC4D` | bool | slot 57 / UI |
+
+All six are **scalars** *[compat]* (RG16). The class writes them with three helpers, u32 `0x005FE3C0`, float
+`0x005FE4F0` and bool `0x005FE210`. Each looks the property up (holder slot 9), creates it when missing (a new
+property object, vtable `0x00AA6988`, added with holder slot 15), then calls the variant's scalar setter:
+`SetValUint32` (slot 26), `SetValFloat32` (slot 38) or `SetValBool` (slot 11). The setter (`0x0091587D` for u32)
+clears any other content, an array included, and stores a single value of type 6 (u32), `0x0A` (f32) or 1 (bool).
+So whatever a building's exemplar or an earlier write put there, after the class writes it the property is a
+scalar of the type in the table.
 
 ## 3. Agents and cadence
 
@@ -182,8 +190,12 @@ data3 = `0x278128A0` (building occupant) and void1 = the occupant. The class ask
    after the hospital test. A building that passes both tests is put in both pending lists *[compat]*.
 3. Health-affecting buildings (properties `0x6A19F6B5` and `0xAA19F6EA` both > 0) are handled in residential.md
    §5.8. They go to a pending list, which state 0 moves into the health-affecting list.
-4. Finally, the building's slot-11 value is read and the dirty flag set when its first u32 is 1
-   *[inferred meaning]*.
+4. Finally, the building's slot 11 is called and the dirty flag set when the first u32 of the result is 1
+   (`0x006FB9CC`–`0x006FB9D4`, RG2). Slot 11 is `cISC4Building::GetBuildingProfile()` (`0x00459250`): it
+   returns the building development simulator's `GetBuildingProfile(type)` (slot 39) for the building's type
+   (`+0x38`), or a static all-zero profile when there is no such simulator. The first u32 is the profile's
+   purpose, and 1 is `Residence` (demand.md §6.3). So the flag is set for residential buildings. An
+   early exit of the call (a null department, §4.1 step 1) skips this step. The flag is never read (§2).
 
 **State 0 distribution** (§3). Each pending school is appended to the **first** group, in the order below, for
 which `IsOccupantGroup(group)` is true. Hospitals are handled the same way. Then the pending list is cleared.
@@ -207,6 +219,12 @@ Names come from the Lua constants and scripts where they exist. The others are u
 `GetSchoolBuildings` / `GetHospitalBuildings(out, groups)` do this and then **always append the pending list**.
 **Counts** (slots 46/48) = Σ list sizes + pending list size.
 
+**Building identity** *[compat]* (RG15). Every list (pending, group, health-affecting) stores the pointer returned
+by the building's `AsOccupant()` (building slot 3), and removal finds the entry by comparing with
+`AsOccupant()` of the removed building. That same list pointer is what `BeginStrike` puts in the strike message
+(void1 and IGZUnknown, §5), what `GetBuildings` hands out, and the object each saved list reference names. So the
+`cISC4Occupant` pointer is the building's identity throughout this class.
+
 ### 4.2 Departments and funding
 
 **Departments** (created in `Init` when missing, budget group `0x6A357B7F`):
@@ -229,6 +247,12 @@ Calls: `CreateDepartmentBudget(id, 0x6A357B7F)`, AddRef, `SetDepartmentName(0x6A
 - Otherwise: a = `item.localFundingPercentage` if `dept.IsLocallyFundedObjectInDepartment(holder, staff)`, else
   `*dept.GetFundingPercentage()`.
 - b is found the same way with the vehicle purpose; b = 1.0 if there is no vehicle item.
+- *[compat]* (RG10; `0x006F8360`, reached from slot 20 `0x006F84B0`) A vehicle item whose department is null
+  returns at once: a has been written, **b is left unchanged**. In no case does the original read a funding
+  value for a missing department, and it never substitutes 1.0 for one: 1.0 appears only when the **item** is
+  missing. The outputs then keep what the caller put there; the class's own callers preset a = b = 0.0 (§4.2
+  efficiency ratings, §4.10), so a missing department reads as 0 in the curves. A host asked for a missing
+  department's funding must report "missing", and the core must then leave the output alone.
 
 **SetOccupantFundingPercentages(occ, &a, &b, isSchool)** (slot 19):
 
@@ -238,6 +262,21 @@ Calls: `CreateDepartmentBudget(id, 0x6A357B7F)`, AddRef, `SetDepartmentName(0x6A
 - When both purposes succeed, the call also ends **with** the dirty flag set (`0x006F834A`, reached from the two
   "no item" exits and after the second `SetLocalFundingPercent`). So the flag is set in every case except a null
   department. The flag is never read (§2), so this is not observable.
+- **What `SetLocalFundingPercent` stores** *[compat]* (RG13; budget spec §7.3). It does set the budget item's local
+  funding, but as a **percentage**: the item's entry in the building's property `0xEA54D287` becomes
+  float32(q × 100.0f) (`0x00692DBD`). Reading the item back (`GetBudgetItemForPurpose` / `GetBudgetItemInfo`)
+  gives float32(pct × 0.01f) (`0x006939E6`; 0.01f is `0x3C23D70A`). The round trip is **not always exact**:
+
+  | q written | stored pct | q read back |
+  |---|---|---|
+  | 0.43 (`0x3EDC28F6`) | 43.0 | 0.42999998 (`0x3EDC28F5`) |
+  | 0.79999995 (`0x3F4CCCCC`) | 79.99999 (`0x429FFFFF`) | 0.7999999 (`0x3F4CCCCB`) |
+  | 0.5 | 50.0 | 0.5 |
+  | 1.2 (`0x3F99999A`) | 120.00001 (`0x42F00001`) | 1.2 |
+
+  The budget ignores the call unless 0 ≤ q ≤ the department's maximum, the (holder, purpose) pair is registered
+  and the item exists; the same call may also move the department's own percentage (budget spec §7.3). A shadow that compares the funding after an auto-budget step must compare the
+  read-back value, not q.
 
 **Efficiency ratings** `GetOccupantEfficiencyRatings(occ, &e1, &e2, isSchool, ignoreStrike)`:
 
@@ -263,6 +302,11 @@ at 0. Example with the shipped school curves: e1 = effCurve(0) × 0.01 = **0**, 
 
 `GetOrdinanceEffects(healthList, schoolList)` runs at `Init` and in every state 0. State 0 clears both lists
 first. `Init` does not, but the lists are empty then.
+
+*[compat]* (RG7) Those are its **only** two callers (`0x006FED0B` in `Init`, `0x006FF5CA` in state 0; the
+function `0x006FE0F0` has no other code or data reference). An ordinance enacted or repealed mid-cycle changes
+nothing until the next state 0, and neither does a slot call: every reader of the effects (§4.4–§4.11) uses the
+lists as state 0 left them.
 
 - The ordinance list comes from `GetOrdinanceOnCount` and `GetOrdinanceOnArray`, in ascending ID order
   (ordinance §4).
@@ -334,6 +378,12 @@ but still counts the tract's population. A second such building counts it again.
 
 - Centre: the lot's centre (`lotManager.GetOccupantLot(occ)` → `lot.GetCenter`). If there is no lot, the
   occupant's `GetPosition`.
+  - *[compat]* (RG5; `0x006F7E00`, called at `0x006F9CCF` and `0x006FDBA3`). The lot comes from the lot manager's
+    slot 14 (`+0x38`) and the centre from lot slot 15 (`+0x3C`, `0x006BF560`), the same call crime makes
+    (crime.md §13, CQ3). It writes x and z (8 · (x1 + x2 + 1), exact in float32) and y = the lot's altitude
+    (`+0x24`), returns EAX = the output's address and leaves the **x87 stack empty**. A raw call that guards the
+    x87 stack, as crime's glue does, therefore matches. Without a lot, the occupant's slot 8 (`+0x20`,
+    `GetPosition`) fills the same vector.
 - Calls `GetTractsInRadius(px, pz, r × slop, grid.GetTractWidthX(), countX, countZ, &list)`. slop = "coverage
   radius slop multiplier" (§4.13).
 
@@ -540,6 +590,31 @@ decay factors. The education/health steps, in order:
    - y = terrain.GetAltitude(x, z) + tv.height + `RandomDoubleRangeUniform(−delta, +delta)` (a 2nd draw);
    - the effect is positioned, started and released;
    - only after a successful create is the per-tract flag set.
+
+   **Who creates the effect** *[compat]* (RG1; `0x006FA649`–`0x006FA83E`). The game itself does, through the
+   city's effects manager (city slot 85 `+0x154`, cached in `0x00B43D1C`). It calls the manager's slot 7 (`+0x1C`,
+   `0x005939B0`, pop 8): `bool CreateVisualEffect(const char* name, cISC4VisualEffect** out)`, with the name
+   `"buzzards"` (`0x00AB2BD8`).
+   - The manager lowercases the name and looks it up in its two effect tables. An unknown name returns AL = 0 and
+     leaves `*out` alone. A known one creates the effect with one reference, stores it in `*out` and returns
+     AL = 1. The caller tests `out`, not AL.
+   - The shipped effect directory (`SimCity_1.dat`, type `0xEA5118B0`, group `0xEA5118B1`, instance 1) defines
+     `buzzards`, so the create always succeeds with shipped data.
+   - Geometry, all float32: width := the w-th EQ grid's `GetTractWidthX()` (slot 14) and `GetTractWidthZ()`
+     (slot 15) for z; x := (width × tx) + width × 0.5, z likewise with tz. y := float32(double(altitude +
+     tv.height) + `RandomDoubleRangeUniform(−delta, +delta)`). The altitude is the terrain's slot 13 (`+0x34`)
+     at (x, z).
+   - The transform record (0x38 bytes) has bytes +0 and +1 set to 1, an identity 3 × 3 matrix at +0x04..+0x24,
+     the translation (x, y, z) at +0x28/+0x2C/+0x30 and the scale 1.0 at +0x34. The effect then gets
+     `SetTransform` (slot 8, `+0x20`), `Start(0)` (slot 3, `+0x0C`) and `Release` (slot 2), and the tract's
+     flag is set.
+   - **If the create fails**, only the first draw has been made, the flag stays clear, and the next wealth level
+     of the same tract may draw again. The shared generator therefore advances by a different number of draws,
+     which shifts every later strike roll (§4.9).
+
+   *[choice]* FreeCity4 asks the host to create the effect. When the host cannot show effects (standalone, tests),
+   the core treats the create as **successful**: it makes both draws and sets the flag, as the original does with
+   shipped data. A host that reports a real failure gets the original's one-draw path.
 4. **New population** (residential.md). If new > old for wealth w, with delta := int16(new − old):
    ```
    m      := EQ_old > 0 ? 2 : 1
@@ -570,7 +645,7 @@ after the EQ/HQ updates) is normative in residential.md §5.5.
 | `GetCellEQ(x, z)` / `GetCellHQ(x, z)` (slots 35/36) | GetTractQuotient(EQ or HQ, pop, x / S_EQ, z / S_EQ) (unsigned division by the EQ grid's tract size). ST0. |
 | `GetCellEQByWealth(x, z, wealth)` (37/38) | `EQ[wealth − 1].GetTractValue(x / S_EQ, z / S_EQ)`. The wealth byte is decremented as u8, so **wealth 0 or > 3 reads out of bounds** (crash) *[quirk]*. ST0. |
 | `GetGlobalEQ()` / `GetGlobalHQ()` (32/33) | pop := `GetPopulation()`; 0 → 0.0. Otherwise, over the EQ grid's tract counts: a := Q0 × p0; b := Q1 × p1 + a; c := Q2 × p2 + b; sum := c + sum; result := sum / float(pop). ST0. **Traversal (RS4, from the exe, `0x006F7720` / `0x006F7870`):** x outer from 0 to `GetTractCountX() − 1`, z inner from 0 to `GetTractCountZ() − 1`. The counts come from the R$ EQ grid (HQ: the R$ HQ grid). Every value is read through `GetTractValue(x, z)`: Q_w as a float, p_w as a uint16 converted with `float()`. No raw grid memory is read. Each operation is one float32 rounding, and `sum` is stored as float32 after every tract. On a 2 × 2 grid the order is (0,0), (0,1), (1,0), (1,1). |
-| `GetAverageEQGrid(&g, min*, max*)` / `HQ` (21/22) | Creates a **new** float grid (refcount 1, owned by the caller), tract size S_EQ, ID `0x69D5C351` / `0x69D5C360`. Each tract := float(trunc(quotient)), or 0 when sum16 = 0. min starts at 255.0 and max at 0.0. Each is updated with every tract, populated or not (verified, RS6: `0x006F70E0`; strict compares), and written only when its pointer is not null. |
+| `GetAverageEQGrid(&g, min*, max*)` / `HQ` (21/22) | Creates a **new** float grid (refcount 1, owned by the caller), tract size S_EQ, ID `0x69D5C351` / `0x69D5C360`. *[compat]* (RG8) The grid is built **directly**, not through GZCOM: 0x44 bytes from the global heap (`0x006FCF36`) with the float grid's constructor inlined (vtable `0x00A87C20`, class ID `0x49B9E60A` at `+0x10`), then `AddRef`, `Init`, `SetTractSize`, `SetInstanceID`. A failed allocation is not handled (null is dereferenced). The callers found are UI code (main thread *[inferred]*); the original has no rule for other threads, so how a replacement creates the grid off the main thread is the implementer's choice. Each tract := float(trunc(quotient)), or 0 when sum16 = 0. min starts at 255.0 and max at 0.0. Each is updated with every tract, populated or not (verified, RS6: `0x006F70E0`; strict compares), and written only when its pointer is not null. |
 | `GetEQMinAndMaxCellCoords(&minX, &minZ, &maxX, &maxZ, &min, &max)` / `HQ` (43/44) | If `GetPopulation()` = 0: all six outputs := 0, AL = 0. Otherwise min := 200.0, max := −200.0. For each tract (x outer, z inner) with any pop_w ≠ 0: q := quotient; q < min → min := q and remember (x, z); q > max likewise (strict). Coordinates out := S_EQ/2 + S_EQ × tract (signed /2). AL = 1. *[quirk]* If no tract has population (the population counter disagrees with the grids), the coordinates are uninitialised stack values. |
 | `GetCellLifeExpectancy(x, z)` (29) | Loads the residential tuning exemplar **on every call**; missing → 0. Curve "Health Quotient to Life Expectancy Curve" `0x6941A67F`, **default** pattern, code default (0,0)(200,200). LE := trunc(curve(GetCellHQ(x, z))). Returns **AL only** (§7). |
 | `GetGlobalLE()` (34) | The same with `GetGlobalHQ()`. **AL only**, not a float. |
@@ -612,6 +687,12 @@ default 0).
     "striking_education";
   - AL = 1. With no change, AL = 0.
 
+**Differential shadows** (RG6). The rolls come from the member generator, seeded from the clock (§2). There is no
+original behaviour to follow here; a shadow that does not reproduce them leaves the strike days, the city strike
+flags and anything that follows from them out of its comparison *[choice]*. A shadow that wants them can read the
+original object's `mul` word (`+0xBC`) just before state 0 and run the same double draws from it, since no other
+part of the generator is used.
+
 **BeginStrike(dept, occ)**: if the flag is set, AL = 0. Otherwise flag := true, start := today, post the strike
 message (§5), AL = 1.
 
@@ -621,6 +702,12 @@ end-of-strike message, AL = 1.
 **EndSchoolStrike / EndHealthStrike** (slots 8/9): if the service is on strike, `EndStrike(dept, today − start)`.
 Otherwise AL = 0. The aura simulator calls these when a disaster ends (aura spec). The per-building strike days
 are **not** cleared, so the next monthly check re-evaluates them.
+
+So AL is the city strike flag as it was **before** the call (1 = a strike was ended and its end message posted,
+0 = nothing happened). The original runs these, the setters of §4.2/§4.10 and the per-building setters on the
+caller's thread with no deferral; its callers (the aura simulator's agent, the UI) are on the main thread
+*[inferred]*. Deferring calls from another thread and returning the flag that was visible at the call is the
+implementer's choice (RG9): no original behaviour covers it.
 
 **SchoolIsOnStrike / HealthIsOnStrike** (6/7): AL = flag.
 
@@ -694,6 +781,13 @@ fields below follow it and are u32 unless marked:
 The school query fails (AL = 0) only if one of capacity, effective capacity, served or grade is missing. A
 divisor of 0 divides by zero *[quirk]*.
 
+**Cost fields** *[compat]* (RG3). The cost at +0x30 and +0x38 is the **low 32 bits** of the budget item's 64-bit
+cost (the item's `+0x10`); the high half is dropped (school `0x006F92B7` and `0x006F92F6`, hospital
+`0x006F7F76`–`0x006F7FAC`). The funding percentage next to it is the item's local funding as a float. Without the
+item the pair is 1.0 (`0x00B0D440`) and 0. A core that keeps the cost in 64 bits writes back its low 32 bits.
+Reading a record back into 64 bits, sign extension would recover a negative cost and zero extension would not;
+shipped costs are positive and below 2^31, so both give the same value.
+
 **Order of the tests and partial writes** *[compat]* (school `0x006F91C0`, hospital `0x006F7E80`). Both read, in
 this order: capacity (a probe, then again straight into +0x14), effective capacity (straight into +0x18), served
 (straight into +0x24, still raw), grade (into a local). The hospital query then requires the staff item
@@ -734,6 +828,10 @@ SC4Percentage:
 - The stack record starts like the ratings' record (+0x28 is 0, +0x14..+0x24 are leftovers), and a failed query
   leaves what it read plus the previous building's other fields (§4.11 partial writes).
 - *[quirk]* `groups` must not be null. Null is dereferenced and crashes; an empty vector counts nothing.
+  The dereference (`0x006FA11C`) happens per building, inside the list walk, so a null `groups` crashes only
+  once some group list holds a building. With every group list empty, the original returns 0 after the reset
+  (RG4). *[choice]* FreeCity4 treats null as an empty vector: the reset, then 0, which is the original's result
+  whenever it does not crash.
 
 *[compat]* This is reached by shipped data. The farmer's market (`0x8A3858D8 / 0x032C0000`) is a hospital through
 its groups only and has no health staff item, so its hospital query always fails at the staff test. The hospital
@@ -752,7 +850,9 @@ first grading, which adds −1 modulo 2^32), and the previous building's +0x1C, 
 **GetOccupantCoverage(occ, const SC4Percentage& level, float& dist, float& radius)** (45):
 
 - Kind: school if the building has `0x8922041B`; hospital if it has `0x69220415` (hospital wins if both).
-  Neither → AL = 0 and no output is written.
+  Neither → AL = 0 and no output is written (RG12: the two property probes at `0x006FD28B` and `0x006FD2C6`
+  write only to a local; with neither found the code jumps to the epilogue `0x006FD502`, which returns the
+  "kind found" byte, still 0, before any write to `dist` or `radius`).
 - *[quirk]* "Hospital wins" covers only the radius property, the kind property and the ordinance list. The
   school/hospital flag passed to the efficiency ratings and to the building-curve read is set by the school test
   and not cleared by the hospital test (`0x006FD2A2`, `0x006FD2D8`). So a building with both capacities uses the
@@ -874,6 +974,10 @@ Notes:
 
 Each message is a new `cRZMessage2Standard` released after posting.
 
+Every field the table does not name is **0 or null** *[compat]* (RG19): the message constructor (`0x009134D6`)
+zeroes `+0x04` to `+0x28`, and neither strike call sets data1 (so data1 = 0 in both), data3 on begin, or
+void1/IGZUnknown on end.
+
 ## 6. Persistence
 
 The layout is in residential.md §9. Meaning only:
@@ -927,7 +1031,7 @@ Callee-pop values were checked with `abi_extract.py --check`; return channels by
 | 34 | +0x88 | `uint8 GetGlobalLE()` | 0 | **AL only** | **SDK error**: SDK `float`; nothing is left on the x87 stack (`006FC9E0`). |
 | 35 | +0x8C | `float GetCellEQ(uint32 x, uint32 z)` | 8 | ST0 | `006F79C0`. |
 | 36 | +0x90 | `float GetCellHQ(uint32 x, uint32 z)` | 8 | ST0 | `006F7A10`. |
-| 37 | +0x94 | `float GetCellEQByWealth(uint32 x, uint32 z, uint8 wealth)` | 12 | ST0 (from `GetTractValue`) | `006F7A60`. wealth 1..3. |
+| 37 | +0x94 | `float GetCellEQByWealth(uint32 x, uint32 z, uint8 wealth)` | 12 | ST0 (from `GetTractValue`) | `006F7A60`. wealth 1..3. Checked (RG22): x and z are divided (unsigned) by the R$ EQ grid's `GetTractSize`, the grid is `EQ[wealth − 1]` (`+0x7C`; HQ `+0x88`), and the last call is the float grid's slot 22 `GetTractValue` (`0x0045F210`, which ends with `fld`); the method returns with `ret 0xC` and leaves that ST0 in place. So the return channel is x87 with high confidence. |
 | 38 | +0x98 | `float GetCellHQByWealth(...)` | 12 | ST0 | `006F7AB0`. |
 | 39 | +0x9C | `cISC4SimGrid<float>* GetSchoolAverageGradeMap()` | 0 | EAX ptr, **no AddRef** | `00809240`. SDK error already reported by aura.md. |
 | 40 | +0xA0 | `cISC4SimGrid<float>* GetHospitalAverageGradeMap()` | 0 | EAX ptr | `00407AC0`. |
@@ -952,6 +1056,14 @@ Callee-pop values were checked with `abi_extract.py --check`; return channels by
 
 "garbage" means the original leaves an unrelated value in EAX. No caller found in the game tests it
 *[inferred]*. Slots 39–41 return borrowed pointers.
+
+**Callers of the "garbage" slots** (RG11). A scan for calls to these slots through the residential simulator global
+(`0x00B43DA4`) found 14 sites (slots 19, 21, 22, 23, 25, 28, 47 and 49), and none tests EAX or AL afterwards: `0x004C7B62`, `0x004C7C95`, `0x004C7CFA`,
+`0x004C7FF1`, `0x004C8114`, `0x004C8179` (query and budget UI), `0x0068DAD2` (aura), `0x0069FB24` and
+`0x0069FB3E` (crime), `0x0077BE7B` (sub-budget window), `0x007A1B53` and `0x007A1BC1` (map-view highlights),
+`0x007A32CC` and `0x007A32D1` (map-view update). So a replacement may return true from slots 19, 20, 21–25, 28,
+47 and 49. Callers that keep the simulator pointer in a member of their own were not all traced, so this stays
+*[inferred]* for them.
 
 ## 8. Dependencies
 

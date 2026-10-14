@@ -1063,10 +1063,44 @@ Slot 18's cell is ⌊x/16⌋ except that x/16 with fraction > 0.999 rounds up (x
     (`+0x18 + 4·type`, type at tool `+0x35C`); byte i ≠ 0 means a connection on network edge i.
   - Otherwise it returns false and leaves `*mask` alone.
 
-  *[inferred: the draft byte is set on the cells the current draft touches and clear on records copied from the
-  existing network, so an existing network alone never answers true; `Reset` (slot 5) drops the draft.]* A
-  replacement needs only this contract: for each tool, its set of draft cells with their network flags and edge
-  masks.
+  A replacement needs only this contract: for each tool, its set of draft cells with their network flags and edge
+  masks. How the set grows (ZQ11, ZQ12; `PlaceNetworkOccupants`, `0x00629210`) *[compat]*:
+  - **Lifetime.** The records live in the tool's cell cache (`+0x1C`). Only `Reset` (slot 5, `0x00626F90`) and a
+    **real-mode** Place (`0x0062932F`) empty it. A draft Place does not, so drafts accumulate until the next
+    `Reset`, which for the street tool is the zone manager's clear (§7.1).
+  - **The draft byte.** A record built from the existing network has it clear (`0x00633030`), so an existing network
+    alone never answers true. When a Place's solve succeeds, every cell the solver re-solved gets it
+    (`0x0062591E`, `0x00625BFB`). Those are the covered cells and the cells of existing networks around them that
+    the solver includes (`0x006355C0`). A real-mode Place sets it too (`0x00625D20`), but the zone manager asks the
+    tools only in highlight mode.
+  - **Covering a cell.** A Place takes the cell's cached record, or builds one (`0x00633250`). It ORs its network
+    flag into the record's flags. It then merges its edge directions into the record's edges for its type
+    (`0x00638160` → `0x00620F00`; `0x00626EB0` ORs the neighbour connections in the same way). The merge keeps an
+    edge that already has a direction and gives the new direction to an edge that has none.
+  - **A second draft Place on a drafted cell** (ZQ11) keeps the record: flags := old OR new. Each edge byte is
+    ≠ 0 afterwards when it was ≠ 0 before or the new draft connects that edge, so for this contract the masks are
+    ORed. The byte values themselves are not an OR, so a replacement promises only "≠ 0":
+    - the low 3 bits are a direction code, and opposite one-way directions merge to two-way;
+    - the upper bits are minor types, which the solver reassigns.
+
+    *[inferred]* A second Place that fails can still leave its merged edges in a record that an earlier Place
+    marked as a draft, because the merge runs before the solve.
+  - **A draft Place over a cell that has a network** (ZQ12) **does** make it a draft once the solve succeeds:
+    - its flags are the existing network's flags OR the tool's (8 for the street tool);
+    - its mask is the existing edges of the tool's type merged with the new ones.
+
+    A cell of an existing network next to the draft that the solver includes also gets the draft byte, but keeps
+    its own flags (only covered cells receive the tool's flag). When the draft connects to it, its edges for the
+    tool's type gain the edge towards the draft. So it answers only when its own network matches the query: an
+    existing street next to a street draft answers `OccupantExists(x, z, 8)` with that new edge, and an existing
+    road does not.
+  - **Ends next to earlier drafts.**
+    - A segment Place (a ≠ b) looks at the cell just beyond each end. In draft mode, if that cell has no real
+      network matching the Place's flags but has a cached record whose flags intersect them, the segment is
+      lengthened by that cell (`0x006296D0`–`0x006296F5`, `0x00629782`–`0x006297A7`), so the two drafts connect.
+    - A real network of the tool's own type beyond an end lengthens the segment in both modes.
+    - A single-cell Place looks at its four neighbours only when one of them has a real network matching the
+      flags. It then extends along that axis in the same way.
 - `IsCellWater(x, z)` (slot 9, `0x0072A030`, pop 8): tail jump to `terrain.CellHasWater` (terrain slot 34).
 - `SetOptions(alternateOrientation, placeStreets, customZoneSize)` (slot 7, `0x007347C0`, pop 12).
 
@@ -1404,7 +1438,8 @@ grid; `cISC4LotManager::GetMaximumCapacityGrid` (27, `0x00809240`) → the `uint
 1. *Answered in round 6* (§7.6, §7.10–§7.14, tests 19–29). Remaining unknowns of the street path:
    (a) the internals of the street tool's `PlaceNetworkOccupants` (when it fails, what it costs, whether it draws
    random numbers, whether it inserts occupants before returning *[inferred: yes]* and whether it auto-connects
-   neighbouring networks); the conformance tests below replace it by a stub; (b) the exact semantics of the network
+   neighbouring networks; its draft records and how it lengthens a Place into a neighbouring network or draft are
+   now in §8.8, ZQ11–ZQ12); the conformance tests below replace it by a stub; (b) the exact semantics of the network
    occupant's `ConnectsToNeighbor` (slot 47) for mixed network types in one cell.
 2. `CanCreatePloppedLot` (slot 21) and the highlight texture code (UI).
 3. Who frees the `GetSafeLotIterator` object, and with what.
@@ -1644,7 +1679,17 @@ desirability tract values 55, 41, 40; `0x1030` 1/3, 39, 5000.0; `0x3110` 2/1, 10
     - A Place with realMode false records each cell of a..b that has no network as a **street draft**. Its network
       flags are `0x8`, and its mask has a nonzero byte for each edge towards a neighbouring cell of the same segment.
     - The stub answers `OccupantExists` from these drafts (§8.8), and `Reset` clears them.
+    - A later draft Place on a drafted cell ORs its mask bytes into the cell's, as the original does (§8.8, ZQ11).
     - The dirt-road tool is a stub with no drafts.
+    - The stub is simpler than the original in two ways (§8.8, ZQ12): it never drafts a cell that already has a
+      network, and it never lengthens a Place into a neighbouring draft or network. No checked result below depends
+      on either:
+      - In (a), the cell beyond Place(12, 10, 12, 13) is the road at (12, 9). It is not a street, so the original
+        does not lengthen the Place into it either, and its record never matches a street query.
+      - In (e), the original lengthens the single-cell Place(12, 10, 12, 10) to (12, 9), the end of the real street.
+        That cell becomes a draft with an edge towards (12, 10). Only `ExistsConnectionOfType` could see that edge.
+        Every call to it (`ExtendAsStreets`, `LayInJogStreets`) comes before that Place, or finds no cell with a
+        network of its kind.
 
     The results checked are:
     - the virtual-lot map and the virtually-deleted map (cell → `{x1, z1, facing}`);
