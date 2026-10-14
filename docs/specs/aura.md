@@ -415,6 +415,27 @@ difference is the starting step after a city change).
   `d := landValue.GetLandValueType(cx, cz) − lot.GetOccupantWealth()` (both 1..3, so d ∈ −2..2);
   result `:= clamp(avg + trunc(curve(d)))`. Otherwise the result is `avg`.
 
+**The population container *[compat]*.** `GetPopulations()` returns a pointer to the lot's own
+`std::vector<std::map<uint32_t, uint16_t>>` (the lot + 0x54, `0x006C21E0`). It is an STLport vector {begin, end,
+capacity_end} of 12-byte map objects; each map node is 0x18 bytes with the developer type at +0x10 and the count
+(uint16) at +0x14 (docs/abi/allocators.md, *map and set*; allocator B). Saved lots hold 0 or 1 maps (lot-records.md
+rows 20–21). The walk (`0x0068CE60`–`0x0068CF23`) takes every map in vector order and every entry in ascending key
+order. An entry counts as residential when its key is one of the three types of the base-aura table (§10), **even
+when its count is 0**. `sum` and `total` are int32.
+
+`GetPopulation(type)` (slot 53, `0x006C04A0`, pops 4, returns uint16 in AX) looks the type up in each map without
+inserting and returns the sum of the counts, wrapped to 16 bits. A loop over the 12 developer types with slot 53
+gives the same result as the walk except in three cases:
+- a residential type present with count 0: the walk has seen a residential entry, the loop has not (0 and absent
+  both read 0);
+- a key outside the 12 types: its count is in the walk's `total` only;
+- a type whose counts in several maps sum above 65535: the loop wraps.
+
+Saved lots do hold counts of 0 (lot-records.md row 21), so the first case happens in play. Example with effective
+R$ = −5: a lot with {R$ 0, CS$ 40} gives `trunc(0 / 40) = 0`, then the value/wealth term (0 when d = 0), so **0**;
+the slot 53 loop gives **−128**. A lot with {R$ 30, an unknown type 10} gives `trunc(−150 / 40) = −3` against
+`trunc(−150 / 30) = −5`. FreeCity4 reads the container through slot 54.
+
 #### 6.5.2 Tax-change effect (state 4)
 `effectiveBaseAura[i] := baseAura[i]` for the three wealths. If the tax-change curve exists, for every tax index
 `t` in 0..11:
@@ -807,7 +828,7 @@ All are `__thiscall`; "pops" = callee-pop bytes.
 | | 31 `+0x7C` | `GetZoneType()` | 0 | EAX |
 | | 41 `+0xA4` | `GetOccupantWealth()` | 0 | EAX |
 | | 48 `+0xC0` | `GetBuilding()` | 0 | EAX |
-| | 54 `+0xD8` | `GetPopulations()` | 0 | EAX |
+| | 54 `+0xD8` | `GetPopulations()` → pointer to the lot's `vector<map<uint32, uint16>>` (lot + 0x54, §6.5.1) | 0 | EAX |
 | `cISC4LandValueSimulator` (`0x00AB1670`) | 5 `+0x14` | `GetLandValueType(int32 x, int32 z)` | 8 | EAX |
 | `cISC4CrimeSimulator` (`0x00AB0DC8`) | 5 `+0x14` | `GetCrimeGrid()` (uint8) | 0 | EAX |
 | `cISC4PollutionSimulator` (`0x00AB2630`) | 5 `+0x14` | `GetPollutionGrid(int32 type)` | 4 | EAX |
@@ -951,7 +972,8 @@ Shipped tuning unless stated; S = 4; curves per foundations §4.
    trunc(curve(1)) = −5`; rate 7 → `+7`; rate 9 again → 0 (no change, effective = base).
 5. **Lot base aura**: effective R$ = −5, R$$ = 0; lot with R$ 30, R$$ 10 → `trunc(−150 / 40) = −3`; with an extra
    commercial entry of 40 → `trunc(−150 / 80) = −1`; land value type 2 and wealth 1 → `−1 + trunc(curve(1)) = −4`;
-   no residential entry → −128.
+   no residential entry → −128; {R$ 0, CS$ 40} (a residential entry with count 0) → **0**, not −128 (§6.5.1); two
+   maps {R$ 30} and {R$ 10} → `trunc(−200 / 40) = −5`.
 6. **Work stamping**: two overlapping lots with values −4 and 3 → the shared cells hold 3; cells outside any lot
    stay −128 and are unaffected by every later stage.
 7. **Curves on cells**: work 10, park map 50 → 12; park 100 → 13; crime 40 → 15; crime 255 → `clamp(10 − 50) =

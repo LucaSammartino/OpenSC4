@@ -930,9 +930,15 @@ each cycle-completed message `0x2A09B21A`). The glue's current answer is in brac
   `v[0]`, `v[1]` unchecked: a scalar or empty array crashes (null read), one value gives a garbage radius, other
   element types are reinterpreted bit for bit. *[choice]* only a Float32 array of at least 2 values is used; anything
   else keeps {0, 0}.
-- **AU3:** `GetPopulations` (lot slot 54) returns a container not in `docs/abi`; the glue calls `GetPopulation(type)`
+- ~~**AU3:** `GetPopulations` (lot slot 54) returns a container not in `docs/abi`; the glue calls `GetPopulation(type)`
   (slot 53) for the 12 developer types and keeps non-zero counts, so a mixed lot whose residential count is 0 reads
-  −128 instead of 0. What is the container's layout (allocators.md)? [slot 53 loop]
+  −128 instead of 0. What is the container's layout (allocators.md)? [slot 53 loop]~~ **ANSWERED 2026-10-14** from
+  the exe (slot 54 `0x006C21E0`; slot 53 `0x006C04A0`; walk `0x0068CE60`–`0x0068CF23`) and written into aura.md
+  §6.5.1 ("The population container"), §13 and test 5. **The bracket differs in play.** Slot 54 returns a pointer to
+  the lot's `std::vector<std::map<uint32_t, uint16_t>>` at lot + 0x54 (12-byte STLport maps, 0x18-byte nodes, key
+  +0x10, uint16 count +0x14, allocator B; 0 or 1 maps in saves). The original walks every map and entry; a
+  residential key with count 0 counts as seen, and keys outside the 12 types count in the total. Saves hold 0
+  counts, so read the container through slot 54. docs/abi row in the lane report.
 - **AU4:** `RefSint32` on a non-Sint32 property: a Uint32 is accepted bitwise, anything else counts as absent.
   Right? [as stated]
 - **AU5:** the safe lot iterator's layout is not in `docs/abi`; the glue walks cells with `GetLot(x, z, false)`,
