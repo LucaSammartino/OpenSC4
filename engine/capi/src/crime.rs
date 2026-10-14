@@ -18,7 +18,9 @@
 //! live in a thread-local [`CrimeShared`] (every call that reaches the core
 //! is made on the game's main thread); the first `fc4_crime_create` seeds the
 //! generator with `derive_seed(session_seed, 0x6C09C3F6)` (foundations §6.3:
-//! the original seeds it with the local wall-clock seconds XOR that constant).
+//! the original seeds it with its `cRZTime` value, seconds since 1901-01-01
+//! UTC, XOR that constant, §9 / CQ5; the plugin's session seed is that
+//! value, `time() + 2177452800`, unless `crime_seed` fixes it).
 //!
 //! Threads (foundations §19): the game calls getters from a second thread
 //! while the main thread is inside a call. The getters marked "any thread"

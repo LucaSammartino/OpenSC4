@@ -207,9 +207,12 @@ plugin.
        game's own `cSC4SimGrid<uint8>`, created through GZCOM; police coverage comes through whatever police
        simulator the city has). The getters are answered from any thread (they read a snapshot); the prop
        requester's calls run on the main thread only (a call from another thread is answered 0 and logged once).
-       The random generator is seeded with `derive_seed(S, 0x6C09C3F6)`, `S` the session seed: the local wall
-       clock in seconds at the first crime simulator of the process, or `crime_seed = N` (env `FC4_CRIME_SEED`,
-       decimal or `0x…`) for a repeatable run. The log has a status line at `Init` and `Read` (`crime Init:
+       The random generator is seeded with `derive_seed(S, 0x6C09C3F6)`, `S` the session seed: the original's
+       `cRZTime` clock (seconds since 1901-01-01 UTC, `time() + 2177452800`, crime spec §9) at the first crime
+       simulator of the process, or `crime_seed = N` (env `FC4_CRIME_SEED`, decimal or `0x…`) for a repeatable
+       run. Crime type names follow crime spec §7: the LTEXT (`0x2026960B`, group + language ID, instance), then
+       (group, instance), detokenized by the game's string detokenizer, U+2022 → U+200B; `0xAA12FCB0` if that
+       fails. The log has a status line at `Init` and `Read` (`crime Init:
        init=… state=… types=… S=… decay=…`) and one every month from the first (`crime month yyyy-mm:
        crimes=N prevented=P arson=A/T incidents=I grid sum/max=… (tracts=…) average=… hotspot=(x,z)=v props
        requested=R selected=K/Q jailed=J released=L criminal base=B to commit=C attempts=… (no lot …) police

@@ -2295,7 +2295,9 @@ size_t fc4_protection_shadow_grid(const fc4_protection* p, uint8_t* out, size_t 
  *
  * The crime type list and the generator are process-wide (§7, §9): the first
  * fc4_crime_create seeds the generator with derive_seed(session_seed,
- * 0x6C09C3F6) (foundations §6.3); later objects share both.
+ * 0x6C09C3F6) (foundations §6.3); later objects share both. The original's
+ * session value is cRZTime, u32 seconds since 1901-01-01 00:00 UTC
+ * (time() + 2177452800, §9 / CQ5).
  *
  * Threads (foundations §19): the game calls getters from a second thread while
  * the main thread is inside a call. The functions marked "any thread" read a

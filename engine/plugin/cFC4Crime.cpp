@@ -784,9 +784,13 @@ fc4_crime_host MakeHost(cFC4CrimeSimulator* self, const fc4::HostGridContext* gr
 }
 
 // The session seed S (foundations §6.3): FreeCity4.ini `crime_seed` (env
-// FC4_CRIME_SEED) when set, else the local wall-clock seconds like the
-// original (§9). [choice] "Local seconds" = the local calendar time read as
-// seconds since 1970-01-01 (the original's epoch is not specified).
+// FC4_CRIME_SEED) when set, else the cRZTime value for "now" like the
+// original (§9, CQ5): u32 seconds since 1901-01-01 00:00 UTC, computed as
+// time() + 2177452800 (fc4_core::crime::rz_time_from_unix). [choice] (§9)
+// The library's own time-zone arithmetic (a fixed pre-2007 US daylight rule)
+// is skipped: the original's value is one hour off where the host's daylight
+// rule disagrees, and 0 in that rule's spring-forward hour. The core seeds
+// the generator with derive_seed(S, 0x6C09C3F6) = S XOR 0x6C09C3F6.
 uint32_t SessionSeed(bool* fixed) {
     const std::string s = fc4::Setting("crime_seed", "FC4_CRIME_SEED");
     if (!s.empty()) {
@@ -798,10 +802,8 @@ uint32_t SessionSeed(bool* fixed) {
         }
     }
     *fixed = false;
-    const std::time_t now = std::time(nullptr);
-    std::tm local{};
-    if (localtime_s(&local, &now) != 0) return static_cast<uint32_t>(now);
-    return static_cast<uint32_t>(_mkgmtime(&local));
+    constexpr int64_t kRzTimeUnixOffset = 2177452800;  // 1901-01-01 to 1970-01-01, 25 202 days
+    return static_cast<uint32_t>(static_cast<int64_t>(std::time(nullptr)) + kRzTimeUnixOffset);
 }
 
 uint32_t TruncAverage(uint32_t bits) {
@@ -842,7 +844,7 @@ cFC4CrimeSimulator::cFC4CrimeSimulator() {
     core_ = fc4_crime_create(&host_, SelfToken(), seed);
     if (core_ == nullptr) fc4::Log("cFC4CrimeSimulator: core creation failed");
     fc4::Log("cFC4CrimeSimulator(%p) created, core %p, session seed 0x%08X (%s)", static_cast<void*>(this),
-             static_cast<void*>(core_), seed, fixed ? "crime_seed" : "local wall clock");
+             static_cast<void*>(core_), seed, fixed ? "crime_seed" : "cRZTime");
 }
 
 cFC4CrimeSimulator::~cFC4CrimeSimulator() {

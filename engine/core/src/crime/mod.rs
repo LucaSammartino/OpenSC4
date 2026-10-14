@@ -170,9 +170,12 @@ pub const PROP_SATISFACTION_ID: u32 = 0x49A1_E996;
 pub const DISASTER_FIRE: u32 = 0x621C_DA33;
 pub const IID_DISASTER_MANAGER_FIRE: u32 = 0x49B4_3F57;
 pub const ARSON_CAUSE: u32 = 2;
-/// The constant XORed with the local wall-clock seconds to seed the
-/// generator (§9).
+/// The constant XORed with the `cRZTime` seconds to seed the generator (§9,
+/// CQ5); the same value as `rng::file_seed::CRIME`.
 pub const RNG_SEED_XOR: u32 = 0x6C09_C3F6;
+/// Seconds from 1901-01-01 00:00 UTC (the `cRZTime` epoch) to 1970-01-01
+/// 00:00 UTC: 25 202 days (§9).
+pub const RZ_TIME_UNIX_OFFSET: i64 = 2_177_452_800;
 
 /// `GetNearestCrimeSim/Prop` filters and interfaces (§11.3).
 pub const CRIME_SIM_TYPE: u32 = 0x496E_5783;
@@ -446,10 +449,24 @@ impl CrimeRandom for RzRandomSuper {
     }
 }
 
-/// The seed of the file-local generator: the local wall-clock seconds XOR
-/// `0x6C09C3F6` (§9).
-pub fn seed_from_clock(local_seconds: u32) -> u32 {
-    local_seconds ^ RNG_SEED_XOR
+/// The original's seed of the file-local generator: the `cRZTime` value for
+/// "now" (u32 seconds since 1901-01-01 00:00 UTC, [`rz_time_from_unix`]) XOR
+/// `0x6C09C3F6` (§9, CQ5). The C ABI derives the seed from its session seed
+/// instead (`derive_seed(S, 0x6C09C3F6)`, foundations §6.3), which is this
+/// value when `S` is the `cRZTime` value, except where XOR gives 0 or
+/// `0xFFFFFFFF`.
+pub fn seed_from_clock(rz_time: u32) -> u32 {
+    rz_time ^ RNG_SEED_XOR
+}
+
+/// The `cRZTime` value for a `time()` value (§9, CQ5): `time() + 2177452800`
+/// truncated to 32 bits. [choice] (§9) This skips the library's own
+/// time-zone arithmetic: the original rebuilds the value from the local
+/// calendar fields with a fixed pre-2007 US daylight rule, so it is one hour
+/// off where the host's rule disagrees, and 0 in that rule's spring-forward
+/// hour.
+pub fn rz_time_from_unix(unix_seconds: i64) -> u32 {
+    unix_seconds.wrapping_add(RZ_TIME_UNIX_OFFSET) as u32
 }
 
 /// What the original keeps once per process and shares between all crime
@@ -483,5 +500,32 @@ impl CrimeShared {
     /// Replaces the generator.
     pub fn set_random(&self, rng: Box<dyn CrimeRandom>) {
         *self.rng.borrow_mut() = rng;
+    }
+}
+
+#[cfg(test)]
+mod seed_tests {
+    use super::*;
+    use crate::rng::{derive_seed, file_seed};
+
+    /// CQ5, the §9 worked example: 2026-10-14 12:00:00 US Central daylight
+    /// time is 17:00:00 UTC, `time()` = 1 791 997 200.
+    #[test]
+    fn rz_time_and_seed_cq5() {
+        assert_eq!(RNG_SEED_XOR, file_seed::CRIME);
+        let rz = rz_time_from_unix(1_791_997_200);
+        assert_eq!(rz, 3_969_450_000);
+        assert_eq!(rz, 0xEC99_0010);
+        assert_eq!(seed_from_clock(rz), 0x8090_C3E6);
+        // The C ABI's derivation gives the same seed for S = cRZTime.
+        assert_eq!(derive_seed(rz, file_seed::CRIME), 0x8090_C3E6);
+        // The epoch, and the u32 wrap (2037-02-07 06:28:16 UTC).
+        assert_eq!(rz_time_from_unix(0), 2_177_452_800);
+        assert_eq!(rz_time_from_unix(-RZ_TIME_UNIX_OFFSET), 0);
+        assert_eq!(rz_time_from_unix(4_294_967_296 - RZ_TIME_UNIX_OFFSET), 0);
+        assert_eq!(rz_time_from_unix(4_294_967_295 - RZ_TIME_UNIX_OFFSET), u32::MAX);
+        // A cRZTime of 0 (the library's spring-forward hour) seeds with the
+        // constant itself.
+        assert_eq!(seed_from_clock(0), RNG_SEED_XOR);
     }
 }
