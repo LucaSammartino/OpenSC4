@@ -1063,10 +1063,28 @@ Slot 18's cell is ⌊x/16⌋ except that x/16 with fraction > 0.999 rounds up (x
     (`+0x18 + 4·type`, type at tool `+0x35C`); byte i ≠ 0 means a connection on network edge i.
   - Otherwise it returns false and leaves `*mask` alone.
 
-  *[inferred: the draft byte is set on the cells the current draft touches and clear on records copied from the
-  existing network, so an existing network alone never answers true; `Reset` (slot 5) drops the draft.]* A
-  replacement needs only this contract: for each tool, its set of draft cells with their network flags and edge
-  masks.
+  A replacement needs only this contract: for each tool, its set of draft cells with their network flags and edge
+  masks. How the set grows (ZQ11, ZQ12; `PlaceNetworkOccupants`, `0x00629210`) *[compat]*:
+  - **Lifetime.** The records live in the tool's cell cache (`+0x1C`). Only `Reset` (slot 5, `0x00626F90`) and a
+    **real-mode** Place (`0x0062932F`) empty it. A draft Place does not, so drafts accumulate until the next
+    `Reset`, which for the street tool is the zone manager's clear (§7.1).
+  - **The draft byte.** A record built from the existing network has it clear (`0x00633030`), so an existing network
+    alone never answers true. When a Place's solve succeeds, every cell the solver re-solved gets it
+    (`0x0062591E`, `0x00625BFB`). Those are the covered cells and the cells of existing networks around them that
+    the solver includes (`0x006355C0`). A real-mode Place sets it too (`0x00625D20`), but the zone manager asks the
+    tools only in highlight mode.
+  - **Covering a cell.** A Place takes the cell's cached record, or builds one (`0x00633250`). It ORs its network
+    flag into the record's flags. It then merges its edge directions into the record's edges for its type
+    (`0x00638160` → `0x00620F00`; `0x00626EB0` ORs the neighbour connections in the same way). The merge keeps an
+    edge that already has a direction and gives the new direction to an edge that has none.
+  - **A second draft Place on a drafted cell** (ZQ11) keeps the record: flags := old OR new. Each edge byte is
+    ≠ 0 afterwards when it was ≠ 0 before or the new draft connects that edge, so for this contract the masks are
+    ORed. The byte values themselves are not an OR, so a replacement promises only "≠ 0":
+    - the low 3 bits are a direction code, and opposite one-way directions merge to two-way;
+    - the upper bits are minor types, which the solver reassigns.
+
+    *[inferred]* A second Place that fails can still leave its merged edges in a record that an earlier Place
+    marked as a draft, because the merge runs before the solve.
 - `IsCellWater(x, z)` (slot 9, `0x0072A030`, pop 8): tail jump to `terrain.CellHasWater` (terrain slot 34).
 - `SetOptions(alternateOrientation, placeStreets, customZoneSize)` (slot 7, `0x007347C0`, pop 12).
 
@@ -1644,6 +1662,7 @@ desirability tract values 55, 41, 40; `0x1030` 1/3, 39, 5000.0; `0x3110` 2/1, 10
     - A Place with realMode false records each cell of a..b that has no network as a **street draft**. Its network
       flags are `0x8`, and its mask has a nonzero byte for each edge towards a neighbouring cell of the same segment.
     - The stub answers `OccupantExists` from these drafts (§8.8), and `Reset` clears them.
+    - A later draft Place on a drafted cell ORs its mask bytes into the cell's, as the original does (§8.8, ZQ11).
     - The dirt-road tool is a stub with no drafts.
 
     The results checked are:

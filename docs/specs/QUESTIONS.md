@@ -2277,7 +2277,16 @@ About PF1–PF15, ZQ4/ZQ7–ZQ10, LF1–LF5 and NB1–NB17 as applied in the cor
 - **TN26 — traffic-network §2.7:** the sweep and the edge pass when Z < X: where do they stop? [at the array end]
 - **TN27 — §2.7:** `FindNeighborConnection` and the pool-ID lookup for travel types above 8. [no types match]
 - **TN28 — §2.7:** `GetTrafficNeighborConnection` for a corner cell or a cell inside the city. [an empty record]
-- **ZQ11 — zones test 33:** a second draft `Place` on the same cell. [the mask bytes are merged (OR); inferred]
+- ~~**ZQ11 — zones test 33:** a second draft `Place` on the same cell. [the mask bytes are merged (OR); inferred]~~
+  **ANSWERED 2026-10-14** from the exe (`PlaceNetworkOccupants` 0x00629210, cache clear only in real mode at
+  0x0062932F; record update 0x00633250; edge merge 0x00638160 → 0x00620F00; draft byte 0x0062591E) and written into
+  zones §8.8 (the `OccupantExists` item) and test 33's stub.
+  - The draft records live in the tool's cell cache, which only `Reset` and a real-mode Place empty, so a second draft
+    Place finds the first one's record and updates it: flags := old OR new; the new edge directions are merged into
+    the old ones. The draft byte stays set.
+  - The merge keeps every connected edge and fills unconnected ones, so for the zone manager's "byte ≠ 0" contract the
+    mask is the OR. The bracket matches, now from the exe. The byte values are not an OR (direction codes, minor
+    types), so a replacement promises only ≠ 0.
 - **ZQ12 — zones test 33:** a draft `Place` over a cell that already has a network. [no draft, as a real `Place`]
 - **LF6 — LF3:** should the core add the message-server release callback (an ABI bump) to match the original's
   shutdown order? [no: one `release_services` call after the zones shut down; LF3 says the difference cannot be
