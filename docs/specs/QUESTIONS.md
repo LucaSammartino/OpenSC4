@@ -2728,7 +2728,10 @@ shadow's riot roll (wall-clock RNG). The current answer is in brackets.
   bound]~~
   **ANSWERED 2026-10-14**: no original behaviour (the original makes `count` open attempts with no bound,
   `0x006B06C6`–`0x006B0749`); the implementer's choice stands. Noted in flora §10.3.
-- **AQ9:** Flora shadow: which box gives the 64 m listing? [choice: the census box taken before the pass]
+- ~~**AQ9:** Flora shadow: which box gives the 64 m listing? [choice: the census box taken before the pass]~~
+  **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. Noted in flora §6.4.2 with the
+  original's rule: the listing is made from the box at `InsertOccupant` or `MoveOccupant` time and kept in the occupant
+  (`0x0049F094`) until the next move.
 - **AQ10:** Plugin: `OpenOStream`/`OpenIStream` returns false but writes a stream pointer. [treated as not open;
   nothing released]
 

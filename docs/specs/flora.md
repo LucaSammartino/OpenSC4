@@ -461,6 +461,10 @@ test every occupant; it reads a coarse index (verified, FQ6):
   or columns (heap corruption); a cell below 0 or above 255 wraps, and when the low end's byte ends up above the high
   end's the occupant is listed nowhere on that axis. *[choice]* Clamping such cells to 0..191, like the query, is
   recommended; it changes nothing inside the index.
+  The listing is made from the box at that moment and kept in the occupant (occupant slot 26, `0x0049F094`) until the
+  next `MoveOccupant` or removal; queries keep using it if the box changes in between. Which box a flora shadow uses
+  to model the listing is glue (AQ9): the implementer's choice (the census box taken before the pass) stands, and
+  matches the original whenever that box is the one the occupant had at its last insert or move.
 - **Query**: map the query box's two corners to cells, clamped to 0..191 (`0x0049DF00`). The candidates are the
   occupants listed in that cell rectangle, each taken once. A candidate is returned if the filter (if any)
   accepts it (§6.4.1) and its **current** box overlaps the query box **strictly** on x, y and z:
