@@ -536,7 +536,11 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   **the bracket matches**, with one addition. The value is unsigned (low 63 bits + 2⁶³), but the add runs at the
   main thread's 24-bit precision, so a Uint64 keeps 24 significant bits even when read as Float64: 16,777,217
   gives 16,777,216.0. Uint32 ≥ 2³¹ goes through the same kind of add (data-formats.md §5.1).
-- **EX3:** float to int when out of range or NaN? [saturates; NaN gives 0]
+- ~~**EX3:** float to int when out of range or NaN? [saturates; NaN gives 0]~~ **ANSWERED 2026-10-14** from the exe
+  (`0x00915AA5` → `_ftol` `0x009EEF04`): **the bracket does not match.** The float is truncated to an int64 and the
+  target keeps the low bits, so out-of-range values wrap (300.7 as Uint8 gives 44). NaN, ±∞ and |x| ≥ 2⁶³ give
+  `0x8000000000000000`: 0 for targets of 32 bits or fewer, `0x8000000000000000` for 64-bit targets, true for Bool
+  (data-formats.md §5.1, with examples).
 - **EX4:** is RZChar signed when widened? [zero-extended]
 - **EX5:** what do the getters return for Empty or object values? [None]
 - **EX6:** Char, RZUnicodeChar and void arrays in the text round trip. [Char and RZUnicodeChar arrays as text; a void

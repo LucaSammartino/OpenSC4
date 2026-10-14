@@ -401,7 +401,7 @@ If the stored type equals the requested type, the value is returned as is. Other
 |---|---|---|
 | scalar Bool…RZChar (memory types `0x01`–`0x0E`) | Float32 | value → float64 → **rounded to float32** |
 | scalar | Float64 | value → float64; unsigned types as unsigned, with the 24-bit rounding below for Uint32 ≥ 2³¹ and for every Uint64; signed types exact (Sint64 rounded to 53 bits) |
-| scalar | integer type, Bool, char types | value → int64 (unsigned types zero-extended, signed sign-extended, **floats truncated toward zero**), then the low bits of the target width; Bool = (int64 ≠ 0) |
+| scalar | integer type, Bool, char types | value → int64 (unsigned types zero-extended, signed sign-extended, **floats truncated toward zero, not saturated**: see below), then the low bits of the target width; Bool = (int64 ≠ 0) |
 | array (any element type), string, or a requested non-scalar type | any | **text round trip** (below) |
 
 **Unsigned 64-bit and large unsigned 32-bit values.** The to-double converter (`0x00915B85`) turns a Uint64 into a
@@ -413,6 +413,15 @@ Worked example, `GetValFloat64` on the main thread: Uint64 16,777,217 (2²⁴ + 
 16,777,217 gives 16,777,217.0; Uint32 16,777,217 gives 16,777,217.0; Uint32 `0x80000001` gives
 **2,147,483,648.0**. Text parsed as an unsigned number for a Float32 or Float64 target (round trip below) takes the
 same path. FreeCity4 reproduces it by rounding these values to 24 significant bits (round to nearest even).
+
+**Floats to integers.** A Float32 or Float64 is truncated toward zero to an int64 by the C runtime's `_ftol`
+(`0x009EEF04`, foundations §18.1), and the target keeps the low bits: out-of-range values **wrap**, they do not
+saturate. NaN, ±∞ and magnitudes ≥ 2⁶³ give the int64 `0x8000000000000000`, so **0** for targets of 32 bits or
+fewer, `0x8000000000000000` for Uint64 and Sint64, and **true** for Bool. Worked examples: Float32 300.7 read as
+Uint8 gives 300 mod 256 = **44**; Float32 3,000,000,000 read as Sint32 gives **−1,294,967,296**; Float32 −1.5 read
+as Uint32 gives `0xFFFFFFFF`; NaN read as Uint32 gives **0** and read as Sint64 gives `0x8000000000000000`; Float32
+0.5 read as Bool gives **false** (it truncates to 0), NaN read as Bool gives **true**. A number parsed from text as
+floating point (round trip below) is truncated the same way for integer targets.
 
 **Text round trip** (arrays and strings): the source is turned into text, then the text is parsed into the target.
 
