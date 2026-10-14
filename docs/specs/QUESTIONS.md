@@ -3304,7 +3304,12 @@ in the code; the implemented answer is in brackets.
   the manager's own STLport `hash_map` (allocators.md hash_set shape, 12-byte nodes `{next, key, config*}`), with no
   reference. **The bracket matches**: slot 9 with a null (or accept-all) filter gives the same configurations, each
   AddRef'd into a B `hash_set`; the caller must release each one. Order does not matter (the table keeps maxima).
-- **DG4:** The budget item cost at +0x38. [0]
+- ~~**DG4:** The budget item cost at +0x38. [0]~~
+  **ANSWERED 2026-10-14** from the exe (`LoadBuildingProperties` `0x0069BE00`–`0x0069BE3F`; profile readers after
+  BDS slots 39/40 and occupant slot 11 scanned) and written into building-development §4.7.1. The original stores the
+  sum of the `cost` fields of the exemplar's budget items (budget simulator slot 50), e.g. 120 + 80 = 200. **The
+  bracket differs**, but no reader of `+0x38` was found in the exe *[inferred]*, so 0 is not observable by the game;
+  *[choice]*: fill the sum when the budget simulator is reachable, else 0.
 - ~~**DG5:** How a building occupant's properties are loaded. [a GZCOM occupant, `SetBuildingType`, `GetResource`, QI
   `0x0AC2B5F7` and `SetDefaultExemplar`; a failure gives false]~~
   **ANSWERED 2026-10-14** from the exe (slot 7 `0x00698DE0`, loader `0x00698490`, constructor `0x00458E90`, GZCOM
@@ -3329,23 +3334,51 @@ in the code; the implemented answer is in brackets.
   slot 23 builds the foundation occupant (size from the lot developer's highest/lowest cell altitudes, height ≥ 0.5)
   and inserts it. *[choice]* implement them as specified, or forward to an original BDS; never return false for valid
   input.
-- **DG7:** The static cleanup through app slot 69. [not registered, logged]
-- **DG8:** "Declined by stage" in the month line. [counted by wealth only]
-- **DG9:** When the decline plan line is written. [at BDS state 4 → 0]
+- ~~**DG7:** The static cleanup through app slot 69. [not registered, logged]~~
+  **ANSWERED 2026-10-14** from the exe (callback `0x0069B850`, registration in `Init`, app slots 69/70) and written
+  into building-development §1.3 step 1. The callback runs only at application shutdown: it clears the static flag,
+  unregisters itself and empties the nine catalogue containers. No in-session behaviour depends on it, so **the
+  bracket stands** (not registering is unobservable while the process lives).
+- ~~**DG8:** "Declined by stage" in the month line. [counted by wealth only]~~
+  **ANSWERED 2026-10-14**: glue-only (a log line). No original behaviour; the implementer's choice stands. (The
+  original counts nothing by stage; `ExecuteDeclinePlan`, building-development §4.5, knows each item's developer and
+  so its wealth.)
+- ~~**DG9:** When the decline plan line is written. [at BDS state 4 → 0]~~
+  **ANSWERED 2026-10-14**: glue-only (a log line). No original behaviour; the implementer's choice stands. State 4 → 0
+  is where the original finishes executing a plan (building-development §4.2), so the choice is consistent.
 - ~~**DG10:** The `cSC4LotConfigurationObject` layout. [the SDK header]~~
   **ANSWERED 2026-10-14** from the exe (`0x00477B10` stride `0x34`, type byte at `+0`; reads at `0x0069C43E`,
   `0x0069C6D0`–`0x0069C71E`) and written into building-development §4.7.4 (Inputs). **The bracket matches**: the
   SDK's `cSC4LotConfigurationObject` is the exact `0x34`-byte layout (rotation `+0x02`, x `+0x04`, z `+0x0C`, ID
   vector `+0x28`). Slot 24 returns the first object of type 0 (building), or null.
-- **DG11:** An empty capacity vector against a present-but-empty one. [`n_capacities > 0` gives one map]
-- **DG12:** A zero profile inserted in advance. [replaced in place]
-- **DG13:** The cheat notification ID. [the cheat ID]
-- **DG14:** The name fallback. [GameString, otherwise cRZBaseString]
+- ~~**DG11:** An empty capacity vector against a present-but-empty one. [`n_capacities > 0` gives one map]~~
+  **ANSWERED 2026-10-14** from the exe (`0x0069BBB7` property test, pair loop `0x0069BC10`–`0x0069BC44`, push
+  `0x0069BC46`–`0x0069BC7E`) and written into building-development §4.7.1. **The bracket differs**: a present
+  `0x27812834` always pushes one map, even with no values (an empty map); only a missing property gives no map. The
+  difference reaches the lot's copied vector (`cSC4Lot::SetState`) but no capacity sum. *[choice]*: follow the
+  original (present → one map); ignore an unpaired last value.
+- ~~**DG12:** A zero profile inserted in advance. [replaced in place]~~
+  **ANSWERED 2026-10-14** from the exe (`AddBuildingData` passes true at `0x0069D0F2`; erase only for false,
+  `0x0069BF29`) and already in docs/abi/layouts.md (Building profile). **The bracket matches**: a zero profile
+  inserted earlier by `GetBuildingProfile(unknown)` is assigned over in place, so pointers to it stay valid.
+- ~~**DG13:** The cheat notification ID. [the cheat ID]~~
+  **ANSWERED 2026-10-14** from the exe (`Init` `0x0069D5E2`–`0x0069D649` and the third pair) and written into
+  building-development §1.3 step 10. **The bracket matches**: each cheat is registered (slot 3) and subscribed with
+  `AddNotification2(target, id)` using its own ID; the delivered message is `0x230E27AC` with data1 = that ID.
+- ~~**DG14:** The name fallback. [GameString, otherwise cRZBaseString]~~
+  **ANSWERED 2026-10-14** from the exe (`LoadBuildingProperties` `0x0069BA55`–`0x0069BAD1`; `SC4LoadExemplarString`
+  `0x00603220`) and written into building-development §4.7.1. Order: localized LTEXT via `0x8A416A99`, else property
+  `0x899AFBAD`, else "". The original stores both names as `cRZString` values in its name maps and returns borrowed
+  `cIGZString*`; the string class is not observable through the interface, so **the bracket stands** as long as the
+  content follows that order and the object outlives the call.
 - ~~**DG15:** The lot slope read. [slot 19]~~
   **ANSWERED 2026-10-14** from the exe (`0x0069879C` lot `+0x4C`, `0x006987AA` lot developer `+0x78`) and written
   into building-development §4.11. `lot.GetSlope()` is lot slot 19 (ST0); `GetLotSlope(lot, false)` is lot developer
   slot 30 (pop 8, ST0). **The bracket matches.**
-- **DG16:** The advice subject. [not created]
+- ~~**DG16:** The advice subject. [not created]~~
+  **ANSWERED 2026-10-14** from the exe (`DoBuildingChanged` `0x0069CA80`) and written into building-development §4.10.
+  The original creates and fills a subject, then pushes the event with a null subject and drops it. Not creating it is
+  unobservable, so **the bracket stands**, provided `highestStage` is updated and the event is still pushed with null.
 - ~~**DG17:** The building type filter's slot 3. [bool(uint32)]~~
   **ANSWERED 2026-10-14** from the exe (`0x00699C8F`–`0x00699C97`: one push, AL tested) and written into
   building-development §4.7.2. **The bracket matches**: `bool(uint32 type)`, pop 4, AL. The exe has no filter class and
@@ -3363,16 +3396,31 @@ in the code; the implemented answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`0x0069C974`–`0x0069C978`: `z < 16`) and written into building-development
   §4.7.4. **The bracket matches**: the BDS asks `IsCompatibleWithZoneType` for zones 0..15 only. A wider range in
   `fc4.h` is harmless as long as the table loop stops at 15.
-- **DG21:** An off-thread message arriving without the lock. [dropped]
-- **DG22:** ABI numbering after a merge. [renumbered by the coordinator: ABI 35]
-- **DG23:** The `wall_clock_seed` for the `0xFFFFFFFF` key seed. [the development session seed]
-- **DG24:** A null property holder. [false]
-- **DG25:** The shadow's `building_purpose`. [slot 40, no insert]
+- ~~**DG21:** An off-thread message arriving without the lock. [dropped]~~
+  **ANSWERED 2026-10-14**: glue-only. No original behaviour (the original's getters take no lock); the implementer's
+  choice stands.
+- ~~**DG22:** ABI numbering after a merge. [renumbered by the coordinator: ABI 35]~~
+  **ANSWERED 2026-10-14**: coordinator bookkeeping, not a behaviour question. No original behaviour; the coordinator's
+  numbering stands.
+- ~~**DG23:** The `wall_clock_seed` for the `0xFFFFFFFF` key seed. [the development session seed]~~
+  **ANSWERED 2026-10-14** from foundations §6.1 (`Seed` `0x00913667`) and growth-developer §7. The original derives
+  such a seed from `time()` and `clock()` (non-deterministic, probability 2⁻³² per tract and update). No original
+  behaviour can be matched; **the implementer's choice stands** (a session-derived seed keeps runs repeatable).
+- ~~**DG24:** A null property holder. [false]~~
+  **ANSWERED 2026-10-14** from the exe (`Init` `0x006B85EF`–`0x006B85F8`: AddRef on the holder without a null test) and
+  already in growth-developer §1.2 step 3. The original crashes on a null holder; **the bracket matches the spec's
+  *[choice]*** (false).
+- ~~**DG25:** The shadow's `building_purpose`. [slot 40, no insert]~~
+  **ANSWERED 2026-10-14** from building-development §4.7.2 (slots 39/40). The original's own readers use slot 39, which
+  inserts a zero profile for an unknown type; slot 40 returns null instead, and a null read as purpose 0 equals the
+  zero profile's purpose. **The bracket stands**: same value, and the read-only shadow does not grow the catalogue.
 - ~~**DG26:** Growth developer slots 10 and 28. [the full EAX, 0 or 1]~~
   **ANSWERED 2026-10-14** from the exe (`0x006B7530`, `0x006B75D0`: EAX zeroed, then set from the compare) and already in
   growth-developer §10.1 ("EAX 0/1"). **The bracket matches**: slot 10 = `state < 17` (signed), slot 28 = `state = 0`,
   both as the full EAX.
-- **DG27:** The off-thread fallback for slot 30. [−4 / 20]
+- ~~**DG27:** The off-thread fallback for slot 30. [−4 / 20]~~
+  **ANSWERED 2026-10-14**: glue-only. No original behaviour; the implementer's choice stands. −4 / 20 are the values the
+  original's slot 30 gives for an index outside its vectors (growth-developer §10.1), so the fallback is consistent.
 
 ## From the apply6c follow-up (landfill game tiles; filed by the coordinator, 2026-10-14)
 

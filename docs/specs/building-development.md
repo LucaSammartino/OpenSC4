@@ -71,6 +71,12 @@ Runs once (an `initialized` flag; a second call returns true at once).
    `0x10`): 2 → building (`AddBuildingData`), `0x11` → foundation (`0x00698F50`), `0x15` → lot retaining wall
    (`0x00698FC0`); other types are ignored. Then post `kSC4MessageBuildingTypesUpdated` (§5) and build the maximum
    density table (§4.7.4).
+   *[compat]* (DG7) The callback runs only at **application shutdown** (`cISC4App` slot 69 is
+   `RegisterShutdownCallbackFunction(cb, 0)`). It does nothing unless the static flag (`0x00B48540`) is set; then it
+   clears the flag, unregisters itself (app slot 70 `+0x118`, same arguments), and empties the nine catalogue
+   containers (key, name ×2, profile and family maps, the maximum density table, the foundation and wall key maps),
+   returning true. Nothing in a session depends on it; a replacement whose catalogue is freed with the process need
+   not register anything.
 2. **Developers**: enumerate the type-`0x6534284A` keys again and call `CreateDeveloper` for every exemplar whose
    `ExemplarType` is **4** (§1.5).
 3. **Tuning**: `ReadSimulatorTunableValues` (§4.13).
@@ -89,7 +95,10 @@ Runs once (an `initialized` flag; a second call returns true at once).
 9. Register the agent at levels **0, 4, 6 and 10**, each with name `"cSC4BuildingDevelopmentSimulator"` and flags
    2 (enabled only when the city is established) (simulator slot 19 `+0x4C`).
 10. Register and subscribe three cheats with the cheat code manager (slots 3 and 7): `0x491865E1` "HowDryIAm",
-    `0x08DAD89A` "FightThePower", `0x6AB6A2D7` "Barstuck".
+    `0x08DAD89A` "FightThePower", `0x6AB6A2D7` "Barstuck". For each: `RegisterCheatCode(id, name)` (slot 3), then
+    `AddNotification2(target, id)` (slot 7) with **the cheat's own ID** (`0x0069D5E9`–`0x0069D60B` and the two that
+    follow), never 0 (DG13). The cheat manager then sends `0x230E27AC` with data1 = the ID only for those three
+    cheats (flora.md §4.1 step 11 describes the manager's matching rule).
 11. Return true.
 
 ### 1.4 `Shutdown()` → true (slot 4, `0x0069A210`)
@@ -403,14 +412,14 @@ has 90 types and no families; the devglue shadow's `types=744/91` (manual-checks
 
 | Field | Source |
 |---|---|
-| exemplar name (`GetExemplarName`) | property `0x20` (exemplar name), else "" |
-| building name (`GetBuildingName`) | localized string `0x8A416A99` (`SC4LoadExemplarString`); if absent, property `0x899AFBAD`; else "" |
+| exemplar name (`GetExemplarName`) | property `0x20` (exemplar name, variant slot 55 into the string), else "" |
+| building name (`GetBuildingName`) | localized string `0x8A416A99` (`SC4LoadExemplarString` `0x00603220`: the property holds an LTEXT key, crime.md §7 "Name"); if that fails, property `0x899AFBAD` as a string; else "". DG14: both names are stored by value as `cRZString` objects (vtable `0x00A80810`) inside the name maps, and slots 37/38 return a borrowed `cIGZString*` to them; the string class is not observable through the interface |
 | profile.wealth | property `0x27812832` (uint8); outside 0–3 → 0 (with a debug message) |
 | profile.purpose | property `0x27812833` (uint8), default 0 |
-| profile capacities satisfied | property `0x27812834`: pairs (developer type, amount) → a map developer type → uint16 |
+| profile capacities satisfied | property `0x27812834`: pairs (developer type, amount) → a map developer type → uint16. DG11: when the property **exists**, exactly one map is pushed into the profile's vector, **even when it has no values** (an empty map); only a missing property leaves the vector empty (`0x0069BBB7`, push `0x0069BC46`–`0x0069BC7E`). An odd count reads one value past the end for the last pair (`0x0069BC18`) *[quirk]*; *[choice]* ignore an unpaired last value (no shipped exemplar has one *[inferred]*) |
 | profile.capacity | the amount of that map for `GetDeveloperType(purpose, wealth)` (0 if absent) |
 | profile.categoryFlags | property `0xAA1DD396` (occupant groups, uint32 list): §4.7.1.1 |
-| further profile fields | `0x27812836` (bool), `0x499AFA38` (uint8, default 30), occupant size `0x27812810` (3 floats), plop cost `0x49CAC341` (int64), budget item cost (budget simulator); not used by growth *[inferred: field mapping to the SDK's BuildingProfile]* |
+| further profile fields | `0x27812836` (bool), `0x499AFA38` (uint8, default 30), occupant size `0x27812810` (3 floats), plop cost `0x49CAC341` (int64), budget item cost (budget simulator); not used by growth *[inferred: field mapping to the SDK's BuildingProfile]*. DG4: the budget item cost (`+0x38`, int64) is the sum of the `cost` fields (`BudgetItem` `+0x10`, int64) of the items that budget simulator slot 50 `GetBudgetItemInfo(holder, vector&)` returns for the exemplar (`0x0069BE00`–`0x0069BE3F`), 0 when it returns none; e.g. two items costing 120 and 80 give 200. No reader of `+0x38` was found in the exe *[inferred]* |
 | families | property `0x27812870` (uint32 list): the type is appended to each family's member list |
 
 The profile that `GetBuildingProfile` inserts for an unknown type (§4.7.2) is all zero, including the
@@ -808,7 +817,9 @@ if built and P.purpose ≠ 0 and P.wealth = wealth:
             release the subject
 ```
 
-*[quirk]* The event is pushed with a **null** subject; the filled subject is discarded. The advisor is not null
+*[quirk]* The event is pushed with a **null** subject; the filled subject is discarded. (DG16) Creating and filling
+the subject has no effect outside it (its references to the lot are dropped with it), so a replacement may skip the
+subject; it must still update `highestStage[t]` and push `0x4A64A9CC` with a null subject. The advisor is not null
 checked. The building map cell value is `4·purpose + wealth + 1`, so residential keys are 6, 7, 8 (residential spec
 §4); it is cleared to 0 when the lot leaves states 2/3.
 
