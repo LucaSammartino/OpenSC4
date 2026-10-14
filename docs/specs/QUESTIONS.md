@@ -1499,8 +1499,12 @@ About `docs/specs/plumbing.md`. Ini: `plumbing_shadow = 1` (needs our simulator 
 do not enable `plumbing`); one line per pass at the original's swap and after its state 8, one per month. The
 shadow's current answer is in brackets.
 
-- **PS1:** the order in which unvisited water connections are listed is inferred; the read-only host cannot find
-  them, so the shadow reproduces it over its own visited flags. The original's order? [inferred]
+- ~~**PS1:** the order in which unvisited water connections are listed is inferred; the read-only host cannot find
+  them, so the shadow reproduces it over its own visited flags. The original's order? [inferred]~~
+  **ANSWERED 2026-10-14** from the exe (call `0x006DD7F8` with type 5 into `FindUnvisitedConnection` `0x006CF720`,
+  PW1): **append order.** The list is walked from its head and the first type-5 connection to the deal's city with
+  the visited bit clear is returned. This is the order of `GetConnectionsOfTypeToCity(5, city)` without the visited
+  ones, so a shadow that walks that list over its own visited flags matches. Written into plumbing.md §6.2.
 - **PS2:** pipe condition is a distress fraction that drops to 0 at funding of 50% or more. Intended? [as stated]
 - **PS3:** the original's pipe condition is not saved and not observable; the shadow starts its own at 0, so the
   first month after a load assumes the original also restarts at 0. Right?

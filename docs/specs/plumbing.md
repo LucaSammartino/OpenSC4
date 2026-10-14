@@ -335,8 +335,8 @@ timing, demand and the pass's consumed total also differ when:
 
 Shadow run 81: in the four exact passes that differ only in demand, ours is the record's demand at the start of
 the pass and the original's is the value after its state 8. Each time the next pass agrees again. The figures
-fit *[inferred]* a building replaced by another at the same anchor cell during the pass. The removal clears `0x40` and the
-insertion sets it again, so the flag map ends as it started, and the change shows only in demand:
+fit *[inferred]* a building replaced by another at the same anchor cell during the pass. The removal clears
+`0x40` and the insertion sets it again, so the flag map ends as it started, and the change shows only in demand:
 
 | Pass | Demand at start | Consumed | Demand at end | Reading |
 |---|---|---|---|---|
@@ -443,8 +443,12 @@ To find a seed:
 
 1. **Import seed.** For each deal of type `0x4773FFE2` in `FindDeals` order, with `used < amount` (deal slots
    20 and 10):
-   1. `c := neighbours.FindUnvisitedConnection(5, deal.GetCityOnOtherSide())` (neighbours slot 15, deal slot 7).
-      If c is null, try the next deal.
+   1. `c := neighbours.FindUnvisitedConnection(5, deal.GetCityOnOtherSide())` (neighbours slot 15, deal slot 7;
+      call at `0x006DD7F8`). If c is null, try the next deal. The search (`0x006CF720`, the same function as
+      power's, power.md §6.5, PW1) walks the connection list from its head in append order and returns the first
+      water connection (type 5) to that city whose visited bit is clear. Each seed attempt calls it once per
+      deal. A connection whose other side is missing or inactive stays visited, so the next state 3 gets the
+      deal's next connection in list order (PS1).
    2. `c.SetVisitedThisCycle(true)`.
    3. `o := neighbours.FindConnectionOnOtherSide(c)` (slot 13).
    4. If `o` exists and `o.GetIsActive()` (connection slot 13): use this deal.
