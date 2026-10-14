@@ -71,8 +71,22 @@ macro_rules! gcb {
     };
 }
 
-/// A game grid as a core `TractGrid<T>`. The geometry is read once (the
-/// simulators never resize their grids after creating them).
+/// A game grid as a core `TractGrid<T>`.
+///
+/// The geometry is asked of the game until it is known, then kept (the
+/// simulators never resize their grids afterwards). "Known" means both tract
+/// counts are positive: a grid a save refers to is the empty object the game
+/// made for the reference (0 × 0 tracts) until the game reads the grid's own
+/// record, and that record can come after its owner's. So a geometry read
+/// during the owner's `Read` (a status line, a warm-up) must not stick: the
+/// in-game protection run kept fire's grid at 0 × 0 that way, and its `Init`
+/// computed 0 tracts per day (protection.md §4.1 base init steps 2 and 6,
+/// §11: recomputed on load, from the grid as it is at `Init`).
+///
+/// Threads: the kept value is written once, on the first call that sees a
+/// non-empty geometry. The simulators make that call on the main thread
+/// (their `Init` sizes from it; pollution warms every grid at `Read` and
+/// `Init`); an empty grid is never written, whichever thread asks.
 pub(crate) struct HostGrid<T: GridElem> {
     api: fc4_grid_api,
     token: u64,
@@ -123,7 +137,10 @@ impl<T: GridElem> TractGrid<T> for HostGrid<T> {
             inv_width_x: g.inv_width_x,
             inv_width_z: g.inv_width_z,
         };
-        self.geom.set(Some(geom));
+        // Not kept while empty: the game may not have read the grid yet.
+        if geom.count_x > 0 && geom.count_z > 0 {
+            self.geom.set(Some(geom));
+        }
         geom
     }
     fn get(&self, tx: i32, tz: i32) -> T {
@@ -311,3 +328,87 @@ const _: () = {
     assert!(std::mem::size_of::<fc4_cell_rect>() == 16);
     assert!(std::mem::size_of::<fc4_grid_api>() == if cfg!(target_pointer_width = "32") { 40 } else { 80 });
 };
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One game grid: its tract count per side, and what was asked of it.
+    #[derive(Default)]
+    struct Fake {
+        count: Cell<i32>,
+        asked: Cell<u32>,
+        released: Cell<u32>,
+    }
+
+    unsafe extern "C" fn geometry(u: U, _t: u64, out: *mut fc4_grid_geometry) {
+        let f = &*(u as *const Fake);
+        f.asked.set(f.asked.get() + 1);
+        let n = f.count.get();
+        *out = if n > 0 {
+            fc4_grid_geometry {
+                tract_size: 2,
+                shift: 1,
+                count_x: n,
+                count_z: n,
+                width_x: 32.0,
+                width_z: 32.0,
+                inv_width_x: 1.0 / 32.0,
+                inv_width_z: 1.0 / 32.0,
+            }
+        } else {
+            fc4_grid_geometry::default()
+        };
+    }
+    unsafe extern "C" fn get(_: U, _t: u64, _k: u32, _x: i32, _z: i32) -> f64 {
+        7.0
+    }
+    unsafe extern "C" fn release(u: U, _t: u64) {
+        let f = &*(u as *const Fake);
+        f.released.set(f.released.get() + 1);
+    }
+
+    fn api(f: &Fake) -> fc4_grid_api {
+        fc4_grid_api {
+            struct_size: std::mem::size_of::<fc4_grid_api>() as u32,
+            user: f as *const Fake as *mut c_void,
+            create: None,
+            class_of: None,
+            geometry: Some(geometry),
+            get: Some(get),
+            set: None,
+            fill: None,
+            shutdown: None,
+            release: Some(release),
+        }
+    }
+
+    /// A grid a save refers to is the empty object the game made for the ref
+    /// until the game reads the grid's own record, which can come after its
+    /// owner's record (the protection in-game fault: fire's grid was 0 × 0 at
+    /// fire's `Read`). An empty geometry is asked again on every call; the
+    /// first non-empty one is kept.
+    #[test]
+    fn an_empty_geometry_is_asked_again_and_a_known_one_is_kept() {
+        let f = Fake::default();
+        let g = HostGrid::<u8>::wrap(api(&f), 0x10, false);
+        assert_eq!((g.count_x(), g.count_z()), (0, 0));
+        assert_eq!(g.get(0, 0), 0, "outside an empty grid: not read");
+        assert_eq!(f.asked.get(), 3, "each call asked the game");
+
+        // The game reads the grid's record: the next call sees its geometry.
+        f.count.set(64);
+        assert_eq!((g.count_x(), g.count_z()), (64, 64));
+        assert_eq!(g.get(63, 63), 7);
+        let asked = f.asked.get();
+        assert_eq!(asked, 4, "asked once more, then kept");
+
+        // From then on the kept geometry answers (the simulators never resize
+        // their grids).
+        f.count.set(32);
+        assert_eq!(g.geometry().count_x, 64);
+        assert_eq!(f.asked.get(), asked);
+        drop(g);
+        assert_eq!(f.released.get(), 1);
+    }
+}

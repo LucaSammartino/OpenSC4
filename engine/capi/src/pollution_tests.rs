@@ -69,6 +69,9 @@ struct Game {
     probe: Cell<usize>,
     probes: Cell<u32>,
     probe_failures: Cell<u32>,
+    /// Every grid is still an empty object the game made for a saved
+    /// reference (its own record not read yet): geometry 0 × 0.
+    unread: Cell<bool>,
 }
 
 fn game(u: *mut c_void) -> &'static Game {
@@ -181,6 +184,10 @@ unsafe extern "C" fn g_class(u: *mut c_void, t: u64) -> u32 {
     }
 }
 unsafe extern "C" fn g_geometry(u: *mut c_void, t: u64, out: *mut fc4_grid_geometry) {
+    if game(u).unread.get() {
+        *out = fc4_grid_geometry::default();
+        return;
+    }
     let ts = game(u).grids.borrow().get(&t).map_or(1, |g| g.tract_size);
     let w = 16.0 * ts as f32;
     *out = fc4_grid_geometry {
@@ -705,6 +712,65 @@ fn record_round_trip_through_host_streams() {
     stop(p);
     assert_eq!(g.refs_of(INCINERATOR), 0);
     assert_eq!(g.refs_of(DEPT), 0);
+}
+
+/// A record read while its eight grids are still the empty objects the game
+/// made for the refs (their own records come later in the save). `Read`
+/// (which warms the grids' geometry) and the plugin's Read status line must
+/// not fix it at 0 × 0: once the game has read the grids, `Init` and the
+/// days see the saved geometry (the protection in-game fault, run on
+/// pollution's Read-time geometry reads).
+#[test]
+fn grids_read_after_the_record_get_their_geometry_before_init() {
+    let g = Game::new();
+    let p = started(&g);
+    message(p, msg::OCCUPANT_INSERTED, POLLUTER);
+    for _ in 0..5 {
+        message(p, msg::SIM_NEW_DAY, 0);
+    }
+    let before = state_of(p);
+    assert!(before.grids[0].tracts > 0);
+    let mut out = Out::default();
+    let os = ostream(&mut out);
+    assert!(unsafe { fc4_pollution_write(p, &os) });
+
+    let h = host(&g);
+    let q = unsafe { fc4_pollution_create(&h, 0x52, 7) };
+    let gp: *const Game = &*g;
+    let take = move |r: &mut fc4_ref| unsafe {
+        if r.token != 0 {
+            if let Some(gr) = (*gp).grids.borrow_mut().get_mut(&r.token) {
+                gr.refs += 1;
+                return;
+            }
+            add_ref(gp as *mut c_void, r.token);
+        }
+    };
+    let mut inp = In::new(&out.bytes);
+    inp.resolve = Some(&take);
+    let is = istream(&mut inp);
+    g.unread.set(true);
+    assert!(unsafe { fc4_pollution_read(q, &is) });
+    // What the plugin's Read status line sees: the grids, not their geometry.
+    let at_read = state_of(q);
+    assert_eq!(at_read.loaded, 1);
+    assert!(at_read.grids.iter().all(|s| s.tracts == 0));
+    assert!((0..8).all(|i| unsafe { fc4_pollution_grid_by_index(q, i) } != 0));
+
+    // The game reads the grids' records, then calls Init.
+    g.unread.set(false);
+    assert!(unsafe { fc4_pollution_init(q) });
+    let st = state_of(q);
+    for i in 0..8 {
+        assert_eq!(st.grids[i].tracts, before.grids[i].tracts, "grid {i}");
+    }
+    assert_eq!(st.tracts_per_day, before.tracts_per_day);
+    // A day visits tracts again: the tract cursor moves.
+    message(q, msg::SIM_NEW_DAY, 0);
+    let day = state_of(q);
+    assert_ne!((day.cell_x, day.cell_z), (st.cell_x, st.cell_z));
+    stop(q);
+    stop(p);
 }
 
 // ---- the shadow ---------------------------------------------------------------------------------------

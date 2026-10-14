@@ -37,11 +37,16 @@ pub fn depth_byte(navigable: bool, w: f32) -> u8 {
     byte.clamp(0, 255) as u8
 }
 
+/// The constant `0.2` at `0x00AB34F4` (§4.10.2 step 4), a float32 memory
+/// operand (`0x3E4CCCCD`, TN14), not the double 0.2.
+const DEPTH_SCALE: f32 = 0.2;
+
 /// The A* step into a cell of depth byte `depth` from accumulated `g`
 /// (§4.10.2 step 4):
-/// `g' = r24(r24(r24(r24(40.0 − r24(depth × 0.2)) × 0.1) + g) + 1.0)`.
+/// `g' = r24(r24(r24(r24(40.0 − r24(depth × 0.2)) × 0.1) + g) + 1.0)`, every
+/// constant a float32 (TN14).
 pub fn step_cost(depth: u8, g: f32) -> f32 {
-    let a = x87::r24(f64::from(depth) * 0.2);
+    let a = x87::r24(f64::from(depth) * f64::from(DEPTH_SCALE));
     let b = x87::r24(40.0 - a);
     let c = x87::r24(b * f64::from(STEP_SCALE));
     let d = x87::r24(c + f64::from(g));
@@ -166,12 +171,20 @@ impl WaterPathFinder {
         if r.x1 > r.x2 || r.z1 > r.z2 {
             return;
         }
+        self.union_dirty(r);
+    }
+
+    /// `dirty ∪= r` (§4.10.1) with no growing and no clamping: dirty := r
+    /// when the flag is clear, else the union; the flag is set.
+    pub fn union_dirty(&mut self, r: CellRect) {
         self.dirty_rect = if self.dirty { union_rect(self.dirty_rect, r) } else { r };
         self.dirty = true;
     }
 
     /// Updates the dirty rectangle from the surface water (§4.10.1), then
-    /// clears the flag.
+    /// clears the flag. Only the in-map cells of the rectangle are asked
+    /// and written; an unclamped rectangle (TN15) can reach past the map
+    /// *[inferred: there is no depth byte to write there]*.
     pub fn update(&mut self, host: &dyn NetworkHost) {
         if !self.dirty {
             return;
@@ -179,11 +192,12 @@ impl WaterPathFinder {
         let r = self.dirty_rect;
         for x in r.x1..=r.x2 {
             for z in r.z1..=r.z2 {
+                let Some(i) = self.index(x, z) else {
+                    continue;
+                };
                 let navigable = host.is_navigable(x, z);
                 let w = if navigable { host.water_depth(x, z) } else { 0.0 };
-                if let Some(i) = self.index(x, z) {
-                    self.depth[i] = depth_byte(navigable, w);
-                }
+                self.depth[i] = depth_byte(navigable, w);
             }
         }
         self.dirty = false;
@@ -306,14 +320,14 @@ impl Cx<'_> {
         self.s.water.update(self.h);
     }
 
-    /// The water pathfinder's part of a network occupant message (§4.10.1):
-    /// if the occupant's cell is under water, that cell becomes dirty
-    /// (bridges) *[inferred]*.
+    /// The water pathfinder's part of a network occupant message (§4.10.1,
+    /// TN15): r = the occupant's bounding city cells; if the NW cell
+    /// `(r.x1, r.z1)` is under water (the only cell tested), dirty ∪= r, not
+    /// grown and not clamped (bridges).
     pub(crate) fn water_occupant_changed(&mut self, occ: u64) {
-        let p = self.h.occupant_position(occ);
-        let (x, z) = self.h.position_to_cell(p[0], p[2]);
-        if self.h.cell_under_water(x, z) {
-            self.s.water.mark_dirty(CellRect::new(x, z, x, z));
+        let r = self.h.occupant_bounding_cells(occ);
+        if self.h.cell_under_water(r.x1, r.z1) {
+            self.s.water.union_dirty(r);
         }
     }
 }

@@ -156,6 +156,15 @@ INTERFACES = [
     ("cISC4PropRequester(Crime)", "cFC4CrimePropRequester", FC4C, True),
     ("cISC4PropManager", "cISC4PropManager", "cISC4PropManager.h", True),
     ("cISC4PropOccupant", "cISC4PropOccupant", "cISC4PropOccupant.h", True),
+    # Aura (docs/specs/aura.md section 12): implemented (the SDK declaration;
+    # MSVC's overload reversal gives the AddTransientEffect order of 12.1),
+    # the sub-object interfaces of its own vtables, and the grids it creates.
+    ("cISC4AuraSimulator", "cISC4AuraSimulator", "cISC4AuraSimulator.h", True),
+    ("cIGZSerializable(Aura)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZMessageTarget2(Aura)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cISC4SimGrid<int8>", "cISC4SimGrid<int8_t>", "cISC4SimGrid.h", True),
+    ("cISC4SimGrid<uint16>", "cISC4SimGrid<uint16_t>", "cISC4SimGrid.h", True),
+    ("cISC4OrdinanceSimulator", "cFC4ISC4OrdinanceSimulator", FC4, True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),

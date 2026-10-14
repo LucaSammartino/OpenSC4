@@ -153,6 +153,12 @@ while ((Get-Date) - $start -lt [TimeSpan]::FromSeconds($Seconds)) {
     if ($p.HasExited) { break }
 }
 
+# The loop can leave on "process exited" after a dialog round, with the verdict written since its last read
+# (run 71: the city ended by the game, then the quit). Read the log once more.
+if (-not $verdict -or $verdict -like "clean (fallback)*") {
+    $text = ReadShared $Log
+    if ($text -match "AUTOTEST VERDICT: ([a-z]+)[^\r\n]*") { $verdict = $Matches[0] }
+}
 if (-not $verdict) {
     if ($p.HasExited) { $verdict = "exited (code $($p.ExitCode)) without a verdict" }
     elseif (-not $loadedAt) { $verdict = "no city load within $Seconds s (region view? needs a click)" }
