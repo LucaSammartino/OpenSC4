@@ -398,8 +398,12 @@ Chooses the lot width/depth used by `Parcellize` from the developers that would 
 1. Centre `(cx, cz) := ((x1 + x2) / 2, (z1 + z2) / 2)` of the cropped region (C integer division).
 2. Candidate developers (BDS slot 32 `GetDeveloper(type)`) by zone: 1–3 → `0x1010`, `0x1020`, `0x1030` (R$, R$$,
    R$$$); 4 → `0x3110`, `0x3120`, `0x3130`, `0x3320`, `0x3330` (CS$, CS$$, CS$$$, CO$$, CO$$$); 5–6 → the same five
-   with the *shallow* flag set; other zones → none. The results are not null-checked *[quirk]*: every candidate must
-   exist (the shipped BDS has all eight).
+   with the *shallow* flag set; other zones → none. The original does not null-check the results: each one is
+   dereferenced at once (its vtable is read at `0x00732C72` for `0x1010`, and the same way for every other
+   candidate), so a missing developer is a null read and the game crashes. The shipped BDS has all eight.
+   *[choice]* (ZQ7) FreeCity4 skips a missing candidate. The first candidate that exists becomes the best, and later
+   ones compete with it as step 3 says. If none exists, the zone takes the no-best path: stage 1, no query, an
+   empty set, the (2, 2) default of step 7 and the no-developer row of step 8.
 3. Best developer: the first candidate; a later candidate replaces it if its `EstimateDesirability(cx, cz)` (int16,
    `growth-developer.md` §4.6) is greater, or equal and `ftol(GetSourceDemand().QueryActiveDemandValue())` is greater
    (`demand.md` slot 12). Keep `bestDemand := ftol(best.demand value)`.

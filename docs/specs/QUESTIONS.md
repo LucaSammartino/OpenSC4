@@ -50,8 +50,10 @@ zones.md §15 now has **test 32**, which gives the street positions for all eigh
 From the ZQ3/ZQ5/ZQ6 follow-up lane (filed by the coordinator, 2026-10-14; merged `8ee3253`; vectors
 `zn15_32`–`zn15_35`). About zones.md §7.2.1 `DetermineLotSize`; the core's current answer is in brackets.
 
-**ZQ7 — step 2: a missing candidate developer.** The original does not null-check the candidate developers. What
-happens when the BDS lacks one? [skipped: the first existing candidate becomes best]
+~~**ZQ7 — step 2: a missing candidate developer.** The original does not null-check the candidate developers. What
+happens when the BDS lacks one? [skipped: the first existing candidate becomes best]~~ **ANSWERED 2026-10-14** from
+the exe: the original reads each result's vtable at once (`0x00732C72`), so a missing developer crashes it. The
+bracket is kept as a *[choice]*, with no candidates at all taking the no-best path (zones.md §7.2.1 step 2).
 
 **ZQ8 — step 5: signedness of `GetGrowthStage() ≤ stage`.** The growth stage is a u8; the stage is an int32. Signed
 or unsigned compare? [zero-extended, compared signed; the two differ only for a negative `maxStage`]
