@@ -1223,7 +1223,11 @@ before and after). The glue's current answer is in brackets.
   exemplar with `GetResource` and attaches it with `cISCExemplarPropertyHolder::SetDefaultExemplar` (QI
   `0x0AC2B5F7`). Landfill.md §4.8.1 gives the order and a GZCOM recipe. **The bracket does not fully match**: the
   occupants are also saved, block flora, are tested by `PlaceZone` and are drawn. Written into landfill.md §4.8.1.
-- **LG4:** who owns the reference in occupant manager slot 33's out-parameter? [slot 41 lists used instead]
+- ~~**LG4:** who owns the reference in occupant manager slot 33's out-parameter? [slot 41 lists used instead]~~
+  **ANSWERED 2026-10-14** from the exe (`0x0049DCE0` → `0x0049E690`, `AddRef` at `0x0049E7DD`; released by the
+  landfill at `0x006BA454` and `0x006BC7AB`): **the caller**. A hit is `AddRef`ed; a miss leaves `*out` unwritten.
+  **The bracket is equivalent** for presence tests if the slot 41 lists are released through slot 48. Written into
+  landfill.md §4.8.6.
 - **LG5 — open question 6:** where does the zot orientation come from? [0]
 - **LG6 — §3.3, foundations §13.4:** must the month run after pollution and budget? [not enforced]
 - **LG7:** does FindNetworkTile's return carry a reference? [borrowed]

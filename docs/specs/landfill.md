@@ -830,6 +830,32 @@ Konradshohe, Fulham and the Big City Tutorial) holds exactly one record, texture
 Example: `SetEmptyCellTexture(37, 52)` with display alpha 170 gives the record
 `05 10 00 00 | 25 | 34 | 00 | 00 | FF FF FF AA 01 | 00`.
 
+#### 4.8.6 Cell lookups (occupant manager slot 33)
+
+*[compat]* (LG4). "A landfill occupant (or base texture) is at the cell" in §4.4.5, §4.5.2, §4.8.1, §4.8.3 and
+§4.9.1 means occupant manager slot 33 (`+0x84`, `0x0049DCE0`, pop 16), `GetOccupantAtCell(&out, x, z, type)`:
+
+1. If the manager is not initialised, return false.
+2. Otherwise store `type` in the manager's own type filter and tail-jump to slot 32 (`0x0049E690`) with that
+   filter.
+3. Slot 32 walks the occupants of cell `(x, z)`'s bucket in bucket order. It returns the **first** occupant that
+   passes the filter and whose bounding box overlaps the cell's square in x and z.
+   - The square is `16x + 0.1 … 16x + 16 − 0.1` by `16z + 0.1 … 16z + 16 − 0.1` (float32).
+   - The overlap is four strict comparisons; y is not tested.
+
+**Ownership.** On a hit, slot 32 writes `*out` and calls **`AddRef`** on it (`0x0049E7DD`), then returns true. The
+caller owns that reference and must release it:
+
+- `getLandfillTileCost` releases it at `0x006BA454`.
+- `CreateLandfillOccupant` releases the base texture it found at `0x006BC7AB`.
+
+On a miss, `*out` is **not written** and the function returns false. The landfill's callers set `*out` to null
+first (for example `0x006BC794`).
+
+The glue's bracket uses the slot 41 list instead. That is equivalent for the presence tests, provided the list is
+released through slot 48 (§4.8.4). For the cost lookup (§4.9.1) it is equivalent while a cell holds at most one
+landfill occupant, which `CreateLandfillOccupant` ensures by removing the old tile first (§4.8).
+
 ### 4.9 Costs and budget
 
 #### 4.9.1 `GetMaintenanceCost()` (zone)
@@ -1046,7 +1072,7 @@ The object also implements `cISC4Occupant` (at its second vtable; QI `0x26BB767E
 | `cISC4OccupantManager` (`0x00A8F7F0`) | 20 / +0x50 | insert(occupant, 0) | 8 | AL | §4.8.1 |
 | | 21 / +0x54 | remove(occupant, 1, 3) | 12 | AL | §4.8.3 |
 | | 24 / +0x60 | (occupant, 1) after a move | 8 | — | §4.5.2 |
-| | 33 / +0x84 | find(&occ, x, z, type) | 16 | AL | tile lookups |
+| | 33 / +0x84 | GetOccupantAtCell(&occ, x, z, type): first hit, `AddRef`ed; `occ` untouched on a miss | 16 | AL | §4.8.6 |
 | | 41 / +0xA4 | occupants at a cell by type | 20 | — | flora / texture removal |
 | | 48 / +0xC0 | release each entry of a slot-41 list and empty it | 4 | — | §4.8.4 |
 | `cISC4PropManager` (`0x00A8F928`) | 26 / +0x68 | AddLotProp(propID, pos, orientation) | 12 | EAX | zot |
