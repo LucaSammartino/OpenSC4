@@ -336,12 +336,17 @@ when it has `0x40000`, and a preview line is wired (`0x006ED859`–`0x006ED9A8`)
 reach the rect, and step 1 does not depend on the rect's exact size. Step 2 has **no margin**: only zoned cells
 inside the rect re-wire their neighbourhoods. A cell of the rect whose only wire source is a zoned cell outside the
 rect, at most R away, loses its bit in the rebuild *[quirk]*. Two rects A ⊂ B therefore rebuild differently
-exactly where a cell of A is wired only by zoned cells in B but not in A. Example (R = 2): a building is removed
-and the dirty rect B is its footprint expanded by 2, x 10…20 × z 10…20. Cell (12, 15) is zoned, (13, 15) and
-(14, 15) are not and have no other source. Rebuilding B, (12, 15) re-wires them, so they keep their bits. A
-rebuild over A = x 13…17 × z 13…17 (for example the bounding box of the bits that changed) clears them and does not
-set them again. *[choice]* for the shadow: use the dirty rect that our own simulator merges from the same
-messages, which is the original's rect, rather than one inferred from the changed bits.
+exactly where a cell of A is wired only by zoned cells in B but not in A.
+
+Example (R = 2). A power line runs along x = 10, so it wires x 8…12 in every row. Cell (11, 15) is zoned, so it wires
+x 9…13 × z 13…17. Nothing else is near. A building with footprint x 12…18 × z 12…18 is removed, and the dirty rect
+B is the footprint expanded by 2, x 10…20 × z 10…20. Rebuilding B leaves x 10…12 wired (the line) and (13, 13…17)
+wired (the zoned cell); every other cell of B changes from 1 to 0. The bounding box of the changed bits is
+therefore A = x 13…20 × z 10…20, which does not hold (11, 15). A rebuild over A clears (13, 15) and does not set it
+again, while the original keeps it.
+
+*[choice]* for the shadow: use the dirty rect that our own simulator merges from the same messages, which is the
+original's rect, rather than one inferred from the changed bits.
 
 ### 5.4 `DoTerrainHeightsChanged(rect)`
 
