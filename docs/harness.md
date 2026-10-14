@@ -151,7 +151,18 @@ the queue holds blocks it after 60 s).
 **Regress profile.** Since main `c367684` (the power shadow is exact under turbo) regress runs the turbo profile by
 default, in both modes: each run goes to `-EndDate` (default 2032-01-01) with `sim_turbo = 1`, so every run gives the
 same month and shadow lines. `-NormalSpeed [-Seconds 150]` runs the old timed profile; `-Turbo` is still accepted.
-The delta compares against the newest earlier PASS of the same profile.
+The shadows run includes `development_shadow = 1` and the replace run `development` (our development unit runs about
+3x slower per game day than the original, 23-29 game days/s under turbo against 80-90, so the replace run is the
+long one).
+
+**Pacing.** With the original simulators a city run at about 85 game days per real second ends with other income and
+funds than at 8-20 days/s (some original work is bound to frames or real time). Shadow lines are unaffected (both
+sides run in one process at one pacing), but a comparison across runs (`-Baseline`, digests) needs runs of the same
+pacing. Regress records it in its `profile:` line (turbo to <date>, or normal with its seconds; an older `.out` without
+the line counts as normal) and the measured days/s per run in the table. The delta picks a baseline of the same
+profile only, refuses a `-Baseline` of the other profile (`-AnyPacing` compares anyway, with a warning), and warns
+when the end dates differ or a run's days/s differ by more than 2x (a loaded machine slows turbo runs: in the slot
+measurements below the same run did 16 to 43 days/s depending on the lanes' builds).
 
 **Queue status.** `powershell -File tools\game_queue.ps1 -Status [-Last 10]` prints, without disturbing the queue, each
 slot and what it runs (lane, label, elapsed, game pid), the waiting requests in the order the queue will take them

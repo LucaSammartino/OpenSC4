@@ -5,9 +5,11 @@ runs on the test city and prints one table. Use it after staging a new DLL.
 Runs (each through tools\ingame_run.ps1 with popup_dialogs = 0 and autotest_end = quit, so the full Shutdown path
 is part of every verdict):
   shadows  every same-process shadow at once, on the original subsystems: budget (needs disable = budget), demand,
-           pollution, protection, crime, aura, flora, landfill, power, plumbing, land value, flammability, residential, neighbours, zones. A shadow line is clean when every mismatch count
-           on it is 0.
-  replace  every merged replacement at once (-Replace overrides the list).
+           pollution, protection, crime, aura, flora, landfill, power, plumbing, land value, flammability,
+           residential, neighbours, zones, development. A shadow line is clean when every mismatch count on it is 0.
+  replace  every merged replacement at once (-Replace overrides the list). With development (our development unit
+           runs about 3x slower per game day than the original: 23-29 game days/s under turbo against 80-90) the
+           replace run takes longest.
 
 Usage:
   powershell -File tools\regress.ps1 -Tag r1 [-EndDate 2032-01-01] [-Only shadows|replace] [-Replace "landvalue, weather"]
@@ -41,15 +43,23 @@ exceptions, INCOMPLETE shadow lines), and per shadow "clean/lines".
 
 Delta: after the table, one line per run verdict, problem count and shadow against an earlier regress, read from
 its build-runs\regress-<tag>.out (the coordinator's redirected output): -Baseline <tag> or a path; default the newest
-earlier regress-*.out with a PASS line and the same profile (normal or turbo). A shadow is "worse" when both the
-number and the share of its lines with a mismatch grew ("better" when both fell; a timed run's line count varies).
-Any worse line adds "REGRESS <tag>: N worse (vs <baseline>)" after the verdict line.
+earlier regress-*.out with a PASS line and the same pacing. A shadow is "worse" when both the number and the share of
+its lines with a mismatch grew ("better" when both fell; a timed run's line count varies). Any worse line adds
+"REGRESS <tag>: N worse (vs <baseline>)" after the verdict line.
+
+Pacing. With the original simulators a city run at about 85 game days per real second (turbo) ends with other income
+and funds than the same city at 8-20 days/s: some original work is bound to frames or real time. Shadow lines are
+unaffected (both sides run in one process at one pacing), but a comparison across runs is only meaningful at the same
+pacing. The "profile:" line records it (turbo to <end date>, or normal with its seconds; an .out without a profile
+line is normal), the table's days/s column the measured speed of each run. The delta refuses a baseline of the other
+profile (-AnyPacing compares anyway, with a warning) and warns when the end dates differ or a run's measured days/s
+differ by more than 2x (machine load slows turbo runs).
 #>
 param(
     [Parameter(Mandatory = $true)][string]$Tag,
     [int]$Seconds = 150,
     [ValidateSet("", "shadows", "replace")][string]$Only = "",
-    [string]$Replace = "landvalue, weather, ordinance, demand, power, plumbing, flammability, pollution, protection, crime, aura, flora, landfill, residential, neighbors, zones",
+    [string]$Replace = "landvalue, weather, ordinance, demand, power, plumbing, flammability, pollution, protection, crime, aura, flora, landfill, residential, neighbors, zones, development",
     [string]$City = "C:\Users\tlori\Documents\SimCity 4\Regions\FC4 Test\City - Konradshohe.sc4",
     [string]$Dll = "",
     [switch]$Parallel,
@@ -60,7 +70,8 @@ param(
     [string]$EndDate = "2032-01-01",
     [string]$TurboFrom = "",
     [int]$TurboTimeout = 600,
-    [string]$Baseline = ""
+    [string]$Baseline = "",
+    [switch]$AnyPacing
 )
 $ErrorActionPreference = "Continue"
 $wallStart = Get-Date
@@ -130,7 +141,7 @@ $Out = Join-Path $PSScriptRoot "..\build-runs"
 New-Item -ItemType Directory -Force $Out | Out-Null
 
 $runs = [ordered]@{
-    shadows = "disable = budget`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1`nflora_shadow = 1`nlandfill_shadow = 1`npower_shadow = 1`nplumbing_shadow = 1`nlandvalue_shadow = 1`nflammability_shadow = 1`nresidential_shadow = 1`nneighbours_shadow = 1`nzones_shadow = 1"
+    shadows = "disable = budget`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1`nflora_shadow = 1`nlandfill_shadow = 1`npower_shadow = 1`nplumbing_shadow = 1`nlandvalue_shadow = 1`nflammability_shadow = 1`nresidential_shadow = 1`nneighbours_shadow = 1`nzones_shadow = 1`ndevelopment_shadow = 1"
     replace = "enable = $Replace"
 }
 $after = if ($Turbo) { $TurboTimeout } else { $Seconds }
@@ -256,8 +267,10 @@ foreach ($name in $results.Keys) {
     foreach ($m in ($s | Select-String "^\s+([a-z]+)\s+(\d+) lines, (\d+) with every")) { $sh[$m.Matches[0].Groups[1].Value] = @([int]$m.Matches[0].Groups[3].Value, [int]$m.Matches[0].Groups[2].Value) }
     $shadow = ($sh.Keys | ForEach-Object { "{0} {1}/{2}" -f $_, $sh[$_][0], $sh[$_][1] }) -join ", "
     $months = ($s | Select-String "^\s+([a-z ()]+?)\s+(\d+) lines" | Where-Object { $_.Line -notmatch "with every" } | Measure-Object).Count
-    $rows += [pscustomobject]@{ run = $name; verdict = $v; problems = $problems; monthGroups = $months; shadows = $shadow }
-    $cur[$name] = @{ verdict = $v; problems = $problems; shadows = $sh }
+    $dpsm = $s | Select-String "^verdict:.*days_per_second=([\d.]+)" | Select-Object -First 1
+    $dps = if ($dpsm) { $dpsm.Matches[0].Groups[1].Value } else { "-" }
+    $rows += [pscustomobject]@{ run = $name; verdict = $v; problems = $problems; monthGroups = $months; "days/s" = $dps; shadows = $shadow }
+    $cur[$name] = @{ verdict = $v; problems = $problems; shadows = $sh; dps = $dps }
 }
 Write-Output ""
 $slotsUsed = @(foreach ($qi in $queueInfo.Values) { foreach ($l in $qi) { if ($l -match '^request: .* in slot (\d+)') { $Matches[1] } } }) -join " and "
@@ -273,36 +286,60 @@ function ReadOut([string]$path) {
         if ($line -match "^=== regress \S+ ===") { $inTable = $true; $runName = $null; continue }
         if ($inTable -and $line -match "^(shadows|replace)\s+(\S+)\s+(\d+)\s+\d+") { if ($runsOut[$Matches[1]]) { $runsOut[$Matches[1]].problems = [int]$Matches[3] }; continue }
         if (-not $runName) { continue }
-        if ($line -match "^\s+verdict:\s+AUTOTEST VERDICT: ([a-z]+)") { $runsOut[$runName].verdict = $Matches[1] }
+        if ($line -match "^\s+verdict:\s+AUTOTEST VERDICT: ([a-z]+)") { $runsOut[$runName].verdict = $Matches[1]; if ($line -match "days_per_second=([\d.]+)") { $runsOut[$runName].dps = $Matches[1] } }
         elseif ($line -match "^\s+([a-z]+)\s+(\d+) lines, (\d+) with every") { $runsOut[$runName].shadows[$Matches[1]] = @([int]$Matches[3], [int]$Matches[2]) }
     }
     return $runsOut
 }
+# Pacing of an .out: "turbo <end date>" or "normal" (no profile line: an older regress, always normal).
+function PacingOf([string]$text) {
+    if ($text -match "(?m)^profile: turbo to (\d{4}-\d\d-\d\d)") { return @("turbo", $Matches[1]) }
+    return @("normal", "")
+}
+$curPacing = if ($Turbo) { @("turbo", $EndDate) } else { @("normal", "") }
 $basePath = $null
 if ($Baseline) {
     $basePath = if (Test-Path -LiteralPath $Baseline) { $Baseline } else { Join-Path $Out "regress-$Baseline.out" }
     if (-not (Test-Path -LiteralPath $basePath)) { Write-Output "delta: no baseline $basePath"; $basePath = $null }
 } else {
-    $wantTurbo = [bool]$Turbo
     $cands = @(Get-ChildItem -Path (Join-Path $Out "regress-*.out") -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne "regress-$Tag.out" } | Sort-Object LastWriteTime -Descending)
     foreach ($pass in 1, 2) {
+        if ($pass -eq 2 -and -not $AnyPacing) { break }
         foreach ($c in $cands) {
             $txt = (Get-Content -LiteralPath $c.FullName) -join "`n"
             if ($txt -notmatch "(?m)^REGRESS \S+: PASS") { continue }
-            if ($pass -eq 1 -and (($txt -match "(?m)^profile: turbo") -ne $wantTurbo)) { continue }
+            if ($pass -eq 1 -and (PacingOf $txt)[0] -ne $curPacing[0]) { continue }
             $basePath = $c.FullName; break
         }
         if ($basePath) { break }
     }
-    if (-not $basePath) { Write-Output "delta: no earlier regress-*.out with a PASS line in $Out" }
+    if (-not $basePath) { Write-Output "delta: no earlier regress-*.out with a PASS line and $($curPacing[0]) pacing in $Out (-Baseline <tag> -AnyPacing compares across pacings)" }
 }
 $worse = 0
+if ($basePath) {
+    $baseTxt = (Get-Content -LiteralPath $basePath) -join "`n"
+    $basePacing = PacingOf $baseTxt
+    if ($basePacing[0] -ne $curPacing[0]) {
+        $why = "baseline $basePath ran at $($basePacing[0]) pacing, this regress at $($curPacing[0]): with the original simulators income, funds and other results depend on game days per real second"
+        if ($AnyPacing) { Write-Output "delta: WARNING: $why (-AnyPacing: comparing anyway)" }
+        else { Write-Output "delta: REFUSED: $why; give a baseline of the same profile, or -AnyPacing"; $basePath = $null }
+    } elseif ($basePacing[0] -eq "turbo" -and $basePacing[1] -ne $curPacing[1]) {
+        Write-Output "delta: note: the baseline ran to $($basePacing[1]), this regress to $($curPacing[1]) (line counts differ; the shares still compare)"
+    }
+}
 if ($basePath) {
     $baseTag = [IO.Path]::GetFileNameWithoutExtension($basePath) -replace '^regress-', ''
     $base = ReadOut $basePath
     $pm = Get-Content -LiteralPath $basePath | Select-String "^profile: (.*)" | Select-Object -First 1
     $baseProfile = if ($pm) { $pm.Matches[0].Groups[1].Value } else { "" }
     Write-Output ("delta vs {0} ({1}; {2}):" -f $baseTag, $basePath, $(if ($baseProfile) { $baseProfile } else { "normal" }))
+    foreach ($name in $cur.Keys) {
+        $b = $base[$name]
+        if ($b -and $b.dps -and $cur[$name].dps -ne "-") {
+            $r = [double]$cur[$name].dps / [Math]::Max(0.01, [double]$b.dps)
+            if ($r -gt 2 -or $r -lt 0.5) { Write-Output ("  {0}: WARNING: pacing differs: {1} days/s in the baseline, {2} now (machine load?); results of the original simulators may differ" -f $name, $b.dps, $cur[$name].dps) }
+        }
+    }
     function Rate($pair) { if ($pair[1] -le 0) { return 1.0 } else { return ($pair[1] - $pair[0]) / [double]$pair[1] } }
     foreach ($name in $cur.Keys) {
         $b = $base[$name]
