@@ -2687,3 +2687,34 @@ exe and the shipped data alone.
   orientation; not traced]
 - **GF12 — §2.4:** does anything outside the 3D texture path read the FSH centre fields (non-zero in 722 entries) or
   bits 12–27 of `+0x0C` (non-zero in 294)? [none found]
+
+## From the zones glue and shadow (filed by the coordinator from the `zoneglue` lane's report, 2026-10-14)
+
+About `docs/specs/zones.md` and the zone manager glue (`cFC4ZoneManager`, `FC4ZonesShadow`; phase 1, the zone
+developer stays original). The current answer is in brackets.
+
+- **ZG1:** The tuning exemplar type: `0xA52160F5` or §4's `0x6534284A`? [`0x6534284A`]
+- **ZG2:** An oversized region or a bad §11.4 layout passed to PlaceZone. [fails with error 0 and touches nothing]
+- **ZG3:** The zone display alpha after `Read`. [the alpha read]
+- **ZG4:** A second `Read`: the services the first one set. [replaced; the old ones released]
+- **ZG5:** ZoningChange `void1` / `IGZUnknown`. [SetVoid1 plus SetIGZUnknown on the zone manager; the message holds a
+  reference]
+- **ZG6:** A dezone arriving during a PlaceZone. [runs at once and is counted]
+- **ZG7:** When are `outLots` inserted? [at the pricing call]
+- **ZG8:** What is released after a failed `Read`? [the grid, at Shutdown or destruction]
+- **ZG9:** Glue behaviour with switches off or calls from another thread. [`zones_budget` off: unlimited funds,
+  nothing charged; no budget simulator: funds 0, withdraw false; PlaceZone from another thread without the lock:
+  false, error 0; such a message: dropped; SetZoneDisplayAlpha: unchanged; GetZoneType fallback: 0 outside the grid]
+- **ZG10:** Is the loaded flag set before the version check, even on failure? [yes; the core changed to do this]
+- **ZG11:** Occupant manager slot 33. [called through the SDK overload, relying on MSVC's reversal of overloaded
+  virtuals]
+- **ZG12:** Shutdown followed by the final Release. [Shutdown runs twice]
+- **ZG13:** Shadow: "our core's bookkeeping after it has loaded the same grid". [the core loads the original's own
+  record through its Write]
+- **ZG14:** Is a PlaceZone dry run (commit=false, outLots null) on the original safe? `CanRemove(2)` is an inferred
+  name. [yes, per §6 and §13.2; `CanRemove(2)` assumed to be a query]
+- **ZG15:** Dry-run sample regions and flags (the spec names no UI caller). [four seeded regions: 1×1 checkSlope with
+  size check, 2×3 checkSlope without size check and a lot inside, 4×4 the building-development form, 7×3 checkerboard
+  without flags]
+- **ZG16:** Are `*outCost` and `*outError` written on an early size-check failure? [the shadow fills the original's
+  with 0 first; our core writes 0]

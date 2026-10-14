@@ -78,8 +78,9 @@ extern "C" {
  *      FC4_POWER_SHADOW_CITY_START; power.md PW3, PW4, PW5, PW7); the plumbing shadow's
  *      fc4_plumbing_shadow_city_start and fc4_plumbing_original.pass_counter (plumbing.md
  *      PS3, PS6); the landfill host's insert_landfill_tile and fc4_landfill_state's
- *      game_tiles / game_tile_failures (landfill.md LG3, LG8). */
-#define FC4_ABI_VERSION 33u
+ *      game_tiles / game_tile_failures (landfill.md LG3, LG8);
+ * 34 = adds the zone manager (fc4_zones, zones.md) and its shadow mode (fc4_zones_create_shadow). */
+#define FC4_ABI_VERSION 34u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -4013,6 +4014,202 @@ bool fc4_residential_shadow_get_stats(fc4_residential_shadow* s, fc4_residential
 /* One line: what is not readable, hence not compared. */
 void fc4_residential_shadow_describe(fc4_bytes_sink sink, void* ctx);
 
+/* ---- zone manager (docs/specs/zones.md §1.1, §2-§6, §10.1, §11.1) -------------
+ *
+ * The zone manager (cSC4ZoneManager, class 0x298F9B2D, city component 6): the
+ * zone grid (a game int8 grid 0x49B9E603 through `grids`, tract size 1,
+ * instance 0, saved by reference), the per-type zone counts, the tuning, the
+ * dezone under new networks (InsertOccupant 0x99EF1142) and PlaceZone. The
+ * zone developer / lot manager stays the game's: the host reaches it for
+ * get_lot, lots_in_cell_rect and do_parcellization.
+ *
+ * Tokens are host identities of any interface of the object (the host queries
+ * what it needs); those the host returns are BORROWED unless stated. 0 = none.
+ *
+ * Threads: single-threaded; the plugin serialises every call on one object and
+ * publishes fc4_zones_get_state / fc4_zones_get_tuning for its other threads.
+ * Re-entrant calls (a dezone during a commit, GetZoneType from the zone
+ * developer) run at once and are counted.
+ *
+ * Shadow mode (fc4_zones_create_shadow): reads go to the game, writes are
+ * swallowed (services, subscriptions, funds, the commit's demolition,
+ * parcellization, ZoningChange, lot textures); references read are borrowed
+ * (nothing taken, adopted or released). Give the shadow a grid table without
+ * set / fill / shutdown / release. */
+
+typedef struct fc4_zones fc4_zones;
+
+/* The "Zone Manager" tuning exemplar (§4). */
+#define FC4_ZONES_TUNING_TYPE 0x6534284Au
+#define FC4_ZONES_TUNING_GROUP 0xE7E2C2DBu
+#define FC4_ZONES_TUNING_INSTANCE 0xE9482490u
+
+/* The services the record saves (§10.1 field 13), in record order. */
+#define FC4_ZONES_SERVICE_CITY 0u
+#define FC4_ZONES_SERVICE_OCCUPANT_MANAGER 1u
+#define FC4_ZONES_SERVICE_TERRAIN 2u
+#define FC4_ZONES_SERVICE_POLLUTION 3u
+#define FC4_ZONES_SERVICE_BUDGET 4u
+
+/* A cell region (the game's SC4CellRegion<long>, §11.4): an inclusive rect and
+ * one byte per cell, index (z - z0) * width + (x - x0), non-zero = set. NULL
+ * mask: every cell set. A short mask reads as cleared cells past its end. */
+typedef struct fc4_zone_region {
+    int32_t x0, z0, x1, z1;
+    uint8_t* mask;
+    size_t len;
+} fc4_zone_region;
+
+/* PlaceZone's outputs (§6). */
+typedef struct fc4_zones_place_result {
+    uint32_t struct_size;
+    uint8_t ok;        /* AL */
+    uint8_t committed; /* a change was committed and ZoningChange posted */
+    uint8_t reserved[2];
+    int32_t error;     /* 0 ok, 1 funds, 2 landfill on water, 3 too small, 4 too large, 5 blocked */
+    uint32_t accepted; /* cells of the ZoningChange region (0 unless committed) */
+    uint32_t cleared;  /* region bits this call cleared (rejected cells) */
+    uint32_t lots;     /* lots to demolish (*outLots) */
+    int64_t cost;      /* *outCost */
+} fc4_zones_place_result;
+
+/* What a DoMessage did (§5.1). */
+typedef struct fc4_zones_dezone {
+    uint32_t struct_size;
+    uint8_t dezoned; /* PlaceZone(rect, 0, ...) ran */
+    uint8_t reserved[3];
+    fc4_cell_rect rect; /* the occupant's bounding cells */
+    uint32_t changed;   /* cells re-zoned (the ZoningChange region) */
+    uint32_t lots;      /* lots handed to DemolishLots(true, ...) */
+} fc4_zones_dezone;
+
+/* Diagnostics and the getters' snapshot. */
+typedef struct fc4_zones_state {
+    uint32_t struct_size;
+    uint8_t initialized, loaded, display_alpha, default_alpha;
+    uint32_t zone_count[16];                          /* slot 6 */
+    uint32_t undeveloped[16];                         /* slot 7 (never updated after Init, §2) */
+    uint32_t undeveloped_total, abandoned_tile_count; /* slots 8, 10 */
+    uint32_t failure1_entries;                        /* development-failure map 1 entries */
+    uint32_t reentrant_calls, place_calls, dezones;
+    int32_t grid_count_x, grid_count_z; /* 0 x 0 without a grid or before its record is read */
+    uint64_t grid;                      /* slot 5 (borrowed); 0 = none */
+} fc4_zones_state;
+
+/* The tuning (§4), indexed by zone type. */
+typedef struct fc4_zones_tuning {
+    uint32_t struct_size;
+    uint8_t display_alpha, default_alpha;
+    uint8_t reserved[2];
+    int32_t min_size[16], max_size[16];
+    int64_t create_cost[16], destroy_cost[16];
+    uint32_t texture[16], drag_color[16];
+    float max_slope[16];
+} fc4_zones_tuning;
+
+/* Everything the zone manager asks of the game. */
+typedef struct fc4_zones_host {
+    uint32_t struct_size;
+    void* user;
+    fc4_grid_api grids; /* the zone grid (int8 0x49B9E603) */
+    /* lifecycle and services (§1.1, §10.1). acquire_services: Init step 2 (the city, occupant manager,
+     * terrain, pollution and budget simulators still null, and the message server). */
+    void (*acquire_services)(void* user);
+    void (*release_services)(void* user);
+    void (*subscribe)(void* user, uint32_t msg);
+    void (*unsubscribe)(void* user, uint32_t msg);
+    fc4_props* (*tuning)(void* user); /* a NEW fc4_props (the core destroys it); NULL = missing */
+    void (*cell_counts)(void* user, int32_t* x, int32_t* z);
+    uint64_t (*service_ref)(void* user, uint32_t which); /* Write: the token saved for FC4_ZONES_SERVICE_*; 0 = null */
+    /* Read: service `which` as read (its IID's interface; 0 = null). The host takes the token's ONE
+     * reference and replaces the service it held. */
+    void (*adopt_service)(void* user, uint32_t which, uint64_t token);
+    /* ZoningChange 0x07699455 (§5.3): MessagePost of a message owning a copy of the region. */
+    void (*post_zoning_change)(void* user, const fc4_zone_region* region, int32_t zone_type, bool check_slope);
+    /* the zone developer / lot manager (§13.1) */
+    uint64_t (*get_lot)(void* user, int32_t x, int32_t z); /* lot manager slot 6 GetLot(x, z, false) */
+    /* lot manager slot 7: cb(ctx, lot) per lot, ONE reference each for the core */
+    void (*lots_in_cell_rect)(void* user, const fc4_cell_rect* rect, bool origin_only, fc4_token_callback cb,
+                              void* ctx);
+    void (*do_parcellization)(void* user, const fc4_zone_region* region, int32_t zone_type, bool flag);
+    /* budget, demolition, landfill (§6) */
+    int64_t (*total_funds)(void* user);
+    bool (*withdraw_funds)(void* user, int64_t amount);
+    /* DemolishLots(commit, lots, checkSlope, flags, 0, 0, &cost, 0) -> cost */
+    int64_t (*demolish_lots)(void* user, bool commit, const uint64_t* lots, size_t count, bool check_slope,
+                             uint32_t flags);
+    int64_t (*landfill_zoning_cost)(void* user, const fc4_zone_region* region);
+    /* network tiles (§6) */
+    uint64_t (*find_network_tile)(void* user, int32_t x, int32_t z); /* FindNetworkTile(x, z, 0x1F4F, 1) */
+    bool (*tile_occupant_flag_set)(void* user, uint64_t tile, uint32_t flag);
+    bool (*tile_is_of_type)(void* user, uint64_t tile, uint32_t type);
+    int64_t (*tile_demolition_cost)(void* user, uint64_t tile);
+    /* terrain, lot developer */
+    bool (*cell_has_water)(void* user, int32_t x, int32_t z);
+    float (*area_slope)(void* user, const fc4_cell_rect* rect, bool with_water); /* lot developer slot 29 */
+    void (*set_empty_lot_base_texture)(void* user, uint64_t lot);                 /* lot developer slot 43 */
+    /* occupants (§5.1, §6) */
+    uint64_t (*landfill_at)(void* user, int32_t x, int32_t z); /* occupant manager slot 33, type 0x6A11BD2B */
+    void (*occupant_bounding_cells)(void* user, uint64_t occupant, fc4_cell_rect* out); /* occupant slot 11 */
+    bool (*occupant_can_remove)(void* user, uint64_t occupant, uint32_t flags);        /* occupant slot 14 */
+    /* QueryInterface(cISC4NetworkOccupant) + slot 9: 1 / 0, -1 = not a network occupant */
+    int32_t (*network_has_any_flag)(void* user, uint64_t occupant, uint32_t flags);
+    /* references */
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* lots and lot configurations */
+    uint64_t (*lot_configuration)(void* user, uint64_t lot);
+    void (*lot_bounding_rect)(void* user, uint64_t lot, fc4_cell_rect* out);
+    int32_t (*lot_zone_type)(void* user, uint64_t lot);
+    uint32_t (*lot_state)(void* user, uint64_t lot);
+    uint64_t (*lot_building)(void* user, uint64_t lot);
+    bool (*cfg_compatible_with_zone)(void* user, uint64_t cfg, int32_t zone_type);
+} fc4_zones_host;
+
+bool fc4_zones_query_interface(uint32_t iid);  /* 1, 0x67652433, 0x452294AA, 0xE4FDA3D4 */
+uint32_t fc4_zones_class_id(void);             /* 0x298F9B2D */
+bool fc4_zones_is_rci_zone(int32_t zone_type); /* slot 13 */
+/* NULL when the table is incomplete. The table is copied. */
+fc4_zones* fc4_zones_create(const fc4_zones_host* host);
+fc4_zones* fc4_zones_create_shadow(const fc4_zones_host* host);
+/* A grid still held is shut down and released. */
+void fc4_zones_destroy(fc4_zones* z);
+bool fc4_zones_init(fc4_zones* z);
+bool fc4_zones_shutdown(fc4_zones* z);
+/* Always true. `occupant` = void1 (0 = none); `out` may be NULL. */
+bool fc4_zones_do_message(fc4_zones* z, uint32_t msg_type, uint64_t occupant, uint32_t data3, uint32_t data4,
+                          fc4_zones_dezone* out);
+/* Slot 11 (§6). The region is written back (rejected cells cleared; a NULL mask cannot report them).
+ * `lots` (may be NULL): every lot to demolish, borrowed, called at the pricing call, before the commit;
+ * the caller takes its own references. A NULL region, or one above 1,048,576 cells or 4096 a side, fails
+ * with error 0 and calls nothing. */
+bool fc4_zones_place_zone(fc4_zones* z, fc4_zone_region* region, int32_t zone_type, bool commit, bool skip_funds,
+                          bool check_slope, bool skip_size_check, bool check_lot_inside, fc4_token_callback lots,
+                          void* ctx, fc4_zones_place_result* out);
+uint64_t fc4_zones_grid(const fc4_zones* z);                                      /* slot 5 */
+uint32_t fc4_zones_zone_count(const fc4_zones* z, int32_t zone_type);             /* slot 6 */
+uint32_t fc4_zones_undeveloped_tile_count(const fc4_zones* z, int32_t zone_type); /* slot 7 */
+uint32_t fc4_zones_undeveloped_total(const fc4_zones* z);                         /* slot 8 */
+/* Slot 9: inserts a zero entry into map 1 when absent (§11.1 quirk). */
+uint32_t fc4_zones_development_failure_count(fc4_zones* z, int32_t zone, int32_t result);
+uint32_t fc4_zones_abandoned_tile_count(const fc4_zones* z);          /* slot 10 */
+int32_t fc4_zones_zone_type(const fc4_zones* z, int32_t x, int32_t z_); /* slot 12 */
+/* Slot 14: false for type >= 16; key = {type, group, instance} (3 x uint32). */
+bool fc4_zones_texture_for_zone(const fc4_zones* z, int32_t zone_type, uint32_t* key);
+uint32_t fc4_zones_drag_color(const fc4_zones* z, int32_t zone_type); /* slot 15 */
+uint8_t fc4_zones_display_alpha(const fc4_zones* z);                  /* slot 16 */
+uint8_t fc4_zones_default_display_alpha(const fc4_zones* z);          /* slot 17 */
+void fc4_zones_set_display_alpha(fc4_zones* z, uint8_t alpha);        /* slot 18 */
+int32_t fc4_zones_min_size(const fc4_zones* z, int32_t zone_type);    /* slot 19 */
+int32_t fc4_zones_max_size(const fc4_zones* z, int32_t zone_type);    /* slot 20 */
+bool fc4_zones_get_state(const fc4_zones* z, fc4_zones_state* out);
+bool fc4_zones_get_tuning(const fc4_zones* z, fc4_zones_tuning* out);
+/* Game writes the last place_zone / do_message call swallowed (shadow mode). */
+uint32_t fc4_zones_last_swallowed(const fc4_zones* z);
+bool fc4_zones_write(const fc4_zones* z, const fc4_ostream* out);
+/* Runs before Init: nothing is sized from the city. */
+bool fc4_zones_read(fc4_zones* z, const fc4_istream* in);
+
 /* ---- neighbours (docs/specs/neighbors.md; engine/capi/src/neighbors.rs) ------
  *
  * The plugin's cISC4NeighborsSimulator forwards its slots to fc4_neighbors_*,
@@ -4441,6 +4638,12 @@ static_assert(sizeof(fc4_residential_capture_ref) == 32, "fc4_residential_captur
 static_assert(sizeof(fc4_residential_capture) == (sizeof(void*) == 4 ? 24 : 40), "fc4_residential_capture layout");
 static_assert(sizeof(fc4_residential_shadow_scalars) == 24, "fc4_residential_shadow_scalars layout");
 static_assert(sizeof(fc4_residential_shadow_stats) == 72, "fc4_residential_shadow_stats layout");
+static_assert(sizeof(fc4_zone_region) == (sizeof(void*) == 4 ? 24 : 32), "fc4_zone_region layout");
+static_assert(sizeof(fc4_zones_place_result) == 32, "fc4_zones_place_result layout");
+static_assert(sizeof(fc4_zones_dezone) == 32, "fc4_zones_dezone layout");
+static_assert(sizeof(fc4_zones_state) == 176, "fc4_zones_state layout");
+static_assert(sizeof(fc4_zones_tuning) == 584, "fc4_zones_tuning layout");
+static_assert(sizeof(fc4_zones_host) == (sizeof(void*) == 4 ? 188 : 376), "fc4_zones_host layout");
 static_assert(sizeof(fc4_neighbor_deal_data) == 72, "fc4_neighbor_deal_data layout");
 static_assert(sizeof(fc4_neighbor_connection_state) == 24, "fc4_neighbor_connection_state layout");
 static_assert(sizeof(fc4_neighbors_figures) == 128, "fc4_neighbors_figures layout");
