@@ -76,6 +76,7 @@ mod monthly;
 mod pools;
 mod record;
 mod route;
+pub mod shadow;
 mod state;
 mod trips;
 pub mod tuning;
@@ -1135,6 +1136,69 @@ impl TrafficSimulator {
     /// `ApplyTrafficToDestination(count, x, z, lastTravelType, type)` (§4.2).
     pub fn apply_traffic_to_destination(&self, count: u32, x: i32, z: i32, last_travel_type: u8, trip_type: u8) {
         self.run(|r| r.apply_traffic_to_destination(count, x, z, last_travel_type, trip_type));
+    }
+
+    // ---- the traffic shadow's steps (tooling, [`shadow`]) ----
+
+    /// Step 2 of `DoDailySimulation` (§3.3) on its own: on a new day of
+    /// month, day 1's incomes and the strategy re-draw.
+    pub fn shadow_day_start(&self) {
+        self.run(|r| r.day_start());
+    }
+
+    /// One `WorkOnSimCycle` (§3.2) with the phase transitions of §3.3 step 3
+    /// (the pacing resets on entering 16, 17 and 18), without the share
+    /// test: the caller decides where a day ends. With
+    /// `trafficUnitsPerSlice` 1 a call in states 16–18 is one unit (§3.4).
+    pub fn shadow_slice(&self) {
+        self.run(|r| {
+            let finished = r.work_on_sim_cycle();
+            let _ = r.after_slice(finished, false);
+        });
+    }
+
+    /// The load resume of §3.5 step 11 for the trip phases, after a `Read`
+    /// of a record taken from a running simulator: a phase that has taken no
+    /// unit yet (its progress counter 0) restarts its source iterator with no
+    /// source held; otherwise the resume of a load (the source at the saved
+    /// cell held). Other states are left as the record has them.
+    pub fn shadow_resume(&self) {
+        self.run(|r| {
+            use cycle_state as cs;
+            if !matches!(r.st.cycle_state, cs::CONFIRM_TRIPS | cs::REROUTE_TRIPS | cs::FULL_TRIPS) {
+                return;
+            }
+            if shadow::progress(r.st) == 0 {
+                r.reset_sources();
+                r.st.current = None;
+                r.st.source_pos = 0;
+                r.st.trip_pos = 0;
+                r.st.continue_search = false;
+            } else {
+                r.resume_loaded_phase();
+            }
+        });
+    }
+
+    /// The damage sets' extra step costs on the network info, as
+    /// `ApplyPotholeChanges` leaves them (§4.12): `damagedRoadExtraCost` on
+    /// every damaged road (transit network 1) and rail (2) cell with network
+    /// info, 0 on every intact one. After a `Read` that replaced the sets.
+    pub fn shadow_apply_damage_costs(&self) {
+        let d = self.damage.borrow().clone();
+        self.net.update_state(|n| {
+            let cost = n.tuning.damaged_road_cost;
+            for (kind, block) in [(damage_kind::ROAD, &d.road), (damage_kind::RAIL, &d.rail)] {
+                for (keys, extra) in [(&block.intact, 0.0), (&block.damaged, cost)] {
+                    for key in keys.iter_order() {
+                        let (x, z) = ((key >> 8) as i32 & 0xFF, (key & 0xFF) as i32);
+                        if let Some(info) = n.network_info_mut(kind, x, z) {
+                            info.extra_cost = extra;
+                        }
+                    }
+                }
+            }
+        });
     }
 }
 

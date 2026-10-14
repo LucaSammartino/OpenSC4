@@ -123,7 +123,19 @@ impl Run<'_, '_> {
 
     /// `DoDailySimulation` (§3.3) with the work budget of §3.4.
     pub(crate) fn do_daily_simulation(&mut self) -> bool {
-        // Step 2: a new day of month.
+        self.day_start();
+        // Step 3.
+        loop {
+            let finished = self.work_on_sim_cycle();
+            if let Some(r) = self.after_slice(finished, true) {
+                return r;
+            }
+        }
+    }
+
+    /// Step 2 of §3.3: on a new day of month, day 1's incomes and the
+    /// strategy re-draw.
+    pub(crate) fn day_start(&mut self) {
         let day = self.h.sim_day_of_month() as i32;
         if day != self.st.last_day {
             self.st.last_day = day;
@@ -132,60 +144,63 @@ impl Run<'_, '_> {
             }
             self.strategy_redraw();
         }
-        // Step 3.
-        loop {
-            let finished = self.work_on_sim_cycle();
-            let s = self.st.cycle_state;
-            if finished {
-                match s {
-                    cs::CONFIRM_TRIPS => {
-                        // `toReRoute` and `toSearch` are zeroed here and only
-                        // here (`0x0072184B`, TS21), with every pass counter
-                        // except 1 (the re-route counter) and 2
-                        // (`rerouteBucket`): the source counter (3) restarts
-                        // at 0 every cycle (TS1).
-                        self.start_pacing(self.st.pass_total, 20);
-                        self.st.to_reroute = 0;
-                        self.st.to_search = 0;
-                        for i in 0..PASS_COUNTERS {
-                            if i != PC_REROUTE_COUNTER && i != PC_REROUTE_BUCKET {
-                                self.st.pass_counters[i] = 0;
-                            }
+    }
+
+    /// Step 3 of §3.3 after one `WorkOnSimCycle` that `finished` or not:
+    /// `None` runs another slice within the same call, `Some(r)` ends the
+    /// call with `r`. Without `share` (the traffic shadow's stepping) the
+    /// share test is skipped: an unfinished slice ends the call with false.
+    pub(crate) fn after_slice(&mut self, finished: bool, share: bool) -> Option<bool> {
+        let s = self.st.cycle_state;
+        if finished {
+            return match s {
+                cs::CONFIRM_TRIPS => {
+                    // `toReRoute` and `toSearch` are zeroed here and only
+                    // here (`0x0072184B`, TS21), with every pass counter
+                    // except 1 (the re-route counter) and 2
+                    // (`rerouteBucket`): the source counter (3) restarts
+                    // at 0 every cycle (TS1).
+                    self.start_pacing(self.st.pass_total, 20);
+                    self.st.to_reroute = 0;
+                    self.st.to_search = 0;
+                    for i in 0..PASS_COUNTERS {
+                        if i != PC_REROUTE_COUNTER && i != PC_REROUTE_BUCKET {
+                            self.st.pass_counters[i] = 0;
                         }
-                        continue;
                     }
-                    cs::REROUTE_TRIPS => {
-                        self.start_pacing(self.st.to_reroute, 18);
-                        // Counter 1 is zeroed on entering 17 (`0x007218F2`).
-                        self.st.pass_counters[PC_REROUTE_COUNTER] = 0;
-                        return true;
-                    }
-                    cs::FULL_TRIPS => {
-                        // `0x007217BF`–`0x007217FD`: day index, processed
-                        // and `passTotal`, **not** pass counter 1 (TS35): it
-                        // keeps state 17's re-route count through state 18.
-                        self.start_pacing(self.st.to_search, 18);
-                        self.st.pass_total = 0;
-                        return true;
-                    }
-                    cs::CREATE_MAPS | cs::UPDATE_NEIGHBOURS => return true,
-                    _ => continue,
+                    None
                 }
-            }
-            // The share test (`0x0072191E`, all unsigned), with the
-            // `dayIndex < days` guard: once the day index has reached `days`
-            // (more trips than the last cycle, or `days = 0` after a load,
-            // §3.5 step 13) no share ends the day.
-            if (cs::CONFIRM_TRIPS..=cs::FULL_TRIPS).contains(&s) && self.st.day_index < self.st.days {
-                let share = (self.st.total as u32).wrapping_mul(self.st.day_index.wrapping_add(1)) / self.st.days;
-                if self.st.processed as u32 >= share {
-                    self.st.day_index = self.st.day_index.wrapping_add(1);
-                    return true;
+                cs::REROUTE_TRIPS => {
+                    self.start_pacing(self.st.to_reroute, 18);
+                    // Counter 1 is zeroed on entering 17 (`0x007218F2`).
+                    self.st.pass_counters[PC_REROUTE_COUNTER] = 0;
+                    Some(true)
                 }
-            }
-            // Not done for today: the simulator calls again within the day.
-            return false;
+                cs::FULL_TRIPS => {
+                    // `0x007217BF`–`0x007217FD`: day index, processed
+                    // and `passTotal`, **not** pass counter 1 (TS35): it
+                    // keeps state 17's re-route count through state 18.
+                    self.start_pacing(self.st.to_search, 18);
+                    self.st.pass_total = 0;
+                    Some(true)
+                }
+                cs::CREATE_MAPS | cs::UPDATE_NEIGHBOURS => Some(true),
+                _ => None,
+            };
         }
+        // The share test (`0x0072191E`, all unsigned), with the
+        // `dayIndex < days` guard: once the day index has reached `days`
+        // (more trips than the last cycle, or `days = 0` after a load,
+        // §3.5 step 13) no share ends the day.
+        if share && (cs::CONFIRM_TRIPS..=cs::FULL_TRIPS).contains(&s) && self.st.day_index < self.st.days {
+            let share = (self.st.total as u32).wrapping_mul(self.st.day_index.wrapping_add(1)) / self.st.days;
+            if self.st.processed as u32 >= share {
+                self.st.day_index = self.st.day_index.wrapping_add(1);
+                return Some(true);
+            }
+        }
+        // Not done for today: the simulator calls again within the day.
+        Some(false)
     }
 
     /// The pacing reset of §3.3: `total`, `days := max(1, total div k)`, day
