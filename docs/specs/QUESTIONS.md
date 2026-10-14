@@ -977,7 +977,12 @@ each cycle-completed message `0x2A09B21A`). The glue's current answer is in brac
   The original gets one iterator at the first state 4 of the object's life, rewinds it at every later state 4, and
   releases it only in `Shutdown`. So it stays open between all cycles, not only after an empty-city cycle. The
   glue's choice stands (with the cell walk of AU5 it needs no iterator at all).
-- **AU10:** with no land value simulator the land value type is 0; the spec is silent. [0]
+- ~~**AU10:** with no land value simulator the land value type is 0; the spec is silent. [0]~~ **ANSWERED 2026-10-14**
+  from the exe (`LotBaseAura` `0x0068CE00`, unchecked global call at `0x0068CFB7`) and written into aura.md §6.5.1.
+  **The original crashes**: after the curve test it calls the land value simulator with no null check. The shipped
+  game always creates one. *[choice]* skip the value/wealth term (result = the lot average), as if the curve were
+  absent. The bracket's type 0 gives `d = −wealth` and adds +3 to +5 to every residential lot with the shipped
+  curve.
 - **AU11 — §16 Q7:** the base-aura process table is not written. [not written]
 - **AU12:** the CPU-cycle limit timer runs on `QueryPerformanceCounter` instead of the TSC. Acceptable? [QPC]
 

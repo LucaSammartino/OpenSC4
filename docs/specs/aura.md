@@ -438,6 +438,11 @@ difference is the starting step after a city change).
 - If the value/wealth curve exists: `cx := trunc((x1 + x2) / 2)`, `cz` likewise (lot bounding rectangle, cells);
   `d := landValue.GetLandValueType(cx, cz) − lot.GetOccupantWealth()` (both 1..3, so d ∈ −2..2);
   result `:= clamp(avg + trunc(curve(d)))`. Otherwise the result is `avg`.
+- **No land value simulator**: the original tests only the curve. It then calls the land value simulator through its
+  global pointer with no null check (`0x0068CFB7`), so a city without one crashes at the first residential lot.
+  This cannot happen in the shipped game, which always creates it. *[choice]* FreeCity4 skips the value/wealth term
+  (result `avg`), as if the curve were absent. Using land value type 0 instead would give `d = −wealth` and bias
+  every lot by `+3` to `+5` with the shipped curve.
 
 **The population container *[compat]*.** `GetPopulations()` returns a pointer to the lot's own
 `std::vector<std::map<uint32_t, uint16_t>>` (the lot + 0x54, `0x006C21E0`). It is an STLport vector {begin, end,
