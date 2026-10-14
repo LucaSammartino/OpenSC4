@@ -1267,6 +1267,15 @@ fn state(w: &World, op: &Json) -> R<()> {
                             .collect::<R<_>>()?;
                     }
                     "rng_seed" => st.rng = seed_rng(u32_of(v, &k)?),
+                    "pass_counters" => {
+                        let v = u32s(v, &k)?;
+                        if v.len() != st.pass_counters.len() {
+                            return Err(format!("'pass_counters' needs {} counts", st.pass_counters.len()));
+                        }
+                        st.pass_counters.copy_from_slice(&v);
+                    }
+                    "processed" => st.processed = i64_of(v, &k)? as i32,
+                    "day_index" => st.day_index = u32_of(v, &k)?,
                     "phase_positions" => {
                         let (x, z) = pair(v, &k)?;
                         st.extras.phase_positions = [x as i16, z as i16];
@@ -2174,6 +2183,11 @@ fn expect_state(w: &World, op: &Json) -> R<()> {
                 ("cells_per_type", jlist(&st.cells_per_type)),
                 ("stats_records", jlist(&st.stats_last.records)),
                 ("stats_rows", rows(&st.stats_last)),
+                ("stats_work_rows", rows(&st.stats_work)),
+                (
+                    "stat_max_cmp",
+                    Json::Array(st.stat_max_cmp.iter().map(|&f| fb(f)).collect()),
+                ),
                 ("potholes", ji(st.stats_last.potholes)),
                 ("next_accident_check", ji(st.next_accident_check as i64)),
                 (
