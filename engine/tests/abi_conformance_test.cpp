@@ -82,6 +82,7 @@
 #include "cISC4RegionalCity.h"
 #include "cISC4Simulator.h"
 #include "cISC4TrafficSimulator.h"
+#include "cISC4TrafficSource.h"
 #include "cISC4WeatherSimulator.h"
 #include "cIGZDate.h"
 #include "cISCPropertyHolder.h"
