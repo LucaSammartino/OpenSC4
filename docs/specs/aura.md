@@ -555,11 +555,12 @@ cycle-completed message (§11.1). State := 0.
 ## 7. Occupant effects *[compat]*
 
 `OccupantChanged(occupant, add)` (from §5.2). `sign := add ? +1 : −1`. Values come from Sint32-array properties
-`v` of the occupant's property holder: `v[0]` = magnitude, `v[1]` = radius (no length check *[quirk]*). The radius
-is divided by the grid's tract size **in cells** (4), so it acts as a radius in **cells** (city tiles) *[compat]*,
-unlike the transient radius (metres, §8.2). Shipped examples (`SimCity_1.dat`): Big Ben landmark effect {40, 20}
-(5 tracts), its mayor-rating effect `0xCA5B9305` {7, 256} (64 tracts: the whole of a large city), cemetery
-{2, 220}, prison {−7, 440}; landfill park and landmark effects {−100, 32}.
+`v` of the occupant's property holder: `v[0]` = magnitude, `v[1]` = radius (no type or length check *[quirk]*, see
+"How the values are read" below). The radius is divided by the grid's tract size **in cells** (4), so it acts as a
+radius in **cells** (city tiles) *[compat]*, unlike the transient radius (metres, §8.2). Shipped examples
+(`SimCity_1.dat`): Big Ben landmark effect {40, 20} (5 tracts), its mayor-rating effect `0xCA5B9305` {7, 256} (64
+tracts: the whole of a large city), cemetery {2, 220}, prison {−7, 440}; landfill park and landmark effects
+{−100, 32}.
 
 1. **Network piece**: if `add` and the occupant type is `0xC772BF98` (network occupant *[inferred]*):
    `AddTransientEffect(position.x, position.z, 3)` (§8.1; shipped 0/0, so nothing happens).
@@ -578,6 +579,23 @@ unlike the transient radius (metres, §8.2). Shipped examples (`SimCity_1.dat`):
 
 Each is one call of `AddRadiusEffect` (simgrid §7.1; int16 variant for park/landmark, int8 for the building
 effect) with arguments (grid data, countX, countZ, tx, tz, radius, centre value, 0).
+
+**How the values are read *[compat]*.** For each property: holder `GetProperty(id)` (slot 9), the property's value
+(slot 5), then the variant's `RefSint32()` (slot 105, `+0x1A4`). That slot's body (`0x0060CE80`) is shared by every
+`RefX` slot of the variant class (vtable `0x00AA6788`): it returns the word at variant + 4 whatever the type. For an
+array that word is the data pointer; for a scalar it is the value itself (`GetValSint32` reads it there,
+`0x00917721`). There is no type or count check, so the original does this:
+
+| Property holds | Original |
+|---|---|
+| Sint32 or Uint32 array of 2 or more values (shipped: Sint32) | `v[0]`, `v[1]` as int32 (a Uint32 bit for bit) |
+| an array of 1 value | `v[1]` read past the end of the array: garbage radius |
+| an array of another element type | the raw bytes read as int32: meaningless values (Float32 −100.0 reads as −1 027 080 192), and past the end for 8- and 16-bit elements |
+| a scalar | the value used as a pointer: a crash for small values, garbage otherwise |
+
+*[choice]* FreeCity4 takes a Sint32 or Uint32 array (bitwise) with at least 2 values; anything else counts as absent
+(no cone). This equals the original for every Sint32 or Uint32 array of 2 or more values, the only form that gives
+meaningful values.
 
 **Landmark department** (§7.2): `dept := budget.GetBudgetItemForPurpose(holder, 0xAA59670C, &item) ?
 item.departmentID : 0`. If the map has no grid for `dept`: on add create one (int16, CLSID `0x49B9E605`, instance
@@ -1008,7 +1026,8 @@ Shipped tuning unless stated; S = 4; curves per foundations §4.
     at x1 = 10 → cell 11 regardless of position; no lot → the position's own cell. A landmark whose budget item has
     department `0x8A416368` creates a department grid with instance ID `0x8A416368` on insert; a removal with no
     grid changes nothing. Mayor-rating effect {7, 256} → radius 64 tracts on the building-effect grid, centre tract
-    from the occupant position (not the lot centre).
+    from the occupant position (not the lot centre). The park property as Uint32 {50, 22} → the same cone as
+    Sint32; as Float32 {50, 22}, as Sint32 {50} or as a Sint32 scalar → no cone *[choice]* (§7).
 16. **Persistence**: write → read → write is byte-identical (v9, two departments, three hotspots); version 7 →
     false; a version-8 record with one extra grid reference loads, has no departments, and re-stamps landmarks at
     PostCityInit; version 10 is rejected by FreeCity4 *[choice]*. **Read into a used object** (§11.3): an object

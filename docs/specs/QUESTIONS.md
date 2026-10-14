@@ -939,8 +939,13 @@ each cycle-completed message `0x2A09B21A`). The glue's current answer is in brac
   +0x10, uint16 count +0x14, allocator B; 0 or 1 maps in saves). The original walks every map and entry; a
   residential key with count 0 counts as seen, and keys outside the 12 types count in the total. Saves hold 0
   counts, so read the container through slot 54. docs/abi row in the lane report.
-- **AU4:** `RefSint32` on a non-Sint32 property: a Uint32 is accepted bitwise, anything else counts as absent.
-  Right? [as stated]
+- ~~**AU4:** `RefSint32` on a non-Sint32 property: a Uint32 is accepted bitwise, anything else counts as absent.
+  Right? [as stated]~~ **ANSWERED 2026-10-14** from the exe (`DoOccupantChanged` `0x0068ECF0`; `RefSint32` slot
+  105 body `0x0060CE80`, shared by every `RefX` slot; `GetValSint32` `0x00917721`) and written into aura.md §7 ("How
+  the values are read") and test 15. **The bracket is a sound choice, with one addition.** The original checks
+  neither type nor count: it uses the word at variant + 4 as an int32 array. Uint32 arrays read bit for bit (as the
+  bracket); other element types give meaningless values; a scalar's value is used as a pointer (crash); a
+  one-value array reads the radius past the end. *[choice]* also treat fewer than 2 values as absent.
 - **AU5:** the safe lot iterator's layout is not in `docs/abi`; the glue walks cells with `GetLot(x, z, false)`,
   takes each lot once and re-checks the pointer at the next step. Layout of the iterator? [cell walk]
 - **AU6:** the game-data registry node "aura" is a stub. What does the original publish there? [stub]
