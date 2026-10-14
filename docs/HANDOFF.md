@@ -7,10 +7,10 @@ operating knowledge that is still true.
 
 ## 0. Current state
 
-*Last updated 2026-10-14, at the merge of `apply6c` (`4e6d6b8`) and run 103.*
+*Last updated 2026-10-14, at the merge of `harness` (`6147be6`), after run 103.*
 
-- **main:** `FC4_ABI_VERSION` 35, 171 plugin switches, 658 conformance vectors. Last gate (apply6c): cargo all green,
-  clippy clean, ctest 100 %. Every glue except the simulator and the budget is off by default (`enable = <key>`).
+- **main:** `FC4_ABI_VERSION` 41, 171 plugin switches, 658 conformance vectors. Last gate (harness): cargo 1717/0,
+  clippy clean, ctest 43/43. Test switches `sim_turbo`, `autotest_end_date`, `script` (engine/README). Every glue except the simulator and the budget is off by default (`enable = <key>`).
 - **Milestones** (details in the README): M0, M1 and M2 done. **M3 exit met in run 103** (regress r6c): every grid
   shadow exact, including power 463/463, plumbing 179/179 and landfill 89/89, zero INCOMPLETE lines. M4: all cores
   merged; glue merged for residential, zones phase 1 and development (BDS + growth developers, opt-in), but the
@@ -26,7 +26,7 @@ Resume a paused lane with `SendMessage` to its agent ID; its worktree and transc
 
 | Lane | Agent ID | Worktree (`.claude/worktrees/`) / branch | Reserved | State |
 |---|---|---|---|---|
-| harness: `sim_turbo`, `autotest_end_date`, `script = <file>` | `a313b6961fe7dfb95` | `agent-a313b6961fe7dfb95` | ABI 41, seam op 46 | running |
+| harness: `sim_turbo`, `autotest_end_date`, `script = <file>` | `a313b6961fe7dfb95` | `agent-a313b6961fe7dfb95` | ABI 41, seam op 46 | **merged** `6147be6`; not yet run in game |
 | game slots (tools only): several game instances at once (`-UserDir` per slot, the `SimCity 4 Mutex` handle swapped), `ingame_run -Slot`, `regress -Parallel`, a per-worktree run queue (`tools/game_queue.ps1`, `docs/harness.md`), regress deltas | `a7cd31c14f8cfa636` | `agent-a7cd31c14f8cfa636` | - | running; owns the game while it works |
 | development glue fixes (devglue2) | `a054ba812e30f4fd3` | `agent-a054ba812e30f4fd3` / `devglue2` | ABI 42 if needed | paused; fix list sent (below) |
 | traffic glue phase 1 (M5) | `ae77339e1cc706c17` | `agent-ae77339e1cc706c17` | ABI 37, seam op 42 | paused |

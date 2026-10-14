@@ -107,6 +107,8 @@ budget is off by default (enable = <key>). Milestones are defined in
 
 **Cross-cutting**
 - [x] Interface/ABI reference for implementers: allocators, layouts, direct calls ([docs/abi/](docs/abi/))
+- [x] Test harness switches in the plugin (6147be6, tooling, off by default): `sim_turbo` (our clock without the msPerDay wait), `autotest_end_date`, `script = <file>` (dated zone / dezone / speed / digest actions through the game's interfaces); not yet run in game
+- [ ] Parallel game slots and a per-lane run queue (tooling lane running)
 - [ ] SDK errata (289 findings) re-checked against upstream gzcom-dll and reported (needs the owner's OK)
 - [ ] In-game manual checklist ([docs/manual-checks.md](docs/manual-checks.md)): two human checks remain, the budget window's look and the cheats (`RiskyMoney`, `WeaknessPays`, `Moolah`)
 
