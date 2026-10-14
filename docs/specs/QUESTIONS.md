@@ -1401,9 +1401,13 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
 - ~~**TS27:** default `trafficUnitsPerSlice`? [16 until calibrated]~~ **ANSWERED 2026-10-14**: no original behaviour;
   the implementer's choice stands. The original slices by a 4 ms wall-clock deadline tested once per unit (§3.3 step
   1, §3.4), so it has no units-per-slice constant. Note added to traffic-simulator.md §3.4.
-- **TS28 — tuning reads with short or missing data:** fewer vector entries [the rest keep their value]; the
+- ~~**TS28 — tuning reads with short or missing data:** fewer vector entries [the rest keep their value]; the
   strategy re-read with fewer than 3 values [missing ones unchanged]; missing ordinance offsets [0]; wealth above 3
-  [zeros].
+  [zeros].~~ **ANSWERED 2026-10-14** from the exe (`0x00716AE0`, `0x00711810`, `0x00718BB0`). Vectors: no, each
+  has its own fill (speeds to none, costs/capacities/start costs to 0.0, bools to true, background to 1.0); the
+  tile costs are reset even when missing, and income reads past the array (*[choice]* 0.0). The strategy and
+  ordinance arrays read past their data when short, and wealth > 3 reads the following members. The brackets stand
+  as *[choice]*s there; a missing ordinance property adds nothing. Written into traffic-simulator.md §4.1.2, §4.14.
 - **TS29:** max funding conversion from percent? [`r24(v / 100)`]
 - **TS30:** does Read commit only on success? [yes: parsed first; a failed Read leaves the simulator unchanged]
 - **TS31:** an unknown iterator-state byte in the record? [Done]

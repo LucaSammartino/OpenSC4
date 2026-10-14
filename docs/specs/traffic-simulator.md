@@ -483,6 +483,17 @@ property `0x8A612FEE` (s32[9], read without a size check *[quirk]*; ordinance.md
 `pct[w][s]` for w = 1…3, clamping each sum to 0…100. Runs at Init and on `OrdinanceUpdated`. *[quirk]* When the
 exemplar is missing, the re-read is skipped and the ordinance offsets accumulate on every update.
 
+Short or missing data (TS28):
+
+- **Strategy property.** A missing `0x4953E8A3 + w` leaves `pct[w]` unchanged. A present one is read as raw bytes
+  (no type check), and its first three bytes are copied whatever its length (`0x00711899`). With fewer than 3 bytes
+  the original reads past the copied data. *[choice]* The missing ones keep their value.
+- **Ordinance offsets.** An ordinance with no `0x8A612FEE` (or no property holder) adds nothing. With fewer than 9
+  entries the original reads past the array (`0x007119A0`). *[choice]* Entries past the end count as 0.
+- **Wealth above 3.** `GetTravelStrategyPercentages(w)` reads the three bytes at `pct + 3w` with no bound
+  (`0x00718BD6`). For `w = 4` that is the intersection-effect count byte (§4.14) and two padding bytes; higher `w`
+  reads further members. *[choice]* Return three zeros for `w > 3`.
+
 `GetTravelStrategyPercentages(w, vector<float>* out)` (slot 26) resizes `*out` to 3 (allocator B) and writes
 `out[s] := r24(float(pct[w][s]) × 0.01f)` (dword constant).
 
@@ -1215,6 +1226,22 @@ missing.
 | `0x0CAAAEB8` | (commercial traffic scale) | 0.128 | 0.128 | `commercialScale`, §4.9 |
 
 Then `UpdateTravelStrategies` (§4.1.2). `0xA92356B2` (Mass Transit Usage Chance) is not read by this function.
+
+**Short and missing arrays** (TS28). Each array read has its own rule; "the rest" means the target entries past the
+property's count. Entries past the target's size are ignored.
+
+| Property | Missing | Fewer entries |
+|---|---|---|
+| `0x491332E7 + t` max speed (13) | all 13 of type `t` reset as for `v ≤ 0` (speed 0, inverse `FLT_MAX`) | the rest reset the same way |
+| `0x6A84493E` network tile cost (13) | all 13 := 0.0. There is no presence test (`0x00716D34`) | the rest := 0.0 |
+| `0xA92356B1` income per tile (9) | unchanged | all 9 are copied with **no count check** (`0x00716E07`), so the original reads past the array *[quirk]*. *[choice]* the rest := 0.0 |
+| `0xA92356B3` capacity (13) | unchanged | the rest := capacity 0.0, `invCapacity` 1.0 |
+| `0xA92356B4`, `0xA92356BF`, `0xA92356B5` bools (9) | unchanged | the rest := true |
+| `0xA92356BB` intersection effects | unchanged | the count is the array's own, stored as a u8 (`0x00717172`), so a count ≥ 256 wraps; reciprocals of that many entries |
+| `0xA92356BC`, `0xEA8C3CDB`, `0xCAD64136` start costs (9) | unchanged | the rest := 0.0 |
+| `0xA92356BE` background traffic (3) | unchanged | the rest := 1.0 |
+
+The shipped exemplar gives full arrays everywhere, so only modified tuning reaches these rules.
 
 **Shipped "Max speed by Network"** (`0x491332E7 + t`, 13 floats each). Source: the Traffic Simulator exemplar
 `0xC9133286` in `SimCity_1.dat` (dump `re/tuning/simulators.md`). Columns are the network types in index order. A
