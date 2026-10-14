@@ -107,7 +107,12 @@
 //         messages, a SimCycleComplete, PostCityShutdown); returns the cycle's
 //         difference count, -1 (not run) or -2 (ran, nothing compared: the
 //         baseline or INCOMPLETE); a message: 1 mirrored, 0 not.
-//         (25 is held by a parallel glue lane.)
+//   op 25 kFC4SeamResidentialShadow a = const FC4ResidentialShadowTestInput*
+//         (FC4ResidentialShadow.h): one SimNewDay delivery to a fake
+//         "original" residential simulator, wrapped by the residential shadow
+//         (its record captured before and after through its own Write, its
+//         slots 16 / 32-34 read after); returns the delivery's difference
+//         count, -1 (not taken) or -2 (taken, nothing compared).
 //   op 26 kFC4SeamRawArrayBytes    a = cISCPropertyHolder*, b =
 //         FC4RawArrayBytesTestIo*: fc4::props::GetRawArrayBytes of property
 //         b->id (the crime effect read, crime.md §6.10 / CQ13): b->len = the
@@ -174,6 +179,7 @@ enum : uint32_t {
     kFC4SeamPlumbingShadow = 22,
     kFC4SeamLandValueShadow = 23,
     kFC4SeamFlammabilityShadow = 24,
+    kFC4SeamResidentialShadow = 25,
     kFC4SeamRawArrayBytes = 26,
     kFC4SeamLotCenter = 27,
     kFC4SeamCellCenter = 28,

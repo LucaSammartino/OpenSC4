@@ -1,0 +1,347 @@
+{
+  "format": 1,
+  "name": "zn15_40_highlight_jog_street",
+  "spec": [
+    "zones 7.1",
+    "zones 7.3",
+    "zones 7.4",
+    "zones 7.10",
+    "zones 7.12"
+  ],
+  "description": "Conformance test 33e (ZQ4): test 23 as a preview (HighlightParcels, type 4, no point). The Place calls are test 23's, all with realMode false: Place(10, 10, 15, 10), then Place(x, 10, x, 10) for x = 10..15. The parcellizable region and ExamineCell see the drafts on z = 10 through ExistsNetworkOfType (the street bit asks the street stub), so the component and the scores are test 23's: x 10..15 × z 11..13; S = {180, 3, 6, 3}, C = {1, 0, 0, 0}, D = 0, Q = 3, flag 1. 18 virtual-lot entries: (10..11, 11..13) → {10, 11, 0}, (12..13, 11..13) → {12, 11, 0}, (14..15, 11..13) → {14, 11, 0}. No real street is laid; *out is the input region (rect {10, 10, 15, 13}).",
+  "steps": [
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 3,
+          "rect": [
+            12,
+            5,
+            12,
+            9
+          ]
+        }
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_options",
+      "alternate": false,
+      "streets": true,
+      "custom": false
+    },
+    {
+      "op": "zone_lot_size",
+      "width": 2,
+      "depth": 2,
+      "min_depth": 1,
+      "max_depth": 3,
+      "block": 6
+    },
+    {
+      "op": "zone_zones",
+      "rect": [
+        10,
+        10,
+        15,
+        13
+      ],
+      "v": 4
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_highlight_parcels",
+      "region": {
+        "rect": [
+          10,
+          10,
+          15,
+          13
+        ]
+      },
+      "type": 4,
+      "point": null,
+      "expect_out": {
+        "rect": [
+          10,
+          10,
+          15,
+          13
+        ],
+        "count": 24
+      }
+    },
+    {
+      "op": "zone_expect",
+      "state": {
+        "lot_count": 0,
+        "real_mode": true,
+        "current_zone": 0,
+        "highlight_point": null,
+        "levelling_count": 0,
+        "locked_lots": 0,
+        "orientation_d": 0,
+        "orientation_q": 3,
+        "orientation_flag": true,
+        "scores": [
+          180,
+          3,
+          6,
+          3
+        ],
+        "conditions": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "deferred": [
+          true,
+          false
+        ],
+        "virtual_lots": [
+          [
+            10,
+            11,
+            10,
+            11,
+            0
+          ],
+          [
+            10,
+            12,
+            10,
+            11,
+            0
+          ],
+          [
+            10,
+            13,
+            10,
+            11,
+            0
+          ],
+          [
+            11,
+            11,
+            10,
+            11,
+            0
+          ],
+          [
+            11,
+            12,
+            10,
+            11,
+            0
+          ],
+          [
+            11,
+            13,
+            10,
+            11,
+            0
+          ],
+          [
+            12,
+            11,
+            12,
+            11,
+            0
+          ],
+          [
+            12,
+            12,
+            12,
+            11,
+            0
+          ],
+          [
+            12,
+            13,
+            12,
+            11,
+            0
+          ],
+          [
+            13,
+            11,
+            12,
+            11,
+            0
+          ],
+          [
+            13,
+            12,
+            12,
+            11,
+            0
+          ],
+          [
+            13,
+            13,
+            12,
+            11,
+            0
+          ],
+          [
+            14,
+            11,
+            14,
+            11,
+            0
+          ],
+          [
+            14,
+            12,
+            14,
+            11,
+            0
+          ],
+          [
+            14,
+            13,
+            14,
+            11,
+            0
+          ],
+          [
+            15,
+            11,
+            14,
+            11,
+            0
+          ],
+          [
+            15,
+            12,
+            14,
+            11,
+            0
+          ],
+          [
+            15,
+            13,
+            14,
+            11,
+            0
+          ]
+        ],
+        "virtually_deleted": [],
+        "drafts": [
+          [
+            3,
+            10,
+            10,
+            8,
+            [
+              0,
+              0,
+              1,
+              0
+            ]
+          ],
+          [
+            3,
+            11,
+            10,
+            8,
+            [
+              1,
+              0,
+              1,
+              0
+            ]
+          ],
+          [
+            3,
+            12,
+            10,
+            8,
+            [
+              1,
+              0,
+              1,
+              0
+            ]
+          ],
+          [
+            3,
+            13,
+            10,
+            8,
+            [
+              1,
+              0,
+              1,
+              0
+            ]
+          ],
+          [
+            3,
+            14,
+            10,
+            8,
+            [
+              1,
+              0,
+              1,
+              0
+            ]
+          ],
+          [
+            3,
+            15,
+            10,
+            8,
+            [
+              1,
+              0,
+              0,
+              0
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "op": "zone_expect_parcel_log",
+      "log": [
+        "P(10,10,15,10) draft",
+        "P(10,10,10,10) draft",
+        "P(11,10,11,10) draft",
+        "P(12,10,12,10) draft",
+        "P(13,10,13,10) draft",
+        "P(14,10,14,10) draft",
+        "P(15,10,15,10) draft"
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_network_of_type",
+      "args": [
+        12,
+        10,
+        8
+      ],
+      "expect": false,
+      "note": "no real street was laid"
+    }
+  ]
+}

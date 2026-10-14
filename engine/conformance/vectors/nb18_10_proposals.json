@@ -23,7 +23,7 @@
     {"op": "neighbors_expect", "deals": []},
 
     {"op": "neighbors_env", "figures": {"power_department_expenses": 5001}},
-    {"op": "neighbors_call", "method": "update_commodity_stats", "args": [1]},
+    {"op": "neighbors_call", "method": "update_commodity_stats", "args": ["city"]},
     {"op": "neighbors_expect", "city": 1, "city_state": {"cost_per_unit": [1.0, 0.00001, 0.00001]}},
     {"op": "neighbors_call", "method": "get_deal_cost", "args": ["E1", 1000, 2], "expect": 1311.4286},
     {"op": "neighbors_city", "id": 2, "budget": 78684},

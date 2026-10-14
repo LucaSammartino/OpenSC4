@@ -181,6 +181,12 @@ INTERFACES = [
     ("cISC4LandfillDeveloper", "cFC4ISC4LandfillDeveloper", FC4, True),
     ("cISC4LandfillOccupant", "cISC4LandfillOccupant", "cISC4LandfillOccupant.h", True),
     ("cISC4TrafficNetworkMap", "cFC4ISC4TrafficNetworkMap", FC4, True),
+    # Residential (docs/specs/residential.md section 10): implemented through the
+    # compiled slot order (the vt: row above also checks the class slots), and
+    # the sub-object interfaces of its own vtables.
+    ("cISC4ResidentialSimulator", "cFC4ISC4ResidentialSimulator", FC4, True),
+    ("cIGZSerializable(Residential)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZMessageTarget2(Residential)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
     # Crime type names (crime.md section 7 step 3; lua-host.md section 10.1).
     ("cISCStringDetokenizer", "cFC4ISCStringDetokenizer", FC4C, True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.

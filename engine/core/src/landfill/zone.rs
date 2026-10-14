@@ -241,7 +241,8 @@ impl LandfillZone {
         let centre = CellRegion::centre_cell(rect);
         let effects = self.host.init_zone_effects(centre, rect);
         self.d.borrow_mut().effects = effects;
-        // An exact compare: −0.0 == 0.0 (a NaN is not 0.0).
+        // An exact compare (LF2: `FUCOMPP` against +0.0, ordered equal
+        // only): −0.0 == 0.0, a NaN is not 0.0.
         if self.level_altitude() == 0.0 {
             let a = self.host.cell_altitude(centre.0, centre.1);
             self.set_level_altitude(a);
@@ -341,7 +342,10 @@ impl LandfillZone {
     ///    := old mask cells ∪ region mask cells.
     /// 3. For each region mask cell (`x` outer, `z` inner):
     ///    `LevelRect((x, z, x+1, z+1), levelAltitude, false)` — including cells
-    ///    already in the zone.
+    ///    already in the zone. The rect is inclusive, so each cell levels the
+    ///    2×2-cell block (vertices `x..x+2 × z..z+2`), chained cell by cell
+    ///    and reaching one cell past the region's +x and +z edges (LF5,
+    ///    `0x006BC150`).
     /// 4. Rebuild the heap grid for the new `W × H`: all heaps new, then each
     ///    **old** heap copied with all its fields to index
     ///    `old.hz × W + old.hx`. *[quirk 4]* The old local coordinates are not

@@ -43,6 +43,8 @@
 #include "cFC4Landfill.h"
 #include "FC4LandValueShadow.h"
 #include "FC4FlammabilityShadow.h"
+#include "FC4ResidentialShadow.h"
+#include "cFC4Residential.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -173,6 +175,12 @@ const ClassEntry kLandfillClasses[] = {
     {0xEA09D4AE, "cSC4LandfillDeveloper", &CreateFC4LandfillDeveloper},
 };
 
+// docs/specs/residential.md §1 and residential-education-health.md. Off by
+// default (M4 glue trial): `enable = residential`.
+const ClassEntry kResidentialClasses[] = {
+    {kFC4_CLSID_cSC4ResidentialSimulator, "cSC4ResidentialSimulator", &CreateFC4ResidentialSimulator},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -191,6 +199,8 @@ const Subsystem kSubsystems[] = {
     {"aura", nullptr, kAuraClasses, sizeof(kAuraClasses) / sizeof(kAuraClasses[0]), false},
     {"flora", nullptr, kFloraClasses, sizeof(kFloraClasses) / sizeof(kFloraClasses[0]), false},
     {"landfill", nullptr, kLandfillClasses, sizeof(kLandfillClasses) / sizeof(kLandfillClasses[0]), false},
+    {"residential", nullptr, kResidentialClasses, sizeof(kResidentialClasses) / sizeof(kResidentialClasses[0]),
+     false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -303,6 +313,8 @@ void Resolve() {
     // FC4FlammabilityShadow.h; they compare the original simulators).
     LandValueShadowStartup(enabledKey("landvalue"));
     FlammabilityShadowStartup(enabledKey("flammability"));
+    // The residential shadow (FC4ResidentialShadow.h; it compares the original residential simulator).
+    ResidentialShadowStartup(g_enabled[0], enabledKey("residential"));
 }
 
 }  // namespace

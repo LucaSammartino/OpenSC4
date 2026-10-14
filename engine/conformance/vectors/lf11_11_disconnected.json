@@ -2,7 +2,7 @@
   "format": 1,
   "name": "lf11_11_disconnected",
   "spec": ["landfill 4.7.2", "landfill 4.7.5", "landfill 11"],
-  "description": "Conformance test 11. A zone that is not connected takes nothing (no put_in, supply unchanged) but still decays (10000 -> 9300); a zot 0x107A0000 goes to the first mask cell spiralling from the centre, here the centre (11, 21) itself, at (16x + 8, terrain + 3.0, 16z + 8); the zone counts for nothing in capacityTotal, usedTotal and SetGarbageCapacity. A second disconnected month keeps the one zot. Once connected, the next month removes the zot and the zone counts again (4 heaps x 67500). Zone 1, with its centre and the ring's first cell cleared, puts its zot on the next ring cell (31, 20) [choice: ring order clockwise from the top-left corner, spec question].",
+  "description": "Conformance test 11. A zone that is not connected takes nothing (no put_in, supply unchanged) but still decays (10000 -> 9300); a zot 0x107A0000 goes to the first mask cell spiralling from the centre, here the centre (11, 21) itself, at (16x + 8, terrain + 3.0, 16z + 8); the zone counts for nothing in capacityTotal, usedTotal and SetGarbageCapacity. A second disconnected month keeps the one zot. Once connected, the next month removes the zot and the zone counts again (4 heaps x 67500). Then the two worked examples of 4.7.5 (LF4: ring r starts at (cx + r, cz - r + 1) and runs +z, -x, -z, +x): the same 3 x 3 zone disconnected with its centre (11, 21) dezoned puts its zot on (12, 21), the first ring-1 cell (a top-left-corner order would give (10, 20)); a fresh developer with a zone over x 10..14, z 20..22 where only (10, 20) and (14, 22) are set puts its zot on (14, 22), because ring 2 clipped to the rect runs (14, 20), (14, 21), (14, 22), (10, 22), (10, 21), (10, 20).",
   "steps": [
     {"op": "landfill_create"},
     {"op": "landfill_zone", "rect": [10, 20, 12, 22]},
@@ -21,9 +21,17 @@
     {"op": "landfill_expect_event_count", "filter": {"event": "zot_remove"}, "count": 1},
     {"op": "landfill_expect", "state": {"zots": 0, "capacity_total": 270000}, "zone_state": {"connected": true, "zot": null}},
     {"op": "landfill_env", "connected": false},
-    {"op": "landfill_zone", "rect": [30, 20, 32, 22]},
-    {"op": "landfill_set", "zone": 1, "clear_cells": [[31, 21], [30, 20]]},
+    {"op": "landfill_set", "zone": 0, "clear_cells": [[11, 21]]},
+    {"op": "landfill_clear_events"},
     {"op": "landfill_month"},
-    {"op": "landfill_expect", "zone": 1, "zone_state": {"zot": [504, 273, 328]}}
+    {"op": "landfill_expect_events", "filter": {"event": "zot_add"}, "events": [{"event": "zot_add", "pos": [200, 273, 344]}]},
+    {"op": "landfill_expect", "zone": 0, "zone_state": {"connected": false, "zot": [200, 273, 344]}},
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 20, 14, 22]},
+    {"op": "landfill_set", "zone": 0, "clear_cells": [[10, 21], [10, 22], [11, 20], [11, 21], [11, 22], [12, 20], [12, 21], [12, 22], [13, 20], [13, 21], [13, 22], [14, 20], [14, 21]]},
+    {"op": "landfill_clear_events"},
+    {"op": "landfill_month"},
+    {"op": "landfill_expect_events", "filter": {"event": "zot_add"}, "events": [{"event": "zot_add", "pos": [232, 273, 360]}]},
+    {"op": "landfill_expect", "zone": 0, "zone_state": {"connected": false, "zot": [232, 273, 360]}}
   ]
 }

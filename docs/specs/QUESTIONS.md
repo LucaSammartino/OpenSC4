@@ -1437,6 +1437,11 @@ brackets.
   a 2×2 block of adjusted tracts, (7..8, 53..54), is 81 in the original and 65 in ours (max |d| 21; raw grid
   identical). One lot's flammability contribution changed in a way the mirror missed or counted differently: which
   event sets an adjusted tract outside the day visit (a lot condition or occupant change mid-cycle)?
+- **FL6 — second occurrence (run 83, coordinator):** 69 of 70 compared cycles exact; in cycle 15 (2027-08-11)
+  595 adjusted tracts differ (raw grid identical; max |d| 21), starting with the column (0, 42..46): 100/80,
+  106/85 original/ours, the city average 43 against 40..41. The original is about 1.25 times ours, the same ratio
+  as FL5's 81/65, so a ×1.25 factor reached a whole region mid-cycle. Which event applies it (a fire, a disaster or
+  an ordinance), and does it go through the day visit?
 
 ## From applying the data-format answers (filed by the coordinator from the `apply4a` lane's report, 2026-10-14)
 
@@ -1514,3 +1519,24 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
 - **RG19:** what goes in a strike message's data1? [0]
 - **RG20:** `GetBuildingMapKey` returns 32 bits; only the low 8 are used. Right? [yes]
 - **RG21:** the strike clock seed is `time() + 2177452800` (the cRZTime epoch), as in crime. [yes]
+- **RG22 — `docs/abi`:** residential slots 37/38 (`GetCellEQByWealth`/`GetCellHQByWealth`) are `via-call`, low
+  confidence, in `interfaces.tsv`, while residential.md §10.1 says ST0 (they end by calling the float grid's
+  `GetTractValue`, x87 high). Should the rows say x87? [declared float, on the spec's word]
+
+## From applying the pathfinder, zones, landfill and neighbours answers (filed by the coordinator from the `apply4b` lane's report, 2026-10-14)
+
+About PF1–PF15, ZQ4/ZQ7–ZQ10, LF1–LF5 and NB1–NB17 as applied in the core. The current answer is in brackets.
+
+- **TN26 — traffic-network §2.7:** the sweep and the edge pass when Z < X: where do they stop? [at the array end]
+- **TN27 — §2.7:** `FindNeighborConnection` and the pool-ID lookup for travel types above 8. [no types match]
+- **TN28 — §2.7:** `GetTrafficNeighborConnection` for a corner cell or a cell inside the city. [an empty record]
+- **ZQ11 — zones test 33:** a second draft `Place` on the same cell. [the mask bytes are merged (OR); inferred]
+- **ZQ12 — zones test 33:** a draft `Place` over a cell that already has a network. [no draft, as a real `Place`]
+- **LF6 — LF3:** should the core add the message-server release callback (an ABI bump) to match the original's
+  shutdown order? [no: one `release_services` call after the zones shut down; LF3 says the difference cannot be
+  observed]
+- **NB18 — NB12:** the shim supplies the game's global `cISC4City` pointer through the new host method
+  `current_city_object`. Is that the object `UpdateCommodityStats` compares against? [yes; the test hosts use a
+  token distinct from every regional city ID]
+- Not applied: PF6 beyond the record level (pools, capacities and the roll stay traffic-simulator host methods, as
+  the answer says); NB12/NB17 glue (there is no neighbours glue yet).

@@ -727,6 +727,8 @@ impl NetworkModel {
             s.switch_id = super::GridProvider::<u32>::create_grid(cx.h, super::SWITCH_ID_GRID_ID, 1);
             // Step 6: the water pathfinder.
             s.water.init(s.count_x, s.count_z);
+            // The neighbour connection edge records, all (0, 0, 0.0) (§2.7).
+            s.init_neighbour_edges();
             // "network changed" is set at Init (§2.3).
             s.network_changed = true;
         });
