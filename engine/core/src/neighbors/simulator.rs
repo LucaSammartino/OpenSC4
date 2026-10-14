@@ -245,10 +245,13 @@ impl NeighborsSimulator {
             }
         }
         // 5.
-        let adjacent = self.adjacent_cities(false);
-        for &c in &adjacent {
+        for c in self.adjacent_cities(false) {
             self.host.reload_city(c);
         }
+        // *[compat]* `ReloadCity` replaces the region's city object: no city
+        // from before the reloads is used again. The adjacent cities (step 7)
+        // and `R` (step 6) are asked for again.
+        let adjacent = self.adjacent_cities(false);
         // 6.
         let current = self.host.current_city();
         if let Some(r) = current {

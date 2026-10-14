@@ -43,10 +43,11 @@ use fc4_core::neighbors::{
 };
 use fc4_core::property::PropertyHolder;
 use fc4_core::stream::SaveObject;
+use fc4_core::variant::{mem, Variant};
 
 use crate::budget::fc4_token_callback;
 use crate::guard;
-use crate::hostgrid::{native_variant, take_props};
+use crate::hostgrid::{native_variant, take_props, NativeVariant};
 use crate::props::fc4_props;
 use crate::stream::{fc4_istream, fc4_ostream, istream_ok, ostream_ok, CIn, COut};
 
@@ -1549,10 +1550,33 @@ pub unsafe extern "C" fn fc4_neighbor_connection_set_props(h: *mut fc4_neighbor_
     with_conn(h, (), |c| c.set_properties(p))
 }
 
+/// A connection property in the game's native layout, arrays included (the
+/// shared `native_variant` delivers scalars only: its type check sees the
+/// array flag). `None` for empty, pointer, object and raw void values.
+fn connection_property(v: &Variant) -> Option<NativeVariant> {
+    let Variant::Array { elem, items } = v else {
+        return native_variant(v);
+    };
+    if !(mem::BOOL..=mem::RZ_CHAR).contains(elem) {
+        return None;
+    }
+    let mut bytes = Vec::new();
+    for e in items {
+        bytes.extend(native_variant(&Variant::Scalar(*e))?.bytes);
+    }
+    Some(NativeVariant {
+        mem_type: *elem,
+        is_array: true,
+        count: items.len(),
+        bytes,
+    })
+}
+
 /// The connection's properties, one callback each in the holder's order (the
-/// host's live holder, after a `Read`). Types the game helpers do not take
-/// from the core (empty, pointers, objects) are left out. Returns the count
-/// delivered.
+/// host's live holder, after a `Read`), arrays included (the game writes its
+/// trip capacity, a u16 array, there: foundations §10.2). Types the game
+/// helpers do not take from the core (empty, pointers, objects) are left out.
+/// Returns the count delivered.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_neighbor_connection_props(
     h: *const fc4_neighbor_connection,
@@ -1564,7 +1588,7 @@ pub unsafe extern "C" fn fc4_neighbor_connection_props(
     let mut n = 0;
     for id in props.ids() {
         let Some(v) = props.get(id) else { continue };
-        if let Some(nv) = native_variant(v) {
+        if let Some(nv) = connection_property(v) {
             f(
                 ctx,
                 id,
