@@ -1,0 +1,239 @@
+{
+  "format": 1,
+  "name": "pf11_04c_apply_traffic_carpool",
+  "spec": [
+    "pathfinder 4.17",
+    "pathfinder 11.4"
+  ],
+  "description": "Conformance test 4 (§11) with the carpool ordinance: Q = ceil(r24(10 x 0.8f)) = 8 for Car nodes; volumes 8.0, counts 8.",
+  "steps": [
+    {
+      "op": "pf_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "the preamble street (0,3)...(4,3)"
+    },
+    {
+      "op": "pf_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "note": "the start lot"
+    },
+    {
+      "op": "pf_env",
+      "carpool": true
+    },
+    {
+      "op": "pf_create"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_travel_type_flag",
+      "args": [
+        2,
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_starting_cost_array",
+      "args": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_route_info",
+      "args": [
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_traffic_density",
+      "args": [
+        10
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 1
+    },
+    {
+      "op": "pf_call",
+      "method": "apply_traffic",
+      "args": [
+        0
+      ]
+    },
+    {
+      "op": "pf_expect_world",
+      "state": {
+        "volumes": [
+          [
+            1,
+            2,
+            3,
+            "0x41000000"
+          ],
+          [
+            1,
+            3,
+            3,
+            "0x41000000"
+          ],
+          [
+            1,
+            4,
+            3,
+            "0x41000000"
+          ]
+        ],
+        "income": "0x0000000000000000"
+      },
+      "note": "road volumes (network 1) of the three route cells; incomePerTile[Car] = 0"
+    },
+    {
+      "op": "pf_expect_edge",
+      "cell": [
+        4,
+        3
+      ],
+      "t": 1,
+      "evening": false,
+      "counts": [
+        [
+          0,
+          3,
+          8
+        ]
+      ]
+    },
+    {
+      "op": "pf_expect_edge",
+      "cell": [
+        4,
+        3
+      ],
+      "t": 1,
+      "evening": true,
+      "counts": []
+    },
+    {
+      "op": "pf_expect_edge",
+      "cell": [
+        3,
+        3
+      ],
+      "t": 1,
+      "evening": false,
+      "counts": [
+        [
+          0,
+          2,
+          8
+        ]
+      ]
+    },
+    {
+      "op": "pf_expect_edge",
+      "cell": [
+        3,
+        3
+      ],
+      "t": 1,
+      "evening": true,
+      "counts": []
+    },
+    {
+      "op": "pf_expect_edge",
+      "cell": [
+        2,
+        3
+      ],
+      "t": 1,
+      "evening": false,
+      "counts": [
+        [
+          1,
+          2,
+          8
+        ]
+      ]
+    },
+    {
+      "op": "pf_expect_edge",
+      "cell": [
+        2,
+        3
+      ],
+      "t": 1,
+      "evening": true,
+      "counts": []
+    },
+    {
+      "op": "pf_expect_world",
+      "state": {
+        "edge_density_keys": [
+          "0x00010203",
+          "0x00010303",
+          "0x00010403"
+        ]
+      }
+    }
+  ]
+}

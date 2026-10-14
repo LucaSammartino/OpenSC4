@@ -71,8 +71,9 @@ if ($groups) {
     }
 }
 
-# Shadow month lines: "<name> shadow month ..." or "<name> shadow (<part>) <date>:".
-$shadows = Select-String -Path $Log -Pattern "\] ([a-z]+) shadow (month|\([a-z ]+\) \d{4}-)" -CaseSensitive
+# Shadow comparison lines: any "<name> shadow ... <date> ...: ... mismatches=N" line (budget and demand per day or
+# month, "pollution shadow month to <date>" and its day lines, "protection shadow (fire) <date>").
+$shadows = Select-String -Path $Log -Pattern "\] ([a-z]+) shadow [^:]*\d{4}-\d\d-\d\d[^:]*:.*mismatches=" -CaseSensitive
 $sg = $shadows | Group-Object { $_.Matches[0].Groups[1].Value }
 if ($sg) {
     Write-Output ""

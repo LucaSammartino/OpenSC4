@@ -1,0 +1,221 @@
+{
+  "format": 1,
+  "name": "pf11_25_tunnel",
+  "spec": [
+    "pathfinder 4.8.3",
+    "pathfinder 4.15",
+    "pathfinder 4.16"
+  ],
+  "description": "Extra (§4.8.3 step 1). A tunnel joins (2,3) and (6,3) (mask 0x1FE, Car cost 0.5); (6,3) is a street. From the start node (2,3) side 0 the tunnel adds (6,3) with the unchanged entry side 0, g 0.5, the cheapest node; it is next to the end rect (6,4): trip length 0.5. The compressed route has a jump: 01 02 03, then 01 06 03 (no flag: (2,3) is in city without the ferry bit). Both cells are tunnel portals: reversible.",
+  "steps": [
+    {
+      "op": "pf_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "the preamble street (0,3)...(4,3)"
+    },
+    {
+      "op": "pf_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "note": "the start lot"
+    },
+    {
+      "op": "pf_street",
+      "cell": [
+        6,
+        3
+      ]
+    },
+    {
+      "op": "pf_tunnel",
+      "cell": [
+        2,
+        3
+      ],
+      "other": [
+        6,
+        3
+      ],
+      "cost": [
+        [
+          1,
+          0.5
+        ]
+      ]
+    },
+    {
+      "op": "pf_tunnel",
+      "cell": [
+        6,
+        3
+      ],
+      "other": [
+        2,
+        3
+      ],
+      "cost": [
+        [
+          1,
+          0.5
+        ]
+      ]
+    },
+    {
+      "op": "pf_create"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_travel_type_flag",
+      "args": [
+        2,
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_starting_cost_array",
+      "args": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_route_info",
+      "args": [
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_traffic_density",
+      "args": [
+        10
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        6,
+        4,
+        6,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 1
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "route": [
+          [
+            2,
+            3,
+            1
+          ],
+          [
+            6,
+            3,
+            1
+          ]
+        ],
+        "nodes": [
+          {},
+          {},
+          {
+            "cell": [
+              3,
+              3
+            ]
+          },
+          {
+            "key": "0x00010603",
+            "side": 0,
+            "g": "0x3F000000"
+          },
+          {},
+          {
+            "key": "0x0A010603",
+            "side": 2
+          }
+        ],
+        "result": 3
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "get_trip_length",
+      "expect": "0x3F000000"
+    },
+    {
+      "op": "pf_call",
+      "method": "get_compressed_route",
+      "expect": {
+        "bytes": "010203010603",
+        "mask": "0x00000002"
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "was_trip_reversible",
+      "expect": true
+    }
+  ]
+}

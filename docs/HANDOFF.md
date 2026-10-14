@@ -35,18 +35,23 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   - host grids released with `FC4_RELEASE_CREATED` (`bbe9181`);
 >   - spec answers part 1 (`ac19c1e`), part 2 (`5b305c6`), part 3 (`6d0a68a`: CR1 ConnectionsReady, TN4–TN14);
 >   - zones ZQ2/ZQ3/ZQ5/ZQ6 follow-up (`8ee3253`: tests 30–32 as vectors `zn15_32`–`zn15_35`; ZQ7–ZQ10 filed);
->   - **pollution glue + grid shadow** (merged after `d161d20`: `enable = pollution`, `pollution_shadow = 1`;
->     `FC4_ABI_VERSION` 17; PG1–PG13 filed; not yet run in game).
-> - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`, RE lanes in
->   `.claude/worktrees/re-answers` and `re-abi`):
->   - glue + grid shadow for protection and crime (each bumped `FC4_ABI_VERSION` to 17: renumber to 18/19 at merge,
->     and rerun `python tests/gen_abi_entries.py` after each merge);
->   - landfill + neighbors cores; the pathfinder core (M5); formats `exemplar.rs`;
->   - RE: TN15–TN19 and RS7–RS17 (`re-answers`); STLport map + BuildingProfile layout (`re-abi`).
+>   - **pollution glue + grid shadow** (`d743db2`; ABI 17; PG1–PG14 filed). In game: run 67 clean over 73 months;
+>     run 68 **shadow identical on all eight grids for 94 months**, one flag-only difference (`dirtyWater`, PG14);
+>   - **protection glue (fire + police) + grid shadow** (`29b3fcb`; ABI 18; 80 plugin switches; PR1–PR13 filed);
+>   - landfill tests 1–23 + **neighbours core** (`026fd9e`; LF1–LF5, NB1–NB17); `exemplar.rs` (`64a25d2`; EX1–EX20);
+>     **pathfinder core** (`36ababe`; 28 `pf11_*` vectors; PF1–PF15);
+>   - RE: `re-abi` (`4611f56`: STLport map/set layout, map `operator[]` direct call, BuildingProfile layout).
+> - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE in `.claude/worktrees/re-answers`):
+>   - glue + shadow: crime (takes ABI 19), aura, flora, landfill developer (each bumps the ABI; renumber at merge
+>     and rerun `python tests/gen_abi_entries.py`; fix the plugin switch-count checks in `plugin_load_test`);
+>   - demand glue fix: capacity maps and `GetLocalPopulationSummary` through the new STLport docs (run 61 found
+>     demand frozen);
+>   - traffic simulator core (M5), on the merged pathfinder;
+>   - RE `re-answers`: PG14 first, then TN15–TN19, RS7–RS17, PG1–PG3.
 > - **Open follow-ups:**
->   - flora and aura glue, residential glue (M3); demand glue fix once the ABI layouts land;
->   - the traffic simulator core after the pathfinder; a TN-apply lane after TN4–TN19;
->   - rerun the soak with the fixed `popup_dialogs` (power and plumbing now live) and pollution enabled.
+>   - residential glue and zones glue (M4); neighbours glue; a TN-apply lane after TN4–TN19 are all answered;
+>   - after each merge that stages a new DLL: `tools/regress.ps1 -Tag <tag>` (all shadows at once + all
+>     replacements at once, one table; `tools/run_summary.ps1 -Log <log>` summarises any single run).
 > - **Coordinator gate:** `build-runs/coord-full-verify.ps1 -Engine <worktree>\engine -Tag <tag>` (cargo summed,
 >   clippy, configure/build/ctest; it copies the SDK into worktrees that lack the submodule), then `rustfmt --check`
 >   on the touched files, run from `engine/` (it needs `engine/rustfmt.toml`; skip `lib.rs` roots).

@@ -1238,6 +1238,53 @@ strings (`"0000004005aa02"`).
 | `tn_expect_ferry` | `index`, `terminal` (null, or partial `{departure, arrival, water, lot, type, mask, reroute, links, neighbour_links}`) | the ferry terminal list |
 | `tn_expect_rng` | `expect?` | the generator's next `RandomUint32Uniform(100)` equals a fresh generator's with the same seed |
 
+## Pathfinder ops
+
+The pathfinder vectors (`pf11_…`) drive `fc4_core::pathfinder::Pathfinder` (`docs/specs/pathfinder.md`) over one
+scripted traffic simulator and city implementing `PathfinderHost`, with the network model's `NetworkState` set up cell
+by cell (no occupants: cell records, network info, switches, tunnels and ferry terminals are written directly). Every
+op name starts with `pf_`. The default world is the §11 preamble: an 8 × 8 city, `invMaxSpeed[Car][Street] = 1.5`
+(every other entry `FLT_MAX`), `Curve(0.0) = 1.0`, `affectedByTraffic[Car] = canReachDestination[Car] =
+generatesTraffic[Car] = true` (everything else false or 0, including the default starting costs and `incomePerTile`),
+NearestDestinationAttractiveness 1.0, MaxDistanceOriginToNetwork 1, no strike (state 0), trip scale 1.0, no carpool,
+all volumes and destination bytes 0, free counts 0. The timer never expires unless `deadline_reached` is set. The
+work-check statics (§4.11) are fresh for each vector ("fresh process") and shared by its pathfinders. Pathfinders are
+numbered by `pf?` (default 0).
+
+Floats are given and compared as exact bit patterns `"0x3C23D70A"` (upper case, 8 hex digits; a plain number is also
+accepted as input and converted to float32); the income accumulator (a double) as 16 hex digits; routes as lower-case
+hex byte strings; node keys and masks as `"0x…"` (8 hex digits).
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `pf_env` | any of `cells` (`[x, z]`: replaces the network with an empty one of that size, with the preamble speed and curve), `can_reach` / `generates` / `affected` (lists of travel types, replacing the table), `income_per_tile` (`[[t, v]]`), `default_start_cost` (9 values), `inv_max_speed` (`[[t, type, v]]`), `curve` (`[[x, y]]`), `transit_multiplier`, `attractiveness`, `max_distance`, `strike` (1 = strike), `trip_scale`, `carpool`, `free` (4 counts), `income` (the accumulator), `deadline_reached` | the simulator's tables and inputs |
+| `pf_cell` | `cell`, `cells` or `rect`, any of `conn` / `switch` (`[[t, word]]`), `prior_car` (4 words), `wormhole`, `info` (`[[network, type, inv_cap, extra_cost]]`, appended) | pokes cell connection records and network info |
+| `pf_street` | `cell`, `cells` or `rect` | the §11 preamble street cell: road info `{0.0625, Street, 0.0}`, `conn[Car] = 0x0104`, `switch[Car] = 0xFFFF`, `priorCar = 0xFFFF`, wormhole 0 |
+| `pf_lot` | `id`, `rect`, `holder?` (id + `0x10000`), `max?` / `used?` (the holder's 4 trip capacities), `dest?` (destination bits written on every cell of the lot) | a lot (`GetLot`, its holder, its bounding rect) |
+| `pf_capacity` | `holder`, `max?`, `used?` | `GetMaxTripCapacity` and the used capacity of a holder |
+| `pf_dest` | `cell`, `cells` or `rect`, `bits` | destination bitmask bytes (off-map cells allowed) |
+| `pf_volume` | `cell`, `cells` or `rect`, `n?` (1), `value` | volume grid values |
+| `pf_neighbor_cost` | `cell`, `cost` | `GetTrafficNeighborConnection` at an off-map cell (§4.13 step 3) |
+| `pf_pool` | `cell`, `cells` or `rect`, `holder`, `max?`, `used?` | the neighbour pool's property holder at off-map cells (§4.10.1) |
+| `pf_connection` | `cell` (in city), `mask`, `links` (`[[x, z, cost]]`, off-map points) | a neighbour connection with its link list (§4.6 off-map fallback) |
+| `pf_ferry` | `cell`, `mask`, `links?` (`[[x, z, cost]]`), `repeat?` (1: the link list is repeated), `neighbour_links?` (`[[off x, off z, edge x, edge z, cost]]`) | a ferry terminal departing at `cell`: wormhole bit 4, the terminal list and the departure table |
+| `pf_tunnel` | `cell`, `other`, `mask?` (`0x1FE`), `cost?` (`[[t, v]]`) | a tunnel portal: wormhole bit 2 and the tunnel table |
+| `pf_switch` | `id`, any of `load`, `capacity`, `time_factor`, and `cell`, `cells` or `rect` | a transit switch table entry and the switch ID grid |
+| `pf_create` / `pf_new` | `pf?` | `CreatePathFinder` (constructor, AddRef, Init) / the bare constructor |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `pf_call` | `pf?`, `method`, `args?`, `expect?` | the slots: `query_interface [iid]`, `add_ref`, `release`, `init`, `shutdown`, `set_flag [bits]`, `clear_flag [bits]`, `clear_all_flags`, `set_route_info [bool]` (a fresh deque or none), `set_trip_destination_filter [f]`, `set_destination_flag [bits]`, `clear_destination_flag [bits]`, `clear_all_destination_flags`, `set_travel_type_flag [mask, also starting]`, `clear_travel_type_flag [mask]`, `clear_all_travel_type_flags`, `set_starting_cost_array [9 floats or null]`, `set_max_trip_length [v]`, `set_traffic_density [n]`, `set_start_rect [x1, z1, x2, z2]`, `set_end_rect [x1, z1, x2, z2]`, `set_max_work_time [ms]`, `reset`, `find_path`, `get_traffic_arrived`, `get_trip_length` (bits), `get_trip_length_scaled_for_display` (bits), `get_end_cell` (`[x, z]`), `get_last_travel_type`, `get_compressed_route [initial hex?]` (`{bytes, mask}`), `was_trip_reversible`, `apply_traffic [style]`, `release_path_nodes`; and the internal `heuristic [x, z]` and `score [x, z, g]` (bits) |
+| `pf_expect` | `pf?`, `state` (partial: `ref_count`, `destroyed`, `initialised`, `city_size`, `flags`, `filter`, `destination_flags`, `allowed`, `starting`, `start_costs`, `trip_length`, `density`, `arrived`, `start_rect`, `end_rect`, `search_rect`, `excluded_rect`, `route` (`[[x, z, t]]` or null), `max_work_time`, `suspended`, `max_cost` (9), `weight`, `over_budget` (9), `disabled`, `node_count`, `nodes` (allocation order, each partial `{index, key, cell, t, side, g, f, parent, open, closed}`; the list length must match), `open_set` (node indices in heap order), `result` (node index or null), `end_cell`, `last_travel_type`, `destination_type_reached`, `park_and_ride` (`[x, z, side]`), `work_counter`) | the object's state |
+| `pf_work_check` | `set?` (`[m, a]`), `expect?` (`[m, a]`) | the shared work-check multiplier and adaptation counter |
+| `pf_expect_world` | `state` (partial: `volumes` (`[[n, x, z, bits]]`, every value written, sorted), `dest` (`[[x, z, bits]]`, every byte written, sorted), `free`, `income`, `edge_density_keys` (sorted), `switch_loads` (`[[id, bits]]`)) | the simulator side |
+| `pf_expect_edge` | `cell`, `t?` (1), `evening?` (false), `counts` (`[[entry, exit, value]]`) | the record's `current` counters: the listed ones, every other counter 0 (a missing record reads as zeros) |
+| `pf_eval` | `fn`, `args`, `expect` | pure functions: `heap_order [[f]]` (the pop order of pushes, §4.7), `boundary_cells [rect]`, `start_ring_cells [start, ring]`, `grow_clamp [rect, d]` (clamped to the world's city), `encode_route [[[x, z, t]]]` (`{bytes, mask}`, over the world's network), `encode_unit_steps [x0, z0, t, code, count]`, `distance_to_rect [x, z, rect]` (bits), `node_key [prefix, t, x, z]`, `bucket [key]` |
+
 ## Residential ops
 
 The residential vectors (`rs15_…` for the tests of `docs/specs/residential.md` §15, `rs00_…` for the rest) drive the
@@ -1416,7 +1463,7 @@ Neighbours events: `add_agent` (`level`, `name`, `flags`), `remove_agents`, `sub
    `pr18_…` (protection §18), `fo16_…` (flora §16), `bd11_…` (building development §11),
    `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `ld16_…` (lot developer §16),
    `zn15_…` (zones §15), `lf11_…` (landfill §11), `nb18_…` (neighbours §18), `tn11_…` (traffic network §11),
-   `rs15_…` (residential §15) and `rs00_…` (other residential behaviour).
+   `pf11_…` (pathfinder §11), `rs15_…` (residential §15) and `rs00_…` (other residential behaviour).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -2089,6 +2136,44 @@ Not covered by a vector, and why:
   are traffic-simulator.md's and not part of `fc4_core::traffic_network`.
 - **`GetFerryRoutesInUse` (§4.9.5)** needs rider counters, which only the simulator's ferry trips write; the vector
   world has no way to set them, so only the empty result is reachable (unit tests cover the list shape).
+
+## Coverage (pathfinder §11)
+
+| §11 item | Vector |
+|---|---|
+| 1 open-set tie order (d, e, b, c, a) | `pf11_01_open_set_tie_order` |
+| 2 straight street (ring cells, start nodes, node keys and order, the pushed-back goal, results, route, reversible) | `pf11_02_straight_street` |
+| 3 compressed route of test 2 | `pf11_03_compressed_route` |
+| 4 ApplyTraffic(0), style 2, carpool | `pf11_04a_apply_traffic`, `pf11_04b_apply_traffic_style2`, `pf11_04c_apply_traffic_carpool` |
+| 5 starting cost `0.4f` (the bits of every g, trip length) | `pf11_05_starting_cost` |
+| 6 budget (over-budget count 2, the max kept), the flag-2 fallback, the shared trip length as the next budget | `pf11_06a_budget`, `pf11_06b_nearest_on_failure`, `pf11_06c_shared_trip_length` |
+| 7 the 65th rejection disables the type; 64 do not | `pf11_07a_over_budget_disable`, `pf11_07b_over_budget_64` |
+| 8 boundary order | `pf11_08_boundary_order` |
+| 9 standard destination order | `pf11_09_standard_destination_order` |
+| 10 heuristic | `pf11_10_heuristic` |
+| 11 compressed route with jumps | `pf11_11_compressed_route_jumps` |
+| 12 run length limit | `pf11_12_run_length_limit` |
+| 13 check-interval adaptation | `pf11_13_check_interval_adaptation` |
+| 14 lifetime | `pf11_14_lifetime` |
+| extra: constructor values, QueryInterface, Init / Shutdown, configuration slots (§1, §2, §4.2) | `pf11_15_constructor_and_slots` |
+| extra: exit node (cost r24(f − g), key, goal off-map), neighbour connection cost for filter 3 (§10 Q1) | `pf11_16_exit_node_connection_cost` |
+| extra: exit cost outside the search rect (the heuristic term) | `pf11_17_exit_cost_heuristic` |
+| extra: off-map start fallback (§4.6) | `pf11_18_off_map_start` |
+| extra: switch move, park-and-ride cell, runs split by type, reversibility through a switch | `pf11_19_park_and_ride` |
+| extra: transit-switch entry cost, goal test skipped at switch cells, ApplyTraffic switch usage, per-type edges | `pf11_20_transit_switch` |
+| extra: the mass-transit strike masks switch transitions (§4.4 step 6) | `pf11_21_strike` |
+| extra: filter 0 in city (capacity, arrived), a stale destination cleared, the neighbour pool off-map | `pf11_22_standard_destination`, `pf11_23_stale_destination`, `pf11_24_neighbour_pool` |
+| extra: tunnel move and the jump record | `pf11_25_tunnel` |
+| extra: flag 4 (continue) keeps the nodes and the open set | `pf11_26_continue` |
+| extra: flag 8 (park-and-ride return, §4.8.4) | `pf11_27_park_and_ride_return` |
+| extra: ApplyTraffic income with the uncarpooled count and the 24-bit accumulator add | `pf11_28_income` |
+
+Not covered by a vector, and why:
+
+- **Suspension (§4.11)** is wall-clock dependent; the spec says conformance runs use max work time 0 (test 13 uses a
+  timer that never expires). A unit test drives the scripted timer through a suspend and resume.
+- **Filter 2 (§4.10.3)** has no setter in the interface (§10 Q2); the vector world answers no occupants.
+- **Subway-station transfers (§4.8.3 step 3)** are unreachable in 1.1.641 (no code sets wormhole bit 1).
 
 ## Coverage (residential §15)
 

@@ -315,6 +315,9 @@ struct ObserveCall {
 
 // observe month YYYY-MM: date=… julian=… funds=… income=… expense=…
 // tax[0..11]=… dept_expense=0xID:…,… demand R$/…/I-HT=… population R/C/I=…
+// power req/prod/cons/demand=… consumers powered/unpowered=… plants=… aged=…
+// distressed=… (the active power simulator's getters, power §10.1 slots 11,
+// 12, 17, 15, 22, 21, 24, 28, 29: the same line for the original and ours)
 void ObserveMonthStep(void* p) {
     auto* c = static_cast<ObserveCall*>(p);
     char* out = c->line;
@@ -367,6 +370,20 @@ void ObserveMonthStep(void* p) {
         } else {
             AppendF(out, cap, "/-");
         }
+    }
+    cFC4ISC4PowerSimulator* power = AsGame(city->GetPowerSimulator());  // borrowed
+    if (power != nullptr) {
+        AppendF(out, cap,
+                " power req/prod/cons/demand=%ld/%ld/%ld/%ld consumers powered/unpowered=%ld/%ld plants=%ld aged=%ld "
+                "distressed=%ld",
+                static_cast<long>(power->GetMonthlyRequirement()), static_cast<long>(power->GetMonthlyProduction()),
+                static_cast<long>(power->GetMonthlyConsumptionTotal()), static_cast<long>(power->GetMonthlyDemand()),
+                static_cast<long>(power->GetPoweredConsumerCount()),
+                static_cast<long>(power->GetUnpoweredConsumerCount()), static_cast<long>(power->GetPowerPlantCountAll()),
+                static_cast<long>(power->GetAgedPowerPlantCount()),
+                static_cast<long>(power->GetDistressedPowerPlantCount()));
+    } else {
+        AppendF(out, cap, " power=-");
     }
 }
 

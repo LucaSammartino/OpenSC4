@@ -17,6 +17,7 @@
 #include "FC4Checked.h"
 #include "FC4Config.h"
 #include "FC4BudgetShadow.h"
+#include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
@@ -31,6 +32,7 @@
 #include "cFC4Pollution.h"
 #include "FC4ProtectionShadow.h"
 #include "cFC4Protection.h"
+#include "cFC4Crime.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -140,6 +142,11 @@ const ClassEntry kProtectionClasses[] = {
     {0x6990C04F, "cSC4PoliceSimulator", &CreateFC4PoliceSimulator},
 };
 
+// docs/specs/crime.md §1. Off by default (M3 glue trial): `enable = crime`.
+const ClassEntry kCrimeClasses[] = {
+    {0x8990C09A, "cSC4CrimeSimulator", &CreateFC4CrimeSimulator},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -154,6 +161,7 @@ const Subsystem kSubsystems[] = {
      false},
     {"pollution", nullptr, kPollutionClasses, sizeof(kPollutionClasses) / sizeof(kPollutionClasses[0]), false},
     {"protection", nullptr, kProtectionClasses, sizeof(kProtectionClasses) / sizeof(kProtectionClasses[0]), false},
+    {"crime", nullptr, kCrimeClasses, sizeof(kCrimeClasses) / sizeof(kCrimeClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -245,6 +253,13 @@ void Resolve() {
         if (strcmp(kSubsystems[i].key, "pollution") == 0) PollutionShadowStartup(g_enabled[0], g_enabled[i]);
         if (strcmp(kSubsystems[i].key, "protection") == 0) ProtectionShadowStartup(g_enabled[i]);
     }
+    const auto enabledKey = [](const char* key) {
+        for (size_t i = 0; i < kSubsystemCount; ++i) {
+            if (strcmp(kSubsystems[i].key, key) == 0) return g_enabled[i];
+        }
+        return false;
+    };
+    CrimeShadowStartup(g_enabled[0], enabledKey("crime"));
 }
 
 }  // namespace

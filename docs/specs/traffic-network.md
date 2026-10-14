@@ -161,7 +161,7 @@ changes `flags`.
 | tunnel table | yes (corrected, traffic-simulator §6.1 row 17) | empty | SGI `hash_map<u16 portalKey, TunnelInfo>`, hint 100. Rebuilt from occupant-insert messages. |
 | ferry terminal list | no | empty | list of FerryTerminal (§2.6) |
 | ferry departure / arrival tables | no | empty | two SGI `hash_map<u16 cellKey, list position>`, hint 100 each |
-| ferry terminal count per ferry type [3] | no | 0 | at most 16 terminals per type |
+| ferry terminal count per ferry type [2] | no | 0 | at most 16 terminals per type. Only types 0 and 1 have a word (`+0x128`, `+0x12C`); type 2's word is another member's pointer (§4.9.1, §4.9.5, TN18) |
 | ferry pass state | no | idle | current terminal, inner position, neighbour-cell vector, phase (§4.9.3) |
 | subnetwork counter | no | 1 | next label to assign (u16) |
 | subnetwork info, working and published | no | empty | vectors of SubnetworkInfo (§4.12) |
@@ -662,7 +662,17 @@ listed types, leaves any existing record unchanged.
 #### 4.9.1 Terminal activation (DoFerryTerminalActivated `0x00723620`)
 
 1. `type` = property `0x0BD86FD3` (u8) of the building. Stop if it is missing, if `type > 2`, or if there are
-   already 16 terminals of that type.
+   already 16 terminals of that type (signed compare of the type's count word with 16, `0x0072368A`).
+
+   **Type 2 never activates** *[quirk]* (TN18). Its count word (simulator `+0x130`) is the begin pointer of the
+   potential-accident vector, which the constructor reserves for 100 entries (`0x0071FF7C`). That is a heap
+   address, and since the exe is not large-address-aware it is below 2³¹, so the compare always stops. Shipped
+   content uses only type 0 (`0x038B0000`, passenger ferry) and type 1 (`0x03820000`, car ferry). A reimplementation
+   should reject type 2 here.
+
+   *[quirk]* If the exe is patched to be large-address-aware, a pointer at or above `0x80000000` compares
+   negative. Activation then goes on, and step 3's count increment (`0x00723942`) adds 1 to that pointer, which
+   corrupts the vector.
 2. Get the prop occupants (type `0xA823821E`, QI `0xE9793A65`) in the lot rectangle. Classify them by
    `cISC4PropOccupant::GetPropType` (slot 7):
    - `0x2C520000` → departure cell;
@@ -764,7 +774,16 @@ ferry edges.
 
 #### 4.9.5 Queries
 
-**GetFerryTerminalCount(type)** (slot 32): the count for `type`. There is no bounds check.
+**GetFerryTerminalCount(type)** (slot 32, `0x0071FFF0`): the u32 at simulator `+0x128 + 4·type`, with no bounds
+check. Only types 0 and 1 have their own words; the constructor zeroes them (`0x0071FF83`). Higher types read the
+members that follow:
+- type 2 → `+0x130`, the potential-accident vector's begin pointer (non-null from construction);
+- type 3 → `+0x134`, its end pointer;
+- type 4 → `+0x138`, its capacity end;
+- and so on.
+
+So the original returns 0 only for an empty type 0 or 1, never for a type above 1 (TN18). FreeCity4 should return
+0 for every type ≥ 2: no type-2 terminal can exist (§4.9.1), and the pointer values have no meaning.
 
 **GetFerryRouteBetweenTiles(x1, z1, x2, z2)** (slot 29) returns a pointer to a stored route vector (internal; §9),
 or null:
@@ -849,12 +868,14 @@ For each cell:
   `r − 1` is used when `p = r − 1` exactly. This equals `ceil(p)` for 0 ≤ p ≤ 200.
 
 Updates are lazy. A dirty rectangle (with a flag) is updated before each FindPath and on message `0x6A3B0AFD`.
+"dirty ∪= r" means: if the flag is clear, dirty := r and set the flag; otherwise dirty := the union (min x1, min
+z1, max x2, max z2).
 
 | Message | Effect |
 |---|---|
 | `0x26D31EC1` | whole map dirty and updated at once |
 | `0x278E6003`, `0x678E6E3A` | dirty ∪= (data1 >> 16) − 1 … data1 & 0xFFFF, (data2 >> 16) − 1 … data2 & 0xFFFF, clamped to the map (terrain change) |
-| `0x99EF1142` / `0x99EF1143` with data3 = `0xC772BF98` | if the network occupant's cell is under water (terrain slot 34), dirty ∪= the occupant's cell rectangle (bridges) *[inferred]* |
+| `0x99EF1142` / `0x99EF1143` with data3 = `0xC772BF98` | r = the occupant's (void data1) **bounding city cells** (occupant slot 11 `GetBoundingCityCells`). If the cell `(r.x1, r.z1)` is under water (terrain slot 34, NW corner only): dirty ∪= r, not grown and not clamped (bridges). TN15, `0x00724B19`–`0x00724BC8` |
 
 #### 4.10.2 FindPath(sx, sz, tx, tz, &cells, fwd, back) (`0x00725170`, pop 28, AL)
 
@@ -954,6 +975,16 @@ The last row and the last column are never seeds *[quirk]*. They are still label
      entry e.
 4. Pop and resume. When the stack is empty, `counter += 1` if anything was labelled.
 
+**Resume point** (TN16, `Fill` `0x00717EC0`). The state's k runs 0…5, and a popped state resumes at its stored
+k, without redoing earlier work:
+- k = 0…3: step 2 continues with that k;
+- k = 4: step 3 runs (`0x00718186`);
+- k = 5: step 3 is skipped and the next state is popped.
+
+Step 3 sets k := 5 **before** it looks up the tunnel record (`0x007181A5`). So the state it pushes is resumed
+after step 3 and never redoes it, which would loop between the two portals forever. A state pushed by step 2 at
+k = 3 is stored with k = 4, so step 3 still runs once for it when it is popped.
+
 Labels are "first reached" labels, not strongly connected components. A one-way road reached first from seed A
 keeps A's label. *[compat]*
 
@@ -1015,11 +1046,25 @@ list until the next pass.
 |---|---|---|
 | 36 | `AreLotsConnected(A, B)` | AL true when both lots have a non-empty list and the lists share an ID. |
 | 37 | `GetConnectedOccupantCount(lot, type)` | Maximum over the lot's IDs (with `id < size`) of `published[id].population[type]` (0 when absent). 0 without a list. |
-| 38 | `GetConnectedDestinationCount(lot, k)` | k > 3 (signed) → 0. Otherwise the maximum over the lot's IDs (with `id < size`) of `published[id].capacity[k]`. 0 without a list. `cSC4Lot::HasJobAccess` (`0x006BFCE0`) is true when this is > 0 for k = 0 or 1. |
+| 38 | `GetConnectedDestinationCount(lot, k)` | k > 3 (signed) → 0. Otherwise the maximum over the lot's IDs (with `id < size`) of `published[id].capacity[k]`. 0 without a list. `cSC4Lot::HasJobAccess` (`0x006BFCE0`) is true when this is > 0 for k = 0 or 1. A negative k is **not** rejected (see below the table). |
 | 39 | `GetSubnetworksForLot(lot, vector<u32>&)` | Clears the vector, then reads the property into it. AL = whether the property exists. |
 | 40 | `GetSubnetworksInRectangle(rect, vector<u32>&)` | The rectangle is inclusive (x1, z1, x2, z2). Collect the distinct non-zero `subnet[0…3]` of the first car record of every in-city cell of rect into an SGI `hash_set<u32>` (hint 100 → 193 buckets, identity hash). Clear the vector and append the set in hash order (bucket order; within a bucket, most recent first). For fewer than 194 IDs all below 193, this is ascending order. |
 | 41 | `GetSubnetworksInRegion(region, vector<u32>&)` | As slot 40, over the cells of an SC4CellRegion: its bounding rectangle filtered by its bitmap. Row `x − x1`, bit `(z − z1)`, 32 bits per word, least significant first; cells outside width × height are excluded. |
 | 42 | `GetOccupantCountForAllSubnetworks(type, vector<u32>&)` | `vector.assign(size, 0)`, then `v[id] = published[id].population[type]` (if present) for id = 1 … size−1. |
+
+**Negative k in slot 38** *[quirk]* (TN17, `0x007106C7` `jle`, `0x0071075B`–`0x00710767`). The only bound test is
+the signed `k > 3`, so a negative k passes. The function then reads the u32 at index `7·id + 3 + k` of the
+published vector (0x1C-byte records, `capacity` at `+0xC`). The result is still the unsigned maximum, starting
+from 0:
+- k = −1, −2, −3 read the three words of `published[id].population`, the map object itself. Its word `+0` is the
+  tree's header-node pointer (the map's end test compares with it, `0x00711B12`). So k = −3 returns a heap
+  address. The words `+4` and `+8` are, in STLport 4's layout, the element count and the comparator's padding
+  *[inferred]*.
+- k = −4 … −7 read `published[id−1].capacity[3 … 0]`, and lower k read further back.
+- Once `7·id + 3 + k < 0`, the read is before the vector's start.
+
+The result is therefore **not** 0, and has no meaning. The known caller (`HasJobAccess`) passes only 0 and 1.
+FreeCity4 should return 0 for k < 0.
 
 Slots 40, 41 and 42 return garbage in AL. The SDK declares bool. A replacement returns true *[choice]*. The landfill
 spec's IsZoneConnected uses slots 41 and 42 (landfill.md §4.7.2).

@@ -108,7 +108,10 @@ pub use algo::{
     census_bucket, crimes_to_commit, criminal_base_term, decay_value, ftol32, jobless_factor, mul_f32, rhe,
     u32_to_float, PROP_SCALE,
 };
-pub use simulator::{CrimeData, CrimeEvent, CrimeMessage, CrimeSim, Incident, CRIME_RECORD_VERSION, STATE_IDLE};
+pub use simulator::{
+    decay_grid, nearest_box, nearest_of, stamp_rect, zoned_average, CrimeData, CrimeEvent, CrimeMessage, CrimeSim,
+    Incident, CRIME_RECORD_VERSION, DEFAULT_NAN, STATE_IDLE,
+};
 pub use tuning::{shipped_tuning, CrimeTuning};
 pub use types::{
     choose_candidate, condition_bits, mask_of, parse_mask, purpose_bits, shipped_type_exemplars, wealth_bits,

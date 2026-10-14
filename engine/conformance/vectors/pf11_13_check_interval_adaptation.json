@@ -1,0 +1,534 @@
+{
+  "format": 1,
+  "name": "pf11_13_check_interval_adaptation",
+  "spec": [
+    "pathfinder 4.11",
+    "pathfinder 11.13"
+  ],
+  "description": "Conformance test 13 (§11), fresh process, max work time large (the timer never expires). 16 FindPath calls that each expand at least 33 nodes (both start nodes, 16 cells east and 15 west, then the two exit nodes; with m = 1024, k >= 33 > 20) leave m = 512. A call expanding 0 nodes and one expanding 1 node (k = 0) change nothing. Four calls of test 2 (4 expansions, m = 512, k = 2) restore m = 1024.",
+  "steps": [
+    {
+      "op": "pf_env",
+      "cells": [
+        32,
+        4
+      ],
+      "note": "a long street along z = 1"
+    },
+    {
+      "op": "pf_street",
+      "rect": [
+        0,
+        1,
+        31,
+        1
+      ]
+    },
+    {
+      "op": "pf_lot",
+      "id": 1,
+      "rect": [
+        15,
+        0,
+        15,
+        0
+      ]
+    },
+    {
+      "op": "pf_create"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        15,
+        0,
+        15,
+        0
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        1
+      ],
+      "note": "never a goal: every node is expanded"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_max_work_time",
+      "args": [
+        1000000
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        1024,
+        1
+      ],
+      "note": "k >= 33 > 20"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        1024,
+        2
+      ],
+      "note": "k >= 33 > 20"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        1024,
+        3
+      ],
+      "note": "k >= 33 > 20"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        1024,
+        4
+      ],
+      "note": "k >= 33 > 20"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        1024,
+        5
+      ],
+      "note": "k >= 33 > 20"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        1024,
+        6
+      ],
+      "note": "k >= 33 > 20"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        1024,
+        7
+      ],
+      "note": "k >= 33 > 20"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        1024,
+        8
+      ],
+      "note": "k >= 33 > 20"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        1024,
+        9
+      ],
+      "note": "k >= 33 > 20"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        1024,
+        10
+      ],
+      "note": "k >= 33 > 20"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        1024,
+        11
+      ],
+      "note": "k >= 33 > 20"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        1024,
+        12
+      ],
+      "note": "k >= 33 > 20"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        1024,
+        13
+      ],
+      "note": "k >= 33 > 20"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        1024,
+        14
+      ],
+      "note": "k >= 33 > 20"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        1024,
+        15
+      ],
+      "note": "k >= 33 > 20"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        512,
+        0
+      ],
+      "note": "k >= 33 > 20: a reaches 16 -> a = 0, m = 512"
+    },
+    {
+      "op": "pf_env",
+      "cells": [
+        8,
+        8
+      ],
+      "note": "the preamble city"
+    },
+    {
+      "op": "pf_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "the preamble street (0,3)...(4,3)"
+    },
+    {
+      "op": "pf_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "note": "the start lot"
+    },
+    {
+      "op": "pf_create",
+      "pf": 1
+    },
+    {
+      "op": "pf_call",
+      "method": "set_flag",
+      "pf": 1,
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "pf": 1,
+      "args": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "pf": 1,
+      "args": [
+        2,
+        3,
+        2,
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_max_work_time",
+      "pf": 1,
+      "args": [
+        1000000
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "pf": 1,
+      "expect": 1,
+      "note": "the first start node is a goal: 0 expansions"
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "work_counter": 0
+      },
+      "pf": 1
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        512,
+        0
+      ],
+      "note": "k = 0 changes nothing"
+    },
+    {
+      "op": "pf_cell",
+      "cell": [
+        2,
+        3
+      ],
+      "conn": [
+        [
+          1,
+          4
+        ]
+      ],
+      "note": "one start node"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "pf": 1,
+      "args": [
+        4,
+        3,
+        4,
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "pf": 1,
+      "expect": 1,
+      "note": "(2,3) expanded, (3,3) is a goal (next to (4,3)): 1 expansion"
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "work_counter": 512
+      },
+      "pf": 1
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        512,
+        0
+      ],
+      "note": "k = 512 >> 10 = 0 changes nothing"
+    },
+    {
+      "op": "pf_cell",
+      "cell": [
+        2,
+        3
+      ],
+      "conn": [
+        [
+          1,
+          260
+        ]
+      ],
+      "note": "back to 0x0104"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "pf": 1,
+      "args": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "pf": 1,
+      "expect": 1,
+      "note": "test 2: 4 expansions"
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "work_counter": 2048
+      },
+      "pf": 1
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        512,
+        -1
+      ],
+      "note": "k = 2"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "pf": 1,
+      "expect": 1,
+      "note": "test 2: 4 expansions"
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "work_counter": 2048
+      },
+      "pf": 1
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        512,
+        -2
+      ],
+      "note": "k = 2"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "pf": 1,
+      "expect": 1,
+      "note": "test 2: 4 expansions"
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "work_counter": 2048
+      },
+      "pf": 1
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        512,
+        -3
+      ],
+      "note": "k = 2"
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "pf": 1,
+      "expect": 1,
+      "note": "test 2: 4 expansions"
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "work_counter": 2048
+      },
+      "pf": 1
+    },
+    {
+      "op": "pf_work_check",
+      "expect": [
+        1024,
+        0
+      ],
+      "note": "k = 2: a reaches -4 -> a = 0, m = 1024"
+    }
+  ]
+}
