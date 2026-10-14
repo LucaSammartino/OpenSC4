@@ -382,6 +382,21 @@ Worked examples, for the supply or demand value as `float32`:
 `i64` (in Rust, `(v as i64) as i32` after that check). It differs from saturation only for |v| ≥ 2^31 or ±∞. The
 shipped graph does not produce such values, but the result must match whatever the original stores.
 
+**A summary map whose count is 0 but whose tree is not empty** (DQ4). The game never builds one. The caller's map
+(regional city `+0x3C`) is only written by its constructor (`0x004AC09E`), by this method and by the regional
+city's reader. That reader inserts each saved pair with `operator[]` (`0x004AC841`, `0x004AC8A1`). Every one of
+these keeps the count equal to the number of nodes.
+
+If such a map did arrive, the original would behave like this:
+
+1. It **skips the clear** (step 1 tests only the count), so the stale nodes stay.
+2. `operator[]` searches the stale tree. A key that is already there gets its value overwritten without a new
+   node or a count increment. A new key gets a node linked into the stale tree.
+3. The final count is the number of new nodes only. The stale entries for keys that were not rewritten stay
+   visible to iteration.
+
+That is a corrupt map, not a contract. Refusing it is the implementer's choice, and that choice stands.
+
 
 ### 6.1 State
 

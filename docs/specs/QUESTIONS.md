@@ -758,8 +758,14 @@ current answer is in brackets.
   - **2^31 ≤ |v| < 2^63** wraps modulo 2^32. For example, 3e9 → −1294967296 and 2^31 → −2147483648, where
     saturation gives 2147483647. +∞ gives 0, not `i32::MAX`.
   - *[choice]* Reproduce it: 0 when `v` is NaN or |v| ≥ 2^63, else `(v as i64) as i32`.
-- **DQ4:** a map with count 0 but a non-empty tree shape. The spec only says "with a count of 0, the map is left
-  untouched". [refused]
+- ~~**DQ4:** a map with count 0 but a non-empty tree shape. The spec only says "with a count of 0, the map is left
+  untouched". [refused]~~ **ANSWERED 2026-10-14** from the exe (clear `0x006A5F95`–`0x006A5FB7`; the writers of
+  regional city `+0x3C`: constructor `0x004AC09E` and the reader's `operator[]` at `0x004AC841`/`0x004AC8A1`) and
+  written into demand.md §5. **No original behaviour; the implementer's choice stands.**
+  - **Unreachable in the game.** Every writer keeps the count equal to the number of nodes.
+  - **What the original would do.** It skips the clear, keeps the stale nodes and inserts into the stale tree,
+    overwriting matching keys in place. The count ends as the number of new nodes only.
+  - **Verdict.** That is a corrupt map, so refusing it is fine.
 - **DQ5:** the census asks for the profile at every cell, so the capacity walk runs there too, although §6.3 needs
   only the purpose. Intended? [walks at every cell]
 - **DQ6:** the header colour of a copied capacity map is assumed to be 0. [colour 1 refused]
