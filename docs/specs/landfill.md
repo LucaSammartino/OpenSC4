@@ -234,6 +234,19 @@ The same object can be reached through public interfaces. `cISC4App::GetMainWind
 `cISC4View3DWin`. The SDK's `SC4UI::GetView3DWin()` does exactly this. *[choice]* Glue can use that route, and should
 skip the effect toggles when it returns null.
 
+**Threads** (LG20). The original `DoMessage` (`0x006B9EA0`) takes **no lock**. It switches on `GetType()` and
+handles every message it is given. All five subscriptions and the month agent are delivered on the main thread
+(foundations §18.2):
+- the zone manager and the terrain post their messages, and the message server delivers them on its main-thread
+  tick (§3.2, §4.4.8);
+- PostCityInit, FundsChanged and PreViewLevelChange come from main-thread code;
+- no worker thread of the game was found to send any of them.
+
+So the original never drops a message and never sees one from another thread. A lock in FreeCity4's glue has no
+counterpart in the original. *[choice]* Dropping on contention matches the original only while it never happens:
+a dropped `0x07699455` would leave a zone unextended, and a dropped `0x278E6003` would leave a terrain change
+unhandled. Each drop should be logged. Waiting for the lock would be the safer choice.
+
 ### 3.3 Ordering within the month level (foundations §13)
 
 The original runs month agents in object-address order. In the logged sessions the landfill developer has

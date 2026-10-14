@@ -1311,7 +1311,12 @@ before and after). The glue's current answer is in brackets.
   is foundations §12.6's decided choice.** The original draws from the per-thread CRT sequence, which every
   simulation-thread caller shares, so the values cannot be reproduced. The count (one draw per mask-15 cell) and the
   formula `2 × (rand() mod 4)` are what must match. Written into landfill.md §4.8.
-- **LG20:** a message from another thread that cannot get the lock is dropped. Acceptable?
+- ~~**LG20:** a message from another thread that cannot get the lock is dropped. Acceptable?~~ **ANSWERED 2026-10-14**
+  from the exe (`DoMessage` `0x006B9EA0`) and foundations §18.2. The lock is glue: **no original behaviour; the
+  implementer's choice stands.** The original takes no lock and handles every message, and all of them arrive on the
+  main thread, so it never drops one. Dropping is therefore harmless only while it never happens. A dropped zoning or
+  terrain message would change the zone, so drops should be logged, and waiting is safer. Written into landfill.md
+  §3.2.
 - Not done (each logged once): tile models, `SetEmptyCellTexture`, zone effects (trucks, seagulls), zot
   orientation, the 3D view level, `GetLandfillZoneFromCell`. The shadow cannot compare the zots, trucks and seagulls
   the original drew, the tile occupants it changed, the expenses it booked or the history it sent.
