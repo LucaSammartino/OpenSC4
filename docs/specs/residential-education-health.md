@@ -268,6 +268,11 @@ at 0. Example with the shipped school curves: e1 = effCurve(0) × 0.01 = **0**, 
 `GetOrdinanceEffects(healthList, schoolList)` runs at `Init` and in every state 0. State 0 clears both lists
 first. `Init` does not, but the lists are empty then.
 
+*[compat]* (RG7) Those are its **only** two callers (`0x006FED0B` in `Init`, `0x006FF5CA` in state 0; the
+function `0x006FE0F0` has no other code or data reference). An ordinance enacted or repealed mid-cycle changes
+nothing until the next state 0, and neither does a slot call: every reader of the effects (§4.4–§4.11) uses the
+lists as state 0 left them.
+
 - The ordinance list comes from `GetOrdinanceOnCount` and `GetOrdinanceOnArray`, in ascending ID order
   (ordinance §4).
 - For each ordinance, `GetOrdinanceByID(id)` is called; null skips it.

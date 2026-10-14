@@ -2166,7 +2166,11 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   REH §2 (the `cRZRandom` row) and §4.9. **No original behaviour; the implementer's choice stands.** Every draw of the
   class is a double draw, which uses only `mul` (`+0xBC`). A shadow that reads that word from the original object
   before state 0 could reproduce the rolls, if it ever wants to compare them.
-- **RG7:** does the original re-read ordinance effects outside state 0? [the shadow re-reads them]
+- ~~**RG7:** does the original re-read ordinance effects outside state 0? [the shadow re-reads them]~~ **ANSWERED
+  2026-10-14** from the exe (`GetOrdinanceEffects` `0x006FE0F0`; its only references are the calls at `0x006FED0B` and
+  `0x006FF5CA`) and written into REH §4.3. **No; the bracket differs.** The original reads the ordinance effects only
+  in `Init` and in state 0. A shadow that re-reads them elsewhere can see an ordinance change earlier than the
+  original does; it should keep the lists from state 0 to state 0.
 - **RG8:** slots 21/22 called off the main thread create grids through GZCOM. Allowed? [yes]
 - **RG9:** setters off the main thread: deferred, and `EndStrike` off the main thread returns the published flag?
   [yes]
