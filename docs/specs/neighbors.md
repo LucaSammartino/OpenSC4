@@ -477,6 +477,23 @@ Both use the regional-city commodity statistics (`GetDemanded`, `GetExported`, `
 buy types and (`C`, us) for sell types, `base` the type's base amount, `scale := 0xEA4AD2FF` (default 1) and
 `existing` the amount of the **first** deal returned by `FindDeals(type, C)` (0 if none).
 
+About `existing` (NB8, NB9; `0x006D33A5`–`0x006D33E1`, and the same in `GetDealMaxAmount`):
+
+- It is this simulator's own `FindDeals(type, C)` (slot 29): the deal list in order, matched on type and
+  other-side city only. **No flag filter** is applied: a Cancelled, Silent or failing deal counts like any other.
+- Only the first match counts.
+- So the deal being priced is its own `existing` when it is in this simulator's list and is the first deal of its
+  type with `C`. That is the usual case for `UpdateCost` on a listed deal, and `SetAmount` has already stored the
+  new amount by then.
+- When another deal of the same type and city comes first, that deal's amount is used instead.
+- A deal outside the list, such as a fresh `ProposeDeal` result or a deal held by a regional city, is never its own
+  `existing`.
+
+Example (test 3's data): the priced power-buy deal of amount 100 is the only listed deal, so `existing = 100`.
+Then `x1 = (1 − (500 − 200)) / 100 = −2.99` and `x2 = ((2000 − 100) − (1000 − 100)) / 2000 = 0.5`, so the scarcity
+curve gives 1 and 0.0714286. `unit = 2.2 + (1 + 0.0714286) / 2 × 0.8 = 2.6285714`, and the cost is trunc(262.857) =
+**262**. With `existing = 0`, test 3 gives 263.
+
 ```
 GetDealCost:
     if amount < 1e−8: return 0

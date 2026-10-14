@@ -474,8 +474,11 @@ vectors `nb18_*`). The core's current answer is in brackets.
   class) are skipped: the bracket matches. A **null** reference succeeds: the original appends the null and then
   releases it unchecked (`0x006CFEC5`), so it crashes inside `Read`. Skipping it is kept as a *[choice]*
   (neighbors.md §13 table).
-- **NB8 — §8.1:** does `existing` include the deal being priced? [yes: its own `UpdateCost` counts it; 262 in
-  `nb18_03`]
+- ~~**NB8 — §8.1:** does `existing` include the deal being priced? [yes: its own `UpdateCost` counts it; 262 in
+  `nb18_03`]~~ **ANSWERED 2026-10-14** from the exe (`0x006D33A5`–`0x006D33E1`): the bracket matches when the deal
+  is in this simulator's list and is the first of its type with that city. `existing` is the first `FindDeals(type,
+  C)` match, with no flag filter. An earlier deal of the same type and city takes its place, and an unlisted deal
+  never counts itself. The 262 is reproduced in neighbors.md §8.1.
 - **NB9:** §5.2 says pricing ignores `0x3D` deals, but §8.1's `FindDeals` has no filter. [as §8.1]
 - **NB10:** SetAmount's synchronous report re-enters `simulate_deals` during `ProposeDeals(add = true)` and
   activates the proposal. Intended? [as written]
