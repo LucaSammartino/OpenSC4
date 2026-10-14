@@ -45,8 +45,9 @@
 //   residential Write -> 0|1
 //   residential month YYYY-MM-DD: pop=N (R$ a R$$ b R$$$ c) EQ=e HQ=h LE=l
 //     school covered=.. buildings=.. strike=0|1 hospital covered=.. buildings=..
-//     strike=0|1 state=S ... (one at the first SimNewDay after Init, then one
-//     per SimNewMonth)
+//     strike=0|1 state=S ... center x87=c/n (lot GetCenter calls that changed
+//     the x87 stack depth / calls; c = 0 in the game) ... (one at the first
+//     SimNewDay after Init, then one per SimNewMonth)
 //   residential cycle N done YYYY-MM-DD: ... (one per monthly cycle that
 //     reached state 10)
 #pragma once
@@ -99,6 +100,8 @@ struct ResidentialContext {
     uint32_t controllers = 0;  // automata controller calls (REH §4.9)
     uint32_t departments = 0;  // departments created (REH §4.2)
     uint32_t effects = 0;      // visual effects asked for (§5.5 step 2; none created)
+    uint32_t centers = 0;      // lot GetCenter calls (lot slot 15)
+    uint32_t centerX87 = 0;    // ... of which changed the x87 stack depth (crime.md §13, CQ3: 0 in the game)
 };
 
 // The host table over `ctx` (the simulator's).

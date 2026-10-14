@@ -339,7 +339,9 @@ plugin.
        `residential_seed` (env `FC4_RESIDENTIAL_SEED`), else the clock. The log has `residential Init: …`,
        `residential Read: …` (the state), `residential Write -> 1`, a month line from the first day after `Init`
        and at every `SimNewMonth` (`residential month yyyy-mm-dd: pop=N (R$ a R$$ b R$$$ c) EQ=… HQ=… LE=…
-       school covered=… buildings=… strike=0|1 hospital covered=… buildings=… strike=0|1 state=S …`), one line
+       school covered=… buildings=… strike=0|1 hospital covered=… buildings=… strike=0|1 state=S … center x87=c/n
+       …`; `c` counts the lot `GetCenter` calls of `n` that changed the x87 stack depth: 0 in the game, the first
+       is logged once as `residential: WARNING lot GetCenter (slot 15) changed the x87 stack depth by …`), one line
        per completed monthly cycle (`residential cycle N done yyyy-mm-dd: …`), `residential Shutdown: …` and
        `cFC4ResidentialSimulator destroyed (…)`. Its game calls have their own switches (default `1`,
        environment `FC4_RESIDENTIAL_<KEY>`): `residential_occupants`, `residential_budget`,

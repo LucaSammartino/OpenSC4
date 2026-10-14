@@ -16,6 +16,7 @@
 #include "FC4Config.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
@@ -532,6 +533,7 @@ void RecordHistory(void* u, uint32_t series, int32_t value) {
     cFC4Message2Standard* msg =
         FC4MakeMessage(kMsgHistoryRecord, static_cast<intptr_t>(series), static_cast<intptr_t>(value), 0);
     ms->MessageSend(msg);
+    FC4_X87_CHECK("residential MessageSend (after)");  // the game's handlers ran synchronously (FC4Fpu.h)
     msg->Release();
     ++Ctx(u)->history;
 }
@@ -645,27 +647,28 @@ uint32_t BuildingSlot11(void* u, uint64_t occ) {
     return v;
 }
 
-// Lot slot 15 GetCenter(float* out3) through a thunk that reads the out
-// parameter (crime.md §13, CQ3: the x87 stack is empty on return; a value
-// left there is popped and counted). Returns whether ST0 held a value.
-bool LotCenterRaw(cISC4Lot* lot, float* out3) {
+// Lot slot 15 (+0x3C), GetCenter(cS3DVector3&) const: thiscall, one 4-byte
+// argument popped by the callee. crime.md §13 (CQ3) and docs/abi (the row
+// ends with FSTP): the result is only in the out parameter and the x87 stack
+// is unchanged on return; FC4Interfaces.h declares it returning nothing. As
+// crime's thunk (cFC4Crime.cpp LotCenterRaw): the x87 stack depth is compared
+// before and after the call, and a change is only counted (`center x87=` on
+// the month line, 0 in the game) and logged once; nothing is popped or pushed
+// to compensate (a leftover is the x87 leftover guard's to report, FC4Fpu.h).
+// Returns the values the call left (TOP before minus TOP after, mod 8; 7 =
+// one popped).
+int LotCenterRaw(cISC4Lot* lot, float* out3) {
     void* self = lot;
     void* fn = (*reinterpret_cast<void***>(lot))[15];
-    uint16_t sw = 0;
+    uint16_t before = 0, after = 0;
     __asm {
+        fnstsw before
         push out3
         mov ecx, self
         call fn
-        fxam
-        fnstsw ax
-        mov sw, ax
-        and ax, 0x4500
-        cmp ax, 0x4100
-        je center_st0_empty
-        fstp st(0)
-    center_st0_empty:
+        fnstsw after
     }
-    return (sw & 0x4500) != 0x4100;
+    return static_cast<int>(((before >> 11) - (after >> 11)) & 7u);
 }
 
 // GetOccupantLot (lot manager slot 14, borrowed), then its centre (x, z).
@@ -680,11 +683,16 @@ bool OccupantLotCenter(void* u, uint64_t occ, float* xz) {
     cISC4Lot* lot = fc4::AsGame(lm)->GetOccupantLot(OccOf(occ));
     if (lot == nullptr) return false;
     float v[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-    if (LotCenterRaw(lot, v)) {
+    ++Ctx(u)->centers;
+    if (const int left = LotCenterRaw(lot, v)) {
+        ++Ctx(u)->centerX87;
         static bool warned = false;  // main thread only
         if (!warned) {
             warned = true;
-            fc4::Log("residential: WARNING lot GetCenter (slot 15) left a value in ST0; popped (logged once)");
+            fc4::Log("residential: WARNING lot GetCenter (slot 15) changed the x87 stack depth by %+d; left as is "
+                     "(crime.md §13, CQ3: the x87 stack should be unchanged; logged once per process, counted as "
+                     "center x87= on the month line)",
+                     left > 4 ? left - 8 : left);
         }
     }
     if (xz != nullptr) {
@@ -1193,13 +1201,13 @@ void cFC4ResidentialSimulator::LogMonth() {
     fc4::Log("residential month %04d-%02d-%02d: pop=%d (R$ %u R$$ %u R$$$ %u) EQ=%.3f HQ=%.3f LE=%u school "
              "covered=%d buildings=%d strike=%u hospital covered=%d buildings=%d strike=%u state=%u iterator=(%d,%d) "
              "tracts=%dx%d departments=%u/4 grids=%u/25 dirty=%u reentrant=%u deferred=%u views=%u offMain=%u "
-             "posts=%u history=%u controllers=%u effects=%u days=%u months=%u cycles=%u",
+             "posts=%u history=%u controllers=%u effects=%u center x87=%u/%u days=%u months=%u cycles=%u",
              d.year, d.month, d.day_of_month, st.population, st.population_by_wealth[0], st.population_by_wealth[1],
              st.population_by_wealth[2], st.global_eq, st.global_hq, st.global_le, st.school_covered,
              st.school_buildings, st.school_strike, st.hospital_covered, st.hospital_buildings, st.health_strike,
              st.state, st.iterator_x, st.iterator_z, st.tracts_x, st.tracts_z, st.departments, st.grids, st.dirty,
              st.reentrant_calls, st.deferred_calls, st.view_calls, offMainMessages_.load(), ctx_.posts, ctx_.history,
-             ctx_.controllers, ctx_.effects, days_, months_, cycles_);
+             ctx_.controllers, ctx_.effects, ctx_.centerX87, ctx_.centers, days_, months_, cycles_);
 }
 
 // One per monthly cycle that reached state 10 (§5.1: state 9, history, done).
@@ -1566,6 +1574,7 @@ void cFC4ResidentialSimulator::OutputTractInfo(int32_t, int32_t) {}        // sl
 
 bool cFC4ResidentialSimulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("residential DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     const uint32_t type = pMessage->GetType();
     uint32_t d[3] = {};
     uint64_t void1 = 0;
