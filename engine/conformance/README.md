@@ -190,7 +190,7 @@ for "at end". Booleans may be written as `true`/`false` or `1`/`0`.
 
 ## Foundations ops
 
-Pure functions of `docs/specs/foundations.md`; they need no simulator state. Vector files are named `f7_…` (and `f6_…` for §6 items outside §7).
+Pure functions of `docs/specs/foundations.md`; they need no simulator state. Vector files are named `f7_…` (and `f6_…` for §6 items outside §7, `df5_…` for the data-formats §5 conversions).
 
 | op | Arguments | Checks |
 |---|---|---|
@@ -208,6 +208,7 @@ Pure functions of `docs/specs/foundations.md`; they need no simulator state. Vec
 | `holder_read` | `hex`, `preset?` (props), `ok?`, `expect?` (props in holder order), `rewrite?`, `position?`, `error?` | reading the plain holder; `rewrite` writes it back and compares with `hex` |
 | `exemplar_holder` | `exemplars?` (a stub resource manager: `[{key, props}]`), `preset_parent?` (key), `hex`, `ok?`, `own?`, `parent?` (key or `null`), `lookup?` (`[{id, value or null}]`), `rewrite?`, `position?` | reading the exemplar holder (§10.3); keys are `{group, type, instance}` |
 | `crt_rand` | `seed?` (default 1), `srand?`, `expect?` (outputs), `shuffle?` (`{input, expect, calls?}`) | the C runtime `rand()` and `random_shuffle` (§12) |
+| `variant_convert` | `variant` (a scalar), `cases`: `[{to, expect}]` with `to` one of `u8`, `i8`, `u16`, `i16`, `u32`, `i32`, `u64`, `i64`, `bool`, `f32`, `f64` | a scalar element converted as a property reader does (`docs/specs/data-formats.md` §5.1): integer targets keep the low bits of the element's int64, Bool is int64 ≠ 0, float targets go through its double (a Float32 read as Float32 as is); integer expectations may be `"0x…"` bit patterns |
 
 Floats in `stream_write`, `stream_read` and `curve` may be numbers or `"0x…"` bit patterns (for NaN and −0.0).
 
@@ -319,7 +320,7 @@ starts with `demand_`.
 | `demand_init` / `demand_shutdown` | `expect?` | `Init` / `Shutdown` (core parts) |
 | `demand_message` | `type` (`SimBegin`, `SimNewDay`, `SimNewMonth`, `SimIdle`, `PreSave`, `ConnectionCreated`, `ConnectionDeleted`, `IngredChangesMade` or an ID), `data1?`, `data2?`, `data3?`, `expect?` | `DoMessage` |
 | `demand_state_changed` | `lot`, `old`, `new`, `building_type`, `wealth` | kMessageStateChanged (§7) |
-| `demand_call` | `method`, `args?`, `expect?`, `expect_bits?` (the float32 bits of a float result, `"0x…"`) | a simulator method: `get_demand`, `simulator_type`, `update_occupant_effects`, `jobs_per_unit`, `jobs_by_census`, `neutral_tax_rate`, `local_population_summary`, `do_idle`, `propagate` (DoDemandIndexLinks), `simulator_begin`, `daily`, `monthly`, `update_modifiers`, `evaluate_connection_utilization`, `export_demand`, `reset_regional_demands`, `perform_census`, `apply_census`, `record_census_history`, `add_agent_effect`, `update_capacity`, `set_economy_bonuses`, `reload_tuning` |
+| `demand_call` | `method`, `args?`, `expect?`, `expect_bits?` (the float32 bits of a float result, `"0x…"`; for an array of floats such as `jobs_per_unit`, an array of them) | a simulator method: `get_demand`, `simulator_type`, `update_occupant_effects`, `jobs_per_unit`, `jobs_by_census`, `neutral_tax_rate`, `local_population_summary`, `do_idle`, `propagate` (DoDemandIndexLinks), `simulator_begin`, `daily`, `monthly`, `update_modifiers`, `evaluate_connection_utilization`, `export_demand`, `reset_regional_demands`, `perform_census`, `apply_census`, `record_census_history`, `add_agent_effect`, `update_capacity`, `set_economy_bonuses`, `reload_tuning` |
 | `demand_new_node` | `node` (label) | a free-standing node (class factory) |
 | `demand_node` | `node` (label) or `key`, `method`, `args?`, `expect?` | a node method by snake-case name (`add_to_supply`, `end_of_cycle`, `set_active_max`, `calculate_active_demand` (`args: [smooth]`), …) |
 | `demand_expect_node` | `node` or `key`, `state` (partial: `id`, `supply`, `demand`, `new_supply`, `new_demand`, `active_demand`, `active_min`, `active_max`, `economy_modifier`, `tax_modifier`, `demand_cap`, `region_use`, `flag`, `loaded_from_save`, `initialized`) | the node state |
@@ -1573,6 +1574,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | §6.3 seed derivation (session seed → each generator's seed) | `f6_03_seed_derivation` |
 | §14 16–17 variants | `f14_16_17_variants` |
 | §14 18–19 property holders | `f14_18_19_property_holders` |
+| data-formats §5.1 scalar conversions (EX2–EX4) | `df5_01_scalar_conversions`; the text round trip, the exemplar reader and data-formats §10.4–§10.7 are `fc4-formats` unit tests |
 | §14 20–22 regional-city record, deal claiming, import/export | not yet (neighbours milestone) |
 | §14 23 `rand()` | `f14_23_crt_rand`; the prime-step iterator that uses it: `w14_05_iterator` and the `fc4-core` unit tests (`weather::iterator`) |
 | §14 24 month order | `s4_month_registration_order` (registration order within a level), `o13_10_month_order` (the ordinance-lag scenario with the real ordinance simulator and a stub budget, in both orders) |
@@ -1616,6 +1618,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | 11 history | `d16_11_history` |
 | 12 save round trip | `d16_12_save` |
 | §5 `GetNeutralTaxRate` sum order (DQ9, the §5 worked example) | `d16_13_neutral_rate_sum_order` |
+| §5 `CalculateJobsPerUnitOfDemand` scale `f32(u32 percent) × 0.01f` (corrected 2026-10-14; 33 → `0x3EA8F5C2`) and `GetJobsBySensus` | `d16_14_jobs_per_unit_scale` |
 
 ## Coverage (ordinance §13)
 

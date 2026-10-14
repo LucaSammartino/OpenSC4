@@ -16,6 +16,7 @@
 #include "FC4Config.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
@@ -532,13 +533,16 @@ void RedisplayTerrain(void* u, int32_t minX, int32_t minZ, int32_t maxX, int32_t
 
 // GetDisasterLayer()->GetDisasterManager(0x4A1332E8) and, if it exists,
 // AttemptDisasterStart(x, z). Returns whether the manager existed (§7.1).
+// The call's result is ignored (§7.1 step 4, §14: no return used; docs/abi:
+// eax-or-void). It is not a reference we were given, so it is never
+// released: the SDK's `cISC4DisasterInstance*` is only the declaration.
 bool AttemptPipeBurst(void* u, int32_t x, int32_t z) {
     if (!Gate(fc4::Sw::PlumbingDisaster, "plumbing AttemptDisasterStart (no manager)")) return false;
     cISC4City* c = G(u)->city;
     cISC4DisasterLayer* layer = c ? c->GetDisasterLayer() : nullptr;  // city slot 72
     cISC4DisasterManager* m = layer ? layer->GetDisasterManager(kPipeBurstManager) : nullptr;  // layer slot 7
     if (m == nullptr) return false;
-    Drop(m->AttemptDisasterStart(x, z));  // slot 6
+    m->AttemptDisasterStart(x, z);  // slot 6, result ignored (not ours to release)
     return true;
 }
 
@@ -904,6 +908,12 @@ void AppendProducer(void* ctx, uint64_t t) {
 
 }  // namespace
 
+int fc4::PlumbingTestPipeBurst(cISC4City* city, int32_t x, int32_t z) {
+    FC4PlumbingGame game;
+    game.city = city;
+    return AttemptPipeBurst(&game, x, z) ? 1 : 0;
+}
+
 fc4_plumbing_host fc4::PlumbingReadOnlyHost(FC4PlumbingGame* game, const HostGridContext* grids) {
     fc4_plumbing_host h{};
     h.struct_size = sizeof(h);
@@ -1227,6 +1237,7 @@ bool cFC4PlumbingSimulator::GetWaterProducers(SC4List<cISC4Occupant*>& list) {
 
 bool cFC4PlumbingSimulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("plumbing DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     CoreCall call(this);
     fc4_plumbing_message m{};
     m.msg_type = pMessage->GetType();

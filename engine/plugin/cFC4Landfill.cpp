@@ -16,6 +16,7 @@
 #include "FC4Config.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4GameList.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
@@ -414,17 +415,13 @@ void CellCounts(void* u, int32_t* x, int32_t* z) {
     if (z != nullptr) *z = c ? static_cast<int32_t>(c->CellCountZ()) : 0;  // slot 94
 }
 
-// City slot 97 (pop 16). [abi] The game returns a float in ST0 (docs/abi:
-// x87, high), where the SDK declares void: called through a declaration that
-// pops ST0. The outputs are what the core uses (§8: return "—").
-using CellCenterFn = float(__fastcall*)(void* self, void* edx, int32_t cx, int32_t cz, float* x, float* z);
-
+// City slot 97 CellCenterToPosition (pop 16). docs/abi (corrected
+// 2026-10-14): returns nothing, the results come through the out references,
+// as the SDK declares it. Calling it through a float declaration popped an
+// empty x87 register on every call (stack underflow). §8: return "—".
 void CellCenterToPosition(void* u, int32_t cx, int32_t cz, float* x, float* z) {
     float a = 0.0f, b = 0.0f;
-    if (cISC4City* c = City(u)) {
-        void** vtbl = *reinterpret_cast<void***>(c);
-        reinterpret_cast<CellCenterFn>(vtbl[97])(c, nullptr, cx, cz, &a, &b);
-    }
+    if (cISC4City* c = City(u)) c->CellCenterToPosition(cx, cz, a, b);
     if (x != nullptr) *x = a;
     if (z != nullptr) *z = b;
 }
@@ -889,6 +886,7 @@ void SendHistory(void* u, uint32_t series, uint32_t value) {
     cFC4Message2Standard* msg =
         FC4MakeMessage(kMsgHistoryRecord, static_cast<intptr_t>(series), static_cast<intptr_t>(value), 0);
     ms->MessageSend(msg);
+    FC4_X87_CHECK("landfill MessageSend (after)");  // the game's handlers ran synchronously (FC4Fpu.h)
     msg->Release();
     ++c->historySends;
 }
@@ -1191,6 +1189,7 @@ intptr_t cFC4LandfillDeveloper::GetLandfillZoneFromCell(int32_t, int32_t) {
 
 bool cFC4LandfillDeveloper::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("landfill DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     Section sec(this);
     if (!sec.ok()) return true;  // [choice] a message from another thread that cannot get the lock is dropped
     const uint32_t type = pMessage->GetType();

@@ -17,6 +17,7 @@
 #include "FC4Config.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
@@ -525,31 +526,25 @@ bool LotBuilding(void*, uint64_t lot, uint64_t* building, uint32_t* purpose, uin
 // Lot slot 15 (+0x3C), GetCenter(cS3DVector3&) const: thiscall, one 4-byte
 // argument popped by the callee. §13 (CQ3, from cSC4Lot::GetCenter, the only
 // implementation): the result is only in the out parameter, EAX = &out, and
-// the x87 stack is EMPTY on return (the last value is popped); docs/abi and
-// FC4Interfaces.h now declare it returning nothing. This thunk calls it so the
-// x87 stack can be checked after the call. The out parameter is the value
-// used; EAX is ignored. The FXAM after the call is a counted diagnostic only: ST0 should
-// always be empty; if it ever is not, it is popped (keeping the stack
-// balanced), counted for the month line (`center st0=a/b`) and logged once.
-// Returns whether ST0 held a value.
-bool LotCenterRaw(cISC4Lot* lot, float* out3) {
+// the x87 stack is unchanged on return; docs/abi and FC4Interfaces.h declare
+// it returning nothing. This thunk calls it so the x87 stack depth can be
+// compared before and after the call. The out parameter is the value used;
+// EAX is ignored. The depth check is a counter only (`center st0=a/b` on the
+// month line, 0 in the game): nothing is popped or pushed to compensate (a
+// change is the x87 leftover guard's to report, FC4Fpu.h). Returns the
+// values the call left (TOP before minus TOP after, mod 8; 7 = one popped).
+int LotCenterRaw(cISC4Lot* lot, float* out3) {
     void* self = lot;
     void* fn = (*reinterpret_cast<void***>(lot))[15];
-    uint16_t sw = 0;
+    uint16_t before = 0, after = 0;
     __asm {
+        fnstsw before
         push out3
         mov ecx, self
         call fn
-        fxam
-        fnstsw ax
-        mov sw, ax
-        and ax, 0x4500
-        cmp ax, 0x4100
-        je center_st0_empty
-        fstp st(0)
-    center_st0_empty:
+        fnstsw after
     }
-    return (sw & 0x4500) != 0x4100;
+    return static_cast<int>(((before >> 11) - (after >> 11)) & 7u);
 }
 
 // §11.4: city.PositionToCell(lot.GetCenter()).
@@ -558,13 +553,15 @@ void LotCenterCell(void* u, uint64_t lot, int32_t* x, int32_t* z) {
     cISC4City* c = Self(u)->City();
     if (lot != 0 && c != nullptr && Gate(fc4::Sw::CrimeLots, "crime GetCenter (cell 0, 0)")) {
         float v[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-        if (LotCenterRaw(RawLot(lot), v)) {
+        if (const int left = LotCenterRaw(RawLot(lot), v)) {
             ++Self(u)->Probe().centerSt0;
             static bool warned = false;  // main thread only
             if (!warned) {
                 warned = true;
-                fc4::Log("crime: WARNING lot GetCenter (slot 15) left a value in ST0; popped (crime.md §13, CQ3: "
-                         "the x87 stack should be empty; logged once per process, counted as center st0=)");
+                fc4::Log("crime: WARNING lot GetCenter (slot 15) changed the x87 stack depth by %+d; left as is "
+                         "(crime.md §13, CQ3: the x87 stack should be unchanged; logged once per process, counted "
+                         "as center st0=)",
+                         left > 4 ? left - 8 : left);
             }
         } else {
             ++Self(u)->Probe().centerEmptySt0;
@@ -850,7 +847,7 @@ fc4_crime_host CrimeReadOnlyHost() {
 
 int CrimeTestLotCenter(void* lot, float* out3) {
     if (lot == nullptr || out3 == nullptr) return -1;
-    return LotCenterRaw(static_cast<cISC4Lot*>(lot), out3) ? 1 : 0;
+    return LotCenterRaw(static_cast<cISC4Lot*>(lot), out3);
 }
 }  // namespace fc4
 
@@ -1204,6 +1201,7 @@ bool cFC4CrimeSimulator::GetVisualsCreated(uint32_t index) { return fc4_crime_ge
 
 bool cFC4CrimeSimulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("crime DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     CoreCall call(this);
     fc4_crime_message m{};
     m.msg_type = pMessage->GetType();

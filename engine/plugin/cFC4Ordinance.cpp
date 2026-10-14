@@ -17,6 +17,7 @@
 #include "FC4Config.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "cFC4Message2Standard.h"
@@ -659,6 +660,7 @@ float cFC4OrdinanceSimulator::GetCumulativeFactor(uint32_t prop, uint32_t index)
 
 bool cFC4OrdinanceSimulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("ordinance DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     const uint32_t type = pMessage->GetType();
     fc4_ordinance_sim_handle_message(core_, type);
     if (type == kMsgSimNewMonth) LogState("month");

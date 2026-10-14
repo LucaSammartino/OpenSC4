@@ -78,14 +78,21 @@ if ($groups) {
 # "landfill shadow month to <date>: clean|mismatches=N"). A line differs when any of those counts is non-zero.
 $shadows = Select-String -Path $Log -Pattern "\] ([a-z]+) shadow [^:]*\d{4}-\d\d-\d\d[^:]*: .*(mismatch(es|ed)[= ]\d|: clean\b)" -CaseSensitive
 $differs = "mismatch(es|ed)[= ][1-9]|differences [1-9]"
+# A line with its own total ("; mismatches=N", nothing between "; " and the word) is judged by that total alone:
+# other counts on it can be notes (land value: "with the live map total mismatched=391" when the previous desirability map matched).
+function Differs([string]$line) {
+    $m = [regex]::Matches($line, "; mismatches=(\d+)")
+    if ($m.Count -gt 0) { return [int]$m[$m.Count - 1].Groups[1].Value -ne 0 }
+    return $line -match $differs
+}
 $sg = $shadows | Group-Object { $_.Matches[0].Groups[1].Value }
 if ($sg) {
     Write-Output ""
     Write-Output "shadow lines:"
     foreach ($g in $sg) {
-        $clean = @($g.Group | Where-Object { $_.Line -notmatch $differs }).Count
+        $clean = @($g.Group | Where-Object { -not (Differs $_.Line) }).Count
         Write-Output ("  {0,-12} {1,5} lines, {2} with every mismatch count 0" -f $g.Name, $g.Count, $clean)
-        $bad = $g.Group | Where-Object { $_.Line -match $differs } | Select-Object -First 2
+        $bad = $g.Group | Where-Object { Differs $_.Line } | Select-Object -First 2
         foreach ($b in $bad) { Write-Output ("    differs: " + (Body $b.Line)) }
     }
 }

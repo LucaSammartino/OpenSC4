@@ -15,15 +15,19 @@
 
 #include "FC4FpuLogic.h"
 #include "FC4Log.h"
+#include "FC4Watchdog.h"
 #include "compat/FC4Compat.h"
+#include "fc4.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+#include <immintrin.h>
 #include <xmmintrin.h>
 
 #include <cstdio>
+#include <cstring>
 
 namespace fc4 {
 namespace {
@@ -64,7 +68,129 @@ void Describe(char* out, size_t cap, uint16_t cw) {
                 RcName(cw), cw & 0x3F, SseMxcsr());
 }
 
+// ---- the x87 leftover guard ----
+
+// Sites with findings, newest first (pushed on the main thread, read by the
+// watchdog's heartbeat without a lock: a site is fully set before it is
+// linked, and never unlinked).
+X87Site* volatile g_x87Sites = nullptr;
+volatile LONG g_x87Total = 0;
+volatile LONG g_x87SfLogged = 0;
+// The previous check (main thread only): its site and what it found.
+const X87Site* g_x87PrevSite = nullptr;
+int g_x87PrevOccupied = 0;
+
+bool GuardThread() { return g_mainTid == 0 || OnMain(); }
+
+void X87Register(X87Site& site) {
+    if (InterlockedCompareExchange(&site.registered, 1, 0) != 0) return;
+    X87Site* head = nullptr;
+    do {
+        head = g_x87Sites;
+        site.next = head;
+    } while (InterlockedCompareExchangePointer(reinterpret_cast<PVOID volatile*>(&g_x87Sites), &site, head) != head);
+}
+
+// The game month of the published julian day (year * 12 + month), or 1 when
+// no day was published yet; never 0 (0 = "never logged").
+long X87MonthKey(int* year, int* month) {
+    const long j = PublishedJulian();
+    *year = 0;
+    *month = 0;
+    if (j <= 0) return 1;
+    fc4_date d{};
+    fc4_date_from_julian(static_cast<int32_t>(j), &d);
+    *year = d.year;
+    *month = d.month;
+    const long key = static_cast<long>(d.year) * 12 + d.month;
+    return key > 1 ? key : 2;
+}
+
+// FXSAVE of the calling thread's x87/SSE state into `fx` (512 bytes, 16-aligned).
+void X87Save(uint8_t* fx) {
+#if defined(_M_IX86)
+    _fxsave(fx);
+#else
+    std::memset(fx, 0, 512);
+#endif
+}
+
 }  // namespace
+
+int X87Occupied() {
+    alignas(16) uint8_t fx[512];
+    X87Save(fx);
+    return OccupiedFromAbridgedTag(fx[4]);
+}
+
+long X87LeftoverTotal() { return g_x87Total; }
+
+int X87Check(X87Site& site, uint32_t msg, const char* who) {
+    if (!GuardThread()) return 0;
+    alignas(16) uint8_t fx[512];
+    X87Save(fx);
+    const X87State st = DecodeFxsave(fx);
+    const X87Site* prev = g_x87PrevSite;
+    const int prevOccupied = g_x87PrevOccupied;
+    g_x87PrevSite = &site;
+    g_x87PrevOccupied = st.occupied;
+    if (X87StackFault(st.sw) && InterlockedExchange(&g_x87SfLogged, 1) == 0) {
+        Log("x87: the stack-fault flag is set at '%s' (FSW=0x%04X: SF=1 IE=%d C1=%d, a stack %s since the flags "
+            "were last cleared; sticky, so it may be older than this check). Logged once.",
+            site.name, st.sw, X87InvalidOp(st.sw) ? 1 : 0, X87C1(st.sw) ? 1 : 0,
+            X87C1(st.sw) ? "overflow" : "underflow");
+    }
+    if (st.occupied == 0) return 0;
+    X87Register(site);
+    const long atSite = InterlockedIncrement(&site.count);
+    const long total = InterlockedIncrement(&g_x87Total);
+    int year = 0, month = 0;
+    const long key = X87MonthKey(&year, &month);
+    if (site.loggedMonth != key) {
+        site.loggedMonth = key;
+        char nan[48];
+        FormatIndefinite(nan, sizeof(nan), st.indefinite);
+        char detail[112] = "";
+        if (msg != 0 && who != nullptr) {
+            _snprintf_s(detail, sizeof(detail), _TRUNCATE, " (msg 0x%08X, '%s')", msg, who);
+        } else if (msg != 0) {
+            _snprintf_s(detail, sizeof(detail), _TRUNCATE, " (msg 0x%08X)", msg);
+        } else if (who != nullptr) {
+            _snprintf_s(detail, sizeof(detail), _TRUNCATE, " ('%s')", who);
+        }
+        char when[24] = "none yet";
+        if (year != 0) _snprintf_s(when, sizeof(when), _TRUNCATE, "%04d-%02d", year, month);
+        Log("x87 leftovers at '%s'%s: %d register(s) occupied (FSW=0x%04X TOP=%u, FTW=0x%02X), indefinite NaN: %s; "
+            "previous check '%s' had %d; game month %s, %ld at this site, %ld in all",
+            site.name, detail, st.occupied, st.sw, X87TopOf(st.sw), st.tag & 0xFFu, nan,
+            prev ? prev->name : "(none)", prevOccupied, when, atSite, total);
+    }
+    return st.occupied;
+}
+
+void X87DescribeLeftovers(char* out, size_t cap) {
+    if (cap == 0) return;
+    const long total = g_x87Total;
+    int len = _snprintf_s(out, cap, _TRUNCATE, "x87 leftovers: %ld", total);
+    if (len < 0 || total == 0) return;
+    // The three sites with the most findings (a few sites at most: a scan
+    // per place is cheap, and nothing here allocates).
+    const X87Site* shown[3] = {nullptr, nullptr, nullptr};
+    for (int k = 0; k < 3; ++k) {
+        const X87Site* best = nullptr;
+        for (const X87Site* s = g_x87Sites; s != nullptr; s = s->next) {
+            if (s == shown[0] || s == shown[1] || s->count == 0) continue;
+            if (best == nullptr || s->count > best->count) best = s;
+        }
+        if (best == nullptr) break;
+        shown[k] = best;
+        const int n = _snprintf_s(out + len, cap - static_cast<size_t>(len), _TRUNCATE, "%s%s %ld", k ? ", " : " (",
+                                  best->name, static_cast<long>(best->count));
+        if (n < 0) return;
+        len += n;
+    }
+    if (shown[0] != nullptr) _snprintf_s(out + len, cap - static_cast<size_t>(len), _TRUNCATE, ")");
+}
 
 uint16_t X87ControlWord() {
 #if defined(_M_IX86)
@@ -101,6 +227,10 @@ void FpuLog(const char* where, bool hook) {
     Describe(d, sizeof(d), X87ControlWord());
     Log("fpu %s: %s [thread %lu%s]", where, d, GetCurrentThreadId(), OnMain() ? ", main" : "");
     FpuCheck(where);
+    // The leftover guard at every FpuLog (framework hooks, city load, the
+    // monthly observation, our budget settlement); `where` names the call.
+    static X87Site site = {"fpu observation", 0, 0, 0, nullptr};
+    X87Check(site, 0, where);
 }
 
 void FpuAttach() {
@@ -171,6 +301,10 @@ void FpuTick() {
     char where[48];
     _snprintf_s(where, sizeof(where), _TRUNCATE, "tick %lu", g_ticks);
     FpuCheck(where);
+    // The leftover guard once per framework tick: what the game's frame (and
+    // every service ticked before the observer) left behind.
+    static X87Site site = {"framework tick (observer)", 0, 0, 0, nullptr};
+    X87Check(site);
 }
 
 }  // namespace fc4

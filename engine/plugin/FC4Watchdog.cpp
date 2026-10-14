@@ -16,6 +16,7 @@
 #include "FC4Autotest.h"
 #include "FC4Diag.h"
 #include "FC4DiagLogic.h"
+#include "FC4Fpu.h"
 #include "FC4Log.h"
 #include "fc4.h"
 
@@ -231,15 +232,19 @@ void Heartbeat(const char* why, bool deltas) {
     const CpuTimes cpu = Cpu();
     char memory[160];
     DescribeMemory(memory, sizeof(memory));
+    // The x87 leftover guard's running total (FC4Fpu.h), with its top sites.
+    char x87[192];
+    X87DescribeLeftovers(x87, sizeof(x87));
     if (deltas) {
         LogWait(1000,
                 "heartbeat (%s): %04d-%02d-%02d (julian %ld) speed %ld pause %ld hidden %ld emergency %ld city %s | "
                 "+%ld OnTick, +%ld deliveries, +%ld interface calls, +%ld verbose lines suppressed, +%ld foreign "
-                "exceptions | main: %s | cpu: process %llu ms, main thread %llu ms | log lines written unlocked %lu | %s",
+                "exceptions | main: %s | cpu: process %llu ms, main thread %llu ms | log lines written unlocked %lu | %s "
+                "| %s",
                 why, d.year, d.month, d.day_of_month, g_julian, g_speed, g_pause, g_hidden, g_emergency,
                 g_cityRunning ? "running" : "not running", ticks - lastTicks, deliveries - lastDeliveries,
                 calls - lastCalls, suppressed - lastSuppressed, foreign - lastForeign, activity, cpu.processMs,
-                cpu.mainMs, LogUnlockedLines(), memory);
+                cpu.mainMs, LogUnlockedLines(), memory, x87);
         lastTicks = ticks;
         lastDeliveries = deliveries;
         lastCalls = calls;
@@ -248,9 +253,9 @@ void Heartbeat(const char* why, bool deltas) {
     } else {
         Log("heartbeat (%s): %04d-%02d-%02d (julian %ld) speed %ld pause %ld hidden %ld emergency %ld | totals: %ld "
             "OnTick, %ld deliveries, %ld interface calls, %ld verbose lines suppressed, %ld foreign exceptions | cpu: "
-            "process %llu ms, main thread %llu ms | %s",
+            "process %llu ms, main thread %llu ms | %s | %s",
             why, d.year, d.month, d.day_of_month, g_julian, g_speed, g_pause, g_hidden, g_emergency, ticks,
-            deliveries, calls, suppressed, foreign, cpu.processMs, cpu.mainMs, memory);
+            deliveries, calls, suppressed, foreign, cpu.processMs, cpu.mainMs, memory, x87);
     }
 }
 

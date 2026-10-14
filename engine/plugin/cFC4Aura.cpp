@@ -17,6 +17,7 @@
 #include "FC4CoreProps.h"
 #include "FC4CrimeInterfaces.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
@@ -903,6 +904,7 @@ cISC4SimGrid<int16_t>* cFC4AuraSimulator::GetLandmarkMap() const {
 
 bool cFC4AuraSimulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("aura DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     const uint32_t type = pMessage->GetType();
     const bool day = type == kMsgSimNewDay, month = type == kMsgSimNewMonth;
     CoreCall call(this);
