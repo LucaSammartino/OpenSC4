@@ -300,7 +300,11 @@ node was created, `FindPath` returns 0.
 `((pSide << 2 | side) << 24) | (t << 16) | (x & 0xFF) << 8 | (z & 0xFF)` where `pSide` is the entry side of the
 node it was reached from; start nodes use `((0x10 | side) << 24) | …` (ferry-arrival start nodes, §4.6: side 0);
 **exit nodes** (nodes for an off-map cell, §4.8.2) set bit 31 and are keyed on the in-city cell they were reached
-from, with `side` = the direction of the move: the node's cell is that in-city cell plus `dir(side)`. Including
+from, with `side` = the direction of the move: the node's cell is that in-city cell plus `dir(side)`. A new node
+gets its cell, type and side from the key (`0x006D5DF0`): `x = (key >> 8) & 0xFF` and `z = key & 0xFF`
+zero-extended, and for bit 31 plus `dir(side)` added as a 16-bit value. For every exit node the game makes (§4.8.2
+moves and the ferry exits of §4.8.3, whose in-city cell is adjacent to the off-map cell) this is the true off-map
+cell: `0 − 1 = −1` and `255 + 1 = 256` come out right. Including
 `pSide` in the identity is what makes the car turn rule (§4.8.2) a property of the state. The key decides identity
 only; a key that has been seen in this search always maps to the same node.
 
@@ -395,8 +399,11 @@ In this order, from the wormhole byte of `c`'s cell:
 #### 4.8.4 Park-and-ride return (flag 8)
 
 If `c`'s cell equals the park-and-ride cell `P` recorded by the previous trip (§4.13): `b = P + dir(Pside)`;
-AddTripNode(`b`, EdgeTo(`P`→`b`), **Car**, cost 0.0, `maxCost[t]` (of `c`'s type), exit = `b` is off-map). When `b`
-is off-map the exit-node rule moves the node back by `dir(side)`, so it lands on `P` itself. *[quirk]*
+AddTripNode(`b`, EdgeTo(`P`→`b`), **Car**, cost 0.0, `maxCost[t]` (of `c`'s type), exit = `b` is off-map). `b` is the cell of the car
+predecessor recorded with `P` (§4.13 step 1); that predecessor was expanded, so it is in city and `b` is never
+off-map in practice. If it were, the exit-node key would hold `b`'s low bytes and the decode (§4.7) would add
+`dir(EdgeTo(P → b))`, which points back at `P`: that gives `P` past the +x/+z edges of a city narrower than 256
+cells, but 256 past the −x/−z edges (the byte 255 plus 1). *[quirk, unreachable]*
 
 #### 4.8.5 Close and time check
 
@@ -609,9 +616,13 @@ No game caller of slot 29 was identified; the traffic simulator applies saved co
 **ReleasePathNodes** (slot 31): reset the page cursor to the first page (pages are kept), empty all buckets, empty
 the open set, forget the result node.
 
-**RecalculateNodeScores** (filter 0 with flag 4): for every stored node in allocation order: `f = r24(g)` if the
-cell is inside the search rect (no multiplication by `w`), else `f = r24(r24(H × w) + g)`; open nodes are then
-Updated, which only sifts **up** (a raised `f` leaves the heap out of order). *[quirk]*
+**RecalculateNodeScores** (filter 0 with flag 4, `0x006D6780`): for every stored node in allocation order:
+`f = r24(g)` if the cell is inside the search rect (no multiplication by `w`), else `f = r24(r24(H × w) + g)`; open
+nodes are then Updated, which only sifts **up** (a raised `f` leaves the heap out of order). *[quirk]* The cell is the
+node's **own** cell (`+0x14`/`+0x16`, `0x006D67FF`, `0x006D6825`). For an exit node that is its off-map cell (§4.7),
+not the in-city cell at which AddTripNode evaluated `H` (§4.9 step 6), so a recomputed exit node's `H` is usually 1
+more or 1 less than before (PF8). Example: end rect `(10, 5, 10, 5)`, search rect not containing the cells, exit
+node from `(0, 5)` to `(−1, 5)`: AddTripNode used `H(0, 5) = 10`, the recomputation uses `H(−1, 5) = 11`.
 
 ### 4.19 Precision summary
 

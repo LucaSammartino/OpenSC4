@@ -536,7 +536,12 @@ vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
   written into §4.11. **The bracket is right: yes.** Every popped node that is not a goal reaches the one close,
   which advances the counter when a max work time is set; an off-map node jumps there without expansion. A goal
   node does not count, and with max work time 0 the counter stays 0.
-- **PF8 — §4.18:** which cell gives an exit node's H when its score is recomputed? [its own off-map cell]
+- ~~**PF8 — §4.18:** which cell gives an exit node's H when its score is recomputed? [its own off-map cell]~~
+  **ANSWERED 2026-10-14** from the exe (`RecalculateNodeScores` `0x006D67FF`/`0x006D6825`; key decode `0x006D5DF0`)
+  and written into §4.18 (with an example) and §4.7. **The bracket is right: its own off-map cell**, the node's
+  stored cell, decoded from the key (low bytes zero-extended, plus `dir(side)` for bit 31). It differs from the
+  in-city cell AddTripNode used, so the recomputed `H` is usually off by one. Also noted in §4.8.4: the park-and-ride
+  target is never off-map (the old "lands on P" remark was unreachable, and wrong at the −x/−z edges).
 - **PF9 — §4.9:** Update of an open node whose heap position is stale. [no-op unless the heap slot holds it]
 - **PF10 — §4.15:** `GetNeighborConnectionInnerCell` fails for an off-map node. [the node's own cell, low bytes]
 - **PF11:** FindPath on an object that is not initialised. [returns 0, does nothing]
