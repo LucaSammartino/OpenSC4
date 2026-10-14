@@ -1060,8 +1060,10 @@ At the end of the pass (`0x0071A5D7`–`0x0071A701`):
 
 1. **Publish the statistics.** For each slot `s` = 0…13: if `count[s] ≠ 0`, `sum[s] := r24(sum[s] / float(u32
    count[s]))`. Then copy the five fields `(average, congested, maxX, maxZ, max)` into the "last" statistics (the
-   slot-34 block, rows 0–12, then the bridge row). A slot with no record keeps `(0, 0, 0, 0, 0)`. The state-2 entry
-   reset sets `max` to −1.0 and the copied fields to 0.
+   slot-34 block, rows 0–12, then the bridge row). A slot with no record publishes `(0.0, 0, 0, 0, 0.0)` (TS40). The
+   state-2 entry reset (`0x00721196`–`0x007211D6`) zeroes the five fields of every working row and sets a separate
+   per-slot comparison value to −1.0. A record (`0x0071A3D7`–`0x0071A40C`) writes the row's max fields only when `r`
+   beats that value. An empty slot's max cell (0, 0) is therefore not a cell; its record count (step 2) is 0.
 2. **Replace the cell counts.** `records[t]` for t = 0…12 become the published u16 × 13, **and**
    `cells[t] := records[t]` (u32). This replaces the running counts that the occupant messages keep between passes
    (§3.6). The bridge slot's `records[13]` is neither published nor a cell count, so bridge pieces are in no cell

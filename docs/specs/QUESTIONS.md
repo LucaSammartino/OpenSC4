@@ -3056,7 +3056,11 @@ host gained connection, region, budget and drive-side methods. The current answe
   **ANSWERED 2026-10-14** from the exe (route reader `0x006D65C6`–`0x006D65CC`, run tokens `0x006D6593`; ApplyRoute test
   `0x00719E97`) and written into traffic-simulator §4.5. It is bit 7 (`0x80`) of the jump token that leads to the next
   record. The reader stores it in the record the jump arrives at, and run tokens clear it. The bracket matches.
-- **TS40:** What does a statistics slot with no record publish? [zeros]
+- ~~**TS40:** What does a statistics slot with no record publish? [zeros]~~
+  **ANSWERED 2026-10-14** from the exe (state-2 entry `0x00721196`–`0x007211D6`; record update
+  `0x0071A3D7`–`0x0071A40C`; publish `0x0071A5D7`–`0x0071A67A`) and written into traffic-simulator §4.9. Zeros: average
+  0.0, congested 0, max cell (0, 0), max 0.0. The −1.0 start is a separate comparison value, not the published max. The
+  bracket matches.
 - **TS41:** A pool ID repeated in row 19: which entry wins? [the last one]
 - **TS42:** Pool ID overflow. [pool 0]
 - **TS43:** A missing regional demand node. [0]
