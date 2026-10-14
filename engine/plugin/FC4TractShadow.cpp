@@ -35,6 +35,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -237,6 +238,151 @@ void ComparePopulation(void* ctx, uint64_t lot, uint32_t devType, uint16_t popul
     }
 }
 
+// ---- the Grow / Decline tally (tooling, both developers) ---------------------------------------------
+//
+// Grow and Decline cannot be compared call by call (they change the city and
+// draw from the generators), so a replace run and a shadow run are compared
+// by what the BDS asked and got each month, in one format: FreeCity4's
+// developer counts in cFC4TractDeveloper (enable = tract), the original's
+// through the slot 5 and 6 forwarders below (tract_shadow = 1). Per growth
+// developer (its GetSubType, slot 6): the calls, the codes appended to the
+// caller's outcome list (§4.3), the capacity returned.
+
+constexpr uint32_t kTallyCodes = 28;
+constexpr size_t kTallyDevs = 16;
+
+struct TallyDev {
+    uint32_t subType = 0;
+    uint32_t grows = 0, declines = 0;
+    int64_t built = 0, declined = 0;
+    uint32_t codes[kTallyCodes + 1] = {};  // the last: any other value
+    uint64_t ticks = 0, maxTicks = 0;      // Grow's wall time (QueryPerformanceCounter)
+};
+
+struct Tally {
+    std::mutex m;
+    TallyDev devs[kTallyDevs];
+    size_t count = 0;
+    uint32_t unlisted = 0;  // calls of developers past kTallyDevs
+};
+Tally g_tally;
+
+TallyDev* TallyFor(uint32_t subType) {
+    for (size_t i = 0; i < g_tally.count; ++i) {
+        if (g_tally.devs[i].subType == subType) return &g_tally.devs[i];
+    }
+    if (g_tally.count == kTallyDevs) {
+        ++g_tally.unlisted;
+        return nullptr;
+    }
+    TallyDev* d = &g_tally.devs[g_tally.count++];
+    d->subType = subType;
+    return d;
+}
+
+uint32_t SubTypeOf(const FC4GrowthProfile& profile) {
+    return profile.developer != nullptr ? AsGame(profile.developer)->GetSubType() : 0;  // growth developer slot 6
+}
+
+}  // namespace
+
+size_t TractTallyListSize(GameList<int32_t>& outcomes) {
+    size_t n = 0;
+    for (auto it = outcomes.begin(); it != outcomes.end(); ++it) ++n;
+    return n;
+}
+
+uint64_t TractTallyNow() {
+    LARGE_INTEGER t;
+    QueryPerformanceCounter(&t);
+    return static_cast<uint64_t>(t.QuadPart);
+}
+
+void TractTallyGrow(const FC4GrowthProfile& profile, int32_t built, GameList<int32_t>& outcomes, size_t before,
+                    uint64_t ticks) {
+    const uint32_t subType = SubTypeOf(profile);
+    std::lock_guard<std::mutex> lock(g_tally.m);
+    TallyDev* d = TallyFor(subType);
+    if (d == nullptr) return;
+    ++d->grows;
+    d->built += built;
+    d->ticks += ticks;
+    if (ticks > d->maxTicks) d->maxTicks = ticks;
+    size_t i = 0;
+    for (auto it = outcomes.begin(); it != outcomes.end(); ++it, ++i) {
+        if (i < before) continue;
+        const int32_t c = *it;
+        ++d->codes[c >= 0 && static_cast<uint32_t>(c) < kTallyCodes ? static_cast<uint32_t>(c) : kTallyCodes];
+    }
+}
+
+void TractTallyDecline(const FC4GrowthProfile& profile, int32_t declined) {
+    const uint32_t subType = SubTypeOf(profile);
+    std::lock_guard<std::mutex> lock(g_tally.m);
+    TallyDev* d = TallyFor(subType);
+    if (d == nullptr) return;
+    ++d->declines;
+    d->declined += declined;
+}
+
+void TractTallyMonth(const char* who, int32_t julian) {
+    std::string line;
+    {
+        std::lock_guard<std::mutex> lock(g_tally.m);
+        fc4_date date{};
+        fc4_date_from_julian(julian, &date);
+        uint32_t grows = 0, declines = 0, attempts = 0, successes = 0;
+        int64_t built = 0, declined = 0;
+        uint64_t ticks = 0;
+        LARGE_INTEGER freq;
+        QueryPerformanceFrequency(&freq);
+        const double usPerTick = freq.QuadPart > 0 ? 1e6 / static_cast<double>(freq.QuadPart) : 0.0;
+        std::string devs;
+        // Ascending subtype, so that two runs list the developers alike.
+        std::vector<const TallyDev*> order;
+        for (size_t i = 0; i < g_tally.count; ++i) order.push_back(&g_tally.devs[i]);
+        std::sort(order.begin(), order.end(),
+                  [](const TallyDev* a, const TallyDev* b) { return a->subType < b->subType; });
+        for (const TallyDev* d : order) {
+            if (d->grows == 0 && d->declines == 0) continue;
+            grows += d->grows;
+            declines += d->declines;
+            built += d->built;
+            declined += d->declined;
+            successes += d->codes[27];
+            ticks += d->ticks;
+            const double avgUs = d->grows != 0 ? static_cast<double>(d->ticks) * usPerTick / d->grows : 0.0;
+            AppendF(devs, "%s0x%X:g%u/b%lld/d%u/x%lld/t%.0f,%.0f/", devs.empty() ? "" : " ", d->subType, d->grows,
+                    static_cast<long long>(d->built), d->declines, static_cast<long long>(d->declined), avgUs,
+                    static_cast<double>(d->maxTicks) * usPerTick);
+            bool any = false;
+            for (uint32_t c = 0; c <= kTallyCodes; ++c) {
+                if (d->codes[c] == 0) continue;
+                attempts += d->codes[c];
+                if (c == kTallyCodes) {
+                    AppendF(devs, "%sother:%u", any ? "," : "", d->codes[c]);
+                } else {
+                    AppendF(devs, "%s%u:%u", any ? "," : "", c, d->codes[c]);
+                }
+                any = true;
+            }
+            if (!any) devs += "-";
+        }
+        AppendF(line,
+                "tract tally (%s) %04d-%02d-%02d month: grows=%u built=%lld codes=%u successes=%u declines=%u "
+                "declined=%lld growMs=%.1f unlisted=%u devs=",
+                who, date.year, date.month, date.day_of_month, grows, static_cast<long long>(built), attempts,
+                successes, declines, static_cast<long long>(declined), static_cast<double>(ticks) * usPerTick / 1000.0,
+                g_tally.unlisted);
+        line += devs.empty() ? std::string("-") : devs;
+        for (size_t i = 0; i < g_tally.count; ++i) g_tally.devs[i] = TallyDev{g_tally.devs[i].subType};
+        g_tally.unlisted = 0;
+    }
+    LogShadowLine("tract tally (cont.)", reinterpret_cast<const uint8_t*>(line.data()), line.size());
+}
+
+namespace {
+
 // ---- the UpdatePopulation forwarder (cISC4TractDeveloper slot 7) ----------------------------------------
 //
 // A month-end sample compares the lots' populations with what UpdatePopulation
@@ -251,11 +397,29 @@ void ComparePopulation(void* ctx, uint64_t lot, uint32_t devType, uint16_t popul
 // population (slot 53) is compared with ours. Tract (0, 0) is forwarded
 // without a comparison (§4.18 [quirk]). The entry is put back at
 // PreAppShutdown and at DLL detach.
+//
+// Slots 5 (Grow, §4.3, the address the compat table identifies) and 6
+// (Decline, §4.19, 0x00709200) get counting forwarders the same way, for
+// the tally above: the original runs unchanged, then the codes it appended
+// and the capacity it returned are counted.
 
 constexpr uintptr_t kOriginalUpdatePopulation = 0x00706BC0;  // §4.18
+constexpr uintptr_t kOriginalDecline = 0x00709200;           // §4.19
+constexpr int kSlotGrow = 5;
+constexpr int kSlotDecline = 6;
 constexpr int kSlotUpdatePopulation = 7;
 
 using UpdatePopulationFn = int32_t(__fastcall*)(void* self, void* edx, const FC4GrowthProfile& profile);
+using GrowFn = int32_t(__fastcall*)(void* self, void* edx, const FC4GrowthProfile& profile,
+                                    GameList<int32_t>& outcomes, bool& flag);
+using DeclineFn = int32_t(__fastcall*)(void* self, void* edx, const FC4GrowthProfile& profile);
+
+// One patched vtable entry.
+struct Patch {
+    void** entry = nullptr;
+    uintptr_t original = 0;
+    bool installed = false;
+};
 
 struct Expect {
     cISC4Lot* lot;
@@ -280,6 +444,9 @@ struct Hook {
     uint64_t calls = 0, compared = 0, origin = 0, lots = 0, mismatches = 0, failures = 0;
     FirstList first;
     uint64_t totalCalls = 0, totalCompared = 0, totalMismatches = 0;
+    // The tally's forwarders (slots 5 and 6).
+    Patch grow, decline;
+    uint64_t grows = 0, declines = 0;
 };
 Hook g_hook;
 
@@ -345,6 +512,99 @@ int32_t __fastcall UpdatePopulationForwarder(void* self, void* edx, const FC4Gro
     return r;
 }
 
+struct TallyStep {
+    const FC4GrowthProfile* profile = nullptr;
+    GameList<int32_t>* outcomes = nullptr;
+    size_t before = 0;
+    int32_t result = 0;
+    uint64_t ticks = 0;
+};
+
+void TallyBeforeStep(void* p) {
+    TallyStep& t = *static_cast<TallyStep*>(p);
+    t.before = TractTallyListSize(*t.outcomes);
+}
+
+void TallyGrowStep(void* p) {
+    TallyStep& t = *static_cast<TallyStep*>(p);
+    TractTallyGrow(*t.profile, t.result, *t.outcomes, t.before, t.ticks);
+}
+
+void TallyDeclineStep(void* p) {
+    TallyStep& t = *static_cast<TallyStep*>(p);
+    TractTallyDecline(*t.profile, t.result);
+}
+
+int32_t __fastcall GrowForwarder(void* self, void* edx, const FC4GrowthProfile& profile, GameList<int32_t>& outcomes,
+                                 bool& flag) {
+    const GrowFn original = reinterpret_cast<GrowFn>(g_hook.grow.original);
+    ++g_hook.grows;
+    TallyStep t;
+    t.profile = &profile;
+    t.outcomes = &outcomes;
+    const bool listed = SehGuard("tract tally Grow (before)", &TallyBeforeStep, &t);
+    const uint64_t t0 = TractTallyNow();
+    t.result = original(self, edx, profile, outcomes, flag);
+    t.ticks = TractTallyNow() - t0;
+    if (listed) SehGuard("tract tally Grow", &TallyGrowStep, &t);
+    return t.result;
+}
+
+int32_t __fastcall DeclineForwarder(void* self, void* edx, const FC4GrowthProfile& profile) {
+    const DeclineFn original = reinterpret_cast<DeclineFn>(g_hook.decline.original);
+    ++g_hook.declines;
+    TallyStep t;
+    t.profile = &profile;
+    t.result = original(self, edx, profile);
+    SehGuard("tract tally Decline", &TallyDeclineStep, &t);
+    return t.result;
+}
+
+// Points `vt[slot]` at `to` when it holds `expected`; false (and a line) otherwise.
+bool PatchSlot(void** vt, int slot, uintptr_t expected, void* to, const char* what, Patch& patch) {
+    void** entry = vt + slot;
+    const uintptr_t found = reinterpret_cast<uintptr_t>(*entry);
+    if (found != expected) {
+        Log("tract shadow: %s forwarder NOT installed: vtable %p slot %d holds 0x%08lX, expected 0x%08lX", what,
+            static_cast<void*>(vt), slot, static_cast<unsigned long>(found), static_cast<unsigned long>(expected));
+        return false;
+    }
+    DWORD before = 0;
+    if (!VirtualProtect(entry, sizeof(void*), PAGE_READWRITE, &before)) {
+        Log("tract shadow: %s forwarder NOT installed: VirtualProtect failed (error %lu)", what, GetLastError());
+        return false;
+    }
+    patch.original = found;
+    *entry = to;
+    DWORD ignored = 0;
+    const bool restored = VirtualProtect(entry, sizeof(void*), before, &ignored) != 0;
+    FlushInstructionCache(GetCurrentProcess(), entry, sizeof(void*));
+    patch.entry = entry;
+    patch.installed = true;
+    Log("tract shadow: %s forwarder installed at %p (vtable %p slot %d): 0x%08lX -> %p (FreeCity4.dll); page "
+        "protection 0x%lX %s",
+        what, static_cast<void*>(entry), static_cast<void*>(vt), slot, static_cast<unsigned long>(found), to, before,
+        restored ? "restored" : "NOT restored");
+    return true;
+}
+
+void UnpatchSlot(Patch& patch, const char* what, const char* why, uint64_t calls) {
+    if (!patch.installed) return;
+    DWORD before = 0;
+    if (!VirtualProtect(patch.entry, sizeof(void*), PAGE_READWRITE, &before)) {
+        Log("tract shadow: WARNING %s forwarder NOT removed (%s): VirtualProtect failed (error %lu)", what, why,
+            GetLastError());
+        return;
+    }
+    *patch.entry = reinterpret_cast<void*>(patch.original);
+    DWORD ignored = 0;
+    VirtualProtect(patch.entry, sizeof(void*), before, &ignored);
+    FlushInstructionCache(GetCurrentProcess(), patch.entry, sizeof(void*));
+    patch.installed = false;
+    Log("tract shadow: %s forwarder removed (%s): the entry holds 0x%08lX again; %llu call(s)", what, why,
+        static_cast<unsigned long>(patch.original), static_cast<unsigned long long>(calls));
+}
+
 void InstallHook() {
     if (g_hook.tried) return;
     g_hook.tried = true;
@@ -355,6 +615,10 @@ void InstallHook() {
             "available (see the compat lines); the population line samples tracts at each month instead");
         return;
     }
+    // The tally's counting forwarders first (independent of slot 7).
+    PatchSlot(vt, kSlotGrow, grow, reinterpret_cast<void*>(&GrowForwarder), "Grow (tally)", g_hook.grow);
+    PatchSlot(vt, kSlotDecline, kOriginalDecline, reinterpret_cast<void*>(&DeclineForwarder), "Decline (tally)",
+              g_hook.decline);
     void** entry = vt + kSlotUpdatePopulation;
     const uintptr_t found = reinterpret_cast<uintptr_t>(*entry);
     if (found != kOriginalUpdatePopulation) {
@@ -385,6 +649,8 @@ void InstallHook() {
 }
 
 void RemoveHook(const char* why) {
+    UnpatchSlot(g_hook.grow, "Grow (tally)", why, g_hook.grows);
+    UnpatchSlot(g_hook.decline, "Decline (tally)", why, g_hook.declines);
     if (!g_hook.installed) return;
     DWORD before = 0;
     if (!VirtualProtect(g_hook.entry, sizeof(void*), PAGE_READWRITE, &before)) {
@@ -671,6 +937,7 @@ void TractShadowMonth(cISC4City* city, int32_t julian) {
             static_cast<unsigned long long>(g_hook.failures), static_cast<unsigned long long>(g_hook.lots),
             static_cast<unsigned long long>(g_hook.mismatches), g_hook.first.Str());
     LogShadowLine("tract shadow (cont.)", reinterpret_cast<const uint8_t*>(line.data()), line.size());
+    if (g_hook.grow.installed || g_hook.decline.installed) TractTallyMonth("original", julian);
     g_hook.totalCalls += g_hook.calls;
     g_hook.totalCompared += g_hook.compared;
     g_hook.totalMismatches += g_hook.mismatches;

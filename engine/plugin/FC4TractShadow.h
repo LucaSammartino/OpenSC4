@@ -46,7 +46,12 @@
 //
 // Not compared (logged at game start): Grow and Decline (they change the
 // city and draw from the generators; a read-only rerun cannot reproduce
-// them), the histogram, the filter map.
+// them), the histogram, the filter map. They are tallied instead: slots 5
+// (Grow) and 6 (Decline) get counting forwarders next to slot 7's, and one
+// "tract tally (original)" line per month gives, per growth developer, the
+// calls, the capacity returned and the outcome codes appended. FreeCity4's
+// developer (enable = tract) writes the same line as "tract tally (ours)",
+// so a replace run and a shadow run compare month by month.
 //
 // Log lines (always written, not the verbose channel), per run:
 //   tract shadow (styles) YYYY-MM-DD load|month: record=N bytes roundtrip=same|DIFFERENT current=0x... index=...
@@ -54,16 +59,34 @@
 //   tract shadow (calls) YYYY-MM-DD month: calls=N compared=C origin=O failures=F lots=L mismatches=M first=...
 //   tract shadow (population) YYYY-MM-DD load|month: developers=D tracts=T lots=L mismatches=M first=...
 //     (the sample; only without the forwarder)
+//   tract tally (original|ours) YYYY-MM-DD month: grows=G built=B codes=A successes=S declines=D declined=X
+//     growMs=T unlisted=U devs=0xSUBTYPE:gG/bB/dD/xX/tAVG,MAX/code:count,... (ascending subtype; the
+//     Grow wall times in microseconds, the month's total in milliseconds)
 // A run that cannot compare logs "... INCOMPLETE (why)" instead.
 #pragma once
 
+#include "FC4DevelopmentInterfaces.h"
+#include "FC4GameList.h"
 #include "fc4.h"
 
+#include <cstddef>
 #include <cstdint>
 
 class cISC4City;
 
 namespace fc4 {
+
+// The Grow / Decline tally (both developers; any thread, locked). Count the
+// caller's outcome list before the call, then pass that count with the
+// list after it: the codes past it are counted.
+size_t TractTallyListSize(GameList<int32_t>& outcomes);
+// QueryPerformanceCounter; `ticks` is the call's wall time in those units.
+uint64_t TractTallyNow();
+void TractTallyGrow(const FC4GrowthProfile& profile, int32_t built, GameList<int32_t>& outcomes, size_t before,
+                    uint64_t ticks);
+void TractTallyDecline(const FC4GrowthProfile& profile, int32_t declined);
+// One "tract tally (who)" line with the counts since the last one.
+void TractTallyMonth(const char* who, int32_t julian);
 
 // Game start (after the subsystems are resolved): reads the setting and logs
 // whether the shadow can run in this configuration.
