@@ -404,7 +404,7 @@ f32   counter 1
 f32   counter 2      v < 23: stored × 100 (Read multiplies by 0.01)
 u32   n rules        only if v ≥ 29
 n × { bool kind; 4 × bool side; u16 from; u16 to }
-f32   0x0BFC0A4C value            only if v ≥ 33, else 0
+f32   toll (0x0BFC0A4C)           only if v ≥ 33, else 0
 bool  counts as intersection      only if v ≥ 33, else false
 ```
 

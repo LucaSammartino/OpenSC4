@@ -1333,7 +1333,11 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   gets an exit side from the jump's direction, with a `+z` quirk for short and same-cell jumps. The first cell has
   no strike test, the last cell is never tested, and an empty route is false. Written into traffic-simulator.md §4.3
   with an example.
-- **TS15 — §4.5:** is the switch fee the switch's `0x0BFC0A4C` value read as f32? [yes]
+- ~~**TS15 — §4.5:** is the switch fee the switch's `0x0BFC0A4C` value read as f32? [yes]~~ **ANSWERED 2026-10-14**
+  from the exe: yes. DoLotActivated reads it with the converting f32 getter (`0x00723C43`; absent → 0.0), and
+  ApplyRoute charges `r24(Q × toll)` into the fees (`0x00719CCC`), which become the toll income. Shipped only on the
+  four toll booths (0.1). The saved f32 after the rules is this value. Written into traffic-simulator.md §4.5, §6.1
+  and traffic-network.md §2.4.
 - **TS16 — §4.5:** the ferry-leg counters? [round(Q) to counter 1 (mode 0), 2 (mode 1) or both (mode 2), on the
   departure terminal's link to that cell, else its neighbour link]
 - **TS17 — §4.4:** a highway-return adjustment for an off-map destination? [none]

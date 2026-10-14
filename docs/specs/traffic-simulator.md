@@ -702,7 +702,11 @@ first trip's type.
      `generatesTraffic[t]`: `vol := r24(vol + Q)`; mode 2 adds a second time, `vol := r24(vol + Q)`.
   2. **Transit switch**: when the cell's switch ID (switch map) differs from the last one seen on this route and is
      non-zero, except when both this and the previous step are subway (type 6): `usage := r24(usage + Q)` (once, also
-     in mode 2) and `fees := r24(fees + r24(Q × switchFee))`.
+     in mode 2) and `fees := r24(fees + r24(Q × switchFee))`. `switchFee` is the switch's toll, the f32 building
+     property `0x0BFC0A4C` (traffic-network.md §2.4; absent → 0.0), so only toll booths charge (TS15). Example: 37
+     commuters by car, Carpool off, `Q = 37.0`, through a toll booth with toll 0.1 (f32 `0.100000001`):
+     `r24(37 × 0.1)` = 3.70000005 (the f32 nearest 3.7), added to `fees` and at month end to the toll income
+     (§4.12). A return leg through the same booth is a separate ApplyRoute and charges again; mode 2 charges once.
   3. **Edge density** (§4.8): entry side `e` = direction from the cell to the previous route cell (for the first cell:
      towards the source rect, `x < x0 → step +x`, `x > x1 → −x`, else `z < z0 → +z`, else `−z`); exit side `o` =
      direction from the cell to the next route cell, or at the last cell towards `(destX, destZ)` (mode 0, 2) or
@@ -1161,7 +1165,7 @@ vectors.
 | 7 | edge densities | u32 count; per record: u32 key, `last[16]` u16 (index order 0…15), u16 usage, `current[16]` u16 |
 | 8 | per trip type k = 0…2 | u32 `jobCapacity[k]`, u32 `attempted[k]`, u32 `routed[k]` |
 | 9 | network grids | transit-switch mode-mask grid (`0x69D5C424`), transit-switch ID grid (`0x69D5C42D`) |
-| 10 | switch block (traffic-network.md §2.4, §6) | u32 next switch ID, u32 count, then per switch in table iteration order: u32 ID, building reference (`SetGZSerializable`), f32 load, f32 time factor, f32 capacity, bool has-access-point, u8 access x, u8 access z, f32, f32 (the two counters), u32 rule count, per rule: u8 kind, 4 × bool side, u16 from, u16 to; then f32 (the `0x0BFC0A4C` value *[inferred: pairing]*), bool counts-as-intersection |
+| 10 | switch block (traffic-network.md §2.4, §6) | u32 next switch ID, u32 count, then per switch in table iteration order: u32 ID, building reference (`SetGZSerializable`), f32 load, f32 time factor, f32 capacity, bool has-access-point, u8 access x, u8 access z, f32, f32 (the two counters), u32 rule count, per rule: u8 kind, 4 × bool side, u16 from, u16 to; then f32 toll (the `0x0BFC0A4C` value), bool counts-as-intersection |
 | 11 | departments | roads, mass transit (serializables, budget.md) |
 | 12 | income | s64 budget-item total (§4.1.3), f32 transit income, f32 toll income, f32 last monthly income, f64 income accumulator, f64 fee accumulator |
 | 13 | cycle date, strike, damage | u32 cycle start date (§4.12 StartRecalc), u8 strike state, s32 strike month counter; road: u32 cell count, u32 damaged count, f32 damage rate; u32 n + n × u16 intact road cell keys, u32 n + n × u16 damaged road cell keys (hash iteration order); rail: the same five fields and two key lists |

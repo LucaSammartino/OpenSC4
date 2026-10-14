@@ -192,7 +192,7 @@ changes `flags`.
 | two f32 counters | saved, owned by traffic-simulator.md |
 | rules | vector of Rule records (below) |
 | kind-0 "to" mask | u16, OR of `1 << to` over the kind-0 rules |
-| property `0x0BFC0A4C` | u32, simulator use |
+| toll | f32, building property `0x0BFC0A4C`, read with the converting f32 getter (`0x00723C43`; absent → 0.0). The fee per unit of traffic that passes the switch (traffic-simulator.md §4.5), summed into the toll income. Shipped only on the four toll booths, all 0.1. |
 | counts as intersection | bool, building property `0x4BFC47B0` (§4.6) |
 
 **Rule**: `kind` (0 or 1), `side[4]` (bool per city side), `from` (travel type), `to` (travel type).
