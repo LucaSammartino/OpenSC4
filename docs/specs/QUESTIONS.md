@@ -2812,8 +2812,10 @@ in brackets.
   monthly tax are 64-bit `_ftol` results, so values outside the int32 range keep all their bits. Only at or beyond
   ±2^63, or for a NaN, does it give `0x8000000000000000`. The bracket (low 32 bits) differs above 2^31; *[choice]* carry
   64 bits, as the original does (recommended). Normal play never reaches 2^31 simoleons a month.
-- **BQ8:** The land value and flammability host tables grew (new last callbacks) without an ABI bump, so a table of
-  the old size is now refused by the `struct_size` check. [no bump; refused]
+- ~~**BQ8:** The land value and flammability host tables grew (new last callbacks) without an ABI bump, so a table of
+  the old size is now refused by the `struct_size` check. [no bump; refused]~~
+  **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. The host tables and their
+  `struct_size` check are FreeCity4's plugin ABI; the original has nothing to compare with.
 - **LV5:** LV2: a developer first seen while its slot 10 is false gets no snapshot until slot 10 turns true, so there
   is no second candidate in that window. [no snapshot]
 - **FL7:** FL5/FL6: exactness assumes the plumbing pass-end message (posted in state 8) is delivered before the next
