@@ -260,6 +260,14 @@ For wealth w ∈ {1, 2, 3} (R$, R$$, R$$$):
      a fresh grid is all 0 (simgrid §4.2). States 14 and 15 reuse the grid that holds the previous wealth's
      result, which is 0 off the edge, because a pass can only lower a value. So off the edge it is 0 for every
      wealth.
+
+   **No building map** *[compat]* (QUESTIONS RG24). The helper returns at once and writes nothing when the map is null
+   (`0x005E4FA8`), and likewise for a null temporary grid (`0x005E4FB5`; never, since state 13 creates it). The class
+   passes BDS slot 41's result on without a test (call at `0x006FF87C`). So with no map no cell is seeded, not even
+   the edge: in state 13 the fresh grid stays all 0 and the passes leave it all 0, and states 14 and 15 reuse the grid
+   with the previous wealth's result. With no map, every proximity grid is therefore 0 everywhere. Example (4 × 4
+   city, no map): all three grids are 0 in every cell, where seeding 255 on the edge would give 1 on the whole z = 0
+   edge after the passes. The class's BDS pointer is not tested either: with no BDS the original calls through null.
 2. **Distance passes**. One pass over the `countX × countZ` temporary grid:
    - for each x (row): sweep z = 0 → countZ − 1 with a running d starting at 255: `d := min(d + 1, v)`; store d;
      then the same sweep from z = countZ − 1 down to 0;

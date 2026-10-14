@@ -2781,8 +2781,13 @@ total is a float32 running sum in master-list lot order; the land value shadow o
 snapshots maps while slot 10 is true; the flammability shadow polls the plumbing watered grid. The current answer is
 in brackets.
 
-- **RG24:** RG23: what does the proximity seed do when there is no building map? [writes FAR to `(x, 0)` only and
-  keeps every other cell; a choice]
+- ~~**RG24:** RG23: what does the proximity seed do when there is no building map? [writes FAR to `(x, 0)` only and
+  keeps every other cell; a choice]~~
+  **ANSWERED 2026-10-14** from the exe (seed helper `0x005E4FA0`: null map → return at `0x005E4FA8`, null grid at
+  `0x005E4FB5`; state 13 call `0x006FF87C`) and written into residential §5.3 step 1. It writes nothing, not even the
+  edge. A fresh grid stays all 0 and a reused one keeps the previous wealth's result, so with no map every proximity
+  grid is 0. The bracket (255 on the edge, giving 1 there after the passes) differs; *[choice]* write nothing, as the
+  original does (recommended).
 - **BQ4:** BQ3: releasing the safe lot iterator. The lane unlinks its nodes by hand, the same as `std::list::remove`
   at `0x00809580`, and frees each with allocator B, instead of calling `0x00809580`. [an equivalent unlink; the block
   is leaked, not freed, if no node is found]
