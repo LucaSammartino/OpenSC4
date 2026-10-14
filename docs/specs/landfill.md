@@ -328,6 +328,28 @@ Afterwards, if `Z.GetNumValidHeaps() < 1`: set `Z.completelyDezoned := true` (st
 2. New rect := union of the zone rect and the region rect. New mask := old mask cells ∪ region mask cells.
 3. For each region mask cell (x outer, z inner): `LevelRect((x, z, x+1, z+1), levelAltitude, false)`. This
    includes cells already in the zone.
+
+   *[compat]* (LF5; `0x006BC150`, the call follows the mask-bit set for that cell). The rect is an **inclusive**
+   cell rect, like the other rect passed to `LevelRect` (§4.4.1 step 3 passes the new zone's `{x0, z0, x1, z1}`). So
+   each region cell levels the **2 × 2-cell block** `(x..x+1, z..z+1)`:
+   - the average is over the 3 × 3 vertices `x..x+2 × z..z+2`;
+   - the slope test is over the same block;
+   - the call is `ModifyTerrainHeight(1, 1, x, z, x+2, z+2, avg, null, 5, null)` (§4.5.3).
+
+   This is what the original does, and it must be reproduced as written. Three consequences follow:
+   - The levelling reaches **one cell past** the region's +x and +z edges, onto cells that may not be landfill.
+   - The cells are levelled one after another. Each cell's average is taken **after** the earlier cells' blocks
+     were levelled, so the order (x outer, z inner) matters.
+   - Each block is tested for slope on its own, so some blocks may be skipped (slope > 40) while others are
+     levelled.
+
+   Example: the region is the single cell (5, 5). The vertices 5..7 × 5..7 are averaged. If the terrain is flat
+   at 100 m except vertex (7, 7) at 109 m, then `avg = (8 × 100 + 109) / 9 = 101`. The call is
+   `ModifyTerrainHeight(1, 1, 5, 5, 7, 7, 101.0, null, 5, null)`, whose vertex range covers cells (5..6, 5..6).
+   `levelAltitude` is passed as `f` and is not read (§4.5.3).
+
+   With a 2 × 1 region (5, 5), (6, 5), cell (5, 5) is levelled as above first. Then cell (6, 5) averages the
+   vertices 6..8 × 5..7, which by then include the six vertices 6..7 × 5..7 written by the first call.
 4. Rebuild the heap grid for the new `W × H`: all heaps new (valid, inactive, empty, positioned by their new
    local coordinates); then each **old** heap is copied, with all its fields, to index `old.hz × W + old.hx`.
    *[quirk]* The old local coordinates are not translated: when the zone grows toward smaller `x` or `z`, the

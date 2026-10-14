@@ -435,8 +435,12 @@ vectors `nb18_*`). The core's current answer is in brackets.
   at `(cx + r, cz − r + 1)`, runs +z, −x, −z, +x, and ends at `(cx + r, cz − r)`, so ring 1 starts at `(cx+1, cz)`,
   not `(cx−1, cz−1)`. Out-of-rect cells are skipped one by one. landfill.md §4.7.5 has two worked examples, and
   test 11 now cites them. `lf11_11` must be regenerated.
-- **LF5 — §4.4.4 step 3:** `LevelRect((x, z, x+1, z+1))` per cell is a 2×2 block if the rectangle is inclusive. Is
-  that intended? [passed as written]
+- ~~**LF5 — §4.4.4 step 3:** `LevelRect((x, z, x+1, z+1))` per cell is a 2×2 block if the rectangle is inclusive. Is
+  that intended? [passed as written]~~ **ANSWERED 2026-10-14** from the exe (`0x006BC150`): the bracket matches. The
+  rect is inclusive, so each region cell averages and levels the 2×2-cell block (vertices `x..x+2 × z..z+2`):
+  `ModifyTerrainHeight(1, 1, x, z, x+2, z+2, avg, null, 5, null)`. The levelling is chained cell by cell (x outer,
+  z inner) and reaches one cell past the region's +x and +z edges. Whether that was the author's intent cannot be
+  known; it must be reproduced. Worked example in landfill.md §4.4.4 step 3.
 - **NB1:** the Julian day of `DEFAULT_DATE`. [0]
 - **NB2:** does `Activate` change the flags directly, or through `SetFlags` with its status-0 reports? [directly]
 - **NB3 — §6.3:** does the marker altitude `GetAltitude(x, z)` use the connection cell as given or the inner cell?
