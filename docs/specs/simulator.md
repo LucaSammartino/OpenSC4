@@ -279,8 +279,8 @@ This is the compiled layout; MSVC produces it from the SDK header's source order
 The calendar (§5.2) makes day-level work complete before the next day, but three kinds of original work are paced by
 **frames and milliseconds**, so the same city evolves differently at different days per real second. The amount
 that matters is the **idle work per game day**: idle agents get one delivery per idle pass (§5.4), each with at most
-`frameBudgetMs / 3` ms, every frame, however many days that frame advances. At the shipped cheetah speed (100 ms per
-day, §7) the idle level gets on the order of 100 ms per day; at 85 days per second it gets about 12 ms per day minus
+`frameBudgetMs / 3` ms, every frame, however many days that frame advances. At the shipped cheetah speed (50 ms per
+day, §7: 20 days per second) the idle level gets on the order of 50 ms per day; at 85 days per second it gets about 12 ms per day minus
 the day-level work, and agents that do one step per delivery get roughly one idle step per day.
 
 1. **Idle-driven cycles with a per-day bound.** One step per NewDay plus any number of idle steps, and the day is held
