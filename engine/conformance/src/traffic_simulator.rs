@@ -60,7 +60,8 @@ struct Conn {
     dirty: bool,
 }
 
-/// The department tokens: `dept_base + i` in creation order.
+/// The department tokens: `dept_base + i` in creation order (a fixture
+/// stand-in with no original counterpart, TS34).
 const DEPT_BASE: u64 = 900;
 /// The class ID of the host references the world writes.
 const HOST_CLASS: u32 = 0x1234_5678;
@@ -394,6 +395,8 @@ impl TrafficSimHost for World {
     fn release_department(&self, department: u64) {
         self.released_departments.borrow_mut().push(department);
     }
+    /// Fixture stand-in (TS34): an unset department is at 100 % funding, as
+    /// a department `CreateDepartmentBudget` makes (budget.md §6).
     fn department_funding(&self, department: u64) -> f32 {
         self.dept_id(department)
             .and_then(|id| self.funding.borrow().get(&id).copied())
@@ -486,6 +489,7 @@ impl TrafficSimHost for World {
     fn occupant_filter_includes(&self, _filter: u64, _occupant: u64) -> bool {
         false
     }
+    /// Fixture stand-in (TS34): every cell reports a network occupant.
     fn cell_has_network_occupant(&self, _x: i32, _z: i32) -> bool {
         true
     }
@@ -1377,6 +1381,40 @@ fn shipped() -> SimTuning {
     t
 }
 
+/// `read_tuning [base, props, fields]`: `ReadSimulatorTunableValues` and the
+/// strategy re-read over `base` (`"shipped"` or `"code"`) with the property
+/// map `props`; returns the named fields (§4.14, §4.1.2, TS28, TS29).
+fn read_tuning(op: &Json) -> R<Json> {
+    let mut t = match str_of(arg(op, 0)?, "base")? {
+        "shipped" => shipped(),
+        "code" => SimTuning::default(),
+        b => return Err(format!("unknown tuning base '{b}'")),
+    };
+    let h = scalar::holder_of(arg(op, 1)?)?;
+    t.read(Some(&h));
+    t.read_strategies(&h);
+    let floats = |v: &[f32]| Json::Array(v.iter().map(|&x| fb(x)).collect());
+    let mut out = Vec::new();
+    for f in arr(arg(op, 2)?, "fields")? {
+        let k = str_of(f, "field")?;
+        let v = match k {
+            "max_speed" => Json::Array(t.max_speed.iter().map(|r| floats(r)).collect()),
+            "tile_costs" => floats(&t.tile_costs),
+            "income_per_tile" => floats(&t.income_per_tile),
+            "roads_funding" => fb(t.max_roads_funding),
+            "transit_funding" => fb(t.max_transit_funding),
+            "generates_traffic" => Json::Array(t.generates_traffic.iter().map(|&b| jb(b)).collect()),
+            "start_neutral" => floats(&t.start_neutral),
+            "start_car" => floats(&t.start_car),
+            "background" => floats(&t.background),
+            "pct" => Json::Array(t.pct.iter().map(|r| jlist(r)).collect()),
+            _ => return Err(format!("unknown tuning field '{k}'")),
+        };
+        out.push((k.to_string(), v));
+    }
+    Ok(Json::Object(out))
+}
+
 fn eval(op: &Json) -> R<()> {
     let f = str_of(field(op, "fn")?, "fn")?;
     let got = match f {
@@ -1438,6 +1476,7 @@ fn eval(op: &Json) -> R<()> {
             }
             Json::Array(t.strategy_percentages(1).map(fb).to_vec())
         }
+        "read_tuning" => read_tuning(op)?,
         "residential_split" => {
             let p: Vec<f32> = arr(arg(op, 1)?, "pct")?
                 .iter()

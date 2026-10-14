@@ -461,22 +461,29 @@ impl Run<'_, '_> {
                 return false;
             }
             units += 1;
-            self.st.processed = self.st.processed.wrapping_add(1);
             let rect = self.source_rect(src);
             let mut t = trips[i].clone();
+            let pc = |st: &mut super::State, i: usize| st.pass_counters[i] = st.pass_counters[i].wrapping_add(1);
             if full {
+                // Every search adds 1 to `processed` (none suspends, §3.4).
                 let r = self.search_trip(&mut t, rect);
+                self.st.processed = self.st.processed.wrapping_add(1);
                 if r.found {
                     t.status = status::ROUTED;
                     t.trip_length = r.trip_length;
                     if r.arrived < t.count {
-                        // The split (§4.4).
+                        // The split (§4.4): +1 to `toSearch`, to the running
+                        // phase's `total` and to pass counter 9
+                        // (`0x0071D75A`, TS21).
                         let mut copy = t.clone();
                         copy.count = t.count - r.arrived;
                         copy.status = status::SEARCH;
                         t.count = r.arrived;
                         trips.insert(i + 1, copy);
                         self.st.continue_search = true;
+                        self.st.to_search = self.st.to_search.wrapping_add(1);
+                        self.st.total = self.st.total.wrapping_add(1);
+                        pc(self.st, super::state::PC_SPLITS);
                     } else {
                         self.st.continue_search = false;
                     }
@@ -485,12 +492,19 @@ impl Run<'_, '_> {
                     self.st.continue_search = false;
                 }
             } else if !self.capacity_still_available(&t) {
+                // Sent back for lack of capacity: +1 to `toSearch` and to
+                // pass counter 4, not to `processed` (`0x0071D20D`, TS21).
                 t.status = status::SEARCH;
+                self.st.to_search = self.st.to_search.wrapping_add(1);
+                pc(self.st, super::state::PC_CAPACITY_SEND_BACKS);
             } else {
                 let r = self.search_trip(&mut t, rect);
+                self.st.processed = self.st.processed.wrapping_add(1);
                 if r.found {
                     t.status = status::ROUTED;
                     t.trip_length = r.trip_length;
+                    // A found re-route: +1 to the re-route counter (TS21).
+                    pc(self.st, super::state::PC_REROUTE_COUNTER);
                 } else {
                     t.status = status::FAILED;
                 }

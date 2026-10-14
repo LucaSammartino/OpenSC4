@@ -36,10 +36,11 @@ pub struct RouteCell {
 /// truncated record ends the route *[choice]*. Coordinates are i32: a unit
 /// step may leave the map (an exit node), a jump's bytes are unsigned.
 ///
-/// *[question]* The encoder writes an off-map root as its connection's
-/// in-city cell while the unit steps stay relative to the off-map cell, so
-/// such a route decodes shifted by one cell; this reader decodes the bytes
-/// literally.
+/// Off-map roots (§4.5, TS13): the original never produces one (start nodes
+/// are seeded on rings clamped to the map), and its reader takes the header
+/// bytes zero-extended and decodes every step literally, with no off-map
+/// adjustment. This reader does the same *[choice]*; a route whose root was
+/// encoded as the inner cell would replay one cell off in both.
 pub fn decode_route(bytes: &[u8]) -> Vec<RouteCell> {
     let mut out = Vec::new();
     if bytes.len() < 3 {

@@ -19,10 +19,18 @@ use crate::stl::{StlHashSet, STL_DEFAULT_HINT};
 use super::tuning::SimTuning;
 use super::{cell_key16, GridF32, GridU8, Source};
 
+/// The re-route counter: +1 per search ReRouteTrips finds (§4.4, TS21);
+/// kept by the pacing reset on entering 16, zeroed on entering 17 (§3.3,
+/// TS1).
+pub const PC_REROUTE_COUNTER: usize = 1;
 /// The pass counter that holds `rerouteBucket` (§4.3, save row 15).
 pub const PC_REROUTE_BUCKET: usize = 2;
 /// The pass counter that holds the source counter (§4.3).
 pub const PC_SOURCE_COUNTER: usize = 3;
+/// ReRouteTrips' capacity send-backs (`0x0071D20D`, §4.4, TS21).
+pub const PC_CAPACITY_SEND_BACKS: usize = 4;
+/// FullTrips' splits (`0x0071D75A`, §4.4, TS21).
+pub const PC_SPLITS: usize = 9;
 /// The number of pass counters saved (§6.1 row 15).
 pub const PASS_COUNTERS: usize = 10;
 
@@ -167,8 +175,17 @@ impl DamageState {
 /// Read keeps them and Write writes them back unchanged.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SaveExtras {
-    /// The bool after the intersection dirty rectangle.
-    pub bool_after_rect: bool,
+    /// The bool after the intersection dirty rectangle: the network-changed
+    /// byte (§3.1, §6.1 row 14, TS5). Set by SimBegin and by every network
+    /// occupant message, cleared by the constructor, saved and loaded, read
+    /// by nothing.
+    pub network_changed_byte: bool,
+    /// The raw state byte of a loaded running scan iterator (§6.1 "The
+    /// scanning iterator in row 14", TS31): any byte other than 0 (fresh)
+    /// and 2 (done) acts as running and is written back unchanged until the
+    /// scan ends or the iterator is reset. `None` writes the iterator's own
+    /// byte.
+    pub scan_state_byte: Option<u8>,
     /// The two phase positions (s16; u8 before version 25).
     pub phase_positions: [i16; 2],
     /// The lot iterator position (30 bytes: s8, s8, 7 × s32).
@@ -201,7 +218,8 @@ pub struct SaveExtras {
 impl Default for SaveExtras {
     fn default() -> Self {
         SaveExtras {
-            bool_after_rect: false,
+            network_changed_byte: false,
+            scan_state_byte: None,
             phase_positions: [0; 2],
             lot_iter: [0; 30],
             context_bools: [false; 2],

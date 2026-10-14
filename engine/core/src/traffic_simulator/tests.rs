@@ -369,6 +369,8 @@ impl TrafficSimHost for World {
     fn release_department(&self, department: u64) {
         self.released_departments.borrow_mut().push(department);
     }
+    /// Fixture stand-in (TS34): an unset department is at 100 % funding,
+    /// as a department `CreateDepartmentBudget` makes (budget.md §6).
     fn department_funding(&self, department: u64) -> f32 {
         self.funding.borrow().get(&department).copied().unwrap_or(1.0)
     }
@@ -463,6 +465,7 @@ impl TrafficSimHost for World {
     fn occupant_filter_includes(&self, _filter: u64, _occupant: u64) -> bool {
         false
     }
+    /// Fixture stand-in (TS34): every cell reports a network occupant.
     fn cell_has_network_occupant(&self, _x: i32, _z: i32) -> bool {
         true
     }
@@ -1356,7 +1359,10 @@ fn init_registers_agents_and_grids() {
         w.departments.borrow().iter().map(|d| d.0).collect::<Vec<_>>(),
         vec![dept::ROADS, dept::MASS_TRANSIT]
     );
-    assert_eq!(w.departments.borrow()[0].1, 1.2);
+    // Shipped 120 % → r24(120 × 0.01f) = 0x3F999999, one ulp below 1.2
+    // (§4.14 "Funding percents", TS29).
+    assert_eq!(w.departments.borrow()[0].1.to_bits(), 0x3F99_9999);
+    assert_eq!(w.departments.borrow()[1].1.to_bits(), 0x3F99_9999);
     assert!(s.query_interface(IID_TRAFFIC_SIMULATOR));
     assert_eq!(s.simulator_type(), SIMULATOR_TYPE);
     assert_eq!(s.trip_scale(), 6.0);

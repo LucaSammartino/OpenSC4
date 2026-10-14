@@ -8,9 +8,12 @@
 //! with every Read gate) and the trip record (§6.3).
 //!
 //! Write produces version 41 (`A = 13`, `B = 1`, `C = 13`, `D = 9`). Read
-//! accepts versions 19…41 (and anything newer, read as 41 *[choice]*),
-//! parses into copies and commits only when the whole record was read;
-//! a failed Read leaves the simulator unchanged *[choice]*.
+//! accepts versions 19…41, and anything newer is read exactly as 41: the
+//! original has no upper bound and every gate is an unsigned ordered test
+//! (§6.4, TS32). Read parses into copies and commits only when the whole
+//! record was read, so a failed Read leaves the simulator unchanged
+//! *[choice]*; the original writes as it reads and leaves a partly loaded
+//! simulator with null refs (§6.1 "A failed Read", TS30).
 
 use crate::grid::{CellRect, GridProvider, ScanIterator, ScanState};
 use crate::property::PropertyHolder;
@@ -101,11 +104,14 @@ fn grid_ref<T: crate::grid::GridElem>(g: &Option<std::rc::Rc<dyn crate::grid::Tr
     g.as_ref().map_or(RefValue::Null, |g| g.save_ref())
 }
 
-fn put_iterator(out: &mut dyn OutStream, it: &ScanIterator) {
-    out.put_i8(match it.state {
-        ScanState::Fresh => 0,
-        ScanState::Running => 1,
-        ScanState::Done => 2,
+/// The scanning iterator; `raw` is the loaded state byte kept while the
+/// scan runs (TS31).
+fn put_iterator(out: &mut dyn OutStream, it: &ScanIterator, raw: Option<u8>) {
+    out.put_u8(match (it.state, raw) {
+        (ScanState::Fresh, _) => 0,
+        (ScanState::Running, Some(b)) => b,
+        (ScanState::Running, None) => 1,
+        (ScanState::Done, _) => 2,
     });
     out.put_i32(it.x);
     out.put_i32(it.z);
@@ -285,14 +291,14 @@ fn write_record(out: &mut dyn OutStream, h: &dyn TrafficSimHost, s: &State, n: &
     put_damage(out, &d.road);
     put_damage(out, &d.rail);
     out.put_u8(s.cycle_state);
-    put_iterator(out, &s.scan);
+    put_iterator(out, &s.scan, s.extras.scan_state_byte);
     out.put_bool(n.intersection_dirty);
     let r = n.intersection_rect;
     for v in [r.x1, r.z1, r.x2, r.z2] {
         out.put_i32(v);
     }
     let e = &s.extras;
-    out.put_bool(e.bool_after_rect);
+    out.put_bool(e.network_changed_byte);
     out.put_u32(s.strategy_bucket_counter);
     out.put_u32(s.strategy_bucket);
     out.put_i16(e.phase_positions[0]);
@@ -415,7 +421,8 @@ pub fn legacy_density(v: f32) -> u16 {
 /// Read's own mask and flags of a switch (traffic-network.md §4.7.2, after
 /// a load *[quirk]*): the mask ORs the raw `to` of the kind-1 rules; the
 /// flags map 2 → 1, 3 → 2, 5 → 0x20, 6 → 4, 7 → 8, 8 → 0x10 over all rules,
-/// plus 0x40 for a subway–el-train rule *[choice: as the re-read does]*.
+/// plus 0x40 for a subway–el-train rule (6, 7) or (7, 6) of any kind, as the
+/// re-read does (`0x0072225E`–`0x0072227D`, TS33).
 pub fn read_mask_and_flags(rules: &[Rule]) -> (u16, u8) {
     let mut mask = 0u16;
     let mut flags = 0u8;
@@ -472,12 +479,16 @@ impl Parse<'_> {
         Some(if r.is_null() { None } else { self.h.resolve_ref(&r, iid) })
     }
 
-    fn iterator(inp: &mut dyn InStream) -> Option<ScanIterator> {
-        let state = match inp.get_i8()? {
-            0 => ScanState::Fresh,
-            1 => ScanState::Running,
-            // Any other byte reads as done *[choice]*.
-            _ => ScanState::Done,
+    /// The scanning iterator and its raw state byte (§6.1, TS31): the inline
+    /// GetNext tests only 2 (done) and 0 (fresh), so 1 and every unknown
+    /// byte 3…255 act as running; an unknown byte is kept for the next save.
+    fn iterator(inp: &mut dyn InStream) -> Option<(ScanIterator, Option<u8>)> {
+        let byte = inp.get_u8()?;
+        let (state, raw) = match byte {
+            0 => (ScanState::Fresh, None),
+            2 => (ScanState::Done, None),
+            1 => (ScanState::Running, None),
+            b => (ScanState::Running, Some(b)),
         };
         let x = inp.get_i32()?;
         let z = inp.get_i32()?;
@@ -488,7 +499,7 @@ impl Parse<'_> {
         it.x = x;
         it.z = z;
         it.state = state;
-        Some(it)
+        Some((it, raw))
     }
 
     fn row(inp: &mut dyn InStream) -> Option<StatRow> {
@@ -792,11 +803,11 @@ impl Parse<'_> {
             self.dmg.rail = Self::damage(inp)?;
         }
         self.s.cycle_state = inp.get_u8()?;
-        self.s.scan = Self::iterator(inp)?;
+        (self.s.scan, self.s.extras.scan_state_byte) = Self::iterator(inp)?;
         self.n.intersection_dirty = inp.get_bool()?;
         self.n.intersection_rect = CellRect::new(inp.get_i32()?, inp.get_i32()?, inp.get_i32()?, inp.get_i32()?);
         let e = &mut self.s.extras;
-        e.bool_after_rect = inp.get_bool()?;
+        e.network_changed_byte = inp.get_bool()?;
         self.s.strategy_bucket_counter = inp.get_u32()?;
         self.s.strategy_bucket = inp.get_u32()?;
         let e = &mut self.s.extras;
@@ -1039,8 +1050,57 @@ impl TrafficSimulator {
         }) && out.error() == 0
     }
 
-    /// `Read` (`0x00721990`): versions 19…41 (save-records §7.1.1).
+    /// `Read` (`0x00721990`): versions 19…41 (save-records §7.1.1); newer
+    /// versions read as 41 (§6.4, TS32). Below 19 it returns false having
+    /// read only the version; a failed Read leaves the simulator as it was
+    /// *[choice]* (§6.1, TS30).
     pub fn read(&self, inp: &mut dyn InStream) -> bool {
         self.run(|r| r.read_record(inp))
+    }
+}
+
+#[cfg(test)]
+mod iterator_tests {
+    use super::*;
+    use crate::stream::{ByteReader, ByteWriter};
+
+    fn round(it: &ScanIterator, raw: Option<u8>) -> Vec<u8> {
+        let mut w = ByteWriter::new();
+        put_iterator(&mut w, it, raw);
+        w.into_bytes()
+    }
+
+    /// §6.1 "The scanning iterator in row 14" (TS31): state byte 7, current
+    /// (5, 3), step 1, rectangle [0, 63]²: the next GetNext returns (6, 3)
+    /// and the byte is written back unchanged; a byte of 2 ends at once.
+    #[test]
+    fn unknown_state_byte_acts_as_running() {
+        let mut it = ScanIterator::new(0, 0, 63, 63);
+        it.x = 5;
+        it.z = 3;
+        it.state = ScanState::Running;
+        let mut bytes = round(&it, None);
+        assert_eq!(bytes[0], 1);
+        bytes[0] = 7;
+        let (mut got, raw) = Parse::iterator(&mut ByteReader::new(&bytes)).unwrap();
+        assert_eq!((got.state, raw), (ScanState::Running, Some(7)));
+        assert_eq!(got.next_cell(), Some((6, 3)));
+        assert_eq!(round(&got, raw)[0], 7);
+        // A finished scan writes 2, a reset one 0.
+        got.state = ScanState::Done;
+        assert_eq!(round(&got, raw)[0], 2);
+        got.reset(0, 0);
+        assert_eq!(round(&got, None)[0], 0);
+        bytes[0] = 2;
+        let (mut done, raw) = Parse::iterator(&mut ByteReader::new(&bytes)).unwrap();
+        assert_eq!((done.state, raw), (ScanState::Done, None));
+        assert_eq!(done.next_cell(), None);
+        for b in [0u8, 1, 3, 255] {
+            bytes[0] = b;
+            let (it, raw) = Parse::iterator(&mut ByteReader::new(&bytes)).unwrap();
+            let want = if b == 0 { ScanState::Fresh } else { ScanState::Running };
+            assert_eq!(it.state, want, "byte {b}");
+            assert_eq!(round(&it, raw)[0], b);
+        }
     }
 }

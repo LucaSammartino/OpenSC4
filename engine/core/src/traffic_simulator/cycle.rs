@@ -17,7 +17,7 @@ use crate::variant::{Elem, Variant};
 use crate::x87::{ftol, r24};
 
 use super::adapters::{capacity_element, PfAdapter};
-use super::state::{DamageState, State, PASS_COUNTERS, PC_REROUTE_BUCKET};
+use super::state::{DamageState, State, PASS_COUNTERS, PC_REROUTE_BUCKET, PC_REROUTE_COUNTER};
 use super::{
     cell_key16, cycle_state as cs, dept, grid_id, msg, prop, Message, Source, TrafficSimHost, TrafficSimulator,
     AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME,
@@ -90,15 +90,33 @@ impl Run<'_, '_> {
             if finished {
                 match s {
                     cs::CONFIRM_TRIPS => {
+                        // `toReRoute` and `toSearch` are zeroed here and only
+                        // here (`0x0072184B`, TS21), with every pass counter
+                        // except 1 (the re-route counter) and 2
+                        // (`rerouteBucket`): the source counter (3) restarts
+                        // at 0 every cycle (TS1).
                         self.start_pacing(self.st.pass_total, 20);
+                        self.st.to_reroute = 0;
+                        self.st.to_search = 0;
+                        for i in 0..PASS_COUNTERS {
+                            if i != PC_REROUTE_COUNTER && i != PC_REROUTE_BUCKET {
+                                self.st.pass_counters[i] = 0;
+                            }
+                        }
                         continue;
                     }
                     cs::REROUTE_TRIPS => {
                         self.start_pacing(self.st.to_reroute, 18);
+                        // Counter 1 is zeroed on entering 17 (`0x007218F2`).
+                        self.st.pass_counters[PC_REROUTE_COUNTER] = 0;
                         return true;
                     }
                     cs::FULL_TRIPS => {
+                        // "reset" as for 17, so counter 1 too *[question:
+                        // §3.3 says "reset" for 18 after spelling out 17's
+                        // reset; TS1 names only the 17 site]*.
                         self.start_pacing(self.st.to_search, 18);
+                        self.st.pass_counters[PC_REROUTE_COUNTER] = 0;
                         self.st.pass_total = 0;
                         return true;
                     }
@@ -106,9 +124,12 @@ impl Run<'_, '_> {
                     _ => continue,
                 }
             }
-            if (cs::CONFIRM_TRIPS..=cs::FULL_TRIPS).contains(&s) {
-                let share =
-                    (self.st.total as u32).wrapping_mul(self.st.day_index.wrapping_add(1)) / self.st.days.max(1);
+            // The share test (`0x0072191E`, all unsigned), with the
+            // `dayIndex < days` guard: once the day index has reached `days`
+            // (more trips than the last cycle, or `days = 0` after a load,
+            // §3.5 step 13) no share ends the day.
+            if (cs::CONFIRM_TRIPS..=cs::FULL_TRIPS).contains(&s) && self.st.day_index < self.st.days {
+                let share = (self.st.total as u32).wrapping_mul(self.st.day_index.wrapping_add(1)) / self.st.days;
                 if self.st.processed as u32 >= share {
                     self.st.day_index = self.st.day_index.wrapping_add(1);
                     return true;
@@ -120,23 +141,12 @@ impl Run<'_, '_> {
     }
 
     /// The pacing reset of §3.3: `total`, `days := max(1, total div k)`, day
-    /// index and processed 0, the pass counters 0. *[question]* `rerouteBucket`
-    /// is pass counter 2 (§6.1 row 15) and §4.3 needs it to survive the
-    /// cycle, so it is kept; the other nine are zeroed.
+    /// index and processed 0. The pass counters are the caller's (TS1).
     fn start_pacing(&mut self, total: i32, k: i32) {
         self.st.total = total;
         self.st.days = (total / k).max(1) as u32;
         self.st.day_index = 0;
         self.st.processed = 0;
-        self.reset_pass_counters();
-    }
-
-    fn reset_pass_counters(&mut self) {
-        for i in 0..PASS_COUNTERS {
-            if i != PC_REROUTE_BUCKET {
-                self.st.pass_counters[i] = 0;
-            }
-        }
     }
 
     /// Day 1 (§3.3): the incomes into the line items and the last monthly
@@ -285,12 +295,8 @@ impl Run<'_, '_> {
                 self.st.source_pos = 0;
                 self.st.trip_pos = 0;
                 self.st.continue_search = false;
-                self.reset_pass_counters();
-                if s == cs::CONFIRM_TRIPS {
-                    // The counts ConfirmTrips builds *[choice: zeroed here]*.
-                    self.st.to_reroute = 0;
-                    self.st.to_search = 0;
-                }
+                // The pass counters, `toReRoute` and `toSearch` are reset by
+                // the day agent's pacing (§3.3, TS1, TS21), not here.
                 if s == cs::FULL_TRIPS {
                     self.st.type_count_building = [0; 9];
                 }
@@ -337,6 +343,7 @@ impl Run<'_, '_> {
     pub(crate) fn reset_scan(&mut self) {
         let (x0, z0) = (self.st.scan.x0, self.st.scan.z0);
         self.st.scan.reset(x0, z0);
+        self.st.extras.scan_state_byte = None;
     }
 
     // ---- §4.8 the small edge and switch phases ----
@@ -379,13 +386,17 @@ impl Run<'_, '_> {
         }
     }
 
-    /// `ReduceTransitSwitches` (state 3): rolls the usage for the next cycle
-    /// *[question: traffic-network.md does not specify it]*: the load
-    /// restarts from 0 (CreateMaps keeps the previous one in counter 1).
+    /// `ReduceTransitSwitches` (state 3, `0x00713750`, §4.8, TS3): for every
+    /// switch in table order, `load := r24(densityReduction × load)` with the
+    /// volume-reset factor `0x29136788`, nothing else. With the shipped 0 the
+    /// load restarts from 0 (`0 × NaN` and `0 × ±∞` give NaN, a negative load
+    /// becomes −0.0); a non-zero factor decays it. The two counters keep what
+    /// CreateMaps wrote (§4.9 step 4).
     fn reduce_transit_switches(&mut self) {
+        let f = f64::from(self.st.tuning.density_reduction);
         for id in self.cx.s.switches.keys() {
             if let Some(sw) = self.cx.s.switches.get_mut(id) {
-                sw.load = 0.0;
+                sw.load = r24(f * f64::from(sw.load)) as f32;
             }
         }
     }
@@ -531,6 +542,7 @@ impl TrafficSimulator {
             s.size_dest(w, hgt);
             // Step 5: the scanning iterator over the city rect.
             s.scan = ScanIterator::new(0, 0, w - 1, hgt - 1);
+            s.extras.scan_state_byte = None;
         });
         // Step 5: the network model (cell connection array, switch grids,
         // water pathfinder), outside any operation.
@@ -644,9 +656,9 @@ impl TrafficSimulator {
     pub fn do_message(&self, m: &Message) -> bool {
         match m.msg_type {
             msg::SIM_BEGIN => {
-                // "Marks the network as changed" *[question: which flag, and
-                // who rebuilds]*: the flag the trip phases consume.
-                self.net.update_state(|n| n.network_changed = true);
+                // The network-changed byte := 1 (TS5): saved and loaded, read
+                // by nothing. No rebuild follows (DoPostCityInit does it).
+                self.update_state(|s| s.extras.network_changed_byte = true);
             }
             msg::DAY => return self.do_daily_simulation(),
             msg::MONTH => self.do_monthly_simulation(),
@@ -669,6 +681,9 @@ impl TrafficSimulator {
                 if m.data3 == NETWORK_OCCUPANT_TYPE {
                     let removed = m.msg_type == msg::OCCUPANT_REMOVED;
                     self.run(|r| r.occupant_message(m.object, removed));
+                    // Any such message, even a failed cast, sets the
+                    // network-changed byte (§3.1, TS5).
+                    self.update_state(|s| s.extras.network_changed_byte = true);
                 }
             }
             msg::LOT_STATE_CHANGED => {
