@@ -42,6 +42,8 @@ worktree: paste what it needs into the message, or copy files into its `build-ru
 | apply9c: graphics formats FS4-FS13, GF1-GF9 | `a1ec5d982a5986c5a` | worktree | - | running |
 | apply9d: education/health AQ1-AQ3, flora AQ7/AQ10, residential RG24, flammability FL7/FL8 | `a1a2a3d5ee6186779` | worktree | ABI 49, seam op 50 | running |
 | RE specs 9 (commercial, industrial, 24-hour clock, ...) | `a3547ddd1232ef1f1` | `re-specs9` | - | running |
+| RE answers 9: DG1-DG27 (DG5 first: how a building occupant gets its exemplar), LG21-LG26, AO1-AO2, PR/RG/NB/PG, EX34-EX39, ZQ13 | `a847980b29901cc38` | `re-answers9` | - | running |
+| harness tooling 2: regress through the queue with coordinator priority, a safe slot count (4-6?), queue status, clearer rejections | `aebacb404dae356d7` | worktree | - | running; the coordinator restarts the queue after merging |
 
 Merged today, tooling: harness switches (`6147be6`, `0786064`), modal-dialog spec (`baa5d0a`), game slots and the
 run queue (`9e0fa74`: up to 3 games at once; `regress -Parallel` 164 s, `-Turbo -Parallel` 94 s to 2032), the
