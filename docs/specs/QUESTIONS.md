@@ -3256,8 +3256,15 @@ in the code; the implemented answer is in brackets.
 Regress r6b (run 100): every LG3 game tile failed to insert (`gameTiles=0 gameTileFailures=12`). apply6c logs each
 step and adds a fallback. The current answer is in brackets.
 
-- **LG27:** Does the landfill occupant's QueryInterface (`0x00477130`) answer `0x0AC2B5F7`? If not, which object
-  does: the sub-object at +0x20, or the occupant's property holder? [QI on the occupant, then on its property holder]
+- ~~**LG27:** Does the landfill occupant's QueryInterface (`0x00477130`) answer `0x0AC2B5F7`? If not, which object
+  does: the sub-object at +0x20, or the occupant's property holder? [QI on the occupant, then on its property holder]~~
+  **ANSWERED 2026-10-14** from the exe (QueryInterface `0x00477130` and its thunks `0x00477210`, `0x00477230`,
+  `0x00477240`, `0x00477260`; `CreateLandfillOccupant` `0x006BC845`–`0x006BC84C`; `cSC4Occupant` constructor
+  `0x005E9220`) and written into landfill §4.8.1. No, and no other object of the tile does: every sub-object's QI is a
+  thunk to `0x00477130`, which answers only `0x2A15F262`, `1`, `0x26BB767E` and `0xE4FDA3D4`. The original never asks.
+  It calls `SetDefaultExemplar` (slot 3) directly on the sub-object at +0x20, after the constructor and before `Init`
+  and the insert. The bracket cannot work, as run 103 shows. *[choice]* Use the holder at `cISC4LandfillOccupant*` +
+  0x20 (= `AsPropertyHolder()` + 0x14), or the layout-free `Read` route in §4.8.1.
 - **LG28:** Does the GZCOM default constructor `0x004774C0` set type `0x6A11BD2B`, as the tile constructor
   `0x00477270` does? If not, does InsertOccupant accept the type it leaves? [left as the constructor sets it; the
   type is logged]
