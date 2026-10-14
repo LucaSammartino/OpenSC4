@@ -94,17 +94,19 @@ pub const RKT5: u32 = 0x2781_2825;
 /// detail 2 → 0, 0, 1, 2, 3.
 pub const ZOOM_REMAP: [u8; 15] = [0, 1, 2, 3, 4, 0, 1, 2, 3, 3, 0, 0, 1, 2, 3];
 
-/// z = table[zoom + 5 × detail] for a zoom index 0–4 and a detail 0–2; `None` outside those *\[choice\]* (the
-/// table has no other entries).
+/// z = table[zoom + 5 × detail] for a zoom index 0–4; a detail above 2 is clamped to 2 and a zoom above 4 gives
+/// `None` *\[choice\]* (§4.2, FS14: the original checks neither, and reads the next table row or past the table).
 ///
 /// The detail is the original's model detail global: the integer render property `kModelLODOffset` (22),
 /// clamped to 0–2 when it is read, which `Graphics Rules.sgr` sets from the Texture Quality option (High 0,
 /// Medium 1, Low 2; registered default 0) (§4.2, GF8). FreeCity4 has no such option yet; callers pass the
 /// detail they want.
 pub fn remap_zoom(zoom: u32, detail: u32) -> Option<u32> {
-    if zoom > 4 || detail > 2 {
+    if zoom > 4 {
         return None;
     }
+    // FS14 [choice]: the detail is clamped to 0-2, as the original clamps its global when it is set (GF8).
+    let detail = detail.min(2);
     Some(u32::from(ZOOM_REMAP[(zoom + 5 * detail) as usize]))
 }
 
@@ -129,17 +131,16 @@ pub fn view_rotation(a: u32, b: u32, flag: bool) -> u32 {
 /// | RKT2 | (v[0], v[1], v[2 + 4z + r]) |
 /// | RKT3 | (v[0], v[1], v[2 + z]) |
 ///
-/// `None` for no model, for RKT4/RKT5 and other properties, and *\[choice\]* for too few values or a zoom,
-/// detail or rotation out of range.
+/// `None` for no model, for RKT4/RKT5 and other properties, and *\[choice\]* for too few values or a zoom above 4.
+/// *\[choice\]* A detail above 2 is clamped to 2 and the rotation is taken mod 4 (FS14; the original checks
+/// nothing).
 pub fn model_key(property: u32, v: &[u32], zoom: u32, detail: u32, rotation: u32) -> Option<Tgi> {
     let key = |i: usize| v.get(i).map(|&inst| Tgi::new(v[0], v[1], inst));
     if property == RKT0 {
         return key(2);
     }
     let z = remap_zoom(zoom, detail)?;
-    if rotation > 3 {
-        return None;
-    }
+    let rotation = rotation % 4;
     match property {
         RKT1 => {
             let base = *v.get(2)?;
@@ -241,9 +242,14 @@ mod tests {
         assert_eq!(model_key(RKT4, &v, 0, 0, 0), None);
         assert_eq!(model_key(RKT5, &v, 0, 0, 0), None);
         assert_eq!(model_key(RKT1, &v, 5, 0, 0), None);
-        assert_eq!(model_key(RKT1, &v, 0, 3, 0), None);
-        assert_eq!(model_key(RKT1, &v, 0, 0, 4), None);
         assert_eq!(model_key(RKT1, &v[..2], 0, 0, 0), None);
+        // FS14 [choice]: a detail above 2 is clamped, a rotation taken mod 4.
+        let big = [1, 2, 0x1000];
+        assert_eq!(model_key(RKT1, &big, 4, 3, 1), model_key(RKT1, &big, 4, 2, 1));
+        assert_eq!(model_key(RKT1, &big, 4, u32::MAX, 1).map(|k| k.instance), Some(0x1310));
+        assert_eq!(model_key(RKT1, &big, 4, 0, 6).map(|k| k.instance), Some(0x1420));
+        assert_eq!(remap_zoom(4, 7), Some(3));
+        assert_eq!(remap_zoom(5, 0), None);
         let table: Vec<Vec<u32>> = (0..3)
             .map(|d| (0..5).map(|z| remap_zoom(z, d).unwrap()).collect())
             .collect();
