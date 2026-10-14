@@ -489,8 +489,20 @@ About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The 
   record's `+0x20`, the **source station** the unit left from, already a `cISC4Occupant*`. The original does no QI
   and no AddRef. The dispatch effect properties (`0x29233E9A–C`, `0x48D71ED9–DB`) exist only on the shipped station
   exemplars. A QI for `0x26BB767E` returns the same object plus a reference, which the glue must release.
-- **PR3:** `AddControllersFromOccupantGroup(name, occ, 0)` and its Remove: the name as an `SC4String` gives slots 10
-  and 12. Right overload? [yes]
+- ~~**PR3:** `AddControllersFromOccupantGroup(name, occ, 0)` and its Remove: the name as an `SC4String` gives slots 10
+  and 12. Right overload? [yes]~~ **ANSWERED 2026-10-14** from the exe (call sites `0x006ADD5E`/`0x006ADD65`,
+  `0x006E19BD`/`0x006E19C4`, `0x006E1C46`; slots 10/12 `0x00517150`/`0x0051AB00`; group lookup `0x0051CFC0` →
+  `0x0051C9F0`) and written into protection.md §6.3 and §14.
+  - **The overload: yes, the bracket matches.** Slots 10 and 12 are the by-name overloads. Slots 9 and 11 take a
+    `u32` group ID.
+  - **Caveat: the string layout.** The lookup reads the argument's string directly as the game's `cRZString`
+    layout: begin pointer at `+0x04`, end at `+0x08`. It makes no virtual call. An `SC4String` works only if it
+    has exactly that layout. A class with an inline small-string buffer at `+0x04` makes the game dereference
+    text as an address and crash.
+  - **How to call it.** Build the name with the game's own `cRZString(const char*)` (`0x00408480`) and its
+    destructor, or with a layout-identical struct, as the original does.
+  - **Testing.** The path runs only when a station starts or ends a strike, or on a jailbreak start, so a quiet
+    test city may never reach it.
 - ~~**PR4:** the fire simulator getter is city slot 57, inferred from the SDK order; the shadow depends on it. §14 lists
   only police slot 65. [57]~~ **ANSWERED 2026-10-14** from the exe (slot 57 body `0x006DC690`; city new-city path
   `0x0045ADF7`; city `Read` `0x0045CEDB`; cache fill `0x00601E8A` → `0x00B43D78`) and written into protection.md §1.

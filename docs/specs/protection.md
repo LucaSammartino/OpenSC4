@@ -381,6 +381,23 @@ return changed (AL)
 
 name: fire **"striking_fire"**, police **"striking_police"**. Exactly one draw per non-striking station.
 
+**The controller calls** *[compat]* (PR3; fire `0x006ADD3E`–`0x006ADD65`, police `0x006E199D`–`0x006E19C4`;
+the jailbreak start `0x006E1C2A`–`0x006E1C46` uses **"jailbreak"** the same way). The name is a temporary
+`cRZString`, built from the `char*` global (`0x00B0D288`, `0x00B0D3F8`, `0x00B0D3F4`) and destroyed after the
+call. It is passed by reference to slot 10 `AddControllersFromOccupantGroup(name, occ, 0)` (`0x00517150`) or slot
+12 `RemoveControllersFromOccupantGroup(name, occ)` (`0x0051AB00`). These are the **by-name** overloads. Slots 9
+and 11 are the by-ID overloads, which take a `u32` group ID (the script system's `GetOccupantGroup(u32)`,
+`0x0051CFF0`).
+
+The by-name overloads find the group through the script system's `GetOccupantGroup(name)` (slot 12,
+`0x0051CFC0`). That is a string-keyed hash-table lookup (`0x0051C9F0`; hash `h := h·5 + signed char`), and it
+reads the argument's **game-layout string directly**, with no virtual call: the `char*` begin at `+0x04` and the
+end at `+0x08` (the game's `cRZString` is vtable, then the STLport string begin / end / capacity, then a
+reference count, 0x14 bytes, `0x00408480`). The argument must therefore have that layout. Any other
+`cIGZString` implementation is read as raw pointers. A string class whose `+0x04` holds inline characters
+(a small-string buffer) makes the lookup dereference text as an address and **crash**. If the group is not
+found, the call returns AL = 0 and does nothing.
+
 ### 6.4 Chance of strike (`GetChanceOfStrike`, fire slot 12, police slot 11)
 
 1.0 when the city-level strike flag is set; 0 with no stations; otherwise, over all stations with
@@ -987,8 +1004,8 @@ Callee-pop checked with `tools/abi_extract.py --check`, return channels from the
 | | 11 | `+0x2C` | GetDispatchCount(type) | 4 | EAX |
 | | 12 | `+0x30` | GetDispatchIDArray(type, u32* buf, u32& n) | 12 | AL |
 | | 13 / 14 | `+0x34` / `+0x38` | Register / UnregisterDispatchSource(src) | 4 | AL |
-| `cISC4AutomataControllerManager` (`0x00A96058`) | 10 | `+0x28` | AddControllersFromOccupantGroup(name, occ, 0) | 12 | AL |
-| | 12 | `+0x30` | RemoveControllersFromOccupantGroup(name, occ) | 8 | AL |
+| `cISC4AutomataControllerManager` (`0x00A96058`) | 10 | `+0x28` | AddControllersFromOccupantGroup(const cRZString& name, occ, 0); the name must have the game's string layout (§6.3) | 12 | AL |
+| | 12 | `+0x30` | RemoveControllersFromOccupantGroup(const cRZString& name, occ); same layout rule | 8 | AL |
 | `cISC4OccupantManager` (`0x00A8F7F0`) | 48 | `+0xC0` | ReleaseOccupantList(list&) | 4 | none meaningful |
 | `cISC4Occupant` (`0x00AA41D8`) | 6 | `+0x18` | AsPropertyHolder | 0 | EAX ptr |
 | | 7 | `+0x1C` | GetType | 0 | EAX |
