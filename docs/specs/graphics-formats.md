@@ -256,8 +256,9 @@ built.
 
 ### 2.11 Pixel decoding for FreeCity4 *[choice]*
 
-The original never decodes pixels on the CPU for 3D textures (the GPU does). A standalone renderer that decodes to
-RGBA8 uses:
+The original never decodes pixels on the CPU for 3D textures (the GPU does), so nothing in the exe fixes the rounding
+of the DXT interpolations: FreeCity4 rounds every division down *[choice]* (FS8). A standalone renderer that decodes
+to RGBA8 uses:
 
 | Code | Decoding |
 |---|---|

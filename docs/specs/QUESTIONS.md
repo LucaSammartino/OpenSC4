@@ -2907,7 +2907,10 @@ variant (GF3). The current answer is in brackets.
   graphics-formats §2.8. DX7 reads the whole blocks from the level's start, so the missing bytes are the record bytes
   that follow, not zeros. Decoding whole blocks and cropping stands; take the missing bytes from the record (zero only
   past `size`), as for GF9. OpenGL not traced.
-- **FS8:** The DXT5 alpha divisions (/7, /5) have no stated rounding. [rounded down, as for DXT1]
+- ~~**FS8:** The DXT5 alpha divisions (/7, /5) have no stated rounding. [rounded down, as for DXT1]~~
+  **ANSWERED 2026-10-14**: no original behaviour; the original never decodes pixels on the CPU, and the GPU does
+  the DXT interpolation. The implementer's choice (round down, as for DXT1) stands; noted in graphics-formats §2.11.
+  No DXT5 entry is shipped.
 - **FS9:** A vertex format with stride below 12, or with no position, while the bounding box reads 3 floats per
   vertex. [stride < 12 is rejected; no position with stride ≥ 12 is accepted and its box uses the first 12 bytes]
 - **FS10:** A legacy VERT stride S below the format's standard stride, or a legacy block with an unknown format. [both
