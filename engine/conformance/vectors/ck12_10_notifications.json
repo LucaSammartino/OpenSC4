@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "ck12_10_notifications",
+  "spec": ["clock24 4.5", "clock24 12"],
+  "description": "Test 10. EnableDayNightTransitionNotifications(false) posts nothing. (true) at visual 22:00 with 20 / 1 posts DayNightChanged (0) (night); (true) again posts nothing. At noon, off then on posts (1).",
+  "steps": [
+    {"op": "ck_create"},
+    {"op": "ck_call", "method": "init"},
+    {"op": "ck_set", "seconds": "22:00:00", "visual_seconds": "22:00:00"},
+    {"op": "ck_clear_events"},
+    {"op": "ck_call", "method": "enable_notifications", "args": [false]},
+    {"op": "ck_expect_event_count", "count": 0},
+    {"op": "ck_call", "method": "enable_notifications", "args": [true]},
+    {"op": "ck_expect_events", "events": [{"event": "post", "name": "DayNightChanged", "data2": 0, "data3": 0}]},
+    {"op": "ck_call", "method": "enable_notifications", "args": [true]},
+    {"op": "ck_expect_event_count", "count": 0},
+    {"op": "ck_set", "visual_seconds": "12:00:00"},
+    {"op": "ck_call", "method": "enable_notifications", "args": [false]},
+    {"op": "ck_call", "method": "enable_notifications", "args": [true]},
+    {"op": "ck_expect_events", "events": [{"event": "post", "name": "DayNightChanged", "data2": 1, "data3": 0}]},
+    {"op": "ck_expect", "state": {"notifications": true}}
+  ]
+}

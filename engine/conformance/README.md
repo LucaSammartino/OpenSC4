@@ -1538,6 +1538,63 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | `ts_expect_network` | `cell`, `n?` (1), `record` (partial `{extra_cost, inv_cap, type, conn_count}`, or null) | a network-info record |
 | `ts_expect_net` | `switches` (`[[id, null or partial {load, toll}]]`, read without inserting), `terminals` (`[[index, partial {riders_current, riders_last, links, neighbour_links}]]`, the links as their 4 counters) | switch usage and ferry counters (§4.5) |
 
+## History warehouse ops
+
+The history vectors (`hw12_…`) drive `fc4_core::history::HistoryWarehouse` (`docs/specs/history.md`) over one
+scripted world implementing `HistoryHost`. Every op name starts with `hw_`. The world: the simulator date (a Julian
+day number, default 2000-01-01), a millisecond timer that returns `now` and then moves by `now_step` on every
+reading (both 0 by default), and a message server: `RecordHistoryData`'s send is logged and delivered to the
+warehouse at once when the warehouse has subscribed the message (as `MessageSend` does). Dates are written as numbers
+or as `"YYYY-MM-DD"`; keys and values as numbers or `"0x…"` strings. A point is `[date, value]`.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `hw_env` | any of `date`, `now`, `now_step`, `deliver` (false: sends are logged, not delivered) | the world |
+| `hw_create` | | a new warehouse (the subscriptions forgotten) |
+| `hw_series` | `key` or `keys` (`[first, count]`: that many consecutive keys), `points?` (`[]`), `max_count?` (0) | sets series directly (test support) |
+| `hw_pass` | `state`, `cursor?` (a key; absent: none), `counter?` (0) | the thinning pass state (test support) |
+| `hw_days` | `from`, `to`, `record?` (`[key, value]`, or `[key, "index"]`: the day's index from `from`) | runs the days as the simulator would: a year change delivers SimNewYear, then SimNewDay until it returns true, then the record message |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `hw_call` | `method`, `args?`, `expect?` (false results are `null`), `precision?` (24 or 53; default 24), `expect_bits?` (the float results' bit patterns) | `init`, `shutdown`, `message [type, data1?, data2?]`, `new_day`, `new_year`, `record [key, value]` (`RecordHistoryData`: the send only), `query_interface [iid]`, `store [key, value]`, `set_size [key, n]` / `set_queue_length`, `coalesce [key, from, to, granularity]`, `dispose [key]`, `dispose_range [key, from, to]`, `thinning_step`, `variable_coalesce [key]`, `get_count [key, from, to]`, `get_trend [key, from, to]` (`[slope, intercept]`), `get_point [key, date]`, `get_min_max_average [key, from, to]` (`[min, max, avg]`) |
+| `hw_expect` | `state?` (partial: `initialized`, `pass_state`, `cursor`, `pass_counter`, `series_count`, `total_points`, `keys`); `series?` (a key) with `missing?`, `points?`, `dates?`, `values?`, `count?`, `max_count?` | the warehouse |
+| `hw_record` | `hex` (compares `Write`), or `read` (hex, read into the current warehouse) with `expect?` and `remaining?` | the record (§7) |
+| `hw_save` | `slot` | `Write` into a slot |
+| `hw_load` | `slot`, `version?` (the leading u16 patched), `truncate?` (bytes dropped from the end), `expect?` | a new warehouse reads the slot |
+| `hw_expect_save` | `slot` with `hex`, `same_as` (another slot) or `length` | a saved record |
+| `hw_expect_events` / `hw_expect_event_count` / `hw_clear_events` | as the other cores | events: `subscribe` / `unsubscribe` `{msg}`, `add_agent {level, name, flags}`, `remove_agent`, `send {msg, data1, data2, delivered}` |
+
+## 24-hour clock ops
+
+The clock vectors (`ck12_…`) drive `fc4_core::clock24::Clock24` (`docs/specs/clock24.md`) over one scripted world
+implementing `ClockHost`. Every op name starts with `ck_`. The world: a microsecond clock (`now`, default 1,000,000)
+that only moves when a vector moves it, a cheat code manager (present by default) and the "Main Simulator" exemplar
+(default: the shipped values, magnification 135 and night hours 20 / 1). Times of day are written as seconds or as
+`"HH:MM:SS"`.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `ck_env` | any of `now`, `cheat_manager`, `tuning` (`"shipped"`, null: no exemplar, or `{magnification?, night_start?, night_end?}`: absent keys are missing properties) | the world |
+| `ck_create` | | a new clock (the constructor's values) |
+| `ck_set` | any of `seconds`, `visual_seconds`, `night` (`[start, end]`) | sets the state without messages (test support) |
+| `ck_idle` | `advance?` (µs added to the clock first), `elapsed?` (moves the clock until the running timer shows that many µs), `count?` (1: repeats, `advance` before each), `expect?` | `OnIdle` |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `ck_call` | `method`, `args?`, `expect?`, `expect_bits?` (a float result's bit pattern) | `init`, `shutdown`, `on_idle`, `query_interface [iid]`, `set_visual_time_mode [mode]`, `visual_time_mode`, `time_percentage`, `visual_time_percentage`, `set_time_percentage [p]`, `hour`, `set_hour [h]`, `visual_hour`, `minute`, `set_minute [m]` (the new seconds), `visual_minute`, `second`, `set_seconds [s]` (`GetMinute`), `visual_second`, `event_hour [i]`, `time_magnification`, `set_time_magnification [m]`, `time_magnification_min_max` (`[min, max]`), `set_time_magnification_min_max [min, max]`, `pause [on]`, `is_paused`, `hidden_pause [on]`, `is_hidden_paused`, `is_night`, `is_night_hour [h]`, `night_hours` (the night hours among 0–23), `enable_notifications [on]`, `change_visual_time [t]`, `cheat [cheat, text]` (the cheat message 0x230E27AC; the cheat is `"WhatTimeIzIt"`, `"Stopwatch"` or an ID), `message [type, data1, text or null]` |
+| `ck_expect` | `state` (partial: `initialized`, `pause_count`, `hidden_pause_count`, `magnification`, `magnification_bits`, `min_magnification`, `min_magnification_bits`, `max_magnification`, `seconds`, `visual_seconds`, `night_start`, `night_end`, `notifications`, `visual_mode`, `timer_running`, `timer_elapsed` (µs)) | the clock |
+| `ck_record` | `hex` (compares `Write`), or `read` (hex, read into the current clock) with `expect?` and `remaining?` | the 26-byte record (§7) |
+| `ck_expect_events` / `ck_expect_event_count` / `ck_clear_events` | as the other cores | events: `post {msg, name, data2, data3}` (names `HourChanged`, `TimeTick`, `VisualHourChanged`, `VisualTimeTick`, `DayNightChanged`, `PauseChanged`, `HiddenPauseChanged`), `add_system_service`, `remove_system_service`, `add_to_on_idle`, `remove_from_on_idle`, `register_cheat {id, name}`, `add_cheat_notification {id}`, `remove_cheat_notification {id}`, `unregister_cheat {id}` |
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
@@ -1548,8 +1605,8 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
    `pr18_…` (protection §18), `fo16_…` (flora §16), `bd11_…` (building development §11),
    `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `ld16_…` (lot developer §16),
    `zn15_…` (zones §15), `lf11_…` (landfill §11), `nb18_…` (neighbours §18), `tn11_…` (traffic network §11),
-   `pf11_…` (pathfinder §11), `rs15_…` (residential §15), `rs00_…` (other residential behaviour) and `ts11_…`
-   (traffic simulator §11).
+   `pf11_…` (pathfinder §11), `rs15_…` (residential §15), `rs00_…` (other residential behaviour), `ts11_…`
+   (traffic simulator §11), `hw12_…` (history §12) and `ck12_…` (clock24 §12).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -2422,3 +2479,50 @@ Not covered by a vector, and why:
 - **Transit switches, tunnels and ferries in the record** round-trip only as empty lists here; Read's switch mask and
   flags (`read_mask_and_flags`) are a `fc4-core` unit test.
 - **The work budget (§3.4)** replaces the original's CPU-time slicing *[choice]*; test 2 pins its pacing, not a clock.
+
+## Coverage (history §12)
+
+| §12 item | Vector |
+|---|---|
+| 1 Init and Shutdown: the subscriptions, the day and year agents, QueryInterface | `hw12_01_init` |
+| 2 RecordHistoryData and Store: the example of §4.8, an earlier day, a new key, a full queue, no delivery before Init | `hw12_02_store` |
+| 3 SetSize and the queue-length message | `hw12_03_set_size` |
+| 4 Coalesce: the four granularities, the month-only grouping, the failures | `hw12_04_coalesce` |
+| 5 the thinning pass: the order, `perPass`, the timer, the state machine | `hw12_05_thinning_pass` |
+| 5 VariableCoalesce: the five ranges | `hw12_05b_variable_coalesce` |
+| 5 26 yearly passes over a daily series (the shape of the Konradshohe series, §4.8) | `hw12_05c_yearly_passes` |
+| 6 Dispose (the kept last point) | `hw12_06_dispose` |
+| 7 GetPoint and GetCount: the example of §4.8, the edges, interpolation | `hw12_07_get_point` |
+| 8 GetTrend at 24 and 53 bits (bit patterns) | `hw12_08_get_trend` |
+| 9 GetMinMaxAverage: the example of §4.8, the end points | `hw12_09_get_min_max_average` |
+| 10 the record: the round trip, version 1, version 3, `0xCDCDCDCD`, duplicates, truncation | `hw12_10_save` |
+
+Not covered by a vector, and why:
+
+- **The 421 corpus saves of test 10** are not in the repository; `hw12_10_save` and the `fc4-core` unit test
+  `hw12_10_corpus_shaped_v1_record` use records of the corpus's shape instead.
+
+## Coverage (clock24 §12)
+
+| §12 item | Vector |
+|---|---|
+| 1 construction, QueryInterface, Init and Shutdown | `ck12_01_construction` |
+| 2 the tuning (§6) | `ck12_02_tuning` |
+| 3 the step threshold, the clamp, the pauses, the cadence of §4.9 | `ck12_03_step_threshold` |
+| 4 an hour step, the evening of §4.9, the wrap | `ck12_04_hour_step` |
+| 5 the 5-minute tick | `ck12_05_five_minute_tick` |
+| 6 the night boundary, notifications off, the night hours | `ck12_06_night_boundary` |
+| 7 the visual time modes | `ck12_07_modes` |
+| 8 the pause counters and the timer | `ck12_08_pause_counters` |
+| 9 the setters | `ck12_09_setters` |
+| 10 EnableDayNightTransitionNotifications | `ck12_10_notifications` |
+| 11 the cheats | `ck12_11_cheats` |
+| 12 the 26-byte record, version 1, version 3, truncation | `ck12_12_save` |
+| 13 Read before Init, the first step, a saved pause | `ck12_13_load_order` |
+
+Not covered by a vector, and why:
+
+- **The 421 corpus records of test 12** are not in the repository; the `fc4-core` unit tests read records of the
+  corpus's shape instead.
+- **`GetTimePercentage`** uses `1.1574074e-05f` (`0x37422E45`, 1/86400), not the spec's `0x37C22E45` (1/43200,
+  which gives 1.0 at noon) *[choice]*; `ck12_01_construction` pins 0.5 at noon.

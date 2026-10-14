@@ -1238,6 +1238,8 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
             .or_else(|| crate::traffic_network::exec(host, other, op))
             .or_else(|| crate::pathfinder::exec(host, other, op))
             .or_else(|| crate::traffic_simulator::exec(host, other, op))
+            .or_else(|| crate::history::exec(host, other, op))
+            .or_else(|| crate::clock24::exec(host, other, op))
             .unwrap_or_else(|| Err(format!("unknown op '{other}'"))),
     }
 }
