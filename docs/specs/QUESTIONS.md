@@ -1255,8 +1255,14 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
 - **TS5 — §3.1:** message `0x66956810` "marks the network as changed": which flag, and who rebuilds? [sets
   `network_changed`, consumed by the trip phases]
 - **TS6 — §3.1:** what does the network part do on neighbour added / removed? [nothing]
-- **TS7:** DoPostCityInit steps 4 (neighbour connections) and 5 (destination-map boundary pass)? [skipped; the
-  network rebuild runs, then the transit multiplier]
+- ~~**TS7:** DoPostCityInit steps 4 (neighbour connections) and 5 (destination-map boundary pass)? [skipped; the
+  network rebuild runs, then the transit multiplier]~~ **ANSWERED 2026-10-14** from the exe (`0x00720430`): neither
+  is skipped. Step 4 is an Add per neighbour connection plus one pool sweep, step 5 zeroes the destination byte of
+  each ring cell without a map exit (traffic-network.md §1, §2.7.2–§2.7.3). DoPostCityInit also does more than the
+  network rebuild and the multiplier: state 12/13 → 8, a resume switch on the loaded state (source iterator, lot
+  iterator, ferry re-route **only in state 19**), the strategy-bucket multimap rebuilt from the lots,
+  `days := lotCount div 18`, and both department-cost updates. Written as traffic-simulator.md §3.5; §3.3 gains the
+  missing `dayIndex < days` guard; traffic-network.md §1 step 8 and §4.9.3 corrected.
 - **TS8 — §4.9 step 2:** what is the commercial traffic window? [the 4 × 4 block at (x, z); travel types car 1,
   el-train 7, monorail 8; maximum morning usage plus maximum evening usage]
 - **TS9 — §4.9:** which records are "not excluded" from the statistics? [flag bit 0 clear]

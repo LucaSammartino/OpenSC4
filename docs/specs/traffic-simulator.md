@@ -146,7 +146,7 @@ The data model, by meaning (offsets are deliberately not part of it):
 | `0x66956810` (simulation begin) | | marks the network as changed (forces `DoConnectionsChanged` on the next cycle; traffic-network.md) |
 | `0x66956814` (day agent) | | `DoDailySimulation` (§3.3); its result is the agent's "finished" answer |
 | `0x66956816` (month agent) | | `DoMonthlySimulation` (§4.12) |
-| `0x26D31EC1` | | `DoPostCityInit` (`0x00720430`, traffic-network.md: builds the network model) |
+| `0x26D31EC1` | | `DoPostCityInit` (`0x00720430`, §3.5: builds the network model, traffic-network.md, then resumes the saved cycle) |
 | `0x08DAC3E7` | data2 = `0xC921CEEB` (mass transit) | `transitMultiplier` (the transit-switch entry cost multiplier, traffic-network.md §4.7.3) := curve `0xCA5F7821`(`r24(f × 100.0f)`), `f` = the department's funding fraction (slot 10 `+0x28` returns a pointer to it); also set the same way in DoPostCityInit; saved |
 | `0x8A0D15DA` / `0xEA0D163E` | | add / remove a neighbour connection (traffic-network.md) |
 | `0xC53D10AA` | data1 = `0xE7E2C2DB` and data2 = `0xC9133286` | re-read tuning (§4.14) |
@@ -218,8 +218,11 @@ own static step state); slicing only splits the work, the results do not depend 
      * `s = 18`: `total := toSearch`, `days := max(1, total div 18)`, reset, `passTotal := 0`, return **true**;
      * `s = 2` or `s = 11`: return **true**;
      * otherwise continue;
-   * if not finished: if `16 ≤ state ≤ 18` and `processed ≥ total · (dayIndex + 1) / days` (unsigned), then
-     `dayIndex += 1` and return **true**; else return false.
+   * if not finished: if `16 ≤ state ≤ 18`, `dayIndex < days` and `processed ≥ total · (dayIndex + 1) / days`
+     (all unsigned, `0x0072191E`), then `dayIndex += 1` and return **true**; else return false. *(Corrected: the
+     `dayIndex < days` guard was missing.)* Once `dayIndex` has reached `days` (a cycle with more trips than the
+     last one, or `days = 0` after a load, §3.5 step 13) no share ends the day: the phase runs on, slice after
+     slice, until it finishes.
 
 So the trip phases are spread over `days` days (at least the share `total/days` per day), and a day also ends after
 FinishTripMap (on entering 2) and after ClearTripDestinations (on entering 11).
@@ -259,6 +262,50 @@ with a count of those units.
   - Budget-sensitive statistics: cycle length, maps sampled at a fixed date, convergence time after a change, and
     monthly income and accident counts. Budget-insensitive: the result of one cycle given the same inputs (routes,
     volumes and the maps it publishes), and the draw sequence of each operation.
+
+### 3.5 DoPostCityInit (`0x00720430`, message `0x26D31EC1`) *[compat]*
+
+Runs once per city load (and for a new city), after every lot and occupant of the save exists and after `Read`. The
+whole order (TS7):
+
+1. – 7. **Network part**, traffic-network.md §1 steps 1–7: re-read every transit switch's rules; refresh the subway
+   access points; `DoConnectionsChanged` over the whole city; **register the neighbour connections** (an Add for each
+   connection of the neighbours simulator, slot 16 `GetAllConnections` in list order, then one pool sweep;
+   traffic-network.md §2.7.2–§2.7.3); the **destination-map boundary pass** (each ring cell around the map whose
+   `HasMapExit` is false gets destination byte 0, `freeDest` untouched; traffic-network.md §1 step 5, §2.7); clear
+   the subnetwork labels and run `UpdateSubnetworks`; build the subnetwork info with no time limit and publish it.
+8. If the loaded cycle state is 12 or 13, it becomes **8** (FinalCalculations): the subnetwork work was just done in
+   full, so the cycle skips the rest of 12/13 and also state 19 (`0x00720859`).
+9. `transitMultiplier := curve 0xCA5F7821(r24(f × 100.0f))`, `f` = the mass-transit department's funding fraction
+   (as §3.1 for message `0x08DAC3E7`).
+10. A rebuild of the per-network-type cell counts from the network occupants of the city, guarded by a flag that
+    the constructor clears and nothing in 1.1.641 sets (`0x00720895`): **never runs**. The counts come from the save
+    and from the occupant messages *[compat: do nothing]*.
+11. **Resume the interrupted phase**, by the loaded cycle state:
+    * 16, 17, 18: the re-route context's search state := idle; the traffic-source iterator is reset (lots, then
+      neighbour connections, §4.1) and advanced until it has returned the source whose cell is the saved source cell
+      (the cell the phase stored when it took its current source, §6.1 row 14). That source becomes the held current
+      source, so the phase continues after it. If no source has that cell, the iterator is reset again and no source
+      is held (the phase restarts from the first source). *[inferred: the position inside a partly processed source's
+      trip list is the saved context's, not traced]*
+    * 15: the lot iterator is reset; when the lot manager has a lot at the saved cell (`GetLot(x, z, false)`), the
+      iterator is advanced past that lot; if the walk reaches the end without meeting it, the iterator restarts from
+      the first lot.
+    * 19: every ferry terminal's re-route flag := 1 and the ferry pass restarts at the first terminal, its sub-step
+      0 (traffic-network.md §4.9.3). **Only in this state**: a city saved in any other state keeps the loaded ferry
+      links until the next state-19 pass.
+    * 1 or 14 (never saved by 1.1.641, §3.2): `freeDest[0…3] := 0`, then the ClearTripDestinations work (§4.11) and
+      the RefreshCommuteMap work over the whole city, each run to completion, then state := 0.
+    * any other state: nothing.
+12. **Strategy buckets**: the bucket multimap (§4.1.3) is cleared and rebuilt from the lots, in the lot manager's
+    list order (slot 15): each lot whose property `0x691C863C` is present is registered under that value with its
+    location (lot slot 21). Equal keys keep list order. (So the daily re-draw of §3.3 does reach loaded lots; the
+    bucket counter and the current bucket come from the save.)
+13. `days := lotCount div 18` (lot manager slot 16 `GetLotCount`, unsigned; **no** `max(1, …)`, so 0 with fewer than
+    18 lots). `total`, `dayIndex` and `processed` keep their loaded values; §3.3's share test is skipped while
+    `dayIndex ≥ days`.
+14. `UpdateMassTransitBudget`, then `UpdateRoadsBudget` (§4.9): the departments' monthly costs from the loaded cell
+    counts.
 
 ## 4. Behaviour
 
@@ -1021,7 +1068,7 @@ Open questions:
 * **Q7** Lot activation (`0xE8BDA2E7`, posted only by the virtual `cSC4Lot::SetState` `0x006C3100`) drives the
   strategy-bucket registration, the destination bits, the transit switches and the ferry terminals. Whether loading a
   city re-sends it for every lot is the lot spec's question (traffic-network.md Q2). The bucket multimap is not in
-  the save record, so without a re-send no lot is re-drawn after load (harmless: the value is never read) and the
+  the save record, but DoPostCityInit rebuilds it from the lots' saved `0x691C863C` values (§3.5 step 12, TS7); the
   destination bits come back with the next RefreshCommuteMap.
 * **Q8** The int64 total `E` that gates strikes (§4.12) comes from budget items of activated lots (properties
   `0xCA550301` / `0x0C3BF549`); its exact meaning needs the budget items' owner.

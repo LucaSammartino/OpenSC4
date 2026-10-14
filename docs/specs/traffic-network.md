@@ -92,7 +92,10 @@ The full rebuild runs in **DoPostCityInit** (message `0x26D31EC1`, `0x00720430`)
 6. Clear the subnetwork labels (§4.11).
 7. Run `UpdateSubnetworks` (§4.11), then build the subnetwork info synchronously with no time limit (§4.12) and
    publish it.
-8. Mark every ferry terminal for re-routing and start the ferry-route pass at the first terminal (§4.9.3).
+8. **Only when the loaded work-cycle state is 19** (FerryRoutes): mark every ferry terminal for re-routing and start
+   the ferry-route pass at the first terminal (§4.9.3). *(Corrected, TS7: this is one case of a switch on the loaded
+   cycle state, `0x00720A0A`; in any other state nothing happens to the ferries at load.)* The simulator-side steps
+   that follow (cycle resume, strategy buckets, pacing, department costs) are traffic-simulator.md §3.5.
 
 ---
 
@@ -899,7 +902,9 @@ For each terminal A in list order:
 
 When the list is exhausted, the pass posts message `0x2C06BA82` (§5).
 
-DoPostCityInit sets every flag and starts the pass, so links are computed after load. It does **only** that
+When the city was saved in work-cycle state 19, DoPostCityInit sets every flag and restarts the pass, so links are
+computed again after load; in any other saved state it leaves the ferries alone and the loaded links stand until the
+next state-19 pass (traffic-simulator.md §3.5 step 11; corrected by TS7). In state 19 it does **only** that
 (`0x00720C8A`–`0x00720CAE`): every terminal's re-route flag := 1, the pass points at the first terminal, and its
 sub-step := 0 (TN8). Unlike entering state 19:
 - it does **not** rotate any counter (riders and link counters keep their loaded values);
