@@ -41,6 +41,11 @@
 //   demand_shadow = 0 / 1         the demand shadow differential (default 0;
 //                                 needs the original demand; FC4DemandShadow.h)
 //   demand_shadow_nodes = N       its node lines per mismatched day (default 8)
+//   crime_shadow = 0 / 1          the crime grid shadow (default 0; needs the
+//                                 original crime simulator; FC4CrimeShadow.h)
+//   crime_shadow_cells = N        its differing cells listed per month (default 8)
+//   crime_seed = N                the crime generator's session seed (default:
+//                                 the local wall clock; cFC4Crime.cpp)
 //   popup_dialogs = 0 / 1         unattended runs: 0 = cISC4App::SetPopupDialogsEnabled(false)
 //                                 once per process (advisor popups dropped without
 //                                 the hidden pause, generic dialogs answer without
@@ -176,6 +181,22 @@ enum class Sw : unsigned {
     ProtectionAirSources,  // protection_air_sources: create the fire plane / police helicopter
                            //   dispatch source through GZCOM and call its non-virtual Init /
                            //   Shutdown (docs/abi/direct-calls.md; identified executable only)
+    // Crime simulator host callbacks (cFC4Crime.cpp), one per group of game
+    // calls; only used when the crime subsystem is enabled.
+    CrimeLots,         // crime_lots: lot manager and lot calls (GetRandomLot, GetLot, bounding rect,
+                       //   location, condition, building, GetCenter) (off: no lot, so no crime)
+    CrimePolice,       // crime_police: police grid, GetJailPopulation, ResetUnjailedCriminals,
+                       //   ProcessMonthlyCrimeStats (off: no coverage, 0 jailed, 0 released)
+    CrimeResidential,  // crime_residential: GetPopulationGrids / GetEQGrids (off: empty census)
+    CrimeDemand,       // crime_demand: GetDemand active value / max / min (off: absent)
+    CrimeOrdinance,    // crime_ordinance: GetCumulativeFactor (off: the factor stays as it is)
+    CrimeOccupants,    // crime_occupants: occupant properties and position, the nearest-occupant box
+                       //   query (off: no crime effect, no nearest crime sim / prop)
+    CrimeFire,         // crime_fire: disaster layer, IgniteOccupant / SetCause (off: arson starts no fire)
+    CrimeProps,        // crime_props: AddPropRequester, GetPropProfile (off: not registered; every prop generic)
+    CrimePosts,        // crime_posts: the crime-committed and crime-map-updated messages
+    CrimeGridWrites,   // crime_grid_writes: SetTractValue / SetTractValues on the two crime grids
+    CrimeZoning,       // crime_zoning: GetZoneType (off: unzoned, so no crime type matches a zone mask)
     Count
 };
 

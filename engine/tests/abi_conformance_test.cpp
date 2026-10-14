@@ -38,6 +38,7 @@
 // Usage: fc4_abi_conformance_test [--dump] [--plugin-dir DIR] [path/to/interfaces.tsv]
 //   --dump  print every declared slot next to its table row
 
+#include "FC4CrimeInterfaces.h"
 #include "FC4Interfaces.h"
 
 #include "SC4Vector.h"
@@ -100,6 +101,8 @@
 #include "cISC4TutorialSystem.h"
 #include "cISC4PropDeveloper.h"
 #include "cISC4AutomataControllerManager.h"
+#include "cISC4PropManager.h"
+#include "cISC4PropOccupant.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -346,6 +349,9 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cIGZMessageTarget2(Police)", 4, 18,
      "slot 4 is the scalar deleting destructor and slots 5-17 the protection base's own virtuals (protection "
      "§15.3): no outside caller (§13.2), and FreeCity4 replaces both protection classes together"},
+    {"cISC4CrimeSimulator", 14, 16,
+     "slot 14 is cSC4CrimeSimulator's scalar deleting destructor (pops 4) and slot 15 its GetSimulatorType: "
+     "class-private (crime spec section 1: 14 interface slots; cFC4CrimeSimulator declares both)"},
 };
 
 const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlots) {
@@ -411,6 +417,8 @@ const Waiver kWaivers[] = {
     // GetRecyclingCenterEffect only (GetPoliceStationCount goes through
     // cFC4ISC4PoliceSimulator).
     {"cISC4LandfillDeveloper", "cISC4LandfillDeveloper", 9, "GetZoningCost", "returns 64 bits in edx:eax (SDK: 32)"},
+    // The props the crime simulator reads (crime.md section 11.6): GetState only.
+    {"cISC4PropOccupant", "cISC4PropOccupant", 14, "GetTimeOfDayRange", "the game returns in ST0 (SDK: 32-bit)"},
     {"cISC4PowerSimulator", "cISC4PowerSimulator", 45, "GetCurrentPlantEfficiencyPercent",
      "pops 8, returns in eax (SDK: 4 bytes, float)"},
     {"cISC4PowerSimulator", "cISC4PowerSimulator", 46, "GetCurrentPlantConditionPercent",

@@ -784,10 +784,13 @@ public:
                                                SC4Percentage& health, bool flag) = 0;  // 20
     virtual bool GetAverageEQGrid(cISC4SimGrid<float>*& grid, float* min, float* max) = 0;  // 21
     virtual bool GetAverageHQGrid(cISC4SimGrid<float>*& grid, float* min, float* max) = 0;  // 22
-    virtual bool GetEQGrids(cISC4SimGrid<float>*& grid, cISC4SimGrid<float>* a, cISC4SimGrid<float>* b) = 0;  // 23
+    // Slots 23 / 25 (crime.md §13): all three parameters are out pointers, each
+    // AddRef'd for the caller (SDK: the 2nd and 3rd plain pointers); the return
+    // value is garbage (declared bool, never read).
+    virtual bool GetEQGrids(cISC4SimGrid<float>*& g0, cISC4SimGrid<float>*& g1, cISC4SimGrid<float>*& g2) = 0;  // 23
     virtual bool GetHQGrids(cISC4SimGrid<float>*& grid, cISC4SimGrid<float>* a, cISC4SimGrid<float>* b) = 0;  // 24
-    virtual bool GetPopulationGrids(cISC4SimGrid<uint16_t>*& grid, cISC4SimGrid<uint16_t>* a,
-                                    cISC4SimGrid<uint16_t>* b) = 0;               // 25
+    virtual bool GetPopulationGrids(cISC4SimGrid<uint16_t>*& g0, cISC4SimGrid<uint16_t>*& g1,
+                                    cISC4SimGrid<uint16_t>*& g2) = 0;             // 25
     virtual bool GetSchoolQueryData(cISC4Occupant* occupant, intptr_t queryData) = 0;    // 26
     virtual bool GetHospitalQueryData(cISC4Occupant* occupant, intptr_t queryData) = 0;  // 27
     virtual bool EstimateCurrentOccupantCapacity(cISC4Occupant* occupant, uint32_t& a, uint32_t& b) = 0;  // 28

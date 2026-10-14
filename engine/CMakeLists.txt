@@ -195,6 +195,11 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Protection.h
         plugin/FC4ProtectionShadow.cpp
         plugin/FC4ProtectionShadow.h
+        plugin/cFC4Crime.cpp
+        plugin/cFC4Crime.h
+        plugin/FC4CrimeInterfaces.h
+        plugin/FC4CrimeShadow.cpp
+        plugin/FC4CrimeShadow.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -298,13 +303,15 @@ if(FC4_IS_WIN32_X86)
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-plumbing)
     add_test(NAME plugin_ini_enable_pollution_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-pollution)
+    add_test(NAME plugin_ini_enable_crime_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-crime)
     # Autotest: child processes that end with the verdict and TerminateProcess.
     add_test(NAME plugin_autotest_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --autotest)
     # All of them write FreeCity4.log next to the DLL.
     set_tests_properties(plugin_load_test plugin_disable_test plugin_ini_disable_test plugin_ini_enable_test
         plugin_ini_enable_disabled_test plugin_ini_enable_weather_test plugin_ini_enable_ordinance_test
         plugin_ini_enable_demand_test plugin_ini_enable_plumbing_test plugin_autotest_test
-        plugin_ini_enable_pollution_test
+        plugin_ini_enable_pollution_test plugin_ini_enable_crime_test
         PROPERTIES RUN_SERIAL TRUE)
     # popup_dialogs (FC4Popups.h): child processes, one FreeCity4.ini each.
     add_test(NAME plugin_ini_popups_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-popups)
