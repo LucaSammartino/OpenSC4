@@ -23,6 +23,7 @@
 pub mod aura;
 pub mod budget;
 pub mod calibration;
+pub mod clock24;
 pub mod crime;
 pub mod curve;
 pub mod demand;
