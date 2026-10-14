@@ -16,8 +16,9 @@ use super::tuning::{curve_of, prop, Tuning};
 use super::{
     conn_type, deal_type, flag, history, inner_cell, msg, neighbour_connection_cell, neighbouring_region_cell,
     occupant, side_of, status, CityHandle, CityId, ForeignConnection, NeighborsHost, NeighborsMessage, Side, Stat,
-    AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, CLSID_NEIGHBORS_SIMULATOR, ELEVATED_MARKER_HEIGHT, IID_MESSAGE_TARGET2,
-    IID_NEIGHBORS_SIMULATOR, IID_NEIGHBOR_CONNECTION, IID_SERIALIZABLE, IID_UNKNOWN, PROPOSAL_SEED_KEY,
+    AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, CLSID_NEIGHBORS_SIMULATOR, CLSID_NEIGHBOR_CONNECTION,
+    ELEVATED_MARKER_HEIGHT, IID_MESSAGE_TARGET2, IID_NEIGHBORS_SIMULATOR, IID_NEIGHBOR_CONNECTION, IID_SERIALIZABLE,
+    IID_UNKNOWN, PROPOSAL_SEED_KEY,
 };
 use crate::curve::ResponseCurve;
 use crate::property::PropertyHolder;
@@ -230,12 +231,17 @@ impl NeighborsSimulator {
         for m in msg::SUBSCRIPTIONS {
             self.host.subscribe(m);
         }
-        // 4.
+        // 4. A foreign connection (§15.2) repairs itself through its
+        // interface.
         if let Some(r) = self.host.current_city() {
             let counts = self.host.cell_counts();
             let (pos, size) = (self.host.city_position(r), self.host.city_size(r));
             for c in self.connections.borrow().clone() {
-                c.repair(counts, pos, size);
+                if c.is_foreign() {
+                    self.host.repair_foreign_connection(c.token(), r);
+                } else {
+                    c.repair(counts, pos, size);
+                }
             }
         }
         // 5.
@@ -284,10 +290,34 @@ impl NeighborsSimulator {
             self.host.unsubscribe(m);
         }
         self.host.remove_agents();
-        self.connections.borrow_mut().clear();
+        let doomed = std::mem::take(&mut *self.connections.borrow_mut());
+        self.release_connections(&doomed);
         self.deals.borrow_mut().clear();
         *self.tuning_holder.borrow_mut() = None;
         true
+    }
+
+    /// The references the list held to `doomed` (now out of the list) are
+    /// released (ours and foreign alike, §15.2).
+    fn release_connections(&self, doomed: &[Rc<NeighborConnection>]) {
+        for c in doomed {
+            if c.token() != 0 {
+                self.host.release_connection(c.token());
+            }
+        }
+    }
+
+    /// Appends a connection to the list without any effect (the shadow's
+    /// snapshot of the original's list, and tests).
+    pub fn adopt_connection(&self, c: Rc<NeighborConnection>) {
+        self.connections.borrow_mut().push(c);
+    }
+
+    /// Takes the connection list out of the simulator (the handle's
+    /// destructor, for an object that was read but never initialised: the
+    /// references the list holds are the caller's to release).
+    pub fn take_connections(&self) -> Vec<Rc<NeighborConnection>> {
+        std::mem::take(&mut *self.connections.borrow_mut())
     }
 
     // ---- messages (§11.1) ----
@@ -429,6 +459,8 @@ impl NeighborsSimulator {
         if let Some((rx, rz)) = self.neighbouring_region_cell(x, z) {
             c.set_other_region_cell(rx, rz);
         }
+        // The host object of our connection (§15.2), before the region sees it.
+        c.set_token(self.host.connection_object(&c));
         if let Some(n) = self.connection_city(&c) {
             self.host.change_symmetric_connection(n, &c, true);
         }
@@ -477,6 +509,7 @@ impl NeighborsSimulator {
         let Some(c) = self.find_connection(t, x, z) else { return };
         self.delete_connection_object(&c);
         self.connections.borrow_mut().retain(|o| !Rc::ptr_eq(o, &c));
+        self.release_connections(std::slice::from_ref(&c));
     }
 
     /// `DeleteAllConnectionsOfType(t)`.
@@ -485,7 +518,10 @@ impl NeighborsSimulator {
         for c in &doomed {
             self.delete_connection_object(c);
         }
-        self.connections.borrow_mut().retain(|o| o.conn_type() != t);
+        self.connections
+            .borrow_mut()
+            .retain(|o| !doomed.iter().any(|d| Rc::ptr_eq(d, o)));
+        self.release_connections(&doomed);
     }
 
     /// `DeleteOccupantConnection(occ)` (§6.5).
@@ -707,6 +743,14 @@ impl NeighborsSimulator {
         let d = NeighborDeal::new();
         d.attach(&self.rc());
         d
+    }
+
+    /// Links a deal to this simulator without adding it to the list: "the
+    /// current city's neighbours simulator" of §5.4, for a deal of ours that
+    /// outlived the simulator that made it (the region keeps references
+    /// across city loads, foundations §11.4).
+    pub fn claim_deal(&self, d: &Rc<NeighborDeal>) {
+        d.attach(&self.rc());
     }
 
     /// Links a deal to this simulator and appends it to the list, without a
@@ -1282,7 +1326,16 @@ impl NeighborsSimulator {
         out.put_u16(SIMULATOR_RECORD_VERSION);
         out.put_u32(conns.len() as u32);
         for c in conns {
-            out.put_ref(&RefValue::Object(c as Rc<dyn SaveObject>));
+            // A foreign connection (§15.2) is written by its own object.
+            let r = if c.is_foreign() {
+                RefValue::Host {
+                    token: c.token(),
+                    class_id: CLSID_NEIGHBOR_CONNECTION,
+                }
+            } else {
+                RefValue::Object(c as Rc<dyn SaveObject>)
+            };
+            out.put_ref(&r);
         }
         out.error() == 0
     }
@@ -1294,6 +1347,11 @@ impl NeighborsSimulator {
     /// original appends it and then releases it unchecked (`0x006CFEC5`),
     /// crashing inside `Read`. A version other than 2 fails right after the
     /// `u16`, and the store ignores the result (NB11).
+    ///
+    /// A host object (§15.2: the original connection class, when it is not
+    /// replaced) is accepted as a foreign connection; the reference the
+    /// stream handed over is the list's. Its state is not read here: the
+    /// object may still be loading (foundations §2.7, `loadNow = false`).
     pub fn read(&self, inp: &mut dyn InStream) -> bool {
         if inp.get_u16() != Some(SIMULATOR_RECORD_VERSION) {
             return false;
@@ -1306,8 +1364,16 @@ impl NeighborsSimulator {
             let Some(r) = inp.get_ref_as(IID_NEIGHBOR_CONNECTION) else {
                 break;
             };
-            if let Some(c) = r.object::<NeighborConnection>() {
-                self.connections.borrow_mut().push(c);
+            match r {
+                RefValue::Host { token, .. } if token != 0 => {
+                    let c = NeighborConnection::foreign(token, &self.host);
+                    self.connections.borrow_mut().push(c);
+                }
+                r => {
+                    if let Some(c) = r.object::<NeighborConnection>() {
+                        self.connections.borrow_mut().push(c);
+                    }
+                }
             }
         }
         inp.error() == 0

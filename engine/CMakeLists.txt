@@ -227,6 +227,12 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Residential.h
         plugin/FC4ResidentialShadow.cpp
         plugin/FC4ResidentialShadow.h
+        plugin/FC4PropertyHolder.cpp
+        plugin/FC4PropertyHolder.h
+        plugin/cFC4Neighbors.cpp
+        plugin/cFC4Neighbors.h
+        plugin/FC4NeighborsShadow.cpp
+        plugin/FC4NeighborsShadow.h
         plugin/FC4GrowthProbe.cpp
         plugin/FC4GrowthProbe.h
         plugin/FC4GrowthProbeHook.cpp
@@ -407,6 +413,11 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_residential_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-residential)
     set_tests_properties(plugin_ini_enable_residential_test PROPERTIES RUN_SERIAL TRUE)
+    # `enable = neighbors`: the neighbours simulator, its connections (an
+    # original's accepted on load) and deals, through a fake city and region.
+    add_test(NAME plugin_ini_enable_neighbors_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-neighbors)
+    set_tests_properties(plugin_ini_enable_neighbors_test PROPERTIES RUN_SERIAL TRUE)
     # References read from a save (in-game run 88): land value grids and a
     # foreign ordinance, with and without a save before Shutdown, and land value
     # grids created through GZCOM; no reference warning, each released once.

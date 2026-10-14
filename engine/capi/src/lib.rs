@@ -744,6 +744,8 @@ pub mod landfill;
 pub mod landfill_shadow;
 pub mod landvalue;
 pub mod landvalue_shadow;
+pub mod neighbors;
+pub mod neighbors_shadow;
 pub mod ordinance;
 pub mod panic_log;
 pub mod plumbing;
@@ -785,6 +787,9 @@ mod landvalue_tests;
 
 #[cfg(test)]
 mod landvalue_shadow_tests;
+
+#[cfg(test)]
+mod neighbors_tests;
 
 #[cfg(test)]
 mod flammability_shadow_tests;

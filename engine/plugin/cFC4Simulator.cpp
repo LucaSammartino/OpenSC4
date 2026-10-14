@@ -24,6 +24,7 @@
 #include "FC4PollutionShadow.h"
 #include "FC4PowerShadow.h"
 #include "FC4ResidentialShadow.h"
+#include "FC4NeighborsShadow.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Watchdog.h"
@@ -345,7 +346,8 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
         !fc4::PowerShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::PlumbingShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::ResidentialShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
-        !fc4::AuraShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) {
+        !fc4::AuraShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
+        !fc4::NeighborsShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) {
         finished = target->DoMessage(m);
     }
     fc4::DeliveryEnd();
