@@ -346,7 +346,25 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
   - `Uint64` / `Sint64`: always **hexadecimal** (`RZAtoUint64HexA` `0x0090FD90`): leading white space skipped, an
     optional `0x` or `0X`, then at most 16 hex digits. There is no sign, so a negative Sint64 must be written in
     two's complement: `10` gives 16 and `-1` gives 0;
-  - `Float32`: decimal with `.` as separator, locale-independent; `80` gives 80.0;
+  - `Float32`: decimal with `.` as separator, locale-independent; `80` gives 80.0. The parser (`RZStrtodEnglishA`
+    `0x00910426`) is the game's own, not the C runtime's. It skips white space and takes one optional sign. Then
+    it builds the value **digit by digit in x87 arithmetic**: each integer digit gives value × 10 + digit; each
+    fraction digit multiplies a running scale by 0.1 and adds digit × scale. Every step is rounded to the caller's
+    precision, **24 bits on the main thread** (foundations §18.2), and the result is stored as Float32. An `e` or
+    `E` exponent is read as a 32-bit integer; the power 10ⁿ is computed **in 32-bit integer arithmetic, wrapping**
+    (`0x009103DA`), then multiplied in, or divided for a negative exponent. There is no hex, `inf` or `nan`:
+    parsing stops at the first character that does not fit, so `inf` gives 0 and `1.#INF` gives 1. The same parser
+    serves the §5.1 text round trip, where a Float64 target gets the same 24-bit value. Worked examples (24-bit):
+    - `0.05` gives `0x3D4CCCCC`, where a correctly rounded parse gives `0x3D4CCCCD`;
+    - `0.001` gives `0x3A83126E` and `3.14159` gives `0x40490FCE`;
+    - `0.1`, `0.3`, `123.456` and `2.5e3` come out correctly rounded;
+    - `1e10` gives 1,410,065,408 (10¹⁰ mod 2³²), `1e12` gives −727,379,968, and `1e-10` gives about
+      7.09 × 10⁻¹⁰;
+    - `1e32` and any larger exponent give 0 (10ⁿ mod 2³² is 0 from n = 32), `1e-32` gives +∞ and `0e-32` gives
+      NaN.
+
+    Shipped text Float32 values are small integers, which are exact. *[inferred: text exemplars are read on the
+    main thread at 24-bit precision; at 53-bit precision `0.05` would give `0x3D4CCCCD`]*
   - `Bool`: lower-cased, leading spaces trimmed; true exactly when it begins with `true` (`1` gives false);
   - `String`: everything up to the first `}`, trimmed, then one leading `"` and one trailing `"` removed. A string
     cannot contain `}` *[quirk]*.

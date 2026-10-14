@@ -591,7 +591,11 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   character that cannot continue it, so `}` ends it anyway (the last Float32 array value is split at `}`, with the
   same result). Leading spaces are trimmed for array values only, which matters for `0x` in rule N. Uint64 and
   Sint64 are hexadecimal with no sign (data-formats.md §4.3).
-- **EX14:** how is Float32 text parsed? [as f64, then rounded to f32; no hex/inf/nan]
+- ~~**EX14:** how is Float32 text parsed? [as f64, then rounded to f32; no hex/inf/nan]~~ **ANSWERED 2026-10-14**
+  from the exe (`0x00910426`): **the first half of the bracket does not match; "no hex/inf/nan" does.** The game's
+  own parser adds the digits one by one in x87 arithmetic, rounded at every step to the main thread's 24-bit
+  precision; the exponent's power of ten is a wrapping 32-bit integer. So `0.05` gives `0x3D4CCCCC`, not
+  `0x3D4CCCCD`, `1e10` gives 1,410,065,408, and `1e32` gives 0 (data-formats.md §4.3, with examples).
 - **EX15:** what counts as a resolvable kind-1 resource key? [an exemplar or cohort that loads, or a key registered
   from the package index]
 - **EX16:** shipped data: `Plugin_002_TheLivingMall.dat` writes `Uint8:0:{}` for two LotConfig properties, now read
