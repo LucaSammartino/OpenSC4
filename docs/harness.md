@@ -2,7 +2,7 @@
 
 The coordinator runs a **game queue**: it watches every worktree for request files, runs each request in the real
 game with that worktree's `FreeCity4.dll`, and writes the result back into the same worktree. Several games run at
-once (one per *slot*, default 3), each with its own copy of the test region, so your run does not disturb anyone
+once (one per *slot*), each with its own copy of the test region, so your run does not disturb anyone
 else's and nobody else's run disturbs yours. You never start the game yourself.
 
 ## Submit a request
@@ -123,7 +123,7 @@ Start the queue detached from the main checkout and leave it running (one defaul
 exits; see `-Instance` below for a second queue):
 
 ```
-Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File C:\Users\tlori\FreeCity4\tools\game_queue.ps1 -Slots 3"
+Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File C:\Users\tlori\FreeCity4\tools\game_queue.ps1 -Slots 6"
 ```
 
 It logs to `build-runs\game-queue.log` of that checkout. `-Once` runs what is queued and exits; `-Roots a,b` scans
@@ -179,3 +179,11 @@ scan the same roots without running a request twice; a queue started before this
 run a second instance on the roots it scans (the queue started now scans every worktree). Give each instance its own
 slots. Slot N runs on logical CPU 2N: on this i7-12700K, slots 1 to 7 each get their own P-core (CPUs 2 to 14),
 slots 8 and 9 land on E-cores (16, 18) and run slower.
+
+**How many slots.** Measured 2026-10-14 with the queue on slots 1-3 and the lanes building at the same time: extra
+games in slots 4-9 (`ingame_run -Slot N`, main's DLL, 16 replacements, turbo to 2032-01-01). Up to 7 games at once:
+no failed start, every verdict clean, at least 45 GB free (a game uses about 400 MB), total CPU 55-87% on average.
+A game's speed depends on the build load on its pinned CPU far more than on the number of games: the same run did
+16 days/s alone during a heavy build and 31-43 days/s with 6 other games; slots 8 and 9 (E-cores) did 24-25 days/s
+next to 31-39 on P-cores. Use `-Slots 6` (CPUs 2-12; P-cores 0 and 7 and the E-cores stay for the builds and the
+system); 7 is the most that keeps one P-core per game; do not use 8 or 9.
