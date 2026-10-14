@@ -697,6 +697,14 @@ funding gives 31, 23, 15, 7, 0. Step 4.3 repairs the difference each month, in s
 Because cond is not saved (§3), after a load the pipes start from cond 0. Distressed and burst flags live in the
 pipe occupants. numDistressed and numBurst are saved, so the counters persist.
 
+**After a load** (PS3) *[compat]*. cond (object `+0x180`) is written only by the constructor (0, `0x006DC61C`)
+and by step 1. `Read`, `Init` and `Shutdown` never touch it, so a loaded city starts from 0 whatever the saving
+game had. The first month then moves the saved distressed pipes towards the new target. Example: 400 pipes, 120
+of them distressed in the save. At 100 % funding cond stays 0, target 0, and step 4.3 repairs all 120. At 0 %
+funding cond becomes 0.01, target 4, and 116 are repaired. The burst flags stay (step 4.3). The ageing flag is
+not saved either (constructor `0x006DC4F7`; set only by step 1 of the month, `0x006DF551`). A save taken between
+a month start and that month's state 8 therefore loses that month's producer ageing.
+
 ### 7.2 `UpdateWaterProduction` (state 1) *[compat]*
 
 1. Reset: averageWaterPollution := 0, numPolluted := 0, sum := 0, count := 0.
@@ -880,7 +888,8 @@ Not saved, and recomputed by the first pass after load:
 - state (Read sets 0, so a pass starts immediately; recompute is false);
 - the pass totals and building counts;
 - producer efficiency and polluted;
-- pipe condition (0 after load *[quirk]*);
+- pipe condition (0 after load *[quirk]*, §7.1);
+- the ageing flag (false after load, §7.1);
 - the enabled flag (it needs ConnectionsReady again).
 
 Size example: countX = countZ = 64, 2 producers, no current producer, 3 pipes, all refs non-null:

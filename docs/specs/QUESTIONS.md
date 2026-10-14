@@ -1511,8 +1511,13 @@ shadow's current answer is in brackets.
   50 % it falls gradually (0.02 a month at 100 %). It is 0 at 50 % or more only when it was 0 already, as after a
   load. New quirk: a step above 1 sets 1 and skips the "no pipes → 0" test. Written into plumbing.md §7.1 with a
   400-pipe example.
-- **PS3:** the original's pipe condition is not saved and not observable; the shadow starts its own at 0, so the
-  first month after a load assumes the original also restarts at 0. Right?
+- ~~**PS3:** the original's pipe condition is not saved and not observable; the shadow starts its own at 0, so the
+  first month after a load assumes the original also restarts at 0. Right?~~ **ANSWERED 2026-10-14** from the exe
+  (cond `+0x180`: written by the constructor `0x006DC61C` and by `ApplyPipeFunding` only): **right, the bracket
+  matches.** `Read`, `Init` and `Shutdown` never touch it, so the original restarts at 0 too. The first month
+  then repairs the saved distressed pipes down to the new target. The ageing flag is not saved either, so a save
+  taken between a month start and its state 8 loses that month's ageing. Written into plumbing.md §7.1 with an
+  example.
 - **PS4 — §5.3:** demand is a running sum the original builds as things are added; the shadow takes it from the
   original's record instead of recomputing it. Acceptable? [taken from the record]
 - **PS5:** the monthly funding comes from department `0xAA4014B4`, a choice the spec does not state. Which
