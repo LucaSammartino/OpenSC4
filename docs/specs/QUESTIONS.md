@@ -2901,8 +2901,14 @@ developer stays original). The current answer is in brackets.
   **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. The original has no shadow. For
   reference, its `Write` (`0x004DC7A0`) record (zones §10.1) carries the counts, both count maps, the tuning arrays and
   the alpha, but not the max slopes or the default alpha; `Init` re-reads the tuning after a load (§4, ZG3).
-- **ZG14:** Is a PlaceZone dry run (commit=false, outLots null) on the original safe? `CanRemove(2)` is an inferred
-  name. [yes, per §6 and §13.2; `CanRemove(2)` assumed to be a query]
+- ~~**ZG14:** Is a PlaceZone dry run (commit=false, outLots null) on the original safe? `CanRemove(2)` is an inferred
+  name. [yes, per §6 and §13.2; `CanRemove(2)` assumed to be a query]~~
+  **ANSWERED 2026-10-14** from the exe (`PlaceZone` commit gate `0x004DDE5E`–`0x004DDE67`, `outLots` test
+  `0x004DDC9B`; `DemolishRegion` `0x00468410`; `cSC4Occupant::CanRemove` `0x005E8AE0`) and written into zones §6 and
+  §12. Yes, it changes no game state: no withdrawal, grid write, demolition, parcelling or message, and a null
+  `outLots` is skipped. It writes only the caller's region, the occupant manager's shared filter type and the
+  demolition utility's scratch fields. `CanRemove` is the SDK name and a pure query of a removal counter. The bracket
+  matches. Not every callee of the pricing pass was traced.
 - **ZG15:** Dry-run sample regions and flags (the spec names no UI caller). [four seeded regions: 1×1 checkSlope with
   size check, 2×3 checkSlope without size check and a lot inside, 4×4 the building-development form, 7×3 checkerboard
   without flags]

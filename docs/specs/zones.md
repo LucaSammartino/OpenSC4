@@ -393,7 +393,18 @@ Notes *[compat]*:
   "this is a user action" *[inferred]*.
 - Re-zoning a cell to its own type costs nothing and leaves the counts unchanged, but the cell still counts as
   accepted: a ZoningChange is posted and the developer re-parcels it.
-- The demolition utility (`0x00B43D00`) is called twice; the first call (`false`) only prices the lots.
+- The demolition utility (`0x00B43D00`) is called twice; the first call (`false`) only prices the lots. It goes to
+  `DemolishRegion` (`0x00468410`) with argument 1 false; the per-occupant removal step (`0x00468EEC`) and
+  `UpdateNetworks` (`0x004681A0`, called at `0x00469056`) run only when that argument is true.
+- **A dry run** (`commit = false`) changes no game state (ZG14). There is no withdrawal, grid write, demolition,
+  parcelling or message (`0x004DDE5E`–`0x004DDE67` skip to the outputs), and a null `outLots` is skipped
+  (`0x004DDC9B`). It does write the caller's region (rejected bits), the occupant manager's shared filter type (slot
+  33, above) and the demolition utility's scratch fields (`DemolishRegion` stores the request on itself,
+  `0x00468459`). Not every callee of the pricing pass was traced. `CanRemove` is the SDK name of occupant slot 14.
+  Its implementation, `cSC4Occupant::CanRemove` (`0x005E8AE0`; no override found), is a pure query: with flag bit 0
+  it returns whether the removal counter at +0x2D is 0, else with bit 1 whether the counter at +0x2C is 0, else
+  true. `SetRemovalFlags` / `UnsetRemovalFlags` (slots 12, 13) raise and lower those 8-bit counters, so
+  `CanRemove(2)` means "no one has blocked removal with flag 2".
 - The input region is modified (rejected bits cleared). `outLots` is a `std::set` of lots (B nodes); inserted
   elements are AddRef'd (allocator rows: §13.2). The set is filled right after the pricing call (ZG7,
   `0x004DDC94`–`0x004DDCC6`), before the landfill cost and the funds test: also on a dry run, after an abort and
@@ -1367,7 +1378,7 @@ Pops are bytes (from `docs/abi/interfaces.tsv` argument counts or `--check`).
 | | 98 (+0x188) | `LocationIsInBounds` | 8 | AL | lot manager slot 5 |
 | traffic network | 8 | `FindNetworkTile(x, z, 0x1F4F, 1)` | 16 | EAX | PlaceZone |
 | network tile | 22, 48, 63 | `IsOfType(3)`, `AsOccupant`, `GetCostOfDemolition` (int64 EDX:EAX) | | | PlaceZone |
-| `cISC4Occupant` | 7, 8, 11, 14, 32 | `GetType`, `GetPosition`, `GetBoundingCityCells`, `CanRemove(2)` *[inferred name]*, `IsFlagSet(1)` | | | PlaceZone, DoMessage, ExamineCell |
+| `cISC4Occupant` | 7, 8, 11, 14, 32 | `GetType`, `GetPosition`, `GetBoundingCityCells`, `CanRemove(2)` (a query, §6), `IsFlagSet(1)` | | | PlaceZone, DoMessage, ExamineCell |
 | `cISC4NetworkOccupant` (IID `0xA821EF94`) | 9 (+0x24) | `HasAnyNetworkFlag(flags)` | 4 | AL | DoMessage, ExistsNetworkOfType |
 | `cISTETerrain` (`0x00B43CF4`) | 13, 14, 34 | `GetAltitude(x, z)`, `GetAltitudeAtVertex`, `CellHasWater` | 8 each | ST0, ST0, AL | lot manager 17–19, PlaceZone, IsCellWater |
 | `cISC4OccupantManager` (`0x00B43D0C`) | 21 (+0x54) | `RemoveOccupant(occ, 1, 0)` | 12 | | DeleteLot |
