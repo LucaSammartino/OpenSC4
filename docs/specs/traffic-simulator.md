@@ -502,8 +502,8 @@ automata, query tool) *[inferred]*.
      towards the source rect (mode 1); a direction is only defined for a one-cell step (else no update). With both
      defined: record key `(mode = 1) << 24 | t << 16 | x << 8 | z`, `current[4e + o] := min(0xFFFF, current + Qi)`.
      **Mode 2 also adds `Qi` to the record with key `1 << 24 | t << 16 | x << 8 | z` at index `4o + e`** (the mirrored
-     direction) *[compat]*. This differs from the pathfinder's `ApplyTraffic` (pathfinder.md §4.17), which does not
-     mirror; that slot has no known caller.
+     direction) *[compat]*. The pathfinder's `ApplyTraffic` (pathfinder.md §4.17, no known caller) mirrors the same
+     way (corrected by PF2).
   4. **Ferry legs**: a step across a ferry link adds `round(Q)` to the link's counters (by mode) and
      `r24(Q × ferryFare)` to the fares *[inferred: counter meaning, traffic-network.md]*.
   5. **Income**: `I := r24(I + r24(Q × incomePerTile[t]))`.

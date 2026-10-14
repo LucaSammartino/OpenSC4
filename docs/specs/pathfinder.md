@@ -569,8 +569,11 @@ Adds the trips of the result to the simulator. Nothing happens when there is no 
      Exit side = EdgeTo(prev → cell) (the direction from the cell to `prev`), computed on the **unsigned byte**
      coordinates of `prev` (an off-map −1 compares as 255 *[quirk]*). The simulator's edge-density
      record with key `(style = 1) << 24 | t << 16 | (x & 0xFF) << 8 | (z & 0xFF)` (created if missing) gets
-     `count[entry][exit] = min(count + Qi, 0xFFFF)` (u16, 16 counters, index `4·entry + exit`). For style 2 the record
-     with key `1 << 24 | t << 16 | …` gets the same addition at the same index (not mirrored).
+     `current[4·entry + exit] := min(current + Qi, 0xFFFF)`. `current` is the record's **second** u16[16] array, at
+     `+0x22` (traffic-simulator.md §4.8: `last[16]` at `+0x00`, `usage` at `+0x20`, `current[16]` at `+0x22`); this
+     slot never writes `last` or `usage`, which only the state-7 dump sets (PF2, `0x006DA2D3`). For style 2 the
+     record with key `1 << 24 | t << 16 | …` gets the same addition at the **mirrored** index
+     `current[4·exit + entry]` (`0x006DA324`–`0x006DA330`), as `ApplyRoute` does (traffic-simulator.md §4.5).
   4. Income: `I = r24(I + r24(float(trafficArrived) × incomePerTile[t]))` (`I` starts at +0.0; this uses the
      uncarpooled count).
 * Finally the simulator's double income accumulator `= r24-precision(I + accumulator)` stored as a double (the add is
@@ -762,9 +765,10 @@ Open questions:
   `SetTripDestinationFilter(2)` found by a byte scan (`0x00545328`, `0x0060F588`, `0x006A1D10`, `0x0070E0BE`) are other
   interfaces (stream writes), not the pathfinder.
 * **Q3** No caller of `ApplyTraffic` (slot 29) was found *[inferred]*. The simulator applies routes with its own
-  `ApplyRoute` (`0x00719910`, traffic-simulator.md), which **does** mirror style 2 (the second add uses index
-  4·exit + entry) and adds transit-switch usage once; this slot does not mirror. For the first route cell
-  `ApplyRoute` tests `z < sz0 → 3` where this slot tests `z ≤ sz1 → 3`; the two agree for cells outside the rect.
+  `ApplyRoute` (`0x00719910`, traffic-simulator.md). Both mirror style 2 (the second add uses index
+  4·exit + entry; corrected by PF2, an earlier version said this slot does not mirror). `ApplyRoute` adds
+  transit-switch usage once, this slot `r24(Q + Q)` for style 2. For the first route cell `ApplyRoute` tests
+  `z < sz0 → 3` where this slot tests `z ≤ sz1 → 3`; the two agree for cells outside the rect.
 * **Q4** A switch move towards an off-map cell reads the transit-switch map and the network info outside the map; the
   result there depends on the simulator's accessor bounds handling (traffic-network.md). FreeCity4 treats it as "no
   switch, no info" *[choice]*.
@@ -794,11 +798,13 @@ cells and networks are empty. Start rect `(2,2,2,2)` with a lot at `(2,2)`; end 
    `FindPath` = 1; trip length `3.0` (`0x40400000`); end cell `(4,4)`; traffic arrived 10; last travel type 1;
    route deque `(2,3,1) (3,3,1) (4,3,1)`; `WasTripReversible` = true.
 3. **Compressed route** of test 2: bytes `01 02 03 41 02 0A`, mask `0x00000002`.
-4. **ApplyTraffic(0)** after test 2: road volume `(2,3)`, `(3,3)`, `(4,3)` = 10.0 each; edge density, all with style
-   bit 0 and type 1: cell `(4,3)` `count[0][3] = 10`, `(3,3)` `count[0][2] = 10`, `(2,3)` `count[1][2] = 10`
-   (root: entry from the start rect = side 1). With style 2 instead: volumes 20.0 and the same counts in both the
-   key-bit-0 and key-bit-1 records. With the carpool ordinance on and density 10: `Q = 8.0` (`r24(10 × 0.8f) = 8.0`,
-   ceil 8), volumes 8.0, counts 8.
+4. **ApplyTraffic(0)** after test 2: road volume `(2,3)`, `(3,3)`, `(4,3)` = 10.0 each; edge density, all in the
+   `current` array (`+0x22`), with style bit 0 and type 1: cell `(4,3)` `current[4·0 + 3] = 10`, `(3,3)`
+   `current[4·0 + 2] = 10`, `(2,3)` `current[4·1 + 2] = 10` (root: entry from the start rect = side 1); `last` and
+   `usage` stay 0. With style 2 instead: volumes 20.0, the same three counts in the key-bit-0 records, and the
+   mirrored counts in the key-bit-1 records: `(4,3)` `current[4·3 + 0] = 10`, `(3,3)` `current[4·2 + 0] = 10`,
+   `(2,3)` `current[4·2 + 1] = 10`. With the carpool ordinance on and density 10: `Q = 8.0`
+   (`r24(10 × 0.8f) = 8.0`, ceil 8), volumes 8.0, counts 8.
 5. **Starting cost.** As test 2 but starting cost `[0, 0.4f, 0, …]`: start `g = 0.4f` (`0x3ECCCCCD`), `(3,3)`
    `g = 1.9f` (`0x3FF33333`), `(4,3)` `g = 3.4000001f` (`0x4059999A`), trip length `r24(3.4000001f − 0.4f) = 3.0`
    (`0x40400000`).

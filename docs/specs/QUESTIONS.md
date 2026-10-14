@@ -507,7 +507,12 @@ vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
   `0x006D9070`, `0x006D9085`) and written into §4.9 step 5, with a table. **The bracket is right.** Both tests are an
   ordered `node.g ≤ g`: `fcomp`, then only C0 is tested, and an unordered result sets C0. So the node is taken when
   `g < node.g` or when **either** value is NaN; a stored NaN `g` is replaced by any `g`. The old wording was wrong.
-- **PF2 — §4.17:** which of the record's two arrays do the "16 counters" go to? [`current`]
+- ~~**PF2 — §4.17:** which of the record's two arrays do the "16 counters" go to? [`current`]~~ **ANSWERED
+  2026-10-14** from the exe (`ApplyTraffic` `0x006DA2D3`, `0x006DA324`–`0x006DA330`; edge-density `operator[]`
+  `0x006D7820` returns the value at node `+8`) and written into §4.17 step 3, test 4 and §10 Q3. **The bracket is
+  right: `current`**, the record's second array at `+0x22`; `last` and `usage` are never written here. Also
+  corrected: for style 2 the key-bit-1 record gets the **mirrored** index `4·exit + entry`, like `ApplyRoute`. The
+  spec said "not mirrored" (also fixed in traffic-simulator.md §4.5).
 - **PF3 — §8:** which value does the pathfinder pass for `GetLot`'s bool? [left to the host]
 - **PF4 — §4.8.3 step 3:** `conn[t]` is shifted by the node's entry side `s`, not the loop's `s2`. [literally `s`]
 - **PF5 — §4.6 fallback:** several links of one connection match the start cell: which link cost? [the first]
