@@ -749,6 +749,7 @@ pub mod power;
 pub mod props;
 pub mod protection;
 pub mod residential;
+pub mod residential_shadow;
 pub mod stream;
 pub mod weather;
 

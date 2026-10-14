@@ -3260,6 +3260,85 @@ bool fc4_residential_auto_budget(const fc4_residential* p, uint64_t occ);       
 bool fc4_residential_set_auto_budget(const fc4_residential* p, uint64_t occ, bool on); /* 57 */
 bool fc4_residential_ideal_funding(const fc4_residential* p, uint64_t occ, float* out); /* 58 */
 
+/* ---- residential shadow (tooling) ---------------------------------------------
+ *
+ * With the ORIGINAL residential simulator running, each SimNewDay delivery to
+ * its agent is wrapped (one state of the monthly cycle per day, §5.1): before
+ * it, the plugin captures the original's record (its own Write into a capture
+ * stream) and calls fc4_residential_shadow_begin, which copies the 25 live
+ * grids the record refers to, loads the record into a private core over the
+ * copies, restores the simulator tuning and ordinance effects from the game
+ * and runs FreeCity4's daily state, reading every input through the host
+ * table (read callbacks and the grid table's geometry / get only; nothing is
+ * written to the game). States 1, 2 and 4 run at the finish instead, where
+ * the original's progress is known (a state it stopped part-way runs as far
+ * as it got). After the delivery the plugin captures the record again, reads
+ * the original's population, global EQ / HQ and LE, and calls
+ * fc4_residential_shadow_finish, which compares the 25 grids cell by cell,
+ * the saved fields, the occupant properties and local funding, and the four
+ * scalars. fc4_residential_shadow_describe gives the one start-up line of
+ * what is not readable (hence not compared). */
+typedef struct fc4_residential_shadow fc4_residential_shadow;
+
+/* One reference of a captured record, queried for each interface the reader
+ * asks for (0 = the object does not answer it); borrowed identities. */
+typedef struct fc4_residential_capture_ref {
+    uint64_t grid;       /* cISC4SimGrid 0xC9BD939A */
+    uint64_t occupant;   /* cISC4Occupant 0x26BB767E */
+    uint64_t department; /* cISC4DepartmentBudget 0x223E2B67 */
+    uint32_t class_id;   /* GetGZCLSID() */
+    uint32_t reserved;
+} fc4_residential_capture_ref;
+
+/* A captured record: primitives little-endian, references as uint32
+ * objectID (index into `refs` + 1, 0 = null) then uint32 classID. */
+typedef struct fc4_residential_capture {
+    uint32_t struct_size;
+    uint32_t ok; /* Write returned true and the stream stayed good */
+    const uint8_t* bytes;
+    size_t len;
+    const fc4_residential_capture_ref* refs;
+    size_t ref_count;
+} fc4_residential_capture;
+
+/* The original's getters after its delivery. */
+typedef struct fc4_residential_shadow_scalars {
+    uint32_t struct_size;
+    int32_t population;         /* slot 16 */
+    float global_eq, global_hq; /* slots 32 / 33 */
+    uint32_t global_le;         /* slot 34 (AL, zero-extended) */
+    uint32_t reserved;
+} fc4_residential_shadow_scalars;
+
+typedef struct fc4_residential_shadow_stats {
+    uint32_t struct_size;
+    uint32_t deliveries, compared, clean, incomplete;
+    uint32_t idle;            /* state-10 days (not compared) */
+    uint32_t cycles;          /* monthly cycles seen to end (state 9 -> 10) */
+    int32_t last_mismatches;  /* -1: not compared */
+    uint64_t cells, cell_mismatches, field_mismatches;
+    uint64_t prop_mismatches; /* occupant properties and local funding */
+    uint64_t scalar_mismatches;
+} fc4_residential_shadow_stats;
+
+/* `max_cells`: differing cells listed per grid and line (0 = 4, at most 64). */
+fc4_residential_shadow* fc4_residential_shadow_create(const fc4_residential_host* host, uint32_t max_cells);
+void fc4_residential_shadow_destroy(fc4_residential_shadow* s);
+/* Before a SimNewDay delivery (`julian` = its data1): 0 = ready, -1 = not
+ * run (finish reports why), -2 = state 10 (the original does nothing; a
+ * finish returns -2 and logs nothing). */
+int32_t fc4_residential_shadow_begin(fc4_residential_shadow* s, int32_t julian, const fc4_residential_capture* before);
+/* The delivery's difference count (-1 = not compared, -2 = nothing to
+ * compare); log lines go to `sink`, one call per line: one per delivery
+ * ("residential shadow YYYY-MM-DD state N (name): ...; mismatches=N", or
+ * INCOMPLETE and why) and, after the delivery that ends a cycle, the cycle
+ * line. `scalars` NULL: not compared. */
+int32_t fc4_residential_shadow_finish(fc4_residential_shadow* s, const fc4_residential_capture* after,
+                                      const fc4_residential_shadow_scalars* scalars, fc4_bytes_sink sink, void* ctx);
+bool fc4_residential_shadow_get_stats(fc4_residential_shadow* s, fc4_residential_shadow_stats* out);
+/* One line: what is not readable, hence not compared. */
+void fc4_residential_shadow_describe(fc4_bytes_sink sink, void* ctx);
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -3373,6 +3452,10 @@ static_assert(sizeof(fc4_residential_min_max) == 24, "fc4_residential_min_max la
 static_assert(sizeof(fc4_residential_snapshot) == 160, "fc4_residential_snapshot layout");
 static_assert(sizeof(fc4_residential_state) == 144, "fc4_residential_state layout");
 static_assert(sizeof(fc4_residential_host) == (sizeof(void*) == 4 ? 292 : 584), "fc4_residential_host layout");
+static_assert(sizeof(fc4_residential_capture_ref) == 32, "fc4_residential_capture_ref layout");
+static_assert(sizeof(fc4_residential_capture) == (sizeof(void*) == 4 ? 24 : 40), "fc4_residential_capture layout");
+static_assert(sizeof(fc4_residential_shadow_scalars) == 24, "fc4_residential_shadow_scalars layout");
+static_assert(sizeof(fc4_residential_shadow_stats) == 72, "fc4_residential_shadow_stats layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");

@@ -27,6 +27,7 @@ use crate::hostgrid::fc4_grid_api;
 use crate::landvalue::fc4_grid_geometry;
 use crate::props::{fc4_props, fc4_props_set_typed};
 use crate::residential::*;
+use crate::residential_shadow::*;
 use crate::stream::fc4_ref;
 use crate::test_streams::{istream, ostream, In, Out};
 
@@ -786,6 +787,394 @@ fn the_record_round_trips_and_a_view_writes_the_same() {
     assert_eq!(snap(q).population_grids, [0; 3]);
     unsafe { fc4_residential_destroy(q) };
     assert_eq!(g.grids.borrow()[&pop].refs, 1);
+    assert!(unsafe { fc4_residential_shutdown(p) });
+    unsafe { fc4_residential_destroy(p) };
+}
+
+// ---- the shadow (fc4.h "residential shadow") ------------------------------------------------------------
+//
+// The "original" is FreeCity4's own simulator on the fake game: the shadow,
+// running the same core on copies, must find no difference.
+
+/// A record in the capture format: references as `u32 index + 1` (0 = null)
+/// then `u32 class`, each object listed once.
+#[derive(Default)]
+struct Cap {
+    bytes: Vec<u8>,
+    refs: Vec<fc4_residential_capture_ref>,
+    ids: Vec<u64>,
+}
+
+impl Cap {
+    fn view(&self, ok: bool) -> fc4_residential_capture {
+        fc4_residential_capture {
+            struct_size: std::mem::size_of::<fc4_residential_capture>() as u32,
+            ok: u32::from(ok),
+            bytes: self.bytes.as_ptr(),
+            len: self.bytes.len(),
+            refs: self.refs.as_ptr(),
+            ref_count: self.refs.len(),
+        }
+    }
+}
+
+fn cap_of(u: *mut c_void) -> &'static mut Cap {
+    unsafe { &mut *(u as *mut Cap) }
+}
+
+macro_rules! cap_put {
+    ($name:ident, $t:ty) => {
+        unsafe extern "C" fn $name(u: *mut c_void, v: $t) -> bool {
+            cap_of(u).bytes.extend_from_slice(&v.to_le_bytes());
+            true
+        }
+    };
+}
+cap_put!(cap_u8, u8);
+cap_put!(cap_u16, u16);
+cap_put!(cap_u32, u32);
+cap_put!(cap_u64, u64);
+cap_put!(cap_f32, f32);
+cap_put!(cap_f64, f64);
+
+unsafe extern "C" fn cap_bytes(u: *mut c_void, p: *const u8, n: usize) -> bool {
+    if n > 0 {
+        cap_of(u).bytes.extend_from_slice(std::slice::from_raw_parts(p, n));
+    }
+    true
+}
+unsafe extern "C" fn cap_str(u: *mut c_void, p: *const u8, n: usize) -> bool {
+    cap_u32(u, n as u32);
+    cap_bytes(u, p, n)
+}
+unsafe extern "C" fn cap_ref(u: *mut c_void, r: *const fc4_ref) -> bool {
+    let (token, class_id) = ((*r).token, (*r).class_id);
+    let c = cap_of(u);
+    if token == 0 {
+        c.bytes.extend_from_slice(&0u32.to_le_bytes());
+        return true;
+    }
+    let i = match c.ids.iter().position(|&t| t == token) {
+        Some(i) => i,
+        None => {
+            let grid = [grid_class::U8, grid_class::U16, grid_class::F32].contains(&class_id);
+            c.ids.push(token);
+            c.refs.push(fc4_residential_capture_ref {
+                grid: if grid { token } else { 0 },
+                occupant: if grid { 0 } else { token },
+                department: if grid { 0 } else { token },
+                class_id,
+                reserved: 0,
+            });
+            c.ids.len() - 1
+        }
+    };
+    c.bytes.extend_from_slice(&(i as u32 + 1).to_le_bytes());
+    c.bytes.extend_from_slice(&class_id.to_le_bytes());
+    true
+}
+unsafe extern "C" fn cap_error(_: *mut c_void) -> i32 {
+    0
+}
+
+/// The original's record, captured.
+fn capture(p: *const fc4_residential) -> Box<Cap> {
+    let mut c = Box::<Cap>::default();
+    let os = crate::stream::fc4_ostream {
+        struct_size: std::mem::size_of::<crate::stream::fc4_ostream>() as u32,
+        user: &mut *c as *mut Cap as *mut c_void,
+        put_u8: Some(cap_u8),
+        put_u16: Some(cap_u16),
+        put_u32: Some(cap_u32),
+        put_u64: Some(cap_u64),
+        put_f32: Some(cap_f32),
+        put_f64: Some(cap_f64),
+        put_bytes: Some(cap_bytes),
+        put_str: Some(cap_str),
+        put_ref: Some(cap_ref),
+        error: Some(cap_error),
+    };
+    assert!(unsafe { fc4_residential_write(p, &os) });
+    c
+}
+
+/// The original's getters after its delivery.
+fn scalars(p: *const fc4_residential) -> fc4_residential_shadow_scalars {
+    fc4_residential_shadow_scalars {
+        struct_size: std::mem::size_of::<fc4_residential_shadow_scalars>() as u32,
+        population: snap(p).population,
+        global_eq: unsafe { fc4_residential_global_quotient(p, true) },
+        global_hq: unsafe { fc4_residential_global_quotient(p, false) },
+        global_le: u32::from(unsafe { fc4_residential_global_le(p) }),
+        reserved: 0,
+    }
+}
+
+unsafe extern "C" fn keep_line(ctx: *mut c_void, p: *const u8, n: usize) {
+    let s = String::from_utf8_lossy(std::slice::from_raw_parts(p, n)).into_owned();
+    (*(ctx as *mut Vec<String>)).push(s);
+}
+
+/// The shadow's host table: the fake's reads, every write callback counted.
+static SHADOW_WRITES: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+fn wrote() {
+    SHADOW_WRITES.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+}
+unsafe extern "C" fn w_create(_: *mut c_void, _: u32, _: u32, _: i32) -> u64 {
+    wrote();
+    0
+}
+unsafe extern "C" fn w_set(_: *mut c_void, _: u64, _: u32, _: i32, _: i32, _: f64) {
+    wrote();
+}
+unsafe extern "C" fn w_fill(_: *mut c_void, _: u64, _: u32, _: f64) {
+    wrote();
+}
+unsafe extern "C" fn w_grid(_: *mut c_void, _: u64) {
+    wrote();
+}
+unsafe extern "C" fn w_u32(_: *mut c_void, _: u64, _: u32, _: u32) {
+    wrote();
+}
+unsafe extern "C" fn w_f32(_: *mut c_void, _: u64, _: u32, _: f32) {
+    wrote();
+}
+unsafe extern "C" fn w_token(_: *mut c_void, _: u64) {
+    wrote();
+}
+unsafe extern "C" fn w_history(_: *mut c_void, _: u32, _: i32) {
+    wrote();
+}
+
+fn shadow_host(g: &Game) -> fc4_residential_host {
+    let mut h = host(g);
+    h.grids.create = Some(w_create);
+    h.grids.set = Some(w_set);
+    h.grids.fill = Some(w_fill);
+    h.grids.shutdown = Some(w_grid);
+    h.grids.release = Some(w_grid);
+    h.set_occupant_u32 = Some(w_u32);
+    h.set_occupant_f32 = Some(w_f32);
+    h.add_ref = Some(w_token);
+    h.release = Some(w_token);
+    h.hand_out = Some(w_token);
+    h.release_department = Some(w_token);
+    h.record_history = Some(w_history);
+    h
+}
+
+const JULIAN_2000_01_01: i32 = 2_451_545;
+
+/// A school with a radius and a capacity (coverage and grading run), and a
+/// first cycle on the "original".
+fn shadowed_city(g: &Game) -> *mut fc4_residential {
+    use fc4_core::residential::SCHOOL as SVC;
+    unsafe {
+        set_f32(g.user(), SCHOOL, SVC.radius, 200.0);
+        set_u32(g.user(), SCHOOL, SVC.capacity, 1000);
+    }
+    let p = started(g);
+    unsafe { fc4_residential_do_message(p, msg::OCCUPANT_INSERTED, 0, 0, OCCUPANT_TYPE_BUILDING, SCHOOL) };
+    run_month(p);
+    unsafe { fc4_residential_do_message(p, msg::SIM_NEW_MONTH, 0, 0, 0, 0) };
+    p
+}
+
+/// One shadowed day: (begin, finish).
+fn shadowed_day(
+    s: *mut fc4_residential_shadow,
+    p: *mut fc4_residential,
+    julian: i32,
+    lines: &mut Vec<String>,
+    tamper: impl FnOnce(),
+) -> (i32, i32) {
+    let before = capture(p);
+    let b = unsafe { fc4_residential_shadow_begin(s, julian, &before.view(true)) };
+    day(p);
+    let sc = scalars(p);
+    tamper();
+    let after = capture(p);
+    let f = unsafe {
+        fc4_residential_shadow_finish(
+            s,
+            &after.view(true),
+            &sc,
+            Some(keep_line),
+            lines as *mut Vec<String> as *mut c_void,
+        )
+    };
+    (b, f)
+}
+
+fn shadow_stats(s: *mut fc4_residential_shadow) -> fc4_residential_shadow_stats {
+    let mut st = fc4_residential_shadow_stats::default();
+    assert!(unsafe { fc4_residential_shadow_get_stats(s, &mut st) });
+    st
+}
+
+#[test]
+fn the_shadow_of_our_own_simulator_finds_no_difference_through_a_cycle() {
+    let g = Game::new();
+    let p = shadowed_city(&g);
+    SHADOW_WRITES.store(0, std::sync::atomic::Ordering::SeqCst);
+    let h = shadow_host(&g);
+    let s = unsafe { fc4_residential_shadow_create(&h, 0) };
+    assert!(!s.is_null());
+    let mut lines = Vec::new();
+    let mut states = Vec::new();
+    for d in 0..40 {
+        states.push(snap(p).state);
+        let (b, f) = shadowed_day(s, p, JULIAN_2000_01_01 + d, &mut lines, || {});
+        if b == -2 {
+            assert_eq!(f, -2, "an idle day is not compared");
+            break;
+        }
+        assert_eq!((b, f), (0, 0), "{lines:#?}");
+    }
+    assert_eq!(states, vec![0, 13, 1, 14, 2, 15, 3, 11, 4, 12, 5, 6, 7, 8, 9, 10]);
+    let st = shadow_stats(s);
+    assert_eq!(
+        (st.deliveries, st.compared, st.clean, st.incomplete, st.idle, st.cycles),
+        (15, 15, 15, 0, 1, 1)
+    );
+    assert!(st.cells > 0);
+    assert_eq!(
+        st.prop_mismatches + st.field_mismatches + st.cell_mismatches + st.scalar_mismatches,
+        0
+    );
+    assert_eq!(lines.len(), 16, "a line per delivery and the cycle line: {lines:#?}");
+    assert!(
+        lines[0].starts_with("residential shadow 2000-01-01 state 0 (strikes and lists) [strike rolls not compared]")
+    );
+    assert!(lines.iter().all(|l| l.contains("residential shadow")));
+    assert!(lines[..15].iter().all(|l| l.ends_with("mismatches=0")), "{lines:#?}");
+    let grading = lines.iter().find(|l| l.contains("state 6 (school grading)")).unwrap();
+    assert!(
+        !grading.contains("props 0/0"),
+        "the school's grade is compared: {grading}"
+    );
+    assert!(lines[15].starts_with("residential shadow cycle to 2000-01-15: deliveries=15 compared=15 clean=15"));
+    assert_eq!(
+        SHADOW_WRITES.load(std::sync::atomic::Ordering::SeqCst),
+        0,
+        "nothing written to the game"
+    );
+    unsafe { fc4_residential_shadow_destroy(s) };
+    assert!(unsafe { fc4_residential_shutdown(p) });
+    unsafe { fc4_residential_destroy(p) };
+}
+
+#[test]
+fn states_the_original_stops_part_way_are_compared_where_it_stopped() {
+    let g = Game::new();
+    let p = shadowed_city(&g);
+    unsafe { fc4_residential_set_work_budget(p, 1) };
+    let h = shadow_host(&g);
+    let s = unsafe { fc4_residential_shadow_create(&h, 0) };
+    let mut lines = Vec::new();
+    let mut days = 0;
+    for d in 0..200 {
+        let (b, f) = shadowed_day(s, p, JULIAN_2000_01_01 + d, &mut lines, || {});
+        if b == -2 {
+            break;
+        }
+        assert_eq!((b, f), (0, 0), "{lines:#?}");
+        days += 1;
+    }
+    assert!(days > 64, "one tract a day: {days}");
+    assert!(lines
+        .iter()
+        .any(|l| l.contains("the original stopped after 1 tracts: ours ran 1")));
+    assert!(lines
+        .iter()
+        .any(|l| l.contains("the original did not finish its passes")));
+    assert_eq!(shadow_stats(s).cycles, 1);
+    unsafe { fc4_residential_shadow_destroy(s) };
+    assert!(unsafe { fc4_residential_shutdown(p) });
+    unsafe { fc4_residential_destroy(p) };
+}
+
+#[test]
+fn a_difference_is_reported_and_a_missing_capture_is_incomplete() {
+    let g = Game::new();
+    let p = shadowed_city(&g);
+    let h = shadow_host(&g);
+    let s = unsafe { fc4_residential_shadow_create(&h, 2) };
+    let mut lines = Vec::new();
+    // State 0: no difference.
+    assert_eq!(shadowed_day(s, p, JULIAN_2000_01_01, &mut lines, || {}), (0, 0));
+    // State 13, then a live R$ EQ tract changed behind the original's back.
+    let eq = g.grid_by_instance(instance::EQ[0]);
+    let r = shadowed_day(s, p, JULIAN_2000_01_01 + 1, &mut lines, || {
+        g.grids.borrow_mut().get_mut(&eq).unwrap().data[9] += 7.0;
+    });
+    assert_eq!(r, (0, 1));
+    let l = lines.last().unwrap();
+    assert!(
+        l.contains("state 13 (seed R$)") && l.contains("eqR$ 1/64 orig/ours [t(1,1)"),
+        "{l}"
+    );
+    assert!(l.ends_with("mismatches=1"), "{l}");
+    assert_eq!(shadow_stats(s).cell_mismatches, 1);
+    // No capture after the delivery: not compared.
+    let before = capture(p);
+    assert_eq!(
+        unsafe { fc4_residential_shadow_begin(s, JULIAN_2000_01_01 + 2, &before.view(true)) },
+        0
+    );
+    day(p);
+    let f = unsafe {
+        fc4_residential_shadow_finish(
+            s,
+            std::ptr::null(),
+            std::ptr::null(),
+            Some(keep_line),
+            &mut lines as *mut Vec<String> as *mut c_void,
+        )
+    };
+    assert_eq!(f, -1);
+    assert!(lines
+        .last()
+        .unwrap()
+        .ends_with("INCOMPLETE (after: no capture); not compared"));
+    // A failed Write before: the finish says why.
+    let before = capture(p);
+    assert_eq!(
+        unsafe { fc4_residential_shadow_begin(s, JULIAN_2000_01_01 + 3, &before.view(false)) },
+        -1
+    );
+    let after = capture(p);
+    let f = unsafe {
+        fc4_residential_shadow_finish(
+            s,
+            &after.view(true),
+            std::ptr::null(),
+            Some(keep_line),
+            &mut lines as *mut Vec<String> as *mut c_void,
+        )
+    };
+    assert_eq!(f, -1);
+    assert!(lines
+        .last()
+        .unwrap()
+        .contains("INCOMPLETE (before: the original's Write failed)"));
+    let st = shadow_stats(s);
+    assert_eq!(
+        (st.deliveries, st.compared, st.incomplete, st.last_mismatches),
+        (4, 2, 2, -1)
+    );
+    unsafe { fc4_residential_shadow_destroy(s) };
+
+    // The start-up line and a refused table.
+    let mut desc: Vec<String> = Vec::new();
+    unsafe { fc4_residential_shadow_describe(Some(keep_line), &mut desc as *mut Vec<String> as *mut c_void) };
+    assert_eq!(desc.len(), 1);
+    assert!(
+        desc[0].starts_with("residential shadow: not compared (not readable read-only): the temporary proximity grid")
+    );
+    let mut short = h;
+    short.struct_size -= 4;
+    assert!(unsafe { fc4_residential_shadow_create(&short, 0) }.is_null());
     assert!(unsafe { fc4_residential_shutdown(p) });
     unsafe { fc4_residential_destroy(p) };
 }
