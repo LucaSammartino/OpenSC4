@@ -1350,3 +1350,43 @@ shadow's current answer is in brackets.
   and efficiency read 0 in ours (orig 19944 and 0.997), although the pass's produced total matches (39687) and the
   grid is identical. This looks like a shadow-side read of the wrong producer record (not an RE question); the next
   plumbing lane should look at how the shadow pairs our producers with the original's.
+
+## From applying the crime answers (filed by the coordinator from the `apply2` lane's report, 2026-10-14)
+
+About `docs/specs/crime.md` (CQ5, CQ8, CQ13 as applied). The glue's current answer is in brackets.
+
+- **CQ16 — CQ8:** the LTEXT string loads but the game's detokenizer returns false. [The load counts as failed;
+  `0xAA12FCB0` replaces the name only if that property exists, otherwise the copied text stays.]
+- **CQ17 — CQ8:** property `0x8A416B2E` has fewer than 3 values. [No key, no lookup; the fallback is used.]
+- **CQ18 — CQ8:** there is no language manager. [Language 0, so only (group, instance) is tried.]
+- **CQ19 — CQ8:** is the detokenizer returned by `GetStringDetokenizer` (`cISC4App +0xA8`) borrowed or owned?
+  [Borrowed; the glue takes and releases its own reference around the call.]
+- **CQ20 — CQ8:** how does the original read the LTEXT: through the resource manager's `GetPrivateResource`, or a
+  string loader of its own? [Through `GetPrivateResource`, as the SDK does.]
+- **CQ21 — CQ5:** do other generators seeded from `cRZTime` use the same seconds-since-1901 value, so the helper
+  belongs to the RNG module? [Crime module only.]
+- **CQ22 — CQ13:** the crime effect property is an array whose elements are not plain numbers (strings, objects).
+  [Treated as absent.]
+
+## From the land value and flammability shadows (filed by the coordinator from the lane's report, 2026-10-14)
+
+About `docs/specs/landvalue.md` and `docs/specs/flammability.md`. Ini: `landvalue_shadow = 1`,
+`flammability_shadow = 1` (each needs the ORIGINAL simulator: do not enable `landvalue` / `flammability`). The land
+value shadow compares on `LandValueMapChanged` (`0x87CC75B3`, end of state 8); the flammability shadow on
+`SimCycleComplete` (`0x08F415FE`), with a mirror fed the original's six messages. The shadow's current answer is in
+brackets.
+
+- **LV1:** with several growth developers, is the developers' address order the tuning's listing order? [not
+  compared]
+- **LV2:** a desirability map can change between the original's pass reading it and the comparison. [rerun with the
+  previous map and keep the better result]
+- **LV3:** is `GetAreaSlope` on the lot developer free of side effects? [assumed read-only]
+- **LV4:** `GetLandValueType` is sampled at each tract's first cell. Is the type uniform over a tract, or which
+  cell does the original use? [first cell]
+- **FL1:** is 2 × tractsPerDay the right bound for tracts left unvisited at `SimCycleComplete`? It assumes the
+  message is delivered queued, after the day agent. [2 × tractsPerDay]
+- **FL2:** the multiplier g is 0 until the first season or ordinance message; the mirror takes the original's g at
+  the baseline. Right? [taken at the baseline]
+- **FL3:** a tract-size difference between the original and ours is reported as `INCOMPLETE`. [INCOMPLETE]
+- **FL4:** the message server's delivery order to the original's target and to the mirror is unspecified; both read
+  the same game state. Is that enough? [assumed so]
