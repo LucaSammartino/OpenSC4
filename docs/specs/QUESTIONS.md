@@ -2930,11 +2930,24 @@ exe and the shipped data alone.
   graphics-formats §2.8. All 167 are in group `0x1ABE787D` and each is followed by a `0x70` name block. The last level
   always reads that block's first 8 bytes, and no read passes the record end. Reproduce, as the bracket says, but with
   the record's bytes rather than zeros: zero only past `size`, which no shipped entry reaches *[choice]*.
-- **GF10 — §3.9:** semantics of ANIM frame rate (30, 10, 3, 2, 1, 0 shipped), mode (always 3), flags and
-  displacement (always 0), as the animated model instance uses them. [not traced; for the rendering spec]
-- **GF11 — §3.10, §3.11:** consumers of PROP (`skeleton`/`suit` pairs on 58 people models) and REGP (`fx_…` names on
+- ~~**GF10 — §3.9:** semantics of ANIM frame rate (30, 10, 3, 2, 1, 0 shipped), mode (always 3), flags and
+  displacement (always 0), as the animated model instance uses them. [not traced; for the rendering spec]~~
+  **ANSWERED 2026-10-14** from the exe (animated instance `0x007FD870`, `SetFrame` `0x007FDAF0`, `Step`
+  `0x007FDB80`, `SetSpeed` `0x007FC170`, `Advance` `0x007FC1C0`, `SetAnimMode` `0x007FAFC0`; prop driver
+  `0x005ECFB0`) and written into graphics-formats §3.9. The rate is frames per second (speed = rate × 0.001 per
+  ms); rate 0 never advances. The file's mode, flags and displacement are never read. The instance has its own
+  mode: 3 (default) loops, 2 ping-pongs, other values play once and hold; automata attach with mode 1. `Advance`
+  steps at most one frame per call.
+- ~~**GF11 — §3.10, §3.11:** consumers of PROP (`skeleton`/`suit` pairs on 58 people models) and REGP (`fx_…` names on
   1,810 models), and the meaning of REGP's seven floats. [inferred: effect attachment points, position and
-  orientation; not traced]
+  orientation; not traced]~~
+  **ANSWERED 2026-10-14** from the exe (`cSC4ModelRegEffects` `0x005E8320`, `0x005E8810`, `0x005E6160`; fire crew
+  `0x00548F10`, `0x00548BD0`; airplane `Init` `0x005017C0`) and a sweep of the shipped models, and written into
+  graphics-formats §3.10 and §3.11. PROP has no consumer. REGP `fx_` names become visual effects on automata,
+  helicopters, tanks and bridges (not on buildings, props or flora); `regpoint01` gives fire crews a point. There
+  is one record per animation frame (C = F in all 3,025 entries). The data hold a position and a unit quaternion,
+  but the exe reads the last four floats as an axis and an angle in radians. The bracket is right about the
+  position, not about the orientation.
 - ~~**GF12 — §2.4:** does anything outside the 3D texture path read the FSH centre fields (non-zero in 722 entries) or
   bits 12–27 of `+0x0C` (non-zero in 294)? [none found]~~
   **ANSWERED 2026-10-14** from the exe (entry-header decoder `0x00808D70` and its callers `0x008008EE`,
