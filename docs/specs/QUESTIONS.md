@@ -3478,3 +3478,38 @@ bankrupt. QI `0x0AC2B5F7` on new building occupants works (154 created, 0 failur
   lower income (3540-3647 against 4202-4593 at 8-20 days/s) and negative funds. Which original work is bound to
   frames or real time rather than game days? [unknown; compare runs only at equal pacing. Separately, our
   development unit costs about 3× per game day: 23-29 days/s under turbo against the original's 80-90]
+
+## From the traffic glue, phase 1 (filed by the coordinator from the `trafficglue` lane's report, 2026-10-14)
+
+Our traffic simulator (with the pathfinder) replaces the original in game (`enable = traffic`): clean under turbo,
+at normal speed for 84 months and across two saves, with 0 reference warnings. There is no traffic shadow yet.
+The lane's implemented answers are in brackets; most are glue choices that need only a confirmation or a spec line.
+
+- **TG1:** `FindPath` with a route deque. [returns 0, logged once, counted; the deque is untouched]
+- **TG2:** host callbacks left NULL: `path_info` and its helpers, `sim_clock_ms`, `update_network_costs`,
+  `lot_strategy_byte`, `take_connection_volume_dirty`, `occupants_in_cells`, `occupant_filter_includes`,
+  `cell_has_network_occupant`, `tunnel_paired_portal`, `view_cell_rect`, `create_accident`. Which of these does
+  the original need for the simulation (not the view)? [all NULL in phase 1]
+- **TG3:** the trip record layout. [FreeCity4's own `FC4TripData`]
+- **TG4:** `Init` after state was loaded by `Read`. [the loaded state is kept]
+- **TG5:** slot 34's record size. [0x23C]
+- **TG6:** slot 22. [returns null, logged]
+- **TG7:** departments. [`Get`, else `Create(id, 0)`; `SetMaxAllowedFunding`; line items 1–6]
+- **TG8:** `GetLanguageUtility`. [borrowed, not AddRef'd]
+- **TG9:** `DoLotActivated` budget items. [copied, then `AddBudgetItemToBudget(lot holder, item.index)`]
+- **TG10:** lot order. [the master list through the safe iterator; a rect query as fallback]
+- **TG11:** `Shutdown`. [unsubscribe; `RemoveAgentAllLevels`]
+- **TG12:** `department_funding` with a null department. [1.0]
+- **TG13:** slot 12. [a ring of 64 records]
+- **TG14:** slot 29. [a vector kept per tile pair]
+- **TG15:** slots 20/21 called off the main thread. [a direct property read]
+- **TG16:** a lot's `AsTrafficSource`. [borrowed]
+- **TG17:** `CreatePathFinder(null)`. [false]
+- **TG18:** `SetupPathFinderForLot` with a pathfinder the original created. [false]
+- **TG19:** stale lot or connection tokens. [refused; a connection removed mid-phase is skipped]
+- **TG20:** which messages carry an object. [only the lot message `0xE8BDA2E7` and the occupant messages
+  `0x99EF1142`/`0x99EF1143`]
+- **TG21:** a message on another thread while the lock is busy; slot 19 while the lock is busy. [dropped; slot 19
+  counted as a fallback]
+- **TG22:** units per slice against the original's 4 ms deadline (traffic-simulator §3.4). [16 deterministic units
+  per slice; our turbo runs at about 43–46 game days/s with traffic against about 76 without]
