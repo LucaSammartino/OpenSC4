@@ -2867,7 +2867,12 @@ developer stays original). The current answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`PlaceZone` `0x004DDC94`–`0x004DDCC6`, after the pricing `DemolishLots`
   at `0x004DDC75`) and written into zones §6. The lots are inserted right after the pricing call, before the landfill
   cost and the funds test, so also on a dry run, after an abort and on error 1. The bracket matches.
-- **ZG8:** What is released after a failed `Read`? [the grid, at Shutdown or destruction]
+- ~~**ZG8:** What is released after a failed `Read`? [the grid, at Shutdown or destruction]~~
+  **ANSWERED 2026-10-14** from the exe (`Read` `0x004DD415`–`0x004DD425`; `Shutdown` `0x004DC230`; `Release`
+  `0x004DC441`–`0x004DC44E`; destructor body `0x004DCC70`; `Init` `0x004DE220`, `0x004DE26A`) and written into zones
+  §10.1. A failed `Read` stops at the version and acquires nothing. The grid and services held are released by
+  `Shutdown` only, which the final `Release` runs before the destructor; the destructor frees only the two count maps.
+  The bracket matches, with "destruction" meaning the final `Release`.
 - **ZG9:** Glue behaviour with switches off or calls from another thread. [`zones_budget` off: unlimited funds,
   nothing charged; no budget simulator: funds 0, withdraw false; PlaceZone from another thread without the lock:
   false, error 0; such a message: dropped; SetZoneDisplayAlpha: unchanged; GetZoneType fallback: 0 outside the grid]

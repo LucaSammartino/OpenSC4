@@ -1212,6 +1212,11 @@ references with IIDs `0x66BA4DB5` (city), `0xC6BB8334` (occupant manager), `0xC7
 (pollution), `0x6772BD23` (budget). Returns `GetError() = 0`. The tuning arrays read here are overwritten by
 `Init` (§4); `Init` skips the count reset because the loaded flag is set and keeps the loaded grid.
 
+A failed `Read` acquires nothing, so nothing is released for it (ZG8). The grid and services the manager holds are
+released only by `Shutdown` (`0x004DC230`), which the final `Release` runs first (§1); the destructor body
+(`0x004DCC70`) frees only the two count maps. After a failed `Read` the loaded flag is set, so `Init` skips the count
+reset (`0x004DE220`) and, with no grid, creates a new one (`0x004DE26A`).
+
 The display alpha read here (`0x004DD58E`, the byte at +0x360) lasts only until `Init` (ZG3). `Init` calls
 `ReadSimulatorTunableValues` (`0x004DE192`), which overwrites it with the exemplar's Zone Display Alpha (shipped 170)
 and copies that to the default alpha (`0x004DC65E`–`0x004DC675`). The saved alpha survives only when the exemplar or
