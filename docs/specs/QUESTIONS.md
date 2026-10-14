@@ -1646,8 +1646,13 @@ brackets.
   **No.** The list is a map keyed by the developer pointer as an unsigned 32-bit value, walked from the smallest:
   ascending pointer order, fixed by the allocator. That matches neither the tuning order nor, in general, the
   creation order. A shadow reproduces it exactly by sorting the pointers `GetDeveloper(ID)` returns.
-- **LV2:** a desirability map can change between the original's pass reading it and the comparison. [rerun with the
-  previous map and keep the better result]
+- ~~**LV2:** a desirability map can change between the original's pass reading it and the comparison. [rerun with the
+  previous map and keep the better result]~~ **ANSWERED 2026-10-14** from the exe (growth developer slot 13
+  `0x007C9FB0` returns the published grid; state 17 copies the working grid into it in one call; land value state 7
+  reads and applies it in one call) and written into landvalue.md §7.4. **The bracket is sound.** The map that state
+  7 sees is never half-built and changes at most once before the comparison, so there are exactly two candidates:
+  the map before the developer's last state-17 copy, and the live one. The developer's slot 10 tells a shadow when to
+  snapshot the first.
 - **LV3:** is `GetAreaSlope` on the lot developer free of side effects? [assumed read-only]
 - **LV4:** `GetLandValueType` is sampled at each tract's first cell. Is the type uniform over a tract, or which
   cell does the original use? [first cell]

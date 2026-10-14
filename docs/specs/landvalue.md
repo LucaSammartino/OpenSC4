@@ -321,6 +321,29 @@ v := clamp( trunc(v + e × weight), 1, 255 )                 (truncation toward 
 where `d` is the matched desirability value (int16), `v` the scratch byte. Note the lower clamp **1**, not 0
 *[compat]*. With the shipped curve (−255,−255) (255,255) and weight 2.5: `v + 2.5·clamp(d, −255, 255)`.
 
+**Which desirability map state 7 sees** *[compat]* (QUESTIONS LV2, from the exe). The map is the developer's
+**published** grid D (growth developer slot 13, `0x007C9FB0`, the member at `+0x114`). The developer builds its
+next map in a separate working grid W and copies W into D as a whole, in one call, at state 17 of its update
+(growth-developer.md §3.2, §5.1). The building development simulator starts that update once a month (`StartMapUpdate`
+on every developer from its month agent). Nothing else writes D except the developer's own `SetTractSize`, `Read`
+and `Init`. State 7 fetches D through slot 13 and applies it in the same call. So:
+- state 7 never sees a half-built map: it sees either the map published before this month's developer update, or
+  the one published by it;
+- between state 7 and the delivery of LandValueMapChanged (§9, queued) D changes **at most once** in practice, by
+  that copy: both updates start at the month boundary, and a land value pass ends long before the next one (one
+  state per day or idle call, idle calls every frame).
+
+Both passes advance about one state per day or idle call. Land value reaches state 7 at its 8th call, the
+developer reaches state 17 at its 17th call at the earliest (state 15 can take several calls), so land value
+usually reads the **previous** month's map. Time-sliced states on either side can reverse that.
+
+A shadow that compares at LandValueMapChanged therefore needs exactly two candidates per developer: D as it was
+before the developer's last state-17 copy, and D now. The shadow's "rerun with the previous map and keep the better
+result" covers every case, provided "previous" is the D published before the latest copy. A shadow can capture it
+with the developer's slot 10, `GrowthAndDeclineListsAreValid` (`state < 17`): D changes only in a state-17 call,
+and slot 10 is false from the moment state 17 is pending, so D cannot change while slot 10 is true. The last
+snapshot of D taken while slot 10 was true is therefore the map from before the latest copy.
+
 ### 7.5 Average (state 8)
 
 For every tract with (`ignoreZoning` or `IsZoned(t)`) and `HasLand(t)` (ignoreZoning as left by state 3):
