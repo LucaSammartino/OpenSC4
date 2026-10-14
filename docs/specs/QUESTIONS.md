@@ -1239,7 +1239,10 @@ before and after). The glue's current answer is in brackets.
   settlement one month early. Landfill.md §3.3 has a worked example. **"Not enforced" does not match** whenever the
   landfill agent ends up before pollution or budget, which registration order does. The §13.4 deferral ends now that the
   landfill glue has landed. Written into landfill.md §3.3.
-- **LG7:** does FindNetworkTile's return carry a reference? [borrowed]
+- ~~**LG7:** does FindNetworkTile's return carry a reference? [borrowed]~~ **ANSWERED 2026-10-14** from the exe
+  (`0x004B0B20`; `PopulateZone` `0x006BCDF6`–`0x006BCE16`): **borrowed**. It makes no `AddRef` call, and
+  `PopulateZone` only tests the result for null. The map is fetched each time from the global city's slot 40.
+  **The bracket matches.** Written into landfill.md §4.4.5.
 - **LG8:** tiles are not saved; they are rebuilt at PostCityInit (interior orientation 0, no random draw). [choice]
 - **LG9:** is a null `GetLandfillZoneFromCell` acceptable to the city situation manager? [null]
 - **LG10:** city slot 97 returns a float in ST0 (`docs/abi`) where the spec says "—". Which is right? [discarded]

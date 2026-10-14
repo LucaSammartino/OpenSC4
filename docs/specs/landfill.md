@@ -402,6 +402,14 @@ For each cell of the rect (x outer, z inner):
 cell or a cell that failed to zone stay valid and receive capacity and garbage (until a later `PopulateZone` or
 `AddRegionToZone` pass sees the cell outside the mask).
 
+**The road test** (LG7; `0x006BCDF6`–`0x006BCE16`). The traffic network map is fetched for each cell, as `GetTrafficNetwork()`
+(slot 40) of the **global** city `0x00B43CEC`. The zone's own city pointer is not used. The returned tile is
+only tested for null and is not released. That is correct, because `FindNetworkTile` (`0x004B0B20`, pop 16)
+returns a **borrowed** pointer and makes no `AddRef` call *[compat]*. It returns the first network occupant
+listed at cell `(x, z)` for which `HasAnyNetworkFlag(0x1F4F)` (network occupant slot 9) is true. If there is none
+and the fourth argument is true, as here, it searches the map's multi-cell index under the key `(x << 16) | z`
+the same way. Otherwise it returns null. The zone type comes from the zone's own zone manager (slot 12).
+
 #### 4.4.6 `RemoveZone(Z, dezoneCells)`
 
 Remove `Z` from the list. If `dezoneCells`: for each mask cell, `Z.DezoneCell(x, z, true, true)`. Then
@@ -1119,7 +1127,7 @@ The object also implements `cISC4Occupant` (at its second vtable; QI `0x26BB767E
 | | 29 / +0x74 | RemovePropA(occupant) | 4 | AL | zot |
 | `cISC4TrafficSimulator` (`0x00AB33D0`) | 41 / +0xA4 | GetSubnetworksInRegion(region, &ids) | 8 | — | §4.7.2 |
 | | 42 / +0xA8 | GetOccupantCountForAllSubnetworks(type, &counts) | 8 | — | §4.7.2 |
-| `cISC4TrafficNetworkMap` (`cSC4TrafficNetworkMap`, IID `0xCA0F81B9`, vtable **`0x00A8FED8`**, 52 slots, not in docs/abi) | 8 / +0x20 | FindNetworkTile(x, z, flagMask, flag) → tile or null | 16 | EAX | §4.4.5 |
+| `cISC4TrafficNetworkMap` (`cSC4TrafficNetworkMap`, IID `0xCA0F81B9`, vtable **`0x00A8FED8`**, 52 slots, not in docs/abi) | 8 / +0x20 | FindNetworkTile(x, z, flagMask, alsoMultiCell) → borrowed tile or null (`0x004B0B20`) | 16 | EAX | §4.4.5 |
 | `cISC4BuildingDevelopmentSimulator` (`0x00AB0AF8`) | 36 / +0x90 | GetLotDeveloper | 0 | EAX | §4.5.3 |
 | `cISC4LotDeveloper` (`0x00AB1B98`) | 21 / +0x54 | AttemptAreaLevelling(rect, float, bool, bool, float, lot*) | 24 | AL (ignored) | §4.5.3 |
 | `cISC4View3DWin` (`0x00ABCE40`) | 22 / +0x58 | GetCurrentViewLevel | 0 | EAX | §3.2 |
