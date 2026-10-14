@@ -11,13 +11,22 @@ is part of every verdict):
 
 Usage:
   powershell -File tools\regress.ps1 -Tag r1 [-Seconds 150] [-Only shadows|replace] [-Replace "landvalue, weather"]
-           [-City <path to .sc4>] [-Dll <path to FreeCity4.dll>] [-Parallel] [-Turbo [-EndDate 2032-01-01]]
-           [-Baseline <tag or .out path>]
+           [-City <path to .sc4>] [-Dll <path to FreeCity4.dll>] [-Parallel | -Queue [-QueueWait 3600]]
+           [-Turbo [-EndDate 2032-01-01]] [-Baseline <tag or .out path>]
 
 -Dll stages that DLL (and the .pdb next to it, if any) as Plugins\FreeCity4.dll first; it refuses while the game
 runs. Every run prints the staged DLL's SHA-256 prefix, so the record names the build it tested.
 -Parallel runs the two runs at the same time in game slots 1 and 2 (ingame_run -Slot; each slot gets the DLL, -Dll
-or the one staged in Documents; Documents is not touched). Same table and verdict line.
+or the one staged in Documents; Documents is not touched). Same table and verdict line. Use it while the run queue
+is idle (a slot the queue holds blocks it after 60 s).
+-Queue submits the runs to the run queue (tools\game_queue.ps1) as requests of the main checkout (the coordinator's
+root: build-runs\game-queue\regress-<Tag>-<run>.req, with priority = high when the running queue supports it, so they
+go before every waiting lane request and run at the same time, each in the next free slot), waits for their verdict
+files, copies their logs to build-runs\regress-<Tag>-<run>.log and prints the same table, delta and verdict line. The
+DLL (-Dll, else the one staged in Documents) must be inside the main checkout for the queue (e.g. build-runs\dlls\);
+one outside it is copied to build-runs\dlls\regress-<Tag>.dll (with its .pdb) first. -City must be a city of the FC4
+Test region in Documents. -QueueWait (default 3600 s): how long a request may wait for a slot before regress takes it
+back and reports it BLOCKED. A queue older than the priority change runs the two requests one after the other.
 -Turbo: the turbo profile. Instead of -Seconds of real time after the load, each run goes to the game date -EndDate
 (default 2032-01-01, six game years on Konradshohe) with our simulator's turbo clock (sim_turbo = 1; a plugin from
 0786064 on starts it after the city's first ConnectionsReady, so popups are already off). -TurboFrom <date> starts it
@@ -41,6 +50,8 @@ param(
     [string]$City = "C:\Users\tlori\Documents\SimCity 4\Regions\FC4 Test\City - Konradshohe.sc4",
     [string]$Dll = "",
     [switch]$Parallel,
+    [switch]$Queue,
+    [int]$QueueWait = 3600,
     [switch]$Turbo,
     [string]$EndDate = "2032-01-01",
     [string]$TurboFrom = "",
@@ -51,7 +62,47 @@ $ErrorActionPreference = "Continue"
 $wallStart = Get-Date
 $Plugins = Join-Path $env:USERPROFILE "Documents\SimCity 4\Plugins"
 if ($Dll -and -not (Test-Path -LiteralPath $Dll)) { Write-Output "REGRESS: no such DLL: $Dll"; exit 2 }
-if ($Dll -and -not $Parallel) {
+if ($Queue -and $Parallel) { Write-Output "REGRESS: give -Queue or -Parallel, not both"; exit 2 }
+if ($Tag -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,48}$') { Write-Output "REGRESS: -Tag: letters, digits, '.', '_', '-' (it names files and queue labels)"; exit 2 }
+function MainCheckout {
+    $here = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+    $i = $here.IndexOf("\.claude\worktrees\", [StringComparison]::OrdinalIgnoreCase)
+    if ($i -gt 0) { return $here.Substring(0, $i) }
+    return $here.TrimEnd('\')
+}
+$queuePrio = $false
+if ($Queue) {
+    # The queue's root is the main checkout: the DLL must be inside it, the city is given by name.
+    $Main = MainCheckout
+    $src = if ($Dll) { (Resolve-Path -LiteralPath $Dll).Path } else { Join-Path $Plugins "FreeCity4.dll" }
+    if (-not (Test-Path -LiteralPath $src)) { Write-Output "REGRESS: no such DLL: $src"; exit 2 }
+    if ($src.StartsWith($Main + '\', [StringComparison]::OrdinalIgnoreCase)) { $staged = $src }
+    else {
+        $dd = Join-Path $Main "build-runs\dlls"
+        New-Item -ItemType Directory -Force $dd | Out-Null
+        $staged = Join-Path $dd "regress-$Tag.dll"
+        Copy-Item -LiteralPath $src -Destination $staged -Force
+        $pdb = [IO.Path]::ChangeExtension($src, ".pdb")
+        $stagedPdb = [IO.Path]::ChangeExtension($staged, ".pdb")
+        if (Test-Path -LiteralPath $pdb) { Copy-Item -LiteralPath $pdb -Destination $stagedPdb -Force }
+        elseif (Test-Path -LiteralPath $stagedPdb) { Remove-Item -LiteralPath $stagedPdb -Force }
+        Write-Output "queue: copied $src to $staged (the queue takes a DLL from inside the main checkout)"
+    }
+    $region = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "SimCity 4\Regions\FC4 Test"
+    $cityFull = [IO.Path]::GetFullPath($City)
+    if (-not [string]::Equals([IO.Path]::GetDirectoryName($cityFull), $region, [StringComparison]::OrdinalIgnoreCase) -or
+        [IO.Path]::GetFileName($cityFull) -notmatch '^City - (.+)\.sc4$') { Write-Output "REGRESS: -Queue runs a city of the FC4 Test region by name; $City is not one"; exit 2 }
+    $cityName = $Matches[1]
+    $qm = $null
+    $queueUp = $false
+    try { $queueUp = [System.Threading.Mutex]::TryOpenExisting("FC4GameQueue", [ref]$qm); if ($qm) { $qm.Dispose() } } catch { $queueUp = $true }
+    if (-not $queueUp) { Write-Output "REGRESS: no game_queue is running (start it from the main checkout, or use -Parallel)"; exit 2 }
+    # The running queue's start line says whether it knows priority = high (older queues reject unknown keys).
+    $qlog = Join-Path $Main "build-runs\game-queue.log"
+    $startLine = if (Test-Path -LiteralPath $qlog) { Get-Content -LiteralPath $qlog | Where-Object { $_ -match ' game_queue: (\d+ slot|slots )' } | Select-Object -Last 1 } else { $null }
+    $queuePrio = [bool]($startLine -and $startLine -match 'priority:')
+}
+if ($Dll -and -not $Parallel -and -not $Queue) {
     # Only a game on the Documents user dir blocks staging (slot games use their own Plugins).
     $docsGames = @(Get-CimInstance Win32_Process -Filter "Name='SimCity 4.exe'" -ErrorAction SilentlyContinue | Where-Object { "$($_.CommandLine)" -notmatch '-UserDir:' })
     if ($docsGames.Count -gt 0) { Write-Output "REGRESS: the game is running; not staging $Dll"; exit 2 }
@@ -59,11 +110,12 @@ if ($Dll -and -not $Parallel) {
     $pdb = [IO.Path]::ChangeExtension($Dll, ".pdb")
     if (Test-Path -LiteralPath $pdb) { Copy-Item -LiteralPath $pdb -Destination (Join-Path $Plugins "FreeCity4.pdb") -Force }
 }
-$staged = if ($Dll -and $Parallel) { (Resolve-Path -LiteralPath $Dll).Path } else { Join-Path $Plugins "FreeCity4.dll" }
+if (-not $Queue) { $staged = if ($Dll -and $Parallel) { (Resolve-Path -LiteralPath $Dll).Path } else { Join-Path $Plugins "FreeCity4.dll" } }
 $hash = if (Test-Path -LiteralPath $staged) { (Get-FileHash -Algorithm SHA256 -LiteralPath $staged).Hash.Substring(0, 8).ToLower() } else { "none" }
 Write-Output "staged DLL: $staged (sha256 $hash)"
 $runProfile = if ($Turbo) { "turbo to $EndDate$(if ($TurboFrom) { " from $TurboFrom" }), timeout $TurboTimeout s" } else { "normal, $Seconds s after load" }
-Write-Output ("profile: {0}; {1}" -f $runProfile, $(if ($Parallel) { "parallel (slots 1 and 2)" } else { "serial" }))
+$mode = if ($Parallel) { "parallel (slots 1 and 2)" } elseif ($Queue) { "queue ($(if ($queuePrio) { 'priority high, at the same time' } else { 'the running queue predates priority: one after the other' }))" } else { "serial" }
+Write-Output ("profile: {0}; {1}" -f $runProfile, $mode)
 $Run = Join-Path $PSScriptRoot "ingame_run.ps1"
 $Sum = Join-Path $PSScriptRoot "run_summary.ps1"
 $Out = Join-Path $PSScriptRoot "..\build-runs"
@@ -86,6 +138,29 @@ foreach ($name in $runs.Keys) {
     $ini = $runs[$name] + "`nautotest_unpause = 2`nautotest_end = quit`npopup_dialogs = 0`nautoload_city = $City"
     $iniPath = Join-Path $Out "$label.ini"
     Set-Content -Path $iniPath -Value $ini -Encoding ascii
+    if ($Queue) {
+        # A request in the main checkout's queue folder (written whole, then renamed to .req).
+        $qdir = Join-Path $Main "build-runs\game-queue"; $res = Join-Path $Main "build-runs\game-results"
+        New-Item -ItemType Directory -Force $qdir, $res | Out-Null
+        $reqPath = Join-Path $qdir "$label.req"
+        if (Test-Path -LiteralPath $reqPath) { Write-Output "REGRESS: $reqPath is already queued (an earlier regress -Tag $Tag?)"; exit 2 }
+        if (Test-Path -LiteralPath (Join-Path $res "$label.running")) { Write-Output "REGRESS: a run labelled $label is running ($res\$label.running)"; exit 2 }
+        $oldVerdict = Join-Path $res "$label.verdict"
+        if (Test-Path -LiteralPath $oldVerdict) { Remove-Item -LiteralPath $oldVerdict -Force }
+        $req = @("# tools\regress.ps1 -Queue -Tag $Tag", "label = $label", "dll = $staged", "city = $cityName", "seconds = $after", "timeout = $($after + 150)")
+        if ($Turbo) { $req += "end_date = $EndDate"; if ($TurboFrom) { $req += "turbo_from = $TurboFrom" } else { $req += "turbo = 1" } }
+        if ($queuePrio) { $req += "priority = high" }
+        $req += "[ini]"
+        $req += @(($runs[$name] + "`nautotest_unpause = 2`nautotest_end = quit`npopup_dialogs = 0") -split "`n")
+        $tmp = "$reqPath.tmp"
+        [IO.File]::WriteAllText($tmp, (($req -join "`r`n") + "`r`n"), (New-Object Text.UTF8Encoding($false)))
+        Move-Item -LiteralPath $tmp -Destination $reqPath -Force
+        $jobs[$name] = @{ label = $label; req = $reqPath; submitted = (Get-Date); started = $null; slot = ""; done = $false }
+        $results[$name] = @()   # keeps the table in run order whichever verdict comes first
+        Write-Output ("queue: submitted {0} ({1})" -f $reqPath, $(if ($queuePrio) { "priority high" } else { "no priority key" }))
+        Start-Sleep -Seconds 1
+        continue
+    }
     $a = @("-IniFile", $iniPath, "-AfterLoadSeconds", "$after", "-Seconds", "$($after + 150)", "-Label", $label)
     if ($Turbo) { $a += @("-EndDate", $EndDate); if ($TurboFrom) { $a += @("-TurboFrom", $TurboFrom) } else { $a += "-Turbo" } }
     if ($Parallel) {
@@ -96,7 +171,51 @@ foreach ($name in $runs.Keys) {
         $results[$name] = @(& powershell -NoProfile -ExecutionPolicy Bypass -File $Run @a 2>&1 | ForEach-Object { "$_" })
     }
 }
+$queueInfo = [ordered]@{}
+if ($Queue) {
+    # Wait for each request's verdict file; a request that gets no slot within -QueueWait is taken back.
+    $res = Join-Path $Main "build-runs\game-results"
+    while (@($jobs.Values | Where-Object { -not $_.done }).Count -gt 0) {
+        Start-Sleep -Seconds 5
+        foreach ($name in @($jobs.Keys)) {
+            $j = $jobs[$name]
+            if ($j.done) { continue }
+            $vf = Join-Path $res "$($j.label).verdict"; $rf = Join-Path $res "$($j.label).running"
+            if (Test-Path -LiteralPath $vf) {
+                Start-Sleep -Milliseconds 500   # written in one go; let the writer close it
+                $vt = @(Get-Content -LiteralPath $vf)
+                $h = @(); $inH = $false
+                foreach ($l in $vt) { if ($l -eq "harness:") { $inH = $true; continue }; if ($inH) { if ($l -eq "") { break }; $h += ($l -replace '^  ', '') } }
+                if ($h.Count -eq 0) { $h = @("[$($j.label)] " + (($vt | Where-Object { $_ -match '^line: ' } | Select-Object -First 1) -replace '^line: ', '')) }
+                $results[$name] = $h
+                $queueInfo[$name] = @($vt | Where-Object { $_ -match '^(verdict|request|note): ' })
+                $ql = Join-Path $res "$($j.label).log"
+                $outLog = Join-Path $Out "$($j.label).log"
+                if (Test-Path -LiteralPath $ql) { Copy-Item -LiteralPath $ql -Destination $outLog -Force }
+                elseif (Test-Path -LiteralPath $outLog) { Remove-Item -LiteralPath $outLog -Force }
+                $j.done = $true
+                Write-Output ("queue: {0}: {1} ({2} s after submission)" -f $j.label, (($vt | Select-Object -First 1) -replace '^verdict: ', 'verdict '), [int]((Get-Date) - $j.submitted).TotalSeconds)
+                continue
+            }
+            if (-not $j.started -and (Test-Path -LiteralPath $rf)) {
+                $j.started = Get-Date
+                $rt = ""; try { $rt = [IO.File]::ReadAllText($rf) } catch { }
+                if ($rt -match 'slot (\d+)') { $j.slot = $Matches[1] }
+                Write-Output ("queue: {0} started in slot {1} after {2} s" -f $j.label, $j.slot, [int]($j.started - $j.submitted).TotalSeconds)
+            }
+            $err = $null
+            if (-not $j.started -and ((Get-Date) - $j.submitted).TotalSeconds -gt $QueueWait) {
+                if (Test-Path -LiteralPath $j.req) { Remove-Item -LiteralPath $j.req -Force -ErrorAction SilentlyContinue }
+                if (-not (Test-Path -LiteralPath $rf)) { $err = "BLOCKED: no queue slot within $QueueWait s (request taken back)" }
+            } elseif ($j.started -and ((Get-Date) - $j.started).TotalSeconds -gt $after + 150 + 300) {
+                $err = "BLOCKED: no verdict file $vf $([int]((Get-Date) - $j.started).TotalSeconds) s after the start (is the queue still running?)"
+            }
+            if ($err) { $results[$name] = @("[$($j.label)] $err"); $j.done = $true; Write-Output "queue: $($j.label): $err" }
+        }
+    }
+}
 foreach ($name in $jobs.Keys) {
+    if ($Queue) { continue }
     $null = Wait-Job $jobs[$name]
     $results[$name] = @(Receive-Job $jobs[$name])
     Remove-Job $jobs[$name]
@@ -110,6 +229,7 @@ foreach ($name in $results.Keys) {
     Write-Output "=== $label ($(if ($Turbo) { "to $EndDate, timeout $after s" } else { "$Seconds s after load" })) ==="
     $r = $results[$name]
     $r | Select-Object -First 3 | ForEach-Object { Write-Output "  $_" }
+    if ($queueInfo.Contains($name)) { $queueInfo[$name] | Where-Object { $_ -notmatch '^verdict: ' } | ForEach-Object { Write-Output "  queue $_" } }
     $r | Select-Object -Skip 3 | Where-Object { $_ -match "^\s+(game:|sc4mutex:|HELD:|simulator: turbo month)" } | ForEach-Object { Write-Output "  $_" }
     $log = Join-Path $Out "$label.log"
     $s = & powershell -ExecutionPolicy Bypass -File $Sum -Log $log -Width 160 2>&1
@@ -132,7 +252,8 @@ foreach ($name in $results.Keys) {
     $cur[$name] = @{ verdict = $v; problems = $problems; shadows = $sh }
 }
 Write-Output ""
-Write-Output ("regress wall time: {0} s ({1}; {2})" -f $wall, $(if ($Parallel) { "parallel" } else { "serial" }), $runProfile)
+$slotsUsed = @(foreach ($qi in $queueInfo.Values) { foreach ($l in $qi) { if ($l -match '^request: .* in slot (\d+)') { $Matches[1] } } }) -join " and "
+Write-Output ("regress wall time: {0} s ({1}; {2})" -f $wall, $(if ($Parallel) { "parallel" } elseif ($Queue) { "queue$(if ($slotsUsed) { ", slots $slotsUsed" })" } else { "serial" }), $runProfile)
 Write-Output "=== regress $Tag ==="
 $rows | Format-Table -AutoSize | Out-String -Width 200 | Write-Output
 

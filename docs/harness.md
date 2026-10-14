@@ -42,6 +42,12 @@ switches are in `engine/README.md`).
 | `turbo` | 0 | `1`: our simulator's turbo clock (`sim_turbo = 1`): days are not paced by real time, about 0.3 s per game month instead of about 2 s. It starts after the city's first ConnectionsReady |
 | `turbo_from` | - | `YYYY-MM-DD`: start the turbo clock at this game date instead (a script action; for DLLs older than 0786064) |
 | `timeout` | seconds + 150 | hard limit for the whole run in real seconds; the game is stopped after it |
+| `priority` | `normal` | `high`: honoured only for the coordinator's requests (see "For the coordinator"); in a lane's request it is ignored and the verdict says so |
+
+Write paths with plain single backslashes (or `/`). A tool or a string literal that reads `\b`, `\t`, `\n` as escapes
+turns `build-runs\dll\b\FreeCity4.dll` into a backspace or `build-runs\dll\tract.dll` into a tab; such a request is
+rejected with the line and the character shown as `<0x08>`. Write the file as UTF-8 or ASCII (UTF-16 needs its byte
+order mark). Read the file back before you rename it to `.req` if your tool escapes strings.
 
 In the `[ini]` part, `autoload_city` is ignored (`city` sets it), and `script = <path>` is read relative to your
 worktree (a file of dated in-city actions, see "Scripted actions" in `engine/README.md`: zone, dezone, speed, turbo,
@@ -81,14 +87,15 @@ Verdict words:
 | `exited` | the game process ended without a verdict (a crash: `0xC0000409` is a Rust panic; see the log's last lines) |
 | `no-load` | the city never loaded |
 | `timeout` | no verdict before `timeout` |
-| `rejected` | the request was not run; `line:` says why (bad label, unknown key, DLL outside your worktree, no such city or file) |
+| `rejected` | the request was not run; `line:` says which line and why (bad label, unknown key, DLL outside your worktree, no such city or file, a control character in a value, UTF-16 without a byte order mark); `the line:` repeats it and the request text follows, control characters shown as `<0xNN>` |
 | `harness-error` | the harness could not run it (a slot was busy, a file was locked); send it again |
 
 ## How long to wait
 
 A run takes about 10 s to start and load the city, then `seconds` (or until `end_date`; turbo does about 50 to 100
 game days per second), then a few seconds to quit. If other lanes' runs fill the slots, yours waits for a free one;
-the `.running` file appears when it starts. Check for the `.verdict` file every 30 s or so; if nothing has happened
+the coordinator's requests (a regression run, for example) take the next free slots before any lane's. The
+`.running` file appears when it starts. Check for the `.verdict` file every 30 s or so; if nothing has happened
 after `timeout` plus 15 minutes, ask the coordinator (the queue may be stopped).
 
 ## What a slot run can and cannot do
