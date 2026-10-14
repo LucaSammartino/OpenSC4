@@ -717,6 +717,15 @@ first trip's type.
 * At the last cell, unless mode 1: `ApplyTrafficToDestination(count, destX, destZ, lastTravelType, type)` (§4.2).
 * Finally `incomeAcc := incomeAcc + I` and `feeAcc := feeAcc + fees` (doubles, the additions rounded to 24 bits).
 
+**Off-map roots** (TS13). The original never produces a route whose root is off-map. Start nodes are seeded on rings
+clamped to the map: a neighbour-connection start rect `(−1, z)` seeds at `(0, z)` with entry side 0, and the ferry
+fallback starts on the in-city arrival cell (pathfinder.md §4.6). So the header's "off-map root → inner cell"
+replacement (pathfinder.md §4.15) is unreachable. The reader (`0x006D64B0`) takes the header x and z as zero-extended
+bytes and decodes every step literally, with no off-map adjustment. A route with an off-map root, encoded as the inner
+cell followed by unit steps measured from the off-map cell, would therefore be replayed one cell off by the original
+too. *[choice]* Decode literally, as the core does. A shadow difference here points at a pathfinder that seeded off
+the map, not at the decoder.
+
 ### 4.6 Daily results: trip length per source (CompleteTripSourceCalculations, `0x0070F0A0`)
 
 For each trip of the source (`passTotal += 1` per trip):

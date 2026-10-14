@@ -1317,8 +1317,12 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   demand nodes `0x2010/0x2020/0x2030` at `0x10000` truncated, `GetConnectedCities(list, false)`, per-pool
   `trunc(r24(r24(E/T) × J))` with unsigned `T` and `J`, slot-19 writes, then the edge pass that sets destination bits
   and counts `freeDest`). Pointer added to traffic-simulator.md §4.12.
-- **TS13 — §4.5:** a route with an off-map root is encoded as the in-city cell while its unit steps are relative to
-  the off-map cell. [decoded literally: shifted by one cell]
+- ~~**TS13 — §4.5:** a route with an off-map root is encoded as the in-city cell while its unit steps are relative to
+  the off-map cell. [decoded literally: shifted by one cell]~~ **ANSWERED 2026-10-14** from the exe: unreachable in
+  the original. Roots are seeded on rings clamped to the map, so a neighbour start `(−1, z)` roots at `(0, z)`, and the
+  ferry fallback roots on the arrival cell. The reader (`0x006D64B0`) decodes the header bytes zero-extended and
+  literally, with no off-map adjustment, so the bracket is what the original would do. Keep it *[choice]*. Written
+  into traffic-simulator.md §4.5.
 - ~~**TS14 — §4.3:** what does ConfirmRoute check? [during a strike any route using types 2, 3, 6, 7 or 8 fails; each
   unit step leaving an in-city cell needs an exit on that side for its type, or the cell's switch for a type change;
   jumps and off-map steps are not checked]~~ **ANSWERED 2026-10-14** from the exe (`0x0070E320`): partly. The
