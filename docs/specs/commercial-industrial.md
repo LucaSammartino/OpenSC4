@@ -14,7 +14,9 @@ Related specs: [foundations.md](foundations.md) (streams §2, references §2.7, 
 order §3.7, messages §5, agent order §13), [simulator.md](simulator.md) (levels and agent flags),
 [simgrid.md](simgrid.md) (the `uint8` grid class and its record), [building-development.md](building-development.md)
 (the building map, slots 41 and 42), [residential.md](residential.md) §5.3 (the proximity-map algorithm, shared),
-[growth-developer.md](growth-developer.md) §4.3 (the only simulation reader).
+[growth-developer.md](growth-developer.md) §4.3 (the only simulation reader). The earlier RE notes in
+[docs/subsystems/demand-rci.md](../subsystems/demand-rci.md) §6 agree with this spec; their "flood-fill distance"
+must be read with the [simgrid.md](simgrid.md) §7.5 correction (the seed covers only the z = 0 edge, RG23).
 
 The two simulators are small. The commercial simulator keeps two proximity grids for office buildings and
 recomputes them lazily. The industrial simulator does nothing at all: it exists so the city has an object to save
