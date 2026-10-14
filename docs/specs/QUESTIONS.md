@@ -1289,7 +1289,13 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   column of a 256 city reads x = 0, 1 *[quirk]*). The per-cell value is the max of road (Car + Bus + FreightTruck,
   u16 sum), el-train and monorail `usage`. `v = (maxMorning + maxEvening) mod 2¹⁶`, rounded ties-to-even after
   the scale. Written into traffic-simulator.md §4.9 step 2 with an example.
-- **TS9 — §4.9:** which records are "not excluded" from the statistics? [flag bit 0 clear]
+- ~~**TS9 — §4.9:** which records are "not excluded" from the statistics? [flag bit 0 clear]~~ **ANSWERED
+  2026-10-14** from the exe (`0x0071A3A6`–`0x0071A496`, end `0x0071A5D7`) and the advisor: none is excluded. A
+  record with flag bit 0 (network flag `0x40000`) goes to slot 13, which the traffic advisor publishes as **bridge**.
+  Others go to slot `type`. Pedestrian records count too, so a road cell adds 2. At the end of the pass the per-type
+  record counts also **replace** the cell counts that price the road and transit budgets; bridges drop out. A
+  read-only corpus check agrees (saved cell counts = published counts; road counts = 2 × road keys). Written into
+  traffic-simulator.md §4.9, §3.6 and §6.1 row 16, and save-records.md §7.1.1.
 - **TS10 — slot 7 SetupPathFinderForLot:** what else is configured? [the lot rectangle as start, plus SetupTrip
   steps 3–4 only]
 - ~~**TS11 — slot 35 GetTransitSwitchQueryData:** the data fields? [returns the network core's query target only]~~

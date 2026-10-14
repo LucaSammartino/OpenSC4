@@ -332,7 +332,9 @@ and Monorail 9 get no bookkeeping.
 
 `cells[t]` (t = 0…12, u32, saved in §6.1 row 18) are the per-network-type counts that `UpdateRoadsBudget` and
 `UpdateMassTransitBudget` (§4.9) price. `bump(t)` is `cells[t] += 1` on insert. On remove it is `cells[t] −= 1` only
-if `cells[t] > 0`; at 0 it stays 0.
+if `cells[t] > 0`; at 0 it stays 0. At the end of every CreateMaps pass, `cells[t]` is replaced by the pass's count
+of network-info records of type `t` (§4.9; about two per road or street cell, bridges excluded). So these bumps hold
+only until the next pass.
 
 **DoRoadChanged(occ, ins, t)** (`0x007155D0`):
 
@@ -792,8 +794,18 @@ Per cell (x innermost), with `B` = peak volume grid, `D` = peak ratio grid:
    * accident list (road and rail, `n ∈ {1, 2}`, and the cell's connection count `> 3`):
      `p := accidentCongestionCurve(r)`; if `p > 0`, `p2 := r24(accidentCapacityCurve(r24(1 / e.invCapacity)) × p)`;
      if `p2 > 0`, the cell is added to the accident-prone list with probability `p2` (`0x00716950`);
-   * per network type statistics (sum of `r`, count, maximum with its cell, count with `r > 1`) when the network
-     info is not excluded *[inferred: flag meaning]*;
+   * **statistics** (TS9). No record is excluded; the flag only picks the slot. The slot is `s := 13` (the
+     **bridge** slot) when `e.flags` bit 0 is set, else `s := e.type`. Bit 0 means the occupant has network flag
+     `0x40000` (traffic-network.md §2.2). The traffic advisor publishes slot 13 as `ga_bridge_congestion` and
+     `g_bridge_congestion_tile_count` (`cSC4AdvisorTraffic::update_variables`, `0x0041C1A0`; it reads published row 13, advisors.md §7.7), hence the name.
+     * `sum[s] := r24(sum[s] + r)`, `count[s] += 1` (u32), `records[s] += 1` (u16, wraps).
+     * If `r > max[s]` (ordered, so a NaN never wins; `max` starts at −1.0): `max[s] := r` and
+       `maxCell[s] := (x, z)`.
+     * If `r > 1.0` (ordered): `congested[s] += 1`.
+
+     Every record of every transit network counts, the pedestrian one (`n = 0`) included. A road or street cell
+     therefore normally adds 2 to `records[type]`: its pedestrian record and its car record have the same type
+     (traffic-network.md §4.2).
    * `volume[n] := r24(densityReduction × vol)` (shipped `0x29136788` = 0: volumes restart from 0 every cycle);
    * road (`n = 1`): `volume[1] := r24(volume[1] + GetBackgroundTraffic(x, z))` — background traffic therefore
      appears in the **next** cycle's maps.
@@ -801,10 +813,27 @@ Per cell (x innermost), with `B` = peak volume grid, `D` = peak ratio grid:
    `switch.ratio := min(ratio, 1)`.
 5. If any network info exists at the cell: `B := max(B, 1.0)`.
 
-At the end: the network-type averages become the "last" statistics (slot 34), the cell counts per network type are
-kept, `UpdateRoadsBudget` (`0x0070D8A0`) and `UpdateMassTransitBudget` (`0x0070DA40`) set the departments' monthly
-costs from the cell counts and the per-tile costs `0x6A84493E` (budget.md), and the accident-prone list is copied
-for the accident check.
+At the end of the pass (`0x0071A5D7`–`0x0071A701`):
+
+1. **Publish the statistics.** For each slot `s` = 0…13: if `count[s] ≠ 0`, `sum[s] := r24(sum[s] / float(u32
+   count[s]))`. Then copy the five fields `(average, congested, maxX, maxZ, max)` into the "last" statistics (the
+   slot-34 block, rows 0–12, then the bridge row). A slot with no record keeps `(0, 0, 0, 0, 0)`. The state-2 entry
+   reset sets `max` to −1.0 and the copied fields to 0.
+2. **Replace the cell counts.** `records[t]` for t = 0…12 become the published u16 × 13, **and**
+   `cells[t] := records[t]` (u32). This replaces the running counts that the occupant messages keep between passes
+   (§3.6). The bridge slot's `records[13]` is neither published nor a cell count, so bridge pieces are in no cell
+   count after a pass. Road-like counts are about twice the cells. *[compat]*
+3. `UpdateRoadsBudget` (`0x0070D8A0`) and `UpdateMassTransitBudget` (`0x0070DA40`) set the departments' monthly
+   costs from these counts and the per-tile costs `0x6A84493E` (budget.md). Road line: Road + OneWayRoad. Street
+   line: Street. Highway line: Highway + GroundHighway. Avenue line: Avenue.
+4. The accident-prone list is copied for the accident check.
+
+Corpus check (read-only, the eleven shipped saves with record version ≥ 37):
+* The saved cell counts equal the published u16 counts in every one.
+* Road + Street + Avenue + OneWayRoad counts are twice the distinct road keys of the damage block, exactly in five
+  of them (Fulham: 538 + 458 = 996 = 2 × 498).
+* The tutorial city's rail count is 143 against 135 rail keys. The difference is consistent with level crossings,
+  which DoRailChanged leaves out of the rail sets (§3.6).
 
 **GetBackgroundTraffic(x, z)** (slot 11, `0x0070E870`): with `R`, `C`, `I` = the sums of the BDS developers'
 population grid values (developer slot 15 `GetCellValue`, s16) at the cell for residential `0x1010, 0x1020,
@@ -1107,7 +1136,7 @@ vectors.
 | 13 | cycle date, strike, damage | u32 cycle start date (§4.12 StartRecalc), u8 strike state, s32 strike month counter; road: u32 cell count, u32 damaged count, f32 damage rate; u32 n + n × u16 intact road cell keys, u32 n + n × u16 damaged road cell keys (hash iteration order); rail: the same five fields and two key lists |
 | 14 | cycle position | u8 cycle state, the scanning iterator (helper `0x005D9FD0`/`operator<<`), bool intersection-dirty flag, s32 × 4 intersection dirty rect, bool network-changed byte (§3.1; never read), u32 strategy bucket counter, u32 strategy bucket, s16 × 2 phase positions, the lot iterator position (helper `0x005DA390`), bool, bool, f32, s32 x, s32 z (re-route context), u32 n + n × u32, u8, u32, s32 × 4, u32 n + n × u32 (per entry), u8 × 2 (context flags) |
 | 15 | pacing and counters | s32 processed, s32, s32 total, u32 days, u32 day index, u32, u32, s32 `passTotal`, s32 `toReRoute`, s32 `toSearch`, then u32 × 10 pass counters (routed, re-routed, `rerouteBucket`, source counter, …; §10 Q4) |
-| 16 | network-type statistics, two sets (published "last" set = slot 34 block, then the working set) | per set: 13 × (f32 sum, u32 count, s32 max x, s32 max z, f32 max), the aggregate (same 5 fields), u16 × 13 (over-capacity counts), u16, u16, s32 12, 12 × (u16, f32, s32, s32, f32) per-switch-type records, f32, f32, bool, f32, u8 |
+| 16 | network-type statistics, two sets (published "last" set = slot 34 block, then the working set) | per set: 13 × (f32 average (the working set holds the sum), u32 congested count (`r > 1`), s32 max x, s32 max z, f32 max), the bridge row (same 5 fields, §4.9), u16 × 13 (network-info records per type; published = the cell counts), u16 (bridge records; never published), u16 (published set: the pothole count, §3.6), s32 12, 12 × (u16, f32, s32, s32, f32) per-switch-type records, f32, f32, bool, f32, u8 |
 | 17 | neighbour-connection records | u32 count, per record (traffic-network.md §2.7): u16, u8, u8, u16, u16, then its f32 values |
 | 18 | commute | f32 `avgCarCommute`, f32 `carLenSum`, u32 `carLenCount`, f32 `freightLenSum`, u32 `freightCount`, u32 × 13 cells per network type, u32 4, u32 × 4 `freeDest` |
 | 19 | tail | u32 count + records of the neighbour pool map (per pool: u16 ID, then its property-holder record; traffic-network.md §2.7.3), the per-travel-type count vectors (u32 × 9 each) and the ferry total, then the **ferry terminals**: u32 count, per terminal u8 × 6, u8, u16 × 3, u8 × 2 (kind, cell, counters), u32 link count + per link (f32 cost, s16 x, s16 z, u16, u16 × 4 counters, route bytes `vector<u8>`), u32 neighbour-link count + per link (f32, s16 × 4, u16 × 4, two route vectors); Read rebuilds the terminal tables from them (`0x00713DF0`) *[inferred: field grouping]*; traffic-network.md §6 agrees |
