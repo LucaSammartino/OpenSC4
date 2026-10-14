@@ -432,7 +432,12 @@ About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answ
     respectively. AL is just the low byte, so `AddToGarbageSupply(256)` gives AL 0.
   - **No caller reads either value.** That covers the landfill developer, the landfill zones and the simulator
     itself.
-- **PG12 — §5.2 posts:** no void or IGZUnknown is set on them, since the spec names none. Confirm. [none set]
+- ~~**PG12 — §5.2 posts:** no void or IGZUnknown is set on them, since the spec names none. Confirm. [none set]~~
+  **ANSWERED 2026-10-14** from the exe (post sites `0x006E70EA`, `0x006E7A64`–`0x006E7AB2`, `0x006E7B3D`; helper
+  `0x005F98C0` → `0x005F9800`; message ctor `0x009134D6`) and written into pollution.md §5.2. **Confirmed; the
+  bracket matches.** The helper sets the IGZUnknown explicitly to the argument pollution passes, which is always
+  null. void1 is never set and stays null from the constructor, which zeroes every field. The messages are queued
+  with `MessagePost(msg, false)`.
 - **PG13 — slot 5:** what does it return for a type above 3? [null; choice]
 - ~~**PG14 — in-game differential (run 68, coordinator): `dirtyWater` after a day.** With the original pollution
   simulator and `pollution_shadow = 1`, our core matched all eight grids cell by cell for 94 months (2026-02 →

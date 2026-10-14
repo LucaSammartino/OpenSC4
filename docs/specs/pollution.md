@@ -723,6 +723,21 @@ All are posted (queued) standard messages with data1..4 = 0 unless stated.
 | `0xDA6DD2CB` | garbage changed (end of cycle, `dirtyGarbage`) |
 | `0xEA418D8F` | end of cycle, data1 = 8 (§4.8) |
 
+**The other fields are empty (PG12) *[compat]*.** All five posts (`0x006E70EA` after `AddRadiationToCity`, and
+`0x006E7A64`, `0x006E7A7E`, `0x006E7A98`, `0x006E7AB2`, `0x006E7B3D` at the end of cycle) call the game's
+six-argument post helper `0x005F98C0` (type, data1..4, IGZUnknown). That helper calls `0x005F9800` with "post" =
+true. For each message, `0x005F9800`:
+
+1. Creates a `cRZMessage2Standard`, whose constructor (`0x009134D6`) zeroes every field.
+2. Sets the type and data1..4.
+3. Sets the IGZUnknown through slot 33 (`0x0091346B`) to the sixth argument. Pollution always passes **null**, so
+   the "has IGZUnknown" flag (bit 7 of the byte at `+8`) stays clear.
+4. Never sets void1 (slot 12), so it stays **null** from the constructor.
+5. Posts the message with `MessagePost(msg, false)` (queued) and releases its own reference.
+
+A replacement posts the same: data as in the table, void1 null, IGZUnknown null. If there is no message server
+(`0x00B43CCC` is null), the helper posts nothing.
+
 ### 5.3 Messages handled
 
 | Type | Action |
