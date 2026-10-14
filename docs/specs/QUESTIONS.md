@@ -2304,8 +2304,12 @@ About PR1–PR13, DQ3–DQ8 and PG4–PG13 as applied. The current answer is in 
     by `GetStationEfficiency(station)`.
   - **Handler quirk.** The handler ignores `GetDispatchEffect`'s AL and passes an uninitialised stack radius when it
     fails. *[choice]* FreeCity4 skips the update then.
-- **PG15 — PG11, slot 29:** with a negative supply and n > 0, is `0x7FFFFFFF − s` computed in int32 (wrapping) or
-  exactly? [exactly, in 64 bits, so the change equals n]
+- ~~**PG15 — PG11, slot 29:** with a negative supply and n > 0, is `0x7FFFFFFF − s` computed in int32 (wrapping) or
+  exactly? [exactly, in 64 bits, so the change equals n]~~ **ANSWERED 2026-10-14** from the exe (slot 29 `0x006E32E0`,
+  test at `0x006E32E9`–`0x006E32FB`) and written into pollution.md §8.1 with a worked table. **Exactly; the bracket
+  matches.** The original adds first in int32 and takes `0x7FFFFFFF − s` only when that sum wrapped, which needs s >
+  0, where the subtraction is exact. With a negative s and n > 0 nothing wraps and the delta is n. A damaged save with
+  a negative s and n < 0 can wrap the other way (noted as a quirk).
 - ~~**PR15 — PR12:** how long does the protection simulator hold the budget simulator and the zone manager? [taken in
   base init only if not already held, released at the end of Shutdown; the read-only shadow host asks the city each
   time]~~ **ANSWERED 2026-10-14** from the exe (`ProtectionInit` `0x006F6BC7`–`0x006F6C0B`; `ProtectionShutdown`
