@@ -616,8 +616,18 @@ the library rule) gives 3600 more.
 
 *[choice]* The seed comes from the clock, so no run can observe the difference. FreeCity4 seeds with
 `(uint32)(time(NULL) + 2177452800) XOR 0x6C09C3F6`, which is the original's value whenever the two daylight rules
-agree, and skips the library's time-zone arithmetic. The other file-local generators seeded "with `cRZTime()`"
-(foundations §6) use the same value.
+agree, and skips the library's time-zone arithmetic.
+
+**The clock value is shared, not crime's own** (QUESTIONS CQ21). Every clock-seeded generator in the game calls the
+same `cRZTime()` constructor (`0x00470B50`) and so starts from this same seconds-since-1901 value:
+- the 34 file-local generators built by static initialisers between `0x00A71CB0` and `0x00A75270`, each XORing its
+  own constant (crime's `0x6C09C3F6` is one of them; the full list is foundations §6.3);
+- the construction occupant's `StaticInit` reseed, which uses the plain value (`0x005CEDAC`);
+- the prop developer's member generator, seeded with the value × 28 (`0x006F34A3`–`0x006F34AA`).
+
+So the helper that computes the value belongs with the random-number code (foundations §6), and every generator
+above uses it. FreeCity4 normally replaces the clock with the session seed (foundations §6.3); this paragraph only
+fixes what the clock value is when the original's own value is wanted.
 
 | Operation | Method | Draws |
 |---|---|---|

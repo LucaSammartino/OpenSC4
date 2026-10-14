@@ -775,7 +775,9 @@ There is **no** single simulation RNG. Each subsystem uses its own instance:
   - The C runtime `rand()` is not seeded by the game and stays unseeded (§12).
 
 **File-local generators of the Windows build** (static initialisers at `0x00A71000`–`0x00A75300`; found by scanning
-for "clock XOR constant → generator constructor"):
+for "clock XOR constant → generator constructor"). "Clock" is the same value for all of them: each calls the
+`cRZTime()` constructor `0x00470B50`, whose value (seconds since 1901 rebuilt from the local calendar) crime.md §9
+specifies (CQ21):
 
 | Static | Class | `K` | Used by |
 |---|---|---|---|

@@ -1653,8 +1653,13 @@ About `docs/specs/crime.md` (CQ5, CQ8, CQ13 as applied). The glue's current answ
   `GetPrivateResource`, as a `cIGZString` (`0x089B7DC8`), with the last two arguments 0 and null. Slot 4 bypasses the
   cache that slot 3 (`GetResource`) uses. Step 1's exemplar is also reloaded through slot 4 (`0x006032AE`), apart
   from the loader's own cached `GetResource` load.
-- **CQ21 — CQ5:** do other generators seeded from `cRZTime` use the same seconds-since-1901 value, so the helper
-  belongs to the RNG module? [Crime module only.]
+- ~~**CQ21 — CQ5:** do other generators seeded from `cRZTime` use the same seconds-since-1901 value, so the helper
+  belongs to the RNG module? [Crime module only.]~~ **ANSWERED 2026-10-14** from the exe (34 static initialisers
+  `0x00A71CB0`–`0x00A75270`, construction occupant `0x005CEDAC`, prop developer `0x006F34A3`, all calling
+  `cRZTime::cRZTime` `0x00470B50`) and written into crime.md §9 ("The clock value is shared") and foundations §6.3.
+  **The bracket does not match: yes, they all use it.** Every clock-seeded generator calls the same `cRZTime()`
+  constructor: 34 file-local generators (each XOR its own constant), the construction occupant's plain reseed, and
+  the prop developer (value × 28). The helper belongs with the RNG module.
 - **CQ22 — CQ13:** the crime effect property is an array whose elements are not plain numbers (strings, objects).
   [Treated as absent.]
 
