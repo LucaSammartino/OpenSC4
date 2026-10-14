@@ -98,6 +98,7 @@ container must release each element once.
 | `cISC4TrafficSimulator::GetTravelStrategyPercentages` (26) | `std::vector<float>*` (the SDK passes an `SC4Vector` by value and returns `bool`) | B | **no** | resized to 3 with B, then filled; no return value. Pop 8 | `0x00718BB0` → `0x007169C0` |
 | `cISC4PropManager::GetLotProps` (24) | `ilist<cISC4Occupant*>` | A | yes | appends through occupant manager slot 40 (one reference each), then erases (release, free node with A) every element outside the lot's world rectangle, over the **whole** list, including elements present before the call | `0x004A3240`; caller `0x006C9780` |
 | `cISC4LotConfigurationManager::GetObjectIDArray` (27) | `std::vector<uint32_t>` | B | **no** | clears first (end = begin), then appends the object's IDs with families expanded in hash order | `0x0048BA10`; caller `0x006C6D70` |
+| `cISC4CrimeSimulator::GetCrimeIncidentArray` | `std::vector<tCrimeEvent>`, 28-byte elements | B | **no** | the game's caller `0x00553370`; the original's `0x006A1960` grows the vector's buffer with B (re-answers2 CQ1) | `0x006A1960` |
 
 The list in slots 25 and 28–30 holds `cISC4NeighborDeal` references, not `cISC4NeighborConnection`.
 

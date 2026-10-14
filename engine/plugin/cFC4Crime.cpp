@@ -525,11 +525,10 @@ bool LotBuilding(void*, uint64_t lot, uint64_t* building, uint32_t* purpose, uin
 // Lot slot 15 (+0x3C), GetCenter(cS3DVector3&) const: thiscall, one 4-byte
 // argument popped by the callee. §13 (CQ3, from cSC4Lot::GetCenter, the only
 // implementation): the result is only in the out parameter, EAX = &out, and
-// the x87 stack is EMPTY on return (the last value is popped). docs/abi's x87
-// return tag is wrong (the coordinator's row to fix), so the slot is not
-// called through FC4Interfaces.h's `float` declaration, whose compiled FSTP
-// would underflow the x87 stack. The out parameter is the value used; EAX is
-// ignored. The FXAM after the call is a counted diagnostic only: ST0 should
+// the x87 stack is EMPTY on return (the last value is popped); docs/abi and
+// FC4Interfaces.h now declare it returning nothing. This thunk calls it so the
+// x87 stack can be checked after the call. The out parameter is the value
+// used; EAX is ignored. The FXAM after the call is a counted diagnostic only: ST0 should
 // always be empty; if it ever is not, it is popped (keeping the stack
 // balanced), counted for the month line (`center st0=a/b`) and logged once.
 // Returns whether ST0 held a value.

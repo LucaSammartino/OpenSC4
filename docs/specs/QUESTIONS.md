@@ -1014,6 +1014,10 @@ part of §8 is not compared). The glue's current answer is in brackets.
   §6.11 apply when next is 0? [the test avoids the case]
 - Not done (each logged once): obliterated-city save/restore (FQ3), the app shutdown callback (FQ2),
   `GetFloraTypesByFilter` with a non-null filter (FQ9).
+- **FQ15 — first in-game shadow (run 80, coordinator):** the registry is identical and about 2,600 trees match each
+  month, but exactly one tree differs in 23 of 94 months: 21 times its birth date (ours predicts a rebirth, e.g.
+  birth 2461102 kept by the original where ours predicts 2461224) and twice its state (state 0, ours 2). What in
+  §6.7.2 keeps a tree from being reborn (a visit count, a random draw, the block's iterator position)?
 
 ## From the landfill developer glue and shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
 
@@ -1130,3 +1134,7 @@ shadow's current answer is in brackets.
 - Not compared (cannot be read without changing the game): posted messages, history values, budget line items,
   demolitions and lot conditions, which poles the month's shuffle breaks (the broken count is compared), deal
   flags, the dirty rectangle.
+- **PW8 — first in-game shadow (run 80, coordinator):** all 213 cycles and 94 month lines are exact, but every
+  bookkeeping line differs a little: the original's running counts against our from-scratch insertion of the live
+  occupants, e.g. consumers 725/722, requirement 6481/6480, 4 consumption-map cells (max |d| 2). Which occupants does
+  the original count that a rebuild from the live occupants does not (or the other way round)?
