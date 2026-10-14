@@ -1115,9 +1115,15 @@ Run 70 found the fire replacement's grid at 0×0 after a load. The fire record's
 record is read later, so the grid is still empty during the simulator's `Read`. The host grid now keeps a geometry
 only once it is non-empty. The current answer is in brackets.
 
-- **HG1 — foundations (load order):** are all grid records read before any simulator's `Init`, so that the first
+- ~~**HG1 — foundations (load order):** are all grid records read before any simulator's `Init`, so that the first
   non-empty geometry is the final one? Which order does the class store read records and resolve refs in, relative
-  to `Read` and `Init`? [assumed yes]
+  to `Read` and `Init`? [assumed yes]~~ **ANSWERED 2026-10-14** from the exe (`LoadCity` runs the store load at
+  `0x0045574C` → `0x005D2080` → `0x005D38D0`, classes from a sorted map, `Read` at `0x005D3C63`; `cSC4City::Init`
+  only at `0x004558A2`, after PreCityInit at `0x00455898`) and written into foundations §3.7 ("When objects, grids
+  included, are read"). **The bracket matches: yes.** Every saved object is read in the store load, in ascending
+  class ID and record order, before the city's `Init` runs. A reference only creates an empty object; its `Read`
+  comes when the walk reaches its entry. Subsystems with class IDs below `0x49B9E602` (fire protection among them)
+  see their grids empty during `Read`; all see them final by `Init`. Caveat: a grid saved as 0 × 0 stays empty.
 
 ## From applying TN1–TN20 to the traffic network core (filed by the coordinator from the lane's report, 2026-10-14; merged)
 
