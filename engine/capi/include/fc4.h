@@ -71,7 +71,9 @@ extern "C" {
  * 26 = adds the residential simulator (fc4_residential) and its shadow (fc4_residential_shadow);
  * 27 = adds fc4_protection_shadow_unadjusted_grid (protection.md §2, PR5);
  * 33 = adds fc4_power_shadow_message and the power shadow's city start (options `flags`,
- *      FC4_POWER_SHADOW_CITY_START; power.md PW3, PW4, PW5, PW7). */
+ *      FC4_POWER_SHADOW_CITY_START; power.md PW3, PW4, PW5, PW7); the plumbing shadow's
+ *      fc4_plumbing_shadow_city_start and fc4_plumbing_original.pass_counter (plumbing.md
+ *      PS3, PS6). */
 #define FC4_ABI_VERSION 33u
 
 /* Return codes of fc4_sim_load. */
@@ -1852,19 +1854,25 @@ bool fc4_plumbing_read(fc4_plumbing* p, const fc4_istream* in);         /* §9: 
  * With the ORIGINAL plumbing simulator running, every SimIdle / SimNewDay
  * (one DoIdle: one pass state, §6) and SimNewMonth delivery to its agent is
  * wrapped by fc4_plumbing_shadow_before / _after. The shadow follows the
- * original's water pass from outside: it sees state 2 run (a cell of the next
- * working grid changes), captures the original's record (its own Write,
- * through `capture`) and runs FreeCity4's pass on it over private grid copies,
- * reading every input through the host table (read callbacks and the grid
- * table's geometry / get only; nothing is written to the game). At the
- * original's swap (GetWateredGrid changes) it compares the published grid
- * cell by cell, the producers, deals and water connections; after the
- * original's state 8, the totals, the building counts, demand, pipes, sources
- * and the producers' budget items and condition. One line per pass. The month
- * (ApplyPipeFunding, §7.1) is compared on its own: the distressed target
- * exactly, the random bursts by range. Not compared (not readable): pipe
- * watered states, redisplay, posts, history, line-item expenses, lot
- * conditions, deal flags, the original's pipe condition and pass state. */
+ * original's water pass from outside: it sees state 0 run (its passCounter,
+ * read through `pass_counter`, moves; PS6; without it, a probe cell of the
+ * next working grid changes in state 2), captures the original's record (its
+ * own Write, through `capture`) after state 1 and runs FreeCity4's pass on it
+ * over private grid copies, reading every input through the host table (read
+ * callbacks and the grid table's geometry / get only; nothing is written to
+ * the game). At the original's swap (GetWateredGrid changes) it compares the
+ * published grid cell by cell, the producers, deals and water connections;
+ * after the original's state 8, the totals, the building counts, demand (the
+ * original's running sum, read then; PS4, PS8), pipes, sources and the
+ * producers' budget items and condition (ageing inferred from the conditions
+ * when unknown; PS7). One line per pass. The month (ApplyPipeFunding, §7.1)
+ * is compared on its own with the funding of the record's department (PS5):
+ * the distressed target exactly when the shadow was made at the city start
+ * (fc4_plumbing_shadow_city_start; the original's pipe condition is then 0,
+ * PS3), otherwise not exact; the random bursts by range. Not compared (not
+ * readable): pipe watered states, redisplay, posts, history, line-item
+ * expenses, lot conditions, deal flags, the original's pipe condition and
+ * pass state. */
 typedef struct fc4_plumbing_shadow fc4_plumbing_shadow;
 
 /* One reference of a captured record, queried for each interface the reader
@@ -1902,6 +1910,11 @@ typedef struct fc4_plumbing_original {
     /* The original's own Write into memory; the view stays valid until the
      * next call. */
     bool (*capture)(void* user, fc4_plumbing_capture* out);
+    /* ABI 33: the original's passCounter (record field 7, written only by
+     * state 0; plumbing.md §6.1, PS6) through its own Write, references not
+     * looked at; false when it failed. May be NULL: a pass start is then seen
+     * on a probe cell. */
+    bool (*pass_counter)(void* user, int32_t* out);
 } fc4_plumbing_original;
 
 typedef struct fc4_plumbing_shadow_stats {
@@ -1935,6 +1948,11 @@ int32_t fc4_plumbing_shadow_before(fc4_plumbing_shadow* s, uint32_t msg_type, in
  * differences of a comparison finished in this delivery, -1 if none. */
 int32_t fc4_plumbing_shadow_after(fc4_plumbing_shadow* s, fc4_bytes_sink sink, void* ctx);
 bool fc4_plumbing_shadow_get_stats(fc4_plumbing_shadow* s, fc4_plumbing_shadow_stats* out);
+/* A shadow made at the city start (PostCityInit), before its first delivery:
+ * the original's pipe condition and ageing flag are its constructor's (0,
+ * false) after every load (plumbing.md §7.1, PS3), so the month's distressed
+ * target is compared exactly. False for NULL or after a delivery. (ABI 33) */
+bool fc4_plumbing_shadow_city_start(fc4_plumbing_shadow* s);
 
 /* ---- flammability (docs/specs/flammability.md) ------------------------------
  *
@@ -3974,7 +3992,7 @@ static_assert(sizeof(fc4_plumbing_state) == 144, "fc4_plumbing_state layout");
 static_assert(sizeof(fc4_plumbing_host) == (sizeof(void*) == 4 ? 356 : 712), "fc4_plumbing_host layout");
 static_assert(sizeof(fc4_plumbing_capture_ref) == 40, "fc4_plumbing_capture_ref layout");
 static_assert(sizeof(fc4_plumbing_capture) == (sizeof(void*) == 4 ? 24 : 40), "fc4_plumbing_capture layout");
-static_assert(sizeof(fc4_plumbing_original) == (sizeof(void*) == 4 ? 28 : 56), "fc4_plumbing_original layout");
+static_assert(sizeof(fc4_plumbing_original) == (sizeof(void*) == 4 ? 32 : 64), "fc4_plumbing_original layout");
 static_assert(sizeof(fc4_plumbing_shadow_stats) == 72, "fc4_plumbing_shadow_stats layout");
 static_assert(sizeof(fc4_flammability_message) == 24, "fc4_flammability_message layout");
 static_assert(sizeof(fc4_flammability_state) == 80, "fc4_flammability_state layout");

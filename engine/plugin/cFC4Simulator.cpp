@@ -998,6 +998,9 @@ bool cFC4Simulator::DoMessage(cIGZMessage2* pMessage) {
                 // The power shadow (opt-in) of a city start: the original's
                 // unsaved values are known now (FC4PowerShadow.h).
                 fc4::PowerShadowCityInit();
+                // The plumbing shadow (opt-in) likewise: the original's pipe
+                // condition is 0 now (FC4PlumbingShadow.h).
+                fc4::PlumbingShadowCityInit();
             }
             break;
 

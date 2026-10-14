@@ -73,13 +73,32 @@ constexpr size_t kLogChunk = 2800;
 // borrowed identities: the original keeps its grids, producers, pipes and
 // department alive across the delivery. Process-lifetime object (the
 // reference count is not kept).
+//
+// `headerOnly` (the passCounter read, fc4_plumbing_original.pass_counter,
+// after every delivery): references are not looked at (no QueryInterface, no
+// GetGZCLSID: objectID 1 and classID 0, or 0 for null), and the bytes after
+// the passCounter are not kept.
 class CaptureStream final : public cFC4ISC4DBSegmentOStream {
 public:
+    explicit CaptureStream(bool headerOnly = false) : headerOnly_(headerOnly) {}
+
     void Reset() {
         bytes_.clear();
         refs_.clear();
         ids_.clear();
         good_ = true;
+        need_ = 0;
+    }
+
+    // The passCounter of the record written (plumbing.md §9: the version, 4;
+    // the working and published grid references; countX; countZ; the flag
+    // map, countX * countZ bytes; then the passCounter, field 7, written only
+    // by state 0, §6.1 PS6). False when the record is not that.
+    bool PassCounter(int32_t* out) const {
+        size_t at = 0;
+        if (CounterAt(&at) != 1 || out == nullptr) return false;
+        std::memcpy(out, bytes_.data() + at, 4);
+        return true;
     }
 
     fc4_plumbing_capture View(bool writeOk) const {
@@ -142,6 +161,10 @@ public:
     int32_t GetSegment() override { return 0; }
     bool WriteGZSerializable(cIGZSerializable const* p) override {
         if (p == nullptr) return SetUint32(0);
+        if (headerOnly_) {
+            SetUint32(1);
+            return SetUint32(0);
+        }
         cIGZSerializable* obj = const_cast<cIGZSerializable*>(p);
         size_t i = 0;
         while (i < ids_.size() && ids_[i] != obj) ++i;
@@ -170,9 +193,46 @@ public:
 
 private:
     bool Put(const void* p, size_t n) {
+        if (headerOnly_ && need_ != 0 && bytes_.size() >= need_) return good_;  // past the passCounter
         const uint8_t* b = static_cast<const uint8_t*>(p);
         bytes_.insert(bytes_.end(), b, b + n);  // x86: already little-endian
+        if (headerOnly_ && need_ == 0) {
+            size_t at = 0;
+            if (CounterAt(&at) != 0) need_ = at + 4;  // known (or not a version-4 record: keep it short)
+        }
         return good_;
+    }
+    bool Get(size_t* off, void* v, size_t n) const {
+        if (bytes_.size() < *off || bytes_.size() - *off < n) return false;
+        std::memcpy(v, bytes_.data() + *off, n);
+        *off += n;
+        return true;
+    }
+    // Where the passCounter is: 1 (at `*at`, its four bytes written), 0 (not
+    // yet written), -1 (not a version-4 record; `*at` = what was read).
+    int CounterAt(size_t* at) const {
+        size_t off = 0;
+        uint16_t version = 0;
+        if (!Get(&off, &version, 2)) return 0;
+        if (version != 4) {
+            *at = off;
+            return -1;
+        }
+        for (int i = 0; i < 2; ++i) {  // the working and published grids
+            uint32_t id = 0, cls = 0;
+            if (!Get(&off, &id, 4)) return 0;
+            if (id != 0 && !Get(&off, &cls, 4)) return 0;
+        }
+        uint32_t cx = 0, cz = 0;
+        if (!Get(&off, &cx, 4) || !Get(&off, &cz, 4)) return 0;
+        const uint64_t n = static_cast<uint64_t>(cx) * cz;
+        if (n > (uint64_t{1} << 24)) {  // no city has that many tracts
+            *at = off;
+            return -1;
+        }
+        off += static_cast<size_t>(n);
+        *at = off;
+        return bytes_.size() >= off && bytes_.size() - off >= 4 ? 1 : 0;
     }
     bool PutStr(const char* s, size_t n) {
         if (n > 0x00FFFFFF || (n != 0 && s == nullptr)) {
@@ -198,9 +258,12 @@ private:
     std::vector<fc4_plumbing_capture_ref> refs_;
     std::vector<const void*> ids_;
     bool good_ = true;
+    bool headerOnly_ = false;
+    size_t need_ = 0;  // headerOnly_: the bytes kept (0 = not known yet)
 };
 
 CaptureStream g_capture;
+CaptureStream g_counter(true);
 
 // ---- settings and run state (main thread only) ---------------------------------------------------
 
@@ -395,6 +458,21 @@ bool OrigCapture(void* u, fc4_plumbing_capture* out) {
     return ok;
 }
 
+// The original's passCounter (plumbing.md §6.1, PS6), through its own Write
+// into the header-only stream (a stream of its own: a capture view stays
+// valid).
+bool OrigPassCounter(void* u, int32_t* out) {
+    g_counter.Reset();
+    void* p = nullptr;
+    cISC4PlumbingSimulator* sim = static_cast<cISC4PlumbingSimulator*>(u);
+    if (out == nullptr || !sim->QueryInterface(GZIID_cIGZSerializable, &p) || p == nullptr) return false;
+    cIGZSerializable* ser = static_cast<cIGZSerializable*>(p);
+    FC4_ACQUIRED(ser, "QueryInterface");
+    const bool ok = ser->Write(g_counter);
+    FC4_RELEASE(ser);
+    return ok && g_counter.GetError() == 0 && g_counter.PassCounter(out);
+}
+
 void DropShadow() {
     fc4_plumbing_shadow_destroy(g_shadow);
     g_shadow = nullptr;
@@ -402,7 +480,9 @@ void DropShadow() {
     g_shadowSim = nullptr;
 }
 
-bool EnsureShadow(const void* city, cISC4PlumbingSimulator* sim) {
+// `cityStart`: made at PostCityInit (PlumbingShadowCityInit), before the
+// city's first delivery.
+bool EnsureShadow(const void* city, cISC4PlumbingSimulator* sim, bool cityStart) {
     if (g_shadow != nullptr && g_shadowCity == city && g_shadowSim == sim && g_shadowCells == g_cells &&
         g_shadowPasses == g_passes) {
         return true;
@@ -417,6 +497,7 @@ bool EnsureShadow(const void* city, cISC4PlumbingSimulator* sim) {
     orig.producer_info = &OrigProducerInfo;
     orig.connection_visited = &OrigConnectionVisited;
     orig.capture = &OrigCapture;
+    orig.pass_counter = &OrigPassCounter;
     g_shadow = fc4_plumbing_shadow_create(&host, &orig, static_cast<uint32_t>(g_cells), static_cast<uint32_t>(g_passes));
     if (g_shadow == nullptr) {
         if (g_shadowFailedFor != sim) {
@@ -425,13 +506,19 @@ bool EnsureShadow(const void* city, cISC4PlumbingSimulator* sim) {
         }
         return false;
     }
+    // Made before the city's first delivery (PostCityInit): the original's
+    // pipe condition and ageing flag are known (0, false; plumbing.md §7.1
+    // PS3); otherwise the shadow starts mid-city.
+    const bool known = cityStart && fc4_plumbing_shadow_city_start(g_shadow);
     g_shadowCity = city;
     g_shadowSim = sim;
     g_shadowCells = g_cells;
     g_shadowPasses = g_passes;
     Log("plumbing shadow: comparing with the original plumbing simulator %p (city %p); differing cells listed per "
-        "line: %ld; passes replayed per day: %ld (0 = all)",
-        static_cast<void*>(sim), city, g_cells, g_passes);
+        "line: %ld; passes replayed per day: %ld (0 = all); made %s",
+        static_cast<void*>(sim), city, g_cells, g_passes,
+        known ? "at the city start (the original's pipe condition is known: 0)"
+              : "mid-city (the original's pipe condition is not known: the distressed count is not exact)");
     return true;
 }
 
@@ -472,16 +559,18 @@ void PlumbingShadowStartup(bool simulatorReplaced, bool plumbingReplaced) {
     if (simulatorReplaced && !plumbingReplaced) {
         Log("plumbing shadow: ON (plumbing_shadow from %s): at each SimIdle and SimNewDay of the ORIGINAL plumbing "
             "simulator (one pass state each), FreeCity4's water pass replayed on the original's record from the "
-            "start of its pass (or from its swap, then not exact) and compared at its swap (the published grid cell "
-            "by cell, producers' production, efficiency, pollution and water used, deal usage, water connections) "
-            "and after its state 8 (produced, consumed, imported, exported, watered and unwatered cells, cost, "
-            "demand, pipes, distressed, burst, sources, budget items, ageing); one line per replayed pass; at each "
-            "SimNewMonth the pipe funding (distressed exactly; new bursts are random: by range, not exact); "
-            "differing cells listed per line: %ld; passes replayed per game day: %ld (0 = all). The record is read "
-            "through the original's own Write into memory. Not compared (not readable read-only): pipe watered "
-            "states (a non-virtual call), redisplay, posts, history, line-item expenses, lot conditions, deal "
-            "flags, the original's pipe condition (not saved) and pass state; demand (an incremental sum of the "
-            "inserts) is carried from the original's record, not recomputed",
+            "start of its pass (its passCounter moved: state 0 ran; or from its swap, then not exact) and compared "
+            "at its swap (the published grid cell by cell, producers' production, efficiency, pollution and water "
+            "used, deal usage, water connections) and after its state 8 (produced, consumed, imported, exported, "
+            "watered and unwatered cells, cost, demand, pipes, distressed, burst, sources, budget items, ageing); "
+            "one line per replayed pass; at each SimNewMonth the pipe funding of the simulator's own department "
+            "(distressed exactly when the shadow was made at the city start, else not exact; new bursts are "
+            "random: by range, not exact); differing cells listed per line: %ld; passes replayed per game day: %ld "
+            "(0 = all). The record is read through the original's own Write into memory. Not compared (not "
+            "readable read-only): pipe watered states (a non-virtual call), redisplay, posts, history, line-item "
+            "expenses, lot conditions, deal flags, the original's pipe condition (not saved; 0 at a city start) and "
+            "pass state; demand (the original's running sum, moved by the occupant messages, never recomputed) is "
+            "taken from the original's record at the comparison",
             src, g_cells, g_passes);
     } else {
         Log("plumbing shadow: requested (plumbing_shadow from %s) but INACTIVE: it needs FreeCity4's simulator and "
@@ -506,7 +595,11 @@ bool PlumbingShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cI
     if (!g_testMode && target != g_agent && (agentName == nullptr || strcmp(agentName, kAgentName) != 0)) return false;
     cISC4City* city = CurrentCity();
     cISC4PlumbingSimulator* sim = OriginalFor(city, target, agentName);
-    if (sim == nullptr || sim == g_faultedSim || !EnsureShadow(city, sim)) return false;
+    // A shadow made here starts mid-city (PlumbingShadowCityInit makes the
+    // one of a city start); a test seam run is a city start unless it says
+    // mid-city.
+    const bool cityStart = g_testMode && g_test->midCity == 0;
+    if (sim == nullptr || sim == g_faultedSim || !EnsureShadow(city, sim, cityStart)) return false;
 
     g_d = Delivery{};
     g_d.type = type;
@@ -530,6 +623,32 @@ bool PlumbingShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cI
     g_lastResult = g_d.result;
     g_d = Delivery{};
     return true;  // delivered (compared or not)
+}
+
+namespace {
+struct CityStart {
+    cISC4City* city;
+    cISC4PlumbingSimulator* sim;
+};
+void CityStartStep(void* ctx) {
+    CityStart* c = static_cast<CityStart*>(ctx);
+    FillGame(c->city);
+    EnsureShadow(c->city, c->sim, true);
+    ClearGame();
+}
+}  // namespace
+
+void PlumbingShadowCityInit() {
+    if (g_testMode) return;
+    ReadSettings();
+    if (!g_enabled) return;
+    DropShadow();  // a new city: a new shadow
+    cISC4City* city = CurrentCity();
+    cISC4PlumbingSimulator* sim = city ? city->GetPlumbingSimulator() : nullptr;  // compiled slot 64, borrowed
+    // Ours, or none: the first delivery says why it is inactive.
+    if (sim == nullptr || IsOurObject(sim) || sim == g_faultedSim) return;
+    CityStart c{city, sim};
+    SehGuard("plumbing shadow (city start)", &CityStartStep, &c);
 }
 
 }  // namespace fc4
