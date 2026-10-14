@@ -90,12 +90,18 @@
 //         or SimNewMonth) to a fake "original" power simulator; returns the
 //         delivery's difference count, -1 (not taken), -2 (delivered,
 //         nothing compared) or -3 (passed through: the original idle).
-//   op 22 kFC4SeamRawArrayBytes    a = cISCPropertyHolder*, b =
+//   op 22 kFC4SeamPlumbingShadow   a = const FC4PlumbingShadowTestInput*
+//         (FC4PlumbingShadow.h): a run of deliveries (SimIdle, SimNewDay,
+//         SimNewMonth) to a fake "original" plumbing simulator, one shadow for
+//         the run; returns the summed difference count of the passes and
+//         months compared, -1 (none taken) or -2 (taken, nothing compared).
+//         (23-25 are held by the parallel glue lanes.)
+//   op 26 kFC4SeamRawArrayBytes    a = cISCPropertyHolder*, b =
 //         FC4RawArrayBytesTestIo*: fc4::props::GetRawArrayBytes of property
 //         b->id (the crime effect read, crime.md §6.10 / CQ13): b->len = the
 //         size, b->bytes = its first 32 bytes; returns 1 (read), 0 (absent,
 //         scalar or object array) or -1 (null argument).
-//   op 23 kFC4SeamLotCenter        a = cISC4Lot*, b = float[3]: the crime
+//   op 27 kFC4SeamLotCenter        a = cISC4Lot*, b = float[3]: the crime
 //         glue's lot GetCenter thunk (slot 15, crime.md §13 / CQ3) into b;
 //         returns 1 if ST0 held a value after the call (popped), 0 if the
 //         x87 stack was empty (the original), -1 (null argument).
@@ -132,8 +138,9 @@ enum : uint32_t {
     kFC4SeamLandfillShadow = 18,
     kFC4SeamDemandCapacity = 20,
     kFC4SeamPowerShadow = 21,
-    kFC4SeamRawArrayBytes = 22,
-    kFC4SeamLotCenter = 23,
+    kFC4SeamPlumbingShadow = 22,
+    kFC4SeamRawArrayBytes = 26,
+    kFC4SeamLotCenter = 27,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

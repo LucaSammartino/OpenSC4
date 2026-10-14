@@ -185,6 +185,8 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Power.h
         plugin/cFC4Plumbing.cpp
         plugin/cFC4Plumbing.h
+        plugin/FC4PlumbingShadow.cpp
+        plugin/FC4PlumbingShadow.h
         plugin/cFC4Flammability.cpp
         plugin/cFC4Flammability.h
         plugin/cFC4Pollution.cpp

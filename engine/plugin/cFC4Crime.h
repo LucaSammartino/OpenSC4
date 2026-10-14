@@ -204,7 +204,7 @@ namespace fc4 {
 // managers, read only, and the game's string detokenizer on the name copies,
 // crime.md §7 step 3); every other callback NULL.
 fc4_crime_host CrimeReadOnlyHost();
-// Test seam only (kFC4SeamLotCenter): the lot slot 15 thunk on `lot` (a
+// Test seam only (op 27, kFC4SeamLotCenter): the lot slot 15 thunk on `lot` (a
 // cISC4Lot*). Returns 1 if ST0 held a value after the call (popped), else 0.
 int CrimeTestLotCenter(void* lot, float* out3);
 }  // namespace fc4
