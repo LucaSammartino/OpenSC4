@@ -1363,7 +1363,11 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   In the simulator, only ClearTripDestinations, RefreshCommuteMap's first lookup and UpdateSubnetworkInfo pass true.
   That corrects §4.11: each lot is rolled and counted once, not once per cell. Written into traffic-simulator.md
   §4.11 and §8.
-- **TS20:** is the traffic-source list a snapshot? [yes: lots, then connections, when the phase is entered]
+- ~~**TS20:** is the traffic-source list a snapshot? [yes: lots, then connections, when the phase is entered]~~
+  **ANSWERED 2026-10-14** from the exe (`0x007107A0`, `0x007107F0`): only for connections. `Reset` (entering 16, 17,
+  18, and the load resume) refills a ref-counted copy of the connection list. Lots are walked live through the lot
+  manager's safe iterator, so a lot removed before it is reached is skipped and a lot added during the phase is
+  visited (appended). Written into traffic-simulator.md §4.1.
 - **TS21:** when are `toReRoute` / `toSearch` zeroed? [on entering state 16]
 - **TS22:** does ReduceEdgeDensities also clear ferry terminal cells? [yes, departure and arrival; missing records
   are not created]

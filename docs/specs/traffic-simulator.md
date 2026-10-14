@@ -412,6 +412,20 @@ order (lot manager slot 15), then all neighbour connections in the neighbour sim
 (`GetAllConnections`, slot 16). Each step yields the source's location and its traffic-source interface
 (`AsTrafficSource`, slot 4; AddRef'd).
 
+The two halves differ in when they are fixed (TS20). `Reset` runs on entering states 16, 17 and 18 and on the
+DoPostCityInit resume (§3.5).
+
+- **Connections are a snapshot.** `Reset` has the neighbour simulator clear and refill the iterator's own list
+  (`0x007107C2`). The list holds counted references (`cRZAutoRefCount`), so a connection removed during the phase
+  stays alive and is still visited, and one added during the phase is not.
+- **Lots are live.** The iterator walks the lot manager's master list through the manager's safe lot iterator
+  (zones.md §8.2 slot 15; created once, at the first `Reset`, and rewound to the list's first node by every
+  `Reset`). A lot removed before the iterator reaches it is skipped, because removal advances the safe iterator.
+  A lot added during the phase is appended to the master list (zones.md §8.1), so the same pass visits it.
+
+*[compat]* A shadow comparison that snapshots the lots at the phase start differs from the original on a lot
+plopped or bulldozed during a long phase (FullTrips can run over several days).
+
 #### 4.1.1 Lot: `cSC4Lot::UpdateTrafficVolume` (`0x006C27E0`)
 
 The target per strategy `w[0…2]` (u16) starts at 0, `type` at 0.
