@@ -154,8 +154,9 @@ game never does]*. They are re-read on `Init` and on message `0xCA1B151C` (§7.1
    4. Iterator: table mode, rectangle `[0, tractCountX − 1] × [0, tractCountZ − 1]`, `Reset(shuffle)`, then one
       `GetNext` → `(tx, tz)`; `cellX := 2·tx`, `cellZ := 2·tz`.
    5. Clear the four dirty flags.
-   6. `propDeveloper.AddPropRequester(prop-requester interface)` (compiled slot 5). *[quirk]* This happens only
-      for a new city; see §10.2 question 1.
+   6. `propDeveloper.AddPropRequester(prop-requester interface)` (compiled slot 5). This happens only for a new
+      city. A loaded city gets the registration back from the prop developer's own save (§10.2 question 1), so
+      the requester must **not** be added again there.
 3. If **not initialized**:
    1. Set `initialized`; read tuning (§7.1).
    2. `simulator.AddAgent(self, 6, "cSC4PollutionSimulator", 2)` then `AddAgent(self, 4, "cSC4PollutionSimulator", 2)`
@@ -957,8 +958,16 @@ Findings:
 
 ### 10.2 Open questions
 
-1. **Prop requester after load**: `AddPropRequester` is only called for a new city. Whether the prop developer
-   restores requesters from its own save (so loaded cities still get garbage props) was not traced.
+1. *(resolved, PG5)* **Prop requester after load**: `AddPropRequester` is only called for a new city. A loaded
+   city keeps its garbage props because the prop developer saves its requesters itself:
+   - **`Write`** (`0x006F1970`–`0x006F19B6`) writes the requester count, then each requester by ref. The
+     requesters are the vector at prop developer `+0x9FC`.
+   - **`Read`** (`0x006F3680`–`0x006F36C8`) resizes that vector and reads each ref with IID `0x89C498BE`.
+   - So after a load the vector again points at the loaded pollution simulator's requester sub-object.
+   - **Do not add it again.** `AddPropRequester` (`0x006F21C0`) appends with no duplicate check, so a second call
+     would register the requester twice.
+   - **For a replacement.** It must answer IID `0x89C498BE` and be saved by ref under its class ID, so that this
+     ref resolves to it.
 2. *(resolved)* `0xC6CDBF1A` is PreViewLevelChange, sent synchronously by the 3D view; effects are visible only in
    the surface view (foundations §5.2).
 3. The water effect is positioned at height 0 at a jittered block **corner**; whether that is intentional (sea

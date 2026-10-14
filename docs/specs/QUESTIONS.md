@@ -367,7 +367,14 @@ About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answ
   (float32), like slot 55.
 - **PG4 — §4.10 visual effects:** the effects manager's `CreateVisualEffect` and the `cISC4VisualEffect` /
   `cS3DTransform` layouts are not in `docs/abi`. [visual effects not implemented]
-- **PG5 — §10.2 Q1:** is the prop requester re-added after a load? [open in the spec]
+- ~~**PG5 — §10.2 Q1:** is the prop requester re-added after a load? [open in the spec]~~ **ANSWERED 2026-10-14**
+  from the exe (prop developer `Write` `0x006F1970`–`0x006F19B6`, `Read` `0x006F3680`–`0x006F36C8`;
+  `AddPropRequester` `0x006F21C0`) and written into pollution.md §4.1 and §10.2 Q1. **No; the prop developer's own
+  save restores it.**
+  - **How it is restored.** The prop developer writes its requester vector by ref and reads it back with IID
+    `0x89C498BE`. A loaded city therefore still gets garbage props.
+  - **Do not re-add it.** `AddPropRequester` has no duplicate check, so adding it again would register it twice.
+  - **For a replacement.** It must answer `0x89C498BE` and be saved by ref.
 - **PG6 — shadow method:** the shadow captures the original's state by calling the original's own `Write`. Is that
   acceptable as read-only? [used]
 - **PG7:** `radiationSum` is not saved, so the radiation history at the end of a cycle after a load diverges from a
