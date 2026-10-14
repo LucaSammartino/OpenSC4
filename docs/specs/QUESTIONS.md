@@ -1103,8 +1103,14 @@ brackets; the module doc of `core/src/residential/education_health.rs` lists 1 t
   query contributes what it read plus the previous building's other fields). "Matching" is per building:
   `IsOccupantGroup` for any of `groups`, over every group list. Shipped data reaches it: the farmer's market's
   hospital query always fails (no health staff item) but it is still counted.
-- **EH13:** in `AddRadiusEffectWithCurves`, with n = 0 is pop' = pop, and is the same tract index used for all
-  grids? [yes]
+- ~~**EH13:** in `AddRadiusEffectWithCurves`, with n = 0 is pop' = pop, and is the same tract index used for all
+  grids? [yes]~~ **ANSWERED 2026-10-14** from the exe (`AddRadiusEffectWithCurves` `0x005E48F0`: n test
+  `0x005E4B5F`–`0x005E4B72`; reads `0x005E4A41`, `0x005E4B3F`, `0x005E4B4E`, `0x005E4BBA`, `0x005E4AF0`) and written
+  into REH §4.6 (step 7, "Which tract each grid is read at", example). **Yes on both.** n = 0 skips k entirely: eff
+  and pop are used unscaled. Population, coverage and target are all read at the same (x, z); the age grid is read
+  at cell (x × S_t, z × S_t), the same tract when its size equals the target's. Bounds and geometry come from the
+  target only; all four grids have tract size 4 in every game-written city. *[choice]* a tract outside a smaller
+  source grid (hand-made save only) reads as 0.
 - **EH14:** P is a signed 32-bit value: is a negative P accepted on Read (`record.rs`)? [accepted]
 - Not testable by vectors: the unsigned versus signed upper-bound compare (no output differs); the §4.13 tuning
   values that are loaded but unused (minimum acceptable funding, maximum EQ/HQ boost). REH §11 test 24's calling

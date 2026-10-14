@@ -470,9 +470,39 @@ target is a float grid with tract size S_t and tract width w.
      mult := (mult × curve(float(ageGrid.GetCellValue(x × S_t, z × S_t)))) × 0.01.
   6. eff := mult × value.
   7. n := coverage(x, z) (raw u8). If n ≠ 0: k := float(units) / float(n); eff := eff × k;
-     pop' := trunc(float(pop) × k).
+     pop' := trunc(float(pop) × k). If n = 0, neither changes: eff stays as in step 6 and pop' := pop
+     (verified, EH13: the compare with 0.0 at `0x005E4B5F`–`0x005E4B72` jumps straight to `0x005E4B96`).
   8. total := total + float(pop' & 0xFFFF) × eff.
   9. target(x, z) := min(max, target(x, z) + eff), written raw.
+- **Which tract each grid is read at** (verified, EH13). One pair (x, z) drives every read and write of an
+  iteration:
+  - the population grid through `GetTractValue(x, z)` (slot 22), read twice with the same arguments: the step-1
+    test (`0x005E4A41`–`0x005E4A49`) and pop in step 7 (`0x005E4B3F`–`0x005E4B45`);
+  - the coverage grid raw at `data[x][z]` (`0x005E4B4E`–`0x005E4B57`);
+  - the target raw at `data[x][z]` (`0x005E4BBA`–`0x005E4BC3`);
+  - the age grid is the exception. It is read through **cell** coordinates (x × S_t, z × S_t) with
+    `GetCellValue`, so it lands on its own tract ((x × S_t) >> its shift). That is the same tract only when its
+    tract size equals S_t.
+
+  The bounds, the tract centres and S_t all come from the target alone (counts slots 12/13 at `0x005E497D` and
+  `0x005E49A6`, width slot 14 at `0x005E490C`, size slot 10 at `0x005E48FF`). No other grid's geometry is asked
+  for, and nothing is bounds-checked against it.
+  - In this class the target is an EQ or HQ grid (tract size E) and the other three grids use P. P = E = 4 on a
+    new city, and each grid keeps its own tract size through a save (residential.md §2, simgrid §5), so all four
+    name the same tract in every game-written city.
+  - Only a hand-made save can make them differ. If the target then has more tracts than the population or
+    coverage grid, the original reads past their arrays. *[choice]* FreeCity4 reads such a tract as 0 in those
+    grids (population 0 skips it at step 1).
+- Example for step 7 (eff = 1.5 after step 6, pop = 120, units = 3):
+
+  | n | k | eff | pop' | total += | target += |
+  |---|---|---|---|---|---|
+  | 0 | not computed | 1.5 | 120 | 180 | 1.5 |
+  | 3 | 1.0 | 1.5 | 120 | 180 | 1.5 |
+  | 6 | 0.5 | 0.75 | 60 | 45 | 0.75 |
+
+  With units = 0 (capacity below the chunk size, §4.4), n = 6 gives k = 0, so nothing is added. A tract that no
+  building of the group covered (n = 0) still gets the full 1.5 and counts all 120 people.
 - Notes:
   - Units: xd here is a 0..1 fraction of the radius. Curves with x in percent therefore see only their first
     percent *[compat]*.
