@@ -27,6 +27,8 @@ struct Occ {
     cells: CellRect,
     budget: Option<BudgetItem>,
     in_manager: bool,
+    /// The bounding box in world units (default: the cells × 16).
+    bbox: Option<([f32; 3], [f32; 3])>,
 }
 
 struct Host {
@@ -43,6 +45,8 @@ struct Host {
     agents: Cell<u32>,
     /// `GetDepartmentBudget` calls.
     lookups: Cell<u32>,
+    /// Zoned cells (zone type 1).
+    zones: RefCell<BTreeSet<(i32, i32)>>,
 }
 
 impl Host {
@@ -60,6 +64,7 @@ impl Host {
             expenses: Cell::new(-1),
             agents: Cell::new(0),
             lookups: Cell::new(0),
+            zones: RefCell::default(),
         })
     }
 
@@ -80,6 +85,7 @@ impl Host {
                 cells,
                 budget,
                 in_manager: true,
+                bbox: None,
             },
         );
     }
@@ -226,6 +232,9 @@ impl PowerHost for Host {
         [(a[0] + b[0]) * 0.5, 0.0, (a[2] + b[2]) * 0.5]
     }
     fn occupant_bounding_box(&self, occ: u64) -> ([f32; 3], [f32; 3]) {
+        if let Some(b) = self.occs.borrow().get(&occ).and_then(|o| o.bbox) {
+            return b;
+        }
         let c = self.occupant_bounding_cells(occ);
         (
             [c.x1 as f32 * 16.0, 0.0, c.z1 as f32 * 16.0],
@@ -290,8 +299,8 @@ impl PowerHost for Host {
             .collect()
     }
     fn remove_occupant(&self, _occ: u64) {}
-    fn zone_type(&self, _x: i32, _z: i32) -> u32 {
-        0
+    fn zone_type(&self, x: i32, z: i32) -> u32 {
+        u32::from(self.zones.borrow().contains(&(x, z)))
     }
     fn power_line_tool_zone_change(&self, _rect: CellRect, _data3: u32) {}
     fn lot_at(&self, _x: i32, _z: i32) -> Option<u64> {
@@ -620,6 +629,112 @@ fn pole_decay_shuffles_and_repairs() {
     // A NaN funding clamps the fraction to 0 rather than poisoning it.
     s.apply_pole_funding(f32::NAN);
     assert_eq!(s.state().broken_fraction, 0.0);
+}
+
+#[test]
+fn factor_is_read_at_init_tuning_reload_and_month_start() {
+    // §8 (PW7): the tuning read (the first Init, also after a load, and
+    // 0xCA1B151C) and the month start read the ordinance factor;
+    // OrdinanceUpdated does not.
+    let h = Host::new(16);
+    h.factor.set(0.9);
+    let s = sim(&h);
+    assert_eq!(s.state().factor, 0.9);
+    h.factor.set(1.0);
+    let enacted = PowerMessage {
+        msg_type: msg::ORDINANCE_UPDATED,
+        data2: 0x1234_5678,
+        data3: 1,
+        ..Default::default()
+    };
+    s.do_message(&enacted);
+    assert_eq!(s.state().factor, 0.9, "kept until the next month");
+    s.do_message(&message(msg::TUNING_RELOAD, 0));
+    assert_eq!(s.state().factor, 1.0);
+    h.factor.set(0.9);
+    s.do_message(&message(msg::SIM_NEW_MONTH, 0));
+    assert_eq!(s.state().factor, 0.9);
+    // After a load: the record does not hold it; Init reads it.
+    let (bytes, entries) = record(&s);
+    h.factor.set(0.8);
+    let t = PowerSim::new(h.clone() as Rc<dyn PowerHost>, 2);
+    let mut res = Resolver(entries, h.clone());
+    assert!(t.read(&mut ByteReader::with_resolver(&bytes, &mut res)));
+    assert_eq!(t.state().factor, 1.0, "the constructor's");
+    assert!(t.init());
+    assert_eq!(t.state().factor, 0.8);
+}
+
+#[test]
+fn pass_values_are_zero_after_a_load() {
+    // §9.1 (PW3): the pass import, export and demand are not saved; a city
+    // saved in state 3 with import 500, export 200 and demand 6,000 publishes
+    // 0 for all three.
+    let h = Host::new(16);
+    let s = sim(&h);
+    s.update_state(|st| {
+        st.state = state::STATISTICS;
+        st.import = 500;
+        st.export = 200;
+        st.demand = 6000;
+    });
+    let (bytes, entries) = record(&s);
+    let t = PowerSim::new(h.clone() as Rc<dyn PowerHost>, 2);
+    let mut res = Resolver(entries, h.clone());
+    assert!(t.read(&mut ByteReader::with_resolver(&bytes, &mut res)));
+    assert!(t.init());
+    {
+        let st = t.state();
+        assert_eq!(
+            (st.state, st.import, st.export, st.demand),
+            (state::STATISTICS, 0, 0, 0)
+        );
+    }
+    t.do_message(&message(msg::CONNECTIONS_READY, 0));
+    t.do_idle();
+    let st = t.state();
+    assert_eq!(
+        (st.state, st.last_import, st.last_export, st.last_demand),
+        (state::IDLE, 0, 0, 0)
+    );
+}
+
+#[test]
+fn broken_fraction_restarts_at_zero_after_a_load() {
+    // §7.6 (PW4): 1,000 poles, 300 broken when saved. brokenFraction is not
+    // saved, brokenCount is: the first month moves the broken poles towards
+    // the target of a fraction that starts again from 0. 100 % funding: the
+    // shipped curve gives 0.025, the target is 0, all 300 are repaired. 0 %:
+    // −0.02, the fraction 0.02, the target 20, 280 repaired.
+    let h = Host::new(32);
+    for i in 0..1000 {
+        h.pole(1000 + i, (i % 32) as i32, (i / 32) as i32);
+    }
+    let s = sim(&h);
+    for i in 0..1000 {
+        s.occupant_inserted(1000 + i);
+    }
+    for i in 0..300 {
+        h.set_pole_distressed(1000 + i, true);
+    }
+    s.update_state(|st| {
+        st.broken_count = 300;
+        st.broken_fraction = 0.3;
+    });
+    let (bytes, entries) = record(&s);
+    for (funding, broken) in [(1.0f32, 0u32), (0.0, 20)] {
+        for i in 0..1000 {
+            h.set_pole_distressed(1000 + i, i < 300);
+        }
+        let t = PowerSim::new(h.clone() as Rc<dyn PowerHost>, 2);
+        let mut res = Resolver(entries.clone(), h.clone());
+        assert!(t.read(&mut ByteReader::with_resolver(&bytes, &mut res)));
+        assert!(t.init());
+        assert_eq!((t.state().broken_count, t.state().broken_fraction), (300, 0.0));
+        t.apply_pole_funding(funding);
+        assert_eq!(t.state().broken_count, broken, "funding {funding}");
+        assert_eq!(h.distressed.borrow().len() as u32, broken);
+    }
 }
 
 // ---- the block probe (tooling, the power shadow) ---------------------------------------------------
@@ -966,6 +1081,181 @@ fn removal_counters_and_poles() {
     s.occupant_removed(40);
     let st = s.state();
     assert_eq!((st.cost_base, st.pole_count, st.broken_count), (-1, 0, 1));
+}
+
+#[test]
+fn removal_is_ignored_until_initialized() {
+    // §5: the removal handler's first test is `initialized`, like the
+    // insertion's (PW8).
+    let h = Host::new(16);
+    h.building(30, CellRect::new(4, 4, 5, 5), &[(prop::REQUIREMENT, u32v(300))], None);
+    let s = PowerSim::new(h.clone() as Rc<dyn PowerHost>, 1);
+    s.update_state(|st| {
+        st.consumers = 3;
+        st.requirement = 900;
+    });
+    s.do_message(&message(msg::OCCUPANT_REMOVED, 30));
+    let st = s.state();
+    assert_eq!((st.consumers, st.requirement, st.wire_dirty), (3, 900, false));
+    drop(st);
+    assert_eq!(s.dirty_rect_for(&message(msg::OCCUPANT_REMOVED, 30)), None);
+    // Initialized: the same message subtracts and marks the rectangle.
+    assert!(s.init());
+    s.do_message(&message(msg::OCCUPANT_REMOVED, 30));
+    let st = s.state();
+    assert_eq!((st.consumers, st.requirement, st.wire_dirty), (2, 600, true));
+}
+
+#[test]
+fn running_counts_keep_what_the_insertion_added() {
+    // Test 31 (§5.2, PW8): the values are read at each delivery; nothing
+    // rebuilds them. A building consuming 1 at insertion and 0 at removal
+    // leaves its 1 behind. (The test's second half, Konradshohe's saved
+    // consumers 725 / requirement 6478 with cells (41,102) and (55,111) at 1,
+    // needs the shipped save: the record round trip keeps whatever is saved.)
+    let h = Host::new(16);
+    let s = sim(&h);
+    h.building(30, CellRect::new(5, 5, 5, 5), &[(prop::REQUIREMENT, u32v(1))], None);
+    s.do_message(&message(msg::OCCUPANT_INSERTED, 30));
+    {
+        let st = s.state();
+        assert_eq!((st.consumers, st.requirement, st.consumption_at(5, 5)), (1, 1, 1));
+    }
+    h.occs
+        .borrow_mut()
+        .get_mut(&30)
+        .unwrap()
+        .props
+        .add(prop::REQUIREMENT, u32v(0));
+    s.do_message(&message(msg::OCCUPANT_REMOVED, 30));
+    let st = s.state();
+    assert_eq!((st.consumers, st.requirement, st.consumption_at(5, 5)), (1, 1, 1));
+    drop(st);
+    // A month and a cycle read them and leave them.
+    s.do_message(&message(msg::SIM_NEW_MONTH, 0));
+    cycle(&s);
+    let st = s.state();
+    assert_eq!((st.consumers, st.requirement, st.consumption_at(5, 5)), (1, 1, 1));
+}
+
+#[test]
+fn centre_cell_stores_the_half_sum_as_a_float32() {
+    // Test 10 (§5.1): x 48.04999924 .. 79.94999695 (Konradshohe's
+    // ID32x16_3DirtyOut7) has the half-sum 63.99999809 in double, a tie
+    // between two float32 values that rounds to even, 64.0: cx = 4, not 3.
+    let h = Host::new(16);
+    let s = sim(&h);
+    let (a, b) = (f32::from_bits(0x4240_3333), f32::from_bits(0x429F_E666));
+    assert_eq!(
+        ((f64::from(a) + f64::from(b)) * 0.5 / 16.0) as i32,
+        3,
+        "without the float store"
+    );
+    h.building(30, CellRect::new(3, 1, 4, 2), &[(prop::REQUIREMENT, u32v(59))], None);
+    h.occs.borrow_mut().get_mut(&30).unwrap().bbox = Some(([a, 0.0, 16.0], [b, 0.0, 48.0]));
+    s.do_message(&message(msg::OCCUPANT_INSERTED, 30));
+    {
+        let st = s.state();
+        assert_eq!((st.consumption_at(4, 2), st.consumption_at(3, 2)), (59, 0));
+    }
+    // The removal finds the same cell.
+    s.do_message(&message(msg::OCCUPANT_REMOVED, 30));
+    assert_eq!(s.state().consumption_at(4, 2), 0);
+    // The integral box of test 10: x 32..64, z 16..48 → (3, 2).
+    h.building(31, CellRect::new(2, 1, 3, 2), &[(prop::REQUIREMENT, u32v(40000))], None);
+    h.occs.borrow_mut().get_mut(&31).unwrap().bbox = Some(([32.0, 0.0, 16.0], [64.0, 0.0, 48.0]));
+    s.do_message(&message(msg::OCCUPANT_INSERTED, 31));
+    assert_eq!(s.state().consumption_at(3, 2), -25536);
+}
+
+#[test]
+fn dirty_rect_for_is_the_rect_do_message_merges() {
+    // PW5 (§5.3): the power shadow merges the original's rectangle from the
+    // same messages with this helper; it must be what `DoMessage` merges.
+    let h = Host::new(32);
+    let s = sim(&h);
+    h.building(30, CellRect::new(4, 4, 5, 5), &[(prop::REQUIREMENT, u32v(300))], None);
+    h.building(31, CellRect::new(0, 0, 1, 1), &[], None);
+    h.pole(40, 2, 9);
+    for id in [30, 31, 40] {
+        s.do_message(&message(msg::OCCUPANT_INSERTED, id));
+    }
+    let zoning = PowerMessage {
+        msg_type: msg::ZONING_CHANGED,
+        rect: CellRect::new(10, 10, 11, 12),
+        ..Default::default()
+    };
+    let cases = [
+        (message(msg::OCCUPANT_REMOVED, 30), Some(CellRect::new(2, 2, 7, 7))),
+        (message(msg::OCCUPANT_REMOVED, 31), Some(CellRect::new(0, 0, 3, 3))),
+        (message(msg::OCCUPANT_REMOVED, 40), Some(CellRect::new(0, 7, 4, 11))),
+        (message(msg::OCCUPANT_REMOVED, 99), None),
+        (zoning, Some(CellRect::new(8, 8, 13, 14))),
+        (message(msg::OCCUPANT_INSERTED, 30), None),
+        (message(msg::TUNING_RELOAD, 0), None),
+    ];
+    for (m, want) in cases {
+        let got = s.dirty_rect_for(&m);
+        assert_eq!(got, want, "{:#x} {}", m.msg_type, m.void1);
+        s.update_state(|st| st.wire_dirty = false);
+        s.do_message(&m);
+        let st = s.state();
+        assert_eq!(
+            st.wire_dirty.then_some(st.dirty_rect),
+            got,
+            "{:#x} {}",
+            m.msg_type,
+            m.void1
+        );
+    }
+}
+
+#[test]
+fn wire_rebuild_depends_on_the_rect_through_zones() {
+    // The PW5 example of §5.3 (R = 2): a wire source along x = 10 (here a
+    // building one cell wide, which wires x 8..12), the zoned cell (11, 15)
+    // and a removed building at x 12..18 × z 12..18. Its dirty rect B =
+    // x 10..20 × z 10..20 keeps (13, 13..17) wired by the zoned cell; the
+    // bounding box of the changed bits, A = x 13..20 × z 10..20, does not
+    // hold (11, 15), and a rebuild over A clears (13, 15).
+    let world = || {
+        let h = Host::new(32);
+        h.zones.borrow_mut().insert((11, 15));
+        h.building(50, CellRect::new(10, 0, 10, 31), &[], None);
+        h.building(51, CellRect::new(12, 12, 18, 18), &[], None);
+        let s = sim(&h);
+        for id in [50, 51] {
+            s.do_message(&message(msg::OCCUPANT_INSERTED, id));
+        }
+        h.occs.borrow_mut().get_mut(&51).unwrap().in_manager = false;
+        s.do_message(&message(msg::OCCUPANT_REMOVED, 51));
+        (h, s)
+    };
+    let (_h, s) = world();
+    let before = s.state().wire.clone();
+    assert_eq!(s.state().dirty_rect, CellRect::new(10, 10, 20, 20));
+    s.do_idle();
+    let after = s.state().wire.clone();
+    assert!(!s.state().wire_dirty);
+    for z in 13..=17 {
+        assert!(after.test(13, z), "(13, {z}) kept by the zoned cell");
+    }
+    assert!(after.test(12, 20) && !after.test(14, 15) && !after.test(13, 12));
+    // The changed bits' bounding box is A.
+    let (mut x1, mut z1, mut x2, mut z2) = (i32::MAX, i32::MAX, i32::MIN, i32::MIN);
+    for x in 0..32 {
+        for z in 0..32 {
+            if before.test(x, z) != after.test(x, z) {
+                (x1, z1, x2, z2) = (x1.min(x), z1.min(z), x2.max(x), z2.max(z));
+            }
+        }
+    }
+    assert_eq!(CellRect::new(x1, z1, x2, z2), CellRect::new(13, 10, 20, 20));
+    // A rebuild over A loses (13, 15).
+    let (_h2, t) = world();
+    t.update_state(|st| st.dirty_rect = CellRect::new(13, 10, 20, 20));
+    t.do_idle();
+    assert!(!t.state().wire.test(13, 15));
 }
 
 #[test]

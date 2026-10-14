@@ -30,6 +30,8 @@ use crate::test_streams::{istream, ostream, In, Out};
 
 const DEPT: u64 = 0xD0;
 const GAME_TILE: u64 = 0x4000_0000;
+/// Tiles made through `insert_landfill_tile` (the live tests).
+const OWN_TILE: u64 = 0x2000_0000;
 const CELL: f32 = 16.0;
 
 #[derive(Default)]
@@ -61,7 +63,15 @@ struct Game {
     /// Re-entrancy test: send_history delivers a zoning message to this
     /// handle once.
     reenter: Cell<usize>,
+    /// Game tiles made through insert_landfill_tile: cell -> (tile,
+    /// orientation, position, token).
+    tiles: RefCell<BTreeMap<(i32, i32), GameTile>>,
+    /// insert_landfill_tile answers 0.
+    refuse_tiles: Cell<bool>,
 }
+
+/// A game tile: (tile, orientation, position, token).
+type GameTile = (u32, i32, [f32; 3], u64);
 
 fn game(u: *mut c_void) -> &'static Game {
     unsafe { &*(u as *const Game) }
@@ -178,12 +188,17 @@ unsafe extern "C" fn set_full(u: *mut c_void, d: u64, line: u32, v: i64) {
     game(u).full.borrow_mut().push(v);
 }
 unsafe extern "C" fn item_cost(u: *mut c_void, occ: u64, prop: u32, out: *mut i64) -> bool {
-    // A game tile (the shadow tests): its tile's shipped cost.
-    if occ & GAME_TILE == 0 {
-        return false;
-    }
+    // A game tile (the shadow tests, or one made through
+    // insert_landfill_tile): its tile exemplar's shipped cost (§4.9.1, LG11).
     let (x, z) = (((occ >> 12) & 0xFFF) as i32, (occ & 0xFFF) as i32);
-    let Some(t) = game(u).orig_tile(x, z) else { return false };
+    let t = if occ & OWN_TILE != 0 {
+        game(u).tiles.borrow().get(&(x, z)).map(|e| e.0)
+    } else if occ & GAME_TILE != 0 {
+        game(u).orig_tile(x, z)
+    } else {
+        None
+    };
+    let Some(t) = t else { return false };
     let Some(h) = shipped_tile_exemplar(t) else {
         return false;
     };
@@ -209,13 +224,32 @@ unsafe extern "C" fn place_zone(u: *mut c_void, r: *const fc4_landfill_region, t
     true
 }
 unsafe extern "C" fn occupant_at(u: *mut c_void, x: i32, z: i32, t: u32) -> u64 {
-    if t == OCCUPANT_TYPE_LANDFILL && game(u).orig_tile(x, z).is_some() {
-        return GAME_TILE | ((x as u64) << 12) | z as u64;
+    if t == OCCUPANT_TYPE_LANDFILL {
+        if let Some(e) = game(u).tiles.borrow().get(&(x, z)) {
+            return e.3;
+        }
+        if game(u).orig_tile(x, z).is_some() {
+            return GAME_TILE | ((x as u64) << 12) | z as u64;
+        }
     }
     0
 }
-unsafe extern "C" fn occupant_remove(_: *mut c_void, _o: u64) -> bool {
+unsafe extern "C" fn occupant_remove(u: *mut c_void, o: u64) -> bool {
+    if o & OWN_TILE != 0 {
+        game(u).tiles.borrow_mut().retain(|_, e| e.3 != o);
+    }
     true
+}
+unsafe extern "C" fn insert_tile(u: *mut c_void, x: i32, z: i32, tile: u32, orientation: i32, p: *const f32) -> u64 {
+    let g = game(u);
+    if g.refuse_tiles.get() {
+        return 0;
+    }
+    let token = OWN_TILE | ((x as u64) << 12) | z as u64;
+    let pos = [*p, *p.add(1), *p.add(2)];
+    let old = g.tiles.borrow_mut().insert((x, z), (tile, orientation, pos, token));
+    assert!(old.is_none(), "the core removes the old tile first");
+    token
 }
 unsafe extern "C" fn add_lot_prop(u: *mut c_void, id: u32, p: *const f32, o: i32) -> u64 {
     let g = game(u);
@@ -363,6 +397,7 @@ fn read_table(g: &Game) -> fc4_landfill_host {
         start_seagull: None,
         stop_seagull: None,
         send_history: None,
+        insert_landfill_tile: None,
     }
 }
 
@@ -527,6 +562,115 @@ fn zoning_and_the_month_move_garbage() {
     shut(p);
 }
 
+/// A live developer whose host makes game tiles (`insert_landfill_tile`).
+fn live_with_game_tiles(g: &Game) -> *mut fc4_landfill {
+    let mut h = table(g);
+    h.insert_landfill_tile = Some(insert_tile);
+    let p = unsafe { fc4_landfill_create(&h, 0xF00D) };
+    assert!(!p.is_null());
+    assert!(unsafe { fc4_landfill_init(p) });
+    send(p, msg::POST_CITY_INIT);
+    p
+}
+
+/// LG3, LG11 (§4.8.1, §4.9.1): with `insert_landfill_tile` every tile is a
+/// game occupant at the cell centre and terrain altitude; it is found,
+/// priced from its tile exemplar and removed through the host, and none is
+/// kept in the C ABI layer. A tile the game does not take is kept here.
+#[test]
+fn tiles_are_game_occupants_priced_from_their_exemplar() {
+    let g = city();
+    let p = live_with_game_tiles(&g);
+    zone(p, 10, 10, 15, 15);
+    send(p, msg::SIM_NEW_MONTH);
+    let s = state(p);
+    // Each heap turning active redraws its four cells (remove, then insert):
+    // 25 heaps, 100 insertions, 36 tiles left.
+    assert_eq!((s.virtual_tiles, s.game_tiles, s.game_tile_failures), (0, 100, 0));
+    assert_eq!(s.active_cells, 36);
+    {
+        let tiles = g.tiles.borrow();
+        assert_eq!(tiles.len(), 36);
+        let (t, o, pos, _) = tiles[&(12, 12)];
+        assert_eq!(t, tile::INTERIOR);
+        assert!([0, 2, 4, 6].contains(&o), "interior orientation {o}");
+        assert_eq!(pos, [12.0 * CELL + 8.0, 100.0, 12.0 * CELL + 8.0]);
+        assert_eq!(tiles[&(10, 10)].0, tile::CORNER);
+    }
+    // fc4_landfill_tile_at reports the tiles kept here only.
+    let mut t = 0u32;
+    assert!(!unsafe { fc4_landfill_tile_at(p, 12, 12, &mut t, std::ptr::null_mut()) });
+    // The maintenance reads each tile's cost from its exemplar (LG11).
+    let maint = unsafe { fc4_landfill_maintenance_costs(p) };
+    assert_eq!(maint, 16 * 40 + 4 * 10 + 16 * 20);
+    assert_eq!(*g.full.borrow().last().unwrap(), maint);
+    // Dezoning a cell removes its game tile through occupant_remove.
+    unsafe {
+        let r = region(10, 10, 10, 10);
+        assert!(fc4_landfill_do_message(p, msg::ZONING_CHANGE, 0, 0, 0, 0, &r.raw));
+    }
+    assert!(!g.tiles.borrow().contains_key(&(10, 10)));
+    shut(p);
+
+    // The game refuses: the tiles are kept in the C ABI layer instead.
+    let g = city();
+    g.refuse_tiles.set(true);
+    let p = live_with_game_tiles(&g);
+    zone(p, 10, 10, 11, 11);
+    send(p, msg::SIM_NEW_MONTH);
+    let s = state(p);
+    assert_eq!((s.virtual_tiles, s.game_tiles, s.game_tile_failures), (4, 0, 4));
+    assert!(g.tiles.borrow().is_empty());
+    assert_eq!(unsafe { fc4_landfill_maintenance_costs(p) }, 4 * 10);
+    shut(p);
+}
+
+/// LG8 (§6.4): game tiles come back with the city (the occupant manager saves
+/// them), so a load rebuilds none; a city saved with the tiles kept in the C
+/// ABI layer gets them back as game tiles [choice].
+#[test]
+fn a_load_rebuilds_only_the_missing_tiles_as_game_tiles() {
+    let g = city();
+    let p = live_with_game_tiles(&g);
+    zone(p, 4, 4, 7, 7);
+    send(p, msg::SIM_NEW_MONTH);
+    let s1 = state(p);
+    assert_eq!((s1.game_tiles, s1.virtual_tiles), (36, 0));
+    assert_eq!(g.tiles.borrow().len(), 16);
+    let mut out = Out::default();
+    let os = ostream(&mut out);
+    assert!(unsafe { fc4_landfill_write(p, &os) });
+    unsafe { fc4_landfill_destroy(p) }; // the city closes: the game keeps its occupants' records
+    let saved = g.tiles.borrow().clone();
+
+    let load = |g: &Game| {
+        let mut h = table(g);
+        h.insert_landfill_tile = Some(insert_tile);
+        let q = unsafe { fc4_landfill_create(&h, 0xF00E) };
+        let mut inp = In::new(&out.bytes);
+        let is = istream(&mut inp);
+        assert!(unsafe { fc4_landfill_read(q, &is) });
+        assert!(unsafe { fc4_landfill_init(q) });
+        send(q, msg::POST_CITY_INIT);
+        q
+    };
+    // The tiles are back as game occupants: nothing is rebuilt.
+    let q = load(&g);
+    let s2 = state(q);
+    assert_eq!((s2.rebuilt_tiles, s2.game_tiles, s2.virtual_tiles), (0, 0, 0));
+    assert_eq!(s2.maintenance, s1.maintenance);
+    assert_eq!(*g.tiles.borrow(), saved);
+    shut(q);
+
+    // A save without tile records: the flagged cells get game tiles again.
+    g.tiles.borrow_mut().clear();
+    let q = load(&g);
+    let s3 = state(q);
+    assert_eq!((s3.rebuilt_tiles, s3.game_tiles, s3.virtual_tiles), (16, 16, 0));
+    assert_eq!(s3.maintenance, s1.maintenance);
+    shut(q);
+}
+
 #[test]
 fn a_disconnected_zone_gets_a_zot() {
     let g = city();
@@ -546,12 +690,42 @@ fn a_disconnected_zone_gets_a_zot() {
     assert_eq!(*g.removed_props.borrow(), vec![zot]);
     assert_eq!(g.refs_of(zot), 0);
     assert_eq!(state(p).zots, 0);
-    // Disconnected again; Shutdown releases the reference on the new zot.
+    // Disconnected again; Shutdown removes the new zot through the prop
+    // manager and then releases it (§4.4.9, LG13).
     g.connected.set(false);
     send(p, msg::SIM_NEW_MONTH);
     assert_eq!(g.refs_of(0x9002), 1);
     shut(p);
+    assert_eq!(*g.removed_props.borrow(), vec![zot, 0x9002]);
     assert_eq!(g.refs_of(0x9002), 0);
+}
+
+#[test]
+fn a_zone_never_initialised_keeps_its_zot_until_the_developer_shuts_down() {
+    // A record with one zone and a zot (written by a live object).
+    let g = city();
+    let src = live(&g);
+    g.connected.set(false);
+    zone(src, 0, 0, 1, 1);
+    send(src, msg::SIM_NEW_MONTH);
+    let mut out = Out::default();
+    let os = ostream(&mut out);
+    assert!(unsafe { fc4_landfill_write(src, &os) });
+    shut(src);
+    g.removed_props.borrow_mut().clear();
+    // Read and Init, but no PostCityInit: the zone is never initialised, so
+    // its Shutdown neither removes nor releases the zot (§4.4.9 step 2); the
+    // C ABI layer releases the reference [choice].
+    let h = table(&g);
+    let p = unsafe { fc4_landfill_create(&h, 1) };
+    g.refs.borrow_mut().insert(0x9001, 1);
+    let mut inp = In::new(&out.bytes);
+    let is = istream(&mut inp);
+    assert!(unsafe { fc4_landfill_read(p, &is) });
+    assert!(unsafe { fc4_landfill_init(p) });
+    shut(p);
+    assert!(g.removed_props.borrow().is_empty());
+    assert_eq!(g.refs_of(0x9001), 0);
 }
 
 #[test]

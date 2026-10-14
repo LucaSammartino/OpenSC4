@@ -44,6 +44,19 @@
 //   3. after: the record and the counts again; fc4_power_shadow_finish
 //      compares (power_shadow.rs).
 //
+// The start: PowerShadowCityInit (cFC4Simulator, at PostCityInit) makes the
+// shadow of a city start, which knows the original's unsaved values as its
+// Init after the load leaves them (power.md §8 the ordinance factor, read
+// then; §9.1 pass import / export / demand 0; §7.6 brokenFraction 0; no
+// dirty rectangle). From then on the static message target forwards the
+// removals, zoning changes and tuning reloads to the shadow
+// (fc4_power_shadow_message): the dirty rectangle (§5.3, PW5) and the factor
+// (PW7) follow the original's. A shadow switched on mid-city (or after a
+// settings change) does not know them: what depends on them is marked not
+// exact until the original sets them again (the factor at a month start, the
+// pass values at state 0), and its first wire rebuild is rerun with the
+// changed bits' box.
+//
 // The moment: the end of each recompute cycle (state 3, §6.6: the published
 // totals) is where every quantity of the task is defined at once, so the
 // cycle line comes then; each step of the cycle is compared on its own as
@@ -88,6 +101,11 @@ void PowerShadowStartup(bool simulatorReplaced, bool powerReplaced);
 bool PowerShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIGZMessage2* msg, uint32_t type,
                         int64_t data1, bool* finished);
 
+// cFC4Simulator at PostCityInit (the city finished Init): if the shadow is on
+// and the city's power simulator is the original, makes the shadow of a city
+// start (see above) and listens for the original's messages.
+void PowerShadowCityInit();
+
 }  // namespace fc4
 
 // Test seam op 21 (FC4TestSeam.h): one shadowed delivery to a fake original.
@@ -95,13 +113,14 @@ bool PowerShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIGZM
 // counts (91-94) are called on `city`; the other services stay null (neutral
 // reads: no occupants, zones, lots, deals or budget; ordinance factor 1).
 // `fresh`: a new shadow for this call (else the previous call's shadow, its
-// mirror and its cycle, are kept).
+// mirror and its cycle, are kept), made as at a city start unless `midCity`.
 struct FC4PowerShadowTestInput {
     cISC4City* city;
     cIGZMessageTarget2* target;  // the agent the delivery goes to
     uint32_t msgType;            // SimNewDay, SimIdle or SimNewMonth
     int32_t julian;              // data1
     uint32_t fresh;
+    uint32_t midCity;  // with `fresh`: a shadow switched on mid-city
 };
 // Returns the delivery's difference count, -1 if the shadow did not take the
 // delivery (left to the caller), -2 if it took it and compared nothing, -3 if
