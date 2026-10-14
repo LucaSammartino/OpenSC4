@@ -10,9 +10,9 @@ is part of every verdict):
   replace  every merged replacement at once (-Replace overrides the list).
 
 Usage:
-  powershell -File tools\regress.ps1 -Tag r1 [-Seconds 150] [-Only shadows|replace] [-Replace "landvalue, weather"]
+  powershell -File tools\regress.ps1 -Tag r1 [-EndDate 2032-01-01] [-Only shadows|replace] [-Replace "landvalue, weather"]
            [-City <path to .sc4>] [-Dll <path to FreeCity4.dll>] [-Parallel | -Queue [-QueueWait 3600]]
-           [-Turbo [-EndDate 2032-01-01]] [-Baseline <tag or .out path>]
+           [-NormalSpeed [-Seconds 150]] [-Baseline <tag or .out path>]
 
 -Dll stages that DLL (and the .pdb next to it, if any) as Plugins\FreeCity4.dll first; it refuses while the game
 runs. Every run prints the staged DLL's SHA-256 prefix, so the record names the build it tested.
@@ -27,10 +27,13 @@ DLL (-Dll, else the one staged in Documents) must be inside the main checkout fo
 one outside it is copied to build-runs\dlls\regress-<Tag>.dll (with its .pdb) first. -City must be a city of the FC4
 Test region in Documents. -QueueWait (default 3600 s): how long a request may wait for a slot before regress takes it
 back and reports it BLOCKED. A queue older than the priority change runs the two requests one after the other.
--Turbo: the turbo profile. Instead of -Seconds of real time after the load, each run goes to the game date -EndDate
-(default 2032-01-01, six game years on Konradshohe) with our simulator's turbo clock (sim_turbo = 1; a plugin from
-0786064 on starts it after the city's first ConnectionsReady, so popups are already off). -TurboFrom <date> starts it
-with a script action at that game date instead (for older DLLs). -TurboTimeout (default 600 s) is the timeout.
+Profiles. The default (since main c367684 made the power shadow exact under turbo) is the turbo profile: each run
+goes to the game date -EndDate (default 2032-01-01, six game years on Konradshohe) with our simulator's turbo clock
+(sim_turbo = 1; a plugin from 0786064 on starts it after the city's first ConnectionsReady, so popups are already
+off), so every run gives the same month and shadow lines. -TurboFrom <date> starts it with a script action at that
+game date instead (for older DLLs). -TurboTimeout (default 600 s) is the timeout. -Turbo is accepted and changes
+nothing. -NormalSpeed: the old timed profile, -Seconds (default 150) of real time after the load at normal speed
+(an explicit -Seconds without -Turbo selects it too).
 
 Logs: build-runs\regress-<Tag>-<run>.log (ini: .ini). A summary per run is printed by tools\run_summary.ps1; the
 table at the end reads: verdict, problem count (foreign exceptions, stalls, reference warnings, panics, structured
@@ -53,6 +56,7 @@ param(
     [switch]$Queue,
     [int]$QueueWait = 3600,
     [switch]$Turbo,
+    [switch]$NormalSpeed,
     [string]$EndDate = "2032-01-01",
     [string]$TurboFrom = "",
     [int]$TurboTimeout = 600,
@@ -63,6 +67,10 @@ $wallStart = Get-Date
 $Plugins = Join-Path $env:USERPROFILE "Documents\SimCity 4\Plugins"
 if ($Dll -and -not (Test-Path -LiteralPath $Dll)) { Write-Output "REGRESS: no such DLL: $Dll"; exit 2 }
 if ($Queue -and $Parallel) { Write-Output "REGRESS: give -Queue or -Parallel, not both"; exit 2 }
+if ($Turbo -and $NormalSpeed) { Write-Output "REGRESS: give -Turbo (the default) or -NormalSpeed, not both"; exit 2 }
+if ($NormalSpeed -and ($PSBoundParameters.ContainsKey("EndDate") -or $TurboFrom)) { Write-Output "REGRESS: -EndDate and -TurboFrom belong to the turbo profile, not -NormalSpeed"; exit 2 }
+if (-not $NormalSpeed -and -not $Turbo -and $PSBoundParameters.ContainsKey("Seconds")) { $NormalSpeed = [switch]$true; Write-Output "note: -Seconds without -Turbo: the normal-speed profile (-NormalSpeed)" }
+$Turbo = -not $NormalSpeed   # the turbo profile is the default
 if ($Tag -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,48}$') { Write-Output "REGRESS: -Tag: letters, digits, '.', '_', '-' (it names files and queue labels)"; exit 2 }
 function MainCheckout {
     $here = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))

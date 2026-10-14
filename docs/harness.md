@@ -119,7 +119,8 @@ after `timeout` plus 15 minutes, ask the coordinator (the queue may be stopped).
 
 ## For the coordinator
 
-Start the queue detached from the main checkout and leave it running (one queue at a time; a second one exits):
+Start the queue detached from the main checkout and leave it running (one default instance at a time; a second one
+exits; see `-Instance` below for a second queue):
 
 ```
 Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File C:\Users\tlori\FreeCity4\tools\game_queue.ps1 -Slots 3"
@@ -128,6 +129,42 @@ Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoProfile -Executio
 It logs to `build-runs\game-queue.log` of that checkout. `-Once` runs what is queued and exits; `-Roots a,b` scans
 only those checkouts. Slot games live in `build-runs\sc4slots\slotN` of the main checkout (the game ignores a
 `-UserDir` with a path component that starts with `.`, such as `.claude`, and falls back to Documents). Stopping the
-queue does not stop the games it started; their runs end at their timeout. `regress.ps1 -Parallel` uses slots 1
-and 2; the queue leaves a slot alone while another harness run holds it, but a regress run whose slot the queue holds
-waits only 60 s and then ends BLOCKED, so start a regress while the queue is idle.
+queue does not stop the games it started; their runs end at their timeout, their results are lost, and the restarted
+queue runs those requests again (in other slots while the old games still hold theirs).
+
+**Your requests go first.** A request in the main checkout's `build-runs\game-queue\` is taken before any waiting lane
+request (a running game is never stopped; yours gets the next free slot). With `priority = high` it also goes before
+your other requests and does not wait for them: several run at once, one slot each (the main checkout's normal
+requests still run one at a time, in order). `priority = high` in a lane's request is ignored and noted in its
+verdict. The queue's start line in the log says `priority: coordinator <root>`.
+
+**Regression through the queue.** `tools\regress.ps1 -Tag <tag> -Dll <dll> -Queue` submits its two runs as
+`priority = high` requests (`regress-<tag>-shadows`, `regress-<tag>-replace`), waits for their verdict files, copies
+the logs to `build-runs\regress-<tag>-<run>.log` and prints the same blocks, table, delta and verdict line as
+`-Parallel`, plus each run's queue line (slot, time waited) and the wall time. The DLL must be inside the main checkout
+(`build-runs\dlls\FreeCity4-<name>.dll` is fine); one outside it is copied to `build-runs\dlls\regress-<tag>.dll`
+first. A request that gets no slot within `-QueueWait` seconds (default 3600) is taken back and reported BLOCKED.
+Against a queue started before the priority change, regress leaves the key out and the two runs go one after the
+other. `-Parallel` still starts the two games directly in slots 1 and 2: use it only while the queue is idle (a slot
+the queue holds blocks it after 60 s).
+
+**Regress profile.** Since main `c367684` (the power shadow is exact under turbo) regress runs the turbo profile by
+default, in both modes: each run goes to `-EndDate` (default 2032-01-01) with `sim_turbo = 1`, so every run gives the
+same month and shadow lines. `-NormalSpeed [-Seconds 150]` runs the old timed profile; `-Turbo` is still accepted.
+The delta compares against the newest earlier PASS of the same profile.
+
+**Queue status.** `powershell -File tools\game_queue.ps1 -Status [-Last 10]` prints, without disturbing the queue, each
+slot and what it runs (lane, label, elapsed, game pid), the waiting requests in the order the queue will take them
+(lane, label, class, age; "after its root's earlier request" for a lane's later ones), and the last results with
+their verdict words. It reads the queue log(s), the `.running` markers and the request folders, so it also works on a
+queue started before this change. `-Check <file>.req` prints what the queue would run for one request, or the exact
+rejection it would write.
+
+**More slots, more instances.** `-SlotList 4,5` runs in those slots instead of 1..`-Slots`. `-Instance <name>` starts
+a second queue next to the default one, with its own mutex (`FC4GameQueue-<name>`), log
+(`build-runs\game-queue-<name>.log`) and work folder; `-CoordinatorRoot <dir>` sets which root has priority (default
+the main checkout). Instances of this version claim each request and each slot with a named mutex, so two of them can
+scan the same roots without running a request twice; a queue started before this change does not claim, so do not
+run a second instance on the roots it scans (the queue started now scans every worktree). Give each instance its own
+slots. Slot N runs on logical CPU 2N: on this i7-12700K, slots 1 to 7 each get their own P-core (CPUs 2 to 14),
+slots 8 and 9 land on E-cores (16, 18) and run slower.
