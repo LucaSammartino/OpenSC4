@@ -371,6 +371,21 @@ Runs if the occupant (as a property holder) has property **`0xCA5B9306`**. The p
 array `{m, r}`: magnitude and radius in **city cells**. *[quirk]* The original does not check the length, so
 fewer than 2 bytes reads past the data. *[choice]* FreeCity4 skips arrays shorter than 2.
 
+*How it is read* *[compat]* (`0x0069F27B`–`0x0069F2B1`): the original takes the property's value variant and asks
+it for its **raw data pointer** (variant slot 95, `0x0060CE80`), whatever the variant's type. There is no numeric
+conversion and no type or count check. `m` is the byte at offset 0 and `r` the byte at offset 1 of the value's
+storage. So:
+
+| Stored as | Original reads | Example `{100, 8}` gives |
+|---|---|---|
+| `Uint8` / `Sint8` array (all 6 shipped buildings are `Uint8` ×2; data-formats §7.3) | elements 0 and 1 | m = 100, r = 8 |
+| wider array (`Uint16`, `Uint32`, `Sint32`, `Float32`, …) | bytes 0 and 1 of element 0, little-endian | `Uint32`: m = 100, r = 0 (no cell changes); `Float32`: m = 0, r = 0 |
+| any scalar | the scalar's value used as a pointer: a crash or garbage | — |
+
+*[choice]* FreeCity4 reads bytes 0 and 1 of the value's raw little-endian storage, so every array type behaves
+as in the original. It skips scalars and arrays shorter than 2 bytes. A numeric conversion (`GetU32s`, then the
+low bytes) would equal the original only for byte arrays.
+
 ```
 value  := +m when inserted, −m when removed
 radius := float(r) / float(crimeEffectGrid.GetTractSize())          (tracts)
