@@ -2059,9 +2059,9 @@ typedef struct fc4_flammability_host {
     /* messages: MessagePost with void1 = IGZUnknown = the simulator (§9). */
     void (*post)(void* user, uint32_t msg_type);
     /* Plumbing slot 7 GetWateredGrid(): the published watered grid as a
-     * token (0 = none). Its object alternates at every plumbing pass
-     * (plumbing §2), so a change tells a pass ended (§6.5, FL5/FL6). Read by
-     * the flammability shadow only; NULL = not polled. */
+     * token (0 = none). Read by the flammability shadow only: non-NULL lets
+     * it poll the watered state (by content, FL7, FL9; the pointer is only
+     * counted); NULL = not polled. */
     uint64_t (*watered_grid)(void* user);
 } fc4_flammability_host;
 
@@ -3672,16 +3672,20 @@ typedef struct fc4_flammability_shadow_stats {
 fc4_flammability_shadow* fc4_flammability_shadow_create(const fc4_flammability_host* host, uint32_t max_cells);
 void fc4_flammability_shadow_destroy(fc4_flammability_shadow* s);
 /* One of the original's six messages; false when not mirrored (no baseline
- * yet, or another type). Every call (any type, e.g. the plumbing pass end
- * WaterMapChanged 0x6946DC34) first polls host->watered_grid: a changed
- * pointer means a plumbing pass ended, and the tracts whose watered state
- * changed are marked for the cycle (§6.5, FL5/FL6). */
+ * yet, or another type). SimNewDay (0x66956814) means the original's day
+ * delivery has just finished: the day is counted and the watered state
+ * polled (§6.5, FL7/FL8). Until the first such day, every other call (e.g.
+ * the plumbing pass end WaterMapChanged 0x6946DC34) first polls it. A poll
+ * reads host->is_cell_watered for every tract and compares by content (the
+ * host->watered_grid pointer is only counted; NULL = nothing polled): the
+ * tracts whose state changed are marked for the cycle (FL5-FL7). */
 bool fc4_flammability_shadow_message(fc4_flammability_shadow* s, const fc4_flammability_message* m);
 /* The original's cycle end: the first (or after a new simulator) is the
- * baseline; later ones are compared (after a poll of host->watered_grid; a
- * tract marked by a pass in the cycle may hold its value under either
- * watered state). One line. Returns the differences, -1 when nothing was
- * compared. */
+ * baseline; later ones are compared (after a poll; a tract marked in the
+ * cycle may hold its value under either watered state). The marks of the
+ * changes seen after the last wrap day (by the day count since the
+ * original's Init) are carried into the next cycle (FL8). One line. Returns
+ * the differences, -1 when nothing was compared. */
 int32_t fc4_flammability_shadow_cycle(fc4_flammability_shadow* s, const fc4_flammability_original* orig,
                                       int32_t julian, fc4_bytes_sink sink, void* ctx);
 /* The counters as the last call that finished left them (callable from the

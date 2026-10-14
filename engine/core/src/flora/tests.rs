@@ -721,6 +721,18 @@ fn manager_index_cells_and_listing() {
     let l = manager_listing([100.0, 0.0, 63.0], [102.0, 9.0, 63.9]);
     assert_eq!((l.0, l.2), (manager_cell(100.1), manager_cell(101.9)));
     assert_eq!((l.1, l.3), (manager_cell(63.0), manager_cell(63.9)));
+    // [choice] (§6.4.2, AQ7): an edge more than a city width outside the
+    // index is clamped to 0..=191, like the query; cells inside stay.
+    assert_eq!(manager_cell(-5000.0), -15);
+    assert_eq!(manager_cell(9000.0), 204);
+    assert_eq!(
+        manager_listing([-5000.0, 0.0, 100.0], [9000.0, 9.0, 101.0]),
+        (0, manager_cell(100.0), 191, manager_cell(101.0))
+    );
+    assert_eq!(
+        manager_listing([-20000.0, 0.0, -9000.0], [-19000.0, 9.0, -8000.0]),
+        (0, 0, 0, 0)
+    );
     // Strict: touching boxes are not returned.
     let occ = ([10.0, 0.0, 10.0], [20.0, 5.0, 20.0]);
     let listed = manager_listing(occ.0, occ.1);

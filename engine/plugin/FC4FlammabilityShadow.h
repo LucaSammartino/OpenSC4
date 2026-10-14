@@ -32,12 +32,18 @@
 //     and 8) are read, and fc4_flammability_shadow_cycle compares them with
 //     the mirror (the first cycle seen is the baseline);
 //   - the plumbing pass end (0x6946DC34, plumbing.md §6.7, after the grid
-//     swap): handed to the core as a message it does not mirror; like every
-//     event, it first polls the plumbing simulator's GetWateredGrid (slot 7):
-//     a changed pointer means a pass ended, and the tracts whose watered
-//     state changed may hold their value under either state in this cycle
-//     (flammability.md §6.5, FL5/FL6);
+//     swap): handed to the core as a message it does not mirror; until the
+//     first day poll, every event first polls the watered state (plumbing
+//     slot 11 per tract, compared by content: FL7, FL9), and the tracts
+//     whose watered state changed may hold their value under either state in
+//     this cycle (flammability.md §6.5, FL5/FL6);
 //   - PostCityShutdown: the shadow core is dropped.
+// And, through cFC4Simulator's delivery (FlammabilityShadowDeliver), every
+// SimNewDay the original flammability simulator gets: after the original's
+// day the core counts the day and polls the watered state (FL7: the original
+// reads it only inside that delivery). The day count since the original's
+// Init gives the wrap days; the changes seen after the last one are carried
+// into the next cycle (FL8).
 //
 // Log lines (always written, not the verbose channel; longer lines are split
 // into "flammability shadow (cont.)" lines):
@@ -45,14 +51,19 @@
 //   flammability shadow: NOT readable read-only (left out): ...     game start
 //   flammability shadow YYYY-MM-DD cycle N: baseline (...): ...     first cycle
 //   flammability shadow YYYY-MM-DD cycle N: tracts=CXxCZ (S=1) ...; raw
-//     cells=.. mismatched=.. max|d|=..; adjusted ...; average orig/ours=..;
-//     multiplier orig/ours=..; hotspots orig/ours=..; events=..; plumbing
-//     passes=P (tracts whose watered state changed: T); ...getters...;
-//     mismatches=N; cycles=K clean=C; not compared: ...           per cycle
+//     cells=.. mismatched=.. max|d|=..; adjusted ... (exact .., explained ..,
+//     unvisited U of at most B); average orig/ours=..; multiplier
+//     orig/ours=..; hotspots orig/ours=..; events=..; watered polls=P by
+//     content (at a day D, with a change C; published grid pointer changes
+//     G); tracts whose watered state changed: T (K carried in); carried into
+//     the next cycle: X (why); ...getters...; mismatches=N; cycles=K
+//     clean=C; not compared: ...                                  per cycle
 #pragma once
 
 #include <cstdint>
 
+class cIGZMessage2;
+class cIGZMessageTarget2;
 class cIGZUnknown;
 class cISC4City;
 
@@ -68,6 +79,15 @@ void FlammabilityShadowStartup(bool flammabilityReplaced);
 void FlammabilityShadowStart();
 void FlammabilityShadowStop();
 
+// cFC4Simulator::HostDeliver, for every agent delivery: if the shadow is
+// listening and `target` is the original flammability simulator's agent
+// receiving SimNewDay, runs target->DoMessage(msg), stores its result in
+// `finished`, hands the day to the core (a day poll, flammability.md §6.5,
+// FL7/FL8) and returns true. Otherwise returns false and does nothing (the
+// caller delivers).
+bool FlammabilityShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIGZMessage2* msg, uint32_t type,
+                               int64_t data1, bool* finished);
+
 }  // namespace fc4
 
 // Test seam op 24 (FC4TestSeam.h): one event on a fake city. The shadow calls
@@ -80,7 +100,8 @@ struct FC4FlammabilityShadowTestInput {
     cISC4City* city;
     int32_t julian;
     uint32_t event;     // 0 = a message (msg_type), 1 = SimCycleComplete, 2 = PostCityShutdown
-    uint32_t msg_type;  // event 0: one of the six (§5), or the plumbing pass end 0x6946DC34
+    uint32_t msg_type;  // event 0: one of the six (§5), the plumbing pass end 0x6946DC34, or
+                        // SimNewDay 0x66956814 (the day poll FlammabilityShadowDeliver makes)
     cIGZUnknown* void1;        // event 0: the message's void1 (occupant messages), may be null
     cIGZUnknown* igz_unknown;  // event 0: the message's IGZUnknown (ConditionChanged), may be null
 };

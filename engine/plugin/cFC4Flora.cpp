@@ -689,6 +689,16 @@ cIGZIStream* InOf(uint64_t t) {
 // OpenOStream(key, &s, true) (slot 8) or OpenIStream(key, &s) (slot 5), AL.
 // 0 (not open) when either fails. The core puts / gets the record's u16
 // version and tests GetError itself.
+// [choice] (flora.md §10.3, AQ10, recommended): an open that returns false
+// but writes a stream pointer is "not open", and that pointer is released
+// once, without a close call, as the original's record helper does when it
+// is destroyed.
+void DropFailedOpen(cIGZUnknown* s, const char* how) {
+    if (s == nullptr) return;
+    FC4_ACQUIRED(s, how);
+    FC4_RELEASE_CREATED(s);
+}
+
 uint64_t SegmentOpen(void*, uint64_t seg, uint32_t type, uint32_t group, uint32_t instance, bool write) {
     if (seg == 0 || !Gate(fc4::Sw::FloraObliteration, "flora obliteration record (not open)")) return 0;
     cISC4DBSegment* db = Query<cISC4DBSegment>(FromToken(seg), GZIID_cISC4DBSegment);
@@ -705,12 +715,18 @@ uint64_t SegmentOpen(void*, uint64_t seg, uint32_t type, uint32_t group, uint32_
         if (db->OpenOStream(key, &s, true) && s != nullptr) {  // slot 8
             r->out = reinterpret_cast<cFC4ISC4DBSegmentOStream*>(s);
             FC4_ACQUIRED(static_cast<cIGZUnknown*>(r->out), "OpenOStream");
+        } else if (s != nullptr) {
+            DropFailedOpen(static_cast<cIGZUnknown*>(reinterpret_cast<cFC4ISC4DBSegmentOStream*>(s)),
+                           "OpenOStream (false)");
         }
     } else {
         cISC4DBSegmentIStream* s = nullptr;
         if (db->OpenIStream(key, &s) && s != nullptr) {  // slot 5
             r->in = reinterpret_cast<cFC4ISC4DBSegmentIStream*>(s);
             FC4_ACQUIRED(static_cast<cIGZUnknown*>(r->in), "OpenIStream");
+        } else if (s != nullptr) {
+            DropFailedOpen(static_cast<cIGZUnknown*>(reinterpret_cast<cFC4ISC4DBSegmentIStream*>(s)),
+                           "OpenIStream (false)");
         }
     }
     if (r->in == nullptr && r->out == nullptr) {
