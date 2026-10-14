@@ -1222,7 +1222,14 @@ fn pipe_funding_helper_with_the_shipped_curve() {
     t.reload(Some(&Tuning::shipped_exemplar()));
     // Full funding repairs: 0 - 0.02 clamps to 0, nothing is distressed.
     let full = pipe_funding(&t, 0.0, 403, 1.0);
-    assert_eq!(full, PipeFunding { condition: 0.0, target: 0, burst_max: 0 });
+    assert_eq!(
+        full,
+        PipeFunding {
+            condition: 0.0,
+            target: 0,
+            burst_max: 0
+        }
+    );
     // At 50 % the curve is 0: the condition stays.
     assert_eq!(pipe_funding(&t, 0.5, 403, 0.5).condition, 0.5);
     // No funding decays by 0.01 a month: trunc(403 × 0.01) = 4 distressed,
