@@ -1157,6 +1157,9 @@ reads as 30.
 The bracket (the first element) matches for unsigned integer arrays, which is what connections carry. For float,
 64-bit, negative and raw-byte values the result depends on the text parser (`0x009167C5`), which was not traced.
 
+**NG28 (glue). The shadow's statistics tolerance.** The commodity statistics are `double` arithmetic in the original
+(§8.2); the tolerance the shadow allows is the implementer's choice.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
