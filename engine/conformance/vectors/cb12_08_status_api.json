@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "civic_status_api",
+  "spec": ["civic-buildings 4.7", "civic-buildings 12.8"],
+  "description": "UpdateConditionalBuildingStatus(k, {6, 2, \"x\"}) then GetConditionalBuildingStatus(k) returns {6, 2, \"x\"}; an unknown key returns null; a write through the returned pointer (status |= 1) persists; an update overwrites all three fields.",
+  "steps": [
+    {"op": "civic_create"},
+    {"op": "civic_call", "method": "get_status", "args": ["0x04000000"], "expect": null},
+    {"op": "civic_call", "method": "update_status", "args": ["0x04000000", 6, 2, "x"], "expect": true},
+    {"op": "civic_call", "method": "get_status", "args": ["0x04000000"], "expect": {"status": 6, "count": 2, "tooltip": "x"}},
+    {"op": "civic_call", "method": "get_status", "args": ["0x04000001"], "expect": null},
+    {"op": "civic_call", "method": "or_status", "args": ["0x04000000", 1], "expect": true},
+    {"op": "civic_call", "method": "get_status", "args": ["0x04000000"], "expect": {"status": 7, "count": 2, "tooltip": "x"}},
+    {"op": "civic_call", "method": "or_status", "args": ["0x04000001", 1], "expect": false},
+    {"op": "civic_call", "method": "update_status", "args": ["0x04000000", 0, 0, ""], "expect": true},
+    {"op": "civic_call", "method": "get_status", "args": ["0x04000000"], "expect": {"status": 0, "count": 0, "tooltip": ""}},
+    {"op": "civic_expect", "state": {"status_keys": ["0x04000000"]}}
+  ]
+}

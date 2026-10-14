@@ -773,7 +773,9 @@ pub unsafe extern "C" fn fc4_sim_get_agent_info(
 pub mod aura;
 pub mod aura_shadow;
 pub mod budget;
+pub mod civic;
 pub mod clock24;
+pub mod commercial;
 pub mod crime;
 pub mod demand;
 pub mod development;
@@ -793,6 +795,7 @@ pub mod neighbors;
 pub mod neighbors_shadow;
 pub mod ordinance;
 pub mod panic_log;
+pub mod parks;
 pub mod plumbing;
 pub mod plumbing_shadow;
 pub mod pollution;
@@ -805,6 +808,7 @@ pub mod residential;
 pub mod residential_shadow;
 pub mod stream;
 pub mod traffic;
+pub mod tract_developer;
 pub mod weather;
 pub mod zones;
 
@@ -818,7 +822,13 @@ mod aura_tests;
 mod budget_tests;
 
 #[cfg(test)]
+mod civic_tests;
+
+#[cfg(test)]
 mod clock24_tests;
+
+#[cfg(test)]
+mod commercial_tests;
 
 #[cfg(test)]
 mod crime_tests;
@@ -857,6 +867,9 @@ mod flammability_shadow_tests;
 mod ordinance_tests;
 
 #[cfg(test)]
+mod parks_tests;
+
+#[cfg(test)]
 mod plumbing_shadow_tests;
 
 #[cfg(test)]
@@ -879,6 +892,8 @@ mod test_streams;
 
 #[cfg(test)]
 mod traffic_tests;
+#[cfg(test)]
+mod tract_developer_tests;
 
 #[cfg(test)]
 mod weather_tests;
