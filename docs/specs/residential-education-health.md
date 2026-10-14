@@ -688,12 +688,27 @@ SC4Percentage:
   and none ships. *[choice]* FreeCity4 starts the record at 0.
 - rating := sum = 0 ? 0 : pop = 0 ? 1.0 : min(1.0, float(sum) / float(GetPopulation())).
 
-**Totals** `GetSchoolSystemTotals` / `GetHospitalSystemTotals(totals*, groups*)` (14/15):
+**Totals** `GetSchoolSystemTotals` / `GetHospitalSystemTotals(totals*, groups*)` (14/15; both call one helper,
+`0x006FA070`, with the service's group lists):
 
-- Over the group lists whose ID is in `groups`, accumulate the query fields +0x14..+0x24 (u32 sums) and
-  +0x28 (grade sum).
-- Return the **number of buildings counted** in EAX.
+- **Reset first** *[compat]*: the caller's +0x14, +0x18, +0x1C, +0x20, +0x24 := 0 and +0x28 := 0.0
+  (`0x006FA0A6`–`0x006FA0BB`). Nothing is added onto earlier contents; the string and +0x2C..+0x38 are not
+  touched.
+- **Which buildings** (corrected): every building of every group list, in list order (pending buildings are not
+  in these lists), that is in **at least one** of the groups in `groups` (`IsOccupantGroup`, tested per building,
+  so a building filed under another group still counts when it also has one of these groups).
+- For each such building: run the service's query (slot 26 or 27) into one stack record, **ignore its result**,
+  then add the record's +0x14..+0x24 (u32 sums) and +0x28 (float32 grade sum) to the totals and count the
+  building (`0x006FA167`–`0x006FA1CF`).
+- Return the **number of buildings counted** in EAX: every matching building, whether its query succeeded or not.
+- The stack record starts like the ratings' record (+0x28 is 0, +0x14..+0x24 are leftovers), and a failed query
+  leaves what it read plus the previous building's other fields (§4.11 partial writes).
 - *[quirk]* `groups` must not be null. Null is dereferenced and crashes; an empty vector counts nothing.
+
+*[compat]* This is reached by shipped data. The farmer's market (`0x8A3858D8 / 0x032C0000`) is a hospital through
+its groups only and has no health staff item, so its hospital query always fails at the staff test. The hospital
+totals still count it, with its own capacity, effective capacity and served (+0x24 raw: `0xFFFFFFFF` until its
+first grading, which adds −1 modulo 2^32), and the previous building's +0x1C, +0x20 and +0x28.
 
 **EstimateCurrentOccupantCapacity(occ, &cap, &staff)** (28, `0x006FD510`):
 

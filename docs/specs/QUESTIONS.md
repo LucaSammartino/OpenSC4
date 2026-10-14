@@ -1096,7 +1096,13 @@ brackets; the module doc of `core/src/residential/education_health.rs` lists 1 t
   are set; the summed +0x18 and the other fields start as stack leftovers. The leftover is reached only when the
   first building's query fails before reading +0x18, which needs a building without a capacity (none ships).
   *[choice]* 0 (the bracket).
-- **EH12:** do the system totals count only successful queries and add onto the caller's record? [yes]
+- ~~**EH12:** do the system totals count only successful queries and add onto the caller's record? [yes]~~
+  **ANSWERED 2026-10-14** from the exe (`GetSystemTotals` `0x006FA070`: reset `0x006FA0A6`–`0x006FA0BB`, sums
+  `0x006FA167`–`0x006FA1CF`) and written into REH §4.11 (Totals, corrected). **No on both.** The helper first zeroes
+  the caller's +0x14..+0x28, then counts and adds **every** matching building, ignoring the query result (a failed
+  query contributes what it read plus the previous building's other fields). "Matching" is per building:
+  `IsOccupantGroup` for any of `groups`, over every group list. Shipped data reaches it: the farmer's market's
+  hospital query always fails (no health staff item) but it is still counted.
 - **EH13:** in `AddRadiusEffectWithCurves`, with n = 0 is pop' = pop, and is the same tract index used for all
   grids? [yes]
 - **EH14:** P is a signed 32-bit value: is a negative P accepted on Read (`record.rs`)? [accepted]
