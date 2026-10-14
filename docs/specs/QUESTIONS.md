@@ -699,3 +699,27 @@ About `docs/specs/traffic-network.md`. The core's current answer is in brackets.
 - **TN25 — §4.7.2 TN3:** FreeCity4 replaces the rules on the re-read, so the flags come from the property's rules;
   the original takes them from the first n rules of the vector (the saved copy). They differ only when the saved
   rules differ from the exemplar. Acceptable? [flags from the re-read rules]
+
+## From the aura glue and grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/aura.md` and its `docs/abi` rows. Ini: `enable = aura`; shadow `aura_shadow = 1` (compared at
+each cycle-completed message `0x2A09B21A`). The glue's current answer is in brackets.
+
+- **AU1 — §11.3:** does Read replace the departments and hotspots, or merge/append? [replace]
+- **AU2 — §10:** the transient tuning is read through properties, not the raw f32 copy. Same values? [properties]
+- **AU3:** `GetPopulations` (lot slot 54) returns a container not in `docs/abi`; the glue calls `GetPopulation(type)`
+  (slot 53) for the 12 developer types and keeps non-zero counts, so a mixed lot whose residential count is 0 reads
+  −128 instead of 0. What is the container's layout (allocators.md)? [slot 53 loop]
+- **AU4:** `RefSint32` on a non-Sint32 property: a Uint32 is accepted bitwise, anything else counts as absent.
+  Right? [as stated]
+- **AU5:** the safe lot iterator's layout is not in `docs/abi`; the glue walks cells with `GetLot(x, z, false)`,
+  takes each lot once and re-checks the pointer at the next step. Layout of the iterator? [cell walk]
+- **AU6:** the game-data registry node "aura" is a stub. What does the original publish there? [stub]
+- **AU7 — shadow timing:** the other inputs are read at the end of the original's cycle, so a mid-cycle change shows
+  as a difference; the tax baseline is taken at the first compared cycle. [as stated]
+- **AU8:** `GetCumulativeOffset` (ordinance slot 24): the SDK says int64, the spec and table int32 in EAX. [int32,
+  declared as `GetCumulativeOffset32` in `cFC4ISC4OrdinanceSimulator`]
+- **AU9:** a cycle in an empty city keeps the lot iterator open until the next state 4. Intended? [as the spec]
+- **AU10:** with no land value simulator the land value type is 0; the spec is silent. [0]
+- **AU11 — §16 Q7:** the base-aura process table is not written. [not written]
+- **AU12:** the CPU-cycle limit timer runs on `QueryPerformanceCounter` instead of the TSC. Acceptable? [QPC]
