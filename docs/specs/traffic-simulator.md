@@ -151,7 +151,7 @@ The data model, by meaning (offsets are deliberately not part of it):
 | `0x8A0D15DA` / `0xEA0D163E` | | add / remove a neighbour connection (traffic-network.md) |
 | `0xC53D10AA` | data1 = `0xE7E2C2DB` and data2 = `0xC9133286` | re-read tuning (§4.14) |
 | `0xC2C09554` | | `UpdateTravelStrategies` (§4.1.2) |
-| `0x99EF1142` / `0x99EF1143` | data3 = `0xC772BF98` | network occupant inserted / removed (traffic-network.md); on remove the cell's edge-density records are erased; any such message (even a failed cast) marks the network as changed |
+| `0x99EF1142` / `0x99EF1143` | data3 = `0xC772BF98` | network occupant inserted / removed: the cell-count and pothole-set bookkeeping (§3.6), then the network part (traffic-network.md); on remove the cell's edge-density records are erased; any such message (even a failed cast) marks the network as changed |
 | `0xE8BDA2E7` | lot (`IGZUnknown` → a **copy** of the lot with an empty trip list, lot-developer.md §3.2; §4.1.3 finds the real lot again at its corner) | data1 = 3: `DoLotDeactivated` (`0x0071E2F0`); else data2 = 3: `DoLotActivated` (`0x00723AF0`, §4.1.3) |
 
 All handlers return true except the day handler.
@@ -311,6 +311,90 @@ whole order (TS7):
     `dayIndex ≥ days`.
 14. `UpdateMassTransitBudget`, then `UpdateRoadsBudget` (§4.9): the departments' monthly costs from the loaded cell
     counts.
+
+### 3.6 Network occupant bookkeeping: DoRoadChanged, DoRailChanged, DoSubwayChanged *[compat]*
+
+On `0x99EF1142` (inserted, `ins` = true) and `0x99EF1143` (removed, `ins` = false) for a network occupant (§3.1),
+DoMessage first does this bookkeeping (`0x00724334`–`0x0072442E`), then the network part (traffic-network.md §3). Let
+`has(t)` mean that the occupant's network flag word contains bit `1 << t` (cISC4NetworkOccupant slot 22; network
+types as traffic-network.md §2.2). The calls, in this order (TS4):
+
+1. `has(6)` Avenue → `DoRoadChanged(occ, ins, 6)`.
+2. `has(0)` Road → `DoRoadChanged(occ, ins, 0)`.
+3. The first of OneWayRoad 10, Street 3, Highway 2, GroundHighway 12 that `has` holds for →
+   `DoRoadChanged(occ, ins, t)`. At most one call comes from this step.
+4. `has(1)` Rail → `DoRailChanged(occ, ins)`.
+5. `has(7)` Subway, and the flag word does **not** contain bit 31 (slot 8, all-bits test of `0x80000000`) →
+   `DoSubwayChanged(ins)`.
+
+An occupant with several of these types gets several calls (Avenue and Road: steps 1 and 2). DirtRoad 11, LightRail 8
+and Monorail 9 get no bookkeeping.
+
+`cells[t]` (t = 0…12, u32, saved in §6.1 row 18) are the per-network-type counts that `UpdateRoadsBudget` and
+`UpdateMassTransitBudget` (§4.9) price. `bump(t)` is `cells[t] += 1` on insert. On remove it is `cells[t] −= 1` only
+if `cells[t] > 0`; at 0 it stays 0.
+
+**DoRoadChanged(occ, ins, t)** (`0x007155D0`):
+
+1. Cell `(x, z)` := the city's `PositionToCell` (slot 95) of the occupant's position (occupant slot 8, its x and z).
+2. `bump(t)`, then `UpdateRoadsBudget`.
+3. If `t` is Highway 2 or GroundHighway 12, stop: highways are not in the pothole sets.
+4. `key := x << 8 | z` (u16, as §4.12).
+5. **Insert**: add `key` to the intact road set; nothing happens if it is already there. The damaged set is not
+   looked at, so a key can end up in both sets. Then `roadCellCount += 1` in **every** case, including a key that
+   was already present.
+6. **Remove**, in this order:
+   * If `key` is in the intact set, erase it.
+   * Otherwise, if `key` is in the damaged set, it is repaired by removal. Erase it, then `damagedRoadCount −= 1`.
+     Then decrement the published **pothole count** (the u16 at offset `0x134` of the slot-34 statistics block, read
+     by the traffic advisor as `g_pothole_count`; it wraps below 0). Then post `0x69247DC8` (message-server slot 4,
+     queued) with data1 = x, data2 = z, data3 = 0.
+   * In **every** case, including a key in neither set: `roadCellCount −= 1` (u32, no clamp).
+
+**DoRailChanged(occ, ins)** (`0x00715790`):
+
+1. `bump(1)`.
+2. If the occupant also has Road or Street (slot 9, any-bit test of mask 9: a level crossing), skip to step 5.
+3. Cell `(x, z)` := the network occupant's own cell (slot 59). `key := x << 8 | z`.
+4. Insert and remove as DoRoadChanged steps 5–6, with the rail sets, `railCellCount` and `damagedRailCount`. On
+   insert the rail set is first grown to hold `count + 1` (the same rehash rule as the road insert). *[quirk]*
+   Removing a damaged rail cell also decrements the **road** pothole count. It posts `0x69247DC8` with data3 = 0, like
+   a road.
+5. `UpdateMassTransitBudget`, also when step 2 skipped.
+
+**DoSubwayChanged(ins)** (`0x0070EA70`): `bump(7)`, then `UpdateMassTransitBudget`. It has no cell set.
+
+The bracket of TS4 holds for the sets. What it misses is the count, the damaged set, the highway and level-crossing
+exclusions, and the per-type counts with the budget refresh.
+
+* **The cell counts count calls, not cells.** Both cases below add 2 to the count but only one key to the set:
+  * an occupant re-inserted at a cell it already holds;
+  * an occupant with two counted road types (steps 1 and 2).
+
+  The monthly pothole target is `cellCount × d` (§4.12), so a rebuild that counts distinct cells drifts from the
+  original. A replacement keeps the running count, updated by these rules. A rebuild from the live occupants is
+  exact only when it repeats the same per-call rules. To do so, count each occupant once per DoRoadChanged call
+  (steps 1–3, excluding Highway and GroundHighway), and once per rail occupant without Road or Street.
+* The pothole count is only re-set by `ApplyRoadFunding`, and only in a month when the road target changes
+  (`damagedRoadCount := target`, then the pothole count := its low 16 bits; `0x00717DF2`). In the months between,
+  the drops above stay, including the rail drops. `ApplyMassTransitFunding` writes no pothole count.
+* *[quirk]* The cell counts have no floor: with more removes than inserts (an occupant removed twice), `roadCellCount`
+  wraps from 0 to 2³² − 1. The next month's target is then `trunc(r24(4294967295.0 × d))`, and `ApplyPotholeChanges`
+  caps the move at the intact set's size. Keep the wrap *[compat]*.
+
+Worked example. 100 road calls so far, `cells[0]` = 100, `roadCellCount` = 100, `damagedRoadCount` = 3, pothole
+count 3, and cell (12, 34) is damaged (key `0x0C22`). Bulldoze its road piece (flags: Road only):
+
+1. Message `0x99EF1143`. Step 2 calls `DoRoadChanged(occ, false, 0)`.
+2. `cells[0]` = 99, and the roads budget is recomputed from it.
+3. Key `0x0C22` is not intact but is damaged. It is erased, `damagedRoadCount` = 2, the pothole count = 2,
+   `0x69247DC8 (12, 34, 0)` is posted, and `roadCellCount` = 99.
+
+Then place a level-crossing piece at (20, 5) with flags Road | Rail:
+
+1. Step 2 inserts key `0x1405` into the intact road set: `cells[0]` = 100, `roadCellCount` = 100.
+2. Step 4: `cells[1] += 1`. The rail sets and `railCellCount` are untouched (Road is set), and the mass-transit budget
+   is recomputed.
 
 ## 4. Behaviour
 
@@ -744,6 +828,9 @@ counter, and destination bits plus `freeDest` on the off-map edge cells; not a n
    * `target := low32(ftol(r24(float(u32 cellCount) × d)))` with `cellCount` = the number of road (resp. rail)
      cells kept by the network part;
    * if `target ≠ damagedCount`: `ApplyPotholeChanges(kind, target − damagedCount)` and `damagedCount := target`.
+     Road only: then the published pothole count (u16 at offset `0x134` of the slot-34 block, §3.6) := the low 16
+     bits of `damagedCount`. Rail writes no pothole count, and sets `damagedCount` before the call rather than after
+     (the outcome is the same).
 
    **ApplyPotholeChanges(kind, delta)** (`0x00715FB0`; kind 1 road, 2 rail): the network part keeps, per kind, a
    set of intact cells and a set of damaged cells (SGI hash tables keyed by the u16 cell key `x << 8 | z`;

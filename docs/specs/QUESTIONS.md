@@ -1254,8 +1254,14 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   shipped tuning. Exactly: every switch's `load := r24(densityReduction × load)` with the volume-reset factor
   `0x29136788` (shipped 0), nothing else; counter 1 (`prevUsage`) and the ratio are CreateMaps' (§4.9 step 4). Use the
   factor, not a literal 0 (a tuning mod decays the load). Written into §4.8.
-- **TS4 — §3.1:** what do DoRoadChanged / DoRailChanged do on occupant messages? [on insert the cell joins the damage
-  block's intact set unless present; on remove it leaves]
+- ~~**TS4 — §3.1:** what do DoRoadChanged / DoRailChanged do on occupant messages? [on insert the cell joins the damage
+  block's intact set unless present; on remove it leaves]~~ **ANSWERED 2026-10-14** from the exe (`0x007155D0`,
+  `0x00715790`, `0x0070EA70`, dispatch `0x00724334`): the bracket holds for the sets, but not for the counts. Insert
+  adds the key and does `cellCount += 1` even when the key is already present. Remove erases from the intact set,
+  or else from the damaged set. A damaged removal does `damagedCount −= 1`, pothole count −= 1, and posts
+  `0x69247DC8 (x, z, 0)`. `cellCount −= 1` in every remove case. Highway and GroundHighway skip the sets; rail skips
+  them on a level crossing (Road/Street flag). A rail repair decrements the road pothole count *[quirk]*. The
+  per-type counts are bumped and the budgets refreshed. Written as traffic-simulator.md §3.6.
 - **TS5 — §3.1:** message `0x66956810` "marks the network as changed": which flag, and who rebuilds? [sets
   `network_changed`, consumed by the trip phases]
 - **TS6 — §3.1:** what does the network part do on neighbour added / removed? [nothing]
