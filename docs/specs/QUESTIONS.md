@@ -510,7 +510,10 @@ vectors `nb18_*`). The core's current answer is in brackets.
   2026-10-14** from the exe (`0x006CF360`): for a buy deal the original dereferences the missing regional city and
   **crashes** (`0x006CF386`); sell deals never use it. Skipping is kept as a *[choice]*. The test is `cost > budget`,
   and an affordable buy deal then goes on to the connection test (neighbors.md §7.3).
-- **NB16:** a missing payer at renewal counts as "cannot afford". [yes]
+- ~~**NB16:** a missing payer at renewal counts as "cannot afford". [yes]~~ **ANSWERED 2026-10-14** from the exe
+  (`0x006D13A5`): the original does not null-check the payer, but cannot reach the case. A sell deal with no
+  neighbour gets NoConnection earlier in the same pass; a buy deal with no `R` crashes in `UpdateState` first
+  (NB15). The bracket is kept as a *[choice]*, needed only because of the NB15 choice (neighbors.md §7.3).
 - **NB17:** the return types of `RequestCreateConnection` and `CreateConnection`. [choice: the request returns
   `ConnectionRequest`, `CreateConnection` the new connection or null]
 - Lane choices worth knowing: the proposal generator is per simulator, seeded `derive_seed(session, 0xC990C0A4)`

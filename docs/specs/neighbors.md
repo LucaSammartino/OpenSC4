@@ -503,6 +503,20 @@ as Julian days; "today" is the simulator date.
 `0x006CF386`. A sell deal never touches `R`. *[choice]* FreeCity4 skips the budget test and goes on to the
 connection test.
 
+**Renewal** (`0x006D1366`–`0x006D13C4`). The run clears Expired and picks the payer: `R` for a buy type, the
+other-side city for a sell type. It then calls `UpdateCost()` and compares the payer's `GetBudget()` with `cost`
+(as double). It sets CannotAfford when `budget < cost`, or when the budget is a NaN, and renews otherwise, equality
+included.
+
+*Missing payer* (NB16): the original calls `GetBudget` on the payer without a null check (`0x006D13A5`). The case is
+unreachable in the original:
+- A sell deal whose neighbour is missing gets NoConnection from step 1 of the same pass, which sends it to the
+  failure branch before renewal. Grace or Probation would also bypass renewal.
+- A buy deal without `R` has already crashed in step 1 (NB15).
+
+With FreeCity4's NB15 choice a buy deal can reach renewal without `R`. *[choice]* A missing payer counts as
+**cannot afford**: CannotAfford is set and the deal is not renewed.
+
 Consequences: a failing deal survives one grace period (90 days) during which failures are ignored, then a
 probation period (90 days) during which any failure ends it. Expired deals renew automatically for the same span
 if the payer can afford the updated cost. The checks in step 1 run every time; for **sell** deals the
