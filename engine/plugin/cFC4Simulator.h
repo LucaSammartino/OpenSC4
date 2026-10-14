@@ -111,7 +111,14 @@ public:
     static uint64_t TimerTsc(void* user);
     static void TimerPublish(void* user, float cyclesToMs, float msToCycles);
 
+    // Tooling: the turbo clock (FC4Turbo.h; not simulator.md). `untilJulian`
+    // 0 = no end date; `why` is a literal for the log line.
+    void SetTurbo(bool on, int32_t untilJulian, const char* why);
+
 private:
+    void TurboAfterTick();
+    void TurboMonthLine(int32_t julian);
+    void TurboResetReference(int32_t julian);
     fc4_tuning ReadTuning(uint32_t (&msPerDay)[3], size_t& msCount, float (&dilation)[5], size_t& dilCount);
     void RegisterCheats();
     void UnregisterCheats();
@@ -156,4 +163,9 @@ private:
     uint32_t postsLogged_ = 0;
     uint32_t dateCallsLogged_[3] = {0, 0, 0};
     std::map<std::pair<uintptr_t, uint32_t>, AgentStats> agentStats_;
+    // The turbo clock (tooling): nothing is polled or logged until it was on once.
+    bool turboUsed_ = false;
+    uint32_t turboRefMs_ = 0;      // HostNowMs at the last month line (or when switched on)
+    uint32_t turboRefTicks_ = 0;   // ticks_ then
+    int32_t turboRefJulian_ = 0;   // the date then
 };

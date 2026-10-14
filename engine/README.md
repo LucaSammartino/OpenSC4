@@ -413,6 +413,22 @@ plugin.
        `PostSystemServiceShutdown`, so it counts reference warnings from every subsystem's `Shutdown`. Its `julian`
        is the last day played. A quit that has not reached that hook in 90 s is `stalled`; a process still alive
        30 s after the verdict is terminated.
+   - **Turbo clock** (`sim_turbo = 1`, env `FC4_SIM_TURBO`; off by default; `plugin/FC4Turbo.h`; a *tooling
+     deviation* from simulator.md §5, our simulator only): days are no longer paced by msPerDay. The day gate's
+     `ready` (§5.2 step 3) is always true, so a day opens as soon as its agents have finished the previous one;
+     the frame budget is `sim_turbo_frame_ms` (env `FC4_SIM_TURBO_FRAME_MS`, 1..10000, default 250) at any
+     speed while running (the §5.1 value while paused); pause and hidden pause stop time as before.
+     `sim_turbo_until = YYYY-MM-DD` (env `FC4_SIM_TURBO_UNTIL`) switches it off at the first new day on or after
+     that date. Off, nothing changes (the conformance vectors all pass again with turbo configured off). Lines:
+
+     ```
+     simulator: turbo ON (sim_turbo = 1; tooling deviation from simulator.md section 5): days not paced by
+       msPerDay, frame budget 250 ms at any speed; until 2001-01-01 (julian 2451911)      (game start)
+     simulator: turbo ON (sim_turbo) at 2000-01-01: frame budget 250 ms, until 2001-01-01     (each city's Init)
+     simulator: turbo month 2000-02-01: 31 day(s) in 2.480 s real = 12.50 days/s, 4.03 fps (10 frames)
+     simulator: turbo OFF at 2001-01-01 (sim_turbo_until reached); days paced by msPerDay again
+     simulator: WARNING sim_turbo = 1 has no effect: our simulator is disabled (disable = simulator), ...
+     ```
    - **Clock probe** (`clock_probe = 1` or `2`, env `FC4_CLOCK_PROBE`; off by default; `plugin/FC4ClockProbe.h`):
      the M1 clock differential. From game start it logs every message the simulator posts (`CLOCK post day|week|
      month|year j=… c=…`, `CLOCK post pause|hidden|emergency|speed d1=…`), and at every city load it registers an

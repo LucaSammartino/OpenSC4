@@ -243,6 +243,10 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4GrowthProbeHook.cpp
         plugin/FC4GrowthProbeHook.h
         plugin/FC4GrowthProbeLogic.h
+        # The harness lane's tooling: sim_turbo, autotest_end_date, script.
+        plugin/FC4HarnessLogic.h
+        plugin/FC4Turbo.cpp
+        plugin/FC4Turbo.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -459,6 +463,15 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_growth_probe_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-growth-probe)
     set_tests_properties(plugin_ini_growth_probe_test PROPERTIES RUN_SERIAL TRUE)
+    # The harness lane (tooling): the pure logic (dates, rates, the script
+    # parser and scheduler), and sim_turbo on our simulator (FC4Turbo.h): off by
+    # default, the WARNING with `disable = simulator`, bad values, until a date.
+    add_executable(fc4_harness_logic_test tests/harness_logic_test.cpp)
+    target_include_directories(fc4_harness_logic_test PRIVATE plugin)
+    target_compile_options(fc4_harness_logic_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME harness_logic_test COMMAND fc4_harness_logic_test)
+    add_test(NAME plugin_ini_turbo_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-turbo)
+    set_tests_properties(plugin_ini_turbo_test PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

@@ -79,8 +79,9 @@ extern "C" {
  *      fc4_plumbing_shadow_city_start and fc4_plumbing_original.pass_counter (plumbing.md
  *      PS3, PS6); the landfill host's insert_landfill_tile and fc4_landfill_state's
  *      game_tiles / game_tile_failures (landfill.md LG3, LG8);
- * 34 = adds the zone manager (fc4_zones, zones.md) and its shadow mode (fc4_zones_create_shadow). */
-#define FC4_ABI_VERSION 34u
+ * 34 = adds the zone manager (fc4_zones, zones.md) and its shadow mode (fc4_zones_create_shadow);
+ * 41 = adds the turbo clock (tooling: fc4_sim_set_turbo / fc4_sim_get_turbo / fc4_sim_take_turbo_auto_off). */
+#define FC4_ABI_VERSION 41u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -4508,6 +4509,21 @@ fc4_neighbors* fc4_neighbors_shadow_create(const fc4_neighbors_shadow_input* inp
 /* A city of the snapshot as the shadow left it (false: not a shadow / unknown city). */
 bool fc4_neighbors_shadow_city_get(const fc4_neighbors* p, uint64_t city, fc4_neighbors_shadow_city* out);
 bool fc4_neighbors_shadow_get_counters(const fc4_neighbors* p, fc4_neighbors_shadow_counters* out);
+
+/* ---- turbo clock (tooling, not simulator.md; fc4_core::Turbo) --------------
+ * Tooling deviation for test runs (the plugin's sim_turbo). Off (the default)
+ * changes nothing. On: the day gate's "ready" (spec §5.2 step 3) is always true
+ * (the done[...] conditions still hold a day for its agents), and frameBudgetMs
+ * is `frame_ms` while neither paused nor hidden-paused (the §5.1 value
+ * otherwise). Pause and hidden pause stop time as without turbo.
+ * `until_julian` (0 = none): turbo turns itself off on the first new day on or
+ * after it, and clears it; fc4_sim_take_turbo_auto_off then returns that day
+ * once. Takes effect from the next tick. Always returns true for a live sim. */
+bool fc4_sim_set_turbo(fc4_sim* sim, bool on, uint32_t frame_ms, int32_t until_julian);
+/* Pointers may be NULL. False only for a NULL sim. */
+bool fc4_sim_get_turbo(const fc4_sim* sim, bool* on, uint32_t* frame_ms, int32_t* until_julian);
+/* The Julian day of the last automatic switch-off, once; 0 if none since the last call. */
+int32_t fc4_sim_take_turbo_auto_off(fc4_sim* sim);
 
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);

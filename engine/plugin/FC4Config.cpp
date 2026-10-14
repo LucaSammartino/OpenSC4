@@ -218,7 +218,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "residential_shadow", "residential_shadow_cells", "residential_seed",
                                   "zones_shadow",
                                   "neighbours_shadow", "neighbors_seed", "neighbors_two_curves",
-                                  "growth_probe"};
+                                  "growth_probe",
+                                  // the harness lane's tooling (FC4Turbo.h)
+                                  "sim_turbo", "sim_turbo_frame_ms", "sim_turbo_until"};
 
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

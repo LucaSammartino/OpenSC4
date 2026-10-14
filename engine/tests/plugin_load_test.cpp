@@ -7008,6 +7008,124 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
 
 }  // namespace
 
+// ---- the harness lane: sim_turbo (FC4Turbo.h) --------------------------------------------------------------
+
+// A day agent that finishes every delivery at once.
+class QuickDayAgent final : public cIGZMessageTarget2 {
+public:
+    uint32_t refs = 0;
+    uint32_t calls = 0;
+    int32_t lastJulian = 0;
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return refs > 0 ? --refs : 0; }
+    bool DoMessage(cIGZMessage2* msg) override {
+        ++calls;
+        lastJulian = static_cast<int32_t>(static_cast<cIGZMessage2Standard*>(msg)->GetData1());
+        return true;
+    }
+};
+
+// A child process: game start with one FreeCity4.ini (the settings are read once per process).
+int TurboChild(const std::string& dll, const std::string& ini, const std::string& scenario) {
+    if (scenario == "disabled") {
+        WriteTextFile(ini, "[subsystems]\ndisable = simulator\n[harness]\nsim_turbo = 1\nsim_turbo_until = 2001-01-01\n");
+    } else {  // bad values
+        WriteTextFile(ini, "[harness]\nsim_turbo = yes\nsim_turbo_frame_ms = 0\nsim_turbo_until = 2000-02-30\n");
+    }
+    HMODULE h = LoadLibraryA(dll.c_str());
+    if (h == nullptr) return 4;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(h, "GZDllGetGZCOMDirector"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    if (director == nullptr) return 5;
+    std::vector<uint32_t> classes;
+    director->EnumClassObjects(&CollectClass, &classes);  // game start: the configuration
+    FreeLibrary(h);
+    return 0;
+}
+
+int TurboIniTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_SIM_TURBO", nullptr);
+    SetEnvironmentVariableA("FC4_SIM_TURBO_FRAME_MS", nullptr);
+    SetEnvironmentVariableA("FC4_SIM_TURBO_UNTIL", nullptr);
+    DWORD ms = 0;
+    const std::string dllArg = "\"" + dll + "\" ";
+
+    // 1. disable = simulator: one WARNING, turbo never switched on.
+    CHECK(RunChild(dllArg + "--turbo-child-disabled", 30000, &ms) == 0);
+    std::string text = ReadFile(log);
+    CHECK(text.find("simulator: WARNING sim_turbo = 1 has no effect: our simulator is disabled (disable = simulator), "
+                    "the original's clock runs") != std::string::npos);
+    CHECK(CountOf(text, "turbo") == 1);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+
+    // 2. Bad values: reported, then the defaults (250 ms, no end date).
+    CHECK(RunChild(dllArg + "--turbo-child-bad", 30000, &ms) == 0);
+    text = ReadFile(log);
+    CHECK(text.find("simulator: WARNING sim_turbo_frame_ms=0 is not 1..10000; using 250") != std::string::npos);
+    CHECK(text.find("simulator: WARNING sim_turbo_until='2000-02-30' is not a date YYYY-MM-DD; turbo has no end date") !=
+          std::string::npos);
+    CHECK(text.find("simulator: turbo ON (sim_turbo = 1; tooling deviation from simulator.md section 5): days not "
+                    "paced by msPerDay, frame budget 250 ms at any speed; no end date") != std::string::npos);
+
+    // 3. In this process: speed 0 (5000 ms per day) with turbo until 2000-03-01:
+    // the 60 days to it at once, then no more within the test's ~0.5 s.
+    WriteTextFile(ini, "[harness]\nsim_turbo = 1\nsim_turbo_frame_ms = 50\nsim_turbo_until = 2000-03-01\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr);
+    if (director != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        cISC4Simulator* sim = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Simulator, kIID_cISC4Simulator, reinterpret_cast<void**>(&sim)));
+        if (sim != nullptr) {
+            CHECK(sim->Init());
+            CHECK(sim->GetSimSpeed() == 0);
+            CHECK(sim->HiddenResume());
+            QuickDayAgent agent;
+            CHECK(sim->AddAgent(&agent, cISC4Simulator::AgentTypeSimNewDay, cRZBaseString("turbo day agent"),
+                                static_cast<cISC4Simulator::eAgentFlags>(3)));
+            cIGZSystemService* service = nullptr;
+            CHECK(sim->QueryInterface(GZIID_cIGZSystemService, reinterpret_cast<void**>(&service)));
+            if (service != nullptr) {
+                const DWORD start = GetTickCount();
+                while (GetTickCount() - start < 500) service->OnTick(0);
+                service->Release();
+            }
+            std::printf("turbo: julian %d after ~500 ms at speed 0; agent called %u times\n", sim->GetSimDateNumber(),
+                        agent.calls);
+            CHECK(sim->GetSimDateNumber() == 2451605);  // 2000-03-01, not one day more
+            CHECK(agent.lastJulian == 2451605);
+            CHECK(sim->Shutdown());  // releases the agent
+            CHECK(agent.refs == 0);
+            sim->Release();
+        }
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    text = ReadFile(log);
+    CHECK(text.find("simulator: turbo ON (sim_turbo = 1; tooling deviation from simulator.md section 5): days not "
+                    "paced by msPerDay, frame budget 50 ms at any speed; until 2000-03-01 (julian 2451605)") !=
+          std::string::npos);
+    CHECK(text.find("simulator: turbo ON (sim_turbo) at 2000-01-01: frame budget 50 ms, until 2000-03-01") !=
+          std::string::npos);
+    CHECK(text.find("simulator: turbo month 2000-02-01: 31 day(s) in ") != std::string::npos);
+    CHECK(text.find(" days/s, ") != std::string::npos);
+    CHECK(CountOf(text, "simulator: turbo month") == 1);  // switched off on 2000-03-01 itself
+    CHECK(text.find("simulator: turbo OFF at 2000-03-01 (sim_turbo_until reached); days paced by msPerDay again") !=
+          std::string::npos);
+    CHECK(CountOf(text, "simulator: turbo OFF") == 1);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin turbo test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::fprintf(stderr, "usage: %s <FreeCity4.dll>\n", argv[0]);
@@ -7056,6 +7174,10 @@ int main(int argc, char** argv) {
     if (mode == "--saved-refs") return SavedRefsTest(dll, ini, log);
     // The growth calibration probe (building-development.md §12, seam op 39).
     if (mode == "--ini-growth-probe") return GrowthProbeIniTest(dll, ini, log);
+    // The harness lane: sim_turbo (FC4Turbo.h).
+    const std::string turboPrefix = "--turbo-child-";
+    if (mode.compare(0, turboPrefix.size(), turboPrefix) == 0) return TurboChild(dll, ini, mode.substr(turboPrefix.size()));
+    if (mode == "--ini-turbo") return TurboIniTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).
@@ -8817,6 +8939,9 @@ int main(int argc, char** argv) {
     CHECK(ForeignFault() == 1);
     CHECK(ForeignFaultX87() == 1);
     const std::string text = ReadFile(log);
+    // The harness switches are off by default: no turbo, no end date, no script (FC4Turbo.h).
+    CHECK(text.find("turbo") == std::string::npos);
+    CHECK(text.find("script:") == std::string::npos);
     CHECK(CountOf(text, "first-chance exception OUTSIDE FreeCity4.dll in fc4_plugin_load_test.exe+0x") == 3);
     CHECK(text.find("(report 2 of at most 2 for this address)") != std::string::npos);
     // ... with the x87 state at the fault (an empty stack here) and the raw

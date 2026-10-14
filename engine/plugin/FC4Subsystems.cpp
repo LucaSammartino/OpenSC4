@@ -49,6 +49,7 @@
 #include "cFC4ZoneManager.h"
 #include "FC4NeighborsShadow.h"
 #include "cFC4Neighbors.h"
+#include "FC4Turbo.h"  // the harness lane: sim_turbo
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -336,6 +337,8 @@ void Resolve() {
     ZonesShadowStartup(enabledKey("zones"));  // zones_shadow = 1 only
     // The neighbours shadow (FC4NeighborsShadow.h; it compares the original neighbours simulator).
     NeighborsShadowStartup(g_enabled[0], enabledKey("neighbors"));
+    // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
+    TurboReload(g_enabled[0]);
 }
 
 }  // namespace

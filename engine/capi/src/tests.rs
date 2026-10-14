@@ -386,3 +386,40 @@ fn a_second_thread_may_read_the_clock_while_a_tick_runs() {
     });
     unsafe { fc4_sim_destroy(sim.0) };
 }
+
+#[test]
+fn turbo_clock_through_the_abi() {
+    // Tooling (fc4_core::Turbo): days open without the msPerDay wait, `until`
+    // switches turbo off once and reports the day once.
+    let rec = Recorder::default();
+    rec.step.set(1);
+    let sim = make(&rec);
+    unsafe {
+        let mut on = true;
+        let mut frame_ms = 0u32;
+        let mut until = -1i32;
+        assert!(fc4_sim_get_turbo(sim, &mut on, &mut frame_ms, &mut until));
+        assert_eq!((on, frame_ms, until), (false, 250, 0));
+        assert!(!fc4_sim_get_turbo(std::ptr::null(), &mut on, &mut frame_ms, &mut until));
+        assert!(!fc4_sim_set_turbo(std::ptr::null_mut(), true, 250, 0));
+        assert_eq!(fc4_sim_take_turbo_auto_off(std::ptr::null_mut()), 0);
+
+        let name = "day";
+        assert!(fc4_sim_add_agent(sim, 7, 4, name.as_ptr() as _, name.len(), 3));
+        assert!(fc4_sim_init(sim, std::ptr::null())); // speed 0: msPerDay 5000
+        assert!(fc4_sim_on_post_city_init(sim));
+        let until_day = 2_451_545 + 20;
+        assert!(fc4_sim_set_turbo(sim, true, 100, until_day));
+        assert!(fc4_sim_get_turbo(sim, &mut on, std::ptr::null_mut(), &mut until));
+        assert_eq!((on, until), (true, until_day));
+        for _ in 0..5 {
+            fc4_sim_on_tick(sim);
+        }
+        assert_eq!(fc4_sim_get_julian_day(sim), until_day);
+        assert_eq!(fc4_sim_take_turbo_auto_off(sim), until_day);
+        assert_eq!(fc4_sim_take_turbo_auto_off(sim), 0);
+        assert!(fc4_sim_get_turbo(sim, &mut on, &mut frame_ms, &mut until));
+        assert_eq!((on, frame_ms, until), (false, 100, 0));
+        fc4_sim_destroy(sim);
+    }
+}
