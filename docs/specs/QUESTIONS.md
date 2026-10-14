@@ -1852,9 +1852,20 @@ About PR1–PR13, DQ3–DQ8 and PG4–PG13 as applied. The current answer is in 
 
 ## From the budget shadow (coordinator, run 86)
 
-- **BQ3 — budget.md, the monthly settlement total:** in run 86 (`regress rbc7f`), 30 of 31 months match. In
+- ~~**BQ3 — budget.md, the monthly settlement total:** in run 86 (`regress rbc7f`), 30 of 31 months match. In
   2028-08 every one of the twelve tax lines is equal (1762, 767, 123, 98, 101, 30, 83, 34, 0, 1547, 290, 0), but the
   total income is 4839 in the original and 4840 in ours (net 792/793). The lines sum to 4835, so the total is not
   their integer sum: it comes from unrounded values. Which values does the original add for the total (float
   per-lot sums, or per-line floats before display rounding), in which order and width, and how is the total
-  rounded? First seen in this run; runs 80–83 had none in 93–95 months. [ours as budget.md reads today]
+  rounded? First seen in this run; runs 80–83 had none in 93–95 months. [ours as budget.md reads today]~~
+  **ANSWERED 2026-10-14** from the exe (`ComputeTax` `0x00691E20`: sums at `0x0069205C`–`0x00692070`, truncations at
+  `0x006920B4`–`0x006920EB`) and written into budget.md §5.2 ("The total is not the sum of the lines", worked
+  example). **The bracket matches what budget.md already said, now stated exactly.** The total is a separate running
+  sum over the **per-lot** tax products, not over the lines or the group sums. Each lot's tax is added to `total`
+  first, then to its group's sum. Both are doubles in memory, but each `FADD` rounds to 24 bits, so they equal
+  `float32` running sums. The order is the lot manager's master list. The total is truncated toward zero
+  (`_ftol`, 64-bit), and so is each line. The lines drop their fractions and the total keeps them, hence 4835
+  against 4839. A one-simoleon difference with all twelve lines equal is the lot-order effect: the worked example's
+  four lots give 6567 in list order and 6566 reversed, with the same lines. Matching it exactly needs both the
+  master-list order (creation order for lots made since the load) and a total formed lot by lot, not from the
+  group sums. Which of the two ours lacks cannot be seen from the exe side.
