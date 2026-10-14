@@ -78,7 +78,7 @@ item is part of the class's save record (residential.md §3 and §9.1 are normat
 | Served counters ×2 | 0 | no | Population covered for the first time in the cycle (§4.4). They feed the history (§4.12). |
 | Grade totals ×2 (`float`) | 0 | no | Members `+0x314` (schools) and `+0x318` (hospitals). Accumulated by the EQ/HQ boost (§4.6) in states 6 and 8 (ComputeOccupantGrade gets their addresses, `0x006FFED3`, `0x00700053`), and reset at the start of state 0 (`0x006FF567`). **Never read** otherwise: these four are the only references in the class (`0x006F6E50`–`0x00700E90`), no interface slot returns them, and `Read`/`Write` skip them (RS13). They belong to this half; residential.md's frame only triggers the reset with the rest of state 0. |
 | Global auto-budget flags (schools, hospitals) | false, false | yes (version ≥ 7) | Slots 52–55 (§4.10). |
-| `cRZRandom` member | wall-clock seed at construction | no | Strike rolls and death's-door effect (foundations §6.2). |
+| `cRZRandom` member (`+0xB8`: `lcg` at `+0xB8`, `mul` at `+0xBC`) | wall-clock seed at construction | no | Strike rolls and death's-door effect (foundations §6.2). Every draw of this class is a double draw, which reads and advances only `mul` (RG6). |
 | Dirty flag | see residential.md §3 | yes (residential.md §9.1) | Set by the month message when the cycle is late, by every building add/remove and by `SetOccupantFundingPercentages`. **Never read** *[inferred: no reader in the class]*. |
 
 **Per-building state** is kept in the building's own property holder and saved with the building:
@@ -646,6 +646,12 @@ default 0).
   - name = "striking_health" when the department's message type is `0x077ACCD2`, otherwise
     "striking_education";
   - AL = 1. With no change, AL = 0.
+
+**Differential shadows** (RG6). The rolls come from the member generator, seeded from the clock (§2). There is no
+original behaviour to follow here; a shadow that does not reproduce them leaves the strike days, the city strike
+flags and anything that follows from them out of its comparison *[choice]*. A shadow that wants them can read the
+original object's `mul` word (`+0xBC`) just before state 0 and run the same double draws from it, since no other
+part of the generator is used.
 
 **BeginStrike(dept, occ)**: if the flag is set, AL = 0. Otherwise flag := true, start := today, post the strike
 message (§5), AL = 1.

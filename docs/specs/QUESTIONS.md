@@ -2161,8 +2161,11 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   **Confirmed; the bracket matches.** The class gets the lot from the lot manager and calls the same `GetCenter` as
   crime: it writes x, y (the lot's altitude) and z, returns the output's address in EAX and leaves the x87 stack
   empty. Without a lot it uses the occupant's `GetPosition`.
-- **RG6:** the shadow cannot reproduce the original's clock-seeded strike rolls in state 0. [those fields are not
-  compared]
+- ~~**RG6:** the shadow cannot reproduce the original's clock-seeded strike rolls in state 0. [those fields are not
+  compared]~~ **ANSWERED 2026-10-14** from the exe (generator at `+0xB8`, constructor `0x007005AA`) and written into
+  REH §2 (the `cRZRandom` row) and §4.9. **No original behaviour; the implementer's choice stands.** Every draw of the
+  class is a double draw, which uses only `mul` (`+0xBC`). A shadow that reads that word from the original object
+  before state 0 could reproduce the rolls, if it ever wants to compare them.
 - **RG7:** does the original re-read ordinance effects outside state 0? [the shadow re-reads them]
 - **RG8:** slots 21/22 called off the main thread create grids through GZCOM. Allowed? [yes]
 - **RG9:** setters off the main thread: deferred, and `EndStrike` off the main thread returns the published flag?
