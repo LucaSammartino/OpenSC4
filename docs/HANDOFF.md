@@ -139,9 +139,13 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >     64 m index query of FQ15, inherited flora properties); ABI 30 / seam op 35 if needed;
 >   - **land value grid references after a save** (`FC4_RELEASE_CREATED` or the shared host grids; audit of every
 >     glue's Read → Shutdown references; seam op 36 if needed);
->   - RE `re-answers5` (TS1–TS34, PW1–PW8, PS1–PS8, LG1–LG20) and `re-answers6` (LV1–LV4, FL1–FL6, DQ10–DQ12,
->     CQ16–CQ22, TN21–TN25, HG1, the crime errata; then RG, TN26–28, ZQ11–12, LF6, NB18, EX21–33). RE `re-answers4`
->     is merged (`79d619c`; its `docs/abi` rows in `83aa768`).
+>   - **`apply6a`**: TS1–TS34 into the traffic simulator core (`ts11_*` vectors; core only, no glue; ABI 32 only if
+>     unavoidable);
+>   - **`apply6b`**: PW1–PW8, PS1–PS8, LG1–LG20 into the power, plumbing and landfill cores, glue and shadows (the
+>     PW8/PW3/PS4/PS8 shadow comparisons; LG2/LG3 landfill texture and tile exemplar; ABI 33, seam op 37 if needed);
+>   - RE `re-answers6` (LV1–LV4, FL1–FL6, DQ10–DQ12, RG23, BQ3, CQ16–CQ22, TN21–TN25, HG1, the crime errata; then
+>     RG, TN26–28, ZQ11–12, LF6, NB18, EX21–33). RE `re-answers4` is merged (`79d619c`; its `docs/abi` rows in
+>     `83aa768`); RE `re-answers5` is merged (`fdc6893`; its `docs/abi` rows in `a9eef99`).
 >   Merge order rule: merge one lane, then have the next lane `git merge main` itself (it knows its files), then
 >   gate its worktree; renumber ABI/seam ops/switch counts at that point. If `git merge-tree` shows no conflict,
 >   the coordinator may merge main into the lane's worktree itself and gate that.
