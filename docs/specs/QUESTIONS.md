@@ -2863,7 +2863,10 @@ developer stays original). The current answer is in brackets.
   and written into zones §5.1. It runs at once. The InsertOccupant is delivered synchronously, so a network occupant
   inserted during a `PlaceZone` commit (for example a street drawn by the parcelling) runs the dezone `PlaceZone` nested
   inside it. The original counts nothing; the counting is glue, the implementer's choice.
-- **ZG7:** When are `outLots` inserted? [at the pricing call]
+- ~~**ZG7:** When are `outLots` inserted? [at the pricing call]~~
+  **ANSWERED 2026-10-14** from the exe (`PlaceZone` `0x004DDC94`–`0x004DDCC6`, after the pricing `DemolishLots`
+  at `0x004DDC75`) and written into zones §6. The lots are inserted right after the pricing call, before the landfill
+  cost and the funds test, so also on a dry run, after an abort and on error 1. The bracket matches.
 - **ZG8:** What is released after a failed `Read`? [the grid, at Shutdown or destruction]
 - **ZG9:** Glue behaviour with switches off or calls from another thread. [`zones_budget` off: unlimited funds,
   nothing charged; no budget simulator: funds 0, withdraw false; PlaceZone from another thread without the lock:

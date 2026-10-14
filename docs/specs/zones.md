@@ -385,7 +385,9 @@ Notes *[compat]*:
   accepted: a ZoningChange is posted and the developer re-parcels it.
 - The demolition utility (`0x00B43D00`) is called twice; the first call (`false`) only prices the lots.
 - The input region is modified (rejected bits cleared). `outLots` is a `std::set` of lots (B nodes); inserted
-  elements are AddRef'd (allocator rows: §13.2).
+  elements are AddRef'd (allocator rows: §13.2). The set is filled right after the pricing call (ZG7,
+  `0x004DDC94`–`0x004DDCC6`), before the landfill cost and the funds test: also on a dry run, after an abort and
+  when the call then fails with error 1.
 
 Callers relevant to growth: the zone manager's own dezone (§5.1); the BDS `DoTerrainChanged`
 (`building-development.md` §4.11: `PlaceZone(region, 0, true, kind ∈ {1, 2}, false, true, true, null, null, null)`).
