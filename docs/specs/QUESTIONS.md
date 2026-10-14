@@ -2909,9 +2909,12 @@ developer stays original). The current answer is in brackets.
   `outLots` is skipped. It writes only the caller's region, the occupant manager's shared filter type and the
   demolition utility's scratch fields. `CanRemove` is the SDK name and a pure query of a removal counter. The bracket
   matches. Not every callee of the pricing pass was traced.
-- **ZG15:** Dry-run sample regions and flags (the spec names no UI caller). [four seeded regions: 1×1 checkSlope with
+- ~~**ZG15:** Dry-run sample regions and flags (the spec names no UI caller). [four seeded regions: 1×1 checkSlope with
   size check, 2×3 checkSlope without size check and a lot inside, 4×4 the building-development form, 7×3 checkerboard
-  without flags]
+  without flags]~~
+  **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. The original's own callers of
+  `PlaceZone` in this spec (the dezone, §5.1; the BDS, §6) both commit. The UI zoning tool, not traced, is the likely
+  dry-run caller; tracing its calls to slot 11 would show which flags it uses.
 - **ZG16:** Are `*outCost` and `*outError` written on an early size-check failure? [the shadow fills the original's
   with 0 first; our core writes 0]
 - ~~**ZG17 — zones §6, in game (regress rzones, coordinator):** the zones shadow's 1×1 PlaceZone dry run (checkSlope,
