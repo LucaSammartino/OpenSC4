@@ -182,8 +182,12 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
         case ScriptOp::Pause:
         case ScriptOp::Resume: result = RunSimulator(a, city); break;
         case ScriptOp::Turbo:
-            result = TurboScriptSet(a.on) ? (a.on ? "turbo on" : "turbo off")
-                                          : "no effect: our simulator is not running (disable = simulator?)";
+            switch (TurboScriptSet(a.on)) {
+                case TurboScriptResult::On: result = "turbo on"; break;
+                case TurboScriptResult::Held: result = "turbo requested: held until the city's ConnectionsReady"; break;
+                case TurboScriptResult::Off: result = "turbo off"; break;
+                default: result = "no effect: our simulator is not running (disable = simulator?)"; break;
+            }
             break;
         case ScriptOp::Digest:
             result = "the DIGEST line follows";

@@ -114,8 +114,16 @@ public:
     // Tooling: the turbo clock (FC4Turbo.h; not simulator.md). `untilJulian`
     // 0 = no end date; `why` is a literal for the log line.
     void SetTurbo(bool on, int32_t untilJulian, const char* why);
+    // A turbo request: engaged now if this city load has seen ConnectionsReady,
+    // else held until it (or sim_turbo_wait_days game days). True if engaged now.
+    bool RequestTurbo(int32_t untilJulian, const char* why);
+    // Drops a held request; false if none was held.
+    bool DropHeldTurbo(const char* why);
+    // The observer saw ConnectionsReady: the city is ready; engages a held request.
+    void TurboCityReady();
 
 private:
+    void EngageHeldTurbo(bool fallback);
     void TurboAfterTick();
     void TurboMonthLine(int32_t julian);
     void TurboResetReference(int32_t julian);
@@ -168,4 +176,10 @@ private:
     uint32_t turboRefMs_ = 0;      // HostNowMs at the last month line (or when switched on)
     uint32_t turboRefTicks_ = 0;   // ticks_ then
     int32_t turboRefJulian_ = 0;   // the date then
+    // The hold until the city is ready (FC4Turbo.h): reset at each Init.
+    bool cityReady_ = false;          // this load's first ConnectionsReady was seen
+    bool turboHeld_ = false;          // a request waits for it
+    int32_t turboHeldUntil_ = 0;      // its end date (0 = none)
+    int32_t turboHeldSince_ = 0;      // the date of the request (the fallback counts from it)
+    const char* turboHeldWhy_ = "";   // a literal: sim_turbo, script, ...
 };

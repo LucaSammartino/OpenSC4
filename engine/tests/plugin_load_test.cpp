@@ -7503,7 +7503,8 @@ int TurboChild(const std::string& dll, const std::string& ini, const std::string
     if (scenario == "disabled") {
         WriteTextFile(ini, "[subsystems]\ndisable = simulator\n[harness]\nsim_turbo = 1\nsim_turbo_until = 2001-01-01\n");
     } else {  // bad values
-        WriteTextFile(ini, "[harness]\nsim_turbo = yes\nsim_turbo_frame_ms = 0\nsim_turbo_until = 2000-02-30\n");
+        WriteTextFile(ini, "[harness]\nsim_turbo = yes\nsim_turbo_frame_ms = 0\nsim_turbo_until = 2000-02-30\n"
+                           "sim_turbo_wait_days = -1\n");
     }
     HMODULE h = LoadLibraryA(dll.c_str());
     if (h == nullptr) return 4;
@@ -7541,17 +7542,25 @@ int TurboIniTest(const std::string& dll, const std::string& ini, const std::stri
           std::string::npos);
     CHECK(text.find("simulator: turbo ON (sim_turbo = 1; tooling deviation from simulator.md section 5): days not "
                     "paced by msPerDay, frame budget 250 ms at any speed; no end date") != std::string::npos);
+    CHECK(text.find("simulator: WARNING sim_turbo_wait_days=-1 is not 0..3650; using 30") != std::string::npos);
+    CHECK(text.find("; engages at each city's first ConnectionsReady, or after 30 game day(s) without it "
+                    "(sim_turbo_wait_days)") != std::string::npos);
 
-    // 3. In this process: speed 0 (5000 ms per day) with turbo until 2000-03-01:
-    // the 60 days to it at once, then no more within the test's ~0.5 s.
-    WriteTextFile(ini, "[harness]\nsim_turbo = 1\nsim_turbo_frame_ms = 50\nsim_turbo_until = 2000-03-01\n");
+    // 3. In this process: speed 0 (5000 ms per day) with turbo until 2000-03-01.
+    // The request at Init is HELD (days paced as usual) until the city's first
+    // ConnectionsReady reaches the observer; then the 60 days to 2000-03-01 at
+    // once, and no more within the test's ~0.5 s.
+    WriteTextFile(ini, "[harness]\nsim_turbo = 1\nsim_turbo_frame_ms = 50\nsim_turbo_until = 2000-03-01\n"
+                       "sim_turbo_wait_days = 3\n");
     HMODULE hd = LoadLibraryA(dll.c_str());
     CHECK(hd != nullptr);
     if (hd == nullptr) return 1;
     auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
     cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
-    CHECK(director != nullptr);
-    if (director != nullptr) {
+    CHECK(director != nullptr && seam != nullptr);
+    std::string held;  // the log after the city became ready (before the second load)
+    if (director != nullptr && seam != nullptr) {
         std::vector<uint32_t> classes;
         director->EnumClassObjects(&CollectClass, &classes);
         cISC4Simulator* sim = nullptr;
@@ -7566,33 +7575,76 @@ int TurboIniTest(const std::string& dll, const std::string& ini, const std::stri
             cIGZSystemService* service = nullptr;
             CHECK(sim->QueryInterface(GZIID_cIGZSystemService, reinterpret_cast<void**>(&service)));
             if (service != nullptr) {
-                const DWORD start = GetTickCount();
+                // a. Held: ~300 ms of ticks at 5000 ms per day: no day passes.
+                DWORD start = GetTickCount();
+                while (GetTickCount() - start < 300) service->OnTick(0);
+                const int32_t heldJulian = sim->GetSimDateNumber();
+                std::printf("turbo: julian %d after ~300 ms held (before ConnectionsReady)\n", heldJulian);
+                CHECK(heldJulian < 2451547);
+                // b. ConnectionsReady 0x6AC284F3 reaches the observer: turbo engages.
+                seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(0x6AC284F3u)), nullptr);
+                start = GetTickCount();
                 while (GetTickCount() - start < 500) service->OnTick(0);
+                // A second ConnectionsReady of the same load changes nothing.
+                seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(0x6AC284F3u)), nullptr);
                 service->Release();
             }
-            std::printf("turbo: julian %d after ~500 ms at speed 0; agent called %u times\n", sim->GetSimDateNumber(),
-                        agent.calls);
+            std::printf("turbo: julian %d after ConnectionsReady and ~500 ms at speed 0; agent called %u times\n",
+                        sim->GetSimDateNumber(), agent.calls);
             CHECK(sim->GetSimDateNumber() == 2451605);  // 2000-03-01, not one day more
             CHECK(agent.lastJulian == 2451605);
             CHECK(sim->Shutdown());  // releases the agent
             CHECK(agent.refs == 0);
+            held = ReadFile(log);
+
+            // c. A second city load where ConnectionsReady never comes: held
+            // again, then the fallback after sim_turbo_wait_days = 3 game days
+            // (speed 2: 100 ms per day), with a WARNING.
+            CHECK(sim->Init());
+            CHECK(sim->HiddenResume());
+            CHECK(sim->SetSimSpeed(2));
+            const int32_t reloadJulian = sim->GetSimDateNumber();
+            if (sim->QueryInterface(GZIID_cIGZSystemService, reinterpret_cast<void**>(&service)) && service) {
+                const DWORD start = GetTickCount();
+                while (GetTickCount() - start < 1500) service->OnTick(0);
+                service->Release();
+            }
+            std::printf("turbo: second load: julian %d -> %d without ConnectionsReady\n", reloadJulian,
+                        sim->GetSimDateNumber());
+            CHECK(sim->GetSimDateNumber() >= reloadJulian + 3);
+            CHECK(sim->Shutdown());
             sim->Release();
         }
     }
     FreeLibrary(hd);
     DeleteFileA(ini.c_str());
+    CHECK(held.find("simulator: turbo ON (sim_turbo = 1; tooling deviation from simulator.md section 5): days not "
+                    "paced by msPerDay, frame budget 50 ms at any speed; until 2000-03-01 (julian 2451605); engages at "
+                    "each city's first ConnectionsReady, or after 3 game day(s) without it (sim_turbo_wait_days)") !=
+          std::string::npos);
+    // The ordering: requested (held) at Init, ON only after ConnectionsReady, once.
+    const size_t requested = held.find("simulator: turbo requested (sim_turbo) at 2000-01-01: held, days paced by "
+                                       "msPerDay, until the city's first ConnectionsReady (or 3 game day(s) without "
+                                       "it, sim_turbo_wait_days)");
+    const size_t engaged =
+        held.find("simulator: turbo ON at 2000-01-01 (after ConnectionsReady; sim_turbo): frame budget 50 ms, until "
+                  "2000-03-01");
+    CHECK(requested != std::string::npos);
+    CHECK(engaged != std::string::npos);
+    CHECK(requested < engaged);
+    CHECK(CountOf(held, "(after ConnectionsReady") == 1);
+    CHECK(held.find("turbo ON (sim_turbo) at") == std::string::npos);  // never engaged at Init
+    CHECK(held.find("simulator: WARNING no ConnectionsReady") == std::string::npos);
+    CHECK(held.find("simulator: turbo month 2000-02-01: 31 day(s) in ") != std::string::npos);
+    CHECK(held.find(" days/s, ") != std::string::npos);
+    CHECK(CountOf(held, "simulator: turbo month") == 1);  // switched off on 2000-03-01 itself
+    CHECK(held.find("simulator: turbo OFF at 2000-03-01 (sim_turbo_until reached); days paced by msPerDay again") !=
+          std::string::npos);
+    CHECK(CountOf(held, "simulator: turbo OFF") == 1);
     text = ReadFile(log);
-    CHECK(text.find("simulator: turbo ON (sim_turbo = 1; tooling deviation from simulator.md section 5): days not "
-                    "paced by msPerDay, frame budget 50 ms at any speed; until 2000-03-01 (julian 2451605)") !=
-          std::string::npos);
-    CHECK(text.find("simulator: turbo ON (sim_turbo) at 2000-01-01: frame budget 50 ms, until 2000-03-01") !=
-          std::string::npos);
-    CHECK(text.find("simulator: turbo month 2000-02-01: 31 day(s) in ") != std::string::npos);
-    CHECK(text.find(" days/s, ") != std::string::npos);
-    CHECK(CountOf(text, "simulator: turbo month") == 1);  // switched off on 2000-03-01 itself
-    CHECK(text.find("simulator: turbo OFF at 2000-03-01 (sim_turbo_until reached); days paced by msPerDay again") !=
-          std::string::npos);
-    CHECK(CountOf(text, "simulator: turbo OFF") == 1);
+    CHECK(CountOf(text, "simulator: turbo requested (sim_turbo) at ") == 2);  // one per city load
+    CHECK(text.find("simulator: WARNING no ConnectionsReady within 3 game day(s) of the turbo request (sim_turbo); "
+                    "turbo ON at ") != std::string::npos);
     CHECK(text.find("config: WARNING unknown key") == std::string::npos);
     if (g_failures == 0) std::printf("plugin turbo test: all checks passed\n");
     return g_failures == 0 ? 0 : 1;
@@ -7771,8 +7823,10 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
     newDay(2451550);
     CHECK(sim->GetSimSpeed() == 2);
     CHECK(!sim->IsPaused());
-    // 2000-01-07 / 08: turbo on, turbo off and the digest.
+    // 2000-01-07: turbo on, held: this city load has not seen ConnectionsReady;
+    // it engages when ConnectionsReady comes. 2000-01-08: turbo off, the digest.
     newDay(2451551);
+    seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(0x6AC284F3u)), nullptr);
     newDay(2451552);
     std::string text = ReadFile(log);
     const size_t linesBefore = CountOf(text, "script: line ");
@@ -7821,8 +7875,11 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
         "script: line 8 2000-01-06 speed 2 -> SetSimSpeed(2) = 1; speed 0 -> 2",
         "script: line 9 2000-01-06 pause -> Pause() = 1; paused=1",
         "script: line 10 2000-01-06 resume -> Resume() = 1; paused=0",
-        "simulator: turbo ON (script) at ",  // our simulator's line, then the script's
-        "script: line 11 2000-01-07 turbo on -> turbo on",
+        // our simulator's line, then the script's
+        "simulator: turbo requested (script) at 2000-01-01: held, days paced by msPerDay, until the city's first "
+        "ConnectionsReady (or 30 game day(s) without it, sim_turbo_wait_days)",
+        "script: line 11 2000-01-07 turbo on -> turbo requested: held until the city's ConnectionsReady",
+        "simulator: turbo ON at 2000-01-01 (after ConnectionsReady; script): frame budget 250 ms, until none",
         "simulator: turbo OFF (script) at ",
         "script: line 12 2000-01-08 turbo off -> turbo off",
         "script: line 13 2000-01-08 digest -> the DIGEST line follows",

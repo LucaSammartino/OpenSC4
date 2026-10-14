@@ -26,6 +26,7 @@
 #include "FC4ProtectionShadow.h"
 #include "FC4Script.h"
 #include "FC4Subsystems.h"
+#include "FC4Turbo.h"
 #include "FC4Watchdog.h"
 #include "FC4ZonesShadow.h"
 #include "cFC4ZoneManager.h"
@@ -541,6 +542,9 @@ public:
                 break;
             case kMsgConnectionsReady:
                 PopupDialogsOnConnectionsReady();
+                // Then (popup dialogs handled first) a held turbo request may
+                // engage (FC4Turbo.h; tooling).
+                TurboOnConnectionsReady();
                 break;
             case kMsgAuraCycleCompleted:
                 AuraShadowCycle(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // aura_shadow = 1 only

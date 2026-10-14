@@ -462,12 +462,22 @@ plugin.
      the frame budget is `sim_turbo_frame_ms` (env `FC4_SIM_TURBO_FRAME_MS`, 1..10000, default 250) at any
      speed while running (the §5.1 value while paused); pause and hidden pause stop time as before.
      `sim_turbo_until = YYYY-MM-DD` (env `FC4_SIM_TURBO_UNTIL`) switches it off at the first new day on or after
-     that date. Off, nothing changes (the conformance vectors all pass again with turbo configured off). Lines:
+     that date. Off, nothing changes (the conformance vectors all pass again with turbo configured off).
+     After each city load the request (from `sim_turbo` or the script's `turbo on`) is **held**, days paced as
+     usual, until that load's first `ConnectionsReady` `0x6AC284F3` reaches the observer (after `popup_dialogs`
+     has handled it: the first in-game turbo run reached an advisor dialog before `ConnectionsReady`, so
+     `popup_dialogs = 0` came too late and the dialog's hidden pause held the city). If it never comes, the request
+     engages after `sim_turbo_wait_days = N` game days (env `FC4_SIM_TURBO_WAIT_DAYS`, 0..3650, default 30; 0 = no
+     fallback) with a WARNING. Lines:
 
      ```
      simulator: turbo ON (sim_turbo = 1; tooling deviation from simulator.md section 5): days not paced by
        msPerDay, frame budget 250 ms at any speed; until 2001-01-01 (julian 2451911)      (game start)
-     simulator: turbo ON (sim_turbo) at 2000-01-01: frame budget 250 ms, until 2001-01-01     (each city's Init)
+     simulator: turbo requested (sim_turbo) at 2000-01-01: held, days paced by msPerDay, until the city's first
+       ConnectionsReady (or 30 game day(s) without it, sim_turbo_wait_days)                    (each city's Init)
+     simulator: turbo ON at 2000-01-03 (after ConnectionsReady; sim_turbo): frame budget 250 ms, until 2001-01-01
+     simulator: WARNING no ConnectionsReady within 30 game day(s) of the turbo request (sim_turbo); turbo ON at …
+       anyway (sim_turbo_wait_days): …                                                       (the fallback)
      simulator: turbo month 2000-02-01: 31 day(s) in 2.480 s real = 12.50 days/s, 4.03 fps (10 frames)
      simulator: turbo OFF at 2001-01-01 (sim_turbo_until reached); days paced by msPerDay again
      simulator: WARNING sim_turbo = 1 has no effect: our simulator is disabled (disable = simulator), ...
@@ -487,7 +497,7 @@ plugin.
      | `pricezone x0 z0 x1 z1 type` | the same with commit = 0 (a dry run) |
      | `dezone x0 z0 x1 z1` | the same with type 0, commit = 1 |
      | `speed 0\|1\|2`, `pause`, `resume` | the city simulator's `SetSimSpeed` / `Pause` / `Resume` (one call) |
-     | `turbo on\|off` | our simulator's turbo clock (`sim_turbo_frame_ms`, no end date); no effect with `disable = simulator` |
+     | `turbo on\|off` | our simulator's turbo clock (`sim_turbo_frame_ms`, no end date); `on` before the city's first `ConnectionsReady` is held until it (`-> turbo requested: held …`), `off` also drops a held request; no effect with `disable = simulator` |
      | `digest` | the observer's `DIGEST` line, now |
      | `mark <text>` | a log line |
 
