@@ -697,7 +697,18 @@ first trip's type.
 * `N := float(count)`; `Nc := N`, or with the Carpool ordinance (`0xA2BF1DDC`) on,
   `Nc := float32(ceil(double(r24(N × 0.8f))))`. Car (travel type 1) uses `Nc`, all others `N`. `Q` = that value,
   `Qi := round(Q)`.
-* For each route cell `(x, z, t)` in city:
+* The **start rect** `R` is `sourceRect` in modes 0 and 2. In mode 1 it is the bounding rect (lot slot 14) of the lot
+  at `(destX, destZ)` when that cell is in the city and holds a lot (`GetLot(x, z, false)`), else the single cell
+  `(destX, destZ)`. `I` (income) and `fees` start at 0.
+* **Ferry leg from a neighbour, at the first cell** (TS16, `0x00719A4E`–`0x00719B29`). Let `(x, z)` be the first
+  route cell. If exactly one of "`x = x0 − 1` or `x = x1 + 1`" and "`z = z0 − 1` or `z = z1 + 1`" holds (`R` =
+  `(x0, z0, x1, z1)`; the other coordinate is not compared with the rect), `(x, z)` is the arrival cell of a terminal
+  `T` (traffic-network.md §2.6), and `T` has a neighbour link whose off-map cell or edge cell is `(x0, z0)`: that
+  link's counters are bumped by mode as in step 4 below, and `I := r24(Q × ferryFare)`, with `Q` of the first cell's
+  travel type. This is the crossing from a neighbour city into the city, whose departure cell is not on the route.
+  It is a store, not an add, which is harmless since `I` is still 0. `T`'s riders are not counted.
+* For each route cell `(x, z, t)`, steps 1–4 only when the cell is in the city and step 5 for every cell, off-map cells
+  included (`0x00719C06`):
   1. **Volume**: if the cell has network info for transit network `network(t)` (pathfinder.md §4.1) and
      `generatesTraffic[t]`: `vol := r24(vol + Q)`; mode 2 adds a second time, `vol := r24(vol + Q)`.
   2. **Transit switch**: when the cell's switch ID (switch map) differs from the last one seen on this route and is
@@ -715,8 +726,27 @@ first trip's type.
      **Mode 2 also adds `Qi` to the record with key `1 << 24 | t << 16 | x << 8 | z` at index `4o + e`** (the mirrored
      direction) *[compat]*. The pathfinder's `ApplyTraffic` (pathfinder.md §4.17, no known caller) mirrors the same
      way (corrected by PF2).
-  4. **Ferry legs**: a step across a ferry link adds `round(Q)` to the link's counters (by mode) and
-     `r24(Q × ferryFare)` to the fares *[inferred: counter meaning, traffic-network.md]*.
+  4. **Ferry legs** (TS16, `0x00719E8F`–`0x0071A054`): only at a cell that is not the last, when the **next** route
+     record has the jump flag (pathfinder.md §4.15) and the cell is the departure cell of a terminal `T`
+     (traffic-network.md §2.6). Then:
+     - `T`'s current riders `+= Qi`, twice in mode 2;
+     - `I := r24(I + r24(Q × ferryFare))`, once in every mode. The fare is income, not a fee;
+     - if the next cell is the arrival cell of a terminal `T2`: `L :=` `T`'s terminal link keyed by `T2`'s departure
+       cell. Mode 0: `L.currentA += Qi`. Mode 1: `L.currentB += Qi`. Mode 2: `L.currentA += Qi`, and `T2`'s link
+       keyed by `T`'s departure cell gets `currentB += Qi`, the reverse crossing. The reverse link is looked up even
+       when `L` is missing; a missing link is skipped;
+     - otherwise `T`'s neighbour link whose off-map cell or edge cell is the next cell gets `currentA += Qi` (mode
+       0), `currentB += Qi` (mode 1) or both (mode 2); none, nothing.
+
+     The counters are u16 and wrap; unlike the edge densities they are not clamped. A is the outbound-leg count and B
+     the return-leg count, each in the link's own direction. On a crossing to a neighbour the next record holds the
+     connection's in-city edge cell, because the route writes an off-map node that way (pathfinder.md §4.15), so the
+     neighbour link is found by its edge cell. The arrival table is tried first, so an edge cell that is also some
+     terminal's arrival cell counts on a terminal link instead.
+
+     Example, mode 2: 30 pedestrians (`Q = 30.0`, `Qi = 30`) cross from terminal A to terminal B with the shipped
+     fare 0.01. A's current riders `+= 60`; `I += r24(30 × 0.01f)` = 0.29999998; A's link to B gets `currentA +=
+     30`; B's link to A gets `currentB += 30`.
   5. **Income**: `I := r24(I + r24(Q × incomePerTile[t]))`.
 * At the last cell, unless mode 1: `ApplyTrafficToDestination(count, destX, destZ, lastTravelType, type)` (§4.2).
 * Finally `incomeAcc := incomeAcc + I` and `feeAcc := feeAcc + fees` (doubles, the additions rounded to 24 bits).

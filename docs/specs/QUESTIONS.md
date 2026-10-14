@@ -1338,8 +1338,13 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   ApplyRoute charges `r24(Q × toll)` into the fees (`0x00719CCC`), which become the toll income. Shipped only on the
   four toll booths (0.1). The saved f32 after the rules is this value. Written into traffic-simulator.md §4.5, §6.1
   and traffic-network.md §2.4.
-- **TS16 — §4.5:** the ferry-leg counters? [round(Q) to counter 1 (mode 0), 2 (mode 1) or both (mode 2), on the
-  departure terminal's link to that cell, else its neighbour link]
+- ~~**TS16 — §4.5:** the ferry-leg counters? [round(Q) to counter 1 (mode 0), 2 (mode 1) or both (mode 2), on the
+  departure terminal's link to that cell, else its neighbour link]~~ **ANSWERED 2026-10-14** from the exe
+  (`0x00719E8F`–`0x0071A054`): partly. Neighbour links are as bracketed (current A, current B, both). On a terminal
+  link, mode 2 adds current A to the forward link and current B to the other terminal's link back. The departure
+  terminal's riders also get `Qi` (twice in mode 2). The fare goes to the income, not the fees. The u16 counters
+  wrap. A crossing in from a neighbour is counted at the first cell (`0x00719A4E`). Written into
+  traffic-simulator.md §4.5 and traffic-network.md §2.6.
 - **TS17 — §4.4:** a highway-return adjustment for an off-map destination? [none]
 - **TS18 — §4.2:** when is the capacity property promoted from u16 to u32? [u16 until a value reaches 0xFFFF]
 - **TS19:** does the pathfinder adapter's GetLot match any cell of a lot? [yes (`false`)]

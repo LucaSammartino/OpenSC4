@@ -229,7 +229,8 @@ The tunnel table is keyed by the portal's cell key. Each record holds:
 - B's arrival cell (x2, z2) as two u16;
 - cost: f32 = `r24(cells × 0.01)`;
 - route: `vector<u8>` water route A → B (§4.10.3);
-- four u16 usage counters: (last, current) for two counts.
+- four u16 usage counters, in this order: last A, current A, last B, current B. A counts outbound-leg crossings and B
+  return-leg crossings in the link's direction (traffic-simulator.md §4.5, TS16).
 
 **NeighborLink**:
 
@@ -238,7 +239,8 @@ The tunnel table is keyed by the portal's cell key. Each record holds:
 - cost: f32, as for terminal links;
 - route to the edge: `vector<u8>`;
 - route from the edge: `vector<u8>`;
-- four u16 usage counters.
+- four u16 usage counters, ordered and counted as for terminal links (both directions of the crossing count on the
+  one link).
 
 The pathfinder uses these as follows (pathfinder.md §4.8.3):
 
