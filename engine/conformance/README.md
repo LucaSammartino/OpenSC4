@@ -1809,6 +1809,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | §11.3 nearest crime sim / prop | `c17_20_nearest` |
 | §6.8 arson | `c17_21_arson` |
 | §7 type names (CQ8: LTEXT key, U+2022, fallback) | `c17_24_type_names` |
+| §7 name and icon keys of other value types: the first 12 data bytes as three u32 (CQ23) | `c17_26_type_key_raw_bytes` |
 
 ## Coverage (aura §17)
 
