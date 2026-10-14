@@ -453,6 +453,32 @@ original stores, and it is not observable as different from an empty array. Both
 pointer (§5.2), and `GetCount()` is 0 for a scalar. So the lot gets **no** wealth or purpose types.
 `Uint8:1:{}` would instead give one type, 0.
 
+**Writing text** (EX32). The exemplar factory's `SerialWrite` (`0x00680030`) writes the text form when the
+factory's write-mode byte is non-zero and the binary form when it is 0. The factory's constructor sets it to 1
+(`0x0067E373`); slot 12 (`0x0067CB10`) changes it, and a pattern search found no caller *[inferred: callers not
+fully traced]*. So whenever the game writes an exemplar (foundations §10.3, "Write side extra"), it is probably
+text. Each Float32 value, scalar or array element, is printed with `%f` (six decimals, from the runtime's 17
+significant digits rounded half-up, §5.1) and then trimmed (`RemoveUnnecessaryFloatingPointDigits`,
+`0x0067C2B0`). The trim removes the zeros at the end of the fraction, then a `.` left at the end, and a text made
+only of `0` and `.` becomes `0`. The writer **never fails**, and it does not always reproduce the value, read
+back with the 24-bit parser above:
+
+| Float32 | written | read back |
+|---|---|---|
+| 3.14159 (`0x40490FD0`) | `3.14159` | `0x40490FCE` |
+| 0.05 (`0x3D4CCCCD`) | `0.05` | `0x3D4CCCCC` |
+| 1.0000001 (`0x3F800001`) | `1` | `0x3F800000` |
+| 123456.85 (`0x47F1206D`) | `123456.851563` | `0x47F1206C` |
+| 1e-7 (`0x33D6BF95`) | `0` | 0 |
+| −1e-7 (`0xB3D6BF95`) | `-0` | zero |
+| 0.1 (`0x3DCCCCCD`) | `0.1` | `0x3DCCCCCD` |
+| 1e30 (`0x7149F2CA`) | `1000000015047466200000000000000` | `0x7149F2CA` |
+
+NaN and infinities come out as the runtime's `%f` text trimmed the same way, `1.#QNAN`, `1.#INF`, `-1.#IND`
+*[inferred from the MSVC runtime]*, which read back as ±1. *[choice]* FreeCity4 need not copy this lossy text:
+the reader accepts both forms, so a writer may emit text that reads back exactly, refuse a value it cannot
+reproduce, or write the binary form.
+
 ### 4.4 Parents and inheritance *[compat]*
 
 Each exemplar or cohort keeps two property lists, both sorted by ascending unsigned property ID:

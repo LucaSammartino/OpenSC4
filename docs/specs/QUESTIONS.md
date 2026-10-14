@@ -2148,8 +2148,17 @@ answer is in brackets.
   - *[choice]* Eager reading stands if (1) later packages replace not-yet-looked-up reads of the same key (or all
     packages load before the first lookup), (2) failed records are retried after later packages, and (3) a late
     factory is applied to earlier packages. Which resource caches the game registers was not traced.
-- **EX32:** a Float32 that no text reproduces under the 24-bit parser: what does the writer do? [`to_text` fails
-  with `Unsupported`]
+- ~~**EX32:** a Float32 that no text reproduces under the 24-bit parser: what does the writer do? [`to_text` fails
+  with `Unsupported`]~~ **ANSWERED 2026-10-14** from the exe (`WriteEntry` `0x0067CDD0`,
+  `RemoveUnnecessaryFloatingPointDigits` `0x0067C2B0`, `SerialWrite` `0x00680030`, factory constructor `0x0067E373`)
+  and written into data-formats.md §4.3 "Writing text". **The bracket does not match the original**, but it stands as
+  a *[choice]*.
+  - The original prints each Float32 with `%f` and trims trailing fraction zeros. It never fails and is lossy: 3.14159
+    is written `3.14159` and reads back 2 ulps low, 1.0000001 is written `1`, and 1e-7 is written `0`.
+  - The factory writes text by default (write-mode byte 1 from the constructor; no caller of slot 12 `0x0067CB10`
+    found by pattern search). So any exemplar the game writes into a save is probably text.
+  - The reader accepts both forms, so FreeCity4's writer need not copy the loss. Failing with `Unsupported`, writing
+    text that reads back exactly, or writing binary are all compatible.
 - **EX33 — §5.1:** the core property readers apply the scalar conversion steps to every array element (e.g. a
   Float32 array read as `u32`). Right for readers that use raw access plus their own conversion? [every element]
 - Not applied: the scalar RZUnicodeChar text rule (one byte when ≤ 0xFF): the reader cannot produce that scalar
