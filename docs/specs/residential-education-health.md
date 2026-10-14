@@ -678,6 +678,14 @@ SC4Percentage:
 
 - sum := Σ effective capacity (+0x18) of the query data of every building in the group lists.
 - *[quirk]* The record is not reset between buildings. A failed query adds the previous building's value again.
+- **Starting record** *[compat]* (`0x006F9F27`–`0x006F9F79`, health `0x006F9DD7`–`0x006F9E29`): one record per
+  call, built on the stack. Only +0x10, +0x28, +0x2C and +0x34 are set to 0 (and the string at +0). +0x14, +0x18,
+  +0x1C, +0x20, +0x24, +0x30 and +0x38 are **not initialised**. So if the first building's query fails before it
+  reads the effective capacity (no capacity or no effective capacity property), the sum starts with a stack
+  leftover. A failure later in the query (served, grade or, for hospitals, the staff item) comes after +0x18 is
+  written (above), so the sum still gets that building's own value. Every building in a group list has an
+  effective-capacity property (created on add, §4.1), so only a building without a capacity reaches the leftover,
+  and none ships. *[choice]* FreeCity4 starts the record at 0.
 - rating := sum = 0 ? 0 : pop = 0 ? 1.0 : min(1.0, float(sum) / float(GetPopulation())).
 
 **Totals** `GetSchoolSystemTotals` / `GetHospitalSystemTotals(totals*, groups*)` (14/15):

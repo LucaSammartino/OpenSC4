@@ -1090,7 +1090,12 @@ brackets; the module doc of `core/src/residential/education_health.rs` lists 1 t
   written into REH §4.11 ("Order of the tests and partial writes"). **Yes**: capacity, effective capacity, served,
   grade, then the staff item. Also: capacity, effective capacity and served are read straight into the record, so
   a failed query leaves them written (served raw) and the rest untouched.
-- **EH11:** what does the ratings query's record start at? [zero]
+- ~~**EH11:** what does the ratings query's record start at? [zero]~~ **ANSWERED 2026-10-14** from the exe
+  (`GetSchoolSystemRating` `0x006F9F27`–`0x006F9F79`, `GetHealthSystemRating` `0x006F9DD7`–`0x006F9E29`) and
+  written into REH §4.11 ("Starting record"). **Partly zero.** Only +0x10, +0x28, +0x2C, +0x34 (and the string)
+  are set; the summed +0x18 and the other fields start as stack leftovers. The leftover is reached only when the
+  first building's query fails before reading +0x18, which needs a building without a capacity (none ships).
+  *[choice]* 0 (the bracket).
 - **EH12:** do the system totals count only successful queries and add onto the caller's record? [yes]
 - **EH13:** in `AddRadiusEffectWithCurves`, with n = 0 is pop' = pop, and is the same tract index used for all
   grids? [yes]
