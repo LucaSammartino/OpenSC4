@@ -85,10 +85,11 @@ pub struct fc4_protection_budget_item {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct fc4_protection_dispatch_info {
-    /// The station the unit came from (borrowed token).
+    /// The record's `+0x20`: the station the unit came from (borrowed
+    /// token), whose dispatch effect draws the cone (§7.2, PR2).
     pub station: u64,
-    /// The automaton (borrowed token).
-    pub automaton: u64,
+    /// Formerly the vehicle automaton; not read (0).
+    pub reserved: u64,
     pub call_id: u32,
     pub active: u32,
     pub x: f32,
@@ -473,7 +474,6 @@ impl ProtectionHost for CHost {
             station: i.station,
             call_id: i.call_id,
             active: i.active != 0,
-            automaton: i.automaton,
             x: i.x,
             z: i.z,
         })
@@ -1433,6 +1433,35 @@ pub unsafe extern "C" fn fc4_protection_shadow_run(
         });
         true
     })
+}
+
+/// Copies the shadow's unadjusted `int16` grid (§2, §5.1; x outer: index
+/// `x * count_z + z`) into `out` (at most `n` values); the number of tracts
+/// (0 before a run). The plugin compares it with the original's, which both
+/// original classes keep at primary `+0x84` (protection.md §2, PR5).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_protection_shadow_unadjusted_grid(
+    p: *const fc4_protection,
+    out: *mut i16,
+    n: usize,
+) -> usize {
+    let values = with_handle(p, Vec::new(), |h| {
+        let Some(g) = h.sim.unadjusted_grid() else {
+            return Vec::new();
+        };
+        let geom = g.geometry();
+        let mut v = Vec::with_capacity(geom.len());
+        for x in 0..geom.count_x {
+            for z in 0..geom.count_z {
+                v.push(g.get(x, z));
+            }
+        }
+        v
+    });
+    if !out.is_null() {
+        std::ptr::copy_nonoverlapping(values.as_ptr(), out, values.len().min(n));
+    }
+    values.len()
 }
 
 /// Copies the shadow's adjusted grid (x outer: index `x * count_z + z`) into

@@ -502,7 +502,10 @@ impl ProtectionSim {
             msg::DISPATCH_ACTIVE | msg::DISPATCH_INACTIVE => {
                 if m.data1 == p.dispatch_type {
                     if let Some(info) = self.host.dispatch_info(m.data2) {
-                        let (_, e) = self.dispatch_effect(info.automaton);
+                        // [inferred] The radius of the source station's
+                        // dispatch effect, as UpdateUnadjusted reads it (§7.2,
+                        // PR2: its only caller passes the record's +0x20).
+                        let (_, e) = self.dispatch_effect(info.station);
                         self.update_both_grids_by_position(info.x, info.z, e.radius);
                     }
                 }
@@ -748,7 +751,8 @@ impl ProtectionSim {
         for &id in ids.iter().take(n as usize) {
             if let Some(info) = self.host.dispatch_info(id) {
                 if info.active {
-                    let (_, mut e) = self.dispatch_effect(info.automaton);
+                    // §5.1 / §7.2 (PR2): the record's +0x20, the source station.
+                    let (_, mut e) = self.dispatch_effect(info.station);
                     e.x = info.x;
                     e.z = info.z;
                     Self::cone(&*g, &e);
@@ -1243,12 +1247,14 @@ impl ProtectionSim {
         }
     }
 
-    /// `GetDispatchEffect(automaton)` (§7.2, message-target slot 12).
-    pub fn dispatch_effect(&self, automaton: u64) -> (bool, Effect) {
+    /// `GetDispatchEffect(station)` (§7.2, message-target slot 12): the
+    /// properties of the dispatch's source station (PR2; the shipped data
+    /// has them on the station exemplars only).
+    pub fn dispatch_effect(&self, station: u64) -> (bool, Effect) {
         let p = self.kind.params();
-        let centre = self.prop_s32(automaton, p.dispatch_effect_props[0]);
-        let outer = self.prop_s32(automaton, p.dispatch_effect_props[1]);
-        let radius = self.prop_f32(automaton, p.dispatch_effect_props[2]);
+        let centre = self.prop_s32(station, p.dispatch_effect_props[0]);
+        let outer = self.prop_s32(station, p.dispatch_effect_props[1]);
+        let radius = self.prop_f32(station, p.dispatch_effect_props[2]);
         let e = Effect {
             radius: radius.unwrap_or(0.0),
             centre: centre.unwrap_or(0),

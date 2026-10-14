@@ -128,9 +128,14 @@ void Drop(T* p) {
     if (p != nullptr) FC4_RELEASE(reinterpret_cast<cIGZUnknown*>(p));
 }
 
+// The budget simulator held by acquire_services (§4.1), else the city's
+// (the read-only host holds nothing).
 cFC4ISC4BudgetSimulator* Budget(void* u) {
-    cISC4City* c = City(u);
-    cISC4BudgetSimulator* b = c ? c->GetBudgetSimulator() : nullptr;  // city slot 52
+    cISC4BudgetSimulator* b = Ctx(u)->budget;
+    if (b == nullptr) {
+        cISC4City* c = City(u);
+        b = c ? c->GetBudgetSimulator() : nullptr;  // city slot 52
+    }
     return b ? fc4::AsGame(b) : nullptr;
 }
 
@@ -142,11 +147,14 @@ cFC4ISC4DispatchManager* DispatchManager(void* u) {
 
 // ---- lifecycle (§4) -------------------------------------------------------------------------------
 
-// §4.1 base init step 1: hold the city and the message server. [choice] The
-// simulator, the flammability simulator (fire) and the crime simulator
-// (police), which the original holds but never calls, are not held: every
-// service is fetched from the city when it is used. The original crashes on
-// a missing service; we tolerate one.
+// §4.1 base init step 1: hold the city, the budget simulator (city slot 52)
+// and the zone manager (city slot 36), each only if not held yet; step 4:
+// hold the message server only if not held yet (PR12). [choice] The
+// flammability simulator (fire) and the crime simulator (police), which the
+// original holds but never calls, are not held, and neither is the simulator
+// (the original reads a cache global each time): PR12, only reference counts
+// differ. The other services are fetched from the city when used. The
+// original crashes on a missing service; we tolerate one.
 void AcquireServices(void* u, uint32_t) {
     fc4::ProtectionContext* c = Ctx(u);
     if (c->city == nullptr) {
@@ -161,6 +169,14 @@ void AcquireServices(void* u, uint32_t) {
         }
     }
     if (c->city == nullptr) fc4::Log("protection (%s): no city; services not acquired", c->tag);
+    if (c->city != nullptr && c->budget == nullptr) {
+        c->budget = c->city->GetBudgetSimulator();  // city slot 52
+        if (c->budget != nullptr) FC4_ADDREF(c->budget);
+    }
+    if (c->city != nullptr && c->zoneManager == nullptr) {
+        c->zoneManager = c->city->GetZoneManager();  // city slot 36
+        if (c->zoneManager != nullptr) FC4_ADDREF(c->zoneManager);
+    }
     if (c->msgServer == nullptr) {
         cIGZMessageServer2Ptr ms;
         if (ms) {
@@ -175,6 +191,10 @@ void ReleaseServices(void* u, uint32_t) {
     fc4::ProtectionContext* c = Ctx(u);
     if (c->msgServer != nullptr) FC4_RELEASE(c->msgServer);
     c->msgServer = nullptr;
+    if (c->zoneManager != nullptr) FC4_RELEASE(c->zoneManager);
+    c->zoneManager = nullptr;
+    if (c->budget != nullptr) FC4_RELEASE(c->budget);
+    c->budget = nullptr;
     if (c->city != nullptr) FC4_RELEASE(c->city);
     c->city = nullptr;
 }
@@ -377,7 +397,12 @@ bool OccupantProperty(void*, uint64_t occ, uint32_t id, fc4_props* out) {
 }
 
 // The game's property helpers (§14): a u32 scalar or a u32 vector, as the
-// core says (fc4.h set_occupant_property).
+// core says (fc4.h set_occupant_property). PR9: 0x005FE3C0 writes a scalar
+// Uint32 (strike start, availability masks, base call numbers, jail
+// population), 0x005FE6B0 a Uint32 array of the vector's length (only the
+// station statistics 0x8A70A0B9); both add a missing property. [choice] The
+// original's lookup falls back to the occupant's exemplar; we always write
+// onto the occupant's own holder (no shipped exemplar has these IDs).
 void SetOccupantProperty(void*, uint64_t occ, uint32_t id, uint16_t memType, bool isArray, const void* data,
                          size_t count) {
     if (occ == 0 || !Gate(fc4::Sw::ProtectionOccupants, "protection occupant property write")) return;
@@ -455,15 +480,17 @@ void CellCenter(void* u, int32_t cx, int32_t cz, float* x, float* z) {
     if (z != nullptr) *z = b;
 }
 
-// [choice] §14 reads the zone manager's zone grid (slot 5) raw. That grid's
-// class is not in docs/abi, so this reads the same cell through the verified
-// GetZoneType (zone manager slot 12, as land value and flammability do);
-// outside the city: 0 (unzoned). See the report's spec question.
+// §5.3 reads the zone manager's zone grid (slot 5, a cSC4SimGrid<int8>) raw;
+// GetZoneType (zone manager slot 12, as land value and flammability do)
+// reads the same byte of the same grid, sign-extended, so "!= 0" agrees for
+// every in-grid cell (PR10). [choice] Outside the city: 0 (unzoned; the
+// original has no bounds check there, and no value).
 uint32_t ZoneValue(void* u, int32_t x, int32_t z) {
     cISC4City* c = City(u);
     if (c == nullptr || x < 0 || z < 0) return 0;
     if (static_cast<uint32_t>(x) >= c->CellCountX() || static_cast<uint32_t>(z) >= c->CellCountZ()) return 0;
-    cISC4ZoneManager* zm = c->GetZoneManager();  // city slot 36
+    cISC4ZoneManager* zm = Ctx(u)->zoneManager;  // held (§4.1); the read-only host asks the city
+    if (zm == nullptr) zm = c->GetZoneManager();  // city slot 36
     return zm ? static_cast<uint32_t>(zm->GetZoneType(x, z)) : 0;
 }
 
@@ -506,10 +533,11 @@ uint32_t DispatchIds(void* u, uint32_t type, uint32_t* ids, uint32_t capacity) {
 }
 
 // GetDispatchInfo (slot 10) into the record of docs/abi layouts.md (no
-// references taken). [inferred, spec question] The core's call ID is the
-// record's +0x08 field and "active" its +0x10 flag; the automaton (+0x24) is
-// handed on as its cISC4Occupant (the core reads its properties), queried and
-// released at once (borrowed: the dispatch manager keeps it alive).
+// references taken). §5 (PR1): the call ID is the record's +0x08 field and
+// "active" its +0x10 byte. The station (+0x20, already a cISC4Occupant*) is
+// the occupant whose dispatch effect the core reads (§7.2, PR2), borrowed
+// with no QueryInterface, as the original does; the vehicle automaton (+0x24)
+// is not used.
 bool DispatchInfo(void* u, uint32_t id, fc4_protection_dispatch_info* out) {
     if (!Gate(fc4::Sw::ProtectionDispatch, "protection GetDispatchInfo (none)")) return false;
     cFC4ISC4DispatchManager* dm = DispatchManager(u);
@@ -519,11 +547,8 @@ bool DispatchInfo(void* u, uint32_t id, fc4_protection_dispatch_info* out) {
     if (out != nullptr) {
         *out = fc4_protection_dispatch_info{};
         out->station = TokenOf(info.station);
-        cISC4Occupant* a = Query<cISC4Occupant>(reinterpret_cast<cIGZUnknown*>(info.automaton), kIID_cISC4Occupant);
-        out->automaton = TokenOf(a);
-        Drop(a);
-        out->call_id = info.vehicleSlot;
-        out->active = info.inState5 ? 1u : 0u;
+        out->call_id = info.callId;
+        out->active = info.active ? 1u : 0u;
         out->x = info.x;
         out->z = info.z;
     }
@@ -534,8 +559,11 @@ bool DispatchInfo(void* u, uint32_t id, fc4_protection_dispatch_info* out) {
 
 // [abi] AddControllersFromOccupantGroup(name, occ, 0) is compiled slot 10 and
 // Remove... slot 12 (overloads in reverse order, foundations §16): the SDK
-// declarations give the same slots (abi_conformance_test). The name is an
-// SC4String the game only reads.
+// declarations give the same slots (abi_conformance_test); the by-name
+// overloads (PR3). The game's group lookup reads the name raw as its
+// cRZString (begin pointer at +0x04, end at +0x08, no virtual call; docs/abi
+// layouts.md "Game string"): the SDK SC4String has exactly that layout
+// (0x14 bytes, always a heap buffer; game_container_test checks it).
 void Controllers(void* u, const char* group, size_t len, uint64_t occ, bool add) {
     if (group == nullptr || occ == 0) return;
     if (!Gate(fc4::Sw::ProtectionAutomata, add ? "protection AddControllersFromOccupantGroup"
@@ -583,8 +611,10 @@ void RecordHistory(void* u, uint32_t id, int32_t value) {
 //   strike end           nothing
 //   jailbreak begin/end  void1 = the simulator, IGZUnknown = the jail
 //   0xA949569A           IGZUnknown = the simulator
-// [inferred, spec question] "the simulator" is its primary interface (the
-// identity QueryInterface hands out for cIGZUnknown).
+// "the simulator" is its primary interface (the identity QueryInterface hands
+// out for cIGZUnknown; PR11 confirms it: the original posts the primary,
+// vtables 0x00AB1160 / 0x00AB2490). void1 is stored raw, the IGZUnknown is a
+// counted reference.
 void Post(void* u, uint32_t msgType, uint64_t subject) {
     fc4::ProtectionContext* c = Ctx(u);
     if (!Gate(fc4::Sw::ProtectionPosts, "protection message post")) return;
@@ -624,11 +654,14 @@ void Post(void* u, uint32_t msgType, uint64_t subject) {
 
 // ---- air dispatch sources (§8.4) ------------------------------------------------------------------
 
-// [choice] §13.2: the original classes are created through GZCOM (the game
-// registers both; docs/abi/direct-calls.md), asking for the dispatch source
-// (0xC9C00435), which is the object base with one reference; their
-// non-virtual Init / Shutdown are called by address. Without an identified
-// executable no source is created (a later Init could not be called).
+// §8.4 / §13.2 (PR13): the original classes are created through GZCOM (the
+// game registers both factories; docs/abi/direct-calls.md), which build the
+// same object the original's Init does (GlobalHeapAlloc(0x28) and the same
+// constructor). We ask for the dispatch source (0xC9C00435), the object base
+// that Init / Shutdown need in ECX, with one reference (the sources refuse
+// IID 1); their non-virtual Init / Shutdown are called by address. [choice]
+// Without an identified executable no source is created (a later Init could
+// not be called).
 uint64_t CreateAirSource(void* u, uint32_t kind, uint32_t* classId) {
     fc4::ProtectionContext* c = Ctx(u);
     if (!Gate(fc4::Sw::ProtectionAirSources, "protection air dispatch source (none)")) return 0;
@@ -676,7 +709,10 @@ void CollectToken(void* ctx, uint64_t t) { static_cast<std::vector<uint64_t>*>(c
 
 // Empties the caller's ilist (A) as the original does (docs/abi
 // allocators.md, GetFireStations): the nodes are freed with A WITHOUT
-// releasing the elements. An empty list needs no allocator.
+// releasing the elements. An empty list needs no allocator. PR8 (§15.4, §16
+// quirk 7): reproduced; every original caller passes a fresh empty list, so
+// only a plug-in passing a non-empty list leaks its references, and
+// releasing instead would over-release a list of borrowed pointers.
 void ClearKeepingElements(SC4List<cISC4Occupant*>& list) {
     SC4ListNode<cISC4Occupant*>* root = list.end().pNode;
     if (root == nullptr || root->next == root) return;

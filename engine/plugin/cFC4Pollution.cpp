@@ -173,7 +173,9 @@ uint8_t AirTraffic(void* u, int32_t x, int32_t z) {
 }
 
 // [choice] Without an ordinance simulator the factor is 1.0, the neutral
-// multiplier (spec question).
+// multiplier (PG10, pollution.md §4.4.3: the original has no such path, the
+// city always creates the simulator; 1.0 equals GetCumulativeFactor with no
+// enacted ordinance carrying the property).
 float CumulativeFactor(void* u, uint32_t id, uint32_t index) {
     if (!Gate(u, fc4::Sw::PollutionOrdinance, "pollution GetCumulativeFactor (1.0)")) return 1.0f;
     cISC4OrdinanceSimulator* o = G(u)->ordinance;
@@ -311,6 +313,8 @@ void Subscribe(void* u, const uint32_t* ids, size_t n) { Sim(u)->Subscribe(ids, 
 void Unsubscribe(void* u, const uint32_t* ids, size_t n) { Sim(u)->Subscribe(ids, n, false); }
 
 // §5.2: a posted (queued) standard message, data1 as given, data2..4 = 0.
+// PG12: no void1 and no IGZUnknown (the original passes null to its helper
+// and never sets void1); queued with MessagePost(msg, false).
 void Post(void* u, uint32_t msgType, uint32_t data1) {
     if (!Gate(u, fc4::Sw::PollutionPosts, "pollution message post")) return;
     cIGZMessageServer2Ptr ms;
@@ -331,7 +335,11 @@ void SetHistoryQueueLength(void* u, uint32_t series, uint32_t length) {
 }
 
 // §4.1 step 2.6 / Shutdown: the prop developer (compiled slots 5 / 6) with our
-// cISC4PropRequester.
+// cISC4PropRequester. Added for a new city only (PG5, §10.2 Q1): a loaded city
+// gets the registration back from the prop developer's own save, which reads
+// the requester by ref with IID 0x89C498BE (our QueryInterface answers it, and
+// GetGZCLSID is the original's class ID); AddPropRequester has no duplicate
+// check, so adding it again would register it twice.
 void AddPropRequester(void* u) {
     if (!Gate(u, fc4::Sw::PollutionProps, "pollution AddPropRequester")) return;
     cISC4PropDeveloper* p = G(u)->props;
@@ -492,10 +500,13 @@ void AddToBudgetItemLineExpenses(void* u, const fc4_pollution_budget_item* in, i
 
 // ---- visual effects -----------------------------------------------------------------------------
 
-// §4.10 is not implemented in the glue: the effects manager's
-// CreateVisualEffect hands out a cISC4VisualEffect positioned through a
-// cS3DTransform, and neither layout is in docs/abi (spec question). The core then
-// keeps every effect slot empty; the worst tracts are still computed.
+// §4.10 is not drawn by the glue (PG4: the implementer's choice). The effects
+// manager's CreateVisualEffect (slot 6, pop 12, AL, *out AddRef'd) hands out a
+// cISC4VisualEffect positioned through a 0x38-byte cS3DTransform (pollution.md
+// §4.10); creating none, the core keeps every effect slot empty, but the pass
+// still runs: its one CRT rand() (the effect iterator's reset) and the worst
+// tracts (slots 17-19) stay. Only the water-position draws, from a generator
+// nothing else uses, are dropped.
 uint64_t CreateVisualEffect(void*, uint32_t id, uint32_t kind) {
     static bool logged = false;
     if (!logged) {
@@ -820,7 +831,9 @@ bool cFC4PollutionSimulator::Shutdown() {
 // this object's own float.
 
 cISC4SimGrid<int16_t>* cFC4PollutionSimulator::GetPollutionGrid(uint32_t type) {
-    // 0..3 only; null for every other type (§8.1 slot 5 [choice]). No AddRef.
+    // 0..3 only; null for every other type (§8.1 slot 5 [choice], PG13: the
+    // original reads past its grid table without a bounds check and no caller
+    // passes a type above 3). No AddRef.
     return reinterpret_cast<GridI16*>(FromToken(fc4_pollution_grid(core_, type)));
 }
 
@@ -919,12 +932,13 @@ bool cFC4PollutionSimulator::SetGarbageValue(uint32_t cellX, uint32_t cellZ, int
     return true;
 }
 
-// §8.1 slot 29: EAX = the applied delta (SDK: bool). [choice] declared int32.
+// §8.1 slot 29: EAX = the applied delta, taken before the final clamp at 0
+// (SDK: bool; PG11 confirms int32, and no caller reads it).
 int32_t cFC4PollutionSimulator::AddToGarbageSupply(int32_t amount) {
     return fc4_pollution_add_to_garbage_supply(core_, amount);
 }
 
-// §8.1 slot 30: EAX = the argument (SDK: bool).
+// §8.1 slot 30: EAX = the argument (SDK: bool; PG11).
 int32_t cFC4PollutionSimulator::SetGarbageCapacity(int32_t capacity) {
     return fc4_pollution_set_garbage_capacity(core_, capacity);
 }

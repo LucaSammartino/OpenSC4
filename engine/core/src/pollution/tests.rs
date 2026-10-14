@@ -33,6 +33,8 @@ struct Host {
     landfill: Cell<(u32, u32)>,
     tiles: Cell<u32>,
     population: Cell<i32>,
+    /// `create_visual_effect` creates nothing (as the glue, PG4).
+    no_effects: Cell<bool>,
 }
 
 impl GridProvider<i16> for Host {
@@ -149,6 +151,9 @@ impl PollutionHost for Host {
     fn change_budget_item_cost(&self, _occ: u64, _i: u32, _c: i64) {}
     fn add_to_budget_item_line_expenses(&self, _item: &BudgetItem, _d: i64) {}
     fn create_visual_effect(&self, _id: u32, _kind: u32) -> Option<u64> {
+        if self.no_effects.get() {
+            return None;
+        }
         let n = self.effects.get() + 1;
         self.effects.set(n);
         Some(10_000 + n)
@@ -696,4 +701,133 @@ fn hostile_counts_do_not_panic() {
     s.add_radiation_to_city([1e30, 0.0, -1e30], -5.0, 3.0);
     let _ = s.requested_share(-5, -5, 1 << 20, 1 << 20);
     let _ = s.pollution_value(u32::MAX, i32::MIN, i32::MAX);
+}
+
+/// §8.1 slot 29 (PG11): the delta is taken before the final clamp at 0 (the
+/// spec table, then a damaged negative supply).
+#[test]
+fn add_to_garbage_supply_returns_the_delta_before_the_clamp() {
+    let h = host(16);
+    let s = sim(&h);
+    let add = |supply: i32, n: i32| {
+        s.with_state(|st| st.garbage_supply = supply);
+        let d = s.add_to_garbage_supply(n);
+        (d, s.snapshot().garbage_supply)
+    };
+    assert_eq!(add(1000, 256), (256, 1256));
+    assert_eq!(add(2_147_483_632, 100), (15, i32::MAX));
+    assert_eq!(add(50, -80), (-50, 0));
+    assert_eq!(add(50, -30), (-30, 20));
+    assert_eq!(add(7, 0), (0, 7));
+    // A negative supply (damaged save): n = 0 and n > 0 return the delta
+    // before the clamp; n < 0 returns -s.
+    assert_eq!(add(-40, 0), (0, 0));
+    assert_eq!(add(-40, 10), (10, 0));
+    assert_eq!(add(-40, 100), (100, 60));
+    assert_eq!(add(-40, -5), (40, 0));
+    assert_eq!(add(i32::MIN, 0), (0, 0));
+    assert_eq!(add(i32::MIN, -1), (i32::MIN, 0));
+    assert_eq!(add(i32::MIN, i32::MAX), (i32::MAX, 0));
+}
+
+/// §4.6.1 steps 3 and 4 (PG8): the unsigned remaining capacity is exact
+/// below 2^31 and rounded to float32 from 2^31 up (the spec table).
+#[test]
+fn remaining_compare_is_unsigned() {
+    use super::daily::remaining_exceeds;
+    assert!(remaining_exceeds(1000, 999.5));
+    assert!(remaining_exceeds(16_777_217, 16_777_216.0));
+    assert!(!remaining_exceeds(2_147_483_649, 2_147_483_648.0));
+    assert!(remaining_exceeds(3_000_000_000, 2_999_999_744.0));
+    assert!(!remaining_exceeds(u32::MAX, 4_294_967_296.0));
+    // Through Dispose: 2^31 + 1 is not above 2^31, so the plant is used up
+    // and takes nothing; 2^24 + 1 takes the whole offer (no decomposition
+    // left, no landfill).
+    let h = host(64);
+    let s = sim(&h);
+    s.with_state(|st| st.decomposed = 2000);
+    let mut rem = Remaining {
+        wte: 2_147_483_649,
+        ..Default::default()
+    };
+    assert_eq!(s.dispose(2_147_483_648.0, &mut rem), 0.0);
+    assert_eq!(rem.wte, 0);
+    let mut rem = Remaining {
+        inc: 16_777_217,
+        ..Default::default()
+    };
+    assert_eq!(s.dispose(16_777_216.0, &mut rem), 16_777_216.0);
+    // The decrement is the §4.12 floor, which follows rhe beyond 2^22.
+    assert_eq!(rem.inc, 16_777_217 - 10_485_760);
+}
+
+/// §6 (PG7) [quirk]: Read does not touch radiationSum. A fresh object keeps
+/// the constructor's 0, so the first end of cycle after a load records only
+/// the radiation visited since the load (the spec's example: 10 and 520
+/// instead of 40 and 580); an object that already had a sum keeps it.
+#[test]
+fn radiation_sum_survives_neither_save_nor_read() {
+    let h = host(16);
+    let s = sim(&h);
+    s.with_state(|st| st.radiation_sum = 30);
+    let (bytes, entries) = record(&s);
+    let th = host(16);
+    let t = sim(&th);
+    let mut res = Resolver(entries.clone(), th.clone());
+    assert!(t.read(&mut ByteReader::with_resolver(&bytes, &mut res)));
+    assert_eq!(t.snapshot().radiation_sum, 0);
+    // The rest of the cycle adds 10; 50 developed tracts, avgAir 500.
+    for (sim, host) in [(&s, &h), (&t, &th)] {
+        sim.with_state(|st| {
+            st.radiation_sum += 10;
+            st.developed_tracts = 50;
+            st.air_sum = 25_000;
+        });
+        host.history.borrow_mut().clear();
+        sim.run_end_of_cycle();
+    }
+    let rad = |host: &Rc<Host>| {
+        let hist = host.history.borrow();
+        let get = |series| hist.iter().find(|e| e.0 == series).map(|e| e.1);
+        (get(history::RADIATION), get(history::AIR_PLUS_RADIATION))
+    };
+    assert_eq!(rad(&h), (Some(40), Some(580)));
+    assert_eq!(rad(&th), (Some(10), Some(520)));
+    // Read into an object that already holds a sum: left as it was.
+    let uh = host(16);
+    let u = sim(&uh);
+    u.with_state(|st| st.radiation_sum = 7);
+    let mut res = Resolver(entries, uh.clone());
+    assert!(u.read(&mut ByteReader::with_resolver(&bytes, &mut res)));
+    assert_eq!(u.snapshot().radiation_sum, 7);
+}
+
+/// §4.10 (PG4): with no visual effect created (the glue's choice), the pass
+/// still makes its one CRT `rand()` call (the effect iterator's reset) and
+/// still computes the worst tracts (slots 17-19).
+#[test]
+fn effect_pass_without_effects_keeps_rand_and_worst_tracts() {
+    let h = host(64);
+    h.no_effects.set(true);
+    let s = sim(&h);
+    let air = s.snapshot().grids[G_AIR_VAL].clone().unwrap();
+    for x in 0..4 {
+        for z in 0..4 {
+            air.set(x, z, 2000);
+        }
+    }
+    let mut want = s.crt();
+    want.rand();
+    s.update_visual_effects();
+    assert_eq!(s.crt(), want);
+    assert_eq!(h.effects.get(), 0);
+    assert_eq!(s.snapshot().effects[effect::AIR].iter().flatten().count(), 0);
+    assert_eq!(
+        s.worst_air_tract(),
+        WorstTract {
+            x: 4,
+            z: 4,
+            value: 2000
+        }
+    );
 }

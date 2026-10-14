@@ -1389,13 +1389,14 @@ public:
 };
 
 // cISC4DispatchManager's dispatch record (docs/abi/layouts.md, 0x2C bytes):
-// GetDispatchInfo copies it without taking references.
+// GetDispatchInfo copies it without taking references. protection.md §5
+// (PR1): +0x08 is the unit's call ID and +0x10 "active".
 struct FC4DispatchInfo {
     int32_t type;                    // +0x00
     uint32_t id;                     // +0x04
-    uint32_t vehicleSlot;            // +0x08  the station's vehicle slot (low 16 bits used)
+    uint32_t callId;                 // +0x08  the unit's call ID, base + i (the station's vehicle slot)
     uint32_t viewHandle;             // +0x0C
-    bool inState5;                   // +0x10  set while the dispatch is in state 5
+    bool active;                     // +0x10  the dispatch state is 5 (posts active / inactive on a change)
     uint8_t pad[3];
     float x, y, z;                   // +0x14  the target position
     cISC4Occupant* station;          // +0x20
