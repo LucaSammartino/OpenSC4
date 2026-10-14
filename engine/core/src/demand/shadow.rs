@@ -569,8 +569,8 @@ mod tests {
         let b = f32::from_bits;
         let (r, c, i) = (b(0x46D4_8E00), b(0x4520_97AE), b(0x4625_5C67));
         assert_eq!(f64::from(r), 27207.0);
-        assert_eq!(f64::from(c), 2569.479_980_468_75);
-        assert_eq!(f64::from(i), 10583.100_585_937_5);
+        assert_eq!(f64::from(c), 2569.47998046875);
+        assert_eq!(f64::from(i), 10583.1005859375);
         assert_eq!((i + c).to_bits(), 0x464D_8252);
         assert_eq!(((i + c) + r).to_bits(), 0x471D_A794);
         assert_eq!(((r + c) + i).to_bits(), 0x471D_A795);
