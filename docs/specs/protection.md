@@ -68,14 +68,28 @@ under it is the fire simulator. There is no registered class for the base alone.
 | **unadjusted** (sum of all cones) | `int16` | `0x49B9E605` | `0x89D5B91A` / `0x49D5BBCE` | 2 | yes, by `ref` |
 
 - Both grids are created at `Init` only when absent (a loaded city brings them back through the refs, with their
-  saved geometry), through GZCOM with the class IDs above, followed by `SetTractSize(2)`. The class `Init` then
+  saved geometry), with the class IDs above (how: below), followed by `SetTractSize(2)`. The class `Init` then
   sets the instance IDs above on both grids, also after a load. *[compat]*
 - Geometry: simgrid §3 with S = 2 (a 256-cell city has 128 × 128 tracts, tract width 32 m).
 - The **unadjusted** grid is rebuilt from scratch (§5.1) whenever a station, its funding, a strike or a dispatch
   changes. The **adjusted** grid follows it: `adjusted := clamp(roundHalfEven(unadjusted × factor), 0, 255)`,
   where `factor` is always 1.0 (§16 Q2). This copy is made in two ways: for the box around a station that was
   added, removed or changed (§5.2), and tract by tract by the daily iterator (§5.3). *[compat]*
+- *(Corrected: not through GZCOM.)* For a new city, `ProtectionInit` creates both grids directly: 0x44 bytes from
+  the global heap, the grid class's constructor inlined (vtables `0x00A878C0` `uint8`, `0x00A879E0` `int16`; the
+  class ID written at `+0x10`), then its `Init`, at `0x006F6C18`–`0x006F6CDE`. A loaded city gets them from the
+  class store, which does go through the class registry.
 - The primary interface's slot 5 returns the **adjusted** grid, without `AddRef`.
+- **Where the grids live** *[compat]* (PR5). Both classes keep the adjusted grid pointer at primary-interface
+  offset `+0x80`, which slot 5 returns (`0x006EFA50`), and the **unadjusted** `int16` grid at **`+0x84`** (fire
+  `Init` `0x006AE304`, police `Init` `0x006E28A0`; `ProtectionInit` runs on the sub-object at `+0x08`, so its
+  `+0x78`/`+0x7C` are the same members). No interface slot returns the unadjusted grid. It can be read in three
+  ways:
+  1. the pointer at `+0x84` of the original object (borrowed, no AddRef), with the grid's own read-only slots
+     (`GetCellValue`, `GetGridData`);
+  2. its own record in a save (saved by ref; instance `0x89D5B91A` fire, `0x49D5BBCE` police);
+  3. inferred from the adjusted grid, which equals `clamp(unadjusted, 0, 255)` only in tracts the daily iterator
+     or a box update has copied since the last change.
 - Other code reads the adjusted grid through `GetCellValue`, `GetAverageValueInCellRect`, raw `GetGridData`
   (the map view) and `+0x20` (fires). See §13.
 

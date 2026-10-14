@@ -513,8 +513,16 @@ About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The 
   fire class `0x2990C05A` with IID `0x88F54C7B`, and loads it from component ref #25. The neighbouring getters follow
   the component order: slot 55 crime `+0x16C`, 56 demand, 57 fire, 58 flammability, 59 flora, 60 industrial, 61
   land value.
-- **PR5:** is there a read-only way to get the original's unadjusted int16 grid? [no; only the adjusted grid is
-  compared]
+- ~~**PR5:** is there a read-only way to get the original's unadjusted int16 grid? [no; only the adjusted grid is
+  compared]~~ **ANSWERED 2026-10-14** from the exe (slot 5 `0x006EFA50`; fire `Init` `0x006AE304`, police `Init`
+  `0x006E28A0`; `ProtectionInit` `0x006F6C18`–`0x006F6CDE`) and written into protection.md §2. **No interface returns
+  it, but there is a read-only way.**
+  - **Where it lives.** Both original classes keep the unadjusted `int16` grid pointer at primary-interface
+    offset `+0x84`, next to the adjusted one at `+0x80`.
+  - **How to read it.** A shadow that knows it is facing the original class can read that pointer, borrowed, and
+    use the grid's read-only slots. Each save also holds the grid as its own record.
+  - **Spec correction.** The original builds both grids for a new city directly (global heap, inlined
+    constructors), not through GZCOM.
 - **PR6:** city slot 97: interfaces.tsv says ST0, §14 lists only its outputs. [outputs used, ST0 discarded]
 - ~~**PR7:** which slots does the game call from its second thread, and are these fallbacks acceptable: lists return 0
   untouched; chance of strike, efficiency and radius return 0; strike length 0xFFFFFFFF with no date, else 0; scalars
