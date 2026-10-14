@@ -90,6 +90,26 @@ under it is the fire simulator. There is no registered class for the base alone.
   2. its own record in a save (saved by ref; instance `0x89D5B91A` fire, `0x49D5BBCE` police);
   3. inferred from the adjusted grid, which equals `clamp(unadjusted, 0, 255)` only in tracts the daily iterator
      or a box update has copied since the last change.
+- **Recognising the original class before reading `+0x84`** *[compat]* (PR16). Only on the identified executable
+  (the build these addresses come from), and only for the pointer the city returns (`GetFireProtectionSimulator`, slot 57, and
+  `GetPoliceSimulator`, slot 65; the city keeps them at `+0x174` / `+0x194` and the game caches them in
+  `0x00B43D78` / `0x00B43D98`). That pointer is the object's start, the primary interface.
+  - **Test**: its first dword equals the primary vtable, `0x00AB1160` (fire) or `0x00AB2490` (police) (§15.1,
+    §15.2). Only the class's constructor and destructor write those values (fire `0x006ADA67` / `0x006ADB27`,
+    police `0x006E1F9D` / `0x006E16ED`); during construction the base's vtable is there instead. A
+    replacement registered under the same class ID, or a wrapper around the original, has its own vtable and
+    fails the test, so its `+0x84` is never read.
+  - **Lifetime**: the base constructor clears the member (`0x006F6986`); `ProtectionInit` or the load fills it;
+    `ProtectionShutdown` releases the grid and clears the member again (`0x006F580D`, §4.2). So a null pointer
+    means "no grid now", and a read is safe only between `Init` and `Shutdown`.
+  - **Optional check of the grid itself** through its own interface: `GetInstanceID()` (slot 5) is `0x89D5B91A`
+    (fire) or `0x49D5BBCE` (police) after `Init`, also on a loaded city, and `GetTractSize()` is 2.
+- **Judging unadjusted mismatches** (PR16). No original behaviour bears on it: the original never compares the
+  grids, so whether a shadow judges or only logs them is the implementer's choice. Facts that matter for the
+  choice: the unadjusted grid is rebuilt from scratch on every station, funding, strike or dispatch change (§5.1),
+  so it carries no lag, unlike the adjusted grid; but its dispatch cones (§5, active / inactive) follow the
+  automata, which a shadow may not mirror, so tracts under an active dispatch can differ for reasons outside the
+  simulator.
 - Other code reads the adjusted grid through `GetCellValue`, `GetAverageValueInCellRect`, raw `GetGridData`
   (the map view) and `+0x20` (fires). See §13.
 

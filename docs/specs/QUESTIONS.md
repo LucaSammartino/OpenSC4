@@ -2315,9 +2315,19 @@ About PR1–PR13, DQ3–DQ8 and PG4–PG13 as applied. The current answer is in 
   simulator and departments. Asking the city each time in a read-only shadow host cannot be told apart. The trace also
   fixed the base shutdown's order: dispatch unregister, station list, the nine unsubscriptions (in an order slightly
   different from the subscriptions), `RemoveAgent`, the grids, then the held services.
-- **PR16 — PR5:** how does a shadow recognise the original class before reading +0x84, and are unadjusted
-  mismatches judged like the adjusted grid's? [by the primary vtable against the §15.1/§15.2 addresses (compat
-  table, identified executable only; otherwise not read); logged, not judged]
+- ~~**PR16 — PR5:** how does a shadow recognise the original class before reading +0x84, and are unadjusted mismatches
+  judged like the adjusted grid's? [by the primary vtable against the §15.1/§15.2 addresses (compat table, identified
+  executable only; otherwise not read); logged, not judged]~~ **ANSWERED 2026-10-14** from the exe (constructors fire
+  `0x006ADA67`, police `0x006E1F9D`; destructors `0x006ADB27`, `0x006E16ED`; base constructor `0x006F6986`;
+  `ProtectionShutdown` `0x006F580D`; city getters `0x006DC690` / `0x004597C0`) and written into protection.md §2.
+  **Recognition: the bracket matches. Judging: no original behaviour; the implementer's choice stands.**
+  - **Recognition.** The city's getters return the object start, whose first dword is the primary vtable (`0x00AB1160`
+    fire, `0x00AB2490` police). Only the class's own constructor and destructor write it, so a replacement or wrapper
+    fails the test. The `+0x84` member is null before `Init` and again after `Shutdown`; the grid's `GetInstanceID()`
+    (`0x89D5B91A` / `0x49D5BBCE`) is an optional extra check.
+  - **Judging.** The original never compares the grids. The unadjusted grid has no copy lag, but its dispatch cones
+    follow the automata, so tracts under an active dispatch can differ for reasons outside the simulator; logging only
+    stays a sound choice.
 - **DQ13 — DQ5:** does the default `building_purpose` go through `building_profile`, and may the host's visitor be
   NULL? [yes to both]
 
