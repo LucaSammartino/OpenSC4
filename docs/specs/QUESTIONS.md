@@ -1519,3 +1519,21 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
 - **RG19:** what goes in a strike message's data1? [0]
 - **RG20:** `GetBuildingMapKey` returns 32 bits; only the low 8 are used. Right? [yes]
 - **RG21:** the strike clock seed is `time() + 2177452800` (the cRZTime epoch), as in crime. [yes]
+
+## From applying the pathfinder, zones, landfill and neighbours answers (filed by the coordinator from the `apply4b` lane's report, 2026-10-14)
+
+About PF1–PF15, ZQ4/ZQ7–ZQ10, LF1–LF5 and NB1–NB17 as applied in the core. The current answer is in brackets.
+
+- **TN26 — traffic-network §2.7:** the sweep and the edge pass when Z < X: where do they stop? [at the array end]
+- **TN27 — §2.7:** `FindNeighborConnection` and the pool-ID lookup for travel types above 8. [no types match]
+- **TN28 — §2.7:** `GetTrafficNeighborConnection` for a corner cell or a cell inside the city. [an empty record]
+- **ZQ11 — zones test 33:** a second draft `Place` on the same cell. [the mask bytes are merged (OR); inferred]
+- **ZQ12 — zones test 33:** a draft `Place` over a cell that already has a network. [no draft, as a real `Place`]
+- **LF6 — LF3:** should the core add the message-server release callback (an ABI bump) to match the original's
+  shutdown order? [no: one `release_services` call after the zones shut down; LF3 says the difference cannot be
+  observed]
+- **NB18 — NB12:** the shim supplies the game's global `cISC4City` pointer through the new host method
+  `current_city_object`. Is that the object `UpdateCommodityStats` compares against? [yes; the test hosts use a
+  token distinct from every regional city ID]
+- Not applied: PF6 beyond the record level (pools, capacities and the roll stay traffic-simulator host methods, as
+  the answer says); NB12/NB17 glue (there is no neighbours glue yet).
