@@ -1262,8 +1262,13 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   `0x69247DC8 (x, z, 0)`. `cellCount −= 1` in every remove case. Highway and GroundHighway skip the sets; rail skips
   them on a level crossing (Road/Street flag). A rail repair decrements the road pothole count *[quirk]*. The
   per-type counts are bumped and the budgets refreshed. Written as traffic-simulator.md §3.6.
-- **TS5 — §3.1:** message `0x66956810` "marks the network as changed": which flag, and who rebuilds? [sets
-  `network_changed`, consumed by the trip phases]
+- ~~**TS5 — §3.1:** message `0x66956810` "marks the network as changed": which flag, and who rebuilds? [sets
+  `network_changed`, consumed by the trip phases]~~ **ANSWERED 2026-10-14** from the exe (`0x00724558`) and the Mac
+  build: the bracket is wrong on the consumer. SimBegin and every network-occupant message (data3 `0xC772BF98`, even
+  a failed cast) set one byte, which is saved and loaded (the `bool` after the intersection-dirty rectangle) and
+  read by nothing. No rebuild follows; the network is kept current incrementally and rebuilt only by
+  DoPostCityInit. Keep the byte for the round trip, with no behaviour. Written into traffic-simulator.md §3.1 and
+  §6.1, traffic-network.md §3, save-records.md §7.1.1.
 - **TS6 — §3.1:** what does the network part do on neighbour added / removed? [nothing]
 - ~~**TS7:** DoPostCityInit steps 4 (neighbour connections) and 5 (destination-map boundary pass)? [skipped; the
   network rebuild runs, then the transit multiplier]~~ **ANSWERED 2026-10-14** from the exe (`0x00720430`): neither

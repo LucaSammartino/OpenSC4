@@ -341,7 +341,7 @@ u8             cycle state
 29 bytes       scanning iterator: s8 state, s32 x, s32 z, u32 step, s32 x0, z0, x1, z1
 bool           intersection-dirty flag
 4 × s32        intersection dirty rectangle
-bool
+bool           network-changed byte (traffic-simulator §3.1; set by SimBegin and occupant messages, never read)
 u32            strategy bucket counter
 u32            strategy bucket
 2 × s16        phase positions               if v ≥ 25; else 2 × u8

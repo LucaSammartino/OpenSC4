@@ -143,7 +143,7 @@ The data model, by meaning (offsets are deliberately not part of it):
 
 | Message | Condition | Action |
 |---|---|---|
-| `0x66956810` (simulation begin) | | marks the network as changed (forces `DoConnectionsChanged` on the next cycle; traffic-network.md) |
+| `0x66956810` (SimBegin, the one-shot agent) | | sets the **network-changed byte** := 1 and returns true. The byte is cleared by the constructor and saved and loaded (§6.1 row 14: the `bool` after the intersection-dirty rectangle). Nothing else reads it, in 1.1.641 (`0x00724558`, its only writer besides the constructor `0x0071FC1A`) or in the Mac build. No rebuild follows: the network model is kept current by the occupant and neighbour handlers below (traffic-network.md §3) and rebuilt only by DoPostCityInit (§3.5). *[compat: keep the byte for the round trip; it drives nothing]* (TS5) |
 | `0x66956814` (day agent) | | `DoDailySimulation` (§3.3); its result is the agent's "finished" answer |
 | `0x66956816` (month agent) | | `DoMonthlySimulation` (§4.12) |
 | `0x26D31EC1` | | `DoPostCityInit` (`0x00720430`, §3.5: builds the network model, traffic-network.md, then resumes the saved cycle) |
@@ -151,7 +151,7 @@ The data model, by meaning (offsets are deliberately not part of it):
 | `0x8A0D15DA` / `0xEA0D163E` | | add / remove a neighbour connection (traffic-network.md) |
 | `0xC53D10AA` | data1 = `0xE7E2C2DB` and data2 = `0xC9133286` | re-read tuning (§4.14) |
 | `0xC2C09554` | | `UpdateTravelStrategies` (§4.1.2) |
-| `0x99EF1142` / `0x99EF1143` | data3 = `0xC772BF98` | network occupant inserted / removed: the cell-count and pothole-set bookkeeping (§3.6), then the network part (traffic-network.md); on remove the cell's edge-density records are erased; any such message (even a failed cast) marks the network as changed |
+| `0x99EF1142` / `0x99EF1143` | data3 = `0xC772BF98` | network occupant inserted / removed: the cell-count and pothole-set bookkeeping (§3.6), then the network part (traffic-network.md); on remove the cell's edge-density records are erased. Any such message (even a failed cast) sets the network-changed byte (see `0x66956810`; never read) |
 | `0xE8BDA2E7` | lot (`IGZUnknown` → a **copy** of the lot with an empty trip list, lot-developer.md §3.2; §4.1.3 finds the real lot again at its corner) | data1 = 3: `DoLotDeactivated` (`0x0071E2F0`); else data2 = 3: `DoLotActivated` (`0x00723AF0`, §4.1.3) |
 
 All handlers return true except the day handler.
@@ -1075,7 +1075,7 @@ vectors.
 | 11 | departments | roads, mass transit (serializables, budget.md) |
 | 12 | income | s64 budget-item total (§4.1.3), f32 transit income, f32 toll income, f32 last monthly income, f64 income accumulator, f64 fee accumulator |
 | 13 | cycle date, strike, damage | u32 cycle start date (§4.12 StartRecalc), u8 strike state, s32 strike month counter; road: u32 cell count, u32 damaged count, f32 damage rate; u32 n + n × u16 intact road cell keys, u32 n + n × u16 damaged road cell keys (hash iteration order); rail: the same five fields and two key lists |
-| 14 | cycle position | u8 cycle state, the scanning iterator (helper `0x005D9FD0`/`operator<<`), bool intersection-dirty flag, s32 × 4 intersection dirty rect, bool, u32 strategy bucket counter, u32 strategy bucket, s16 × 2 phase positions, the lot iterator position (helper `0x005DA390`), bool, bool, f32, s32 x, s32 z (re-route context), u32 n + n × u32, u8, u32, s32 × 4, u32 n + n × u32 (per entry), u8 × 2 (context flags) |
+| 14 | cycle position | u8 cycle state, the scanning iterator (helper `0x005D9FD0`/`operator<<`), bool intersection-dirty flag, s32 × 4 intersection dirty rect, bool network-changed byte (§3.1; never read), u32 strategy bucket counter, u32 strategy bucket, s16 × 2 phase positions, the lot iterator position (helper `0x005DA390`), bool, bool, f32, s32 x, s32 z (re-route context), u32 n + n × u32, u8, u32, s32 × 4, u32 n + n × u32 (per entry), u8 × 2 (context flags) |
 | 15 | pacing and counters | s32 processed, s32, s32 total, u32 days, u32 day index, u32, u32, s32 `passTotal`, s32 `toReRoute`, s32 `toSearch`, then u32 × 10 pass counters (routed, re-routed, `rerouteBucket`, source counter, …; §10 Q4) |
 | 16 | network-type statistics, two sets (published "last" set = slot 34 block, then the working set) | per set: 13 × (f32 sum, u32 count, s32 max x, s32 max z, f32 max), the aggregate (same 5 fields), u16 × 13 (over-capacity counts), u16, u16, s32 12, 12 × (u16, f32, s32, s32, f32) per-switch-type records, f32, f32, bool, f32, u8 |
 | 17 | neighbour-connection records | u32 count, per record (traffic-network.md §2.7): u16, u8, u8, u16, u16, then its f32 values |
