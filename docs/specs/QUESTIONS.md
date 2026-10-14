@@ -521,3 +521,33 @@ vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
 - **PF15:** the entry side of a ferry neighbour-link exit node. [`EdgeTo(off → edge)`; assumes adjacent cells]
 - Deviations from the compiled interface (choices): `SetStartingCostArray` copies the 9 floats; `SetRouteInfo` keeps
   its own route list; the process-wide work-check values are one shared cell.
+
+## From the crime glue and grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/crime.md` and its `docs/abi` rows. Ini: `enable = crime` (optional `crime_seed`); shadow
+`crime_shadow = 1`. The glue's current answer is in brackets.
+
+- **CQ1:** `GetCrimeIncidentArray`: allocators.md does not list its container. [the game's allocator]
+- **CQ2:** `PropProfile.crimeIncidentID` is read at offset 24, from the SDK layout; layouts.md does not list
+  `PropProfile`. [24]
+- **CQ3:** lot `GetCenter` (slot 15): docs/abi says ST0, §13 says the out parameter with nothing left on the x87
+  stack. [both handled; the month line counts which one happens as `center st0=a/b`]
+- **CQ4:** `GetOccupantsByBBox`: §13 names the filter overload (slot 36). [the typed overload, slot 37, last
+  argument 0xFFFFFFFF]
+- **CQ5:** the session seed "local wall-clock seconds". [`_mkgmtime(localtime(now))`]
+- **CQ6 — §16.1:** the ordinance crime factor after a load with no ordinance simulator. [left unchanged]
+- **CQ7:** the prop requester is never unregistered at Shutdown; the spec is silent. [not unregistered]
+- **CQ8 — §16.8:** crime type names: which LTEXT key, and the fallback when it is missing. [open]
+- **CQ9:** `Read` on a stream error. [returns false, no state changed]
+- **CQ10:** crime type list order. [ascending instance]
+- **CQ11:** police slot 5 returns a uint8 grid (the SDK says short) and slot 27 an int32 count, as protection
+  declares them. Confirm. [as protection]
+- **CQ12:** arson calls `SetCause` whatever `IgniteOccupant` returns. Right? [yes]
+- **CQ13:** property 0xCA5B9306 is read with numeric conversion (`GetU32s`, low bytes). [as stated]
+- **CQ14:** a failed QueryInterface nulls the out pointer per crime.md §1; flammability, plumbing and pollution leave
+  it untouched. Which is the original's rule per class? [crime nulls]
+- **CQ15:** the return value of the residential `GetPopulationGrids` / `GetEQGrids` is ignored; only the three out
+  pointers are used. [ignored]
+- Not compared by the shadow (stated on every line): the number of crimes to commit (needs
+  `ResetUnjailedCriminals`, which has side effects), which attempts the police stopped and each crime's type (the
+  original's draws), which lots were tried (the lot manager's generator), the crime-effect grid (no interface).
