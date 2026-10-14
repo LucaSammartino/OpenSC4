@@ -1081,6 +1081,10 @@ The bracket (targets 0) erases every trip of types 0–2 through the excess rule
 keeps trips of type > 2, which that rule never touches. This sync creates only types 0–2, so the two agree unless
 something else puts a trip of another type on a connection. *[choice]* Clear the list, which is exact and simpler.
 
+**NG20. `GetSourceCells`.** Traffic-source slot 5 (`0x006D4820`) fills the rectangle with the connection cell twice:
+`(x, z, x, z)`. The cell is the connection cell itself, outside the city (for example `(−1, 5)`), not the inner cell.
+The bracket matches.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).

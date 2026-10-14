@@ -2623,7 +2623,9 @@ answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`0x006D4C3B` lookup, `0x006D5030` list clear) and written into neighbors §15.4
   and traffic-simulator §4.1.4. The original clears the whole trip list. "Targets 0" agrees except for trips of a type
   above 2, which the sync never creates; recommend clearing the list.
-- **NG20:** The `GetSourceCells` rectangle. [(x, z, x, z)]
+- ~~**NG20:** The `GetSourceCells` rectangle. [(x, z, x, z)]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006D4820`) and noted in neighbors §15.4. `(x, z, x, z)` with the connection
+  cell (outside the city); the bracket matches.
 - **NG21:** The return of `UpdateTrafficVolume`. [true]
 - **NG22:** `cISCProperty` Write/Read. [through the segment stream]
 - **NG23:** The size query of `GetPropertyData`. [left open]
