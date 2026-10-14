@@ -989,7 +989,10 @@ each cycle-completed message `0x2A09B21A`). The glue's current answer is in brac
   and §16 Q7 (resolved). **Not writing it is fine.** It is the aura's own storage: three entries {developer type,
   tax index, wealth, tuned base, effective base} for R$, R$$, R$$$, and no other code refers to it. State 4 rewrites
   the effective values before state 5 reads them, so keeping them in the object changes nothing.
-- **AU12:** the CPU-cycle limit timer runs on `QueryPerformanceCounter` instead of the TSC. Acceptable? [QPC]
+- ~~**AU12:** the CPU-cycle limit timer runs on `QueryPerformanceCounter` instead of the TSC. Acceptable? [QPC]~~
+  **ANSWERED 2026-10-14**, written into aura.md §6.5 (time slicing). **Acceptable; no original behaviour depends on
+  it.** The original reads the time-stamp counter, but the clock only decides how many lots one state-5 call stamps.
+  Stamping takes the maximum, so the work grid is the same for any clock. The implementer's choice stands.
 
 First in-game aura shadow (coordinator, `regress -Tag r7c3f`, Spandau, 98 cycles 2026-01 to 2034-02; the replace run
 with aura was clean, 0 problems). The park, landmark and riot fields aside, **6 of 98 cycles match exactly**:

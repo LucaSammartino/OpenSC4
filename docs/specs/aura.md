@@ -424,7 +424,9 @@ adaptation `0x0068B960`):
 
 None of this changes results: the stamping (`max`) is order-independent and the original's slicing already depends
 on the CPU clock. *[choice]* FreeCity4 may keep `step` and `miss` per simulator instead of per process (the only
-difference is the starting step after a city change).
+difference is the starting step after a city change). The clock is also free: the original reads the processor's time-stamp counter, but a
+replacement may use `QueryPerformanceCounter` or any monotonic clock *[choice]*. The clock only decides how many
+lots one call stamps.
 
 #### 6.5.1 `LotBaseAura(lot)`
 
