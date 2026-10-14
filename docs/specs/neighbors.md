@@ -313,7 +313,17 @@ u32  suspensionDate                 (present when version ≥ 5)
 2. Create a connection, append it, set type, cell and otherRegionCell (§2.2). If the other-side regional city
    exists, call its `ChangeSymmetricConnection(conn, true)`.
 3. Unless `type` is Ferry (9), place a **marker prop** `0x29F10000` at the centre of the inner cell, at height
-   `terrain.GetAltitude(x, z)` (+15.5 for Highway, LightRail and Monorail). Orientation by side: with
+   `terrain.GetAltitude(px, pz)` (+15.5 for Highway, LightRail and Monorail).
+
+   Here `(px, pz)` is the inner cell's centre, from `city.CellCenterToPosition` (slot 97), which is the same point
+   the prop is placed at (NB3; `0x006D494A`–`0x006D4A4F`). The connection cell itself is never used for the
+   height.
+   - The inner cell is found from the side, in this order: `x < 0` → `(x + 1, z)`; else `z < 0` → `(x, z + 1)`;
+     else `x ≥ countX` → `(x − 1, z)`; else `(x, z − 1)`.
+   - The +15.5 (`0x00AB1CA8`) is added in float32.
+
+   Example: the connection Road at (−1, 5) in a 64 × 64 city puts its marker at the centre of cell (0, 5), at that
+   point's terrain altitude. A Highway at the same cell puts it 15.5 m higher. Orientation by side: with
    `flag = false` West 3, North 0, East 1, South 2; with `flag = true` the opposite (1, 2, 3, 0). Give the prop the
    bool property `0xCAA46595 = true` (marks it as a connection marker); for Pipe also `0xCAA45670` and
    `0xCAA45672`; for Subway `0xCAA45670` and `0xCAA45671` (all true). Insert it through the prop manager.

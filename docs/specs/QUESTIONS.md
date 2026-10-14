@@ -451,8 +451,10 @@ vectors `nb18_*`). The core's current answer is in brackets.
   virtual `SetFlags` three times: (Active, true), (Proposed, false), (Cancelled, false). Each call that changes a
   non-Silent deal posts status 0, so activating a proposal posts 0, 0, then `simulate_deals`'s 1 (neighbors.md
   §5.4, §7.2).
-- **NB3 — §6.3:** does the marker altitude `GetAltitude(x, z)` use the connection cell as given or the inner cell?
-  [as given]
+- ~~**NB3 — §6.3:** does the marker altitude `GetAltitude(x, z)` use the connection cell as given or the inner cell?
+  [as given]~~ **ANSWERED 2026-10-14** from the exe (`0x006D494A`–`0x006D4A4F`): **the bracket does not match.** The
+  height is `GetAltitude(px, pz)` at the **inner** cell's centre, the same point the prop is placed at. The
+  connection cell is not used (neighbors.md §6.3, with an example).
 - **NB4 — §12 vs §7.1:** ProposeDeals reads `0xCA469346` (f32) in §12 but `0xCA46931F` in §7.1. [`0xCA46931F` for
   proposals; `0xCA469346` as GetDealCost's f64 maximum markup]
 - **NB5:** what does `UpdateCost` do with no current simulator? [nothing]
