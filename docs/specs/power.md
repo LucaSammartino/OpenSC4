@@ -445,6 +445,15 @@ inline 32-bit `fistp`. This function converts with `_ftol`.)*
 For each buy deal with `used < amount`: repeatedly take `conn := FindUnvisitedConnection(4, deal.city)` until null;
 `SetVisitedThisCycle(true)`; if `FindConnectionOnOtherSide(conn)` exists and its `GetIsActive()` is true:
 `UpdatePowerGrid(connection cell, clamped)`. Then swap powered-current and powered-next and run
+**UpdatePoweredLots**.
+
+`FindUnvisitedConnection(t, city)` (neighbours slot 15, `0x006CF720`; PW1) walks the neighbours simulator's
+connection list from the start, in append order (neighbors.md §6.2), and returns the first connection whose type
+is `t` (connection slot 5), whose visited bit is clear (slot 11) and whose other-side city is `city` (slot 9),
+without `AddRef`; null when none is left. Each call starts again from the head. Because the caller sets the
+visited bit before the next call, the loop above visits the matching connections once each, in list order: the
+same order as `GetConnectionsOfTypeToCity(t, city)` filtered to the unvisited ones.
+
 **UpdatePoweredLots**:
 
 - `next ^= current` (the changed cells);

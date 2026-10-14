@@ -1444,8 +1444,11 @@ About `docs/specs/power.md`. Ini: `power_shadow = 1` (needs our simulator and th
 enable `power`); one line per recompute cycle at state 3, plus month, bookkeeping and month-summary lines. The
 shadow's current answer is in brackets.
 
-- **PW1:** `FindUnvisitedConnection` is not in the spec. The shadow takes the first connection from
-  `GetConnectionsOfTypeToCity` whose visited flag is false. The original's search order? [first unvisited]
+- ~~**PW1:** `FindUnvisitedConnection` is not in the spec. The shadow takes the first connection from
+  `GetConnectionsOfTypeToCity` whose visited flag is false. The original's search order? [first unvisited]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006CF720`): **the bracket matches.** It walks the connection list from
+  the head in append order and returns the first with type `t`, visited bit clear and other-side city `city` (no
+  AddRef), the same order as `GetConnectionsOfTypeToCity`. Written into power.md §6.5.
 - **PW2:** the log date for SimNewDay, SimIdle and SimNewMonth comes from the message's `data1` as a julian date.
   Does SimIdle's `data1` carry the date? [assumed]
 - **PW3:** the pass import, export and demand are not saved. What does the original hold after a load, before its
