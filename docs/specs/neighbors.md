@@ -1137,6 +1137,13 @@ The bracket's type, `0xA823821E`, is right, but the original also requires usage
 on the markers, which are city props, so the two agree in practice. *[choice]* Call `GetCityProps`, or add the usage
 test.
 
+**NG26. `QueryInterface` on the traffic source.** Slot 0 of the connection's traffic-source part (`0x006D47F0`) is
+a thunk to the connection's `QueryInterface` (`0x006CE000`), so the bracket (forwarded to the connection) matches.
+That `QueryInterface` answers only `1` and `0x0773FEF2` (the connection's main interface) and `0xE4FDA3D4`
+(`cIGZSerializable`). It does **not** answer the traffic-source or property-holder IIDs: those parts are reachable
+only through `AsTrafficSource` and `AsISCPropertyHolder`. So `QueryInterface(1)` on the traffic source returns the
+connection's main interface (AddRef'd), not the traffic source.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).

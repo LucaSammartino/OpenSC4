@@ -2645,7 +2645,9 @@ answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (prop manager slot 18 `0x004A1DB0`, filter `0x004A2210`; `0x006D0CA2` and the
   delete path) and written into neighbors §15.4. The original asks for city props (type `0xA823821E` and usage 1) in the
   cell, then tests `0xCAA46595`. The type matches; add the usage test or use `GetCityProps`.
-- **NG26:** Traffic source `QueryInterface`. [forwarded to the connection]
+- ~~**NG26:** Traffic source `QueryInterface`. [forwarded to the connection]~~
+  **ANSWERED 2026-10-14** from the exe (thunk `0x006D47F0` → `0x006CE000`) and written into neighbors §15.4. Forwarded
+  to the connection, which answers only `1`, `0x0773FEF2` and `0xE4FDA3D4`. The bracket matches.
 - **NG27:** `GetPropertyU32` on array properties. [the first element]
 - **NG28:** The shadow's statistics tolerance. [relative 1e-6]
 - **NG29:** Network flag bits used as type numbers. [left open]
