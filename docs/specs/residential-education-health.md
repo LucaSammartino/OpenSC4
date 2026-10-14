@@ -148,7 +148,10 @@ data3 = `0x278128A0` (building occupant) and void1 = the occupant. The class ask
    staff) succeeds. Otherwise (no item) it is a hospital if it is in occupant group `0x1507` or `0x151C`.
    For a hospital:
    - Budget registration (only when the staff item exists):
-     - if the item's line is 0, `ChangeBudgetItemLine(holder, item.index, b.GetBuildingType())`;
+     - if the item's line is 0, `ChangeBudgetItemLine(holder, item.index, b.GetBuildingType())`, and the call's
+       own copy of the item gets line := the building type (`0x006FB17F`; schools `0x006FB39A`). Every later step
+       of this call (`GetLineItem`, `CreateLineItemForBuildingType`, the count, `RemoveLineItem`) uses that line;
+       the item is not read again;
      - `dept := GetDepartmentBudget(item.department)`; null **aborts the whole call** (no list change);
      - when added: if `dept.GetLineItem(line)` is null, `CreateLineItemForBuildingType(line, 1)` then
        `line.SetDisplayFlag(2, true)`; `AddLocallyFundedObject(holder, 0xCA565486)`;

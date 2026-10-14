@@ -1048,7 +1048,10 @@ brackets; the module doc of `core/src/residential/education_health.rs` lists 1 t
   the exe (`SetOccupantFundingPercentages` `0x006F8290`; flag store `0x006F834A`) and written into REH §4.2. **Yes.**
   The flag store is shared by both "no item" exits and the normal end; only a null department returns without it.
   The flag is never read.
-- **EH3:** after `ChangeBudgetItemLine`, is the line item's line the building type? [yes]
+- ~~**EH3:** after `ChangeBudgetItemLine`, is the line item's line the building type? [yes]~~ **ANSWERED 2026-10-14**
+  from the exe (`DoBuildingChanged` `0x006FB120`: hospital `0x006FB17F`, school `0x006FB39A`) and written into REH
+  §4.1. **Yes.** The call stores the building type into its own copy of the item right after `ChangeBudgetItemLine`,
+  and every later step of the call uses that line; the item is not read again.
 - **EH4:** on removal with no line item for the line, is the count step skipped? [skipped]
 - **EH5:** a building added without a capacity: is its effective capacity 0? [yes]
 - **EH6:** do "served", the tract list and the boost all use the lot centre, else `GetPosition`? [yes, all three]
