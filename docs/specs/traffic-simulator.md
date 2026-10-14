@@ -974,7 +974,9 @@ data directly, assuming tract size 1 for both u8 grids *[quirk]*. Then posts `0x
 
 **ClearTripDestinations** (`0x0070E4F0`): per cell with a lot (`GetLot(x, z, true)`): `arrivedLast[k] :=
 arrivedThisCycle[k]`, `arrivedThisCycle[k] := 0` (k = 0…3); `jobCapacity[k] += GetMaxTripCapacity(holder, k)` for
-k = 0…2 *[inferred: once per lot cell, so multi-cell lots count once per cell]*.
+k = 0…2. The cell iterator steps one cell at a time (step 1, `0x0071F47B`), and `GetLot(…, true)` answers only at
+the lot's origin cell (`0x0072B453`), so each lot is rolled and counted **once**. *(Corrected (TS19): an earlier
+text inferred once per lot cell.)*
 
 **RefreshCommuteMap** (`0x0070F6E0`, despite the name it refreshes the **destination map**): per cell, the
 destination byte `&= 0xF8` (bits 0–2 cleared, *[quirk]* bit 3 = freight destination is never cleared); with the lot
@@ -1354,7 +1356,7 @@ Virtual calls (slot, offset, pop, return):
 |---|---|---|---|---|---|
 | `cISC4City` | 93, 94 (+0x174, +0x178) | cell counts | 0 | EAX | Init |
 | `cISC4City` | (+0x16C) | cell width (float) | 0 | x87 | speed tables (§4.14) |
-| `cISC4LotManager` | 6 (+0x18) | `GetLot(x, z, bool)` | 12 | EAX | everywhere |
+| `cISC4LotManager` | 6 (+0x18) | `GetLot(x, z, bool originOnly)` (`0x0072B410`): false = any cell of the lot, true = only the lot's origin (lot slot 21); off-map → null. **false** at every site except ClearTripDestinations, RefreshCommuteMap's first lookup and UpdateSubnetworkInfo (true). The pathfinder's three sites pass false (pathfinder.md §8, TS19) | 12 | EAX | everywhere |
 | `cISC4LotManager` | 15 (+0x3C) | lot list / iterator | | | source iterator, FinishTripMap |
 | `cISC4Lot` | 3 (+0x0C), 12/13 (+0x30/+0x34), 14 (+0x38), 21 (+0x54), 28 (+0x70), 31 (+0x7C), 37 (+0x94), 48 (+0xC0), 56 (+0xE0), 59 (+0xEC) | property holder, flags, bounding rect, location, road access, zone type, livable, building, travel population, lot link | | | §4.1, §4.7 |
 | `cISC4TrafficSource` | 3, 4, 5 | §4.1 | 0, 0, 4 | | |

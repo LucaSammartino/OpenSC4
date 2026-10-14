@@ -1357,7 +1357,12 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   is accessed as u32 with no count check (*[choice]*: treat it as missing). Also found: ApplyTrafficToDestination
   stores the pool's new arrived total into the found connection's own `0x8A0B4100`. Written into
   traffic-simulator.md §4.2.
-- **TS19:** does the pathfinder adapter's GetLot match any cell of a lot? [yes (`false`)]
+- ~~**TS19:** does the pathfinder adapter's GetLot match any cell of a lot? [yes (`false`)]~~ **ANSWERED
+  2026-10-14** from the exe: yes. All three pathfinder sites pass false (`0x006D7AC7`, `0x006D8688`, `0x006D8B1D`).
+  `GetLot` (`0x0072B410`) with false answers at any cell of the lot; with true it answers only at the lot's origin.
+  In the simulator, only ClearTripDestinations, RefreshCommuteMap's first lookup and UpdateSubnetworkInfo pass true.
+  That corrects §4.11: each lot is rolled and counted once, not once per cell. Written into traffic-simulator.md
+  §4.11 and §8.
 - **TS20:** is the traffic-source list a snapshot? [yes: lots, then connections, when the phase is entered]
 - **TS21:** when are `toReRoute` / `toSearch` zeroed? [on entering state 16]
 - **TS22:** does ReduceEdgeDensities also clear ferry terminal cells? [yes, departure and arrival; missing records
