@@ -514,8 +514,11 @@ vectors `nb18_*`). The core's current answer is in brackets.
   (`0x006D13A5`): the original does not null-check the payer, but cannot reach the case. A sell deal with no
   neighbour gets NoConnection earlier in the same pass; a buy deal with no `R` crashes in `UpdateState` first
   (NB15). The bracket is kept as a *[choice]*, needed only because of the NB15 choice (neighbors.md §7.3).
-- **NB17:** the return types of `RequestCreateConnection` and `CreateConnection`. [choice: the request returns
-  `ConnectionRequest`, `CreateConnection` the new connection or null]
+- ~~**NB17:** the return types of `RequestCreateConnection` and `CreateConnection`. [choice: the request returns
+  `ConnectionRequest`, `CreateConnection` the new connection or null]~~ **ANSWERED 2026-10-14** from the exe. The
+  internal types are glue: there is no original behaviour, so the implementer's choice stands. At the interface,
+  `RequestCreateConnection` returns a real `bool` (confirmed: true; exists or declined: false), and the shim must
+  match it. `CreateConnection` leaves a leftover `EAX` that callers ignore (neighbors.md §6.2).
 - Lane choices worth knowing: the proposal generator is per simulator, seeded `derive_seed(session, 0xC990C0A4)`
   (the original's is process-wide and clock-seeded); save reads are capped at 65,536 zones.
 

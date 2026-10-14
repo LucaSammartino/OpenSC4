@@ -321,6 +321,17 @@ u32  suspensionDate                 (present when version ≥ 5)
 | `GetDealMaxAmount(type, city)` | §8.1. |
 | `GetTuningExemplar()` | the tuning exemplar (§12), no AddRef. |
 
+**Return values at the interface** (NB17):
+
+- `RequestCreateConnection` (`0x006D15E0`) returns a real `bool`: true only when the dialog was confirmed; false
+  when the connection already exists or the player declined. The shim must return exactly that.
+- `CreateConnection` (`0x006D4860`, `ret 0x10`) leaves whatever is in `EAX`. On the early return that is
+  `HasConnection`'s result (true). Otherwise it is the return value of the final `Release` of the posted message.
+  Neither is a pointer, and shipped callers ignore it.
+
+The core's internal types (a three-way `ConnectionRequest`, and the new connection or null) are the
+implementer's choice; no original behaviour constrains them beyond the `bool` above.
+
 ### 6.3 `CreateConnection(type, x, z, flag)` *[compat]*
 
 1. If `HasConnection(type, x, z)`, do nothing.
