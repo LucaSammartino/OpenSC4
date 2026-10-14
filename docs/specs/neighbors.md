@@ -200,7 +200,10 @@ PC's clock and cannot be reproduced. A saved 0 is harmless to the original game,
 | `0x100` | Grace | first failure; further failure flags are ignored |
 | `0x200` | Probation | after the grace period; a failure now ends the deal |
 
-"Failure flags" are `0x38`. Totals and pricing ignore deals with any of `0x3D` (§10.1).
+"Failure flags" are `0x38`. The totals ignore deals with any of `0x3D` (§10.1). **Pricing does not** (NB9):
+`GetDealCost` and `GetDealMaxAmount` take `existing` from the first `FindDeals` match, whatever its flags (§8.1).
+`FindDeals` (both overloads, `0x006D0760` and `0x006D0840`) matches on type, and on the other-side city where one
+is given, and on nothing else.
 
 ### 5.3 Status reports *[compat]*
 

@@ -479,7 +479,10 @@ vectors `nb18_*`). The core's current answer is in brackets.
   is in this simulator's list and is the first of its type with that city. `existing` is the first `FindDeals(type,
   C)` match, with no flag filter. An earlier deal of the same type and city takes its place, and an unlisted deal
   never counts itself. The 262 is reproduced in neighbors.md §8.1.
-- **NB9:** §5.2 says pricing ignores `0x3D` deals, but §8.1's `FindDeals` has no filter. [as §8.1]
+- ~~**NB9:** §5.2 says pricing ignores `0x3D` deals, but §8.1's `FindDeals` has no filter. [as §8.1]~~ **ANSWERED
+  2026-10-14** from the exe: the bracket matches. Both `FindDeals` overloads (`0x006D0760`, `0x006D0840`) match on
+  type and city only, and `GetDealCost`/`GetDealMaxAmount` check no flags. §5.2 was wrong and now limits the `0x3D`
+  rule to the totals (neighbors.md §5.2).
 - **NB10:** SetAmount's synchronous report re-enters `simulate_deals` during `ProposeDeals(add = true)` and
   activates the proposal. Intended? [as written]
 - **NB11:** the store ignores a false `Read` (foundations §3.5), so a version-3 simulator record loads "clean" with 0
