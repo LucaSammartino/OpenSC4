@@ -640,7 +640,9 @@ The first time a frame uses a material, each texture slot with a non-zero ID and
 1. (`0x7AB50E44`, `0x1ABE787D`, ID): slot `0x14` (`0x008094C0`) builds this key with the group hard-coded.
 2. If that fails: (`0x7AB50E44`, the model's own group, ID) through slot `0x18` (`0x0080A380`).
 3. If that fails too: instance `0x07F94200` in group `0x1ABE787D` (shipped in `SimCity_3.dat`, 32 × 32 DXT1), and
-   the slot's ID is set to 0 so it is not looked up again.
+   the slot's ID is set to 0 so it is not looked up again. If the fallback does not load either, its result is
+   ignored: the slot keeps no binding and its ID is still set to 0 (`0x00806DF5`–`0x00806E02`), so the material is
+   drawn without that texture *[inferred]* (FS13). FreeCity4 resolves such a slot to no texture *[choice]*.
 
 The binding cache keys on (group, instance) only (§2.10). On the shipped data, step 1 always succeeds.
 

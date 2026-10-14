@@ -2936,7 +2936,11 @@ variant (GF3). The current answer is in brackets.
   graphics-formats §3.11. An all-ASCII name is lowered with `tolower`. Any other name goes UTF-8 → UTF-16 → `towlower`
   → UTF-8 in the game language's locale, so its non-ASCII letters are lowered too. All 3,025 shipped names are ASCII.
   The bracket matches for them. For a valid UTF-8 name, also lower non-ASCII letters *[choice]*.
-- **FS13:** §4.1 when the fallback texture itself does not load. [the fallback key is returned anyway]
+- ~~**FS13:** §4.1 when the fallback texture itself does not load. [the fallback key is returned anyway]~~
+  **ANSWERED 2026-10-14** from the exe (`GetModelFrame` `0x00806DF5`–`0x00806E02`: the fallback lookup's result is not
+  tested) and written into graphics-formats §4.1. The slot is left with no binding and its ID set to 0, so it is never
+  retried and draws without a texture *[inferred]*. The bracket (the fallback key returned anyway) differs. Resolve the
+  slot to no texture *[choice]*.
 - **FS14:** RKT lookups with a zoom above 4, a detail above 2, a rotation above 3, or too few values. [no model
   (`None`); RKT0 ignores zoom and detail; the RKT1 addition wraps]
 
