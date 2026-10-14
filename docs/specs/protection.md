@@ -926,6 +926,25 @@ All are posted (queued) through the message server with `cRZMessage2Standard`.
 | `0x2A614892` | police | jailbreak ends | same |
 | `0xA949569A` | police | a police station was inserted, removed or changed | IGZUnknown = the simulator |
 
+**Which pointer is "the simulator"** *[compat]* (PR11). It is always the **primary interface pointer**: the object's
+start, whose vtable is fire `0x00AB1160` or police `0x00AB2490`. That is the pointer `GetFireProtectionSimulator` /
+`GetPoliceSimulator` return. The original gets it in two ways:
+
+- **End of a coverage cycle** (fire `0x006AD3A3`, police `0x006E0616`). It calls `QueryInterface(1, &p)` on the
+  primary. Both QIs answer IID 1 with the primary itself (fire `0x006ACEFE`, police `0x006E008E`). The reference
+  is released after the post.
+- **Station insert, remove or change, and jailbreaks** (police `0x006E0B92`, `0x006E166F`, `0x006E1DD8`,
+  `0x006E1BFA`, `0x006E1D55`). It uses `this − 8` or `this` directly, which is the same pointer.
+
+How the message stores the two fields (`cRZMessage2Standard`, vtable `0x00ACEC00`):
+
+- **void1** (slot 12, `0x00913322`) is stored raw, without `AddRef`.
+- **IGZUnknown** (slot 33, `0x0091346B`) is held by a counted reference.
+- A station or jail pointer is the occupant pointer the caller passed in.
+
+A replacement must post its own primary pointer. That is the same object its `QueryInterface(1)` returns, so a
+listener can cast void1 to the simulator interface.
+
 ---
 
 ## 13. Consumers and replaceability

@@ -575,7 +575,16 @@ About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The 
     in-grid cell.
   - **Outside the grid.** Neither the original's raw read nor `GetZoneType` checks bounds, so there is no original
     value. "0 outside" is the implementer's choice, and it never triggers for grids the game creates.
-- **PR11 — §12:** "void1 = the simulator" posts the primary interface pointer. Right pointer? [primary]
+- ~~**PR11 — §12:** "void1 = the simulator" posts the primary interface pointer. Right pointer? [primary]~~
+  **ANSWERED 2026-10-14** from the exe (cycle-end posts fire `0x006AD3A3`, police `0x006E0616`; QIs fire
+  `0x006ACEFE`, police `0x006E008E`; police posts `0x006E0B92`, `0x006E166F`, `0x006E1DD8`, `0x006E1BFA`,
+  `0x006E1D55`; message slots 12 `0x00913322`, 33 `0x0091346B`) and written into protection.md §12. **Confirmed;
+  the bracket matches.**
+  - **The pointer.** Every "the simulator" field is the primary interface pointer (vtables `0x00AB1160` /
+    `0x00AB2490`).
+  - **How it is obtained.** At a cycle end it comes from `QueryInterface(1)`, which returns the primary itself and
+    is released after the post. The station and jailbreak posts use `this` or `this − 8` directly.
+  - **How the message holds it.** void1 is stored raw. IGZUnknown is a counted reference.
 - **PR12 — §4.1:** the simulator, flammability and crime simulators are not held (never called); only reference
   counts differ. Acceptable? [not held]
 - **PR13 — §13.2:** the air sources are created through GZCOM and their Init/Shutdown called by address while our
