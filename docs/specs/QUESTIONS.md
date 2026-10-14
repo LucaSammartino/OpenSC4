@@ -3061,7 +3061,10 @@ host gained connection, region, budget and drive-side methods. The current answe
   `0x0071A3D7`–`0x0071A40C`; publish `0x0071A5D7`–`0x0071A67A`) and written into traffic-simulator §4.9. Zeros: average
   0.0, congested 0, max cell (0, 0), max 0.0. The −1.0 start is a separate comparison value, not the published max. The
   bracket matches.
-- **TS41:** A pool ID repeated in row 19: which entry wins? [the last one]
+- ~~**TS41:** A pool ID repeated in row 19: which entry wins? [the last one]~~
+  **ANSWERED 2026-10-14** from the exe (traffic `Read` `0x00722F60`–`0x00722FB3`; map find-or-insert `0x00714560`) and
+  written into traffic-network §2.7. The last one wins: each entry's holder is stored through the map's find-or-insert,
+  overwriting the earlier pointer, which is never released. The bracket matches.
 - **TS42:** Pool ID overflow. [pool 0]
 - **TS43:** A missing regional demand node. [0]
 - **TS44:** Which row-14 field holds the saved source cell? [`phase_positions` s16×2, the lot location]

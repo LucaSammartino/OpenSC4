@@ -269,7 +269,9 @@ Each record holds:
 Init creates all four arrays with every record `(0, 0, 0.0)`. The records are not saved; DoPostCityInit rebuilds
 them (§2.7.2). The pools are saved (traffic-simulator.md §6 row 19: u32 count, then per pool its u16 ID and its
 property-holder record; `Write` `0x007132F4`, `Read` `0x00722F5D`–`0x00722FB3`), so the Adds after a load find
-them again by position, with their capacities and counts. Add and remove (messages
+them again by position, with their capacities and counts. A repeated ID in the record (TS41): each entry is stored
+through the map's find-or-insert (`0x00714560`, called at `0x00722FA2`), so the last entry wins; the earlier holder
+stays allocated, with its reference, and is never released. Add and remove (messages
 `0x8A0D15DA` and `0xEA0D163E`), the lookups, the pools and their capacities are in §2.7.1–§2.7.5.
 The graph uses these records only through **HasMapExit(x, z)**, which is defined for an off-map cell next to the map:
 
