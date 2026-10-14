@@ -210,6 +210,11 @@ expansion, c1 = black, so a 4 × 4 level of dark blues and black. FreeCity4 read
 record as the game does, so those bytes are the record's own; only bytes past `size` (none shipped) read as zero
 *[choice]* (GF9).
 
+The original has no notion of where an entry ends (FS1): it reads every level at its aligned offset from the
+`size`-byte buffer, whatever lies there, and checks nothing. FreeCity4 needs an end only to decide acceptance
+(below): an entry ends at the first of its attached block (`next`), another entry's header, or `size`, counting
+only positions at or after its pixel start *[choice]*. The bytes it decodes still come from the record, as above.
+
 ### 2.9 Info-only open *[compat]*
 
 When the factory is asked for info only, `OpenInfoOnly` reads the header plus `roundup16(8 × count) + 16` bytes

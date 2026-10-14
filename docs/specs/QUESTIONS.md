@@ -2863,8 +2863,13 @@ About `docs/specs/graphics-formats.md` and `engine/formats` (`fsh`, `s3d`, `keys
 release sweep reproduces the §8.4 counts. Not done: the info-only open of §2.9; a DXT1 A = 0 opaque-black decoder
 variant (GF3). The current answer is in brackets.
 
-- **FS1:** §2.8 says bytes "beyond the entry" read as zero, but not where an entry ends. [it ends at the first of: its
-  attached block (`next`), another entry's header, or `size`; only positions at or after its pixel start count]
+- ~~**FS1:** §2.8 says bytes "beyond the entry" read as zero, but not where an entry ends. [it ends at the first of: its
+  attached block (`next`), another entry's header, or `size`; only positions at or after its pixel start count]~~
+  **ANSWERED 2026-10-14** from the exe (level table `0x00800A60`–`0x00800AF5`: offsets only, no end test) and
+  written into graphics-formats §2.8. The original has no entry end: it reads each level at its aligned offset from the
+  `size`-byte buffer, whatever lies there. The bracket's end (attached block, next entry header or `size`, at or after
+  the pixel start) is the implementer's choice for the acceptance test, and it reproduces the 167. But the bytes decoded
+  past that end are the record's own, not zero (GF9).
 - **FS2:** Q2 rejects what does not fit "except the mip-padding case": how is that case told from a truncated entry?
   [if the levels fit packed back to back but the 16-byte-aligned layout overruns, zero-fill; if even the packed levels
   do not fit, reject. Shipped data: exactly 167 zero-filled, 0 rejected]
