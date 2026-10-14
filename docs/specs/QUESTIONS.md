@@ -528,7 +528,11 @@ vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
   the start node is at the terminal's **arrival cell**.
 - **PF6:** neighbour-connection link lists and `GetTrafficNeighborConnection` costs are not in the traffic network
   core. [host methods]
-- **PF7:** do exit nodes, closed without expansion, advance the work counter? [yes; test 13 holds either way]
+- ~~**PF7:** do exit nodes, closed without expansion, advance the work counter? [yes; test 13 holds either way]~~
+  **ANSWERED 2026-10-14** from the exe (`FindPath` `0x006D9540` → close `0x006D9C81`, counter `0x006D9C97`) and
+  written into §4.11. **The bracket is right: yes.** Every popped node that is not a goal reaches the one close,
+  which advances the counter when a max work time is set; an off-map node jumps there without expansion. A goal
+  node does not count, and with max work time 0 the counter stays 0.
 - **PF8 — §4.18:** which cell gives an exit node's H when its score is recomputed? [its own off-map cell]
 - **PF9 — §4.9:** Update of an open node whose heap position is stale. [no-op unless the heap slot holds it]
 - **PF10 — §4.15:** `GetNeighborConnectionInnerCell` fails for an off-map node. [the node's own cell, low bytes]

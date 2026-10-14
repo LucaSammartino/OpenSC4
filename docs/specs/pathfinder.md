@@ -478,8 +478,11 @@ The timer is a time-stamp-counter deadline: `now + _ftol(maxWorkTime × ticksPer
 the counter reaches it (`0x0068BF80`). With max work time 0 the search never suspends.
 
 To keep timer reads rare, a process-wide multiplier `m` (initially 1024, power of two, 1…1024) is used: a per-call
-counter starts at 0 and gains `m` (the value at call entry) after each expanded node; the timer is read only when the
-counter is a multiple of 1024. At every return after the search started (found, suspended, exhausted), with
+counter starts at 0 and, when a max work time is set, gains `m` (the value at call entry) for every popped node that
+is not a goal, at its close (§4.8.5). Off-map nodes (exit nodes) are closed without expansion and still count
+(PF7: the off-map branch at `0x006D9540` jumps straight to the close at `0x006D9C81`, which advances the counter at
+`0x006D9C97`). A goal node does not count. The timer is read only when the counter is a multiple of 1024. With max
+work time 0 the counter stays 0, so `k = 0` below and the adaptation never runs. At every return after the search started (found, suspended, exhausted), with
 `k = counter >> 10` (the number of timer reads this call) and a process-wide adaptation counter `a`:
 `k = 0` → nothing; `k > 20` → `a += 1`, and when `a ≥ 16`: `a = 0` and `m = m / 2` if `m > 1`; `1 ≤ k < 5` →
 `a −= 1`, and when `a ≤ −4`: `a = 0` and `m = 2m` if `m < 1024`. The multiplier is shared by all pathfinders.
