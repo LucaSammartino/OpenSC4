@@ -241,6 +241,29 @@ plugin.
        switches (default `1`, environment `FC4_AURA_<KEY>`): `aura_lots`, `aura_lot_populations`,
        `aura_occupants`, `aura_budget`, `aura_ordinance`, `aura_land_value`, `aura_inputs`, `aura_grid_writes`,
        `aura_posts`, `aura_history`, `aura_disaster`, `aura_strikes` (see `plugin/FC4Config.h`).
+     - `landfill`: the landfill developer (`cSC4LandfillDeveloper`, landfill spec). It reports the free capacity
+       to the pollution simulator (`SetGarbageCapacity`), moves garbage out of its supply into the heaps
+       (`GarbagePutInLandfill`), sets the active-landfill flag of every tile cell, levels the zone through the lot
+       developer, books line item 30 of the sanitation department, and places the zot prop, all through the game's
+       interfaces. The getters are answered from any thread (another thread waits up to 20 ms for the object's
+       lock, then answers from the last snapshot and counts a fallback). Landfill tiles are kept in FreeCity4,
+       not in the game: attaching a tile exemplar to the game's `cSC4LandfillOccupant` is not documented, so the
+       cells keep pollution's active-landfill flag (what the simulation reads) but no tile model is drawn, the
+       query tool shows no tile, and the tiles are rebuilt from the flags at `PostCityInit` after a load. Left
+       out and logged once: `SetEmptyCellTexture` (the base-texture occupant's factory is not documented: no
+       landfill ground texture), the zone effects (garbage trucks and seagulls, §4.10, rendering only), the zot's
+       orientation (the view service of §4.7.5 is not documented: 0), the 3D view level, and
+       `GetLandfillZoneFromCell` (null, which §9 allows). The log has a status line at `Init`, `Read` and every
+       month from the first (`landfill month: init=… loaded=… zones=… connected=… cells=… heaps=… valid=…
+       active=… stored=… capacity=… used=… free=… reported=… moved=… supplyDelta=… maintenance=… activeCells=…
+       tiles=… rebuilt=… zots=… department=… reentrant=… fallbacks=… placeZones=… zotsPlaced=… zotsFailed=…
+       zotsRemoved=… occupantsRemoved=… levellings=… history=… months=…`), `landfill Write -> 1`, `landfill
+       Read -> 1`, `landfill Shutdown: M months, F fallbacks` and `cFC4LandfillDeveloper destroyed (F
+       fallbacks)`. A cell region whose cell map does not match its rectangle is ignored and logged once
+       (`landfill: WARNING a cell region does not have the documented layout …`). Its game calls have their own
+       switches (default `1`, environment `FC4_LANDFILL_<KEY>`): `landfill_terrain`, `landfill_levelling`,
+       `landfill_pollution`, `landfill_budget`, `landfill_zoning`, `landfill_occupants`, `landfill_props`,
+       `landfill_traffic`, `landfill_history`, `landfill_effects` (see `plugin/FC4Config.h`).
    - Each budget behaviour that touches game objects has a switch. The switches are re-read at every city load
      (budget `Read`/`Init`). Each defaults to `1`; `0` makes the behaviour a no-op with a neutral result. The
      matching environment variable is `FC4_BUDGET_<KEY>`. `budget_default = 0` turns every unset switch off.
@@ -515,6 +538,34 @@ plugin.
      Success is `base mismatches=0`, `aura mismatches=0` (or only in the transient-effect tracts), equal park
      and landmark maps, equal mayor rating, best / worst and `hotspots … (same)` on every cycle line, and no
      `INCOMPLETE` line after the first cycle.
+   - **Landfill shadow** (`landfill_shadow = 1`, env `FC4_LANDFILL_SHADOW`; off by default;
+     `landfill_shadow_diffs = N`, env `FC4_LANDFILL_SHADOW_DIFFS`, default 8, 1..64): a same-process
+     differential of the landfill developer. It needs **our simulator and the original landfill developer** (do
+     not enable `landfill`); otherwise it logs `landfill shadow: requested … but INACTIVE` at game start. It wraps
+     our simulator's `SimNewMonth` delivery to the original's agent (`cSC4LandfillDeveloper`): just before, the
+     original's own `Write` (`cIGZSerializable`) goes into a memory stream and its maintenance is read (slot 7,
+     not saved); FreeCity4's month (the core code our developer runs) then runs on that record, reading every
+     input live and read-only (geometry, tuning, terrain, pollution's garbage supply, capacities and
+     active-landfill flags, the department's funding and line item, zones, occupants, traffic; the host table
+     has no write callback, so every write is recorded and none is sent). Just after the original's month the
+     record and slot 7 are read again and compared: the zones and their heaps, the free capacity pollution
+     holds, the garbage moved out of pollution's supply, the maintenance and the active-landfill flags. **Not
+     compared** (said in the start line, not readable read-only): the zots, trucks and seagulls the original
+     drew, the tile occupants it changed, the line item expenses it booked and the history records it sent.
+     Lines (always written; longer ones continue on `landfill shadow (cont.)` lines):
+
+     ```
+     landfill shadow: ON (landfill_shadow from …): …                               (game start)
+     landfill shadow: comparing with the original landfill developer … (city …); differences listed per month: N
+     landfill shadow month to yyyy-mm-dd: clean|mismatches=N; zones orig/ours a/b; heaps compared=… mismatched=…
+       max|d contained|=…; free capacity orig/ours a/b; garbage moved orig/ours a/b (supply x -> y); maintenance
+       orig/ours a/b (before …, recomputed …); active cells compared=… mismatched=…; ours: put in landfill … in …
+       calls, tiles drawn … removed …, zots placed … removed … (not placed: shadow), history values …; first
+       differences: none | …
+     landfill shadow month to yyyy-mm-dd: INCOMPLETE (why); not compared
+     ```
+
+     Success is `clean` on every month line and no `INCOMPLETE` line.
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,
