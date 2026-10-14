@@ -279,6 +279,13 @@ byte of the value type, the two key-type bytes, the "unused" byte) form the litt
 - The "unused" byte and the key type's high byte must be **0**, otherwise the tag is invalid and the read fails.
 - Tags accepted: scalars `0x00`–`0x0C`, arrays `0x8000`–`0x800C`, `0x8010`, `0x8011` (foundations §9.2 reader
   set). The value types `0x0400` Uint64, `0x0500` Sint8, `0x0600` Sint16, `0x0A00` Float64 are valid.
+- **Tag 0 (Empty)** has no value bytes: the next property starts right after the tag. The property is added like
+  any other and holds an **Empty** variant (memory type 0, no data, `GetCount()` 0), so `HasProperty` and
+  `IsPropertyLocal` are true for it. What the getters return for it is in §5.1 ("Empty and object values"). For
+  example count 2, `10 00 00 00 | 00 | 00 00 00 00` then `11 00 00 00 | 00 | 03 00 00 00 | 07 00 00 00`: `0x10` is
+  Empty and `0x11` is Uint32 7. Tag `0x8000` is a **void array** (memory type `0x8000`: a `uint32` count, then
+  that many raw bytes). No shipped record uses tag 0, tag `0x8000`, kind 1 or the char tags `0x10`, `0x11`,
+  `0x8010`, `0x8011` (sweep of the 9,345 binary exemplar and cohort records in the install, 2026-10-14).
 - Key type `0x80` gives an **array** even for one element (count 1); key type `0x00` gives a scalar. Arrays may
   have count 0.
 - A string is tag `0x800C`: the count is the §2.3 string header (top byte `0x10` = UTF-16, quirks of §2.3

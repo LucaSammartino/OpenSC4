@@ -528,7 +528,10 @@ vectors `nb18_*`). The core's current answer is in brackets.
 About `docs/specs/data-formats.md` §4, §5 and the §11 exemplar rows (`engine/formats/src/exemplar.rs`). The install
 sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets.
 
-- **EX1:** how are Empty (tag 0) properties stored? [`Values::Empty`; getters return None]
+- ~~**EX1:** how are Empty (tag 0) properties stored? [`Values::Empty`; getters return None]~~ **ANSWERED
+  2026-10-14** from the exe: **the storage half matches.** Tag 0 has no value bytes; the property is added and holds
+  an Empty variant (memory type 0, `GetCount()` 0), so `HasProperty` is true. The getter half does not match: see
+  EX5. No shipped record uses tag 0 (data-formats.md §4.2, with an example).
 - **EX2:** Uint64 to float, signed or unsigned? [unsigned]
 - **EX3:** float to int when out of range or NaN? [saturates; NaN gives 0]
 - **EX4:** is RZChar signed when widened? [zero-extended]
