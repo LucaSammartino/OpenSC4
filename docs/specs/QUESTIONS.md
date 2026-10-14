@@ -519,7 +519,13 @@ vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
   **The bracket is right: `s`**, the popped node's own side, re-read in each pass of the `s2` loop. The test does
   not depend on `s2`, so all four nodes are added or none. The branch stays unreachable (no code sets wormhole
   bit 1).
-- **PF5 — §4.6 fallback:** several links of one connection match the start cell: which link cost? [the first]
+- ~~**PF5 — §4.6 fallback:** several links of one connection match the start cell: which link cost? [the
+  first]~~ **ANSWERED 2026-10-14** from the exe (`CreateStartNodes` `0x006D8B54`–`0x006D8F8E`; terminal layout
+  from `DoFerryTerminalActivated` `0x0072392C`–`0x0072398B`) and written into §4.6. **The bracket is wrong: the
+  last.** Nothing ends the loops and nothing checks for an existing node, so each matching link overwrites `g`/`f`
+  of the same start node and pushes it again (the heap holds it once per match). Also corrected: the loops run over
+  the **ferry terminals** and their neighbour links (traffic-network.md §2.6), not over neighbour connections, and
+  the start node is at the terminal's **arrival cell**.
 - **PF6:** neighbour-connection link lists and `GetTrafficNeighborConnection` costs are not in the traffic network
   core. [host methods]
 - **PF7:** do exit nodes, closed without expansion, advance the work counter? [yes; test 13 holds either way]

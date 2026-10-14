@@ -271,18 +271,33 @@ Because the ring rect is clamped, the start rect's own cells can be visited when
 and a later ring can revisit the same edge cells; the same node is then pushed again (the heap holds it twice).
 *[quirk]*
 
-**Off-map start fallback.** If no node was created and the start cell is off-map: for every neighbour connection of
-the simulator whose link list has a link whose off-map point equals the start cell, and every travel type `t` in both
-the starting mask and that connection's travel-type mask, create the start node at the connection's in-city cell
-with entry side 0, `g = r24(startCost[t] + linkCost)`, `f` as above (H at the in-city cell), and push it. Start nodes
-created here ignore the start-edge table and the cell's `conn`. If the start cell is in city and no node was created,
-`FindPath` returns 0.
+**Off-map start fallback** (ferry arrivals; `0x006D8B54`–`0x006D8F8E`). If no node was created and the start cell
+`(x0, z0)` is off-map (unsigned `x0 ≥ W` or `z0 ≥ H`), the trip may begin by ferry. The loops run over the
+simulator's **ferry terminals** (its terminal list, in list order; traffic-network.md §2.6), not over its neighbour
+connections, as an earlier version of this section said. For each terminal, for each of its **neighbour links** in
+list order whose off-map cell equals `(x0, z0)`, and for each travel type `t` = 0…8 in both the starting mask and the
+terminal's travel mask:
+
+* fetch or create the start node at the terminal's **arrival cell** `(x2, z2)` with entry side 0 (key
+  `(0x10 << 24) | t << 16 | x2 << 8 | z2`);
+* set `g = r24(startCost[t] + link.cost)` (the link cost of traffic-network.md §4.9.3), `f = r24(r24(H(x2, z2) × w) +
+  g)`, no parent, open, not closed, and push it.
+
+Nothing ends the loops early, and nothing checks whether the node already exists (PF5). When several links match
+(two links of one terminal with the same off-map cell, or terminals sharing an arrival cell), each match overwrites
+`g` and `f` of the same node and pushes it again. The node keeps the **last** match's cost, and the heap holds it
+once per match, each entry placed by the `f` it had when pushed (as with the clamped rings above) *[quirk][compat]*.
+Example: one terminal, travel mask Car, links L1 (cost 0.5) then L2 (cost 0.3), both to the start cell, start cost
+0: the Car start node ends with `g = 0.3` and is in the heap twice.
+
+Start nodes created here ignore the start-edge table and the cell's `conn`. If the start cell is in city and no
+node was created, `FindPath` returns 0.
 
 ### 4.7 Search nodes and the open set
 
 **Node identity.** A node is a (cell, travel type, entry side, predecessor's entry side) state. Its 32-bit key is
 `((pSide << 2 | side) << 24) | (t << 16) | (x & 0xFF) << 8 | (z & 0xFF)` where `pSide` is the entry side of the
-node it was reached from; start nodes use `((0x10 | side) << 24) | …` (off-map fallback start nodes: side 0);
+node it was reached from; start nodes use `((0x10 | side) << 24) | …` (ferry-arrival start nodes, §4.6: side 0);
 **exit nodes** (nodes for an off-map cell, §4.8.2) set bit 31 and are keyed on the in-city cell they were reached
 from, with `side` = the direction of the move: the node's cell is that in-city cell plus `dir(side)`. Including
 `pSide` in the identity is what makes the car turn rule (§4.8.2) a property of the state. The key decides identity
@@ -603,7 +618,7 @@ Updated, which only sifts **up** (a raised `f` leaves the heap out of order). *[
 | step cost (affected) | `r24(r24(Curve(q) × invMaxSpeed) + extraCost)` |
 | step cost (not affected) | `r24(invMaxSpeed + extraCost)` |
 | exit cost | `r24(c.f − c.g)` |
-| g | `r24(cost + parent.g)`; start: `startCost[t]`; off-map start: `r24(startCost[t] + linkCost)` |
+| g | `r24(cost + parent.g)`; start: `startCost[t]`; ferry-arrival start: `r24(startCost[t] + link.cost)` |
 | f | `r24(r24(float(dX + dZ) × w) + g)` or `r24(r24(0.0 × w) + g)` inside the search rect |
 | trip length | `r24(goal.g − root.g)`, clamp below at +0.0, then `r24(connectionCost + L)` |
 | display trip length | `r24(scale × L)` |
@@ -711,7 +726,7 @@ traffic-simulator.md must specify their results):
 | `0x006D90F0`, `0x006D7820` | transit-switch map and edge-density map `operator[]` | insert-if-missing |
 
 Direct member reads of the owner (Windows layout, owned by traffic-network.md / traffic-simulator.md): the cell
-connection array, destination bitmask map and free counts, tunnel and ferry hash tables, neighbour connection list,
+connection array, destination bitmask map and free counts, tunnel and ferry hash tables, ferry terminal list (§4.6),
 volume-grid vector, transit-switch grid, strike state, the per-travel-type tables (default start cost, can reach,
 generates traffic, income per tile), MaxDistanceOriginToNetwork, NearestDestinationAttractiveness, the income
 accumulator; class statics `invMaxSpeed[9][13]` (`0x00B4B110`), `affectedByTraffic[9]` (`0x00B4B100`), the
@@ -753,7 +768,8 @@ inclusive), `LengthOfLine` (`0x005D7660`).
 
 Quirks reproduced (all marked above): shared max-trip-length/trip-length float; strike blocks subway stations and
 ferries but not starts or same-type moves; subway-station transfer uses the unmasked connection shift and ignores the
-allowed mask; switch moves skip the map-bounds check; exit cost = heuristic term; clamped start rings re-push nodes;
+allowed mask; switch moves skip the map-bounds check; exit cost = heuristic term; clamped start rings re-push nodes, and so does a repeated
+ferry-arrival match (§4.6);
 the goal node is pushed back on success; RecalculateNodeScores only sifts up; filter 3 with flag 4 keeps stale
 scores; the excluded edge rect only exists for filter 0; the 65th over-budget rejection disables a travel type for
 the call; a NaN `g` (new or stored) passes the "better" test (§4.9 step 5); ApplyTraffic's exit side uses unsigned bytes; the income double is
