@@ -53,6 +53,7 @@
 #include "cFC4Neighbors.h"
 #include "cFC4Development.h"
 #include "cFC4GrowthDeveloper.h"
+#include "cFC4TrafficSimulator.h"
 #include "FC4TractShadow.h"
 #include "cFC4TractDeveloper.h"
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
@@ -214,6 +215,14 @@ const ClassEntry kDevelopmentClasses[] = {
     {kFC4_CLSID_cSC4GrowthDeveloper, "cSC4GrowthDeveloper", &CreateFC4GrowthDeveloper},
 };
 
+// docs/specs/traffic-simulator.md, traffic-network.md and pathfinder.md: the
+// traffic simulator, its network model and the pathfinders of slot 6, replaced
+// as one unit (traffic-simulator.md §9). Off by default (M5 glue trial):
+// `enable = traffic`.
+const ClassEntry kTrafficClasses[] = {
+    {kFC4_CLSID_cSC4TrafficSimulator, "cSC4TrafficSimulator", &CreateFC4TrafficSimulator},
+};
+
 // docs/specs/tract-developer.md §1. Off by default (M4 glue trial):
 // `enable = tract`. The BDS, the growth developers, the lot developer, the
 // lot manager and the lot configuration manager stay whoever the city runs.
@@ -245,6 +254,7 @@ const Subsystem kSubsystems[] = {
     {"neighbors", nullptr, kNeighborsClasses, sizeof(kNeighborsClasses) / sizeof(kNeighborsClasses[0]), false},
     {"development", nullptr, kDevelopmentClasses, sizeof(kDevelopmentClasses) / sizeof(kDevelopmentClasses[0]),
      false},
+    {"traffic", nullptr, kTrafficClasses, sizeof(kTrafficClasses) / sizeof(kTrafficClasses[0]), false},
     {"tract", nullptr, kTractClasses, sizeof(kTractClasses) / sizeof(kTractClasses[0]), false},
 };
 

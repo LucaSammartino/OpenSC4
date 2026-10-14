@@ -1023,6 +1023,7 @@ impl Run<'_, '_> {
             .filter(|d| Some(*d) != p.s.roads && Some(*d) != p.s.mass_transit)
             .collect();
         *self.st = p.s;
+        self.st.loaded = true;
         let s = &mut *self.cx.s;
         s.switch_mode = p.n.switch_mode;
         s.switch_id = p.n.switch_id;

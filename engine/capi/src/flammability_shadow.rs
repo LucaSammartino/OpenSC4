@@ -47,7 +47,8 @@
 //!   counted as "unvisited", at most 2 × tractsPerDay; *[compat]* §9, FL1:
 //!   SimCycleComplete is delivered at the next frame's message-server tick,
 //!   by when at most the rest of the wrap day and, at speed 2, one more day
-//!   are visited, so the bound is right for shipped tuning);
+//!   are visited, so the bound is right for shipped tuning; *[choice]* FL8:
+//!   the day count's number when larger, see below);
 //! - the **average** must lie in the range those values and the zoning (at
 //!   both ends of the cycle) allow; exact when nothing changed;
 //! - the **multiplier**, bitwise (*[compat]* §6.4, FL2: only the
@@ -68,18 +69,49 @@
 //! **The watered state is the one at the visit** *[compat]* (§6.5, FL5,
 //! FL6): the day visit applies the no-water factor (1.25 shipped) from
 //! plumbing slot 11 as it answers that day, and that answer changes only
-//! when a plumbing pass ends and swaps its published grid in. Every shadow
-//! call (each forwarded message, including the plumbing pass end
-//! WaterMapChanged `0x6946DC34`, and the cycle end) first polls the plumbing
-//! simulator's `GetWateredGrid()` (slot 7, host `watered_grid`): the
-//! published grid's object alternates at every pass, so a changed pointer
-//! means a pass ended; the watered states are then read again and the
-//! tracts whose state changed are marked. A marked tract (or one whose
-//! state differs between the two cycle ends) may hold its daily value under
-//! either state; every other tract is checked under its one state, as
-//! before. Two passes between polls would bring the pointer back unseen;
-//! the pass-end message gives one poll per pass. With `watered_grid` NULL
-//! only the two cycle ends are compared.
+//! when a plumbing pass ends and swaps its published grid in. The shadow
+//! polls the watered state **by content** (*[choice]* §6.5, FL7, FL9): each
+//! poll reads slot 11 for every tract and marks the tracts whose state
+//! differs from the last poll. The published grid's pointer is not used to
+//! detect a pass: a pass aborted after its swap, or a restart that reaches its
+//! next swap before the pass-end message is delivered, brings the pointer
+//! back unseen (FL7), and a replacement plumbing may keep one fixed grid
+//! (FL9); it is only counted. The polls:
+//!
+//! - right after every `SimNewDay` delivery to the original (the plugin hands
+//!   it over as a message of type `SimNewDay`, `0x66956814`, after the
+//!   original's day): the original reads the watered state only inside that
+//!   delivery, so these polls see every state a visit used, whatever the
+//!   plumbing did in between;
+//! - at every forwarded message (including the plumbing pass end
+//!   WaterMapChanged `0x6946DC34`), but only until the first day poll: with
+//!   day polls they add nothing a visit used;
+//! - at the cycle end, before the comparison.
+//!
+//! A marked tract (or one whose state differs between the two cycle ends)
+//! may hold its daily value under either state; every other tract is
+//! checked under its one state, as before. With `watered_grid` NULL nothing
+//! is polled and only the two cycle ends are compared.
+//!
+//! **Marks carried into the next cycle** (*[choice]* §6.5, FL8): the cycle
+//! that just ended posted SimCycleComplete on its wrap day, and the new
+//! cycle's first tracts (the rest of that day, and every further day before
+//! the delivery: one at speeds 0-1, two at speed 2, about a month per frame
+//! under the turbo clock) were visited under the states before any change
+//! seen after that day. They keep those values until their next visit, a
+//! cycle later, so the marks of the changes seen after the wrap day are
+//! carried into the new cycle. Which tracts the new cycle visited is not
+//! readable (the iterator start is a `rand()` draw), so every tract changed
+//! after the wrap day is carried (a superset). The wrap day comes from
+//! counting the day polls since the original's `Init` (§6.5: the iterator is
+//! empty after `Init`, so day 1 wraps at once and cycle c ends on the day of
+//! visit c × N + 1, `tractsPerDay` visits a day); the count is checked
+//! against the cycle ends delivered, and when it is off (or there are no day
+//! polls) only the comparison's own poll is carried. The same count gives the
+//! number of new-cycle tracts visited before each comparison, so the
+//! "unvisited" bound at the next comparison is that number when it exceeds
+//! 2 × tractsPerDay (the turbo clock), instead of the shipped-speed bound of
+//! §9 (FL1).
 //!
 //! A tract size other than 1 is reported `INCOMPLETE` (§2, FL3: no original
 //! behaviour to match; the implementer's choice stands).
@@ -516,14 +548,42 @@ struct Mirror {
     /// The multipliers of this cycle (the first is the previous cycle end's).
     gs: Vec<f32>,
     events: u32,
-    /// FL5/FL6 (§6.5): the plumbing simulator's published watered grid as
-    /// last polled (`None`: not polled), the watered states read then, the
-    /// tracts whose state changed at a pass seen since the previous cycle
-    /// end, and how many passes were seen.
-    watered_grid: Option<u64>,
+    /// `tractsPerDay` (our `Init` on the original's inputs, §4.1 step 7).
+    tpd: u64,
+    /// FL5-FL9 (§6.5): the watered states at the last poll (by content), the
+    /// tracts whose state changed at a poll since the previous cycle end
+    /// (with the marks carried from it, FL8), and those changed at a poll
+    /// after the last wrap day (FL8).
     w_seen: Vec<bool>,
     w_changed: Vec<bool>,
-    passes: u32,
+    w_after_wrap: Vec<bool>,
+    /// The last wrap day by the day count.
+    wrap_day: Option<u64>,
+    /// Polls since the previous cycle end, those made at a day, those that
+    /// found a change, and how often the published grid's pointer changed
+    /// between polls (counted only; FL7, FL9).
+    polls: u32,
+    day_polls: u32,
+    polls_changed: u32,
+    pointer_changes: u32,
+    /// The published grid's pointer at the last poll (`None`: none read).
+    watered_grid: Option<u64>,
+    /// Marks carried in from the previous cycle (FL8).
+    carried: usize,
+    /// The new cycle's tracts visited before the previous comparison, from
+    /// the day count (FL8), when it was usable.
+    visited_before: Option<u64>,
+}
+
+/// Where a watered-state poll is made (§6.5, FL7).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PollAt {
+    /// A forwarded message (only until the first day poll).
+    Message,
+    /// Right after a `SimNewDay` delivery to the original.
+    Day,
+    /// The cycle end, before the comparison.
+    CycleEnd,
 }
 
 struct Shadow {
@@ -531,6 +591,24 @@ struct Shadow {
     max_cells: usize,
     mirror: Option<Mirror>,
     stats: fc4_flammability_shadow_stats,
+    /// `SimNewDay` deliveries to the original seen since this shadow was
+    /// made (the plugin makes one per city, before the original's first day,
+    /// so this counts the days since the original's `Init`, FL8).
+    days: u64,
+    /// Whether the day count still agrees with the cycle ends delivered
+    /// (`None`: not checked yet); why it does not.
+    day_count_off: Option<String>,
+}
+
+/// The number of `EndOfCycle` calls the original has made by the end of day
+/// `d` since its `Init` (§6.5): the iterator is empty after `Init`, so day 1
+/// wraps at once, and the wrap that ends cycle c comes with visit c × N + 1,
+/// `tpd` visits a day. `None` when the day count cannot tell (tpd or N 0).
+pub(crate) fn ends_by_day(d: u64, tpd: u64, n: u64) -> Option<u64> {
+    if tpd == 0 || n == 0 {
+        return None;
+    }
+    Some(if d == 0 { 0 } else { 1 + (tpd * d - 1) / n })
 }
 
 /// A tract's possible daily values (§6.5) over the given inputs.
@@ -567,31 +645,126 @@ impl Shadow {
         w
     }
 
-    /// FL5/FL6 (§6.5): when the plumbing simulator's published grid is
-    /// another object than at the last poll, a pass ended: the watered
-    /// states are read again and the tracts that changed are marked.
-    fn poll(&mut self) {
+    /// *[choice]* (§6.5, FL7, FL9): a watered-state poll by content: slot 11
+    /// is read for every tract and the tracts whose state differs from the
+    /// last poll are marked for this cycle and as changed after the wrap day
+    /// (FL8). The published grid's pointer is only counted. Message polls
+    /// stop at the first day poll (the day polls see every state a visit
+    /// used). Nothing is polled without the host's `watered_grid` or before
+    /// the baseline. Returns the tracts that changed at this poll.
+    fn poll(&mut self, at: PollAt) -> Vec<usize> {
         let Some(p) = self.host.c.watered_grid() else {
-            return;
+            return Vec::new();
         };
-        let Some(geom) = self
-            .mirror
-            .as_ref()
-            .filter(|m| m.watered_grid != Some(p))
-            .map(|m| m.geom)
-        else {
-            return;
+        if at == PollAt::Message && self.days > 0 {
+            return Vec::new();
+        }
+        let Some(geom) = self.mirror.as_ref().map(|m| m.geom) else {
+            return Vec::new();
         };
         let w = self.watered_states(&geom);
         let m = self.mirror.as_mut().expect("mirror");
+        let mut changed = Vec::new();
         for (i, (&now, &seen)) in w.iter().zip(m.w_seen.iter()).enumerate() {
             if now != seen {
                 m.w_changed[i] = true;
+                m.w_after_wrap[i] = true;
+                changed.push(i);
             }
         }
         m.w_seen = w;
-        m.watered_grid = Some(p);
-        m.passes = m.passes.wrapping_add(1);
+        m.polls = m.polls.wrapping_add(1);
+        if at == PollAt::Day {
+            m.day_polls = m.day_polls.wrapping_add(1);
+        }
+        if !changed.is_empty() {
+            m.polls_changed = m.polls_changed.wrapping_add(1);
+        }
+        if m.watered_grid != Some(p) {
+            m.pointer_changes = m.pointer_changes.wrapping_add(1);
+            m.watered_grid = Some(p);
+        }
+        changed
+    }
+
+    /// A `SimNewDay` delivery to the original has just finished (FL7, FL8):
+    /// the day is counted and polled; on a day the count gives a wrap
+    /// (`EndOfCycle`) the marks "changed after the wrap day" restart after
+    /// this poll's (the new cycle's tracts of that day were visited under the
+    /// state this poll read).
+    fn day(&mut self) {
+        self.days = self.days.saturating_add(1);
+        self.poll(PollAt::Day);
+        let d = self.days;
+        if let Some(m) = self.mirror.as_mut() {
+            let n = m.geom.len() as u64;
+            if let (Some(now), Some(before)) = (ends_by_day(d, m.tpd, n), ends_by_day(d - 1, m.tpd, n)) {
+                if now > before {
+                    m.w_after_wrap.iter_mut().for_each(|b| *b = false);
+                    m.wrap_day = Some(d);
+                }
+            }
+        }
+    }
+
+    /// FL8: the day count checked against the cycle ends delivered (this is
+    /// the `stats.cycles`-th): the number of the new cycle's tracts the
+    /// original has visited by now when it agrees (the cycle end delivered
+    /// is the last wrap by the count), `None` when there are no day polls or
+    /// the count is off (it stays off for this shadow).
+    fn day_count(&mut self, m: &Mirror) -> Option<u64> {
+        if self.days == 0 || self.day_count_off.is_some() {
+            return None;
+        }
+        let n = m.geom.len() as u64;
+        let c = u64::from(self.stats.cycles);
+        match ends_by_day(self.days, m.tpd, n) {
+            Some(e) if e == c => Some(m.tpd * self.days - (e - 1) * n),
+            Some(e) => {
+                self.day_count_off = Some(format!(
+                    "cycle end {c} delivered after day {}, by when the count gives {e}",
+                    self.days
+                ));
+                None
+            }
+            None => {
+                self.day_count_off = Some("tractsPerDay or the tract count is 0".into());
+                None
+            }
+        }
+    }
+
+    /// The day count's part of the line, and the marks carried into the next
+    /// cycle (FL8) with how they were chosen.
+    fn carry(&self, m: &Mirror, own: &[usize], count: Option<u64>) -> (Vec<bool>, String) {
+        let n = m.geom.len();
+        if self.host.c.watered_grid().is_none() {
+            return (vec![false; n], String::new());
+        }
+        let (carry, why) = match count {
+            Some(k) => (
+                m.w_after_wrap.clone(),
+                format!(
+                    "changed after the wrap day{} (day {} since Init; {k} tracts of the new cycle visited)",
+                    m.wrap_day.map_or(String::new(), |d| format!(" {d}")),
+                    self.days
+                ),
+            ),
+            None => {
+                let mut c = vec![false; n];
+                for &i in own {
+                    c[i] = true;
+                }
+                let why = match &self.day_count_off {
+                    _ if self.days == 0 => "no day polls".to_string(),
+                    Some(off) => format!("the day count is off: {off}"),
+                    None => "no day count".to_string(),
+                };
+                (c, format!("the comparison's own poll only ({why})"))
+            }
+        };
+        let k = carry.iter().filter(|&&b| b).count();
+        (carry, format!("; carried into the next cycle: {k} ({why})"))
     }
 
     /// The inputs per tract now: watered, zoned.
@@ -625,6 +798,8 @@ impl Shadow {
             return Err("our simulator made no grids".into());
         };
         h.created.borrow_mut().clear();
+        let tpd = sim.snapshot().tracts_per_day.max(0) as u64;
+        let n = o.geom.len();
         let mut m = Mirror {
             simulator: o.simulator,
             geom: o.geom,
@@ -637,18 +812,28 @@ impl Shadow {
             z_prev: Vec::new(),
             gs: Vec::new(),
             events: 0,
-            watered_grid: h.c.watered_grid(),
+            tpd,
             w_seen: Vec::new(),
             w_changed: Vec::new(),
-            passes: 0,
+            w_after_wrap: Vec::new(),
+            wrap_day: None,
+            polls: 0,
+            day_polls: 0,
+            polls_changed: 0,
+            pointer_changes: 0,
+            watered_grid: h.c.watered_grid(),
+            carried: 0,
+            visited_before: None,
         };
         let (w, z) = self.inputs(&o.geom);
-        Self::resync(&mut m, o, w, z);
+        // The baseline carries nothing: no poll came before it.
+        Self::resync(&mut m, o, w, z, vec![false; n]);
         Ok(m)
     }
 
-    /// The mirror takes the original's state; the cycle window restarts.
-    fn resync(m: &mut Mirror, o: &Orig, w: Vec<bool>, z: Vec<bool>) {
+    /// The mirror takes the original's state; the cycle window restarts with
+    /// the marks carried from the cycle that ended (FL8).
+    fn resync(m: &mut Mirror, o: &Orig, w: Vec<bool>, z: Vec<bool>, carry: Vec<bool>) {
         m.adjusted.values.borrow_mut().copy_from_slice(&o.adjusted);
         m.raw.values.borrow_mut().copy_from_slice(&o.raw);
         m.adjusted.log.borrow_mut().clear();
@@ -662,17 +847,28 @@ impl Shadow {
         }
         m.a_prev = o.adjusted.clone();
         m.r_prev = o.raw.clone();
-        m.w_changed = vec![false; w.len()];
+        m.carried = carry.iter().filter(|&&b| b).count();
+        m.w_changed = carry;
+        m.w_after_wrap = vec![false; w.len()];
         m.w_seen = w.clone();
         m.w_prev = w;
         m.z_prev = z;
         m.gs = vec![o.g];
         m.events = 0;
-        m.passes = 0;
+        m.polls = 0;
+        m.day_polls = 0;
+        m.polls_changed = 0;
+        m.pointer_changes = 0;
     }
 
     fn message(&mut self, m: &fc4_flammability_message) -> bool {
-        self.poll();
+        // FL7/FL8: the plugin hands over every SimNewDay delivered to the
+        // original, after the original's day: a day poll, not mirrored.
+        if m.msg_type == msg::SIM_NEW_DAY {
+            self.day();
+            return false;
+        }
+        self.poll(PollAt::Message);
         let Some(mirror) = self.mirror.as_mut() else {
             return false;
         };
@@ -727,7 +923,14 @@ impl Shadow {
         if let Some(why) = restart {
             self.mirror = None;
             return match self.start(&o) {
-                Ok(m) => {
+                Ok(mut m) => {
+                    let count = self.day_count(&m);
+                    m.visited_before = count;
+                    let days = match (count, &self.day_count_off) {
+                        (Some(k), _) => format!("; day {} since Init, {k} tracts of the new cycle visited", self.days),
+                        (None, Some(off)) => format!("; the day count is off: {off}"),
+                        (None, None) => String::new(),
+                    };
                     let d = m.sim.snapshot();
                     self.mirror = Some(m);
                     (
@@ -735,7 +938,7 @@ impl Shadow {
                         format!(
                             "{head}: baseline ({why}): our simulator takes the original's grids ({}x{} tracts, \
                              tractsPerDay={}), multiplier {}, average {}, {} hotspot(s); compared from the next \
-                             cycle",
+                             cycle{days}",
                             o.geom.count_x,
                             o.geom.count_z,
                             d.tracts_per_day,
@@ -748,11 +951,14 @@ impl Shadow {
                 Err(why) => (-1, format!("{head}: INCOMPLETE ({why}); not compared")),
             };
         }
-        self.poll();
+        let own = self.poll(PollAt::CycleEnd);
         let mut m = self.mirror.take().expect("mirror");
+        let count = self.day_count(&m);
         let (n, line, w, z) = self.compare(&mut m, &o, &head);
-        Self::resync(&mut m, &o, w, z);
-        let line = format!("{line}{}", self.getters(&m, &o, n));
+        let (carry, carried) = self.carry(&m, &own, count);
+        Self::resync(&mut m, &o, w, z, carry);
+        m.visited_before = count;
+        let line = format!("{line}{carried}{}", self.getters(&m, &o, n));
         self.mirror = Some(m);
         (self.stats.last_mismatches, line)
     }
@@ -811,8 +1017,9 @@ impl Shadow {
                 }
                 let r_set: Vec<u8> = rs.get(&i).cloned().unwrap_or_else(|| vec![r_prev]);
                 let u_set: &[u8] = us.get(&i).map_or(&[], |v| v.as_slice());
-                // [compat] (§6.5, FL5/FL6): both watered states when it
-                // changed at a pass in the cycle or between the cycle ends.
+                // [compat] (§6.5, FL5-FL8): both watered states when it
+                // changed at a poll in the cycle (or after the previous wrap
+                // day, carried in) or between the cycle ends.
                 let w_set: Vec<bool> = if m.w_prev[i] == w_end[i] && !m.w_changed[i] {
                     vec![w_end[i]]
                 } else {
@@ -1047,7 +1254,11 @@ impl Shadow {
             }
         };
 
-        let bound = 2 * tpd;
+        // [compat] (§9, FL1): the tracts visited in this cycle before the
+        // previous comparison, at most 2 × tractsPerDay at the shipped
+        // speeds. [choice] (FL8): when the day count gave how many there
+        // were (more under the turbo clock), that number.
+        let bound = (2 * tpd).max(m.visited_before.unwrap_or(0) as usize);
         let excess = unvisited.mismatched.saturating_sub(bound);
         let scalars = usize::from(!average_ok) + usize::from(!g_ok);
         let mismatches = raw.mismatched + adjusted.mismatched + excess + scalars + hot_counted;
@@ -1087,13 +1298,18 @@ impl Shadow {
             line += &format!("; first differing (x,z) orig/ours: {}", firsts.join("; "));
         }
         line += &format!("; events={}", m.events);
-        line += &match m.watered_grid {
+        line += &match self.host.c.watered_grid() {
             Some(_) => format!(
-                "; plumbing passes={} (tracts whose watered state changed: {})",
-                m.passes,
-                (0..n).filter(|&i| m.w_changed[i] || m.w_prev[i] != w_end[i]).count()
+                "; watered polls={} by content (at a day {}, with a change {}; published grid pointer changes {}); \
+                 tracts whose watered state changed: {} ({} carried in)",
+                m.polls,
+                m.day_polls,
+                m.polls_changed,
+                m.pointer_changes,
+                (0..n).filter(|&i| m.w_changed[i] || m.w_prev[i] != w_end[i]).count(),
+                m.carried
             ),
-            None => "; plumbing passes not polled".to_string(),
+            None => "; watered state not polled".to_string(),
         };
         (mismatches, line, w_end, z_end)
     }
@@ -1222,6 +1438,8 @@ pub unsafe extern "C" fn fc4_flammability_shadow_create(
                 last_mismatches: -1,
                 ..Default::default()
             },
+            days: 0,
+            day_count_off: None,
         };
         Box::into_raw(Box::new(Handle {
             stats: Cell::new(shadow.stats),
@@ -1241,9 +1459,11 @@ pub unsafe extern "C" fn fc4_flammability_shadow_destroy(s: *mut fc4_flammabilit
 /// One of the original's six messages (§5), in the same delivery as the
 /// original's (FL4: subscription order, the original first; both read the
 /// same game state): the mirror handles it too. False when it was not
-/// mirrored (no baseline yet, or another type). Every call, of any type
-/// (the plugin also forwards the plumbing pass end), first polls the
-/// plumbing simulator's published grid (FL5/FL6).
+/// mirrored (no baseline yet, or another type). `SimNewDay` (`0x66956814`)
+/// means the original's day delivery has just finished: the day is counted
+/// and the watered state polled (FL7, FL8). Until the first such day, every
+/// other call (the plugin also forwards the plumbing pass end) first polls
+/// the watered state by content (FL5-FL7).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_flammability_shadow_message(
     s: *mut fc4_flammability_shadow,

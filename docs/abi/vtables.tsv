@@ -28761,3 +28761,7 @@ cRZFastCompression3::vftable	00b00a5c	6	+0x18	00a6e0c8	cRZFastCompression3::GetL
 cRZFastCompression3::vftable	00b00a5c	7	+0x1C	00a6e105	cRZFastCompression3::GetLengthOfDecompressedData	4	1	edx:eax?	low	
 cRZFastCompression3::vftable	00b00a5c	8	+0x20	00a6e1a4	cRZFastCompression3::GetCompressionVersionString	4	1	via-call	low	
 cRZFastCompression3::vftable	00b00a5c	9	+0x24	00a6dfce	cRZFastCompression3::~cRZFastCompression3	4	1	eax-or-void	medium	
+cSC4CommercialSimulator::vftable	00ab0ccc	6	+0x18	0069eb20	deleting destructor	4	1	eax-or-void	high	not an interface method; re-specs9 commercial-industrial.md; moved from interfaces.tsv (not an interface method)
+cRZMessage2Standard::vftable	00a92d40	37	+0x94	004dcc10	scalar deleting destructor	4	1	eax	high	calls 0x004DCC30 (frees void2 with C); slots 0-36 identical to 00acec00; moved from interfaces.tsv (not an interface method)
+cSC4IndustrialSimulator::vftable	00ab1530	5	+0x14	006b8a40	deleting destructor	4	1	eax-or-void	high	not an interface method; re-specs9 commercial-industrial.md; moved from interfaces.tsv (not an interface method)
+cSC4ParkManager::vftable	00ab20ac	5	+0x14	006d5860	deleting destructor	4	1	eax-or-void	high	not an interface method; re-specs9 parks.md; moved from interfaces.tsv (not an interface method)

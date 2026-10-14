@@ -26,7 +26,7 @@ use crate::rng::{derive_seed, RzRandom, SeedSource, CLOCK_SEED};
 use crate::x87::{ftol32, mul_i64_f32, rhe, u32_to_float};
 
 use super::education_health::{OrdinanceEffect, Service};
-use super::geometry::{copy_proximity, distance_pass, distance_to_convergence, seed_proximity, seed_proximity_no_map};
+use super::geometry::{copy_proximity, distance_pass, distance_to_convergence, seed_proximity};
 use super::tuning::{le_curve, new_ages_by_wealth, pct, workforce_curve, PopulationTuning, SimulatorTuning};
 use super::{
     group, history, instance, msg, state as st, wealth, CreatedEffect, DepartmentBlock, OccupantLists, ResidentialHost,
@@ -898,11 +898,12 @@ impl ResidentialSim {
                 t
             }
         };
-        match map {
-            Some(map) => seed_proximity(&*temp, &*map, key),
-            // [choice] No building map: seed as against a map with no key, so
-            // the z = 0 edge is FAR and the rest is kept (§5.3, RG23).
-            None => seed_proximity_no_map(&*temp),
+        // *[compat]* (§5.3 step 1, RG24): with no building map the seed writes
+        // nothing, not even the edge, so a fresh grid stays all 0 and a
+        // reused one keeps the previous wealth's result: every proximity grid
+        // is then 0. The grid is still created first, as state 13 does.
+        if let Some(map) = map {
+            seed_proximity(&*temp, &*map, key);
         }
     }
 
@@ -1320,8 +1321,23 @@ impl ResidentialSim {
         (q, s.grids.population.clone())
     }
 
+    /// The tract size the cell queries divide by (REH §4.8, AQ2, AQ3): the
+    /// R$ grid's own `GetTractSize()`, asked on every call — the R$ **EQ**
+    /// grid for slots 35, 37 and 43, the R$ **HQ** grid for slots 36, 38 and
+    /// 44 (never an EQ grid's, and not the member E). The grids keep their
+    /// saved geometry through a load, so these queries follow the grids; E
+    /// differs from them only in a hand-made save. [choice] Without an R$
+    /// grid (the original calls through null) the member E.
+    fn quotient_tract_size(&self, q: &QuotientGrids) -> i32 {
+        match q[0].as_ref() {
+            Some(g) => g.geometry().tract_size,
+            None => self.s.borrow().eq_size,
+        }
+    }
+
     /// Slots 35 / 36 `GetCellEQ` / `GetCellHQ(x, z)` (REH §4.8): the quotient
-    /// at tract (x ÷ E, z ÷ E), unsigned division.
+    /// at tract (x ÷ T, z ÷ T), unsigned division, T the R$ EQ (slot 35) or
+    /// R$ HQ (slot 36) grid's own tract size (AQ2, AQ3).
     pub fn get_cell_eq(&self, x: i32, z: i32) -> f32 {
         self.cell_quotient(true, x, z)
     }
@@ -1330,13 +1346,15 @@ impl ResidentialSim {
     }
 
     fn cell_quotient(&self, is_eq: bool, x: i32, z: i32) -> f32 {
-        let e = self.s.borrow().eq_size;
         let (q, pop) = self.quotient_grids(is_eq);
-        Self::tract_quotient(&q, &pop, unsigned_div_tract(x, e), unsigned_div_tract(z, e))
+        let t = self.quotient_tract_size(&q);
+        Self::tract_quotient(&q, &pop, unsigned_div_tract(x, t), unsigned_div_tract(z, t))
     }
 
-    /// Slots 37 / 38 `GetCellEQByWealth` / `GetCellHQByWealth`: the wealth
-    /// byte decremented, so wealth 0 or > 3 reads out of bounds in the
+    /// Slots 37 / 38 `GetCellEQByWealth` / `GetCellHQByWealth`: grid
+    /// `w − 1` at tract (x ÷ T, z ÷ T), T the **R$** EQ (37) or HQ (38)
+    /// grid's tract size whatever the wealth (REH §4.8, AQ2, AQ3). The wealth
+    /// byte is decremented, so wealth 0 or > 3 reads out of bounds in the
     /// original *[quirk]*; FreeCity4 returns 0.0 ([choice]).
     pub fn get_cell_eq_by_wealth(&self, x: i32, z: i32, w: u8) -> f32 {
         self.cell_by_wealth(true, x, z, w)
@@ -1350,11 +1368,11 @@ impl ResidentialSim {
         if idx >= wealth::COUNT {
             return 0.0;
         }
-        let e = self.s.borrow().eq_size;
         let (q, _) = self.quotient_grids(is_eq);
+        let t = self.quotient_tract_size(&q);
         q[idx]
             .as_ref()
-            .map_or(0.0, |g| g.get(unsigned_div_tract(x, e), unsigned_div_tract(z, e)))
+            .map_or(0.0, |g| g.get(unsigned_div_tract(x, t), unsigned_div_tract(z, t)))
     }
 
     /// Slots 32 / 33 `GetGlobalEQ` / `GetGlobalHQ` (REH §4.8).
@@ -1392,6 +1410,8 @@ impl ResidentialSim {
     /// := `float(trunc(quotient))`; min starts at 255.0 and max at 0.0, each
     /// updated with every tract, populated or not (REH §4.8, RS6). No grid
     /// (the host could not create one) → `None` with the initial values.
+    /// *[compat]* (REH §4.8, AQ2, AQ3): the new grid's tract size is the
+    /// member E for both slots — the only queries that read E.
     pub fn average_quotient_grid(&self, is_eq: bool) -> (Option<Rc<dyn TractGrid<f32>>>, f32, f32) {
         let e = self.s.borrow().eq_size;
         let id = if is_eq {
@@ -1521,13 +1541,15 @@ impl ResidentialSim {
     /// (REH §4.8): `Some((minX, minZ, maxX, maxZ, min, max))`, or `None` when
     /// the population is 0 (all six outputs 0, AL = 0). [choice] When no
     /// tract is populated (the counter disagrees with the grids) the
-    /// coordinates are those of tract (0, 0) instead of stack garbage.
+    /// coordinates are those of tract (0, 0) instead of stack garbage. The
+    /// coordinates use the R$ EQ (43) or R$ HQ (44) grid's own tract size
+    /// (AQ2, AQ3).
     pub fn quotient_min_max(&self, is_eq: bool) -> Option<(u32, u32, u32, u32, f32, f32)> {
         if self.s.borrow().population == 0 {
             return None;
         }
-        let e = self.s.borrow().eq_size;
         let (q, pop) = self.quotient_grids(is_eq);
+        let e = self.quotient_tract_size(&q);
         let (cx, cz) = q[0].as_ref().map_or((0, 0), |g| (g.count_x(), g.count_z()));
         let mut min = 200.0f32;
         let mut max = -200.0f32;
@@ -1548,7 +1570,7 @@ impl ResidentialSim {
                 }
             }
         }
-        // Coordinates out := S_EQ/2 + S_EQ × tract (signed /2).
+        // Coordinates out := T/2 + T × tract (signed /2), T the R$ grid's.
         let coord = |t: i32| (e / 2).wrapping_add(e.wrapping_mul(t)) as u32;
         Some((coord(min_t.0), coord(min_t.1), coord(max_t.0), coord(max_t.1), min, max))
     }

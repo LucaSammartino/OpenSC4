@@ -115,6 +115,12 @@
 //                                 developer's Grow calls per game day; env
 //                                 FC4_GROWTH_PROBE; read at PostAppInit;
 //                                 FC4GrowthProbe.h)
+//   traffic_units_per_slice = N   the traffic work cycle's units per slice
+//                                 (traffic-simulator.md §3.4; default 0 = the core's
+//                                 default; env FC4_TRAFFIC_UNITS_PER_SLICE;
+//                                 cFC4TrafficSimulator.cpp)
+//   traffic_seed = N              the traffic generator's session seed (default: the
+//                                 cRZTime clock; env FC4_TRAFFIC_SEED)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.
@@ -385,6 +391,26 @@ enum class Sw : unsigned {
                             //   (off: nothing built, declined or populated)
     DevelopmentCity,        // development_city: land value, power and terrain altitude reads and the growth
                             //   developers' source maps (off: 0, unpowered, no map)
+    // Traffic simulator host callbacks (cFC4TrafficSimulator.cpp), one per group
+    // of game calls (off: the neutral answer the comment names).
+    TrafficGridWrites,   // traffic_grid_writes: SetTractValue / fill on the traffic grids (off: not written)
+    TrafficBudget,       // traffic_budget: the two departments, line item incomes and the budget items of
+                         //   transit buildings (off: no department, cost 0)
+    TrafficLots,         // traffic_lots: the lot manager and the lot reads (off: no lots)
+    TrafficSources,      // traffic_sources: the trip lists and the sources' own UpdateTrafficVolume
+                         //   (off: no trips, nothing run)
+    TrafficHolders,      // traffic_holders: property holder reads and writes (trip capacities; off: absent,
+                         //   not written)
+    TrafficNeighbors,    // traffic_neighbors: neighbour connections, connected cities, regional demand
+                         //   (off: none)
+    TrafficOccupants,    // traffic_occupants: the occupant manager's lists and the network occupant reads
+                         //   (off: no occupants)
+    TrafficTerrain,      // traffic_terrain: CellHasWater and the surface water (off: dry, not navigable)
+    TrafficPosts,        // traffic_posts: the posted messages (map changed, strikes, accidents; off: not posted)
+    TrafficHistory,      // traffic_history: history records (off: not recorded)
+    TrafficSimulators,   // traffic_simulators: residential, building development, ordinance and demand reads
+                         //   (off: 0, none)
+    TrafficMessages,     // traffic_messages: the message subscriptions (off: no messages)
     // Tract developer host callbacks (FC4TractHost.cpp), one per group of game
     // calls; only used when the tract subsystem is enabled.
     TractConstruction,  // tract_construction: the lot developer's StartConstruction (off: refused, nothing built)

@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "ck12_13_load_order",
+  "spec": ["clock24 4.2", "clock24 4.9", "clock24 7", "clock24 10", "clock24 12"],
+  "description": "Test 13. Read comes before Init: a save with magnification 50, max 1500, night 22 / 5 and seconds 75,600 (21:00), loaded with the shipped exemplar, ends with magnification 135, max 1500 and night 20 / 1; visualSeconds stays 43,200 until the first step [quirk]. Setting mode 0 again changes nothing. The first step (61) gives 21:01:01: no game-time message; the visual time moves from 12 to 21: VisualHourChanged (21), VisualTimeTick (21), DayNightChanged (0). A saved pauseCount of 1 leaves the timer stopped after Init until 'Stopwatch resume' (CK4).",
+  "steps": [
+    {"op": "ck_env", "tuning": "shipped"},
+    {"op": "ck_create"},
+    {"op": "ck_record", "read": "020000000000000048420080BB44502701001600000005000000", "expect": true},
+    {"op": "ck_call", "method": "init", "expect": true},
+    {"op": "ck_expect", "state": {"magnification": 135, "max_magnification": 1500, "night_start": 20, "night_end": 1, "seconds": 75600, "visual_seconds": 43200, "timer_running": true}},
+    {"op": "ck_clear_events"},
+    {"op": "ck_call", "method": "set_visual_time_mode", "args": [0]},
+    {"op": "ck_expect_event_count", "count": 0},
+    {"op": "ck_idle", "elapsed": 451852},
+    {"op": "ck_expect", "state": {"seconds": 75661, "visual_seconds": 75661}},
+    {"op": "ck_expect_events", "events": [{"event": "post", "name": "VisualHourChanged", "data2": 21, "data3": 0}, {"event": "post", "name": "VisualTimeTick", "data2": 21, "data3": 0}, {"event": "post", "name": "DayNightChanged", "data2": 0, "data3": 0}]},
+    {"op": "ck_create"},
+    {"op": "ck_record", "read": "020001000000000007430000FA44C0A800001400000001000000", "expect": true},
+    {"op": "ck_call", "method": "init"},
+    {"op": "ck_expect", "state": {"pause_count": 1, "timer_running": false}},
+    {"op": "ck_idle", "advance": 10000000},
+    {"op": "ck_expect", "state": {"seconds": 43200}},
+    {"op": "ck_call", "method": "cheat", "args": ["Stopwatch", "Stopwatch resume"]},
+    {"op": "ck_expect", "state": {"pause_count": 0, "timer_running": true}}
+  ]
+}

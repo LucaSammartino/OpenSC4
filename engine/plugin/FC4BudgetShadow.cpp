@@ -203,7 +203,7 @@ void BeforeStep(void*) {
     cISC4OrdinanceSimulator* o = m.city->GetOrdinanceSimulator();
     m.ordInc = o ? o->GetOrdinanceMonthlyIncome() : 0;
     m.ordExp = o ? o->GetOrdinanceMonthlyExpense() : 0;
-    cFC4ISC4NeighborsSimulator* n = AsGame(m.city->GetNeighborsSimulator());  // 32-bit returns (docs/abi)
+    cFC4ISC4NeighborsSimulator* n = AsGame(m.city->GetNeighborsSimulator());  // int64, edx:eax (NG11)
     m.nbInc = n ? n->GetTotalMonthlyNeighborDealIncome() : 0;
     m.nbExp = n ? n->GetTotalMonthlyNeighborDealExpense() : 0;
     int64_t unused = 0;

@@ -206,6 +206,13 @@ impl NeighborsSimulator {
         self.stats_dirty.set(stats);
     }
 
+    /// The test and shadow hook for `busy` (§6.1; the original's byte at
+    /// `+0x3F`, neighbors.md §15.4 NG7): while set, `simulate_deals` only
+    /// posts the retry report (§7.2).
+    pub fn set_busy(&self, on: bool) {
+        self.busy.set(on);
+    }
+
     // ---- lifecycle (§14) ----
 
     /// `Init()` (§14.1). Returns true.
@@ -257,7 +264,7 @@ impl NeighborsSimulator {
         if let Some(r) = current {
             self.host.update_local_deals(r);
         }
-        self.deals.borrow_mut().clear();
+        self.clear_deals();
         // 7. In reverse list order; each city's deals from the back.
         let today = self.host.today();
         for &c in adjacent.iter().rev() {
@@ -295,9 +302,30 @@ impl NeighborsSimulator {
         self.host.remove_agents();
         let doomed = std::mem::take(&mut *self.connections.borrow_mut());
         self.release_connections(&doomed);
-        self.deals.borrow_mut().clear();
+        self.clear_deals();
         *self.tuning_holder.borrow_mut() = None;
         true
+    }
+
+    /// Empties the deal list. The deals are dropped after the list's borrow
+    /// ends: dropping a foreign deal releases the caller's object (NG4), and
+    /// its code may call back into the simulator.
+    fn clear_deals(&self) {
+        let gone = std::mem::take(&mut *self.deals.borrow_mut());
+        drop(gone);
+    }
+
+    /// Removes the deals `keep` refuses, dropping them after the list's
+    /// borrow ends (see [`Self::clear_deals`]).
+    fn retain_deals(&self, keep: impl Fn(&Rc<NeighborDeal>) -> bool) {
+        let all = std::mem::take(&mut *self.deals.borrow_mut());
+        let (kept, gone): (Vec<_>, Vec<_>) = all.into_iter().partition(|d| keep(d));
+        // Deals added while the list was out (none today) stay after the kept ones.
+        let mut list = self.deals.borrow_mut();
+        let added = std::mem::replace(&mut *list, kept);
+        list.extend(added);
+        drop(list);
+        drop(gone);
     }
 
     /// The references the list held to `doomed` (now out of the list) are
@@ -353,7 +381,7 @@ impl NeighborsSimulator {
                 }
             }
             msg::CITY_ESTABLISHED | msg::CITY_OBLITERATED => {
-                self.deals.borrow_mut().clear();
+                self.clear_deals();
                 self.push(true, true);
             }
             _ => {}
@@ -807,6 +835,18 @@ impl NeighborsSimulator {
         true
     }
 
+    /// `AddDeal(deal)` with a caller's deal that is not ours (§15.4 NG4): the
+    /// caller's object itself becomes the listed deal (`SetFlags(Silent,
+    /// false)` through its interface, append, push both), so `FindDeals`,
+    /// the status reports and the region's `SetLocalDeals` hand out that
+    /// pointer, and the simulation drives it through `cISC4NeighborDeal`.
+    /// The host has taken one reference for the core (released when the core
+    /// lets go of it, [`NeighborsHost::release_deal`]). Returns true.
+    pub fn add_foreign_deal(&self, token: u64) -> bool {
+        let d = NeighborDeal::foreign(token, &self.host);
+        self.add_deal(&d)
+    }
+
     /// `GetTotalMonthlyNeighborDealExpense()` (§10.1).
     pub fn total_monthly_expense(&self) -> i64 {
         self.total(deal_type::is_buy)
@@ -817,9 +857,10 @@ impl NeighborsSimulator {
         self.total(deal_type::is_sell)
     }
 
+    /// The signed 64-bit sum (NG11: slots 32/33 return it in EDX:EAX). The
+    /// list is copied first: a foreign deal is read through the host.
     fn total(&self, side: fn(u32) -> bool) -> i64 {
-        self.deals
-            .borrow()
+        self.find_deals_all()
             .iter()
             .filter(|d| side(d.deal_type()) && !d.check_flags_or(flag::TOTALS_EXCLUDED))
             .fold(0i64, |s, d| s.wrapping_add(d.cost()))
@@ -1049,7 +1090,7 @@ impl NeighborsSimulator {
         self.host.set_city_income(r, f.monthly_income);
         // 2.
         let (mut p, mut w, mut g) = (0i64, 0i64, 0i64);
-        for d in self.deals.borrow().iter() {
+        for d in self.find_deals_all().iter() {
             match d.deal_type() {
                 deal_type::BUY_POWER => p = p.wrapping_add(d.cost()),
                 deal_type::BUY_WATER => w = w.wrapping_add(d.cost()),
@@ -1170,9 +1211,7 @@ impl NeighborsSimulator {
                 let before = list.len();
                 self.host.set_local_deals(c, &mut list);
                 if list.len() != before {
-                    self.deals
-                        .borrow_mut()
-                        .retain(|d| list.iter().any(|x| Rc::ptr_eq(x, d)));
+                    self.retain_deals(|d| list.iter().any(|x| Rc::ptr_eq(x, d)));
                 }
             }
             if stats {
@@ -1224,8 +1263,12 @@ impl NeighborsSimulator {
             if d.is_silent() {
                 continue;
             }
-            // 1.
-            self.update_deal_state(&d);
+            // 1. `d.UpdateState()`: a foreign deal's own code (NG4).
+            if d.is_foreign() {
+                d.update_state();
+            } else {
+                self.update_deal_state(&d);
+            }
             // 2.
             if d.deal_type() == deal_type::SELL_GARBAGE {
                 if let Some(r) = r {
@@ -1315,9 +1358,7 @@ impl NeighborsSimulator {
         }
         if !removed.is_empty() {
             self.deals_dirty.set(true);
-            self.deals
-                .borrow_mut()
-                .retain(|d| !removed.iter().any(|x| Rc::ptr_eq(x, d)));
+            self.retain_deals(|d| !removed.iter().any(|x| Rc::ptr_eq(x, d)));
         }
     }
 
@@ -1346,7 +1387,7 @@ impl NeighborsSimulator {
     /// §13: fails unless `version == 2`; each reference resolved as a
     /// connection is appended (the list is not cleared first). Failing
     /// references (wrong interface, unknown class) are skipped, as in the
-    /// original. *[choice]* (NB7) A null reference is skipped too; the
+    /// original. *[choice]* (NB7, NG34: matches §13) A null reference is skipped too; the
     /// original appends it and then releases it unchecked (`0x006CFEC5`),
     /// crashing inside `Read`. A version other than 2 fails right after the
     /// `u16`, and the store ignores the result (NB11).

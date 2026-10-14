@@ -7,8 +7,10 @@
 //! The flammability shadow against a fake game whose "original" is our own
 //! simulator, run day by day with a random iterator start: clean cycles
 //! (with occupant, season and ordinance changes inside a cycle), a watered
-//! state that changed and changed back inside a cycle (FL5/FL6), one wrong
-//! tract, one wrong scalar, and the INCOMPLETE paths.
+//! state that changed and changed back inside a cycle (FL5-FL7), polled at
+//! the pass ends or at every day, two passes between polls (FL7), marks
+//! carried into the next cycle and the day count (FL8), one wrong tract, one
+//! wrong scalar, and the INCOMPLETE paths.
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
@@ -251,6 +253,9 @@ struct World {
     lines: Vec<String>,
     next_occ: u64,
     day: i32,
+    /// Whether the shadow hears every SimNewDay delivered to the original,
+    /// after it (the plugin's day hook, FL7/FL8).
+    day_polls: bool,
 }
 
 unsafe extern "C" fn sink(ctx: *mut c_void, p: *const u8, n: usize) {
@@ -280,6 +285,7 @@ impl World {
             lines: Vec::new(),
             next_occ: 0x1000,
             day: 2_451_545,
+            day_polls: false,
         };
         // A building on every cell: 150 ..= 249, so many tracts are hot
         // (code defaults: threshold 196, radius 8, minimum weight 16).
@@ -410,14 +416,27 @@ impl World {
         unsafe { fc4_flammability_shadow_cycle(self.shadow, &o, self.day, Some(sink), ctx) }
     }
 
+    /// One day of the original (the day agent: not a subscribed message);
+    /// with `day_polls` the plugin's day hook then hands it to the shadow.
+    fn next_day(&mut self) {
+        self.day += 1;
+        self.orig.do_message(&Message::of_type(msg::SIM_NEW_DAY));
+        if self.day_polls {
+            let m = fc4_flammability_message {
+                msg_type: msg::SIM_NEW_DAY,
+                ..Default::default()
+            };
+            // Counted and polled, not mirrored.
+            assert!(!unsafe { fc4_flammability_shadow_message(self.shadow, &m) });
+        }
+    }
+
     /// Runs days until the original ends a cycle; the read (delivered after
     /// the day, as the posted message is) and the shadow's result.
     fn run_to_cycle_end(&mut self) -> Read {
         let before = self.host.cycles.get();
         for _ in 0..200 {
-            self.day += 1;
-            // The day agent: not a subscribed message, the shadow does not see it.
-            self.orig.do_message(&Message::of_type(msg::SIM_NEW_DAY));
+            self.next_day();
             if self.host.cycles.get() != before {
                 return self.read();
             }
@@ -449,7 +468,13 @@ impl Drop for World {
 
 #[test]
 fn clean_cycles_with_changes_inside_a_cycle() {
+    clean_cycles(false);
+    clean_cycles(true);
+}
+
+fn clean_cycles(day_polls: bool) {
     let mut w = World::new();
+    w.day_polls = day_polls;
     // Day 1: the empty EndOfCycle (§6.5) is the baseline.
     assert_eq!(w.cycle(), -1);
     assert!(
@@ -475,8 +500,7 @@ fn clean_cycles_with_changes_inside_a_cycle() {
 
     // Inside the next cycle: a hot prop, a removal, summer, an ordinance.
     for _ in 0..20 {
-        w.day += 1;
-        w.orig.do_message(&Message::of_type(msg::SIM_NEW_DAY));
+        w.next_day();
     }
     let prop_occ = w.insert(occupant_type::PROP, (2, 2, 3, 3), 255);
     let first = *w.game.occs.borrow().keys().next().expect("an occupant");
@@ -484,8 +508,7 @@ fn clean_cycles_with_changes_inside_a_cycle() {
     w.game.season.set(2);
     w.send(msg::SEASON_CHANGE, 0);
     for _ in 0..10 {
-        w.day += 1;
-        w.orig.do_message(&Message::of_type(msg::SIM_NEW_DAY));
+        w.next_day();
     }
     w.game.factor.set(0.75);
     w.send(msg::ORDINANCE_UPDATED, 0);
@@ -501,22 +524,25 @@ fn clean_cycles_with_changes_inside_a_cycle() {
     assert_eq!(st.events, 5);
 }
 
-/// FL5/FL6 (§6.5): a pass takes the water from a 2 × 2 block of watered
+/// FL5-FL7 (§6.5): a pass takes the water from a 2 × 2 block of watered
 /// tracts, the original visits them dry (× 1.25), a second pass waters them
 /// again before the cycle ends: equal states at both cycle ends, but the
-/// tracts hold their dry values. The two passes, seen through the pointer
-/// of the published grid, mark them.
+/// tracts hold their dry values. Polled by content at the forwarded pass end
+/// messages (no day polls) or at every day (the pass ends not forwarded), the
+/// change marks them; with neither, only the cycle ends are compared and the
+/// dry values are reported.
 #[test]
 fn watered_state_changed_inside_a_cycle() {
     let block = [(1, 1), (1, 2), (2, 1), (2, 2)];
-    for forward in [true, false] {
+    for (forward, day_polls) in [(true, false), (false, true), (false, false)] {
         let mut w = World::new();
+        w.day_polls = day_polls;
         w.game.published.set(0xA0);
         assert_eq!(w.cycle(), -1);
         assert_eq!(w.cycle(), 0, "{}", w.last());
         assert!(
             w.last()
-                .contains("; plumbing passes=0 (tracts whose watered state changed: 0)"),
+                .contains("tracts whose watered state changed: 0 (0 carried in)"),
             "{}",
             w.last()
         );
@@ -530,25 +556,177 @@ fn watered_state_changed_inside_a_cycle() {
         assert!(dry_seen, "{:?} {:?}", r.adjusted, r.raw);
         w.plumbing_pass(&[], forward);
         let n = w.cycle_with(&r);
-        if forward {
+        if forward || day_polls {
             assert_eq!(n, 0, "{}", w.last());
             assert!(
-                w.last()
-                    .contains("; plumbing passes=2 (tracts whose watered state changed: 4)"),
+                w.last().contains(
+                    "with a change 2; published grid pointer changes 2); tracts whose watered state changed: 4 (0 \
+                     carried in)"
+                ),
                 "{}",
                 w.last()
             );
-            // The next cycle: the block is watered throughout (tracts the
-            // wrap day visited dry keep their value, counted unvisited).
+            // With day polls the second pass is first seen by the
+            // comparison's own poll, after the wrap day (FL8): carried.
+            // Without, only that poll's changes would be: none here.
+            let carried = if day_polls {
+                "carried into the next cycle: 4 (changed after the wrap day 129 (day 129 since Init; 1 tracts of the \
+                 new cycle visited))"
+            } else {
+                "carried into the next cycle: 0 (the comparison's own poll only (no day polls))"
+            };
+            assert!(w.last().contains(carried), "{}", w.last());
+            // The next cycle: the block is watered throughout (the tracts
+            // the wrap day visited dry keep their value: marked, or counted
+            // unvisited).
             assert_eq!(w.cycle(), 0, "{}", w.last());
         } else {
-            // Without the pass end, the pointer is back where it was at the
-            // previous poll: the change is not seen, and the dry values are
-            // reported (that is why the plugin forwards the pass end).
+            // Neither the pass ends nor the days: the cycle-end poll sees the
+            // state it saw at the previous cycle end, and the dry values are
+            // reported (that is why the plugin hands over both).
             assert!(n > 0, "{}", w.last());
-            assert!(w.last().contains("; plumbing passes=0 "), "{}", w.last());
+            assert!(
+                w.last().contains(
+                    "; watered polls=1 by content (at a day 0, with a change 0; published grid pointer changes 0)"
+                ),
+                "{}",
+                w.last()
+            );
         }
     }
+}
+
+/// FL7 (§6.5): two passes between two polls bring the published grid's
+/// pointer back (a pass aborted after its swap, or a restart that swaps
+/// before the first pass end is delivered); the content poll still sees the
+/// change, at a day or at the one pass end forwarded.
+#[test]
+fn two_passes_between_polls() {
+    let block = [(1, 1), (1, 2), (2, 1), (2, 2)];
+    for day_polls in [true, false] {
+        let mut w = World::new();
+        w.day_polls = day_polls;
+        w.game.published.set(0xA0);
+        assert_eq!(w.cycle(), -1);
+        assert_eq!(w.cycle(), 0, "{}", w.last());
+        w.plumbing_pass(&block, false);
+        w.plumbing_pass(&block, !day_polls);
+        assert_eq!(w.game.published.get(), 0xA0);
+        for _ in 0..30 {
+            w.next_day();
+        }
+        w.plumbing_pass(&[], false);
+        w.plumbing_pass(&[], !day_polls);
+        let r = w.run_to_cycle_end();
+        let dry_seen = block.iter().any(|&(x, z)| {
+            let i = (x * N + z) as usize;
+            r.adjusted[i] != r.raw[i]
+        });
+        assert!(dry_seen, "{:?} {:?}", r.adjusted, r.raw);
+        assert_eq!(w.cycle_with(&r), 0, "{}", w.last());
+        assert!(
+            w.last().contains(
+                "with a change 2; published grid pointer changes 0); tracts whose watered state changed: 4 (0 \
+                 carried in)"
+            ),
+            "{}",
+            w.last()
+        );
+    }
+}
+
+/// FL8 (§6.5): the delivery of a cycle end waits ten days (as under the
+/// turbo clock), and a pass that takes the water from every watered tract
+/// ends after them, first seen by the comparison's own poll. The new cycle's
+/// tracts visited before it keep their watered values for a whole cycle:
+/// carried, the marks explain them at the next comparison (no "unvisited").
+#[test]
+fn a_pass_after_the_wrap_day_is_carried() {
+    let wet: Vec<(i32, i32)> = (0..5).flat_map(|x| (0..N).map(move |z| (x, z))).collect();
+    for day_polls in [true, false] {
+        let mut w = World::new();
+        w.day_polls = day_polls;
+        w.game.published.set(0xA0);
+        assert_eq!(w.cycle(), -1);
+        assert_eq!(w.cycle(), 0, "{}", w.last());
+        let _ = w.run_to_cycle_end();
+        for _ in 0..10 {
+            w.next_day();
+        }
+        w.plumbing_pass(&wet, false);
+        let r = w.read();
+        assert_eq!(w.cycle_with(&r), 0, "{}", w.last());
+        let carried = if day_polls {
+            "carried into the next cycle: 40 (changed after the wrap day 129 (day 139 since Init; 11 tracts of the \
+             new cycle visited))"
+        } else {
+            "carried into the next cycle: 40 (the comparison's own poll only (no day polls))"
+        };
+        assert!(w.last().contains(carried), "{}", w.last());
+        assert_eq!(w.cycle(), 0, "{}", w.last());
+        assert!(w.last().contains("(40 carried in)"), "{}", w.last());
+        // The day count also raises the unvisited bound to the 11 tracts.
+        let bound = if day_polls { 11 } else { 2 };
+        assert!(
+            w.last().contains(&format!("unvisited 0 of at most {bound})")),
+            "{}",
+            w.last()
+        );
+    }
+}
+
+/// FL8: the day count is checked against the cycle ends delivered. With day
+/// polls from the original's Init it agrees; a shadow that missed the first
+/// cycle's days reports it off and carries the comparison's own poll only.
+#[test]
+fn the_day_count_is_checked() {
+    let mut w = World::new();
+    w.day_polls = true;
+    assert_eq!(w.cycle(), -1);
+    assert!(
+        w.last()
+            .contains("; day 1 since Init, 1 tracts of the new cycle visited"),
+        "{}",
+        w.last()
+    );
+    assert_eq!(w.cycle(), 0, "{}", w.last());
+    assert!(
+        w.last()
+            .contains("(changed after the wrap day 65 (day 65 since Init; 1 tracts of the new cycle visited))"),
+        "{}",
+        w.last()
+    );
+
+    let mut w = World::new();
+    assert_eq!(w.cycle(), -1);
+    w.day_polls = true;
+    assert_eq!(w.cycle(), 0, "{}", w.last());
+    let off = "the day count is off: cycle end 2 delivered after day 64, by when the count gives 1";
+    assert!(
+        w.last().contains(&format!(
+            "carried into the next cycle: 0 (the comparison's own poll only ({off}))"
+        )),
+        "{}",
+        w.last()
+    );
+    // It stays off.
+    assert_eq!(w.cycle(), 0, "{}", w.last());
+    assert!(w.last().contains(off), "{}", w.last());
+}
+
+/// §6.5: `EndOfCycle` runs on days 1 (empty), 41, 81, 121, 161 after `Init`
+/// for 64², 128² and 256² cities (tractsPerDay 102, 409, 1638).
+#[test]
+fn wrap_days_by_the_day_count() {
+    for (tpd, n) in [(102u64, 4096u64), (409, 16384), (1638, 65536)] {
+        let wraps: Vec<u64> = (1..=170)
+            .filter(|&d| ends_by_day(d, tpd, n) > ends_by_day(d - 1, tpd, n))
+            .collect();
+        assert_eq!(wraps, [1, 41, 81, 121, 161], "{tpd} {n}");
+    }
+    assert_eq!(ends_by_day(0, 409, 16384), Some(0));
+    assert_eq!(ends_by_day(5, 0, 64), None);
+    assert_eq!(ends_by_day(5, 1, 0), None);
 }
 
 /// Without the host's `watered_grid` the two cycle ends alone decide.
@@ -562,9 +740,11 @@ fn watered_grid_not_polled() {
     };
     unsafe { fc4_flammability_shadow_destroy(w.shadow) };
     w.shadow = unsafe { fc4_flammability_shadow_create(&table, 3) };
+    w.day_polls = true;
     assert_eq!(w.cycle(), -1);
     assert_eq!(w.cycle(), 0, "{}", w.last());
-    assert!(w.last().contains("; plumbing passes not polled"), "{}", w.last());
+    assert!(w.last().contains("; watered state not polled"), "{}", w.last());
+    assert!(!w.last().contains("carried into the next cycle"), "{}", w.last());
 }
 
 #[test]

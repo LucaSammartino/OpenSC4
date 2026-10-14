@@ -38,6 +38,8 @@
 #include "cISC4Ordinance.h"
 #include "cISC4OrdinanceSimulator.h"
 #include "cISCPropertyHolder.h"
+#include "cISCResExemplar.h"
+#include "cISCResExemplarCohort.h"
 #include "cRZBaseVariant.h"
 #include "cSCBaseProperty.h"
 #include "cFC4Variant.h"
@@ -77,6 +79,7 @@
 #include "cIGZOStream.h"
 #include "FC4Interfaces.h"
 #include "FC4TestSeam.h"
+#include "cFC4TrafficSimulator.h"
 #include "cFC4ZoneManager.h"
 #include "cFC4TractDeveloper.h"
 #include "cGZPersistResourceKey.h"
@@ -203,9 +206,9 @@ int ForeignFaultX87() {
 // A building's property holder with just what the budget reads and writes
 // (budget-item arrays), laid out like the game's (foundations §17.2): the
 // plugin calls holders only through those slots.
-class FakeHolder final : public cFC4ISCPropertyHolder {
+class FakeHolder : public cFC4ISCPropertyHolder {
 public:
-    ~FakeHolder() { RemoveAllProperties(false); }
+    virtual ~FakeHolder() { RemoveAllProperties(false); }
     bool QueryInterface(uint32_t riid, void** pp) override {
         if (riid != GZIID_cISCPropertyHolder && riid != GZIID_cIGZUnknown) return false;
         *pp = this;
@@ -3214,12 +3217,15 @@ intptr_t FloraShadowOnce(FC4TestSeamFn seam, FakeObject* city, FakeObject* targe
 // (slot 8) and closes it (slot 9); the stream keeps what its PutUint16 /
 // PutUint32 (slots 7 / 9) get, little-endian, and reports no error (slot 18).
 // `refs` starts with the caller's own reference. Any other call aborts.
+// `falseOpen`: slot 8 still writes the stream (with its reference) but
+// returns false (AQ10).
 struct FakeSegment {
     FakeVtable segVt, dbVt, outVt;
     FakeObject seg{}, db{}, out{};
     int refs = 1;
     int opens = 0;
     int closes = 0;
+    bool falseOpen = false;
     uint32_t key[3] = {};  // type, group, instance
     std::vector<uint8_t> bytes;
 };
@@ -3240,7 +3246,7 @@ bool __fastcall FsegOpenO(void*, void*, const uint32_t* key, void** out, bool) {
     std::memcpy(g_fseg->key, key, sizeof(g_fseg->key));
     *out = &g_fseg->out;
     ++g_fseg->refs;
-    return true;
+    return !g_fseg->falseOpen;
 }
 void __fastcall FsegCloseO(void*, void*, void*) { ++g_fseg->closes; }  // db 9
 bool __fastcall FsegPut16(void*, void*, uint16_t v) {                 // stream 7
@@ -3416,6 +3422,16 @@ int FloraEnableTest(const std::string& dll, const std::string& ini, const std::s
             CHECK(fseg.key[0] == 0xC9BB3FC6u && fseg.key[1] == 0xC9BB3FC7u && fseg.key[2] == 1u);
             CHECK((fseg.bytes == std::vector<uint8_t>{0, 0, 0, 0, 0, 0}));
             CHECK(fseg.refs == 1);
+            // AQ10 (§10.3): an open that returns false but writes a stream:
+            // not open (nothing written, no close), and that stream's
+            // reference is released once.
+            static FakeSegment fsegFalse;
+            InitFakeSegment(fsegFalse);
+            fsegFalse.falseOpen = true;
+            CHECK(flora->SaveObliterated(reinterpret_cast<cIGZPersistDBSegment*>(&fsegFalse.seg)));
+            CHECK(fsegFalse.opens == 1 && fsegFalse.closes == 0);
+            CHECK(fsegFalse.bytes.empty());
+            CHECK(fsegFalse.refs == 1);
             // §11.1 slot 13 (FQ9): the map {0, added} in ascending order, each
             // key asked of the filter's slot 3; the accepted count returned.
             // (No game allocator here: the inserts fail, the count does not
@@ -4827,6 +4843,154 @@ int DevelopmentEnableTest(const std::string& dll, const std::string& ini, const 
 
 // ---- the development shadow (test seam op 34) ---------------------------------------------------------
 
+// An original growth developer as the shadow meets it (its agent answers
+// QueryInterface 0xE7CDD662): slot 5 is the target zone, slot 6 the type.
+class FakeGrowthDeveloper final : public cFC4ISC4GrowthDeveloper {
+public:
+    FakeGrowthDeveloper(int32_t zone, uint32_t type) : zone_(zone), type_(type) {}
+    bool QueryInterface(uint32_t riid, void** pp) override {
+        if (riid != 0xE7CDD662u && riid != GZIID_cIGZUnknown) return false;
+        *pp = static_cast<cFC4ISC4GrowthDeveloper*>(this);
+        AddRef();
+        return true;
+    }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return --refs; }  // stack object
+    bool Init(cISCPropertyHolder*) override { return true; }
+    bool Shutdown() override { return true; }
+    int32_t GetType() override { return zone_; }
+    uint32_t GetSubType() override { return type_; }
+    uint32_t GetPurpose() override { return 1; }
+    uint32_t GetWealth() override { return 1; }
+    void GetConstructionInfo(FC4ConstructionProfile&) override {}
+    bool GrowthAndDeclineListsAreValid() override { return false; }
+    fc4::GameVector<FC4GrowthItem>& GetGrowthList() override { return List(); }
+    fc4::GameVector<FC4GrowthItem>& GetDeclineList() override { return List(); }
+    cISC4SimGrid<int16_t>* GetDesirabilityMap() override { return nullptr; }
+    cISC4SimGrid<uint16_t>* GetCapacityMap() override { return nullptr; }
+    cISC4SimGrid<int16_t>* GetPopulationMap() override { return nullptr; }
+    cISC4SimGrid<uint16_t>* GetMaxCapacityMap() override { return nullptr; }
+    int32_t GetTotalCapacity() override { return 0; }
+    cISC4Demand* GetSourceDemand() override { return nullptr; }
+    uint8_t GetPowerSupplyCap() override { return 0; }
+    uint8_t GetWaterSupplyCap() override { return 0; }
+    uint8_t GetFireCoverageCap() override { return 0; }
+    uint8_t GetParkCap() override { return 0; }
+    int32_t GetDesirabilityThreshold() override { return 0; }
+    float GetAbandonmentThreshold(int32_t) override { return 0.0f; }
+    int32_t GetMonopolyUse() override { return 0; }
+    fc4::GameMapObject* GetStylePercentages() override { return nullptr; }
+    void StartMapUpdate() override {}
+    bool IsMapUpdateFinished() override { return true; }
+    int16_t EstimateDesirability(int32_t, int32_t) override { return 0; }
+    void GetSubjectiveThresholds(int32_t, int32_t& lo, int32_t& hi) override { lo = hi = 0; }
+    uint32_t refs = 1;
+
+private:
+    int32_t zone_;
+    uint32_t type_;
+    // An empty game vector (three null pointers) that is never constructed or
+    // destroyed: the shadow does not read it, and its destructor would need
+    // the game allocator.
+    alignas(void*) unsigned char list_[3 * sizeof(void*)] = {};
+    fc4::GameVector<FC4GrowthItem>& List() { return *reinterpret_cast<fc4::GameVector<FC4GrowthItem>*>(list_); }
+};
+
+class FakeCohort;
+
+// An exemplar's (or a cohort's) property holder as the game's behaves:
+// EnumProperties (slot 20) lists the OWN properties only; GetProperty (slot
+// 9) resolves the parent cohorts when `effective` (the exemplar's own
+// implementation does); QueryInterface 0xA52160F5 answers the exemplar.
+class ChainHolder final : public FakeHolder {
+public:
+    bool QueryInterface(uint32_t riid, void** pp) override {
+        if (riid == GZIID_cISCResExemplar && exemplar != nullptr) {
+            *pp = exemplar;
+            exemplar->AddRef();
+            return true;
+        }
+        return FakeHolder::QueryInterface(riid, pp);
+    }
+    cISCProperty* GetProperty(uint32_t id) const override;
+    bool EnumProperties(EnumFn fn, void* data) const override {
+        for (uint32_t id : own) fn(FakeHolder::GetProperty(id), data);
+        return true;
+    }
+    template <class T>
+    void SetOwn(uint32_t id, T value) {
+        Set(id, value);
+        if (std::find(own.begin(), own.end(), id) == own.end()) own.push_back(id);
+    }
+    std::vector<uint32_t> own;
+    cISCResExemplar* exemplar = nullptr;  // the owner, for an exemplar's holder
+    FakeCohort* parent = nullptr;          // the cohort whose properties GetProperty also resolves
+    bool effective = true;
+};
+
+class FakeCohort final : public cISCResExemplarCohort {
+public:
+    bool QueryInterface(uint32_t riid, void** pp) override {
+        if (riid != GZIID_cISCResExemplarCohort && riid != GZIID_cIGZUnknown) return false;
+        *pp = static_cast<cISCResExemplarCohort*>(this);
+        AddRef();
+        return true;
+    }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return --refs; }
+    bool Write(cIGZOStream&) override { return false; }
+    bool Read(cIGZIStream&) override { return false; }
+    uint32_t GetGZCLSID() override { return 0; }
+    cISCResExemplarCohort* GetParent() override { return parent; }
+    bool SetParent(cISCResExemplarCohort*, bool) override { return false; }
+    cISCPropertyHolder* AsISCPropertyHolder() override { return holder.AsSdk(); }
+    cISCPropertyHolder* AsISCPropertyHolder() const override { return const_cast<ChainHolder&>(holder).AsSdk(); }
+    bool IsPropertyLocal(uint32_t id) override { return holder.HasProperty(id); }
+    bool GetKey(cGZPersistResourceKey&) override { return false; }
+    bool SetKey(cGZPersistResourceKey const&) override { return false; }
+    bool CompactProperties() override { return true; }
+    ChainHolder holder;
+    FakeCohort* parent = nullptr;
+    uint32_t refs = 1;
+};
+
+cISCProperty* ChainHolder::GetProperty(uint32_t id) const {
+    if (cISCProperty* p = FakeHolder::GetProperty(id)) return p;
+    if (!effective) return nullptr;
+    for (const FakeCohort* c = parent; c != nullptr; c = c->parent) {
+        if (cISCProperty* p = c->holder.FakeHolder::GetProperty(id)) return p;
+    }
+    return nullptr;
+}
+
+class FakeExemplar final : public cISCResExemplar {
+public:
+    FakeExemplar() { holder.exemplar = this; }
+    bool QueryInterface(uint32_t riid, void** pp) override {
+        if (riid != GZIID_cISCResExemplar && riid != GZIID_cIGZUnknown) return false;
+        *pp = static_cast<cISCResExemplar*>(this);
+        AddRef();
+        return true;
+    }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return --refs; }
+    bool Write(cIGZOStream&) override { return false; }
+    bool Read(cIGZIStream&) override { return false; }
+    uint32_t GetGZCLSID() override { return 0; }
+    cISCPropertyHolder* AsISCPropertyHolder() override { return holder.AsSdk(); }
+    cISCPropertyHolder* AsISCPropertyHolder() const override { return const_cast<ChainHolder&>(holder).AsSdk(); }
+    bool IsPropertyLocal(uint32_t id) override { return holder.HasProperty(id); }
+    cISCResExemplarCohort* GetCohort() override { return cohort; }
+    bool SetCohort(cISCResExemplarCohort*, bool) override { return false; }
+    bool GetKey(cGZPersistResourceKey&) override { return false; }
+    bool SetKey(cGZPersistResourceKey const&) override { return false; }
+    bool CompactProperties() override { return true; }
+    ChainHolder holder;
+    FakeCohort* cohort = nullptr;
+    uint32_t refs = 1;
+};
+
+
 int DevelopmentShadowIniTest(const std::string& dll, const std::string& ini, const std::string& log) {
     // `development_shadow = 1` with FreeCity4's simulator and the original
     // development unit (the defaults): ON, and the shadow's list comparison.
@@ -4870,6 +5034,55 @@ int DevelopmentShadowIniTest(const std::string& dll, const std::string& ini, con
         FC4DevelopmentShadowTestInput other{};
         other.mode = 9;
         CHECK(seam(kFC4SeamDevelopmentShadow, &other, nullptr) == -1);
+
+        // Mode 2: the shadow names an original developer by its type (slot 6,
+        // 0x1010 ... 0x4400), not its target zone (slot 5): run 101 loaded the
+        // exemplars 0x00000001..3 and compared nothing.
+        FakeGrowthDeveloper r1(1, 0x1010), i8(3, 0x4400);
+        FC4DevelopmentShadowTestInput dev{};
+        dev.mode = 2;
+        dev.developer = &r1;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &dev, nullptr) == 0x1010);
+        CHECK(r1.refs == 1);  // the shadow's reference is dropped with the entry
+        dev.developer = &i8;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &dev, nullptr) == 0x4400);
+        CHECK(i8.refs == 1);
+        dev.developer = nullptr;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &dev, nullptr) == -1);
+
+        // Mode 3: an exemplar's effective properties (data-formats §4.4). The
+        // game's EnumProperties lists own properties only; a building whose
+        // ExemplarType, purpose and families sit in its cohorts must still
+        // reach the core (run 102: 91 of 744 building types).
+        FakeCohort grand, parent;
+        parent.parent = &grand;
+        grand.holder.SetOwn<uint32_t>(0x27812870, 0x5000);  // families, only in the grandparent
+        grand.holder.SetOwn<uint32_t>(0x27812833, 9);       // purpose, overridden by the parent
+        parent.holder.SetOwn<uint32_t>(0x10, 2);            // ExemplarType: a building
+        parent.holder.SetOwn<uint32_t>(0x27812833, 1);      // purpose
+        parent.holder.parent = &grand;
+        FakeExemplar ex;
+        ex.cohort = &parent;
+        ex.holder.parent = &parent;
+        ex.holder.SetOwn<uint32_t>(0x21, 0x12345);           // own
+        ex.holder.SetOwn<uint32_t>(0x27812833, 2);           // own purpose wins over both cohorts
+        FC4DevelopmentShadowTestInput hp{};
+        hp.mode = 3;
+        hp.holder = reinterpret_cast<const cISCPropertyHolder*>(ex.holder.AsSdk());
+        CHECK(seam(kFC4SeamDevelopmentShadow, &hp, nullptr) == 4);
+        ex.holder.effective = false;  // an exemplar whose GetProperty does not resolve: read from the cohort
+        CHECK(seam(kFC4SeamDevelopmentShadow, &hp, nullptr) == 4);
+        CHECK(ex.refs == 1 && parent.refs == 1 && grand.refs == 1);
+        grand.parent = &parent;  // a cycle stops at the repeated cohort
+        CHECK(seam(kFC4SeamDevelopmentShadow, &hp, nullptr) == 4);
+        CHECK(ex.refs == 1 && parent.refs == 1 && grand.refs == 1);
+        grand.parent = nullptr;
+        FakeHolder plain;  // not an exemplar: its own properties (none listed by its EnumProperties)
+        plain.Set<uint32_t>(0x10, 2);
+        hp.holder = reinterpret_cast<const cISCPropertyHolder*>(plain.AsSdk());
+        CHECK(seam(kFC4SeamDevelopmentShadow, &hp, nullptr) == 0);
+        hp.holder = nullptr;
+        CHECK(seam(kFC4SeamDevelopmentShadow, &hp, nullptr) == -1);
     }
     FreeLibrary(hd);
     DeleteFileA(ini.c_str());
@@ -4880,6 +5093,13 @@ int DevelopmentShadowIniTest(const std::string& dll, const std::string& ini, con
     CHECK(text.find("development shadow: not compared or assumed: the industrial decline order") != npos);
     CHECK(text.find("development shadow: requested") == npos);
     CHECK(text.find("development shadow test: lists 2/2 in order; mismatches=0") != npos);
+    CHECK(text.find("development shadow test: developer 0x1010 (target zone 1), exemplar "
+                    "0x6534284A/0x67CD5FA1/0x00001010") != npos);
+    CHECK(text.find("development shadow test: developer 0x4400 (target zone 3), exemplar "
+                    "0x6534284A/0x67CD5FA1/0x00004400") != npos);
+    CHECK(CountOf(text, "development shadow test: holder properties 4 (own 2, inherited 2): 0x00000021 0x27812833 "
+                        "0x00000010@1 0x27812870@2") == 3);
+    CHECK(text.find("development shadow test: holder properties 0 (own 0, inherited 0):") != npos);
     CHECK(text.find("development shadow test: lists 2/2 in order; mismatches=2; differences (original/ours): "
                     "list[0] (1,2) s1/(3,4) s2, list[1] (3,4) s2/(1,2) s1") != npos);
     CHECK(text.find("development shadow test: lists 2/2 as a multiset; mismatches=0") != npos);
@@ -5631,13 +5851,15 @@ void ZonesPlaceZoneTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
         CHECK(error == 2 && cost == 7);
         CHECK(stub.posts.empty() && stub.withdrawals == 0 && stub.grid[6][6] == 0);
     }
-    // A type >= 16 fails with error 0.
+    // ZG17: a type >= 16 is replaced by 0 (a dezone), not a failure. A dry
+    // run, so nothing is withdrawn, written or posted.
     {
         ZonesGameRegion g(0, 0, 0, 0);
         int64_t cost = -1;
         int32_t error = -1;
-        CHECK(!ZonesPlace(zm, g, 16, true, false, false, &cost, &error, nullptr));
+        CHECK(ZonesPlace(zm, g, 16, false, false, false, &cost, &error, nullptr));
         CHECK(error == 0 && cost == 0);
+        CHECK(stub.withdrawals == 0 && stub.commits == 0 && stub.posts.empty());
     }
     // Funds: the lot at (2, 2) is priced at 50 > 10.
     {
@@ -5807,13 +6029,14 @@ int ZonesEnableTest(const std::string& dll, const std::string& ini, const std::s
             CHECK(zm->Release() == 0);
         }
         // Read runs before Init (§10.1): the record loads into a new manager,
-        // which writes it back byte for byte (the alpha read is also the
-        // default); a record of another version does not load.
+        // which writes it back byte for byte; a record of another version
+        // does not load. ZG3: the default alpha is not saved, so Read leaves
+        // the constructor's 0xFF (Init copies the exemplar's alpha to it).
         cFC4ISC4ZoneManager* fresh = NewZoneManager(director);
         CHECK(fresh != nullptr);
         if (fresh != nullptr && !record.empty()) {
             CHECK(ZonesRead(fresh, record));
-            CHECK(fresh->GetZoneDisplayAlpha() == 0x80 && fresh->GetDefaultZoneDisplayAlpha() == 0x80);
+            CHECK(fresh->GetZoneDisplayAlpha() == 0x80 && fresh->GetDefaultZoneDisplayAlpha() == 0xFF);
             CHECK(ZonesWrite(fresh) == record);
             CHECK(fresh->Release() == 0);  // the final Release shuts a never-initialised manager down
         }
@@ -5849,14 +6072,15 @@ int ZonesEnableTest(const std::string& dll, const std::string& ini, const std::s
     CHECK(text.find("zones: test hooks installed") != std::string::npos);
     CHECK(text.find("zones PlaceZone: type=14 rect=6,6..6,6 cells=1 ok=0 error=2 cost=7 accepted=0") !=
           std::string::npos);
-    CHECK(text.find("zones PlaceZone: type=16 rect=0,0..0,0 cells=1 ok=0 error=0 cost=0") != std::string::npos);
+    // ZG17: the type-16 call is a dry run now (dezone), not logged as a commit.
+    CHECK(text.find("zones PlaceZone: type=16") == std::string::npos);
     CHECK(text.find("zones PlaceZone: type=1 rect=1,1..3,3 cells=9 ok=0 error=1 cost=50 accepted=0") !=
           std::string::npos);
     CHECK(text.find("zones PlaceZone: type=1 rect=1,1..3,3 cells=9 ok=1 error=0 cost=50 accepted=9 cleared=0 lots=1") !=
           std::string::npos);
     CHECK(text.find("zones PlaceZone: type=1 rect=1,1..1,1 cells=1 ok=1 error=0 cost=0 accepted=1") !=
           std::string::npos);
-    CHECK(CountOf(text, "zones PlaceZone: ") == 6);  // the dry runs are verbose-only
+    CHECK(CountOf(text, "zones PlaceZone: ") == 5);  // the dry runs (type 16 too, ZG17) are verbose-only
     // The dezone: one line, the dezone's own PlaceZone has none.
     CHECK(CountOf(text, "zones dezone: occupant ") == 1);
     CHECK(text.find(" rect 4,0..4,7 changed=8 lots=0") != std::string::npos);
@@ -5898,6 +6122,7 @@ constexpr uint32_t kIID_cISC4Lot = 0xE818FCED;
 constexpr uint32_t kMsgInsertOccupantFl = 0x99EF1142;
 constexpr uint32_t kMsgConditionChangedFl = 0xE99B3D4D;
 constexpr uint32_t kMsgWaterMapChangedFl = 0x6946DC34;  // the plumbing pass end (FL5/FL6)
+constexpr uint32_t kMsgSimNewDayFl = 0x66956814;        // the day poll after the original's day (FL7/FL8)
 
 // A fake simulation grid (cISC4SimGrid<T>, simgrid.md): the geometry slots
 // (10-17) and GetTractValue (22), values x outer; AddRef / Release (1, 2)
@@ -6284,6 +6509,9 @@ int FlammabilityShadowTest(const std::string& dll, const std::string& ini, const
         CHECK(FlShadowOnce(seam, nullptr, 0, 0, kMsgInsertOccupantFl) == -1);
         // A message before the first cycle end: no mirror yet.
         CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgInsertOccupantFl) == 0);
+        // The original's first day (FlammabilityShadowDeliver's day poll):
+        // counted, not mirrored.
+        CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgSimNewDayFl) == 0);
         // The first cycle end (the empty one of the first day) is the baseline.
         CHECK(FlShadowOnce(seam, &orig.city, 2451546, 1) == -2);  // 2000-01-02
         // Mirrored messages: an occupant message without an occupant, and a
@@ -6291,9 +6519,13 @@ int FlammabilityShadowTest(const std::string& dll, const std::string& ini, const
         CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgInsertOccupantFl) == 1);
         CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgConditionChangedFl, nullptr, &orig.notLot) == 1);
         CHECK(orig.notLotQi == 1);
-        // The plumbing pass end: polled (the fake city has no plumbing
-        // simulator: the published grid reads 0, no pass), not mirrored.
+        // The plumbing pass end: not mirrored (and, after the first day poll,
+        // not polled either).
         CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgWaterMapChangedFl) == 0);
+        // Days 2-65 (64 tracts, tractsPerDay 1): the second cycle ends on day
+        // 65 (flammability.md §6.5); each day is polled (the fake city has no
+        // plumbing simulator: nothing watered, no change).
+        for (int day = 2; day <= 65; ++day) CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgSimNewDayFl) == 0);
         // 1. Clean.
         CHECK(FlShadowOnce(seam, &orig.city, 2451586, 1) == 0);  // 2000-02-11
         // 2. One wrong tract: adjusted (3, 4) became 9 although its raw value is 0.
@@ -6334,7 +6566,15 @@ int FlammabilityShadowTest(const std::string& dll, const std::string& ini, const
     CHECK(text.find("raw cells=64 mismatched=0 max|d|=0; adjusted cells=64 mismatched=0 max|d|=0") !=
           std::string::npos);
     CHECK(text.find("average orig/ours=0/0; multiplier orig/ours=1/1; hotspots orig/ours=0/0") != std::string::npos);
-    CHECK(text.find("events=2; plumbing passes=0 (tracts whose watered state changed: 0);") != std::string::npos);
+    CHECK(text.find("original's grids (8x8 tracts, tractsPerDay=1), multiplier 1, average 0, 0 hotspot(s); compared "
+                    "from the next cycle; day 1 since Init, 1 tracts of the new cycle visited") != std::string::npos);
+    CHECK(text.find("events=2; watered polls=65 by content (at a day 64, with a change 0; published grid pointer "
+                    "changes 0); tracts whose watered state changed: 0 (0 carried in); carried into the next cycle: 0 "
+                    "(changed after the wrap day 65 (day 65 since Init; 1 tracts of the new cycle visited));") !=
+          std::string::npos);
+    // No day polls before cycle 3: the count is off from then on (FL8).
+    CHECK(text.find("carried into the next cycle: 0 (the comparison's own poll only (the day count is off: cycle end "
+                    "3 delivered after day 65, by when the count gives 2));") != std::string::npos);
     CHECK(text.find("flammable getter cells=64 mismatched=0; mismatches=0; cycles=1 clean=1") != std::string::npos);
     CHECK(text.find("flammability shadow 2000-03-22 cycle 3: ") != std::string::npos);
     CHECK(text.find("adjusted cells=64 mismatched=1 max|d|=9") != std::string::npos);
@@ -7252,10 +7492,14 @@ public:
 };
 
 // A foreign deal (another plugin's, or the original's): read through its
-// interface only; the dates through the caller's date (Set, slot 4).
+// interface only; the dates through the caller's date (Set, slot 4). A sell
+// water deal whose cost needs more than 32 bits (NG11).
+constexpr int32_t kNbForeignType = 0x4773FFE3;
+constexpr int64_t kNbForeignCost = (int64_t{1} << 32) + 1234;
 class NbForeignDeal final : public cISC4NeighborDeal {
 public:
     SavedRefCounts c;
+    std::vector<std::pair<int32_t, bool>> setFlags;  // SetFlags calls (NG4)
     NbForeignDeal() { c.refs = c.gameRefs = 1; }
     bool QueryInterface(uint32_t riid, void** p) override {
         if (p == nullptr || (riid != kIID_cISC4NeighborDealN && riid != GZIID_cIGZUnknown)) return false;
@@ -7270,7 +7514,7 @@ public:
     void SetRegionCellOnOtherSideOfConnection(int32_t, int32_t) override {}
     void GetRegionCellOnOtherSideOfConnection(int32_t& x, int32_t& z) const override { x = 6, z = 5; }
     cISC4RegionalCity* GetCityOnOtherSideOfConnection() const override { return nullptr; }
-    int32_t GetType() const override { return 3; }
+    int32_t GetType() const override { return kNbForeignType; }
     void SetType(int32_t) override {}
     int32_t GetAmount() const override { return 50; }
     void SetAmount(int32_t) override {}
@@ -7284,7 +7528,7 @@ public:
     void SetIncAmount2(int32_t) override {}
     int32_t GetAmountUsed() const override { return 30; }
     void SetAmountUsed(int32_t) override {}
-    int64_t GetCost() const override { return 1234; }
+    int64_t GetCost() const override { return kNbForeignCost; }
     void UpdateCost() override {}
     void GetStartDate(cIGZDate& d) const override { fc4::AsGame(&d)->SetDayNumber(kJulian20000201); }
     void SetStartDate(cIGZDate const&) override {}
@@ -7299,7 +7543,7 @@ public:
     void Cancel() override {}
     bool Activate() override { return false; }
     int32_t GetFlags() const override { return 0x2; }  // Active
-    void SetFlags(int32_t, bool) override {}
+    void SetFlags(int32_t f, bool on) override { setFlags.emplace_back(f, on); }
     bool CheckFlagsAnd(int32_t f) const override { return (0x2 & f) == f; }
     bool CheckFlagsOr(int32_t f) const override { return (0x2 & f) != 0; }
     bool Clone(cISC4NeighborDeal**, bool) const override { return false; }
@@ -7330,7 +7574,7 @@ T* NbQuery(cIGZUnknown* u, uint32_t iid) {
 }
 
 // Our deal (one reference held by the caller): its interfaces, its state as
-// copied from the foreign deal, Clone and the §5.6 record.
+// copied from the foreign deal (test seam op 48), Clone and the §5.6 record.
 void CheckNeighborDeal(cISC4NeighborDeal* d) {
     void* p = reinterpret_cast<void*>(0x1234);
     CHECK(!d->QueryInterface(kIID_CoreObjectN, &p) && p == reinterpret_cast<void*>(0x1234));
@@ -7338,7 +7582,8 @@ void CheckNeighborDeal(cISC4NeighborDeal* d) {
     auto* same = NbQuery<cISC4NeighborDeal>(d, kIID_cISC4NeighborDealN);
     CHECK(same == d);
     if (same != nullptr) same->Release();
-    CHECK(d->GetType() == 3 && d->GetAmount() == 50 && d->GetCost() == 1234 && d->GetAmountUsed() == 30);
+    CHECK(d->GetType() == kNbForeignType && d->GetAmount() == 50 && d->GetCost() == kNbForeignCost &&
+          d->GetAmountUsed() == 30);
     CHECK(d->GetIncAmount() == 5 && d->GetLastAmount() == 40);
     int32_t x = 0, z = 0;
     d->GetRegionCellOnOtherSideOfConnection(x, z);
@@ -7349,7 +7594,7 @@ void CheckNeighborDeal(cISC4NeighborDeal* d) {
     cISC4NeighborDeal* copy = nullptr;
     CHECK(d->Clone(&copy, true) && copy != nullptr && copy != d);
     if (copy != nullptr) {
-        CHECK(copy->GetType() == 3 && copy->GetAmount() == 50 && copy->CheckFlagsOr(0x80));  // Silent (§5.5)
+        CHECK(copy->GetType() == kNbForeignType && copy->GetAmount() == 50 && copy->CheckFlagsOr(0x80));  // Silent (§5.5)
         CHECK(copy->Release() == 0);
     }
     auto* ser = NbQuery<cIGZSerializable>(d, GZIID_cIGZSerializable);
@@ -7359,7 +7604,8 @@ void CheckNeighborDeal(cISC4NeighborDeal* d) {
         ResidentialSegOStream out;
         CHECK(ser->Write(out));
         // §5.6: version 5, then the type.
-        CHECK(out.bytes.size() > 6 && out.bytes[0] == 5 && out.bytes[1] == 0 && out.bytes[2] == 3);
+        CHECK(out.bytes.size() > 6 && out.bytes[0] == 5 && out.bytes[1] == 0 && out.bytes[2] == 0xE3 &&
+              out.bytes[5] == 0x47);
         ser->Release();
     }
 }
@@ -7497,8 +7743,11 @@ void CheckHolderKeepsObjects(cISC4NeighborConnection* conn, NbGameProperty& a, N
     uint32_t replaced[3] = {77, 88, 99};
     v->SetRefUint32(replaced, 3);
     CHECK(h->GetPropertyU32(kNbTripCapacityId, first) && first == 77);
-    uint32_t len = 0;
-    CHECK(h->GetPropertyData(kNbTripCapacityId, nullptr, len) && len == 12);
+    // NG23: no size query, and a u32 array is not raw bytes (length unchanged).
+    uint32_t len = 77;
+    uint8_t buf[4] = {};
+    CHECK(!h->GetPropertyData(kNbTripCapacityId, nullptr, len) && len == 77);
+    CHECK(!h->GetPropertyData(kNbTripCapacityId, buf, len) && len == 77);
     // A same-ID replacement releases the old object (here its last reference).
     uint16_t two[2] = {5, 6};
     b.value.SetRefUint16(two, 2);
@@ -7533,6 +7782,56 @@ void CheckHolderKeepsObjects(cISC4NeighborConnection* conn, NbGameProperty& a, N
     h->RemoveAllProperties(false);
 }
 
+// NG23 (neighbors.md §15.4): holder slot 5 has no size query and answers raw
+// bytes (type 0x8000) only: length := min(length, count), that many bytes
+// copied; a null buffer is refused [choice]; other types and a missing
+// property give false with the length unchanged. Example: the 5 bytes
+// 01..05 read with length 8 (5 copied) and 3 (01 02 03).
+void CheckGetPropertyData(cISC4NeighborConnection* conn, NbGameProperty& raw) {
+    cISCPropertyHolder* sdk = conn->AsISCPropertyHolder();
+    CHECK(sdk != nullptr);
+    if (sdk == nullptr) return;
+    cFC4ISCPropertyHolder* h = fc4::AsGame(sdk);
+    uint8_t bytes[5] = {1, 2, 3, 4, 5};
+    raw.value.SetRefVoid(bytes, 5);  // slot 122, copying
+    CHECK(raw.value.GetType() == cIGZVariant::VoidArray && raw.value.GetCount() == 5);
+    raw.SetPropertyID(0x5AFE0200);
+    CHECK(h->AddPropertyRecord(&raw, false));
+    CHECK(raw.Release() == 1);
+    uint8_t buf[8] = {};
+    uint32_t len = 8;
+    CHECK(h->GetPropertyData(0x5AFE0200, buf, len) && len == 5);
+    CHECK(buf[0] == 1 && buf[4] == 5 && buf[5] == 0);
+    uint8_t three[8] = {};
+    len = 3;
+    CHECK(h->GetPropertyData(0x5AFE0200, three, len) && len == 3);
+    CHECK(three[0] == 1 && three[2] == 3 && three[3] == 0);
+    len = 0;
+    CHECK(h->GetPropertyData(0x5AFE0200, buf, len) && len == 0);
+    len = 8;
+    CHECK(!h->GetPropertyData(0x5AFE0200, nullptr, len) && len == 8);
+    CHECK(!h->GetPropertyData(0x5AFE0201, buf, len) && len == 8);
+    CHECK(h->AddPropertyU32(0x5AFE0202, 7, false));
+    CHECK(!h->GetPropertyData(0x5AFE0202, buf, len) && len == 8);
+    CHECK(h->RemoveProperty(0x5AFE0202, false));
+    CHECK(h->RemoveProperty(0x5AFE0200, false));
+    CHECK(raw.c.refs == 0 && raw.c.freed && raw.c.overReleases == 0);
+    // NG27: GetProperty(id, uint32&) on an array gives its first element; an
+    // empty numeric array gives 0 and true.
+    cFC4Variant arr;
+    uint16_t trips[2] = {30, 0};
+    arr.SetRefUint16(trips, 2);
+    CHECK(h->AddPropertyVariant(0x5AFE0204, &arr, false));
+    uint32_t u = 9;
+    CHECK(h->GetPropertyU32(0x5AFE0204, u) && u == 30);
+    arr.SetRefUint16(trips, 0);
+    CHECK(arr.GetType() == (cIGZVariant::Uint16 | cIGZVariant::TypeArray) && arr.GetCount() == 0);
+    CHECK(h->AddPropertyVariant(0x5AFE0205, &arr, false));
+    u = 9;
+    CHECK(h->GetPropertyU32(0x5AFE0205, u) && u == 0);
+    CHECK(h->RemoveProperty(0x5AFE0204, false) && h->RemoveProperty(0x5AFE0205, false));
+}
+
 int NeighborsEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
     // Off by default; `enable = neighbors` registers the neighbours simulator
     // (no factory for its connection and deal classes, §15.2). The shadow (it
@@ -7552,7 +7851,7 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
     SetGamePrecision();
     static NbOrigConnection orig(1);  // the load's own reference
     static NbForeignDeal foreign;
-    static NbGameProperty propA, propB, propKept;  // the game's properties (foundations §10.2)
+    static NbGameProperty propA, propB, propKept, propRaw;  // the game's properties (foundations §10.2)
     if (director != nullptr) {
         std::vector<uint32_t> classes;
         director->EnumClassObjects(&CollectClass, &classes);
@@ -7589,28 +7888,61 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
             }
             CHECK(sim->Init());  // §14.1: true (no city here)
             CHECK(sim->GetTuningExemplar() == nullptr);
+            // NG14 (§15.4): with popups disabled the original's confirmation
+            // dialog answers no, so the request is refused; enabled, it is
+            // confirmed without the dialog [choice]. The app's flag through
+            // its slot 23 (an app whose other slots trap).
+            static FakePopupApp popupApp;
+            g_popupApp = &popupApp;
+            popupApp.vt.slots[23] = reinterpret_cast<void*>(&AppGetPopupDialogsEnabled);
+            popupApp.app.vtbl = popupApp.vt.slots.data();
+            auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+            CHECK(seam != nullptr);
+            if (seam != nullptr) {
+                CHECK(seam(kFC4SeamNeighborsApp, &popupApp.app, nullptr) == 1);
+                popupApp.enabled = false;
+                CHECK(!sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(popupApp.gets == 1 && !sim->HasConnection(NbType::Road, -1, 5));
+                popupApp.enabled = true;
+                CHECK(sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(popupApp.gets == 2 && !sim->HasConnection(NbType::Road, -1, 5));
+            }
             cISC4NeighborConnection* conn = sim->CreateConnection(NbType::Road, -1, 5, false);
             CHECK(conn != nullptr);
+            if (seam != nullptr) {
+                // It exists: refused before any dialog (§6.2).
+                CHECK(!sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(popupApp.gets == 2);
+                CHECK(seam(kFC4SeamNeighborsApp, nullptr, nullptr) == 1);
+            }
             CHECK(sim->CreateConnection(NbType::Road, -1, 5, false) == nullptr);  // §6.3 step 1
             CHECK(sim->HasConnection(NbType::Road, -1, 5) && sim->FindConnection(NbType::Road, -1, 5) == conn);
             if (conn != nullptr) {
                 CheckNeighborConnection(conn);
                 CheckHolderKeepsObjects(conn, propA, propB);
+                CheckGetPropertyData(conn, propRaw);
                 // One kept until the connection goes (released with the holder).
                 propKept.SetPropertyID(0x5AFE0100);
                 CHECK(fc4::AsGame(conn->AsISCPropertyHolder())->AddPropertyRecord(&propKept, false));
                 CHECK(propKept.Release() == 1);
             }
-            // A foreign deal is added as a deal of ours [choice]; FindDealsAll
-            // reuses the caller's node (one reference for the caller).
+            // NG4 (§15.4): a foreign deal is kept as the listed deal: one
+            // reference for the core, Silent cleared through its interface.
+            // FindDealsAll reuses the caller's node and hands out the caller's
+            // object itself (one reference for the caller).
             CHECK(foreign.AddRef() == 2);  // the caller list's reference
             NbOneNodeList list(&foreign);
             CHECK(sim->AddDeal(&foreign));
+            CHECK(foreign.c.refs == 3);  // the game's, the caller list's and the core's
+            CHECK(foreign.setFlags.size() == 1 && foreign.setFlags[0] == std::make_pair(int32_t{0x80}, false));
             sim->FindDealsAll(list.Get());
-            CHECK(list.OneNode());
-            cISC4NeighborDeal* ours = list.node.value;
+            CHECK(list.OneNode() && list.node.value == &foreign);
+            CHECK(foreign.c.refs == 3 && foreign.c.overReleases == 0);  // the replaced element released
+            CHECK(foreign.Release() == 2);                               // the caller list's
+            // A deal of ours with the foreign deal's state (Copy, §5.4).
+            cISC4NeighborDeal* ours = nullptr;
+            if (seam != nullptr) CHECK(seam(kFC4SeamNeighborsApp, &foreign, &ours) == 1);
             CHECK(ours != nullptr && ours != &foreign);
-            CHECK(foreign.c.refs == 1 && foreign.c.overReleases == 0);  // the replaced element released
             if (ours != nullptr && ours != &foreign) {
                 CheckNeighborDeal(ours);
                 CHECK(ours->Release() == 0);
@@ -7621,14 +7953,14 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
             sim->SetUIDisableFlag(false);
             (void)sim->GetDealCost(1, 10.0, nullptr);
             // Getters from another thread (the lock is free: answered by the core).
-            int32_t income = -1;
+            int64_t income = -1;  // NG11: slots 32/33 return an int64 in EDX:EAX
             bool has = false;
             std::thread t([&] {
                 income = sim->GetTotalMonthlyNeighborDealIncome();
                 has = sim->HasConnection(NbType::Road, -1, 5);
             });
             t.join();
-            CHECK(income == 0 && has);
+            CHECK(income == kNbForeignCost && has);  // the foreign sell deal, all 64 bits (NG11)
             if (mt != nullptr) {
                 ResidentialDayMessage month(kMsgSimNewMonth, kJulian20000201);
                 CHECK(mt->DoMessage(&month));
@@ -7649,6 +7981,8 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
             if (ser != nullptr) ser->Release();
             if (mt != nullptr) mt->Release();
             CHECK(sim->Shutdown());
+            // Shutdown let the foreign deal go: the core's reference is back.
+            CHECK(foreign.c.refs == foreign.c.gameRefs && foreign.c.overReleases == 0);
             CHECK(sim->Release() == 0);
         }
         // Read runs before Init (§13): an original connection is accepted (a
@@ -7693,6 +8027,8 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
     CHECK(text.find("subsystem 'neighbors': enabled (1 class replaced) by FreeCity4.ini (enable=)") != npos);
     CHECK(CountOf(text, ", session seed 0x0000002A (neighbors_seed)") == 3);
     CHECK(text.find("neighbours Init: init=1 ready=0 connections=0 (foreign 0) deals=0") != npos);
+    CHECK(CountOf(text, "neighbours: RequestCreateConnection refused: popup dialogs are disabled") == 1);
+    CHECK(CountOf(text, "neighbours: RequestCreateConnection confirms without the yes/no dialog") == 1);
     CHECK(CountOf(text, "neighbours connection created: road (type 2) at (-1, 5)") == 1);
     CHECK(CountOf(text, "neighbours connection deleted: road (type 2) at (-1, 5)") == 1);
     CHECK(text.find("neighbours month to 2000-02-01: connections=1 (road=1) foreign=0 deals=1 (proposed 0 active 1") !=
@@ -8193,6 +8529,574 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
     }
     CHECK(text.find("config: WARNING unknown key") == std::string::npos);  // script is a known key
     if (g_failures == 0) std::printf("plugin script test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
+// ---- traffic (traffic-simulator.md, traffic-network.md, pathfinder.md; test seam op 42) ----------------
+constexpr uint32_t kCLSID_Traffic = 0x6990C1AA;
+constexpr uint32_t kIID_cISC4TrafficSimulatorT = 0x68027F37;
+constexpr uint32_t kIID_cISC4PathFinderT = 0xAA0DB766;
+constexpr uint32_t kIID_cIGZMessageTarget2T = 0x452294AA;
+
+cFC4ISC4TrafficSimulator* NewTraffic(cIGZCOMDirector* director) {
+    void* obj = nullptr;
+    if (!director->GetClassObject(kCLSID_Traffic, kIID_cISC4TrafficSimulatorT, &obj)) return nullptr;
+    return static_cast<cFC4ISC4TrafficSimulator*>(obj);
+}
+
+std::vector<uint8_t> TrafficWrite(cFC4ISC4TrafficSimulator* t, int* nullRefs = nullptr) {
+    std::vector<uint8_t> out;
+    cIGZSerializable* ser = nullptr;
+    if (!t->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) || ser == nullptr) return out;
+    ResidentialSegOStream s;
+    if (ser->Write(s)) out = s.bytes;
+    if (nullRefs != nullptr) *nullRefs = s.nullRefs;
+    ser->Release();
+    return out;
+}
+
+bool TrafficRead(cFC4ISC4TrafficSimulator* t, const std::vector<uint8_t>& bytes) {
+    cIGZSerializable* ser = nullptr;
+    if (!t->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) || ser == nullptr) return false;
+    ResidentialSegIStream s(bytes);
+    const bool ok = ser->Read(s);
+    ser->Release();
+    return ok;
+}
+
+// The caller's std::vector (begin, end, capacity end), filled with the
+// test's allocator.
+struct TrafficRawVector {
+    void* begin = nullptr;
+    void* end = nullptr;
+    void* capEnd = nullptr;
+};
+
+// §7: slots 11, 14, 15, 18, 23, 24 and 27 return a float in ST0 (one value
+// left on the x87 stack, popped here); 19 and 26 return nothing; 22 and 34
+// return pointers in EAX. Every slot pops its arguments.
+void CheckTrafficX87(void* primary, TrafficRawVector* pct, ptrdiff_t wantBytes) {
+    using fc4test::CallSlot;
+    struct Case {
+        int slot;
+        std::initializer_list<uint32_t> args;
+    };
+    const Case floats[] = {{11, {2, 3}}, {14, {}}, {15, {}}, {18, {}}, {23, {1, 2, 3}}, {24, {2, 3, 1}}, {27, {}}};
+    for (const Case& c : floats) {
+        const fc4test::SlotCall r = CallSlot(primary, c.slot, c.args);
+        CHECK(r.espDelta == 0 && r.x87Pushed == 1);
+        if (r.espDelta != 0 || r.x87Pushed != 1) {
+            std::fprintf(stderr, "traffic slot %d: esp %d, x87 %d\n", c.slot, r.espDelta, r.x87Pushed);
+        }
+        for (int i = 0; i < r.x87Pushed; ++i) fc4test::PopX87();
+    }
+    // Slot 19 (void, pop 12): a null holder changes nothing.
+    fc4test::SlotCall r = CallSlot(primary, 19, {0u, 0u, 5u});
+    CHECK(r.espDelta == 0 && r.x87Pushed == 0);
+    // Slot 26 (void, pop 8): three floats in the caller's vector.
+    r = CallSlot(primary, 26, {1u, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(pct))});
+    CHECK(r.espDelta == 0 && r.x87Pushed == 0);
+    CHECK(static_cast<char*>(pct->end) - static_cast<char*>(pct->begin) == wantBytes);
+    // Slot 22: null; slot 34: the block (pop 0).
+    r = CallSlot(primary, 22, {});
+    CHECK(r.espDelta == 0 && r.x87Pushed == 0 && r.eax == 0);
+    r = CallSlot(primary, 34, {});
+    CHECK(r.espDelta == 0 && r.x87Pushed == 0 && r.eax != 0);
+    // Slot 12 (pop 16): a record pointer, never null.
+    r = CallSlot(primary, 12, {2u, 3u, 1u, 0u});
+    CHECK(r.espDelta == 0 && r.x87Pushed == 0 && r.eax != 0);
+}
+
+// Getters from another thread while the main thread holds the lock inside
+// DoMessage wait about 20 ms each, then answer from the snapshot (one
+// fallback each): slots 14 and 10.
+class TrafficLockHeldMessage final : public cIGZMessage2 {
+public:
+    explicit TrafficLockHeldMessage(cFC4ISC4TrafficSimulator* t) : ts(t) {}
+    cFC4ISC4TrafficSimulator* ts;
+    bool ran = false;
+    float scale = -1.0f;
+    void* map = reinterpret_cast<void*>(1);
+    DWORD ms = 0;
+    bool QueryInterface(uint32_t, void**) override {
+        ran = true;
+        const DWORD start = GetTickCount();
+        std::thread th([this] {
+            scale = ts->GetTripScale();
+            map = ts->GetCongestionMap();
+        });
+        th.join();
+        ms = GetTickCount() - start;
+        return false;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Create(uint32_t, void**) const override { return false; }
+    uint32_t GetType() const override { return kMsgSimNewDay; }
+    void SetType(uint32_t) override {}
+    bool operator==(cIGZMessage2 const&) const override { return false; }
+    bool operator<(cIGZMessage2 const&) const override { return false; }
+};
+
+// A stub "game" for the slot-6 pathfinders (pathfinder.md §11 test 2): an 8 x
+// 8 city with a car street of five network occupants at (0..4, 3), each
+// connecting west and east; its grids and two departments. The street
+// occupants trap every slot: the plugin must not call them (the stub answers
+// for them).
+struct TrafficGridStub {
+    uint32_t kind = 0;
+    int32_t tract = 1, nx = 0, nz = 0;
+    std::vector<double> v;
+    int refs = 0;
+};
+
+struct TrafficStub {
+    std::map<uint64_t, TrafficGridStub> grids;
+    uint64_t nextGrid = 0x7B000000u;
+    int gridShutdowns = 0;
+    FakeVtable streetVt;
+    FakeObject street[5]{};
+    std::map<uint64_t, int> deptRefs;
+    uint64_t nextDept = 0x7B0D0000u;
+    std::vector<uint32_t> subscribed;
+    int agents = 0, posts = 0, rectQueries = 0, pathQueries = 0;
+    std::vector<void*> blocks;  // the test allocator's blocks alive
+};
+
+TrafficStub* g_tr = nullptr;
+
+int StreetIndex(uint64_t occ) {
+    for (int i = 0; i < 5; ++i) {
+        if (occ == static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_tr->street[i]))) return i;
+    }
+    return -1;
+}
+
+uint64_t TrGridCreate(void*, uint32_t kind, uint32_t, int32_t tract) {
+    CHECK(kind == 0x49B9E602u || kind == 0x49B9E606u || kind == 0x49B9E60Au);
+    TrafficGridStub g;
+    g.kind = kind;
+    g.tract = tract < 1 ? 1 : tract;
+    g.nx = g.nz = (8 + g.tract - 1) / g.tract;
+    g.v.assign(static_cast<size_t>(g.nx * g.nz), 0.0);
+    g.refs = 1;
+    const uint64_t id = g_tr->nextGrid++;
+    g_tr->grids[id] = g;
+    return id;
+}
+uint32_t TrGridClass(void*, uint64_t t) {
+    auto it = g_tr->grids.find(t);
+    return it == g_tr->grids.end() ? 0u : it->second.kind;
+}
+void TrGridGeometry(void*, uint64_t t, fc4_grid_geometry* out) {
+    auto it = g_tr->grids.find(t);
+    if (it == g_tr->grids.end()) return;
+    const TrafficGridStub& g = it->second;
+    int32_t shift = 0;
+    while ((1 << shift) < g.tract) ++shift;
+    const float w = 16.0f * static_cast<float>(g.tract);
+    *out = fc4_grid_geometry{g.tract, shift, g.nx, g.nz, w, w, 1.0f / w, 1.0f / w};
+}
+double TrGridGet(void*, uint64_t t, uint32_t, int32_t x, int32_t z) {
+    auto it = g_tr->grids.find(t);
+    if (it == g_tr->grids.end()) return 0.0;
+    const TrafficGridStub& g = it->second;
+    return x >= 0 && x < g.nx && z >= 0 && z < g.nz ? g.v[static_cast<size_t>(x * g.nz + z)] : 0.0;
+}
+void TrGridSet(void*, uint64_t t, uint32_t, int32_t x, int32_t z, double v) {
+    auto it = g_tr->grids.find(t);
+    if (it == g_tr->grids.end()) return;
+    TrafficGridStub& g = it->second;
+    if (x >= 0 && x < g.nx && z >= 0 && z < g.nz) g.v[static_cast<size_t>(x * g.nz + z)] = v;
+}
+void TrGridFill(void*, uint64_t t, uint32_t, double v) {
+    auto it = g_tr->grids.find(t);
+    if (it != g_tr->grids.end()) std::fill(it->second.v.begin(), it->second.v.end(), v);
+}
+void TrGridShutdown(void*, uint64_t) { ++g_tr->gridShutdowns; }
+void TrGridRelease(void*, uint64_t t) {
+    auto it = g_tr->grids.find(t);
+    CHECK(it != g_tr->grids.end());
+    if (it != g_tr->grids.end()) --it->second.refs;
+}
+void TrAddAgent(void*, uint32_t, const uint8_t*, size_t, uint32_t) { ++g_tr->agents; }
+void TrSubscribe(void*, uint32_t m) { g_tr->subscribed.push_back(m); }
+void TrCellCounts(void*, int32_t* x, int32_t* z) {
+    *x = 8;
+    *z = 8;
+}
+void TrPositionToCell(void*, float x, float z, int32_t* cx, int32_t* cz) {
+    *cx = static_cast<int32_t>(std::floor(x / 16.0f));
+    *cz = static_cast<int32_t>(std::floor(z / 16.0f));
+}
+float TrCellWidth(void*) { return 16.0f; }
+uint64_t TrCreateDepartment(void*, uint32_t, float) {
+    const uint64_t t = g_tr->nextDept++;
+    g_tr->deptRefs[t] = 1;
+    return t;
+}
+void TrReleaseDepartment(void*, uint64_t t) {
+    CHECK(g_tr->deptRefs.count(t) == 1);
+    --g_tr->deptRefs[t];
+}
+float TrDepartmentFunding(void*, uint64_t) { return 1.0f; }
+void TrSetLineItemIncome(void*, uint64_t, uint32_t, int64_t) {}
+void TrNetworkOccupantsInRect(void*, const fc4_cell_rect* r, fc4_token_callback cb, void* ctx) {
+    ++g_tr->rectQueries;
+    for (int i = 0; i < 5; ++i) {
+        if (i >= r->x1 && i <= r->x2 && 3 >= r->z1 && 3 <= r->z2) {
+            cb(ctx, static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_tr->street[i])));
+        }
+    }
+}
+void TrNoOccupants(void*, const fc4_cell_rect*, fc4_token_callback, void*) {}
+bool TrIsOfType(void*, uint64_t occ, uint32_t type) { return StreetIndex(occ) >= 0 && type == 3; }  // Street
+bool TrNoFlag(void*, uint64_t, uint32_t) { return false; }
+bool TrPathConnection(void*, uint64_t occ, uint32_t pathType, uint32_t entry, uint32_t exit) {
+    ++g_tr->pathQueries;
+    return StreetIndex(occ) >= 0 && pathType == 1 && ((entry == 0 && exit == 2) || (entry == 2 && exit == 0));
+}
+void TrOccupantPosition(void*, uint64_t occ, float* xyz) {
+    const int i = StreetIndex(occ);
+    xyz[0] = static_cast<float>(i < 0 ? 0 : i) * 16.0f + 8.0f;
+    xyz[1] = 0.0f;
+    xyz[2] = 3.0f * 16.0f + 8.0f;
+}
+void TrOccupantCell(void*, uint64_t occ, int32_t* x, int32_t* z) {
+    *x = StreetIndex(occ);
+    *z = 3;
+}
+void TrOccupantBounds(void*, uint64_t occ, fc4_cell_rect* out) {
+    const int i = StreetIndex(occ);
+    *out = fc4_cell_rect{i, 3, i, 3};
+}
+bool TrOccupantProperty(void*, uint64_t, uint32_t, fc4_props*) { return false; }
+uint32_t TrPropType(void*, uint64_t) { return 0; }
+bool TrIsTunnel(void*, uint64_t) { return false; }
+void TrPostSink(void*, cIGZMessage2Standard*) { ++g_tr->posts; }
+void* TrAllocate(uint32_t size) {
+    void* p = std::calloc(1, size);
+    g_tr->blocks.push_back(p);
+    return p;
+}
+void TrFree(void* p) {
+    auto it = std::find(g_tr->blocks.begin(), g_tr->blocks.end(), p);
+    CHECK(it != g_tr->blocks.end());
+    if (it != g_tr->blocks.end()) g_tr->blocks.erase(it);
+    std::free(p);
+}
+
+fc4_traffic_host TrafficStubHost(TrafficStub& s) {
+    fc4_traffic_host h{};
+    h.struct_size = sizeof(h);
+    h.user = &s;
+    h.grids.struct_size = sizeof(h.grids);
+    h.grids.user = &s;
+    h.grids.create = &TrGridCreate;
+    h.grids.class_of = &TrGridClass;
+    h.grids.geometry = &TrGridGeometry;
+    h.grids.get = &TrGridGet;
+    h.grids.set = &TrGridSet;
+    h.grids.fill = &TrGridFill;
+    h.grids.shutdown = &TrGridShutdown;
+    h.grids.release = &TrGridRelease;
+    h.add_agent = &TrAddAgent;
+    h.subscribe = &TrSubscribe;
+    h.cell_counts = &TrCellCounts;
+    h.position_to_cell = &TrPositionToCell;
+    h.cell_width = &TrCellWidth;
+    h.create_department = &TrCreateDepartment;
+    h.release_department = &TrReleaseDepartment;
+    h.department_funding = &TrDepartmentFunding;
+    h.set_line_item_income = &TrSetLineItemIncome;
+    h.network_occupants_in_rect = &TrNetworkOccupantsInRect;
+    h.subway_occupants_in_rect = &TrNoOccupants;
+    h.prop_occupants_in_rect = &TrNoOccupants;
+    h.is_of_type = &TrIsOfType;
+    h.has_network_flag = &TrNoFlag;
+    h.has_any_network_flag = &TrNoFlag;
+    h.path_connection = &TrPathConnection;
+    h.occupant_position = &TrOccupantPosition;
+    h.network_occupant_cell = &TrOccupantCell;
+    h.occupant_bounding_cells = &TrOccupantBounds;
+    h.occupant_property = &TrOccupantProperty;
+    h.prop_type = &TrPropType;
+    h.is_tunnel = &TrIsTunnel;
+    return h;
+}
+
+intptr_t TrafficHooks(FC4TestSeamFn seam, cIGZUnknown* t, const fc4_traffic_host* host) {
+    FC4TrafficTestInput in{};
+    in.op = kFC4TrafficTestHooks;
+    in.traffic = t;
+    in.host = host;
+    in.postSink = host ? &TrPostSink : nullptr;
+    in.allocate = host ? &TrAllocate : nullptr;
+    in.release = host ? &TrFree : nullptr;
+    return seam(kFC4SeamTraffic, &in, nullptr);
+}
+
+intptr_t TrafficLivePathFinders(FC4TestSeamFn seam) {
+    FC4TrafficTestInput in{};
+    in.op = kFC4TrafficTestLivePathFinders;
+    return seam(kFC4SeamTraffic, &in, nullptr);
+}
+
+// pathfinder.md §11 test 2 through slot 6: from (2, 2) to (4, 4) by car.
+void ConfigurePathFinder(cFC4ISC4PathFinder* pf) {
+    pf->SetFlag(1);
+    pf->SetStartRect(SC4Rect<int32_t>(2, 2, 2, 2));
+    pf->SetEndRect(SC4Rect<int32_t>(4, 4, 4, 4));
+    pf->SetTripDestinationFilter(3);
+    pf->ClearAllTravelTypeFlags();
+    pf->SetTravelTypeFlag(0x2, true);
+    float costs[9] = {};
+    pf->SetStartingCostArray(costs);
+    pf->SetTrafficDensity(10);
+}
+
+void TrafficPathFinderTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
+    static TrafficStub stub;
+    g_tr = &stub;
+    for (FakeObject& o : stub.street) o.vtbl = stub.streetVt.slots.data();
+    const fc4_traffic_host host = TrafficStubHost(stub);
+    cFC4ISC4TrafficSimulator* ts = NewTraffic(director);
+    CHECK(ts != nullptr);
+    if (ts == nullptr) return;
+    CHECK(TrafficHooks(seam, ts, &host) == 1);
+    CHECK(ts->Init());
+    CHECK(!stub.grids.empty() && stub.deptRefs.size() == 2 && !stub.subscribed.empty() && stub.agents > 0);
+    // DoPostCityInit (§1): the whole city rebuilt from the network occupants.
+    cIGZMessageTarget2* mt = nullptr;
+    CHECK(ts->QueryInterface(kIID_cIGZMessageTarget2T, reinterpret_cast<void**>(&mt)) && mt != nullptr);
+    if (mt != nullptr) {
+        TypeMessage init(kMsgPostCityInit);
+        CHECK(mt->DoMessage(&init));
+    }
+    CHECK(stub.rectQueries > 0 && stub.pathQueries > 0);
+    // Slot 6.
+    CHECK(!ts->CreatePathFinder(nullptr));
+    cFC4ISC4PathFinder* pf = nullptr;
+    CHECK(ts->CreatePathFinder(&pf) && pf != nullptr);
+    CHECK(TrafficLivePathFinders(seam) == 1);
+    if (pf != nullptr) {
+        void* p = nullptr;
+        CHECK(pf->QueryInterface(kIID_cISC4PathFinderT, &p) && p == pf);
+        if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+        p = reinterpret_cast<void*>(0x1234);
+        CHECK(!pf->QueryInterface(kIID_cISC4TrafficSimulatorT, &p) && p == reinterpret_cast<void*>(0x1234));
+        CHECK(!pf->Init());  // created initialised (§1): a second Init is false
+        ConfigurePathFinder(pf);
+        CHECK(pf->FindPath() == 1);
+        CHECK(pf->GetTripLength() > 0.0f);
+        int32_t ex = -1, ez = -1;
+        pf->GetEndCell(ex, ez);
+        CHECK(ex == 4 && ez == 4);
+        CHECK(pf->GetTrafficArrived() == 10);
+        CHECK(pf->GetLastTravelType() == 1);
+        CHECK(pf->GetTripLengthScaledForDisplay() > 0.0f);
+        // Slots 25 and 26 return in ST0.
+        for (int slot : {25, 26}) {
+            const fc4test::SlotCall r = fc4test::CallSlot(pf, slot, {});
+            CHECK(r.espDelta == 0 && r.x87Pushed == 1);
+            for (int i = 0; i < r.x87Pushed; ++i) fc4test::PopX87();
+        }
+        // Slot 32: the header (type 1, x 2, z 3), then one Car run of two +x
+        // steps (pathfinder.md §4.15), in the caller's vector (B).
+        TrafficRawVector route;
+        uint32_t mask = 0;
+        pf->GetCompressedRoute(reinterpret_cast<fc4::GameVector<uint8_t>&>(route), mask);
+        CHECK(mask == (1u << 1));
+        const auto* b = static_cast<const uint8_t*>(route.begin);
+        const std::vector<uint8_t> bytes(b, static_cast<const uint8_t*>(route.end));
+        CHECK((bytes == std::vector<uint8_t>{1, 2, 3, 0x41, 2, 0x0A}));
+        CHECK(stub.blocks.size() == 1);
+        CHECK(pf->WasTripReversible());
+        // A route deque set (slot 8): refused, the deque untouched (question 1).
+        uint32_t deque[10] = {};
+        pf->SetRouteInfo(deque);
+        CHECK(pf->FindPath() == 0);
+        for (uint32_t w : deque) CHECK(w == 0);
+        pf->SetRouteInfo(nullptr);
+        CHECK(pf->FindPath() == 1);
+        // The route again: the caller's buffer is kept and refilled.
+        pf->GetCompressedRoute(reinterpret_cast<fc4::GameVector<uint8_t>&>(route), mask);
+        CHECK(mask == (1u << 1) && stub.blocks.size() == 1);
+        TrFree(route.begin);
+        // Slot 7: a foreign pathfinder, a null lot.
+        FakeObject foreign{stub.streetVt.slots.data()};
+        CHECK(!ts->SetupPathFinderForLot(reinterpret_cast<cFC4ISC4PathFinder*>(&foreign), nullptr));
+        CHECK(!ts->SetupPathFinderForLot(pf, nullptr));
+        pf->ReleasePathNodes();
+        CHECK(pf->Release() == 0);
+    }
+    CHECK(TrafficLivePathFinders(seam) == 0);
+    // A pathfinder outliving its simulator: orphaned, neutral, released once.
+    cFC4ISC4PathFinder* orphan = nullptr;
+    CHECK(ts->CreatePathFinder(&orphan) && orphan != nullptr);
+    if (mt != nullptr) mt->Release();
+    CHECK(ts->Shutdown());
+    CHECK(ts->Release() == 0);
+    for (const auto& kv : stub.grids) CHECK(kv.second.refs == 0);  // every grid released once
+    for (const auto& kv : stub.deptRefs) CHECK(kv.second == 0);    // both departments given back
+    if (orphan != nullptr) {
+        ConfigurePathFinder(orphan);
+        CHECK(orphan->FindPath() == 0);
+        const fc4test::SlotCall r = fc4test::CallSlot(orphan, 25, {});
+        CHECK(r.espDelta == 0 && r.x87Pushed == 1);
+        for (int i = 0; i < r.x87Pushed; ++i) fc4test::PopX87();
+        CHECK(TrafficLivePathFinders(seam) == 1);
+        CHECK(orphan->Release() == 0);
+    }
+    CHECK(TrafficLivePathFinders(seam) == 0);
+    CHECK(stub.blocks.empty());
+    TrafficHooks(seam, nullptr, nullptr);  // the game's allocator again
+}
+
+int TrafficEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = traffic` registers the traffic simulator.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_TRAFFIC_SEED", nullptr);
+    SetEnvironmentVariableA("FC4_TRAFFIC_UNITS_PER_SLICE", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = traffic\ntraffic_seed = 1234\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    SetGamePrecision();  // as the game's PreFrameWorkInit does
+    std::vector<uint8_t> record;
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        // simulator (1) + budget (3) + traffic (1); never the game's grid classes.
+        CHECK(classes.size() == 5);
+        for (uint32_t c : classes) CHECK(c < 0x49B9E600 || c > 0x49B9E60B);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Traffic) == 1);
+
+        cFC4ISC4TrafficSimulator* ts = NewTraffic(director);
+        CHECK(ts != nullptr);
+        if (ts != nullptr) {
+            // §1: the primary for its IID and cIGZUnknown, the message target
+            // and the serializable; nothing else (the out pointer untouched).
+            void* p = nullptr;
+            CHECK(ts->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(ts));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            p = nullptr;
+            CHECK(ts->QueryInterface(kIID_cISC4TrafficSimulatorT, &p) && p == static_cast<void*>(ts));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            cIGZMessageTarget2* mt = nullptr;
+            CHECK(ts->QueryInterface(kIID_cIGZMessageTarget2T, reinterpret_cast<void**>(&mt)) && mt != nullptr);
+            CHECK(static_cast<void*>(mt) != static_cast<void*>(ts));
+            cIGZSerializable* ser = nullptr;
+            CHECK(ts->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser != nullptr);
+            if (ser != nullptr) {
+                CHECK(ser->GetGZCLSID() == kCLSID_Traffic);
+                void* back = nullptr;  // every sub-object answers the others (one object)
+                CHECK(static_cast<cIGZUnknown*>(ser)->QueryInterface(kIID_cISC4TrafficSimulatorT, &back) &&
+                      back == ts);
+                if (back != nullptr) static_cast<cIGZUnknown*>(back)->Release();
+            }
+            p = reinterpret_cast<void*>(0x1234);
+            CHECK(!ts->QueryInterface(0x12345678, &p) && p == reinterpret_cast<void*>(0x1234));
+            CHECK(!ts->QueryInterface(kIID_cISC4PathFinderT, &p) && p == reinterpret_cast<void*>(0x1234));
+            CHECK(ts->GetSimulatorType() == 0x88027F0D);
+            // Neutral without a city.
+            CHECK(ts->GetAirPollutingTrafficMap() == nullptr && ts->GetCongestionMap() == nullptr);
+            CHECK(ts->GetTrafficStats() != nullptr);
+            CHECK(ts->GetDesiredLotInsertionPoint() == nullptr);
+            // The x87 slots, with the test's allocator for slot 26's vector.
+            static TrafficStub allocOnly;
+            g_tr = &allocOnly;
+            FC4TrafficTestInput in{};
+            in.op = kFC4TrafficTestHooks;
+            in.allocate = &TrAllocate;
+            in.release = &TrFree;
+            CHECK(seam(kFC4SeamTraffic, &in, nullptr) == 0);  // the allocator only
+            TrafficRawVector pct;
+            CheckTrafficX87(ts, &pct, 12);
+            TrFree(pct.begin);
+            pct = TrafficRawVector{};
+            CHECK(allocOnly.blocks.empty());
+            in.allocate = nullptr;
+            in.release = nullptr;
+            CHECK(seam(kFC4SeamTraffic, &in, nullptr) == 0);
+            // The record before Init (§6): version 41, every reference null.
+            int nullRefs = 0;
+            record = TrafficWrite(ts, &nullRefs);
+            CHECK(record.size() > 64);
+            CHECK(nullRefs > 0);
+            if (record.size() > 2) CHECK(record[0] == 0x29 && record[1] == 0);
+            // Init without a city: no services, no grid; still neutral.
+            CHECK(ts->Init());
+            CHECK(ts->GetCongestionMap() == nullptr);
+            CheckTrafficX87(ts, &pct, 0);  // the game's allocator is unavailable: the vector stays empty
+            CHECK(pct.begin == nullptr);
+            if (mt != nullptr) {
+                TypeMessage day(kMsgSimNewDay);
+                CHECK(mt->DoMessage(&day));
+                TypeMessage month(kMsgSimNewMonth);
+                CHECK(mt->DoMessage(&month));
+                TrafficLockHeldMessage held(ts);
+                CHECK(mt->DoMessage(&held));
+                CHECK(held.ran && held.scale == ts->GetTripScale() && held.map == nullptr);
+                CHECK(held.ms >= 30 && held.ms < 5000);  // two getters waited (about 20 ms each)
+            }
+            if (ser != nullptr) ser->Release();
+            if (mt != nullptr) mt->Release();
+            CHECK(ts->Shutdown());
+            CHECK(ts->Release() == 0);
+        }
+        // Read runs before Init (§6): the record loads into a new simulator,
+        // which writes it back byte for byte; a record below version 19 does
+        // not load.
+        cFC4ISC4TrafficSimulator* fresh = NewTraffic(director);
+        CHECK(fresh != nullptr);
+        if (fresh != nullptr && !record.empty()) {
+            CHECK(TrafficRead(fresh, record));
+            CHECK(TrafficWrite(fresh) == record);
+            CHECK(fresh->Release() == 0);  // the final Release shuts a never-initialised simulator down
+        }
+        fresh = NewTraffic(director);
+        if (fresh != nullptr && !record.empty()) {
+            std::vector<uint8_t> old = record;
+            old[0] = 0x12;
+            CHECK(!TrafficRead(fresh, old));
+            CHECK(fresh->Release() == 0);
+        }
+        TrafficPathFinderTest(seam, director);
+        CheckCw("traffic");
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("subsystem 'traffic': enabled (1 class replaced) by FreeCity4.ini (enable=)") !=
+          std::string::npos);
+    CHECK(text.find("cFC4TrafficSimulator(") != std::string::npos);
+    CHECK(text.find("session seed 1234 (traffic_seed)") != std::string::npos);
+    CHECK(text.find("traffic Write -> 1") != std::string::npos);
+    CHECK(text.find("traffic Write: init=0 loaded=0 state=") != std::string::npos);
+    CHECK(text.find("traffic Init: units per slice ") != std::string::npos);
+    CHECK(text.find("traffic Init: init=1 loaded=0") != std::string::npos);
+    CHECK(text.find("traffic: no city at Init") != std::string::npos);
+    CHECK(text.find("traffic cycle -: state ") != std::string::npos);
+    CHECK(text.find("traffic month - (#1): trips attempted=") != std::string::npos);
+    CHECK(text.find("traffic Shutdown: init=0") != std::string::npos);
+    CHECK(text.find("traffic Read -> 1") != std::string::npos);
+    CHECK(text.find("traffic Read: init=0 loaded=1") != std::string::npos);
+    CHECK(text.find("traffic Read -> 0") != std::string::npos);
+    CHECK(text.find("cFC4TrafficSimulator destroyed (2 fallbacks, 0 external pathfinders)") != std::string::npos);
+    CHECK(text.find("traffic: test hooks installed") != std::string::npos);
+    CHECK(CountOf(text, "traffic: WARNING FindPath with a route deque refused") == 1);
+    CHECK(text.find("cFC4TrafficSimulator destroyed (0 fallbacks, 2 external pathfinders)") != std::string::npos);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin traffic enable test: all checks passed\n");
     return g_failures == 0 ? 0 : 1;
 }
 
@@ -8726,6 +9630,8 @@ int main(int argc, char** argv) {
     if (mode == "--ini-enable-neighbors") return NeighborsEnableTest(dll, ini, log);
     // Development (building-development.md): the replacement without a city.
     if (mode == "--ini-enable-development") return DevelopmentEnableTest(dll, ini, log);
+    // Traffic (traffic-simulator.md): the replacement without a city, slot-6 pathfinders on a stub (op 42).
+    if (mode == "--ini-enable-traffic") return TrafficEnableTest(dll, ini, log);
     // The development shadow: ON with the original unit, its list comparison (seam op 34).
     if (mode == "--ini-development-shadow") return DevelopmentShadowIniTest(dll, ini, log);
     // The tract developer (tract-developer.md): the replacement without a city (seam op 45).
@@ -9049,7 +9955,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 184): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 196): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -10628,6 +11534,12 @@ int main(int argc, char** argv) {
             static FakeObject temps[2] = {{tempVt.slots.data()}, {tempVt.slots.data()}};
             CHECK(seam(kFC4SeamRefAuditRelease, &temps[0], reinterpret_cast<void*>(intptr_t{3})) == 0);
             CHECK(seam(kFC4SeamRefAuditRelease, &temps[1], reinterpret_cast<void*>(intptr_t{1})) == 1);
+            // The growth developer's special-building copy released in its
+            // destructor (growth §1.3, DG28; run 102's five warnings): the
+            // last reference of an occupant the load's object table already
+            // dropped is the destructor's to free, as the original's is.
+            static FakeObject special{tempVt.slots.data()};
+            CHECK(seam(kFC4SeamRefAuditRelease, &special, reinterpret_cast<void*>(intptr_t{5})) == 0);
         }
 
         // The monthly digest (observer), read through the city's public
@@ -10772,6 +11684,15 @@ int main(int argc, char** argv) {
                     "mid-city; power.md §8)") != std::string::npos);
     CHECK(CountOf(text, "power shadow 2000-02-01 bookkeeping: ") == 2);
     CHECK(CountOf(text, "consumption map 0/1024 cells differ max|d|=0; wire 0 cells differ;") == 2);
+    // Each a new shadow's first line: the bookkeeping baseline is the first
+    // line equal to the one before it (power.md §5.2 case 2 at the first).
+    // The wire bits are listed and not counted (power.md §5.3, PW5).
+    CHECK(CountOf(text, "wire 0 cells differ; baseline not set yet (the first line since the city start; the "
+                        "baseline is the first line equal to the one before it, nothing counted until then): 0 "
+                        "differences; wire bits, not counted (the original's running bitmap after its "
+                        "dirty-rectangle rebuilds vs one rebuild of the whole map, power.md §5.3: PW5, unclipped "
+                        "bits, no insertion filters; each rebuild is compared on the cycle lines) 0; "
+                        "mismatches=0") == 2);
     CHECK(CountOf(text, "power shadow month to 2000-02-01: deliveries=1 steps=0 idle passed through=0 not "
                         "enabled=0 cycles=0") == 2);
     CHECK(text.find("power shadow 2000-02-01 cycle: steps 2 3 (cycle start not observed) on 32x32 cells; grid 2048 "
@@ -10947,11 +11868,11 @@ int main(int argc, char** argv) {
                     "residential EQ/HQ/LE=12.5000/34.2500/75\r\n") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 184 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 184 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 196 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 196 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 184): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 196): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);
