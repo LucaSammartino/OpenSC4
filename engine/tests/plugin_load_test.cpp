@@ -4281,6 +4281,213 @@ void ZonesDezoneChecks(cFC4ISC4ZoneManager* zm) {
     mt->Release();
 }
 
+// ---- the zones shadow (op 38, kFC4ZonesTestShadow) ----------------------------------------------------
+// An "original" zone manager on the stub world that answers through the live
+// FreeCity4 zone manager of the PlaceZone test, so the shadow core must agree
+// with it everywhere: slots 5-8, 10, 11 (dry runs only), 14-17, 19 and 20;
+// slots 3, 4, 9 (it inserts), 12, 13 and 18 trap. Its record (its own Write,
+// cIGZSerializable) is §10.1 with the live one's values, no failure entries,
+// zero costs and null services; the grid reference is a fake int8 grid
+// (class 0x49B9E603, through a serializable stand-in) over the stub's cells.
+// `countSkew` is added to slot 6's type 2 and `costSkew` to slot 11's cost
+// for type 5. The city answers GetZoneManager (slot 36) only.
+constexpr uint32_t kIID_cISC4SimGridZones = 0xC9BD939A;
+constexpr int32_t kZonesShadowJulian = 2451605;  // 2000-03-01
+
+struct FakeOrigZones {
+    FakeVtable zmVt, serVt, gridVt, gridSerVt, cityVt;
+    FakeObject zm{}, ser{}, grid{}, gridSer{}, city{};
+    cFC4ISC4ZoneManager* live = nullptr;
+    void* cityZoneManager = nullptr;  // what city slot 36 answers
+    int refs = 1;  // the owner's (the reference audit warns of a last release)
+    int writes = 0;
+    int places = 0;
+    uint32_t countSkew = 0;
+    int64_t costSkew = 0;
+    bool noSerializable = false;
+};
+FakeOrigZones* g_oz = nullptr;
+
+bool __fastcall OzQi(void* self, void*, uint32_t iid, void** out) {  // 0
+    if (out == nullptr) return false;
+    if (self == &g_oz->zm || self == &g_oz->ser) {
+        if (iid == GZIID_cIGZSerializable && !g_oz->noSerializable) {
+            *out = &g_oz->ser;
+        } else if (iid == kIID_cISC4ZoneManager || iid == GZIID_cIGZUnknown) {
+            *out = &g_oz->zm;
+        } else {
+            return false;  // (the reference audit asks other IIDs)
+        }
+    } else if (iid == GZIID_cIGZSerializable) {
+        *out = &g_oz->gridSer;
+    } else if (iid == kIID_cISC4SimGridZones) {
+        *out = &g_oz->grid;
+    } else {
+        return false;
+    }
+    ++g_oz->refs;
+    return true;
+}
+uint32_t __fastcall OzAddRef(void*, void*) { return static_cast<uint32_t>(++g_oz->refs); }   // 1
+uint32_t __fastcall OzRelease(void*, void*) { return static_cast<uint32_t>(--g_oz->refs); }  // 2
+void* __fastcall OzGrid(void*, void*) { return &g_oz->grid; }                                  // 5
+uint32_t __fastcall OzCount(void*, void*, int32_t t) {                                          // 6
+    return g_oz->live->GetZoneCount(t) + (t == 2 ? g_oz->countSkew : 0u);
+}
+uint32_t __fastcall OzUndevelopedOf(void*, void*, int32_t t) {  // 7
+    return g_oz->live->GetUndevelopedTileCountOfType(t);
+}
+uint32_t __fastcall OzUndeveloped(void*, void*) { return g_oz->live->GetUndevelopedTileCount(); }  // 8
+uint32_t __fastcall OzAbandoned(void*, void*) { return g_oz->live->GetAbandonedTileCount(); }      // 10
+uint32_t __fastcall OzPlace(void*, void*, void* region, int32_t type, uint32_t commit, uint32_t skipFunds,  // 11
+                            uint32_t checkSlope, uint32_t skipSize, uint32_t lotInside, int64_t* cost, int32_t* error,
+                            void* outLots) {
+    ++g_oz->places;
+    CHECK((commit & 0xFFu) == 0 && outLots == nullptr);  // dry runs only
+    void** vt = *reinterpret_cast<void***>(g_oz->live);
+    const uint32_t eax = reinterpret_cast<ZonesPlaceFn>(vt[11])(g_oz->live, nullptr, region, type, commit & 0xFFu,
+                                                               skipFunds & 0xFFu, checkSlope & 0xFFu, skipSize & 0xFFu,
+                                                               lotInside & 0xFFu, cost, error, nullptr);
+    if (type == 5 && cost != nullptr) *cost += g_oz->costSkew;
+    return eax;
+}
+bool __fastcall OzTexture(void*, void*, int32_t t, cGZPersistResourceKey* key) {  // 14
+    return g_oz->live->GetTextureForZone(t, *key);
+}
+uint32_t __fastcall OzDrag(void*, void*, int32_t t) { return g_oz->live->GetZoneDragColor(t); }  // 15
+uint8_t __fastcall OzAlpha(void*, void*) { return g_oz->live->GetZoneDisplayAlpha(); }            // 16
+uint8_t __fastcall OzDefaultAlpha(void*, void*) { return g_oz->live->GetDefaultZoneDisplayAlpha(); }  // 17
+int32_t __fastcall OzMin(void*, void*, int32_t t) { return g_oz->live->GetMinZoneSize(t); }          // 19
+int32_t __fastcall OzMax(void*, void*, int32_t t) { return g_oz->live->GetMaxZoneSize(t); }          // 20
+bool __fastcall OzWrite(void*, void*, cIGZOStream* s) {  // serializable 3 (§10.1)
+    ++g_oz->writes;
+    void* p = nullptr;
+    if (!s->QueryInterface(kFC4_IID_cISC4DBSegmentOStream, &p) || p == nullptr) return false;
+    auto* seg = static_cast<cFC4ISC4DBSegmentOStream*>(p);  // the capture stream: no reference taken
+    cFC4ISC4ZoneManager* z = g_oz->live;
+    s->SetUint16(1);
+    seg->WriteGZSerializable(reinterpret_cast<cIGZSerializable*>(&g_oz->gridSer));
+    for (int32_t t = 0; t < 16; ++t) s->SetUint32(z->GetZoneCount(t));
+    for (int pass = 0; pass < 2; ++pass) {  // undeveloped, then unnamedPerType (the same here)
+        for (int32_t t = 0; t < 16; ++t) s->SetUint32(z->GetUndevelopedTileCountOfType(t));
+    }
+    s->SetUint32(z->GetUndevelopedTileCount());
+    s->SetUint32(0);
+    s->SetUint32(z->GetAbandonedTileCount());
+    s->SetUint32(0);
+    for (int32_t t = 0; t < 16; ++t) s->SetSint32(z->GetMinZoneSize(t));
+    for (int32_t t = 0; t < 16; ++t) s->SetSint32(z->GetMaxZoneSize(t));
+    for (int i = 0; i < 32; ++i) s->SetSint64(0);  // creation, destruction costs
+    for (int32_t t = 0; t < 16; ++t) {
+        cGZPersistResourceKey k;
+        z->GetTextureForZone(t, k);
+        s->SetUint32(k.instance);
+    }
+    for (int32_t t = 0; t < 16; ++t) s->SetUint32(z->GetZoneDragColor(t));
+    s->SetUint8(z->GetZoneDisplayAlpha());
+    s->SetUint32(0);  // failure map 1
+    s->SetUint32(0);  // failure map 2
+    for (int i = 0; i < 5; ++i) seg->WriteGZSerializable(nullptr);  // the services
+    return true;
+}
+uint32_t __fastcall OzClass(void* self, void*) {  // serializable 5
+    return self == &g_oz->gridSer ? 0x49B9E603u : kCLSID_ZoneManager;
+}
+int32_t __fastcall OzTractSize(void*, void*) { return 1; }               // grid 10
+int32_t __fastcall OzTractShift(void*, void*) { return 0; }              // grid 11
+int32_t __fastcall OzTractCount(void*, void*) { return 8; }              // grid 12, 13
+float __fastcall OzTractWidth(void*, void*) { return 16.0f; }            // grid 14, 15
+float __fastcall OzTractInvWidth(void*, void*) { return 1.0f / 16.0f; }  // grid 16, 17
+int8_t __fastcall OzTractValue(void*, void*, int32_t x, int32_t z) {     // grid 22
+    return (x >= 0 && x < 8 && z >= 0 && z < 8) ? g_zs->grid[x][z] : 0;
+}
+void* __fastcall OzCityZones(void*, void*) { return g_oz->cityZoneManager; }  // city 36
+
+void InitFakeOrigZones(FakeOrigZones& o, cFC4ISC4ZoneManager* live) {
+    g_oz = &o;
+    o.live = live;
+    for (FakeVtable* vt : {&o.zmVt, &o.serVt, &o.gridVt, &o.gridSerVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OzQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OzAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OzRelease);
+    }
+    o.zmVt.slots[5] = reinterpret_cast<void*>(&OzGrid);
+    o.zmVt.slots[6] = reinterpret_cast<void*>(&OzCount);
+    o.zmVt.slots[7] = reinterpret_cast<void*>(&OzUndevelopedOf);
+    o.zmVt.slots[8] = reinterpret_cast<void*>(&OzUndeveloped);
+    o.zmVt.slots[10] = reinterpret_cast<void*>(&OzAbandoned);
+    o.zmVt.slots[11] = reinterpret_cast<void*>(&OzPlace);
+    o.zmVt.slots[14] = reinterpret_cast<void*>(&OzTexture);
+    o.zmVt.slots[15] = reinterpret_cast<void*>(&OzDrag);
+    o.zmVt.slots[16] = reinterpret_cast<void*>(&OzAlpha);
+    o.zmVt.slots[17] = reinterpret_cast<void*>(&OzDefaultAlpha);
+    o.zmVt.slots[19] = reinterpret_cast<void*>(&OzMin);
+    o.zmVt.slots[20] = reinterpret_cast<void*>(&OzMax);
+    o.serVt.slots[3] = reinterpret_cast<void*>(&OzWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&OzClass);
+    o.gridSerVt.slots[5] = reinterpret_cast<void*>(&OzClass);
+    o.gridVt.slots[10] = reinterpret_cast<void*>(&OzTractSize);
+    o.gridVt.slots[11] = reinterpret_cast<void*>(&OzTractShift);
+    o.gridVt.slots[12] = reinterpret_cast<void*>(&OzTractCount);
+    o.gridVt.slots[13] = reinterpret_cast<void*>(&OzTractCount);
+    o.gridVt.slots[14] = reinterpret_cast<void*>(&OzTractWidth);
+    o.gridVt.slots[15] = reinterpret_cast<void*>(&OzTractWidth);
+    o.gridVt.slots[16] = reinterpret_cast<void*>(&OzTractInvWidth);
+    o.gridVt.slots[17] = reinterpret_cast<void*>(&OzTractInvWidth);
+    o.gridVt.slots[22] = reinterpret_cast<void*>(&OzTractValue);
+    o.cityVt.slots[36] = reinterpret_cast<void*>(&OzCityZones);
+    o.zm.vtbl = o.zmVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.grid.vtbl = o.gridVt.slots.data();
+    o.gridSer.vtbl = o.gridSerVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.cityZoneManager = &o.zm;
+}
+
+intptr_t ZonesShadowRun(FC4TestSeamFn seam, FakeOrigZones& o, const fc4_zones_host* host, uint32_t event) {
+    FC4ZonesTestInput in{};
+    in.op = kFC4ZonesTestShadow;
+    in.host = host;
+    in.city = reinterpret_cast<cISC4City*>(&o.city);
+    in.julian = kZonesShadowJulian;
+    in.event = event;
+    return seam(kFC4SeamZones, &in, nullptr);
+}
+
+// The shadow against an original that agrees (0 mismatches on every line),
+// then skewed, without a record, FreeCity4's own and none. Nothing in the
+// stub world changes (dry runs only).
+void ZonesShadowChecks(FC4TestSeamFn seam, cFC4ISC4ZoneManager* zm, const fc4_zones_host* host) {
+    static FakeOrigZones o;
+    InitFakeOrigZones(o, zm);
+    int8_t gridBefore[8][8];
+    std::memcpy(gridBefore, g_zs->grid, sizeof(gridBefore));
+    const int commits = g_zs->commits, withdrawals = g_zs->withdrawals, parcels = g_zs->parcellizations;
+    const uint32_t zoned = zm->GetZoneCount(1);
+    CHECK(ZonesShadowRun(seam, o, host, 1) == 0);
+    CHECK(o.writes == 1 && o.places == 64 && o.refs == 1);
+    // Skewed: one count, and type 5's cost in each of the four regions.
+    o.countSkew = 1;
+    o.costSkew = 3;
+    CHECK(ZonesShadowRun(seam, o, host, 0) == 5);
+    o.countSkew = 0;
+    o.costSkew = 0;
+    // No record: the original and its grid are still compared.
+    o.noSerializable = true;
+    CHECK(ZonesShadowRun(seam, o, host, 1) == -3);
+    o.noSerializable = false;
+    CHECK(o.places == 128);  // no dry run without the core
+    // FreeCity4's zone manager is not shadowed; a city without one.
+    o.cityZoneManager = zm;
+    CHECK(ZonesShadowRun(seam, o, host, 1) == -2);
+    o.cityZoneManager = nullptr;
+    CHECK(ZonesShadowRun(seam, o, host, 1) == -1);
+    CHECK(o.refs == 1);
+    CHECK(std::memcmp(gridBefore, g_zs->grid, sizeof(gridBefore)) == 0);
+    CHECK(g_zs->commits == commits && g_zs->withdrawals == withdrawals && g_zs->parcellizations == parcels);
+    CHECK(g_zs->posts.empty() && zm->GetZoneCount(1) == zoned);
+}
+
 // PlaceZone (§6) through the stub: reject, abort, funds, accept with outLots
 // and the commit (grid, counts, demolition, parcellization, ZoningChange).
 void ZonesPlaceZoneTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
@@ -4412,6 +4619,7 @@ void ZonesPlaceZoneTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
         stub.posts.clear();
     }
     ZonesDezoneChecks(zm);
+    ZonesShadowChecks(seam, zm, &host);
     CHECK(zm->Shutdown());
     CHECK(stub.gridReleases == 1);
     CHECK(stub.unsubscribed.size() == 1 && stub.unsubscribed[0] == 0x99EF1142u);
@@ -4425,7 +4633,7 @@ int ZonesEnableTest(const std::string& dll, const std::string& ini, const std::s
     SetEnvironmentVariableA("FC4_DISABLE", nullptr);
     SetEnvironmentVariableA("FC4_ENABLE", nullptr);
     SetEnvironmentVariableA("FC4_ZONES_SHADOW", nullptr);
-    WriteTextFile(ini, "[subsystems]\nenable = zones\n");
+    WriteTextFile(ini, "[subsystems]\nenable = zones\n[tools]\nzones_shadow = 1\n");
     HMODULE hd = LoadLibraryA(dll.c_str());
     CHECK(hd != nullptr);
     if (hd == nullptr) return 1;
@@ -4553,6 +4761,27 @@ int ZonesEnableTest(const std::string& dll, const std::string& ini, const std::s
     // The dezone: one line, the dezone's own PlaceZone has none.
     CHECK(CountOf(text, "zones dezone: occupant ") == 1);
     CHECK(text.find(" rect 4,0..4,7 changed=8 lots=0") != std::string::npos);
+    // zones_shadow = 1 with `enable = zones`: the shadow stays off (it needs the original).
+    CHECK(text.find("zones shadow: requested (zones_shadow from FreeCity4.ini) but INACTIVE") != std::string::npos);
+    CHECK(text.find("zones shadow: ON") == std::string::npos);
+    // The shadow (op 38): an original that agrees, then a skewed one.
+    CHECK(text.find("zones shadow (counts) 2000-03-01 month: grid=8x8 cells=64 other=0 gridRef=same mismatches=0 "
+                    "orig/recount/ours: 0:55/55/55 1:9/9/9; first=-") != std::string::npos);
+    CHECK(text.find("zones shadow (bookkeeping) 2000-03-01 month: mismatches=0 undeveloped[0]=64/64 total=64/64 "
+                    "abandoned=0/0 (orig/ours) record=") != std::string::npos);
+    CHECK(text.find("zones shadow (tuning) 2000-03-01 month: values=66 mismatches=0 alpha=255/255 default=255/255") !=
+          std::string::npos);
+    CHECK(text.find("zones shadow (PlaceZone) 2000-03-01 month: calls=64 mismatches=0 ") != std::string::npos);
+    CHECK(text.find("zones shadow (counts) 2000-03-01 load: grid=8x8 cells=64 other=0 gridRef=same mismatches=1 ") !=
+          std::string::npos);
+    CHECK(text.find("first=2:1/0/0") != std::string::npos);
+    CHECK(text.find("zones shadow (PlaceZone) 2000-03-01 load: calls=64 mismatches=4 ") != std::string::npos);
+    CHECK(text.find("; ours not compared (the original does not answer cIGZSerializable)") != std::string::npos);
+    CHECK(text.find("zones shadow (PlaceZone) 2000-03-01 month: INCOMPLETE (the original does not answer "
+                    "cIGZSerializable); not compared") != std::string::npos);
+    CHECK(CountOf(text, "the city's zone manager is FreeCity4's (enable = zones)") == 1);
+    CHECK(CountOf(text, "the city has no zone manager; nothing compared") == 1);
+    CHECK(CountOf(text, "zones shadow (PlaceZone) ") == 3);
     CHECK(text.find("structured exception") == std::string::npos);
     CHECK(text.find("config: WARNING unknown key") == std::string::npos);
     CHECK(text.find("WARNING: released last reference") == std::string::npos);

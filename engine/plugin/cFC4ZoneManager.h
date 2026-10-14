@@ -318,7 +318,8 @@ struct FC4ZonesTestInput {
     void* (*setAllocate)(uint32_t size);
     void (*setFree)(void* p);
     // kFC4ZonesTestShadow: one shadow comparison (FC4ZonesShadow.h) on `city`,
-    // whose zone manager is the "original": event 0 = PostCityInit, 1 = a month.
+    // whose zone manager is the "original": event 0 = PostCityInit, 1 = a month;
+    // `host` (may be null) answers the shadow core's host calls instead of the game.
     cISC4City* city;
     int32_t julian;
     uint32_t event;

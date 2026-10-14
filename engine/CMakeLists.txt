@@ -229,6 +229,8 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4ResidentialShadow.h
         plugin/cFC4ZoneManager.cpp
         plugin/cFC4ZoneManager.h
+        plugin/FC4ZonesShadow.cpp
+        plugin/FC4ZonesShadow.h
         plugin/FC4GameSet.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.

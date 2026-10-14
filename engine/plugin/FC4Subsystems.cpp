@@ -44,6 +44,7 @@
 #include "FC4LandValueShadow.h"
 #include "FC4FlammabilityShadow.h"
 #include "FC4ResidentialShadow.h"
+#include "FC4ZonesShadow.h"
 #include "cFC4Residential.h"
 #include "cFC4ZoneManager.h"
 
@@ -323,6 +324,7 @@ void Resolve() {
     FlammabilityShadowStartup(enabledKey("flammability"));
     // The residential shadow (FC4ResidentialShadow.h; it compares the original residential simulator).
     ResidentialShadowStartup(g_enabled[0], enabledKey("residential"));
+    ZonesShadowStartup(enabledKey("zones"));  // zones_shadow = 1 only
 }
 
 }  // namespace

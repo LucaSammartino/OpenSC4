@@ -13,6 +13,8 @@
 
 #include "cFC4ZoneManager.h"
 
+#include "FC4ZonesShadow.h"
+
 #include "FC4Config.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
@@ -1403,6 +1405,7 @@ intptr_t ZonesTestSeam(const FC4ZonesTestInput* in) {
         z->SetTestHooks(in->host, in->postSink, in->postSinkContext);
         return 1;
     }
+    if (in->op == kFC4ZonesTestShadow) return fc4::ZonesShadowTestRun(in->city, in->julian, in->event, in->host);
     if (in->op == kFC4ZonesTestLiveRegions) return static_cast<intptr_t>(cFC4ZoningChangeMessage::LiveRegions());
     return -1;
 }
