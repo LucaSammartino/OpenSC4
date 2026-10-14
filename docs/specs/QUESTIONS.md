@@ -3085,7 +3085,11 @@ host gained connection, region, budget and drive-side methods. The current answe
   **ANSWERED 2026-10-14** from the exe (FinishTripMap `0x0070FFD3`–`0x0070FFE7`; resume `0x00720B2C`–`0x00720B46`) and
   written into traffic-simulator §3.5. The same two s16 phase positions: FinishTripMap stores each lot's location as it
   takes it, and the resume passes them to `GetLot`. The bracket matches.
-- **TS46:** How is §4.16's `float(item.cost)` computed? [converted to f32 first, then × funding, r24]
+- ~~**TS46:** How is §4.16's `float(item.cost)` computed? [converted to f32 first, then × funding, r24]~~
+  **ANSWERED 2026-10-14** from the exe (`GetTransitSwitchQueryData` `0x0071CC55`–`0x0071CC5B` and
+  `0x0071CD6F`–`0x0071CD75`) and written into traffic-simulator §4.16, with a worked example. The int64 is loaded
+  exactly (`fild`), multiplied by the f32 fraction with one rounding to 24 bits, then truncated. The bracket (f32 first,
+  then r24) rounds twice and differs only for costs above 2^24 (16,777,217 at 0.75: 12,582,913 against 12,582,912).
 - **TS47:** A strategy above 2 in SetupPathFinderForLot. [ignored; a choice in code]
 - **TS48:** A damaged travel type above 8. [adds nothing in ApplyRoute and fails ConfirmRoute; a choice]
 - **TS49:** A switch ID with no switch behind it in GetTransitSwitchQueryData. [returns false; a choice]

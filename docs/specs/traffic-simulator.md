@@ -1356,9 +1356,12 @@ property `0xE90E25A3`; "riders last period" is the terminal's u16 rolled on ente
 
 **Cost**: `holder :=` the building's property holder; the budget simulator's `GetBudgetItemForPurpose(holder,
 0xCA550301, item)` (slot 51) gives the building's first budget item with that purpose (budget.md §2); then
-`dept := GetDepartmentBudget(item.department)` (slot 28). When both exist, cost `:= low32(ftol(r24(float(item.cost)
-× f)))`, `item.cost` the item's int64 monthly cost at 100 % and `f` the department's funding fraction (department slot
-10, a pointer to the fraction). Otherwise 0.
+`dept := GetDepartmentBudget(item.department)` (slot 28). When both exist, cost `:= low32(ftol(r24(item.cost × f)))`,
+`item.cost` the item's int64 monthly cost at 100 % and `f` the department's funding fraction (department slot 10, a
+pointer to the fraction). Otherwise 0. The int64 is loaded exactly (x87 `fild`, `0x0071CC55` and `0x0071CD6F`), not
+converted to f32 first, so the product is rounded once (TS46). This differs from an f32 conversion only above 2^24.
+Example: cost 16,777,217 at `f = 0.75` gives 12,582,912.75, rounded to 12,582,913; converting first would give
+16,777,216 × 0.75 = 12,582,912.
 
 The query window then shows: service quality `0` if the call fails or +0x00 is 0, `1` if +0x0C is 0, else
 `min(+0x00 / +0x0C, 1)`; usage percent `+0x0C / +0x04 × 100` (0 when +0x04 is 0); maximum capacity +0x04; usage
