@@ -75,6 +75,10 @@
 //         size, b->bytes = its first 32 bytes; returns 1 (read), 0 (absent,
 //         scalar or object array) or -1 (null argument). (A high number, clear
 //         of the glue lanes' next ones.)
+//   op 41 kFC4SeamLotCenter        a = cISC4Lot*, b = float[3]: the crime
+//         glue's lot GetCenter thunk (slot 15, crime.md §13 / CQ3) into b;
+//         returns 1 if ST0 held a value after the call (popped), 0 if the
+//         x87 stack was empty (the original), -1 (null argument).
 #pragma once
 
 #include <cstdint>
@@ -105,6 +109,7 @@ enum : uint32_t {
     kFC4SeamPollutionShadow = 16,
     kFC4SeamDemandCapacity = 20,
     kFC4SeamRawArrayBytes = 40,
+    kFC4SeamLotCenter = 41,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

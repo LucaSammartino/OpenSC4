@@ -510,8 +510,13 @@ public:
     virtual uint32_t GetFlags() const = 0;                                       // 12
     virtual bool SetFlags(uint32_t flags) = 0;                                   // 13
     virtual bool GetBoundingRect(SC4Rect<int32_t>& rect) const = 0;              // 14
-    // docs/abi: returns in ST0 (x87, high confidence; the SDK says bool). What
-    // the value is is not specified; the plugin does not call it.
+    // docs/abi: returns in ST0 (x87, high confidence; the SDK says bool).
+    // crime.md §13 (CQ3) corrects it: the result is only in the out
+    // parameter, EAX = &out, and the x87 stack is empty on return. The
+    // `float` stays until the abi row is fixed (abi_conformance_test checks
+    // it); never call the slot through this declaration (its FSTP would
+    // underflow the x87 stack): crime calls it through its own thunk
+    // (cFC4Crime.cpp LotCenterRaw).
     virtual float GetCenter(float* center) const = 0;                            // 15
     virtual float GetAltitude() const = 0;                                       // 16
     virtual bool SetAltitude(float altitude) = 0;                                // 17

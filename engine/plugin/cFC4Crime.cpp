@@ -516,12 +516,16 @@ bool LotBuilding(void*, uint64_t lot, uint64_t* building, uint32_t* purpose, uin
 }
 
 // Lot slot 15 (+0x3C), GetCenter(cS3DVector3&) const: thiscall, one 4-byte
-// argument popped by the callee. §13 says the result is in the out parameter
-// and the function leaves nothing on the x87 stack (it ends with FSTP);
-// docs/abi tags its return as x87 (ST0). [choice] Both readings are
-// survived: after the call ST0 is examined (FXAM) and popped unless it is
-// empty, so the FPU stack stays balanced either way; the out parameter is the
-// value used. Returns whether ST0 held a value (counted for the month line).
+// argument popped by the callee. §13 (CQ3, from cSC4Lot::GetCenter, the only
+// implementation): the result is only in the out parameter, EAX = &out, and
+// the x87 stack is EMPTY on return (the last value is popped). docs/abi's x87
+// return tag is wrong (the coordinator's row to fix), so the slot is not
+// called through FC4Interfaces.h's `float` declaration, whose compiled FSTP
+// would underflow the x87 stack. The out parameter is the value used; EAX is
+// ignored. The FXAM after the call is a counted diagnostic only: ST0 should
+// always be empty; if it ever is not, it is popped (keeping the stack
+// balanced), counted for the month line (`center st0=a/b`) and logged once.
+// Returns whether ST0 held a value.
 bool LotCenterRaw(cISC4Lot* lot, float* out3) {
     void* self = lot;
     void* fn = (*reinterpret_cast<void***>(lot))[15];
@@ -550,6 +554,12 @@ void LotCenterCell(void* u, uint64_t lot, int32_t* x, int32_t* z) {
         float v[4] = {0.0f, 0.0f, 0.0f, 0.0f};
         if (LotCenterRaw(RawLot(lot), v)) {
             ++Self(u)->Probe().centerSt0;
+            static bool warned = false;  // main thread only
+            if (!warned) {
+                warned = true;
+                fc4::Log("crime: WARNING lot GetCenter (slot 15) left a value in ST0; popped (crime.md §13, CQ3: "
+                         "the x87 stack should be empty; logged once per process, counted as center st0=)");
+            }
         } else {
             ++Self(u)->Probe().centerEmptySt0;
         }
@@ -825,6 +835,11 @@ fc4_crime_host CrimeReadOnlyHost() {
     h.exemplar = &ExemplarProps;
     h.ltext = &Ltext;
     return h;
+}
+
+int CrimeTestLotCenter(void* lot, float* out3) {
+    if (lot == nullptr || out3 == nullptr) return -1;
+    return LotCenterRaw(static_cast<cISC4Lot*>(lot), out3) ? 1 : 0;
 }
 }  // namespace fc4
 

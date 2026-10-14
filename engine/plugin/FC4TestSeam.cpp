@@ -23,6 +23,7 @@
 #include "FC4Popups.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
+#include "cFC4Crime.h"
 #include "cFC4Demand.h"
 #include "cFC4Flammability.h"
 #include "cFC4Power.h"
@@ -89,6 +90,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
                 std::memcpy(io->bytes, bytes.data(), bytes.size() < sizeof(io->bytes) ? bytes.size() : sizeof(io->bytes));
             return 1;
         }
+        case kFC4SeamLotCenter:
+            return fc4::CrimeTestLotCenter(a, static_cast<float*>(b));
         case kFC4SeamRustPanic:
             fc4_debug_panic();
             return 1;  // only if the build unwinds

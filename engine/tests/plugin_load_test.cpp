@@ -376,6 +376,34 @@ uint16_t RawCw() {
     return cw;
 }
 
+// The x87 stack top (status word bits 11-13): unchanged across a call that
+// leaves the stack balanced.
+unsigned X87Top() {
+    uint16_t sw = 0;
+    __asm fnstsw sw
+    return (sw >> 11) & 7u;
+}
+
+// A lot whose slot 15 behaves like cSC4Lot::GetCenter (crime.md §13, CQ3):
+// thiscall with one stack argument (here __fastcall with an unused EDX), the
+// result in the out parameter, EAX = &out, nothing left on the x87 stack.
+void* __fastcall FakeLotGetCenter(void*, void*, float* out) {
+    out[0] = 256.5f;
+    out[1] = 10.0f;
+    out[2] = 512.25f;
+    return out;
+}
+// The docs/abi reading (a float in ST0), to exercise the glue's diagnostic.
+float __fastcall FakeLotGetCenterSt0(void*, void*, float* out) {
+    out[0] = 1.0f;
+    out[1] = 2.0f;
+    out[2] = 3.0f;
+    return 7.0f;
+}
+struct FakeLotObject {
+    void* const* vtable;
+};
+
 uint16_t g_cwExpected = 0;
 bool g_cwChanged = false;
 
@@ -2720,6 +2748,24 @@ int main(int argc, char** argv) {
             CHECK(read(5) == 0);  // [choice] a scalar: no bytes
             CHECK(read(6) == 0);  // absent
             CHECK(seam(kFC4SeamRawArrayBytes, nullptr, &io) == -1);
+
+            // §13 (CQ3): lot GetCenter (slot 15) answers in the out
+            // parameter with the x87 stack empty; the thunk pops ST0 only if
+            // it is not empty (a counted diagnostic), so the stack stays
+            // balanced either way.
+            void* vt[16] = {};
+            vt[15] = reinterpret_cast<void*>(&FakeLotGetCenter);
+            FakeLotObject lot{vt};
+            float c[3] = {0.0f, 0.0f, 0.0f};
+            const unsigned top = X87Top();
+            CHECK(seam(kFC4SeamLotCenter, &lot, c) == 0);
+            CHECK(c[0] == 256.5f && c[1] == 10.0f && c[2] == 512.25f);
+            CHECK(X87Top() == top);
+            vt[15] = reinterpret_cast<void*>(&FakeLotGetCenterSt0);
+            CHECK(seam(kFC4SeamLotCenter, &lot, c) == 1);
+            CHECK(c[0] == 1.0f && c[2] == 3.0f);
+            CHECK(X87Top() == top);
+            CHECK(seam(kFC4SeamLotCenter, nullptr, c) == -1);
         }
         FreeLibrary(hd);
         DeleteFileA(ini.c_str());
