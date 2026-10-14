@@ -87,6 +87,8 @@
 //   residential_shadow_cells = N  its differing cells listed per grid (default 4)
 //   residential_seed = N          the residential generator's session seed (default:
 //                                 the cRZTime clock, residential.md §3; cFC4Residential.cpp)
+//   zones_shadow = 0 / 1          the zone manager shadow (default 0; needs the ORIGINAL
+//                                 zone manager: do not enable zones; FC4ZonesShadow.h)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.
@@ -302,6 +304,22 @@ enum class Sw : unsigned {
     ResidentialHistory,    // residential_history: history records (MessageSend) and queue lengths
     ResidentialLots,       // residential_lots: GetOccupantLot and its centre (off: the building's position)
     ResidentialTerrain,    // residential_terrain: GetAltitude (off: 0)
+    // Zone manager host callbacks (cFC4ZoneManager.cpp), one per group of game
+    // calls; only used when the zones subsystem is enabled.
+    ZonesGridWrites,      // zones_grid_writes: SetTractValue / fill on the zone grid (off: not written)
+    ZonesBudget,          // zones_budget: GetTotalFunds / WithdrawFunds (off: unlimited funds, nothing charged)
+    ZonesLots,            // zones_lots: the lot manager's GetLot / GetLotsInCellRect and the lot reads (off: no lots)
+    ZonesOutLots,         // zones_out_lots: PlaceZone's outLots set insertions (off: the set is left alone)
+    ZonesDemolition,      // zones_demolition: both DemolishLots calls (off: cost 0, nothing demolished)
+    ZonesParcellization,  // zones_parcellization: the zone developer's DoParcellization (off: not re-parcelled)
+    ZonesPosts,           // zones_posts: the ZoningChange message (MessagePost; off: not posted)
+    ZonesMessages,        // zones_messages: the InsertOccupant subscription (off: no dezone under new networks)
+    ZonesTraffic,         // zones_traffic: FindNetworkTile and the tile reads (off: no network tile)
+    ZonesTerrain,         // zones_terrain: CellHasWater (off: dry)
+    ZonesOccupants,       // zones_occupants: the landfill occupant, bounding cells, CanRemove, network flags
+                          //   (off: no occupant)
+    ZonesLandfillCost,    // zones_landfill_cost: the landfill developer's GetZoningCost (off: 0)
+    ZonesLotDeveloper,    // zones_lot_developer: GetAreaSlope and SetEmptyLotBaseTexture (off: flat, not set)
     Count
 };
 

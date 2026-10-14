@@ -815,10 +815,15 @@ fn the_record_is_section_10_1_byte_for_byte_and_round_trips() {
     g2.iids.borrow_mut().clear();
     assert!(!read(z3, &g2, &bad));
     assert!(g2.iids.borrow().is_empty());
-    // A truncated record fails and keeps the previous state.
-    assert!(!read(z3, &g2, &o.bytes[..100]));
-    assert_eq!(state(z3).loaded, 0);
+    // §10.1: the loaded flag is set before the version is checked.
+    assert_eq!(state(z3).loaded, 1);
     unsafe { fc4_zones_destroy(z3) };
+    // A truncated record fails and keeps the previous state (but the flag).
+    let z4 = unsafe { fc4_zones_create(&host(&g2)) };
+    assert!(!read(z4, &g2, &o.bytes[..100]));
+    assert_eq!(state(z4).loaded, 1);
+    assert_eq!(state(z4).zone_count[0], 0);
+    unsafe { fc4_zones_destroy(z4) };
 }
 
 #[test]

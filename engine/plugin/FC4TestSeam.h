@@ -141,6 +141,11 @@
 //         classes' instead of the compat table's, to read the unadjusted grid
 //         at primary +0x84 (FC4ProtectionShadow.h, PR5); both null: back to
 //         the compat table. Returns 1.
+//   op 38 kFC4SeamZones            a = const FC4ZonesTestInput*
+//         (cFC4ZoneManager.h): the zone manager's test hooks (a host table
+//         answering instead of the game, a ZoningChange sink, the outLots
+//         node allocator) or one zones shadow comparison. Returns what
+//         ZonesTestSeam returns, -1 for a null argument.
 #pragma once
 
 #include <cstdint>
@@ -192,6 +197,7 @@ enum : uint32_t {
     kFC4SeamVariant = 30,
     kFC4SeamX87Check = 31,
     kFC4SeamProtectionShadowVtables = 32,
+    kFC4SeamZones = 38,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

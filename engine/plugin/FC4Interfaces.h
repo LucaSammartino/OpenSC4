@@ -1472,6 +1472,38 @@ public:
     virtual void* FindNetworkTile(int32_t x, int32_t z, uint32_t flagMask, bool flag) = 0;  // 8
 };
 
+// ---- zone manager (docs/specs/zones.md §11.1) ----------------------------------------------------
+
+// cISC4ZoneManager as compiled (IID 0x67652433, vtable 0x00A92E00, 21 slots).
+// SDK errors fixed: slots 7 and 8 (the overloads compile in reverse order),
+// slot 9's parameters (zone, result), slot 11's argument 8 (the int64 cost)
+// and 10 (a std::set<cISC4Lot*>*, allocators.md "map and set"), slot 12's
+// return (the int8 zone type sign-extended in EAX), slot 13 (AL only) and
+// slot 18 (void).
+class cFC4ISC4ZoneManager : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                              // 3
+    virtual bool Shutdown() = 0;                                                          // 4
+    virtual cISC4SimGrid<int8_t>* GetZoneGrid() = 0;                                      // 5 (no AddRef)
+    virtual uint32_t GetZoneCount(int32_t type) = 0;                                      // 6
+    virtual uint32_t GetUndevelopedTileCountOfType(int32_t type) = 0;                     // 7
+    virtual uint32_t GetUndevelopedTileCount() = 0;                                       // 8
+    virtual uint32_t GetDevelopmentFailureCount(int32_t zone, int32_t result) = 0;        // 9
+    virtual uint32_t GetAbandonedTileCount() = 0;                                         // 10
+    virtual bool PlaceZone(SC4CellRegion<long>& region, int32_t type, bool commit, bool skipFunds, bool checkSlope,
+                           bool skipSizeCheck, bool checkLotInside, int64_t* outCost, int32_t* outError,
+                           void* outLots) = 0;                                            // 11
+    virtual int32_t GetZoneType(int32_t x, int32_t z) = 0;                                // 12
+    virtual bool IsRCIZone(int32_t type) = 0;                                             // 13
+    virtual bool GetTextureForZone(int32_t type, cGZPersistResourceKey& key) = 0;         // 14
+    virtual uint32_t GetZoneDragColor(int32_t type) = 0;                                  // 15
+    virtual uint8_t GetZoneDisplayAlpha() = 0;                                            // 16
+    virtual uint8_t GetDefaultZoneDisplayAlpha() = 0;                                     // 17
+    virtual void SetZoneDisplayAlpha(uint8_t alpha) = 0;                                  // 18
+    virtual int32_t GetMinZoneSize(int32_t type) = 0;                                     // 19
+    virtual int32_t GetMaxZoneSize(int32_t type) = 0;                                     // 20
+};
+
 namespace fc4 {
 // A simulator handed out by the game (cISC4City::GetSimulator), seen through
 // the verified slot order instead of the SDK's declaration.
@@ -1572,4 +1604,7 @@ inline cISC4DispatchSource* AsSdk(cFC4ISC4DispatchSource* p) { return reinterpre
 inline cFC4ISC4LandfillDeveloper* AsGame(cISC4LandfillDeveloper* p) {
     return reinterpret_cast<cFC4ISC4LandfillDeveloper*>(p);
 }
+// The zone manager travels as the SDK's pointer (cISC4City slot 36); call it
+// only through the compiled declaration (zones.md §11.1).
+inline cFC4ISC4ZoneManager* AsGame(cISC4ZoneManager* p) { return reinterpret_cast<cFC4ISC4ZoneManager*>(p); }
 }  // namespace fc4

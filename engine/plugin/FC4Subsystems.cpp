@@ -45,6 +45,7 @@
 #include "FC4FlammabilityShadow.h"
 #include "FC4ResidentialShadow.h"
 #include "cFC4Residential.h"
+#include "cFC4ZoneManager.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -181,6 +182,12 @@ const ClassEntry kResidentialClasses[] = {
     {kFC4_CLSID_cSC4ResidentialSimulator, "cSC4ResidentialSimulator", &CreateFC4ResidentialSimulator},
 };
 
+// docs/specs/zones.md §1. Off by default (M4 glue trial): `enable = zones`.
+// The zone developer / lot manager (0x498F9B01) stays the game's (§13.1).
+const ClassEntry kZonesClasses[] = {
+    {kFC4_CLSID_cSC4ZoneManager, "cSC4ZoneManager", &CreateFC4ZoneManager},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -201,6 +208,7 @@ const Subsystem kSubsystems[] = {
     {"landfill", nullptr, kLandfillClasses, sizeof(kLandfillClasses) / sizeof(kLandfillClasses[0]), false},
     {"residential", nullptr, kResidentialClasses, sizeof(kResidentialClasses) / sizeof(kResidentialClasses[0]),
      false},
+    {"zones", nullptr, kZonesClasses, sizeof(kZonesClasses) / sizeof(kZonesClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

@@ -26,6 +26,7 @@
 #include "FC4ProtectionShadow.h"
 #include "FC4Subsystems.h"
 #include "FC4Watchdog.h"
+#include "cFC4ZoneManager.h"
 #include "cFC4Message2Standard.h"
 #include "fc4.h"
 
@@ -563,6 +564,7 @@ public:
                     FpuLog("observe month");
                 }
                 ProtectionShadowMonth(CurrentCity(), julian);  // protection_shadow = 1 only
+                fc4::ZonesMonthLine(julian);                    // enable = zones only (the month status line)
                 ++monthsSinceLoad_;
                 if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the

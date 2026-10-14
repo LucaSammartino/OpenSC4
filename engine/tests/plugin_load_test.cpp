@@ -65,6 +65,8 @@
 #include "cIGZOStream.h"
 #include "FC4Interfaces.h"
 #include "FC4TestSeam.h"
+#include "cFC4ZoneManager.h"
+#include "cGZPersistResourceKey.h"
 #include "fc4.h"
 #include "game_abi.h"
 
@@ -3795,6 +3797,257 @@ int ResidentialEnableTest(const std::string& dll, const std::string& ini, const 
     return g_failures == 0 ? 0 : 1;
 }
 
+// ---- zones (zones.md): the replacement without a city; PlaceZone and the dezone through stub hosts (op 38) -------
+constexpr uint32_t kCLSID_ZoneManager = 0x298F9B2D;
+constexpr uint32_t kIID_cISC4ZoneManager = 0x67652433;
+constexpr uint32_t kIID_cIGZMessageTarget2Zones = 0x452294AA;
+// §10.1 with empty failure maps: version, grid reference, 3 x 16 counts, 4
+// scalars, sizes, costs, textures and colours, alpha, two map counts, five
+// service references (references as a uint32 0 here).
+constexpr size_t kZonesRecordBase = 2 + 4 + 192 + 16 + 128 + 256 + 128 + 1 + 4 + 4 + 20;
+constexpr size_t kZonesAlphaAt = 2 + 4 + 192 + 16 + 128 + 256 + 128;
+
+// The answers without a city or grid (§11.1), some through the raw slots: 13,
+// 16 and 17 return in AL, 12 the sign-extended int8 in EAX, 18 is void.
+void CheckZonesNeutral(cFC4ISC4ZoneManager* z) {
+    void** vt = *reinterpret_cast<void***>(z);
+    CHECK(z->GetZoneGrid() == nullptr);
+    for (int32_t t = 0; t < 16; ++t) {
+        CHECK(z->GetZoneCount(t) == 0);
+        CHECK(z->GetUndevelopedTileCountOfType(t) == 0);
+    }
+    CHECK(z->GetUndevelopedTileCount() == 0 && z->GetAbandonedTileCount() == 0);
+    using U32XZFn = uint32_t(__fastcall*)(void*, void*, int32_t, int32_t);
+    CHECK(reinterpret_cast<U32XZFn>(vt[12])(z, nullptr, 3, 4) == 0u);
+    using U32IFn = uint32_t(__fastcall*)(void*, void*, int32_t);
+    for (int32_t t = 0; t < 16; ++t) {
+        const bool rci = t >= 1 && t <= 9;
+        CHECK(z->IsRCIZone(t) == rci);
+        CHECK((reinterpret_cast<U32IFn>(vt[13])(z, nullptr, t) & 0xFFu) == (rci ? 1u : 0u));
+    }
+    cGZPersistResourceKey key(1, 2, 3);
+    CHECK(z->GetTextureForZone(1, key) && key.type == 0x7AB50E44u && key.group == 0x1ABE787Du);
+    cGZPersistResourceKey untouched(1, 2, 3);
+    CHECK(!z->GetTextureForZone(16, untouched) && untouched.type == 1 && untouched.instance == 3);
+    using U32Fn = uint32_t(__fastcall*)(void*, void*);
+    CHECK((reinterpret_cast<U32Fn>(vt[16])(z, nullptr) & 0xFFu) == z->GetZoneDisplayAlpha());
+    CHECK((reinterpret_cast<U32Fn>(vt[17])(z, nullptr) & 0xFFu) == z->GetDefaultZoneDisplayAlpha());
+}
+
+// Slot 9 (zone, result) inserts a zero entry into failure map 1 when both
+// are in range (§11.1 quirk); slot 18 (void, pop 4) sets the alpha.
+void ZonesQuirks(cFC4ISC4ZoneManager* z) {
+    void** vt = *reinterpret_cast<void***>(z);
+    using U32IIFn = uint32_t(__fastcall*)(void*, void*, int32_t, int32_t);
+    CHECK(reinterpret_cast<U32IIFn>(vt[9])(z, nullptr, 2, 3) == 0u);   // inserts {2, 3, 0}
+    CHECK(z->GetDevelopmentFailureCount(2, 3) == 0);                    // present: nothing more
+    CHECK(z->GetDevelopmentFailureCount(16, 0) == 0);                   // out of range: nothing
+    CHECK(z->GetDevelopmentFailureCount(0, 19) == 0);
+    using VoidU8Fn = void(__fastcall*)(void*, void*, uint32_t);
+    reinterpret_cast<VoidU8Fn>(vt[18])(z, nullptr, 0x80);
+    CHECK(z->GetZoneDisplayAlpha() == 0x80);
+}
+
+// Threads (cFC4ZoneManager.h): getters from another thread while the main
+// thread holds the lock inside DoMessage wait about 20 ms each, then answer
+// from the snapshot (one fallback each).
+class ZonesLockHeldMessage final : public cIGZMessage2 {
+public:
+    explicit ZonesLockHeldMessage(cFC4ISC4ZoneManager* z) : zm(z) {}
+    cFC4ISC4ZoneManager* zm;
+    bool ran = false;
+    uint32_t count = 99, total = 99;
+    int32_t type = 99, minSize = 99;
+    uint8_t alpha = 0;
+    DWORD ms = 0;
+    bool QueryInterface(uint32_t, void**) override {
+        ran = true;
+        const DWORD start = GetTickCount();
+        std::thread t([this] {
+            count = zm->GetZoneCount(1);
+            total = zm->GetUndevelopedTileCount();
+            type = zm->GetZoneType(1, 1);
+            alpha = zm->GetZoneDisplayAlpha();
+            minSize = zm->GetMinZoneSize(1);
+        });
+        t.join();
+        ms = GetTickCount() - start;
+        return false;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Create(uint32_t, void**) const override { return false; }
+    uint32_t GetType() const override { return kMsgSimNewDay; }
+    void SetType(uint32_t) override {}
+    bool operator==(cIGZMessage2 const&) const override { return false; }
+    bool operator<(cIGZMessage2 const&) const override { return false; }
+};
+
+void CheckZonesThreads(cFC4ISC4ZoneManager* z, cIGZMessageTarget2* mt) {
+    const int32_t minSize = z->GetMinZoneSize(1);
+    ZonesLockHeldMessage msg(z);
+    CHECK(mt->DoMessage(&msg));
+    CHECK(msg.ran);
+    CHECK(msg.count == 0 && msg.total == 0 && msg.type == 0);  // the snapshot (no grid: type 0)
+    CHECK(msg.alpha == z->GetZoneDisplayAlpha() && msg.minSize == minSize);
+    CHECK(msg.ms >= 80 && msg.ms < 5000);  // five getters waited (about 20 ms each), none blocked
+    uint32_t c = 99;
+    std::thread t([&] { c = z->GetZoneCount(1); });  // no contention: the lock at once
+    t.join();
+    CHECK(c == 0);
+}
+
+std::vector<uint8_t> ZonesWrite(cFC4ISC4ZoneManager* z, int* nullRefs = nullptr) {
+    std::vector<uint8_t> out;
+    cIGZSerializable* ser = nullptr;
+    if (!z->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) || ser == nullptr) return out;
+    ResidentialSegOStream s;
+    if (ser->Write(s)) out = s.bytes;
+    if (nullRefs != nullptr) *nullRefs = s.nullRefs;
+    ser->Release();
+    return out;
+}
+
+bool ZonesRead(cFC4ISC4ZoneManager* z, const std::vector<uint8_t>& bytes) {
+    cIGZSerializable* ser = nullptr;
+    if (!z->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) || ser == nullptr) return false;
+    ResidentialSegIStream s(bytes);
+    const bool ok = ser->Read(s);
+    ser->Release();
+    return ok;
+}
+
+cFC4ISC4ZoneManager* NewZoneManager(cIGZCOMDirector* director) {
+    void* obj = nullptr;
+    if (!director->GetClassObject(kCLSID_ZoneManager, kIID_cISC4ZoneManager, &obj)) return nullptr;
+    return static_cast<cFC4ISC4ZoneManager*>(obj);
+}
+
+int ZonesEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = zones` registers the zone manager.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ZONES_SHADOW", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = zones\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    SetGamePrecision();  // as the game's PreFrameWorkInit does
+    std::vector<uint8_t> record;
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        // simulator (1) + budget (3) + zones (1); never the game's grid classes.
+        CHECK(classes.size() == 5);
+        for (uint32_t c : classes) CHECK(c < 0x49B9E600 || c > 0x49B9E60B);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_ZoneManager) == 1);
+
+        cFC4ISC4ZoneManager* zm = NewZoneManager(director);
+        CHECK(zm != nullptr);
+        if (zm != nullptr) {
+            // §1: the primary for its IID and cIGZUnknown, the message target
+            // and the serializable; nothing else (the out pointer untouched).
+            void* p = nullptr;
+            CHECK(zm->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(zm));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            p = nullptr;
+            CHECK(zm->QueryInterface(kIID_cISC4ZoneManager, &p) && p == static_cast<void*>(zm));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            cIGZMessageTarget2* mt = nullptr;
+            CHECK(zm->QueryInterface(kIID_cIGZMessageTarget2Zones, reinterpret_cast<void**>(&mt)) && mt != nullptr);
+            CHECK(static_cast<void*>(mt) != static_cast<void*>(zm));
+            cIGZSerializable* ser = nullptr;
+            CHECK(zm->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser != nullptr);
+            if (ser != nullptr) {
+                CHECK(ser->GetGZCLSID() == kCLSID_ZoneManager);
+                void* back = nullptr;  // every sub-object answers the others (one object)
+                CHECK(static_cast<cIGZUnknown*>(ser)->QueryInterface(kIID_cISC4ZoneManager, &back) && back == zm);
+                if (back != nullptr) static_cast<cIGZUnknown*>(back)->Release();
+            }
+            p = reinterpret_cast<void*>(0x1234);
+            CHECK(!zm->QueryInterface(0x12345678, &p) && p == reinterpret_cast<void*>(0x1234));
+            CHECK(!zm->QueryInterface(0x498F9B01, &p) && p == reinterpret_cast<void*>(0x1234));
+            CheckZonesNeutral(zm);
+            ZonesQuirks(zm);
+            // The record before Init (§10.1): version 1, the failure entry
+            // {zone 2, result 3, 0}, the alpha, every reference null.
+            int nullRefs = 0;
+            record = ZonesWrite(zm, &nullRefs);
+            CHECK(record.size() == kZonesRecordBase + 6);
+            CHECK(nullRefs == 6);
+            if (record.size() == kZonesRecordBase + 6) {
+                CHECK(record[0] == 1 && record[1] == 0);
+                CHECK(record[kZonesAlphaAt] == 0x80);
+                const std::vector<uint8_t> map1(record.begin() + kZonesAlphaAt + 1, record.begin() + kZonesAlphaAt + 15);
+                const std::vector<uint8_t> want = {1, 0, 0, 0, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0};
+                CHECK(map1 == want);  // n1 = 1, {2, 3, 0}, n2 = 0
+            }
+            // Init without a city: no services, no grid; still neutral.
+            CHECK(zm->Init());
+            CheckZonesNeutral(zm);
+            // The observer's month hook writes the month status line.
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewMonth)),
+                 reinterpret_cast<void*>(static_cast<intptr_t>(2451576)));  // 2000-02-01
+            if (mt != nullptr) {
+                TypeMessage month(kMsgSimNewMonth);
+                CHECK(mt->DoMessage(&month));
+                CheckZonesThreads(zm, mt);
+            }
+            if (ser != nullptr) ser->Release();
+            if (mt != nullptr) mt->Release();
+            CHECK(zm->Shutdown());
+            CHECK(zm->Release() == 0);
+        }
+        // Read runs before Init (§10.1): the record loads into a new manager,
+        // which writes it back byte for byte (the alpha read is also the
+        // default); a record of another version does not load.
+        cFC4ISC4ZoneManager* fresh = NewZoneManager(director);
+        CHECK(fresh != nullptr);
+        if (fresh != nullptr && !record.empty()) {
+            CHECK(ZonesRead(fresh, record));
+            CHECK(fresh->GetZoneDisplayAlpha() == 0x80 && fresh->GetDefaultZoneDisplayAlpha() == 0x80);
+            CHECK(ZonesWrite(fresh) == record);
+            CHECK(fresh->Release() == 0);  // the final Release shuts a never-initialised manager down
+        }
+        fresh = NewZoneManager(director);
+        if (fresh != nullptr && !record.empty()) {
+            std::vector<uint8_t> v2 = record;
+            v2[0] = 2;
+            CHECK(!ZonesRead(fresh, v2));
+            CHECK(fresh->Release() == 0);
+        }
+        CheckCw("zones");
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("subsystem 'zones': enabled (1 class replaced) by FreeCity4.ini (enable=)") != std::string::npos);
+    CHECK(text.find("cFC4ZoneManager(") != std::string::npos);
+    CHECK(text.find("zones Write -> 1") != std::string::npos);
+    CHECK(text.find("zones Write: version=1 init=0 loaded=0 grid=00000000 0x0 counts=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0") !=
+          std::string::npos);
+    CHECK(text.find("zones Init: version=1 init=1 loaded=0") != std::string::npos);
+    CHECK(text.find("zones: no city; services not acquired") != std::string::npos);
+    CHECK(text.find("zones month 2000-02-01: version=1 init=1") != std::string::npos);
+    CHECK(text.find("failures=1 alpha=128/") != std::string::npos);
+    CHECK(text.find("zones Shutdown: version=1") != std::string::npos);
+    CHECK(text.find("zones Read -> 1") != std::string::npos);
+    CHECK(text.find("zones Read: version=1 init=0 loaded=1") != std::string::npos);
+    CHECK(text.find("zones Read -> 0") != std::string::npos);
+    CHECK(text.find("cFC4ZoneManager destroyed (5 fallbacks)") != std::string::npos);
+    CHECK(CountOf(text, "cFC4ZoneManager destroyed (0 fallbacks)") == 2);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin zones enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 // ---- land value and flammability grid shadows (test seam ops 23, 24) ---------------------------------
 constexpr uint32_t kCLSID_Flammability = 0xE990C045;
 constexpr uint32_t kIID_cISC4FlammabilitySimulator = 0x48F41617;
@@ -4871,6 +5124,7 @@ int main(int argc, char** argv) {
     if (mode == "--ini-enable-landfill") return LandfillEnableTest(dll, ini, log);
     // Residential (residential.md): the replacement, and the shadow on fake originals.
     if (mode == "--ini-enable-residential") return ResidentialEnableTest(dll, ini, log);
+    if (mode == "--ini-enable-zones") return ZonesEnableTest(dll, ini, log);
     // Land value and flammability grid shadows on fake originals; both inactive with ours.
     if (mode == "--ini-landvalue-shadow") return LandValueShadowTest(dll, ini, log);
     if (mode == "--ini-flammability-shadow") return FlammabilityShadowTest(dll, ini, log);
@@ -5011,7 +5265,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 136): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 149): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -6857,11 +7111,11 @@ int main(int argc, char** argv) {
                     "residential EQ/HQ/LE=12.5000/34.2500/75\r\n") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 136 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 136 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 149 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 149 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 136): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 149): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);

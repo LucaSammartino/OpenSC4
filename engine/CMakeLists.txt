@@ -227,6 +227,9 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Residential.h
         plugin/FC4ResidentialShadow.cpp
         plugin/FC4ResidentialShadow.h
+        plugin/cFC4ZoneManager.cpp
+        plugin/cFC4ZoneManager.h
+        plugin/FC4GameSet.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -277,6 +280,13 @@ if(FC4_IS_WIN32_X86)
     target_include_directories(fc4_game_map_test PRIVATE plugin)
     target_compile_options(fc4_game_map_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME game_map_test COMMAND fc4_game_map_test)
+
+    # The game's STLport set (plugin/FC4GameSet.h): PlaceZone's outLots unique
+    # insert against sets built and checked as docs/abi/allocators.md describes.
+    add_executable(fc4_game_set_test tests/game_set_test.cpp)
+    target_include_directories(fc4_game_set_test PRIVATE plugin)
+    target_compile_options(fc4_game_set_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME game_set_test COMMAND fc4_game_set_test)
 
     # foundations §16: the slot layout of every game interface we implement.
     add_executable(fc4_vtable_layout_test tests/vtable_layout_test.cpp)
@@ -392,6 +402,13 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_residential_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-residential)
     set_tests_properties(plugin_ini_enable_residential_test PROPERTIES RUN_SERIAL TRUE)
+    # Zones (zones.md): `enable = zones` (no city: the QI table, neutral getters,
+    # the slots' return channels, lifecycle, the record round trip, status
+    # lines) and, through seam op 38 with stub hosts, PlaceZone (reject, abort,
+    # accept, outLots), ZoningChange and the dezone handler.
+    add_test(NAME plugin_ini_enable_zones_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-zones)
+    set_tests_properties(plugin_ini_enable_zones_test PROPERTIES RUN_SERIAL TRUE)
     # References read from a save (in-game run 88): land value grids and a
     # foreign ordinance, with and without a save before Shutdown, and land value
     # grids created through GZCOM; no reference warning, each released once.
