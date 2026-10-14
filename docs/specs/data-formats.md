@@ -1371,6 +1371,9 @@ Byte strings are hexadecimal. "Package P(entries)" means: header with magic `DBP
 
 ### 10.3 Load order
 
+These tests check the resource manager and the startup registration (§3, §3.1), not the package reader.
+*[choice]* They are out of scope for `engine/formats` and belong to the module that implements §3.1.
+
 18. Install `SimCity_1.dat` and `Plugins\a.dat` both define exemplar K with property `0x10` = 1 and 2: the game
     sees 2.
 19. `Plugins\a.dat` (K → 2) and `Plugins\b.dat` (K → 3): 3. `Plugins\sub\a.dat` (K → 4) added: 4.

@@ -612,7 +612,10 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   `length` lowered to the array's size. Any other type returns false, with no conversion. No shipped record has a
   void array, so on shipped data it always returns false, and "not implemented" (always false) is not
   observable there (data-formats.md §5.2).
-- **EX18:** are §10.3 tests 18–22 (resource-manager load order) in scope for `engine/formats`? [out of scope]
+- ~~**EX18:** are §10.3 tests 18–22 (resource-manager load order) in scope for `engine/formats`? [out of scope]~~
+  **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. The tests check the resource
+  manager and startup registration (§3, §3.1), not the package reader, so they belong to whichever module
+  implements §3.1 (data-formats.md §10.3).
 - **EX19:** how is depth counted for `MAX_PARENT_DEPTH`? [at most 32 nested loads below the record; a record that
   fails only on depth is retried when reached shallower]
 - **EX20 — §5.2:** a raw accessor on a type mismatch. [choice: a missing value]
