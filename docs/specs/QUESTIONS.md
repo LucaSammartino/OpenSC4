@@ -3081,7 +3081,10 @@ host gained connection, region, budget and drive-side methods. The current answe
   positions. The trip phases store the cell the source iterator returns: a lot's location (lot slot 21) or a neighbour
   connection's cell. The 16–18 entry action zeroes them (the table's "pass counters reset" was these two). The bracket
   matches.
-- **TS45:** Which cell is saved for the state-15 resume? [the same `phase_positions`]
+- ~~**TS45:** Which cell is saved for the state-15 resume? [the same `phase_positions`]~~
+  **ANSWERED 2026-10-14** from the exe (FinishTripMap `0x0070FFD3`–`0x0070FFE7`; resume `0x00720B2C`–`0x00720B46`) and
+  written into traffic-simulator §3.5. The same two s16 phase positions: FinishTripMap stores each lot's location as it
+  takes it, and the resume passes them to `GetLot`. The bracket matches.
 - **TS46:** How is §4.16's `float(item.cost)` computed? [converted to f32 first, then × funding, r24]
 - **TS47:** A strategy above 2 in SetupPathFinderForLot. [ignored; a choice in code]
 - **TS48:** A damaged travel type above 8. [adds nothing in ApplyRoute and fails ConfirmRoute; a choice]

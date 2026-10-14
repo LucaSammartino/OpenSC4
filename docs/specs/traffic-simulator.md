@@ -303,7 +303,9 @@ whole order (TS7):
       source, so the phase continues after it. If no source has that cell, the iterator is reset again and no source
       is held (the phase restarts from the first source). *[inferred: the position inside a partly processed source's
       trip list is the saved context's, not traced]*
-    * 15: the lot iterator is reset; when the lot manager has a lot at the saved cell (`GetLot(x, z, false)`), the
+    * 15: the lot iterator is reset; when the lot manager has a lot at the saved cell (`GetLot(x, z, false)`; the
+      same two phase positions, which FinishTripMap sets to each lot's location as it takes it,
+      `0x0070FFD3`–`0x0070FFE7`, read back at `0x00720B2C`–`0x00720B46`; TS45), the
       iterator is advanced past that lot; if the walk reaches the end without meeting it, the iterator restarts from
       the first lot.
     * 19: every ferry terminal's re-route flag := 1 and the ferry pass restarts at the first terminal, its sub-step
