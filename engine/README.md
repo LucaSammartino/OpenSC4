@@ -407,6 +407,27 @@ plugin.
      the week agent reports "not finished" once per week, so §5.3's repeat delivery shows as `… again`.
      `tools/clock_diff.ps1 -A <original log> -B <our log>` checks both streams against simulator.md §2.3/§5.2 and
      compares the two runs from the first day both saw (runs 56/57: identical over 240 days).
+   - **Growth probe** (`growth_probe = 1`, env `FC4_GROWTH_PROBE`; off by default; `plugin/FC4GrowthProbe.h`):
+     the calibration of `growthAttemptsPerDay` (building-development.md §12), on the ORIGINAL building development
+     simulator and tract developer (enable neither). At game start, on the identified 1.1.641 executable only, and
+     only if the original tract developer vtable (`0x00AB3118`) holds the original `Grow` (`0x0070D130`) in slot 5,
+     it patches that one entry with a counting forwarder (same `this`, arguments and EAX; callee-pop 12; integer
+     work only) and puts the original back at `PreAppShutdown` (and at DLL detach). Otherwise it logs why and
+     patches nothing. One line per posted `SimNewDay`, then a summary at each city's shutdown:
+
+     ```
+     growth probe yyyy-mm-dd: attempts=A qualifying=Q cut=0|1 elapsed_us=E per_attempt_us=P lots=L population=N
+       max_us=M cycles=C
+     growth probe summary (city shutdown): days=D; attempts min/median/max=…; cut days=K, attempts on cut days
+       min/median/max=…; qualifying min/median/max=… (unknown on U day(s)); mean_us_per_attempt=…; …
+     ```
+
+     `attempts` = `Grow` calls since the previous line; `qualifying` = developers in the BDS developer map (slot 34)
+     with trunc(active demand) > 5, read when the line is written; `cut` = attempts < qualifying (approximate: a
+     pick that ends without a `Grow` call is not counted); `elapsed_us`/`max_us`/`cycles` = the time inside the
+     calls; `lots` = lot manager slot 16; `population` = the residential simulator's. `-` = not readable. At each
+     city load a line says whether the city's tract developer and BDS are the original classes. With
+     `FC4_LOG_LEVEL=2` the x87 leftover guard also runs at the forwarder's exit.
    - **Monthly digest** (also at `FC4_LOG_LEVEL=1`; `digest = 0` turns it off): at every `SimNewMonth`, one line
      for diffing the original against FreeCity4 on the same save, read only through public interfaces:
 
