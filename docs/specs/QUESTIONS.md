@@ -1161,3 +1161,11 @@ shadow's current answer is in brackets.
 - Not compared: the pipes' watered states (only reachable through a non-virtual call), redisplay, posts, history,
   line-item expenses, lot conditions and deal flags; the original's pipe condition and pass state (not saved, not
   exposed). New bursts are range-checked only (random draw).
+- **PS8 — first in-game shadow (run 81, coordinator):** of 95 replayed passes, 4 differ only in `demand`, ours
+  lower by 8 to 51 (e.g. 25315/25287 in 2026-03, 35967/35916 in 2030-11); ours equals the pass's consumed total.
+  The original's demand is a running sum kept as things are added and removed. Which additions does it count that
+  the pass's consumption does not (lots whose water use changed since insertion, removals not subtracted)? Compare PW8.
+- **PS9 — first in-game shadow (run 81, coordinator):** in one pass (2028-03-04, pass 357) producer 0's production
+  and efficiency read 0 in ours (orig 19944 and 0.997), although the pass's produced total matches (39687) and the
+  grid is identical. This looks like a shadow-side read of the wrong producer record (not an RE question); the next
+  plumbing lane should look at how the shadow pairs our producers with the original's.
