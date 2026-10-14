@@ -1465,3 +1465,52 @@ answer is in brackets.
   Float32 array read as `u32`). Right for readers that use raw access plus their own conversion? [every element]
 - Not applied: the scalar RZUnicodeChar text rule (one byte when ≤ 0xFF): the reader cannot produce that scalar
   (tag `0x0D` is not read).
+
+## From the x87 fix: demand's corrected return channels (filed by the coordinator from the `x87fix` lane's report, 2026-10-14)
+
+About `docs/specs/demand.md` §4.1 and §5 after the ABI correction (slot 8 `CalculateJobsPerUnitOfDemand` returns
+void and writes jobs[1..3] of a four-float record). The current answer is in brackets.
+
+- **DQ10 — §5:** `GetJobsBySensus` still reads `j0 + j1 + j2`, and ExtrapolateBusinessCensus reads `j[w]`,
+  w = 0..2, but the outputs are now jobs[1..3]. Which elements are summed, and which one does wealth w read? [the
+  three outputs, summed in order: f32(f32(out1 + out2) + out3); extrapolation reads output w for wealth w + 1]
+- **DQ11 — §5:** in the original `GetJobsBySensus`, what is in the local record's jobs[0] when slot 8 returns, and
+  is it really summed with jobs[3] left out? [not modelled; the sum of the three outputs]
+- **DQ12 — §5 against §4.1:** §5 says `f32(percent) × 0.01f`, while §4.1 describes an exact FILD followed by a
+  single rounding. They agree for every percent below 2^24; which is the game's? [the §4.1 link factor]
+- Not a spec question: whether the WOW64 `CONTEXT` TagWord is the full or the abridged tag. The crash report logs
+  both; the lane's host test shows the full tag (0xFFFF empty, 0x3FFF with one value) next to FXSAVE's 0x00/0x80.
+
+## From the residential glue and shadow (filed by the coordinator from the `resglue` lane's report, 2026-10-14)
+
+About `docs/specs/residential-education-health.md` (REH) and the residential glue (`cFC4Residential`,
+`FC4ResidentialShadow`). The current answer is in brackets.
+
+- **RG1:** buzzards (the visual effects): what creates them? [not created: the effect callback returns 0, logged
+  once]
+- **RG2 — REH §4.1 step 4:** building slot 11 is read as `GetBuildingProfile()`, first u32. Right? [yes]
+- **RG3:** query-record costs are 32-bit in the game but 64-bit in the core. [zero-extended in, low 32 bits written
+  back]
+- **RG4:** slots 14/15 with a null group vector: the original dereferences it. [ours returns 0]
+- **RG5:** lot `GetCenter` goes through the FXAM-guarded raw call (crime CQ3). [as crime]
+- **RG6:** the shadow cannot reproduce the original's clock-seeded strike rolls in state 0. [those fields are not
+  compared]
+- **RG7:** does the original re-read ordinance effects outside state 0? [the shadow re-reads them]
+- **RG8:** slots 21/22 called off the main thread create grids through GZCOM. Allowed? [yes]
+- **RG9:** setters off the main thread: deferred, and `EndStrike` off the main thread returns the published flag?
+  [yes]
+- **RG10:** department funding with no department? [1.0]
+- **RG11:** slots 19, 20, 21–25, 28, 47 and 49: always true? [true]
+- **RG12:** slot 45 returning false: are its outputs left untouched? [untouched]
+- **RG13:** does `SetLocalFundingPercent` set the budget item's local funding? [the shadow assumes so]
+- **RG14:** the dirty flag cannot be compared by the shadow. [not compared]
+- **RG15:** a building's identity is its `AsOccupant()` pointer, used for the lists, the strike message's void1
+  and IGZUnknown, and record references. Right? [yes]
+- **RG16:** per-building properties: scalars of their type (bool, u32, f32), or arrays? [scalars]
+- **RG17:** slots 47, 49 and 61 append to the caller's list with the game allocator. Is that so for slot 61?
+  [assumed]
+- **RG18:** the simulator taken at Init step 4 is released after `RemoveAgent`; REH §4.2 has no matching release.
+  [released]
+- **RG19:** what goes in a strike message's data1? [0]
+- **RG20:** `GetBuildingMapKey` returns 32 bits; only the low 8 are used. Right? [yes]
+- **RG21:** the strike clock seed is `time() + 2177452800` (the cRZTime epoch), as in crime. [yes]
