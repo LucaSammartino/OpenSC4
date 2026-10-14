@@ -2119,7 +2119,18 @@ answer is in brackets.
   - Float64 sNaN: **also `1.#QNAN`**; the bracket (`1.#SNAN`) differs. The double is loaded onto the x87 stack before
     printing, and loading an sNaN quiets it under the masked invalid-operation exception. `1#SNAN` is unreachable from
     this printer.
-- **EX29 — EX8:** does the 63-character cut also apply to Float32 text (a subnormal reaches it)? [yes]
+- ~~**EX29 — EX8:** does the 63-character cut also apply to Float32 text (a subnormal reaches it)? [yes]~~ **ANSWERED
+  2026-10-14** from the exe (`0x0091052A`, callers `0x00916F77` and `0x0091711E`, `_fltout2` `0x00A0277B`) and written
+  into data-formats.md §5.1 "Floats as text". **The bracket matches.**
+  - The cut applies to any text longer than 63 characters, whatever the type. The printer returns false and both
+    callers ignore it, keeping the cut text.
+  - A Float32 reaches it only as one of the seven negative subnormals `0x80000001` to `0x80000007` (below 1e-44 in
+    magnitude). `-0.`, 44 zeros and 17 digits make 64 characters, so the last digit is dropped.
+  - **Correction to EX8:** the digits are not the exact binary value cut at 24 digits. `_fcvt` gets **17 significant
+    digits, rounded half-up**, from the runtime (the count 17 is passed at `0x00A027A0`), padded with zeros. The
+    24-digit limit never takes effect. Float32 0.1 prints `0.10000000149011612`, not `0.100000001490116119384765`, and
+    3.14159 prints `3.1415901184082031`. Any implementation of the EX8 rule needs the same change. Test 58 and the §11
+    row are corrected.
 - **EX30 — EX17:** `get_void` with a buffer shorter than `length`? [copies what fits; the original would overrun]
 - **EX31 — EX15:** when do factories run? [eagerly, inside `load_package`; a factory registered later applies from
   the next `load_package`]

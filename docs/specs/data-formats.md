@@ -548,17 +548,32 @@ result is a heap address. Only kind-1 properties (§4.6) hold objects, and no sh
   as 0.
 - **Floats as text** (`RZFtoaEnglishA` `0x0091052A`, called with a 64-byte buffer and 24 digits; a Float32 is
   widened to double first) are **fixed-point, never with an exponent**: `-` for a negative value, the integer digits
-  in full (`0` when |x| < 1), then, if a non-zero fraction digit exists, `.`, the fraction's leading zeros, and at
-  most **24 further digits, cut, not rounded** (zeros at the end of a cut are kept; with nothing cut, trailing zeros
-  are not printed). The digits are those of the C runtime's `_fcvt(x, 64)`, so the exact binary value. Examples:
-  2.75 gives `2.75`; Float32 0.1 gives `0.100000001490116119384765`; Float32 0.001 gives
-  `0.00100000004749745130538940`; Float32 1e30 gives `1000000015047466219876688855040`. A Float64 whose text passes
-  63 characters is cut there. NaN and infinities come out as the C runtime prints them: `1.#INF`, `-1.#INF`,
-  `1.#QNAN`, `-1.#IND` (the default NaN) *[inferred from the MSVC runtime; its strings `1#INF`, `1#QNAN`, `1#SNAN`,
-  `1#IND` are in the exe]*, which parse back as ±1. **The round trip is not exact**: the parser (`RZStrtodEnglishA`,
-  §4.3 Float32) adds the digits one by one at the main thread's 24-bit precision, so Float32 3.14159 (`0x40490FD0`),
-  printed `3.141590118408203125`, reads back as `0x40490FCE`, and Float32 0.05 (`0x3D4CCCCD`) as `0x3D4CCCCC`.
-  2.75, 1.5 and other short binary fractions survive.
+  in full (`0` when |x| < 1), then, if a non-zero fraction digit exists, `.`, the fraction's leading zeros and the
+  digits up to the last non-zero one. The digits are those of the C runtime's `_fcvt(x, 64)`, which asks the
+  runtime's decimal conversion (`$I10_OUTPUT` `0x00A04942`, called from `_fltout2` at `0x00A027A0`) for **17
+  significant digits, rounded half-up** (a tie rounds away from zero), and pads them with zeros (`_fptostr`
+  `0x00A0264A`). So a value prints its first 17 significant digits and never more; an integer part longer than 17
+  digits ends in zeros. The printer's own limit of 24 digits after the fraction's leading zeros never takes effect,
+  because at most 17 of them can be non-zero (EX29). Examples: 2.75 gives `2.75`; Float32 0.1 (exactly
+  0.100000001490116119384765625) gives `0.10000000149011612`; Float32 0.001 gives `0.0010000000474974513`; Float32
+  1e30 (exactly 1000000015047466219876688855040) gives `1000000015047466200000000000000`; Float32 2⁻²⁵ (exactly
+  0.0000000298023223876953125, a tie at the 18th digit) gives `0.000000029802322387695313`. NaN and infinities come
+  out as the C runtime prints them: `1.#INF`, `-1.#INF`, `1.#QNAN`, `-1.#IND` (the default NaN) *[inferred from the
+  MSVC runtime; its strings `1#INF`, `1#QNAN`, `1#SNAN`, `1#IND` are in the exe]*, which parse back as ±1. **The
+  round trip is not exact**: the parser (`RZStrtodEnglishA`, §4.3 Float32) adds the digits one by one at the main
+  thread's 24-bit precision, so Float32 3.14159 (`0x40490FD0`), printed `3.1415901184082031`, reads back as
+  `0x40490FCE`; Float32 0.05 (`0x3D4CCCCD`), printed `0.05000000074505806`, as `0x3D4CCCCC`; and Float32 0.001
+  (`0x3A83126F`) as `0x3A83126E`. 2.75, 1.5 and other short binary fractions survive, and so do Float32 0.1 and
+  1e30.
+
+  **The 63-character cut** (EX29) applies to every float, a Float32 included. A text longer than 63 characters is
+  cut to its first 63 and the printer returns false; both callers (`0x00916F77`, `0x0091711E`) ignore the result
+  and keep the cut text. A Float32 reaches the cut only as a **negative subnormal below 1e-44 in magnitude**, the
+  seven values `0x80000001` to `0x80000007`: `-0.`, 44 leading zeros and 17 digits make 64 characters, so the 17th
+  digit is lost. For example `0x80000001` (−1.40129846432481707…e-45, 17 digits `14012984643248171`) gives `-0.`,
+  44 zeros and `1401298464324817`, 63 characters. The positive values fit exactly (63 characters), and from
+  `0x80000008` (−1.12e-44) on there is one leading zero fewer. A Float64 reaches the cut more often: for example
+  −1e62 (`-` and 63 digits), 1e63 (64 digits), and tiny values whose fraction runs past 61 places.
 
   **Negative zero** (EX24) prints `0`, for a Float32 and a Float64 alike. The runtime's digit conversion
   (`0x00A04942`) takes a zero's sign from the sign bit but then resets it to "positive" on its zero path
@@ -1522,7 +1537,7 @@ Text lines below go into a record shaped like test 37, with `PropCount` set to m
     and read as Bool gives true. RZChar `0xE9` read as Uint32 gives `0xFFFFFFE9`. `GetValFloat64` on Uint64
     16,777,217 gives 16,777,216.0.
 58. **Float text round trip**: Float32 `0x40490FD0` (3.14159) read with `GetProperty(id, cIGZString&)` gives
-    `3.141590118408203125` and false. A string holding that text, read with `GetValFloat32`, gives `0x40490FCE`.
+    `3.1415901184082031` and false. A string holding that text, read with `GetValFloat32`, gives `0x40490FCE`.
 59. **Empty and void**: a tag-0 property read with `GetProperty(id, uint32&)` gives true and 0, and with
     `GetProperty(id, cIGZString&)` gives false and the empty text. A void array `31 32` read with
     `GetProperty(id, uint32&)` gives true and 0. Read with slot 5 and `length` 8, it copies `31 32` and sets
@@ -1554,7 +1569,7 @@ Text lines below go into a record shaped like test 37, with `PropCount` set to m
 | float to integer saturates, NaN gives 0 (EX3) | truncated to int64, low bits kept (wraps); NaN and ±∞ give `0x8000000000000000` (§5.1) | follow |
 | RZChar zero-extended (EX4) | Char and RZChar sign-extended (§5.1) | follow |
 | void array as text: first byte as `%u` (EX6) | empty text, so 0 (§5.1) | follow |
-| floats as text with `%.24g` (EX8) | fixed-point `_fcvt` digits, at most 24 after the leading zeros, cut; no exponent (§5.1) | follow |
+| floats as text with `%.24g` (EX8) | fixed-point, 17 significant digits rounded half-up, trailing fraction zeros dropped, cut at 63 characters; no exponent (§5.1, EX29) | follow |
 | round-trip parse (EX9) | as bracketed, plus: char targets always get 0; Bool from floating-point text is value ≠ 0 (§5.1) | follow |
 | text ParentCohort: exactly 3 fields, leading spaces trimmed (EX10) | fields not counted, a missing one reads 0; nothing trimmed inside the braces (§4.3) | follow |
 | text reps trimmed (EX11) | not trimmed; rule N (§4.3) | follow |
