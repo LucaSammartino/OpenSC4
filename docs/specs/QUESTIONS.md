@@ -3100,4 +3100,8 @@ host gained connection, region, budget and drive-side methods. The current answe
   reader `0x006D6572`) and written into traffic-simulator §4.5. The original checks nothing: a type up to 63 indexes the
   9-entry network, generates-traffic and income tables and reads what follows them. ConfirmRoute reads unrelated record
   words (§4.3). The bracket (add nothing, fail ConfirmRoute) is a *[choice]*, recommended.
-- **TS49:** A switch ID with no switch behind it in GetTransitSwitchQueryData. [returns false; a choice]
+- ~~**TS49:** A switch ID with no switch behind it in GetTransitSwitchQueryData. [returns false; a choice]~~
+  **ANSWERED 2026-10-14** from the exe (`GetTransitSwitchQueryData`: find-or-insert `0x0071CBB7`, building read
+  `0x0071CC12`–`0x0071CC14`) and written into traffic-simulator §4.16. The original inserts a default switch, writes
+  four of the five fields, then crashes reading the null building. Only a damaged save has such an ID. The bracket
+  (return false) is a *[choice]*, recommended.

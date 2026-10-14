@@ -1375,8 +1375,9 @@ The query window then shows: service quality `0` if the call fails or +0x00 is 0
 +0x0C; maintenance +0x10 *[inferred: from the Mac readers; the Windows readers were not traced]*.
 
 *[choice]* A switch ID in the grid with no switch behind it (only possible from a damaged save) makes the original
-insert a default switch with no building and crash on the cost step. FreeCity4 returns false and leaves `out`
-untouched.
+insert a default switch with no building and crash on the cost step (TS49: inserted at `0x0071CBB7`; the null
+building is read at `0x0071CC14`, after four of the five fields are written). FreeCity4 returns false and leaves
+`out` untouched.
 
 **Example.** A subway station with capacity 2500.0, last cycle's load 3100.0 (so ratio 1.0), no strike, budget item
 cost 150 for purpose `0xCA550301` in a department funded at 0.9: `out = {2500, 2500, 1.0f, 3100, 135}`
