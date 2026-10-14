@@ -66,7 +66,10 @@ pub(crate) struct Game {
     pub(crate) props: RefCell<BTreeMap<(u64, u32), Prop>>,
     /// Lot iterators handed out and not yet released.
     pub(crate) iterators: Cell<i32>,
-    pub(crate) iterated: Cell<u32>,
+    /// Lots handed out per live iterator (the shadow's runs beside the
+    /// original's).
+    pub(crate) iterated: RefCell<BTreeMap<u64, u32>>,
+    next_iterator: Cell<u64>,
     pub(crate) no_lots: Cell<bool>,
     pub(crate) funding: Cell<f32>,
     pub(crate) inputs_asked: RefCell<Vec<u32>>,
@@ -256,8 +259,10 @@ pub(crate) unsafe extern "C" fn lot_count(u: *mut c_void) -> u32 {
 pub(crate) unsafe extern "C" fn lot_iterator(u: *mut c_void) -> u64 {
     let g = game(u);
     g.iterators.set(g.iterators.get() + 1);
-    g.iterated.set(0);
-    ITERATOR
+    let t = ITERATOR + g.next_iterator.get();
+    g.next_iterator.set(g.next_iterator.get() + 1);
+    g.iterated.borrow_mut().insert(t, 0);
+    t
 }
 /// One lot: cells (0..3, 0..3), R$, wealth 1, ten R$ residents and two
 /// commercial workers.
@@ -268,12 +273,14 @@ pub(crate) unsafe extern "C" fn lot_next(
     sink: fc4_aura_population_sink,
     ctx: *mut c_void,
 ) -> bool {
-    assert_eq!(it, ITERATOR);
     let g = game(u);
-    if g.no_lots.get() || g.iterated.get() > 0 {
+    let mut iterated = g.iterated.borrow_mut();
+    let n = iterated.get_mut(&it).expect("a live lot iterator");
+    if g.no_lots.get() || *n > 0 {
         return false;
     }
-    g.iterated.set(1);
+    *n = 1;
+    drop(iterated);
     *out = fc4_aura_lot {
         x1: 0,
         z1: 0,
@@ -289,8 +296,8 @@ pub(crate) unsafe extern "C" fn lot_next(
     true
 }
 pub(crate) unsafe extern "C" fn lot_iterator_release(u: *mut c_void, it: u64) {
-    assert_eq!(it, ITERATOR);
     let g = game(u);
+    assert!(g.iterated.borrow_mut().remove(&it).is_some(), "a live lot iterator");
     g.iterators.set(g.iterators.get() - 1);
 }
 pub(crate) unsafe extern "C" fn lot_at(u: *mut c_void, x: i32, z: i32, out: *mut fc4_aura_lot) -> bool {
@@ -895,14 +902,14 @@ fn baseline(s: *mut fc4_aura_shadow, a: *const fc4_aura, g: &Game) -> (bool, Vec
     (r, lines)
 }
 
-fn shadow_cycle(s: *mut fc4_aura_shadow, a: *const fc4_aura, g: &Game) -> (i32, Vec<String>) {
+fn shadow_cycle(s: *mut fc4_aura_shadow, a: *const fc4_aura, g: &Game, julian: i32) -> (i32, Vec<String>) {
     let c = capture(a, g);
     let mut lines: Vec<String> = Vec::new();
     let r = unsafe {
         fc4_aura_shadow_cycle(
             s,
             &c.view(),
-            2_451_576,
+            julian,
             Some(lines_sink),
             &mut lines as *mut _ as *mut c_void,
         )
@@ -916,7 +923,7 @@ fn shadow_stats(s: *mut fc4_aura_shadow) -> fc4_aura_shadow_stats {
     st
 }
 
-/// Everything a shadow cycle could change in the game.
+/// Everything the game holds that a shadow could change.
 fn fingerprint(g: &Game) -> String {
     let grids: Vec<(u64, Vec<f64>, i32, bool)> = g
         .grids
@@ -925,15 +932,108 @@ fn fingerprint(g: &Game) -> String {
         .map(|(t, gr)| (*t, gr.data.clone(), gr.refs, gr.shut))
         .collect();
     format!(
-        "{grids:?} {:?} {:?} {:?} {:?} {:?} {:?}",
+        "{grids:?} {:?} {:?} {:?} {:?} {:?} {:?} {}",
         g.agents.borrow(),
         g.subs.borrow(),
         g.posts.borrow(),
         g.history.borrow(),
         g.strikes.borrow(),
-        g.disasters.borrow()
+        g.disasters.borrow(),
+        g.iterators.get()
     )
 }
+
+const FEB_2000: i32 = 2_451_576; // 2000-02-01
+
+/// The plugin's part (FC4AuraShadow.cpp): one delivery to the original with
+/// its state read before and after; on a move, the shadow's step with the
+/// original's work and transient grids; at a return to 0, its record and
+/// the cycle comparison.
+struct Follower {
+    s: *mut fc4_aura_shadow,
+    a: *mut fc4_aura,
+    julian: i32,
+    /// fc4_aura_shadow_step's results.
+    calls: Vec<i32>,
+    /// The cycles that ended: (result, lines).
+    cycles: Vec<(i32, Vec<String>)>,
+    /// Transient grids copied (fc4_aura_shadow_before_step).
+    copies: u32,
+}
+
+impl Follower {
+    fn new(s: *mut fc4_aura_shadow, a: *mut fc4_aura) -> Follower {
+        Follower {
+            s,
+            a,
+            julian: FEB_2000,
+            calls: Vec::new(),
+            cycles: Vec::new(),
+            copies: 0,
+        }
+    }
+
+    fn deliver(&mut self, g: &Game, msg_type: u32) {
+        let from = state_of(self.a).state;
+        let transient = unsafe { fc4_aura_grid(self.a, FC4_AURA_GRID_TRANSIENT) };
+        let copied = unsafe { fc4_aura_shadow_before_step(self.s, from, transient) };
+        if copied {
+            self.copies += 1;
+        }
+        assert!(message(self.a, msg_type, 5, 0));
+        let to = state_of(self.a).state;
+        if from == to {
+            return;
+        }
+        let step = fc4_aura_shadow_step_in {
+            struct_size: std::mem::size_of::<fc4_aura_shadow_step_in>() as u32,
+            from,
+            to,
+            julian: self.julian,
+            work_grid: g.grid_by_instance(grid_id::WORK, grid_id::WORK_TRACT_SIZE),
+        };
+        self.calls.push(unsafe { fc4_aura_shadow_step(self.s, &step) });
+        if to == 0 {
+            self.cycles.push(shadow_cycle(self.s, self.a, g, self.julian));
+        }
+    }
+
+    /// SimIdle until the original is in `state`.
+    fn until(&mut self, g: &Game, state: i32) {
+        for _ in 0..100 {
+            if state_of(self.a).state == state {
+                return;
+            }
+            self.deliver(g, msg::SIM_IDLE);
+        }
+        panic!("the original never reached state {state}");
+    }
+
+    /// SimIdle until a cycle ends: its result and line.
+    fn cycle(&mut self, g: &Game) -> (i32, String) {
+        let n = self.cycles.len();
+        for _ in 0..100 {
+            self.deliver(g, msg::SIM_IDLE);
+            if self.cycles.len() > n {
+                let (r, lines) = self.cycles.last().unwrap().clone();
+                assert_eq!(lines.len(), 1, "{lines:?}");
+                return (r, lines[0].clone());
+            }
+        }
+        panic!("no cycle ended");
+    }
+
+    /// The next month (SimNewMonth: 0 → 1).
+    fn month(&mut self, g: &Game) {
+        self.julian += 29;
+        self.deliver(g, msg::SIM_NEW_MONTH);
+    }
+}
+
+const CLEAN: &str = "tracts=64; base mismatches=0 max|d|=0; aura mismatches=0 max|d|=0; park map mismatches=0 \
+                     max|d|=0; landmark map mismatches=0 max|d|=0; transient mismatches=0 max|d|=0 (copied before \
+                     states 15 and 17: 2 times); work after states 5-13: 0,0,0,0,0,0,0,0,0; mayor rating orig/ours=5/5; \
+                     max orig/ours=5@(2,2)/5@(2,2); min orig/ours=5@(2,2)/5@(2,2); hotspots orig/ours=0/0 (same)";
 
 #[test]
 fn shadow_create_checks_its_arguments() {
@@ -958,112 +1058,348 @@ fn shadow_create_checks_its_arguments() {
             None,
             std::ptr::null_mut()
         ));
+        let step = fc4_aura_shadow_step_in {
+            struct_size: std::mem::size_of::<fc4_aura_shadow_step_in>() as u32,
+            from: 1,
+            to: 2,
+            ..Default::default()
+        };
+        assert_eq!(fc4_aura_shadow_step(n, &step), -1);
+        assert!(!fc4_aura_shadow_occupant(n, PARK, true));
+        assert!(!fc4_aura_shadow_before_step(n, 15, 1));
         let mut st = fc4_aura_shadow_stats::default();
         assert!(!fc4_aura_shadow_get_stats(n, &mut st));
         fc4_aura_shadow_destroy(n);
+
+        // A live shadow: no step without a simulator of ours, a NULL or
+        // short step block, a state outside 0..=17 or no move.
+        let s = shadow(&g);
+        assert_eq!(fc4_aura_shadow_step(s, &step), -1);
+        assert!(!fc4_aura_shadow_occupant(s, PARK, true));
+        let a = started(&g);
+        assert!(baseline(s, a, &g).0);
+        assert_eq!(fc4_aura_shadow_step(s, std::ptr::null()), -1);
+        let mut bad = step;
+        bad.struct_size = 16;
+        assert_eq!(fc4_aura_shadow_step(s, &bad), -1);
+        for (from, to) in [(1, 18), (-1, 2), (3, 3)] {
+            bad = step;
+            bad.from = from;
+            bad.to = to;
+            assert_eq!(fc4_aura_shadow_step(s, &bad), -1);
+        }
+        fc4_aura_shadow_destroy(s);
+        stop(a);
     }
 }
 
-/// The shadow of our own simulator as the "original": every cycle matches,
-/// and the shadow writes nothing to the game.
+/// Our own simulator as the "original": followed step by step from the
+/// city load, every cycle matches, and the shadow writes nothing to the
+/// game (a twin game without a shadow ends the same).
 #[test]
-fn shadow_of_an_identical_original_matches() {
+fn shadow_follows_an_identical_original_step_by_step() {
+    let twin = Game::new();
+    let b = started(&twin);
     let g = Game::new();
     let a = started(&g);
     let s = shadow(&g);
     let (ok, lines) = baseline(s, a, &g);
     assert!(ok, "{lines:?}");
-    assert!(lines[0].contains("base 0 of 64 tracts with data"), "{lines:?}");
-    for month in 0..3 {
+    assert!(
+        lines[0].contains(
+            "aura shadow: city load: ours starts from the original's record (Read, then Init: state 1): base 0 of \
+             64 tracts with data, transient 0 nonzero, 0 departments, 0 hotspots"
+        ),
+        "{lines:?}"
+    );
+    let mut f = Follower::new(s, a);
+    for month in 0..3u32 {
         if month > 0 {
-            assert!(message(a, msg::SIM_NEW_MONTH, 0, 0));
+            f.month(&g);
+            assert!(message(b, msg::SIM_NEW_MONTH, 0, 0));
         }
-        run_cycle(a);
-        let before = fingerprint(&g);
-        let (r, lines) = shadow_cycle(s, a, &g);
-        assert_eq!(fingerprint(&g), before, "the shadow wrote to the game");
-        assert_eq!(r, 0, "{lines:?}");
-        assert_eq!(lines.len(), 1);
-        let l = &lines[0];
-        assert!(l.starts_with("aura shadow 2000-02-01 cycle"), "{l}");
+        let (r, l) = f.cycle(&g);
+        run_cycle(b);
+        assert_eq!(r, 0, "{l}");
+        // The original starts in state 1 after the load; later cycles begin
+        // with the month's 0 → 1.
+        let moves = if month == 0 { 17 } else { 18 };
         assert!(
-            l.contains("tracts=64; base mismatches=0 max|d|=0; aura mismatches=0"),
+            l.contains(&format!(
+                "cycle {} (followed states 1-17 over 0 days: {moves} moves, 17 calls, 0 occupant messages): {CLEAN}",
+                month + 1
+            )),
             "{l}"
         );
-        assert!(l.contains("mayor rating orig/ours=5/5"), "{l}");
-        assert!(l.contains("max orig/ours=5@(2,2)/5@(2,2)"), "{l}");
-        assert!(l.contains("hotspots orig/ours=0/0 (same)"), "{l}");
-        assert!(l.contains("riot roll not compared"), "{l}");
+        assert!(
+            l.contains("; tax baseline: the first cycle after the load (as the original's); riot roll not compared"),
+            "{l}"
+        );
         assert!(
             l.contains("inputs not available (neutral): air pollution, water pollution"),
             "{l}"
         );
     }
+    assert!(f.cycles[0].1[0].starts_with("aura shadow 2000-02-01 cycle 1 "));
+    assert_eq!(f.calls.iter().filter(|&&c| c == 1).count(), 3 * 17);
+    assert_eq!(f.calls.iter().filter(|&&c| c == 0).count(), 2, "the months' 0 → 1");
+    assert_eq!(f.copies, 3 * 2, "before states 15 and 17");
     let st = shadow_stats(s);
-    assert_eq!((st.cycles, st.compared, st.clean, st.incomplete), (3, 3, 3, 0));
+    assert_eq!(
+        (st.cycles, st.compared, st.clean, st.incomplete, st.desynced),
+        (3, 3, 3, 0, 0)
+    );
     assert_eq!(st.tracts, 3 * 64);
     assert_eq!(st.last_mismatches, 0);
+    unsafe { fc4_aura_shadow_destroy(s) };
+    assert_eq!(fingerprint(&g), fingerprint(&twin), "the shadow wrote to the game");
+    stop(a);
+    stop(b);
+}
+
+/// §5.3 / §14.3: each of our states reads its inputs right after the
+/// original's state read them, so inputs that change later in the cycle do
+/// not show (a shadow run at the end message would read the new values).
+#[test]
+fn shadow_reads_each_input_when_the_original_does() {
+    let g = Game::new();
+    let a = started(&g);
+    let s = shadow(&g);
+    assert!(baseline(s, a, &g).0);
+    let mut f = Follower::new(s, a);
+    // A park, so that state 2 reads the Parks funding.
+    assert!(message(a, msg::OCCUPANT_INSERTED, 0, PARK));
+    assert!(unsafe { fc4_aura_shadow_occupant(s, PARK, true) });
+    // Parks funding after state 2, the crime grid after state 10, the R$
+    // population after state 15.
+    f.until(&g, 3);
+    g.funding.set(1.0);
+    f.until(&g, 11);
+    g.grids.borrow_mut().get_mut(&CRIME).unwrap().data.fill(250.0);
+    f.until(&g, 16);
+    g.grids.borrow_mut().get_mut(&POP[0]).unwrap().data[0] = 0.0;
+    let (r, l) = f.cycle(&g);
+    assert_eq!(r, 0, "{l}");
+    assert!(l.contains("park map mismatches=0 max|d|=0;"), "{l}");
+    assert!(l.contains("work after states 5-13: 0,0,0,0,0,0,0,0,0;"), "{l}");
+    let park = unsafe { fc4_aura_grid(a, FC4_AURA_GRID_PARK) };
+    assert_eq!(g.value(park, 0, 0), 10.0, "20 at the 50 % read in state 2");
+    assert!(ratings_of(a).mayor_rating > 0, "the population read in state 15");
     unsafe { fc4_aura_shadow_destroy(s) };
     stop(a);
 }
 
-/// A base tract the pipeline did not produce, and a transient effect during
-/// the cycle (counted apart).
+/// §5.3 / §6.3: occupant messages reach ours when the original receives
+/// them; the park map follows at the next state 2 on both sides.
+#[test]
+fn shadow_follows_occupant_messages() {
+    let g = Game::new();
+    let a = started(&g);
+    let s = shadow(&g);
+    assert!(baseline(s, a, &g).0);
+    let mut f = Follower::new(s, a);
+    // Inserted before state 2 (the original is in state 1), to both.
+    assert!(message(a, msg::OCCUPANT_INSERTED, 0, PARK));
+    assert!(unsafe { fc4_aura_shadow_occupant(s, PARK, true) });
+    let (r, l) = f.cycle(&g);
+    assert_eq!(r, 0, "{l}");
+    assert!(l.contains("17 moves, 17 calls, 1 occupant messages)"), "{l}");
+    let park = |p: *const fc4_aura| {
+        let t = unsafe { fc4_aura_grid(p, FC4_AURA_GRID_PARK) };
+        g.value(t, 0, 0)
+    };
+    assert_eq!(park(a), 10.0, "20 at 50 % funding");
+    // Removed after state 2: both park maps keep the cone this cycle.
+    f.month(&g);
+    f.until(&g, 3);
+    assert!(message(a, msg::OCCUPANT_REMOVED, 0, PARK));
+    assert!(unsafe { fc4_aura_shadow_occupant(s, PARK, false) });
+    let (r, l) = f.cycle(&g);
+    assert_eq!(r, 0, "{l}");
+    assert_eq!(park(a), 10.0, "the map lags a cycle");
+    // Inserted again but NOT given to ours: the park map and the work grid
+    // from state 6 on differ.
+    f.month(&g);
+    assert!(message(a, msg::OCCUPANT_INSERTED, 0, PARK));
+    let (r, l) = f.cycle(&g);
+    assert!(r > 0, "{l}");
+    assert!(l.contains("park map mismatches="), "{l}");
+    assert!(!l.contains("park map mismatches=0 "), "{l}");
+    assert!(l.contains("work after states 5-13: 0,"), "{l}");
+    assert!(l.contains("park map (0,0) 10/0"), "{l}");
+    let st = shadow_stats(s);
+    assert_eq!((st.compared, st.clean), (3, 2));
+    // A message between a cycle end and the next SimNewMonth counts for the
+    // next cycle.
+    assert!(message(a, msg::OCCUPANT_REMOVED, 0, PARK));
+    assert!(unsafe { fc4_aura_shadow_occupant(s, PARK, false) });
+    f.month(&g);
+    let (_, l) = f.cycle(&g);
+    assert!(l.contains("18 moves, 17 calls, 1 occupant messages)"), "{l}");
+    unsafe { fc4_aura_shadow_destroy(s) };
+    stop(a);
+}
+
+/// The transient grid takes effects the shadow cannot see: it is copied
+/// before our states 15 and 17, so the aura matches.
+#[test]
+fn shadow_copies_the_original_transient_grid() {
+    let g = Game::new();
+    let a = started(&g);
+    let s = shadow(&g);
+    assert!(baseline(s, a, &g).0);
+    let mut f = Follower::new(s, a);
+    f.until(&g, 10);
+    unsafe { fc4_aura_add_transient_effect(a, 8.0, 8.0, 8.0, 20.0) };
+    let (r, l) = f.cycle(&g);
+    assert_eq!(r, 0, "{l}");
+    assert!(
+        l.contains("transient mismatches=0 max|d|=0 (copied before states 15 and 17: 2 times)"),
+        "{l}"
+    );
+    assert!(l.contains("mayor rating orig/ours=25/25"), "{l}");
+    unsafe { fc4_aura_shadow_destroy(s) };
+    stop(a);
+}
+
+/// Differences: a work cell after state 6 (the per-step diagnostic) and a
+/// base tract after state 14.
 #[test]
 fn shadow_reports_differences() {
     let g = Game::new();
     let a = started(&g);
     let s = shadow(&g);
     assert!(baseline(s, a, &g).0);
-    // A transient effect on the lot's tract during the cycle (after the baseline).
-    unsafe { fc4_aura_add_transient_effect(a, 8.0, 8.0, 8.0, 20.0) };
-    run_cycle(a);
-    // The original's base grid gains a tract our pipeline does not give.
+    let mut f = Follower::new(s, a);
+    let work = g.grid_by_instance(grid_id::WORK, grid_id::WORK_TRACT_SIZE);
+    f.until(&g, 7);
+    let w = g.value(work, 1, 1);
+    g.grids.borrow_mut().get_mut(&work).unwrap().data[CELLS as usize + 1] = w + 3.0;
+    f.until(&g, 15);
     let base = g.grid_by_instance(grid_id::BASE, 4);
     g.grids.borrow_mut().get_mut(&base).unwrap().data[5 * 8 + 5] = 50.0;
-    let (r, lines) = shadow_cycle(s, a, &g);
-    let l = &lines[0];
-    assert!(l.contains("base mismatches=1 max|d|=178"), "{l}");
+    let (r, l) = f.cycle(&g);
+    assert!(l.contains("work after states 5-13: 0,0,1,1,1,1,1,1,1;"), "{l}");
     assert!(
-        l.contains("aura mismatches=1 max|d|=20 (1 in the 1 tracts that got a transient effect"),
+        l.contains("base mismatches=1 max|d|=178; aura mismatches=1 max|d|=50;"),
         "{l}"
     );
-    assert!(l.contains("mayor rating orig/ours=25/5"), "{l}");
     assert!(
-        l.contains("first differing (x,z) orig/ours: base (5,5) 50/-128; aura (0,0) 25/5"),
+        l.contains("mayor rating orig/ours=5/5; max orig/ours=50@(22,22)/5@(2,2)"),
         "{l}"
     );
-    assert_eq!(r, 3);
+    assert!(
+        l.contains(&format!(
+            "first differing (x,z) orig/ours: base (5,5) 50/-128; aura (5,5) 50/0; work after state 7 (1,1) {}/{}",
+            w + 3.0,
+            w
+        )),
+        "{l}"
+    );
+    assert_eq!(r, 1 + 1 + 7 + 1, "base, aura, seven work grids, best");
     let st = shadow_stats(s);
-    assert_eq!((st.compared, st.clean, st.rating_mismatches), (1, 0, 1));
-    assert_eq!((st.base_mismatches, st.aura_mismatches, st.aura_transient), (1, 1, 1));
+    assert_eq!((st.compared, st.clean, st.rating_mismatches), (1, 0, 0));
+    assert_eq!((st.base_mismatches, st.aura_mismatches, st.aura_transient), (1, 1, 0));
+    unsafe { fc4_aura_shadow_destroy(s) };
+    stop(a);
+}
+
+/// A cycle joined in its middle is not compared (ours missed its first
+/// states); a delivery the shadow did not see is a desync.
+#[test]
+fn shadow_joined_mid_cycle_or_out_of_step() {
+    let g = Game::new();
+    let a = started(&g);
+    let s = shadow(&g);
+    assert!(baseline(s, a, &g).0);
+    // Deliveries the shadow did not see: the original runs to state 7.
+    while state_of(a).state != 7 {
+        message(a, msg::SIM_IDLE, 5, 0);
+    }
+    let mut f = Follower::new(s, a);
+    let (r, l) = f.cycle(&g);
+    assert_eq!(r, -1);
+    assert!(
+        l.contains(
+            "(followed states 7-17 over 0 days: 11 moves, 11 calls, 0 occupant messages): not compared (joined the \
+             cycle in state 7); ours restarts from this record"
+        ),
+        "{l}"
+    );
+    // The next cycle is compared. Ours ran no state 4 in the first cycle,
+    // so its tax baseline is taken in cycle 2.
+    f.month(&g);
+    let (r, l) = f.cycle(&g);
+    assert_eq!(r, 0, "{l}");
+    assert!(
+        l.contains(
+            "tax baseline: taken in cycle 2, after the original's (the first cycle after the load): tax-change \
+             effects can differ"
+        ),
+        "{l}"
+    );
+    // One delivery not seen in the middle: ours is moved to the original's
+    // state (a desync), and the cycle is compared but not clean.
+    f.month(&g);
+    f.until(&g, 8);
+    message(a, msg::SIM_IDLE, 5, 0);
+    let (r, l) = f.cycle(&g);
+    assert_eq!(r, 0, "{l}");
+    assert!(l.contains("; desync: 9->10 with ours in 8;"), "{l}");
+    assert!(l.contains("17 moves, 16 calls"), "{l}");
+    let st = shadow_stats(s);
+    assert_eq!(
+        (st.cycles, st.compared, st.clean, st.incomplete, st.desynced),
+        (3, 2, 1, 1, 1)
+    );
     unsafe { fc4_aura_shadow_destroy(s) };
     stop(a);
 }
 
 #[test]
-fn shadow_without_a_baseline_or_a_record_compares_nothing() {
+fn shadow_without_a_record_to_start_from_compares_nothing() {
     let g = Game::new();
     let a = started(&g);
     let s = shadow(&g);
-    run_cycle(a);
-    // No baseline yet: this cycle takes one.
-    let (r, lines) = shadow_cycle(s, a, &g);
+    let mut f = Follower::new(s, a);
+    // No baseline: no step runs; the cycle end starts ours from its record.
+    let (r, l) = f.cycle(&g);
     assert_eq!(r, -1);
-    assert!(lines[0].contains("baseline taken (no previous record)"), "{lines:?}");
-    // No capture: INCOMPLETE, and the baseline is dropped.
+    assert!(f.calls.iter().all(|&c| c == -1));
+    assert!(
+        l.contains(
+            "aura shadow 2000-02-01 cycle 1: not compared (no record to start from: no baseline at city load); \
+             ours starts from this record"
+        ),
+        "{l}"
+    );
+    f.month(&g);
+    let (r, l) = f.cycle(&g);
+    assert_eq!(r, 0, "{l}");
+    assert!(l.contains("tax baseline: taken in cycle 2"), "{l}");
+    // No capture: INCOMPLETE, and ours is dropped until the next record.
     let mut lines: Vec<String> = Vec::new();
     let r = unsafe {
         fc4_aura_shadow_cycle(
             s,
             std::ptr::null(),
-            2_451_576,
+            FEB_2000,
             Some(lines_sink),
             &mut lines as *mut _ as *mut c_void,
         )
     };
     assert_eq!(r, -1);
-    assert!(lines[0].contains("INCOMPLETE (no capture)"), "{lines:?}");
+    assert!(
+        lines[0].contains("cycle 3: INCOMPLETE (no capture); ours restarts from the next record"),
+        "{lines:?}"
+    );
+    f.month(&g);
+    let (r, l) = f.cycle(&g);
+    assert_eq!(r, -1);
+    assert!(
+        l.contains("cycle 4: not compared (no record to start from: the last record could not be read)"),
+        "{l}"
+    );
     // A record of the version alone does not parse.
     let bytes = 9u16.to_le_bytes();
     let c = fc4_aura_capture {
@@ -1075,13 +1411,16 @@ fn shadow_without_a_baseline_or_a_record_compares_nothing() {
         ref_count: 0,
     };
     let mut lines: Vec<String> = Vec::new();
-    let r = unsafe { fc4_aura_shadow_cycle(s, &c, 2_451_576, Some(lines_sink), &mut lines as *mut _ as *mut c_void) };
+    let r = unsafe { fc4_aura_shadow_cycle(s, &c, FEB_2000, Some(lines_sink), &mut lines as *mut _ as *mut c_void) };
     assert_eq!(r, -1);
-    assert!(lines[0].contains("INCOMPLETE"), "{lines:?}");
+    assert!(
+        lines[0].contains("INCOMPLETE (the original's record did not parse)"),
+        "{lines:?}"
+    );
     let st = shadow_stats(s);
     assert_eq!(
         (st.cycles, st.compared, st.incomplete, st.last_mismatches),
-        (3, 0, 3, -1)
+        (5, 1, 4, -1)
     );
     unsafe { fc4_aura_shadow_destroy(s) };
     stop(a);

@@ -360,7 +360,8 @@ if(FC4_IS_WIN32_X86)
     set_tests_properties(plugin_ini_enable_protection_test plugin_ini_protection_shadow_test
         PROPERTIES RUN_SERIAL TRUE)
     # Aura (aura.md): `enable = aura` (no city: neutral getters, lifecycle,
-    # status lines) and the aura grid shadow on a fake original (seam op 14).
+    # status lines) and the aura shadow following a fake original step by step
+    # (seam ops 14 and 35).
     add_test(NAME plugin_ini_enable_aura_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-aura)
     set_tests_properties(plugin_ini_enable_aura_test PROPERTIES RUN_SERIAL TRUE)

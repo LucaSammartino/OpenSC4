@@ -299,8 +299,8 @@ void Resolve() {
         return false;
     };
     CrimeShadowStartup(g_enabled[0], enabledKey("crime"));
-    // The aura grid shadow (FC4AuraShadow.h; it compares the original aura simulator).
-    AuraShadowStartup(enabledKey("aura"));
+    // The aura shadow (FC4AuraShadow.h; it follows the original aura simulator).
+    AuraShadowStartup(g_enabled[0], enabledKey("aura"));
     // The flora census shadow (FC4FloraShadow.h; it compares the original flora simulator).
     FloraShadowStartup(g_enabled[0], enabledKey("flora"));
     // The landfill shadow (FC4LandfillShadow.h; it compares the original landfill developer).

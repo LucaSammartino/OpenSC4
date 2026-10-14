@@ -68,8 +68,9 @@ extern "C" {
  * 23 = adds the power shadow (fc4_power_shadow);
  * 24 = adds the plumbing shadow (fc4_plumbing_shadow);
  * 25 = adds the land value and flammability shadows (fc4_landvalue_shadow / fc4_flammability_shadow);
- * 26 = adds the residential simulator (fc4_residential) and its shadow (fc4_residential_shadow). */
-#define FC4_ABI_VERSION 26u
+ * 26 = adds the residential simulator (fc4_residential) and its shadow (fc4_residential_shadow);
+ * 30 = the aura shadow follows the original step by step (fc4_aura_shadow_before_step / _step / _occupant). */
+#define FC4_ABI_VERSION 30u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -2867,15 +2868,21 @@ bool fc4_aura_read(fc4_aura* p, const fc4_istream* in);         /* §11.3; Read 
 
 /* ---- aura shadow (tooling; engine/capi/src/aura_shadow.rs) -----------------
  *
- * With the ORIGINAL aura simulator running: at its cycle-completed message
- * (0x2A09B21A, the end of state 17) the plugin captures its record (its own
- * Write into memory: primitives little-endian, references as u32 index + 1
- * (0 = null) then u32 class ID, each object listed once with its grid token)
- * and FreeCity4's cycle runs on it, from the previous record's base and
- * transient grids, reading every other input live through a read-only host
- * table (write callbacks NULL; grids: geometry and get only). Compared tract
- * by tract: base and aura grids (and park map, landmark map, transient), the
- * mayor rating, best / worst, hotspots. The riot roll is not compared. */
+ * With the ORIGINAL aura simulator running, FreeCity4's pipeline follows it
+ * step by step (aura.md §14.3). The plugin reads the original's state (s32
+ * at +0x70) before and after each SimIdle / SimNewDay / SimNewMonth delivery
+ * to its agent; when it moved, fc4_aura_shadow_step runs our steps from..to-1
+ * at once (a return to 0: to the end of our cycle), reading every input live
+ * through a read-only host table (write callbacks NULL; grids: geometry and
+ * get only). Occupant inserted / removed reach ours when the original
+ * receives them (fc4_aura_shadow_occupant). When the original's state
+ * returns to 0 the plugin captures its record (its own Write into memory:
+ * primitives little-endian, references as u32 index + 1 (0 = null) then u32
+ * class ID, each object listed once with its grid token) and
+ * fc4_aura_shadow_cycle compares it tract by tract with ours (base, aura,
+ * park map, landmark map, transient; the work grid after each step 5..13;
+ * mayor rating, best / worst, hotspots); ours then restarts from the record.
+ * The riot roll is not compared. */
 typedef struct fc4_aura_shadow fc4_aura_shadow;
 
 typedef struct fc4_aura_capture_ref {
@@ -2896,22 +2903,45 @@ typedef struct fc4_aura_capture {
 typedef struct fc4_aura_shadow_stats {
     uint32_t struct_size;
     uint32_t cycles, compared, clean, incomplete;
-    int32_t last_mismatches; /* base + aura + rating differences of the last cycle; -1 = not compared */
+    int32_t last_mismatches; /* fc4_aura_shadow_cycle's result for the last cycle; -1 = not compared */
     uint32_t rating_mismatches;
-    uint32_t reserved;
+    uint32_t desynced; /* compared cycles in which our state did not follow the original's */
     uint64_t tracts, base_mismatches, aura_mismatches;
-    uint64_t aura_transient; /* aura differences in tracts that got a transient effect */
+    uint64_t aura_transient; /* aura differences in tracts whose final transient differs */
 } fc4_aura_shadow_stats;
+
+/* One move of the original's state, in one delivery to its agent (ABI 30). */
+typedef struct fc4_aura_shadow_step_in {
+    uint32_t struct_size;
+    int32_t from, to;   /* the original's state before / after (0..17) */
+    int32_t julian;     /* the current date */
+    uint64_t work_grid; /* the original's work grid (+0x44) as cISC4SimGrid<int8>, borrowed; 0 = not compared */
+} fc4_aura_shadow_step_in;
 
 /* `cells_x` / `cells_z`: the city's cell counts; `max_cells`: differing tracts
  * listed per grid and line (0 = 4, at most 64). */
 fc4_aura_shadow* fc4_aura_shadow_create(const fc4_aura_host* host, int32_t cells_x, int32_t cells_z,
                                         uint32_t max_cells);
 void fc4_aura_shadow_destroy(fc4_aura_shadow* s);
-/* City load (PostCityInit): the record becomes the first baseline. One line. */
+/* City load (PostCityInit): ours starts from the record (Read, then Init:
+ * state 1, as the original's), with a fresh tax baseline. One line. */
 bool fc4_aura_shadow_baseline(fc4_aura_shadow* s, const fc4_aura_capture* capture, fc4_bytes_sink sink, void* ctx);
-/* A completed original cycle: compare, one line; the record becomes the next
- * baseline. Returns the differences, -1 when nothing was compared. */
+/* ABI 30. Before a delivery that finds the original in `state`: for 15 and
+ * 17 (they read the transient grid; 17 decays it) the original's transient
+ * grid (GetTransientAuraGrid, borrowed) is copied into ours. True when copied. */
+bool fc4_aura_shadow_before_step(fc4_aura_shadow* s, int32_t state, uint64_t transient_grid);
+/* ABI 30. The original's state moved: our steps from..to-1 run now (to 0: to
+ * the end of our cycle), and our work grid is compared after a step 5..13.
+ * Returns our pipeline calls, -1 when nothing ran. */
+int32_t fc4_aura_shadow_step(fc4_aura_shadow* s, const fc4_aura_shadow_step_in* step);
+/* ABI 30. The original received occupant inserted (`inserted`) or removed:
+ * ours receives the same. False when there is no simulator of ours yet. */
+bool fc4_aura_shadow_occupant(fc4_aura_shadow* s, uint64_t occupant, bool inserted);
+/* The original's state returned to 0: the cycle followed is compared with
+ * its record, one line; ours then restarts from the record (state 0).
+ * Returns the differences (base + aura + park map + landmark map + transient
+ * tracts, work cells, one each for the rating, best / worst and hotspots),
+ * -1 when nothing was compared. */
 int32_t fc4_aura_shadow_cycle(fc4_aura_shadow* s, const fc4_aura_capture* capture, int32_t julian,
                               fc4_bytes_sink sink, void* ctx);
 bool fc4_aura_shadow_get_stats(fc4_aura_shadow* s, fc4_aura_shadow_stats* out);
@@ -3981,6 +4011,7 @@ static_assert(sizeof(fc4_aura_host) == (sizeof(void*) == 4 ? 176 : 352), "fc4_au
 static_assert(sizeof(fc4_aura_capture_ref) == 16, "fc4_aura_capture_ref layout");
 static_assert(sizeof(fc4_aura_capture) == (sizeof(void*) == 4 ? 24 : 40), "fc4_aura_capture layout");
 static_assert(sizeof(fc4_aura_shadow_stats) == 64, "fc4_aura_shadow_stats layout");
+static_assert(sizeof(fc4_aura_shadow_step_in) == 24, "fc4_aura_shadow_step_in layout");
 static_assert(sizeof(fc4_flora_record) == 360, "fc4_flora_record layout");
 static_assert(sizeof(fc4_flora_occupant) == 16, "fc4_flora_occupant layout");
 static_assert(sizeof(fc4_flora_param) == 8, "fc4_flora_param layout");

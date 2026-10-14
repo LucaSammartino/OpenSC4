@@ -59,12 +59,10 @@
 //         SimNewDay up to pipeline state 4) to a fake "original" crime
 //         simulator; returns the month's mismatch count, -1 (not taken) or
 //         -2 (delivered, nothing compared).
-//   op 14 kFC4SeamAuraShadow       a = const FC4AuraShadowTestInput*
-//         (FC4AuraShadow.h): the aura shadow on a fake city whose aura
-//         simulator is the "original": the city-load baseline or one
-//         cycle-completed comparison; returns the cycle's difference count
-//         (a baseline: 1 taken, 0 not), -1 (not run) or -2 (ran, nothing
-//         compared).
+//   op 14 kFC4SeamAuraShadow       a = const FC4AuraShadowDeliverInput*
+//         (FC4AuraShadow.h): the aura shadow's city-load start on a fake city
+//         whose aura simulator is the "original"; returns 1 (ours started
+//         from its record), 0 (not) or -1 (not run).
 //   op 16 kFC4SeamPollutionShadow  a = const FC4PollutionShadowTestInput*
 //         (FC4PollutionShadow.h): one pollution-shadow delivery (SimNewDay or
 //         SimNewMonth) to a fake "original" pollution simulator; returns the
@@ -136,6 +134,13 @@
 //         with one reference for the caller; returns 1, or -1.
 //   op 31 kFC4SeamX87Check         the x87 leftover guard (FC4Fpu.h) at the
 //         site "test seam"; returns the occupied x87 registers it found.
+//   op 35 kFC4SeamAuraShadowDeliver a = const FC4AuraShadowDeliverInput*
+//         (FC4AuraShadow.h): one delivery to a fake original aura simulator
+//         through the aura shadow (its state read before and after, our
+//         steps), or an occupant message to the shadow's subscription;
+//         returns the original's state after the delivery, -1 (not taken,
+//         delivered by the seam), -2 (taken, state unreadable after), or for
+//         an occupant message 1 (ours received it) / 0.
 #pragma once
 
 #include <cstdint>
@@ -186,6 +191,7 @@ enum : uint32_t {
     kFC4SeamPipeBurst = 29,
     kFC4SeamVariant = 30,
     kFC4SeamX87Check = 31,
+    kFC4SeamAuraShadowDeliver = 35,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

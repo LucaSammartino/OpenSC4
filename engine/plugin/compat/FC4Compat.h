@@ -55,6 +55,10 @@ struct ExecutableVersion {
     uint32_t fpuSetPrecisionVA;
     // Direct-call targets, indexed by Direct (docs/abi/direct-calls.md).
     uint32_t directVA[static_cast<unsigned>(Direct::Count)];
+    // The original aura simulator's cISC4AuraSimulator vtable (aura.md
+    // §12.1): the aura shadow reads the object's pipeline state (§14.3) only
+    // when its vtable is this one.
+    uint32_t auraSimulatorVtableVA;
 };
 
 // The running executable if it is a table entry loaded at its preferred base
@@ -91,6 +95,12 @@ const void* GameStringVtable();
 // executable is not identified or the address is not executable code inside
 // its image. Never guessed.
 uintptr_t DirectCall(Direct which);
+
+// The original aura simulator's cISC4AuraSimulator vtable (aura.md §12.1),
+// or nullptr (logged once) if the executable is not identified or the
+// address is not committed data inside its image whose first entry is code
+// inside the image. For the aura shadow's raw state read (§14.3).
+const void* AuraSimulatorVtable();
 
 // The compatibility table.
 const ExecutableVersion* SupportedVersions(int* count);
