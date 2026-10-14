@@ -1199,6 +1199,20 @@ What `ReloadCity(h)` (`0x004A5030`) does:
 
 So a caller must not use `h` after a failed reload, and must not test the result. The original `Init` does neither.
 
+**NG31. Status reports from a deal with no object.** In the original every deal is an object, so every report of
+statuses 0–7 carries it (the message's IGZUnknown, AddRef'd by the message). Only status 8 has none: the simulator
+(§7.2), the plumbing simulator and the pollution simulator post it with no deal. Three subscribers read the deal:
+
+| Subscriber | Statuses | What it does with the deal |
+|---|---|---|
+| power simulator | 0 | if the deal's type is `0x4773FFE0`/`E1` (power), it schedules a power recheck |
+| plumbing simulator | 0 | the same for `0x4773FFE2`/`E3` (water) |
+| utility advisor | 3, 4, 5, 6 | it creates an advice item and gives it the deal (the message's IGZUnknown), for the advice text |
+
+With a null deal, power and plumbing skip the recheck after a deal change, and the advisor's advice gets no deal.
+*[choice]* Create the deal's object (the wrapper) when the report is posted, and put it in the message for statuses
+0–7; the message's reference keeps it alive until delivery (NG5). Status 8 stays without a deal.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).

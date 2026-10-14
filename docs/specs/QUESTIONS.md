@@ -2664,7 +2664,10 @@ answer is in brackets.
   adjacent city with no gate and no identity check (the check always passes, so it is harmless; a closed gate is not).
   `ReloadCity`'s result is garbage, and after a failed read the city is gone and the holder pointer dangles. `docs/abi`
   rows for `cISC4Region` are in the re-answers8 report.
-- **NG31:** Status reports from deals with no host object. [left open]
+- ~~**NG31:** Status reports from deals with no host object. [left open]~~
+  **ANSWERED 2026-10-14** from the exe (subscribers of `0xEA418D8F`: power, plumbing, utility advisor; status-8 posters)
+  and written into neighbors §15.4. Statuses 0–7 always carry the deal; power and plumbing read it on 0, the advisor on
+  3–6. Recommend creating the wrapper when posting; only status 8 is posted without a deal.
 - **NG32:** The shadow's connection-state comparison. [the original's after-state against our before-state]
 - **NG33:** A message from another thread that cannot get the lock. [dropped, returns true]
 - **NG34:** A null connection reference in a save. [skipped]
