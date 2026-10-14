@@ -2626,7 +2626,10 @@ answer is in brackets.
 - ~~**NG20:** The `GetSourceCells` rectangle. [(x, z, x, z)]~~
   **ANSWERED 2026-10-14** from the exe (`0x006D4820`) and noted in neighbors §15.4. `(x, z, x, z)` with the connection
   cell (outside the city); the bracket matches.
-- **NG21:** The return of `UpdateTrafficVolume`. [true]
+- ~~**NG21:** The return of `UpdateTrafficVolume`. [true]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006D4C10`; caller `0x0071E28E`) and written into neighbors §15.4. `AL` is 0,
+  3 or undefined, and the only caller on a connection ignores it. "True" is safe; the bracket stands. `docs/abi`: slot
+  4 of `cISC4TrafficSource` on connections is not a clean bool.
 - **NG22:** `cISCProperty` Write/Read. [through the segment stream]
 - **NG23:** The size query of `GetPropertyData`. [left open]
 - **NG24:** Regional cities held across calls. [AddRef until the outermost exit]

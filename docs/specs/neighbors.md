@@ -1085,6 +1085,12 @@ something else puts a trip of another type on a connection. *[choice]* Clear the
 `(x, z, x, z)`. The cell is the connection cell itself, outside the city (for example `(−1, 5)`), not the inner cell.
 The bracket matches.
 
+**NG21. The return of `UpdateTrafficVolume`.** The original's `AL` is not a clean bool: 0 when the flag of NG8 was
+already clear, 3 (the loop counter) after a sync, and whatever the list clear left behind when there was no other
+side (NG19). The one caller that reaches a connection's slot 4, the ConfirmTrips step of the traffic simulator
+(`0x0071E28E`), ignores it. `SetupPathFinderForLot` calls slot 4 only on lots, and looks at the trip list rather
+than the result. So "true" is safe; the bracket stands.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
