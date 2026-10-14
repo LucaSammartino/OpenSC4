@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "reh11_slot_abi",
+  "spec": ["REH 7", "REH 11.24", "residential 10.1"],
+  "description": "REH test 24 (the rows FreeCity4's export must match): slot 34 GetGlobalLE returns in AL and pops nothing; slots 10-13 return a float through the hidden pointer (4 bytes popped); slot 14 returns the number of buildings in EAX (8 popped); slot 56 pops 4 (AL) and slot 57 pops 8 (EAX).",
+  "steps": [
+    {"op": "residential_call", "method": "slot", "args": [34], "expect": ["GetGlobalLE", 0, "AL"]},
+    {"op": "residential_call", "method": "slot", "args": [10], "expect": ["ChanceOfSchoolStrike", 4, "hidden"]},
+    {"op": "residential_call", "method": "slot", "args": [11], "expect": ["ChanceOfHealthStrike", 4, "hidden"]},
+    {"op": "residential_call", "method": "slot", "args": [12], "expect": ["GetSchoolSystemRating", 4, "hidden"]},
+    {"op": "residential_call", "method": "slot", "args": [13], "expect": ["GetHealthSystemRating", 4, "hidden"]},
+    {"op": "residential_call", "method": "slot", "args": [14], "expect": ["GetSchoolSystemTotals", 8, "EAX"]},
+    {"op": "residential_call", "method": "slot", "args": [56], "expect": ["GetAutoBudget", 4, "AL"]},
+    {"op": "residential_call", "method": "slot", "args": [57], "expect": ["SetAutoBudget", 8, "EAX"]},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_tract", "x": 0, "z": 0, "steady": [1, 0, 0], "hq": [100, 0, 0]},
+    {"op": "residential_set", "state": {"population": 1}},
+    {"op": "residential_call", "method": "get_global_le", "expect": 75}
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "residential_building_registration",
+  "spec": ["REH 4.1"],
+  "description": "REH 4.1: DoBuildingChanged, reached by OccupantInserted / OccupantRemoved. Schools 5 and 6 have a staff item (department 0x77 -> token 950, line 0 = 'use the building type', index 3) and a vehicle item (department 0x78 -> 951). Added: the line becomes the building type 0x1234 (ChangeBudgetItemLine); the line item is created with display flag 2 when missing, the building is added as locally funded for the staff purpose, the line item's count rises, the vehicle purpose is added as locally funded; the served population becomes 0xFFFFFFFF, grade and staff ratio 1.0, effective capacity the capacity, and the building joins the pending school list with one reference (dirty). Removed: the reverse, and a count reaching 0 removes the line item. A department the budget simulator does not know (0x99) aborts the call after the line change.",
+  "steps": [
+    {"op": "residential_env", "groups": {"5": ["0x150F"], "6": ["0x150F"], "7": []}, "building_types": {"5": "0x1234", "6": "0x1234"}, "props": {"5": {"0x8922041B": {"u32": 1500}}, "6": {"0x8922041B": {"u32": 1500}}}, "departments": {"0x77": {"token": 950}, "0x78": {"token": 951}}, "items": {"5": {"school_staff": {"department": "0x77", "index": 3}, "school_vehicle": {"department": "0x78", "line": 9, "index": 4}}, "6": {"school_staff": {"department": "0x77", "index": 3}, "school_vehicle": {"department": "0x78", "line": 9, "index": 4}}, "7": {"school_staff": {"department": "0x99", "index": 3}}}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_set", "state": {"dirty": false}},
+    {"op": "residential_clear_events"},
+    {"op": "residential_message", "type": "OccupantInserted", "occupant": 5, "expect": true},
+    {"op": "residential_expect_events", "events": [{"event": "change_line", "occupant": 5, "index": 3, "line": "0x1234"}, {"event": "create_line", "department": 950, "line": "0x1234", "local": true, "token": 700}, {"event": "display_flag", "line_item": 700, "flag": 2, "on": true}, {"event": "add_local", "department": 950, "occupant": 5, "purpose": "0xEA5654B6"}, {"event": "line_count", "line_item": 700, "count": 1}, {"event": "add_local", "department": 951, "occupant": 5, "purpose": "0x4A5654BA"}, {"event": "add_ref", "id": 5}]},
+    {"op": "residential_expect", "state": {"dirty": true, "lists": {"pending_school": [5]}}},
+    {"op": "residential_expect_props", "occupant": 5, "props": {"0x09220161": "0xFFFFFFFF", "0xE9244B2E": 1500, "0x292453C5": 1.0, "0x2A976C20": 1.0}},
+    {"op": "residential_message", "type": "OccupantInserted", "occupant": 6, "expect": true},
+    {"op": "residential_expect_events", "events": [{"event": "change_line", "occupant": 6, "index": 3, "line": "0x1234"}, {"event": "add_local", "department": 950, "occupant": 6, "purpose": "0xEA5654B6"}, {"event": "line_count", "line_item": 700, "count": 2}, {"event": "add_local", "department": 951, "occupant": 6, "purpose": "0x4A5654BA"}, {"event": "add_ref", "id": 6}]},
+    {"op": "residential_expect_props", "locally_funded": [[950, 5, "0xEA5654B6"], [950, 6, "0xEA5654B6"], [951, 5, "0x4A5654BA"], [951, 6, "0x4A5654BA"]]},
+    {"op": "residential_message", "type": "OccupantRemoved", "occupant": 5, "expect": true},
+    {"op": "residential_expect_events", "events": [{"event": "remove_local", "department": 950, "occupant": 5, "purpose": "0xEA5654B6"}, {"event": "line_count", "line_item": 700, "count": 1}, {"event": "remove_local", "department": 951, "occupant": 5, "purpose": "0x4A5654BA"}, {"event": "release", "id": 5}]},
+    {"op": "residential_message", "type": "OccupantRemoved", "occupant": 6, "expect": true},
+    {"op": "residential_expect_events", "events": [{"event": "remove_local", "department": 950, "occupant": 6, "purpose": "0xEA5654B6"}, {"event": "line_count", "line_item": 700, "count": 0}, {"event": "remove_line", "department": 950, "line": "0x1234"}, {"event": "remove_local", "department": 951, "occupant": 6, "purpose": "0x4A5654BA"}, {"event": "release", "id": 6}]},
+    {"op": "residential_expect_props", "locally_funded": [], "line_counts": {"700": 0}},
+    {"op": "residential_expect_refs", "refs": {"5": 0, "6": 0}},
+    {"op": "residential_expect", "state": {"lists": {"pending_school": []}}},
+    {"op": "residential_message", "type": "OccupantInserted", "occupant": 7, "expect": true},
+    {"op": "residential_expect_events", "events": [{"event": "change_line", "occupant": 7, "index": 3, "line": 0}]},
+    {"op": "residential_expect", "state": {"lists": {"pending_school": []}}},
+    {"op": "residential_expect_refs", "refs": {"7": 0}}
+  ]
+}
