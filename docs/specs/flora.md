@@ -910,7 +910,9 @@ A segment that does not answer the IID, or a key that does not open, gives "not 
   do not open are skipped. Each occupant record is closed only after all of that (AQ5): its helper is destroyed at the
   end of the iteration (`0x006B073D`), so the record is still open during `Init`, `InsertOccupant` and `Release`.
   Neither touches the segment, so the order cannot be seen. The count record, by contrast, is closed right after its
-  `GetUint32` (`0x006B06A6`). There is no upper bound on `count` (a damaged count means as many open attempts).
+  `GetUint32` (`0x006B06A6`). There is no upper bound on `count` (`0x006B06C6`–`0x006B0749`: a damaged count means as
+  many open attempts). A bound is the implementer's choice (AQ8; FreeCity4 stops at `MAX_OBLITERATED` = 2^24 attempts)
+  and differs from the original only for a count above it.
 
 Example: three flora occupants → count record `00 00 03 00 00 00`; records `i` = 0, 1, 2, each `00 00` followed by
 that occupant's version-3 record.

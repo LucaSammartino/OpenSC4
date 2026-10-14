@@ -2724,8 +2724,10 @@ shadow's riot roll (wall-clock RNG). The current answer is in brackets.
   clamped: the listing keeps each cell's low byte and never tests it against 192, so an edge more than a city width
   outside the city writes past the index or is listed nowhere. The bracket matches; for such boxes clamping is a
   *[choice]*, recommended.
-- **AQ8:** A bound on the obliteration open attempts. [choice: at most `MAX_OBLITERATED` = 2^24; the original has no
-  bound]
+- ~~**AQ8:** A bound on the obliteration open attempts. [choice: at most `MAX_OBLITERATED` = 2^24; the original has no
+  bound]~~
+  **ANSWERED 2026-10-14**: no original behaviour (the original makes `count` open attempts with no bound,
+  `0x006B06C6`–`0x006B0749`); the implementer's choice stands. Noted in flora §10.3.
 - **AQ9:** Flora shadow: which box gives the 64 m listing? [choice: the census box taken before the pass]
 - **AQ10:** Plugin: `OpenOStream`/`OpenIStream` returns false but writes a stream pointer. [treated as not open;
   nothing released]
