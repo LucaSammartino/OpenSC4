@@ -357,9 +357,15 @@ So a park whose insert message is delivered after state 2 (or 3) of a cycle reac
 has the worked example: the landfill tiles created on the 1st are in the maps of the following cycle.
 
 ### 6.4 State 4 — prepare
-Fill the work grid with −128. Get a fresh safe lot iterator from the lot manager. If `lotManager.GetLotCount() ==
-0` → state 0: the cycle ends **without** updating the rating or posting the end message *[quirk]*. Otherwise run
+Fill the work grid with −128. If the object has no lot iterator yet, get one from the lot manager (slot 15) and keep
+it; otherwise **rewind** the one it has to the first lot (`0x0068F32F`–`0x0068F353`). If `lotManager.GetLotCount()
+== 0` → state 0: the cycle ends **without** updating the rating or posting the end message *[quirk]*. Otherwise run
 the tax-change computation (§6.5.2) and → 5.
+
+*[compat]* (corrected: the iterator is not fresh each cycle.) One iterator serves every cycle of the object's life.
+It stays registered with the lot manager between cycles, including after an empty-city cycle, and is released only
+by `Shutdown` (§4.2). Nothing observable depends on this: a registered iterator only follows lot removals, and state
+4 rewinds it before use.
 
 ### 6.5 State 5 — residential lots (time-sliced)
 

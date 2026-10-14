@@ -971,7 +971,12 @@ each cycle-completed message `0x2A09B21A`). The glue's current answer is in brac
   (`0x0080DD70`, epilogue `0x0080DEA1`–`0x0080DEAC`) and written into aura.md §13 (SDK errors). **The bracket is
   right.** The sum is an int32 in EAX, the callee pops 8 bytes, and EDX is not set for the caller (a leftover), so an
   int64 declaration reads a garbage high half. docs/abi/interfaces.tsv already has pops 8 and EAX.
-- **AU9:** a cycle in an empty city keeps the lot iterator open until the next state 4. Intended? [as the spec]
+- ~~**AU9:** a cycle in an empty city keeps the lot iterator open until the next state 4. Intended? [as the spec]~~
+  **ANSWERED 2026-10-14** from the exe (state 4 `0x0068F325`–`0x0068F379`, iterator `0x0068F32F`–`0x0068F353`) and
+  written into aura.md §6.4 (corrected). **The spec was wrong about "fresh", and nothing observable depends on it.**
+  The original gets one iterator at the first state 4 of the object's life, rewinds it at every later state 4, and
+  releases it only in `Shutdown`. So it stays open between all cycles, not only after an empty-city cycle. The
+  glue's choice stands (with the cell walk of AU5 it needs no iterator at all).
 - **AU10:** with no land value simulator the land value type is 0; the spec is silent. [0]
 - **AU11 — §16 Q7:** the base-aura process table is not written. [not written]
 - **AU12:** the CPU-cycle limit timer runs on `QueryPerformanceCounter` instead of the TSC. Acceptable? [QPC]
