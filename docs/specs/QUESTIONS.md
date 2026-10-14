@@ -2205,8 +2205,12 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   (byte `+0xA0`; constructor `0x007005B2`; the setters listed in REH §2) and written into REH §2 (the dirty-flag row).
   **No original behaviour; the implementer's choice stands.** No interface slot returns the flag and nothing in the
   class reads it; it shows only in the save, as `dirty ∨ state ≠ 10`.
-- **RG15:** a building's identity is its `AsOccupant()` pointer, used for the lists, the strike message's void1
-  and IGZUnknown, and record references. Right? [yes]
+- ~~**RG15:** a building's identity is its `AsOccupant()` pointer, used for the lists, the strike message's void1 and
+  IGZUnknown, and record references. Right? [yes]~~ **ANSWERED 2026-10-14** from the exe (`DoBuildingChanged` list
+  inserts and removals; `BeginStrike` `0x006F84C0`, void1 `+0x30` and IGZUnknown `+0x84`; `EndStrike` `0x006F8570`)
+  and written into REH §4.1 (building identity) and §5. **Confirmed; the bracket matches.** The lists hold
+  `AsOccupant()` pointers and removal compares `AsOccupant()`. The strike-begin message carries that list pointer as
+  both void1 and IGZUnknown, with data2 = 1; the strike-end message sets only data2 = 0 and data3 = the length.
 - **RG16:** per-building properties: scalars of their type (bool, u32, f32), or arrays? [scalars]
 - ~~**RG17:** slots 47, 49 and 61 append to the caller's list with the game allocator. Is that so for slot 61?
   [assumed]~~ **ANSWERED 2026-10-14** from the exe (slot 61 `0x006FAEC0`: allocations at `0x006FAF30` and

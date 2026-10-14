@@ -211,6 +211,12 @@ Names come from the Lua constants and scripts where they exist. The others are u
 `GetSchoolBuildings` / `GetHospitalBuildings(out, groups)` do this and then **always append the pending list**.
 **Counts** (slots 46/48) = Σ list sizes + pending list size.
 
+**Building identity** *[compat]* (RG15). Every list (pending, group, health-affecting) stores the pointer returned
+by the building's `AsOccupant()` (building slot 3), and removal finds the entry by comparing with
+`AsOccupant()` of the removed building. That same list pointer is what `BeginStrike` puts in the strike message
+(void1 and IGZUnknown, §5), what `GetBuildings` hands out, and the object each saved list reference names. So the
+`cISC4Occupant` pointer is the building's identity throughout this class.
+
 ### 4.2 Departments and funding
 
 **Departments** (created in `Init` when missing, budget group `0x6A357B7F`):
