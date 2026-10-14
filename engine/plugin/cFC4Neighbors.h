@@ -432,8 +432,8 @@ public:
     void FindDealsWithCity(int32_t dealType, cISC4RegionalCity* city, SC4List<cISC4NeighborDeal*>& deals) override;
     void FindDealsOfType(int32_t dealType, SC4List<cISC4NeighborDeal*>& deals) override;
     void MarkDealsDirty() override;
-    int32_t GetTotalMonthlyNeighborDealIncome() override;
-    int32_t GetTotalMonthlyNeighborDealExpense() override;
+    int64_t GetTotalMonthlyNeighborDealIncome() override;   // NG11: edx:eax
+    int64_t GetTotalMonthlyNeighborDealExpense() override;  // NG11: edx:eax
     void UpdateCommodityStats(cISC4City* city) override;
     double GetDealCost(int32_t dealType, double amount, cISC4RegionalCity const* city) override;
     double GetDealMaxAmount(int32_t dealType, cISC4RegionalCity const* city) override;

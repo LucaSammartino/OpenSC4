@@ -7393,7 +7393,7 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
             sim->SetUIDisableFlag(false);
             (void)sim->GetDealCost(1, 10.0, nullptr);
             // Getters from another thread (the lock is free: answered by the core).
-            int32_t income = -1;
+            int64_t income = -1;  // NG11: slots 32/33 return an int64 in EDX:EAX
             bool has = false;
             std::thread t([&] {
                 income = sim->GetTotalMonthlyNeighborDealIncome();

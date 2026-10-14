@@ -204,13 +204,13 @@ int64_t OrdinanceExpense(void*) {
 
 int64_t NeighborIncome(void*) {
     cISC4City* c = City();
-    cFC4ISC4NeighborsSimulator* n = c ? fc4::AsGame(c->GetNeighborsSimulator()) : nullptr;  // 32-bit returns (docs/abi)
+    cFC4ISC4NeighborsSimulator* n = c ? fc4::AsGame(c->GetNeighborsSimulator()) : nullptr;  // int64, edx:eax (NG11)
     return n ? n->GetTotalMonthlyNeighborDealIncome() : 0;
 }
 
 int64_t NeighborExpense(void*) {
     cISC4City* c = City();
-    cFC4ISC4NeighborsSimulator* n = c ? fc4::AsGame(c->GetNeighborsSimulator()) : nullptr;  // 32-bit returns (docs/abi)
+    cFC4ISC4NeighborsSimulator* n = c ? fc4::AsGame(c->GetNeighborsSimulator()) : nullptr;  // int64, edx:eax (NG11)
     return n ? n->GetTotalMonthlyNeighborDealExpense() : 0;
 }
 

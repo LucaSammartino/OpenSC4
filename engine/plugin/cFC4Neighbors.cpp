@@ -2228,17 +2228,17 @@ void cFC4NeighborsSimulator::MarkDealsDirty() {
     fc4_neighbors_mark_deals_dirty(core_);
 }
 
-// Slots 32/33 [choice, spec question]: the low 32 bits in EAX.
-int32_t cFC4NeighborsSimulator::GetTotalMonthlyNeighborDealIncome() {
+// Slots 32/33 (§10.1; NG11, §15.4): the full signed 64-bit sum in EDX:EAX.
+// Every game caller (finance advisor, budget simulator, budget windows) reads
+// both halves; a 32-bit return would leave garbage in EDX for them.
+int64_t cFC4NeighborsSimulator::GetTotalMonthlyNeighborDealIncome() {
     Section sec(false);
-    const int64_t v = sec.ok() ? fc4_neighbors_total_income(core_) : snap_.income.load();
-    return static_cast<int32_t>(static_cast<uint32_t>(static_cast<uint64_t>(v)));
+    return sec.ok() ? fc4_neighbors_total_income(core_) : snap_.income.load();
 }
 
-int32_t cFC4NeighborsSimulator::GetTotalMonthlyNeighborDealExpense() {
+int64_t cFC4NeighborsSimulator::GetTotalMonthlyNeighborDealExpense() {
     Section sec(false);
-    const int64_t v = sec.ok() ? fc4_neighbors_total_expense(core_) : snap_.expense.load();
-    return static_cast<int32_t>(static_cast<uint32_t>(static_cast<uint64_t>(v)));
+    return sec.ok() ? fc4_neighbors_total_expense(core_) : snap_.expense.load();
 }
 
 // Slot 34 (§8.2): keyed on the city object.

@@ -408,14 +408,13 @@ void AfterStep(void*) {
         if (i < sd.size()) CompareDeal(df, i, od[i], sd[i]);
     }
 
-    // Totals (slots 32 / 33: the low 32 bits).
-    const int32_t oi = orig->GetTotalMonthlyNeighborDealIncome();
-    const int32_t oe = orig->GetTotalMonthlyNeighborDealExpense();
-    const int32_t si = static_cast<int32_t>(static_cast<uint32_t>(static_cast<uint64_t>(fc4_neighbors_total_income(d.shadow))));
-    const int32_t se =
-        static_cast<int32_t>(static_cast<uint32_t>(static_cast<uint64_t>(fc4_neighbors_total_expense(d.shadow))));
-    if (oi != si) df.Add("income %d/%d", oi, si);
-    if (oe != se) df.Add("expense %d/%d", oe, se);
+    // Totals (slots 32 / 33: the full int64 in EDX:EAX, NG11).
+    const int64_t oi = orig->GetTotalMonthlyNeighborDealIncome();
+    const int64_t oe = orig->GetTotalMonthlyNeighborDealExpense();
+    const int64_t si = fc4_neighbors_total_income(d.shadow);
+    const int64_t se = fc4_neighbors_total_expense(d.shadow);
+    if (oi != si) df.Add("income %lld/%lld", static_cast<long long>(oi), static_cast<long long>(si));
+    if (oe != se) df.Add("expense %lld/%lld", static_cast<long long>(oe), static_cast<long long>(se));
 
     // The statistics of every city of the snapshot.
     fc4_neighbors_shadow_city rAfter{};
@@ -443,11 +442,12 @@ void AfterStep(void*) {
     char head[1024];
     snprintf(head, sizeof(head),
              "neighbours shadow month to %s: connections=%u (%s) deals=%u (active %u proposed %u failing %u) "
-             "income=%d/%d expense=%d/%d cities=%u R budget=%.0f income=%.0f power exp/imp=%.0f/%.0f water "
+             "income=%lld/%lld expense=%lld/%lld cities=%u R budget=%.0f income=%.0f power exp/imp=%.0f/%.0f water "
              "exp/imp=%.0f/%.0f garbage exp/imp=%.0f/%.0f; ours: posts=%u sends=%u retries=%u connectionMessages=%u "
              "setLocalDeals=%u updateImportExport=%u history=%u; mismatches=%u",
              DateText(d.julian).c_str(), static_cast<unsigned>(afterConns.size()), types.empty() ? "-" : types.c_str(),
-             static_cast<unsigned>(od.size()), active, proposed, failing, oi, si, oe, se,
+             static_cast<unsigned>(od.size()), active, proposed, failing, static_cast<long long>(oi),
+             static_cast<long long>(si), static_cast<long long>(oe), static_cast<long long>(se),
              static_cast<unsigned>(d.cityObjects.size()), rAfter.budget, rAfter.income, rAfter.stats[0][0],
              rAfter.stats[1][0], rAfter.stats[0][1], rAfter.stats[1][1], rAfter.stats[0][2], rAfter.stats[1][2],
              k.posts, k.sends, k.retries, k.connection_messages, k.set_local_deals, k.update_import_export, k.history,

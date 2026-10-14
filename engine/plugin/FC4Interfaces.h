@@ -576,9 +576,9 @@ public:
 };
 
 // cISC4NeighborsSimulator (38 slots), from the SDK declaration with the
-// return channels of docs/abi/interfaces.tsv. SDK errors fixed: slots 32/33
-// return 32 bits in eax (SDK: int64, so the high half read from edx was
-// garbage), slot 35 returns in ST0 (SDK: int64). Overload groups as compiled
+// return channels of docs/abi/interfaces.tsv. Slots 32/33 return an int64 in
+// EDX:EAX, as the SDK says (neighbors.md §15.4 NG11: every game caller reads
+// EDX); slot 35 returns in ST0 (SDK error: int64). Overload groups as compiled
 // (13/14 and 29/30, checked by abi_conformance_test).
 class cFC4ISC4NeighborsSimulator : public cIGZUnknown {
 public:
@@ -619,9 +619,10 @@ public:
                                    SC4List<cISC4NeighborDeal*>& deals) = 0;  // 29  FindDeals(3 args)
     virtual void FindDealsOfType(int32_t dealType, SC4List<cISC4NeighborDeal*>& deals) = 0;  // 30  FindDeals(2 args)
     virtual void MarkDealsDirty() = 0;                                           // 31
-    // [choice] signed 32-bit money (sign-extended by the caller); spec question.
-    virtual int32_t GetTotalMonthlyNeighborDealIncome() = 0;                     // 32  (SDK: int64)
-    virtual int32_t GetTotalMonthlyNeighborDealExpense() = 0;                    // 33  (SDK: int64)
+    // NG11 (neighbors.md §15.4): a signed 64-bit sum in EDX:EAX; the finance
+    // advisor, the budget simulator and the budget windows read both halves.
+    virtual int64_t GetTotalMonthlyNeighborDealIncome() = 0;                     // 32  edx:eax
+    virtual int64_t GetTotalMonthlyNeighborDealExpense() = 0;                    // 33  edx:eax
     virtual void UpdateCommodityStats(cISC4City* city) = 0;                      // 34
     virtual double GetDealCost(int32_t dealType, double amount, cISC4RegionalCity const* city) = 0;  // 35  (SDK: int64)
     // [choice] the table says x87|eax (low confidence); not called.
