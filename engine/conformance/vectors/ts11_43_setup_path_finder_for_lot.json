@@ -1,0 +1,188 @@
+{
+  "format": 1,
+  "name": "ts11_43_setup_path_finder_for_lot",
+  "spec": [
+    "traffic-simulator 4.4",
+    "pathfinder 4.2"
+  ],
+  "description": "§4.4 SetupPathFinderForLot (slot 7, TS10). Lot 0: false. Lot 1 (2,2)-(3,3) with trips (10, type 0, strategy 0), (30, type 0, strategy 2), (30, type 1, strategy 1): sum = [10, 30, 30], strategy 1 beats 0 and 2 only ties it, so the car starting costs; the first trip's type 0 gives destination flag 1, filter 0, travel types 0x1CF with 0x3 to start, flags cleared, the lot's rect as start rect; the caller's density (77) and work time (9) are kept. Lot 2 (zone 0) has no trips and UpdateTrafficVolume makes none: false. Lot 3's first trip has type 4: destination flag 16 is set, then false. Lot 4 (industrial, 400 jobs) has no trips: UpdateTrafficVolume makes its freight once, then flag 1 (no budget), travel types 0x30, destination flag 8, no starting cost array.",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        8,
+        8
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        3,
+        3
+      ],
+      "trips": [
+        {
+          "count": 10,
+          "type": 0,
+          "strategy": 0
+        },
+        {
+          "count": 30,
+          "type": 0,
+          "strategy": 2
+        },
+        {
+          "count": 30,
+          "type": 1,
+          "strategy": 1
+        }
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 2,
+      "rect": [
+        5,
+        5,
+        5,
+        5
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 3,
+      "rect": [
+        6,
+        6,
+        6,
+        6
+      ],
+      "trips": [
+        {
+          "count": 5,
+          "type": 4,
+          "strategy": 0
+        }
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 4,
+      "rect": [
+        1,
+        6,
+        1,
+        6
+      ],
+      "zone": 7,
+      "pops": [
+        [
+          16640,
+          400
+        ]
+      ]
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "setup_path_finder_for_lot",
+      "args": [
+        0
+      ],
+      "expect": {
+        "result": false
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "setup_path_finder_for_lot",
+      "args": [
+        1,
+        {
+          "density": 77,
+          "max_work_time": 9
+        }
+      ],
+      "expect": {
+        "result": true,
+        "pf": {
+          "start_rect": [
+            2,
+            2,
+            3,
+            3
+          ],
+          "filter": 0,
+          "destination_flags": 1,
+          "flags": 0,
+          "allowed": 463,
+          "starting": 3,
+          "density": 77,
+          "max_work_time": 9,
+          "start_costs": [
+            "0x3DCCCCCD",
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "setup_path_finder_for_lot",
+      "args": [
+        2
+      ],
+      "expect": {
+        "result": false
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "setup_path_finder_for_lot",
+      "args": [
+        3
+      ],
+      "expect": {
+        "result": false,
+        "pf": {
+          "destination_flags": 16
+        }
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "setup_path_finder_for_lot",
+      "args": [
+        4
+      ],
+      "expect": {
+        "result": true,
+        "pf": {
+          "flags": 1,
+          "allowed": 48,
+          "destination_flags": 8,
+          "start_costs": null,
+          "start_rect": [
+            1,
+            6,
+            1,
+            6
+          ]
+        }
+      }
+    }
+  ]
+}

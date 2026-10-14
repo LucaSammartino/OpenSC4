@@ -1,0 +1,489 @@
+{
+  "format": 1,
+  "name": "ts11_33_element_store_and_neighbour_arrivals",
+  "spec": [
+    "traffic-simulator 4.2"
+  ],
+  "description": "§4.2 (TS18) element store: the worked example - arrived[0] = 65530 (u16) plus 10 arrivals gives 65540 >= 0xFFFF, so all twelve values become u32 and element 4 := 65540; a later small write keeps u32; a missing property is created as 12 u16 zeros; 0xFFFF itself promotes; a short array reads 0 and is replaced [choice]. Then ApplyTrafficToDestination off the map: the pool of A's road connection at (-1, 5) counts the arrivals (max 50); the connection's own holder gets count added to element lastTravelType (car = 1) of 0xAA9EA81A + type and the pool's new total in element 4 + type; at 55 >= 50 the destination bit 0 of (-1, 5) is cleared and freeDest[0] drops. Freight (type 3) writes no arrival array but still the total in element 7. A travel type the cell's connection types do not carry (passenger train) finds no holder: nothing.",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        8,
+        8
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 1,
+      "rect": [
+        4,
+        4,
+        5,
+        5
+      ],
+      "holder": 12,
+      "capacity": [
+        100,
+        0,
+        0,
+        0,
+        65530,
+        0,
+        0,
+        0,
+        7,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_connection",
+      "id": 77,
+      "cell": [
+        -1,
+        5
+      ],
+      "holder": 70,
+      "type": 2,
+      "city": [
+        10,
+        20
+      ]
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_traffic_to_destination",
+      "args": [
+        10,
+        4,
+        4,
+        1,
+        0
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 12,
+      "id": "0x8A0B4100",
+      "expect": [
+        100,
+        0,
+        0,
+        0,
+        65540,
+        0,
+        0,
+        0,
+        7,
+        0,
+        0,
+        0
+      ],
+      "elem": "u32"
+    },
+    {
+      "op": "ts_call",
+      "method": "set_max_trip_capacity",
+      "args": [
+        12,
+        1,
+        5
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 12,
+      "id": "0x8A0B4100",
+      "expect": [
+        100,
+        5,
+        0,
+        0,
+        65540,
+        0,
+        0,
+        0,
+        7,
+        0,
+        0,
+        0
+      ],
+      "elem": "u32"
+    },
+    {
+      "op": "ts_call",
+      "method": "set_max_trip_capacity",
+      "args": [
+        13,
+        2,
+        9
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 13,
+      "id": "0x8A0B4100",
+      "expect": [
+        0,
+        0,
+        9,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "elem": "u16"
+    },
+    {
+      "op": "ts_call",
+      "method": "set_max_trip_capacity",
+      "args": [
+        14,
+        0,
+        65535
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 14,
+      "id": "0x8A0B4100",
+      "expect": [
+        65535,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "elem": "u32"
+    },
+    {
+      "op": "ts_prop",
+      "holder": 15,
+      "id": "0x8A0B4100",
+      "value": {
+        "u16": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "max_trip_capacity",
+      "args": [
+        15,
+        0
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ts_call",
+      "method": "set_max_trip_capacity",
+      "args": [
+        15,
+        1,
+        3
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 15,
+      "id": "0x8A0B4100",
+      "expect": [
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "elem": "u16"
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0x8A0D15DA",
+        2,
+        -1,
+        5,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "set_max_trip_capacity",
+      "args": [
+        {
+          "pool": 1
+        },
+        0,
+        50
+      ]
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "dest": [
+          [
+            -1,
+            5,
+            1
+          ]
+        ],
+        "free": [
+          3,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_traffic_to_destination",
+      "args": [
+        30,
+        -1,
+        5,
+        1,
+        0
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "traffic_arrived_this_cycle",
+      "args": [
+        {
+          "pool": 1
+        },
+        0
+      ],
+      "expect": 30
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 70,
+      "id": "0xAA9EA81A",
+      "expect": [
+        0,
+        30,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 70,
+      "id": "0x8A0B4100",
+      "expect": [
+        0,
+        0,
+        0,
+        0,
+        30,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        -1,
+        5
+      ],
+      "expect": 1
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_traffic_to_destination",
+      "args": [
+        25,
+        -1,
+        5,
+        1,
+        0
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "traffic_arrived_this_cycle",
+      "args": [
+        {
+          "pool": 1
+        },
+        0
+      ],
+      "expect": 55
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 70,
+      "id": "0xAA9EA81A",
+      "expect": [
+        0,
+        55,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        -1,
+        5
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ts_call",
+      "method": "free_destinations",
+      "args": [],
+      "expect": [
+        2,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_traffic_to_destination",
+      "args": [
+        4,
+        -1,
+        5,
+        4,
+        3
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "traffic_arrived_this_cycle",
+      "args": [
+        {
+          "pool": 1
+        },
+        3
+      ],
+      "expect": 4
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 70,
+      "id": "0x8A0B4100",
+      "expect": [
+        0,
+        0,
+        0,
+        0,
+        55,
+        0,
+        0,
+        4,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 70,
+      "id": "0xAA9EA81B",
+      "expect": null
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 70,
+      "id": "0xAA9EA81C",
+      "expect": null
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_traffic_to_destination",
+      "args": [
+        5,
+        -1,
+        5,
+        3,
+        1
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "traffic_arrived_this_cycle",
+      "args": [
+        {
+          "pool": 1
+        },
+        1
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 70,
+      "id": "0x8A0B4100",
+      "expect": [
+        0,
+        0,
+        0,
+        0,
+        55,
+        0,
+        0,
+        4,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ]
+}

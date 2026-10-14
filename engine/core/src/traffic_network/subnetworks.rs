@@ -309,7 +309,7 @@ impl Cx<'_> {
             };
             // The holder is asked with the off-map cell, the connection's
             // own, not the in-city one (TN6).
-            let Some(holder) = h.neighbor_pool_holder(cx, cz) else {
+            let Some(holder) = h.neighbor_pool_holder_in(&mut *self.s, cx, cz) else {
                 continue;
             };
             let c: [u32; 4] = std::array::from_fn(|k| h.max_trip_capacity(holder, k as u32));

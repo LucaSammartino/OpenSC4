@@ -18,15 +18,19 @@ use std::rc::Rc;
 
 use fc4_core::curve::ResponseCurve;
 use fc4_core::grid::{CellRect, CityDims, CoreGrids, GridProvider, TractGrid};
+use fc4_core::pathfinder::Pathfinder;
 use fc4_core::property::PropertyHolder;
 use fc4_core::rng::{FixedSeeds, RzRandomSuper};
 use fc4_core::stream::{ByteReader, ByteWriter, RefResolver, RefValue, RegisteredObject, SaveRegistry};
-use fc4_core::traffic_network::{NetworkHost, PathInfo};
+use fc4_core::traffic_network::{
+    FerryTerminal, NeighborLink, NeighbourEdge, NetworkHost, PathInfo, TerminalLink, TransitSwitch,
+};
 use fc4_core::traffic_simulator::{
     air_polluting_byte, background_value, capacity_element, cell_key16, congestion_byte, damage_target, decode_route,
-    industrial_trips, invert_congestion_curve, legacy_density, read_trip, reconcile_connection, reconcile_lot,
-    residential_commuters, residential_split, trip_length_byte, write_trip, AccidentEntry, DamageBlock, Message,
-    SimMessage, SimTuning, Source, TrafficSimHost, TrafficSimulator, TripData, CARPOOL_ORDINANCE,
+    find_highway_return_tile, industrial_trips, invert_congestion_curve, legacy_density, pool_of_token, pool_token,
+    read_route, read_trip, reconcile_connection, reconcile_lot, residential_commuters, residential_split,
+    trip_length_byte, write_trip, AccidentEntry, DamageBlock, HolderStore, Message, NeighbourCity, SimMessage,
+    SimTuning, Source, TrafficSimHost, TrafficSimulator, TripData, CARPOOL_ORDINANCE,
 };
 use fc4_core::variant::{mem, Elem, Variant};
 
@@ -52,15 +56,31 @@ struct Lot {
     strategy_byte: u8,
 }
 
-/// A scripted neighbour connection.
-#[derive(Clone, Debug)]
+/// A scripted neighbour connection: `conn_type` `None` answers
+/// `FindConnection` for any type (and reports type 0); `other_side` is
+/// `FindConnectionOnOtherSide`; `city` the established city's position.
+#[derive(Clone, Debug, Default)]
 struct Conn {
     cell: (i32, i32),
     holder: u64,
     dirty: bool,
+    conn_type: Option<u32>,
+    other_side: Option<u64>,
+    city: Option<(i32, i32)>,
 }
 
-/// The department tokens: `dept_base + i` in creation order.
+/// A scripted network occupant (§3.6): the flag word (bit `1 << t` per
+/// network type; bit 31 the subway skip), the position (the middle of its
+/// cell) and its own cell (slot 59).
+#[derive(Clone, Copy, Debug)]
+struct Occ {
+    flags: u32,
+    pos: [f32; 3],
+    cell: (i32, i32),
+}
+
+/// The department tokens: `dept_base + i` in creation order (a fixture
+/// stand-in with no original counterpart, TS34).
 const DEPT_BASE: u64 = 900;
 /// The class ID of the host references the world writes.
 const HOST_CLASS: u32 = 0x1234_5678;
@@ -96,6 +116,19 @@ struct World {
     budget_items: Cell<i64>,
     sim: RefCell<Option<Rc<TrafficSimulator>>>,
     saved: RefCell<HashMap<String, Saved>>,
+    occs: RefCell<HashMap<u64, Occ>>,
+    /// `UpdateRoadsBudget` (false) / `UpdateMassTransitBudget` (true) calls
+    /// with the cell counts they priced.
+    costs: RefCell<Vec<(bool, [u32; 13])>>,
+    /// The established neighbouring cities (traffic-network.md §2.7.4).
+    cities: RefCell<Vec<NeighbourCity>>,
+    /// The regional demand per wealth (§2.7.4 step 1).
+    demand: RefCell<[Option<f32>; 3]>,
+    /// The `0xCA550301` budget item of a building, `(department ID, cost)`
+    /// (§4.16).
+    query_items: RefCell<HashMap<u64, (u32, i64)>>,
+    /// The language drives on the left (§4.4, TS17).
+    drive_left: Cell<bool>,
 }
 
 fn inside(r: CellRect, x: i32, z: i32) -> bool {
@@ -132,7 +165,17 @@ impl World {
             budget_items: Cell::new(0),
             sim: RefCell::new(None),
             saved: RefCell::new(HashMap::new()),
+            occs: RefCell::new(HashMap::new()),
+            costs: RefCell::new(Vec::new()),
+            cities: RefCell::new(Vec::new()),
+            demand: RefCell::new([None; 3]),
+            query_items: RefCell::new(HashMap::new()),
+            drive_left: Cell::new(false),
         }
+    }
+
+    fn occ_flags(&self, occ: u64) -> u32 {
+        self.occs.borrow().get(&occ).map_or(0, |o| o.flags)
     }
 
     fn lot(&self, id: u64) -> Option<Lot> {
@@ -157,6 +200,24 @@ impl World {
 
     fn set_prop(&self, holder: u64, id: u32, v: Variant) {
         self.holders.borrow_mut().entry(holder).or_default().insert(id, v);
+    }
+
+    /// A property of a holder token: a pool token (`{"pool": id}`) reads
+    /// the simulator's pool, any other the stub's holder.
+    fn any_prop(&self, holder: u64, id: u32) -> R<Option<Variant>> {
+        if pool_of_token(holder).is_some() {
+            return Ok(self.sim()?.holders().get_property(holder, id));
+        }
+        Ok(self.prop(holder, id))
+    }
+
+    fn set_any_prop(&self, holder: u64, id: u32, v: Variant) -> R<()> {
+        if pool_of_token(holder).is_some() {
+            self.sim()?.holders().put_property(holder, id, v);
+        } else {
+            self.set_prop(holder, id, v);
+        }
+        Ok(())
     }
 
     fn dims(&self) -> CityDims {
@@ -217,8 +278,8 @@ impl NetworkHost for World {
     fn prop_occupants_in_rect(&self, _rect: CellRect) -> Vec<u64> {
         Vec::new()
     }
-    fn occupant_position(&self, _occ: u64) -> [f32; 3] {
-        [0.0; 3]
+    fn occupant_position(&self, occ: u64) -> [f32; 3] {
+        self.occs.borrow().get(&occ).map_or([0.0; 3], |o| o.pos)
     }
     fn occupant_bounding_cells(&self, _occ: u64) -> CellRect {
         CellRect::new(0, 0, 0, 0)
@@ -229,14 +290,14 @@ impl NetworkHost for World {
     fn occupant_property(&self, _occ: u64, _id: u32) -> Option<Variant> {
         None
     }
-    fn has_network_flag(&self, _occ: u64, _flag: u32) -> bool {
-        false
+    fn has_network_flag(&self, occ: u64, flag: u32) -> bool {
+        self.occs.borrow().contains_key(&occ) && self.occ_flags(occ) & flag == flag
     }
-    fn has_any_network_flag(&self, _occ: u64, _mask: u32) -> bool {
-        false
+    fn has_any_network_flag(&self, occ: u64, mask: u32) -> bool {
+        self.occ_flags(occ) & mask != 0
     }
-    fn is_of_type(&self, _occ: u64, _network_type: u32) -> bool {
-        false
+    fn is_of_type(&self, occ: u64, network_type: u32) -> bool {
+        network_type < 32 && self.occ_flags(occ) & (1 << network_type) != 0
     }
     fn path_connection(&self, _occ: u64, _path_type: u32, _entry: u32, _exit: u32) -> bool {
         false
@@ -394,6 +455,8 @@ impl TrafficSimHost for World {
     fn release_department(&self, department: u64) {
         self.released_departments.borrow_mut().push(department);
     }
+    /// Fixture stand-in (TS34): an unset department is at 100 % funding, as
+    /// a department `CreateDepartmentBudget` makes (budget.md §6).
     fn department_funding(&self, department: u64) -> f32 {
         self.dept_id(department)
             .and_then(|id| self.funding.borrow().get(&id).copied())
@@ -402,9 +465,27 @@ impl TrafficSimHost for World {
     fn set_line_item_income(&self, department: u64, item: u32, income: i64) {
         self.incomes.borrow_mut().push((department, item, income));
     }
-    fn update_network_costs(&self, _department: u64, _mass_transit: bool, _cells: &[u32; 13], _costs: &[f32; 13]) {}
+    fn update_network_costs(&self, _department: u64, mass_transit: bool, cells: &[u32; 13], _costs: &[f32; 13]) {
+        self.costs.borrow_mut().push((mass_transit, *cells));
+    }
     fn activate_budget_items(&self, _building: u64, _lot: Option<u64>) -> i64 {
         self.budget_items.get()
+    }
+    /// The `0xCA550301` item's cost: the same `budget_items` stand-in.
+    fn deactivate_budget_items(&self, _holder: u64) -> i64 {
+        self.budget_items.get()
+    }
+    fn budget_item_for_purpose(&self, building: u64, purpose: u32) -> Option<(u32, i64)> {
+        if purpose != fc4_core::traffic_simulator::prop::BUDGET_ITEM {
+            return None;
+        }
+        self.query_items.borrow().get(&building).copied()
+    }
+    fn department_budget(&self, department_id: u32) -> Option<u64> {
+        let d = self.departments.borrow();
+        d.iter()
+            .rposition(|e| e.0 == department_id)
+            .map(|i| self.dept_base.get() + i as u64)
     }
     fn record_history(&self, series: u32, value: u32) {
         self.history.borrow_mut().push((series, value));
@@ -452,15 +533,40 @@ impl TrafficSimHost for World {
             None => false,
         }
     }
-    fn find_connection(&self, _connection_type: u32, x: i32, z: i32) -> Option<u64> {
+    fn find_connection(&self, connection_type: u32, x: i32, z: i32) -> Option<u64> {
         self.conns
             .borrow()
             .iter()
-            .find(|(_, c)| c.cell == (x, z))
+            .find(|(_, c)| c.cell == (x, z) && c.conn_type.map_or(true, |t| t == connection_type))
             .map(|(id, _)| *id)
     }
-    fn neighbor_pool_property_holder(&self, _t: u32, _x: i32, _z: i32) -> Option<u64> {
-        None
+    fn connection_type(&self, connection: u64) -> u32 {
+        self.conns
+            .borrow()
+            .iter()
+            .find(|(id, _)| *id == connection)
+            .and_then(|(_, c)| c.conn_type)
+            .unwrap_or(0)
+    }
+    fn connection_on_other_side(&self, connection: u64) -> Option<u64> {
+        self.conns
+            .borrow()
+            .iter()
+            .find(|(id, _)| *id == connection)
+            .and_then(|(_, c)| c.other_side)
+    }
+    fn established_city_position(&self, connection: u64) -> Option<(i32, i32)> {
+        self.conns
+            .borrow()
+            .iter()
+            .find(|(id, _)| *id == connection)
+            .and_then(|(_, c)| c.city)
+    }
+    fn connected_cities(&self) -> Vec<NeighbourCity> {
+        self.cities.borrow().clone()
+    }
+    fn regional_demand(&self, w: u32) -> Option<f32> {
+        self.demand.borrow().get(w as usize).copied().flatten()
     }
     fn workforce_percent(&self, _x: i32, _z: i32) -> f32 {
         self.workforce.get()
@@ -477,8 +583,11 @@ impl TrafficSimHost for World {
     fn ordinance_property(&self, _id: u32, _prop: u32) -> Option<Variant> {
         None
     }
-    fn as_network_occupant(&self, _object: u64) -> Option<u64> {
-        None
+    fn as_network_occupant(&self, object: u64) -> Option<u64> {
+        self.occs.borrow().contains_key(&object).then_some(object)
+    }
+    fn network_occupant_cell(&self, occ: u64) -> (i32, i32) {
+        self.occs.borrow().get(&occ).map_or((0, 0), |o| o.cell)
     }
     fn occupants_in_cells(&self, _rect: CellRect) -> Vec<u64> {
         Vec::new()
@@ -486,8 +595,12 @@ impl TrafficSimHost for World {
     fn occupant_filter_includes(&self, _filter: u64, _occupant: u64) -> bool {
         false
     }
+    /// Fixture stand-in (TS34): every cell reports a network occupant.
     fn cell_has_network_occupant(&self, _x: i32, _z: i32) -> bool {
         true
+    }
+    fn drives_on_right(&self) -> bool {
+        !self.drive_left.get()
     }
     fn view_cell_rect(&self) -> Option<CellRect> {
         self.view.get()
@@ -531,7 +644,10 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "street" => street(&w, op),
         "state" => state(&w, op),
         "damage" => damage(&w, op),
+        "occupant" => occupant(&w, op),
+        "edge" => set_edge(&w, op),
         "grid" => set_grid(&w, op),
+        "net" => set_net(&w, op),
         "call" => call(&w, op),
         "eval" => eval(op),
         "save" => save(&w, op),
@@ -545,6 +661,7 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "expect_trips" => expect_trips(&w, op),
         "expect_damage" => expect_damage(&w, op),
         "expect_network" => expect_network(&w, op),
+        "expect_net" => expect_net(&w, op),
         _ => Err(format!("unknown op '{name}'")),
     })
 }
@@ -561,6 +678,15 @@ fn i32_of(j: &Json, what: &str) -> R<i32> {
 
 fn u64_of(j: &Json, what: &str) -> R<u64> {
     Ok(i64_of(j, what)? as u64)
+}
+
+/// A holder token: a number, or `{"pool": id}` for the simulator's
+/// neighbour pool `id` (0 = the default pool).
+fn holder_of(j: &Json, what: &str) -> R<u64> {
+    match j.get("pool") {
+        Some(p) => Ok(pool_token(u32_of(p, "pool")? as u16)),
+        None => u64_of(j, what),
+    }
 }
 
 fn pair(j: &Json, what: &str) -> R<(i32, i32)> {
@@ -819,8 +945,46 @@ fn env(w: &World, op: &Json) -> R<()> {
     if let Some(v) = opt(op, "dept_base") {
         w.dept_base.set(u64_of(v, "dept_base")?);
     }
+    if let Some(v) = opt(op, "drives_on_right") {
+        w.drive_left.set(!bool_of(v, "drives_on_right")?);
+    }
+    if let Some(v) = opt(op, "query_items") {
+        for e in arr(v, "query_items")? {
+            match arr(e, "query_items")? {
+                [b, d, c] => {
+                    w.query_items
+                        .borrow_mut()
+                        .insert(u64_of(b, "building")?, (u32_of(d, "department")?, i64_of(c, "cost")?));
+                }
+                _ => return Err("each 'query_items' entry is [building, department ID, cost]".into()),
+            }
+        }
+    }
     if let Some(v) = opt(op, "budget_items") {
         w.budget_items.set(i64_of(v, "budget_items")?);
+    }
+    if let Some(v) = opt(op, "cities") {
+        let mut cities = Vec::new();
+        for e in arr(v, "cities")? {
+            match arr(e, "cities")? {
+                [px, pz, e0, e1, e2] => cities.push(NeighbourCity {
+                    position: (i32_of(px, "x")?, i32_of(pz, "z")?),
+                    population: [i32_of(e0, "E")?, i32_of(e1, "E")?, i32_of(e2, "E")?],
+                }),
+                _ => return Err("each cities entry is [x, z, E0, E1, E2]".into()),
+            }
+        }
+        *w.cities.borrow_mut() = cities;
+    }
+    if let Some(v) = opt(op, "regional_demand") {
+        let mut d = [None; 3];
+        for (o, e) in d.iter_mut().zip(arr(v, "regional_demand")?) {
+            *o = match e {
+                Json::Null => None,
+                v => Some(fv(v, "regional_demand")?),
+            };
+        }
+        *w.demand.borrow_mut() = d;
     }
     Ok(())
 }
@@ -877,6 +1041,12 @@ fn connection(w: &World, op: &Json) -> R<()> {
         cell: pair(field(op, "cell")?, "cell")?,
         holder,
         dirty: opt(op, "dirty").map_or(Ok(true), |v| bool_of(v, "dirty"))?,
+        conn_type: opt(op, "type").map(|v| u32_of(v, "type")).transpose()?,
+        other_side: opt(op, "other_side").map(|v| u64_of(v, "other_side")).transpose()?,
+        city: match op.get("city") {
+            None | Some(Json::Null) => None,
+            Some(v) => Some(pair(v, "city")?),
+        },
     };
     {
         let mut conns = w.conns.borrow_mut();
@@ -911,16 +1081,14 @@ fn set_trips(w: &World, op: &Json) -> R<()> {
 }
 
 fn set_capacity(w: &World, op: &Json) -> R<()> {
-    let holder = u64_of(field(op, "holder")?, "holder")?;
-    w.set_prop(holder, 0x8A0B_4100, u16_variant(&u32s(field(op, "values")?, "values")?));
-    Ok(())
+    let holder = holder_of(field(op, "holder")?, "holder")?;
+    w.set_any_prop(holder, 0x8A0B_4100, u16_variant(&u32s(field(op, "values")?, "values")?))
 }
 
 fn set_prop(w: &World, op: &Json) -> R<()> {
-    let holder = u64_of(field(op, "holder")?, "holder")?;
+    let holder = holder_of(field(op, "holder")?, "holder")?;
     let id = u32_of(field(op, "id")?, "id")?;
-    w.set_prop(holder, id, scalar::variant_of(field(op, "value")?)?);
-    Ok(())
+    w.set_any_prop(holder, id, scalar::variant_of(field(op, "value")?)?)
 }
 
 fn init(w: &Rc<World>, op: &Json) -> R<()> {
@@ -1099,7 +1267,28 @@ fn state(w: &World, op: &Json) -> R<()> {
                             .collect::<R<_>>()?;
                     }
                     "rng_seed" => st.rng = seed_rng(u32_of(v, &k)?),
+                    "phase_positions" => {
+                        let (x, z) = pair(v, &k)?;
+                        st.extras.phase_positions = [x as i16, z as i16];
+                    }
+                    "cells_per_type" => {
+                        let v = u32s(v, &k)?;
+                        if v.len() != 13 {
+                            return Err("'cells_per_type' needs 13 counts".into());
+                        }
+                        st.cells_per_type.copy_from_slice(&v);
+                    }
+                    "potholes" => st.stats_last.potholes = u32_of(v, &k)? as u16,
                     "income_acc" => st.income_acc.set(dv(v, &k)?),
+                    "fee_acc" => st.fee_acc = dv(v, &k)?,
+                    "ferry_fare" => st.tuning.ferry_fare = fv(v, &k)?,
+                    "income_per_tile" => {
+                        let v = arr(v, &k)?.iter().map(|e| fv(e, &k)).collect::<R<Vec<f32>>>()?;
+                        if v.len() != 9 {
+                            return Err("income_per_tile needs 9 values".into());
+                        }
+                        st.tuning.income_per_tile.copy_from_slice(&v);
+                    }
                     other => return Err(format!("unknown state field '{other}'")),
                 }
                 Ok(())
@@ -1119,7 +1308,8 @@ fn block<'a>(d: &'a mut fc4_core::traffic_simulator::DamageState, kind: &str) ->
 }
 
 /// Damage sets: `kind` (`road` / `rail`), `intact?` and `damaged?` cells
-/// (added through the cell bookkeeping, damaged ones moved), `rate?`.
+/// (added through the cell bookkeeping, damaged ones moved), `rate?`, then
+/// `cell_count?` and `damaged_count?` set as given.
 fn damage(w: &World, op: &Json) -> R<()> {
     let s = w.sim()?;
     let kind = str_of(field(op, "kind")?, "kind")?.to_string();
@@ -1128,6 +1318,10 @@ fn damage(w: &World, op: &Json) -> R<()> {
     };
     let (intact, damaged) = (cells("intact")?, cells("damaged")?);
     let rate = opt(op, "rate").map(|v| fv(v, "rate")).transpose()?;
+    let cell_count = opt(op, "cell_count").map(|v| u32_of(v, "cell_count")).transpose()?;
+    let damaged_count = opt(op, "damaged_count")
+        .map(|v| u32_of(v, "damaged_count"))
+        .transpose()?;
     s.update_damage(|d| -> R<()> {
         let b = block(d, &kind)?;
         for (x, z) in intact {
@@ -1142,6 +1336,187 @@ fn damage(w: &World, op: &Json) -> R<()> {
         }
         if let Some(r) = rate {
             b.rate = r;
+        }
+        if let Some(n) = cell_count {
+            b.cell_count = n;
+        }
+        if let Some(n) = damaged_count {
+            b.damaged_count = n;
+        }
+        Ok(())
+    })
+}
+
+/// A network occupant (§3.6): `id`, `flags` (bit `1 << t` per network
+/// type), `cell` (its position, the middle of the cell), `own?` (its own
+/// cell, slot 59; default `cell`).
+fn occupant(w: &World, op: &Json) -> R<()> {
+    let id = u64_of(field(op, "id")?, "id")?;
+    let flags = u32_of(field(op, "flags")?, "flags")?;
+    let (x, z) = pair(field(op, "cell")?, "cell")?;
+    let own = opt(op, "own").map_or(Ok((x, z)), |v| pair(v, "own"))?;
+    let pos = [x as f32 * 16.0 + 8.0, 0.0, z as f32 * 16.0 + 8.0];
+    w.occs.borrow_mut().insert(id, Occ { flags, pos, cell: own });
+    Ok(())
+}
+
+/// Edge-density usages: `usage` (`[[x, z, t, evening, value]]`).
+fn set_edge(w: &World, op: &Json) -> R<()> {
+    let s = w.sim()?;
+    let mut recs = Vec::new();
+    for e in arr(field(op, "usage")?, "usage")? {
+        match arr(e, "usage")? {
+            [x, z, t, ev, v] => recs.push((
+                i32_of(x, "x")?,
+                i32_of(z, "z")?,
+                u32_of(t, "t")?,
+                bool_of(ev, "evening")?,
+                u32_of(v, "value")? as u16,
+            )),
+            _ => return Err("each usage entry is [x, z, t, evening, value]".into()),
+        }
+    }
+    s.network().update_state(|n| {
+        for (x, z, t, ev, v) in recs {
+            let k = fc4_core::traffic_network::NetworkState::edge_key(x, z, t, ev);
+            n.edge_density.entry(k, Default::default).usage = v;
+        }
+    });
+    Ok(())
+}
+
+/// Rows of integers (`[[a, b, …]]`, each of length `n`).
+fn int_rows(j: &Json, what: &str, n: usize) -> R<Vec<Vec<i64>>> {
+    arr(j, what)?
+        .iter()
+        .map(|e| {
+            let row = arr(e, what)?.iter().map(|v| i64_of(v, what)).collect::<R<Vec<i64>>>()?;
+            if row.len() == n {
+                Ok(row)
+            } else {
+                Err(format!("each '{what}' entry has {n} values"))
+            }
+        })
+        .collect()
+}
+
+/// Network-model setup for the route ops (§4.3, §4.5): `conn` and `switch`
+/// (`[[x, z, t, word]]`), `wormhole` (`[[x, z, byte]]`), `switch_ids`
+/// (`[[x, z, id]]`), `switches` (`[[id, toll]]`, inserted with the toll's
+/// f32 bits) and `terminals` (`[{dep, arr, links: [[x, z]] (the other
+/// terminal's departure cell), neighbour_links: [[off_x, off_z, edge_x,
+/// edge_z]]}]`, appended with both keys registered).
+fn set_net(w: &World, op: &Json) -> R<()> {
+    let s = w.sim()?;
+    let rows =
+        |key: &str, n: usize| -> R<Vec<Vec<i64>>> { opt(op, key).map_or(Ok(Vec::new()), |v| int_rows(v, key, n)) };
+    let conn = rows("conn", 4)?;
+    let switch = rows("switch", 4)?;
+    let wormhole = rows("wormhole", 3)?;
+    let ids = rows("switch_ids", 3)?;
+    let mut sws = Vec::new();
+    if let Some(v) = opt(op, "switches") {
+        for e in arr(v, "switches")? {
+            match arr(e, "switches")? {
+                [id, j] if j.as_object().is_some() => {
+                    let f = |k: &str| opt(j, k).map_or(Ok(0.0), |v| fv(v, k));
+                    sws.push((
+                        u32_of(id, "id")?,
+                        f("toll")?,
+                        opt(j, "building").map_or(Ok(None), |v| u64_of(v, "building").map(Some))?,
+                        [f("capacity")?, f("prev_usage")?, f("ratio")?],
+                    ));
+                }
+                [id, toll] => sws.push((u32_of(id, "id")?, fv(toll, "toll")?, None, [0.0; 3])),
+                _ => return Err("each 'switches' entry is [id, toll] or [id, {fields}]".into()),
+            }
+        }
+    }
+    let edges = rows("edges", 3)?;
+    let mut terminals = Vec::new();
+    if let Some(v) = opt(op, "terminals") {
+        for e in arr(v, "terminals")? {
+            let (dx, dz) = pair(field(e, "dep")?, "dep")?;
+            let (ax, az) = pair(field(e, "arr")?, "arr")?;
+            let links = opt(e, "links").map_or(Ok(Vec::new()), |v| int_rows(v, "links", 2))?;
+            let nls = opt(e, "neighbour_links").map_or(Ok(Vec::new()), |v| int_rows(v, "neighbour_links", 4))?;
+            let (lx, lz) = opt(e, "lot").map_or(Ok((0, 0)), |v| pair(v, "lot"))?;
+            let riders_last = opt(e, "riders_last").map_or(Ok(0), |v| u32_of(v, "riders_last"))? as u16;
+            terminals.push(FerryTerminal {
+                lot_x: lx as u16,
+                lot_z: lz as u16,
+                riders_last,
+                dep_x: dx as u16,
+                dep_z: dz as u16,
+                arr_x: ax as u16,
+                arr_z: az as u16,
+                links: links
+                    .iter()
+                    .map(|l| TerminalLink {
+                        to_key: fc4_core::traffic_network::cell_key(l[0] as i32, l[1] as i32),
+                        ..TerminalLink::default()
+                    })
+                    .collect(),
+                neighbour_links: nls
+                    .iter()
+                    .map(|l| NeighborLink {
+                        off_x: l[0] as i16,
+                        off_z: l[1] as i16,
+                        edge_x: l[2] as u16,
+                        edge_z: l[3] as u16,
+                        ..NeighborLink::default()
+                    })
+                    .collect(),
+                ..FerryTerminal::default()
+            });
+        }
+    }
+    s.network().update_state(|n| -> R<()> {
+        for r in &conn {
+            let c = n.conn_mut(r[0] as i32, r[1] as i32).ok_or("no cell connection array")?;
+            *c.conn.get_mut(r[2] as usize).ok_or("conn type above 8")? = r[3] as u16;
+        }
+        for r in &switch {
+            let c = n.conn_mut(r[0] as i32, r[1] as i32).ok_or("no cell connection array")?;
+            *c.switch.get_mut(r[2] as usize).ok_or("switch type above 8")? = r[3] as u16;
+        }
+        for r in &wormhole {
+            n.conn_mut(r[0] as i32, r[1] as i32)
+                .ok_or("no cell connection array")?
+                .wormhole = r[2] as u8;
+        }
+        if !ids.is_empty() {
+            let g = n.switch_id.clone().ok_or("no switch ID grid")?;
+            for r in &ids {
+                g.set(r[0] as i32, r[1] as i32, r[2] as u32);
+            }
+        }
+        for &(id, toll, building, [capacity, prev, ratio]) in &sws {
+            let sw = n.switches.entry(id, TransitSwitch::default);
+            sw.simulator_value = toll.to_bits();
+            if let Some(b) = building {
+                sw.building = b;
+                sw.capacity = capacity;
+                sw.counter_a = prev;
+                sw.counter_b = ratio;
+            }
+        }
+        for r in &edges {
+            n.set_neighbour_edge(
+                r[0] as i32,
+                r[1] as i32,
+                NeighbourEdge {
+                    mask: r[2] as u16,
+                    ..NeighbourEdge::default()
+                },
+            );
+        }
+        for t in terminals {
+            let pos = n.ferries.len() as u32;
+            let (dk, ak) = (u32::from(t.departure_key()), u32::from(t.arrival_key()));
+            n.ferries.push(t);
+            n.ferry_departures.entry(dk, || pos);
+            n.ferry_arrivals.entry(ak, || pos);
         }
         Ok(())
     })
@@ -1196,6 +1571,26 @@ fn set_grid(w: &World, op: &Json) -> R<()> {
 
 // ---- calls ----------------------------------------------------------------------------------------------
 
+/// A pathfinder's settings (§4.4).
+fn jpf(pf: &Pathfinder) -> Json {
+    obj(vec![
+        ("density", ji(pf.traffic_density())),
+        ("filter", ji(pf.trip_destination_filter())),
+        ("destination_flags", ji(pf.destination_flags())),
+        ("flags", ji(pf.flags())),
+        ("allowed", ji(pf.allowed_travel_types())),
+        ("starting", ji(pf.starting_travel_types())),
+        ("start_rect", jrect(pf.start_rect())),
+        ("end_rect", jrect(pf.end_rect())),
+        (
+            "start_costs",
+            pf.starting_cost_array()
+                .map_or(Json::Null, |c| Json::Array(c.iter().map(|&v| fb(v)).collect())),
+        ),
+        ("max_work_time", ji(pf.max_work_time())),
+    ])
+}
+
 fn call(w: &Rc<World>, op: &Json) -> R<()> {
     let s = w.sim()?;
     let method = str_of(field(op, "method")?, "method")?;
@@ -1230,6 +1625,7 @@ fn call(w: &Rc<World>, op: &Json) -> R<()> {
             s.enter_cycle_state(uarg(op, 0)? as u8);
             Json::Null
         }
+        "confirm_route" => jb(s.confirm_route(&hex_of(arg(op, 0)?, "route")?)),
         "apply_route" => {
             let route = hex_of(arg(op, 0)?, "route")?;
             s.apply_route(
@@ -1271,23 +1667,39 @@ fn call(w: &Rc<World>, op: &Json) -> R<()> {
             let mut pf = s.create_path_finder();
             let mut pf2 = s.create_path_finder();
             s.setup_trip(&mut pf, &mut pf2, &t, src);
-            obj(vec![
-                ("density", ji(pf.traffic_density())),
-                ("filter", ji(pf.trip_destination_filter())),
-                ("destination_flags", ji(pf.destination_flags())),
-                ("flags", ji(pf.flags())),
-                ("allowed", ji(pf.allowed_travel_types())),
-                ("starting", ji(pf.starting_travel_types())),
-                ("start_rect", jrect(pf.start_rect())),
-                ("end_rect", jrect(pf.end_rect())),
-                (
-                    "start_costs",
-                    pf.starting_cost_array()
-                        .map_or(Json::Null, |c| Json::Array(c.iter().map(|&v| fb(v)).collect())),
-                ),
-                ("max_work_time", ji(pf.max_work_time())),
-            ])
+            jpf(&pf)
         }
+        "setup_path_finder_for_lot" => {
+            let mut pf = s.create_path_finder();
+            if let Some(pre) = op.get("args").and_then(|a| a.as_array()).and_then(|a| a.get(1)) {
+                if let Some(v) = opt(pre, "density") {
+                    pf.set_traffic_density(u32_of(v, "density")?);
+                }
+                if let Some(v) = opt(pre, "max_work_time") {
+                    pf.set_max_work_time(u32_of(v, "max_work_time")?);
+                }
+            }
+            let ok = s.setup_path_finder_for_lot(&mut pf, u64_of(arg(op, 0)?, "lot")?);
+            obj(vec![("result", jb(ok)), ("pf", jpf(&pf))])
+        }
+        "return_leg_rects" => {
+            let (start, end) = s.return_leg_rects(
+                pair(arg(op, 0)?, "end cell")?,
+                uarg(op, 1)? as u8,
+                rect_of(arg(op, 2)?, "start rect")?,
+            );
+            obj(vec![("start", start.map_or(Json::Null, jrect)), ("end", jrect(end))])
+        }
+        "transit_switch_query_data" => match s.transit_switch_query_data(iarg(op, 0)?, iarg(op, 1)?) {
+            None => Json::Null,
+            Some(d) => obj(vec![
+                ("available", ji(d.available)),
+                ("max_capacity", ji(d.max_capacity)),
+                ("load_fraction", fb(d.load_fraction)),
+                ("usage", ji(d.usage)),
+                ("cost", ji(d.cost)),
+            ]),
+        },
         "background_traffic" => fb(s.background_traffic(iarg(op, 0)?, iarg(op, 1)?)),
         "travel_time_ratio" => fb(s.travel_time_ratio(iarg(op, 0)?, iarg(op, 1)?, uarg(op, 2)?)),
         "check_rail_accident" => jb(s.check_rail_accident(iarg(op, 0)?, iarg(op, 1)?)),
@@ -1304,13 +1716,35 @@ fn call(w: &Rc<World>, op: &Json) -> R<()> {
         "query_interface" => jb(s.query_interface(uarg(op, 0)?)),
         "simulator_type" => ji(s.simulator_type()),
         "desired_lot_insertion_point" => jb(s.desired_lot_insertion_point()),
-        "max_trip_capacity" => ji(s.max_trip_capacity(u64_of(arg(op, 0)?, "holder")?, uarg(op, 1)?)),
+        "max_trip_capacity" => ji(s.max_trip_capacity(holder_of(arg(op, 0)?, "holder")?, uarg(op, 1)?)),
         "set_max_trip_capacity" => {
-            s.set_max_trip_capacity(u64_of(arg(op, 0)?, "holder")?, uarg(op, 1)?, uarg(op, 2)?);
+            s.set_max_trip_capacity(holder_of(arg(op, 0)?, "holder")?, uarg(op, 1)?, uarg(op, 2)?);
             Json::Null
         }
-        "traffic_arrived" => ji(s.traffic_arrived(u64_of(arg(op, 0)?, "holder")?, uarg(op, 1)?)),
-        "traffic_arrived_this_cycle" => ji(s.traffic_arrived_this_cycle(u64_of(arg(op, 0)?, "holder")?, uarg(op, 1)?)),
+        "traffic_arrived" => ji(s.traffic_arrived(holder_of(arg(op, 0)?, "holder")?, uarg(op, 1)?)),
+        "traffic_arrived_this_cycle" => {
+            ji(s.traffic_arrived_this_cycle(holder_of(arg(op, 0)?, "holder")?, uarg(op, 1)?))
+        }
+        "neighbour_record" => {
+            // traffic-network.md §2.7: the edge record of an off-map cell.
+            let r = s.network().traffic_neighbor_connection(iarg(op, 0)?, iarg(op, 1)?);
+            obj(vec![("mask", ji(r.mask)), ("pool", ji(r.pool)), ("cost", fb(r.cost))])
+        }
+        "pool_ids" => {
+            let ids: Vec<u16> = s.pools().map.keys().copied().collect();
+            jlist(&ids)
+        }
+        "set_connection" => {
+            // traffic-network.md §4.3 `SetConnection(x, z, e, x', t)`.
+            s.network().set_connection(
+                iarg(op, 0)?,
+                iarg(op, 1)?,
+                uarg(op, 2)? as usize,
+                uarg(op, 3)? as usize,
+                uarg(op, 4)? as usize,
+            );
+            Json::Null
+        }
         "destination_byte" => ji(s.destination_byte(iarg(op, 0)?, iarg(op, 1)?)),
         "rng_uniform" => {
             let (n, count) = (uarg(op, 0)?, uarg(op, 1)?);
@@ -1377,6 +1811,40 @@ fn shipped() -> SimTuning {
     t
 }
 
+/// `read_tuning [base, props, fields]`: `ReadSimulatorTunableValues` and the
+/// strategy re-read over `base` (`"shipped"` or `"code"`) with the property
+/// map `props`; returns the named fields (§4.14, §4.1.2, TS28, TS29).
+fn read_tuning(op: &Json) -> R<Json> {
+    let mut t = match str_of(arg(op, 0)?, "base")? {
+        "shipped" => shipped(),
+        "code" => SimTuning::default(),
+        b => return Err(format!("unknown tuning base '{b}'")),
+    };
+    let h = scalar::holder_of(arg(op, 1)?)?;
+    t.read(Some(&h));
+    t.read_strategies(&h);
+    let floats = |v: &[f32]| Json::Array(v.iter().map(|&x| fb(x)).collect());
+    let mut out = Vec::new();
+    for f in arr(arg(op, 2)?, "fields")? {
+        let k = str_of(f, "field")?;
+        let v = match k {
+            "max_speed" => Json::Array(t.max_speed.iter().map(|r| floats(r)).collect()),
+            "tile_costs" => floats(&t.tile_costs),
+            "income_per_tile" => floats(&t.income_per_tile),
+            "roads_funding" => fb(t.max_roads_funding),
+            "transit_funding" => fb(t.max_transit_funding),
+            "generates_traffic" => Json::Array(t.generates_traffic.iter().map(|&b| jb(b)).collect()),
+            "start_neutral" => floats(&t.start_neutral),
+            "start_car" => floats(&t.start_car),
+            "background" => floats(&t.background),
+            "pct" => Json::Array(t.pct.iter().map(|r| jlist(r)).collect()),
+            _ => return Err(format!("unknown tuning field '{k}'")),
+        };
+        out.push((k.to_string(), v));
+    }
+    Ok(Json::Object(out))
+}
+
 fn eval(op: &Json) -> R<()> {
     let f = str_of(field(op, "fn")?, "fn")?;
     let got = match f {
@@ -1438,6 +1906,7 @@ fn eval(op: &Json) -> R<()> {
             }
             Json::Array(t.strategy_percentages(1).map(fb).to_vec())
         }
+        "read_tuning" => read_tuning(op)?,
         "residential_split" => {
             let p: Vec<f32> = arr(arg(op, 1)?, "pct")?
                 .iter()
@@ -1493,6 +1962,29 @@ fn eval(op: &Json) -> R<()> {
                 .map(|c| Json::Array(vec![ji(c.x), ji(c.z), ji(c.t), jb(c.jump)]))
                 .collect(),
         ),
+        "read_route" => Json::Array(
+            read_route(&hex_of(arg(op, 0)?, "route")?)
+                .iter()
+                .map(|c| {
+                    let side = |s: Option<usize>| s.map_or(Json::Null, |v| ji(v as i64));
+                    Json::Array(vec![
+                        ji(c.x),
+                        ji(c.z),
+                        ji(c.t),
+                        ji(c.t_next),
+                        side(c.entry),
+                        side(c.exit),
+                        jb(c.ferry_jump_next),
+                    ])
+                })
+                .collect(),
+        ),
+        "find_highway_return_tile" => {
+            let size = pair(arg(op, 4)?, "size")?;
+            let back = bool_of(arg(op, 2)?, "back")?;
+            let right = bool_of(arg(op, 3)?, "drives_on_right")?;
+            jcell(find_highway_return_tile(iarg(op, 0)?, iarg(op, 1)?, back, right, size))
+        }
         "legacy_density" => ji(legacy_density(farg(op, 0)?)),
         "write_trip" => {
             let mut out = ByteWriter::new();
@@ -1608,10 +2100,11 @@ fn expect_state(w: &World, op: &Json) -> R<()> {
                 Json::Array(
                     set.rows
                         .iter()
+                        .chain(std::iter::once(&set.bridge))
                         .map(|r| {
                             obj(vec![
                                 ("sum", fb(r.sum)),
-                                ("count", ji(r.count)),
+                                ("congested", ji(r.congested)),
                                 ("max", fb(r.max)),
                                 ("max_cell", jcell((r.max_x, r.max_z))),
                             ])
@@ -1630,7 +2123,17 @@ fn expect_state(w: &World, op: &Json) -> R<()> {
                 ("to_reroute", ji(st.to_reroute)),
                 ("to_search", ji(st.to_search)),
                 ("source_pos", ji(st.source_pos as u32)),
-                ("source_count", ji(st.sources.len() as u32)),
+                ("source_count", ji(st.iter.conns.len() as u32)),
+                ("phase_positions", jlist(&st.extras.phase_positions)),
+                (
+                    "held_source",
+                    match st.current {
+                        None => Json::Null,
+                        Some(Source::Lot(l)) => Json::Array(vec![Json::Str("lot".into()), ji(l as i64)]),
+                        Some(Source::Connection(c)) => Json::Array(vec![Json::Str("connection".into()), ji(c as i64)]),
+                    },
+                ),
+                ("finish_resume", st.finish_resume.map_or(Json::Null, |l| ji(l as i64))),
                 ("pass_counters", jlist(&st.pass_counters)),
                 ("strategy_bucket", ji(st.strategy_bucket)),
                 ("strategy_bucket_counter", ji(st.strategy_bucket_counter)),
@@ -1669,8 +2172,9 @@ fn expect_state(w: &World, op: &Json) -> R<()> {
                 ("type_count_published", jlist(&st.type_count_published)),
                 ("ferry_total", ji(st.ferry_total)),
                 ("cells_per_type", jlist(&st.cells_per_type)),
-                ("stats_over", jlist(&st.stats_last.over)),
+                ("stats_records", jlist(&st.stats_last.records)),
                 ("stats_rows", rows(&st.stats_last)),
+                ("potholes", ji(st.stats_last.potholes)),
                 ("next_accident_check", ji(st.next_accident_check as i64)),
                 (
                     "accident_check",
@@ -1837,6 +2341,16 @@ fn expect_world(w: &World, op: &Json) -> R<()> {
             Json::Array(w.released_departments.borrow().iter().map(|&d| ji(d as i64)).collect()),
         ),
         (
+            "network_costs".to_string(),
+            Json::Array(
+                w.costs
+                    .borrow()
+                    .iter()
+                    .map(|(mt, cells)| Json::Array(vec![jb(*mt), jlist(cells)]))
+                    .collect(),
+            ),
+        ),
+        (
             "refs".to_string(),
             Json::Array(
                 w.refs
@@ -1881,9 +2395,9 @@ fn expect_world(w: &World, op: &Json) -> R<()> {
 /// `holder`, `id`, `expect` (null = absent; else the element values as a
 /// list, a scalar as a one-element list).
 fn expect_prop(w: &World, op: &Json) -> R<()> {
-    let holder = u64_of(field(op, "holder")?, "holder")?;
+    let holder = holder_of(field(op, "holder")?, "holder")?;
     let id = u32_of(field(op, "id")?, "id")?;
-    let got = match w.prop(holder, id) {
+    let got = match w.any_prop(holder, id)? {
         None => Json::Null,
         Some(v) => Json::Array(
             v.items()
@@ -1902,6 +2416,22 @@ fn expect_prop(w: &World, op: &Json) -> R<()> {
             show(&got),
             show(want)
         ));
+    }
+    // `elem`: the element type, "u16" or "u32" (§4.2, TS18).
+    if let Some(e) = opt(op, "elem") {
+        let want = str_of(e, "elem")?;
+        let got = w.any_prop(holder, id)?.and_then(|v| {
+            v.items().first().map(|e| match e {
+                Elem::U16(_) => "u16",
+                Elem::U32(_) => "u32",
+                _ => "other",
+            })
+        });
+        if got != Some(want) {
+            return Err(format!(
+                "property 0x{id:08X} of {holder}: elements {got:?}, expected {want}"
+            ));
+        }
     }
     Ok(())
 }
@@ -1981,4 +2511,73 @@ fn expect_network(w: &World, op: &Json) -> R<()> {
         };
     }
     check_fields(&got, want, "record")
+}
+
+/// The network model's route results: `switches` (`[[id, null | {load,
+/// toll}]]`, read without inserting) and `terminals` (`[[index,
+/// {riders_current, links: [counters], neighbour_links: [counters]}]]`).
+fn expect_net(w: &World, op: &Json) -> R<()> {
+    let s = w.sim()?;
+    let mut errors = Vec::new();
+    if let Some(v) = opt(op, "switches") {
+        for e in arr(v, "switches")? {
+            let [id, want] = arr(e, "switches")? else {
+                return Err("each 'switches' entry is [id, switch]".into());
+            };
+            let id = u32_of(id, "id")?;
+            let got = s.network().update_state(|n| {
+                n.switches.get(id).map_or(Json::Null, |sw| {
+                    obj(vec![("load", fb(sw.load)), ("toll", ji(sw.simulator_value))])
+                })
+            });
+            let r = if got == Json::Null || *want == Json::Null {
+                if matches(&got, want, false) {
+                    Ok(())
+                } else {
+                    Err(format!("switch {id}: {}, expected {}", show(&got), show(want)))
+                }
+            } else {
+                check_fields(&got, want, &format!("switch {id}"))
+            };
+            if let Err(m) = r {
+                errors.push(m);
+            }
+        }
+    }
+    if let Some(v) = opt(op, "terminals") {
+        for e in arr(v, "terminals")? {
+            let [i, want] = arr(e, "terminals")? else {
+                return Err("each 'terminals' entry is [index, terminal]".into());
+            };
+            let i = u32_of(i, "index")? as usize;
+            let got = s.network().update_state(|n| {
+                n.ferries.get(i).map(|t| {
+                    obj(vec![
+                        ("riders_current", ji(t.riders_current)),
+                        ("riders_last", ji(t.riders_last)),
+                        (
+                            "links",
+                            Json::Array(t.links.iter().map(|l| jlist(&l.counters)).collect()),
+                        ),
+                        (
+                            "neighbour_links",
+                            Json::Array(t.neighbour_links.iter().map(|l| jlist(&l.counters)).collect()),
+                        ),
+                    ])
+                })
+            });
+            let Some(got) = got else {
+                errors.push(format!("no terminal {i}"));
+                continue;
+            };
+            if let Err(m) = check_fields(&got, want, &format!("terminal {i}")) {
+                errors.push(m);
+            }
+        }
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join("; "))
+    }
 }

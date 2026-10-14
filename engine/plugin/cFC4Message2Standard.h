@@ -23,7 +23,9 @@
 class cIGZSerializable;
 class cIGZString;
 
-class cFC4Message2Standard final : public cIGZMessage2Standard {
+// Not final: a message that owns what its data points at derives from it
+// (cFC4ZoningChangeMessage, cFC4ZoneManager.h: zones.md §5.3, §13.1).
+class cFC4Message2Standard : public cIGZMessage2Standard {
 public:
     static constexpr uint32_t kIID_cIGZMessage2 = 0xA52294B4;  // foundations §5.1 [inferred]
 
@@ -95,10 +97,12 @@ public:
     //   +0x10..+0x1C data1..data4, +0x20 string, +0x24 unknown, +0x28 extra
     // (static_asserts in the constructor; message_test checks the flags byte).
 
-private:
+protected:
     cFC4Message2Standard();
     // Virtual, so that it occupies vtable slot 37 like the game's (layouts.md).
     virtual ~cFC4Message2Standard();
+
+private:
     cFC4Message2Standard(const cFC4Message2Standard&) = delete;
     cFC4Message2Standard& operator=(const cFC4Message2Standard&) = delete;
 

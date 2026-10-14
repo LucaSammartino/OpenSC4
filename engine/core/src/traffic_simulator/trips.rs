@@ -14,9 +14,38 @@ use crate::pathfinder::{filter, flag, result, Pathfinder, NO_PARK_AND_RIDE};
 use crate::variant::{Elem, Variant};
 use crate::x87::{r24, rhe};
 
+use crate::traffic_network::NetworkState;
+
 use super::cycle::Run;
 use super::route::{confirm_route, mode};
 use super::{prop, status, trip_flag, Source, TripData, FREIGHT};
+
+/// The neighbour-connection types of a divided road (§4.4, TS17): Highway
+/// (3), Avenue (8) and GroundHighway (12) (traffic-network.md §2.7.1).
+pub const DIVIDED_ROAD_MASK: u16 = 0x1108;
+
+/// `FindHighwayReturnTile(x, z, back)` (`0x0070DD30`, §4.4, TS17): moves an
+/// off-map cell one step along its map edge, so a car or bus that left by a
+/// divided road comes back on the other carriageway. `right` is the
+/// language's driving side, inverted when `back`; then the first matching
+/// row: `x < 0` → `z ± 1`, `x > X − 1` → `z ∓ 1`, `z < 0` → `x ∓ 1`,
+/// `z > Z − 1` → `x ± 1` (upper signs when `right`). An in-city cell is
+/// unchanged; the new cell is not checked.
+pub fn find_highway_return_tile(x: i32, z: i32, back: bool, drives_on_right: bool, size: (i32, i32)) -> (i32, i32) {
+    let right = drives_on_right != back;
+    let d = if right { 1 } else { -1 };
+    if x < 0 {
+        (x, z + d)
+    } else if x > size.0 - 1 {
+        (x, z - d)
+    } else if z < 0 {
+        (x - d, z)
+    } else if z > size.1 - 1 {
+        (x + d, z)
+    } else {
+        (x, z)
+    }
+}
 
 /// The travel types a commuter may use (§4.4 step 5): walk, car, bus,
 /// passenger train, subway, el-train, monorail.
@@ -242,8 +271,8 @@ impl Run<'_, '_> {
     }
 
     /// The destination rectangle of a cell (§4.4): the lot's bounding rect
-    /// when the cell is in the city and holds a lot (`GetLot(x, z, false)`
-    /// *[choice]*), else the cell.
+    /// when the cell is in the city and holds a lot (`GetLot(x, z, false)`,
+    /// any cell of the lot, TS19), else the cell.
     fn dest_rect(&self, x: i32, z: i32) -> CellRect {
         if self.net().in_city(x, z) {
             if let Some(l) = self.h.lot_at(x, z, false) {
@@ -332,6 +361,44 @@ impl Run<'_, '_> {
         h.set_trip_list(src, trips);
     }
 
+    // ---- §4.1 the traffic-source iterator ----
+
+    /// `Reset` of the traffic-source iterator (§4.1, TS20): the neighbour
+    /// connections listed now, the lot walk rewound; no source held.
+    pub(crate) fn reset_sources(&mut self) {
+        let conns = self.h.all_connections();
+        self.st.iter.reset(conns);
+        self.st.current = None;
+    }
+
+    /// `GetNext` of the traffic-source iterator (§4.1, TS20): the next lot
+    /// of the live walk, then the connections of the snapshot.
+    pub(crate) fn next_source(&mut self) -> Option<Source> {
+        if !self.st.iter.lots_done {
+            let lots = self.h.lots();
+            if let Some(l) = self.st.iter.next_lot(lots) {
+                return Some(Source::Lot(l));
+            }
+        }
+        self.st.iter.next_connection().map(Source::Connection)
+    }
+
+    /// The location the iterator yields with a source (§4.1): a lot's
+    /// location (lot slot 21), a connection's cell.
+    pub(crate) fn source_cell(&self, src: Source) -> (i32, i32) {
+        match src {
+            Source::Lot(l) => self.h.lot_location(l),
+            Source::Connection(c) => self.h.connection_cell(c),
+        }
+    }
+
+    /// A trip phase takes `src`: its cell is stored for the load resume
+    /// (§3.5 step 11, §6.1 row 14 *[question: the field]*).
+    fn take_source(&mut self, src: Source) {
+        let (x, z) = self.source_cell(src);
+        self.st.extras.phase_positions = [x as i16, z as i16];
+    }
+
     // ---- §4.3 ConfirmTrips ----
 
     /// One slice of ConfirmTrips (state 16, §3.4): at most N sources.
@@ -342,9 +409,10 @@ impl Run<'_, '_> {
             if units >= n {
                 return false;
             }
-            let Some(&src) = self.st.sources.get(self.st.source_pos) else {
+            let Some(src) = self.next_source() else {
                 return true;
             };
+            self.take_source(src);
             self.st.source_pos += 1;
             self.update_traffic_volume(src);
             self.confirm_source(src);
@@ -439,8 +507,16 @@ impl Run<'_, '_> {
         let n = self.st.tuning.traffic_units_per_slice.max(1);
         let mut units = 0;
         loop {
-            let Some(&src) = self.st.sources.get(self.st.source_pos) else {
-                return true;
+            let src = match self.st.current {
+                Some(s) => s,
+                None => {
+                    let Some(s) = self.next_source() else {
+                        return true;
+                    };
+                    self.take_source(s);
+                    self.st.current = Some(s);
+                    s
+                }
             };
             let mut trips = self.h.trip_list(src);
             let next = (self.st.trip_pos..trips.len()).find(|&i| trips[i].status == want);
@@ -453,6 +529,7 @@ impl Run<'_, '_> {
                     merge_search(&mut trips);
                 }
                 self.h.set_trip_list(src, trips);
+                self.st.current = None;
                 self.st.source_pos += 1;
                 self.st.trip_pos = 0;
                 continue;
@@ -461,22 +538,29 @@ impl Run<'_, '_> {
                 return false;
             }
             units += 1;
-            self.st.processed = self.st.processed.wrapping_add(1);
             let rect = self.source_rect(src);
             let mut t = trips[i].clone();
+            let pc = |st: &mut super::State, i: usize| st.pass_counters[i] = st.pass_counters[i].wrapping_add(1);
             if full {
+                // Every search adds 1 to `processed` (none suspends, §3.4).
                 let r = self.search_trip(&mut t, rect);
+                self.st.processed = self.st.processed.wrapping_add(1);
                 if r.found {
                     t.status = status::ROUTED;
                     t.trip_length = r.trip_length;
                     if r.arrived < t.count {
-                        // The split (§4.4).
+                        // The split (§4.4): +1 to `toSearch`, to the running
+                        // phase's `total` and to pass counter 9
+                        // (`0x0071D75A`, TS21).
                         let mut copy = t.clone();
                         copy.count = t.count - r.arrived;
                         copy.status = status::SEARCH;
                         t.count = r.arrived;
                         trips.insert(i + 1, copy);
                         self.st.continue_search = true;
+                        self.st.to_search = self.st.to_search.wrapping_add(1);
+                        self.st.total = self.st.total.wrapping_add(1);
+                        pc(self.st, super::state::PC_SPLITS);
                     } else {
                         self.st.continue_search = false;
                     }
@@ -485,12 +569,19 @@ impl Run<'_, '_> {
                     self.st.continue_search = false;
                 }
             } else if !self.capacity_still_available(&t) {
+                // Sent back for lack of capacity: +1 to `toSearch` and to
+                // pass counter 4, not to `processed` (`0x0071D20D`, TS21).
                 t.status = status::SEARCH;
+                self.st.to_search = self.st.to_search.wrapping_add(1);
+                pc(self.st, super::state::PC_CAPACITY_SEND_BACKS);
             } else {
                 let r = self.search_trip(&mut t, rect);
+                self.st.processed = self.st.processed.wrapping_add(1);
                 if r.found {
                     t.status = status::ROUTED;
                     t.trip_length = r.trip_length;
+                    // A found re-route: +1 to the re-route counter (TS21).
+                    pc(self.st, super::state::PC_REROUTE_COUNTER);
                 } else {
                     t.status = status::FAILED;
                 }
@@ -562,14 +653,7 @@ impl Run<'_, '_> {
                 pf.set_travel_type_flag(1u16.checked_shl(u32::from(t.strategy)).unwrap_or(0), true);
             } else {
                 pf.set_travel_type_flag(COMMUTER_START, true);
-                let tu = &self.st.tuning;
-                let costs = match t.strategy {
-                    0 => Some(tu.start_mass_transit),
-                    1 => Some(tu.start_car),
-                    2 => Some(tu.start_neutral),
-                    // No array for another strategy *[choice]*.
-                    _ => None,
-                };
+                let costs = self.strategy_costs(t.strategy);
                 if costs.is_some() {
                     pf.set_starting_cost_array(costs);
                 }
@@ -579,6 +663,118 @@ impl Run<'_, '_> {
             pf.set_flag(flag::NO_BUDGET);
             pf.set_travel_type_flag(FREIGHT_TYPES, true);
         }
+    }
+
+    /// The starting cost array of a strategy (§4.4 step 5): 0 mass transit,
+    /// 1 car, 2 neutral; none for another strategy *[choice]*.
+    fn strategy_costs(&self, strategy: u8) -> Option<[f32; 9]> {
+        let tu = &self.st.tuning;
+        match strategy {
+            0 => Some(tu.start_mass_transit),
+            1 => Some(tu.start_car),
+            2 => Some(tu.start_neutral),
+            _ => None,
+        }
+    }
+
+    /// `SetupPathFinderForLot(pf, lot)` (slot 7, `0x00711610`, §4.4, TS10).
+    /// Unlike SetupTrip it never sets the traffic density, the work-time
+    /// limit, flag 4, a forced start type or a re-route end rect.
+    pub(crate) fn setup_path_finder_for_lot(&mut self, pf: &mut Pathfinder, lot: u64) -> bool {
+        // 1.
+        if lot == 0 {
+            return false;
+        }
+        // 2. An empty list: UpdateTrafficVolume once, then look again.
+        let src = Source::Lot(lot);
+        let mut trips = self.h.trip_list(src);
+        if trips.is_empty() {
+            self.update_traffic_volume(src);
+            trips = self.h.trip_list(src);
+        }
+        let Some(first) = trips.first() else {
+            return false;
+        };
+        // 3. The dominant strategy (unsigned, strict: a tie keeps the lower
+        // index); a strategy above 2 is not summed *[choice]*. The type is
+        // the first trip's.
+        let mut sum = [0u32; 3];
+        for t in &trips {
+            if let Some(s) = sum.get_mut(usize::from(t.strategy)) {
+                *s = s.wrapping_add(t.count);
+            }
+        }
+        let mut best = 0;
+        if sum[1] > sum[0] {
+            best = 1;
+        }
+        if sum[2] > sum[best] {
+            best = 2;
+        }
+        let ty = first.trip_type;
+        // 4.
+        pf.set_start_rect(self.source_rect(src));
+        pf.clear_all_flags();
+        pf.clear_all_travel_type_flags();
+        pf.set_starting_cost_array(None);
+        pf.set_max_trip_length(self.st.tuning.commute_max_time);
+        // 5.
+        pf.set_trip_destination_filter(filter::STANDARD);
+        pf.clear_all_destination_flags();
+        pf.set_destination_flag(1u8.checked_shl(u32::from(ty)).unwrap_or(0));
+        // 6.
+        if ty <= 2 {
+            pf.set_travel_type_flag(COMMUTER_TYPES, false);
+            pf.set_travel_type_flag(COMMUTER_START, true);
+            pf.set_starting_cost_array(self.strategy_costs(best as u8));
+            true
+        } else if ty == FREIGHT {
+            pf.set_flag(flag::NO_BUDGET);
+            pf.set_travel_type_flag(FREIGHT_TYPES, true);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// The return leg's start and end rects (§4.4, `0x0071C858`–`0x0071C987`,
+    /// TS17) from pf's end cell, its result node's travel type and its start
+    /// rect. Start: in the city the bounding rect of `GetLot(x, z, false)`,
+    /// or `None` without a lot (pf2 keeps its previous start rect
+    /// *[quirk]*); off the map the single cell, moved by
+    /// [`find_highway_return_tile`] (`back` false) for a car or bus at an
+    /// edge record with a divided road. End: pf's start rect, or when its
+    /// `(x0, z0)` corner is off the map at such a record (any type) the
+    /// single cell moved with `back` true.
+    pub(crate) fn return_leg_rects(
+        &self,
+        end: (i32, i32),
+        end_type: u8,
+        pf_start: CellRect,
+    ) -> (Option<CellRect>, CellRect) {
+        let s: &NetworkState = self.net();
+        let size = (s.count_x, s.count_z);
+        let right = self.h.drives_on_right();
+        let divided = |x: i32, z: i32| s.traffic_neighbor_connection(x, z).mask & DIVIDED_ROAD_MASK != 0;
+        let (x, z) = end;
+        let start = if s.in_city(x, z) {
+            self.h.lot_at(x, z, false).map(|l| self.h.lot_bounding_rect(l))
+        } else {
+            let (x, z) = if (end_type == 1 || end_type == 2) && divided(x, z) {
+                find_highway_return_tile(x, z, false, right, size)
+            } else {
+                (x, z)
+            };
+            Some(CellRect::new(x, z, x, z))
+        };
+        let (x0, z0) = (pf_start.x1, pf_start.z1);
+        let end = if !s.in_city(x0, z0) && divided(x0, z0) {
+            let (x, z) = find_highway_return_tile(x0, z0, true, right, size);
+            CellRect::new(x, z, x, z)
+        } else {
+            pf_start
+        };
+        (start, end)
     }
 
     /// `PerformPathSearch(trip)` (`0x0071C6C0`, §4.4). A suspended search
@@ -619,11 +815,12 @@ impl Run<'_, '_> {
             return true;
         }
         t.flags &= !trip_flag::REVERSIBLE;
-        // The return leg on pf2, configured field by field (§4.4). The
-        // highway-return adjustment for an off-map destination is not
-        // specified *[question]*: none.
-        pf2.set_start_rect(self.dest_rect(ex, ez));
-        pf2.set_end_rect(pf.start_rect());
+        // The return leg on pf2, configured field by field (§4.4, TS17).
+        let (start, end) = self.return_leg_rects((ex, ez), pf.get_last_travel_type(), pf.start_rect());
+        if let Some(r) = start {
+            pf2.set_start_rect(r);
+        }
+        pf2.set_end_rect(end);
         pf2.set_flags(flag::NO_BUDGET);
         pf2.set_traffic_density(arrived);
         pf2.set_trip_destination_filter(filter::END_RECT);
@@ -739,37 +936,46 @@ impl Run<'_, '_> {
 
     // ---- §4.7 FinishTripMap ----
 
-    /// FinishTripMap (state 15, §4.7).
+    /// FinishTripMap (state 15, §4.7, TS26), in one call. After a load in
+    /// state 15 the lot walk starts after the lot DoPostCityInit found at
+    /// the saved cell (§3.5 step 11).
     pub(crate) fn finish_trip_map(&mut self) {
         let h = self.h;
-        for lot in h.lots() {
+        let mut lots = h.lots();
+        if let Some(after) = self.st.finish_resume.take() {
+            if let Some(i) = lots.iter().position(|&l| l == after) {
+                lots.drain(..=i);
+            }
+        }
+        for lot in lots {
             h.clear_lot_flag(lot, 0x80);
             let zone = h.lot_zone(lot);
             if !(zone == 8 || zone == 9) || h.lot_has_road_access(lot) {
                 continue;
             }
             let Some(g) = self.st.trip_length.clone() else { continue };
+            // `value := 0`; the linked lot's location, else the donor cell.
             let from = match h.lot_link(lot) {
                 Some(link) => Some(h.lot_location(link)),
                 None => self.search_trip_length_donor(lot, zone),
             };
-            if let Some((sx, sz)) = from {
-                let v = g.get_cell_value(sx, sz);
-                let r = h.lot_bounding_rect(lot);
-                for x in r.x1..=r.x2 {
-                    for z in r.z1..=r.z2 {
-                        g.set(x, z, v);
-                    }
+            let v = from.map_or(0, |(sx, sz)| g.get_cell_value(sx, sz));
+            // No donor writes 0 over the rect (TS26).
+            let r = h.lot_bounding_rect(lot);
+            for x in r.x1..=r.x2 {
+                for z in r.z1..=r.z2 {
+                    g.set(x, z, v);
                 }
             }
         }
     }
 
-    /// The outward search of §4.7 from the lot's location: distance 1, 2, …,
-    /// the four directions (−x, −z, +x, +z) at each distance
-    /// *[choice: distance-major]*; a direction stops when it leaves the city,
-    /// finds no lot or a lot of another zone; the first lot of the same zone
-    /// with road access is the donor (its cell).
+    /// The outward search of §4.7 (`0x00710016`–`0x007101D7`, TS26) from the
+    /// lot's location: distance 1, 2, …, at each distance the open
+    /// directions −x, −z, +x, +z. A cell outside the city, with no lot or
+    /// with a lot of another zone closes its direction; the lot itself and
+    /// a same-zone lot without road access are passed over; the first
+    /// same-zone lot with road access ends the search at that cell.
     fn search_trip_length_donor(&self, lot: u64, zone: u32) -> Option<(i32, i32)> {
         let (x0, z0) = self.h.lot_location(lot);
         let mut alive = [true; 4];
