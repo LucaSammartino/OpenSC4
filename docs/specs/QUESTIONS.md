@@ -1111,7 +1111,14 @@ brackets; the module doc of `core/src/residential/education_health.rs` lists 1 t
   at cell (x × S_t, z × S_t), the same tract when its size equals the target's. Bounds and geometry come from the
   target only; all four grids have tract size 4 in every game-written city. *[choice]* a tract outside a smaller
   source grid (hand-made save only) reads as 0.
-- **EH14:** P is a signed 32-bit value: is a negative P accepted on Read (`record.rs`)? [accepted]
+- ~~**EH14:** P is a signed 32-bit value: is a negative P accepted on Read (`record.rs`)? [accepted]~~ **ANSWERED
+  2026-10-14** from the exe (Read `0x00700A02`; the only readers, `Init` `0x006FEEB1`–`0x006FF15D`; state 4's S
+  from the grid, `DoPopulationChange` `0x006FA4AE`–`0x006FA4B7`) and written into residential.md §2, §5.5 (RS15,
+  corrected) and §9.2. **The original accepts it**, unchecked, as it does 0 and huge values. With every grid
+  present a negative P changes nothing: state 4's S is the R$ population grid's own `GetTractSize()`, not P
+  (correction: §5.5 said S = P), and P only sizes a grid `Init` must recreate. Such a grid with P < 0 hangs state 4
+  at tract (0, 0). *[choice]* (changed, not the bracket) reject P or E outside 1…256 read as signed, and the loaded
+  R$ population grid's size likewise; take S from that grid. No game-written save is affected (all are 4).
 - Not testable by vectors: the unsigned versus signed upper-bound compare (no output differs); the §4.13 tuning
   values that are loaded but unused (minimum acceptable funding, maximum EQ/HQ boost). REH §11 test 24's calling
   conventions (slot 34 leaves the x87 stack unchanged; slots 10 to 13 return through the hidden pointer) belong

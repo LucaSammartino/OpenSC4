@@ -1079,9 +1079,11 @@ Open questions:
    them, and nothing outside it can reach them. (The age histogram is read by residential.md §5.6.)
 4. What does the building's slot-11 value (§4.1 step 4) mean? (The LE-weighted population sum is the average
    life expectancy history, residential.md §5.6.)
-5. The population tract size and the EQ tract size are equal on a new city. Does a loaded city keep them equal?
-   This affects aura question 4. *[inferred: yes, both are saved and both start from the same developer tract
-   size]*.
+5. ~~The population tract size and the EQ tract size are equal on a new city. Does a loaded city keep them equal?
+   This affects aura question 4.~~ **Yes** in every game-written save (EH13, EH14): P, E and each grid's own tract
+   size are saved and stay 4. The simulation asks each grid for its own size; P and E only size a grid that `Init`
+   recreates (residential.md §9.2). `AddRadiusEffectWithCurves` takes its geometry from the EQ/HQ grid alone
+   (§4.6).
 
 ## 11. Conformance tests
 
