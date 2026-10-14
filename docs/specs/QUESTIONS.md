@@ -3537,3 +3537,20 @@ flammability cycle-end message arrived up to 17 days after the wrap day.
 - **FL13:** FL7: what polls when there are no day polls, for example when the game's own simulator delivers the days?
   [every forwarded message plus the cycle end. Polling still needs the host's `watered_grid` to be non-NULL, although
   content polls read only slot 11]
+
+## From applying the zones, landfill, budget and crime answers (filed by the coordinator from the `apply9b` lane's report, 2026-10-14)
+
+apply9b applied ZG1–ZG17, LG27–LG29, BQ4, BQ7 and CQ23 (merged `969527d`). In game the zones shadow is exact (392/392,
+296/296), and landfill game tiles insert with no failures (`gameTiles=12 gameTileFailures=0`; the tile exemplar is set
+through the holder at occupant + 0x20).
+
+- **ZG18:** ZG3: with no exemplar, or no Zone Display Alpha property, does `Init` still copy the alpha to the default
+  alpha? [no: the saved alpha survives and the default alpha stays as it was (0xFF from the constructor); only the
+  exemplar's value is copied]
+- **ZG19:** ZG3 / §10.1: does `Read` set the default alpha? [no: the default alpha is not saved, so after `Read` and
+  before `Init` it is 0xFF]
+- **ZG20:** zones §15.2 still says "Type 16 → false", which conflicts with §6 and ZG17. [ZG17 followed: type 16
+  dezones; `zn15_02` updated. The spec text needs the fix]
+- **ZG21:** ZG2 and the §5.1 dezone: under the ZG2 choice, a network whose bounding cells cross the city edge has its
+  whole dezone refused. Before, the inside cells were dezoned, and the original dezones them too while touching
+  memory outside the grid. [refused whole, with error 0; not seen in game]

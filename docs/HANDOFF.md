@@ -46,7 +46,7 @@ worktree: paste what it needs into the message, or copy files into its `build-ru
 | cores10b: commercial + industrial + civic buildings + park manager cores | `a195154e182349440` | worktree | ABI 51 | running |
 | RE specs 10: city situation manager, demolition utility, dispatch manager, airport/seaport developers, prop developer (city detail manager if time) | `a576c1f88a67e75e5` | `re-specs10` | - | running |
 | RE answers 9: DG1-DG27 (DG5 first: how a building occupant gets its exemplar), LG21-LG26, AO1-AO2, PR/RG/NB/PG, EX34-EX39, ZQ13 | `a847980b29901cc38` | `re-answers9` | - | running |
-| RE specs 11: lot developer geometry (levelling, foundations, slot 39, boundary textures; Q3, Q7), graphics GF7/GF10/GF11 | `a51611144f724e0f2` | `re-specs11` | - | running |
+| RE specs 11: lot developer geometry (levelling, foundations, slot 39, boundary textures; Q3, Q7), graphics GF7/GF10/GF11, zones §14.3 Q2-Q8 and lot creation (for zones phase 2) | `a51611144f724e0f2` | `re-specs11` | - | running |
 | lotglue: lot developer replacement (`enable = lotdev`) and shadow (`lotdev_shadow = 1`); Q4 slots wait for re-specs11 | `ab9c3d71e1a39f129` | worktree | ABI 53, seam op 52 | running |
 | harness tooling 2: regress through the queue with coordinator priority, 6 slots, queue status, clearer rejections | `aebacb404dae356d7` | worktree | - | merged `4e489e9`; queue restarted with `-Slots 6` at 14:51 |
 
