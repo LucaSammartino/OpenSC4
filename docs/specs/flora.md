@@ -994,6 +994,13 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check` and th
   therefore either reuse the original records (build them with the full original layout from the game's
   allocator) or never let a record's count reach zero (keep its own reference for the process lifetime)
   *[choice: keep a permanent reference]*. The flora occupant also holds these records across cities.
+
+  **Never freeing them** (FQ8). The original gives up the registry's references only in its application-shutdown
+  callback (§3.2), after which nothing reads a record; its reload on an exemplar change (§5) already drops the
+  old records without releasing them. So never freeing the record blocks and never clearing the registry at
+  application shutdown has no observable effect; the implementer's choice stands. Records that flora occupants
+  still reference must stay valid in any case, because occupants release them through the game's
+  `cSC4StaticFloraData::Release`.
 - **Flora occupants are original objects.** The simulator creates `cSC4FloraOccupant` directly (constructor +
   pooled new, not GZCOM) and its obliteration save assumes every type-`0x74758926` occupant **is** one (it steps
   from the `cISC4Occupant` pointer to the object base). A replacement should create flora occupants through

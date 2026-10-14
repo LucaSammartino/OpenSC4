@@ -1180,7 +1180,11 @@ part of §8 is not compared). The glue's current answer is in brackets.
   `Write` `0x006AFEE0` / `Read` `0x006AFFE0`) and written into flora.md §7. **As stated.** Default `0.08f`;
   `16.0f / v` only when the tuning exemplar has `0xC9DBDD02`; re-read at every `Init` and on an exemplar change of
   `0x1A2FDB6A`; never saved.
-- **FQ8:** blocks are never freed and the registry is never cleared at app shutdown. [as stated]
+- ~~**FQ8:** blocks are never freed and the registry is never cleared at app shutdown. [as stated]~~ **ANSWERED
+  2026-10-14** from the exe (shutdown callback `0x006B1070`, reload in `DoMessage` `0x006B352B`–`0x006B354B`) and
+  written into flora.md §13.2. **No observable original behaviour; the implementer's choice stands.** The
+  original releases the registry's references and empties the map and type array only in its process-exit
+  callback (FQ2), and its exemplar-change reload already drops old records unreleased.
 - **FQ9:** `cISC4FloraTypeFilter` (slot 3) is not in `docs/abi`. Slot 13 with a non-null filter inserts nothing and
   returns 0; with a null filter it inserts every key. [as stated]
 - **FQ10:** `cIGZCommandParameterSet` is not in `docs/abi`. PlaceFlora reads its parameters through slot 5
