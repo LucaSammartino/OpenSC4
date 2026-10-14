@@ -227,6 +227,17 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Residential.h
         plugin/FC4ResidentialShadow.cpp
         plugin/FC4ResidentialShadow.h
+        plugin/FC4PropertyHolder.cpp
+        plugin/FC4PropertyHolder.h
+        plugin/cFC4Neighbors.cpp
+        plugin/cFC4Neighbors.h
+        plugin/FC4NeighborsShadow.cpp
+        plugin/FC4NeighborsShadow.h
+        plugin/FC4GrowthProbe.cpp
+        plugin/FC4GrowthProbe.h
+        plugin/FC4GrowthProbeHook.cpp
+        plugin/FC4GrowthProbeHook.h
+        plugin/FC4GrowthProbeLogic.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -278,6 +289,14 @@ if(FC4_IS_WIN32_X86)
     target_compile_options(fc4_game_map_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME game_map_test COMMAND fc4_game_map_test)
 
+    # The master lot list through the safe lot iterator
+    # (plugin/FC4SafeLotIterator.h, budget.md §5.2 BQ3) against fake lists
+    # built as aura.md §6.5 and docs/abi/allocators.md describe them.
+    add_executable(fc4_safe_lot_iterator_test tests/safe_lot_iterator_test.cpp)
+    target_include_directories(fc4_safe_lot_iterator_test PRIVATE plugin)
+    target_compile_options(fc4_safe_lot_iterator_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME safe_lot_iterator_test COMMAND fc4_safe_lot_iterator_test)
+
     # foundations §16: the slot layout of every game interface we implement.
     add_executable(fc4_vtable_layout_test tests/vtable_layout_test.cpp)
     target_include_directories(fc4_vtable_layout_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin tests)
@@ -298,6 +317,15 @@ if(FC4_IS_WIN32_X86)
     target_compile_options(fc4_fpu_logic_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME fpu_logic_test COMMAND fc4_fpu_logic_test)
 
+    # The growth probe (building-development.md §12): the counting hook on a
+    # fake vtable in this process (forwarding, count, result, callee-pop,
+    # registers and x87 state, restore) and its day and summary lines.
+    add_executable(fc4_growth_probe_test tests/growth_probe_test.cpp plugin/FC4GrowthProbeHook.cpp)
+    target_include_directories(fc4_growth_probe_test PRIVATE plugin)
+    target_compile_definitions(fc4_growth_probe_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_growth_probe_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME growth_probe_test COMMAND fc4_growth_probe_test)
+
     # Every interface we implement or call against docs/abi/interfaces.tsv
     # (callee-pop bytes, return channel, slot count), read at run time.
     set(FC4_ABI_TSV "${CMAKE_CURRENT_SOURCE_DIR}/../docs/abi/interfaces.tsv")
@@ -310,7 +338,8 @@ if(FC4_IS_WIN32_X86)
         --plugin-dir "${CMAKE_CURRENT_SOURCE_DIR}/plugin" "${FC4_ABI_TSV}")
 
     # Loads the built FreeCity4.dll like a GZCOM host and checks the diagnostics log.
-    add_executable(fc4_plugin_load_test tests/plugin_load_test.cpp "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp"
+    add_executable(fc4_plugin_load_test tests/plugin_load_test.cpp plugin/cFC4Variant.cpp
+        "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp"
         "${FC4_GZCOM_DIR}/src/cRZBaseVariant.cpp" "${FC4_GZCOM_DIR}/src/cSCBaseProperty.cpp")
     target_include_directories(fc4_plugin_load_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin capi/include)
     target_compile_options(fc4_plugin_load_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
@@ -360,7 +389,8 @@ if(FC4_IS_WIN32_X86)
     set_tests_properties(plugin_ini_enable_protection_test plugin_ini_protection_shadow_test
         PROPERTIES RUN_SERIAL TRUE)
     # Aura (aura.md): `enable = aura` (no city: neutral getters, lifecycle,
-    # status lines) and the aura grid shadow on a fake original (seam op 14).
+    # status lines) and the aura shadow following a fake original step by step
+    # (seam ops 14 and 35).
     add_test(NAME plugin_ini_enable_aura_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-aura)
     set_tests_properties(plugin_ini_enable_aura_test PROPERTIES RUN_SERIAL TRUE)
@@ -392,12 +422,23 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_residential_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-residential)
     set_tests_properties(plugin_ini_enable_residential_test PROPERTIES RUN_SERIAL TRUE)
+    # `enable = neighbors`: the neighbours simulator, its connections (an
+    # original's accepted on load) and deals, through a fake city and region.
+    add_test(NAME plugin_ini_enable_neighbors_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-neighbors)
+    set_tests_properties(plugin_ini_enable_neighbors_test PROPERTIES RUN_SERIAL TRUE)
     # References read from a save (in-game run 88): land value grids and a
     # foreign ordinance, with and without a save before Shutdown, and land value
     # grids created through GZCOM; no reference warning, each released once.
     add_test(NAME plugin_saved_refs_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --saved-refs)
     set_tests_properties(plugin_saved_refs_test PROPERTIES RUN_SERIAL TRUE)
+    # The growth calibration probe (building-development.md §12, seam op 39):
+    # `growth_probe = 1` on a fake tract developer vtable and a fake city (day
+    # lines, cut, summary, restore), and off by default.
+    add_test(NAME plugin_ini_growth_probe_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-growth-probe)
+    set_tests_properties(plugin_ini_growth_probe_test PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

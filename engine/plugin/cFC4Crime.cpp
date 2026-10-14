@@ -252,6 +252,11 @@ void ForEachTypeKey(void*, fc4_key_visitor visit, void* ctx) {
     fc4::Log("crime: %u resource keys enumerated, %u crime type exemplars", n, found);
 }
 
+// [choice] (§7 step 1, CQ20) The original reads the name key 0x8A416B2E from
+// a second, uncached load of the type's exemplar (GetPrivateResource, slot 4,
+// interface 0xA52160F5); FreeCity4 reads it from this one cached load with the
+// other properties. Both give the same exemplar unless something changed the
+// cached copy in memory.
 fc4_props* ExemplarProps(void*, uint32_t type, uint32_t group, uint32_t instance) {
     if (!Gate(fc4::Sw::ExemplarLoads, "crime type exemplar (none)")) return nullptr;
     fc4::props::Exemplar ex;
@@ -259,9 +264,11 @@ fc4_props* ExemplarProps(void*, uint32_t type, uint32_t group, uint32_t instance
     return fc4::props::ToCoreAll(ex.Holder());
 }
 
-// One LTEXT resource as a new string with our reference, or null.
-// [choice] GetPrivateResource, as the SDK's StringResourceManager reads LTEXT
-// (the spec does not say which call; both give the same text).
+// One LTEXT resource as a new string with our reference, or null. §7 step 2
+// (CQ20): the LTEXT comes through the resource manager's slot 4,
+// GetPrivateResource (+0x10), which loads without the cache, asked for
+// cIGZString with the last two arguments 0 and null, as in the original; the
+// string is released after the copy.
 cIGZString* LoadLtextString(cIGZPersistResourceManager* rm, uint32_t type, uint32_t group, uint32_t instance) {
     const cGZPersistResourceKey key(type, group, instance);
     FC4_OUT(cIGZString*, out, "cIGZString* (GetPrivateResource out pointer)");
@@ -276,10 +283,12 @@ cIGZString* LoadLtextString(cIGZPersistResourceManager* rm, uint32_t type, uint3
     return out.get();
 }
 
-// The game's string detokenizer (cISC4App +0xA8, lua-host.md §10.1) with a
-// reference of ours, or null. [choice] GetStringDetokenizer is taken as
-// returning a borrowed pointer, like GetCity (spec question); our AddRef /
-// Release pair keeps the object alive across the call either way.
+// The game's string detokenizer (cISC4App slot 42, +0xA8, lua-host.md §10.1)
+// with a reference of ours, or null. The pointer is borrowed (CQ19):
+// GetStringDetokenizer returns the application's member with no AddRef, and
+// the original calls slot 9 with no AddRef or Release around it. A caller may
+// take and release its own reference around the call (§7); ours keeps the
+// object alive across it.
 cFC4ISCStringDetokenizer* AcquireDetokenizer() {
     cIGZFrameWork* fw = RZGetFrameWork();
     cIGZApp* app = fw ? fw->Application() : nullptr;
@@ -301,10 +310,13 @@ cFC4ISCStringDetokenizer* AcquireDetokenizer() {
 //      key (the SDK helper refuses them; the original does not).
 //   3. The text is copied into the name and the detokenizer runs on the copy
 //      in place (slot 9, Detokenize(string, string), with the same string as
-//      input and output). It returning false fails the load, but the name
-//      keeps the text: the sink gets it and the callback returns false (fc4.h).
-//      With no detokenizer the step is skipped.
-// [choice] With no language manager the language ID is 0 (one lookup).
+//      input and output). It returning false fails the load: the sink gets the
+//      text and the callback returns false (fc4.h), and the core discards it,
+//      so the name is empty unless 0xAA12FCB0 exists (CQ16: the original's
+//      failure exit resizes the string to 0). With no detokenizer the step is
+//      skipped.
+// [choice] (CQ18) With no language manager the language ID is 0 (one lookup;
+// the original calls through a null pointer, but the game always has one).
 bool Ltext(void*, uint32_t type, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx) {
     if (!Gate(fc4::Sw::Ltext, "crime type name LTEXT (not found)")) return false;
     cIGZPersistResourceManagerPtr rm;
@@ -322,8 +334,8 @@ bool Ltext(void*, uint32_t type, uint32_t group, uint32_t instance, fc4_bytes_si
         ok = det->DetokenizeString(name, name);
         FC4_RELEASE(det);
         if (!ok) {
-            fc4::Log("crime: type name LTEXT %08X-%08X-%08X: the detokenizer returned false; the name keeps "
-                     "the text (§7 step 3)",
+            fc4::Log("crime: type name LTEXT %08X-%08X-%08X: the detokenizer returned false; the load fails "
+                     "and the name is emptied (§7 step 3, CQ16)",
                      type, group, instance);
         }
     }
@@ -597,9 +609,11 @@ bool OccupantHasProperty(void*, uint64_t occ, uint32_t id) {
 
 // §6.10 (CQ13): the property's raw storage, as the original reads it: the
 // variant's data pointer (RefUint8, slot 95) whatever its type, with no
-// numeric conversion; the core takes bytes 0 and 1 as {m, r}. [choice] A
-// scalar (the original dereferences its value) or an object array is "no
-// bytes"; the core skips fewer than 2 bytes.
+// numeric conversion; the core takes bytes 0 and 1 as {m, r}. A string (a
+// Char or RZChar array) is its stored bytes, so "AB" gives m = 65, r = 66
+// (CQ22). [choice] A scalar (the original dereferences its value) or an
+// object array (the original reads an address's low bytes; CQ22) is "no
+// bytes"; the core skips fewer than 2 bytes, a one-character string too.
 bool OccupantPropertyBytes(void*, uint64_t occ, uint32_t id, fc4_bytes_sink sink, void* ctx) {
     if (occ == 0 || !Gate(fc4::Sw::CrimeOccupants, "crime occupant property read (absent)")) return false;
     cISCPropertyHolder* h = OccOf(occ)->AsPropertyHolder();
@@ -803,7 +817,8 @@ fc4_crime_host MakeHost(cFC4CrimeSimulator* self, const fc4::HostGridContext* gr
 // The session seed S (foundations §6.3): FreeCity4.ini `crime_seed` (env
 // FC4_CRIME_SEED) when set, else the cRZTime value for "now" like the
 // original (§9, CQ5): u32 seconds since 1901-01-01 00:00 UTC, computed as
-// time() + 2177452800 (fc4_core::crime::rz_time_from_unix). [choice] (§9)
+// time() + 2177452800 (fc4_core::rng::rz_time_from_unix: the value every
+// clock-seeded generator shares, CQ21). [choice] (§9)
 // The library's own time-zone arithmetic (a fixed pre-2007 US daylight rule)
 // is skipped: the original's value is one hour off where the host's daylight
 // rule disagrees, and 0 in that rule's spring-forward hour. The core seeds

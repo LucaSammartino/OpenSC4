@@ -2,7 +2,7 @@
   "format": 1,
   "name": "tn11_20_post_load_switches",
   "spec": ["traffic-network 1", "traffic-network 4.7.2"],
-  "description": "TN3 and TN4: DoPostCityInit steps 1 and 2 over switches as a load leaves them (set with tn_switch: saved rules [kind 0, all sides, 2 -> 2], 'to' mask 0x1234). Step 1, the re-read: the mask is zeroed; with a lot at the building's NW cell the rules are replaced (FreeCity4's choice; the original appends) and the mask and flags rebuilt from them; with no lot the rules and flags stay and the mask stays 0. Step 2, the access points: flag 4 clear -> none (the cell bytes stay); flag 4 with a saved access point -> kept; flag 4 without one -> the NW cell of the building's bounding cells, with no occupant search. Switch 1: building 40 (2,2)-(3,3) with the 4.7.2 station rules and a lot; a subway occupant at (3,3) that a fresh activation would use is ignored: 4 rules, mask 0x0080, flags 0x4C, access (2,2). Switch 2: building 41 at (5,5) with no lot, saved flags 0x05: rules and flags kept, mask 0, access (5,5). Switch 3: building 42 with test 11's bytes and a lot, saved flags 4 and access (4,4): flags 0, mask 2, no access point, cell bytes (4,4) kept. Switch 4: building 43 with the station rules and a lot, saved access (7,7): kept. Switches 5 and 6 have no building (defaults a lookup inserted): not re-read (FreeCity4 choice: the original would use a null building), so their masks stay 0x1234; 5 keeps flag 4 and gets no NW cell, 6 has flag 4 clear and loses its access point. The mode-mask grid (0x99 at (2,2)) is not rewritten.",
+  "description": "TN3 and TN4: DoPostCityInit steps 1 and 2 over switches as a load leaves them (set with tn_switch: saved rules [kind 0, all sides, 2 -> 2], 'to' mask 0x1234). Step 1, the re-read: the mask is zeroed; with a lot at the building's NW cell the rules are replaced (FreeCity4's choice; the original appends) and the mask and flags rebuilt from them; with no lot the rules and flags stay and the mask stays 0. Step 2, the access points: flag 4 clear -> none (the cell bytes stay); flag 4 with a saved access point -> kept; flag 4 without one -> the NW cell of the building's bounding cells, with no occupant search. Switch 1: building 40 (2,2)-(3,3) with the 4.7.2 station rules and a lot; a subway occupant at (3,3) that a fresh activation would use is ignored: 4 rules, mask 0x0080, flags 0x4C, access (2,2). Switch 2: building 41 at (5,5) with no lot, saved flags 0x05: rules and flags kept, mask 0, access (5,5). Switch 3: building 42 with test 11's bytes and a lot, saved flags 4 and access (4,4): flags 0, mask 2, no access point, cell bytes (4,4) kept. Switch 4: building 43 with the station rules and a lot, saved access (7,7): kept. Switches 5, 6 and 7 have building 0 (a default a lookup inserted, or a loaded switch whose building reference was null; TN23): [choice] not re-read, so their rules, flags and masks stay (0x1234); 5 keeps flag 4 and gets no NW cell, 6 has flag 4 clear and loses its access point, 7 keeps flag 4 and its access point and cell (3,6) as they are. The original checks neither walk's building: a null one crashes it, and an inserted switch holds a stale stack value. The mode-mask grid (0x99 at (2,2)) is not rewritten.",
   "steps": [
     {"op": "tn_env", "cells": [8, 8], "tuning": "shipped"},
     {"op": "tn_init"},
@@ -21,6 +21,7 @@
     {"op": "tn_switch", "id": 4, "building": 43, "has_access_point": true, "access": [7, 7], "to_mask": "0x1234", "rules": [{"kind": 0, "side": [true, true, true, true], "from": 2, "to": 2}]},
     {"op": "tn_switch", "id": 5, "flags": 4, "to_mask": "0x1234"},
     {"op": "tn_switch", "id": 6, "has_access_point": true, "to_mask": "0x1234"},
+    {"op": "tn_switch", "id": 7, "flags": 4, "has_access_point": true, "access": [3, 6], "to_mask": "0x1234"},
 
     {"op": "tn_call", "method": "post_city_init_rebuild"},
 
@@ -35,6 +36,7 @@
     {"op": "tn_expect_switch", "id": 4, "switch": {"to_mask": "0x0080", "flags": "0x4C", "has_access_point": true, "access": [7, 7]}},
     {"op": "tn_expect_switch", "id": 5, "switch": {"building": 0, "to_mask": "0x1234", "flags": 4, "has_access_point": false}},
     {"op": "tn_expect_switch", "id": 6, "switch": {"building": 0, "to_mask": "0x1234", "has_access_point": false}},
+    {"op": "tn_expect_switch", "id": 7, "switch": {"building": 0, "to_mask": "0x1234", "flags": 4, "has_access_point": true, "access": [3, 6]}},
     {"op": "tn_expect_cell", "cell": [2, 2], "expect": {"switch_id": 1, "switch_mode": "0x99"}}
   ]
 }

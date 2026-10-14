@@ -252,7 +252,11 @@ impl FloraRegistry {
 
     /// `AddStaticFloraData(record)` (slot 6): false when the type is already
     /// registered; otherwise insert, append to the type array, add to each
-    /// family (creating it) and compute the seed types (§6.11).
+    /// family (creating it) and compute the seed types (§6.11). There is no
+    /// special case for a next type of 0 (FQ14): every map entry is compared,
+    /// key 0 included, so a record with next type 0 registered while key 0 is
+    /// in the map takes over key 0's seed type (in the game key 0 is never in
+    /// the map during a load, §3.2).
     pub fn add(&mut self, record: Rc<FloraRecord>) -> bool {
         let t = record.type_id;
         if self.map.contains_key(&t) {

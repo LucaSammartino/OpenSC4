@@ -179,6 +179,47 @@ Consequences for every `Read` implementation *[compat]*:
   later initialisation message.
 - Cycles (A refers to B, B refers to A) are allowed and common, for example a department and its line items.
 
+**References the load keeps** *[compat]* (SV1). The registry of step 2 is the **object table of the city
+segment's COM serializer** (`cSC4COMSerializer`; the segment `cSC4DBSegment` creates one in its constructor,
+`0x005D3740`, holds it at `+0x1CC` and returns it from its slot 4, `0x005D2070`). The table is a map from class ID to a
+map from object ID to an auto-ref-counted pointer (`+0x1C`; resolver `0x005D2DD0`).
+
+| Event | References |
+|---|---|
+| a reference read **creates** an object | +1 from `GetClassObject`, handed to the destination; +1 kept by the table entry |
+| a reference read **resolves** a known object | +1 for the destination (`AddRef`); the table adds none |
+| the typed helper (`0x005D9730` → `0x005D96C0`) | QIs the result to the requested IID (+1 into the destination) and releases the `cIGZSerializable` pointer (−1): net +1 per successful read; a failed QI releases it and leaves null |
+| the loader reaches an entry (§3.5) | resolves into a local (+1), calls `Read`, releases the local (`0x005D3D58`): net 0 |
+
+So after a load **every object the load created holds exactly one extra reference, owned by the table**, on top of
+the references held by whatever stored the destination pointers. The table drops them all at once when the
+serializer is destroyed, which happens when the **segment that loaded the city is closed** (segment `Close`
+`0x005D20C0` releases the serializer; its destructor `0x005D3800` calls the reset `0x005D3250`, which releases
+every entry). That happens:
+
+1. **At the next save.** `cSC4App::SaveCity` (`0x00455E20`) writes the city through a **new** segment, whose own
+   table holds one reference per object the save registers (writing a reference registers the object,
+   `0x005D43F0`) until that segment is closed at the end of the write (`0x0045641B`). It then unregisters and
+   closes the loaded segment (`0x00456449` → `UnregisterCityDBSegment` `0x00454A10`), which drops the load's
+   references, and registers the saved file as the new city segment (`0x0045662F` → `0x00454B20`). That segment
+   is only opened for reading, and its table stays empty. After a save, the table holds no reference on
+   anything.
+2. **At city close, if no save came first.** `PartialCloseCity` (`0x00454A60`) posts `0x26D31EC2`, calls the
+   city's `Shutdown`, posts `0x26D31EC3`, releases its city pointer and only then unregisters the segment
+   (`0x00454AF3`). So during every subsystem's `Shutdown` in a loaded, unsaved city the table still holds its
+   reference: a subsystem's release in `Shutdown` is **not** the last one, and the objects are destroyed when the
+   segment closes.
+3. **On a failed load** (`0x00455957`), the same way.
+
+Not at the end of the load: `LoadCity` (`0x004555F0`) keeps the segment open, registered with the resource
+manager and the app.
+
+The reset releases the entries in **descending class ID**, and within a class in descending object ID (the
+saved IDs, which are the saving session's addresses). FreeCity4's core does not need to reproduce this order: it
+holds no reference for the game, and its objects are destroyed by their own last release. A glue layer that
+compares reference counts with the original must count the table's reference (one per loaded object) until the
+next save or the city's close.
+
 ### 2.8 Variants
 
 `WriteVariant` writes a `uint32` **marker** (0, or `0xA9BEE9AC` for an object-valued variant) and then a
@@ -683,7 +724,7 @@ The game has two generator classes. Both are exact algorithms that our engine mu
 
 | Operation | Definition |
 |---|---|
-| `Seed(s)` | `lcg := mul := s`. If `s = 0xFFFFFFFF`, s is first derived from the wall clock (non-deterministic). |
+| `Seed(s)` | `lcg := mul := s`. If `s = 0xFFFFFFFF`, s is first derived from the wall clock (non-deterministic): s := `time(NULL) XOR ((c << 16) \| c)` with `c = clock()` read once (`0x00913667`; RG21). |
 | `NextRaw()` (`RandomUint32Uniform()`) | `t := lcg × 0x41C64E6D + 0x3039` computed in **64 bits**; `lcg := t mod 2^32`; result = `(t >> 16) mod 2^32`. The result's high 16 bits come from the upper half of the 64-bit product. |
 | `RandomUint32Uniform(n)` | `n = 0` → 0, no state change. Otherwise `(NextRaw() × n) >> 32` (64-bit product). |
 | `RandomSint32RangeUniform(lo, hi)` | `lo + RandomUint32Uniform(hi − lo)` (unsigned difference). |
@@ -1036,6 +1077,26 @@ variant  value         (§9.2)
 In memory a holder keeps its properties **sorted by ascending unsigned property ID**, at most one per ID.
 Adding a property whose ID is already present **replaces** that property in place. Adding never fails. The
 `bool` argument of the SDK's `AddProperty(cISCProperty*, bool)` has no effect.
+
+**Ownership: the holder keeps objects, not copies** *[compat]* (run r50e2, 2026-10-14). Any holder that game code
+can reach must follow this, including a FreeCity4 object's own holder:
+- `AddProperty(cISCProperty* p, bool)` (slot 15) stores **`p` itself** and AddRefs it. It does not copy it.
+- Callers go on using `p` after the call, even after they Release their own reference.
+- `GetProperty(id)` (slot 9) returns the stored object **borrowed** (no AddRef). The callers never Release it.
+- The property's `GetPropertyValue()` (slot 5) returns its variant borrowed.
+- Callers write the value **in place** through the variant's data pointers: the u16-array data getter (variant
+  slot 99) and the u32-array data getter (slot 103). They also replace the data through the copying setter
+  (slot 102, `SetValUint32(data, count)`).
+- So the stored object, its variant and that variant's data must stay the same objects for the life of the
+  holder entry.
+
+Example: the traffic simulator's element store (traffic-simulator.md §4.2) on a holder without `0x8A0B4100`:
+1. It creates the game's own property and gives it a 12-element u16 array.
+2. `SetPropertyID(0x8A0B4100)`, then `holder.AddProperty(p, false)`, then `p.Release()`.
+3. `p.GetPropertyValue()`: the variant's type, then its data getter, and a write to one element.
+
+A holder that copies `p` frees it at step 2 (the caller held the only reference), and step 3 calls through freed
+memory. Later readers (`GetProperty(0x8A0B4100)` → value → data getter) must also see the element written at step 3.
 
 ```
 uint16  version = 2

@@ -472,6 +472,8 @@ public:
     virtual bool GetNeighborCellsAtEdgeOfLot(SC4Rect<long> const& cells, int32_t flags, SC4Rect<long>& out) = 0;  // 12
     virtual cISC4Lot* GetRandomLot() = 0;                                        // 13
     virtual cISC4Lot* GetOccupantLot(cISC4Occupant* occupant) = 0;              // 14
+    // [abi] 15: EAX = an 8-byte global-heap (C) block {current node, lot list
+    // object}, registered with the manager (aura.md §6.5; FC4SafeLotIterator.h).
     virtual intptr_t GetSafeLotIterator() = 0;                                   // 15
     virtual int32_t GetLotCount() = 0;                                           // 16
     virtual int32_t GetLotSavvyTerrainVertexAltitude(int32_t x, int32_t y, cISC4Lot* lot, bool& ok) = 0;  // 17
@@ -655,7 +657,7 @@ public:
     virtual void UpdateMoisture(SC4Rect<int32_t> const& rect) = 0;                // 16
     virtual uint8_t GetMoistureValue(float x, float z) = 0;                       // 17
     virtual void GetMoistureValueMapPtr(FC4ByteGridVector*& out) = 0;             // 18
-    virtual uint8_t GetMoistureType(float x, float z) = 0;                        // 19
+    virtual uint32_t GetMoistureType(float x, float z) = 0;  // 19 (flora.md §6.2, FQ5: 0..15, all of EAX)
     virtual void SetManualMoistureAddition(float x0, float z0, float x1, float z1, float v) = 0;  // 20
     virtual float GetHumidity(float x, float z) = 0;                              // 21
     virtual float GetAmbientWind(cS3DVector2& wind) = 0;                          // 22
@@ -789,6 +791,8 @@ public:
     virtual void UpdateOccupantEffects(uint32_t buildingType, SC4Percentage const& oldPct,
                                        SC4Percentage const& newPct) = 0;          // 7
     virtual void CalculateJobsPerUnitOfDemand(float* jobs, uint32_t demandID, uint32_t demandIndex) = 0;  // 8
+    // 9: EAX = the low 32 bits of _ftol, no clamp (a negative product is a
+    // negative int32); EDX is not meaningful (demand.md §5, DQ10, DQ12).
     virtual uint32_t GetJobsBySensus(uint32_t type) = 0;                          // 9
     virtual float GetNeutralTaxRate() = 0;                                        // 10
     virtual void GetLocalPopulationSummary(std::map<uint32_t, int32_t>& summary) const = 0;  // 11
@@ -973,21 +977,21 @@ public:
     virtual float GetWorldBaseElevation() const = 0;                              // 47
     virtual void SetWorldBaseElevation(float elevation) = 0;                      // 48  (SDK: GetWorldBaseElevation)
     virtual cISC4City::WorldHemisphere GetWorldHemisphere() const = 0;            // 49
-    virtual float GetBudget() const = 0;                                          // 50
+    virtual double GetBudget() const = 0;                                         // 50
     virtual void SetBudget(double budget) = 0;                                    // 51
-    virtual float GetIncome() const = 0;                                          // 52
+    virtual double GetIncome() const = 0;                                         // 52
     virtual void SetIncome(double income) = 0;                                    // 53
-    virtual float GetExported(int32_t commodity) const = 0;                       // 54
+    virtual double GetExported(int32_t commodity) const = 0;                      // 54
     virtual void SetExported(int32_t commodity, double value) = 0;                // 55
-    virtual float GetImported(int32_t commodity) const = 0;                       // 56
+    virtual double GetImported(int32_t commodity) const = 0;                      // 56
     virtual void SetImported(int32_t commodity, double value) = 0;                // 57
-    virtual float GetProduced(int32_t commodity) const = 0;                       // 58
+    virtual double GetProduced(int32_t commodity) const = 0;                      // 58
     virtual void SetProduced(int32_t commodity, double value) = 0;                // 59
-    virtual float GetDemanded(int32_t commodity) const = 0;                       // 60
+    virtual double GetDemanded(int32_t commodity) const = 0;                      // 60
     virtual void SetDemanded(int32_t commodity, double value) = 0;                // 61
-    virtual float GetCostPerUnit(int32_t commodity) const = 0;                    // 62
+    virtual double GetCostPerUnit(int32_t commodity) const = 0;                   // 62
     virtual void SetCostPerUnit(int32_t commodity, double value) = 0;             // 63
-    virtual float GetCommodityBalance(int32_t commodity) const = 0;               // 64
+    virtual double GetCommodityBalance(int32_t commodity) const = 0;              // 64
     virtual uint32_t GetTutorialGUID() const = 0;                                 // 65
     virtual void SetTutorialGUID(uint32_t guid) = 0;                              // 66
     virtual bool IsTutorial() const = 0;                                          // 67
@@ -1472,6 +1476,17 @@ public:
     virtual void* FindNetworkTile(int32_t x, int32_t z, uint32_t flagMask, bool flag) = 0;  // 8
 };
 
+// ---- flora (docs/specs/flora.md §11.1) ------------------------------------------------------------
+
+// cISC4FloraTypeFilter: caller-supplied (the SDK only forward-declares it).
+// The flora simulator's slot 13 asks its slot 3 +0x0C about every type and
+// calls no other slot (flora §11.1, FQ9; docs/abi: pops 4, AL).
+class cISC4FloraTypeFilter;
+class cFC4ISC4FloraTypeFilter : public cIGZUnknown {
+public:
+    virtual bool IsFloraTypeIncluded(uint32_t floraType) = 0;  // 3
+};
+
 namespace fc4 {
 // A simulator handed out by the game (cISC4City::GetSimulator), seen through
 // the verified slot order instead of the SDK's declaration.
@@ -1571,5 +1586,10 @@ inline cISC4DispatchSource* AsSdk(cFC4ISC4DispatchSource* p) { return reinterpre
 // call it only through the verified declaration (§7.1).
 inline cFC4ISC4LandfillDeveloper* AsGame(cISC4LandfillDeveloper* p) {
     return reinterpret_cast<cFC4ISC4LandfillDeveloper*>(p);
+}
+// A plugin's flora type filter (flora §11.1 slot 13), seen through its one
+// verified slot.
+inline cFC4ISC4FloraTypeFilter* AsGame(cISC4FloraTypeFilter* p) {
+    return reinterpret_cast<cFC4ISC4FloraTypeFilter*>(p);
 }
 }  // namespace fc4

@@ -40,10 +40,9 @@ public:
 
     // The exemplar as a property holder (nullptr if not loaded).
     const cISCPropertyHolder* Holder() const;
-
-    // The loaded exemplar itself (borrowed; nullptr if not loaded), for an
-    // interface that takes its own reference (SetDefaultExemplar).
-    cISCResExemplar* Res() const { return res_; }
+    // The resource itself (nullptr if not loaded; no AddRef): what
+    // cISC4NeighborsSimulator::GetTuningExemplar hands out (neighbors.md §6.2).
+    cISCResExemplar* Resource() const { return res_; }
 
 private:
     cISCResExemplar* res_ = nullptr;
@@ -63,8 +62,9 @@ uint16_t TypeOf(const cISCPropertyHolder* holder, uint32_t id);
 // The raw storage of an ARRAY property, without conversion: the bytes the
 // variant's data pointer (RefUint8, slot 95) points at, count x element size
 // (bool, void and 8-bit chars 1, 16-bit 2, 32-bit and pointers 4, 64-bit 8),
-// as the crime effect is read (crime.md §6.10). False if the property is
-// absent, a scalar, an object array or of unknown type (out left empty).
+// as the crime effect is read (crime.md §6.10). A string is its stored bytes
+// ("AB" is 41 42, CQ22). False if the property is absent, a scalar, an object
+// array (CQ22 [choice]) or of unknown type (out left empty).
 bool GetRawArrayBytes(const cISCPropertyHolder* holder, uint32_t id, std::vector<uint8_t>& out);
 
 // Numeric writes: replace the property on `holder` (an instance override)

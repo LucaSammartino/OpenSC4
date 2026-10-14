@@ -12,9 +12,10 @@
 //!
 //! # Structure
 //!
-//! - `geometry.rs`: the proximity seed and the four-sweep Manhattan distance
-//!   passes of §5.3 ([`seed_proximity`], [`distance_pass`],
-//!   [`distance_to_convergence`], [`copy_proximity`]).
+//! - `geometry.rs`: the proximity seed (z = 0 edge only, *[compat]* RG23)
+//!   and the four-sweep Manhattan distance passes of §5.3
+//!   ([`seed_proximity`], [`distance_pass`], [`distance_to_convergence`],
+//!   [`copy_proximity`]).
 //! - `tuning.rs`: the population tuning of §7.1 ([`PopulationTuning`]), the
 //!   simulator tuning of §7.2 ([`SimulatorTuning`], whose `read` reproduces
 //!   the §9.3 strike-reset quirk), the two per-call curves of §7.3
@@ -121,9 +122,10 @@
 //!   `DoBuildingChanged` appends a health-affecting building to it, and state
 //!   0 appends every entry to the health-affecting list and clears it.
 //! - **`Read`** (§9.2) accepts every version. A stream error or a damaged
-//!   record (vector counts other than 7 / 3, a state above 15, P = 0 or P >
-//!   256) returns false and leaves the simulator as it was (RS9, RS11, RS14,
-//!   RS15 *[choice]*; see `record.rs`). A list count of 0 or ≥
+//!   record (vector counts other than 7 / 3, a state above 15, P, E or the
+//!   loaded R$ population grid's tract size outside 1…256 as signed) returns
+//!   false and leaves the simulator as it was (RS9, RS11, RS14, RS15, EH14
+//!   *[choice]*; see `record.rs`). A list count of 0 or ≥
 //!   [`MAX_LIST_COUNT`] reads no references.
 //! - **Histograms** (§9.3 *[choice]*): zeroed at construction, so a save
 //!   taken during state 4 gives that month's age-group history zeros rather
@@ -171,7 +173,9 @@ pub use education_health::{
     OrdinanceEffect, RadiusEffect, Service, FLAT_CURVE, HOSPITAL, LINE_ITEM_DISPLAY_FLAG, NOT_GRADED,
     PROP_HEALTH_AFFECTING, PROP_STRIKE_DAY, SCHOOL, STRIKING_EDUCATION, STRIKING_HEALTH,
 };
-pub use geometry::{copy_proximity, distance_pass, distance_to_convergence, seed_proximity, FAR, MAX_PASSES};
+pub use geometry::{
+    copy_proximity, distance_pass, distance_to_convergence, seed_proximity, seed_proximity_no_map, FAR, MAX_PASSES,
+};
 pub use record::RECORD_VERSION;
 pub use simulator::{
     age_bucket, query_interface, Grids, ResidentialRng, ResidentialSim, ResidentialState, SlotReturn, SlotRow,

@@ -26,7 +26,7 @@ use crate::rng::{derive_seed, RzRandom, SeedSource, CLOCK_SEED};
 use crate::x87::{ftol32, mul_i64_f32, rhe, u32_to_float};
 
 use super::education_health::{OrdinanceEffect, Service};
-use super::geometry::{copy_proximity, distance_pass, distance_to_convergence, seed_proximity, FAR};
+use super::geometry::{copy_proximity, distance_pass, distance_to_convergence, seed_proximity, seed_proximity_no_map};
 use super::tuning::{le_curve, new_ages_by_wealth, pct, workforce_curve, PopulationTuning, SimulatorTuning};
 use super::{
     group, history, instance, msg, state as st, wealth, DepartmentBlock, OccupantLists, ResidentialHost,
@@ -72,7 +72,9 @@ pub struct ResidentialState {
     pub message_server_held: bool,
     /// The proximity tract size (§3): 1.
     pub proximity_size: i32,
-    /// The population tract size P (§2).
+    /// The population tract size P (§2). After a load only `Init` (for a grid
+    /// it recreates) and `Write` read it; state 4's S is the R$ population
+    /// grid's own size (EH14).
     pub population_size: i32,
     /// The EQ tract size E (§2).
     pub eq_size: i32,
@@ -873,8 +875,9 @@ impl ResidentialSim {
     }
 
     /// States 13/14/15 (§5.3 step 1): create the temporary grid if absent and
-    /// seed it for wealth `w`. R$$ and R$$$ reuse the R$ grid (the seed
-    /// overwrites every tract).
+    /// seed it for wealth `w`. R$$ and R$$$ reuse the R$ grid. *[compat]*
+    /// (RG23): the seed overwrites only the z = 0 edge, so every other cell
+    /// keeps the previous wealth's result (0 off the edge, as on a fresh grid).
     fn seed_temporary(&self, w: usize) {
         let h = &*self.host;
         let key = h.building_map_key(BUILDING_PURPOSE_RESIDENTIAL, wealth::NUMBERS[w]);
@@ -895,8 +898,9 @@ impl ResidentialSim {
         };
         match map {
             Some(map) => seed_proximity(&*temp, &*map, key),
-            // No building map: no key tract, so every value is FAR (§5.3).
-            None => temp.fill(FAR),
+            // [choice] No building map: seed as against a map with no key, so
+            // the z = 0 edge is FAR and the rest is kept (§5.3, RG23).
+            None => seed_proximity_no_map(&*temp),
         }
     }
 
@@ -1015,7 +1019,12 @@ impl ResidentialSim {
         let (s_size, t, eq, hq, pop, age_grid) = {
             let s = self.s.borrow();
             (
-                s.population_size,
+                // §5.5, EH14: S is the R$ population grid's own
+                // `GetTractSize()`, not P. [choice] P without that grid
+                // (`Init` always creates it).
+                s.grids.population[wealth::LOW]
+                    .as_ref()
+                    .map_or(s.population_size, |g| g.geometry().tract_size),
                 s.population_tuning.clone(),
                 s.grids.eq.clone(),
                 s.grids.hq.clone(),

@@ -188,6 +188,7 @@ fn host(g: &Game) -> fc4_landvalue_host {
         set_history_queue_length: Some(history_len),
         record_history: Some(history),
         post: Some(post),
+        developer_lists_valid: None,
     }
 }
 

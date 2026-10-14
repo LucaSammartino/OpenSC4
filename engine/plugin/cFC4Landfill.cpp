@@ -916,7 +916,7 @@ uint64_t InsertLandfillTile(void* u, int32_t /*x*/, int32_t /*z*/, uint32_t tile
     cISC4OccupantManager* om = Occupants(u, "landfill tile creation (kept in FreeCity4)");
     if (om == nullptr || xyz == nullptr) return 0;
     fc4::props::Exemplar ex;
-    if (!ex.Load(kTileExemplarType, kTileExemplarGroup, tile) || ex.Res() == nullptr) {
+    if (!ex.Load(kTileExemplarType, kTileExemplarGroup, tile) || ex.Resource() == nullptr) {
         ++c->tilesFailed;
         return 0;
     }
@@ -935,9 +935,9 @@ uint64_t InsertLandfillTile(void* u, int32_t /*x*/, int32_t /*z*/, uint32_t tile
     cISCExemplarPropertyHolder* holder = Query<cISCExemplarPropertyHolder>(t, kIID_cISCExemplarPropertyHolder);
     cISC4Occupant* occ = t->AsOccupant();  // slot 5
     if (holder != nullptr && occ != nullptr) {
-        holder->SetDefaultExemplar(ex.Res());  // slot 3: takes its own reference
-        t->SetTileID(tile);                    // slot 6
-        t->SetOrientation(orientation);        // slot 8
+        holder->SetDefaultExemplar(ex.Resource());  // slot 3: takes its own reference
+        t->SetTileID(tile);                         // slot 6
+        t->SetOrientation(orientation);             // slot 8
         occ->SetFlag(kTileFlag);
         occ->SetRemovalFlags(kTileRemovalFlags);
         const cS3DVector3 v(xyz[0], xyz[1], xyz[2]);

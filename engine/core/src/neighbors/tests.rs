@@ -116,6 +116,15 @@ struct World {
     /// positions read `altitude`.
     altitude_at: RefCell<Vec<((f32, f32), f32)>>,
     surface: Cell<f32>,
+    /// Foreign connections (§15.2) by token, the repairs and releases asked
+    /// for, and the next own-connection object token (0 = no objects).
+    foreign: RefCell<HashMap<u64, ConnectionState>>,
+    repaired: RefCell<Vec<(u64, CityId)>>,
+    released: RefCell<Vec<u64>>,
+    next_object: Cell<u64>,
+    /// `ReloadCity` replaces the city object: the city moves to id + 0x100
+    /// (§14.1 step 5 *[compat]*).
+    reload_replaces: Cell<bool>,
 }
 
 fn ptr(d: &Rc<NeighborDeal>) -> usize {
@@ -142,6 +151,11 @@ impl World {
             altitude: Cell::new(270.0),
             altitude_at: RefCell::new(Vec::new()),
             surface: Cell::new(280.0),
+            foreign: RefCell::new(HashMap::new()),
+            repaired: RefCell::new(Vec::new()),
+            released: RefCell::new(Vec::new()),
+            next_object: Cell::new(0),
+            reload_replaces: Cell::new(false),
         });
         w.add_city(R, (3, 3), (1, 1));
         w
@@ -306,6 +320,12 @@ impl NeighborsHost for World {
     }
     fn reload_city(&self, city: CityId) {
         self.push(Ev::Reload(city));
+        if self.reload_replaces.get() {
+            let mut cities = self.cities.borrow_mut();
+            if let Some(c) = cities.remove(&city) {
+                cities.insert(city + 0x100, c);
+            }
+        }
     }
     fn update_local_deals(&self, city: CityId) {
         self.push(Ev::UpdateLocal(city));
@@ -418,6 +438,32 @@ impl NeighborsHost for World {
     }
     fn power_pole_flag(&self, occupant: u64) -> bool {
         self.occupants.borrow().get(&occupant).is_some_and(|o| o.pole_flag)
+    }
+    fn connection_object(&self, _conn: &Rc<NeighborConnection>) -> u64 {
+        let t = self.next_object.get();
+        if t != 0 {
+            self.next_object.set(t + 1);
+        }
+        t
+    }
+    fn foreign_connection(&self, token: u64) -> Option<ConnectionState> {
+        self.foreign.borrow().get(&token).copied()
+    }
+    fn set_foreign_connection_flags(&self, token: u64, visited: Option<bool>, active: Option<bool>) {
+        if let Some(s) = self.foreign.borrow_mut().get_mut(&token) {
+            if let Some(v) = visited {
+                s.visited = v;
+            }
+            if let Some(a) = active {
+                s.active = a;
+            }
+        }
+    }
+    fn repair_foreign_connection(&self, token: u64, city: CityId) {
+        self.repaired.borrow_mut().push((token, city));
+    }
+    fn release_connection(&self, token: u64) {
+        self.released.borrow_mut().push(token);
     }
 }
 
@@ -1758,6 +1804,58 @@ fn test_12_deal_record() {
 
 // ---- lifecycle and messages (§14, §11.1) -------------------------------------------------------------
 
+/// §14.1 step 5 *[compat]*: `ReloadCity` replaces each adjacent city's
+/// object; steps 6-8 use only the cities asked for again after the reloads.
+#[test]
+fn init_uses_the_city_objects_made_by_reload_city() {
+    let (w, sim) = setup(true);
+    w.city(N, |c| c.established = false);
+    w.city(W, |c| {
+        c.local.push(DealData {
+            deal_type: E1,
+            city_side: (1, 3),
+            other_side: (3, 3),
+            amount: 40,
+            flags: flag::ACTIVE | flag::SILENT,
+            start_date: 800,
+            expiration_date: 1165,
+            current_date: 900,
+            suspension_date: 850,
+            ..DealData::default()
+        });
+    });
+    w.reload_replaces.set(true);
+    assert!(sim.init());
+    let rest: Vec<Ev> = w
+        .events()
+        .into_iter()
+        .filter(|e| matches!(e, Ev::Reload(_) | Ev::UpdateLocal(_)))
+        .collect();
+    let (w2, s2, e2) = (W + 0x100, S + 0x100, E + 0x100);
+    assert_eq!(
+        rest,
+        vec![
+            Ev::Reload(W),
+            Ev::Reload(S),
+            Ev::Reload(E),
+            Ev::UpdateLocal(R),
+            Ev::UpdateLocal(e2),
+            Ev::UpdateLocal(s2),
+            Ev::UpdateLocal(w2),
+        ]
+    );
+    // W's deal came from the new W object.
+    let deals = sim.find_deals_all();
+    assert_eq!(deals.len(), 1);
+    assert_eq!(deals[0].other_side(), (1, 3));
+    // Step 8 reaches the new objects only.
+    let old = [W, S, E];
+    assert!(!w.events().iter().any(|e| match e {
+        Ev::SetLocal(c, _) | Ev::UpdateImportExport(c) => old.contains(c),
+        _ => false,
+    }));
+}
+
 #[test]
 fn init_registers_subscribes_and_rebuilds_the_deal_list() {
     let (w, sim) = setup(true);
@@ -2204,4 +2302,128 @@ fn set_amount_rules() {
     let g = deal(&w, &sim, E1, W, flag::ACTIVE | flag::GRACE);
     g.set_flags(flag::NO_CONNECTION | flag::EXPIRED, true);
     assert_eq!(g.flags(), flag::ACTIVE | flag::GRACE | flag::EXPIRED);
+}
+
+// ---- foreign connections (§15.2) ---------------------------------------------------------------------
+
+/// Resolves every connection reference to a host object `0xA000 + id`.
+struct HostResolver;
+
+impl RefResolver for HostResolver {
+    fn resolve(&mut self, class_id: u32, object_id: u32) -> Option<RefValue> {
+        Some(RefValue::Host {
+            token: 0xA000 + u64::from(object_id),
+            class_id,
+        })
+    }
+}
+
+#[test]
+fn test_foreign_connections() {
+    let (w, sim) = setup(true);
+    // Two original objects, as the class store creates them on load.
+    w.foreign.borrow_mut().insert(
+        0xA001,
+        ConnectionState {
+            conn_type: conn_type::ROAD,
+            cell: (-1, 5),
+            other_region_cell: (0, 0),
+            visited: false,
+            active: true,
+        },
+    );
+    w.foreign.borrow_mut().insert(
+        0xA002,
+        ConnectionState {
+            conn_type: conn_type::POWER_POLE,
+            cell: (64, 5),
+            other_region_cell: (4, 3),
+            visited: true,
+            active: false,
+        },
+    );
+    let reg = Rc::new(RefCell::new(SaveRegistry::new()));
+    let mut out = ByteWriter::with_registry(reg.clone());
+    out.put_u16(2);
+    out.put_u32(2);
+    for token in [0xA001u64, 0xA002] {
+        out.put_ref(&RefValue::Host {
+            token,
+            class_id: CLSID_NEIGHBOR_CONNECTION,
+        });
+    }
+    let record = out.into_bytes();
+
+    // Read accepts the host objects; their state is read live.
+    let mut res = HostResolver;
+    assert!(sim.read(&mut ByteReader::with_resolver(&record, &mut res)));
+    let all = sim.all_connections();
+    assert_eq!(all.len(), 2);
+    assert!(all.iter().all(|c| c.is_foreign()));
+    assert_eq!((all[0].token(), all[1].token()), (0xA001, 0xA002));
+    let road = sim.find_connection(conn_type::ROAD, -1, 5).expect("road");
+    assert!(road.is_active() && !road.visited_this_cycle());
+    let pole = sim.find_connection(conn_type::POWER_POLE, 64, 5).expect("pole");
+    assert_eq!(pole.flags(), 3);
+    assert_eq!(pole.other_region_cell(), (4, 3));
+    // Writes go to the object.
+    road.set_visited_this_cycle(true);
+    road.set_active(false);
+    assert!(w.foreign.borrow()[&0xA001].visited);
+    assert!(!w.foreign.borrow()[&0xA001].active);
+    assert_eq!(road.flags(), 3);
+    // Another simulator changes the object: the core sees it at once.
+    w.foreign.borrow_mut().get_mut(&0xA001).unwrap().active = true;
+    assert!(road.is_active());
+
+    // Init step 4 repairs each through its interface.
+    assert!(sim.init());
+    assert_eq!(*w.repaired.borrow(), vec![(0xA001, R), (0xA002, R)]);
+
+    // Write: the same objects, as host references with the connection class.
+    let reg2 = Rc::new(RefCell::new(SaveRegistry::new()));
+    let mut out2 = ByteWriter::with_registry(reg2.clone());
+    assert!(sim.write(&mut out2));
+    assert_eq!(out2.into_bytes(), record);
+    let entries: Vec<(u32, u64, bool)> = reg2
+        .borrow()
+        .entries
+        .iter()
+        .map(|(class, _, obj, token)| (*class, *token, obj.is_some()))
+        .collect();
+    assert_eq!(
+        entries,
+        vec![
+            (CLSID_NEIGHBOR_CONNECTION, 0xA001, false),
+            (CLSID_NEIGHBOR_CONNECTION, 0xA002, false)
+        ]
+    );
+
+    // Deleting releases the list's reference; Shutdown releases the rest.
+    sim.delete_connection(conn_type::ROAD, -1, 5);
+    assert_eq!(*w.released.borrow(), vec![0xA001]);
+    assert!(sim.shutdown());
+    assert_eq!(*w.released.borrow(), vec![0xA001, 0xA002]);
+    assert!(sim.all_connections().is_empty());
+}
+
+#[test]
+fn test_own_connection_objects() {
+    let (w, sim) = setup(true);
+    w.next_object.set(0xB001);
+    let c = sim.create_connection(conn_type::RAIL, 64, 5, false).unwrap();
+    assert_eq!(c.token(), 0xB001);
+    assert!(!c.is_foreign());
+    let d = sim.create_connection(conn_type::RAIL, 64, 6, false).unwrap();
+    assert_eq!(d.token(), 0xB002);
+    sim.delete_all_connections_of_type(conn_type::RAIL);
+    assert_eq!(*w.released.borrow(), vec![0xB001, 0xB002]);
+    // Our objects are written as our own references (the host object's token).
+    let e = sim.create_connection(conn_type::ROAD, -1, 5, false).unwrap();
+    let reg = Rc::new(RefCell::new(SaveRegistry::new()));
+    let mut out = ByteWriter::with_registry(reg.clone());
+    assert!(sim.write(&mut out));
+    let r = reg.borrow();
+    assert_eq!(r.entries.len(), 1);
+    assert_eq!(r.entries[0].2.as_ref().map(|o| o.host_token()), Some(e.token()));
 }

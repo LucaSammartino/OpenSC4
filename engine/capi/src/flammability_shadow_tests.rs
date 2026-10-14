@@ -6,11 +6,12 @@
 
 //! The flammability shadow against a fake game whose "original" is our own
 //! simulator, run day by day with a random iterator start: clean cycles
-//! (with occupant, season and ordinance changes inside a cycle), one wrong
+//! (with occupant, season and ordinance changes inside a cycle), a watered
+//! state that changed and changed back inside a cycle (FL5/FL6), one wrong
 //! tract, one wrong scalar, and the INCOMPLETE paths.
 
 use std::cell::{Cell, RefCell};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::c_void;
 use std::rc::Rc;
 
@@ -42,6 +43,11 @@ struct Game {
     occs: RefCell<BTreeMap<u64, Occ>>,
     season: Cell<i32>,
     factor: Cell<f32>,
+    /// Tracts a plumbing pass left without water (besides x >= 5).
+    dry: RefCell<BTreeSet<(i32, i32)>>,
+    /// The plumbing simulator's published grid (slot 7): its object
+    /// alternates at every pass.
+    published: Cell<u64>,
 }
 
 fn game(u: *mut c_void) -> &'static Game {
@@ -96,8 +102,11 @@ unsafe extern "C" fn current_season(u: *mut c_void, out: *mut i32) -> bool {
     *out = game(u).season.get();
     true
 }
-unsafe extern "C" fn is_cell_watered(_: *mut c_void, x: i32, _z: i32) -> i32 {
-    i32::from(x < 5)
+unsafe extern "C" fn is_cell_watered(u: *mut c_void, x: i32, z: i32) -> i32 {
+    i32::from(x < 5 && !game(u).dry.borrow().contains(&(x, z)))
+}
+unsafe extern "C" fn watered_grid(u: *mut c_void) -> u64 {
+    game(u).published.get()
 }
 unsafe extern "C" fn zone_type(_: *mut c_void, _x: i32, z: i32, out: *mut u32) -> bool {
     *out = u32::from(z < 6);
@@ -121,8 +130,12 @@ fn read_only(g: &Game) -> fc4_flammability_host {
     h.current_season = Some(current_season);
     h.is_cell_watered = Some(is_cell_watered);
     h.zone_type = Some(zone_type);
+    h.watered_grid = Some(watered_grid);
     h
 }
+
+/// The plumbing simulator's pass end message (plumbing §6.7 step 4).
+const WATER_MAP_CHANGED: u32 = 0x6946_DC34;
 
 /// The "original": our simulator on core grids, reading the same game.
 struct OrigHost {
@@ -304,6 +317,23 @@ impl World {
         t
     }
 
+    /// A plumbing pass ends: `dry` is the new set of unwatered tracts, the
+    /// published grid becomes the other object, and (`forward`) the plugin
+    /// hands the shadow the pass end message.
+    fn plumbing_pass(&mut self, dry: &[(i32, i32)], forward: bool) {
+        *self.game.dry.borrow_mut() = dry.iter().copied().collect();
+        let p = self.game.published.get();
+        self.game.published.set(if p == 0xA0 { 0xB0 } else { 0xA0 });
+        if forward {
+            let m = fc4_flammability_message {
+                msg_type: WATER_MAP_CHANGED,
+                ..Default::default()
+            };
+            // Polled, not mirrored.
+            assert!(!unsafe { fc4_flammability_shadow_message(self.shadow, &m) });
+        }
+    }
+
     fn remove(&mut self, t: u64) {
         // The game sends RemoveOccupant while the occupant is still listed.
         self.send(msg::REMOVE_OCCUPANT, t);
@@ -469,6 +499,72 @@ fn clean_cycles_with_changes_inside_a_cycle() {
     let st = w.stats();
     assert_eq!((st.cycles, st.compared, st.clean, st.last_mismatches), (5, 4, 4, 0));
     assert_eq!(st.events, 5);
+}
+
+/// FL5/FL6 (§6.5): a pass takes the water from a 2 × 2 block of watered
+/// tracts, the original visits them dry (× 1.25), a second pass waters them
+/// again before the cycle ends: equal states at both cycle ends, but the
+/// tracts hold their dry values. The two passes, seen through the pointer
+/// of the published grid, mark them.
+#[test]
+fn watered_state_changed_inside_a_cycle() {
+    let block = [(1, 1), (1, 2), (2, 1), (2, 2)];
+    for forward in [true, false] {
+        let mut w = World::new();
+        w.game.published.set(0xA0);
+        assert_eq!(w.cycle(), -1);
+        assert_eq!(w.cycle(), 0, "{}", w.last());
+        assert!(
+            w.last()
+                .contains("; plumbing passes=0 (tracts whose watered state changed: 0)"),
+            "{}",
+            w.last()
+        );
+        w.plumbing_pass(&block, forward);
+        let r = w.run_to_cycle_end();
+        // At least one block tract was visited dry in this cycle.
+        let dry_seen = block.iter().any(|&(x, z)| {
+            let i = (x * N + z) as usize;
+            r.adjusted[i] != r.raw[i]
+        });
+        assert!(dry_seen, "{:?} {:?}", r.adjusted, r.raw);
+        w.plumbing_pass(&[], forward);
+        let n = w.cycle_with(&r);
+        if forward {
+            assert_eq!(n, 0, "{}", w.last());
+            assert!(
+                w.last()
+                    .contains("; plumbing passes=2 (tracts whose watered state changed: 4)"),
+                "{}",
+                w.last()
+            );
+            // The next cycle: the block is watered throughout (tracts the
+            // wrap day visited dry keep their value, counted unvisited).
+            assert_eq!(w.cycle(), 0, "{}", w.last());
+        } else {
+            // Without the pass end, the pointer is back where it was at the
+            // previous poll: the change is not seen, and the dry values are
+            // reported (that is why the plugin forwards the pass end).
+            assert!(n > 0, "{}", w.last());
+            assert!(w.last().contains("; plumbing passes=0 "), "{}", w.last());
+        }
+    }
+}
+
+/// Without the host's `watered_grid` the two cycle ends alone decide.
+#[test]
+fn watered_grid_not_polled() {
+    let mut w = World::new();
+    let g: &Game = &w.game;
+    let table = fc4_flammability_host {
+        watered_grid: None,
+        ..read_only(g)
+    };
+    unsafe { fc4_flammability_shadow_destroy(w.shadow) };
+    w.shadow = unsafe { fc4_flammability_shadow_create(&table, 3) };
+    assert_eq!(w.cycle(), -1);
+    assert_eq!(w.cycle(), 0, "{}", w.last());
+    assert!(w.last().contains("; plumbing passes not polled"), "{}", w.last());
 }
 
 #[test]

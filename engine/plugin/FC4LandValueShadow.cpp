@@ -137,8 +137,9 @@ uint32_t ZoneType(void*, int32_t x, int32_t z) {
     return zm ? static_cast<uint32_t>(zm->GetZoneType(x, z)) : 0;
 }
 
-// [spec question] GetAreaSlope is taken to be a read (landvalue.md §12 lists
-// it as an input); the shadow calls it as the original's state 5 does.
+// [compat] (landvalue.md §6, LV3): GetAreaSlope (lot developer slot 29) is
+// read-only in the original - terrain altitude and water level reads, locals
+// only - so the shadow calls it as the original's state 5 does.
 float AreaSlope(void*, int32_t x1, int32_t z1, int32_t x2, int32_t z2) {
     cISC4BuildingDevelopmentSimulator* bds = Bds();
     cISC4LotDeveloper* ld = bds ? bds->GetLotDeveloper() : nullptr;  // borrowed
@@ -147,6 +148,9 @@ float AreaSlope(void*, int32_t x1, int32_t z1, int32_t x2, int32_t z2) {
     return ld->GetAreaSlope(r, true);
 }
 
+// The token is the pointer GetDeveloper(ID) returns: the original applies its
+// developers in ascending unsigned order of these pointers, and so does the
+// shadow's pass (landvalue.md §7.4, LV1).
 uint64_t Developer(void*, uint32_t type) {
     cISC4BuildingDevelopmentSimulator* bds = Bds();
     if (bds == nullptr) return 0;
@@ -156,6 +160,16 @@ uint64_t Developer(void*, uint32_t type) {
 uint64_t DesirabilityMap(void*, uint64_t dev) {
     if (dev == 0) return 0;
     return TokenOf(reinterpret_cast<cISC4GrowthDeveloper*>(FromToken(dev))->GetDesirabilityMap());
+}
+
+// Growth developer slot 10 GrowthAndDeclineListsAreValid (state < 17, EAX
+// 0/1; growth-developer.md §3.2, landvalue.md §7.4 LV2): true while the
+// developer's published desirability map cannot change, so the shadow
+// snapshots the map only then; the last such snapshot before a change is the
+// map from before the developer's state-17 copy.
+bool DeveloperListsValid(void*, uint64_t dev) {
+    if (dev == 0) return false;
+    return reinterpret_cast<cISC4GrowthDeveloper*>(FromToken(dev))->GrowthAndDeclineListsAreValid();
 }
 
 // Slots 10-17 do not depend on the element type.
@@ -203,6 +217,7 @@ fc4_landvalue_host ReadOnlyHost() {
     h.area_slope = &AreaSlope;
     h.developer = &Developer;
     h.desirability_map = &DesirabilityMap;
+    h.developer_lists_valid = &DeveloperListsValid;
     h.grid_geometry = &GridGeometry;
     h.grid_read_u8 = &GridReadU8;
     h.grid_read_i16 = &GridReadI16;
@@ -322,7 +337,10 @@ void ReadOriginal(cISC4LandValueSimulator* lv, OrigRead& r) {
     ReadAll(intrinsic, &r.o.intrinsic_geometry, r.intrinsic);
     ReadAll(total, &r.o.total_geometry, r.total);
     ReadAll(slope, &r.o.slope_geometry, r.slope);
-    // GetLandValueType (slot 5) takes cell coordinates: each total tract's first cell.
+    // GetLandValueType (slot 5) takes cell coordinates: each total tract's first
+    // cell. [compat] (landvalue.md §7.6, LV4): it reads the total grid's
+    // GetCellValue, which shifts the cell to its tract, so the type is uniform
+    // over a tract and the first cell gives it exactly.
     if (!r.total.empty()) {
         const int32_t s = r.o.total_geometry.tract_size;
         r.types.reserve(r.total.size());
@@ -461,13 +479,15 @@ void LandValueShadowStartup(bool landValueReplaced) {
         "simulator (LandValueMapChanged 0x87CC75B3, posted at the end of state 8) FreeCity4's pass (states 0-8) runs "
         "on its live inputs, read-only, on local grids, and is compared tract by tract (intrinsic, total, slope, "
         "GetLandValueType) with the average, mode altitude and mean altitude; one line per pass; differing tracts "
-        "listed per grid: %ld",
+        "listed per grid: %ld; several growth developers apply in ascending pointer order, as in the original (LV1); "
+        "a desirability map republished after the original's pass read it is retried with the map from before the "
+        "developer's last state-17 copy (snapshotted while its GrowthAndDeclineListsAreValid is true, LV2)",
         src, g_cells);
     Log("landvalue shadow: NOT readable read-only (left out of the comparison): the scratch grid, the histogram, the "
         "minimum / maximum altitude, pivot and ranges (no getter, not saved: they show only through the intrinsic "
         "grid), the pipeline state and the dirty flag apart (the record holds only their OR: logged as settled), the "
-        "inputs as each state read them (the pass is compared on the inputs at its end; settled=0 means one changed), "
-        "and the order of several growth developers (the original's is by address)");
+        "inputs as each state read them (the pass is compared on the inputs at its end; settled=0 means one "
+        "changed)");
 }
 
 void LandValueShadowStart() {

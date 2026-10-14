@@ -25,7 +25,9 @@
 
 #include "FC4Checked.h"
 #include "FC4Config.h"
+#include "FC4Diag.h"
 #include "FC4GameList.h"
+#include "FC4SafeLotIterator.h"
 #include "FC4Interfaces.h"
 #include "FC4Properties.h"
 #include "FC4Log.h"
@@ -354,6 +356,149 @@ void ScanLotList(cFC4ISC4LotManager* lm, GameList<cISC4Lot*>& list, int32_t maxX
     }
 }
 
+// ---- the master lot list (budget.md §5.2, BQ1 / BQ3) ------------------------------------------
+
+// The walk ForEachLot used last (the budget shadow's report names it).
+const char* g_lastLotWalk = "none";
+
+// Registered safe iterators are few (one per aura simulator, lot developer,
+// a caller's walk); a longer iterator ring is not trusted.
+constexpr uint32_t kMaxRegisteredIterators = 4096;
+
+// [abi] Lot manager slot 15 moves to the lot list object at this + 0x5C
+// (aura.md §6.5); the block's list object must be exactly that.
+constexpr uintptr_t kLotListObjectOffset = 0x5C;
+
+struct MasterCopy {
+    safelots::Block* block;
+    const void* expectedList;
+    void** out;
+    uint32_t cap;
+    uint32_t count;
+    safelots::Status status;
+    bool wrongList;
+};
+
+// Plain reads of the game's list (no game call): under SehGuard.
+void MasterCopyFn(void* c) {
+    auto* m = static_cast<MasterCopy*>(c);
+    if (m->block != nullptr && m->block->listObject != m->expectedList) {
+        m->wrongList = true;
+        return;
+    }
+    m->status = safelots::CopyLots(m->block, m->out, m->cap, &m->count);
+}
+
+struct MasterRelease {
+    safelots::Block* block;
+    safelots::FreeFn freeNode;
+    int removed;
+};
+
+// Unlinks the block from the iterator ring and frees the nodes with B: under SehGuard.
+void MasterReleaseFn(void* c) {
+    auto* m = static_cast<MasterRelease*>(c);
+    m->removed = safelots::Unregister(m->block, m->freeNode, kMaxRegisteredIterators);
+}
+
+// The first few refusals are logged; ForEachLot then uses the rect query.
+void MasterRefused(long scan, const char* why) {
+    static volatile LONG refusals = 0;
+    if (InterlockedIncrement(&refusals) <= 3) {
+        Log("budget lot scan #%ld: master lot list not used (%s); GetLotsInCellRect instead (lot order: budget §5.2 "
+            "[choice], the tax total within ±1 per 1000 lots)",
+            scan, why);
+    }
+}
+
+// Every lot of the original lot manager's master list, in list order, through
+// its safe lot iterator (slot 15), as the original ComputeTax walks it
+// (budget.md §5.2 BQ1: the same lots as the rect query; BQ3: the float32
+// running total matches only in this order). Only on the identified
+// executable (allocators B and C) and only for the original lot manager (its
+// vtable in the executable's image): a replacement's slot 15 is never asked.
+// The whole list is checked and copied before any lot is visited; any failure
+// visits nothing and returns false, and the caller falls back. The lots are
+// borrowed: the master list holds the manager's reference, and nothing here
+// removes a lot. The block is always unregistered (the equivalent of
+// std::list::remove, FC4SafeLotIterator.h) and freed with C; if it cannot be
+// unregistered it is leaked, never freed.
+bool WalkMasterList(cFC4ISC4LotManager* lm, cISC4LandValueSimulator* lv, fc4_lot_visitor visit, void* ctx,
+                    long scan) {
+    const compat::ExecutableVersion* v = compat::IdentifiedVersion();
+    compat::StlNodeFreeFn freeNode = nullptr;
+    const uintptr_t freeBlockVa = compat::DirectCall(compat::Direct::GlobalHeapFree);
+    if (v == nullptr || freeBlockVa == 0 || !compat::StlNodeAllocator(nullptr, &freeNode)) {
+        MasterRefused(scan, "executable not identified, or allocator B / C unavailable");
+        return false;
+    }
+    const uintptr_t vtable = *reinterpret_cast<const uintptr_t*>(lm);
+    if (vtable < v->imageBase || vtable - v->imageBase >= v->sizeOfImage) {
+        MasterRefused(scan, "the lot manager is not the original");
+        return false;
+    }
+    const int32_t lotCount = lm->GetLotCount();  // slot 16
+    if (lotCount < 0) {
+        MasterRefused(scan, "negative GetLotCount");
+        return false;
+    }
+    auto* block = reinterpret_cast<safelots::Block*>(lm->GetSafeLotIterator());  // slot 15
+    if (block == nullptr) {
+        MasterRefused(scan, "GetSafeLotIterator returned null");
+        return false;
+    }
+    std::vector<void*> lots(static_cast<size_t>(lotCount) + 1);
+    MasterCopy copy{block,
+                    reinterpret_cast<const char*>(lm) + kLotListObjectOffset,
+                    lots.data(),
+                    static_cast<uint32_t>(lotCount),
+                    0,
+                    safelots::Status::NoBlock,
+                    false};
+    const bool copied = SehGuard("budget master lot list walk", &MasterCopyFn, &copy);
+    MasterRelease release{block, reinterpret_cast<safelots::FreeFn>(freeNode), -1};
+    const bool unlinked = copied && !copy.wrongList &&
+                          SehGuard("budget safe lot iterator release", &MasterReleaseFn, &release);
+    if (unlinked && release.removed > 0) {
+        reinterpret_cast<safelots::FreeFn>(freeBlockVa)(block);  // allocator C
+    } else {
+        static volatile LONG leaks = 0;
+        if (InterlockedIncrement(&leaks) <= 3) {
+            Log("budget lot scan #%ld: WARNING the safe lot iterator %p could not be unregistered (%s); its block is "
+                "leaked, not freed",
+                scan, static_cast<void*>(block),
+                !copied            ? "the walk faulted"
+                : copy.wrongList   ? "unexpected list object"
+                : !unlinked        ? "the release faulted"
+                : release.removed < 0 ? "broken iterator ring"
+                                      : "not registered");
+        }
+    }
+    if (!copied || copy.wrongList || copy.status != safelots::Status::Ok) {
+        MasterRefused(scan, !copied ? "the walk faulted"
+                            : copy.wrongList ? "unexpected list object"
+                                             : safelots::StatusName(copy.status));
+        return false;
+    }
+    uint32_t nulls = 0;
+    for (uint32_t i = 0; i < copy.count; ++i) {
+        cISC4Lot* sdkLot = static_cast<cISC4Lot*>(lots[i]);
+        if (sdkLot == nullptr) {
+            ++nulls;
+            continue;
+        }
+        VisitLot(AsGame(sdkLot), lv, visit, ctx);
+    }
+    g_lastLotWalk = "master list";
+    if (copy.count != static_cast<uint32_t>(lotCount) || nulls != 0) {
+        Log("budget lot scan #%ld: master list %u lots (%u null), GetLotCount %d", scan, copy.count, nulls,
+            static_cast<int>(lotCount));
+    } else {
+        Log("budget lot scan #%ld: %u lots (master list)", scan, copy.count);  // one line per scan
+    }
+    return true;
+}
+
 void ForEachLot(void*, fc4_lot_visitor visit, void* ctx) {
     if (!On(Sw::LotScan)) {
         NoteSkipped(Sw::LotScan, "ForEachLot (no lots: property tax 0)");
@@ -366,25 +511,32 @@ void ForEachLot(void*, fc4_lot_visitor visit, void* ctx) {
     const int32_t maxX = static_cast<int32_t>(c->CellCountX()) - 1;
     const int32_t maxZ = static_cast<int32_t>(c->CellCountZ()) - 1;
     if (!On(Sw::LotList)) {
-        // Bisection: no game list.
-        NoteSkipped(Sw::LotList, "GetLotsInCellRect (lots walked cell by cell instead)");
+        // Bisection: no game list (neither the master list nor the rect query).
+        NoteSkipped(Sw::LotList, "master lot list / GetLotsInCellRect (lots walked cell by cell instead)");
+        g_lastLotWalk = "cells";
         WalkLotCells(lm, maxX, maxZ, lv, visit, ctx);
         return;
     }
     if (!StlNodeAllocator::Available()) {
-        // [choice] Without the game's STL node allocator (unknown exe) the list
-        // query is refused; the cell walk visits the same lots.
+        // [choice] Without the game's STL node allocator (unknown exe) the game
+        // lists are refused; the cell walk visits the same lots.
         static LONG logged = 0;
         if (InterlockedExchange(&logged, 1) == 0) {
-            Log("budget: WARNING GetLotsInCellRect refused (STL node allocator unavailable); lots walked cell by cell");
+            Log("budget: WARNING the master lot list and GetLotsInCellRect refused (STL node allocator unavailable); "
+                "lots walked cell by cell");
         }
+        g_lastLotWalk = "cells";
         WalkLotCells(lm, maxX, maxZ, lv, visit, ctx);
         return;
     }
+    const long scan = InterlockedIncrement(&g_lotScans);
+    // BQ3 [compat]: the original's order, the master list (logged and refused
+    // on anything unexpected, before any lot is visited).
+    if (WalkMasterList(lm, lv, visit, ctx, scan)) return;
     // [choice] Every lot of the city through one rectangle query; the game
     // appends one reference per lot (budget Errata round 2, item 5), which we
     // release below (audited) before the list frees its nodes.
-    const long scan = InterlockedIncrement(&g_lotScans);
+    g_lastLotWalk = "rect query";
     if (On(Sw::LotListFree)) {
         GameList<cISC4Lot*> lots;
         if (lots.valid()) ScanLotList(lm, lots, maxX, maxZ, lv, visit, ctx, scan);
@@ -649,6 +801,8 @@ void SetBudgetLotTap(BudgetLotTapFn fn, void* context) {
 }
 
 void SetBudgetCity(cISC4City* city) { g_city = city; }
+
+const char* BudgetLastLotWalk() { return g_lastLotWalk; }
 
 void SetBudgetPostSink(FC4PostSinkFn fn, void* context) {
     g_postSinkContext = context;

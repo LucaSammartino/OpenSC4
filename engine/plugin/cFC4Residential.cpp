@@ -984,8 +984,10 @@ Groups GroupsOf(SC4Vector<uint32_t> const* v) {
 }
 
 // Slots 47, 49, 61: each occupant arrives with one reference handed out for
-// the caller's list (HandOut) and is appended (allocator A, docs/abi
-// allocators.md).
+// the caller's list (HandOut) and is appended at the tail in a 12-byte node
+// from the framework allocator service (allocator A, docs/abi allocators.md):
+// SC4List::push_back does exactly that. RG17 answered (residential.md §10.1
+// slot 61 row): the original does the same for all three slots.
 void AppendToList(void* ctx, uint64_t t) {
     cISC4Occupant* o = OccOf(t);
     if (o != nullptr) static_cast<SC4List<cISC4Occupant*>*>(ctx)->push_back(o);

@@ -135,12 +135,29 @@ pub(super) fn demand_exemplars(host: &dyn DemandHost) -> Vec<DemandExemplar> {
     out
 }
 
-/// §4.1 link factor `r24(float(percent) · 0.01f)`: the integer is exact
-/// (`FILD`), the constant is the float32 `0.01f`, the product is rounded to
-/// float32 once. The f64 product is exact for `percent < 2^29` (the shipped
-/// data uses 0…1500), so the one cast to f32 is that single rounding.
+/// §4.1 link factor *[compat]* (DQ12): the integer is loaded exactly
+/// (`FILD`) and multiplied by the float32 constant `0.01f`, each x87 step
+/// rounded to 24 bits.
+///
+/// - Below 2^31: `r24(percent × 0.01f)`, one rounding of the exact product
+///   ([`mul_i64_f32`](crate::x87::mul_i64_f32); an f64 product would round
+///   twice above 2^29).
+/// - From 2^31 up the sign bit is set, so the original first adds 2^32
+///   (`FADD`), which rounds the integer to 24 bits:
+///   `r24(r24(percent) × 0.01f)` (3242996796 → `0x4BF76BC7`, not the single
+///   rounding's `0x4BF76BC8`).
+///
+/// The shipped percents (at most 1500) cannot tell the forms apart.
 pub(super) fn link_factor(percent: u32) -> f32 {
-    (f64::from(percent) * f64::from(0.01f32)) as f32
+    if percent < 0x8000_0000 {
+        crate::x87::mul_i64_f32(i64::from(percent), 0.01f32)
+    } else {
+        // `u32_to_float` is the FILD + FADD 2^32 path, rounded to 24 bits;
+        // that 24-bit value times 0.01f is exact in f64, so the cast is the
+        // FMUL's one rounding.
+        let r = crate::x87::u32_to_float(percent as i32);
+        (r * f64::from(0.01f32)) as f32
+    }
 }
 
 /// §4.2 step 5: the links of one exemplar, in creation order (every
@@ -649,11 +666,11 @@ impl DemandSim {
     /// current exemplar data. The three outputs, for the targets
     /// `demandIndex + 0x2010 / 0x2020 / 0x2030`; the interface writes them to
     /// `jobs[1]`, `jobs[2]`, `jobs[3]` of the caller's four-float record and
-    /// never touches `jobs[0]` (§5, corrected 2026-10-14). Each is
-    /// `f32(u32 percent) × 0.01f`: one float multiply by the float constant
-    /// 0.01f, rounded once, not a division by 100 (33 gives `0x3EA8F5C2`,
-    /// not `0x3EA8F5C3`). That is the §4.1 link factor; the two agree for
-    /// every `percent < 2^24`, the only range where `f32(percent)` is exact.
+    /// never touches `jobs[0]` (§5, corrected 2026-10-14). Each is the §4.1
+    /// link factor ([`link_factor`], DQ12: the same instructions): the exact
+    /// integer times the float constant 0.01f, rounded once below 2^31 and
+    /// twice from 2^31 up, not a division by 100 (33 gives `0x3EA8F5C2`,
+    /// not `0x3EA8F5C3`).
     pub fn jobs_per_unit(&self, demand_id: u32, demand_index: u32) -> [f32; 3] {
         let mut out = [0.0f32; 3];
         let key = props::exemplar_key(DEMAND_EXEMPLAR_GROUP, demand_id.wrapping_add(demand_index));
@@ -669,19 +686,25 @@ impl DemandSim {
         out
     }
 
-    /// `GetJobsBySensus(type)`. [choice] a missing node gives 0.
+    /// `GetJobsBySensus(type)` *[compat]* (§5, DQ10, DQ11): 0 for the three
+    /// resident censuses; else `s := (jobs[3] + jobs[2]) + jobs[1]`, the last
+    /// output first, each add a float32 rounding (1, 3 and 96 % sum to
+    /// 0.99999994, not 1.0); `x := f32(supply × s)`; the low 32 bits of
+    /// `_ftol(x)`, with **no clamp**: a negative product returns its
+    /// truncation as a negative `int32` (−3.7 → `0xFFFFFFFD`), NaN, ±∞ and
+    /// |x| ≥ 2^63 give 0, 2^31 ≤ |x| < 2^63 wraps. The value is EAX (slot 9).
+    /// `jobs[0]` is neither written nor read (DQ11). [choice] a missing node
+    /// gives 0 (the original crashes).
     pub fn jobs_by_census(&self, census_type: u32) -> u32 {
         if matches!(census_type, 0x1011 | 0x1021 | 0x1031) {
             return 0;
         }
         let Some(node) = self.node(census_type) else { return 0 };
+        // `j[k]` here is the original's jobs[k + 1].
         let j = self.jobs_per_unit(census_type, 0);
-        let x = (j[0] + j[1] + j[2]) * node.supply();
-        if x <= 0.0 || x.is_nan() {
-            0
-        } else {
-            x as u32
-        }
+        let s = (j[2] + j[1]) + j[0];
+        let x = node.supply() * s;
+        crate::x87::ftol32(f64::from(x)) as u32
     }
 
     /// `GetNeutralTaxRate()`, unclamped. [choice] a missing node contributes
@@ -1233,6 +1256,11 @@ impl DemandSim {
             node.add_to_supply(n);
         }
         h.city_extrapolate_growth(city, dev + 1, n);
+        // [compat] (§9.2, DQ10): each wealth reads its own output, $ jobs[1],
+        // $$ jobs[2], $$$ jobs[3] (`j[w]` here), each `f32(jobs[k] × n)`. The
+        // original forms all three products before the first add; they do
+        // not depend on the nodes, so forming each just before its add gives
+        // the same values.
         let j = self.jobs_per_unit(dev + 1, 0);
         for (w, jw) in j.iter().enumerate() {
             let v = n * jw;
@@ -1628,6 +1656,75 @@ mod tests {
         assert_eq!(m.get(&0x1011), Some(&-1_294_967_296));
         assert_eq!(m.get(&0x2113), Some(&0));
         assert_eq!(m.get(&0x2114), Some(&0));
+    }
+
+    /// §4.1 / DQ12: one rounding below 2^31, two from 2^31 up.
+    #[test]
+    fn link_factor_rounds_like_the_x87() {
+        assert_eq!(link_factor(33).to_bits(), 0x3EA8_F5C2);
+        assert_eq!(link_factor(1).to_bits(), 0x3C23_D70A);
+        // 2^24 + 1: the exact integer times 0.01f, rounded once.
+        assert_eq!(link_factor(16_777_217).to_bits(), 0x4823_D70B);
+        // From 2^31 up the FADD of 2^32 rounds the integer first.
+        assert_eq!(link_factor(3_242_996_796).to_bits(), 0x4BF7_6BC7);
+        // The single rounding the bracket assumed would give 0x4BF76BC8.
+        assert_eq!(crate::x87::mul_i64_f32(3_242_996_796, 0.01).to_bits(), 0x4BF7_6BC8);
+        // Through slot 8, which uses the same instructions.
+        let f = Fake::new();
+        f.add_exemplar(
+            0x3111,
+            &[(
+                LinkKind::Drives as u32,
+                pairs(&[(0x2010, 3_242_996_796), (0x2020, 16_777_217)]),
+            )],
+        );
+        let s = sim(&f);
+        let j = s.jobs_per_unit(0x3111, 0);
+        assert_eq!((j[0].to_bits(), j[1].to_bits(), j[2]), (0x4BF7_6BC7, 0x4823_D70B, 0.0));
+    }
+
+    /// §5 / DQ10: `GetJobsBySensus` sums (jobs[3] + jobs[2]) + jobs[1] and
+    /// truncates with `_ftol`, no clamp (the demand.md worked example).
+    #[test]
+    fn jobs_by_census_sums_last_output_first() {
+        let f = Fake::new();
+        f.add_exemplar(
+            0x3111,
+            &[(
+                LinkKind::Drives as u32,
+                pairs(&[(0x2010, 1), (0x2020, 3), (0x2030, 96)]),
+            )],
+        );
+        f.add_exemplar(0x1011, &[(LinkKind::Drives as u32, pairs(&[(0x2010, 100)]))]);
+        let s = sim(&f);
+        let j = s.jobs_per_unit(0x3111, 0);
+        assert_eq!(
+            j.map(f32::to_bits),
+            [0x3C23_D70A, 0x3CF5_C28F, 0x3F75_C28F],
+            "jobs[1], jobs[2], jobs[3]"
+        );
+        assert_eq!(((j[2] + j[1]) + j[0]).to_bits(), 0x3F7F_FFFF);
+        assert_eq!(((j[0] + j[1]) + j[2]).to_bits(), 0x3F80_0000);
+        let n = s.node(0x3111).unwrap();
+        n.set_supply(1000.0);
+        assert_eq!(s.jobs_by_census(0x3111), 999);
+        // No clamp: −3.7 truncates to −3 in EAX.
+        n.set_supply(-3.7 / 0.999_999_94);
+        assert_eq!(s.jobs_by_census(0x3111), (-3i32) as u32);
+        // 2^31 ≤ x < 2^63 wraps; NaN and ∞ give 0.
+        n.set_supply(3.0e9 / 0.999_999_94);
+        assert_eq!(
+            s.jobs_by_census(0x3111),
+            crate::x87::ftol32(f64::from(n.supply() * 0.999_999_94)) as u32
+        );
+        assert_eq!(s.jobs_by_census(0x3111), 3_000_000_000);
+        n.set_supply(f32::NAN);
+        assert_eq!(s.jobs_by_census(0x3111), 0);
+        n.set_supply(f32::INFINITY);
+        assert_eq!(s.jobs_by_census(0x3111), 0);
+        // The three resident censuses answer 0 whatever their links.
+        s.node(0x1011).unwrap().set_supply(50.0);
+        assert_eq!(s.jobs_by_census(0x1011), 0);
     }
 
     /// §6.3 / DQ5: the census reads the purpose only; the capacity maps are

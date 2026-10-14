@@ -232,7 +232,8 @@ plugin.
        simulator of the process, or `crime_seed = N` (env `FC4_CRIME_SEED`, decimal or `0x…`) for a repeatable
        run. Crime type names follow crime spec §7: the LTEXT (`0x2026960B`, group + language ID, instance), then
        (group, instance), detokenized by the game's string detokenizer, U+2022 → U+200B; `0xAA12FCB0` if that
-       fails. The log has a status line at `Init` and `Read` (`crime Init:
+       fails, else an empty name (a failed load never keeps the text, crime spec §7 / CQ16). The log has a
+       status line at `Init` and `Read` (`crime Init:
        init=… state=… types=… S=… decay=…`) and one every month from the first (`crime month yyyy-mm:
        crimes=N prevented=P arson=A/T incidents=I grid sum/max=… (tracts=…) average=… hotspot=(x,z)=v props
        requested=R selected=K/Q jailed=J released=L criminal base=B to commit=C attempts=… (no lot …) police
@@ -301,7 +302,7 @@ plugin.
 
        Its game calls have their own switches (default `1`, environment `FC4_FLORA_<KEY>`): `flora_occupants`,
        `flora_create`, `flora_manager`, `flora_queries`, `flora_terrain`, `flora_weather`, `flora_records`,
-       `flora_posts`, `flora_cheats`, `flora_exemplars` (see `plugin/FC4Config.h`).
+       `flora_posts`, `flora_cheats`, `flora_exemplars`, `flora_obliteration` (see `plugin/FC4Config.h`).
      - `landfill`: the landfill developer (`cSC4LandfillDeveloper`, landfill spec). It reports the free capacity
        to the pollution simulator (`SetGarbageCapacity`), moves garbage out of its supply into the heaps
        (`GarbagePutInLandfill`), sets the active-landfill flag of every tile cell, levels the zone through the lot
@@ -412,6 +413,27 @@ plugin.
      the week agent reports "not finished" once per week, so §5.3's repeat delivery shows as `… again`.
      `tools/clock_diff.ps1 -A <original log> -B <our log>` checks both streams against simulator.md §2.3/§5.2 and
      compares the two runs from the first day both saw (runs 56/57: identical over 240 days).
+   - **Growth probe** (`growth_probe = 1`, env `FC4_GROWTH_PROBE`; off by default; `plugin/FC4GrowthProbe.h`):
+     the calibration of `growthAttemptsPerDay` (building-development.md §12), on the ORIGINAL building development
+     simulator and tract developer (enable neither). At game start, on the identified 1.1.641 executable only, and
+     only if the original tract developer vtable (`0x00AB3118`) holds the original `Grow` (`0x0070D130`) in slot 5,
+     it patches that one entry with a counting forwarder (same `this`, arguments and EAX; callee-pop 12; integer
+     work only) and puts the original back at `PreAppShutdown` (and at DLL detach). Otherwise it logs why and
+     patches nothing. One line per posted `SimNewDay`, then a summary at each city's shutdown:
+
+     ```
+     growth probe yyyy-mm-dd: attempts=A qualifying=Q cut=0|1 elapsed_us=E per_attempt_us=P lots=L population=N
+       max_us=M cycles=C
+     growth probe summary (city shutdown): days=D; attempts min/median/max=…; cut days=K, attempts on cut days
+       min/median/max=…; qualifying min/median/max=… (unknown on U day(s)); mean_us_per_attempt=…; …
+     ```
+
+     `attempts` = `Grow` calls since the previous line; `qualifying` = developers in the BDS developer map (slot 34)
+     with trunc(active demand) > 5, read when the line is written; `cut` = attempts < qualifying (approximate: a
+     pick that ends without a `Grow` call is not counted); `elapsed_us`/`max_us`/`cycles` = the time inside the
+     calls; `lots` = lot manager slot 16; `population` = the residential simulator's. `-` = not readable. At each
+     city load a line says whether the city's tract developer and BDS are the original classes. With
+     `FC4_LOG_LEVEL=2` the x87 leftover guard also runs at the forwarder's exit.
    - **Monthly digest** (also at `FC4_LOG_LEVEL=1`; `digest = 0` turns it off): at every `SimNewMonth`, one line
      for diffing the original against FreeCity4 on the same save, read only through public interfaces:
 
@@ -594,40 +616,56 @@ plugin.
      Success is `mismatches=0` on every month line (`clean` equal to `months`) and no `NOT OBSERVED` or
      `INCOMPLETE` line. A `!` marks a differing hotspot, count or average.
    - **Aura shadow** (`aura_shadow = 1`, env `FC4_AURA_SHADOW`; off by default; `aura_shadow_cells = N`, env
-     `FC4_AURA_SHADOW_CELLS`, default 4, 1..64): a same-process differential of the aura grids. It needs the
-     **original** aura simulator (do not enable `aura`; otherwise `aura shadow: requested … but INACTIVE` at
-     game start); our simulator or the original may run the clock. The observer subscribes to the original's
-     cycle-completed message (`0x2A09B21A`, aura spec §11.1: posted, queued, at the end of state 17; the
-     original is then idle in state 0 until the next month, so its record is a finished cycle). At city load the
-     original's own `Write` (`cIGZSerializable`) goes into a memory stream and becomes the baseline; at every
-     cycle-completed message it is captured again, FreeCity4's cycle (states 1-17, the core code our simulator
-     runs, `fc4_aura_shadow_cycle`) runs on core copies of the record's grids with the previous record's base and
-     transient grids, reading every other input live and read-only (lots, populations, land value, occupants,
-     funding, tax rates, ordinances, the other simulators' grids; the host table has no write callback), and the
-     result is compared tract by tract with the record. Nothing is written to the game. **Not compared** (said in
-     the start line): the riot roll (the original's generator is seeded from the wall clock, §9), and the
-     posts, history, riots and strikes (writes). The inputs are read at the end of the original's cycle, not at
-     the moment each of its states read them, so an input that changed during the cycle (a lot built, a
-     funding change) shows as a difference. Lines (always written; longer ones continue on `aura shadow
-     (cont.)` lines):
+     `FC4_AURA_SHADOW_CELLS`, default 4, 1..64): a same-process differential of the aura simulator that follows
+     the original step by step (aura spec §14.3).
+     - **Needs:** the **original** aura simulator (do not enable `aura`) and FreeCity4's simulator (`simulator`,
+       the default): the original's deliveries pass through `cFC4Simulator::HostDeliver`. Otherwise it logs
+       `aura shadow: requested … but INACTIVE` at game start.
+     - **City load** (PostCityInit): the original's own `Write` (`cIGZSerializable`) goes into a memory stream,
+       and FreeCity4's aura core starts from that record (Read, then Init: state 1, as the original after a load).
+     - **Each step:** every SimIdle / SimNewDay / SimNewMonth delivery to the original's agent is wrapped: its
+       pipeline state is read before and after (a raw, read-only s32 at `+0x70` of its `cISC4AuraSimulator`
+       pointer, under a structured-exception guard, only while its first word is the original's vtable from the
+       compat table, `0x00AB07C8`). When the state moved from s to s', our steps s..s'-1 run at once, before any
+       other agent, reading their inputs live and read-only (lots, populations, land value, occupants, funding,
+       tax rates, ordinances, the other simulators' grids; the host table has no write callback), so each of our
+       states reads what the original's read. Before a delivery in state 15 or 17 the original's transient grid is
+       copied into ours (effects we cannot see). After our steps 5-13 our work grid is compared with the
+       original's (`+0x44`).
+     - **Occupant messages** (`0x99EF1142` / `0x99EF1143`) reach ours through the shadow's own subscription, when
+       the original gets them.
+     - **Cycle end** (the original's state back to 0: the end of state 17, or state 4 in a city without lots): its
+       record is captured and compared tract by tract with ours (base, aura, park and landmark maps, transient;
+       mayor rating, best / worst, hotspots), and ours restarts from that record. The tax-change baseline (§6.5.2,
+       never saved) is kept across restarts. The cycle-completed message (`0x2A09B21A`) is not used: it is posted
+       and arrives late.
+     - **Not compared** (said in the start line): the riot roll (the original's generator is seeded from the wall
+       clock, §9), and the posts, history, riots and strikes (writes).
+
+     Lines (always written; longer ones continue on `aura shadow (cont.)` lines):
 
      ```
      aura shadow: ON (aura_shadow from …): …                               (game start)
-     aura shadow: comparing with the original aura simulator … (city …, X x Z cells); …   (each city)
-     aura shadow: baseline from the original's record at city load: base B of T tracts with data, transient K
-       nonzero
-     aura shadow yyyy-mm-dd cycle N: tracts=T; base mismatches=a max|d|=…; aura mismatches=b max|d|=… (m in the
-       k tracts that got a transient effect during the cycle); park map mismatches=…; landmark map
-       mismatches=…; mayor rating orig/ours=r/r; max orig/ours=v@(x,z)/v@(x,z); min orig/ours=…; hotspots
-       orig/ours=h/h (same|differ)[; first differing (x,z) orig/ours: base (x,z) a/b …; aura …]; riot roll not
-       compared (wall-clock RNG); inputs: all read | inputs not available (neutral): …
-     aura shadow yyyy-mm-dd cycle N: INCOMPLETE (why); the next cycle only takes a baseline
-     aura shadow yyyy-mm-dd cycle N: baseline taken (no previous record); nothing compared
+     aura shadow: following the original aura simulator … (agent …, vtable …): state S at +0x70; work grid
+       diagnostic on (+0x44)                                                (each city)
+     aura shadow: the original aura simulator … is NOT followed: why; nothing compared
+     aura shadow: comparing with the original aura simulator … (city …, X x Z cells); …
+     aura shadow: city load: ours starts from the original's record (Read, then Init: state 1): base B of T
+       tracts with data, transient K nonzero, D departments, H hotspots
+     aura shadow yyyy-mm-dd cycle N (followed states 1-17 over D days: M moves, C calls, K occupant messages):
+       tracts=T; base mismatches=a max|d|=…; aura mismatches=b max|d|=… (m where the transient differs); park map
+       mismatches=…; landmark map mismatches=…; transient mismatches=… (copied before states 15 and 17: n times);
+       work after states 5-13: w5,…,w13; mayor rating orig/ours=r/r; max orig/ours=v@(x,z)/v@(x,z); min
+       orig/ours=…; hotspots orig/ours=h/h (same|differ); tax baseline: …[; ended in state 4 (no lots: …)]
+       [; first differing (x,z) orig/ours: base (x,z) a/b …; aura …; work after state s …][; desync: …]; riot
+       roll not compared (wall-clock RNG); inputs: all read | inputs not available (neutral): …
+     aura shadow yyyy-mm-dd cycle N (…): not compared (joined the cycle in state S); ours restarts from this record
+     aura shadow yyyy-mm-dd cycle N: INCOMPLETE (why); ours restarts from the next record
      ```
 
-     Success is `base mismatches=0`, `aura mismatches=0` (or only in the transient-effect tracts), equal park
-     and landmark maps, equal mayor rating, best / worst and `hotspots … (same)` on every cycle line, and no
-     `INCOMPLETE` line after the first cycle.
+     Success is every cycle line with all mismatch counts 0, `work after states 5-13` all 0 (`-` for a step the
+     cycle did not run), equal mayor rating and best / worst, `hotspots … (same)`, and no `desync` part. A cycle
+     the shadow joined mid-way (the first after the shadow came up during a cycle) is not compared.
    - **Flora shadow** (`flora_shadow = 1`, env `FC4_FLORA_SHADOW`; off by default): a same-process differential of
      the flora simulator.
      - **Needs:** our simulator and the **original** flora simulator (do not enable `flora`). Otherwise it logs
@@ -865,13 +903,14 @@ plugin.
      altitude, which have no getter) are read, and FreeCity4's pass (states 0-8, the core code our simulator
      runs, `fc4_landvalue_shadow_compare`) runs on local grids (the intrinsic grid starts as a copy of the
      original's: state 4 keeps it without an altitude curve), reading the terrain, the zones, the lot developer's
-     area slope and the growth developers' desirability maps live and read-only. `SimNewDay` notes the listed
-     developers' desirability maps: when the total grid differs and a map changed after the original's pass read
-     it, our pass runs again with the previous map and the better result is kept (`desirability=previous map
+     area slope and the growth developers' desirability maps live and read-only; several developers apply in
+     ascending pointer order, as in the original (land value spec §7.4, LV1). `SimNewDay` snapshots the listed
+     developers' desirability maps while their `GrowthAndDeclineListsAreValid` (slot 10) is true (LV2): when the
+     total grid differs and a map changed after the original's pass read it, our pass runs again with the map
+     from before the developer's last state-17 copy and the better result is kept (`desirability=previous map
      …`). **Not compared** (said at game start): the scratch grid, the histogram, min / max altitude, pivot and
      ranges (no getter, not saved), the pipeline state and the dirty flag apart (the record holds their OR,
-     logged as `settled`), the inputs as each state read them, and the order of several growth developers (the
-     shipped tuning lists one). Lines (always written; longer ones continue on `landvalue shadow (cont.)` lines):
+     logged as `settled`), and the inputs as each state read them. Lines (always written; longer ones continue on `landvalue shadow (cont.)` lines):
 
      ```
      landvalue shadow: ON (landvalue_shadow from …): …                                    (game start)
@@ -904,7 +943,11 @@ plugin.
      its previous value: at most 2 × tractsPerDay tracts may be "unvisited", visited on the wrap day before the
      previous comparison); the average against the range those values allow; the multiplier bitwise; the
      hotspots against every rotation of the fixed visiting order; the getters on the mirror after it took the
-     original's state. The first cycle seen (and the one after a new simulator, a new geometry or an
+     original's state. The watered state is the one at the visit (flammability spec §6.5, FL5/FL6): the target
+     also hears the plumbing pass end (`0x6946DC34`), and every event first polls the plumbing simulator's
+     `GetWateredGrid` (slot 7), whose object alternates at every pass; on a new pointer the watered states are
+     read again, and a tract whose state changed in the cycle may hold its daily value under either state (no
+     other tract is loosened). The first cycle seen (and the one after a new simulator, a new geometry or an
      `INCOMPLETE`) is the baseline. **Not compared** (said at game start and in every line): the fire roll (a
      clock-seeded generator), the iterator start and the hotspot shuffle (C `rand()` draws), the random lot, the
      candidate list and the zoned sum and count. Lines (always written; longer ones continue on `flammability
@@ -918,7 +961,8 @@ plugin.
      flammability shadow yyyy-mm-dd cycle N: tracts=CXxCZ (S=1) tractsPerDay=d; raw cells=… mismatched=a
        max|d|=…; adjusted cells=… mismatched=b max|d|=… (exact …, explained …, unvisited u of at most 2d); average
        orig/ours=x/y[..z]; multiplier orig/ours=…/…; hotspots orig/ours=h/h same (rotation k of n hot tracts) |
-       differ (…)[; first differing (x,z) orig/ours: …]; events=e; hotspot getter orig/ours=v@(x,z)/…; average
+       differ (…)[; first differing (x,z) orig/ours: …]; events=e; plumbing passes=p (tracts whose watered state
+       changed: t); hotspot getter orig/ours=v@(x,z)/…; average
        getter orig/ours=…/…; flammable getter cells=… mismatched=…; mismatches=M; cycles=K clean=C; not compared: …
      flammability shadow yyyy-mm-dd cycle N: INCOMPLETE (why); not compared, the next cycle is a new baseline
      ```
