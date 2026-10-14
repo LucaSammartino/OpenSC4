@@ -698,11 +698,62 @@ these classes draws random numbers.
 1. `RemoveIncompatibleOccupants(x, z)`.
 2. If `tile = 0x02F10000` (empty): if no base-texture occupant is at the cell, `SetEmptyCellTexture(x, z)`.
    Return true. No occupant is created; the landfill flag stays cleared.
-3. Otherwise: load the tile exemplar `(0x6534284A, 0x07BDDF1C, tile)` (*[quirk]* a missing exemplar is
-   dereferenced); create a `cSC4LandfillOccupant(tile, orientation)`, attach the exemplar to its property holder,
+3. Otherwise: load the tile exemplar `(0x6534284A, 0x07BDDF1C, tile)` (*[quirk]* a missing exemplar crashes, see
+   below); create a `cSC4LandfillOccupant(tile, orientation)`, attach the exemplar to its property holder,
    `SetFlag(4)`, `SetRemovalFlags(2)`; `pollution.SetIsActiveLandfill(x, z, true)`; `isEmpty := false`; position
    := cell centre with `y = altitude(x, z)`; `SetPosition`; `Init`; insert into the occupant manager
    (slot 20, `(occupant, 0)`) and return its result.
+
+**Step 3 in detail** *[compat]* (LG3; `0x006BC7CF`–`0x006BC92A`):
+
+1. `ex := resourceManager.GetResource({0x6534284A, 0x07BDDF1C, tile}, 0xA52160F5, &ex, 0, 0)` (resource manager
+   `0x00B43CA8`, slot 3; `0xA52160F5` is `cISCResExemplar`). If `ex` is null, the code jumps to step 8 with a null
+   occupant and crashes there (`0x006BC911`) *[quirk]*.
+2. `o := new cSC4LandfillOccupant(tile, orientation)` (`0x00477270`). This constructor stores the tile ID and the
+   orientation, sets type `0x6A11BD2B` and calls `SetFlag(4)`. Then `o.AddRef()`.
+3. Attach the exemplar: `SetDefaultExemplar(ex)` on the occupant's `cISCExemplarPropertyHolder` (IID `0x0AC2B5F7`,
+   the sub-object at `+0x20`, slot 3). It takes a reference to `ex` and releases any exemplar held before.
+4. `SetFlag(4)` again, `SetRemovalFlags(2)`, `pollution.SetIsActiveLandfill(x, z, true)`, `isEmpty := false`.
+5. `(px, pz) := CellCenterToPosition(x, z)`; `py := terrain.GetAltitude(px, pz)`, stored as float32;
+   `SetPosition((px, py, pz))`.
+6. `o.Init()`. `cSC4Occupant::Init` (`0x005E8C90`) posts `0x99EF1140`, and the queued message holds a counted
+   reference to the occupant (flora §9.1).
+7. Release `o` (the reference from step 2), then release `ex`. *[quirk]* Between here and step 8 the occupant is
+   kept alive only by the reference in step 6's queued message. A replacement should keep its own reference until
+   the insert.
+8. Return `occupantManager.InsertOccupant(o.AsOccupant(), 0)` (slot 20).
+
+Dead branch: `0x006BC88D`–`0x006BC8B4` handles `tile = 0x02F10000`. It calls `SetRemovalFlags(1)` and
+`SetIsActiveLandfill(x, z, false)`, sets `isEmpty := true`, then calls `SetEmptyCellTexture`. Step 2 of
+`CreateLandfillOccupant` has already returned for that tile, so this branch never runs. It is the only code found that
+sets `isEmpty` to true (§10.2 question 7).
+
+**`SetTileID` is not enough** (LG3). `SetTileID` (slot 6, `0x00477450`) neither loads nor attaches an exemplar.
+When `id` differs from the stored ID, it stores `id` and rewrites the instance in the key of the **attached**
+exemplar (`GetKey` and `SetKey`, exemplar slots 11 and 12):
+
+- With no exemplar attached, it dereferences null *[quirk]*.
+- With another tile's exemplar attached, that exemplar keeps its own properties (cost `0xEA54D286`, models) under
+  the new key. Every other holder of the cached exemplar sees the new key too (§7.3).
+
+*[choice]* To build a tile from outside the class, run steps 1–8 in the same order, through public interfaces:
+
+1. Create the occupant with GZCOM `CreateInstance(0x8A22BEBE, 0x2A15F262)` (factory `0x004776B0`). This uses
+   the default constructor `0x004774C0`: tile `0x02F10000`, orientation 0, and flag 4 **not** set.
+2. Attach the exemplar with `SetDefaultExemplar(ex)`, reached by QI `0x0AC2B5F7`.
+3. Call `SetTileID(tile)`. It is now harmless, because the key already has that instance.
+4. Call `SetOrientation(orientation)` (slot 8) and `SetFlag(4)`, then continue from step 4.
+
+**Who sees the tile occupants.** The pollution flag is what pollution reads. The tile occupants are also visible
+elsewhere, so tiles kept only inside FreeCity4 differ from the original:
+
+- The occupant manager saves them as class `0x8A22BEBE` (§6.4).
+- The flora blocking filter accepts them (flora §6.4.1). Without them, flora may be planted on a tiled cell.
+- `PlaceZone` asks the landfill occupant at a cell `CanRemove(2)` (zones.md §6).
+- The landfill's own reads use them: `GetMaintenanceCost` reads each tile's cost from the tile occupant
+  (§4.9.1), and `PopulateZone` and `HandleCellTerrainChange` test whether a tile occupant is there (§4.4.5,
+  §4.5.2).
+- The model maker draws them.
 
 #### 4.8.2 Effect on pollution's landfill flag
 
@@ -1006,6 +1057,8 @@ The object also implements `cISC4Occupant` (at its second vtable; QI `0x26BB767E
 | `cISC4BuildingDevelopmentSimulator` (`0x00AB0AF8`) | 36 / +0x90 | GetLotDeveloper | 0 | EAX | §4.5.3 |
 | `cISC4LotDeveloper` (`0x00AB1B98`) | 21 / +0x54 | AttemptAreaLevelling(rect, float, bool, bool, float, lot*) | 24 | AL (ignored) | §4.5.3 |
 | `cISC4View3DWin` (`0x00ABCE40`) | 22 / +0x58 | GetCurrentViewLevel | 0 | EAX | §3.2 |
+| resource manager (`0x00B43CA8`) | 3 / +0x0C | GetResource(key, `0xA52160F5`, &out, 0, 0) | 20 | AL | §4.8.1 |
+| `cISCExemplarPropertyHolder` (IID `0x0AC2B5F7`) | 3 / +0x0C | SetDefaultExemplar(ex) | 4 | none (`0x00458E60` sets no result) | §4.8.1 |
 | `cIGZCOM` | 3 / +0x0C | CreateInstance(clsid, iid, void**) | 12 | AL | §4.8.5 |
 | `cISC4LotBaseTextureOccupant` (IID `0x097F6D98`) | 3, 4, 5, 8 | AsOccupant, GetUsage, SetUsage(1), SetTextureSpecification(rec*, 1, null) | | | §4.8.4, §4.8.5 |
 | `cISC4ZoneManager` | 16 / +0x40 | GetZoneDisplayAlpha | 0 | AL | §4.8.5 |
@@ -1082,7 +1135,8 @@ and need not be reproduced beyond that.
 5. The meaning of occupant manager slot 24 and occupant slot 15 with `0x99EF1145` after a tile move (§4.5.2).
 6. The global that supplies the zot orientation (§4.7.5).
 7. `isEmpty` is never set true by the shipped code as far as found; the `IsEmptyLandfillTile` branches are dead
-   *[inferred]*.
+   *[inferred]*. The only writer of `true` found is a dead branch of `CreateLandfillOccupant` (§4.8.1); a loaded
+   record can still carry 1 (§6.4).
 8. History IDs `0x2A8C4696` / `0x2A8C4697` have no names in the symbols; the advisor/graph users were not traced.
 
 ## 11. Conformance tests

@@ -1216,8 +1216,13 @@ before and after). The glue's current answer is in brackets.
   `00 00 FF FF FF <zone display alpha> 01 00`, no random draw) and `InsertOccupant(occ, 0)`. All 94 usage-1
   textures in the local saves match. **"Not done" does not match**: the texture is saved, and §4.4.5 tests for it.
   Written into landfill.md §4.8.5.
-- **LG3:** how is the tile occupant created; is the SDK's `SetTileID` (slot 6) enough to attach the tile exemplar?
-  [tiles live in FreeCity4 only; pollution's active-landfill flag is still set, which is what the simulation reads]
+- ~~**LG3:** how is the tile occupant created; is the SDK's `SetTileID` (slot 6) enough to attach the tile exemplar?
+  [tiles live in FreeCity4 only; pollution's active-landfill flag is still set, which is what the simulation reads]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006BC7CF`–`0x006BC92A`, `SetTileID` `0x00477450`). **No.** `SetTileID`
+  only renames the key of an exemplar that is already attached, and crashes when none is. The original loads the
+  exemplar with `GetResource` and attaches it with `cISCExemplarPropertyHolder::SetDefaultExemplar` (QI
+  `0x0AC2B5F7`). Landfill.md §4.8.1 gives the order and a GZCOM recipe. **The bracket does not fully match**: the
+  occupants are also saved, block flora, are tested by `PlaceZone` and are drawn. Written into landfill.md §4.8.1.
 - **LG4:** who owns the reference in occupant manager slot 33's out-parameter? [slot 41 lists used instead]
 - **LG5 — open question 6:** where does the zot orientation come from? [0]
 - **LG6 — §3.3, foundations §13.4:** must the month run after pollution and budget? [not enforced]
