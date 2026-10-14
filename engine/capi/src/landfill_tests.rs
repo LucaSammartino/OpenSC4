@@ -1,0 +1,791 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// FreeCity4 - an open-source reimplementation of the SimCity 4 engine.
+// Copyright (C) 2026 FreeCity4 contributors
+// Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
+
+//! The landfill C ABI against a fake game: the lifecycle, zoning through
+//! messages, the monthly pass moving garbage, the tiles kept in the C ABI
+//! layer, the zot and its reference, the budget line, persistence through
+//! host streams and the tile rebuild, a re-entrant message, and the shadow
+//! (clean against our own developer as the "original", a mismatch, an
+//! incomplete delivery).
+
+use std::cell::{Cell, RefCell};
+use std::collections::{BTreeMap, HashMap};
+use std::ffi::{c_char, c_void};
+
+use fc4_core::landfill::{
+    budget_ids, msg, shipped_tile_exemplar, shipped_tuning, tile, AGENT_NAME, CLSID_LANDFILL_DEVELOPER,
+    OCCUPANT_TYPE_LANDFILL, ZONE_TYPE_LANDFILL, ZOT_PROP,
+};
+
+use crate::budget::fc4_token_callback;
+use crate::landfill::*;
+use crate::landfill_shadow::*;
+use crate::pollution_shadow::{fc4_pollution_capture, fc4_pollution_capture_ref};
+use crate::props::fc4_props;
+use crate::stream::{fc4_ostream, fc4_ref};
+use crate::test_streams::{istream, ostream, In, Out};
+
+const DEPT: u64 = 0xD0;
+const GAME_TILE: u64 = 0x4000_0000;
+const CELL: f32 = 16.0;
+
+#[derive(Default)]
+struct Game {
+    refs: RefCell<HashMap<u64, i32>>,
+    agents: RefCell<Vec<(u32, String, u32)>>,
+    subs: RefCell<Vec<u32>>,
+    unsubs: Cell<u32>,
+    services: Cell<i32>,
+    removed_agent: Cell<u32>,
+    supply: Cell<u32>,
+    tile_cap: Cell<u32>,
+    capacity: Cell<i32>,
+    active: RefCell<BTreeMap<(i32, i32), bool>>,
+    put: Cell<i64>,
+    dept: Cell<u64>,
+    current: Cell<i64>,
+    full: RefCell<Vec<i64>>,
+    places: Cell<u32>,
+    slope: Cell<f32>,
+    connected: Cell<bool>,
+    props: RefCell<Vec<(u32, [f32; 3], i32)>>,
+    next_prop: Cell<u64>,
+    removed_props: RefCell<Vec<u64>>,
+    history: RefCell<Vec<(u32, u32)>>,
+    /// The developer whose tiles the game reports as its own occupants (the
+    /// shadow tests: our handle plays the original).
+    orig: Cell<usize>,
+    /// Re-entrancy test: send_history delivers a zoning message to this
+    /// handle once.
+    reenter: Cell<usize>,
+}
+
+fn game(u: *mut c_void) -> &'static Game {
+    unsafe { &*(u as *const Game) }
+}
+
+impl Game {
+    fn refs_of(&self, t: u64) -> i32 {
+        self.refs.borrow().get(&t).copied().unwrap_or(0)
+    }
+    fn orig_tile(&self, x: i32, z: i32) -> Option<u32> {
+        let p = self.orig.get() as *const fc4_landfill;
+        if p.is_null() {
+            return None;
+        }
+        let mut t = 0u32;
+        unsafe { fc4_landfill_tile_at(p, x, z, &mut t, std::ptr::null_mut()) }.then_some(t)
+    }
+}
+
+fn boxed(h: Option<fc4_core::property::PropertyHolder>) -> *mut fc4_props {
+    h.map_or(std::ptr::null_mut(), |h| Box::into_raw(Box::new(h)) as *mut fc4_props)
+}
+
+// ---- callbacks --------------------------------------------------------------------------------------
+
+unsafe extern "C" fn acquire(u: *mut c_void) {
+    game(u).services.set(game(u).services.get() + 1);
+}
+unsafe extern "C" fn release_services(u: *mut c_void) {
+    game(u).services.set(game(u).services.get() - 1);
+}
+unsafe extern "C" fn add_agent(u: *mut c_void, level: u32, name: *const c_char, len: usize, flags: u32) {
+    let n = String::from_utf8_lossy(std::slice::from_raw_parts(name as *const u8, len)).into_owned();
+    game(u).agents.borrow_mut().push((level, n, flags));
+}
+unsafe extern "C" fn remove_agent(u: *mut c_void) {
+    game(u).removed_agent.set(game(u).removed_agent.get() + 1);
+}
+unsafe extern "C" fn subscribe(u: *mut c_void, m: u32) {
+    game(u).subs.borrow_mut().push(m);
+}
+unsafe extern "C" fn unsubscribe(u: *mut c_void, _m: u32) {
+    game(u).unsubs.set(game(u).unsubs.get() + 1);
+}
+unsafe extern "C" fn tuning(_: *mut c_void) -> *mut fc4_props {
+    boxed(Some(shipped_tuning()))
+}
+unsafe extern "C" fn exemplar(_: *mut c_void, t: u32, g: u32, i: u32) -> *mut fc4_props {
+    assert_eq!((t, g), (tile::TYPE, tile::GROUP));
+    boxed(shipped_tile_exemplar(i))
+}
+unsafe extern "C" fn cell_counts(_: *mut c_void, x: *mut i32, z: *mut i32) {
+    *x = 64;
+    *z = 64;
+}
+unsafe extern "C" fn cell_center(_: *mut c_void, x: i32, z: i32, px: *mut f32, pz: *mut f32) {
+    *px = x as f32 * CELL + CELL / 2.0;
+    *pz = z as f32 * CELL + CELL / 2.0;
+}
+unsafe extern "C" fn altitude(u: *mut c_void, px: f32, _pz: f32) -> f32 {
+    100.0 + game(u).slope.get() * (px / CELL).floor()
+}
+unsafe extern "C" fn sea_level(_: *mut c_void) -> f32 {
+    50.0
+}
+unsafe extern "C" fn supply(u: *mut c_void) -> u32 {
+    game(u).supply.get()
+}
+unsafe extern "C" fn tile_capacity(u: *mut c_void) -> u32 {
+    game(u).tile_cap.get()
+}
+unsafe extern "C" fn uncollected(_: *mut c_void) -> i32 {
+    -5
+}
+unsafe extern "C" fn add_supply(u: *mut c_void, d: i32) {
+    let g = game(u);
+    g.supply.set((i64::from(g.supply.get()) + i64::from(d)).max(0) as u32);
+}
+unsafe extern "C" fn set_capacity(u: *mut c_void, v: i32) {
+    game(u).capacity.set(v);
+}
+unsafe extern "C" fn set_active(u: *mut c_void, x: i32, z: i32, on: bool) {
+    game(u).active.borrow_mut().insert((x, z), on);
+}
+unsafe extern "C" fn put(u: *mut c_void, n: i32) {
+    game(u).put.set(game(u).put.get() + i64::from(n));
+}
+unsafe extern "C" fn garbage_capacity(u: *mut c_void) -> i32 {
+    game(u).capacity.get()
+}
+unsafe extern "C" fn is_active(u: *mut c_void, x: i32, z: i32) -> bool {
+    game(u).active.borrow().get(&(x, z)).copied().unwrap_or(false)
+}
+unsafe extern "C" fn department(u: *mut c_void, id: u32) -> u64 {
+    assert_eq!(id, budget_ids::SANITATION_DEPARTMENT);
+    game(u).dept.get()
+}
+unsafe extern "C" fn add_ref(u: *mut c_void, t: u64) {
+    *game(u).refs.borrow_mut().entry(t).or_insert(0) += 1;
+}
+unsafe extern "C" fn release(u: *mut c_void, t: u64) {
+    *game(u).refs.borrow_mut().entry(t).or_insert(0) -= 1;
+}
+unsafe extern "C" fn funding(_: *mut c_void, _d: u64) -> f32 {
+    1.0
+}
+unsafe extern "C" fn current(u: *mut c_void, d: u64, line: u32, out: *mut i64) -> bool {
+    assert_eq!((d, line), (DEPT, budget_ids::LANDFILL_LINE));
+    *out = game(u).current.get();
+    true
+}
+unsafe extern "C" fn set_full(u: *mut c_void, d: u64, line: u32, v: i64) {
+    assert_eq!((d, line), (DEPT, budget_ids::LANDFILL_LINE));
+    game(u).full.borrow_mut().push(v);
+}
+unsafe extern "C" fn item_cost(u: *mut c_void, occ: u64, prop: u32, out: *mut i64) -> bool {
+    // A game tile (the shadow tests): its tile's shipped cost.
+    if occ & GAME_TILE == 0 {
+        return false;
+    }
+    let (x, z) = (((occ >> 12) & 0xFFF) as i32, (occ & 0xFFF) as i32);
+    let Some(t) = game(u).orig_tile(x, z) else { return false };
+    let Some(h) = shipped_tile_exemplar(t) else { return false };
+    match h.get(prop) {
+        Some(v) => {
+            *out = v.items()[0].as_i64();
+            true
+        }
+        None => false,
+    }
+}
+unsafe extern "C" fn zone_count(_: *mut c_void, t: i32) -> i32 {
+    assert_eq!(t, ZONE_TYPE_LANDFILL);
+    42
+}
+unsafe extern "C" fn zone_type(_: *mut c_void, _x: i32, _z: i32) -> i32 {
+    ZONE_TYPE_LANDFILL
+}
+unsafe extern "C" fn place_zone(u: *mut c_void, r: *const fc4_landfill_region, t: i32) -> bool {
+    assert!(!r.is_null());
+    assert_eq!(t, 0);
+    game(u).places.set(game(u).places.get() + 1);
+    true
+}
+unsafe extern "C" fn occupant_at(u: *mut c_void, x: i32, z: i32, t: u32) -> u64 {
+    if t == OCCUPANT_TYPE_LANDFILL && game(u).orig_tile(x, z).is_some() {
+        return GAME_TILE | ((x as u64) << 12) | z as u64;
+    }
+    0
+}
+unsafe extern "C" fn occupant_remove(_: *mut c_void, _o: u64) -> bool {
+    true
+}
+unsafe extern "C" fn add_lot_prop(u: *mut c_void, id: u32, p: *const f32, o: i32) -> u64 {
+    let g = game(u);
+    g.props.borrow_mut().push((id, [*p, *p.add(1), *p.add(2)], o));
+    g.next_prop.set(g.next_prop.get() + 1);
+    0x9000 + g.next_prop.get()
+}
+unsafe extern "C" fn remove_prop(u: *mut c_void, o: u64) -> bool {
+    game(u).removed_props.borrow_mut().push(o);
+    true
+}
+unsafe extern "C" fn subnetworks(u: *mut c_void, _r: *const fc4_landfill_region, cb: fc4_token_callback, ctx: *mut c_void) {
+    if game(u).connected.get() {
+        cb.unwrap()(ctx, 1);
+    }
+}
+unsafe extern "C" fn counts(_: *mut c_void, t: u32, cb: fc4_token_callback, ctx: *mut c_void) {
+    if t == 0x1010 {
+        cb.unwrap()(ctx, 0);
+        cb.unwrap()(ctx, 5);
+    }
+}
+unsafe extern "C" fn levelling(
+    _: *mut c_void,
+    _x1: i32,
+    _z1: i32,
+    _x2: i32,
+    _z2: i32,
+    _f: f32,
+    _w: bool,
+    _wf: bool,
+    _s: f32,
+) -> bool {
+    true
+}
+unsafe extern "C" fn send_history(u: *mut c_void, series: u32, value: u32) {
+    let g = game(u);
+    g.history.borrow_mut().push((series, value));
+    let target = g.reenter.replace(0);
+    if target != 0 {
+        let r = region(20, 20, 23, 23);
+        fc4_landfill_do_message(
+            target as *mut fc4_landfill,
+            msg::ZONING_CHANGE,
+            0,
+            0,
+            ZONE_TYPE_LANDFILL as u32,
+            0,
+            &r.raw,
+        );
+    }
+}
+
+fn table(g: &Game) -> fc4_landfill_host {
+    let mut h = read_table(g);
+    h.acquire_services = Some(acquire);
+    h.release_services = Some(release_services);
+    h.add_agent = Some(add_agent);
+    h.remove_agent = Some(remove_agent);
+    h.subscribe = Some(subscribe);
+    h.unsubscribe = Some(unsubscribe);
+    h.add_to_garbage_supply = Some(add_supply);
+    h.set_garbage_capacity = Some(set_capacity);
+    h.set_is_active_landfill = Some(set_active);
+    h.garbage_put_in_landfill = Some(put);
+    h.add_ref = Some(add_ref);
+    h.release = Some(release);
+    h.set_line_item_full_expenses = Some(set_full);
+    h.place_zone = Some(place_zone);
+    h.occupant_remove = Some(occupant_remove);
+    h.add_lot_prop = Some(add_lot_prop);
+    h.remove_prop = Some(remove_prop);
+    h.attempt_area_levelling = Some(levelling);
+    h.send_history = Some(send_history);
+    h
+}
+
+/// The read callbacks only (the shadow's table).
+fn read_table(g: &Game) -> fc4_landfill_host {
+    fc4_landfill_host {
+        struct_size: std::mem::size_of::<fc4_landfill_host>() as u32,
+        user: g as *const Game as *mut c_void,
+        acquire_services: None,
+        release_services: None,
+        add_agent: None,
+        remove_agent: None,
+        subscribe: None,
+        unsubscribe: None,
+        tuning: Some(tuning),
+        exemplar: Some(exemplar),
+        cell_counts: Some(cell_counts),
+        cell_center_to_position: Some(cell_center),
+        altitude: Some(altitude),
+        altitude_at_nearest_grid: Some(altitude),
+        sea_level: Some(sea_level),
+        set_altitude: None,
+        redisplay_terrain: None,
+        garbage_supply: Some(supply),
+        landfill_tile_capacity: Some(tile_capacity),
+        total_garbage_uncollected: Some(uncollected),
+        add_to_garbage_supply: None,
+        set_garbage_capacity: None,
+        set_is_active_landfill: None,
+        garbage_put_in_landfill: None,
+        garbage_capacity: Some(garbage_capacity),
+        is_active_landfill: Some(is_active),
+        get_department_budget: Some(department),
+        add_ref: None,
+        release: None,
+        department_funding_percentage: Some(funding),
+        line_item_current_expenses: Some(current),
+        set_line_item_full_expenses: None,
+        occupant_item_cost: Some(item_cost),
+        zone_count: Some(zone_count),
+        zone_type: Some(zone_type),
+        place_zone: None,
+        occupant_at: Some(occupant_at),
+        occupant_remove: None,
+        occupant_changed: None,
+        occupant_position: None,
+        occupant_set_position: None,
+        occupant_set_removal_flags: None,
+        occupant_post_message: None,
+        is_landfill_occupant: None,
+        is_empty_landfill_tile: None,
+        remove_incompatible_occupants: None,
+        set_empty_cell_texture: None,
+        remove_base_texture: None,
+        add_lot_prop: None,
+        remove_prop: None,
+        zot_orientation: None,
+        find_network_tile: None,
+        subnetworks_in_region: Some(subnetworks),
+        occupant_count_for_all_subnetworks: Some(counts),
+        attempt_area_levelling: None,
+        current_view_level: None,
+        init_zone_effects: None,
+        shutdown_zone_effects: None,
+        set_truck_enabled: None,
+        start_seagull: None,
+        stop_seagull: None,
+        send_history: None,
+    }
+}
+
+struct Region {
+    _mask: Vec<u8>,
+    raw: fc4_landfill_region,
+}
+
+fn region(x0: i32, z0: i32, x1: i32, z1: i32) -> Region {
+    let mask = vec![1u8; ((x1 - x0 + 1) * (z1 - z0 + 1)) as usize];
+    let raw = fc4_landfill_region {
+        x0,
+        z0,
+        x1,
+        z1,
+        mask: mask.as_ptr(),
+        len: mask.len(),
+    };
+    Region { _mask: mask, raw }
+}
+
+fn send(p: *mut fc4_landfill, msg_type: u32) {
+    assert!(unsafe { fc4_landfill_do_message(p, msg_type, 0, 0, 0, 0, std::ptr::null()) });
+}
+
+fn zone(p: *mut fc4_landfill, x0: i32, z0: i32, x1: i32, z1: i32) {
+    let r = region(x0, z0, x1, z1);
+    assert!(unsafe {
+        fc4_landfill_do_message(p, msg::ZONING_CHANGE, 0, 0, ZONE_TYPE_LANDFILL as u32, 0, &r.raw)
+    });
+}
+
+fn state(p: *const fc4_landfill) -> fc4_landfill_state {
+    let mut s = fc4_landfill_state::default();
+    assert!(unsafe { fc4_landfill_get_state(p, &mut s) });
+    s
+}
+
+/// A game with a department, garbage waiting and a connected road.
+fn city() -> Box<Game> {
+    let g = Box::<Game>::default();
+    g.dept.set(DEPT);
+    g.supply.set(1_000_000);
+    // Small heaps: one month fills them all.
+    g.tile_cap.set(100);
+    g.current.set(1_000);
+    g.connected.set(true);
+    g
+}
+
+/// A live developer, initialised and past PostCityInit.
+fn live(g: &Game) -> *mut fc4_landfill {
+    let h = table(g);
+    let p = unsafe { fc4_landfill_create(&h, 0xF00D) };
+    assert!(!p.is_null());
+    assert!(unsafe { fc4_landfill_init(p) });
+    send(p, msg::POST_CITY_INIT);
+    p
+}
+
+fn shut(p: *mut fc4_landfill) {
+    unsafe {
+        assert!(fc4_landfill_shutdown(p));
+        fc4_landfill_destroy(p);
+    }
+}
+
+#[test]
+fn layout_and_identity() {
+    assert!(fc4_landfill_query_interface(0x8A09_D502));
+    assert!(fc4_landfill_query_interface(0x4522_94AA));
+    assert!(fc4_landfill_query_interface(0xE4FD_A3D4));
+    assert!(fc4_landfill_query_interface(1));
+    assert!(!fc4_landfill_query_interface(0x2A15_F262));
+    assert_eq!(fc4_landfill_class_id(), CLSID_LANDFILL_DEVELOPER);
+    let g = city();
+    let mut h = table(&g);
+    h.struct_size -= 4;
+    assert!(unsafe { fc4_landfill_create(&h, 1) }.is_null());
+    assert!(unsafe { fc4_landfill_create(std::ptr::null(), 1) }.is_null());
+    // NULL handles answer the neutral values.
+    let null = std::ptr::null_mut::<fc4_landfill>();
+    unsafe {
+        assert_eq!(fc4_landfill_efficiency(null), 1.0);
+        assert_eq!(fc4_landfill_maintenance_costs(null), 0);
+        assert!(!fc4_landfill_init(null));
+        assert!(fc4_landfill_do_message(null, msg::SIM_NEW_MONTH, 0, 0, 0, 0, std::ptr::null()));
+        fc4_landfill_destroy(null);
+    }
+}
+
+#[test]
+fn lifecycle() {
+    let g = city();
+    let p = live(&g);
+    assert_eq!(g.services.get(), 1);
+    assert_eq!(*g.agents.borrow(), vec![(6, AGENT_NAME.to_string(), 2)]);
+    assert_eq!(*g.subs.borrow(), msg::SUBSCRIPTIONS.to_vec());
+    // PostCityInit took the department with one reference.
+    assert_eq!(g.refs_of(DEPT), 1);
+    let s = state(p);
+    assert_eq!((s.initialized, s.loaded, s.zones, s.department), (1, 0, 0, DEPT));
+    // Slot 11 asks the zone manager.
+    assert_eq!(unsafe { fc4_landfill_tile_count(p) }, 42);
+    shut(p);
+    assert_eq!(g.services.get(), 0);
+    assert_eq!(g.unsubs.get(), 5);
+    assert_eq!(g.removed_agent.get(), 1);
+    assert_eq!(g.refs_of(DEPT), 0);
+}
+
+#[test]
+fn zoning_and_the_month_move_garbage() {
+    let g = city();
+    let p = live(&g);
+    zone(p, 10, 10, 15, 15);
+    let s = state(p);
+    assert_eq!((s.zones, s.cells, s.heaps, s.valid_heaps), (1, 36, 25, 25));
+    // A connected zone counts in the totals once a month has run.
+    let before = g.supply.get();
+    send(p, msg::SIM_NEW_MONTH);
+    let s = state(p);
+    assert_eq!(s.connected_zones, 1);
+    assert!(s.moved > 0);
+    assert_eq!(s.supply_delta, -s.moved);
+    assert_eq!(i64::from(before) - i64::from(g.supply.get()), s.moved);
+    assert_eq!(g.put.get(), s.moved);
+    assert_eq!(s.capacity_reported, 1);
+    // Every heap is full: 25 heaps of round(100 × 36 / 25) = 144.
+    assert_eq!(g.capacity.get(), s.free_capacity);
+    assert_eq!((s.free_capacity, s.moved, s.capacity_total, s.used_total), (0, 3600, 3600, 3600));
+    assert_eq!(u64::try_from(s.moved).unwrap(), s.stored);
+    assert_eq!(s.active_heaps, 25);
+    // Every mask cell has a tile here and its pollution flag set.
+    assert_eq!(s.virtual_tiles, 36);
+    assert_eq!(s.active_cells, 36);
+    assert!(g.active.borrow().values().all(|&v| v));
+    let mut t = 0u32;
+    assert!(unsafe { fc4_landfill_tile_at(p, 12, 12, &mut t, std::ptr::null_mut()) });
+    assert_eq!(t, tile::INTERIOR);
+    assert!(unsafe { fc4_landfill_tile_at(p, 10, 10, &mut t, std::ptr::null_mut()) });
+    assert_eq!(t, tile::CORNER);
+    // The maintenance is the tiles' shipped costs, booked on line 30.
+    let maint = unsafe { fc4_landfill_maintenance_costs(p) };
+    assert_eq!(*g.full.borrow().last().unwrap(), maint);
+    assert_eq!(s.maintenance, maint);
+    assert_eq!(maint, 16 * 40 + 4 * 10 + 16 * 20);
+    // The two history values (§5).
+    assert_eq!(g.history.borrow().len(), 2);
+    let mut usage = (0u32, 0u32);
+    unsafe { fc4_landfill_usage(p, &mut usage.0, &mut usage.1) };
+    assert_eq!(usage, (s.used_total, s.capacity_total));
+    shut(p);
+}
+
+#[test]
+fn a_disconnected_zone_gets_a_zot() {
+    let g = city();
+    g.connected.set(false);
+    let p = live(&g);
+    zone(p, 0, 0, 3, 3);
+    send(p, msg::SIM_NEW_MONTH);
+    assert_eq!(g.props.borrow().len(), 1);
+    assert_eq!(g.props.borrow()[0].0, ZOT_PROP);
+    let zot = 0x9001;
+    assert_eq!(g.refs_of(zot), 1);
+    let s = state(p);
+    assert_eq!((s.zots, s.moved, s.connected_zones), (1, 0, 0));
+    // Connected: the zot is removed and released.
+    g.connected.set(true);
+    send(p, msg::SIM_NEW_MONTH);
+    assert_eq!(*g.removed_props.borrow(), vec![zot]);
+    assert_eq!(g.refs_of(zot), 0);
+    assert_eq!(state(p).zots, 0);
+    // Disconnected again; Shutdown releases the reference on the new zot.
+    g.connected.set(false);
+    send(p, msg::SIM_NEW_MONTH);
+    assert_eq!(g.refs_of(0x9002), 1);
+    shut(p);
+    assert_eq!(g.refs_of(0x9002), 0);
+}
+
+#[test]
+fn zoning_cost() {
+    let g = city();
+    let p = live(&g);
+    let flat = region(0, 0, 3, 3);
+    assert_eq!(unsafe { fc4_landfill_zoning_cost(p, &flat.raw) }, 0);
+    g.slope.set(10.0);
+    let cost = unsafe { fc4_landfill_zoning_cost(p, &flat.raw) };
+    assert!(cost > 0);
+    assert_eq!(cost >> 32, 0);
+    assert_eq!(unsafe { fc4_landfill_zoning_cost(p, std::ptr::null()) }, 0);
+    shut(p);
+}
+
+#[test]
+fn save_round_trip_rebuilds_the_tiles() {
+    let g = city();
+    g.connected.set(false);
+    let p = live(&g);
+    zone(p, 4, 4, 7, 7);
+    g.connected.set(true);
+    send(p, msg::SIM_NEW_MONTH);
+    g.connected.set(false);
+    send(p, msg::SIM_NEW_MONTH); // places a zot
+    let s1 = state(p);
+    assert_eq!(s1.zots, 1);
+    let mut out = Out::default();
+    let os = ostream(&mut out);
+    assert!(unsafe { fc4_landfill_write(p, &os) });
+    assert_eq!(out.refs, vec![(0x9001, 0)]);
+    shut(p);
+    assert_eq!(g.refs_of(0x9001), 0);
+
+    // A new object reads the record (the stream hands over one reference on
+    // the zot), then Init and PostCityInit rebuild the tiles.
+    let h = table(&g);
+    let q = unsafe { fc4_landfill_create(&h, 0xF00E) };
+    let mut inp = In::new(&out.bytes);
+    let is = istream(&mut inp);
+    g.refs.borrow_mut().insert(0x9001, 1);
+    assert!(unsafe { fc4_landfill_read(q, &is) });
+    let s = state(q);
+    assert_eq!((s.loaded, s.initialized, s.zones, s.zots, s.virtual_tiles), (1, 0, 1, 1, 0));
+    assert!(unsafe { fc4_landfill_init(q) });
+    send(q, msg::POST_CITY_INIT);
+    let s2 = state(q);
+    assert_eq!(s2.rebuilt_tiles, 16);
+    assert_eq!(s2.virtual_tiles, 16);
+    assert_eq!(s2.active_cells, 16);
+    assert_eq!(s2.stored, s1.stored);
+    assert_eq!(s2.heaps, s1.heaps);
+    // Recomputed from the rebuilt tiles: the same maintenance.
+    assert_eq!(s2.maintenance, s1.maintenance);
+    shut(q);
+    assert_eq!(g.refs_of(0x9001), 0);
+    assert_eq!(g.refs_of(DEPT), 0);
+}
+
+#[test]
+fn destroy_without_init_releases_the_zot() {
+    let g = city();
+    let h = table(&g);
+    let p = unsafe { fc4_landfill_create(&h, 1) };
+    // A record with one zone and a zot (written by a live object).
+    let src = live(&g);
+    g.connected.set(false);
+    zone(src, 0, 0, 1, 1);
+    send(src, msg::SIM_NEW_MONTH);
+    let mut out = Out::default();
+    let os = ostream(&mut out);
+    assert!(unsafe { fc4_landfill_write(src, &os) });
+    shut(src);
+    g.refs.borrow_mut().insert(0x9001, 1);
+    let mut inp = In::new(&out.bytes);
+    let is = istream(&mut inp);
+    assert!(unsafe { fc4_landfill_read(p, &is) });
+    unsafe { fc4_landfill_destroy(p) };
+    assert_eq!(g.refs_of(0x9001), 0);
+}
+
+#[test]
+fn a_message_during_a_call_is_queued() {
+    let g = city();
+    let p = live(&g);
+    zone(p, 0, 0, 3, 3);
+    g.reenter.set(p as usize);
+    send(p, msg::SIM_NEW_MONTH);
+    // The zoning message sent from inside the month ran after it.
+    assert_eq!(state(p).zones, 2);
+    assert_eq!(g.reenter.get(), 0);
+    shut(p);
+}
+
+// ---- the shadow -------------------------------------------------------------------------------------
+
+/// The capture stream of the plugin: references as `u32 objectID` (index +
+/// 1) then `u32 classID`, each object listed once.
+#[derive(Default)]
+#[repr(C)]
+struct Cap {
+    out: Out,
+    objs: Vec<fc4_pollution_capture_ref>,
+}
+
+unsafe extern "C" fn cap_put_ref(u: *mut c_void, r: *const fc4_ref) -> bool {
+    let c = &mut *(u as *mut Cap);
+    let r = &*r;
+    if r.token == 0 {
+        c.out.bytes.extend_from_slice(&0u32.to_le_bytes());
+        return true;
+    }
+    let i = match c.objs.iter().position(|o| o.occupant == r.token) {
+        Some(i) => i,
+        None => {
+            c.objs.push(fc4_pollution_capture_ref {
+                occupant: r.token,
+                class_id: 0x1234,
+                ..Default::default()
+            });
+            c.objs.len() - 1
+        }
+    };
+    c.out.bytes.extend_from_slice(&(i as u32 + 1).to_le_bytes());
+    c.out.bytes.extend_from_slice(&0x1234u32.to_le_bytes());
+    true
+}
+
+fn capture(p: *const fc4_landfill, c: &mut Cap) -> fc4_pollution_capture {
+    *c = Cap::default();
+    // `Out` is the first field: the primitive writers see the Cap as its Out.
+    let mut s: fc4_ostream = ostream(&mut c.out);
+    s.user = c as *mut Cap as *mut c_void;
+    s.put_ref = Some(cap_put_ref);
+    let ok = unsafe { fc4_landfill_write(p, &s) };
+    fc4_pollution_capture {
+        struct_size: std::mem::size_of::<fc4_pollution_capture>() as u32,
+        ok: u32::from(ok),
+        bytes: c.out.bytes.as_ptr(),
+        len: c.out.bytes.len(),
+        refs: c.objs.as_ptr(),
+        ref_count: c.objs.len(),
+    }
+}
+
+unsafe extern "C" fn collect(ctx: *mut c_void, p: *const u8, n: usize) {
+    let v = &mut *(ctx as *mut Vec<String>);
+    v.push(String::from_utf8_lossy(std::slice::from_raw_parts(p, n)).into_owned());
+}
+
+/// One shadowed month of `orig`; the shadow's result and its line.
+fn shadowed_month(
+    g: &Game,
+    s: *mut fc4_landfill_shadow,
+    orig: *mut fc4_landfill,
+    tamper: impl FnOnce(&Game),
+) -> (i32, String) {
+    let mut c1 = Cap::default();
+    let mut c2 = Cap::default();
+    let before = capture(orig, &mut c1);
+    let maint = unsafe { fc4_landfill_maintenance_costs(orig) };
+    assert_eq!(unsafe { fc4_landfill_shadow_begin(s, 2_452_000, &before, maint) }, 0);
+    send(orig, msg::SIM_NEW_MONTH);
+    tamper(g);
+    let after = capture(orig, &mut c2);
+    let maint = unsafe { fc4_landfill_maintenance_costs(orig) };
+    let mut lines: Vec<String> = Vec::new();
+    let r = unsafe {
+        fc4_landfill_shadow_finish(s, &after, maint, Some(collect), &mut lines as *mut Vec<String> as *mut c_void)
+    };
+    assert_eq!(lines.len(), 1);
+    println!("{}", lines[0]);
+    (r, lines.pop().unwrap())
+}
+
+#[test]
+fn shadow_is_clean_against_our_own_developer() {
+    let g = city();
+    let orig = live(&g);
+    g.orig.set(orig as usize);
+    zone(orig, 10, 10, 15, 15);
+    zone(orig, 30, 30, 33, 34);
+    let rt = read_table(&g);
+    let s = unsafe { fc4_landfill_shadow_create(&rt, 0) };
+    assert!(!s.is_null());
+    // Several months, the tiles drawn by the first one, a disconnected one.
+    for month in 0..4 {
+        g.connected.set(month != 2);
+        let (r, line) = shadowed_month(&g, s, orig, |_| {});
+        assert_eq!(r, 0, "month {month}: {line}");
+        assert!(line.starts_with("landfill shadow month to "), "{line}");
+        assert!(line.contains(": clean;"), "{line}");
+    }
+    let mut st = fc4_landfill_shadow_stats::default();
+    assert!(unsafe { fc4_landfill_shadow_get_stats(s, &mut st) });
+    assert_eq!((st.months, st.clean, st.incomplete, st.last_mismatches), (4, 4, 0, 0));
+    assert!(st.heaps_compared > 0 && st.cells_compared > 0);
+    // The shadow took no reference and changed nothing it should not have:
+    // only the original's own zot reference is held.
+    assert_eq!(g.refs_of(DEPT), 1);
+    unsafe { fc4_landfill_shadow_destroy(s) };
+    g.orig.set(0);
+    shut(orig);
+}
+
+#[test]
+fn shadow_reports_a_mismatch() {
+    let g = city();
+    let orig = live(&g);
+    g.orig.set(orig as usize);
+    zone(orig, 10, 10, 13, 13);
+    let rt = read_table(&g);
+    let s = unsafe { fc4_landfill_shadow_create(&rt, 2) };
+    // Something else took garbage during the original's month.
+    let (r, line) = shadowed_month(&g, s, orig, |g| g.supply.set(g.supply.get() - 7));
+    assert_eq!(r, 1, "{line}");
+    assert!(line.contains("mismatches=1"), "{line}");
+    assert!(line.contains("garbage moved"), "{line}");
+    // A flag cleared behind our back.
+    let (r, line) = shadowed_month(&g, s, orig, |g| {
+        g.active.borrow_mut().insert((11, 11), false);
+    });
+    assert_eq!(r, 1, "{line}");
+    assert!(line.contains("active (11,11) 0/1"), "{line}");
+    unsafe { fc4_landfill_shadow_destroy(s) };
+    g.orig.set(0);
+    shut(orig);
+}
+
+#[test]
+fn shadow_without_a_capture_is_incomplete() {
+    let g = city();
+    let rt = read_table(&g);
+    let s = unsafe { fc4_landfill_shadow_create(&rt, 0) };
+    assert_eq!(unsafe { fc4_landfill_shadow_begin(s, 2_452_000, std::ptr::null(), 0) }, -1);
+    let mut lines: Vec<String> = Vec::new();
+    let r = unsafe {
+        fc4_landfill_shadow_finish(
+            s,
+            std::ptr::null(),
+            0,
+            Some(collect),
+            &mut lines as *mut Vec<String> as *mut c_void,
+        )
+    };
+    assert_eq!(r, -1);
+    assert!(lines[0].contains("INCOMPLETE (before: no capture)"), "{}", lines[0]);
+    let mut st = fc4_landfill_shadow_stats::default();
+    assert!(unsafe { fc4_landfill_shadow_get_stats(s, &mut st) });
+    assert_eq!((st.months, st.incomplete, st.last_mismatches), (1, 1, -1));
+    unsafe { fc4_landfill_shadow_destroy(s) };
+}
