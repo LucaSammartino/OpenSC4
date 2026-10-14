@@ -1,5 +1,10 @@
 # Grid ("field") simulators: SimGrid, land value, pollution, crime, aura, power, water, protection, flammability, flora
 
+> **Superseded.** Every section has a spec in `docs/specs/`: simgrid, landvalue, pollution, power, plumbing, crime, aura,
+> protection, flammability and flora (`<name>.md`). Only §4 was patched in place; the other sections still state facts the
+> specs correct. This file is kept as historical RE notes because `re/fields_windows.tsv` and specs cite it by name.
+> Where it disagrees with `docs/specs/`, the spec wins.
+
 Target: `SimCity 4.exe` 1.1.641 (GOG), image base `0x00400000`. Read [`../sim-engine.md`](../sim-engine.md) first for the
 agent scheduler (levels 0/4/6/10 = SimBegin/NewDay/NewMonth/SimIdle).
 Windows addresses for every mapped function are in [`../../re/symbols/grid-sims.tsv`](../../re/symbols/grid-sims.tsv).

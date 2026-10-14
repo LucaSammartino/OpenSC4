@@ -1,5 +1,9 @@
 # Clock, budget, neighbors and weather: reverse engineering notes
 
+> **Superseded.** §A.1-§A.7 by `docs/specs/simulator.md`, §B by `budget.md`, §C.1 by `neighbors.md` and §C.2 by
+> `weather.md`. Only §A.8 (cSC424HourClock) is still live input, until a 24-hour clock spec exists. This file is kept
+> as historical RE notes because `re/fields_windows.tsv` cites it by name. Where it disagrees with `docs/specs/`, the spec wins.
+
 Target: `SimCity 4.exe` 1.1.641 (GOG), base `0x00400000`. This document extends [`docs/sim-engine.md`](../sim-engine.md)
 (agent scheduler) and does not repeat it. Windows addresses verified in this pass are in
 [`re/symbols/clock-budget-neighbors.tsv`](../../re/symbols/clock-budget-neighbors.tsv).

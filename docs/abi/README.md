@@ -18,10 +18,13 @@ Columns:
 
 | Column | Meaning | Reliability |
 |---|---|---|
+| `interface`, `game_class` | (`interfaces.tsv` only) the SDK interface and the original class whose vtable implements it | as good as the symbol port |
+| `class`, `vtable` | (`vtables.tsv` names the class `class`) the named class; `vtable` = address of that vtable in the executable | address exact, name as good as the symbol port |
 | `slot`, `offset` | vtable index and byte offset | exact |
 | `target`, `method` | address of the original method and its ported name (`icf::` = identical-code-folded body shared by several methods; the name is one of them) | address exact, name as good as the symbol port |
 | `callee_pop`, `arg_dwords` | bytes popped by the method's `ret N` = size of the arguments after `this` (`__thiscall`) | **exact**. An `int64`/`double` argument counts 8, everything else 4 |
 | `ret` | `x87` = float/double in ST0. `edx:eax` = 64-bit integer. `eax-or-void` = 32-bit value, pointer, bool, or nothing. `via-call` = whatever a callee returned. `forward` = tail call through a pointer (ABI of the target). `pure` = `_purecall`. `unknown` can also be a method that returns nothing | `x87` high. `edx:eax` and `eax-or-void` medium. The rest low |
+| `ret_confidence` | `high`, `medium` or `low`: how sure the extractor is of `ret` | as stated |
 | `notes` | `inconsistent-pops`, `indirect-jump …`, `tail->…`, `truncated` | |
 
 How to use them:
@@ -45,3 +48,8 @@ How to use them:
 
 Regenerate with `python tools/abi_extract.py bin/SimCity4.exe`. The tool is analysis-side tooling; only its output
 is for engine authors.
+
+> **Warning: do not regenerate `interfaces.tsv` yet.** It carries hand corrections that are not in
+> `re/abi_interfaces.tsv` or in the extractor: commits 7d2f368, 83aa768, a9eef99, bbee494 and 402072f, including eight
+> interface pairs added by hand. A blind regeneration silently reverts them, and the table feeds the ABI conformance
+> test. Move the corrections into the curated input (or the extractor) first.
