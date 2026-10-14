@@ -878,7 +878,17 @@ record).
 * **Dump** (state 7): for every record `last := current`, `usage := min(0xFFFF, Σ current)`.
 * **Reduce** (state 6): `current := 0` for all 9 travel types and both evening values at every cell with network
   info or a transit switch, and at the ferry terminal cells. Records are erased only when the network occupant is
-  removed (§3.1).
+  removed (§3.1). In detail (`0x007110B0`, TS22):
+  1. The time-sliced cell scan visits every cell. A cell takes part when it has a network-info record or a non-zero
+     switch ID. Each of its 18 keys (t = 0…8, evening 0 and 1) is looked up, and a record that exists has its
+     `current[16]` zeroed. A missing record is **not** created.
+  2. When the scan is done, in the same call and with no deadline test, each terminal in list order is handled the
+     same way at its **arrival** cell (x2, z2).
+
+  The departure cell needs no pass of its own: the ferry phase of every rebuild gives it network-info records for
+  the pedestrian and road networks (traffic-network.md §4.9.2), so step 1 covers it. The arrival cell gets only
+  connection bits there, hence step 2. An arrival cell that also has network info is cleared twice, which is
+  harmless.
 * **GetTrafficEdgeDensity(x, z, t, evening)** (slot 12): the record, or a shared all-zero record (`0x00AB31D0`) when
   missing. The returned pointer must not be written by callers.
 * **ReduceTransitSwitches** (state 3, `0x00713750`): for every transit switch, in table order, `load :=

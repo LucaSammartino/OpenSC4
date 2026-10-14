@@ -1372,8 +1372,11 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   exe: yes, only there (`0x0072184B`); Read restores the saved values. But `toSearch` also grows after
   ConfirmTrips. ReRouteTrips adds 1 per trip sent back for lack of capacity (`0x0071D20D`), and FullTrips adds 1 per
   split, together with the running phase's `total` (`0x0071D75A`). Written into traffic-simulator.md §3.3 and §4.4.
-- **TS22:** does ReduceEdgeDensities also clear ferry terminal cells? [yes, departure and arrival; missing records
-  are not created]
+- ~~**TS22:** does ReduceEdgeDensities also clear ferry terminal cells? [yes, departure and arrival; missing records
+  are not created]~~ **ANSWERED 2026-10-14** from the exe (`0x007110B0`): yes, and missing records are not created.
+  The departure cell is cleared by the cell scan, because the ferry phase of every rebuild gives it network-info
+  records. An explicit pass after the scan (no deadline test) clears each terminal's arrival cell. Written into
+  traffic-simulator.md §4.8.
 - **TS23:** what does DoLotDeactivated do? [destination bytes over the lot := 0, its bucket entries removed,
   `freeDest` unchanged]
 - **TS24:** is the direction towards a non-adjacent rectangle defined? [yes, always]
