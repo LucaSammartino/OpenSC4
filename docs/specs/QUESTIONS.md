@@ -2760,10 +2760,15 @@ exe and the shipped data alone.
   types (4-4-4-4, 5-5-5-1, eGDType 11), which under OpenGL would read the channels in a different order from the
   Direct3D layouts (A4R4G4B4, A1R5G5B5, R5G6B5) that FSH tools write. Is there any renderer path where the game shows
   them correctly, and which layout should FreeCity4 follow? [the Direct3D layouts, *[choice]*]
-- **GF3 — §2.4, §2.11:** DXT1 with A = 0 (13,762 shipped entries) asks for "DXT1 RGB", but DX7 translates both DXT1
+- ~~**GF3 — §2.4, §2.11:** DXT1 with A = 0 (13,762 shipped entries) asks for "DXT1 RGB", but DX7 translates both DXT1
   formats to the same surface. Does DX7 then show 3-colour-mode index-3 texels as transparent (so alpha-tested
   materials cut them out)? An in-game check on a model with such texels would settle it. [yes, inferred from the
-  translation; FreeCity4 decodes them transparent]
+  translation; FreeCity4 decodes them transparent]~~
+  **ANSWERED 2026-10-14** from the exe (`TranslateGDFormatToSourceFormat` `0x0088D0B0`: formats 7 and 8 both become
+  source format 10, the one Direct3D DXT1 surface) and written into graphics-formats §2.11. **Yes.** A Direct3D DXT1
+  surface always decodes 3-colour-mode index 3 as (0, 0, 0, 0), whatever A says. Materials with alpha test or blending
+  drop those texels; a material with neither shows them black. The bracket (decode them transparent) matches. Not
+  checked in game.
 - **GF4 — §2.13:** the 24 `0x7B` entries (64 × 64 and similar, identity grey-ramp `0x24` palettes) are in group
   `0x891B0E1A`, used by terrain brushes, water and underground code (`0x0074D730`, `0x00752240`, `0x0065D810`).
   Which of them reads these, and does it go through the texture path (which DX7 cannot create) or read the pixels

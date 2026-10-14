@@ -227,7 +227,7 @@ RGBA8 uses:
 
 | Code | Decoding |
 |---|---|
-| `0x60` | S3TC DXT1. Colours 5:6:5 expanded by bit replication. If c0 > c1 (as `u16`): c2 = (2c0 + c1) / 3, c3 = (c0 + 2c1) / 3; else c2 = (c0 + c1) / 2 and c3 = **transparent black**, whatever A says (DX7 behaviour, which treats both DXT1 formats alike; under OpenGL A = 0 would give opaque black: GF3). Divisions on the 8-bit expanded values, rounded down |
+| `0x60` | S3TC DXT1. Colours 5:6:5 expanded by bit replication. If c0 > c1 (as `u16`): c2 = (2c0 + c1) / 3, c3 = (c0 + 2c1) / 3; else c2 = (c0 + c1) / 2 and c3 = **transparent black**, whatever A says (DX7 behaviour: both DXT1 formats become the one Direct3D DXT1 surface, `0x0088D0B0`, which always decodes 3-colour-mode index 3 as (0, 0, 0, 0); under OpenGL A = 0 gives opaque black. A material with alpha test or blending drops these texels, one with neither shows them black: GF3). Divisions on the 8-bit expanded values, rounded down |
 | `0x61` | DXT3: 8 bytes of 4-bit alpha (pixel 0 in the low nibble of byte 0, row-major), alpha × 17; then a colour block always in 4-colour mode |
 | `0x62` | DXT5: a0, a1, 48 bits of 3-bit indices (pixel 0 in the lowest bits). Index 0 → a0, 1 → a1. If a0 > a1, index i = 2–7 → ((8 − i) a0 + (i − 1) a1) / 7; else i = 2–5 → ((6 − i) a0 + (i − 1) a1) / 5, 6 → 0, 7 → 255. Colour block in 4-colour mode |
 | `0x7D` | B, G, R, A bytes |
@@ -866,6 +866,7 @@ Also filed in QUESTIONS.md, "From the graphics formats spec", GF1–GF12.
    **Answered** (§2.6): drawn untextured, in its diffuse colour.
 2. GF2: channel layout of `0x6D`/`0x7E`/`0x78` (DX7 cannot create them; GL enums differ from the D3D layouts).
 3. GF3: whether DX7 really shows DXT1 index-3 texels as transparent when A = 0.
+   **Answered** (§2.11): yes; alpha-tested or blended materials drop them, others show them black.
 4. GF4: who uses the 24 `0x7B` grey-ramp entries in group `0x891B0E1A`, and through which path.
 5. GF5: defaults of the draw settings that override material filters and wrap.
 6. GF6: byte order of the vertex colour element.
