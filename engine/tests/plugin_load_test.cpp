@@ -6014,13 +6014,14 @@ int ZonesEnableTest(const std::string& dll, const std::string& ini, const std::s
             CHECK(zm->Release() == 0);
         }
         // Read runs before Init (§10.1): the record loads into a new manager,
-        // which writes it back byte for byte (the alpha read is also the
-        // default); a record of another version does not load.
+        // which writes it back byte for byte; a record of another version
+        // does not load. ZG3: the default alpha is not saved, so Read leaves
+        // the constructor's 0xFF (Init copies the exemplar's alpha to it).
         cFC4ISC4ZoneManager* fresh = NewZoneManager(director);
         CHECK(fresh != nullptr);
         if (fresh != nullptr && !record.empty()) {
             CHECK(ZonesRead(fresh, record));
-            CHECK(fresh->GetZoneDisplayAlpha() == 0x80 && fresh->GetDefaultZoneDisplayAlpha() == 0x80);
+            CHECK(fresh->GetZoneDisplayAlpha() == 0x80 && fresh->GetDefaultZoneDisplayAlpha() == 0xFF);
             CHECK(ZonesWrite(fresh) == record);
             CHECK(fresh->Release() == 0);  // the final Release shuts a never-initialised manager down
         }
@@ -6064,7 +6065,7 @@ int ZonesEnableTest(const std::string& dll, const std::string& ini, const std::s
           std::string::npos);
     CHECK(text.find("zones PlaceZone: type=1 rect=1,1..1,1 cells=1 ok=1 error=0 cost=0 accepted=1") !=
           std::string::npos);
-    CHECK(CountOf(text, "zones PlaceZone: ") == 6);  // the dry runs are verbose-only
+    CHECK(CountOf(text, "zones PlaceZone: ") == 5);  // the dry runs (type 16 too, ZG17) are verbose-only
     // The dezone: one line, the dezone's own PlaceZone has none.
     CHECK(CountOf(text, "zones dezone: occupant ") == 1);
     CHECK(text.find(" rect 4,0..4,7 changed=8 lots=0") != std::string::npos);
