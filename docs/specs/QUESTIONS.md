@@ -2232,7 +2232,10 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
 - ~~**RG19:** what goes in a strike message's data1? [0]~~ **ANSWERED 2026-10-14** from the exe (message constructor
   `0x009134D6`; `BeginStrike` `0x006F84C0`, `EndStrike` `0x006F8570`) and written into REH §5. **0; the bracket
   matches.** The constructor zeroes every field and neither strike call sets data1.
-- **RG20:** `GetBuildingMapKey` returns 32 bits; only the low 8 are used. Right? [yes]
+- ~~**RG20:** `GetBuildingMapKey` returns 32 bits; only the low 8 are used. Right? [yes]~~ **ANSWERED 2026-10-14**
+  from the exe (calls `0x006FF863`, `0x006FF9E8`, `0x006FFB56`; seed helper `0x005E4FA0`, byte loads at `0x005E5049`,
+  `0x005E5078`, `0x005E50CC`) and written into residential.md §5.3 step 1. **Confirmed; the bracket matches.** Slot 42
+  sets only AL; the class passes EAX on, and the seed helper reads and compares the key as a byte.
 - **RG21:** the strike clock seed is `time() + 2177452800` (the cRZTime epoch), as in crime. [yes]
 - **RG22 — `docs/abi`:** residential slots 37/38 (`GetCellEQByWealth`/`GetCellHQByWealth`) are `via-call`, low
   confidence, in `interfaces.tsv`, while residential.md §10.1 says ST0 (they end by calling the float grid's

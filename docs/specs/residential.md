@@ -239,7 +239,10 @@ uninterrupted pass. Consumers can observe a partially updated population/EQ/HQ/a
 For wealth w ∈ {1, 2, 3} (R$, R$$, R$$$):
 
 1. **Seed** *[compat]* (QUESTIONS RG23; `0x005E4FA0`). key := BDS `GetBuildingMapKey(purpose 1, w)` (slot 42) =
-   `(purpose << 2) + w + 1` = **6, 7, 8**. map := BDS `GetBuildingMap()` (slot 41; a `uint8` grid of building
+   `(purpose << 2) + w + 1` = **6, 7, 8**. *[compat]* (RG20) Slot 42 sets only AL (building-development.md §7.1);
+   the class pushes the whole EAX as the seed helper's key argument (calls at `0x006FF863`, `0x006FF9E8`,
+   `0x006FFB56`), and the helper loads and compares it as a **byte** (`0x005E5049`, `0x005E5078`,
+   `0x005E50CC`). Only the low 8 bits matter. map := BDS `GetBuildingMap()` (slot 41; a `uint8` grid of building
    keys, tract size 1). The seed visits every temporary-grid tract (x, z), x outer and z inner, and computes a
    seed value:
    - equal tract shifts (the shipped case): 0 if `map[x][0] = key`, else 255;
