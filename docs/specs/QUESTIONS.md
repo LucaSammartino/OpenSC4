@@ -2718,6 +2718,10 @@ developer stays original). The current answer is in brackets.
   without flags]
 - **ZG16:** Are `*outCost` and `*outError` written on an early size-check failure? [the shadow fills the original's
   with 0 first; our core writes 0]
+- **ZG17 — zones §6, in game (regress rzones, coordinator):** the zones shadow's 1×1 PlaceZone dry run (checkSlope,
+  size check, commit=false) with zone type 14 fails with error 3 on both sides, but the original writes a cost
+  (36–208, varying by month and place) and ours writes 0. 15 of 92 months differ, only in this case. What does the
+  original write to `*outCost` when PlaceZone fails with error 3, and for which zone types? [ours: 0]
 
 ## From the FSH and S3D readers (filed by the coordinator from the `formats3` lane's report, 2026-10-14)
 
