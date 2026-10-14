@@ -104,7 +104,7 @@ The landmark map does **not** feed the aura; only the developers read it.
 | previousTaxRate[12] (f32) | −1.0 each | no | baseline tax rates for §6.5.2 |
 | longDecay, shortDecay (f32) | 0.6, 0.4 | no | tuning (§10) |
 | baseAura[3] (s32: R$, R$$, R$$$) | 0 | no | tuning (§10) |
-| effectiveBaseAura[3] (s32) | — | no | base + tax-change effect (§6.5.2) |
+| effectiveBaseAura[3] (s32) | — | no | base + tax-change effect (§6.5.2); kept in the process-wide table of §10, not in the object |
 | hotspotThreshold, hotspotRadius, hotspotMinWeight (s32) | 0, 0, 0 (tuning sets 196, 8, 16 or the shipped values) | no | §10 |
 | transient magnitude[4], radius[4] (f32) | 0 | no | per transient effect type (§8.1) |
 | curves: park, air, water, garbage, radiation, school, hospital, crime, trip length, congestion, tax change, value/wealth, riot | none | no | §10 |
@@ -701,10 +701,26 @@ stage is skipped, §6). Shipped values are from re/tuning/simulators.md.
 | `0xEA0232A0` | s32[3] | {hotspotThreshold, hotspotRadius, hotspotMinWeight} | {−50, 3, 4} | {196, 8, 16}, used unless the property has **exactly 3** values |
 | `0xEA0232A1` | curve | hotspot weight → riot chance (%) | (0,0) (5,10) (10,60) (20,100) | none (deleted before each read) |
 
-After reading, the three base aura values are copied into a process-wide table keyed by developer type (also read by
-other code *[inferred]*). The transient arrays: magnitude := `v[0]`, radius := `v[1]`. They are shipped as f32[2] and copied **raw** into a
+After reading, the three base aura values are copied into a process-wide table keyed by developer type (`.data`
+`0x00B0D150`; see below). The transient arrays: magnitude := `v[0]`, radius := `v[1]`. They are shipped as f32[2] and copied **raw** into a
 float vector (`0x005FFCC0`, at `0x0068D94E`) with no type check or conversion (corrected: not s32 converted to
 float; a property stored with another type would be reinterpreted bit for bit, data-formats.md §5).
+
+**The base-aura table *[compat]*.** A static table of three 20-byte entries, ended by an entry whose developer type
+is 0:
+
+| Entry | Developer type | Tax index | Wealth | Tuned base | Effective base |
+|---|---|---|---|---|---|
+| +0x00 | `0x1010` R$ | 0 | 0 | +0x0C | +0x10 |
+| +0x14 | `0x1020` R$$ | 1 | 1 | +0x20 | +0x24 |
+| +0x28 | `0x1030` R$$$ | 2 | 2 | +0x34 | +0x38 |
+
+The tuning read copies `baseAura` R$, R$$, R$$$ into the entries' tuned bases (`0x0068D8E2`–`0x0068D91B`). State 4 copies
+tuned into effective and adds the tax-change effect by tax index (`0x0068C000`, §6.5.2). `LotBaseAura` finds a
+population key in the table and reads the effective base (§6.5.1). No other code refers to the table: every
+instruction in the executable that names an address inside it is in one of those three places. Since the table is per process, the effective values
+survive a city change, but state 4 always rewrites them before state 5 reads them. So nothing observable depends
+on where they are kept, and a replacement may keep them in its object *[choice]*.
 
 **Transient tuning in detail *[compat]*.** For each of the four properties, magnitude and radius are first set to 0
 and a local float vector is emptied. The copy helper (`0x005FFCC0`) returns false only when the property is missing.
@@ -993,7 +1009,8 @@ FreeCity4 maps by centre cell *[choice]*).
    §6.5 for the helper's adaptation rule.)
 6. *(resolved)* The riot start position is in **cells**, and the riot manager reads it as cells (§6.16), unlike the
    earthquake's `AttemptDisasterStart`, which takes world units (budget errata item 6).
-7. Who reads the process-wide base-aura table written at tuning time (§10).
+7. *(resolved)* The process-wide base-aura table (`0x00B0D150`) is read and written only by the aura's own code; it
+   holds the tuned and effective base auras (§10).
 8. Whether the 0x99EF1142 handler's "has property" test also applies to network occupants (the network transient is
    reached only when the marker is absent).
 9. Occupant effect radii are divided by the tract size in cells (§7), the transient radius by the tract width in

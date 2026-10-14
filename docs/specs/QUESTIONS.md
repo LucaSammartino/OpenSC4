@@ -983,7 +983,12 @@ each cycle-completed message `0x2A09B21A`). The glue's current answer is in brac
   game always creates one. *[choice]* skip the value/wealth term (result = the lot average), as if the curve were
   absent. The bracket's type 0 gives `d = −wealth` and adds +3 to +5 to every residential lot with the shipped
   curve.
-- **AU11 — §16 Q7:** the base-aura process table is not written. [not written]
+- ~~**AU11 — §16 Q7:** the base-aura process table is not written. [not written]~~ **ANSWERED 2026-10-14** from the
+  exe (table `0x00B0D150`; every instruction naming it: tuning `0x0068D8E3`/`0x0068D8F1`, state 4 `0x0068C002`–
+  `0x0068C098`, `LotBaseAura` `0x0068CE7E`–`0x0068CEB2`) and written into aura.md §10 ("The base-aura table"), §3
+  and §16 Q7 (resolved). **Not writing it is fine.** It is the aura's own storage: three entries {developer type,
+  tax index, wealth, tuned base, effective base} for R$, R$$, R$$$, and no other code refers to it. State 4 rewrites
+  the effective values before state 5 reads them, so keeping them in the object changes nothing.
 - **AU12:** the CPU-cycle limit timer runs on `QueryPerformanceCounter` instead of the TSC. Acceptable? [QPC]
 
 First in-game aura shadow (coordinator, `regress -Tag r7c3f`, Spandau, 98 cycles 2026-01 to 2034-02; the replace run
