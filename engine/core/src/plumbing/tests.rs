@@ -1215,6 +1215,38 @@ fn pipe_funding_and_bursts() {
 }
 
 #[test]
+fn pipe_funding_helper_with_the_shipped_curve() {
+    // §7.1 steps 1-3 with the shipped curve 0xCA7138C4 (0,-0.01)(20,-0.005)
+    // (50,0)(100,0.02)(110,0.05) and burst probability 0.03.
+    let mut t = Tuning::default();
+    t.reload(Some(&Tuning::shipped_exemplar()));
+    // Full funding repairs: 0 - 0.02 clamps to 0, nothing is distressed.
+    let full = pipe_funding(&t, 0.0, 403, 1.0);
+    assert_eq!(full, PipeFunding { condition: 0.0, target: 0, burst_max: 0 });
+    // At 50 % the curve is 0: the condition stays.
+    assert_eq!(pipe_funding(&t, 0.5, 403, 0.5).condition, 0.5);
+    // No funding decays by 0.01 a month: trunc(403 × 0.01) = 4 distressed,
+    // the draw bound trunc(2 × 4 × 0.03) = 0.
+    let none = pipe_funding(&t, 0.0, 403, 0.0);
+    assert_eq!(none.condition, 0.01);
+    assert_eq!((none.target, none.burst_max), (4, 0));
+    // Without pipes the condition is 0 whatever the funding.
+    assert_eq!(pipe_funding(&t, 0.7, 0, 0.0), PipeFunding::default());
+    // It is the month's arithmetic: the same as monthly_simulation.
+    let f = Fake::new(64);
+    *f.tuning.borrow_mut() = Some(Rc::new(Tuning::shipped_exemplar()));
+    f.funding.set(0.0);
+    let s = sim(&f);
+    for i in 0..403u64 {
+        pipe(&s, &f, 100 + i, (i % 64) as i32, (i / 64) as i32, &[]);
+    }
+    s.set_random(RzRandom::new(1, &seeds()));
+    s.monthly_simulation();
+    assert_eq!(s.snapshot().pipe_condition, none.condition);
+    assert_eq!(s.pipe_counts(), (403, none.target, 0));
+}
+
+#[test]
 fn ageing() {
     // §14 test 22.
     let (f, s) = production_city(1000);

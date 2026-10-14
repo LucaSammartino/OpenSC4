@@ -59,6 +59,37 @@ pub struct Totals {
     pub exported: i64,
 }
 
+/// The deterministic part of `ApplyPipeFunding(f)` (§7.1 steps 1–3).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct PipeFunding {
+    /// The new pipe condition (the distress fraction: 0 = no pipe distressed).
+    pub condition: f32,
+    /// The number of distressed pipes after the month.
+    pub target: u32,
+    /// The burst draw's upper bound: the draw lies in `[0, burst_max)`, and
+    /// is 0 when `burst_max ≤ 0`.
+    pub burst_max: i32,
+}
+
+/// `ApplyPipeFunding(f)` steps 1–3 (§7.1): the condition from the previous
+/// one and the funding fraction `f`, the distressed target and the bound of
+/// the burst draw (the draw itself is random).
+pub fn pipe_funding(tuning: &Tuning, condition: f32, num_pipes: u32, f: f32) -> PipeFunding {
+    let mut cond = condition - tuning.pipe_decay_curve.eval(f * 100.0);
+    cond = if cond.is_nan() { 0.0 } else { cond.clamp(0.0, 1.0) };
+    if num_pipes == 0 {
+        cond = 0.0;
+    }
+    let target = trunc_i64(fmul_i(f64::from(num_pipes), cond)) as u32;
+    let twice = (2.0 * f64::from(target as i32)) as f32;
+    let burst_max = trunc_i64(twice * tuning.burst_probability) as i32;
+    PipeFunding {
+        condition: cond,
+        target,
+        burst_max,
+    }
+}
+
 /// `GetWaterProducerInfo` outputs (§10.1 slot 24).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ProducerInfo {
@@ -1446,15 +1477,12 @@ impl PlumbingSim {
     /// `ApplyPipeFunding(f)` (§7.1).
     fn apply_pipe_funding(&self, s: &mut PlumbingState, f: f32) {
         let h = &*self.host;
-        let mut cond = s.pipe_condition - s.tuning.pipe_decay_curve.eval(f * 100.0);
-        cond = if cond.is_nan() { 0.0 } else { cond.clamp(0.0, 1.0) };
-        if s.num_pipes == 0 {
-            cond = 0.0;
-        }
-        s.pipe_condition = cond;
-        let target = trunc_i64(fmul_i(f64::from(s.num_pipes), cond)) as u32;
-        let twice = (2.0 * f64::from(target as i32)) as f32;
-        let hi = trunc_i64(twice * s.tuning.burst_probability) as i32;
+        let PipeFunding {
+            condition,
+            target,
+            burst_max: hi,
+        } = pipe_funding(&s.tuning, s.pipe_condition, s.num_pipes, f);
+        s.pipe_condition = condition;
         let bursts = match &mut s.rng {
             Some(r) => {
                 // Always four draws; `lo` when the range is empty (§7.1).
