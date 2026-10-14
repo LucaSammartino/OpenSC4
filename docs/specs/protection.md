@@ -208,9 +208,28 @@ flammability and the department. Police: `Shutdown` and release the helicopter s
 `0x0A159D95`; base shutdown; release the jail list, the locally-funded-jail list and the jailbreak list
 (occupant manager `ReleaseOccupantList`); release the crime simulator, the department and the jail department.
 
-Base shutdown: unregister from the dispatch manager; release the station list; unsubscribe the nine messages;
-release the message server; remove its agents from the simulator; release the grids. *[inferred: the order
-after the unsubscriptions was not traced in full]*
+**Base shutdown** (`ProtectionShutdown`, `0x006F56F0`) *[compat]* (PR15; traced in full, offsets relative to the
+base sub-object at `+0x08`), in this order:
+
+1. Unregister the dispatch-source sub-object from the dispatch manager (city slot 39 `+0x9C`, fetched from the
+   city global now; manager slot 14 `+0x38`).
+2. Hand the station list (`+0x80`) to the occupant manager (city slot 34 `+0x88`; slot 48 `+0xC0`,
+   `ReleaseOccupantList`).
+3. If the message server (`+0x68`) is held: unsubscribe the nine messages (server slot 6 `+0x18`) in the order
+   `0x99EF1142`, `0x99EF1143`, `0xC8DAC052`, `0x08DAC3E7`, `0xE94671EB`, `0xE94671EC`, `0xE94671ED`,
+   `0x894671F6`, `0xC53D10AA` (`0x006F5744`–`0x006F57BA`; not the subscription order of §4.1, which has
+   `0x894671F6` before the active / inactive pair), then release it and clear the member.
+4. `RemoveAgent(this)` (slot 20 `+0x50`) on `city.GetSimulator()` (slot 50 `+0xC8`), skipped when null. The
+   simulator is not held, so nothing is released.
+5. For the adjusted grid (`+0x78`), then the unadjusted grid (`+0x7C`): `Shutdown` (`+0x10`), `Release`, clear
+   the member.
+6. Release the zone manager (`+0x70`), the budget simulator (`+0x6C`) and the city (`+0x64`), in that order, each
+   cleared.
+
+AL = 1. So the budget simulator and the zone manager are held from base init (taken only if not already held)
+to step 6 of the **base** shutdown, which runs before the class releases flammability or crime and its
+departments. A read-only shadow host that asks the city for them each time sees the same objects; it holds no
+reference across the session and cannot observe the difference.
 
 ---
 

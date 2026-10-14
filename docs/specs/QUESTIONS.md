@@ -2306,9 +2306,15 @@ About PR1–PR13, DQ3–DQ8 and PG4–PG13 as applied. The current answer is in 
     fails. *[choice]* FreeCity4 skips the update then.
 - **PG15 — PG11, slot 29:** with a negative supply and n > 0, is `0x7FFFFFFF − s` computed in int32 (wrapping) or
   exactly? [exactly, in 64 bits, so the change equals n]
-- **PR15 — PR12:** how long does the protection simulator hold the budget simulator and the zone manager? [taken in
+- ~~**PR15 — PR12:** how long does the protection simulator hold the budget simulator and the zone manager? [taken in
   base init only if not already held, released at the end of Shutdown; the read-only shadow host asks the city each
-  time]
+  time]~~ **ANSWERED 2026-10-14** from the exe (`ProtectionInit` `0x006F6BC7`–`0x006F6C0B`; `ProtectionShutdown`
+  `0x006F56F0`) and written into protection.md §4.2 (base shutdown, now traced in full). **Confirmed; the bracket
+  matches.** Both are taken in base init only when not already held and released in the last step of the base shutdown
+  (zone manager, then budget simulator, then city), which comes before the class releases its flammability or crime
+  simulator and departments. Asking the city each time in a read-only shadow host cannot be told apart. The trace also
+  fixed the base shutdown's order: dispatch unregister, station list, the nine unsubscriptions (in an order slightly
+  different from the subscriptions), `RemoveAgent`, the grids, then the held services.
 - **PR16 — PR5:** how does a shadow recognise the original class before reading +0x84, and are unadjusted
   mismatches judged like the adjusted grid's? [by the primary vtable against the §15.1/§15.2 addresses (compat
   table, identified executable only; otherwise not read); logged, not judged]
