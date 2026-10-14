@@ -1474,8 +1474,11 @@ shadow's current answer is in brackets.
   C `rand()` (foundations §12): such networks cannot exist. The block count is at most (256 / 8)² = 1,024, and the
   start is one `rand() mod count` with `rand()` ≤ 0x7FFF, so the probe range is right and covers every start.
   Written into power.md §6.3.
-- **PW7 — §7.5:** the ordinance factor is read live when the shadow starts, then each month. Does the original read
-  it anywhere else (at load, on an ordinance change)?
+- ~~**PW7 — §7.5:** the ordinance factor is read live when the shadow starts, then each month. Does the original read
+  it anywhere else (at load, on an ordinance change)?~~ **ANSWERED 2026-10-14** from the exe (writers `0x006EF889`,
+  `0x006ED6B2`, `0x006EC580`): **at load yes, on an ordinance change no.** The tuning read in `Init` (so also after
+  a load) and on `0xCA1B151C` reads it, and so does each month start. `OrdinanceUpdated` is handled only for the
+  Nuclear Free Zone, so a mid-month enactment takes effect at the next month. Written into power.md §8.
 - Not compared (cannot be read without changing the game): posted messages, history values, budget line items,
   demolitions and lot conditions, which poles the month's shuffle breaks (the broken count is compared), deal
   flags, the dirty rectangle.

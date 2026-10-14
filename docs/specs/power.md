@@ -637,6 +637,16 @@ points and then loaded by exemplar key → foundations §4.1 pattern **default**
 The ordinance factor is refreshed at every tuning read and every month: `GetCumulativeFactor(0x0911E117, 0)`
 (Power Conservation 0.9 when enacted, ordinance.md).
 
+**When the factor is read** (PW7). Only three places write it: the constructor (1.0, `0x006EF889`), the tuning read
+(`0x006ED6B2`) and the start of `DoMonthlySimulation` (`0x006EC580`). The tuning read runs in the first `Init`, so
+after a load too, and on `0xCA1B151C`. `Read` does not touch the factor, and `OrdinanceUpdated` (`0xC2C09554`) is
+handled only for the Nuclear Free Zone (§5.5). An ordinance switches on at once (ordinance.md, `IsOn`), but power
+keeps the old factor until the next month. Power runs first at month level (§4.3), so it reads the factor before
+the ordinance simulator's own month work. Example: Power Conservation enacted on 10 March. Power uses 1.0 until 1
+April, then 0.9. A shadow that starts on 15 March and reads the live value gets 0.9 while the original holds 1.0.
+*[choice]* for the shadow: take the live value only when it starts at a load (the original's `Init` read) or at a
+month start; otherwise treat the factor as unknown until the first month.
+
 **Per-building properties** (roles from the code; names from the community property list `new_properties.xml`
 where it has one; "—" = not listed there, role name ours *[inferred]*). The list's `Default` column is the
 editor default, **not** the code default used here:
