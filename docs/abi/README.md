@@ -21,7 +21,7 @@ Columns:
 | `slot`, `offset` | vtable index and byte offset | exact |
 | `target`, `method` | address of the original method and its ported name (`icf::` = identical-code-folded body shared by several methods; the name is one of them) | address exact, name as good as the symbol port |
 | `callee_pop`, `arg_dwords` | bytes popped by the method's `ret N` = size of the arguments after `this` (`__thiscall`) | **exact**. An `int64`/`double` argument counts 8, everything else 4 |
-| `ret` | `x87` = float/double in ST0. `edx:eax` = 64-bit integer. `eax-or-void` = 32-bit value, pointer, bool, or nothing. `via-call` = whatever a callee returned. `forward` = tail call through a pointer (ABI of the target). `pure` = `_purecall` | `x87` high. `edx:eax` and `eax-or-void` medium. The rest low |
+| `ret` | `x87` = float/double in ST0. `edx:eax` = 64-bit integer. `eax-or-void` = 32-bit value, pointer, bool, or nothing. `via-call` = whatever a callee returned. `forward` = tail call through a pointer (ABI of the target). `pure` = `_purecall`. `unknown` can also be a method that returns nothing | `x87` high. `edx:eax` and `eax-or-void` medium. The rest low |
 | `notes` | `inconsistent-pops`, `indirect-jump …`, `tail->…`, `truncated` | |
 
 How to use them:
@@ -30,6 +30,18 @@ How to use them:
   `float`/`double`.
 - `int64` returns must have `edx:eax`.
 - `eax-or-void` does not tell a pointer from a bool or a value: the spec decides that.
+- **A float/double declaration on a method the game treats as `eax-or-void` corrupts the x87 register stack.**
+  If the game calls our method, every call leaves one value on the game's x87 stack that nothing removes; after
+  eight, the next load overflows and gives NaN (all x87 exceptions are masked in-game), and NaN converted to an
+  integer is a garbage size or index. If we call the game's method through such a declaration, our code pops a
+  value that was never pushed (underflow, NaN). Both directions are invisible until something reads the NaN.
+- How `ret = x87` is decided (corrected 2026-10-14, after the run 74 audit): the x87 stack depth is followed
+  forward from the entry along every path to each `ret` (0 at entry; at every call the depth is 0, then 1 if the
+  code after the call uses a value the call left). Depth 1 at the `ret` = returns in ST0. A function whose last x87
+  instruction stores and pops (`fstp [mem]`) returns nothing in ST0, even though it ends in float code. Earlier
+  tables tagged such functions `x87`; 63 interface rows (and 105 vtable rows) were corrected, among them
+  `cISC4Demand` 16/17, `cISC4DemandSimulator` 8, `cISC4WeatherSimulator` 11, `cIGZVariant` 41, the
+  `cISC4RegionalCity` setters 51–63, `cISC4SimGrid` 20/21 and `cISC4OccupantManager` 14–18.
 
 Regenerate with `python tools/abi_extract.py bin/SimCity4.exe`. The tool is analysis-side tooling; only its output
 is for engine authors.
