@@ -657,13 +657,21 @@ current answer is in brackets.
 - **DQ7:** limits of 16 maps, 128 capacity entries and 4,096 summary nodes. Are larger real maps possible? [refused
   above them]
 - **DQ8:** which thread calls `GetLocalPopulationSummary`? [unspecified; the first success is logged with its thread]
-- **DQ9 — §5 `GetNeutralTaxRate` precision (in-game differential, run 73, coordinator):** with census supply
+- ~~**DQ9 — §5 `GetNeutralTaxRate` precision (in-game differential, run 73, coordinator):** with census supply
   R/C/I = 27207 / 2569.47998 / 10583.1006 (C and I fractional, now that the demand glue reads capacity), the
   original returns **8.97309399** and our core **8.97309303** (1 ulp; the demand shadow's only mismatch in 2,955
   lines, on all 27 days of that census month). Every other demand value is bit-identical. Which precision and order
   does the original use for `node[0x1001].supply + node[0x3001].supply + node[0x4001].supply` (float32 or x87
   extended, left to right?), and for the curve interpolation (foundations §4.3) on the way to the float32 return?
-  [ours: as the spec reads today]
+  [ours: as the spec reads today]~~ **ANSWERED 2026-10-14** from the exe (`GetNeutralTaxRate` `0x006A3DD0`,
+  `FADD dword` at `0x006A3E39`/`0x006A3E3D`; curve `0x005F4250`) and written into demand.md §5, with a worked example
+  on these inputs. **The bracket (the spec's left-to-right reading) is wrong.**
+  - **The sum.** It is `float32`, in the order **(I + C) + R**: node `0x4001`'s supply stays in ST0, the `0x3001`
+    local is added to it, then the `0x1001` local. Each `FADD` rounds to 24 bits at the main thread's precision.
+    Both roundings here are exact ties, resolved to even: 13152.580078125, then 40359.578125 (`0x471DA794`).
+  - **The curve.** It is unchanged: three `float32` operations (foundations §4.3). The result is 8.97309399
+    (`0x410F91CB`), the original's value.
+  - **What ours does.** Both R + C + I and one rounding of the exact sum give `0x471DA795` and 8.97309303.
 
 ## From the protection fix: saved grid refs and their geometry (filed by the coordinator from the lane's report, 2026-10-14; merged)
 
