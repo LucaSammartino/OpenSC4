@@ -317,6 +317,38 @@ Producer records hold:
 - visited and assigned (pass scratch);
 - the occupant.
 
+**Demand against the pass** (PS8) *[compat]*. demand (s64, object `+0x130`) is written only by step 2
+(`0x006DBC64`–`0x006DBCA0`) and by `Read`. No pass state touches it. It changes at every delivery of
+InsertOccupant / RemoveOccupant. Those messages are posted (flora.md §9.1), and a pass runs one state per
+SimIdle / SimNewDay call (§6), so they are delivered **between the steps of a pass**. At the end of a pass,
+demand therefore already holds the buildings inserted, and lacks those removed, since the pass started. The
+pass's consumed total holds such a building only if the ring flood reached its cell after the change (§6.3 step
+3; `BuildingConsumption` reads the live occupants, and the `0x40` flag changes at delivery). Apart from this
+timing, demand and the pass's consumed total also differ when:
+
+- a consumer is not watered;
+- the supply runs out (§6.3 step 3);
+- the factor is not 1;
+- a building's `0xC8ED2D84` changed after insertion (demand keeps the value read at delivery, sint32; the flood
+  reads the current one, uint32);
+- the shared-cell removal of step 2 has dropped a consumer (it stays in demand but is no longer charged).
+
+Shadow run 81: in the four exact passes that differ only in demand, ours is the record's demand at the start of
+the pass and the original's is the value after its state 8. Each time the next pass agrees again. The figures
+fit *[inferred]* a building replaced by another at the same anchor cell during the pass. The removal clears `0x40` and the
+insertion sets it again, so the flag map ends as it started, and the change shows only in demand:
+
+| Pass | Demand at start | Consumed | Demand at end | Reading |
+|---|---|---|---|---|
+| 333 (2026-03-04) | 25287 | 25287 | 25315 | +28, delivered after the flood passed the cell |
+| 349 (2027-07-04) | 31724 | 31654 | 31732 | the old building's removal (−70) before the flood, the new one's insertion (+78) after |
+| 354 (2027-12-05) | 32978 | 32978 | 32993 | +15 after the flood |
+| 389 (2030-11-04) | 35916 | 35967 | 35967 | +51, both deliveries before the flood |
+
+*[choice]* For the shadow: demand is not a pass output, so compare it with the original's record read at the
+comparison, or treat a demand change during the pass like a flag-map change. A live simulator that applies step 2
+at each delivery has no such difference.
+
 ### 5.4 Pipes (`DoPipeChanged(netOcc, insert)`) *[compat]*
 
 1. `occ := netOcc + 4`. The original converts `cISC4NetworkOccupant*` to `cISC4Occupant*` with a fixed pointer

@@ -1515,10 +1515,16 @@ shadow's current answer is in brackets.
 - Not compared: the pipes' watered states (only reachable through a non-virtual call), redisplay, posts, history,
   line-item expenses, lot conditions and deal flags; the original's pipe condition and pass state (not saved, not
   exposed). New bursts are range-checked only (random draw).
-- **PS8 — first in-game shadow (run 81, coordinator):** of 95 replayed passes, 4 differ only in `demand`, ours
+- ~~**PS8 — first in-game shadow (run 81, coordinator):** of 95 replayed passes, 4 differ only in `demand`, ours
   lower by 8 to 51 (e.g. 25315/25287 in 2026-03, 35967/35916 in 2030-11); ours equals the pass's consumed total.
   The original's demand is a running sum kept as things are added and removed. Which additions does it count that
-  the pass's consumption does not (lots whose water use changed since insertion, removals not subtracted)? Compare PW8.
+  the pass's consumption does not (lots whose water use changed since insertion, removals not subtracted)? Compare PW8.~~
+  **ANSWERED 2026-10-14** from the exe (demand `+0x130` is written only by `DoBuildingChanged` `0x006DBC64`–`0x006DBCA0`
+  and `Read`) and the run-81 log: **the occupant messages delivered during the pass.** They are posted, and a pass
+  runs one state per call, so the original's demand after state 8 already holds them. The shadow's carries the start
+  value. The four passes fit same-cell replacements, which leave the flag map unchanged. Unlike PW8, nothing is
+  inherited: the next pass agrees each time. *[choice]*: compare demand with the record read at the comparison.
+  Written into plumbing.md §5.3 with a table.
 - **PS9 — first in-game shadow (run 81, coordinator):** in one pass (2028-03-04, pass 357) producer 0's production
   and efficiency read 0 in ours (orig 19944 and 0.997), although the pass's produced total matches (39687) and the
   grid is identical. This looks like a shadow-side read of the wrong producer record (not an RE question); the next
