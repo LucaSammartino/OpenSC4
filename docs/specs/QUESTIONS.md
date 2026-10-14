@@ -2190,7 +2190,10 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   call sites listed in REH §7) and written into REH §7. **Confirmed; the bracket matches.** No caller that reaches
   these slots through the residential global tests EAX or AL afterwards, so returning true is safe. Callers that keep
   the simulator pointer in a member of their own were not all traced; for them it stays *[inferred]*.
-- **RG12:** slot 45 returning false: are its outputs left untouched? [untouched]
+- ~~**RG12:** slot 45 returning false: are its outputs left untouched? [untouched]~~ **ANSWERED 2026-10-14** from the
+  exe (`GetOccupantCoverage` `0x006FD260`; exit `0x006FD502`) and written into REH §4.11 (slot 45). **Confirmed; the
+  bracket matches.** AL = 0 happens only when the building has neither capacity, and that path jumps to the epilogue
+  before `dist` or `radius` is written.
 - **RG13:** does `SetLocalFundingPercent` set the budget item's local funding? [the shadow assumes so]
 - **RG14:** the dirty flag cannot be compared by the shadow. [not compared]
 - **RG15:** a building's identity is its `AsOccupant()` pointer, used for the lists, the strike message's void1

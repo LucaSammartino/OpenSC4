@@ -821,7 +821,9 @@ first grading, which adds −1 modulo 2^32), and the previous building's +0x1C, 
 **GetOccupantCoverage(occ, const SC4Percentage& level, float& dist, float& radius)** (45):
 
 - Kind: school if the building has `0x8922041B`; hospital if it has `0x69220415` (hospital wins if both).
-  Neither → AL = 0 and no output is written.
+  Neither → AL = 0 and no output is written (RG12: the two property probes at `0x006FD28B` and `0x006FD2C6`
+  write only to a local; with neither found the code jumps to the epilogue `0x006FD502`, which returns the
+  "kind found" byte, still 0, before any write to `dist` or `radius`).
 - *[quirk]* "Hospital wins" covers only the radius property, the kind property and the ordinance list. The
   school/hospital flag passed to the efficiency ratings and to the building-curve read is set by the school test
   and not cleared by the hospital test (`0x006FD2A2`, `0x006FD2D8`). So a building with both capacities uses the
