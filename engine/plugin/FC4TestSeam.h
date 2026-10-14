@@ -90,6 +90,11 @@
 //         or SimNewMonth) to a fake "original" power simulator; returns the
 //         delivery's difference count, -1 (not taken), -2 (delivered,
 //         nothing compared) or -3 (passed through: the original idle).
+//   op 22 kFC4SeamPlumbingShadow   a = const FC4PlumbingShadowTestInput*
+//         (FC4PlumbingShadow.h): a run of deliveries (SimIdle, SimNewDay,
+//         SimNewMonth) to a fake "original" plumbing simulator, one shadow for
+//         the run; returns the summed difference count of the passes and
+//         months compared, -1 (none taken) or -2 (taken, nothing compared).
 #pragma once
 
 #include <cstdint>
@@ -116,6 +121,7 @@ enum : uint32_t {
     kFC4SeamLandfillShadow = 18,
     kFC4SeamDemandCapacity = 20,
     kFC4SeamPowerShadow = 21,
+    kFC4SeamPlumbingShadow = 22,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);
