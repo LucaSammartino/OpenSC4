@@ -1482,10 +1482,16 @@ shadow's current answer is in brackets.
 - Not compared (cannot be read without changing the game): posted messages, history values, budget line items,
   demolitions and lot conditions, which poles the month's shuffle breaks (the broken count is compared), deal
   flags, the dirty rectangle.
-- **PW8 — first in-game shadow (run 80, coordinator):** all 213 cycles and 94 month lines are exact, but every
+- ~~**PW8 — first in-game shadow (run 80, coordinator):** all 213 cycles and 94 month lines are exact, but every
   bookkeeping line differs a little: the original's running counts against our from-scratch insertion of the live
   occupants, e.g. consumers 725/722, requirement 6481/6480, 4 consumption-map cells (max |d| 2). Which occupants does
-  the original count that a rebuild from the live occupants does not (or the other way round)?
+  the original count that a rebuild from the live occupants does not (or the other way round)?~~
+  **ANSWERED 2026-10-14** from the exe (`0x006ECF2D`, `0x006EC25F`: values read at delivery; nothing rebuilds the
+  counts) and a recount of the shipped saves: **no live occupant.** The persistent +2 (cells (41,102) and (55,111))
+  is in the Konradshohe save itself. The saved counts exceed its own buildings by the mayor's statue and the
+  cemetery, which consume 0 in the shipped exemplars (Tegel: the same at its cemetery). The rest are posted
+  occupant messages not yet delivered at the month. Written into power.md §5.2 with a test, and the removal's
+  `initialized` gate added to §5.
 
 ## From the plumbing grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
 
