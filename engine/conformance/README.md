@@ -2179,7 +2179,7 @@ Every test also has at least one unit test in `fc4-core` (`neighbors::tests::tes
 | 9 re-entrancy (retry 8 during a run; 0 / 8 → statsDirty, others dealsDirty) | `nb18_09_reentrancy` |
 | 10 proposals (term today + 365, amount 0, cost 1; none with an existing deal, budget ≤ 5000 or ≤ 60 × cost) | `nb18_10_proposals` |
 | 11 clone (swap with E0 ↔ E1, Cancelled on a missing city, Silent follows the argument) | `nb18_11_clone` |
-| 12 deal record (version 5 byte-identical, second `amountUsed` kept, version 4 without the suspension date) | `nb18_12_deal_record` |
+| 12 deal record (version 5 byte-identical, second `amountUsed` kept, version 4 without the suspension date) | `nb18_12_deal_record` |
 | extra: the marker height at the inner cell's centre (§6.3, NB3) | `nb18_13_marker_height_inner_cell` |
 
 *[choice]* items the vectors depend on: `CreateConnection`'s result (`nb18_02`); unknown types and a null city
