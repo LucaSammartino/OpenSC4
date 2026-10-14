@@ -213,8 +213,13 @@ own static step state); slicing only splits the work, the results do not depend 
    * `finished := WorkOnSimCycle(deadline)`;
    * if finished, by the **new** state `s`:
      * `s = 16`: `total := passTotal` (the number of trips counted in the last cycle, §4.6), `days := max(1, total
-       div 20)`; day index and processed := 0; the pass counters (§10, Q4) := 0; continue;
-     * `s = 17`: `total := toReRoute`, `days := max(1, total div 18)`, reset, return **true**;
+       div 20)`; day index and processed := 0; `toReRoute`, `toSearch` := 0; of the ten pass counters that follow
+       them (§6.1 row 15 and two unsaved ones; §10 Q4) all are zeroed **except** counter 1 (the re-route counter,
+       incremented by ReRouteTrips; zeroed on entering 17 instead) and counter 2 = `rerouteBucket` (kept: only
+       StartRecalc advances it). Counter 3, the source counter of §4.3, is zeroed here, so it restarts at 0 every
+       cycle (TS1); continue;
+     * `s = 17`: `total := toReRoute`, `days := max(1, total div 18)`, reset (day index, processed and pass
+       counter 1 := 0), return **true**;
      * `s = 18`: `total := toSearch`, `days := max(1, total div 18)`, reset, `passTotal := 0`, return **true**;
      * `s = 2` or `s = 11`: return **true**;
      * otherwise continue;
@@ -460,7 +465,7 @@ neighbour pool capacities and sets the destination bits of the off-map edge cell
 §4.1.4), then `ConfirmTrips(source)` (`0x0071D920`):
 
 * `sourceCounter += 1`; `rerouteSource := ((sourceCounter & 3) = rerouteBucket)` — one source in four takes part in
-  this cycle's re-balancing.
+  this cycle's re-balancing. `sourceCounter` is 0 on entering state 16 (§3.3), so the first source has counter 1.
 * If `rerouteSource`: **merge** — for each routed (status 3) trip, every later trip of the same type and strategy is
   merged into it (counts added, the other erased) and the trip's status becomes 0 (search again).
 * Then for each trip (`processed += 1`):
