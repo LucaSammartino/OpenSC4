@@ -71,6 +71,17 @@ none) at position `(qx, qz)` and size `(tx, tz)`:
 | West | `(tx·64, z mod 64 + (rz − qz)·64)` |
 | North | `(x mod 64 + (rx − qx)·64, tz·64)` |
 | South | `(x mod 64 + (rx − qx)·64, −1)` |
+| interior (none of the above) | `(0, 0)`, and success |
+
+The helper (`0x006CE920`) first sets its three outputs (neighbour city, cell x, cell z) to null, 0 and 0. It then
+fails (returns false) when there is no current regional record or no city at `(rx, rz)`. An **interior** cell
+(NB6) leaves `(rx, rz)` at our own position `(px, pz)`. The city found there is **our own** regional city, so the
+helper returns **true** with that city and the zeroed cell `(0, 0)` (the side switch has no interior case). Example:
+a 1 × 1 city at region (3, 3), with the cell (10, 20), gives true, our own regional city, and `(0, 0)`.
+
+The only in-simulator user, `FindConnectionOnOtherSide`, then asks our own regional record for a connection at
+`(0, 0)`. No connection lies inside the city, so it gets null, as for a failed conversion. *[compat]* The helper
+itself must return the row above, because the original regional city calls this conversion directly (§15.2).
 
 **Valid connection cell** for regional city `R` of size `(sx, sz)`: exactly one of `x ∈ {−1, 64·sx}` and
 `z ∈ {−1, 64·sz}` holds. The inverse conversion (neighbour cell → our connection cell) mirrors the table. Other
@@ -151,9 +162,28 @@ u8   flags
 | amount (s32) | 0 | commodity units per month |
 | incAmount, incAmount2, lastAmount, lastIncAmount, amountUsed (s32) | 0 | maintained by the utility simulators *[inferred]*; only incAmount, lastAmount and amountUsed are saved |
 | cost (s64) | 0 | monthly price (§8.1) |
-| startDate, expirationDate, currentDate, suspensionDate | the Julian day of the date class's default | |
+| startDate, expirationDate, currentDate, suspensionDate | the PC's local date at construction (see below); *[choice]* 0 | |
 | flags | `0x81` (Proposed + Silent) | §5.2 |
 | property holder | empty | |
+
+**Initial dates** (NB1). The four dates are date objects whose default constructor (`0x0091307C`) reads the
+**wall clock**. It calls the C runtime's `time` and `localtime`, then stores the Julian day of that local calendar
+date (`Jday(month, day, year)`, `0x00912B5F`; 2000-01-01 = 2451545). So a deal constructed on 2026-10-14 starts
+with all four dates = 2461328. There is no fixed default date.
+
+Where the construction date survives:
+
+- `suspensionDate` of every deal that was never suspended. The region writes it into the version-5 deal record
+  (§5.6). Nothing reads it before the first strike overwrites it (§7.3), so the simulation does not see it.
+- All four dates of a deal from `ProposeDeal` that nobody dated afterwards. `ProposeDeals` dates its own proposals
+  (§7.1).
+- `suspensionDate` of a deal read from a version ≤ 4 record (§5.6 reads it only for version > 4). The regional
+  city reads such a record into a new deal object, so the date is the day of that read. `Init` step 7 then shifts
+  it with the other three dates (§14.1). It matters only if the record also has Grace or Probation set: the grace
+  arithmetic of §7.3 then starts from a wall-clock date.
+
+*[choice]* FreeCity4 initializes the four dates to **0**, deterministically. The original value depends on the
+PC's clock and cannot be reproduced. A saved 0 is harmless to the original game, for the reasons above.
 
 ### 5.2 Flags *[compat]*
 
@@ -170,7 +200,10 @@ u8   flags
 | `0x100` | Grace | first failure; further failure flags are ignored |
 | `0x200` | Probation | after the grace period; a failure now ends the deal |
 
-"Failure flags" are `0x38`. Totals and pricing ignore deals with any of `0x3D` (§10.1).
+"Failure flags" are `0x38`. The totals ignore deals with any of `0x3D` (§10.1). **Pricing does not** (NB9):
+`GetDealCost` and `GetDealMaxAmount` take `existing` from the first `FindDeals` match, whatever its flags (§8.1).
+`FindDeals` (both overloads, `0x006D0760` and `0x006D0840`) matches on type, and on the other-side city where one
+is given, and on nothing else.
 
 ### 5.3 Status reports *[compat]*
 
@@ -198,12 +231,12 @@ Silent deals. It is **posted**, except that `SetAmount` **sends** it synchronous
 | `SetAmount(a)` | Only if the current city exists, has a neighbours simulator, and flags have neither Grace nor Probation: `amount := a`; report status 0 (**sent**); `UpdateCost()`. Otherwise ignored *[compat]*. |
 | `Get/SetLastAmount`, `Get/SetLastIncAmount`, `Get/SetIncAmount`, `Get/SetIncAmount2`, `Get/SetAmountUsed` | plain. |
 | `GetCost()` | cost. |
-| `UpdateCost()` | Unless Grace or Probation: `cost := trunc_s64(neighbours.GetDealCost(type, amount, GetCityOnOtherSide()))` through the **current city's** neighbours simulator; if that is 0, `cost := 1`; report status 0 (posted). |
+| `UpdateCost()` | Unless Grace or Probation: `cost := trunc_s64(neighbours.GetDealCost(type, amount, GetCityOnOtherSide()))` through the **current city's** neighbours simulator; if that is 0, `cost := 1`; report status 0 (posted). The amount is passed as a double. *Without a current city or neighbours simulator* (NB5), the original crashes: it checks neither the global city pointer (`0x006CF9D4`) nor `GetNeighborsSimulator()`'s result (`0x006CF9E8`). `SetAmount` checks both before it calls `UpdateCost`, so only direct callers can reach this. *[choice]* FreeCity4 does nothing in that case: the cost stays as it was and no report is sent. |
 | `Get/SetStartDate`, `Get/SetExpirationDate`, `Get/SetCurrentDate`, `Get/SetSuspensionDate` | copy the Julian day to / from the caller's `cIGZDate`. |
 | `Copy(src)` | copies type, flags, amount, amountUsed, cost, incAmount, lastAmount, both region cells and the four dates from `src` (through its interface). |
 | `UpdateState()` | §7.3 step 1. |
 | `Cancel()` | `SetFlags(Cancelled, true)`, `SetFlags(Active, false)`, `SetAmount(0)`. |
-| `Activate()` | If Proposed is set and none of `0x38`: set Active, clear Proposed and Cancelled; return true. Else false. |
+| `Activate()` | If Proposed is set and none of `0x38`, it makes three calls **through `SetFlags`** (its own virtual slot 37; `0x006CE640`): `SetFlags(Active, true)`, `SetFlags(Proposed, false)`, `SetFlags(Cancelled, false)`, in that order, and returns true. Otherwise it returns false. Each call that changes the flags of a non-Silent deal posts a status 0 report. A Proposed, non-Cancelled, non-Silent deal therefore posts **two** status-0 reports (NB2). Cancelled (`0x04`) is not in `0x38`, so `Activate` also activates a cancelled proposal and clears Cancelled. |
 | `GetFlags()` | flags. |
 | `SetFlags(f, on)` | If `on`: if Grace is set, drop `0x38` from `f`; `flags |= f`. Else `flags &= ~f`. If the flags changed and the deal is not Silent, report status 0 (posted). Returns true. |
 | `CheckFlagsAnd(f)` | all bits of `f` set. |
@@ -288,13 +321,34 @@ u32  suspensionDate                 (present when version ≥ 5)
 | `GetDealMaxAmount(type, city)` | §8.1. |
 | `GetTuningExemplar()` | the tuning exemplar (§12), no AddRef. |
 
+**Return values at the interface** (NB17):
+
+- `RequestCreateConnection` (`0x006D15E0`) returns a real `bool`: true only when the dialog was confirmed; false
+  when the connection already exists or the player declined. The shim must return exactly that.
+- `CreateConnection` (`0x006D4860`, `ret 0x10`) leaves whatever is in `EAX`. On the early return that is
+  `HasConnection`'s result (true). Otherwise it is the return value of the final `Release` of the posted message.
+  Neither is a pointer, and shipped callers ignore it.
+
+The core's internal types (a three-way `ConnectionRequest`, and the new connection or null) are the
+implementer's choice; no original behaviour constrains them beyond the `bool` above.
+
 ### 6.3 `CreateConnection(type, x, z, flag)` *[compat]*
 
 1. If `HasConnection(type, x, z)`, do nothing.
 2. Create a connection, append it, set type, cell and otherRegionCell (§2.2). If the other-side regional city
    exists, call its `ChangeSymmetricConnection(conn, true)`.
 3. Unless `type` is Ferry (9), place a **marker prop** `0x29F10000` at the centre of the inner cell, at height
-   `terrain.GetAltitude(x, z)` (+15.5 for Highway, LightRail and Monorail). Orientation by side: with
+   `terrain.GetAltitude(px, pz)` (+15.5 for Highway, LightRail and Monorail).
+
+   Here `(px, pz)` is the inner cell's centre, from `city.CellCenterToPosition` (slot 97), which is the same point
+   the prop is placed at (NB3; `0x006D494A`–`0x006D4A4F`). The connection cell itself is never used for the
+   height.
+   - The inner cell is found from the side, in this order: `x < 0` → `(x + 1, z)`; else `z < 0` → `(x, z + 1)`;
+     else `x ≥ countX` → `(x − 1, z)`; else `(x, z − 1)`.
+   - The +15.5 (`0x00AB1CA8`) is added in float32.
+
+   Example: the connection Road at (−1, 5) in a 64 × 64 city puts its marker at the centre of cell (0, 5), at that
+   point's terrain altitude. A Highway at the same cell puts it 15.5 m higher. Orientation by side: with
    `flag = false` West 3, North 0, East 1, South 2; with `flag = true` the opposite (1, 2, 3, 0). Give the prop the
    bool property `0xCAA46595 = true` (marks it as a connection marker); for Pipe also `0xCAA45670` and
    `0xCAA45672`; for Subway `0xCAA45670` and `0xCAA45671` (all true). Insert it through the prop manager.
@@ -361,6 +415,31 @@ deal list; `d.SetAmount(0)` (the proposal's amount is **0** *[compat]*); term in
 to `list`. The generator is a process-wide `cRZRandom` created on first use and seeded from the wall clock
 (foundations §6.2), double path. With the shipped tuning (1 and 1) `y = 1`.
 
+**Re-entry with `add = true`** *[compat]* (NB10; `create_deal_proposition` `0x006D0520`). The order inside
+`Propose` is:
+
+1. `ProposeDeal`: `d` is still Silent, so its `SetAmount(0)` reports nothing.
+2. `SetFlags(Silent, false)`, which **posts** status 0.
+3. Append `d` to the deal list.
+4. `SetAmount(0)`. `d` is now listed and not Silent, so this **sends** status 0 synchronously (§5.3). The
+   simulator's handler sets `statsDirty` and calls `simulate_deals` at once. `ready` is true here, because
+   `ProposeDeals` runs only when ready, and `busy` is false, because `ProposeDeals` does not set it. So a full run
+   (§7.3) happens **inside** `Propose`:
+   - unless `uiDisabled`, `d` normally passes `UpdateState` and the garbage check, because the proposal tests just
+     checked its connection and the payer's budget. It then has no flag of `0x3C` and is Proposed, so `Activate()`
+     makes it **Active** (posting 0, 0, NB2), `currentDate := today`, and status 1 is posted. A garbage-sell
+     proposal can instead get NoLandfill here, which starts Grace (§7.3);
+   - every other listed deal is simulated as well;
+   - `UpdateCommodityStats` runs and the region push follows.
+5. Back in `SetAmount`: `UpdateCost()` (cost 1, status 0 posted).
+6. Back in `Propose`: the term, then `currentDate := startDate := today` and `expirationDate := today + 365·y`
+   overwrite the dates. During the nested run the start and expiration dates were still the construction dates
+   (§5.1). The nested run does not read them for a Proposed deal.
+
+So `ProposeDeals(list, true)` returns deals that are already **Active**, unless `uiDisabled` was set, in which case
+they stay Proposed. This is the original's behaviour and must be kept. The queued reports (0 from step 2, then 0,
+0, 1 from step 4, then 0 from step 5) each trigger a further run when delivered (§7.2).
+
 Who calls `ProposeDeals` and sets amounts afterwards is the UI's business (open question 3).
 
 ### 7.2 When the deal simulation runs
@@ -370,6 +449,10 @@ Who calls `ProposeDeals` and sets amounts afterwards is the UI's business (open 
 - on **every** status report `0xEA418D8F` delivered to the simulator (§11.1), including the ones its own runs post.
   A run therefore usually triggers one or two follow-up runs in the next message-server ticks, until no deal
   changes *[compat]*.
+
+  Example: one run activates one non-Silent proposal. It posts, in this order: status 0 (Active set), status 0
+  (Proposed cleared), both from `Activate`'s `SetFlags` calls (§5.4), then status 1. Each report, when delivered,
+  sets its dirty flag and runs `simulate_deals` again.
 
 It does nothing until ConnectionsReady has been seen. If called while a run is in progress (a synchronous status
 report from `SetAmount`), it posts `0xEA418D8F` with data1 = 8 and returns.
@@ -419,6 +502,32 @@ busy := false
 `grace` and `probation` are the tuning values `0x6B588FAD` and `0x8B58C59E` in days (90 and 90). Dates compare
 as Julian days; "today" is the simulator date.
 
+**`UpdateState` in detail** (`0x006CF360`):
+
+- `R` comes from the region (its current regional record).
+- For a **buy** type it compares `cost` (int64, loaded exactly) with `R.GetBudget()`. It sets CannotAfford when
+  `cost > budget`; equal, or a NaN budget, does not set it. It then returns **without** the connection test.
+- Otherwise (a sell type, or an affordable buy) it sets NoConnection when the other-side city is missing or when
+  the neighbours simulator (the global pointer, not `this`) finds no suitable connection.
+
+*No current regional city* (NB15): `R` is used without a null check. A **buy** deal crashes the original at
+`0x006CF386`. A sell deal never touches `R`. *[choice]* FreeCity4 skips the budget test and goes on to the
+connection test.
+
+**Renewal** (`0x006D1366`–`0x006D13C4`). The run clears Expired and picks the payer: `R` for a buy type, the
+other-side city for a sell type. It then calls `UpdateCost()` and compares the payer's `GetBudget()` with `cost`
+(as double). It sets CannotAfford when `budget < cost`, or when the budget is a NaN, and renews otherwise, equality
+included.
+
+*Missing payer* (NB16): the original calls `GetBudget` on the payer without a null check (`0x006D13A5`). The case is
+unreachable in the original:
+- A sell deal whose neighbour is missing gets NoConnection from step 1 of the same pass, which sends it to the
+  failure branch before renewal. Grace or Probation would also bypass renewal.
+- A buy deal without `R` has already crashed in step 1 (NB15).
+
+With FreeCity4's NB15 choice a buy deal can reach renewal without `R`. *[choice]* A missing payer counts as
+**cannot afford**: CannotAfford is set and the deal is not renewed.
+
 Consequences: a failing deal survives one grace period (90 days) during which failures are ignored, then a
 probation period (90 days) during which any failure ends it. Expired deals renew automatically for the same span
 if the payer can afford the updated cost. The checks in step 1 run every time; for **sell** deals the
@@ -432,6 +541,23 @@ Both use the regional-city commodity statistics (`GetDemanded`, `GetExported`, `
 `GetCostPerUnit` with the commodity index of §3) and the tuning of §12. Let `buyer`/`seller` be (us, `C`) for
 buy types and (`C`, us) for sell types, `base` the type's base amount, `scale := 0xEA4AD2FF` (default 1) and
 `existing` the amount of the **first** deal returned by `FindDeals(type, C)` (0 if none).
+
+About `existing` (NB8, NB9; `0x006D33A5`–`0x006D33E1`, and the same in `GetDealMaxAmount`):
+
+- It is this simulator's own `FindDeals(type, C)` (slot 29): the deal list in order, matched on type and
+  other-side city only. **No flag filter** is applied: a Cancelled, Silent or failing deal counts like any other.
+- Only the first match counts.
+- So the deal being priced is its own `existing` when it is in this simulator's list and is the first deal of its
+  type with `C`. That is the usual case for `UpdateCost` on a listed deal, and `SetAmount` has already stored the
+  new amount by then.
+- When another deal of the same type and city comes first, that deal's amount is used instead.
+- A deal outside the list, such as a fresh `ProposeDeal` result or a deal held by a regional city, is never its own
+  `existing`.
+
+Example (test 3's data): the priced power-buy deal of amount 100 is the only listed deal, so `existing = 100`.
+Then `x1 = (1 − (500 − 200)) / 100 = −2.99` and `x2 = ((2000 − 100) − (1000 − 100)) / 2000 = 0.5`, so the scarcity
+curve gives 1 and 0.0714286. `unit = 2.2 + (1 + 0.0714286) / 2 × 0.8 = 2.6285714`, and the cost is trunc(262.857) =
+**262**. With `existing = 0`, test 3 gives 263.
 
 ```
 GetDealCost:
@@ -458,7 +584,19 @@ an undefined commodity index in the original; *[choice]* FreeCity4 returns 0 for
 
 ### 8.2 `UpdateCommodityStats(city)` *[compat]*
 
-Only when `city` is the current city. With `R` = the current regional city:
+Only when `city` is the current city.
+
+The subject (NB12; `0x006D2A2C`–`0x006D2A46`) is the **city object**, a `cISC4City*` as the SDK declares it, not
+a regional city. It is compared by identity with the current city (the game's global city pointer), and a null or
+any other pointer returns at once with nothing done. All shipped callers pass the current city, including the
+simulator itself in §7.1, §7.3 and §14. The regional-city object of our own city is a different object: passed
+here, it would do nothing. FreeCity4 must therefore key this call on the city: a handle that is either the current
+city or not.
+
+`R` is then fetched from the region without a null check (`0x006D2A6C`). With no current regional city the original
+crashes; *[choice]* FreeCity4 returns at once in that case.
+
+With `R` = the current regional city:
 
 1. `R.SetBudget(budget.GetTotalFunds())`, `R.SetIncome(budget.GetTotalMonthlyIncome())`.
 2. Sum `cost` over **all** deals (any flags) of types E0 → `P`, E2 → `W`, E4 → `G`.
@@ -475,6 +613,18 @@ Only when `city` is the current city. With `R` = the current regional city:
    `GetMonthlyIncineratorCapacity`, `GetGarbageAbductedPrevMonth`; `free` = landfill capacity − usage; `years` =
    `0xEA46934F`; `wte` = full expenses of line item `0x1F470000` of the power department. **Before** evaluating the
    garbage curve, the simulator loads property `0x4B61FFC9` into its curve (§8.3).
+
+   The `free / (12 × years)` term (NB13) works as follows:
+   - `years` is read as f32 into a local that is given **no default** first (`0x006D2AE3`–`0x006D2B0A`).
+   - `12 × years` is stored as float32. The u32 `free` is converted and divided by it on the x87 (`0x006D309C`).
+   - A **present** `years = 0` is divided by literally. With `free > 0` the term is +∞, so `produced` is +∞: `R`
+     stores +∞ (`SetProduced` takes a double), the garbage cost-per-unit input `x / ∞` is 0, and the `0x4B54F333`
+     history entry is 0 (`_ftol2`'s low dword).
+   - With `free = 0`, a present 0 gives 0/0 = NaN instead, and `produced` is NaN.
+   - A **missing** property leaves whatever was on the stack: the original's result is undefined. *[choice]*
+     FreeCity4 treats a missing `years` as making the term 0.
+
+   The shipped exemplar has `years = 1`, so only mods reach either case.
 
    Then `R.SetProduced(c, produced)`, `SetDemanded(c, demanded)`, `SetExported(c, exp)`, `SetImported(c, imp)`,
    `SetCostPerUnit(c, costPerUnit)`, and record history: power `0xAA11F837` ← imported, `0xAA11F83A` ←
@@ -503,6 +653,25 @@ The regional cities in the region cells that touch the current city's footprint:
 `px .. px+sx−1` the cells just north (`pz − 1`) and south (`pz + sz`), and for each row the cells just west and
 east. Each city once; established only unless the flag is set. The original orders them by object address;
 *[choice]* FreeCity4 orders them by region position (x, then z).
+
+How the original orders them (NB14; `0x006D01E0`):
+
+- It collects the cities into a `std::set<cISC4RegionalCity*>` with `std::less`, then copies the set into the list.
+  The order is therefore ascending **heap address** of the regional-city objects, which depends on allocation
+  history and cannot be reproduced.
+- The north and south rows are scanned for each column, then the west and east cells for each row. This decides
+  only which cities are found, not their order.
+
+The order shows in four places:
+- the order of `ProposeDeals`' results;
+- the order of the per-city pushes in §9.2;
+- the order of `ReloadCity` in `Init` step 5;
+- the order of the cloned deals in `Init` step 7.
+
+Mostly only the order of messages and of list entries changes. There is one exception: with
+`ProposeDeals(…, true)`, the re-entrant runs (§7.1) refresh `R`'s statistics between cities. An earlier buy
+proposal's cost of 1 then enters `P`, `W` or `G`, and through them our cost per unit, which prices a later sell
+proposal's budget test. Because the original's order is not reproducible, the *[choice]* stands.
 
 ### 9.2 Pushing to the region (`update_deals_in_regional_cities(deals, stats)`) *[compat]*
 
@@ -582,16 +751,20 @@ Exemplar `0x6534284A / 0x7A4A8458 / 0x6A469021` "Neighbor Deals" (`SimCity_1.dat
 | `0xEA4AD2FF` | 2.5 | 1 | amount scale |
 | `0x6A469342` | 0.1 | 1 | minimum markup over the seller's cost per unit |
 | `0xCA469346` | 0.5 | 1 | maximum markup |
+| `0x6B588FAD` | 90 | 0 | grace period (days) |
+| `0x8B58C59E` | 90 | 0 | probation period (days) |
+| `0xEA46934F` | 1 | 5 in proposals, 0 in the deal simulation; in `UpdateCommodityStats` an **uninitialized** stack slot (§8.2; *[choice]* missing → treat the free-landfill term as 0) | landfill horizon and maximum deal term (years) |
+| `0xAA46934B` | 1 | 1 | minimum deal term (years) |
+| `0xCA46931F` | 60 | 1 | proposal: budget must exceed this × the deal cost |
+| `0xEA4AE9EF` | 5000 | 0 | proposal: minimum payer budget |
 
 Read widths (data-formats.md §7): `GetDealCost` reads `0x6A469342` and `0xCA469346` as **f64** (`0x006D3512`,
 `0x006D3530`), so 0.1 and 0.5 enter its arithmetic unrounded; `ProposeDeals` reads `0xCA469346` as f32
 (`0x006D22B4`), i.e. 0.5 exactly. Corrected: not all values are f32.
-| `0x6B588FAD` | 90 | 0 | grace period (days) |
-| `0x8B58C59E` | 90 | 0 | probation period (days) |
-| `0xEA46934F` | 1 | 5 in proposals, 0 in the deal simulation, unset in `UpdateCommodityStats` (*[choice]* 0 → treat the free-landfill term as 0) | landfill horizon and maximum deal term (years) |
-| `0xAA46934B` | 1 | 1 | minimum deal term (years) |
-| `0xCA46931F` | 60 | 1 | proposal: budget must exceed this × the deal cost |
-| `0xEA4AE9EF` | 5000 | 0 | proposal: minimum payer budget |
+
+That f32 read in `ProposeDeals` is **dead** (NB4; `0x006D22A1`–`0x006D22CE`). The value, default 1.0, plus 1.0 is
+stored in a local that nothing reads. The proposal checks of §7.1 use `0xEA4AE9EF` (f32, default 0) and
+`0xCA46931F` (f32, default 1) only. So `0xCA469346` has one effect, the maximum markup in `GetDealCost` (§8.1).
 
 ## 13. Persistence (`GetGZCLSID() = 0xC990C0A4`) *[compat]*
 
@@ -603,6 +776,24 @@ count × ref connection           (foundations §2.7, list order)
 
 `Read` fails unless `version == 2`; each reference is resolved as `cISC4NeighborConnection` (`0x0773FEF2`) and
 appended (the list is not cleared first).
+
+Each reference is read by the game's helper `SC4ReadGZSerializable` (`0x005D9730`; foundations §2.7). There are
+three cases (NB7; `0x006CFE10`–`0x006CFEDD`):
+
+| Reference | Helper result | Original | FreeCity4 |
+|---|---|---|---|
+| a connection | success, the object | appended (AddRef'd) | same |
+| non-null, failing: unknown class, failed creation, or an object without `0x0773FEF2` | failure, null | skipped (not appended); the loop goes on | same |
+| null (`objectID = 0`) | success, null | the null is **appended**, and then the local is released **without a null check** (`0x006CFEC5`): a null dereference, so the original crashes inside `Read` | *[choice]* skipped |
+
+At the end, `Read` returns true unless the stream is in the error state (an unknown class sets it, foundations
+§2.7).
+
+**Wrong version** (NB11). With `version ≠ 2`, `Read` returns false straight after the `u16` (`0x006CFDDB`) and
+reads nothing else. Reading the `u16` succeeded, so the stream stays good. The class-object store ignores the
+result and re-synchronises at the next entry (foundations §3.5). The simulator object was created empty when its
+reference was resolved, so the load continues with **no connections**: for example, a version-3 record loads
+exactly like a version-2 record with `count = 0`. `Init` (§14.1) then runs as usual on the empty list.
 
 ## 14. Lifecycle
 
@@ -713,8 +904,8 @@ From the Windows caller data (direct calls) and the call-site survey:
    1050 (shortfall 1050, surplus 1100); with the seller's demanded raised to 1900 → 100.
 5. **Curve bug**: after one `UpdateCommodityStats` with a sanitation department, test 3 yields 221; without the
    department or the property it still yields 263.
-6. **Life cycle** (grace 90, probation 90): a proposed deal activates on the first run (status 1); losing the
-   connection sets Grace and suspension = today (no removal); failures during Grace are ignored; after 90 days
+6. **Life cycle** (grace 90, probation 90): a proposed deal activates on the first run, posting status 0, 0,
+   then 1 (§7.2); losing the connection sets Grace and suspension = today (no removal); failures during Grace are ignored; after 90 days
    Probation; a failure during Probation removes it with status 3; after 180 days Probation clears; a cancelled
    deal is removed with status 2; expiry posts 6, and the next run renews with the same span (status 7) or flags
    CannotAfford.
