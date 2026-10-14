@@ -452,15 +452,7 @@ const Waiver kWaivers[] = {
      "returns 64 bits in edx:eax (SDK: 32)"},
     {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 41, "GetGarbageLandfilledLastMonth",
      "returns 64 bits in edx:eax (SDK: 32)"},
-    {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 51, "GarbagePutInLandfill", "returns in eax (SDK: int64)"},
-    {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 55, "GetRecyclingCenterCurrentCapacity",
-     "returns in ST0 (SDK: 32-bit)"},
-    // FreeCity4's pollution simulator (cFC4ISC4PollutionSimulator) follows
-    // docs/specs/pollution.md §8.1 where the table disagrees (spec questions):
-    {"cISC4PollutionSimulator", "cFC4ISC4PollutionSimulator", 51, "GarbagePutInLandfill",
-     "§8.1: the new total in edx:eax (the table: eax-or-void)"},
-    {"cISC4PollutionSimulator", "cFC4ISC4PollutionSimulator", 55, "GetRecyclingCenterCurrentCapacity",
-     "§8.1: a bool in AL (the table: ST0)"},
+    // Pollution slots 51, 54 and 55 needed no waiver once the table was corrected (QUESTIONS PG1-PG3).
     // The automata controller manager, called by the protection simulators
     // (protection §14): AddControllersFromOccupantGroup and
     // RemoveControllersFromOccupantGroup (the name overloads, slots 10 and 12) only.
