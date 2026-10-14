@@ -21,6 +21,11 @@
 //!   read them, the property getters with their type coercion, and a store that loads records with their parent
 //!   cohorts (`docs/specs/data-formats.md` §4, §5).
 //! - [`ltext`]: localized text (LTEXT) entries.
+//! - [`fsh`]: FSH (`SHPI`) textures as the original's factory accepts them, their mipmap levels, and a CPU decoder
+//!   to RGBA8 (`docs/specs/graphics-formats.md` §2).
+//! - [`s3d`]: S3D (`3DMD`) models with the chunk grammar of each version, materials, animation frames and the
+//!   meshes of a frame (graphics-formats §3).
+//! - [`keys`]: how a model's material names its texture and how an exemplar names its model (graphics-formats §4).
 //!
 //! Written from public format documentation (see `README.md`), then brought in line with
 //! `docs/specs/data-formats.md` and `docs/specs/foundations.md` (§2.3, §3.1, §9.2, and §18 for the x87
@@ -33,9 +38,12 @@
 pub mod dbpf;
 pub mod error;
 pub mod exemplar;
+pub mod fsh;
+pub mod keys;
 pub mod ltext;
 pub mod qfs;
 mod reader;
+pub mod s3d;
 pub mod tgi;
 mod x87;
 
