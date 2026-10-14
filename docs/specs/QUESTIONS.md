@@ -2773,10 +2773,16 @@ exe and the shipped data alone.
   `0x891B0E1A`, used by terrain brushes, water and underground code (`0x0074D730`, `0x00752240`, `0x0065D810`).
   Which of them reads these, and does it go through the texture path (which DX7 cannot create) or read the pixels
   from `cS3DShapeFile` directly? [inferred: CPU reads of intensity maps]
-- **GF5 — §3.8:** `SetTexFiltering` (`0x007D4280`) overrides the material's filters with (nearest, nearest) or
+- ~~**GF5 — §3.8:** `SetTexFiltering` (`0x007D4280`) overrides the material's filters with (nearest, nearest) or
   (linear, linear-mipmap-linear) when one of two draw settings is on, and `0x007D41E0` can override wrap. Which
   settings are these, what are their defaults, and which is on in normal play? Without an override, 137,480 shipped
-  1.5 textures have filters (0, 0), i.e. nearest. [unknown; probably the trilinear override is on by default]
+  1.5 textures have filters (0, 0), i.e. nearest. [unknown; probably the trilinear override is on by default]~~
+  **ANSWERED 2026-10-14** from the exe (`SetTexFiltering` `0x007D4280`, wrap `0x007D41E0`, render-property
+  registrations `0x007DF320`, `0x007DF400` and `0x007E0120`, DX7 filter states `0x00884363`–`0x008843BB`) and the shipped
+  `Graphics Rules.sgr`, and written into graphics-formats §3.8. The settings are the boolean render properties
+  `kForcePointSampling` (nearest, nearest) and `kForceBilinear` (linear, linear-mipmap-linear); wrap is
+  `kForceTextureRepeat`. All three default to false and no shipped rule sets them. So in normal play none applies, and
+  (0, 0) means nearest with no mipmaps. The bracket's guess (trilinear on by default) is wrong.
 - **GF6 — §3.5:** byte order of the 32-bit vertex colour element (only `0x80004101`, 2 shipped blocks in model
   `0xCB93E2B4`). [inferred: Direct3D colour, bytes B, G, R, A]
 - **GF7 — §4.2:** layouts of RKT4 (`0x27812824`) and RKT5 (`0x27812825`), read by `GetAllModelInstanceIDs`

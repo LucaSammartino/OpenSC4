@@ -488,9 +488,17 @@ T ×   texture:
   alpha, 7 1 − dst alpha, 8 dst colour, 9 1 − dst colour, 10 src alpha saturate.
 - Texture-parameter enum (`0x00B12168`), used for wrap and filter bytes: 0 nearest, 1 linear, 2 clamp, 3 repeat,
   4 nearest-mipmap-nearest, 5 linear-mipmap-nearest, 6 nearest-mipmap-linear, 7 linear-mipmap-linear. Wrap uses 2
-  and 3. The draw context may override both filters (`SetTexFiltering` `0x007D4280`: (nearest, nearest) or
-  (linear, linear-mipmap-linear) when one of two settings is on) and the wrap modes (`0x007D41E0`); without an
-  override the file's bytes are used (GF5).
+  and 3. The draw context may override both filters (`SetTexFiltering` `0x007D4280`) and the wrap modes
+  (`0x007D41E0`) from three boolean render properties (GF5):
+  - `kForcePointSampling` (boolean property 5): (nearest, nearest);
+  - otherwise `kForceBilinear` (boolean property 6): (linear, linear-mipmap-linear), despite its name;
+  - `kForceTextureRepeat` (boolean property 21): both wraps repeat.
+
+  For a stage above 0, neither function does anything unless `kUseSecondStage` (boolean property 11) is on. The
+  three force flags are registered false (`0x007DF320`, `0x007DF400`, `0x007E0120`) and the shipped
+  `Graphics Rules.sgr` never sets them, so **in normal play there is no override** and the file's bytes are used.
+  The 137,480 shipped 1.5 textures with filters (0, 0) are therefore drawn with nearest sampling and no
+  mipmapping (DX7: magnification and minification point, mip filter none, `0x00884363`–`0x008843BB`).
 - The context's highlight modes can override blending, depth and alpha function; those are draw states, not data.
 
 ### 3.9 ANIM *[compat]*
@@ -869,6 +877,7 @@ Also filed in QUESTIONS.md, "From the graphics formats spec", GF1–GF12.
    **Answered** (§2.11): yes; alpha-tested or blended materials drop them, others show them black.
 4. GF4: who uses the 24 `0x7B` grey-ramp entries in group `0x891B0E1A`, and through which path.
 5. GF5: defaults of the draw settings that override material filters and wrap.
+   **Answered** (§3.8): `kForcePointSampling`, `kForceBilinear`, `kForceTextureRepeat`; all off.
 6. GF6: byte order of the vertex colour element.
 7. GF7: RKT4/RKT5 layouts.
 8. GF8: where the detail global `0x00B216FC` is set.
