@@ -326,6 +326,8 @@ struct Script {
     surrounding: RefCell<BTreeMap<u64, Vec<u64>>>,
     surrounding_rect: RefCell<Vec<u64>>,
     lots_in_rect: RefCell<Vec<u64>>,
+    /// The rectangles `occupants_in_cells` was asked for.
+    cell_queries: RefCell<Vec<CellRect>>,
     claim_resources: Cell<bool>,
     add_building_fails: Cell<bool>,
     // tuning
@@ -371,6 +373,7 @@ impl Default for Script {
             surrounding: RefCell::new(BTreeMap::new()),
             surrounding_rect: RefCell::new(Vec::new()),
             lots_in_rect: RefCell::new(Vec::new()),
+            cell_queries: RefCell::new(Vec::new()),
             claim_resources: Cell::new(true),
             add_building_fails: Cell::new(false),
             tuning: RefCell::new(Some(Rc::new(Tuning::shipped_exemplar()))),
@@ -872,7 +875,8 @@ impl LotDeveloperHost for Script {
     fn occupants_in_bbox(&self, _min: Vec3, _max: Vec3) -> Vec<u64> {
         Vec::new()
     }
-    fn occupants_in_cells(&self, _rect: CellRect, _t: u32) -> Vec<u64> {
+    fn occupants_in_cells(&self, rect: CellRect, _t: u32) -> Vec<u64> {
+        self.cell_queries.borrow_mut().push(rect);
         Vec::new()
     }
 
@@ -1027,8 +1031,15 @@ impl LotDeveloperHost for Script {
         self.units.borrow_mut().insert(t, Vec::new());
         t
     }
+    /// As `cSC4BusinessUnit::Add` (§5.7): no duplicate member; the lot's
+    /// unit is set either way.
     fn unit_add(&self, unit: u64, lot: u64) -> bool {
-        self.units.borrow_mut().entry(unit).or_default().push(lot);
+        let mut units = self.units.borrow_mut();
+        let v = units.entry(unit).or_default();
+        if !v.contains(&lot) {
+            v.push(lot);
+        }
+        drop(units);
         self.lot_mut(lot, |l| l.unit = Some(unit), ());
         true
     }
@@ -1039,7 +1050,15 @@ impl LotDeveloperHost for Script {
             .get_mut(&unit)
             .is_some_and(|v| v.contains(&lot).then(|| v.retain(|&l| l != lot)).is_some());
         if removed {
-            self.lot_mut(lot, |l| l.unit = None, ());
+            // `Remove` also clears the lot's unit and travel designate (§5.7).
+            self.lot_mut(
+                lot,
+                |l| {
+                    l.unit = None;
+                    l.designate = None;
+                },
+                (),
+            );
         }
         removed
     }
@@ -1723,6 +1742,159 @@ fn immediate_day_night_update() {
     assert!(host.events().iter().any(|e| e.starts_with("post 0xa6b79621")));
 }
 
+#[test]
+fn light_queries_the_lots_rectangle() {
+    // §8.4 (answers Q8): the building's cells only find the lot; the props
+    // are looked up in the lot's own rectangle.
+    let host = Rc::new(Script::default());
+    let lot = host.add_lot(|l| {
+        l.x = 2;
+        l.z = 3;
+        l.w = 3;
+        l.h = 2;
+    });
+    let b = host.add_occ(|o| {
+        o.is_building = true;
+        o.cells = CellRect::new(2, 3, 3, 3);
+    });
+    host.lot_mut(lot, |l| l.building = Some(b), ());
+    let mut d = dev_with(host.clone());
+    d.light(b, true);
+    assert_eq!(*host.cell_queries.borrow(), vec![CellRect::new(2, 3, 4, 4)]);
+    // No lot at the building's centre cell: no prop query.
+    host.cell_queries.borrow_mut().clear();
+    let stray = host.add_occ(|o| {
+        o.is_building = true;
+        o.cells = CellRect::new(40, 40, 40, 40);
+    });
+    d.light(stray, false);
+    assert!(host.cell_queries.borrow().is_empty());
+}
+
+// ---- business units (§5.7) ----------------------------------------------------------------------
+
+#[test]
+fn update_travel_designates_follows_the_table() {
+    // §5.7 (answers Q9).
+    let host = Rc::new(Script::default());
+    let b = host.add_occ(|o| o.is_building = true);
+    let anchor = host.add_lot(|l| {
+        l.building = Some(b);
+        l.road = true;
+    });
+    let null_d = host.add_lot(|l| l.road = false);
+    let member_road = host.add_lot(|l| {
+        l.road = false;
+        l.designate = Some(anchor);
+    });
+    let road_less = host.add_lot(|l| l.road = false);
+    let member_no_road = host.add_lot(|l| {
+        l.road = false;
+        l.designate = Some(road_less);
+    });
+    let outsider = host.add_lot(|l| l.road = true);
+    let non_member = host.add_lot(|l| {
+        l.road = false;
+        l.designate = Some(outsider);
+    });
+    let unit = 900;
+    for l in [anchor, null_d, member_road, road_less, member_no_road, non_member] {
+        host.unit_add(unit, l);
+    }
+    let mut d = dev_with(host.clone());
+    let mut u = Some(unit);
+    d.update_travel_designates(&mut u);
+    assert_eq!(u, Some(unit));
+    let des = |l| host.lot(l, |x| x.designate, None);
+    assert_eq!(des(anchor), None, "the anchor gets no designate");
+    assert_eq!(des(null_d), Some(anchor));
+    assert_eq!(des(member_road), Some(anchor), "kept (it already was the anchor)");
+    assert_eq!(des(road_less), Some(anchor));
+    assert_eq!(
+        des(member_no_road),
+        Some(anchor),
+        "a member without road access is replaced"
+    );
+    assert_eq!(
+        des(non_member),
+        Some(anchor),
+        "a non-member is cleared even with road access"
+    );
+
+    // The keep row leaves a member-with-road designate that is not the anchor.
+    let host = Rc::new(Script::default());
+    let b = host.add_occ(|o| o.is_building = true);
+    let first = host.add_lot(|l| {
+        l.building = Some(b);
+        l.road = true;
+    });
+    let second = host.add_lot(|l| {
+        l.building = Some(b);
+        l.road = true;
+        l.designate = Some(first);
+    });
+    let stale = host.add_lot(|l| {
+        l.road = false;
+        l.designate = Some(second);
+    });
+    host.unit_add(901, first);
+    host.unit_add(901, second);
+    host.unit_add(901, stale);
+    // Make `second` the anchor's predecessor: move `first` to the back.
+    host.units.borrow_mut().insert(901, vec![second, stale, first]);
+    let mut d = dev_with(host.clone());
+    let mut u = Some(901);
+    d.update_travel_designates(&mut u);
+    assert_eq!(
+        host.lot(second, |x| x.designate, None),
+        Some(first),
+        "the anchor keeps a stale designate"
+    );
+    assert_eq!(
+        host.lot(stale, |x| x.designate, None),
+        Some(second),
+        "kept: a member with road access"
+    );
+    assert_eq!(host.lot(first, |x| x.designate, None), Some(second));
+}
+
+#[test]
+fn dissolution_moves_every_member_including_the_joiner() {
+    // §5.7 (answers Q10): M = [a, b]; only b finds a candidate c, so
+    // u' = [c, b], then a is added and b removed and re-added: [c, a, b].
+    let host = Rc::new(Script::default());
+    host.profiles.borrow_mut().insert(
+        0x6000,
+        Profile {
+            purpose: 6,
+            wealth: 1,
+            capacity: 0,
+        },
+    );
+    let mk = |road: bool| {
+        host.add_lot(|l| {
+            l.state = lot_state::OCCUPIED;
+            l.building_type = 0x6000;
+            l.road = road;
+        })
+    };
+    let a = mk(false);
+    let b = mk(false);
+    let c = mk(true);
+    host.unit_add(902, a);
+    host.unit_add(902, b);
+    host.surrounding.borrow_mut().insert(b, vec![c]);
+    let mut d = dev_with(host.clone());
+    let mut u = Some(902);
+    d.update_travel_designates(&mut u);
+    let joined = u.expect("b joined c's new unit");
+    assert_ne!(joined, 902);
+    assert_eq!(host.unit_members(joined), vec![c, a, b]);
+    assert!(host.unit_members(902).is_empty());
+    assert_eq!(host.lot(a, |x| x.unit, None), Some(joined));
+    assert_eq!(host.lot(b, |x| x.unit, None), Some(joined));
+}
+
 // ---- power changed (§9) -------------------------------------------------------------------------
 
 #[test]
@@ -1913,6 +2085,43 @@ fn hostile_records_and_hosts_do_not_panic() {
         let _ = d.get_area_slope(r, true);
         let _ = d.lowest_or_highest_area_altitude(r, true, true);
     }
+}
+
+#[test]
+fn terrain_view_matches_the_core() {
+    // The snapshot answers the terrain and cost slots exactly as the core.
+    let host = Rc::new(Script::default());
+    for (i, a) in [0.0f32, 3.5, 7.25, 1.0, 12.0, 2.0, 9.5, 4.0, 30.0].iter().enumerate() {
+        let (x, z) = (i as i32 % 3, i as i32 / 3);
+        host.terrain_alts.borrow_mut().insert(x + z * 65, *a);
+        host.terrain_water.borrow_mut().insert(x + z * 65, 5.0);
+    }
+    let lot = host.add_lot(|l| {
+        l.w = 2;
+        l.h = 2;
+    });
+    let mut d = dev_with(host.clone());
+    assert!(d.init());
+    let v = d.terrain_view();
+    assert_eq!(v.verts_x, 65);
+    let rect = CellRect::new(0, 0, 1, 1);
+    let h: &dyn LotDeveloperHost = &*host;
+    for w in [false, true] {
+        assert_eq!(
+            v.altitude_by_vertex(h, 1, 1, w),
+            d.get_terrain_altitude_by_vertex(1, 1, w)
+        );
+        assert_eq!(
+            v.lowest_or_highest_area_altitude(h, rect, true, w),
+            d.lowest_or_highest_area_altitude(rect, true, w)
+        );
+        assert_eq!(v.average_area_altitude(h, rect, w), d.average_area_altitude(rect, w));
+        assert_eq!(v.area_altitude_range(h, rect, w), d.area_altitude_range(rect, w));
+        assert_eq!(v.is_area_flat(h, rect, w), d.is_area_flat(rect, w));
+        assert_eq!(v.lot_slope(h, lot, w).to_bits(), d.get_lot_slope(lot, w).to_bits());
+    }
+    assert_eq!(v.lot_development_cost(h, rect), d.get_lot_development_cost(rect));
+    assert!(d.get_lot_development_cost(rect) > 0);
 }
 
 /// A small deterministic generator for test data.

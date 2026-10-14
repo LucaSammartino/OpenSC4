@@ -9,7 +9,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::geometry::{area_slope_of, development_cost, rubble_count};
+use super::geometry::{development_cost, rubble_count};
+use super::terrain::TerrainView;
 use super::tuning::Tuning;
 use super::{
     lot_prop, lot_state, msg, object_type, reason, zot, BuildingProfile, BurntBuilding, CellRect, CfgObject, Cheat,
@@ -17,6 +18,7 @@ use super::{
     COFFEE_BAR_CFG, OCCUPANT_TYPE_BUILDING, OCCUPANT_TYPE_NETWORK, OCCUPANT_TYPE_PROP, PROP_NIGHT_LIGHT,
     PROP_ZOT_NUMBER, SUBSCRIBED, TEXTURE_RESOURCE,
 };
+use crate::curve::ResponseCurve;
 use crate::rng::{derive_seed, file_seed, CrtRand, FixedSeeds, RzRandom, SeedSource};
 use crate::stl::StlHashSet;
 use crate::stream::{InStream, OutStream, RefValue};
@@ -1157,45 +1159,44 @@ impl LotDeveloper {
             .copied()
             .find(|&m| self.host.lot_has_road_access(m) && self.host.lot_building(m).is_some());
         if let Some(anchor) = anchor {
+            // §5.7 table (answers §12.2 Q9): a designate that is a member
+            // with road access is kept (no clear, no anchor step); a
+            // non-member, or a member without road access, is cleared; a
+            // null designate is not cleared. Then the anchor step
+            // `if L ≠ anchor: L.SetTravelDesignate(anchor)`.
             for &m in &members {
-                if m == anchor {
-                    // The anchor itself gets no designate.
-                    self.host.lot_set_travel_designate(m, None);
-                    continue;
-                }
                 match self.host.lot_travel_designate(m) {
-                    None => self.host.lot_set_travel_designate(m, Some(anchor)),
+                    None => {}
                     Some(d) => {
-                        if members.contains(&d) || !self.host.lot_has_road_access(d) {
-                            self.host.lot_set_travel_designate(m, Some(anchor));
+                        if members.contains(&d) && self.host.lot_has_road_access(d) {
+                            continue;
                         }
-                        // A non-member with road access is kept.
+                        self.host.lot_set_travel_designate(m, None);
                     }
+                }
+                if m != anchor {
+                    self.host.lot_set_travel_designate(m, Some(anchor));
                 }
             }
             return;
         }
-        // Without an anchor the unit is dissolved.
+        // Without an anchor the unit is dissolved: `members` is the snapshot
+        // copy `M` (§5.7 step 1).
         for &m in &members {
             self.host.unit_remove(u, m);
             self.pick_unit_to_join(m);
             if let Some(u2) = self.host.lot_unit(m) {
-                if u2 != u {
-                    // "all lots of the copy move into u'": `m` is already in
-                    // `u'` (PickUnitToJoin put it there), so every *other*
-                    // lot of the copy taken at the start of this call is
-                    // removed from the old unit (if still in it) and added to
-                    // `u'`, in copy order *[inferred]*.
-                    for &o in &members {
-                        if o == m {
-                            continue;
-                        }
-                        self.host.unit_remove(u, o);
-                        self.host.unit_add(u2, o);
+                // Step 3 (answers §12.2 Q10): every lot of `M`, in copy order
+                // and including `m` itself, is removed from the unit it is in
+                // (if any) and added to `u'`.
+                for &x in &members {
+                    if let Some(cur) = self.host.lot_unit(x) {
+                        self.host.unit_remove(cur, x);
                     }
-                    *unit = Some(u2);
-                    return;
+                    self.host.unit_add(u2, x);
                 }
+                *unit = Some(u2);
+                return;
             }
         }
         *unit = None;
@@ -1998,14 +1999,12 @@ impl LotDeveloper {
         let r = self.host.occupant_city_cells(b);
         let cx = (r.x1.wrapping_add(r.x2)) >> 1;
         let cz = (r.z1.wrapping_add(r.z2)) >> 1;
-        let Some(_lot) = self.host.get_lot(cx, cz, false) else {
+        let Some(lot) = self.host.get_lot(cx, cz, false) else {
             return;
         };
-        // §8.4 step 4 passes `&(x1, z1), &(x2, z2)`, the building's
-        // bounding city cells bound in step 2, to
-        // GetOccupantsByStandardCityCells (the prose calls them "the lot's
-        // cell rectangle": a building's cells and its lot's coincide). The
-        // lot lookup in step 3 only gates the call ("none → stop").
+        // §8.4 step 4 (answers §12.2 Q8): the building's cells only find the
+        // lot; the prop query takes the lot's own rectangle (lot slot 14).
+        let r = self.host.lot_bounding_rect(lot);
         for p in self.host.occupants_in_cells(r, OCCUPANT_TYPE_PROP) {
             if self.host.occupant_property(p, PROP_NIGHT_LIGHT).is_some_and(|v| v != 0) {
                 self.host.occupant_post_message(p, msg::OCCUPANT_LIGHT);
@@ -2052,97 +2051,79 @@ impl LotDeveloper {
 
     // ---- terrain and cost slots (§11.1, §11.4) ----
 
+    /// The values the terrain and cost slots read, for hosts that answer
+    /// them while the lot developer is busy ([`TerrainView`]).
+    pub fn terrain_view(&self) -> TerrainView {
+        TerrainView {
+            verts_x: self.verts_x,
+            flatness: self.tuning.max_cell_altitude_delta_for_flatness,
+            cost_curve: self.tuning.cost_curve.clone(),
+        }
+    }
+
+    /// The view without the cost curve (every slot but 32).
+    fn terrain(&self) -> TerrainView {
+        TerrainView {
+            verts_x: self.verts_x,
+            flatness: self.tuning.max_cell_altitude_delta_for_flatness,
+            cost_curve: ResponseCurve::default(),
+        }
+    }
+
     /// Slot 15 `GetTerrainAltitudeByVertex(x, z, withWater)`.
     pub fn get_terrain_altitude_by_vertex(&self, x: i32, z: i32, with_water: bool) -> f32 {
-        let index = x.wrapping_add(z.wrapping_mul(self.verts_x));
-        let alt = self.host.terrain_altitude(index);
-        if !with_water {
-            return alt;
-        }
-        let w = self.host.terrain_water_level(index);
-        // NaN keeps the altitude.
-        if w > alt {
-            w
-        } else {
-            alt
-        }
+        self.terrain().altitude_by_vertex(&*self.host, x, z, with_water)
     }
 
     /// Slots 16 / 17 `GetLowestOrHighestAreaAltitude(rect, lowest,
     /// withWater)` over the vertices `x1 ..= x2 + 1`, `z1 ..= z2 + 1`.
     pub fn lowest_or_highest_area_altitude(&self, rect: CellRect, lowest: bool, with_water: bool) -> f32 {
-        let mut best = if lowest { f32::MAX } else { f32::MIN };
-        for_each_vertex(rect, |x, z| {
-            let a = self.get_terrain_altitude_by_vertex(x, z, with_water);
-            if (lowest && a < best) || (!lowest && a > best) {
-                best = a;
-            }
-        });
-        best
+        self.terrain()
+            .lowest_or_highest_area_altitude(&*self.host, rect, lowest, with_water)
     }
 
     /// Slot 18 `GetAverageAreaAltitude(rect, withWater)`.
     pub fn average_area_altitude(&self, rect: CellRect, with_water: bool) -> f32 {
-        let mut sum = 0.0f64;
-        let mut n = 0i64;
-        for_each_vertex(rect, |x, z| {
-            sum = r24(sum + f64::from(self.get_terrain_altitude_by_vertex(x, z, with_water)));
-            n += 1;
-        });
-        if n == 0 {
-            return 0.0;
-        }
-        (r24(sum / n as f64)) as f32
+        self.terrain().average_area_altitude(&*self.host, rect, with_water)
     }
 
     /// Slot 27 `GetAreaAltitudeRange(rect, withWater)`: max − min over the
     /// vertices.
     pub fn area_altitude_range(&self, rect: CellRect, with_water: bool) -> f32 {
-        let hi = self.lowest_or_highest_area_altitude(rect, false, with_water);
-        let lo = self.lowest_or_highest_area_altitude(rect, true, with_water);
-        (r24(f64::from(hi) - f64::from(lo))) as f32
+        self.terrain().area_altitude_range(&*self.host, rect, with_water)
     }
 
     /// Slot 25 `IsAreaFlat(rect, withWater)`: the altitude range within
     /// `0xE900EA24` *[inferred: `<=`]*.
     pub fn is_area_flat(&self, rect: CellRect, with_water: bool) -> bool {
-        self.area_altitude_range(rect, with_water) <= self.tuning.max_cell_altitude_delta_for_flatness
+        self.terrain().is_area_flat(&*self.host, rect, with_water)
     }
 
     /// Slot 26 `IsLotFlat(lot, withWater)`.
     pub fn is_lot_flat(&self, lot: u64, with_water: bool) -> bool {
-        let rect = self.host.lot_bounding_rect(lot);
-        self.is_area_flat(rect, with_water)
+        self.terrain().is_lot_flat(&*self.host, lot, with_water)
     }
 
     /// Slot 29 `GetAreaSlope(rect, withWater)` (§11.4).
     pub fn get_area_slope(&self, rect: CellRect, with_water: bool) -> f32 {
-        let mut f = |x: i32, z: i32| self.get_terrain_altitude_by_vertex(x, z, with_water);
-        area_slope_of(rect, &mut f)
+        self.terrain().area_slope(&*self.host, rect, with_water)
     }
 
     /// Slot 30 `GetLotSlope(lot, withWater)`.
     pub fn get_lot_slope(&self, lot: u64, with_water: bool) -> f32 {
-        let rect = self.host.lot_bounding_rect(lot);
-        self.get_area_slope(rect, with_water)
+        self.terrain().lot_slope(&*self.host, lot, with_water)
     }
 
     /// Slot 31 `GetOccupantSlope(occupant, withWater)`: slot 29 on slot 22's
     /// rectangle.
     pub fn get_occupant_slope(&self, occ: u64, with_water: bool) -> f32 {
-        let rect = self.occupant_cell_coverage(occ);
-        self.get_area_slope(rect, with_water)
+        self.terrain().occupant_slope(&*self.host, occ, with_water)
     }
 
     /// Slot 22 `GetOccupantCellCoverage(occupant, rect&)`: the bounding box
     /// shrunk by 0.05 on each side, converted with `PositionToCell`.
     pub fn occupant_cell_coverage(&self, occ: u64) -> CellRect {
-        let (min, max) = self.host.occupant_bounding_box(occ);
-        let grow = |v: f32| (r24(f64::from(v) + 0.05)) as f32;
-        let shrink = |v: f32| (r24(f64::from(v) - 0.05)) as f32;
-        let (_ok1, x1, z1) = self.host.position_to_cell(grow(min[0]), grow(min[2]));
-        let (_ok2, x2, z2) = self.host.position_to_cell(shrink(max[0]), shrink(max[2]));
-        CellRect::new(x1, z1, x2, z2)
+        self.terrain().occupant_cell_coverage(&*self.host, occ)
     }
 
     /// Slot 32 `GetLotDevelopmentCost(rect)` (§11.4).
@@ -2322,20 +2303,4 @@ fn clamp_rubble(pos: f32, bmin: f32, bmax: f32, min: f32, max: f32) -> f32 {
 /// Whether `lot` is `unit`'s first member (§4.2 step 5).
 fn is_first_member(host: &Rc<dyn LotDeveloperHost>, unit: u64, lot: u64) -> bool {
     host.unit_members(unit).first().copied() == Some(lot)
-}
-
-/// Calls `f` for every vertex of `rect`, `x = x1 ..= x2 + 1` (outer) and
-/// `z = z1 ..= z2 + 1` (inner), as §11.1 slots 15–18 and 27 walk them.
-fn for_each_vertex(rect: CellRect, mut f: impl FnMut(i32, i32)) {
-    let x_end = i64::from(rect.x2) + 1;
-    let z_end = i64::from(rect.z2) + 1;
-    let mut x = i64::from(rect.x1);
-    while x <= x_end {
-        let mut z = i64::from(rect.z1);
-        while z <= z_end {
-            f(x as i32, z as i32);
-            z += 1;
-        }
-        x += 1;
-    }
 }

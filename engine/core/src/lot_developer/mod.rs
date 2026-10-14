@@ -77,9 +77,12 @@
 //! - **Neighbour building types** in `PickUnitToJoin` and
 //!   `NeedsAnchorBuilding` (§5.7) are read with `GetBuildingType(false)`;
 //!   the lot's own (step 1) with `GetBuildingType(true)` as stated.
-//! - **Business-unit dissolution** (§5.7) *[inferred]*: when member `m`
-//!   joins `u'`, every other lot of the copy is removed from the old unit
-//!   (if still in it) and added to `u'`, in copy order.
+//! - **Business-unit dissolution** (§5.7, answers Q10): when member `m`
+//!   joins `u'`, every lot of the copy, `m` included, is removed from the
+//!   unit it is in (if any) and added to `u'`, in copy order.
+//! - **`UpdateTravelDesignates`** with an anchor (§5.7 table, answers Q9):
+//!   a member designate with road access is kept; others are cleared (a null
+//!   designate is not); then every lot but the anchor gets the anchor.
 //! - **Zot property reads** (§5.6): reading the current zot never creates
 //!   the property (absent reads as 0); `AddBuildingZotProp` creates it, and
 //!   so do the counters of §5.1–§5.4 (created as 0 on their read).
@@ -91,8 +94,8 @@
 //!   `ids[Uniform(n)]` when non-empty, else the tuning's default lot
 //!   foundation type (`0xE900EA26`); the result is placed with slot 55
 //!   (a host geometry call).
-//! - **Light** (§8.4): the props are looked up in the **lot's** bounding
-//!   rectangle *[inferred from "the lot's cell rectangle"]*.
+//! - **Light** (§8.4, answers Q8): the building's cells find the lot; the
+//!   props are looked up in the **lot's** bounding rectangle (lot slot 14).
 //! - **Day / night message** (§8.2): `data2 = 0` is night, any other value
 //!   day.
 //! - **`0xE99B3D4D`** (§6.5) looks the lot up with `GetLot(x, z, true)`,
@@ -123,6 +126,7 @@
 
 mod geometry;
 mod simulator;
+mod terrain;
 #[cfg(test)]
 mod tests;
 mod tuning;
@@ -133,6 +137,7 @@ pub use simulator::{
     DEFAULT_DAILY_WORK_BUDGET, MAX_CLEAR_BUILDINGS, MAX_SAVED_BUILDINGS, NIGHT_THRESHOLD_MS, RECORD_VERSION,
     TICK_PRIORITY,
 };
+pub use terrain::{cell_rect_of_float, TerrainView};
 pub use tuning::{prop, Tuning, DEFAULT_FOUNDATION_TYPE, TUNING_KEY};
 
 use std::rc::Rc;
