@@ -3238,10 +3238,21 @@ PW1–PW8, PS1–PS8 and LG1–LG20 are applied or confirmed, except LG5 (orient
 to the view rotation) and LG16 (seagull effects are not implemented). LG1 and LG2 need an in-game check. The current
 answer is in brackets.
 
-- **AO1:** Foundations §13.4 ranks 2 and 5: what AddAgent names do the two port developers and the commercial
-  simulator use? [they count as unranked and keep registration order ahead of the month tail]
-- **AO2:** LG6 with the game's own simulators: the month order is heap-address order, which the glue cannot change.
-  [the order is logged at AddAgent, with a WARNING if landfill would run before pollution or the budget]
+- ~~**AO1:** Foundations §13.4 ranks 2 and 5: what AddAgent names do the two port developers and the commercial
+  simulator use? [they count as unranked and keep registration order ahead of the month tail]~~
+  **ANSWERED 2026-10-14** from the exe (`cSC4PortDeveloper::Init` `0x006EA950`, string `0x00A89650`;
+  `cSC4CommercialSimulator::Init` `0x0069EF90`, string `0x00A89920`) and written into foundations §13.4 (tail agent
+  names). Both port developers register `"cSC4PortDeveloper"` at level 6 through their shared base `Init`; the
+  commercial simulator registers `"cSC4CommercialSimulator"` at levels 0, 10, 4, 6. **The bracket differs**: with the
+  names known, rank them (both port developers share rank 2; their mutual order is free, *[choice]* registration
+  order) instead of leaving them unranked.
+- ~~**AO2:** LG6 with the game's own simulators: the month order is heap-address order, which the glue cannot change.
+  [the order is logged at AddAgent, with a WARNING if landfill would run before pollution or the budget]~~
+  **ANSWERED 2026-10-14** from foundations §13.1 (the original's set is ordered by target pointer) and written into
+  foundations §13.4. No original behaviour can be imposed on the original simulator; the glue's rank follows its
+  object's address. **The bracket stands** as the minimum. *[choice]*: allocate the glue's month target from the game's
+  own heap at the original object's place in city `Init`, which reproduces the original's usual placement but cannot
+  guarantee it.
 - **LG21:** LG5: is there a documented route to SC4ViewUtilities `+0x10`, for example a docs/abi row for
   `cISC43DRender` slot 8? [orientation 0]
 - **LG22:** Landfill §4.8.5: is the in-memory record that SetTextureSpecification takes laid out in the saved 14-byte
