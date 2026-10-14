@@ -774,6 +774,7 @@ pub mod aura;
 pub mod aura_shadow;
 pub mod budget;
 pub mod civic;
+pub mod clock24;
 pub mod commercial;
 pub mod crime;
 pub mod demand;
@@ -783,6 +784,7 @@ pub mod flammability_shadow;
 pub mod flora;
 pub mod flora_shadow;
 pub mod growth;
+pub mod history;
 pub mod hostgrid;
 pub mod landfill;
 pub mod landfill_shadow;
@@ -804,6 +806,7 @@ pub mod protection;
 pub mod residential;
 pub mod residential_shadow;
 pub mod stream;
+pub mod traffic;
 pub mod weather;
 pub mod zones;
 
@@ -820,6 +823,9 @@ mod budget_tests;
 mod civic_tests;
 
 #[cfg(test)]
+mod clock24_tests;
+
+#[cfg(test)]
 mod commercial_tests;
 
 #[cfg(test)]
@@ -833,6 +839,9 @@ mod development_tests;
 
 #[cfg(test)]
 mod flora_tests;
+
+#[cfg(test)]
+mod history_tests;
 
 #[cfg(test)]
 mod landfill_tests;
@@ -875,6 +884,9 @@ mod residential_tests;
 
 #[cfg(test)]
 mod test_streams;
+
+#[cfg(test)]
+mod traffic_tests;
 
 #[cfg(test)]
 mod weather_tests;

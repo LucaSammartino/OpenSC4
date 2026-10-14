@@ -473,7 +473,9 @@ fn ci13_04_state_machine() {
 
 #[test]
 fn state_one_rebuilds_co2() {
-    let (_, s) = ready(8);
+    let (h, s) = ready(8);
+    // A building map without an office: the rebuild gives the edge pattern.
+    h.set_map(15, &[]);
     s.with_state(|st| {
         st.dirty = false;
         st.state = state::REBUILD_CO2;
@@ -525,12 +527,25 @@ fn worked_example_4_5() {
 
 #[test]
 fn rebuild_without_building_map_or_grid() {
-    // [choice] No building map: the edge seeds 255 and converges to 1.
+    // [compat] No building map (residential §5.3 step 1, RG24): nothing is
+    // seeded, not even the edge, so a fresh grid stays all 0.
     let (h, s) = ready(8);
+    assert!(h.building_map().is_none());
     for _ in 0..3 {
         s.do_idle();
     }
-    assert_eq!(cells(&s.proximity_map(developer::CO2).unwrap()), edge_pattern(8, &[]));
+    let zeros = vec![vec![0u8; 8]; 8];
+    assert_eq!(cells(&s.proximity_map(developer::CO2).unwrap()), zeros);
+    assert_eq!(cells(&s.proximity_map(developer::CO3).unwrap()), zeros);
+    // [question] The passes still run: a loaded grid is only lowered.
+    let co3 = s.proximity_map(developer::CO3).unwrap();
+    co3.set(4, 4, 9);
+    co3.set(2, 0, 200);
+    s.rebuild(WEALTH_CO3);
+    let mut want = zeros.clone();
+    want[4][4] = 1;
+    want[2][0] = 1;
+    assert_eq!(cells(&co3), want);
     // [choice] An absent grid: the rebuild does nothing; the machine advances.
     let (h2, s2) = sim(8);
     h2.nodes.borrow_mut().clear();

@@ -34,7 +34,10 @@
 // The value adders (slots 10-14) and CopyAddProperty (16) write the value of
 // the entry for that ID in place (a new cFC4Property if there is none)
 // [choice]. AddPropertyData stores a Uint8 array; GetPropertyList is not
-// supported (false) [choice].
+// supported (false) [choice]. GetPropertyData answers raw bytes (type 0x8000)
+// only and has no size query (neighbors.md §15.4 NG23), so it does not read
+// back what AddPropertyData stores [spec question: what the original's slot
+// 10 stores].
 //
 // Lifetime: AddRef / Release go to the owner (the object the holder is part
 // of). The entries are released at removal, replacement and Clear (holder
@@ -139,7 +142,10 @@ public:
     // ---- the core's copy (fc4_props) ----
     // A NEW fc4_props with every property in the holder's order, with its
     // exact variant type and shape (fc4_props_set_typed); empty, pointer and
-    // object values are left out (the core does not keep them). The caller
+    // object values are left out (the core does not keep them). NG2
+    // (neighbors.md §15.4, matches): the original drops an object-valued
+    // property on load, so leaving it out of the core and the save is
+    // invisible; this holder still keeps it while the city runs. The caller
     // destroys it.
     fc4_props* ToCore() const;
     // Replaces the holder's contents (the properties the core read from a

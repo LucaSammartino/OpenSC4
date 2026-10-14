@@ -21,7 +21,7 @@
     {"op": "commercial_write", "slot": "c256b", "expect": true},
     {"op": "commercial_expect_record", "slot": "c256b", "same_as": "c256"},
 
-    {"op": "commercial_env", "cells": 128, "map": null},
+    {"op": "commercial_env", "cells": 128, "map": {"key": 15, "cells": []}, "note": "a building map without an office: the edge pattern"},
     {"op": "commercial_create"},
     {"op": "commercial_init", "expect": true},
     {"op": "commercial_idle", "count": 3},

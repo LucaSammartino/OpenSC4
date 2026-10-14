@@ -12,6 +12,7 @@
 pub(crate) mod aura;
 pub(crate) mod budget;
 pub(crate) mod civic;
+pub(crate) mod clock24;
 pub(crate) mod commercial;
 pub(crate) mod crime;
 pub(crate) mod demand;
@@ -22,6 +23,7 @@ pub(crate) mod flora;
 pub mod foundations;
 pub(crate) mod grid;
 pub(crate) mod growth_developer;
+pub(crate) mod history;
 pub mod json;
 pub(crate) mod landfill;
 pub(crate) mod landvalue;

@@ -11,7 +11,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use crate::grid::TractGrid;
-use crate::residential::{distance_to_convergence, seed_proximity, seed_proximity_no_map};
+use crate::residential::{distance_to_convergence, seed_proximity};
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 
 use super::{
@@ -313,9 +313,12 @@ impl CommercialSim {
         let Some(grid) = grid else {
             return;
         };
-        match map {
-            Some(m) => seed_proximity(&*grid, &*m, key),
-            None => seed_proximity_no_map(&*grid),
+        // *[compat]* The shared seed helper (residential.md §5.3 step 1,
+        // RG24) writes nothing when the map is null, not even the edge; the
+        // passes of the transform still run [question: literal reading of
+        // helper 0x005E5130, seed then passes].
+        if let Some(m) = map {
+            seed_proximity(&*grid, &*m, key);
         }
         distance_to_convergence(&*grid, grid.count_x(), grid.count_z());
     }

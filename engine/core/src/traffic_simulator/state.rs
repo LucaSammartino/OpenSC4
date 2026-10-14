@@ -476,6 +476,12 @@ pub struct State {
 
     /// The unnamed record fields.
     pub extras: SaveExtras,
+
+    /// A `Read` committed a record since construction or the last
+    /// `Shutdown` (not saved). `Init` keeps what such a record brought: the
+    /// grids, the departments, the destination map and the scanning
+    /// iterator *[choice]*.
+    pub loaded: bool,
 }
 
 impl State {
@@ -562,6 +568,7 @@ impl State {
             pf: None,
             pf2: None,
             extras: SaveExtras::default(),
+            loaded: false,
         }
     }
 

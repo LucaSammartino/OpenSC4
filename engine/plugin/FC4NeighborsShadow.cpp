@@ -21,6 +21,7 @@
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "cFC4Neighbors.h"
+#include "compat/FC4Compat.h"
 
 #include "SC4List.h"
 #include "cIGZMessage2.h"
@@ -52,8 +53,8 @@ constexpr const char* kAgentName = "cSC4NeighborsSimulator";  // neighbors.md §
 constexpr size_t kLogChunk = 2800;
 // The differences listed in a month line.
 constexpr size_t kMaxListed = 24;
-// [choice] The statistics are doubles computed in a different order: equal
-// within a relative 1e-6 (NaN equals NaN).
+// [choice] (NG28, glue) The statistics are doubles computed in a different
+// order: equal within a relative 1e-6 (NaN equals NaN).
 constexpr double kRelTolerance = 1e-6;
 
 const char* const kStatNames[5] = {"exported", "imported", "produced", "demanded", "costPerUnit"};
@@ -171,6 +172,80 @@ void AddConns(SC4List<cISC4NeighborConnection*>& list, uint64_t city, std::vecto
     }
 }
 
+// ---- the original's state bytes (neighbors.md §15.4 NG7) ----------------------------------------
+//
+// Offsets from the cISC4NeighborsSimulator pointer (build 1.1.641): ready
+// +0x0C, initialized +0x0D, dealsDirty +0x3C, statsDirty +0x3D, uiDisabled
+// +0x3E, busy +0x3F. Read-only, under a structured-exception guard, and only
+// while the object's first word is the original's vtable from the compat
+// table (compat::NeighborsSimulatorVtable).
+constexpr size_t kOffReady = 0x0C;
+constexpr size_t kOffInitialized = 0x0D;
+constexpr size_t kOffDealsDirty = 0x3C;
+constexpr size_t kOffStatsDirty = 0x3D;
+constexpr size_t kOffUiDisabled = 0x3E;
+constexpr size_t kOffBusy = 0x3F;
+
+struct StateBytes {
+    const void* obj = nullptr;
+    const void* vtable = nullptr;
+    bool vtableOk = false;
+    uint8_t ready = 0, initialized = 0, dealsDirty = 0, statsDirty = 0, uiDisabled = 0, busy = 0;
+
+    bool operator==(const StateBytes& o) const {
+        return vtableOk == o.vtableOk && ready == o.ready && initialized == o.initialized &&
+               dealsDirty == o.dealsDirty && statsDirty == o.statsDirty && uiDisabled == o.uiDisabled &&
+               busy == o.busy;
+    }
+};
+
+uint8_t ByteAt(const void* obj, size_t off) { return *(static_cast<const uint8_t*>(obj) + off); }
+
+void ReadStateBytes(void* ctx) {
+    StateBytes* s = static_cast<StateBytes*>(ctx);
+    s->vtableOk = s->vtable != nullptr && *static_cast<const void* const*>(s->obj) == s->vtable;
+    if (!s->vtableOk) return;
+    s->ready = ByteAt(s->obj, kOffReady);
+    s->initialized = ByteAt(s->obj, kOffInitialized);
+    s->dealsDirty = ByteAt(s->obj, kOffDealsDirty);
+    s->statsDirty = ByteAt(s->obj, kOffStatsDirty);
+    s->uiDisabled = ByteAt(s->obj, kOffUiDisabled);
+    s->busy = ByteAt(s->obj, kOffBusy);
+}
+
+StateBytes g_lastBytes;
+bool g_loggedBytes = false;
+bool g_loggedNoBytes = false;
+
+// The bytes when readable (logged at the first month and whenever they
+// change); otherwise false (logged once), and the caller keeps the earlier
+// fixed values (ready seen, everything else clear).
+bool OriginalStateBytes(cISC4NeighborsSimulator* sim, StateBytes* out) {
+    *out = StateBytes{};
+    out->obj = sim;
+    out->vtable = compat::NeighborsSimulatorVtable();
+    const bool ok = out->vtable != nullptr && sim != nullptr &&
+                    SehGuard("neighbours shadow (reading the original's state bytes)", &ReadStateBytes, out) &&
+                    out->vtableOk;
+    if (!ok) {
+        if (!g_loggedNoBytes) {
+            g_loggedNoBytes = true;
+            Log("neighbours shadow: the original's state bytes are NOT readable (%s); ready is taken as seen, "
+                "uiDisabled, dealsDirty, statsDirty and busy as clear",
+                out->vtable == nullptr ? "no vtable in the compat table" : "the object's vtable differs");
+        }
+        return false;
+    }
+    if (!g_loggedBytes || !(*out == g_lastBytes)) {
+        g_loggedBytes = true;
+        Log("neighbours shadow: the original's state bytes (NG7): ready=%u initialized=%u dealsDirty=%u "
+            "statsDirty=%u uiDisabled=%u busy=%u",
+            out->ready, out->initialized, out->dealsDirty, out->statsDirty, out->uiDisabled, out->busy);
+    }
+    g_lastBytes = *out;
+    return true;
+}
+
 void BeforeStep(void*) {
     Delivery& d = g_d;
     cFC4ISC4NeighborsSimulator* orig = AsGame(d.sim);
@@ -219,11 +294,21 @@ void BeforeStep(void*) {
     in.current_city = TokenOf(d.current);
     in.city_object = TokenOf(d.city);
     ReadNeighborLandfill(d.city, &in.landfill_usage, &in.landfill_capacity);
-    // [choice, spec question] Not readable: the original's ConnectionsReady
-    // and UI-disable flags; taken as seen / clear (the state of a loaded
-    // city in play).
-    in.ready = 1;
-    in.ui_disabled = 0;
+    // NG7 (neighbors.md §15.4): the original's own bytes rather than assumed
+    // ones. [choice, spec question] When they cannot be read (an unidentified
+    // executable, another object) the earlier values stand: ready seen,
+    // everything else clear (the state of a loaded city in play).
+    StateBytes bytes;
+    if (OriginalStateBytes(d.sim, &bytes)) {
+        in.ready = bytes.ready != 0 ? 1 : 0;
+        in.ui_disabled = bytes.uiDisabled != 0 ? 1 : 0;
+        in.deals_dirty = bytes.dealsDirty != 0 ? 1 : 0;
+        in.stats_dirty = bytes.statsDirty != 0 ? 1 : 0;
+        in.busy = bytes.busy != 0 ? 1 : 0;
+    } else {
+        in.ready = 1;
+        in.ui_disabled = 0;
+    }
     in.two_curves = SettingInt("neighbors_two_curves", "FC4_NEIGHBORS_TWO_CURVES", 0) != 0 ? 1 : 0;
     ReadNeighborFigures(d.city, &in.figures);
     props::Exemplar keep;
@@ -326,6 +411,10 @@ void CompareCity(Diffs& df, const fc4_neighbors_shadow_city& o, const fc4_neighb
 
 void PushToken(void* ctx, uint64_t t) { static_cast<std::vector<uint64_t>*>(ctx)->push_back(t); }
 
+// NG32 (glue, §15.4): which connection states are compared, and when, is
+// this shadow's choice. Power and plumbing set the visited / active bits on
+// their own schedule (and traffic clears the volume flag, not compared), so a
+// listed change may come from them rather than from the simulator.
 bool SameState(const fc4_neighbor_connection_state& a, const fc4_neighbor_connection_state& b) {
     return a.conn_type == b.conn_type && a.x == b.x && a.z == b.z && a.other_x == b.other_x &&
            a.other_z == b.other_z && a.visited == b.visited && a.active == b.active;
@@ -408,14 +497,13 @@ void AfterStep(void*) {
         if (i < sd.size()) CompareDeal(df, i, od[i], sd[i]);
     }
 
-    // Totals (slots 32 / 33: the low 32 bits).
-    const int32_t oi = orig->GetTotalMonthlyNeighborDealIncome();
-    const int32_t oe = orig->GetTotalMonthlyNeighborDealExpense();
-    const int32_t si = static_cast<int32_t>(static_cast<uint32_t>(static_cast<uint64_t>(fc4_neighbors_total_income(d.shadow))));
-    const int32_t se =
-        static_cast<int32_t>(static_cast<uint32_t>(static_cast<uint64_t>(fc4_neighbors_total_expense(d.shadow))));
-    if (oi != si) df.Add("income %d/%d", oi, si);
-    if (oe != se) df.Add("expense %d/%d", oe, se);
+    // Totals (slots 32 / 33: the full int64 in EDX:EAX, NG11).
+    const int64_t oi = orig->GetTotalMonthlyNeighborDealIncome();
+    const int64_t oe = orig->GetTotalMonthlyNeighborDealExpense();
+    const int64_t si = fc4_neighbors_total_income(d.shadow);
+    const int64_t se = fc4_neighbors_total_expense(d.shadow);
+    if (oi != si) df.Add("income %lld/%lld", static_cast<long long>(oi), static_cast<long long>(si));
+    if (oe != se) df.Add("expense %lld/%lld", static_cast<long long>(oe), static_cast<long long>(se));
 
     // The statistics of every city of the snapshot.
     fc4_neighbors_shadow_city rAfter{};
@@ -443,11 +531,12 @@ void AfterStep(void*) {
     char head[1024];
     snprintf(head, sizeof(head),
              "neighbours shadow month to %s: connections=%u (%s) deals=%u (active %u proposed %u failing %u) "
-             "income=%d/%d expense=%d/%d cities=%u R budget=%.0f income=%.0f power exp/imp=%.0f/%.0f water "
+             "income=%lld/%lld expense=%lld/%lld cities=%u R budget=%.0f income=%.0f power exp/imp=%.0f/%.0f water "
              "exp/imp=%.0f/%.0f garbage exp/imp=%.0f/%.0f; ours: posts=%u sends=%u retries=%u connectionMessages=%u "
              "setLocalDeals=%u updateImportExport=%u history=%u; mismatches=%u",
              DateText(d.julian).c_str(), static_cast<unsigned>(afterConns.size()), types.empty() ? "-" : types.c_str(),
-             static_cast<unsigned>(od.size()), active, proposed, failing, oi, si, oe, se,
+             static_cast<unsigned>(od.size()), active, proposed, failing, static_cast<long long>(oi),
+             static_cast<long long>(si), static_cast<long long>(oe), static_cast<long long>(se),
              static_cast<unsigned>(d.cityObjects.size()), rAfter.budget, rAfter.income, rAfter.stats[0][0],
              rAfter.stats[1][0], rAfter.stats[0][1], rAfter.stats[1][1], rAfter.stats[0][2], rAfter.stats[1][2],
              k.posts, k.sends, k.retries, k.connection_messages, k.set_local_deals, k.update_import_export, k.history,
@@ -481,9 +570,10 @@ void NeighborsShadowStartup(bool simulatorReplaced, bool neighborsReplaced) {
             "other amounts, the dates), its income and expense totals (slots 32/33) and every city's budget, income "
             "and commodity statistics (relative 1e-6); one line per month",
             src);
-        Log("neighbours shadow: not readable read-only, hence assumed or not compared: the original's "
-            "ConnectionsReady and UI-disable flags (taken as seen / clear), its dirty and busy flags (taken as "
-            "clear), its price-curve state (rebuilt from the tuning by our Init), the regions' O lists (taken as "
+        Log("neighbours shadow: the original's ready, uiDisabled, dirty and busy bytes are read at their offsets "
+            "when the compat table names its vtable (NG7; otherwise taken as seen / clear); not readable read-only, "
+            "hence assumed or not compared: its price-curve state (rebuilt from the tuning by our Init), the "
+            "regions' O lists (taken as "
             "what the stored import/export values hold beyond the original's last push), the status reports and "
             "connection messages it posted (counted on our side only), the history records it sent, the deal "
             "property holders, the marker props");
