@@ -621,7 +621,10 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   no original behaviour for the limit, because the original has none (§4.4); the implementer's choice stands.
   The retry half is consistent with the original, which caches only successful loads, so a failed key is loaded
   again on the next request (data-formats.md §4.4).
-- **EX20 — §5.2:** a raw accessor on a type mismatch. [choice: a missing value]
+- ~~**EX20 — §5.2:** a raw accessor on a type mismatch. [choice: a missing value]~~ **ANSWERED 2026-10-14** from
+  the exe (`0x0060CE80`, `0x005FD610`–`0x005FD640`): the original does not check. It returns the stored bytes reinterpreted,
+  such as `0x40300000` for a Float32 2.75 read as Uint32, or a heap address for an array. That is garbage
+  for the caller, so the *[choice]* of a missing value stands (data-formats.md §5.2).
 
 ## From the protection glue and grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
 

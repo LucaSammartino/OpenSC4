@@ -594,8 +594,12 @@ bytes and leaves `length` at 2; a Uint8 array `01 02 03` gives false. No shipped
 shipped data slot 5 always returns false.
 
 Call sites using the `AsX()` and `RefX()` accessors expect a fixed stored type; with shipped data that type is
-always present. *[choice]* FreeCity4 converts element-wise where a spec says so, and otherwise treats a type
-mismatch as a missing property.
+always present. On a mismatch the original reads whatever bytes the variant holds: `AsX()` loads 1, 2, 4 or 8
+bytes from the value field at offset 4 (`0x0040CE50`, `0x0060CE80`, `0x005FD610`–`0x005FD640`). Worked
+examples: a Float32 2.75 read with `AsUint32()` gives `0x40300000`; a 32-bit scalar read with `AsSint64()` or
+`AsFloat64()` takes its upper half from the variant's next field, which is not part of the value; an array read
+with `AsUint32()` gives its heap address. *[choice]* Because the result is another type's bits or an address,
+FreeCity4 converts element-wise where a spec says so, and otherwise treats a type mismatch as a missing property.
 
 ### 5.3 Exemplar lookup helper
 
