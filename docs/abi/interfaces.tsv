@@ -653,7 +653,7 @@ cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	5	+0x14	006a2390	cSC4DemandSim
 cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	6	+0x18	006a2960	cSC4DemandSimulator::GetDemand	8	2	eax-or-void	medium	
 cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	7	+0x1C	006a6c90	cSC4DemandSimulator::UpdateOccupantEffects	12	3	eax-or-void	medium	
 cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	8	+0x20	006a23a0	cSC4DemandSimulator::CalculateJobsPerUnitOfDemand	12	3	eax-or-void	medium	
-cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	9	+0x24	006a3e60	cSC4DemandSimulator::GetJobsBySensus	4	1	edx:eax?	low	
+cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	9	+0x24	006a3e60	cSC4DemandSimulator::GetJobsBySensus	4	1	eax	high	re-answers6 DQ12: low 32 bits of _ftol's int64; EDX not meaningful (garbage on the early-0 path); the history caller reads EAX
 cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	10	+0x28	006a3dd0	cSC4DemandSimulator::GetNeutralTaxRate	0	0	x87	high	
 cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	11	+0x2C	006a5f80	cSC4DemandSimulator::GetLocalPopulationSummary	4	1	eax-or-void	medium	
 cISC4Demand	cSC4Demand	00aa2758	0	+0x0	005d4af0		8	2	eax-or-void	medium	

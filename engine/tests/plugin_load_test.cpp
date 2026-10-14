@@ -19,6 +19,8 @@
 // Usage: fc4_plugin_load_test <path to FreeCity4.dll>
 
 #include "cIGZCOMDirector.h"
+#include "cIGZCOM.h"
+#include "cISC4SimGrid.h"
 #include "cISC4AuraSimulator.h"
 #include "SC4Point.h"
 #include "cIGZDate.h"
@@ -80,6 +82,7 @@
 #include <cstring>
 #include <fstream>
 #include <map>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -489,6 +492,7 @@ struct FakeWorld {
     int demandCalls = 0;
     int demandBadIndex = 0;
     int saveCalls = 0;
+    bool noRes = false;  // GetResidentialSimulator returns null (observe month: residential EQ/HQ/LE=-)
     FakeVtable cityVt, resVt, demandSimVt, demandVt, appVt;
     FakeObject city{}, res{}, demandSim{}, app{};
     FakeDemand demands[7] = {
@@ -507,9 +511,16 @@ FakeWorld* g_world = nullptr;
 void* __fastcall CityGetSimulator(void*, void*) { return g_world->sim; }                   // cISC4City 50
 void* __fastcall CityGetBudgetSimulator(void*, void*) { return g_world->budget; }          // cISC4City 52
 void* __fastcall CityGetDemandSimulator(void*, void*) { return &g_world->demandSim; }      // cISC4City 56
-void* __fastcall CityGetResidentialSimulator(void*, void*) { return &g_world->res; }       // cISC4City 68
+void* __fastcall CityGetResidentialSimulator(void*, void*) {                                // cISC4City 68
+    return g_world->noRes ? nullptr : &g_world->res;
+}
 void* __fastcall CityGetPowerSimulator(void*, void*) { return nullptr; }                  // cISC4City 67 (none)
 int32_t __fastcall ResGetPopulation(void*, void*) { return 1234; }                          // residential 16
+float __fastcall ResGetGlobalEQ(void*, void*) { return 12.5f; }                              // residential 32 (ST0)
+float __fastcall ResGetGlobalHQ(void*, void*) { return 34.25f; }                             // residential 33 (ST0)
+// Residential 34 returns in AL only (residential §10.1): the upper bits of EAX
+// are not part of the value, so the observer must print 0x4B = 75.
+uint32_t __fastcall ResGetGlobalLE(void*, void*) { return 0xABCDEF4Bu; }
 void* __fastcall DemandSimGetDemand(void*, void*, uint32_t id, uint32_t index) {           // demand sim 6
     ++g_world->demandCalls;
     if (index != 0) ++g_world->demandBadIndex;
@@ -535,6 +546,9 @@ void InitFakeWorld(FakeWorld& w) {
     w.cityVt.slots[68] = reinterpret_cast<void*>(&CityGetResidentialSimulator);
     w.cityVt.slots[67] = reinterpret_cast<void*>(&CityGetPowerSimulator);  // observe month: power=-
     w.resVt.slots[16] = reinterpret_cast<void*>(&ResGetPopulation);
+    w.resVt.slots[32] = reinterpret_cast<void*>(&ResGetGlobalEQ);
+    w.resVt.slots[33] = reinterpret_cast<void*>(&ResGetGlobalHQ);
+    w.resVt.slots[34] = reinterpret_cast<void*>(&ResGetGlobalLE);
     w.demandSimVt.slots[6] = reinterpret_cast<void*>(&DemandSimGetDemand);
     w.demandVt.slots[8] = reinterpret_cast<void*>(&DemandQuerySupply);
     w.demandVt.slots[9] = reinterpret_cast<void*>(&DemandQueryDemand);
@@ -4308,6 +4322,516 @@ int LvFlShadowInactiveTest(const std::string& dll, const std::string& ini, const
     return g_failures == 0 ? 0 : 1;
 }
 
+// ---- references read from a save (in-game run 88) -------------------------------------------------
+// After a save, the land value grids that came from Read were released with
+// FC4_RELEASE and the audit warned three times (run 88). Our reading, not a
+// finding: the game's load holds its own reference until the next save drops
+// it. The fakes below model that: an object a save loaded starts with the
+// game's reference, which the "save" drops before Shutdown.
+//
+// `refs` counts every reference; `gameRefs` the game's own (1 for a loaded
+// object, 0 for one GetClassObject made for us). `taken` counts the references
+// the plugin received (handed over, AddRef, QueryInterface), `released` its
+// Releases; `freed` is set by the Release that reaches 0.
+struct SavedRefCounts {
+    uint32_t refs = 0, gameRefs = 0, taken = 0, released = 0, overReleases = 0;
+    bool freed = false;
+    uint32_t Take() {
+        ++taken;
+        return ++refs;
+    }
+    uint32_t Give() {
+        if (refs == 0) {
+            ++overReleases;
+            return 0;
+        }
+        ++released;
+        if (--refs == 0) freed = true;
+        return refs;
+    }
+    void GameDrops() {  // the save lets go of the load's reference
+        --gameRefs;
+        --refs;
+    }
+};
+
+constexpr uint32_t kSavedIID_SimGrid = 0xC9BD939A;
+constexpr uint32_t kSavedClsU8 = 0x49B9E602;
+constexpr uint32_t kSavedClsF32 = 0x49B9E60A;
+constexpr uint32_t kSavedOrdinanceClass = 0x5AFE0001;  // a DLL plugin's class (not ours)
+constexpr uint32_t kSavedOrdinanceID = 0x5AFE0002;
+
+// A game grid (cSC4SimGrid<T>): 16 x 8 cells; the tract counts follow the
+// tract size. It is not one of FreeCity4's core objects (the stream reader's
+// kFC4_IID_CoreObject query fails), so the audit follows it.
+template <class T>
+class SavedGrid final : public cISC4SimGrid<T>, public cIGZSerializable {
+public:
+    static constexpr int32_t kCellsX = 16, kCellsZ = 8;
+    SavedGrid(uint32_t clsid, int32_t tractSize, uint32_t gameRefs) : clsid_(clsid), tractSize_(tractSize) {
+        c.refs = c.gameRefs = gameRefs;
+    }
+    SavedRefCounts c;
+    int inits = 0, shutdowns = 0, resizes = 0;
+    cIGZSerializable* Ser() { return this; }
+    cISC4SimGrid<T>* Grid() { return this; }
+
+    bool QueryInterface(uint32_t riid, void** p) override {
+        if (p == nullptr) return false;
+        if (riid == kSavedIID_SimGrid || riid == GZIID_cIGZUnknown) {
+            *p = static_cast<cISC4SimGrid<T>*>(this);
+        } else if (riid == GZIID_cIGZSerializable) {
+            *p = static_cast<cIGZSerializable*>(this);
+        } else {
+            return false;
+        }
+        c.Take();
+        return true;
+    }
+    uint32_t AddRef() override { return c.Take(); }
+    uint32_t Release() override { return c.Give(); }
+
+    bool Init() override {
+        ++inits;
+        return true;
+    }
+    bool Shutdown() override {
+        ++shutdowns;
+        return true;
+    }
+    uint32_t GetInstanceID() const override { return instance_; }
+    bool SetInstanceID(uint32_t id) override {
+        instance_ = id;
+        return true;
+    }
+    T GetCellValue(int32_t, int32_t) const override { return T{}; }
+    T GetAverageValueInCellRect(int32_t, int32_t, int32_t, int32_t) const override { return T{}; }
+    bool SetTractSize(int32_t s) override {
+        ++resizes;
+        tractSize_ = s;
+        return true;
+    }
+    int32_t GetTractSize() const override { return tractSize_; }
+    int32_t GetTractShift() const override {
+        int32_t s = 0;
+        while (s < 30 && (1 << s) < tractSize_) ++s;
+        return s;
+    }
+    int32_t GetTractCountX() const override { return tractSize_ > 0 ? kCellsX / tractSize_ : 0; }
+    int32_t GetTractCountZ() const override { return tractSize_ > 0 ? kCellsZ / tractSize_ : 0; }
+    float GetTractWidthX() const override { return 16.0f * static_cast<float>(tractSize_); }
+    float GetTractWidthZ() const override { return 16.0f * static_cast<float>(tractSize_); }
+    float GetOneOverTractWidthX() const override { return 1.0f / GetTractWidthX(); }
+    float GetOneOverTractWidthZ() const override { return 1.0f / GetTractWidthZ(); }
+    bool TractIsInBounds(uint32_t x, uint32_t z) const override {
+        return x < static_cast<uint32_t>(GetTractCountX()) && z < static_cast<uint32_t>(GetTractCountZ());
+    }
+    bool PositionToTract(float, float, int32_t&, int32_t&) const override { return false; }
+    bool TractCornerToPosition(int32_t, int32_t, float&, float&) const override { return false; }
+    bool TractCenterToPosition(int32_t, int32_t, float&, float&) const override { return false; }
+    T GetTractValue(int32_t, int32_t) const override { return T{}; }
+    T GetAverageValueInTractRect(int32_t, int32_t, int32_t, int32_t) const override { return T{}; }
+    intptr_t GetGridData() override { return reinterpret_cast<intptr_t>(data_.data()); }
+    intptr_t GetGridData() const override { return reinterpret_cast<intptr_t>(data_.data()); }
+    void SetTractValue(int32_t, int32_t, T) override {}
+    void SetTractValues(T) override {}
+
+    bool Write(cIGZOStream&) override { return true; }
+    bool Read(cIGZIStream&) override { return true; }
+    uint32_t GetGZCLSID() override { return clsid_; }
+
+private:
+    uint32_t clsid_;
+    int32_t tractSize_;
+    uint32_t instance_ = 0;
+    std::array<T, kCellsX * kCellsZ> data_{};
+};
+
+// Every reference the plugin took is given back, exactly once; `freed`: the
+// plugin's was the last one.
+template <class T>
+void CheckSavedGrid(const SavedGrid<T>& g, bool freed) {
+    CHECK(g.shutdowns == 1);
+    CHECK(g.c.refs == g.c.gameRefs);
+    CHECK(g.c.taken == g.c.released);
+    CHECK(g.c.overReleases == 0);
+    CHECK(g.c.freed == freed);
+}
+
+// A DLL plugin's ordinance that a save holds by reference.
+class SavedOrdinance final : public cFC4ISC4Ordinance, public cIGZSerializable {
+public:
+    explicit SavedOrdinance(uint32_t gameRefs) { c.refs = c.gameRefs = gameRefs; }
+    SavedRefCounts c;
+    cRZBaseString name{"Saved Ordinance"};
+    cIGZSerializable* Ser() { return this; }
+    cFC4ISC4Ordinance* Ord() { return this; }
+    bool QueryInterface(uint32_t riid, void** p) override {
+        if (p == nullptr) return false;
+        if (riid == GZIID_cISC4Ordinance || riid == GZIID_cIGZUnknown) {
+            *p = static_cast<cFC4ISC4Ordinance*>(this);
+        } else if (riid == GZIID_cIGZSerializable) {
+            *p = static_cast<cIGZSerializable*>(this);
+        } else {
+            return false;
+        }
+        c.Take();
+        return true;
+    }
+    uint32_t AddRef() override { return c.Take(); }
+    uint32_t Release() override { return c.Give(); }
+    bool Init() override { return true; }
+    bool Shutdown() override { return true; }
+    int64_t GetCurrentMonthlyIncome() override { return 0; }
+    uint32_t GetID() const override { return kSavedOrdinanceID; }
+    cIGZString* GetName() override { return &name; }
+    cIGZString* GetDescription() override { return &name; }
+    uint32_t GetYearFirstAvailable() override { return 0; }
+    uint32_t GetChanceAvailability() override { return 0; }
+    int64_t GetEnactmentIncome() override { return 0; }
+    int64_t GetRetracmentIncome() override { return 0; }
+    int64_t GetMonthlyConstantIncome() override { return 0; }
+    float GetMonthlyIncomeFactor() override { return 0.0f; }
+    uint32_t GetAdvisorID() override { return 0; }
+    cISCPropertyHolder* GetMiscProperties() override { return nullptr; }
+    bool IsAvailable() override { return true; }
+    bool IsOn() override { return false; }
+    bool IsEnabled() override { return true; }
+    int64_t GetMonthlyAdjustedIncome() override { return 0; }
+    bool CheckConditions() override { return true; }
+    bool IsIncomeOrdinance() override { return false; }
+    bool Simulate() override { return true; }
+    bool SetAvailable(bool) override { return true; }
+    bool SetOn(bool) override { return true; }
+    bool SetEnabled(bool) override { return true; }
+    bool ForceAvailable(bool) override { return true; }
+    bool ForceOn(bool) override { return true; }
+    bool ForceMonthlyAdjustedIncome(int64_t) override { return true; }
+    bool Write(cIGZOStream&) override { return true; }
+    bool Read(cIGZIStream&) override { return true; }
+    uint32_t GetGZCLSID() override { return kSavedOrdinanceClass; }
+};
+
+// A little-endian record; a reference is a uint32 id (0: null, n: objs[n - 1]).
+struct SavedRecord {
+    std::vector<uint8_t> b;
+    template <class V>
+    SavedRecord& Put(V v) {
+        const uint8_t* p = reinterpret_cast<const uint8_t*>(&v);
+        b.insert(b.end(), p, p + sizeof(v));
+        return *this;
+    }
+};
+
+// The segment reader: a reference comes back with one reference for the
+// reader (AddRef), on top of the load's own.
+class SavedSegIStream final : public cFC4ISC4DBSegmentIStream {
+public:
+    explicit SavedSegIStream(std::vector<uint8_t> b) : bytes(std::move(b)) {}
+    std::vector<uint8_t> bytes;
+    std::vector<cIGZSerializable*> objs;
+    size_t at = 0;
+    int32_t error = 0;
+    bool QueryInterface(uint32_t riid, void** p) override {
+        if (p == nullptr || (riid != kFC4_IID_cISC4DBSegmentIStream && riid != GZIID_cIGZUnknown)) return false;
+        *p = static_cast<cFC4ISC4DBSegmentIStream*>(this);
+        return true;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Skip(uint32_t n) override { return Get(nullptr, n); }
+    bool GetSint8(int8_t& v) override { return Get(&v, 1); }
+    bool GetUint8(uint8_t& v) override { return Get(&v, 1); }
+    bool GetSint16(int16_t& v) override { return Get(&v, 2); }
+    bool GetUint16(uint16_t& v) override { return Get(&v, 2); }
+    bool GetSint32(int32_t& v) override { return Get(&v, 4); }
+    bool GetUint32(uint32_t& v) override { return Get(&v, 4); }
+    bool GetSint64(int64_t& v) override { return Get(&v, 8); }
+    bool GetUint64(uint64_t& v) override { return Get(&v, 8); }
+    bool GetFloat32(float& v) override { return Get(&v, 4); }
+    bool GetFloat64(double& v) override { return Get(&v, 8); }
+    bool GetRZCharStr(char*, uint32_t) override { return Fail(); }
+    bool GetGZStr(cIGZString&) override { return Fail(); }
+    bool GetGZSerializable(cIGZSerializable&) override { return Fail(); }
+    bool GetVoid(void* p, uint32_t n) override { return Get(p, n); }
+    int32_t GetError() override { return error; }
+    int32_t SetUserData(cIGZVariant*) override { return 0; }
+    int32_t GetUserData() override { return 0; }
+    bool Open(cISC4DBSegment*, cGZPersistResourceKey const&, bool) override { return false; }
+    bool Close() override { return true; }
+    bool IsOpen() override { return true; }
+    int32_t GetRecord() override { return 0; }
+    int32_t GetSegment() override { return 0; }
+    bool ReadGZSerializable(cIGZSerializable** out, bool) override {
+        uint32_t id = 0;
+        if (out == nullptr || !GetUint32(id) || id > objs.size()) return Fail();
+        *out = id == 0 ? nullptr : objs[id - 1];
+        if (*out != nullptr) (*out)->AddRef();  // the reader's reference
+        return true;
+    }
+    bool ReadResKey(cGZPersistResourceKey&) override { return Fail(); }
+    bool ReadVariant(cIGZVariant&) override { return Fail(); }
+
+private:
+    bool Fail() {
+        error = 1;
+        return false;
+    }
+    bool Get(void* p, size_t n) {
+        if (error != 0 || bytes.size() - at < n) return Fail();
+        if (p != nullptr && n != 0) std::memcpy(p, bytes.data() + at, n);
+        at += n;
+        return true;
+    }
+};
+
+// The segment writer: records each reference's id (objs[n - 1] -> n; unknown
+// -> 0xFFFFFFFF); no reference is taken.
+class SavedSegOStream final : public cFC4ISC4DBSegmentOStream {
+public:
+    std::vector<cIGZSerializable*> objs;
+    std::vector<uint32_t> ids;
+    bool QueryInterface(uint32_t riid, void** p) override {
+        if (p == nullptr || (riid != kFC4_IID_cISC4DBSegmentOStream && riid != GZIID_cIGZUnknown)) return false;
+        *p = static_cast<cFC4ISC4DBSegmentOStream*>(this);
+        return true;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    void Flush() override {}
+    bool SetSint8(int8_t) override { return true; }
+    bool SetUint8(uint8_t) override { return true; }
+    bool SetSint16(int16_t) override { return true; }
+    bool SetUint16(uint16_t) override { return true; }
+    bool SetSint32(int32_t) override { return true; }
+    bool SetUint32(uint32_t) override { return true; }
+    bool SetSint64(int64_t) override { return true; }
+    bool SetUint64(uint64_t) override { return true; }
+    bool SetFloat32(float) override { return true; }
+    bool SetFloat64(double) override { return true; }
+    bool SetRZCharStr(char const*) override { return false; }
+    bool SetGZStr(cIGZString const&) override { return false; }
+    bool SetGZSerializable(cIGZSerializable const&) override { return false; }
+    bool SetVoid(void const*, uint32_t) override { return true; }
+    int32_t GetError() override { return 0; }
+    int32_t SetUserData(cIGZVariant*) override { return 0; }
+    int32_t GetUserData() override { return 0; }
+    bool Open(cISC4DBSegment*, cGZPersistResourceKey const&, bool) override { return false; }
+    bool Close() override { return true; }
+    bool IsOpen() override { return true; }
+    int32_t GetRecord() override { return 0; }
+    int32_t GetSegment() override { return 0; }
+    bool WriteGZSerializable(cIGZSerializable const* p) override {
+        uint32_t id = p == nullptr ? 0 : 0xFFFFFFFFu;
+        for (size_t i = 0; p != nullptr && i < objs.size(); ++i) {
+            if (objs[i] == p) id = static_cast<uint32_t>(i + 1);
+        }
+        ids.push_back(id);
+        return true;
+    }
+    bool WriteResKey(cGZPersistResourceKey const&) override { return false; }
+    bool WriteVariant(cIGZVariant const&) override { return false; }
+};
+
+// GZCOM for a new city: GetClassObject makes the game grids (one reference,
+// the caller's). FrameWork() is null, as in the other modes.
+class SavedRefsCOM final : public cIGZCOM {
+public:
+    std::vector<std::unique_ptr<SavedGrid<uint8_t>>> u8;
+    std::vector<std::unique_ptr<SavedGrid<float>>> f32;
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool GetClassObject(uint32_t clsid, uint32_t iid, void** p) override {
+        if (p == nullptr || iid != kSavedIID_SimGrid) return false;
+        if (clsid == kSavedClsU8) {
+            u8.push_back(std::make_unique<SavedGrid<uint8_t>>(clsid, 1, 0));
+            u8.back()->c.Take();
+            *p = u8.back()->Grid();
+            return true;
+        }
+        if (clsid == kSavedClsF32) {
+            f32.push_back(std::make_unique<SavedGrid<float>>(clsid, 1, 0));
+            f32.back()->c.Take();
+            *p = f32.back()->Grid();
+            return true;
+        }
+        return false;
+    }
+    cIGZFrameWork* FrameWork() override { return nullptr; }
+    bool AddLibrary(const cIGZString&) override { return false; }
+    void FreeUnusedLibraries() override {}
+    bool CreateGuid(uint32_t*) override { return false; }
+    bool CreateGuids(uint32_t[], uint32_t) override { return false; }
+    bool RealInit() override { return true; }
+    void RealShutdown() override {}
+    cIGZSystemService* SetServiceRunning(bool) override { return nullptr; }
+    uint32_t EnumerateLibraries(cIGZCOMLibrary*[], uint32_t& n) override {
+        n = 0;
+        return 0;
+    }
+    void EnumerateLibraries(GZCOMLibraryIterationFunction, void*) override {}
+};
+
+size_t CountLinesWith(const std::string& text, const std::string& a, const std::string& b) {
+    size_t n = 0;
+    std::istringstream in(text);
+    for (std::string line; std::getline(in, line);) {
+        if (line.find(a) != std::string::npos && line.find(b) != std::string::npos) ++n;
+    }
+    return n;
+}
+
+// Land value: Read hands over three grids the load also holds; Init; with
+// `save`, Write and the game drops its references; then the final Release
+// (Shutdown: the grids are shut down and released).
+void SavedLandValueCase(cIGZCOMDirector* director, bool save) {
+    SavedGrid<uint8_t> intrinsic(kSavedClsU8, 2, 1), total(kSavedClsU8, 2, 1);
+    SavedGrid<float> slope(kSavedClsF32, 8, 1);
+    SavedRecord rec;  // landvalue.md §10: version, three grids, dirty, average, mean altitude
+    rec.Put<uint16_t>(1).Put<uint32_t>(1).Put<uint32_t>(2).Put<uint32_t>(3).Put<uint8_t>(0).Put<uint8_t>(0).Put(0.0f);
+    SavedSegIStream in(rec.b);
+    in.objs = {intrinsic.Ser(), total.Ser(), slope.Ser()};
+    void* p = nullptr;
+    CHECK(director->GetClassObject(kCLSID_LandValue, kIID_cISC4LandValueSimulator, &p) && p != nullptr);
+    if (p == nullptr) return;
+    auto* lv = static_cast<cISC4LandValueSimulator*>(p);
+    cIGZSerializable* ser = nullptr;
+    CHECK(lv->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser != nullptr);
+    if (ser != nullptr) {
+        CHECK(ser->Read(in));
+        CHECK(lv->GetIntrinsicLandValueMap() == intrinsic.Grid());
+        CHECK(lv->GetTotalLandValueMap() == total.Grid());
+        CHECK(lv->GetSlopeMap() == slope.Grid());
+        CHECK(intrinsic.c.refs == 2 && total.c.refs == 2 && slope.c.refs == 2);  // the load's and the core's
+        CHECK(lv->Init());
+        CHECK(intrinsic.resizes == 0 && total.resizes == 0 && slope.resizes == 0);  // default sizes 2 and 8
+        if (save) {
+            SavedSegOStream out;
+            out.objs = in.objs;
+            CHECK(ser->Write(out));
+            CHECK(out.ids == std::vector<uint32_t>({1, 2, 3}));
+            intrinsic.c.GameDrops();
+            total.c.GameDrops();
+            slope.c.GameDrops();
+        }
+        ser->Release();
+    }
+    CHECK(lv->Release() == 0);
+    CheckSavedGrid(intrinsic, save);
+    CheckSavedGrid(total, save);
+    CheckSavedGrid(slope, save);
+}
+
+// Ordinance: Read hands over a DLL plugin's ordinance the load also holds;
+// Init; with `save`, Write and the game drops its reference; then the final
+// Release (the simulator's destruction releases the map, ordinance §8.2).
+void SavedOrdinanceCase(cIGZCOMDirector* director, bool save) {
+    SavedOrdinance o(1);
+    SavedRecord rec;  // ordinance.md §9.1: version 4, expense, income, count, references, pending
+    rec.Put<uint16_t>(4).Put<int64_t>(0).Put<int64_t>(0).Put<uint32_t>(1).Put<uint32_t>(1).Put<int64_t>(0);
+    SavedSegIStream in(rec.b);
+    in.objs = {o.Ser()};
+    void* p = nullptr;
+    CHECK(director->GetClassObject(kCLSID_OrdinanceSim, kIID_cISC4OrdinanceSimulator, &p) && p != nullptr);
+    if (p == nullptr) return;
+    auto* sim = static_cast<cISC4OrdinanceSimulator*>(p);
+    cIGZSerializable* ser = nullptr;
+    CHECK(sim->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser != nullptr);
+    if (ser != nullptr) {
+        CHECK(ser->Read(in));
+        CHECK(o.c.refs == 2);  // the load's and the core's
+        CHECK(sim->Init());
+        CHECK(reinterpret_cast<void*>(sim->GetOrdinanceByID(kSavedOrdinanceID)) == o.Ord());
+        if (save) {
+            SavedSegOStream out;
+            out.objs = in.objs;
+            CHECK(ser->Write(out));
+            CHECK(out.ids == std::vector<uint32_t>({1}));
+            o.c.GameDrops();
+        }
+        ser->Release();
+    }
+    CHECK(sim->Release() == 0);
+    CHECK(o.c.refs == o.c.gameRefs);
+    CHECK(o.c.taken == o.c.released);
+    CHECK(o.c.overReleases == 0);
+    CHECK(o.c.freed == save);
+}
+
+// Land value on a new city: Init creates the grids through GZCOM (ours alone).
+void CreatedLandValueCase(cIGZCOMDirector* director) {
+    static SavedRefsCOM com;
+    CHECK(director->InitializeCOM(&com, cRZBaseString("")));
+    void* p = nullptr;
+    CHECK(director->GetClassObject(kCLSID_LandValue, kIID_cISC4LandValueSimulator, &p) && p != nullptr);
+    if (p == nullptr) return;
+    auto* lv = static_cast<cISC4LandValueSimulator*>(p);
+    CHECK(lv->Init());
+    CHECK(com.u8.size() == 2 && com.f32.size() == 1);
+    if (com.u8.size() == 2 && com.f32.size() == 1) {
+        CHECK(lv->GetIntrinsicLandValueMap() == com.u8[0]->Grid());
+        CHECK(lv->GetTotalLandValueMap() == com.u8[1]->Grid());
+        CHECK(lv->GetSlopeMap() == com.f32[0]->Grid());
+    }
+    CHECK(lv->Release() == 0);
+    for (auto& g : com.u8) {
+        CHECK(g->inits == 1 && g->GetTractSize() == 2);
+        CheckSavedGrid(*g, true);
+    }
+    for (auto& g : com.f32) {
+        CHECK(g->inits == 1 && g->GetTractSize() == 8);
+        CheckSavedGrid(*g, true);
+    }
+}
+
+int SavedRefsTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_REFAUDIT", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = landvalue, ordinance\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr);
+    if (director != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);  // game start: configuration, the audit
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_LandValue) == 1);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_OrdinanceSim) == 1);
+        SavedLandValueCase(director, false);
+        SavedLandValueCase(director, true);
+        SavedOrdinanceCase(director, false);
+        SavedOrdinanceCase(director, true);
+        CreatedLandValueCase(director);  // last: it gives the DLL a GZCOM
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    const auto npos = std::string::npos;
+    CHECK(text.find("refaudit: on") != npos);
+    // Land value: the always-on line; no save: the load still held each grid.
+    CHECK(CountOf(text, "landvalue grids (Shutdown): 3 reference(s) released, 0 of them the last") == 1);
+    CHECK(CountOf(text, "landvalue grids (Shutdown): 3 reference(s) released, 3 of them the last") == 2);
+    CHECK(CountOf(text, "landvalue grids (destroyed") == 0);
+    // Each reference given back once, as ours (the audit's verbose lines):
+    // 3 grids x 3 cases, the last one in the save and the new-city cases.
+    CHECK(CountLinesWith(text, " Release (created for us) ", "ReleaseGameGrid:") == 9);
+    CHECK(CountLinesWith(text, "-> count 0, ours 0, at ", "ReleaseGameGrid:") == 6);
+    CHECK(CountLinesWith(text, " Release ", "ReleaseGameGrid:") == 9);
+    // The foreign ordinance: the saved reference, once per case.
+    CHECK(CountLinesWith(text, " Release (created for us) ", "ReleaseToken:") == 2);
+    CHECK(CountLinesWith(text, "-> count 0, ours 0, at ", "ReleaseToken:") == 1);
+    CHECK(CountLinesWith(text, " Release ", "ReleaseToken:") == 2);
+    CHECK(text.find("WARNING: released last reference") == npos);
+    CHECK(text.find("WARNING: over-release") == npos);
+    CHECK(text.find("config: WARNING unknown key") == npos);
+    if (g_failures == 0) std::printf("plugin saved references test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -4351,6 +4875,8 @@ int main(int argc, char** argv) {
     if (mode == "--ini-landvalue-shadow") return LandValueShadowTest(dll, ini, log);
     if (mode == "--ini-flammability-shadow") return FlammabilityShadowTest(dll, ini, log);
     if (mode == "--ini-lvfl-shadow-inactive") return LvFlShadowInactiveTest(dll, ini, log);
+    // References read from a save (in-game run 88): land value grids, a foreign ordinance.
+    if (mode == "--saved-refs") return SavedRefsTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).
@@ -5388,8 +5914,12 @@ int main(int argc, char** argv) {
             seam(kFC4SeamObserverTick, nullptr, nullptr);  // the "after load" snapshot
             seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewMonth)),
                  reinterpret_cast<void*>(static_cast<intptr_t>(2451576)));
-            seam(kFC4SeamObserverCity, nullptr, nullptr);
             CHECK(world.demandCalls == 28);  // digest and observe: 12 groups + 2 census nodes each
+            // A second month without a residential simulator.
+            world.noRes = true;
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewMonth)),
+                 reinterpret_cast<void*>(static_cast<intptr_t>(2451605)));
+            seam(kFC4SeamObserverCity, nullptr, nullptr);
         }
         FreeLibrary(hd);
         const std::string text = ReadFile(log);
@@ -5400,7 +5930,10 @@ int main(int argc, char** argv) {
         CHECK(text.find("observe snapshot (after load): date=- julian=- funds=- fundings=-") != std::string::npos);
         CHECK(text.find("observe month 2000-02: date=2000-02-01 julian=2451576 funds=- income=- expense=- "
                         "tax[0..11]=- dept_expense=- demand R$/R$$/R$$$/Cs$/Cs$$/Cs$$$/Co$$/Co$$$/I-R/I-D/I-M/I-HT="
-                        "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160") != std::string::npos);
+                        "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160 power=- "
+                        "residential EQ/HQ/LE=12.5000/34.2500/75\r\n") != std::string::npos);
+        CHECK(text.find("observe month 2000-03: date=2000-03-01 julian=2451605 funds=- ") != std::string::npos);
+        CHECK(text.find(" population R/C/I=-/480/160 power=- residential EQ/HQ/LE=-\r\n") != std::string::npos);
         CHECK(text.find("subsystem 'simulator': DISABLED by FC4_DISABLE") != std::string::npos);
         CHECK(text.find("subsystem 'budget': DISABLED by FC4_DISABLE") != std::string::npos);
         CHECK(text.find("object created") == std::string::npos);
@@ -6320,7 +6853,8 @@ int main(int argc, char** argv) {
     CHECK(text.find("observer: digest on, observe on") != std::string::npos);
     CHECK(text.find("observe month 2000-02: date=2000-02-01 julian=2451576 funds=500000 income=") != std::string::npos);
     CHECK(text.find(" dept_expense=- demand R$/R$$/R$$$/Cs$/Cs$$/Cs$$$/Co$$/Co$$$/I-R/I-D/I-M/I-HT="
-                    "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160") != std::string::npos);
+                    "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160 power=- "
+                    "residential EQ/HQ/LE=12.5000/34.2500/75\r\n") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
     CHECK(text.find("config (game start): all 136 budget switches ON") != std::string::npos);

@@ -34,6 +34,7 @@
 #include "fc4.h"
 
 #include <cstdint>
+#include <unordered_map>
 
 class cISC4Simulator;
 
@@ -93,6 +94,15 @@ public:
     // void1 of the posted messages (§7.1): the IGZUnknown.
     cIGZUnknown* AsUnknown() { return static_cast<cIGZUnknown*>(static_cast<cISC4OrdinanceSimulator*>(this)); }
 
+    // Foreign ordinances read from a save (the host's foreign_ordinance): the
+    // core holds the reference the save handed over, which is ours, so its
+    // last Release is an expected free (FC4_RELEASE_CREATED), like the land
+    // value grids after a save (in-game run 88). An AddOrdinance reference
+    // (our AddRef) keeps FC4_RELEASE.
+    void NoteSavedReference(uint64_t token) { ++savedRefs_[token]; }
+    // True (and one fewer noted) when `token` still has a saved reference.
+    bool TakeSavedReference(uint64_t token);
+
 private:
     void RegisterAgent(bool add);
     void LogState(const char* what);
@@ -103,6 +113,7 @@ private:
     fc4_ordinance_sim* core_ = nullptr;
     cISC4Simulator* simulator_ = nullptr;
     bool agentRegistered_ = false;
+    std::unordered_map<uint64_t, uint32_t> savedRefs_;  // token -> saved references the core holds
 };
 
 // A standard ordinance of one of the classes of §3.6.
