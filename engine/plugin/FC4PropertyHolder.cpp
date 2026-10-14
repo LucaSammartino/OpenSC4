@@ -13,6 +13,7 @@
 
 #include "FC4PropertyHolder.h"
 
+#include "FC4RefAudit.h"
 #include "FC4Streams.h"
 
 #include "cIGZIStream.h"
@@ -282,7 +283,7 @@ uint32_t cFC4PropertyHolder::AddRef() { return owner_ ? owner_->AddRef() : 1; }
 
 uint32_t cFC4PropertyHolder::Release() { return owner_ ? owner_->Release() : 1; }
 
-cFC4Property* cFC4PropertyHolder::Slot(uint32_t id) {
+cISCProperty* cFC4PropertyHolder::Slot(uint32_t id) {
     auto it = props_.find(id);
     if (it != props_.end()) return it->second;
     auto* p = new cFC4Property(id);
@@ -291,9 +292,21 @@ cFC4Property* cFC4PropertyHolder::Slot(uint32_t id) {
     return p;
 }
 
-const cFC4Property* cFC4PropertyHolder::Find(uint32_t id) const {
+cISCProperty* cFC4PropertyHolder::Find(uint32_t id) const {
     auto it = props_.find(id);
     return it == props_.end() ? nullptr : it->second;
+}
+
+// Slot 5 of the stored object (both GetPropertyValue overloads give the same
+// variant); the variant in the game's slot order (foundations §17.1).
+cFC4IGZVariant* cFC4PropertyHolder::ValueOf(cISCProperty* p) {
+    return p != nullptr ? fc4::AsGame(p->GetPropertyValue()) : nullptr;
+}
+
+// The holder may hold the last reference (the caller released its own after
+// AddProperty, foundations §10.2): freeing the object then is expected.
+void cFC4PropertyHolder::Drop(cISCProperty* p) const {
+    if (p != nullptr) FC4_RELEASE_CREATED(p);
 }
 
 bool cFC4PropertyHolder::HasProperty(uint32_t id) const {
@@ -314,8 +327,8 @@ bool cFC4PropertyHolder::GetPropertyData(uint32_t id, void* buffer, uint32_t& le
     std::vector<uint8_t> b;
     {
         std::lock_guard<std::recursive_mutex> g(lock_);
-        const cFC4Property* p = Find(id);
-        if (p == nullptr || !ValueBytes(p->Value(), b)) return false;
+        const cFC4IGZVariant* v = ValueOf(Find(id));
+        if (v == nullptr || !ValueBytes(*v, b)) return false;
     }
     const uint32_t size = static_cast<uint32_t>(b.size());
     if (buffer == nullptr) {
@@ -335,9 +348,9 @@ bool cFC4PropertyHolder::GetPropertyInterface(uint32_t id, uint32_t riid, void**
     cIGZUnknown* obj = nullptr;
     {
         std::lock_guard<std::recursive_mutex> g(lock_);
-        const cFC4Property* p = Find(id);
-        if (p == nullptr || p->Value().GetType() != cIGZVariant::IGZUnknown) return false;
-        obj = const_cast<cFC4Variant&>(p->Value()).GetValUnknown();
+        cFC4IGZVariant* v = ValueOf(Find(id));
+        if (v == nullptr || v->GetType() != cIGZVariant::IGZUnknown) return false;
+        obj = v->GetValUnknown();  // slot 59, borrowed
         if (obj != nullptr) obj->AddRef();
     }
     if (obj == nullptr) return false;
@@ -348,16 +361,15 @@ bool cFC4PropertyHolder::GetPropertyInterface(uint32_t id, uint32_t riid, void**
 
 bool cFC4PropertyHolder::GetPropertyString(uint32_t id, cIGZString& value) const {
     std::lock_guard<std::recursive_mutex> g(lock_);
-    const cFC4Property* p = Find(id);
-    if (p == nullptr) return false;
-    const cFC4Variant& v = p->Value();
-    const uint16_t type = v.GetType();
+    const cFC4IGZVariant* v = ValueOf(Find(id));
+    if (v == nullptr) return false;
+    const uint16_t type = v->GetType();
     if (type == (cIGZVariant::Char | cIGZVariant::TypeArray)) {
-        value.FromChar(v.RefChar() ? v.RefChar() : "", v.GetCount());
+        value.FromChar(v->RefChar() ? v->RefChar() : "", v->GetCount());
         return true;
     }
     if (type == (cIGZVariant::RZChar | cIGZVariant::TypeArray)) {
-        value.FromChar(v.RefRZChar() ? v.RefRZChar() : "", v.GetCount());
+        value.FromChar(v->RefRZChar() ? v->RefRZChar() : "", v->GetCount());
         return true;
     }
     return false;
@@ -365,77 +377,101 @@ bool cFC4PropertyHolder::GetPropertyString(uint32_t id, cIGZString& value) const
 
 bool cFC4PropertyHolder::GetPropertyU32(uint32_t id, uint32_t& value) const {
     std::lock_guard<std::recursive_mutex> g(lock_);
-    const cFC4Property* p = Find(id);
-    uint32_t v = 0;
-    if (p == nullptr || !FirstU32(p->Value(), &v)) return false;
-    value = v;
+    const cFC4IGZVariant* v = ValueOf(Find(id));
+    uint32_t r = 0;
+    if (v == nullptr || !FirstU32(*v, &r)) return false;
+    value = r;
     return true;
 }
 
-// Borrowed (no AddRef), as the game's holders hand it out (FC4Properties.cpp
-// reads it that way).
+// Slot 9: the stored object itself, borrowed (no AddRef; foundations §10.2).
 cISCProperty* cFC4PropertyHolder::GetProperty(uint32_t id) const {
     std::lock_guard<std::recursive_mutex> g(lock_);
-    const cFC4Property* p = Find(id);
-    return p ? const_cast<cFC4Property*>(p) : nullptr;
+    return Find(id);
 }
 
 bool cFC4PropertyHolder::AddPropertyData(uint32_t id, void* data, uint32_t length, bool) {
     std::lock_guard<std::recursive_mutex> g(lock_);
-    Slot(id)->Value().SetRefUint8(static_cast<uint8_t*>(data), data ? length : 0);
+    if (cFC4IGZVariant* v = ValueOf(Slot(id))) v->SetRefUint8(static_cast<uint8_t*>(data), data ? length : 0);
     return true;
 }
 
 bool cFC4PropertyHolder::AddPropertyObject(uint32_t id, cIGZUnknown* value, bool) {
     std::lock_guard<std::recursive_mutex> g(lock_);
-    Slot(id)->Value().SetValUnknown(value);
+    if (cFC4IGZVariant* v = ValueOf(Slot(id))) v->SetValUnknown(value);
     return true;
 }
 
 bool cFC4PropertyHolder::AddPropertyString(uint32_t id, cIGZString const& value, bool) {
     std::lock_guard<std::recursive_mutex> g(lock_);
     const char* s = value.ToChar();
-    Slot(id)->Value().SetRefChar(const_cast<char*>(s ? s : ""), s ? value.Strlen() : 0);
+    if (cFC4IGZVariant* v = ValueOf(Slot(id))) v->SetRefChar(const_cast<char*>(s ? s : ""), s ? value.Strlen() : 0);
     return true;
 }
 
 bool cFC4PropertyHolder::AddPropertyU32(uint32_t id, uint32_t value, bool) {
     std::lock_guard<std::recursive_mutex> g(lock_);
-    Slot(id)->Value().SetValUint32(value);
+    if (cFC4IGZVariant* v = ValueOf(Slot(id))) v->SetValUint32(value);
     return true;
 }
 
 bool cFC4PropertyHolder::AddPropertyVariant(uint32_t id, cFC4IGZVariant const* value, bool) {
     std::lock_guard<std::recursive_mutex> g(lock_);
-    cFC4Property* p = Slot(id);
+    cFC4IGZVariant* v = ValueOf(Slot(id));
+    if (v == nullptr) return true;
     if (value == nullptr) {
-        p->Value().Erase();
+        v->Erase();
     } else {
-        p->Value().CopyFromGame(*value);
+        v->CopyFrom(*value);
     }
     return true;
 }
 
-// [choice, spec question] Filed under the property's own ID; the value is
-// copied into our entry (the caller's object is not kept).
-bool cFC4PropertyHolder::AddPropertyRecord(cISCProperty* property, bool b) { return CopyAddProperty(property, b); }
+// Slot 15, AddProperty(cISCProperty*, bool) (foundations §10.2 "Ownership"):
+// the caller's object itself is stored, with a reference of ours, under its
+// own ID; an entry of that ID is replaced and released. [choice] A null
+// property adds nothing (false).
+bool cFC4PropertyHolder::AddPropertyRecord(cISCProperty* property, bool) {
+    if (property == nullptr) return false;
+    const uint32_t id = property->GetPropertyID();  // slot 3
+    cISCProperty* old = nullptr;
+    {
+        std::lock_guard<std::recursive_mutex> g(lock_);
+        auto it = props_.find(id);
+        if (it != props_.end() && it->second == property) return true;  // already the entry
+        FC4_ADDREF(property);  // the map's reference
+        if (it != props_.end()) {
+            old = it->second;
+            it->second = property;
+        } else {
+            props_.emplace(id, property);
+        }
+    }
+    Drop(old);
+    return true;
+}
 
+// Slot 16 [choice]: the caller's value is copied into the entry of its ID
+// (the caller's object is not kept).
 bool cFC4PropertyHolder::CopyAddProperty(cISCProperty* property, bool) {
     if (property == nullptr) return false;
     const uint32_t id = property->GetPropertyID();  // slot 3
-    const cIGZVariant* v = static_cast<const cISCProperty*>(property)->GetPropertyValue();
+    const cFC4IGZVariant* from = ValueOf(property);
     std::lock_guard<std::recursive_mutex> g(lock_);
-    cFC4Property* p = Slot(id);
-    if (v == nullptr) {
-        p->Value().Erase();
-    } else if (static_cast<const void*>(v) != static_cast<const void*>(&p->Value())) {
-        p->Value().CopyFromGame(*fc4::AsGame(v));
+    cISCProperty* entry = Slot(id);
+    if (entry == property) return true;
+    cFC4IGZVariant* v = ValueOf(entry);
+    if (v == nullptr) return true;
+    if (from == nullptr) {
+        v->Erase();
+    } else {
+        v->CopyFrom(*from);
     }
     return true;
 }
 
 bool cFC4PropertyHolder::RemoveProperty(uint32_t id, bool) {
-    cFC4Property* p = nullptr;
+    cISCProperty* p = nullptr;
     {
         std::lock_guard<std::recursive_mutex> g(lock_);
         auto it = props_.find(id);
@@ -443,7 +479,7 @@ bool cFC4PropertyHolder::RemoveProperty(uint32_t id, bool) {
         p = it->second;
         props_.erase(it);
     }
-    p->Release();
+    Drop(p);
     return true;
 }
 
@@ -453,18 +489,18 @@ bool cFC4PropertyHolder::RemoveAllProperties(bool) {
 }
 
 bool cFC4PropertyHolder::EnumPropertiesFiltered(FilterFn filter, EnumFn fn, void* data) const {
-    std::vector<cFC4Property*> snapshot;
+    std::vector<cISCProperty*> snapshot;
     {
         std::lock_guard<std::recursive_mutex> g(lock_);
         snapshot.reserve(props_.size());
         for (const auto& e : props_) {
-            e.second->AddRef();
+            FC4_ADDREF(e.second);
             snapshot.push_back(e.second);
         }
     }
-    for (cFC4Property* p : snapshot) {
+    for (cISCProperty* p : snapshot) {
         if (fn != nullptr && (filter == nullptr || filter(p, data))) fn(p, data);
-        p->Release();
+        Drop(p);
     }
     return true;
 }
@@ -475,21 +511,25 @@ bool cFC4PropertyHolder::EnumProperties(EnumFn fn, void* data) const {
 
 bool cFC4PropertyHolder::CompactProperties() { return true; }
 
+// The current values, read from the stored objects now (a write the game made
+// in place through a variant's data pointer is included).
 fc4_props* cFC4PropertyHolder::ToCore() const {
     fc4_props* out = fc4_props_create();
     if (out == nullptr) return nullptr;
     std::lock_guard<std::recursive_mutex> g(lock_);
-    for (const auto& e : props_) fc4::VariantToCore(e.second->Value(), e.first, out);
+    for (const auto& e : props_) {
+        if (const cFC4IGZVariant* v = ValueOf(e.second)) fc4::VariantToCore(*v, e.first, out);
+    }
     return out;
 }
 
 void cFC4PropertyHolder::Clear() {
-    std::map<uint32_t, cFC4Property*> old;
+    std::map<uint32_t, cISCProperty*> old;
     {
         std::lock_guard<std::recursive_mutex> g(lock_);
         old.swap(props_);
     }
-    for (auto& e : old) e.second->Release();
+    for (auto& e : old) Drop(e.second);
 }
 
 void cFC4PropertyHolder::FromCoreProperty(void* ctx, uint32_t id, uint16_t memType, bool isArray, const void* data,
@@ -497,7 +537,9 @@ void cFC4PropertyHolder::FromCoreProperty(void* ctx, uint32_t id, uint16_t memTy
     auto* h = static_cast<cFC4PropertyHolder*>(ctx);
     if (h == nullptr) return;
     std::lock_guard<std::recursive_mutex> g(h->lock_);
-    cFC4Variant& v = h->Slot(id)->Value();
+    cFC4IGZVariant* pv = ValueOf(h->Slot(id));
+    if (pv == nullptr) return;
+    cFC4IGZVariant& v = *pv;
     const uint32_t n = static_cast<uint32_t>(count);
     const bool a = isArray;
     switch (memType) {

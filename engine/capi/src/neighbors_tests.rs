@@ -659,3 +659,69 @@ fn neighbors_shadow_month_on_a_snapshot() {
     }
     let _ = fc4_ref::default();
 }
+
+type GotProps = Vec<(u32, u16, bool, usize, Vec<u8>)>;
+
+unsafe extern "C" fn collect_prop(
+    ctx: *mut c_void,
+    id: u32,
+    mem_type: u16,
+    is_array: bool,
+    data: *const c_void,
+    n: usize,
+) {
+    let got = &mut *(ctx as *mut GotProps);
+    let size = match mem_type {
+        4 => 2,
+        6 => 4,
+        _ => 0,
+    };
+    let bytes = if data.is_null() || n * size == 0 {
+        Vec::new()
+    } else {
+        std::slice::from_raw_parts(data as *const u8, n * size).to_vec()
+    };
+    got.push((id, mem_type, is_array, n, bytes));
+}
+
+/// The connection's holder after a `Read` (foundations §10.2): arrays reach
+/// the host too (the trip capacity is a u16 array), with their element type;
+/// scalars as before.
+#[test]
+fn neighbors_connection_props_deliver_arrays() {
+    unsafe {
+        let c = fc4_neighbor_connection_create();
+        let p = crate::props::fc4_props_create();
+        let caps: [u16; 3] = [5, 4321, 0];
+        assert!(crate::props::fc4_props_set_typed(
+            p,
+            0x8A0B_4100,
+            4,
+            true,
+            caps.as_ptr() as *const c_void,
+            3
+        ));
+        let seven: u32 = 7;
+        assert!(crate::props::fc4_props_set_typed(
+            p,
+            0xAA9E_A81D,
+            6,
+            false,
+            &seven as *const u32 as *const c_void,
+            1
+        ));
+        fc4_neighbor_connection_set_props(c, p);
+        crate::props::fc4_props_destroy(p);
+        let mut got: GotProps = Vec::new();
+        let n = fc4_neighbor_connection_props(c, Some(collect_prop), &mut got as *mut GotProps as *mut c_void);
+        assert_eq!(n, 2);
+        assert_eq!(
+            got,
+            vec![
+                (0x8A0B_4100, 4, true, 3, vec![5, 0, 0xE1, 0x10, 0, 0]),
+                (0xAA9E_A81D, 6, false, 1, vec![7, 0, 0, 0]),
+            ]
+        );
+        fc4_neighbor_connection_destroy(c);
+    }
+}

@@ -122,6 +122,9 @@ struct World {
     repaired: RefCell<Vec<(u64, CityId)>>,
     released: RefCell<Vec<u64>>,
     next_object: Cell<u64>,
+    /// `ReloadCity` replaces the city object: the city moves to id + 0x100
+    /// (§14.1 step 5 *[compat]*).
+    reload_replaces: Cell<bool>,
 }
 
 fn ptr(d: &Rc<NeighborDeal>) -> usize {
@@ -152,6 +155,7 @@ impl World {
             repaired: RefCell::new(Vec::new()),
             released: RefCell::new(Vec::new()),
             next_object: Cell::new(0),
+            reload_replaces: Cell::new(false),
         });
         w.add_city(R, (3, 3), (1, 1));
         w
@@ -316,6 +320,12 @@ impl NeighborsHost for World {
     }
     fn reload_city(&self, city: CityId) {
         self.push(Ev::Reload(city));
+        if self.reload_replaces.get() {
+            let mut cities = self.cities.borrow_mut();
+            if let Some(c) = cities.remove(&city) {
+                cities.insert(city + 0x100, c);
+            }
+        }
     }
     fn update_local_deals(&self, city: CityId) {
         self.push(Ev::UpdateLocal(city));
@@ -1793,6 +1803,58 @@ fn test_12_deal_record() {
 }
 
 // ---- lifecycle and messages (§14, §11.1) -------------------------------------------------------------
+
+/// §14.1 step 5 *[compat]*: `ReloadCity` replaces each adjacent city's
+/// object; steps 6-8 use only the cities asked for again after the reloads.
+#[test]
+fn init_uses_the_city_objects_made_by_reload_city() {
+    let (w, sim) = setup(true);
+    w.city(N, |c| c.established = false);
+    w.city(W, |c| {
+        c.local.push(DealData {
+            deal_type: E1,
+            city_side: (1, 3),
+            other_side: (3, 3),
+            amount: 40,
+            flags: flag::ACTIVE | flag::SILENT,
+            start_date: 800,
+            expiration_date: 1165,
+            current_date: 900,
+            suspension_date: 850,
+            ..DealData::default()
+        });
+    });
+    w.reload_replaces.set(true);
+    assert!(sim.init());
+    let rest: Vec<Ev> = w
+        .events()
+        .into_iter()
+        .filter(|e| matches!(e, Ev::Reload(_) | Ev::UpdateLocal(_)))
+        .collect();
+    let (w2, s2, e2) = (W + 0x100, S + 0x100, E + 0x100);
+    assert_eq!(
+        rest,
+        vec![
+            Ev::Reload(W),
+            Ev::Reload(S),
+            Ev::Reload(E),
+            Ev::UpdateLocal(R),
+            Ev::UpdateLocal(e2),
+            Ev::UpdateLocal(s2),
+            Ev::UpdateLocal(w2),
+        ]
+    );
+    // W's deal came from the new W object.
+    let deals = sim.find_deals_all();
+    assert_eq!(deals.len(), 1);
+    assert_eq!(deals[0].other_side(), (1, 3));
+    // Step 8 reaches the new objects only.
+    let old = [W, S, E];
+    assert!(!w.events().iter().any(|e| match e {
+        Ev::SetLocal(c, _) | Ev::UpdateImportExport(c) => old.contains(c),
+        _ => false,
+    }));
+}
 
 #[test]
 fn init_registers_subscribes_and_rebuilds_the_deal_list() {

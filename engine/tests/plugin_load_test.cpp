@@ -38,6 +38,7 @@
 #include "cISCPropertyHolder.h"
 #include "cRZBaseVariant.h"
 #include "cSCBaseProperty.h"
+#include "cFC4Variant.h"
 #include "cISC4Simulator.h"
 #include "cISC4NeighborConnection.h"
 #include "cISC4NeighborDeal.h"
@@ -5324,6 +5325,121 @@ void CheckNeighborConnection(cISC4NeighborConnection* c) {
     }
 }
 
+// The game's own property (cSCProperty) as the traffic simulator's element
+// store makes one: one reference for its creator; its variant in the game's
+// slot order (cFC4Variant, compiled into this test: not one of the DLL's
+// objects). Counts its references; never deleted.
+constexpr uint32_t kNbTripCapacityId = 0x8A0B4100;
+class NbGameProperty final : public cISCProperty {
+public:
+    NbGameProperty() { c.refs = 1; }
+    SavedRefCounts c;
+    uint32_t id = 0;
+    cFC4Variant value;
+    bool QueryInterface(uint32_t riid, void** p) override {
+        if (p == nullptr || (riid != 0x452160EC && riid != GZIID_cIGZUnknown)) return false;
+        *p = static_cast<cISCProperty*>(this);
+        c.Take();
+        return true;
+    }
+    uint32_t AddRef() override { return c.Take(); }
+    uint32_t Release() override { return c.Give(); }
+    uint32_t GetPropertyID() const override { return id; }
+    void SetPropertyID(uint32_t v) override { id = v; }
+    cIGZVariant* GetPropertyValue() override {
+        return reinterpret_cast<cIGZVariant*>(static_cast<cFC4IGZVariant*>(&value));
+    }
+    const cIGZVariant* GetPropertyValue() const override {
+        return reinterpret_cast<const cIGZVariant*>(static_cast<const cFC4IGZVariant*>(&value));
+    }
+    bool SetPropertyValue(const cIGZVariant&) override { return false; }
+    bool Write(cIGZOStream&) const override { return false; }
+    bool Read(cIGZIStream&) override { return false; }
+};
+
+// foundations §10.2 "Ownership" (run r50e2): the holder keeps the caller's
+// object. The traffic simulator's element store on a holder without
+// 0x8A0B4100: (a) its own property with a 12-element u16 array, (b)
+// SetPropertyID + AddProperty(p, false) (slot 15), (c) p->Release(), (d)
+// p->GetPropertyValue() (slot 5), the u16 data getter (slot 99) and a write to
+// one element; later readers see it through GetProperty (slot 9) -> value ->
+// data. Then the copying setter (slot 102), a same-ID replacement (the old
+// object released), the record written with the current values and read back
+// (the kept object released).
+void CheckHolderKeepsObjects(cISC4NeighborConnection* conn, NbGameProperty& a, NbGameProperty& b) {
+    cISCPropertyHolder* sdk = conn->AsISCPropertyHolder();
+    CHECK(sdk != nullptr);
+    if (sdk == nullptr) return;
+    cFC4ISCPropertyHolder* h = fc4::AsGame(sdk);
+    h->RemoveAllProperties(false);
+    CHECK(h->GetProperty(kNbTripCapacityId) == nullptr);
+    // (a)
+    uint16_t init[12] = {};
+    a.value.SetRefUint16(init, 12);  // slot 98, copying
+    // (b), (c)
+    a.SetPropertyID(kNbTripCapacityId);
+    CHECK(h->AddPropertyRecord(&a, false));
+    CHECK(a.c.refs == 2);
+    CHECK(a.Release() == 1);  // the holder's reference keeps it
+    CHECK(!a.c.freed);
+    // (d)
+    cFC4IGZVariant* v = fc4::AsGame(a.GetPropertyValue());
+    CHECK(v->GetType() == (cIGZVariant::Uint16 | cIGZVariant::TypeArray) && v->GetCount() == 12);
+    uint16_t* data = v->RefUint16();  // slot 99
+    CHECK(data != nullptr);
+    if (data != nullptr) data[5] = 1234;
+    // A later reader: the same object, borrowed, and the element written.
+    cISCProperty* got = h->GetProperty(kNbTripCapacityId);
+    CHECK(got == static_cast<cISCProperty*>(&a));
+    CHECK(a.c.refs == 1);  // borrowed: no reference taken
+    if (got != nullptr) {
+        cFC4IGZVariant* gv = fc4::AsGame(got->GetPropertyValue());
+        CHECK(gv == v);
+        const uint16_t* gd = gv->RefUint16();
+        CHECK(gd != nullptr && gd == data && gd[5] == 1234);
+    }
+    uint32_t first = 0;
+    CHECK(h->HasProperty(kNbTripCapacityId) && h->GetPropertyU32(kNbTripCapacityId, first) && first == 0);
+    // Slot 102 replaces the array in place; the holder reads the new values.
+    uint32_t replaced[3] = {77, 88, 99};
+    v->SetRefUint32(replaced, 3);
+    CHECK(h->GetPropertyU32(kNbTripCapacityId, first) && first == 77);
+    uint32_t len = 0;
+    CHECK(h->GetPropertyData(kNbTripCapacityId, nullptr, len) && len == 12);
+    // A same-ID replacement releases the old object (here its last reference).
+    uint16_t two[2] = {5, 6};
+    b.value.SetRefUint16(two, 2);
+    b.SetPropertyID(kNbTripCapacityId);
+    CHECK(h->AddPropertyRecord(&b, false));
+    CHECK(a.c.refs == 0 && a.c.freed && a.c.overReleases == 0);
+    CHECK(b.Release() == 1);
+    CHECK(h->GetProperty(kNbTripCapacityId) == static_cast<cISCProperty*>(&b));
+    uint16_t* bd = fc4::AsGame(b.GetPropertyValue())->RefUint16();
+    if (bd != nullptr) bd[1] = 4321;  // written in place after the add
+    // The record (§4.3) holds the current values; reading it back replaces the
+    // holder's contents (the kept object released).
+    auto* ser = NbQuery<cIGZSerializable>(conn, GZIID_cIGZSerializable);
+    CHECK(ser != nullptr);
+    if (ser != nullptr) {
+        ResidentialSegOStream out;
+        CHECK(ser->Write(out));
+        ResidentialSegIStream in(out.bytes);
+        CHECK(ser->Read(in));
+        CHECK(in.at == in.bytes.size() && in.error == 0);
+        ser->Release();
+    }
+    CHECK(b.c.refs == 0 && b.c.freed && b.c.overReleases == 0);
+    cISCProperty* back = h->GetProperty(kNbTripCapacityId);
+    CHECK(back != nullptr && back != static_cast<cISCProperty*>(&b));
+    if (back != nullptr) {
+        cFC4IGZVariant* bv = fc4::AsGame(back->GetPropertyValue());
+        CHECK(bv->GetType() == (cIGZVariant::Uint16 | cIGZVariant::TypeArray) && bv->GetCount() == 2);
+        const uint16_t* d = bv->RefUint16();
+        CHECK(d != nullptr && d[0] == 5 && d[1] == 4321);
+    }
+    h->RemoveAllProperties(false);
+}
+
 int NeighborsEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
     // Off by default; `enable = neighbors` registers the neighbours simulator
     // (no factory for its connection and deal classes, §15.2). The shadow (it
@@ -5343,6 +5459,7 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
     SetGamePrecision();
     static NbOrigConnection orig(1);  // the load's own reference
     static NbForeignDeal foreign;
+    static NbGameProperty propA, propB, propKept;  // the game's properties (foundations §10.2)
     if (director != nullptr) {
         std::vector<uint32_t> classes;
         director->EnumClassObjects(&CollectClass, &classes);
@@ -5383,7 +5500,14 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
             CHECK(conn != nullptr);
             CHECK(sim->CreateConnection(NbType::Road, -1, 5, false) == nullptr);  // §6.3 step 1
             CHECK(sim->HasConnection(NbType::Road, -1, 5) && sim->FindConnection(NbType::Road, -1, 5) == conn);
-            if (conn != nullptr) CheckNeighborConnection(conn);
+            if (conn != nullptr) {
+                CheckNeighborConnection(conn);
+                CheckHolderKeepsObjects(conn, propA, propB);
+                // One kept until the connection goes (released with the holder).
+                propKept.SetPropertyID(0x5AFE0100);
+                CHECK(fc4::AsGame(conn->AsISCPropertyHolder())->AddPropertyRecord(&propKept, false));
+                CHECK(propKept.Release() == 1);
+            }
             // A foreign deal is added as a deal of ours [choice]; FindDealsAll
             // reuses the caller's node (one reference for the caller).
             CHECK(foreign.AddRef() == 2);  // the caller list's reference
@@ -5426,6 +5550,8 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
                 if (connSer != nullptr) connSer->Release();
             }
             sim->DeleteConnection(NbType::Road, -1, 5);
+            // The connection object went with it: its holder released the kept property.
+            CHECK(propKept.c.refs == 0 && propKept.c.freed && propKept.c.overReleases == 0);
             CHECK(!sim->HasConnection(NbType::Road, -1, 5));
             if (ser != nullptr) ser->Release();
             if (mt != nullptr) mt->Release();

@@ -627,11 +627,21 @@ void ReloadCity(void* u, uint64_t city) {
     ++Ctx(u)->reloads;
     cRZAutoRefCount<cISC4RegionalCity>* after =
         region->GetCity(static_cast<uint32_t>(px), static_cast<uint32_t>(pz));
-    if (after == nullptr || static_cast<cISC4RegionalCity*>(*after) != CityOf(city)) {
-        fc4::Log("neighbours: WARNING ReloadCity replaced the regional city at (%d, %d) (%p -> %p); this Init goes on "
-                 "with the object it held",
-                 px, pz, static_cast<void*>(CityOf(city)),
-                 after ? static_cast<void*>(static_cast<cISC4RegionalCity*>(*after)) : nullptr);
+    cISC4RegionalCity* now = after ? static_cast<cISC4RegionalCity*>(*after) : nullptr;
+    if (now == CityOf(city)) return;
+    // §14.1 step 5 [compat]: the region replaced its object and dropped its
+    // reference to the old one; ours (Hold) is released now, as the original
+    // releases its list entry right after the reload. That frees the old
+    // object: the expected last release. The core asks for the cities again
+    // before steps 6-7 and does not use this token any more.
+    cIGZUnknown* old = FromToken(city);
+    const bool held = std::find(g_heldRefs.begin(), g_heldRefs.end(), old) != g_heldRefs.end();
+    fc4::Log("neighbours: ReloadCity replaced the regional city at (%d, %d) (%p -> %p); the old object %s",
+             px, pz, static_cast<void*>(old), static_cast<void*>(now),
+             held ? "released (the region's reference went with the reload)" : "was not held");
+    if (held) {
+        g_heldRefs.erase(std::find(g_heldRefs.begin(), g_heldRefs.end(), old));
+        FC4_RELEASE_CREATED(old);
     }
 }
 
