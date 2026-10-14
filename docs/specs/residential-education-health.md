@@ -76,7 +76,7 @@ item is part of the class's save record (residential.md §3 and §9.1 are normat
 | Strike flag and start day (per service) | false, 0 | saved, but **reset to false / 0 by the next `Init`** | City-level "the service is on strike" (§4.9). Part of the department block; `ReadSimulatorTunableValues` sets them unconditionally, so a city strike does not survive save and load *[quirk]* (residential.md §9.3; checked at `006FBCB0` / `006FBD33`). |
 | Ordinance effect lists ×2 | empty | no | Rebuilt at `Init` and in every state 0 (§4.3). |
 | Served counters ×2 | 0 | no | Population covered for the first time in the cycle (§4.4). They feed the history (§4.12). |
-| Grade totals ×2 (`float`) | 0 | no | Accumulated by the EQ/HQ boost (§4.6), reset in state 0. **Never read** by the class *[inferred]*. |
+| Grade totals ×2 (`float`) | 0 | no | Members `+0x314` (schools) and `+0x318` (hospitals). Accumulated by the EQ/HQ boost (§4.6) in states 6 and 8 (ComputeOccupantGrade gets their addresses, `0x006FFED3`, `0x00700053`), and reset at the start of state 0 (`0x006FF567`). **Never read** otherwise: these four are the only references in the class (`0x006F6E50`–`0x00700E90`), no interface slot returns them, and `Read`/`Write` skip them (RS13). They belong to this half; residential.md's frame only triggers the reset with the rest of state 0. |
 | Global auto-budget flags (schools, hospitals) | false, false | yes (version ≥ 7) | Slots 52–55 (§4.10). |
 | `cRZRandom` member | wall-clock seed at construction | no | Strike rolls and death's-door effect (foundations §6.2). |
 | Dirty flag | see residential.md §3 | yes (residential.md §9.1) | Set by the month message when the cycle is late, by every building add/remove and by `SetOccupantFundingPercentages`. **Never read** *[inferred: no reader in the class]*. |
@@ -164,7 +164,8 @@ data3 = `0x278128A0` (building occupant) and void1 = the occupant. The class ask
 2. **School test.** The same with staff purpose `0xEA5654B6`, bus purpose `0x4A5654BA`, groups `0x1503` or
    `0x151B`, capacity `0x8922041B`, and the pending school list. The school test runs for **every** building,
    after the hospital test. A building that passes both tests is put in both pending lists *[compat]*.
-3. Health-affecting buildings (properties `0x6A19F6B5` and `0xAA19F6EA` both > 0) are handled in residential.md.
+3. Health-affecting buildings (properties `0x6A19F6B5` and `0xAA19F6EA` both > 0) are handled in residential.md
+   §5.8. They go to a pending list, which state 0 moves into the health-affecting list.
 4. Finally, the building's slot-11 value is read and the dirty flag set when its first u32 is 1
    *[inferred meaning]*.
 
@@ -955,7 +956,8 @@ Open questions:
    §13).
 2. What are the group names of `0x1514`, `0x1505`, `0x151B`, `0x1512`, `0x1513`, `0x151C`, `0x1A02`, `0x1A03`?
    *[inferred: `0x1A02`/`0x1A03` are "can strike" groups for health/education]*.
-3. Who reads the grade totals (§4.6)? No reader was found. (The age histogram is read by residential.md §5.6.)
+3. ~~Who reads the grade totals (§4.6)?~~ **Nobody** (RS13; §3 table): the class only resets and accumulates
+   them, and nothing outside it can reach them. (The age histogram is read by residential.md §5.6.)
 4. What does the building's slot-11 value (§4.1 step 4) mean? (The LE-weighted population sum is the average
    life expectancy history, residential.md §5.6.)
 5. The population tract size and the EQ tract size are equal on a new city. Does a loaded city keep them equal?

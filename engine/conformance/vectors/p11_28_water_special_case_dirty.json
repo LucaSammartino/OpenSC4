@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "pollution_water_special_case_dirty",
+  "spec": ["pollution 4.4.4", "pollution 4.8"],
+  "description": "PG14, the example of 4.4.4 step 10 (64 x 64 tracts, shipped maxWaterDelta 150, no water source so W = 0): the tract of cell (4, 6) (tract (2, 3)) holds water 1 and the -x tract (cell (3, 6), tract (1, 3)) holds 5. The decrease gives 1 - min(1, 150) = 0, so the neighbour special case runs; its first read (x - 1, z) = (3, 6) returns 5 > 1, and SetWaterValue(4, 6, 1) is called without comparing: the grid is unchanged but dirtyWater is true after the day (tractsPerDay 1, no end of cycle inside the day, so no WaterChanged yet). The next end of cycle (4.8) posts WaterChanged 0x5A6DD1AA once and clears the flag. Control 1: with tract (1, 3) at 0, the reads (3, 6) -> 0, (4, 5) -> tract (2, 2) = 0, (5, 6) and (4, 7) -> the own tract (2, 3) = 1 (not > 1) all miss, so the case writes 0 and still marks the flag. Control 2: v = W = 0 is not a decrease, so nothing is written and the flag stays clear.",
+  "steps": [
+    {"op": "pollution_create"},
+    {"op": "pollution_init"},
+    {"op": "pollution_set_grid", "grid": "water_val", "tracts": [{"x": 2, "z": 3, "v": 1}, {"x": 1, "z": 3, "v": 5}]},
+    {"op": "pollution_set", "state": {"tracts_per_day": 1, "cell_x": 4, "cell_z": 6, "dirty_water": false}},
+    {"op": "pollution_clear_events"},
+    {"op": "pollution_message", "type": "SimNewDay", "expect": true},
+    {"op": "pollution_expect_grid", "grid": "water_val", "tracts": [{"x": 2, "z": 3, "v": 1}, {"x": 1, "z": 3, "v": 5}], "others": 0},
+    {"op": "pollution_expect", "state": {"dirty_water": true}},
+    {"op": "pollution_expect_event_count", "filter": {"event": "post", "type": "WaterChanged"}, "count": 0},
+    {"op": "pollution_call", "method": "end_of_cycle"},
+    {"op": "pollution_expect_event_count", "filter": {"event": "post", "type": "WaterChanged"}, "count": 1},
+    {"op": "pollution_expect", "state": {"dirty_water": false}},
+
+    {"op": "pollution_set_grid", "grid": "water_val", "tracts": [{"x": 1, "z": 3, "v": 0}]},
+    {"op": "pollution_set", "state": {"cell_x": 4, "cell_z": 6}},
+    {"op": "pollution_message", "type": "SimNewDay"},
+    {"op": "pollution_expect_grid", "grid": "water_val", "others": 0},
+    {"op": "pollution_expect", "state": {"dirty_water": true}},
+
+    {"op": "pollution_set", "state": {"cell_x": 4, "cell_z": 6, "dirty_water": false}},
+    {"op": "pollution_message", "type": "SimNewDay"},
+    {"op": "pollution_expect_grid", "grid": "water_val", "others": 0},
+    {"op": "pollution_expect", "state": {"dirty_water": false}}
+  ]
+}

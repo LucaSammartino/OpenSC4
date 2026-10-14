@@ -19,6 +19,8 @@
 // Usage: fc4_plugin_load_test <path to FreeCity4.dll>
 
 #include "cIGZCOMDirector.h"
+#include "cISC4AuraSimulator.h"
+#include "SC4Point.h"
 #include "cIGZDate.h"
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageTarget2.h"
@@ -38,9 +40,15 @@
 #include "SC4List.h"
 #include "SC4Percentage.h"
 #include "cRZBaseString.h"
+#include "FC4AuraShadow.h"
 #include "FC4BudgetShadow.h"
+#include "FC4CrimeInterfaces.h"
+#include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
+#include "FC4GameMap.h"
+#include "cFC4Demand.h"
 #include "FC4PollutionShadow.h"
+#include "cS3DVector3.h"
 #include "cIGZOStream.h"
 #include "FC4Interfaces.h"
 #include "FC4TestSeam.h"
@@ -102,8 +110,39 @@ constexpr uint32_t kIID_cISC4PlumbingSimulator = 0x47782CCC;
 constexpr uint32_t kCLSID_Pollution = 0x8990C065;
 constexpr uint32_t kIID_cISC4PollutionSimulator = 0x877181EC;
 constexpr uint32_t kIID_cISC4PropRequester = 0x89C498BE;
+constexpr uint32_t kCLSID_Crime = 0x8990C09A;
+constexpr uint32_t kIID_cISC4CrimeSimulator = 0x67659555;
 
 void CollectClass(uint32_t clsid, uint32_t, void* ctx) { static_cast<std::vector<uint32_t>*>(ctx)->push_back(clsid); }
+
+// demand capacity seam (op 20): every (map, developer type, amount) reported.
+void CollectCapacity(void* ctx, uint32_t map, uint32_t devType, uint16_t amount) {
+    static_cast<std::vector<std::array<uint32_t, 3>>*>(ctx)->push_back({map, devType, amount});
+}
+
+// A building profile with one capacity map {0x1010: 12, 0x1020: 7, 0x1030: 3}, built as
+// docs/abi/allocators.md ("map and set") and layouts.md (the vector at +0x0C) describe it:
+// root 0x1020 black, 0x1010 and 0x1030 red; the high half of each value is junk.
+struct FakeCapacityProfile {
+    fc4::GameMapNode header{}, a{}, r{}, c{};
+    fc4::GameMapObject map{};
+    unsigned char bytes[0x40]{};
+    FakeCapacityProfile() {
+        header.color = fc4::kGameMapRed;
+        header.parent = &r;
+        header.left = &a;
+        header.right = &c;
+        r = {fc4::kGameMapBlack, {}, &header, &a, &c, 0x1020, 0xDEAD0007u};
+        a = {fc4::kGameMapRed, {}, &r, nullptr, nullptr, 0x1010, 0xDEAD000Cu};
+        c = {fc4::kGameMapRed, {}, &r, nullptr, nullptr, 0x1030, 0xDEAD0003u};
+        map = {&header, 3, 0};
+        SetVector(&map, &map + 1, &map + 1);
+    }
+    void SetVector(const void* begin, const void* end, const void* cap) {
+        const void* v[3] = {begin, end, cap};
+        std::memcpy(bytes + fc4::kProfileCapacityVectorOffset, v, sizeof(v));
+    }
+};
 
 // A handled access violation in the HOST's code (not the DLL's): the DLL's
 // vectored handler must log it with the call ring.
@@ -415,6 +454,7 @@ void* __fastcall CityGetSimulator(void*, void*) { return g_world->sim; }        
 void* __fastcall CityGetBudgetSimulator(void*, void*) { return g_world->budget; }          // cISC4City 52
 void* __fastcall CityGetDemandSimulator(void*, void*) { return &g_world->demandSim; }      // cISC4City 56
 void* __fastcall CityGetResidentialSimulator(void*, void*) { return &g_world->res; }       // cISC4City 68
+void* __fastcall CityGetPowerSimulator(void*, void*) { return nullptr; }                  // cISC4City 67 (none)
 int32_t __fastcall ResGetPopulation(void*, void*) { return 1234; }                          // residential 16
 void* __fastcall DemandSimGetDemand(void*, void*, uint32_t id, uint32_t index) {           // demand sim 6
     ++g_world->demandCalls;
@@ -439,6 +479,7 @@ void InitFakeWorld(FakeWorld& w) {
     w.cityVt.slots[52] = reinterpret_cast<void*>(&CityGetBudgetSimulator);
     w.cityVt.slots[56] = reinterpret_cast<void*>(&CityGetDemandSimulator);
     w.cityVt.slots[68] = reinterpret_cast<void*>(&CityGetResidentialSimulator);
+    w.cityVt.slots[67] = reinterpret_cast<void*>(&CityGetPowerSimulator);  // observe month: power=-
     w.resVt.slots[16] = reinterpret_cast<void*>(&ResGetPopulation);
     w.demandSimVt.slots[6] = reinterpret_cast<void*>(&DemandSimGetDemand);
     w.demandVt.slots[8] = reinterpret_cast<void*>(&DemandQuerySupply);
@@ -825,6 +866,211 @@ intptr_t PollutionShadowOnce(FC4TestSeamFn seam, FakeObject* city, cIGZMessageTa
     return seam(kFC4SeamPollutionShadow, &in, nullptr);
 }
 
+// ---- the crime shadow (test seam op 13) ----------------------------------------------------------
+// An "original" crime simulator on a 4x4 tract grid (S = 4, shift 2).
+// QueryInterface answers its agent (cIGZMessageTarget2); the agent runs the
+// pipeline of crime.md §5 (a new simulator in state 6, SimNewMonth 6 -> 0,
+// one step per SimNewDay) and at state 4 switches the grid, hotspot, count,
+// average and incident list from `pre` to `post`. The city answers
+// GetLotManager (33), GetZoneManager (36) and GetCrimeSimulator (55); two
+// lots, at three cells; the zone manager zones cells x < 8. Any other call
+// aborts.
+//
+// The month by hand (decay 0.5; types 0x1001 severity 40, 0x1002 60, 0x1003
+// 0): before, (1,1) = 100 (the hotspot, cells (4,4)), (2,3) = 7, (3,0) = 1.
+// Decay: 50, 3, 0; the hotspot re-read is (1,1) = 50. Incidents in order:
+// 0x1001 on the lot (8,12)-(11,15) stamps (2,3) to 43; 0x1002 on the lot
+// (0,0)-(5,1) stamps (0,0) and (1,0) to 60, the hotspot moves to (0,0) = 60;
+// 0x1003 (severity 0) is neither stamped nor counted; 0x1001 at (13,13) has
+// no lot: counted, not stamped. Count 3; the zoned tracts (x = 0, 1) sum to
+// 170 over 8: average 21.
+struct FakeCrimeLot {
+    void** vtbl;
+    int32_t x1, z1, x2, z2;
+};
+struct FakeCrimeVector {  // the caller's vector: first, last, end of storage
+    FC4CrimeEvent* first;
+    FC4CrimeEvent* last;
+    FC4CrimeEvent* capacityEnd;
+};
+struct FakeOrigCrime {
+    FakeVtable simVt, agentVt, cityVt, gridVt, lmVt, lotVt, zmVt;
+    FakeObject sim{}, agent{}, city{}, grid{}, lm{}, zm{}, other{};
+    FakeCrimeLot lots[2]{};
+    uint8_t pre[16]{}, post[16]{};
+    bool committed = false;
+    int state = 6;
+    int refs = 1;
+    int deliveries = 0;
+    uint32_t count = 0;
+    std::vector<FC4CrimeEvent> incidents;
+};
+
+FakeOrigCrime* g_oc = nullptr;
+
+bool __fastcall OcQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, agent)
+    if (out == nullptr) return false;
+    if (iid != 0x452294AA) return false;  // (the reference audit asks other IIDs)
+    *out = &g_oc->agent;
+    ++g_oc->refs;
+    return true;
+}
+uint32_t __fastcall OcAddRef(void*, void*) { return static_cast<uint32_t>(++g_oc->refs); }   // 1
+uint32_t __fastcall OcRelease(void*, void*) { return static_cast<uint32_t>(--g_oc->refs); }  // 2
+bool __fastcall OcDoMessage(void*, void*, cIGZMessage2* m) {                                   // agent 3
+    ++g_oc->deliveries;
+    const uint32_t type = m->GetType();
+    if (type == kMsgSimNewMonth) {
+        if (g_oc->state == 6) g_oc->state = 0;
+    } else if ((type == kMsgSimNewDay || type == kMsgSimIdle) && g_oc->state < 6) {
+        if (g_oc->state == 4) g_oc->committed = true;
+        ++g_oc->state;
+    }
+    return true;
+}
+void* __fastcall OcGrid(void*, void*) { return &g_oc->grid; }                                 // sim 5
+uint32_t __fastcall OcAverage(void*, void*) { return g_oc->committed ? 21u : 0u; }           // sim 6
+uint32_t __fastcall OcCount(void*, void*) { return g_oc->committed ? g_oc->count : 0u; }     // sim 7
+bool __fastcall OcHotspot(void*, void*, uint8_t* v, int32_t* x, int32_t* z) {                // sim 8
+    *v = g_oc->committed ? 60 : 100;
+    *x = g_oc->committed ? 0 : 4;
+    *z = g_oc->committed ? 0 : 4;
+    return true;
+}
+bool __fastcall OcIncidents(void*, void*, FakeCrimeVector* v) {  // sim 11
+    if (!g_oc->committed) return false;
+    const size_t n = g_oc->incidents.size();
+    if (static_cast<size_t>(v->capacityEnd - v->first) < n) {
+        std::fprintf(stderr, "fake crime simulator: the shadow's vector has no room for %u incidents\n",
+                     static_cast<unsigned>(n));
+        std::abort();
+    }
+    for (size_t i = 0; i < n; ++i) v->first[i] = g_oc->incidents[i];
+    v->last = v->first + n;
+    return n > 0;
+}
+int32_t __fastcall OcTractSize(void*, void*) { return 4; }        // grid 10
+int32_t __fastcall OcTractShift(void*, void*) { return 2; }       // grid 11
+int32_t __fastcall OcTractCount(void*, void*) { return 4; }       // grid 12, 13
+float __fastcall OcTractWidth(void*, void*) { return 64.0f; }     // grid 14, 15
+float __fastcall OcTractInvWidth(void*, void*) { return 1.0f / 64.0f; }  // grid 16, 17
+uint8_t __fastcall OcTractValue(void*, void*, int32_t x, int32_t z) {    // grid 22
+    if (x < 0 || x > 3 || z < 0 || z > 3) return 0;
+    return (g_oc->committed ? g_oc->post : g_oc->pre)[x * 4 + z];
+}
+void* __fastcall OcGetLot(void*, void*, int32_t x, int32_t z, bool) {  // lot manager 6
+    if ((x == 8 && z == 12) || (x == 12 && z == 0)) return &g_oc->lots[0];
+    if (x == 0 && z == 0) return &g_oc->lots[1];
+    return nullptr;
+}
+bool __fastcall OcLotRect(void* self, void*, SC4Rect<int32_t>* r) {  // lot 14
+    const FakeCrimeLot* l = static_cast<const FakeCrimeLot*>(self);
+    r->topLeftX = l->x1;
+    r->topLeftY = l->z1;
+    r->bottomRightX = l->x2;
+    r->bottomRightY = l->z2;
+    return true;
+}
+bool __fastcall OcLotLocation(void* self, void*, int32_t* x, int32_t* z) {  // lot 21
+    *x = static_cast<const FakeCrimeLot*>(self)->x1;
+    *z = static_cast<const FakeCrimeLot*>(self)->z1;
+    return true;
+}
+uint32_t __fastcall OcLotCondition(void*, void*) { return 0; }      // lot 35
+void* __fastcall OcLotBuilding(void*, void*) { return nullptr; }    // lot 48
+int32_t __fastcall OcZoneType(void*, void*, int32_t x, int32_t) { return x < 8 ? 1 : 0; }  // zone manager 12
+void* __fastcall OcCityLots(void*, void*) { return &g_oc->lm; }     // city 33
+void* __fastcall OcCityZones(void*, void*) { return &g_oc->zm; }    // city 36
+void* __fastcall OcCityCrime(void*, void*) { return &g_oc->sim; }   // city 55
+
+void InitFakeOrigCrime(FakeOrigCrime& o) {
+    g_oc = &o;
+    for (FakeVtable* vt : {&o.simVt, &o.agentVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OcQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OcAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OcRelease);
+    }
+    o.agentVt.slots[3] = reinterpret_cast<void*>(&OcDoMessage);
+    o.simVt.slots[5] = reinterpret_cast<void*>(&OcGrid);
+    o.simVt.slots[6] = reinterpret_cast<void*>(&OcAverage);
+    o.simVt.slots[7] = reinterpret_cast<void*>(&OcCount);
+    o.simVt.slots[8] = reinterpret_cast<void*>(&OcHotspot);
+    o.simVt.slots[11] = reinterpret_cast<void*>(&OcIncidents);
+    o.gridVt.slots[10] = reinterpret_cast<void*>(&OcTractSize);
+    o.gridVt.slots[11] = reinterpret_cast<void*>(&OcTractShift);
+    o.gridVt.slots[12] = reinterpret_cast<void*>(&OcTractCount);
+    o.gridVt.slots[13] = reinterpret_cast<void*>(&OcTractCount);
+    o.gridVt.slots[14] = reinterpret_cast<void*>(&OcTractWidth);
+    o.gridVt.slots[15] = reinterpret_cast<void*>(&OcTractWidth);
+    o.gridVt.slots[16] = reinterpret_cast<void*>(&OcTractInvWidth);
+    o.gridVt.slots[17] = reinterpret_cast<void*>(&OcTractInvWidth);
+    o.gridVt.slots[22] = reinterpret_cast<void*>(&OcTractValue);
+    o.lmVt.slots[6] = reinterpret_cast<void*>(&OcGetLot);
+    o.lotVt.slots[14] = reinterpret_cast<void*>(&OcLotRect);
+    o.lotVt.slots[21] = reinterpret_cast<void*>(&OcLotLocation);
+    o.lotVt.slots[35] = reinterpret_cast<void*>(&OcLotCondition);
+    o.lotVt.slots[48] = reinterpret_cast<void*>(&OcLotBuilding);
+    o.zmVt.slots[12] = reinterpret_cast<void*>(&OcZoneType);
+    o.cityVt.slots[33] = reinterpret_cast<void*>(&OcCityLots);
+    o.cityVt.slots[36] = reinterpret_cast<void*>(&OcCityZones);
+    o.cityVt.slots[55] = reinterpret_cast<void*>(&OcCityCrime);
+    o.sim.vtbl = o.simVt.slots.data();
+    o.agent.vtbl = o.agentVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.grid.vtbl = o.gridVt.slots.data();
+    o.lm.vtbl = o.lmVt.slots.data();
+    o.zm.vtbl = o.zmVt.slots.data();
+    o.other.vtbl = o.agentVt.slots.data();  // an agent, but not the simulator's
+    o.lots[0] = {o.lotVt.slots.data(), 8, 12, 11, 15};
+    o.lots[1] = {o.lotVt.slots.data(), 0, 0, 5, 1};
+}
+
+// A new month for a new "original": state 6, the grid before, and what the
+// original leaves after state 4 (`skew` added to (2,3); count 3 + countSkew).
+// `unchanged`: state 4 changes nothing at all (no incidents, the grid as
+// before), which the shadow cannot tell from a missed state 4.
+void OcMonth(FakeOrigCrime& o, uint8_t skew, uint32_t countSkew, bool unchanged = false) {
+    o.state = 6;
+    o.committed = false;
+    std::memset(o.pre, 0, sizeof(o.pre));
+    o.pre[1 * 4 + 1] = 100;
+    o.pre[2 * 4 + 3] = 7;
+    o.pre[3 * 4 + 0] = 1;
+    o.incidents.clear();
+    if (unchanged) {
+        std::memcpy(o.post, o.pre, sizeof(o.post));
+        o.count = 0;
+        return;
+    }
+    std::memset(o.post, 0, sizeof(o.post));
+    o.post[0 * 4 + 0] = 60;
+    o.post[1 * 4 + 0] = 60;
+    o.post[1 * 4 + 1] = 50;
+    o.post[2 * 4 + 3] = static_cast<uint8_t>(43 + skew);
+    o.count = 3 + countSkew;
+    const FC4CrimeEvent e[4] = {{8, 12, 0x1001, 0, {}, 0, 0, 0},
+                                {0, 0, 0x1002, 0, {}, 0, 0, 0},
+                                {12, 0, 0x1003, 0, {}, 0, 0, 0},
+                                {13, 13, 0x1001, 0, {}, 0, 0, 0}};
+    o.incidents.assign(e, e + 4);
+}
+
+intptr_t CrimeShadowOnce(FC4TestSeamFn seam, FakeOrigCrime& o, cIGZMessageTarget2* target) {
+    static const uint32_t types[3] = {0x1001, 0x1002, 0x1003};
+    static const uint32_t severities[3] = {40, 60, 0};
+    FC4CrimeShadowTestInput in{reinterpret_cast<cISC4City*>(&o.city), target, types, severities, 3, 0.5f, 4,
+                               2451576};  // first SimNewDay 2000-02-01: state 4 runs on 2000-02-05
+    return seam(kFC4SeamCrimeShadow, &in, nullptr);
+}
+
+// A vector for GetCrimeIncidentArray in this executable (the game's allocator
+// is not available here).
+struct TestHeap {
+    static bool Available() { return true; }
+    static void* Allocate(uint32_t size) { return std::malloc(size); }
+    static void Free(void* p) { std::free(p); }
+};
+
 // ---- the reference audit's created-temporary release (test seam op 12) ----------------------------
 // A game object (vtable in this executable) whose Release returns 0: the
 // last reference. QueryInterface (the audit's class lookup) answers no.
@@ -872,7 +1118,7 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
         WriteTextFile(ini, "[autotest]\nautotest_save_after_months = 2\nautotest_save_fast = 0\nobserve = 1\n");
     } else if (scenario == "panic") {
         WriteTextFile(ini, "[autotest]\n");
-    } else {  // stalled: passthrough (the observer alone)
+    } else {  // stalled, ended: passthrough (the observer alone)
         WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 60\n");
     }
     HMODULE h = LoadLibraryA(dll.c_str());
@@ -928,6 +1174,13 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
             ForeignFault();  // then keep ticking until the DLL ends the process
         }
         if (scenario == "stalled" && ms >= 500) Sleep(INFINITE);  // the main thread stops ticking
+        if (scenario == "ended" && ms >= 500) {
+            // The game shuts the city down by itself (a bankrupt city) long
+            // before the 60 s deadline: the run ends at PostCityShutdown.
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(0x26D31EC2u)), nullptr);
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(0x26D31EC3u)), nullptr);
+            return 3;  // not reached: the DLL terminates the process
+        }
         if (ms > 60000) return 3;
     }
 }
@@ -1381,6 +1634,9 @@ int ProtectionEnableTest(const std::string& dll, const std::string& ini, const s
     CHECK(text.find("protection month (fire): init=0") != std::string::npos);
     CHECK(text.find("protection month (police): init=0") != std::string::npos);
     CHECK(text.find("protection month (police jails): jails=0") != std::string::npos);
+    // Without a grid there is no 0 x 0 grid to warn about (the WARNING needs
+    // a non-null coverage grid with no tracts).
+    CHECK(text.find("WARNING the coverage grid") == std::string::npos);
     CHECK(text.find("protection Init (fire): init=1") != std::string::npos);
     CHECK(text.find("protection Init (police): init=1") != std::string::npos);
     CHECK(text.find("fallbacks=0") != std::string::npos);
@@ -1532,6 +1788,208 @@ int ProtectionShadowTest(const std::string& dll, const std::string& ini, const s
     return g_failures == 0 ? 0 : 1;
 }
 
+// ---- aura (aura.md): the replacement without a city, and the grid shadow (test seam op 14) ----------
+constexpr uint32_t kCLSID_Aura = 0x0990BDD8;
+constexpr uint32_t kIID_cISC4AuraSimulator = 0xC773E880;
+constexpr uint32_t kIID_cIGZMessageTarget2Aura = 0x452294AA;
+
+// An "original" aura simulator whose record (its own Write, cIGZSerializable)
+// is the version alone (a uint16 9): no grid references, so the shadow takes
+// no baseline and reports each cycle INCOMPLETE without calling anything
+// else. The city answers GetAuraSimulator (compiled slot 51), CellWidthX / Z
+// (91, 92) and CellCountX / Z (93, 94); `noAura` returns null at 51, `ours`
+// our own simulator. Any other call aborts.
+struct FakeOrigAura {
+    FakeVtable simVt, serVt, cityVt, noAuraVt, oursVt;
+    FakeObject sim{}, ser{}, city{}, noAura{}, ours{};
+    void* ourSim = nullptr;
+    int refs = 1;
+    int writes = 0;
+};
+
+FakeOrigAura* g_oa = nullptr;
+
+bool __fastcall OaQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, serializable)
+    if (out == nullptr || iid != GZIID_cIGZSerializable) return false;  // (the reference audit asks other IIDs)
+    *out = &g_oa->ser;
+    ++g_oa->refs;
+    return true;
+}
+uint32_t __fastcall OaAddRef(void*, void*) { return static_cast<uint32_t>(++g_oa->refs); }   // 1
+uint32_t __fastcall OaRelease(void*, void*) { return static_cast<uint32_t>(--g_oa->refs); }  // 2
+bool __fastcall OaWrite(void*, void*, cIGZOStream* s) {                                       // serializable 3
+    ++g_oa->writes;
+    return s->SetUint16(9);
+}
+uint32_t __fastcall OaClsid(void*, void*) { return kCLSID_Aura; }  // serializable 5
+void* __fastcall OaCityAura(void*, void*) { return &g_oa->sim; }   // city 51
+void* __fastcall OaCityNoAura(void*, void*) { return nullptr; }    // city 51
+void* __fastcall OaCityOurs(void*, void*) { return g_oa->ourSim; }  // city 51
+float __fastcall OaCellWidth(void*, void*) { return 16.0f; }       // city 91, 92
+uint32_t __fastcall OaCellCount(void*, void*) { return 64; }       // city 93, 94
+
+void InitFakeOrigAura(FakeOrigAura& o) {
+    g_oa = &o;
+    for (FakeVtable* vt : {&o.simVt, &o.serVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OaQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OaAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OaRelease);
+    }
+    o.serVt.slots[3] = reinterpret_cast<void*>(&OaWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&OaClsid);
+    o.cityVt.slots[51] = reinterpret_cast<void*>(&OaCityAura);
+    o.cityVt.slots[91] = reinterpret_cast<void*>(&OaCellWidth);
+    o.cityVt.slots[92] = reinterpret_cast<void*>(&OaCellWidth);
+    o.cityVt.slots[93] = reinterpret_cast<void*>(&OaCellCount);
+    o.cityVt.slots[94] = reinterpret_cast<void*>(&OaCellCount);
+    o.noAuraVt.slots[51] = reinterpret_cast<void*>(&OaCityNoAura);
+    o.oursVt.slots[51] = reinterpret_cast<void*>(&OaCityOurs);
+    o.sim.vtbl = o.simVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.noAura.vtbl = o.noAuraVt.slots.data();
+    o.ours.vtbl = o.oursVt.slots.data();
+}
+
+intptr_t AuraShadowOnce(FC4TestSeamFn seam, FakeObject* city, int32_t julian, bool baseline) {
+    FC4AuraShadowTestInput in{reinterpret_cast<cISC4City*>(city), julian, baseline ? 1u : 0u};
+    return seam(kFC4SeamAuraShadow, &in, nullptr);
+}
+
+// The neutral answers without a city (§8: no grids, ratings 0).
+void CheckAuraNeutral(cISC4AuraSimulator* a) {
+    CHECK(a->GetMayorRating() == 0);
+    CHECK(a->GetAuraValue(3, 4) == 0);
+    SC4Point<long> p{7, 7};
+    CHECK(a->GetMaxMayorRating(p) == 0);
+    CHECK(a->GetMinMayorRating(p) == 0);
+    CHECK(a->GetAuraGrid() == nullptr);
+    CHECK(a->GetTransientAuraGrid() == nullptr);
+    CHECK(a->GetParkMap() == nullptr);
+    CHECK(a->GetLandmarkMap() == nullptr);
+}
+
+int AuraEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = aura` registers the aura simulator. The aura
+    // shadow (it compares against the original) is then inactive.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_AURA_SHADOW", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = aura\n[tools]\naura_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    static FakeOrigAura orig;
+    InitFakeOrigAura(orig);
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        // simulator (1) + budget (3) + aura (1); never the game's grid classes.
+        CHECK(classes.size() == 5);
+        for (uint32_t c : classes) CHECK(c < 0x49B9E600 || c > 0x49B9E60B);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Aura) == 1);
+
+        void* obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Aura, kIID_cISC4AuraSimulator, &obj));
+        auto* aura = static_cast<cISC4AuraSimulator*>(obj);
+        if (aura != nullptr) {
+            // §1: the primary for its IID and cIGZUnknown; the message target
+            // and serializable; nothing else (the out pointer untouched).
+            void* p = nullptr;
+            CHECK(aura->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(aura));
+            static_cast<cIGZUnknown*>(p)->Release();
+            cIGZMessageTarget2* mt = nullptr;
+            CHECK(aura->QueryInterface(kIID_cIGZMessageTarget2Aura, reinterpret_cast<void**>(&mt)) && mt != nullptr);
+            cIGZSerializable* ser = nullptr;
+            CHECK(aura->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser != nullptr);
+            if (ser != nullptr) {
+                CHECK(ser->GetGZCLSID() == kCLSID_Aura);
+                ser->Release();
+            }
+            p = reinterpret_cast<void*>(0x1234);
+            CHECK(!aura->QueryInterface(0x12345678, &p) && p == reinterpret_cast<void*>(0x1234));
+            CheckAuraNeutral(aura);
+            // Without a city: the month line before Init, a clean lifecycle,
+            // and the transient effects and strike busting do nothing harmful.
+            if (mt != nullptr) {
+                TypeMessage month(kMsgSimNewMonth);
+                CHECK(mt->DoMessage(&month));
+            }
+            CHECK(aura->Init());
+            CHECK(aura->Init());
+            CheckAuraNeutral(aura);
+            aura->AddTransientEffect(10.0f, 20.0f, 30.0f, 5.0f);
+            aura->AddTransientEffect(10.0f, 20.0f, 0x12345678u);
+            aura->BustStrike(cISC4AuraSimulator::StrikeBusterAll);
+            // Five days: states 1 -> 2 -> 3 -> 4, where a city without lots
+            // ends the cycle silently (§6.4 [quirk]): no cycle line, no post.
+            if (mt != nullptr) {
+                for (int i = 0; i < 5; ++i) {
+                    TypeMessage day(kMsgSimNewDay);
+                    CHECK(mt->DoMessage(&day));
+                }
+            }
+            // Getters from a second thread (they read the snapshot only).
+            int8_t rating = 99;
+            cISC4SimGrid<int8_t>* grid = reinterpret_cast<cISC4SimGrid<int8_t>*>(0x1);
+            std::thread t([&] {
+                rating = aura->GetMayorRating();
+                grid = aura->GetAuraGrid();
+            });
+            t.join();
+            CHECK(rating == 0 && grid == nullptr);
+            CheckAuraNeutral(aura);
+            // The shadow (test seam op 14) refuses our own simulator.
+            orig.ourSim = aura;
+            CHECK(AuraShadowOnce(seam, &orig.ours, 0, true) == -1);
+            if (mt != nullptr) mt->Release();
+            CHECK(aura->Shutdown());
+            CHECK(aura->Release() == 0);
+        }
+        // The shadow on fake originals: no city, a city without an aura
+        // simulator, then the original whose record does not parse: no
+        // baseline (0), and the cycle compares nothing (-2).
+        CHECK(AuraShadowOnce(seam, nullptr, 0, true) == -1);
+        CHECK(AuraShadowOnce(seam, &orig.noAura, 0, true) == -1);
+        CHECK(AuraShadowOnce(seam, &orig.city, 0, true) == 0);
+        CHECK(AuraShadowOnce(seam, &orig.city, 2451576, false) == -2);  // 2000-02-01
+        CHECK(orig.writes == 2);
+        CHECK(orig.refs == 1);  // every QueryInterface released
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("subsystem 'aura': enabled (1 class replaced) by FreeCity4.ini (enable=)") != std::string::npos);
+    CHECK(text.find("cFC4AuraSimulator(") != std::string::npos);
+    CHECK(text.find("aura month: init=0 state=1") != std::string::npos);
+    CHECK(text.find("aura Init: init=1") != std::string::npos);
+    CHECK(text.find("lot walks=0 lots=0; inputs none missing so far") != std::string::npos);
+    CHECK(text.find("aura cycle ") == std::string::npos);
+    CHECK(text.find("aura Shutdown (5 days, 1 months, 0 cycles)") != std::string::npos);
+    CHECK(text.find("cFC4AuraSimulator destroyed") != std::string::npos);
+    CHECK(text.find("aura shadow: requested (aura_shadow from FreeCity4.ini) but INACTIVE") != std::string::npos);
+    CHECK(text.find("aura shadow: ON") == std::string::npos);
+    CHECK(text.find("aura shadow: inactive: the city's aura simulator is FreeCity4's own") != std::string::npos);
+    CHECK(text.find("aura shadow: the city has no aura simulator; nothing compared") != std::string::npos);
+    CHECK(text.find("aura shadow: comparing with the original aura simulator") != std::string::npos);
+    CHECK(text.find("(city ") != std::string::npos && text.find("64 x 64 cells); differing tracts listed per grid: 4") !=
+                                                          std::string::npos);
+    CHECK(text.find("aura shadow: no baseline at city load (the original's record did not parse); the first cycle "
+                    "only takes one") != std::string::npos);
+    CHECK(text.find("aura shadow 2000-02-01 cycle 1: INCOMPLETE (the original's record did not parse); the next "
+                    "cycle only takes a baseline") != std::string::npos);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin aura enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -1563,6 +2021,8 @@ int main(int argc, char** argv) {
     // Protection (protection.md): the replacement, and the grid shadow.
     if (mode == "--ini-enable-protection") return ProtectionEnableTest(dll, ini, log);
     if (mode == "--ini-protection-shadow") return ProtectionShadowTest(dll, ini, log);
+    // Aura (aura.md): the replacement, and the grid shadow on fake originals.
+    if (mode == "--ini-enable-aura") return AuraEnableTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).
@@ -1613,6 +2073,22 @@ int main(int argc, char** argv) {
               std::string::npos);
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the watchdog thread") != std::string::npos);
         CHECK(text.find("for 4294967") == std::string::npos);  // no unsigned underflow in any duration
+
+        // 3b. Ended (passthrough): the game shuts the city down 0.5 s into a 60 s
+        // run; verdict "ended" at its PostCityShutdown, with the last day played.
+        CHECK(RunChild(dllArg + "--autotest-child-ended", 30000, &ms) == 0);
+        std::printf("autotest ended child: %lu ms\n", static_cast<unsigned long>(ms));
+        CHECK(ms < 15000);
+        text = ReadFile(log);
+        CHECK(text.find("autotest: WARNING the game is shutting the city down by itself 0 s after the clock started, "
+                        "before the 60 s deadline (julian 2451600)") != std::string::npos);
+        CHECK(text.find("autotest: the game ended the city before the deadline (PostCityShutdown)") !=
+              std::string::npos);
+        CHECK(text.find("AUTOTEST VERDICT: ended (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, "
+                        "ref_warnings=0, julian=2451600, switches_off=-, disabled=simulator,budget)") !=
+              std::string::npos);
+        CHECK(text.find("autotest: TerminateProcess(exit code 0) from the observer (city ended)") != std::string::npos);
+        CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
 
         // A Rust panic in the core: reported in the log (message, location,
         // backtrace, the last interface calls) before the abort.
@@ -1681,7 +2157,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 80): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 115): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -1996,9 +2472,46 @@ int main(int argc, char** argv) {
                 CHECK(jobs[0] == 0.0f && jobs[1] == 0.0f && jobs[2] == 0.0f);
                 SC4Percentage full{1.0f}, half{0.5f};
                 sim->UpdateOccupantEffects(0xBEEF, full, half);  // no effects: nothing happens
+                // Not the identified executable: the game's map functions cannot be
+                // called, so the caller's map is left untouched (logged once).
                 std::map<uint32_t, int32_t> summary;
                 sim->GetLocalPopulationSummary(summary);
-                CHECK(summary.empty());  // [choice] the caller's map is not written
+                CHECK(summary.empty());
+
+                // The building profile's capacity maps (seam op 20: the read the
+                // census and §7.2 make through the host's building_profile).
+                auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+                CHECK(seam != nullptr);
+                if (seam != nullptr) {
+                    FakeCapacityProfile prof;
+                    std::vector<std::array<uint32_t, 3>> got;
+                    FC4DemandCapacityTestInput in{prof.bytes, 0xBEEF, &CollectCapacity, &got};
+                    CHECK(seam(kFC4SeamDemandCapacity, &in, nullptr) == 3);
+                    CHECK(got.size() == 3);
+                    if (got.size() == 3) {
+                        CHECK((got[0] == std::array<uint32_t, 3>{0, 0x1010, 12}));
+                        CHECK((got[1] == std::array<uint32_t, 3>{0, 0x1020, 7}));
+                        CHECK((got[2] == std::array<uint32_t, 3>{0, 0x1030, 3}));
+                    }
+                    // No capacity property: no maps, nothing reported.
+                    got.clear();
+                    prof.SetVector(nullptr, nullptr, nullptr);
+                    CHECK(seam(kFC4SeamDemandCapacity, &in, nullptr) == 0 && got.empty());
+                    // A wrong count: refused as a whole.
+                    prof.SetVector(&prof.map, &prof.map + 1, &prof.map + 1);
+                    prof.map.count = 4;
+                    CHECK(seam(kFC4SeamDemandCapacity, &in, nullptr) == -1 && got.empty());
+                    // A cycle (the largest node's right link back at the root).
+                    prof.map.count = 3;
+                    prof.c.right = &prof.r;
+                    CHECK(seam(kFC4SeamDemandCapacity, &in, nullptr) == -1 && got.empty());
+                    prof.c.right = nullptr;
+                    // A vector that points at unreadable memory: the fault is caught.
+                    prof.SetVector(reinterpret_cast<void*>(0x10), reinterpret_cast<void*>(0x1C),
+                                   reinterpret_cast<void*>(0x1C));
+                    CHECK(seam(kFC4SeamDemandCapacity, &in, nullptr) == -1 && got.empty());
+                    CHECK(seam(kFC4SeamDemandCapacity, nullptr, nullptr) == -1);
+                }
 
                 // A node, created through GZCOM (as the class store does).
                 void* o = nullptr;
@@ -2057,7 +2570,22 @@ int main(int argc, char** argv) {
         CHECK(text.find("subsystem 'ordinance': off by default") != std::string::npos);
         CHECK(text.find("demand Init: ok=1") != std::string::npos);
         CHECK(text.find("demand month: 0 nodes") != std::string::npos);
-        CHECK(text.find("GetLocalPopulationSummary: 0 entries not copied") != std::string::npos);
+        // The month line: what the glue moved (the seam's reads have no simulator, so they are not counted).
+        CHECK(text.find("export cities; capacity: reads=0 entries=0 units=0 (occupancy: reads=0 units=0) "
+                        "refused=0; summary: calls=1 copied=0 untouched=1 failed=0") != std::string::npos);
+        CHECK(text.find("demand: GetLocalPopulationSummary: 0 entries not copied (the executable is not "
+                        "identified") != std::string::npos);
+        CHECK(text.find("compat: direct call map operator[] NOT available (executable not identified)") !=
+              std::string::npos);
+        CHECK(text.find("demand: capacity map read: building type 0x0000BEEF, 1 map(s), 3 entries: 0x1010=12, "
+                        "0x1020=7, 0x1030=3") != std::string::npos);
+        CHECK(text.find("demand: WARNING building type 0x0000BEEF: capacity map 0 of 1 refused (node count "
+                        "differs from the map's count); no capacity reported") != std::string::npos);
+        CHECK(text.find("demand: WARNING building type 0x0000BEEF: capacity map 0 of 1 refused (inconsistent "
+                        "link)") != std::string::npos);
+        CHECK(text.find("STRUCTURED EXCEPTION caught in demand capacity map read") != std::string::npos);
+        CHECK(text.find("demand: WARNING building type 0x0000BEEF: reading its capacity maps faulted") !=
+              std::string::npos);
         CHECK(text.find("demand Shutdown") != std::string::npos);
         CHECK(text.find("cFC4DemandSimulator destroyed") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key") == std::string::npos);
@@ -2262,6 +2790,122 @@ int main(int argc, char** argv) {
         // The shadow needs the ORIGINAL pollution simulator: requested, inactive.
         CHECK(text.find("pollution shadow: requested (pollution_shadow from FreeCity4.ini) but INACTIVE") !=
               std::string::npos);
+        CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+        if (g_failures == 0) std::printf("plugin enable test (%s): all checks passed\n", mode.c_str());
+        return g_failures == 0 ? 0 : 1;
+    }
+
+    if (mode == "--ini-enable-crime") {
+        // The crime subsystem is off by default; `enable = crime` registers the
+        // crime simulator (crime.md §1). No framework and no city here: the
+        // no-city path, where every query reads the neutral value.
+        SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+        SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+        SetEnvironmentVariableA("FC4_CRIME_SEED", nullptr);
+        SetEnvironmentVariableA("FC4_CRIME_SHADOW", nullptr);
+        WriteTextFile(ini, "[subsystems]\nenable = crime\ncrime_shadow = 1\ncrime_seed = 0x1234\n");
+        HMODULE hd = LoadLibraryA(dll.c_str());
+        CHECK(hd != nullptr);
+        if (hd == nullptr) return 1;
+        auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+        cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+        CHECK(director != nullptr);
+        if (director != nullptr) {
+            std::vector<uint32_t> classes;
+            director->EnumClassObjects(&CollectClass, &classes);
+            // simulator (1) + budget (3) + crime (1); never the game's grid
+            // classes (simgrid.md §6.3).
+            CHECK(classes.size() == 5);
+            for (uint32_t c : classes) CHECK(c < 0x49B9E600 || c > 0x49B9E60B);
+            CHECK(std::count(classes.begin(), classes.end(), kCLSID_Crime) == 1);
+            void* obj = nullptr;
+            CHECK(director->GetClassObject(kCLSID_Crime, kIID_cISC4CrimeSimulator, &obj));
+            auto* cr = static_cast<cFC4ISC4CrimeSimulator*>(obj);
+            if (cr != nullptr) {
+                // §1: four interfaces and cIGZUnknown (the primary one), one
+                // reference count; any other IID: false and the out pointer null.
+                void* p = nullptr;
+                CHECK(cr->QueryInterface(0x452294AAu, &p) && p != nullptr);
+                if (p) static_cast<cIGZUnknown*>(p)->Release();
+                cIGZSerializable* ser = nullptr;
+                CHECK(cr->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser);
+                if (ser) {
+                    CHECK(ser->GetGZCLSID() == kCLSID_Crime);
+                    ser->Release();
+                }
+                cFC4CrimePropRequester* req = nullptr;
+                CHECK(cr->QueryInterface(kIID_cISC4PropRequester, reinterpret_cast<void**>(&req)) && req);
+                if (req) {
+                    // §11.6: the satisfaction id, the custom selector; no grid:
+                    // the empty request curve asks for nothing; with no prop
+                    // manager every prop is generic, so one of the list is drawn.
+                    CHECK(req->GetRequesterSatisfactionId() == 0x49A1E996u);
+                    CHECK(req->UsesCustomPropSelector());
+                    const SC4Rect<int32_t> cells(0, 0, 3, 3);
+                    CHECK(req->GetRequestedShare(cells) == 0);
+                    const uint32_t props[2] = {0x111, 0x222};
+                    const FC4U32VectorView none{props, props, props};
+                    CHECK(req->SelectProp(none, 1, 1) == 0);
+                    const FC4U32VectorView two{props, props + 2, props + 2};
+                    const uint32_t chosen = req->SelectProp(two, 1, 1);
+                    CHECK(chosen == 0x111 || chosen == 0x222);
+                    req->Release();
+                }
+                void* u = nullptr;
+                CHECK(cr->QueryInterface(GZIID_cIGZUnknown, &u) && u == static_cast<cIGZUnknown*>(cr));
+                if (u) static_cast<cIGZUnknown*>(u)->Release();
+                void* untouched = reinterpret_cast<void*>(0xDEADBEEF);
+                CHECK(!cr->QueryInterface(0xE98B2F57u, &untouched));  // cIGZMessageTarget: not answered
+                CHECK(untouched == nullptr);
+                // Class slot 15 (class-private, after the destructor at 14):
+                // GetSimulatorType.
+                using TypeFn = uint32_t(__thiscall*)(void*);
+                void** vt = *reinterpret_cast<void***>(cr);
+                CHECK(reinterpret_cast<TypeFn>(vt[15])(cr) == 0x27567222u);
+                // No city, no grids: neutral answers, nothing crashes.
+                CHECK(cr->GetCrimeGrid() == nullptr);
+                CHECK(cr->GetAverageCrime() == 0);
+                CHECK(cr->GetMonthlyCrimeCount() == 0);
+                uint8_t hv = 7;
+                int32_t hx = 7, hz = 7;
+                CHECK(!cr->GetCrimeHotspot(&hv, &hx, &hz));
+                const cS3DVector3 pos(10.0f, 0.0f, 10.0f);
+                CHECK(cr->GetNearestCrimeSim(pos, 100.0f) == nullptr);
+                CHECK(cr->GetNearestCrimeProp(pos, 100.0f) == nullptr);
+                {
+                    fc4::GameVector<FC4CrimeEvent, TestHeap> v;
+                    CHECK(!cr->GetCrimeIncidentArray(reinterpret_cast<fc4::GameVector<FC4CrimeEvent>&>(v)));
+                    CHECK(v.size() == 0);
+                }
+                CHECK(!cr->SetVisualsCreated(0, true));
+                CHECK(!cr->GetVisualsCreated(0));
+                // Init without a city or GZCOM: no agent, a clean lifecycle.
+                CHECK(cr->Init());
+                CHECK(cr->Init());
+                CHECK(cr->Shutdown());
+                CHECK(cr->Release() == 0);
+            }
+        }
+        FreeLibrary(hd);
+        DeleteFileA(ini.c_str());
+        const std::string text = ReadFile(log);
+        CHECK(text.find("subsystem 'crime': enabled (1 class replaced) by FreeCity4.ini (enable=)") !=
+              std::string::npos);
+        CHECK(text.find("subsystem 'pollution': off by default") != std::string::npos);
+        CHECK(text.find("cFC4CrimeSimulator(") != std::string::npos);
+        CHECK(text.find(", session seed 0x00001234 (crime_seed)") != std::string::npos);
+        CHECK(text.find("crime: no simulator; agent not registered") != std::string::npos);
+        CHECK(text.find("crime Init: init=1") != std::string::npos);
+        CHECK(text.find("crime Shutdown (0 days, 0 months)") != std::string::npos);
+        CHECK(text.find("cFC4CrimeSimulator destroyed") != std::string::npos);
+        // The shadow needs the ORIGINAL crime simulator: requested, inactive.
+        CHECK(text.find("crime shadow: requested (crime_shadow from FreeCity4.ini) but INACTIVE") !=
+              std::string::npos);
+        // No GZCOM here: the grids cannot be created (§4.1 step 7), so the
+        // getters stay neutral. Nothing else is worth a warning.
+        CHECK(text.find("crime: WARNING could not create grid 0x89D5B895") != std::string::npos);
+        CHECK(text.find("crime: WARNING GetCrimeIncidentArray") == std::string::npos);
+        CHECK(text.find("off the main thread") == std::string::npos);
         CHECK(text.find("config: WARNING unknown key") == std::string::npos);
         if (g_failures == 0) std::printf("plugin enable test (%s): all checks passed\n", mode.c_str());
         return g_failures == 0 ? 0 : 1;
@@ -2766,6 +3410,32 @@ int main(int argc, char** argv) {
             CheckCw("pollution shadow");
         }
 
+        // The crime shadow (op 13) next to an "original" crime simulator: one
+        // month each (SimNewMonth, then SimNewDay until its pipeline state 4).
+        // Clean: the original did what FreeCity4's state 4 does (0
+        // mismatches). Skewed: one tract and the count differ (2). Unchanged:
+        // state 4 left everything as it was, so it was not observed (-2,
+        // nothing compared). Not the original's agent: left to the caller (-1).
+        if (seam != nullptr) {
+            static FakeOrigCrime oc;
+            InitFakeOrigCrime(oc);
+            cIGZMessageTarget2* agent = reinterpret_cast<cIGZMessageTarget2*>(&oc.agent);
+            OcMonth(oc, 0, 0);
+            CHECK(CrimeShadowOnce(seam, oc, agent) == 0);
+            CHECK(oc.deliveries == 6 && oc.committed && oc.state == 5);
+            OcMonth(oc, 1, 1);
+            CHECK(CrimeShadowOnce(seam, oc, agent) == 2);
+            CHECK(oc.deliveries == 12);
+            OcMonth(oc, 0, 0, true);
+            CHECK(CrimeShadowOnce(seam, oc, agent) == -2);
+            CHECK(oc.deliveries == 18);
+            OcMonth(oc, 0, 0);
+            CHECK(CrimeShadowOnce(seam, oc, reinterpret_cast<cIGZMessageTarget2*>(&oc.other)) == -1);
+            CHECK(oc.deliveries == 25);  // all seven delivered by the caller
+            CHECK(oc.refs == 1);         // every QueryInterface released
+            CheckCw("crime shadow");
+        }
+
         // The reference audit (run 42, ForEachExemplarKey): freeing a
         // temporary the game created for us (acquired, then
         // FC4_RELEASE_CREATED) is not a warning; the same last-reference
@@ -2882,6 +3552,27 @@ int main(int argc, char** argv) {
           std::string::npos);
     CHECK(CountOf(text, "pollution shadow month to ") == 1);
     CHECK(text.find("pollution shadow: ON") == std::string::npos);  // off by default
+    // The crime shadow (test seam op 13): a clean month, a skewed one, an
+    // unobserved state 4; four runs, each a new "original".
+    CHECK(CountOf(text, "crime shadow: tracking the original crime simulator ") == 4);
+    CHECK(text.find("crime shadow: FreeCity4's crime model: 3 crime types, tuning from its exemplar") !=
+          std::string::npos);
+    CHECK(text.find("crime shadow 2000-02-05: state 4 compared on 4x4 tracts (S=4; decay, hotspot, stamps of the "
+                    "original's incidents, count, average): cells mismatched=0 max|orig-ours|=0; hotspot "
+                    "orig/ours=(0,0)=60/(0,0)=60 (before: (4,4)=100, replayed from read); count orig/ours=3/3; "
+                    "average orig/ours=21/21; incidents=4 (severity sum 140, no lot at the cell 1, unknown types 0, ") !=
+          std::string::npos);
+    CHECK(text.find("; mismatches=0; months=1 clean=1; not compared: crimes to commit") != std::string::npos);
+    CHECK(text.find("crime shadow 2000-02-05: state 4 compared on 4x4 tracts (S=4; decay, hotspot, stamps of the "
+                    "original's incidents, count, average): cells mismatched=1 max|orig-ours|=1 [cells (x,z) "
+                    "orig/ours: (2,3) 44/43 pre 7]; hotspot orig/ours=(0,0)=60/(0,0)=60 (before: (4,4)=100, "
+                    "replayed from read); count orig/ours=4/3!; average orig/ours=21/21;") != std::string::npos);
+    CHECK(text.find("; mismatches=2; months=2 clean=1; not compared: crimes to commit") != std::string::npos);
+    CHECK(text.find("crime shadow 2000-02-05: state 4 NOT OBSERVED in this delivery") != std::string::npos);
+    CHECK(text.find("(unobserved=1)") != std::string::npos);
+    CHECK(text.find("crime shadow 2000-02-05: INCOMPLETE") == std::string::npos);
+    CHECK(text.find("crime shadow: ON") == std::string::npos);  // off by default
+    CHECK(text.find("crime shadow: requested") == std::string::npos);
     CHECK(text.find("DLL_PROCESS_ATTACH") != std::string::npos);
     CHECK(text.find("cFC4Director constructed") != std::string::npos);
     CHECK(text.find("EnumClassObjects: reporting clsid 0x2990C1E5") != std::string::npos);
@@ -2893,6 +3584,10 @@ int main(int argc, char** argv) {
     CHECK(text.find("cFC4OrdinanceSimulator(") == std::string::npos);
     CHECK(text.find("subsystem 'demand': off by default") != std::string::npos);
     CHECK(text.find("cFC4DemandSimulator(") == std::string::npos);
+    CHECK(text.find("subsystem 'aura': off by default") != std::string::npos);
+    CHECK(text.find("cFC4AuraSimulator(") == std::string::npos);
+    CHECK(text.find("aura shadow: ON") == std::string::npos);  // off by default
+    CHECK(text.find("aura shadow: requested") == std::string::npos);
     CHECK(text.find("GetClassObject enter (clsid=0x2990C1E5, iid=0x8695664E") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x8695664E) -> 1") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x0BADF00D) -> 0") != std::string::npos);
@@ -2976,11 +3671,11 @@ int main(int argc, char** argv) {
                     "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 80 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 80 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 115 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 115 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 80): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 115): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);

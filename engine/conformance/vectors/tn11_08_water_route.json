@@ -5,7 +5,7 @@
     "traffic-network 4.10",
     "traffic-network 11.8"
   ],
-  "description": "Conformance test 8 (§11). Depth bytes: 3.3 -> 17, 40.7 -> 200, 0.1 -> 1, 2.1 -> 11; step costs 1.0, 3.0, 5.0 for bytes 200, 100, 0. City 8 x 8 with only row z = 0 water (bytes 200, one body): from (0,0) to (5,0) cells = 6, each step costs 1.0 so the target g = 5.0, link cost r24(6 x 0.01) = 0x3D75C28F. Forward route 00 00 00 40 05 AA 02 (header [0,0,0], run [0x40, 5], codes 2 x 5 packed AA 02); backward 00 05 00 40 05 00 00. Different water-body IDs at start and target fail and leave the vector untouched.",
+  "description": "Conformance test 8 (§11). Depth bytes: 3.3 -> 17, 40.7 -> 200, 0.1 -> 1, 2.1 -> 11; step costs 1.0, 3.0, 5.0 for bytes 200, 100, 0, and 0x4081EB85 for byte 47 (4.10.2: every constant a float32, TN14). City 8 x 8 with only row z = 0 water (bytes 200, one body): from (0,0) to (5,0) cells = 6, each step costs 1.0 so the target g = 5.0, link cost r24(6 x 0.01) = 0x3D75C28F. Forward route 00 00 00 40 05 AA 02 (header [0,0,0], run [0x40, 5], codes 2 x 5 packed AA 02); backward 00 05 00 40 05 00 00. Different water-body IDs at start and target fail and leave the vector untouched.",
   "steps": [
     {
       "op": "tn_eval",
@@ -72,6 +72,16 @@
       ],
       "expect": "0x40A00000",
       "note": "5.0 (target on land)"
+    },
+    {
+      "op": "tn_eval",
+      "fn": "step_cost",
+      "args": [
+        47,
+        0
+      ],
+      "expect": "0x4081EB85",
+      "note": "TN14: r24(47 x 0.2f) = 0x41166667, 40 - that = 0x41F4CCCC, x 0.1f = 0x4043D70A, + 0 + 1.0 = 0x4081EB85 (the double 0.2 would give 0x4081EB86)"
     },
     {
       "op": "tn_env",

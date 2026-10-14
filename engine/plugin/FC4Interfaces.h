@@ -693,6 +693,41 @@ public:
     virtual bool ForceMonthlyAdjustedIncome(int64_t monthlyAdjustedIncome) = 0;   // 29
 };
 
+// cISC4OrdinanceSimulator (IID 0x41193C3A), 26 slots (docs/abi; the SDK
+// order), called on whatever ordinance simulator the city has (the aura glue:
+// aura.md section 6.3). One return channel differs from the SDK: slot 24
+// returns the 32-bit sum in EAX and leaves EDX unset (SDK: int64). It is named
+// apart from the SDK's GetCumulativeOffset so that abi_conformance_test's
+// waiver scan, which finds calls by name, never takes it for the SDK one.
+class cISC4Ordinance;
+class cISC4OrdinanceSimulator;
+class cFC4ISC4OrdinanceSimulator : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                             // 3
+    virtual bool Shutdown() = 0;                                                         // 4
+    virtual bool AddOrdinance(cISC4Ordinance& ordinance) = 0;                            // 5
+    virtual bool RemoveOrdinance(cISC4Ordinance& ordinance) = 0;                         // 6
+    virtual bool IsOrdinanceAvailable(uint32_t clsid) = 0;                               // 7
+    virtual bool IsOrdinanceOn(uint32_t clsid) = 0;                                      // 8
+    virtual bool IsOrdinanceAvailableButOff(uint32_t clsid) = 0;                         // 9
+    virtual bool SetOrdinanceAvailable(uint32_t clsid, bool available) = 0;              // 10
+    virtual uint32_t GetOrdinanceAvailableCount() = 0;                                   // 11
+    virtual uint32_t GetOrdinanceAvailableArray(uint32_t* clsids, uint32_t& count) = 0;  // 12
+    virtual bool SetOrdinanceOn(uint32_t clsid, bool on) = 0;                            // 13
+    virtual uint32_t GetOrdinanceOnCount() = 0;                                          // 14
+    virtual uint32_t GetOrdinanceOnArray(uint32_t* clsids, uint32_t& count) = 0;         // 15
+    virtual bool IsOrdinanceEnabled(uint32_t clsid) = 0;                                 // 16
+    virtual bool SetOrdinanceEnabled(uint32_t clsid, bool enabled) = 0;                  // 17
+    virtual uint32_t GetOrdinanceIDArray(uint32_t* clsids, uint32_t& count) = 0;         // 18
+    virtual uint32_t GetOrdinanceIDByName(cIGZString const& name) = 0;                  // 19
+    virtual cISC4Ordinance* GetOrdinanceByID(uint32_t clsid) = 0;                        // 20
+    virtual cISC4Ordinance* GetOrdinanceByName(cIGZString const& name) = 0;              // 21
+    virtual int64_t GetOrdinanceMonthlyExpense() = 0;                                    // 22
+    virtual int64_t GetOrdinanceMonthlyIncome() = 0;                                     // 23
+    virtual int32_t GetCumulativeOffset32(uint32_t prop, uint32_t index) = 0;            // 24 (SDK: int64)
+    virtual float GetCumulativeFactor(uint32_t prop, uint32_t index) = 0;                // 25
+};
+
 // cISC4Demand (IID 0x0797A4E8), 34 slots (demand spec §3.2, "Compiled slot
 // tables": the SDK order). Implemented by cFC4Demand. Return channels as the
 // game has them (docs/abi): AddToSupplyValue / AddToDemandValue return in ST0
@@ -784,10 +819,13 @@ public:
                                                SC4Percentage& health, bool flag) = 0;  // 20
     virtual bool GetAverageEQGrid(cISC4SimGrid<float>*& grid, float* min, float* max) = 0;  // 21
     virtual bool GetAverageHQGrid(cISC4SimGrid<float>*& grid, float* min, float* max) = 0;  // 22
-    virtual bool GetEQGrids(cISC4SimGrid<float>*& grid, cISC4SimGrid<float>* a, cISC4SimGrid<float>* b) = 0;  // 23
+    // Slots 23 / 25 (crime.md §13): all three parameters are out pointers, each
+    // AddRef'd for the caller (SDK: the 2nd and 3rd plain pointers); the return
+    // value is garbage (declared bool, never read).
+    virtual bool GetEQGrids(cISC4SimGrid<float>*& g0, cISC4SimGrid<float>*& g1, cISC4SimGrid<float>*& g2) = 0;  // 23
     virtual bool GetHQGrids(cISC4SimGrid<float>*& grid, cISC4SimGrid<float>* a, cISC4SimGrid<float>* b) = 0;  // 24
-    virtual bool GetPopulationGrids(cISC4SimGrid<uint16_t>*& grid, cISC4SimGrid<uint16_t>* a,
-                                    cISC4SimGrid<uint16_t>* b) = 0;               // 25
+    virtual bool GetPopulationGrids(cISC4SimGrid<uint16_t>*& g0, cISC4SimGrid<uint16_t>*& g1,
+                                    cISC4SimGrid<uint16_t>*& g2) = 0;             // 25
     virtual bool GetSchoolQueryData(cISC4Occupant* occupant, intptr_t queryData) = 0;    // 26
     virtual bool GetHospitalQueryData(cISC4Occupant* occupant, intptr_t queryData) = 0;  // 27
     virtual bool EstimateCurrentOccupantCapacity(cISC4Occupant* occupant, uint32_t& a, uint32_t& b) = 0;  // 28
@@ -1041,6 +1079,7 @@ class cISC4Ordinance;
 class cISC4ResidentialSimulator;
 class cISC4RegionalCity;
 class cISC4PlumbingSimulator;
+class cISC4PowerSimulator;
 
 // ---- plumbing (docs/specs/plumbing.md §10.1) -----------------------------------------------------
 
@@ -1433,6 +1472,10 @@ inline cFC4ISC4NeighborsSimulator* AsGame(cISC4NeighborsSimulator* p) {
 // at offset 0); slot 10 is only ever called through cFC4ISC4Ordinance.
 inline cFC4ISC4Ordinance* AsGame(cISC4Ordinance* p) { return reinterpret_cast<cFC4ISC4Ordinance*>(p); }
 inline cISC4Ordinance* AsSdk(cFC4ISC4Ordinance* p) { return reinterpret_cast<cISC4Ordinance*>(p); }
+// The ordinance simulator: slot 24 only ever through cFC4ISC4OrdinanceSimulator.
+inline cFC4ISC4OrdinanceSimulator* AsGame(cISC4OrdinanceSimulator* p) {
+    return reinterpret_cast<cFC4ISC4OrdinanceSimulator*>(p);
+}
 // Demand nodes travel as the SDK's cISC4Demand* (single inheritance); slots
 // 16, 17 and 30 are only ever called through cFC4ISC4Demand.
 inline cFC4ISC4Demand* AsGame(cISC4Demand* p) { return reinterpret_cast<cFC4ISC4Demand*>(p); }
@@ -1454,6 +1497,12 @@ inline cFC4ISC4PlumbingSimulator* AsGame(cISC4PlumbingSimulator* p) {
 }
 inline cISC4PlumbingSimulator* AsSdk(cFC4ISC4PlumbingSimulator* p) {
     return reinterpret_cast<cISC4PlumbingSimulator*>(p);
+}
+// Power travels as the SDK's cISC4PowerSimulator* (the city getter's type);
+// single inheritance, vtable at offset 0. Call it only through the verified
+// declaration (the SDK's overloads are out of compiled order).
+inline cFC4ISC4PowerSimulator* AsGame(cISC4PowerSimulator* p) {
+    return reinterpret_cast<cFC4ISC4PowerSimulator*>(p);
 }
 // Pollution travels as the SDK's cISC4PollutionSimulator* (the city getter's
 // type); single inheritance, vtable at offset 0. Call slots 29, 30, 33-41,

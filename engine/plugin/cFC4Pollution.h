@@ -241,6 +241,8 @@ private:
     int depth_ = 0;
     uint32_t days_ = 0;
     uint32_t months_ = 0;
+    // The month line's WARNING about a grid with no tracts, once per object.
+    bool emptyGridWarned_ = false;
 };
 
 // Factory for the subsystem table (reference count 0).

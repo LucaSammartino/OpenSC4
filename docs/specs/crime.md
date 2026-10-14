@@ -35,11 +35,17 @@ developer, weighted by local crime. It exposes the nearest crime automaton or cr
 | `cIGZMessageTarget2` | IID `0x452294AA` |
 | Prop requester | `cISC4PropRequester`, IID `0x89C498BE` (name from the Mac build) |
 | `cIGZSerializable` | IID `0xE4FDA3D4` |
-| Not answered | `cIGZMessageTarget` `0xE98B2F57`, everything else → false, out pointer null |
+| Not answered | `cIGZMessageTarget` `0xE98B2F57`, everything else → false (AL = 0), **out pointer untouched** (`0x0069F1FC`) *[compat]* |
 | City component | slot **#23** (foundations §3.6); the city gets it with `GetClassObject(0x8990C09A, 0x67659555)` |
 | City getter | `cISC4City` slot 55 (`+0xDC`) `GetCrimeSimulator`, cached by the game as `SL::spCrimeSim` |
 | Init order | after commercial, before fire protection (foundations §3.7) |
 | Extra class slot | slot 15 of the primary vtable (after the destructor) returns the simulator type `0x27567222` |
+
+*(Corrected: an earlier version said the out pointer is nulled.)* Every simulator class behaves the same way. Of
+the 64 `QueryInterface` implementations checked (each simulator, the city, lots, occupants and managers) and the
+base-class implementations they fall through to (such as `cRZUnknown` `0x009457C6` and `cRZSystemService`
+`0x0091DD67`), only `cSCResExemplarCohort` writes
+null into the out pointer: it does so on entry (`0x0067C15D`), so its failures leave null.
 
 All four interfaces are one object (one reference count). `AddRef` increments, `Release` decrements. When
 `Release` is called with a count ≤ 1, it calls `Shutdown()` and then destroys the object. It returns 0 then,
@@ -112,7 +118,8 @@ If already initialized, return true and do nothing. Otherwise, in order:
    grid, and register the prop-requester sub-object with the prop developer (`AddPropRequester`, §11.6). In a
    loaded city the prop developer restores the registration itself from its own save (§14.2).
 9. Reset the hotspot to (0, 0, value 0) and the ordinance factor to **1.0**, for new and loaded cities alike.
-   *[compat, quirk]*
+   *[compat, quirk]* After a load nothing re-posts OrdinanceUpdated, so the factor stays 1.0 until some
+   ordinance's on flag changes (§16 Q1).
 
 ### 4.2 `Shutdown()` → true
 
@@ -120,7 +127,13 @@ If not initialized, return true. Otherwise clear `initialized`. Shut down and re
 police, ordinance, occupant manager and city references. Clear the incident list (releasing each incident's lot).
 Unsubscribe `0xC2C09554`, `0xC53D10AA`, `0x99EF1142`, `0x99EF1143`, then release the message server. Remove the
 agent from all levels (`cISC4Simulator` slot `+0x50`, the single-argument overload).
-*[compat]* It does **not** unregister from the prop developer.
+*[compat]* It does **not** unregister from the prop developer (`0x006A1860`; no prop-developer call, unlike
+pollution, which calls `RemovePropRequester`). The registration ends on the prop developer's side:
+`AddPropRequester` (`0x006F21C0`) AddRefs the requester and appends it with no duplicate check, and the prop
+developer's own `Shutdown` (`0x006F2F70`–`0x006F2FCE`) releases each listed requester once and empties the
+list. So the shut-down crime object stays alive, held by the prop developer, until that `Shutdown`. An `Init`
+on a new city that is not preceded by the prop developer's `Shutdown` would register the requester a second
+time.
 
 ## 5. Scheduling and messages handled
 
@@ -335,7 +348,8 @@ For the chosen type:
    layer (`cISC4City +0x120`) is non-null, then:
    - get the fire manager with `GetDisasterManager(0x621CDA33)` and QI it for `cISC4DisasterManagerFire`
      `0x49B43F57`,
-   - `IgniteOccupant(building as cISC4Occupant)`, then `SetCause(2)` (arson *[inferred]*),
+   - `IgniteOccupant(building as cISC4Occupant)`, then `SetCause(2)` (arson *[inferred]*). `SetCause` is called
+     **whatever `IgniteOccupant` returns**: the bool result is discarded (`0x006A1D07`–`0x006A1D10`) *[compat]*,
    - release the manager.
 
    *[quirk]* The original checks neither the manager nor the QI result for null.
@@ -362,6 +376,21 @@ the NaN keeps saves byte-identical and the getter result is 0 either way.)*
 Runs if the occupant (as a property holder) has property **`0xCA5B9306`**. The property is read as a byte
 array `{m, r}`: magnitude and radius in **city cells**. *[quirk]* The original does not check the length, so
 fewer than 2 bytes reads past the data. *[choice]* FreeCity4 skips arrays shorter than 2.
+
+*How it is read* *[compat]* (`0x0069F27B`–`0x0069F2B1`): the original takes the property's value variant and asks
+it for its **raw data pointer** (variant slot 95, `0x0060CE80`), whatever the variant's type. There is no numeric
+conversion and no type or count check. `m` is the byte at offset 0 and `r` the byte at offset 1 of the value's
+storage. So:
+
+| Stored as | Original reads | Example `{100, 8}` gives |
+|---|---|---|
+| `Uint8` / `Sint8` array (all 6 shipped buildings are `Uint8` ×2; data-formats §7.3) | elements 0 and 1 | m = 100, r = 8 |
+| wider array (`Uint16`, `Uint32`, `Sint32`, `Float32`, …) | bytes 0 and 1 of element 0, little-endian | `Uint32`: m = 100, r = 0 (no cell changes); `Float32`: m = 0, r = 0 |
+| any scalar | the scalar's value used as a pointer: a crash or garbage | — |
+
+*[choice]* FreeCity4 reads bytes 0 and 1 of the value's raw little-endian storage, so every array type behaves
+as in the original. It skips scalars and arrays shorter than 2 bytes. A numeric conversion (`GetU32s`, then the
+low bytes) would equal the original only for byte arrays.
 
 ```
 value  := +m when inserted, −m when removed
@@ -408,7 +437,7 @@ Names in quotes are the official property names (community property list, re/pri
 | Property | Type | Default | Meaning |
 |---|---|---|---|
 | (exemplar instance) | — | — | crime type ID |
-| `0x8A416B2E` | u32 ×3 LTEXT key | — | display name, loaded with `SC4LoadExemplarString` (the key's group and instance select the LTEXT) |
+| `0x8A416B2E` | u32 ×3 LTEXT key | — | display name, loaded with `SC4LoadExemplarString` (below) |
 | `0xAA12FCB0` | **string** | empty | "Crime Name": an inline name, read **only when** the LTEXT load fails (no key property, or no such LTEXT). If it is absent too, the name stays empty |
 | `0xAA12FCB1` | u32 ×3 | `(0, 0, 0)` | "Icon Resource Key" (type, group, instance) |
 | `0xAA12FCB2` | u8 array | all bits | "Zone Filter" (zone mask) |
@@ -418,6 +447,22 @@ Names in quotes are the official property names (community property list, re/pri
 | `0xAA12FCB6` | u8 | 0 | "Trigger Fire": arson flag (non-zero = start a fire) |
 | `0xAA12FCB7` | u8 array | all bits | "Lot Condition Filter" |
 | `0xAA12FCB8` | f32 | 10 | "Relative Occurrance": selection weight |
+
+**Name** *[compat]* (`LoadCrimeTypeFromExemplar` `0x006A0D12`; `SC4LoadExemplarString` `0x00603270` →
+`0x00603220`; `SC4LoadString` `0x00603040`):
+
+1. Read property `0x8A416B2E` as three `u32` from the exemplar that the resource manager returns for the crime
+   type's own key. If it is missing, the load fails. Value [0] (the key's type) is **ignored**: the LTEXT type is
+   always `0x2026960B`. Value [1] is the LTEXT group `G` and value [2] the instance `I`.
+2. Look up (`0x2026960B`, `G` + current language ID, `I`). If that is missing and the language ID is not 0, look up
+   (`0x2026960B`, `G`, `I`) (data-formats §6.2). If both are missing, the load fails and the name is untouched.
+3. Copy the text into the name. Run the game's string detokenizer on it in place (the application's
+   `GetStringDetokenizer`, `cISCStringDetokenizer` slot 9). If it returns false, the load fails. With no
+   detokenizer the step is skipped.
+4. Replace every U+2022 by U+200B (data-formats §6.1). The load succeeds.
+
+If the load fails, read the string property `0xAA12FCB0` into the name. If that is missing too, the name stays
+as it was (empty for a new entry).
 
 **Mask parsing**: each byte `b` sets bit `b − 1`. A byte 0 makes the mask `0xFFFFFFFF` (any). *[quirk]* A present
 but **empty** array gives mask 0, which never matches. A missing property gives `0xFFFFFFFF`. Byte values above
@@ -445,12 +490,15 @@ name (property `0x20`), which the simulator does not read.
 | 0x12 | Pie Throwing | 40 | 4 | — | purpose [9, 1, 2, 3, 4, 6, 7, 8] | `0x4A63A9E4` | `0x7A5EA698` |
 | 0x13 | TPing | 40 | 4 | — | zone [1]; wealth [3, 2]; purpose [1] | `0x2A63A9F9` | `0x8A5EA698` |
 
-*[compat]* Shipped data quirks: Bank Robbery has the same icon and name key as Mugging. In the English
-`SimCityLocale.DAT` only `0xEA5EA698` exists in group `0x0A554AE0` (and its text is an unrelated building
-description); none of the other name keys exists in any shipped package. The other types' names therefore load
-empty (no `0xAA12FCB0` fallback), and Generic's name is that unrelated text *[inferred: `SC4LoadString`'s lookup
-order (other languages, LTEXT sources outside the packages) not traced]*. The name only feeds the incident
-record, the `0x0A159D95` message string and the save.
+*[compat]* Shipped data quirks: Bank Robbery has the same icon and name key as Mugging. In every one of the 13
+shipped language packages, `0xEA5EA698` is the only name key present in group `0x0A554AE0`, and its text is an
+unrelated building description. None of the other name keys exists in any shipped package, and no package has a
+group `0x0A554AE0` + language ID. Only the current language's package is loaded (data-formats §6.2), so another
+language cannot supply a name. In every language, the other 13 types therefore load **empty** (no `0xAA12FCB0`
+fallback), and Generic's name is that language's unrelated text, detokenized. The name only feeds the incident
+record, the `0x0A159D95` message string and the save. *[choice]* FreeCity4 reproduces the four steps above.
+Inside the game it may instead call the game's `SC4LoadString` (`0x00603040`, `cdecl`, arguments `(cIGZString&
+out, G, I, detokenizer or null)`), which gives the same text, detokenizer included.
 
 Purpose byte 9 is bit 8 (`0x100`), the value used for "no purpose / no building" (§6.7). "Condition [3]" is bit 2,
 which matches lot condition 4 only: an abandoned lot at its last decay stage (foundations §5.2).
@@ -493,8 +541,34 @@ occupant property `0x029244DB` (preview occupants, foundations §5.2; occupants 
 ## 9. Random numbers *[compat]*
 
 **Generator**: one file-local `cRZRandomSuper` (MT19937, foundations §6.1), shared by all crime simulator
-instances. It is seeded at static initialization with the local wall-clock seconds XOR `0x6C09C3F6`, it is not
-saved, and only this class uses it.
+instances. It is seeded once per process at static initialization (`0x00A74B70`) with the `cRZTime` value for
+"now" XOR `0x6C09C3F6`, it is not saved, and only this class uses it.
+
+**Seed value.** `cRZTime()` (`0x00470B50`) is not the raw local wall clock. It takes `time()`, splits it with
+`localtime`, and rebuilds an **unsigned 32-bit count of seconds since 1901-01-01 00:00 UTC** (Julian day
+2415386) from the local calendar fields: local date and time, plus the CRT `_timezone`, minus 3600 when the
+library's own daylight rule says the local time is daylight time. That rule applies only when the CRT
+`_daylight` is non-zero, and it is the fixed pre-2007 US rule whatever the host zone: daylight time runs from
+the Sunday on or before April 8 at 02:00 to the Sunday on or before October 31 at 01:00 standard time. So:
+
+- when the host's own rule agrees with that one, the value is `time() + 2177452800` (2 177 452 800 = 25 202
+  days, 1901-01-01 to 1970-01-01), truncated to 32 bits;
+- where the two rules disagree (modern US dates between the second Sunday of March and the library's April
+  start, or between its October end and the first Sunday of November; any non-US zone with daylight time), it
+  is one hour off that value;
+- a local time that falls in the library's spring-forward hour is invalid and gives **0**, so the seed is then
+  `0x6C09C3F6` itself.
+
+Worked example: 2026-10-14 12:00:00 local in US Central (`_timezone` = 21600, `_daylight` = 1). The library rule
+runs from 2026-04-05 to 2026-10-25, so it is daylight time: 12:00 + 6 h − 1 h = 17:00 UTC, which is 3 969 450 000
+(`0xEC990010`) seconds after 1901-01-01, the same as `time() + 2177452800`. The seed is `0xEC990010 XOR
+0x6C09C3F6` = `0x8090C3E6`. The same instant on 2026-10-28 (still daylight time on the host, standard time by
+the library rule) gives 3600 more.
+
+*[choice]* The seed comes from the clock, so no run can observe the difference. FreeCity4 seeds with
+`(uint32)(time(NULL) + 2177452800) XOR 0x6C09C3F6`, which is the original's value whenever the two daylight rules
+agree, and skips the library's time-zone arithmetic. The other file-local generators seeded "with `cRZTime()`"
+(foundations §6) use the same value.
 
 | Operation | Method | Draws |
 |---|---|---|
@@ -536,6 +610,21 @@ Query the occupant manager (`GetOccupantsByBBox`, filter overload) with the box 
 - for sims: occupants with `GetType() = 0x496E5783` that are in occupant group `0x4102`;
 - for props: occupants with `GetType() = 0xA823821E` that have property `0x8AA864D5`.
 
+How the original queries *[compat for the result]* (`0x006A10F0` sims, `0x006A0E50` props): it allocates a
+12-byte filter object per call (global heap C; vtables `0x00AB0D4C`/`0x00AB0D34` for sims,
+`0x00AB0D18`/`0x00AB0D00` for props) whose slot 3 `IsOccupantIncluded` is exactly the test above (`0x0069F4D0`,
+`0x0069F490`). It calls occupant-manager **slot 36** `(list, &min, &max, filter, 0xFFFFFFFF)` on a fresh `ilist`
+(head from the framework service, A). When that returns true it walks the list and then calls slot 48
+`ReleaseOccupantList`. Finally it frees the nodes and the head and releases the filter. The manager calls only
+the filter's slot 3, once per occupant in the box, and appends the accepted ones in its own walk order.
+
+*[choice]* Equivalent: the typed overload, slot 37 `(list, &min, &max, type, 0xFFFFFFFF)` with type
+`0x496E5783` (sims) or `0xA823821E` (props), followed by the group test (sims) or the property test (props) on
+each listed occupant **before** it can become a candidate. Slot 37 stores the type in the manager's own filter,
+whose test is `GetType() == type` (`0x004BDF90` → `0x005E9740`), and forwards to slot 36. The walk is the same, so
+the qualifying occupants and their order are the same. The extra AddRef/Release of the non-qualifying ones is not
+observable.
+
 Start with `best := radius`. For each result, `d :=` its 3-D distance to `pos` (`GetPosition`), computed as
 `float32` operations in this order *[compat]* (foundations §18): `dx := occ.x − pos.x`, `dy := occ.y − pos.y`,
 `dz := occ.z − pos.z`, then `d := sqrt((dy·dy + dz·dz) + dx·dx)`, every subtraction, product, sum and the square
@@ -549,7 +638,23 @@ reference is released before returning), or null.
 
 Resize `out` to the incident count. For each incident that has a lot:
 `out[i] = {cellX, cellZ from city.PositionToCell(lot.GetCenter()), type ID, visuals flag, icon key}`.
-Elements of incidents without a lot (possible after a load) keep their previous content. Return `count > 0`.
+Elements of incidents without a lot (possible after a load) are not written. Return `count > 0` (signed).
+
+**Container and allocator** *[compat]* (`0x006A1960`; resize `0x006A1380`, growth `0x0069FE90`):
+
+- `out` is a `std::vector<tCrimeEvent>` with the default allocator, so its buffer is a **B** block (the STL node
+  allocator, `docs/abi/allocators.md`): allocated with `0x0090CF54`, freed with `0x0090CF63`.
+- Growing beyond the capacity allocates a new B buffer of `size + max(size, added)` elements (exactly the count
+  when `out` is empty), copies the old elements and frees the old buffer with B. Shrinking only moves `end`, and
+  a resize within the capacity keeps the buffer.
+- The only caller (the traffic effect manager, `0x00553370`) passes a zeroed vector (no buffer) on every call. It
+  frees the buffer with `0x0090CF63` afterwards, whatever the return value.
+- A replacement must allocate the buffer with B and free any buffer it replaces with B. `SC4Vector` (allocator A)
+  is not compatible.
+- New elements are copies of the resize's fill value. That is a stack temporary whose icon key (+0x10..+0x1B) is
+  zeroed and whose first 16 bytes are uninitialised (`0x006A198B`–`0x006A1997`). So an incident without a lot
+  yields an element with icon key (0, 0, 0) and garbage cell, type and visuals fields. *[choice]* FreeCity4
+  zero-fills new elements.
 
 `tCrimeEvent` is **28 bytes**: `u32 cellX; u32 cellZ; u32 typeID; u8 visualsCreated; 3 bytes padding;
 cGZPersistResourceKey iconKey (type, group, instance)`. *[compat]* The traffic effect manager walks the array
@@ -570,7 +675,9 @@ Index < count: set and return true / return the flag. Otherwise return false.
 
 **`SelectProp`**: `lot := lotManager.GetLot(cellX, cellZ, false)` (may be null). Split `props` in order:
 
-- props whose `PropProfile.crimeIncidentID` (prop manager `GetPropProfile`) is 0 → generic list;
+- props whose `PropProfile.crimeIncidentID` (prop manager `GetPropProfile`) is 0 → generic list. The field is
+  the `u32` at **+0x18** (24) of the profile that `GetPropProfile` returns (`0x006A016E`), the prop's property
+  `0x8AA864D5` *[compat]*;
 - props with a non-zero ID that matches the type of an incident whose lot is `lot` → matching list (each
   prop at most once). The lot test compares the pointers, so when the cell has **no lot** (`lot` null),
   incidents whose lot is null (after a load with a null lot ref, §12) match *[compat]*;
@@ -611,8 +718,8 @@ incidentCount × {
 - `Read` rejects any version ≠ 6 and returns false after consuming only the version (`loadedFromSave` stays
   clear). Otherwise it reads all fields, appends the incidents to the current list (it does not clear it), sets
   every incident's visuals flag to false, sets `loadedFromSave`, and returns `!GetError()`.
-- **Stream error** (foundations §2.1, §2.9; the loader ignores the result, foundations §3.5). The original does
-  not stop at the first failure: it keeps calling the stream (each failed read leaves its destination
+- **Stream error** (foundations §2.1, §2.9; the loader ignores the result, foundations §3.5; `Read`
+  `0x006A05E0`, whose only early exit is the version test). The original does not stop at the first failure: it keeps calling the stream (each failed read leaves its destination
   unchanged), **sets `loadedFromSave` anyway** and returns false. Fields read before the failure hold the loaded
   values. The exceptions after it: a grid ref becomes **null** (the ref helper clears the destination first, without
   releasing an old grid); the iterator's table is resized to *(the stream object's address)* entries (the count
@@ -646,27 +753,28 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check`. "Byte
 | | 95 | `+0x17C` | PositionToCell(f32 x, f32 z, int& cx, int& cz) | 16 | bool |
 | `cISC4Simulator` (`0x00AB2FB8`) | 19 | `+0x4C` | AddAgent(target, level, name, flags) | 16 | bool |
 | | 20 | `+0x50` | RemoveAgent(target) (all levels) | 4 | bool |
-| `cISC4PoliceSimulator` (`0x00AB2490`) | 5 | `+0x14` | GetPolicePowerGrid → `cISC4SimGrid<uint8>*` | 0 | EAX ptr |
-| | 27 | `+0x6C` | ResetUnjailedCriminals → s32 released count | 0 | EAX |
+| `cISC4PoliceSimulator` (`0x00AB2490`) | 5 | `+0x14` | GetPolicePowerGrid → `cISC4SimGrid<uint8>*` (`0x006EFA50`: the adjusted grid at `+0x80`, no AddRef; protection §2) | 0 | EAX ptr |
+| | 27 | `+0x6C` | ResetUnjailedCriminals → s32 released count (`0x006E0A00`: a `float`→int conversion, returned in EAX) | 0 | EAX |
 | | 30 | `+0x78` | GetJailPopulation → u32 (Σ rounded per-jail populations; protection §15.2) | 0 | EAX |
 | | 38 | `+0x98` | ProcessMonthlyCrimeStats (result ignored) | 0 | none used |
-| `cISC4ResidentialSimulator` (`0x00AB2C10`) | 23 | `+0x5C` | GetEQGrids(g0*&, g1*&, g2*&) | 12 | none (garbage) |
-| | 25 | `+0x64` | GetPopulationGrids(g0*&, g1*&, g2*&) | 12 | none (garbage) |
+| `cISC4ResidentialSimulator` (`0x00AB2C10`) | 23 | `+0x5C` | GetEQGrids(g0*&, g1*&, g2*&); called second (`0x0069FB3E`) | 12 | none (garbage; EAX is not read) |
+| | 25 | `+0x64` | GetPopulationGrids(g0*&, g1*&, g2*&); called first (`0x0069FB24`) | 12 | none (garbage; EAX is not read) |
 | `cISC4DemandSimulator` (`0x00AB0E48`) | 6 | `+0x18` | GetDemand(id, 0) | 8 | EAX ptr |
 | `cISC4Demand` (`0x00AA2758`) | 12, 14, 15 | `+0x30/+0x38/+0x3C` | active value / max / min (demand spec §3) | 0 | ST0 float |
 | `cISC4OrdinanceSimulator` (`0x00ABEAC0`) | 25 | `+0x64` | GetCumulativeFactor(id, 0) | 8 | ST0 float |
 | `cISC4LotManager` (`0x00AB37C0`) | 6 | `+0x18` | GetLot(int x, int z, bool) | 12 | EAX ptr |
 | | 13 | `+0x34` | GetRandomLot() | 0 | EAX ptr |
 | `cISC4Lot` (`0x00AB19B0`) | 14 | `+0x38` | GetBoundingRect(SC4Rect<long>&) | 4 | EAX |
-| | 15 | `+0x3C` | GetCenter(cS3DVector3&) (result in the out param; the `x87` tag in docs/abi is a heuristic miss: it ends with `fstp`) | 4 | EAX ptr |
+| | 15 | `+0x3C` | GetCenter(cS3DVector3& out) → `&out`: writes x = 8·(x1 + x2 + 1), y = the lot's altitude, z = 8·(z1 + z2 + 1) for the bounding cells of slot 14 (exact in `float32`). The **x87 stack is empty** on return (`0x006BF5B6` pops the last value); the `x87` tag in docs/abi is a heuristic miss. A caller must not pop ST0 | 4 | EAX = `&out` |
 | | 21 | `+0x54` | GetLocation(int& x, int& z) | 8 | bool |
 | | 35 | `+0x8C` | GetCondition → u8 | 0 | AL |
 | | 48 | `+0xC0` | GetBuilding → `cISC4BuildingOccupant*` | 0 | EAX ptr |
 | `cISC4BuildingOccupant` | 3 | `+0x0C` | AsOccupant *[inferred name]* | 0 | EAX ptr |
 | | 11 | `+0x2C` | GetBuildingProfile (purpose at +0, wealth at +4) | — | EAX ptr |
 | `cISC4ZoneManager` (`0x00A92E00`) | 12 | `+0x30` | GetZoneType(x, z) | 8 | EAX enum |
-| `cISC4OccupantManager` (`0x00A8F7F0`) | 36 | `+0x90` | GetOccupantsByBBox(list&, const float min[3], const float max[3], filter*, 0xFFFFFFFF) *[inferred: last arg]* | 20 | bool |
-| | 48 | `+0xC0` | releases the returned list *[inferred]* | 4 | — |
+| `cISC4OccupantManager` (`0x00A8F7F0`) | 36 | `+0x90` | GetOccupantsByBBox(list&, const float min[3], const float max[3], filter*, flags) — the original passes its own filter and flags `0xFFFFFFFF` (`0x006A121D`, `0x006A0F7D`); §11.3 | 20 | AL |
+| | 37 | `+0x94` | the typed overload `(list&, min, max, type, flags)`: FreeCity4's equivalent (§11.3) | 20 | AL |
+| | 48 | `+0xC0` | ReleaseOccupantList (one Release per element, nodes freed with A; allocators.md) | 4 | — |
 | `cISC4Occupant` (`0x00AA41D8`) | 6 | `+0x18` | AsPropertyHolder | 0 | EAX ptr |
 | | 7 | `+0x1C` | GetType | 0 | EAX |
 | | 8 | `+0x20` | GetPosition(cS3DVector3&) | 4 | EAX |
@@ -676,7 +784,7 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check`. "Byte
 | | 9 | `+0x24` | GetProperty(id) | 4 | EAX ptr |
 | `cIGZVariant` (`0x00AA6788`) | 95 | `+0x17C` | RefUint8 (pointer to the u8 data) | 0 | EAX ptr |
 | `cISC4PropDeveloper` (`0x00AB29F8`) | 5 | `+0x14` | AddPropRequester(requester) | 4 | — |
-| `cISC4PropManager` (`0x00A8F928`) | 13 | `+0x34` | GetPropProfile(id) → `PropProfile&` | 4 | EAX ptr |
+| `cISC4PropManager` (`0x00A8F928`) | 13 | `+0x34` | GetPropProfile(id) → `PropProfile&` (crime reads only `crimeIncidentID`, `u32` at +0x18) | 4 | EAX ptr |
 | `cISC4DisasterLayer` (`0x00A9E390`) | 7 | `+0x1C` | GetDisasterManager(type) | 4 | EAX ptr |
 | `cISC4DisasterManagerFire` (`0x00A9E4DC`, sub-object of `cSC4DisasterManagerFire`) | 4 | `+0x10` | IgniteOccupant(occ) | 4 | bool |
 | | 9 | `+0x24` | SetCause(cause) | 4 | EAX |
@@ -725,9 +833,9 @@ functions directly or reads its members. The only outside references are the COM
   `0x89C498BE` on the **same object** that the class store saves for CLSID `0x8990C09A`. Otherwise loaded cities
   lose crime props, or the load fails.
 - **`GetCrimeIncidentArray` resizes the caller's vector** *[compat, blocker for a naive port]*. The storage is
-  owned and later freed by game code, so a replacement must allocate it with the **game's** allocator (the same
-  operator new / STLport allocator as the original), not its own CRT heap. The element layout must be exactly the
-  28-byte `tCrimeEvent` of §11.4.
+  owned and later freed by game code, so a replacement must allocate it with the game's **STL node allocator**
+  (B: `0x0090CF54` / `0x0090CF63`, §11.4), not its own CRT heap or the framework service. The element layout
+  must be exactly the 28-byte `tCrimeEvent` of §11.4.
 - `GetCrimeGrid` and `GetNearestCrimeSim/Prop` return borrowed pointers. Callers do not release them.
 - The police simulator depends on `0x0A159D95` with the fields of §10, and on being called once per month
   through `ProcessMonthlyCrimeStats` after `ResetUnjailedCriminals`. A replacement must keep both.
@@ -756,8 +864,16 @@ Corrections to `docs/subsystems/grid-sims.md` §6:
 
 ## 16. Open questions
 
-1. Does anything post OrdinanceUpdated `0xC2C09554` after a load? If not, a loaded city ignores crime ordinances
-   until one is toggled (§4.1 step 9).
+1. *(resolved)* Nothing posts OrdinanceUpdated `0xC2C09554` after a load. Its only poster is `SetOrdinanceOn`
+   (the message is built at `0x0080D714`; ordinance §4.4), and it posts only when an ordinance's on flag
+   changes. The ordinance simulator's `Read` and its `Init` after a load call neither `SetOrdinanceOn` nor
+   `AddOrdinance` (ordinance §8.1, §9.1). A loaded city therefore runs at factor 1.0 (§4.1 step 9) until some
+   ordinance's on flag changes, by any route: a player or LUA toggle, `AddOrdinance` / `RemoveOrdinance`, or a
+   month-end availability change of an ordinance that is on (ordinance §4.3, §5). The handler (`0x006A22D5`)
+   ignores the message data and re-reads the cumulative factor over **all** on ordinances, so one toggle of any
+   ordinance, even one with no crime effect, restores the full factor. Example: a city saved with Gambling
+   (1.2) on loads with factor 1.0, so 10 crimes stay 10 instead of 12. After the player enacts Free Clinics,
+   which has no crime effect, the factor is `1.2f` again and 10 crimes become `rhe(f32(10 × 1.2f))` = 12.
 2. Lot condition values: *(partly resolved)* condition 4, the only one arson can hit, is an abandoned lot at its
    last decay stage; occupied lots get 0..3 (foundations §5.2). Conditions 5 and 6 (accepted by
    `CalculateEconomicFactors`) and building purposes 1–9 (purpose 5 is the one excluded from most masks) are
@@ -766,11 +882,13 @@ Corrections to `docs/subsystems/grid-sims.md` §6:
    occupant group `0x4102` is unknown. The IID `0xA9B40F05` is presumably `cISC4Automaton`.
 4. *(resolved)* The crime type list is in the resource manager's key-list order, which for the shipped types is
    ascending instance (§7); it is observable through §6.7.
-5. The last argument of `GetOccupantsByBBox` and the method behind occupant-manager slot 48.
+5. *(resolved, §11.3 and §13)* The last argument of `GetOccupantsByBBox` is the flags word, `0xFFFFFFFF`; slot
+   48 is `ReleaseOccupantList`.
 6. The meaning of the two unused saved `u32` values.
 7. The fire cause value 2 (arson) and what `SetCause` changes in the fire's behaviour.
-8. Crime type names (§7): the shipped name keys are missing from the shipped locale packages. Whether
-   `SC4LoadString` finds them elsewhere (for example in another language package) was not traced.
+8. *(resolved, §7)* Crime type names: the LTEXT key is (`0x2026960B`, `G` + language ID, `I`), then
+   (`0x2026960B`, `G`, `I`), from values [1] and [2] of `0x8A416B2E`; the fallback is the inline string
+   `0xAA12FCB0`, and then the name stays empty. With shipped data only Generic gets a (wrong) name.
 
 ## 17. Conformance tests (must exist in `engine/conformance`)
 

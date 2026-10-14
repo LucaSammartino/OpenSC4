@@ -300,28 +300,32 @@ impl PollutionSim {
         s.water_sum_treated = s.water_sum_treated.wrapping_add(big_w);
         s.air_sum = s.air_sum.wrapping_add(big_a);
         s.radiation_sum = s.radiation_sum.wrapping_add(r as u32);
-        // 8.–10. Relaxation.
+        // 8.–10. Relaxation. Each value is written (and its dirty flag set) whenever it differs from its target,
+        // not only when the cell changes (§4.4.4 step 10, PG14): with a delta of 0 (not shipped) the unchanged
+        // value is rewritten, and the water neighbour special case below always writes.
         let big_a = i64::from(big_a.clamp(0, 32767));
         let big_w = i64::from(big_w.clamp(0, 32767));
         let v = i64::from(s.cell(G_AIR_VAL, x, z));
-        let nv = relax(v, big_a, i64::from(t.max_air_delta));
-        if nv != v {
+        if v != big_a {
+            let nv = relax(v, big_a, i64::from(t.max_air_delta));
             s.set_air_value(x, z, nv as i16);
         }
         let v = i64::from(s.cell(G_WATER_VAL, x, z));
-        let mut nv = relax(v, big_w, i64::from(t.max_water_delta));
-        if v > big_w && nv == 0 {
-            let (nx, nz) = s.tract_counts(G_WATER_VAL);
-            let hot = |cx: i32, cz: i32| s.water_value(cx, cz) > 1;
-            if (x > 0 && hot(x - 1, z))
-                || (z > 0 && hot(x, z - 1))
-                || (x < nx - 1 && hot(x + 1, z))
-                || (z < nz - 1 && hot(x, z + 1))
-            {
-                nv = 1;
+        if v != big_w {
+            let mut nv = relax(v, big_w, i64::from(t.max_water_delta));
+            if v > big_w && nv == 0 {
+                // The neighbour special case: `SetWaterValue` with 1 or 0, without comparing with the current
+                // value, so v = 1 with a hit rewrites the same 1 and still marks `dirtyWater` (PG14).
+                let (nx, nz) = s.tract_counts(G_WATER_VAL);
+                let hot = |cx: i32, cz: i32| s.water_value(cx, cz) > 1;
+                if (x > 0 && hot(x - 1, z))
+                    || (z > 0 && hot(x, z - 1))
+                    || (x < nx - 1 && hot(x + 1, z))
+                    || (z < nz - 1 && hot(x, z + 1))
+                {
+                    nv = 1;
+                }
             }
-        }
-        if nv != v {
             s.set_water_value(x, z, nv as i16);
         }
         // 11. Advance.

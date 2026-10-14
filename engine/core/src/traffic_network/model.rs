@@ -191,7 +191,8 @@ pub struct NetworkState {
     /// The ferry arrival table.
     pub ferry_arrivals: StlHashMap<u32>,
     /// The ferry terminal count per ferry type (§2.3): at most 16 per type.
-    pub ferry_counts: [u32; 3],
+    /// Only types 0 and 1 have one; type 2 never activates (TN18).
+    pub ferry_counts: [u32; 2],
     /// The ferry pass state (§4.9.3).
     pub ferry_pass: FerryPass,
     /// The subnetwork counter: the next label to assign (§2.3); starts at 1.
@@ -251,7 +252,7 @@ impl Default for NetworkState {
             ferries: Vec::new(),
             ferry_departures: StlHashMap::new(),
             ferry_arrivals: StlHashMap::new(),
-            ferry_counts: [0; 3],
+            ferry_counts: [0; 2],
             ferry_pass: FerryPass::default(),
             subnet_counter: 1,
             subnet_working: Vec::new(),
@@ -545,11 +546,12 @@ impl NetworkState {
     ///
     /// A reached cell is an intersection if its car record has
     /// `connCount > 2`, or if it has no car record but a transit switch whose
-    /// "counts as intersection" flag is set. The search does not step through
-    /// tunnel cells or cells without car info: such cells are reached (and
-    /// may be intersections) but not extended *[inferred: "do not step
-    /// through"]*. The bounds check compares both coordinates with X−1
-    /// *[quirk]*.
+    /// "counts as intersection" flag is set. Tunnel cells and cells without
+    /// car info are reached (and may be intersections) but not extended
+    /// (TN5: the intersection test runs first, then the stops). The start
+    /// cell itself is always extended, tunnel or not *[inferred: the stops
+    /// apply to the cells the search enters]*. The bounds check compares
+    /// both coordinates with X−1 *[quirk]*.
     ///
     /// The original searches depth-first; the smallest depth at which an
     /// intersection is reached is the same for every visiting order, so this
@@ -799,7 +801,7 @@ impl NetworkModel {
     /// `GetConnectedDestinationCount(lot, k)` (slot 38): `k > 3` (signed) →
     /// 0; otherwise the maximum over the lot's IDs (with `id < size`) of
     /// `published[id].capacity[k]`; 0 without a list. A negative `k` also
-    /// gives 0 [choice] (the original indexes before the array).
+    /// gives 0 (TN17; the original indexes before the array).
     pub fn get_connected_destination_count(&self, lot: u64, k: i32) -> u32 {
         if !(0..=3).contains(&k) {
             return 0;

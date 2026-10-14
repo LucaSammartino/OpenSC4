@@ -195,7 +195,7 @@ One call performs at most one state. Order: **0 → 13 → 1 → 14 → 2 → 15
 
 | State | Work | Next |
 |---|---|---|
-| 0 | strike checks, ordinance-effect refresh, pending building lists (other spec) | 13 |
+| 0 | grade-total reset, strike checks, ordinance-effect refresh, pending building lists (all other spec; the grade totals are the education/health half's write-only members, RS13) | 13 |
 | 13 | create the temporary grid; seed it for R$ (§5.3) | 1 |
 | 1 | distance passes; copy into proximity R$ (time-sliced) | 14 |
 | 14 | seed for R$$ (reusing the temporary grid) | 2 |
@@ -208,6 +208,15 @@ One call performs at most one state. Order: **0 → 13 → 1 → 14 → 2 → 15
 | 5–8 | school coverage (5), school grading (6), hospital coverage (7), hospital grading (8); state 5 first zeroes the school-covered counter, state 7 the hospital-covered counter (other spec) | next |
 | 9 | history (§5.7) | 10 |
 | 10 | nothing (waits for NewMonth) | — |
+| > 15 | nothing, as state 10 (RS14) | — (never leaves) |
+
+**Unknown state** (RS14, from the exe). `DoDailySimulation` dispatches with `state > 15` → the common exit
+(`0x006FF546`), and the jump table sends state 10 to the same exit (`0x00700196`). Both do nothing and return
+**true**. The month message `0x66956816` restarts the cycle only when the state is **exactly 10** (`0x00700397`):
+state := 0, dirty := 0; any other state only sets dirty. So a state above 15 **waits forever**: the population,
+EQ/HQ, coverage and history are never updated again. Such a state can come only from `Read`, since only states 1,
+2, 3 and (version < 3) 4 are remapped. *[choice]* FreeCity4 keeps this behaviour in the state machine, but `Read`
+treats a saved state above 15 as a damaged record (the RS9 rule), so a save cannot freeze the simulator.
 
 ### 5.2 Time slicing
 
@@ -281,6 +290,17 @@ float steps are float32 operations in the order given (foundations §18).
 
    A wrap needs `S² · 65535 ≥ 2³²`, that is S ≥ 257, so it cannot happen with any real tract size. Example: with
    S = 4 and every cell at 300, the sum is 4800, the average is 300, and the low byte is `p_q = 44`.
+
+   **S is not capped** (RS15, helper `0x006F7FF0`–`0x006F8067`). S is P, which `Init` takes from the developer on
+   a new city and `Read` takes from the record. Nothing bounds it, so a hostile record has these effects:
+   - the helper makes S² `GetPollutionValue` calls per tract and type, so a large S stalls state 4;
+   - `S·x + S` and `S·z + S` are 32-bit sums. When one wraps below its start, that loop is empty and the sum is
+     0;
+   - the divisor `S·S` is a 32-bit product. For S = 0, or S a multiple of 65536, it is 0 and the unsigned `div`
+     (`0x006F8062`) raises a divide fault, which crashes the original.
+
+   *[choice]* FreeCity4 `Read` treats P = 0 or P > 256 as a damaged record (the RS9 rule, §9.2). Every real tract
+   size is far below 256, and this also keeps the wrap above out of reach.
    `hqLoss = ((HQdecay + air(p_0)) + water(p_1)) + garbage(p_2)` with the three tuning curves of §7.1 evaluated at
    `float(p_q)`.
 2. **Decay and buzzards**, for w = R$, R$$, R$$$ (one flag `buzzard := false` per tract):
@@ -317,7 +337,8 @@ float steps are float32 operations in the order given (foundations §18).
    lets the date change in the middle of a pass must still read the date per tract, as the original would.
 6. **Newcomers' age**: if arrived and Σ new_w ≠ 0:
    `age := (Σ_w old_w × age + Σ_w nc_w × newAge_w) ÷ Σ_w new_w` (signed 32-bit, truncated), with newAge_w the
-   tuning ages (§7.1). *[quirk]* The numerator uses the **old** populations even of levels that shrank, so a
+   tuning ages (§7.1). The original sets age := 0 when arrived and Σ new_w = 0, but arrivals imply Σ new_w ≥ 1
+   (§5.6, Zero divisors). *[quirk]* The numerator uses the **old** populations even of levels that shrank, so a
    tract whose residents changed wealth level gets older (test 6).
 7. LE := low byte of own slot 29 `GetCellLifeExpectancy(S·x, S·z)` (§6.4), evaluated **after** the EQ/HQ updates.
 8. **Generational reset**: if age > LE (signed): for every w, `EQ_w := EQ_w × EQreset`, `HQ_w := HQ_w × HQreset`
@@ -333,7 +354,8 @@ The pass ends when the iterator is done; state 12 follows.
 ### 5.6 `PostPopulationChange` (state 12)
 
 1. population := running population.
-2. History `0x2A5E7009` := population > 0 ? leSum ÷ population (unsigned 64-bit) : 0. This is the
+2. History `0x2A5E7009` := population ≠ 0 ? the low 32 bits of leSum ÷ population : 0. The division is unsigned
+   64-bit (`__aulldiv` `0x009F0710`), with the population **sign-extended** to 64 bits as the divisor. This is the
    **population-weighted average life expectancy**.
 3. For each bucket b: `avg_b := ageCount[b] > 0 ? float(ageEqSum[b]) / float(ageCount[b]) : 0` (both read as
    unsigned).
@@ -352,6 +374,30 @@ The pass ends when the iterator is done; state 12 follows.
    **11**, which is wrong. Because `0.01f` is 2.2 × 10⁻⁸ below 0.01 relatively (less than half an ulp), `100k × 0.01f`
    rounds to exactly k for every integer k up to 2^24.
 
+*[compat]* **Zero divisors** (RS16, from the exe). Every average of this simulator gives 0 when its divisor is 0, and
+none of them faults. The only divide that can fault is `S·S` in §5.5 step 1 (RS15). The guards differ, as follows:
+
+| Average | Divisor | Divides only when | Otherwise | Address |
+|---|---|---|---|---|
+| `0x2A5E7009` (step 2) | population (s32) | ≠ 0 | 0 | `0x006F8080`–`0x006F808D`, `0x006F80A8` |
+| avg_b (step 3) | ageCount[b] | ≠ 0 (unsigned) | 0.0 | `0x006F80C2`, `0x006F80F0` |
+| `0xCA545CCA` + g (step 4) | popSum | > 0 (signed) | 0 | `0x006F81F3`, `0x006F8202` |
+| `0x4A8A3FE2` / `0x4A8A3FE5` (§5.7) | population | > 0 (signed) | 0 and 0 | `0x00700106`, `0x00700174` |
+| newcomers' age (§5.5 step 6) | Σ new_w | ≠ 0 | age := 0, never reached | `0x006FAAC7`, `0x006FAB27` |
+| `GetTractQuotient` (§6.1) | Σp (16 bits) | ≠ 0 | 0.0 (`0x00A81054`) | `0x006F7005`, `0x006F70CA` |
+| `GetGlobalEQ` / `GetGlobalHQ` (REH §4.8) | `GetPopulation()` | ≠ 0 | 0.0 | `0x006F772D`, `0x006F787D` |
+
+Step 4 also skips the buckets whose ageCount is 0 (`0x006F8137`), so their avg_b of 0.0 is never used.
+
+The newcomers' row cannot be reached. A tract has arrivals only when some new_w > old_w (an unsigned 16-bit compare,
+`0x006FA8FF`), and Σ new_w is a 32-bit sum of three zero-extended uint16 values, so it is then at least 1.
+
+The life-expectancy guard is `≠ 0`, not `> 0`, so a **negative population** is divided. A pass sums uint16 tract
+values, so a negative population needs a damaged record. The divisor is then the unsigned value 2^64 − |population|,
+and the quotient is 0 unless leSum ≥ 2^64 − |population|, when it is 1. For example, population −5 and leSum 28600
+give 28600 ÷ (2^64 − 5) = **0**, the same as a zero population. The §5.7 guard is a signed `> 0`, so there a
+negative population takes the "0 and 0" branch directly.
+
 ### 5.7 History (state 9)
 
 In this order: `0xAA1A2864` := trunc(own slot 32 `GetGlobalEQ()`); `0xAA1A2866` := trunc(own slot 33
@@ -359,6 +405,23 @@ In this order: `0xAA1A2864` := trunc(own slot 32 `GetGlobalEQ()`); `0xAA1A2866` 
 `h := float(hospitalCovered) / float(population)` (computed first), `0x4A8A3FE5` := rhe(float(schoolCovered) /
 float(population) × 1000), then `0x4A8A3FE2` := rhe(h × 1000), where rhe rounds half to even (the original adds
 12582912 and takes the float's low bits). If population ≤ 0: `0x4A8A3FE2` := 0, then `0x4A8A3FE5` := 0.
+
+### 5.8 Health-affecting buildings (the "other" list) *[compat]*
+
+The record's "other list" (§9.1) is the **pending health-affecting list** (RS8, from the exe). It works like the
+pending school and hospital lists (REH §4.1).
+
+- **Test** (`DoBuildingChanged`, after the school test, `0x006FB5C1`): the building's property holder has both
+  `0x6A19F6B5` and `0xAA19F6EA` (read as floats through `0x005FD4F0`), and both are > 0.0. A NaN fails. Otherwise
+  nothing happens here.
+- **Added**: `AddRef` the occupant and append it to the pending list (`0x006FB645`). Set dirty.
+- **Removed**: erase the first entry equal to the occupant from the health-affecting list (`0x006FB943`). If it is
+  not there, erase it from the pending list (`0x006FB983`). `Release` it if it was erased. Set dirty either way.
+- **State 0** (`0x006FF75F`–`0x006FF7E8`), after the school and hospital distribution: every pending entry, in
+  order, is appended to the **end** of the health-affecting list. There is no filter, and the reference moves
+  (no `AddRef` or `Release`). Then the pending list is cleared (nodes only).
+- `GetHealthAffectingBuildings` (slot 61) appends the health-affecting list and then the pending list, so a
+  building is visible in either state.
 
 ## 6. Queries (population half)
 
@@ -569,7 +632,7 @@ department block (health)
 department block (education)
 list  pending school list
 list  pending hospital list
-list  other list
+list  other list (pending health-affecting buildings, §5.8)
 u32 n, n × list   school building lists
 u32 n, n × list   hospital building lists
 list  list (health-affecting buildings)
@@ -593,13 +656,86 @@ the temporary grid are not saved. Which list is which belongs to the other spec 
 ### 9.2 `Write` / `Read`
 
 - `Write` always returns true (AL = 1).
-- `Read` never rejects a version and always returns true (AL = 1), ignoring stream errors.
+- `Read` never rejects a version and always returns true (AL = 1, `0x00700E4E`), ignoring stream errors. It calls
+  no `GetError` and tests no stream result. The loader ignores the result anyway (foundations §3.5).
+  - **Versions** (RS9): no version is unreadable to the original.
+    - ≥ 7: read with the version-7 layout, so a newer layout would be misread.
+    - 3–6: the conditionals below.
+    - 0–2: read as version 2.
+  - **After a stream error** (RS9, from the exe). Reading goes on, and every later call fails and leaves its
+    destination unchanged (foundations §2.9). So:
+    - members read directly keep their constructed values: the three tract sizes, the unused floats, dirty,
+      population, the iterator, leSum and the running population;
+    - every later reference becomes **null**, because `SC4ReadGZSerializable` (`0x005D9730`) clears its
+      destination first;
+    - values that pass through a local take stale stack contents:
+      - the **state** (an uninitialised local, `0x00700BF7`–`0x00700C05`);
+      - the department-block scalars (the block reader's argument slot, `0x006F7BB4`);
+      - the version itself, if its read fails;
+    - each list's count is an uninitialised local (`0x005DB3D7`). If it lies in 1…9,999,999, that many **null**
+      entries are appended;
+    - the school coverage count is preset to 1 (`0x00700A44`). The hospital coverage count and the two
+      building-list-vector counts reuse whatever count was read last (the same stack slot).
+
+    The next `Init` creates the null grids and departments (§4.1 steps 8–9) and overwrites the department scalars
+    (§9.3). It does **not** repair the state or the lists.
+  - *[choice]* FreeCity4 does not reproduce the stale values:
+    - On a stream error, `Read` returns **false** and leaves the simulator **as constructed**. It releases what it
+      acquired, restores every field it wrote and leaves cityStarted false, so the next `Init` sets the city up
+      as new (§4.1 step 6, state 0), as crime.md §12 does. The return value is free, since the loader ignores it.
+    - Every version is accepted as in the original (test 20). A newer layout then ends in a stream error (handled
+      as above) or is misread, as in the original.
+  - **Counts other than 7 / 3** (RS11, from the exe). The constructor sizes the school vectors to 7 and the
+    hospital vectors to 3, and `Write` writes them as they are. So other counts come only from a hand-made or
+    damaged record, or from the stream-error path above (count 1, or a reused count). The original accepts them
+    and checks no bound afterwards:
+    - states 0 and 5–8 run k over the **building-list** vector's size. They index with k the group table
+      (`0x00AB2B60`, 7 schools; `0x00AB2B98`, 3 hospitals), the coverage vector and a per-group array at
+      `+0x2FC` (`0x006FF619`, `0x006FFDD0`, `0x006FFEE5`);
+    - `Init` step 8 runs k over the **coverage** vector's size. It takes the instance ID from `0x00AB2B7C` /
+      `0x00AB2BA4` (`0x006FEFD1`, `0x006FF07C`), and only when entry 0 is null; it then overwrites every entry
+      without releasing it;
+    - so a larger count reads the next table. For schools, k = 7…13 reads the school coverage IDs as group IDs
+      and k = 14…16 the hospital groups. For hospitals, k = 3…5 reads the hospital coverage IDs, then a float
+      constant and string bytes;
+    - a coverage vector shorter than its list vector is read past its end. A shorter list vector leaves the
+      pending buildings of the missing groups unplaced: they are dropped and leaked (REH §4.1 *[quirk]*).
+
+    *[choice]* FreeCity4 treats a count other than 7 (school) or 3 (hospital), in either the coverage or the
+    building-list vectors, as a damaged record. `Read` then handles it as a stream error: it returns false and
+    leaves the simulator as constructed.
+  - **Replaced entries are not released** (RS10, from the exe):
+    - a list is cleared by freeing its nodes only (`0x00413E60`);
+    - a shrinking vector of lists frees nodes only (`0x00700490`);
+    - a shrinking coverage vector drops its tail without `Release` (`0x00700A6F`–`0x00700A87`);
+    - every reference read nulls its destination without `Release` (`0x005D9742`).
+
+    On the original's only path this changes nothing. `Read` runs on an object the class-object store has just
+    constructed (foundations §3.5), whose references are all null and whose lists are empty: the constructor sizes
+    the coverage vectors to 7 and 3 nulls and the building-list vectors to 7 and 3 empty lists (`0x0070087C`,
+    `0x007008FB`). *[choice]* FreeCity4 may release what it replaces, which the core already does
+    (`release_department`). This cannot be observed.
   - Lists: cleared first; a count of 0 or ≥ 10,000,000 reads nothing more; null references are appended.
+  - **Null list entries** (RS12, from the exe). A game-written save never holds one. The lists hold live, AddRef'd
+    occupants, and a removal erases the entry. A null appears only through `Read`: a reference that cannot be
+    resolved (foundations §2.7) or the stream-error path above. The original does **not** skip it. Every pass
+    that calls into an entry dereferences it, which crashes:
+    - the state-0 distribution (`IsOccupantGroup`, `0x006FF622` / `0x006FF6EE`);
+    - coverage (states 5 and 7, through `0x006F8710`);
+    - grading (states 6 and 8, `0x006FFE61`);
+    - `GetBuildings` (`0x006FAD2C`) and the other getters that `AddRef` each entry.
+
+    Only the moves (state 0's health-affecting move, §5.8) and the pointer comparisons of a removal pass a null
+    through. *[choice]* FreeCity4 drops null entries in `Read` and does not append them, so no pass ever sees one.
+    The counts (REH slots 46/48) then leave them out. Skipping nulls in each pass instead would be equivalent.
   - Department blocks: version < 5 → f0, max funding, strike efficiency and init funding are × 0.01f (stored as
     percentages); version < 6 → min grade × 0.01f (float32 constant, one float32 rounding each; the block reader
     at `0x006F7BA0`, RS1).
-  - Version ≥ 3: read the iterator and leSum; version ≥ 4: read the running population (version 3 keeps the
-    constructed value *[inferred]*).
+  - Version ≥ 3: read the iterator and leSum; version ≥ 4: read the running population.
+
+    Version 3 skips the running population and changes nothing else (RS17, from the exe: `0x00700D5D`–
+    `0x00700D63`). So the running population keeps the value it had before `Read`, which is the constructor's 0
+    (`0x007005BF`), because `Read` runs on a newly constructed object (RS10). The state is not changed either.
   - Version < 3: iterator at (0, 0), fresh (done if (0, 0) is outside its rectangle); leSum := 0; running
     population := 0; if state = 4 → state := 11.
   - Version ≥ 7: read the two auto-budget bytes (non-zero → 1); otherwise both 0.
@@ -616,6 +752,13 @@ the temporary grid are not saved. Which list is which belongs to the other spec 
   hold whatever memory contained (state 11 did not run in this session) and their history for that month is
   meaningless. *[choice]* FreeCity4 zeroes the histograms at construction (only that month's age-group history
   differs).
+
+  A **version-3** record does not have the double count: its running population is the constructor's 0 (RS17,
+  §9.2), so the restarted pass starts from 0, as leSum and the iterator do. Example: four tracts, each with total
+  100 and LE 60, saved in state 4 after two of them (running population 200).
+  - Version ≥ 4: the pass restarts with running population 200, so state 12 gets population 600, and history
+    `0x2A5E7009` = 24000 ÷ 600 = **40**.
+  - Version 3: population **400** and history 24000 ÷ 400 = **60**, as without the load.
 
 ## 10. Interface slot tables *[compat]*
 
@@ -810,7 +953,8 @@ only through the interface (search of every reference to the global and to city 
    *[compat]* requirement: record it in `foundations.md` §13.4's rank table with evidence, rather than reordering
    registrations ad hoc. Until such a differential exists, registration order stands and no vector may assume
    otherwise.
-4. Version 3 saves: the running population keeps its constructed value (not verified at run time).
+4. ~~Version 3 saves: the running population keeps its constructed value (not verified at run time).~~ **Yes**,
+   from the bytes (RS17, §9.2): version 3 skips the read and the constructor's value is 0.
 5. The dirty flag has no reader; its purpose is unknown.
 
 ## 14. Corrections to earlier documents
@@ -847,10 +991,16 @@ Unless stated: shipped tuning, ordinance products 1.0, P = E = 4, no pollution, 
 5. **Newcomers' age**: pops (100, 0, 0) → (150, 0, 0), age 40, LE 100 → age **35**.
 6. **Age quirk**: (100, 0, 0) → (50, 10, 0), age 40, LE 100 → age **71** ((100·40 + 10·30) ÷ 60).
 7. **December**: total > 0, month 12, age 40, no arrivals → 41. Age 255 → 0. Total 0 → age 0.
-8. **Generational reset**: age 70, LE 61 → age 40; EQ 50 → **39.999996** (`0x421FFFFF`), HQ 60 → **47.999996**
-   (`0x423FFFFF`), each × EQreset = HQreset = `0x3F4CCCCC` (§7.1, RS1) with one float32 rounding. The histogram of
-   step 11 then adds trunc(EQ) = **39**, not 40, per resident: with pop (200, 0, 0) at age 40 (bucket 6),
-   ageEqSum[6] += 39 × 200 = 7800. *(Corrected: round 3 of this spec gave 40 and 48, which assumed a double 0.01.)*
+8. **Generational reset**: age 70, pop (200, 0, 0) unchanged, EQ_R$ and HQ_R$ stored as 50.2 and 60.2
+   (`0x4248CCCD`, `0x4270CCCD`). Decay by 0.2f leaves exactly 50.0 and 60.0. Step 7: GetCellHQ = 60.0, and the
+   shipped curve `0x6941A67F` = (0,50) (20,55) (40,60) (60,65) (200,100) is exact at its point (60, 65), so
+   **LE = 65** (RS7). leSum += 65 × 200 = 13000. Since 70 > 65 → age 40; EQ 50 → **39.999996** (`0x421FFFFF`),
+   HQ 60 → **47.999996** (`0x423FFFFF`), each × EQreset = HQreset = `0x3F4CCCCC` (§7.1, RS1) with one float32
+   rounding. The histogram of step 11 then adds trunc(EQ) = **39**, not 40, per resident: with pop (200, 0, 0) at age 40 (bucket 6),
+   ageEqSum[6] += 39 × 200 = 7800. *(Corrected: round 3 of this spec gave 40 and 48, which assumed a double 0.01.
+   Corrected again (RS7): the test said LE 61, which the shipped curve cannot give at HQ 60. The reset and every
+   other number are unchanged. LE 61 needs GetCellHQ = 44 (60 + 4 × 0.25, exact); test 11's LE 61 and LE 75 come
+   from HQ 44 and HQ 100.)*
 9. **Buckets**: age 35 → 5; 17 → 19; 18 → 0; 22 → 0; 76 → 18; 77 → 19; 0 → 19.
 10. **Age groups**: one bucket, age 30 (b = 3), ageCount 200, EQ 50 (ageEqSum 10000) → `0xCA545CAB + g` =
     12, 48, 54, 40, 24, 14, 8, 0, 0 and `0xCA545CCA + g` = 50 for g = 0..6, 0 for g = 7, 8. Each n needs the
@@ -872,7 +1022,9 @@ Unless stated: shipped tuning, ordinance products 1.0, P = E = 4, no pollution, 
 18. **NewMonth**: state 10 → state 0, dirty 0, true. State 5 → state 5, dirty 1, true.
 19. **NewDay unfinished**: a state-4 step whose time budget runs out returns false and resumes at the next tract.
 20. **Read**: version 2 record with state 4 → state 11, leSum 0, running population 0, iterator fresh at (0, 0);
-    version 7 with state 1 → 13, 2 → 14, 3 → 15. Any version → `Read` returns true.
+    version 7 with state 1 → 13, 2 → 14, 3 → 15. Any version with a complete record → `Read` returns true. A
+    record cut short (stream error) → false, with the simulator left as constructed and cityStarted false (RS9,
+    *[choice]*).
 21. **Init after load**: a loaded department block with the strike flag set → after `Init` the flag is 0.
 22. **Slot ABI**: slot 10 pops 4 and returns the pointer in EAX; slot 23 sets three out-references and raises each
     grid's count by one; slot 21 returns a new grid per call (two calls → two distinct objects).

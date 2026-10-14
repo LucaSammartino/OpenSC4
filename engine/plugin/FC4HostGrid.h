@@ -12,15 +12,15 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 // fc4_grid_api over the game's own grids (simgrid.md §6.4), shared by the grid
-// simulators' glue (power, plumbing, protection, flora).
+// simulators' glue (power, plumbing, protection, flora, aura).
 //
 // Grids are created through GZCOM with the element type's class ID (the game
 // registers 0x49B9E601-0x49B9E60B; we never register them), then Init,
 // SetTractSize, SetInstanceID. A token is a cISC4SimGrid<T>* holding one
 // reference. Supported element types: uint8 (0x49B9E602, also "bool"
-// 0x49B9E601), int16 (0x49B9E605) and float (0x49B9E60A), the ones
-// docs/abi/interfaces.tsv checks. [choice] Other types are refused (create
-// returns 0) until a subsystem needs them.
+// 0x49B9E601), int8 (0x49B9E603), uint16 (0x49B9E604), int16 (0x49B9E605)
+// and float (0x49B9E60A), the ones docs/abi/interfaces.tsv checks. [choice]
+// Other types are refused (create returns 0) until a subsystem needs them.
 #pragma once
 
 #include "FC4Config.h"
