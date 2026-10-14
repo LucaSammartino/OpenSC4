@@ -31,6 +31,7 @@ pub use items::{
     budget_items, change_item_cost, change_item_line, change_item_local_funding, copy_item_properties,
     item_for_purpose, BudgetItem,
 };
+pub use items::{local_funding_fraction, local_funding_percent, PERCENT_TO_FRACTION};
 pub use line_item::{LineItem, LINE_ITEM_RECORD_VERSION, TYPE_EXPENSE, TYPE_INCOME};
 pub use simulator::{Bond, BudgetGroup, BudgetSim, BudgetSnapshot, LoanInfo, TaxGroup, BUDGET_RECORD_VERSION};
 pub use tax::{difficulty_multiplier, scan_tax, tax_income_of, tax_type, TaxLot, TaxLotStatus, TaxScan};

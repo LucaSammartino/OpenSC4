@@ -110,6 +110,8 @@
 #include "cIGZCheatCodeManager.h"
 #include "cIGZCommandServer.h"
 #include "cISC4LandfillOccupant.h"
+#include "cISC4EffectsManager.h"
+#include "cISC4VisualEffect.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -368,6 +370,9 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4TrafficNetworkMap", 9, 52,
      "cFC4ISC4TrafficNetworkMap declares slots 3-8 only: the landfill developer calls slot 8 (FindNetworkTile) "
      "only (landfill §4.4.5, §8)"},
+    {"cISC4VisualEffect", 18, 13,
+     "the table has rows only for the slots re-answers2 PG4 traced (2-5, 8, 12; no RTTI); the SDK declares 0-17. "
+     "The residential glue calls slots 2, 3 and 8 only (REH 4.7 step 3, RG1)"},
 };
 
 const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlots) {

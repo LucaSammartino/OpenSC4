@@ -35,6 +35,11 @@ pub fn local_funding_fraction(pct: f32) -> f32 {
     pct * PERCENT_TO_FRACTION
 }
 
+/// `ChangeBudgetItemLocalFunding`'s store (RG13): float32(fraction × 100.0f).
+pub fn local_funding_percent(fraction: f32) -> f32 {
+    fraction * 100.0
+}
+
 /// `GetBudgetItemInfo` (§6): `None` if the department array is missing or
 /// empty; short arrays use the defaults of §2.
 pub fn budget_items(host: &dyn BudgetHost, holder: u64) -> Option<Vec<BudgetItem>> {
@@ -102,8 +107,23 @@ pub fn change_item_local_funding(host: &dyn BudgetHost, holder: u64, index: u32,
     if funding.len() < i + 1 {
         funding.resize(i + 1, 0.0);
     }
-    funding[i] = fraction * 100.0;
+    funding[i] = local_funding_percent(fraction);
     host.set_f32s(holder, prop::LOCAL_FUNDING, &funding)
+}
+
+/// `CopyBudgetItemProperties` (§6): each of the five properties present on
+/// `src` is copied (whole array) onto `dst`.
+pub fn copy_item_properties(host: &dyn BudgetHost, src: u64, dst: u64) -> bool {
+    for p in [
+        prop::DEPARTMENT,
+        prop::LINE,
+        prop::PURPOSE,
+        prop::COST,
+        prop::LOCAL_FUNDING,
+    ] {
+        host.copy_property(src, dst, p);
+    }
+    true
 }
 
 #[cfg(test)]
@@ -122,7 +142,7 @@ mod tests {
             (0x3F99_999A, 0x42F0_0001, 0x3F99_999A),       // 1.2 survives
         ];
         for (q, pct, back) in cases {
-            let stored = f32::from_bits(q) * 100.0;
+            let stored = local_funding_percent(f32::from_bits(q));
             assert_eq!(stored.to_bits(), pct, "q {q:#x}");
             assert_eq!(local_funding_fraction(stored).to_bits(), back, "q {q:#x}");
         }
@@ -132,19 +152,4 @@ mod tests {
         // The missing-entry default is exactly 1.0.
         assert_eq!(local_funding_fraction(100.0), 1.0);
     }
-}
-
-/// `CopyBudgetItemProperties` (§6): each of the five properties present on
-/// `src` is copied (whole array) onto `dst`.
-pub fn copy_item_properties(host: &dyn BudgetHost, src: u64, dst: u64) -> bool {
-    for p in [
-        prop::DEPARTMENT,
-        prop::LINE,
-        prop::PURPOSE,
-        prop::COST,
-        prop::LOCAL_FUNDING,
-    ] {
-        host.copy_property(src, dst, p);
-    }
-    true
 }

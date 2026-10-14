@@ -381,6 +381,26 @@ pub const BUILDING_PURPOSE_RESIDENTIAL: u32 = 1;
 /// The death's-door visual effect's name (§5.5 step 2).
 pub const BUZZARDS_EFFECT: &str = "buzzards";
 
+/// What [`ResidentialHost::create_visual_effect`] gave (§5.5 step 2, REH §4.7
+/// step 3, RG1 answered: the bracket "not created" differed, the game creates
+/// the buzzards through the city's effects manager, slot 7).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CreatedEffect {
+    /// The created effect (one reference): positioned, started, released;
+    /// both draws, the tract's flag set.
+    Effect(u64),
+    /// The host cannot show effects (standalone, tests, a read-only shadow,
+    /// a switched-off glue). *[choice]* (REH §4.7 step 3): treated as
+    /// created, as the original with shipped data (whose effect directory
+    /// defines `buzzards`): both draws and the flag, nothing positioned or
+    /// started.
+    NotShown,
+    /// The create returned no effect (an unknown name): only the first draw
+    /// was made, the flag stays clear and the next wealth level may draw
+    /// again.
+    Failed,
+}
+
 /// The occupant auto-budget bool property (§6.6, REH §2).
 pub const PROP_AUTO_BUDGET: u32 = 0x6C05_FC4D;
 
@@ -520,8 +540,10 @@ pub trait ResidentialHost: GridProvider<u8> + GridProvider<u16> + GridProvider<f
     fn acquire_message_server(&self) -> bool;
     /// `Init` step 3: take the budget simulator if not held.
     fn acquire_budget_simulator(&self) -> bool;
-    /// `Init` step 4: take the simulator if not held; false when there is
-    /// none (`Init` then fails).
+    /// `Init` step 4: the simulator is there; false when there is none
+    /// (`Init` then fails). RG18 (answered): the original borrows it (no
+    /// `AddRef`, no member; `Shutdown` asks the city again for
+    /// `RemoveAgent`), so the host need not hold it.
     fn has_simulator(&self) -> bool;
     /// `Init` step 4: `AddAgent(messageTarget, level, "cSC4ResidentialSimulator", 2)`
     /// for each level of [`AGENT_LEVELS`], in that order.
@@ -586,10 +608,11 @@ pub trait ResidentialHost: GridProvider<u8> + GridProvider<u16> + GridProvider<f
     fn altitude(&self, x: f32, z: f32) -> f32;
 
     // ---- visual effects (§5.5 step 2) ----
-    /// Effects manager slot 7 `CreateVisualEffect(name, effect*&)`: the
-    /// created effect, or `None` when it returns no effect (the out value is
-    /// what the original tests).
-    fn create_visual_effect(&self, name: &str) -> Option<u64>;
+    /// Effects manager slot 7 `CreateVisualEffect(name, effect*&)` (the
+    /// city's, city slot 85; RG1): the created effect, [`CreatedEffect::Failed`]
+    /// when it returns no effect (the out value is what the original tests),
+    /// or [`CreatedEffect::NotShown`] when the host cannot show effects.
+    fn create_visual_effect(&self, name: &str) -> CreatedEffect;
     /// `cISC4VisualEffect` slot 8 `SetSourceTransform` with an identity
     /// rotation, this translation and scale 1.
     fn set_effect_transform(&self, effect: u64, translation: [f32; 3]);
@@ -646,8 +669,13 @@ pub trait EducationHealthHost {
     fn change_budget_item_line(&self, occupant: u64, index: u32, line: u32);
     /// `budget.GetDepartmentBudget(id)`: `None` for a null department.
     fn department_budget(&self, department_id: u32) -> Option<u64>;
-    /// `*dept.GetFundingPercentage()` (a fraction).
-    fn department_funding(&self, department: u64) -> f32;
+    /// `*dept.GetFundingPercentage()` (a fraction), or `None` when the
+    /// department's funding cannot be read. REH §4.2 (RG10, answered: the
+    /// bracket "1.0" differed): the original never substitutes 1.0 for a
+    /// missing department, it leaves the output alone, so a host that cannot
+    /// read the value reports "missing" and the core leaves the output as
+    /// the caller set it.
+    fn department_funding(&self, department: u64) -> Option<f32>;
     /// `dept.IsLocallyFundedObjectInDepartment(holder, purpose)`.
     fn is_locally_funded(&self, department: u64, occupant: u64, purpose: u32) -> bool;
     /// `dept.AddLocallyFundedObject(holder, purpose)` /

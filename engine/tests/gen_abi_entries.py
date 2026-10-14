@@ -62,6 +62,10 @@ INTERFACES = [
     ("vt:cSC4City::vftable", "cISC4City", "cISC4City.h", True),
     ("vt:cSC4App::vftable_3", "cISC4App", "cISC4App.h", True),
     ("vt:cSC4ResidentialSimulator::vftable", "cFC4ISC4ResidentialSimulator", FC4, True),
+    # The residential buzzards (REH 4.7 step 3, RG1): the effects manager's slot 7 and the
+    # visual effect's slots 2, 3 and 8.
+    ("cISC4EffectsManager", "cISC4EffectsManager", "cISC4EffectsManager.h", True),
+    ("cISC4VisualEffect", "cISC4VisualEffect", "cISC4VisualEffect.h", True),
     # Demand (docs/specs/demand.md): the simulator and the nodes are implemented;
     # the services of §14 that the plugin calls.
     ("vt:cSC4DemandSimulator::vftable", "cFC4ISC4DemandSimulator", FC4, True),

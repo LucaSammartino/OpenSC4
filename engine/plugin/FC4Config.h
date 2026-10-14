@@ -315,6 +315,8 @@ enum class Sw : unsigned {
     ResidentialHistory,    // residential_history: history records (MessageSend) and queue lengths
     ResidentialLots,       // residential_lots: GetOccupantLot and its centre (off: the building's position)
     ResidentialTerrain,    // residential_terrain: GetAltitude (off: 0)
+    ResidentialEffects,    // residential_effects: the buzzards through the effects manager (REH §4.7 step 3,
+                           //   RG1; off: not shown, counted as created)
     // Neighbours simulator host callbacks (cFC4Neighbors.cpp), one per group of
     // game calls; only used when the neighbors subsystem is enabled.
     NeighborsRegionReads,   // neighbors_region_reads: the regional cities (app, region GetCity) and their
