@@ -195,7 +195,7 @@ bool g_enabled = false;
 long g_diffs = kDefaultDiffs;
 int32_t g_settingsJulian = INT_MIN;
 
-// Test seam (op 17).
+// Test seam (op 18).
 bool g_testMode = false;
 const FC4LandfillShadowTestInput* g_test = nullptr;
 

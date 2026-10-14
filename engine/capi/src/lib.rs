@@ -736,6 +736,8 @@ pub mod budget;
 pub mod crime;
 pub mod demand;
 pub mod flammability;
+pub mod flora;
+pub mod flora_shadow;
 pub mod hostgrid;
 pub mod landfill;
 pub mod landfill_shadow;
@@ -765,6 +767,9 @@ mod crime_tests;
 
 #[cfg(test)]
 mod demand_tests;
+
+#[cfg(test)]
+mod flora_tests;
 
 #[cfg(test)]
 mod landfill_tests;

@@ -75,7 +75,7 @@ bool LandfillShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cI
 
 }  // namespace fc4
 
-// Test seam op 17 (FC4TestSeam.h): one shadowed delivery to a fake original.
+// Test seam op 18 (FC4TestSeam.h): one shadowed delivery to a fake original.
 // Only the city's GetLandfillDeveloper (compiled slot 78) is called on
 // `city`; the read callbacks see no city (neutral reads).
 struct FC4LandfillShadowTestInput {

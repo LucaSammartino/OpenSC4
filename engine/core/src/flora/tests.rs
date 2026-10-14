@@ -353,7 +353,7 @@ fn blocks_and_wild_seed_scaling() {
     assert_eq!(blocks_per_month(128, 128, 24), 170);
     assert_eq!(blocks_per_month(256, 256, 24), 682);
     assert_eq!(blocks_per_month(64, 64, 6), 170);
-    assert_eq!(blocks_per_month(64, 64, 0), 0);
+    assert_eq!(blocks_per_month(64, 64, 0), 1024); // [choice] divisor 1
     assert_eq!(blocks_per_month(-1, 1, 1), u32::MAX >> 2);
     assert_eq!(scale_wild_seeds(5, 1024.0, 1024.0), 5);
     assert_eq!(scale_wild_seeds(5, 2048.0, 2048.0), 20);
@@ -370,6 +370,66 @@ fn ftol_matches_the_x87_indefinite() {
     assert_eq!(ftol(1e30), i64::MIN);
 }
 
+/// [`predict_visit`] is the rule [`FloraSim::simulate_existing`] applies
+/// (the flora shadow relies on it).
+#[test]
+fn predict_visit_matches_simulate_existing() {
+    let host = Host::new();
+    let mut n = 0u32;
+    // Type 0x1000: code defaults (maturity 730, seeding age 730, interval
+    // 365, 2 seeds, lifespan 1460, max age 1560, min score 0.3), table 0.6;
+    // 0x2000 the same with flag bit 1 clear (`0x6A37EBB6` = false) and a
+    // table of 0.2 (below the minimum score); 0x3000 is not registered.
+    let t1 = exemplar(0x1000, &[]);
+    let mut low = PropertyHolder::new();
+    low.add(prop::EXEMPLAR_TYPE, Variant::Scalar(Elem::U32(FLORA_EXEMPLAR_TYPE)));
+    low.add(prop::TYPE_ID, Variant::Scalar(Elem::U32(0x2000)));
+    low.add(prop::TABLE, Variant::array(mem::FLOAT32, vec![Elem::F32(0.2); 256]));
+    low.add(prop::FLAG_SWITCH, Variant::Scalar(Elem::Bool(false)));
+    let s = sim_with(&host, &[t1, Rc::new(low)]);
+    for &t in &[0x1000u32, 0x2000, 0x3000] {
+        for &state0 in &[0i8, 1, 2, 3, 4, -1] {
+            for &age in &[0u32, 364, 365, 729, 730, 1459, 1460, 1559, 1560, 4_000_000_000] {
+                for &last in &[0u32, 634, 635, 636, 999] {
+                    for &prop_on in &[false, true] {
+                        let today = 5000u32;
+                        let birth = today.wrapping_sub(age);
+                        let id = 10_000 + u64::from(n);
+                        n += 1;
+                        host.add_flora(id, 100.0, 100.0, t, state0);
+                        host.set_birth_date(id, birth);
+                        host.set_last_seeding_date(id, last);
+                        {
+                            let mut d = s.data_mut();
+                            d.today = today;
+                            d.propagation = prop_on;
+                            d.size_x = 1.0; // every seed falls outside: no planting
+                            d.size_z = 1.0;
+                        }
+                        let fo = host.flora_occupant(id).unwrap();
+                        let rec = s.static_flora_data(t);
+                        let pos = host.occupant_position(id);
+                        let p = predict_visit(rec.as_deref(), &fo, today, prop_on, host.sim_date_number(), || {
+                            s.score(t, pos[0], pos[2])
+                        });
+                        let removed_before = host.removed.borrow().len();
+                        s.simulate_existing(id, fo);
+                        let after = host.flora_occupant(id).unwrap();
+                        let removed = host.removed.borrow().len() > removed_before;
+                        let what = format!("type {t:#x} state {state0} age {age} last {last} prop {prop_on}: {p:?}");
+                        assert_eq!(after.state, p.state, "{what}");
+                        assert_eq!(removed, p.removed, "{what}");
+                        let birth_after = if p.reborn { today } else { birth };
+                        assert_eq!(after.birth_date, birth_after, "{what}");
+                        let last_after = if p.seeded { host.sim_date_number() } else { last };
+                        assert_eq!(after.last_seeding_date, last_after, "{what}");
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[test]
 fn blocking_filter_and_boxes() {
     assert!(blocks_flora(occupant_type::PROP, None));
@@ -378,8 +438,14 @@ fn blocking_filter_and_boxes() {
     assert!(!blocks_flora(occupant_type::NETWORK, None));
     assert!(!blocks_flora(0x1234, Some(0x8)));
     let a = ([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]);
-    assert!(boxes_intersect(a, ([1.0, 1.0, 1.0], [2.0, 2.0, 2.0])));
+    // Strict (§6.4): touching faces do not intersect; NaN overlaps.
+    assert!(!boxes_intersect(a, ([1.0, 1.0, 1.0], [2.0, 2.0, 2.0])));
+    assert!(!boxes_intersect(a, ([1.0, 0.0, 0.0], [2.0, 2.0, 2.0])));
+    assert!(boxes_intersect(a, ([0.999, 0.999, 0.999], [2.0, 2.0, 2.0])));
     assert!(!boxes_intersect(a, ([1.5, 0.0, 0.0], [2.0, 2.0, 2.0])));
+    assert!(boxes_intersect(a, ([f32::NAN, 0.5, 0.5], [2.0, 2.0, 2.0])));
+    assert!(boxes_intersect(a, ([0.5, 0.5, 0.5], [0.6, f32::NAN, 0.6])));
+    assert!(!boxes_intersect(a, ([f32::NAN, 1.0, 0.5], [2.0, 2.0, 2.0])));
 }
 
 #[test]

@@ -35,6 +35,8 @@
 #include "cFC4Crime.h"
 #include "FC4AuraShadow.h"
 #include "cFC4Aura.h"
+#include "FC4FloraShadow.h"
+#include "cFC4Flora.h"
 #include "FC4LandfillShadow.h"
 #include "cFC4Landfill.h"
 
@@ -156,6 +158,12 @@ const ClassEntry kAuraClasses[] = {
     {0x0990BDD8, "cSC4AuraSimulator", &CreateFC4AuraSimulator},
 };
 
+// docs/specs/flora.md §1. Off by default (M3 glue trial): `enable = flora`.
+// The flora occupant class (0xA9C05C85) stays the game's (§13.2).
+const ClassEntry kFloraClasses[] = {
+    {kFC4_CLSID_cSC4FloraSimulator, "cSC4FloraSimulator", &CreateFC4FloraSimulator},
+};
+
 // docs/specs/landfill.md §1. Off by default (M3 glue trial): `enable = landfill`.
 const ClassEntry kLandfillClasses[] = {
     {0xEA09D4AE, "cSC4LandfillDeveloper", &CreateFC4LandfillDeveloper},
@@ -177,6 +185,7 @@ const Subsystem kSubsystems[] = {
     {"protection", nullptr, kProtectionClasses, sizeof(kProtectionClasses) / sizeof(kProtectionClasses[0]), false},
     {"crime", nullptr, kCrimeClasses, sizeof(kCrimeClasses) / sizeof(kCrimeClasses[0]), false},
     {"aura", nullptr, kAuraClasses, sizeof(kAuraClasses) / sizeof(kAuraClasses[0]), false},
+    {"flora", nullptr, kFloraClasses, sizeof(kFloraClasses) / sizeof(kFloraClasses[0]), false},
     {"landfill", nullptr, kLandfillClasses, sizeof(kLandfillClasses) / sizeof(kLandfillClasses[0]), false},
 };
 
@@ -278,6 +287,8 @@ void Resolve() {
     CrimeShadowStartup(g_enabled[0], enabledKey("crime"));
     // The aura grid shadow (FC4AuraShadow.h; it compares the original aura simulator).
     AuraShadowStartup(enabledKey("aura"));
+    // The flora census shadow (FC4FloraShadow.h; it compares the original flora simulator).
+    FloraShadowStartup(g_enabled[0], enabledKey("flora"));
     // The landfill shadow (FC4LandfillShadow.h; it compares the original landfill developer).
     LandfillShadowStartup(g_enabled[0], enabledKey("landfill"));
 }
