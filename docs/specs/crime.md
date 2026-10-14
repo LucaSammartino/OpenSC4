@@ -471,6 +471,22 @@ case a failed load leaves the name empty.
 If the load fails, read the string property `0xAA12FCB0` into the name. If that is missing too, the name stays
 empty.
 
+**How step 1 reads the key** *[compat]* (QUESTIONS CQ17; `cSCPropertyHelp::GetPropertyValue` `0x005FD5B0`). The
+reader takes the property's value variant and its data pointer (variant slot 103, the shared raw accessor
+`0x0060CE80`), then copies three `uint32` from it. It checks neither the type nor the count, and it returns true
+whenever the property exists. So:
+
+| `0x8A416B2E` holds | Original |
+|---|---|
+| ≥ 3 `u32` (all shipped) | `G` = value [1], `I` = value [2] |
+| 2 values (8 data bytes) | `I` comes from the 4 bytes after the data block (heap garbage) |
+| 1 value | `G` and `I` both come from past the block |
+| a scalar | the inline value is used as a pointer: garbage or a fault |
+
+With a garbage key the lookup of step 2 almost always misses, so the load fails and the name ends empty or takes
+`0xAA12FCB0`. *[choice]* FreeCity4 treats a value with fewer than 3 elements, or a scalar, as a missing property:
+no lookup, the load fails. That gives the original's usual outcome without reading past the data.
+
 **Mask parsing**: each byte `b` sets bit `b − 1`. A byte 0 makes the mask `0xFFFFFFFF` (any). *[quirk]* A present
 but **empty** array gives mask 0, which never matches. A missing property gives `0xFFFFFFFF`. Byte values above
 32 wrap the shift count modulo 32 *[compat]*.

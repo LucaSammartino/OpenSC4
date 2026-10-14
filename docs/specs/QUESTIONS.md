@@ -1627,7 +1627,13 @@ About `docs/specs/crime.md` (CQ5, CQ8, CQ13 as applied). The glue's current answ
   exists. But the copied text does not stay. `SC4LoadString`'s failure exit calls `Resize(0)` on the output, so
   the name is empty. The loader had already emptied it before the load, so every failed load leaves the name
   empty unless `0xAA12FCB0` exists.
-- **CQ17 — CQ8:** property `0x8A416B2E` has fewer than 3 values. [No key, no lookup; the fallback is used.]
+- ~~**CQ17 — CQ8:** property `0x8A416B2E` has fewer than 3 values. [No key, no lookup; the fallback is used.]~~
+  **ANSWERED 2026-10-14** from the exe (`SC4LoadExemplarString` `0x00603220` → `cSCPropertyHelp::GetPropertyValue`
+  `0x005FD5B0`, variant slot 103 `0x0060CE80`) and written into crime.md §7 ("How step 1 reads the key"). **The
+  original has no such rule:** it copies three `uint32` from the variant's data pointer with no type or count
+  check. With fewer values it reads past the data block, so `G` or `I` is heap garbage, and a scalar's inline
+  value is used as a pointer. The lookup then almost always misses, and the fallback applies. **The bracket stands as
+  a *[choice]*:** treat fewer than 3 values (or a scalar) as missing, which gives that usual outcome.
 - **CQ18 — CQ8:** there is no language manager. [Language 0, so only (group, instance) is tried.]
 - **CQ19 — CQ8:** is the detokenizer returned by `GetStringDetokenizer` (`cISC4App +0xA8`) borrowed or owned?
   [Borrowed; the glue takes and releases its own reference around the call.]
