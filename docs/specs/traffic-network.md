@@ -598,6 +598,11 @@ For every car record (n = 1) whose type is not Highway:
 
      Only then are its sides 0…3 tried, in order. A side is taken when some entry side has an exit on it and the
      neighbour is in bounds.
+   - **The start cell gets the same checks** (TN21, from the exe). The search enters it at depth 0 like any other
+     cell (`0x0071BB01`–`0x0071BBBB`). Its car record has `connCount ≤ 2`, so the intersection test does nothing,
+     and depth 0 is below `best`. The tunnel test still applies, so **a tunnel start cell is not extended**. The
+     stack is empty, so the search ends at once (`0x0071BCFF` → `0x0071BD98`) with `best = N + 1`, and the cell
+     keeps its table value.
    - The search keeps no visited set: a cell can be reached again by another path while the depth limit holds.
      Backtracking resumes the parent at its next side.
    - The search's bounds check compares both coordinates with X−1 *[quirk]*. It matters only on non-square maps.
@@ -611,6 +616,10 @@ With the shipped values, a Street (100) gives:
 | distance 1 | `0x3C4CCCCC` | 80.00001 |
 | distance 2 | `0x3C360B61` | 90.0 |
 | distance 3 or more | `0x3C23D70A` (unchanged) | 100 |
+
+Worked example (TN21), with the shipped N = 3: a Street tunnel cell with 2 connections whose exit leads straight into
+a 4-way intersection one cell away. Extending the start cell would give `best = 1` and `0x3C4CCCCC` (80.00001). The
+original does not extend it, so the cell keeps `0x3C23D70A` (100). The intersection itself still gets `0x3C6A0EA1`.
 
 ### 4.7 Transit switches
 
@@ -1476,6 +1485,9 @@ Unless stated otherwise:
      - two cells away: `0x3C360B61`, GetCapacity 90.0.
    - Roads (1000): `0x3ABB3EE8` / `0x3AA3D70B` / `0x3A91A2B5`.
    - A Highway record is never reduced.
+   - The same cross with the arm cell next to the centre on one side marked as a tunnel (wormhole bit 2): that
+     cell keeps `0x3C23D70A` (100), because a tunnel start cell is not extended (TN21). So does the cell two away
+     on that arm, whose search stops at the tunnel cell (TN5). The centre is still `0x3C6A0EA1`.
 
 5. **Capacity table.** With shipped tuning, `invCapTable` = the §4.5 table. `GetCapacity` of an unreduced record of
    type Road = 999.99994 (`0x4479FFFF`), Highway = 3999.9998 (`0x4579FFFF`), OneWay = 1999.9999 (`0x44F9FFFF`).

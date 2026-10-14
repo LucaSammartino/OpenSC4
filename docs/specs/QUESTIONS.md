@@ -1123,8 +1123,13 @@ only once it is non-empty. The current answer is in brackets.
 
 About `docs/specs/traffic-network.md`. The core's current answer is in brackets.
 
-- **TN21 — §4.6 / TN5:** if the intersection search's start cell is itself a tunnel cell, is it still extended?
-  [yes, the start cell is always extended]
+- ~~**TN21 — §4.6 / TN5:** if the intersection search's start cell is itself a tunnel cell, is it still extended?
+  [yes, the start cell is always extended]~~ **ANSWERED 2026-10-14** from the exe (UpdateIntersectionData
+  `0x0071B9A0`: the depth-0 entry runs the same tests, tunnel bit test `0x0071BBB8`, empty stack → `0x0071BD98`) and
+  written into traffic-network §4.6 (the start-cell bullet and a worked example). **The bracket does not match: no.**
+  The start cell goes through the same checks as every other cell. A tunnel start cell is not extended, so its
+  search ends at once with `best = N + 1` and it keeps its table value (a Street tunnel next to an intersection
+  stays at capacity 100, not 80).
 - **TN22 — §4.7.2:** what count does an object-reference or empty variant give for `0xE90E25A1`? [0: a switch
   with no rules]
 - **TN23 — §4.7.2 TN3/TN4:** how do the DoPostCityInit walks treat a switch with building 0 (a default inserted by
