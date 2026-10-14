@@ -2889,8 +2889,12 @@ variant (GF3). The current answer is in brackets.
   frame 0 is checked, and the palette is never applied. The bracket (every frame needs one) is stricter than the
   original. Check frame 0 only, and decode a later frame with no usable palette as the grey the original uploads
   *[choice]*.
-- **FS5:** For DXT1, the field A could differ between frames. [each frame reports its own (format, type);
-  `Fsh::format()` is frame 0's]
+- ~~**FS5:** For DXT1, the field A could differ between frames. [each frame reports its own (format, type);
+  `Fsh::format()` is frame 0's]~~
+  **ANSWERED 2026-10-14** from the exe (`GetTypeAndFormat` called once, from `SerialRead` `0x0080090D`, with frame 0;
+  `SetBindingImageData` reads the stored pair at `0x00809BA7`) and written into graphics-formats §2.10. Every frame uses
+  frame 0's (format, type); a later frame's A is never read. The bracket (each frame its own pair) differs. Report frame
+  0's pair for every frame. The decoded pixels are the same either way, since the decoder ignores A (§2.11).
 - **FS6:** Negative sign-extended dimensions. [the power-of-two test is on the 32-bit sign-extended height, so a
   negative height fails; max(W, m) is signed, so a negative width becomes m]
 - **FS7:** A DXT width that is not a multiple of 4: the level size from the formula is smaller than the whole blocks.

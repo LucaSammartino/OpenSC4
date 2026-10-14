@@ -240,6 +240,9 @@ built.
   the binding getting width `bw >> k` and height `bh >> k` and the table entry `(M + 1 − n) + k`. A binding
   smaller than the FSH (the LOD offset, `SetLodOffset` `0x00809910`, set from the texture-quality option
   *[inferred]*) therefore skips the largest levels.
+- Every frame is created with the one (format, type) pair decided from frame 0: `GetTypeAndFormat` is called only
+  from `SerialRead` (`0x0080090D`), and the upload reads the stored pair (`0x00809BA7`). A later DXT1 frame whose A
+  differs still gets frame 0's format (FS5); FreeCity4 reports frame 0's pair for every frame *[compat]*.
 - DX7 creates the surface through `TranslateGDFormatToSourceFormat` (§2.6). OpenGL uploads the DXT formats as
   compressed images and the others through its format and type tables.
 - Bindings are cached by (group, instance): the hash at `0x0080A380` ignores the key's type.
