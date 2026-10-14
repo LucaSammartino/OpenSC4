@@ -247,8 +247,12 @@ RGBA8 uses:
 | `0x65` | byte 0 luminance L, byte 1 alpha: (L, L, L, a) |
 | `0x7B` | index through the palette (0x24: B, G, R bytes; 0x2A: B, G, R, A; 0x2D: `u16` A1R5G5B5; 0x29: `u16` R5G6B5), alpha 255 unless the palette has alpha. The shipped palettes are identity grey ramps, so this equals the original's luminance upload |
 
-The 16-bit layouts are the Direct3D ones that FSH tools write. The original's own enums (BGRA with non-reversed
-packed types) would read them differently under OpenGL, and DX7 cannot create them at all (GF2).
+The 16-bit layouts are the Direct3D ones that FSH tools write. **No renderer of the original shows them that way**
+(GF2). DX7 cannot create them (§2.6). OpenGL uploads `0x6D` and `0x7E` as BGRA with non-reversed packed types, so it
+reads a `u16` as B in bits 12–15, G 8–11, R 4–7 and A 0–3 (`0x6D`), or B 11–15, G 6–10, R 1–5 and A bit 0 (`0x7E`);
+`0x78` does not upload under OpenGL either. Example: the `0x7E` texel `0xFC00` is opaque red in the Direct3D layout,
+and OpenGL reads it as B 31, G 16, R 0, A 0, a transparent blue. FreeCity4 follows the Direct3D layouts *[choice]*:
+they are what the files mean, and the original has no correct path to copy.
 
 ### 2.12 Compression *[compat]*
 
@@ -883,6 +887,7 @@ Also filed in QUESTIONS.md, "From the graphics formats spec", GF1–GF12.
 1. GF1: what a model shows when its texture cannot be created under DX7 (codes of Q6).
    **Answered** (§2.6): drawn untextured, in its diffuse colour.
 2. GF2: channel layout of `0x6D`/`0x7E`/`0x78` (DX7 cannot create them; GL enums differ from the D3D layouts).
+   **Answered** (§2.11): no renderer shows them correctly; follow the Direct3D layouts.
 3. GF3: whether DX7 really shows DXT1 index-3 texels as transparent when A = 0.
    **Answered** (§2.11): yes; alpha-tested or blended materials drop them, others show them black.
 4. GF4: who uses the 24 `0x7B` grey-ramp entries in group `0x891B0E1A`, and through which path.
