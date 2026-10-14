@@ -1218,6 +1218,11 @@ implementer's choice. One fact bears on it: a connection's state changes outside
 power and plumbing simulators set the visited and inactive bits on their own schedule (§17 question 4), and the
 traffic simulator's `UpdateTrafficVolume` clears the volume-dirty flag (NG8).
 
+**NG33 (glue). A message that cannot get the lock.** The original handles every message on the thread that delivers
+it, with no lock, and never drops one. Its `DoMessage` returns true for every message (ConnectionsReady returns
+`0x6AC28401`, which is also true in `AL`). Dropping a message is a deviation only if it happens; the choice is the
+implementer's.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).

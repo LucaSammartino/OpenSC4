@@ -2671,7 +2671,9 @@ answer is in brackets.
 - ~~**NG32:** The shadow's connection-state comparison. [the original's after-state against our before-state]~~
   **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. Noted in neighbors §15.4, with the
   callers that change connection state outside the simulator.
-- **NG33:** A message from another thread that cannot get the lock. [dropped, returns true]
+- ~~**NG33:** A message from another thread that cannot get the lock. [dropped, returns true]~~
+  **ANSWERED 2026-10-14**: no original behaviour (no lock; every message is handled and `DoMessage` returns true); the
+  implementer's choice stands. Noted in neighbors §15.4.
 - **NG34:** A null connection reference in a save. [skipped]
 
 ## From applying the aura, education/health and flora answers (filed by the coordinator from the `apply5` lane's report, 2026-10-14)
