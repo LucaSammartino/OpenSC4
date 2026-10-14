@@ -373,6 +373,17 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
       loses nothing more. Worked example (24-bit): `33573415` gives 33,573,412.0. The steps are 3,357,341 × 10 =
       33,573,410, which rounds (a tie, to even) to 33,573,408; then + 5 = 33,573,413, which rounds to 33,573,412. One
       rounding of the exact 33,573,415 would give 33,573,416.0.
+    - **Exponent** (EX23). After the mantissa, whatever it consumed, an `e` or `E` starts the exponent
+      (`0x009104C2`). It takes one optional `+` or `-` (`0x009104D4`–`0x009104DE`), then decimal digits; with no
+      digits the exponent is 0. So the exponent is read even when no mantissa digit came first, and the value is
+      then 0 × 10ⁿ:
+      - `e5` and `.e5` give 0, `-e5` gives −0.0, and `2.5e+3` gives 2500;
+      - `e-32` gives NaN, as `0e-32` does: 10³² wraps to 0, 1/0 is +∞, and 0 × ∞ is the default NaN, stored as
+        `0xFFC00000`;
+      - `1e` gives 1.
+
+      In the §5.1 round trip, an `e` with no digit before it stops the classifier first, so `e5` there is the
+      unsigned number 0 and never reaches this parser.
 
     Shipped text Float32 values are small integers, which are exact. *[inferred: text exemplars are read on the
     main thread at 24-bit precision; at 53-bit precision `0.05` would give `0x3D4CCCCD`]*

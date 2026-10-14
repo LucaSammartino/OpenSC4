@@ -2081,7 +2081,14 @@ answer is in brackets.
   - Twice, each to 24 bits on the main thread. The bracket matches. A fraction digit rounds three times (scale × 0.1,
     digit × scale, + value).
   - Worked example: `33573415` gives 33,573,412.0, where one rounding would give 33,573,416.0.
-- **EX23 — §4.3:** does the exponent accept a `+`, and is it read when no mantissa digit came first? [yes to both]
+- ~~**EX23 — §4.3:** does the exponent accept a `+`, and is it read when no mantissa digit came first? [yes to both]~~
+  **ANSWERED 2026-10-14** from the exe (exponent test at 0x009104C2 after both mantissa loops; sign at
+  0x009104D4–0x009104DE) and written into data-formats §4.3 ("Details of the arithmetic").
+  - Yes to both; the bracket matches. `+` and `-` are accepted after the `e`, and the exponent is read whatever the
+    mantissa consumed, so the value is 0 × 10ⁿ: `e5` gives 0, `-e5` gives −0.0, `2.5e+3` gives 2500, and `e-32` gives
+    the default NaN (`0xFFC00000`), as `0e-32` does.
+  - In the §5.1 round trip the classifier stops at an `e` with no digit before it, so `e5` there never reaches the
+    parser.
 - **EX24 — EX8:** how is −0.0 printed? [`0`]
 - **EX25:** signed decimal text read into a Float32: one rounding from the exact value, unlike a Sint64 scalar,
   which goes through double? [one rounding, so `-16777217` gives −16777216.0]
