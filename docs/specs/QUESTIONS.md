@@ -2106,7 +2106,11 @@ answer is in brackets.
   character set at 0x00ACE73C is space and tab) and written into data-formats §4.3 (`Bool`).
   - Spaces **and tabs**, the same trim as array values. The bracket differs: a value starting with a tab before `true`
     reads as true.
-- **EX27:** a String value is "trimmed" of what? [spaces and tabs]
+- ~~**EX27:** a String value is "trimmed" of what? [spaces and tabs]~~ **ANSWERED 2026-10-14** from the exe (the
+  String branch of `InterpretEntry` 0x0067E780 calls `cRZString::Trim` 0x0090E8A6 = `LTrim` + `RTrim`, set " \t" at
+  0x00ACE73C) and written into data-formats §4.3 (`String`).
+  - Spaces and tabs, at both ends; the bracket matches. The trim runs before one leading and one trailing `"` are
+    removed, so white space inside the quotes is kept.
 - **EX28 — EX8:** a Float32 signalling NaN as text? [the x87 load quiets it: `1.#QNAN`; a Float64 sNaN gives
   `1.#SNAN`]
 - **EX29 — EX8:** does the 63-character cut also apply to Float32 text (a subnormal reaches it)? [yes]

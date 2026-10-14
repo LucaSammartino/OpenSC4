@@ -391,7 +391,9 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
     false). The trim is `cRZString::LTrim` (`0x0090E869`), whose set is space and tab (`0x00ACE73C`), the same as
     for array values (EX26). So `{\ttrue}` (a tab) is true;
   - `String`: everything up to the first `}`, trimmed, then one leading `"` and one trailing `"` removed. A string
-    cannot contain `}` *[quirk]*.
+    cannot contain `}` *[quirk]*. The trim removes spaces and tabs at both ends (`cRZString::Trim` `0x0090E8A6`,
+    the set at `0x00ACE73C`; EX27). It runs before the quotes are removed, so white space inside the quotes stays:
+    `{ " a " }` gives ` a ` (with its spaces).
 - The reader does not check that the number of values matches `reps`, and there is **no cap** on `reps`
   (`0x0067E780`). It reads `reps` values in turn, dropping the text up to each next `,`; when no `,` is left the
   rest of the text is dropped, so **missing values read as 0** (false for Bool, 0.0 for Float32) and values beyond
