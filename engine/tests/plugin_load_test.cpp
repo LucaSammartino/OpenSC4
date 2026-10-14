@@ -7491,10 +7491,14 @@ public:
 };
 
 // A foreign deal (another plugin's, or the original's): read through its
-// interface only; the dates through the caller's date (Set, slot 4).
+// interface only; the dates through the caller's date (Set, slot 4). A sell
+// water deal whose cost needs more than 32 bits (NG11).
+constexpr int32_t kNbForeignType = 0x4773FFE3;
+constexpr int64_t kNbForeignCost = (int64_t{1} << 32) + 1234;
 class NbForeignDeal final : public cISC4NeighborDeal {
 public:
     SavedRefCounts c;
+    std::vector<std::pair<int32_t, bool>> setFlags;  // SetFlags calls (NG4)
     NbForeignDeal() { c.refs = c.gameRefs = 1; }
     bool QueryInterface(uint32_t riid, void** p) override {
         if (p == nullptr || (riid != kIID_cISC4NeighborDealN && riid != GZIID_cIGZUnknown)) return false;
@@ -7509,7 +7513,7 @@ public:
     void SetRegionCellOnOtherSideOfConnection(int32_t, int32_t) override {}
     void GetRegionCellOnOtherSideOfConnection(int32_t& x, int32_t& z) const override { x = 6, z = 5; }
     cISC4RegionalCity* GetCityOnOtherSideOfConnection() const override { return nullptr; }
-    int32_t GetType() const override { return 3; }
+    int32_t GetType() const override { return kNbForeignType; }
     void SetType(int32_t) override {}
     int32_t GetAmount() const override { return 50; }
     void SetAmount(int32_t) override {}
@@ -7523,7 +7527,7 @@ public:
     void SetIncAmount2(int32_t) override {}
     int32_t GetAmountUsed() const override { return 30; }
     void SetAmountUsed(int32_t) override {}
-    int64_t GetCost() const override { return 1234; }
+    int64_t GetCost() const override { return kNbForeignCost; }
     void UpdateCost() override {}
     void GetStartDate(cIGZDate& d) const override { fc4::AsGame(&d)->SetDayNumber(kJulian20000201); }
     void SetStartDate(cIGZDate const&) override {}
@@ -7538,7 +7542,7 @@ public:
     void Cancel() override {}
     bool Activate() override { return false; }
     int32_t GetFlags() const override { return 0x2; }  // Active
-    void SetFlags(int32_t, bool) override {}
+    void SetFlags(int32_t f, bool on) override { setFlags.emplace_back(f, on); }
     bool CheckFlagsAnd(int32_t f) const override { return (0x2 & f) == f; }
     bool CheckFlagsOr(int32_t f) const override { return (0x2 & f) != 0; }
     bool Clone(cISC4NeighborDeal**, bool) const override { return false; }
@@ -7569,7 +7573,7 @@ T* NbQuery(cIGZUnknown* u, uint32_t iid) {
 }
 
 // Our deal (one reference held by the caller): its interfaces, its state as
-// copied from the foreign deal, Clone and the §5.6 record.
+// copied from the foreign deal (test seam op 48), Clone and the §5.6 record.
 void CheckNeighborDeal(cISC4NeighborDeal* d) {
     void* p = reinterpret_cast<void*>(0x1234);
     CHECK(!d->QueryInterface(kIID_CoreObjectN, &p) && p == reinterpret_cast<void*>(0x1234));
@@ -7577,7 +7581,8 @@ void CheckNeighborDeal(cISC4NeighborDeal* d) {
     auto* same = NbQuery<cISC4NeighborDeal>(d, kIID_cISC4NeighborDealN);
     CHECK(same == d);
     if (same != nullptr) same->Release();
-    CHECK(d->GetType() == 3 && d->GetAmount() == 50 && d->GetCost() == 1234 && d->GetAmountUsed() == 30);
+    CHECK(d->GetType() == kNbForeignType && d->GetAmount() == 50 && d->GetCost() == kNbForeignCost &&
+          d->GetAmountUsed() == 30);
     CHECK(d->GetIncAmount() == 5 && d->GetLastAmount() == 40);
     int32_t x = 0, z = 0;
     d->GetRegionCellOnOtherSideOfConnection(x, z);
@@ -7588,7 +7593,7 @@ void CheckNeighborDeal(cISC4NeighborDeal* d) {
     cISC4NeighborDeal* copy = nullptr;
     CHECK(d->Clone(&copy, true) && copy != nullptr && copy != d);
     if (copy != nullptr) {
-        CHECK(copy->GetType() == 3 && copy->GetAmount() == 50 && copy->CheckFlagsOr(0x80));  // Silent (§5.5)
+        CHECK(copy->GetType() == kNbForeignType && copy->GetAmount() == 50 && copy->CheckFlagsOr(0x80));  // Silent (§5.5)
         CHECK(copy->Release() == 0);
     }
     auto* ser = NbQuery<cIGZSerializable>(d, GZIID_cIGZSerializable);
@@ -7598,7 +7603,8 @@ void CheckNeighborDeal(cISC4NeighborDeal* d) {
         ResidentialSegOStream out;
         CHECK(ser->Write(out));
         // §5.6: version 5, then the type.
-        CHECK(out.bytes.size() > 6 && out.bytes[0] == 5 && out.bytes[1] == 0 && out.bytes[2] == 3);
+        CHECK(out.bytes.size() > 6 && out.bytes[0] == 5 && out.bytes[1] == 0 && out.bytes[2] == 0xE3 &&
+              out.bytes[5] == 0x47);
         ser->Release();
     }
 }
@@ -7736,8 +7742,11 @@ void CheckHolderKeepsObjects(cISC4NeighborConnection* conn, NbGameProperty& a, N
     uint32_t replaced[3] = {77, 88, 99};
     v->SetRefUint32(replaced, 3);
     CHECK(h->GetPropertyU32(kNbTripCapacityId, first) && first == 77);
-    uint32_t len = 0;
-    CHECK(h->GetPropertyData(kNbTripCapacityId, nullptr, len) && len == 12);
+    // NG23: no size query, and a u32 array is not raw bytes (length unchanged).
+    uint32_t len = 77;
+    uint8_t buf[4] = {};
+    CHECK(!h->GetPropertyData(kNbTripCapacityId, nullptr, len) && len == 77);
+    CHECK(!h->GetPropertyData(kNbTripCapacityId, buf, len) && len == 77);
     // A same-ID replacement releases the old object (here its last reference).
     uint16_t two[2] = {5, 6};
     b.value.SetRefUint16(two, 2);
@@ -7772,6 +7781,56 @@ void CheckHolderKeepsObjects(cISC4NeighborConnection* conn, NbGameProperty& a, N
     h->RemoveAllProperties(false);
 }
 
+// NG23 (neighbors.md §15.4): holder slot 5 has no size query and answers raw
+// bytes (type 0x8000) only: length := min(length, count), that many bytes
+// copied; a null buffer is refused [choice]; other types and a missing
+// property give false with the length unchanged. Example: the 5 bytes
+// 01..05 read with length 8 (5 copied) and 3 (01 02 03).
+void CheckGetPropertyData(cISC4NeighborConnection* conn, NbGameProperty& raw) {
+    cISCPropertyHolder* sdk = conn->AsISCPropertyHolder();
+    CHECK(sdk != nullptr);
+    if (sdk == nullptr) return;
+    cFC4ISCPropertyHolder* h = fc4::AsGame(sdk);
+    uint8_t bytes[5] = {1, 2, 3, 4, 5};
+    raw.value.SetRefVoid(bytes, 5);  // slot 122, copying
+    CHECK(raw.value.GetType() == cIGZVariant::VoidArray && raw.value.GetCount() == 5);
+    raw.SetPropertyID(0x5AFE0200);
+    CHECK(h->AddPropertyRecord(&raw, false));
+    CHECK(raw.Release() == 1);
+    uint8_t buf[8] = {};
+    uint32_t len = 8;
+    CHECK(h->GetPropertyData(0x5AFE0200, buf, len) && len == 5);
+    CHECK(buf[0] == 1 && buf[4] == 5 && buf[5] == 0);
+    uint8_t three[8] = {};
+    len = 3;
+    CHECK(h->GetPropertyData(0x5AFE0200, three, len) && len == 3);
+    CHECK(three[0] == 1 && three[2] == 3 && three[3] == 0);
+    len = 0;
+    CHECK(h->GetPropertyData(0x5AFE0200, buf, len) && len == 0);
+    len = 8;
+    CHECK(!h->GetPropertyData(0x5AFE0200, nullptr, len) && len == 8);
+    CHECK(!h->GetPropertyData(0x5AFE0201, buf, len) && len == 8);
+    CHECK(h->AddPropertyU32(0x5AFE0202, 7, false));
+    CHECK(!h->GetPropertyData(0x5AFE0202, buf, len) && len == 8);
+    CHECK(h->RemoveProperty(0x5AFE0202, false));
+    CHECK(h->RemoveProperty(0x5AFE0200, false));
+    CHECK(raw.c.refs == 0 && raw.c.freed && raw.c.overReleases == 0);
+    // NG27: GetProperty(id, uint32&) on an array gives its first element; an
+    // empty numeric array gives 0 and true.
+    cFC4Variant arr;
+    uint16_t trips[2] = {30, 0};
+    arr.SetRefUint16(trips, 2);
+    CHECK(h->AddPropertyVariant(0x5AFE0204, &arr, false));
+    uint32_t u = 9;
+    CHECK(h->GetPropertyU32(0x5AFE0204, u) && u == 30);
+    arr.SetRefUint16(trips, 0);
+    CHECK(arr.GetType() == (cIGZVariant::Uint16 | cIGZVariant::TypeArray) && arr.GetCount() == 0);
+    CHECK(h->AddPropertyVariant(0x5AFE0205, &arr, false));
+    u = 9;
+    CHECK(h->GetPropertyU32(0x5AFE0205, u) && u == 0);
+    CHECK(h->RemoveProperty(0x5AFE0204, false) && h->RemoveProperty(0x5AFE0205, false));
+}
+
 int NeighborsEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
     // Off by default; `enable = neighbors` registers the neighbours simulator
     // (no factory for its connection and deal classes, §15.2). The shadow (it
@@ -7791,7 +7850,7 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
     SetGamePrecision();
     static NbOrigConnection orig(1);  // the load's own reference
     static NbForeignDeal foreign;
-    static NbGameProperty propA, propB, propKept;  // the game's properties (foundations §10.2)
+    static NbGameProperty propA, propB, propKept, propRaw;  // the game's properties (foundations §10.2)
     if (director != nullptr) {
         std::vector<uint32_t> classes;
         director->EnumClassObjects(&CollectClass, &classes);
@@ -7828,28 +7887,61 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
             }
             CHECK(sim->Init());  // §14.1: true (no city here)
             CHECK(sim->GetTuningExemplar() == nullptr);
+            // NG14 (§15.4): with popups disabled the original's confirmation
+            // dialog answers no, so the request is refused; enabled, it is
+            // confirmed without the dialog [choice]. The app's flag through
+            // its slot 23 (an app whose other slots trap).
+            static FakePopupApp popupApp;
+            g_popupApp = &popupApp;
+            popupApp.vt.slots[23] = reinterpret_cast<void*>(&AppGetPopupDialogsEnabled);
+            popupApp.app.vtbl = popupApp.vt.slots.data();
+            auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+            CHECK(seam != nullptr);
+            if (seam != nullptr) {
+                CHECK(seam(kFC4SeamNeighborsApp, &popupApp.app, nullptr) == 1);
+                popupApp.enabled = false;
+                CHECK(!sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(popupApp.gets == 1 && !sim->HasConnection(NbType::Road, -1, 5));
+                popupApp.enabled = true;
+                CHECK(sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(popupApp.gets == 2 && !sim->HasConnection(NbType::Road, -1, 5));
+            }
             cISC4NeighborConnection* conn = sim->CreateConnection(NbType::Road, -1, 5, false);
             CHECK(conn != nullptr);
+            if (seam != nullptr) {
+                // It exists: refused before any dialog (§6.2).
+                CHECK(!sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(popupApp.gets == 2);
+                CHECK(seam(kFC4SeamNeighborsApp, nullptr, nullptr) == 1);
+            }
             CHECK(sim->CreateConnection(NbType::Road, -1, 5, false) == nullptr);  // §6.3 step 1
             CHECK(sim->HasConnection(NbType::Road, -1, 5) && sim->FindConnection(NbType::Road, -1, 5) == conn);
             if (conn != nullptr) {
                 CheckNeighborConnection(conn);
                 CheckHolderKeepsObjects(conn, propA, propB);
+                CheckGetPropertyData(conn, propRaw);
                 // One kept until the connection goes (released with the holder).
                 propKept.SetPropertyID(0x5AFE0100);
                 CHECK(fc4::AsGame(conn->AsISCPropertyHolder())->AddPropertyRecord(&propKept, false));
                 CHECK(propKept.Release() == 1);
             }
-            // A foreign deal is added as a deal of ours [choice]; FindDealsAll
-            // reuses the caller's node (one reference for the caller).
+            // NG4 (§15.4): a foreign deal is kept as the listed deal: one
+            // reference for the core, Silent cleared through its interface.
+            // FindDealsAll reuses the caller's node and hands out the caller's
+            // object itself (one reference for the caller).
             CHECK(foreign.AddRef() == 2);  // the caller list's reference
             NbOneNodeList list(&foreign);
             CHECK(sim->AddDeal(&foreign));
+            CHECK(foreign.c.refs == 3);  // the game's, the caller list's and the core's
+            CHECK(foreign.setFlags.size() == 1 && foreign.setFlags[0] == std::make_pair(int32_t{0x80}, false));
             sim->FindDealsAll(list.Get());
-            CHECK(list.OneNode());
-            cISC4NeighborDeal* ours = list.node.value;
+            CHECK(list.OneNode() && list.node.value == &foreign);
+            CHECK(foreign.c.refs == 3 && foreign.c.overReleases == 0);  // the replaced element released
+            CHECK(foreign.Release() == 2);                               // the caller list's
+            // A deal of ours with the foreign deal's state (Copy, §5.4).
+            cISC4NeighborDeal* ours = nullptr;
+            if (seam != nullptr) CHECK(seam(kFC4SeamNeighborsApp, &foreign, &ours) == 1);
             CHECK(ours != nullptr && ours != &foreign);
-            CHECK(foreign.c.refs == 1 && foreign.c.overReleases == 0);  // the replaced element released
             if (ours != nullptr && ours != &foreign) {
                 CheckNeighborDeal(ours);
                 CHECK(ours->Release() == 0);
@@ -7860,14 +7952,14 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
             sim->SetUIDisableFlag(false);
             (void)sim->GetDealCost(1, 10.0, nullptr);
             // Getters from another thread (the lock is free: answered by the core).
-            int32_t income = -1;
+            int64_t income = -1;  // NG11: slots 32/33 return an int64 in EDX:EAX
             bool has = false;
             std::thread t([&] {
                 income = sim->GetTotalMonthlyNeighborDealIncome();
                 has = sim->HasConnection(NbType::Road, -1, 5);
             });
             t.join();
-            CHECK(income == 0 && has);
+            CHECK(income == kNbForeignCost && has);  // the foreign sell deal, all 64 bits (NG11)
             if (mt != nullptr) {
                 ResidentialDayMessage month(kMsgSimNewMonth, kJulian20000201);
                 CHECK(mt->DoMessage(&month));
@@ -7888,6 +7980,8 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
             if (ser != nullptr) ser->Release();
             if (mt != nullptr) mt->Release();
             CHECK(sim->Shutdown());
+            // Shutdown let the foreign deal go: the core's reference is back.
+            CHECK(foreign.c.refs == foreign.c.gameRefs && foreign.c.overReleases == 0);
             CHECK(sim->Release() == 0);
         }
         // Read runs before Init (§13): an original connection is accepted (a
@@ -7932,6 +8026,8 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
     CHECK(text.find("subsystem 'neighbors': enabled (1 class replaced) by FreeCity4.ini (enable=)") != npos);
     CHECK(CountOf(text, ", session seed 0x0000002A (neighbors_seed)") == 3);
     CHECK(text.find("neighbours Init: init=1 ready=0 connections=0 (foreign 0) deals=0") != npos);
+    CHECK(CountOf(text, "neighbours: RequestCreateConnection refused: popup dialogs are disabled") == 1);
+    CHECK(CountOf(text, "neighbours: RequestCreateConnection confirms without the yes/no dialog") == 1);
     CHECK(CountOf(text, "neighbours connection created: road (type 2) at (-1, 5)") == 1);
     CHECK(CountOf(text, "neighbours connection deleted: road (type 2) at (-1, 5)") == 1);
     CHECK(text.find("neighbours month to 2000-02-01: connections=1 (road=1) foreign=0 deals=1 (proposed 0 active 1") !=

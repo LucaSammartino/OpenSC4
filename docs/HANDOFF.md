@@ -37,7 +37,7 @@ worktree: paste what it needs into the message, or copy files into its `build-ru
 | tract developer glue (M4) | `ae81a8bc4c10d6880` | `agent-ae81a8bc4c10d6880` | ABI 45, seam op 45 | running |
 | power shadow under turbo | `affee80aaa8e17945` | `agent-affee80aaa8e17945` | - | merged `c367684`: exact under turbo and at normal speed (the shadow's bookkeeping, not the core); PW9-PW11 |
 | RE answers 8 | `a8519c0be49880b49` | `re-answers8` | - | merged `957e766`; ABI rows `a6e3d36` |
-| apply9a: neighbours NG4-NG25, incl. NG11 (slots 32/33 return int64 in EDX:EAX; the plugin declares int32) | `a56eb55371f9ce77d` | worktree | ABI 47, seam op 48 | running |
+| apply9a: neighbours NG4-NG25, incl. NG11 (slots 32/33 return int64 in EDX:EAX; the plugin declares int32) | `a56eb55371f9ce77d` | worktree | ABI 45, seam op 48 | merged `bf0e4b1`; NG35-NG44 |
 | apply9b: zones ZG2-ZG17, landfill tiles LG27-LG29, budget BQ4/BQ7, crime CQ23 | `a2dc48d26cc52d9a2` | worktree | - (none used) | merged `969527d`; ZG18-ZG21 |
 | apply9c: graphics formats FS4-FS14, GF1-GF9 | `a1ec5d982a5986c5a` | worktree | - | merged `f427e44`; FS15-FS17 |
 | apply9d: education/health AQ1-AQ3, flora AQ7/AQ10, residential RG24, flammability FL7/FL8 | `a1a2a3d5ee6186779` | worktree | - (none used) | merged `ccfe2b4`; AQ11-AQ13, FL10-FL13 |

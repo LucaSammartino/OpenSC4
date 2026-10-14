@@ -97,6 +97,9 @@ constexpr uint32_t kTuningInstance = 0x6A469021;
 constexpr uint32_t kMarkerProp = 0x29F10000;
 constexpr uint32_t kOccupantTypeProp = 0xA823821E;
 constexpr uint32_t kMarkerFlag = 0xCAA46595;
+// NG25: the prop interface and the usage of a city prop (AddCityProp).
+constexpr uint32_t kIID_cISC4PropOccupant = 0xE9793A65;
+constexpr uint8_t kPropUsageCity = 1;
 
 // §8.2: the departments and the waste-to-energy line item.
 constexpr uint32_t kDeptPower = 0x8910BC8A;
@@ -107,7 +110,9 @@ constexpr uint32_t kLineWasteToEnergy = 0x1F470000;
 // traffic-simulator.md §4.1.4: the trip-count arrays 0xAA9EA81D + w.
 constexpr uint32_t kTripTargets = 0xAA9EA81D;
 
-// How long a thread other than the main one waits for the lock.
+// How long a thread other than the main one waits for the lock. NG6 (glue,
+// neighbors.md §15.4): the original has no lock and runs every method on the
+// caller's thread; the try-lock and its fallback are this glue's choice.
 constexpr uint32_t kLockWaitMs = 20;
 
 const char* const kTypeNames[13] = {"none",   "rail",   "road",  "highway",  "powerpole", "pipe",     "subway",
@@ -199,6 +204,10 @@ void Park(cFC4NeighborConnection* c) {
     g_parkedConns.push_back(c);
 }
 
+// NG5 (§15.4, the bracket stands): an original deal dies at its last Release
+// and is never reused. Making the wrapper lazily and keeping it parked at zero
+// references cannot be seen: no correct caller reaches an object it holds no
+// reference to, and the same deal keeps the same pointer while any exists.
 void Park(cFC4NeighborDeal* d) {
     std::lock_guard<std::mutex> g(g_objLock);
     g_parkedDeals.push_back(d);
@@ -282,7 +291,9 @@ void OutermostExit() {
     }
 }
 
-// Under the lock: kept until the outermost exit.
+// Under the lock: kept until the outermost exit. NG24 (glue, §15.4): the
+// original holds regional cities only inside one call; how long the glue
+// holds its own references is its choice.
 void Hold(cIGZUnknown* u) {
     if (u == nullptr) return;
     if (std::find(g_heldRefs.begin(), g_heldRefs.end(), u) != g_heldRefs.end()) return;
@@ -537,7 +548,8 @@ bool CityEstablished(void*, uint64_t city) {
     return r != nullptr && r->GetEstablished();  // slot 43
 }
 
-// Slots 54-63 (double, regional-city table of neighbors.md).
+// Slots 54-63 (double, regional-city table of neighbors.md). NG12 (§15.4,
+// matches): the getters 50-64 return a double on the x87 stack.
 double CityStat(void*, uint64_t city, uint32_t stat, int32_t c) {
     cFC4ISC4RegionalCity* r = RcOf(city);
     if (r == nullptr) return 0.0;
@@ -615,7 +627,13 @@ void ChangeSymmetricConnection(void*, uint64_t city, uint64_t conn, bool add) {
 }
 
 // §14.1 step 5: region.ReloadCity(city) on the region's own entry for it
-// (cISC4Region, SDK order: GetCity slot 11, ReloadCity slot 15).
+// (cISC4Region, SDK order: GetCity slot 11, ReloadCity slot 15). NG30
+// (§15.4): the SDK order matches the game's. The original has no gate and no
+// identity check; the identity check here always passes (the list was just
+// built from the region's cities), and the neighbors_reload switch is a
+// diagnostic that is on by default (off deviates). As the original, the
+// holder is not used after the call (a failed reload frees it) and the
+// result is not read: the city is looked up again.
 void ReloadCity(void* u, uint64_t city) {
     cFC4ISC4RegionalCity* r = RcOf(city);
     if (r == nullptr || !Gate(fc4::Sw::NeighborsReload, "neighbours ReloadCity")) return;
@@ -711,6 +729,9 @@ void UpdateImportExport(void*, uint64_t city) {
 
 // ---- messages ----
 
+// NG31 (§15.4, matches): statuses 0-7 carry the deal's object (the core makes
+// it when the report is posted, and the message's reference keeps it alive
+// until delivery, NG5); only status 8 has none.
 void Status(void* u, uint64_t deal, uint32_t status, bool send) {
     if (!Gate(fc4::Sw::NeighborsPosts, "neighbours deal status report")) return;
     cIGZMessageServer2Ptr fallback;
@@ -786,10 +807,12 @@ cISC4PropManager* Props(void* u, const char* what) {
     return c->GetPropManager();  // city slot 35
 }
 
-// §6.3 [choice, spec question] CreateProp(0x29F10000) (slot 15; the prop
-// with one reference for us), orientation, position and the bool
-// properties, then AddCityProp(occupant) (slot 19); our reference is
-// released (the prop manager keeps its own).
+// §6.3, NG16 (§15.4, matches): CreateProp(0x29F10000) (slot 15; the prop
+// with one reference for us; on failure no marker, and the created message is
+// still posted), orientation, position and the bool properties through holder
+// slot 13 (AddProperty(id, 1, false), as the original), then
+// AddCityProp(occupant) (slot 19); our reference is released (the prop
+// manager keeps its own).
 uint64_t AddMarkerProp(void* u, const float* pos, int32_t orientation, const uint32_t* bools, size_t count) {
     cISC4PropManager* pm = Props(u, "neighbours marker prop (none)");
     if (pm == nullptr || pos == nullptr) return 0;
@@ -807,8 +830,7 @@ uint64_t AddMarkerProp(void* u, const float* pos, int32_t orientation, const uin
         occ->SetPosition(&v);
         cISCPropertyHolder* h = occ->AsPropertyHolder();
         for (size_t i = 0; h != nullptr && bools != nullptr && i < count; ++i) {
-            const uint8_t one = 1;
-            fc4::props::SetTyped(h, bools[i], cIGZVariant::Bool, false, &one, 1);
+            (void)fc4::AsGame(h)->AddPropertyU32(bools[i], 1, false);  // holder slot 13 (NG16)
         }
         if (pm->AddCityProp(occ)) {
             token = TokenOf(occ);
@@ -827,9 +849,24 @@ cISC4OccupantManager* Occupants(void* u, const char* what) {
     return c->GetOccupantManager();  // city slot 34
 }
 
-// The props (occupant type 0xA823821E) of one cell with 0xCAA46595 true:
-// GetOccupantsByStandardCityCells (slot 41; one reference each, kept to the
-// outermost exit) [choice, spec question].
+// A city prop (NG25): its cISC4PropOccupant's GetPropUsage (slot 22) is 1, the
+// usage AddCityProp sets.
+bool IsCityProp(cISC4Occupant* o) {
+    auto* p = Query<cISC4PropOccupant>(o, kIID_cISC4PropOccupant);
+    if (p == nullptr) return false;
+    const bool city = p->GetPropUsage() == kPropUsageCity;  // slot 22
+    Drop(p);
+    return city;
+}
+
+// NG25 (§6.4, §11.1, §15.4): the city props of one cell with 0xCAA46595 true.
+// The original asks the prop manager's GetCityProps (slot 18), whose filter
+// passes type 0xA823821E (prop) with prop usage 1 (city prop). The spec does
+// not give that call's rectangle (int or float, inclusive or not), so this
+// keeps the occupant manager's cell query for the type
+// (GetOccupantsByStandardCityCells, slot 41; one reference each, kept to the
+// outermost exit) and adds the usage test, the other half of the answer's
+// [choice].
 void MarkerProps(void* u, int32_t x, int32_t z, fc4_token_callback cb, void* ctx) {
     cISC4OccupantManager* om = Occupants(u, "neighbours marker lookup (none)");
     if (om == nullptr || cb == nullptr) return;
@@ -838,7 +875,7 @@ void MarkerProps(void* u, int32_t x, int32_t z, fc4_token_callback cb, void* ctx
     om->GetOccupantsByStandardCityCells(*list, &cell, &cell, kOccupantTypeProp, 0xFFFFFFFFu);
     g_held.push_back(list);
     for (cISC4Occupant* o : *list) {
-        if (o != nullptr && PropTrue(o->AsPropertyHolder(), kMarkerFlag)) cb(ctx, TokenOf(o));
+        if (o != nullptr && IsCityProp(o) && PropTrue(o->AsPropertyHolder(), kMarkerFlag)) cb(ctx, TokenOf(o));
     }
 }
 
@@ -864,6 +901,9 @@ void MoveProp(void* u, uint64_t prop, const float* pos) {
 uint32_t OccupantType(void*, uint64_t occ) { return occ ? OccOf(occ)->GetType() : 0; }
 
 // §6.5: GetNetworkFlag (slot 12) is a mask whose bit n is network type n.
+// NG29 (§15.4, matches): the §6.5 numbers are network type numbers and the
+// original tests flags & (1 << type); reading the flag word, the glue shifts
+// and hands the core the type numbers.
 void OccupantNetworks(void*, uint64_t occ, fc4_token_callback cb, void* ctx) {
     if (occ == 0 || cb == nullptr) return;
     cISC4NetworkOccupant* n = Query<cISC4NetworkOccupant>(FromToken(occ), kIID_cISC4NetworkOccupant);
@@ -875,21 +915,19 @@ void OccupantNetworks(void*, uint64_t occ, fc4_token_callback cb, void* ctx) {
     }
 }
 
-// [choice, spec question] A network occupant's GetOccupiedCell (slot 59),
-// else a power pole's GetCell (slot 8).
-void OccupantCell(void*, uint64_t occ, int32_t* x, int32_t* z) {
-    int32_t a = 0, b = 0;
-    if (occ != 0) {
-        if (cISC4NetworkOccupant* n = Query<cISC4NetworkOccupant>(FromToken(occ), kIID_cISC4NetworkOccupant)) {
-            uint32_t ux = 0, uz = 0;
-            n->GetOccupiedCell(ux, uz);
-            a = static_cast<int32_t>(ux);
-            b = static_cast<int32_t>(uz);
-            Drop(n);
-        } else if (auto* p = Query<cFC4ISC4PowerPoleOccupant>(FromToken(occ), kIID_cISC4PowerPoleOccupant)) {
-            p->GetCell(a, b);
-            Drop(p);
-        }
+// NG17 (§6.5, §15.4): for networks and poles alike, the occupant's position
+// (cISC4Occupant::GetPosition, slot 8) converted by the city's
+// PositionToCell (slot 95): 16 m cells from the city's (0, 0) corner, rounded
+// down. The spec names no check on GetPosition's result [choice, spec
+// question]: it is not tested, and a failed call leaves the zero vector, so
+// cell (0, 0).
+void OccupantCell(void* u, uint64_t occ, int32_t* x, int32_t* z) {
+    int a = 0, b = 0;
+    cISC4City* c = City(u);
+    if (occ != 0 && c != nullptr) {
+        cS3DVector3 v;  // (0, 0, 0)
+        (void)OccOf(occ)->GetPosition(&v);  // slot 8
+        c->PositionToCell(v.fX, v.fZ, a, b);  // slot 95
     }
     if (x != nullptr) *x = a;
     if (z != nullptr) *z = b;
@@ -923,6 +961,9 @@ bool ForeignConnection(void*, uint64_t conn, fc4_neighbor_connection_state* out)
     return fc4::ReadNeighborConnection(ConnOf(conn), out);
 }
 
+// NG9 (§15.4, matches): type and cell are never written after a connection
+// is made; on a foreign one Repair and the visited / active flags go through
+// its interface.
 void SetForeignConnectionFlags(void*, uint64_t conn, int32_t visited, int32_t active) {
     cISC4NeighborConnection* c = ConnOf(conn);
     if (c == nullptr) return;
@@ -945,6 +986,54 @@ void ReleaseConnection(void*, uint64_t conn) {
     } else {
         FC4_RELEASE_CREATED(o);
     }
+}
+
+// ---- foreign deals (§15.4 NG4) --------------------------------------------------------------------
+// A caller's deal that is not ours, kept by AddDeal as the listed deal: the
+// core reads it and drives it through its cISC4NeighborDeal, so its own code
+// runs (and may call back into the simulator: the lock is recursive).
+
+bool ForeignDeal(void*, uint64_t deal, fc4_neighbor_deal_data* out) {
+    return fc4::ReadNeighborDeal(DealOf(deal), out);
+}
+
+bool ForeignDealCall(void*, uint64_t deal, uint32_t op, int64_t a, int64_t b) {
+    cISC4NeighborDeal* d = DealOf(deal);
+    if (d == nullptr) return false;
+    const int32_t ia = static_cast<int32_t>(a);
+    const int32_t ib = static_cast<int32_t>(b);
+    // The date setters take a date set to Julian day `a`.
+    cFC4Date date(static_cast<uint32_t>(a));
+    switch (op) {
+        case 0: d->SetType(ia); break;
+        case 1: d->SetRegionCellOnOtherSideOfConnection(ia, ib); break;
+        case 2: d->SetRegionCellOnCitySideOfConnection(ia, ib); break;
+        case 3: d->SetLastAmount(ia); break;
+        case 4: d->SetLastIncAmount(ia); break;
+        case 5: d->SetIncAmount(ia); break;
+        case 6: d->SetIncAmount2(ia); break;
+        case 7: d->SetAmountUsed(ia); break;
+        case 8: d->SetStartDate(*fc4::AsSdk(&date)); break;
+        case 9: d->SetExpirationDate(*fc4::AsSdk(&date)); break;
+        case 10: d->SetCurrentDate(*fc4::AsSdk(&date)); break;
+        case 11: d->SetSuspensionDate(*fc4::AsSdk(&date)); break;
+        case FC4_NEIGHBOR_DEAL_CALL_SET_AMOUNT: d->SetAmount(ia); break;
+        case FC4_NEIGHBOR_DEAL_CALL_UPDATE_COST: d->UpdateCost(); break;
+        case FC4_NEIGHBOR_DEAL_CALL_UPDATE_STATE: d->UpdateState(); break;
+        case FC4_NEIGHBOR_DEAL_CALL_CANCEL: d->Cancel(); break;
+        case FC4_NEIGHBOR_DEAL_CALL_ACTIVATE: return d->Activate();
+        case FC4_NEIGHBOR_DEAL_CALL_SET_FLAGS: d->SetFlags(ia, b != 0); break;  // void at the interface
+        default: return false;
+    }
+    return true;
+}
+
+// The reference AddDeal took for the core. The caller usually lets go of
+// its own after AddDeal, so this one may be the last: reaching 0 is the
+// expected free (the audited AddDeal acquired it).
+void ReleaseDeal(void*, uint64_t deal) {
+    cIGZUnknown* o = FromToken(deal);
+    if (o != nullptr) FC4_RELEASE_CREATED(o);
 }
 
 }  // namespace
@@ -975,8 +1064,9 @@ cISC4RegionalCity* NeighborAppRegionalCity() {
     return r;
 }
 
-// [choice, spec question] The cell is passed as the region's uint32
-// arguments as it is (a negative cell wraps), as the original's call does.
+// NG15 (§15.4, matches): the cell is passed as the region's uint32
+// arguments as it is; a negative cell has the same bits and finds no entry,
+// as in the original (the map holds only cells covered by a city).
 cISC4RegionalCity* NeighborRegionCityAt(int32_t rx, int32_t rz) {
     cIGZFrameWork* fw = RZGetFrameWork();
     cIGZApp* app = fw ? fw->Application() : nullptr;
@@ -1171,6 +1261,9 @@ fc4_neighbors_host MakeNeighborsHost(NeighborsContext* ctx) {
     h.set_foreign_connection_flags = &SetForeignConnectionFlags;
     h.repair_foreign_connection = &RepairForeignConnection;
     h.release_connection = &ReleaseConnection;
+    h.foreign_deal = &ForeignDeal;  // NG4 (ABI 45)
+    h.foreign_deal_call = &ForeignDealCall;
+    h.release_deal = &ReleaseDeal;
     return h;
 }
 
@@ -1251,15 +1344,24 @@ SC4List<cSC4TripData>* cFC4NeighborTrafficSource::GetTripDataList() {
     return reinterpret_cast<SC4List<cSC4TripData>*>(&trips_);
 }
 
-// traffic-simulator.md §4.1.4. [choice, spec question] Without a matching
-// connection on the other side the targets are 0; the result is true.
+// traffic-simulator.md §4.1.4. The volume-dirty flag is cleared first, before
+// the other side is looked up, so each connection object syncs once (NG8,
+// neighbors.md §15.4). Without a matching connection on the other side (no
+// city there, or no match) the whole trip list is cleared, every type
+// included (NG19). The result is true: the one caller that reaches a
+// connection's slot 4 ignores it (NG21).
 bool cFC4NeighborTrafficSource::UpdateTrafficVolume() {
     if (!owner_->TakeVolumeDirty() || !trips_.valid()) return true;
     uint32_t target[3][9] = {};
     cISC4City* city = fc4::NeighborAppCity();
     cISC4NeighborsSimulator* ns = city ? city->GetNeighborsSimulator() : nullptr;
     cISC4NeighborConnection* other = ns ? fc4::AsGame(ns)->FindConnectionOnOtherSideOf(owner_->Primary()) : nullptr;
-    const cISCPropertyHolder* holder = other ? other->AsISCPropertyHolder() : nullptr;
+    if (other == nullptr) {
+        FC4TripNode* const head = trips_.head();
+        for (FC4TripNode* n = head->next; n != head;) n = trips_.Erase(n);
+        return true;
+    }
+    const cISCPropertyHolder* holder = other->AsISCPropertyHolder();
     for (uint32_t w = 0; w < 3 && holder != nullptr; ++w) {
         std::vector<uint32_t> v;
         if (!fc4::props::GetU32s(holder, kTripTargets + w, v)) continue;
@@ -1314,8 +1416,9 @@ bool cFC4NeighborTrafficSource::UpdateTrafficVolume() {
     return true;
 }
 
-// [choice, spec question] The connection cell as a one-cell rectangle (the
-// unsigned fields take the signed cell as it is).
+// NG20 (neighbors.md §15.4): the connection cell itself (outside the city,
+// e.g. (-1, 5)), twice: (x, z, x, z); the unsigned fields take the signed
+// cell as it is.
 bool cFC4NeighborTrafficSource::GetSourceCells(SC4Rect<uint32_t>& rect) {
     const FC4ConnectionMirror m = owner_->State();
     rect.topLeftX = static_cast<uint32_t>(m.state.x);
@@ -1345,7 +1448,8 @@ cFC4NeighborConnection::~cFC4NeighborConnection() {
 
 // §1: cISC4NeighborConnection and cIGZUnknown give the primary, plus
 // cIGZSerializable; not the property holder (reached by AsISCPropertyHolder)
-// [choice]; the private IID gives this object.
+// nor the traffic source, whose QueryInterface forwards here (NG26, §15.4:
+// matches); the private IID gives this object.
 bool cFC4NeighborConnection::QueryInterface(uint32_t riid, void** ppvObj) {
     if (ppvObj == nullptr) return false;
     if (riid == kFC4_IID_cISC4NeighborConnection || riid == GZIID_cIGZUnknown) {
@@ -1503,7 +1607,9 @@ cFC4NeighborDeal::~cFC4NeighborDeal() {
 }
 
 // §1: cISC4NeighborDeal and cIGZUnknown give the primary, plus
-// cIGZSerializable; the private IID gives this object.
+// cIGZSerializable; the private IID gives this object. NG18 (§15.4): the
+// original deal's holder is unreachable too; the core keeps the properties of
+// a record it read and writes them back (§5.6).
 bool cFC4NeighborDeal::QueryInterface(uint32_t riid, void** ppvObj) {
     if (ppvObj == nullptr) return false;
     if (riid == kFC4_IID_cISC4NeighborDeal || riid == GZIID_cIGZUnknown) {
@@ -1639,7 +1745,8 @@ void cFC4NeighborDeal::SetSuspensionDate(cIGZDate const& date) {
     SetField(11, static_cast<int32_t>(const_cast<cFC4IGZDate*>(fc4::AsGame(&date))->DayNumber()), 0);
 }
 
-// §5.4: the source through its interface (ours or an original).
+// §5.4: the source through its interface (ours or an original). NG13
+// (§15.4): void matches (the original leaves no meaningful value).
 void cFC4NeighborDeal::Copy(cISC4NeighborDeal const& copyFrom) {
     fc4_neighbor_deal_data d{};
     if (!fc4::ReadNeighborDeal(const_cast<cISC4NeighborDeal*>(&copyFrom), &d)) return;
@@ -1956,16 +2063,66 @@ bool cFC4NeighborsSimulator::Shutdown() {
 
 namespace {
 bool g_noteNoDialog = false;
-}
+bool g_noteDeclined = false;
+cISC4App* g_testApp = nullptr;  // FC4TestSeam op 48 (borrowed)
 
-// Slot 5 [choice, spec question]: the core answers 0 (exists: false) or 1
-// (ask the player); the dialog is not shown, the request is confirmed.
+// cISC4App::GetPopupDialogsEnabled (slot 23, advisors.md §6.8.1). The test's
+// app is borrowed and called directly; the framework's is queried and
+// released. [choice] Without an app: true, the flag's value from the app's
+// constructor.
+bool PopupDialogsEnabled() {
+    if (g_testApp != nullptr) return g_testApp->GetPopupDialogsEnabled();
+    cIGZFrameWork* fw = RZGetFrameWork();
+    cIGZApp* app = fw ? fw->Application() : nullptr;
+    cISC4App* sc4 = Query<cISC4App>(app, GZIID_cISC4App);
+    if (sc4 == nullptr) return true;
+    const bool on = sc4->GetPopupDialogsEnabled();  // slot 23
+    Drop(sc4);
+    return on;
+}
+}  // namespace
+
+namespace fc4 {
+void NeighborsTestSetApp(cISC4App* app) { g_testApp = app; }
+
+bool NeighborsTestCopyDeal(cISC4NeighborDeal* src, cISC4NeighborDeal** out) {
+    if (out == nullptr) return false;
+    *out = nullptr;
+    fc4_neighbor_deal_data data{};
+    if (!ReadNeighborDeal(src, &data)) return false;
+    Section sec;
+    if (!sec.ok()) return false;
+    fc4_neighbor_deal* h = fc4_neighbor_deal_create();
+    if (h == nullptr) return false;
+    fc4_neighbor_deal_copy(h, &data);
+    auto* d = new cFC4NeighborDeal(h);
+    d->AddRef();  // the caller's
+    *out = d->Primary();
+    return true;
+}
+}  // namespace fc4
+
+// Slot 5 (§6.2; NG14, §15.4): the core answers 0 (exists: false) or 1 (ask
+// the player). The original then shows nSC4UI::GenericConfirmationDialog and
+// returns its answer; with popups disabled that dialog returns false without
+// asking, so the request is refused. [choice, spec question] The spec gives
+// no interface for the dialog (only its address), so with popups enabled the
+// request is still confirmed without asking (a temporary deviation, NG14).
 bool cFC4NeighborsSimulator::RequestCreateConnection(ConnectionType type, int32_t x, int32_t z, bool) {
     Section sec;
     if (!sec.ok()) return false;
     uint64_t neighbour = 0;
     const int32_t r = fc4_neighbors_request_create_connection(core_, static_cast<uint32_t>(type), x, z, &neighbour);
     if (r == 0) return false;
+    if (!PopupDialogsEnabled()) {
+        if (!g_noteDeclined) {
+            g_noteDeclined = true;
+            fc4::Log("neighbours: RequestCreateConnection refused: popup dialogs are disabled, so the confirmation "
+                     "dialog answers no (NG14; first: %s at (%d, %d))",
+                     TypeName(static_cast<uint32_t>(type)), x, z);
+        }
+        return false;
+    }
     if (!g_noteNoDialog) {
         g_noteNoDialog = true;
         fc4::Log("neighbours: RequestCreateConnection confirms without the yes/no dialog (first: %s at (%d, %d), "
@@ -1976,6 +2133,8 @@ bool cFC4NeighborsSimulator::RequestCreateConnection(ConnectionType type, int32_
 }
 
 // Slot 6 [choice]: the new connection (borrowed; the list holds it) or null.
+// NG10 (§15.4): the original's value is not meaningful and every caller
+// ignores it, so any value works.
 cISC4NeighborConnection* cFC4NeighborsSimulator::CreateConnection(ConnectionType type, int32_t x, int32_t z,
                                                                   bool flag) {
     Section sec;
@@ -2146,13 +2305,15 @@ bool cFC4NeighborsSimulator::ProposeDeals(SC4List<cISC4NeighborDeal*>& deals, bo
     return true;
 }
 
-// Slot 26: a deal of ours is added itself; [choice, spec question] a
-// foreign deal is added as a deal of ours with its state (Copy, §5.4).
+// Slot 26 (§6.2): Silent off, append, push both; true. A deal of ours is
+// added itself. A foreign deal (a caller's object, not ours) is kept too
+// (§15.4 NG4, the spec's recommendation): the simulator takes one reference
+// to that object, clears its Silent flag through its interface and simulates
+// it, so the caller's later calls act on the listed deal; the reference is
+// released when the core lets the deal go (ReleaseDeal).
 bool cFC4NeighborsSimulator::AddDeal(cISC4NeighborDeal* deal) {
     if (deal == nullptr) return false;
-    fc4_neighbor_deal_data data{};
     cFC4NeighborDeal* ours = OurDeal(deal);
-    if (ours == nullptr) fc4::ReadNeighborDeal(deal, &data);
     Section sec;
     if (!sec.ok()) {
         NoteDropped("AddDeal");
@@ -2160,8 +2321,12 @@ bool cFC4NeighborsSimulator::AddDeal(cISC4NeighborDeal* deal) {
     }
     if (ours != nullptr) {
         fc4_neighbors_add_deal(core_, ours->Handle());
-    } else {
-        fc4_neighbors_add_deal_data(core_, &data);
+        return true;
+    }
+    FC4_ADDREF(deal);  // the core's reference (NG4)
+    if (!fc4_neighbors_add_foreign_deal(core_, TokenOf(deal))) {
+        // Not listed (no core): the reference is still ours to give back.
+        FC4_RELEASE(deal);
     }
     return true;
 }
@@ -2228,17 +2393,17 @@ void cFC4NeighborsSimulator::MarkDealsDirty() {
     fc4_neighbors_mark_deals_dirty(core_);
 }
 
-// Slots 32/33 [choice, spec question]: the low 32 bits in EAX.
-int32_t cFC4NeighborsSimulator::GetTotalMonthlyNeighborDealIncome() {
+// Slots 32/33 (§10.1; NG11, §15.4): the full signed 64-bit sum in EDX:EAX.
+// Every game caller (finance advisor, budget simulator, budget windows) reads
+// both halves; a 32-bit return would leave garbage in EDX for them.
+int64_t cFC4NeighborsSimulator::GetTotalMonthlyNeighborDealIncome() {
     Section sec(false);
-    const int64_t v = sec.ok() ? fc4_neighbors_total_income(core_) : snap_.income.load();
-    return static_cast<int32_t>(static_cast<uint32_t>(static_cast<uint64_t>(v)));
+    return sec.ok() ? fc4_neighbors_total_income(core_) : snap_.income.load();
 }
 
-int32_t cFC4NeighborsSimulator::GetTotalMonthlyNeighborDealExpense() {
+int64_t cFC4NeighborsSimulator::GetTotalMonthlyNeighborDealExpense() {
     Section sec(false);
-    const int64_t v = sec.ok() ? fc4_neighbors_total_expense(core_) : snap_.expense.load();
-    return static_cast<int32_t>(static_cast<uint32_t>(static_cast<uint64_t>(v)));
+    return sec.ok() ? fc4_neighbors_total_expense(core_) : snap_.expense.load();
 }
 
 // Slot 34 (§8.2): keyed on the city object.
@@ -2274,7 +2439,9 @@ bool cFC4NeighborsSimulator::DoMessage(cIGZMessage2* pMessage) {
     Section sec;
     if (!sec.ok()) {
         NoteDropped("DoMessage");
-        return true;  // [choice] a message from another thread that cannot get the lock is dropped
+        // [choice] (NG33, glue) a message from another thread that cannot get
+        // the lock is dropped; the original never drops one and returns true.
+        return true;
     }
     const uint32_t type = pMessage->GetType();
     fc4_neighbors_message m{};

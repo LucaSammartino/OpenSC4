@@ -59,7 +59,7 @@ mod tests;
 mod tuning;
 
 pub use connection::{ConnectionState, NeighborConnection, CONNECTION_RECORD_VERSION};
-pub use deal::{DealData, NeighborDeal, DEAL_RECORD_VERSION, DEFAULT_DATE};
+pub use deal::{DealCall, DealData, NeighborDeal, DEAL_RECORD_VERSION, DEFAULT_DATE};
 pub use pricing::{deal_cost, deal_max_amount, CommodityStats, PriceInputs};
 pub use simulator::{answers_iid, ConnectionRequest, NeighborsSimulator, SimState, SIMULATOR_RECORD_VERSION};
 pub use tuning::{prop, shipped_tuning, Tuning, DEAL_PRICE_CURVE, GARBAGE_COST_CURVE, TUNING_KEY};
@@ -550,6 +550,22 @@ pub trait NeighborsHost {
     /// The simulator's list let go of a connection (ours or foreign): the
     /// reference the list held is released.
     fn release_connection(&self, _token: u64) {}
+
+    // ---- foreign deals (§15.4 NG4) ----
+    /// The live state of a foreign deal (a caller's object `AddDeal` kept),
+    /// read through `cISC4NeighborDeal`; `None` if it cannot be read.
+    fn foreign_deal(&self, _token: u64) -> Option<DealData> {
+        None
+    }
+    /// A call on a foreign deal through `cISC4NeighborDeal`: its own code
+    /// runs. Returns the result of `Activate` / `SetFlags`, true for the
+    /// others.
+    fn foreign_deal_call(&self, _token: u64, _call: DealCall) -> bool {
+        false
+    }
+    /// The core let go of a foreign deal (no list or report holds it any
+    /// more): the reference `AddDeal` took is released.
+    fn release_deal(&self, _token: u64) {}
 }
 
 /// A message as `DoMessage` sees it (§11.1).

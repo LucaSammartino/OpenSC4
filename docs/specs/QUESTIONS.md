@@ -3554,3 +3554,28 @@ through the holder at occupant + 0x20).
 - **ZG21:** ZG2 and the §5.1 dezone: under the ZG2 choice, a network whose bounding cells cross the city edge has its
   whole dezone refused. Before, the inside cells were dezoned, and the original dezones them too while touching
   memory outside the grid. [refused whole, with error 0; not seen in game]
+
+## From applying the neighbours answers (filed by the coordinator from the `apply9a` lane's report, 2026-10-14)
+
+apply9a applied NG4–NG27 (merged `bf0e4b1`, ABI 45). The main in-game change: with our neighbours simulator active
+the original budget now reads slots 32/33 as int64 in EDX:EAX (NG11). Before, it read garbage
+(`income orig/ours=844424930136029/4061`); now 25/25 budget lines are exact. Konradshohe has no deals, connection
+requests or marker changes, so NG4, NG14, NG16, NG17, NG19, NG23 and NG25 are tested only outside the game.
+
+- **NG35:** NG14: there is no interface for `GenericConfirmationDialog`. What should happen when popups are on?
+  [confirm without asking; refuse when popups are off]
+- **NG36:** NG14: with no app reachable, is the popup flag taken as enabled? [enabled]
+- **NG37:** NG23: what does the original's `AddPropertyData` (holder slot 10) store? [ours stores a Uint8 array, so
+  `GetPropertyData` does not read it back]
+- **NG38:** NG17: should a failing `GetPosition` be checked? [unchecked: a zero vector, so cell (0, 0)]
+- **NG39:** NG25: what is the rectangle form of `GetCityProps` (prop manager slot 18)? [not called; the usage test is
+  added to the cell query]
+- **NG40:** NG7: what if the original's state bytes cannot be read (an unidentified vtable)? [ready = 1, everything
+  else 0, logged once]
+- **NG41:** NG7: the `initialized` byte has no shadow input. Should it be compared? [read and logged only]
+- **NG42:** NG4: is the foreign deal's reference released exactly when it leaves the list, or when nothing in the
+  core still holds it? [when the core object goes, which is list removal unless something else in the core holds it]
+- **NG43:** NG4: what should `AddDeal` return when the core cannot list the deal? [true, and the reference is given
+  back]
+- **NG44:** NG27: how do signed, 64-bit and float values convert, and what about an empty character array? [as C
+  converts them; the empty character array stays false]

@@ -21,6 +21,7 @@
 #include "cIGZString.h"
 #include "cIGZVariant.h"
 
+#include <algorithm>
 #include <cstring>
 #include <vector>
 
@@ -242,6 +243,10 @@ bool cFC4Property::SetPropertyValue(const cIGZVariant& value) {
     return true;
 }
 
+// NG22 (neighbors.md §15.4, matches): the ID, then the variant (foundations
+// §10.1) on the stream given, and "not in error". The original holder's
+// record writer calls a stored property's own Write with the save's stream,
+// so these must be exactly the game's bytes.
 bool cFC4Property::Write(cIGZOStream& stream) const {
     void* p = nullptr;
     if (!stream.QueryInterface(kFC4_IID_cISC4DBSegmentOStream, &p) || p == nullptr) return false;
@@ -320,27 +325,24 @@ bool cFC4PropertyHolder::GetPropertyList(cIGZUnknownList** list) const {
     return false;
 }
 
-// [choice, spec question] The value's raw bytes (an array's elements, a
-// scalar's value). A null buffer asks for the size; a short buffer gets
-// nothing (false) and the size.
+// Slot 5 (neighbors.md §15.4 NG23, the original 0x005FD290): there is no
+// size query. No property -> false. A value whose type is not exactly 0x8000
+// (raw bytes, foundations §9) -> false, `length` unchanged. Otherwise
+// `length := min(length, count)`, that many bytes copied, true: a short
+// buffer gets the first `length` bytes and learns nothing of the rest.
+// NG23 [choice]: a null `buffer` -> false, `length` unchanged (the original
+// copies to address 0 when `length` and the count are not 0) [spec question:
+// with `length` 0 the original copies nothing and returns true; the literal
+// choice is taken].
 bool cFC4PropertyHolder::GetPropertyData(uint32_t id, void* buffer, uint32_t& length) const {
-    std::vector<uint8_t> b;
-    {
-        std::lock_guard<std::recursive_mutex> g(lock_);
-        const cFC4IGZVariant* v = ValueOf(Find(id));
-        if (v == nullptr || !ValueBytes(*v, b)) return false;
-    }
-    const uint32_t size = static_cast<uint32_t>(b.size());
-    if (buffer == nullptr) {
-        length = size;
-        return true;
-    }
-    if (length < size) {
-        length = size;
-        return false;
-    }
-    if (size != 0) std::memcpy(buffer, b.data(), size);
-    length = size;
+    if (buffer == nullptr) return false;
+    std::lock_guard<std::recursive_mutex> g(lock_);
+    const cFC4IGZVariant* v = ValueOf(Find(id));
+    if (v == nullptr || v->GetType() != cIGZVariant::VoidArray) return false;
+    const uint32_t n = std::min(length, v->GetCount());
+    const void* src = v->RefVoid();  // slot 123
+    if (n != 0 && src != nullptr) std::memcpy(buffer, src, n);
+    length = n;
     return true;
 }
 
@@ -375,11 +377,27 @@ bool cFC4PropertyHolder::GetPropertyString(uint32_t id, cIGZString& value) const
     return false;
 }
 
+// Slot 8 (NG27, neighbors.md §15.4): a Uint32 scalar as is; any other value
+// goes through the variant's text, so an array gives its first element and an
+// empty array the text "0": 0 and true. [choice, spec question] Signed,
+// 64-bit and float values convert as C does (the original's text parser was
+// not traced), and an empty array of characters (a string) stays false.
 bool cFC4PropertyHolder::GetPropertyU32(uint32_t id, uint32_t& value) const {
     std::lock_guard<std::recursive_mutex> g(lock_);
     const cFC4IGZVariant* v = ValueOf(Find(id));
+    if (v == nullptr) return false;
     uint32_t r = 0;
-    if (v == nullptr || !FirstU32(*v, &r)) return false;
+    if (!FirstU32(*v, &r)) {
+        const uint16_t type = v->GetType();
+        const uint16_t base = static_cast<uint16_t>(type & ~cIGZVariant::TypeArray);
+        const bool numeric = base == cIGZVariant::Bool || base == cIGZVariant::Uint8 || base == cIGZVariant::Sint8 ||
+                             base == cIGZVariant::Uint16 || base == cIGZVariant::Sint16 ||
+                             base == cIGZVariant::Uint32 || base == cIGZVariant::Sint32 ||
+                             base == cIGZVariant::Uint64 || base == cIGZVariant::Sint64 ||
+                             base == cIGZVariant::Float32 || base == cIGZVariant::Float64;
+        if ((type & cIGZVariant::TypeArray) == 0 || v->GetCount() != 0 || !numeric) return false;
+        r = 0;  // an empty numeric array (NG27)
+    }
     value = r;
     return true;
 }

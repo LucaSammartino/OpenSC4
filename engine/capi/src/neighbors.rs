@@ -24,8 +24,12 @@
 //! (`connection_object` for a new connection, `deal_object` when a deal is
 //! first handed to the host) and keeps its token. A foreign connection (an
 //! original object accepted on load) is read and written through the
-//! `foreign_connection` callbacks. Foreign deals reach the core only as data
-//! (`local_deals`, `fc4_neighbors_add_deal_data`).
+//! `foreign_connection` callbacks. A foreign deal (a caller's object handed
+//! to `AddDeal`, NG4) is kept as the listed deal: the host holds one
+//! reference for the core, the core reads it through `foreign_deal`, writes
+//! and drives it through `foreign_deal_call`, and lets it go with
+//! `release_deal` (`fc4_neighbors_add_foreign_deal`). Foreign deals the
+//! region hands over on load still reach the core as data (`local_deals`).
 //!
 //! Re-entrancy: the core holds no borrow across a host call and is meant to
 //! be re-entered (a status report **sent** by `SetAmount` reaches the
@@ -38,7 +42,7 @@ use std::ffi::{c_char, c_void};
 use std::rc::Rc;
 
 use fc4_core::neighbors::{
-    CityHandle, CityId, ConnectionRequest, ConnectionState, DealData, ForeignConnection, NeighborConnection,
+    CityHandle, CityId, ConnectionRequest, ConnectionState, DealCall, DealData, ForeignConnection, NeighborConnection,
     NeighborDeal, NeighborsHost, NeighborsMessage, NeighborsSimulator, Stat, UtilityFigures, CLSID_NEIGHBOR_CONNECTION,
 };
 use fc4_core::property::PropertyHolder;
@@ -341,6 +345,18 @@ pub struct fc4_neighbors_host {
     pub repair_foreign_connection: Option<unsafe extern "C" fn(U, u64, u64)>,
     /// The simulator's list let go of a connection: release its reference.
     pub release_connection: Option<unsafe extern "C" fn(U, u64)>,
+    // foreign deals (NG4; ABI 45, appended)
+    /// A foreign deal's state, read through its interface; false = unreadable.
+    pub foreign_deal: Option<unsafe extern "C" fn(U, u64, *mut fc4_neighbor_deal_data) -> bool>,
+    /// A call on a foreign deal (`FC4_NEIGHBOR_DEAL_CALL_*`): the setters
+    /// 0-11 numbered as in `fc4_neighbor_deal_set_field` (`a`, `b`), 12 =
+    /// `SetAmount(a)`, 13 = `UpdateCost`, 14 = `UpdateState`, 15 = `Cancel`,
+    /// 16 = `Activate`, 17 = `SetFlags(a, b != 0)`. Returns the call's bool
+    /// (`Activate`, `SetFlags`); true for the void ones.
+    pub foreign_deal_call: Option<unsafe extern "C" fn(U, u64, u32, i64, i64) -> bool>,
+    /// The core let go of a foreign deal: release the reference
+    /// `fc4_neighbors_add_foreign_deal` was given.
+    pub release_deal: Option<unsafe extern "C" fn(U, u64)>,
 }
 
 const _: () = {
@@ -349,7 +365,7 @@ const _: () = {
     assert!(std::mem::size_of::<fc4_neighbors_figures>() == 128);
     assert!(std::mem::size_of::<fc4_neighbors_message>() == 24);
     assert!(std::mem::size_of::<fc4_neighbors_state>() == 48);
-    assert!(std::mem::size_of::<fc4_neighbors_host>() == if cfg!(target_pointer_width = "32") { 204 } else { 408 });
+    assert!(std::mem::size_of::<fc4_neighbors_host>() == if cfg!(target_pointer_width = "32") { 216 } else { 432 });
 };
 
 // ---- object handles -------------------------------------------------------------------------------
@@ -717,6 +733,41 @@ impl NeighborsHost for CHost {
     }
     fn release_connection(&self, token: u64) {
         cb!(self, release_connection, (), token)
+    }
+    fn foreign_deal(&self, token: u64) -> Option<DealData> {
+        let mut d = fc4_neighbor_deal_data::default();
+        cb!(self, foreign_deal, false, token, &mut d).then(|| d.to_core())
+    }
+    fn foreign_deal_call(&self, token: u64, call: DealCall) -> bool {
+        let (op, a, b) = deal_call_op(call);
+        cb!(self, foreign_deal_call, false, token, op, a, b)
+    }
+    fn release_deal(&self, token: u64) {
+        cb!(self, release_deal, (), token)
+    }
+}
+
+/// A call on a foreign deal as the C op, `a`, `b` (`foreign_deal_call`).
+pub(crate) fn deal_call_op(c: DealCall) -> (u32, i64, i64) {
+    match c {
+        DealCall::SetType(t) => (0, i64::from(t), 0),
+        DealCall::SetOtherSide(x, z) => (1, i64::from(x), i64::from(z)),
+        DealCall::SetCitySide(x, z) => (2, i64::from(x), i64::from(z)),
+        DealCall::SetLastAmount(v) => (3, i64::from(v), 0),
+        DealCall::SetLastIncAmount(v) => (4, i64::from(v), 0),
+        DealCall::SetIncAmount(v) => (5, i64::from(v), 0),
+        DealCall::SetIncAmount2(v) => (6, i64::from(v), 0),
+        DealCall::SetAmountUsed(v) => (7, i64::from(v), 0),
+        DealCall::SetStartDate(d) => (8, i64::from(d), 0),
+        DealCall::SetExpirationDate(d) => (9, i64::from(d), 0),
+        DealCall::SetCurrentDate(d) => (10, i64::from(d), 0),
+        DealCall::SetSuspensionDate(d) => (11, i64::from(d), 0),
+        DealCall::SetAmount(v) => (12, i64::from(v), 0),
+        DealCall::UpdateCost => (13, 0, 0),
+        DealCall::UpdateState => (14, 0, 0),
+        DealCall::Cancel => (15, 0, 0),
+        DealCall::Activate => (16, 0, 0),
+        DealCall::SetFlags(f, on) => (17, i64::from(f), i64::from(on)),
     }
 }
 
@@ -1163,9 +1214,10 @@ pub unsafe extern "C" fn fc4_neighbors_add_deal(p: *mut fc4_neighbors, deal: *co
     sim(p, false, |h| h.sim.add_deal(&d))
 }
 
-/// Slot 26 `AddDeal(deal)` for a foreign deal *[choice]*: a deal of ours with
-/// the foreign deal's state (`Copy`, §5.4) is added instead. Returns its host
-/// object's token (0 if the host made none).
+/// Slot 26 `AddDeal(deal)` for a foreign deal, the old way: a deal of ours
+/// with the foreign deal's state (`Copy`, §5.4) is added instead. Returns its
+/// host object's token (0 if the host made none). Superseded for `AddDeal` by
+/// `fc4_neighbors_add_foreign_deal` (NG4); kept for ABI compatibility.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_neighbors_add_deal_data(
     p: *mut fc4_neighbors,
@@ -1178,6 +1230,25 @@ pub unsafe extern "C" fn fc4_neighbors_add_deal_data(
         d.copy_from(&data);
         h.sim.add_deal(&d);
         deal_token_of(h, &d)
+    })
+}
+
+/// Slot 26 `AddDeal(deal)` for a foreign deal (§15.4 NG4): the caller's
+/// object itself becomes the listed deal. The host has taken one reference
+/// for the core (`token`); the core releases it through `release_deal` when
+/// it lets the deal go, and on failure (false) the reference is still the
+/// host's. Silent is cleared through `foreign_deal_call` (`SetFlags`) and the
+/// deal is simulated through the same calls.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_neighbors_add_foreign_deal(p: *mut fc4_neighbors, token: u64) -> bool {
+    if token == 0 {
+        return false;
+    }
+    sim(p, false, |h| {
+        if h.chost.is_none() {
+            return false;
+        }
+        h.sim.add_foreign_deal(token)
     })
 }
 
