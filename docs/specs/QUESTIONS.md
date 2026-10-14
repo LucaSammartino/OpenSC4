@@ -2318,3 +2318,19 @@ shadow's riot roll (wall-clock RNG). The current answer is in brackets.
 - **AQ9:** Flora shadow: which box gives the 64 m listing? [choice: the census box taken before the pass]
 - **AQ10:** Plugin: `OpenOStream`/`OpenIStream` returns false but writes a stream pointer. [treated as not open;
   nothing released]
+
+## From applying the crime, traffic network and HG answers (filed by the coordinator from the `apply7b` lane's report, 2026-10-14)
+
+CQ16–CQ22, the crime errata, TN21–TN25 and HG1 are applied (CQ16 and TN21 changed behaviour; the clock-seed helper
+moved to `rng.rs`). Not done: the development simulator's own clock seed still XORs by itself (the development glue
+lane owns those files); TN22/TN24 have unit tests but no vectors. The current answer is in brackets.
+
+- **CQ23:** CQ17 follow-up: what does a name key `0x8A416B2E` stored as a non-u32 array of 3 or more elements give?
+  The original copies 12 raw bytes. [FreeCity4 converts the values to numbers, so a u8 array [a, b, c] gives G = b, I
+  = c; a string counts as missing]
+- **CQ24:** CQ20 follow-up: the original reads the name key from a second, uncached load of the type's exemplar.
+  [FreeCity4 reads it from the same cached load as the other properties; the two differ only if the cached copy was
+  changed in memory]
+- **TN29:** TN21 worked example: Street (3) is not in the §4.8 tunnel type order, so a Street portal never gets a
+  tunnel record. How does a "Street tunnel cell" get the tunnel bit in the game? [any tunnel record keyed by the cell
+  sets the bit; the test and vector tn11_04d put a Road portal over a Street piece]
