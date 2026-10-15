@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "prop_developer_empty_record",
+  "spec": ["prop-developer 1", "prop-developer 2", "prop-developer 3.1", "prop-developer 7", "prop-developer 12"],
+  "description": "Section 12 test 1 and the identity of section 1. Init on a new 128 x 128 city holds the managers, creates the wealth requester (wealthAdded 1), sets the scan flag to 1 with the scanner fresh at (0, 0) and clip (0, 0, 15, 15), adds the agent at levels 10 (Idle) and 4 (Day) with flags 2, subscribes to 13 messages and registers for the animation tick at priority 0xC0. With the crime and pollution requesters added (each held) the record is version 5, 127 bytes: batch 0 [choice], signsVisible 1, all lists empty. QueryInterface: 0xE9A1F4B6 and 1 answer +0, the message target +4, the serializable +8; the wealth requester answers 1 and 0x89C498BE at +0 and the serializable at +4.",
+  "steps": [
+    {"op": "pv_identity", "iids": {"0xE9A1F4B6": 0, "0x00000001": 0, "0x452294AA": 4, "0xE4FDA3D4": 8, "0x89C498BE": false, "0x12345678": false}, "wealth_iids": {"0x00000001": 0, "0x89C498BE": 0, "0xE4FDA3D4": 4, "0xE9A1F4B6": false}},
+    {"op": "pv_env", "cells": [128, 128]},
+    {"op": "pv_create"},
+    {"op": "pv_expect", "state": {"scan_flag": 0, "wealth_added": false, "signs_visible": true, "night_batch": 0, "requesters": 0, "tod_last": -100.0}},
+    {"op": "pv_init", "expect": true},
+    {"op": "pv_expect_event_count", "filter": {"event": "subscribe"}, "count": 13},
+    {"op": "pv_expect_events", "events": [{"event": "create_wealth_requester", "token": "0x13B52FC0"}, {"event": "add_agent", "level": 10, "name": "cSC4PropDeveloper", "flags": 2}, {"event": "add_agent", "level": 4, "name": "cSC4PropDeveloper", "flags": 2}, {"event": "subscribe", "msg": "0x99EF1142"}, {"event": "subscribe", "msg": "0x99EF1143"}, {"event": "subscribe", "msg": "0xC9DA96E8"}, {"event": "subscribe", "msg": "0xC9DA96E9"}, {"event": "subscribe", "msg": "0x44778231"}, {"event": "subscribe", "msg": "0x44778234"}, {"event": "subscribe", "msg": "0x26D31EC1"}, {"event": "subscribe", "msg": "0xE8BDA2E7"}, {"event": "subscribe", "msg": "0x8A07AE00"}, {"event": "subscribe", "msg": "0xAA375FE8"}, {"event": "subscribe", "msg": "0xCA5E5027"}, {"event": "subscribe", "msg": "0x278E6003"}, {"event": "subscribe", "msg": "0x678E6E3A"}, {"event": "animation_tick", "priority": "0xC0"}]},
+    {"op": "pv_expect", "state": {"scan_flag": 1, "scanner": "fresh", "scan_at": [0, 0], "clip": [0, 0, 15, 15], "wealth_added": true, "requesters": 1}},
+    {"op": "pv_add_requester", "token": "0x13B42BB8", "class": "0x8990C09A"},
+    {"op": "pv_add_requester", "token": "0x11347690", "class": "0x8990C065"},
+    {"op": "pv_expect_events", "filter": {"event": "hold"}, "events": [{"token": "0x13B42BB8"}, {"token": "0x11347690"}]},
+    {"op": "pv_expect_lists", "requesters": [["0x13B52FC0", "0x89C49986"], ["0x13B42BB8", "0x8990C09A"], ["0x11347690", "0x8990C065"]], "night": [], "time_of_day": [], "dated": [], "power": [], "signs": [], "triggers": []},
+    {"op": "pv_write", "hex": "0500 01 00 00000000 00000000 01000000 00000000 00000000 0F000000 0F000000 01 03000000 C02FB513 8699C489 B82BB413 9AC09089 90763411 65C09089 38003113 019B8F49 6C873711 10BD90A9 FC35B413 3BCDA6E9 00000000 00000000 00000000 00000000 00 00000000 00000000 00000000 00000000 00000000 01 00000000", "length": 127, "expect": true}
+  ]
+}

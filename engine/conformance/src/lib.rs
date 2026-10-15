@@ -37,6 +37,7 @@ pub(crate) mod plumbing;
 pub(crate) mod pollution;
 pub(crate) mod port_developer;
 pub(crate) mod power;
+pub(crate) mod prop_developer;
 pub(crate) mod protection;
 pub(crate) mod residential;
 pub mod runner;
