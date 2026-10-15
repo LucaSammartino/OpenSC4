@@ -134,8 +134,9 @@ roadmap in `docs/ARCHITECTURE.md`, build and ini keys in `engine/README.md`.
 ## 3. Running the game
 
 - **Regression after every merge that touches the plugin** (run detached):
-  `tools/regress.ps1 -Tag <tag> -Dll <dll> -Queue` submits a shadows run and a replace run (17 replacements with
-  `development`; every shadow including `development_shadow`) through the run queue with coordinator priority
+  `tools/regress.ps1 -Tag <tag> -Dll <dll> -Queue` submits a shadows run and a replace run (20 replacement keys,
+  `development`, `tract`, `history` and `clock24` among them; every shadow including `zonedev_shadow`, `history_shadow`
+  and `clock24_shadow`, run 114) through the run queue with coordinator priority
   (`priority = high`: they jump the lanes' requests and run side by side), turbo to 2032-01-01 on Konradshohe by
   default (`-NormalSpeed` for the old timed runs), and prints one table, `REGRESS <tag>: PASS/FAIL`, and a delta
   against the previous PASS of the same pacing (`-Baseline <tag>`; the original's results depend on days/s, DG31).
