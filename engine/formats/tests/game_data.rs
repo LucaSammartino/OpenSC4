@@ -706,3 +706,81 @@ fn sweep_fsh_and_s3d() {
     );
     assert_eq!((g.prop_models, g.regp_models), (58, 1_810));
 }
+
+/// graphics-formats §4.2 (GF7): the shipped model keys of the main `.dat` files (the install's top folder; for each
+/// key the first index entry of its package): the zoom mask, RKT4, RKT5 and the flag-0x80 keys, the RKT4 record
+/// kinds and the walk's stops, with the spec's survey counts.
+#[test]
+fn sweep_model_keys() {
+    use fc4_formats::keys::{self, rkt4_records, Rkt4End};
+
+    let Some(dir) = game_dir() else {
+        eprintln!("game data not found (set FC4_GAME_DIR); skipping");
+        return;
+    };
+    let Ok(rd) = std::fs::read_dir(&dir) else { return };
+    let mut files: Vec<PathBuf> = rd
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.is_file() && group_of(p) == Some("dat"))
+        .collect();
+    files.sort();
+    let mut has: BTreeMap<u32, usize> = BTreeMap::new();
+    let mut kinds: BTreeMap<u32, usize> = BTreeMap::new();
+    let mut nonzero_offsets = 0usize;
+    let mut stops: Vec<String> = Vec::new();
+    for path in &files {
+        let Ok(pkg) = Package::open(path) else { continue };
+        let first = |e: &fc4_formats::IndexEntry| pkg.find(&e.tgi).is_some_and(|f| std::ptr::eq(f, e));
+        for e in pkg.entries_of_type(TYPE_EXEMPLAR).filter(|e| first(e)) {
+            let Ok(data) = pkg.read(e) else { continue };
+            let Ok(ex) = Exemplar::parse(&data) else { continue };
+            let ids = [keys::ZOOM_MASK, keys::RKT4, keys::RKT5]
+                .into_iter()
+                .chain((0..6).map(|k| keys::RKT_FLAGGED_BASE + k));
+            for id in ids {
+                if ex.get(id).is_some() {
+                    *has.entry(id).or_default() += 1;
+                }
+            }
+            for id in [keys::RKT4, keys::RKT_FLAGGED_BASE + 4] {
+                let Some(v) = ex.get(id).and_then(keys::property_u32s) else {
+                    continue;
+                };
+                let (recs, end) = rkt4_records(&v);
+                for r in &recs {
+                    *kinds.entry(r.kind).or_default() += 1;
+                    nonzero_offsets += usize::from(r.offset != [0; 3]);
+                }
+                if end != (Rkt4End::Complete { leftover: 0 }) {
+                    stops.push(format!("{} 0x{id:08X}: {end:?}", e.tgi));
+                }
+            }
+        }
+    }
+    eprintln!("model keys: {has:08X?}");
+    eprintln!("RKT4 record kinds: {kinds:08X?}, {nonzero_offsets} non-zero offsets");
+    for s in &stops {
+        eprintln!("RKT4 walk stop: {s}");
+    }
+    if has.is_empty() {
+        eprintln!("no model keys found: not the shipped install; counts not checked");
+        return;
+    }
+    // The survey of §4.2.
+    assert_eq!(has.get(&keys::ZOOM_MASK), Some(&1_009));
+    assert_eq!(has.get(&keys::RKT4), Some(&618));
+    assert_eq!(has.get(&(keys::RKT_FLAGGED_BASE + 4)), Some(&19));
+    assert_eq!(has.get(&keys::RKT5), Some(&5));
+    assert_eq!(has.get(&keys::RKT_FLAGGED_BASE), Some(&6));
+    assert_eq!(has.get(&(keys::RKT_FLAGGED_BASE + 1)), Some(&11));
+    assert_eq!(
+        (kinds.get(&keys::RKT0), kinds.get(&keys::RKT1), kinds.get(&keys::RKT2)),
+        (Some(&943), Some(&382), Some(&1))
+    );
+    assert_eq!(nonzero_offsets, 48);
+    // The four street lights whose 0x27812924 holds the stray 0x54000 in its second record header.
+    assert_eq!(stops.len(), 4);
+    assert!(stops
+        .iter()
+        .all(|s| s.contains("0x27812924: BadKind { at: 8, kind: 344064 }")));
+}
