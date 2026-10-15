@@ -242,3 +242,26 @@ the block back to that pool by address.
 
 The constructor reads the active zone manager's `GetZoneType` at the location cell through the global
 `0x00B43D14`, so it must run while a city is loaded.
+
+## cSC4LotRetainingWallOccupant retaining-wall helpers `0x005E3070`, `0x005E37F0`, `0x005E3960` (LD3)
+
+Static functions, not methods: `__cdecl`, arguments on the stack, **the caller pops**; no `this`. The lot argument
+is the `cISC4Lot*` interface pointer (the pointer the lot developer's slots receive). They read the global occupant
+manager `0x00B43D0C`, lot manager `0x00B43D08` and BDS `0x00B43D68`, so the original city services must be in
+place (or replacements that answer the same interfaces; `0x005E3960` frees the lot manager's slot 9 list nodes with
+the STL node allocator B, allocators.md).
+
+| Function | Signature | Caller pops | Return |
+|---|---|---|---|
+| `AddRetainingWallOccupant` `0x005E3070` | `bool (cISC4Lot* lot, bool add)`; `add` a 4-byte slot, low byte read | 8 | AL: true when a wall occupant was removed (`add = false`) or built and inserted (`add = true`) |
+| `UpdateRetainingWalls` `0x005E37F0` | `bool (cISC4Lot* lot)` | 4 | AL: no defined value (the last call's); lot developer slot 62 returns it |
+| `UpdateSurroundingRetainingWalls` `0x005E3960` | `void (cISC4Lot* lot)` | 4 | none |
+
+Callers in the lot developer: `0x006C8A3D` and `0x006C8A62` (`ClearLot`), `0x006C8C23` and `0x006C8C34` (slot 55),
+`0x006C4195` (slot 62).
+
+## cSC4PropOccupantBurntBuilding::SetBoundsFromOccupant `0x005EEB70` (LD14)
+
+`void SetBoundsFromOccupant(cISC4Occupant* source)`: `__thiscall`, `this` = the **base** of a
+`cSC4PropOccupantBurntBuilding` (class `0xC9EFB016`; `QueryInterface` for `cISC4PropOccupant` `0xE9793A65` returns
+the base), `source` = the building's `cISC4Occupant*`; pops 4; no return. Caller: `ExplodeLot` `0x006CC33C`.

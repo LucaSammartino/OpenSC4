@@ -118,6 +118,9 @@ extern "C" {
  *      grows 17 callbacks at its end (332 -> 400 bytes on 32-bit), fc4_zonedev_cfg_object and
  *      fc4_zonedev_can_create_plopped_lot (lot manager slot 21) (taken as 54 on its lane;
  *      renumbered at merge);
+ * 56 = adds the traffic shadow (fc4_traffic_shadow: tooling, a same-process differential of
+ *      the original traffic simulator over the traffic host table) (taken as 52 on its lane;
+ *      renumbered at merge);
  * 64 = adds the disaster layer (fc4_disasters, disasters.md): the layer, its managers (fire, riot,
  *      toxic spill, earthquake, pipe burst, volcano, effect) and their instances. */
 #define FC4_ABI_VERSION 64u
@@ -875,6 +878,11 @@ size_t fc4_props_count(const fc4_props* p);
  * (is_array false) needs count 1. False for other types or a bad count. */
 bool fc4_props_set_typed(fc4_props* p, uint32_t id, uint16_t mem_type, bool is_array, const void* data,
                          size_t count);
+/* WriteVariant of property `id` (foundations 9.2: u32 0, u32 type tag, the
+ * value) as the game's segment streams write it, handed to `sink` in one call;
+ * false when absent or not writable (ABI 56; tooling: the traffic shadow's
+ * capture stream). */
+bool fc4_props_write_variant(const fc4_props* p, uint32_t id, fc4_bytes_sink sink, void* ctx);
 
 /* ---- weather (docs/specs/weather.md) ------------------------------------------
  * The weather simulator's core. The shim owns the GZCOM object (agents,
@@ -5664,6 +5672,75 @@ uint32_t fc4_traffic_pf_compressed_route(const fc4_traffic* p, const fc4_traffic
  * (3 bytes) per call; returns the count. */
 size_t fc4_traffic_pf_route(const fc4_traffic_pf* pf, fc4_traffic_bytes_callback cb, void* ctx);
 bool fc4_traffic_pf_get_state(const fc4_traffic_pf* pf, fc4_traffic_pf_state* out);
+
+/* ---- traffic shadow (tooling, no spec behaviour; engine/capi/src/traffic_shadow.rs) ----
+ * A same-process differential of the ORIGINAL traffic simulator: FreeCity4's
+ * simulator runs as a private copy on the original's live inputs and is
+ * compared bitwise after every delivery the original's agents get (day,
+ * month, one-shot). Around each delivery the plugin captures the original's
+ * section-6 record through its own Write (fc4_pollution_capture format):
+ *   fc4_traffic_shadow_before   the record before: the copy starts on it (first
+ *                               delivery) or resyncs on it (when it differs from
+ *                               the copy's); the inputs the delivery may change
+ *                               (trip lists, lot and connection holder arrays)
+ *                               are snapshotted;
+ *   (the original's delivery, unchanged)
+ *   fc4_traffic_shadow_after    the record after: the copy steps one unit at a
+ *                               time to the cycle state and phase progress the
+ *                               original stopped at, then its record, every
+ *                               trip list, the holder properties and the grids
+ *                               are compared; lines go to the sink.
+ * The host table's read callbacks only are called (its write, post, budget,
+ * agent and reference callbacks may be NULL; the copy keeps those calls to
+ * itself) and the grid table's geometry and get only. Lines:
+ *   traffic shadow YYYY-MM-DD day|month|begin|message (state a -> b, progress p,
+ *     units u): mismatches=N; ...          a delivery with a difference
+ *   traffic shadow YYYY-MM-DD kind: INCOMPLETE (why); not compared
+ *   traffic shadow month to YYYY-MM-DD: clean|mismatches=N|INCOMPLETE; ... */
+typedef struct fc4_traffic_shadow fc4_traffic_shadow;
+
+typedef struct fc4_traffic_shadow_stats {
+    uint32_t struct_size;
+    uint32_t deliveries;  /* finished (compared or not) */
+    uint32_t compared;
+    uint32_t clean;       /* compared without a difference */
+    uint32_t incomplete;  /* not compared */
+    uint32_t resyncs;     /* records before that differed from the copy's */
+    int32_t last_mismatches; /* -1: the last delivery was not compared */
+    uint32_t reserved;
+    uint64_t record_fields;  /* record fields that differed */
+    uint64_t trip_lists, trip_mismatches;
+    uint64_t props, prop_mismatches;
+    uint64_t grid_cells, grid_mismatches;
+    uint64_t units;          /* slices the copy ran */
+} fc4_traffic_shadow_stats;
+
+/* NULL when the table is incomplete. max_diffs: differences named per line (0
+ * -> 8, at most 64); detail_lines: delivery lines per month (0 -> 8). The
+ * shadow calls the table's read callbacks, and deactivate_budget_items as a
+ * LOOKUP: the table given here must answer it with the cost of the holder's
+ * 0xCA550301 budget item without removing anything (NULL reads 0). */
+fc4_traffic_shadow* fc4_traffic_shadow_create(const fc4_traffic_host* host, uint32_t session_seed,
+                                              uint32_t max_diffs, uint32_t detail_lines);
+/* The copy's hypotheses: alternative readings of unclear spec points, to test
+ * them against the original (0, the default: the spec as written); set before
+ * the first delivery; named in every month line. False for NULL. */
+#define FC4_TRAFFIC_SHADOW_HYP_MERGE_ABSORBED 0x1u /* the ConfirmTrips merge sets status 0 only on a trip that absorbed one */
+#define FC4_TRAFFIC_SHADOW_HYP_TYPE_COUNTS_SWAP 0x2u /* row 19 pairs (published, building); FullTrips' end swaps them */
+#define FC4_TRAFFIC_SHADOW_HYP_REROUTE_MERGE_ALL 0x4u /* the ReRouteTrips merge absorbs routed trips too */
+bool fc4_traffic_shadow_set_hypotheses(fc4_traffic_shadow* s, uint32_t mask);
+void fc4_traffic_shadow_destroy(fc4_traffic_shadow* s);
+/* before: NULL or not ok -> the delivery is reported INCOMPLETE. 0; -1 for NULL s. */
+int32_t fc4_traffic_shadow_before(fc4_traffic_shadow* s, uint32_t msg_type, uint32_t data1, uint32_t data2,
+                                  uint32_t data3, int32_t julian, const fc4_pollution_capture* before);
+/* The difference count; -1 when nothing was compared. */
+int32_t fc4_traffic_shadow_after(fc4_traffic_shadow* s, const fc4_pollution_capture* after,
+                                 fc4_bytes_sink sink, void* ctx);
+/* A message the original receives outside its deliveries (its object borrowed
+ * for the call); false for NULL s or before the copy started. */
+bool fc4_traffic_shadow_message(fc4_traffic_shadow* s, uint32_t msg_type, uint32_t data1, uint32_t data2,
+                                uint32_t data3, uint64_t object);
+bool fc4_traffic_shadow_get_stats(fc4_traffic_shadow* s, fc4_traffic_shadow_stats* out);
 
 /* ---- lot developer (docs/specs/lot-developer.md; engine/capi/src/lotdev.rs) ----
  * cSC4LotDeveloper (class 0xA990BFE0, city component 16). The host implements

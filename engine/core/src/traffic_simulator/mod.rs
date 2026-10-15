@@ -76,6 +76,7 @@ mod monthly;
 mod pools;
 mod record;
 mod route;
+pub mod shadow;
 mod state;
 mod trips;
 pub mod tuning;
@@ -88,7 +89,10 @@ pub use adapters::{
 };
 pub use maps::{air_polluting_byte, background_value, congestion_byte};
 pub use monthly::{damage_target, kind as damage_kind, STRIKE_KEEP, STRIKE_MAX_MONTHS, STRIKE_SCALE, STRIKE_START};
-pub use pools::{pool_of_token, pool_token, Pools, POOL_CITY_X, POOL_CITY_Z, POOL_TOKEN_BASE};
+pub use pools::{
+    is_pool_token, map_pool_token, pool_of_token, pool_token, Pools, POOL_CITY_X, POOL_CITY_Z, POOL_KEY0_TOKEN,
+    POOL_TOKEN_BASE,
+};
 pub use record::{legacy_density, read_mask_and_flags, read_trip, write_trip, TRIP_RECORD_VERSION};
 pub use route::{decode_route, read_route, RouteCell, RouteStep};
 pub use state::{
@@ -486,6 +490,14 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     // ---- lots (§4.1, §4.7) ----
     /// All lots in the lot manager's list order (slot 15).
     fn lots(&self) -> Vec<u64>;
+    /// [`lots`](Self::lots), shared. A host that knows its list unchanged
+    /// may hand out the same list again (FreeCity4's host does within one
+    /// outermost call, where the plugin keeps one lot walk), which lets the
+    /// source iterator's step cost O(1) instead of O(lots); the walk is
+    /// the same either way. Default: a fresh copy each time.
+    fn lots_shared(&self) -> Rc<[u64]> {
+        self.lots().into()
+    }
     /// `QueryInterface(0xE818FCED)` on a message object: the lot copy.
     fn as_lot(&self, object: u64) -> Option<u64>;
     /// Lot slot 31: the zone type.
@@ -530,8 +542,11 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     /// The connection's neighbour-connection type (the type DoPostCityInit
     /// passes to Add, traffic-network.md §2.7.2).
     fn connection_type(&self, connection: u64) -> u32;
-    /// Neighbour simulator slot 13 `FindConnectionOnOtherSide(conn)`: the
-    /// neighbouring city's end of the connection (§2.7.2 step 3).
+    /// Neighbour simulator slot 13 `FindConnectionOnOtherSide(conn)`
+    /// (`0x006CDFA0`, pop 4; TS38: §4.1.4 and traffic-network.md §2.7.2 name
+    /// it right): the neighbouring city's end of the connection, from the
+    /// neighbour's regional record (slot 14), whose properties the caller
+    /// reads (§2.7.2 step 3).
     fn connection_on_other_side(&self, connection: u64) -> Option<u64>;
     /// §2.7.2 step 5: the city on the other side (connection slot 9) when
     /// there is one and it is established (regional-city slot 43), as its
@@ -1121,6 +1136,104 @@ impl TrafficSimulator {
     /// `ApplyTrafficToDestination(count, x, z, lastTravelType, type)` (§4.2).
     pub fn apply_traffic_to_destination(&self, count: u32, x: i32, z: i32, last_travel_type: u8, trip_type: u8) {
         self.run(|r| r.apply_traffic_to_destination(count, x, z, last_travel_type, trip_type));
+    }
+
+    // ---- the traffic shadow's steps (tooling, [`shadow`]) ----
+
+    /// Step 2 of `DoDailySimulation` (§3.3) on its own: on a new day of
+    /// month, day 1's incomes and the strategy re-draw.
+    pub fn shadow_day_start(&self) {
+        self.run(|r| r.day_start());
+    }
+
+    /// One `WorkOnSimCycle` (§3.2) with the phase transitions of §3.3 step 3
+    /// (the pacing resets on entering 16, 17 and 18), without the share
+    /// test: the caller decides where a day ends. With
+    /// `trafficUnitsPerSlice` 1 a call in states 16–18 is one unit (§3.4).
+    pub fn shadow_slice(&self) {
+        self.run(|r| {
+            let finished = r.work_on_sim_cycle();
+            let _ = r.after_slice(finished, false);
+        });
+    }
+
+    /// In ReRouteTrips or FullTrips: runs on, examining no trip, to where
+    /// the original stopped after its last unit: the source at `target` (the
+    /// original's saved source cell) held, or the next trip to examine,
+    /// whichever comes first (`trip_run_on`). True when the phase finished
+    /// on the way (the state is left as it is); false in any other state.
+    pub fn shadow_advance(&self, target: [i16; 2]) -> bool {
+        self.run(|r| match r.st.cycle_state {
+            cycle_state::REROUTE_TRIPS => r.trip_run_on(false, target),
+            cycle_state::FULL_TRIPS => r.trip_run_on(true, target),
+            _ => false,
+        })
+    }
+
+    /// In ReRouteTrips or FullTrips: the held source with no trip left to
+    /// examine whose list end (merge or `CompleteTripSourceCalculations`) is
+    /// not taken yet (tooling: the traffic shadow decides it from the
+    /// original's record and trip list).
+    pub fn shadow_pending_list_end(&self) -> Option<Source> {
+        self.run(|r| match r.st.cycle_state {
+            cycle_state::REROUTE_TRIPS => r.pending_list_end(false),
+            cycle_state::FULL_TRIPS => r.pending_list_end(true),
+            _ => None,
+        })
+    }
+
+    /// Takes [`Self::shadow_pending_list_end`]'s list end (the next source is
+    /// not taken). False when there is none.
+    pub fn shadow_end_list(&self) -> bool {
+        self.run(|r| match r.st.cycle_state {
+            cycle_state::REROUTE_TRIPS => r.end_pending_list(false),
+            cycle_state::FULL_TRIPS => r.end_pending_list(true),
+            _ => false,
+        })
+    }
+
+    /// The load resume of §3.5 step 11 for the trip phases, after a `Read`
+    /// of a record taken from a running simulator: a phase that has taken no
+    /// unit yet (its progress counter 0) restarts its source iterator with no
+    /// source held; otherwise the resume of a load (the source at the saved
+    /// cell held). Other states are left as the record has them.
+    pub fn shadow_resume(&self) {
+        self.run(|r| {
+            use cycle_state as cs;
+            if !matches!(r.st.cycle_state, cs::CONFIRM_TRIPS | cs::REROUTE_TRIPS | cs::FULL_TRIPS) {
+                return;
+            }
+            if shadow::progress(r.st) == 0 {
+                r.reset_sources();
+                r.st.current = None;
+                r.st.source_pos = 0;
+                r.st.trip_pos = 0;
+                r.st.continue_search = false;
+            } else {
+                r.resume_loaded_phase();
+            }
+        });
+    }
+
+    /// The damage sets' extra step costs on the network info, as
+    /// `ApplyPotholeChanges` leaves them (§4.12): `damagedRoadExtraCost` on
+    /// every damaged road (transit network 1) and rail (2) cell with network
+    /// info, 0 on every intact one. After a `Read` that replaced the sets.
+    pub fn shadow_apply_damage_costs(&self) {
+        let d = self.damage.borrow().clone();
+        self.net.update_state(|n| {
+            let cost = n.tuning.damaged_road_cost;
+            for (kind, block) in [(damage_kind::ROAD, &d.road), (damage_kind::RAIL, &d.rail)] {
+                for (keys, extra) in [(&block.intact, 0.0), (&block.damaged, cost)] {
+                    for key in keys.iter_order() {
+                        let (x, z) = ((key >> 8) as i32 & 0xFF, (key & 0xFF) as i32);
+                        if let Some(info) = n.network_info_mut(kind, x, z) {
+                            info.extra_cost = extra;
+                        }
+                    }
+                }
+            }
+        });
     }
 }
 
