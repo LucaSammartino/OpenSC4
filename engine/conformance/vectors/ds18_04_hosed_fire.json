@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "disaster_hosed_fire",
+  "spec": ["disasters 5.10", "disasters 5.11", "disasters 18.4"],
+  "description": "Coverage 0 and one hose: k = 4, so each update draws RandomUint32Uniform(5) and subtracts the draw. From counter 3 a draw of 4 gives -1, so the counter is 0 and ExtinguishFire draws RandomUint32Uniform(4000) for the extinguish delay. The fire dies once its delay has passed, without a demolition.",
+  "steps": [
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_occupant", "occupant": "0x10", "cell": [5, 5]},
+    {"op": "dis_call", "method": "ignite", "args": ["0x10", false, 0, false], "expect": true},
+    {"op": "dis_call", "method": "fire_update"},
+    {"op": "dis_seconds", "count": 2},
+    {"op": "dis_expect_fire", "state": {"occupant": "0xF000", "counter": 3, "fire_id": 1}},
+    {"op": "dis_call", "method": "fire_set_hosed", "args": ["0xF000", 1], "expect": true},
+    {"op": "dis_expect_fire", "state": {"hosed": 1}},
+    {"op": "dis_env", "u32s": [4, 2500]},
+    {"op": "dis_clear_events"},
+    {"op": "dis_seconds", "count": 1},
+    {"op": "dis_expect_events", "filter": {"event": "u32"}, "events": [
+      {"event": "u32", "generator": "fire", "n": 5},
+      {"event": "u32", "generator": "fire", "n": 4000}
+    ]},
+    {"op": "dis_expect_fire", "state": {"counter": 0, "extinguish_at": 5500}},
+    {"op": "dis_seconds", "count": 2},
+    {"op": "dis_call", "method": "fire_count", "expect": 1},
+    {"op": "dis_seconds", "count": 1},
+    {"op": "dis_call", "method": "fire_count", "expect": 0},
+    {"op": "dis_expect_event_count", "filter": {"event": "demolish"}, "count": 0},
+    {"op": "dis_expect_event_count", "filter": {"event": "remove_fire", "fire": "0xF000", "target": "0x10"}, "count": 1}
+  ]
+}

@@ -1752,6 +1752,64 @@ Park events: `tuning` (the exemplar was asked for), `acquire` (`service`, `ok`),
 `void1`, `unknown`: the posted ZooEscape), `controllers` (`name`, `occupant`; only with an automata controller
 manager), and the stub's `double`, `u32` (`n`).
 
+## Disaster ops
+
+The disaster vectors (`ds18_…` for the §18 tests, `ds00_…` for the rest) drive `fc4_core::disasters::Disasters`
+(`docs/specs/disasters.md`) over one scripted city implementing `DisasterHost`. Every op name starts with `dis_`.
+The world outlives `dis_create`, so a vector can build a new layer over the same city. The default world: a 64 × 64
+city of 16 m cells, established, not paused, wall clock at 0 ms, follow-disasters off, view level 1, the shipped
+"Flame" and "Riot" exemplars (no others: the short-form disasters use their defaults), no occupants, cells or
+automata, session seed `0x12345678` and the stub generator for all five generators (fire, riot, earthquake,
+pipe burst and the pipe burst's start). The stub returns queued `u32s` (else 1 for a raw draw and n − 1 for
+`RandomUint32Uniform(n)`) and `doubles` (else 0.99; a uniform range maps a queued `u` to `a + u (b − a)`, default
+0; a Gaussian range the same, default 0.5); every draw is an event. Tokens: fire occupants `0xF000 + n`, riot
+leaders `0xA000 + n`, toxic occupants `0xC000 + n`, in creation order over the world's life. The world's emergency
+pause and save-disable counters follow the layer's calls; the simulation counts as paused while either the manual
+pause or the emergency pause is on.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `dis_env` | any of `cells` [x, z], `cell_width`, `paused`, `emergency` (the counter), `established`, `follow`, `no_burn_down` (the tutorial flag), `demolish_removes` (a demolition removes the occupant and sends `OccupantRemoved` to the layer inside the call), `wind`, `view_level`, `tuning` (`{flame, riot, earthquake, pipe_burst, volcano: "shipped" (flame and riot), null or {props}}`), `random` (`"stub"` or `"default"`, read by `dis_create`), `u32s`, `doubles` | the world |
+| `dis_occupant` | `occupant`, `type?` (`building`, `flora`, `prop`, `network` or an ID; building), `cell` [x, z], `rect?` [x0, z0, x1, z1], `position?`, `in_manager?` (true), `lot?` (occupant + `0x100000`; null: none), `flags?`, `props?` (`{"0xID": number, bool or null}`; the flammability `0x29244DB5` defaults to 100), `coverage?` (fire coverage, 0), `areas?` [top, side] | adds or updates an occupant |
+| `dis_cell` | `cell`, `cells` or `rect` (inclusive), with any of `flammability`, `police`, `road`, `network` (the network occupant's token or null), `network_base` (each cell its own network occupant: base + the cell's index), `pipe` (a token or null), `pipe_neighbours` (the connected cells of that pipe) | cell data |
+| `dis_automaton` | `automaton`, `cell` (null: gone) | an automaton's cell |
+| `dis_create` | `session_seed?` | a new layer (not initialised), which replaces the current one |
+| `dis_clock` | `set?`, `advance?` (ms) | the wall clock |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `dis_init` / `dis_shutdown` | `expect?` | the layer's `Init` and `Shutdown` |
+| `dis_call` | `method`, `args?`, `expect?` | `enable_disasters`, `disasters_enabled`, `has_manager`, `disaster_has_begun`, `disaster_has_ended`, `is_disaster_ongoing`, `register_location [instance, x, z, occupant, zoom, focus]`, `unregister_locations`, `unregister_location_by_occupant`, `most_recent_location` ([x, z] or null), `location_count`, `go_to_next_disaster`, `disaster_cost`, `reset_disaster_cost`, `attempt_start [manager, x, z]` and `attempt_start_any [manager]` (the instance or null), `active_count`, `instance_shutdown`, `fire_instance`, `ignite_occupant`, `ignite [occupant, force, fire_id, focus]`, `ignite_cell` and `manager_ignite_cell [x, z, use_probability, teleport, fire_id]`, `extinguish_cell [x, z, amount]`, `quick_burn_cell`, `ignite_cell_radius [x, z, r0, r1]`, `extinguish`, `burn_down`, `set_cause`, `cause`, `fire_count`, `fire_count_in_rect [x0, z0, x1, z1]`, `fire_update` (the fire's tick), `fire_set_hosed [fire occupant, delta]`, `spill_toxic_waste [x, z, amount]`, `toxic_set_hosed`, `volcano_request_end`, `start_disaster_effect [effect, x, z]`. Managers by name (`volcano`, `fire`, `earthquake`, `pipe_burst`, `riot`, `effect`, `toxic`) or ID |
+| `dis_message` | `target` (`"layer"`, `{"manager": …}` or `{"instance": id}`), `type` (`OccupantRemoved`, `OccupantInserted`, `DispatchBegin`, `DispatchActive`, `DispatchInactive`, `DispatchEnd`, `ToxicSpill`, `PreViewLevelChange`, `EffectFinished`, `EffectMoved` or an ID), `data1..3?`, `void1?`, `x?`, `z?`, `expect?` | `DoMessage` |
+| `dis_tick` | `instance` (an ID or `"fire"`), `us?` (16000), `count?` (1), `advance_ms?` (added to the clock before each tick) | animation ticks |
+| `dis_seconds` | `count`, `instance?` (`"fire"`) | `count` times: one second of wall clock, then the fire's update (or a tick of the instance) |
+| `dis_flame_tuning` | `tuning` (`"shipped"`, null or `{props}`), `state?` (partial: `d3`, `d3cum`, `d4`, `d5`, `d6`, `zoom`, `d9_empty`), lookups `stages`, `d9`, `resistance`, `da` (`[[input, output]]`) | `FireTuning` |
+| `dis_riot_tuning` | `tuning`, `state?` (partial: `max_riots`, `max_leaders`, `stages`, `seconds_per_stage`, `leaders_spawned`, `zoom`), lookups `police`, `stage_of` | `RiotTuning` |
+| `dis_expect` | `state` (partial: `initialised`, `enabled`, `disable_counter`, `ongoing`, `assessing`, `building_count`, `total_cost`, `kinds`, `special_count`, `fire_timers` / `police_timers` ([[key, seconds]]), `overall_s`, `fire_effectiveness`, `police_effectiveness`, `locations` ([{instance, x, z, zoom, occupant}]), `managers`, `emergency`, `save_disabled`, `fire_count`, `reentrant_refused`, `riot_locked` (the network occupants the riots hold locked); with a fire instance `fire_phase`, `fires`, `fire_ids`, `toast`, `cause`, `elapsed_ms`, `next_ms`, `toasted`, `fire_tick`, `d3cum`, `zoom`; `toxic_instance` (null without one) and `toxic_amounts`) | the layer and the world |
+| `dis_expect_fire` | `index?` (0), `state` (partial: `occupant`, `target`, `counter`, `stage`, `max_stage`, `fire_id`, `hosed`, `extinguish_at`, `top_flames`, `side_flames`) or `absent: true` | one fire of the list |
+| `dis_expect_riot` | `instance`, `state` (partial: `phase`, `leader_count`, `leaders` ([{automaton, counter, stage, max_stage, cell}])) or `absent: true` | a riot |
+| `dis_expect_instance` | `instance`, `state` (partial: `type`, `class`, `phase`, `location`, `tick`) or `absent: true` | any instance |
+| `dis_expect_refs` | `refs` (`{"token": count}`) | references the core holds |
+| `dis_expect_events` / `dis_expect_event_count` / `dis_clear_events` | see the shared conventions | host calls |
+
+Disaster events: `emergency_pause`, `emergency_resume`, `disable_save`, `enable_save`, `post` (`type`, `data1`,
+`data2`, `data3`, `data4`, `void1`), `subscribe` / `unsubscribe` (`target`, `type`), `register_tick` (`instance`,
+`priority`), `unregister_tick` (`instance`), `history` (`series`, `value`), `tuning` (`instance`), `go_to` (`x`,
+`z`, `zoom`), `fire_effectiveness` / `police_effectiveness` (`value`), `remove_occupant`, `condition` (`lot`,
+`condition`), `create_fire` (`instance`, `fire`, `target`, `fire_id`, `top`, `side`), `remove_fire` (`fire`,
+`target`), `aura`, `effect` (`name`, `occupant`), `effect_at` (`name`, `x`, `z`), `burn_flora`, `demolish`
+(`occupant`, `lot`, `flags`), `radiation` (`occupant`, `amount`, `radius`), `leader` (`automaton`, `x`, `z`),
+`unset_removal` / `set_removal` (`occupant`, `flags`: the riot's removal lock), `riot_effect` / `riot_message` (`automaton`, `stage`), `end_leader`, `leader_tick`, `toxic`
+(`instance`, `occupant`, `x`, `z`, `amount`), `toxic_amount`, `remove_toxic`, `brush` (`brush`, `x`, `z`,
+`strength`, `width`), `redraw` (the rect), `end_long_terrain`, `stop_textures`, `repulsor` (`x`, `z`),
+`leak_effect` (`pipe`, `level`, `shown`), `demolish_pipe` (`pipe`, `flags`), `volcano_deformation`,
+`volcano_end_deformation`, `lava` (`instance`, `radius`), `lava_end`, and the stub's `raw`, `u32` (`n`),
+`double`, `range` and `gaussian` (`a`, `b`), each with its `generator`.
+
 ## Occupant manager ops
 
 The occupant manager vectors (`om18_…`, `om14_…`) drive `fc4_core::occupant_manager::OccupantManager`
@@ -1820,8 +1878,8 @@ Occupant manager events: `post` (`type`, `occupant`, `data2` (flag 4), `data3` (
    `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `ld16_…` (lot developer §16),
    `zn15_…` (zones §15), `lf11_…` (landfill §11), `nb18_…` (neighbours §18), `tn11_…` (traffic network §11),
    `pf11_…` (pathfinder §11), `rs15_…` (residential §15), `rs00_…` (other residential behaviour), `ts11_…`
-   (traffic simulator §11), `hw12_…` (history §12), `ck12_…` (clock24 §12) and `om18_…` / `om14_…` (occupant
-   manager §18 / §14).
+   (traffic simulator §11), `hw12_…` (history §12), `ck12_…` (clock24 §12), `ds18_…` and `ds00_…` (disasters §18 and the
+   rest of disasters), and `om18_…` / `om14_…` (occupant manager §18 / §14).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -2809,6 +2867,25 @@ shapes of the §7.1 table.
 
 Not covered by a vector: the 421-save corpus itself (part of item 8) is not available to this suite; `pk12_08`
 replays the record shapes §7 reports.
+
+## Coverage (disasters §18)
+
+| §18 item | Vector |
+|---|---|
+| 1 coverage threshold (D9 50, 51, 0; a forced ignition skips the test) | `ds18_01_coverage_threshold` |
+| 2 stage lookup (the shipped thresholds, the defaults, a short D3) | `ds18_02_stage_lookup` |
+| 3 unattended burn-down (29, 30, 55 updates, the demolition, a forced ignition at the 25th, maxStage below 2) | `ds18_03_unattended_burn_down` |
+| 4 hosed fire (the draws, the extinguish delay, no demolition) | `ds18_04_hosed_fire` |
+| 5 episode pause (begin once, end once with the history) | `ds18_05_episode_pause` |
+| 6 nested enable counter | `ds18_06_nested_enable_counter` |
+| 7 riot timing (30, 90 and 180 s; coverage 255) | `ds18_07_riot_timing` |
+| 8 riot leader limit (112 and 113; three riots; the road search) | `ds18_08_riot_leader_limit` |
+| 9 toxic spill (unattended 120 updates, one hose 30) | `ds18_09_toxic_spill` |
+| 10 dispatch effectiveness | `ds18_10_dispatch_effectiveness` |
+| other sections | `ds00_layer_and_locations`, `ds00_ignite_cell`, `ds00_short_form`, `ds00_riot_lock` (network-manager §10) |
+
+The core's unit tests (`fc4_core::disasters`) also cover the lot conditions, the spread, the toast list, the damage
+assessment, re-entrant occupant removal and the default generators.
 
 ## Coverage (occupant manager §18)
 
