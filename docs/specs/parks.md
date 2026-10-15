@@ -154,12 +154,12 @@ test (`0x006D58C4`) and reads through the returned funding pointer without one (
 original. FreeCity4 stops after step 1 when there is no department or no funding, and evaluates an empty curve as 0
 (no escapes, but the draw of step 5 is still made).
 
-*[quirk]* The shipped threshold is **25.0** (property name "Efficiency Distress Threshold", meant in percent) but it
-is compared with a fraction. `f ≤ 25` always holds, so the first monthly pass after each `Init` with at least one
-park sets every park lot to condition 2, and nothing ever restores it from here. Because the latch is not saved,
-this repeats in every session. In the corpus every park lot has condition 0 (one has 1; 33 park lots in 8 saves), so
-something else, most likely the lot developer's condition test (lot-developer.md §5.5), resets it *[inferred]*
-(QUESTIONS PK1).
+*Corrected (re-answers12, PK1, PK10).* The shipped property holds **25.0** (percent), and the threshold is read
+with the **percent** getter `0x005FDAC0` (`0x006D59EB`), which multiplies by `0.01f`: the member becomes
+`f32(25.0 × 0.01f)` = **0.25** exactly, the same as the code default. So `f` (a fraction) is compared with 0.25:
+park lots are marked run down (condition 2) only when the Parks and Recreation funding falls to 25 % or below, and
+restored when it rises above. There is no first-pass quirk. (An earlier version of this spec read the property as
+a plain float and described every park as run down at the first monthly pass.)
 
 ### 4.5 Zoo escape (`0x006D54F0`) *[compat]*
 
@@ -172,7 +172,7 @@ something else, most likely the lot developer's condition test (lot-developer.md
 
 ### 4.6 Worked examples
 
-Shipped tuning: threshold 25.0, curve (0, 40), (25, 10), (100, 1).
+Shipped tuning: threshold 25.0 × 0.01 = 0.25, curve (0, 40), (25, 10), (100, 1).
 
 | Department funding | `f × 100` | curve | `p` per month (zoo present) |
 |---|---|---|---|
@@ -183,11 +183,10 @@ Shipped tuning: threshold 25.0, curve (0, 40), (25, 10), (100, 1).
 | 120 % | 120 | 1 (clamped) | 0.0099999998 |
 
 A city with a small park and the zoo: the park list has two entries (the zoo is a park too), the zoo list one. At
-the first SimNewMonth after loading, both lots get condition 2 and the latch is set. At 100 % funding a draw below
-0.0099999998 posts ZooEscape and starts `zoomanji` at the zoo.
+100 % funding nothing is marked; a draw below 0.0099999998 posts ZooEscape and starts `zoomanji` at the zoo.
 
-With the code default threshold 0.25 (no "Parks Manager" exemplar): funding 20 % → condition 2; the next month at
-30 % → condition 0.
+With the shipped threshold 0.25 (and the same code default when there is no "Parks Manager" exemplar): funding
+20 % → condition 2 on both lots; the next month at 30 % → condition 0.
 
 Inserting three 1×1 grass parks (`PZ1x1_Grass`, cost 5, line 0) gives one Parks and Recreation line item keyed by
 the grass park's building type, full expenses 15, secondary field 3. Removing all three leaves the line at 0 and 0.
@@ -212,7 +211,7 @@ Exemplar "Parks Manager" (type `0x6534284A`, group `0x67CD5FA1`, instance `0x8A4
 
 | Property | Name (prior art) | Use | Missing | Shipped |
 |---|---|---|---|---|
-| `0xCA480830` | Efficiency Distress Threshold | `distressThreshold` (float) | keeps 0.25 | 25.0 |
+| `0xCA480830` | Efficiency Distress Threshold | `distressThreshold` (float) = value × 0.01f (percent getter `0x005FDAC0`: any numeric type is converted to float, then multiplied by the float 0.01f; data-formats §7) | keeps 0.25 | 25.0 → **0.25** |
 | `0x4A6676AD` | Zoo Escape Chance Curve | `escapeCurve`; input funding in percent, output percent per month | code default (0, 50), (100, 1) | (0, 40), (25, 10), (100, 1) |
 | `0xCA480831` | — | not read | | s64 0 |
 
@@ -278,8 +277,7 @@ decrementing it first.
 
 ## 10. Original quirks (reproduced)
 
-- The distress threshold 25.0 is compared with a fraction (§4.4).
-- The latch is not saved, so the run-down pass repeats once per session (§4.4).
+- The latch is not saved, so after a load at 25 % funding or less the run-down pass marks the parks again (§4.4).
 - No zoo check when the park list is empty (§4.4 step 1); only matters for zoos outside group `0x1006`.
 - Removal releases once even when the occupant was not listed, and removes every duplicate (§4.3).
 - Park line items are never removed (§4.3).
@@ -293,15 +291,16 @@ See QUESTIONS.md, section "From the commercial, industrial, civic, park, history
 
 1. **Init**: creates department `0x8A4260A6` (group `0x6A357B96`, name `0x6A3FF01C`/`0xCA49375E`, maximum 1.0) only
    when missing; subscribes the two occupant messages; one month agent with flags 2.
-2. **Tuning**: shipped exemplar → threshold 25.0 and curve (0,40)(25,10)(100,1); exemplar without the curve
-   property → curve (0,50)(100,1); no exemplar → threshold 0.25 and an empty curve.
+2. **Tuning**: shipped exemplar → threshold 0.25 (25.0 × 0.01f) and curve (0,40)(25,10)(100,1); a Uint32 property
+   value 30 → 0.29999998 (`f32(30 × 0.01f)`); exemplar without the curve property → curve (0,50)(100,1); no exemplar →
+   threshold 0.25 and an empty curve.
 3. **Insert**: a park with cost 10 and line 0 → the item's line becomes the building type, a line item with display
    flag 2, full expenses 10, secondary 1; a second park of the same type → 20 and 2. A preview occupant (property
    `0x029244DB` present, even false) changes nothing.
 4. **Remove**: removing both → 0 and 0, the line item stays; a duplicate entry is removed together with the first.
 5. **Distress latch**: threshold 0.25; f = 0.25 → condition 2 on every park lot, latch set; next month f = 0.2 →
    nothing; f = 0.3 → condition 0, latch clear; NaN → nothing in either direction.
-6. **Shipped threshold**: threshold 25.0, f = 1.2 → condition 2 at the first pass, never restored.
+6. **Shipped threshold**: threshold 0.25, f = 1.2 → nothing at the first pass; f = 0.25 → condition 2.
 7. **Escape draw**: f = 0.5 gives `p` = float32(7 × 0.01f) = 0.0700000003 (widened); a stub generator returning
    0.07 (double) escapes and 0.0700001 does not; the escape
    posts `0xAA667CE2` with void1 = the manager and IGZUnknown = the zoo, then adds `zoomanji`; no zoos → no draw;

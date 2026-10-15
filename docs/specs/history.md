@@ -59,6 +59,13 @@ run its `Shutdown` first; with the city's normal order it changes nothing. Vtabl
 (simulator.md §2: 2000-01-01 is 2451545). Points are kept in ascending date order with **at most one point per
 day** (§4.1). `maxCount = 0` means "no limit" (thinned by §4.3); `maxCount = n > 0` keeps at most n points.
 
+In memory (HW16; for a reader outside the class, since no slot returns a queue length): `series` is an STLport
+ordered map whose header node pointer is at `+0x0C` (the end iterator; the cursor is compared with it at
+`0x00475EBC`) and its size at `+0x10`. Each tree node has the key at `+0x10`, the points list at `+0x14` (a pointer
+to the list's sentinel node; a list node's `+0` is the next node) and `maxCount` at `+0x18` (`SetSize` writes it at
+`0x00476FF2`; the thinning pass tests it at `0x00475EC1`). The original's own `Write` (§7) also writes every
+series' `maxCount`, so serialising the original into memory gives the same values without walking the tree.
+
 ## 3. Agents, messages and cadence
 
 `Init()` (`0x004766F0`; it has no "already initialized" test):
@@ -126,11 +133,16 @@ SimNewYear arms the pass (`passState := 1`). From then on, each SimNewDay delive
 
 - `passState = 1`: `cursor :=` the first series, `passCounter := 0`, `passState := 2`, and continue as below.
 - `passState = 2`:
-  1. Start a timer (milliseconds *[inferred]*). If there are no series: `passState := 0`, return true.
+  1. Start a timer in **milliseconds** (a local `cRZTimer` constructed with unit 4, `0x0088FEDF(4)` at
+     `0x00475E56`; units in clock24.md §4.3). If there are no series: `passState := 0`, return true.
   2. `perPass := n / 365 + 1` (integer division, n = the number of series).
   3. While `passCounter < perPass`: if the cursor is at the end, `passState := 0` and stop. If the cursor's series
-     has `maxCount = 0`: `VariableCoalesce(key)` and `passCounter += 1`. Advance the cursor. Stop when the timer
-     shows 5 or more.
+     has `maxCount = 0`: `VariableCoalesce(key)` and `passCounter += 1`. Advance the cursor. Then read the timer
+     (`0x00475F1B`, after every advance) and stop when it shows 5 or more (unsigned, `0x00475F27`).
+
+  How many series one call reaches therefore depends on real time (HW14): a slow `VariableCoalesce` can end the
+  call before `perPass` series are counted, and it returns false. The order of the coalesced keys, the counts and
+  the final state do not depend on it; only how they are spread over calls does.
   4. If `passCounter ≥ perPass`: `passCounter := 0`, return true. Otherwise return **false** (the simulator calls
      again in a later frame with the same message, simulator.md §4).
 - any other state: return true.

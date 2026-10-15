@@ -550,7 +550,7 @@ cISC4Lot	cSC4Lot	00ab19b0	57	+0xE4	006c0550	cSC4Lot::ResetTravelPopulation	0	0	e
 cISC4Lot	cSC4Lot	00ab19b0	58	+0xE8	006c0ba0	cSC4Lot::AddTravelPopulation	4	1	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	59	+0xEC	0081f910	icf::cRZNetSocket::GetAsyncNotificationTarget	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	60	+0xF0	006bf660	cSC4Lot::SetTravelDesignate	4	1	eax-or-void	medium	
-cISC4Lot	cSC4Lot	00ab19b0	61	+0xF4	006c0cf0	cSC4Lot::GetOccupancy	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	61	+0xF4	006c0cf0	cSC4Lot::GetOccupancy	4	1	eax-or-void	high	CORRECTS: void GetOccupancy(float& out); writes through the pointer, EAX = the pointer (0x006C0E7D / 0x006C0E92); lot-developer 11.4 (LD20); re-answers12
 cISC4Lot	cSC4Lot	00ab19b0	62	+0xF8	006c10f0	cSC4Lot::GetOccupancyByType	4	1	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	63	+0xFC	006bf350	cSC4Lot::GetTravelJobs	4	1	x87	high	
 cISC4Lot	cSC4Lot	00ab19b0	64	+0x100	006bf800	cSC4Lot::GetJobs	4	1	eax-or-void	medium	
@@ -1507,7 +1507,7 @@ cISC4City	cSC4City	00a87620	91	+0x16C	0045a390	cSC4City::CellWidthX	0	0	x87	high
 cISC4City	cSC4City	00a87620	92	+0x170	0045a3a0	cSC4City::CellWidthZ	0	0	x87	high	
 cISC4City	cSC4City	00a87620	93	+0x174	007c1910	icf::cSC43DRender::GetLightingManager	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	94	+0x178	004e82a0	icf::cSC43DRender::GetDrawContext	0	0	eax-or-void	medium	
-cISC4City	cSC4City	00a87620	95	+0x17C	004599e0	cSC4City::PositionToCell	16	4	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	95	+0x17C	004599e0	cSC4City::PositionToCell	16	4	eax-or-void	high	CORRECTS ret: void (floor(v / cellWidth) into the two out-pointers); EAX = fnstsw of the last compare, AL = x87 sticky exception flags; lot-developer 17.2 (LD18); re-answers12
 cISC4City	cSC4City	00a87620	96	+0x180	00459410	cSC4City::CellCornerToPosition	16	4	eax-or-void	high	re-answers2 PR6: returns nothing (results through the out pointers); was tagged x87
 cISC4City	cSC4City	00a87620	97	+0x184	00459440	cSC4City::CellCenterToPosition	16	4	eax-or-void	high	re-answers2 PR6: returns nothing (results through the out pointers); was tagged x87
 cISC4City	cSC4City	00a87620	98	+0x188	00459470	cSC4City::LocationIsInBounds	8	2	eax-or-void	medium	
@@ -1663,7 +1663,7 @@ cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	18	+0x48	006c5b70	cSC4LotDeveloper::
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	19	+0x4C	006c43d0	cSC4LotDeveloper::LevelAreaInternalVertices	20	5	eax	high	CORRECTS ret: EAX = number of ModifyTerrainHeight calls, not bool (AL is its low byte); lot-developer 17.4; re-specs11
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	20	+0x50	006c44b0	cSC4LotDeveloper::LevelBorderingVertices	16	4	eax	high	CORRECTS ret: EAX of ModifyTerrainHeight (a count); re-specs11
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	21	+0x54	006c44f0	cSC4LotDeveloper::AttemptAreaLevelling	24	6	eax	high	CORRECTS ret: EAX = 0 or ModifyTerrainHeight's count; re-specs11
-cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	22	+0x58	006c4590	cSC4LotDeveloper::GetOccupantCellCoverage	8	2	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	22	+0x58	006c4590	cSC4LotDeveloper::GetOccupantCellCoverage	8	2	eax-or-void	high	CORRECTS ret: no result; AL = x87 status-word low byte left by cISC4City::PositionToCell (slot 95); no caller reads it; lot-developer 17.2 (LD18, LD27); re-answers12
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	23	+0x5C	005deb40	icf::cSC4AudioAmbienceLayer::CanHandleOccupant	4	1	eax-or-void	medium	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	24	+0x60	006c5c00	cSC4LotDeveloper::IsLotDeveloped	4	1	via-call	low	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	25	+0x64	006c5c30	cSC4LotDeveloper::IsAreaFlat	8	2	eax-or-void	medium	
@@ -1702,7 +1702,7 @@ cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	57	+0xE4	006c5590	cSC4LotDeveloper::
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	58	+0xE8	006c40e0	cSC4LotDeveloper::AddBuildingFoundation	8	2	eax-or-void	medium	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	59	+0xEC	006c4020	cSC4LotDeveloper::AddBuildingFoundation	8	2	via-call	low	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	60	+0xF0	006c4150	cSC4LotDeveloper::RemoveBuildingFoundation	4	1	via-call	low	
-cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	61	+0xF4	006c3f80	cSC4LotDeveloper::UpdateLotFoundation	4	1	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	61	+0xF4	006c3f80	cSC4LotDeveloper::UpdateLotFoundation	4	1	eax	medium	CORRECTS ret: AL of slot 55 or 54; the flags' low byte when the lot has no foundation flag; lot-developer 17.5.4 (LD10); re-answers12
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	62	+0xF8	006c4190	cSC4LotDeveloper::UpdateLotRetainingWalls	4	1	eax-or-void	medium	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	63	+0xFC	006c6230	cSC4LotDeveloper::CreateLotProp	12	3	eax	high	CORRECTS ret: EAX = the new prop's occupant (borrowed) or 0 (SDK says bool); lot-developer 15.5; re-specs11
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	64	+0x100	006cb760	cSC4LotDeveloper::GetLotConfigurationObjectOccupant	12	3	eax-or-void	medium	
