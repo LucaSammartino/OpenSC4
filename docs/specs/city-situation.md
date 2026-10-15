@@ -134,7 +134,8 @@ the tracked vehicles: subtype 9 "moved" re-checks success; 2 "removed" of the ac
 mission; 0xB, and 0xC with data3 = 0x14, "disabled"), `0x0BB324BD` (posted by the player-drive control when the
 player leaves the vehicle: `EndSituation` unless the status is 1 or 2), `0x230E27AC` (the cheat code manager, §4.6),
 and `0x2C16BDE7` (shows the popup with no advice; **no code in the executable posts it**, which answers
-modal-dialogs.md §7 question 3 as far as static analysis can).
+modal-dialogs.md §7 question 3 as far as static analysis can). The ID's four bytes occur once in the whole file, at
+the handler's compare (`0x0052EE1F`), so no code or data table in the executable can post it (CS3).
 
 Messages it sends or posts:
 
@@ -324,10 +325,10 @@ other 410 have no component 52 and the city creates a fresh one). All 11 parse e
 | 19 | `+0x4C` | `IsSituationAvailable(automaton)` | `0x00525CB0` | 1 | 4 | AL |
 | 20 | `+0x50` | `IsSituationAvailable(occupant)` (overload) | `0x00525BC0` | 1 | 4 | AL |
 | 21 | `+0x54` | `InitiateSituationByGuid(guid, bool showBriefing, data3)` | `0x0052A8B0` | 3 | 12 | AL |
-| 22 | `+0x58` | `InitiateSituationForOccupant(occupant, …)` | `0x00525DC0` | 2 | 8 | AL |
-| 23 | `+0x5C` | `InitiateSituationByAutomataGroup(group, …)` | `0x0052AB00` | 3 | 12 | AL |
-| 24 | `+0x60` | `StartJoyride(…)` | `0x00524E20` | 3 | 12 | via call (`0x00506850`) |
-| 25 | `+0x64` | `TreatAutomatonAsGroup(…)` | `0x0052A7A0` | 2 | 8 | none |
+| 22 | `+0x58` | `InitiateSituationForOccupant(cISC4Occupant*, cISC4CitySituationAdvice* advice)` (CS2): QIs the occupant for `0xA9B40F05` (the automaton); with an advice, `InitiateSituation(advice, automaton, true)` (slot 36); without one, the first active-situation entry whose automaton is this one or whose advice's slot 53 (`+0xD4`) accepts it, then the same call; releases the automaton; false when the QI fails or nothing matches | `0x00525DC0` | 2 | 8 | AL |
+| 23 | `+0x5C` | `InitiateSituationByAutomataGroup(uint32 group, bool, bool search)` (CS2): an active-situation entry whose advice's slot 54 (`+0xD8`) accepts the one-group list starts through slot 21 with the second argument passed on; when none does and `search` (third argument, `0x0052AB6B`) is false, returns false; otherwise it looks for automata of the group (`0x00525640`) *[the rest not traced]* | `0x0052AB00` | 3 | 12 | AL |
+| 24 | `+0x60` | `StartJoyride(cISC4Automaton*, bool, cIGZMessageTarget2*)` (CS2): stores the bool in `justActivated` (`+0xA98`), posts `0xABBBCA64` (data1 = 1), then `cSC4AutomataManager::EnterPlayerDriveView(automaton, target)` | `0x00524E20` | 3 | 12 | via call (`0x00506850`) |
+| 25 | `+0x64` | `TreatAutomatonAsGroup(cISC4Automaton*, uint32 group)` (CS2): null → nothing; else sets the group on the automaton's slot-5 object (its slot 23, `+0x5C`) and tracks the automaton (`0x005291C0`) | `0x0052A7A0` | 2 | 8 | none |
 | 26 | `+0x68` | `SetMaxCSI(u8)` (process-wide) | `0x00524BF0` | 1 | 4 | none |
 | 27 | `+0x6C` | `GetMaxCSI()` → u8 | `0x005245C0` | 0 | 0 | AL |
 | 28 | `+0x70` | `GetTrackedAutomataCount()` | `0x00527690` | 0 | 0 | EAX |

@@ -285,8 +285,11 @@ The typed overloads write their type into this one object and pass it on (§10).
     argument (flora §9.1).
 13. Return true. The manager keeps the reference taken in step 3.
 
-Known data4 values: 0 from building development and the landfill. The network tool passes its field `+0x208`
-(ZQ14, §16).
+Known data4 values (ZQ14, answered by re-answers11 in zones.md §5.2):
+- the network tool passes its field `+0x208`: 1 for a network the player draws, 3 inside `PlaceNetworkOccupants`
+  (every network laid by code);
+- 0 from `InsertOccupantsForSolvedCells`, building development, the landfill and the other managers;
+- nothing passes 2.
 
 ### 5.2 RemoveOccupant(occ, shutdown, data4) (slot 21, `0x0049F240`, pop 12) *[compat]*
 
@@ -397,8 +400,8 @@ is pumped, not as it was when the message was posted. Classes that override `Pos
   - if initialised, clear bit 0 and post Destroy `0x99EF1141` with data4 0;
   - return true.
 
-The init bit and flag 1 ("inserted") are different flags. **DM4 is confirmed:** flag 1 means "in the occupant
-manager".
+The init bit and flag 1 ("inserted") are different flags. Flag 1 means "in the occupant manager" (DM4, answered by
+re-answers11 in demolition.md §4.6; this section agrees).
 - Insert refuses an occupant that has it, and sets it after success.
 - Remove clears it after its post.
 - RemoveOccupants clears it inside the lock.
@@ -815,15 +818,9 @@ deviation, because no shipped callback nests a typed call *[inferred]*.
   occupants before `Init`]
 - **OM3:** is slot 12 ever called? [not searched exhaustively: virtual calls through `+0x30` are common. A turbo run
   with a breakpoint on `0x0049DA30` would settle it; until then reproduce the bug]
-- **ZQ14 (lead, not answered):** the network tool passes its field `+0x208` as data4 of InsertOccupant:
-  - the calls: `0x006277FA` (`InsertHighwayIntersectionPiece`) and `0x00627A16` / `0x00627A38`
-    (`InsertNetworkOccupant` `0x006278A0`);
-  - writes to the field: 3 at `0x0062924A` (start of `PlaceNetworkOccupants` `0x00629210`), 1 at `0x00629980`
-    (its end) and 1 at `0x0062C782`;
-  - `InsertOccupantsForSolvedCells` (`0x006258C0`) passes literal 0 or 1 (`0x00625ACF`, `0x00625AFA`,
-    `0x00625B43` / `0x00625B4C`).
-
-  The network lane should finish the trace.
+- **ZQ14** is answered in zones.md §5.2 (re-answers11). The trace in this lane agrees: the calls at `0x006277FA`,
+  `0x00627A16` and `0x00627A38` pass the network tool's `+0x208`, which is set to 3 at `0x0062924A` and to 1 at
+  `0x00629980` and `0x0062C782`.
 
 ---
 
@@ -838,7 +835,6 @@ deviation, because no shipped callback nests a typed call *[inferred]*.
   is not a filter. The note's "strict overlap" is right.
 - **interfaces.tsv** slot 48: "releases each entry of a slot-41 list" is right for any slot 36–41 list.
 - **interfaces.tsv** slots 46/47: slot 46 is typed (`→ +0xBC`), slot 47 is the filter overload.
-- **QUESTIONS.md DM4**: confirmed (§5.6).
 
 ---
 

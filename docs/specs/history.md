@@ -37,7 +37,10 @@ The object also has a `cIGZMessageTarget2` sub-object at +4 (used for its subscr
 The record message type `0x89EFA536` is the same number as the CLSID.
 
 Factory `0x00476BB0` (`GlobalHeapAlloc(0x2C)` + constructor `0x00476A40`). `Release` (`0x00476AA0`) destroys the
-object (`0x00476900`, then `GlobalHeapFree`) when the count is 1 or less. Vtables: primary `0x00A8CCB4` (14 slots,
+object (`0x00476900`, then `GlobalHeapFree`) when the count is 1 or less. It does **not** call `Shutdown` (HW13):
+the destructor only frees the series map and its nodes (`0x00476918`–`0x00476952`) and leaves the message
+subscriptions alone, so the original relies on the city calling `Shutdown` first. *[choice]* A replacement may
+run its `Shutdown` first; with the city's normal order it changes nothing. Vtables: primary `0x00A8CCB4` (14 slots,
 §8), message target `0x00A8CCA4` (`DoMessage` `0x00477050`), serializable `0x00A8CC8C` (Write `0x00475D20`, Read
 `0x00476BD0`, GetGZCLSID `0x00475650`).
 
@@ -78,7 +81,8 @@ day** (§4.1). `maxCount = 0` means "no limit" (thinned by §4.3); `maxCount = n
 | `0x66956817` SimNewYear | if `passState = 0`: `passState := 1` | true |
 | other | — | true |
 
-No subsystem posts `0x89EFA537` in the executable; queue lengths are set through the interface (slot 13). The win
+No subsystem posts `0x89EFA537` in the executable (HW4: its four bytes occur only in `Init` `0x00476726`,
+`Shutdown` `0x00475900` and `DoMessage` `0x004770BE`); queue lengths are set through the interface (slot 13). The win
 trend bar (`cSC4WinTrendBar`, UI) also subscribes to `0x89EFA536` and sees every recorded value.
 
 ## 4. Behaviour
@@ -329,6 +333,9 @@ found at the record and set-length call sites; the producers' specs are normativ
 | fire disaster, riot | `0x49D15B74`, `0xAA8C87C7` |
 
 ## 7. Persistence (`cIGZSerializable`, `GetGZCLSID() = 0x89EFA536`) *[compat]*
+
+`Write` always writes version 2 (`0x00475D2C`), so the original also converts a version-1 record on its first save
+(HW17).
 
 ```
 u16  version = 2
