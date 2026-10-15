@@ -142,6 +142,37 @@ bool WritesOn(void* u, const char* what) {
     return false;
 }
 
+// The bulk writer (fc4_grid_set_bulk_writer, a performance hook): the same
+// SetTractValue calls as Set, in order, in one host call.
+template <class T>
+uint32_t WriteAll(uint64_t t, const uint32_t* index, const void* values, uint32_t n) {
+    cISC4SimGrid<T>* g = As<T>(t);
+    const int32_t nz = g->GetTractCountZ();
+    if (nz <= 0) return 0;
+    const T* v = static_cast<const T*>(values);
+    for (uint32_t i = 0; i < n; ++i) {
+        g->SetTractValue(static_cast<int32_t>(index[i] / static_cast<uint32_t>(nz)),
+                         static_cast<int32_t>(index[i] % static_cast<uint32_t>(nz)), v[i]);
+    }
+    return n;
+}
+
+uint32_t BulkWrite(void* u, uint64_t t, uint32_t kind, const uint32_t* index, const void* values, uint32_t n) {
+    // Writes switched off: none here (the core then sets tract by tract, and Set notes each skip).
+    if (t == 0 || index == nullptr || values == nullptr || n == 0 || !On(Ctx(u)->writes)) return 0;
+    if (perf::On()) perf::Count(perf::kGridBulk);  // tooling: perf_profile (FC4Perf.h)
+    switch (kind) {
+        case kClsI16: return WriteAll<int16_t>(t, index, values, n);
+        case kClsI8: return WriteAll<int8_t>(t, index, values, n);
+        case kClsU16: return WriteAll<uint16_t>(t, index, values, n);
+        case kClsU32: return WriteAll<uint32_t>(t, index, values, n);
+        case kClsF32: return WriteAll<float>(t, index, values, n);
+        case kClsU8:
+        case kClsBool: return WriteAll<uint8_t>(t, index, values, n);
+        default: return 0;
+    }
+}
+
 void Set(void* u, uint64_t t, uint32_t kind, int32_t x, int32_t z, double v) {
     if (t == 0 || !WritesOn(u, "grid SetTractValue")) return;
     if (perf::On()) perf::Count(perf::kGridSet);  // tooling: perf_profile (FC4Perf.h)
@@ -237,7 +268,8 @@ fc4_grid_api MakeGridApi(const HostGridContext* ctx) {
     a.fill = &Fill;
     a.shutdown = &Shutdown;
     a.release = &Release;
-    fc4_grid_set_bulk_reader(&Get, &BulkRead);  // devperf: one host call per grid read
+    fc4_grid_set_bulk_reader(&Get, &BulkRead);    // devperf: one host call per grid read
+    fc4_grid_set_bulk_writer(&Set, &BulkWrite);  // devperf: one host call per walk's writes
     return a;
 }
 

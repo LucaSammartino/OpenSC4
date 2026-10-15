@@ -107,7 +107,8 @@ extern "C" {
  *      on its lane; renumbered at merge);
  * 51 = adds the zone developer / lot manager (fc4_zonedev, zones.md §1.2, §7-§11.3) and its shadow mode
  *      (fc4_zonedev_create_shadow) (taken as 54 on its lane; renumbered at merge);
- * 63 = adds fc4_grid_set_bulk_reader (a performance hook: one host call reads a whole grid);
+ * 63 = adds fc4_grid_set_bulk_reader / _writer (performance hooks: one host call reads a whole grid
+ *      or writes a walk's changes);
  *      fc4_development_developers / _special_buildings run their callback without a copy, so it
  *      must not call back into the simulator (devperf lane). */
 #define FC4_ABI_VERSION 63u
@@ -1375,6 +1376,15 @@ typedef struct fc4_grid_api {
 typedef uint32_t (*fc4_grid_bulk_reader)(uint64_t grid, uint32_t kind, void* out, uint32_t count);
 void fc4_grid_set_bulk_reader(double (*get)(void* user, uint64_t grid, uint32_t kind, int32_t tx, int32_t tz),
                               fc4_grid_bulk_reader reader);
+/* 63: the bulk tract writer (devperf): for each i < n in order, SetTractValue of tract index[i]
+ * (x * count_z + z) to values[i], a native element of class `kind`; returns n when it wrote them all
+ * and 0 when it wrote none (writes switched off, an unsupported kind), and the core then sets them
+ * tract by tract through `set`. Registered process-wide for the grids whose fc4_grid_api.set is
+ * `set`; a NULL `writer` removes it. */
+typedef uint32_t (*fc4_grid_bulk_writer)(void* user, uint64_t grid, uint32_t kind, const uint32_t* index,
+                                         const void* values, uint32_t n);
+void fc4_grid_set_bulk_writer(void (*set)(void* user, uint64_t grid, uint32_t kind, int32_t tx, int32_t tz, double v),
+                              fc4_grid_bulk_writer writer);
 
 /* An inclusive cell rectangle. */
 typedef struct fc4_cell_rect {

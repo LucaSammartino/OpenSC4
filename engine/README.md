@@ -548,7 +548,9 @@ plugin.
      agent and level (the original's agents and ours alike) and every `OnTick` as a whole; named sections time
      the development unit's inner paths (each outermost call into the BDS or a growth developer core with its
      Publish, the calls into the tract developer's `Grow` / `Decline` / `UpdatePopulation`, each growth
-     developer state); the grid callbacks are counted. At each turbo month line (under `sim_turbo`) it logs one set
+     developer state); the grid callbacks, the whole-grid reads and writes (`grid:bulk`) and the getters answered from
+     the published copies (`bds:peek`, `growth:peek`) are counted, and every outermost call by the glue function that
+     made it (the `calls` line). At each turbo month line (under `sim_turbo`) it logs one set
      of lines and starts over; off, no clock is read. Compare runs at equal settings (`turbo = 1`, one
      `end_date`) and read several months: a loaded machine slows any one month. Lines:
 
@@ -556,7 +558,8 @@ plugin.
      perf month 2029-04-01: real=372ms days=31 ms/day=12.0 tick=500.6ms (2 ticks) agents=320.9ms; outside ticks=…
      perf month 2029-04-01 agents: cSC4TrafficSimulator/4 125.2ms (44) cSC4BuildingDevelopmentSimulator/4 …
        (name/level, time, deliveries; top 24 by time; agents of one name and level summed)
-     perf month 2029-04-01 sections: bds:call …ms (n) bds:publish … growth:state5 … grid:get N grid:set N
+     perf month 2029-04-01 sections: bds:call …ms (n) bds:publish … growth:state5 … grid:get N grid:set N grid:bulk N
+     perf month 2029-04-01 calls: growth:cFC4GrowthDeveloper::GetSubType N bds:… (top 16 by count)
      ```
    - **Scripted actions** (`script = <path>`, env `FC4_SCRIPT`; off by default; `plugin/FC4Script.h`, the grammar
      in `plugin/FC4HarnessLogic.h`; tooling): a text file of dated in-city actions, one per line,
