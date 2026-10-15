@@ -793,6 +793,7 @@ pub mod landfill;
 pub mod landfill_shadow;
 pub mod landvalue;
 pub mod landvalue_shadow;
+pub mod lotdev;
 pub mod neighbors;
 pub mod neighbors_shadow;
 pub mod ordinance;
@@ -867,6 +868,9 @@ mod landvalue_tests;
 mod landvalue_shadow_tests;
 
 #[cfg(test)]
+mod lotdev_tests;
+
+#[cfg(test)]
 mod neighbors_tests;
 
 #[cfg(test)]
@@ -895,6 +899,9 @@ mod protection_tests;
 
 #[cfg(test)]
 mod residential_tests;
+
+#[cfg(test)]
+mod save_sweep_tests;
 
 #[cfg(test)]
 mod test_streams;

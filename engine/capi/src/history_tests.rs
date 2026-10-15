@@ -110,10 +110,10 @@ fn create_init_record_through_the_message_server() {
             ]
         );
         // RecordHistoryData goes through send, which re-enters the warehouse.
-        assert!(fc4_history_record(w, K, 5));
-        assert!(fc4_history_record(w, K, 6)); // same day: overwrites
+        assert!(!fc4_history_record(w, K, 5)); // HW12: false
+        assert!(!fc4_history_record(w, K, 6)); // same day: overwrites
         g.date.set(2_451_546);
-        assert!(fc4_history_record(w, K, -7));
+        assert!(!fc4_history_record(w, K, -7));
         assert_eq!(g.sends.get(), 3);
         assert_eq!(series(w, K), (0, vec![(2_451_545, 6), (2_451_546, -7)]));
         assert!(fc4_history_set_queue_length(w, K, 1));
@@ -296,7 +296,7 @@ fn null_and_bad_arguments() {
         };
         let w = fc4_history_create(&empty);
         assert!(fc4_history_init(w));
-        assert!(fc4_history_record(w, 1, 1));
+        assert!(!fc4_history_record(w, 1, 1));
         assert_eq!(fc4_history_keys(w, std::ptr::null_mut(), 0), 0);
         fc4_history_destroy(w);
     }

@@ -1060,20 +1060,20 @@ session seed (§6.3), and `rand()` starts at state 1. Draws are traced by kind R
 
 | op | Arguments | Effect |
 |---|---|---|
-| `ldev_world` | any of `city` (`[x, z]` cells), `cell_widths` (`[x, z]`), `terrain_cells` (`[x, z]`), `terrain_width`, `sim_date`, `time_mode` (24-hour clock), `view_rotation`, `jobs_demand` (number, `"nan"` or null = no node), `cheats` (`{ignore_plumbing, ignore_power, coffee_bar}`), `no_services`, `no_simulator`, `no_message_server`, `claim_resources`, `add_building_fails` | the world |
-| `ldev_lot` | `id?` (assigned when absent); any of `x`, `z`, `w`, `h`, `zone` (1), `state` (1), `livable`, `condition`, `days`, `building_type`, `building` / `no_building`, `cfg` / `no_cfg`, `wealth`, `occupancy`, `needs_power`, `has_power`, `road`, `job`, `organic`, `flags`, `historical`, `initialized`, `available`, `travel_jobs` (`[w0..w3]`), `designate` / `no_designate`, `unit` / `no_unit`, `props` (`{"0xID": value}`), `counter` (`{low_desirability, no_power, no_water, travel, zot}`), `order` (append to the lot-list order; default true for a new lot) | a lot |
-| `ldev_cfg` | `id` (token); any of `cfg_id` (its own ID, for `GetLotConfiguration`), `w`, `h`, `stage`, `water`, `max_slope`, `objects` (`[{type, flags, ids, tag, orientation, byte3}]`), `primary_building` (`[ids]`), `primary_foundation` (`[ids]`), `water_objects` | a lot configuration |
-| `ldev_occ` | `id` (token); any of `is_building`, `bbox` (`[[min], [max]]`), `cells` (`[x1,z1,x2,z2]`), `group`, `lit`, `position`, `orientation`, `night_light`, `lot` (its owning lot, for `GetLotProps`), `props` (`{"0xID": value}`) | an occupant (building or prop) |
+| `ldev_world` | any of `city` (`[x, z]` cells), `cell_widths` (`[x, z]`), `terrain_cells` (`[x, z]`), `terrain_width`, `sim_date`, `time_mode` (24-hour clock), `view_rotation`, `jobs_demand` (number, `"nan"` or null = no node), `cheats` (`{ignore_plumbing, ignore_power, coffee_bar}`), `no_services`, `no_simulator`, `no_message_server`, `claim_resources`, `add_building_fails`, `foundation_fails` (BDS slot 23 fails), `base_texture_fails` (`GetLotBaseTextureOccupant` fails), `zone_color` (`GetZoneDragColor`, default `0xFFB23300`), `zone_alpha` (default `0xAA`), `trace_terrain` (log every terrain read as `alt_vertex` / `water_vertex` (`index`) and `alt_at` / `water_at` (`x`, `z`) events) | the world |
+| `ldev_lot` | `id?` (assigned when absent); any of `x`, `z`, `w`, `h`, `zone` (1), `state` (1), `livable`, `condition`, `days`, `building_type`, `building` / `no_building`, `cfg` / `no_cfg`, `wealth`, `occupancy`, `needs_power`, `has_power`, `road`, `job`, `organic`, `flags`, `historical`, `initialized`, `available`, `travel_jobs` (`[w0..w3]`), `designate` / `no_designate`, `unit` / `no_unit`, `props` (`{"0xID": value}`), `counter` (`{low_desirability, no_power, no_water, travel, zot}`), `altitude` (lot slot 16), `facing` (lot slot 23), `locked` (`GetVerticesAreLocked`), `order` (append to the lot-list order; default true for a new lot) | a lot |
+| `ldev_cfg` | `id` (token); any of `cfg_id` (its own ID, for `GetLotConfiguration`), `w`, `h`, `stage`, `water`, `max_slope`, `objects` (`[{type, flags, ids, tag, orientation, byte3, offset [x, y, z], footprint_min [x, z], footprint_max [x, z], foundation}]`, the §17.1 record), `primary_building` / `primary_foundation` (null = none, `[ids]`, or an object record), `water_objects` | a lot configuration |
+| `ldev_occ` | `id` (token); any of `is_building`, `bbox` (`[[min], [max]]`), `cells` (`[x1,z1,x2,z2]`), `group`, `lit`, `position`, `orientation`, `night_light`, `lot` (its owning lot, for `GetLotProps` and `GetLotBaseTextureOccupant`), `props` (`{"0xID": value}`), `type` (occupant type; default foundation / building / prop), `foundation_kind` (makes it a foundation, §17.5), `foundation_type`, `inserted` (`IsFlagSet(1)`, default true), `immovable` (blocks `ModifyTerrainHeight`, §17.3) | an occupant |
 | `ldev_profile` | `building` (type); `purpose`, `wealth`, `capacity` | a building profile |
 | `ldev_family` | `family`, `members` (`[ids]`) | a building / flora family |
 | `ldev_valid` | `building` (`[ids]`), `flora` (`[ids]`) | IDs `IsBuildingType` / `IsFloraTypeValid` accept |
 | `ldev_dev` | `id` (token); `key?` (the developer type `(purpose<<8)|wealth`; default from `purpose`/`wealth`, an omitted one keeping the value already in the key), `purpose`, `desirability`, `water_cap` | a growth developer |
 | `ldev_unit` | `id` (token); `members` (`[lots]`, also sets each lot's unit) | a business unit |
 | `ldev_cells` | `powered` / `watered` (`[[x, z, v]]`, v≠0 sets), `trip` (`[[x, z, v]]`) | cell grids |
-| `ldev_terrain` | `alt` (`[[index, value]]`), `water` (`[[index, value]]`); index = `x + z · vertsX` | vertex altitudes (default 100) and water levels (default 0) |
+| `ldev_terrain` | `reset` (back to flat, no overrides), `flat` (the default altitude), `vertex` (`[[x, z, v]]`), `alt` (`[[index, value]]`), `water` (`[[index, value]]`; index = `x + z · vertsX`), `pos` / `water_pos` (`[[x, z, v]]`: `GetAltitude` / `GetWaterLevel` at an exact position; elsewhere the vertex grid), `water_vertices` / `water_cells` (`[[x, z]]`) | vertex altitudes (default 100) and water levels (default 0) |
 | `ldev_resource` | `instances` (`[ids]`), `replace?` (clear the set first) | base-texture resources that exist (§6.6) |
 | `ldev_surrounding` | `lot` (`{"token": [neighbours]}` for `GetLotsSurroundingLot`), `rect` (`[lots]` for `GetLotsSurroundingRect`), `in_rect` (`[lots]` for `GetLotsInCellRect`) | neighbour / rectangle lists |
-| `ldev_tuning` | `none: true`, `shipped: true`, or explicit `stay_new`, `thresholds` (`[abandon, distress, renew]`), `night_acc`, `night_batch`, `max_slope_flatness`, `cost_curve` (`[[x, y], …]`) | the "Building Development" exemplar |
+| `ldev_tuning` | `none: true`, `shipped: true`, or explicit `stay_new`, `thresholds` (`[abandon, distress, renew]`), `night_acc`, `night_batch`, `max_slope_flatness`, `cost_curve` (`[[x, y], …]`); `from_shipped: true` with any of `auto_level_delta`, `max_area_slope`, `default_lot_foundation` overrides the shipped values | the "Building Development" exemplar |
 | `ldev_create` | `seed?` (the file-local generator's seed exactly; default 12345) or `session?` (`from_session`, `derive_seed(session, 0x6C09C0F4)`, §6.3), `crt_seed?` (1), `trace?` (true) | a new lot developer |
 | `ldev_rng` | `seed`, or `lcg` and `mul`; `crt?` | sets the shared generator / `rand()` state |
 | `ldev_make_lots` | `count` | `count` empty state-1 lots along `(x, 0)`, in lot-list order (each visit logs one `reset_travel_pop`) |
@@ -1113,16 +1113,33 @@ session seed (§6.3), and `rand()` starts at state 1. Draws are traced by kind R
 | `ldev_light` / `ldev_update_all` | `building`, `night?` / `mode` | `Light` (§8.4) / `UpdateAll` (§8.2) |
 | `ldev_area_slope` / `ldev_dev_cost` / `ldev_altitude` | `rect`, `water?` / `rect` / `at`, `water?`, `expect?` | slots 29 / 32 / 15 (§11.4) |
 | `ldev_area_developed` | `rect` or `lot`, `expect?` | slots 23 / 24 (always false) |
+| `ldev_area_altitude` | `rect` (int32 cells), `water?`, `lowest?` (slot 17) or `average: true` (slot 18), `expect?`, `expect_bits?` | §17.2 |
+| `ldev_altitude_f` | `rect` (float metres), `lowest`, `water`, `expect?` | slot 16 (§17.2) |
+| `ldev_level_internal` | `rect`, `target`, `skip_water`, `force`, `lot`, `expect` (the call count) | slot 19 (§17.4) |
+| `ldev_level_bordering` | `rect`, `h`, `lot`, `expect` | slot 20 (§17.4) |
+| `ldev_attempt_levelling` | `rect`, `water`, `per_vertex`, `max_slope` (number, `"flt_max"`, `"nan"`), `lot`, `expect` | slot 21 (§17.4) |
+| `ldev_object_position` | `lot`, `cfg` (or null), `object` (a §17.1 record), `expect {pos, orient}` | slot 39 (§17.6) |
+| `ldev_position_for_building` | `lot`, `expect` (`{pos, orient}` or null) | slot 40 (§17.6) |
+| `ldev_boundary_texture` | `sides` (`[s0, s1, s2, s3]`), `expect` (`{texture, rotation, flip}`, null before `Init`) | slot 42 (§17.7) |
+| `ldev_set_empty_texture` | `lot` | slot 43 (§17.7) |
+| `ldev_foundation` | `occupant` (slot 48), `lot` (slot 51), `cell [x, z]` + `kind` (slot 49) or `position [x, z]` + `kind` (slot 50); `expect` (token or null) | §17.5.1 |
+| `ldev_remove_foundation` | `position` + `kind` (slot 52), `cell` (slot 53) or `occupant` (slot 60); `expect` | §17.5.2 |
+| `ldev_add_lot_foundation` | `lot`, `type` (slot 55) or `cfg` (slot 54, null allowed), `use_lot_altitude?`, `level?`, `walls?`, `expect` | §17.5.4 |
+| `ldev_update_lot_foundation` | `lot`, `expect` | slot 61 (§17.5.4) |
+| `ldev_foundation_required` | `occupant` (slot 56) or `min`, `max` (slot 57); `expect` | §17.5.5 |
+| `ldev_add_building_foundation` | `building`, `cfg` (slot 58) or `type` (slot 59); `expect` | §17.5.5 |
+| `ldev_expect_terrain` | `vertex` (`[[x, z, v]]`) | vertex altitudes |
+| `ldev_expect_occ` | `id`; any of `exists`, `position`, `bbox`, `cells`, `orientation`, `foundation_kind`, `foundation_type` | an occupant |
 | `ldev_save` / `ldev_load` | `expect?` (hex), `ok?` / `hex`, `expect?` | `Write` / `Read` (§13) |
 | `ldev_expect` | any of `initialised`, `daily_state`, `visited`, `net_changed`, `unit_changed`, `net_snap`, `unit_snap`, `zots_allowed`, `no_zot_until_day`, `can_check_commute`, `force_empty`, `night_mode`, `night_acc`, `night_batch`, `night_cursor`, `lit_flag`, `verts_x`, `extent_x`, `extent_z`, `night` (the deque's tokens, `null` for a null slot), `night_len`, `per_day`, `cell_counts`, `lcg`, `mul`, `crt`, `tuning` (partial) | state |
-| `ldev_expect_lot` | `lot`; any of `exists`, `state`, `condition`, `zone`, `building_type`, `wealth`, `flags`, `historical`, `has_power`, `cfg`, `building`, `unit`, `designate`, `rect`, `prop` (`{name or 0xID: value}`) | a lot |
+| `ldev_expect_lot` | `lot`; any of `exists`, `state`, `condition`, `zone`, `building_type`, `wealth`, `flags`, `altitude`, `facing`, `historical`, `has_power`, `cfg`, `building`, `unit`, `designate`, `rect`, `prop` (`{name or 0xID: value}`) | a lot |
 | `ldev_expect_draws` | `draws`: each `"Rn"` (kind only) or `["Rn", arg, value]` (exact); `keep?` | the draws since the last check |
 | `ldev_expect_events` / `ldev_expect_event_count` / `ldev_clear_events` | see the shared conventions | host calls |
 | `ldev_eval` | `fn`, `args`, `expect`: `is_empty_lot_suitable_for_zot [zone, x, z]`, `desirability_tolerance [x, z]`, `answers_iid [iid]`, `rubble_count [minx, miny, minz, maxx, maxy, maxz]` (`{count, small, large}`), `reason_const [name]` | pure functions |
 
 Lot developer events: `acquire_services`, `release_services`, `add_agent` (`level`, `message`), `remove_agent`,
 `acquire_message_server`, `release_message_server`, `subscribe` / `unsubscribe` (`message`), `register_tick` /
-`unregister_tick`, `init_boundary` / `clear_boundary`, `post` (`message`, `data1`, `lot`), `delete_lot`,
+`unregister_tick`, `post` (`message`, `data1`, `lot`), `delete_lot`,
 `set_state` (`lot`, `state`, `wealth`, `reason`), `set_condition` (`lot`, `condition`), `set_population`,
 `update_road_access`, `reset_travel_pop` / `add_travel_pop`, `vertices_locked`, `update_slope`, `set_texture`
 (`texture`, `x`, `z`, `orientation`, `byte3`), `occupant_changed`, `insert_occupant`, `occ_post` (`occ`, `message`),
@@ -1132,7 +1149,12 @@ Lot developer events: `acquire_services`, `release_services`, `add_agent` (`leve
 `add_lot_foundation` (`lot`, `type`), `add_building_foundation`, `remove_building_foundation`,
 `update_lot_foundation`, `update_retaining_walls`, `update_object_altitudes`, `update_base_texture_occupant`
 (`lot`, `had_foundation`), `set_empty_texture`, `remove_retaining_walls`, `remove_lot_foundation`,
-`update_surrounding_foundations`, `update_surrounding_walls`, `add_network_nodes`, `remove_network_nodes`,
+`update_surrounding_foundations`, `update_surrounding_walls` (`lot`), the §17 terrain writer `modify_terrain`
+(`per_vertex`, `rect`, `h`, `exempt`) with `set_altitude` (`x`, `z`, `h`), `set_altitude_rect` (`rect`, `h`, `reason`) and
+`redisplay` (`rect`, `reason`), BDS slot 23 `add_foundation` (`type`, `kind`, `pos`, `dx`, `dz`, `orient`, `bottom`,
+`occ`, `top`, `size`, `cells`), `retaining_wall` (`lot`, `flag`), `set_textures` (`occ`, `n`) followed by one
+`set_texture` per record (`texture`, `x`, `z`, `orientation`, `byte3`, `extra` (five bytes), `frame`),
+`remove_occupant` (`occ`, `a`, `flags`), `shutdown_occupant` (`occ`), `add_network_nodes`, `remove_network_nodes`,
 `construction_occupant` (`lot`), `level_internal`, `attempt_levelling`, `rubble_decal` (`instance`, `size`),
 `unit_create`, `unit_add` (`unit`, `lot`).
 
@@ -2404,6 +2426,17 @@ message has them), `hide_mission_status_panel`, `end_mysim_dialog`, `popup` (`po
 | 20–25 construction occupant (§6.7) | out of scope: a separate subsystem (`cSC4ConstructionOccupant`), not the lot developer core |
 | 26 StateChanged data4 (§3.2) | out of scope: `cSC4Lot::SetState`, owned by the lot core |
 | 27 UpdateLotElements kind (full 32-bit `kind != 5`) | `ld16_27_update_lot_elements_kind` |
+| 28 slot 16 float rectangle (sample order, clamp, interior vertices) | `ld16_28_float_rect_altitude` |
+| 29 slot 21 worked example 2 (int32 slot 18, per-vertex and area mode, slope cut-off) | `ld16_29_30_levelling` |
+| 30 slot 19 worked example 1 (negative target, force, narrow rectangles; LD-Q1) | `ld16_29_30_levelling` |
+| 31 ModifyTerrainHeight per-vertex rules (0.05, water, immovable, locked lots) | `ld16_31_modify_terrain_per_vertex` |
+| 32 lot foundation worked example 3 (facings, useLotAltitude, 3 × 3 levelling) | `ld16_32_33_lot_foundation` |
+| 33 R8 (foundation type draw) | `ld16_32_33_lot_foundation` |
+| 34 foundation lookup by position (vertical line), removal | `ld16_34_foundation_lookup` |
+| 35 object positions worked example 4 | `ld16_35_object_positions` |
+| 36 boundary rules | `ld16_36_37_boundary_textures` |
+| 37 empty-lot textures worked example 5 | `ld16_36_37_boundary_textures` |
+| 38 interface returns (the parts the core decides; channels and pops in the plugin ctest) | `ld16_38_interface_returns` |
 | extra: lifecycle, messages, QueryInterface, tuning | `ld00_lifecycle_tuning` |
 | extra: UpdateLot flow (grown, civic, empty, unit step) | `ld16_42_update_lot` |
 | extra: PickUnitToJoin, NeedsAnchorBuilding | `ld16_19_57_interface_business_units` |

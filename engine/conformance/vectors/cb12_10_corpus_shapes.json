@@ -6,7 +6,7 @@
     "civic-buildings 7.1",
     "civic-buildings 12.10"
   ],
-  "description": "Synthetic stand-ins for the 421-save corpus (the saves themselves are not available to this suite): records shaped like the 7.1 table ((0, 46, 0, 0), (0, 63, 0, 1), (5, 61, 0, 3); status 0 with text, 1 hidden without, rare 4/5/6 with counts), colliding keys in either order inside a bucket, a non-ASCII tooltip, the smallest records, all read and re-write byte-identically (every byte consumed: the length is checked). A list count of 10,000,000 or more reads nothing further for that list.",
+  "description": "Synthetic stand-ins for the 421-save corpus (the saves themselves are not available to this suite): records shaped like the 7.1 table ((0, 46, 0, 0), (0, 63, 0, 1), (5, 61, 0, 3); status 0 with text, 1 hidden without, rare 4/5/6 with counts), colliding keys in either order inside a bucket, a non-ASCII tooltip, the smallest records, all read and re-written (every byte consumed: the length is checked): byte-identically where no bucket holds two entries, otherwise with every multi-entry chain reversed, and a second round trip gives the record back (civic 7, QUESTIONS CB6). A list count of 10,000,000 or more reads nothing further for that list.",
   "steps": [
     {
       "op": "civic_env",
@@ -283,8 +283,8 @@
           "0x8A9AE664"
         ],
         "status_keys": [
-          "0xC2",
           "0x1",
+          "0xC2",
           "0x32B0000",
           "0x31F0000",
           "0x4000000",
@@ -297,24 +297,36 @@
       "op": "civic_write",
       "expect": true,
       "length": 210,
+      "hex": "060003000000B1E79A0AA2E79A4A64E69A8A0700000001000000000100020000007431C200000001C200040000007431393400002B03010200130000005265717569726573206120686F73706974616C00001F03000000000000000000000402FFFF010000007800003A030601000C000000436166E920746F6F6C746970000099090703000D0000004D61796F72277320686F75736501000000FCBF90E902000000020000002D88BDA9030000002D88BDA904000000040000002D88BDA900000000020000002D88BDA9040000002D88BDA9"
+    },
+    {
+      "op": "civic_read",
+      "hex": "060003000000B1E79A0AA2E79A4A64E69A8A0700000001000000000100020000007431C200000001C200040000007431393400002B03010200130000005265717569726573206120686F73706974616C00001F03000000000000000000000402FFFF010000007800003A030601000C000000436166E920746F6F6C746970000099090703000D0000004D61796F72277320686F75736501000000FCBF90E902000000020000002D88BDA9030000002D88BDA904000000040000002D88BDA900000000020000002D88BDA9040000002D88BDA9",
+      "expect": true,
+      "note": "second round trip (CB6)"
+    },
+    {
+      "op": "civic_write",
+      "expect": true,
+      "length": 210,
       "hex": "060003000000B1E79A0AA2E79A4A64E69A8A07000000C200000001C20004000000743139340100000000010002000000743100002B03010200130000005265717569726573206120686F73706974616C00001F03000000000000000000000402FFFF010000007800003A030601000C000000436166E920746F6F6C746970000099090703000D0000004D61796F72277320686F75736501000000FCBF90E902000000020000002D88BDA9030000002D88BDA904000000040000002D88BDA900000000020000002D88BDA9040000002D88BDA9"
     },
     {
       "op": "civic_read",
       "hex": "06000200000001000000C20000000200000001000000000100020000007431C200000001C200040000007431393401000000FCBF90E90000000000000000",
       "expect": true,
-      "note": "bucket 1 oldest first"
+      "note": "bucket 1 oldest first; Read reverses the chain (CB6)"
     },
     {
       "op": "civic_expect",
       "state": {
         "exclusions": [
-          "0x1",
-          "0xC2"
+          "0xC2",
+          "0x1"
         ],
         "status_keys": [
-          "0x1",
-          "0xC2"
+          "0xC2",
+          "0x1"
         ]
       }
     },
@@ -322,7 +334,7 @@
       "op": "civic_write",
       "expect": true,
       "length": 62,
-      "hex": "06000200000001000000C20000000200000001000000000100020000007431C200000001C200040000007431393401000000FCBF90E90000000000000000"
+      "hex": "060002000000C20000000100000002000000C200000001C20004000000743139340100000000010002000000743101000000FCBF90E90000000000000000"
     },
     {
       "op": "civic_read",
