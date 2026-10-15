@@ -1157,18 +1157,16 @@ impl TrafficSimulator {
         });
     }
 
-    /// In ReRouteTrips or FullTrips: runs on to where the original's
-    /// deadline test stops after a unit (§3.4 "before each trip"; in game
-    /// the two phases differ, TS question in the lane report): ReRouteTrips
-    /// to the next trip to examine (status 1), finishing the sources on the
-    /// way; FullTrips to the next trip of the list whatever its status, or
-    /// past the list's end to the next source's first trip. True when the
-    /// phase finished on the way (the state is left as it is); false in any
-    /// other state.
-    pub fn shadow_advance(&self) -> bool {
+    /// In ReRouteTrips or FullTrips: runs on, examining no trip, to where
+    /// the original stopped after its last unit: the end of the source at
+    /// `target` (the original's saved source cell) or the next trip to
+    /// examine, whichever comes first (`trip_run_on`). True when the phase
+    /// finished on the way (the state is left as it is); false in any other
+    /// state.
+    pub fn shadow_advance(&self, target: [i16; 2]) -> bool {
         self.run(|r| match r.st.cycle_state {
-            cycle_state::REROUTE_TRIPS => r.trip_units(false, 0, false),
-            cycle_state::FULL_TRIPS => r.trip_run_on(true),
+            cycle_state::REROUTE_TRIPS => r.trip_run_on(false, target),
+            cycle_state::FULL_TRIPS => r.trip_run_on(true, target),
             _ => false,
         })
     }

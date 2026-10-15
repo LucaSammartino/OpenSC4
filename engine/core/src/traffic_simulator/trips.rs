@@ -640,13 +640,17 @@ impl Run<'_, '_> {
         self.st.trip_pos = 0;
     }
 
-    /// The traffic shadow's run-on (tooling): where the original's deadline
-    /// test, made before each trip of a list (§3.4), stops after a unit: at
-    /// the next trip of the current list whatever its status; when the list
-    /// is done, its end (merge or `CompleteTripSourceCalculations`) and the
-    /// next source taken, up to its first trip (sources with empty lists
-    /// pass whole). True when the phase finished on the way.
-    pub(crate) fn trip_run_on(&mut self, full: bool) -> bool {
+    /// The traffic shadow's run-on (tooling): after the copy's units of a
+    /// day, the original's deadline may have stopped it at any test before
+    /// its next unit. In game it stops before a trip to examine, or at the
+    /// end of a list (after the merge or `CompleteTripSourceCalculations`,
+    /// before the next source is taken), which §3.4 does not name (TS
+    /// question in the lane report). The copy runs on without examining a
+    /// trip: past every list with no trip left to examine, until the source
+    /// at `target` (the original's saved source cell, §6.1 row 14) is ended
+    /// or a trip to examine is next. True when the phase finished on the way.
+    pub(crate) fn trip_run_on(&mut self, full: bool, target: [i16; 2]) -> bool {
+        let want = if full { status::SEARCH } else { status::REROUTE };
         loop {
             let src = match self.st.current {
                 Some(s) => s,
@@ -660,10 +664,17 @@ impl Run<'_, '_> {
                 }
             };
             let trips = self.h.trip_list(src);
-            if self.st.trip_pos < trips.len() {
+            if trips[self.st.trip_pos.min(trips.len())..]
+                .iter()
+                .any(|t| t.status == want)
+            {
                 return false;
             }
+            let at_target = self.st.extras.phase_positions == target;
             self.end_source(full, src, trips);
+            if at_target {
+                return false;
+            }
         }
     }
 

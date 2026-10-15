@@ -1818,11 +1818,14 @@ impl TrafficShadow {
         }
         self.copy.update_state(|st| st.shadow_scan_stop = None);
         let s = self.copy.cycle_state();
-        if note.is_none() && s == to && s0 == to && matches!(s, cs::REROUTE_TRIPS | cs::FULL_TRIPS) && want > p0 {
-            // The original's deadline test stops a slice at the next trip to
-            // examine (§3.4): run on to it.
+        let target = t.extras.phase_positions;
+        let moved = want > p0 || self.copy.read_state(|st| st.extras.phase_positions) != target;
+        if note.is_none() && s == to && s0 == to && matches!(s, cs::REROUTE_TRIPS | cs::FULL_TRIPS) && moved {
+            // The original's deadline stopped it after its last unit at a
+            // later test (before the next trip to examine, or at a list's
+            // end): run on to its saved source cell.
             self.month.run_ons += 1;
-            if self.copy.shadow_advance() {
+            if self.copy.shadow_advance(target) {
                 note = Some(format!(
                     "state {s}: ours found no further trip to examine after progress {want}, \
                      the original stopped before one"
