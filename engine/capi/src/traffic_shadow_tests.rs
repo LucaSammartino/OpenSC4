@@ -188,3 +188,32 @@ fn shadow_follows_the_stand_in_original() {
         fc4_traffic_shadow_destroy(std::ptr::null_mut());
     }
 }
+
+/// The capture stream's variants: `fc4_props_write_variant` gives the core
+/// writer's bytes (foundations §9.2), and nothing for an absent property.
+#[test]
+fn props_write_variant() {
+    use crate::props::{fc4_props_create, fc4_props_destroy, fc4_props_set_typed, fc4_props_write_variant};
+    unsafe extern "C" fn keep(ctx: *mut c_void, data: *const u8, len: usize) {
+        let v = &mut *(ctx as *mut Vec<Vec<u8>>);
+        v.push(std::slice::from_raw_parts(data, len).to_vec());
+    }
+    unsafe {
+        let p = fc4_props_create();
+        let vals: [u16; 2] = [7, 0x1234];
+        assert!(fc4_props_set_typed(p, 5, 0x04, true, vals.as_ptr() as *const c_void, 2));
+        let mut got: Vec<Vec<u8>> = Vec::new();
+        let ctx = &mut got as *mut Vec<Vec<u8>> as *mut c_void;
+        assert!(fc4_props_write_variant(p, 5, Some(keep), ctx));
+        assert!(!fc4_props_write_variant(p, 6, Some(keep), ctx));
+        assert!(!fc4_props_write_variant(p, 5, None, ctx));
+        assert!(!fc4_props_write_variant(std::ptr::null(), 5, Some(keep), ctx));
+        assert_eq!(got.len(), 1);
+        let holder = &*(p as *const fc4_core::property::PropertyHolder);
+        let mut w = fc4_core::stream::ByteWriter::new();
+        assert!(holder.get(5).unwrap().write(&mut w));
+        assert_eq!(got[0], w.into_bytes());
+        assert_eq!(got[0][..4], [0, 0, 0, 0]);
+        fc4_props_destroy(p);
+    }
+}

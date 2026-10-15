@@ -114,6 +114,8 @@ std::vector<EffectiveProperty> EffectiveProperties(const cISCPropertyHolder* hol
 // and shape (fc4_props_set_typed). False if absent or of a type the core does
 // not keep (empty, pointers, objects).
 bool CopyToCore(const cISCPropertyHolder* holder, uint32_t id, fc4_props* out);
+// The same for a variant (borrowed), stored as property `id`.
+bool CopyVariantToCore(const cFC4IGZVariant* v, uint32_t id, fc4_props* out);
 
 }  // namespace props
 }  // namespace fc4

@@ -11,6 +11,7 @@
 use fc4_core::property::PropertyHolder;
 use fc4_core::variant::{mem, Elem, Variant};
 
+use crate::stream::fc4_bytes_sink;
 use crate::{guard, slice_arg};
 
 #[repr(C)]
@@ -171,4 +172,32 @@ pub unsafe extern "C" fn fc4_props_set_typed(
         Variant::Scalar(items[0])
     };
     with_props(p, |h| h.add(id, v))
+}
+
+/// `WriteVariant` of property `id` (foundations §9.2: u32 0, u32 type tag,
+/// then the value) as the game's segment streams write it, handed to `sink`
+/// in one call. False when the property is absent or its type cannot be
+/// written (nothing is handed over then). Tooling: the traffic shadow's
+/// capture stream writes the variants of a record this way.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_props_write_variant(
+    p: *const fc4_props,
+    id: u32,
+    sink: fc4_bytes_sink,
+    ctx: *mut std::ffi::c_void,
+) -> bool {
+    let Some(h) = props_ref(p) else { return false };
+    let Some(f) = sink else { return false };
+    let bytes = guard(None, || {
+        let v = h.get(id)?;
+        let mut w = fc4_core::stream::ByteWriter::new();
+        v.write(&mut w).then(|| w.into_bytes())
+    });
+    match bytes {
+        Some(b) => {
+            f(ctx, b.as_ptr(), b.len());
+            true
+        }
+        None => false,
+    }
 }

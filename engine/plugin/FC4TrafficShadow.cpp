@@ -18,6 +18,7 @@
 #include "FC4Fpu.h"
 #include "FC4HostGrid.h"
 #include "FC4Log.h"
+#include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "FC4WriteCapture.h"
@@ -87,6 +88,7 @@ public:
         refs_.clear();
         ids_.clear();
         good_ = true;
+        refused_ = "nothing";
     }
 
     fc4_pollution_capture View(bool writeOk) const {
@@ -101,6 +103,9 @@ public:
     }
 
     bool Good() const { return good_; }
+    size_t RefCount() const { return refs_.size(); }
+    // The first call the stream refused (for the log).
+    const char* Refused() const { return refused_; }
     const std::vector<uint8_t>& Bytes() const { return bytes_; }
 
     // cIGZUnknown
@@ -130,12 +135,12 @@ public:
     bool SetRZCharStr(char const* s) override { return PutStr(s, s ? strlen(s) : 0); }
     bool SetGZStr(cIGZString const& s) override { return PutStr(s.Data(), s.Strlen()); }
     bool SetGZSerializable(cIGZSerializable const& s) override {
-        if (!const_cast<cIGZSerializable&>(s).Write(*this)) good_ = false;
+        if (!const_cast<cIGZSerializable&>(s).Write(*this)) Refuse("SetGZSerializable (an inner Write failed)");
         return good_;
     }
     bool SetVoid(void const* p, uint32_t n) override {
         if (n != 0 && p == nullptr) {
-            good_ = false;
+            Refuse("SetVoid (null data)");
             return false;
         }
         return Put(p, n);
@@ -174,13 +179,27 @@ public:
         SetUint32(k.group);
         return SetUint32(k.instance);
     }
-    bool WriteVariant(cIGZVariant const&) override {
+    // A variant (the neighbour pools' property holders, §6.1 row 19) as the
+    // game's segment streams write it (foundations §9.2), through the core's
+    // writer. `lenient` (a lot record): accepted, not written.
+    bool WriteVariant(cIGZVariant const& v) override {
         if (lenient_) return good_;
-        good_ = false;  // not part of the traffic record (§6)
-        return false;
+        fc4_props* tmp = fc4_props_create();
+        const bool ok = props::CopyVariantToCore(AsGame(&v), 1, tmp) &&
+                        fc4_props_write_variant(tmp, 1, &AppendBytes, this);
+        fc4_props_destroy(tmp);
+        if (!ok) Refuse("WriteVariant (a type the core does not write)");
+        return good_;
     }
 
 private:
+    static void AppendBytes(void* ctx, const uint8_t* data, size_t len) {
+        static_cast<CaptureStream*>(ctx)->Put(data, len);
+    }
+    void Refuse(const char* what) {
+        if (good_) refused_ = what;
+        good_ = false;
+    }
     bool Put(const void* p, size_t n) {
         const uint8_t* b = static_cast<const uint8_t*>(p);
         bytes_.insert(bytes_.end(), b, b + n);  // x86: already little-endian
@@ -188,7 +207,7 @@ private:
     }
     bool PutStr(const char* s, size_t n) {
         if (n > 0x00FFFFFF || (n != 0 && s == nullptr)) {
-            good_ = false;
+            Refuse("a string");
             return false;
         }
         SetUint32(static_cast<uint32_t>(n));
@@ -211,6 +230,7 @@ private:
     std::vector<fc4_pollution_capture_ref> refs_;
     std::vector<const void*> ids_;
     bool good_ = true;
+    const char* refused_ = "nothing";
 };
 
 CaptureStream g_before;
@@ -252,6 +272,7 @@ const void* g_shadowFailedFor = nullptr;
 // Write record's last byte, §6.3), and the counts for the status line.
 std::unordered_map<uint64_t, uint8_t> g_strategyBytes;
 uint32_t g_strategyReads = 0;
+uint32_t g_captureFailures = 0;
 uint32_t g_strategyFailures = 0;
 
 // The delivery being wrapped.
@@ -464,6 +485,11 @@ fc4_pollution_capture Capture(CaptureStream& s) {
         FC4_ACQUIRED(ser, "QueryInterface");
         ok = ser->Write(s);
         FC4_RELEASE(ser);
+        if ((!ok || !s.Good()) && ++g_captureFailures <= 3) {
+            Log("traffic shadow: the original's Write into memory failed (Write returned %d, the stream refused %s; "
+                "%u bytes, %u references)",
+                ok ? 1 : 0, s.Refused(), static_cast<unsigned>(s.Bytes().size()), static_cast<unsigned>(s.RefCount()));
+        }
     } else if (!g_loggedNoSerializable) {
         g_loggedNoSerializable = true;
         Log("traffic shadow: the original traffic simulator does not answer cIGZSerializable; its record cannot "

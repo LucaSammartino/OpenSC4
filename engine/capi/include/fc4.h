@@ -843,6 +843,11 @@ size_t fc4_props_count(const fc4_props* p);
  * (is_array false) needs count 1. False for other types or a bad count. */
 bool fc4_props_set_typed(fc4_props* p, uint32_t id, uint16_t mem_type, bool is_array, const void* data,
                          size_t count);
+/* WriteVariant of property `id` (foundations 9.2: u32 0, u32 type tag, the
+ * value) as the game's segment streams write it, handed to `sink` in one call;
+ * false when absent or not writable (ABI 52; tooling: the traffic shadow's
+ * capture stream). */
+bool fc4_props_write_variant(const fc4_props* p, uint32_t id, fc4_bytes_sink sink, void* ctx);
 
 /* ---- weather (docs/specs/weather.md) ------------------------------------------
  * The weather simulator's core. The shim owns the GZCOM object (agents,

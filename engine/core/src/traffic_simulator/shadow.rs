@@ -1214,6 +1214,9 @@ fn show_variant(v: &Option<Variant>) -> String {
 }
 
 fn date(julian: i32) -> String {
+    if julian <= 0 {
+        return "(no date yet)".to_string();
+    }
     let d = civil_from_julian(julian);
     format!("{:04}-{:02}-{:02}", d.year, d.month, d.day)
 }
