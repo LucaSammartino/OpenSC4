@@ -1394,3 +1394,58 @@ fn hostile_inputs() {
     let _ = SimGrid::<u8>::new();
     assert!(!sim.read(&mut ByteReader::new(w.bytes())) || sim.data().loaded);
 }
+
+/// §5.1 (PR17, PR18): `UpdateUnadjusted` keeps ONE effect record across the
+/// station and dispatch loops. A dispatch whose source station has no
+/// dispatch centre fails `GetDispatchEffect`, which zeroes only x, z and the
+/// centre; its AL is ignored and the cone is drawn with centre 0 and the
+/// previous dispatch's outer and radius: an inverted cone, 0 at the
+/// dispatch's tract.
+#[test]
+fn pr17_a_failed_dispatch_draws_the_leftover_inverted_cone() {
+    let (host, sim) = setup(ProtectionKind::Fire, 64, &[]);
+    shipped(&host, ProtectionKind::Fire);
+    sim.init();
+    let p = ProtectionKind::Fire.params();
+    host.item(77, p.purpose, 1.0, true);
+    host.set(77, p.dispatch_effect_props[0], Variant::Scalar(Elem::I32(40)));
+    host.set(77, p.dispatch_effect_props[1], Variant::Scalar(Elem::I32(40)));
+    host.set(77, p.dispatch_effect_props[2], Variant::Scalar(Elem::F32(64.0)));
+    let dispatch = |id: u32, station: u64, x: f32| {
+        (
+            id,
+            DispatchInfo {
+                station,
+                call_id: id,
+                active: true,
+                x,
+                z: 330.0,
+            },
+        )
+    };
+    // Station 79 has no dispatch properties at all.
+    host.dispatches.borrow_mut().push(dispatch(1, 79, 650.0));
+    sim.update_unadjusted();
+    let unadj = sim.unadjusted_grid().unwrap();
+    // Alone, it reads the zeroed record (the original's is uninitialised;
+    // zero is the only reproducible value): radius 0, nothing added.
+    assert!((15..26).all(|x| unadj.get(x, 10) == 0));
+    // After a dispatch from station 77 (centre 40, outer 40, radius 64 m =
+    // 2 tracts at (10, 10)), the failed one keeps outer 40 and radius 2.
+    host.dispatches.borrow_mut().insert(0, dispatch(2, 77, 330.0));
+    sim.update_unadjusted();
+    assert_eq!(unadj.get(10, 10), 40);
+    assert_eq!(unadj.get(11, 10), 40);
+    // The inverted cone at tract (20, 10): 0 at the centre, rising towards
+    // the outer 40 within the leftover radius of 2 tracts.
+    assert_eq!(unadj.get(20, 10), 0);
+    let near = unadj.get(21, 10);
+    assert!(near > 0 && near < 40, "{near}");
+    assert_eq!(near, unadj.get(19, 10));
+    assert_eq!(near, unadj.get(20, 11));
+    assert_eq!(unadj.get(22, 10), 0);
+    // A zeroed record per dispatch (the old [choice]) would add nothing there.
+    let (ok, e) = sim.dispatch_effect(79);
+    assert!(!ok);
+    assert_eq!((e.centre, e.outer, e.radius), (0, 0, 0.0));
+}

@@ -9,7 +9,7 @@
 //! references on tokens, stores holder properties and implements the streams.
 
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::c_void;
 
 use crate::budget::*;
@@ -36,6 +36,8 @@ struct Game {
     posts: RefCell<Vec<fc4_budget_message>>,
     history: RefCell<Vec<(u32, i32)>>,
     props: RefCell<HashMap<(u64, u32), Vec<u64>>>,
+    /// Properties stored as scalars (one value in `props`; EX39).
+    scalars: RefCell<HashSet<(u64, u32)>>,
     lots: RefCell<Vec<fc4_lot_info>>,
     ordinance_income: Cell<i64>,
     month: Cell<i32>,
@@ -50,6 +52,7 @@ impl Game {
             posts: RefCell::new(Vec::new()),
             history: RefCell::new(Vec::new()),
             props: RefCell::new(HashMap::new()),
+            scalars: RefCell::new(HashSet::new()),
             lots: RefCell::new(Vec::new()),
             ordinance_income: Cell::new(0),
             month: Cell::new(1),
@@ -87,6 +90,7 @@ impl Game {
             add_ref: Some(add_ref),
             release: Some(release),
             create_object: Some(create_object),
+            property_is_array: Some(property_is_array),
         });
         g
     }
@@ -229,6 +233,16 @@ unsafe extern "C" fn set_f32s(u: *mut c_void, h: u64, p: u32, v: *const f32, n: 
         .collect();
     game(u).props.borrow_mut().insert((h, p), vals);
     true
+}
+unsafe extern "C" fn property_is_array(u: *mut c_void, h: u64, p: u32) -> i32 {
+    let g = game(u);
+    if !g.props.borrow().contains_key(&(h, p)) {
+        -1
+    } else if g.scalars.borrow().contains(&(h, p)) {
+        0
+    } else {
+        1
+    }
 }
 unsafe extern "C" fn class_of(u: *mut c_void, t: u64) -> u32 {
     game(u).handle_of(t).0
@@ -800,5 +814,52 @@ fn shadow_tax_matches_compute_tax_and_writes_nothing() {
         assert!(!fc4_budget_shadow_tax(&h, 0, false, 2, rates.as_ptr(), None, none, &mut small));
         assert!(!fc4_budget_shadow_tax(&h, 0, false, 2, std::ptr::null(), None, none, &mut scan));
         assert!(!fc4_budget_shadow_tax(std::ptr::null(), 0, false, 2, rates.as_ptr(), None, none, &mut scan));
+    }
+}
+
+unsafe extern "C" fn push_item(ctx: *mut c_void, item: *const fc4_budget_item) {
+    (*(ctx as *mut Vec<fc4_budget_item>)).push(*item);
+}
+
+/// data-formats §5.2 (EX39): the budget item arrays are read with the original's vector helpers, so a cost stored
+/// as a scalar (two shipped landfill tiles hold `0xEA54D286` as a Sint64 scalar) gives no cost entry: the item's
+/// cost is 0 and ChangeBudgetItemCost finds no entry to change. The host's `get_i64s` still converts the scalar to one value
+/// (the converting getter); `property_is_array` tells them apart. Without that callback the old one-value reading
+/// stays.
+#[test]
+fn ex39_a_scalar_item_cost_reads_as_empty() {
+    let g = Game::new();
+    unsafe {
+        let (_, bh) = g.create(CLSID_BUDGET);
+        let b = bh as *mut fc4_budget;
+        assert!(fc4_budget_init(b, 0, false));
+        let (ht, _) = g.create(HOLDER_CLASS);
+        let u = g.host().user;
+        set_u32s(u, ht, 0xEA54_D283, [4096u32].as_ptr(), 1);
+        set_i64s(u, ht, 0xEA54_D286, [10i64].as_ptr(), 1);
+        g.scalars.borrow_mut().insert((ht, 0xEA54_D286));
+        let mut v = [0i64; 1];
+        // The converting read keeps 10.
+        assert_eq!(get_i64s(u, ht, 0xEA54_D286, v.as_mut_ptr(), 1), 1);
+        assert_eq!(v[0], 10);
+        let mut items: Vec<fc4_budget_item> = Vec::new();
+        let ctx = &mut items as *mut Vec<fc4_budget_item> as *mut c_void;
+        assert!(fc4_budget_get_budget_item_info(b, ht, Some(push_item), ctx));
+        assert_eq!(items.len(), 1);
+        // vec<s64> of a scalar is empty: no cost entry.
+        assert_eq!((items[0].department_id, items[0].cost), (4096, 0));
+        // ChangeBudgetItemCost finds no entry 0 in the empty array: nothing is written (it still reports true).
+        fc4_budget_change_budget_item_cost(b, ht, 0, 5);
+        assert_eq!(get_i64s(u, ht, 0xEA54_D286, v.as_mut_ptr(), 1), 1);
+        assert_eq!(v[0], 10, "the scalar is left alone");
+        // The same value stored as a one-element array is an entry.
+        g.scalars.borrow_mut().clear();
+        items.clear();
+        let ctx = &mut items as *mut Vec<fc4_budget_item> as *mut c_void;
+        assert!(fc4_budget_get_budget_item_info(b, ht, Some(push_item), ctx));
+        assert_eq!(items[0].cost, 10);
+        // A department scalar is an empty department array: no items [literal reading].
+        g.scalars.borrow_mut().insert((ht, 0xEA54_D283));
+        assert!(!fc4_budget_get_budget_item_info(b, ht, None, std::ptr::null_mut()));
     }
 }

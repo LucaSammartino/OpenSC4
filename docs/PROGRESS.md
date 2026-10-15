@@ -64,7 +64,7 @@ budget is off by default (enable = <key>).
 - [x] Growth, building development and tract developer spec questions answered in the specs (8fdea4e)
 - [x] Daily growth budget calibrated in the original (growth probe merged 393a529; run 93: 14,339 days, the 3 ms timer never cuts, so the default is unlimited)
 - [ ] Seeding rules (foundations §6.3)
-- [x] **Development glue** (building development simulator, growth developers and `development_shadow`; merged c787ecf, fixed in devglue2 38524aa): the catalogue loads 744/744 types and 281 families, the shadow is exact (913/913 in regress m850, run 104), and the replacement grows like the original at equal pacing. Our unit is about 3x slower per game day
+- [x] **Development glue** (building development simulator, growth developers and `development_shadow`; merged c787ecf, fixed in devglue2 38524aa): the catalogue loads 744/744 types and 281 families, the shadow is exact (913/913 in regress m850, run 104), and the replacement grows like the original at equal pacing. Our unit is about 3x slower per game day; the DG4/DG5/DG6/DG11 answers are applied (apply10a, merged b398049: BDS foundation and retaining wall slots 23/26/29, the budget item cost sum; regress run 110 PASS)
 - [x] Tract developer glue (merged on main 76bf685; regress mtract PASS, run 109)
 - [ ] Lot developer glue (lane running); zone developer and lot manager, zones phase 2 (lane running); re-specs11 fills their spec gaps (lot developer levelling and foundations, creating game lots)
 - [x] Specs: commercial and industrial simulators, civic buildings, park manager, history warehouse, 24-hour clock (re-specs9, a3599a0)
@@ -84,6 +84,7 @@ budget is off by default (enable = <key>).
 - [x] `engine/formats` matches spec §11 for DBPF, QFS and LTEXT (merged b5bdf8a; the sweep over real game data shows 0 failures across 22 .dat files and 1,004 saves)
 - [x] `exemplar.rs` matches data-formats §4, §5 and the §11 exemplar rows (merged 64a25d2): the install sweep loads 9,347 of 9,347 exemplars and re-encodes 9,345 binary records byte-identically
 - [x] FSH texture and S3D model readers (graphics-formats §2–§4, merged 2db780b): `fc4-dat fsh|s3d`; the sweep reads every FSH and S3D in the install
+- [x] Occupant model keys (graphics-formats §4.2, GF7; apply10b, merged 0f3ad91): the zoom mask, RKT0–RKT5 and the RKT4 record walk; `fc4-dat models`; the install sweep reproduces the spec's survey exactly
 - [ ] Rendering, UI, audio, region; a standalone executable
 
 **Cross-cutting**

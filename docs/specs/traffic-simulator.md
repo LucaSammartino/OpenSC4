@@ -84,16 +84,35 @@ traffic-network.md.
    §4.1), zero-filled.
 5. Allocates the cell connection array (traffic-network.md), the generator `cRZRandomSuper` seeded from the wall
    clock (§4.15), the scanning iterator over the city rect (simulator.md §5.5 slicing), and the department budgets:
-   roads (`0xC921CEEA`) and mass transit (`0xC921CEEB`) with line items 1…6 (budget.md §7–§8).
+   roads (`0xC921CEEA`) and mass transit (`0xC921CEEB`) with line items 1…6 (budget.md §7–§8; the exact calls are
+   in §9.1, TG7).
 6. Creates two pathfinders through its own slot 6 (`CreatePathFinder`): **pf** (outbound) and **pf2** (return trip).
 7. Creates the lot iterator (lot manager slot 15), the traffic-source iterator (§4.2), its property holder, the
    ferry `cSC4WaterPathFinder` (traffic-network.md) and the accident timer.
 
+**Init after Read** (TG4). In a city load every saved object is `Read` **before** any `Init` (foundations §3.7), so
+this is the normal order, not a special case. Init keeps what Read loaded: each grid, the scanning iterator, the
+generator, the two departments, the pathfinders and the lot iterator are created **only when the member is still
+null** (`0x0071E9BC`–`0x0071EC32` grids; `0x0071F461` iterator; `0x0071F132` generator; `0x0071F1AF`, `0x0071F263`
+departments; `0x0071F50A`, `0x0071F529` pathfinders; `0x0071F54C` lot iterator). The cycle state is set to 0 only
+together with a newly created scanning iterator (`0x0071F4FE`), so a loaded state survives. The destination map is
+resized and zeroed only when its row count differs from `W + 2` (`0x0071EE7E`). What Init rebuilds unconditionally
+is unsaved: the tuning values (§4.14), the agent registrations and subscriptions, the four neighbour edge vectors
+(zero-filled to W or H entries, `0x0071E961`–`0x0071E99D`), the per-cell network-info table (`0x0071EFF3`) and the
+cell connection array (allocated anew and filled with the empty record, `0x0071F0DF`); DoPostCityInit (§3.5)
+rebuilds those from the city.
+
 The constructor (`0x0071F830`; tuning defaults in §4.14) sets the cycle state to 0 (StartRecalc), the last
 seen day of month to −1, the strike state to "no strike" (2) and the transit-switch cost multiplier to 1.0.
 
-**Shutdown** (slot 4, `0x00719290`) releases the pathfinders, grids, departments and iterators *[inferred: order not
-part of the contract]*.
+**Shutdown** (slot 4, `0x00719290`, TG11): returns at once (true) when not initialised. Otherwise it clears the
+initialised flag, releases the pathfinders, grids, departments and iterators *[inferred: that order is not part of
+the contract]*, then unsubscribes the nine messages of Init step 3 (in the order `0xC2C09554`, `0x08DAC3E7`,
+`0x99EF1142`, `0x99EF1143`, `0x26D31EC1`, `0xE8BDA2E7`, `0xC53D10AA`, `0x8A0D15DA`, `0xEA0D163E`) and releases the
+message server, then removes its agent from **every** level with `cISC4Simulator::RemoveAgent(object + 4)` (slot 20,
+the one-argument overload) on the city's simulator (city slot 50 `GetSimulator`; skipped when null,
+`0x00719807`–`0x00719821`). It then releases the strategy-bucket and other containers, the property holder and the
+ferry water pathfinder (its own `Shutdown` first), and returns true.
 
 ## 2. State
 
@@ -421,8 +440,11 @@ cell).
 
 **Traffic-source iterator** (`Reset` `0x007107A0`, `GetNext` `0x007107F0`): all lots in the lot manager's list
 order (lot manager slot 15), then all neighbour connections in the neighbour simulator's list order
-(`GetAllConnections`, slot 16). Each step yields the source's location and its traffic-source interface
-(`AsTrafficSource`, slot 4; AddRef'd).
+(`GetAllConnections`, slot 16). Each step yields the source's location and its traffic-source interface. The
+interface comes from `AsTrafficSource` (lot slot 4 `0x006C2050`, a plain cast to `lot + 0x1C`, **no** AddRef;
+TG16); the iterator then calls `AddRef` (slot 1) on the lot or connection object itself (`0x0071084E`,
+`0x007108A7`), so the caller holds one reference per source handed out. The iterator has no other lot order and
+no fallback: it never asks for lots by rectangle (TG10).
 
 The two halves differ in when they are fixed (TS20). `Reset` runs on entering states 16, 17 and 18 and on the
 DoPostCityInit resume (§3.5).
@@ -1541,7 +1563,7 @@ interfaces.tsv); return channel read from the epilogues. AL = bool/byte (upper E
 | 31 | +0x7C | `0x0071C250` | `GetFerryRoutesInUse(list&)` | 4 | AL | traffic-network.md |
 | 32 | +0x80 | `0x0071FFF0` | `uint32 GetFerryTerminalCount(uint32 type)` | 4 | EAX | |
 | 33 | +0x84 | `0x0070EC10` | `GetWaterRoute(…, vector<uint8>&)` | 20 | AL | traffic-network.md |
-| 34 | +0x88 | `0x00720000` | `const TrafficStats* GetTrafficStats()` | 0 | EAX | pointer to the statistics block (§4.9); **SDK**: `intptr_t` is a pointer |
+| 34 | +0x88 | `0x00720000` | `const TrafficStats* GetTrafficStats()` | 0 | EAX | pointer to the published statistics block (§4.9), simulator `+0x1E4`; the block is **0x23C** bytes (last field the u8 at `+0x238`, 4-byte aligned; the next member is at `+0x420`; the working set has the same layout at `+0x440`; constructor `0x0071FDD3`–`0x0071FECF`; TG5); **SDK**: `intptr_t` is a pointer |
 | 35 | +0x8C | `0x0071CB80` | `bool GetTransitSwitchQueryData(uint32 x, uint32 z, TransitSwitchQueryData&)` | 12 | AL | §4.16 (five 32-bit fields); target lookup traffic-network.md |
 | 36–41 | +0x90…+0xA4 | `0x00710540`, `0x00711A70`, `0x007106C0`, `0x00711B50`, `0x00718D20`, `0x00718F90` | AreLotsConnected, GetConnectedOccupantCount, GetConnectedDestinationCount, GetSubnetworksForLot, GetSubnetworksInRectangle, GetSubnetworksInRegion | 8 each | AL / EAX | traffic-network.md |
 | 42 | +0xA8 | `0x007143B0` | GetOccupantCountForAllSubnetworks | 8 | | traffic-network.md |
@@ -1598,6 +1620,137 @@ writes the other's members directly.
   replacement simulator relies on their trip lists (allocator B) and must leave their format intact.
 * Internal-only containers: the bucket multimap, accident-prone lists, edge-density and transit-switch hashes (but
   the record layout of slot 12 is public), per-type vectors, the source iterator's list (allocator A).
+
+### 9.1 Facts for a replacement in game (TG1–TG22, re-answers10)
+
+The traffic glue lane asked these after its phase 1. Each item gives the original's rule; where the original has no
+behaviour (a glue-only case), it says so.
+
+**What the simulation reads from the game (TG2).** The FreeCity4 host callbacks are named by the glue, not by the
+original, so this list goes by what the original reads. Everything in the first table changes routes, volumes,
+money or trips, so a replacement that leaves it out differs from the original in its maps and its budget.
+
+| Original read | Where | Needed for |
+|---|---|---|
+| Occupant manager slot 41 (`GetOccupantsByStandardCityCells`, typed, network occupants `0xC772BF98`) over a rectangle | DoConnectionsChanged step 3 (traffic-network §4.2), lane continuity step 2 (§4.4), switch and ferry-terminal activation (§4.7.1, §4.9.1) | every rebuild of the cell graph: each occupant in the grown rectangle is re-read, not only the one in the message |
+| Network occupant slot 53 `PathConnection(pathType, entry, exit)` and slot 49 `GetPathInfo`, then path info slots 4 (turn-around), 14 and 3 (car paths by entry, first vertex) and 7 (paths near a point) | traffic-network §4.2, §4.4 | the connection bits, the turn-arounds on dead ends and the lane-continuity masks next to elevated and highway pieces; routes change without them |
+| The paired portal of `cSC4NetworkTunnelOccupant` (a member of the concrete class) | traffic-network §4.8 | tunnel records; with no pair no record is made and the tunnel carries no trips |
+| The lot's own strategy byte (`cSC4Lot` + `0x88`, that is traffic source + `0x6C`, read at `0x006C2986`; no interface getter) | §4.1.1 | which single strategy a residential lot with fewer than 50 commuters uses; only needed when the replacement computes the lots' trip targets itself instead of calling the lot's own `UpdateTrafficVolume` (traffic source slot 4) |
+| The neighbour connection's volume-dirty byte (connection + `0x40`), tested and cleared | §4.1.4 (neighbors.md NG8) | the trip reconcile of a neighbour connection: it runs **once per connection object** (after creation, or after the load that created it). Treating the flag as always clear means no neighbour trips; treating it as always set re-syncs a connection whose other side was missing at its first sync, which the original never does |
+| The roads and mass-transit departments' monthly cost update (`UpdateRoadsBudget` `0x0070D8A0`, `UpdateMassTransitBudget` `0x0070DA40`) and the monthly funding reads (`ApplyRoadFunding`, `ApplyMassTransitFunding`, `UpdateStrikes`) | §3.5 step 14, §3.6, §4.9 step 3, §4.12 | the transport line items of the city budget, potholes and strikes |
+
+Not needed for the simulation:
+
+| Original read | Why not |
+|---|---|
+| The wall clock for the 4 ms slice deadline (§3.3) | replaced by the unit budget (§3.4) |
+| The accident check: the accident timer (wall clock), the view's visible cell rect (global view `0x00B43DD8` + `0x3EC`), the network-occupant test of the cell and `cSC4TrafficAutomataManager::CreateAccident` (§4.13) | `CheckForAccident` (`0x007184E0`) runs from `DoMonthlySimulation` (`0x00718AF4`) only when the wall-clock timer has expired, considers only visible cells, and its only results are an automaton and a message with no compiled receiver (§5). Its one simulation-side effect is the draws it takes from the simulator's generator, which is seeded from the wall clock (§4.15), so the effect is not reproducible in the original either. Leaving it out loses the visible car crashes only. |
+| The occupant filter of pathfinder filter 2 | filter 2 is unreachable (pathfinder.md §4.10.3, Q2) |
+
+**TG1, a route deque.** The original fills it (pathfinder.md §4.13 step 5, §4.12 fallback), and the traffic
+automata, emergency dispatch, MySim dispatch and the query tool depend on it (pathfinder.md §9). A `FindPath` that
+returns 0 when a deque is set therefore **differs**: those callers get no route. The deque layout is in
+pathfinder.md §7.
+
+**TG3, trip records.** Four parts of the game read the trips from the lots' and connections' own lists
+(`GetTripDataList`, traffic source slot 3 = `lot + 0x84` as an STLport `std::list<cSC4TripData>`, allocator B), in
+the `0x2C`-byte layout of §2:
+- the lot's `Write` and `Read` (§6.3, `0x006C0080`, `0x006C35F0`) and the neighbour connection's;
+- the query tool's route display (`cSC4ViewInputControlQuery::ShowAllRoutesThatIntersectCityRect` `0x004CA460`
+  walks the lot list, then each lot's trip list through lot slot 4 and source slot 3, `0x004CA67C`–`0x004CA6BF`;
+  `MakeRoutePath` `0x004C5E20` reads `route`, `returnRoute` and the reversible flag at `+0x1E`) and
+  `CalculateTripVolumeFromTrafficPaths` (`0x004CFD20`);
+- `SetupPathFinderForLot` (slot 7, §4.4), which reads the list of the lot it is given.
+
+A private record type is acceptable only if those lists still hold the trips in this layout whenever one of those
+readers runs: copied in from the lists at load (after the lots' `Read`), written back before the lots' `Write`, and
+kept current for the query tool. Otherwise a save loses every trip (the next load starts with status 0 everywhere,
+so a whole cycle of full searches) and the route display shows nothing.
+
+**TG5, slot 34.** 0x23C bytes (§7).
+
+**TG6, slot 22.** Returns the lot iterator only while the cycle state is 1, else null (`0x00720010`). No transition
+leads to state 1 (§3.2) and DoPostCityInit turns a loaded 1 into 0 (§3.5 step 11), so null is exact except between
+the `Read` of a foreign save holding state 1 and PostCityInit. Returning null matches.
+
+**TG7, departments.** `CreateDepartmentBudget` returns an existing department unchanged (budget.md §7), so "get,
+else create" is the same thing. The original's calls, made **only when the member is still null** after Read
+(roads `0x0071F1AF`, mass transit `0x0071F263`): `CreateDepartmentBudget(id, group 0xAA369059)` (budget simulator
+slot 25), `AddRef` (the simulator keeps a reference), `SetDepartmentName(0x6A3FF01C, name)`,
+`SetMaxAllowedFundingPercentage(&maxFunding)` (§4.14, TS29), then the line items:
+
+| Department | Name | Line items created with it (`CreateLineItem(i, false)` then `SetName(0x6A3FF01C, n)`) |
+|---|---|---|
+| Roads `0xC921CEEA` | `0x4A493B73` | 1: `0xEA8446BE`; 2: `0x2A8446DA`; 3: `0x2A8446DF` |
+| Mass transit `0xC921CEEB` | `0xEA493B83` | 1: `0xEA5F96E7`; 2: `0x8A5F978C`, **type Income** (`SetType(1)`); 3: `0x6A8B0CFB` |
+
+Then, on every Init, loaded departments included, each of these line items is created only if `GetLineItem(i)`
+returns null (`0x0071F336`–`0x0071F45E`, in this order): mass transit 4 `0x2AB7EA93`, mass transit 5 `0x8BCE33E0`,
+roads 4 `0xCBCE33D5`, mass transit 6 `0x8BCE33E1`, roads 5 `0x0C3BF3C4` **type Income** (tolls), roads 6
+`0xEA5F96E7`. A loaded department keeps its saved maximum funding (no `SetMaxAllowedFundingPercentage`). The bracket
+(group 0, no names or types) **differs** in the group, the names and the two income lines; the budget window and
+the income totals show the difference.
+
+**TG8, `GetLanguageUtility`.** Borrowed: the language manager returns a pointer to its own member
+(`0x00924B50`), and `FindHighwayReturnTile` (`0x0070DD30`) neither AddRefs nor releases it. Matches.
+
+**TG9, budget items on activation.** As §4.1.3 step 3, with the arguments: `GetBudgetItemForPurpose(building
+holder, purpose, &item)` (slot 51), then, when the lot was found, `CopyBudgetItemProperties(building holder, lot
+holder)` (slot 58, source first) and `AddBudgetItemToBudget(lot holder, item.index)` (slot 55; the index is the
+item record's `+0x18`, the cost its int64 at `+0x10`) (`0x00724000`–`0x007240DF`). Matches.
+
+**TG10, lot order.** Only the master list through the lot manager's safe iterator (§4.1). The rectangle query has
+no counterpart; as a fallback that the game never needs it is acceptable, but it must not run in normal play.
+
+**TG12, a null department.** No original behaviour: the original never checks (DoMonthlySimulation calls the
+department at `0x00718AC4` without a test), and a department is null only after a failed `Read`. 1.0 (full
+funding) is accepted.
+
+**TG13, slot 12.** The original returns a pointer into the edge-density hash node (`0x007114D4`), valid until that
+record is erased (network occupant removed, §3.1), or the shared all-zero record `0x00AB31D0`. The record is live:
+later Dump and Reduce passes change what the pointer shows. A ring of 64 copies is accepted as a choice: the values
+are those at the time of the call, and the pointer must stay valid at least until the caller's next call.
+
+**TG14, slot 29.** The original returns a pointer to the route vector stored in the ferry terminal's link
+(traffic-network §4.9.5), valid until the terminal tables are rebuilt; the ferry pass of state 19 rewrites its
+contents. A vector kept per tile pair is accepted if it holds the current route at each call, is an STLport
+`vector<u8>` (allocator B) and is null in exactly the cases of the table there.
+
+**TG15 and TG21 (slot 19), the capacity slots.** Slots 19, 20 and 21 use no simulator state at all: each reads or
+writes property `0x8A0B4100` on the holder it is given (`0x0070DF70`, `0x0070DF90`, `0x0070E050`; §4.2). A direct
+property read or write without the simulator's lock matches, on any thread; for slot 19 that is the normal path,
+not a fallback.
+
+**TG11, Shutdown.** As §1. The bracket matches.
+
+**TG16, `AsTrafficSource`.** Borrowed (§4.1). Matches.
+
+**TG17, `CreatePathFinder(null)`.** No original behaviour: the original writes through the pointer without a test
+(`0x0070D897`) and would fault. Returning false is accepted.
+
+**TG18, `SetupPathFinderForLot` with a pathfinder another simulator made.** The original configures the pathfinder
+only through its interface (§4.4), so it would configure any `cISC4PathFinder`. Returning false differs, but the case
+cannot arise when ours is the city's simulator, because every pathfinder then comes from our slot 6. Accepted;
+configuring it through the interface would match.
+
+**TG19, stale tokens.** Lots: a lot removed before the iterator reaches it is skipped, as in the original (the safe
+iterator, §4.1). Connections **differ**: the original's connection list is a snapshot of counted references taken
+at `Reset` (entering 16, 17 and 18), so a connection removed during the phase is still visited and its trips are
+still routed until the next `Reset`.
+
+**TG20, messages with an object.** Matches: only `0xE8BDA2E7` (the lot, from the message's IGZUnknown,
+`0x007245E9`, QI `0xE818FCED`, released after the handler) and `0x99EF1142`/`0x99EF1143` (the occupant, from void1,
+`0x00724317`, QI `0xA821EF94`) are read for an object. `0x08DAC3E7` reads only data2 and then the simulator's own
+mass-transit department (`0x00724220`); the neighbour messages read data1–data3; the others read nothing.
+
+**TG21, a busy lock.** The original handles every message on the delivering thread, with no lock, and drops none
+(as neighbors.md NG33). Dropping a message differs whenever it happens; it is acceptable only if counted and
+never seen in normal play.
+
+**TG22, units per slice.** No original constant (TS27, §3.4). In the original the work of a trip-phase day is the
+share `total/days` plus the overshoot of the last 4 ms slice, so the per-day cost of traffic is the share, whatever
+the slice length; N changes only the overshoot. 16 is accepted; the turbo cost against a city without traffic is
+the cost of the share, which the original pays too.
 
 ## 10. Quirks and open questions
 

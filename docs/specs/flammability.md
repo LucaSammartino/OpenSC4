@@ -398,6 +398,68 @@ until their next visit, a whole cycle later, so at the next comparison they stil
 previous-value rule covers them at this comparison but not at the next. *[choice]* Mark such a pass in both cycles:
 carry its marks for the tracts that the new cycle has already visited.
 
+**Which tracts the new cycle has visited** (QUESTIONS FL10, FL12, from the exe). The original's own iterator says so
+exactly, and a shadow can read it. The flammability simulator holds a pointer to its random cell iterator at
+`+0x30` (`DoDailySimulation` `0x006AF915`). The iterator (`next` `0x0049CB10`) keeps:
+
+| Offset | Field |
+|---|---|
+| `+0x00` (u8) | state: 2 = exhausted, anything else running |
+| `+0x01` (u8) | mode: non-zero = prime-step, 0 = table |
+| `+0x04`, `+0x08`, `+0x0C`, `+0x10` (s32) | x0, z0, x1, z1 (inclusive) |
+| `+0x14` (s32) | count |
+| `+0x24` (s32) | index (visits made since the last reset) |
+| `+0x28` (s32) | current |
+| `+0x2C` (s32) | step |
+
+The reset that follows `EndOfCycle` sets index 0 and current := `rand() mod count` (weather §6.7). Each visit then
+adds `step` to current (mod count) and 1 to index, and visits the cell `(x0 + current mod w, z0 + current div w)`,
+w = x1 − x0 + 1. So, at any moment after the wrap, the new cycle has visited exactly `index` tracts. They are the
+positions `(current − j × step) mod count` for j = 0 … index − 1 (computed in 64 bits, or with the modulus taken
+before each subtraction, to stay non-negative). Read at the comparison's own poll, these give:
+
+- **FL10 (marks to carry).** Exactly the tracts that are both in that visited set and changed state at a poll from
+  the wrap day's poll up to the comparison's own poll. Carrying every tract that changed in that window, visited or
+  not, is a superset. It only lets a tract the new cycle has not yet visited accept either state at the next
+  comparison, where it has been revisited under the new state anyway. It never rejects a correct value.
+- **FL12 (the bound).** The number of new-cycle tracts at the comparison is `index` itself. The original has no fixed
+  bound for it: the remainder of the wrap day, plus `tractsPerDay` for every further SimNewDay that the same
+  simulator tick opens (§9). Each round of the tick's loop opens at most one day (simulator §5.1–§5.2), so under a
+  clock with a very short day the count grows with the frame budget, not with the speed setting. A bound taken from
+  the previous comparison is a heuristic, not a bound.
+
+**Counting days instead** (QUESTIONS FL11). The shadow's own day count is glue, with no original counterpart. It
+drifts in two ways that the iterator does not:
+
+- It starts at the shadow's first event, not at the original's `Init`, while the first SimNewDay after every `Init`
+  (new city or load) wraps at once (§6.5).
+- It uses the shadow's `tractsPerDay`, which equals the original's only when both use the same tract counts and
+  period 40.
+
+A count that is off by whole cycles is not seen by comparing the number of cycle ends. *[choice]* Prefer reading
+the iterator: at the comparison, state 2 never occurs (the reset has run) and `index` is the new cycle's position,
+so nothing can drift. Keeping the count as a fallback, as the bracket does, is acceptable when the iterator cannot
+be read (a replaced simulator).
+
+**What to poll when the game's own simulator delivers the days** (QUESTIONS FL13). The original reads the watered
+state only through plumbing slot 11 (`IsCellWatered`), inside its level-4 day delivery. It never calls
+`GetWateredGrid`. Facts that bound what a shadow outside the simulator can see:
+
+- Every message the shadow receives is delivered at a message-server tick. That includes the forwarded occupant,
+  season and ordinance messages, the posted SimNewDay broadcasts and SimCycleComplete. In every frame that tick runs
+  before the simulator's (§9), so a poll there sees the state after all of the previous frame's visits.
+- When one simulator tick opens several days, their SimNewDay broadcasts all arrive in the next message-server tick,
+  after all of those days' visits. Polls on them all see the same state.
+- Between two polls the plumbing may swap its grid any number of times (FL7). A state that exists only between two
+  polls cannot be seen from outside the simulator. Only an agent can poll between visits, and the original orders a
+  level's agents by object address (simulator §4), so not even a level-4 agent is guaranteed to run right after the
+  flammability simulator.
+
+*[choice]* Polling at every forwarded message plus the cycle end, as the bracket does, is the finest grain available
+without an agent; one poll per frame would be as good. A content poll needs only slot 11 (or the published grid
+when it can be read). Requiring a non-null `GetWateredGrid()` is a glue limitation: fall back to slot 11 over the
+city's cells when the grid pointer is null.
+
 Each cycle visits every tract exactly once, `tractsPerDay` tracts per day; the wrap usually falls inside a day and
 that day continues into the next cycle. Because the iterator count is 0 after `Init` (§4.1), the **first** call
 after every `Init` (new city or load) wraps at once: an empty `EndOfCycle` runs on the first SimNewDay. For a
@@ -548,7 +610,8 @@ most about `1000 / targetFps` ms: 66 ms at speed 2, 50 ms at speed 1, 33 ms at s
 `msPerDay` {2000, 1000, 50} a second day fits only at speed 2. So at delivery, **at most 2 × `tractsPerDay`**
 tracts have been visited in the new cycle (at most `tractsPerDay` at speeds 0 and 1). A shadow's bound of
 2 × `tractsPerDay` is right for shipped tuning. A mod with a shorter day at speed 2 raises it to about
-(1 + ⌊66 / msPerDay⌋) × `tractsPerDay`.
+(1 + ⌊66 / msPerDay⌋) × `tractsPerDay`. A test clock with a very short day has no such bound; the exact count is the
+iterator's index (§6.5, FL12).
 
 Example (128² city, `tractsPerDay` 409, speed 2): the cycle ends after 300 tracts of a day. The day visits its last
 109 tracts in the new cycle; if a second day opens in the same tick, 409 more. The comparison then sees up to 518

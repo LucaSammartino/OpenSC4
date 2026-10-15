@@ -3696,32 +3696,32 @@ The cause was the shadow's classifier, not the power core: building messages sti
 turbo makes more frequent. The lane fixed it in the shadow (exact under turbo and at normal speed) and implemented
 the brackets below, marked *[choice]* in code.
 
-- **PW9:** power §5.2 takes the first bookkeeping line as the baseline of differences inherited from the save, but
+- ~~**PW9:** power §5.2 takes the first bookkeeping line as the baseline of differences inherited from the save, but
   that line can have building messages in flight. Should the spec say how the baseline is chosen? [the first line
   equal to its predecessor; never edited afterwards; an entry that reads 0 is listed as absent and counts as
   inherited again when it returns; a non-inherited difference is a mismatch only when it is unchanged at a line
-  where nothing else changed, or unchanged across three lines]
-- **PW10:** given §5.3 (PW5: a partial rebuild leaves bits set outside the rebuilt area, and no insertion filters
+  where nothing else changed, or unchanged across three lines]~~ **ANSWERED 2026-10-15 (re-answers10):** glue, accepted, with a better rule now in the spec. A posted occupant message reaches every subscriber in the same `MessageSend`, so a shadow subscribed to `0x99EF1142`/`0x99EF1143` has seen exactly the messages power has handled. The occupants in flight are those whose listing in the occupant manager differs from the delivered messages. Recommended: build the expected counts from the delivered messages, which removes case 2. Otherwise take the baseline at the first line with nothing in flight. The bracket's heuristic is accepted. power §5.2.
+- ~~**PW10:** given §5.3 (PW5: a partial rebuild leaves bits set outside the rebuilt area, and no insertion filters
   run during a rebuild), should the bookkeeping line compare wire bits at all? [listed as "wire bits, not counted";
   kept out of the baseline and the mismatch count. The cycle lines still compare every rebuild's wire bits exactly.
-  No counted check then covers the wire bits that §5.1 insertion sets directly]
-- **PW11:** under turbo the baseline can settle late (the 9th line in one run), so a real difference that appears
+  No counted check then covers the wire bits that §5.1 insertion sets directly]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES (accepted): the original's wire bits depend on history. Insertion sets them with filters; a rebuild clears and re-wires only the dirty rect, without filters and with no margin for zoned cells; bits outside a rebuilt rect only accumulate. So no counted comparison against a rebuild is exact. Only a mirror that replays the same sequence covers the §5.1 bits. power §5.2.
+- ~~**PW11:** under turbo the baseline can settle late (the 9th line in one run), so a real difference that appears
   earlier is taken as inherited; and a frame that opens two month days keeps the first day's messages in flight at
   the second, which then looks settled. Is a count of queued occupant messages (from the message server) a
-  documented, reliable signal that the shadow could use instead of this guesswork? [not used]
+  documented, reliable signal that the shadow could use instead of this guesswork? [not used]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES (not used). The queue count exists: `cIGZMessageServer2` slot 10 (`0x0092D0F4`) returns the number of queued messages, excluding the one being delivered. But it counts every type and is never 0 at a month line, because the day's SimNewDay/SimNewMonth are queued in the same tick. The reliable signal is the delivered occupant-message stream (PW9). power §5.2.
 
 ## From applying the graphics-format answers (filed by the coordinator from the `apply9c` lane's report, 2026-10-14)
 
-- **FS15:** FS4: a later `0x7B` frame that has its own valid 256 × 1 palette. Does the original use that palette,
+- ~~**FS15:** FS4: a later `0x7B` frame that has its own valid 256 × 1 palette. Does the original use that palette,
   frame 0's, or upload grey? §2.6 covers only a frame with no usable palette. [its own palette; a palette that is
   missing, the wrong size, outside the record, or behind a chain that leaves the record counts as "no usable
-  palette" → grey, and the record is still accepted]
-- **FS16:** FS12: the original's `towlower` works on UTF-16 code units, so it probably does not lower characters
+  palette" → grey, and the record is still accepted]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS** (accepted as a choice): the original applies no palette to any frame. `SetCurrentFrameByIndex` stores each frame's own palette (`+0x10`), but its only reader (`0x00808DE0`) is called once, by the frame-0 check in `SerialRead` (`0x008008FA`). Every `0x7B` frame uploads its indices as luminance (grey). The bracket (own palette, else grey; record accepted) equals that for the shipped grey ramps. graphics-formats §2.6.
+- ~~**FS16:** FS12: the original's `towlower` works on UTF-16 code units, so it probably does not lower characters
   outside the BMP. Should FreeCity4 match that? [no: every character is lowered by Unicode simple case mapping, as
-  §3.11 says]
-- **FS17:** §2.13 does not record the 15 shipped frames, in multi-frame DXT1 records, whose own A field would give the
+  §3.11 says]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS** for non-BMP or invalid names only; the bracket is accepted. The original's UTF-8 decoder (`0x00910E18`) makes no surrogates: a 4-byte character becomes one unit, its code point mod 0x10000 (U+1F600 → U+F600), which `towlower` may lower and which is written back. The decoder also stops at the first invalid sequence, cutting the name (`Café` → `caf`). Shipped names are all ASCII. graphics-formats §3.11.
+- ~~**FS17:** §2.13 does not record the 15 shipped frames, in multi-frame DXT1 records, whose own A field would give the
   other DXT1 format (they report frame 0's format since FS5; the pixels are the same). Should it? [no code depends
-  on it]
+  on it]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES (no code depends on it); the count is recorded in the §2.13 survey table as the lane's measurement (15 frames, all in multi-frame records, given frame 0's format). graphics-formats §2.13.
 
 ## From the development glue fixes (filed by the coordinator from the `devglue2` lane's report, 2026-10-14)
 
@@ -3730,10 +3730,10 @@ building's own property list holds only its own properties; most building data s
 shadow is exact (305/305 lines), and the replacement grows like the original at equal pacing without going
 bankrupt. QI `0x0AC2B5F7` on new building occupants works (154 created, 0 failures), unlike the landfill tile (LG27).
 
-- **DG28:** the growth developer's special-building copy is released last, in its destructor; in an unsaved city
+- ~~**DG28:** the growth developer's special-building copy is released last, in its destructor; in an unsaved city
   that release is the last reference (the five warnings on class `0xA9BD882D` in run 102). Does the original also
   free those occupants there, after the load's object table has dropped its references? [yes, assumed; the release
-  is marked expected (`FC4_RELEASE_AT_DESTRUCTION`), and still warns if the reference was never taken] *Lead from re-answers9 (DG5):* `CreateInstance(0xA9BD882D)` already returns a count of 1, so an extra AddRef after it leaves one reference too many per building; the five warnings may come from that, not from destructor timing.
+  is marked expected (`FC4_RELEASE_AT_DESTRUCTION`), and still warns if the reference was never taken] *Lead from re-answers9 (DG5):* `CreateInstance(0xA9BD882D)` already returns a count of 1, so an extra AddRef after it leaves one reference too many per building; the five warnings may come from that, not from destructor timing. *Tested by apply10a (2026-10-15): the lead is disproved.* Our BDS takes no extra AddRef after `CreateInstance(0xA9BD882D)`, yet with `FC4_RELEASE_AT_DESTRUCTION` removed run `a10a-after-dev` gave the five warnings on class `0xA9BD882D` again, all from the growth developer's destructor releasing the special-building copy (§1.3) at shutdown. Still open: does the original's growth developer destructor drop those occupants' last references in an unsaved city? [assumed yes; the workaround stays, with a comment citing that run]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS**: the city's `Shutdown` (`0x0045B1D0`) shuts down and releases the BDS (`+0x164`) before the occupant manager (`+0x12C`). The BDS releases each developer (destroying it, so its copy is released) before its own special list. Both happen while the occupant manager still holds every building in the city, so the copy is the last reference only for a special building that left the city since the last state-14 copy. Our last release means our developer outlives the original's order, or a reference is missing. An extra `AddRef` (the DG5 lead) would leak instead, which agrees with apply10a's run: the warnings point to the release order or a missing reference. building-development §1.4.
 - ~~**DG29:** data-formats §4.4 says `EnumProperties` gives the effective property list, but in game it lists only a
   holder's own properties. Is there an effective enumerator, and what does the original's lookup do with cohorts?
   [the glue walks the parent cohort chain itself (`EffectiveProperties`), with cycle detection]~~ **Answered (re-answers9, data-formats §4.4):** `EnumProperties` (slots 19/20) walks only the own list; every lookup binary-searches a sorted vector that already holds the inherited properties; the effective enumerator is slot 4 `GetPropertyList` (ascending ID order, one reference). The glue's own chain walk is acceptable when own properties win.
@@ -3742,7 +3742,7 @@ bankrupt. QI `0x0AC2B5F7` on new building occupants works (154 created, 0 failur
 - ~~**DG31:** with the original simulators, a city run at about 85 game days per real second (`sim_turbo`) ends with
   lower income (3540-3647 against 4202-4593 at 8-20 days/s) and negative funds. Which original work is bound to
   frames or real time rather than game days? [unknown; compare runs only at equal pacing. Separately, our
-  development unit costs about 3× per game day: 23-29 days/s under turbo against the original's 80-90]~~ **Answered (re-answers9, simulator §5.7):** four kinds of original work are paced by frames or real time: idle cycles with a per-day bound (growth developers, aura, plumbing); idle cycles restarted only when finished (demand census, land value, crime, power, the BDS monthly rebuild: whole months are skipped when they fall behind); real-time budgets inside day work (the BDS 3 ms cut); and posted messages delivered frame by frame. Original runs compare only at equal pacing up to about 20 days/s (cheetah is 50 ms per day); 85 days/s measures the pacing, not the simulation.
+  development unit costs about 3× per game day: 23-29 days/s under turbo against the original's 80-90]~~ **Answered (re-answers9, simulator §5.7):** four kinds of original work are paced by frames or real time: idle cycles with a per-day bound (growth developers, aura, plumbing); idle cycles restarted only when finished (demand census, land value, crime, power, the BDS monthly rebuild: whole months are skipped when they fall behind); real-time budgets inside day work (the BDS 3 ms cut); and posted messages delivered frame by frame. Original runs compare only at equal pacing up to about 20 days/s (cheetah is 50 ms per day); 85 days/s measures the pacing, not the simulation. **Per-day amounts, 2026-10-15 (re-answers10), simulator §5.7.1:** each round of `OnTick` opens at most one day and makes one idle pass, so under a clock that opens a day every round each idle agent gets K ≤ 1 idle delivery per day plus its day delivery. Calls per cycle: growth developer 20 + E (E = special-building effects), crime 6, power 5, land value 21, aura 17 + N (landmark departments), plumbing 2W + 7 (W = networks) plus the time-sliced cell states, demand census 2 plus time-sliced work over every cell. Only the census (time-bound: it skips a month when its CPU time exceeds about D × (5 + K·m) ms) and crime (if it gets fewer than 6 deliveries a month) can lose months. Land value and power defer; aura, plumbing, the growth developers and so the BDS hold days open instead (the BDS's developers end by about day 21).
 
 ## From the traffic glue, phase 1 (filed by the coordinator from the `trafficglue` lane's report, 2026-10-14)
 
@@ -3750,34 +3750,34 @@ Our traffic simulator (with the pathfinder) replaces the original in game (`enab
 at normal speed for 84 months and across two saves, with 0 reference warnings. There is no traffic shadow yet.
 The lane's implemented answers are in brackets; most are glue choices that need only a confirmation or a spec line.
 
-- **TG1:** `FindPath` with a route deque. [returns 0, logged once, counted; the deque is untouched]
-- **TG2:** host callbacks left NULL: `path_info` and its helpers, `sim_clock_ms`, `update_network_costs`,
+- ~~**TG1:** `FindPath` with a route deque. [returns 0, logged once, counted; the deque is untouched]~~ **ANSWERED 2026-10-15 (re-answers10):** the original fills the deque (pathfinder §4.13 step 5, also after the flag-2 fallback of §4.12); the automata, emergency and MySim dispatch and the query tool read it. The bracket **DIFFERS**: fill it. The deque's 0x28-byte layout and the clear / push_front / map-regrowth rules are in pathfinder §7 (traffic-simulator §9.1).
+- ~~**TG2:** host callbacks left NULL: `path_info` and its helpers, `sim_clock_ms`, `update_network_costs`,
   `lot_strategy_byte`, `take_connection_volume_dirty`, `occupants_in_cells`, `occupant_filter_includes`,
   `cell_has_network_occupant`, `tunnel_paired_portal`, `view_cell_rect`, `create_accident`. Which of these does
-  the original need for the simulation (not the view)? [all NULL in phase 1]
-- **TG3:** the trip record layout. [FreeCity4's own `FC4TripData`]
-- **TG4:** `Init` after state was loaded by `Read`. [the loaded state is kept]
-- **TG5:** slot 34's record size. [0x23C]
-- **TG6:** slot 22. [returns null, logged]
-- **TG7:** departments. [`Get`, else `Create(id, 0)`; `SetMaxAllowedFunding`; line items 1–6]
-- **TG8:** `GetLanguageUtility`. [borrowed, not AddRef'd]
-- **TG9:** `DoLotActivated` budget items. [copied, then `AddBudgetItemToBudget(lot holder, item.index)`]
-- **TG10:** lot order. [the master list through the safe iterator; a rect query as fallback]
-- **TG11:** `Shutdown`. [unsubscribe; `RemoveAgentAllLevels`]
-- **TG12:** `department_funding` with a null department. [1.0]
-- **TG13:** slot 12. [a ring of 64 records]
-- **TG14:** slot 29. [a vector kept per tile pair]
-- **TG15:** slots 20/21 called off the main thread. [a direct property read]
-- **TG16:** a lot's `AsTrafficSource`. [borrowed]
-- **TG17:** `CreatePathFinder(null)`. [false]
-- **TG18:** `SetupPathFinderForLot` with a pathfinder the original created. [false]
-- **TG19:** stale lot or connection tokens. [refused; a connection removed mid-phase is skipped]
-- **TG20:** which messages carry an object. [only the lot message `0xE8BDA2E7` and the occupant messages
-  `0x99EF1142`/`0x99EF1143`]
-- **TG21:** a message on another thread while the lock is busy; slot 19 while the lock is busy. [dropped; slot 19
-  counted as a fallback]
-- **TG22:** units per slice against the original's 4 ms deadline (traffic-simulator §3.4). [16 deterministic units
-  per slice; our turbo runs at about 43–46 game days/s with traffic against about 76 without]
+  the original need for the simulation (not the view)? [all NULL in phase 1]~~ **ANSWERED 2026-10-15 (re-answers10):** by what the original reads (traffic-simulator §9.1 tables): **needed** for the simulation are the occupant query over a rectangle (`occupants_in_cells`), path connections and path info (`path_info` and helpers), the tunnel's paired portal (`tunnel_paired_portal`), the neighbour connection's volume-dirty test-and-clear (`take_connection_volume_dirty`; one sync per connection object), the roads and mass-transit department cost updates (`update_network_costs`, if that is what it does) and the lot's strategy byte at lot + 0x88 (`lot_strategy_byte`, only if our core computes the lots' trip targets). **Not needed**: the wall-clock deadline (`sim_clock_ms`), the accident check (`view_cell_rect`, `cell_has_network_occupant`, `create_accident`: monthly, wall-clock gated, visible cells only; it costs only the visible crashes) and `occupant_filter_includes` (filter 2 unreachable). So all-NULL **DIFFERS** for the first group.
+- ~~**TG3:** the trip record layout. [FreeCity4's own `FC4TripData`]~~ **ANSWERED 2026-10-15 (re-answers10):** the lots' and connections' own `std::list<cSC4TripData>` (0x2C-byte records, allocator B) are read by their `Write`/`Read`, by the query tool's route display (`0x004CA460`, `0x004C5E20`, `0x004CFD20`) and by `SetupPathFinderForLot`. `FC4TripData` is acceptable only if those lists hold the trips in that layout whenever those run (copied in at load, written back before the lots save, kept current for the query tool); otherwise **DIFFERS** (a save loses every trip). traffic-simulator §9.1.
+- ~~**TG4:** `Init` after state was loaded by `Read`. [the loaded state is kept]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES. In a load `Read` always runs before `Init` (foundations §3.7), and `Init` creates each grid, the iterators, the generator, the departments and the pathfinders only when the member is still null; the cycle state is reset only with a new scanning iterator (`0x0071F4FE`). Init rebuilds only unsaved structures (tuning, subscriptions, edge vectors, cell array). traffic-simulator §1.
+- ~~**TG5:** slot 34's record size. [0x23C]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: 0x23C bytes at simulator +0x1E4 (last field u8 at +0x238; next member +0x420; working set at +0x440). traffic-simulator §7.
+- ~~**TG6:** slot 22. [returns null, logged]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: slot 22 returns the lot iterator only in cycle state 1, which nothing enters (a loaded 1 becomes 0 at PostCityInit). traffic-simulator §9.1.
+- ~~**TG7:** departments. [`Get`, else `Create(id, 0)`; `SetMaxAllowedFunding`; line items 1–6]~~ **ANSWERED 2026-10-15 (re-answers10):** partly **DIFFERS**: `CreateDepartmentBudget` returns an existing department, so get-else-create is right, but the original uses group `0xAA369059`, sets the department and line-item names, makes mass-transit line 2 and roads line 5 Income, and runs these only when the member is null after Read; lines 4–6 are created on every Init when missing. Exact calls in traffic-simulator §9.1.
+- ~~**TG8:** `GetLanguageUtility`. [borrowed, not AddRef'd]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: the language manager returns a pointer to its own member (`0x00924B50`) and nobody AddRefs or releases it. traffic-simulator §9.1.
+- ~~**TG9:** `DoLotActivated` budget items. [copied, then `AddBudgetItemToBudget(lot holder, item.index)`]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: `GetBudgetItemForPurpose(building holder, …)`, then `CopyBudgetItemProperties(building holder, lot holder)` and `AddBudgetItemToBudget(lot holder, item.index)` (index at record +0x18). traffic-simulator §9.1, §4.1.3.
+- ~~**TG10:** lot order. [the master list through the safe iterator; a rect query as fallback]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES for the safe iterator, which is the original's only order; the rectangle fallback has no counterpart and must not run in normal play. traffic-simulator §4.1, §9.1.
+- ~~**TG11:** `Shutdown`. [unsubscribe; `RemoveAgentAllLevels`]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: unsubscribe the nine messages, then `RemoveAgent(this + 4)` on every level through the city's simulator (skipped when null). traffic-simulator §1.
+- ~~**TG12:** `department_funding` with a null department. [1.0]~~ **ANSWERED 2026-10-15 (re-answers10):** no original behaviour (the original never checks; only a failed Read leaves a null department). 1.0 accepted. traffic-simulator §9.1.
+- ~~**TG13:** slot 12. [a ring of 64 records]~~ **ANSWERED 2026-10-15 (re-answers10):** accepted as a choice. The original returns a live pointer into the hash node (or the shared zero record), valid until the record is erased; the ring gives call-time copies and must keep each pointer valid until the caller's next call. traffic-simulator §9.1.
+- ~~**TG14:** slot 29. [a vector kept per tile pair]~~ **ANSWERED 2026-10-15 (re-answers10):** accepted as a choice if each call returns the current route as an STLport `vector<u8>` (allocator B) and null in exactly the original's cases; the original points into the terminal link's stored vector. traffic-simulator §9.1.
+- ~~**TG15:** slots 20/21 called off the main thread. [a direct property read]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: slots 19–21 use no simulator state, only the holder's property `0x8A0B4100`, with no lock in the original. traffic-simulator §9.1.
+- ~~**TG16:** a lot's `AsTrafficSource`. [borrowed]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: lot slot 4 is a cast without AddRef; the source iterator AddRefs the lot or connection object itself. traffic-simulator §4.1.
+- ~~**TG17:** `CreatePathFinder(null)`. [false]~~ **ANSWERED 2026-10-15 (re-answers10):** no original behaviour (the original writes through the null pointer). false accepted. traffic-simulator §9.1.
+- ~~**TG18:** `SetupPathFinderForLot` with a pathfinder the original created. [false]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS** in principle (the original configures any `cISC4PathFinder` through its interface), but unreachable when ours is the city's simulator. Accepted. traffic-simulator §9.1.
+- ~~**TG19:** stale lot or connection tokens. [refused; a connection removed mid-phase is skipped]~~ **ANSWERED 2026-10-15 (re-answers10):** lots MATCH (skipped by the safe iterator). Connections **DIFFER**: the original's connection list is a snapshot of counted references, so a connection removed mid-phase is still visited until the next Reset (entering 16, 17 or 18). traffic-simulator §9.1, §4.1.
+- ~~**TG20:** which messages carry an object. [only the lot message `0xE8BDA2E7` and the occupant messages
+  `0x99EF1142`/`0x99EF1143`]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: only the lot message (IGZUnknown, QI `0xE818FCED`) and the occupant messages (void1, QI `0xA821EF94`) carry an object the handler reads; `0x08DAC3E7` reads data2 and the simulator's own department. traffic-simulator §9.1.
+- ~~**TG21:** a message on another thread while the lock is busy; slot 19 while the lock is busy. [dropped; slot 19
+  counted as a fallback]~~ **ANSWERED 2026-10-15 (re-answers10):** messages: the original never drops one (no lock, handled on the delivering thread), so a drop **DIFFERS** whenever it happens; keep it counted and rare. Slot 19 needs no lock at all (TG15): the direct write is the normal path. traffic-simulator §9.1.
+- ~~**TG22:** units per slice against the original's 4 ms deadline (traffic-simulator §3.4). [16 deterministic units
+  per slice; our turbo runs at about 43–46 game days/s with traffic against about 76 without]~~ **ANSWERED 2026-10-15 (re-answers10):** no original constant (TS27); 16 accepted. The original's per-day traffic work is the share `total/days` plus the last slice's overshoot, so N changes only the overshoot. traffic-simulator §9.1, §3.4.
 
 ## From applying the REH, flora, residential and flammability answers (filed by the coordinator from the `apply9d` lane's report, 2026-10-14)
 
@@ -3785,23 +3785,23 @@ apply9d applied AQ1–AQ10, RG24 and FL7–FL9 (merged `ccfe2b4`). Every in-game
 flammability 18/18 under turbo and 117/117 at normal speed, residential 384/384 and flora 25/25. Under turbo the
 flammability cycle-end message arrived up to 17 days after the wrap day.
 
-- **AQ11:** AQ2/AQ3: when there is no R$ EQ or HQ grid, which tract size do the R$$ and R$$$ variants and the
-  minimum and maximum coordinates use? [member E]
-- **AQ12:** AQ10: how should the stray reference from a failed `OpenOStream`/`OpenIStream` be audited? [as
-  acquired, then released as created-for-us]
-- **AQ13:** AQ7: is each end of a listing clamped to 0..191 on its own? [yes]
-- **FL10:** FL8: the tracts a new cycle visits come from a `rand()` draw. Which marks carry into the next cycle?
-  [every tract changed after the wrap day, a superset]
-- **FL11:** FL8: the day count starts when the shadow is created (the first event, before the original's first
+- ~~**AQ11:** AQ2/AQ3: when there is no R$ EQ or HQ grid, which tract size do the R$$ and R$$$ variants and the
+  minimum and maximum coordinates use? [member E]~~ **ANSWERED 2026-10-15 (re-answers10):** no original behaviour: the original never tests the R$ grid pointers (`+0x7C`, `+0x88`). Slots 35–38 call the R$ grid's `GetTractSize` at once (`0x006F79C4`, `0x006F7A63`); the wealth variants never ask the R$$ or R$$$ grid. Slots 43/44 return the six zeros when the population is 0 (`0x006F7389`), and otherwise take the walk's tract counts and the size from the R$ grid. The quotient helper (`0x006F6FC0`) reads all six grids untested, so a missing grid crashes. Member E (with E's tract counts) is accepted. residential-education-health §4.8.
+- ~~**AQ12:** AQ10: how should the stray reference from a failed `OpenOStream`/`OpenIStream` be audited? [as
+  acquired, then released as created-for-us]~~ **ANSWERED 2026-10-15 (re-answers10):** glue, with the original's ownership as the guide: an `Open*Stream` out-pointer is a reference the callee hands to the caller (the game's segment gets it by `QueryInterface` and drops its own, `0x005D27B3`–`0x005D27C0`). The helper adds none and releases it once. Audit it as handed over (created for us) at the call, whatever the call returned, and the helper's release as that reference's release. The bracket's "acquired" is right only if the audit counts both kinds together. flora §10.3.
+- ~~**AQ13:** AQ7: is each end of a listing clamped to 0..191 on its own? [yes]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES the query's rule, which is the model for the recommended clamp: `0x0049DF00` clamps each of the four values on its own, as a signed 32-bit cell number, to ≥ 0 and then ≤ 191. The original's listing itself does not clamp (AQ7). flora §6.4.2.
+- ~~**FL10:** FL8: the tracts a new cycle visits come from a `rand()` draw. Which marks carry into the next cycle?
+  [every tract changed after the wrap day, a superset]~~ **ANSWERED 2026-10-15 (re-answers10):** glue; the bracket (a superset) is safe and accepted. The exact set can be read from the original: the iterator at flammability `+0x30` keeps index `+0x24`, current `+0x28` and step `+0x2C` (`0x0049CB10`), so the new cycle has visited the `index` positions `(current − j × step) mod count`. The marks to carry are the tracts in that set that changed at a poll from the wrap day's up to the comparison's. flammability §6.5.
+- ~~**FL11:** FL8: the day count starts when the shadow is created (the first event, before the original's first
   day) and uses our own tractsPerDay. It is checked only against the number of cycle ends delivered, so an offset of
   whole cycles is not detected. [once it is off, it stays off for that city and only the comparison's own poll
-  carries]
-- **FL12:** FL1/FL8: what is the bound on unvisited tracts under the turbo clock? [max(2 × tractsPerDay, the
+  carries]~~ **ANSWERED 2026-10-15 (re-answers10):** glue, accepted as a fallback. The day count drifts (it starts before the original's `Init` wrap and uses our `tractsPerDay`), while the original's iterator index (`+0x24`) is the new cycle's exact position at the comparison. Prefer reading it. flammability §6.5.
+- ~~**FL12:** FL1/FL8: what is the bound on unvisited tracts under the turbo clock? [max(2 × tractsPerDay, the
   new-cycle tracts the count gave at the previous comparison); in game the bound reached 7098 and the unvisited
-  count stayed at most 155]
-- **FL13:** FL7: what polls when there are no day polls, for example when the game's own simulator delivers the days?
+  count stayed at most 155]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS** in kind: the original has no fixed bound. The number of new-cycle tracts at the comparison is the remainder of the wrap day plus `tractsPerDay` per further SimNewDay in the same simulator tick, at most one day per round of the tick's loop, so it grows with the frame budget under a short day. It is exactly the iterator's index (`+0x24`). The bracket's heuristic is acceptable where the iterator cannot be read. flammability §6.5, §9.
+- ~~**FL13:** FL7: what polls when there are no day polls, for example when the game's own simulator delivers the days?
   [every forwarded message plus the cycle end. Polling still needs the host's `watered_grid` to be non-NULL, although
-  content polls read only slot 11]
+  content polls read only slot 11]~~ **ANSWERED 2026-10-15 (re-answers10):** glue, accepted. The original reads the watered state only through plumbing slot 11, never `GetWateredGrid`. Every message the shadow sees, including posted SimNewDays, arrives at the message-server tick, after all of the previous simulator tick's visits, and intermediate plumbing states between polls cannot be seen from outside the simulator. Polling at every forwarded message plus the cycle end is the finest grain without an agent. The non-null `watered_grid` requirement is a glue limitation: fall back to slot 11. flammability §6.5.
 
 ## From applying the zones, landfill, budget and crime answers (filed by the coordinator from the `apply9b` lane's report, 2026-10-14)
 
@@ -3809,16 +3809,16 @@ apply9b applied ZG1–ZG17, LG27–LG29, BQ4, BQ7 and CQ23 (merged `969527d`). I
 296/296), and landfill game tiles insert with no failures (`gameTiles=12 gameTileFailures=0`; the tile exemplar is set
 through the holder at occupant + 0x20).
 
-- **ZG18:** ZG3: with no exemplar, or no Zone Display Alpha property, does `Init` still copy the alpha to the default
+- ~~**ZG18:** ZG3: with no exemplar, or no Zone Display Alpha property, does `Init` still copy the alpha to the default
   alpha? [no: the saved alpha survives and the default alpha stays as it was (0xFF from the constructor); only the
-  exemplar's value is copied]
-- **ZG19:** ZG3 / §10.1: does `Read` set the default alpha? [no: the default alpha is not saved, so after `Read` and
-  before `Init` it is 0xFF]
-- **ZG20:** zones §15.2 still says "Type 16 → false", which conflicts with §6 and ZG17. [ZG17 followed: type 16
-  dezones; `zn15_02` updated. The spec text needs the fix]
-- **ZG21:** ZG2 and the §5.1 dezone: under the ZG2 choice, a network whose bounding cells cross the city edge has its
+  exemplar's value is copied]~~ **ANSWERED 2026-10-15 (re-answers10):** partly **DIFFERS**. With no exemplar the tuning reader returns before both alphas (`0x004DC4BB`): matches. With the exemplar present but no Zone Display Alpha, the copy to the default alpha still runs (`0x004DC675` is unconditional), so the default alpha becomes the current alpha (the saved byte after a load). Also, the constructor never sets the default alpha (only the alpha, 0xFF at `0x004DCEB8`), so 0xFF there is our choice. zones §10.1, §4.
+- ~~**ZG19:** ZG3 / §10.1: does `Read` set the default alpha? [no: the default alpha is not saved, so after `Read` and
+  before `Init` it is 0xFF]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: `Read` writes only the alpha (`0x004DD590`); the default alpha is neither saved nor read. Its value before the first `Init` is uninitialised in the original; 0xFF is our choice. zones §10.1.
+- ~~**ZG20:** zones §15.2 still says "Type 16 → false", which conflicts with §6 and ZG17. [ZG17 followed: type 16
+  dezones; `zn15_02` updated. The spec text needs the fix]~~ **ANSWERED 2026-10-15 (re-answers10):** the bracket MATCHES and the spec text was wrong: test 2 now says type 16 becomes type 0 and dezones with type 0's limits (zones §15 test 2, §6).
+- ~~**ZG21:** ZG2 and the §5.1 dezone: under the ZG2 choice, a network whose bounding cells cross the city edge has its
   whole dezone refused. Before, the inside cells were dezoned, and the original dezones them too while touching
-  memory outside the grid. [refused whole, with error 0; not seen in game]
+  memory outside the grid. [refused whole, with error 0; not seen in game]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS**. The original dezones every in-city cell of the rectangle and also touches zone-grid memory outside the grid (no clamp in the handler, in `GetBoundingCityCells` `0x005E8E20`, or in `PlaceZone`). Recommended choice for this internal call: clip the region to the city and dezone the inside cells; refusing the whole call leaves them zoned. zones §5.1.
 
 ## From applying the neighbours answers (filed by the coordinator from the `apply9a` lane's report, 2026-10-14)
 
@@ -3827,23 +3827,23 @@ the original budget now reads slots 32/33 as int64 in EDX:EAX (NG11). Before, it
 (`income orig/ours=844424930136029/4061`); now 25/25 budget lines are exact. Konradshohe has no deals, connection
 requests or marker changes, so NG4, NG14, NG16, NG17, NG19, NG23 and NG25 are tested only outside the game.
 
-- **NG35:** NG14: there is no interface for `GenericConfirmationDialog`. What should happen when popups are on?
-  [confirm without asking; refuse when popups are off]
-- **NG36:** NG14: with no app reachable, is the popup flag taken as enabled? [enabled]
-- **NG37:** NG23: what does the original's `AddPropertyData` (holder slot 10) store? [ours stores a Uint8 array, so
-  `GetPropertyData` does not read it back]
-- **NG38:** NG17: should a failing `GetPosition` be checked? [unchecked: a zero vector, so cell (0, 0)]
-- **NG39:** NG25: what is the rectangle form of `GetCityProps` (prop manager slot 18)? [not called; the usage test is
-  added to the cell query]
-- **NG40:** NG7: what if the original's state bytes cannot be read (an unidentified vtable)? [ready = 1, everything
-  else 0, logged once]
-- **NG41:** NG7: the `initialized` byte has no shadow input. Should it be compared? [read and logged only]
-- **NG42:** NG4: is the foreign deal's reference released exactly when it leaves the list, or when nothing in the
-  core still holds it? [when the core object goes, which is list removal unless something else in the core holds it]
-- **NG43:** NG4: what should `AddDeal` return when the core cannot list the deal? [true, and the reference is given
-  back]
-- **NG44:** NG27: how do signed, 64-bit and float values convert, and what about an empty character array? [as C
-  converts them; the empty character array stays false]
+- ~~**NG35:** NG14: there is no interface for `GenericConfirmationDialog`. What should happen when popups are on?
+  [confirm without asking; refuse when popups are off]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS**. `GenericConfirmationDialog` (`0x0078DFF0`) is a free cdecl function `(title, text, yesLabel, noLabel)` (labels null for Yes/No), true only when closed with Yes (`0x8A8DFD4E`). It returns false at once when popups are off, otherwise it pauses and asks the player. With popups on, the original asks; confirming without asking lets the player never decline. Recommended: call it at its build-gated address and return its answer; refusing when popups are off already matches. neighbors §15.4 NG35.
+- ~~**NG36:** NG14: with no app reachable, is the popup flag taken as enabled? [enabled]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS**. `SC4GetPopupModalDialogsEnabled` (`0x005F9090`) returns false when the app global `0x00B43C94` is null, so the original behaves as popups off (request refused). It cannot happen in the game; only tests without an app see it. Treat a missing app as off. neighbors §15.4 NG36.
+- ~~**NG37:** NG23: what does the original's `AddPropertyData` (holder slot 10) store? [ours stores a Uint8 array, so
+  `GetPropertyData` does not read it back]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS**. Holder slot 10 (`0x005FFA40`) stores raw bytes of memory type `0x8000`, with count = length, through variant slot 58 (`0x00915743`). It reuses the buffer when the type and count already match; otherwise it allocates with allocator C. It skips the copy for null data. `GetPropertyData` reads exactly that type back. A `Uint8` array is refused by the getter and is saved with a different tag. Store type `0x8000`. neighbors §15.4 NG37.
+- ~~**NG38:** NG17: should a failing `GetPosition` be checked? [unchecked: a zero vector, so cell (0, 0)]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES. Occupant slot 8 cannot fail in the original: every implementation writes the vector, the base class (`0x005E8A20`) writes (0, 0, 0), and the caller ignores `AL` (`0x006CEF62`). A zero vector, and so cell (0, 0), is the original's result for an occupant with no position of its own. neighbors §15.4 NG38.
+- ~~**NG39:** NG25: what is the rectangle form of `GetCityProps` (prop manager slot 18)? [not called; the usage test is
+  added to the cell query]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES in practice. Prop manager slot 18 (`0x004A1DB0`): false without an occupant manager. Otherwise it sets the filter's usage to 1 and calls the occupant manager's cell-rectangle query (slot 40, `0x0049E250`) with the two inclusive corners. That query clamps the corners to the city, converts them to world coordinates (16 m cells, the far corner +1), shrinks the box by 0.1 m per side, opens the height range and runs the world-box query (slot 36). Ours differs only for a prop reaching less than 0.1 m into the cell or for a cell outside the city. neighbors §15.4 NG39.
+- ~~**NG40:** NG7: what if the original's state bytes cannot be read (an unidentified vtable)? [ready = 1, everything
+  else 0, logged once]~~ **ANSWERED 2026-10-15 (re-answers10):** glue choice, accepted. The original's bytes are always readable, and an unidentified vtable means a mod replaced the simulator. Its usual values between Init and Shutdown are ready 1 and initialized 1, with uiDisabled and busy 0 outside the budget tab and `simulate_deals`. The bracket's initialized 0 is unusual but unread (NG41). neighbors §15.4 NG40.
+- ~~**NG41:** NG7: the `initialized` byte has no shadow input. Should it be compared? [read and logged only]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES. Only `Init` (`0x006D38FA`) and `Shutdown` (`0x006CFBC4`) read the byte, each returning true at once when already done; nothing else looks at it. Reading and logging it is enough. neighbors §15.4 NG41.
+- ~~**NG42:** NG4: is the foreign deal's reference released exactly when it leaves the list, or when nothing in the
+  core still holds it? [when the core object goes, which is list removal unless something else in the core holds it]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES. The original's list releases its reference exactly when the deal is erased (`0x006D1588` → `0x004216F9`). Every other holder (regional cities, queued reports, caller lists) has its own reference on the same object. The bracket is equivalent as long as each core holder that outlives removal stands for one of those. neighbors §15.4 NG42.
+- ~~**NG43:** NG4: what should `AddDeal` return when the core cannot list the deal? [true, and the reference is given
+  back]~~ **ANSWERED 2026-10-15 (re-answers10):** partly **DIFFERS**. `AddDeal` (`0x006D2870`) cannot fail and returns true. It clears Silent, appends without a duplicate check, pushes deals and statistics to the region regardless of the dirty flags, then clears both flags. A null deal crashes. "True" matches; not listing the deal differs (the original lists it and lets the simulation judge it). It is accepted as a logged, mod-only deviation. neighbors §15.4 NG43.
+- ~~**NG44:** NG27: how do signed, 64-bit and float values convert, and what about an empty character array? [as C
+  converts them; the empty character array stays false]~~ **ANSWERED 2026-10-15 (re-answers10):** partly **DIFFERS**. Scalars convert numerically (`0x00915AA5`): signed values sign-extend, 64-bit values keep their low 32 bits, and floats truncate toward zero through `_ftol` (NaN, ±∞ and values of 2^63 or more give 0). Arrays go through their first element's text: signed and 64-bit elements give the same bits. A float element of 2^63 or more wraps (Float32 {1e30} gives `0x19058000`), and a NaN element parses as ±1. An empty character array gives the empty text, which parses as 0, so the getter returns **true** with 0, not false. "As C" matches only for in-range values. neighbors §15.4 NG44; data-formats §5.1.
 
 ## From the history warehouse and 24-hour clock cores (filed by the coordinator from the `cores10a` lane's report, 2026-10-14)
 
@@ -3881,40 +3881,94 @@ cores10b implemented the four cores (merged `ab3c1c3`, ABI 47). Every listed spe
 conformance vector (`ci13_*`, `cb12_*`, `pk12_*`). The 421-save corpus tests (commercial-industrial §13.9, civic §12.10,
 parks §12.8) wait for a glue lane's save sweep, which the coordinator runs.
 
-- **CM4:** commercial `Init` after a failed `Init` (§4.1 sets `initialized` in step 1). [returns true at once and
-  creates no grids]
-- **CM5:** commercial rebuild with no building map: RG24 says the shared seed helper `0x005E4FA0` writes nothing; do the
+- ~~**CM4:** commercial `Init` after a failed `Init` (§4.1 sets `initialized` in step 1). [returns true at once and
+  creates no grids]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES. `Init` sets `initialized` before the demand test (`0x0069EF9C`), so a second call returns true at once (`0x0069F196`) and creates no grids. commercial-industrial §4.1.
+- ~~**CM5:** commercial rebuild with no building map: RG24 says the shared seed helper `0x005E4FA0` writes nothing; do the
   passes of helper `0x005E5130` still run? [yes: nothing is seeded, then the passes run, so a fresh grid stays 0 and a
-  loaded grid is only lowered]
-- **CM6:** a commercial grid absent at a rebuild (failed `Init`, or an unresolved save reference). [the rebuild does
-  nothing; the state machine still advances]
-- **CM7:** a commercial state outside 0..3. [nothing happens]
-- **CM8:** commercial `Read`. [atomic; the old grids are released before being replaced (§8.1 quirk)]
-- **CM9:** the commercial message server. [unsubscribe and release only when one is held]
-- **IN2:** industrial `Shutdown`: the spec gives only "AL (1)". [clears `initialized`, returns true]
-- **CB6:** civic `Read` order: inserting the file's entries in order, as STLport does, would reverse each bucket chain,
+  loaded grid is only lowered]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS**. Helper `0x005E5130` tests both pointers first and returns at once for a null building map (`0x005E5136`) or a null grid (`0x005E513F`): no seed and **no passes**, so the grid is left exactly as it was (a loaded grid is not lowered either). The seed helper `0x005E4FA0` is only reached with both present. `DoIdle` still advances the state. commercial-industrial §4.4.
+- ~~**CM6:** a commercial grid absent at a rebuild (failed `Init`, or an unresolved save reference). [the rebuild does
+  nothing; the state machine still advances]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES. The helper returns at once for a null grid (`0x005E513F`) and `DoIdle` advances the state anyway. commercial-industrial §4.4.
+- ~~**CM7:** a commercial state outside 0..3. [nothing happens]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES. The dispatch is an unsigned bounds test (`ja` at `0x0069ED50`), so any value outside 0..3, negative ones included, does nothing. commercial-industrial §4.3.
+- ~~**CM8:** commercial `Read`. [atomic; the old grids are released before being replaced (§8.1 quirk)]~~ **ANSWERED 2026-10-15 (re-answers10):** the original is **not atomic**: `Read` (`0x0069ECB0`) sets `dirty` from the flag before the references (`0x0069ECF6`), each reference read (`0x005D9730`) first stores null without releasing the old grid, and the result is the stream's error state after both reads (`0x0069ED16`). A wrong version changes nothing. The bracket (read into temporaries, release the old grids on success) is a *[choice]* that agrees with the original for every valid save read on a fresh object. commercial-industrial §8.1.
+- ~~**CM9:** the commercial message server. [unsubscribe and release only when one is held]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES. `Shutdown` (`0x0069EBE0`) unsubscribes and releases the message server only when one is held. Note: `RemoveAgent` goes through the global city `0x00B43CEC`, not the held city. commercial-industrial §4.2.
+- ~~**IN2:** industrial `Shutdown`: the spec gives only "AL (1)". [clears `initialized`, returns true]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES. Industrial `Shutdown` (`0x006B8A10`) clears `initialized` and returns true, nothing else. commercial-industrial §2.2.
+- ~~**CB6:** civic `Read` order: inserting the file's entries in order, as STLport does, would reverse each bucket chain,
   so §12 test 9 could not be byte-identical. [grow the table first, then insert in reverse; a key already present, or
-  repeated in the file, keeps its first value]
-- **CB7:** civic `Release` (slot 2). [sibling rule: above 1 it decrements; otherwise Shutdown, destroy, return 0]
-- **CB8:** civic null list entries. [the monthly pass skips them; an ape escape that draws one does nothing]
-- **CB9:** a business-deal income line that cannot be created (CB5). [skipped]
-- **CB10:** a civic department that cannot be created in `Init`. [no name or maximum is set and nothing is held]
-- **CB11:** a civic department whose funding cannot be read in the monthly pass. [that entry is skipped]
-- **CB12:** civic `DoBuildingRemoved` step 3. [releases only when a matching entry was found and erased]
-- **CB13:** civic `Read`. [atomic; the old Landmarks department is released, the old list entries are not]
-- **CB14:** the civic temporary generators' counter n is not saved. [seed derive(S, 0x0A413481 ^ n), n counting the
-  generators this object has made]
-- **PK4:** park tuning with no exemplar. [threshold 0.25 and an empty curve, which gives 0, so no zoo escapes; the
-  tuning is read once per object]
-- **PK5:** park insert when the item names a missing department, or a line item cannot be created. [steps 5–7 are
-  skipped; the line item is skipped]
-- **PK6:** park monthly pass with no held department or unreadable funding. [stops after step 1]
-- **PK7:** park zoo removal of an occupant that was not listed. [released once anyway: the literal reading]
-- **PK8:** park `Read`. [atomic; the lists are replaced without releasing their old entries]
-- **PK9:** the park generator. [`cRZRandomSuper` seeded with derive(S, 0xAA3FE6BC)]
-- **RN1:** foundations §6: in a mutation check, session seeds `0x1234` and `0x1235` gave identical park draws. Since
+  repeated in the file, keeps its first value]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS**. The original inserts in **file order**, each at the head of its chain (set `0x004F0940` → `0x00624DD0`, map `0x0069E720` → `0x0069E5F0`; `resize(n + 1)` before each insert changes nothing below 194 entries), so `Read` **reverses** every chain of two or more entries, and write → read → write is not byte-identical for such chains; a second round trip restores them. A repeated or already present status key **overwrites** the stored value (last value wins, `0x0069E944`–`0x0069E96D`); a repeated exclusion ID is a no-op. civic §7, and §12 tests 9 and 10 are corrected to expect the reversal (test 10: corpus re-write = the record with multi-entry chains reversed; a second round trip byte-identical).
+- ~~**CB7:** civic `Release` (slot 2). [sibling rule: above 1 it decrements; otherwise Shutdown, destroy, return 0]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS**. `Release` (`0x0069D7A0`) decrements above 1; at 1 or less it calls the deleting destructor (`0x0069E700`, destructor `0x0069E500`) **without** `Shutdown` and returns 0. The destructor releases the Landmarks department but not the list entries. The city always shuts the object down before its last release, so the bracket (Shutdown, then destroy) agrees in the shipped game and is accepted as a *[choice]*. civic §8.
+- ~~**CB8:** civic null list entries. [the monthly pass skips them; an ape escape that draws one does nothing]~~ **ANSWERED 2026-10-15 (re-answers10):** the original crashes: the monthly pass dereferences each `maintained` entry without a test (`0x0069E0F0`–`0x0069E10B`), and the ape escape passes a null draw on to `AddControllersFromOccupantGroup` (`0x00517150` → `0x005163D0`) untested (the controllers' handling of a null target was not followed). The bracket is accepted as a *[choice]*. civic §4.6.
+- ~~**CB9:** a business-deal income line that cannot be created (CB5). [skipped]~~ **ANSWERED 2026-10-15 (re-answers10):** the original crashes: `SetType(1)` is called on a line that could not be created (`0x0069DF6D`–`0x0069DF78`). Skipping is a *[choice]*. civic §4.4.
+- ~~**CB10:** a civic department that cannot be created in `Init`. [no name or maximum is set and nothing is held]~~ **ANSWERED 2026-10-15 (re-answers10):** partly. A Landmarks department that cannot be created crashes the original (name set on null, `0x0069DC69`); Building Maintenance and Business Deals are null-tested (`0x0069DCAB`, `0x0069DCF1`) and set nothing: MATCHES for those, a *[choice]* for Landmarks. civic §4.1.
+- ~~**CB11:** a civic department whose funding cannot be read in the monthly pass. [that entry is skipped]~~ **ANSWERED 2026-10-15 (re-answers10):** the original crashes: it reads through the funding pointer without a test (`0x0069E146`). Skipping the entry is a *[choice]*. civic §4.6.
+- ~~**CB12:** civic `DoBuildingRemoved` step 3. [releases only when a matching entry was found and erased]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES (`0x0069DBEB`–`0x0069DC02`): the release happens only when a matching entry was found and erased. civic §4.5.
+- ~~**CB13:** civic `Read`. [atomic; the old Landmarks department is released, the old list entries are not]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES except atomicity. The old Landmarks department is released before its reference is read (`0x0069E9A1`–`0x0069E9AB`); the lists are cleared without releasing their old entries (`0x005DB3C0`). The original is not atomic (the containers fill entry by entry and the stream error is tested at the end); atomicity is a *[choice]*. civic §7.
+- ~~**CB14:** the civic temporary generators' counter n is not saved. [seed derive(S, 0x0A413481 ^ n), n counting the
+  generators this object has made]~~ **ANSWERED 2026-10-15 (re-answers10):** accepted (glue, nothing in the original: it seeds each temporary from the clock). `n` counts the generators the simulator object has made, from 0 at construction, not saved. foundations §6.3's "in this session" is reworded to "by the owning object"; civic §5.
+- ~~**PK4:** park tuning with no exemplar. [threshold 0.25 and an empty curve, which gives 0, so no zoo escapes; the
+  tuning is read once per object]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES with one *[choice]*. Without the exemplar `ReadTuningParams` (`0x006D5990`) reads nothing and returns false; the threshold keeps the constructor's 0.25 (`0x00B0D3D8`, `0x3E800000`) and the curve stays empty (`0x007D0410`). `Init` sets `tuningRead` whatever the result (`0x006D5B1C`–`0x006D5B21`): read once per object. The original's evaluator reads an empty curve through a null array (`0x005F4289`) and crashes, so "empty gives 0" is a *[choice]*. parks §4.1, §4.4, §6.
+- ~~**PK5:** park insert when the item names a missing department, or a line item cannot be created. [steps 5–7 are
+  skipped; the line item is skipped]~~ **ANSWERED 2026-10-15 (re-answers10):** the original crashes in both cases: a missing department is dereferenced at `0x006D571F` (after step 5 has already changed the item's line), and a line item that cannot be created is dereferenced by `SetDisplayFlag` at `0x006D573E`. The bracket is accepted as a *[choice]*; FreeCity4 still runs step 8 (release the building) and the zoo step. parks §4.2.
+- ~~**PK6:** park monthly pass with no held department or unreadable funding. [stops after step 1]~~ **ANSWERED 2026-10-15 (re-answers10):** the original crashes: no null test on the department (`0x006D58C4`) or on the funding pointer (`0x006D58CA`). Stopping after step 1 is a *[choice]*. parks §4.4.
+- ~~**PK7:** park zoo removal of an occupant that was not listed. [released once anyway: the literal reading]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES. The list removal (`0x006D5200`) frees the matching nodes without releasing; the single release follows unconditionally (`0x006D52C3` parks, `0x006D5366` zoos). parks §4.3.
+- ~~**PK8:** park `Read`. [atomic; the lists are replaced without releasing their old entries]~~ **ANSWERED 2026-10-15 (re-answers10):** the lists are replaced without releasing their old entries (`0x005DB3C0` clears first): MATCHES. The original is **not atomic** (both lists read with no error test in between; the result is the stream's error state, `0x006D51EE`); atomicity is a *[choice]*. A wrong version changes nothing. parks §7.
+- ~~**PK9:** the park generator. [`cRZRandomSuper` seeded with derive(S, 0xAA3FE6BC)]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES as a *[choice]*. The original builds `cRZRandomSuper(−1)` in the constructor (`0x006D5850`–`0x006D5855`, `0x00913B74`): wall clock, once per object, not reseeded by `Init`. FreeCity4's `derive(S, 0xAA3FE6BC)` follows foundations §6.3; bit 0 of the seed is ignored (RN1). parks §5, foundations §6.2.
+- ~~**RN1:** foundations §6: in a mutation check, session seeds `0x1234` and `0x1235` gave identical park draws. Since
   `derive` is an XOR, the generator seems to ignore bit 0 of its seed. Does the original `cRZRandomSuper` (or its
-  seeding) also drop bit 0, and does it matter for any other generator? [not investigated]
+  seeding) also drop bit 0, and does it matter for any other generator? [not investigated]~~ **ANSWERED 2026-10-15 (re-answers10):** yes, and it is the original's own behaviour: `cRZRandomSuper::Seed` (`0x00913A72`) ORs the seed with 1 (`0x00913A97`) before the seeding loop, after the clock test, so `s` and `s XOR 1` give identical streams. This matches our generator. `cRZRandom::Seed` (`0x00913667`) keeps all 32 bits. It matters only for `cRZRandomSuper` users (the file-local generators of §6.3, the park generator, …). Seed-mutation tests should flip another bit (e.g. `S XOR 2`), and `derive`'s XOR 1 fix-up is invisible to them. foundations §6.1.
+
+## From applying the development answers (filed by the coordinator from the `apply10a` lane's report, 2026-10-15)
+
+apply10a applied DG4, DG5, DG6 and DG11 (merged `b398049`, ABI 49): the building loader, the BDS foundation and
+retaining wall slots 23/26/29, the capacities-present flag and the budget item cost sum. In game the replacement is
+clean (476/476 foundations, 35/35 wall loads, `ref_warnings=0`) and the development shadow exact (927/927). DG28 is
+updated above (the AddRef lead is disproved). The lane's choices are in brackets.
+
+- **DG32:** DG5 loader: property `0x27812810` with fewer than three values, or values not stored as float32 (the
+  original reads three floats through the raw value pointer). [the missing values are 0; other numeric types are
+  converted]
+- **DG33:** BDS slot 26: `0x88FCC3E3` is present but has no values. [max height is set to 0]
+- **DG34:** BDS slots 26 and 29 with a null occupant (the original does not test for it). [return false]
+- **DG35:** BDS slot 29: its fallback for type 0 needs `GetRetainingWallType` (wall slot 11), but docs/abi gives no
+  IID for `cISC4LotRetainingWallOccupant`, so the wall cannot be reached from an occupant token. What is the IID?
+  [the plugin keeps the wall the slot 29 call received and answers only for that wall; any other token gives 0]
+- **DG36:** foundation creation: the spec only implies that GZCOM class `0x49C05C8F`, like `0xA9BD882D`, returns with
+  the caller's reference already counted. [it is not AddRef'd again; in game `ref_warnings=0` over 476 foundations]
+- **DG37:** `SetDefaultExemplar` on an occupant with no `cISCExemplarPropertyHolder` (QI `0x0AC2B5F7`), which the
+  original does not test for. [false, which the building loader treats as success with an empty box]
+- **DG38:** DG4: `GetBudgetItemInfo` needs the building exemplar as a property holder. Does the original pass the
+  resource exemplar or the occupant? [the type's exemplar is loaded from the catalogue key and passed; 0 when it does
+  not load or the budget simulator is not reachable]
+
+## From applying the exemplar, graphics, protection, landfill and agent-order answers (filed by the coordinator from the `apply10b` lane's report, 2026-10-15)
+
+apply10b applied EX34, EX35, EX38, EX39, GF7, PR17, PR18, LG21, LG23 and AO1 (merged `0f3ad91`, ABI 50) and cited
+EX36, EX37, PR19, AO2, LG22, LG24-LG26, RG25-RG28, NB19 and PG16. EX39 is applied as the spec says: the C ABI slice
+setters now always store an array, and the vector readers read a scalar as empty. In game the shadows are exact
+(development 928/928, protection 288/288, landfill 72/72) and a replacement run that zones a new landfill reaches the
+LG21 view route (rotation 0). GF13 and GF14 are reserved by graphics-formats §8.5, so these questions start at GF15.
+The lane's choices are in brackets.
+
+- **EX40:** EX34 (data-formats, `format_float`): when the 63 kept characters hold no significant digit (the first one
+  falls at the 64th or 65th character), does the trailing-zero strip also remove the `.`? [only `0` characters are
+  stripped, so it leaves `0.` or `-0.`; marked [literal reading]]
+- **GF15:** GF7 (graphics-formats §4.2): is the zoom mask's bit number the zoom index as passed (0-4, before the
+  detail remap), and is the mask read as the property's first integer value whatever its stored type? [yes to both; a
+  mask with no value counts as 0; [literal reading] in `keys::occupant_models`]
+- **GF16:** GF7 (§4.2): for b+0..b+3 (RKT0-RKT3) and b+5 (RKT5), does `GetAllModelInstanceIDs` write T and G to its
+  out pointers, as it does for a matching RKT4 record? [yes, v[0] and v[1]; [inferred]]
+- **GF17:** GF7 (§4.2): when a rule needs a value past the end of the whole property (too few values), or the zoom
+  is above 4, what is appended? [nothing, neither an instance nor an offset, matching `model_key`'s "no model"; inside
+  the array an RKT3 record at zoom 3-4 does read into the next record, as the quirk says]
+- **GF18:** GF7 (§4.2): which stored types do the model keys and the zoom mask accept (the original's read
+  conversion)? [the integer types up to 32 bits, converted; anything else counts as absent; shipped keys are Uint32
+  arrays; [choice] in `keys::property_u32s`]
+- **LG30:** LG21 (landfill §4.7.5): should the view rotation be read when the zot is placed (what the glue does) or
+  cached at view init, as the original's global is? [read at placement through the documented route; 0 without a
+  view. Only rotation 0 has been seen in game: no script action rotates the view]
+- **AO3:** AO1 (foundations §13.4): the two port developers share the name `cSC4PortDeveloper` and rank 2. Is their
+  relative order registration order? [yes, registration order]
+- **PR20:** PR18 (protection §5.1): the answer covers `UpdateUnadjusted`'s caller record. Does the separate
+  dispatch-message handler also carry leftovers into its own record? [no: it keeps a zeroed record]
 
 ## From the city situation, demolition, dispatch, port, prop developer and city detail specs (re-specs10 lane, 2026-10-14)
 
@@ -3993,3 +4047,49 @@ in-game harness with the FreeCity4 turbo clock and a message log.
   saved state, such as street props drawn from the network lot manager's generator? [yes, inferred: redevelopment
   re-creates the network lot's objects. Saving a city, reopening it at another detail level and saving again, then
   comparing the street prop records, would settle it]
+
+## From lot creation, the plop test, the lot developer and the graphics formats (re-specs11 lane, 2026-10-15)
+
+Open points from zones.md (§5.2, §7.1.1, §8.4, §8.5.1), lot-developer.md §17 and graphics-formats.md §3.9 and
+§3.11. The current answer is in brackets; each entry says what would settle it. "Turbo run" means the in-game
+harness with the FreeCity4 turbo clock and a message log.
+
+- ~~**LD1:** is the occupant manager's box query inclusive at the box edges? Lot developer slot 50
+  (`GetFoundationByPosition`) queries a degenerate box (a vertical line), which finds anything only if the test
+  keeps a point inside the occupant's box. [inclusive or strict, unknown]~~
+  **ANSWERED 2026-10-15** in this lane from the exe (slot 36 `0x004A0670`: one-cell path `0x0049D8B0`, many-cell
+  path `0x004A08CC`–`0x004A0938`; six `fcomp` tests, each keeping the occupant only when its minimum is below the
+  query's maximum and the query's minimum is below its maximum) and written into lot-developer.md §17.5.1 and test
+  34. **Strict on every axis**, as flora.md §6.4.2 already states: the line at `(x − 0.05, z + 0.05)` finds a
+  foundation only when it lies strictly inside the foundation's box, and only through the index cell of that
+  point. A foundation whose edge is exactly on the line is not found.
+- **GF13:** what does a visual effect do with a NaN orientation? An identity REGP record (zero axis) makes the
+  model-effects update divide by zero, so `SetTransform` receives a NaN rotation (graphics-formats.md §3.11; 344
+  shipped records). [unknown; *[choice]* FreeCity4 uses no rotation for a zero axis. Watching one of the 1,320
+  `blue_blinking_light_slow` effects on a bridge in the original would settle it: drawn in place, drawn elsewhere or
+  not drawn. The effect side (`cISC4VisualEffect` slot 8 and the effect renderer) is not specified]
+- **GF14:** the automata's per-tick animation driver. graphics-formats.md §3.9 traces the prop occupant's driver
+  (animation tick `0x86AD10EE`, milliseconds × time dilation) and `SetAnimMode(1)` from `cSC4Automaton::AttachAnim`,
+  but not what an automaton passes to `Advance` (slot 15) each tick, nor when it calls `SetFrame` (slot 10) or
+  `SetSpeed` (slot 14). [inferred: the same tick message and dilation as props; nothing in saves depends on it.
+  Settled by tracing the automaton's `DoAnimationTick` or equivalent and its calls through instance slots 10, 14
+  and 15; the fire crew's `DoAnimationTick` (`0x00549CF1`) is the place to start]
+- **ZQ14:** who posts InsertOccupant with data4 = 1, 2 or 3? The zone developer joins dead-end stubs on 1 and 2
+  (`JoinDeadEndStubs`, zones.md §5.2.1) and joins across a rail line on 3 (`JoinAcrossRail`, §5.2.2). [inferred:
+  the network tools' real-mode Place, with a value per network kind; not traced. Settled by finding the callers of
+  occupant manager slot 20 (`InsertOccupant`) that pass a non-zero data4, or in a turbo run by logging data4 of
+  `InsertOccupant` messages while laying a road, a street and a rail line]
+- **ZQ15:** two values of the zone developer's preview and plop test are not explained. (a) The terrain view's slot 4
+  (zones.md §7.1.1) takes seven arguments; the last two are always 3 and 0 here. (b) `CanCreatePloppedLot`
+  (§8.4.1) rejects a cell whose network has every bit of `0x200000`, and blocks an outward connection to a network
+  with any bit of `0x600000`. [(a) unknown, *[inferred]* a draw layer and a flag; the preview is UI and a headless
+  replacement leaves it out. (b) the flag meanings belong to traffic-network.md (its Q3); the codes are reproduced
+  from the bits without needing the names. Settled by the terrain view's slot 4 and by the network spec naming the
+  two bits]
+- **ZQ16:** lot-records.md §16 Q2 (vacate-reason values above 6 in saves) has an answer that lot-records.md does not
+  carry yet. [**answered** in zones.md §8.5.1 *[inferred]*: the lot constructor `0x006C1E50` does not write the
+  vacate reason (`+0x83`) and the pool's free path writes only the block's first dword, so a new lot inherits the
+  byte of whatever last used its block, and a lot that has never been vacant saves that stale byte. The owner of
+  lot-records.md should cite zones.md §8.5.1 under Q2. Settled for good by creating lots in a fresh city in a turbo
+  run and reading field 17 of never-vacant lots: values that change with the order of earlier demolitions confirm
+  it]

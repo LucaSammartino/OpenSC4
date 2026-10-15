@@ -71,19 +71,28 @@
 //!   on a caller's record, exactly as the original (fire: all three reads,
 //!   fails on a missing centre or radius; police: fails at once on a zero or
 //!   missing centre, a missing outer or radius leaves the caller's field).
-//!   Every FreeCity4 caller passes a zeroed record, so an absent police outer
-//!   or radius reads as 0 ([choice] of §7.1), and `UpdateUnadjusted` (§5.1)
-//!   skips a station whose effect fails ([choice]). A prop station without a
-//!   department uses department funding 1.0.
+//!   Every FreeCity4 caller but `UpdateUnadjusted` passes a zeroed record, so
+//!   an absent police outer or radius reads as 0 ([choice] of §7.1), and
+//!   `UpdateUnadjusted` (§5.1) skips a station whose effect fails
+//!   ([choice]). A prop station without a department uses department
+//!   funding 1.0.
 //! - `GetDispatchEffect` (§7.2, corrected by PR14) is
 //!   [`ProtectionSim::dispatch_effect_into`]: it fails only on an absent or
 //!   zero centre, an absent outer or radius keeps the caller's field, and the
-//!   effect is scaled by `GetStationEfficiency` (§6.2). Every FreeCity4
-//!   caller passes a zeroed record ([choice]). Its two callers are
+//!   effect is scaled by `GetStationEfficiency` (§6.2). Its two callers are
 //!   `UpdateUnadjusted` (§5.1) and the dispatch active / inactive handler
-//!   (§5), both with the record's `+0x20` (the source station); the handler
-//!   skips the update when the effect fails ([choice] of §5, PR14; the
-//!   original uses a stack leftover as the radius).
+//!   (§5), both with the record's `+0x20` (the source station).
+//!   `UpdateUnadjusted` keeps **one** record across its station and dispatch
+//!   loops, as the original does (PR17, PR18, [choice] to match): it ignores
+//!   the AL and always draws, so a dispatch whose station lacks the dispatch
+//!   centre draws an inverted cone from the previous dispatch's (else the
+//!   last station's) outer and radius. The handler passes a zeroed record
+//!   (PR18: the original's is a fresh, uninitialised one) and skips the
+//!   update when the effect fails ([choice] of §5, PR14; the original uses a
+//!   stack leftover as the radius).
+//! - The "PR14"/"PR15" labels in this module, `algo.rs` and the `pr18_*` jail
+//!   vectors are the protection spec's older test numbering, not the
+//!   QUESTIONS entries; PR19 (glue only) leaves them as they are.
 //! - `UpdateBothGridsByPosition` (§5.2) copies the box with the adjusted
 //!   grid's counts; `UpdateUnadjusted` (§5.1) draws with the unadjusted
 //!   grid's counts and inverse widths. Without a grid the step is skipped.

@@ -26,7 +26,9 @@
 //! (`cISC4GrowthDeveloper*`), lots, occupants, the construction node
 //! (`cISC4Demand*`) and grids. 0 is the null object. The core owns one
 //! reference on every developer, special building and node token it keeps,
-//! and on every occupant `create_building_occupant` hands over. A saved
+//! and on every occupant `create_building_occupant` or
+//! `create_foundation_occupant` hands over (slot 23 releases its foundation
+//! once the occupant manager holds it). A saved
 //! reference read back for one of the host's objects arrives with that
 //! reference; one that names a FreeCity4 object (`fc4_ref::core_handle` set)
 //! is given one here (`add_ref`), so both cases end up the same. Lot tokens
@@ -242,7 +244,9 @@ pub struct fc4_building_profile {
     pub plop_cost: i64,
     /// Entries of the capacity table (handed to the callback).
     pub n_capacities: u32,
-    pub reserved1: u32,
+    /// 1 when property `0x27812834` exists (DG11): the game profile then
+    /// holds exactly one capacity map, even an empty one.
+    pub capacities_present: u32,
 }
 
 /// A message for `fc4_development_do_message` (fc4.h
@@ -472,8 +476,17 @@ pub struct fc4_development_host {
     /// A new building occupant with one reference for the core; 0 = none.
     pub create_building_occupant: Option<unsafe extern "C" fn(U) -> u64>,
     pub set_building_type: Option<unsafe extern "C" fn(U, u64, u32)>,
-    /// The property load of `0x00698490` (§4.9).
-    pub load_building_occupant: Option<unsafe extern "C" fn(U, u64, u32) -> bool>,
+    /// `GetBuildingType()` (building occupant slot 4; §4.9.1 loader step 2).
+    pub building_type: Option<unsafe extern "C" fn(U, u64) -> u32>,
+    /// The exemplar half of the loaders (§4.9.1, §4.9.2): `GetResource(key,
+    /// 0xA52160F5)`, then `SetDefaultExemplar` on the occupant's
+    /// `cISCExemplarPropertyHolder` (QI `0x0AC2B5F7`); false when the
+    /// resource does not load.
+    pub set_default_exemplar: Option<unsafe extern "C" fn(U, u64, *const fc4_res_key) -> bool>,
+    /// The float32 values of the occupant's property `id` through its own
+    /// holder: false when missing; else the value count into `*count` and at
+    /// most `n` values into `out`.
+    pub occupant_property_f32s: Option<unsafe extern "C" fn(U, u64, u32, *mut f32, usize, *mut usize) -> bool>,
     /// Min then max corner into `out[6]`.
     pub occupant_bounding_box: Option<unsafe extern "C" fn(U, u64, *mut f32)>,
     pub set_occupant_bounding_box: Option<unsafe extern "C" fn(U, u64, *const f32)>,
@@ -484,6 +497,28 @@ pub struct fc4_development_host {
     /// developers, the node).
     pub add_ref: Option<unsafe extern "C" fn(U, u64)>,
     pub release: Option<unsafe extern "C" fn(U, u64)>,
+    // foundations and retaining walls (§4.9.2, DG6)
+    /// A new foundation occupant (class `0x49C05C8F`) with one reference for
+    /// the core (GZCOM's; not AddRef'd again); 0 = none.
+    pub create_foundation_occupant: Option<unsafe extern "C" fn(U) -> u64>,
+    /// `cISC4FoundationOccupant` (IID `0xC8FCE101`) slot 4.
+    pub foundation_type: Option<unsafe extern "C" fn(U, u64) -> u32>,
+    /// Slot 5.
+    pub set_foundation_type: Option<unsafe extern "C" fn(U, u64, u32)>,
+    /// Slot 7.
+    pub set_foundation_max_height: Option<unsafe extern "C" fn(U, u64, f32)>,
+    /// Slot 8, `size[3]`.
+    pub set_foundation_size: Option<unsafe extern "C" fn(U, u64, *const f32)>,
+    /// Slot 10.
+    pub set_foundation_usage: Option<unsafe extern "C" fn(U, u64, i32)>,
+    /// Slot 12.
+    pub set_foundation_orientation: Option<unsafe extern "C" fn(U, u64, i32)>,
+    /// `cISC4LotRetainingWallOccupant` slot 11 of the wall the occupant
+    /// token stands for.
+    pub retaining_wall_type: Option<unsafe extern "C" fn(U, u64) -> u32>,
+    /// Lot developer slot 17 (the int32 overload of
+    /// `GetLowestOrHighestAreaAltitude`): `(rect, lowest, with_water)`.
+    pub area_altitude_cells: Option<unsafe extern "C" fn(U, *const fc4_cell_rect, bool, bool) -> f32>,
     // advisors
     pub push_advisor_event: Option<unsafe extern "C" fn(U, u32, u32, *const fc4_advice_subject)>,
     // growth developers (the game's cISC4GrowthDeveloper slots)
@@ -517,7 +552,7 @@ const _: () = {
     assert!(std::mem::size_of::<fc4_advice_subject>() == 24);
     assert!(std::mem::size_of::<fc4_plan_entry>() == 24);
     assert!(std::mem::size_of::<fc4_development_state>() == 208);
-    assert!(std::mem::size_of::<fc4_development_host>() == if cfg!(target_pointer_width = "32") { 388 } else { 776 });
+    assert!(std::mem::size_of::<fc4_development_host>() == if cfg!(target_pointer_width = "32") { 432 } else { 864 });
 };
 
 // ---- host adapter -----------------------------------------------------------------------------------
@@ -1004,8 +1039,28 @@ impl DevelopmentHost for CHost {
     fn set_building_type(&self, occ: OccupantId, t: u32) {
         cb!(self, set_building_type, (), occ, t)
     }
-    fn load_building_occupant(&self, occ: OccupantId, t: u32) -> bool {
-        cb!(self, load_building_occupant, false, occ, t)
+    fn building_type(&self, occ: OccupantId) -> u32 {
+        cb!(self, building_type, 0, occ)
+    }
+    fn set_default_exemplar(&self, occ: OccupantId, key: ResKey) -> bool {
+        let k = fc4_res_key::from(key);
+        cb!(self, set_default_exemplar, false, occ, &k)
+    }
+    fn occupant_property_f32s(&self, occ: OccupantId, id: u32) -> Option<Vec<f32>> {
+        // The loaders read at most three values (§4.9.1, §4.9.2).
+        let mut v = [0.0f32; 16];
+        let mut count = 0usize;
+        let found = cb!(
+            self,
+            occupant_property_f32s,
+            false,
+            occ,
+            id,
+            v.as_mut_ptr(),
+            v.len(),
+            &mut count
+        );
+        found.then(|| v[..count.min(v.len())].to_vec())
     }
     fn occupant_bounding_box(&self, occ: OccupantId) -> (Vec3, Vec3) {
         let mut v = [0.0f32; 6];
@@ -1048,6 +1103,35 @@ impl DevelopmentHost for CHost {
             RefValue::Host { token, .. } => opt(token),
             _ => None,
         }
+    }
+
+    fn create_foundation_occupant(&self) -> Option<OccupantId> {
+        opt(cb!(self, create_foundation_occupant, 0))
+    }
+    fn foundation_type(&self, occ: OccupantId) -> u32 {
+        cb!(self, foundation_type, 0, occ)
+    }
+    fn set_foundation_type(&self, occ: OccupantId, t: u32) {
+        cb!(self, set_foundation_type, (), occ, t)
+    }
+    fn set_foundation_max_height(&self, occ: OccupantId, v: f32) {
+        cb!(self, set_foundation_max_height, (), occ, v)
+    }
+    fn set_foundation_size(&self, occ: OccupantId, size: Vec3) {
+        cb!(self, set_foundation_size, (), occ, size.as_ptr())
+    }
+    fn set_foundation_usage(&self, occ: OccupantId, usage: i32) {
+        cb!(self, set_foundation_usage, (), occ, usage)
+    }
+    fn set_foundation_orientation(&self, occ: OccupantId, orientation: i32) {
+        cb!(self, set_foundation_orientation, (), occ, orientation)
+    }
+    fn retaining_wall_type(&self, occ: OccupantId) -> u32 {
+        cb!(self, retaining_wall_type, 0, occ)
+    }
+    fn area_altitude_cells(&self, rect: CellRect, lowest: bool, with_water: bool) -> f32 {
+        let r = rect_of(rect);
+        cb!(self, area_altitude_cells, 0.0, &r, lowest, with_water)
     }
 
     fn push_advisor_event(&self, advisor: u32, event: u32, discarded: &AdviceSubject) {
@@ -1385,7 +1469,7 @@ pub unsafe extern "C" fn fc4_development_catalogue_profile(
             reserved0: 0,
             plop_cost: p.plop_cost,
             n_capacities: p.capacities.len() as u32,
-            reserved1: 0,
+            capacities_present: u32::from(p.capacities_present),
         };
     }
     if let Some(f) = cb {
@@ -1702,6 +1786,46 @@ pub unsafe extern "C" fn fc4_development_demolition_cost(p: *const fc4_developme
 #[no_mangle]
 pub unsafe extern "C" fn fc4_development_demolish_foundation(p: *mut fc4_development, occ: u64) -> bool {
     sim(p, false, |s| s.demolish_foundation_occupant(occ))
+}
+
+/// Slot 23 `AddNewFoundationOccupant(type, usage, pos[3], sizeX, sizeZ,
+/// orientation, base)` (§4.9.2, DG6): `pos[1]` is written when it was
+/// below 0. False only when the occupant cannot be created, the type's
+/// properties do not load or the insert fails.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn fc4_development_add_foundation(
+    p: *mut fc4_development,
+    t: u32,
+    usage: i32,
+    pos: *mut f32,
+    size_x: f32,
+    size_z: f32,
+    orientation: i32,
+    base: f32,
+) -> bool {
+    if pos.is_null() {
+        return false;
+    }
+    let mut v = [*pos, *pos.add(1), *pos.add(2)];
+    let ok = sim(p, false, |s| {
+        s.add_new_foundation_occupant(t, usage, &mut v, size_x, size_z, orientation, base)
+    });
+    *pos.add(1) = v[1];
+    ok
+}
+
+/// Slot 26 `LoadFoundationProperties(occ, type)` (§4.9.2, DG6).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_development_load_foundation(p: *mut fc4_development, occ: u64, t: u32) -> bool {
+    sim(p, false, |s| s.load_foundation_properties(occ, t))
+}
+
+/// Slot 29 `LoadLotRetainingWallProperties(occ, type)` (§4.9.2, DG6); `occ`
+/// is the wall's occupant token (the host answers `retaining_wall_type`).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_development_load_retaining_wall(p: *mut fc4_development, occ: u64, t: u32) -> bool {
+    sim(p, false, |s| s.load_retaining_wall_properties(occ, t))
 }
 
 /// Slot 32 `GetDeveloper(devType)`: borrowed, 0 if absent.

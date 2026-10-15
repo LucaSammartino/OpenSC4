@@ -107,7 +107,11 @@ struct EffectiveProperty {
 // AsISCPropertyHolder. `res` is the exemplar behind `holder`; nullptr asks the
 // holder (QueryInterface 0xA52160F5). A holder that is not an exemplar gives
 // its own properties only. [choice] At most 32 cohorts, stopping at a repeated
-// one (data-formats §4.4's limit for loading a chain).
+// one (data-formats §4.4's limit for loading a chain). DG29 (data-formats
+// §4.4): EnumProperties (slots 19/20) lists only the own list and the
+// effective enumerator is slot 4 GetPropertyList; this walk is acceptable
+// because own properties win (they are listed first and a later cohort's copy
+// of an ID is skipped), and a nearer cohort wins over a farther one.
 std::vector<EffectiveProperty> EffectiveProperties(const cISCPropertyHolder* holder, cISCResExemplar* res = nullptr);
 
 // Copies property `id` into a core property holder with its exact variant type

@@ -94,7 +94,17 @@ extern "C" {
  *      the civic building simulator (fc4_civic) and the park manager (fc4_park);
  * 48 = adds the tract developer (fc4_tract, tract-developer.md) and its shadow mode
  *      (fc4_tract_create_shadow, the fc4_tract_probe_* functions; taken as 40 on its lane,
- *      then 45 and 47; renumbered at merge).
+ *      then 45 and 47; renumbered at merge);
+ * 49 = development answers DG5/DG6/DG11 (building-development.md §4.9.1, §4.9.2, §4.7.1):
+ *      fc4_development_host loses load_building_occupant and gains building_type,
+ *      set_default_exemplar, occupant_property_f32s and the foundation / retaining wall
+ *      callbacks; adds fc4_development_add_foundation / _load_foundation /
+ *      _load_retaining_wall (BDS slots 23, 26, 29); fc4_building_profile.reserved1 becomes
+ *      capacities_present (taken as 56 on its lane; renumbered at merge);
+ * 50 = the budget host's optional property_is_array (data-formats §5.2, EX39: the budget item
+ *      arrays read a scalar as empty); fc4_props_set_u32s/i32s/i64s/f32s/bools store an array
+ *      even for one value (the core's vector readers read a scalar as empty, EX39) (taken as 57
+ *      on its lane; renumbered at merge);
  * 55 = adds the history warehouse and 24-hour clock glue (docs/specs/history.md, clock24.md):
  *      their shadow modes (history_shadow, clock24_shadow) and the save sweep mode for the
  *      two records (0x89EFA536, 0xA7E7F929); taken as 55 on the histclock lane. */
@@ -554,6 +564,12 @@ typedef struct fc4_budget_host {
     /* Creates a department (0xE990BFFC) or line item (0xAA313C9F) through the
      * class registry; returns its core handle (fc4_department* / fc4_line_item*). */
     void* (*create_object)(void* user, uint32_t class_id);
+    /* ABI 50 (data-formats §5.2, EX39): 1 if the property is an array, 0 if it is a
+     * scalar, -1 if absent. The budget item arrays are read with the original's vector
+     * helpers, which give a scalar (count 0) an EMPTY vector, while get_u32s / get_i64s /
+     * get_f32s convert a scalar to one value (the converting getters, for tuning). NULL:
+     * every property counts as an array (the old one-value reading). */
+    int32_t (*property_is_array)(void* user, uint64_t holder, uint32_t prop);
 } fc4_budget_host;
 
 /* Lifetime: called by the GZCOM object that fronts the core object; `token` is
@@ -829,7 +845,10 @@ typedef struct fc4_props fc4_props;
 
 fc4_props* fc4_props_create(void);
 void fc4_props_destroy(fc4_props* p);
-/* Set (replace) property `id`. `values` may be NULL when `count` is 0. */
+/* Set (replace) property `id` to an ARRAY of `count` values (one value
+ * included; ABI 50, data-formats §5.2 EX39: the core's vector readers read a
+ * scalar as empty, so a scalar is set with fc4_props_set_typed). `values` may
+ * be NULL when `count` is 0. */
 bool fc4_props_set_u32s(fc4_props* p, uint32_t id, const uint32_t* values, size_t count);
 bool fc4_props_set_i32s(fc4_props* p, uint32_t id, const int32_t* values, size_t count);
 bool fc4_props_set_i64s(fc4_props* p, uint32_t id, const int64_t* values, size_t count);
@@ -4069,7 +4088,9 @@ void fc4_residential_shadow_describe(fc4_bytes_sink sink, void* ctx);
  * lots, occupants, the construction node (cISC4Demand*) and grids
  * (fc4_grid_api). 0 is the null object. The cores own one reference on every
  * developer, special building, node, source demand and source map token they
- * keep, and on every occupant create_building_occupant hands over. A saved
+ * keep, and on every occupant create_building_occupant or
+ * create_foundation_occupant hands over (slot 23 releases its foundation
+ * once the occupant manager holds it). A saved
  * reference read back for one of the host's objects arrives with that
  * reference; one naming a FreeCity4 object (fc4_ref::core_handle set) is
  * given one (add_ref). Lot tokens are borrowed.
@@ -4135,8 +4156,8 @@ typedef struct fc4_building_profile {
     float occupant_size[3];
     uint32_t reserved0;
     int64_t plop_cost;
-    uint32_t n_capacities; /* capacity table entries (handed to the callback) */
-    uint32_t reserved1;
+    uint32_t n_capacities;       /* capacity table entries (handed to the callback) */
+    uint32_t capacities_present; /* 1: property 0x27812834 exists, so one capacity map, even empty (DG11) */
 } fc4_building_profile;
 
 typedef struct fc4_development_message {
@@ -4290,14 +4311,32 @@ typedef struct fc4_development_host {
     void (*occupant_position)(void* user, uint64_t occ, float* out3);
     uint64_t (*create_building_occupant)(void* user); /* one reference for the core */
     void (*set_building_type)(void* user, uint64_t occ, uint32_t type);
-    bool (*load_building_occupant)(void* user, uint64_t occ, uint32_t type); /* §4.9 */
-    void (*occupant_bounding_box)(void* user, uint64_t occ, float* out6);    /* min then max */
+    uint32_t (*building_type)(void* user, uint64_t occ); /* building occupant slot 4 (§4.9.1) */
+    /* §4.9.1 / §4.9.2: GetResource(key, 0xA52160F5), then SetDefaultExemplar
+     * on the occupant's cISCExemplarPropertyHolder (QI 0x0AC2B5F7); false
+     * when the resource does not load */
+    bool (*set_default_exemplar)(void* user, uint64_t occ, const fc4_res_key* key);
+    /* the float32 values of property id through the occupant's own holder:
+     * false when missing, else the count into *count and at most n values */
+    bool (*occupant_property_f32s)(void* user, uint64_t occ, uint32_t id, float* out, size_t n, size_t* count);
+    void (*occupant_bounding_box)(void* user, uint64_t occ, float* out6); /* min then max */
     void (*set_occupant_bounding_box)(void* user, uint64_t occ, const float* box6);
     void (*set_occupant_position)(void* user, uint64_t occ, const float* pos3);
     void (*set_occupant_orientation)(void* user, uint64_t occ, int32_t orientation);
     void (*init_occupant)(void* user, uint64_t occ);
     void (*add_ref)(void* user, uint64_t token);
     void (*release)(void* user, uint64_t token);
+    /* foundations and retaining walls (§4.9.2, DG6) */
+    uint64_t (*create_foundation_occupant)(void* user); /* class 0x49C05C8F, GZCOM's one reference */
+    uint32_t (*foundation_type)(void* user, uint64_t occ); /* cISC4FoundationOccupant (0xC8FCE101) slot 4 */
+    void (*set_foundation_type)(void* user, uint64_t occ, uint32_t type);          /* slot 5 */
+    void (*set_foundation_max_height)(void* user, uint64_t occ, float v);          /* slot 7 */
+    void (*set_foundation_size)(void* user, uint64_t occ, const float* size3);     /* slot 8 */
+    void (*set_foundation_usage)(void* user, uint64_t occ, int32_t usage);         /* slot 10 */
+    void (*set_foundation_orientation)(void* user, uint64_t occ, int32_t orient);  /* slot 12 */
+    uint32_t (*retaining_wall_type)(void* user, uint64_t occ); /* the wall's slot 11 */
+    /* lot developer slot 17, the int32 overload of GetLowestOrHighestAreaAltitude */
+    float (*area_altitude_cells)(void* user, const fc4_cell_rect* rect, bool lowest, bool with_water);
     /* advisors */
     void (*push_advisor_event)(void* user, uint32_t advisor, uint32_t event, const fc4_advice_subject* subject);
     /* growth developers (the game's cISC4GrowthDeveloper slots) */
@@ -4355,6 +4394,11 @@ uint64_t fc4_development_add_building(fc4_development* p, uint32_t t, const floa
 bool fc4_development_insert_occupant(fc4_development* p, uint64_t occ);    /* 8 / 24 */
 int64_t fc4_development_demolition_cost(const fc4_development* p, uint64_t occ); /* 10 */
 bool fc4_development_demolish_foundation(fc4_development* p, uint64_t occ); /* 25 */
+/* 23 (§4.9.2): pos3[1] is written when it was below 0 */
+bool fc4_development_add_foundation(fc4_development* p, uint32_t t, int32_t usage, float* pos3, float size_x,
+                                    float size_z, int32_t orientation, float base);
+bool fc4_development_load_foundation(fc4_development* p, uint64_t occ, uint32_t t);     /* 26 */
+bool fc4_development_load_retaining_wall(fc4_development* p, uint64_t occ, uint32_t t); /* 29 */
 uint64_t fc4_development_developer(const fc4_development* p, uint32_t dev_type); /* 32, borrowed */
 uint32_t fc4_development_developers(const fc4_development* p, fc4_type_token_callback cb, void* ctx); /* 34 */
 uint64_t fc4_development_building_map(const fc4_development* p);                                     /* 41 */
@@ -6221,7 +6265,7 @@ static_assert(sizeof(fc4_loan_info) == 32, "fc4_loan_info layout");
 static_assert(sizeof(fc4_bond) == 56, "fc4_bond layout");
 static_assert(sizeof(fc4_budget_group) == 24, "fc4_budget_group layout");
 static_assert(sizeof(fc4_budget_state) == 432, "fc4_budget_state layout");
-static_assert(sizeof(fc4_budget_host) == (sizeof(void*) == 4 ? 124 : 248), "fc4_budget_host layout");
+static_assert(sizeof(fc4_budget_host) == (sizeof(void*) == 4 ? 128 : 256), "fc4_budget_host layout");
 static_assert(sizeof(fc4_tax_lot) == 24, "fc4_tax_lot layout");
 static_assert(sizeof(fc4_tax_scan) == 408, "fc4_tax_scan layout");
 static_assert(sizeof(fc4_grid_geometry) == 32, "fc4_grid_geometry layout");
@@ -6340,7 +6384,7 @@ static_assert(sizeof(fc4_command_param) == 8, "fc4_command_param layout");
 static_assert(sizeof(fc4_advice_subject) == 24, "fc4_advice_subject layout");
 static_assert(sizeof(fc4_plan_entry) == 24, "fc4_plan_entry layout");
 static_assert(sizeof(fc4_development_state) == 208, "fc4_development_state layout");
-static_assert(sizeof(fc4_development_host) == (sizeof(void*) == 4 ? 388 : 776), "fc4_development_host layout");
+static_assert(sizeof(fc4_development_host) == (sizeof(void*) == 4 ? 432 : 864), "fc4_development_host layout");
 static_assert(sizeof(fc4_growth_message) == 48, "fc4_growth_message layout");
 static_assert(sizeof(fc4_growth_state) == 136, "fc4_growth_state layout");
 static_assert(sizeof(fc4_growth_host) == (sizeof(void*) == 4 ? 200 : 400), "fc4_growth_host layout");

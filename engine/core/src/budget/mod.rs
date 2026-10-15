@@ -177,6 +177,12 @@ pub trait BudgetHost {
     fn set_i64s(&self, holder: u64, prop: u32, values: &[i64]) -> bool;
     fn set_f32s(&self, holder: u64, prop: u32, values: &[f32]) -> bool;
     fn copy_property(&self, src: u64, dst: u64, prop: u32) -> bool;
+    /// Whether a property is stored as an array (`Some(true)`) or a scalar (`Some(false)`); `None` when absent or
+    /// unknown (data-formats §5.2, EX39). The budget item arrays ([`items`]) are read with the original's vector
+    /// helpers, which give a scalar an empty vector; `None` keeps the converting reads' one value.
+    fn property_is_array(&self, _holder: u64, _prop: u32) -> Option<bool> {
+        None
+    }
     /// The occupant behind a property holder, if it is one (§7.3).
     fn occupant_of(&self, holder: u64) -> Option<u64>;
     /// Class ID of a host object (for references written by the byte codec).

@@ -348,6 +348,46 @@ in three ways:
 so the inherited 1s stay. *[choice]* For the shadow: a cell or count whose difference is the same as at the first
 bookkeeping line after the load is inherited (case 1). A difference that is gone a month later is case 2.
 
+**Telling case 2 apart without guessing** (PW9, PW11, from the exe). The message server has a queue count:
+`cIGZMessageServer2` slot 10 (`+0x28`, `0x0092D0F4`) takes the queue lock and returns the number of messages still
+queued (it walks the queue's list, `0x0092F821`). The tick (`0x0092E040`) takes each message out of the queue before
+it sends it, so inside a handler the count excludes the message being delivered. The count is no use here:
+
+- It counts every posted message of every type, and there is no per-type count or way to look inside the queue.
+- At a month line it is never 0. The day's own SimNewDay, and SimNewMonth on the first, are posted in the same
+  simulator tick before the agents run (simulator §5.2), and they wait for the next message-server tick.
+
+The reliable signal is the message stream itself. A posted message is delivered by `MessageSend`, which calls every
+subscriber of its type in the same call (foundations §5.1). So a shadow subscribed to `0x99EF1142` and `0x99EF1143`
+receives exactly the occupant messages that the original power simulator has handled, in the same order, by the
+time of any line. The occupant manager lists an occupant and sets its flag 1 before it posts InsertOccupant, and
+unlists it before it posts RemoveOccupant (flora §9.1, flammability §15 item 3). Therefore, at any line:
+
+- the occupants **in flight** are those whose state in the occupant manager's lists differs from what the delivered
+  messages say (inserted but not yet delivered, or removed but not yet delivered);
+- the original's counts equal the saved counts plus the effects of every delivered message (PW8), each read with
+  the properties as they were at delivery.
+
+*[choice]* (recommended) Build the expected counts from the delivered messages, applying §5.1 and §5.2 to each in the
+shadow's own handler. That removes case 2 instead of detecting it. Failing that, take the baseline (PW9) at the first
+line where no occupant is in flight by the rule above. The bracket's rule (the first line equal to its predecessor,
+never edited afterwards, with its mismatch tests) is a heuristic for the same thing and is accepted. Under a clock
+that opens several days per frame it can settle late or settle on a line with messages in flight, as PW11 observed.
+
+**Wire bits at a bookkeeping line** (PW10). The original's wire bits depend on history, not only on the live
+occupants:
+
+- insertion sets bits directly, with the filters of §5.1;
+- a rebuild clears and re-wires only the dirty rect, with no filters, a 2R margin for occupants and no margin for
+  zoned cells (§5.3);
+- bits set outside a rebuilt rect only accumulate.
+
+A rebuild from the live occupants can therefore differ in both directions with no error on either side, and no
+counted comparison of the wire bits against a rebuild is exact. The bracket (listed as "wire bits, not counted",
+outside the baseline and the mismatch count, with the cycle lines comparing each rebuild exactly) is right. The bits
+that §5.1 sets directly are covered exactly only by a mirror that replays the same sequence: the insertion bits for
+each delivered message, the same merged dirty rect, and the rebuild at the original's next enabled `DoIdle`.
+
 ### 5.3 Dirty wiring (`CellChanged`, `UpdateWireBits`) *[compat]*
 
 `CellChanged(rect)`: expand the rect by R; if `zoneManager.GetZoneType(x1, z1) ≠ 0` (the rect's first corner

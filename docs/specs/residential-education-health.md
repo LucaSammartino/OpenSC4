@@ -697,6 +697,21 @@ the grids have size E; asking the R$ grid, as the original does, matches it alwa
 The HQ variants follow the same rule with the R$ **HQ** grid (AQ3): slots 36, 38 and 44 ask it, never an EQ grid, and
 slot 22 uses E like slot 21.
 
+**With no R$ grid** (AQ11, from the exe). The original never tests the R$ EQ grid pointer (`+0x7C`) or the R$ HQ
+grid pointer (`+0x88`) before it uses them, so a missing grid is a crash, not a fallback:
+
+- Slots 35/36 and 37/38 call the R$ grid's `GetTractSize` at once (`0x006F79C4`, `0x006F7A14`, `0x006F7A63`). The
+  wealth variants never ask the R$$ or R$$$ grid for a size, whatever the wealth.
+- Slots 43/44 first test `GetPopulation()`. With population 0 they write the six zeros and return false without
+  touching any grid (`0x006F7389`). Otherwise they take the **tract counts** of the walk from the R$ grid too
+  (slots 12/13, `0x006F73D8`, `0x006F73E5`; `0x006F75AE`, `0x006F75BB`), then its tract size for the coordinates.
+- The quotient helper (`0x006F6FC0`) also reads the three population grids and the three EQ (or HQ) grids without a
+  test, so a missing R$$ or R$$$ grid crashes there too.
+
+The grids exist from `Init` on, so this happens only after a failed `Init` or in a call before it. *[choice]* There
+is no original behaviour to match; the implementer's choice (member E for the size, and E's tract counts for the
+walk) is accepted.
+
 ### 4.9 Strikes
 
 Per service there is a department record holding: strike flag, start day, strike efficiency, strike duration,
