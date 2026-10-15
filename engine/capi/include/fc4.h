@@ -107,10 +107,10 @@ extern "C" {
  *      on its lane; renumbered at merge);
  * 51 = adds the zone developer / lot manager (fc4_zonedev, zones.md §1.2, §7-§11.3) and its shadow mode
  *      (fc4_zonedev_create_shadow) (taken as 54 on its lane; renumbered at merge);
- * 55 = adds the history warehouse and 24-hour clock glue (docs/specs/history.md, clock24.md):
+ * 52 = adds the history warehouse and 24-hour clock glue (docs/specs/history.md, clock24.md):
  *      their shadow modes (history_shadow, clock24_shadow) and the save sweep mode for the
- *      two records (0x89EFA536, 0xA7E7F929); taken as 55 on the histclock lane. */
-#define FC4_ABI_VERSION 55u
+ *      two records (0x89EFA536, 0xA7E7F929) (taken as 55 on its lane; renumbered at merge). */
+#define FC4_ABI_VERSION 52u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
