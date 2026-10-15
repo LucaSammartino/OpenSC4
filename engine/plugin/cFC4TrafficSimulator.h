@@ -184,11 +184,13 @@ public:
 
 private:
     bool Set(uint32_t slot, uint32_t a, uint32_t b);
+    // §4.13 step 5 / §7 (TG1): the caller's deque, after a recorded trip.
+    void FillRouteDeque();
 
     uint32_t refCount_ = 0;
     cFC4TrafficSimulator* owner_;
     fc4_traffic_pf* pf_ = nullptr;
-    void* routeDeque_ = nullptr;  // the caller's deque<RouteData>* (slot 8), never touched (see FindPath)
+    void* routeDeque_ = nullptr;  // the caller's deque<RouteData>* (slot 8), filled by FindPath (TG1)
 };
 
 class cFC4TrafficSimulator final : public cFC4ISC4TrafficSimulator,
@@ -327,7 +329,8 @@ private:
     // The pathfinders this simulator handed out and still lives with.
     std::vector<cFC4PathFinder*> pathfinders_;
     uint32_t externalPathFinders_ = 0;
-    uint32_t dequeRefusals_ = 0;
+    uint32_t dequeFills_ = 0;     // route deques filled (TG1)
+    uint32_t dequeFailures_ = 0;  // fills that faulted, found no map or ran out of memory
     // Slot 12: a ring of stable records; slot 34: the statistics block.
     FC4TrafficEdgeDensity edges_[kEdgeRing] = {};
     size_t edgeNext_ = 0;

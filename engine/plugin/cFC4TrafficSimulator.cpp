@@ -24,6 +24,7 @@
 #include "FC4Log.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
+#include "FC4RouteDeque.h"
 #include "FC4SafeLotIterator.h"
 #include "FC4Streams.h"
 #include "cFC4Message2Standard.h"
@@ -2015,7 +2016,7 @@ void cFC4TrafficSimulator::LogState(const char* what) {
              "routed=%u,%u,%u free=%u,%u,%u,%u switches=%u ferries=%u potholes=%u damaged=%u/%u edges=%u "
              "maps=%p,%p,%p,%p depts=%p,%p posts=%u/%u native=%u trips r%u/w%u (failed %u) holders=%u in place, %u "
              "added budget=%u depts=%u lots master=%u rect=%u stale=%u reentrant=%u queued=%u pathfinders=%u "
-             "(refused deques %u) fallbacks=%u",
+             "(deques filled %u failed %u) fallbacks=%u",
              what, st.initialized, st.loaded, st.cycle_state, StateName(st.cycle_state), st.strike_state,
              st.day_index, st.days, st.total, st.processed, st.pass_total, st.to_reroute, st.to_search,
              st.units_per_slice, st.trip_scale, st.trip_scale_for_display, st.last_monthly_income, st.freight_scaling,
@@ -2027,7 +2028,8 @@ void cFC4TrafficSimulator::LogState(const char* what) {
              static_cast<void*>(FromToken(st.mass_transit)), st.posted, ctx_.posts, ctx_.sourceUpdates,
              ctx_.tripReads, ctx_.tripWrites, ctx_.tripWriteFailures, ctx_.holderWritesInPlace, ctx_.holderWrites,
              ctx_.budgetActivations, ctx_.departments, ctx_.lotWalksMaster, ctx_.lotWalksRect, ctx_.staleTokens,
-             st.reentrant_calls, st.queued_messages, externalPathFinders_, dequeRefusals_, fallbacks_.load());
+             st.reentrant_calls, st.queued_messages, externalPathFinders_, dequeFills_, dequeFailures_,
+             fallbacks_.load());
 }
 
 // After every message (inside its section): the work-cycle line when the
@@ -2852,20 +2854,58 @@ void cFC4PathFinder::SetEndRect(SC4Rect<int32_t> rect) {
 void cFC4PathFinder::SetMaxWorkTime(uint32_t ms) { Set(21, ms, 0); }
 void cFC4PathFinder::Reset() { Set(22, 0, 0); }
 
-// Slot 23. [question] The route deque's object layout is not in docs/abi
-// (only its 0x7E-byte node buffers and allocator B): a search with a deque
-// set is refused (0, the deque untouched), counted and logged once. Without
-// a deque the search runs.
+// Slot 23. After a recorded trip (1, also the flag-2 fallback of §4.12) the
+// caller's route deque is cleared and filled root -> result in place
+// (pathfinder.md §4.13 step 5 and §7; TG1), with allocator B.
+namespace {
+
+struct RouteBytes {
+    std::vector<uint8_t> bytes;
+};
+
+void CollectRoute(void* ctx, const uint8_t* b, size_t n) {
+    auto* r = static_cast<RouteBytes*>(ctx);
+    r->bytes.insert(r->bytes.end(), b, b + n);
+}
+
+struct RouteFill {
+    fc4::RouteDeque* deque;
+    const uint8_t* route;
+    size_t count;
+    fc4::RouteFillStatus status;
+};
+
+void RouteFillFn(void* c) {
+    auto* f = static_cast<RouteFill*>(c);
+    f->status = fc4::RouteDequeFill<TrafficAlloc>(*f->deque, f->route, f->count);
+}
+
+}  // namespace
+
 uint32_t cFC4PathFinder::FindPath() {
     PF_ENTER(0u);
-    if (routeDeque_ != nullptr) {
-        ++owner_->dequeRefusals_;
-        static volatile LONG notes = 0;
-        NoteFew(&notes, "traffic: WARNING FindPath with a route deque refused (the deque layout is not specified; "
-                        "see the lane report, question 1)");
-        return 0;
+    const uint32_t r = fc4_traffic_pf_find_path(owner_->Core(), pf_);
+    if (r == 1 && routeDeque_ != nullptr) FillRouteDeque();
+    return r;
+}
+
+void cFC4PathFinder::FillRouteDeque() {
+    if (!AllocatorOk("FindPath route deque")) return;
+    RouteBytes rb;
+    const size_t n = fc4_traffic_pf_route(pf_, &CollectRoute, &rb);
+    if (rb.bytes.size() != n * fc4::kRouteDataBytes) return;
+    RouteFill f{static_cast<fc4::RouteDeque*>(routeDeque_), rb.bytes.data(), n, fc4::RouteFillStatus::Ok};
+    const bool clean = fc4::SehGuard("traffic route deque fill", &RouteFillFn, &f);
+    if (clean && f.status == fc4::RouteFillStatus::Ok) {
+        ++owner_->dequeFills_;
+        return;
     }
-    return fc4_traffic_pf_find_path(owner_->Core(), pf_);
+    ++owner_->dequeFailures_;
+    static volatile LONG notes = 0;
+    NoteFew(&notes, !clean ? "traffic: WARNING FindPath route deque fill faulted (deque left as written so far)"
+                    : f.status == fc4::RouteFillStatus::NoMap
+                        ? "traffic: WARNING FindPath route deque has no map; left untouched"
+                        : "traffic: WARNING FindPath route deque fill out of memory (partial route)");
 }
 
 uint32_t cFC4PathFinder::GetTrafficArrived() {
