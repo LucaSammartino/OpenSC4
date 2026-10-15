@@ -4101,24 +4101,24 @@ About `docs/specs/zones.md` §1.2, §7-§11.3 and the replacement `cFC4ZoneDevel
 brackets. ZG23, ZG24 and ZG27 were asked before re-specs11 merged; zones.md §8.5.1, §7.1.1 and §8.4.1-§8.4.3 now cover
 them, and Stage B applies those sections.
 
-- **ZG22:** lot manager slot 19 `GetLotSavvyCellAltitude`: does it write `*ok`? §8.7 does not say. [`*ok` left
-  untouched]
-- **ZG23:** lot construction (§8.5 step 1): the lot object's allocation and constructor arguments. [Stage A: `new_lot`
+- ~~**ZG22:** lot manager slot 19 `GetLotSavvyCellAltitude`: does it write `*ok`? §8.7 does not say. [`*ok` left
+  untouched]~~ **ANSWERED 2026-10-15 (re-answers11):** **DIFFERS** (zones.md §8.7, slot 19). When `ok` is non-null it is always written: 1 for a lot with flag bit 0 (`0x0072AAEF`), 0 for the terrain path (`0x0072AB06`).
+- ~~**ZG23:** lot construction (§8.5 step 1): the lot object's allocation and constructor arguments. [Stage A: `new_lot`
   builds nothing, CreateLot fails and is logged; **answered by re-specs11** in zones.md §8.5.1 (pool `0x00B0D3AC`,
-  allocate `0x006BF430`, constructor `0x006C1E50`); Stage B implements it]
-- **ZG24:** `HighlightParcels`' `*out` region (§7.2, §13.2): its allocator and the caller that frees it are not
+  allocate `0x006BF430`, constructor `0x006C1E50`); Stage B implements it]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered by re-specs11 (zones.md §8.5.1: pool `0x00B0D3AC`, allocation `0x006BF430`, constructor `0x006C1E50`); nothing to add. Stage B implements it.
+- ~~**ZG24:** `HighlightParcels`' `*out` region (§7.2, §13.2): its allocator and the caller that frees it are not
   traced. [`*out = null`, logged once; zones.md §7.1.1 now describes the highlight textures; check whether it also
-  settles the region's owner]
-- **ZG25:** §5.2 step 3, the street-joining helpers `0x00731F60` / `0x00732450`, are not specified. [no-op plus a log
-  line; zones.md §5.2.1-§5.2.2 (`JoinDeadEndStubs`, `JoinAcrossRail`, ZQ14) may cover them]
+  settles the region's owner]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered (zones.md §13.2, the HighlightParcels row). The only caller that passes `out` is `cSC4ViewInputControlZone::DoCursorUpdate` (`0x004DBDCE`), which keeps the region in its `+0x58` and frees the previous one (rows and object) when it stores the next (`0x004DBDD1`–`0x004DBDF3`). `ClearHighlights` (`0x004DAE2D`) and `ComputeAndMarkSelectedArea` (`0x004DB734`) pass null. So the zone tool owns it; `*out = null` is safe only for a glue with no zone tool.
+- ~~**ZG25:** §5.2 step 3, the street-joining helpers `0x00731F60` / `0x00732450`, are not specified. [no-op plus a log
+  line; zones.md §5.2.1-§5.2.2 (`JoinDeadEndStubs`, `JoinAcrossRail`, ZQ14) may cover them]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered by zones.md §5.2.1 (`JoinDeadEndStubs`) and §5.2.2 (`JoinAcrossRail`), with the data4 values in §5.2 (ZQ14): 1 for player-drawn networks, 3 for networks laid by code. The no-op is now a gap Stage B can close.
 - **ZG26:** the PlopAllLots / PlopAllBuildings cheats (§1.2 step 7): their bodies are not specified, and the host has
   no cheat-manager registration call. [not registered]
-- **ZG27:** slot 21 `CanCreatePloppedLot` (§14.3 Q2). [Stage A returns 0, logged; **answered by re-specs11** in zones.md
-  §8.4.1-§8.4.3 (codes 0, 1, 3-8); Stage B implements it]
-- **ZG28:** slots 11 and 24-26 leave EAX undefined in the original. [return true]
-- **ZG29:** the budget and traffic glue walk the original lot manager's raw list (the list object at `lm+0x5C`). Our
+- ~~**ZG27:** slot 21 `CanCreatePloppedLot` (§14.3 Q2). [Stage A returns 0, logged; **answered by re-specs11** in zones.md
+  §8.4.1-§8.4.3 (codes 0, 1, 3-8); Stage B implements it]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered by re-specs11 (zones.md §8.4.1–§8.4.3), with the two network flags now named (ZQ15); nothing to add.
+- ~~**ZG28:** slots 11 and 24-26 leave EAX undefined in the original. [return true]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice). The original leaves EAX undefined, so no caller can depend on it; returning true is safe.
+- ~~**ZG29:** the budget and traffic glue walk the original lot manager's raw list (the list object at `lm+0x5C`). Our
   master list keeps the same raw layout and list object, but not at `+0x5C` inside our object. Does any caller read the
-  member directly rather than through slot 15? [assumed none; not traced]
+  member directly rather than through slot 15? [assumed none; not traced]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (zones.md §8.3). No load of the lot manager from `0x00B43D08`, or from city slot 33 (`+0x84`), is followed by a read of `+0x5C` anywhere in the executable, and the budget's tax pass reaches the list through slot 15 (budget.md BQ6). Every other class goes through the interface.
 - **ZG30:** parcellization has no dry run (`HighlightParcels` draws, posts and places street drafts). [the shadow
   compares the lookups and CanCreateLot only]
 - **ZG31:** a traffic insertion-point iterator from a foreign list at CreateLot (§8.5 step 4). [the lot is appended,
@@ -4141,8 +4141,8 @@ About `docs/specs/history.md` and `clock24.md` and the replacements `cFC4History
 `efac89a`, ABI 52. The lane numbered these history 1, 7, 8, 11, 12 and clock24 2-6, 9, 10. The current answer is in
 brackets.
 
-- **HW13:** `Release` on a warehouse that was initialised but never shut down (history §1): does `Release` at a count
-  of 1 or less run `Shutdown` first? [`Shutdown` first, then delete]
+- ~~**HW13:** `Release` on a warehouse that was initialised but never shut down (history §1): does `Release` at a count
+  of 1 or less run `Shutdown` first? [`Shutdown` first, then delete]~~ **ANSWERED 2026-10-15 (re-answers11):** **DIFFERS** (history.md §1). The original's `Release` (`0x00476AA0`) does not call `Shutdown`: its destructor frees only the series map (`0x00476918`–`0x00476952`) and leaves the subscriptions, relying on the city's `Shutdown` call. Running `Shutdown` first is an accepted *[choice]* that changes nothing in the normal order.
 - **HW14:** when the history shadow sees the original's 5 ms timer split a yearly-pass step (the original answers
   false where the shadow answered true), what is the intended comparison? [the shadow skips the original's repeats
   until the original answers true and counts `split_steps`; 0 in every lane run]
@@ -4152,19 +4152,19 @@ brackets.
 - **HW16:** queue lengths set through slot 13 (the producers' `Init`, not a message) are invisible to the history
   shadow. Should there be a read path for them? [a series that differs only by its queue length is named and counted
   as a mismatch; none occurred]
-- **HW17:** 403 of the 417 stock saves hold version-1 history records, which cannot be rewritten byte for byte (the
+- ~~**HW17:** 403 of the 417 stock saves hold version-1 history records, which cannot be rewritten byte for byte (the
   writer always writes version 2; a queue length of 100 reads as 0; unset or repeated dates are folded). Is converting
   on the first save the intended behaviour, since the original also writes version 2? [yes: the sweep reports them as
-  converted and checks that the conversion is stable]
-- **CK16:** `cIGZSystemService::OnTick`: the value the clock's system service returns is not in clock24.md. [true, the
-  SDK default]
-- **CK17:** `GetServiceTickPriority` is not specified. [the service priority, -2,000,000]
-- **CK18:** does the system-service base's `QueryInterface` answer any IID besides `0x287FB697` (for example IID 1
+  converted and checks that the conversion is stable]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (history.md §7). The original's `Write` always writes version 2 (`0x00475D2C`), so it converts a version-1 record on its first save too.
+- ~~**CK16:** `cIGZSystemService::OnTick`: the value the clock's system service returns is not in clock24.md. [true, the
+  SDK default]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (clock24.md §8). The sub-object's slot 10 is the shared default `0x0091559A`: AL = 1, pops 4.
+- ~~**CK17:** `GetServiceTickPriority` is not specified. [the service priority, -2,000,000]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (clock24.md §8). Slot 12 (`0x009D4714`) returns the tick priority, which the base constructor (`0x0091DE0F`) sets to the same −2,000,000 as the priority (`0x0091DE34`, `0x0091DE37`).
+- ~~**CK18:** does the system-service base's `QueryInterface` answer any IID besides `0x287FB697` (for example IID 1
   through the +0xC sub-object)? [only `0x287FB697` through the base; the object's QI table answers the other four
-  IIDs]
-- **CK19:** slots 5, 8 and 11 have no meaningful return value in the spec. [return 1]
-- **CK20:** if a tuning property (`0x897E709F`, `0x09B73421`, `0x09B73422`) is stored as an array, which value is used?
-  [the first value]
+  IIDs]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES, with one addition (clock24.md §8). Slot 0 of the `+0x0C` sub-object is a thunk to the clock's own `QueryInterface` (`0x00445A80` → `0x00444E40`), so every pointer answers the same five IIDs: the four of §1, and `0x287FB697` through the base (`0x0091DD67`). IID 1 gives the primary pointer, and any other IID returns false with `*out` unwritten (`0x009457DC`).
+- ~~**CK19:** slots 5, 8 and 11 have no meaningful return value in the spec. [return 1]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice; clock24.md §8). The original leaves EAX as a by-product (slot 8 the day quotient at `0x0044549B`, slots 5 and 11 the last call's result), so returning 1 is safe.
+- ~~**CK20:** if a tuning property (`0x897E709F`, `0x09B73421`, `0x09B73422`) is stored as an array, which value is used?
+  [the first value]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (clock24.md §6). All three are read with the converting getters (Float32 `0x005FD4F0`, Uint32 `0x005FD480`), so an array gives its first value. An array of count 0 gives 0, and a float hour is truncated (data-formats §5.1).
 - **CK21:** the original's timer at +0x50 (a `cRZTimer`) has no read path or layout in the spec, so the clock shadow
   cannot replay real elapsed time. [the shadow copies each of the original's steps through a synthetic elapsed time at
   magnification 1 (a game-time jump of 61 to 1200 s between idle passes is one step); any other game-time change is a
