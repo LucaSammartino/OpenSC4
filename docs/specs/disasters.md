@@ -500,7 +500,7 @@ A fire occupant is a visual occupant placed on its target. It holds:
 1. Read `maxStage` from `0x49BEDA31` (default 2).
 2. Compute the flame counts from D7 and D8 at the target's bounding-box top and side areas.
 3. Set `t`'s `0x69DBEBE1` ("burning") to true and call occupant slot 12 with 2 *[inferred: highlight state]*.
-4. For a building, attach the automata controller "fire_occupant" (city slot 47, controller manager slot 9).
+4. For a building, attach the automata controller "fire_occupant" (city slot 47, controller manager slot 10, the by-name `AddControllersFromOccupantGroup`; automata.md §8.2).
    That brings the fleeing people.
 
 Removing the fire occupant clears `0x69DBEBE1`.

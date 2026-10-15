@@ -1512,7 +1512,7 @@ fc4_zonedev_host MakeZoneDevHost(ZoneDevContext* ctx) {
     h.master_insert = &MasterInsert;
     h.master_remove = &MasterRemove;
     h.master_reset = &MasterReset;
-    // ABI 54 (re-specs11)
+    // ABI 55 (re-specs11)
     h.area_slope = &AreaSlope;
     h.cfg_max_slope = &CfgMaxSlope;
     h.cfg_objects = &CfgObjects;

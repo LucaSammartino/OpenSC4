@@ -11,7 +11,7 @@
 //! and 12, the corner rule, uniqueness against the caller's list), the save
 //! record byte for byte and its round trip, shadow mode,
 //! `DoParcellization` of an agricultural rect, a residential rect with
-//! streets and a dezone, and the re-specs11 table entries (ABI 54): slot 21
+//! streets and a dezone, and the re-specs11 table entries (ABI 55): slot 21
 //! `CanCreatePloppedLot` with configuration objects, `UpdateZoneType`'s
 //! dezone and the street joins.
 
@@ -82,7 +82,7 @@ struct Game {
     textures: RefCell<Vec<u64>>,
     levellings: Cell<u32>,
     removed_occupants: RefCell<Vec<u64>>,
-    // ABI 54 (re-specs11)
+    // ABI 55 (re-specs11)
     slope: Cell<f32>,
     /// Lot configuration 2's object records (configuration 1 has none).
     objects: RefCell<Vec<CfgObject>>,
@@ -1189,7 +1189,7 @@ fn parcellization_agriculture_residential_with_streets_and_a_dezone() {
     assert_eq!((s.parcellizations, s.dezones), (3, 1));
 }
 
-// ---- re-specs11 (ABI 54) ------------------------------------------------------------------------------
+// ---- re-specs11 (ABI 55) ------------------------------------------------------------------------------
 
 #[test]
 fn can_create_plopped_lot_codes_and_configuration_objects() {

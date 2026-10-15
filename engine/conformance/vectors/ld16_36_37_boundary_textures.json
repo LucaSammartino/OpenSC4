@@ -1,0 +1,103 @@
+{
+  "format": 1,
+  "name": "lot_developer_boundary_textures",
+  "spec": ["lot-developer 17.7", "lot-developer 16"],
+  "description": "Tests 36 and 37 (§17.7, worked example 5). Test 36, slot 42 GetBoundaryLotTexture(sides): key = ((s0 * 16 + s1) * 16 + s2) * 16 + s3 (int32, no masking), looked up in the 47-rule map filled at Init, key 0 when absent. {2, 0, 1, 1} -> (0x2700, 0, false); {2, 1, 1, 0} -> (0x2700, 0, true); {1, 1, 1, 1} (absent) -> (0x3000, 0, false); {0, 0, 0, 0} -> (0x3000, 0, false); {0, 2, 0, 1} -> (0x2900, 1, false); {0, 0, 0, 16} is key 0x10 (no masking) -> (0x2000, 2); a negative side gives an absent key -> 0x3000. Before Init the map is empty: nothing is written (LD-Q3, null here). Test 37, slot 43 SetEmptyLotBaseTexture(lot), zone colour 0xFFB23300, alpha 0xAA: the 2 x 1 lot (3, 7), (4, 7), zone 1, facing 0, passes two records, 00 27 00 00 03 07 00 00 FF B2 33 AA 03 FF and 00 27 00 00 04 07 00 01 FF B2 33 AA 03 FF, in that order, through one SetTextureSpecification(records, 2, 0); the base-texture occupant is already inserted, so occupant manager slot 24 and PostOccupantMessage(0x99EF1145) follow; a new one is inserted instead. Zones 15, 0, 11, 12: no record; every base-texture occupant on the lot is removed (RemoveOccupant(o, 0, 0), only when inserted) and shut down. A zone-8 1 x 1 lot: one record, texture 0x3000, rotation 0. A 1 x 1 lot facing 2 in zone 1: 0x1121 -> 0x2300, rotation 2. Every interior cell of a 3 x 3 lot: 0x3000. A 1 x 3 lot (x = 5, z = 0 ... 2) facing 0: 0x2800 / 0, 0x2500 / 1, 0x2200 / 2. A cell outside the city is skipped. When GetLotBaseTextureOccupant fails nothing is passed.",
+  "steps": [
+    {"op": "ldev_create", "seed": 12345},
+    {"op": "ldev_boundary_texture", "sides": [2, 0, 1, 1], "expect": null, "note": "before Init: an empty map (LD-Q3)"},
+    {"op": "ldev_init", "expect": true},
+
+    {"op": "ldev_boundary_texture", "sides": [2, 0, 1, 1], "expect": {"texture": "0x2700", "rotation": 0, "flip": false}},
+    {"op": "ldev_boundary_texture", "sides": [2, 1, 1, 0], "expect": {"texture": "0x2700", "rotation": 0, "flip": true}},
+    {"op": "ldev_boundary_texture", "sides": [1, 1, 1, 1], "expect": {"texture": "0x3000", "rotation": 0, "flip": false}},
+    {"op": "ldev_boundary_texture", "sides": [0, 0, 0, 0], "expect": {"texture": "0x3000", "rotation": 0, "flip": false}},
+    {"op": "ldev_boundary_texture", "sides": [0, 2, 0, 1], "expect": {"texture": "0x2900", "rotation": 1, "flip": false}},
+    {"op": "ldev_boundary_texture", "sides": [0, 0, 0, 16], "expect": {"texture": "0x2000", "rotation": 2, "flip": false},
+      "note": "no masking: key 0x10"},
+    {"op": "ldev_boundary_texture", "sides": [0, 0, 0, -1], "expect": {"texture": "0x3000", "rotation": 0, "flip": false}},
+    {"op": "ldev_boundary_texture", "sides": [1, 1, 0, 2], "expect": {"texture": "0x2700", "rotation": 3, "flip": true}},
+    {"op": "ldev_boundary_texture", "sides": [2, 1, 1, 1], "expect": {"texture": "0x2300", "rotation": 0, "flip": false}},
+    {"op": "ldev_boundary_texture", "sides": [1, 0, 1, 0], "expect": {"texture": "0x2500", "rotation": 0, "flip": false}},
+
+    {"op": "ldev_lot", "id": 1, "x": 3, "z": 7, "w": 2, "h": 1, "state": 1, "zone": 1, "facing": 0},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_set_empty_texture", "lot": 1},
+    {"op": "ldev_expect_events", "events": [
+      {"event": "set_textures", "occ": "0xB0", "n": 2},
+      {"event": "set_texture", "texture": "0x2700", "x": 3, "z": 7, "orientation": 0, "byte3": 0,
+        "extra": ["0xFF", "0xB2", "0x33", "0xAA", 3], "frame": "0xFF"},
+      {"event": "set_texture", "texture": "0x2700", "x": 4, "z": 7, "orientation": 0, "byte3": 1,
+        "extra": ["0xFF", "0xB2", "0x33", "0xAA", 3], "frame": "0xFF"},
+      {"event": "occupant_changed", "occ": "0xB0"},
+      {"event": "occ_post", "occ": "0xB0", "message": "0x99EF1145"}]},
+
+    {"op": "ldev_occ", "id": 60, "type": "0x497F6D9D", "lot": 1, "inserted": false, "cells": [3, 7, 4, 7]},
+    {"op": "ldev_set_empty_texture", "lot": 1},
+    {"op": "ldev_expect_events", "events": [
+      {"event": "set_textures", "occ": 60, "n": 2}, {"event": "set_texture"}, {"event": "set_texture"},
+      {"event": "insert_occupant", "occ": 60}], "note": "not inserted yet: InsertOccupant"},
+    {"op": "ldev_occ", "id": 60, "lot": 99},
+
+    {"op": "ldev_world", "zone_color": "0x12345678", "zone_alpha": "0x80"},
+    {"op": "ldev_set_empty_texture", "lot": 1},
+    {"op": "ldev_expect_events", "filter": {"event": "set_texture"}, "events": [
+      {"extra": ["0x12", "0x34", "0x56", "0x80", 3], "frame": "0xFF"}, {"extra": ["0x12", "0x34", "0x56", "0x80", 3]}]},
+    {"op": "ldev_world", "zone_color": "0xFFB23300", "zone_alpha": "0xAA"},
+
+    {"op": "ldev_occ", "id": 61, "type": "0x497F6D9D", "inserted": true, "cells": [4, 7, 4, 7]},
+    {"op": "ldev_occ", "id": 62, "type": "0x497F6D9D", "inserted": true, "cells": [9, 9, 9, 9], "note": "not on the lot"},
+    {"op": "ldev_lot", "id": 1, "zone": 15},
+    {"op": "ldev_set_empty_texture", "lot": 1},
+    {"op": "ldev_expect_events", "note": "list order; the uninserted occupant is only shut down",
+      "events": [
+        {"event": "shutdown_occupant", "occ": 60},
+        {"event": "remove_occupant", "occ": 61, "a": 0, "flags": 0},
+        {"event": "shutdown_occupant", "occ": 61}]},
+    {"op": "ldev_lot", "id": 1, "zone": 0},
+    {"op": "ldev_set_empty_texture", "lot": 1},
+    {"op": "ldev_expect_events", "filter": {"event": "set_textures"}, "events": []},
+    {"op": "ldev_lot", "id": 1, "zone": 11},
+    {"op": "ldev_set_empty_texture", "lot": 1},
+    {"op": "ldev_lot", "id": 1, "zone": 12},
+    {"op": "ldev_set_empty_texture", "lot": 1},
+    {"op": "ldev_expect_events", "filter": {"event": "set_textures"}, "events": []},
+    {"op": "ldev_occ", "id": 60, "cells": [50, 50, 50, 50]},
+
+    {"op": "ldev_lot", "id": 2, "x": 20, "z": 20, "w": 1, "h": 1, "state": 1, "zone": 8, "facing": 0},
+    {"op": "ldev_set_empty_texture", "lot": 2},
+    {"op": "ldev_expect_events", "filter": {"event": "set_texture"}, "events": [
+      {"texture": "0x3000", "x": 20, "z": 20, "orientation": 0, "byte3": 0}]},
+    {"op": "ldev_lot", "id": 2, "zone": 1, "facing": 2},
+    {"op": "ldev_set_empty_texture", "lot": 2},
+    {"op": "ldev_expect_events", "filter": {"event": "set_texture"}, "events": [
+      {"texture": "0x2300", "orientation": 2, "byte3": 0}]},
+    {"op": "ldev_lot", "id": 2, "zone": 7, "facing": 0},
+    {"op": "ldev_set_empty_texture", "lot": 2},
+    {"op": "ldev_expect_events", "filter": {"event": "set_texture"}, "events": [{"texture": "0x3000"}]},
+
+    {"op": "ldev_lot", "id": 3, "x": 30, "z": 30, "w": 3, "h": 3, "state": 1, "zone": 2, "facing": 1},
+    {"op": "ldev_set_empty_texture", "lot": 3},
+    {"op": "ldev_expect_event_count", "filter": {"event": "set_texture"}, "count": 9},
+    {"op": "ldev_expect_events", "filter": {"event": "set_texture", "x": 31, "z": 31}, "events": [{"texture": "0x3000", "orientation": 0}]},
+    {"op": "ldev_clear_events"},
+
+    {"op": "ldev_lot", "id": 4, "x": 5, "z": 0, "w": 1, "h": 3, "state": 1, "zone": 1, "facing": 0},
+    {"op": "ldev_set_empty_texture", "lot": 4},
+    {"op": "ldev_expect_events", "filter": {"event": "set_texture"}, "events": [
+      {"texture": "0x2800", "x": 5, "z": 0, "orientation": 0, "byte3": 0},
+      {"texture": "0x2500", "x": 5, "z": 1, "orientation": 1, "byte3": 0},
+      {"texture": "0x2200", "x": 5, "z": 2, "orientation": 2, "byte3": 0}]},
+
+    {"op": "ldev_lot", "id": 5, "x": 63, "z": 40, "w": 2, "h": 1, "state": 1, "zone": 1, "facing": 3},
+    {"op": "ldev_set_empty_texture", "lot": 5},
+    {"op": "ldev_expect_events", "note": "cell (64, 40) is outside the city: one record",
+      "events": [{"event": "set_textures", "n": 1}, {"event": "set_texture", "x": 63, "z": 40},
+        {"event": "occupant_changed"}, {"event": "occ_post"}]},
+
+    {"op": "ldev_world", "base_texture_fails": true},
+    {"op": "ldev_set_empty_texture", "lot": 4},
+    {"op": "ldev_expect_events", "events": []},
+    {"op": "ldev_world", "base_texture_fails": false}
+  ]
+}

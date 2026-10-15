@@ -651,3 +651,18 @@ fn null_handles_are_harmless() {
         fc4_park_destroy(std::ptr::null_mut());
     }
 }
+
+/// The save sweep (`save_sweep_tests.rs`): `rec` read into a fresh manager
+/// and written again.
+pub(super) fn sweep_round_trip(rec: &[u8]) -> Result<Vec<u8>, String> {
+    let g = Game::new();
+    unsafe {
+        let p = fc4_park_create(&host(&g), SEED, MANAGER);
+        if p.is_null() {
+            return Err("create failed".into());
+        }
+        let r = crate::save_sweep_tests::read_write(rec, |i| fc4_park_read(p, i), |o| fc4_park_write(p, o));
+        fc4_park_destroy(p);
+        r
+    }
+}

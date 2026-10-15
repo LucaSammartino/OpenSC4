@@ -190,7 +190,7 @@ pub struct fc4_zonedev_host {
     /// Network tool `kind` (3 or 11) slot 9 `OccupantExists(x, z, flag,
     /// mask)`: true with `mask[0..4]` written, or false (mask untouched).
     pub network_tool_occupant_exists: Option<unsafe extern "C" fn(U, u32, i32, i32, u32, *mut u8) -> bool>,
-    /// Not called since ABI 54 (the joins are the core's, §5.2.1–§5.2.2).
+    /// Not called since ABI 55 (the joins are the core's, §5.2.1–§5.2.2).
     pub street_joining_helper: Option<unsafe extern "C" fn(U, u64, u32)>,
     // terrain
     pub cell_has_water: Option<unsafe extern "C" fn(U, i32, i32) -> bool>,
@@ -284,7 +284,7 @@ pub struct fc4_zonedev_host {
     pub master_remove: Option<unsafe extern "C" fn(U, u64)>,
     /// The list replaced by `lots[0..n]` (`Read`; empty at `Shutdown`).
     pub master_reset: Option<unsafe extern "C" fn(U, *const u64, usize)>,
-    // ABI 54 (re-specs11)
+    // ABI 55 (re-specs11)
     /// Lot developer slot 29 `GetAreaSlope(rect, withWater)` (ST0).
     pub area_slope: Option<unsafe extern "C" fn(U, *const fc4_cell_rect, bool) -> f32>,
     /// Lot configuration slot 8 `GetMaximumSlope` (ST0).

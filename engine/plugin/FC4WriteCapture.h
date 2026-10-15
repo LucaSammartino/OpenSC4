@@ -49,6 +49,12 @@ public:
     // Reference `id`'s object as written (its cIGZSerializable, borrowed;
     // nullptr for an unknown id): the zone developer shadow asks it for its lot.
     const void* Object(uint32_t id) const;
+    // The same object as its cIGZSerializable (borrowed; nullptr for an
+    // unknown id): the civic and parks shadows map saved occupants and
+    // departments back to their objects with it.
+    cIGZSerializable* SerializableAt(uint32_t id) const {
+        return static_cast<cIGZSerializable*>(const_cast<void*>(Object(id)));
+    }
 
     // cIGZUnknown (a static object: the reference count is not kept)
     bool QueryInterface(uint32_t riid, void** ppvObj) override;
@@ -116,6 +122,36 @@ private:
     bool Get(void* out, size_t n);
     const std::vector<uint8_t>& b_;
     size_t pos_ = 0;
+};
+
+// A capture as an fc4_istream: a shadow core's Read of the original's record
+// (the civic and parks shadows). Primitives little-endian, GZStr as a uint32
+// length and the bytes, a reference as its object (WriteCapture::Object)
+// queried for the IID the reader asks: a host object comes back with one
+// reference for the reader, one of ours without one (the host's resolve_ref
+// takes it, as FC4Streams.h's IStreamAdapter does). The capture must outlive
+// the stream and its objects the read.
+class CaptureIStream {
+public:
+    // `bytes`, when given, replaces the capture's bytes (same references,
+    // e.g. a record with reordered entries); it must outlive the stream.
+    explicit CaptureIStream(const WriteCapture& cap, const std::vector<uint8_t>* bytes = nullptr);
+    const fc4_istream* Get() const { return &api_; }
+    bool good() const { return good_; }
+    bool atEnd() const { return pos_ == B().size(); }
+
+    // fc4_istream callbacks (public for the C table).
+    bool Take(void* out, size_t n);
+    bool Str(fc4_bytes_sink sink, void* ctx);
+    bool Ref(uint32_t iid, fc4_ref* out);
+
+private:
+    const std::vector<uint8_t>& B() const { return bytes_ != nullptr ? *bytes_ : cap_.Bytes(); }
+    const WriteCapture& cap_;
+    const std::vector<uint8_t>* bytes_ = nullptr;
+    size_t pos_ = 0;
+    bool good_ = true;
+    fc4_istream api_{};
 };
 
 // A shadow's line through fc4::Log (a fixed buffer): a longer line is split

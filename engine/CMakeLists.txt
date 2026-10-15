@@ -273,6 +273,27 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4TractInterfaces.h
         plugin/FC4TractShadow.cpp
         plugin/FC4TractShadow.h
+        # The lot developer (lot-developer.md): `enable = lotdev`, lotdev_shadow.
+        plugin/cFC4LotDeveloper.cpp
+        plugin/cFC4LotDeveloper.h
+        plugin/FC4LotDevHost.cpp
+        plugin/FC4LotDevInterfaces.h
+        plugin/FC4LotDevShadow.cpp
+        plugin/FC4LotDevShadow.h
+        # The commercial / industrial simulators, the civic building simulator and the
+        # park manager (cmglue): `enable = commercial, industrial, civic, parks`, their shadows.
+        plugin/cFC4Commercial.cpp
+        plugin/cFC4Commercial.h
+        plugin/FC4CommercialShadow.cpp
+        plugin/FC4CommercialShadow.h
+        plugin/cFC4Civic.cpp
+        plugin/cFC4Civic.h
+        plugin/FC4CivicShadow.cpp
+        plugin/FC4CivicShadow.h
+        plugin/cFC4Parks.cpp
+        plugin/cFC4Parks.h
+        plugin/FC4ParksShadow.cpp
+        plugin/FC4ParksShadow.h
         # The zone developer / lot manager (zones.md §1.2, §7-§11.3): enable = zonedev,
         # zonedev_shadow.
         plugin/cFC4ZoneDeveloper.cpp
@@ -518,6 +539,29 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_tract_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-tract)
     set_tests_properties(plugin_ini_enable_tract_test PROPERTIES RUN_SERIAL TRUE)
+    # The lot developer (lot-developer.md): `enable = lotdev` (no city: the QI
+    # table, Release's 0, the record round trip, lifecycle without services)
+    # and, through seam op 52 with stub hosts, Init's registrations and the
+    # lot developer shadow (lotdev_shadow = 1: INACTIVE with `enable = lotdev`).
+    add_test(NAME plugin_ini_enable_lotdev_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-lotdev)
+    set_tests_properties(plugin_ini_enable_lotdev_test PROPERTIES RUN_SERIAL TRUE)
+    # The cmglue lane (tests/plugin_cmglue_test.inc): `enable = commercial,
+    # industrial` (no city: the QI tables, slot 5, the records' round trips,
+    # Init without services, DoMessage).
+    add_test(NAME plugin_ini_enable_commercial_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-commercial)
+    set_tests_properties(plugin_ini_enable_commercial_test PROPERTIES RUN_SERIAL TRUE)
+    # `enable = civic` (no city: the QI table, slots 5-8, the record with the
+    # mod-193 order, DoMessage).
+    add_test(NAME plugin_ini_enable_civic_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-civic)
+    set_tests_properties(plugin_ini_enable_civic_test PROPERTIES RUN_SERIAL TRUE)
+    # `enable = parks`: the park manager (parks.md): QI table, record, Init
+    # without a city, a fake zoo's escape (the ZooEscape message, §4.5).
+    add_test(NAME plugin_ini_enable_parks_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-parks)
+    set_tests_properties(plugin_ini_enable_parks_test PROPERTIES RUN_SERIAL TRUE)
     # `enable = neighbors`: the neighbours simulator, its connections (an
     # original's accepted on load) and deals, through a fake city and region.
     add_test(NAME plugin_ini_enable_neighbors_test
