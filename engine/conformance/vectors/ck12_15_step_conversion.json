@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "ck12_15_step_conversion",
+  "spec": ["clock24 4.3", "clock24 12"],
+  "description": "Test 15 (CK8, CK9). The step is the low 32 bits of _ftol's 64-bit truncation, compared unsigned with 60 and 1200. With min -10 (SetTimeMagnificationMinMax(-10, 2000)) and magnification -5, e = 1,000,000 gives a product of -5, which wraps to a step above 1200: the clock advances by 1200 and the timer restarts. With magnification -0.5 the product truncates to 0: no step, and the timer keeps running (the elapsed time builds up). With magnification 135 and e = 0x80000000 (the unsigned-to-float idiom) the product is far above 1200: the clock advances by 1200. A NaN magnification is covered by the core's unit tests (JSON has no NaN).",
+  "steps": [
+    {"op": "ck_create"},
+    {"op": "ck_call", "method": "init"},
+    {"op": "ck_call", "method": "set_time_magnification_min_max", "args": [-10, 2000], "expect": true},
+    {"op": "ck_call", "method": "set_time_magnification", "args": [-5], "expect": true},
+    {"op": "ck_expect", "state": {"magnification": -5, "seconds": 43200, "timer_running": true}},
+    {"op": "ck_idle", "elapsed": 1000000, "expect": true},
+    {"op": "ck_expect", "state": {"seconds": 44400, "timer_running": true, "timer_elapsed": 0}},
+    {"op": "ck_call", "method": "set_time_magnification", "args": [-0.5], "expect": true},
+    {"op": "ck_idle", "elapsed": 1000000, "expect": true},
+    {"op": "ck_expect", "state": {"seconds": 44400, "timer_elapsed": 1000000}},
+    {"op": "ck_call", "method": "set_time_magnification", "args": [135], "expect": true},
+    {"op": "ck_idle", "elapsed": 2147483648, "expect": true},
+    {"op": "ck_expect", "state": {"seconds": 45600, "timer_elapsed": 0}}
+  ]
+}

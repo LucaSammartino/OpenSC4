@@ -107,6 +107,9 @@ extern "C" {
  *      on its lane; renumbered at merge);
  * 51 = adds the zone developer / lot manager (fc4_zonedev, zones.md §1.2, §7-§11.3) and its shadow mode
  *      (fc4_zonedev_create_shadow) (taken as 54 on its lane; renumbered at merge);
+ * 52 = adds the history warehouse and 24-hour clock glue (docs/specs/history.md, clock24.md):
+ *      their shadow modes (history_shadow, clock24_shadow) and the save sweep mode for the
+ *      two records (0x89EFA536, 0xA7E7F929) (taken as 55 on its lane; renumbered at merge);
  * 63 = adds fc4_grid_set_bulk_reader / _writer (performance hooks: one host call reads a whole grid
  *      or writes a walk's changes);
  *      fc4_development_developers / _special_buildings run their callback without a copy, so it
@@ -5690,7 +5693,7 @@ bool fc4_history_shutdown(fc4_history* h);
  * interval), SimNewYear. True otherwise (and for a re-entrant call). */
 bool fc4_history_do_message(fc4_history* h, uint32_t msg_type, uint32_t data1, uint32_t data2);
 /* RecordHistoryData (slot 12, §4.1): sends the record message through the
- * host's send without touching the warehouse. True for a live object. */
+ * host's send without touching the warehouse. Returns false (HW12). */
 bool fc4_history_record(const fc4_history* h, uint32_t key, int32_t value);
 /* SetHistoryDataQueueLength (slot 13, §4.2). */
 bool fc4_history_set_queue_length(fc4_history* h, uint32_t key, uint32_t n);
