@@ -4111,28 +4111,28 @@ them, and Stage B applies those sections.
   settles the region's owner]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered (zones.md §13.2, the HighlightParcels row). The only caller that passes `out` is `cSC4ViewInputControlZone::DoCursorUpdate` (`0x004DBDCE`), which keeps the region in its `+0x58` and frees the previous one (rows and object) when it stores the next (`0x004DBDD1`–`0x004DBDF3`). `ClearHighlights` (`0x004DAE2D`) and `ComputeAndMarkSelectedArea` (`0x004DB734`) pass null. So the zone tool owns it; `*out = null` is safe only for a glue with no zone tool.
 - ~~**ZG25:** §5.2 step 3, the street-joining helpers `0x00731F60` / `0x00732450`, are not specified. [no-op plus a log
   line; zones.md §5.2.1-§5.2.2 (`JoinDeadEndStubs`, `JoinAcrossRail`, ZQ14) may cover them]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered by zones.md §5.2.1 (`JoinDeadEndStubs`) and §5.2.2 (`JoinAcrossRail`), with the data4 values in §5.2 (ZQ14): 1 for player-drawn networks, 3 for networks laid by code. The no-op is now a gap Stage B can close.
-- **ZG26:** the PlopAllLots / PlopAllBuildings cheats (§1.2 step 7): their bodies are not specified, and the host has
-  no cheat-manager registration call. [not registered]
+- ~~**ZG26:** the PlopAllLots / PlopAllBuildings cheats (§1.2 step 7): their bodies are not specified, and the host has
+  no cheat-manager registration call. [not registered]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (zones.md §5.4, now specified). Both cheats are registered only when the debug-functionality flag (app slot 21) is set, so a shipped game without it never reaches them. `PlopAllLotTypes` (`0x0072C8E0`) places one lot per lot configuration in rows from (0, 0). `PlopAllBuildingTypes` (`0x0072BE50`) places one generic lot per building type on a spiral from the map centre. Both use `CreateLotIfPossible(…, true, false, cfg)` followed by `ConstructDefaultLot`. Leaving them unregistered is a safe *[choice]*.
 - ~~**ZG27:** slot 21 `CanCreatePloppedLot` (§14.3 Q2). [Stage A returns 0, logged; **answered by re-specs11** in zones.md
   §8.4.1-§8.4.3 (codes 0, 1, 3-8); Stage B implements it]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered by re-specs11 (zones.md §8.4.1–§8.4.3), with the two network flags now named (ZQ15); nothing to add.
 - ~~**ZG28:** slots 11 and 24-26 leave EAX undefined in the original. [return true]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice). The original leaves EAX undefined, so no caller can depend on it; returning true is safe.
 - ~~**ZG29:** the budget and traffic glue walk the original lot manager's raw list (the list object at `lm+0x5C`). Our
   master list keeps the same raw layout and list object, but not at `+0x5C` inside our object. Does any caller read the
   member directly rather than through slot 15? [assumed none; not traced]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (zones.md §8.3). No load of the lot manager from `0x00B43D08`, or from city slot 33 (`+0x84`), is followed by a read of `+0x5C` anywhere in the executable, and the budget's tax pass reaches the list through slot 15 (budget.md BQ6). Every other class goes through the interface.
-- **ZG30:** parcellization has no dry run (`HighlightParcels` draws, posts and places street drafts). [the shadow
-  compares the lookups and CanCreateLot only]
-- **ZG31:** a traffic insertion-point iterator from a foreign list at CreateLot (§8.5 step 4). [the lot is appended,
-  logged]
-- **ZG32:** reference audit for the manager's last lot reference at DeleteLot / Shutdown. [`FC4_RELEASE_AT_DESTRUCTION`,
-  as DG28]
-- **ZG33:** another thread that cannot take the lock within 20 ms. [neutral answers, except the snapshotted lot count
-  and grid; counted as a fallback]
-- **ZG34:** with `enable = zonedev` and CreateLot refused, the original tract developer's Grow (2026-01-30 on
+- ~~**ZG30:** parcellization has no dry run (`HighlightParcels` draws, posts and places street drafts). [the shadow
+  compares the lookups and CanCreateLot only]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (zones.md §7.1). The executable has no side-effect-free parcellization. `HighlightParcels` is the closest, but it still draws random numbers (§9), posts both DeferOccupantOperations messages and places street drafts. A shadow cannot call it without moving the zone developer's generator `0x00B4B398`. Comparing the lookups and `CanCreateLot` is the right scope.
+- ~~**ZG31:** a traffic insertion-point iterator from a foreign list at CreateLot (§8.5 step 4). [the lot is appended,
+  logged]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (zones.md §8.5 step 4). The iterator is the traffic simulator's safe lot iterator, taken at its `Init` from slot 15 of the lot manager installed at that time (traffic-network.md §4.14). It is returned only in work-cycle state 1, which the cycle never enters, so it is null in practice and appending is exact. A foreign iterator is reachable only if the traffic simulator's `Init` ran against the original manager.
+- ~~**ZG32:** reference audit for the manager's last lot reference at DeleteLot / Shutdown. [`FC4_RELEASE_AT_DESTRUCTION`,
+  as DG28]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS** in timing (zones.md §1.2 Shutdown). The original deletes every lot in `Shutdown`, not in its destructor: `0x0072B8D0` (called at `0x00733663`) walks the cell map x outer, z inner, and calls its own `DeleteLot` (slot 24) on each non-null cell. That runs the full §8.6 sequence: zot prop, base texture, cells, master list, business unit, `lot.Shutdown()`, and the manager's release. The expected-release marker therefore belongs at `Shutdown`'s `DeleteLot`, as at any `DeleteLot`.
+- ~~**ZG33:** another thread that cannot take the lock within 20 ms. [neutral answers, except the snapshotted lot count
+  and grid; counted as a fallback]~~ **ANSWERED 2026-10-15 (re-answers12):** Not an RE question; the bracket stands. The original lot manager has no lock: every caller runs on the simulation thread, so there is no original behaviour to match.
+- ~~**ZG34:** with `enable = zonedev` and CreateLot refused, the original tract developer's Grow (2026-01-30 on
   Konradshohe) gives two "over-release of game object [class 0xC9BD5D4A] at ReleaseToken" warnings (DeleteLot's
   manager release, §8.6 step 6) and then an access violation at `0x0070690C` / `0x00AB1995` (runs `zonedev-enable-1`,
   `-2`). Does the game's growth path tolerate a failed CreateLot after DeleteLot, or must lot creation never fail
   there? [not resolved; re-test after Stage B builds lots, then audit Grow's delete-and-recreate reference flow (slot 7
-  caller references against the manager's)]
+  caller references against the manager's)]~~ **ANSWERED 2026-10-15 (re-answers12):** **Answered: lot creation must not fail there** (tract-developer.md §4.15.3). After a failed `CreateLotIfPossible`, `Build` returns 0 and the pass continues with the next candidate (§4.3). Candidate lot sets hold borrowed pointers (`GetLot`, no AddRef), and overlapping aggregation candidates share lots, so the next aggregation runs `PerformAggregation` step 1 on lots that were already deleted and freed. That gives the two over-release warnings at the second `DeleteLot` of the same lot, then the AddRef at `0x0070690C` through a stale vtable (`0x00AB1995` is data, not code). The original clears the rectangle itself first, so in practice step 4 succeeds there. Stage A must not let Grow reach aggregation while it cannot create lots; Stage B's working `CreateLot` removes the cause.
 
 ## From the history warehouse and 24-hour clock glue (filed by the coordinator from the `histclock` lane's report, 2026-10-15)
 
