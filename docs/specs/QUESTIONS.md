@@ -3809,16 +3809,16 @@ apply9b applied ZG1–ZG17, LG27–LG29, BQ4, BQ7 and CQ23 (merged `969527d`). I
 296/296), and landfill game tiles insert with no failures (`gameTiles=12 gameTileFailures=0`; the tile exemplar is set
 through the holder at occupant + 0x20).
 
-- **ZG18:** ZG3: with no exemplar, or no Zone Display Alpha property, does `Init` still copy the alpha to the default
+- ~~**ZG18:** ZG3: with no exemplar, or no Zone Display Alpha property, does `Init` still copy the alpha to the default
   alpha? [no: the saved alpha survives and the default alpha stays as it was (0xFF from the constructor); only the
-  exemplar's value is copied]
-- **ZG19:** ZG3 / §10.1: does `Read` set the default alpha? [no: the default alpha is not saved, so after `Read` and
-  before `Init` it is 0xFF]
-- **ZG20:** zones §15.2 still says "Type 16 → false", which conflicts with §6 and ZG17. [ZG17 followed: type 16
-  dezones; `zn15_02` updated. The spec text needs the fix]
-- **ZG21:** ZG2 and the §5.1 dezone: under the ZG2 choice, a network whose bounding cells cross the city edge has its
+  exemplar's value is copied]~~ **ANSWERED 2026-10-15 (re-answers10):** partly **DIFFERS**. With no exemplar the tuning reader returns before both alphas (`0x004DC4BB`): matches. With the exemplar present but no Zone Display Alpha, the copy to the default alpha still runs (`0x004DC675` is unconditional), so the default alpha becomes the current alpha (the saved byte after a load). Also, the constructor never sets the default alpha (only the alpha, 0xFF at `0x004DCEB8`), so 0xFF there is our choice. zones §10.1, §4.
+- ~~**ZG19:** ZG3 / §10.1: does `Read` set the default alpha? [no: the default alpha is not saved, so after `Read` and
+  before `Init` it is 0xFF]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: `Read` writes only the alpha (`0x004DD590`); the default alpha is neither saved nor read. Its value before the first `Init` is uninitialised in the original; 0xFF is our choice. zones §10.1.
+- ~~**ZG20:** zones §15.2 still says "Type 16 → false", which conflicts with §6 and ZG17. [ZG17 followed: type 16
+  dezones; `zn15_02` updated. The spec text needs the fix]~~ **ANSWERED 2026-10-15 (re-answers10):** the bracket MATCHES and the spec text was wrong: test 2 now says type 16 becomes type 0 and dezones with type 0's limits (zones §15 test 2, §6).
+- ~~**ZG21:** ZG2 and the §5.1 dezone: under the ZG2 choice, a network whose bounding cells cross the city edge has its
   whole dezone refused. Before, the inside cells were dezoned, and the original dezones them too while touching
-  memory outside the grid. [refused whole, with error 0; not seen in game]
+  memory outside the grid. [refused whole, with error 0; not seen in game]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS**. The original dezones every in-city cell of the rectangle and also touches zone-grid memory outside the grid (no clamp in the handler, in `GetBoundingCityCells` `0x005E8E20`, or in `PlaceZone`). Recommended choice for this internal call: clip the region to the city and dezone the inside cells; refusing the whole call leaves them zoned. zones §5.1.
 
 ## From applying the neighbours answers (filed by the coordinator from the `apply9a` lane's report, 2026-10-14)
 
