@@ -47,6 +47,7 @@
 #include "cFC4TrafficSimulator.h"
 #include "cFC4ZoneManager.h"
 #include "cFC4TractDeveloper.h"
+#include "cFC4Parks.h"  // the cmglue lane
 #include "cFC4ZoneDeveloper.h"
 #include "cFC4Protection.h"
 #include "cFC4Variant.h"
@@ -191,6 +192,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return DialogsTestSeam(static_cast<const FC4DialogsTestInput*>(a));
         case kFC4SeamHistClock:  // the history and clock lane (FC4HistClock.h)
             return HistClockTestSeam(static_cast<const FC4HistClockTestInput*>(a));
+        case kFC4SeamParks:  // the cmglue lane (cFC4Parks.h)
+            return a == nullptr ? -1 : fc4::ParksTestZooEscape(static_cast<const FC4ParksTestInput*>(a));
         case kFC4SeamNeighborsApp:  // the neighbours apply lane (NG14, NG4)
             if (b != nullptr) {
                 return fc4::NeighborsTestCopyDeal(static_cast<cISC4NeighborDeal*>(a),

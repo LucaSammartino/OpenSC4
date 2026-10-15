@@ -109,8 +109,10 @@ extern "C" {
  *      (fc4_zonedev_create_shadow) (taken as 54 on its lane; renumbered at merge);
  * 52 = adds the history warehouse and 24-hour clock glue (docs/specs/history.md, clock24.md):
  *      their shadow modes (history_shadow, clock24_shadow) and the save sweep mode for the
- *      two records (0x89EFA536, 0xA7E7F929) (taken as 55 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 52u
+ *      two records (0x89EFA536, 0xA7E7F929) (taken as 55 on its lane; renumbered at merge);
+ * 53 = adds fc4_commercial_set_machine (the commercial shadow; cmglue lane) (taken as 58 on its lane;
+ *      renumbered at merge). */
+#define FC4_ABI_VERSION 53u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -6176,6 +6178,10 @@ bool fc4_commercial_do_message(fc4_commercial* c, uint32_t msg_type, uint32_t da
                                uint32_t data3, uint64_t void1);
 /* One DoIdle step (§4.3). */
 void fc4_commercial_do_idle(fc4_commercial* c);
+/* Tooling (the commercial shadow; ABI 53): sets the DoIdle machine (§2.1,
+ * §4.3) to `dirty` and `state`, as read from the original before one of its
+ * steps. False for a NULL object or a state outside 0..3 (nothing changes). */
+bool fc4_commercial_set_machine(fc4_commercial* c, bool dirty, int32_t state);
 /* Slot 5 GetProximityMap(developerType) (§4.6): the grid token, 0 for any other
  * type or no grid. No reference is added. */
 uint64_t fc4_commercial_proximity_map(const fc4_commercial* c, uint32_t developer_type);

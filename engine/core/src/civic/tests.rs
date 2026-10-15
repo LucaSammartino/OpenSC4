@@ -938,13 +938,21 @@ fn cb12_09_save_round_trip_and_order() {
         p += 11 + len;
     }
     assert_eq!(keys, vec![194, 1, 2]);
-    // Read into a fresh object; write again: byte-identical.
+    // Read into a fresh object (CB6): file order, each at the head of its
+    // chain, so the two-entry chain of bucket 1 comes back reversed.
     let g = fx();
     assert!(load(&g.s, &bytes));
-    assert_eq!(record(&g.s), bytes);
     let st = g.s.snapshot();
-    assert_eq!(st.exclusions.iter_order(), vec![194, 1, 5]);
-    assert_eq!(st.statuses.keys(), vec![194, 1, 2]);
+    assert_eq!(st.exclusions.iter_order(), vec![1, 194, 5]);
+    assert_eq!(st.statuses.keys(), vec![1, 194, 2]);
+    let once = record(&g.s);
+    assert_eq!(once.len(), bytes.len());
+    assert_ne!(once, bytes, "write → read → write reverses the chain");
+    // A second round trip restores the record byte-identically.
+    let g2 = fx();
+    assert!(load(&g2.s, &once));
+    assert_eq!(record(&g2.s), bytes);
+    let st = g.s.snapshot();
     // Object IDs (the save registry's numbering) are the reader's tokens:
     // the department 1, the Disease Research Center 2, the building 3.
     assert_eq!(st.landmarks, Some(1));
@@ -1078,7 +1086,7 @@ fn cb12_10_corpus_shapes() {
 /// More than 193 keys: the table grows to 389 buckets, and a reader rebuilds
 /// the same order.
 #[test]
-fn large_tables_keep_order() {
+fn large_tables_read_in_file_order() {
     let f = fx();
     f.s.with_state(|s| {
         for k in 0..250u32 {
@@ -1087,7 +1095,59 @@ fn large_tables_keep_order() {
     });
     assert_eq!(f.s.snapshot().exclusions.bucket_count(), 389);
     let bytes = record(&f.s);
+    // Read inserts in file order with resize(n + 1) before each insert
+    // (§7, CB6), so the table grows past 193 entries while reading and the
+    // order is the STLport one of that insertion sequence: the same IDs in
+    // the same bucket count, a record of the same size.
     let g = fx();
     assert!(load(&g.s, &bytes));
-    assert_eq!(record(&g.s), bytes);
+    let st = g.s.snapshot();
+    assert_eq!(st.exclusions.bucket_count(), 389);
+    let mut a = st.exclusions.iter_order();
+    let mut b = f.s.snapshot().exclusions.iter_order();
+    a.sort_unstable();
+    b.sort_unstable();
+    assert_eq!(a, b);
+    assert_eq!(record(&g.s).len(), bytes.len());
+}
+
+#[test]
+fn cb6_repeated_keys_on_read() {
+    // Exclusion 9 twice (a set: inserted once); status 7 twice, then a key
+    // already present: the last value in the file wins, in place (§7, CB6).
+    let g = fx();
+    g.s.update_conditional_building_status(
+        8,
+        &ConditionalBuildingStatus {
+            status: 0,
+            building_count: 1,
+            tooltip: b"old".to_vec(),
+        },
+    );
+    let mut rec = vec![6, 0];
+    rec.extend(2u32.to_le_bytes());
+    rec.extend(9u32.to_le_bytes());
+    rec.extend(9u32.to_le_bytes());
+    rec.extend(3u32.to_le_bytes());
+    for (k, st, n, t) in [(7u32, 1u8, 2u16, &b"a"[..]), (7, 4, 3, b"bb"), (8, 6, 5, b"c")] {
+        rec.extend(k.to_le_bytes());
+        rec.push(st);
+        rec.extend(n.to_le_bytes());
+        rec.extend((t.len() as u32).to_le_bytes());
+        rec.extend_from_slice(t);
+    }
+    rec.extend(0u32.to_le_bytes()); // null department
+    rec.extend(0u32.to_le_bytes());
+    rec.extend(0u32.to_le_bytes());
+    assert!(load(&g.s, &rec));
+    let st = g.s.snapshot();
+    assert_eq!(st.exclusions.iter_order(), vec![9]);
+    assert_eq!(st.statuses.keys(), vec![7, 8]);
+    let s7 = st.statuses.get(7).unwrap();
+    assert_eq!(
+        (s7.status, s7.building_count, s7.tooltip.as_slice()),
+        (4, 3, &b"bb"[..])
+    );
+    let s8 = st.statuses.get(8).unwrap();
+    assert_eq!((s8.status, s8.building_count, s8.tooltip.as_slice()), (6, 5, &b"c"[..]));
 }

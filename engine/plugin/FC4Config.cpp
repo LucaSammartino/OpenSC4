@@ -233,6 +233,8 @@ const SwitchInfo kSwitches[kCount] = {
     {"tract_roads", "FC4_TRACT_ROADS"},
     {"tract_family_sets", "FC4_TRACT_FAMILY_SETS"},
     {"tract_agents", "FC4_TRACT_AGENTS"},
+    // commercial
+    {"commercial_grid_writes", "FC4_COMMERCIAL_GRID_WRITES"},
     {"zonedev_grid_writes", "FC4_ZONEDEV_GRID_WRITES"},
     {"zonedev_messages", "FC4_ZONEDEV_MESSAGES"},
     {"zonedev_network_tools", "FC4_ZONEDEV_NETWORK_TOOLS"},
@@ -276,6 +278,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "sim_turbo", "sim_turbo_frame_ms", "sim_turbo_until", "autotest_end_date", "script",
                                   "sim_turbo_wait_days", "close_dialogs",
                                   "tract_shadow", "tract_seed", "tract_grow_log",
+                                  // the cmglue lane (FC4CommercialShadow.h, cFC4Civic.cpp, cFC4Parks.cpp)
+                                  "commercial_shadow", "commercial_shadow_cells", "civic_shadow", "civic_seed",
+                                  "parks_shadow", "parks_seed",
                                   "zonedev_shadow", "zonedev_seed",
                                   // the histclock lane (FC4HistoryShadow.h, FC4Clock24Shadow.h)
                                   "history_shadow", "clock24_shadow"};
@@ -312,9 +317,11 @@ volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // tract
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               // commercial
+                               1,
                                // zonedev
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-static_assert(kCount == 209, "g_on: one 1 per switch");
+static_assert(kCount == 210, "g_on: one 1 per switch");
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};

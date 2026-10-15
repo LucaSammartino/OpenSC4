@@ -266,6 +266,10 @@ INTERFACES = [
     # cISC43DRender through slot 8 GetViewUtilities.
     ("vt:cSC43DRender::vftable", "cFC4ISC43DRender", FCW, True),
     ("cIGZMessageTarget(AudioEventHandler)", "cIGZMessageTarget", "cIGZMessageTarget.h", True),
+    # The commercial and industrial simulators (docs/specs/commercial-industrial.md section 9):
+    # implemented through the SDK declarations (cISC4CommercialSimulator is listed above
+    # for the growth developers' calls).
+    ("cISC4IndustrialSimulator", "cISC4IndustrialSimulator", "cISC4IndustrialSimulator.h", True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),
