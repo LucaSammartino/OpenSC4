@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "disaster_riot_leader_limit",
+  "spec": ["disasters 6.1", "disasters 6.2", "disasters 6.4", "disasters 18.8"],
+  "description": "Police coverage 112 gives the shipped curve 1 + 4 x 47/190 = 1.989, truncated to 1 < 2: the leader is created and the riot counts as active. Coverage 113 gives 2.011: the leader is refused and the instance has no leaders. At most three riots run at once; the leader takes the nearest road cell within 7 cells (rings in row order), none further.",
+  "steps": [
+    {"op": "dis_riot_tuning", "tuning": "shipped",
+      "state": {"max_riots": 3, "max_leaders": 10, "stages": 6, "seconds_per_stage": 30},
+      "police": [[112, 1.9894737], [113, 2.0105263]]},
+
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_cell", "rect": [0, 20, 63, 20], "road": true},
+    {"op": "dis_cell", "cell": [10, 20], "police": 112},
+    {"op": "dis_call", "method": "attempt_start", "args": ["riot", 10, 20], "expect": 1},
+    {"op": "dis_expect_riot", "instance": 1, "state": {"leader_count": 1}},
+    {"op": "dis_call", "method": "active_count", "args": ["riot"], "expect": 1},
+    {"op": "dis_cell", "cell": [30, 20], "police": 113},
+    {"op": "dis_call", "method": "attempt_start", "args": ["riot", 30, 20], "expect": 2},
+    {"op": "dis_expect_riot", "instance": 2, "state": {"leader_count": 0}},
+    {"op": "dis_call", "method": "active_count", "args": ["riot"], "expect": 1},
+
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_call", "method": "attempt_start", "args": ["riot", 5, 20], "expect": 1},
+    {"op": "dis_call", "method": "attempt_start", "args": ["riot", 15, 20], "expect": 2},
+    {"op": "dis_call", "method": "attempt_start", "args": ["riot", 25, 20], "expect": 3},
+    {"op": "dis_call", "method": "active_count", "args": ["riot"], "expect": 3},
+    {"op": "dis_call", "method": "attempt_start", "args": ["riot", 35, 20], "expect": null},
+
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_call", "method": "attempt_start", "args": ["riot", 10, 27], "expect": 1},
+    {"op": "dis_expect_riot", "instance": 1, "state": {"leaders": [{"automaton": "0xA004", "counter": 0, "stage": 0, "max_stage": 0, "cell": [3, 20]}]}},
+    {"op": "dis_call", "method": "attempt_start", "args": ["riot", 10, 28], "expect": 2},
+    {"op": "dis_expect_riot", "instance": 2, "state": {"leader_count": 0}}
+  ]
+}
