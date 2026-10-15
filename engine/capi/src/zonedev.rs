@@ -56,9 +56,8 @@ use fc4_core::rng::{derive_seed, FixedSeeds};
 use fc4_core::stream::{InStream, RefValue, SaveObject};
 use fc4_core::zones::{
     developer_answers_iid, BuildingProfile, CellRegion, Component, GrowthItem, InsertionPoint, LotObject, Position,
-    Service,
-    SharedZoneStatics, ZoneDeveloper, ZoneDeveloperStatics, ZonesHost, ZonesMessage, CLSID_ZONE_DEVELOPER, IID_LOT,
-    RNG_SEED_XOR,
+    Service, SharedZoneStatics, ZoneDeveloper, ZoneDeveloperStatics, ZonesHost, ZonesMessage, CLSID_ZONE_DEVELOPER,
+    IID_LOT, RNG_SEED_XOR,
 };
 
 use crate::budget::fc4_token_callback;

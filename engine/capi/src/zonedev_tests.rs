@@ -47,6 +47,11 @@ struct Lot {
 /// A street Place call: (kind, ax, az, bx, bz, real mode).
 type Place = (u32, i32, i32, i32, i32, bool);
 
+/// A configuration object record: (type, orientation, [min x, min z, max x, max z], values).
+type CfgObject = (u8, u8, [f32; 4], Vec<u32>);
+/// A network_tool_join call: (kind, ax, az, bx, bz).
+type Join = (u32, i32, i32, i32, i32);
+
 #[derive(Default)]
 struct Game {
     cx: i32,
@@ -80,12 +85,12 @@ struct Game {
     // ABI 54 (re-specs11)
     slope: Cell<f32>,
     /// Lot configuration 2's object records (configuration 1 has none).
-    objects: RefCell<Vec<(u8, u8, [f32; 4], Vec<u32>)>>,
+    objects: RefCell<Vec<CfgObject>>,
     no_land: RefCell<BTreeSet<(i32, i32)>>,
     /// zone_manager_dezone calls: the cells of each region.
     dezones: RefCell<Vec<Vec<(i32, i32)>>>,
     /// network_tool_join calls: (kind, ax, az, bx, bz).
-    joins: RefCell<Vec<(u32, i32, i32, i32, i32)>>,
+    joins: RefCell<Vec<Join>>,
     zone_updates: Cell<u32>,
 }
 
@@ -515,7 +520,12 @@ unsafe extern "C" fn network_is_flag_0x400000(u: *mut c_void, occ: u64) -> bool 
 }
 unsafe extern "C" fn occupant_bounding_cells(_: *mut c_void, occ: u64, out: *mut fc4_cell_rect) {
     if let Some((x, z)) = Game::net_cell(occ) {
-        *out = fc4_cell_rect { x1: x, z1: z, x2: x, z2: z };
+        *out = fc4_cell_rect {
+            x1: x,
+            z1: z,
+            x2: x,
+            z2: z,
+        };
     }
 }
 unsafe extern "C" fn network_tool_present(u: *mut c_void, _kind: u32) -> bool {
@@ -1206,7 +1216,10 @@ fn can_create_plopped_lot_codes_and_configuration_objects() {
     assert_eq!(code(1), 8, "strict");
     let outside = rect(31, 10, 32, 11);
     assert_eq!(unsafe { fc4_zonedev_can_create_plopped_lot(d.p, &outside, 0, 1) }, 0);
-    assert_eq!(unsafe { fc4_zonedev_can_create_plopped_lot(d.p, std::ptr::null(), 0, 1) }, 0);
+    assert_eq!(
+        unsafe { fc4_zonedev_can_create_plopped_lot(d.p, std::ptr::null(), 0, 1) },
+        0
+    );
     // The objects reach the core through the table: configuration 2 is not
     // water-compatible either, so its constraint records are not looked at;
     // a type-7 record on (10, 10) for road type 0 lets a road with matching
@@ -1215,11 +1228,18 @@ fn can_create_plopped_lot_codes_and_configuration_objects() {
         .borrow_mut()
         .push((7, 0, [0.0, 0.0, 16.0, 16.0], vec![0, 0, 0]));
     g.road(11, 11, 11, 11, 1);
-    assert_eq!(code(2), 8, "the facing-0 record covers lot cell (0, 0) -> city (11, 11)");
+    assert_eq!(
+        code(2),
+        8,
+        "the facing-0 record covers lot cell (0, 0) -> city (11, 11)"
+    );
     g.nets.borrow_mut().clear();
     g.road(10, 10, 10, 10, 1);
     assert_eq!(code(2), 3, "no record on (10, 10)");
-    assert!(g.lots.borrow().is_empty() && g.refs.borrow().is_empty(), "writes nothing");
+    assert!(
+        g.lots.borrow().is_empty() && g.refs.borrow().is_empty(),
+        "writes nothing"
+    );
 }
 
 #[test]
@@ -1260,7 +1280,16 @@ fn join_dead_end_stubs_through_the_table() {
     g.road(20, 20, 20, 20, 0x1);
     let occ = NET_BASE | (20 << 12) | 20;
     unsafe {
-        fc4_zonedev_do_message(d.p, 0x99EF_1142, occ, 0, NETWORK_OCCUPANT_TYPE, 1, 0, std::ptr::null_mut());
+        fc4_zonedev_do_message(
+            d.p,
+            0x99EF_1142,
+            occ,
+            0,
+            NETWORK_OCCUPANT_TYPE,
+            1,
+            0,
+            std::ptr::null_mut(),
+        );
     }
     assert_eq!(*g.joins.borrow(), vec![(0, 20, 20, 19, 20)]);
     // Shadow mode swallows the join.
@@ -1269,7 +1298,16 @@ fn join_dead_end_stubs_through_the_table() {
     g.joins.borrow_mut().clear();
     unsafe {
         assert!(fc4_zonedev_init(s));
-        fc4_zonedev_do_message(s, 0x99EF_1142, occ, 0, NETWORK_OCCUPANT_TYPE, 1, 0, std::ptr::null_mut());
+        fc4_zonedev_do_message(
+            s,
+            0x99EF_1142,
+            occ,
+            0,
+            NETWORK_OCCUPANT_TYPE,
+            1,
+            0,
+            std::ptr::null_mut(),
+        );
         fc4_zonedev_destroy(s);
     }
     assert!(g.joins.borrow().is_empty());

@@ -308,6 +308,10 @@ void AcquireNetworkTools(void* u) {
     }
 }
 
+// §1.2 Shutdown: slot 4 then Release. GetNetworkTool(type, 1) hands out a
+// tool made for the caller, whose only reference is the one AcquireNetworkTools
+// took (the game runs showed the count reaching 0 here), so the free is the
+// original's too: a release of a tool created for us.
 void ReleaseNetworkTools(void* u) {
     ZD_TEST0(release_network_tools);
     fc4::ZoneDevContext* c = Ctx(u);
@@ -315,7 +319,7 @@ void ReleaseNetworkTools(void* u) {
     for (cIGZUnknown*& t : c->tools) {
         if (t == nullptr) continue;
         reinterpret_cast<cFC4ISC4NetworkTool*>(t)->Shutdown();  // slot 4
-        FC4_RELEASE(t);
+        FC4_RELEASE_CREATED(t);
         t = nullptr;
     }
 }
