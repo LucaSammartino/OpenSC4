@@ -96,17 +96,18 @@ before the simulation is fully ours; until then every core keeps the original's 
 **Parity (a standalone game that replaces SC4):**
 
 - **Finish the port** (M4-M6+ above).
-- **Deterministic pacing.** Some of the original's simulation work is paced by frames or real time, not by game
-  days (simulator.md §5.7, the answer to DG31): the growth developers, aura and plumbing get a bounded number of
-  idle cycles per day, and the demand census, land value, crime, power and the BDS monthly rebuild restart a pass
-  only when the previous one has finished. A city therefore grows differently at different frame rates, machine
-  speeds and game speeds, and a turbo run is a slower-grown city, not a fast-forwarded one. Once no original
-  simulator remains, switch to deterministic pacing: a fixed work budget per game day for each idle-cycle kind and a
-  fixed cycle (every N days) for each restart-when-finished pass, calibrated so a city at normal speed grows like
-  the original's on a typical machine. Deterministic pacing becomes the default; the original's clock-bound pacing
-  stays only as a testing switch for conformance work against the original. Deterministic pacing gives reproducible separate runs (tests and baselines without
-  same-process shadows), a turbo clock with the same results as normal speed, replays, a headless/server mode, a
-  path to lockstep multiplayer, and lets the long passes run on worker threads. Saves are unaffected (only scheduling changes).
+- **Deterministic pacing.** Some of the original's simulation work is paced by frames or real time, not by game days
+  (simulator.md §5.7, the answer to DG31): the growth developers, aura and plumbing get a bounded number of idle
+  cycles per day, and the demand census, land value, crime, power and the BDS monthly rebuild restart a pass only when
+  the previous one has finished. A city therefore grows differently at different frame rates, machine speeds and game
+  speeds, and a turbo run is a slower-grown city, not a fast-forwarded one. Once no original simulator remains, switch
+  to deterministic pacing: a fixed work budget per game day for each idle-cycle kind and a fixed cycle (every N days)
+  for each restart-when-finished pass, calibrated so a city at normal speed grows like the original's on a typical
+  machine. Deterministic pacing becomes the default; the original's clock-bound pacing stays only as a testing switch
+  for conformance work against the original. Deterministic pacing gives reproducible separate runs (tests and
+  baselines without same-process shadows), a turbo clock with the same results as normal speed, replays, a
+  headless/server mode, a path to lockstep multiplayer, and lets the long passes run on worker threads. Saves are
+  unaffected (only scheduling changes).
 - **Visual assets for the standalone executable.** The game's own assets cannot be shipped; the standalone build
   either reads them from the player's own SC4 install or uses assets we can distribute.
 - **Drop the C++ shim while keeping mod support.** Keep what current mods rely on (DBPF plugins and exemplars, Lua,
