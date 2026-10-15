@@ -79,13 +79,15 @@ mod volcano;
 mod tests;
 
 pub use fire::{
-    fire_prop, shipped_flame, FireEntry, FireSnapshot, FireTuning, SHIPPED_D3, SHIPPED_D4, SHIPPED_D5, SHIPPED_D6, SHIPPED_D7,
-    SHIPPED_D8, SHIPPED_D9, SHIPPED_DA, SHIPPED_ZOOM,
+    fire_prop, shipped_flame, FireEntry, FireSnapshot, FireTuning, SHIPPED_D3, SHIPPED_D4, SHIPPED_D5, SHIPPED_D6,
+    SHIPPED_D7, SHIPPED_D8, SHIPPED_D9, SHIPPED_DA, SHIPPED_ZOOM,
 };
 pub use layer::{DamageAssessment, LayerSnapshot, Location, SpecialBuilding, Timer};
 pub use pipe::{Leak, PipeSnapshot, PipeTuning};
 pub use quake::{QuakeSnapshot, QuakeTuning};
-pub use riot::{riot_prop, shipped_riot, Leader, RiotSnapshot, RiotTuning, SHIPPED_LEADERS_SPAWNED, SHIPPED_POLICE_CURVE};
+pub use riot::{
+    riot_prop, shipped_riot, Leader, RiotSnapshot, RiotTuning, SHIPPED_LEADERS_SPAWNED, SHIPPED_POLICE_CURVE,
+};
 pub use system::{instance_class_of, Disasters, InstanceInfo, ManagerSnapshot};
 pub use toxic::{ToxicSnapshot, ToxicSpill};
 pub use volcano::{VolcanoSnapshot, VolcanoTuning};
@@ -269,7 +271,12 @@ pub struct CellRect {
 
 impl CellRect {
     pub fn cell(x: i32, z: i32) -> CellRect {
-        CellRect { x0: x, z0: z, x1: x, z1: z }
+        CellRect {
+            x0: x,
+            z0: z,
+            x1: x,
+            z1: z,
+        }
     }
     pub fn contains(&self, x: i32, z: i32) -> bool {
         x >= self.x0 && x <= self.x1 && z >= self.z0 && z <= self.z1

@@ -21,7 +21,7 @@ use crate::x87::rhe;
 
 /// Tuning properties of the "Flame" exemplar (§5.1).
 pub mod fire_prop {
-    //! The "Flame" properties D3 to DA.
+
     pub const D3_DURATIONS: u32 = 0xA9B6_ECD3;
     pub const D4_SPREAD_DIVISOR: u32 = 0xA9B6_ECD4;
     pub const D5_SPREAD_RADIUS: u32 = 0xA9B6_ECD5;
@@ -266,11 +266,7 @@ impl Core {
         if !self.managers.contains_key(&kind::FIRE) {
             return None;
         }
-        let id = self.new_instance(
-            kind::FIRE,
-            instance_class::FIRE,
-            InstanceState::Fire(Box::default()),
-        );
+        let id = self.new_instance(kind::FIRE, instance_class::FIRE, InstanceState::Fire(Box::default()));
         self.fire_instance = Some(id);
         self.fire_init(id);
         Some(id)
@@ -357,11 +353,7 @@ impl Core {
             }
             return true;
         }
-        let fire_id = if fire_id == 0 {
-            self.rng_fire.raw_u32()
-        } else {
-            fire_id
-        };
+        let fire_id = if fire_id == 0 { self.rng_fire.raw_u32() } else { fire_id };
         let new_id = self.fs().is_some_and(|f| !f.fire_ids.contains(&fire_id));
         if new_id {
             self.register_location(inst, 0, 0, o, tuning.zoom, focus);
@@ -426,7 +418,14 @@ impl Core {
     /// `useProbability`, `r := RandomDoubleRangeUniform(0, 100)` and return
     /// false when `r > c`; a zero ID is drawn once per call; every filtered
     /// occupant of the cell is ignited. True if any ignited.
-    pub(crate) fn fire_ignite_cell(&mut self, x: i32, z: i32, use_probability: bool, teleport: bool, fire_id: u32) -> bool {
+    pub(crate) fn fire_ignite_cell(
+        &mut self,
+        x: i32,
+        z: i32,
+        use_probability: bool,
+        teleport: bool,
+        fire_id: u32,
+    ) -> bool {
         if self.fire_instance.is_none() {
             return false;
         }
@@ -439,11 +438,7 @@ impl Core {
                 return false;
             }
         }
-        let fire_id = if fire_id == 0 {
-            self.rng_fire.raw_u32()
-        } else {
-            fire_id
-        };
+        let fire_id = if fire_id == 0 { self.rng_fire.raw_u32() } else { fire_id };
         let mut any = false;
         for o in host.occupants_in_rect(CellRect::cell(x, z)) {
             if occupant::burnable(host.occupant_type(o)) {
@@ -553,7 +548,9 @@ impl Core {
     fn process_toast_list(&mut self) {
         let host = self.host.clone();
         for _ in 0..TOAST_PER_UPDATE {
-            let Some(o) = self.fs().and_then(|f| f.toast.pop_front()) else { break };
+            let Some(o) = self.fs().and_then(|f| f.toast.pop_front()) else {
+                break;
+            };
             if flammable(host.as_ref(), o) {
                 self.toast_occupant(o);
             }
@@ -739,7 +736,11 @@ impl Core {
         let host = self.host.clone();
         let tuning = self.ft();
         let now = self.fire_now();
-        let Some(e) = self.fs_ref().and_then(|f| f.fires.iter().find(|e| e.occupant == fo)).copied() else {
+        let Some(e) = self
+            .fs_ref()
+            .and_then(|f| f.fires.iter().find(|e| e.occupant == fo))
+            .copied()
+        else {
             return;
         };
         let t = e.target;
@@ -820,7 +821,11 @@ impl Core {
     fn kill_fire(&mut self, fo: u64) {
         let Some(inst) = self.fire_instance else { return };
         let host = self.host.clone();
-        let Some(e) = self.fs_ref().and_then(|f| f.fires.iter().find(|e| e.occupant == fo)).copied() else {
+        let Some(e) = self
+            .fs_ref()
+            .and_then(|f| f.fires.iter().find(|e| e.occupant == fo))
+            .copied()
+        else {
             return;
         };
         host.post(&DisasterPost {

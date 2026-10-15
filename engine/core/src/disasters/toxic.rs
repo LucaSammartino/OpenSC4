@@ -70,11 +70,7 @@ impl Core {
         let id = match self.toxic_instance {
             Some(id) => id,
             None => {
-                let id = self.new_instance(
-                    kind::TOXIC,
-                    instance_class::TOXIC,
-                    InstanceState::Toxic(Box::default()),
-                );
+                let id = self.new_instance(kind::TOXIC, instance_class::TOXIC, InstanceState::Toxic(Box::default()));
                 self.toxic_instance = Some(id);
                 self.toxic_init(id);
                 id
@@ -149,7 +145,10 @@ impl Core {
                 host.remove_toxic_occupant(s.occupant);
                 self.unregister_location_by_occupant(id, s.occupant);
             } else {
-                if let Some(x) = self.ts(id).and_then(|t| t.spills.iter_mut().find(|x| x.occupant == s.occupant)) {
+                if let Some(x) = self
+                    .ts(id)
+                    .and_then(|t| t.spills.iter_mut().find(|x| x.occupant == s.occupant))
+                {
                     x.amount = amount;
                 }
                 host.set_toxic_amount(s.occupant, amount);

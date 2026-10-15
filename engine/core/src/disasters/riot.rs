@@ -250,7 +250,9 @@ impl Core {
     fn add_riot_leader(&mut self, id: u32, x: i32, z: i32, spawned: bool) -> bool {
         let tuning = self.rt();
         let host = self.host.clone();
-        let Some((rx, rz)) = self.find_road_cell(x, z) else { return false };
+        let Some((rx, rz)) = self.find_road_cell(x, z) else {
+            return false;
+        };
         let c = tuning.police.eval(f32::from(host.police_coverage(rx, rz)));
         let leaders = self.rs_ref(id).map_or(0, |r| r.leaders.len());
         if !(trunc_i32(c) < POLICE_LIMIT && (leaders as u64) < u64::from(tuning.max_leaders)) {
@@ -297,7 +299,11 @@ impl Core {
             .rs_ref(id)
             .map_or(Vec::new(), |r| r.leaders.iter().map(|l| l.automaton).collect());
         for a in list {
-            let Some(l) = self.rs_ref(id).and_then(|r| r.leaders.iter().find(|l| l.automaton == a)).copied() else {
+            let Some(l) = self
+                .rs_ref(id)
+                .and_then(|r| r.leaders.iter().find(|l| l.automaton == a))
+                .copied()
+            else {
                 continue;
             };
             let Some(cell) = host.automaton_cell(a) else {
@@ -314,7 +320,10 @@ impl Core {
                 max_stage = stage;
                 spawn = tuning.leaders_spawned.get(stage as usize).copied().unwrap_or(0);
             }
-            if let Some(x) = self.rs(id).and_then(|r| r.leaders.iter_mut().find(|x| x.automaton == a)) {
+            if let Some(x) = self
+                .rs(id)
+                .and_then(|r| r.leaders.iter_mut().find(|x| x.automaton == a))
+            {
                 x.counter = counter;
                 x.cell = cell;
                 x.stage = stage;
@@ -349,7 +358,9 @@ impl Core {
     /// The phase (§6.7). After 1 → 3 the instance leaves the riot manager
     /// [choice, Q19].
     fn riot_update_phase(&mut self, id: u32) {
-        let Some(phase) = self.instances.get(&id).map(|i| i.phase) else { return };
+        let Some(phase) = self.instances.get(&id).map(|i| i.phase) else {
+            return;
+        };
         let has = self.rs_ref(id).is_some_and(|r| !r.leaders.is_empty());
         if has && phase == 0 {
             if let Some(i) = self.instances.get_mut(&id) {

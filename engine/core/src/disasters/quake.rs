@@ -170,7 +170,11 @@ impl Core {
     /// `AttemptDisasterStart(x, z)` (§7), world units: only when no
     /// earthquake instance exists.
     pub(crate) fn quake_attempt_start(&mut self, x: i32, z: i32) -> Option<u32> {
-        if self.managers.get(&kind::EARTHQUAKE).is_some_and(|m| !m.instances.is_empty()) {
+        if self
+            .managers
+            .get(&kind::EARTHQUAKE)
+            .is_some_and(|m| !m.instances.is_empty())
+        {
             return None;
         }
         let id = self.new_instance(

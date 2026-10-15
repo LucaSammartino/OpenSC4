@@ -159,7 +159,8 @@ impl Core {
         }
         m.initialised = true;
         if mtype == kind::TOXIC {
-            self.host.subscribe(Target::Manager(kind::TOXIC), msg::TOXIC_SPILL_CHEAT);
+            self.host
+                .subscribe(Target::Manager(kind::TOXIC), msg::TOXIC_SPILL_CHEAT);
         }
     }
 
@@ -180,7 +181,8 @@ impl Core {
         released.extend(pending_remove);
         m.instances = pending_add;
         if m.initialised && mtype == kind::TOXIC {
-            self.host.unsubscribe(Target::Manager(kind::TOXIC), msg::TOXIC_SPILL_CHEAT);
+            self.host
+                .unsubscribe(Target::Manager(kind::TOXIC), msg::TOXIC_SPILL_CHEAT);
         }
         if let Some(m) = self.managers.get_mut(&mtype) {
             m.initialised = false;
@@ -424,7 +426,7 @@ impl Core {
     /// The cell of a world position (floor of position / cell width).
     pub(crate) fn world_to_cell(&self, x: f32, z: f32) -> (i32, i32) {
         let w = self.host.cell_width();
-        if !(w > 0.0) {
+        if w.is_nan() || w <= 0.0 {
             return (0, 0);
         }
         (super::trunc_i32((x / w).floor()), super::trunc_i32((z / w).floor()))
@@ -492,7 +494,9 @@ impl Disasters {
     fn drain(&self) {
         loop {
             let Ok(mut c) = self.core.try_borrow_mut() else { return };
-            let Some((t, m)) = self.deferred.borrow_mut().pop_front() else { return };
+            let Some((t, m)) = self.deferred.borrow_mut().pop_front() else {
+                return;
+            };
             c.do_message(t, &m);
         }
     }
@@ -649,7 +653,9 @@ impl Disasters {
     }
     /// Instance slot 6 (`Ignite`).
     pub fn ignite(&self, o: u64, force: bool, fire_id: u32, focus: bool) -> bool {
-        self.with(false, |c| c.ensure_fire().is_some() && c.fire_ignite(o, force, fire_id, focus))
+        self.with(false, |c| {
+            c.ensure_fire().is_some() && c.fire_ignite(o, force, fire_id, focus)
+        })
     }
     /// Instance slot 7 (`IgniteCell`): whether any occupant ignited.
     pub fn ignite_cell(&self, x: i32, z: i32, use_probability: bool, teleport: bool, fire_id: u32) -> bool {
@@ -660,7 +666,9 @@ impl Disasters {
     /// Manager slot 5 (`IgniteCell`): forwards, true whenever the manager
     /// exists (flammability §13.1).
     pub fn manager_ignite_cell(&self, x: i32, z: i32, use_probability: bool, teleport: bool, fire_id: u32) -> bool {
-        self.with(false, |c| c.fire_ignite_cell_manager(x, z, use_probability, teleport, fire_id))
+        self.with(false, |c| {
+            c.fire_ignite_cell_manager(x, z, use_probability, teleport, fire_id)
+        })
     }
     pub fn extinguish_cell(&self, x: i32, z: i32, amount: i32) {
         self.with((), |c| c.fire_extinguish_cell(x, z, amount))

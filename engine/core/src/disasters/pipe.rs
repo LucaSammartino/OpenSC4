@@ -268,7 +268,10 @@ impl Core {
                 }
             }
         }
-        if self.ps_ref(id).is_some_and(|p| p.leaks.is_empty() && p.waits.is_empty()) {
+        if self
+            .ps_ref(id)
+            .is_some_and(|p| p.leaks.is_empty() && p.waits.is_empty())
+        {
             self.unregister_locations(id);
             if let Some(i) = self.instances.get_mut(&id) {
                 i.phase = 3;
@@ -318,9 +321,9 @@ impl Core {
         }
         let host = self.host.clone();
         let level = m.data1 as u32;
-        let list: Vec<u64> = self
-            .ps_ref(id)
-            .map_or(Vec::new(), |p| p.leaks.iter().filter(|l| !l.effect).map(|l| l.pipe).collect());
+        let list: Vec<u64> = self.ps_ref(id).map_or(Vec::new(), |p| {
+            p.leaks.iter().filter(|l| !l.effect).map(|l| l.pipe).collect()
+        });
         for pipe in list {
             if host.create_leak_effect(pipe, level) {
                 if let Some(l) = self.ps(id).and_then(|p| p.leaks.iter_mut().find(|l| l.pipe == pipe)) {

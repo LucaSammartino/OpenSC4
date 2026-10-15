@@ -131,7 +131,11 @@ impl Core {
     /// `AttemptDisasterStart(x, z)` (§10), world units: only when no volcano
     /// exists.
     pub(crate) fn volcano_attempt_start(&mut self, x: i32, z: i32) -> Option<u32> {
-        if self.managers.get(&kind::VOLCANO).is_some_and(|m| !m.instances.is_empty()) {
+        if self
+            .managers
+            .get(&kind::VOLCANO)
+            .is_some_and(|m| !m.instances.is_empty())
+        {
             return None;
         }
         let id = self.new_instance(
