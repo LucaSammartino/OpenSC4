@@ -71,7 +71,7 @@ pub struct Advice {
 
 impl Advice {
     pub(crate) fn new(shared: &Rc<Shared>, class_id: u32, kind: AdviceKind) -> Rc<Advice> {
-        Rc::new(Advice {
+        let a = Rc::new(Advice {
             shared: shared.clone(),
             serial: shared.next_serial(),
             class_id,
@@ -81,7 +81,9 @@ impl Advice {
                 trigger: NO_TRIGGER,
                 ..AdviceState::default()
             }),
-        })
+        });
+        a.token.set(shared.created(a.clone()));
+        a
     }
 
     /// The serial (also the session ID, slot 13 [choice]).

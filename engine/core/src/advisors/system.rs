@@ -42,6 +42,11 @@ impl Shared {
     pub(crate) fn sys(&self) -> Option<Rc<AdvisorSystem>> {
         self.sys.borrow().upgrade()
     }
+
+    /// The host's token of a new object (`object_created`).
+    pub(crate) fn created(&self, obj: Rc<dyn crate::stream::SaveObject>) -> u64 {
+        self.host.object_created(&crate::stream::RefValue::Object(obj))
+    }
 }
 
 /// The system's fields (§3.1).

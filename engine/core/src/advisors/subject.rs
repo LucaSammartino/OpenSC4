@@ -36,12 +36,14 @@ pub struct AdviceSubject {
 
 impl AdviceSubject {
     pub(crate) fn new(shared: &Rc<Shared>) -> Rc<AdviceSubject> {
-        Rc::new(AdviceSubject {
+        let s = Rc::new(AdviceSubject {
             shared: shared.clone(),
             serial: shared.next_serial(),
             token: Cell::new(0),
             s: RefCell::new(SubjectState::default()),
-        })
+        });
+        s.token.set(shared.created(s.clone()));
+        s
     }
 
     /// A subject filled from `init` (the location unclamped, the object

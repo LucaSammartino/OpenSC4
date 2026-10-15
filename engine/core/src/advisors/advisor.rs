@@ -116,7 +116,7 @@ pub struct Advisor {
 
 impl Advisor {
     pub(crate) fn new(shared: &Rc<Shared>, kind: AdvisorKind, ext: Option<Rc<dyn AdvisorExt>>) -> Rc<Advisor> {
-        Rc::new(Advisor {
+        let a = Rc::new(Advisor {
             shared: shared.clone(),
             serial: shared.next_serial(),
             kind,
@@ -127,7 +127,9 @@ impl Advisor {
                 dirty: kind.is_base_family(),
                 ..AdvisorState::default()
             }),
-        })
+        });
+        a.token.set(shared.created(a.clone()));
+        a
     }
 
     pub fn serial(&self) -> u32 {

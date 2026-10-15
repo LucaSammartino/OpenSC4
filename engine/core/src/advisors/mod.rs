@@ -1193,6 +1193,12 @@ pub trait AdvisorHost {
     /// The token of a host reference read with `iid` (the reference the
     /// stream handed over is transferred).
     fn resolve_ref(&self, r: &crate::stream::RefValue, iid: u32) -> Option<u64>;
+    /// A new advisor, advice or subject (`RefValue::Object`): the host's
+    /// token for it (the shim's wrapper; 0 = none). Called once per object,
+    /// right after construction.
+    fn object_created(&self, _obj: &crate::stream::RefValue) -> u64 {
+        0
+    }
 }
 
 /// The behaviour of an advisor class this module does not implement
