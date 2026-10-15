@@ -2210,6 +2210,66 @@ fn terrain_view_matches_the_core() {
     assert!(d.get_lot_development_cost(rect) > 0);
 }
 
+#[test]
+fn is_area_flat_compares_with_the_first_vertex_with_water() {
+    // §16 test 42 (LD29): every vertex against the first vertex (x1, z1),
+    // read with water whatever `withWater` says; strict, so the range of a
+    // flat rectangle can reach twice the tuning value.
+    let host = Rc::new(Script::default());
+    let set = |x: i32, z: i32, a: f32| {
+        host.terrain_alts.borrow_mut().insert(x + z * 65, a);
+    };
+    set(0, 0, 100.5);
+    set(1, 0, 100.0);
+    set(0, 1, 101.4);
+    set(1, 1, 100.9);
+    let mut d = dev_with(host.clone());
+    assert!(d.init());
+    assert_eq!(d.terrain_view().tuning.max_cell_altitude_delta_for_flatness, 1.0);
+    let rect = CellRect::new(0, 0, 0, 0);
+    for w in [false, true] {
+        // Range 1.4, but every difference from 100.5 is at most 0.9.
+        assert!(d.is_area_flat(rect, w));
+    }
+    // Slot 27 on the same rectangle: 101.4 − 100 (one float32 rounding).
+    assert_eq!(d.area_altitude_range(rect, false), 101.4f32 - 100.0);
+    set(1, 0, 99.4);
+    assert!(!d.is_area_flat(rect, false), "|99.4 - 100.5| = 1.1 > 1.0");
+    set(1, 0, 99.5);
+    assert!(d.is_area_flat(rect, false), "|99.5 - 100.5| = 1.0 is not above");
+    set(1, 0, 100.0);
+    // Water 101 at vertex (0, 0) only: the reference is 101 for either
+    // `withWater`; the other vertices differ by 1.0, 0.4, 0.1. Dry, the
+    // vertex (0, 0) itself reads 100.5 (difference 0.5).
+    host.terrain_water.borrow_mut().insert(0, 101.0);
+    assert!(d.is_area_flat(rect, false));
+    assert!(d.is_area_flat(rect, true));
+    // Water 102 there: (1, 0) = 100 differs by 2.0 for both.
+    host.terrain_water.borrow_mut().insert(0, 102.0);
+    assert!(!d.is_area_flat(rect, false));
+    assert!(!d.is_area_flat(rect, true));
+    // The view answers as the core.
+    let v = d.terrain_view();
+    let h: &dyn LotDeveloperHost = &*host;
+    assert_eq!(v.is_area_flat(h, rect, true), d.is_area_flat(rect, true));
+}
+
+#[test]
+fn is_area_flat_walks_x_outer_and_reads_the_reference_first() {
+    // LD29: the reference read comes first (with water), then the walk;
+    // a NaN difference is never above the tuning.
+    let host = Rc::new(Script::default());
+    host.terrain_alts.borrow_mut().insert(1, f32::NAN);
+    let mut d = dev_with(host.clone());
+    assert!(d.init());
+    // Vertex (1, 0) is NaN: |NaN − 100| > 1.0 is false, so still flat.
+    assert!(d.is_area_flat(CellRect::new(0, 0, 0, 0), false));
+    // A NaN reference makes every difference NaN: flat.
+    host.terrain_alts.borrow_mut().insert(0, f32::NAN);
+    host.terrain_alts.borrow_mut().insert(1, 500.0);
+    assert!(d.is_area_flat(CellRect::new(0, 0, 0, 0), false));
+}
+
 /// A small deterministic generator for test data.
 struct Lcg(u64);
 

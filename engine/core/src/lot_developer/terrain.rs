@@ -255,10 +255,40 @@ impl TerrainView {
         (r24(f64::from(hi) - f64::from(lo))) as f32
     }
 
-    /// Slot 25 `IsAreaFlat(rect, withWater)`: the altitude range within
-    /// `0xE900EA24` *[inferred: `<=`]*.
+    /// Slot 25 `IsAreaFlat(rect, withWater)` (§17.2, LD29): **not** a range
+    /// test. The reference is the first vertex `(x1, z1)` read by slot 15
+    /// **always with water**, whatever `withWater` says, and stored as
+    /// float32; then every vertex `x1 … x2+1` (outer) by `z1 … z2+1` (inner)
+    /// is read by slot 15 with `withWater`, and `|v − ref| >
+    /// kMaxCellAltitudeDeltaForFlatness` (strict, NaN no) answers false. The
+    /// max − min range of a flat rectangle can therefore reach twice the
+    /// tuning value. The subtraction is one x87 operation under the game's
+    /// 24-bit precision control (`r24`); the absolute value is exact.
     pub fn is_area_flat(&self, host: &dyn LotDeveloperHost, rect: CellRect, with_water: bool) -> bool {
-        self.area_altitude_range(host, rect, with_water) <= self.tuning.max_cell_altitude_delta_for_flatness
+        // LD29: the first vertex, with water (the literal 1), as float32.
+        let reference = f64::from(self.altitude_by_vertex(host, rect.x1, rect.z1, true));
+        let limit = f64::from(self.tuning.max_cell_altitude_delta_for_flatness);
+        let mut flat = true;
+        // The original returns at the first vertex beyond the tuning; the
+        // reads have no side effects, so stopping the walk early is the same.
+        let x_end = i64::from(rect.x2) + 1;
+        let z_end = i64::from(rect.z2) + 1;
+        let mut x = i64::from(rect.x1);
+        'walk: while x <= x_end {
+            let mut z = i64::from(rect.z1);
+            while z <= z_end {
+                let v = f64::from(self.altitude_by_vertex(host, x as i32, z as i32, with_water));
+                let d = r24(v - reference).abs();
+                // Strict; a NaN difference is never above the limit.
+                if d > limit {
+                    flat = false;
+                    break 'walk;
+                }
+                z += 1;
+            }
+            x += 1;
+        }
+        flat
     }
 
     /// Slot 26 `IsLotFlat(lot, withWater)`.

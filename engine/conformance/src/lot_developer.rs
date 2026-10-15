@@ -1558,6 +1558,8 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "altitude" => altitude(&w, op),
         "area_developed" => area_developed(&w, op),
         "area_altitude" => area_altitude(&w, op),
+        "area_flat" => area_flat(&w, op),
+        "area_range" => area_range(&w, op),
         "altitude_f" => altitude_f(&w, op),
         "level_internal" => level_internal(&w, op),
         "level_bordering" => level_bordering(&w, op),
@@ -2732,6 +2734,31 @@ fn area_altitude(w: &World, op: &Json) -> R<()> {
         } else {
             s.lowest_or_highest_area_altitude(rect, lowest, water)
         };
+        check_bits(op, v)?;
+        check_expect(op, float_json(v))
+    })
+}
+
+/// `ldev_area_flat`: slot 25 `IsAreaFlat` (§17.2, LD29) on `rect` (cells)
+/// with `water` (default true), or slot 26 on `lot`; `expect` (bool).
+fn area_flat(w: &World, op: &Json) -> R<()> {
+    let water = flag(op, "water", true);
+    w.with_sim(|s| {
+        let got = match opt(op, "rect") {
+            Some(r) => s.is_area_flat(rect_of(r, "rect")?, water),
+            None => s.is_lot_flat(token_of(op, "lot")?, water),
+        };
+        check_expect(op, Json::Bool(got))
+    })
+}
+
+/// `ldev_area_range`: slot 27 `GetAreaAltitudeRange` on `rect` with `water`
+/// (default true); `expect`, `expect_bits`.
+fn area_range(w: &World, op: &Json) -> R<()> {
+    let rect = rect_of(field(op, "rect")?, "rect")?;
+    let water = flag(op, "water", true);
+    w.with_sim(|s| {
+        let v = s.area_altitude_range(rect, water);
         check_bits(op, v)?;
         check_expect(op, float_json(v))
     })
