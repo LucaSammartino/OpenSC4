@@ -234,8 +234,10 @@ bool AcquireServices(void* u) {
             FC4_ADDREF(c->msgServer);
         }
     }
-    const bool all = c->lotDeveloper && c->bds && c->occupants && c->terrain && c->traffic && c->zones &&
-                     c->msgServer;
+    // Step 2's null check covers the services it takes, not step 1's lot
+    // developer (zones.md §1.2): at a city load BDS slot 36 can still be null
+    // here; LotDeveloper() asks BDS again at each use.
+    const bool all = c->bds && c->occupants && c->terrain && c->traffic && c->zones && c->msgServer;
     if (!all) {
         char line[256];
         _snprintf_s(line, sizeof(line), _TRUNCATE,
@@ -244,6 +246,8 @@ bool AcquireServices(void* u) {
                     c->lotDeveloper != nullptr, c->bds != nullptr, c->occupants != nullptr, c->terrain != nullptr,
                     c->traffic != nullptr, c->zones != nullptr, c->msgServer != nullptr);
         NoteFew(&g_noteMissing, line);
+    } else if (c->lotDeveloper == nullptr) {
+        NoteFew(&g_noteMissing, "zonedev: no lot developer yet at Init (BDS slot 36 null); asked again at each use");
     }
     return all;
 }
