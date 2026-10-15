@@ -1,0 +1,55 @@
+{
+  "format": 1,
+  "name": "month_tail_rank_ports",
+  "spec": ["4", "5.3", "foundations 13.4"],
+  "description": "Foundations §13.4 (AO1): the two port developers register \"cSC4PortDeveloper\" at level 6 (the same name for both, through their shared base Init) and take rank 2 between the landfill developer and the neighbours; their order between themselves is registration order ([choice]). The commercial simulator registers \"cSC4CommercialSimulator\" at levels 0, 10, 4 and 6 and takes rank 5 at the month level only, after the ordinance and before land value ([choice]). Unranked agents (budget, pollution) keep registration order ahead of the tail; at the other levels the commercial simulator keeps registration order. Registered in a scrambled order (seaport, commercial, land value, airport, neighbours, budget, ordinance, landfill, pollution), the month walk is budget, pollution, landfill, seaport, airport, neighbours, ordinance, commercial, land value. The clock stays at 0, so each simulate_agents call walks every level.",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "agents": {
+    "seaport": {},
+    "commercial": {},
+    "landvalue": {},
+    "airport": {},
+    "neighbours": {},
+    "budget": {},
+    "ordinance": {},
+    "landfill": {},
+    "pollution": {}
+  },
+  "steps": [
+    {"op": "add_agent", "agent": "seaport", "level": 6, "name": "cSC4PortDeveloper", "flags": 2},
+    {"op": "add_agent", "agent": "commercial", "level": 0, "name": "cSC4CommercialSimulator", "flags": 2},
+    {"op": "add_agent", "agent": "commercial", "level": 10, "name": "cSC4CommercialSimulator", "flags": 2},
+    {"op": "add_agent", "agent": "commercial", "level": 4, "name": "cSC4CommercialSimulator", "flags": 2},
+    {"op": "add_agent", "agent": "commercial", "level": 6, "name": "cSC4CommercialSimulator", "flags": 2},
+    {"op": "add_agent", "agent": "landvalue", "level": 6, "name": "cSC4LandValueSimulator", "flags": 2},
+    {"op": "add_agent", "agent": "airport", "level": 6, "name": "cSC4PortDeveloper", "flags": 2},
+    {"op": "add_agent", "agent": "neighbours", "level": 6, "name": "cSC4NeighborsSimulator", "flags": 2},
+    {"op": "add_agent", "agent": "budget", "level": 6, "name": "cSC4BudgetSimulator"},
+    {"op": "add_agent", "agent": "ordinance", "level": 6, "name": "cSC4OrdinanceSimulator", "flags": 2},
+    {"op": "add_agent", "agent": "landfill", "level": 6, "name": "cSC4LandfillDeveloper", "flags": 2},
+    {"op": "add_agent", "agent": "pollution", "level": 6, "name": "cSC4PollutionSimulator"},
+    {"op": "add_agent", "agent": "pollution", "level": 4, "name": "cSC4PollutionSimulator"},
+    {"op": "expect_agent_names", "names": [
+      "cSC4CommercialSimulator",
+      "cSC4CommercialSimulator", "cSC4PollutionSimulator",
+      "cSC4BudgetSimulator", "cSC4PollutionSimulator", "cSC4LandfillDeveloper", "cSC4PortDeveloper", "cSC4PortDeveloper",
+      "cSC4NeighborsSimulator", "cSC4OrdinanceSimulator", "cSC4CommercialSimulator", "cSC4LandValueSimulator",
+      "cSC4CommercialSimulator"
+    ]},
+    {"op": "init"},
+    {"op": "set_city_established", "value": true},
+    {"op": "clear_events"},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "filter": {"event": "deliver", "type": "SimNewMonth"}, "events": [
+      {"agent": "budget"},
+      {"agent": "pollution"},
+      {"agent": "landfill"},
+      {"agent": "seaport"},
+      {"agent": "airport"},
+      {"agent": "neighbours"},
+      {"agent": "ordinance"},
+      {"agent": "commercial"},
+      {"agent": "landvalue"}
+    ]}
+  ]
+}

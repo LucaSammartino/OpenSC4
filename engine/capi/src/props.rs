@@ -33,15 +33,6 @@ fn with_props(p: *mut fc4_props, f: impl FnOnce(&mut PropertyHolder)) -> bool {
     }
 }
 
-/// One value is stored as a scalar, several (or none) as an array.
-fn variant(elem: u16, items: Vec<Elem>) -> Variant {
-    if items.len() == 1 {
-        Variant::Scalar(items[0])
-    } else {
-        Variant::Array { elem, items }
-    }
-}
-
 /// A new, empty property holder.
 #[no_mangle]
 pub extern "C" fn fc4_props_create() -> *mut fc4_props {
@@ -59,8 +50,11 @@ pub unsafe extern "C" fn fc4_props_destroy(p: *mut fc4_props) {
 
 macro_rules! setter {
     ($name:ident, $t:ty, $mem:expr, $elem:expr) => {
-        /// Sets property `id` (replacing it). `values` may be NULL when
-        /// `count` is 0 (an empty array).
+        /// Sets property `id` (replacing it) to an **array** of `count`
+        /// values, one value included (ABI 50: it was a scalar before, which
+        /// the vector readers now read as empty, data-formats §5.2 EX39; a
+        /// scalar is set with `fc4_props_set_typed`). `values` may be NULL
+        /// when `count` is 0 (an empty array).
         #[no_mangle]
         pub unsafe extern "C" fn $name(p: *mut fc4_props, id: u32, values: *const $t, count: usize) -> bool {
             let items: Vec<Elem> = match slice_arg(values, count) {
@@ -68,7 +62,7 @@ macro_rules! setter {
                 None if count == 0 => Vec::new(),
                 None => return false,
             };
-            with_props(p, |h| h.add(id, variant($mem, items)))
+            with_props(p, |h| h.add(id, Variant::Array { elem: $mem, items }))
         }
     };
 }
@@ -171,4 +165,37 @@ pub unsafe extern "C" fn fc4_props_set_typed(
         Variant::Scalar(items[0])
     };
     with_props(p, |h| h.add(id, v))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// ABI 50 (data-formats §5.2, EX39): a slice setter stores an array even
+    /// for one value, which the core's vector readers read as that value; a
+    /// scalar set through `fc4_props_set_typed` reads as an empty vector and
+    /// keeps its value for the converting getters.
+    #[test]
+    fn ex39_one_value_slices_are_arrays_and_scalars_read_empty() {
+        let p = fc4_props_create();
+        let one = 7u32;
+        let cost = 10i64;
+        unsafe {
+            assert!(fc4_props_set_u32s(p, 1, &one, 1));
+            assert!(fc4_props_set_typed(
+                p,
+                2,
+                mem::SINT64,
+                false,
+                (&cost as *const i64).cast(),
+                1
+            ));
+            let h = props_ref(p).unwrap();
+            assert!(matches!(h.get(1), Some(Variant::Array { .. })));
+            assert_eq!(fc4_core::props::u32s(h, 1), Some(vec![7]));
+            assert_eq!(fc4_core::props::i64s(h, 2), Some(vec![]));
+            assert_eq!(fc4_core::props::i64_of(h, 2), Some(10));
+            fc4_props_destroy(p);
+        }
+    }
 }

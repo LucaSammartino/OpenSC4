@@ -100,8 +100,12 @@ extern "C" {
  *      set_default_exemplar, occupant_property_f32s and the foundation / retaining wall
  *      callbacks; adds fc4_development_add_foundation / _load_foundation /
  *      _load_retaining_wall (BDS slots 23, 26, 29); fc4_building_profile.reserved1 becomes
- *      capacities_present (taken as 56 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 49u
+ *      capacities_present (taken as 56 on its lane; renumbered at merge);
+ * 50 = the budget host's optional property_is_array (data-formats §5.2, EX39: the budget item
+ *      arrays read a scalar as empty); fc4_props_set_u32s/i32s/i64s/f32s/bools store an array
+ *      even for one value (the core's vector readers read a scalar as empty, EX39) (taken as 57
+ *      on its lane; renumbered at merge). */
+#define FC4_ABI_VERSION 50u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -557,6 +561,12 @@ typedef struct fc4_budget_host {
     /* Creates a department (0xE990BFFC) or line item (0xAA313C9F) through the
      * class registry; returns its core handle (fc4_department* / fc4_line_item*). */
     void* (*create_object)(void* user, uint32_t class_id);
+    /* ABI 50 (data-formats §5.2, EX39): 1 if the property is an array, 0 if it is a
+     * scalar, -1 if absent. The budget item arrays are read with the original's vector
+     * helpers, which give a scalar (count 0) an EMPTY vector, while get_u32s / get_i64s /
+     * get_f32s convert a scalar to one value (the converting getters, for tuning). NULL:
+     * every property counts as an array (the old one-value reading). */
+    int32_t (*property_is_array)(void* user, uint64_t holder, uint32_t prop);
 } fc4_budget_host;
 
 /* Lifetime: called by the GZCOM object that fronts the core object; `token` is
@@ -832,7 +842,10 @@ typedef struct fc4_props fc4_props;
 
 fc4_props* fc4_props_create(void);
 void fc4_props_destroy(fc4_props* p);
-/* Set (replace) property `id`. `values` may be NULL when `count` is 0. */
+/* Set (replace) property `id` to an ARRAY of `count` values (one value
+ * included; ABI 50, data-formats §5.2 EX39: the core's vector readers read a
+ * scalar as empty, so a scalar is set with fc4_props_set_typed). `values` may
+ * be NULL when `count` is 0. */
 bool fc4_props_set_u32s(fc4_props* p, uint32_t id, const uint32_t* values, size_t count);
 bool fc4_props_set_i32s(fc4_props* p, uint32_t id, const int32_t* values, size_t count);
 bool fc4_props_set_i64s(fc4_props* p, uint32_t id, const int64_t* values, size_t count);
@@ -6249,7 +6262,7 @@ static_assert(sizeof(fc4_loan_info) == 32, "fc4_loan_info layout");
 static_assert(sizeof(fc4_bond) == 56, "fc4_bond layout");
 static_assert(sizeof(fc4_budget_group) == 24, "fc4_budget_group layout");
 static_assert(sizeof(fc4_budget_state) == 432, "fc4_budget_state layout");
-static_assert(sizeof(fc4_budget_host) == (sizeof(void*) == 4 ? 124 : 248), "fc4_budget_host layout");
+static_assert(sizeof(fc4_budget_host) == (sizeof(void*) == 4 ? 128 : 256), "fc4_budget_host layout");
 static_assert(sizeof(fc4_tax_lot) == 24, "fc4_tax_lot layout");
 static_assert(sizeof(fc4_tax_scan) == 408, "fc4_tax_scan layout");
 static_assert(sizeof(fc4_grid_geometry) == 32, "fc4_grid_geometry layout");

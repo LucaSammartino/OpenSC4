@@ -523,7 +523,9 @@ impl ResidentialHost for ShadowHost {
     }
     fn create_visual_effect(&self, _name: &str) -> CreatedEffect {
         // RG1 [choice]: read-only, so nothing is shown; treated as created
-        // (both draws and the flag), as the original with shipped data.
+        // (both draws and the flag), as the original with shipped data. RG27
+        // (answered; matches): after a create only the second draw and the
+        // flag change state, so "not shown" counts as created.
         CreatedEffect::NotShown
     }
     fn set_effect_transform(&self, _effect: u64, _translation: [f32; 3]) {}
@@ -1165,7 +1167,10 @@ struct Shadow {
     /// The ordinance-effect lists (health, school) our run read in the last
     /// state 0 (REH §4.3, RG7): the original reads them only in `Init` and in
     /// state 0, so the runs in between use these. `None` until the shadow has
-    /// run a state 0.
+    /// run a state 0; before it the shadow reads them as they stand, which
+    /// matches the original's `Init` lists while no ordinance has changed
+    /// since `Init` (RG28, answered: acceptable; the [choice] of reading them
+    /// at `Init` too is not taken).
     effects: Option<(Vec<OrdinanceEffect>, Vec<OrdinanceEffect>)>,
     cycle: CycleAcc,
     stats: fc4_residential_shadow_stats,
