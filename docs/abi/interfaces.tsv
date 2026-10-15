@@ -4533,3 +4533,38 @@ cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	8	+0x20	005e0b20
 cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	9	+0x24	005df820	cSC4LotBaseTextureOccupant::UpdateVertexAltitudes	12	3	eax-or-void	low	symbol-port name; re-specs11
 cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	10	+0x28	005e0050	cSC4LotBaseTextureOccupant::LoadModels	4	1	eax-or-void	low	symbol-port name; re-specs11
 cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	11	+0x2C	005dee00	cSC4LotBaseTextureOccupant::UnloadModels	0	0	eax-or-void	low	symbol-port name; re-specs11
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	3	+0xC	0057a310	cSC4DisasterInstanceFire::Init	0	0	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	4	+0x10	0057bf10	cSC4DisasterInstanceFire::Update	0	0	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	5	+0x14	0057a540	cSC4DisasterInstanceFire::Shutdown	0	0	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	6	+0x18	0057a7d0	cSC4DisasterInstanceFire::Ignite(occupant, bool force, uint32 fireID, bool focus)	16	4	AL	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	7	+0x1C	0057b170	cSC4DisasterInstanceFire::IgniteCell(x, z, bool useProbability, bool teleport, uint32 fireID)	20	5	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	8	+0x20	0057b350	cSC4DisasterInstanceFire::ExtinguishCell(x, z, amount)	12	3	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	9	+0x24	0057b500	cSC4DisasterInstanceFire::QuickBurnCell(x, z)	8	2	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	10	+0x28	0057af10	cSC4DisasterInstanceFire::IgniteCellRadius(x, z, r0, r1)	16	4	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	11	+0x2C	00579bd0	cSC4DisasterInstanceFire::Extinguish(occupant)	4	1	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	12	+0x30	00579bf0	cSC4DisasterInstanceFire::BurnDown(occupant)	4	1	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	13	+0x34	00579230	cSC4DisasterInstanceFire::SetCause(uint32)	4	1	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	14	+0x38	00441090	cSC4DisasterInstanceFire::GetCause()	0	0	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	15	+0x3C	00579a60	cSC4DisasterInstanceFire::GetFireCountInCellRect(rect const&)	4	1	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	16	+0x40	0057a2f0	cSC4DisasterInstanceFire::GetFireCount()	0	0	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	0	+0x0	0057ad40	cSC4DisasterInstanceFire::QueryInterface	8	2	eax-or-void	medium	disasters.md §3.2
+cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	1	+0x4	007637d0	cSC4DisasterInstanceFire::AddRef	0	0	eax-or-void	medium	disasters.md §3.2
+cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	2	+0x8	0057ad50	cSC4DisasterInstanceFire::Release	0	0	eax-or-void	medium	disasters.md §3.2
+cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	3	+0xC	0057ad80	cSC4DisasterInstanceFire::Shutdown (thunk to 0x0057A540)	0	0	eax-or-void	medium	disasters.md §3.2
+cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	4	+0x10	005793e0	cSC4DisasterInstanceFire::GetManager()	0	0	eax-or-void	medium	disasters.md §3.2
+cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	5	+0x14	005792a0	cSC4DisasterInstanceFire::GetID() = 0x621CDA33	0	0	eax-or-void	medium	disasters.md §3.2
+cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	6	+0x18	0062c980	cSC4DisasterInstanceFire::GetLocation(int32& x, int32& z) (fire: returns false; folded body)	8	2	AL	medium	disasters.md §3.2
+cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	7	+0x1C	00420d90	cSC4DisasterInstanceFire::GetPhase() (+0xC0)	0	0	eax-or-void	medium	disasters.md §3.2
+cIGZMessageTarget2	cSC4DisasterInstanceFire	00a9e580	3	+0xC	00579600	cSC4DisasterInstanceFire::DoMessage	4	1	AL	medium	0x86AD10EE, 0x66956813, 0x06CDB65B, 0xA6B79602 (disasters.md §5.3, §5.8)
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	0	+0x0	0057ec10	cSC4DisasterManagerToxic::QueryInterface	8	2	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	1	+0x4	00429ce0	cSC4DisasterManagerToxic::AddRef	0	0	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	2	+0x8	00429cf0	cSC4DisasterManagerToxic::Release	0	0	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	3	+0xC	0057ec80	cSC4DisasterManagerToxic::Init	0	0	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	4	+0x10	0057ecd0	cSC4DisasterManagerToxic::Shutdown	0	0	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	5	+0x14	0057eaf0	cSC4DisasterManagerToxic::GetID() = 0xEBFB0404	0	0	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	6	+0x18	0057f220	cSC4DisasterManagerToxic::AttemptDisasterStart(int32 cellX, int32 cellZ) (spills 120)	8	2	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	7	+0x1C	004e13e0	cSC4DisasterManagerToxic::AttemptDisasterStart() (folded: returns null)	0	0	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	8	+0x20	00578230	cSC4DisasterManagerToxic::AddInstanceToList	4	1	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	9	+0x24	00578310	cSC4DisasterManagerToxic::RemoveInstanceFromList	4	1	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	10	+0x28	00577990	cSC4DisasterManagerToxic::GetActiveInstanceCount	0	0	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	11	+0x2C	00577450	cSC4DisasterManagerToxic::GetInstances	0	0	eax-or-void	medium	disasters.md §9
