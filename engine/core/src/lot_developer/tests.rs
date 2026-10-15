@@ -211,6 +211,8 @@ struct Lot {
     unit: Option<u64>,
     initialized: bool,
     props: BTreeMap<u32, u32>,
+    altitude: f32,
+    facing: i32,
 }
 
 impl Default for Lot {
@@ -242,6 +244,8 @@ impl Default for Lot {
             unit: None,
             initialized: true,
             props: BTreeMap::new(),
+            altitude: 0.0,
+            facing: 0,
         }
     }
 }
@@ -270,6 +274,9 @@ struct Occ {
     position: Vec3,
     orientation: u32,
     is_building: bool,
+    /// `Some(kind)` for a foundation occupant (§17.5).
+    foundation_kind: Option<i32>,
+    foundation_type: u32,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -320,12 +327,16 @@ struct Script {
     trip_cells: RefCell<BTreeMap<(i32, i32), u8>>,
     terrain_alts: RefCell<BTreeMap<i32, f32>>,
     terrain_water: RefCell<BTreeMap<i32, f32>>,
+    /// `GetAltitude(x, z)` at any position.
+    pos_alt: Cell<f32>,
     jobs_demand: Cell<Option<f32>>,
     cheats: Cell<[bool; 3]>,
     resources: RefCell<BTreeMap<u32, bool>>,
     surrounding: RefCell<BTreeMap<u64, Vec<u64>>>,
     surrounding_rect: RefCell<Vec<u64>>,
     lots_in_rect: RefCell<Vec<u64>>,
+    /// The rectangles `occupants_in_cells` was asked for.
+    cell_queries: RefCell<Vec<CellRect>>,
     claim_resources: Cell<bool>,
     add_building_fails: Cell<bool>,
     // tuning
@@ -365,12 +376,14 @@ impl Default for Script {
             trip_cells: RefCell::new(BTreeMap::new()),
             terrain_alts: RefCell::new(BTreeMap::new()),
             terrain_water: RefCell::new(BTreeMap::new()),
+            pos_alt: Cell::new(100.0),
             jobs_demand: Cell::new(None),
             cheats: Cell::new([false; 3]),
             resources: RefCell::new(BTreeMap::new()),
             surrounding: RefCell::new(BTreeMap::new()),
             surrounding_rect: RefCell::new(Vec::new()),
             lots_in_rect: RefCell::new(Vec::new()),
+            cell_queries: RefCell::new(Vec::new()),
             claim_resources: Cell::new(true),
             add_building_fails: Cell::new(false),
             tuning: RefCell::new(Some(Rc::new(Tuning::shipped_exemplar()))),
@@ -456,12 +469,6 @@ impl LotDeveloperHost for Script {
     fn unregister_animation_tick(&self) {
         self.say("unregister_tick".into());
     }
-    fn init_boundary_rules(&self) {
-        self.say("init_boundary".into());
-    }
-    fn clear_boundary_rules(&self) {
-        self.say("clear_boundary".into());
-    }
     fn post_message(&self, msg_type: u32, data1: u32, lot: Option<u64>) {
         self.say(format!("post {msg_type:#x} d1={data1} lot={lot:?}"));
     }
@@ -475,6 +482,14 @@ impl LotDeveloperHost for Script {
     fn position_to_cell(&self, x: f32, z: f32) -> (bool, i32, i32) {
         let (cx, _cz) = self.cell_widths.get();
         (true, (x / cx).floor() as i32, (z / cx).floor() as i32)
+    }
+    fn cell_corner_to_position(&self, x: i32, z: i32) -> (f32, f32) {
+        let (cx, cz) = self.cell_widths.get();
+        (x as f32 * cx, z as f32 * cz)
+    }
+    fn cell_center_to_position(&self, x: i32, z: i32) -> (f32, f32) {
+        let (cx, cz) = self.cell_widths.get();
+        ((x as f32 + 0.5) * cx, (z as f32 + 0.5) * cz)
     }
     fn sim_date(&self) -> u32 {
         self.sim_date.get()
@@ -490,6 +505,25 @@ impl LotDeveloperHost for Script {
     }
     fn terrain_water_level(&self, index: i32) -> f32 {
         self.terrain_water.borrow().get(&index).copied().unwrap_or(0.0)
+    }
+    fn terrain_altitude_at(&self, x: f32, z: f32) -> f32 {
+        self.say(format!("altitude_at {x} {z}"));
+        self.pos_alt.get()
+    }
+    fn terrain_water_level_at(&self, _x: f32, _z: f32) -> f32 {
+        0.0
+    }
+    fn terrain_is_water_vertex(&self, _x: i32, _z: i32) -> bool {
+        false
+    }
+    fn terrain_cell_has_water(&self, _x: i32, _z: i32) -> bool {
+        false
+    }
+    fn zone_drag_color(&self, _zone: i32) -> u32 {
+        0xFFB2_3300
+    }
+    fn zone_display_alpha(&self) -> u8 {
+        0xAA
     }
     fn view_rotation(&self) -> i32 {
         self.view_rotation.get()
@@ -571,6 +605,15 @@ impl LotDeveloperHost for Script {
     }
     fn lot_zone_type(&self, lot: u64) -> i32 {
         self.lot(lot, |l| l.zone, 0)
+    }
+    fn lot_altitude(&self, lot: u64) -> f32 {
+        self.lot(lot, |l| l.altitude, 0.0)
+    }
+    fn lot_set_altitude(&self, lot: u64, altitude: f32) {
+        self.lot_mut(lot, |l| l.altitude = altitude, ());
+    }
+    fn lot_facing(&self, lot: u64) -> i32 {
+        self.lot(lot, |l| l.facing, 0)
     }
     fn lot_flags(&self, lot: u64) -> u32 {
         self.lot(lot, |l| l.flags, 0)
@@ -702,11 +745,25 @@ impl LotDeveloperHost for Script {
     fn cfg_objects(&self, cfg: u64) -> Vec<CfgObject> {
         self.cfgs.borrow().get(&cfg).map_or(Vec::new(), |c| c.objects.clone())
     }
-    fn cfg_primary_building_ids(&self, cfg: u64) -> Option<Vec<u32>> {
-        self.cfgs.borrow().get(&cfg).and_then(|c| c.primary_building.clone())
+    fn cfg_primary_building_object(&self, cfg: u64) -> Option<CfgObject> {
+        self.cfgs
+            .borrow()
+            .get(&cfg)
+            .and_then(|c| c.primary_building.clone())
+            .map(|ids| CfgObject {
+                ids,
+                ..CfgObject::default()
+            })
     }
-    fn cfg_primary_foundation_ids(&self, cfg: u64) -> Option<Vec<u32>> {
-        self.cfgs.borrow().get(&cfg).and_then(|c| c.primary_foundation.clone())
+    fn cfg_primary_foundation_object(&self, cfg: u64) -> Option<CfgObject> {
+        self.cfgs
+            .borrow()
+            .get(&cfg)
+            .and_then(|c| c.primary_foundation.clone())
+            .map(|ids| CfgObject {
+                ids,
+                ..CfgObject::default()
+            })
     }
     fn cfg_has_objects_of_type(&self, cfg: u64, object_type: u32) -> bool {
         if object_type == object_type::WATER {
@@ -727,38 +784,8 @@ impl LotDeveloperHost for Script {
             .and_then(|c| c.objects.get(index))
             .map_or(Vec::new(), |o| o.ids.clone())
     }
-    fn object_position(&self, lot: u64, _cfg: u64, _index: usize) -> (Vec3, i32) {
-        (self.lot_center(lot), 0)
-    }
-    fn position_for_building(&self, lot: u64) -> (bool, Vec3, i32) {
-        (true, self.lot_center(lot), 0)
-    }
     fn first_building(&self, lot: u64) -> Option<u64> {
         self.lot(lot, |l| l.building, None)
-    }
-    fn level_area_internal_vertices(&self, _r: CellRect, _a: f32, _w: bool, _f: bool, _l: u64) -> bool {
-        self.say("level_internal".into());
-        true
-    }
-    fn attempt_area_levelling(&self, _r: CellRect, _m: f32, _f: bool, _w: bool, _a: f32, _l: u64) -> bool {
-        self.say("attempt_levelling".into());
-        false
-    }
-    fn add_lot_foundation_type(&self, lot: u64, foundation: u32, _a: bool, _b: bool, _c: bool) -> bool {
-        self.say(format!("add_lot_foundation {lot} {foundation:#x}"));
-        true
-    }
-    fn add_building_foundation(&self, b: u64, cfg: u64) -> bool {
-        self.say(format!("add_building_foundation {b} cfg={cfg}"));
-        true
-    }
-    fn remove_building_foundation(&self, b: u64) -> bool {
-        self.say(format!("remove_building_foundation {b}"));
-        true
-    }
-    fn update_lot_foundation(&self, lot: u64) -> bool {
-        self.say(format!("update_lot_foundation {lot}"));
-        true
     }
     fn update_lot_retaining_walls(&self, lot: u64) -> bool {
         self.say(format!("update_retaining_walls {lot}"));
@@ -771,30 +798,18 @@ impl LotDeveloperHost for Script {
         self.say(format!("update_base_texture_occupant {lot} had={had}"));
         true
     }
-    fn set_empty_lot_base_texture(&self, lot: u64) {
-        self.say(format!("set_empty_texture {lot}"));
-    }
     fn base_texture_occupant(&self, _lot: u64, _create: bool) -> Option<u64> {
         Some(0xB0)
     }
-    fn base_texture_is_inserted(&self, _occ: u64) -> bool {
-        true
-    }
     fn base_texture_set(&self, _occ: u64, records: &[TextureRecord]) {
+        self.say(format!("set_textures n={}", records.len()));
         for r in records {
             self.say(format!("set_texture {:#x} @{},{}", r.texture, r.x, r.z));
         }
         self.textures.borrow_mut().extend(records.iter().map(|r| r.texture));
     }
-    fn remove_lot_retaining_walls(&self, lot: u64) {
-        self.say(format!("remove_retaining_walls {lot}"));
-    }
-    fn remove_lot_foundation(&self, x: i32, z: i32) -> bool {
-        self.say(format!("remove_lot_foundation {x},{z}"));
-        true
-    }
-    fn update_surrounding_lot_foundations(&self, lot: u64) {
-        self.say(format!("update_surrounding_foundations {lot}"));
+    fn add_retaining_wall_occupant(&self, lot: u64, flag: u32) {
+        self.say(format!("retaining_wall {lot} {flag}"));
     }
     fn update_surrounding_retaining_walls(&self, lot: u64) {
         self.say(format!("update_surrounding_walls {lot}"));
@@ -819,6 +834,15 @@ impl LotDeveloperHost for Script {
         if let Some(o) = self.occs.borrow_mut().get_mut(&b) {
             o.lit = lit;
         }
+    }
+    fn occupant_type(&self, occ: u64) -> u32 {
+        self.occs
+            .borrow()
+            .get(&occ)
+            .map_or(0, |o| if o.is_building { OCCUPANT_TYPE_BUILDING } else { 0 })
+    }
+    fn occupant_position(&self, occ: u64) -> Vec3 {
+        self.occs.borrow().get(&occ).map_or([0.0; 3], |o| o.position)
     }
     fn occupant_bounding_box(&self, occ: u64) -> (Vec3, Vec3) {
         self.occs.borrow().get(&occ).map_or(([0.0; 3], [0.0; 3]), |o| o.bbox)
@@ -849,6 +873,12 @@ impl LotDeveloperHost for Script {
     }
     fn occupant_init(&self, _occ: u64) {}
     fn occupant_set_flag(&self, _occ: u64, _flag: u32) {}
+    fn occupant_is_flag_set(&self, _occ: u64, _flag: u32) -> bool {
+        true
+    }
+    fn occupant_shutdown(&self, occ: u64) {
+        self.say(format!("shutdown {occ}"));
+    }
     fn occupant_set_orientation(&self, occ: u64, orientation: u32) {
         if let Some(o) = self.occs.borrow_mut().get_mut(&occ) {
             o.orientation = orientation;
@@ -872,8 +902,53 @@ impl LotDeveloperHost for Script {
     fn occupants_in_bbox(&self, _min: Vec3, _max: Vec3) -> Vec<u64> {
         Vec::new()
     }
-    fn occupants_in_cells(&self, _rect: CellRect, _t: u32) -> Vec<u64> {
+    fn occupants_in_cells(&self, rect: CellRect, t: u32) -> Vec<u64> {
+        self.cell_queries.borrow_mut().push(rect);
+        if t != OCCUPANT_TYPE_FOUNDATION {
+            return Vec::new();
+        }
+        self.occs
+            .borrow()
+            .iter()
+            .filter(|(_, o)| {
+                o.foundation_kind.is_some()
+                    && o.cells.x1 <= rect.x2
+                    && rect.x1 <= o.cells.x2
+                    && o.cells.z1 <= rect.z2
+                    && rect.z1 <= o.cells.z2
+            })
+            .map(|(&t, _)| t)
+            .collect()
+    }
+    fn occupants_in_box(&self, _min: Vec3, _max: Vec3, _t: u32) -> Vec<u64> {
         Vec::new()
+    }
+    fn building_orientation(&self, b: u64) -> i32 {
+        self.occs.borrow().get(&b).map_or(0, |o| o.orientation as i32)
+    }
+    fn foundation_kind(&self, occ: u64) -> Option<i32> {
+        self.occs.borrow().get(&occ).and_then(|o| o.foundation_kind)
+    }
+    fn foundation_type(&self, occ: u64) -> u32 {
+        self.occs.borrow().get(&occ).map_or(0, |o| o.foundation_type)
+    }
+    fn add_new_foundation_occupant(
+        &self,
+        foundation_type: u32,
+        kind: i32,
+        pos: &mut Vec3,
+        _dx: f32,
+        _dz: f32,
+        _orient: i32,
+        _bottom: f32,
+    ) -> bool {
+        let name = if kind == foundation_kind::LOT {
+            "add_lot_foundation"
+        } else {
+            "add_building_foundation"
+        };
+        self.say(format!("{name} {foundation_type:#x} y={}", pos[1]));
+        true
     }
 
     fn prop_create(&self, prop_type: u32) -> Option<u64> {
@@ -1014,6 +1089,21 @@ impl LotDeveloperHost for Script {
         self.say(format!("demolish_occupant {occ}"));
         true
     }
+    fn modify_terrain_height(
+        &self,
+        per_vertex: bool,
+        x0: i32,
+        z0: i32,
+        x1: i32,
+        z1: i32,
+        h: f32,
+        exempt: Option<u64>,
+    ) -> i32 {
+        self.say(format!(
+            "modify_terrain {per_vertex} {x0},{z0},{x1},{z1} {h} {exempt:?}"
+        ));
+        1
+    }
     fn demolish_lot(&self, lot: u64) -> bool {
         self.say(format!("demolish_lot {lot}"));
         true
@@ -1027,8 +1117,15 @@ impl LotDeveloperHost for Script {
         self.units.borrow_mut().insert(t, Vec::new());
         t
     }
+    /// As `cSC4BusinessUnit::Add` (§5.7): no duplicate member; the lot's
+    /// unit is set either way.
     fn unit_add(&self, unit: u64, lot: u64) -> bool {
-        self.units.borrow_mut().entry(unit).or_default().push(lot);
+        let mut units = self.units.borrow_mut();
+        let v = units.entry(unit).or_default();
+        if !v.contains(&lot) {
+            v.push(lot);
+        }
+        drop(units);
         self.lot_mut(lot, |l| l.unit = Some(unit), ());
         true
     }
@@ -1039,7 +1136,15 @@ impl LotDeveloperHost for Script {
             .get_mut(&unit)
             .is_some_and(|v| v.contains(&lot).then(|| v.retain(|&l| l != lot)).is_some());
         if removed {
-            self.lot_mut(lot, |l| l.unit = None, ());
+            // `Remove` also clears the lot's unit and travel designate (§5.7).
+            self.lot_mut(
+                lot,
+                |l| {
+                    l.unit = None;
+                    l.designate = None;
+                },
+                (),
+            );
         }
         removed
     }
@@ -1723,6 +1828,159 @@ fn immediate_day_night_update() {
     assert!(host.events().iter().any(|e| e.starts_with("post 0xa6b79621")));
 }
 
+#[test]
+fn light_queries_the_lots_rectangle() {
+    // §8.4 (answers Q8): the building's cells only find the lot; the props
+    // are looked up in the lot's own rectangle.
+    let host = Rc::new(Script::default());
+    let lot = host.add_lot(|l| {
+        l.x = 2;
+        l.z = 3;
+        l.w = 3;
+        l.h = 2;
+    });
+    let b = host.add_occ(|o| {
+        o.is_building = true;
+        o.cells = CellRect::new(2, 3, 3, 3);
+    });
+    host.lot_mut(lot, |l| l.building = Some(b), ());
+    let mut d = dev_with(host.clone());
+    d.light(b, true);
+    assert_eq!(*host.cell_queries.borrow(), vec![CellRect::new(2, 3, 4, 4)]);
+    // No lot at the building's centre cell: no prop query.
+    host.cell_queries.borrow_mut().clear();
+    let stray = host.add_occ(|o| {
+        o.is_building = true;
+        o.cells = CellRect::new(40, 40, 40, 40);
+    });
+    d.light(stray, false);
+    assert!(host.cell_queries.borrow().is_empty());
+}
+
+// ---- business units (§5.7) ----------------------------------------------------------------------
+
+#[test]
+fn update_travel_designates_follows_the_table() {
+    // §5.7 (answers Q9).
+    let host = Rc::new(Script::default());
+    let b = host.add_occ(|o| o.is_building = true);
+    let anchor = host.add_lot(|l| {
+        l.building = Some(b);
+        l.road = true;
+    });
+    let null_d = host.add_lot(|l| l.road = false);
+    let member_road = host.add_lot(|l| {
+        l.road = false;
+        l.designate = Some(anchor);
+    });
+    let road_less = host.add_lot(|l| l.road = false);
+    let member_no_road = host.add_lot(|l| {
+        l.road = false;
+        l.designate = Some(road_less);
+    });
+    let outsider = host.add_lot(|l| l.road = true);
+    let non_member = host.add_lot(|l| {
+        l.road = false;
+        l.designate = Some(outsider);
+    });
+    let unit = 900;
+    for l in [anchor, null_d, member_road, road_less, member_no_road, non_member] {
+        host.unit_add(unit, l);
+    }
+    let mut d = dev_with(host.clone());
+    let mut u = Some(unit);
+    d.update_travel_designates(&mut u);
+    assert_eq!(u, Some(unit));
+    let des = |l| host.lot(l, |x| x.designate, None);
+    assert_eq!(des(anchor), None, "the anchor gets no designate");
+    assert_eq!(des(null_d), Some(anchor));
+    assert_eq!(des(member_road), Some(anchor), "kept (it already was the anchor)");
+    assert_eq!(des(road_less), Some(anchor));
+    assert_eq!(
+        des(member_no_road),
+        Some(anchor),
+        "a member without road access is replaced"
+    );
+    assert_eq!(
+        des(non_member),
+        Some(anchor),
+        "a non-member is cleared even with road access"
+    );
+
+    // The keep row leaves a member-with-road designate that is not the anchor.
+    let host = Rc::new(Script::default());
+    let b = host.add_occ(|o| o.is_building = true);
+    let first = host.add_lot(|l| {
+        l.building = Some(b);
+        l.road = true;
+    });
+    let second = host.add_lot(|l| {
+        l.building = Some(b);
+        l.road = true;
+        l.designate = Some(first);
+    });
+    let stale = host.add_lot(|l| {
+        l.road = false;
+        l.designate = Some(second);
+    });
+    host.unit_add(901, first);
+    host.unit_add(901, second);
+    host.unit_add(901, stale);
+    // Make `second` the anchor's predecessor: move `first` to the back.
+    host.units.borrow_mut().insert(901, vec![second, stale, first]);
+    let mut d = dev_with(host.clone());
+    let mut u = Some(901);
+    d.update_travel_designates(&mut u);
+    assert_eq!(
+        host.lot(second, |x| x.designate, None),
+        Some(first),
+        "the anchor keeps a stale designate"
+    );
+    assert_eq!(
+        host.lot(stale, |x| x.designate, None),
+        Some(second),
+        "kept: a member with road access"
+    );
+    assert_eq!(host.lot(first, |x| x.designate, None), Some(second));
+}
+
+#[test]
+fn dissolution_moves_every_member_including_the_joiner() {
+    // §5.7 (answers Q10): M = [a, b]; only b finds a candidate c, so
+    // u' = [c, b], then a is added and b removed and re-added: [c, a, b].
+    let host = Rc::new(Script::default());
+    host.profiles.borrow_mut().insert(
+        0x6000,
+        Profile {
+            purpose: 6,
+            wealth: 1,
+            capacity: 0,
+        },
+    );
+    let mk = |road: bool| {
+        host.add_lot(|l| {
+            l.state = lot_state::OCCUPIED;
+            l.building_type = 0x6000;
+            l.road = road;
+        })
+    };
+    let a = mk(false);
+    let b = mk(false);
+    let c = mk(true);
+    host.unit_add(902, a);
+    host.unit_add(902, b);
+    host.surrounding.borrow_mut().insert(b, vec![c]);
+    let mut d = dev_with(host.clone());
+    let mut u = Some(902);
+    d.update_travel_designates(&mut u);
+    let joined = u.expect("b joined c's new unit");
+    assert_ne!(joined, 902);
+    assert_eq!(host.unit_members(joined), vec![c, a, b]);
+    assert!(host.unit_members(902).is_empty());
+    assert_eq!(host.lot(a, |x| x.unit, None), Some(joined));
+    assert_eq!(host.lot(b, |x| x.unit, None), Some(joined));
+}
+
 // ---- power changed (§9) -------------------------------------------------------------------------
 
 #[test]
@@ -1913,6 +2171,43 @@ fn hostile_records_and_hosts_do_not_panic() {
         let _ = d.get_area_slope(r, true);
         let _ = d.lowest_or_highest_area_altitude(r, true, true);
     }
+}
+
+#[test]
+fn terrain_view_matches_the_core() {
+    // The snapshot answers the terrain and cost slots exactly as the core.
+    let host = Rc::new(Script::default());
+    for (i, a) in [0.0f32, 3.5, 7.25, 1.0, 12.0, 2.0, 9.5, 4.0, 30.0].iter().enumerate() {
+        let (x, z) = (i as i32 % 3, i as i32 / 3);
+        host.terrain_alts.borrow_mut().insert(x + z * 65, *a);
+        host.terrain_water.borrow_mut().insert(x + z * 65, 5.0);
+    }
+    let lot = host.add_lot(|l| {
+        l.w = 2;
+        l.h = 2;
+    });
+    let mut d = dev_with(host.clone());
+    assert!(d.init());
+    let v = d.terrain_view();
+    assert_eq!(v.verts_x, 65);
+    let rect = CellRect::new(0, 0, 1, 1);
+    let h: &dyn LotDeveloperHost = &*host;
+    for w in [false, true] {
+        assert_eq!(
+            v.altitude_by_vertex(h, 1, 1, w),
+            d.get_terrain_altitude_by_vertex(1, 1, w)
+        );
+        assert_eq!(
+            v.lowest_or_highest_area_altitude(h, rect, true, w),
+            d.lowest_or_highest_area_altitude(rect, true, w)
+        );
+        assert_eq!(v.average_area_altitude(h, rect, w), d.average_area_altitude(rect, w));
+        assert_eq!(v.area_altitude_range(h, rect, w), d.area_altitude_range(rect, w));
+        assert_eq!(v.is_area_flat(h, rect, w), d.is_area_flat(rect, w));
+        assert_eq!(v.lot_slope(h, lot, w).to_bits(), d.get_lot_slope(lot, w).to_bits());
+    }
+    assert_eq!(v.lot_development_cost(h, rect), d.get_lot_development_cost(rect));
+    assert!(d.get_lot_development_cost(rect) > 0);
 }
 
 /// A small deterministic generator for test data.

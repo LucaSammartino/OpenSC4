@@ -273,6 +273,13 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4TractInterfaces.h
         plugin/FC4TractShadow.cpp
         plugin/FC4TractShadow.h
+        # The lot developer (lot-developer.md): `enable = lotdev`, lotdev_shadow.
+        plugin/cFC4LotDeveloper.cpp
+        plugin/cFC4LotDeveloper.h
+        plugin/FC4LotDevHost.cpp
+        plugin/FC4LotDevInterfaces.h
+        plugin/FC4LotDevShadow.cpp
+        plugin/FC4LotDevShadow.h
         # The commercial / industrial simulators, the civic building simulator and the
         # park manager (cmglue): `enable = commercial, industrial, civic, parks`, their shadows.
         plugin/cFC4Commercial.cpp
@@ -532,6 +539,13 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_tract_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-tract)
     set_tests_properties(plugin_ini_enable_tract_test PROPERTIES RUN_SERIAL TRUE)
+    # The lot developer (lot-developer.md): `enable = lotdev` (no city: the QI
+    # table, Release's 0, the record round trip, lifecycle without services)
+    # and, through seam op 52 with stub hosts, Init's registrations and the
+    # lot developer shadow (lotdev_shadow = 1: INACTIVE with `enable = lotdev`).
+    add_test(NAME plugin_ini_enable_lotdev_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-lotdev)
+    set_tests_properties(plugin_ini_enable_lotdev_test PROPERTIES RUN_SERIAL TRUE)
     # The cmglue lane (tests/plugin_cmglue_test.inc): `enable = commercial,
     # industrial` (no city: the QI tables, slot 5, the records' round trips,
     # Init without services, DoMessage).

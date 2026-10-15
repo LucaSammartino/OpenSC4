@@ -35,6 +35,7 @@
     {"op": "ldev_expect_events",
       "note": "in order: the base texture (a), then the lot content (b): props, flora, network nodes. The base-texture occupant is already inserted, so it is notified and posted 0x99EF1145.",
       "events": [
+        {"event": "set_textures", "occ": "0xB0", "n": 1},
         {"event": "set_texture", "texture": "0x2A010000", "x": 0, "z": 0},
         {"event": "occupant_changed", "occ": "0xB0"},
         {"event": "occ_post", "occ": "0xB0", "message": "0x99EF1145"},
