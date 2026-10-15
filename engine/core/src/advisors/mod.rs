@@ -1202,6 +1202,8 @@ pub trait AdvisorHost {
 pub trait AdvisorExt: Any {
     /// `GetGZCLSID`.
     fn class_id(&self) -> u32;
+    /// Called once when the advisor that owns this extension is created.
+    fn attach(&self, _adv: &Rc<Advisor>) {}
     /// `Init(i)` (slot 3): default the base `Init`.
     fn init(&self, adv: &Rc<Advisor>, table_index: i32) -> bool {
         adv.base_init(table_index)
@@ -1232,7 +1234,12 @@ pub trait AdvisorExt: Any {
     fn write_prefix(&self, out: &mut dyn crate::stream::OutStream) -> bool;
     /// Reads them; false stops the read.
     fn read_prefix(&self, inp: &mut dyn crate::stream::InStream) -> bool;
-    /// The Lua `mysim_*` functions (§8.3, mysims.md §7.2).
+    /// `QueryInterface(0x0A1DA42F)` (`cISC4MySim`).
+    fn is_mysim(&self) -> bool {
+        false
+    }
+    /// The Lua `mysim_*` functions (§8.3, mysims.md §7.2); the grades are
+    /// fractions (Lua pushes them × 100).
     fn distance_to_closest(&self, _group: u32) -> Option<u32> {
         None
     }

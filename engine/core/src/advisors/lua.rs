@@ -272,8 +272,8 @@ impl AdvisorSystem {
                 let v = match name {
                     "mysim_distance_to_closest_building" => ext.distance_to_closest(g).map(f64::from),
                     "mysim_distance_to_closest_landmark_or_reward" => ext.distance_to_closest_special(g).map(f64::from),
-                    "mysim_local_school_grade" => ext.local_school_grade(g).map(f64::from),
-                    "mysim_local_hospital_grade" => ext.local_hospital_grade(g).map(f64::from),
+                    "mysim_local_school_grade" => ext.local_school_grade(g).map(|v| r24(f64::from(v) * 100.0)),
+                    "mysim_local_hospital_grade" => ext.local_hospital_grade(g).map(|v| r24(f64::from(v) * 100.0)),
                     _ => ext.create_dispatch_tool().map(|b| if b { 1.0 } else { 0.0 }),
                 };
                 one(v.map_or(LuaValue::Nil, LuaValue::Number))

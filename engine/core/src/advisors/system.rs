@@ -155,7 +155,9 @@ impl AdvisorSystem {
         let factory = self.advisor_classes.borrow().get(&class).cloned();
         if let Some(f) = factory {
             let ext = f(self);
-            return Some(Advisor::new(&self.shared, AdvisorKind::Ext(class), Some(ext)));
+            let adv = Advisor::new(&self.shared, AdvisorKind::Ext(class), Some(ext.clone()));
+            ext.attach(&adv);
+            return Some(adv);
         }
         AdvisorKind::from_class(class).map(|k| Advisor::new(&self.shared, k, None))
     }

@@ -43,6 +43,7 @@ pub mod julian;
 pub mod landfill;
 pub mod landvalue;
 pub mod lot_developer;
+pub mod mysims;
 pub mod neighbors;
 pub mod ordinance;
 pub mod parks;
