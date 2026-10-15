@@ -95,13 +95,13 @@ extern "C" {
  * 48 = adds the tract developer (fc4_tract, tract-developer.md) and its shadow mode
  *      (fc4_tract_create_shadow, the fc4_tract_probe_* functions; taken as 40 on its lane,
  *      then 45 and 47; renumbered at merge);
- * 56 = development answers DG5/DG6/DG11 (building-development.md §4.9.1, §4.9.2, §4.7.1):
+ * 49 = development answers DG5/DG6/DG11 (building-development.md §4.9.1, §4.9.2, §4.7.1):
  *      fc4_development_host loses load_building_occupant and gains building_type,
  *      set_default_exemplar, occupant_property_f32s and the foundation / retaining wall
  *      callbacks; adds fc4_development_add_foundation / _load_foundation /
  *      _load_retaining_wall (BDS slots 23, 26, 29); fc4_building_profile.reserved1 becomes
- *      capacities_present (taken as 56 on its lane). */
-#define FC4_ABI_VERSION 56u
+ *      capacities_present (taken as 56 on its lane; renumbered at merge). */
+#define FC4_ABI_VERSION 49u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
