@@ -1157,6 +1157,19 @@ impl TrafficSimulator {
         });
     }
 
+    /// In ReRouteTrips or FullTrips: runs on to the next trip to examine
+    /// without examining it (finishing the current source and taking the
+    /// next one on the way), as a slice does after its last unit when it is
+    /// not [`State::shadow_lazy`]. True when the phase finished on the way
+    /// (the state is left as it is); false in any other state.
+    pub fn shadow_advance(&self) -> bool {
+        self.run(|r| match r.st.cycle_state {
+            cycle_state::REROUTE_TRIPS => r.trip_units(false, 0, false),
+            cycle_state::FULL_TRIPS => r.trip_units(true, 0, false),
+            _ => false,
+        })
+    }
+
     /// The load resume of §3.5 step 11 for the trip phases, after a `Read`
     /// of a record taken from a running simulator: a phase that has taken no
     /// unit yet (its progress counter 0) restarts its source iterator with no

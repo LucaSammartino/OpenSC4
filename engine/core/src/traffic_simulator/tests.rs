@@ -3439,3 +3439,6 @@ fn ts20_source_iterator_fast_path_is_the_rule() {
         }
     }
 }
+
+#[path = "shadow_tests.rs"]
+mod shadow_tests;

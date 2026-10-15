@@ -499,6 +499,17 @@ impl Run<'_, '_> {
     /// FullTrips (`full` true, the status-0 trips), §3.4: at most N trips
     /// examined. A unit is a trip of the phase's status *[choice]*.
     pub(crate) fn trip_slice(&mut self, full: bool) -> bool {
+        let n = self.st.tuning.traffic_units_per_slice.max(1);
+        let lazy = self.st.shadow_lazy;
+        self.trip_units(full, n, lazy)
+    }
+
+    /// [`trip_slice`](Self::trip_slice) with `n` units: a slice normally
+    /// ends when it finds the trip after its n-th unit (finishing the
+    /// current source and taking the next one on the way); `lazy` (the
+    /// traffic shadow) ends right after the n-th unit. `n` = 0 only runs on
+    /// to the next trip to examine.
+    pub(crate) fn trip_units(&mut self, full: bool, n: u32, lazy: bool) -> bool {
         if self.cx.s.network_changed {
             // A network change aborts a suspended search (§4.4).
             for pf in [self.st.pf.as_mut(), self.st.pf2.as_mut()].into_iter().flatten() {
@@ -508,7 +519,6 @@ impl Run<'_, '_> {
             self.cx.s.network_changed = false;
         }
         let want = if full { status::SEARCH } else { status::REROUTE };
-        let n = self.st.tuning.traffic_units_per_slice.max(1);
         let mut units = 0;
         loop {
             let src = match self.st.current {
@@ -593,6 +603,9 @@ impl Run<'_, '_> {
             trips[i] = t;
             self.st.trip_pos = i + 1;
             self.h.set_trip_list(src, trips);
+            if lazy && units >= n {
+                return false;
+            }
         }
     }
 

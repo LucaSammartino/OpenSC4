@@ -523,6 +523,10 @@ pub struct State {
     /// grids, the departments, the destination map and the scanning
     /// iterator *[choice]*.
     pub loaded: bool,
+    /// The traffic shadow's stepping (tooling, not saved): a ReRouteTrips or
+    /// FullTrips slice ends right after its last unit instead of first
+    /// running on to the next trip to examine (see [`super::shadow`]).
+    pub shadow_lazy: bool,
 }
 
 impl State {
@@ -611,6 +615,7 @@ impl State {
             pf2: None,
             extras: SaveExtras::default(),
             loaded: false,
+            shadow_lazy: false,
         }
     }
 
