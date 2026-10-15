@@ -121,9 +121,10 @@ extern "C" {
  * 56 = adds the traffic shadow (fc4_traffic_shadow: tooling, a same-process differential of
  *      the original traffic simulator over the traffic host table) (taken as 52 on its lane;
  *      renumbered at merge);
- * 64 = adds the disaster layer (fc4_disasters, disasters.md): the layer, its managers (fire, riot,
- *      toxic spill, earthquake, pipe burst, volcano, effect) and their instances. */
-#define FC4_ABI_VERSION 64u
+ * 57 = adds the disaster layer (fc4_disasters, disasters.md): the layer, its managers (fire, riot,
+ *      toxic spill, earthquake, pipe burst, volcano, effect) and their instances (taken as 64 on its
+ *      lane; renumbered at merge). */
+#define FC4_ABI_VERSION 57u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
