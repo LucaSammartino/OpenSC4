@@ -1752,6 +1752,59 @@ Park events: `tuning` (the exemplar was asked for), `acquire` (`service`, `ok`),
 `void1`, `unknown`: the posted ZooEscape), `controllers` (`name`, `occupant`; only with an automata controller
 manager), and the stub's `double`, `u32` (`n`).
 
+## Automata ops
+
+The automata vectors (`am14_…`) drive `fc4_core::automata` (`docs/specs/automata.md`). Every op name starts with
+`automata_`. One world per vector holds a script set (empty), a controller manager whose host logs `log <text>`,
+`add_ref 0x…` and `release 0x…` (the low 32 bits of the token), an automata manager, a scripted city for the riot
+and fire hooks, and the riot leaders and fire hook. Records are read with references resolved to host tokens
+`class << 32 | id` and written back as ID and class. An occupant given by number is a building of class
+`0xA9BD882D`. Controllers the manager creates get tokens from `0x1000` upward; controllers read by `cm_read` are core
+controllers whose token is their object ID.
+
+### Records
+
+| op | Arguments | Check |
+|---|---|---|
+| `automata_record` | `class` (any class of the layer: components 40, 41, 43–46 or a referenced object), `hex`, `expect?` (false: Read fails), `left?` (bytes left after the read; default 0), `fields?` (partial: `version`, `base_version`, `clock`, `time_a`, `time_b` (`[hour, day]`), `entries`, `sets`, `loaded`, `max_count`, `active`, `time_scaling`, `automata`, `group_counts` (`[[group, count]]`), `tag`, `cursor`, `incidents`, `old_version`, `pairs`, `spots`, `lots`, `occupants`, `ferries`, `occupant` (`[id, class]`), `template`, `position`, `flags`, `curve`, `period`, `second_period`, `day_stamp`, `counter`), `written?` (the expected re-encoding; default the input) | Read, the fields, Write |
+
+### Controller manager
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `automata_scripts` | `templates?` (`[{name, kind? ("generator" or "attractor"), flags?}]`), `groups?` (`[{id, name, templates}]`) | replaces the script set |
+| `automata_cm_new` | | a new controller manager (not loaded) |
+| `automata_cm_read` | `hex`, `templates?` (`{"<controller id>": name}`: the template name each read controller holds), `expect?` | Read |
+| `automata_cm_add` | `occupant`, `template`, `expect?` (whether a controller was made) | slot 5 `AddControllerFromTemplateName` |
+| `automata_cm_add_group` | `occupant`, `id` or `name`, `no_scripts?`, `expect?` | slots 9 and 10 |
+| `automata_cm_remove` | `occupant`, `expect?` (the count removed) | slot 14 `RemoveControllers` |
+| `automata_cm_remove_group` | `occupant`, `id` or `name`, `expect?` | slots 12 and 13 |
+| `automata_cm_post_city_init` | `expect?` (the dropped template names, in order) | `PostCityInit` |
+| `automata_cm_expect` | partial: `occupants` (`{"<occupant>": [template names]}`, every occupant), `loaded`, `bound` (per controller in order: template bound), `shut_down` (the read controller IDs shut down) | the manager state |
+| `automata_cm_write` | `hex` | Write |
+| `automata_expect_log` / `automata_clear_log` | `log` | the host log |
+
+### Managers and hooks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `automata_mgr_new` | `kind` (`vehicle`, `pedestrian`, `aircraft`, `watercraft`), `automata?` (a count of placeholder automata) | a new manager |
+| `automata_mgr_max_count` | `n`, `state?` (partial: `max`, `hard_limit`, `removed`, `count`) | `SetMaxCount` |
+| `automata_mgr_driving_mode` | `view`, `expect` | `IsDrivingMode` |
+| `automata_automaton_controller` | `flags`, `null` | an automaton whose controller has `flags` writes a null controller reference or not |
+| `automata_city` | any of `road`, `cap` (the leader cap is reached), `create_null`, `buildings` (occupants whose type is a building) | the scripted city |
+| `automata_riot_add` | `x`, `z`, `expect` (the leader index or null) | `AddRiotLeader` |
+| `automata_riot_stage` | `leader?`, `stage`, `expect` | the stage update |
+| `automata_riot_end` | `leader?`, `expect` | the end |
+| `automata_fire_target` / `automata_fire_shutdown` | `target` / none, `expect` | the fire occupant's hooks |
+| `automata_expect_calls` / `automata_clear_calls` | `calls` | the city calls, as text |
+
+City calls: `FindRoad x z`, `LeaderCap n`, `CreateAutomaton group (x, y, z) mode (dx, dy, dz) a b c`, `AddRef`,
+`SetState automaton type a b c d e f`, `SetVisible automaton bool`, `RegisterLocation`, `AddControllerFromTemplateName
+occupant name extra`, `RemoveControllers`, `UnregisterLocation`, `Release`, `AddControllersFromOccupantGroup name
+occupant extra`. A road tile at `(x, z)` is at `(16x + 8, 0, 16z + 8)`; the created automaton is `0x500`, `0x501`, …;
+its occupant is the automaton `| 0x10000`.
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
@@ -1763,7 +1816,7 @@ manager), and the stub's `double`, `u32` (`n`).
    `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `ld16_…` (lot developer §16),
    `zn15_…` (zones §15), `lf11_…` (landfill §11), `nb18_…` (neighbours §18), `tn11_…` (traffic network §11),
    `pf11_…` (pathfinder §11), `rs15_…` (residential §15), `rs00_…` (other residential behaviour), `ts11_…`
-   (traffic simulator §11), `hw12_…` (history §12) and `ck12_…` (clock24 §12).
+   (traffic simulator §11), `hw12_…` (history §12), `ck12_…` (clock24 §12) and `am14_…` (automata §14).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -2747,3 +2800,25 @@ shapes of the §7.1 table.
 
 Not covered by a vector: the 421-save corpus itself (part of item 8) is not available to this suite; `pk12_08`
 replays the record shapes §7 reports.
+
+## Coverage (automata §14)
+
+| §14 item | Vector |
+|---|---|
+| 1 script system (`01 00`; `02 00` fails) | `am14_01_script_system` |
+| 2 controller manager, empty (30 bytes; a cut record) | `am14_02_controller_manager_empty` |
+| 3 controller manager times | `am14_03_controller_times` |
+| 4 vehicle and pedestrian managers, empty (versions 1 and 4, base 7, a cut record) | `am14_04_traffic_managers_empty` |
+| 5 attractor | `am14_05_attractor` |
+| 6 generator (version 3 fails; the base version is kept) | `am14_06_generator` |
+| 7 watercraft, version 6 (version 5 bare, version 7 fails) | `am14_07_watercraft_v6` |
+| 8 riot order (plus the stage rule and the road, cap and null-automaton stops) | `am14_08_riot_order` |
+| 9 fire | `am14_09_fire` |
+| 10 flag 8 | `am14_10_flag_8` |
+| 11 unknown template (and the skipped pass when not loaded) | `am14_11_unknown_template` |
+| 12 corpus round trip | not a vector: `cargo test -p fc4-formats --release --test automata_records -- --nocapture` |
+| other: version 3 traffic managers with an incident, the aircraft lists and versions, a ferry entry, an automaton set | `am14_12_versions_and_lists` |
+| other: `SetMaxCount`, `IsDrivingMode` | `am14_13_manager_slots` |
+| other: the template and occupant-group slots | `am14_14_controller_groups` |
+
+The automaton and state records (§6) are covered by the core unit tests and the corpus sweep, not by a vector.
