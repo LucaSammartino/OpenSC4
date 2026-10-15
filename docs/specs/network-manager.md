@@ -28,7 +28,8 @@ Scope. Two city components:
 What is not here:
 
 - The network tools (placement geometry, cost, preview, bridges, tunnels) are their own subsystem. This spec states
-  only what the simulation and the harness's scripted actions see of them (§9).
+  only what the simulation and the harness's scripted actions see of them (§9). The tool's placement, cost,
+  removal and underground refit are in [network-tools.md](network-tools.md).
 - The traffic graph built from the occupants is [traffic-network.md](traffic-network.md). It is cited, not repeated.
 - The occupant manager (insert, remove, queries, filters) belongs to the re-specs13b lane.
 
@@ -740,7 +741,8 @@ manager.
 1. `t := networkManager.GetNetworkTool(type, true)` for a private tool, or `false` for the shared one (do not
    release the shared one).
 2. `t.Init()`; `t.PlaceNetworkOccupants(x1, z1, x2, z2, 0, null, true, −1)` (tool slot 7: a straight run in real
-   mode, priced and checked by the tool); `t.Shutdown()`.
+   mode, checked by the tool); `t.Shutdown()`. The call is **free**: only the player's tool UI withdraws
+   `GetCostOfSolution()` from the budget. It makes no regional connection (network-tools.md §3.4, §8).
 
 The tool inserts each occupant through the occupant manager with `data4 = 3` (zones.md §5.2). The listeners see, in
 this order:
@@ -748,7 +750,8 @@ this order:
 - `0x99EF1142` per occupant: the traffic network (traffic-network.md §3), the zone manager's stub joining (zones.md
   §5.2.1) and `managed` here for bridges and tunnels.
 - Later, `0x89D3E9F3` with data1 = 1, when the piece becomes usable (flag `0x10000000`). That is when the network lot
-  manager gives the cell its style and network lot.
+  manager gives the cell its style and network lot. The tool sets the flag before `PlaceNetworkOccupants` returns;
+  the message is posted, so it is delivered after (network-tools.md §6.3).
 
 **Removing networks.**
 
@@ -939,18 +942,28 @@ The tools, models, remap tables and retrofit are presentation or legacy. A FreeC
 
 ## 15. Open questions
 
-- **NM1.** Are the globally managed occupants also saved by the occupant manager, or only through component 53? If
-  both, the load would give the same objects twice (refs resolve to one object, so `managed` holds each once). The
-  occupant manager spec (re-specs13b) settles it.
-- **NM2.** Does the occupant manager post `0x99EF1142` while a city loads? If it does, `managed` (read first, §4.1)
-  gets every piece twice. A turbo run that saves, loads and saves again and compares the component 53 counts would
-  settle it.
+- ~~**NM1.** Are the globally managed occupants also saved by the occupant manager, or only through component 53?~~
+  **Answered (re-specs14b):** both. The occupant manager's grid (component 4) saves a ref to every occupant in every
+  cell, and component 53 saves the managed list. Refs resolve to one object per ID (foundations §2.7), so the load
+  gives one object, and `managed` holds it once (§4.1). Each occupant's own base record carries its "in the manager"
+  flag and its stored box (occupant-manager.md §13, OM2).
+- ~~**NM2.** Does the occupant manager post `0x99EF1142` while a city loads?~~ **Answered (re-specs14b):** no.
+  Occupant-manager `Read` posts nothing. The base occupant `Read` (`0x005E8D60`) sets bit 1 of the occupant's state
+  byte, and with that bit set the base `Init` (`0x005E8C90`) posts **no** Create `0x99EF1140` either. The network,
+  bridge, tunnel and prebuilt `Init`s (`0x0061CB50`, `0x00604BF0`, `0x006471C0`, `0x0061DB00`) never insert. So
+  `managed` comes only from component 53, once per piece.
 - **NM3.** Meanings of flags `0x40000`, `0x80000`, `0x40000000`, `0x80000000` and of terrain kinds 3, 4 and 6
-  (§7.6). Logging `data4` of `0x278E6003` while using each terraforming brush would settle the kinds.
+  (§7.6). Logging `data4` of `0x278E6003` while using each terraforming brush would settle the kinds. Leads
+  (network-tools.md §6.2, §10):
+  - `0x40000000` is set with `0x8000000` when the tool adds support structures (elevated pieces) *[inferred]*;
+  - `0x80000` marks a tunnel portal: `DestroyOccupantsAndResolve` QIs such a piece to the tunnel occupant
+    (`0x8A4BD52B`) to bring in the other portal *[inferred]*.
 - **NM4.** The exact visited and rejected set tests of the avenue flood (§8.7, marked inferred). Styling an avenue
   loop that crosses an intersection, then logging the styled cells, would settle them.
-- **NM5.** The effect-prop slots 6, 7 and 8 used for potholes (§8.8) are named from their use (set the effect name,
-  start, stop). The prop occupant spec should confirm them.
+- ~~**NM5.** The effect-prop slots 6, 7 and 8 used for potholes (§8.8) are named from their use (set the effect name,
+  start, stop).~~ **Answered (re-specs14b):** confirmed. They are `SetEffectType(char const*)`, `StartEffect(bool)` and
+  `StopEffect(bool)` of cISC4PropOccupantVisualEffect (vtable `0x00AA4ED8`; the two `SetEffectType` overloads compile
+  in reverse SDK order). Behaviour: network-tools.md §13.2.
 
 ---
 

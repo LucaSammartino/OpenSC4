@@ -4316,16 +4316,88 @@ comments and the game log cite. The current answer is in brackets.
 
 Open points from network-manager.md §15. The current answer is in brackets; each entry says what would settle it.
 
-- **NM1:** are the globally managed network occupants (bridges, tunnels, prebuilt-model pieces) also saved by the
+- ~~**NM1:** are the globally managed network occupants (bridges, tunnels, prebuilt-model pieces) also saved by the
   occupant manager, or only through component 53? [both hold refs to the same objects; the occupant manager spec
-  (re-specs13b) settles it]
-- **NM2:** does the occupant manager post `0x99EF1142` while a city loads? If it does, the network manager's managed
+  (re-specs13b) settles it]~~ **ANSWERED 2026-10-15 (re-specs14b):** both. The occupant grid (component 4) and
+  component 53 save refs to the same objects; each ref resolves to one object, so `managed` holds each piece once.
+  MATCHES. network-manager.md §15.
+- ~~**NM2:** does the occupant manager post `0x99EF1142` while a city loads? If it does, the network manager's managed
   list (read first) gets every piece twice. [no, inferred. A turbo run that saves, loads and saves again and compares
-  the component 53 counts would settle it]
+  the component 53 counts would settle it]~~ **ANSWERED 2026-10-15 (re-specs14b):** no. Loading posts no Insert. Since
+  the base occupant `Read` (`0x005E8D60`) sets bit 1 of the state byte, the base `Init` (`0x005E8C90`) posts no
+  Create either. The network occupant `Init`s never insert. MATCHES. network-manager.md §15.
 - **NM3:** meanings of network flags `0x40000`, `0x80000`, `0x40000000` and `0x80000000`, and of the terrain kinds 3,
   4 and 6 in the network manager's terrain handler. [unknown; logging `data4` of `0x278E6003` for each terraforming
   brush settles the kinds]
 - **NM4:** the exact visited and rejected set tests of the avenue flood in `UpdateAvenueStyle`. [a cell is visited
   once; styling an avenue loop through an intersection and logging the styled cells settles it]
-- **NM5:** the effect-prop slots 6, 7 and 8 used for potholes. [set the effect name, start, stop; the prop occupant
-  spec should confirm]
+- ~~**NM5:** the effect-prop slots 6, 7 and 8 used for potholes. [set the effect name, start, stop; the prop occupant
+  spec should confirm]~~ **ANSWERED 2026-10-15 (re-specs14b):** confirmed: `SetEffectType(char const*)`,
+  `StartEffect(bool)`, `StopEffect(bool)` (vtable `0x00AA4ED8`, overloads in reverse SDK order). MATCHES.
+  network-tools.md §13.2.
+
+## From the traffic glue, phase 2: the traffic shadow (filed by the coordinator from the `traffic2` lane's report, 2026-10-15)
+
+About `docs/specs/traffic-simulator.md` and the same-process traffic shadow (`traffic_shadow = 1`; core
+`traffic_simulator/shadow.rs`, capi `traffic_shadow.rs`, plugin `FC4TrafficShadow`, seam op 51); merged as `40d9eab`,
+ABI 56. With `traffic_shadow_hypotheses = 7` (bits 1, 2, 4 below) the shadow matches the original on every delivery on
+Konradshohe for 7 game months (261/261, resyncs=0); with 0 (the spec as written) 25 of 92 deliveries are clean. The
+lane numbered these TS1-TS17 (TS50-TS66 here; engine comments and `engine/README.md` use the lane's numbers). The
+current answer is in brackets.
+
+- **TS50:** §6 record: the record does not save the last-day field, so a shadow (or a resync) cannot know the original's
+  day pacing state. Is lastDay intentionally unsaved, and what does the original do with it on load? [the copy starts
+  at the first delivery]
+- **TS51:** §4.1.2 lot strategy byte: there is no getter for a lot's travel strategy byte. Is the last byte of the lot's
+  own `Write` record (§6.3) the byte §4.1.2 uses, and is there an interface slot for it? [the shadow reads that byte]
+- **TS52:** §4.6 DeactivateBudgetItems: the shadow needs the cost of the holder's `0xCA550301` budget item without
+  removing it; passing the holder token to OccHolder's BudgetItemForPurpose broke the stack under /RTC1. Is reading
+  `item.cost` through the city budget simulator (GetBudgetItemForPurpose) the right lookup? [that lookup; a choice]
+- **TS53:** §6 record variants: the original's WriteVariant output is captured through the core's writer
+  (`fc4_props_write_variant`, foundations §9.2: u32 0, type tag, value). Is that the byte form the original's segment
+  stream writes for every type that occurs in the traffic record? [assumed]
+- **TS54:** §6.2 Read: the SGI hash containers (damage sets, edge densities) iterate bucket ascending with head
+  insertion, and our Read rebuilds the chains in reverse order. Which order does the original's Read leave, and does
+  any later pass depend on it? [the shadow restores the original's order: smallest prime >= max(len, 100), non-decreasing
+  keys]
+- **TS55:** §4.3 ConfirmTrips merge: in game a routed trip is set back to status 0 only when it absorbed a later trip.
+  As written (every routed status-0 candidate) the copy gets toReRoute 41 where the original has 0 (Konradshohe
+  2026-01). Confirm. [hypothesis bit 1; clean in game, 261/261]
+- **TS56:** §6.1 row 19 / §4.4 end of FullTrips: the travel-type count pairs appear to be (published, building), and the
+  end of FullTrips swaps the two vectors instead of copying (the original's row 19 is (130,132) right after the end;
+  the spec reading gives the reverse). Confirm. [hypothesis bit 2; clean in game]
+- **TS57:** §4.4 ReRouteTrips merge: the merge also absorbs later trips of the same type and strategy that are routed
+  (status 3) or status 4, not only status 0 (lot (38,96) goes from [2x st0, 1x st3] to [3x st0] in the original; the
+  spec reading leaves the st3 trip). Confirm. [hypothesis bit 4; clean in game]
+- **TS58:** §4.4/§4.5 reversible trips: the original keeps a reversible trip's returnRoute where the spec clears or
+  rewrites it (about 100 lists a month). Which rule applies? [counted as a known difference]
+- **TS59:** §10 Q4 pass counters: counters 0, 5 and 7 advance in ConfirmTrips in ways §10 does not give; counter 4 also
+  advances in ConfirmTrips (4 right after entering 17 with processed 0). What are the increment points of counters 0
+  and 4-8? [counted as a known difference]
+- **TS60:** §6.1 rows 14-15 unnamed fields: the original changes an i32 that toggles 0/1 with the pacing, and the
+  re-route context's x,z. What are they? [the copy keeps them as read]
+- **TS61:** statistics sets: the last, unnamed byte of a statistics set increments once per cycle (1C to 1D) in the
+  original. What is it, and where is it incremented? [not modelled]
+- **TS62:** §3.4 deadline test points: in game the original also stops at the end of a source's list, in 17 and 18
+  after the merge or CompleteTripSourceCalculations and before the next source is taken; in ReRouteTrips it never
+  stops before a trip that is not status 1 (shadow-14: 4 FullTrips days with the original's saved cell before ours,
+  next-day attempted/routed +4, +5, +97, +34; 2026-02-24 lot (40,82) merged by the original). Which test points does
+  the original have (`0x0071D1D9`, `0x0071D607`), and is one at the list end? [the shadow follows the saved cell and
+  takes a list end only when the record or trip list shows it, 0-2 a month]
+- **TS63:** §4.7 FinishTripMap: in game state 15 can stop part-way, after a lot, on the deadline (2026-01-30, 18 to 15
+  in one day; saved cell lot (17,51); the trip-length grid differs in 12 tracts until the copy stops there too). Does
+  FinishTripMap test the deadline per lot, and at which address? [the shadow can stop after the lot at the saved cell]
+- **TS64:** §3.2 states 12/13, scanning iterator: after 11 to 13 the original's scanning iterator reads reset (all
+  zero) or Running at (34,87), and Done at (0,128) after 13 finishes; the spec gives 12 and 13 no use of the iterator
+  and ours keeps phase 10's Done (shadow-19 2026-02-24, shadow-20 2026-07-30). Does UpdateSubnetworks or
+  UpdateSubnetworkInfo reset and run the scanning iterator, and is it deadline-stoppable? [ours keeps Done; 1-2
+  deliveries differ in that field]
+- **TS65:** §4.4 suspended searches: SetupTrip calls SetMaxWorkTime(remaining slice ms), so the original can suspend a
+  search, and a suspended search seems to write the trip's destination (a status-0 split copy at the day's stop: lot
+  (56,99) original (28,37) against ours (18,40) on 2026-03-02; lot (31,86) on 2026-05-10; same count, length and
+  route). "The copy is made before the search" was refuted in game. Does a suspended PerformPathSearch write
+  destX/destZ, and what else does it leave in the trip? [ours never suspend (§3.4 choice); counted as a known
+  difference for status-0 trips]
+- **TS66:** §4.15 draws: the pothole and accident draws and the strategy draws (property `0x4A611773`) cannot be compared
+  because the original's generator state is not readable. Is there a readable generator, or a deterministic seed path?
+  [not compared]
