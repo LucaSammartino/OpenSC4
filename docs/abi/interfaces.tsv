@@ -2614,7 +2614,7 @@ cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	13	+0x34	00619110		8	2	eax-or-
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	14	+0x38	0061a020		8	2	via-call	low	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	15	+0x3C	00619150		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	16	+0x40	0061a090		4	1	via-call	low	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	17	+0x44	00604d50		0	0	via-call	low	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	17	+0x44	00604d50		0	0	via-call	low	re-answers11 ZQ15(b): tests every bit of network flag 0x400000 (HasAllNetworkFlags(0x400000), pre-built-model piece not placed by the tool); zones.md 8.4.1
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	18	+0x48	00604d60				forward	medium	indirect-jump dword ptr [eax + 0x28]/dword ptr [edx + 0x2c]
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	19	+0x4C	00604d80		0	0	via-call	low	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	20	+0x50	00604d90				forward	medium	indirect-jump dword ptr [eax + 0x28]/dword ptr [edx + 0x2c]
@@ -4121,6 +4121,7 @@ cIGZSerializable(LotRetainingWallOccupant)	cSC4LotRetainingWallOccupant	00aa2fdc
 cIGZSerializable(LotRetainingWallOccupant)	cSC4LotRetainingWallOccupant	00aa2fdc	3	+0xC	005e2ab0	cSC4LotRetainingWallOccupant::Write	4	1	eax-or-void	medium	
 cIGZSerializable(LotRetainingWallOccupant)	cSC4LotRetainingWallOccupant	00aa2fdc	4	+0x10	005e2b40	cSC4LotRetainingWallOccupant::Read	4	1	eax-or-void	medium	
 cIGZSerializable(LotRetainingWallOccupant)	cSC4LotRetainingWallOccupant	00aa2fdc	5	+0x14	005e2990	cSC4LotRetainingWallOccupant::GetGZCLSID	0	0	eax-or-void	medium	
+cISC4LotRetainingWallOccupant	cSC4LotRetainingWallOccupant	00aa3080	11	+0x2C	0080bc00	cSC4LotRetainingWallOccupant::GetRetainingWallType	0	0	eax-or-void	medium	re-answers11 DG35: IID 0x295D1162 (QI 0x005E28C0); returns the dword at +0x38; building-development.md 4.9.2
 cIGZSerializable(FoundationOccupant)	cSC4FoundationOccupant	00aa28fc	0	+0x0	005d61e0		8	2	eax-or-void	medium	tail->005d6160
 cIGZSerializable(FoundationOccupant)	cSC4FoundationOccupant	00aa28fc	1	+0x4	005e29e0		0	0	eax-or-void	medium	tail->005e28f0
 cIGZSerializable(FoundationOccupant)	cSC4FoundationOccupant	00aa28fc	2	+0x8	005e29f0		0	0	eax-or-void	medium	tail->005e2900
@@ -4481,6 +4482,19 @@ cISC424HourClock	cSC424HourClock	00a86588	26	+0x68	004455b0	cSC424HourClock::Hid
 cISC424HourClock	cSC424HourClock	00a86588	27	+0x6C	00703d60	IsHiddenPaused (shared with cSC4Simulator::IsHiddenPaused)	0	0	eax-or-void	high	EAX 0/1 (count at +0x34 > 0)
 cISC424HourClock	cSC424HourClock	00a86588	28	+0x70	004453e0	cSC424HourClock::IsNight	0	0	eax-or-void	high	EAX 0/1, visual hour
 cISC424HourClock	cSC424HourClock	00a86588	29	+0x74	00445620	cSC424HourClock::EnableDayNightTransitionNotifications	4	1	eax-or-void	high	void
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	0	+0x0	00445a80	cSC424HourClock::QueryInterface (thunk)	8	2	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); tail->00444e40
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	1	+0x4	00445a90	cSC424HourClock::AddRef (thunk)	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); tail->00825d60
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	2	+0x8	00445af0	cSC424HourClock::Release (thunk)	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); tail->004451f0
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	3	+0xC	009cede1	cRZSystemService::GetServiceID	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); icf; returns 0xA7E7F92A for the clock
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	4	+0x10	00894f6d	cRZSystemService::SetServiceID	4	1	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); icf
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	5	+0x14	0099be66	cRZSystemService::GetServicePriority	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); icf; -2,000,000
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	6	+0x18	00932b83	cRZSystemService::IsServiceRunning	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8)
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	7	+0x1C	0091dd91	cRZSystemService::SetServiceRunning	4	1	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8)
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	8	+0x20	00445c70	cSC424HourClock::Init (thunk)	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); tail->00445b70
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	9	+0x24	00445b00	cSC424HourClock::Shutdown (thunk)	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); tail->00445130
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	10	+0x28	0091559a	cRZSystemService::OnTick	4	1	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); icf; AL = 1, nothing else
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	11	+0x2C	00445820	cSC424HourClock::OnIdle	4	1	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); AL = 1
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	12	+0x30	009d4714	cRZSystemService::GetServiceTickPriority	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); icf; -2,000,000
 cISC43DRender	cSC43DRender	00abab60	8	+0x20	007c9fb0	cSC43DRender::GetViewUtilities	0	0	eax	high	re-answers9 LG21: borrowed, not a GZCOM object; view rotation int32 at +0x10
 cISC4App	cSC4App	00a86af0	37	+0x94	0081f910	cSC4App::GetCity	0	0	eax	high	re-answers9 NB19: borrowed app+0x5C; same pointer as global 0x00B43CEC until the city's Shutdown
 cS3DResModel	cS3DResModel	00abd608	3	+0xC	00520080	cS3DResModel::GetAnimHeader	0	0	eax	high	ICF body (returns this+0x4C); graphics-formats 3.9: +0 frame count, +2 rate; re-specs11
@@ -4568,3 +4582,249 @@ cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	8	+0x20	00578230	c
 cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	9	+0x24	00578310	cSC4DisasterManagerToxic::RemoveInstanceFromList	4	1	eax-or-void	medium	disasters.md §9
 cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	10	+0x28	00577990	cSC4DisasterManagerToxic::GetActiveInstanceCount	0	0	eax-or-void	medium	disasters.md §9
 cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	11	+0x2C	00577450	cSC4DisasterManagerToxic::GetInstances	0	0	eax-or-void	medium	disasters.md §9
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	22	+0x58	00525dc0	cSC4CitySituationManager::InitiateSituationForOccupant	8	2	eax-or-void	medium	re-answers11 CS2: (cISC4Occupant*, cISC4CitySituationAdvice*); AL; city-situation.md 8
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	23	+0x5C	0052ab00	cSC4CitySituationManager::InitiateSituationByAutomataGroup	12	3	eax-or-void	medium	re-answers11 CS2: (uint32, bool, bool); AL; city-situation.md 8
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	24	+0x60	00524e20	cSC4CitySituationManager::StartJoyride	12	3	eax-or-void	medium	re-answers11 CS2: (cISC4Automaton*, bool, cIGZMessageTarget2*); city-situation.md 8
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	25	+0x64	0052a7a0	cSC4CitySituationManager::TreatAutomatonAsGroup	8	2	eax-or-void	medium	re-answers11 CS2: (cISC4Automaton*, uint32); city-situation.md 8
+cSTETerrainView3D::vftable_2	cSTETerrainView3D	00ab4410	4	+0x10	007526e0	cSTETerrainView3D::MarkSelected	28	7	eax-or-void	medium	re-answers11 ZQ15(a): (SC4Point<int> const&, cGZPersistResourceKey const&, uint8 rotation, bool flip, uint32 colour, cGDCombiner::tOp, bool clearFirst); tail->00751a70; zones.md 7.1.1
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	0	+0x0	005444c0	cSC4AutomataManager::QueryInterface	8	2	eax-or-void	medium	tail->00505480
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	1	+0x4	00505510	cSC4AutomataManager::AddRef	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	2	+0x8	00507b50	cSC4AutomataManager::Release	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	3	+0xC	00544820	cSC4AutomataManager::Init	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	4	+0x10	00544860	cSC4AutomataManager::Shutdown	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	5	+0x14	0050a6b0	cSC4AutomataManager::Activate	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	6	+0x18	004fbbe0	cSC4AutomataManager::IsActive	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	7	+0x1C	00546990	cSC4AutomataManager::AddAutomaton	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	8	+0x20	0054d690	cSC4AutomataManager::RemoveAutomaton	8	2	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	9	+0x24	004fbbf0	cSC4AutomataManager::Pause	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	10	+0x28	004fbc00	cSC4AutomataManager::Resume	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	11	+0x2C	004fbc10	cSC4AutomataManager::IsPaused	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	12	+0x30	00698cf0	cSC4AutomataManager::GetAutomataCount	0	0	eax-or-void	medium	names_windows: cSC4TrafficSimulator::GetCongestionMap (folded getter [ecx+48h])
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	13	+0x34	00506940	cSC4AutomataManager::IsDrivingMode	0	0	eax-or-void	medium	true when current view id is 0x2B709676
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	14	+0x38	004fbc20	cSC4AutomataManager::GetMinZoom	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	15	+0x3C	00505370	cSC4AutomataManager::CreateAutomaton	28	7	eax-or-void	medium	args: group id, const vec3* pos, u32 mode, vec3* dir, u32, u32, u32 (riot: 0x4107,&pos,2,&zero,0,0xFF,0)
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	16	+0x40	00553080	cSC4AutomataManager::GetRandomCreationPoint	28	7	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	17	+0x44	00551730	cSC4AutomataManager::Dispatch	20	5	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	18	+0x48	0054dbf0	cSC4AutomataManager::Dispatch	28	7	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	19	+0x4C	00507120	cSC4AutomataManager::TranslateDispatchLocation	8	2	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	20	+0x50	00506f50	cSC4AutomataManager::TranslateDispatchLocation	8	2	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	21	+0x54	00511260	cSC4AutomataManager::ChaseAutomaton	16	4	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	22	+0x58	005072e0	cSC4AutomataManager::ChaseAutomaton	8	2	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	23	+0x5C	0050aa60	cSC4AutomataManager::SetMaxCount	4	1	eax-or-void	medium	clamps 0..5000; limit=trunc(max*1.25)
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	24	+0x60	00544410	cSC4AutomataManager::HandleTuningParametersChanged	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	25	+0x64	0050be90	cSC4AutomataManager::ChooseRandomExemplar	16	4	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	26	+0x68	0050c0d0	cSC4AutomataManager::ChooseRandomExemplarByFilter	20	5	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	27	+0x6C	0050c1d0	cSC4AutomataManager::ChooseExemplarByCrimeType	12	3	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	28	+0x70	004fbc30	cSC4AutomataManager::GetExemplarData	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	29	+0x74	004fbc40	cSC4AutomataManager::GetExemplarDataMap	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	30	+0x78	0050c300	cSC4AutomataManager::CanCreateGroup	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	31	+0x7C	00513c40	cSC4AutomataManager::TrackAutomataGroupInstances	8	2	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	32	+0x80	00510040	cSC4AutomataManager::GetInstancesOfGroup	8	2	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	33	+0x84	0050cde0	cSC4AutomataManager::ReleaseAutomatonSet	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	34	+0x88	0050a930	cSC4AutomataManager::SetCameraFollow	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	35	+0x8C	00505400	cSC4AutomataManager::IsCameraFollowUpdating	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	36	+0x90	0050be30	cSC4AutomataManager::GetSourceBuildingCount	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4PedestrianManager	00a9a470	37	+0x94	00505410	cSC4AutomataManager::GetSourceBuildingCountForAutomataGroup	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	0	+0x0	0055b630	cSC4AutomataManager::QueryInterface	8	2	eax-or-void	medium	tail->00505480
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	1	+0x4	00505510	cSC4AutomataManager::AddRef	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	2	+0x8	00507b50	cSC4AutomataManager::Release	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	3	+0xC	0055b7e0	cSC4AutomataManager::Init	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	4	+0x10	0055b880	cSC4AutomataManager::Shutdown	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	5	+0x14	0050a6b0	cSC4AutomataManager::Activate	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	6	+0x18	004fbbe0	cSC4AutomataManager::IsActive	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	7	+0x1C	00562c10	cSC4AutomataManager::AddAutomaton	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	8	+0x20	0054d690	cSC4AutomataManager::RemoveAutomaton	8	2	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	9	+0x24	004fbbf0	cSC4AutomataManager::Pause	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	10	+0x28	004fbc00	cSC4AutomataManager::Resume	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	11	+0x2C	004fbc10	cSC4AutomataManager::IsPaused	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	12	+0x30	00698cf0	cSC4AutomataManager::GetAutomataCount	0	0	eax-or-void	medium	names_windows: cSC4TrafficSimulator::GetCongestionMap (folded getter [ecx+48h])
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	13	+0x34	00506940	cSC4AutomataManager::IsDrivingMode	0	0	eax-or-void	medium	true when current view id is 0x2B709676
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	14	+0x38	004fbc20	cSC4AutomataManager::GetMinZoom	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	15	+0x3C	00505370	cSC4AutomataManager::CreateAutomaton	28	7	eax-or-void	medium	args: group id, const vec3* pos, u32 mode, vec3* dir, u32, u32, u32 (riot: 0x4107,&pos,2,&zero,0,0xFF,0)
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	16	+0x40	00553080	cSC4AutomataManager::GetRandomCreationPoint	28	7	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	17	+0x44	00551730	cSC4AutomataManager::Dispatch	20	5	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	18	+0x48	0054dbf0	cSC4AutomataManager::Dispatch	28	7	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	19	+0x4C	00507120	cSC4AutomataManager::TranslateDispatchLocation	8	2	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	20	+0x50	00506f50	cSC4AutomataManager::TranslateDispatchLocation	8	2	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	21	+0x54	00511260	cSC4AutomataManager::ChaseAutomaton	16	4	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	22	+0x58	005072e0	cSC4AutomataManager::ChaseAutomaton	8	2	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	23	+0x5C	0050aa60	cSC4AutomataManager::SetMaxCount	4	1	eax-or-void	medium	clamps 0..5000; limit=trunc(max*1.25)
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	24	+0x60	0055b410	cSC4AutomataManager::HandleTuningParametersChanged	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	25	+0x64	0050be90	cSC4AutomataManager::ChooseRandomExemplar	16	4	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	26	+0x68	0050c0d0	cSC4AutomataManager::ChooseRandomExemplarByFilter	20	5	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	27	+0x6C	0050c1d0	cSC4AutomataManager::ChooseExemplarByCrimeType	12	3	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	28	+0x70	004fbc30	cSC4AutomataManager::GetExemplarData	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	29	+0x74	004fbc40	cSC4AutomataManager::GetExemplarDataMap	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	30	+0x78	0050c300	cSC4AutomataManager::CanCreateGroup	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	31	+0x7C	00513c40	cSC4AutomataManager::TrackAutomataGroupInstances	8	2	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	32	+0x80	00510040	cSC4AutomataManager::GetInstancesOfGroup	8	2	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	33	+0x84	0050cde0	cSC4AutomataManager::ReleaseAutomatonSet	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	34	+0x88	0050a930	cSC4AutomataManager::SetCameraFollow	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	35	+0x8C	00505400	cSC4AutomataManager::IsCameraFollowUpdating	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	36	+0x90	0050be30	cSC4AutomataManager::GetSourceBuildingCount	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4VehicleManager	00a9d1e0	37	+0x94	00505410	cSC4AutomataManager::GetSourceBuildingCountForAutomataGroup	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	0	+0x0	004fa740	cSC4AutomataManager::QueryInterface	8	2	eax-or-void	medium	tail->00505480
+cISC4AutomataManager	cSC4AircraftManager	00a94850	1	+0x4	00505510	cSC4AutomataManager::AddRef	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	2	+0x8	00507b50	cSC4AutomataManager::Release	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	3	+0xC	004fa9e0	cSC4AutomataManager::Init	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	4	+0x10	004fb7d0	cSC4AutomataManager::Shutdown	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	5	+0x14	0050a6b0	cSC4AutomataManager::Activate	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	6	+0x18	004fbbe0	cSC4AutomataManager::IsActive	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	7	+0x1C	004fa6d0	cSC4AutomataManager::AddAutomaton	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	8	+0x20	0050c990	cSC4AutomataManager::RemoveAutomaton	8	2	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	9	+0x24	004fbbf0	cSC4AutomataManager::Pause	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	10	+0x28	004fbc00	cSC4AutomataManager::Resume	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	11	+0x2C	004fbc10	cSC4AutomataManager::IsPaused	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	12	+0x30	00698cf0	cSC4AutomataManager::GetAutomataCount	0	0	eax-or-void	medium	names_windows: cSC4TrafficSimulator::GetCongestionMap (folded getter [ecx+48h])
+cISC4AutomataManager	cSC4AircraftManager	00a94850	13	+0x34	00506940	cSC4AutomataManager::IsDrivingMode	0	0	eax-or-void	medium	true when current view id is 0x2B709676
+cISC4AutomataManager	cSC4AircraftManager	00a94850	14	+0x38	004fbc20	cSC4AutomataManager::GetMinZoom	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	15	+0x3C	00505370	cSC4AutomataManager::CreateAutomaton	28	7	eax-or-void	medium	args: group id, const vec3* pos, u32 mode, vec3* dir, u32, u32, u32 (riot: 0x4107,&pos,2,&zero,0,0xFF,0)
+cISC4AutomataManager	cSC4AircraftManager	00a94850	16	+0x40	00506dc0	cSC4AutomataManager::GetRandomCreationPoint	28	7	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	17	+0x44	004faaf0	cSC4AutomataManager::Dispatch	20	5	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4AircraftManager	00a94850	18	+0x48	004fc440	cSC4AutomataManager::Dispatch	28	7	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4AircraftManager	00a94850	19	+0x4C	00507120	cSC4AutomataManager::TranslateDispatchLocation	8	2	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4AircraftManager	00a94850	20	+0x50	00506f50	cSC4AutomataManager::TranslateDispatchLocation	8	2	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4AircraftManager	00a94850	21	+0x54	00511260	cSC4AutomataManager::ChaseAutomaton	16	4	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4AircraftManager	00a94850	22	+0x58	005072e0	cSC4AutomataManager::ChaseAutomaton	8	2	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4AircraftManager	00a94850	23	+0x5C	0050aa60	cSC4AutomataManager::SetMaxCount	4	1	eax-or-void	medium	clamps 0..5000; limit=trunc(max*1.25)
+cISC4AutomataManager	cSC4AircraftManager	00a94850	24	+0x60	004faa50	cSC4AutomataManager::HandleTuningParametersChanged	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	25	+0x64	0050be90	cSC4AutomataManager::ChooseRandomExemplar	16	4	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	26	+0x68	0050c0d0	cSC4AutomataManager::ChooseRandomExemplarByFilter	20	5	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	27	+0x6C	0050c1d0	cSC4AutomataManager::ChooseExemplarByCrimeType	12	3	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	28	+0x70	004fbc30	cSC4AutomataManager::GetExemplarData	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	29	+0x74	004fbc40	cSC4AutomataManager::GetExemplarDataMap	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	30	+0x78	0050c300	cSC4AutomataManager::CanCreateGroup	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	31	+0x7C	00513c40	cSC4AutomataManager::TrackAutomataGroupInstances	8	2	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	32	+0x80	00510040	cSC4AutomataManager::GetInstancesOfGroup	8	2	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	33	+0x84	0050cde0	cSC4AutomataManager::ReleaseAutomatonSet	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	34	+0x88	0050a930	cSC4AutomataManager::SetCameraFollow	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	35	+0x8C	00505400	cSC4AutomataManager::IsCameraFollowUpdating	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	36	+0x90	0050be30	cSC4AutomataManager::GetSourceBuildingCount	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4AircraftManager	00a94850	37	+0x94	00505410	cSC4AutomataManager::GetSourceBuildingCountForAutomataGroup	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	0	+0x0	00566e30	cSC4AutomataManager::QueryInterface	8	2	eax-or-void	medium	tail->00505480
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	1	+0x4	00505510	cSC4AutomataManager::AddRef	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	2	+0x8	00507b50	cSC4AutomataManager::Release	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	3	+0xC	00567b90	cSC4AutomataManager::Init	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	4	+0x10	005744a0	cSC4AutomataManager::Shutdown	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	5	+0x14	0050a6b0	cSC4AutomataManager::Activate	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	6	+0x18	004fbbe0	cSC4AutomataManager::IsActive	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	7	+0x1C	0056f7c0	cSC4AutomataManager::AddAutomaton	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	8	+0x20	0056f800	cSC4AutomataManager::RemoveAutomaton	8	2	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	9	+0x24	004fbbf0	cSC4AutomataManager::Pause	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	10	+0x28	004fbc00	cSC4AutomataManager::Resume	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	11	+0x2C	004fbc10	cSC4AutomataManager::IsPaused	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	12	+0x30	00698cf0	cSC4AutomataManager::GetAutomataCount	0	0	eax-or-void	medium	names_windows: cSC4TrafficSimulator::GetCongestionMap (folded getter [ecx+48h])
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	13	+0x34	00506940	cSC4AutomataManager::IsDrivingMode	0	0	eax-or-void	medium	true when current view id is 0x2B709676
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	14	+0x38	004fbc20	cSC4AutomataManager::GetMinZoom	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	15	+0x3C	00568f30	cSC4AutomataManager::CreateAutomaton	28	7	eax-or-void	medium	args: group id, const vec3* pos, u32 mode, vec3* dir, u32, u32, u32 (riot: 0x4107,&pos,2,&zero,0,0xFF,0)
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	16	+0x40	0056c990	cSC4AutomataManager::GetRandomCreationPoint	28	7	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	17	+0x44	005053f0	cSC4AutomataManager::Dispatch	20	5	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	18	+0x48	005053e0	cSC4AutomataManager::Dispatch	28	7	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	19	+0x4C	00507120	cSC4AutomataManager::TranslateDispatchLocation	8	2	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	20	+0x50	00506f50	cSC4AutomataManager::TranslateDispatchLocation	8	2	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	21	+0x54	00511260	cSC4AutomataManager::ChaseAutomaton	16	4	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	22	+0x58	005072e0	cSC4AutomataManager::ChaseAutomaton	8	2	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	23	+0x5C	0050aa60	cSC4AutomataManager::SetMaxCount	4	1	eax-or-void	medium	clamps 0..5000; limit=trunc(max*1.25)
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	24	+0x60	00567bf0	cSC4AutomataManager::HandleTuningParametersChanged	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	25	+0x64	0050be90	cSC4AutomataManager::ChooseRandomExemplar	16	4	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	26	+0x68	0050c0d0	cSC4AutomataManager::ChooseRandomExemplarByFilter	20	5	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	27	+0x6C	0050c1d0	cSC4AutomataManager::ChooseExemplarByCrimeType	12	3	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	28	+0x70	004fbc30	cSC4AutomataManager::GetExemplarData	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	29	+0x74	004fbc40	cSC4AutomataManager::GetExemplarDataMap	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	30	+0x78	0050c300	cSC4AutomataManager::CanCreateGroup	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	31	+0x7C	00513c40	cSC4AutomataManager::TrackAutomataGroupInstances	8	2	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	32	+0x80	00510040	cSC4AutomataManager::GetInstancesOfGroup	8	2	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	33	+0x84	0050cde0	cSC4AutomataManager::ReleaseAutomatonSet	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	34	+0x88	0050a930	cSC4AutomataManager::SetCameraFollow	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	35	+0x8C	00505400	cSC4AutomataManager::IsCameraFollowUpdating	0	0	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	36	+0x90	0050be30	cSC4AutomataManager::GetSourceBuildingCount	4	1	eax-or-void	medium	
+cISC4AutomataManager	cSC4WatercraftManager	00a9df38	37	+0x94	00505410	cSC4AutomataManager::GetSourceBuildingCountForAutomataGroup	4	1	eax-or-void	medium	
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	0	+0x0	0051c2e0	cSC4AutomataScriptSystem::QueryInterface	8	2	eax-or-void	medium	
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	1	+0x4	00695330	cSC4AutomataScriptSystem::AddRef	0	0	eax-or-void	medium	
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	2	+0x8	00521320	cSC4AutomataScriptSystem::Release	0	0	eax-or-void	medium	
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	3	+0xC	00523c80	cSC4AutomataScriptSystem::Init	0	0	eax-or-void	medium	
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	4	+0x10	005208a0	cSC4AutomataScriptSystem::Shutdown	0	0	eax-or-void	medium	
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	5	+0x14	00520060	cSC4AutomataScriptSystem::GetAutomataGroupMap	0	0	eax-or-void	medium	
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	6	+0x18	0051c2d0	cSC4AutomataScriptSystem::GetAutomataGroup	8	2	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	7	+0x1C	0051cf60	cSC4AutomataScriptSystem::GetAutomataGroup	4	1	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	8	+0x20	00520080	cSC4AutomataScriptSystem::GetOccupantGroupNameMap	0	0	eax-or-void	medium	names_windows: icf::cSC4AdvisorSystem::GetAdvisors
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	9	+0x24	00520090	cSC4AutomataScriptSystem::GetOccupantGroupIDMap	0	0	eax-or-void	medium	
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	10	+0x28	005200a0	cSC4AutomataScriptSystem::GetSpecialFilterOccupantGroups	0	0	eax-or-void	medium	
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	11	+0x2C	0051cff0	cSC4AutomataScriptSystem::GetOccupantGroup	4	1	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	12	+0x30	0051cfc0	cSC4AutomataScriptSystem::GetOccupantGroup	4	1	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	13	+0x34	00520bd0	cSC4AutomataScriptSystem::CreateOccupantGroup	12	3	eax-or-void	medium	
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	14	+0x38	0051d1d0	cSC4AutomataScriptSystem::GetDriveCommand	4	1	eax-or-void	medium	
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	15	+0x3C	00520070	cSC4AutomataScriptSystem::GetControllerTemplateMap	0	0	eax-or-void	medium	
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	16	+0x40	00520ac0	cSC4AutomataScriptSystem::CreateControllerTemplate	8	2	eax-or-void	medium	
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	17	+0x44	0051cf90	cSC4AutomataScriptSystem::GetControllerTemplate	4	1	eax-or-void	medium	
+cISC4AutomataScriptSystem	cSC4AutomataScriptSystem	00a96ba8	18	+0x48	005200b0	cSC4AutomataScriptSystem::GetTrackBuildingGroups	0	0	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	0	+0x0	00544750	cSC4Automaton::QueryInterface	8	2	eax-or-void	medium	tail->0054d7f0
+cISC4Automaton	cSC4Pedestrian	00a9a718	1	+0x4	005e28f0	cSC4Automaton::AddRef	0	0	eax-or-void	medium	tail->005e89b0
+cISC4Automaton	cSC4Pedestrian	00a9a718	2	+0x8	005e2900	cSC4Automaton::Release	0	0	eax-or-void	medium	tail->005e8df0
+cISC4Automaton	cSC4Pedestrian	00a9a718	3	+0xC	005444f0	cSC4Automaton::Init	0	0	eax-or-void	medium	tail->0054d790
+cISC4Automaton	cSC4Pedestrian	00a9a718	4	+0x10	00544520	cSC4Automaton::Shutdown	0	0	eax-or-void	medium	tail->00555310
+cISC4Automaton	cSC4Pedestrian	00a9a718	5	+0x14	005fd7e0	cSC4Automaton::AsOccupant	0	0	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed; names_windows: std::vector<unsigned_char,std::allocator<unsigned_char>>::operator[]
+cISC4Automaton	cSC4Pedestrian	00a9a718	6	+0x18	005fd7e0	cSC4Automaton::AsOccupant	0	0	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed; names_windows: std::vector<unsigned_char,std::allocator<unsigned_char>>::operator[]
+cISC4Automaton	cSC4Pedestrian	00a9a718	7	+0x1C	00505520	cSC4Automaton::GetPosition	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	8	+0x20	00507d90	cSC4Automaton::SetPosition	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	9	+0x24	0050e390	cSC4Automaton::SetVisible	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	10	+0x28	0054e5b0	cSC4Automaton::SetDestination	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	11	+0x2C	004adb30	cSC4Automaton::GetDestination	4	1	eax-or-void	medium	names_windows: cSC4ToxicOccupant::GetPosition
+cISC4Automaton	cSC4Pedestrian	00a9a718	12	+0x30	00509400	cSC4Automaton::GetTransform	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	13	+0x34	00509130	cSC4Automaton::Remove	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	14	+0x38	0050af10	cSC4Automaton::SetOrientation	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	15	+0x3C	00505540	cSC4Automaton::GetOrientation	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	16	+0x40	00544530	cSC4Automaton::MoveTo	8	2	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	17	+0x44	00546040	cSC4Automaton::GetRadius	0	0	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	18	+0x48	004fad70	cSC4Automaton::GetDisabled	0	0	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	19	+0x4C	00510240	cSC4Automaton::PlayAnim	4	1	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4Automaton	cSC4Pedestrian	00a9a718	20	+0x50	00510210	cSC4Automaton::PlayAnim	4	1	eax-or-void	medium	overload pair; MSVC order vs Mac unconfirmed
+cISC4Automaton	cSC4Pedestrian	00a9a718	21	+0x54	00505880	cSC4Automaton::PlayAnimByName	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	22	+0x58	005102a0	cSC4Automaton::AttachAnim	16	4	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	23	+0x5C	0098caf0	cSC4Automaton::GetCallNumber	0	0	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	24	+0x60	00648f10	cSC4Automaton::SetCallNumber	4	1	eax-or-void	medium	names_windows: cSC4NetworkTool::DebugDumpEdgeTypes
+cISC4Automaton	cSC4Pedestrian	00a9a718	25	+0x64	00648f10	cSC4Automaton::SetDispatchState	4	1	eax-or-void	medium	names_windows: cSC4NetworkTool::DebugDumpEdgeTypes
+cISC4Automaton	cSC4Pedestrian	00a9a718	26	+0x68	004fad00	cSC4Automaton::GetDispatchState	0	0	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	27	+0x6C	007c9fc0	cSC4Automaton::GetDispatchInfoID	0	0	eax-or-void	medium	names_windows: cSC43DRender::GetCamera
+cISC4Automaton	cSC4Pedestrian	00a9a718	28	+0x70	004fad10	cSC4Automaton::SetDispatchInfoID	4	1	eax-or-void	medium	names_windows: cSC4AnimationTickManager::SetStepTickTimeDelta
+cISC4Automaton	cSC4Pedestrian	00a9a718	29	+0x74	00407990	cSC4Automaton::ReturnToSourceOccupant	0	0	eax-or-void	medium	names_windows: _memset
+cISC4Automaton	cSC4Pedestrian	00a9a718	30	+0x78	004fad20	cSC4Automaton::SetAutomataFlag	8	2	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	31	+0x7C	004fad60	cSC4Automaton::CheckAutomataFlag	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	32	+0x80	004fb360	cSC4Automaton::GetOpacity	0	0	eax-or-void	medium	tail->004fa960
+cISC4Automaton	cSC4Pedestrian	00a9a718	33	+0x84	0050b360	cSC4Automaton::SetOpacity	8	2	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	34	+0x88	004fb370	cSC4Automaton::GetCurrentSpeed	0	0	eax-or-void	medium	tail->004fa960
+cISC4Automaton	cSC4Pedestrian	00a9a718	35	+0x8C	004face0	cSC4Automaton::GetDefaultSpeed	0	0	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	36	+0x90	004fb570	cSC4Automaton::SetSpeed	8	2	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	37	+0x94	00505af0	cSC4Automaton::GetMaxSpeed	0	0	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	38	+0x98	004facf0	cSC4Automaton::GetActualSpeed	0	0	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	39	+0x9C	0050d490	cSC4Automaton::AddCallback	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	40	+0xA0	0050bb90	cSC4Automaton::RemoveCallback	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	41	+0xA4	00505970	cSC4Automaton::AddRegEffect	8	2	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	42	+0xA8	005059a0	cSC4Automaton::FindRegEffect	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	43	+0xAC	005059b0	cSC4Automaton::RemoveRegEffect	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	44	+0xB0	004fadf0	cSC4Automaton::StartNamedEffects	8	2	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	45	+0xB4	004fae00	cSC4Automaton::StopNamedEffects	8	2	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	46	+0xB8	004fae30	cSC4Automaton::ToggleNamedEffects	12	3	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	47	+0xBC	004fae60	cSC4Automaton::RecreateNamedEffects	12	3	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	48	+0xC0	004faf50	cSC4Automaton::GetLeader	0	0	eax-or-void	medium	names_windows: cSC4Advice::GetSessionID
+cISC4Automaton	cSC4Pedestrian	00a9a718	49	+0xC4	00507d50	cSC4Automaton::SetLeader	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	50	+0xC8	00441a50	cSC4Automaton::FindDrivingAutomaton	0	0	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	51	+0xCC	00509860	cSC4Automaton::SetState	28	7	eax-or-void	medium	state id + 6 args; riot passes (8|1,0,-1.0f,0,0,0,0)
+cISC4Automaton	cSC4Pedestrian	00a9a718	52	+0xD0	0050ef50	cSC4Automaton::PushState	28	7	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	53	+0xD4	0050b660	cSC4Automaton::PopState	0	0	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	54	+0xD8	00505b10	cSC4Automaton::SetBehavior	8	2	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	55	+0xDC	0050b740	cSC4Automaton::PushBehavior	8	2	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	56	+0xE0	005098e0	cSC4Automaton::GetState	0	0	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	57	+0xE4	0050b710	cSC4Automaton::FindState	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	58	+0xE8	00509900	cSC4Automaton::PrevState	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	59	+0xEC	00509920	cSC4Automaton::GetBehavior	0	0	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	60	+0xF0	005056a0	cSC4Automaton::HandlePlayerDriveCommand	8	2	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	61	+0xF4	00509950	cSC4Automaton::StartSFX	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	62	+0xF8	00505b50	cSC4Automaton::StopSFX	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	63	+0xFC	007d2a10	cSC4Automaton::GetPriority	0	0	eax-or-void	medium	names_windows: cSC4OrdinanceSimple::IsIncomeOrdinance
+cISC4Automaton	cSC4Pedestrian	00a9a718	64	+0x100	004facd0	cSC4Automaton::SetPriority	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	65	+0x104	00505be0	cSC4Automaton::HandleCollision	8	2	eax-or-void	medium	names_windows: cSC4ViewInputControl::IsKeyToBePassed
+cISC4Automaton	cSC4Pedestrian	00a9a718	66	+0x108	00505a40	cSC4Automaton::GetCollidePosition	4	1	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	67	+0x10C	00505d40	cSC4Automaton::GetAutomataGroup	0	0	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	68	+0x110	0050ec10	cSC4Automaton::RegisterInGameDataRegistry	0	0	eax-or-void	medium	
+cISC4Automaton	cSC4Pedestrian	00a9a718	69	+0x114	0050b5e0	cSC4Automaton::UnregisterInGameDataRegistry	0	0	eax-or-void	medium	
