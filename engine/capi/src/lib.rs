@@ -809,6 +809,7 @@ pub mod stream;
 pub mod traffic;
 pub mod tract_developer;
 pub mod weather;
+pub mod zonedev;
 pub mod zones;
 
 #[cfg(test)]
@@ -896,3 +897,6 @@ mod weather_tests;
 
 #[cfg(test)]
 mod zones_tests;
+
+#[cfg(test)]
+mod zonedev_tests;

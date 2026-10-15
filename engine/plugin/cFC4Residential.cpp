@@ -561,7 +561,9 @@ cISC4VisualEffect* EffectOf(uint64_t t) {
 }
 
 // cISC4VisualEffect slot 8 (+0x20, SDK SetSourceTransform; docs/abi
-// SetTransform): identity rotation, the translation, scale 1.
+// SetTransform): identity rotation, the translation, scale 1. Bytes +2 and +3
+// are zero here; the original leaves them unset and the effect reads neither
+// (RG25, answered: equivalent).
 void SetEffectTransform(void*, uint64_t effect, const float* xyz) {
     cISC4VisualEffect* e = EffectOf(effect);
     if (e == nullptr || effect == FC4_EFFECT_NOT_SHOWN || xyz == nullptr) return;
@@ -865,7 +867,10 @@ uint64_t DepartmentBudget(void* u, uint32_t id) {
 
 // REH §4.2 (RG10, answered): the original never substitutes 1.0 for a
 // missing department. A department whose funding cannot be read returns NaN,
-// "missing", and the core leaves the output as the caller set it.
+// "missing", and the core leaves the output as the caller set it. RG26
+// (answered, glue only; the choice stands): NaN is safe because a real
+// funding fraction never is; a missing ITEM is not "missing" (the core gives
+// 1.0 for it without asking this callback).
 float DepartmentFunding(void*, uint64_t dept) {
     cFC4ISC4DepartmentBudget* d = DeptOf(dept);
     SC4Percentage* p = d ? d->GetFundingPercentage() : nullptr;  // slot 10

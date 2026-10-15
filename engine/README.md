@@ -448,6 +448,32 @@ plugin.
        The log has `parks Init|Read|Shutdown: ok=… init=… parks=… zoos=… threshold=… curve=… dept=… latch=… …`,
        `parks Write -> 0|1 (…)` and one `parks month yyyy-mm-dd: parks=… zoos=… funding=… latch=… lot-writes=…
        escapes=… occupants=…` line per SimNewMonth.
+     - `zonedev`: the zone developer / lot manager (`cSC4ZoneDeveloper`, CLSID `0x498F9B01`; zones.md §1-§11),
+       one object with the original's four interfaces at its offsets (`cISC4ZoneDeveloper` +0, `cISC4LotManager`
+       +4 in the compiled slot order of §11.3, `cIGZMessageTarget2` +8, `cIGZSerializable` +0xC; city components 7
+       and 8). Parcellization (§7), the cell -> lot map, the lot lists of slots 7-10 (B nodes, one reference per
+       lot for the caller), CanCreateLot (§8.4), DeleteLot, the messages (§5.2) and the record (version 1, a
+       reference per cell) are the Rust core's. The master lot list is kept in the game's raw layout, so the
+       safe lot iterators of slot 15 (8-byte C blocks) work as the original's for the budget and traffic code;
+       an iterator still registered at Shutdown is orphaned (its list object cleared) and its owner frees it.
+       **STAGE A: lot creation is not wired yet** (the game's lot constructor has no ABI row; re-specs11): every
+       CreateLot fails cleanly and logs `zonedev: CreateLot(x, z, w, h, facing f) refused: no lot constructor
+       [waiting for re-specs11]` (three times, then silence), so a parcellization creates no lot. Lots loaded
+       from a save are kept, queried, deleted and saved. `zonedev_seed = N` (env `FC4_ZONEDEV_SEED`) fixes the
+       session seed (default: the cRZTime clock). Every call into the core holds the object's lock; another
+       thread waits at most 20 ms and then gets the lot count / grid snapshot or the neutral answer (a fallback).
+       The log has `zonedev Init|Read|Write|Shutdown: version=1 init=… loaded=… real=… lots=… map=XxZ created=…
+       deleted=… iterators=… issued=… parcellizations=… dezones=… reentrant=… refused=… streets=… demolitions=…
+       levellings=… removed=… posts=… options=0x… grid=… view=0x… fallbacks=…` and the same line once a month
+       (`zonedev month yyyy-mm-dd: …`), one line per parcellization or dezone (`zonedev parcellize|dezone:
+       type=… rect=… cells=… flag=… lots=… failed=… deleted=… streets=placed/failed demolish=…`, with
+       `[lot creation waiting for re-specs11]` when a lot was refused) and `zonedev InsertOccupant: …` when an
+       inserted network deleted or re-created lots. Unspecified slots answer neutrally and say so once:
+       CanCreatePloppedLot (slot 21) returns 0; HighlightParcels hands out no region (`*out = null`).
+       Its game calls have their own switches (default `1`, environment `FC4_ZONEDEV_<KEY>`):
+       `zonedev_grid_writes`, `zonedev_messages`, `zonedev_network_tools`, `zonedev_posts`, `zonedev_demolition`,
+       `zonedev_streets`, `zonedev_occupants`, `zonedev_terrain`, `zonedev_lot_changes`, `zonedev_growth`,
+       `zonedev_levelling`, `zonedev_lot_developer`, `zonedev_traffic` (see `plugin/FC4Config.h`).
    - Each budget behaviour that touches game objects has a switch. The switches are re-read at every city load
      (budget `Read`/`Init`). Each defaults to `1`; `0` makes the behaviour a no-op with a neutral result. The
      matching environment variable is `FC4_BUDGET_<KEY>`. `budget_default = 0` turns every unset switch off.
@@ -1341,7 +1367,9 @@ plugin.
      same-process differential of the park manager. It needs FreeCity4's simulator and the **original** park
      manager (do not enable `parks`). At the first SimNewMonth delivery to the original's agent a shadow core with
      a read-only host starts from the original's record (captured through its own Write) and the shipped tuning,
-     then follows the occupant messages the original receives. At each SimNewMonth the park and zoo lists are
+     then follows the occupant messages the original receives (when the original's threshold reads as the code
+     default 0.25 while the exemplar gives another value, ours starts as without the exemplar, and every line says
+     `tuning=as-without-exemplar`). At each SimNewMonth the park and zoo lists are
      compared with the original's record (a difference restarts ours), the original's latch (+0x15) and threshold
      (+0x34) are read raw (only while its vtable is the original's, compat table) and compared with ours before
      and after the month, ours runs its month with lot writes recorded, the original's month runs, and every park
@@ -1352,12 +1380,35 @@ plugin.
      parks shadow: ON (parks_shadow from …): …                                                (game start)
      parks shadow: following the original park manager … (agent …, vtable ok): latch=… threshold=…
      parks shadow month yyyy-mm-dd: followed=yes|first|resynced parks=… zoos=… latch orig a->b ours c->d
-       threshold orig/ours; funding=… p=…; pass: lots=… run-down=… restored=…; zoo escapes orig=… ours=…
+       threshold orig/ours tuning=exemplar|as-without-exemplar (…); funding=… p=…; pass: lots=… run-down=…
+       restored=…; zoo escapes orig=… ours=…
        (not compared: clock-seeded generator); messages followed=…; mismatches=N[; differences: …]
      parks shadow: city shutdown: N month lines, M with mismatches=0
      ```
 
      Success is `mismatches=0` on every line.
+   - **Zone developer shadow** (`zonedev_shadow = 1`, env `FC4_ZONEDEV_SHADOW`; off by default;
+     `plugin/FC4ZoneDevShadow.h`): a same-process differential of the lot manager. It needs the **original** zone
+     developer (do not enable `zonedev`); otherwise it logs `zonedev shadow: requested … but INACTIVE`. At
+     PostCityInit and each SimNewMonth a FreeCity4 core in shadow mode loads the original's own record (its
+     `Write` into memory, each cell's lot by reference) over read-only host callbacks, runs Init, and is compared
+     with the original lot manager: the lot count (slot 16), every cell (slot 6, originOnly 0 and 1), 8 sample
+     rects of slots 7 and 10 (lots in order and the count), slot 14 on sample occupants and CanCreateLot (slot
+     20) on sample cells and sizes. Parcellization, lot creation and deletion, the safe lot iterator and the
+     master list order are not compared (no dry run exists; a Read rebuilds the list in first-cell order).
+     Lines (always written):
+
+     ```
+     zonedev shadow: ON (zonedev_shadow from …): …                                         (game start)
+     zonedev shadow (lots) yyyy-mm-dd load|month: mismatches=N count=O/U (orig/ours) map=XxZ city=XxZ init=1
+       record=B bytes unread=0
+     zonedev shadow (cells) …: cells=… covered=… origins=… mismatches=N; first=x,z:orig/ours,…
+     zonedev shadow (lists) …: calls=32 mismatches=N lots=O/U (orig/ours) rects=…; first=…
+     zonedev shadow (occupants) …: occupants=… onLots=… mismatches=N; first=…
+     zonedev shadow (CanCreateLot) …: calls=… mismatches=N codes 0/1/2/3/7/8 orig=… ours=…; first=…
+     ```
+
+     Success is `mismatches=0` and `unread=0` on every line; a line that cannot compare says `INCOMPLETE (why)`.
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,

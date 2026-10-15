@@ -34,6 +34,9 @@ enum class Direct : unsigned {
     GlobalHeapFree,        // allocator C free (the game's operator delete): cdecl void (void*)
                            //   (docs/abi/allocators.md; FC4SafeLotIterator.h frees the
                            //   safe lot iterator's block with it)
+    GlobalHeapAllocate,    // allocator C allocate (the game's operator new): cdecl void* (uint32_t size)
+                           //   (docs/abi/allocators.md; the zone developer's safe lot iterator
+                           //   blocks, zones.md §8.3 slot 15, §13.2)
     Count
 };
 

@@ -517,6 +517,10 @@ impl ProtectionSim {
                         // efficiency (§7.2). The original ignores the AL and
                         // uses a stack leftover as the radius when it fails
                         // [quirk]; [choice] FreeCity4 skips the update then.
+                        // PR18: the original's record here is a fresh,
+                        // uninitialised stack record; [choice] a zeroed one
+                        // (the same on success when the station has its
+                        // outer and radius, as every shipped station has).
                         let (ok, e) = self.dispatch_effect(info.station);
                         if ok {
                             self.update_both_grids_by_position(info.x, info.z, e.radius);
@@ -751,12 +755,18 @@ impl ProtectionSim {
         let Some(g) = self.unadjusted_grid() else { return };
         g.fill(0);
         let stations = self.d.borrow().stations.clone();
+        // §5.1 (PR17, PR18): ONE effect record for every station and dispatch
+        // of the rebuild, never re-zeroed, as the original's stack record
+        // (`[esp+0x24]` at `0x006F5C87` and `0x006F5DA9`) [choice: match].
+        // The original leaves it uninitialised before the first read; zero is
+        // the only reproducible value.
+        let mut rec = Effect::default();
         for s in &stations {
             // [choice] (§5.1): a station whose effect fails is skipped (the
-            // original draws the shared record's stale values).
-            let (ok, e) = self.station_effect(s.token);
-            if ok {
-                Self::cone(&*g, &e);
+            // original draws the shared record's stale values); what the
+            // failed read left stays in the record for the dispatches.
+            if self.station_effect_into(s.token, &mut rec) {
+                Self::cone(&*g, &rec);
             }
         }
         let t = self.kind.params().dispatch_type;
@@ -766,14 +776,18 @@ impl ProtectionSim {
             if let Some(info) = self.host.dispatch_info(id) {
                 if info.active {
                     // §5.1 / §7.2 (PR2, PR14): the record's +0x20, the source
-                    // station; the effect is scaled by its efficiency. [question]
-                    // §5.1 does not say what this loop does with a failed
-                    // effect: its AL is ignored here and the record, zeroed per
-                    // dispatch [choice], then holds centre 0, which adds 0.
-                    let (_, mut e) = self.dispatch_effect(info.station);
-                    e.x = info.x;
-                    e.z = info.z;
-                    Self::cone(&*g, &e);
+                    // station; the effect is scaled by its efficiency. PR17:
+                    // the AL is ignored and the cone always drawn. A failed
+                    // call (no dispatch centre) has zeroed only x, z and the
+                    // centre, so the cone has centre 0 and the leftover outer
+                    // and radius of the previous dispatch, else of the last
+                    // station: an inverted cone, 0 at the dispatch's tract.
+                    // PR18: an absent outer or radius on success keeps the
+                    // leftover too.
+                    self.dispatch_effect_into(info.station, &mut rec);
+                    rec.x = info.x;
+                    rec.z = info.z;
+                    Self::cone(&*g, &rec);
                 }
             }
         }
@@ -1266,8 +1280,10 @@ impl ProtectionSim {
     }
 
     /// `GetDispatchEffect(station)` (§7.2, message-target slot 12) on a
-    /// zeroed record ([choice]: every FreeCity4 caller starts from 0, so an
-    /// absent outer or radius reads as 0); see [`Self::dispatch_effect_into`].
+    /// zeroed record ([choice], PR18: the original's callers never pass a
+    /// zeroed record; `update_unadjusted` passes its shared record instead,
+    /// PR17, and the other callers start from 0, so an absent outer or radius
+    /// reads as 0); see [`Self::dispatch_effect_into`].
     pub fn dispatch_effect(&self, station: u64) -> (bool, Effect) {
         let mut e = Effect::default();
         let ok = self.dispatch_effect_into(station, &mut e);

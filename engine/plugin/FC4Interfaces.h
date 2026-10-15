@@ -452,8 +452,10 @@ public:
     virtual bool CompactProperties() = 0;                                                    // 21
 };
 
-// cISC4LotManager (28 slots; foundations §17.8). SDK errors fixed: slots 18
-// (flora.md §12: a float in ST0) and 22.
+// cISC4LotManager (28 slots; foundations §17.8; zones.md §11.3). SDK errors
+// fixed: slots 7-10 return a count in EAX, slots 17-19 a float in ST0
+// (flora.md §12, zones.md §8.7), slot 22 has the lot out-parameter, slot 27's
+// grid is the uint16 grid.
 class cFC4ISC4LotManager : public cIGZUnknown {
 public:
     virtual bool Init() = 0;                                                     // 3
@@ -464,10 +466,13 @@ public:
     // [abi] 7-10: the nodes are B (allocators.md); 8-10 append without clearing.
     virtual uint32_t GetLotsInCellRect(fc4::GameList<cISC4Lot*>& lots, int32_t x1, int32_t z1, int32_t x2, int32_t z2,
                                        bool locationOnly) = 0;                   // 7
-    virtual bool GetLotsSurroundingCell(int32_t cellX, int32_t cellZ, fc4::GameList<cISC4Lot*>& lots,
-                                        int32_t flags) = 0;                      // 8  GetLotsSurroundingLot(x, z, ...)
-    virtual bool GetLotsSurroundingLot(cISC4Lot const* lot, fc4::GameList<cISC4Lot*>& lots, int32_t flags) = 0;  // 9
-    virtual bool GetLotsSurroundingRect(SC4Rect<long> const& rect, fc4::GameList<cISC4Lot*>& lots, int32_t flags) = 0;  // 10
+    // zones.md §11.3: 8-10 return the number of lots appended in EAX (SDK: bool).
+    virtual uint32_t GetLotsSurroundingCell(int32_t cellX, int32_t cellZ, fc4::GameList<cISC4Lot*>& lots,
+                                            int32_t flags) = 0;                  // 8  GetLotsSurroundingLot(x, z, ...)
+    virtual uint32_t GetLotsSurroundingLot(cISC4Lot const* lot, fc4::GameList<cISC4Lot*>& lots,
+                                           int32_t flags) = 0;                   // 9
+    virtual uint32_t GetLotsSurroundingRect(SC4Rect<long> const& rect, fc4::GameList<cISC4Lot*>& lots,
+                                            int32_t flags) = 0;                  // 10
     virtual bool GetVerticesAtEdgeOfLot(SC4Rect<long> const& cells, int32_t flags, SC4Rect<long>& vertices) = 0;  // 11
     virtual bool GetNeighborCellsAtEdgeOfLot(SC4Rect<long> const& cells, int32_t flags, SC4Rect<long>& out) = 0;  // 12
     virtual cISC4Lot* GetRandomLot() = 0;                                        // 13
@@ -476,10 +481,12 @@ public:
     // object}, registered with the manager (aura.md §6.5; FC4SafeLotIterator.h).
     virtual intptr_t GetSafeLotIterator() = 0;                                   // 15
     virtual int32_t GetLotCount() = 0;                                           // 16
-    virtual int32_t GetLotSavvyTerrainVertexAltitude(int32_t x, int32_t y, cISC4Lot* lot, bool& ok) = 0;  // 17
+    // zones.md §11.3: 17 and 19 return a float in ST0 (SDK: int32); the
+    // bool out-parameters are pointers (pop 16 / 12).
+    virtual float GetLotSavvyTerrainVertexAltitude(int32_t x, int32_t z, cISC4Lot* exclude, bool* ok) = 0;  // 17
     // flora.md §12, §13.2: returns a float in ST0 (SDK: int32), pop 12.
     virtual float GetLotSavvyTerrainAltitude(float x, float z, bool* onLot) = 0;  // 18
-    virtual int32_t GetLotSavvyCellAltitude(int32_t cellX, int32_t cellZ, bool& ok) = 0;  // 19
+    virtual float GetLotSavvyCellAltitude(int32_t cellX, int32_t cellZ, bool* ok) = 0;  // 19
     virtual int32_t CanCreateLot(int32_t x, int32_t z, int32_t w, int32_t h, bool zoneNotNeeded, bool ignoreConfig,
                                  cISC4LotConfiguration* config) = 0;             // 20
     virtual int32_t CanCreatePloppedLot(SC4Rect<long> bounds, int32_t n, cISC4LotConfiguration* config) = 0;  // 21
@@ -490,7 +497,8 @@ public:
     virtual bool DeleteLot(cISC4Lot* lot) = 0;                                   // 24
     virtual bool DeleteLots(int32_t x1, int32_t z1, int32_t x2, int32_t z2) = 0;  // 25
     virtual bool GetLotVertexAltitudeAdjustmentRange(int32_t x, int32_t z, float& rangeX, float& rangeY) = 0;  // 26
-    virtual cISC4SimGrid<short>* GetMaximumCapacityGrid() = 0;                   // 27
+    // zones.md §11.3: the uint16 grid (class 0x49B9E604; SDK: <short>), no AddRef.
+    virtual cISC4SimGrid<uint16_t>* GetMaximumCapacityGrid() = 0;                // 27
 };
 
 // cISC4Lot (70 slots; foundations §17.8). SDK error fixed: slot 61 returns

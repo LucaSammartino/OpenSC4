@@ -460,7 +460,10 @@ test every occupant; it reads a coarse index (verified, FQ6):
   largest city, gives a cell outside 0..191. A byte from 192 to 255 makes the listing write past the index's 192 rows
   or columns (heap corruption); a cell below 0 or above 255 wraps, and when the low end's byte ends up above the high
   end's the occupant is listed nowhere on that axis. *[choice]* Clamping such cells to 0..191, like the query, is
-  recommended; it changes nothing inside the index.
+  recommended; it changes nothing inside the index. Clamp as the query does (AQ13, `0x0049DF00`): each of the four
+  values (low x, low z, high x, high z) on its own, as a signed 32-bit cell number before any byte is taken, first to
+  ≥ 0 and then to ≤ 191. A box entirely outside the index on one side is then listed in the edge row or column. That
+  is harmless, since every query also clamps to the edge and then tests the true overlap.
   The listing is made from the box at that moment and kept in the occupant (occupant slot 26, `0x0049F094`) until the
   next `MoveOccupant` or removal; queries keep using it if the box changes in between. Which box a flora shadow uses
   to model the listing is glue (AQ9): the implementer's choice (the census box taken before the pass) stands, and
@@ -906,6 +909,15 @@ open (`0x005D9D21`, `0x005D9E3B`), and the open test needs both the segment and 
 record is not open and nothing is read, written or closed. The pointer the call wrote stays in the helper's stream
 reference, and the helper's destructor (`0x005D9C30` read, `0x005D9D50` write) releases it once, without
 `CloseIStream` or `CloseOStream`. *[choice]* Releasing it once, as the original does, is recommended.
+
+How the original owns that reference (AQ12). An `Open*Stream` out-pointer carries a reference that the callee gives
+to the caller: the game's own segment creates the stream, gets the out-pointer by `QueryInterface` (which adds the
+caller's reference) and then releases its own creation reference (`0x005D27B3`–`0x005D27C0`). The helper never adds
+a reference of its own; it only releases the one the call handed over. So a reference audit should record the
+pointer as **handed over by the call** (created for us) at the call, whatever the call returned, and record the
+helper's single release as the release of that same reference. *[glue]* An audit that records it as acquired by an
+`AddRef` of ours, then released as created for us, mixes two kinds for one reference; that is only balanced if the
+audit counts both kinds together.
 
 - Save: the count record is written even when the count is 0. `i` is the occupant's position in the list and
   advances for every occupant, also when its record does not open. The count is written with `PutUint32`

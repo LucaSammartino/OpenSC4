@@ -472,7 +472,15 @@ int CivicEnableTest(const std::string& dll, const std::string& ini, const std::s
         if (!record.empty()) {
             std::vector<uint8_t> again;
             CHECK(TextReadInto<cISC4CivicBuildingSimulator>(director, kCLSID_Civic, kIID_Civic, record, &again));
-            CHECK(again == record);
+            // §7 / §12 test 9 (CB6, on main since the cores10b answers): a read
+            // reverses each bucket chain of two or more entries, so only the
+            // second round trip must give the record back; the bucket order and
+            // the record's size hold after one. (The core still keeps the chain
+            // order on the first round trip; question CIV-4.)
+            CHECK(again.size() == record.size());
+            std::vector<uint8_t> twice;
+            CHECK(TextReadInto<cISC4CivicBuildingSimulator>(director, kCLSID_Civic, kIID_Civic, again, &twice));
+            CHECK(twice == record);
             std::vector<uint8_t> bad = record;
             bad[0] = 5;  // §12 test 9: version 5 is refused
             CHECK(!TextReadInto<cISC4CivicBuildingSimulator>(director, kCLSID_Civic, kIID_Civic, bad, nullptr));
@@ -489,7 +497,7 @@ int CivicEnableTest(const std::string& dll, const std::string& ini, const std::s
     CHECK(text.find("civic: Lua civic.get_landmark_count() NOT published") != npos);
     CHECK(text.find("civic: the game's string allocator is not available") != npos);
     CHECK(text.find("civic month 2000-02-01") != npos);
-    CHECK(CountOf(text, "civic Read: ok=1") == 1);
+    CHECK(CountOf(text, "civic Read: ok=1") == 2);
     CHECK(CountOf(text, "civic Read: ok=0") == 1);
     CHECK(text.find("structured exception") == npos);
     CHECK(text.find("config: WARNING unknown key") == npos);

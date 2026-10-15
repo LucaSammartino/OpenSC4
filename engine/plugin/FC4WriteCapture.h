@@ -26,6 +26,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 class cIGZUnknown;
@@ -45,10 +46,15 @@ public:
     // (borrowed; nullptr if it does not answer) and class ID.
     void* Grid(uint32_t id) const;
     uint32_t ClassOf(uint32_t id) const;
-    // Reference `id` (1-based as written): the object as written (borrowed;
-    // nullptr if out of range). The civic shadow maps saved occupants and
+    // Reference `id`'s object as written (its cIGZSerializable, borrowed;
+    // nullptr for an unknown id): the zone developer shadow asks it for its lot.
+    const void* Object(uint32_t id) const;
+    // The same object as its cIGZSerializable (borrowed; nullptr for an
+    // unknown id): the civic and parks shadows map saved occupants and
     // departments back to their objects with it.
-    cIGZSerializable* Object(uint32_t id) const;
+    cIGZSerializable* SerializableAt(uint32_t id) const {
+        return static_cast<cIGZSerializable*>(const_cast<void*>(Object(id)));
+    }
 
     // cIGZUnknown (a static object: the reference count is not kept)
     bool QueryInterface(uint32_t riid, void** ppvObj) override;
@@ -96,6 +102,7 @@ private:
 
     std::vector<uint8_t> bytes_;
     std::vector<Ref> refs_;
+    std::unordered_map<const void*, size_t> index_;  // object -> refs_ index (records with many references)
     bool good_ = true;
 };
 

@@ -135,18 +135,24 @@ enum Effect {
 /// - *[choice]* commercial (5), land value (6).
 ///
 /// The names are matched rather than the targets, so the original's agents
-/// registered with this simulator get the same ranks. The port developers'
-/// and the commercial simulator's `AddAgent` names are not in the specs (a
-/// question), so ranks 2 and 5 have no name yet and those agents keep
-/// registration order.
+/// registered with this simulator get the same ranks. AO1 (foundations §13.4,
+/// "Agent names of the tail"): the airport and seaport developers both
+/// register `"cSC4PortDeveloper"` at level 6 through their shared base `Init`,
+/// so they share rank 2 and keep registration order between themselves
+/// (*[choice]*); the commercial simulator registers `"cSC4CommercialSimulator"`
+/// at levels 0, 10, 4 and 6 and takes rank 5 at the month level only.
+/// AO2: with the game's own simulator the order is target-address order,
+/// which no rank here can change (the glue only logs it).
 fn tail_rank(lvl: u32, name: &str) -> Option<u8> {
     if lvl != level::MONTH {
         return None;
     }
     match name {
         "cSC4LandfillDeveloper" => Some(1),
+        "cSC4PortDeveloper" => Some(2),
         "cSC4NeighborsSimulator" => Some(3),
         "cSC4OrdinanceSimulator" => Some(4),
+        "cSC4CommercialSimulator" => Some(5),
         "cSC4LandValueSimulator" => Some(6),
         _ => None,
     }

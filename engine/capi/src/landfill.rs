@@ -35,8 +35,8 @@
 //!
 //! **Tiles across a load** (§6.4, LG8): the original saves its tiles and does
 //! not rebuild them, and neither does this layer for a cell that has one.
-//! [choice] A mask cell whose active-landfill flag is set but which has no
-//! landfill occupant (a city saved by an older FreeCity4, which kept its
+//! [choice] A mask cell whose §4.8 rule gives a tile but which has no
+//! landfill occupant (LG23) (a city saved by an older FreeCity4, which kept its
 //! tiles here) gets its tile back on PostCityInit, before the core's own
 //! handling, chosen as §4.8 would from the saved heaps with orientation 0 and
 //! no `rand()` draw ([`Handle::rebuild_tiles`]).
@@ -1150,10 +1150,10 @@ impl Handle {
         self.dev.do_message(m);
     }
 
-    /// After a load ([choice], §6.4 LG8): game tiles are saved by the
-    /// occupant manager and found here, so only a mask cell whose
-    /// active-landfill flag is set and that has no landfill occupant (a city
-    /// saved while the tiles were kept in this layer) gets its tile back,
+    /// After a load ([choice], §6.4 LG8, LG23): game tiles are saved by the
+    /// occupant manager and found here, so only a mask cell whose rule tile
+    /// is not the empty tile and that has no landfill occupant (a city saved
+    /// while the tiles were kept in this layer) gets its tile back,
     /// chosen as §4.8 would from the saved heaps (the interior tile without a
     /// `rand()` draw: orientation 0), as a game occupant when the host can
     /// make one ([`CHost::place_tile`]). The pollution flag is left as it
@@ -1168,10 +1168,13 @@ impl Handle {
             let region = zone.region();
             let (w, h) = (zone.w(), zone.h());
             for (x, z) in region.mask_cells().collect::<Vec<_>>() {
-                if host.live_active(x, z) != Some(true) {
-                    continue;
+                // LG23 (§6.4, answered; the bracket is acceptable): a cell
+                // needs a tile when the §4.8 rule gives one other than
+                // 0x02F10000 for the saved heaps and slot 33 finds no
+                // landfill occupant; its active-landfill flag is not a test.
+                if host.live_active(x, z) == Some(true) {
+                    host.active.borrow_mut().insert((x, z));
                 }
-                host.active.borrow_mut().insert((x, z));
                 if host.occupant_at(x, z, OCCUPANT_TYPE_LANDFILL).is_some() {
                     continue;
                 }
@@ -1270,10 +1273,11 @@ pub unsafe extern "C" fn fc4_landfill_init(p: *mut fc4_landfill) -> bool {
 }
 
 /// `Shutdown` (§1.2): always true. Each initialised zone removes its zot prop
-/// (`RemovePropA`) and releases it in the core (§4.4.9, LG13). [choice] A
-/// zone that was never initialised keeps its zot in the original; its
-/// reference is released here, after the core's Shutdown, so it does not
-/// leak. A developer that was never initialised keeps its zones, and
+/// (`RemovePropA`) and releases it in the core (§4.4.9, LG13). A zone that
+/// was never initialised skips its zot at its Shutdown; the original's zone
+/// destructor then releases it without `RemovePropA` (LG24, answered; the
+/// bracket matches), so its reference is released here, after the core's
+/// Shutdown, without `RemovePropA`. A developer that was never initialised keeps its zones, and
 /// [`fc4_landfill_destroy`] releases them. The tiles kept here are dropped.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_landfill_shutdown(p: *mut fc4_landfill) -> bool {

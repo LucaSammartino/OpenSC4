@@ -78,6 +78,11 @@ fc4_park_host g_host{};
 fc4_park* g_core = nullptr;
 const void* g_coreSim = nullptr;
 uint32_t g_months = 0, g_cleanMonths = 0, g_followedMessages = 0, g_origEscapes = 0;
+// [question PKG-1] The original's threshold after its Init is the code
+// default 0.25 in game, not the shipped exemplar's 25.0 (§4.4, §6): ours then
+// starts as without the exemplar (threshold 0.25, empty curve) so that the
+// pass itself can be compared; every line says so.
+bool g_withoutTuning = false;
 
 // Recorded by the shadow host during our month.
 struct LotWrite {
@@ -207,7 +212,7 @@ Record Parse(const WriteCapture& cap) {
         for (uint32_t i = 0; i < n; ++i) {
             uint32_t id = 0;
             if (!b.Ref(id)) return r;
-            list->push_back(Canonical(static_cast<cIGZUnknown*>(cap.Object(id))));
+            list->push_back(Canonical(static_cast<cIGZUnknown*>(cap.SerializableAt(id))));
         }
     }
     uint8_t extra = 0;
@@ -228,7 +233,7 @@ void DropCore() {
 
 // A fresh shadow core from the original's capture: Read, then Init with the
 // shipped tuning (the read-only host creates and subscribes nothing).
-bool Restart(const WriteCapture& cap, const void* sim) {
+bool Restart(const WriteCapture& cap, const void* sim, bool withTuning) {
     DropCore();
     g_ctx = ParkContext{};
     g_ctx.readOnly = true;
@@ -240,7 +245,7 @@ bool Restart(const WriteCapture& cap, const void* sim) {
     if (g_core == nullptr) return false;
     CaptureIStream in(cap);
     const bool ok = fc4_park_read(g_core, in.Get());
-    props::CoreProps tuning(ParkTuning());
+    props::CoreProps tuning(withTuning ? ParkTuning() : nullptr);
     fc4_park_init(g_core, tuning.Get());
     if (!ok) {
         DropCore();
@@ -322,6 +327,20 @@ struct Month {
 
 WriteCapture g_capture;
 
+// Ours from the original's record (first month or a resync). With the raw
+// threshold readable and equal to the code default 0.25 while the exemplar
+// gives another, ours restarts without the exemplar (PKG-1).
+bool StartFrom(Month& mo) {
+    if (!Restart(g_capture, mo.sim, true)) return false;
+    g_withoutTuning = false;
+    const fc4_park_state st = OurState();
+    if (mo.rawBefore && mo.before.threshold != st.distress_threshold && mo.before.threshold == 0.25f) {
+        if (!Restart(g_capture, mo.sim, false)) return false;
+        g_withoutTuning = true;
+    }
+    return true;
+}
+
 void MonthBefore(void* ctx) {
     Month& mo = *static_cast<Month*>(ctx);
     mo.rawBefore = ReadOriginal(mo.sim, &mo.before);
@@ -334,7 +353,7 @@ void MonthBefore(void* ctx) {
     }
     if (g_core == nullptr || g_coreSim != mo.sim) {
         mo.followed = "first";
-        if (!Restart(g_capture, mo.sim)) {
+        if (!StartFrom(mo)) {
             mo.incomplete = "the shadow core could not read the original's record";
             return;
         }
@@ -351,7 +370,7 @@ void MonthBefore(void* ctx) {
         }
         if (differ) {
             mo.followed = "resynced";
-            if (!Restart(g_capture, mo.sim)) {
+            if (!StartFrom(mo)) {
                 mo.incomplete = "the shadow core could not read the original's record";
                 return;
             }
@@ -424,7 +443,9 @@ void MonthAfter(void* ctx) {
         " parks=" + std::to_string(mo.rec.parks.size()) + " zoos=" + std::to_string(mo.rec.zoos.size()) +
         " latch orig " + latch(mo.rawBefore, mo.before.latch) + "->" + latch(mo.rawAfter, mo.after.latch) +
         " ours " + std::to_string(mo.oursBefore.underfunded) + "->" + std::to_string(mo.oursAfter.underfunded) +
-        " threshold " + thr + "; " + num + "; pass: lots=" + std::to_string(mo.lots.size()) +
+        " threshold " + thr +
+        (g_withoutTuning ? " tuning=as-without-exemplar (orig threshold 0.25, question PKG-1)" : " tuning=exemplar") +
+        "; " + num + "; pass: lots=" + std::to_string(mo.lots.size()) +
         " run-down=" + std::to_string(mo.runDown) + " restored=" + std::to_string(mo.restored) +
         "; zoo escapes orig=" + std::to_string(g_origEscapes - mo.origEscapesBefore) +
         " ours=" + std::to_string(g_ourEscapes) + " (not compared: clock-seeded generator)" +

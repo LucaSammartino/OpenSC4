@@ -251,6 +251,9 @@ INTERFACES = [
     ("cIGZWinMgr", "cFC4IGZWinMgr", FCW, True),
     ("cIGZWin", "cFC4IGZWin", FCW, True),
     ("cIGZMessageServer", "cFC4IGZMessageServer", FCW, True),
+    # The landfill zot's view rotation (landfill.md section 4.7.5, LG21):
+    # cISC43DRender through slot 8 GetViewUtilities.
+    ("vt:cSC43DRender::vftable", "cFC4ISC43DRender", FCW, True),
     ("cIGZMessageTarget(AudioEventHandler)", "cIGZMessageTarget", "cIGZMessageTarget.h", True),
     # The commercial and industrial simulators (docs/specs/commercial-industrial.md section 9):
     # implemented through the SDK declarations (cISC4CommercialSimulator is listed above

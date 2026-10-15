@@ -46,6 +46,7 @@ void* Borrowed(cIGZSerializable* obj, uint32_t iid) {
 bool WriteCapture::Capture(cIGZUnknown* obj, bool* answered) {
     bytes_.clear();
     refs_.clear();
+    index_.clear();
     good_ = true;
     if (answered != nullptr) *answered = false;
     if (obj == nullptr) return false;
@@ -61,9 +62,8 @@ bool WriteCapture::Capture(cIGZUnknown* obj, bool* answered) {
 
 void* WriteCapture::Grid(uint32_t id) const { return (id >= 1 && id <= refs_.size()) ? refs_[id - 1].grid : nullptr; }
 
-cIGZSerializable* WriteCapture::Object(uint32_t id) const {
-    return (id >= 1 && id <= refs_.size()) ? static_cast<cIGZSerializable*>(const_cast<void*>(refs_[id - 1].object))
-                                           : nullptr;
+const void* WriteCapture::Object(uint32_t id) const {
+    return (id >= 1 && id <= refs_.size()) ? refs_[id - 1].object : nullptr;
 }
 
 uint32_t WriteCapture::ClassOf(uint32_t id) const {
@@ -99,9 +99,14 @@ bool WriteCapture::SetVoid(void const* p, uint32_t n) {
 bool WriteCapture::WriteGZSerializable(cIGZSerializable const* p) {
     if (p == nullptr) return SetUint32(0);
     cIGZSerializable* obj = const_cast<cIGZSerializable*>(p);
-    size_t i = 0;
-    while (i < refs_.size() && refs_[i].object != obj) ++i;
-    if (i == refs_.size()) refs_.push_back(Ref{obj, Borrowed(obj, kIID_cISC4SimGrid), obj->GetGZCLSID()});
+    size_t i = refs_.size();
+    const auto it = index_.find(obj);
+    if (it != index_.end()) {
+        i = it->second;
+    } else {
+        refs_.push_back(Ref{obj, Borrowed(obj, kIID_cISC4SimGrid), obj->GetGZCLSID()});
+        index_.emplace(obj, i);
+    }
     SetUint32(static_cast<uint32_t>(i + 1));
     return SetUint32(refs_[i].classId);
 }
@@ -213,7 +218,7 @@ bool CaptureIStream::Ref(uint32_t iid, fc4_ref* out) {
     if (id != 0 && !Take(&cls, 4)) return false;
     fc4_ref r{};
     r.class_id = cls;
-    cIGZSerializable* obj = id != 0 ? cap_.Object(id) : nullptr;
+    cIGZSerializable* obj = id != 0 ? cap_.SerializableAt(id) : nullptr;
     if (obj != nullptr) {
         void* p = nullptr;
         if (obj->QueryInterface(iid == 0 ? GZIID_cIGZUnknown : iid, &p) && p != nullptr) {

@@ -48,6 +48,8 @@
 #include "FC4ZonesShadow.h"
 #include "cFC4Residential.h"
 #include "cFC4ZoneManager.h"
+#include "FC4ZoneDevShadow.h"
+#include "cFC4ZoneDeveloper.h"
 #include "FC4NeighborsShadow.h"
 #include "FC4DevelopmentShadow.h"
 #include "cFC4Neighbors.h"
@@ -256,6 +258,12 @@ const ClassEntry kCivicClasses[] = {
 const ClassEntry kParkClasses[] = {
     {kFC4_CLSID_cSC4ParkManager, "cSC4ParkManager", &CreateFC4ParkManager},
 };
+// docs/specs/zones.md §1, §1.2, §11.2, §11.3: the zone developer / lot manager
+// (city components 7 and 8). Off by default (M4 glue trial): enable = zonedev.
+// Lot creation waits for re-specs11 (CreateLot fails, logged).
+const ClassEntry kZoneDevClasses[] = {
+    {kFC4_CLSID_cSC4ZoneDeveloper, "cSC4ZoneDeveloper", &CreateFC4ZoneDeveloper},
+};
 
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
@@ -287,6 +295,7 @@ const Subsystem kSubsystems[] = {
     {"industrial", nullptr, kIndustrialClasses, sizeof(kIndustrialClasses) / sizeof(kIndustrialClasses[0]), false},
     {"civic", nullptr, kCivicClasses, sizeof(kCivicClasses) / sizeof(kCivicClasses[0]), false},
     {"parks", nullptr, kParkClasses, sizeof(kParkClasses) / sizeof(kParkClasses[0]), false},
+    {"zonedev", nullptr, kZoneDevClasses, sizeof(kZoneDevClasses) / sizeof(kZoneDevClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -415,6 +424,8 @@ void Resolve() {
     CivicShadowStartup(g_enabled[0], enabledKey("civic"));
     // The parks shadow (FC4ParksShadow.h; it compares the original park manager).
     ParksShadowStartup(g_enabled[0], enabledKey("parks"));
+    // The zone developer shadow (FC4ZoneDevShadow.h; it compares the original lot manager).
+    ZoneDevShadowStartup(enabledKey("zonedev"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.

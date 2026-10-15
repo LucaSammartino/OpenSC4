@@ -275,6 +275,13 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Parks.h
         plugin/FC4ParksShadow.cpp
         plugin/FC4ParksShadow.h
+        # The zone developer / lot manager (zones.md §1.2, §7-§11.3): enable = zonedev,
+        # zonedev_shadow.
+        plugin/cFC4ZoneDeveloper.cpp
+        plugin/cFC4ZoneDeveloper.h
+        plugin/FC4ZoneDevHost.cpp
+        plugin/FC4ZoneDevShadow.cpp
+        plugin/FC4ZoneDevShadow.h
         # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h
         plugin/FC4Turbo.cpp
@@ -494,6 +501,16 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_zones_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-zones)
     set_tests_properties(plugin_ini_enable_zones_test PROPERTIES RUN_SERIAL TRUE)
+    # The zone developer / lot manager (zones.md §1-§11): `enable = zonedev`
+    # (no city: the QI table and sub-object offsets, neutral getters, the
+    # record round trip, status lines) and, through seam op 53 with stub hosts
+    # and malloc'd B / C blocks, Init / Shutdown, STAGE A's refused lot
+    # creation, stub lots in the lists (slots 7, 10), the safe lot iterator's
+    # raw layout (slot 15), DeleteLot and the zonedev shadow on a fake original
+    # (zonedev_shadow = 1: INACTIVE with `enable = zonedev`).
+    add_test(NAME plugin_ini_enable_zonedev_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-zonedev)
+    set_tests_properties(plugin_ini_enable_zonedev_test PROPERTIES RUN_SERIAL TRUE)
     # The tract developer (tract-developer.md): `enable = tract` (no city: the
     # QI table, the slots' return channels, lifecycle, the record round trip,
     # status lines) and, through seam op 45 with stub hosts, Init / Shutdown

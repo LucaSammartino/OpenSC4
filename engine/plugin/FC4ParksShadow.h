@@ -22,7 +22,11 @@
 // written to the game) follows the original:
 //   - at the first SimNewMonth delivery to the original's agent it starts
 //     from the original's record (its own Write into memory, §7) and the
-//     shipped tuning (§6), the latch clear as the original's after its Init;
+//     shipped tuning (§6), the latch clear as the original's after its Init.
+//     If the original's threshold (read raw) is the code default 0.25 while
+//     the exemplar gives another value, ours starts as without the exemplar
+//     (threshold 0.25, empty curve) and every line says
+//     `tuning=as-without-exemplar` (question PKG-1);
 //   - its own subscription receives the occupant inserted / removed messages
 //     (§3) the original receives and runs them (§4.2, §4.3: the lists; budget
 //     writes are not made); a third subscription counts the original's
@@ -43,8 +47,9 @@
 //   parks shadow: ON (...) | requested but INACTIVE (...)        game start
 //   parks shadow: following the original park manager ... (agent ..., vtable ...): latch=.. threshold=..
 //   parks shadow month YYYY-MM-DD: followed=yes|first|resynced parks=.. zoos=.. latch orig a->b ours c->d
-//     threshold orig/ours; funding=f p=..; pass: lots=L run-down=r restored=s; zoo escapes orig=e ours=e'
-//     (not compared); messages followed=k; mismatches=N[; differences: ...]
+//     threshold orig/ours tuning=exemplar|as-without-exemplar (...); funding=f p=..; pass: lots=L
+//     run-down=r restored=s; zoo escapes orig=e ours=e' (not compared); messages followed=k;
+//     mismatches=N[; differences: ...]
 //   parks shadow: city shutdown: N month lines, M with mismatches=0
 #pragma once
 

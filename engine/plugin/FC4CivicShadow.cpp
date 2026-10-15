@@ -225,12 +225,12 @@ Record Parse(const WriteCapture& cap) {
     }
     uint32_t id = 0, cls = 0;
     if (!b.Ref(id, cls)) return r;
-    r.landmarks = Canonical(reinterpret_cast<cIGZUnknown*>(cap.Object(id)), kIID_cISC4DepartmentBudget);
+    r.landmarks = Canonical(static_cast<cIGZUnknown*>(cap.SerializableAt(id)), kIID_cISC4DepartmentBudget);
     for (std::vector<uint64_t>* list : {&r.centers, &r.maintained}) {
         if (!b.Val(n)) return r;
         if (n >= 10000000u) continue;  // §7: the shared list reader reads nothing further
         for (uint32_t i = 0; i < n && b.good(); ++i) {
-            if (b.Ref(id, cls)) list->push_back(Canonical(reinterpret_cast<cIGZUnknown*>(cap.Object(id)),
+            if (b.Ref(id, cls)) list->push_back(Canonical(static_cast<cIGZUnknown*>(cap.SerializableAt(id)),
                                                           kIID_cISC4Occupant));
         }
     }

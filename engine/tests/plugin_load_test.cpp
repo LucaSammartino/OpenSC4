@@ -82,6 +82,8 @@
 #include "cFC4TrafficSimulator.h"
 #include "cFC4ZoneManager.h"
 #include "cFC4TractDeveloper.h"
+#include "cFC4ZoneDeveloper.h"
+#include "FC4SafeLotIterator.h"
 #include "cGZPersistResourceKey.h"
 #include "fc4.h"
 #include "game_abi.h"
@@ -4543,7 +4545,10 @@ void CheckDevelopmentNeutral(cFC4ISC4BuildingDevelopmentSimulator* b, uint32_t t
     CHECK(b->GetMaxCapacity(1, 1, 1) == 0.0f);
     CHECK(b->GetCostOfFoundationDemolition(nullptr, 0) == 0);
     float pos[3] = {0.0f, 0.0f, 0.0f};
-    CHECK(!b->AddNewFoundationOccupantAt(1, 0, pos, 0.0f, 0.0f, 0, 0.0f));  // 23: not specified, false
+    // 23 (§4.9.2, DG6): no foundation class without the game, so nothing is created: false.
+    CHECK(!b->AddNewFoundationOccupantAt(1, 0, pos, 0.0f, 0.0f, 0, 0.0f));
+    CHECK(pos[1] == 0.0f);
+    // 26 / 29: a null occupant [choice] and a type outside the (empty) key maps: false.
     CHECK(!b->LoadFoundationProperties(nullptr, 1) && !b->LoadLotRetainingWallProperties(nullptr, 1));
     CHECK(!b->CheatIgnorePlumbing() && !b->CheatIgnorePower() && !b->CheatIgnoreCaps() && !b->CheatDebugGrowth() &&
           !b->CheatCoffeeBar());
@@ -4813,7 +4818,11 @@ int DevelopmentEnableTest(const std::string& dll, const std::string& ini, const 
     CHECK(text.find("development Read -> 0") != std::string::npos);
     CHECK(text.find("development Shutdown: init=0") != std::string::npos);
     CHECK(CountOf(text, "cFC4BuildingDevelopmentSimulator destroyed") == 3);
-    CHECK(text.find("development: AddNewFoundationOccupant (slot 23") != std::string::npos);
+    // Slot 23 reached the core, which asked for a foundation occupant (none without the game); slots 26 / 29
+    // refused a null occupant. The month and state lines count the calls (calls/successes).
+    CHECK(text.find("development: WARNING could not create a foundation occupant (class 0x49C05C8F)") !=
+          std::string::npos);
+    CHECK(text.find("lotUpdates=0 foundations=1/0 foundationLoads=1/0 wallLoads=1/0") != std::string::npos);
     // The growth developers: one created and initialised (refused), two read.
     CHECK(text.find("development: growth statics ") != std::string::npos);
     CHECK(CountOf(text, "cFC4GrowthDeveloper(") == 8);  // created and destroyed (one for the shadow's bridge)
@@ -8049,6 +8058,774 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
     return g_failures == 0 ? 0 : 1;
 }
 
+// ---- the zone developer / lot manager (enable = zonedev; test seam op 53) -----------------------------
+//
+// No city. The QI table (zones.md §1), neutral answers before Init, the
+// record (§10.2), then a stub "game" behind the seam's host table: an 8 x 8
+// zone grid, fake lots (a vtable each: QueryInterface for cISC4Lot and
+// cIGZSerializable, a reference count the host table's add_ref / release
+// share), the maximum-capacity grid. The B nodes and C blocks come from
+// malloc through the seam. STAGE A: the host builds no lot (new_lot left to
+// the plugin), so CreateLot and parcellization fail and say so; with the
+// stub's new_lot the lists (slots 7-10), the safe lot iterator's raw layout
+// (slot 15), DeleteLot and the shadow on a fake original are checked.
+
+constexpr uint32_t kCLSID_ZoneDeveloper = 0x498F9B01;
+constexpr uint32_t kIID_ZoneDeveloper = 0xE818ED2B;
+constexpr uint32_t kIID_LotManager = 0x681905BD;
+constexpr uint32_t kIID_ZdLot = 0xE818FCED;
+constexpr uint32_t kZdLotClass = 0x6A3F2B1Cu;  // the fake lots' class ID (any)
+constexpr uint64_t kZdGrid = 0x7B000000u;
+
+struct ZdLot {
+    void** vtbl = nullptr;
+    int refs = 1;  // the test's own (never given back)
+    int32_t x = 0, z = 0, w = 1, h = 1, facing = 0, zone = 0;
+    uint32_t state = 0;
+    int inits = 0, shutdowns = 0;
+};
+
+struct ZdStub {
+    FakeVtable lotVt;
+    std::array<ZdLot, 64> lots{};
+    size_t used = 0;
+    bool refuse = false;
+    int8_t zone[8][8] = {};
+    int newLots = 0, defers = 0, services = 0, levellings = 0, streets = 0, demolitions = 0;
+    int gridCreates = 0, gridReleases = 0, foreignRefs = 0;
+    std::vector<uint32_t> subscribed, unsubscribed;
+};
+ZdStub* g_zd = nullptr;
+std::atomic<int> g_zdBlocks{0};  // malloc'd through the seam and not freed yet
+
+void* ZdAllocate(uint32_t n) {
+    ++g_zdBlocks;
+    return std::malloc(n);
+}
+void ZdFree(void* p) {
+    if (p == nullptr) return;
+    --g_zdBlocks;
+    std::free(p);
+}
+
+ZdLot* ZdLotOf(uint64_t t) { return reinterpret_cast<ZdLot*>(static_cast<uintptr_t>(t)); }
+uint64_t ZdToken(const ZdLot* l) { return static_cast<uint64_t>(reinterpret_cast<uintptr_t>(l)); }
+bool ZdIsLot(uint64_t t) {
+    const ZdLot* p = ZdLotOf(t);
+    return g_zd != nullptr && p >= g_zd->lots.data() && p < g_zd->lots.data() + g_zd->lots.size();
+}
+
+bool __fastcall ZdLotQi(void* self, void*, uint32_t iid, void** out) {  // 0
+    if (out == nullptr || (iid != kIID_ZdLot && iid != GZIID_cIGZSerializable && iid != GZIID_cIGZUnknown)) return false;
+    *out = self;
+    ++static_cast<ZdLot*>(self)->refs;
+    return true;
+}
+uint32_t __fastcall ZdLotAddRef(void* self, void*) { return static_cast<uint32_t>(++static_cast<ZdLot*>(self)->refs); }
+uint32_t __fastcall ZdLotRelease(void* self, void*) { return static_cast<uint32_t>(--static_cast<ZdLot*>(self)->refs); }
+uint32_t __fastcall ZdLotClass(void*, void*) { return kZdLotClass; }  // as cIGZSerializable, slot 5
+
+// The host table's callbacks (the stub is global).
+bool ZdAcquire(void*) {
+    ++g_zd->services;
+    return true;
+}
+void ZdReleaseServices(void*) { --g_zd->services; }
+void ZdSubscribe(void*, uint32_t m) { g_zd->subscribed.push_back(m); }
+void ZdUnsubscribe(void*, uint32_t m) { g_zd->unsubscribed.push_back(m); }
+void ZdCellCounts(void*, int32_t* x, int32_t* z) {
+    *x = 8;
+    *z = 8;
+}
+void ZdTools(void*) {}
+void ZdDefer(void*, bool) { ++g_zd->defers; }
+int32_t ZdZoneType(void*, int32_t x, int32_t z) { return (x >= 0 && x < 8 && z >= 0 && z < 8) ? g_zd->zone[x][z] : 0; }
+void ZdDemolish(void*, const fc4_zone_region*) { ++g_zd->demolitions; }
+bool ZdStreetPlace(void*, uint32_t, int32_t, int32_t, int32_t, int32_t, bool) {
+    ++g_zd->streets;
+    return true;
+}
+void ZdResetTool(void*, uint32_t) {}
+bool ZdConnects(void*, uint64_t, int32_t, uint32_t) { return false; }
+bool ZdToolExists(void*, uint32_t, int32_t, int32_t, uint32_t, uint8_t*) { return false; }
+void ZdJoining(void*, uint64_t, uint32_t) {}
+bool ZdWater(void*, int32_t, int32_t) { return false; }
+float ZdAltitude(void*, float, float) { return 100.0f; }
+float ZdVertexAltitude(void*, int32_t, int32_t) { return 100.0f; }
+bool ZdInBounds(void*, const float* p) { return p[0] >= 0.0f && p[2] >= 0.0f && p[0] < 128.0f && p[2] < 128.0f; }
+bool ZdPositionToCell(void* u, const float* p, int32_t* x, int32_t* z) {
+    *x = static_cast<int32_t>(std::floor(p[0] / 16.0f));
+    *z = static_cast<int32_t>(std::floor(p[2] / 16.0f));
+    return ZdInBounds(u, p);
+}
+void ZdCellOccupants(void*, int32_t, int32_t, bool, uint32_t, fc4_token_callback, void*) {}
+uint32_t ZdOccupantType(void*, uint64_t) { return 0; }
+void ZdOccupantPosition(void*, uint64_t, float* p) { p[0] = p[1] = p[2] = 0.0f; }
+int32_t ZdNetworkFlag(void*, uint64_t, uint32_t) { return -1; }
+void ZdRemoveOccupant(void*, uint64_t) {}
+void ZdAddRef(void*, uint64_t t) {
+    if (ZdIsLot(t)) {
+        ++ZdLotOf(t)->refs;
+    } else if (t != 0) {
+        ++g_zd->foreignRefs;
+    }
+}
+void ZdRelease(void*, uint64_t t) {
+    if (ZdIsLot(t)) {
+        --ZdLotOf(t)->refs;
+    } else if (t != 0) {
+        --g_zd->foreignRefs;
+    }
+}
+uint64_t ZdNewLot(void*, int32_t x, int32_t z, int32_t w, int32_t h, int32_t facing) {
+    ++g_zd->newLots;
+    if (g_zd->refuse || g_zd->used >= g_zd->lots.size()) return 0;
+    ZdLot& l = g_zd->lots[g_zd->used++];
+    l.vtbl = g_zd->lotVt.slots.data();
+    l.refs = 1;
+    l.x = x;
+    l.z = z;
+    l.w = w;
+    l.h = h;
+    l.facing = facing;
+    l.zone = ZdZoneType(nullptr, x, z);
+    return ZdToken(&l);
+}
+void ZdLotInit(void*, uint64_t t) {
+    if (ZdIsLot(t)) ++ZdLotOf(t)->inits;
+}
+void ZdLotShutdown(void*, uint64_t t) {
+    if (ZdIsLot(t)) ++ZdLotOf(t)->shutdowns;
+}
+void ZdLotNoop(void*, uint64_t) {}
+uint64_t ZdLotCfg(void*, uint64_t) { return 0; }
+uint32_t ZdLotFlags(void*, uint64_t) { return 0; }
+void ZdLotRect(void*, uint64_t t, fc4_cell_rect* o) {
+    const ZdLot* l = ZdLotOf(t);
+    *o = fc4_cell_rect{l->x, l->z, l->x + l->w - 1, l->z + l->h - 1};
+}
+float ZdLotAltitude(void*, uint64_t) { return 50.0f; }
+void ZdLotLocation(void*, uint64_t t, int32_t* x, int32_t* z) {
+    *x = ZdLotOf(t)->x;
+    *z = ZdLotOf(t)->z;
+}
+int32_t ZdLotFacing(void*, uint64_t t) { return ZdLotOf(t)->facing; }
+bool ZdLotBu(void*, uint64_t) { return false; }
+int32_t ZdLotZone(void*, uint64_t t) { return ZdLotOf(t)->zone; }
+uint32_t ZdLotState(void*, uint64_t t) { return ZdLotOf(t)->state; }
+void ZdLotSetState(void*, uint64_t t, uint32_t s, uint32_t, uint32_t) { ZdLotOf(t)->state = s; }
+void ZdLotLocked(void*, uint64_t, bool) {}
+bool ZdCfgBool(void*, uint64_t) { return false; }
+bool ZdCfgBoolI(void*, uint64_t, int32_t) { return false; }
+uint32_t ZdCfgId(void*, uint64_t) { return 0; }
+void ZdCfgSize(void*, uint64_t, uint32_t* x, uint32_t* z) { *x = *z = 0; }
+uint8_t ZdCfgStage(void*, uint64_t) { return 0; }
+bool ZdCfgBoolU(void*, uint64_t, uint32_t) { return false; }
+bool ZdCfgIds(void*, uint64_t, fc4_u32_callback, void*) { return false; }
+void ZdConfigurations(void*, fc4_token_callback, void*) {}
+void ZdLevelling(void*, const fc4_cell_rect*) { ++g_zd->levellings; }
+uint64_t ZdBaseTexture(void*, uint64_t) { return 0; }
+bool ZdInsertion(void*, uint64_t*, bool*) { return false; }
+void ZdSetInsertion(void*, uint64_t) {}
+uint64_t ZdBdsDeveloper(void*, uint32_t) { return 0; }
+void ZdByFamily(void*, uint32_t, fc4_u32_callback, void*) {}
+bool ZdProfile(void*, uint32_t, fc4_zonedev_profile*) { return false; }
+int16_t ZdDevI16(void*, uint64_t, int32_t, int32_t) { return 0; }
+bool ZdDevDemand(void*, uint64_t, float*) { return false; }
+bool ZdDevList(void*, uint64_t, fc4_growth_items_sink, void*) { return false; }
+uint32_t ZdDevU32(void*, uint64_t) { return 0; }
+uint64_t ZdGridCreate(void*, uint32_t, uint32_t, int32_t) {
+    ++g_zd->gridCreates;
+    return kZdGrid;
+}
+uint32_t ZdGridClass(void*, uint64_t) { return 0x49B9E604; }
+void ZdGridGeometry(void*, uint64_t, fc4_grid_geometry* o) {
+    *o = fc4_grid_geometry{4, 2, 2, 2, 64.0f, 64.0f, 1.0f / 64.0f, 1.0f / 64.0f};
+}
+double ZdGridGet(void*, uint64_t, uint32_t, int32_t, int32_t) { return 0.0; }
+void ZdGridShutdown(void*, uint64_t) {}
+void ZdGridRelease(void*, uint64_t) { ++g_zd->gridReleases; }
+
+// The master_* mirror callbacks stay NULL: the plugin's raw list runs.
+fc4_zonedev_host ZdStubHost() {
+    fc4_zonedev_host h{};
+    h.struct_size = sizeof(h);
+    h.user = g_zd;
+    h.grids.struct_size = sizeof(h.grids);
+    h.grids.user = g_zd;
+    h.grids.create = &ZdGridCreate;
+    h.grids.class_of = &ZdGridClass;
+    h.grids.geometry = &ZdGridGeometry;
+    h.grids.get = &ZdGridGet;
+    h.grids.shutdown = &ZdGridShutdown;
+    h.grids.release = &ZdGridRelease;
+    h.acquire_services = &ZdAcquire;
+    h.release_services = &ZdReleaseServices;
+    h.subscribe = &ZdSubscribe;
+    h.unsubscribe = &ZdUnsubscribe;
+    h.cell_counts = &ZdCellCounts;
+    h.acquire_network_tools = &ZdTools;
+    h.release_network_tools = &ZdTools;
+    h.post_defer_occupant_operations = &ZdDefer;
+    h.zone_type = &ZdZoneType;
+    h.demolish_region = &ZdDemolish;
+    h.street_place = &ZdStreetPlace;
+    h.reset_network_tool = &ZdResetTool;
+    h.connects_to_neighbor = &ZdConnects;
+    h.network_tool_occupant_exists = &ZdToolExists;
+    h.street_joining_helper = &ZdJoining;
+    h.cell_has_water = &ZdWater;
+    h.terrain_altitude = &ZdAltitude;
+    h.terrain_vertex_altitude = &ZdVertexAltitude;
+    h.location_in_bounds = &ZdInBounds;
+    h.position_to_cell = &ZdPositionToCell;
+    h.cell_occupants = &ZdCellOccupants;
+    h.occupant_type = &ZdOccupantType;
+    h.occupant_position = &ZdOccupantPosition;
+    h.network_has_any_flag = &ZdNetworkFlag;
+    h.remove_occupant = &ZdRemoveOccupant;
+    h.add_ref = &ZdAddRef;
+    h.release = &ZdRelease;
+    h.new_lot = &ZdNewLot;
+    h.lot_init = &ZdLotInit;
+    h.lot_shutdown = &ZdLotShutdown;
+    h.lot_post_city_init = &ZdLotNoop;
+    h.lot_configuration = &ZdLotCfg;
+    h.lot_flags = &ZdLotFlags;
+    h.lot_bounding_rect = &ZdLotRect;
+    h.lot_altitude = &ZdLotAltitude;
+    h.lot_location = &ZdLotLocation;
+    h.lot_facing = &ZdLotFacing;
+    h.lot_has_business_unit = &ZdLotBu;
+    h.lot_zone_type = &ZdLotZone;
+    h.lot_state = &ZdLotState;
+    h.lot_set_state = &ZdLotSetState;
+    h.lot_set_vertices_locked = &ZdLotLocked;
+    h.cfg_compatible_with_water = &ZdCfgBool;
+    h.cfg_compatible_with_zone = &ZdCfgBoolI;
+    h.cfg_id = &ZdCfgId;
+    h.cfg_size = &ZdCfgSize;
+    h.cfg_growth_stage = &ZdCfgStage;
+    h.cfg_compatible_with_wealth = &ZdCfgBoolU;
+    h.cfg_compatible_with_purpose = &ZdCfgBoolU;
+    h.cfg_primary_building_ids = &ZdCfgIds;
+    h.lot_configurations = &ZdConfigurations;
+    h.attempt_area_levelling = &ZdLevelling;
+    h.remove_building_zot_prop = &ZdLotNoop;
+    h.lot_base_texture_occupant = &ZdBaseTexture;
+    h.remove_lot_from_business_unit = &ZdLotNoop;
+    h.set_empty_lot_base_texture = &ZdLotNoop;
+    h.desired_lot_insertion_point = &ZdInsertion;
+    h.set_lot_insertion_point = &ZdSetInsertion;
+    h.bds_developer = &ZdBdsDeveloper;
+    h.building_types_by_family = &ZdByFamily;
+    h.building_profile = &ZdProfile;
+    h.dev_estimate_desirability = &ZdDevI16;
+    h.dev_source_demand = &ZdDevDemand;
+    h.dev_growth_list = &ZdDevList;
+    h.dev_desirability_value = &ZdDevI16;
+    h.dev_desirability_shift = &ZdDevU32;
+    h.dev_purpose = &ZdDevU32;
+    h.dev_wealth = &ZdDevU32;
+    return h;
+}
+
+intptr_t ZdHooks(FC4TestSeamFn seam, cIGZUnknown* zd, const fc4_zonedev_host* host, bool allocators) {
+    FC4ZoneDevTestInput in{};
+    in.op = kFC4ZoneDevTestHooks;
+    in.zoneDeveloper = zd;
+    in.host = host;
+    in.allocate = allocators ? &ZdAllocate : nullptr;
+    in.free = allocators ? &ZdFree : nullptr;
+    return seam(kFC4SeamZoneDev, &in, nullptr);
+}
+
+FC4ZoneDevTestState ZdState(FC4TestSeamFn seam, cIGZUnknown* zd) {
+    FC4ZoneDevTestInput in{};
+    in.op = kFC4ZoneDevTestState;
+    in.zoneDeveloper = zd;
+    FC4ZoneDevTestState st{};
+    CHECK(seam(kFC4SeamZoneDev, &in, &st) == 1);
+    return st;
+}
+
+// A caller's std::list<cISC4Lot*> (one pointer to a head node; B nodes).
+struct ZdList {
+    struct Node {
+        Node* next;
+        Node* prev;
+        cISC4Lot* value;
+    };
+    Node* root = nullptr;
+    ZdList() {
+        root = static_cast<Node*>(ZdAllocate(sizeof(Node)));
+        root->next = root->prev = root;
+        root->value = nullptr;
+    }
+    ZdList(const ZdList&) = delete;
+    ZdList& operator=(const ZdList&) = delete;
+    fc4::GameList<cISC4Lot*>& Get() { return reinterpret_cast<fc4::GameList<cISC4Lot*>&>(root); }
+    std::vector<ZdLot*> Lots() const {
+        std::vector<ZdLot*> v;
+        for (Node* n = root->next; n != root; n = n->next) v.push_back(reinterpret_cast<ZdLot*>(n->value));
+        return v;
+    }
+    // As a caller may hand it in: an element with its reference.
+    void Push(ZdLot* l) {
+        Node* n = static_cast<Node*>(ZdAllocate(sizeof(Node)));
+        n->value = reinterpret_cast<cISC4Lot*>(l);
+        ++l->refs;
+        n->next = root;
+        n->prev = root->prev;
+        root->prev->next = n;
+        root->prev = n;
+    }
+    // As the caller does: release each element, free the nodes and the head.
+    ~ZdList() {
+        for (Node* n = root->next; n != root;) {
+            Node* next = n->next;
+            if (n->value != nullptr) --reinterpret_cast<ZdLot*>(n->value)->refs;
+            ZdFree(n);
+            n = next;
+        }
+        ZdFree(root);
+    }
+};
+
+// The shadow's "original": a zone developer, lot manager and serializable
+// answering from a live FreeCity4 zone developer (so they agree), and a city
+// answering GetLotManager (33), GetZoneDeveloper (75) and the cell counts
+// (93, 94). `countSkew` is added to slot 16.
+struct ZdOrig {
+    FakeVtable zdVt, lmVt, serVt, cityVt;
+    FakeObject zd{}, lm{}, ser{}, city{};
+    cFC4ISC4LotManager* liveLm = nullptr;
+    cIGZSerializable* liveSer = nullptr;
+    void* cityZd = nullptr;
+    void* cityLm = nullptr;
+    int refs = 1;
+    int writes = 0;
+    int32_t countSkew = 0;
+};
+ZdOrig* g_zo = nullptr;
+
+bool __fastcall ZoQi(void* self, void*, uint32_t iid, void** out) {
+    if (out == nullptr) return false;
+    if (iid == GZIID_cIGZSerializable && self != &g_zo->lm) {
+        *out = &g_zo->ser;
+    } else if (iid == kIID_ZoneDeveloper || iid == GZIID_cIGZUnknown) {
+        *out = &g_zo->zd;
+    } else {
+        return false;
+    }
+    ++g_zo->refs;
+    return true;
+}
+uint32_t __fastcall ZoAddRef(void*, void*) { return static_cast<uint32_t>(++g_zo->refs); }
+uint32_t __fastcall ZoRelease(void*, void*) { return static_cast<uint32_t>(--g_zo->refs); }
+bool __fastcall ZoWrite(void*, void*, cIGZOStream* s) {  // serializable 3
+    ++g_zo->writes;
+    return g_zo->liveSer->Write(*s);
+}
+uint32_t __fastcall ZoClass(void*, void*) { return kCLSID_ZoneDeveloper; }  // serializable 5
+cISC4Lot* __fastcall ZoGetLot(void*, void*, int32_t x, int32_t z, uint32_t originOnly) {  // 6
+    return g_zo->liveLm->GetLot(x, z, (originOnly & 0xFFu) != 0);
+}
+uint32_t __fastcall ZoInCellRect(void*, void*, fc4::GameList<cISC4Lot*>* l, int32_t x1, int32_t z1, int32_t x2,  // 7
+                                 int32_t z2, uint32_t originOnly) {
+    return g_zo->liveLm->GetLotsInCellRect(*l, x1, z1, x2, z2, (originOnly & 0xFFu) != 0);
+}
+uint32_t __fastcall ZoSurroundingRect(void*, void*, const SC4Rect<long>* r, fc4::GameList<cISC4Lot*>* l,  // 10
+                                      int32_t flags) {
+    return g_zo->liveLm->GetLotsSurroundingRect(*r, *l, flags);
+}
+cISC4Lot* __fastcall ZoOccupantLot(void*, void*, cISC4Occupant* o) { return g_zo->liveLm->GetOccupantLot(o); }  // 14
+int32_t __fastcall ZoCount(void*, void*) { return g_zo->liveLm->GetLotCount() + g_zo->countSkew; }             // 16
+int32_t __fastcall ZoCanCreate(void*, void*, int32_t x, int32_t z, int32_t w, int32_t h, uint32_t zoneNotNeeded,  // 20
+                               uint32_t waterAllowed, cISC4LotConfiguration* cfg) {
+    return g_zo->liveLm->CanCreateLot(x, z, w, h, (zoneNotNeeded & 0xFFu) != 0, (waterAllowed & 0xFFu) != 0, cfg);
+}
+void* __fastcall ZoCityLm(void*, void*) { return g_zo->cityLm; }  // city 33
+void* __fastcall ZoCityZd(void*, void*) { return g_zo->cityZd; }  // city 75
+uint32_t __fastcall ZoCells(void*, void*) { return 8; }            // city 93, 94
+
+void InitZdOrig(ZdOrig& o, cISC4ZoneDeveloper* live) {
+    g_zo = &o;
+    void* p = nullptr;
+    if (live->QueryInterface(kIID_LotManager, &p) && p != nullptr) {
+        o.liveLm = static_cast<cFC4ISC4LotManager*>(p);
+        o.liveLm->Release();
+    }
+    p = nullptr;
+    if (live->QueryInterface(GZIID_cIGZSerializable, &p) && p != nullptr) {
+        o.liveSer = static_cast<cIGZSerializable*>(p);
+        o.liveSer->Release();
+    }
+    for (FakeVtable* vt : {&o.zdVt, &o.lmVt, &o.serVt, &o.cityVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&ZoQi);
+        vt->slots[1] = reinterpret_cast<void*>(&ZoAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&ZoRelease);
+    }
+    o.serVt.slots[3] = reinterpret_cast<void*>(&ZoWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&ZoClass);
+    o.lmVt.slots[6] = reinterpret_cast<void*>(&ZoGetLot);
+    o.lmVt.slots[7] = reinterpret_cast<void*>(&ZoInCellRect);
+    o.lmVt.slots[10] = reinterpret_cast<void*>(&ZoSurroundingRect);
+    o.lmVt.slots[14] = reinterpret_cast<void*>(&ZoOccupantLot);
+    o.lmVt.slots[16] = reinterpret_cast<void*>(&ZoCount);
+    o.lmVt.slots[20] = reinterpret_cast<void*>(&ZoCanCreate);
+    o.cityVt.slots[33] = reinterpret_cast<void*>(&ZoCityLm);
+    o.cityVt.slots[75] = reinterpret_cast<void*>(&ZoCityZd);
+    o.cityVt.slots[93] = reinterpret_cast<void*>(&ZoCells);
+    o.cityVt.slots[94] = reinterpret_cast<void*>(&ZoCells);
+    o.zd.vtbl = o.zdVt.slots.data();
+    o.lm.vtbl = o.lmVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.cityZd = &o.zd;
+    o.cityLm = &o.lm;
+}
+
+intptr_t ZdShadowRun(FC4TestSeamFn seam, ZdOrig& o, const fc4_zonedev_host* host, uint32_t event) {
+    FC4ZoneDevTestInput in{};
+    in.op = kFC4ZoneDevTestShadow;
+    in.host = host;
+    in.city = reinterpret_cast<cISC4City*>(&o.city);
+    in.julian = kJulian20000201;
+    in.event = event;
+    return seam(kFC4SeamZoneDev, &in, nullptr);
+}
+
+cISC4ZoneDeveloper* NewZoneDeveloper(cIGZCOMDirector* director) {
+    void* obj = nullptr;
+    if (!director->GetClassObject(kCLSID_ZoneDeveloper, kIID_ZoneDeveloper, &obj)) return nullptr;
+    return static_cast<cISC4ZoneDeveloper*>(obj);
+}
+
+cFC4ISC4LotManager* ZdLotManager(cISC4ZoneDeveloper* zd) {
+    void* p = nullptr;
+    if (!zd->QueryInterface(kIID_LotManager, &p) || p == nullptr) return nullptr;
+    return static_cast<cFC4ISC4LotManager*>(p);  // with a reference
+}
+
+std::vector<uint8_t> ZdWrite(cISC4ZoneDeveloper* zd, int* nullRefs = nullptr) {
+    std::vector<uint8_t> out;
+    cIGZSerializable* ser = nullptr;
+    if (!zd->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) || ser == nullptr) return out;
+    ResidentialSegOStream s;
+    if (ser->Write(s)) out = s.bytes;
+    if (nullRefs != nullptr) *nullRefs = s.nullRefs;
+    ser->Release();
+    return out;
+}
+
+bool ZdRead(cISC4ZoneDeveloper* zd, const std::vector<uint8_t>& bytes) {
+    cIGZSerializable* ser = nullptr;
+    if (!zd->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) || ser == nullptr) return false;
+    ResidentialSegIStream s(bytes);
+    const bool ok = ser->Read(s);
+    ser->Release();
+    return ok;
+}
+
+// Before Init: neutral answers (no map, no grid, no lots).
+void CheckZoneDevNeutral(cFC4ISC4LotManager* lm) {
+    CHECK(lm->GetLotCount() == 0);
+    CHECK(lm->GetLot(1, 1, false) == nullptr && lm->GetLot(1, 1, true) == nullptr);
+    CHECK(lm->GetMaximumCapacityGrid() == nullptr);
+    CHECK(lm->GetRandomLot() == nullptr);
+    CHECK(lm->GetOccupantLot(nullptr) == nullptr);
+    // Slot 21 is not specified: 0, logged.
+    CHECK(lm->CanCreatePloppedLot(SC4Rect<long>(1, 1, 2, 2), 1, nullptr) == 0);
+}
+
+void ZdParcellize(cISC4ZoneDeveloper* zd, int32_t x1, int32_t z1, int32_t x2, int32_t z2, int32_t type) {
+    ZonesGameRegion g(x1, z1, x2, z2);
+    zd->DoParcellization(reinterpret_cast<const SC4CellRegion<long>&>(g.r),
+                         static_cast<cISC4ZoneManager::ZoneType>(type), false);
+}
+
+// The live object through the stub: Init, STAGE A refusals, lots from the
+// stub, the lists, the iterator, the shadow, DeleteLot, Shutdown.
+void ZoneDevStubTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
+    static ZdStub stub;
+    g_zd = &stub;
+    stub.lotVt.slots[0] = reinterpret_cast<void*>(&ZdLotQi);
+    stub.lotVt.slots[1] = reinterpret_cast<void*>(&ZdLotAddRef);
+    stub.lotVt.slots[2] = reinterpret_cast<void*>(&ZdLotRelease);
+    stub.lotVt.slots[5] = reinterpret_cast<void*>(&ZdLotClass);
+    cISC4ZoneDeveloper* zd = NewZoneDeveloper(director);
+    CHECK(zd != nullptr);
+    if (zd == nullptr) return;
+    fc4_zonedev_host host = ZdStubHost();
+    stub.lots[0].vtbl = stub.lotVt.slots.data();
+    CHECK(ZdHooks(seam, reinterpret_cast<cIGZUnknown*>(&stub.lots[0]), &host, true) == -1);  // not a zone developer
+    CHECK(ZdHooks(seam, zd, &host, true) == 1);
+    cFC4ISC4LotManager* lm = ZdLotManager(zd);
+    CHECK(lm != nullptr);
+    if (lm == nullptr) {
+        zd->Release();
+        return;
+    }
+    CHECK(zd->Init());
+    CHECK(stub.services == 1 && stub.gridCreates == 1);
+    CHECK(stub.subscribed.size() == 3);  // InsertOccupant, PostCityInit, the view value (§1.2)
+    CHECK(lm->GetMaximumCapacityGrid() == reinterpret_cast<cISC4SimGrid<uint16_t>*>(static_cast<uintptr_t>(kZdGrid)));
+    int nullRefs = 0;
+    const std::vector<uint8_t> rec = ZdWrite(zd, &nullRefs);
+    CHECK(rec.size() == 10 + 64 * 4 && nullRefs == 64);  // version, 8 x 8, a null reference per cell
+    zd->SetOptions(false, false, false);
+    for (int x = 1; x <= 2; ++x) {
+        for (int z = 1; z <= 2; ++z) stub.zone[x][z] = 7;  // agriculture: 1 x 1 lots (§7.5)
+    }
+
+    // STAGE A: no lot constructor (the plugin's own new_lot): CreateLot and a
+    // parcellization fail cleanly, logged.
+    host.new_lot = nullptr;
+    {
+        cISC4Lot* lot = reinterpret_cast<cISC4Lot*>(0x1234);
+        CHECK(!lm->CreateLot(1, 1, 1, 1, 0, lot) && lot == nullptr);
+        CHECK(ZdState(seam, zd).newLotRefusals == 1);
+        ZdParcellize(zd, 1, 1, 2, 2, 7);
+        const FC4ZoneDevTestState st = ZdState(seam, zd);
+        CHECK(st.newLotRefusals == 5 && st.masterSize == 0 && st.heldConfigs == 0);
+        CHECK(lm->GetLotCount() == 0 && stub.defers == 2);
+    }
+
+    // With the stub's lots.
+    host.new_lot = &ZdNewLot;
+    ZdLot* made = nullptr;
+    {
+        cISC4Lot* lot = nullptr;
+        CHECK(lm->CreateLot(5, 5, 2, 1, 2, lot) && lot != nullptr);
+        made = reinterpret_cast<ZdLot*>(lot);
+        CHECK(made == &stub.lots[0] && made->refs == 3 && made->inits == 1 && made->state == 1);
+        --made->refs;  // the caller's reference
+    }
+    ZdParcellize(zd, 1, 1, 2, 2, 7);
+    const uint32_t lots = static_cast<uint32_t>(lm->GetLotCount());
+    CHECK(lots == 5 && stub.used == 5);
+    for (size_t i = 1; i < stub.used; ++i) CHECK(stub.lots[i].refs == 2 && stub.lots[i].w == 1 && stub.lots[i].h == 1);
+    CHECK(ZdState(seam, zd).masterSize == lots);
+    CHECK(lm->GetLot(6, 5, false) == reinterpret_cast<cISC4Lot*>(made));
+    CHECK(lm->GetLot(6, 5, true) == nullptr && lm->GetLot(5, 5, true) == reinterpret_cast<cISC4Lot*>(made));
+
+    // Slot 7: the caller's list is cleared (its references given back), then
+    // the lots are appended with one reference each.
+    {
+        ZdList list;
+        list.Push(&stub.lots[1]);
+        list.Push(&stub.lots[1]);
+        CHECK(stub.lots[1].refs == 4);
+        const uint32_t n = lm->GetLotsInCellRect(list.Get(), 0, 0, 7, 7, false);
+        const std::vector<ZdLot*> got = list.Lots();
+        CHECK(n == lots && got.size() == lots);
+        for (ZdLot* l : got) CHECK(l->refs == 3);
+        // Slot 10 appends without clearing; nothing surrounds a free cell.
+        CHECK(lm->GetLotsSurroundingRect(SC4Rect<long>(6, 1, 6, 1), list.Get(), 0xF) == 0);
+        CHECK(list.Lots().size() == lots);
+    }
+    for (size_t i = 0; i < stub.used; ++i) CHECK(stub.lots[i].refs == 2);
+
+    // Slot 15: a C block {first node, list object} over the raw master list
+    // (FC4SafeLotIterator.h), registered until its owner releases it.
+    {
+        auto* b = reinterpret_cast<fc4::safelots::Block*>(lm->GetSafeLotIterator());
+        CHECK(b != nullptr);
+        if (b != nullptr) {
+            CHECK(b->listObject != nullptr && ZdState(seam, zd).iterators == 1);
+            std::vector<void*> out(16, nullptr);
+            uint32_t n = 0;
+            CHECK(fc4::safelots::CopyLots(b, out.data(), 16, &n) == fc4::safelots::Status::Ok && n == lots);
+            std::vector<void*> want;
+            for (size_t i = 0; i < stub.used; ++i) want.push_back(&stub.lots[i]);
+            out.resize(n);
+            CHECK(out == want);  // creation order (no traffic insertion point)
+            CHECK(fc4::safelots::Release(b, &ZdFree, &ZdFree, 1000) == 1);
+            CHECK(ZdState(seam, zd).iterators == 0);
+        }
+    }
+
+    // The shadow on an original that agrees, skewed, FreeCity4's own, none.
+    // The live object's lots and references are untouched.
+    {
+        static ZdOrig o;
+        InitZdOrig(o, zd);
+        CHECK(ZdShadowRun(seam, o, &host, 0) == 0);
+        CHECK(o.writes == 1);
+        o.countSkew = 1;
+        CHECK(ZdShadowRun(seam, o, &host, 1) == 1);
+        o.countSkew = 0;
+        o.cityZd = zd;
+        CHECK(ZdShadowRun(seam, o, &host, 1) == -2);
+        o.cityZd = nullptr;
+        CHECK(ZdShadowRun(seam, o, &host, 1) == -1);
+        CHECK(o.refs == 1);
+        CHECK(static_cast<uint32_t>(lm->GetLotCount()) == lots && stub.used == 5);
+    }
+    for (size_t i = 0; i < stub.used; ++i) CHECK(stub.lots[i].refs == 2);
+
+    // DeleteLot (§8.6): the manager's reference goes, the cells are free.
+    CHECK(lm->DeleteLot(reinterpret_cast<cISC4Lot*>(made)));
+    CHECK(made->refs == 1 && made->shutdowns == 1);
+    CHECK(lm->GetLot(5, 5, false) == nullptr && static_cast<uint32_t>(lm->GetLotCount()) == lots - 1);
+    CHECK(ZdState(seam, zd).masterSize == lots - 1);
+
+    // An iterator still registered at the end is orphaned (zones.md §14.3 Q3
+    // choice): its list object is cleared, its owner frees the block.
+    auto* left = reinterpret_cast<fc4::safelots::Block*>(lm->GetSafeLotIterator());
+    CHECK(left != nullptr);
+    lm->Release();
+    CHECK(zd->Shutdown());
+    CHECK(stub.services == 0 && stub.gridReleases == 1 && stub.unsubscribed.size() == 3);
+    for (size_t i = 0; i < stub.used; ++i) CHECK(stub.lots[i].refs == 1);
+    CHECK(stub.foreignRefs == 0);
+    CHECK(zd->Release() == 0);
+    if (left != nullptr) {
+        CHECK(left->listObject == nullptr);
+        CHECK(fc4::safelots::Release(left, &ZdFree, &ZdFree, 1000) == 0);
+    }
+    g_zd = nullptr;
+}
+
+int ZoneDevEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = zonedev` registers the zone developer.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ZONEDEV_SHADOW", nullptr);
+    SetEnvironmentVariableA("FC4_ZONEDEV_SEED", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = zonedev\nzonedev_seed = 0x2A\n[tools]\nzonedev_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    SetGamePrecision();
+    if (director != nullptr && seam != nullptr) {
+        CHECK(ZdHooks(seam, nullptr, nullptr, true) == 0);  // the allocators only
+        CHECK(seam(kFC4SeamZoneDev, nullptr, nullptr) == -1);
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        CHECK(classes.size() == 5);  // simulator (1) + budget (3) + zonedev (1)
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_ZoneDeveloper) == 1);
+
+        std::vector<uint8_t> record;
+        cISC4ZoneDeveloper* zd = NewZoneDeveloper(director);
+        CHECK(zd != nullptr);
+        if (zd != nullptr) {
+            // §1: +0 for 1 and its IID, the lot manager at +4, the message
+            // target at +8, the serializable at +0xC; nothing else.
+            const uintptr_t base = reinterpret_cast<uintptr_t>(zd);
+            void* p = nullptr;
+            CHECK(zd->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(zd));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            p = nullptr;
+            CHECK(zd->QueryInterface(kIID_ZoneDeveloper, &p) && p == static_cast<void*>(zd));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            p = nullptr;
+            CHECK(zd->QueryInterface(kIID_LotManager, &p) && reinterpret_cast<uintptr_t>(p) == base + 4);
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            cIGZMessageTarget2* mt = nullptr;
+            CHECK(zd->QueryInterface(0x452294AA, reinterpret_cast<void**>(&mt)) &&
+                  reinterpret_cast<uintptr_t>(mt) == base + 8);
+            cIGZSerializable* ser = nullptr;
+            CHECK(zd->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) &&
+                  reinterpret_cast<uintptr_t>(ser) == base + 0xC);
+            if (ser != nullptr) {
+                CHECK(ser->GetGZCLSID() == kCLSID_ZoneDeveloper);
+                void* back = nullptr;  // every sub-object answers the others (one object)
+                CHECK(static_cast<cIGZUnknown*>(ser)->QueryInterface(kIID_LotManager, &back) &&
+                      reinterpret_cast<uintptr_t>(back) == base + 4);
+                if (back != nullptr) static_cast<cIGZUnknown*>(back)->Release();
+            }
+            p = reinterpret_cast<void*>(0x1234);
+            CHECK(!zd->QueryInterface(0x12345678, &p) && p == reinterpret_cast<void*>(0x1234));
+            CHECK(!zd->QueryInterface(kIID_ZdLot, &p) && p == reinterpret_cast<void*>(0x1234));
+            cFC4ISC4LotManager* lm = ZdLotManager(zd);
+            CHECK(lm != nullptr);
+            if (lm != nullptr) CheckZoneDevNeutral(lm);
+            // The record before Init (§10.2): version 1, an empty 0 x 0 map.
+            int nullRefs = -1;
+            record = ZdWrite(zd, &nullRefs);
+            const std::vector<uint8_t> want = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+            CHECK(record == want && nullRefs == 0);
+            // Init without a city: no services (logged), still neutral.
+            CHECK(!zd->Init());
+            if (lm != nullptr) CheckZoneDevNeutral(lm);
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewMonth)),
+                 reinterpret_cast<void*>(static_cast<intptr_t>(kJulian20000201)));
+            if (mt != nullptr) {
+                TypeMessage month(kMsgSimNewMonth);
+                CHECK(mt->DoMessage(&month));
+            }
+            // The shadow: no city -> -1.
+            FC4ZoneDevTestInput sh{};
+            sh.op = kFC4ZoneDevTestShadow;
+            sh.julian = kJulian20000201;
+            CHECK(seam(kFC4SeamZoneDev, &sh, nullptr) == -1);
+            if (ser != nullptr) ser->Release();
+            if (mt != nullptr) mt->Release();
+            if (lm != nullptr) lm->Release();
+            CHECK(zd->Shutdown());
+            CHECK(zd->Release() == 0);
+        }
+        // Read runs before Init (§10.2): the record loads into a new object,
+        // which writes it back byte for byte; another version does not load.
+        for (int variant = 0; variant < 2; ++variant) {
+            cISC4ZoneDeveloper* fresh = NewZoneDeveloper(director);
+            CHECK(fresh != nullptr);
+            if (fresh == nullptr || record.empty()) continue;
+            std::vector<uint8_t> bytes = record;
+            if (variant == 1) bytes[0] = 2;
+            CHECK(ZdRead(fresh, bytes) == (variant == 0));
+            if (variant == 0) CHECK(ZdWrite(fresh) == record);
+            CHECK(fresh->Release() == 0);  // the final Release shuts a never-initialised one down
+        }
+        ZoneDevStubTest(seam, director);
+        CHECK(ZdHooks(seam, nullptr, nullptr, false) == 0);  // the game's allocators again
+        CHECK(g_zdBlocks.load() == 0);
+        CheckCw("zonedev");
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    const auto npos = std::string::npos;
+    CHECK(text.find("subsystem 'zonedev': enabled (1 class replaced) by FreeCity4.ini (enable=)") != npos);
+    CHECK(text.find("session seed 0x0000002A (zonedev_seed)") != npos);
+    CHECK(text.find("zonedev Write -> 1") != npos);
+    CHECK(text.find("zonedev: no city; services not acquired") != npos);
+    CHECK(text.find("zonedev Init FAILED: version=1 init=0") != npos);
+    CHECK(text.find("zonedev month 2000-02-01: version=1") != npos);
+    CHECK(text.find("is not specified (zones.md \xC2\xA7" "14.3 Q2): 0") != npos);
+    CHECK(text.find("zonedev Read -> 1") != npos);
+    CHECK(text.find("zonedev Read -> 0") != npos);
+    CHECK(text.find("zonedev: test hooks installed") != npos);
+    CHECK(text.find("zonedev Init: version=1 init=1 loaded=0 real=") != npos);
+    CHECK(text.find("refused: no lot constructor [waiting for re-specs11]") != npos);
+    CHECK(text.find("zonedev parcellize: type=7 rect=1,1..2,2 cells=4 flag=0 lots=0 failed=4 deleted=0 streets=0/0 "
+                    "demolish=0 [lot creation waiting for re-specs11]") != npos);
+    CHECK(text.find("zonedev parcellize: type=7 rect=1,1..2,2 cells=4 flag=0 lots=4 failed=0 deleted=0") != npos);
+    CHECK(text.find("zonedev shadow (lots) 2000-02-01 load: mismatches=0 count=5/5") != npos);
+    CHECK(text.find("zonedev shadow (lots) 2000-02-01 month: mismatches=1 count=6/5") != npos);
+    CHECK(text.find("zonedev shadow (cells) 2000-02-01 load: cells=64 covered=6 origins=5 mismatches=0") != npos);
+    CHECK(text.find("zonedev shadow (lists) 2000-02-01 load: calls=32 mismatches=0") != npos);
+    CHECK(text.find("zonedev shadow (CanCreateLot) 2000-02-01 load: calls=192 mismatches=0") != npos);
+    CHECK(text.find("the city's zone developer is FreeCity4's") != npos);
+    CHECK(text.find("the city has no zone developer or lot manager") != npos);
+    CHECK(text.find("zonedev shadow: requested (zonedev_shadow from FreeCity4.ini) but INACTIVE") != npos);
+    CHECK(text.find("zonedev shadow: ON") == npos);
+    CHECK(text.find("1 safe lot iterator orphaned") != npos);
+    CHECK(text.find("structured exception") == npos);
+    CHECK(text.find("config: WARNING unknown key") == npos);
+    CHECK(text.find("WARNING: released last reference") == npos);
+    CHECK(text.find("WARNING: over-release") == npos);
+    CHECK(text.find("streams: WARNING") == npos);
+    if (g_failures == 0) std::printf("plugin zonedev enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 // ---- the harness lane: sim_turbo (FC4Turbo.h) --------------------------------------------------------------
@@ -9629,6 +10406,8 @@ int main(int argc, char** argv) {
     // Residential (residential.md): the replacement, and the shadow on fake originals.
     if (mode == "--ini-enable-residential") return ResidentialEnableTest(dll, ini, log);
     if (mode == "--ini-enable-zones") return ZonesEnableTest(dll, ini, log);
+    // The zone developer / lot manager (zones.md §1-§11): the replacement, stub lots (op 53), the shadow.
+    if (mode == "--ini-enable-zonedev") return ZoneDevEnableTest(dll, ini, log);
     // Neighbours (neighbors.md): the replacement, its objects, an original connection loaded.
     if (mode == "--ini-enable-neighbors") return NeighborsEnableTest(dll, ini, log);
     // Development (building-development.md): the replacement without a city.
@@ -9962,7 +10741,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 197): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 210): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -11875,11 +12654,11 @@ int main(int argc, char** argv) {
                     "residential EQ/HQ/LE=12.5000/34.2500/75\r\n") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 197 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 197 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 210 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 210 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 197): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 210): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);
