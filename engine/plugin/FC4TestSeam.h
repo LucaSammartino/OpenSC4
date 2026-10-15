@@ -183,6 +183,11 @@
 //         cISC4NeighborDeal** receiving a new deal of ours with a's state
 //         (one reference for the caller; NeighborsTestCopyDeal, NG4).
 //         Returns 1, 0 if none was made.
+//   op 53 kFC4SeamZoneDev          a = const FC4ZoneDevTestInput* (cFC4ZoneDeveloper.h),
+//         b = the state block for kFC4ZoneDevTestState: the zone developer's test
+//         hooks (a host table answering instead of the game, the raw structures'
+//         allocators), one zonedev shadow comparison, or what it holds. Returns
+//         what ZoneDevTestSeam returns, -1 for a null argument.
 #pragma once
 
 #include <cstdint>
@@ -243,6 +248,7 @@ enum : uint32_t {
     kFC4SeamScript = 46,  // the harness lane
     kFC4SeamDialogs = 47,  // the harness lane
     kFC4SeamNeighborsApp = 48,  // the neighbours apply lane (NG14)
+    kFC4SeamZoneDev = 53,  // the zone developer (cFC4ZoneDeveloper.h FC4ZoneDevTestInput)
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);
