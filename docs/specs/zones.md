@@ -270,7 +270,26 @@ InsertOccupant of a network occupant:
    current zone type.
 3. Then by the message's data4 (message slot 24 *[inferred: GetData4]*): 1 or 2 → `JoinDeadEndStubs(occupant)`
    (`0x00731F60`, §5.2.1); 3 → `JoinAcrossRail(occupant)` (`0x00732450`, §5.2.2); any other value → nothing. The
-   names are FreeCity4's. Neither draws a random number. Who posts which data4 is outside this spec (ZQ14).
+   names are FreeCity4's. Neither draws a random number.
+
+   **Who posts which data4** (ZQ14, re-answers11). data4 is the second argument of occupant manager slot 20
+   (`InsertOccupant(occupant, v)`, `0x0049EF60`, pop 8), which stores it in the message it posts
+   (`0x0049F205`–`0x0049F214`). The network tool passes its own field `+0x208` as `v` from every insert path
+   (`InsertNetworkOccupant` `0x00627A16`, the bridge piece `0x0062F596`, the tunnel piece `0x0062847D`, the highway
+   intersection piece `0x006277E1`, the underground tool `0x006598C3` and `0x00659AAF`). The field is 1 after the
+   tool's constructor (`0x0062C782`); the tool's programmatic placement `PlaceNetworkOccupants` (tool slot 7,
+   `0x00629210`) sets it to 3 on entry (`0x0062924A`) and back to 1 on exit (`0x00629980`). So:
+   - **1**: a network the player draws (the interactive place `0x0063B830`), whatever the network kind;
+   - **3**: a network laid by code through tool slot 7: the zone developer's own street drawing, `JoinDeadEndStubs`
+     and `JoinAcrossRail`, the zone manager's `PlaceZone` (`0x004DDC75`, `0x004DDF83`), the network manager's
+     automatic lot connections (`0x006117BB`), the tract developer (`0x007069E4`, `0x0070AB59`, `0x0070B574`), the
+     regional city's symmetric neighbour connections (`0x004AAFF3`) and the BDS terrain-changed handler
+     (`0x006988D1`), among others;
+   - **0**: the remove-and-reinsert of an existing piece inside `InsertOccupantsForSolvedCells` (`0x00625AEE`) and
+     the inserts of other managers.
+
+   No caller passes 2. The value depends on the path, not on the network kind; a player's road therefore runs
+   `JoinDeadEndStubs`, and a road laid by code (including by the two join steps themselves) runs `JoinAcrossRail`.
 
 **Order with the zone manager** (verified, §14.3 Q8). Both classes handle the same synchronous InsertOccupant. The
 city's `Init` (`cISC4City` slot 3, `0x0045BD20`) initialises its components in this order: occupant manager
@@ -554,7 +573,13 @@ draws no random number; a headless replacement may leave it out (§14.3 Q2).
       §1.2 step 5) at `key := s0·0x1000 + s1·0x100 + s2·0x10 + s3`, or at key 0 when absent (`0x0072C180`).
    3. `view.slot4(&(x, z), &{0x7AB50E44, 0x0986135E, rule.texture + viewValue}, rule.rotation, rule.flip, colour,
       3, 0)` (terrain view `+0x10`, seven arguments). `viewValue` is the cached view value `+0xD4` (§5.2). The rotation
-      and flip are single bytes pushed as dwords; their upper bytes are whatever the stack held.
+      and flip are single bytes pushed as dwords; their upper bytes are whatever the stack held. Slot 4 is the
+      textured-cell overload of `MarkSelected` (`0x007526E0`, pop 28, forwarding to `0x00751A70`; ZQ15(a)): the
+      colour is a packed `0xRRGGBBxx` value split into three floats of `byte × (1/255)` with the low byte kept as a
+      byte; **3 is the blend operation** (a combiner op; when a renderer capability byte is set, `0x00751B57`–
+      `0x00751B83`, it is replaced by op 1 with alpha 0.5, otherwise alpha is 1.0); **0 is "do not clear"**: a
+      non-zero last argument empties the view's two marked-cell sets first (`0x00751A7C`–`0x00751AB8`), so the zone
+      developer adds every previewed cell to the existing marks.
 3. **Real lots under the drag.** For every cell `(x, z)` of the region's rect, **z outer, x inner**, whose bit is set:
    skip it if `ExistsNetworkOfType(x, z, 0x1F4F)` (slot 8; in highlight mode this sees drafts too, §8.8); `lot :=
    GetLot(x, z, false)`; skip it if there is no lot, if `lot.GetZoneType()` (lot slot 31) equals `currentZone`, or if
@@ -1250,7 +1275,10 @@ the same (the real-mode flag is not read).
      seaport, spaceport, landfill) and **8** for anything else, zones 0–9 included. (The test is bit `t mod 32` of
      the mask `0xFC00`, with 15 picked out; only 0–15 are ever stored.)
    - **network with every bit of `0x200000`** (network occupant slot 8, `HasAllNetworkFlags`: `(flags & m) = m`):
-     **3**;
+     **3**. `0x200000` marks a **connection node** (ZQ15(b)): the network manager's `CreateConnectionNode` (slot 10,
+     sets it at `0x00611486`) makes such a piece for a lot's network connection, and the lot developer's
+     `RemoveNetworkConnectionNodes` (`0x006CA09D`) and the traffic simulator's connections-changed handler
+     (`0x0071AA99`) find them by it;
    - **other network: 3, unless a network object of the lot takes the piece.** Walk the configuration's object
      records (slot 23; 0x34-byte records, lot-developer.md §17.1) in order, skipping every record whose type byte
      is not 7. For a type-7 record take its placement `P` (§8.4.3). If `P`'s cell is not `(x, z)`, go on with the
@@ -1264,7 +1292,13 @@ the same (the real-mode flag is not read).
    is in the city (unsigned compare with `cellsX`, `cellsZ`), lies **outside** the rect, and byte `i` of
    `P.maskB` is non-zero: `flags := 1 << P.type`, replaced by `0x1F4F` when it shares a bit with `0x1F4F`; if
    `m := GetNetwork(nx, nz, flags)` exists and `m.HasAnyNetworkFlag(0x600000)` (slot 9), `result := 3` and the next
-   record is taken.
+   record is taken. `0x600000` is the connection-node bit above plus `0x400000`, which marks a **pre-built-model piece
+   not placed by the network tool** (ZQ15(b)): the constructor of `cSC4NetworkOccupantWithPreBuiltModel`
+   (`0x0061E1A0`, which the tunnel occupant's constructor also runs) sets it (`0x0061E2BC`), and the network tool's
+   `InsertNetworkOccupant` clears it on every piece it creates (`0x006279F2`). The tool's own resolve passes treat
+   such pieces apart (`0x0062AC55`, `0x0062B67B`; `0x00625B01` re-sets only their rotation and flip). Network
+   occupant slot 17 (`0x00604D50`) is `HasAllNetworkFlags(0x400000)`. The name of the bit is FreeCity4's
+   *[inferred]*; the plop test needs only the bit.
 6. Return `result`.
 
 So the codes are 0 outside, 1 water, 3 a network, a plopped zone or a blocked outward connection, 4 too steep,
@@ -1938,7 +1972,8 @@ grid; `cISC4LotManager::GetMaximumCapacityGrid` (27, `0x00809240`) → the `uint
 3. ~~Who frees the `GetSafeLotIterator` object, and with what.~~ *Answered*: the caller, with C after removing its
    registry nodes (§8.3.1); test 44.
 4. ~~Identity of `0x00731F60` / `0x00732450` and of `0x0072B180`.~~ *Answered*: `JoinDeadEndStubs` (§5.2.1),
-   `JoinAcrossRail` (§5.2.2), `UpdateZoneType` (§7.2.2); tests 41–43. Who posts each InsertOccupant data4 is ZQ14.
+   `JoinAcrossRail` (§5.2.2), `UpdateZoneType` (§7.2.2); tests 41–43. Who posts each InsertOccupant data4: §5.2
+   (ZQ14, answered).
 5. ~~Occupant type `0x2890D4DE`.~~ *Answered*: the power pole (`cSC4PowerPoleOccupant`, §7.3 table).
 6. ~~Message `0xA6B79602` name; the 3D-view global's slot 10 value.~~ *Answered*: `kSC4MessageViewZRChange3`; the
    cached value is the u32 at `+0x14` of the renderer's slot-10 object, used only as an offset added to the preview
@@ -1948,8 +1983,9 @@ grid; `cISC4LotManager::GetMaximumCapacityGrid` (27, `0x00809240`) → the `uint
 8. ~~Dispatch order of InsertOccupant between the zone manager and the zone developer.~~ *Answered*: verified from
    the city's `Init` order and `AddNotification` (§5.2).
 9. *(new, re-specs11)* The lot constructor `0x006C1E50` and allocation `0x006BF430` are specified in §8.5.1 (test
-   34). Still open: what the terrain view's slot 4 does with its last two arguments (3, 0), and the meaning of
-   network flags `0x200000` / `0x400000` as used by §8.4.1 (traffic-network.md Q3; ZQ15). Lot creation: tests 34–35.
+   34). The terrain view's slot 4 arguments (3, 0) are the blend op and "do not clear" (§7.1.1), and network flags
+   `0x200000` / `0x400000` are the connection node and the pre-built-model piece not placed by the tool (§8.4.1);
+   both answered by re-answers11 (ZQ15). Lot creation: tests 34–35.
 
 ---
 

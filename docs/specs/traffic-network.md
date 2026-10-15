@@ -1556,7 +1556,10 @@ Open questions:
 - **Q2** *Answered*: ferry terminals are saved and re-read (§6), so they do not depend on the lot-activated message
   being re-sent at load.
 - **Q3** Network flag meanings: `0x40000` (record flag bit 0), `0x200000` (excluded from the graph), `0x1F4F` (lane
-  continuity).
+  continuity). *Partly answered (re-answers11, ZQ15)*: `0x200000` is the connection-node flag set by the network
+  manager's `CreateConnectionNode` (`0x00611486`); `0x400000` marks a pre-built-model piece that the network tool
+  did not place (set by the `cSC4NetworkOccupantWithPreBuiltModel` constructor at `0x0061E2BC`, cleared by the
+  tool's `InsertNetworkOccupant` at `0x006279F2`). See zones.md §8.4.1.
 - **Q4** The off-map reads by pathfinder switch moves (pathfinder.md Q4) index the cell array and the switch grid
   outside the city. The cell array is 256 × 256, so x = −1 wraps to row 255 *[inferred]*. FreeCity4 treats such
   reads as empty.

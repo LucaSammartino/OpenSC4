@@ -4063,33 +4063,33 @@ harness with the FreeCity4 turbo clock and a message log.
   34. **Strict on every axis**, as flora.md §6.4.2 already states: the line at `(x − 0.05, z + 0.05)` finds a
   foundation only when it lies strictly inside the foundation's box, and only through the index cell of that
   point. A foundation whose edge is exactly on the line is not found.
-- **GF13:** what does a visual effect do with a NaN orientation? An identity REGP record (zero axis) makes the
+- ~~**GF13:** what does a visual effect do with a NaN orientation? An identity REGP record (zero axis) makes the
   model-effects update divide by zero, so `SetTransform` receives a NaN rotation (graphics-formats.md §3.11; 344
   shipped records). [unknown; *[choice]* FreeCity4 uses no rotation for a zero axis. Watching one of the 1,320
   `blue_blinking_light_slow` effects on a bridge in the original would settle it: drawn in place, drawn elsewhere or
-  not drawn. The effect side (`cISC4VisualEffect` slot 8 and the effect renderer) is not specified]
-- **GF14:** the automata's per-tick animation driver. graphics-formats.md §3.9 traces the prop occupant's driver
+  not drawn. The effect side (`cISC4VisualEffect` slot 8 and the effect renderer) is not specified]~~ **ANSWERED 2026-10-15 (re-answers11):** **DIFFERS** in part (graphics-formats.md §3.11, "What the effect does with it"). The effect's `SetTransform` (slot 8, `0x005BE880`) composes the incoming transform with its own placement in its transform node (`0x005BEC20`): the composed translation never uses the incoming rotation and stays exact (`0x005BEDF3`–`0x005BEEA9`), but the composed rotation and the reference point are NaN (`0x005BF307`–`0x005BF388`, even with the zeroed offset). *[inferred]* particles placed through the rotation are not drawn; the bracket's "no rotation" draws them at the right place. The choice is acceptable as a cleaner reading, since the in-game look is still the only way to settle what the player sees; it is marked *[choice]* and not *[compat]*.
+- ~~**GF14:** the automata's per-tick animation driver. graphics-formats.md §3.9 traces the prop occupant's driver
   (animation tick `0x86AD10EE`, milliseconds × time dilation) and `SetAnimMode(1)` from `cSC4Automaton::AttachAnim`,
   but not what an automaton passes to `Advance` (slot 15) each tick, nor when it calls `SetFrame` (slot 10) or
   `SetSpeed` (slot 14). [inferred: the same tick message and dilation as props; nothing in saves depends on it.
   Settled by tracing the automaton's `DoAnimationTick` or equivalent and its calls through instance slots 10, 14
-  and 15; the fire crew's `DoAnimationTick` (`0x00549CF1`) is the place to start]
-- **ZQ14:** who posts InsertOccupant with data4 = 1, 2 or 3? The zone developer joins dead-end stubs on 1 and 2
+  and 15; the fire crew's `DoAnimationTick` (`0x00549CF1`) is the place to start]~~ **ANSWERED 2026-10-15 (re-answers11):** **DIFFERS** (graphics-formats.md §3.9, Automata). The automata manager calls each automaton's `DoAnimationTick(µs, ms)` from the same tick `0x86AD10EE` (`0x00506AFC`–`0x00506B14`, call `0x0050A89C`); the base step (`0x005089F0`) passes the tick's milliseconds with **no time dilation**, does nothing while paused (unless emergency-paused), calls `Advance(ms)` on each instance, sends the end-of-animation notification (slot 102 with 1, 0) when events are queued and the first instance is on its last frame, and adds ms to `+0x1C0`. Pedestrians (`0x00544C90`) call `SetSpeed(0.01)` before each `Advance` (10 frames per second). No per-tick `SetFrame`. Nothing in saves depends on it.
+- ~~**ZQ14:** who posts InsertOccupant with data4 = 1, 2 or 3? The zone developer joins dead-end stubs on 1 and 2
   (`JoinDeadEndStubs`, zones.md §5.2.1) and joins across a rail line on 3 (`JoinAcrossRail`, §5.2.2). [inferred:
   the network tools' real-mode Place, with a value per network kind; not traced. Settled by finding the callers of
   occupant manager slot 20 (`InsertOccupant`) that pass a non-zero data4, or in a turbo run by logging data4 of
-  `InsertOccupant` messages while laying a road, a street and a rail line]
-- **ZQ15:** two values of the zone developer's preview and plop test are not explained. (a) The terrain view's slot 4
+  `InsertOccupant` messages while laying a road, a street and a rail line]~~ **ANSWERED 2026-10-15 (re-answers11):** **DIFFERS** (zones.md §5.2). data4 is `v` of occupant manager slot 20 (`0x0049EF60`, stored at `0x0049F205`–`0x0049F214`); the network tool passes its field `+0x208`: 1 for a network the player draws (all kinds), 3 inside tool slot 7 `PlaceNetworkOccupants` (`0x0062924A` sets 3, `0x00629980` resets 1), i.e. every network laid by code (zone developer, zone manager PlaceZone, network manager lot connections, tract developer, regional connections, BDS terrain change); 0 for the remove-and-reinsert in `InsertOccupantsForSolvedCells` (`0x00625AEE`) and other managers. Nothing passes 2. It depends on the call path, not on the network kind.
+- ~~**ZQ15:** two values of the zone developer's preview and plop test are not explained. (a) The terrain view's slot 4
   (zones.md §7.1.1) takes seven arguments; the last two are always 3 and 0 here. (b) `CanCreatePloppedLot`
   (§8.4.1) rejects a cell whose network has every bit of `0x200000`, and blocks an outward connection to a network
   with any bit of `0x600000`. [(a) unknown, *[inferred]* a draw layer and a flag; the preview is UI and a headless
   replacement leaves it out. (b) the flag meanings belong to traffic-network.md (its Q3); the codes are reproduced
   from the bits without needing the names. Settled by the terrain view's slot 4 and by the network spec naming the
-  two bits]
-- **ZQ16:** lot-records.md §16 Q2 (vacate-reason values above 6 in saves) has an answer that lot-records.md does not
+  two bits]~~ **ANSWERED 2026-10-15 (re-answers11):** (a) **DIFFERS** (zones.md §7.1.1): slot 4 is the textured-cell `MarkSelected` (`0x007526E0` → `0x00751A70`, pop 28); 3 is the blend (combiner) op, replaced by op 1 at alpha 0.5 when a renderer capability byte is set (`0x00751B57`–`0x00751B83`), and 0 means "do not clear the marked cells first" (`0x00751A7C`). Still UI only; leaving it out headless is fine. (b) **MATCHES** (the codes need only the bits), and the names are now in zones.md §8.4.1 and traffic-network.md Q3: `0x200000` = connection node (set by `CreateConnectionNode`, `0x00611486`); `0x400000` = pre-built-model piece not placed by the network tool (set by the `cSC4NetworkOccupantWithPreBuiltModel` constructor at `0x0061E2BC`, cleared by `InsertNetworkOccupant` at `0x006279F2`; name *[inferred]*).
+- ~~**ZQ16:** lot-records.md §16 Q2 (vacate-reason values above 6 in saves) has an answer that lot-records.md does not
   carry yet. [**answered** in zones.md §8.5.1 *[inferred]*: the lot constructor `0x006C1E50` does not write the
   vacate reason (`+0x83`) and the pool's free path writes only the block's first dword, so a new lot inherits the
   byte of whatever last used its block, and a lot that has never been vacant saves that stale byte. The owner of
   lot-records.md should cite zones.md §8.5.1 under Q2. Settled for good by creating lots in a fresh city in a turbo
   run and reading field 17 of never-vacant lots: values that change with the order of earlier demolitions confirm
-  it]
+  it]~~ **ANSWERED 2026-10-15 (re-answers11):** **MATCHES**. Re-checked: the lot constructor `0x006C1E50` writes the byte at `+0x80` (`0x006C1F19`) but nothing at `+0x83`. lot-records.md §16 Q2 now cites zones.md §8.5.1.
