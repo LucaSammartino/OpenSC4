@@ -94,8 +94,9 @@ extern "C" {
  *      the civic building simulator (fc4_civic) and the park manager (fc4_park);
  * 48 = adds the tract developer (fc4_tract, tract-developer.md) and its shadow mode
  *      (fc4_tract_create_shadow, the fc4_tract_probe_* functions; taken as 40 on its lane,
- *      then 45 and 47; renumbered at merge). */
-#define FC4_ABI_VERSION 48u
+ *      then 45 and 47; renumbered at merge);
+ * 58 = adds fc4_commercial_set_machine (the commercial shadow; cmglue lane). */
+#define FC4_ABI_VERSION 58u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -5911,6 +5912,10 @@ bool fc4_commercial_do_message(fc4_commercial* c, uint32_t msg_type, uint32_t da
                                uint32_t data3, uint64_t void1);
 /* One DoIdle step (§4.3). */
 void fc4_commercial_do_idle(fc4_commercial* c);
+/* Tooling (the commercial shadow; ABI 58): sets the DoIdle machine (§2.1,
+ * §4.3) to `dirty` and `state`, as read from the original before one of its
+ * steps. False for a NULL object or a state outside 0..3 (nothing changes). */
+bool fc4_commercial_set_machine(fc4_commercial* c, bool dirty, int32_t state);
 /* Slot 5 GetProximityMap(developerType) (§4.6): the grid token, 0 for any other
  * type or no grid. No reference is added. */
 uint64_t fc4_commercial_proximity_map(const fc4_commercial* c, uint32_t developer_type);

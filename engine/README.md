@@ -1275,6 +1275,27 @@ plugin.
      ```
 
      Success is `roundtrip=same`, `mismatches=0` and `failures=0` on every line.
+   - **Commercial shadow** (`commercial_shadow = 1`, env `FC4_COMMERCIAL_SHADOW`; `commercial_shadow_cells = N`
+     differing cells listed per grid, default 4; off by default; `plugin/FC4CommercialShadow.h`): a same-process
+     differential of the commercial simulator's proximity maps. It needs FreeCity4's simulator and the
+     **original** commercial simulator (do not enable `commercial`). Before each SimIdle / SimNewDay delivery to the
+     original's agent it reads the original's `dirty` byte and `state` (+0x20 / +0x24, read-only, only while the
+     object's vtable is the original's from the compat table); before a rebuild step (state 0..2) the original's
+     CO$$ and CO$$$ grids are copied into the shadow core's own grids; after the original's step the shadow core is
+     set to the original's before-state (`fc4_commercial_set_machine`, ABI 58) and runs the same step on the live
+     building map, and the machine and both grids are compared cell by cell. Idle-state steps are compared
+     (machine only) and counted in the next line. Lines (always written):
+
+     ```
+     commercial shadow: ON (commercial_shadow from …): …                                     (game start)
+     commercial shadow: following the original commercial simulator … (agent …, vtable 00AB0CCC): dirty=… state=…
+     commercial shadow yyyy-mm-dd rebuild N CO$$|CO$$$ (state s->s' orig, s->s' ours; dirty d/d): cells=… edge1=…
+       zeros=…; other grid unchanged mismatches=…; idle steps since the last line=K (machine mismatches=m);
+       mismatches=N[; first differing (x,z) orig/ours: …]
+     commercial shadow: city shutdown: N rebuild lines, M with mismatches=0
+     ```
+
+     Success is `mismatches=0` on every line.
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,

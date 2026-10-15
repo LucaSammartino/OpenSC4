@@ -32,6 +32,7 @@
 #include "FC4ZonesShadow.h"
 #include "cFC4ZoneManager.h"
 #include "FC4TractShadow.h"
+#include "FC4CommercialShadow.h"
 #include "cFC4TractDeveloper.h"
 #include "cFC4Message2Standard.h"
 #include "fc4.h"
@@ -561,6 +562,7 @@ public:
                 break;
             case kMsgPreCityShutdown:
                 TractShadowCityShutdown();  // tract_shadow: the forwarder's core goes with the city
+                CommercialShadowCityShutdown();  // commercial_shadow: the shadow core goes with the city
                 AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:

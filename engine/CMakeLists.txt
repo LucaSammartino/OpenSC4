@@ -265,6 +265,8 @@ if(FC4_IS_WIN32_X86)
         # park manager (cmglue): `enable = commercial, industrial, civic, parks`, their shadows.
         plugin/cFC4Commercial.cpp
         plugin/cFC4Commercial.h
+        plugin/FC4CommercialShadow.cpp
+        plugin/FC4CommercialShadow.h
         # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h
         plugin/FC4Turbo.cpp

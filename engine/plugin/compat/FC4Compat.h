@@ -82,6 +82,11 @@ struct ExecutableVersion {
     // (neighbors.md compiled slot table, §15.4 NG7): the neighbours shadow
     // reads the object's state bytes only when its vtable is this one.
     uint32_t neighborsSimulatorVtableVA;
+    // The original commercial simulator's primary vtable
+    // (commercial-industrial.md §1.1, §2.1): the commercial shadow reads the
+    // object's dirty byte (+0x20) and DoIdle state (+0x24) only when its
+    // vtable is this one.
+    uint32_t commercialSimulatorVtableVA;
 };
 
 // The running executable if it is a table entry loaded at its preferred base
@@ -152,6 +157,10 @@ const void* GameDelayWindowVtable();
 // (neighbors.md §15.4 NG7), or nullptr (logged once; the same checks). For
 // the neighbours shadow's raw read of the original's state bytes.
 const void* NeighborsSimulatorVtable();
+// The original commercial simulator's primary (cISC4CommercialSimulator)
+// vtable (commercial-industrial.md §1.1), or nullptr (logged once; the same
+// checks). For the commercial shadow's raw read of dirty and state (§2.1).
+const void* CommercialSimulatorVtable();
 
 // The compatibility table.
 const ExecutableVersion* SupportedVersions(int* count);

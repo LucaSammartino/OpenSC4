@@ -27,6 +27,7 @@
 #include "FC4PowerShadow.h"
 #include "FC4ResidentialShadow.h"
 #include "FC4NeighborsShadow.h"
+#include "FC4CommercialShadow.h"
 #include "FC4HarnessLogic.h"
 #include "FC4Turbo.h"
 #include "FC4Log.h"
@@ -367,6 +368,8 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
     // SimNewMonth deliveries.
     // The flammability shadow (opt-in, FC4FlammabilityShadow.h) polls after
     // the original flammability simulator's SimNewDay deliveries.
+    // The commercial shadow (opt-in, FC4CommercialShadow.h) wraps the
+    // original commercial simulator's SimIdle / SimNewDay deliveries.
     bool finished = false;
     if (!fc4::BudgetShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::DemandShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
@@ -380,7 +383,8 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
         !fc4::AuraShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::NeighborsShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::DevelopmentShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
-        !fc4::FlammabilityShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) {
+        !fc4::FlammabilityShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
+        !fc4::CommercialShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) {
         finished = target->DoMessage(m);
     }
     fc4::DeliveryEnd();
