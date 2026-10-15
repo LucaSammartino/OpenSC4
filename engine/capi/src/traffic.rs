@@ -572,7 +572,7 @@ pub(crate) struct CHost {
 }
 
 impl CHost {
-    fn new(c: fc4_traffic_host) -> CHost {
+    pub(crate) fn new(c: fc4_traffic_host) -> CHost {
         CHost {
             c,
             counters: Cell::new(Counters::default()),
