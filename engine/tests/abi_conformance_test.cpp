@@ -421,9 +421,6 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cIGZWin", 68, 148,
      "cFC4IGZWin declares slots 3-67 only: the dialog closer calls slot 67 (GetFlag) only (modal-dialogs.md "
      "section 3.2). Slots 68-147 are not declared"},
-    {"cISC4CommercialSimulator", 6, 7,
-     "slot 6 is cSC4CommercialSimulator's deleting destructor (pops 4; re-specs9 row, commercial-industrial.md): "
-     "class-private, not an interface method"},
 };
 
 const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlots) {

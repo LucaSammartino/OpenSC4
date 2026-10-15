@@ -86,6 +86,10 @@ constructor's 0 at `0x00445A15` and `Shutdown`'s clear at `0x0044516B`, and no a
 pass of the framework's idle loop calls `OnIdle` (§4.3). The clock has **no simulator agents**: it does not depend
 on the simulation date, speed or `Pause()`. It stops only for its own two pause counters (§4.7).
 
+Since one pass advances the clock by at most 1200 game seconds (§4.3), the clock can move no further than
+20 game minutes per idle pass, however much real time passes: a host that starves the idle loop slows the clock in
+game time too (CK22). Nothing else advances it.
+
 ### 3.2 Cheat codes
 
 `Init` registers two cheat codes with the cheat code manager (`0x00B43CAC`, when it exists):
@@ -175,7 +179,7 @@ magnification and night hours. Only `pauseCount`, `maxMagnification` and `second
 
 ```
 if pauseCount > 0 or hiddenPauseCount > 0: return true
-e    := timer.GetElapsedTime()                            u32, unit 3 (microseconds [inferred])
+e    := timer.GetElapsedTime()                            u32, unit 3 (microseconds, see the timer model)
 step := trunc( f32( f32(e × magnification) × 9.99999997e-07f ) )      e converted as unsigned
 if step ≤ 60: return true                                 the timer keeps running; nothing changes
 if step > 1200: step := 1200
@@ -232,6 +236,27 @@ return true
 
 The original subtracts a calibrated call overhead per interval, and counts at least one tick per interval.
 *[choice]* FreeCity4 may use any monotonic clock with microsecond resolution and skip the overhead correction (CK2).
+
+**Timer layout** (CK21; the clock's timer is at `+0x50`, so these are `+0x50` … `+0x67` of the clock):
+
+| Offset | Field |
+|---|---|
+| `+0x00` | unit (u32; the constructor `0x0088FEDF(unit)` stores it) |
+| `+0x08` | start tick (u64; 0 = stopped) |
+| `+0x10` | accumulated ticks (u64) |
+
+Unit 0 counts CPU cycles (`rdtsc`); every other unit counts `QueryPerformanceCounter` ticks (`Start` `0x008905C4`
+chooses by `unit = 0`). `GetElapsedTime` (`0x00890198`) converts the 64-bit tick total by unit: 0 and 1 return its
+low 32 bits; 2 to 6 multiply it, as float, by a factor computed once from the counter frequency `F` (`0x0088FF19`):
+2 nanoseconds (`10^9 / F`), **3 microseconds** (`10^6 / F`, `0x0088FFFF`), 4 milliseconds, 5 seconds (`1 / F`),
+6 minutes (`(1 / F) × 0.016666668`); then `_ftol`, low 32 bits. Any other unit returns 0. The calibrated overhead
+(u64 at `0x00B54358`) is subtracted from each interval longer than it; a shorter interval counts 1 tick.
+
+So a reader can recover the real time between two clock steps: after each step `Restart` leaves the accumulated
+ticks at 0 and the start tick at the moment of the step (`0x0089058F`), and the next step's `e` is the counter
+reading at that step minus that start tick, less the overhead, × `10^6 / F`. The counter value the step itself read
+is not stored; the next start tick is taken a few instructions later, so consecutive start ticks bound `e` from above
+by that gap.
 
 ### 4.4 `ChangeVisualTime(v)` (`0x00445680`)
 
