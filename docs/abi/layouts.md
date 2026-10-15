@@ -318,3 +318,33 @@ Hash map node: `+0` next, `+4` key (prop ID), `+8` the 0x1C-byte profile (the re
 These two objects are not read directly by other game code; the tables are here because a plugin replacing them
 must keep the sub-object offsets that `QueryInterface` hands out. The other re-specs10 components keep their
 state layouts in their specs (§2 of each); no other game code reads those fields directly.
+
+## Occupant manager (`cSC4OccupantManager`, CLSID `0x098F964D`, 0x9C bytes, re-specs13b)
+
+Factory `0x004A18A0`. Full behaviour in [occupant-manager.md](../specs/occupant-manager.md).
+
+| Offset | Size | Field |
+|---|---|---|
+| +0x00 | 4 | `cISC4OccupantManager` vtable `0x00A8F7F0` |
+| +0x04 | 4 | `cIGZSerializable` vtable `0x00A8F7D4` |
+| +0x08 | 4 | `cIGZMessageTarget2` vtable `0x00A8F7C4` |
+| +0x0C | 1 | initialised |
+| +0x0D | 1 | set by Read, never read |
+| +0x10 | 4 | reference count |
+| +0x14 | 8 | `cRZCriticalSection` (recursive) |
+| +0x1C | 4 | `float` sizeX |
+| +0x20 | 4 | `float` sizeZ |
+| +0x24 | 4 | `int32_t` manager cell count X |
+| +0x28 | 4 | `int32_t` manager cell count Z |
+| +0x2C | 4 | `int32_t` standard cell count X |
+| +0x30 | 4 | `int32_t` standard cell count Z |
+| +0x34 | 4 | shared type filter pointer |
+| +0x38 | 12 | STLport `vector<vector<Holder*>>` grid (rows = x; storage B) |
+| +0x44 | | InternalOccupantHashSet (buckets A) |
+
+- Cell holder (4 bytes, C): pointer to a 12-byte circular list head (B). Node (12 bytes, B):
+  `{next, prev, value = occupant | singleCellBit}`.
+- Shared type filter (16 bytes, C; CLSID `0xE9C75ED1`): +0x0 vtable `0x00A8F79C`; +0x4 `cIGZSerializable` vtable
+  `0x00A8F784`; +0x8 `uint32_t` reference count; +0xC `uint32_t` type.
+- `cISC4Occupant` manager box: 4 bytes `{x0, z0, x1, z1}`, world cells, inclusive, at occupant +0x28 in the base
+  class; a first byte of 0xFF means no box (base `GetOccupantManagerBBox` `0x005E8BF0`).
