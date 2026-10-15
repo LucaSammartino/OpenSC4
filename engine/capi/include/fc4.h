@@ -124,9 +124,9 @@ extern "C" {
  * 57 = adds the disaster layer (fc4_disasters, disasters.md): the layer, its managers (fire, riot,
  *      toxic spill, earthquake, pipe burst, volcano, effect) and their instances (taken as 64 on its
  *      lane; renumbered at merge);
- * 58 = adds the occupant manager (fc4_occmgr, occupant-manager.md) (taken as 67 on its lane;
- *      renumbered at merge). */
-#define FC4_ABI_VERSION 58u
+ * 67 = adds the occupant manager (fc4_occmgr, occupant-manager.md) (reserved for the cores14b lane;
+ *      the coordinator renumbers it at merge). */
+#define FC4_ABI_VERSION 67u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
