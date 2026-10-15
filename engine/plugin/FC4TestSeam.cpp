@@ -47,6 +47,8 @@
 #include "cFC4TrafficSimulator.h"
 #include "cFC4ZoneManager.h"
 #include "cFC4TractDeveloper.h"
+#include "cFC4LotDeveloper.h"
+#include "cFC4Parks.h"  // the cmglue lane
 #include "cFC4ZoneDeveloper.h"
 #include "cFC4Protection.h"
 #include "cFC4Variant.h"
@@ -181,6 +183,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return a == nullptr ? -1 : TrafficTestSeam(static_cast<const FC4TrafficTestInput*>(a));
         case kFC4SeamTract:
             return a == nullptr ? -1 : TractTestSeam(static_cast<const FC4TractTestInput*>(a), b);
+        case kFC4SeamLotDev:
+            return a == nullptr ? -1 : LotDevTestSeam(static_cast<const FC4LotDevTestInput*>(a), b);
         case kFC4SeamZoneDev:
             return a == nullptr ? -1 : ZoneDevTestSeam(static_cast<const FC4ZoneDevTestInput*>(a), b);
         case kFC4SeamGrowthProbe:
@@ -191,6 +195,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return DialogsTestSeam(static_cast<const FC4DialogsTestInput*>(a));
         case kFC4SeamHistClock:  // the history and clock lane (FC4HistClock.h)
             return HistClockTestSeam(static_cast<const FC4HistClockTestInput*>(a));
+        case kFC4SeamParks:  // the cmglue lane (cFC4Parks.h)
+            return a == nullptr ? -1 : fc4::ParksTestZooEscape(static_cast<const FC4ParksTestInput*>(a));
         case kFC4SeamNeighborsApp:  // the neighbours apply lane (NG14, NG4)
             if (b != nullptr) {
                 return fc4::NeighborsTestCopyDeal(static_cast<cISC4NeighborDeal*>(a),

@@ -500,7 +500,7 @@ A fire occupant is a visual occupant placed on its target. It holds:
 1. Read `maxStage` from `0x49BEDA31` (default 2).
 2. Compute the flame counts from D7 and D8 at the target's bounding-box top and side areas.
 3. Set `t`'s `0x69DBEBE1` ("burning") to true and call occupant slot 12 with 2 *[inferred: highlight state]*.
-4. For a building, attach the automata controller "fire_occupant" (city slot 47, controller manager slot 9).
+4. For a building, attach the automata controller "fire_occupant" (city slot 47, controller manager slot 10, the by-name `AddControllersFromOccupantGroup`; automata.md §8.2).
    That brings the fleeing people.
 
 Removing the fire occupant clears `0x69DBEBE1`.
@@ -544,7 +544,11 @@ The new instance is returned. Otherwise the result is null.
 
 1. Register with the animation tick manager.
 2. Start a timer with units 5 (seconds).
-3. Mark the network occupants within ±3 cells of the start as riot-blocked (network occupant slot 48, flag 2).
+3. Mark the network occupants within ±3 cells of the start as riot-locked (`MarkRiotNetworkOccupants` `0x0057D300`):
+   each one's player removal counter is decremented (`UnsetRemovalFlags(2)` on `AsOccupant()`, network occupant slot
+   48), so the player cannot bulldoze it until the last riot ends. This is not a network flag and does not touch
+   traffic. A start within 3 cells of the west or north edge locks nothing *[quirk]*. Full rule: network-manager.md
+   §10.
 
 ### 6.4 `AddRiotLeader(x, z, spawned)`
 
@@ -858,8 +862,11 @@ are in `docs/abi/interfaces.tsv`. The proposed rows for the fire instance's inte
 - **Q2.** Does a pipe-burst instance end in a session with no 3D view (§8 quirk)? This needs a runtime run with
   water funding below 50 %.
 - **Q3.** Is phase 2 ever used by an instance (§3.2)?
-- **Q4.** What does network flag 2 (riot-blocked) change in traffic? That belongs to the network manager spec
-  (INVENTORY rank 3).
+- ~~**Q4.** What does network flag 2 (riot-blocked) change in traffic? That belongs to the network manager spec
+  (INVENTORY rank 3).~~ **ANSWERED 2026-10-15 (re-specs13c):** nothing in traffic. The "2" is the removal
+  privilege bit, not a network flag: the riot decrements the occupant's player removal counter (cISC4Occupant
+  slot 13 with 2), so `CanRemove(2)` is false and the player's bulldozer refuses the piece; it is incremented back
+  when the last riot instance ends or the riot manager shuts down. network-manager.md §10.
 - **Q5.** Which callers read `DisastersEnabled` (slot 6) or call `EnableDisasters` (slot 5)? No simulation-side
   caller was found (§2.3).
 

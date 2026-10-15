@@ -37,6 +37,10 @@ enum class Direct : unsigned {
     GlobalHeapAllocate,    // allocator C allocate (the game's operator new): cdecl void* (uint32_t size)
                            //   (docs/abi/allocators.md; the zone developer's safe lot iterator
                            //   blocks, zones.md §8.3 slot 15, §13.2)
+    LotPoolAllocate,       // the cSC4Lot pool's allocate: cdecl void* (uint32_t size = 0x8C, unread), the
+                           //   caller pops (docs/abi/direct-calls.md; zones.md §8.5.1)
+    LotConstruct,          // the cSC4Lot constructor: thiscall (x, z, w, h, facing), pop 20, EAX = this
+                           //   (docs/abi/direct-calls.md; zones.md §8.5.1)
     Count
 };
 
@@ -85,6 +89,15 @@ struct ExecutableVersion {
     // (neighbors.md compiled slot table, §15.4 NG7): the neighbours shadow
     // reads the object's state bytes only when its vtable is this one.
     uint32_t neighborsSimulatorVtableVA;
+    // The original commercial simulator's primary vtable
+    // (commercial-industrial.md §1.1, §2.1): the commercial shadow reads the
+    // object's dirty byte (+0x20) and DoIdle state (+0x24) only when its
+    // vtable is this one.
+    uint32_t commercialSimulatorVtableVA;
+    // The original park manager's primary vtable (parks.md §1): the parks
+    // shadow reads the object's latch (+0x15) and distress threshold (+0x34)
+    // only when its vtable is this one.
+    uint32_t parkManagerVtableVA;
 };
 
 // The running executable if it is a table entry loaded at its preferred base
@@ -155,6 +168,14 @@ const void* GameDelayWindowVtable();
 // (neighbors.md §15.4 NG7), or nullptr (logged once; the same checks). For
 // the neighbours shadow's raw read of the original's state bytes.
 const void* NeighborsSimulatorVtable();
+// The original commercial simulator's primary (cISC4CommercialSimulator)
+// vtable (commercial-industrial.md §1.1), or nullptr (logged once; the same
+// checks). For the commercial shadow's raw read of dirty and state (§2.1).
+const void* CommercialSimulatorVtable();
+// The original park manager's primary (cISC4ParkManager) vtable (parks.md
+// §1), or nullptr (logged once; the same checks). For the parks shadow's raw
+// read of the latch and the threshold (§2).
+const void* ParkManagerVtable();
 
 // The compatibility table.
 const ExecutableVersion* SupportedVersions(int* count);

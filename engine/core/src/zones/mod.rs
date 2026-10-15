@@ -42,10 +42,12 @@
 //! - **No 3D view** *[headless-limited]* (§1.2 step 2, §13): the original
 //!   `Init` fails without the 3D-view global; this one does not take it.
 //!   The cached view value, `InitBoundaryRules` (lot-boundary textures),
-//!   the highlight textures, the cheats "PlopAllLots" / "PlopAllBuildings"
-//!   (§1.2 step 7, §5.2) and `CanCreatePloppedLot` (slot 21, §8.4) are UI or
-//!   debug and are left out. The `0xA6B79602` value is stored
-//!   ([`ZoneDeveloper::view_message_value`]) but unused.
+//!   the highlight textures (`UpdateHighlightTextures`, §7.1.1: UI, "a
+//!   headless replacement may leave it out") and the cheats "PlopAllLots" /
+//!   "PlopAllBuildings" (§1.2 step 7, §5.2: not specified) are UI or debug
+//!   and are left out. The `0xA6B79602` value is stored
+//!   ([`ZoneDeveloper::view_message_value`]) but unused. `CanCreatePloppedLot`
+//!   (slot 21, §8.4.1–§8.4.3) is in the core.
 //! - **Street geometry of round 6** (§7.10–§7.13) is in the core: `DrawStreet`
 //!   (§7.10), `ExtendAsStreets` (§7.11), `LayInJogStreets` (§7.12) and
 //!   `ExistsConnectionOfType` / `GetNetwork` (§7.13) are computed here and
@@ -58,10 +60,12 @@
 //!   from [`ZonesHost::cell_occupants`] and [`ZonesHost::network_has_any_flag`].
 //!   A host whose `street_place` inserts nothing draws no visible streets; the
 //!   core still logs every `Place` call in order.
-//! - **Untraced helpers** (§5.2 step 3, §7.2 step 7): the street-joining
-//!   helpers `0x00731F60` / `0x00732450` are one host call
-//!   ([`ZonesHost::street_joining_helper`]); `0x0072B180` at the end of
-//!   `OnZone` is left out (no behaviour is specified; no RNG).
+//! - **re-specs11** (§5.2.1, §5.2.2, §7.2.2): `JoinDeadEndStubs` and
+//!   `JoinAcrossRail` (InsertOccupant step 3) and `UpdateZoneType` (the end of
+//!   `OnZone` in real mode) are in the core; the host gives the network
+//!   occupant queries, the tools' `PlaceNetworkOccupants`
+//!   ([`ZonesHost::network_tool_join`]) and the zone manager's dezone
+//!   ([`ZonesHost::zone_manager_dezone`]).
 //!
 //! # Choices (`[choice]`), limits (`[compat-limit]`) and inferences (`[inferred]`)
 //!
@@ -147,7 +151,8 @@ mod region;
 mod tests;
 
 pub use developer::{
-    occupant_cell, savvy_cell, CreateResult, Draw, DrawKind, InsertionPoint, LotSize, Options, Orientation,
+    constraint_record_rect, network_object_placement, occupant_cell, plop_mask_matches, rotate_lot_rect, savvy_cell,
+    CreateResult, Draw, DrawKind, InsertionPoint, LotSize, NetworkObjectPlacement, Options, Orientation,
     SharedZoneStatics, VirtualLot, ZoneDeveloper, ZoneDeveloperStatics, DEVELOPER_RECORD_VERSION, MAX_RANDOM_LOT_TRIES,
     RNG_SEED_XOR, TEST_SEEDS,
 };
@@ -279,6 +284,11 @@ pub mod lot_code {
     pub const WATER: i32 = 1;
     pub const NOT_ZONED: i32 = 2;
     pub const NETWORK: i32 = 3;
+    /// `CanCreatePloppedLot` only (§8.4.1): too steep.
+    pub const TOO_STEEP: i32 = 4;
+    /// `CanCreatePloppedLot` only (§8.4.2): a water / land constraint tile.
+    pub const WATER_CONSTRAINT: i32 = 5;
+    pub const LAND_CONSTRAINT: i32 = 6;
     pub const OCCUPIED: i32 = 7;
     pub const FREE: i32 = 8;
 }
@@ -324,6 +334,26 @@ pub struct ZonesMessage {
 
 /// A 3D position (`cS3DVector3`): x, y, z.
 pub type Position = [f32; 3];
+
+/// One lot-configuration object record as the zone developer reads it
+/// (configuration slot 23, 0x34-byte records, lot-developer.md §17.1;
+/// zones.md §8.4.1–§8.4.3).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LotObject {
+    /// `+0x00`: the object type (5 water constraint, 6 land constraint, 7
+    /// network).
+    pub kind: u8,
+    /// `+0x02`: the orientation byte.
+    pub orientation: u8,
+    /// `+0x18`, `+0x1C`: footprint min x, min z (lot space, metres).
+    pub min_x: f32,
+    pub min_z: f32,
+    /// `+0x10`, `+0x14`: footprint max x, max z.
+    pub max_x: f32,
+    pub max_z: f32,
+    /// `+0x28`: the remaining values (`vector<u32>`).
+    pub values: Vec<u32>,
+}
 
 /// Everything the zone manager and the zone developer read from, or do to,
 /// the rest of the game (§12). Objects are host tokens. Lot lists the host
@@ -437,8 +467,10 @@ pub trait ZonesHost: GridProvider<i8> + GridProvider<u16> {
     /// drafts follows [`ZonesHost::street_place`] (§8.8, ZQ11, ZQ12): a cell
     /// of an existing network that a draft covers or reaches can answer.
     fn network_tool_occupant_exists(&self, tool_kind: u32, x: i32, z: i32, flag: u32) -> Option<[u8; 4]>;
-    /// InsertOccupant step 3 (§5.2): `0x00731F60(occupant)` for data4 1 or
-    /// 2, `0x00732450(occupant)` for 3 (not traced; no RNG).
+    /// Not called since re-specs11: InsertOccupant step 3 (§5.2) runs
+    /// `JoinDeadEndStubs` / `JoinAcrossRail` (§5.2.1, §5.2.2) in the core
+    /// over [`ZonesHost::network_tool_join`] and the network-occupant
+    /// queries. Kept for the hosts that implement it.
     fn street_joining_helper(&self, occupant: u64, data4: u32);
 
     // ---- terrain (§12) ----
@@ -612,4 +644,78 @@ pub trait ZonesHost: GridProvider<i8> + GridProvider<u16> {
     fn dev_purpose(&self, dev: u64) -> u32;
     /// Growth developer slot 8 `GetWealth`.
     fn dev_wealth(&self, dev: u64) -> u32;
+
+    // ---- re-specs11: UpdateZoneType, the network joins, the plop test ----
+    //
+    // Defaults are neutral, so a host written before them keeps its
+    // behaviour (no dezone, no join, the plop test sees a flat dry city with
+    // no networks).
+
+    /// `UpdateZoneType` step 3 (§7.2.2): zone manager slot 11 `PlaceZone(D,
+    /// 0, commit = 1, skipFunds = 1, checkSlope = 0, skipSize = 1,
+    /// lotInside = 0, null, null, null)` on `region`, whichever zone
+    /// manager is active.
+    fn zone_manager_dezone(&self, _region: &CellRegion) {}
+    /// Lot slot 32 `UpdateZoneType()`: the lot's zone := the zone of its
+    /// location cell.
+    fn lot_update_zone_type(&self, _lot: u64) {}
+    /// Lot developer slot 46 `GetForceEmptyLotBaseTextures()`.
+    fn force_empty_lot_base_textures(&self) -> bool {
+        false
+    }
+    /// Lot configuration slot 8 `GetMaxSlope()` (ST0).
+    fn cfg_max_slope(&self, _cfg: u64) -> f32 {
+        f32::MAX
+    }
+    /// Lot configuration slot 23: the object records in order.
+    fn cfg_objects(&self, _cfg: u64) -> Vec<LotObject> {
+        Vec::new()
+    }
+    /// Network occupant slot 12 `GetNetworkFlags()` (0 when the occupant is
+    /// not a network occupant).
+    fn network_flags(&self, _occupant: u64) -> u32 {
+        0
+    }
+    /// Network occupant slot 8 `HasAllNetworkFlags(mask)`: `(flags & mask)
+    /// == mask`.
+    fn network_has_all_flags(&self, _occupant: u64, _mask: u32) -> bool {
+        false
+    }
+    /// Network occupant slot 38 (pop 4): the piece's four per-edge bytes for
+    /// network type `net_type`, 0 when it does not carry the type.
+    fn network_edge_mask(&self, _occupant: u64, _net_type: u32) -> u32 {
+        0
+    }
+    /// Network occupant slot 22 `IsOfType(t)`; `None` when the occupant is
+    /// not a network occupant.
+    fn network_is_of_type(&self, _occupant: u64, _net_type: u32) -> Option<bool> {
+        None
+    }
+    /// Network occupant slot 17: whether the piece has network flag
+    /// `0x400000` (§5.2.1 step 3).
+    fn network_is_flag_0x400000(&self, _occupant: u64) -> bool {
+        false
+    }
+    /// Whether the network tool of `kind` (3 street, 11 dirt road, 0 road)
+    /// was taken (PostCityInit, §5.2).
+    fn network_tool_present(&self, _kind: u32) -> bool {
+        false
+    }
+    /// The join of §5.2.1 / §5.2.2: tool `kind`'s slot 7
+    /// `PlaceNetworkOccupants(a.x, a.z, b.x, b.z, 0, null, 1, −1)` (real
+    /// mode). Its result is ignored.
+    fn network_tool_join(&self, _kind: u32, _a: (i32, i32), _b: (i32, i32)) {}
+    /// Terrain slot 35 `CellHasLand(x, z)`.
+    fn cell_has_land(&self, _x: i32, _z: i32) -> bool {
+        true
+    }
+    /// City slot 99 `CellIsInBounds(x, z)`.
+    fn cell_is_in_bounds(&self, x: i32, z: i32) -> bool {
+        let (cx, cz) = self.city_cell_counts();
+        (0..cx).contains(&x) && (0..cz).contains(&z)
+    }
+    /// Surface water slot 8 `IsNavigable(x, z, 0, null)`.
+    fn is_navigable(&self, _x: i32, _z: i32) -> bool {
+        false
+    }
 }

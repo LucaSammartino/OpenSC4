@@ -19,8 +19,9 @@
 //!   `Init` / `Shutdown` (§1.3, §1.4), `DoMessage` (§3.2), the daily pass
 //!   and `UpdateLot` (§4) with every test of §5, construction (§6),
 //!   demolition and explosion with rubble (§7), the night lights (§8), the
-//!   power-changed handler (§9), the terrain and cost slots of §11.4 and the
-//!   save record (§13).
+//!   power-changed handler (§9), the terrain and cost slots of §11.4, the
+//!   geometry of §17 (altitudes, levelling, foundations, object positions,
+//!   boundary textures) and the save record (§13).
 //! - [`LotDeveloperStatics`]: the file-local `cRZRandom` (`0x00B49AF0`,
 //!   §10.1) that draws R2–R14, the C `rand()` state ([`CrtRand`], R15,
 //!   foundations §12.6) and the draw trace ([`Draw`]). Hand the same
@@ -31,12 +32,19 @@
 //!   iterator, lots, lot configurations and their manager, buildings and
 //!   other occupants, the occupant and prop managers, the BDS, growth
 //!   developers, power, plumbing, traffic, demand, flora, terrain,
-//!   demolition, business units, the 24-hour clock, the animation-tick
-//!   manager, the resource manager and the geometry slots the spec leaves
-//!   to a later terrain / lot-content spec (§12.2 Q4). Objects are host
-//!   tokens (`u64`).
-//! - `tuning.rs`: [`Tuning`] (§3.5). `geometry.rs`: the altitude, slope
-//!   and cost formulas of §11.1 / §11.4 and the rubble count of §7.3.
+//!   demolition (including `ModifyTerrainHeight`, the only terrain writer,
+//!   §17.3), business units, the 24-hour clock, the animation-tick manager,
+//!   the zone manager, the retaining-wall helpers and the resource manager.
+//!   Objects are host tokens (`u64`); every occupant token is the occupant
+//!   itself (buildings, props, foundations, base-texture occupants).
+//! - [`TerrainView`]: the slots that read no lot-developer state but the
+//!   tuning, the stored extents and cell counts and the boundary map —
+//!   15–32 and the §17 geometry (39, 40, 42, 43, 48–61) — so a host can
+//!   answer them while the lot developer is busy. `terrain.rs` (15–18, 22,
+//!   25–32), `levelling.rs` (19–21), `positions.rs` (39, 40), `boundary.rs`
+//!   (42, 43), `foundation.rs` (48–61).
+//! - `tuning.rs`: [`Tuning`] (§3.5). `geometry.rs`: the slope and cost
+//!   formulas of §11.4 and the rubble count of §7.3.
 //!
 //! # Choices (`[choice]`), limits and inferences (`[inferred]`)
 //!
@@ -77,22 +85,25 @@
 //! - **Neighbour building types** in `PickUnitToJoin` and
 //!   `NeedsAnchorBuilding` (§5.7) are read with `GetBuildingType(false)`;
 //!   the lot's own (step 1) with `GetBuildingType(true)` as stated.
-//! - **Business-unit dissolution** (§5.7) *[inferred]*: when member `m`
-//!   joins `u'`, every other lot of the copy is removed from the old unit
-//!   (if still in it) and added to `u'`, in copy order.
+//! - **Business-unit dissolution** (§5.7, answers Q10): when member `m`
+//!   joins `u'`, every lot of the copy, `m` included, is removed from the
+//!   unit it is in (if any) and added to `u'`, in copy order.
+//! - **`UpdateTravelDesignates`** with an anchor (§5.7 table, answers Q9):
+//!   a member designate with road access is kept; others are cleared (a null
+//!   designate is not); then every lot but the anchor gets the anchor.
 //! - **Zot property reads** (§5.6): reading the current zot never creates
 //!   the property (absent reads as 0); `AddBuildingZotProp` creates it, and
 //!   so do the counters of §5.1–§5.4 (created as 0 on their read).
 //!   `RemoveLotProp` removes only props that **have** `0x48E95539` equal to
 //!   the zot (a prop without the property never matches).
 //!   `StartDemolishLot` writes the zot property 0 unconditionally.
-//! - **`AddLotFoundation`** (slot 54, R8) *[inferred]*: the configuration's
-//!   primary foundation object's ID list (cfg slot 26) gives
-//!   `ids[Uniform(n)]` when non-empty, else the tuning's default lot
-//!   foundation type (`0xE900EA26`); the result is placed with slot 55
-//!   (a host geometry call).
-//! - **Light** (§8.4): the props are looked up in the **lot's** bounding
-//!   rectangle *[inferred from "the lot's cell rectangle"]*.
+//! - **`StartConstruction`** tests slot 21's result as a bool: the low byte
+//!   of its count (§17.4 "AL is the count's low byte") *[inferred]*.
+//! - **`GetPositionForBuilding`** with no configuration or primary object
+//!   writes nothing (§17.6); the callers' position is then `(0, 0, 0)` and
+//!   orientation 0 *[choice]*.
+//! - **Light** (§8.4, answers Q8): the building's cells find the lot; the
+//!   props are looked up in the **lot's** bounding rectangle (lot slot 14).
 //! - **Day / night message** (§8.2): `data2 = 0` is night, any other value
 //!   day.
 //! - **`0xE99B3D4D`** (§6.5) looks the lot up with `GetLot(x, z, true)`,
@@ -116,16 +127,30 @@
 //!   `0x00B49AE9` disables, §4.2 / §12.1 quirk 2), the `0x278E6003`
 //!   handler (ignored, quirk 15), the blocking filter object (the host's
 //!   `occupants_in_bbox` applies it), `GetJobs` / `GetBoundingRect` calls
-//!   whose results are unused, the boundary map and the geometry of slots
-//!   19–21, 39–43, 45, 48–53, 55–64 (§12.2 Q4: host calls, no draws).
+//!   whose results are unused, and the slots §17 does not cover (41, 45,
+//!   62–64, `UpdateLotObjectAlitudes`, the retaining-wall helpers: host
+//!   calls, no draws). The boundary map is the constant table of §17.7
+//!   ([`BOUNDARY_RULES`]); `Init` / `Shutdown` only switch it on and off.
 //!
 //! Host callbacks must not call back into the lot developer.
 
+mod boundary;
+mod foundation;
 mod geometry;
+mod levelling;
+mod positions;
 mod simulator;
+mod terrain;
 #[cfg(test)]
 mod tests;
 mod tuning;
+
+pub use boundary::{empty_lot_extra, zone_has_no_empty_texture, BoundaryRule, BOUNDARY_RULES};
+pub use foundation::{
+    kind as foundation_kind, IID_FOUNDATION_OCCUPANT, LOT_FOUNDATION_FLAGS, OCCUPANT_TYPE_FOUNDATION,
+    PROP_BUILDING_FOUNDATION_TYPE,
+};
+pub use levelling::NO_SLOPE_TEST_FROM;
 
 pub use geometry::{area_slope_of, development_cost, rubble_count, RubbleShape};
 pub use simulator::{
@@ -133,6 +158,7 @@ pub use simulator::{
     DEFAULT_DAILY_WORK_BUDGET, MAX_CLEAR_BUILDINGS, MAX_SAVED_BUILDINGS, NIGHT_THRESHOLD_MS, RECORD_VERSION,
     TICK_PRIORITY,
 };
+pub use terrain::{TerrainView, EDGE_STEP, FLT_MAX, MAX_EDGE_SAMPLES};
 pub use tuning::{prop, Tuning, DEFAULT_FOUNDATION_TYPE, TUNING_KEY};
 
 use std::rc::Rc;
@@ -215,6 +241,11 @@ pub const OCCUPANT_TYPE_FLORA: u32 = 0x7475_8926;
 /// The prop occupant type of `GetOccupantsByStandardCityCells` in `Light`
 /// (§8.4).
 pub const OCCUPANT_TYPE_PROP: u32 = 0xA823_821E;
+/// The base-texture occupant type (§6.6, §17.7).
+pub const OCCUPANT_TYPE_BASE_TEXTURE: u32 = 0x497F_6D9D;
+/// The five bytes after object byte 3 of a normal base-texture record
+/// (§6.6: they default to `0xFF`).
+pub const BASE_TEXTURE_EXTRA_DEFAULT: [u8; 5] = [0xFF; 5];
 
 /// Lot properties (counters and the zot, §0 table).
 pub mod lot_prop {
@@ -314,33 +345,50 @@ impl LotDevMessage {
     }
 }
 
-/// One lot configuration object (a 0x34-byte record of
-/// `GetLotConfigurationObjectArray`, cfg slot 23), the fields the lot
-/// developer reads.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// One lot configuration object: the 0x34-byte record of
+/// `GetLotConfigurationObjectArray` (cfg slot 23), slots 24 and 26 (§17.1).
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct CfgObject {
-    /// 1 prop, 2 base texture, 4 flora, 7 water, … .
+    /// `+0x00`: 1 prop, 2 base texture, 4 flora, 7 water, … .
     pub object_type: u32,
-    /// The flag byte; bit 0 set keeps a prop object out of `AddLotProps`.
+    /// `+0x01`, the flag byte; bit 0 set keeps a prop object out of
+    /// `AddLotProps` (§6.5).
     pub flags: u8,
-    /// The object's ID list (families not expanded).
-    pub ids: Vec<u32>,
-    /// The lot tag given to the occupant made from it.
-    pub tag: u32,
-    /// The orientation byte (base-texture records).
+    /// `+0x02`: the orientation (slot 39, base-texture records).
     pub orientation: u8,
-    /// Object byte 3 (base-texture records).
+    /// `+0x03`: the mirror flag, object byte 3 of base-texture records.
     pub byte3: u8,
+    /// `+0x04`, `+0x08`, `+0x0C`: the lot-space offsets x, y, z.
+    pub offset: [f32; 3],
+    /// `+0x10`, `+0x14`: the footprint's max x, max z.
+    pub footprint_max: [f32; 2],
+    /// `+0x18`, `+0x1C`: the footprint's min x, min z.
+    pub footprint_min: [f32; 2],
+    /// `+0x20`: the foundation type (slots 54, 58).
+    pub foundation: u32,
+    /// `+0x24`: the lot tag given to the occupant made from it.
+    pub tag: u32,
+    /// `+0x28`: the object's ID list (families not expanded).
+    pub ids: Vec<u32>,
 }
 
-/// One base-texture record (§6.6) handed to the base-texture occupant.
+/// One base-texture record handed to the base-texture occupant (§6.6,
+/// §17.7): 14 bytes on disk, 16 in memory.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TextureRecord {
     pub texture: u32,
     pub x: i32,
     pub z: i32,
+    /// The orientation (normal textures) or rotation (empty-lot textures).
     pub orientation: u8,
+    /// Object byte 3 (normal textures) or the flip (empty-lot textures).
     pub byte3: u8,
+    /// The five bytes after it: `0xFF` for normal textures
+    /// ([`BASE_TEXTURE_EXTRA_DEFAULT`]), the zone's colour, alpha and 3
+    /// for empty-lot textures ([`empty_lot_extra`]).
+    pub extra: [u8; 5],
+    /// The frame byte (`0xFF`: the occupant draws one).
+    pub frame: u8,
 }
 
 /// The burnt-building prop made from a building by `ExplodeLot` (§7.2
@@ -381,9 +429,6 @@ pub trait LotDeveloperHost {
     /// The animation-tick manager's slots 5 / 6 with (this+4, `0xC0`).
     fn register_animation_tick(&self);
     fn unregister_animation_tick(&self);
-    /// `InitBoundaryRules` (§1.3 step 11) / clearing the boundary map.
-    fn init_boundary_rules(&self);
-    fn clear_boundary_rules(&self);
     /// `MessagePost` of a new standard message (queued, §3.3): `lot` is the
     /// IGZUnknown (0x4C04DE69), data2–4 are 0.
     fn post_message(&self, msg_type: u32, data1: u32, lot: Option<u64>);
@@ -395,6 +440,10 @@ pub trait LotDeveloperHost {
     fn city_cell_widths(&self) -> (f32, f32);
     /// City slot 95 `PositionToCell(x, z)`.
     fn position_to_cell(&self, x: f32, z: f32) -> (bool, i32, i32);
+    /// City slot 96 `CellCornerToPosition(x, z)` (§17.6).
+    fn cell_corner_to_position(&self, x: i32, z: i32) -> (f32, f32);
+    /// City slot 97 `CellCenterToPosition(x, z)` (§17.5.4).
+    fn cell_center_to_position(&self, x: i32, z: i32) -> (f32, f32);
     /// Simulator slot 8 `GetSimDateNumber`.
     fn sim_date(&self) -> u32;
     /// Terrain slots 7 / 8 (cell counts) and 6 (`CellWidth`).
@@ -404,6 +453,18 @@ pub trait LotDeveloperHost {
     /// at vertex index `x + z · vertsX`.
     fn terrain_altitude(&self, index: i32) -> f32;
     fn terrain_water_level(&self, index: i32) -> f32;
+    /// Terrain slot 13 `GetAltitude(x, z)` / slot 30 `GetWaterLevel(x, z)`
+    /// at a position in metres (§17.2, §17.6).
+    fn terrain_altitude_at(&self, x: f32, z: f32) -> f32;
+    fn terrain_water_level_at(&self, x: f32, z: f32) -> f32;
+    /// Terrain slot 37 `IsWaterVertex(x, z)` (slot 19, §17.4).
+    fn terrain_is_water_vertex(&self, x: i32, z: i32) -> bool;
+    /// Terrain slot 34 `CellHasWater(x, z)` (§17.5.4).
+    fn terrain_cell_has_water(&self, x: i32, z: i32) -> bool;
+    /// Zone manager slot 15 `GetZoneDragColor(zone)` and slot 16
+    /// `GetZoneDisplayAlpha()` (§17.7).
+    fn zone_drag_color(&self, zone: i32) -> u32;
+    fn zone_display_alpha(&self) -> u8;
     /// The object at `0x00B43DD8`, field +0x10: the zot orientation (§5.6).
     fn view_rotation(&self) -> i32;
     /// 24-hour clock slot 6 `GetVisualTimeMode` (§8.2).
@@ -446,6 +507,11 @@ pub trait LotDeveloperHost {
     /// Slot 15 `GetCenter`.
     fn lot_center(&self, lot: u64) -> Vec3;
     fn lot_zone_type(&self, lot: u64) -> i32;
+    /// Slots 16 / 17 `GetAltitude` / `SetAltitude` (§17.5, §17.6).
+    fn lot_altitude(&self, lot: u64) -> f32;
+    fn lot_set_altitude(&self, lot: u64, altitude: f32);
+    /// Slot 23 `GetFacing` (0–3; §17.6, §17.7).
+    fn lot_facing(&self, lot: u64) -> i32;
     fn lot_flags(&self, lot: u64) -> u32;
     fn lot_set_flags(&self, lot: u64, flags: u32);
     fn lot_set_vertices_locked(&self, lot: u64, locked: bool);
@@ -514,12 +580,12 @@ pub trait LotDeveloperHost {
     fn cfg_is_compatible_with_water(&self, cfg: u64) -> bool;
     /// Slot 23 `GetLotConfigurationObjectArray`, in array order.
     fn cfg_objects(&self, cfg: u64) -> Vec<CfgObject>;
-    /// Slot 24 `GetPrimaryBuildingConfigurationObject`: its ID list,
-    /// `None` without one.
-    fn cfg_primary_building_ids(&self, cfg: u64) -> Option<Vec<u32>>;
-    /// Slot 26 `GetPrimaryFoundationConfigurationObject`: its ID list,
-    /// `None` without one.
-    fn cfg_primary_foundation_ids(&self, cfg: u64) -> Option<Vec<u32>>;
+    /// Slot 24 `GetPrimaryBuildingConfigurationObject` (§17.1), `None`
+    /// without one.
+    fn cfg_primary_building_object(&self, cfg: u64) -> Option<CfgObject>;
+    /// Slot 26 `GetPrimaryFoundationConfigurationObject` (§17.1), `None`
+    /// without one.
+    fn cfg_primary_foundation_object(&self, cfg: u64) -> Option<CfgObject>;
     /// Slot 27 `HasObjectsOfType`.
     fn cfg_has_objects_of_type(&self, cfg: u64, object_type: u32) -> bool;
     /// Manager slot 8 `GetLotConfiguration(id)`.
@@ -528,54 +594,28 @@ pub trait LotDeveloperHost {
     /// `cfg`'s array: the IDs with families expanded in hash order.
     fn object_id_array(&self, cfg: u64, index: usize) -> Vec<u32>;
 
-    // ---- lot developer geometry slots left to the host (§12.2 Q4) ----
-    /// Slot 39 `GetPositionForLotConfigurationObject(lot, cfg, obj, pos,
-    /// orient)`: position and orientation of object `index`.
-    fn object_position(&self, lot: u64, cfg: u64, index: usize) -> (Vec3, i32);
-    /// Slot 40 `GetPositionForBuilding(lot, pos, orient)`.
-    fn position_for_building(&self, lot: u64) -> (bool, Vec3, i32);
+    // ---- slots and helpers §17 does not cover ----
     /// Slot 38 `GetFirstBuilding(lot)` (no reference).
     fn first_building(&self, lot: u64) -> Option<u64>;
-    /// Slot 19 `LevelAreaInternalVertices(rect, f, water, flag, lot)`.
-    fn level_area_internal_vertices(&self, rect: CellRect, altitude: f32, water: bool, flag: bool, lot: u64) -> bool;
-    /// Slot 21 `AttemptAreaLevelling(rect, maxSlope, flag, water,
-    /// maxAreaSlope, lot)`.
-    fn attempt_area_levelling(
-        &self,
-        rect: CellRect,
-        max_slope: f32,
-        flag: bool,
-        water: bool,
-        max_area_slope: f32,
-        lot: u64,
-    ) -> bool;
-    /// Slot 55 `AddLotFoundation(lot, type, a, b, c)`.
-    fn add_lot_foundation_type(&self, lot: u64, foundation: u32, a: bool, b: bool, c: bool) -> bool;
-    /// Slot 58 `AddBuildingFoundation(building, cfg)`.
-    fn add_building_foundation(&self, building: u64, cfg: u64) -> bool;
-    /// Slot 60 `RemoveBuildingFoundation`.
-    fn remove_building_foundation(&self, building: u64) -> bool;
-    /// Slots 61 / 62.
-    fn update_lot_foundation(&self, lot: u64) -> bool;
+    /// Slot 62 `UpdateLotRetainingWalls(lot)` (`0x005E37F0`).
     fn update_lot_retaining_walls(&self, lot: u64) -> bool;
     /// `UpdateLotObjectAlitudes` (§6.4).
     fn update_lot_object_altitudes(&self, lot: u64);
     /// Slot 45 `UpdateLotBaseTextureOccupant(lot, hadFoundation)`.
     fn update_lot_base_texture_occupant(&self, lot: u64, had_foundation: bool) -> bool;
-    /// Slot 43 `SetEmptyLotBaseTexture` (boundary rules, no draw).
-    fn set_empty_lot_base_texture(&self, lot: u64);
-    /// Slot 41 `GetLotBaseTextureOccupant(lot, occ, create)`.
+    /// Slot 41 `GetLotBaseTextureOccupant(lot, occ, create)`: the
+    /// base-texture occupant (as an occupant), `None` when the slot returns
+    /// false.
     fn base_texture_occupant(&self, lot: u64, create: bool) -> Option<u64>;
-    /// The base-texture occupant's flag 1 (already inserted).
-    fn base_texture_is_inserted(&self, occ: u64) -> bool;
-    /// The base-texture occupant's slot 8 `SetTextures(records, n, 0)`.
+    /// The base-texture occupant's slot 8 `SetTextureSpecification(records,
+    /// n, 0)` (also with no record).
     fn base_texture_set(&self, occ: u64, records: &[TextureRecord]);
-    /// `ClearLot` (§7.2): the retaining-wall helper `0x005E3070(lot, 0)`,
-    /// slot 53 `RemoveLotFoundation(x, z)`, `UpdateSurroundingLotFoundations`
-    /// and the surrounding retaining walls `0x005E3960`.
-    fn remove_lot_retaining_walls(&self, lot: u64);
-    fn remove_lot_foundation(&self, x: i32, z: i32) -> bool;
-    fn update_surrounding_lot_foundations(&self, lot: u64);
+    /// `cSC4LotRetainingWallOccupant::AddRetainingWallOccupant(lot, flag)`
+    /// (`0x005E3070`): flag 0 from `ClearLot` (§7.2), 1 from slot 55
+    /// (§17.5.4).
+    fn add_retaining_wall_occupant(&self, lot: u64, flag: u32);
+    /// `cSC4LotRetainingWallOccupant::UpdateSurroundingRetainingWalls(lot)`
+    /// (`0x005E3960`).
     fn update_surrounding_retaining_walls(&self, lot: u64);
     /// `AddNetworkConnectionNodes(lot, cfg, 1)` / `RemoveNetworkConnectionNodes`.
     fn add_network_connection_nodes(&self, lot: u64, cfg: u64);
@@ -590,6 +630,10 @@ pub trait LotDeveloperHost {
     fn building_release(&self, building: u64);
     /// Building slot 17 `SetLit`.
     fn building_set_lit(&self, building: u64, lit: bool);
+    /// Occupant slot 7 `GetType`.
+    fn occupant_type(&self, occ: u64) -> u32;
+    /// Occupant slot 8 `GetPosition`.
+    fn occupant_position(&self, occ: u64) -> Vec3;
     /// Occupant slot 10 `GetBoundingBox` (min, max).
     fn occupant_bounding_box(&self, occ: u64) -> (Vec3, Vec3);
     /// Occupant slot 11 `GetBoundingCityCells`.
@@ -608,6 +652,10 @@ pub trait LotDeveloperHost {
     /// Occupant slots 3 (`Init`), 29 (`SetFlag`), orientation and position.
     fn occupant_init(&self, occ: u64);
     fn occupant_set_flag(&self, occ: u64, flag: u32);
+    /// Occupant slot 32 `IsFlagSet(flag)` (flag 1: inserted).
+    fn occupant_is_flag_set(&self, occ: u64, flag: u32) -> bool;
+    /// Occupant slot 4 `Shutdown` (§17.7 `RemoveLotBaseTextures`).
+    fn occupant_shutdown(&self, occ: u64);
     fn occupant_set_orientation(&self, occ: u64, orientation: u32);
     fn occupant_set_position(&self, occ: u64, pos: Vec3);
     /// Occupant manager slot 20 `InsertOccupant(occ, 0)`.
@@ -622,6 +670,32 @@ pub trait LotDeveloperHost {
     /// Occupant manager slot 41 `GetOccupantsByStandardCityCells(list,
     /// min, max, type, −1)`.
     fn occupants_in_cells(&self, rect: CellRect, occupant_type: u32) -> Vec<u64>;
+    /// Occupant manager slot 37 (the box query with an occupant-type
+    /// filter, flags −1) (§17.5.1), in list order.
+    fn occupants_in_box(&self, min: Vec3, max: Vec3, occupant_type: u32) -> Vec<u64>;
+    /// Building slot 14 `GetOrientation` (§17.5.5).
+    fn building_orientation(&self, building: u64) -> i32;
+
+    // ---- foundations (cISC4FoundationOccupant, §17.5) ----
+    /// `QueryInterface(0xC8FCE101)` then slot 9 `GetKind()`; `None` when the
+    /// occupant is not a foundation.
+    fn foundation_kind(&self, occ: u64) -> Option<i32>;
+    /// Slot 4 `GetFoundationType()`.
+    fn foundation_type(&self, occ: u64) -> u32;
+    /// BDS slot 23 `AddNewFoundationOccupant(type, kind, pos, dx, dz,
+    /// orient, bottom)` (§17.5.3): AL; it may replace `pos[1]` (a negative
+    /// top becomes the highest vertex under the foundation).
+    #[allow(clippy::too_many_arguments)]
+    fn add_new_foundation_occupant(
+        &self,
+        foundation_type: u32,
+        kind: i32,
+        pos: &mut Vec3,
+        dx: f32,
+        dz: f32,
+        orient: i32,
+        bottom: f32,
+    ) -> bool;
 
     // ---- prop manager ----
     /// Slot 15 `CreateProp(type)`.
@@ -702,6 +776,20 @@ pub trait LotDeveloperHost {
     fn demolish_occupant(&self, occ: u64) -> bool;
     /// Slot 7 `DemolishLots(1, [lot], 0, 0x800, 0, 0, 0, 0)`.
     fn demolish_lot(&self, lot: u64) -> bool;
+    /// Slot 9 `ModifyTerrainHeight(1, perVertex, x0, z0, x1, z1, h, exempt,
+    /// 5, null)` (§17.3): EAX, the number of vertices counted. The only
+    /// terrain writer the lot developer reaches.
+    #[allow(clippy::too_many_arguments)]
+    fn modify_terrain_height(
+        &self,
+        per_vertex: bool,
+        x0: i32,
+        z0: i32,
+        x1: i32,
+        z1: i32,
+        h: f32,
+        exempt: Option<u64>,
+    ) -> i32;
 
     // ---- business units (cISC4BusinessUnit) ----
     /// Slot 5 `GetMembers`, in member order.

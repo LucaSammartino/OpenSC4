@@ -171,7 +171,7 @@ for each port p (list order):
     p.efficiency := Efficiency(capacity(p) × ratio, trips)
     (usage, cap) := PortUsageValues(p)                        -- usage = min(trips, capacity), cap = capacity
     new := float(usage) / float(cap)
-    demand.UpdateOccupantEffects(lot.GetBuildingType(0), &p.usage, &new);  p.usage := new
+    demand.UpdateOccupantEffects(lot.GetBuildingType(0), &p.usage, &new);  p.usage := new   -- PD2, below
     stressed := (p.efficiency ≤ type.threshold or funded ≤ 0) and lot.GetDaysSinceLastStateChange() > 90
     lot.SetCondition(stressed ? 2 : 0)
     if state ∈ {1, 3, 4} and GrowthTriggered(p) and not offered:
@@ -183,6 +183,11 @@ record history (key +0x38, round(AverageEfficiency() × 100))
   otherwise `1 − t / c`. It is the **spare** fraction of the funded capacity: high means idle.
 - `ratio` is `funded / required` (not `fr`): with no funding it is 0, every port with trips gets efficiency 0.
   With `RequiredBudget() = 0` (impossible with shipped data) it is a division by zero *[quirk]*.
+- The usage update (PD2) is **on top of** the building's own demand effects. `UpdateOccupantEffects(bt, old, new)`
+  removes the effects at `old` and adds them at `new` (demand.md §7.1), and the port's first call has `old = 0`. The
+  lot's occupancy change (state 1 → 3) has already added the effects at full strength (demand.md §7.1), so an
+  occupied port contributes (1 + usage) × its effects, and the monthly call moves only the usage part *[inferred:
+  port lots take the common occupancy path]*.
 - `GrowthTriggered(p)`: there is a next stage, the lot is not constructing (state ≠ 2) and `float(trips) ≥
   float(capacity(p)) × 0.96`.
 - Only the first triggered port in list order is offered each month.
@@ -274,7 +279,7 @@ pointer): if `swapping`, clear it; otherwise remove the port:
 | Method | Result |
 |---|---|
 | `GetAvgEfficiency()` | `AverageEfficiency()` (§4.3), returned through a hidden pointer |
-| `GetLeastEfficientPort(&pct, &point)` | no ports → false; one port → its efficiency and location, true. **Two or more ports: the original loops forever** (the search loop never advances) *[quirk]*. No shipped caller was found. *[choice]* FreeCity4 returns the minimum efficiency (first port on ties) and its location |
+| `GetLeastEfficientPort(&pct, &point)` | no ports → false; one port → its efficiency and location, true. **Two or more ports: the original loops forever** (the search loop never advances) *[quirk]*. No shipped caller was found, and no Lua binding exists: the executable's only port names for scripts are the `g_*airport*` and `g_seaport_*` count and volume globals (strings at file offset `0x682C0E`–`0x683090`), and no string contains `LeastEfficient` (PD1). *[choice]* FreeCity4 returns the minimum efficiency (first port on ties) and its location |
 | `GetAllPortLots(vector&)` | appends every port's lot (resolving it), one reference each |
 | `GetNumPorts(sizeFlags, stageFlags)` | ports with `sizeFlags & (1 << sizeClass)` and `stageFlags & (1 << stage)`. **The size bit is `1 << size class`** (small 2, medium 4, large 8); the SDK's `PortSizeEnumToFlag` (1, 2, 4) is wrong. The stage bits are 1, 2, 4 for stages 0, 1, 2 |
 | `GetNumAirports(size)` | `size = 0`: number of ports; otherwise `GetNumPorts(1 << size, 0x1F)` |
@@ -301,7 +306,10 @@ beyond that is dropped *[compat]*. So a water cell's low four bits say which map
 has a terrain grid and its size equals the lot's cell area, each lot cell's terrain altitude is set
 (`SetAltitudeAtVertex`) from the grid, read in an orientation chosen by the lot's facing. *[quirk]* The shipped
 seaport type declares 11 × 5 but ships 72 values (a 12 × 6 lot), so the grid is rejected at load and this step
-never runs.
+never runs. The code counts **cells** in both places (PD4): the load keeps the grid only when rows × columns equals
+the value count (`0x006EA676`–`0x006EA690`), and the use only when rows × columns equals the lot rectangle's cell
+area, then sets one vertex per cell, the far edge excluded (`0x007013D7`–`0x0070141A`). So the declared size is the
+data error; a 12 × 6 declaration would load, and would apply to a 12 × 6 lot.
 
 ## 5. Random numbers
 

@@ -74,7 +74,9 @@ slot 3 is the deleting destructor thunk).
 | `+0x8C` | an object pointer | null | no |
 
 Nothing in the clock ever sets `+0x8C`. `Shutdown` passes the string at `+0x78` to that object's slot 7 and releases
-it, but only when the pointer is non-null *[inferred: dead code]*. *[choice]* FreeCity4 omits both fields (CK3).
+it, but only when the pointer is non-null: dead code (CK3, verified: the clock's only writes to `+0x8C` are the
+constructor's 0 at `0x00445A15` and `Shutdown`'s clear at `0x0044516B`, and no accessor hands the field out).
+*[choice]* FreeCity4 omits both fields.
 
 ## 3. Cadence and messages
 
@@ -411,6 +413,11 @@ IID `0xA52160F5` by `ReadSimulatorTunableValues` (`0x00445220`) at the end of `I
 | `0x09B73421` | `nightStart` (u32 hour) | keeps the current value | 20 |
 | `0x09B73422` | `nightEnd` (u32 hour) | keeps the current value | 1 |
 
+All three are read with the converting getters (CK20): the magnification with the Float32 one (`0x005FD4F0`,
+`0x0044527E`), the hours with the Uint32 one (`0x005FD480`, `0x0044529C`, `0x004452AB`). So an array gives its
+first value through the text round trip, an array of count 0 gives 0 (the getter succeeds), and a float hour is
+truncated (data-formats §5.1).
+
 If the exemplar is missing, nothing changes: the magnification is 100.0 (or the saved value) and the night hours
 are 20 and 4 (or the saved ones). The hours are not range-checked; an hour of 24 or more only changes the modular
 comparison of §4.1.
@@ -490,6 +497,21 @@ decrementing it first: it calls `Shutdown`, then the deleting destructor through
 
 Message target: slot 3 `DoMessage(cIGZMessage2*)`, 1 arg, pops 4, AL = 1. Serializable: slot 3 `Write` and slot 4
 `Read`, 1 arg, pop 4, AL; slot 5 `GetGZCLSID()`, EAX. System service: slot 11 `OnIdle(u32)`, 1 arg, pops 4, AL = 1.
+
+**The system-service sub-object** (`+0x0C`, vtable `0x00A8652C`; CK16–CK18, re-answers11), in SDK order: slot 3
+`GetServiceID` (`0x009CEDE1`, `0xA7E7F92A`), 4 `SetServiceID`, 5 `GetServicePriority` (`0x0099BE66`), 6
+`IsServiceRunning`, 7 `SetServiceRunning`, 8 `Init` and 9 `Shutdown` (the clock's own, through thunks), 10 `OnTick`
+(`0x0091559A`: **AL = 1**, pops 4, nothing else), 11 `OnIdle`, 12 `GetServiceTickPriority` (`0x009D4714`). The base
+constructor (`0x0091DE0F`) stores its priority argument both as the priority and as the **tick priority**
+(`0x0091DE34`, `0x0091DE37`), so both are −2,000,000. Slot 0 of this sub-object is a thunk to the clock's own
+`QueryInterface` (`0x00445A80` → `0x00444E40`), so every interface pointer answers the same five IIDs: the four of
+§1 and, through the base (`0x0091DD67`), `0x287FB697` with the `+0x0C` pointer. IID 1 is answered by the clock
+itself (the primary pointer). Any other IID returns **false and leaves `*out` unwritten** (`0x009457DC`).
+
+**Return values of slots 5, 8 and 11** (CK19). None is meaningful: slot 5 leaves whatever `ChangeVisualTime` left
+in EAX, or the mode for an unknown mode; slot 8 leaves the quotient of its division by 86,400 (`0x0044549B`); slot
+11 leaves the last message post's result, or the current hour when the hour does not change. No caller reads EAX
+after them *[inferred]*; a replacement may return anything.
 
 ## 9. Who reaches in
 

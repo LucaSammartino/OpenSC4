@@ -281,6 +281,23 @@ pub unsafe extern "C" fn fc4_commercial_do_idle(c: *mut fc4_commercial) {
     with_c(c, (), |h| h.sim.do_idle())
 }
 
+/// Tooling (the commercial shadow, ABI 53): sets the `DoIdle` machine to the
+/// original's `dirty` and `state` (§2.1, §4.3). False for a state outside
+/// 0..3, which changes nothing.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_commercial_set_machine(c: *mut fc4_commercial, dirty: bool, state: i32) -> bool {
+    if !(0..=3).contains(&state) {
+        return false;
+    }
+    with_c(c, false, |h| {
+        h.sim.with_state(|s| {
+            s.dirty = dirty;
+            s.state = state;
+        });
+        true
+    })
+}
+
 /// Slot 5 `GetProximityMap(developerType)` (§4.6): the grid's token (the
 /// game's `cISC4SimGrid<uint8>`), 0 for any other type or no grid. No
 /// reference is added.

@@ -92,6 +92,10 @@ Result on the GOG install, 2026-10-15: 417 saves (417 distinct), each with one h
 CRCs correct. History: 14 version 2, byte-identical; 403 version 1, converted, stable; 26,552 series, 127,182
 points. Clock: 407 version 1 and 10 version 2, all 417 identical after the version normalisation. No failures.
 
+The commercial, industrial, civic and park records have the same mode in `fc4-capi`
+(`capi/src/save_sweep_tests.rs`, through the C ABI and its test hosts; same `FC4_SAVES_DIR`):
+`cargo test -p fc4-capi --release save_sweep -- --nocapture` (see `engine/README.md`, "Save sweep").
+
 ## Sources
 
 Written from public format documentation, checked against the shipped data:

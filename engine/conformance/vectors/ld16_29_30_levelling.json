@@ -1,0 +1,83 @@
+{
+  "format": 1,
+  "name": "lot_developer_levelling",
+  "spec": ["lot-developer 17.2", "lot-developer 17.3", "lot-developer 17.4", "lot-developer 16"],
+  "description": "Tests 29 and 30 (§17.4 worked examples 2 and 1), with the shipped tuning (kLotAutoLevelInternalAltitudeDelta 20, MaxAreaSlopeAllowedForLevelling 40). Test 29: cells (0, 0, 1, 1), vertices 0..2, dry, flat at 100 except (2, 2) = 104. Slot 18 GetAverageAreaAltitude reads an INT32 cell rectangle (§11.1: the SDK's float rectangle is wrong) and gives 904 / 9 = 100.44444 (0x42C8E38E). Slot 21 AttemptAreaLevelling with maxAreaSlope FLT_MAX uses the tuning's 40: the slope 4 / 2.828427 = 1.4142135 is below it, so ModifyTerrainHeight(1, perVertex, 0, 0, 2, 2, avg, lot, 5, null) runs. Per vertex: 9 SetAltitude(x, z, 100.44444) (x outer, z inner) and one RedisplayTerrain(1, 1, (0, 0, 3, 3), 5); slot 21 returns ModifyTerrainHeight's EAX, 9 (a count, not a bool). Area mode (perVertex false): one SetAltitude((0, 0, 2, 2), 100.44444, 0, 5) and RedisplayTerrain((0, 0, 2, 2)); returns 9. With (2, 2) = 260 the slope is 160 / 2.828427 = 56.568542 > 40: slot 21 returns 0 and makes no terrain call. With maxAreaSlope = 1000 the slope test is skipped (m < 1000 is false) and the 260 case levels too. The unused second argument of slot 21 is not modelled by the op. Test 30: lot (10, 10, 12, 12), dry, flat at 100 except (11, 11) = 130 and (12, 12) = 115. Slot 19 LevelAreaInternalVertices(rect, -1.0, false, false, lot): the negative target becomes the average 1645 / 16 = 102.8125; only (11, 11) lies more than 20 above it, so one ModifyTerrainHeight(1, 1, 11, 11, 11, 11, 102.8125, lot, 5, null) writes it and redisplays cells (10, 10, 12, 12); slot 19 returns the CALL count 1. With force: four calls, (11, 11), (11, 12), (12, 11), (12, 12), each writing its vertex; returns 4. A rectangle 1 cell wide in x has no interior vertex: no call, 0. A 2-cell-wide rectangle on flat terrain makes no call either (§16 test 30 says a 2-cell-wide rectangle makes no call at all; §17.4 step 2 gives it one interior column, LD-Q1, implemented as §17.4: only the 1-cell-wide case is guaranteed call-free). With kLotAutoLevelInternalAltitudeDelta = 30 the first case makes no call (27.1875 is not above 30).",
+  "steps": [
+    {"op": "ldev_terrain", "flat": 100, "vertex": [[2, 2, 104]]},
+    {"op": "ldev_lot", "id": 1, "x": 0, "z": 0, "w": 2, "h": 2, "state": 2},
+    {"op": "ldev_create", "seed": 12345},
+    {"op": "ldev_init", "expect": true},
+
+    {"op": "ldev_area_altitude", "rect": [0, 0, 1, 1], "water": true, "average": true, "expect": 100.44444, "expect_bits": "0x42C8E38E"},
+    {"op": "ldev_area_slope", "rect": [0, 0, 1, 1], "water": true, "expect": 1.4142135},
+
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_attempt_levelling", "rect": [0, 0, 1, 1], "water": true, "per_vertex": true, "max_slope": "flt_max", "lot": 1, "expect": 9},
+    {"op": "ldev_expect_events", "events": [
+      {"event": "modify_terrain", "per_vertex": true, "rect": [0, 0, 2, 2], "h": 100.44444, "exempt": 1},
+      {"event": "set_altitude", "x": 0, "z": 0, "h": 100.44444}, {"event": "set_altitude", "x": 0, "z": 1, "h": 100.44444},
+      {"event": "set_altitude", "x": 0, "z": 2, "h": 100.44444}, {"event": "set_altitude", "x": 1, "z": 0, "h": 100.44444},
+      {"event": "set_altitude", "x": 1, "z": 1, "h": 100.44444}, {"event": "set_altitude", "x": 1, "z": 2, "h": 100.44444},
+      {"event": "set_altitude", "x": 2, "z": 0, "h": 100.44444}, {"event": "set_altitude", "x": 2, "z": 1, "h": 100.44444},
+      {"event": "set_altitude", "x": 2, "z": 2, "h": 100.44444},
+      {"event": "redisplay", "rect": [0, 0, 3, 3], "reason": 5}]},
+    {"op": "ldev_expect_terrain", "vertex": [[0, 0, 100.44444], [2, 2, 100.44444], [3, 3, 100]]},
+
+    {"op": "ldev_terrain", "reset": true, "vertex": [[2, 2, 104]]},
+    {"op": "ldev_attempt_levelling", "rect": [0, 0, 1, 1], "water": true, "per_vertex": false, "max_slope": "flt_max", "lot": 1, "expect": 9},
+    {"op": "ldev_expect_events", "events": [
+      {"event": "modify_terrain", "per_vertex": false, "rect": [0, 0, 2, 2], "h": 100.44444, "exempt": 1},
+      {"event": "set_altitude_rect", "rect": [0, 0, 2, 2], "h": 100.44444, "reason": 5},
+      {"event": "redisplay", "rect": [0, 0, 2, 2], "reason": 5}]},
+
+    {"op": "ldev_terrain", "reset": true, "vertex": [[2, 2, 260]]},
+    {"op": "ldev_area_slope", "rect": [0, 0, 1, 1], "water": true, "expect": 56.568542},
+    {"op": "ldev_attempt_levelling", "rect": [0, 0, 1, 1], "water": true, "per_vertex": true, "max_slope": "flt_max", "lot": 1, "expect": 0},
+    {"op": "ldev_attempt_levelling", "rect": [0, 0, 1, 1], "water": true, "per_vertex": true, "max_slope": "nan", "lot": 1, "expect": 0,
+      "note": "NaN also falls back to the tuning's 40"},
+    {"op": "ldev_expect_terrain", "vertex": [[2, 2, 260]]},
+    {"op": "ldev_expect_events", "events": []},
+
+    {"op": "ldev_attempt_levelling", "rect": [0, 0, 1, 1], "water": true, "per_vertex": true, "max_slope": 1000, "lot": 1, "expect": 9,
+      "note": "m = 1000 skips the slope test"},
+    {"op": "ldev_expect_event_count", "filter": {"event": "modify_terrain"}, "count": 1},
+    {"op": "ldev_expect_event_count", "filter": {"event": "set_altitude"}, "count": 9},
+    {"op": "ldev_clear_events"},
+
+    {"op": "ldev_terrain", "reset": true, "flat": 100, "vertex": [[11, 11, 130], [12, 12, 115]]},
+    {"op": "ldev_area_altitude", "rect": [10, 10, 12, 12], "water": true, "average": true, "expect": 102.8125},
+    {"op": "ldev_lot", "id": 2, "x": 10, "z": 10, "w": 3, "h": 3, "state": 2, "locked": true,
+      "note": "the lot being built has its vertices locked (§6.1); as the exempt lot it never blocks its own levelling"},
+    {"op": "ldev_level_internal", "rect": [10, 10, 12, 12], "target": -1.0, "skip_water": false, "force": false, "lot": 2, "expect": 1},
+    {"op": "ldev_expect_events", "events": [
+      {"event": "modify_terrain", "per_vertex": true, "rect": [11, 11, 11, 11], "h": 102.8125, "exempt": 2},
+      {"event": "set_altitude", "x": 11, "z": 11, "h": 102.8125},
+      {"event": "redisplay", "rect": [10, 10, 12, 12], "reason": 5}]},
+    {"op": "ldev_expect_terrain", "vertex": [[11, 11, 102.8125], [12, 12, 115], [11, 12, 100]]},
+
+    {"op": "ldev_terrain", "reset": true, "vertex": [[11, 11, 130], [12, 12, 115]]},
+    {"op": "ldev_level_internal", "rect": [10, 10, 12, 12], "target": -1.0, "skip_water": false, "force": true, "lot": 2, "expect": 4},
+    {"op": "ldev_expect_events", "filter": {"event": "modify_terrain"}, "events": [
+      {"rect": [11, 11, 11, 11], "h": 102.8125}, {"rect": [11, 12, 11, 12], "h": 102.8125},
+      {"rect": [12, 11, 12, 11], "h": 102.8125}, {"rect": [12, 12, 12, 12], "h": 102.8125}]},
+    {"op": "ldev_expect_terrain", "vertex": [[11, 11, 102.8125], [11, 12, 102.8125], [12, 11, 102.8125], [12, 12, 102.8125]]},
+
+    {"op": "ldev_terrain", "reset": true, "vertex": [[11, 11, 130], [12, 12, 115]]},
+    {"op": "ldev_level_internal", "rect": [10, 10, 10, 12], "target": -1.0, "skip_water": false, "force": true, "lot": 2, "expect": 0,
+      "note": "1 cell wide in x: no interior vertex"},
+    {"op": "ldev_level_internal", "rect": [10, 10, 12, 10], "target": -1.0, "skip_water": false, "force": true, "lot": 2, "expect": 0,
+      "note": "1 cell wide in z"},
+    {"op": "ldev_terrain", "reset": true},
+    {"op": "ldev_level_internal", "rect": [10, 10, 11, 11], "target": -1.0, "skip_water": false, "force": false, "lot": 2, "expect": 0,
+      "note": "2 cells wide, flat (LD-Q1)"},
+    {"op": "ldev_expect_events", "events": []},
+
+    {"op": "ldev_terrain", "reset": true, "vertex": [[11, 11, 130], [12, 12, 115]]},
+    {"op": "ldev_tuning", "from_shipped": true, "auto_level_delta": 30},
+    {"op": "ldev_read_tuning"},
+    {"op": "ldev_level_internal", "rect": [10, 10, 12, 12], "target": -1.0, "skip_water": false, "force": false, "lot": 2, "expect": 0},
+    {"op": "ldev_expect_events", "events": []},
+    {"op": "ldev_expect_terrain", "vertex": [[11, 11, 130]]}
+  ]
+}

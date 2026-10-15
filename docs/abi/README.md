@@ -32,6 +32,10 @@ How to use them:
 - A method declared `float`/`double` must have `ret = x87`, and a method with `ret = x87` must be declared
   `float`/`double`.
 - `int64` returns must have `edx:eax`.
+- **SDK declarations the game does not match** (the game is binding; a plugin built on the SDK form corrupts the stack
+  in the original too): `cISC424HourClock` slots 7 `GetTimePercentage` and 9 `GetVisualTimePercentage` take a `float*`
+  out and pop 4 (`ret 4` at `0x0044543E`, `0x0044546E`; SDK `float (void)`), slot 19 `GetEventHour` takes a dword index,
+  not a `bool`, and slot 20 `GetTimeMagnification` returns the float's bits in EAX (clock24.md §8, CK6).
 - `eax-or-void` does not tell a pointer from a bool or a value: the spec decides that.
 - **A float/double declaration on a method the game treats as `eax-or-void` corrupts the x87 register stack.**
   If the game calls our method, every call leaves one value on the game's x87 stack that nothing removes; after

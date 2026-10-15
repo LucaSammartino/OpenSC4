@@ -861,6 +861,11 @@ orientation 1. A core that uses 0 saves 0 for the same zot.
 *[choice]* Glue should read the rotation by steps 1–4 at the moment it places the zot. If the view is null, it
 should use 0 instead of crashing.
 
+**When the rotation is read** (LG30). The global caches the **object**, not the rotation: `AddZot` loads the
+pointer from `0x00B43DD8` and reads `+0x10` at placement (`0x006BB510`, `0x006BB51F`). So the original also uses
+the rotation current when the zot is placed, and a read at placement through steps 1–4 gives the same value. Only
+a view that is not open differs: the original then reads through a null pointer, the glue uses 0.
+
 ### 4.8 Tile models (`UpdateSurroundingTiles(heap)`) and the random draws
 
 A heap's state change redraws the four cells it covers, in the order `(hx, hz)`, `(hx+1, hz)`, `(hx, hz+1)`,
