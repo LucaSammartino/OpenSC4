@@ -51,6 +51,7 @@ pub mod plumbing;
 pub mod pollution;
 pub mod port_developer;
 pub mod power;
+pub mod prop_developer;
 pub mod property;
 pub mod props;
 pub mod protection;
