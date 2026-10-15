@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "mysim_record_round_trip",
+  "spec": ["mysims 6.2", "mysims 12.18"],
+  "description": "A MySim with every field set writes the version-17 record of section 6.2 (u16 17, the rows in order, references numbered from 1, then the advisor part); reading it into a new MySim and writing again gives identical bytes. A state-0 MySim writes 11 00 00 then the advisor part. Versions above 17 or below 11 are rejected [choice].",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_building", "token": "0x900", "position": [100, 0, 100], "lot": {"cell": [6, 6], "wealth": 2, "condition": 1}},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 0, "method": "move_in", "slot": 0},
+    {"op": "mysim_call", "sim": 0, "method": "set_residence", "building": "0x900", "expect": true},
+    {"op": "mysim_set", "sim": 0, "state": 2},
+    {"op": "mysim_building", "token": "0x500", "position": [0, 0, 0]},
+    {"op": "mysim_call", "sim": 0, "method": "job_found", "building": "0x500", "cell": [9, 8]},
+    {"op": "mysim_set", "sim": 0, "neighbor_cell": [-1, -2], "jobless_days": 4, "vehicle_key": [10, 11, 12], "is_male": true, "age": 33, "birth_month": 5, "last_commute_time": 17, "retired": true, "last_local_disaster": "0x77", "eq_index": 2, "eq_delta": 1.5, "eq_ring": [1, 2, 3, 4, 5, 6], "hq_index": 4, "hq_delta": -2.5, "hq_ring": [7, 8, 9, 10, 11, 12], "car_key": [20, 21, 22], "pedestrian_key": [30, 31, 32], "unnamed_pair": [-5, 6], "dispatch": "0x5555", "pylon": [1, "0x0102030405060708", 1], "dispatch_tool": "0x6666", "unnamed_flag": true, "last_player_trip_day": 1234},
+    {"op": "mysim_write", "sim": 0, "name": "rec", "expect": true},
+    {"op": "mysim_write", "sim": 0, "name": "part", "advisor_part": true, "expect": true},
+    {"op": "mysim_expect_record", "name": "rec", "hex": "11000200010000007856341206000000060000000200000078563412FFFFFFFFFEFFFFFF0900000008000000040000000A0000000B0000000C00000002010003010300000062696F21050700000005000000702E706E671100000001770000000000C842000000000000C842020000C03F0000803F0000004000004040000080400000A0400000C04004000020C00000E04000000041000010410000204100003041000040411400000015000000160000001E0000001F00000020000000FBFFFFFF0600000003000000785634120108070605040302010101040000007856341201D2040000", "then": "part"},
+    {"op": "mysim_read", "new": "MySim", "as": "copy", "record": "rec", "expect": true},
+    {"op": "mysim_expect", "sim": "copy", "state": {"residence": "0x1001", "job": "0x1002", "dispatch": "0x1003", "dispatch_tool": "0x1004", "last_player_trip_day": 1234, "personal_name": "Ann", "home_cell": [6, 6]}},
+    {"op": "mysim_write", "sim": "copy", "name": "rec2", "expect": true},
+    {"op": "mysim_expect_record", "name": "rec2", "hex": "", "then": "rec", "note": "identical bytes"},
+
+    {"op": "mysim_write", "sim": 1, "name": "zero", "expect": true},
+    {"op": "mysim_write", "sim": 1, "name": "zero_part", "advisor_part": true, "expect": true},
+    {"op": "mysim_expect_record", "name": "zero", "hex": "110000", "then": "zero_part"},
+    {"op": "mysim_read", "new": "MySim", "as": "z", "record": "zero", "expect": true},
+    {"op": "mysim_write", "sim": "z", "name": "zero2", "expect": true},
+    {"op": "mysim_expect_record", "name": "zero2", "hex": "", "then": "zero"},
+    {"op": "mysim_read", "sim": "z", "record": "zero", "patch": [0, "12"], "expect": false, "note": "version 18 [choice]"},
+    {"op": "mysim_read", "sim": "z", "record": "zero", "patch": [0, "0A"], "expect": false, "note": "version 10 [choice]"}
+  ]
+}

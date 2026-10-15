@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "mysim_spawn",
+  "spec": ["mysims 4.8", "mysims 12.11"],
+  "description": "Spawn with wealth 2 and GetAverageNewAgeByWealth(2) = 30: age 30, generation + 1, retired 0, the bio emptied, MySimsChanged posted.",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_building", "token": "0x900", "position": [100, 0, 100], "lot": {"cell": [6, 6], "wealth": 2, "condition": 1}},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 0, "method": "move_in", "slot": 0},
+    {"op": "mysim_call", "sim": 0, "method": "set_residence", "building": "0x900", "expect": true},
+    {"op": "mysim_set", "sim": 0, "state": 2},
+    {"op": "mysim_set", "sim": 0, "retired": true, "age": 80},
+    {"op": "mysim_env", "new_age": 30},
+    {"op": "adv_clear_events"},
+    {"op": "mysim_call", "sim": 0, "method": "do_script_command", "command": "0x6A495F7F"},
+    {"op": "mysim_expect", "sim": 0, "state": {"age": 30, "generation": 2, "retired": false, "bio": "", "wealth": 2}},
+    {"op": "adv_expect_event_count", "filter": {"event": "mysim_post", "type": "0xAA25827C"}, "count": 1}
+  ]
+}

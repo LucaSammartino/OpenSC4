@@ -15,11 +15,11 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use fc4_core::advisors::scripted::{HostCall, Occupant, ScriptedHost};
+use fc4_core::advisors::Advice;
 use fc4_core::advisors::{
     batch_size, clsid, AdviceEntry, AdviceSubject, Advisor, AdvisorEntry, AdvisorMessage, AdvisorSystem,
     ConditionalStatus, Item, ListKind, ListSrc, LuaResult, LuaValue, Src, SrcKind, SubjectInit, SubjectState, Val,
 };
-use fc4_core::advisors::Advice;
 use fc4_core::julian::julian_from_civil;
 use fc4_core::mysims::scripted::{MsCall, ScriptedMySimHost};
 use fc4_core::mysims::MySimAgent;
@@ -101,9 +101,7 @@ impl World {
     }
 
     pub(crate) fn advisor(&self, id: i32) -> R<Rc<Advisor>> {
-        self.sys()?
-            .get_advisor(id)
-            .ok_or_else(|| format!("no advisor {id}"))
+        self.sys()?.get_advisor(id).ok_or_else(|| format!("no advisor {id}"))
     }
 }
 
@@ -129,8 +127,7 @@ pub(crate) fn subject_json(s: &SubjectState) -> Json {
     Json::Object(vec![
         (
             "location".into(),
-            s.location
-                .map_or(Json::Null, |(x, z)| Json::Array(vec![jf(x), jf(z)])),
+            s.location.map_or(Json::Null, |(x, z)| Json::Array(vec![jf(x), jf(z)])),
         ),
         ("object".into(), s.object.map_or(Json::Null, |o| ji(o as i64))),
         ("data1".into(), ji(s.data1)),
@@ -244,9 +241,7 @@ fn opt_bool(op: &Json, k: &str, d: bool) -> R<bool> {
 }
 
 fn key_of(k: &str) -> R<i64> {
-    Json::Str(k.to_owned())
-        .as_i64()
-        .ok_or_else(|| format!("bad key '{k}'"))
+    Json::Str(k.to_owned()).as_i64().ok_or_else(|| format!("bad key '{k}'"))
 }
 
 fn pair_f32(j: &Json, what: &str) -> R<(f32, f32)> {
@@ -537,7 +532,10 @@ fn advice_state(w: &World, a: &Rc<Advice>) -> Vec<(String, Json)> {
             Json::Array(s.effects.iter().map(|e| ji(*e)).collect()),
         ),
         ("trigger_source".into(), jstr(&s.trigger_source)),
-        ("has_trigger".into(), Json::Bool(s.trigger != fc4_core::advisors::NO_TRIGGER)),
+        (
+            "has_trigger".into(),
+            Json::Bool(s.trigger != fc4_core::advisors::NO_TRIGGER),
+        ),
         ("loaded".into(), Json::Bool(s.loaded)),
         ("nd_type".into(), ji(s.nd_type)),
         (
@@ -547,12 +545,9 @@ fn advice_state(w: &World, a: &Rc<Advice>) -> Vec<(String, Json)> {
     ];
     // The info record of the advisor holding it.
     let info = w.sys().ok().and_then(|sys| {
-        sys.advisors().into_iter().find_map(|(_, adv)| {
-            adv.state()
-                .infos
-                .into_iter()
-                .find(|i| Rc::ptr_eq(&i.advice, a))
-        })
+        sys.advisors()
+            .into_iter()
+            .find_map(|(_, adv)| adv.state().infos.into_iter().find(|i| Rc::ptr_eq(&i.advice, a)))
     });
     if let Some(i) = info {
         v.push(("next_day".into(), ji(i.next_day)));
@@ -699,7 +694,11 @@ fn env(w: &World, op: &Json) -> R<()> {
     }
     if let Some(v) = opt(op, "date") {
         let a = arr(v, "date")?;
-        let g = |i: usize| a.get(i).ok_or_else(|| "date: [y, m, d]".to_string()).and_then(|x| i64_of(x, "date"));
+        let g = |i: usize| {
+            a.get(i)
+                .ok_or_else(|| "date: [y, m, d]".to_string())
+                .and_then(|x| i64_of(x, "date"))
+        };
         h.set_day(julian_from_civil(g(0)? as i32, g(1)? as i32, g(2)? as i32));
     }
     if let Some(v) = opt(op, "start_year") {
@@ -875,10 +874,7 @@ fn list(w: &World, op: &Json) -> R<()> {
         kind: Some(list_kind_of(field(op, "kind")?)?),
         a: opt_u32(op, "a", 0)?,
         groups: match opt(op, "groups") {
-            Some(g) => arr(g, "groups")?
-                .iter()
-                .map(|x| u32_of(x, "group"))
-                .collect::<R<_>>()?,
+            Some(g) => arr(g, "groups")?.iter().map(|x| u32_of(x, "group")).collect::<R<_>>()?,
             None => Vec::new(),
         },
     };
@@ -912,10 +908,7 @@ fn occupant(w: &World, op: &Json) -> R<()> {
         conditional: opt(op, "conditional").map(|v| bool_of(v, "conditional")).transpose()?,
         key_instance: opt(op, "key_instance").map(|v| u32_of(v, "key_instance")).transpose()?,
         groups: match opt(op, "groups") {
-            Some(g) => arr(g, "groups")?
-                .iter()
-                .map(|x| u32_of(x, "group"))
-                .collect::<R<_>>()?,
+            Some(g) => arr(g, "groups")?.iter().map(|x| u32_of(x, "group")).collect::<R<_>>()?,
             None => Vec::new(),
         },
     };
@@ -958,9 +951,7 @@ fn status(w: &World, op: &Json) -> R<()> {
 /// `adv_deal`: deal object `object` of type `type`.
 fn deal(w: &World, op: &Json) -> R<()> {
     let o = i64_of(field(op, "object")?, "object")? as u64;
-    w.h.deals
-        .borrow_mut()
-        .insert(o, u32_of(field(op, "type")?, "type")?);
+    w.h.deals.borrow_mut().insert(o, u32_of(field(op, "type")?, "type")?);
     Ok(())
 }
 
@@ -1216,10 +1207,7 @@ fn lua(w: &World, op: &Json) -> R<()> {
     let sys = w.sys()?;
     let f = str_of(field(op, "fn")?, "fn")?;
     let args = match opt(op, "args") {
-        Some(a) => arr(a, "args")?
-            .iter()
-            .map(|x| lua_arg(w, x))
-            .collect::<R<Vec<_>>>()?,
+        Some(a) => arr(a, "args")?.iter().map(|x| lua_arg(w, x)).collect::<R<Vec<_>>>()?,
         None => Vec::new(),
     };
     let r = sys.call_lua(f, &args);
@@ -1463,9 +1451,7 @@ fn load(w: &World, op: &Json) -> R<()> {
 /// store record in save `save` equals `hex`.
 fn expect_entry(w: &World, op: &Json) -> R<()> {
     let saves = w.saves.borrow();
-    let s = saves
-        .get(str_of(field(op, "save")?, "save")?)
-        .ok_or("no such save")?;
+    let s = saves.get(str_of(field(op, "save")?, "save")?).ok_or("no such save")?;
     let class = class_of(field(op, "class")?)?;
     let entry = opt(op, "entry").map_or(Ok(0), |v| i64_of(v, "entry"))? as usize;
     let got = scalar::entry_payload(s, class, entry)?;
@@ -1499,10 +1485,7 @@ fn expect(w: &World, op: &Json) -> R<()> {
 /// `adv_expect_globals`: `values` (`{"name": value}`; null: never written).
 fn expect_globals(w: &World, op: &Json) -> R<()> {
     let mut errors = Vec::new();
-    for (k, v) in field(op, "values")?
-        .as_object()
-        .ok_or("values must be an object")?
-    {
+    for (k, v) in field(op, "values")?.as_object().ok_or("values must be an object")? {
         let got = w.h.global(k).map_or(Json::Null, jnum);
         if !scalar::matches(&got, v, false) {
             errors.push(format!("{k}: got {}, expected {}", scalar::show(&got), scalar::show(v)));
@@ -1575,10 +1558,7 @@ fn expect_status(w: &World, op: &Json) -> R<()> {
 /// `adv_expect_refs`: `refs` (`{"token": count}`) of host objects.
 fn expect_refs(w: &World, op: &Json) -> R<()> {
     let mut errors = Vec::new();
-    for (k, v) in field(op, "refs")?
-        .as_object()
-        .ok_or("refs must be an object")?
-    {
+    for (k, v) in field(op, "refs")?.as_object().ok_or("refs must be an object")? {
         let t = key_of(k)? as u64;
         let got = w.h.refs.borrow().get(&t).copied().unwrap_or(0);
         if got != i64_of(v, k)? {

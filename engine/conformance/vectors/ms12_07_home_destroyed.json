@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "mysim_home_destroyed",
+  "spec": ["mysims 4.8", "mysims 8", "mysims 12.7"],
+  "description": "Removing the home (data4 0, no disaster) pushes 0xAA48F5C1 and searches a new home with one RandomUint32Uniform(n) draw on the MySim's generator (seed 1, n = 4 -> (0x41C6 x 4) >> 32 = 0: the search starts at the first candidate), which it moves into.",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_building", "token": "0x900", "position": [100, 0, 100], "lot": {"cell": [6, 6], "wealth": 2, "condition": 1}},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 0, "method": "move_in", "slot": 0},
+    {"op": "mysim_call", "sim": 0, "method": "set_residence", "building": "0x900", "expect": true},
+    {"op": "mysim_set", "sim": 0, "state": 2},
+    {"op": "mysim_building", "token": "0x101", "position": [10, 0, 0], "lot": {"cell": [1, 1], "wealth": 2, "condition": 1}},
+    {"op": "mysim_building", "token": "0x102", "position": [20, 0, 0], "lot": {"cell": [1, 1], "wealth": 2, "condition": 1}},
+    {"op": "mysim_building", "token": "0x103", "position": [30, 0, 0], "lot": {"cell": [1, 1], "wealth": 2, "condition": 1}},
+    {"op": "mysim_reseed", "sim": 0, "seed": 1},
+    {"op": "mysim_set", "sim": 0, "queue": []},
+    {"op": "mysim_message", "type": "0x99EF1143", "data3": "0x278128A0", "void1": "0x900", "expect": true},
+    {"op": "mysim_expect", "sim": 0, "state": {"events": ["0xAA48F5C1"], "residence": "0x101", "state": 1, "lcg": 1103527590}}
+  ]
+}

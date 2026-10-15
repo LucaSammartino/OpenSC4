@@ -1730,6 +1730,109 @@ Park events: `tuning` (the exemplar was asked for), `acquire` (`service`, `ok`),
 `void1`, `unknown`: the posted ZooEscape), `controllers` (`name`, `occupant`; only with an automata controller
 manager), and the stub's `double`, `u32` (`n`).
 
+## Advisor ops
+
+The advisor vectors (`ad17_…`, `ad04_…`, `ad06_…`) drive `fc4_core::advisors::AdvisorSystem` (`docs/specs/advisors.md`)
+over the core's scripted host (`fc4_core::advisors::scripted::ScriptedHost`). Every op name starts with `adv_`. Lua is
+replaced by literal trigger texts: a trigger evaluates its text through `adv_trigger`, else as a literal (`true`,
+`false`, `nil`, a number, `0/0`, `"str"`, `error`). The default world: a city that exists and is established,
+difficulty 0, 64 × 64 cells, day 0, start year 2000, not paused, no debug, an empty `advisors` table, no advices, no
+sources (every read fails), tags (1, 2). Detokenizing prefixes `detok:`. A host object reference has class
+`0x12345678` and its token as the object.
+
+Object specs (`object`, `advisor`, `advice`, `target`, …): `"system"`, `{"advisor": id}`, `{"advice": guid,
+"advisor"?: id}` (the first advisor holding it), `{"mysim": index}` (with the MySim ops) or a name given by
+`adv_subject`, `adv_create_object`, `mysim_read` or a record read (`ref<id>`).
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `adv_env` | any of `has_city`, `established`, `difficulty` (null: unreadable), `cells` ([x, z]), `day` or `date` ([y, m, d]), `start_year`, `paused`, `now_ms`, `debug`, `popup` (`{low, medium, high}` or null), `tutorial`, `advisors_table` (false: not a table), `tags` | the world |
+| `adv_advisor` | `class` (name or ID), `id`, `caption?` (`Planning\|tail`), `name?` (`Bob`), `advice_type?` (1) | appends an `advisors` entry |
+| `adv_advice` | `guid`, `class?` (`Advice`), `type?` (1), `priority?` (50), `mood?`, `frequency?` (35), `timeout?` (45), `trigger?` (text, default `true`; null: none), `once`, `news_only`, `event`, `command`, `persist`, `no_timeout`, `effects`, `nd_type`, `replace?` (empties the table first) | appends an `advices` entry |
+| `adv_trigger` | `text`, `result` (`true`/`false`, a number or `"nan"`, `"nil"`, `"error"`, `{"str": s}`) or `bad: true` (does not compile) | a trigger's result |
+| `adv_condition` | `index`, `result` | a reward condition's result |
+| `adv_value` | `src` (a `SrcKind` name), `a?`, `b?`, `object?`, `value` (`{i, f, cell, object, object2, n, m}`; null: unreadable) | a subsystem value |
+| `adv_list` | `kind` (`hospitals`, `schools`, `fire_stations`, `police_stations`, `port_lots`, `connections`, `deal_proposals` or a code), `a?`, `groups?`, `items` (`[{object, f0, f1, x, z, flags, kind}]`; null: unreadable) | a list read |
+| `adv_occupant` | `occupant`, `type?` (building), `conditional?`, `key_instance?`, `groups?` | an occupant |
+| `adv_reward_subject` / `adv_status` / `adv_deal` / `adv_history` | `guid` + subject fields / `guid`, `status`, `count?`, `tooltip?` / `object`, `type` / `type`, `value`, `slope`, `count` | reward subjects, conditional-building statuses, deals, history |
+| `adv_create` | `session_seed?` | a new system over the same host (not initialised) |
+| `adv_subject` | `name`, `clone_of?`, `location?` (through `SetLocation`), `object?` (null: none), `data1?`, `data2?` | creates or changes a named subject |
+| `adv_set` | `object` + advisor fields (`month_counter`, `current_day`, `cursor`, `dirty`, `pending`, `building_count`, `park_count`, `recreation_count`, `landmarks`, `name`, `queue: []`, `info: {guid, next_day?, expiry?, last_month?}`), advice fields (`nd_type`, `guid`, `advisor`) or `reload_pending` (system) | pokes the state |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `adv_init` / `adv_shutdown` / `adv_reload_data` / `adv_ticker` | `expect?` | the system's slots; the ticker handler |
+| `adv_message` | `target?` (system), `type` (a name or ID), `data1`–`data4`, `void1`, `unknown`, `expect?` | `DoMessage` |
+| `adv_day` | `day` or `date`, `advisor?` | sets the date, then the advisor's `Simulate(0)` |
+| `adv_simulate` / `adv_update_variables` | `advisor`, `kind` / `advisor` | `Simulate(kind)` / `UpdateVariables` |
+| `adv_push_event` | `event`, `subject?`, `advisor?` (its queue; default: the system) | `PushEvent` |
+| `adv_flags` / `adv_get_trigger` / `adv_retire` / `adv_command_would_trigger` | `advice`, `mask`, `on` / `advice` / `advisor`, `advice?` / `advisor`, `command`; `expect?` | the advice and advisor slots |
+| `adv_context` | `push` (an advice) or `pop` (`expect`: the GUID or null) | the context-advice stack |
+| `adv_lua` | `fn`, `args` (numbers, `"0x…"`, null, booleans, `{"str"}`, `{"subject": name}`), `expect` (the results; null: no such function), `expect_bits?` | a Lua function |
+| `adv_rng` | `mul?`, `lcg?`, `expect_mul?`, `expect_range?` (`range_f64(0, 100)` as float32) | the system generator |
+| `adv_batch_size` / `adv_popup` | `n`, `expect` / `init?`, `expect` | the §6.2 batch size / the popup threshold |
+| `adv_add_advisor` / `adv_advisor_init` / `adv_create_object` | `object` / `object`, `table_index` / `class`, `as`; `expect?` | the system's factory and advisor slots |
+| `adv_write` / `adv_read` / `adv_expect_record` | `object`, `name` / `object`, `hex` or `record` / `name`, `hex` | one record (references numbered from 1; read references: core classes from the factory, others host objects with token = ID) |
+| `adv_save` / `adv_load` / `adv_expect_entry` | `name` / `name` (into the current system) / `save`, `class`, `entry?`, `hex` | the class-object store round trip |
+| `adv_expect` | `object`, `state` (partial; see below) or `absent: true` | an object's state |
+| `adv_expect_globals` / `adv_expect_local` | `values` (`{name: value or null}`) / `name`, `value`, `subject` (partial) or `absent` | the Lua variables (a local reads the host log since the last event check) |
+| `adv_expect_status` / `adv_expect_refs` / `adv_expect_history_days` | `guid`, `state` / `refs` / `days` | statuses, host references, history reads |
+| `adv_expect_events` / `adv_expect_event_count` / `adv_clear_events` | see the shared conventions | host calls (both hosts when the MySim ops run) |
+
+State fields. System: `advisors`, `initialized`, `loaded_from_save`, `reload_pending`, `thresholds`, `tags`,
+`last_day`, `idle_start`, `context`, `dolly_llama`, `popup_threshold`. Advisor: `id`, `class`, `kind`, `caption`,
+`name`, `advice_type`, `table_index`, `month_counter`, `current_day`, `cursor`, `advices`, `active` (GUIDs), `events`
+(`{"0xEVENT": [indices]}`), `queue` (`[[event, subject]]`), `dirty`, `pending`, the subscription flags, the
+CityPlanning counters and `landmarks`, the Safety flags. Advice: `guid`, `class`, `kind`, `flags`, `active`,
+`advisor`, `table_index`, `priority`, `frequency`, `timeout`, `mood`, `event`, `command`, `effects`,
+`trigger_source`, `has_trigger`, `loaded`, `nd_type`, `subject`, and from its advisor `next_day`, `expiry`,
+`last_month`. Subject: `location`, `object`, `data1`, `data2`, `has_location`, `x`, `z`.
+
+Advisor events: `post` / `send` (`type`, `data1`, `object`: `none`, `advice:0xGUID`, `advisor:ID` or `host:0x…`),
+`update_self` (`advisor`, `data1`, `data2`), `subscribe` / `unsubscribe` (`target`, `type`), `global` / `local`
+(`name`, `value`, `subject`), `global_string`, `effect` (`id`, `assert`), `rebuild` (`guid`), `history`, `status`,
+`cheat` (`id`, `on`), `window` (`start`), `ticker`, `collect_garbage`, `lua` (`call`), `cancel_deal`,
+`set_ordinance`.
+
+## MySim ops
+
+The MySim vectors (`ms12_…`) drive `fc4_core::mysims` (`docs/specs/mysims.md`): the agent simulator and the MySims,
+which are advisors of the advisor world above (so the `adv_` ops work on them too). Every op name starts with
+`mysim_`. `mysim_create` builds the shipped advisors table (a plain advisor 23, MySims 1–5, the My Street sim 30),
+a new system with the MySim classes registered, `Init`, and the agent's `Init`, over the core's scripted MySim host
+(`fc4_core::mysims::scripted::ScriptedMySimHost`): 64 × 64 cells, cell centres at 16 × c + 8 m, every read failing
+until set. `sim` is a vector index (0–5) or a name from `mysim_read`.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `mysim_create` | `table?` (`"shipped"` or `[{class, id}]`), `session_seed?`, `init?` (true) | the world (logs cleared) |
+| `mysim_env` | any of `cells`, `ui_blocked`, `disaster_ongoing`, `no_lua`, `no_query`, `change_job`, `no_trip_simulators`, `eq`, `hq`, `travel_ratio`, `commute`, `life_expectancy`, `new_age` (null: unreadable), `disaster_locations` (`[[type, [x, z]]]`), `tuning`, `average_age` (`[[x, z, age]]`), `grids` (`[[grid, x, z, v]]`; grids `crime`, `air`, `water`, `garbage`, `radiation`, `aura`, `average_eq`, `average_hq`, `congestion`, `desirability:0x…`), `grids_at`, `coverage` (`{police, fire}`), `powered` / `watered` (`{token: bool}`), `stations` (`{police, fire: [[token, funding]]}`), `find_job` (queued answers), `job_destination`, `neighbor_names` (`[[x, z, name]]`), `special` / `schools` / `hospitals` (tokens), `grades` / `landmark_funding` (`{token: f}`) | the host's answers |
+| `mysim_building` | `token`, `type?` (0x10), `name?` (`House`), `groups?` ([0x1000]), `completion?` (1), `purpose?` (1), `position`, `lot?` (`{cell, rect?, condition? 1, road_access? true, wealth? 2, building?}`) or `remove` | a building and its lot |
+| `mysim_position` / `mysim_rect_lot` / `mysim_dispatch` | `occupant`, `position` / a lot / `id` + dispatch fields | a fire's position / a lot of the trip square / a MySim's dispatch |
+| `mysim_set` | `sim` + MySim fields (state, slot, wealth, age, keys, rings, pylon, references, …), `month_counter`, `queue: []` | pokes the state |
+| `mysim_reseed` | `sim`, `seed` | the MySim's generator restarts (clock seeds 1) |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `mysim_call` | `sim`, `method` (`move_in`, `set_residence`, `change_residence`, `find_new_residence`, `test_for_residence`, `change_job`, `find_new_job`, `job_found`, `check_commute`, `fail_commute`, `quit_job`, `neighbor_connection_removed`, `move_out`, `leave_city`, `delete_from_game`, `announce_move_in`, `update_variables`, `update_quick_variables`, `update_local_buildings`, `do_script_command`, `distance_to_closest`, `distance_to_closest_special`, `local_grade`, `trip_area`, `update_trip_variables`, `disaster`, `building_added`, `building_removed`, `fire_added`, `pipe_burst`, `tornado`, `command_would_trigger`, `init`) with named arguments, `expect?` | a MySim slot |
+| `mysim_simulate` | `sim`, `kind`, `day?`, `month_counter?` (before the step) | `Simulate(kind)` |
+| `mysim_message` | `sim?` (default: the agent), the message fields | `DoMessage` |
+| `mysim_agent` | `method` (`init`, `shutdown`, `count`, `active`, `move_in`, `lives_here`, `set_active_ui_panel_sim`, `get_active_ui_panel_sim`, `write`, `read`), `expect?` | the agent's slots |
+| `mysim_expect` / `mysim_expect_subject` / `mysim_expect_fields` / `mysim_expect_agent` | `sim`, `state` / `sim`, `event`, `state` / `sim`, `fields` / `state` | the MySim state (with `id`, `class`, `personal_name`, `month_counter`, `events` (queued IDs), `lcg`), a queued subject, the Lua fields, the agent |
+| `mysim_write` / `mysim_read` / `mysim_compose` / `mysim_expect_record` | `sim`, `name`, `advisor_part?` / `sim` or `new` + `as`, `hex` or `record`, `patch?` ([offset, hex]), `token_base?` (0x1000) / `name`, `parts` / `name`, `hex`, `then?`, `prefix?` | records (read references resolve to host tokens base + ID) |
+| `mysim_expect_refs` / `mysim_run` | `refs` / `months`, `days?` (28), `start_day` | references held / day and month passes of MySims 0–4 |
+
+MySim events: `create_table`, `activate` (`sim`), `agent_lua` (`on`), `mysim_post` (`type`, `data1`, `data2`,
+`void1`, `sim`), `dispatch` (`sim`, `what`), `trigger` (`name`, `position`), `mysim_subscribe` (`type`, `on`).
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
@@ -1741,7 +1844,8 @@ manager), and the stub's `double`, `u32` (`n`).
    `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `ld16_…` (lot developer §16),
    `zn15_…` (zones §15), `lf11_…` (landfill §11), `nb18_…` (neighbours §18), `tn11_…` (traffic network §11),
    `pf11_…` (pathfinder §11), `rs15_…` (residential §15), `rs00_…` (other residential behaviour), `ts11_…`
-   (traffic simulator §11), `hw12_…` (history §12) and `ck12_…` (clock24 §12).
+   (traffic simulator §11), `hw12_…` (history §12), `ck12_…` (clock24 §12), `ad17_…` (advisors §17; `ad04_…` and
+   `ad06_…` for other advisor behaviour) and `ms12_…` (MySims §12).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -2714,3 +2818,64 @@ shapes of the §7.1 table.
 
 Not covered by a vector: the 421-save corpus itself (part of item 8) is not available to this suite; `pk12_08`
 replays the record shapes §7 reports.
+
+## Coverage (advisors §17)
+
+| §17 item | Vector |
+|---|---|
+| 1 batch size | `ad17_01_batch_size` |
+| 2 evaluation gate | `ad17_02_evaluation_gate` |
+| 3 once | `ad17_03_once` |
+| 4 persist / no_timeout | `ad17_04_persist_no_timeout` |
+| 5 trigger values (also a trigger that does not compile, a missing trigger) | `ad17_05_trigger_values` |
+| 6 event advice | `ad17_06_event_advice` |
+| 7 activation messages | `ad17_07_activation_messages` |
+| 8 ticker | `ad17_08_ticker` |
+| 9 paused | `ad17_09_paused` |
+| 10 mayor rating | `ad17_10_mayor_rating` |
+| 11 subject clamp (and the object references) | `ad17_11_subject_clamp` |
+| 12 reward condition | `ad17_12_reward_condition` |
+| 13 persistence round trip | `ad17_13_persistence` |
+| 14 advice record | `ad17_14_advice_record` |
+| 15 subject record | `ad17_15_subject_record` |
+| 16 system record | `ad17_16_system_record` |
+| 17 CityPlanning record | `ad17_17_city_planning_record` |
+| 18 random_chance | `ad17_18_random_chance` |
+| 19 utility counts | `ad17_19_utility_counts` |
+| 20 HQ empty lists | `ad17_20_hq_empty_lists` |
+| 21 popup thresholds | `ad17_21_popup_thresholds` |
+| 22 Lua functions | `ad17_22_lua_functions` |
+
+Other behaviour: system Init and Shutdown (`ad04_01_system_init`), advisor re-Init against a changed table
+(`ad04_02_advisor_reinit`), RetireAdvice and CommandWouldTrigger (`ad06_01_retire_command`). The unit tests of
+`fc4_core::advisors` cover the subclass variables (§5.5, §7) in more depth.
+
+## Coverage (MySims §12)
+
+| §12 item | Vector |
+|---|---|
+| 1 ownership (the vector, get_count, the agent record; more than five MySims) | `ms12_01_ownership` |
+| 2 move-in age | `ms12_02_move_in_age` |
+| 3 move-in EQ ring | `ms12_03_eq_ring` |
+| 4 EQ ≤ 0 ignored | `ms12_04_eq_not_positive` |
+| 5 ageing (and the skip conditions) | `ms12_05_ageing` |
+| 6 job search | `ms12_06_job_search` |
+| 7 home destroyed (no disaster) | `ms12_07_home_destroyed` |
+| 8 home destroyed by disaster | `ms12_08_home_destroyed_by_disaster` |
+| 9 job destroyed | `ms12_09_job_destroyed` |
+| 10 script commands | `ms12_10_script_commands` |
+| 11 spawn | `ms12_11_spawn` |
+| 12 building added (and a fire) | `ms12_12_building_added` |
+| 13 riot subject (and pipe burst, tornado) | `ms12_13_riot_subject` |
+| 14 trip percentages (landmark and disasters: `ms12_14b_trip_landmark`) | `ms12_14_trip_percentages` |
+| 15 local distances (and the closest special building) | `ms12_15_local_distances` |
+| 16 school grade | `ms12_16_school_grade` |
+| 17 GetActiveUIPanelSim | `ms12_17_active_ui_panel_sim` |
+| 18 persistence round trip | `ms12_18_record` |
+| 19 old version (14) | `ms12_19_version_14` |
+| 20 no feedback | `ms12_20_no_feedback` |
+
+Item 3: the `delta_eq` field is written by `UpdateVariables` (§4.3 step 3) before the ring moves (step 4), so the
+field after step k shows the delta of step k − 1; the vector checks both. Item 20 in its full-game form (every
+simulator record byte-identical over 24 months with and without MySims) needs the whole simulator stack; the vector
+checks that the MySims make no simulator-facing host call.

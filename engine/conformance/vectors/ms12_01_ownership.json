@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "mysim_ownership",
+  "spec": ["mysims 1.3", "mysims 6.1", "mysims 12.1"],
+  "description": "With the shipped advisors table the agent's vector holds MySims 1-5 at indices 0-4 and the My Street sim (30) at index 5; get_count() = 6. The agent is not saved by the class store: its own record is u16 1 (version 1 only). Shutdown releases the Lua functions and the 11 subscriptions, Init subscribes them in order and registers the Lua functions.",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_expect_agent", "state": {"initialised": true, "slots": [1, 2, 3, 4, 5, 30], "count": 6}},
+    {"op": "mysim_agent", "method": "count", "expect": 6},
+    {"op": "mysim_expect", "sim": 5, "state": {"id": 30, "class": "0x0BF606A5"}},
+    {"op": "mysim_agent", "method": "write", "name": "agent", "expect": true},
+    {"op": "adv_expect_record", "name": "agent", "hex": "0100", "note": "the agent is not a saved object: only u16 1"},
+    {"op": "mysim_agent", "method": "read", "hex": "0100", "expect": true},
+    {"op": "mysim_agent", "method": "read", "hex": "0200", "expect": false},
+    {"op": "mysim_agent", "method": "shutdown", "expect": true},
+    {"op": "adv_expect_events", "events": [{"event": "agent_lua", "on": false}, {"event": "mysim_subscribe", "type": "0x99EF1142", "on": false}, {"event": "mysim_subscribe", "type": "0x99EF1145", "on": false}, {"event": "mysim_subscribe", "type": "0x99EF1143", "on": false}, {"event": "mysim_subscribe", "type": "0xA6B79602", "on": false}, {"event": "mysim_subscribe", "type": "0xA6B79612", "on": false}, {"event": "mysim_subscribe", "type": "0x44778230", "on": false}, {"event": "mysim_subscribe", "type": "0x8A09FA6C", "on": false}, {"event": "mysim_subscribe", "type": "0xCA1B1E64", "on": false}, {"event": "mysim_subscribe", "type": "0xEA1F0DCD", "on": false}, {"event": "mysim_subscribe", "type": "0xA36F1E9", "on": false}, {"event": "mysim_subscribe", "type": "0xEA0D163E", "on": false}]},
+    {"op": "mysim_expect_agent", "state": {"initialised": false, "slots": [null, null, null, null, null, null]}},
+    {"op": "mysim_agent", "method": "init", "expect": true},
+    {"op": "adv_expect_events", "events": [{"event": "mysim_subscribe", "type": "0x99EF1142", "on": true}, {"event": "mysim_subscribe", "type": "0x99EF1145", "on": true}, {"event": "mysim_subscribe", "type": "0x99EF1143", "on": true}, {"event": "mysim_subscribe", "type": "0xA6B79602", "on": true}, {"event": "mysim_subscribe", "type": "0xA6B79612", "on": true}, {"event": "mysim_subscribe", "type": "0x44778230", "on": true}, {"event": "mysim_subscribe", "type": "0x8A09FA6C", "on": true}, {"event": "mysim_subscribe", "type": "0xCA1B1E64", "on": true}, {"event": "mysim_subscribe", "type": "0xEA1F0DCD", "on": true}, {"event": "mysim_subscribe", "type": "0xA36F1E9", "on": true}, {"event": "mysim_subscribe", "type": "0xEA0D163E", "on": true}, {"event": "agent_lua", "on": true}]},
+
+    {"op": "mysim_create", "table": [{"class": "MySim", "id": 1}, {"class": "MySim", "id": 2}, {"class": "MySim", "id": 3}, {"class": "MySim", "id": 4}, {"class": "MySim", "id": 5}, {"class": "MySim", "id": 6}, {"class": "MySim", "id": 7}]},
+    {"op": "mysim_expect_agent", "state": {"slots": [1, 2, 3, 4, 5, null]}, "note": "beyond index 4: ignored [choice]"}
+  ]
+}

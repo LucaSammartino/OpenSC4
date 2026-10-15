@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "mysim_trip_landmark",
+  "spec": ["mysims 4.6"],
+  "description": "A landmark lot in the trip square: trip_landmark_nearby 1, its funding 0.75 -> 75 and its name; a fire at a cell inside the square sets trip_fire_nearby, a disaster outside it nothing.",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_building", "token": "0x900", "position": [100, 0, 100], "lot": {"cell": [6, 6], "wealth": 2, "condition": 1}},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 0, "method": "move_in", "slot": 0},
+    {"op": "mysim_call", "sim": 0, "method": "set_residence", "building": "0x900", "expect": true},
+    {"op": "mysim_set", "sim": 0, "state": 2},
+    {"op": "mysim_building", "token": "0x650", "groups": ["0x150A"], "name": "Tower"},
+    {"op": "mysim_env", "landmark_funding": {"0x650": 0.75}, "disaster_locations": [["0x621CDA33", [1, 1]], ["0x1234", [50, 50]]]},
+    {"op": "mysim_rect_lot", "cell": [0, 0], "wealth": 0, "condition": 0, "building": "0x650"},
+    {"op": "mysim_call", "sim": 0, "method": "trip_area", "rect": [-5, -5, 5, 5]},
+    {"op": "mysim_expect_fields", "sim": 0, "fields": {"trip_landmark_nearby": 1, "trip_landmark_funding_p": 75, "trip_landmark_name": "Tower", "trip_fire_nearby": 1, "trip_riot_nearby": 0}}
+  ]
+}

@@ -85,9 +85,7 @@ fn sim_adv(w: &World, op: &Json) -> R<Rc<Advisor>> {
         };
     }
     let i = i64_of(j, "sim")? as usize;
-    agent_of(w)?
-        .sim(i)
-        .ok_or_else(|| format!("no MySim at index {i}"))
+    agent_of(w)?.sim(i).ok_or_else(|| format!("no MySim at index {i}"))
 }
 
 fn with_sim<T>(adv: &Rc<Advisor>, f: impl FnOnce(&MySim) -> T) -> R<T> {
@@ -313,9 +311,7 @@ fn env(h: &ScriptedMySimHost, op: &Json) -> R<()> {
         for e in arr(v, "average_age")? {
             let a = arr(e, "average_age")?;
             let c = (i64_of(&a[0], "x")? as i32, i64_of(&a[1], "z")? as i32);
-            h.average_age
-                .borrow_mut()
-                .insert(c, i64_of(&a[2], "age")? as i32);
+            h.average_age.borrow_mut().insert(c, i64_of(&a[2], "age")? as i32);
         }
     }
     if let Some(v) = opt(op, "grids") {
@@ -323,9 +319,7 @@ fn env(h: &ScriptedMySimHost, op: &Json) -> R<()> {
             let a = arr(e, "grids")?;
             let g = grid_of(&a[0])?;
             let (x, z) = (i64_of(&a[1], "x")? as i32, i64_of(&a[2], "z")? as i32);
-            h.grids
-                .borrow_mut()
-                .insert((g, x, z), i64_of(&a[3], "value")? as i32);
+            h.grids.borrow_mut().insert((g, x, z), i64_of(&a[3], "value")? as i32);
         }
     }
     if let Some(v) = opt(op, "grids_at") {
@@ -337,16 +331,13 @@ fn env(h: &ScriptedMySimHost, op: &Json) -> R<()> {
     }
     if let Some(v) = opt(op, "coverage") {
         for (k, x) in v.as_object().ok_or("coverage must be an object")? {
-            h.coverage
-                .borrow_mut()
-                .insert(k == "police", i64_of(x, k)? as i32);
+            h.coverage.borrow_mut().insert(k == "police", i64_of(x, k)? as i32);
         }
     }
     for (k, m) in [("powered", &h.powered), ("watered", &h.watered)] {
         if let Some(v) = opt(op, k) {
             for (t, x) in v.as_object().ok_or("an object of tokens")? {
-                m.borrow_mut()
-                    .insert(tok(&Json::Str(t.clone()), k)?, bool_of(x, k)?);
+                m.borrow_mut().insert(tok(&Json::Str(t.clone()), k)?, bool_of(x, k)?);
             }
         }
     }
@@ -392,8 +383,7 @@ fn env(h: &ScriptedMySimHost, op: &Json) -> R<()> {
     for (k, m) in [("grades", &h.grades), ("landmark_funding", &h.landmark_funding)] {
         if let Some(v) = opt(op, k) {
             for (t, x) in v.as_object().ok_or("an object of tokens")? {
-                m.borrow_mut()
-                    .insert(tok(&Json::Str(t.clone()), k)?, f32_of(x, k)?);
+                m.borrow_mut().insert(tok(&Json::Str(t.clone()), k)?, f32_of(x, k)?);
             }
         }
     }
@@ -446,7 +436,9 @@ fn building(h: &ScriptedMySimHost, op: &Json) -> R<()> {
     }
     let b = Building {
         building_type: opt(op, "type").map_or(Ok(0x10), |v| u32_of(v, "type"))?,
-        name: opt(op, "name").map_or(Ok(b"House".to_vec()), |v| str_of(v, "name").map(|s| s.as_bytes().to_vec()))?,
+        name: opt(op, "name").map_or(Ok(b"House".to_vec()), |v| {
+            str_of(v, "name").map(|s| s.as_bytes().to_vec())
+        })?,
         groups: opt(op, "groups").map_or(Ok(vec![0x1000]), |v| u32s(v, "groups"))?,
         completion: opt(op, "completion").map_or(Ok(1.0), |v| f32_of(v, "completion"))?,
         purpose: opt(op, "purpose").map_or(Ok(1), |v| u32_of(v, "purpose"))?,
@@ -754,7 +746,10 @@ fn set(w: &World, op: &Json) -> R<()> {
             *f = f32_of(v, k)?;
         }
     }
-    for (k, f) in [("eq_ring", &mut s.eq_ring as &mut [f32; 6]), ("hq_ring", &mut s.hq_ring)] {
+    for (k, f) in [
+        ("eq_ring", &mut s.eq_ring as &mut [f32; 6]),
+        ("hq_ring", &mut s.hq_ring),
+    ] {
         if let Some(v) = opt(op, k) {
             *f = f32s6(v, k)?;
         }
@@ -872,24 +867,14 @@ fn mysim_state(adv: &Rc<Advisor>, m: &MySim) -> Vec<(String, Json)> {
         ("last_trip_update_day".into(), ji(s.last_trip_update_day)),
         (
             "local".into(),
-            Json::Object(
-                s.local
-                    .iter()
-                    .map(|(k, v)| (format!("0x{k:X}"), ji(*v)))
-                    .collect(),
-            ),
+            Json::Object(s.local.iter().map(|(k, v)| (format!("0x{k:X}"), ji(*v))).collect()),
         ),
         ("lua_table".into(), Json::Bool(s.lua_table)),
         ("subscribed".into(), Json::Bool(s.subscribed)),
         ("local_area_size".into(), ji(s.local_area_size)),
         (
             "tuning".into(),
-            Json::Object(
-                s.tuning
-                    .iter()
-                    .map(|(k, v)| (k.clone(), Json::Float(*v)))
-                    .collect(),
-            ),
+            Json::Object(s.tuning.iter().map(|(k, v)| (k.clone(), Json::Float(*v))).collect()),
         ),
     ]
 }
@@ -931,10 +916,7 @@ fn expect_fields(w: &World, op: &Json) -> R<()> {
     let h = host(w)?;
     let id = adv.id();
     let mut errors = Vec::new();
-    for (k, v) in field(op, "fields")?
-        .as_object()
-        .ok_or("fields must be an object")?
-    {
+    for (k, v) in field(op, "fields")?.as_object().ok_or("fields must be an object")? {
         let got = h.field(id, k).map_or(Json::Null, |f| field_json(&f));
         if !crate::scalar::matches(&got, v, false) {
             errors.push(format!(
@@ -1065,10 +1047,9 @@ fn read(w: &World, op: &Json) -> R<()> {
                 .sys()?
                 .create_advisor(advisors::class_of(c)?)
                 .ok_or("cannot create that class")?;
-            w.named.borrow_mut().insert(
-                str_of(field(op, "as")?, "as")?.to_owned(),
-                Obj::Advisor(a.clone()),
-            );
+            w.named
+                .borrow_mut()
+                .insert(str_of(field(op, "as")?, "as")?.to_owned(), Obj::Advisor(a.clone()));
             a
         }
         None => sim_adv(w, op)?,
@@ -1153,10 +1134,7 @@ fn compose(w: &World, op: &Json) -> R<()> {
 /// `mysim_expect_refs`: `refs` (`{"token": count}`) the MySims hold.
 fn expect_refs(h: &ScriptedMySimHost, op: &Json) -> R<()> {
     let mut errors = Vec::new();
-    for (k, v) in field(op, "refs")?
-        .as_object()
-        .ok_or("refs must be an object")?
-    {
+    for (k, v) in field(op, "refs")?.as_object().ok_or("refs must be an object")? {
         let t = tok(&Json::Str(k.clone()), "token")?;
         let got = i64::from(h.refs.borrow().get(&t).copied().unwrap_or(0));
         if got != i64_of(v, k)? {

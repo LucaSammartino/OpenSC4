@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "mysim_move_in_age",
+  "spec": ["mysims 4.1", "mysims 12.2"],
+  "description": "Moving in: the average-age grid value 12 at the home cell gives age 18 (the minimum), 40 gives 40. The MySim is moving in (state 1) with the lot's wealth, generation 1, the home cell and position; MySimsChanged is posted and the dispatch starts the commute and the move-in control.",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_building", "token": "0x900", "position": [100, 0, 100], "lot": {"cell": [6, 6], "wealth": 2, "condition": 1}},
+    {"op": "mysim_building", "token": "0x901", "position": [200, 0, 200], "lot": {"cell": [7, 7], "wealth": 2, "condition": 1}},
+    {"op": "mysim_env", "average_age": [[6, 6, 12], [7, 7, 40]]},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 0, "method": "move_in", "slot": 0},
+    {"op": "mysim_call", "sim": 0, "method": "set_residence", "building": "0x900", "expect": true},
+    {"op": "mysim_expect", "sim": 0, "state": {"age": 18, "state": 1, "wealth": 2, "generation": 1, "home_cell": [6, 6], "home_position": [100, 0, 100], "residence": "0x900"}},
+    {"op": "adv_expect_event_count", "filter": {"event": "mysim_post", "type": "0xAA25827C"}, "count": 1, "min": 1},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 1, "method": "move_in", "slot": 1},
+    {"op": "mysim_call", "sim": 1, "method": "set_residence", "building": "0x901", "expect": true},
+    {"op": "mysim_expect", "sim": 1, "state": {"age": 40}},
+    {"op": "adv_expect_event_count", "filter": {"event": "dispatch", "what": "start_commute"}, "min": 1},
+    {"op": "adv_expect_event_count", "filter": {"event": "dispatch", "what": "move_in_control"}, "min": 1}
+  ]
+}

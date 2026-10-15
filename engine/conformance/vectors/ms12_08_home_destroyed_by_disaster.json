@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "mysim_home_destroyed_by_disaster",
+  "spec": ["mysims 3.2", "mysims 4.8", "mysims 12.8"],
+  "description": "A disaster started with data4 0xCA380B06 is remembered; removing the home with data4 4 while a disaster is ongoing sets last_local_disaster to it, pushes 0xAA4D2D64, clears the residence and leaves the state unchanged.",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_building", "token": "0x900", "position": [100, 0, 100], "lot": {"cell": [6, 6], "wealth": 2, "condition": 1}},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 0, "method": "move_in", "slot": 0},
+    {"op": "mysim_call", "sim": 0, "method": "set_residence", "building": "0x900", "expect": true},
+    {"op": "mysim_set", "sim": 0, "state": 2},
+    {"op": "mysim_message", "type": "0xCA1B1E64", "data2": 10, "data3": 20, "data4": "0xCA380B06", "expect": true},
+    {"op": "mysim_expect_agent", "state": {"last_disaster_type": "0xCA380B06"}},
+    {"op": "mysim_set", "sim": 0, "queue": []},
+    {"op": "mysim_env", "disaster_ongoing": true},
+    {"op": "mysim_message", "type": "0x99EF1143", "data3": "0x278128A0", "data4": 4, "void1": "0x900", "expect": true},
+    {"op": "mysim_expect", "sim": 0, "state": {"last_local_disaster": "0xCA380B06", "events": ["0xAA4D2D64"], "residence": null, "state": 2}},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 1, "method": "move_in", "slot": 1},
+    {"op": "mysim_call", "sim": 1, "method": "set_residence", "building": "0x900", "expect": true},
+    {"op": "mysim_set", "sim": 1, "state": 2},
+    {"op": "mysim_env", "disaster_ongoing": false},
+    {"op": "mysim_message", "type": "0x99EF1143", "data3": "0x278128A0", "data4": 4, "void1": "0x900", "expect": true},
+    {"op": "mysim_expect", "sim": 1, "state": {"last_local_disaster": 0}, "note": "no ongoing disaster: cause 0"}
+  ]
+}

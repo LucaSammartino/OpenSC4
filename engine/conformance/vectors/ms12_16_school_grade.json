@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "mysim_school_grade",
+  "spec": ["mysims 4.9", "mysims 12.16"],
+  "description": "Two schools of group G at 120 m and 80 m with grades 0.6 and 0.9: LocalSchoolGrade(G) = 0.9 (the closest); none of the group or the hospital list: 0. Lua mysim_local_school_grade(G) with a MySim advice as the context = 90.",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_building", "token": "0x900", "position": [100, 0, 100], "lot": {"cell": [6, 6], "wealth": 2, "condition": 1}},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 0, "method": "move_in", "slot": 0},
+    {"op": "mysim_call", "sim": 0, "method": "set_residence", "building": "0x900", "expect": true},
+    {"op": "mysim_set", "sim": 0, "state": 2},
+    {"op": "mysim_building", "token": "0x400", "groups": ["0x1500"], "position": [100, 0, 220]},
+    {"op": "mysim_building", "token": "0x401", "groups": ["0x1500"], "position": [100, 0, 180]},
+    {"op": "mysim_env", "grades": {"0x400": 0.6, "0x401": 0.9}, "schools": ["0x400", "0x401"]},
+    {"op": "mysim_call", "sim": 0, "method": "local_grade", "group": "0x1500", "expect": 0.9},
+    {"op": "mysim_call", "sim": 0, "method": "local_grade", "group": "0x1500", "hospital": true, "expect": 0.0},
+    {"op": "mysim_call", "sim": 0, "method": "local_grade", "group": "0x99", "expect": 0.0},
+    {"op": "adv_create_object", "class": "Advice", "as": "ctx", "expect": true},
+    {"op": "adv_set", "object": "ctx", "advisor": 1},
+    {"op": "adv_context", "push": "ctx"},
+    {"op": "adv_lua", "fn": "mysim_local_school_grade", "args": ["0x1500"], "expect": [90]},
+    {"op": "adv_lua", "fn": "mysim_distance_to_closest_building", "args": [1], "expect": [4294967295]}
+  ]
+}
