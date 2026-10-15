@@ -4316,19 +4316,25 @@ comments and the game log cite. The current answer is in brackets.
 
 Open points from network-manager.md §15. The current answer is in brackets; each entry says what would settle it.
 
-- **NM1:** are the globally managed network occupants (bridges, tunnels, prebuilt-model pieces) also saved by the
+- ~~**NM1:** are the globally managed network occupants (bridges, tunnels, prebuilt-model pieces) also saved by the
   occupant manager, or only through component 53? [both hold refs to the same objects; the occupant manager spec
-  (re-specs13b) settles it]
-- **NM2:** does the occupant manager post `0x99EF1142` while a city loads? If it does, the network manager's managed
+  (re-specs13b) settles it]~~ **ANSWERED 2026-10-15 (re-specs14b):** both. The occupant grid (component 4) and
+  component 53 save refs to the same objects; each ref resolves to one object, so `managed` holds each piece once.
+  MATCHES. network-manager.md §15.
+- ~~**NM2:** does the occupant manager post `0x99EF1142` while a city loads? If it does, the network manager's managed
   list (read first) gets every piece twice. [no, inferred. A turbo run that saves, loads and saves again and compares
-  the component 53 counts would settle it]
+  the component 53 counts would settle it]~~ **ANSWERED 2026-10-15 (re-specs14b):** no. Loading posts no Insert. Since
+  the base occupant `Read` (`0x005E8D60`) sets bit 1 of the state byte, the base `Init` (`0x005E8C90`) posts no
+  Create either. The network occupant `Init`s never insert. MATCHES. network-manager.md §15.
 - **NM3:** meanings of network flags `0x40000`, `0x80000`, `0x40000000` and `0x80000000`, and of the terrain kinds 3,
   4 and 6 in the network manager's terrain handler. [unknown; logging `data4` of `0x278E6003` for each terraforming
   brush settles the kinds]
 - **NM4:** the exact visited and rejected set tests of the avenue flood in `UpdateAvenueStyle`. [a cell is visited
   once; styling an avenue loop through an intersection and logging the styled cells settles it]
-- **NM5:** the effect-prop slots 6, 7 and 8 used for potholes. [set the effect name, start, stop; the prop occupant
-  spec should confirm]
+- ~~**NM5:** the effect-prop slots 6, 7 and 8 used for potholes. [set the effect name, start, stop; the prop occupant
+  spec should confirm]~~ **ANSWERED 2026-10-15 (re-specs14b):** confirmed: `SetEffectType(char const*)`,
+  `StartEffect(bool)`, `StopEffect(bool)` (vtable `0x00AA4ED8`, overloads in reverse SDK order). MATCHES.
+  network-tools.md §13.2.
 
 ## From the traffic glue, phase 2: the traffic shadow (filed by the coordinator from the `traffic2` lane's report, 2026-10-15)
 
