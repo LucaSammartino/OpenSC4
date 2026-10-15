@@ -3827,23 +3827,23 @@ the original budget now reads slots 32/33 as int64 in EDX:EAX (NG11). Before, it
 (`income orig/ours=844424930136029/4061`); now 25/25 budget lines are exact. Konradshohe has no deals, connection
 requests or marker changes, so NG4, NG14, NG16, NG17, NG19, NG23 and NG25 are tested only outside the game.
 
-- **NG35:** NG14: there is no interface for `GenericConfirmationDialog`. What should happen when popups are on?
-  [confirm without asking; refuse when popups are off]
-- **NG36:** NG14: with no app reachable, is the popup flag taken as enabled? [enabled]
-- **NG37:** NG23: what does the original's `AddPropertyData` (holder slot 10) store? [ours stores a Uint8 array, so
-  `GetPropertyData` does not read it back]
-- **NG38:** NG17: should a failing `GetPosition` be checked? [unchecked: a zero vector, so cell (0, 0)]
-- **NG39:** NG25: what is the rectangle form of `GetCityProps` (prop manager slot 18)? [not called; the usage test is
-  added to the cell query]
-- **NG40:** NG7: what if the original's state bytes cannot be read (an unidentified vtable)? [ready = 1, everything
-  else 0, logged once]
-- **NG41:** NG7: the `initialized` byte has no shadow input. Should it be compared? [read and logged only]
-- **NG42:** NG4: is the foreign deal's reference released exactly when it leaves the list, or when nothing in the
-  core still holds it? [when the core object goes, which is list removal unless something else in the core holds it]
-- **NG43:** NG4: what should `AddDeal` return when the core cannot list the deal? [true, and the reference is given
-  back]
-- **NG44:** NG27: how do signed, 64-bit and float values convert, and what about an empty character array? [as C
-  converts them; the empty character array stays false]
+- ~~**NG35:** NG14: there is no interface for `GenericConfirmationDialog`. What should happen when popups are on?
+  [confirm without asking; refuse when popups are off]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS**. `GenericConfirmationDialog` (`0x0078DFF0`) is a free cdecl function `(title, text, yesLabel, noLabel)` (labels null for Yes/No), true only when closed with Yes (`0x8A8DFD4E`). It returns false at once when popups are off, otherwise it pauses and asks the player. With popups on, the original asks; confirming without asking lets the player never decline. Recommended: call it at its build-gated address and return its answer; refusing when popups are off already matches. neighbors §15.4 NG35.
+- ~~**NG36:** NG14: with no app reachable, is the popup flag taken as enabled? [enabled]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS**. `SC4GetPopupModalDialogsEnabled` (`0x005F9090`) returns false when the app global `0x00B43C94` is null, so the original behaves as popups off (request refused). It cannot happen in the game; only tests without an app see it. Treat a missing app as off. neighbors §15.4 NG36.
+- ~~**NG37:** NG23: what does the original's `AddPropertyData` (holder slot 10) store? [ours stores a Uint8 array, so
+  `GetPropertyData` does not read it back]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS**. Holder slot 10 (`0x005FFA40`) stores raw bytes of memory type `0x8000`, with count = length, through variant slot 58 (`0x00915743`). It reuses the buffer when the type and count already match; otherwise it allocates with allocator C. It skips the copy for null data. `GetPropertyData` reads exactly that type back. A `Uint8` array is refused by the getter and is saved with a different tag. Store type `0x8000`. neighbors §15.4 NG37.
+- ~~**NG38:** NG17: should a failing `GetPosition` be checked? [unchecked: a zero vector, so cell (0, 0)]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES. Occupant slot 8 cannot fail in the original: every implementation writes the vector, the base class (`0x005E8A20`) writes (0, 0, 0), and the caller ignores `AL` (`0x006CEF62`). A zero vector, and so cell (0, 0), is the original's result for an occupant with no position of its own. neighbors §15.4 NG38.
+- ~~**NG39:** NG25: what is the rectangle form of `GetCityProps` (prop manager slot 18)? [not called; the usage test is
+  added to the cell query]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES in practice. Prop manager slot 18 (`0x004A1DB0`): false without an occupant manager. Otherwise it sets the filter's usage to 1 and calls the occupant manager's cell-rectangle query (slot 40, `0x0049E250`) with the two inclusive corners. That query clamps the corners to the city, converts them to world coordinates (16 m cells, the far corner +1), shrinks the box by 0.1 m per side, opens the height range and runs the world-box query (slot 36). Ours differs only for a prop reaching less than 0.1 m into the cell or for a cell outside the city. neighbors §15.4 NG39.
+- ~~**NG40:** NG7: what if the original's state bytes cannot be read (an unidentified vtable)? [ready = 1, everything
+  else 0, logged once]~~ **ANSWERED 2026-10-15 (re-answers10):** glue choice, accepted. The original's bytes are always readable, and an unidentified vtable means a mod replaced the simulator. Its usual values between Init and Shutdown are ready 1 and initialized 1, with uiDisabled and busy 0 outside the budget tab and `simulate_deals`. The bracket's initialized 0 is unusual but unread (NG41). neighbors §15.4 NG40.
+- ~~**NG41:** NG7: the `initialized` byte has no shadow input. Should it be compared? [read and logged only]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES. Only `Init` (`0x006D38FA`) and `Shutdown` (`0x006CFBC4`) read the byte, each returning true at once when already done; nothing else looks at it. Reading and logging it is enough. neighbors §15.4 NG41.
+- ~~**NG42:** NG4: is the foreign deal's reference released exactly when it leaves the list, or when nothing in the
+  core still holds it? [when the core object goes, which is list removal unless something else in the core holds it]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES. The original's list releases its reference exactly when the deal is erased (`0x006D1588` → `0x004216F9`). Every other holder (regional cities, queued reports, caller lists) has its own reference on the same object. The bracket is equivalent as long as each core holder that outlives removal stands for one of those. neighbors §15.4 NG42.
+- ~~**NG43:** NG4: what should `AddDeal` return when the core cannot list the deal? [true, and the reference is given
+  back]~~ **ANSWERED 2026-10-15 (re-answers10):** partly **DIFFERS**. `AddDeal` (`0x006D2870`) cannot fail and returns true. It clears Silent, appends without a duplicate check, pushes deals and statistics to the region regardless of the dirty flags, then clears both flags. A null deal crashes. "True" matches; not listing the deal differs (the original lists it and lets the simulation judge it). It is accepted as a logged, mod-only deviation. neighbors §15.4 NG43.
+- ~~**NG44:** NG27: how do signed, 64-bit and float values convert, and what about an empty character array? [as C
+  converts them; the empty character array stays false]~~ **ANSWERED 2026-10-15 (re-answers10):** partly **DIFFERS**. Scalars convert numerically (`0x00915AA5`): signed values sign-extend, 64-bit values keep their low 32 bits, and floats truncate toward zero through `_ftol` (NaN, ±∞ and values of 2^63 or more give 0). Arrays go through their first element's text: signed and 64-bit elements give the same bits. A float element of 2^63 or more wraps (Float32 {1e30} gives `0x19058000`), and a NaN element parses as ±1. An empty character array gives the empty text, which parses as 0, so the getter returns **true** with 0, not false. "As C" matches only for in-range values. neighbors §15.4 NG44; data-formats §5.1.
 
 ## From the history warehouse and 24-hour clock cores (filed by the coordinator from the `cores10a` lane's report, 2026-10-14)
 
