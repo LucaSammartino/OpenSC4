@@ -712,6 +712,9 @@ econ   := curve(months) + difficultyModifier[City.GetDifficultyLevel()]
 Tuning: §11.2. With the shipped data the curve is constantly 0, so the economy modifier is 0.06 / 0.03 / 0.01 for
 difficulty 0 / 1 / 2.
 
+Two details from the bytes (nation.md §2): `months` is converted to float as an **unsigned** value (a negative count
+becomes `months + 2^32`), and the difficulty term is added only while a city exists.
+
 ### 8.3 Connection cap relief (`EvaluateConnectionUtilization`, NewMonth)
 
 State: `commercialRelief`, `industrialRelief` (saved). Coefficients and the 13-entry vector `reliefByNetwork` are
