@@ -1,0 +1,513 @@
+{
+  "format": 1,
+  "name": "zn15_49_update_zone_type",
+  "spec": [
+    "zones 7.2.2",
+    "zones 15 test 41"
+  ],
+  "description": "Test 41: UpdateZoneType({10..12} x {10}). Lot A (10, 10) was made while its cell was zoned 4; lot B covers (12, 9)-(12, 10) with its origin at (12, 9); (11, 10) has no lot. A's zone becomes 1 and SetEmptyLotBaseTexture(A) is called once; nothing happens for B; the one uncovered cell (11, 10) is dezoned through PlaceZone(type 0, commit, free), which posts one ZoningChange and costs nothing. With A in state 3 the texture call happens only when GetForceEmptyLotBaseTextures is true.",
+  "steps": [
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_zones",
+      "cells": [
+        [
+          10,
+          10,
+          4
+        ]
+      ]
+    },
+    {
+      "op": "zone_lot",
+      "rect": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "facing": 0
+    },
+    {
+      "op": "zone_lot",
+      "rect": [
+        12,
+        9,
+        12,
+        10
+      ],
+      "facing": 0
+    },
+    {
+      "op": "zone_zones",
+      "rect": [
+        10,
+        10,
+        12,
+        10
+      ],
+      "v": 1
+    },
+    {
+      "op": "zone_call",
+      "method": "lot_info",
+      "args": [
+        4096
+      ],
+      "expect": {
+        "rect": [
+          10,
+          10,
+          10,
+          10
+        ],
+        "location": [
+          10,
+          10
+        ],
+        "size": [
+          1,
+          1
+        ],
+        "zone": 4,
+        "state": 1,
+        "refs": 2
+      }
+    },
+    {
+      "op": "zone_call",
+      "method": "lot_info",
+      "args": [
+        4097
+      ],
+      "expect": {
+        "rect": [
+          12,
+          9,
+          12,
+          10
+        ],
+        "location": [
+          12,
+          9
+        ],
+        "size": [
+          1,
+          2
+        ],
+        "zone": 0,
+        "state": 1,
+        "refs": 2
+      }
+    },
+    {
+      "op": "zone_env",
+      "trace_calls": true
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_call",
+      "method": "update_zone_type",
+      "args": [
+        {
+          "rect": [
+            10,
+            10,
+            12,
+            10
+          ]
+        }
+      ],
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "lot_update_zone_type"
+      },
+      "events": [
+        {
+          "event": "lot_update_zone_type",
+          "lot": 4096,
+          "zone": 1
+        }
+      ]
+    },
+    {
+      "op": "zone_expect",
+      "zones": [
+        [
+          10,
+          10,
+          1
+        ],
+        [
+          11,
+          10,
+          0
+        ],
+        [
+          12,
+          10,
+          1
+        ]
+      ],
+      "zoning_changes": [
+        {
+          "zone": 0,
+          "cells": [
+            [
+              11,
+              10
+            ]
+          ]
+        }
+      ],
+      "state": {
+        "funds": 1000000000
+      }
+    },
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_env",
+      "trace_calls": false
+    },
+    {
+      "op": "zone_zones",
+      "cells": [
+        [
+          10,
+          10,
+          4
+        ]
+      ]
+    },
+    {
+      "op": "zone_lot",
+      "rect": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "facing": 0
+    },
+    {
+      "op": "zone_lot",
+      "rect": [
+        12,
+        9,
+        12,
+        10
+      ],
+      "facing": 0
+    },
+    {
+      "op": "zone_zones",
+      "rect": [
+        10,
+        10,
+        12,
+        10
+      ],
+      "v": 1
+    },
+    {
+      "op": "zone_env",
+      "trace_calls": true
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_call",
+      "method": "update_zone_type",
+      "args": [
+        {
+          "rect": [
+            10,
+            10,
+            12,
+            10
+          ]
+        }
+      ],
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "set_empty_lot_base_texture"
+      },
+      "events": [
+        {
+          "event": "set_empty_lot_base_texture",
+          "lot": 4098
+        }
+      ]
+    },
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_env",
+      "trace_calls": false,
+      "force_empty": false
+    },
+    {
+      "op": "zone_zones",
+      "cells": [
+        [
+          10,
+          10,
+          4
+        ]
+      ]
+    },
+    {
+      "op": "zone_lot",
+      "rect": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "facing": 0,
+      "state": 3
+    },
+    {
+      "op": "zone_lot",
+      "rect": [
+        12,
+        9,
+        12,
+        10
+      ],
+      "facing": 0
+    },
+    {
+      "op": "zone_zones",
+      "rect": [
+        10,
+        10,
+        12,
+        10
+      ],
+      "v": 1
+    },
+    {
+      "op": "zone_env",
+      "trace_calls": true
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_call",
+      "method": "update_zone_type",
+      "args": [
+        {
+          "rect": [
+            10,
+            10,
+            12,
+            10
+          ]
+        }
+      ],
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "set_empty_lot_base_texture"
+      },
+      "events": []
+    },
+    {
+      "op": "zone_call",
+      "method": "lot_info",
+      "args": [
+        4100
+      ],
+      "expect": {
+        "rect": [
+          10,
+          10,
+          10,
+          10
+        ],
+        "location": [
+          10,
+          10
+        ],
+        "size": [
+          1,
+          1
+        ],
+        "zone": 1,
+        "state": 3,
+        "refs": 2
+      }
+    },
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_env",
+      "trace_calls": false,
+      "force_empty": true
+    },
+    {
+      "op": "zone_zones",
+      "cells": [
+        [
+          10,
+          10,
+          4
+        ]
+      ]
+    },
+    {
+      "op": "zone_lot",
+      "rect": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "facing": 0,
+      "state": 3
+    },
+    {
+      "op": "zone_lot",
+      "rect": [
+        12,
+        9,
+        12,
+        10
+      ],
+      "facing": 0
+    },
+    {
+      "op": "zone_zones",
+      "rect": [
+        10,
+        10,
+        12,
+        10
+      ],
+      "v": 1
+    },
+    {
+      "op": "zone_env",
+      "trace_calls": true
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_call",
+      "method": "update_zone_type",
+      "args": [
+        {
+          "rect": [
+            10,
+            10,
+            12,
+            10
+          ]
+        }
+      ],
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "set_empty_lot_base_texture"
+      },
+      "events": [
+        {
+          "event": "set_empty_lot_base_texture",
+          "lot": 4102
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "lot_info",
+      "args": [
+        4102
+      ],
+      "expect": {
+        "rect": [
+          10,
+          10,
+          10,
+          10
+        ],
+        "location": [
+          10,
+          10
+        ],
+        "size": [
+          1,
+          1
+        ],
+        "zone": 1,
+        "state": 3,
+        "refs": 2
+      }
+    }
+  ]
+}
