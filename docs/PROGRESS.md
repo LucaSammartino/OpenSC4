@@ -64,7 +64,7 @@ budget is off by default (enable = <key>).
 - [x] Growth, building development and tract developer spec questions answered in the specs (8fdea4e)
 - [x] Daily growth budget calibrated in the original (growth probe merged 393a529; run 93: 14,339 days, the 3 ms timer never cuts, so the default is unlimited)
 - [ ] Seeding rules (foundations §6.3)
-- [x] **Development glue** (building development simulator, growth developers and `development_shadow`; merged c787ecf, fixed in devglue2 38524aa): the catalogue loads 744/744 types and 281 families, the shadow is exact (913/913 in regress m850, run 104), and the replacement grows like the original at equal pacing. Our unit is about 3x slower per game day
+- [x] **Development glue** (building development simulator, growth developers and `development_shadow`; merged c787ecf, fixed in devglue2 38524aa): the catalogue loads 744/744 types and 281 families, the shadow is exact (913/913 in regress m850, run 104), and the replacement grows like the original at equal pacing. Our unit is about 3x slower per game day; the DG4/DG5/DG6/DG11 answers are applied (apply10a, merged b398049: BDS foundation and retaining wall slots 23/26/29, the budget item cost sum; regress run 110 PASS)
 - [x] Tract developer glue (merged on main 76bf685; regress mtract PASS, run 109)
 - [ ] Lot developer glue (lane running); zone developer and lot manager, zones phase 2 (lane running); re-specs11 fills their spec gaps (lot developer levelling and foundations, creating game lots)
 - [x] Specs: commercial and industrial simulators, civic buildings, park manager, history warehouse, 24-hour clock (re-specs9, a3599a0)

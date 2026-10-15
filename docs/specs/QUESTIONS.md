@@ -3733,7 +3733,7 @@ bankrupt. QI `0x0AC2B5F7` on new building occupants works (154 created, 0 failur
 - **DG28:** the growth developer's special-building copy is released last, in its destructor; in an unsaved city
   that release is the last reference (the five warnings on class `0xA9BD882D` in run 102). Does the original also
   free those occupants there, after the load's object table has dropped its references? [yes, assumed; the release
-  is marked expected (`FC4_RELEASE_AT_DESTRUCTION`), and still warns if the reference was never taken] *Lead from re-answers9 (DG5):* `CreateInstance(0xA9BD882D)` already returns a count of 1, so an extra AddRef after it leaves one reference too many per building; the five warnings may come from that, not from destructor timing.
+  is marked expected (`FC4_RELEASE_AT_DESTRUCTION`), and still warns if the reference was never taken] *Lead from re-answers9 (DG5):* `CreateInstance(0xA9BD882D)` already returns a count of 1, so an extra AddRef after it leaves one reference too many per building; the five warnings may come from that, not from destructor timing. *Tested by apply10a (2026-10-15): the lead is disproved.* Our BDS takes no extra AddRef after `CreateInstance(0xA9BD882D)`, yet with `FC4_RELEASE_AT_DESTRUCTION` removed run `a10a-after-dev` gave the five warnings on class `0xA9BD882D` again, all from the growth developer's destructor releasing the special-building copy (§1.3) at shutdown. Still open: does the original's growth developer destructor drop those occupants' last references in an unsaved city? [assumed yes; the workaround stays, with a comment citing that run]
 - ~~**DG29:** data-formats §4.4 says `EnumProperties` gives the effective property list, but in game it lists only a
   holder's own properties. Is there an effective enumerator, and what does the original's lookup do with cohorts?
   [the glue walks the parent cohort chain itself (`EffectiveProperties`), with cycle detection]~~ **Answered (re-answers9, data-formats §4.4):** `EnumProperties` (slots 19/20) walks only the own list; every lookup binary-searches a sorted vector that already holds the inherited properties; the effective enumerator is slot 4 `GetPropertyList` (ascending ID order, one reference). The glue's own chain walk is acceptable when own properties win.
@@ -3915,6 +3915,29 @@ parks §12.8) wait for a glue lane's save sweep, which the coordinator runs.
 - **RN1:** foundations §6: in a mutation check, session seeds `0x1234` and `0x1235` gave identical park draws. Since
   `derive` is an XOR, the generator seems to ignore bit 0 of its seed. Does the original `cRZRandomSuper` (or its
   seeding) also drop bit 0, and does it matter for any other generator? [not investigated]
+
+## From applying the development answers (filed by the coordinator from the `apply10a` lane's report, 2026-10-15)
+
+apply10a applied DG4, DG5, DG6 and DG11 (merged `b398049`, ABI 49): the building loader, the BDS foundation and
+retaining wall slots 23/26/29, the capacities-present flag and the budget item cost sum. In game the replacement is
+clean (476/476 foundations, 35/35 wall loads, `ref_warnings=0`) and the development shadow exact (927/927). DG28 is
+updated above (the AddRef lead is disproved). The lane's choices are in brackets.
+
+- **DG32:** DG5 loader: property `0x27812810` with fewer than three values, or values not stored as float32 (the
+  original reads three floats through the raw value pointer). [the missing values are 0; other numeric types are
+  converted]
+- **DG33:** BDS slot 26: `0x88FCC3E3` is present but has no values. [max height is set to 0]
+- **DG34:** BDS slots 26 and 29 with a null occupant (the original does not test for it). [return false]
+- **DG35:** BDS slot 29: its fallback for type 0 needs `GetRetainingWallType` (wall slot 11), but docs/abi gives no
+  IID for `cISC4LotRetainingWallOccupant`, so the wall cannot be reached from an occupant token. What is the IID?
+  [the plugin keeps the wall the slot 29 call received and answers only for that wall; any other token gives 0]
+- **DG36:** foundation creation: the spec only implies that GZCOM class `0x49C05C8F`, like `0xA9BD882D`, returns with
+  the caller's reference already counted. [it is not AddRef'd again; in game `ref_warnings=0` over 476 foundations]
+- **DG37:** `SetDefaultExemplar` on an occupant with no `cISCExemplarPropertyHolder` (QI `0x0AC2B5F7`), which the
+  original does not test for. [false, which the building loader treats as success with an empty box]
+- **DG38:** DG4: `GetBudgetItemInfo` needs the building exemplar as a property holder. Does the original pass the
+  resource exemplar or the occupant? [the type's exemplar is loaded from the catalogue key and passed; 0 when it does
+  not load or the budget simulator is not reachable]
 
 ## From the city situation, demolition, dispatch, port, prop developer and city detail specs (re-specs10 lane, 2026-10-14)
 
