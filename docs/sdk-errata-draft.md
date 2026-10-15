@@ -2,6 +2,8 @@
 
 **Status: local draft. Not submitted upstream.** Reporting these to the SDK maintainers is a separate, public step that needs the project owner's approval.
 
+**Status 2026-10-15 (re-specs10):** four findings were added from the re-specs10 specs (dispatch.md, port-developers.md): `cISC4DispatchManager` 9 now has spec evidence, plus `cISC4DispatchManager` 10, `cISC4PortDeveloper::PortSizeEnumToFlag` and `cISC4SeaportDeveloper` 11. They are marked *(re-specs10)* and are **not** yet in the Summary counts below; recount when the SDK comparison is re-run.
+
 **Status 2026-10-14:** still not submitted. The evidence predates the 2026-10-14 ABI corrections and the 8 new interface mappings in `docs/abi/interfaces.tsv`, so the SDK comparison must be re-run (and the upstream tip re-checked) before any submission, which needs the user's OK.
 
 This document lists places where the [gzcom-dll](https://github.com/nsgomez/gzcom-dll) SDK headers and sources, as vendored in `engine/third_party/gzcom-dll`, disagree with the binary interface of the game. It records **ABI facts only**: vtable slots, callee-popped byte counts, argument types and sizes, return channels, container layouts and allocators. It contains no game logic.
@@ -269,7 +271,8 @@ Columns: **Slot** is the vtable index (byte offset in brackets in the evidence).
 
 | Slot | Method | SDK declares | The exe says | Evidence | Severity |
 |---|---|---|---|---|---|
-| 9 | `RevokeAllDispatches` | `bool RevokeAllDispatches()` | the callee pops 4 bytes (SDK: none) | slot 9 (`+0x24`); pop **4** (SDK 0); ret `eax-or-void` (medium); fn `0x00469D10` *(ABI table only)* | crash |
+| 9 | `RevokeAllDispatches` | `bool RevokeAllDispatches()` | `bool RevokeAllDispatches(tDispatchType type)`: one argument, which the game ignores (every record is revoked); AL = 1 | slot 9 (`+0x24`); pop **4** (SDK 0); ret AL (high); fn `0x00469D10`; dispatch.md §4.4, §8 *(ABI table + spec; re-specs10)* | crash |
+| 10 | `GetDispatchInfo` | `bool GetDispatchInfo(tDispatchType type, DispatchInfo& param_2)` | `bool GetDispatchInfo(uint32_t dispatchID, DispatchInfo&)`: the first argument is the dispatch **ID** (as returned by `Dispatch`), not a type | slot 10 (`+0x28`); pop 8; ret AL (high); fn `0x00469D40`; dispatch.md §4.6, §8 *(spec; re-specs10)* | wrong value |
 
 ### cISC4FireProtectionSimulator
 
@@ -478,6 +481,12 @@ Columns: **Slot** is the vtable index (byte offset in brackets in the evidence).
 | 65 | `CalcOccupantMaintenanceCost` | `bool CalcOccupantMaintenanceCost(cISC4Occupant* pOccupant, uint64_t& dwCost)` | the `int64&` output is signed | slot 65 (`+0x104`); pop 8; ret `eax-or-void` (medium); fn `0x006E4530`; pollution §8.1 *(spec)* | cosmetic |
 | 66 | `AddRadiationToCity` | `void AddRadiationToCity(cS3DVector3& sCenter, float fRadiusX, float fRadiusZ)` | the floats are (centre strength, radius in tracts), not radiusX / radiusZ | slot 66 (`+0x108`); pop 12; ret `eax-or-void` (medium); fn `0x006E7040`; pollution §8.1 *(spec)* | cosmetic |
 
+### cISC4PortDeveloper
+
+| Slot | Method | SDK declares | The exe says | Evidence | Severity |
+|---|---|---|---|---|---|
+| — (inline helper) | `PortSizeEnumToFlag` | returns 1 / 2 / 4 for Small / Medium / Large (31 for All), the flags passed to `GetNumPorts` (slot 9) | `GetNumPorts` tests `sizeFlags & (1 << sizeClass)`: the flags are **2 / 4 / 8** (Small / Medium / Large); the SDK's values count the wrong size class (1 matches nothing, 2 counts small ports, 4 counts medium) | `GetNumPorts` `0x0068AFF0`; `GetNumAirports(size)` calls it with `1 << size` (`0x0068B540`); port-developers.md §4.7, §8.1 *(spec; re-specs10)* | wrong value |
+
 ### cISC4PowerSimulator
 
 | Slot | Method | SDK declares | The exe says | Evidence | Severity |
@@ -543,6 +552,12 @@ Columns: **Slot** is the vtable index (byte offset in brackets in the evidence).
 | 47 | `GetSchoolBuildings` | `bool GetSchoolBuildings(SC4List<cISC4Occupant*>& sBuildings, SC4Vector<uint32_t>* requiredOccupantGroups = nullptr)` | no meaningful `bool` (EAX incidental) | slot 47 (`+0xBC`); pop 8; ret `eax-or-void` (medium); fn `0x006FADE0`; residential §5 slot table; residential-education-health *(spec)* | wrong value |
 | 56 | `GetAutoBudget` | `bool GetAutoBudget(void)` | `bool GetAutoBudget(cISC4Occupant*)`: one argument | slot 56 (`+0xE0`); pop **4** (SDK 0); ret `eax-or-void` (medium); fn `0x006F7D70`; residential §5 slot table; residential-education-health; `0x006F7D70` *(ABI table + spec)* | crash |
 | 57 | `SetAutoBudget` | `bool SetAutoBudget(bool bEnable)` | `bool SetAutoBudget(cISC4Occupant*, bool)`: two arguments | slot 57 (`+0xE4`); pop **8** (SDK 4); ret `unknown` (low); fn `0x006F7DA0`; residential §5 slot table; residential-education-health; `0x006F7DA0` *(ABI table + spec)* | crash |
+
+### cISC4SeaportDeveloper
+
+| Slot | Method | SDK declares | The exe says | Evidence | Severity |
+|---|---|---|---|---|---|
+| 11 | `GetNumSeaports` | `uint32_t GetNumSeaports(ePortSize portSize)` | `uint32_t GetNumSeaports()`: no argument (the callee pops 0), returns the number of seaports | slot 11 (`+0x2C`); pop **0** (SDK 4); ret EAX (high); fn `0x007019E0`; port-developers.md §8.1 *(ABI table + spec; re-specs10)* | crash |
 
 ### cISC4SimGrid<uint8>
 
