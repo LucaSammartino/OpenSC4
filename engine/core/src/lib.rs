@@ -50,6 +50,7 @@ pub mod plumbing;
 pub mod pollution;
 pub mod power;
 pub mod property;
+pub mod prop_manager;
 pub mod props;
 pub mod protection;
 pub mod residential;
