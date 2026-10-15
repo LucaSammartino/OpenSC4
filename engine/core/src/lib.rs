@@ -20,6 +20,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod advisors;
 pub mod aura;
 pub mod budget;
 pub mod calibration;
