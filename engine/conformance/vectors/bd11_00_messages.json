@@ -68,7 +68,7 @@
     {"op": "bds_expect_events", "events": [
       {"event": "create_occupant", "occ": 500},
       {"event": "set_building_type", "occ": 500, "type": "0x100"},
-      {"event": "load_occupant", "occ": 500, "type": "0x100", "result": true},
+      {"event": "set_default_exemplar", "occ": 500, "key": ["0x6534284A", "0x10000000", "0x100"], "result": true},
       {"event": "set_bbox", "occ": 500, "min": [-8, 0, -4], "max": [8, 10, 4]},
       {"event": "set_position", "occ": 500, "pos": [40, 72, -1]},
       {"event": "set_orientation", "occ": 500, "orientation": 2},

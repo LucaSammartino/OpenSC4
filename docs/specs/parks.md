@@ -87,6 +87,9 @@ It posts one message, `0xAA667CE2` ZooEscape (§4.5).
 5. If no message server is held yet: hold it and subscribe the two messages.
 6. `AddAgent` (§3). Return true.
 
+Step 1 sets `tuningRead` whatever the read returned (`0x006D5B1C`–`0x006D5B21`), so a missing exemplar is not
+retried by a later `Init` on the same object (QUESTIONS PK4).
+
 `Shutdown`: if `initialized`: clear it; release every entry of both lists and empty them; `RemoveAgent(+4)` on the
 city's simulator; unsubscribe both messages; release the held message server, department, lot manager, budget
 simulator and city. Return true. The latch and the tuning are kept.
@@ -107,6 +110,12 @@ If `occ.GetType()` is `0x278128A0` (building):
       and `li.SetDisplayFlag(2, true)` (show the secondary field).
    7. `li.AddToFullExpenses(item.cost)`; `li.SetSecondaryInfoField(li.GetSecondaryInfoField() + 1)` (64-bit).
    8. Release the building interface.
+
+   Null pointers *[choice]* (QUESTIONS PK5). The original tests neither of these: a missing department is
+   dereferenced at `0x006D571F` (after step 5 has already changed the item's line), and a line item that
+   `CreateLineItemForBuildingType` cannot make is dereferenced by `SetDisplayFlag` at `0x006D573E`; both crash it.
+   FreeCity4 skips steps 5–7 for a missing department and step 7 for a missing line item, and then still runs step
+   8 and the zoo step.
 2. **Zoo.** If `occ.IsOccupantGroup(0x1702)`: `AddRef` and append it to `zoos`.
 
 ### 4.3 Occupant removed *[compat]*
@@ -118,6 +127,11 @@ If `occ` is a building:
    `li := budget.GetLineItemFromBudgetItem(item)`; if it exists, `li.AddToFullExpenses(−item.cost)` and
    `li.SetSecondaryInfoField(li.GetSecondaryInfoField() − 1)`. The line item is **never removed**, even at 0 parks.
 2. **Zoo.** If in group `0x1702`: remove every entry equal to `occ` from `zoos` and release it once.
+
+The list removal (`0x006D5200`) only unlinks and frees the matching nodes; it releases nothing. The single release
+follows it unconditionally (`0x006D52C3` for parks, `0x006D5366` for zoos), so removing an occupant that was never
+listed still releases it once *[compat]* (QUESTIONS PK7). In the shipped game every removal message follows an
+insert of the same occupant, so the counts balance.
 
 ### 4.4 Monthly pass (`0x006D58B0`) *[compat]*
 
@@ -133,6 +147,12 @@ If `occ` is a building:
 5. **Zoo escape.** If `zoos` is not empty: `p := escapeCurve(f × 100) × 0.01` (both constants are `float`, the
    products are single precision, `p` is then widened to `double`); `r := generator.RandomDoubleUniform()`. If
    `r < p` (strictly): the zoo escape (§4.5).
+
+Null pointers and the empty curve *[choice]* (QUESTIONS PK4, PK6). Step 2 calls the held department without a null
+test (`0x006D58C4`) and reads through the returned funding pointer without one (`0x006D58CA`); the curve evaluator
+(`0x005F4250`) reads the first point of an empty curve through a null array (`0x005F4289`). Each crashes the
+original. FreeCity4 stops after step 1 when there is no department or no funding, and evaluates an empty curve as 0
+(no escapes, but the draw of step 5 is still made).
 
 *[quirk]* The shipped threshold is **25.0** (property name "Efficiency Distress Threshold", meant in percent) but it
 is compared with a fraction. `f ≤ 25` always holds, so the first monthly pass after each `Init` with at least one
@@ -179,9 +199,11 @@ The member `cRZRandomSuper` at `+0x48` (seeded with −1, the wall clock, when t
 - one `RandomDoubleUniform()` per monthly pass with at least one park and one zoo;
 - one `RandomUint32Uniform(n)` per escape.
 
-The original's state is not saved. foundations §6.2 does not list this generator yet; it belongs to the kind
-"a `cRZRandomSuper` member, seeded from the clock". *[choice]* FreeCity4 seeds it with `derive(0xAA3FE6BC)`
-(foundations §6.3, member generators: `K` = the GZCLSID).
+The constructor builds it with `cRZRandomSuper(−1)` (`0x006D5850`–`0x006D5855`, constructor `0x00913B74`), so the
+original seeds it from the wall clock once per object; `Init` does not reseed it. The original's state is not saved.
+It is listed in foundations §6.2 ("a `cRZRandomSuper` member, wall clock (seed −1) at construction"). *[choice]*
+FreeCity4 seeds it with `derive(0xAA3FE6BC)` (foundations §6.3, member generators: `K` = the GZCLSID), at
+construction (QUESTIONS PK9). Like every `cRZRandomSuper`, it ignores bit 0 of its seed (foundations §6.1).
 
 ## 6. Tuning *[compat]*
 
@@ -219,6 +241,13 @@ list zoos
 cleared first, refs read with IID `0x26BB767E`, an unresolvable reference appends null). `Write` and `Read` return
 true unless the stream reports an error. The latch, the tuning and the department are not saved; the department
 is found again by ID in `Init`.
+
+`Read` (`0x006D51B0`) is **not atomic** *[compat facts]* (QUESTIONS PK8). A wrong version returns false with nothing
+changed. Otherwise both lists are read one after the other with no error test in between, each cleared first
+without releasing its old entries (`0x005DB3C0`), and the result is "the stream reports no error" (`0x006D51EE`).
+*[choice]* FreeCity4 reads both lists into temporaries and changes nothing on failure; on success the lists are
+replaced without releasing their old entries, as in the original. With the shipped game's one `Read` on a fresh
+object the two agree on every valid save.
 
 Corpus: all 421 distinct saves parse exactly. 413 records are `02 00 00 00 00 00 00 00 00 00` (no parks, 10 bytes);
 the others hold 1, 3, 6 or 9 parks (33 references, all class `0xA9BD882D`) and no zoo.

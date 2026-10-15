@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "ck12_14_percentage",
+  "spec": ["clock24 4.1", "clock24 12"],
+  "description": "Test 14 (CK7). The percentage factor is the float 0x37422E45 = f32(1/86400); the getters load the seconds exactly and round the product once to float. Noon gives exactly 0.5 (0x3F000000), 06:00 gives 0.25, 18:00 gives 0.75, 23:59:59 gives 0x3F7FFF3E, one second gives the factor itself. The visual getter uses the visual seconds the same way.",
+  "steps": [
+    {"op": "ck_create"},
+    {"op": "ck_set", "seconds": "12:00:00", "visual_seconds": "06:00:00"},
+    {"op": "ck_call", "method": "time_percentage", "expect_bits": "0x3F000000"},
+    {"op": "ck_call", "method": "visual_time_percentage", "expect_bits": "0x3E800000"},
+    {"op": "ck_set", "seconds": "06:00:00", "visual_seconds": "18:00:00"},
+    {"op": "ck_call", "method": "time_percentage", "expect_bits": "0x3E800000"},
+    {"op": "ck_call", "method": "visual_time_percentage", "expect_bits": "0x3F400000"},
+    {"op": "ck_set", "seconds": 86399, "visual_seconds": 1},
+    {"op": "ck_call", "method": "time_percentage", "expect_bits": "0x3F7FFF3E"},
+    {"op": "ck_call", "method": "visual_time_percentage", "expect_bits": "0x37422E45"}
+  ]
+}

@@ -30,35 +30,60 @@ pub fn mul_u32_f32(v: u32, f: f32) -> f32 {
     }
 }
 
-/// The framework's command-line split (§4.8, [choice]): arguments are
-/// separated by blanks (space, tab, CR, LF); a double quote groups blanks
-/// into the argument and is removed.
+/// The framework's command-line split (§4.8, CK11):
+///
+/// 1. the separators are exactly space, tab and newline (`\r` is ordinary);
+/// 2. separators at the start and the end are removed; nothing left gives no
+///    arguments;
+/// 3. a separator ends the argument only when an even number of `"` has been
+///    seen since the argument began; a run of separators is one break;
+/// 4. the text after the last break is the last argument;
+/// 5. an argument that both starts and ends with `"` loses its last
+///    character and then, if it is not empty, its first. No other quote is
+///    removed.
 pub fn split_command_line(text: &[u8]) -> Vec<Vec<u8>> {
+    let is_sep = |b: u8| matches!(b, b' ' | b'\t' | b'\n');
+    let lo = text.iter().position(|&b| !is_sep(b)).unwrap_or(text.len());
+    let hi = text.iter().rposition(|&b| !is_sep(b)).map_or(lo, |i| i + 1);
+    let text = &text[lo..hi];
     let mut args = Vec::new();
-    let mut cur: Option<Vec<u8>> = None;
-    let mut quoted = false;
-    for &b in text {
-        match b {
-            b'"' => {
-                quoted = !quoted;
-                cur.get_or_insert_with(Vec::new);
-            }
-            b' ' | b'\t' | b'\r' | b'\n' if !quoted => {
-                if let Some(a) = cur.take() {
-                    args.push(a);
-                }
-            }
-            _ => cur.get_or_insert_with(Vec::new).push(b),
-        }
+    if text.is_empty() {
+        return args;
     }
-    if let Some(a) = cur {
-        args.push(a);
+    let mut cur = Vec::new();
+    let mut quotes = 0u32;
+    let mut i = 0;
+    while i < text.len() {
+        let b = text[i];
+        if is_sep(b) && quotes % 2 == 0 {
+            args.push(std::mem::take(&mut cur));
+            quotes = 0;
+            while i < text.len() && is_sep(text[i]) {
+                i += 1;
+            }
+            continue;
+        }
+        if b == b'"' {
+            quotes += 1;
+        }
+        cur.push(b);
+        i += 1;
+    }
+    args.push(cur);
+    for a in &mut args {
+        if !a.is_empty() && a[0] == b'"' && a[a.len() - 1] == b'"' {
+            a.pop();
+            if !a.is_empty() {
+                a.remove(0);
+            }
+        }
     }
     args
 }
 
-/// C `atol` (§4.8): leading blanks, one optional sign, then digits up to the
-/// first non-digit; no digits give 0. [choice] Overflow wraps.
+/// C `atol` (§4.8, CK10): leading white space (`isspace`), one optional
+/// sign, then digits up to the first non-digit, accumulated in wrapping
+/// 32-bit arithmetic; no digits give 0.
 pub fn atol(s: &[u8]) -> i32 {
     let mut i = 0;
     while i < s.len() && matches!(s[i], b' ' | b'\t' | b'\r' | b'\n' | 0x0B | 0x0C) {

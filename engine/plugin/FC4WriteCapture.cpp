@@ -46,6 +46,7 @@ void* Borrowed(cIGZSerializable* obj, uint32_t iid) {
 bool WriteCapture::Capture(cIGZUnknown* obj, bool* answered) {
     bytes_.clear();
     refs_.clear();
+    index_.clear();
     good_ = true;
     if (answered != nullptr) *answered = false;
     if (obj == nullptr) return false;
@@ -60,6 +61,10 @@ bool WriteCapture::Capture(cIGZUnknown* obj, bool* answered) {
 }
 
 void* WriteCapture::Grid(uint32_t id) const { return (id >= 1 && id <= refs_.size()) ? refs_[id - 1].grid : nullptr; }
+
+const void* WriteCapture::Object(uint32_t id) const {
+    return (id >= 1 && id <= refs_.size()) ? refs_[id - 1].object : nullptr;
+}
 
 uint32_t WriteCapture::ClassOf(uint32_t id) const {
     return (id >= 1 && id <= refs_.size()) ? refs_[id - 1].classId : 0;
@@ -94,9 +99,14 @@ bool WriteCapture::SetVoid(void const* p, uint32_t n) {
 bool WriteCapture::WriteGZSerializable(cIGZSerializable const* p) {
     if (p == nullptr) return SetUint32(0);
     cIGZSerializable* obj = const_cast<cIGZSerializable*>(p);
-    size_t i = 0;
-    while (i < refs_.size() && refs_[i].object != obj) ++i;
-    if (i == refs_.size()) refs_.push_back(Ref{obj, Borrowed(obj, kIID_cISC4SimGrid), obj->GetGZCLSID()});
+    size_t i = refs_.size();
+    const auto it = index_.find(obj);
+    if (it != index_.end()) {
+        i = it->second;
+    } else {
+        refs_.push_back(Ref{obj, Borrowed(obj, kIID_cISC4SimGrid), obj->GetGZCLSID()});
+        index_.emplace(obj, i);
+    }
     SetUint32(static_cast<uint32_t>(i + 1));
     return SetUint32(refs_[i].classId);
 }
@@ -141,6 +151,89 @@ bool CaptureReader::Ref(uint32_t& id) {
     if (!U32(id)) return false;
     uint32_t cls = 0;
     return id == 0 || U32(cls);
+}
+
+// ---- CaptureIStream -------------------------------------------------------------------------------
+
+namespace {
+
+CaptureIStream& CIS(void* u) { return *static_cast<CaptureIStream*>(u); }
+bool CisU8(void* u, uint8_t* o) { return CIS(u).Take(o, 1); }
+bool CisU16(void* u, uint16_t* o) { return CIS(u).Take(o, 2); }
+bool CisU32(void* u, uint32_t* o) { return CIS(u).Take(o, 4); }
+bool CisU64(void* u, uint64_t* o) { return CIS(u).Take(o, 8); }
+bool CisF32(void* u, float* o) { return CIS(u).Take(o, 4); }
+bool CisF64(void* u, double* o) { return CIS(u).Take(o, 8); }
+bool CisBytes(void* u, uint8_t* o, size_t n) { return CIS(u).Take(o, n); }
+bool CisSkip(void* u, size_t n) { return CIS(u).Take(nullptr, n); }
+bool CisStr(void* u, fc4_bytes_sink sink, void* ctx) { return CIS(u).Str(sink, ctx); }
+bool CisRef(void* u, uint32_t iid, fc4_ref* out) { return CIS(u).Ref(iid, out); }
+int32_t CisError(void* u) { return CIS(u).good() ? 0 : 1; }
+
+}  // namespace
+
+CaptureIStream::CaptureIStream(const WriteCapture& cap, const std::vector<uint8_t>* bytes)
+    : cap_(cap), bytes_(bytes) {
+    api_.struct_size = sizeof(api_);
+    api_.user = this;
+    api_.get_u8 = &CisU8;
+    api_.get_u16 = &CisU16;
+    api_.get_u32 = &CisU32;
+    api_.get_u64 = &CisU64;
+    api_.get_f32 = &CisF32;
+    api_.get_f64 = &CisF64;
+    api_.get_bytes = &CisBytes;
+    api_.get_str = &CisStr;
+    api_.get_ref = &CisRef;
+    api_.skip = &CisSkip;
+    api_.error = &CisError;
+}
+
+bool CaptureIStream::Take(void* out, size_t n) {
+    const std::vector<uint8_t>& b = B();
+    if (!good_ || n > b.size() - pos_) {
+        good_ = false;
+        return false;
+    }
+    if (out != nullptr && n != 0) memcpy(out, b.data() + pos_, n);
+    pos_ += n;
+    return true;
+}
+
+bool CaptureIStream::Str(fc4_bytes_sink sink, void* ctx) {
+    uint32_t n = 0;
+    if (!Take(&n, 4)) return false;
+    const std::vector<uint8_t>& b = B();
+    if (n > b.size() - pos_) {
+        good_ = false;
+        return false;
+    }
+    if (sink != nullptr) sink(ctx, b.data() + pos_, n);
+    pos_ += n;
+    return true;
+}
+
+bool CaptureIStream::Ref(uint32_t iid, fc4_ref* out) {
+    uint32_t id = 0, cls = 0;
+    if (!Take(&id, 4)) return false;
+    if (id != 0 && !Take(&cls, 4)) return false;
+    fc4_ref r{};
+    r.class_id = cls;
+    cIGZSerializable* obj = id != 0 ? cap_.SerializableAt(id) : nullptr;
+    if (obj != nullptr) {
+        void* p = nullptr;
+        if (obj->QueryInterface(iid == 0 ? GZIID_cIGZUnknown : iid, &p) && p != nullptr) {
+            cIGZUnknown* q = static_cast<cIGZUnknown*>(p);
+            if (IsOurObject(q)) {
+                q->Release();  // ours: no reference travels (resolve_ref takes one)
+            } else {
+                FC4_ACQUIRED(q, "QueryInterface");  // the reader's reference
+            }
+            r.token = TokenOf(q);
+        }
+    }
+    if (out != nullptr) *out = r;
+    return true;
 }
 
 void LogShadowLine(const char* cont, const uint8_t* data, size_t len) {

@@ -452,8 +452,10 @@ public:
     virtual bool CompactProperties() = 0;                                                    // 21
 };
 
-// cISC4LotManager (28 slots; foundations §17.8). SDK errors fixed: slots 18
-// (flora.md §12: a float in ST0) and 22.
+// cISC4LotManager (28 slots; foundations §17.8; zones.md §11.3). SDK errors
+// fixed: slots 7-10 return a count in EAX, slots 17-19 a float in ST0
+// (flora.md §12, zones.md §8.7), slot 22 has the lot out-parameter, slot 27's
+// grid is the uint16 grid.
 class cFC4ISC4LotManager : public cIGZUnknown {
 public:
     virtual bool Init() = 0;                                                     // 3
@@ -464,10 +466,13 @@ public:
     // [abi] 7-10: the nodes are B (allocators.md); 8-10 append without clearing.
     virtual uint32_t GetLotsInCellRect(fc4::GameList<cISC4Lot*>& lots, int32_t x1, int32_t z1, int32_t x2, int32_t z2,
                                        bool locationOnly) = 0;                   // 7
-    virtual bool GetLotsSurroundingCell(int32_t cellX, int32_t cellZ, fc4::GameList<cISC4Lot*>& lots,
-                                        int32_t flags) = 0;                      // 8  GetLotsSurroundingLot(x, z, ...)
-    virtual bool GetLotsSurroundingLot(cISC4Lot const* lot, fc4::GameList<cISC4Lot*>& lots, int32_t flags) = 0;  // 9
-    virtual bool GetLotsSurroundingRect(SC4Rect<long> const& rect, fc4::GameList<cISC4Lot*>& lots, int32_t flags) = 0;  // 10
+    // zones.md §11.3: 8-10 return the number of lots appended in EAX (SDK: bool).
+    virtual uint32_t GetLotsSurroundingCell(int32_t cellX, int32_t cellZ, fc4::GameList<cISC4Lot*>& lots,
+                                            int32_t flags) = 0;                  // 8  GetLotsSurroundingLot(x, z, ...)
+    virtual uint32_t GetLotsSurroundingLot(cISC4Lot const* lot, fc4::GameList<cISC4Lot*>& lots,
+                                           int32_t flags) = 0;                   // 9
+    virtual uint32_t GetLotsSurroundingRect(SC4Rect<long> const& rect, fc4::GameList<cISC4Lot*>& lots,
+                                            int32_t flags) = 0;                  // 10
     virtual bool GetVerticesAtEdgeOfLot(SC4Rect<long> const& cells, int32_t flags, SC4Rect<long>& vertices) = 0;  // 11
     virtual bool GetNeighborCellsAtEdgeOfLot(SC4Rect<long> const& cells, int32_t flags, SC4Rect<long>& out) = 0;  // 12
     virtual cISC4Lot* GetRandomLot() = 0;                                        // 13
@@ -476,10 +481,12 @@ public:
     // object}, registered with the manager (aura.md §6.5; FC4SafeLotIterator.h).
     virtual intptr_t GetSafeLotIterator() = 0;                                   // 15
     virtual int32_t GetLotCount() = 0;                                           // 16
-    virtual int32_t GetLotSavvyTerrainVertexAltitude(int32_t x, int32_t y, cISC4Lot* lot, bool& ok) = 0;  // 17
+    // zones.md §11.3: 17 and 19 return a float in ST0 (SDK: int32); the
+    // bool out-parameters are pointers (pop 16 / 12).
+    virtual float GetLotSavvyTerrainVertexAltitude(int32_t x, int32_t z, cISC4Lot* exclude, bool* ok) = 0;  // 17
     // flora.md §12, §13.2: returns a float in ST0 (SDK: int32), pop 12.
     virtual float GetLotSavvyTerrainAltitude(float x, float z, bool* onLot) = 0;  // 18
-    virtual int32_t GetLotSavvyCellAltitude(int32_t cellX, int32_t cellZ, bool& ok) = 0;  // 19
+    virtual float GetLotSavvyCellAltitude(int32_t cellX, int32_t cellZ, bool* ok) = 0;  // 19
     virtual int32_t CanCreateLot(int32_t x, int32_t z, int32_t w, int32_t h, bool zoneNotNeeded, bool ignoreConfig,
                                  cISC4LotConfiguration* config) = 0;             // 20
     virtual int32_t CanCreatePloppedLot(SC4Rect<long> bounds, int32_t n, cISC4LotConfiguration* config) = 0;  // 21
@@ -490,7 +497,8 @@ public:
     virtual bool DeleteLot(cISC4Lot* lot) = 0;                                   // 24
     virtual bool DeleteLots(int32_t x1, int32_t z1, int32_t x2, int32_t z2) = 0;  // 25
     virtual bool GetLotVertexAltitudeAdjustmentRange(int32_t x, int32_t z, float& rangeX, float& rangeY) = 0;  // 26
-    virtual cISC4SimGrid<short>* GetMaximumCapacityGrid() = 0;                   // 27
+    // zones.md §11.3: the uint16 grid (class 0x49B9E604; SDK: <short>), no AddRef.
+    virtual cISC4SimGrid<uint16_t>* GetMaximumCapacityGrid() = 0;                // 27
 };
 
 // cISC4Lot (70 slots; foundations §17.8). SDK error fixed: slot 61 returns
@@ -1644,6 +1652,74 @@ public:
     virtual bool IsFloraTypeIncluded(uint32_t floraType) = 0;  // 3
 };
 
+// ---- history warehouse (docs/specs/history.md §8) ---------------------------------------------------
+
+class cISC4HistoryWarehouse;
+
+// cISC4HistoryWarehouse (IID 0x69F4A803, vtable 0x00A8CCB4, 14 slots; §8).
+// SDK errors fixed (foundations §16): the two Dispose overloads are in the
+// reverse of the SDK's order (slot 10 takes the key alone), and Coalesce
+// (slot 9) takes two dates and the granularity. Slot 12 returns false (HW12:
+// the original returns the final Release's EAX, 0; no caller reads it). Every
+// slot returns in AL / EAX and pops its arguments (docs/abi).
+class cFC4ISC4HistoryWarehouse : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;      // 3
+    virtual bool Shutdown() = 0;  // 4
+    virtual bool GetCount(uint32_t key, cFC4IGZDate const& from, cFC4IGZDate const& to, float& n) = 0;  // 5
+    virtual bool GetTrend(uint32_t key, cFC4IGZDate const& from, cFC4IGZDate const& to, float& slope,
+                          float& intercept) = 0;  // 6
+    virtual bool GetMinMaxAverage(uint32_t key, cFC4IGZDate const& from, cFC4IGZDate const& to, float& min,
+                                  float& max, float& avg) = 0;  // 7
+    virtual bool GetPoint(uint32_t key, cFC4IGZDate const& date, float& v) = 0;  // 8
+    virtual bool Coalesce(uint32_t key, cFC4IGZDate const& from, cFC4IGZDate const& to,
+                          int32_t granularity) = 0;  // 9
+    virtual bool DisposeAll(uint32_t key) = 0;      // 10  Dispose(key)
+    virtual bool DisposeRange(uint32_t key, cFC4IGZDate const& from, cFC4IGZDate const& to) = 0;  // 11  Dispose(key, from, to)
+    virtual bool RecordHistoryData(uint32_t key, int32_t value) = 0;           // 12
+    virtual bool SetHistoryDataQueueLength(uint32_t key, uint32_t n) = 0;      // 13
+};
+
+// ---- 24-hour clock (docs/specs/clock24.md §8) ------------------------------------------------------
+
+class cISC424HourClock;
+
+// cISC424HourClock (IID 0x681BD53A, vtable 0x00A86588, 30 slots; §8). SDK
+// errors fixed (the game's form is binding): slots 7 and 9 take a float* out
+// and return nothing (SDK: float(void)); slot 19 takes a dword index (SDK:
+// bool); slot 20 returns the float's bits in EAX. Every slot returns in AL /
+// EAX and pops its arguments (docs/abi); none returns in ST0.
+class cFC4ISC424HourClock : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                      // 3
+    virtual bool Shutdown() = 0;                                                  // 4
+    virtual uint32_t SetVisualTimeMode(int32_t mode) = 0;                         // 5  (no meaningful value)
+    virtual int32_t GetVisualTimeMode() = 0;                                      // 6
+    virtual void GetTimePercentage(float* out) = 0;                               // 7
+    virtual uint32_t SetTimePercentage(float& p) = 0;                             // 8  (no meaningful value)
+    virtual void GetVisualTimePercentage(float* out) = 0;                         // 9
+    virtual uint32_t GetHour() = 0;                                               // 10
+    virtual uint32_t SetHour(uint32_t hour) = 0;                                  // 11 (no meaningful value)
+    virtual uint32_t GetVisualHour() = 0;                                         // 12
+    virtual uint32_t GetMinute() = 0;                                             // 13
+    virtual uint32_t SetMinute(uint32_t minute) = 0;                              // 14 the new seconds
+    virtual uint32_t GetVisualMinute() = 0;                                       // 15
+    virtual uint32_t GetSeconds() = 0;                                            // 16
+    virtual uint32_t SetSeconds(uint32_t seconds) = 0;                            // 17 GetMinute()
+    virtual uint32_t GetVisualSeconds() = 0;                                      // 18
+    virtual uint32_t GetEventHour(uint32_t index) = 0;                            // 19
+    virtual uint32_t GetTimeMagnification(float& out) = 0;                        // 20 the bits
+    virtual bool SetTimeMagnification(float m) = 0;                               // 21
+    virtual uint32_t GetTimeMagnificationMinMax(float& min, float& max) = 0;      // 22 the bits of max
+    virtual bool SetTimeMagnificationMinMax(float min, float max) = 0;            // 23
+    virtual bool Pause(bool on) = 0;                                              // 24
+    virtual bool IsPaused() = 0;                                                  // 25
+    virtual bool HiddenPause(bool on) = 0;                                        // 26
+    virtual bool IsHiddenPaused() = 0;                                            // 27
+    virtual bool IsNight() = 0;                                                   // 28
+    virtual void EnableDayNightTransitionNotifications(bool on) = 0;              // 29
+};
+
 namespace fc4 {
 // A simulator handed out by the game (cISC4City::GetSimulator), seen through
 // the verified slot order instead of the SDK's declaration.
@@ -1753,4 +1829,14 @@ inline cFC4ISC4ZoneManager* AsGame(cISC4ZoneManager* p) { return reinterpret_cas
 inline cFC4ISC4FloraTypeFilter* AsGame(cISC4FloraTypeFilter* p) {
     return reinterpret_cast<cFC4ISC4FloraTypeFilter*>(p);
 }
+
+// The history warehouse travels as the SDK's pointer (cISC4City slot 32);
+// slots 9-11 only ever through the compiled declaration (history.md §8).
+inline cFC4ISC4HistoryWarehouse* AsGame(cISC4HistoryWarehouse* p) {
+    return reinterpret_cast<cFC4ISC4HistoryWarehouse*>(p);
+}
+
+// The 24-hour clock travels as the SDK's pointer (cISC4City slot 86); slots
+// 7, 9, 19 and 20 only ever through the compiled declaration (clock24.md §8).
+inline cFC4ISC424HourClock* AsGame(cISC424HourClock* p) { return reinterpret_cast<cFC4ISC424HourClock*>(p); }
 }  // namespace fc4

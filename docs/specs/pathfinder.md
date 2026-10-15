@@ -570,7 +570,10 @@ correctly rounded, so the result is **the exact square root rounded once to floa
 4. The trip length is stored in the shared max-trip-length/trip-length float.
 5. If a route deque is set: clear it, then push to the **front** one `RouteData {u8 x, u8 z, u8 travelType}` per node
    from the result node back to the root, so the deque runs root → result. Coordinates are the low bytes (−1 becomes
-   255). Off-map nodes (start or exit) are included.
+   255). Off-map nodes (start or exit) are included. This runs for every recorded trip, so also for the flag-2
+   fallback of §4.12. The container operations are in §7 (deque layout). *[compat]* A replacement must fill the
+   deque: the traffic automata, emergency and MySim dispatch and the query tool read it (§9), and returning 0 instead
+   leaves them without a route (TG1).
 
 ### 4.14 Result getters
 
@@ -758,6 +761,37 @@ read from the epilogues.
 
 `RouteData` is 3 bytes `{uint8 x, uint8 z, uint8 travelType}`; the deque is the STLport `std::deque` with node
 buffers of `0x7E` bytes (42 elements).
+
+**The route deque's layout** (TG1; read from the fill at `0x006D8808`–`0x006D8896`, `clear` `0x006DB440` and the map
+regrowth `0x004321B0`). The caller owns a `0x28`-byte object of ten 32-bit words; a replacement pathfinder must fill
+it in place, because the callers walk it with their own inlined STLport code:
+
+| Offset | Field |
+|---|---|
+| `+0x00`, `+0x04`, `+0x08`, `+0x0C` | start iterator: current element, its node buffer's first and end (`first + 0x7E`), its map slot |
+| `+0x10`, `+0x14`, `+0x18`, `+0x1C` | finish iterator, the same four fields (current = one past the last element) |
+| `+0x20` | the map: an array of node-buffer pointers |
+| `+0x24` | the map's size in pointers |
+
+Node buffers and the map are allocated with allocator B (`0x0090CF54`) and freed with `0x0090CF63`
+(docs/abi/allocators.md). The fill (§4.13 step 5) is:
+
+1. **clear**: free the node buffers of every map slot strictly between the start and finish slots, and the finish
+   slot's buffer when it differs from the start slot's; then finish := start. The start buffer and the start
+   iterator (its current element included) are kept, so a cleared deque is empty with `start.cur` where it was.
+2. For each node from the result back to the root, **push_front** its 3 bytes: if `start.cur ≠ start.first`,
+   `start.cur −= 3` and store there. Otherwise, if no map slot is free before `start.node`
+   (`(start.node − map) / 4 < 1`), regrow the map for one node at the front (below); allocate a new `0x7E`-byte
+   buffer, store it in the slot before `start.node`, move `start.node` there, set `first` and `last := first + 0x7E`,
+   `cur := last − 3` and store the element there.
+3. **Map regrowth** (`0x004321B0`, called with 1 node, at the front): `used := (finish.node − start.node) / 4 + 1`,
+   `need := used + 1`. If `mapSize > 2·need`, the used slots are moved within the map so that they start at slot
+   `(mapSize − need) / 2 + 1`. Otherwise a new map of `mapSize + max(mapSize, 1) + 2` slots is allocated, the used
+   slots are copied to slot `(newSize − need) / 2 + 1`, and the old map is freed. Both iterators' node fields are
+   updated (their `first` and `last` are re-read from the slots).
+
+Callers construct and destroy the deque themselves (with their own STLport code); the pathfinder only clears it and
+pushes to the front. A replacement that writes through these rules leaves a deque the callers can walk and free.
 
 **SDK comparison.** There is no SDK header for `cISC4PathFinder`, so there are no SDK errors to flag. The SDK's
 `cISC4TrafficSimulator.h` declares `CreatePathFinder(cISC4PathFinder**)` and `SetupPathFinderForLot(cISC4PathFinder*,

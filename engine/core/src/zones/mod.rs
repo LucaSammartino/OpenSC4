@@ -569,6 +569,24 @@ pub trait ZonesHost: GridProvider<i8> + GridProvider<u16> {
     /// The insertion iterator moved to `node` (`None`: the list head).
     fn set_lot_insertion_point(&self, node: Option<u64>);
 
+    // ---- the master lot list as the game reads it (§8.1, §8.3 slot 15) ----
+    //
+    // The core keeps the master list; a host that hands out the game's raw
+    // safe lot iterator (lot-developer.md §15.1: list nodes read raw) mirrors
+    // it through these three calls, made after the core's own list changed
+    // (zones phase 2). The defaults do nothing.
+
+    /// `lot` was inserted into the master list before `before` (`None`:
+    /// appended at the end), §8.5 step 4. Called before
+    /// [`ZonesHost::set_lot_insertion_point`].
+    fn master_insert(&self, _lot: u64, _before: Option<u64>) {}
+    /// `lot` was removed from the master list (§8.6 step 4): registered safe
+    /// iterators at its node move to the next node.
+    fn master_remove(&self, _lot: u64) {}
+    /// The master list was replaced by `lots`, in order (`Read` §10.2; empty
+    /// at `Shutdown`): registered safe iterators move to the end.
+    fn master_reset(&self, _lots: &[u64]) {}
+
     // ---- BDS and growth developers (§7.2.1) ----
     /// BDS slot 32 `GetDeveloper(type)`.
     fn bds_developer(&self, dev_type: u32) -> Option<u64>;

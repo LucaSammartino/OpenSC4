@@ -30,8 +30,15 @@
 #include "FC4Turbo.h"
 #include "FC4Watchdog.h"
 #include "FC4ZonesShadow.h"
+#include "FC4ZoneDevShadow.h"
+#include "cFC4ZoneDeveloper.h"
 #include "cFC4ZoneManager.h"
 #include "FC4TractShadow.h"
+#include "FC4CommercialShadow.h"
+#include "FC4CivicShadow.h"
+#include "FC4ParksShadow.h"
+#include "FC4Clock24Shadow.h"
+#include "FC4HistoryShadow.h"
 #include "cFC4TractDeveloper.h"
 #include "cFC4Message2Standard.h"
 #include "fc4.h"
@@ -545,6 +552,9 @@ public:
                 AuraShadowCityLoaded(CurrentCity());  // aura_shadow = 1 only
                 ZonesShadowCityLoaded(CurrentCity());  // zones_shadow = 1 only
                 TractShadowCityLoaded(CurrentCity());  // tract_shadow = 1 only
+                ZoneDevShadowCityLoaded(CurrentCity());  // zonedev_shadow = 1 only
+                HistoryShadowCityLoaded(CurrentCity());  // history_shadow = 1 only
+                Clock24ShadowCityLoaded(CurrentCity());  // clock24_shadow = 1 only
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
@@ -561,6 +571,9 @@ public:
                 break;
             case kMsgPreCityShutdown:
                 TractShadowCityShutdown();  // tract_shadow: the forwarder's core goes with the city
+                CommercialShadowCityShutdown();  // commercial_shadow: the shadow core goes with the city
+                CivicShadowCityShutdown();  // civic_shadow: the shadow core and its references go with the city
+                ParksShadowCityShutdown();  // parks_shadow: the same
                 AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:
@@ -591,6 +604,8 @@ public:
                 ZonesShadowMonth(CurrentCity(), julian);        // zones_shadow = 1 only
                 fc4::TractMonthLine(julian);                    // enable = tract only (the month status line)
                 TractShadowMonth(CurrentCity(), julian);        // tract_shadow = 1 only
+                fc4::ZoneDevMonthLine(julian);                  // enable = zonedev only (the month status line)
+                ZoneDevShadowMonth(CurrentCity(), julian);      // zonedev_shadow = 1 only
                 ++monthsSinceLoad_;
                 if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the

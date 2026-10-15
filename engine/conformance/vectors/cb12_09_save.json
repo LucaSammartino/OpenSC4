@@ -2,7 +2,7 @@
   "format": 1,
   "name": "civic_save",
   "spec": ["civic-buildings 7", "civic-buildings 12.9"],
-  "description": "The record: u16 version 6; the exclusions (u32 count + IDs) and the statuses (u32 count + key, u8 status, u16 count, string) in hash order (193 buckets: 194 and 1 share bucket 1, the newer first); the Landmarks reference; the Disease Research Centers and the maintained list (u32 count + references, null entries kept). Reading it back gives the same order and writes the same bytes; version 5 is refused; a cut record is refused and gives back the references it took. Reading over a running simulator keeps the hash entries already present (first insertion wins), replaces the lists, releases the old Landmarks department, and an unresolvable reference becomes null.",
+  "description": "The record: u16 version 6; the exclusions (u32 count + IDs) and the statuses (u32 count + key, u8 status, u16 count, string) in hash order (193 buckets: 194 and 1 share bucket 1, the newer first); the Landmarks reference; the Disease Research Centers and the maintained list (u32 count + references, null entries kept). Reading it back inserts in file order, each at the head of its chain, so bucket 1 comes back as 1, 194 and the re-write lists that chain oldest first; a second round trip gives the record back byte-identically (QUESTIONS CB6); version 5 is refused; a cut record is refused and gives back the references it took. Reading over a running simulator keeps the exclusion IDs already present, overwrites a status already present in place (the last value wins, CB6), replaces the lists, releases the old Landmarks department, and an unresolvable reference becomes null.",
   "steps": [
     {"op": "civic_create"},
     {"op": "civic_init", "expect": true},
@@ -18,21 +18,28 @@
     {"op": "civic_expect_refs", "refs": {"0x8A416368": 1, "0x31": 0, "0x32": 0}},
 
     {"op": "civic_read", "slot": "a", "expect": true},
-    {"op": "civic_expect", "state": {"initialized": false, "landmarks": "0x8A416368", "exclusions": [194, 1, 5],
-      "status_keys": [194, 1, 2], "disease_centers": ["0x31"], "maintained": ["0x32", null, "0x32"]}},
+    {"op": "civic_expect", "state": {"initialized": false, "landmarks": "0x8A416368", "exclusions": [1, 194, 5],
+      "status_keys": [1, 194, 2], "disease_centers": ["0x31"], "maintained": ["0x32", null, "0x32"]}},
     {"op": "civic_call", "method": "get_status", "args": [194], "expect": {"status": 1, "count": 194, "tooltip": "t194"}},
     {"op": "civic_call", "method": "get_status", "args": [2], "expect": {"status": 6, "count": 2, "tooltip": "t2"}},
     {"op": "civic_call", "method": "is_building_excluded", "args": [5], "expect": true},
     {"op": "civic_expect_refs", "refs": {"0x8A416368": 2, "0x31": 1, "0x32": 2}},
     {"op": "civic_write", "slot": "b", "expect": true},
-    {"op": "civic_expect_record", "slot": "b", "same_as": "a"},
+    {"op": "civic_expect_record", "slot": "b", "length": 107, "at": [
+      {"offset": 6, "hex": "01000000 C2000000 05000000"},
+      {"offset": 22, "hex": "01000000 00 0100 02000000 7431 C2000000 01 C200 04000000 74313934"}
+    ]},
+    {"op": "civic_read", "slot": "b", "expect": true},
+    {"op": "civic_expect", "state": {"exclusions": [194, 1, 5], "status_keys": [194, 1, 2]}},
+    {"op": "civic_write", "slot": "c", "expect": true},
+    {"op": "civic_expect_record", "slot": "c", "same_as": "a"},
 
     {"op": "civic_read", "slot": "a", "version": 5, "expect": false},
     {"op": "civic_read", "slot": "a", "version": 7, "expect": false},
-    {"op": "civic_expect_refs", "refs": {"0x8A416368": 2, "0x31": 1, "0x32": 2}},
+    {"op": "civic_expect_refs", "refs": {"0x8A416368": 3, "0x31": 2, "0x32": 4}},
     {"op": "civic_clear_events"},
     {"op": "civic_read", "slot": "a", "length": 105, "expect": false},
-    {"op": "civic_expect_refs", "refs": {"0x8A416368": 2, "0x31": 1, "0x32": 2}},
+    {"op": "civic_expect_refs", "refs": {"0x8A416368": 3, "0x31": 2, "0x32": 4}},
     {"op": "civic_expect_events", "events": [
       {"event": "release", "token": "0x8A416368"},
       {"event": "release", "token": "0x31"},
@@ -42,7 +49,7 @@
 
     {"op": "civic_create"},
     {"op": "civic_init", "expect": true},
-    {"op": "civic_expect_refs", "refs": {"0x8A416368": 3}},
+    {"op": "civic_expect_refs", "refs": {"0x8A416368": 4}},
     {"op": "civic_set", "exclusions": [1]},
     {"op": "civic_call", "method": "update_status", "args": [1, 4, 4, "old"], "expect": true},
     {"op": "civic_set", "maintained": ["0x32"]},
@@ -51,11 +58,11 @@
       "hex": "0600 02000000 C2000000 05000000 02000000 01000000 09 0900 02000000 7A7A 03000000 02 0300 01000000 33 55000000 FCBF90E9 01000000 31000000 2D88BDA9 02000000 00000000 99000000 2D88BDA9"},
     {"op": "civic_expect", "state": {"initialized": true, "landmarks": null, "exclusions": [194, 1, 5], "status_keys": [1, 3],
       "disease_centers": ["0x31"], "maintained": [null, null]}},
-    {"op": "civic_call", "method": "get_status", "args": [1], "expect": {"status": 4, "count": 4, "tooltip": "old"}},
+    {"op": "civic_call", "method": "get_status", "args": [1], "expect": {"status": 9, "count": 9, "tooltip": "zz"}},
     {"op": "civic_call", "method": "get_status", "args": [3], "expect": {"status": 2, "count": 3, "tooltip": "3"}},
     {"op": "civic_expect_events", "events": [
       {"event": "release", "token": "0x8A416368"}
     ]},
-    {"op": "civic_expect_refs", "refs": {"0x8A416368": 2, "0x55": 0, "0x99": 0, "0x31": 2, "0x32": 2}}
+    {"op": "civic_expect_refs", "refs": {"0x8A416368": 3, "0x55": 0, "0x99": 0, "0x31": 3, "0x32": 4}}
   ]
 }

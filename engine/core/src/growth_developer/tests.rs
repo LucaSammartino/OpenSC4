@@ -515,6 +515,10 @@ fn replacement_unit_methods() {
     assert!(ok);
     assert_eq!(d.data().ref_count, 1);
     assert_eq!((d.sub_type(), d.purpose()), (0x4100, 6));
+    // docs/abi (re-answers9): slot 5 GetType is the target zone (+0xD0), slot 6
+    // GetSubType the developer type (+0xCC).
+    assert_eq!(d.target_zone(), 3);
+    assert_eq!(d.developer_type(), 0x4100);
     assert_eq!(d.source_demand(), Some(42));
     assert_eq!(d.source_active_demand(), Some(21.0));
     let zoned = d.zoned_count_map().expect("zoned");
