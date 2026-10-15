@@ -3993,9 +3993,12 @@ in-game harness with the FreeCity4 turbo clock and a message log.
   caller passes a cost pointer. A call trace of slot 9 with the level and raise tools would confirm both]
 - **DM3:** `0xA9DED179` has a handler and no poster. [no poster in the exe; FreeCity4 keeps the handler. A turbo
   run with demolitions, disasters and terrain edits should log 0 posts]
-- **DM4:** occupant flag 1 means "inserted in the occupant manager", so poles removed earlier in the same call are
+- ~~**DM4:** occupant flag 1 means "inserted in the occupant manager", so poles removed earlier in the same call are
   skipped. [yes, inferred from the occupant manager's insert and remove paths; flora.md agrees. A breakpoint on the
-  occupant manager's insert and remove watching flag 1 would settle it]
+  occupant manager's insert and remove watching flag 1 would settle it]~~ **ANSWERED 2026-10-15 (re-specs13b):**
+  MATCHES. `InsertOccupant` (`0x0049EF60`) refuses an occupant with flag 1 and sets it after success.
+  `RemoveOccupant` (`0x0049F240`) clears it after posting Remove. `RemoveOccupants` (`0x0049FCD0`) clears it under
+  the lock, before its posts. Nothing else in the manager writes it. occupant-manager.md §5.6.
 - **DP1:** dispatch types 2, 3, 4 and 7: no shipped source handles them. [unused in the shipped game; a plugin may
   use them, so FreeCity4 keeps them as plain numbers]
 - **DP2:** 409 template saves hold `toolType` 4, while the shipped tool's "none" is 8. [written by an earlier build;
@@ -4079,6 +4082,10 @@ harness with the FreeCity4 turbo clock and a message log.
   the network tools' real-mode Place, with a value per network kind; not traced. Settled by finding the callers of
   occupant manager slot 20 (`InsertOccupant`) that pass a non-zero data4, or in a turbo run by logging data4 of
   `InsertOccupant` messages while laying a road, a street and a rail line]
+  *Lead from re-specs13b (not an answer):* the network tool passes its field `+0x208` as data4
+  (`0x006277FA`, `0x00627A16`, `0x00627A38`). The field is set to 3 at `0x0062924A`, at the start of
+  `PlaceNetworkOccupants` `0x00629210`, and to 1 at `0x00629980` and `0x0062C782`. `InsertOccupantsForSolvedCells`
+  (`0x006258C0`) passes a literal 0 or 1 (`0x00625B43` / `0x00625B4C`). occupant-manager.md §16.
 - **ZQ15:** two values of the zone developer's preview and plop test are not explained. (a) The terrain view's slot 4
   (zones.md §7.1.1) takes seven arguments; the last two are always 3 and 0 here. (b) `CanCreatePloppedLot`
   (§8.4.1) rejects a cell whose network has every bit of `0x200000`, and blocks an outward connection to a network
