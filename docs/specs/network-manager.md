@@ -1,0 +1,1037 @@
+# Network manager and network lot manager (behaviour spec)
+
+Status: M5 behaviour spec, written 2026-10-15 (re-specs13c lane). Every fact was checked on the Windows executable
+`bin/SimCity4.exe` (1.1.641, image base `0x00400000`); every address is a Windows address. Numeric details (float or
+double, operation order, widths) were checked against the instruction bytes. Implementers work from this spec, the
+public LGPL gzcom-dll SDK headers and general knowledge only. They must **not** consult decompiled or disassembled
+code (see [CONTRIBUTING.md](../../CONTRIBUTING.md)).
+
+Tags:
+
+- *[compat]*: observable; a replacement must match it.
+- *[choice]*: a FreeCity4 decision.
+- *[inferred]*: consistent with all the evidence, but not proven.
+- *[quirk]*: original behaviour that looks unintended but is reproduced.
+
+`r24(e)` is `e` rounded to float32 (foundations §18).
+
+Scope. Two city components:
+
+- **cSC4NetworkManager** (component 53): the owner of the 13 network tools, the list of *globally managed* network
+  occupants (the saved list), batched network removal, the reaction of networks to terrain edits, connection nodes
+  for lots, lighting of the managed pieces, and a retrofit pass for old interchange pieces.
+- **cSC4NetworkLotManager** (component 11): the *network lots*. A network lot is a decoration record attached to one
+  network cell (a road, street, avenue… piece). It picks a *network lot configuration* that fits the cell's zone,
+  wealth, position, rotation and slope, and creates its props and flora. The same class owns the **pothole** effect
+  props.
+
+What is not here:
+
+- The network tools (placement geometry, cost, preview, bridges, tunnels) are their own subsystem. This spec states
+  only what the simulation and the harness's scripted actions see of them (§9). The tool's placement, cost,
+  removal and underground refit are in [network-tools.md](network-tools.md).
+- The traffic graph built from the occupants is [traffic-network.md](traffic-network.md). It is cited, not repeated.
+- The occupant manager (insert, remove, queries, filters) belongs to the re-specs13b lane.
+
+Related specs (cited, not repeated):
+
+- [traffic-network.md](traffic-network.md): network flags `0x200000` and `0x40000` in the graph (§4.2), its
+  cISC4NetworkOccupant slots 53 and 54 (§7.2), Q3 (flag meanings).
+- [traffic-simulator.md](traffic-simulator.md) §3.6 and §4.12: the pothole sets and the `0x69247DC8` posts.
+- [demolition.md](demolition.md) §4.2–§4.6: `DemolishRegion`, `UpdateNetworks`, the removal privileges.
+- [disasters.md](disasters.md) §6.3–§6.4: the riot instance. Its Q4 is answered here (§10).
+- [plumbing.md](plumbing.md): the pipe flags `0x10000` and `0x20000`.
+- [zones.md](zones.md) §5.2 and §5.2.1: who places networks by code, and `data4` of the insert message.
+- [lot-developer.md](lot-developer.md): `AddNetworkConnectionNodes` (`0x006C9C80`), `RemoveNetworkConnectionNodes`
+  (`0x006C9FB0`) and `GetAreaSlope` (slot 29).
+- [prop-developer.md](prop-developer.md) and [city-detail.md](city-detail.md) §3.4: callers of the network lot
+  manager.
+- [flora.md](flora.md): `AddNewFloraOccupant` (slot 17), `DemolishFloraInCellArea` (slot 20).
+- [clock24.md](clock24.md): `IsNight`, and the dusk and dawn messages.
+- [building-development.md](building-development.md) §4.11 and [landfill.md](landfill.md) §3.2: the terrain message
+  `0x278E6003` and its `data4` kinds.
+- [foundations.md](foundations.md): §3.6 components, §3.7 load order (Read before Init), §6 random generators,
+  §18 precision.
+- [simgrid.md](simgrid.md) §7.4: the scanning and boundary iterators.
+
+---
+
+## 1. Identity
+
+| | Network manager | Network lot manager |
+|---|---|---|
+| Class ID | `0xC990BD46` | `0xE9A6CD3B` |
+| Component | 53 (`foundations.md` §3.6) | 11 |
+| Primary IID | `0xA9764C8C` (cISC4NetworkManager) | `0x89A5BA3F` (cISC4NetworkLotManager) |
+| Main vtable | `0x00AA7AD0`, 25 slots (0–24) | `0x00AA7958`, 16 slots (0–15) |
+| cIGZMessageTarget2 (`0x452294AA`) | sub-object `+4`, vtable `0x00AA7ABC` | sub-object `+4`, vtable `0x00AA7948` |
+| cIGZSerializable (`0xE4FDA3D4`) | sub-object `+8`, vtable `0x00AA7AA4` | sub-object `+8`, vtable `0x00AA7930` |
+| QueryInterface | `0x00610750`: IID 1 and `0xA9764C8C` → this; `0x452294AA` → `+4`; `0xE4FDA3D4` → `+8` | `0x0060C760`: the same pattern with `0x89A5BA3F` |
+| Global | `SL::NetworkManager` (city slot 38) | city slot 42 |
+| Init order (foundations §3.7) | after the prop manager | after the prop developer |
+
+Both are created empty, `Read` (if the city was saved) **before** `Init` (foundations §3.7). Release deletes the
+object when the count drops to 1 or below. All `DoMessage` branches of both classes return true.
+
+---
+
+## 2. State
+
+### 2.1 Network manager
+
+| Field | Type | Initial (`0x00613330`) | Saved |
+|---|---|---|---|
+| `initialized` | bool | false | no |
+| `ukPaths` | bool: apply the UK path remapping (§7.11) | false; set in `Init` | no |
+| `longTerrainOp` | bool: a long terrain operation is running (§7.6) | false | no |
+| `dirty` | cell rect `x1, z1, x2, z2` (int32): the accumulated terrain-change area | `0x7FFFFFFF, 0x7FFFFFFF, −1, −1` (empty) | no |
+| `managed` | vector of network occupant refs: the **globally managed** pieces | empty | **yes** (§4.1) |
+| a hash set | `hash_set(100)`; its use was not traced | empty | no |
+| texture, shadow and UK path remap tables | maps read from an ini resource by `Reload` (`0x00613140`) | §7.11 | no |
+| `pending` | vector of occupant refs queued for removal (§7.3) | empty | no |
+| `queueing` | bool | false | no |
+| `retrofit` | circular list of network occupant refs (§7.10) | empty | no |
+| `crews` | vector of construction-crew refs (§7.12) | empty | no |
+| `tools[13]` | the cached network tools, one per network type | null; created in `Init` | no |
+
+`Reload` reads the ini resource `0x8A5971C5 / 0x8A5993B9` with the sections "Texture remapping", "Shadow
+remapping", "Shadow edge remapping" and "UK path remapping". Those tables only feed the presentation slots 13–15
+(§7.11).
+
+### 2.2 Network lot manager
+
+| Field | Type | Saved |
+|---|---|---|
+| `lots` | hash map `u16 key → network lot` (key below) | **yes** (§4.2) |
+| `configs` | hash map `u32 pieceId → vector of network lot configurations`, in load order | no; rebuilt in `Init` |
+| `forced` | network lot configuration ref or null: the configuration for the next piece (slot 13) | no |
+| a scanning iterator over the city | reset in `Init` to `[0, X−1] × [0, Z−1]`; no other reader was found | no |
+| `potholes` | hash map `u16 key → pothole effect prop` | **yes** (§4.2) |
+| `initialized` | bool | no |
+| `pending` | hash set of `u16` keys: cells whose network lot must be re-examined (§8.5) | no |
+
+The cell **key** is `(x & 0xFF) << 8 | z` (u16). `X` and `Z` are the city's cell counts (city slots 93 and 94).
+
+### 2.3 Network lot (cSC4NetworkLot, vtable `0x00AA78E0`, IID `0x89A5BA66`)
+
+A 24-byte reference-counted object.
+
+| Field | Meaning |
+|---|---|
+| `occupant` | the network occupant of the cell (ref) |
+| `config` | the chosen network lot configuration (ref; null only between `Read` and `Init`) |
+| `configId` | the configuration ID read from the save; only used to resolve `config` in `Init` |
+| `locked` | bool: the lot was created from a forced configuration and is never re-chosen (§8.4) |
+
+Slots: 3 `GetNetworkOccupant` (borrowed), 4 `GetLotConfigurationObjectCount`, 5 `GetLotConfigurationObjectArray`
+(the configuration's objects; §8.6), 6 deleting destructor.
+
+### 2.4 Network lot configuration (cSC4NetworkLotConfiguration, vtable `0x00AA7998`)
+
+Read from exemplars of exemplar type `0x21` (property `0x10`) by `ReadLotConfiguration` (`0x0060F5F0`). Defaults are
+those of the constructor (`0x0060FA90`).
+
+| Field | Property | Default | Meaning |
+|---|---|---|---|
+| `pieceId` | `0xC9A5A1BE` (required) | — | the network piece this configuration decorates; the `configs` key (configuration slot 6) |
+| `id` | `0x21` | 0 | the configuration ID (configuration slot 4); saved in network lot records |
+| `name` | `0x20` | empty | — |
+| `zones` | `0x88EDC793`: a list of zone-type bytes | 16 × false | allowed zone types; values ≥ 16 are ignored |
+| `wealths` | `0x88EDC795`: a list of wealth bytes | 4 × false | allowed wealths; values ≥ 4 are ignored |
+| `mask[4]` | `0x49D55951`: exactly 4 bytes, else ignored | `0F 0F 0F 0F` | position pattern rows (§8.3) |
+| `period` | `0xCA81B8D4` (the low byte is used) | 4 | the pattern's period n |
+| `minSlope`, `maxSlope` | `0xAA120972`, `0xAA120973` (float) | 0.0, 64.0 | allowed slope range |
+| `rotations` | `0xEC3BD470` (byte) | `0x0F` | bit r allows piece rotation r |
+| `flipRule` | `0xCC3E4755` (byte) | 0 | 0 any; 1 the piece must be flipped; 2 it must not be; other values: any |
+| `objects` | the lot-object properties | empty | 52-byte lot configuration objects, built by the shared `ConvertPropertiesToObjectArray` (`0x00479D10`, see city-detail.md) and then moved by `CorrectObjectPositions` for a 16 × 16 m lot |
+| (version) | `0x88EDC789` | 1 | below 2 the configuration is written back through `WriteLotConfiguration` (slot 14). Tooling only; FreeCity4 skips it *[choice]* |
+
+A configuration whose zone or wealth list is missing allows nothing, so it is never chosen.
+
+---
+
+## 3. Lifetime
+
+### 3.1 Network manager
+
+**Init** (slot 3, `0x00610C10`). Nothing if already initialized; otherwise:
+
+1. `initialized := true`.
+2. `ukPaths := (language manager slot 38, then slot 25) == 0` (the UK-style path remapping, §7.11).
+3. Subscribe on the message server, in this order: `0xA6B79602`, `0x278E6003`, `0xEA3B0AF1`, `0x6A3B0AFD`,
+   `0x6AB97795`, `0x26D31EC2`, `0x26D31EC1`, `0x99EF1142`, `0x99EF1143`, `0xC9DA96E8`, `0xC9DA96E9`.
+4. `longTerrainOp := false`.
+5. Create the 13 tools, one per network type (types: 0 road, 1 rail, 2 highway, 3 street, 4 pipe, 5 power line,
+   6 avenue, 7 subway, 8 light rail, 9 monorail, 10 one-way road, 11 dirt road, 12 ground highway): the generic
+   network tool for types 0–3, 6 and 8–12, the pipe tool for 4, the power-line tool for 5, the subway tool for 7.
+   Each is held (AddRef) in `tools[type]`.
+6. Return true.
+
+**Shutdown** (slot 4, `0x00611EB0`). Nothing if not initialized; otherwise `initialized := false`; release and clear
+`managed`; release every `retrofit` entry and free the list; null every tool; unsubscribe the same 11 messages in the
+same order. Return true. `pending`, `crews` and `dirty` are left as they are.
+
+**PreCityShutdown** (`0x26D31EC2`, §6.1): empties `crews` and drops the tools before Shutdown runs.
+
+### 3.2 Network lot manager
+
+**Init** (slot 3, `0x00610120`). Nothing if already initialized; otherwise:
+
+1. `initialized := true`.
+2. Subscribe, in this order: `0x89D3E9F3`, `0x99EF1143`, `0xA9B6C2D6`, `0x07699455`, `0xE8BDA2E7`, `0x69247DC8`.
+3. Reset the whole-city scanning iterator (§2.2).
+4. **Load the configurations**: list every exemplar key (type `0x6534284A`) through the resource manager (slot 18)
+   and, for each key in the list's order (`0x0060FB90`): if the exemplar's type (property `0x10`) is `0x21`, read
+   a configuration (§2.4). If the read succeeds, append it to `configs[pieceId]`.
+5. **Resolve the loaded lots**: for each network lot (in `lots` order) search the configurations (each group in map
+   order, each group in vector order) for the first whose `id` equals the lot's `configId`, and set `config` to it.
+   If none matches, the lot's key is noted (a "Missing lot configuration 0x%08x" message is formatted and thrown
+   away). After the loop every noted key is erased from `lots`. The lot object is **not** released *[quirk: leak]*;
+   its props and flora stay in the city.
+6. Return true.
+
+**Shutdown** (slot 4, `0x0060E570`). Nothing if not initialized; otherwise `initialized := false`; unsubscribe the
+six messages in the Init order; release every network lot; release every configuration; clear `configs`; for every
+pothole prop call its slot 8 with 1 (stop) and release it. Return true. `lots` and `potholes` are not cleared
+*[inferred: the destructor clears them]*.
+
+---
+
+## 4. Records
+
+Both records are written through the component's cIGZSerializable (`+8`). Stream slots: 7 `SetUint16` /
+`GetUint16`, 9 `SetUint32` / `GetUint32`, 18 `GetError`. A ref is written with `SC4WriteGZSerializable`
+(`0x005D99A0`) and read with `SC4ReadGZSerializable(stream, iid, &ptr, 0)` (`0x005D9730`) (foundations §2.7).
+
+### 4.1 Component 53 (network manager)
+
+| # | Field | Type |
+|---|---|---|
+| 1 | version | u16 = **1** |
+| 2 | count | u32 |
+| 3 | `count` × ref | network occupant, read with IID `0xA821EF94` |
+
+**Write** (`0x006111E0`): the fields in order, `managed` in vector order. Returns `GetError() == 0`.
+
+**Read** (`0x006124C0`): false if the stream is already in error; false unless the version is 1; then `count` refs,
+each appended to `managed` (the vector is **not** cleared first). Any failed ref read returns false at once. Then
+returns `GetError() == 0`.
+
+Worked example: an empty list is `01 00 | 00 00 00 00` (6 bytes).
+
+### 4.2 Component 11 (network lot manager)
+
+| # | Field | Type |
+|---|---|---|
+| 1 | version | u16 = **2** |
+| 2 | lot count n | u32 |
+| 3 | n × { key (u16), occupant ref, configuration ID (u32) } | ref read with IID `0xA821EF94` |
+| 4 | pothole count m | u32 |
+| 5 | m × { key (u16), pothole prop ref } | ref read with IID `0x09820792` |
+
+**Write** (`0x0060D6B0`): `lots` and then `potholes`, each in its hash map's iteration order. The configuration ID is
+the live configuration's `id` (configuration slot 4), not the `configId` field. Returns `GetError() == 0`.
+
+**Read** (`0x0060DAC0`): false unless the version is 2 (nothing else is read). For each lot entry: create a network
+lot (AddRef), read the key, the occupant ref into `occupant`, the u32 into `configId`, and store it as `lots[key]`
+(an existing entry is overwritten without release). For each pothole entry: read the key and the ref, and store
+`potholes[key]`. A failed ref read does not stop the loop. Returns `GetError() == 0`. The configurations are attached
+in `Init` (§3.2 step 5).
+
+Worked example: a city with no network lot and no pothole saves `02 00 | 00 00 00 00 | 00 00 00 00` (10 bytes).
+
+---
+
+## 5. Network flags
+
+A network occupant's flags are a u32 (cISC4NetworkOccupant slots 8 `HasNetworkFlag` (all bits), 9
+`HasAnyNetworkFlag`, 10 `SetNetworkFlag`, 11 `ClearNetworkFlag`, 12 `GetNetworkFlag`). The low 13 bits are the
+network types (`1 << type`, table `0x00AA79E4`). Masks used below: `0x1F4F` the surface networks (all types but
+pipe `0x10`, power line `0x20` and subway `0x80`), `0x1FFF` all types, `0xB0` the underground ones (pipe, power line,
+subway), `0x90` pipe and subway, `0xD` road, highway and street.
+
+| Bit | Meaning | Set by | Read by |
+|---|---|---|---|
+| `0x0001`…`0x1000` | network types | the tools | everyone |
+| `0x2000` | path connections exist | traffic-network.md §7.2 | the occupant |
+| `0x4000` | when set, the occupant also calls its slot 58 (`SetTranslucency(1, 0x80)`) | — | `SetNetworkFlag` (`0x00619EC0`) |
+| `0x10000` | pipe **distressed** (leaking) | plumbing (`ApplyPipeFunding` `0x006DD110`, its `Read` `0x006DB620`) | the pipe model choice (`0x0065A880`) only |
+| `0x20000` | pipe **burst** | plumbing | the pipe model choice only |
+| `0x40000` | meaning unknown | the tools | traffic-network.md §2.2 (record flag bit 0), the power wire bits, the water display handler (§6.1) |
+| `0x80000` | meaning unknown | — | the terrain handler skips it for kind 6 (§7.6); road style skips it (§8.7) |
+| `0x100000` | part of an intersection or complex piece | the tools | `RemoveOrReplaceOccupant` (§7.4), `GetAllIntersectionPieces` (§7.9) |
+| `0x200000` | lot **connection node** | `CreateConnectionNode` (§7.7) | excluded from the traffic graph (traffic-network.md §4.2), from network lots (§8.5) and from road style |
+| `0x400000` | **immovable** (slots 17 and 18): a prebuilt-model piece the tool did not place (traffic-network.md Q3) | the prebuilt-model constructor | `JoinAcrossRail` (zones.md §5.2.2) |
+| `0x2000000`, `0x4000000` | set together by road style when an under-texture is applied (§8.7); cleared by `CreateConnectionNode` and the retrofit | | *[inferred: presentation]* |
+| `0x8000000` | set by `CreateConnectionNode` and the retrofit | | *[inferred: presentation]* |
+| `0x10000000` | **usable** (slots 19 `IsUsable` and 20 `SetUsable`) | the tools when construction ends | the network lot manager (§8.5), road style |
+| `0x40000000` | unknown | | road style skips it |
+| `0x80000000` | unknown | | the traffic simulator's subway count (traffic-network.md §3), `UpdateRoadsInCell` skips it |
+
+**The usable message** *[compat]*. `SetNetworkFlag` (`0x00619EC0`): if the new bits contain `0x10000000`, the
+occupant did not have it, and the occupant is in the city (cISC4Occupant `GetFlags() & 1`), it posts (queued,
+message-server slot 4) `0x89D3E9F3` *kSC4MessageNetworkOccupantUsableChange* with IGZUnknown = the network
+occupant and data1 = 1. `ClearNetworkFlag` (`0x00619F70`) posts the same message with data1 = 0 when it clears
+`0x10000000` that was set. That clear test does not check `GetFlags() & 1`. Both then apply the bits.
+
+**There is no network flag 2 "riot-blocked".** Bit 2 is rail. The riot changes the occupant's removal counter
+instead (§10).
+
+**The pipe flags.** `0x10000` and `0x20000` are read only by the plumbing simulator and by the visual model choice of
+the underground occupants (vtables `0x00AA97B8`, `0x00AAA3C8`, `0x00AAAD40`). Their slots 10 and 11 (`0x0065A900`,
+`0x0065A940`) mark the model dirty when either bit changes. The model is burst if `0x20000` is set, else distressed if
+`0x10000` is set, else normal. No other simulation reads them. The plumbing rules are plumbing.md's.
+
+---
+
+## 6. Messages
+
+### 6.1 Network manager (`DoMessage` `0x00613950`)
+
+| Message | Handling |
+|---|---|
+| `0x26D31EC1` PostCityInit | `Retrofit()` (§7.10). Then, if the 24-hour clock's `IsNight` (clock slot 28), `SetLit(true)` (slot 61) on every `managed` occupant whose `CanBeLit` (slot 62). |
+| `0x26D31EC2` PreCityShutdown | While `crews` is not empty, call slot 5 of its first entry (`0x00610B80`; the crew is expected to unregister itself, §7.12). Then null all 13 tools. |
+| `0x99EF1142` occupant inserted | `n := void1.QueryInterface(0xA821EF94)`; none → done. If `n.IsManagedGlobally()` (slot 5): append `n` to `managed`, keeping the reference (**no duplicate check**). Otherwise release it. |
+| `0x99EF1143` occupant removed | `n` as above; none → done. If `n.IsManagedGlobally()` and `n` is in `managed`: release that entry, move the **last** entry into its place and drop the last. Release `n`. |
+| `0xC9DA96E9` dusk | `SetLit(true)` on every `managed` occupant that `CanBeLit` (clock24.md). |
+| `0xC9DA96E8` dawn | `SetLit(false)` on the same set. |
+| `0xA6B79602` view changed | If `void1+4 ≠ void2+4`: `DoViewRotationChange` (presentation). |
+| `0x6AB97795` water surface display changed (posted only by `cSTETerrain::SetWaterSurfaceDisplayState` `0x007434E0`) | For every network occupant (occupant manager iteration by type `0xC772BF98`) with network flag `0x40000` and occupant flag 4 (cISC4Occupant slot 32): post `0x99EF1145` for it (`0x00610BB0`; presentation refresh). |
+| `0xEA3B0AF1` long terrain operation begins | `dirty := empty`; `longTerrainOp := true`. |
+| `0x278E6003` terrain changed | §7.6. |
+| `0x6A3B0AFD` long terrain operation ends | §7.6 (the underground refit). |
+
+Only these 11 types are subscribed. In the queued delivery order, a `0x99EF1142` for a globally managed piece always
+precedes its `0x99EF1143`, so `managed` holds exactly the managed pieces in the city, plus duplicates if one piece
+is inserted twice.
+
+**Which occupants are managed globally** (slot 5, per occupant vtable): the prebuilt-model pieces (`0x00AA7038`), the
+bridge pieces (`0x00AA7300`) and the tunnel pieces (`0x00AA9308`) answer true. The base occupant (`0x00AA8080`) and
+the underground pipe and subway occupants answer false. Only bridges answer true to `CanBeLit`.
+
+### 6.2 Network lot manager (`DoMessage` `0x0060FC30`)
+
+| Message | Handling |
+|---|---|
+| `0x89D3E9F3` usable changed (§5) | `n := IGZUnknown.QueryInterface(0xA821EF94)`; none → done. Unless `n.HasAnyNetworkFlag(0x1F4F)` and not `n.HasNetworkFlag(0x200000)`, just release. If data1 ≠ 0: cell := `city.PositionToCell(n.AsOccupant().GetPosition())`; `UpdateRoadsInCell(x, z)` (§8.5). Else `DoNetworkOccupantRemoved(n)` (§8.4). Release `n`. |
+| `0x99EF1143` occupant removed | `n := void1.QueryInterface(0xA821EF94)`; with the same flag filter: `DoNetworkOccupantRemoved(n)`. Release `n`. |
+| `0x07699455` zoning changed | rect := `*data2` (a cell rect) grown by one cell on every side. For every cell of it, row by row, inside the city: add its key to `pending`. Then `ProcessUpdateList()` (§8.5). |
+| `0xE8BDA2E7` lot state changed | `lot := IGZUnknown.QueryInterface(0xE818FCED)`; none → done. rect := `lot.GetBoundingRect()` (lot slot 14) grown by one cell. For every cell of the rect's **border** (BoundaryIterator, simgrid.md §7.4) inside the city: add its key to `pending`. `ProcessUpdateList()`. Release the lot. The data fields (old and new state) are not read. |
+| `0x69247DC8` road damage changed (traffic-simulator.md §3.6) | `DoRoadDamageChange(x = data1, z = data2, damaged = data3 low byte)` (§8.8). |
+| `0xA9B6C2D6` | `CreateLotObjects(void1)` (§8.6). *[quirk]* No code in the executable posts this message. |
+
+There is no handler for occupant **inserted**: a network lot appears when the piece becomes usable, not when it is
+placed.
+
+---
+
+## 7. Network manager behaviour
+
+### 7.1 GetNetworkTool(type, unique) (slot 5, `0x006108D0`)
+
+- `type ≥ 13` (unsigned) → null.
+- `unique = false` → `tools[type]`, borrowed (no AddRef). It is null before `Init`, after PreCityShutdown and after
+  `Shutdown`.
+- `unique = true` → a **new** tool of that type (the same classes as `Init`), with the caller's reference. Null if
+  allocation fails.
+
+zones.md §5.2 takes three unique tools at PostCityInit; power.md takes the shared power-line tool.
+
+### 7.2 DestroyNetworkOccupants(list) (slot 6, `0x00612110`)
+
+`list` is an occupant list (B list, allocators.md).
+
+1. If `queueing`: AddRef each element and append it to `pending`. Done.
+2. Otherwise, for each group in this order (tables `0x00AA7B40` / `0x00AA7B34`): mask `0x1F4F` with tool type 0,
+   mask `0x10` with tool type 4, mask `0x80` with tool type 7:
+   1. Collect, in list order, each element whose network occupant (QI `0xA821EF94`) has `GetNetworkFlag() & mask`
+      ≠ 0, AddRef'd.
+   2. If any: `t := GetNetworkTool(type, false)`; AddRef; `t.Init()`; `t.DestroyOccupantsAndResolve(collected)`
+      (tool slot 50, `0x0062A5C0`); `t.Shutdown()`; Release.
+   3. Free the collected vector **without** releasing its elements *[quirk: leak of one reference each]*.
+
+An element of several groups (a road over a pipe is two occupants, so this does not arise in practice) would be
+passed to several tools. Power lines (`0x20`) are not handled here: demolition removes power poles as plain
+occupants (demolition.md §4.6). The geometry of `DestroyOccupantsAndResolve` (rebuilding the neighbours' pieces) is
+the network tool's.
+
+### 7.3 QueueRemovals(on) (slot 7, `0x00613450`)
+
+1. If `on ≠ queueing`: `queueing := on`.
+2. If `on` is false and `pending` is not empty: sort `pending` by **pointer value** (std::sort, `0x006132E0`); build
+   an occupant list from it, dropping (and releasing) adjacent duplicates; clear `pending`; call
+   `DestroyNetworkOccupants(list)` through the vtable (so `queueing` is false and it destroys at once); release the
+   list (occupant manager slot 48).
+
+*[quirk]* The destruction order is memory order, not the order of the requests. FreeCity4 orders by a stable
+per-occupant creation number instead *[choice]*. The outcome differs only through the tool's neighbour rebuilds.
+
+demolition.md §4.2 brackets `DemolishRegion`'s lot removal with `QueueRemovals(true)` … `QueueRemovals(false)`, so
+the networks of a demolished area go in one batch, each occupant once.
+
+### 7.4 RemoveOrReplaceOccupant(tool, occ, &replaced) (slot 8, `0x006110B0`, pop 12)
+
+1. False if `occ` is null, if `occ.GetFlags() & 1` is 0 (not in the city), or if it is not a network occupant.
+2. If it has network flag `0x100000` (a piece of an intersection or complex piece):
+   1. `(x, z) := occ.GetOccupiedCell()` (slot 59).
+   2. `info := tool.GetCellInfo((z << 16) + x)` (`0x00633220`).
+   3. If `occupantManager.RemoveOccupant(occ, false, 0)` (slot 21) succeeds: set the tool's byte `+0x50`; call
+      `tool.InsertNetworkOccupant(info, {0, 0, 0}, 0)` (tool slot 72); `replaced := true`; return true.
+   4. Otherwise return false.
+3. Otherwise return `occupantManager.RemoveOccupant(occ, false, 0)`.
+
+So removing one cell of an intersection re-inserts a plain piece built from the cell's info in its place.
+
+### 7.5 Small slots
+
+| Slot | Behaviour |
+|---|---|
+| 9 `IsOccupantSubwayStation(occ)` | `cSC4SubwayOccupantFilter::IsOccupantSubwayStation` |
+| 10, 11 | forward to the pipe tool's static `FindPipeOccupant` and `FindPipeConnectionOccupant` |
+| 16 `RegisterConstructionCrew(c)` | AddRef and append to `crews` |
+| 17 `UnregisterConstructionCrew(c)` | find, erase, release |
+| 18, 19 | return a new water-occupant filter or subway-occupant filter |
+| 22 `GetEnglishNetworkName(type)` | entry `type` of the table `0x00AA845C`: "Road", "Rail", "Highway", "Street", "Pipe", "PowerLine", "Avenue", "Subway", "LightRail", "Monorail", "OneWayRoad", "DirtRoad", "GroundHighway"; entry 13 is "road". No bounds check *[quirk]* |
+| 23 `AddToRetrofitList(n)` | AddRef and append to `retrofit`. cSC4NetworkOccupant::Init calls it when its `CheckForRetrofit` is true |
+| 24 | deleting destructor |
+
+### 7.6 Terrain changes
+
+**`0x278E6003`** (data1, data2 = packed cells, data4 = kind; building-development.md §4.11, landfill.md §3.2):
+
+1. `x1 := (data1 >> 16) − 1`, `z1 := (data2 >> 16) − 1`, `x2 := data1 & 0xFFFF`, `z2 := data2 & 0xFFFF`. Clamp
+   `x1, z1 ≥ 0`, `x2 ≤ X − 1`, `z2 ≤ Z − 1`.
+2. If `longTerrainOp`: `dirty := dirty ∪ rect` (componentwise min and max). Otherwise `dirty := rect`.
+3. If `kind ≠ 5` (the levelling reason, landfill.md):
+   1. Query the occupants in the rect whose network flags meet `0x1FFF` (occupant manager slot 40, an OR filter).
+   2. For each, in query order, keep it unless:
+      - `kind = 4`; or
+      - `kind ≠ 3` and it `IsOfType(4)` (pipe) or `IsOfType(7)` (subway); or
+      - **no corner mismatch** (below); or
+      - `kind = 6` and it has network flag `0x80000`.
+   3. `DestroyNetworkOccupants(kept)` (§7.2), then release the lists.
+4. If not `longTerrainOp`: run the underground refit below at once.
+
+**Corner mismatch** (`0x006105F0`). For the occupant's cell `(cx, cz)`, `X0 := float(cx × 16)`,
+`Z0 := float(cz × 16)`. For each corner `(X0, Z0)`, `(X0 + 16, Z0)`, `(X0, Z0 + 16)`, `(X0 + 16, Z0 + 16)`:
+`d := r24(occ.GetAltitude(x, z) − terrain.GetAltitude(x, z))` (occupant slot 56, terrain slot 13, both float). The
+corner mismatches if `d < 0.0f` or `d > 0.01` (the double `0x3F847AE147AE147B`). A NaN `d` does **not** mismatch
+*[compat]*. One mismatching corner is enough.
+
+So a network that the terrain edit left floating by more than 1 cm, or buried at all, is destroyed. A pipe or subway
+survives every kind but 3.
+
+**`0x6A3B0AFD`** (and the tail of step 4), the **underground refit**:
+
+1. If `dirty` is not empty: query the occupants in `dirty` with flags meeting `0x90`. Split them into the pipes
+   (type 4) and the subways (type 7), keeping each cell and an AddRef'd occupant list per kind.
+2. For the pipes: tool 4 `Init`, `UpdateUndergroundOccupantTerrainHeights(cells, list, 4)` (`0x006588D0`),
+   `Shutdown`. The same for the subways with tool 7.
+3. `dirty := empty`.
+4. Always `longTerrainOp := false`.
+
+### 7.7 CreateConnectionNode(&out, type, &p, edgesA, edgesB, pathOverride, c) (slot 20, `0x00611300`, pop 28)
+
+Used by the lot developer for transit lots (lot-developer.md, `AddNetworkConnectionNodes`).
+
+1. Tool `tools[type]`: `Init`; `PlaceNetworkOccupantById(p.x, p.z, 0x100, false, type)` (tool slot 8); `Shutdown`.
+2. Find the occupant at `p` with an OR filter for `1 << type` (occupant manager slot 32). None → return false.
+3. `n :=` its network occupant.
+4. If the lot at `p` (lot manager slot 6, `GetLot(x, z, false)`) has a building (lot slot 48): set all four vertex
+   heights of `n` (slot 36) to the height the tool computes (tool slot 74 of `GetNetworkTool(type, false)`).
+5. If `pathOverride ≠ 0`: `n.SetConnectionPathIDOverride(pathOverride)` (slot 16) and
+   `n.SetQuadDraw(n.PieceId(), c)` (slot 30).
+6. Set flags `0x200000` and `0x8000000`; clear `0x2000000` and `0x4000000`; `SetUsable(false)` (slot 20).
+7. `n.SetConnectionNodeEdgeTypes(edgesA, edgesB)` (slot 14).
+8. `out :=` the occupant, AddRef'd. Return true.
+
+A connection node carries `0x200000`, so the traffic graph, the network lots and road style all ignore it.
+
+### 7.8 AutoconnectLotNodes(lot, nodes) (slot 21, `0x00611530`)
+
+`rect := lot.GetBoundingRect()` (lot slot 14). For each node in `nodes`, in order:
+
+1. `t :=` the first type with `HasNetworkFlag(1 << t)`.
+2. `(x, z) := GetOccupiedCell()`.
+3. `(a, b) := GetConnectionNodeEdgeTypes()`. `dirs :=` the set of sides `d` (0 W, 1 N, 2 E, 3 S) whose byte `d` of
+   `a` has any of its low 3 bits set, minus the low byte of `GetActiveEdges()` (slot 40).
+4. For each `d` in `dirs`: `(nx, nz) := (x + DX[d], z + DZ[d])` (DX = −1, 0, 1, 0; DZ = 0, −1, 0, 1; tables
+   `0x00AA7A18` / `0x00AA7A28`). *[quirk]* For `d ≥ 2` only, a neighbour inside `rect` is skipped. If an occupant of
+   the node's surface or underground kind (`0x1F4F` or `0xB0` filter) exists at the neighbour, walk on in direction
+   `d` through the lot's cells while occupants keep being found; the end cell is the last one found.
+5. Place from the node's cell to the end cell: `tools[t]` AddRef, `Init`, `PlaceNetworkOccupants(x, z, ex, ez, 0,
+   null, true, −1)` (tool slot 7), `Shutdown`, Release. These are code placements (`data4 = 3`, zones.md §5.2).
+
+### 7.9 GetAllIntersectionPieces (slot 12, `0x00612780`; helper `0x00612300`)
+
+A recursive flood over the 4-neighbours inside the city from the start piece's cell. It collects every network
+occupant (filter `0x1F4F`; a null occupant manager argument means the global one) that has flag `0x100000` and
+`IsPartOfTheSameStructure(start)` (slot 66). The result is the set of cells of one intersection or complex piece.
+
+### 7.10 Retrofit (`0x00612820`, at PostCityInit)
+
+For old saves: the pieces that asked for it at `Init` (§7.5 slot 23).
+
+For each `retrofit` entry whose `CheckForRetrofit()` (slot 6) is still true:
+
+1. Gather its structure's pieces (slot 12).
+2. Find the origin piece through `GetComplexPieceOrigin` (slot 71) and the occupant there.
+3. Look up its old piece ID in the 11-entry table `0x00AA7B50`, which maps the old highway interchange IDs
+   `0x02010000`–`0x02012300` to the new `0x0C000000`–`0x0C00B000`.
+4. For each piece, from its offset within the bounding box:
+   1. Attach the new prebuilt model (exemplar `0x6534284A / 0xA8434037 / instance`).
+   2. Set its path override.
+   3. Clear flags `0x2000000` and `0x4000000`; set `0x8000000`.
+   4. `SetRetrofitFlag(false)` (slot 7).
+   5. Post `0x99EF1145` for it.
+
+Then empty the list (`0x00611A20`). The model and path work is presentation and path data. FreeCity4 loads only
+saves written by 1.1.641, whose pieces need no retrofit *[choice]*. It keeps the list and slot 23 for
+compatibility.
+
+### 7.11 Presentation slots
+
+Slot 13 `MapPreviewTexture`, 14 `MapShadowTexture` and 15 `MapPath` look up the remap tables of §2.1. `MapPath`
+applies the UK path remapping only when `ukPaths` is set. Slot 15 changes which path IDs the occupants use (left-hand
+traffic), but the traffic graph itself is traffic-network.md's.
+
+### 7.12 Construction crews
+
+Construction-crew automata register themselves (slot 16) and unregister themselves (slot 17). At PreCityShutdown the
+manager calls slot 5 of the first crew until `crews` is empty. A crew that did not unregister itself in its slot 5
+would loop forever *[quirk]*. FreeCity4 bounds the loop by the starting size *[choice]*.
+
+---
+
+## 8. Network lot manager behaviour
+
+### 8.1 GetNetworkLot(x, z) (slot 5, `0x0060D650`)
+
+`lots[(x & 0xFF) << 8 | z]`, borrowed, or null.
+
+### 8.2 GetZoneTypeForNetwork(x, z) (slot 9, `0x0060D030`)
+
+1. `zt :=` the zone type of cell `(x, z)` (the zone manager's zone grid, a signed byte). If `zt ≠ 0`, return it.
+2. `best := 0`. Visit the neighbours in this order: W `(x−1, z)`, N `(x, z−1)`, E `(x+1, z)`, S `(x, z+1)`
+   (offset tables `0x00AA7858` / `0x00AA7878`). After the fourth, if `best ∈ {0, 7, 14}` (none, agriculture,
+   landfill), go on with the diagonals `(x−1, z−1)`, `(x−1, z+1)`, `(x+1, z−1)`, `(x+1, z+1)`.
+3. For each neighbour inside the city with zone `n`: if `P[n] < P[best]` (strict), `best := n`.
+4. Return `best`.
+
+Priority `P` (table `0x00AA76E8`, lower wins):
+
+| Zone | 0 | 1 R$ | 2 R$$ | 3 R$$$ | 4 C$ | 5 C$$ | 6 C$$$ | 7 I-R | 8 I-D | 9 I-HT | 10–13 | 14 landfill | 15 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| P | 18 | 4 | 7 | 6 | 5 | 4 | 3 | 8 | 2 | 1 | 16 | 17 | 16 |
+
+Ties keep the earlier neighbour. So industry beats commerce, which mostly beats residence.
+
+### 8.3 GetWealthForNetwork(x, z) (slot 10, `0x0060CBB0`)
+
+1. `count[0..3] := 0`.
+2. Visit the same eight offsets as §8.2 in the same order. Stop after the fourth if at least one of the four had a
+   lot; otherwise go on through the diagonals.
+3. For each neighbour inside the city with a lot (lot manager `GetLot(x, z, false)`):
+   - `w := lot.GetOccupantWealth()` (lot slot 41).
+   - If `lot.IsInLivableState()` (slot 37) and `w = 0`: take the building type `lot.GetBuildingType(false)`
+     (slot 46). If it is non-zero and the building development simulator has a profile for it (BDS slot 40), use
+     the profile's wealth.
+   - If `w ∉ [0, 3]`: `w := 0`.
+   - `count[w] += 1`.
+4. `r := 0`. If `count[1] ≠ 0` and `count[0] ≤ count[1]`: `r := 1`. If `count[2] ≠ 0` and `count[r] ≤ count[2]`:
+   `r := 2`. If `count[3] ≠ 0` and `count[r] ≤ count[3]`: `r := 3`. Return `r`. Ties go to the **higher** wealth.
+
+### 8.4 IsLotCompatible(cfg, x, z, zone, wealth, rotation, flip) (`0x0060CD30`)
+
+All of these must hold, tested in this order:
+
+1. **Position**: `row := (z mod n)`, `col := (x mod n)`, with `n := cfg.period` (signed division).
+   `mask[row]` must have bit `col`. The shift is done in 8 bits, so `col ≥ 8` never matches. `n = 0` divides by zero
+   in the original *[quirk]*; FreeCity4 treats it as "never compatible" *[choice]*. Rows past 3 read the next bytes
+   of the configuration: row 4 is `n`'s low byte and rows 5–7 are 0 *[compat]*. Rows of 8 and more are treated as 0
+   *[choice]*.
+2. `cfg.zones[zone]`.
+3. `cfg.wealths[wealth]`.
+4. `cfg.rotations` has bit `rotation` (`rotation ≥ 8` never matches).
+5. `flipRule`: 1 needs `flip ≠ 0`; 2 needs `flip = 0`; other values allow both.
+6. **Slope**: `s := lotDeveloper.GetAreaSlope({x, z, x, z}, true)` (lot developer slot 29, through BDS slot 36).
+   `cfg.minSlope ≤ s ≤ cfg.maxSlope`, compared as floats. A NaN fails.
+
+### 8.5 Choosing, keeping and removing network lots
+
+**UpdateRoadsInCell(x, z)** (`0x0060F980`):
+
+1. `n := trafficNetworkMap.FindNetworkTile(x, z, 0x1F4F, true)` (traffic network map slot 8, via city slot 40).
+   None → done.
+2. If `n.HasAnyNetworkFlag(0x80200000)`: done (connection nodes and bit 31).
+3. `UpdateRoadStyle(x, z, n)` (§8.7).
+4. If `n.HasNetworkFlag(0x40)` (avenue): done (avenues get their lots in `UpdateAvenueStyle`).
+5. `w := GetWealthForNetwork(x, z)`, then `zt := GetZoneTypeForNetwork(x, z)` (both through the vtable);
+   `UpdateLot(n, x, z, zt, w)`.
+
+**UpdateLot(n, x, z, zone, wealth)** (`0x0060E2D0`):
+
+- If a network lot `L` exists at the key:
+  1. If `L.locked`: done.
+  2. If `L.config` is non-null and `IsLotCompatible(L.config, x, z, zone, wealth, n.GetRotation(), n.GetFlip())`
+     (slots 24 and 25): done (the lot is kept).
+  3. `o := L.occupant`; null → done. Hold `o`; `DoNetworkOccupantRemoved(o)`;
+     `DoNetworkOccupantInserted(o, zone, wealth)`; release.
+- Otherwise, if `n.IsUsable()`: `DoNetworkOccupantInserted(n, zone, wealth)`.
+
+**DoNetworkOccupantInserted(n, zone, wealth)** (`0x0060DCE0`):
+
+1. `group := configs[n.PieceId()]` (slot 23). If there is no group and no `forced`: done.
+2. `(x, z) := city.PositionToCell(n.AsOccupant().GetPosition())`.
+3. If `forced` is set: `cfg := forced`. Otherwise:
+   1. Collect, in group order, the configurations for which `IsLotCompatible(cfg, x, z, zone, wealth,
+      n.GetRotation(), n.GetFlip())` holds.
+   2. None → done.
+   3. `cfg := candidates[RandomUint32Uniform(count)]`, drawn from the network lot manager's generator `0x00B44870`
+      (foundations §6.3). One draw, even when `count = 1`.
+4. Create a network lot: `occupant := n`, `config := cfg` (both AddRef'd), `locked := false`. Store it as
+   `lots[key]` (an existing entry is overwritten without release; `UpdateLot` always removes first).
+5. `CreateLotObjects(lot)` (§8.6).
+6. If `forced` was set: `lot.locked := true`; release `forced` and set it to null.
+
+**DoNetworkOccupantRemoved(n)** (`0x0060D8B0`):
+
+1. `(x, z) := city.PositionToCell(n.AsOccupant().GetPosition())`.
+2. `propManager.RemoveStreetPropsFromTile(x & 0xFF, z & 0xFF)` (prop manager slot 33).
+3. `flora.DemolishFloraInCellArea({x, z, x, z}, 0)` (flora slot 20).
+4. If a lot exists at the key: release it and erase the entry.
+
+Steps 2 and 3 run even when the cell has no network lot.
+
+**SetLotConfigurationForNextPiece(cfg)** (slot 13, `0x0060CB80`) sets `forced` (with a reference). The next
+`DoNetworkOccupantInserted` uses it whatever its compatibility and whatever the piece ID, and locks the lot.
+
+**ProcessUpdateList()** (`0x0060FA10`): while `pending` is not empty, take its first key in iteration order, call
+`UpdateRoadsInCell(key >> 8, key & 0xFF)`, then erase the key. `UpdateAvenueStyle` erases further keys itself
+(§8.7).
+
+*[compat]* The original's order is its hash set's order: ascending `key mod bucketCount`, and the latest insert first
+within a bucket. Only two things depend on it: which cell starts an avenue flood (§8.7) and the order of the random
+draws. The generator is seeded from the wall clock, so draws are not reproducible anyway. FreeCity4 processes keys in
+ascending key order *[choice]*.
+
+### 8.6 Lot objects
+
+**CreateLotObjects(lot)** (`0x0060D410`). For each object `i` of the configuration's object array (52-byte records),
+in order:
+
+- **Type 1 (prop)**, and bit 0 of the object's flags byte (offset 1) clear: `ids :=` lot configuration manager
+  `GetObjectIDArray(object)` (slot 27). If it is not empty: `pick := RandomUint32Uniform(|ids|)` (generator
+  `0x00B44870`); `CreateProp(lot, i, ids[pick])` through the vtable (slot 8).
+- **Type 4 (flora)**: `ids` as above. If it is not empty: `pick` as above; `(pos, orientation) :=
+  GetPositionForLotConfigurationObject(lot, object)`; `f := flora.AddNewFloraOccupant(ids[pick], pos, true)`
+  (flora slot 17); if `f`: `f` slot 28 `(i)`.
+- Other types: nothing.
+
+Then, if the traffic network map exists and the lot has an occupant: `trafficNetworkMap.UpdateIntersection(occupant)`
+(slot 36).
+
+**CreateProp(lot, i, id)** (slot 8, `0x0060CF80`). `(pos, orientation) := GetPositionForLotConfigurationObject(lot,
+object i)`. If `id ≠ 0`: `p := propManager.AddStreetProp(id, pos, orientation)` (prop manager slot 32). If `p`:
+`p` slot 28 `(object's field at +0x24)`; if the lot's occupant `GetFlip()`: `p` slot 29 `(0x80)`. Return `p`,
+borrowed. Otherwise null.
+
+**GetPositionForLotConfigurationObject(lot, object)** (`0x0060C9B0`). The object's offsets `ox`, `oy`, `oz` are its
+floats at +4, +8 and +0xC; its orientation `o` is the byte at +2. `(cx, cz) :=` the occupant's `GetOccupiedCell`,
+`X0 := float(cx × 16)`, `Z0 := float(cz × 16)`, `r :=` the occupant's `GetRotation()` (low byte):
+
+| r | x | z |
+|---|---|---|
+| 0 | `(X0 + 16) − ox` | `(Z0 + 16) − oz` |
+| 1 | `X0 + oz` | `(Z0 + 16) − ox` |
+| 2 | `X0 + ox` | `Z0 + oz` |
+| 3 | `(X0 + 16) − oz` | `Z0 + ox` |
+| other | 0 | 0 |
+
+Every operation is rounded to float32. Then `y := r24(occupant.GetAltitude(x, z) + oy)`. If the occupant
+`GetFlip()`: `x := r24(r24(16 − r24(2 × r24(x − X0))) + x)`, which mirrors x in the cell, and
+`orientation := (−(o + r)) mod 4` (table `0x00AA78A0`). Otherwise `orientation := (o + r) & 3`. *[quirk]* `y` is the
+altitude at the point before the mirror.
+
+**RedevelopLot(x, z, lot)** (slot 12, `0x0060D5E0`): `RemoveStreetPropsFromTile(x & 0xFF, z & 0xFF)`;
+`DemolishFloraInCellArea({x, z, x, z}, 0)`; `CreateLotObjects(lot)`. The lot and its configuration stay.
+
+**IterateAllNetworkLots(cb, ctx)** (slot 11, `0x0060D820`): for each entry in `lots` order, `cb(key >> 8,
+key & 0xFF, lot, ctx)`. Stop and return false at the first false; return true otherwise.
+
+**GetNetworkLotConfigurationSet(out)** (slot 6) clears the output set and inserts every configuration (AddRef'd).
+**GetNetworkLotConfigurationById(id, out)** (slot 7) returns true if some configuration has that `id`. It never
+writes `out` *[quirk]*.
+
+### 8.7 Road style
+
+**UpdateRoadStyle(x, z, n)** (`0x0060F510`):
+
+1. If `n.HasAnyNetworkFlag(0x40280304)` (highway `0x4`, light rail `0x100`, monorail `0x200`, `0x80000`,
+   `0x200000`, `0x40000000`): done.
+2. If not `n.IsUsable()`: done.
+3. If `n.HasNetworkFlag(0x40)` (avenue): `UpdateAvenueStyle(x, z)`; done.
+4. `zt := GetZoneTypeForNetwork(x, z)`, then `w := GetWealthForNetwork(x, z)`.
+5. If `n.HasAnyNetworkFlag(2)` (rail) and not `n.HasAnyNetworkFlag(0xD)`: `tex := (zt ≠ 0) ? 0x08400000 : 0`.
+   Otherwise `tex := T[zt][w]`.
+6. `n.SetUnderTexture(tex)` (slot 29). If `tex ≠ 0`: `n.SetNetworkFlag(0x6000000)`. A zero texture does not clear
+   the flags *[quirk]*.
+7. `n.SetVariation(V[zt][max(w − 1, 0)])` (slot 27).
+
+`T` (table `0x00AA7758`, `T[zone][wealth]`): zone 0 → `0, 0x08100000, 0x08200000, 0x08300000`; zones 7 and 14 →
+`0x08400000` for every wealth; zones 8 and 9 → `0x08200000, 0x08100000, 0x08200000, 0x08200000`; every other zone →
+`0x08200000, 0x08100000, 0x08200000, 0x08300000`.
+
+`V` (table `0x00AA7728`, `V[zone][w']`): zone 0 → 0 0 0; zones 1 and 4 → 1 2 3; zones 2, 3, 5 and 6 → 4 5 6;
+zones 7 and 14 → 7 7 7; zones 8 and 9 → 1 1 2; zones 10–13 and 15 → 1 1 1.
+
+**UpdateAvenueStyle(x, z)** (`0x0060EF40`): an avenue is styled as one block.
+
+1. `s := FindNetworkTile(x, z, 0x40, true)`; none → done. `c := s.IsIntersection()` (slot 55).
+2. Flood from `(x, z)`. For each cell taken from the work set:
+   - If it has no avenue tile, or the tile's `IsIntersection() ≠ c`, it is rejected.
+   - Otherwise it is accepted: `zoneCount[GetZoneTypeForNetwork(cell)] += 1`,
+     `wealthCount[GetWealthForNetwork(cell)] += 1`. For each side `d` (W, N, E, S) whose byte `d` of
+     `GetEdgeTypesFlag(6)` (slot 38) has any of its low 3 bits set, the neighbour inside the city is added to the
+     work set unless it was already accepted or rejected *[inferred: the exact set tests]*.
+3. `zt :=` the zone 1–15 with the largest count, ties to the lower zone, 0 if all are 0. `w :=` the wealth 1–3 with
+   the largest non-zero count, ties to the lower wealth, else 0. *[quirk]* The ties go the other way from §8.3.
+4. `tex := T[zt][w]`, `var := V[zt][max(w − 1, 0)]`.
+5. For each accepted cell: if its avenue tile `IsUsable()`: `SetUnderTexture(tex)`, `SetVariation(var)`,
+   `UpdateLot(tile, x, z, zt, w)`. In every case erase the cell's key from `pending`.
+
+Avenues get no rail branch and no `0x6000000` flags.
+
+### 8.8 Potholes: DoRoadDamageChange(x, z, damaged) (`0x0060DF50`)
+
+`key := (x & 0xFF) << 8 | z`.
+
+**Repaired** (`damaged = 0`): if `potholes` has `key`: erase it; `p` slot 8 `(1)` (stop); `occupantManager.
+RemoveOccupant(p.AsOccupant(), true, 0)`; release `p`. Otherwise nothing.
+
+**Damaged** (`damaged ≠ 0`): if `key` is already present, nothing. Otherwise:
+
+1. Create an effect prop: GZCOM class `0x2977AA49`, IID `0x09820792`. Failure → done.
+2. `(px, pz) := city.CellCenterToPosition(x, z)` (city slot 97). `py := terrain.GetAltitude(px, pz)`.
+3. `name := "pothole"`. Find the first occupant at the cell with flags meeting `0x1F4F` (occupant manager slot 32).
+   If found:
+   1. `py := its GetAltitude(px, pz)`.
+   2. `e :=` the low byte of `GetActiveEdges()`.
+   3. `px += r24(4.0 × DXE[e])`, `pz += r24(4.0 × DZE[e])`.
+   4. If `GetNetworkFlag() & 0x1FFF = 2` (rail only): `name := "pothole_rail"`.
+4. `p` slot 6 `(name)`; `p.AsOccupant().SetPosition({px, py, pz})`; `occupantManager.InsertOccupant(p.AsOccupant(),
+   0)` (slot 20); `p` slot 7 `(1)` (start); `potholes[key] := p` (the reference from step 1).
+
+`(DXE, DZE)` for `e` = 0…15 (signed bytes, table `0x00AA7910`): 1 → (−1, 0); 2 → (0, −1); 3 → (−1, −1); 4 → (1, 0);
+6 → (1, −1); 8 → (0, 1); 9 → (−1, 1); 12 → (1, 1); every other value → (0, 0). A dead end or a curve moves the
+pothole 4 m towards its open side. A straight piece, a T or a cross keeps it at the centre. *[quirk]* The height is
+the one at the centre, before the move.
+
+The traffic simulator sends `damaged = 1` for each new pothole and 0 when a damaged cell is repaired or removed
+(traffic-simulator.md §3.6, §4.12). The pothole props are saved in component 11 (§4.2) as well as through the occupant
+manager.
+
+---
+
+## 9. Placement and removal as the simulation and the harness see them
+
+**Placing a network by code** (what a scripted action should do) *[compat]*:
+
+1. `t := networkManager.GetNetworkTool(type, true)` for a private tool, or `false` for the shared one (do not
+   release the shared one).
+2. `t.Init()`; `t.PlaceNetworkOccupants(x1, z1, x2, z2, 0, null, true, −1)` (tool slot 7: a straight run in real
+   mode, checked by the tool); `t.Shutdown()`. The call is **free**: only the player's tool UI withdraws
+   `GetCostOfSolution()` from the budget. It makes no regional connection (network-tools.md §3.4, §8).
+
+The tool inserts each occupant through the occupant manager with `data4 = 3` (zones.md §5.2). The listeners see, in
+this order:
+
+- `0x99EF1142` per occupant: the traffic network (traffic-network.md §3), the zone manager's stub joining (zones.md
+  §5.2.1) and `managed` here for bridges and tunnels.
+- Later, `0x89D3E9F3` with data1 = 1, when the piece becomes usable (flag `0x10000000`). That is when the network lot
+  manager gives the cell its style and network lot. The tool sets the flag before `PlaceNetworkOccupants` returns;
+  the message is posted, so it is delivered after (network-tools.md §6.3).
+
+**Removing networks.**
+
+- Demolition goes through `DestroyNetworkOccupants` (§7.2), batched by `QueueRemovals` (§7.3) inside
+  `DemolishRegion` (demolition.md §4.2, §4.6 `UpdateNetworks` `0x004681A0`).
+- The tool's `DestroyOccupantsAndResolve` removes the occupants and rebuilds their neighbours.
+- `0x99EF1143` per occupant then drives the traffic network, `managed`, and the network lot removal (props and flora
+  of the cell, §8.5).
+- `RemoveOrReplaceOccupant` (§7.4) is the single-cell path. It keeps an intersection whole by putting a plain piece
+  back.
+- Terrain edits remove what they leave floating or buried (§7.6).
+
+**Lots that need networks.**
+
+- Transit lots (stations, ports) get **connection nodes**: `CreateConnectionNode` (§7.7), from lot-developer.md
+  `AddNetworkConnectionNodes`. `AutoconnectLotNodes` (§7.8) then draws the network from each node out to the
+  nearest network.
+- Connection nodes are network occupants with flag `0x200000`, ignored by the traffic graph, the network lots and road
+  style.
+- Toll booths are network pieces placed by their own UI control (`cSC4ViewInputControlTollBooth`), not network lots.
+  They are outside this spec.
+
+---
+
+## 10. The riot's removal lock (answers disasters.md Q4)
+
+disasters.md §6.3 "flag 2" is not a network flag, and it changes nothing in traffic. It is the player's demolition
+privilege:
+
+1. **MarkRiotNetworkOccupants(x, z)** (`0x0057D300`). For `i` from `x − 3` to `x + 3` and `j` from `z − 3` to `z + 3`
+   (x outer): `tile := trafficNetworkMap.SafeGetTileInfoAtCell(i, j)` (slot 14). If the tile and its occupant are
+   non-null, call `riotManager.LockNetworkOccupant(occupant)`.
+2. **LockNetworkOccupant(n)** (riot manager interface at vtable `0x00A9E7C8`, slot 9, `0x0057DA40`). If `n` is null
+   or already in the manager's set: nothing. Otherwise AddRef; `n.AsOccupant().UnsetRemovalFlags(2)`
+   (cISC4Occupant slot 13); insert `n` into the set.
+3. The removal counters (`0x005E8A60`, `0x005E8AA0`, `0x005E8AE0`). `SetRemovalFlags(m)` increments, and
+   `UnsetRemovalFlags(m)` decrements, a byte counter per bit: bit 1 the system's, bit 2 the player's.
+   `CanRemove(level)` is true while the level's counter is 0. Starting from 0, the decrement wraps to 255, so
+   `CanRemove(2)` becomes false. The player's bulldozer (demolition.md §4.2, privilege 1) then refuses the piece. The
+   system's privilege (`CanRemove(1)`) is unchanged.
+4. **ClearRiotNetworkOccupants** (`0x0057D720`). For each occupant in the set: `SetRemovalFlags(2)`, which
+   increments it back, then Release. It runs only when the last riot instance is removed (`RemoveInstanceFromList`
+   `0x0057D7E0`) or at the riot manager's `Shutdown` (`0x0057DA20`).
+
+Quirks *[compat]*:
+
+- **Edge quirk.** The loop bounds are compared **unsigned**. If `x < 3`, `x − 3` wraps past `x + 3` and the outer loop
+  runs no row. If `z < 3`, every row is empty. A riot within 3 cells of the west or north edge locks nothing.
+- **Inverted counter.** The pairing works only because the counter starts at 0. An occupant already locked by
+  something else would be unlocked during the riot (its counter goes from 1 to 0).
+- **No unlock in between.** Nothing unlocks while any riot instance remains. A city with overlapping riots keeps
+  every marked piece locked until the last one ends.
+
+---
+
+## 11. Interface slot tables
+
+### 11.1 cISC4NetworkManager (vtable `0x00AA7AD0`)
+
+| Slot | Offset | Address | Method | Pop | Return |
+|---|---|---|---|---|---|
+| 0–2 | | `0x00610750`, `0x004664A0`, `0x006107D0` | QueryInterface, AddRef, Release | 8, 0, 0 | AL, EAX, EAX |
+| 3 | +0xC | `0x00610C10` | `bool Init()` | 0 | AL |
+| 4 | +0x10 | `0x00611EB0` | `bool Shutdown()` | 0 | AL |
+| 5 | +0x14 | `0x006108D0` | `cISC4NetworkTool* GetNetworkTool(int type, bool unique)` | 8 | EAX |
+| 6 | +0x18 | `0x00612110` | `void DestroyNetworkOccupants(list)` | 4 | — |
+| 7 | +0x1C | `0x00613450` | `void QueueRemovals(bool)` | 4 | — |
+| 8 | +0x20 | `0x006110B0` | `bool RemoveOrReplaceOccupant(tool, occ, bool& replaced)` | 12 | AL |
+| 9 | +0x24 | `0x00610540` | `bool IsOccupantSubwayStation(occ)` | 4 | AL |
+| 10 | +0x28 | `0x00610550` | `FindPipeOccupant` (3 args) | 12 | |
+| 11 | +0x2C | `0x00610570` | `FindPipeConnectionOccupant` (3 args) | 12 | |
+| 12 | +0x30 | `0x00612780` | `GetAllIntersectionPieces` (4 args) | 16 | |
+| 13 | +0x34 | `0x00610AD0` | `MapPreviewTexture` | 8 | |
+| 14 | +0x38 | `0x00611D50` | `MapShadowTexture` | 16 | |
+| 15 | +0x3C | `0x00610B40` | `MapPath` | 4 | |
+| 16 | +0x40 | `0x006122B0` | `RegisterConstructionCrew` | 4 | |
+| 17 | +0x44 | `0x006112A0` | `UnregisterConstructionCrew` | 4 | |
+| 18 | +0x48 | `0x00610590` | `GetWaterOccupantFilter` (new) | 0 | EAX |
+| 19 | +0x4C | `0x006105C0` | `GetSubwayOccupantFilter` (new) | 0 | EAX |
+| 20 | +0x50 | `0x00611300` | `bool CreateConnectionNode(out&, type, point&, edgesA, edgesB, pathOverride, uint8)` | 28 | AL |
+| 21 | +0x54 | `0x00611530` | `AutoconnectLotNodes(lot, nodes)` | 8 | |
+| 22 | +0x58 | `0x006107F0` | `const char* GetEnglishNetworkName(type)` | 4 | EAX |
+| 23 | +0x5C | `0x00612480` | `AddToRetrofitList(occ)` | 4 | — |
+| 24 | +0x60 | `0x00612590` | deleting destructor | 4 | |
+
+cIGZMessageTarget2 (`0x00AA7ABC`): 0 `0x006120D0`, 1 `0x006C2270`, 2 `0x006120E0` (thunks), 3 `DoMessage`
+`0x00613950`. cIGZSerializable (`0x00AA7AA4`): 0–2 thunks `0x006120F0`, `0x006C2290`, `0x00612100`; 3 `Write`
+`0x006111E0`; 4 `Read` `0x006124C0`; 5 `GetGZCLSID` `0x00610530` (returns `0xC990BD46`).
+
+### 11.2 cISC4NetworkLotManager (vtable `0x00AA7958`)
+
+| Slot | Offset | Address | Method | Pop |
+|---|---|---|---|---|
+| 0–2 | | `0x0060C760`, `0x0060C730`, `0x0060C740` | QueryInterface, AddRef, Release | 8, 0, 0 |
+| 3 | +0xC | `0x00610120` | `bool Init()` | 0 |
+| 4 | +0x10 | `0x0060E570` | `bool Shutdown()` | 0 |
+| 5 | +0x14 | `0x0060D650` | `cISC4NetworkLot* GetNetworkLot(x, z)` (borrowed) | 8 |
+| 6 | +0x18 | `0x0060DBF0` | `GetNetworkLotConfigurationSet(set&)` | 4 |
+| 7 | +0x1C | `0x0060D9A0` | `bool GetNetworkLotConfigurationById(id, cfg*)` | 8 |
+| 8 | +0x20 | `0x0060CF80` | `cISC4Occupant* CreateProp(lot, index, id)` (borrowed) | 12 |
+| 9 | +0x24 | `0x0060D030` | `ZoneType GetZoneTypeForNetwork(x, z)` | 8 |
+| 10 | +0x28 | `0x0060CBB0` | `WealthType GetWealthForNetwork(x, z)` | 8 |
+| 11 | +0x2C | `0x0060D820` | `bool IterateAllNetworkLots(cb, ctx)` | 8 |
+| 12 | +0x30 | `0x0060D5E0` | `RedevelopLot(x, z, lot)` | 12 |
+| 13 | +0x34 | `0x0060CB80` | `SetLotConfigurationForNextPiece(cfg)` | 4 |
+| 14 | +0x38 | `0x0060E810` | `bool WriteLotConfiguration(cfg, segment)` | 8 |
+| 15 | +0x3C | `0x0060EF20` | deleting destructor | 4 |
+
+cIGZMessageTarget2 (`0x00AA7948`): 0–2 thunks `0x0060E510`, `0x0060E520`, `0x0060E530`; 3 `DoMessage`
+`0x0060FC30`. cIGZSerializable (`0x00AA7930`): 0–2 thunks `0x0060E540`, `0x0060E550`, `0x0060E560`; 3 `Write`
+`0x0060D6B0`; 4 `Read` `0x0060DAC0`; 5 `GetGZCLSID` `0x0060C720`.
+
+### 11.3 cISC4NetworkOccupant slots used here (compiled slot = SDK index + 3)
+
+5 IsManagedGlobally, 6 CheckForRetrofit, 7 SetRetrofitFlag, 8 HasNetworkFlag (all bits), 9 HasAnyNetworkFlag,
+10 SetNetworkFlag (`0x00619EC0`), 11 ClearNetworkFlag (`0x00619F70`), 12 GetNetworkFlag, 13/14
+Get/SetConnectionNodeEdgeTypes, 16 SetConnectionPathIDOverride, 17/18 IsImmovable/SetImmovable (flag `0x400000`),
+19/20 IsUsable/SetUsable (flag `0x10000000`), 21 IsPlaced (`GetFlags() & 1`), 22 IsOfType, 23 PieceId,
+24 GetRotation, 25 GetFlip, 27 SetVariation, 29 SetUnderTexture, 30 SetQuadDraw, 36 SetVertexHeights,
+38 GetEdgeTypesFlag, 40 GetActiveEdges, 48 AsOccupant, 55 IsIntersection, 56 GetAltitude (ST0), 58 SetTranslucency,
+59 GetOccupiedCell, 61 SetLit, 62 CanBeLit, 66 IsPartOfTheSameStructure, 71 GetComplexPieceOrigin. (Slots 53 and 54
+are reversed from the SDK, traffic-network.md §7.2.)
+
+---
+
+## 12. Dependencies
+
+| Interface | Slots used | For |
+|---|---|---|
+| message server `0x00B43CCC` | 4 post, 5 subscribe, 6 unsubscribe | §3, §5 |
+| city `0x00B43CEC` | 38 network manager, 40 traffic network map, 42 network lot manager, 93/94 cell counts, 95 PositionToCell, 97 CellCenterToPosition | throughout |
+| occupant manager `0x00B43D0C` | 20 InsertOccupant, 21 RemoveOccupant, 32 first occupant at a cell (filter), 40 occupants in a rect (filter), 45 iterate by type, 48 release list | §6.1, §7, §8.8 |
+| lot manager `0x00B43D08` | 6 GetLot | §7.7, §8.3 |
+| terrain `0x00B43CF4` | 13 GetAltitude | §7.6, §8.8 |
+| 24-hour clock `0x00B43DBC` | 28 IsNight | §6.1 |
+| prop manager `0x00B43D10` | 32 AddStreetProp, 33 RemoveStreetPropsFromTile | §8.5, §8.6 |
+| zone manager `0x00B43D14` | the zone grid | §8.2 |
+| lot configuration manager `0x00B43D18` | 27 GetObjectIDArray | §8.6 |
+| traffic network map `0x00B43D54` | 8 FindNetworkTile, 14 SafeGetTileInfoAtCell, 36 UpdateIntersection | §8.5, §8.6, §10 |
+| building development `0x00B43D68` | 36 lot developer (then its slot 29 GetAreaSlope), 40 GetBuildingProfilePtr | §8.3, §8.4 |
+| flora `0x00B43D80` | 17 AddNewFloraOccupant, 20 DemolishFloraInCellArea | §8.5, §8.6 |
+| resource manager `0x00B43CA8` | 18 key list (then list slot 7 to enumerate) | §3.2 |
+| generator `0x00B44870` | `RandomUint32Uniform` | §8.5, §8.6 |
+
+---
+
+## 13. Replaceability
+
+The simulation-visible parts are:
+
+- the two records;
+- the `managed` list;
+- the flags;
+- the terrain rule (§7.6);
+- the batched removal;
+- the network lot choice;
+- the style;
+- the objects;
+- the potholes;
+- the riot lock.
+
+The tools, models, remap tables and retrofit are presentation or legacy. A FreeCity4 replacement:
+
+- implements both components with the IDs of §1;
+- keeps the message order of §3 and the records of §4 byte for byte;
+- may leave slots 13–15 as identity mappings until a renderer needs them *[choice]*.
+
+---
+
+## 14. Quirks (summary)
+
+1. `Read` of component 53 appends without clearing (§4.1). Inserting a managed piece twice duplicates it (§6.1).
+2. `DestroyNetworkOccupants` leaks one reference per destroyed element (§7.2).
+3. `QueueRemovals` destroys in memory order (§7.3).
+4. `GetEnglishNetworkName` has no bounds check (§7.5).
+5. `AutoconnectLotNodes` skips in-lot neighbours only for E and S (§7.8).
+6. The network lot manager's `Init` drops lots with missing configurations without releasing them (§3.2).
+7. `0xA9B6C2D6` is subscribed but never posted (§6.2).
+8. `IsLotCompatible`: 8-bit column shift, rows past 3 read neighbouring bytes, `n = 0` faults (§8.4).
+9. `GetNetworkLotConfigurationById` never fills its output (§8.6).
+10. The wealth ties go up in §8.3 and down in §8.7.
+11. Road style never clears `0x6000000` (§8.7).
+12. A pothole's height is taken at the cell centre (§8.8). An object's height is taken before the mirror (§8.6).
+13. The riot lock: the edge quirk, the inverted counter, and no unlock until the last riot ends (§10).
+14. A construction crew that does not unregister hangs PreCityShutdown (§7.12).
+
+---
+
+## 15. Open questions
+
+- ~~**NM1.** Are the globally managed occupants also saved by the occupant manager, or only through component 53?~~
+  **Answered (re-specs14b):** both. The occupant manager's grid (component 4) saves a ref to every occupant in every
+  cell, and component 53 saves the managed list. Refs resolve to one object per ID (foundations §2.7), so the load
+  gives one object, and `managed` holds it once (§4.1). Each occupant's own base record carries its "in the manager"
+  flag and its stored box (occupant-manager.md §13, OM2).
+- ~~**NM2.** Does the occupant manager post `0x99EF1142` while a city loads?~~ **Answered (re-specs14b):** no.
+  Occupant-manager `Read` posts nothing. The base occupant `Read` (`0x005E8D60`) sets bit 1 of the occupant's state
+  byte, and with that bit set the base `Init` (`0x005E8C90`) posts **no** Create `0x99EF1140` either. The network,
+  bridge, tunnel and prebuilt `Init`s (`0x0061CB50`, `0x00604BF0`, `0x006471C0`, `0x0061DB00`) never insert. So
+  `managed` comes only from component 53, once per piece.
+- **NM3.** Meanings of flags `0x40000`, `0x80000`, `0x40000000`, `0x80000000` and of terrain kinds 3, 4 and 6
+  (§7.6). Logging `data4` of `0x278E6003` while using each terraforming brush would settle the kinds. Leads
+  (network-tools.md §6.2, §10):
+  - `0x40000000` is set with `0x8000000` when the tool adds support structures (elevated pieces) *[inferred]*;
+  - `0x80000` marks a tunnel portal: `DestroyOccupantsAndResolve` QIs such a piece to the tunnel occupant
+    (`0x8A4BD52B`) to bring in the other portal *[inferred]*.
+- **NM4.** The exact visited and rejected set tests of the avenue flood (§8.7, marked inferred). Styling an avenue
+  loop that crosses an intersection, then logging the styled cells, would settle them.
+- ~~**NM5.** The effect-prop slots 6, 7 and 8 used for potholes (§8.8) are named from their use (set the effect name,
+  start, stop).~~ **Answered (re-specs14b):** confirmed. They are `SetEffectType(char const*)`, `StartEffect(bool)` and
+  `StopEffect(bool)` of cISC4PropOccupantVisualEffect (vtable `0x00AA4ED8`; the two `SetEffectType` overloads compile
+  in reverse SDK order). Behaviour: network-tools.md §13.2.
+
+---
+
+## 16. Conformance tests
+
+Each test names its section. "City" means a fresh 64 × 64 city unless stated otherwise.
+
+1. **Component 53, empty** (§4.1). Write → `01 00 00 00 00 00`. Read of `02 00 …` → false.
+2. **Component 11, empty** (§4.2). Write → `02 00 00 00 00 00 00 00 00 00`. Read of `01 00` → false, nothing else
+   read.
+3. **Managed list order** (§6.1). Insert bridges A, B, C (`0x99EF1142`), then remove A. `managed` is C, B. Save →
+   count 2, refs C then B.
+4. **Duplicate insert** (§6.1). Insert A twice → `managed` is A, A; remove A once → A.
+5. **Not managed** (§6.1). Insert a plain road piece → `managed` unchanged.
+6. **Lighting** (§6.1). `managed` = a bridge and a tunnel; dusk → `SetLit(true)` on the bridge only.
+7. **GetNetworkTool** (§7.1). `(13, false)` → null; `(5, false)` twice → the same pointer, reference count
+   unchanged; `(5, true)` → a new tool.
+8. **QueueRemovals dedupe** (§7.3). `QueueRemovals(true)`; destroy lists [A, B] and [A]; `QueueRemovals(false)` → one
+   `DestroyOccupantsAndResolve` call for the surface group, containing A and B once each.
+9. **Groups** (§7.2). A list with a road R, a pipe P and a subway S → three tool calls: type 0 with [R], type 4 with
+   [P], type 7 with [S], in that order.
+10. **Terrain rect** (§7.6). data1 = `0x00060009`, data2 = `0x0000000F`, 64 × 64 city → rect x 5..9, z 0..15 (z1 = −1 clamped to 0).
+    With `longTerrainOp` and a previous `dirty` of x 8..20, z 3..4 → `dirty` = x 5..20, z 0..15.
+11. **Corner rule** (§7.6). Road whose corners stand 0.005 above the terrain, kind 1 → kept. 0.02 above → destroyed.
+    0.001 below → destroyed. Same road, kind 4 → kept. A pipe 0.02 off, kind 1 → kept; kind 3 → destroyed.
+    Kind 5 → no query at all.
+12. **Riot lock** (§10). Road at (10, 10), riot at (12, 12): `CanRemove(2)` false, `CanRemove(1)` true. A second riot
+    at (11, 11) marks nothing new (the set). End the first riot → still locked; end the second → `CanRemove(2)` true.
+13. **Riot edge** (§10). Riot at (2, 10) → no road is locked, even the one at (2, 10).
+14. **Zone for network** (§8.2). Cell (5, 5) unzoned; W = R$ (1), N = C$$$ (6), E = I-D (8), S = none → 8. Unzoned
+    with W = agriculture (7) and the rest none → diagonals are visited; diagonal (4, 6) = R$$ (2) → 2. Cell zoned
+    C$ → 4 whatever the neighbours.
+15. **Wealth for network** (§8.3). Orthogonal lots of wealth 1, 2, 2, 1 → counts (0, 2, 2, 0) → 2 (tie up). Lots
+    1, 1, 2 → 1. No orthogonal lot, one diagonal lot of wealth 3 → 3. No lot → 0.
+16. **Compatibility pattern** (§8.4). n = 2, mask rows `01 02 …`: (x, z) = (4, 6) → row 0, col 0, bit 1 → ok;
+    (5, 6) → col 1 → no; (5, 7) → row 1, col 1 → ok. A configuration with no zone list → never compatible.
+    Slope 3.0 with min 0, max 2 → no.
+17. **Object position** (§8.6). Cell (10, 20), object offsets (3, 0.5, 5), o = 2, rotation 1, not flipped →
+    x = 165, z = 333, orientation 3, y = altitude(165, 333) + 0.5. Flipped → x = 171, orientation 1.
+18. **Choose and keep** (§8.5). A usable street piece with two compatible configurations → one random draw, one lot.
+    Re-running `UpdateRoadsInCell` with the zone unchanged → no draw, the same lot. Rezoning the neighbour so that the
+    configuration no longer fits → the props and flora of the cell are removed, and a new lot is chosen.
+19. **Forced configuration** (§8.5). `SetLotConfigurationForNextPiece(F)`; place a piece → its lot uses F, is locked,
+    `forced` is cleared. Rezoning around it never replaces it.
+20. **Road style** (§8.7). A street with zone R$ (1) and wealth 2 → texture `0x08200000`, variation 2, flags
+    `0x6000000` set. Rail only next to zone 0 → texture 0, flags unchanged. A street next to agriculture → texture
+    `0x08400000`, variation 7.
+21. **Pothole** (§8.8). `0x69247DC8 (10, 10, 1)` on a road dead end whose only open side is W (`e = 1`) → a "pothole"
+    effect at the cell centre − 4 m in x. Repeating it → nothing. A rail-only cell → "pothole_rail".
+    `(10, 10, 0)` → the effect is removed. `(11, 11, 0)` with no pothole → nothing.
+22. **Usable message** (§5). `SetNetworkFlag(0x10000000)` on a placed piece → one `0x89D3E9F3` (data1 = 1); setting it
+    again → none; `ClearNetworkFlag(0x10000000)` → one with data1 = 0. On a piece not in the city: set → none; clear
+    → one.
+23. **Lot state ring** (§6.2). A 2 × 3 lot at x 10..11, z 20..22 changes state → `pending` gets the 14 border cells
+    of x 9..12, z 19..23 (not the lot's own 6 cells).
+
+---
+
+## 17. Random draws
+
+Only the network lot manager draws, all from its own generator `0x00B44870` (`RandomUint32Uniform(n)`, foundations
+§6):
+
+- one draw per new network lot chosen without a forced configuration (§8.5 step 3.3);
+- one draw per prop or flora object with a non-empty candidate list (§8.6), in object order.
+
+So `RedevelopLot` (city-detail.md §3.4) draws again for every object of every lot. It removes the cell's street
+props and flora and creates new ones, which may differ from the old ones. The prop manager's and the flora's saved
+state therefore change, while component 11 (the lot and its configuration) does not.
+
+The network manager draws nothing.

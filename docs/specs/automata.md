@@ -383,7 +383,7 @@ None of this changes a save beyond the records above.
 | controller manager, cheats (`0x005187F0`) | `0x230E27AC` with `0xABA2B5BB`: a cheat command that toggles a debug flag |
 | every manager (base, `0x00506970`) | `0x99EF1143`, `0x4A7FB807` emergency pause, `0x26D31EC2` PreCityShutdown, `0x06CDB65A`, `0x26D31EC1`, `0x2977AE2F` building completion changed, `0x86AD10EE`, `0x89D3E9F3`, `0x99EF1142`, `0xCAD61E00`, `0xA6B79602`, `0xA6B79612`, `0xC9F775BB`, `0xEA298D50`, `0xEAD61E16`, `0xEBFF18A3` |
 | pedestrian manager (`0x00545450`) | adds `0x230E27AC` (cheats) and `0xA9E3B6E2` (crowd reaction), then the base |
-| vehicle manager (`0x00562620`) | adds `0xA6B79611`, `0x0772FAD4` FundsChanged, `0x44778234` DayNightChanged, `0xA6B79601`, `0xC53D10AA` exemplar changed, `0xC9DA96E7`, `0xC9DA96E9` dusk, then the base |
+| vehicle manager (`0x00562620`) | adds `0xA6B79611`, `0x0772FAD4` FundsChanged, `0x44778234` DayNightChanged, `0xA6B79601`, `0xC53D10AA` exemplar changed, `0xC9DA96E8` dawn and `0xC9DA96E9` dusk, then the base |
 | aircraft manager (`0x004FC710`) | adds `0x99EF1142` / `0x99EF1143` (`HandleOccupantRemoved` `0x004FB8D0` keeps §5.2 consistent), then the base |
 | watercraft manager (`0x00575500`) | adds `0x2C06BA82` ferry pass finished, `0x99EF1142` / `0x99EF1143` (§5.3 lists), then the base |
 
@@ -455,8 +455,24 @@ argument types given above for script slots 11 and 12 are checked, the others ar
   and their Write and Read functions are not mapped here.
 - **Q5.** The meaning of the generator's two trailing `u32`s, the automaton base's unnamed fields, and
   `CreateAutomaton`'s mode and last three arguments.
-- **Q6.** Messages `0x89D3E9F3`, `0x06CDB65A`, `0xCAD61E00`, `0xEA298D50`, `0xEAD61E16`, `0xEBFF18A3`,
-  `0xA6B79611`, `0xC9DA96E7` are handled but not named in other specs.
+- ~~**Q6.** Messages `0x89D3E9F3`, `0x06CDB65A`, `0xCAD61E00`, `0xEA298D50`, `0xEAD61E16`, `0xEBFF18A3`,
+  `0xA6B79611`, `0xC9DA96E7` are handled but not named in other specs.~~ **Answered (re-answers12).** The names
+  come from the executable's own message-name table (pairs of ID and name around `0x00B08360`–`0x00B086F8`):
+
+  | ID | Name | Posted by |
+  |---|---|---|
+  | `0x89D3E9F3` | `kSC4MessageNetworkOccupantUsableChange` | the network manager (network-manager.md §5) |
+  | `0x06CDB65A` | `kSC4MessagePreViewFilterChange` | `cSC4View3DWin::SetCurrentViewFilterInfo` (`0x007E6435`) |
+  | `0xCAD61E00` / `0xEAD61E16` | `kSC4MessageMouseScrollBegin` / `…End` | the UI |
+  | `0xEA298D50` | `kSC4MessageRemoveAutomataController` | the controller manager's `RemoveController` (`0x00517924`, `0x0051A610`), `DoAnimationTick` (`0x00518D3B`) and `RemoveControllersFromOccupantGroup` (`0x0051A414`) |
+  | `0xEBFF18A3` | `kSC4MessageOccupantGroupChanged` | `cSC4Occupant::AddOccupantGroup` (`0x005E93EA`) |
+  | `0xA6B79611` | `kSC4MessageViewTChange2` | the camera control (`0x007CC16B` and three more) |
+
+  `0xC9DA96E7` is **not a message the vehicle manager handles**: it occurs once in the executable, as the lower
+  bound of a range test in the vehicle manager's `DoMessage` (`0x00562763`: `E7 < id ≤ E9`), so the handled IDs
+  are `0xC9DA96E8` dawn and `0xC9DA96E9` dusk (subscribed through message-server slot 5 at `0x0055B82B` / `0x0055B838`). Dusk calls slot 176
+  (`+0x2C0`) with `(true, true)` on every vehicle of the list at `+0x38`, dawn with `(false, true)`
+  (`0x00562788`–`0x005627C8`) *[inferred: headlights]*; then the base handler runs. The §10 table is corrected.
 
 ## 14. Conformance tests (must exist in `engine/conformance`)
 

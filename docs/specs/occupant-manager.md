@@ -84,8 +84,10 @@ The city's Init calls it at `0x0045BF2B`. It runs under the lock, and only once:
 A loaded occupant whose cells all lie in the border ring of the grid is not initialised here. Shipped content keeps
 occupants inside the city, so this does not happen in practice *[inferred]*.
 
-Each loaded occupant that was not initialised posts Create `0x99EF1140` from its own `Init` (§5.6). Loading posts
-**no** Insert messages.
+A loaded occupant posts **no** Create `0x99EF1140` from its `Init`: the base occupant `Read` (`0x005E8D60`) sets
+bit 1 of `+0x2E`, and with that bit set the base `Init` calls slot 17 instead of posting (§5.6, §13; corrected by
+re-specs14b). Loading posts **no** Insert messages either. An occupant class whose own `Init` posts something is
+outside this rule.
 
 ### 2.3 Shutdown (slot 4, `0x0049E000`)
 
@@ -372,7 +374,7 @@ place. Callers that need a Change message post `0x99EF1145` themselves (landfill
 
 | Message | ID | Posted by | data4 | When |
 |---|---|---|---|---|
-| Create | `0x99EF1140` | occupant `Init` (base `0x005E8C90`) | 0 | the first `Init` of the occupant: from Insert step 3, or from the manager's `Init` after a load |
+| Create | `0x99EF1140` | occupant `Init` (base `0x005E8C90`) | 0 | the first `Init` of a new occupant, from Insert step 3. Not after a load: a loaded occupant has bit 1 of `+0x2E` set (§13) |
 | Insert | `0x99EF1142` | Insert, step 12 | the caller's | after the lock is dropped and flag 1 is set |
 | Remove | `0x99EF1143` | Remove step 7.1; RemoveOccupants step 4.1 | the caller's | after the cells are updated and the lock is dropped |
 | Destroy | `0x99EF1141` | occupant `Shutdown` (base `0x005E8980`) | 0 | only when Remove or RemoveOccupants is called with `shutdown`, after Remove |
@@ -746,8 +748,19 @@ At load time bit 0 is usually 0. Occupant classes are read after the manager (as
 so their box is not loaded yet and `GetOccupantManagerBBox` fails. Queries still return correct results (§4.2).
 
 `Read` posts no message and sets no occupant flag. Flag 1 and the stored box come from the occupants' own records
-*[inferred: the occupant records are out of scope here; save-records §8]*. `Init` (§2.2) then initialises every
-occupant, which posts Create.
+(answers OM2, re-specs14b). The base occupant record (`Write` `0x005E8CD0` / `Read` `0x005E8D60`, version u16 4) holds,
+in order:
+
+1. the u16 at occupant `+0x2C`;
+2. the highlight byte;
+3. the flags byte (occupant `+0x2F`) masked with `0xDD`, so flag 1 (in the manager) **is** saved;
+4. the u32 at `+0x24`;
+5. the 4-byte stored box at `+0x28`–`+0x2B`;
+6. the property holder.
+
+`Read` sets the state byte `+0x2E := (highlight << 4) | 2`. This clears bit 0 (not initialised) and sets bit 1.
+`Init` (§2.2) then initialises every occupant. With bit 1 set, the base `Init` calls slot 17 (0, 0) and posts **no**
+Create. 16 occupant classes call this base `Read`.
 
 ---
 
@@ -812,10 +825,10 @@ deviation, because no shipped callback nests a typed call *[inferred]*.
 
 - **OM1:** which thread contends for the lock? [*inferred*: the renderer or the model loader; settled by a
   breakpoint on `0x0049DF80`/`0x004A0670` filtered by thread ID in a turbo run]
-- **OM2:** the loaded occupants' flag 1 and stored box: are they read from the occupant records, or restored some
-  other way? [*inferred*: from the occupant base class record; save-records §8 owns the occupant records. Settled by
-  checking, after a load, that `IsFlagSet(1)` is true and `GetOccupantManagerBBox` succeeds for a sample of
-  occupants before `Init`]
+- ~~**OM2:** the loaded occupants' flag 1 and stored box: are they read from the occupant records, or restored some
+  other way?~~ **Answered (re-specs14b):** from the occupant base record (§13): flag 1 is saved in the flags byte
+  (mask `0xDD`) and the box in the 4 bytes at `+0x28`. The bracket MATCHES. A loaded occupant does not post Create
+  (§2.2 corrected).
 - **OM3:** is slot 12 ever called? [not searched exhaustively: virtual calls through `+0x30` are common. A turbo run
   with a breakpoint on `0x0049DA30` would settle it; until then reproduce the bug]
 - **ZQ14** is answered in zones.md §5.2 (re-answers11). The trace in this lane agrees: the calls at `0x006277FA`,

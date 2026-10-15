@@ -26,10 +26,19 @@ use super::cycle::Run;
 use super::prop;
 
 /// The first holder token of the pools: `POOL_TOKEN_BASE | id`, id 0 the
-/// default pool. A host must not hand out holder tokens in
-/// `POOL_TOKEN_BASE ..= POOL_TOKEN_BASE | 0xFFFF` (a FreeCity4 convention
-/// with no original counterpart; below 2⁵³ so a JSON vector can name it).
+/// default pool, and [`POOL_KEY0_TOKEN`]. A host must not hand out holder
+/// tokens in `POOL_TOKEN_BASE ..= POOL_TOKEN_BASE | 0x1FFFF` (a FreeCity4
+/// convention with no original counterpart; below 2⁵³ so a JSON vector can
+/// name it).
 pub const POOL_TOKEN_BASE: u64 = 0x000F_C4F0_0000_0000;
+
+/// The holder token of the map's own pool under key 0 (traffic-network.md
+/// §2.7.2 step 5, TS42), apart from the default pool: only an ID search
+/// that wrapped (or a save that names ID 0) puts a pool there. Lookups by
+/// a record's pool ID never reach it (pool 0 is the default pool); the
+/// searches by city position (§2.7.2 step 5, §2.7.4 step 4) and the record
+/// do.
+pub const POOL_KEY0_TOKEN: u64 = POOL_TOKEN_BASE | 0x1_0000;
 
 /// The region-cell position of a pool's city (traffic-network.md §2.7.2
 /// step 5): s32 x and z.
@@ -41,9 +50,25 @@ pub fn pool_token(id: u16) -> u64 {
     POOL_TOKEN_BASE | u64::from(id)
 }
 
-/// The pool ID of a holder token, `None` for a host token.
+/// The pool ID of a holder token, `None` for a host token (and for
+/// [`POOL_KEY0_TOKEN`]).
 pub fn pool_of_token(token: u64) -> Option<u16> {
     (token & !0xFFFF == POOL_TOKEN_BASE).then_some(token as u16)
+}
+
+/// Whether a holder token is one of the simulator's pools.
+pub fn is_pool_token(token: u64) -> bool {
+    pool_of_token(token).is_some() || token == POOL_KEY0_TOKEN
+}
+
+/// The holder token of a pool the map search found (`Pools::find`): key 0
+/// is the map's own key-0 pool, not the default pool.
+pub fn map_pool_token(id: u16) -> u64 {
+    if id == 0 {
+        POOL_KEY0_TOKEN
+    } else {
+        pool_token(id)
+    }
 }
 
 /// The pools (traffic-network.md §2.7.3).
@@ -95,10 +120,16 @@ impl Pools {
     }
 
     /// A new pool with only the two position properties, under the
-    /// smallest unused ID ≥ 1 (§2.7.2 step 5). `None` when all 65,535 IDs
-    /// are taken *[choice: the record then keeps pool 0]*.
+    /// smallest unused ID ≥ 1 (§2.7.2 step 5). The search counts in 32 bits
+    /// and looks up the low 16 (`0x0071555A`–`0x00715595`, TS42): with IDs
+    /// 1…65535 all in use it looks up 0, and a free key 0 takes the new
+    /// holder (the record's pool is then 0, the default pool). With key 0
+    /// taken as well the original's search never ends; *[choice]* `None`,
+    /// nothing created, and the caller's record gets pool 0.
     pub fn create(&mut self, px: i32, pz: i32) -> Option<u16> {
-        let id = (1..=u16::MAX).find(|id| !self.map.contains_key(id))?;
+        let id = (1..=u16::MAX)
+            .chain(std::iter::once(0))
+            .find(|id| !self.map.contains_key(id))?;
         let mut h = PropertyHolder::new();
         h.add(POOL_CITY_X, Variant::Scalar(Elem::I32(px)));
         h.add(POOL_CITY_Z, Variant::Scalar(Elem::I32(pz)));
@@ -185,8 +216,10 @@ impl Run<'_, '_> {
             h: self.h,
             pools: self.pools,
         };
-        // 1. The regional jobs, truncated toward zero, as u32 *[choice: 0
-        // when the node is missing]*.
+        // 1. The regional jobs, truncated toward zero, as u32. *[choice]*
+        // 0 when the node is missing (TS43: the original calls through the
+        // null `GetDemand` result, `0x00714ED9`–`0x00714EE0`, a crash; the
+        // shipped exemplars define the three nodes).
         let j: [u32; 3] = std::array::from_fn(|w| {
             self.h
                 .regional_demand(w as u32)
@@ -202,7 +235,8 @@ impl Run<'_, '_> {
             let Some(id) = self.pools.borrow().find(c.position.0, c.position.1) else {
                 continue;
             };
-            let token = pool_token(id);
+            // The pool the search found: key 0 is the map's own (TS42).
+            let token = map_pool_token(id);
             for w in 0..3 {
                 let q = r24(f64::from(c.population[w]) / f64::from(t[w]));
                 let cap = ftol(r24(q * f64::from(j[w]))) as u32;

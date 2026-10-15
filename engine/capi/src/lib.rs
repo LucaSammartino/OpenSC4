@@ -809,6 +809,7 @@ pub mod residential;
 pub mod residential_shadow;
 pub mod stream;
 pub mod traffic;
+pub mod traffic_shadow;
 pub mod tract_developer;
 pub mod weather;
 pub mod zonedev;

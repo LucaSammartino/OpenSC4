@@ -5,7 +5,7 @@
     "traffic-simulator 3.5",
     "traffic-simulator 4.1"
   ],
-  "description": "§3.5 step 11 (TS7), the resume by the loaded state. 18: the iterator is reset and advanced to the source whose cell is the saved source cell (lot 2's location (2, 2)), which becomes the held current source; days = 3 lots div 18 = 0. 16 with no source at the saved cell ((3, 3) is no source's location): reset again, none held. 15: the lot at the saved cell (GetLot(3, 3, false): lot 2, any cell) is where the FinishTripMap walk resumes after. 14: freeDest := 0, then ClearTripDestinations and RefreshCommuteMap over the city, state 0: lot 3's capacity 5 for type 0 sets bit 0 at (4, 4) and freeDest[0] = 1. The saved cell is the s16 x 2 'phase positions' pair of row 14 [question].",
+  "description": "§3.5 step 11 (TS7), the resume by the loaded state. 18: the iterator is reset and advanced to the source whose cell is the saved source cell (lot 2's location (2, 2)), which becomes the held current source; days = 3 lots div 18 = 0. 16 with no source at the saved cell ((3, 3) is no source's location): reset again, none held. 15: the lot at the saved cell (GetLot(3, 3, false): lot 2, any cell) is where the FinishTripMap walk resumes after. 14: freeDest := 0, then ClearTripDestinations and RefreshCommuteMap over the city, state 0: lot 3's capacity 5 for type 0 sets bit 0 at (4, 4) and freeDest[0] = 1. The saved cell is the s16 x 2 'phase positions' pair of row 14 (TS44).",
   "steps": [
     {
       "op": "ts_env",

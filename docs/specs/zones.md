@@ -116,7 +116,10 @@ Idempotent. In order:
 8. Set the initialised flag; return 1.
 
 `Shutdown` (slot 4, `0x007335A0`): unregister the cheats, unsubscribe the three messages, clear the boundary-rule
-map, release the lots of the map and free it, `Shutdown`/`Release` the network tools and the maximum-capacity grid,
+map, delete the lots of the map and free it (ZG32: `0x0072B8D0`, called at `0x00733663`, walks the cell map x outer,
+z inner, and calls the manager's own `DeleteLot` (slot 24, §8.6) on every non-null cell; since `DeleteLot` nulls the
+lot's cells, each lot is deleted once, at its first cell, and the manager's reference is released **here**, not in
+the destructor), `Shutdown`/`Release` the network tools and the maximum-capacity grid,
 release the services. Returns AL = 1.
 
 ---
@@ -257,7 +260,7 @@ nested inside the outer `PlaceZone` *[inferred: synchronous delivery, §5.2]*.
 | Message | Action |
 |---|---|
 | `0x26D31EC1` PostCityInit | Take the terrain view (`SL::TerrainView`). From the network manager (`SL::NetworkManager` slot 5 `GetNetworkTool(type, 1)`) take the **network tools** of types 3 (street), 11 (dirt road) and 0 (road), each AddRef'd and its slot 3 called. If the city was loaded, call `lot.PostCityInit()` (lot slot 8) for every lot at its origin cell, x outer, z inner. |
-| `0x230E27AC` cheat (ID = data1) | `0x8929E68E` → `PlopAllLotTypes` (`0x0072C8E0`); `0x4AB569C9` → `PlopAllBuildingTypes` (`0x0072BE50`). Debug only; not specified. |
+| `0x230E27AC` cheat (ID = data1) | `0x8929E68E` → `PlopAllLotTypes` (`0x0072C8E0`); `0x4AB569C9` → `PlopAllBuildingTypes` (`0x0072BE50`). Debug only; §5.4 (ZG26). |
 | `0xA6B79602` `kSC4MessageViewZRChange3` | cached view value (`+0xD4`) := the u32 at `*void2` (message slot 15 `GetVoid2`; handler `0x00732BC5`). UI only, see below. |
 | `0x99EF1142` InsertOccupant, data3 = `0xC772BF98` | see below |
 
@@ -371,6 +374,36 @@ later message tick, after the zone developer has already re-parcelled (synchrono
 
 DeferOccupantOperations is posted, not sent, so both halves arrive after the operation they bracket *[quirk;
 inferred: the deferral window is empty]*.
+
+### 5.4 The two debug cheats (ZG26)
+
+They exist only when the app's debug-functionality flag (app slot 21) is set at `Init` (§1.2 step 7; the same flag
+gates other debug cheats, for example `csitrigger` in city-situation.md). `Shutdown` unregisters both (cheat manager slots 8 and 4,
+`0x007335C2`–`0x007335F2`). Both are real-mode growth tools that ignore zoning; FreeCity4 may leave them out or
+implement them as below. `cellsX`, `cellsZ` are the cell map's dimensions (`+0x28`, `+0x2C`); the bounds are
+`[0, max(cellsX − 1, 0)]` × `[0, max(cellsZ − 1, 0)]`.
+
+**PlopAllLotTypes** (`0x0072C8E0`). One lot of every lot configuration, packed in rows:
+1. `map := lotConfigurationManager.GetLotConfigurationMap()` (`0x00B43D18`, slot 20); walk it in bucket order
+   (`0x004B0390`; node `+8` is the configuration).
+2. A cursor `(x, z)` starts at `(0, 0)` with a state byte `s := 0`. *Advance*: if `s = 0`, `s := 1` and stay;
+   otherwise `x += 1`, and past the last column `x := 0`, `z += 1`.
+3. Per configuration `cfg`: `(w, h) := cfg.GetSize()` (slot 7); stop if `s = 2`; advance; then
+   `CreateLotIfPossible(x, z, w, h, facing 0, &lot, zoneNotNeeded = true, waterAllowed = false, cfg)` (slot 22,
+   `0x0072C9C5`). On failure advance and retry; leave the whole cheat when `z` passes the last row.
+4. On success: `bds.GetLotDeveloper().ConstructDefaultLot(lot, cfg, 0, false)` (BDS `+0x20` slot 36, lot developer
+   slot 7), release `lot`, advance `w + 1` times (the state becomes 2 when `z` passes the last row), and after
+   every 16th lot call `SC4GameDelay(1000, 1)` (`0x005F9140`).
+
+**PlopAllBuildingTypes** (`0x0072BE50`). One lot per building type, spiralling out from the centre:
+1. `types := bds.GetAllBuildingTypes()` (`0x00B43D68`, slot 11; a B-allocated vector freed at the end).
+2. A `SpiralIterator` (plumbing.md §7.2) over the bounds, centred on `(cellsX / 2, cellsZ / 2)` (signed halving).
+3. Per type `t`, in vector order: `lotConfigurationManager.CreateGenericLotConfiguration(&cfg, t)` (slot 22);
+   `(w, h) := cfg.GetSize()` with **no null test** (a rejected type faults); take the next spiral cell and try
+   `CreateLotIfPossible(x, z, w, h, 0, &lot, true, false, cfg)`, taking the next cell after each failure; stop
+   when the spiral is exhausted.
+4. On success: `ConstructDefaultLot(lot, cfg, t, false)`, release `lot`, step the spiral `w + 1` times, and after
+   every 16th lot `SC4GameDelay(100, 1)`. `cfg` is never released.
 
 ---
 
@@ -1391,7 +1424,9 @@ rect, x outer and z inner. A facing of −1 is recorded as is, with no draw. `*o
    its node's predecessor, and count it; when its list is null nothing is inserted and the count is unchanged
    *[quirk]*. If `it` is null: append to the master list and count it.
    The traffic simulator answers only in its work-cycle state 1, which the cycle never enters (traffic-simulator.md
-   §3), so `it` is null in practice and new lots are appended *[inferred]*.
+   §3), so `it` is null in practice and new lots are appended *[inferred]*. When non-null it is the traffic
+   simulator's safe lot iterator, taken at its `Init` from slot 15 of whichever lot manager was installed then
+   (traffic-network.md §4.14), so a replacement manager only ever sees its own iterator or null (ZG31).
 5. `bds.GetLotDeveloper().SetEmptyLotBaseTexture(lot)` (BDS slot 36, lot developer slot 43).
 
 #### 8.5.1 The lot object: allocation, constructor and first `Init` *[compat]*
