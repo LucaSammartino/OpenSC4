@@ -6,12 +6,14 @@ Runs (each through tools\ingame_run.ps1 with popup_dialogs = 0 and autotest_end 
 is part of every verdict):
   shadows  every same-process shadow at once, on the original subsystems: budget (needs disable = budget), demand,
            pollution, protection, crime, aura, flora, landfill, power, plumbing, land value, flammability,
-           residential, neighbours, zones, development, tract, zone developer (zonedev), history warehouse (history)
-           and 24-hour clock (clock; under turbo the clock steps rarely, CK22). A shadow line is clean when every
-           mismatch count on it is 0.
-  replace  every merged replacement at once (-Replace overrides the list). With development (our development unit
-           runs about 3x slower per game day than the original: 23-29 game days/s under turbo against 80-90) the
-           replace run takes longest.
+           residential, neighbours, zones, development, tract, zone developer (zonedev), history warehouse (history),
+           24-hour clock (clock; under turbo the clock steps rarely, CK22), commercial (CO$$/CO$$$ map rebuilds),
+           civic buildings (civic) and parks. A shadow line is clean when every mismatch count on it is 0. Not in it:
+           the lot developer shadow (lotdev_shadow; slots 25/26 differ until LD29) and traffic (phase 2).
+  replace  every merged replacement at once (-Replace overrides the list; 26 keys: the 20 of run 114
+           plus commercial, industrial, civic, parks, lotdev and zonedev; traffic is not in it). With development (our development unit runs about 3x
+           slower per game day than the original: 23-29 game days/s under turbo against 80-90) the replace run takes
+           longest.
 
 Usage:
   powershell -File tools\regress.ps1 -Tag r1 [-EndDate 2032-01-01] [-Only shadows|replace] [-Replace "landvalue, weather"]
@@ -61,7 +63,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Tag,
     [int]$Seconds = 150,
     [ValidateSet("", "shadows", "replace")][string]$Only = "",
-    [string]$Replace = "landvalue, weather, ordinance, demand, power, plumbing, flammability, pollution, protection, crime, aura, flora, landfill, residential, neighbors, zones, development, tract, history, clock24",
+    [string]$Replace = "landvalue, weather, ordinance, demand, power, plumbing, flammability, pollution, protection, crime, aura, flora, landfill, residential, neighbors, zones, development, tract, history, clock24, commercial, industrial, civic, parks, lotdev, zonedev",
     [string]$City = "C:\Users\tlori\Documents\SimCity 4\Regions\FC4 Test\City - Konradshohe.sc4",
     [string]$Dll = "",
     [switch]$Parallel,
@@ -143,7 +145,7 @@ $Out = Join-Path $PSScriptRoot "..\build-runs"
 New-Item -ItemType Directory -Force $Out | Out-Null
 
 $runs = [ordered]@{
-    shadows = "disable = budget`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1`nflora_shadow = 1`nlandfill_shadow = 1`npower_shadow = 1`nplumbing_shadow = 1`nlandvalue_shadow = 1`nflammability_shadow = 1`nresidential_shadow = 1`nneighbours_shadow = 1`nzones_shadow = 1`ndevelopment_shadow = 1`ntract_shadow = 1`nzonedev_shadow = 1`nhistory_shadow = 1`nclock24_shadow = 1"
+    shadows = "disable = budget`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1`nflora_shadow = 1`nlandfill_shadow = 1`npower_shadow = 1`nplumbing_shadow = 1`nlandvalue_shadow = 1`nflammability_shadow = 1`nresidential_shadow = 1`nneighbours_shadow = 1`nzones_shadow = 1`ndevelopment_shadow = 1`ntract_shadow = 1`nzonedev_shadow = 1`nhistory_shadow = 1`nclock24_shadow = 1`ncommercial_shadow = 1`ncivic_shadow = 1`nparks_shadow = 1"
     replace = "enable = $Replace"
 }
 $after = if ($Turbo) { $TurboTimeout } else { $Seconds }

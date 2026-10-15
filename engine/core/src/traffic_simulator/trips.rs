@@ -215,11 +215,20 @@ pub fn reconcile_connection(trips: &mut Vec<TripData>, targets: &[[u32; 9]; 3]) 
 /// The ConfirmTrips merge (§4.3): each routed trip absorbs every later trip
 /// of the same type and strategy and becomes status 0.
 pub fn merge_routed(trips: &mut Vec<TripData>) {
+    merge_routed_with(trips, false);
+}
+
+/// [`merge_routed`]; with `only_absorbing` (the traffic shadow's hypothesis
+/// [`super::state::HYP_MERGE_ABSORBED`]) a routed trip that absorbed no
+/// later trip stays routed.
+pub fn merge_routed_with(trips: &mut Vec<TripData>, only_absorbing: bool) {
     let mut i = 0;
     while i < trips.len() {
         if trips[i].status == status::ROUTED {
-            absorb_later(trips, i, |_| true);
-            trips[i].status = status::SEARCH;
+            let n = absorb_later(trips, i, |_| true);
+            if n > 0 || !only_absorbing {
+                trips[i].status = status::SEARCH;
+            }
         }
         i += 1;
     }
@@ -228,27 +237,37 @@ pub fn merge_routed(trips: &mut Vec<TripData>) {
 /// The ReRouteTrips merge (§4.4): each status-0 trip absorbs the later trips
 /// of the same type and strategy whose status is not 3.
 pub fn merge_search(trips: &mut Vec<TripData>) {
+    merge_search_with(trips, false);
+}
+
+/// [`merge_search`]; with `routed_too` (the traffic shadow's hypothesis
+/// [`super::state::HYP_REROUTE_MERGE_ALL`]) routed trips are absorbed too.
+pub fn merge_search_with(trips: &mut Vec<TripData>, routed_too: bool) {
     let mut i = 0;
     while i < trips.len() {
         if trips[i].status == status::SEARCH {
-            absorb_later(trips, i, |t| t.status != status::ROUTED);
+            absorb_later(trips, i, |t| routed_too || t.status != status::ROUTED);
         }
         i += 1;
     }
 }
 
-fn absorb_later(trips: &mut Vec<TripData>, i: usize, also: impl Fn(&TripData) -> bool) {
+/// The number of trips absorbed.
+fn absorb_later(trips: &mut Vec<TripData>, i: usize, also: impl Fn(&TripData) -> bool) -> usize {
     let (ty, st) = (trips[i].trip_type, trips[i].strategy);
+    let mut absorbed = 0;
     let mut j = i + 1;
     while j < trips.len() {
         if trips[j].trip_type == ty && trips[j].strategy == st && also(&trips[j]) {
             let c = trips[j].count;
             trips[i].count = trips[i].count.wrapping_add(c);
             trips.remove(j);
+            absorbed += 1;
         } else {
             j += 1;
         }
     }
+    absorbed
 }
 
 /// The result of a trip's search.
@@ -378,7 +397,7 @@ impl Run<'_, '_> {
     /// of the live walk, then the connections of the snapshot.
     pub(crate) fn next_source(&mut self) -> Option<Source> {
         if !self.st.iter.lots_done {
-            let lots = self.h.lots();
+            let lots = self.h.lots_shared();
             if let Some(l) = self.st.iter.next_lot(lots) {
                 return Some(Source::Lot(l));
             }
@@ -395,8 +414,9 @@ impl Run<'_, '_> {
         }
     }
 
-    /// A trip phase takes `src`: its cell is stored for the load resume
-    /// (§3.5 step 11, §6.1 row 14 *[question: the field]*).
+    /// A trip phase takes `src`: its cell is stored in the two s16 phase
+    /// positions for the load resume (§3.5 step 11, §6.1 row 14, TS44;
+    /// `0x0071E276`, `0x0071D0FD`, `0x0071D51C`).
     fn take_source(&mut self, src: Source) {
         let (x, z) = self.source_cell(src);
         self.st.extras.phase_positions = [x as i16, z as i16];
@@ -430,7 +450,10 @@ impl Run<'_, '_> {
         let reroute = (pc[super::PC_SOURCE_COUNTER] & 3) == pc[super::PC_REROUTE_BUCKET];
         let mut trips = self.h.trip_list(src);
         if reroute {
-            merge_routed(&mut trips);
+            merge_routed_with(
+                &mut trips,
+                self.st.shadow_hypotheses & super::state::HYP_MERGE_ABSORBED != 0,
+            );
         }
         let rect = self.source_rect(src);
         for slot in trips.iter_mut() {
@@ -498,6 +521,17 @@ impl Run<'_, '_> {
     /// FullTrips (`full` true, the status-0 trips), §3.4: at most N trips
     /// examined. A unit is a trip of the phase's status *[choice]*.
     pub(crate) fn trip_slice(&mut self, full: bool) -> bool {
+        let n = self.st.tuning.traffic_units_per_slice.max(1);
+        let lazy = self.st.shadow_lazy;
+        self.trip_units(full, n, lazy)
+    }
+
+    /// [`trip_slice`](Self::trip_slice) with `n` units: a slice normally
+    /// ends when it finds the trip after its n-th unit (finishing the
+    /// current source and taking the next one on the way); `lazy` (the
+    /// traffic shadow) ends right after the n-th unit. `n` = 0 only runs on
+    /// to the next trip to examine.
+    pub(crate) fn trip_units(&mut self, full: bool, n: u32, lazy: bool) -> bool {
         if self.cx.s.network_changed {
             // A network change aborts a suspended search (§4.4).
             for pf in [self.st.pf.as_mut(), self.st.pf2.as_mut()].into_iter().flatten() {
@@ -507,7 +541,6 @@ impl Run<'_, '_> {
             self.cx.s.network_changed = false;
         }
         let want = if full { status::SEARCH } else { status::REROUTE };
-        let n = self.st.tuning.traffic_units_per_slice.max(1);
         let mut units = 0;
         loop {
             let src = match self.st.current {
@@ -524,17 +557,7 @@ impl Run<'_, '_> {
             let mut trips = self.h.trip_list(src);
             let next = (self.st.trip_pos..trips.len()).find(|&i| trips[i].status == want);
             let Some(i) = next else {
-                // The end of the source's list.
-                if full {
-                    let rect = self.source_rect(src);
-                    self.complete_trip_source_calculations(src, rect, &mut trips);
-                } else {
-                    merge_search(&mut trips);
-                }
-                self.h.set_trip_list(src, trips);
-                self.st.current = None;
-                self.st.source_pos += 1;
-                self.st.trip_pos = 0;
+                self.end_source(full, src, trips);
                 continue;
             };
             if units >= n {
@@ -592,7 +615,91 @@ impl Run<'_, '_> {
             trips[i] = t;
             self.st.trip_pos = i + 1;
             self.h.set_trip_list(src, trips);
+            if lazy && units >= n {
+                return false;
+            }
         }
+    }
+
+    /// The end of a source's list in ReRouteTrips (the merge of its status-0
+    /// trips) or FullTrips (`CompleteTripSourceCalculations`); the next
+    /// source is taken by the caller.
+    fn end_source(&mut self, full: bool, src: Source, mut trips: Vec<TripData>) {
+        if full {
+            let rect = self.source_rect(src);
+            self.complete_trip_source_calculations(src, rect, &mut trips);
+        } else {
+            merge_search_with(
+                &mut trips,
+                self.st.shadow_hypotheses & super::state::HYP_REROUTE_MERGE_ALL != 0,
+            );
+        }
+        self.h.set_trip_list(src, trips);
+        self.st.current = None;
+        self.st.source_pos += 1;
+        self.st.trip_pos = 0;
+    }
+
+    /// The traffic shadow's run-on (tooling): after the copy's units of a
+    /// day, the original's deadline may have stopped it at any test before
+    /// its next unit. In game it stops before a trip to examine, or at the
+    /// end of a list (after the merge or `CompleteTripSourceCalculations`,
+    /// before the next source is taken), which §3.4 does not name (TS
+    /// question in the lane report). The copy runs on without examining a
+    /// trip: past every list with no trip left to examine, until the source
+    /// at `target` (the original's saved source cell, §6.1 row 14) is held
+    /// (its list's end is left to the shadow, [`Self::end_pending_list`]) or
+    /// a trip to examine is next. True when the phase finished on the way.
+    pub(crate) fn trip_run_on(&mut self, full: bool, target: [i16; 2]) -> bool {
+        let want = if full { status::SEARCH } else { status::REROUTE };
+        loop {
+            let src = match self.st.current {
+                Some(s) => s,
+                None => {
+                    let Some(s) = self.next_source() else {
+                        return true;
+                    };
+                    self.take_source(s);
+                    self.st.current = Some(s);
+                    s
+                }
+            };
+            let trips = self.h.trip_list(src);
+            if trips[self.st.trip_pos.min(trips.len())..]
+                .iter()
+                .any(|t| t.status == want)
+            {
+                return false;
+            }
+            if self.st.extras.phase_positions == target {
+                return false;
+            }
+            self.end_source(full, src, trips);
+        }
+    }
+
+    /// The traffic shadow (tooling): the source held with no trip left to
+    /// examine, its list's end not taken yet.
+    pub(crate) fn pending_list_end(&self, full: bool) -> Option<Source> {
+        let want = if full { status::SEARCH } else { status::REROUTE };
+        let src = self.st.current?;
+        let trips = self.h.trip_list(src);
+        let left = trips[self.st.trip_pos.min(trips.len())..]
+            .iter()
+            .any(|t| t.status == want);
+        (!left).then_some(src)
+    }
+
+    /// The traffic shadow (tooling): takes the list end of
+    /// [`Self::pending_list_end`]'s source (the merge or
+    /// `CompleteTripSourceCalculations`); the next source is not taken.
+    pub(crate) fn end_pending_list(&mut self, full: bool) -> bool {
+        let Some(src) = self.pending_list_end(full) else {
+            return false;
+        };
+        let trips = self.h.trip_list(src);
+        self.end_source(full, src, trips);
+        true
     }
 
     /// `SetupTrip` then `PerformPathSearch` with the two pathfinders.
@@ -699,8 +806,10 @@ impl Run<'_, '_> {
             return false;
         };
         // 3. The dominant strategy (unsigned, strict: a tie keeps the lower
-        // index); a strategy above 2 is not summed *[choice]*. The type is
-        // the first trip's.
+        // index). A strategy above 2 is not summed *[choice]* (TS47: the
+        // original adds it past its 12-byte heap array of sums,
+        // `0x00711680`–`0x00711687`; only a damaged save has one). The type
+        // is the first trip's.
         let mut sum = [0u32; 3];
         for t in &trips {
             if let Some(s) = sum.get_mut(usize::from(t.strategy)) {
@@ -941,8 +1050,12 @@ impl Run<'_, '_> {
 
     /// FinishTripMap (state 15, §4.7, TS26), in one call. After a load in
     /// state 15 the lot walk starts after the lot DoPostCityInit found at
-    /// the saved cell (§3.5 step 11).
-    pub(crate) fn finish_trip_map(&mut self) {
+    /// the saved cell (§3.5 step 11). True when finished; false only at the
+    /// traffic shadow's stop ([`State::shadow_finish_stop`], tooling: the
+    /// walk resumes after that lot).
+    ///
+    /// [`State::shadow_finish_stop`]: super::State::shadow_finish_stop
+    pub(crate) fn finish_trip_map(&mut self) -> bool {
         let h = self.h;
         let mut lots = h.lots();
         if let Some(after) = self.st.finish_resume.take() {
@@ -951,24 +1064,41 @@ impl Run<'_, '_> {
             }
         }
         for lot in lots {
-            h.clear_lot_flag(lot, 0x80);
-            let zone = h.lot_zone(lot);
-            if !(zone == 8 || zone == 9) || h.lot_has_road_access(lot) {
-                continue;
+            // The lot's location into the phase positions as the walk takes
+            // it (TS45, `0x0070FFD3`–`0x0070FFE7`): the state-15 resume of
+            // §3.5 step 11 reads them back.
+            let (lx, lz) = h.lot_location(lot);
+            self.st.extras.phase_positions = [lx as i16, lz as i16];
+            let stop_here = self.st.shadow_finish_stop == Some(self.st.extras.phase_positions);
+            self.finish_lot(lot);
+            if stop_here {
+                self.st.finish_resume = Some(lot);
+                return false;
             }
-            let Some(g) = self.st.trip_length.clone() else { continue };
-            // `value := 0`; the linked lot's location, else the donor cell.
-            let from = match h.lot_link(lot) {
-                Some(link) => Some(h.lot_location(link)),
-                None => self.search_trip_length_donor(lot, zone),
-            };
-            let v = from.map_or(0, |(sx, sz)| g.get_cell_value(sx, sz));
-            // No donor writes 0 over the rect (TS26).
-            let r = h.lot_bounding_rect(lot);
-            for x in r.x1..=r.x2 {
-                for z in r.z1..=r.z2 {
-                    g.set(x, z, v);
-                }
+        }
+        true
+    }
+
+    /// FinishTripMap's work on one lot (§4.7).
+    fn finish_lot(&mut self, lot: u64) {
+        let h = self.h;
+        h.clear_lot_flag(lot, 0x80);
+        let zone = h.lot_zone(lot);
+        if !(zone == 8 || zone == 9) || h.lot_has_road_access(lot) {
+            return;
+        }
+        let Some(g) = self.st.trip_length.clone() else { return };
+        // `value := 0`; the linked lot's location, else the donor cell.
+        let from = match h.lot_link(lot) {
+            Some(link) => Some(h.lot_location(link)),
+            None => self.search_trip_length_donor(lot, zone),
+        };
+        let v = from.map_or(0, |(sx, sz)| g.get_cell_value(sx, sz));
+        // No donor writes 0 over the rect (TS26).
+        let r = h.lot_bounding_rect(lot);
+        for x in r.x1..=r.x2 {
+            for z in r.z1..=r.z2 {
+                g.set(x, z, v);
             }
         }
     }

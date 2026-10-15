@@ -117,8 +117,14 @@ extern "C" {
  * 55 = zone developer re-specs11 (zones.md §5.2.1-§5.2.2, §7.2.2, §8.4.1-§8.4.3, §8.5): fc4_zonedev_host
  *      grows 17 callbacks at its end (332 -> 400 bytes on 32-bit), fc4_zonedev_cfg_object and
  *      fc4_zonedev_can_create_plopped_lot (lot manager slot 21) (taken as 54 on its lane;
- *      renumbered at merge). */
-#define FC4_ABI_VERSION 55u
+ *      renumbered at merge);
+ * 56 = adds the traffic shadow (fc4_traffic_shadow: tooling, a same-process differential of
+ *      the original traffic simulator over the traffic host table) (taken as 52 on its lane;
+ *      renumbered at merge);
+ * 57 = adds the disaster layer (fc4_disasters, disasters.md): the layer, its managers (fire, riot,
+ *      toxic spill, earthquake, pipe burst, volcano, effect) and their instances (taken as 64 on its
+ *      lane; renumbered at merge). */
+#define FC4_ABI_VERSION 57u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -873,6 +879,11 @@ size_t fc4_props_count(const fc4_props* p);
  * (is_array false) needs count 1. False for other types or a bad count. */
 bool fc4_props_set_typed(fc4_props* p, uint32_t id, uint16_t mem_type, bool is_array, const void* data,
                          size_t count);
+/* WriteVariant of property `id` (foundations 9.2: u32 0, u32 type tag, the
+ * value) as the game's segment streams write it, handed to `sink` in one call;
+ * false when absent or not writable (ABI 56; tooling: the traffic shadow's
+ * capture stream). */
+bool fc4_props_write_variant(const fc4_props* p, uint32_t id, fc4_bytes_sink sink, void* ctx);
 
 /* ---- weather (docs/specs/weather.md) ------------------------------------------
  * The weather simulator's core. The shim owns the GZCOM object (agents,
@@ -5663,6 +5674,75 @@ uint32_t fc4_traffic_pf_compressed_route(const fc4_traffic* p, const fc4_traffic
 size_t fc4_traffic_pf_route(const fc4_traffic_pf* pf, fc4_traffic_bytes_callback cb, void* ctx);
 bool fc4_traffic_pf_get_state(const fc4_traffic_pf* pf, fc4_traffic_pf_state* out);
 
+/* ---- traffic shadow (tooling, no spec behaviour; engine/capi/src/traffic_shadow.rs) ----
+ * A same-process differential of the ORIGINAL traffic simulator: FreeCity4's
+ * simulator runs as a private copy on the original's live inputs and is
+ * compared bitwise after every delivery the original's agents get (day,
+ * month, one-shot). Around each delivery the plugin captures the original's
+ * section-6 record through its own Write (fc4_pollution_capture format):
+ *   fc4_traffic_shadow_before   the record before: the copy starts on it (first
+ *                               delivery) or resyncs on it (when it differs from
+ *                               the copy's); the inputs the delivery may change
+ *                               (trip lists, lot and connection holder arrays)
+ *                               are snapshotted;
+ *   (the original's delivery, unchanged)
+ *   fc4_traffic_shadow_after    the record after: the copy steps one unit at a
+ *                               time to the cycle state and phase progress the
+ *                               original stopped at, then its record, every
+ *                               trip list, the holder properties and the grids
+ *                               are compared; lines go to the sink.
+ * The host table's read callbacks only are called (its write, post, budget,
+ * agent and reference callbacks may be NULL; the copy keeps those calls to
+ * itself) and the grid table's geometry and get only. Lines:
+ *   traffic shadow YYYY-MM-DD day|month|begin|message (state a -> b, progress p,
+ *     units u): mismatches=N; ...          a delivery with a difference
+ *   traffic shadow YYYY-MM-DD kind: INCOMPLETE (why); not compared
+ *   traffic shadow month to YYYY-MM-DD: clean|mismatches=N|INCOMPLETE; ... */
+typedef struct fc4_traffic_shadow fc4_traffic_shadow;
+
+typedef struct fc4_traffic_shadow_stats {
+    uint32_t struct_size;
+    uint32_t deliveries;  /* finished (compared or not) */
+    uint32_t compared;
+    uint32_t clean;       /* compared without a difference */
+    uint32_t incomplete;  /* not compared */
+    uint32_t resyncs;     /* records before that differed from the copy's */
+    int32_t last_mismatches; /* -1: the last delivery was not compared */
+    uint32_t reserved;
+    uint64_t record_fields;  /* record fields that differed */
+    uint64_t trip_lists, trip_mismatches;
+    uint64_t props, prop_mismatches;
+    uint64_t grid_cells, grid_mismatches;
+    uint64_t units;          /* slices the copy ran */
+} fc4_traffic_shadow_stats;
+
+/* NULL when the table is incomplete. max_diffs: differences named per line (0
+ * -> 8, at most 64); detail_lines: delivery lines per month (0 -> 8). The
+ * shadow calls the table's read callbacks, and deactivate_budget_items as a
+ * LOOKUP: the table given here must answer it with the cost of the holder's
+ * 0xCA550301 budget item without removing anything (NULL reads 0). */
+fc4_traffic_shadow* fc4_traffic_shadow_create(const fc4_traffic_host* host, uint32_t session_seed,
+                                              uint32_t max_diffs, uint32_t detail_lines);
+/* The copy's hypotheses: alternative readings of unclear spec points, to test
+ * them against the original (0, the default: the spec as written); set before
+ * the first delivery; named in every month line. False for NULL. */
+#define FC4_TRAFFIC_SHADOW_HYP_MERGE_ABSORBED 0x1u /* the ConfirmTrips merge sets status 0 only on a trip that absorbed one */
+#define FC4_TRAFFIC_SHADOW_HYP_TYPE_COUNTS_SWAP 0x2u /* row 19 pairs (published, building); FullTrips' end swaps them */
+#define FC4_TRAFFIC_SHADOW_HYP_REROUTE_MERGE_ALL 0x4u /* the ReRouteTrips merge absorbs routed trips too */
+bool fc4_traffic_shadow_set_hypotheses(fc4_traffic_shadow* s, uint32_t mask);
+void fc4_traffic_shadow_destroy(fc4_traffic_shadow* s);
+/* before: NULL or not ok -> the delivery is reported INCOMPLETE. 0; -1 for NULL s. */
+int32_t fc4_traffic_shadow_before(fc4_traffic_shadow* s, uint32_t msg_type, uint32_t data1, uint32_t data2,
+                                  uint32_t data3, int32_t julian, const fc4_pollution_capture* before);
+/* The difference count; -1 when nothing was compared. */
+int32_t fc4_traffic_shadow_after(fc4_traffic_shadow* s, const fc4_pollution_capture* after,
+                                 fc4_bytes_sink sink, void* ctx);
+/* A message the original receives outside its deliveries (its object borrowed
+ * for the call); false for NULL s or before the copy started. */
+bool fc4_traffic_shadow_message(fc4_traffic_shadow* s, uint32_t msg_type, uint32_t data1, uint32_t data2,
+                                uint32_t data3, uint64_t object);
+bool fc4_traffic_shadow_get_stats(fc4_traffic_shadow* s, fc4_traffic_shadow_stats* out);
+
 /* ---- lot developer (docs/specs/lot-developer.md; engine/capi/src/lotdev.rs) ----
  * cSC4LotDeveloper (class 0xA990BFE0, city component 16). The host implements
  * fc4_lotdev_host (one callback per LotDeveloperHost method of the core, in
@@ -6879,6 +6959,261 @@ bool fc4_park_get_state(const fc4_park* p, fc4_park_state* out);
 bool fc4_park_write(const fc4_park* p, const fc4_ostream* out);
 bool fc4_park_read(fc4_park* p, const fc4_istream* in);
 
+/* ---- disaster layer (docs/specs/disasters.md) ----------------------------------
+ * cSC4DisasterLayer (0x61F6ABF5), its seven managers (fire, riot, toxic
+ * spill, earthquake, pipe burst, volcano, effect) and their instances. The
+ * shim owns the GZCOM objects and forwards their slots here. Managers are
+ * named by their type (GetDisasterType: fire 0x621CDA33, riot 0xCA380B06,
+ * toxic 0xEBFB0404, earthquake 0x42963812, pipe burst 0x4A1332E8, volcano
+ * 0xC4C90997, effect 0x6A7B4397); instances by the core's IDs (from 1, never
+ * reused). The fire runs on the wall clock (now_ms); fc4_disasters_tick
+ * passes the animation tick of an instance the core registered through
+ * register_tick. Tokens are opaque host identities (occupants, lots, fire and
+ * toxic occupants, riot leaders, pipes, effects; 0 = none). The core holds a
+ * reference (add_ref) on every occupant it keeps in a location or the fire's
+ * toast list. A missing callback reads as 0 / false / none (cell_width: 16).
+ * A call made from inside a callback is deferred until the outer call
+ * returns when it is a message (fc4_disasters_do_message) and refused (the
+ * fallback value) otherwise. Nothing is saved (§14). */
+typedef struct fc4_disasters fc4_disasters;
+
+/* Message targets (subscribe / unsubscribe / fc4_disasters_do_message). */
+#define FC4_DISASTER_TARGET_LAYER 0u
+#define FC4_DISASTER_TARGET_MANAGER 1u  /* id = the manager type */
+#define FC4_DISASTER_TARGET_INSTANCE 2u /* id = the instance */
+
+/* A message the core posts (§12). */
+typedef struct fc4_disaster_post {
+    uint32_t msg_type;
+    uint32_t data2;
+    uint64_t data1; /* may carry a token */
+    uint32_t data3;
+    uint32_t data4;
+    uint32_t void1; /* the instance of 0xCA1B1E64 (0 = none) */
+    uint32_t reserved;
+} fc4_disaster_post;
+
+/* A message to the layer, a manager or an instance. */
+typedef struct fc4_disaster_message {
+    uint32_t msg_type;
+    uint32_t reserved;
+    int64_t data1, data2, data3;
+    uint64_t void1; /* GetVoid1() as a token (the removed occupant; the effect) */
+    float x, z;     /* world units (the effect moved) */
+} fc4_disaster_message;
+
+typedef struct fc4_world_box {
+    float x0, z0, x1, z1;
+} fc4_world_box;
+
+typedef struct fc4_disasters_host {
+    uint32_t struct_size; /* sizeof(fc4_disasters_host) */
+    void* user;
+    /* The wall clock (ms), the emergency pause and the save switch (nested by the core). */
+    uint64_t (*now_ms)(void* user);
+    void (*emergency_pause)(void* user);
+    void (*emergency_resume)(void* user);
+    void (*disable_save)(void* user);
+    void (*enable_save)(void* user);
+    bool (*sim_paused)(void* user);           /* any pause */
+    bool (*sim_emergency_paused)(void* user); /* the emergency pause */
+    bool (*city_established)(void* user);
+    void (*city_cells)(void* user, uint32_t* x, uint32_t* z);
+    float (*cell_width)(void* user);
+    /* Messages, ticks (priority 0xC0, the toxic spill 0xFF), history, references. */
+    void (*post)(void* user, const fc4_disaster_post* post);
+    void (*subscribe)(void* user, uint32_t target_kind, uint32_t id, uint32_t msg_type);
+    void (*unsubscribe)(void* user, uint32_t target_kind, uint32_t id, uint32_t msg_type);
+    void (*register_tick)(void* user, uint32_t instance, uint32_t priority);
+    void (*unregister_tick)(void* user, uint32_t instance);
+    void (*record_history)(void* user, uint32_t series, int32_t value);
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* The camera and fire / police protection's dispatch effectiveness (slot 25). */
+    bool (*follow_disasters)(void* user);
+    void (*go_to_location)(void* user, int32_t x, int32_t z, uint32_t zoom);
+    void (*set_fire_dispatch_effectiveness)(void* user, float value);
+    void (*set_police_dispatch_effectiveness)(void* user, float value);
+    /* Occupants. occupant_cell: false once it has left the occupant manager. */
+    uint32_t (*building_type_flags)(void* user, uint64_t occ);
+    int64_t (*network_default_cost)(void* user, uint64_t occ);
+    uint32_t (*occupant_type)(void* user, uint64_t occ);
+    bool (*occupant_in_manager)(void* user, uint64_t occ);
+    bool (*occupant_cell)(void* user, uint64_t occ, int32_t* x, int32_t* z);
+    void (*occupant_cell_rect)(void* user, uint64_t occ, fc4_cell_rect* out);
+    void (*occupant_position)(void* user, uint64_t occ, float* x, float* z);
+    void (*occupant_bbox)(void* user, uint64_t occ, fc4_world_box* out);
+    void (*occupant_bbox_areas)(void* user, uint64_t occ, float* top, float* side);
+    /* Occupant properties; false = absent. */
+    bool (*occupant_prop_u32)(void* user, uint64_t occ, uint32_t id, uint32_t* out);
+    bool (*occupant_prop_i64)(void* user, uint64_t occ, uint32_t id, int64_t* out);
+    bool (*occupant_prop_f32)(void* user, uint64_t occ, uint32_t id, float* out);
+    bool (*occupant_prop_bool)(void* user, uint64_t occ, uint32_t id, bool* out);
+    void (*occupants_in_rect)(void* user, const fc4_cell_rect* rect, fc4_token_callback cb, void* ctx);
+    void (*remove_occupant)(void* user, uint64_t occ);
+    uint64_t (*occupant_lot)(void* user, uint64_t occ);
+    void (*set_lot_condition)(void* user, uint64_t lot, uint32_t condition);
+    /* Fire (§5). */
+    uint8_t (*fire_coverage)(void* user, uint64_t occ);
+    uint8_t (*flammability_at)(void* user, int32_t x, int32_t z);
+    uint64_t (*create_fire_occupant)(void* user, uint32_t instance, uint64_t target, uint32_t fire_id,
+                                     uint32_t top_flames, uint32_t side_flames);
+    void (*remove_fire_occupant)(void* user, uint64_t fire, uint64_t target);
+    void (*add_fire_aura)(void* user, uint64_t occ);
+    bool (*tutorial_no_burn_down)(void* user);
+    float (*wind)(void* user);
+    void (*play_effect)(void* user, const char* name, uint64_t occ);
+    void (*play_effect_at)(void* user, const char* name, float x, float z);
+    void (*burn_flora)(void* user, uint64_t occ);
+    void (*demolish_lot)(void* user, uint64_t occ, uint64_t lot, uint32_t flags);
+    void (*spew_radiation)(void* user, uint64_t occ, float amount, float radius);
+    /* Riot (§6). */
+    uint8_t (*police_coverage)(void* user, int32_t x, int32_t z);
+    bool (*is_road_cell)(void* user, int32_t x, int32_t z);
+    void (*cell_corner_position)(void* user, int32_t x, int32_t z, float* wx, float* wz);
+    uint64_t (*create_riot_leader)(void* user, float x, float z);
+    /* The riot's removal lock (network-manager.md §10): the network occupant at a cell
+     * (0 = none) and its removal flags (2 = the player's bulldozer). */
+    uint64_t (*network_occupant_at)(void* user, int32_t x, int32_t z);
+    void (*unset_removal_flags)(void* user, uint64_t occ, uint32_t flags);
+    void (*set_removal_flags)(void* user, uint64_t occ, uint32_t flags);
+    bool (*automaton_cell)(void* user, uint64_t automaton, int32_t* x, int32_t* z);
+    void (*set_riot_effect)(void* user, uint64_t automaton, int32_t stage);
+    void (*send_riot_message)(void* user, uint64_t automaton, int32_t stage);
+    void (*end_riot_leader)(void* user, uint64_t automaton);
+    void (*riot_leader_tick)(void* user, uint64_t automaton);
+    /* Toxic spill (§9). */
+    uint64_t (*create_toxic_occupant)(void* user, uint32_t instance, int32_t x, int32_t z, int32_t amount);
+    void (*set_toxic_amount)(void* user, uint64_t occ, int32_t amount);
+    void (*remove_toxic_occupant)(void* user, uint64_t occ);
+    /* Terrain (earthquake, §7). */
+    void (*apply_terrain_brush)(void* user, uint32_t brush, float x, float z, float strength, float width);
+    void (*redraw_terrain)(void* user, const fc4_cell_rect* rect);
+    void (*end_long_terrain_operation)(void* user);
+    void (*stop_terrain_texture_updates)(void* user);
+    void (*place_repulsor)(void* user, float x, float z);
+    /* Pipe burst (§8). connected_pipe_cells writes up to `capacity` (x, z) pairs and
+     * returns how many there are (the core asks again with room for all). */
+    uint64_t (*find_watered_pipe)(void* user, int32_t x, int32_t z);
+    void (*pipe_cell)(void* user, uint64_t pipe, int32_t* x, int32_t* z);
+    uint32_t (*view_level)(void* user);
+    bool (*create_leak_effect)(void* user, uint64_t pipe, uint32_t view_level);
+    size_t (*connected_pipe_cells)(void* user, uint64_t pipe, int32_t* xz, size_t capacity);
+    void (*demolish_pipe)(void* user, uint64_t pipe, uint32_t flags);
+    /* Volcano (§10): the deformation and the lava terrain class are the host's. */
+    void (*volcano_start_deformation)(void* user, uint32_t instance, float x, float z);
+    void (*volcano_end_deformation)(void* user, uint32_t instance);
+    void (*volcano_start_lava)(void* user, uint32_t instance, float x, float z, float radius);
+    void (*volcano_lava_rates)(void* user, uint32_t instance, float production, float solidification);
+    void (*volcano_end_lava)(void* user, uint32_t instance);
+} fc4_disasters_host;
+
+typedef struct fc4_disasters_state {
+    uint32_t struct_size;
+    uint8_t initialised, enabled, assessing, reserved;
+    uint32_t disable_counter;
+    uint32_t ongoing;
+    uint32_t location_count;
+    uint32_t fire_instance; /* 0 = none yet */
+    uint32_t fire_phase;
+    uint32_t fire_count;
+    uint32_t toxic_instance; /* 0 = none */
+    uint32_t toxic_spills;
+    uint32_t reentrant_refused;
+    uint32_t fire_timers, police_timers;
+    float fire_effectiveness, police_effectiveness;
+    uint32_t damaged_buildings;
+    uint32_t riot_locked; /* network occupants the riots hold locked */
+    int64_t disaster_cost;
+} fc4_disasters_state;
+
+typedef struct fc4_disaster_fire {
+    uint64_t occupant; /* the fire occupant */
+    uint64_t target;
+    int32_t counter;
+    uint32_t stage, max_stage, fire_id, hosed, top_flames, side_flames;
+    uint32_t extinguishing;  /* 1: extinguish_at is valid */
+    uint64_t extinguish_at;  /* ms on the fire instance's timer */
+} fc4_disaster_fire;
+
+typedef struct fc4_disaster_instance {
+    uint32_t manager_type, class_id, phase;
+    uint8_t tick_registered, has_location;
+    uint16_t reserved;
+    int32_t x, z; /* GetLocation (has_location) */
+} fc4_disaster_instance;
+
+typedef struct fc4_riot_leader {
+    uint64_t automaton;
+    int32_t counter, stage, max_stage, x, z;
+    uint32_t reserved;
+} fc4_riot_leader;
+
+/* The host table is copied; NULL if it is NULL or too small. */
+fc4_disasters* fc4_disasters_create(const fc4_disasters_host* host, uint32_t session_seed);
+void fc4_disasters_destroy(fc4_disasters* d);
+/* The tuning exemplar of `instance` (group 0x8A5971C5: 1 volcano, 2 earthquake, 3 pipe burst,
+ * 0xC9B6B73D flame, 0x4A38206D riot); copied, NULL removes it. Read once, at first use. */
+bool fc4_disasters_set_tuning(fc4_disasters* d, uint32_t instance, const fc4_props* tuning);
+bool fc4_disasters_init(fc4_disasters* d);
+bool fc4_disasters_shutdown(fc4_disasters* d);
+/* EnableDisasters (nested; returns the state after the call) / DisastersEnabled. */
+bool fc4_disasters_enable(fc4_disasters* d, bool enable);
+bool fc4_disasters_enabled(const fc4_disasters* d);
+bool fc4_disasters_has_manager(const fc4_disasters* d, uint32_t manager_type);
+void fc4_disasters_has_begun(fc4_disasters* d, uint32_t instance);
+void fc4_disasters_has_ended(fc4_disasters* d);
+bool fc4_disasters_is_ongoing(const fc4_disasters* d);
+/* Locations (§2.6); occupant 0 = a cell location; instance 0 = any. */
+void fc4_disasters_register_location(fc4_disasters* d, uint32_t instance, int32_t x, int32_t z, uint64_t occupant,
+                                     uint32_t zoom, bool focus);
+void fc4_disasters_unregister_locations(fc4_disasters* d, uint32_t instance);
+void fc4_disasters_unregister_location_by_occupant(fc4_disasters* d, uint32_t instance, uint64_t occupant);
+bool fc4_disasters_most_recent_location(const fc4_disasters* d, uint32_t instance, int32_t* x, int32_t* z);
+size_t fc4_disasters_location_count(const fc4_disasters* d);
+void fc4_disasters_go_to_next(fc4_disasters* d);
+int64_t fc4_disasters_cost(const fc4_disasters* d);
+void fc4_disasters_reset_cost(fc4_disasters* d);
+/* DoMessage on a target (FC4_DISASTER_TARGET_*); false for an unknown kind or NULL. */
+bool fc4_disasters_do_message(fc4_disasters* d, uint32_t target_kind, uint32_t id, const fc4_disaster_message* m);
+void fc4_disasters_tick(fc4_disasters* d, uint32_t instance, uint32_t us);
+/* AttemptDisasterStart(x, z) / AttemptDisasterStart(): the instance, 0 = none. */
+uint32_t fc4_disasters_attempt_start(fc4_disasters* d, uint32_t manager_type, int32_t x, int32_t z);
+uint32_t fc4_disasters_attempt_start_any(fc4_disasters* d, uint32_t manager_type);
+uint32_t fc4_disasters_active_count(const fc4_disasters* d, uint32_t manager_type);
+/* The instance's Shutdown; it stays in its manager's list. */
+void fc4_disasters_instance_shutdown(fc4_disasters* d, uint32_t instance);
+/* Fire (§5). fire_instance creates it at first use. */
+uint32_t fc4_disasters_fire_instance(const fc4_disasters* d);
+bool fc4_disasters_ignite_occupant(fc4_disasters* d, uint64_t occupant);
+bool fc4_disasters_ignite(fc4_disasters* d, uint64_t occupant, bool force, uint32_t fire_id, bool focus);
+bool fc4_disasters_ignite_cell(fc4_disasters* d, int32_t x, int32_t z, bool use_probability, bool teleport,
+                               uint32_t fire_id);
+bool fc4_disasters_manager_ignite_cell(fc4_disasters* d, int32_t x, int32_t z, bool use_probability, bool teleport,
+                                       uint32_t fire_id);
+void fc4_disasters_extinguish_cell(fc4_disasters* d, int32_t x, int32_t z, int32_t amount);
+void fc4_disasters_quick_burn_cell(fc4_disasters* d, int32_t x, int32_t z);
+void fc4_disasters_ignite_cell_radius(fc4_disasters* d, int32_t x, int32_t z, int32_t r0, int32_t r1);
+void fc4_disasters_extinguish(fc4_disasters* d, uint64_t occupant);
+void fc4_disasters_burn_down(fc4_disasters* d, uint64_t occupant);
+void fc4_disasters_set_cause(fc4_disasters* d, uint32_t cause);
+uint32_t fc4_disasters_cause(const fc4_disasters* d);
+uint32_t fc4_disasters_fire_count(const fc4_disasters* d);
+uint32_t fc4_disasters_fire_count_in_rect(const fc4_disasters* d, const fc4_cell_rect* rect);
+void fc4_disasters_fire_update(fc4_disasters* d);
+bool fc4_disasters_fire_set_hosed(fc4_disasters* d, uint64_t fire_occupant, int32_t delta);
+/* Toxic spill (§9), volcano (§10), effect disasters (§11). */
+uint32_t fc4_disasters_spill_toxic_waste(fc4_disasters* d, int32_t x, int32_t z, int32_t amount);
+bool fc4_disasters_toxic_set_hosed(fc4_disasters* d, uint64_t toxic_occupant, int32_t delta);
+bool fc4_disasters_volcano_request_end(fc4_disasters* d, uint32_t instance);
+uint32_t fc4_disasters_start_effect(fc4_disasters* d, uint64_t effect, float x, float z);
+/* Diagnostics. */
+bool fc4_disasters_get_state(const fc4_disasters* d, fc4_disasters_state* out);
+bool fc4_disasters_get_fire(const fc4_disasters* d, size_t index, fc4_disaster_fire* out);
+bool fc4_disasters_get_instance(const fc4_disasters* d, uint32_t instance, fc4_disaster_instance* out);
+/* Returns the number of leaders (0 for no such riot); copies at most `capacity`. */
+size_t fc4_disasters_riot_leaders(const fc4_disasters* d, uint32_t instance, fc4_riot_leader* out, size_t capacity);
+
 /* ---- turbo clock (tooling, not simulator.md; fc4_core::Turbo) --------------
  * Tooling deviation for test runs (the plugin's sim_turbo). Off (the default)
  * changes nothing. On: the day gate's "ready" (spec §5.2 step 3) is always true
@@ -7087,6 +7422,14 @@ static_assert(sizeof(fc4_civic_state) == 40, "fc4_civic_state layout");
 static_assert(sizeof(fc4_civic_host) == (sizeof(void*) == 4 ? 160 : 320), "fc4_civic_host layout");
 static_assert(sizeof(fc4_park_state) == 48, "fc4_park_state layout");
 static_assert(sizeof(fc4_park_host) == (sizeof(void*) == 4 ? 160 : 320), "fc4_park_host layout");
+static_assert(sizeof(fc4_disaster_post) == 32, "fc4_disaster_post layout");
+static_assert(sizeof(fc4_disaster_message) == 48, "fc4_disaster_message layout");
+static_assert(sizeof(fc4_world_box) == 16, "fc4_world_box layout");
+static_assert(sizeof(fc4_disasters_host) == (sizeof(void*) == 4 ? 336 : 672), "fc4_disasters_host layout");
+static_assert(sizeof(fc4_disasters_state) == 80, "fc4_disasters_state layout");
+static_assert(sizeof(fc4_disaster_fire) == 56, "fc4_disaster_fire layout");
+static_assert(sizeof(fc4_disaster_instance) == 24, "fc4_disaster_instance layout");
+static_assert(sizeof(fc4_riot_leader) == 32, "fc4_riot_leader layout");
 static_assert(sizeof(fc4_tract_profile) == 24, "fc4_tract_profile layout");
 static_assert(sizeof(fc4_tract_construction) == 32, "fc4_tract_construction layout");
 static_assert(sizeof(fc4_tract_building_profile) == 12, "fc4_tract_building_profile layout");
@@ -7121,6 +7464,11 @@ _Static_assert(sizeof(fc4_clock24_state) == 56, "fc4_clock24_state layout");
 _Static_assert(sizeof(fc4_commercial_state) == 56, "fc4_commercial_state layout");
 _Static_assert(sizeof(fc4_civic_state) == 40, "fc4_civic_state layout");
 _Static_assert(sizeof(fc4_park_state) == 48, "fc4_park_state layout");
+_Static_assert(sizeof(fc4_disaster_post) == 32, "fc4_disaster_post layout");
+_Static_assert(sizeof(fc4_disaster_message) == 48, "fc4_disaster_message layout");
+_Static_assert(sizeof(fc4_disasters_host) == (sizeof(void*) == 4 ? 336 : 672), "fc4_disasters_host layout");
+_Static_assert(sizeof(fc4_disasters_state) == 80, "fc4_disasters_state layout");
+_Static_assert(sizeof(fc4_disaster_fire) == 56, "fc4_disaster_fire layout");
 #endif
 
 #endif /* FC4_H */

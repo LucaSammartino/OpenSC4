@@ -71,6 +71,7 @@
 #include "FC4FlammabilityShadow.h"
 #include "FC4LandValueShadow.h"
 #include "FC4LandfillShadow.h"
+#include "FC4TrafficShadow.h"
 #include "FC4PlumbingShadow.h"
 #include "FC4PowerShadow.h"
 #include "FC4ResidentialShadow.h"
@@ -9597,6 +9598,8 @@ void TrOccupantBounds(void*, uint64_t occ, fc4_cell_rect* out) {
 bool TrOccupantProperty(void*, uint64_t, uint32_t, fc4_props*) { return false; }
 uint32_t TrPropType(void*, uint64_t) { return 0; }
 bool TrIsTunnel(void*, uint64_t) { return false; }
+// The street pieces have no path info: no turn-around (traffic-network.md §4.2 step 3).
+uint64_t TrNoPathInfo(void*, uint64_t) { return 0; }
 void TrPostSink(void*, cIGZMessage2Standard*) { ++g_tr->posts; }
 void* TrAllocate(uint32_t size) {
     void* p = std::calloc(1, size);
@@ -9646,6 +9649,7 @@ fc4_traffic_host TrafficStubHost(TrafficStub& s) {
     h.occupant_property = &TrOccupantProperty;
     h.prop_type = &TrPropType;
     h.is_tunnel = &TrIsTunnel;
+    h.path_info = &TrNoPathInfo;
     return h;
 }
 
@@ -9777,13 +9781,104 @@ void TrafficPathFinderTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
     TrafficHooks(seam, nullptr, nullptr);  // the game's allocator again
 }
 
+// ---- the traffic shadow (FC4TrafficShadow.h, test seam op 51) on a stand-in original -------------
+//
+// Our own simulator stands in for the original behind fake objects: the
+// city's GetTrafficSimulator (slot 69) answers the fake simulator, whose
+// agent forwards DoMessage and whose serializable forwards Write to ours.
+
+struct FakeOrigTraffic {
+    FakeVtable simVt, agentVt, serVt, cityVt;
+    FakeObject sim{}, agent{}, ser{}, city{}, other{};
+    cIGZMessageTarget2* innerTarget = nullptr;
+    cIGZSerializable* innerSer = nullptr;
+    int refs = 1;
+    int deliveries = 0;
+    int writes = 0;
+};
+
+FakeOrigTraffic* g_ot = nullptr;
+
+bool __fastcall OtQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, agent, serializable)
+    if (out == nullptr) return false;
+    if (iid == kIID_cIGZMessageTarget2T) {
+        *out = &g_ot->agent;
+    } else if (iid == GZIID_cIGZSerializable) {
+        *out = &g_ot->ser;
+    } else {
+        return false;
+    }
+    ++g_ot->refs;
+    return true;
+}
+uint32_t __fastcall OtAddRef(void*, void*) { return static_cast<uint32_t>(++g_ot->refs); }   // 1
+uint32_t __fastcall OtRelease(void*, void*) { return static_cast<uint32_t>(--g_ot->refs); }  // 2
+bool __fastcall OtWrite(void*, void*, cIGZOStream* s) {                                       // serializable 3
+    ++g_ot->writes;
+    return g_ot->innerSer->Write(*s);
+}
+uint32_t __fastcall OtClsid(void*, void*) { return kCLSID_Traffic; }  // serializable 5
+bool __fastcall OtDoMessage(void*, void*, cIGZMessage2* m) {          // agent 3
+    ++g_ot->deliveries;
+    return g_ot->innerTarget->DoMessage(m);
+}
+void* __fastcall OtCitySim(void*, void*) { return &g_ot->sim; }  // city 69
+
+void InitFakeOrigTraffic(FakeOrigTraffic& o, cIGZMessageTarget2* target, cIGZSerializable* ser) {
+    g_ot = &o;
+    o.innerTarget = target;
+    o.innerSer = ser;
+    for (FakeVtable* vt : {&o.simVt, &o.agentVt, &o.serVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OtQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OtAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OtRelease);
+    }
+    o.agentVt.slots[3] = reinterpret_cast<void*>(&OtDoMessage);
+    o.serVt.slots[3] = reinterpret_cast<void*>(&OtWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&OtClsid);
+    o.cityVt.slots[69] = reinterpret_cast<void*>(&OtCitySim);
+    o.sim.vtbl = o.simVt.slots.data();
+    o.agent.vtbl = o.agentVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.other.vtbl = o.agentVt.slots.data();  // an agent, but not the simulator's
+}
+
+intptr_t TrafficShadowOnce(FC4TestSeamFn seam, FakeObject* city, FakeObject* target, uint32_t type,
+                           uint32_t fresh = 0) {
+    FC4TrafficShadowTestInput in{reinterpret_cast<cISC4City*>(city), reinterpret_cast<cIGZMessageTarget2*>(target),
+                                 type, 2451576, fresh};  // 2000-02-01
+    return seam(kFC4SeamTrafficShadow, &in, nullptr);
+}
+
+// The shadow follows the stand-in clean through the one-shot, days and a
+// month; an agent that is not the simulator's, or no city, is left to the
+// caller (nothing delivered).
+void TrafficShadowStandIn(FC4TestSeamFn seam, cIGZMessageTarget2* target, cIGZSerializable* ser) {
+    static FakeOrigTraffic o;
+    InitFakeOrigTraffic(o, target, ser);
+    CHECK(TrafficShadowOnce(seam, nullptr, &o.agent, kMsgSimNewDay, 1) == -1);
+    CHECK(TrafficShadowOnce(seam, &o.city, &o.other, kMsgSimNewDay) == -1);
+    CHECK(o.deliveries == 0 && o.writes == 0);
+    CHECK(TrafficShadowOnce(seam, &o.city, &o.agent, 0x66956810) == 0);  // the one-shot: the copy starts
+    for (int d = 0; d < 3; ++d) CHECK(TrafficShadowOnce(seam, &o.city, &o.agent, kMsgSimNewDay) == 0);
+    CHECK(TrafficShadowOnce(seam, &o.city, &o.agent, kMsgSimNewMonth, 2) == 0);
+    CHECK(o.deliveries == 5 && o.writes == 10);
+    CHECK(o.refs == 1);  // every QueryInterface released
+}
+
 int TrafficEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
     // Off by default; `enable = traffic` registers the traffic simulator.
     SetEnvironmentVariableA("FC4_DISABLE", nullptr);
     SetEnvironmentVariableA("FC4_ENABLE", nullptr);
     SetEnvironmentVariableA("FC4_TRAFFIC_SEED", nullptr);
     SetEnvironmentVariableA("FC4_TRAFFIC_UNITS_PER_SLICE", nullptr);
-    WriteTextFile(ini, "[subsystems]\nenable = traffic\ntraffic_seed = 1234\n");
+    SetEnvironmentVariableA("FC4_TRAFFIC_SHADOW", nullptr);
+    SetEnvironmentVariableA("FC4_TRAFFIC_SHADOW_DIFFS", nullptr);
+    SetEnvironmentVariableA("FC4_TRAFFIC_SHADOW_LINES", nullptr);
+    // The traffic shadow is requested too: with our traffic simulator it is inactive.
+    WriteTextFile(ini, "[subsystems]\nenable = traffic\ntraffic_seed = 1234\n[tools]\ntraffic_shadow = 1\n"
+                       "traffic_shadow_diffs = 8\ntraffic_shadow_lines = 8\n");
     HMODULE hd = LoadLibraryA(dll.c_str());
     CHECK(hd != nullptr);
     if (hd == nullptr) return 1;
@@ -9856,6 +9951,10 @@ int TrafficEnableTest(const std::string& dll, const std::string& ini, const std:
             if (record.size() > 2) CHECK(record[0] == 0x29 && record[1] == 0);
             // Init without a city: no services, no grid; still neutral.
             CHECK(ts->Init());
+            // The traffic shadow (seam op 51) with this simulator as the stand-in
+            // original, from its first delivery (the day of month last seen is
+            // not saved, §3.3: a copy started later would see a new day).
+            if (mt != nullptr && ser != nullptr) TrafficShadowStandIn(seam, mt, ser);
             CHECK(ts->GetCongestionMap() == nullptr);
             CheckTrafficX87(ts, &pct, 0);  // the game's allocator is unavailable: the vector stays empty
             CHECK(pct.begin == nullptr);
@@ -9914,6 +10013,13 @@ int TrafficEnableTest(const std::string& dll, const std::string& ini, const std:
     CHECK(text.find("traffic Read -> 0") != std::string::npos);
     CHECK(text.find("cFC4TrafficSimulator destroyed (2 fallbacks, 0 external pathfinders)") != std::string::npos);
     CHECK(text.find("traffic: test hooks installed") != std::string::npos);
+    // The traffic shadow on the stand-in original (seam op 51).
+    CHECK(text.find("traffic shadow: requested (traffic_shadow from FreeCity4.ini) but INACTIVE") !=
+          std::string::npos);
+    CHECK(text.find("traffic shadow: comparing with the original traffic simulator") != std::string::npos);
+    CHECK(text.find("traffic shadow month to 2000-02-01: clean; deliveries=5 (day 3, month 1, other 1)") !=
+          std::string::npos);
+    CHECK(text.find("INCOMPLETE") == std::string::npos);
     CHECK(CountOf(text, "traffic: WARNING FindPath with a route deque refused") == 1);
     CHECK(text.find("cFC4TrafficSimulator destroyed (0 fallbacks, 2 external pathfinders)") != std::string::npos);
     CHECK(text.find("structured exception") == std::string::npos);
