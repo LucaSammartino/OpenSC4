@@ -110,6 +110,19 @@
 //   tract_seed = N                the tract developer generator's session seed
 //                                 (default: the cRZTime clock; cFC4TractDeveloper.cpp)
 //   tract_grow_log = 0 / 1        one line per Grow call (default 0; enable = tract)
+//   commercial_shadow = 0 / 1     the commercial shadow (default 0; needs FreeCity4's
+//                                 simulator and the ORIGINAL commercial simulator: do
+//                                 not enable commercial; FC4CommercialShadow.h)
+//   commercial_shadow_cells = N   its differing cells listed per grid (default 4)
+//   civic_shadow = 0 / 1          the civic building shadow (default 0; needs the
+//                                 ORIGINAL civic simulator: do not enable civic;
+//                                 FC4CivicShadow.h)
+//   civic_seed = N                the civic temporaries' session seed (default: the
+//                                 cRZTime clock; cFC4Civic.cpp)
+//   parks_shadow = 0 / 1          the park manager shadow (default 0; needs the ORIGINAL
+//                                 park manager: do not enable parks; FC4ParksShadow.h)
+//   parks_seed = N                the park member generator's session seed (default:
+//                                 the cRZTime clock; cFC4Parks.cpp)
 //   growth_probe = 0 / 1          the growth calibration probe (default 0; needs the
 //                                 ORIGINAL BDS and tract developer; counts the tract
 //                                 developer's Grow calls per game day; env
@@ -428,6 +441,9 @@ enum class Sw : unsigned {
     TractRoads,         // tract_roads: the configurations' GetRequiredRoads (off: no road required)
     TractFamilySets,    // tract_family_sets: the BDS's GetBuildingTypesByFamily (off: no building)
     TractAgents,        // tract_agents: AddAgent / RemoveAgent (off: not registered, no Year message)
+    // Commercial simulator host callbacks (cFC4Commercial.cpp); only used when
+    // the commercial subsystem is enabled.
+    CommercialGridWrites,  // commercial_grid_writes: SetTractValue / fill on the CO$$ / CO$$$ grids (off: not written)
     Count
 };
 

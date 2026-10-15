@@ -252,6 +252,10 @@ INTERFACES = [
     ("cIGZWin", "cFC4IGZWin", FCW, True),
     ("cIGZMessageServer", "cFC4IGZMessageServer", FCW, True),
     ("cIGZMessageTarget(AudioEventHandler)", "cIGZMessageTarget", "cIGZMessageTarget.h", True),
+    # The commercial and industrial simulators (docs/specs/commercial-industrial.md section 9):
+    # implemented through the SDK declarations (cISC4CommercialSimulator is listed above
+    # for the growth developers' calls).
+    ("cISC4IndustrialSimulator", "cISC4IndustrialSimulator", "cISC4IndustrialSimulator.h", True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),

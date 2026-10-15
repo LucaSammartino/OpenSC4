@@ -56,6 +56,7 @@
 #include "cFC4TrafficSimulator.h"
 #include "FC4TractShadow.h"
 #include "cFC4TractDeveloper.h"
+#include "cFC4Commercial.h"  // the cmglue lane: commercial, industrial
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
 
@@ -230,6 +231,16 @@ const ClassEntry kTractClasses[] = {
     {kFC4_CLSID_cSC4TractDeveloper, "cSC4TractDeveloper", &CreateFC4TractDeveloper},
 };
 
+// docs/specs/commercial-industrial.md §1. Off by default (M4 glue trial):
+// `enable = commercial` / `enable = industrial`. The growth developers and the
+// query tool read the commercial proximity grids through slot 5.
+const ClassEntry kCommercialClasses[] = {
+    {kFC4_CLSID_cSC4CommercialSimulator, "cSC4CommercialSimulator", &CreateFC4CommercialSimulator},
+};
+const ClassEntry kIndustrialClasses[] = {
+    {kFC4_CLSID_cSC4IndustrialSimulator, "cSC4IndustrialSimulator", &CreateFC4IndustrialSimulator},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -256,6 +267,8 @@ const Subsystem kSubsystems[] = {
      false},
     {"traffic", nullptr, kTrafficClasses, sizeof(kTrafficClasses) / sizeof(kTrafficClasses[0]), false},
     {"tract", nullptr, kTractClasses, sizeof(kTractClasses) / sizeof(kTractClasses[0]), false},
+    {"commercial", nullptr, kCommercialClasses, sizeof(kCommercialClasses) / sizeof(kCommercialClasses[0]), false},
+    {"industrial", nullptr, kIndustrialClasses, sizeof(kIndustrialClasses) / sizeof(kIndustrialClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

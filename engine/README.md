@@ -416,6 +416,18 @@ plugin.
        `tract_abandon`, `tract_lot_changes`, `tract_demolition`, `tract_population`, `tract_resources`,
        `tract_filters`, `tract_lot_lists`, `tract_traffic`, `tract_style_map`, `tract_roads`, `tract_family_sets`,
        `tract_agents` (see `plugin/FC4Config.h`).
+     - `commercial`: the commercial simulator (`cSC4CommercialSimulator`, CLSID `0x8990C080`;
+       commercial-industrial spec): the CO$$ and CO$$$ proximity grids (the game's own `cSC4SimGrid<uint8>`,
+       created through GZCOM or handed over by the save), the four agents, the occupant subscriptions, the
+       `DoIdle` state machine and the record (version 1, 19 bytes with both grids). Slot 5 hands out the grid
+       pointers published after each `Init`, `Read` and `Shutdown`, from any thread. The log has `commercial
+       Init|Read|Shutdown: ok=… init=… dirty=… state=… flag=… grids CO$$=… CO$$$=… …`, `commercial Write -> 1`,
+       one `commercial rebuild N yyyy-mm-dd (msg …): CO$$ cells=… edge1=… zeros=…; CO$$$ …` line per finished
+       pair of map rebuilds and one `commercial month yyyy-mm-dd: dirty=… state=… rebuilds=… occupants=…
+       offices=… days=… idles=…` line per SimNewMonth. Its grid writes have the switch `commercial_grid_writes`
+       (default `1`, environment `FC4_COMMERCIAL_GRID_WRITES`).
+     - `industrial`: the industrial simulator stub (`cSC4IndustrialSimulator`, CLSID `0xA990C022`): no agent, no
+       subscription, the record `01 00`. The log has `industrial Init|Read|Write|Shutdown`.
    - Each budget behaviour that touches game objects has a switch. The switches are re-read at every city load
      (budget `Read`/`Init`). Each defaults to `1`; `0` makes the behaviour a no-op with a neutral result. The
      matching environment variable is `FC4_BUDGET_<KEY>`. `budget_default = 0` turns every unset switch off.

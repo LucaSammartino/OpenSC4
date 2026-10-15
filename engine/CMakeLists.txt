@@ -261,6 +261,10 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4TractInterfaces.h
         plugin/FC4TractShadow.cpp
         plugin/FC4TractShadow.h
+        # The commercial / industrial simulators, the civic building simulator and the
+        # park manager (cmglue): `enable = commercial, industrial, civic, parks`, their shadows.
+        plugin/cFC4Commercial.cpp
+        plugin/cFC4Commercial.h
         # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h
         plugin/FC4Turbo.cpp
@@ -489,6 +493,12 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_tract_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-tract)
     set_tests_properties(plugin_ini_enable_tract_test PROPERTIES RUN_SERIAL TRUE)
+    # The cmglue lane (tests/plugin_cmglue_test.inc): `enable = commercial,
+    # industrial` (no city: the QI tables, slot 5, the records' round trips,
+    # Init without services, DoMessage).
+    add_test(NAME plugin_ini_enable_commercial_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-commercial)
+    set_tests_properties(plugin_ini_enable_commercial_test PROPERTIES RUN_SERIAL TRUE)
     # `enable = neighbors`: the neighbours simulator, its connections (an
     # original's accepted on load) and deals, through a fake city and region.
     add_test(NAME plugin_ini_enable_neighbors_test
