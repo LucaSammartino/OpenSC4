@@ -29,6 +29,7 @@ pub mod commercial;
 pub mod crime;
 pub mod curve;
 pub mod demand;
+pub mod disasters;
 pub mod development;
 pub mod development_simulator;
 pub mod flammability;
