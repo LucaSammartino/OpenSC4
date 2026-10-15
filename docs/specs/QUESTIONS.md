@@ -3785,23 +3785,23 @@ apply9d applied AQ1–AQ10, RG24 and FL7–FL9 (merged `ccfe2b4`). Every in-game
 flammability 18/18 under turbo and 117/117 at normal speed, residential 384/384 and flora 25/25. Under turbo the
 flammability cycle-end message arrived up to 17 days after the wrap day.
 
-- **AQ11:** AQ2/AQ3: when there is no R$ EQ or HQ grid, which tract size do the R$$ and R$$$ variants and the
-  minimum and maximum coordinates use? [member E]
-- **AQ12:** AQ10: how should the stray reference from a failed `OpenOStream`/`OpenIStream` be audited? [as
-  acquired, then released as created-for-us]
-- **AQ13:** AQ7: is each end of a listing clamped to 0..191 on its own? [yes]
-- **FL10:** FL8: the tracts a new cycle visits come from a `rand()` draw. Which marks carry into the next cycle?
-  [every tract changed after the wrap day, a superset]
-- **FL11:** FL8: the day count starts when the shadow is created (the first event, before the original's first
+- ~~**AQ11:** AQ2/AQ3: when there is no R$ EQ or HQ grid, which tract size do the R$$ and R$$$ variants and the
+  minimum and maximum coordinates use? [member E]~~ **ANSWERED 2026-10-15 (re-answers10):** no original behaviour: the original never tests the R$ grid pointers (`+0x7C`, `+0x88`). Slots 35–38 call the R$ grid's `GetTractSize` at once (`0x006F79C4`, `0x006F7A63`); the wealth variants never ask the R$$ or R$$$ grid. Slots 43/44 return the six zeros when the population is 0 (`0x006F7389`), and otherwise take the walk's tract counts and the size from the R$ grid. The quotient helper (`0x006F6FC0`) reads all six grids untested, so a missing grid crashes. Member E (with E's tract counts) is accepted. residential-education-health §4.8.
+- ~~**AQ12:** AQ10: how should the stray reference from a failed `OpenOStream`/`OpenIStream` be audited? [as
+  acquired, then released as created-for-us]~~ **ANSWERED 2026-10-15 (re-answers10):** glue, with the original's ownership as the guide: an `Open*Stream` out-pointer is a reference the callee hands to the caller (the game's segment gets it by `QueryInterface` and drops its own, `0x005D27B3`–`0x005D27C0`). The helper adds none and releases it once. Audit it as handed over (created for us) at the call, whatever the call returned, and the helper's release as that reference's release. The bracket's "acquired" is right only if the audit counts both kinds together. flora §10.3.
+- ~~**AQ13:** AQ7: is each end of a listing clamped to 0..191 on its own? [yes]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES the query's rule, which is the model for the recommended clamp: `0x0049DF00` clamps each of the four values on its own, as a signed 32-bit cell number, to ≥ 0 and then ≤ 191. The original's listing itself does not clamp (AQ7). flora §6.4.2.
+- ~~**FL10:** FL8: the tracts a new cycle visits come from a `rand()` draw. Which marks carry into the next cycle?
+  [every tract changed after the wrap day, a superset]~~ **ANSWERED 2026-10-15 (re-answers10):** glue; the bracket (a superset) is safe and accepted. The exact set can be read from the original: the iterator at flammability `+0x30` keeps index `+0x24`, current `+0x28` and step `+0x2C` (`0x0049CB10`), so the new cycle has visited the `index` positions `(current − j × step) mod count`. The marks to carry are the tracts in that set that changed at a poll from the wrap day's up to the comparison's. flammability §6.5.
+- ~~**FL11:** FL8: the day count starts when the shadow is created (the first event, before the original's first
   day) and uses our own tractsPerDay. It is checked only against the number of cycle ends delivered, so an offset of
   whole cycles is not detected. [once it is off, it stays off for that city and only the comparison's own poll
-  carries]
-- **FL12:** FL1/FL8: what is the bound on unvisited tracts under the turbo clock? [max(2 × tractsPerDay, the
+  carries]~~ **ANSWERED 2026-10-15 (re-answers10):** glue, accepted as a fallback. The day count drifts (it starts before the original's `Init` wrap and uses our `tractsPerDay`), while the original's iterator index (`+0x24`) is the new cycle's exact position at the comparison. Prefer reading it. flammability §6.5.
+- ~~**FL12:** FL1/FL8: what is the bound on unvisited tracts under the turbo clock? [max(2 × tractsPerDay, the
   new-cycle tracts the count gave at the previous comparison); in game the bound reached 7098 and the unvisited
-  count stayed at most 155]
-- **FL13:** FL7: what polls when there are no day polls, for example when the game's own simulator delivers the days?
+  count stayed at most 155]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS** in kind: the original has no fixed bound. The number of new-cycle tracts at the comparison is the remainder of the wrap day plus `tractsPerDay` per further SimNewDay in the same simulator tick, at most one day per round of the tick's loop, so it grows with the frame budget under a short day. It is exactly the iterator's index (`+0x24`). The bracket's heuristic is acceptable where the iterator cannot be read. flammability §6.5, §9.
+- ~~**FL13:** FL7: what polls when there are no day polls, for example when the game's own simulator delivers the days?
   [every forwarded message plus the cycle end. Polling still needs the host's `watered_grid` to be non-NULL, although
-  content polls read only slot 11]
+  content polls read only slot 11]~~ **ANSWERED 2026-10-15 (re-answers10):** glue, accepted. The original reads the watered state only through plumbing slot 11, never `GetWateredGrid`. Every message the shadow sees, including posted SimNewDays, arrives at the message-server tick, after all of the previous simulator tick's visits, and intermediate plumbing states between polls cannot be seen from outside the simulator. Polling at every forwarded message plus the cycle end is the finest grain without an agent. The non-null `watered_grid` requirement is a glue limitation: fall back to slot 11. flammability §6.5.
 
 ## From applying the zones, landfill, budget and crime answers (filed by the coordinator from the `apply9b` lane's report, 2026-10-14)
 
