@@ -5414,6 +5414,7 @@ fc4_traffic_shadow* fc4_traffic_shadow_create(const fc4_traffic_host* host, uint
  * the first delivery; named in every month line. False for NULL. */
 #define FC4_TRAFFIC_SHADOW_HYP_MERGE_ABSORBED 0x1u /* the ConfirmTrips merge sets status 0 only on a trip that absorbed one */
 #define FC4_TRAFFIC_SHADOW_HYP_TYPE_COUNTS_SWAP 0x2u /* row 19 pairs (published, building); FullTrips' end swaps them */
+#define FC4_TRAFFIC_SHADOW_HYP_REROUTE_MERGE_ALL 0x4u /* the ReRouteTrips merge absorbs routed trips too */
 bool fc4_traffic_shadow_set_hypotheses(fc4_traffic_shadow* s, uint32_t mask);
 void fc4_traffic_shadow_destroy(fc4_traffic_shadow* s);
 /* before: NULL or not ok -> the delivery is reported INCOMPLETE. 0; -1 for NULL s. */

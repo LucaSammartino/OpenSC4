@@ -536,7 +536,8 @@ pub struct State {
     /// written): each bit an alternative reading of a point the spec leaves
     /// unclear, which the shadow can run to test it against the original
     /// (the TS questions of the traffic shadow's lane report).
-    /// [`HYP_MERGE_ABSORBED`], [`HYP_TYPE_COUNTS_SWAP`].
+    /// [`HYP_MERGE_ABSORBED`], [`HYP_TYPE_COUNTS_SWAP`],
+    /// [`HYP_REROUTE_MERGE_ALL`].
     pub shadow_hypotheses: u32,
 }
 
@@ -546,6 +547,9 @@ pub const HYP_MERGE_ABSORBED: u32 = 1;
 /// Hypothesis: §6.1 row 19's pairs are (published, building), and the end
 /// of FullTrips (§4.4) swaps the two vectors instead of copying.
 pub const HYP_TYPE_COUNTS_SWAP: u32 = 2;
+/// Hypothesis: the ReRouteTrips merge (§4.4) absorbs every later trip of
+/// the same type and strategy, routed ones (status 3) included.
+pub const HYP_REROUTE_MERGE_ALL: u32 = 4;
 
 impl State {
     /// The constructor values (§1): cycle state 0, last day −1, strike

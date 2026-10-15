@@ -402,19 +402,31 @@ fn shadow_follows_a_scan_stopped_mid_way() {
     while orig.cycle_state() != cycle_state::CREATE_MAPS {
         assert!(day < 200, "the original never reached CreateMaps");
         w.day.set(day % 28 + 1);
-        assert_eq!(deliver(&mut sh, &orig, &mut live, msg::DAY, 2_460_000 + day as i32), 0, "day {day}");
+        assert_eq!(
+            deliver(&mut sh, &orig, &mut live, msg::DAY, 2_460_000 + day as i32),
+            0,
+            "day {day}"
+        );
         day += 1;
     }
     let (x, z) = orig.read_state(|s| (s.scan.x0 + 2, s.scan.z0 + 1));
     orig.update_state(|s| s.shadow_scan_stop = Some((cycle_state::CREATE_MAPS, x, z)));
     w.day.set(day % 28 + 1);
-    assert_eq!(deliver(&mut sh, &orig, &mut live, msg::DAY, 2_460_000 + day as i32), 0, "the stop");
+    assert_eq!(
+        deliver(&mut sh, &orig, &mut live, msg::DAY, 2_460_000 + day as i32),
+        0,
+        "the stop"
+    );
     assert_eq!(orig.cycle_state(), cycle_state::CREATE_MAPS);
     assert_eq!(orig.read_state(|s| (s.scan.x, s.scan.z)), (x, z));
     orig.update_state(|s| s.shadow_scan_stop = None);
     day += 1;
     w.day.set(day % 28 + 1);
-    assert_eq!(deliver(&mut sh, &orig, &mut live, msg::DAY, 2_460_000 + day as i32), 0, "the rest");
+    assert_eq!(
+        deliver(&mut sh, &orig, &mut live, msg::DAY, 2_460_000 + day as i32),
+        0,
+        "the rest"
+    );
     assert_ne!(orig.cycle_state(), cycle_state::CREATE_MAPS);
     assert_eq!(sh.stats.resyncs, 0);
 }

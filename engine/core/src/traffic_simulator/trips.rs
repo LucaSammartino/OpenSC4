@@ -237,10 +237,16 @@ pub fn merge_routed_with(trips: &mut Vec<TripData>, only_absorbing: bool) {
 /// The ReRouteTrips merge (§4.4): each status-0 trip absorbs the later trips
 /// of the same type and strategy whose status is not 3.
 pub fn merge_search(trips: &mut Vec<TripData>) {
+    merge_search_with(trips, false);
+}
+
+/// [`merge_search`]; with `routed_too` (the traffic shadow's hypothesis
+/// [`super::state::HYP_REROUTE_MERGE_ALL`]) routed trips are absorbed too.
+pub fn merge_search_with(trips: &mut Vec<TripData>, routed_too: bool) {
     let mut i = 0;
     while i < trips.len() {
         if trips[i].status == status::SEARCH {
-            absorb_later(trips, i, |t| t.status != status::ROUTED);
+            absorb_later(trips, i, |t| routed_too || t.status != status::ROUTED);
         }
         i += 1;
     }
@@ -444,7 +450,10 @@ impl Run<'_, '_> {
         let reroute = (pc[super::PC_SOURCE_COUNTER] & 3) == pc[super::PC_REROUTE_BUCKET];
         let mut trips = self.h.trip_list(src);
         if reroute {
-            merge_routed_with(&mut trips, self.st.shadow_hypotheses & super::state::HYP_MERGE_ABSORBED != 0);
+            merge_routed_with(
+                &mut trips,
+                self.st.shadow_hypotheses & super::state::HYP_MERGE_ABSORBED != 0,
+            );
         }
         let rect = self.source_rect(src);
         for slot in trips.iter_mut() {
@@ -548,17 +557,7 @@ impl Run<'_, '_> {
             let mut trips = self.h.trip_list(src);
             let next = (self.st.trip_pos..trips.len()).find(|&i| trips[i].status == want);
             let Some(i) = next else {
-                // The end of the source's list.
-                if full {
-                    let rect = self.source_rect(src);
-                    self.complete_trip_source_calculations(src, rect, &mut trips);
-                } else {
-                    merge_search(&mut trips);
-                }
-                self.h.set_trip_list(src, trips);
-                self.st.current = None;
-                self.st.source_pos += 1;
-                self.st.trip_pos = 0;
+                self.end_source(full, src, trips);
                 continue;
             };
             if units >= n {
@@ -619,6 +618,52 @@ impl Run<'_, '_> {
             if lazy && units >= n {
                 return false;
             }
+        }
+    }
+
+    /// The end of a source's list in ReRouteTrips (the merge of its status-0
+    /// trips) or FullTrips (`CompleteTripSourceCalculations`); the next
+    /// source is taken by the caller.
+    fn end_source(&mut self, full: bool, src: Source, mut trips: Vec<TripData>) {
+        if full {
+            let rect = self.source_rect(src);
+            self.complete_trip_source_calculations(src, rect, &mut trips);
+        } else {
+            merge_search_with(
+                &mut trips,
+                self.st.shadow_hypotheses & super::state::HYP_REROUTE_MERGE_ALL != 0,
+            );
+        }
+        self.h.set_trip_list(src, trips);
+        self.st.current = None;
+        self.st.source_pos += 1;
+        self.st.trip_pos = 0;
+    }
+
+    /// The traffic shadow's run-on (tooling): where the original's deadline
+    /// test, made before each trip of a list (§3.4), stops after a unit: at
+    /// the next trip of the current list whatever its status; when the list
+    /// is done, its end (merge or `CompleteTripSourceCalculations`) and the
+    /// next source taken, up to its first trip (sources with empty lists
+    /// pass whole). True when the phase finished on the way.
+    pub(crate) fn trip_run_on(&mut self, full: bool) -> bool {
+        loop {
+            let src = match self.st.current {
+                Some(s) => s,
+                None => {
+                    let Some(s) = self.next_source() else {
+                        return true;
+                    };
+                    self.take_source(s);
+                    self.st.current = Some(s);
+                    s
+                }
+            };
+            let trips = self.h.trip_list(src);
+            if self.st.trip_pos < trips.len() {
+                return false;
+            }
+            self.end_source(full, src, trips);
         }
     }
 

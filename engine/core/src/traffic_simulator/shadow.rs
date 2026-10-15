@@ -1108,7 +1108,12 @@ fn damage_keys(b: &[u8]) -> Option<Vec<u32>> {
     if b.len() != 4 + 2 * n {
         return None;
     }
-    Some(b[4..].chunks_exact(2).map(|c| u32::from(u16::from_le_bytes([c[0], c[1]]))).collect())
+    Some(
+        b[4..]
+            .chunks_exact(2)
+            .map(|c| u32::from(u16::from_le_bytes([c[0], c[1]])))
+            .collect(),
+    )
 }
 
 /// The leading u32 key of each `size`-byte record.
@@ -1116,7 +1121,11 @@ fn record_keys(b: &[u8], size: usize) -> Option<Vec<u32>> {
     if b.len() % size != 0 {
         return None;
     }
-    Some(b.chunks_exact(size).map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect())
+    Some(
+        b.chunks_exact(size)
+            .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect(),
+    )
 }
 
 /// The smallest listed bucket count, at least the default (193) and the key
@@ -1637,7 +1646,9 @@ impl TrafficShadow {
         let mut done = 0;
         for (kind, labels) in super::record::DAMAGE_LABELS.iter().enumerate() {
             for (set_index, label) in labels[1..].iter().enumerate() {
-                let Some(keys) = field(label).and_then(damage_keys) else { continue };
+                let Some(keys) = field(label).and_then(damage_keys) else {
+                    continue;
+                };
                 let Some(set) = ordered_set(&keys) else { continue };
                 self.copy.update_damage(|d| {
                     let b = if kind == 0 { &mut d.road } else { &mut d.rail };
@@ -1657,7 +1668,9 @@ impl TrafficShadow {
                 let Some(p) = order_bucket_count(&keys) else { return };
                 let mut m = StlHashMap::with_hint(p);
                 for &k in keys.iter().rev() {
-                    let Some(v) = n.edge_density.get(k).copied() else { return };
+                    let Some(v) = n.edge_density.get(k).copied() else {
+                        return;
+                    };
                     m.entry(k, || v);
                 }
                 if m.keys() == keys {
@@ -1985,9 +1998,32 @@ impl TrafficShadow {
                     let i = (0..orig.len().max(exp.len()))
                         .find(|&i| orig.get(i) != exp.get(i))
                         .unwrap_or(0);
-                    let show = |v: &[TripData]| v.get(i).map_or("none".to_string(), show_trip);
+                    let show = |v: &[TripData]| {
+                        if orig.len() != exp.len() {
+                            // Different lengths: the whole lists (compact).
+                            let all: Vec<String> = v
+                                .iter()
+                                .take(10)
+                                .map(|t| {
+                                    format!(
+                                        "{}x t{} s{} f{} st{}",
+                                        t.count, t.trip_type, t.strategy, t.flags, t.status
+                                    )
+                                })
+                                .collect();
+                            format!("[{}{}]", all.join(", "), if v.len() > 10 { ", ..." } else { "" })
+                        } else {
+                            v.get(i).map_or("none".to_string(), show_trip)
+                        }
+                    };
+                    let pre = if orig.len() != exp.len() {
+                        let p = self.host.trips_pre.borrow().get(&s).cloned().unwrap_or_default();
+                        format!(" (before the delivery {})", show(&p))
+                    } else {
+                        String::new()
+                    };
                     diffs.push(format!(
-                        "trips of {what} ({x}, {z}){}: orig {} trips, ours {}; trip {i}: orig {} ours {}",
+                        "trips of {what} ({x}, {z}){}: orig {} trips, ours {}; trip {i}: orig {} ours {}{pre}",
                         if self.host.written_trips(s) {
                             ""
                         } else {

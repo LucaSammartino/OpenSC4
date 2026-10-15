@@ -1157,15 +1157,18 @@ impl TrafficSimulator {
         });
     }
 
-    /// In ReRouteTrips or FullTrips: runs on to the next trip to examine
-    /// without examining it (finishing the current source and taking the
-    /// next one on the way), as a slice does after its last unit when it is
-    /// not [`State::shadow_lazy`]. True when the phase finished on the way
-    /// (the state is left as it is); false in any other state.
+    /// In ReRouteTrips or FullTrips: runs on to where the original's
+    /// deadline test stops after a unit (§3.4 "before each trip"; in game
+    /// the two phases differ, TS question in the lane report): ReRouteTrips
+    /// to the next trip to examine (status 1), finishing the sources on the
+    /// way; FullTrips to the next trip of the list whatever its status, or
+    /// past the list's end to the next source's first trip. True when the
+    /// phase finished on the way (the state is left as it is); false in any
+    /// other state.
     pub fn shadow_advance(&self) -> bool {
         self.run(|r| match r.st.cycle_state {
             cycle_state::REROUTE_TRIPS => r.trip_units(false, 0, false),
-            cycle_state::FULL_TRIPS => r.trip_units(true, 0, false),
+            cycle_state::FULL_TRIPS => r.trip_run_on(true),
             _ => false,
         })
     }
