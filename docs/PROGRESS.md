@@ -80,7 +80,8 @@ budget is off by default (enable = <key>).
 - [x] Pathfinder core (merged 36ababe: 28 `pf11_*` vectors)
 - [x] **Traffic simulator core** (merged a11eb7d: all 15 §11 tests as unit tests and 29 `ts11_*` vectors)
 - [x] **Traffic glue, phase 1** (merged 850b567, `enable = traffic`): our traffic simulator and pathfinder replace the original in game; clean alone, across saves and for 84 months at normal speed, and in a full city with 17 other replacements (run 105, one reference warning under investigation)
-- [ ] Traffic phase 2 (lane running): the TS35–TS49 answers, a traffic shadow; then calibration; commute and volume maps match (M5 exit)
+- [x] **Traffic phase 2** (merged 40d9eab, regress run 119 PASS): the TS35–TS49 answers, the O(1) source iterator, and the traffic shadow (`traffic_shadow = 1`): with `traffic_shadow_hypotheses = 7` every delivery matches the original on Konradshohe for 7 game months (261/261, resyncs=0); TS55–TS57 decide whether those readings become the spec
+- [ ] Calibration; commute and volume maps match (M5 exit): answer TS50–TS66, make the confirmed readings the core's behaviour, run the shadow on Spandau and past 2026-08, add `traffic` and `traffic_shadow` to regress
 
 **M6+: beyond simulation**
 - [x] Specs: game data formats (DBPF, exemplars, tuning catalogue, 601f3a9), lot/occupant save records (0460f3a), city save records validated against 417 saves (e69009f)
@@ -88,6 +89,8 @@ budget is off by default (enable = <key>).
 - [x] `exemplar.rs` matches data-formats §4, §5 and the §11 exemplar rows (merged 64a25d2): the install sweep loads 9,347 of 9,347 exemplars and re-encodes 9,345 binary records byte-identically
 - [x] FSH texture and S3D model readers (graphics-formats §2–§4, merged 2db780b): `fc4-dat fsh|s3d`; the sweep reads every FSH and S3D in the install
 - [x] Occupant model keys (graphics-formats §4.2, GF7; apply10b, merged 0f3ad91): the zoom mask, RKT0–RKT5 and the RKT4 record walk; `fc4-dat models`; the install sweep reproduces the spec's survey exactly
+- [x] Disaster layer core and C ABI (disasters.md §2-§14; cores13, merged 333ecde, ABI 57): fire, riot, toxic spill, earthquake, pipe burst, volcano and effect managers, the riot removal lock (Q4, network-manager §10); every §18 test as a unit test and a `ds*` vector
+- [ ] Disaster glue: wire `fc4_disasters_host` to the game's managers and shadow it against the original; answer DS1–DS24
 - [ ] Rendering, UI, audio, region; a standalone executable
 
 **Cross-cutting**
