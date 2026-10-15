@@ -56,8 +56,10 @@
 #include "cFC4TrafficSimulator.h"
 #include "FC4TractShadow.h"
 #include "FC4CommercialShadow.h"  // the cmglue lane
+#include "FC4CivicShadow.h"       // the cmglue lane
 #include "cFC4TractDeveloper.h"
 #include "cFC4Commercial.h"  // the cmglue lane: commercial, industrial
+#include "cFC4Civic.h"       // the cmglue lane: civic
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
 
@@ -241,6 +243,12 @@ const ClassEntry kCommercialClasses[] = {
 const ClassEntry kIndustrialClasses[] = {
     {kFC4_CLSID_cSC4IndustrialSimulator, "cSC4IndustrialSimulator", &CreateFC4IndustrialSimulator},
 };
+// docs/specs/civic-buildings.md §1. Off by default (M4 glue trial):
+// `enable = civic`. The building menu, the advisors and Lua reach in through
+// slots 5-8.
+const ClassEntry kCivicClasses[] = {
+    {kFC4_CLSID_cSC4CivicBuildingSimulator, "cSC4CivicBuildingSimulator", &CreateFC4CivicBuildingSimulator},
+};
 
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
@@ -270,6 +278,7 @@ const Subsystem kSubsystems[] = {
     {"tract", nullptr, kTractClasses, sizeof(kTractClasses) / sizeof(kTractClasses[0]), false},
     {"commercial", nullptr, kCommercialClasses, sizeof(kCommercialClasses) / sizeof(kCommercialClasses[0]), false},
     {"industrial", nullptr, kIndustrialClasses, sizeof(kIndustrialClasses) / sizeof(kIndustrialClasses[0]), false},
+    {"civic", nullptr, kCivicClasses, sizeof(kCivicClasses) / sizeof(kCivicClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -394,6 +403,8 @@ void Resolve() {
     TractShadowStartup(enabledKey("tract"));
     // The commercial shadow (FC4CommercialShadow.h; it compares the original commercial simulator).
     CommercialShadowStartup(g_enabled[0], enabledKey("commercial"));
+    // The civic shadow (FC4CivicShadow.h; it compares the original civic building simulator).
+    CivicShadowStartup(g_enabled[0], enabledKey("civic"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.

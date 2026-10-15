@@ -428,6 +428,17 @@ plugin.
        (default `1`, environment `FC4_COMMERCIAL_GRID_WRITES`).
      - `industrial`: the industrial simulator stub (`cSC4IndustrialSimulator`, CLSID `0xA990C022`): no agent, no
        subscription, the record `01 00`. The log has `industrial Init|Read|Write|Shutdown`.
+     - `civic`: the civic building simulator (`cSC4CivicBuildingSimulator`, CLSID `0x0A413481`; civic-buildings
+       spec): the month agent, the occupant and lot-state subscriptions, the exclusion IDs, the conditional
+       building statuses, the disease-center and maintained-building lists, the Landmarks department, the lot
+       condition pass and the record (version 6). Slot 6 hands out a stable `ConditionalBuildingStatus*` per key:
+       a mirror entry in the game's layout (the tooltip a game `cRZString` from the game's string allocator) that
+       is written back to the core before the core next reads the statuses; without the game's allocator (tests)
+       slot 6 answers null and the core keeps every status. The Lua table `civic` is not published (no interface
+       rows for the registry). `civic_seed = N` (env `FC4_CIVIC_SEED`) fixes the session seed of the ape escape's
+       temporary generators, else the clock. The log has `civic Init|Read|Shutdown: ok=… exclusions=… statuses=…
+       centers=… maintained=… landmarks=… …`, `civic Write -> 0|1 (…)` and one `civic month yyyy-mm-dd:
+       exclusions=… statuses=… … occupants=…/… lots=…/… writebacks=…` line per SimNewMonth.
    - Each budget behaviour that touches game objects has a switch. The switches are re-read at every city load
      (budget `Read`/`Init`). Each defaults to `1`; `0` makes the behaviour a no-op with a neutral result. The
      matching environment variable is `FC4_BUDGET_<KEY>`. `budget_default = 0` turns every unset switch off.
@@ -1293,6 +1304,27 @@ plugin.
        zeros=…; other grid unchanged mismatches=…; idle steps since the last line=K (machine mismatches=m);
        mismatches=N[; first differing (x,z) orig/ours: …]
      commercial shadow: city shutdown: N rebuild lines, M with mismatches=0
+     ```
+
+     Success is `mismatches=0` on every line.
+   - **Civic shadow** (`civic_shadow = 1`, env `FC4_CIVIC_SHADOW`; off by default; `plugin/FC4CivicShadow.h`): a
+     same-process differential of the civic building simulator. It needs FreeCity4's simulator and the
+     **original** civic simulator (do not enable `civic`). A shadow core with a read-only host follows the occupant
+     and lot-state messages the original receives (its own subscription). At each SimNewMonth delivery to the
+     original's agent the original's record is captured through its own Write and compared with the shadow core
+     (exclusions and status keys in hash order, building counts, the maintained and disease-center lists, the
+     Landmarks department, slots 5 and 8); then the shadow core restarts from that record and runs its month with
+     lot writes recorded, the original's month runs, and each maintained building's lot condition is compared
+     with ours. The ape escape is not compared (the original seeds its generator from the clock); status bytes and
+     tooltips written by others through slots 6 / 7 are counted as external writes. Lines (always written):
+
+     ```
+     civic shadow: ON (civic_shadow from …): …                                                (game start)
+     civic shadow: following the original civic simulator … (agent …)
+     civic shadow month yyyy-mm-dd: followed=yes|first exclusions=… statuses=… counted=… maintained=… centers=…
+       landmarks=… excluded-slot5=n/m; external status writes=k; messages followed=…; pass: lots=… funding-reads=…
+       run-down=… recovered=…; ape escape not compared (centers=…, ours escaped=…); mismatches=N[; differences: …]
+     civic shadow: city shutdown: N month lines, M with mismatches=0
      ```
 
      Success is `mismatches=0` on every line.

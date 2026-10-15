@@ -45,6 +45,10 @@ public:
     // (borrowed; nullptr if it does not answer) and class ID.
     void* Grid(uint32_t id) const;
     uint32_t ClassOf(uint32_t id) const;
+    // Reference `id` (1-based as written): the object as written (borrowed;
+    // nullptr if out of range). The civic shadow maps saved occupants and
+    // departments back to their objects with it.
+    cIGZSerializable* Object(uint32_t id) const;
 
     // cIGZUnknown (a static object: the reference count is not kept)
     bool QueryInterface(uint32_t riid, void** ppvObj) override;

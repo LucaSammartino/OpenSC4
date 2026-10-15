@@ -235,3 +235,267 @@ int CommercialEnableTest(const std::string& dll, const std::string& ini, const s
     if (g_failures == 0) std::printf("plugin commercial enable test: all checks passed\n");
     return g_failures == 0 ? 0 : 1;
 }
+
+#include "cFC4Civic.h"
+
+namespace cmglue_test {
+constexpr uint32_t kCLSID_Civic = 0x0A413481;
+constexpr uint32_t kIID_Civic = 0x8A41322F;
+
+// Segment streams with strings (the civic record's tooltips, §7): GZStr as a
+// uint32 length and the bytes; references as a uint32 0 (null only).
+class TextSegOStream final : public cFC4ISC4DBSegmentOStream {
+public:
+    std::vector<uint8_t> bytes;
+    bool QueryInterface(uint32_t riid, void** p) override {
+        if (p == nullptr || (riid != kFC4_IID_cISC4DBSegmentOStream && riid != GZIID_cIGZUnknown)) return false;
+        *p = static_cast<cFC4ISC4DBSegmentOStream*>(this);
+        return true;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    void Flush() override {}
+    bool SetSint8(int8_t v) override { return Put(&v, 1); }
+    bool SetUint8(uint8_t v) override { return Put(&v, 1); }
+    bool SetSint16(int16_t v) override { return Put(&v, 2); }
+    bool SetUint16(uint16_t v) override { return Put(&v, 2); }
+    bool SetSint32(int32_t v) override { return Put(&v, 4); }
+    bool SetUint32(uint32_t v) override { return Put(&v, 4); }
+    bool SetSint64(int64_t v) override { return Put(&v, 8); }
+    bool SetUint64(uint64_t v) override { return Put(&v, 8); }
+    bool SetFloat32(float v) override { return Put(&v, 4); }
+    bool SetFloat64(double v) override { return Put(&v, 8); }
+    bool SetRZCharStr(char const* s) override {
+        const uint32_t n = s ? static_cast<uint32_t>(std::strlen(s)) : 0u;
+        return SetUint32(n) && Put(s, n);
+    }
+    bool SetGZStr(cIGZString const& s) override {
+        const uint32_t n = s.Strlen();
+        return SetUint32(n) && Put(s.Data(), n);
+    }
+    bool SetGZSerializable(cIGZSerializable const&) override { return false; }
+    bool SetVoid(void const* p, uint32_t n) override { return Put(p, n); }
+    int32_t GetError() override { return 0; }
+    int32_t SetUserData(cIGZVariant*) override { return 0; }
+    int32_t GetUserData() override { return 0; }
+    bool Open(cISC4DBSegment*, cGZPersistResourceKey const&, bool) override { return false; }
+    bool Close() override { return true; }
+    bool IsOpen() override { return true; }
+    int32_t GetRecord() override { return 0; }
+    int32_t GetSegment() override { return 0; }
+    bool WriteGZSerializable(cIGZSerializable const* p) override { return p == nullptr && SetUint32(0); }
+    bool WriteResKey(cGZPersistResourceKey const&) override { return false; }
+    bool WriteVariant(cIGZVariant const&) override { return false; }
+
+private:
+    bool Put(const void* p, size_t n) {
+        if (n == 0) return true;
+        const uint8_t* b = static_cast<const uint8_t*>(p);
+        bytes.insert(bytes.end(), b, b + n);
+        return true;
+    }
+};
+
+class TextSegIStream final : public cFC4ISC4DBSegmentIStream {
+public:
+    explicit TextSegIStream(std::vector<uint8_t> b) : bytes(std::move(b)) {}
+    std::vector<uint8_t> bytes;
+    size_t at = 0;
+    int32_t error = 0;
+    bool QueryInterface(uint32_t riid, void** p) override {
+        if (p == nullptr || (riid != kFC4_IID_cISC4DBSegmentIStream && riid != GZIID_cIGZUnknown)) return false;
+        *p = static_cast<cFC4ISC4DBSegmentIStream*>(this);
+        return true;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Skip(uint32_t n) override { return Get(nullptr, n); }
+    bool GetSint8(int8_t& v) override { return Get(&v, 1); }
+    bool GetUint8(uint8_t& v) override { return Get(&v, 1); }
+    bool GetSint16(int16_t& v) override { return Get(&v, 2); }
+    bool GetUint16(uint16_t& v) override { return Get(&v, 2); }
+    bool GetSint32(int32_t& v) override { return Get(&v, 4); }
+    bool GetUint32(uint32_t& v) override { return Get(&v, 4); }
+    bool GetSint64(int64_t& v) override { return Get(&v, 8); }
+    bool GetUint64(uint64_t& v) override { return Get(&v, 8); }
+    bool GetFloat32(float& v) override { return Get(&v, 4); }
+    bool GetFloat64(double& v) override { return Get(&v, 8); }
+    bool GetRZCharStr(char*, uint32_t) override { return Fail(); }
+    bool GetGZStr(cIGZString& s) override {
+        uint32_t n = 0;
+        if (!GetUint32(n) || bytes.size() - at < n) return Fail();
+        const std::string t(reinterpret_cast<const char*>(bytes.data() + at), n);
+        at += n;
+        s.FromChar(t.c_str(), n);
+        return true;
+    }
+    bool GetGZSerializable(cIGZSerializable&) override { return Fail(); }
+    bool GetVoid(void* p, uint32_t n) override { return Get(p, n); }
+    int32_t GetError() override { return error; }
+    int32_t SetUserData(cIGZVariant*) override { return 0; }
+    int32_t GetUserData() override { return 0; }
+    bool Open(cISC4DBSegment*, cGZPersistResourceKey const&, bool) override { return false; }
+    bool Close() override { return true; }
+    bool IsOpen() override { return true; }
+    int32_t GetRecord() override { return 0; }
+    int32_t GetSegment() override { return 0; }
+    bool ReadGZSerializable(cIGZSerializable** out, bool) override {
+        uint32_t id = 1;
+        if (out == nullptr || !GetUint32(id) || id != 0) return Fail();
+        *out = nullptr;
+        return true;
+    }
+    bool ReadResKey(cGZPersistResourceKey&) override { return Fail(); }
+    bool ReadVariant(cIGZVariant&) override { return Fail(); }
+
+private:
+    bool Fail() {
+        error = 1;
+        return false;
+    }
+    bool Get(void* p, size_t n) {
+        if (error != 0 || bytes.size() - at < n) return Fail();
+        if (p != nullptr && n != 0) std::memcpy(p, bytes.data() + at, n);
+        at += n;
+        return true;
+    }
+};
+
+template <class T>
+std::vector<uint8_t> TextRecordOf(T* o, bool* ok) {
+    std::vector<uint8_t> r;
+    *ok = false;
+    cIGZSerializable* s = SerOf(o);
+    if (s == nullptr) return r;
+    TextSegOStream out;
+    *ok = s->Write(out);
+    r = out.bytes;
+    s->Release();
+    return r;
+}
+
+template <class T>
+bool TextReadInto(cIGZCOMDirector* director, uint32_t clsid, uint32_t iid, const std::vector<uint8_t>& bytes,
+                  std::vector<uint8_t>* again) {
+    T* o = Create<T>(director, clsid, iid);
+    if (o == nullptr) return false;
+    bool ok = false;
+    if (cIGZSerializable* s = SerOf(o)) {
+        TextSegIStream in(bytes);
+        ok = s->Read(in);
+        if (ok && again != nullptr) {
+            TextSegOStream out;
+            CHECK(s->Write(out));
+            *again = out.bytes;
+        }
+        s->Release();
+    }
+    CHECK(o->Release() == 0);
+    return ok;
+}
+}  // namespace cmglue_test
+
+int CivicEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    using namespace cmglue_test;
+    // Off by default; `enable = civic` registers it. No city: the QI table
+    // (§1), the slots (§8), the record (§7), DoMessage (§3). The test process
+    // is not the game: the game's string allocator (compat table) is absent,
+    // so slot 6 answers null while the core keeps every status (§4.7).
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = civic\ncivic_seed = 7\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr);
+    SetGamePrecision();
+    // §7: version 6, no exclusion, no status, a null department, two empty lists.
+    const std::vector<uint8_t> empty = {6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    if (director != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        CHECK(classes.size() == 5);  // simulator (1) + budget (3) + civic (1)
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Civic) == 1);
+        std::vector<uint8_t> record;
+        if (auto* c = Create<cISC4CivicBuildingSimulator>(director, kCLSID_Civic, kIID_Civic)) {
+            CheckQiTable(c, kIID_Civic, kCLSID_Civic);
+            bool ok = false;
+            CHECK(TextRecordOf(c, &ok) == empty && ok);
+            // §4.1: no city, no budget: Init still answers true.
+            CHECK(c->Init());
+            CHECK(!c->IsBuildingExcluded(0x8A9AE664));
+            CHECK(c->GetLandmarkCount() == 0);
+            CHECK(c->GetConditionalBuildingStatus(0x032B0000) == nullptr);
+            // Slot 7 with a caller's status in the game layout ({u8 status; u16
+            // count; cRZString {vtable, begin, end, capacity end, refcount}}).
+            struct GameStatus {
+                uint8_t status, pad;
+                uint16_t count;
+                const void* vtable;
+                char *begin, *end, *capacityEnd;
+                uint32_t refs;
+            };
+            static_assert(sizeof(void*) != 4 || sizeof(GameStatus) == 0x18, "ConditionalBuildingStatus layout");
+            char text[] = "x";
+            GameStatus st{6, 0, 2, nullptr, text, text + 1, text + 2, 1};
+            auto* gs = reinterpret_cast<cISC4CivicBuildingSimulator::ConditionalBuildingStatus*>(&st);
+            CHECK(c->UpdateConditionalBuildingStatus(0x032B0000, gs));
+            // Keys 194 and 1 share bucket 1 of 193 (§12 test 9): the newer first.
+            st = GameStatus{1, 0, 0, nullptr, text, text, text + 2, 1};
+            CHECK(c->UpdateConditionalBuildingStatus(1, gs));
+            CHECK(c->UpdateConditionalBuildingStatus(194, gs));
+            // No game allocator here: no mirror entry.
+            CHECK(c->GetConditionalBuildingStatus(0x032B0000) == nullptr);
+            record = TextRecordOf(c, &ok);
+            CHECK(ok);
+            // 2 + 4 + 4 + 3 statuses + 4 + 8.
+            CHECK(record.size() == 2 + 4 + 4 + (4 + 1 + 2 + 4 + 1) + 2 * (4 + 1 + 2 + 4) + 4 + 4 + 4);
+            // Hash order (§7): 194 and 1 in bucket 1 (194 newer, first), then 0x032B0000.
+            if (record.size() >= 22) {
+                uint32_t k1 = 0, k2 = 0;
+                std::memcpy(&k1, &record[10], 4);
+                std::memcpy(&k2, &record[10 + 11], 4);
+                CHECK(k1 == 194 && k2 == 1);
+            }
+            if (cIGZMessageTarget2* mt = TargetOf(c)) {
+                ResidentialDayMessage month(0x66956816, kJulian20000201);
+                CHECK(mt->DoMessage(&month));
+                ResidentialDayMessage other(0x12345678, 0);
+                CHECK(mt->DoMessage(&other));
+                mt->Release();
+            }
+            CHECK(c->Shutdown());
+            CHECK(c->Release() == 0);
+        }
+        if (!record.empty()) {
+            std::vector<uint8_t> again;
+            CHECK(TextReadInto<cISC4CivicBuildingSimulator>(director, kCLSID_Civic, kIID_Civic, record, &again));
+            CHECK(again == record);
+            std::vector<uint8_t> bad = record;
+            bad[0] = 5;  // §12 test 9: version 5 is refused
+            CHECK(!TextReadInto<cISC4CivicBuildingSimulator>(director, kCLSID_Civic, kIID_Civic, bad, nullptr));
+        }
+        CheckCw("civic");
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    const auto npos = std::string::npos;
+    CHECK(text.find("subsystem 'civic': enabled (1 class replaced) by FreeCity4.ini (enable=)") != npos);
+    CHECK(text.find("session seed 7 (civic_seed)") != npos);
+    CHECK(text.find("civic Init: ok=1 init=1") != npos);
+    CHECK(text.find("civic: Lua civic.get_landmark_count() NOT published") != npos);
+    CHECK(text.find("civic: the game's string allocator is not available") != npos);
+    CHECK(text.find("civic month 2000-02-01") != npos);
+    CHECK(CountOf(text, "civic Read: ok=1") == 1);
+    CHECK(CountOf(text, "civic Read: ok=0") == 1);
+    CHECK(text.find("structured exception") == npos);
+    CHECK(text.find("config: WARNING unknown key") == npos);
+    CHECK(text.find("WARNING: released last reference") == npos);
+    CHECK(text.find("WARNING: over-release") == npos);
+    CHECK(text.find("streams: WARNING") == npos);
+    if (g_failures == 0) std::printf("plugin civic enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}

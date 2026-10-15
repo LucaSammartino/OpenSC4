@@ -267,6 +267,10 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Commercial.h
         plugin/FC4CommercialShadow.cpp
         plugin/FC4CommercialShadow.h
+        plugin/cFC4Civic.cpp
+        plugin/cFC4Civic.h
+        plugin/FC4CivicShadow.cpp
+        plugin/FC4CivicShadow.h
         # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h
         plugin/FC4Turbo.cpp
@@ -501,6 +505,11 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_commercial_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-commercial)
     set_tests_properties(plugin_ini_enable_commercial_test PROPERTIES RUN_SERIAL TRUE)
+    # `enable = civic` (no city: the QI table, slots 5-8, the record with the
+    # mod-193 order, DoMessage).
+    add_test(NAME plugin_ini_enable_civic_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-civic)
+    set_tests_properties(plugin_ini_enable_civic_test PROPERTIES RUN_SERIAL TRUE)
     # `enable = neighbors`: the neighbours simulator, its connections (an
     # original's accepted on load) and deals, through a fake city and region.
     add_test(NAME plugin_ini_enable_neighbors_test

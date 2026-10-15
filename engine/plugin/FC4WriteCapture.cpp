@@ -61,6 +61,11 @@ bool WriteCapture::Capture(cIGZUnknown* obj, bool* answered) {
 
 void* WriteCapture::Grid(uint32_t id) const { return (id >= 1 && id <= refs_.size()) ? refs_[id - 1].grid : nullptr; }
 
+cIGZSerializable* WriteCapture::Object(uint32_t id) const {
+    return (id >= 1 && id <= refs_.size()) ? static_cast<cIGZSerializable*>(const_cast<void*>(refs_[id - 1].object))
+                                           : nullptr;
+}
+
 uint32_t WriteCapture::ClassOf(uint32_t id) const {
     return (id >= 1 && id <= refs_.size()) ? refs_[id - 1].classId : 0;
 }
