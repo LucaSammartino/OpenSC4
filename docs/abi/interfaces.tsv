@@ -2801,24 +2801,24 @@ cISC4NetworkTool	cSC4NetworkTool	00aa8748	1	+0x4	00695330	icf::cSC4AutomataContr
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	2	+0x8	00623270		0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	3	+0xC	006269c0	cSC4NetworkTool::Init	0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	4	+0x10	00626d30		0	0	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	5	+0x14	00626f90	cSC4NetworkTool::Reset	0	0	edx:eax?	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	5	+0x14	00626f90	cSC4NetworkTool::Reset	0	0	void	medium	re-specs14b: SDK Reset; called by cSC4NetworkToolUI::DoPlacement 0x00645370
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	6	+0x18	00623b20		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	7	+0x1C	00629210	cSC4NetworkTool::PlaceNetworkOccupants	32	8	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	8	+0x20	00624fd0	cSC4NetworkTool::PlaceNetworkOccupantById	20	5	via-call	low	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	9	+0x24	006248d0		16	4	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	7	+0x1C	00629210	cSC4NetworkTool::PlaceNetworkOccupants	32	8	al	high	re-specs14b: (x1,z1,x2,z2,mask,callback,real,type); sets +0x208=3 at 0x0062924A, back to 1 at 0x00629980; network-tools.md §3
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	8	+0x20	00624fd0	cSC4NetworkTool::PlaceNetworkOccupantById	20	5	void	high	re-specs14b: (x,z,piece,usable,type); forces +0x50=1 around slot 72; network-tools.md §4
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	9	+0x24	006248d0	cSC4NetworkTool::OccupantExists	16	4	al	medium	re-specs14b: SDK name; zones.md §8.8
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	10	+0x28	0062c900		20	5	unknown	low	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	11	+0x2C	0062c8c0		0	0	unknown	low	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	12	+0x30	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	13	+0x34	0062c8e0		0	0	unknown	low	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	14	+0x38	0062c8f0		0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	13	+0x34	0062c8e0	cSC4NetworkTool::ClearFailureReason	0	0	void	medium	re-specs14b: SDK name (SDK index 10)
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	14	+0x38	0062c8f0	cSC4NetworkTool::GetFailureState	0	0	eax	medium	re-specs14b: returns failure code +0x20C (0xF0000001..8, 0xF0000011..13)
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	15	+0x3C	0062ca40		4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	16	+0x40	00625580		0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	17	+0x44	00625f10		0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	18	+0x48	0063af40	cSC4NetworkTool::DrawNetworkLine	16	4	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	19	+0x4C	0063bdc0	cSC4NetworkTool::PlaceAllSegments	16	4	eax-or-void	medium	indirect-jump dword ptr [edx*4 + 0x63bf18]
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	20	+0x50	00625640		0	0	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	21	+0x54	0062c8d0		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	22	+0x58	0062ca20		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	20	+0x50	00625640	cSC4NetworkTool::GetCostOfSolution	0	0	eax	high	re-specs14b: price only, never withdraws; network-tools.md §8.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	21	+0x54	0062c8d0	cSC4NetworkTool::EnablePreviewUpdate	4	1	void	medium	re-specs14b: byte +0x234 (default 1) gates the inserts in PlaceNetwork
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	22	+0x58	0062ca20	cSC4NetworkTool::SetAnchorPoints	4	1	void	medium	re-specs14b: SDK name (SDK index 19)
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	23	+0x5C	0062ca30		4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	24	+0x60	0062ca10	cSC4NetworkTool::SetValidStepCount	4	1	eax-or-void	medium	tail->00624bf0
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	25	+0x64	00407ab0	icf::cSC4Advice::GetPriority	0	0	eax-or-void	medium	
@@ -2849,7 +2849,7 @@ cISC4NetworkTool	cSC4NetworkTool	00aa8748	49	+0xC4	0062d450	cSC4NetworkTool::Que
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	50	+0xC8	0062a5c0	cSC4NetworkTool::DestroyOccupantsAndResolve	4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	51	+0xCC	0062cd30		4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	52	+0xD0	0062bf60	cSC4NetworkTool::GetFailureReasonString	8	2	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	53	+0xD4	0062c980	icf::cIGZWinProc::DoWinProcMessage	8	2	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	53	+0xD4	0062c980	cSC4NetworkTool::DoNetworkSpecificPlacement	8	2	al	high	re-specs14b: base stub returns false (ICF-folded); power-line override 0x00652980 returns true; PlaceNetwork 0x0063B8B3 returns true at once when it does
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	54	+0xD8	00624210	cSC4NetworkTool::CreateNetworkOccupant	16	4	via-call	low	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	55	+0xDC	006258c0	cSC4NetworkTool::InsertOccupantsForSolvedCells	12	3	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	56	+0xE0	00644b20	cSC4NetworkTool::CanTilesBeSupportedOnTerrain	4	1	eax-or-void	medium	
@@ -2870,7 +2870,7 @@ cISC4NetworkTool	cSC4NetworkTool	00aa8748	70	+0x118	00407990	_memset	0	0	unknown
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	71	+0x11C	00633250	cSC4NetworkTool::CreateCellInfosForCurrentPlacementTiles	4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	72	+0x120	006278a0	cSC4NetworkTool::InsertNetworkOccupant	12	3	via-call	low	indirect-jump dword ptr [edx*4 + 0x62836c]
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	73	+0x124	006444f0		4	1	x87	high	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	74	+0x128	0062c990		4	1	x87	high	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	74	+0x128	0062c990	cSC4NetworkTool::GetPlacementHeight	4	1	x87	high	re-specs14b: name is ours; base returns its float argument; underground 0x00648F20 returns arg - depth(+0x36C)
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	75	+0x12C	00407990	_memset	0	0	unknown	low	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	76	+0x130	006360c0	cSC4NetworkTool::InsertRangeConstraintsForCell	4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	77	+0x134	00637b90		4	1	eax-or-void	medium	
@@ -2930,7 +2930,7 @@ cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	49	+0xC4	0062d450	cSC4Net
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	50	+0xC8	0062a5c0	cSC4NetworkTool::DestroyOccupantsAndResolve	4	1	eax-or-void	medium	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	51	+0xCC	00650560		4	1	eax-or-void	medium	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	52	+0xD0	0064f570	cSC4PowerLineTool::GetFailureReasonString	8	2	edx:eax?	low	tail->0062bf60
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	53	+0xD4	00652980	cSC4PowerLineTool::DoNetworkSpecificPlacement	8	2	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	53	+0xD4	00652980	cSC4PowerLineTool::DoNetworkSpecificPlacement	8	2	al	high	re-specs14b: always returns 1; network-tools.md §9
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	54	+0xD8	00624210	cSC4NetworkTool::CreateNetworkOccupant	16	4	via-call	low	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	55	+0xDC	006258c0	cSC4NetworkTool::InsertOccupantsForSolvedCells	12	3	eax-or-void	medium	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	56	+0xE0	00644b20	cSC4NetworkTool::CanTilesBeSupportedOnTerrain	4	1	eax-or-void	medium	
@@ -2958,8 +2958,11 @@ cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	77	+0x134	00637b90		4	1	e
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	78	+0x138	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	79	+0x13C	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	80	+0x140	00623ce0	cSC4NetworkTool::SetQuadTrianglesToDraw	8	2	via-call	low	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	81	+0x144	0064fed0	cSC4PowerLineTool::CheckForReservedTiles	4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	81	+0x144	0064fed0	cSC4PowerLineTool::CheckForReservedTiles	4	1	void	medium	re-specs14b: sets 0xF0000011/12/13
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	82	+0x148	0064f2b0	cSC4PowerLineTool::SetTerrainHilight	4	1	eax-or-void	medium	
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	74	+0x128	00648f20	cSC4UndergroundNetworkTool::GetPlacementHeight	4	1	x87	high	re-specs14b: arg - [this+0x36C]; same entry in 0x00AAA5C0 and 0x00AAA950
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	81	+0x144	00648f40	cSC4PipeTool::GetOccupantClass	0	0	eax	high	re-specs14b: name is ours; returns 0x49C05B9F; used by UpdateUndergroundOccupantTerrainHeights
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	81	+0x144	00653d90	cSC4SubwayTool::GetOccupantClass	0	0	eax	high	re-specs14b: name is ours; returns 0xCA16374F
 cISC4Demolition	cSC4Demolition	00a88004	0	+0x0	004664b0	cSC4Demolition::QueryInterface	8	2	eax-or-void	medium	
 cISC4Demolition	cSC4Demolition	00a88004	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
 cISC4Demolition	cSC4Demolition	00a88004	2	+0x8	00466950	cSC4Demolition::Release	0	0	eax-or-void	medium	
@@ -4160,6 +4163,15 @@ cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	2	+0x8	0064ddc0		0	0	ea
 cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	3	+0xC	005ece90	cSC4PropOccupant::Write	4	1	eax-or-void	medium	
 cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	4	+0x10	005ef360	cSC4PropOccupant::Read	4	1	eax-or-void	medium	
 cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	5	+0x14	005ee0e0	cSC4PropOccupant::GetGZCLSID	0	0	eax-or-void	medium	
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	0	+0x0	005ecc10	cSC4PropOccupantVisualEffect::QueryInterface	8	2	al	high	re-specs14b: IIDs 0x09820792 and 0x2977AA49 -> object base
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	1	+0x4	005ecaf0	cSC4PropOccupantVisualEffect::AddRef	0	0	eax	low	re-specs14b
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	2	+0x8	005ecb00	cSC4PropOccupantVisualEffect::Release	0	0	eax	low	re-specs14b
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	3	+0xC	005f8400	cSC4PropOccupantVisualEffect::AsOccupant	0	0	eax	high	re-specs14b: this+0xC
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	4	+0x10	005fd7e0	cSC4PropOccupantVisualEffect::AsPropOccupant	0	0	eax	high	re-specs14b: this+4
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	5	+0x14	005ef7d0	cSC4PropOccupantVisualEffect::SetEffectType(uint32)	4	1	void	high	re-specs14b: overloads compiled in reverse SDK order
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	6	+0x18	005f0780	cSC4PropOccupantVisualEffect::SetEffectType(char const*)	4	1	void	high	re-specs14b: pothole name (network-manager.md §8.8, NM5)
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	7	+0x1C	005eda50	cSC4PropOccupantVisualEffect::StartEffect	4	1	al	high	re-specs14b: true iff an effect object exists
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	8	+0x20	005edaa0	cSC4PropOccupantVisualEffect::StopEffect	4	1	al	high	re-specs14b: true iff an effect object exists and it was started
 cIGZSerializable(PropOccupantVisualEffect)	cSC4PropOccupantVisualEffect	00aa4dc4	0	+0x0	005f02f0		8	2	eax-or-void	medium	tail->005ecc10
 cIGZSerializable(PropOccupantVisualEffect)	cSC4PropOccupantVisualEffect	00aa4dc4	1	+0x4	005ed650		0	0	eax-or-void	medium	tail->005ecaf0
 cIGZSerializable(PropOccupantVisualEffect)	cSC4PropOccupantVisualEffect	00aa4dc4	2	+0x8	005ed660		0	0	eax-or-void	medium	tail->005ecb00
