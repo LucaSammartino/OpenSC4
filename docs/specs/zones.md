@@ -210,7 +210,7 @@ array unchanged. Names from `re/tuning/simulators.md`.
 | `0xE94825B4` | kZM_mZoneCreationCostArray | s64[16] | 0 | 0,10,20,50,10,20,50,10,20,50,1,1,1,1,50,1 |
 | `0xE94825B5` | kZM_mZoneDestructionCostArray | s64[16] | 0 | 0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 |
 | `0xE94825B6` | kZM_mZoneTextureResourceInstanceArray | u32[16] | — | 4121,4117,4118,4116,4099,4100,4098,4112,4113,4111,4114,4096,4120,4123,4101,4122 |
-| `0xE94825B7` | Zone Display Alpha | u8 | 0xFF | 170 (copied to the default alpha) |
+| `0xE94825B7` | Zone Display Alpha | u8 | 0xFF (the alpha only; the default alpha has no code default, ZG18) | 170 (then copied to the default alpha, also when the property is missing) |
 | `0xE94825B8` | Zone Drag Color | u32[16] | — | 4278190335,12845311,10092799,7471359,1333264383,542375935,337699583,4292555519,4289868799,3465551871,0,0,0,0,0,0 |
 | `0xE94825B9` | Zone Max Slope | f32[16] | — | 256, then 16 × 15 |
 
@@ -237,7 +237,16 @@ Only `kSC4MessageInsertOccupant` `0x99EF1142` whose data3 is the network occupan
    null)` (§6).
 
 So every ordinary road, street, rail etc. dezones its bounding rectangle, free of charge, and the zone developer
-re-parcels the remains (§7.9). This corrects `development.md` §2 (“a building lacking occupant group 0x80200090”).
+re-parcels the remains (§7.9).
+
+**A rectangle that crosses the city edge** (ZG21). Neither this handler nor `GetBoundingCityCells` (`0x005E8E20`:
+the occupant's bounding box shrunk by 0.01 on each side, divided by the cell size and rounded, with no clamp) limits
+the rectangle to the city, and `PlaceZone` has no bounds test (§6, ZG2). The original therefore dezones every
+in-city cell of the rectangle and also reads, and writes 0 into, zone-grid memory outside the grid for the outside
+cells; what it reads there, and so the count changes for those cells, is undefined. *[choice]* For this internal
+call, clip the region to the city (treat the outside cells as bits that are clear) and dezone the inside cells. That
+reproduces everything the original does that is defined. Refusing the whole call (the general ZG2 choice for
+outside callers) would leave the inside cells zoned, which the original does not. This corrects `development.md` §2 (“a building lacking occupant group 0x80200090”).
 
 **Re-entry** (ZG6). The handler has no guard. When a network occupant is inserted while a `PlaceZone` commit runs
 (for example a street drawn by the parcelling, §7.10), the message is sent synchronously, so this dezone runs at once,
@@ -1622,6 +1631,22 @@ The display alpha read here (`0x004DD58E`, the byte at +0x360) lasts only until 
 and copies that to the default alpha (`0x004DC65E`–`0x004DC675`). The saved alpha survives only when the exemplar or
 the property is missing.
 
+**The default alpha** (the byte at +0x361, returned by `0x004DC370`; ZG18, ZG19) is written in one place only: the
+copy at `0x004DC675`, which runs right after the Zone Display Alpha lookup **whether or not the property was found**
+(the getter `0x005FD3C0` leaves the alpha unchanged when the property is missing). So:
+
+| Case | Alpha after `Init` | Default alpha after `Init` |
+|---|---|---|
+| exemplar and property present | the property's value | the same value |
+| exemplar present, property missing | unchanged: the saved byte after a load, else 0xFF | **a copy of that alpha** |
+| no exemplar (`0x004DC4BB` jumps to the end) | unchanged | unchanged |
+
+`Read` does not touch the default alpha (it is not saved), and the constructor does not set it either: it writes only
+the alpha (0xFF, `0x004DCEB8`). Before the first `Init` that finds the exemplar, the original's default alpha is
+whatever the allocation held. *[choice]* FreeCity4 starts it at 0xFF. Also note that the tuning reader zeroes the two
+cost arrays before it looks the exemplar up (`0x004DC467`–`0x004DC483`), so without the exemplar the creation and
+destruction costs are 0.
+
 A second `Read` (ZG4) overwrites the grid and service references without releasing the old ones. All six go through
 the reference reader `0x005D9730` (`0x004DD43F`, `0x004DD714`–`0x004DD75B`), which sets the field to null
 (`0x005D9742`) before reading and never releases what was there, so each reference held before leaks once.
@@ -1935,7 +1960,10 @@ City 64 × 64 unless stated; shipped tuning (§4); options `SetOptions(0, 0, 0)`
 1. **Zone types.** `IsRCIZone(t)` is true exactly for t = 1..9; `GetZoneType` of a cell zoned 9 returns EAX = 9;
    of a cell holding −1 (written raw) returns `0xFFFFFFFF`.
 2. **Size errors.** `PlaceZone` of a 33 × 1 rect, type 1, `skipSizeCheck = 0` → false, error 4, no grid change. A 3 × 3
-   rect of type 7 → error 3 (min 4). A 1 × 1 rect of type 14 → error 3 (min 2). Type 16 → false.
+   rect of type 7 → error 3 (min 4). A 1 × 1 rect of type 14 → error 3 (min 2). Type 16 is not refused: it becomes
+   type 0 and the call dezones with type 0's limits (min 0, max 32768; §6, ZG17, ZG20): a 1 × 1 rect of type 16 on
+   an empty cell zoned 1, with funds for its cost (creation[0] + destruction[1] = 1), commits with error 0 and the
+   cell becomes 0, exactly as type 0 would.
 3. **Cost.** On 6 unzoned dry flat cells (3 × 2), `PlaceZone(type 1, commit, skipFunds = 0, checkSlope = 0)` with funds
    ≥ 60 → cost 60 (6 × (10 + 0)), funds −60, `zoneCount[1] = 6`, `zoneCount[0] = 4090`. Re-zoning them to 4 → cost
    66 (6 × (10 + 1)). Re-zoning them to 4 again → cost 0, counts unchanged, one ZoningChange posted. With funds 59
