@@ -30,8 +30,12 @@
 #include "FC4Turbo.h"
 #include "FC4Watchdog.h"
 #include "FC4ZonesShadow.h"
+#include "FC4ZoneDevShadow.h"
+#include "cFC4ZoneDeveloper.h"
 #include "cFC4ZoneManager.h"
 #include "FC4TractShadow.h"
+#include "FC4Clock24Shadow.h"
+#include "FC4HistoryShadow.h"
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
 #include "cFC4LotDeveloper.h"
@@ -548,6 +552,9 @@ public:
                 ZonesShadowCityLoaded(CurrentCity());  // zones_shadow = 1 only
                 TractShadowCityLoaded(CurrentCity());  // tract_shadow = 1 only
                 LotDevShadowCityLoaded(CurrentCity());  // lotdev_shadow = 1 only
+                ZoneDevShadowCityLoaded(CurrentCity());  // zonedev_shadow = 1 only
+                HistoryShadowCityLoaded(CurrentCity());  // history_shadow = 1 only
+                Clock24ShadowCityLoaded(CurrentCity());  // clock24_shadow = 1 only
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
@@ -597,6 +604,8 @@ public:
                 TractShadowMonth(CurrentCity(), julian);        // tract_shadow = 1 only
                 fc4::LotDevMonthLine(julian);                   // enable = lotdev only (the month status line)
                 LotDevShadowMonth(CurrentCity(), julian);       // lotdev_shadow = 1 only
+                fc4::ZoneDevMonthLine(julian);                  // enable = zonedev only (the month status line)
+                ZoneDevShadowMonth(CurrentCity(), julian);      // zonedev_shadow = 1 only
                 ++monthsSinceLoad_;
                 if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the

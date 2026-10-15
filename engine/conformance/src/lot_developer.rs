@@ -1027,14 +1027,14 @@ impl LotDeveloperHost for World {
             .collect()
     }
     fn occupants_in_box(&self, min: Vec3, max: Vec3, t: u32) -> Vec<u64> {
-        // Slot 37: the occupants of type `t` whose bounding box meets the
-        // closed box (§16 test 34 *[inferred]*).
+        // Slot 37: the occupants of type `t` whose bounding box overlaps the
+        // query box strictly on every axis (§17.5.1, §16 test 34, LD1).
         self.occs
             .borrow()
             .iter()
             .filter(|(_, o)| {
                 let (a, b) = o.bbox;
-                World::type_of(o) == t && (0..3).all(|i| a[i] <= max[i] && min[i] <= b[i])
+                World::type_of(o) == t && (0..3).all(|i| a[i] < max[i] && min[i] < b[i])
             })
             .map(|(&k, _)| k)
             .collect()

@@ -338,6 +338,12 @@ impl ZoneDeveloper {
         self.st.borrow().loaded
     }
 
+    /// The cell → lot map's shape: rows (x) and row size (z).
+    pub fn map_size(&self) -> (i32, i32) {
+        let s = self.st.borrow();
+        (s.map_x, s.map_z)
+    }
+
     pub fn is_real_mode(&self) -> bool {
         self.st.borrow().real_mode
     }
@@ -511,6 +517,9 @@ impl ZoneDeveloper {
             }
             v
         };
+        // The host's mirror of the master list goes first, so no registered
+        // safe iterator is left at a node of a released lot.
+        self.host.master_reset(&[]);
         for lot in lots {
             self.host.lot_shutdown(lot);
             self.host.release(lot);
@@ -2199,47 +2208,65 @@ impl ZoneDeveloper {
         out
     }
 
-    /// Slot 10 `GetLotsSurroundingRect(rect, flags)` (§8.3): the lots it
-    /// appends (one reference each), walking the ring row by row (z outer, x
-    /// inner) *[inferred]*.
+    /// Slot 10 `GetLotsSurroundingRect(rect, flags)` (§8.3) into an empty
+    /// list: the lots it appends (one reference each).
     pub fn get_lots_surrounding_rect(&self, rect: CellRect, flags: u32) -> Vec<u64> {
+        self.get_lots_surrounding_rect_after(rect, flags, &[])
+    }
+
+    /// Slot 10 `GetLotsSurroundingRect(rect, list, flags)` (§8.3) into a list
+    /// already holding `existing`: the lots appended in this call, one
+    /// reference each. Uniqueness is checked against the whole list,
+    /// `existing` included.
+    ///
+    /// The walk is the verified ring walk (§8.3): rows z1−1 .. z2+1 in
+    /// ascending z; the first and the last row every x from x1−1 to x2+1
+    /// ascending, each interior row only x1−1 then x2+1. Side bits 1 = row
+    /// z1−1, 2 = column x2+1, 4 = row z2+1, 8 = column x1−1; the bits of
+    /// sides outside the city are cleared first; then `flags = 0xF` takes
+    /// every ring cell, otherwise a cell needs the bit of each side it lies on
+    /// (a corner needs both). Cells outside the city hold no lot (slot 6).
+    pub fn get_lots_surrounding_rect_after(&self, rect: CellRect, flags: u32, existing: &[u64]) -> Vec<u64> {
         let (cx, cz) = self.host.city_cell_counts();
+        let mut f = flags;
+        if rect.z1 <= 0 {
+            f &= !1;
+        }
+        if rect.x2 + 1 >= cx {
+            f &= !2;
+        }
+        if rect.z2 + 1 >= cz {
+            f &= !4;
+        }
+        if rect.x1 <= 0 {
+            f &= !8;
+        }
+        let all = f == 0xF;
+        let (top, bottom, left, right) = (rect.z1 - 1, rect.z2 + 1, rect.x1 - 1, rect.x2 + 1);
         let mut out: Vec<u64> = Vec::new();
-        let mut seen: Vec<u64> = Vec::new();
-        // Side bits: 1 = row z1−1, 2 = column x2+1, 4 = row z2+1, 8 = column x1−1.
-        let bit1 = rect.z1 > 0;
-        let bit2 = rect.x2 + 1 < cx;
-        let bit4 = rect.z2 + 1 < cz;
-        let bit8 = rect.x1 > 0;
-        let all = flags == 0xF;
-        let try_cell = |x: i32, z: i32, out: &mut Vec<u64>, seen: &mut Vec<u64>| {
-            if let Some(lot) = self.lot_at(x, z) {
-                if !rect_overlaps(self.host.lot_bounding_rect(lot), rect) && !seen.contains(&lot) {
-                    seen.push(lot);
+        for z in top..=bottom {
+            let xs: Vec<i32> = if z == top || z == bottom {
+                (left..=right).collect()
+            } else {
+                vec![left, right]
+            };
+            for x in xs {
+                let wanted = all
+                    || ((z != top || f & 1 != 0)
+                        && (x != right || f & 2 != 0)
+                        && (z != bottom || f & 4 != 0)
+                        && (x != left || f & 8 != 0));
+                if !wanted {
+                    continue;
+                }
+                let Some(lot) = self.get_lot(x, z, false) else { continue };
+                if existing.contains(&lot) || out.contains(&lot) {
+                    continue;
+                }
+                if !rect_overlaps(self.host.lot_bounding_rect(lot), rect) {
                     self.host.add_ref(lot);
                     out.push(lot);
                 }
-            }
-        };
-        // Row z1−1 (bit 1): x1−1 .. x2+1.
-        if bit1 && (all || flags & 1 != 0) {
-            for x in (rect.x1 - 1).max(0)..=(rect.x2 + 1).min(cx - 1) {
-                try_cell(x, rect.z1 - 1, &mut out, &mut seen);
-            }
-        }
-        // Side columns for rows z1..z2 (bits 2 = x2+1, 8 = x1−1).
-        for z in rect.z1..=rect.z2 {
-            if bit8 && (all || flags & 8 != 0) {
-                try_cell(rect.x1 - 1, z, &mut out, &mut seen);
-            }
-            if bit2 && (all || flags & 2 != 0) {
-                try_cell(rect.x2 + 1, z, &mut out, &mut seen);
-            }
-        }
-        // Row z2+1 (bit 4).
-        if bit4 && (all || flags & 4 != 0) {
-            for x in (rect.x1 - 1).max(0)..=(rect.x2 + 1).min(cx - 1) {
-                try_cell(x, rect.z2 + 1, &mut out, &mut seen);
             }
         }
         out
@@ -2409,10 +2436,11 @@ impl ZoneDeveloper {
         self.can_create_lot_cfg(x, z, w, h, zone_not_needed, water_allowed, None)
     }
 
-    /// The `cfg` variant of slot 20 (`CreateLotIfPossible` ignores the
-    /// argument, §8.5 [quirk]); the parameter count is the slot's own.
+    /// Slot 20 with its `cfg` argument (§8.4: `waterOK := waterAllowed ||
+    /// cfg.IsCompatibleWithWater()`); `CreateLotIfPossible` passes none
+    /// (§8.5 [quirk]). The parameter count is the slot's own.
     #[allow(clippy::too_many_arguments)]
-    fn can_create_lot_cfg(
+    pub fn can_create_lot_cfg(
         &self,
         x: i32,
         z: i32,
@@ -2547,7 +2575,12 @@ impl ZoneDeveloper {
     /// lot's caller reference.
     pub fn create_lot(&self, x: i32, z: i32, w: i32, h: i32, facing: i32) -> Option<u64> {
         // 1. Allocate and construct a lot (a new token with no reference).
+        //    [choice] A host that cannot construct one (0) fails the call:
+        //    nothing is written (zones phase 2, lot creation not specified).
         let lot = self.host.new_lot(x, z, w, h, facing);
+        if lot == 0 {
+            return None;
+        }
         // 2. One AddRef for the caller; Init; SetState(1,0,0); one more AddRef
         //    for the manager.
         self.host.add_ref(lot); // caller's reference (returned)
@@ -2581,10 +2614,12 @@ impl ZoneDeveloper {
                     None => len, // the end → append
                 };
                 let pos = pos.min(len);
+                let before = s.master.get(pos).copied();
                 s.master.insert(pos, lot);
                 // Move the iterator to its node's predecessor.
                 let pred = if pos >= 2 { Some(s.master[pos - 2]) } else { None };
                 drop(s);
+                self.host.master_insert(lot, before);
                 self.host.set_lot_insertion_point(pred);
             }
             Some(_point) => {
@@ -2593,6 +2628,7 @@ impl ZoneDeveloper {
             None => {
                 // Append to the master list and count it.
                 self.st.borrow_mut().master.push(lot);
+                self.host.master_insert(lot, None);
             }
         }
         // 5. SetEmptyLotBaseTexture.
@@ -2651,7 +2687,7 @@ impl ZoneDeveloper {
             }
         }
         // 4. Remove from the master list; advance safe iterators.
-        {
+        let removed = {
             let mut s = self.st.borrow_mut();
             if let Some(pos) = s.master.iter().position(|&l| l == lot) {
                 s.master.remove(pos);
@@ -2660,7 +2696,13 @@ impl ZoneDeveloper {
                         it.index -= 1;
                     }
                 }
+                true
+            } else {
+                false
             }
+        };
+        if removed {
+            self.host.master_remove(lot);
         }
         // 5. Business unit.
         if self.host.lot_has_business_unit(lot) {
@@ -2745,12 +2787,15 @@ impl ZoneDeveloper {
                 }
             }
         }
-        let mut s = self.st.borrow_mut();
-        s.cell_map = cell_map;
-        s.map_x = mx;
-        s.map_z = mz;
-        s.master = master;
-        s.loaded = true;
+        {
+            let mut s = self.st.borrow_mut();
+            s.cell_map = cell_map;
+            s.map_x = mx;
+            s.map_z = mz;
+            s.master = master.clone();
+            s.loaded = true;
+        }
+        self.host.master_reset(&master);
         true
     }
 }

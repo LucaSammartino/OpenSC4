@@ -482,7 +482,7 @@ cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	17	+0x44	0072a8f0		16	4	via-call	low
 cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	18	+0x48	0072a9f0		12	3	via-call	low	
 cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	19	+0x4C	0072aac0		12	3	via-call	low	
 cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	20	+0x50	0072c2d0		28	7	eax-or-void	medium	
-cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	21	+0x54	007306c0		24	6	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	21	+0x54	007306c0	cSC4ZoneDeveloper::CanCreatePloppedLot(SC4Rect<int32> by value, int32 facing, cISC4LotConfiguration*)	24	6	eax	high	codes 0, 1, 3-8; zones 8.4.1, tests 36-38; re-specs11
 cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	22	+0x58	00730a80		36	9	eax-or-void	medium	
 cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	23	+0x5C	0072e520		24	6	eax-or-void	medium	
 cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	24	+0x60	0072f8e0		4	1	eax-or-void	medium	
@@ -583,7 +583,7 @@ cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	20	+
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	21	+0x54	00698050		4	1	eax-or-void	medium	
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	22	+0x58	00698120		8	2	eax-or-void	medium	
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	23	+0x5C	00695af0	cSC4BuildingDevelopmentSimulator::AddNewFoundationOccupant	28	7	al	high	re-answers9 DG6: called by the lot developer; implement, never false for valid input
-cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	24	+0x60	00695740		4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	24	+0x60	00695740	cSC4BuildingDevelopmentSimulator::InsertFoundationOccupant(cISC4FoundationOccupant*)	4	1	al	medium	occupantManager.InsertOccupant(f.AsOccupant(), 0); false when there is no occupant manager; name FreeCity4's; lot-developer 17.5.3; re-specs11
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	25	+0x64	00695770		8	2	via-call	low	
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	26	+0x68	006982b0	cSC4BuildingDevelopmentSimulator::LoadFoundationProperties	8	2	al	high	re-answers9 DG6
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	27	+0x6C	00698180		4	1	eax-or-void	medium	
@@ -1491,13 +1491,13 @@ cISC4City	cSC4City	00a87620	75	+0x12C	00423720	icf::cSC4City::GetZoneDeveloper	0
 cISC4City	cSC4City	00a87620	76	+0x130	00459860	cSC4City::GetSeaportDeveloper	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	77	+0x134	00459850	cSC4City::GetAirportDeveloper	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	78	+0x138	00459840	cSC4City::GetLandfillDeveloper	0	0	eax-or-void	medium	
-cISC4City	cSC4City	00a87620	79	+0x13C	006e3000	cSC4PollutionSimulator::GetTotalGarbageUncollected	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	79	+0x13C	006e3000	cSC4City::GetLotDeveloper	0	0	eax	high	returns city+0x13C; re-specs11
 cISC4City	cSC4City	00a87620	80	+0x140	00459870	cSC4City::GetTractDeveloper	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	81	+0x144	00459890	cSC4City::GetAdvisorSystem	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	82	+0x148	005d2070	icf::cSC4City::GetTutorialSystem	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	83	+0x14C	004596c0	cSC4City::GetSurfaceWater	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	84	+0x150	00504f70	cSC4City::GetTerrain	0	0	eax-or-void	medium	
-cISC4City	cSC4City	00a87620	85	+0x154	004e76a0	icf::cSC4AudioAmbienceLayer::GetLayerId	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	85	+0x154	004e76a0	cSC4City::GetEffectsManager	0	0	eax	medium	returns city+0x1FC, used as the effects manager at 0x005E8821 [inferred]; re-specs11
 cISC4City	cSC4City	00a87620	86	+0x158	004596d0	cSC4City::Get24HourClock	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	87	+0x15C	00459390	cSC4City::GetCitySizeType	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	88	+0x160	004593b0	cSC4City::SetSize	8	2	eax-or-void	medium	
@@ -1659,10 +1659,10 @@ cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	14	+0x38	006cc250	cSC4LotDeveloper::
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	15	+0x3C	006c4310	cSC4LotDeveloper::GetTerrainAltitudeByVertex	12	3	x87	high	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	16	+0x40	006c56c0	cSC4LotDeveloper::GetLowestOrHighestAreaAltitude	12	3	x87	high	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	17	+0x44	006c5620	cSC4LotDeveloper::GetLowestOrHighestAreaAltitude	12	3	x87	high	
-cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	18	+0x48	006c5b70	cSC4LotDeveloper::GetAverageAreaAltitude	8	2	x87	high	
-cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	19	+0x4C	006c43d0	cSC4LotDeveloper::LevelAreaInternalVertices	20	5	eax-or-void	medium	
-cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	20	+0x50	006c44b0	cSC4LotDeveloper::LevelBorderingVertices	16	4	via-call	low	
-cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	21	+0x54	006c44f0	cSC4LotDeveloper::AttemptAreaLevelling	24	6	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	18	+0x48	006c5b70	cSC4LotDeveloper::GetAverageAreaAltitude	8	2	x87	high	CORRECTS the notes: takes SC4Rect<int32> const& (cells), not the SDK SC4Rect<float>, and bool withWater; lot-developer 17.2; re-specs11
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	19	+0x4C	006c43d0	cSC4LotDeveloper::LevelAreaInternalVertices	20	5	eax	high	CORRECTS ret: EAX = number of ModifyTerrainHeight calls, not bool (AL is its low byte); lot-developer 17.4; re-specs11
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	20	+0x50	006c44b0	cSC4LotDeveloper::LevelBorderingVertices	16	4	eax	high	CORRECTS ret: EAX of ModifyTerrainHeight (a count); re-specs11
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	21	+0x54	006c44f0	cSC4LotDeveloper::AttemptAreaLevelling	24	6	eax	high	CORRECTS ret: EAX = 0 or ModifyTerrainHeight's count; re-specs11
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	22	+0x58	006c4590	cSC4LotDeveloper::GetOccupantCellCoverage	8	2	via-call	low	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	23	+0x5C	005deb40	icf::cSC4AudioAmbienceLayer::CanHandleOccupant	4	1	eax-or-void	medium	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	24	+0x60	006c5c00	cSC4LotDeveloper::IsLotDeveloped	4	1	via-call	low	
@@ -1680,10 +1680,10 @@ cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	35	+0x8C	006c6340	cSC4LotDeveloper::
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	36	+0x90	006c7a70	cSC4LotDeveloper::NeedsAnchorBuilding	8	2	eax-or-void	medium	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	37	+0x94	006cc880	cSC4LotDeveloper::UpdateLotElements	8	2	eax-or-void	medium	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	38	+0x98	006c9100	cSC4LotDeveloper::GetFirstBuilding	4	1	eax-or-void	medium	
-cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	39	+0x9C	006c4ef0	cSC4LotDeveloper::GetPositionForLotConfigurationObject	20	5	eax-or-void	medium	indirect-jump dword ptr [ebp*4 + 0x6c51fc]
-cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	40	+0xA0	006c3cf0	cSC4LotDeveloper::GetPositionForBuilding	12	3	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	39	+0x9C	006c4ef0	cSC4LotDeveloper::GetPositionForLotConfigurationObject	20	5	eax	high	CORRECTS ret: EAX = &orient (SDK says bool); indirect-jump dword ptr [ebp*4 + 0x6c51fc]; re-specs11
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	40	+0xA0	006c3cf0	cSC4LotDeveloper::GetPositionForBuilding	12	3	eax	high	CORRECTS ret: EAX of slot 39 (&orient), 0 when no configuration or primary object; re-specs11
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	41	+0xA4	006c41a0	cSC4LotDeveloper::GetLotBaseTextureOccupant	12	3	eax-or-void	medium	
-cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	42	+0xA8	006c6cf0	cSC4LotDeveloper::GetBoundaryLotTexture	16	4	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	42	+0xA8	006c6cf0	cSC4LotDeveloper::GetBoundaryLotTexture	16	4	eax	high	CORRECTS ret: EAX = a map node pointer with AL replaced by the flip byte (SDK says bool); re-specs11
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	43	+0xAC	006cc970	cSC4LotDeveloper::SetEmptyLotBaseTexture	4	1	via-call	low	indirect-jump dword ptr [ecx*4 + 0x6cce14]
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	44	+0xB0	006ca8a0	cSC4LotDeveloper::SetNormalLotBaseTexture	12	3	eax-or-void	medium	indirect-jump dword ptr [ecx*4 + 0x6caad4]
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	45	+0xB4	006c4290	cSC4LotDeveloper::UpdateLotBaseTextureOccupant	8	2	via-call	low	
@@ -1691,7 +1691,7 @@ cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	46	+0xB8	006aaf40	cSC4LotDeveloper::
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	47	+0xBC	006c77d0	cSC4LotDeveloper::SetForceEmptyLotBaseTextures	4	1	eax-or-void	medium	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	48	+0xC0	006c3e10	cSC4LotDeveloper::GetFoundationByOccupant	4	1	via-call	low	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	49	+0xC4	006c9480	cSC4LotDeveloper::GetFoundationByStandardCityCell	12	3	eax-or-void	medium	
-cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	50	+0xC8	006c95e0	cSC4LotDeveloper::GetFoundationByPosition	12	3	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	50	+0xC8	006c95e0	cSC4LotDeveloper::GetFoundationByPosition	12	3	eax	high	CORRECTS ret: cISC4FoundationOccupant* or 0, no reference; strict box (LD1, lot-developer 17.5.1); re-specs11
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	51	+0xCC	006c3e70	cSC4LotDeveloper::GetLotFoundation	4	1	via-call	low	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	52	+0xD0	006c54e0	cSC4LotDeveloper::RemoveFoundation	12	3	eax-or-void	medium	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	53	+0xD4	006c3eb0	cSC4LotDeveloper::RemoveLotFoundation	8	2	eax-or-void	medium	
@@ -1704,7 +1704,7 @@ cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	59	+0xEC	006c4020	cSC4LotDeveloper::
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	60	+0xF0	006c4150	cSC4LotDeveloper::RemoveBuildingFoundation	4	1	via-call	low	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	61	+0xF4	006c3f80	cSC4LotDeveloper::UpdateLotFoundation	4	1	via-call	low	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	62	+0xF8	006c4190	cSC4LotDeveloper::UpdateLotRetainingWalls	4	1	eax-or-void	medium	
-cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	63	+0xFC	006c6230	cSC4LotDeveloper::CreateLotProp	12	3	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	63	+0xFC	006c6230	cSC4LotDeveloper::CreateLotProp	12	3	eax	high	CORRECTS ret: EAX = the new prop's occupant (borrowed) or 0 (SDK says bool); lot-developer 15.5; re-specs11
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	64	+0x100	006cb760	cSC4LotDeveloper::GetLotConfigurationObjectOccupant	12	3	eax-or-void	medium	
 cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	0	+0x0	006b37a0		8	2	eax-or-void	medium	
 cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
@@ -1788,7 +1788,7 @@ cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	33	+0x84	0049dce0	cSC4Occupant
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	34	+0x88	0049e800		16	4	eax-or-void	medium	
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	35	+0x8C	0049dd10		16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x88]
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	36	+0x90	004a0670		20	5	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	37	+0x94	0049dd40		20	5	eax-or-void	medium	indirect-jump dword ptr [eax + 0x90]/dword ptr [eax + 0x90]
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	37	+0x94	0049dd40	cSC4OccupantManager::GetOccupantsInBoxOfType(list, min, max, type, filter)	20	5	al	medium	sets the one-type filter and tail-jumps to slot 36; false when uninitialised; strict overlap (flora 6.4.2, LD1); indirect-jump dword ptr [eax + 0x90]; re-specs11
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	38	+0x98	004a0a70		20	5	eax-or-void	medium	
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	39	+0x9C	0049dd80		20	5	eax-or-void	medium	indirect-jump dword ptr [eax + 0x98]/dword ptr [eax + 0x98]
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	40	+0xA0	0049e250		20	5	eax-or-void	medium	
@@ -2605,7 +2605,7 @@ cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	4	+0x10	00619100	cSC4NetworkOc
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	5	+0x14	00648ef0	cSC4ViewInputControl::OnMouseExit	0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	6	+0x18	00619180		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	7	+0x1C	0061a120		4	1	via-call	low	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	8	+0x20	00604d10		4	1	eax-or-void	medium	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	8	+0x20	00604d10	cSC4NetworkOccupant::HasAllNetworkFlags(uint32 mask)	4	1	eax	high	(flags & mask) == mask as 0/1 in EAX; zones 8.4.1; re-specs11
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	9	+0x24	00604d30	HasAnyNetworkFlag	4	1	eax-or-void	medium	re-answers5 LG7: bool (flags & mask) != 0, as used by FindNetworkTile
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	10	+0x28	00619ec0		4	1	via-call	low	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	11	+0x2C	00619f70		4	1	eax-or-void	medium	
@@ -2635,7 +2635,7 @@ cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	34	+0x88	0065a6c0		4	1	eax-or-
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	35	+0x8C	006194c0		4	1	x87	high	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	36	+0x90	00619650		4	1	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	37	+0x94	0061b480		8	2	eax-or-void	medium	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	38	+0x98	0061af80		4	1	eax-or-void	medium	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	38	+0x98	0061af80	cSC4NetworkOccupant::GetEdgeMaskForType(uint8 type)	4	1	eax	medium	tail call into the type table at +0x108 (0x00619B70); four per-edge bytes for the type, 0 when absent; name FreeCity4's; zones 8.4.1; re-specs11
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	39	+0x9C	0061b430		12	3	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	40	+0xA0	0061ae90		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	41	+0xA4	0061aee0		4	1	eax-or-void	medium	
@@ -2741,7 +2741,7 @@ cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	10	+0x28	00458820		4	1	eax-o
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	11	+0x2C	00459250		0	0	eax-or-void	medium	
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	12	+0x30	004590e0		0	0	eax-or-void	medium	
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	13	+0x34	00459050		0	0	eax-or-void	medium	
-cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	14	+0x38	00458830		0	0	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	14	+0x38	00458830	cSC4BuildingOccupant::GetOrientation	0	0	eax	high	sign-extended byte +0x54; re-specs11
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	15	+0x3C	00458840	cSC4BuildingOccupant::SetOrientation	4	1	al	high	re-answers9 DG5: clamps to 0..3, stores a byte at +0x54, returns true
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	16	+0x40	00458870		0	0	eax-or-void	medium	
 cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	17	+0x44	00458c90	cSC4BuildingOccupant::SetLit	4	1	eax-or-void	medium	
@@ -4483,3 +4483,53 @@ cISC424HourClock	cSC424HourClock	00a86588	28	+0x70	004453e0	cSC424HourClock::IsN
 cISC424HourClock	cSC424HourClock	00a86588	29	+0x74	00445620	cSC424HourClock::EnableDayNightTransitionNotifications	4	1	eax-or-void	high	void
 cISC43DRender	cSC43DRender	00abab60	8	+0x20	007c9fb0	cSC43DRender::GetViewUtilities	0	0	eax	high	re-answers9 LG21: borrowed, not a GZCOM object; view rotation int32 at +0x10
 cISC4App	cSC4App	00a86af0	37	+0x94	0081f910	cSC4App::GetCity	0	0	eax	high	re-answers9 NB19: borrowed app+0x5C; same pointer as global 0x00B43CEC until the city's Shutdown
+cS3DResModel	cS3DResModel	00abd608	3	+0xC	00520080	cS3DResModel::GetAnimHeader	0	0	eax	high	ICF body (returns this+0x4C); graphics-formats 3.9: +0 frame count, +2 rate; re-specs11
+cS3DResModel	cS3DResModel	00abd608	4	+0x10	00804150	cS3DResModel::CreateAnimatedInstance(uint32 frame, instance** out)	8	2	al	high	0xD0-byte instance, ctor 0x007FD870; builds the frame with slot 8; graphics-formats 3.9; re-specs11
+cS3DResModel	cS3DResModel	00abd608	5	+0x14	008040e0	cS3DResModel::CreateInstance(uint32 frame, instance** out)	8	2	al	medium	static cS3DModelInstance (0xA4 bytes); graphics-formats 3.12; re-specs11
+cS3DResModel	cS3DResModel	00abd608	8	+0x20	00806c40	cS3DResModel::GetModelFrame(uint32 frame, out)	8	2	al	high	fails for frame >= F; graphics-formats 3.12; re-specs11
+cS3DModelInstanceAnimated	cS3DModelInstanceAnimated	00abd088	9	+0x24	007fda90	cS3DModelInstanceAnimated::SetSubRange(uint32)	4	1	eax	low	acts only when the +0xA4 sub-range pointer is set (always null, graphics-formats 3.9), else returns 0; name FreeCity4's; re-specs11
+cS3DModelInstanceAnimated	cS3DModelInstanceAnimated	00abd088	10	+0x28	007fdaf0	cS3DModelInstanceAnimated::SetFrame(uint16 f)	4	1	eax	high	2 = set or unchanged, 0 = f >= F; graphics-formats 3.9, test 47; re-specs11
+cS3DModelInstanceAnimated	cS3DModelInstanceAnimated	00abd088	11	+0x2C	007faf90	cS3DModelInstanceAnimated::GetCurrentFrame	0	0	eax	medium	u16 frame (sub-range path when +0xA4 is set); re-specs11
+cS3DModelInstanceAnimated	cS3DModelInstanceAnimated	00abd088	12	+0x30	007fc150	cS3DModelInstanceAnimated::GetFrameCount	0	0	eax	high	u16 F from the model header (sub-range count when +0xA4 is set); re-specs11
+cS3DModelInstanceAnimated	cS3DModelInstanceAnimated	00abd088	13	+0x34	007fdb80	cS3DModelInstanceAnimated::Step	0	0	eax	medium	graphics-formats 3.9 Step; re-specs11
+cS3DModelInstanceAnimated	cS3DModelInstanceAnimated	00abd088	14	+0x38	007fc170	cS3DModelInstanceAnimated::SetSpeed(float s)	4	1	eax-or-void	medium	-200.0 = rate x 0.001 from the file; graphics-formats 3.9; re-specs11
+cS3DModelInstanceAnimated	cS3DModelInstanceAnimated	00abd088	15	+0x3C	007fc1c0	cS3DModelInstanceAnimated::Advance(float ms)	4	1	eax	high	0 or 2; at most one frame per call; graphics-formats 3.9, tests 44-46; re-specs11
+cS3DModelInstanceAnimated	cS3DModelInstanceAnimated	00abd088	16	+0x40	007fafc0	cS3DModelInstanceAnimated::SetAnimMode(uint8 m)	4	1	eax-or-void	high	3 loop (default), 2 ping-pong, other play once; re-specs11
+cS3DModelInstanceAnimated	cS3DModelInstanceAnimated	00abd088	17	+0x44	007fc2d0	cS3DModelInstanceAnimated::GetModelAnimHeader	0	0	eax	high	tail call of model slot 3 (jmp [vtable+0xC] of the model at +0x30); re-specs11
+cSC4ModelRegEffects	cSC4ModelRegEffects	00aa4060	0	+0x0	005e5e50	cSC4ModelRegEffects::Init	0	0	eax-or-void	medium	runs slot 16 when an instance is attached; graphics-formats 3.11; re-specs11
+cSC4ModelRegEffects	cSC4ModelRegEffects	00aa4060	2	+0x8	005e5e60	cSC4ModelRegEffects::SetModelInstance(instance*)	4	1	eax-or-void	medium	NEW; re-specs11
+cSC4ModelRegEffects	cSC4ModelRegEffects	00aa4060	4	+0x10	005e6b40	cSC4ModelRegEffects::UpdateEffects(pos, dir, speed)	12	3	eax-or-void	medium	as slot 5, and sets effect parameter 15 to speed x direction; re-specs11
+cSC4ModelRegEffects	cSC4ModelRegEffects	00aa4060	5	+0x14	005e6160	cSC4ModelRegEffects::UpdateEffects	0	0	eax-or-void	medium	per-frame REGP record to SetTransform; graphics-formats 3.11, test 49; re-specs11
+cSC4ModelRegEffects	cSC4ModelRegEffects	00aa4060	6	+0x18	005e7580	cSC4ModelRegEffects::StartAll(bool)	4	1	eax-or-void	medium	NEW; re-specs11
+cSC4ModelRegEffects	cSC4ModelRegEffects	00aa4060	7	+0x1C	005e75f0	cSC4ModelRegEffects::StopAll(bool)	4	1	eax-or-void	medium	NEW; re-specs11
+cSC4ModelRegEffects	cSC4ModelRegEffects	00aa4060	8	+0x20	005e8810	cSC4ModelRegEffects::AddEffect(key, effectName, records)	12	3	eax	medium	creates through cISC4City slot 85 then effects manager slot 7; the effect or 0; re-specs11
+cSC4ModelRegEffects	cSC4ModelRegEffects	00aa4060	9	+0x24	005e7a10	cSC4ModelRegEffects::AddEffectAtRegion(regionName, effectName)	8	2	eax-or-void	low	NEW; re-specs11
+cSC4ModelRegEffects	cSC4ModelRegEffects	00aa4060	10	+0x28	005e7a60	cSC4ModelRegEffects::GetEffect(regionName)	4	1	eax	medium	effect or 0; used by the airplane Init 0x005017C0; re-specs11
+cSC4ModelRegEffects	cSC4ModelRegEffects	00aa4060	12	+0x30	005e7660	cSC4ModelRegEffects::StartEffectsNamed(name, bool, ?)	12	3	al	medium	case-insensitive; pop 12 (the wind-down list said 8), third argument not identified; re-specs11
+cSC4ModelRegEffects	cSC4ModelRegEffects	00aa4060	13	+0x34	005e7750	cSC4ModelRegEffects::StopEffectsNamed(name, bool)	8	2	eax-or-void	medium	case-insensitive; re-specs11
+cSC4ModelRegEffects	cSC4ModelRegEffects	00aa4060	16	+0x40	005e8320	cSC4ModelRegEffects::InitEffectsList	0	0	eax-or-void	high	fx_ name rule, graphics-formats 3.11, test 48; re-specs11
+cISC4FoundationOccupant	cSC4FoundationOccupant	00aa29a0	0	+0x0	005d6160	cSC4FoundationOccupant::QueryInterface	8	2	al	high	IID 0xC8FCE101; lot-developer 17.5; re-specs11
+cISC4FoundationOccupant	cSC4FoundationOccupant	00aa29a0	1	+0x4	005e28f0	cSC4FoundationOccupant::AddRef	0	0	eax	high	thunk: this+4, jmp cSC4Occupant::AddRef; re-specs11
+cISC4FoundationOccupant	cSC4FoundationOccupant	00aa29a0	2	+0x8	005e2900	cSC4FoundationOccupant::Release	0	0	eax	high	thunk: this+4, jmp cSC4Occupant::Release; re-specs11
+cISC4FoundationOccupant	cSC4FoundationOccupant	00aa29a0	3	+0xC	005fd7e0	cSC4FoundationOccupant::AsOccupant	0	0	eax	high	this+4, null-safe (ICF); re-specs11
+cISC4FoundationOccupant	cSC4FoundationOccupant	00aa29a0	4	+0x10	0080bc00	cSC4FoundationOccupant::GetFoundationType	0	0	eax	high	u32 +0x38 (ICF getter); re-specs11
+cISC4FoundationOccupant	cSC4FoundationOccupant	00aa29a0	5	+0x14	006ce240	cSC4FoundationOccupant::SetFoundationType(uint32)	4	1	eax-or-void	high	ICF setter; re-specs11
+cISC4FoundationOccupant	cSC4FoundationOccupant	00aa29a0	6	+0x18	005d4ac0	cSC4FoundationOccupant::GetFloat3C	0	0	x87	medium	float +0x3C (property 0x88FCC3E3); name FreeCity4's; re-specs11
+cISC4FoundationOccupant	cSC4FoundationOccupant	00aa29a0	7	+0x1C	006ce230	cSC4FoundationOccupant::SetFloat3C(float)	4	1	eax-or-void	medium	name FreeCity4's; re-specs11
+cISC4FoundationOccupant	cSC4FoundationOccupant	00aa29a0	8	+0x20	005d6400	cSC4FoundationOccupant::SetSize(const float[3])	4	1	al	high	+0x4C..+0x54, returns 1; re-specs11
+cISC4FoundationOccupant	cSC4FoundationOccupant	00aa29a0	9	+0x24	005d6140	cSC4FoundationOccupant::GetKind	0	0	eax	high	sign-extended byte +0x58: 1 building, 2 lot, 3 prop, 4 other; re-specs11
+cISC4FoundationOccupant	cSC4FoundationOccupant	00aa29a0	10	+0x28	005d6150	cSC4FoundationOccupant::SetKind(int8)	4	1	eax-or-void	high	NEW; re-specs11
+cISC4FoundationOccupant	cSC4FoundationOccupant	00aa29a0	11	+0x2C	005d6190	cSC4FoundationOccupant::GetOrientation	0	0	eax	high	byte +0x59; re-specs11
+cISC4FoundationOccupant	cSC4FoundationOccupant	00aa29a0	12	+0x30	005d61a0	cSC4FoundationOccupant::SetOrientation(int32)	4	1	al	high	clamped to 0..3, returns 1; re-specs11
+cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	0	+0x0	005dea80	cSC4LotBaseTextureOccupant::QueryInterface	8	2	al	high	NEW; re-specs11
+cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	1	+0x4	005e28f0	cSC4LotBaseTextureOccupant::AddRef	0	0	eax	high	thunk: this+4, jmp cSC4Occupant::AddRef; re-specs11
+cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	2	+0x8	005e2900	cSC4LotBaseTextureOccupant::Release	0	0	eax	high	thunk: this+4, jmp cSC4Occupant::Release; re-specs11
+cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	3	+0xC	005fd7e0	cSC4LotBaseTextureOccupant::AsOccupant	0	0	eax	high	this+4, null-safe (ICF); re-specs11
+cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	4	+0x10	005e0630	cSC4LotBaseTextureOccupant::GetUsage	0	0	eax-or-void	low	symbol-port name; re-specs11
+cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	5	+0x14	005e0640	cSC4LotBaseTextureOccupant::SetUsage	4	1	eax-or-void	low	symbol-port name; re-specs11
+cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	6	+0x18	005e0a00	cSC4LotBaseTextureOccupant::GetCellCoverage	8	2	eax-or-void	low	symbol-port name; re-specs11
+cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	7	+0x1C	005df310	cSC4LotBaseTextureOccupant::IsCellCovered	12	3	eax-or-void	low	symbol-port name; re-specs11
+cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	8	+0x20	005e0b20	cSC4LotBaseTextureOccupant::SetTextureSpecification(records, count, 0)	12	3	eax-or-void	medium	lot-developer 17.7; called even with 0 records; re-specs11
+cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	9	+0x24	005df820	cSC4LotBaseTextureOccupant::UpdateVertexAltitudes	12	3	eax-or-void	low	symbol-port name; re-specs11
+cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	10	+0x28	005e0050	cSC4LotBaseTextureOccupant::LoadModels	4	1	eax-or-void	low	symbol-port name; re-specs11
+cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	11	+0x2C	005dee00	cSC4LotBaseTextureOccupant::UnloadModels	0	0	eax-or-void	low	symbol-port name; re-specs11

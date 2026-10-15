@@ -10,7 +10,7 @@ use fc4_formats::exemplar::{ChainEnd, Exemplar, ExemplarStore, Kind, TextValues}
 use fc4_formats::fsh::{self, Fsh};
 use fc4_formats::s3d::{self, Model};
 use fc4_formats::tgi::{TYPE_COHORT, TYPE_EXEMPLAR, TYPE_FSH, TYPE_LTEXT, TYPE_S3D};
-use fc4_formats::{ltext, qfs, Package, Tgi};
+use fc4_formats::{keys, ltext, qfs, Package, Tgi};
 
 const USAGE: &str = "\
 usage:
@@ -23,6 +23,12 @@ usage:
                                                    <out.tga>, write frame 0 level 0 as a 32-bit TGA (local
                                                    inspection only: never commit decoded game data)
   fc4-dat s3d <file> <T> <G> <I>                   S3D model: version, chunks and their counts
+  fc4-dat models <file> <T> <G> <I> [--zoom=N] [--detail=N] [--rotation=N] [--flag] [--resolve]
+                                                   the models GetAllModelInstanceIDs gives an occupant of this
+                                                   exemplar (graphics-formats §4.2, GF7): the zoom mask, the
+                                                   key read, the RKT4 records, and per state 0-3 the
+                                                   instances and offsets (zoom index 0-4, default 4; --flag:
+                                                   the occupant's flag 0x80; --resolve: inherited values)
 IDs are hexadecimal, with or without 0x.";
 
 fn main() -> ExitCode {
@@ -111,8 +117,123 @@ fn run(args: &[String], o: &mut dyn Write) -> Result<(), String> {
             fsh_cmd(&pkg, key, pos.get(5).map(String::as_str), o)
         }
         "s3d" => s3d_cmd(&pkg, tgi(pos.get(2..).unwrap_or(&[]))?, o),
+        "models" => {
+            let num = |name: &str, default: u32| -> Result<u32, String> {
+                let prefix = format!("--{name}=");
+                match flags.iter().find_map(|f| f.strip_prefix(prefix.as_str())) {
+                    Some(v) => v.parse().map_err(|_| format!("--{name}: not a number: {v}")),
+                    None => Ok(default),
+                }
+            };
+            let opts = ModelOpts {
+                zoom: num("zoom", 4)?,
+                detail: num("detail", 0)?,
+                rotation: num("rotation", 0)?,
+                flagged: flags.contains(&"--flag"),
+                resolve: flags.contains(&"--resolve"),
+            };
+            models_cmd(&pkg, tgi(pos.get(2..).unwrap_or(&[]))?, &opts, o)
+        }
         _ => Err(USAGE.into()),
     }
+}
+
+struct ModelOpts {
+    zoom: u32,
+    detail: u32,
+    rotation: u32,
+    flagged: bool,
+    resolve: bool,
+}
+
+/// Prints the models `GetAllModelInstanceIDs` gives an occupant of an exemplar (graphics-formats §4.2, GF7).
+fn models_cmd<S: fc4_formats::Source>(
+    pkg: &Package<S>,
+    key: Tgi,
+    opts: &ModelOpts,
+    o: &mut dyn Write,
+) -> Result<(), String> {
+    use std::collections::BTreeMap;
+    let data = pkg.read_tgi(&key).map_err(|e| e.to_string())?;
+    let ex = Exemplar::parse(&data).map_err(|e| e.to_string())?;
+    let mut store = ExemplarStore::new();
+    let props: Vec<&fc4_formats::Property> = if opts.resolve {
+        store.load_package(pkg);
+        store.resolved_properties(&ex).into_iter().map(|(_, p)| p).collect()
+    } else {
+        ex.properties().iter().collect()
+    };
+    let wanted = |id: u32| {
+        id == keys::ZOOM_MASK
+            || (keys::RKT0..=keys::RKT5).contains(&id)
+            || (keys::RKT_FLAGGED_BASE..keys::RKT_FLAGGED_BASE + 6).contains(&id)
+    };
+    let mut values: BTreeMap<u32, Vec<u32>> = BTreeMap::new();
+    for p in props.into_iter().filter(|p| wanted(p.id)) {
+        match keys::property_u32s(p) {
+            Some(v) => {
+                values.insert(p.id, v);
+            }
+            None => say!(o, "  0x{:08X} is {}: not read as integers", p.id, p.value_type().name()),
+        }
+    }
+    say!(
+        o,
+        "models of {key}: zoom index {}, detail {}, rotation {}, flag 0x80 {}",
+        opts.zoom,
+        opts.detail,
+        opts.rotation,
+        if opts.flagged { "set" } else { "clear" }
+    );
+    match values.get(&keys::ZOOM_MASK) {
+        Some(m) => {
+            let m: Vec<String> = m.iter().map(|x| format!("0x{x:08X}")).collect();
+            say!(o, "  zoom mask {} (bit n: zoom index n)", m.join(", "))
+        }
+        None => say!(o, "  no zoom mask"),
+    }
+    for (&id, v) in values.iter().filter(|(&id, _)| id != keys::ZOOM_MASK) {
+        say!(o, "  0x{id:08X}: {} values", v.len());
+        if id == keys::RKT4 || id == keys::RKT_FLAGGED_BASE + 4 {
+            let (recs, end) = keys::rkt4_records(v);
+            for r in &recs {
+                say!(
+                    o,
+                    "    record at {}: selector {}, offset ({}, {}, {}), kind 0x{:08X}",
+                    r.values_at - 5,
+                    r.selector,
+                    keys::fixed_16_16(r.offset[0]),
+                    keys::fixed_16_16(r.offset[1]),
+                    keys::fixed_16_16(r.offset[2]),
+                    r.kind
+                );
+            }
+            match end {
+                keys::Rkt4End::Complete { leftover } => say!(o, "    walk complete, {leftover} values left over"),
+                keys::Rkt4End::BadKind { at, kind } => {
+                    say!(o, "    walk stops at {at}: kind 0x{kind:08X} is not RKT0-RKT3")
+                }
+                keys::Rkt4End::PastEnd { at } => say!(o, "    walk stops at {at}: the record runs past the end"),
+            }
+        }
+    }
+    let get = |id: u32| values.get(&id).map(Vec::as_slice);
+    for state in 0..4 {
+        let m = keys::occupant_models(get, opts.zoom, opts.detail, opts.rotation, opts.flagged, state);
+        let prop = m
+            .property
+            .map(|p| format!("0x{p:08X}"))
+            .unwrap_or_else(|| "none".into());
+        let tg = m
+            .type_group
+            .map(|(t, g)| format!("T 0x{t:08X} G 0x{g:08X}"))
+            .unwrap_or_else(|| "T, G not written".into());
+        say!(o, "  state {state}: key {prop}, {tg}, {} models", m.instances.len());
+        for (i, off) in m.instances.iter().zip(&m.offsets) {
+            say!(o, "    instance 0x{i:08X} at ({}, {}, {})", off[0], off[1], off[2]);
+        }
+    }
+    Ok(())
 }
 
 /// Prints an FSH record as the factory reads it (graphics-formats §2); with `tga`, writes frame 0 level 0 there.

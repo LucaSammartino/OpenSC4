@@ -87,3 +87,42 @@ runs cannot settle exact values, because the original is not deterministic from 
 the test city twice, once with every shadow on and once with every merged replacement on, and prints a verdict per
 run. Separate-run soak comparisons (`tools/compare_soaks.ps1`) are used only for long-run paths, such as funds and
 population over decades.
+
+### After the port: parity and beyond
+
+Collected from [issue #1](https://github.com/tloriato/OpenSC4/issues/1) and design discussions. None of this starts
+before the simulation is fully ours; until then every core keeps the original's behaviour so the shadows stay exact.
+
+**Parity (a standalone game that replaces SC4):**
+
+- **Finish the port** (M4-M6+ above).
+- **Deterministic pacing.** Some of the original's simulation work is paced by frames or real time, not by game days
+  (simulator.md §5.7, the answer to DG31): the growth developers, aura and plumbing get a bounded number of idle
+  cycles per day, and the demand census, land value, crime, power and the BDS monthly rebuild restart a pass only when
+  the previous one has finished. A city therefore grows differently at different frame rates, machine speeds and game
+  speeds, and a turbo run is a slower-grown city, not a fast-forwarded one. Once no original simulator remains, switch
+  to deterministic pacing: a fixed work budget per game day for each idle-cycle kind and a fixed cycle (every N days)
+  for each restart-when-finished pass, calibrated so a city at normal speed grows like the original's on a typical
+  machine. Deterministic pacing becomes the default; the original's clock-bound pacing stays only as a testing switch
+  for conformance work against the original. Deterministic pacing gives reproducible separate runs (tests and
+  baselines without same-process shadows), a turbo clock with the same results as normal speed, replays, a
+  headless/server mode, a path to lockstep multiplayer, and lets the long passes run on worker threads. Saves are
+  unaffected (only scheduling changes).
+- **Visual assets for the standalone executable.** The game's own assets cannot be shipped; the standalone build
+  either reads them from the player's own SC4 install or uses assets we can distribute.
+- **Drop the C++ shim while keeping mod support.** Keep what current mods rely on (DBPF plugins and exemplars, Lua,
+  and the most used DLL mods, supported or ported).
+- **Profiling and benchmarks:** CPU per subsystem, multithreading actually used, RAM, and how the clocks and the
+  pacing affect the simulation.
+- **Keep a path to WASM:** the core stays free of platform calls (threads, files and time behind host interfaces).
+- **Review the graphics path** (DirectX use and what a renderer of our own needs).
+
+**The future: swappable packs.**
+
+This repository stays a canonical reimplementation of the original game: its cores reproduce the original's
+behaviour, and different algorithms do not go into them. The long-term direction is a modding architecture in which
+each major part (each simulator, the developers, traffic, the pacing) sits behind a stable, documented interface
+and can be swapped as a pack. The original's behaviour is then the pack the game ships with, and other games built
+on the engine (a city builder with different algorithms, community overhauls) are packs of their own, maintained in
+their own repositories and chosen by the player, never imposed on everyone. The replacement seams that the plugin
+uses today (one class per subsystem, `enable = <key>`, the C ABI) are the starting point for those interfaces.

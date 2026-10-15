@@ -89,6 +89,11 @@
 //                                 the cRZTime clock, residential.md §3; cFC4Residential.cpp)
 //   zones_shadow = 0 / 1          the zone manager shadow (default 0; needs the ORIGINAL
 //                                 zone manager: do not enable zones; FC4ZonesShadow.h)
+//   zonedev_shadow = 0 / 1        the zone developer / lot manager shadow (default 0; needs
+//                                 the ORIGINAL zone developer: do not enable zonedev;
+//                                 FC4ZoneDevShadow.h)
+//   zonedev_seed = N              the zone developer generator's session seed (default:
+//                                 the cRZTime clock; cFC4ZoneDeveloper.cpp)
 //   neighbours_shadow = 0 / 1     the neighbours shadow (default 0; needs FreeCity4's
 //                                 simulator and the ORIGINAL neighbours simulator: do
 //                                 not enable neighbors; FC4NeighborsShadow.h)
@@ -107,6 +112,12 @@
 //   tract_shadow = 0 / 1          the tract developer shadow (default 0; needs the
 //                                 ORIGINAL tract developer: do not enable tract;
 //                                 FC4TractShadow.h)
+//   history_shadow = 0 / 1        the history warehouse shadow (default 0; needs the
+//                                 ORIGINAL warehouse: do not enable history;
+//                                 FC4HistoryShadow.h)
+//   clock24_shadow = 0 / 1        the 24-hour clock shadow (default 0; needs the
+//                                 ORIGINAL clock: do not enable clock24;
+//                                 FC4Clock24Shadow.h)
 //   tract_seed = N                the tract developer generator's session seed
 //                                 (default: the cRZTime clock; cFC4TractDeveloper.cpp)
 //   tract_grow_log = 0 / 1        one line per Grow call (default 0; enable = tract)
@@ -435,6 +446,25 @@ enum class Sw : unsigned {
     TractRoads,         // tract_roads: the configurations' GetRequiredRoads (off: no road required)
     TractFamilySets,    // tract_family_sets: the BDS's GetBuildingTypesByFamily (off: no building)
     TractAgents,        // tract_agents: AddAgent / RemoveAgent (off: not registered, no Year message)
+    // Zone developer / lot manager host callbacks (FC4ZoneDevHost.cpp), one per
+    // group of game calls; only used when the zonedev subsystem is enabled.
+    ZoneDevGridWrites,    // zonedev_grid_writes: SetTractValue / fill on the maximum-capacity grid (off: not written)
+    ZoneDevMessages,      // zonedev_messages: the InsertOccupant, PostCityInit and 0xA6B79602 subscriptions (off: none)
+    ZoneDevNetworkTools,  // zonedev_network_tools: the street / dirt-road / road tools, Reset and OccupantExists
+                          //   (off: no tool, no draft)
+    ZoneDevPosts,         // zonedev_posts: DeferOccupantOperations (MessagePost; off: not posted)
+    ZoneDevDemolition,    // zonedev_demolition: OnDezone's DemolishRegion (off: nothing demolished)
+    ZoneDevStreets,       // zonedev_streets: the street tool's PlaceNetworkOccupants (off: false, no street)
+    ZoneDevOccupants,     // zonedev_occupants: the cell occupant lists and occupant reads, RemoveOccupant (off:
+                          //   no occupant)
+    ZoneDevTerrain,       // zonedev_terrain: CellHasWater and the altitudes (off: dry, 0)
+    ZoneDevLotChanges,    // zonedev_lot_changes: lot Init / Shutdown / PostCityInit / SetState /
+                          //   SetVerticesAreLocked (off: not called)
+    ZoneDevGrowth,        // zonedev_growth: the BDS, growth developer and lot configuration reads of
+                          //   DetermineLotSize (off: none)
+    ZoneDevLevelling,     // zonedev_levelling: the lot developer's AttemptAreaLevelling (off: not levelled)
+    ZoneDevLotDeveloper,  // zonedev_lot_developer: DeleteLot's lot developer calls (off: not called)
+    ZoneDevTraffic,       // zonedev_traffic: GetDesiredLotInsertionPoint (off: null, appended)
     // Lot developer host callbacks (FC4LotDevHost.cpp), one per group of game
     // calls; only used when the lotdev subsystem is enabled.
     LotdevLotWrites,     // lotdev_lot_writes: lot SetState / SetCondition / flags / configuration / properties

@@ -114,6 +114,28 @@ the two unused maps and the highest-stage map; release the building map; `Shutdo
 node; release the cached services; clear the process-wide **tried-tract marks** (§4.4). The static catalogue is
 **not** cleared (it lives until process exit).
 
+**Who frees the special buildings at city teardown** (DG28, from the exe). The city's `Shutdown` (`0x0045B1D0`)
+calls `Shutdown` and then `Release` on each of its services in a fixed order. The BDS (`+0x164`, `0x0045B6E6`) comes
+**before** the lot manager (`+0x144`), the zone manager (`+0x134`) and the occupant manager (`+0x12C`,
+`0x0045B826`). Within the BDS `Shutdown` above, each developer is shut down and released before the BDS releases its
+own special-building list. A developer's only reference is the map's: one from `CreateDeveloper` in a new city, or
+the read reference after a load. So that `Release` destroys it, and its destructor releases its private copy of the
+special buildings (growth-developer §1.3, §4.4).
+
+At that moment the occupant manager still lists, and holds, every building in the city. So in the original the
+developer's copy is **not** the last reference to a special building that is still in the city. Neither is the
+BDS's list. The last one goes later, with the occupant manager. The copy holds the last reference only for a
+special building that left the city after the developer's last state-14 copy (§4.12; growth-developer §4.4). Such a
+building is freed by the destructor, or earlier, at the next state 14.
+
+So the bracket ("yes": the copy's release in the destructor is the last one) differs from the original for buildings
+still in the city. A FreeCity4 release that drops the last reference there means one of two things: our developer
+outlives the original's order (it is destroyed after the occupant manager has let go), or a reference that the
+original holds is missing. The lead from DG5 points the other way. An extra `AddRef` after
+`CreateInstance(0xA9BD882D)` would leave a reference that is never released, not an early last release. *[choice]*
+Destroy each developer inside the BDS `Shutdown`, before the occupant manager shuts down, as the original does. Then
+keep `FC4_RELEASE_AT_DESTRUCTION` only for the left-the-city case, where a last release is expected.
+
 ### 1.5 Developer map *[compat]*
 
 `CreateDeveloper(holder)` (`0x006991A0`), for each developer exemplar (ExemplarType 4):

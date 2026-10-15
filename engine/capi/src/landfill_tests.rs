@@ -669,6 +669,17 @@ fn a_load_rebuilds_only_the_missing_tiles_as_game_tiles() {
     assert_eq!((s3.rebuilt_tiles, s3.game_tiles, s3.virtual_tiles), (16, 16, 0));
     assert_eq!(s3.maintenance, s1.maintenance);
     shut(q);
+
+    // LG23 (§6.4): the rule and the missing occupant decide, not the cell's
+    // active-landfill flag: cells whose flag is clear are rebuilt too.
+    g.tiles.borrow_mut().clear();
+    for v in g.active.borrow_mut().values_mut() {
+        *v = false;
+    }
+    let q = load(&g);
+    let s4 = state(q);
+    assert_eq!((s4.rebuilt_tiles, s4.game_tiles, s4.virtual_tiles), (16, 16, 0));
+    shut(q);
 }
 
 #[test]

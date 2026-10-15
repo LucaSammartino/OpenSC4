@@ -258,6 +258,8 @@ pub mod prop {
     pub const VALUE_499AFA38: u32 = 0x499A_FA38;
     pub const CATEGORIES: u32 = 0xAA1D_D396;
     pub const OCCUPANT_SIZE: u32 = 0x2781_2810;
+    /// A foundation's maximum height (float32, §4.9.2 slot 26).
+    pub const FOUNDATION_MAX_HEIGHT: u32 = 0x88FC_C3E3;
     pub const PLOP_COST: u32 = 0x49CA_C341;
     pub const FAMILIES: u32 = 0x2781_2870;
     /// The preview-occupant marker (tested for presence).
@@ -593,11 +595,22 @@ pub trait DevelopmentHost: GridProvider<u8> {
     /// `IsOccupantGroup(group)` (slot 22).
     fn occupant_in_group(&self, occ: OccupantId, group: u32) -> bool;
     fn occupant_position(&self, occ: OccupantId) -> Vec3;
-    /// A new building occupant with one reference for the caller.
+    /// A new building occupant with one reference for the caller (§4.9.1:
+    /// `CreateInstance(0xA9BD882D)` already carries it; no extra AddRef).
     fn create_building_occupant(&self) -> Option<OccupantId>;
     fn set_building_type(&self, occ: OccupantId, t: u32);
-    /// The property load of `0x00698490`.
-    fn load_building_occupant(&self, occ: OccupantId, t: u32) -> bool;
+    /// `occ` slot 4 `GetBuildingType()` (§4.9.1 loader step 2).
+    fn building_type(&self, occ: OccupantId) -> u32;
+    /// The exemplar half of the loaders (§4.9.1 steps 1, 4–5 and 7; §4.9.2
+    /// steps 1, 3–5): `GetResource(key, 0xA52160F5, &ex, 0, 0)`; when it
+    /// loads, `SetDefaultExemplar(ex)` on the occupant's
+    /// `cISCExemplarPropertyHolder` (QI `0x0AC2B5F7`) and the resource's
+    /// reference dropped. False when the resource does not load.
+    fn set_default_exemplar(&self, occ: OccupantId, key: ResKey) -> bool;
+    /// The float32 values of the occupant's property `id`, through its own
+    /// holder (which falls back to the default exemplar); `None` when the
+    /// property is missing.
+    fn occupant_property_f32s(&self, occ: OccupantId, id: u32) -> Option<Vec<f32>>;
     fn occupant_bounding_box(&self, occ: OccupantId) -> (Vec3, Vec3);
     fn set_occupant_bounding_box(&self, occ: OccupantId, min: Vec3, max: Vec3);
     fn set_occupant_position(&self, occ: OccupantId, pos: Vec3);
@@ -608,6 +621,28 @@ pub trait DevelopmentHost: GridProvider<u8> {
     fn object_ref(&self, occ: OccupantId) -> RefValue;
     /// The occupant of a save reference (read with [`IID_OCCUPANT`]).
     fn resolve_occupant(&self, r: &RefValue) -> Option<OccupantId>;
+
+    // ---- foundations and retaining walls (§4.9.2) ----
+    /// A new foundation occupant (class `0x49C05C8F`, occupant type
+    /// `0x68FD0C69`) with one reference for the caller.
+    fn create_foundation_occupant(&self) -> Option<OccupantId>;
+    /// `cISC4FoundationOccupant` slot 4 `GetFoundationType()`.
+    fn foundation_type(&self, occ: OccupantId) -> u32;
+    /// Slot 5 `SetFoundationType(t)`.
+    fn set_foundation_type(&self, occ: OccupantId, t: u32);
+    /// Slot 7 `SetMaxHeight(v)`.
+    fn set_foundation_max_height(&self, occ: OccupantId, v: f32);
+    /// Slot 8 `SetSize(size)`.
+    fn set_foundation_size(&self, occ: OccupantId, size: Vec3);
+    /// Slot 10 `SetUsage(usage)` (stored as a byte).
+    fn set_foundation_usage(&self, occ: OccupantId, usage: i32);
+    /// Slot 12 `SetOrientation(orientation)` (clamped to 0..3).
+    fn set_foundation_orientation(&self, occ: OccupantId, orientation: i32);
+    /// `cISC4LotRetainingWallOccupant` slot 11 `GetRetainingWallType()`.
+    fn retaining_wall_type(&self, occ: OccupantId) -> u32;
+    /// `lotDeveloper.GetLowestOrHighestAreaAltitude(SC4Rect<int32>{x1, z1,
+    /// x2, z2}, lowest, withWater)` (lot-developer.md, slot 17).
+    fn area_altitude_cells(&self, rect: CellRect, lowest: bool, with_water: bool) -> f32;
 
     // ---- advisors ----
     /// `GetAdvisor(advisor).PushEvent(event, null)`; `discarded` is the

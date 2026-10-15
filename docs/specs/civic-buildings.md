@@ -100,6 +100,12 @@ If `initialized`, return true. Otherwise set `initialized := true` first, then:
    number.
 7. Return true.
 
+A department that cannot be created *[choice]* (QUESTIONS CB10): the original sets the Landmarks name and maximum on
+the result of `CreateDepartmentBudget` without a null test, so a failure there crashes it (`0x0069DC69`). Steps 2
+and 3 test the result (`0x0069DCAB`, `0x0069DCF1`) and set nothing on a null one. FreeCity4 treats all three alike:
+no name or maximum is set and nothing is held (a later `Init` will not retry Landmarks, because `initialized` is
+already set).
+
 Departments are budget.md §3.2 objects (record §11.2); the department IDs are listed in budget.md §12. The maximum
 funding fraction is passed as a pointer to a `float` 1.0 (budget.md §7). This is the shared service-simulator
 pattern of budget.md §12.
@@ -153,6 +159,10 @@ through plugins or cheats).
 4. **Disease Research Center.** If `b.AsOccupant().IsOccupantGroup(0x1917)` and that occupant is not already in
    `diseaseCenters`: append it and `AddRef` the building.
 
+*[choice]* An income line that cannot be created (QUESTIONS CB9): the original calls `SetType(1)` on the result of
+`CreateLineItemForBuildingType` without a null test and crashes (`0x0069DF6D`–`0x0069DF78`); FreeCity4 skips the
+income step then. The maintenance step already tests its line (a line neither found nor made adds nothing) *[compat]*.
+
 ### 4.5 `DoBuildingRemoved(b)` (`0x0069DAA0`) *[compat]*
 
 1. **Maintenance.** If the holder has a budget item for `0xAA59670C`: `budget.RemoveBudgetItemFromBudget(holder,
@@ -162,7 +172,8 @@ through plugins or cheats).
    b.GetBuildingType()`; if `dept.GetLineItem(type)` exists: `line.SetIncome(line.GetIncome() − item.cost)`
    (SetIncome clamps at 0, budget.md §8); then if `line.GetIncome() < 1`: `dept.RemoveLineItem(type)`.
 3. **Disease Research Center.** If in group `0x1917`: erase the first matching entry of `diseaseCenters` and release
-   it.
+   it. The release happens only when a matching entry was found and erased (`0x0069DBEB`–`0x0069DC02`), as in step
+   1 (QUESTIONS CB12).
 
 ### 4.6 `DoMonthlySimulation()` (`0x0069E010`) *[compat]*
 
@@ -179,6 +190,15 @@ through plugins or cheats).
    - `f := *dept.GetFundingPercentage()` (a fraction, 1.0 = 100 %);
    - if `f < 0.5`: if `lot.GetCondition() = 0`, `lot.SetCondition(2)`;
    - otherwise (including NaN): if `lot.GetCondition() = 2`, `lot.SetCondition(0)`.
+
+Null pointers *[choice]* (QUESTIONS CB8, CB11). The original tests none of these:
+
+- a null entry of `maintained` (an unresolved save reference, §7) is dereferenced at once (`0x0069E0F0`–`0x0069E10B`)
+  and crashes it; FreeCity4 skips the entry;
+- a null funding pointer from `GetFundingPercentage` is dereferenced at `0x0069E146`; FreeCity4 skips the entry;
+- a null entry drawn by the ape escape is passed on to `AddControllersFromOccupantGroup` (`0x00517150`), which hands
+  it to each matching controller template (`0x005163D0`) without a test; what a controller does with a null target
+  was not followed. FreeCity4 does nothing for a null draw (the generator has still made both draws).
 
 The comparison uses the department's percentage, not the building's local funding. A building listed twice (§4.4)
 is visited twice; the second visit changes nothing.
@@ -217,7 +237,9 @@ Only the ape escape (§4.6 step 1) draws: a **temporary** `cRZRandom` constructe
 month that has at least one Disease Research Center; one `RandomDoubleUniform()`, and on success one
 `RandomUint32Uniform(n)`. No generator state is saved (foundations §6.2, which lists this temporary). *[choice]*
 FreeCity4 seeds each temporary with `derive(0x0A413481 XOR n)`, `n` counting earlier creations in the session
-(foundations §6.3, "temporaries seeded from the clock").
+(foundations §6.3, "temporaries seeded from the clock"). `n` counts the generators **this simulator object** has made,
+from 0 when it is constructed, and is not saved (QUESTIONS CB14): loading a city builds a new object, so `n` starts
+again at 0 with each city.
 
 ## 6. Tuning
 
@@ -255,6 +277,21 @@ the reference with IID `0x223E2B67` (`cISC4DepartmentBudget`). Read both lists w
 10,000,000 or more reads nothing further; otherwise each entry is a reference read with IID `0x26BB767E`
 (`cISC4Occupant`), and an unresolvable reference appends null (foundations §2.7). Return true unless the
 stream reports an error.
+
+**Insertion order** *[compat]* (QUESTIONS CB6). The original inserts the file's entries **in file order**, each at
+the head of its chain (set insert `0x004F0940` → `0x00624DD0`; map insert `0x0069E720` → `0x0069E5F0`; the table is
+grown with `resize(n + 1)` before each insert, which does nothing below 194 entries). Since the file lists each
+chain newest first, reading **reverses every chain of two or more entries**, and the next `Write` lists those
+chains oldest first. A second round trip restores the original order. Duplicates: an exclusion ID already present
+or repeated in the file is not inserted again (a set); a status key already present or repeated **overwrites** the
+stored status, count and text, so the **last** value in the file wins (`0x0069E944`–`0x0069E96D`), and the entry
+keeps its position in the chain.
+
+`Read` is **not atomic** *[compat facts]* (QUESTIONS CB13). A wrong version returns false with nothing changed.
+Otherwise the containers are filled entry by entry, the held Landmarks department is released (`0x0069E9A1`–
+`0x0069E9AB`) before its reference is read, the two lists are cleared without releasing their old entries
+(`0x005DB3C0`), and the stream error is tested only at the end. *[choice]* FreeCity4 reads into temporaries and
+changes nothing on failure; with the shipped game's one `Read` on a fresh object the two agree on every valid save.
 
 ### 7.1 Corpus validation
 
@@ -294,6 +331,13 @@ All 421 distinct saves parse exactly (every byte consumed):
 | 7 | `+0x1C` | `UpdateConditionalBuildingStatus(uint32 key, ConditionalBuildingStatus const*)` | `0x0069E9F0` | 2 | 8 | none meaningful |
 | 8 | `+0x20` | `GetLandmarkCount()` | `0x0069E5D0` | 0 | 0 | EAX |
 | 9 | `+0x24` | deleting destructor | `0x0069E700` | 1 | 4 | EAX |
+
+`Release` (`0x0069D7A0`) decrements when the count is above 1 and returns the new count. At 1 or less it calls the
+deleting destructor (`0x0069E700`, destructor `0x0069E500`) **without** calling `Shutdown` first, and returns 0. The
+destructor releases the Landmarks department but not the entries of the two lists (QUESTIONS CB7). The city always
+calls `Shutdown` before its last release, so in the shipped game the object is already shut down. *[choice]*
+FreeCity4 follows the sibling rule (commercial §2.3): `Shutdown`, then destroy. On a shut-down object the
+`Shutdown` does nothing, so the two agree.
 
 The SDK declares slot 7's second parameter as a non-const pointer; the original copies from it and never writes
 it. The SDK's `bool` return of slot 7 is not honoured by the original.
@@ -344,6 +388,10 @@ See QUESTIONS.md, section "From the commercial, industrial, civic, park, history
    Research Center; without an automata controller manager nothing happens after the draws.
 8. **Status API**: `UpdateConditionalBuildingStatus(k, {6, 2, "x"})` then `GetConditionalBuildingStatus(k)` returns
    `{6, 2, "x"}`; an unknown key returns null; writes through the returned pointer persist.
-9. **Save**: write → read → write is byte-identical, including the `mod 193` iteration order (keys 194 and 1 share
-   bucket 1, the newer first); version 5 is rejected.
-10. **Corpus**: every civic record of the 421-save corpus reads and re-writes byte-identically.
+9. **Save**: write → read → write keeps every byte except the order **within** a bucket chain of two or more
+   entries, which is reversed (§7, CB6): keys 1 then 194 inserted (both bucket 1) write 194, 1; after a read the
+   record writes 1, 194; a second read → write gives 194, 1 again. The bucket order (`key mod 193` ascending) is
+   kept. A status key repeated in the record keeps its last value. Version 5 is rejected.
+10. **Corpus**: every civic record of the 421-save corpus reads; its re-write equals the record with each multi-entry
+    bucket chain reversed (byte-identical when no bucket holds two entries), and a second read → write gives the
+    record back byte-identically.

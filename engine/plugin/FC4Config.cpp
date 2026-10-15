@@ -233,6 +233,19 @@ const SwitchInfo kSwitches[kCount] = {
     {"tract_roads", "FC4_TRACT_ROADS"},
     {"tract_family_sets", "FC4_TRACT_FAMILY_SETS"},
     {"tract_agents", "FC4_TRACT_AGENTS"},
+    {"zonedev_grid_writes", "FC4_ZONEDEV_GRID_WRITES"},
+    {"zonedev_messages", "FC4_ZONEDEV_MESSAGES"},
+    {"zonedev_network_tools", "FC4_ZONEDEV_NETWORK_TOOLS"},
+    {"zonedev_posts", "FC4_ZONEDEV_POSTS"},
+    {"zonedev_demolition", "FC4_ZONEDEV_DEMOLITION"},
+    {"zonedev_streets", "FC4_ZONEDEV_STREETS"},
+    {"zonedev_occupants", "FC4_ZONEDEV_OCCUPANTS"},
+    {"zonedev_terrain", "FC4_ZONEDEV_TERRAIN"},
+    {"zonedev_lot_changes", "FC4_ZONEDEV_LOT_CHANGES"},
+    {"zonedev_growth", "FC4_ZONEDEV_GROWTH"},
+    {"zonedev_levelling", "FC4_ZONEDEV_LEVELLING"},
+    {"zonedev_lot_developer", "FC4_ZONEDEV_LOT_DEVELOPER"},
+    {"zonedev_traffic", "FC4_ZONEDEV_TRAFFIC"},
     {"lotdev_lot_writes", "FC4_LOTDEV_LOT_WRITES"},
     {"lotdev_buildings", "FC4_LOTDEV_BUILDINGS"},
     {"lotdev_demolition", "FC4_LOTDEV_DEMOLITION"},
@@ -272,6 +285,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "sim_turbo", "sim_turbo_frame_ms", "sim_turbo_until", "autotest_end_date", "script",
                                   "sim_turbo_wait_days", "close_dialogs",
                                   "tract_shadow", "tract_seed", "tract_grow_log",
+                                  "zonedev_shadow", "zonedev_seed",
+                                  // the histclock lane (FC4HistoryShadow.h, FC4Clock24Shadow.h)
+                                  "history_shadow", "clock24_shadow",
                                   "lotdev_shadow", "lotdev_seed", "lotdev_lot_log"};
 
 // The switches that are off, for lock-free readers (autotest verdict).
@@ -306,9 +322,11 @@ volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // tract
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               // zonedev
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // lotdev
                                1, 1, 1, 1, 1, 1, 1, 1, 1};
-static_assert(kCount == 205, "g_on: one 1 per switch");
+static_assert(kCount == 218, "g_on: one 1 per switch");
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};
