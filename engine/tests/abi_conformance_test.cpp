@@ -415,6 +415,9 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4CommercialSimulator", 6, 7,
      "slot 6 is cSC4CommercialSimulator's deleting destructor (pops 4; re-specs9 row, commercial-industrial.md): "
      "class-private, not an interface method"},
+    {"cISC4PropDeveloper", 11, 12,
+     "slot 11 is cSC4PropDeveloper's scalar deleting destructor (pops 4; re-specs10 row, prop-developer.md "
+     "section 8.1: not in the SDK): class-private. The crime and pollution glue call slots 5 and 6 only"},
 };
 
 const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlots) {
