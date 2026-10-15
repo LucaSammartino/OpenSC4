@@ -4132,7 +4132,27 @@ them, and Stage B applies those sections.
   manager release, §8.6 step 6) and then an access violation at `0x0070690C` / `0x00AB1995` (runs `zonedev-enable-1`,
   `-2`). Does the game's growth path tolerate a failed CreateLot after DeleteLot, or must lot creation never fail
   there? [not resolved; re-test after Stage B builds lots, then audit Grow's delete-and-recreate reference flow (slot 7
-  caller references against the manager's)]
+  caller references against the manager's); **Stage B (2026-10-15):** with lots built it does not reproduce (`zonedev-enable-final` clean, ref_warnings=0, 68 lots built, 0 refused); the refusal path is still logged. Open part: is a refused CreateLot on the growth path ever expected?]
+
+## From the zone developer / lot manager glue, Stage B (filed by the coordinator from the `zones2` lane's report, 2026-10-15)
+
+About `docs/specs/zones.md` §5.2.1-§5.2.2, §7.2.2, §8.4.1-§8.4.3, §8.5.1 and their implementation in `cFC4ZoneDeveloper` /
+`FC4ZoneDevHost` (`enable = zonedev`); merged as `3cb9b43`, ABI 55. The lane numbered these ZONES-ZD1..ZD19; ZD1-ZD13
+repeat ZG22-ZG34. Stage B did not apply two re-answers11 answers: ZG22 (slot 19 always writes `*ok`; ours leaves it
+untouched) and ZG24 (the zone tool owns the highlight region; ours returns null with the zone tool present). The current
+answer is in brackets.
+
+- **ZG35:** §8.5.1: the lot constructor does not write the vacate reason at `+0x83`, and the pool block is not zeroed, so a
+  new lot carries a stale byte there. [choice: FreeCity4 writes 0 after construction]
+- **ZG36:** §8.4.1 `RotateLotRect` with a facing outside 0..3. [choice: the rect is left unrotated]
+- **ZG37:** §8.4.2 / §8.4.3: a constraint or network configuration object whose data vector has fewer values than the
+  check reads. [choice: missing values read as 0]
+- **ZG38:** §8.7 `PositionToCell`: the core computes `floor(p / 16)`; does the original round differently at negative
+  positions or at the map edge? [floor]
+- **ZG39:** §1.2 Shutdown and §5.2 PostCityInit: `GetNetworkTool(type, 1)` returns a tool whose only reference is the zone
+  developer's AddRef, so Shutdown's Release frees it (the lane's game runs show this). The spec does not state the
+  ownership. [`FC4_RELEASE_CREATED`]
+- **ZG40:** `UpdateHighlightTextures` (§7.1.1), which the spec allows to be omitted, is not implemented. [omitted]
 
 ## From the history warehouse and 24-hour clock glue (filed by the coordinator from the `histclock` lane's report, 2026-10-15)
 
