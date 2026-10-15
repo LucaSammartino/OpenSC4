@@ -306,6 +306,10 @@ private:
     // the tokens it was built from.
     SC4List<cISC4Occupant*>* specials_ = nullptr;
     std::vector<uint64_t> specialTokens_;
+    // Publish's scratch lists (kept, so a Publish that finds nothing changed allocates nothing: the game calls
+    // the BDS about 2,000 times a day and each outermost call publishes; devperf).
+    std::vector<std::pair<uint32_t, uint64_t>> developerScratch_;
+    std::vector<uint64_t> specialScratch_;
     // Atomic copies for other threads (Publish).
     std::atomic<uint64_t> buildingMap_{0};
     std::atomic<int32_t> freeResources_{0}, totalResources_{0};

@@ -22,6 +22,7 @@
 #include "FC4GameMapBuild.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Perf.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
@@ -75,6 +76,8 @@ namespace {
 // §1.2 step 8, §3.1.
 constexpr uint32_t kMsgStateChanged = 0xE8BDA2E7;
 constexpr uint32_t kMsgZoningChange = 0x07699455;
+constexpr uint32_t kMsgSimNewDay = 0x66956814;  // tooling only (perf_profile)
+constexpr uint32_t kMsgSimIdle = 0x6695681A;    // tooling only (perf_profile)
 
 // Services (fc4.h: fc4_growth_host acquire_service).
 enum : uint32_t { kCity = 0, kBds = 1, kOccupants = 2, kZones = 3, kLandValue = 4, kTraffic = 5, kServiceCount = 6 };
@@ -400,6 +403,7 @@ void UpdatePopulation(void* u, uint64_t td, const fc4_growth_profile* profile) {
     g.x = profile->x;
     g.z = profile->z;
     g.stage = static_cast<uint8_t>(profile->stage);
+    fc4::perf::Scope perf(fc4::perf::kGrowthUpdatePop);  // tooling: perf_profile (FC4Perf.h)
     fc4::AsGame(reinterpret_cast<cISC4TractDeveloper*>(FromToken(td)))->UpdatePopulation(g);
     ++G(u)->populationUpdates;
 }
@@ -685,7 +689,7 @@ class cFC4GrowthDeveloper::Call {
 public:
     explicit Call(const cFC4GrowthDeveloper* d) : d_(const_cast<cFC4GrowthDeveloper*>(d)) {
         if (lock_.held()) {
-            ++d_->depth_;
+            if (++d_->depth_ == 1 && fc4::perf::On()) perfT0_ = fc4::perf::Now();  // tooling: perf_profile
         } else {
             ++d_->offMainCalls_;
         }
@@ -693,8 +697,12 @@ public:
     ~Call() {
         if (!lock_.held()) return;
         if (--d_->depth_ == 0) {
-            d_->Publish();
+            {
+                fc4::perf::Scope publish(fc4::perf::kGrowthPublish);
+                d_->Publish();
+            }
             fc4::DropGrowthHeld(&d_->ctx_);
+            if (perfT0_ != 0) fc4::perf::Add(fc4::perf::kGrowthCall, fc4::perf::Now() - perfT0_);
         }
     }
     Call(const Call&) = delete;
@@ -704,6 +712,7 @@ public:
 private:
     cFC4GrowthDeveloper* d_;
     fc4::DevelopmentLock lock_;
+    uint64_t perfT0_ = 0;
 };
 
 cIGZUnknown* CreateFC4GrowthDeveloper() {
@@ -804,6 +813,7 @@ void cFC4GrowthDeveloper::Publish() {
 // Slots 11 / 12: the core's lists copied into the B vectors (the buffers are
 // kept; §12: read-only for callers).
 void cFC4GrowthDeveloper::RefreshLists() {
+    fc4::perf::Scope perf(fc4::perf::kGrowthLists);  // tooling: perf_profile (FC4Perf.h)
     listsDirty_ = false;
     for (uint32_t which = 0; which < 2; ++which) {
         fc4::GameVector<FC4GrowthItem>& v = which == 0 ? growth_ : decline_;
@@ -1087,6 +1097,12 @@ void cFC4GrowthDeveloper::GetSubjectiveThresholds(int32_t index, int32_t& min, i
 bool cFC4GrowthDeveloper::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
     FC4_X87_SCOPE("growth DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
+    // Tooling (perf_profile, FC4Perf.h): SimIdle / SimNewDay by the state at entry.
+    const uint32_t perfType = pMessage->GetType();
+    const uint32_t perfState = updateState_.load() < 20 ? updateState_.load() : 20u;
+    fc4::perf::Scope perf(perfType == kMsgSimIdle || perfType == kMsgSimNewDay
+                              ? static_cast<fc4::perf::Section>(fc4::perf::kGrowthState0 + perfState)
+                              : fc4::perf::kGrowthOtherMsg);
     Call call(this);
     if (!call.ok()) return true;  // [choice] (DG21, glue-only) a message from another thread without the lock is dropped
     fc4_growth_message m{};

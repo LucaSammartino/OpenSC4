@@ -1842,13 +1842,18 @@ pub unsafe extern "C" fn fc4_development_developers(
     cb: fc4_type_token_callback,
     ctx: *mut c_void,
 ) -> u32 {
-    let devs = sim(p, Default::default(), DevelopmentSim::developers);
-    if let Some(f) = cb {
-        for (&t, &d) in &devs {
-            f(ctx, t, d);
-        }
-    }
-    devs.len() as u32
+    // Without a copy of the map (the host calls this after every outermost
+    // call, devperf): the callback only collects.
+    sim(p, 0, |s| {
+        let mut n = 0u32;
+        s.for_each_developer(|t, d| {
+            if let Some(f) = cb {
+                f(ctx, t, d);
+            }
+            n += 1;
+        });
+        n
+    })
 }
 
 /// Slot 41 `GetBuildingMap()`: the grid token (borrowed; 0 = none).
@@ -1865,13 +1870,18 @@ pub unsafe extern "C" fn fc4_development_special_buildings(
     cb: fc4_token_callback,
     ctx: *mut c_void,
 ) -> u32 {
-    let v = sim(p, Vec::new(), DevelopmentSim::special_buildings);
-    if let Some(f) = cb {
-        for &o in &v {
-            f(ctx, o);
-        }
-    }
-    v.len() as u32
+    // Without a copy of the list (the host calls this after every outermost
+    // call, devperf): the callback only collects.
+    sim(p, 0, |s| {
+        let mut n = 0u32;
+        s.for_each_special_building(|o| {
+            if let Some(f) = cb {
+                f(ctx, o);
+            }
+            n += 1;
+        });
+        n
+    })
 }
 
 /// Slot 46 `IsSuitableForConstruction(profile, reason&)`: `*reason` written

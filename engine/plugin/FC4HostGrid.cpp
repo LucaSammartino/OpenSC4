@@ -14,6 +14,7 @@
 #include "FC4HostGrid.h"
 
 #include "FC4Log.h"
+#include "FC4Perf.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 
@@ -86,6 +87,7 @@ void Geometry(void*, uint64_t t, fc4_grid_geometry* out) {
 
 double Get(void*, uint64_t t, uint32_t kind, int32_t x, int32_t z) {
     if (t == 0) return 0.0;
+    if (perf::On()) perf::Count(perf::kGridGet);  // tooling: perf_profile (FC4Perf.h)
     switch (kind) {
         case kClsI16: return As<int16_t>(t)->GetTractValue(x, z);
         case kClsI8: return As<int8_t>(t)->GetTractValue(x, z);
@@ -112,6 +114,7 @@ bool WritesOn(void* u, const char* what) {
 
 void Set(void* u, uint64_t t, uint32_t kind, int32_t x, int32_t z, double v) {
     if (t == 0 || !WritesOn(u, "grid SetTractValue")) return;
+    if (perf::On()) perf::Count(perf::kGridSet);  // tooling: perf_profile (FC4Perf.h)
     switch (kind) {
         case kClsI16: As<int16_t>(t)->SetTractValue(x, z, Narrow<int16_t>(v)); break;
         case kClsI8: As<int8_t>(t)->SetTractValue(x, z, Narrow<int8_t>(v)); break;

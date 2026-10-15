@@ -4399,6 +4399,7 @@ bool fc4_development_add_foundation(fc4_development* p, uint32_t t, int32_t usag
 bool fc4_development_load_foundation(fc4_development* p, uint64_t occ, uint32_t t);     /* 26 */
 bool fc4_development_load_retaining_wall(fc4_development* p, uint64_t occ, uint32_t t); /* 29 */
 uint64_t fc4_development_developer(const fc4_development* p, uint32_t dev_type); /* 32, borrowed */
+/* 34 and 44: cb runs while the core's state is borrowed (no copy is made): it must not call back into p */
 uint32_t fc4_development_developers(const fc4_development* p, fc4_type_token_callback cb, void* ctx); /* 34 */
 uint64_t fc4_development_building_map(const fc4_development* p);                                     /* 41 */
 uint32_t fc4_development_special_buildings(const fc4_development* p, fc4_token_callback cb, void* ctx); /* 44 */

@@ -23,6 +23,7 @@
 #include "FC4GameMapBuild.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Perf.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
@@ -118,6 +119,7 @@ constexpr uint32_t kMsgOccupantRemoved = 0x99EF1143;
 constexpr uint32_t kMsgStateChanged = 0xE8BDA2E7;
 constexpr uint32_t kMsgSimNewDay = 0x66956814;
 constexpr uint32_t kMsgSimNewMonth = 0x66956816;
+constexpr uint32_t kMsgSimIdle = 0x6695681A;  // tooling only (perf_profile)
 constexpr uint32_t kMsgBuildingTypesUpdated = 0xA783EBC8;
 
 // Exemplars (§1.3, §4.7.1, §4.13).
@@ -870,7 +872,11 @@ int32_t TractGrow(void* u, const fc4_growth_profile* profile, bool* flag) {
     }
     const FC4GrowthProfile g = GameProfile(profile);
     bool f = flag != nullptr && *flag;
-    const int32_t built = td->Grow(g, outcomes, f);
+    int32_t built;
+    {
+        fc4::perf::Scope perf(fc4::perf::kBdsTractGrow);  // tooling: perf_profile (FC4Perf.h)
+        built = td->Grow(g, outcomes, f);
+    }
     if (flag != nullptr) *flag = f;
     ++Ctx(u)->grows;
     return built;
@@ -881,6 +887,7 @@ int32_t TractDecline(void* u, const fc4_growth_profile* profile) {
     cFC4ISC4TractDeveloper* td = TractDeveloper(u, "development tract Decline (nothing declined)");
     if (td == nullptr) return 0;
     ++Ctx(u)->declines;
+    fc4::perf::Scope perf(fc4::perf::kBdsTractDecline);  // tooling: perf_profile (FC4Perf.h)
     return td->Decline(GameProfile(profile));  // slot 6
 }
 
@@ -2117,7 +2124,7 @@ public:
     explicit Call(const cFC4BuildingDevelopmentSimulator* s)
         : s_(const_cast<cFC4BuildingDevelopmentSimulator*>(s)) {
         if (lock_.held()) {
-            ++s_->depth_;
+            if (++s_->depth_ == 1 && fc4::perf::On()) perfT0_ = fc4::perf::Now();  // tooling: perf_profile
         } else {
             ++s_->offMainCalls_;
         }
@@ -2125,8 +2132,12 @@ public:
     ~Call() {
         if (!lock_.held()) return;
         if (--s_->depth_ == 0) {
-            s_->Publish();
+            {
+                fc4::perf::Scope publish(fc4::perf::kBdsPublish);
+                s_->Publish();
+            }
             fc4::DropHeldTokens(&s_->ctx_);
+            if (perfT0_ != 0) fc4::perf::Add(fc4::perf::kBdsCall, fc4::perf::Now() - perfT0_);
         }
     }
     Call(const Call&) = delete;
@@ -2136,6 +2147,7 @@ public:
 private:
     cFC4BuildingDevelopmentSimulator* s_;
     fc4::DevelopmentLock lock_;
+    uint64_t perfT0_ = 0;
 };
 
 cIGZUnknown* CreateFC4BuildingDevelopmentSimulator() {
@@ -2230,18 +2242,19 @@ void cFC4BuildingDevelopmentSimulator::Publish() {
         if (fc4_development_cheat(core_, i)) bits |= 1u << i;
     }
     cheats_ = bits;
-    std::vector<std::pair<uint32_t, uint64_t>> devs;
-    fc4_development_developers(core_, &CollectTypeToken, &devs);
-    if (devs != developerList_) {
+    // The scratch lists keep their buffers: an unchanged Publish allocates nothing (devperf).
+    developerScratch_.clear();
+    fc4_development_developers(core_, &CollectTypeToken, &developerScratch_);
+    if (developerScratch_ != developerList_) {
         AcquireSRWLockExclusive(&pubLock_);
-        developerList_.swap(devs);
+        developerList_.swap(developerScratch_);
         ReleaseSRWLockExclusive(&pubLock_);
         RebuildDevelopers();
     }
-    std::vector<uint64_t> specs;
-    fc4_development_special_buildings(core_, &CollectToken, &specs);
-    if (specs != specialTokens_) {
-        specialTokens_.swap(specs);
+    specialScratch_.clear();
+    fc4_development_special_buildings(core_, &CollectToken, &specialScratch_);
+    if (specialScratch_ != specialTokens_) {
+        specialTokens_.swap(specialScratch_);
         RefreshSpecials();
     }
     if (!TheMirror().built) BuildMirror(fc4::DevelopmentProcess());
@@ -2857,9 +2870,22 @@ size_t ReadPlaceBuildingParams(cIGZCommandParameterSet* ps, fc4_command_param* o
 }
 }  // namespace
 
+namespace {
+// Tooling (perf_profile, FC4Perf.h): the section a message to the BDS is timed in.
+fc4::perf::Section BdsPerfSection(uint32_t type) {
+    switch (type) {
+        case kMsgSimNewDay: return fc4::perf::kBdsDayMsg;
+        case kMsgSimNewMonth: return fc4::perf::kBdsMonthMsg;
+        case kMsgSimIdle: return fc4::perf::kBdsIdleMsg;
+        default: return fc4::perf::kBdsOtherMsg;
+    }
+}
+}  // namespace
+
 bool cFC4BuildingDevelopmentSimulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
     FC4_X87_SCOPE("development DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
+    fc4::perf::Scope perf(BdsPerfSection(pMessage->GetType()));  // tooling: perf_profile (FC4Perf.h)
     Call call(this);
     if (!call.ok()) return true;  // [choice] a message from another thread that cannot get the lock is dropped
     fc4_development_message m{};

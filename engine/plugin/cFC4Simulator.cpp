@@ -28,6 +28,7 @@
 #include "FC4ResidentialShadow.h"
 #include "FC4NeighborsShadow.h"
 #include "FC4HarnessLogic.h"
+#include "FC4Perf.h"
 #include "FC4Turbo.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
@@ -368,6 +369,7 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
     // The flammability shadow (opt-in, FC4FlammabilityShadow.h) polls after
     // the original flammability simulator's SimNewDay deliveries.
     bool finished = false;
+    const uint64_t perfT0 = fc4::perf::On() ? fc4::perf::Now() : 0;  // tooling: perf_profile (FC4Perf.h)
     if (!fc4::BudgetShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::DemandShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::PollutionShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
@@ -383,6 +385,7 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
         !fc4::FlammabilityShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) {
         finished = target->DoMessage(m);
     }
+    if (perfT0 != 0) fc4::perf::AddDelivery(target, LevelOfType(msg->type), name, fc4::perf::Now() - perfT0);
     fc4::DeliveryEnd();
     fc4::X87Check(afterSite, msg->type, name);
     m->Release();
@@ -1024,7 +1027,9 @@ bool cFC4Simulator::OnTick(uint32_t unknown1) {
     bool r;
     {
         fc4::ActivityScope core("core fc4_sim_on_tick");
+        const uint64_t perfT0 = fc4::perf::On() ? fc4::perf::Now() : 0;  // tooling: perf_profile (FC4Perf.h)
         r = fc4_sim_on_tick(sim_);
+        if (perfT0 != 0) fc4::perf::AddTick(fc4::perf::Now() - perfT0);
     }
     {
         // Cheap snapshot for the watchdog's heartbeat and stall rule.
@@ -1142,6 +1147,7 @@ void cFC4Simulator::TurboMonthLine(int32_t julian) {
              ms / 1000, ms % 1000,
              fc4::harness::FormatPer100(fc4::harness::RatePer100(days > 0 ? static_cast<uint64_t>(days) : 0, ms)).c_str(),
              fc4::harness::FormatPer100(fc4::harness::RatePer100(frames, ms)).c_str(), frames);
+    fc4::perf::Report(date, days, ms);  // tooling: perf_profile (FC4Perf.h)
     TurboResetReference(julian);
 }
 
