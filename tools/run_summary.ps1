@@ -97,8 +97,9 @@ if ($sg) {
     }
 }
 
-$shut = Select-String -Path $Log -Pattern "\] [a-zA-Z ]+ Shutdown( \(|:|$)" -CaseSensitive
+# Names may hold digits ("clock24 Shutdown"); per-object ids ("growth 0x00001010 Shutdown") are folded into one name.
+$shut = Select-String -Path $Log -Pattern "\] [a-zA-Z][a-zA-Z0-9 ]* Shutdown( \(|:|$)" -CaseSensitive
 if ($shut) {
     Write-Output ""
-    Write-Output ("shutdown lines: " + (($shut | ForEach-Object { (Body $_.Line) -replace '( \(|:).*$', '' } | Select-Object -Unique) -join "; "))
+    Write-Output ("shutdown lines: " + (($shut | ForEach-Object { ((Body $_.Line) -replace '( \(|:).*$', '') -replace ' 0x[0-9A-Fa-f]+', '' } | Select-Object -Unique) -join "; "))
 }
