@@ -795,3 +795,6 @@ fn slot6_pathfinder_flag2_fallback() {
         fc4_traffic_destroy(p);
     }
 }
+
+#[path = "traffic_shadow_tests.rs"]
+mod traffic_shadow_tests;

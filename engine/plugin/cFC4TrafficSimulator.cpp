@@ -1551,6 +1551,35 @@ bool PathConnection(void* u, uint64_t occ, uint32_t pathType, uint32_t entry, ui
     return r;
 }
 
+// traffic-network.md §4.2 step 3, §7.2: network occupant slot 49
+// GetPathInfo (pop 0, EAX), through the vtable (the SDK declares no path
+// info). [choice] Borrowed: the spec does not say the result carries a
+// reference, and the occupant keeps its path info while it is in the city
+// (TG25); the token is used only within the call that asked for it.
+uint64_t PathInfo(void* u, uint64_t occ) {
+    TRAFFIC_TEST(path_info, occ);
+    if (occ == 0 || !Gate(Sw::TrafficOccupants, "traffic GetPathInfo (none)")) return 0;
+    cISC4NetworkOccupant* n = NetOf(occ);
+    if (n == nullptr) return 0;
+    using Fn = void*(__fastcall*)(void* self, void* edx);
+    void* pi = reinterpret_cast<Fn>((*reinterpret_cast<void***>(n))[49])(n, nullptr);
+    Drop(n);
+    return TokenOf(pi);
+}
+
+// traffic-network.md §4.2 step 3: the turn-around test, path info slot 4
+// (`cSC4PathInfo::GetPath`, pop 20, EAX) with (pathType, entry, 0xFF, 0, 0)
+// as the original passes them; a non-zero result allows a turn-around at
+// that entry. [choice] The whole EAX is tested (the spec: "non-zero"; TG25).
+bool PathInfoTurnAround(void* u, uint64_t pi, uint32_t pathType, uint32_t entry) {
+    TRAFFIC_TEST(path_info_turn_around, pi, pathType, entry);
+    if (pi == 0 || !Gate(Sw::TrafficOccupants, "traffic path info turn-around (false)")) return false;
+    void* p = reinterpret_cast<void*>(static_cast<uintptr_t>(pi));
+    using Fn = uintptr_t(__fastcall*)(void* self, void* edx, uint32_t pathType, uint32_t entry, uint32_t exit,
+                                      uint32_t a4, uint32_t a5);
+    return reinterpret_cast<Fn>((*reinterpret_cast<void***>(p))[4])(p, nullptr, pathType, entry, 0xFF, 0, 0) != 0;
+}
+
 bool IsTunnel(void* u, uint64_t occ) {
     TRAFFIC_TEST(is_tunnel, occ);
     if (occ == 0 || !Gate(Sw::TrafficOccupants, "traffic tunnel test (false)")) return false;
@@ -1633,15 +1662,20 @@ bool DrivesOnRight(void* u) {
 namespace fc4 {
 
 // Callbacks left NULL answer the core's neutral value (traffic-simulator.md
-// and the final report's questions): sim_clock_ms (no accident timer),
-// update_network_costs, lot_strategy_byte, take_connection_volume_dirty
-// (private fields of the original's classes: the sources' own
+// and the final report's questions TG23-TG31): sim_clock_ms (no game
+// interface gives a clock in game milliseconds; the accident check needs
+// the view anyway), update_network_costs (which line items and methods
+// UpdateRoadsBudget / UpdateMassTransitBudget call is not specified),
+// lot_strategy_byte (a cSC4Lot member with no interface accessor),
+// take_connection_volume_dirty (a private field: the sources' own
 // UpdateTrafficVolume runs instead), occupants_in_cells and
-// occupant_filter_includes (cISC4OccupantFilter is not in docs/abi: filter 2
-// never matches), cell_has_network_occupant, path_info and its three
-// helpers (the path-info vtable is not curated), tunnel_paired_portal (a
-// member of the original's class), view_cell_rect and create_accident (no
-// accidents).
+// occupant_filter_includes (filter 2 is unreachable: the occupant filter has
+// no setter, pathfinder.md §4.10.3), cell_has_network_occupant (the query
+// is not specified; reached only with a view), path_info_exits_from_entry
+// and path_info_entries_near (the path objects' layout is not specified:
+// lane continuity changes nothing), tunnel_paired_portal (a member of the
+// original's class), view_cell_rect (the view) and create_accident (the
+// automata's visual accident; the core posts the accident message itself).
 fc4_traffic_host MakeTrafficHost(TrafficContext* ctx) {
     fc4_traffic_host h{};
     h.struct_size = sizeof(h);
@@ -1716,6 +1750,8 @@ fc4_traffic_host MakeTrafficHost(TrafficContext* ctx) {
     h.has_any_network_flag = &HasAnyNetworkFlag;
     h.is_of_type = &IsOfType;
     h.path_connection = &PathConnection;
+    h.path_info = &PathInfo;
+    h.path_info_turn_around = &PathInfoTurnAround;
     h.is_tunnel = &IsTunnel;
     h.cell_under_water = &CellUnderWater;
     h.is_navigable = &IsNavigable;

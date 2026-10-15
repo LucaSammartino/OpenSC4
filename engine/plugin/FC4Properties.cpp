@@ -346,7 +346,10 @@ std::vector<EffectiveProperty> EffectiveProperties(const cISCPropertyHolder* hol
 }
 
 bool CopyToCore(const cISCPropertyHolder* holder, uint32_t id, fc4_props* out) {
-    const cFC4IGZVariant* v = ValueOf(holder, id);
+    return CopyVariantToCore(ValueOf(holder, id), id, out);
+}
+
+bool CopyVariantToCore(const cFC4IGZVariant* v, uint32_t id, fc4_props* out) {
     if (v == nullptr || out == nullptr) return false;
     const uint16_t type = v->GetType();
     const bool a = (type & cIGZVariant::TypeArray) != 0;
