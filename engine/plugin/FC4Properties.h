@@ -22,6 +22,7 @@
 class cISCPropertyHolder;
 class cISCResExemplar;
 class cIGZVariant;
+class cFC4IGZVariant;
 struct fc4_props;
 
 namespace fc4 {
