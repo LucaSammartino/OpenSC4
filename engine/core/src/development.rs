@@ -214,6 +214,10 @@ pub struct BuildingProfile {
     pub purpose: u8,
     /// Capacities satisfied: developer type → amount (property `0x27812834`).
     pub capacities: std::collections::BTreeMap<u32, u16>,
+    /// Whether property `0x27812834` exists (DG11, building-development
+    /// §4.7.1): a present property gives the game profile's capacity vector
+    /// exactly one map, even an empty one; a missing one gives none.
+    pub capacities_present: bool,
     /// The amount for `GetDeveloperType(purpose, wealth)`, 0 if absent.
     pub capacity: u16,
     /// Property `0x27812836`.
