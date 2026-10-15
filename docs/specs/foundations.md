@@ -809,7 +809,7 @@ There is **no** single simulation RNG. Each subsystem uses its own instance:
 | a temporary `cRZRandom` | `((tx << 16) + tz) << 4` (tract (0, 0) seeds 0, so its multiplicative path is clock-seeded) | tract developer `UpdatePopulation` (tract-developer.md §4.18) |
 | a `cRZRandomSuper` member | wall clock at `Init` | traffic simulator, traffic network map |
 | a `cRZRandomSuper` member | wall clock × 28 (mod 2³²) **at construction** (`0x006F34A3`–`0x006F34B1`), not at `Init` | prop developer (prop-developer.md §5; re-specs10) |
-| a `cRZRandomSuper` member | wall clock (seed −1) at construction | city situation manager, draws only during a mission (city-situation.md §5; re-specs10) |
+| a `cRZRandomSuper` member | wall clock (seed −1) at construction | city situation manager, draws only during a mission (city-situation.md §5; re-specs10); park manager (`0x006D5855`; parks.md §5) |
 | a process-wide `cRZRandom` (lazy) | wall clock | neighbours deal propositions |
 | a temporary `cRZRandom` | **cell coordinates** `(x << 16) + z` | lot developer desirability test (one `RandomDoubleRangeUniform(0, 7)`): deterministic per cell (lot-developer.md) |
 | a temporary `cRZRandom` | wall clock | civic building monthly simulation |
@@ -844,8 +844,9 @@ There is **no** single simulation RNG. Each subsystem uses its own instance:
   - *Members seeded with a constant* (flammability: 0) keep the constant. Where a zero multiplicative state later
     reseeds from the clock (§6.1), FreeCity4 uses `derive(GZCLSID)` for that reseed.
   - *Temporaries seeded from the clock* (civic building monthly simulation, the neighbours' process-wide
-    generator): `K` = the owner's GZCLSID XOR `n`, where `n` counts earlier creations at that site in this
-    session (not saved).
+    generator): `K` = the owner's GZCLSID XOR `n`, where `n` counts earlier creations at that site by the
+    owning object, from 0 when the object is constructed (not saved; a newly loaded city starts again at 0;
+    QUESTIONS CB14).
   - *Temporaries seeded from coordinates*: unchanged, because they are deterministic already. The one case whose
     seed is 0 (tract developer `UpdatePopulation` for tract (0, 0)) uses `0x00000001` *[choice]*
     (tract-developer.md §4.18).

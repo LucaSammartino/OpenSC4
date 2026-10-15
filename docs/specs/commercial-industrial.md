@@ -90,6 +90,8 @@ only effect is that `Init` fails when either is missing (§4.1).
 
 `Init` also sets the static byte `0x00B490A4` to 1. Nothing reads it.
 
+`Shutdown` (`0x006B8A10`) clears `initialized` and returns true; it does nothing else (QUESTIONS IN2).
+
 ### 2.3 Reference counting (both)
 
 `AddRef` increments. `Release` decrements when the count is above 1; when it is 1 or less it calls `Shutdown`,
@@ -147,6 +149,10 @@ If `initialized`, return true. Otherwise:
    with instance `0x89D5B788`. A grid loaded from the save is kept (foundations §3.7: `Read` runs before `Init`).
 7. Return true.
 
+Because step 1 sets `initialized` before anything can fail (`0x0069EF9C`), a second `Init` after one that failed at
+step 5 returns true at once (`0x0069F196`) and still creates no grids; the maps stay absent until the next
+`Shutdown` and `Init` (QUESTIONS CM4).
+
 `SetTractSize` sizes the grid from the city (simgrid.md §4.2): 64, 128 or 256 tracts square for the three city
 sizes, all cells 0.
 
@@ -155,6 +161,10 @@ sizes, all cells 0.
 If `initialized`: clear it; `Shutdown` and release both grids; release the city and the building development
 simulator; unsubscribe `0x99EF1142` and `0x99EF1143` and release the message server; release both demand nodes;
 remove the agent through the city's simulator (`RemoveAgent(+4)`). Return true.
+
+Details of `Shutdown` (`0x0069EBE0`): the unsubscribe and the release of the message server happen only when one is
+held, and each other release is skipped for a null field. `RemoveAgent` goes through the **global** city pointer
+`0x00B43CEC`, not the held city (QUESTIONS CM9).
 
 ### 4.3 `DoIdle` (`0x0069ED30`)
 
@@ -167,6 +177,9 @@ not time-sliced.
 | 0 | `state := 1` and continue at once with state 1 (same call) |
 | 1 | rebuild CO$$ (§4.4, wealth 2), `state := 2` |
 | 2 | rebuild CO$$$ (§4.4, wealth 3), `state := 3` |
+
+A `state` outside 0..3 does nothing: the dispatch is an unsigned bounds test (`ja` at `0x0069ED50`), so a
+negative value is out of range too (QUESTIONS CM7).
 
 So a change is noticed on one call and both maps are rebuilt on the next two calls. The day agent calls it once
 per simulated day; the idle agent calls it on every idle tick while the simulator is running.
@@ -193,6 +206,13 @@ Consequences *[compat]*, with all tract sizes 1 (the shipped case):
 
 If a loaded grid holds other values off the edge (for example a grid written by a corrected FreeCity4 build), they
 are only ever lowered by later rebuilds, never raised *[compat]*.
+
+*[compat]* The helper tests both pointers first: with a null proximity grid (`0x005E513F`) or a null building map
+(`0x005E5136`) it returns at once, with **no seed and no passes**, so the grid is left exactly as it was (QUESTIONS
+CM5, CM6). RG24's "the seed writes nothing" is not reached that way: the seed helper `0x005E4FA0` is called only with
+both pointers present. In either case `DoIdle` still advances `state` (1 → 2, 2 → 3). Step 1 calls the building
+development simulator without a null test (`0x0069ED8E`); a missing simulator crashes the original *[choice: an
+absent simulator is treated like an absent map]*.
 
 ### 4.5 Worked example
 
@@ -272,6 +292,14 @@ rebuild restarts the rebuild from the beginning on the first `DoIdle` after load
 *[quirk]* `Read` overwrites the grid fields without releasing what they held. On a freshly constructed object they
 are null, so this matters only for a second `Read` on the same object. *[choice]* FreeCity4 releases old grids
 before replacing them.
+
+`Read` (`0x0069ECB0`) is **not atomic** *[compat facts]*. A wrong version returns false with nothing changed.
+Otherwise `dirty` is set from the flag before the references are read (`0x0069ECF6`), each reference goes through
+`SC4ReadGZSerializable` (`0x005D9730`), which first stores null in its field without releasing the old object
+(foundations §2.7), and the result is "the stream reports no error" (`0x0069ED16`) after both reads have run. So a
+failed read leaves the new `dirty` and a null (or partly read) grid. *[choice]* FreeCity4 reads into temporaries and
+changes nothing on failure; the shipped game reads each object once, on a fresh one, so the two agree on every
+valid save (QUESTIONS CM8).
 
 ### 8.2 Industrial (`GetGZCLSID() = 0xA990C022`)
 
