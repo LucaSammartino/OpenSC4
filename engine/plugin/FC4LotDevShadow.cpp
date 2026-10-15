@@ -260,6 +260,7 @@ struct Compare {
     LotDevContext* ctx = nullptr;
     float cellWidth = 16.0f;
     uint32_t compared = 0, mismatches = 0;
+    uint32_t rawTruth = 0;  // slot 22 AL values other than 0 / 1 (compared as true)
     FirstList first;
 
     void Float(const char* what, int32_t x, int32_t z, float o, float c) {
@@ -309,7 +310,18 @@ void CompareLot(Compare& k, cISC4Lot* lot) {
         }
         k.Float(water ? "s18w" : "s18", x, z, o->GetAverageAltitude(r, water),
                 fc4_lotdev_average_area_altitude(c, &cr, water));
-        k.Int(water ? "s25w" : "s25", x, z, o->IsAreaFlat(r, water), fc4_lotdev_is_area_flat(c, &cr, water));
+        {
+            const bool of = o->IsAreaFlat(r, water);
+            const bool cf = fc4_lotdev_is_area_flat(c, &cr, water);
+            const uint32_t before = k.mismatches;
+            k.Int(water ? "s25w" : "s25", x, z, of, cf);
+            if (k.mismatches != before) {
+                // The ranges behind a flatness difference (slot 27 both sides, the rectangle).
+                k.first.Add("s25r@%d,%d rect %d,%d,%d,%d orig %.9g ours %.9g", x, z, r.topLeftX, r.topLeftY,
+                            r.bottomRightX, r.bottomRightY, static_cast<double>(o->GetAreaAltitudeRange(r, water)),
+                            static_cast<double>(fc4_lotdev_area_altitude_range(c, &cr, water)));
+            }
+        }
         k.Int(water ? "s26w" : "s26", x, z, o->IsLotFlat(lot, water), fc4_lotdev_is_lot_flat(c, lt, water));
         k.Float(water ? "s27w" : "s27", x, z, o->GetAreaAltitudeRange(r, water),
                 fc4_lotdev_area_altitude_range(c, &cr, water));
@@ -367,8 +379,14 @@ void CompareLot(Compare& k, cISC4Lot* lot) {
     {
         SC4Rect<int32_t> orr;
         fc4_cell_rect crr{0, 0, 0, 0};
-        const bool oHas = o->GetOccupantCellCoverage(occ, orr);
+        // The original's AL is the second PositionToCell's (section 17.2), which need not be 0 / 1:
+        // read the byte through the slot and compare it as a truth value.
+        using CoverageFn = uint8_t(__thiscall*)(void*, cISC4Occupant*, SC4Rect<int32_t>&);
+        const CoverageFn coverage = (*reinterpret_cast<CoverageFn* const*>(o))[22];
+        const uint8_t oRaw = coverage(o, occ, orr);
+        const bool oHas = oRaw != 0;
         const bool cHas = fc4_lotdev_occupant_cell_coverage(c, ot, &crr);
+        if (oRaw > 1) ++k.rawTruth;
         k.Int("s22", x, z, oHas, cHas);
         if (oHas && cHas) {
             k.Int("s22x1", x, z, orr.topLeftX, crr.x1);
@@ -533,9 +551,9 @@ void RunStep(void* p) {
     }
 
     AppendF(body, "record=%zu bytes roundtrip=%s night=%u cursor=%u mode=%u lit=%u lots=%u sampled=%u compared=%u "
-                  "mismatches=%u first=%s",
+                  "mismatches=%u rawAL=%u first=%s",
             rec.size(), same ? "same" : "DIFFERENT", n, cursor, static_cast<unsigned>(mode),
-            static_cast<unsigned>(lit), lots, sampled, k.compared, k.mismatches, k.first.Str());
+            static_cast<unsigned>(lit), lots, sampled, k.compared, k.mismatches, k.rawTruth, k.first.Str());
     Line(r, body);
 
     fc4_lotdev_destroy(core);

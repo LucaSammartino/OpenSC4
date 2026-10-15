@@ -143,6 +143,9 @@ struct LotDevContext {
     // flora and prop adds asked / answered null.
     uint32_t idArrays = 0, idArraysEmpty = 0, floraValid = 0, floraInvalid = 0, floraFamilies = 0,
              floraFamiliesEmpty = 0, floraAdds = 0, floraAddsNull = 0, propAdds = 0, propAddsNull = 0;
+    // Lot completions seen (AddNetworkConnectionNodes calls, §6.5 b), and the objects their configurations
+    // listed: props mandatory / optional, flora with / without IDs.
+    uint32_t completions = 0, cfgProps = 0, cfgPropsOptional = 0, cfgFlora = 0, cfgFloraNoIds = 0;
 };
 
 // The host table over `ctx` (the lot developer's).

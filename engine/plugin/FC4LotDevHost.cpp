@@ -1244,6 +1244,8 @@ void CfgObjects(void* u, uint64_t cfg, fc4_lotdev_cfg_object_callback cb, void* 
     std::vector<uint32_t> ids;
     for (cSC4LotConfigurationObject* o = v->begin(); o != v->end(); ++o) {
         const fc4_lotdev_cfg_object c = fc4::LotDevObjectOf(o, ids);
+        if (c.object_type == 1) ++((c.flags & 1) ? Ctx(u)->cfgPropsOptional : Ctx(u)->cfgProps);
+        if (c.object_type == 4) ++(c.n_ids ? Ctx(u)->cfgFlora : Ctx(u)->cfgFloraNoIds);
         cb(cbCtx, &c);
     }
 }
@@ -1417,6 +1419,7 @@ void UpdateSurroundingRetainingWalls(void* u, uint64_t lot) {
 // [question]; nothing.
 void AddNetworkConnectionNodes(void* u, uint64_t lot, uint64_t cfg) {
     LOTDEV_TEST(add_network_connection_nodes, lot, cfg);
+    ++Ctx(u)->completions;
     NoteOnce(g_noteNetworkNodes, "lotdev: Add/RemoveNetworkConnectionNodes are not specified: no network "
                                  "connection nodes (question)");
 }

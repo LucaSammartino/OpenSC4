@@ -337,7 +337,8 @@ void cFC4LotDeveloper::LogState(const char* what) {
              "conditions=%u zots=%u started=%u finished=%u demolitions=%u nightBatches=%u refused=%u queued=%u "
              "agents=%u tick=%u buildings=%u/%u props=%u flora=%u textures=%u/%u removed=%u lights=%u units=%u "
              "posts=%u iterators=%u fallbacks=%u faults=%u listsRefused=%u content: idArrays=%u/%u empty "
-             "floraTypes=%u valid/%u not families=%u/%u empty floraAdds=%u/%u null propAdds=%u/%u null",
+             "floraTypes=%u valid/%u not families=%u/%u empty floraAdds=%u/%u null propAdds=%u/%u null "
+             "completions=%u cfgObjects props=%u+%u optional flora=%u+%u without IDs",
              what, st.initialized, st.daily_state, st.visited, st.verts_x, static_cast<double>(st.extent_x),
              static_cast<double>(st.extent_z), st.cell_count_x, st.cell_count_z, st.night_cursor, st.night_len,
              st.night_mode, st.lit_flag, st.night_acc, st.night_batch, st.force_empty, st.no_zot_until_day,
@@ -349,7 +350,8 @@ void cFC4LotDeveloper::LogState(const char* what) {
              static_cast<unsigned>(ctx_.iterators.size()), ctx_.iteratorFallbacks, ctx_.iteratorFaults,
              ctx_.listsRefused, ctx_.idArrays, ctx_.idArraysEmpty, ctx_.floraValid, ctx_.floraInvalid,
              ctx_.floraFamilies, ctx_.floraFamiliesEmpty, ctx_.floraAdds, ctx_.floraAddsNull, ctx_.propAdds,
-             ctx_.propAddsNull);
+             ctx_.propAddsNull, ctx_.completions, ctx_.cfgProps, ctx_.cfgPropsOptional, ctx_.cfgFlora,
+             ctx_.cfgFloraNoIds);
 }
 
 // One line per month: the daily pass's work since the previous line.
