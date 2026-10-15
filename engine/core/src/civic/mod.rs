@@ -31,14 +31,12 @@
 //!
 //! - **Hash containers** (§2) are [`StlHashSet`] / [`StlHashMap`] built with
 //!   the hint 100 (193 buckets), so iteration (and the record) follows the
-//!   STLport order. `Read` keeps the file's order: it grows the table first
-//!   and inserts the file's entries in reverse, so head insertion rebuilds
-//!   the saved chains. *[question]* The spec says `Read` inserts every entry
-//!   into the existing containers; STLport's own insertion in file order
-//!   would reverse each chain of two or more keys, so a write → read →
-//!   write of keys sharing a bucket (§12 test 9) would not be byte-identical.
-//!   A key that is already present (or repeated in the file) keeps its
-//!   first value (STL `insert` semantics).
+//!   STLport order. `Read` inserts the file's entries in file order, each at
+//!   the head of its chain (§7, QUESTIONS CB6 answered), so every chain of
+//!   two or more keys is reversed by a write → read → write and restored by
+//!   a second round trip. A repeated or already present exclusion ID is not
+//!   inserted again; a repeated or already present status key overwrites
+//!   the stored value (the last one in the file wins) in place.
 //! - **`Release`** (slot 2, `0x0069D7A0`): the spec gives no behaviour. The
 //!   sibling simulators' rule is used: above 1 it decrements; at 1 or less it
 //!   runs `Shutdown`, destroys the object and returns 0 *[question]*.

@@ -44,6 +44,8 @@
 #include "cFC4Landfill.h"
 #include "FC4LandValueShadow.h"
 #include "FC4FlammabilityShadow.h"
+#include "FC4Clock24Shadow.h"
+#include "FC4HistoryShadow.h"
 #include "FC4ResidentialShadow.h"
 #include "FC4ZonesShadow.h"
 #include "cFC4Residential.h"
@@ -56,8 +58,18 @@
 #include "cFC4Development.h"
 #include "cFC4GrowthDeveloper.h"
 #include "cFC4TrafficSimulator.h"
+#include "cFC4Clock24.h"
+#include "cFC4History.h"
 #include "FC4TractShadow.h"
+#include "FC4CommercialShadow.h"  // the cmglue lane
+#include "FC4CivicShadow.h"       // the cmglue lane
+#include "FC4ParksShadow.h"       // the cmglue lane
 #include "cFC4TractDeveloper.h"
+#include "FC4LotDevShadow.h"
+#include "cFC4LotDeveloper.h"
+#include "cFC4Commercial.h"  // the cmglue lane: commercial, industrial
+#include "cFC4Civic.h"       // the cmglue lane: civic
+#include "cFC4Parks.h"       // the cmglue lane: parks
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
 
@@ -225,6 +237,18 @@ const ClassEntry kTrafficClasses[] = {
     {kFC4_CLSID_cSC4TrafficSimulator, "cSC4TrafficSimulator", &CreateFC4TrafficSimulator},
 };
 
+// docs/specs/history.md §1: the history warehouse (city component 1). Off by
+// default (glue trial): `enable = history`.
+const ClassEntry kHistoryClasses[] = {
+    {kFC4_CLSID_cSC4HistoryWarehouse, "cSC4HistoryWarehouse", &CreateFC4HistoryWarehouse},
+};
+
+// docs/specs/clock24.md §1: the 24-hour clock (city component 50). Off by
+// default (glue trial): `enable = clock24`.
+const ClassEntry kClock24Classes[] = {
+    {kFC4_CLSID_cSC424HourClock, "cSC424HourClock", &CreateFC4Clock24},
+};
+
 // docs/specs/tract-developer.md §1. Off by default (M4 glue trial):
 // `enable = tract`. The BDS, the growth developers, the lot developer, the
 // lot manager and the lot configuration manager stay whoever the city runs.
@@ -232,6 +256,33 @@ const ClassEntry kTractClasses[] = {
     {kFC4_CLSID_cSC4TractDeveloper, "cSC4TractDeveloper", &CreateFC4TractDeveloper},
 };
 
+// docs/specs/lot-developer.md §1. Off by default (M4 glue trial):
+// `enable = lotdev`. The BDS, the tract developer, the lot manager, the
+// occupant and prop managers stay whoever the city runs.
+const ClassEntry kLotDevClasses[] = {
+    {kFC4_CLSID_cSC4LotDeveloper, "cSC4LotDeveloper", &CreateFC4LotDeveloper},
+};
+
+// docs/specs/commercial-industrial.md §1. Off by default (M4 glue trial):
+// `enable = commercial` / `enable = industrial`. The growth developers and the
+// query tool read the commercial proximity grids through slot 5.
+const ClassEntry kCommercialClasses[] = {
+    {kFC4_CLSID_cSC4CommercialSimulator, "cSC4CommercialSimulator", &CreateFC4CommercialSimulator},
+};
+const ClassEntry kIndustrialClasses[] = {
+    {kFC4_CLSID_cSC4IndustrialSimulator, "cSC4IndustrialSimulator", &CreateFC4IndustrialSimulator},
+};
+// docs/specs/civic-buildings.md §1. Off by default (M4 glue trial):
+// `enable = civic`. The building menu, the advisors and Lua reach in through
+// slots 5-8.
+const ClassEntry kCivicClasses[] = {
+    {kFC4_CLSID_cSC4CivicBuildingSimulator, "cSC4CivicBuildingSimulator", &CreateFC4CivicBuildingSimulator},
+};
+// docs/specs/parks.md §1. Off by default (M4 glue trial): `enable = parks`.
+// Nothing calls into it beyond Init and Shutdown (§9).
+const ClassEntry kParkClasses[] = {
+    {kFC4_CLSID_cSC4ParkManager, "cSC4ParkManager", &CreateFC4ParkManager},
+};
 // docs/specs/zones.md §1, §1.2, §11.2, §11.3: the zone developer / lot manager
 // (city components 7 and 8). Off by default (M4 glue trial): enable = zonedev.
 // Lot creation waits for re-specs11 (CreateLot fails, logged).
@@ -265,7 +316,14 @@ const Subsystem kSubsystems[] = {
      false},
     {"traffic", nullptr, kTrafficClasses, sizeof(kTrafficClasses) / sizeof(kTrafficClasses[0]), false},
     {"tract", nullptr, kTractClasses, sizeof(kTractClasses) / sizeof(kTractClasses[0]), false},
+    {"lotdev", nullptr, kLotDevClasses, sizeof(kLotDevClasses) / sizeof(kLotDevClasses[0]), false},
+    {"commercial", nullptr, kCommercialClasses, sizeof(kCommercialClasses) / sizeof(kCommercialClasses[0]), false},
+    {"industrial", nullptr, kIndustrialClasses, sizeof(kIndustrialClasses) / sizeof(kIndustrialClasses[0]), false},
+    {"civic", nullptr, kCivicClasses, sizeof(kCivicClasses) / sizeof(kCivicClasses[0]), false},
+    {"parks", nullptr, kParkClasses, sizeof(kParkClasses) / sizeof(kParkClasses[0]), false},
     {"zonedev", nullptr, kZoneDevClasses, sizeof(kZoneDevClasses) / sizeof(kZoneDevClasses[0]), false},
+    {"history", nullptr, kHistoryClasses, sizeof(kHistoryClasses) / sizeof(kHistoryClasses[0]), false},
+    {"clock24", nullptr, kClock24Classes, sizeof(kClock24Classes) / sizeof(kClock24Classes[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -388,8 +446,20 @@ void Resolve() {
     DevelopmentShadowStartup(g_enabled[0], enabledKey("development"));
     // The tract developer shadow (FC4TractShadow.h; it compares the original tract developer).
     TractShadowStartup(enabledKey("tract"));
+    // The lot developer shadow (FC4LotDevShadow.h; it compares the original lot developer).
+    LotDevShadowStartup(enabledKey("lotdev"));
+    // The commercial shadow (FC4CommercialShadow.h; it compares the original commercial simulator).
+    CommercialShadowStartup(g_enabled[0], enabledKey("commercial"));
+    // The civic shadow (FC4CivicShadow.h; it compares the original civic building simulator).
+    CivicShadowStartup(g_enabled[0], enabledKey("civic"));
+    // The parks shadow (FC4ParksShadow.h; it compares the original park manager).
+    ParksShadowStartup(g_enabled[0], enabledKey("parks"));
     // The zone developer shadow (FC4ZoneDevShadow.h; it compares the original lot manager).
     ZoneDevShadowStartup(enabledKey("zonedev"));
+    // The history warehouse shadow (FC4HistoryShadow.h; it follows the original warehouse).
+    HistoryShadowStartup(enabledKey("history"));
+    // The 24-hour clock shadow (FC4Clock24Shadow.h; it follows the original clock).
+    Clock24ShadowStartup(enabledKey("clock24"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.

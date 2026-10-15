@@ -2,7 +2,7 @@
   "format": 1,
   "name": "lot_developer_update_lot_elements_kind",
   "spec": ["lot-developer 6.4", "lot-developer 11.1", "lot-developer 10.3", "lot-developer 16"],
-  "description": "Test 27 (§6.4, §16), the corrected terrain-change kind. Slot 37 UpdateLotElements takes the BDS's WHOLE 32-bit terrain-change kind, not a bool; its only use is the full 32-bit compare kind != 5 (building-development.md 4.11). A lot in state 3 without a foundation (flags & 3 = 0), with a configuration whose maximum slope before foundation (0.0) is below the lot slope (4.0 from a peak at vertex (1,0)): kind 5 -> the foundation branch is skipped entirely, so no AddLotFoundation and UpdateLotBaseTextureOccupant gets had_foundation false; kind 0x105 -> one AddLotFoundation and had_foundation true; kind 0x100 (low byte 0, so kind & 0xFF != 0 would wrongly be false) -> also one AddLotFoundation, proving the compare is on the whole value and not the low byte. UpdateLotElements always returns true. A lot in state below 2 does nothing. A lot WITH a foundation updates the foundation and retaining walls instead.",
+  "description": "Test 27 (§6.4, §16), the corrected terrain-change kind. Slot 37 UpdateLotElements takes the BDS's WHOLE 32-bit terrain-change kind, not a bool; its only use is the full 32-bit compare kind != 5 (building-development.md 4.11). A lot in state 3 without a foundation (flags & 3 = 0), with a configuration whose maximum slope before foundation (0.0) is below the lot slope (4.0 from a peak at vertex (1,0)): kind 5 -> the foundation branch is skipped entirely, so no AddLotFoundation and UpdateLotBaseTextureOccupant gets had_foundation false; kind 0x105 -> one AddLotFoundation and had_foundation true; kind 0x100 (low byte 0, so kind & 0xFF != 0 would wrongly be false) -> also one AddLotFoundation, proving the compare is on the whole value and not the low byte. UpdateLotElements always returns true. A lot in state below 2 does nothing. A lot WITH a foundation updates the foundation and retaining walls instead. The foundation itself is built per §17.5.4 (slot 54 -> R8 -> slot 55 -> BDS slot 23): the lot faces 0, so its top is the middle of corners 0 and 1 (100 and 104) = 102, below the highest vertex 104, so the retaining walls are added. The lot gets flags 3, which are cleared again before each re-check.",
   "steps": [
     {"op": "ldev_world", "terrain_cells": [64, 64]},
     {"op": "ldev_terrain", "alt": [[1, 104]], "note": "vertex index 1 = (x=1, z=0): the lot slope is 4.0"},
@@ -17,7 +17,7 @@
     {"op": "ldev_clear_events"},
     {"op": "ldev_update_lot_elements", "lot": 1, "kind": 5, "expect": true,
       "note": "kind 5: the foundation re-check is skipped"},
-    {"op": "ldev_expect_events", "filter": {"event": "add_lot_foundation"}, "events": []},
+    {"op": "ldev_expect_events", "filter": {"event": "add_foundation"}, "events": []},
     {"op": "ldev_clear_events"},
     {"op": "ldev_update_lot_elements", "lot": 1, "kind": 5, "expect": true},
     {"op": "ldev_expect_events", "note": "no AddLotFoundation; UpdateLotBaseTextureOccupant gets had_foundation false; UpdateSlope runs",
@@ -29,22 +29,28 @@
     {"op": "ldev_update_lot_elements", "lot": 1, "kind": "0x105", "expect": true,
       "note": "kind 0x105 != 5: one AddLotFoundation (R8 over the one foundation ID); the slope 4.0 > 0.25 also runs UpdateLotObjectAlitudes; had_foundation true"},
     {"op": "ldev_expect_events", "events": [
-      {"event": "add_lot_foundation", "lot": 1, "type": "0x890B7312"},
+      {"event": "add_foundation", "type": "0x890B7312", "kind": 2, "pos": [8, 102, 8], "dx": 16, "dz": 16, "orient": 0,
+        "bottom": 100, "size": [16, 2, 16], "cells": [0, 0, 0, 0]},
+      {"event": "retaining_wall", "lot": 1, "flag": 1},
+      {"event": "update_surrounding_walls", "lot": 1},
       {"event": "update_object_altitudes", "lot": 1},
       {"event": "update_base_texture_occupant", "lot": 1, "had_foundation": true},
       {"event": "update_slope", "lot": 1}]},
     {"op": "ldev_expect_draws", "draws": [["R8", 1, 0]]},
+    {"op": "ldev_expect_lot", "lot": 1, "flags": 3, "altitude": 102},
 
+    {"op": "ldev_lot", "id": 1, "flags": 0, "note": "clear the foundation flags so the next call re-checks"},
     {"op": "ldev_clear_events"},
     {"op": "ldev_update_lot_elements", "lot": 1, "kind": "0x100", "expect": true,
       "note": "kind 0x100 (low byte 0) != 5 as a whole value: still one AddLotFoundation. This is the case a kind & 0xFF != 0 reduction would get wrong."},
-    {"op": "ldev_expect_events", "filter": {"event": "add_lot_foundation"}, "events": [
-      {"event": "add_lot_foundation", "lot": 1, "type": "0x890B7312"}]},
+    {"op": "ldev_expect_events", "filter": {"event": "add_foundation"}, "events": [
+      {"event": "add_foundation", "kind": 2, "type": "0x890B7312"}]},
 
+    {"op": "ldev_lot", "id": 1, "flags": 0},
     {"op": "ldev_clear_events"},
     {"op": "ldev_update_lot_elements", "lot": 1, "kind": 0, "expect": true, "note": "kind 0 != 5: foundation added"},
-    {"op": "ldev_expect_events", "filter": {"event": "add_lot_foundation"}, "events": [
-      {"event": "add_lot_foundation", "lot": 1, "type": "0x890B7312"}]},
+    {"op": "ldev_expect_events", "filter": {"event": "add_foundation"}, "events": [
+      {"event": "add_foundation", "kind": 2, "type": "0x890B7312"}]},
 
     {"op": "ldev_lot", "id": 2, "x": 0, "z": 1, "state": 1, "cfg": 9, "flags": 0,
       "note": "state below 2: nothing happens at all"},
@@ -53,11 +59,12 @@
     {"op": "ldev_expect_events", "events": []},
 
     {"op": "ldev_lot", "id": 3, "x": 0, "z": 2, "state": 3, "cfg": 9, "flags": 1,
-      "note": "a lot WITH a foundation (flags & 3 != 0): UpdateLotFoundation and UpdateLotRetainingWalls instead, no slope work"},
+      "note": "a lot WITH a foundation (flags & 3 != 0): UpdateLotFoundation and UpdateLotRetainingWalls instead, no slope work. Lot 3 has the flag but no foundation occupant on its cell, so slot 61 goes through slot 54 (R8) and slot 55 with the lot's altitude (0) as the top: no levelling, no walls; the bottom is the lowest vertex, 100, so the depth is raised to 0.5"},
     {"op": "ldev_clear_events"},
     {"op": "ldev_update_lot_elements", "lot": 3, "kind": 0, "expect": true},
     {"op": "ldev_expect_events", "events": [
-      {"event": "update_lot_foundation", "lot": 3},
+      {"event": "add_foundation", "type": "0x890B7312", "kind": 2, "pos": [8, 0, 40], "bottom": 100, "size": [16, 0.5, 16],
+        "cells": [0, 2, 0, 2]},
       {"event": "update_retaining_walls", "lot": 3},
       {"event": "update_base_texture_occupant", "lot": 3, "had_foundation": false},
       {"event": "update_slope", "lot": 3}]}

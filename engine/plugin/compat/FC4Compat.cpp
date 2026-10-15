@@ -50,6 +50,8 @@ const ExecutableVersion kVersions[] = {
             0x004A79A0,  // the same maps' subtree free (_M_erase)
             0x005E5620,  // global heap (allocator C) free (docs/abi/allocators.md)
             0x005E55E0,  // global heap (allocator C) allocate (docs/abi/allocators.md)
+            0x006BF430,  // the cSC4Lot pool's allocate (docs/abi/direct-calls.md; zones.md §8.5.1)
+            0x006C1E50,  // the cSC4Lot constructor (x, z, w, h, facing)
         },
         {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
         0x00AB3118,  // cSC4TractDeveloper primary vtable (tract-developer.md §1.1, §7.1)
@@ -58,6 +60,8 @@ const ExecutableVersion kVersions[] = {
         0x00AB07C8,  // cSC4AuraSimulator's cISC4AuraSimulator vtable (aura.md §12.1, §14.3)
         0x00AA56C0,  // cSC4WinGameDelay primary vtable (docs/abi/vtables.tsv; modal-dialogs.md §3.4)
         0x00AB1EE0,  // cSC4NeighborsSimulator's cISC4NeighborsSimulator vtable (neighbors.md §15.4 NG7)
+        0x00AB0CCC,  // cSC4CommercialSimulator primary vtable (commercial-industrial.md §1.1, §2.1)
+        0x00AB20AC,  // cSC4ParkManager primary vtable (parks.md §1, §2)
     },
 };
 
@@ -450,7 +454,8 @@ const void* GameDelayWindowVtable() {
 uintptr_t DirectCall(Direct which) {
     static const char* const kNames[] = {"RemoveConnection",      "SetWateredState", "air dispatch Init",
                                          "air dispatch Shutdown", "map operator[]",  "map subtree free",
-                                         "global heap free",      "global heap allocate"};
+                                         "global heap free",      "global heap allocate",
+                                         "lot pool allocate",     "lot constructor"};
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused
     static uintptr_t address[static_cast<unsigned>(Direct::Count)] = {};
@@ -527,6 +532,68 @@ const void* NeighborsSimulatorVtable() {
         } else {
             Log("compat: original cISC4NeighborsSimulator vtable NOT available (%s); the neighbours shadow cannot "
                 "read the original's state bytes",
+                v ? "address rejected" : "executable not identified");
+        }
+    }
+    return state == 1 ? vtable : nullptr;
+}
+
+const void* CommercialSimulatorVtable() {
+    static int state = 0;  // 0 unknown, 1 available, -1 refused
+    static const void* vtable = nullptr;
+    if (state == 0) {
+        state = -1;
+        const ExecutableVersion* v = IdentifiedVersion();
+        MEMORY_BASIC_INFORMATION mbi{};
+        const uintptr_t va = v ? v->commercialSimulatorVtableVA : 0;
+        bool ok = v != nullptr && va != 0 && va % 4 == 0 &&
+                  VirtualQuery(reinterpret_cast<const void*>(va), &mbi, sizeof(mbi)) == sizeof(mbi) &&
+                  mbi.State == MEM_COMMIT && mbi.Type == MEM_IMAGE &&
+                  reinterpret_cast<uintptr_t>(mbi.AllocationBase) == v->imageBase &&
+                  !(mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS));
+        if (ok) {
+            // The first entry (QueryInterface) must be code inside the image.
+            const uintptr_t first = *reinterpret_cast<const uintptr_t*>(va);
+            ok = CheckCode("cISC4CommercialSimulator vtable entry 0", first, v->imageBase);
+        }
+        if (ok) {
+            vtable = reinterpret_cast<const void*>(va);
+            state = 1;
+            Log("compat: original cISC4CommercialSimulator vtable at 0x%08lX", static_cast<unsigned long>(va));
+        } else {
+            Log("compat: original cISC4CommercialSimulator vtable NOT available (%s); the commercial shadow cannot "
+                "read the original's dirty byte and state",
+                v ? "address rejected" : "executable not identified");
+        }
+    }
+    return state == 1 ? vtable : nullptr;
+}
+
+const void* ParkManagerVtable() {
+    static int state = 0;  // 0 unknown, 1 available, -1 refused
+    static const void* vtable = nullptr;
+    if (state == 0) {
+        state = -1;
+        const ExecutableVersion* v = IdentifiedVersion();
+        MEMORY_BASIC_INFORMATION mbi{};
+        const uintptr_t va = v ? v->parkManagerVtableVA : 0;
+        bool ok = v != nullptr && va != 0 && va % 4 == 0 &&
+                  VirtualQuery(reinterpret_cast<const void*>(va), &mbi, sizeof(mbi)) == sizeof(mbi) &&
+                  mbi.State == MEM_COMMIT && mbi.Type == MEM_IMAGE &&
+                  reinterpret_cast<uintptr_t>(mbi.AllocationBase) == v->imageBase &&
+                  !(mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS));
+        if (ok) {
+            // The first entry (QueryInterface) must be code inside the image.
+            const uintptr_t first = *reinterpret_cast<const uintptr_t*>(va);
+            ok = CheckCode("cISC4ParkManager vtable entry 0", first, v->imageBase);
+        }
+        if (ok) {
+            vtable = reinterpret_cast<const void*>(va);
+            state = 1;
+            Log("compat: original cISC4ParkManager vtable at 0x%08lX", static_cast<unsigned long>(va));
+        } else {
+            Log("compat: original cISC4ParkManager vtable NOT available (%s); the parks shadow cannot read the "
+                "original's latch and threshold",
                 v ? "address rejected" : "executable not identified");
         }
     }

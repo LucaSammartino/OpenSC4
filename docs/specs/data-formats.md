@@ -694,6 +694,13 @@ result is a heap address. Only kind-1 properties (§4.6) hold objects, and no sh
   text of exactly 64 characters, is not stripped (`0x00910647`, `0x00910662`). Worked example: Float64
   1.0000000000000002e-47 (digits `10000000000000002` after 46 leading zeros) needs 65 characters; the cut keeps
   `0.`, 46 zeros and `100000000000000`, and the strip leaves `0.`, 46 zeros and `1`, 49 characters.
+  The strip removes **only `0` characters** (EX40): it ends the text at the 64th character, then walks back from the
+  63rd and clears each `0` until it meets another character, never looking at the first character
+  (`0x00910686`–`0x00910697`). When the first significant digit is the 64th or 65th character and more digits
+  follow, the 63 kept characters are `0.` (or `-0.`) and zeros, so the strip leaves **`0.`** or **`-0.`**, the
+  point kept. Worked examples: 1.5e-62 (`0.`, 61 zeros, then `15`) prints `0.`; −1.5e-61 (`-0.`, 60 zeros, then
+  `15`) prints `-0.`. A lone last digit at the 64th character is not this case: the text is then exactly 64
+  characters and is cut without a strip, as below.
   A Float32 reaches the cut only as a **negative subnormal below 1e-44 in magnitude**, the seven values `0x80000001` to
   `0x80000007`: `-0.`, 44 leading zeros and 17 digits make 64 characters, so the 17th digit is lost. For example
   `0x80000001` (−1.40129846432481707…e-45, 17 digits `14012984643248171`) gives `-0.`, 44 zeros and `1401298464324817`,

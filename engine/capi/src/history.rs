@@ -200,8 +200,8 @@ pub unsafe extern "C" fn fc4_history_do_message(h: *mut fc4_history, msg_type: u
 
 /// `RecordHistoryData` (slot 12, §4.1): sends the record message through the
 /// host's `send` (the warehouse stores it when the host delivers it to
-/// `fc4_history_do_message`). Does not borrow the warehouse. True for a live
-/// object ([choice]).
+/// `fc4_history_do_message`). Does not borrow the warehouse. Returns false
+/// (HW12, the original's final `Release` leaves 0).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_history_record(h: *const fc4_history, key: u32, value: i32) -> bool {
     let Some(hd) = handle(h) else { return false };

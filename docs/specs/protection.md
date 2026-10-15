@@ -676,7 +676,10 @@ outer 10, radius 150.0 and original centre 100.
 | `UpdateUnadjusted` (`0x006F5DB1`) | the station loop's record, shared by every station and dispatch of the rebuild | the previous dispatch's values, else the last station's (§5.1, PR17), else uninitialised stack data |
 | `DoDispatchActivated` (`0x006F6221`) | a fresh, uninitialised stack record | uninitialised stack data; only the radius is used (§5) |
 
-So "the caller's values" in steps 2 and 3 are never a zeroed record in the original. *[choice]* FreeCity4 may
+So "the caller's values" in steps 2 and 3 are never a zeroed record in the original. The handler's record (PR20)
+does not inherit `UpdateUnadjusted`'s values: it is a different stack frame (`0x006F61F0` reserves 0x44 bytes and
+writes nothing to the effect record at `+0x04` before the call at `0x006F6221`), so it holds whatever earlier,
+unrelated calls left there. *[choice]* FreeCity4 may
 pass a zeroed record. That reproduces the original when the call succeeds and the station has both the outer
 and the radius property, which every shipped station has. An absent one keeps the leftover in the original
 and 0 in a zeroed record. On failure, see §5.1 for the rebuild and §5 for the handler (skip the update).

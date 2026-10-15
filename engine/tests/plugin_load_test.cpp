@@ -78,10 +78,14 @@
 #include "cS3DVector3.h"
 #include "cIGZOStream.h"
 #include "FC4Interfaces.h"
+#include "FC4HistClock.h"
+#include "FC4Clock24Shadow.h"
+#include "FC4HistoryShadow.h"
 #include "FC4TestSeam.h"
 #include "cFC4TrafficSimulator.h"
 #include "cFC4ZoneManager.h"
 #include "cFC4TractDeveloper.h"
+#include "cFC4LotDeveloper.h"
 #include "cFC4ZoneDeveloper.h"
 #include "FC4SafeLotIterator.h"
 #include "cGZPersistResourceKey.h"
@@ -8093,6 +8097,7 @@ struct ZdStub {
     int8_t zone[8][8] = {};
     int newLots = 0, defers = 0, services = 0, levellings = 0, streets = 0, demolitions = 0;
     int gridCreates = 0, gridReleases = 0, foreignRefs = 0;
+    int dezones = 0, joins = 0, zoneUpdates = 0;  // ABI 55
     std::vector<uint32_t> subscribed, unsubscribed;
 };
 ZdStub* g_zd = nullptr;
@@ -8247,6 +8252,29 @@ void ZdGridShutdown(void*, uint64_t) {}
 void ZdGridRelease(void*, uint64_t) { ++g_zd->gridReleases; }
 
 // The master_* mirror callbacks stay NULL: the plugin's raw list runs.
+// ABI 55 (re-specs11): flat land, no slope, no configuration objects, no
+// networks; the dezone and the joins only counted (the stub's zones stay).
+float ZdAreaSlope(void*, const fc4_cell_rect*, bool) { return 0.0f; }
+float ZdCfgMaxSlope(void*, uint64_t) { return 100.0f; }
+void ZdCfgObjects(void*, uint64_t, fc4_zonedev_cfg_object_callback, void*) {}
+uint32_t ZdNetU32(void*, uint64_t) { return 0; }
+bool ZdNetAll(void*, uint64_t, uint32_t) { return false; }
+uint32_t ZdNetEdges(void*, uint64_t, uint32_t) { return 0; }
+int32_t ZdNetIsOfType(void*, uint64_t, uint32_t) { return -1; }
+bool ZdNetBool(void*, uint64_t) { return false; }
+void ZdOccCells(void*, uint64_t, fc4_cell_rect* out) { *out = fc4_cell_rect{0, 0, -1, -1}; }
+bool ZdToolPresent(void*, uint32_t) { return false; }
+void ZdJoin(void*, uint32_t, int32_t, int32_t, int32_t, int32_t) { ++g_zd->joins; }
+bool ZdLand(void*, int32_t, int32_t) { return true; }
+bool ZdCellInBounds(void*, int32_t x, int32_t z) { return x >= 0 && x < 8 && z >= 0 && z < 8; }
+bool ZdNavigable(void*, int32_t, int32_t) { return false; }
+void ZdLotUpdateZone(void*, uint64_t t) {
+    ++g_zd->zoneUpdates;
+    if (ZdIsLot(t)) ZdLotOf(t)->zone = ZdZoneType(nullptr, ZdLotOf(t)->x, ZdLotOf(t)->z);
+}
+bool ZdForceEmpty(void*) { return false; }
+void ZdDezone(void*, const fc4_zone_region*) { ++g_zd->dezones; }
+
 fc4_zonedev_host ZdStubHost() {
     fc4_zonedev_host h{};
     h.struct_size = sizeof(h);
@@ -8327,6 +8355,23 @@ fc4_zonedev_host ZdStubHost() {
     h.dev_desirability_shift = &ZdDevU32;
     h.dev_purpose = &ZdDevU32;
     h.dev_wealth = &ZdDevU32;
+    h.area_slope = &ZdAreaSlope;
+    h.cfg_max_slope = &ZdCfgMaxSlope;
+    h.cfg_objects = &ZdCfgObjects;
+    h.network_flags = &ZdNetU32;
+    h.network_has_all_flags = &ZdNetAll;
+    h.network_edge_mask = &ZdNetEdges;
+    h.network_is_of_type = &ZdNetIsOfType;
+    h.network_is_flag_0x400000 = &ZdNetBool;
+    h.occupant_bounding_cells = &ZdOccCells;
+    h.network_tool_present = &ZdToolPresent;
+    h.network_tool_join = &ZdJoin;
+    h.cell_has_land = &ZdLand;
+    h.cell_is_in_bounds = &ZdCellInBounds;
+    h.is_navigable = &ZdNavigable;
+    h.lot_update_zone_type = &ZdLotUpdateZone;
+    h.force_empty_lot_base_textures = &ZdForceEmpty;
+    h.zone_manager_dezone = &ZdDezone;
     return h;
 }
 
@@ -8535,7 +8580,7 @@ void CheckZoneDevNeutral(cFC4ISC4LotManager* lm) {
     CHECK(lm->GetMaximumCapacityGrid() == nullptr);
     CHECK(lm->GetRandomLot() == nullptr);
     CHECK(lm->GetOccupantLot(nullptr) == nullptr);
-    // Slot 21 is not specified: 0, logged.
+    // Slot 21 (§8.4.1): no map yet, 0 (logged).
     CHECK(lm->CanCreatePloppedLot(SC4Rect<long>(1, 1, 2, 2), 1, nullptr) == 0);
 }
 
@@ -8545,7 +8590,7 @@ void ZdParcellize(cISC4ZoneDeveloper* zd, int32_t x1, int32_t z1, int32_t x2, in
                          static_cast<cISC4ZoneManager::ZoneType>(type), false);
 }
 
-// The live object through the stub: Init, STAGE A refusals, lots from the
+// The live object through the stub: Init, refused lots, lots from the
 // stub, the lists, the iterator, the shadow, DeleteLot, Shutdown.
 void ZoneDevStubTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
     static ZdStub stub;
@@ -8579,7 +8624,8 @@ void ZoneDevStubTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
         for (int z = 1; z <= 2; ++z) stub.zone[x][z] = 7;  // agriculture: 1 x 1 lots (§7.5)
     }
 
-    // STAGE A: no lot constructor (the plugin's own new_lot): CreateLot and a
+    // The plugin's own new_lot outside the game (the lot pool and constructor
+    // not available, the executable not identified): CreateLot and a
     // parcellization fail cleanly, logged.
     host.new_lot = nullptr;
     {
@@ -8588,7 +8634,7 @@ void ZoneDevStubTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
         CHECK(ZdState(seam, zd).newLotRefusals == 1);
         ZdParcellize(zd, 1, 1, 2, 2, 7);
         const FC4ZoneDevTestState st = ZdState(seam, zd);
-        CHECK(st.newLotRefusals == 5 && st.masterSize == 0 && st.heldConfigs == 0);
+        CHECK(st.newLotRefusals == 5 && st.masterSize == 0 && st.heldConfigs == 0 && st.lotsBuilt == 0);
         CHECK(lm->GetLotCount() == 0 && stub.defers == 2);
     }
 
@@ -8798,14 +8844,15 @@ int ZoneDevEnableTest(const std::string& dll, const std::string& ini, const std:
     CHECK(text.find("zonedev: no city; services not acquired") != npos);
     CHECK(text.find("zonedev Init FAILED: version=1 init=0") != npos);
     CHECK(text.find("zonedev month 2000-02-01: version=1") != npos);
-    CHECK(text.find("is not specified (zones.md \xC2\xA7" "14.3 Q2): 0") != npos);
+    CHECK(text.find("zonedev: CanCreatePloppedLot(1,1..2,2, facing 1) = 0") != npos);
     CHECK(text.find("zonedev Read -> 1") != npos);
     CHECK(text.find("zonedev Read -> 0") != npos);
     CHECK(text.find("zonedev: test hooks installed") != npos);
     CHECK(text.find("zonedev Init: version=1 init=1 loaded=0 real=") != npos);
-    CHECK(text.find("refused: no lot constructor [waiting for re-specs11]") != npos);
+    CHECK(text.find("zonedev: CreateLot(1, 1, 1, 1, facing 0) refused: the lot pool / constructor is not available") !=
+          npos);
     CHECK(text.find("zonedev parcellize: type=7 rect=1,1..2,2 cells=4 flag=0 lots=0 failed=4 deleted=0 streets=0/0 "
-                    "demolish=0 [lot creation waiting for re-specs11]") != npos);
+                    "demolish=0 [lots refused, see CreateLot]") != npos);
     CHECK(text.find("zonedev parcellize: type=7 rect=1,1..2,2 cells=4 flag=0 lots=4 failed=0 deleted=0") != npos);
     CHECK(text.find("zonedev shadow (lots) 2000-02-01 load: mismatches=0 count=5/5") != npos);
     CHECK(text.find("zonedev shadow (lots) 2000-02-01 month: mismatches=1 count=6/5") != npos);
@@ -10158,6 +10205,9 @@ int DialogsIniTest(const std::string& dll, const std::string& ini, const std::st
     return g_failures == 0 ? 0 : 1;
 }
 
+// The history warehouse and the 24-hour clock (history.md, clock24.md; seam op 54).
+#include "plugin_histclock_test.inc"
+
 // ---- the tract developer (tract-developer.md; test seam op 45) ----------------------------------------------
 constexpr uint32_t kCLSID_TractDeveloper = 0x2990C142;
 constexpr uint32_t kIID_cISC4TractDeveloper = 0xA818ED1B;
@@ -10365,6 +10415,241 @@ int TractEnableTest(const std::string& dll, const std::string& ini, const std::s
     return g_failures == 0 ? 0 : 1;
 }
 
+// ---- the lot developer (lot-developer.md; test seam op 52) ------------------------------------------------
+constexpr uint32_t kCLSID_LotDeveloper = 0xA990BFE0;
+constexpr uint32_t kIID_cISC4LotDeveloper = 0x4818E5D2;
+
+// A stub host (seam op 52): Init's registrations are counted, the city is
+// 64 x 64 cells of 16 m.
+struct LotDevStub {
+    std::vector<uint32_t> agents, subscribed, unsubscribed;
+    uint32_t ticks = 0, unticks = 0, removeAgents = 0, servers = 0, releasedServers = 0;
+};
+LotDevStub g_lotdevStub;
+
+bool LdAcquire(void*) { return true; }
+void LdRelease(void*) {}
+bool LdHasSim(void*) { return true; }
+void LdAddAgent(void*, uint32_t level, uint32_t) { g_lotdevStub.agents.push_back(level); }
+void LdRemoveAgent(void*) { ++g_lotdevStub.removeAgents; }
+bool LdServer(void*) {
+    ++g_lotdevStub.servers;
+    return true;
+}
+void LdReleaseServer(void*) { ++g_lotdevStub.releasedServers; }
+void LdSubscribe(void*, uint32_t m) { g_lotdevStub.subscribed.push_back(m); }
+void LdUnsubscribe(void*, uint32_t m) { g_lotdevStub.unsubscribed.push_back(m); }
+void LdTick(void*) { ++g_lotdevStub.ticks; }
+void LdUntick(void*) { ++g_lotdevStub.unticks; }
+void LdCells(void*, int32_t* out2) {
+    out2[0] = 64;
+    out2[1] = 64;
+}
+void LdWidths(void*, float* out2) {
+    out2[0] = 16.0f;
+    out2[1] = 16.0f;
+}
+float LdCellWidth(void*) { return 16.0f; }
+int32_t LdLotCount(void*) { return 0; }
+uint64_t LdIterator(void*) { return 0; }
+
+// The record of §13 with an empty night deque: version 1, then 22 bytes.
+bool LotDevRecordShape(const std::vector<uint8_t>& r) {
+    if (r.size() != 24 || r[0] != 1 || r[1] != 0) return false;
+    uint32_t n = 1;
+    std::memcpy(&n, r.data() + 14, 4);
+    return n == 0;
+}
+
+int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = lotdev` registers cFC4LotDeveloper. No city:
+    // the QI table (§1.1), Release's 0 (§1.4), the record (§13), Init without
+    // services; then Init / Shutdown on a stub host (seam op 52) and the
+    // shadow's answers (inactive with ours).
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_LOTDEV_SEED", nullptr);
+    SetEnvironmentVariableA("FC4_LOTDEV_SHADOW", nullptr);
+    SetEnvironmentVariableA("FC4_LOTDEV_LOT_LOG", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = lotdev\nlotdev_seed = 0x2A\n[tools]\nlotdev_shadow = 1\n"
+                       "lotdev_lot_log = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    SetGamePrecision();
+    if (director != nullptr && seam != nullptr) {
+        FC4LotDevTestInput alloc{};
+        alloc.op = kFC4LotDevTestHooks;
+        alloc.allocate = &TractTestAllocate;
+        alloc.free = &TractTestFree;
+        CHECK(seam(kFC4SeamLotDev, &alloc, nullptr) == 0);  // the allocator only
+        CHECK(seam(kFC4SeamLotDev, nullptr, nullptr) == -1);
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        CHECK(classes.size() == 5);  // simulator (1) + budget (3) + lotdev (1)
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_LotDeveloper) == 1);
+
+        std::vector<uint8_t> record;
+        void* obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_LotDeveloper, kIID_cISC4LotDeveloper, &obj));
+        auto* ld = static_cast<cFC4ISC4LotDeveloper*>(obj);
+        if (ld != nullptr) {
+            // §1.1: the primary for 1 and its IID, the message target (+4)
+            // and the serializable (+8); nothing else, the out pointer untouched.
+            void* p = nullptr;
+            CHECK(ld->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(ld));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            p = nullptr;
+            CHECK(ld->QueryInterface(kIID_cISC4LotDeveloper, &p) && p == static_cast<void*>(ld));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            cIGZMessageTarget2* mt = nullptr;
+            CHECK(ld->QueryInterface(0x452294AA, reinterpret_cast<void**>(&mt)) && mt != nullptr &&
+                  static_cast<void*>(mt) == static_cast<void*>(reinterpret_cast<char*>(ld) + 4));
+            cIGZSerializable* ser = nullptr;
+            CHECK(ld->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser != nullptr &&
+                  static_cast<void*>(ser) == static_cast<void*>(reinterpret_cast<char*>(ld) + 8));
+            if (ser != nullptr) CHECK(ser->GetGZCLSID() == kCLSID_LotDeveloper);
+            p = reinterpret_cast<void*>(0x1234);
+            CHECK(!ld->QueryInterface(0x12345678, &p) && p == reinterpret_cast<void*>(0x1234));
+            // §1.4: Release answers 0, not the count.
+            CHECK(ld->AddRef() > 1);
+            CHECK(ld->Release() == 0);
+            // §11.1: slot 5, the stub of slot 23, the force-empty flag.
+            CHECK(ld->GetSimulatorType() == 0x6818E5C9);
+            CHECK(!ld->IsAreaDevelopedStub(SC4Rect<int32_t>(0, 0, 1, 1)));
+            CHECK(!ld->GetForceEmptyLotBaseTextures());
+            // The record before Init (§13), then Init without a city.
+            if (ser != nullptr) {
+                ResidentialSegOStream out;
+                CHECK(ser->Write(out));
+                record = out.bytes;
+                CHECK(LotDevRecordShape(record));
+            }
+            CHECK(!ld->Init());  // §1.3 step 3: no city services
+            // The stub host: Init registers the agent at 0, 4, 6, the nine
+            // messages in order and the animation tick (§1.3 steps 8-10).
+            static fc4_lotdev_host stub{};
+            stub.struct_size = sizeof(stub);
+            stub.acquire_services = &LdAcquire;
+            stub.release_services = &LdRelease;
+            stub.has_simulator = &LdHasSim;
+            stub.add_agent = &LdAddAgent;
+            stub.remove_agent = &LdRemoveAgent;
+            stub.acquire_message_server = &LdServer;
+            stub.release_message_server = &LdReleaseServer;
+            stub.subscribe = &LdSubscribe;
+            stub.unsubscribe = &LdUnsubscribe;
+            stub.register_animation_tick = &LdTick;
+            stub.unregister_animation_tick = &LdUntick;
+            stub.city_cell_counts = &LdCells;
+            stub.city_cell_widths = &LdWidths;
+            stub.terrain_cell_counts = &LdCells;
+            stub.terrain_cell_width = &LdCellWidth;
+            stub.lot_count = &LdLotCount;
+            stub.safe_lot_iterator = &LdIterator;
+            FC4LotDevTestInput hooks{};
+            hooks.op = kFC4LotDevTestHooks;
+            hooks.lotDeveloper = ld;
+            hooks.host = &stub;
+            hooks.allocate = &TractTestAllocate;
+            hooks.free = &TractTestFree;
+            CHECK(seam(kFC4SeamLotDev, &hooks, nullptr) == 1);
+            CHECK(ld->Init());
+            CHECK((g_lotdevStub.agents == std::vector<uint32_t>{0, 4, 6}));
+            CHECK((g_lotdevStub.subscribed == std::vector<uint32_t>{0x44778234, 0x99EF1142, 0x99EF1143, 0xE8BDA2E7,
+                                                                     0xE99B3D4D, 0x278E6003, 0x8A07AE00, 0x26D31EC4,
+                                                                     0x69247DC7}));
+            CHECK(g_lotdevStub.ticks == 1 && g_lotdevStub.servers == 1);
+            FC4LotDevTestState st{};
+            FC4LotDevTestInput sin{};
+            sin.op = kFC4LotDevTestState;
+            sin.lotDeveloper = ld;
+            CHECK(seam(kFC4SeamLotDev, &sin, &st) == 1);
+            CHECK(st.core.initialized == 1 && st.core.verts_x == 65);
+            CHECK(st.core.extent_x == 1024.0f && st.core.extent_z == 1024.0f);
+            CHECK(st.core.cell_count_x == 64 && st.core.cell_count_z == 64);
+            CHECK(st.held == 0 && st.iterators == 0);
+            CHECK(seam(kFC4SeamLotDev, &sin, nullptr) == -1);
+            CHECK(ld->Init());  // already initialised: true at once, nothing registered again
+            CHECK(g_lotdevStub.agents.size() == 3 && g_lotdevStub.subscribed.size() == 9);
+            if (mt != nullptr) {
+                ResidentialDayMessage other(0x12345678, kJulian20000201);
+                CHECK(mt->DoMessage(&other));
+            }
+            // The shadow: no city -> -1.
+            FC4LotDevTestInput sh{};
+            sh.op = kFC4LotDevTestShadow;
+            sh.julian = kJulian20000201;
+            CHECK(seam(kFC4SeamLotDev, &sh, nullptr) == -1);
+            if (ser != nullptr) ser->Release();
+            if (mt != nullptr) mt->Release();
+            CHECK(ld->Shutdown());
+            CHECK(g_lotdevStub.removeAgents == 1 && g_lotdevStub.unticks == 1 && g_lotdevStub.releasedServers == 1);
+            CHECK(g_lotdevStub.unsubscribed == g_lotdevStub.subscribed);
+            CHECK(ld->Release() == 0);
+        }
+        // Read runs before Init (§1.2): the record loads into a new object; a
+        // truncated one does not; another version does not.
+        for (int variant = 0; variant < 3; ++variant) {
+            obj = nullptr;
+            CHECK(director->GetClassObject(kCLSID_LotDeveloper, kIID_cISC4LotDeveloper, &obj));
+            auto* fresh = static_cast<cFC4ISC4LotDeveloper*>(obj);
+            if (fresh == nullptr) continue;
+            cIGZSerializable* s = nullptr;
+            CHECK(fresh->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&s)) && s != nullptr);
+            if (s != nullptr && !record.empty()) {
+                std::vector<uint8_t> bytes = record;
+                if (variant == 1) bytes.resize(bytes.size() - 2);
+                if (variant == 2) bytes[0] = 2;
+                ResidentialSegIStream in(bytes);
+                CHECK(s->Read(in) == (variant == 0));
+                if (variant == 0) {
+                    ResidentialSegOStream again;
+                    CHECK(s->Write(again));
+                    CHECK(again.bytes == record);
+                }
+                s->Release();
+            }
+            CHECK(fresh->Release() == 0);  // the final Release shuts a never-initialised one down
+        }
+        alloc.allocate = nullptr;
+        alloc.free = nullptr;
+        CHECK(seam(kFC4SeamLotDev, &alloc, nullptr) == 0);
+        CheckCw("lotdev");
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    const auto npos = std::string::npos;
+    CHECK(text.find("subsystem 'lotdev': enabled (1 class replaced) by FreeCity4.ini (enable=)") != npos);
+    CHECK(text.find(", session seed 0x0000002A (lotdev_seed), lotdev_lot_log on") != npos);
+    CHECK(CountOf(text, "cFC4LotDeveloper(") == 4);
+    CHECK(CountOf(text, "cFC4LotDeveloper destroyed") == 4);
+    CHECK(text.find("lotdev Write -> 1 (24 bytes)") != npos);
+    CHECK(text.find("lotdev: no city; services not acquired") != npos);
+    CHECK(text.find("lotdev Init FAILED: init=0 ") != npos);
+    CHECK(text.find("lotdev: test hooks installed") != npos);
+    CHECK(text.find("lotdev Init: init=1 daily=0 visited=0 vertsX=65 extent=1024.000,1024.000 cells=64,64") != npos);
+    CHECK(CountOf(text, "lotdev Read -> 1") == 1);
+    CHECK(CountOf(text, "lotdev Read -> 0") == 2);
+    CHECK(text.find("lotdev Shutdown: init=0") != npos);
+    CHECK(text.find("lotdev shadow: requested (lotdev_shadow from FreeCity4.ini) but INACTIVE") != npos);
+    CHECK(text.find("lotdev shadow: ON") == npos);
+    CHECK(text.find("structured exception") == npos);
+    CHECK(text.find("config: WARNING unknown key") == npos);
+    CHECK(text.find("WARNING: released last reference") == npos);
+    CHECK(text.find("WARNING: over-release") == npos);
+    CHECK(text.find("streams: WARNING") == npos);
+    if (g_failures == 0) std::printf("plugin lotdev enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+// The cmglue lane: commercial / industrial, civic, parks (plugin_cmglue_test.inc).
+#include "plugin_cmglue_test.inc"
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::fprintf(stderr, "usage: %s <FreeCity4.dll>\n", argv[0]);
@@ -10415,6 +10700,12 @@ int main(int argc, char** argv) {
     if (mode == "--ini-development-shadow") return DevelopmentShadowIniTest(dll, ini, log);
     // The tract developer (tract-developer.md): the replacement without a city (seam op 45).
     if (mode == "--ini-enable-tract") return TractEnableTest(dll, ini, log);
+    // The lot developer (lot-developer.md): the replacement without a city (seam op 52).
+    if (mode == "--ini-enable-lotdev") return LotDevEnableTest(dll, ini, log);
+    // The cmglue lane (plugin_cmglue_test.inc): commercial / industrial, civic, parks.
+    if (mode == "--ini-enable-commercial") return CommercialEnableTest(dll, ini, log);
+    if (mode == "--ini-enable-civic") return CivicEnableTest(dll, ini, log);
+    if (mode == "--ini-enable-parks") return ParksEnableTest(dll, ini, log);
     // Land value and flammability grid shadows on fake originals; both inactive with ours.
     if (mode == "--ini-landvalue-shadow") return LandValueShadowTest(dll, ini, log);
     if (mode == "--ini-flammability-shadow") return FlammabilityShadowTest(dll, ini, log);
@@ -10435,6 +10726,14 @@ int main(int argc, char** argv) {
         return DialogsChild(dll, ini, mode.substr(dialogsPrefix.size()));
     }
     if (mode == "--ini-dialogs") return DialogsIniTest(dll, ini, log);
+    // The history warehouse (history.md): the replacement through the test hooks (seam op 54).
+    if (mode == "--ini-enable-history") return HistoryEnableTest(dll, ini, log);
+    // The history shadow (FC4HistoryShadow.h, seam op 54 op 1).
+    if (mode == "--ini-history-shadow") return HistoryShadowIniTest(dll, ini, log);
+    // The 24-hour clock (clock24.md): the replacement through the test hooks (seam op 54).
+    if (mode == "--ini-enable-clock24") return Clock24EnableTest(dll, ini, log);
+    // The 24-hour clock shadow (FC4Clock24Shadow.h, seam op 54 op 2).
+    if (mode == "--ini-clock24-shadow") return Clock24ShadowIniTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).
@@ -10734,7 +11033,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 209): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 219): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -12647,11 +12946,11 @@ int main(int argc, char** argv) {
                     "residential EQ/HQ/LE=12.5000/34.2500/75\r\n") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 209 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 209 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 219 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 219 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 209): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 219): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);
