@@ -96,7 +96,9 @@ extern "C" {
  *      (fc4_tract_create_shadow, the fc4_tract_probe_* functions; taken as 40 on its lane,
  *      then 45 and 47; renumbered at merge);
  * 57 = the budget host's optional property_is_array (data-formats §5.2, EX39: the budget item
- *      arrays read a scalar as empty) (apply10b lane; the coordinator renumbers at merge). */
+ *      arrays read a scalar as empty); fc4_props_set_u32s/i32s/i64s/f32s/bools store an array
+ *      even for one value (the core's vector readers read a scalar as empty, EX39) (apply10b
+ *      lane; the coordinator renumbers at merge). */
 #define FC4_ABI_VERSION 57u
 
 /* Return codes of fc4_sim_load. */
@@ -834,7 +836,10 @@ typedef struct fc4_props fc4_props;
 
 fc4_props* fc4_props_create(void);
 void fc4_props_destroy(fc4_props* p);
-/* Set (replace) property `id`. `values` may be NULL when `count` is 0. */
+/* Set (replace) property `id` to an ARRAY of `count` values (one value
+ * included; ABI 57, data-formats §5.2 EX39: the core's vector readers read a
+ * scalar as empty, so a scalar is set with fc4_props_set_typed). `values` may
+ * be NULL when `count` is 0. */
 bool fc4_props_set_u32s(fc4_props* p, uint32_t id, const uint32_t* values, size_t count);
 bool fc4_props_set_i32s(fc4_props* p, uint32_t id, const int32_t* values, size_t count);
 bool fc4_props_set_i64s(fc4_props* p, uint32_t id, const int64_t* values, size_t count);

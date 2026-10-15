@@ -14,10 +14,31 @@
 #include "FC4CoreProps.h"
 
 #include "FC4Properties.h"
+#include "cIGZVariant.h"
 
 #include <vector>
 
 namespace fc4::props {
+
+namespace {
+
+// The converted values of one property, keeping its shape: a game scalar
+// stays a scalar (fc4_props_set_typed), because the core's vector readers
+// read a scalar as empty and its converting getters read its value
+// (data-formats §5.2, EX39); an array goes in as an array, one value included
+// (fc4_props_set_u32s and the like, ABI 57).
+template <class T, class SetArray>
+void SetShaped(fc4_props* p, const cISCPropertyHolder* holder, uint32_t id, uint16_t memType,
+               const std::vector<T>& v, SetArray setArray) {
+    const bool scalar = (TypeOf(holder, id) & cIGZVariant::TypeArray) == 0;
+    if (scalar && v.size() == 1) {
+        fc4_props_set_typed(p, id, memType, false, v.data(), 1);
+    } else {
+        setArray(p, id, v.empty() ? nullptr : v.data(), v.size());
+    }
+}
+
+}  // namespace
 
 fc4_props* ToCore(const cISCPropertyHolder* holder, const Spec* specs, size_t count) {
     if (holder == nullptr) return nullptr;
@@ -28,17 +49,17 @@ fc4_props* ToCore(const cISCPropertyHolder* holder, const Spec* specs, size_t co
         switch (specs[i].kind) {
             case Kind::U32: {
                 std::vector<uint32_t> v;
-                if (GetU32s(holder, id, v)) fc4_props_set_u32s(p, id, v.data(), v.size());
+                if (GetU32s(holder, id, v)) SetShaped(p, holder, id, cIGZVariant::Uint32, v, fc4_props_set_u32s);
                 break;
             }
             case Kind::I64: {
                 std::vector<int64_t> v;
-                if (GetI64s(holder, id, v)) fc4_props_set_i64s(p, id, v.data(), v.size());
+                if (GetI64s(holder, id, v)) SetShaped(p, holder, id, cIGZVariant::Sint64, v, fc4_props_set_i64s);
                 break;
             }
             case Kind::F32: {
                 std::vector<float> v;
-                if (GetF32s(holder, id, v)) fc4_props_set_f32s(p, id, v.data(), v.size());
+                if (GetF32s(holder, id, v)) SetShaped(p, holder, id, cIGZVariant::Float32, v, fc4_props_set_f32s);
                 break;
             }
         }

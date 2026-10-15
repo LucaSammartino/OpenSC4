@@ -15,33 +15,31 @@
 //! floats by value, floats to integers by truncation toward zero.
 //!
 //! The vector readers ([`u32s`], [`i64s`], [`f32s`]) convert **every element**
-//! and give a scalar's one value. The original's vector helpers (data-formats
-//! §5.2 "The vector helpers", EX33) convert nothing: they copy `GetCount()`
-//! elements of their own width from the raw data, so a Float32 `{2.75}` read
-//! as `u32` gives `{0x40300000}`, a narrower stored type is over-read and a
-//! scalar (count 0) gives an empty vector. *[choice]* (EX33, kept) Converting is
-//! not observable on shipped data: the only property read with another type,
-//! `0xEA0232A0` (Sint32 read as `vec<u32>`), has the same bits either way, and
-//! converting replaces the over-read with defined values.
+//! of an array and give a **scalar an empty vector**. The original's vector
+//! helpers (data-formats §5.2 "The vector helpers", EX33) convert nothing: they
+//! copy `GetCount()` elements of their own width from the raw data, so a
+//! Float32 `{2.75}` read as `u32` gives `{0x40300000}`, a narrower stored type
+//! is over-read and a scalar (count 0) gives an empty vector. *[choice]* (EX33,
+//! kept) Converting is not observable on shipped data: the only property read
+//! with another type, `0xEA0232A0` (Sint32 read as `vec<u32>`), has the same
+//! bits either way, and converting replaces the over-read with defined values.
 //!
 //! EX39 (data-formats §5.2 "Shipped scalars that only a vector helper reads"):
-//! the original's vector helpers read a scalar as an **empty** vector; 172
-//! shipped lot configurations store `0x88EDC796` (161 of them `0x88EDC795`, 10
-//! also `0x88EDC793`) as a Uint8 scalar 0 and two landfill tiles store the
-//! budget cost `0xEA54D286` as a Sint64 scalar. *[choice, a spec question]*
-//! These readers still give a scalar its one value, because a core holder
-//! cannot tell a scalar from a one-element array: the C ABI setters
-//! (`fc4_props_set_u32s` and the like, which the glue's `ToCore` uses after a
-//! converting read) store any single value as [`Variant::Scalar`], so reading
-//! a scalar as empty here would empty every one-element array that reaches the
-//! core that way. What EX39 changes is applied where the type is known: the
-//! budget item arrays read through the budget host's `property_is_array`
-//! (`budget::items`). A 2026-10-15 sweep of the shipped exemplars and cohorts
-//! found no property read by these vector readers stored as a scalar, so on
-//! shipped data no value differs; no core reader reads `0x88EDC793`,
-//! `0x88EDC795` or `0x88EDC796` yet. A reader added for them must treat a
-//! scalar as empty itself (it should ask for the variant type, as the budget
-//! items do).
+//! a scalar is read as **empty**, as the original's helpers do. 172 shipped lot
+//! configurations store `0x88EDC796` (161 of them `0x88EDC795` too, 10 also
+//! `0x88EDC793`) as a Uint8 scalar 0, and two landfill tiles store the budget
+//! cost `0xEA54D286` as a Sint64 scalar; the original reads each of them as an
+//! empty vector. Only the converting getters ([`u32_of`], [`i64_of`],
+//! [`f32_of`], [`bool_of`]) keep a scalar's value. A 2026-10-15 sweep of the
+//! shipped exemplars and cohorts found no other property that a core vector
+//! reader reads stored as a scalar, so the change moves no shipped value read
+//! here: no core reader reads `0x88EDC793`, `0x88EDC795` or `0x88EDC796`, and
+//! the budget items read through their own host (`budget::items`).
+//!
+//! A holder must therefore keep the game's shape: the glue copies variants
+//! exactly (`fc4_props_set_typed`), and the C ABI's slice setters
+//! (`fc4_props_set_u32s` and the like) store an array even for one value
+//! (ABI 57), so a one-element array is never mistaken for a scalar.
 
 use crate::property::PropertyHolder;
 use crate::stream::ResKey;
@@ -87,43 +85,58 @@ pub fn curve(h: &PropertyHolder, id: u32) -> Option<crate::curve::ResponseCurve>
     curve_of_variant(h.get(id)?)
 }
 
+/// The elements a vector helper reads (EX39): an array's elements, and none
+/// for a scalar (its count is 0); `None` for strings, objects and empty values.
+fn vector(v: &Variant) -> Option<Vec<Elem>> {
+    match v {
+        Variant::Scalar(_) => Some(Vec::new()),
+        other => numeric(other),
+    }
+}
+
+fn to_u32(e: &Elem) -> u32 {
+    e.as_i64() as u32
+}
+
+fn to_f32(e: &Elem) -> f32 {
+    match *e {
+        Elem::F32(x) => x,
+        other => other.as_f64() as f32,
+    }
+}
+
 /// All values of a property as `u32` (integers wrap to 32 bits, floats are
-/// truncated toward zero; every element converted, EX33 *[choice]*, see the
-/// module documentation).
+/// truncated toward zero; every element converted, EX33 *[choice]*); a scalar
+/// gives an empty vector (EX39, see the module documentation).
 pub fn u32s(h: &PropertyHolder, id: u32) -> Option<Vec<u32>> {
-    numeric(h.get(id)?).map(|v| v.iter().map(|e| e.as_i64() as u32).collect())
+    vector(h.get(id)?).map(|v| v.iter().map(to_u32).collect())
 }
 
-/// All values of a property as `i64` (floats truncated toward zero).
+/// All values of a property as `i64` (floats truncated toward zero); a scalar
+/// gives an empty vector (EX39).
 pub fn i64s(h: &PropertyHolder, id: u32) -> Option<Vec<i64>> {
-    numeric(h.get(id)?).map(|v| v.iter().map(Elem::as_i64).collect())
+    vector(h.get(id)?).map(|v| v.iter().map(Elem::as_i64).collect())
 }
 
-/// All values of a property as `f32`.
+/// All values of a property as `f32`; a scalar gives an empty vector (EX39).
 pub fn f32s(h: &PropertyHolder, id: u32) -> Option<Vec<f32>> {
-    numeric(h.get(id)?).map(|v| {
-        v.iter()
-            .map(|e| match *e {
-                Elem::F32(x) => x,
-                other => other.as_f64() as f32,
-            })
-            .collect()
-    })
+    vector(h.get(id)?).map(|v| v.iter().map(to_f32).collect())
 }
 
-/// The first value of a property as `u32`.
+/// The first value of a property as `u32` (a converting getter: a scalar
+/// gives its value, EX39).
 pub fn u32_of(h: &PropertyHolder, id: u32) -> Option<u32> {
-    u32s(h, id).and_then(|v| v.first().copied())
+    numeric(h.get(id)?).and_then(|v| v.first().map(to_u32))
 }
 
-/// The first value of a property as `i64`.
+/// The first value of a property as `i64` (a converting getter).
 pub fn i64_of(h: &PropertyHolder, id: u32) -> Option<i64> {
-    i64s(h, id).and_then(|v| v.first().copied())
+    numeric(h.get(id)?).and_then(|v| v.first().map(Elem::as_i64))
 }
 
-/// The first value of a property as `f32`.
+/// The first value of a property as `f32` (a converting getter).
 pub fn f32_of(h: &PropertyHolder, id: u32) -> Option<f32> {
-    f32s(h, id).and_then(|v| v.first().copied())
+    numeric(h.get(id)?).and_then(|v| v.first().map(to_f32))
 }
 
 /// A boolean property: any non-zero first value is true.
@@ -246,8 +259,8 @@ mod tests {
     #[test]
     fn vector_readers_convert_every_element() {
         // data-formats §5.2 (EX33): the original copies raw bits (a Float32
-        // {2.75} as `vec<u32>` gives {0x40300000}) and gives a scalar an empty
-        // vector; FreeCity4 converts each element [choice].
+        // {2.75} as `vec<u32>` gives {0x40300000}); FreeCity4 converts each
+        // element [choice].
         let mut h = PropertyHolder::new();
         h.add(1, Variant::array(mem::FLOAT32, vec![Elem::F32(2.75)]));
         h.add(2, Variant::array(mem::SINT32, vec![Elem::I32(-1), Elem::I32(5)]));
@@ -256,9 +269,34 @@ mod tests {
         // Sint32 read as u32 (as `0xEA0232A0` is): the same bits as a copy.
         assert_eq!(u32s(&h, 2), Some(vec![0xFFFF_FFFF, 5]));
         assert_eq!(f32s(&h, 2), Some(vec![-1.0, 5.0]));
-        // EX39 [choice]: a scalar keeps its one value here (the original's
-        // helpers give it an empty vector); see the module documentation for
-        // why, and budget::items for where EX39 is applied.
-        assert_eq!(u32s(&h, 3), Some(vec![7]));
+        // EX39: a scalar (count 0) is an empty vector, as the original's helpers give.
+        assert_eq!(u32s(&h, 3), Some(vec![]));
+    }
+
+    #[test]
+    fn ex39_vector_readers_give_a_scalar_no_values() {
+        // data-formats §5.2: 172 shipped lot configurations hold 0x88EDC796
+        // as a Uint8 scalar 0, two landfill tiles 0xEA54D286 as a Sint64
+        // scalar; the vector helpers read each as empty, the converting
+        // getters keep the value (the landfill tiles cost 1 and 10).
+        let mut h = PropertyHolder::new();
+        h.add(0x88ED_C796, Variant::Scalar(Elem::U8(0)));
+        h.add(0xEA54_D286, Variant::Scalar(Elem::I64(10)));
+        h.add(0x10, Variant::Scalar(Elem::U32(16)));
+        h.add(1, Variant::array(mem::UINT8, vec![Elem::U8(0)]));
+        assert_eq!(u32s(&h, 0x88ED_C796), Some(vec![]));
+        assert_eq!(i64s(&h, 0xEA54_D286), Some(vec![]));
+        assert_eq!(f32s(&h, 0xEA54_D286), Some(vec![]));
+        assert_eq!(u32_pairs(&h, 0xEA54_D286), vec![]);
+        assert_eq!(i64_of(&h, 0xEA54_D286), Some(10));
+        assert_eq!(f32_of(&h, 0xEA54_D286), Some(10.0));
+        assert_eq!(u32_of(&h, 0x88ED_C796), Some(0));
+        assert_eq!(bool_of(&h, 0xEA54_D286), Some(true));
+        assert!(has_exemplar_type(&h, 16));
+        // A one-element array is one value either way.
+        assert_eq!(u32s(&h, 1), Some(vec![0]));
+        assert_eq!(u32_of(&h, 1), Some(0));
+        // Absent stays absent.
+        assert_eq!(u32s(&h, 2), None);
     }
 }
