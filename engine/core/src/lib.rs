@@ -33,6 +33,7 @@ pub mod demand;
 pub mod demolition;
 pub mod development;
 pub mod development_simulator;
+pub mod disasters;
 pub mod dispatch;
 pub mod flammability;
 pub mod flora;

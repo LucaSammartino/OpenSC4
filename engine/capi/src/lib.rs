@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 60;
+pub const FC4_ABI_VERSION: u32 = 58;
 
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
@@ -781,6 +781,7 @@ pub mod crime;
 pub mod demand;
 pub mod demolition;
 pub mod development;
+pub mod disasters;
 pub mod dispatch;
 pub mod flammability;
 pub mod flammability_shadow;
@@ -811,6 +812,7 @@ pub mod residential;
 pub mod residential_shadow;
 pub mod stream;
 pub mod traffic;
+pub mod traffic_shadow;
 pub mod tract_developer;
 pub mod weather;
 pub mod zonedev;
@@ -850,6 +852,7 @@ mod demolition_tests;
 mod development_tests;
 
 #[cfg(test)]
+mod disasters_tests;
 mod dispatch_tests;
 
 #[cfg(test)]

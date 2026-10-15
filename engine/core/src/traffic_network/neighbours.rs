@@ -276,14 +276,12 @@ impl NetworkState {
     }
 
     /// The pool sweep's step 1 (§2.7.3, `0x007138B0`): the pool IDs of
-    /// records 0 … X−2 of each array. The caller releases every pool whose
-    /// ID is not in the set; a pool used only by the last cell of an edge is
-    /// therefore dropped while still in use *[quirk]*.
+    /// records 0 … X−2 of each array, 0 included (so a map pool under key 0,
+    /// TS42, lives while any swept record has pool 0). The caller releases
+    /// every pool whose ID is not in the set; a pool used only by the last
+    /// cell of an edge is therefore dropped while still in use *[quirk]*.
     pub fn pool_ids_in_use(&self) -> BTreeSet<u16> {
-        self.swept_records()
-            .map(|(_, _, r)| r.pool)
-            .filter(|&p| p != 0)
-            .collect()
+        self.swept_records().map(|(_, _, r)| r.pool).collect()
     }
 
     /// The records the edge pass visits (§2.7.4 step 6, `0x00714E60`): side

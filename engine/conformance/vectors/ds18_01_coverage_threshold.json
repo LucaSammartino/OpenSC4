@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "disaster_coverage_threshold",
+  "spec": ["disasters 5.2", "disasters 5.4", "disasters 18.1"],
+  "description": "With the shipped D9, an average fire coverage of 50 gives D9 = 0.5, rounded half to even to 0: Ignite succeeds. Coverage 51 gives 0.54, rounded to 1: Ignite fails. Coverage 0 gives 0: Ignite succeeds. A forced ignition skips the coverage test.",
+  "steps": [
+    {"op": "dis_flame_tuning", "tuning": "shipped",
+      "d9": [[0, 0.0], [50, 0.5], [51, 0.54]],
+      "resistance": [[0, 0], [50, 0], [51, 1]]},
+
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_occupant", "occupant": "0x10", "cell": [5, 5], "coverage": 50},
+    {"op": "dis_occupant", "occupant": "0x11", "cell": [6, 5], "coverage": 51},
+    {"op": "dis_occupant", "occupant": "0x12", "cell": [7, 5], "coverage": 0},
+    {"op": "dis_clear_events"},
+    {"op": "dis_call", "method": "ignite", "args": ["0x10", false, 0, false], "expect": true},
+    {"op": "dis_call", "method": "ignite", "args": ["0x11", false, 0, false], "expect": false},
+    {"op": "dis_call", "method": "ignite", "args": ["0x12", false, 0, false], "expect": true},
+    {"op": "dis_call", "method": "fire_count", "expect": 2},
+    {"op": "dis_expect_events", "filter": {"event": "create_fire"}, "events": [
+      {"event": "create_fire", "target": "0x10"},
+      {"event": "create_fire", "target": "0x12"}
+    ]},
+    {"op": "dis_call", "method": "ignite", "args": ["0x11", true, 7, false], "expect": true,
+      "note": "forced: no coverage test"},
+    {"op": "dis_call", "method": "fire_count", "expect": 3},
+    {"op": "dis_expect_fire", "index": 2, "state": {"target": "0x11", "counter": 30}}
+  ]
+}

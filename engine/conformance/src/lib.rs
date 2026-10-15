@@ -20,6 +20,7 @@ pub(crate) mod demand;
 pub(crate) mod demolition;
 pub(crate) mod development;
 pub(crate) mod development_simulator;
+pub(crate) mod disasters;
 pub(crate) mod dispatch;
 pub(crate) mod flammability;
 pub(crate) mod flora;

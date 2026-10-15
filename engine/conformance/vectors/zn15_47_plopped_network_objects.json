@@ -1,0 +1,418 @@
+{
+  "format": 1,
+  "name": "zn15_47_plopped_network_objects",
+  "spec": [
+    "zones 8.4.1",
+    "zones 8.4.3",
+    "zones 15 test 37"
+  ],
+  "description": "Test 37: a 1 x 1 configuration with one type-7 record (orientation 2, footprint (0, 0)-(16, 16), extra values [0, 0x00010001, 0]) on {20, 20, 20, 20} over a road piece with GetNetworkFlags 0x1. Facing 2 (q = 0): GetEdgeTypesFlag 0x00010001 -> 8, 0x01000100 -> 3, flags 0x9 or 0x200001 -> 3; facing 3 (q = 1, maskA 0x01000100): 0x01000100 -> 8, 0x00010001 -> 3. With extra values [0, 0x00010001, 1] the outward connection on edge 0 is checked: a road with flags 0x1 on (19, 20) -> 8, flags 0x400001 -> 3; on (21, 20) -> 8 (byte 2 of maskB is 0).",
+  "steps": [
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_cfg",
+      "id": 200,
+      "w": 1,
+      "h": 1,
+      "water": false,
+      "objects": [
+        {
+          "type": 7,
+          "orientation": 2,
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            16,
+            16
+          ],
+          "values": [
+            0,
+            "0x00010001",
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 0,
+          "cells": [
+            [
+              20,
+              20
+            ]
+          ],
+          "flags": 1,
+          "mask": "0x00010001"
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          20,
+          20,
+          20,
+          20
+        ],
+        2,
+        200
+      ],
+      "expect": 8
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 0,
+          "cells": [
+            [
+              20,
+              20
+            ]
+          ],
+          "flags": 1,
+          "mask": "0x01000100"
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          20,
+          20,
+          20,
+          20
+        ],
+        2,
+        200
+      ],
+      "expect": 3
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 0,
+          "cells": [
+            [
+              20,
+              20
+            ]
+          ],
+          "flags": 9,
+          "mask": "0x00010001"
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          20,
+          20,
+          20,
+          20
+        ],
+        2,
+        200
+      ],
+      "expect": 3
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 0,
+          "cells": [
+            [
+              20,
+              20
+            ]
+          ],
+          "flags": "0x200001",
+          "mask": "0x00010001"
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          20,
+          20,
+          20,
+          20
+        ],
+        2,
+        200
+      ],
+      "expect": 3
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 0,
+          "cells": [
+            [
+              20,
+              20
+            ]
+          ],
+          "flags": 1,
+          "mask": "0x01000100"
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          20,
+          20,
+          20,
+          20
+        ],
+        3,
+        200
+      ],
+      "expect": 8
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 0,
+          "cells": [
+            [
+              20,
+              20
+            ]
+          ],
+          "flags": 1,
+          "mask": "0x00010001"
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          20,
+          20,
+          20,
+          20
+        ],
+        3,
+        200
+      ],
+      "expect": 3
+    },
+    {
+      "op": "zone_cfg",
+      "id": 200,
+      "w": 1,
+      "h": 1,
+      "water": false,
+      "objects": [
+        {
+          "type": 7,
+          "orientation": 2,
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            16,
+            16
+          ],
+          "values": [
+            0,
+            "0x00010001",
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 0,
+          "cells": [
+            [
+              20,
+              20
+            ]
+          ],
+          "flags": 1,
+          "mask": "0x00010001"
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          20,
+          20,
+          20,
+          20
+        ],
+        2,
+        200
+      ],
+      "expect": 8
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 0,
+          "cells": [
+            [
+              20,
+              20
+            ]
+          ],
+          "flags": 1,
+          "mask": "0x00010001"
+        },
+        {
+          "kind": 0,
+          "cells": [
+            [
+              19,
+              20
+            ]
+          ],
+          "flags": 1
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          20,
+          20,
+          20,
+          20
+        ],
+        2,
+        200
+      ],
+      "expect": 8
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 0,
+          "cells": [
+            [
+              20,
+              20
+            ]
+          ],
+          "flags": 1,
+          "mask": "0x00010001"
+        },
+        {
+          "kind": 0,
+          "cells": [
+            [
+              19,
+              20
+            ]
+          ],
+          "flags": "0x400001"
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          20,
+          20,
+          20,
+          20
+        ],
+        2,
+        200
+      ],
+      "expect": 3
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 0,
+          "cells": [
+            [
+              20,
+              20
+            ]
+          ],
+          "flags": 1,
+          "mask": "0x00010001"
+        },
+        {
+          "kind": 0,
+          "cells": [
+            [
+              21,
+              20
+            ]
+          ],
+          "flags": "0x400001"
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          20,
+          20,
+          20,
+          20
+        ],
+        2,
+        200
+      ],
+      "expect": 8
+    }
+  ]
+}

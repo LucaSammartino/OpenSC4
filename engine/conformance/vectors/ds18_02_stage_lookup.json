@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "disaster_stage_lookup",
+  "spec": ["disasters 5.2", "disasters 5.3", "disasters 18.2"],
+  "description": "With the shipped D3 (30, 25, 20, 20, 25) the cumulative thresholds are 30, 55, 75, 95, 120: counter 0 is stage 0, 29 is 0, 30 is 1, 54 is 1, 55 is 2, 119 is 4, 120 is 5 and 500 is 5. Without the exemplar the defaults apply: D3 and D4 ten each (thresholds 10 to 50), D5 0, 3, 5, 7, 9, zoom 4 and no D9 curve.",
+  "steps": [
+    {"op": "dis_flame_tuning", "tuning": "shipped",
+      "state": {"d3cum": [30, 55, 75, 95, 120]},
+      "stages": [[0, 0], [29, 0], [30, 1], [54, 1], [55, 2], [119, 4], [120, 5], [500, 5]]},
+    {"op": "dis_flame_tuning", "tuning": null,
+      "state": {"d3": [10, 10, 10, 10, 10], "d3cum": [10, 20, 30, 40, 50], "d4": [10, 10, 10, 10, 10],
+        "d5": [0, 3, 5, 7, 9], "zoom": 4, "d9_empty": true},
+      "stages": [[9, 0], [10, 1], [49, 4], [50, 5]],
+      "resistance": [[0, 0], [255, 0]]},
+    {"op": "dis_flame_tuning", "tuning": {"props": {"0xA9B6ECD3": {"u32": [5, 5]}}},
+      "note": "a short D3 keeps the defaults for the missing stages (Q14)",
+      "state": {"d3": [5, 5, 10, 10, 10], "d3cum": [5, 10, 20, 30, 40]}},
+
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_occupant", "occupant": "0x10", "cell": [5, 5]},
+    {"op": "dis_call", "method": "ignite", "args": ["0x10", false, 0, false], "expect": true},
+    {"op": "dis_expect", "state": {"d3cum": [30, 55, 75, 95, 120], "zoom": 3}},
+    {"op": "dis_call", "method": "fire_update"},
+    {"op": "dis_seconds", "count": 28},
+    {"op": "dis_expect_fire", "state": {"counter": 29, "stage": 0}},
+    {"op": "dis_seconds", "count": 1},
+    {"op": "dis_expect_fire", "state": {"counter": 30, "stage": 1}},
+    {"op": "dis_seconds", "count": 24},
+    {"op": "dis_expect_fire", "state": {"counter": 54, "stage": 1}}
+  ]
+}
