@@ -279,6 +279,11 @@ void AddRefToken(void*, uint64_t t) { AddRefAny(FromToken(t)); }
 // developer loaded from a save is also held by the load's object table,
 // which an unsaved city frees after the occupants' other holders, so its
 // copy can hold their last references, as the original's does.
+// [spec question] DG28's lead (an extra AddRef after CreateInstance) does not
+// explain them here: our BDS takes no extra AddRef (CreateBuildingOccupant,
+// DG5), and without this workaround run a10a-after-dev (2026-10-15) still
+// gave the five warnings on class 0xA9BD882D, all from this release in the
+// destructor at shutdown. The workaround stays.
 void ReleaseToken(void* u, uint64_t t) {
     cIGZUnknown* o = FromToken(t);
     if (o != nullptr && G(u)->destroying && !fc4::IsOurObject(o)) {
@@ -372,7 +377,8 @@ float MaxCapacity(void* u, int32_t zone, uint32_t purpose, uint32_t wealth) {
 
 // §6.3: slot 39 GetBuildingProfile(type).purpose (inserts a zero profile for
 // an unknown type [compat]). [choice] The shadow reads slot 40 (no insert)
-// so it leaves the original's catalogue as it is.
+// so it leaves the original's catalogue as it is; DG25 (§4.7.2): the same
+// value, since a null read as purpose 0 equals the zero profile's.
 uint32_t BuildingPurpose(void* u, uint32_t type) {
     cFC4ISC4BuildingDevelopmentSimulator* b = Bds(u);
     if (b == nullptr) return 0;
@@ -581,7 +587,9 @@ LONGLONG QpcFrequency() {
 }
 
 // [choice] The state-18 deadline on the performance counter (the original
-// times the slice with the simulator's helper, §11 "slicing helper").
+// times the slice with the simulator's helper, §11 "slicing helper"). DG2
+// (growth-developer §5.2): the original reads the time-stamp counter; any
+// monotonic real-time clock behaves the same.
 void LimitTimerStart(void* u, uint32_t ms) {
     G(u)->deadline = QpcNow() + static_cast<LONGLONG>(ms) * QpcFrequency() / 1000;
 }
@@ -590,7 +598,9 @@ bool LimitTimerExpired(void* u) { return QpcNow() >= G(u)->deadline; }
 
 // §7: the clock a key seed of 0xFFFFFFFF falls back to. [choice] The
 // development session seed (development_seed when set, else the wall clock
-// once per process), so a seeded run stays reproducible.
+// once per process), so a seeded run stays reproducible. DG23: the original
+// derives it from time() and clock(), which cannot be matched; the choice
+// stands.
 uint32_t WallClockSeed(void*) { return fc4::DevelopmentSessionSeed(nullptr); }
 
 bool g_noteNoAllocator = false;
@@ -910,6 +920,9 @@ bool cFC4GrowthDeveloper::Shutdown() {
 
 // ---- primary slots (§10.1) ------------------------------------------------------------------------
 
+// Slot 5 GetType: the target zone (+0xD0: 1 R, 2 C, 3 I); slot 6 GetSubType:
+// the developer type (+0xCC), the key of the BDS developer map (docs/abi
+// cISC4GrowthDeveloper rows 5 and 6, re-answers9).
 int32_t cFC4GrowthDeveloper::GetType() {
     Call call(this);
     return call.ok() ? fc4_growth_target_zone(core_) : type_.load();
@@ -951,6 +964,8 @@ uint32_t BoolOf(bool v) { return v ? 1u : 0u; }
 // 4035 silenced); nothing with a destructor is alive at that point.
 #pragma warning(push)
 #pragma warning(disable : 4035)
+// DG26 (growth-developer §10.1): slots 10 and 28 answer in the full EAX, 0 or
+// 1 (slot 10 = state < 17 signed, slot 28 = state = 0).
 bool cFC4GrowthDeveloper::GrowthAndDeclineListsAreValid() {
     const uint32_t v = BoolOf([this] {
         Call call(this);
@@ -1054,7 +1069,9 @@ int16_t cFC4GrowthDeveloper::EstimateDesirability(int32_t cellX, int32_t cellZ) 
     return call.ok() ? static_cast<int16_t>(fc4_growth_estimate_desirability(core_, cellX, cellZ)) : 0;
 }
 
-// Slot 30: without the lock, the values of an index outside the vectors.
+// Slot 30: without the lock, the values of an index outside the vectors
+// (DG27, glue-only: -4 / 20 are what the original's slot 30 gives for an
+// index outside its vectors, growth-developer §10.1).
 void cFC4GrowthDeveloper::GetSubjectiveThresholds(int32_t index, int32_t& min, int32_t& max) {
     Call call(this);
     if (call.ok()) {
@@ -1071,7 +1088,7 @@ bool cFC4GrowthDeveloper::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
     FC4_X87_SCOPE("growth DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     Call call(this);
-    if (!call.ok()) return true;  // [choice] a message from another thread that cannot get the lock is dropped
+    if (!call.ok()) return true;  // [choice] (DG21, glue-only) a message from another thread without the lock is dropped
     fc4_growth_message m{};
     m.msg_type = pMessage->GetType();
     cIGZMessage2Standard* s = Query<cIGZMessage2Standard>(pMessage, GZIID_cIGZMessage2Standard);

@@ -4543,7 +4543,10 @@ void CheckDevelopmentNeutral(cFC4ISC4BuildingDevelopmentSimulator* b, uint32_t t
     CHECK(b->GetMaxCapacity(1, 1, 1) == 0.0f);
     CHECK(b->GetCostOfFoundationDemolition(nullptr, 0) == 0);
     float pos[3] = {0.0f, 0.0f, 0.0f};
-    CHECK(!b->AddNewFoundationOccupantAt(1, 0, pos, 0.0f, 0.0f, 0, 0.0f));  // 23: not specified, false
+    // 23 (§4.9.2, DG6): no foundation class without the game, so nothing is created: false.
+    CHECK(!b->AddNewFoundationOccupantAt(1, 0, pos, 0.0f, 0.0f, 0, 0.0f));
+    CHECK(pos[1] == 0.0f);
+    // 26 / 29: a null occupant [choice] and a type outside the (empty) key maps: false.
     CHECK(!b->LoadFoundationProperties(nullptr, 1) && !b->LoadLotRetainingWallProperties(nullptr, 1));
     CHECK(!b->CheatIgnorePlumbing() && !b->CheatIgnorePower() && !b->CheatIgnoreCaps() && !b->CheatDebugGrowth() &&
           !b->CheatCoffeeBar());
@@ -4813,7 +4816,11 @@ int DevelopmentEnableTest(const std::string& dll, const std::string& ini, const 
     CHECK(text.find("development Read -> 0") != std::string::npos);
     CHECK(text.find("development Shutdown: init=0") != std::string::npos);
     CHECK(CountOf(text, "cFC4BuildingDevelopmentSimulator destroyed") == 3);
-    CHECK(text.find("development: AddNewFoundationOccupant (slot 23") != std::string::npos);
+    // Slot 23 reached the core, which asked for a foundation occupant (none without the game); slots 26 / 29
+    // refused a null occupant. The month and state lines count the calls (calls/successes).
+    CHECK(text.find("development: WARNING could not create a foundation occupant (class 0x49C05C8F)") !=
+          std::string::npos);
+    CHECK(text.find("lotUpdates=0 foundations=1/0 foundationLoads=1/0 wallLoads=1/0") != std::string::npos);
     // The growth developers: one created and initialised (refused), two read.
     CHECK(text.find("development: growth statics ") != std::string::npos);
     CHECK(CountOf(text, "cFC4GrowthDeveloper(") == 8);  // created and destroyed (one for the shadow's bridge)
