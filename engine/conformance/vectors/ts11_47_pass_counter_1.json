@@ -1,0 +1,104 @@
+{
+  "format": 1,
+  "name": "ts11_47_pass_counter_1",
+  "spec": [
+    "traffic-simulator 3.3"
+  ],
+  "description": "§3.3 (TS35): entering 17 (ReRouteTrips) zeroes pass counter 1 and no other; entering 18 (FullTrips) zeroes the day index, processed and passTotal but not pass counter 1, which keeps state 17's re-route count through state 18. Counters [1, 7, 3, ..., 10]: 16 with no source finishes and enters 17: [1, 0, 3, ..., 10]. Counter 1 set to 7 again, passTotal 33, toSearch 40, processed 5, day index 2: 17 with no trip finishes and enters 18: counter 1 still 7, total 40, days 40 div 18 = 2, day index 0, processed 0, passTotal 0.",
+  "steps": [
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "cycle_state": 16,
+        "pass_counters": [
+          1,
+          7,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_daily_simulation",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "cycle_state": 17,
+        "pass_counters": [
+          1,
+          0,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ]
+      }
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "pass_counters": [
+          1,
+          7,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "pass_total": 33,
+        "to_search": 40,
+        "processed": 5,
+        "day_index": 2
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_daily_simulation",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "cycle_state": 18,
+        "pass_counters": [
+          1,
+          7,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "pass_total": 0,
+        "total": 40,
+        "days": 2,
+        "day_index": 0,
+        "processed": 0
+      }
+    }
+  ]
+}

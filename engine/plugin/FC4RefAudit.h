@@ -26,7 +26,9 @@
 //     an out-parameter with one reference, which is ours to free) or the
 //     release one the spec puts in our object's destruction
 //     (FC4_RELEASE_AT_DESTRUCTION: a reference the original also keeps until
-//     its destructor, so the free there is the original's too) AND the
+//     its destructor, so the free there is the original's too) or the
+//     release of a reference the spec keeps after the game let the object go
+//     (FC4_RELEASE_LAST_HOLDER: an incident lot that left the city) AND the
 //     audited sites acquired that reference (FC4_ACQUIRED / FC4_ADDREF) first;
 //   - "WARNING: over-release ..." when we released one object more often than
 //     the audited sites acquired it.
@@ -123,6 +125,19 @@ uint32_t AuditedReleaseAtDestruction(T* p, RefSite s) {
     return r;
 }
 
+// The Release of a reference the spec keeps until this point, of an object
+// the game has already let go of (an incident lot that left the city,
+// crime.md §6.8): when it is the last one, the original frees the object at
+// the same point.
+template <class T>
+uint32_t AuditedReleaseLastHolder(T* p, RefSite s) {
+    if (p == nullptr) return 0;
+    const RefTarget t = RefBefore(p);
+    const uint32_t r = p->Release();
+    RefNote(t, -1, static_cast<long>(r), "Release (the spec's last holder)", s, true, true);
+    return r;
+}
+
 template <class T>
 void AuditedAcquired(T* p, const char* how, RefSite s) {
     if (p == nullptr) return;
@@ -137,4 +152,5 @@ void AuditedAcquired(T* p, const char* how, RefSite s) {
 #define FC4_RELEASE(p) ::fc4::AuditedRelease((p), FC4_SITE)
 #define FC4_RELEASE_CREATED(p) ::fc4::AuditedReleaseCreated((p), FC4_SITE)
 #define FC4_RELEASE_AT_DESTRUCTION(p) ::fc4::AuditedReleaseAtDestruction((p), FC4_SITE)
+#define FC4_RELEASE_LAST_HOLDER(p) ::fc4::AuditedReleaseLastHolder((p), FC4_SITE)
 #define FC4_ACQUIRED(p, how) ::fc4::AuditedAcquired((p), (how), FC4_SITE)

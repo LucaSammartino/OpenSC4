@@ -157,11 +157,28 @@ fn put_stats(out: &mut dyn OutStream, s: &StatsSet) {
     out.put_u8(s.byte);
 }
 
-fn put_damage(out: &mut dyn OutStream, b: &DamageBlock) {
+/// The field labels of the two damage blocks (road, rail) for
+/// [`OutStream::mark`].
+pub const DAMAGE_LABELS: [[&str; 3]; 2] = [
+    [
+        "road damage: counts, rate",
+        "road damage: intact keys",
+        "road damage: damaged keys",
+    ],
+    [
+        "rail damage: counts, rate",
+        "rail damage: intact keys",
+        "rail damage: damaged keys",
+    ],
+];
+
+fn put_damage(out: &mut dyn OutStream, b: &DamageBlock, labels: [&'static str; 3]) {
+    out.mark(labels[0]);
     out.put_u32(b.cell_count);
     out.put_u32(b.damaged_count);
     out.put_f32(b.rate);
-    for set in [&b.intact, &b.damaged] {
+    for (set, label) in [(&b.intact, labels[1]), (&b.damaged, labels[2])] {
+        out.mark(label);
         let keys = set.iter_order();
         out.put_u32(keys.len() as u32);
         for k in keys {
@@ -219,10 +236,13 @@ fn write_record(
     pools: &Pools,
 ) {
     let obj = |t: u64| if t == 0 { RefValue::Null } else { h.object_ref(t) };
+    out.mark("version");
     out.put_u16(RECORD_VERSION);
+    out.mark("dimension counts");
     for v in [DIM_A, DIM_B, DIM_C, DIM_D] {
         out.put_i32(v);
     }
+    out.mark("published grids");
     for r in [
         grid_ref(&s.air),
         grid_ref(&s.peak_volume),
@@ -233,17 +253,23 @@ fn write_record(
     ] {
         out.put_ref(&r);
     }
+    out.mark("destination map: size");
     out.put_u32(s.dest_rows as u32);
     out.put_u32(s.dest_cols as u32);
+    out.mark("destination map");
     let bytes: Vec<u8> = s.dest.iter().map(|c| c.get()).collect();
     out.put_bytes(&bytes);
+    out.mark("volume grids");
     out.put_u32(s.volume.len() as u32);
     for g in &s.volume {
         out.put_ref(&grid_ref(g));
     }
+    out.mark("float grids");
     out.put_ref(&grid_ref(&s.float_grid));
     out.put_ref(&grid_ref(&s.peak_ratio));
+    out.mark("edge densities: count");
     out.put_u32(n.edge_density.len() as u32);
+    out.mark("edge densities");
     for (key, r) in n.edge_density.iter() {
         out.put_u32(key);
         for &v in &r.last {
@@ -254,15 +280,20 @@ fn write_record(
             out.put_u16(v);
         }
     }
+    out.mark("jobCapacity, attempted, routed");
     for k in 0..3 {
         out.put_u32(s.job_capacity[k]);
         out.put_u32(s.attempted[k]);
         out.put_u32(s.routed[k]);
     }
+    out.mark("switch grids");
     out.put_ref(&grid_ref(&n.switch_mode));
     out.put_ref(&grid_ref(&n.switch_id));
+    out.mark("switches: next ID");
     out.put_u32(n.next_switch_id);
+    out.mark("switches: count");
     out.put_u32(n.switches.len() as u32);
+    out.mark("switches");
     for (id, sw) in n.switches.iter() {
         out.put_u32(id);
         out.put_ref(&obj(sw.building));
@@ -287,33 +318,52 @@ fn write_record(
         out.put_u32(sw.simulator_value);
         out.put_bool(sw.counts_as_intersection);
     }
+    out.mark("departments");
     out.put_ref(&obj(s.roads.unwrap_or(0)));
     out.put_ref(&obj(s.mass_transit.unwrap_or(0)));
+    out.mark("budget total E");
     out.put_i64(s.budget_total);
+    out.mark("transitIncome");
     out.put_f32(s.transit_income);
+    out.mark("tollIncome");
     out.put_f32(s.toll_income);
+    out.mark("lastMonthlyIncome");
     out.put_f32(s.last_monthly_income);
+    out.mark("income accumulator");
     out.put_f64(s.income_acc.get());
+    out.mark("fee accumulator");
     out.put_f64(s.fee_acc);
+    out.mark("cycle start date");
     out.put_u32(s.cycle_start_date);
+    out.mark("strike state");
     out.put_u8(s.strike_state);
+    out.mark("strike months");
     out.put_i32(s.strike_months);
-    put_damage(out, &d.road);
-    put_damage(out, &d.rail);
+    put_damage(out, &d.road, DAMAGE_LABELS[0]);
+    put_damage(out, &d.rail, DAMAGE_LABELS[1]);
+    out.mark("cycle state");
     out.put_u8(s.cycle_state);
+    out.mark("scanning iterator");
     put_iterator(out, &s.scan, s.extras.scan_state_byte);
+    out.mark("intersection dirty flag, rect");
     out.put_bool(n.intersection_dirty);
     let r = n.intersection_rect;
     for v in [r.x1, r.z1, r.x2, r.z2] {
         out.put_i32(v);
     }
     let e = &s.extras;
+    out.mark("network-changed byte");
     out.put_bool(e.network_changed_byte);
+    out.mark("strategy bucket counter");
     out.put_u32(s.strategy_bucket_counter);
+    out.mark("strategy bucket");
     out.put_u32(s.strategy_bucket);
+    out.mark("phase positions");
     out.put_i16(e.phase_positions[0]);
     out.put_i16(e.phase_positions[1]);
+    out.mark("~lot iterator");
     out.put_bytes(&e.lot_iter);
+    out.mark("~re-route context");
     out.put_bool(e.context_bools[0]);
     out.put_bool(e.context_bools[1]);
     out.put_f32(e.context_f32);
@@ -328,29 +378,45 @@ fn write_record(
     for &v in &e.context_i32x4 {
         out.put_i32(v);
     }
+    out.mark("~context table");
     for row in &e.table {
         for &v in row {
             out.put_u32(v);
         }
     }
+    out.mark("~context flags");
     out.put_u8(e.context_flags[0]);
     out.put_u8(e.context_flags[1]);
+    out.mark("processed");
     out.put_i32(s.processed);
+    out.mark("~pacing i32");
     out.put_i32(e.pacing_i32);
+    out.mark("total");
     out.put_i32(s.total);
+    out.mark("days");
     out.put_u32(s.days);
+    out.mark("day index");
     out.put_u32(s.day_index);
+    out.mark("~pacing u32 pair");
     out.put_u32(e.pacing_u32[0]);
     out.put_u32(e.pacing_u32[1]);
+    out.mark("passTotal");
     out.put_i32(s.pass_total);
+    out.mark("toReRoute");
     out.put_i32(s.to_reroute);
+    out.mark("toSearch");
     out.put_i32(s.to_search);
+    out.mark("pass counters");
     for &c in &s.pass_counters {
         out.put_u32(c);
     }
+    out.mark("statistics (published)");
     put_stats(out, &s.stats_last);
+    out.mark("statistics (working)");
     put_stats(out, &s.stats_work);
+    out.mark("tunnels: count");
     out.put_u32(n.tunnels.len() as u32);
+    out.mark("tunnels");
     for (key, t) in n.tunnels.iter() {
         out.put_u16(key as u16);
         out.put_u8(t.other.0 as u8);
@@ -361,30 +427,44 @@ fn write_record(
             out.put_f32(c);
         }
     }
+    out.mark("avgCarCommute");
     out.put_f32(s.avg_car_commute);
+    out.mark("car length sum, count");
     out.put_f32(s.car_len_sum);
     out.put_u32(s.car_len_count);
+    out.mark("freight length sum, count");
     out.put_f32(s.freight_len_sum);
     out.put_u32(s.freight_count);
+    out.mark("cells per network type");
     for &c in &s.cells_per_type {
         out.put_u32(c);
     }
+    out.mark("freeDest");
     out.put_u32(4);
     for k in 0..4 {
         out.put_u32(s.free(k));
     }
     // The neighbour pools, by ascending ID (traffic-network.md §2.7.3).
+    out.mark("pools: count");
     out.put_u32(pools.map.len() as u32);
+    out.mark("pools");
     for (id, holder) in &pools.map {
         out.put_u16(*id);
         holder.write(out);
     }
+    out.mark("travel type counts");
+    let swap = s.shadow_hypotheses & super::state::HYP_TYPE_COUNTS_SWAP != 0;
     for i in 0..9 {
-        out.put_u32(s.type_count_building[i]);
-        out.put_u32(s.type_count_published[i]);
+        let (a, b) = (s.type_count_building[i], s.type_count_published[i]);
+        let (a, b) = if swap { (b, a) } else { (a, b) };
+        out.put_u32(a);
+        out.put_u32(b);
     }
+    out.mark("ferry total");
     out.put_u32(s.ferry_total);
+    out.mark("ferry terminals: count");
     out.put_u32(n.ferries.len() as u32);
+    out.mark("ferry terminals");
     for t in &n.ferries {
         put_terminal(out, t);
     }
@@ -931,7 +1011,10 @@ impl Parse<'_> {
         for (k, f) in free.iter().enumerate() {
             self.s.set_free(k, *f);
         }
-        // The neighbour pools; a repeated ID keeps the last *[choice]*.
+        // The neighbour pools. A repeated ID keeps the last entry (TS41:
+        // stored through the map's find-or-insert, `0x00714560` called at
+        // `0x00722FA2`; the original never releases the earlier holder,
+        // which nothing can reach).
         let n = inp.get_u32()?;
         let mut map = BTreeMap::new();
         for _ in 0..n {
@@ -947,6 +1030,8 @@ impl Parse<'_> {
             for i in 0..self.d {
                 let a = inp.get_u32()?;
                 let b = inp.get_u32()?;
+                let swap = self.s.shadow_hypotheses & super::state::HYP_TYPE_COUNTS_SWAP != 0;
+                let (a, b) = if swap { (b, a) } else { (a, b) };
                 if i < 9 {
                     self.s.type_count_building[i] = a;
                     self.s.type_count_published[i] = b;
@@ -968,6 +1053,71 @@ impl Parse<'_> {
 /// `× 0.01f` of the v < 23 records.
 fn pct(v: f32) -> f32 {
     crate::x87::r24(f64::from(v) * f64::from(0.01f32)) as f32
+}
+
+/// A record parsed as `Read` parses it, without committing it anywhere
+/// (tooling: the traffic shadow reads the original's records with it). The
+/// state starts as a copy of `base`: the fields the record does not hold
+/// keep `base`'s values.
+#[allow(dead_code)] // the shadow reads `state`; the rest is for diagnostics
+pub struct ParsedRecord {
+    pub version: u16,
+    pub state: State,
+    /// The edge-density records (row 7), in the record's order.
+    pub edge_density: StlHashMap<TrafficEdgeDensity>,
+    /// The switch count (row 10) and the next switch ID.
+    pub switches: usize,
+    pub next_switch_id: u32,
+    pub damage: DamageState,
+    /// The neighbour pools (row 19).
+    pub pools: usize,
+    pub ferries: usize,
+    pub tunnels: usize,
+}
+
+/// Parses a record with `h` resolving its references (see
+/// [`ParsedRecord`]); `None` when `Read` would fail.
+pub fn parse_record(h: &dyn TrafficSimHost, base: &State, inp: &mut dyn InStream) -> Option<ParsedRecord> {
+    let v = inp.get_u16()?;
+    if v < MIN_RECORD_VERSION {
+        return None;
+    }
+    let mut p = Parse {
+        h,
+        v,
+        a: 13,
+        b: 1,
+        c: 13,
+        d: 9,
+        s: base.clone(),
+        n: NetPart {
+            switch_mode: None,
+            switch_id: None,
+            next_switch_id: 1,
+            switches: StlHashMap::new(),
+            edge: StlHashMap::new(),
+            tunnels: StlHashMap::new(),
+            ferries: Vec::new(),
+            intersection_dirty: false,
+            intersection_rect: CellRect::new(0, 0, 0, 0),
+        },
+        dmg: DamageState::default(),
+        pools: BTreeMap::new(),
+    };
+    if p.record(inp).is_none() || inp.error() != 0 {
+        return None;
+    }
+    Some(ParsedRecord {
+        version: v,
+        switches: p.n.switches.len(),
+        next_switch_id: p.n.next_switch_id,
+        edge_density: p.n.edge,
+        state: p.s,
+        damage: p.dmg,
+        pools: p.pools.len(),
+        ferries: p.n.ferries.len(),
+        tunnels: p.n.tunnels.len(),
+    })
 }
 
 impl Run<'_, '_> {

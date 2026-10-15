@@ -5,7 +5,7 @@
     "traffic-simulator 4.3",
     "pathfinder 4.15"
   ],
-  "description": "§4.3 (TS14). The route reader's records [x, z, t, t', entry, exit, next-is-0x80-jump] of test 10's route 01 02 03 41 02 0A, and of a route with jumps: a jump to an x-neighbour (6,5)->(7,5) has no exit and clears the cell's entry, and the entry carried to (7,5) is that cleared one [question]; a same-cell type change and a jump with dz = -1 give +z; equal magnitudes (-2, -2) zero dx and give -z; (-3, 1) gives -x. The worked example: ConfirmRoute is true when (2,3)'s conn[1] has bit 2, 6, 10 or 14 and (3,3)'s has bit 2 + 4*0; (4,3) is not looked at. A conn bit for another entry fails; the tunnel bit passes; the ferry bit passes with no strike only; a route keeping one type confirms during a strike. The walk-to-bus change at (3,3) (t = 0, t' = 2): during a strike false, otherwise nibble 2 of (3,3)'s switch[0] must be 2. A type change at the first cell needs only the switch nibble, with no strike test. An empty route is false.",
+  "description": "§4.3 (TS14). The route reader's records [x, z, t, t', entry, exit, next-is-0x80-jump] of test 10's route 01 02 03 41 02 0A, and of a route with jumps: a jump to an x-neighbour (6,5)->(7,5) has no exit and blanks (6,5)'s entry in its own record, and (7,5) carries the entry (6,5) had on arrival, -x (TS36, 0x006D666F); a same-cell type change and a jump with dz = -1 give +z; equal magnitudes (-2, -2) zero dx and give -z; (-3, 1) gives -x. The worked example: ConfirmRoute is true when (2,3)'s conn[1] has bit 2, 6, 10 or 14 and (3,3)'s has bit 2 + 4*0; (4,3) is not looked at. A conn bit for another entry fails; the tunnel bit passes; the ferry bit passes with no strike only; a route keeping one type confirms during a strike. The walk-to-bus change at (3,3) (t = 0, t' = 2): during a strike false, otherwise nibble 2 of (3,3)'s switch[0] must be 2. A type change at the first cell needs only the switch nibble, with no strike test. An empty route is false. TS36 in ConfirmRoute: 01 04 03 41 01 02 01 06 03 41 01 02 steps +x into (5,3), jumps to (6,3) and steps +x: (5,3) is skipped (no exit), (6,3) has entry -x (carried) and exit +x, so it needs bit 2 + 4*0 of its conn[1] (with the entry none of the old reading it could pass only on a wormhole bit).",
   "steps": [
     {
       "op": "ts_env",
@@ -120,7 +120,7 @@
           5,
           1,
           1,
-          null,
+          0,
           3,
           false
         ],
@@ -509,6 +509,104 @@
         "000203420102"
       ],
       "expect": false
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "strike_state": 0
+      }
+    },
+    {
+      "op": "ts_eval",
+      "fn": "read_route",
+      "args": [
+        "010403410102010603410102"
+      ],
+      "expect": [
+        [
+          4,
+          3,
+          1,
+          1,
+          null,
+          2,
+          false
+        ],
+        [
+          5,
+          3,
+          1,
+          1,
+          null,
+          null,
+          false
+        ],
+        [
+          6,
+          3,
+          1,
+          1,
+          0,
+          2,
+          false
+        ],
+        [
+          7,
+          3,
+          1,
+          1,
+          0,
+          null,
+          false
+        ]
+      ],
+      "note": "TS36: the spec example; (6,3) carries -x"
+    },
+    {
+      "op": "ts_net",
+      "conn": [
+        [
+          4,
+          3,
+          1,
+          4
+        ],
+        [
+          6,
+          3,
+          1,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "010403410102010603410102"
+      ],
+      "expect": false,
+      "note": "TS36: (6,3) needs bit 2 (entry -x, exit +x)"
+    },
+    {
+      "op": "ts_net",
+      "conn": [
+        [
+          6,
+          3,
+          1,
+          4
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "confirm_route",
+      "args": [
+        "010403410102010603410102"
+      ],
+      "expect": true,
+      "note": "TS36: (6,3) bit 2; (5,3) is not tested"
     }
   ]
 }

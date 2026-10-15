@@ -19,6 +19,7 @@ pub(crate) mod crime;
 pub(crate) mod demand;
 pub(crate) mod development;
 pub(crate) mod development_simulator;
+pub(crate) mod disasters;
 pub(crate) mod flammability;
 pub(crate) mod flora;
 pub mod foundations;

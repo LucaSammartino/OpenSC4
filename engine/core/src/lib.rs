@@ -32,6 +32,7 @@ pub mod curve;
 pub mod demand;
 pub mod development;
 pub mod development_simulator;
+pub mod disasters;
 pub mod flammability;
 pub mod flora;
 pub mod grid;

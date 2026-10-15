@@ -1,0 +1,345 @@
+{
+  "format": 1,
+  "name": "zn15_50_join_dead_end_stubs",
+  "spec": [
+    "zones 5.2",
+    "zones 5.2.1",
+    "zones 15 test 42"
+  ],
+  "description": "Test 42: InsertOccupant of a new road piece (type 0) on (20, 20) with data4 = 1 runs JoinDeadEndStubs. A street on (19, 20) whose only connection is edge 0 (pointing away) is joined with the road tool's PlaceNetworkOccupants(20, 20, 19, 20, 0, null, 1, -1). No call when the street also connects on edge 2, connects only on edge 2, is also a one-way (IsOfType(10)), or when the new piece has flag 0x400000.",
+  "steps": [
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 3,
+          "cells": [
+            [
+              19,
+              20
+            ]
+          ],
+          "edges": [
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "op": "zone_occupant",
+      "token": 500,
+      "type": "0xC772BF98",
+      "pos": [
+        328,
+        0,
+        328
+      ],
+      "net_flags": 1,
+      "net_types": [
+        0
+      ]
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_message",
+      "target": "developer",
+      "id": "0x99EF1142",
+      "occupant": 500,
+      "data3": "0xC772BF98",
+      "data4": 1,
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "network_tool_join"
+      },
+      "events": [
+        {
+          "event": "network_tool_join",
+          "tool": 0,
+          "x1": 20,
+          "z1": 20,
+          "x2": 19,
+          "z2": 20
+        }
+      ]
+    },
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 3,
+          "cells": [
+            [
+              19,
+              20
+            ]
+          ],
+          "edges": [
+            0,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "op": "zone_occupant",
+      "token": 501,
+      "type": "0xC772BF98",
+      "pos": [
+        328,
+        0,
+        328
+      ],
+      "net_flags": 1,
+      "net_types": [
+        0
+      ]
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_message",
+      "target": "developer",
+      "id": "0x99EF1142",
+      "occupant": 501,
+      "data3": "0xC772BF98",
+      "data4": 1,
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "network_tool_join"
+      },
+      "events": []
+    },
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 3,
+          "cells": [
+            [
+              19,
+              20
+            ]
+          ],
+          "edges": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "op": "zone_occupant",
+      "token": 502,
+      "type": "0xC772BF98",
+      "pos": [
+        328,
+        0,
+        328
+      ],
+      "net_flags": 1,
+      "net_types": [
+        0
+      ]
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_message",
+      "target": "developer",
+      "id": "0x99EF1142",
+      "occupant": 502,
+      "data3": "0xC772BF98",
+      "data4": 1,
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "network_tool_join"
+      },
+      "events": []
+    },
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 3,
+          "cells": [
+            [
+              19,
+              20
+            ]
+          ],
+          "edges": [
+            0
+          ],
+          "types": [
+            10
+          ]
+        }
+      ]
+    },
+    {
+      "op": "zone_occupant",
+      "token": 503,
+      "type": "0xC772BF98",
+      "pos": [
+        328,
+        0,
+        328
+      ],
+      "net_flags": 1,
+      "net_types": [
+        0
+      ]
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_message",
+      "target": "developer",
+      "id": "0x99EF1142",
+      "occupant": 503,
+      "data3": "0xC772BF98",
+      "data4": 1,
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "network_tool_join"
+      },
+      "events": []
+    },
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 3,
+          "cells": [
+            [
+              19,
+              20
+            ]
+          ],
+          "edges": [
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "op": "zone_occupant",
+      "token": 504,
+      "type": "0xC772BF98",
+      "pos": [
+        328,
+        0,
+        328
+      ],
+      "net_flags": "0x400001",
+      "net_types": [
+        0
+      ]
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_message",
+      "target": "developer",
+      "id": "0x99EF1142",
+      "occupant": 504,
+      "data3": "0xC772BF98",
+      "data4": 1,
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "network_tool_join"
+      },
+      "events": []
+    }
+  ]
+}

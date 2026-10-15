@@ -1,0 +1,534 @@
+{
+  "format": 1,
+  "name": "zn15_46_can_create_plopped_lot_cells",
+  "spec": [
+    "zones 8.4.1",
+    "zones 15 test 36"
+  ],
+  "description": "Test 36: CanCreatePloppedLot cell codes for a 2 x 2 configuration, not water-compatible, GetMaxSlope 10, no objects, on rect {10, 10, 11, 11} facing 0. Lots are not consulted; zone 15 -> 3, zones 10..14 -> 7, other zones -> 8; a network piece -> 3; water -> 1 and the minimum code wins; outside the city or the restriction region -> 0; GetAreaSlope above GetMaxSlope -> 4 (strict; a NaN limit passes); an empty rect -> 8. A water-compatible configuration passes water and GetAreaSlope is asked withWater true.",
+  "steps": [
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_cfg",
+      "id": 100,
+      "w": 2,
+      "h": 2,
+      "water": false,
+      "max_slope": 10
+    },
+    {
+      "op": "zone_cfg",
+      "id": 101,
+      "w": 2,
+      "h": 2,
+      "water": false,
+      "max_slope": "nan"
+    },
+    {
+      "op": "zone_cfg",
+      "id": 102,
+      "w": 2,
+      "h": 2,
+      "water": true,
+      "max_slope": 10
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          10,
+          10,
+          11,
+          11
+        ],
+        0,
+        100
+      ],
+      "expect": 8
+    },
+    {
+      "op": "zone_lot",
+      "rect": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "facing": 0
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          10,
+          10,
+          11,
+          11
+        ],
+        0,
+        100
+      ],
+      "expect": 8
+    },
+    {
+      "op": "zone_zones",
+      "cells": [
+        [
+          11,
+          11,
+          15
+        ]
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          10,
+          10,
+          11,
+          11
+        ],
+        0,
+        100
+      ],
+      "expect": 3
+    },
+    {
+      "op": "zone_zones",
+      "cells": [
+        [
+          11,
+          11,
+          12
+        ]
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          10,
+          10,
+          11,
+          11
+        ],
+        0,
+        100
+      ],
+      "expect": 7
+    },
+    {
+      "op": "zone_zones",
+      "cells": [
+        [
+          11,
+          11,
+          9
+        ]
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          10,
+          10,
+          11,
+          11
+        ],
+        0,
+        100
+      ],
+      "expect": 8
+    },
+    {
+      "op": "zone_zones",
+      "cells": [
+        [
+          11,
+          11,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 0,
+          "cells": [
+            [
+              10,
+              11
+            ]
+          ],
+          "flags": 1
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          10,
+          10,
+          11,
+          11
+        ],
+        0,
+        100
+      ],
+      "expect": 3
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 0,
+          "cells": [
+            [
+              10,
+              11
+            ]
+          ],
+          "flags": "0x200001"
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          10,
+          10,
+          11,
+          11
+        ],
+        0,
+        100
+      ],
+      "expect": 3
+    },
+    {
+      "op": "zone_network",
+      "runs": []
+    },
+    {
+      "op": "zone_water",
+      "cells": [
+        [
+          10,
+          10
+        ]
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          10,
+          10,
+          11,
+          11
+        ],
+        0,
+        100
+      ],
+      "expect": 1
+    },
+    {
+      "op": "zone_zones",
+      "cells": [
+        [
+          11,
+          11,
+          15
+        ]
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          10,
+          10,
+          11,
+          11
+        ],
+        0,
+        100
+      ],
+      "expect": 1
+    },
+    {
+      "op": "zone_zones",
+      "cells": [
+        [
+          11,
+          11,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "zone_water",
+      "clear": true
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          63,
+          10,
+          64,
+          11
+        ],
+        0,
+        100
+      ],
+      "expect": 0
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          10,
+          10,
+          11,
+          11
+        ],
+        0,
+        100,
+        {
+          "rect": [
+            10,
+            10,
+            11,
+            11
+          ],
+          "cells": [
+            [
+              11,
+              10
+            ],
+            [
+              10,
+              11
+            ],
+            [
+              11,
+              11
+            ]
+          ]
+        }
+      ],
+      "expect": 0
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          10,
+          10,
+          11,
+          11
+        ],
+        0,
+        100,
+        {
+          "rect": [
+            10,
+            10,
+            11,
+            11
+          ]
+        }
+      ],
+      "expect": 8
+    },
+    {
+      "op": "zone_env",
+      "area_slope": 10.5
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          10,
+          10,
+          11,
+          11
+        ],
+        0,
+        100
+      ],
+      "expect": 4
+    },
+    {
+      "op": "zone_env",
+      "area_slope": 10
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          10,
+          10,
+          11,
+          11
+        ],
+        0,
+        100
+      ],
+      "expect": 8
+    },
+    {
+      "op": "zone_env",
+      "area_slope": 10.5
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          10,
+          10,
+          11,
+          11
+        ],
+        0,
+        101
+      ],
+      "expect": 8
+    },
+    {
+      "op": "zone_env",
+      "area_slope": 0
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          11,
+          10,
+          10,
+          11
+        ],
+        0,
+        100
+      ],
+      "expect": 8
+    },
+    {
+      "op": "zone_water",
+      "cells": [
+        [
+          10,
+          10
+        ]
+      ]
+    },
+    {
+      "op": "zone_env",
+      "trace_calls": true
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          10,
+          10,
+          11,
+          11
+        ],
+        0,
+        102
+      ],
+      "expect": 8
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "area_slope"
+      },
+      "events": [
+        {
+          "event": "area_slope",
+          "rect": [
+            10,
+            10,
+            11,
+            11
+          ],
+          "with_water": true
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          10,
+          10,
+          11,
+          11
+        ],
+        0,
+        100
+      ],
+      "expect": 1
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "area_slope"
+      },
+      "events": [
+        {
+          "event": "area_slope",
+          "rect": [
+            10,
+            10,
+            11,
+            11
+          ],
+          "with_water": false
+        }
+      ]
+    }
+  ]
+}

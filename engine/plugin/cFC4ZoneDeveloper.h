@@ -192,10 +192,18 @@ struct ZoneDevContext {
     std::vector<cIGZUnknown*> held;
     std::vector<cIGZUnknown*> heldConfigs;  // the configurations' references (not audited one by one)
     std::vector<std::shared_ptr<SC4List<cISC4Occupant*>>> heldLists;
-    // References handed on to a caller (slots 7-10): AddRef'd for the caller.
+    // References handed on to a caller (slots 7-10, 22, 23): AddRef'd for the caller.
     bool forCaller = false;
+    // The lot new_lot just built (reference count 0) until the core has
+    // AddRef'd it twice (§8.5 step 2; AddRefToken), and those AddRefs so far.
+    void* freshLot = nullptr;
+    uint32_t freshAdds = 0;
     // Observability (the status lines): since construction.
-    uint32_t newLotRefusals = 0;  // new_lot calls (no lot constructor yet, Stage A)
+    uint32_t newLotRefusals = 0;  // new_lot calls that built no lot (switch off, executable not identified)
+    uint32_t lotsBuilt = 0;       // lots built from the game's lot pool (§8.5.1)
+    uint32_t joins = 0;           // street joins (§5.2.1, §5.2.2)
+    uint32_t dezoneCalls = 0;     // UpdateZoneType's PlaceZone dezones (§7.2.2)
+    uint32_t zoneUpdates = 0;     // lot UpdateZoneType calls
     uint32_t posts = 0;           // DeferOccupantOperations messages posted
     uint32_t streetsPlaced = 0;   // street Place calls
     uint32_t demolitions = 0;     // DemolishRegion calls
@@ -369,8 +377,9 @@ enum : uint32_t { kFC4ZoneDevTestHooks = 1, kFC4ZoneDevTestShadow = 2, kFC4ZoneD
 struct FC4ZoneDevTestState {
     uint32_t masterSize;     // nodes in the raw master list
     uint32_t iterators;      // registered safe lot iterators
-    uint32_t newLotRefusals;  // new_lot calls (Stage A: no lot built)
+    uint32_t newLotRefusals;  // new_lot calls that built no lot
     uint32_t heldConfigs;    // configuration references not given back yet (0 between calls)
+    uint32_t lotsBuilt;      // lots built from the game's lot pool
 };
 // Op 53's body: kFC4ZoneDevTestHooks returns 1 (installed), 0 (allocators
 // only) or -1 (not a FreeCity4 zone developer); kFC4ZoneDevTestShadow returns

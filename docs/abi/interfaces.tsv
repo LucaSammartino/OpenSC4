@@ -550,7 +550,7 @@ cISC4Lot	cSC4Lot	00ab19b0	57	+0xE4	006c0550	cSC4Lot::ResetTravelPopulation	0	0	e
 cISC4Lot	cSC4Lot	00ab19b0	58	+0xE8	006c0ba0	cSC4Lot::AddTravelPopulation	4	1	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	59	+0xEC	0081f910	icf::cRZNetSocket::GetAsyncNotificationTarget	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	60	+0xF0	006bf660	cSC4Lot::SetTravelDesignate	4	1	eax-or-void	medium	
-cISC4Lot	cSC4Lot	00ab19b0	61	+0xF4	006c0cf0	cSC4Lot::GetOccupancy	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	61	+0xF4	006c0cf0	cSC4Lot::GetOccupancy	4	1	eax-or-void	high	CORRECTS: void GetOccupancy(float& out); writes through the pointer, EAX = the pointer (0x006C0E7D / 0x006C0E92); lot-developer 11.4 (LD20); re-answers12
 cISC4Lot	cSC4Lot	00ab19b0	62	+0xF8	006c10f0	cSC4Lot::GetOccupancyByType	4	1	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	63	+0xFC	006bf350	cSC4Lot::GetTravelJobs	4	1	x87	high	
 cISC4Lot	cSC4Lot	00ab19b0	64	+0x100	006bf800	cSC4Lot::GetJobs	4	1	eax-or-void	medium	
@@ -1507,7 +1507,7 @@ cISC4City	cSC4City	00a87620	91	+0x16C	0045a390	cSC4City::CellWidthX	0	0	x87	high
 cISC4City	cSC4City	00a87620	92	+0x170	0045a3a0	cSC4City::CellWidthZ	0	0	x87	high	
 cISC4City	cSC4City	00a87620	93	+0x174	007c1910	icf::cSC43DRender::GetLightingManager	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	94	+0x178	004e82a0	icf::cSC43DRender::GetDrawContext	0	0	eax-or-void	medium	
-cISC4City	cSC4City	00a87620	95	+0x17C	004599e0	cSC4City::PositionToCell	16	4	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	95	+0x17C	004599e0	cSC4City::PositionToCell	16	4	eax-or-void	high	CORRECTS ret: void (floor(v / cellWidth) into the two out-pointers); EAX = fnstsw of the last compare, AL = x87 sticky exception flags; lot-developer 17.2 (LD18); re-answers12
 cISC4City	cSC4City	00a87620	96	+0x180	00459410	cSC4City::CellCornerToPosition	16	4	eax-or-void	high	re-answers2 PR6: returns nothing (results through the out pointers); was tagged x87
 cISC4City	cSC4City	00a87620	97	+0x184	00459440	cSC4City::CellCenterToPosition	16	4	eax-or-void	high	re-answers2 PR6: returns nothing (results through the out pointers); was tagged x87
 cISC4City	cSC4City	00a87620	98	+0x188	00459470	cSC4City::LocationIsInBounds	8	2	eax-or-void	medium	
@@ -1548,10 +1548,10 @@ cISTETerrain	cSTETerrain	00ab3d18	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	
 cISTETerrain	cSTETerrain	00ab3d18	2	+0x8	00741f70	cSTETerrain::Release	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	3	+0xC	0074fea0	cSTETerrain::Init	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	4	+0x10	007435c0	cSTETerrain::Shutdown	0	0	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	5	+0x14	005b9d30	icf::cSCParticleSimulatorBase::IsInDelayedStop	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	5	+0x14	005b9d30	cSTETerrain::IsInitialized (folded getter, byte +0x0C)	0	0	al	high	replaces folded name icf::cSCParticleSimulatorBase::IsInDelayedStop; terrain.md §15.1
 cISTETerrain	cSTETerrain	00ab3d18	6	+0x18	0074c5c0	cSTETerrain::CellWidth	0	0	x87	high	
-cISTETerrain	cSTETerrain	00ab3d18	7	+0x1C	0060fb80	icf::cGZDrawContext::GetEngine	0	0	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	8	+0x20	004abad0	icf::cSC4CatalogItem::GetCost	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	7	+0x1C	0060fb80	cSTETerrain::GetCellCountX (folded getter, +0x28)	0	0	eax	high	replaces folded name icf::cGZDrawContext::GetEngine
+cISTETerrain	cSTETerrain	00ab3d18	8	+0x20	004abad0	cSTETerrain::GetCellCountZ (folded getter, +0x2C)	0	0	eax	high	replaces folded name icf::cSC4CatalogItem::GetCost
 cISTETerrain	cSTETerrain	00ab3d18	9	+0x24	0074c5d0	cSTETerrain::GetVertIndex	8	2	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	10	+0x28	0074c5e0	cSTETerrain::GetVertex	12	3	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	11	+0x2C	0074c610	cSTETerrain::LocationIsInBounds	8	2	eax-or-void	medium	
@@ -1577,15 +1577,15 @@ cISTETerrain	cSTETerrain	00ab3d18	30	+0x78	007449b0	cSTETerrain::GetWaterLevel	8
 cISTETerrain	cSTETerrain	00ab3d18	31	+0x7C	00744980	cSTETerrain::GetWaterLevel	4	1	x87	high	
 cISTETerrain	cSTETerrain	00ab3d18	32	+0x80	007444e0	cSTETerrain::GetLerpedWaterLevel	8	2	x87	high	
 cISTETerrain	cSTETerrain	00ab3d18	33	+0x84	00744ab0	cSTETerrain::GetWaterDepthAtVertex	8	2	x87	high	
-cISTETerrain	cSTETerrain	00ab3d18	34	+0x88	00743fa0	cSTETerrain::CellHasWater	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	35	+0x8C	00744030	cSTETerrain::CellHasLand	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	36	+0x90	00747680	cSTETerrain::IsLandVertex	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	37	+0x94	007476d0	cSTETerrain::IsWaterVertex	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	38	+0x98	00741b30	cSTETerrain::IsSeaVertex	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	34	+0x88	00743fa0	cSTETerrain::CellHasWater	8	2	al	high	bool in AL only; upper EAX not cleared on the out-of-bounds path
+cISTETerrain	cSTETerrain	00ab3d18	35	+0x8C	00744030	cSTETerrain::CellHasLand	8	2	al	high	bool in AL only
+cISTETerrain	cSTETerrain	00ab3d18	36	+0x90	00747680	cSTETerrain::IsLandVertex	8	2	al	high	bool in AL only
+cISTETerrain	cSTETerrain	00ab3d18	37	+0x94	007476d0	cSTETerrain::IsWaterVertex	8	2	al	high	bool in AL only
+cISTETerrain	cSTETerrain	00ab3d18	38	+0x98	00741b30	cSTETerrain::IsSeaVertex	8	2	al	high	bool in AL only
 cISTETerrain	cSTETerrain	00ab3d18	39	+0x9C	00740750	cSTETerrain::AreSeaVertices	4	1	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	40	+0xA0	00749540	cSTETerrain::DoPostCityInit	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	41	+0xA4	00749a00	cSTETerrain::SetTerrainType	4	1	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	42	+0xA8	0040cf10	cSC4SimGrid<T>::GetTractSize	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	42	+0xA8	0040cf10	cSTETerrain::GetTerrainType (folded getter, +0x18)	0	0	eax	high	replaces folded name cSC4SimGrid<T>::GetTractSize
 cISTETerrain	cSTETerrain	00ab3d18	43	+0xAC	0074a220	cSTETerrain::CreateFlatAreas	4	1	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	44	+0xB0	0074c0f0	cSTETerrain::CreateShoreCliffs	4	1	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	45	+0xB4	00743550	cSTETerrain::SetSeaLevel	4	1	eax-or-void	medium	
@@ -1594,13 +1594,13 @@ cISTETerrain	cSTETerrain	00ab3d18	47	+0xBC	0074c660	cSTETerrain::GetDefaultTerra
 cISTETerrain	cSTETerrain	00ab3d18	48	+0xC0	00746440	cSTETerrain::ChangeTerrainLevel	8	2	via-call	low	
 cISTETerrain	cSTETerrain	00ab3d18	49	+0xC4	00744f10	cSTETerrain::SetAltitude	16	4	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	50	+0xC8	00744e60	cSTETerrain::SetAltitudeAtVertex	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	51	+0xCC	00744f90	cSTETerrain::SetAltitude	12	3	x87|eax	low	
+cISTETerrain	cSTETerrain	00ab3d18	51	+0xCC	00744f90	cSTETerrain::SetAltitude(x,z,h)	12	3	void	high	no meaningful return (x87|eax in the table is a path artefact); terrain.md §6
 cISTETerrain	cSTETerrain	00ab3d18	52	+0xD0	00741f90	cSTETerrain::LockAltitude	8	2	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	53	+0xD4	00744b40	cSTETerrain::NumberOfWaterVertices	4	1	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	54	+0xD8	0074c6e0	cSC4WinRegionView::GetSelectedCity	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	54	+0xD8	0074c6e0	cSTETerrain::<getter +0xE4> (folded)	0	0	eax	high	render object; replaces folded name cSC4WinRegionView::GetSelectedCity
 cISTETerrain	cSTETerrain	00ab3d18	55	+0xDC	007448c0	cSTETerrain::GetSedimentValue	8	2	x87	high	
 cISTETerrain	cSTETerrain	00ab3d18	56	+0xE0	00747720	cSTETerrain::StartFlood	0	0	via-call	low	tail->007467f0
-cISTETerrain	cSTETerrain	00ab3d18	57	+0xE4	0074f0e0	cSTETerrain::ApplyBrush	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	57	+0xE4	0074f0e0	cSTETerrain::ApplyBrush(brushID, tBrushParameters*)	8	2	al	high	true if the brush exists; terrain.md §9.2
 cISTETerrain	cSTETerrain	00ab3d18	58	+0xE8	007415d0	cSTETerrain::GetBrushExemplarID	8	2	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	59	+0xEC	00747a30	cSTETerrain::BeginBrushScrub	8	2	via-call	low	
 cISTETerrain	cSTETerrain	00ab3d18	60	+0xF0	00747bb0	cSTETerrain::EndBrushScrub	8	2	via-call	low	
@@ -1611,7 +1611,7 @@ cISTETerrain	cSTETerrain	00ab3d18	64	+0x100	0074bad0	cSTETerrain::UpdateWaveProd
 cISTETerrain	cSTETerrain	00ab3d18	65	+0x104	00747510	cSTETerrain::IsGoodWaveProducerLocation	12	3	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	66	+0x108	00741810	cSTETerrain::GetView	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	67	+0x10C	00742930	cSTETerrain::DoLighting	4	1	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	68	+0x110	00749850	cSTETerrain::RedisplayTerrain	16	4	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	68	+0x110	00749850	cSTETerrain::RedisplayTerrain(bool terrain, bool water, int rect[4]*, uint32 data4)	16	4	void	high	posts 0x278E6003, 0x678E6E3A, 0x870BC918 (queued) only after DoPostCityInit; terrain.md §8.1
 cISTETerrain	cSTETerrain	00ab3d18	69	+0x114	00743460	cSTETerrain::RedisplayTerrain	20	5	via-call	low	
 cISTETerrain	cSTETerrain	00ab3d18	70	+0x118	00741c20	cSTETerrain::IsTriangulationFlipped	8	2	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	71	+0x11C	007418f0	cSTETerrain::HideTerrainCell	12	3	eax-or-void	medium	
@@ -1626,12 +1626,12 @@ cISTETerrain	cSTETerrain	00ab3d18	79	+0x13C	00749a70	cSTETerrain::StopAccumulati
 cISTETerrain	cSTETerrain	00ab3d18	80	+0x140	0074c6f0	cSTETerrain::IsAccumulatingTextureUpdates	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	81	+0x144	00742000	cSTETerrain::SetTerrainCellFlags	12	3	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	82	+0x148	00741770	cSTETerrain::GetTerrainCellFlags	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	83	+0x14C	00741740	icf::cGZGraphicSystem::IsPageFlippingEnabled	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	83	+0x14C	00741740	cSTETerrain::GetWaterSurfaceDisplayState (folded getter, byte +0xDD)	0	0	al	high	replaces folded name icf::cGZGraphicSystem::IsPageFlippingEnabled
 cISTETerrain	cSTETerrain	00ab3d18	84	+0x150	007434e0	cSTETerrain::SetWaterSurfaceDisplayState	4	1	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	85	+0x154	00741750	cSTETerrain::GetPlumbingInfoDisplayState	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	86	+0x158	00741ff0	cSTETerrain::SetPlumbingInfoDisplayState	4	1	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	87	+0x15C	00743b40	cSTETerrain::BeginLongTerrainOperation	0	0	unknown	low	
-cISTETerrain	cSTETerrain	00ab3d18	88	+0x160	007443a0	cSTETerrain::EndLongTerrainOperation	0	0	unknown	low	
+cISTETerrain	cSTETerrain	00ab3d18	87	+0x15C	00743b40	cSTETerrain::BeginLongTerrainOperation	0	0	void	high	posts 0xEA3B0AF1 (queued); no nesting counter
+cISTETerrain	cSTETerrain	00ab3d18	88	+0x160	007443a0	cSTETerrain::EndLongTerrainOperation	0	0	void	high	posts 0x6A3B0AFD (queued)
 cISTETerrain	cSTETerrain	00ab3d18	89	+0x164	0074ed40	cSTETerrain::ReconcileEdgesWithNeighboringCities	12	3	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	90	+0x168	00742150	cSTETerrain::SaveObliterated			forward	medium	indirect-jump dword ptr [edx + 0x184]
 cISTETerrain	cSTETerrain	00ab3d18	91	+0x16C	0074db90	cSTETerrain::~cSTETerrain	4	1	eax-or-void	medium	
@@ -1663,7 +1663,7 @@ cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	18	+0x48	006c5b70	cSC4LotDeveloper::
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	19	+0x4C	006c43d0	cSC4LotDeveloper::LevelAreaInternalVertices	20	5	eax	high	CORRECTS ret: EAX = number of ModifyTerrainHeight calls, not bool (AL is its low byte); lot-developer 17.4; re-specs11
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	20	+0x50	006c44b0	cSC4LotDeveloper::LevelBorderingVertices	16	4	eax	high	CORRECTS ret: EAX of ModifyTerrainHeight (a count); re-specs11
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	21	+0x54	006c44f0	cSC4LotDeveloper::AttemptAreaLevelling	24	6	eax	high	CORRECTS ret: EAX = 0 or ModifyTerrainHeight's count; re-specs11
-cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	22	+0x58	006c4590	cSC4LotDeveloper::GetOccupantCellCoverage	8	2	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	22	+0x58	006c4590	cSC4LotDeveloper::GetOccupantCellCoverage	8	2	eax-or-void	high	CORRECTS ret: no result; AL = x87 status-word low byte left by cISC4City::PositionToCell (slot 95); no caller reads it; lot-developer 17.2 (LD18, LD27); re-answers12
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	23	+0x5C	005deb40	icf::cSC4AudioAmbienceLayer::CanHandleOccupant	4	1	eax-or-void	medium	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	24	+0x60	006c5c00	cSC4LotDeveloper::IsLotDeveloped	4	1	via-call	low	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	25	+0x64	006c5c30	cSC4LotDeveloper::IsAreaFlat	8	2	eax-or-void	medium	
@@ -1702,7 +1702,7 @@ cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	57	+0xE4	006c5590	cSC4LotDeveloper::
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	58	+0xE8	006c40e0	cSC4LotDeveloper::AddBuildingFoundation	8	2	eax-or-void	medium	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	59	+0xEC	006c4020	cSC4LotDeveloper::AddBuildingFoundation	8	2	via-call	low	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	60	+0xF0	006c4150	cSC4LotDeveloper::RemoveBuildingFoundation	4	1	via-call	low	
-cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	61	+0xF4	006c3f80	cSC4LotDeveloper::UpdateLotFoundation	4	1	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	61	+0xF4	006c3f80	cSC4LotDeveloper::UpdateLotFoundation	4	1	eax	medium	CORRECTS ret: AL of slot 55 or 54; the flags' low byte when the lot has no foundation flag; lot-developer 17.5.4 (LD10); re-answers12
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	62	+0xF8	006c4190	cSC4LotDeveloper::UpdateLotRetainingWalls	4	1	eax-or-void	medium	
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	63	+0xFC	006c6230	cSC4LotDeveloper::CreateLotProp	12	3	eax	high	CORRECTS ret: EAX = the new prop's occupant (borrowed) or 0 (SDK says bool); lot-developer 15.5; re-specs11
 cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	64	+0x100	006cb760	cSC4LotDeveloper::GetLotConfigurationObjectOccupant	12	3	eax-or-void	medium	
@@ -1751,55 +1751,75 @@ cIGZMessageServer2	cGZMessageServer2	00ad1bf4	10	+0x28	0092d0f4		0	0	eax-or-void
 cIGZMessageServer2	cGZMessageServer2	00ad1bf4	11	+0x2C	0092d11f		4	1	eax-or-void	medium	
 cIGZMessageServer2	cGZMessageServer2	00ad1bf4	12	+0x30	0092d0b3				forward	medium	indirect-jump dword ptr [eax + 0x14]
 cIGZMessageServer2	cGZMessageServer2	00ad1bf4	13	+0x34	0092d1fe	cGZMessageServer2::CreateMessage	12	3	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	0	+0x0	0049d910		8	2	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	1	+0x4	0049df80		0	0	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	2	+0x8	0049dfb0		0	0	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	3	+0xC	004a18e0		0	0	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	4	+0x10	0049e000		0	0	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	5	+0x14	0049e050		8	2	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	6	+0x18	0049d990	cSC4OccupantManager::GetOccupantManagerCellSizes	8	2	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	7	+0x1C	0049d9b0		8	2	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	8	+0x20	0049d9d0		8	2	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	9	+0x24	0049db50		16	4	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	10	+0x28	0049d9f0		16	4	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	11	+0x2C	0049da10		16	4	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	12	+0x30	0049da30		16	4	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	13	+0x34	0049da50		16	4	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	14	+0x38	0049da80		16	4	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	15	+0x3C	0049e0e0		16	4	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	16	+0x40	0049daf0		16	4	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	17	+0x44	0049e150		16	4	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	18	+0x48	0049db20		16	4	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	19	+0x4C	0049e1b0		16	4	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	20	+0x50	0049ef60		8	2	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	21	+0x54	0049f240	cSC4OccupantManager::RemoveOccupant	12	3	eax-or-void	medium	re-answers5 LG1: (occ, bool shutdown, uint32 data4); AL = removed; posts 0x99EF1143 with data4; Shutdown if arg2
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	22	+0x58	0049fcd0		12	3	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	23	+0x5C	0049db80				forward	medium	indirect-jump dword ptr [eax + 0x58]
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	24	+0x60	0049f3c0		8	2	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	25	+0x64	0049e490		8	2	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	26	+0x68	0049dba0		16	4	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	27	+0x6C	0049fb30		16	4	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	28	+0x70	0049e4d0		16	4	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	29	+0x74	0049dc80		16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x70]
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	30	+0x78	0049e5e0		16	4	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	31	+0x7C	0049dcb0		16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x78]
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	32	+0x80	0049e690	cSC4OccupantManager::GetFirstOccupantByStandardCityCell (filter)	16	4	eax-or-void	medium	re-answers5 LG4: (&out, x, z, filter*); AL = found; *out AddRef'd on a hit, untouched on a miss; re-answers8 ZG11: SDK name
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	33	+0x84	0049dce0	cSC4OccupantManager::GetFirstOccupantByStandardCityCell (typed)	16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x80]; re-answers5 LG4: (&out, x, z, type); sets the type filter, tail to slot 32; re-answers8 ZG11: SDK typed overload, placed after its filter overload by MSVC
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	34	+0x88	0049e800		16	4	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	35	+0x8C	0049dd10		16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x88]
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	36	+0x90	004a0670		20	5	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	37	+0x94	0049dd40	cSC4OccupantManager::GetOccupantsInBoxOfType(list, min, max, type, filter)	20	5	al	medium	sets the one-type filter and tail-jumps to slot 36; false when uninitialised; strict overlap (flora 6.4.2, LD1); indirect-jump dword ptr [eax + 0x90]; re-specs11
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	38	+0x98	004a0a70		20	5	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	39	+0x9C	0049dd80		20	5	eax-or-void	medium	indirect-jump dword ptr [eax + 0x98]/dword ptr [eax + 0x98]
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	40	+0xA0	0049e250		20	5	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	41	+0xA4	0049ddc0		20	5	eax-or-void	medium	indirect-jump dword ptr [eax + 0xa0]/dword ptr [eax + 0xa0]
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	42	+0xA8	004a0d70		20	5	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	43	+0xAC	0049de00		20	5	eax-or-void	medium	indirect-jump dword ptr [eax + 0xa8]/dword ptr [eax + 0xa8]
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	44	+0xB0	004a1360		20	5	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	45	+0xB4	0049de40		20	5	eax-or-void	medium	indirect-jump dword ptr [eax + 0xb0]/dword ptr [eax + 0xb0]
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	46	+0xB8	0049de80		20	5	eax-or-void	medium	indirect-jump dword ptr [eax + 0xbc]/dword ptr [eax + 0xbc]
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	47	+0xBC	0049e370		20	5	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	48	+0xC0	0049ef30	(release occupant list)	4	1	eax-or-void	medium	re-answers5 LG1: releases each entry of a slot-41 list and empties it
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	0	+0x0	0049d910	cSC4OccupantManager::QueryInterface(iid, void**)	8	2	al	high	re-specs13b (occupant-manager.md, numbers are sections): 1/0xC6BB8334 -> this; 0xE4FDA3D4 -> this+4; 0x452294AA -> this+8; else false; occupant-manager.md 1
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	1	+0x4	0049df80	cSC4OccupantManager::AddRef	0	0	eax	high	re-specs13b (occupant-manager.md, numbers are sections): under the lock; 2.4
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	2	+0x8	0049dfb0	cSC4OccupantManager::Release	0	0	eax	high	re-specs13b (occupant-manager.md, numbers are sections): under the lock; at 0: Shutdown, slot 49(1), returns 0; 2.4
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	3	+0xC	004a18e0	cSC4OccupantManager::Init	0	0	al	high	re-specs13b (occupant-manager.md, numbers are sections): once; creates the shared filter; new grid 192x192, or after Read slot 44 calling each occupant Init; true; 2.2
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	4	+0x10	0049e000	cSC4OccupantManager::Shutdown	0	0	al	high	re-specs13b (occupant-manager.md, numbers are sections): slot 22(null, true, 0), releases the filter, clears init; true; 2.3
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	5	+0x14	0049e050	cSC4OccupantManager::SetCitySize(float fx, float fz)	8	2	al	high	re-specs13b (occupant-manager.md, numbers are sections): false once initialised; counts trunc(size/64), trunc(size/16); 2.1
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	6	+0x18	0049d990	cSC4OccupantManager::GetOccupantManagerCellSizes(float&, float&)	8	2	eax-or-void	high	re-specs13b (occupant-manager.md, numbers are sections): 64.0, 64.0; AL undefined; 3.2
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	7	+0x1C	0049d9b0	cSC4OccupantManager::GetWorldCellCount(int&, int&)	8	2	eax-or-void	high	re-specs13b (occupant-manager.md, numbers are sections): 192, 192; AL undefined
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	8	+0x20	0049d9d0	cSC4OccupantManager::GetOccupantManagerCellCount(int&, int&)	8	2	eax-or-void	high	re-specs13b (occupant-manager.md, numbers are sections): +0x24, +0x28; AL undefined
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	9	+0x24	0049db50	cSC4OccupantManager::GetOccupantManagerCellBounds(int&, int&, int&, int&)	16	4	eax-or-void	high	re-specs13b (occupant-manager.md, numbers are sections): 64, 64, count+63, count+63; AL undefined
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	10	+0x28	0049d9f0	cSC4OccupantManager::WorldCellToOccupantManagerCell(int, int, int&, int&)	16	4	eax-or-void	high	re-specs13b (occupant-manager.md, numbers are sections): minus 64; AL undefined
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	11	+0x2C	0049da10	cSC4OccupantManager::OccupantManagerCellToWorldCell(int, int, int&, int&)	16	4	eax-or-void	high	re-specs13b (occupant-manager.md, numbers are sections): plus 64; AL undefined
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	12	+0x30	0049da30	cSC4OccupantManager::WorldCellToStandardCityCell(int, int, int&, int&)	16	4	eax-or-void	high	re-specs13b (occupant-manager.md, numbers are sections): BUG: outX = 4*z - 256, outZ = old outZ * 4; AL undefined; 3.2
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	13	+0x34	0049da50	cSC4OccupantManager::StandardCityCellToWorldCell(int, int, int&, int&)	16	4	eax-or-void	high	re-specs13b (occupant-manager.md, numbers are sections): x/4 (toward zero) + 64; AL undefined
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	14	+0x38	0049da80	cSC4OccupantManager::WorldCellToPosition(int, int, float&, float&)	16	4	eax-or-void	high	re-specs13b (occupant-manager.md, numbers are sections): (x-64)*64; AL undefined
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	15	+0x3C	0049e0e0	cSC4OccupantManager::PositionToWorldCell(float, float, int&, int&)	16	4	eax-or-void	high	re-specs13b (occupant-manager.md, numbers are sections): rint(fl(fl(f+4096)/64) - 0.499f) at PC24, no clamp; AL undefined; 3.3
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	16	+0x40	0049daf0	cSC4OccupantManager::OccupantManagerCellToPosition(int, int, float&, float&)	16	4	eax-or-void	high	re-specs13b (occupant-manager.md, numbers are sections): x*64; AL undefined
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	17	+0x44	0049e150	cSC4OccupantManager::PositionToOccupantManagerCell(float, float, int&, int&)	16	4	eax-or-void	high	re-specs13b (occupant-manager.md, numbers are sections): slot 15 without +4096; AL undefined
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	18	+0x48	0049db20	cSC4OccupantManager::StandardCityCellToPosition(int, int, float&, float&)	16	4	eax-or-void	high	re-specs13b (occupant-manager.md, numbers are sections): x*16; AL undefined
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	19	+0x4C	0049e1b0	cSC4OccupantManager::PositionToStandardCityCell(float, float, int&, int&)	16	4	eax-or-void	high	re-specs13b (occupant-manager.md, numbers are sections): exact floor(f/16); AL undefined; 3.4
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	20	+0x50	0049ef60	cSC4OccupantManager::InsertOccupant(cISC4Occupant*, uint32 data4)	8	2	al	high	re-specs13b (occupant-manager.md, numbers are sections): flag-1 check unlocked; occupant Init before the other checks; 0.1 shrink when width > 1; no clamp; push_front; SetFlag(1) then posts 0x99EF1142 with data4; no init check; 5.1
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	21	+0x54	0049f240	cSC4OccupantManager::RemoveOccupant(cISC4Occupant*, bool shutdown, uint32 data4)	12	3	al	high	re-specs13b (occupant-manager.md, numbers are sections): re-answers5 LG1 confirmed; posts 0x99EF1143, ClearFlag(1), Release; Shutdown whenever arg2, even on failure; 5.2
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	22	+0x58	0049fcd0	cSC4OccupantManager::RemoveOccupants(cISC4OccupantFilter*, bool shutdown, uint32 data4)	12	3	al	high	re-specs13b (occupant-manager.md, numbers are sections): x-major walk; ClearFlag(1) under the lock; then per occupant post 0x99EF1143, Shutdown, Release; always true; 5.3
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	23	+0x5C	0049db80	cSC4OccupantManager::RemoveOccupants(uint32 type, bool shutdown, uint32 data4)	12	3	forward	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0x58]; writes type (even 0) into the shared filter; null filter before Init crashes; 5.3
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	24	+0x60	0049f3c0	cSC4OccupantManager::MoveOccupant(cISC4Occupant*, bool post)	8	2	al	high	re-specs13b (occupant-manager.md, numbers are sections): needs flag 1; new cells pushed front (clamped); posts 0x99EF1146 data4 0 when arg2, even if unchanged; 5.4
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	25	+0x64	0049e490	cSC4OccupantManager::IsCellEmpty(int x, int z)	8	2	al	high	re-specs13b (occupant-manager.md, numbers are sections): world cells; outside 0..191 -> true; no lock; 6.1
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	26	+0x68	0049dba0	cSC4OccupantManager::GetBoundingCells(int x, int z, int (*)[2], int& n)	16	4	eax	high	re-specs13b (occupant-manager.md, numbers are sections): 8 neighbours in x-major order, skipping out-of-grid; n stored and returned; 6.2
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	27	+0x6C	0049fb30	cSC4OccupantManager::FindOccupant(cISC4Occupant*, bool searchAll, int* x, int* z)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): guess cell from the stored box; a hit there does not write x, z; full scan writes them; 6.3
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	28	+0x70	0049e4d0	cSC4OccupantManager::GetFirstOccupantByPosition(cISC4Occupant*&, float, float, cISC4OccupantFilter*)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): unclamped cell; min <= p < max on x, z; AddRef on hit; 7
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	29	+0x74	0049dc80	cSC4OccupantManager::GetFirstOccupantByPosition(cISC4Occupant*&, float, float, uint32 type)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0x70]; false if uninitialised; type 0 filters on type 0; 7, 10
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	30	+0x78	0049e5e0	cSC4OccupantManager::GetFirstOccupant(cISC4Occupant*&, int, int, cISC4OccupantFilter*)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): world cell; filter only; 7
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	31	+0x7C	0049dcb0	cSC4OccupantManager::GetFirstOccupant(cISC4Occupant*&, int, int, uint32 type)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0x78]; type 0 literal
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	32	+0x80	0049e690	cSC4OccupantManager::GetFirstOccupantByStandardCityCell(cISC4Occupant*&, int, int, cISC4OccupantFilter*)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): re-answers5 LG4 and re-answers8 ZG11 confirmed; box x*16+0.1..(x+1)*16-0.1, strict; 7
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	33	+0x84	0049dce0	cSC4OccupantManager::GetFirstOccupantByStandardCityCell(cISC4Occupant*&, int, int, uint32 type)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0x80]; LG4/ZG11; type 0 literal
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	34	+0x88	0049e800	cSC4OccupantManager::GetFirstOccupantByStandardCityCells(cISC4Occupant*&, SC4Point<int> const*, SC4Point<int> const*, cISC4OccupantFilter*)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): clamped; null min (0,0), null max (count,count); strict; 7
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	35	+0x8C	0049dd10	cSC4OccupantManager::GetFirstOccupantByStandardCityCells(cISC4Occupant*&, SC4Point<int> const*, SC4Point<int> const*, uint32 type)	16	4	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0x88]; type 0 literal
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	36	+0x90	004a0670	cSC4OccupantManager::GetOccupantsByBBox(ilist&, float const* min3, float const* max3, cISC4OccupantFilter*, uint32 maxCount)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): A list, appends, AddRef each; true whenever initialised and maxCount != 0, even with no result; strict 3-axis overlap; dedup before filter; 8.2
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	37	+0x94	0049dd40	cSC4OccupantManager::GetOccupantsByBBox(ilist&, float const* min3, float const* max3, uint32 type, uint32 maxCount)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0x90]; false when uninitialised; type 0 -> null filter; the 5th argument is maxCount, not a filter (corrects the re-specs11 name); 8.5
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	38	+0x98	004a0a70	cSC4OccupantManager::GetOccupantsByOccupantManagerCells(ilist&, int const* min2, int const* max2, cISC4OccupantFilter*, uint32 maxCount)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): the arguments are world cells; null -> the city cells; inclusive; filter only; otherwise as slot 36; 8.3
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	39	+0x9C	0049dd80	cSC4OccupantManager::GetOccupantsByOccupantManagerCells(ilist&, int const*, int const*, uint32 type, uint32 maxCount)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0x98]; type 0 -> null filter
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	40	+0xA0	0049e250	cSC4OccupantManager::GetOccupantsByStandardCityCells(ilist&, SC4Point<int> const*, SC4Point<int> const*, cISC4OccupantFilter*, uint32 maxCount)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): null max -> (count,count) quirk; box shrunk 0.1; calls slot 36 through the vtable at 0x0049E357; 8.4
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	41	+0xA4	0049ddc0	cSC4OccupantManager::GetOccupantsByStandardCityCells(ilist&, SC4Point<int> const*, SC4Point<int> const*, uint32 type, uint32 maxCount)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0xa0]; type 0 -> null filter
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	42	+0xA8	004a0d70	cSC4OccupantManager::IterateOccupantsByBBox(bool(*)(cISC4Occupant*, void*), void*, float const* min3, float const* max3, cISC4OccupantFilter*)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): true when uninitialised; min/max not null-checked; lock per cell, callbacks unlocked; local hash set; 9.1
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	43	+0xAC	0049de00	cSC4OccupantManager::IterateOccupantsByBBox(bool(*)(cISC4Occupant*, void*), void*, float const*, float const*, uint32 type)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0xa8]; false when uninitialised; type 0 -> null filter
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	44	+0xB0	004a1360	cSC4OccupantManager::IterateOccupants(bool(*)(cISC4Occupant*, void*), void*, int const* min3, int const* max3, cISC4OccupantFilter*)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): int[3] vectors, elements 0 and 2; world cells; lock held across callbacks; local hash set; true always; 9.2
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	45	+0xB4	0049de40	cSC4OccupantManager::IterateOccupants(bool(*)(cISC4Occupant*, void*), void*, int const*, int const*, uint32 type)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0xb0]; type 0 -> null filter
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	46	+0xB8	0049de80	cSC4OccupantManager::IterateOccupantsByStandardCityCell(bool(*)(cISC4Occupant*, void*), void*, int const*, int const*, uint32 type)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0xbc]; the TYPED overload comes first in this pair only (SDK declaration order gives the opposite); 9.4
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	47	+0xBC	0049e370	cSC4OccupantManager::IterateOccupantsByStandardCityCell(bool(*)(cISC4Occupant*, void*), void*, int const*, int const*, cISC4OccupantFilter*)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): false when uninitialised (0x0049E487); slot 40 conversion; calls slot 42 through the vtable at 0x0049E477; 9.3
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	48	+0xC0	0049ef30	cSC4OccupantManager::ReleaseOccupantList(ilist&)	4	1	eax-or-void	medium	re-specs13b (occupant-manager.md, numbers are sections): re-answers5 LG1; any slot 36-41 list: Release each, free the nodes with A (0x00413E60), head kept; no lock; 9.5
+cIGZSerializable	cSC4OccupantManager	00a8f7d4	0	+0x0	004a05c0	cSC4OccupantManager::QueryInterface	8	2	al	high	re-specs13b: thunk to the primary interface
+cIGZSerializable	cSC4OccupantManager	00a8f7d4	1	+0x4	004a05e0	cSC4OccupantManager::AddRef	0	0	eax	high	re-specs13b: thunk to the primary interface
+cIGZSerializable	cSC4OccupantManager	00a8f7d4	2	+0x8	004a05f0	cSC4OccupantManager::Release	0	0	eax	high	re-specs13b: thunk to the primary interface
+cIGZSerializable	cSC4OccupantManager	00a8f7d4	3	+0xC	0049ecf0	cSC4OccupantManager::Write(cIGZOStream&)	4	1	al	high	re-specs13b: version 1, sizes, counts, 192 rows x 192 cells, per cell a count then references; occupant-manager.md 13
+cIGZSerializable	cSC4OccupantManager	00a8f7d4	4	+0x10	004a1a20	cSC4OccupantManager::Read(cIGZIStream&)	4	1	al	high	re-specs13b: version must be 1; push_back; one reference per occupant via the +0x44 hash set; occupant-manager.md 13
+cIGZSerializable	cSC4OccupantManager	00a8f7d4	5	+0x14	004a05b0	cSC4OccupantManager::GetGZCLSID	0	0	eax	high	re-specs13b: 0x098F964D
+cIGZMessageTarget2	cSC4OccupantManager	00a8f7c4	0	+0x0	004a05d0	cSC4OccupantManager::QueryInterface	8	2	al	medium	re-specs13b: thunk to the primary interface
+cIGZMessageTarget2	cSC4OccupantManager	00a8f7c4	1	+0x4	004a0600	cSC4OccupantManager::AddRef	0	0	eax	medium	re-specs13b: thunk to the primary interface
+cIGZMessageTarget2	cSC4OccupantManager	00a8f7c4	2	+0x8	004a0610	cSC4OccupantManager::Release	0	0	eax	medium	re-specs13b: thunk to the primary interface
+cIGZMessageTarget2	cSC4OccupantManager	00a8f7c4	3	+0xC	006b8aa0	cSC4OccupantManager::DoMessage(cIGZMessage2*)	4	1	al	medium	re-specs13b: shared stub; the manager subscribes to nothing
+cISC4OccupantFilter(OccupantType)	cSC4OccupantManager shared type filter (CLSID 0xE9C75ED1)	00a8f79c	0	+0x0	005e95d0	QueryInterface	8	2	al	medium	re-specs13b: 1 and 0x46A80026 -> this; 0xE4FDA3D4 -> this+4; occupant-manager.md 4.4
+cISC4OccupantFilter(OccupantType)	cSC4OccupantManager shared type filter (CLSID 0xE9C75ED1)	00a8f79c	1	+0x4	004bdf00	AddRef	0	0	eax	medium	re-specs13b: count at +8; occupant-manager.md 4.4
+cISC4OccupantFilter(OccupantType)	cSC4OccupantManager shared type filter (CLSID 0xE9C75ED1)	00a8f79c	2	+0x8	007cb920	Release	0	0	eax	medium	re-specs13b: not traced; occupant-manager.md 4.4
+cISC4OccupantFilter(OccupantType)	cSC4OccupantManager shared type filter (CLSID 0xE9C75ED1)	00a8f79c	3	+0xC	004bdf90	IsOccupantIncluded(cISC4Occupant*)	4	1	al	high	re-specs13b: IsOccupantTypeIncluded(o->GetType()); occupant-manager.md 4.4
+cISC4OccupantFilter(OccupantType)	cSC4OccupantManager shared type filter (CLSID 0xE9C75ED1)	00a8f79c	4	+0x10	005e9740	IsOccupantTypeIncluded(uint32)	4	1	al	high	re-specs13b: t == type at +0xC; occupant-manager.md 4.4
+cISC4OccupantFilter(OccupantType)	cSC4OccupantManager shared type filter (CLSID 0xE9C75ED1)	00a8f79c	5	+0x14	004fc900	IsPropertyHolderIncluded(cISCPropertyHolder*)	4	1	al	high	re-specs13b: true; occupant-manager.md 4.4
+cISC4OccupantFilter(OccupantType)	cSC4OccupantManager shared type filter (CLSID 0xE9C75ED1)	00a8f79c	6	+0x18	006c4a00	(deleting destructor)(uint32 flags)	4	1	eax	medium	re-specs13b: base dtor 0x005E95C0, frees with C; occupant-manager.md 4.4
+cIGZSerializable	cSC4OccupantManager shared type filter (CLSID 0xE9C75ED1)	00a8f784	3	+0xC	005e9890	Write(cIGZOStream&)	4	1	al	medium	re-specs13b: not traced; the manager never saves its filter; occupant-manager.md 4.4
+cIGZSerializable	cSC4OccupantManager shared type filter (CLSID 0xE9C75ED1)	00a8f784	4	+0x10	005e98e0	Read(cIGZIStream&)	4	1	al	medium	re-specs13b: not traced; occupant-manager.md 4.4
+cIGZSerializable	cSC4OccupantManager shared type filter (CLSID 0xE9C75ED1)	00a8f784	5	+0x14	005e9730	GetGZCLSID	0	0	eax	medium	re-specs13b: returns 0xE9C75ED1; occupant-manager.md 4.4
 cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	0	+0x0	00578910		8	2	eax-or-void	medium	tail->00577400
 cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
 cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
@@ -1831,24 +1851,24 @@ cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	8	+0x20	0057ba70	cSC4D
 cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	9	+0x24	0057b850	cSC4DisasterManagerFire::SetCause	4	1	eax-or-void	medium	
 cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	10	+0x28	0057b8c0	cSC4DisasterManagerFire::GetCause	0	0	eax-or-void	medium	
 cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	11	+0x2C	00579ba0	cSC4DisasterManagerFire::GetFireInstance	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	0	+0x0	0043efe0	cSC4TutorialSystem::QueryInterface	8	2	eax-or-void	medium	tail->009457c6
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	1	+0x4	004186e0	icf::cSC4AdvisorSystem::AddRef	0	0	eax-or-void	medium	tail->00968b60
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	2	+0x8	00449310	icf::cSC4AdvisorSystem::Release	0	0	eax-or-void	medium	tail->0090d997
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	3	+0xC	0043f7a0	cSC4TutorialSystem::Init	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	4	+0x10	0043f330	cSC4TutorialSystem::Shutdown	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	5	+0x14	0043f080	cSC4TutorialSystem::startTutorial	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	6	+0x18	0043f110	cSC4TutorialSystem::endTutorial	4	1	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	7	+0x1C	0043f490	cSC4TutorialSystem::GetScriptingContext	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	8	+0x20	0043f650	cSC4TutorialSystem::IsTutorial	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	9	+0x24	0043f500	cSC4TutorialSystem::IsEdgeScrollingAllowed	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	10	+0x28	0043f6d0	cSC4TutorialSystem::GetCurrentTask	0	0	eax-or-void	medium	indirect-jump dword ptr [eax + 0x24]
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	11	+0x2C	004ed900	cSC4SimGrid<T>::GetTractCountX	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	12	+0x30	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	13	+0x34	0043f3c0	cSC4TutorialSystem::FilterMessage	4	1	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	14	+0x38	0043f440	cSC4TutorialSystem::ShowUIHintsForUsers	0	0	unknown	low	indirect-jump dword ptr [eax + 0x1c]
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	15	+0x3C	0043f470	cSC4TutorialSystem::HandleCatalogMenu	4	1	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	16	+0x40	0043f450	cSC4TutorialSystem::FilterLeftMouseClick	12	3	eax-or-void	medium	indirect-jump dword ptr [eax + 0x28]
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	17	+0x44	0043f410	cSC4TutorialSystem::ResetTutorialNumAndIndex	8	2	eax-or-void	medium	
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	0	+0x0	0043efe0	cSC4TutorialSystem::QueryInterface(iid, void**)	8	2	al	high	re-specs13d (tutorial.md, numbers are sections): 0xAA3836F6 -> this; 0x452294AA -> +4; 0xE98B2F57 -> +8; 0xE4FDA3D4 -> +0x10; else cRZUnknown; 1
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	1	+0x4	004186e0	cSC4TutorialSystem::AddRef	0	0	eax	high	re-specs13d (tutorial.md, numbers are sections): shared (ICF); refcount +0x14
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	2	+0x8	00449310	cSC4TutorialSystem::Release	0	0	eax	high	re-specs13d (tutorial.md, numbers are sections): shared (ICF)
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	3	+0xC	0043f7a0	cSC4TutorialSystem::Init	0	0	al	high	re-specs13d (tutorial.md, numbers are sections): subscribes 3 messages, registers cheat 0x6A382BAF; true; 4.3
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	4	+0x10	0043f330	cSC4TutorialSystem::Shutdown	0	0	al	high	re-specs13d (tutorial.md, numbers are sections): true; 4.3
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	5	+0x14	0043f080	cSC4TutorialSystem::startTutorial	0	0	eax-or-void	medium	re-specs13d (tutorial.md, numbers are sections): AL left by registry SetActive, not a defined result; 4.2
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	6	+0x18	0043f110	cSC4TutorialSystem::endTutorial(bool endRegistry)	4	1	al	high	re-specs13d (tutorial.md, numbers are sections): AL = argument; 4.2
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	7	+0x1C	0043f490	cSC4TutorialSystem::GetScriptingContext	0	0	eax	high	re-specs13d (tutorial.md, numbers are sections): 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	8	+0x20	0043f650	cSC4TutorialSystem::IsTutorial	0	0	eax	high	re-specs13d (tutorial.md, numbers are sections): 0/1 in full EAX; read by the fire (no burn-down) and flammability; 4.1
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	9	+0x24	0043f500	cSC4TutorialSystem::IsEdgeScrollingAllowed	0	0	al	high	re-specs13d (tutorial.md, numbers are sections): 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	10	+0x28	0043f6d0	cSC4TutorialSystem::GetCurrentTask	0	0	eax	high	re-specs13d (tutorial.md, numbers are sections): null without a window, else tail call to window slot 9; 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	11	+0x2C	004ed900	cSC4TutorialSystem::GetTutorialTaskNumber	0	0	eax	high	re-specs13d (tutorial.md, numbers are sections): ICF-shared getter of +0x20 (row was named cSC4SimGrid<T>::GetTractCountX); 6
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	12	+0x30	006bdd80	cSC4TutorialSystem::GetTutorialGUID	0	0	eax	high	re-specs13d (tutorial.md, numbers are sections): ICF-shared getter of +0x24 (row was named cSC4SimGrid<T>::GetTractCountZ); 6
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	13	+0x34	0043f3c0	cSC4TutorialSystem::FilterMessage(msg)	4	1	al	high	re-specs13d (tutorial.md, numbers are sections): true; 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	14	+0x38	0043f440	cSC4TutorialSystem::ShowUIHintsForUsers	0	0	eax-or-void	high	re-specs13d (tutorial.md, numbers are sections): no defined return value; tail call to window slot 7 when present; 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	15	+0x3C	0043f470	cSC4TutorialSystem::HandleCatalogMenu(menu)	4	1	al	high	re-specs13d (tutorial.md, numbers are sections): true; 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	16	+0x40	0043f450	cSC4TutorialSystem::FilterLeftMouseClick(x&, z&, n)	12	3	al	high	re-specs13d (tutorial.md, numbers are sections): true without a window; 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	17	+0x44	0043f410	cSC4TutorialSystem::ResetTutorialNumAndIndex(a, b)	8	2	al	high	re-specs13d (tutorial.md, numbers are sections): false without a window; 4.4
 cISC4Occupant	cSC4Occupant	00aa41d8	0	+0x0	005e89c0	cSC4Occupant::QueryInterface	8	2	eax-or-void	medium	tail->005fd310
 cISC4Occupant	cSC4Occupant	00aa41d8	1	+0x4	005e89b0	cSC4Occupant::AddRef	0	0	eax-or-void	medium	
 cISC4Occupant	cSC4Occupant	00aa41d8	2	+0x8	005e8df0	cSC4Occupant::Release	0	0	eax-or-void	medium	
@@ -2134,46 +2154,46 @@ cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	7	+0x1C	006f4db0	cSC4PropDeveloper
 cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	8	+0x20	006f1210	cSC4PropDeveloper::ShowSignsAndLabels	4	1	eax-or-void	medium	
 cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	9	+0x24	006f2bf0	cSC4PropDeveloper::ToggleSignsAndLabels	0	0	via-call	low	
 cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	10	+0x28	006f2c10	cSC4PropDeveloper::AreSignsAndLabelsVisible	0	0	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	0	+0x0	004a1d30	cSC4PropManager::QueryInterface	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	2	+0x8	004a2340	cSC4PropManager::Release	0	0	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	3	+0xC	004a4380	cSC4PropManager::Init	0	0	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	4	+0x10	004a2370	cSC4PropManager::Shutdown	0	0	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	5	+0x14	004a2bf0	cSC4PropManager::GetAllPropTypes	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	6	+0x18	004a2cb0	cSC4PropManager::GetAllPropFamilyTypes	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	7	+0x1C	004a2d70	cSC4PropManager::GetPropKeyFromType	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	8	+0x20	004a2dd0	cSC4PropManager::IsPropTypeValid	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	9	+0x24	004a2e90	cSC4PropManager::GetPropTypesByFamily	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	10	+0x28	004a2f80	cSC4PropManager::IsPropInFamily	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	11	+0x2C	004a2e10	cSC4PropManager::IsPropFamilyTypeValid	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	12	+0x30	004a4360	cSC4PropManager::GetPropName	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	13	+0x34	004a3750	cSC4PropManager::GetPropProfile	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	14	+0x38	004a2ff0	cSC4PropManager::GetPropProfilePtr	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	15	+0x3C	004a3040	cSC4PropManager::CreateProp	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	16	+0x40	004a24d0	cSC4PropManager::CreateGenericProp	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	17	+0x44	004a1df0	cSC4PropManager::GetCityProps	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	18	+0x48	004a1db0	cSC4PropManager::GetCityProps	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	19	+0x4C	004a1f30	cSC4PropManager::AddCityProp	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	20	+0x50	004a1e70	cSC4PropManager::AddCityProp	12	3	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	21	+0x54	004a38f0	cSC4PropManager::RemoveCityProps	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	22	+0x58	004a3850	cSC4PropManager::RemoveCityProps	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	23	+0x5C	004a1fd0	cSC4PropManager::GetLotProps	12	3	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	24	+0x60	004a3240	cSC4PropManager::GetLotProps	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	25	+0x64	004a20c0	cSC4PropManager::AddLotProp	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	26	+0x68	004a2670	cSC4PropManager::AddLotProp	12	3	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	27	+0x6C	004a3af0	cSC4PropManager::RemoveLotProps	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	28	+0x70	004a3a50	cSC4PropManager::RemoveLotProps	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	29	+0x74	004a27b0	cSC4PropManager::RemovePropA	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	30	+0x78	004a1f90	cSC4PropManager::GetStreetProps	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	31	+0x7C	004a3150	cSC4PropManager::GetStreetProps	12	3	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	32	+0x80	004a2120	cSC4PropManager::AddStreetProp	12	3	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	33	+0x84	004a3990	cSC4PropManager::RemoveStreetPropsFromTile	8	2	unknown	low	
-cISC4PropManager	cSC4PropManager	00a8f928	34	+0x88	004a2140	cSC4PropManager::GetBuildingProps	12	3	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	35	+0x8C	004a3770	cSC4PropManager::GetBuildingProps	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	36	+0x90	004a3b90	cSC4PropManager::AddBuildingProp	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	37	+0x94	004a21a0	cSC4PropManager::RemoveBuildingProps	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	38	+0x98	004a3390	cSC4PropManager::RemoveBuildingProps	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	39	+0x9C	004a27c0	cSC4PropManager::RemoveBuildingProp	8	2	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	0	+0x0	004a1d30	cSC4PropManager::QueryInterface(iid, void**)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): 0x28326F3E -> this; 1/0x452294AA -> this+4; 0xE4FDA3D4 -> this+8; A1
+cISC4PropManager	cSC4PropManager	00a8f928	1	+0x4	004f7ba0	cSC4PropManager::AddRef	0	0	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): shared; refcount +0x10
+cISC4PropManager	cSC4PropManager	00a8f928	2	+0x8	004a2340	cSC4PropManager::Release	0	0	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): at 0: Shutdown then slot 40(1); A1
+cISC4PropManager	cSC4PropManager	00a8f928	3	+0xC	004a4380	cSC4PropManager::Init	0	0	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): once; the first time builds the process-wide prop catalogue; true; A4.1
+cISC4PropManager	cSC4PropManager	00a8f928	4	+0x10	004a2370	cSC4PropManager::Shutdown	0	0	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): true; A4.2
+cISC4PropManager	cSC4PropManager	00a8f928	5	+0x14	004a2bf0	cSC4PropManager::GetAllPropTypes(vec&)	4	1	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; clears then appends in bucket order; A5
+cISC4PropManager	cSC4PropManager	00a8f928	6	+0x18	004a2cb0	cSC4PropManager::GetAllPropFamilyTypes(vec&)	4	1	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; A5
+cISC4PropManager	cSC4PropManager	00a8f928	7	+0x1C	004a2d70	cSC4PropManager::GetPropKeyFromType(id, key&)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A5
+cISC4PropManager	cSC4PropManager	00a8f928	8	+0x20	004a2dd0	cSC4PropManager::IsPropTypeValid(id)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A5
+cISC4PropManager	cSC4PropManager	00a8f928	9	+0x24	004a2e90	cSC4PropManager::GetPropTypesByFamily(vec&, id)	8	2	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): count; assigns vec; a single prop type gives vec=[id] and returns 0; A5
+cISC4PropManager	cSC4PropManager	00a8f928	10	+0x28	004a2f80	cSC4PropManager::IsPropInFamily(type, family)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A5
+cISC4PropManager	cSC4PropManager	00a8f928	11	+0x2C	004a2e10	cSC4PropManager::IsPropFamilyTypeValid(id)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): family map or type map; A5
+cISC4PropManager	cSC4PropManager	00a8f928	12	+0x30	004a4360	cSC4PropManager::GetPropName(id)	4	1	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): string ref, always empty; A5
+cISC4PropManager	cSC4PropManager	00a8f928	13	+0x34	004a3750	cSC4PropManager::GetPropProfile(id)	4	1	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): 0x1C-byte profile ref; inserts a zero profile for an unknown ID; A3.2
+cISC4PropManager	cSC4PropManager	00a8f928	14	+0x38	004a2ff0	cSC4PropManager::GetPropProfilePtr(id)	4	1	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): profile or null; A5
+cISC4PropManager	cSC4PropManager	00a8f928	15	+0x3C	004a3040	cSC4PropManager::CreateProp(id, prop*&)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A6.1
+cISC4PropManager	cSC4PropManager	00a8f928	16	+0x40	004a24d0	cSC4PropManager::CreateGenericProp(key const&, prop*&)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A6.2
+cISC4PropManager	cSC4PropManager	00a8f928	17	+0x44	004a1df0	cSC4PropManager::GetCityProps(list&, SC4Rect<float> const&)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): SDK overload order reversed; occupant manager slot 36; A7.2
+cISC4PropManager	cSC4PropManager	00a8f928	18	+0x48	004a1db0	cSC4PropManager::GetCityProps(list&, SC4Rect<int32> const&)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): occupant manager slot 40; A7.2
+cISC4PropManager	cSC4PropManager	00a8f928	19	+0x4C	004a1f30	cSC4PropManager::AddCityProp(occ)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): usage 1; A7.1
+cISC4PropManager	cSC4PropManager	00a8f928	20	+0x50	004a1e70	cSC4PropManager::AddCityProp(id, pos const&, orient)	12	3	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): occupant or null, no reference for the caller; A7.1
+cISC4PropManager	cSC4PropManager	00a8f928	21	+0x54	004a38f0	cSC4PropManager::RemoveCityProps(SC4Rect<float> const&)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): true; A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	22	+0x58	004a3850	cSC4PropManager::RemoveCityProps(SC4Rect<int32> const&)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): true; A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	23	+0x5C	004a1fd0	cSC4PropManager::GetLotProps(list&, x, z)	12	3	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A7.2
+cISC4PropManager	cSC4PropManager	00a8f928	24	+0x60	004a3240	cSC4PropManager::GetLotProps(list&, lot)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): filters the whole list by the lot world box, upper bounds exclusive; A7.2
+cISC4PropManager	cSC4PropManager	00a8f928	25	+0x64	004a20c0	cSC4PropManager::AddLotProp(lot, occ)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): usage 2; lot ignored; A7.1
+cISC4PropManager	cSC4PropManager	00a8f928	26	+0x68	004a2670	cSC4PropManager::AddLotProp(id, pos const&, orient)	12	3	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): usage 2; A7.1
+cISC4PropManager	cSC4PropManager	00a8f928	27	+0x6C	004a3af0	cSC4PropManager::RemoveLotProps(x, z)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): true; A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	28	+0x70	004a3a50	cSC4PropManager::RemoveLotProps(lot)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): true; A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	29	+0x74	004a27b0	cSC4PropManager::RemoveProp(occ)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): SDK RemovePropA; true; A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	30	+0x78	004a1f90	cSC4PropManager::GetStreetProps(list&, SC4Rect<int32> const&)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): usage 4; A7.2
+cISC4PropManager	cSC4PropManager	00a8f928	31	+0x7C	004a3150	cSC4PropManager::GetStreetProps(list&, x, z)	12	3	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): always false (AL cleared) even with results; A7.2
+cISC4PropManager	cSC4PropManager	00a8f928	32	+0x80	004a2120	cSC4PropManager::AddStreetProp(id, pos const&, orient)	12	3	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): usage 4; A7.1
+cISC4PropManager	cSC4PropManager	00a8f928	33	+0x84	004a3990	cSC4PropManager::RemoveStreetPropsFromTile(x, z)	8	2	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	34	+0x88	004a2140	cSC4PropManager::GetBuildingProps(list&, x, z)	12	3	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A7.2
+cISC4PropManager	cSC4PropManager	00a8f928	35	+0x8C	004a3770	cSC4PropManager::GetBuildingProps(list&, building)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): building property 0xA8322B7F; A7.2
+cISC4PropManager	cSC4PropManager	00a8f928	36	+0x90	004a3b90	cSC4PropManager::AddBuildingProp(building, prop)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): usage 3; non-owning vector in property 0xA8322B7F; A7.1
+cISC4PropManager	cSC4PropManager	00a8f928	37	+0x94	004a21a0	cSC4PropManager::RemoveBuildingProps(x, z)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	38	+0x98	004a3390	cSC4PropManager::RemoveBuildingProps(building)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	39	+0x9C	004a27c0	cSC4PropManager::RemoveBuildingProp(building, prop)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): found; A7.3
 cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	0	+0x0	006eabc0	cSC4PowerSimulator::QueryInterface	8	2	eax-or-void	medium	
 cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
 cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	2	+0x8	006eb190	cSC4PowerSimulator::Release	0	0	eax-or-void	medium	
@@ -2602,25 +2622,25 @@ cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	1	+0x4	005e28f0	icf::cSC4Autom
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	2	+0x8	005e2900	icf::cSC4Automaton::Release	0	0	eax-or-void	medium	tail->005e8df0
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	3	+0xC	00619050		4	1	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	4	+0x10	00619100	cSC4NetworkOccupant::Shutdown	0	0	eax-or-void	medium	tail->005e8980
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	5	+0x14	00648ef0	cSC4ViewInputControl::OnMouseExit	0	0	eax-or-void	medium	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	6	+0x18	00619180		0	0	eax-or-void	medium	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	7	+0x1C	0061a120		4	1	via-call	low	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	5	+0x14	00648ef0	cSC4NetworkOccupant::IsManagedGlobally	0	0	al	high	NAME. base false (ICF return-0 body); true for prebuilt 0x00AA7038, bridge 0x00AA7300, tunnel 0x00AA9308; re-specs13c
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	6	+0x18	00619180	cSC4NetworkOccupant::CheckForRetrofit	0	0	al	high	NAME.; re-specs13c
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	7	+0x1C	0061a120	cSC4NetworkOccupant::SetRetrofitFlag(bool)	4	1	void	high	NAME.; re-specs13c
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	8	+0x20	00604d10	cSC4NetworkOccupant::HasAllNetworkFlags(uint32 mask)	4	1	eax	high	(flags & mask) == mask as 0/1 in EAX; zones 8.4.1; re-specs11
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	9	+0x24	00604d30	HasAnyNetworkFlag	4	1	eax-or-void	medium	re-answers5 LG7: bool (flags & mask) != 0, as used by FindNetworkTile
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	10	+0x28	00619ec0		4	1	via-call	low	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	11	+0x2C	00619f70		4	1	eax-or-void	medium	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	12	+0x30	006e3000	cSC4PollutionSimulator::GetTotalGarbageUncollected	0	0	eax-or-void	medium	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	10	+0x28	00619ec0	cSC4NetworkOccupant::SetNetworkFlag(uint32)	4	1	void	high	NAME. posts 0x89D3E9F3 data1=1 when 0x10000000 becomes set on a placed occupant; 0x4000 -> slot 58(1, 0x80); network-manager.md 5; re-specs13c
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	11	+0x2C	00619f70	cSC4NetworkOccupant::ClearNetworkFlag(uint32)	4	1	void	high	NAME. posts 0x89D3E9F3 data1=0 when 0x10000000 was set; network-manager.md 5; re-specs13c
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	12	+0x30	006e3000	cSC4NetworkOccupant::GetNetworkFlag	0	0	eax	high	NAME. ICF body returning +0x13C; re-specs13c
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	13	+0x34	00619110		8	2	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	14	+0x38	0061a020		8	2	via-call	low	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	15	+0x3C	00619150		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	16	+0x40	0061a090		4	1	via-call	low	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	17	+0x44	00604d50		0	0	via-call	low	re-answers11 ZQ15(b): tests every bit of network flag 0x400000 (HasAllNetworkFlags(0x400000), pre-built-model piece not placed by the tool); zones.md 8.4.1
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	18	+0x48	00604d60				forward	medium	indirect-jump dword ptr [eax + 0x28]/dword ptr [edx + 0x2c]
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	19	+0x4C	00604d80		0	0	via-call	low	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	20	+0x50	00604d90				forward	medium	indirect-jump dword ptr [eax + 0x28]/dword ptr [edx + 0x2c]
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	21	+0x54	00604db0		0	0	eax-or-void	medium	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	17	+0x44	00604d50	cSC4NetworkOccupant::IsImmovable	0	0	al	high	NAME. HasNetworkFlag(0x400000); re-specs13c; earlier: re-answers11 ZQ15(b): tests every bit of network flag 0x400000 (HasAllNetworkFlags(0x400000), pre-built-model piece not placed by the tool); zones.md 8.4.1
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	18	+0x48	00604d60	cSC4NetworkOccupant::SetImmovable(bool)	4	1	void	high	NAME. tail to slot 10/11 with 0x400000; re-specs13c; earlier: indirect-jump dword ptr [eax + 0x28]/dword ptr [edx + 0x2c]
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	19	+0x4C	00604d80	cSC4NetworkOccupant::IsUsable	0	0	al	high	NAME. HasNetworkFlag(0x10000000); re-specs13c
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	20	+0x50	00604d90	cSC4NetworkOccupant::SetUsable(bool)	4	1	void	high	NAME. tail to slot 10/11 with 0x10000000; re-specs13c; earlier: indirect-jump dword ptr [eax + 0x28]/dword ptr [edx + 0x2c]
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	21	+0x54	00604db0	cSC4NetworkOccupant::IsPlaced	0	0	eax	high	NAME. occupant GetFlags() & 1; re-specs13c
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	22	+0x58	00619520				forward	medium	indirect-jump dword ptr [eax + 0x20]
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	23	+0x5C	00459960	cSC4City::UIGetLockCount	0	0	eax-or-void	medium	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	23	+0x5C	00459960	cSC4NetworkOccupant::PieceId	0	0	eax	high	NAME. ICF body; re-specs13c
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	24	+0x60	00604dc0		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	25	+0x64	00604dd0		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	26	+0x68	00604de0		0	0	eax-or-void	medium	
@@ -2659,7 +2679,7 @@ cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	58	+0xE8	0061b750		8	2	via-cal
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	59	+0xEC	0061b010		8	2	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	60	+0xF0	00619890		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	61	+0xF4	0061b910	cSC4NetworkOccupant::SetLit	4	1	eax-or-void	medium	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	62	+0xF8	00648ef0	cSC4ViewInputControl::OnMouseExit	0	0	eax-or-void	medium	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	62	+0xF8	00648ef0	cSC4NetworkOccupant::CanBeLit	0	0	al	high	NAME. base false (ICF return-0 body); bridges true; re-specs13c
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	63	+0xFC	00604e10		0	0	edx:eax	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	64	+0x100	00604e20		8	2	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	65	+0x104	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
@@ -2756,10 +2776,10 @@ cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	1	+0x4	004664a0	cS3DTextureBindi
 cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	2	+0x8	006107d0	cSC4NetworkManager::Release	0	0	eax-or-void	medium	
 cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	3	+0xC	00610c10	cSC4NetworkManager::Init	0	0	eax-or-void	medium	
 cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	4	+0x10	00611eb0	cSC4NetworkManager::Shutdown	0	0	eax-or-void	medium	
-cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	5	+0x14	006108d0	cSC4NetworkManager::GetNetworkTool	8	2	eax-or-void	medium	indirect-jump dword ptr [eax*4 + 0x610a9c]
-cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	6	+0x18	00612110	cSC4NetworkManager::DestroyNetworkOccupants	4	1	eax-or-void	medium	
-cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	7	+0x1C	00613450	cSC4NetworkManager::QueueRemovals	4	1	eax-or-void	medium	
-cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	8	+0x20	006110b0	cSC4NetworkManager::RemoveOrReplaceOccupant	12	3	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	5	+0x14	006108d0	cSC4NetworkManager::GetNetworkTool(int32 type, bool unique)	8	2	eax	high	FIX notes. type >= 13 -> null; unique=false: the cached tool, borrowed; network-manager.md 7.1; re-specs13c; earlier: indirect-jump dword ptr [eax*4 + 0x610a9c]
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	6	+0x18	00612110	cSC4NetworkManager::DestroyNetworkOccupants(cSC4List<cISC4Occupant*>&)	4	1	void	high	FIX args. network-manager.md 7.2; re-specs13c
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	7	+0x1C	00613450	cSC4NetworkManager::QueueRemovals(bool)	4	1	void	high	FIX args. network-manager.md 7.3; re-specs13c
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	8	+0x20	006110b0	cSC4NetworkManager::RemoveOrReplaceOccupant(cISC4NetworkTool*, cISC4Occupant*, bool& replaced)	12	3	al	high	FIX args. network-manager.md 7.4; re-specs13c
 cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	9	+0x24	00610540	cSC4NetworkManager::IsOccupantSubwayStation	4	1	eax-or-void	medium	
 cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	10	+0x28	00610550	cSC4NetworkManager::FindPipeOccupant	12	3	eax-or-void	medium	
 cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	11	+0x2C	00610570	cSC4NetworkManager::FindPipeConnectionOccupant	12	3	eax-or-void	medium	
@@ -2767,38 +2787,38 @@ cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	12	+0x30	00612780	cSC4NetworkMan
 cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	13	+0x34	00610ad0	cSC4NetworkManager::MapPreviewTexture	8	2	eax-or-void	medium	
 cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	14	+0x38	00611d50	cSC4NetworkManager::MapShadowTexture	16	4	eax-or-void	medium	
 cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	15	+0x3C	00610b40	cSC4NetworkManager::MapPath	4	1	eax-or-void	medium	
-cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	16	+0x40	006122b0	cSC4NetworkManager::RegisterConstructionCrew	4	1	via-call	low	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	16	+0x40	006122b0	cSC4NetworkManager::RegisterConstructionCrew(crew*)	4	1	void	medium	FIX ret (was via-call low): AddRef + push_back; re-specs13c
 cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	17	+0x44	006112a0	cSC4NetworkManager::UnregisterConstructionCrew	4	1	eax-or-void	medium	
 cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	18	+0x48	00610590	cSC4NetworkManager::GetWaterOccupantFilter	0	0	eax-or-void	medium	
 cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	19	+0x4C	006105c0	cSC4NetworkManager::GetSubwayOccupantFilter	0	0	eax-or-void	medium	
-cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	20	+0x50	00611300	cSC4NetworkManager::CreateConnectionNode	28	7	eax-or-void	medium	
-cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	21	+0x54	00611530	cSC4NetworkManager::AutoconnectLotNodes	8	2	eax-or-void	medium	
-cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	22	+0x58	006107f0	cSC4NetworkManager::GetEnglishNetworkName	4	1	eax-or-void	medium	
-cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	23	+0x5C	00612480	cSC4NetworkManager::AddToRetrofitList	4	1	unknown	low	
-cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	24	+0x60	00612590	cSC4NetworkManager::~cSC4NetworkManager	4	1	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	20	+0x50	00611300	cSC4NetworkManager::CreateConnectionNode(occ** out, int32 type, point& p, uint32 edgesA, uint32 edgesB, uint32 pathOverride, uint8)	28	7	al	high	FIX args. sets flags 0x200000|0x8000000; network-manager.md 7.7; re-specs13c
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	21	+0x54	00611530	cSC4NetworkManager::AutoconnectLotNodes(cISC4Lot*, nodes&)	8	2	void	medium	FIX args. network-manager.md 7.8; re-specs13c
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	22	+0x58	006107f0	cSC4NetworkManager::GetEnglishNetworkName(int32 type)	4	1	eax	high	FIX notes. table 0x00AA845C, no bounds check; re-specs13c
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	23	+0x5C	00612480	cSC4NetworkManager::AddToRetrofitList(cISC4NetworkOccupant*)	4	1	void	high	FIX ret (was unknown low); re-specs13c
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	24	+0x60	00612590	cSC4NetworkManager::~cSC4NetworkManager (deleting)	4	1	eax	high	FIX name: the deleting destructor, not an interface method; re-specs13c
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	0	+0x0	00623290		8	2	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	1	+0x4	00695330	icf::cSC4AutomataControllerManager::AddRef	0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	2	+0x8	00623270		0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	3	+0xC	006269c0	cSC4NetworkTool::Init	0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	4	+0x10	00626d30		0	0	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	5	+0x14	00626f90	cSC4NetworkTool::Reset	0	0	edx:eax?	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	5	+0x14	00626f90	cSC4NetworkTool::Reset	0	0	void	medium	re-specs14b: SDK Reset; called by cSC4NetworkToolUI::DoPlacement 0x00645370
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	6	+0x18	00623b20		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	7	+0x1C	00629210	cSC4NetworkTool::PlaceNetworkOccupants	32	8	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	8	+0x20	00624fd0	cSC4NetworkTool::PlaceNetworkOccupantById	20	5	via-call	low	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	9	+0x24	006248d0		16	4	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	7	+0x1C	00629210	cSC4NetworkTool::PlaceNetworkOccupants	32	8	al	high	re-specs14b: (x1,z1,x2,z2,mask,callback,real,type); sets +0x208=3 at 0x0062924A, back to 1 at 0x00629980; network-tools.md §3
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	8	+0x20	00624fd0	cSC4NetworkTool::PlaceNetworkOccupantById	20	5	void	high	re-specs14b: (x,z,piece,usable,type); forces +0x50=1 around slot 72; network-tools.md §4
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	9	+0x24	006248d0	cSC4NetworkTool::OccupantExists	16	4	al	medium	re-specs14b: SDK name; zones.md §8.8
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	10	+0x28	0062c900		20	5	unknown	low	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	11	+0x2C	0062c8c0		0	0	unknown	low	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	12	+0x30	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	13	+0x34	0062c8e0		0	0	unknown	low	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	14	+0x38	0062c8f0		0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	13	+0x34	0062c8e0	cSC4NetworkTool::ClearFailureReason	0	0	void	medium	re-specs14b: SDK name (SDK index 10)
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	14	+0x38	0062c8f0	cSC4NetworkTool::GetFailureState	0	0	eax	medium	re-specs14b: returns failure code +0x20C (0xF0000001..8, 0xF0000011..13)
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	15	+0x3C	0062ca40		4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	16	+0x40	00625580		0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	17	+0x44	00625f10		0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	18	+0x48	0063af40	cSC4NetworkTool::DrawNetworkLine	16	4	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	19	+0x4C	0063bdc0	cSC4NetworkTool::PlaceAllSegments	16	4	eax-or-void	medium	indirect-jump dword ptr [edx*4 + 0x63bf18]
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	20	+0x50	00625640		0	0	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	21	+0x54	0062c8d0		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	22	+0x58	0062ca20		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	20	+0x50	00625640	cSC4NetworkTool::GetCostOfSolution	0	0	eax	high	re-specs14b: price only, never withdraws; network-tools.md §8.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	21	+0x54	0062c8d0	cSC4NetworkTool::EnablePreviewUpdate	4	1	void	medium	re-specs14b: byte +0x234 (default 1) gates the inserts in PlaceNetwork
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	22	+0x58	0062ca20	cSC4NetworkTool::SetAnchorPoints	4	1	void	medium	re-specs14b: SDK name (SDK index 19)
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	23	+0x5C	0062ca30		4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	24	+0x60	0062ca10	cSC4NetworkTool::SetValidStepCount	4	1	eax-or-void	medium	tail->00624bf0
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	25	+0x64	00407ab0	icf::cSC4Advice::GetPriority	0	0	eax-or-void	medium	
@@ -2829,7 +2849,7 @@ cISC4NetworkTool	cSC4NetworkTool	00aa8748	49	+0xC4	0062d450	cSC4NetworkTool::Que
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	50	+0xC8	0062a5c0	cSC4NetworkTool::DestroyOccupantsAndResolve	4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	51	+0xCC	0062cd30		4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	52	+0xD0	0062bf60	cSC4NetworkTool::GetFailureReasonString	8	2	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	53	+0xD4	0062c980	icf::cIGZWinProc::DoWinProcMessage	8	2	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	53	+0xD4	0062c980	cSC4NetworkTool::DoNetworkSpecificPlacement	8	2	al	high	re-specs14b: base stub returns false (ICF-folded); power-line override 0x00652980 returns true; PlaceNetwork 0x0063B8B3 returns true at once when it does
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	54	+0xD8	00624210	cSC4NetworkTool::CreateNetworkOccupant	16	4	via-call	low	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	55	+0xDC	006258c0	cSC4NetworkTool::InsertOccupantsForSolvedCells	12	3	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	56	+0xE0	00644b20	cSC4NetworkTool::CanTilesBeSupportedOnTerrain	4	1	eax-or-void	medium	
@@ -2850,7 +2870,7 @@ cISC4NetworkTool	cSC4NetworkTool	00aa8748	70	+0x118	00407990	_memset	0	0	unknown
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	71	+0x11C	00633250	cSC4NetworkTool::CreateCellInfosForCurrentPlacementTiles	4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	72	+0x120	006278a0	cSC4NetworkTool::InsertNetworkOccupant	12	3	via-call	low	indirect-jump dword ptr [edx*4 + 0x62836c]
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	73	+0x124	006444f0		4	1	x87	high	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	74	+0x128	0062c990		4	1	x87	high	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	74	+0x128	0062c990	cSC4NetworkTool::GetPlacementHeight	4	1	x87	high	re-specs14b: name is ours; base returns its float argument; underground 0x00648F20 returns arg - depth(+0x36C)
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	75	+0x12C	00407990	_memset	0	0	unknown	low	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	76	+0x130	006360c0	cSC4NetworkTool::InsertRangeConstraintsForCell	4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	77	+0x134	00637b90		4	1	eax-or-void	medium	
@@ -2910,7 +2930,7 @@ cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	49	+0xC4	0062d450	cSC4Net
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	50	+0xC8	0062a5c0	cSC4NetworkTool::DestroyOccupantsAndResolve	4	1	eax-or-void	medium	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	51	+0xCC	00650560		4	1	eax-or-void	medium	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	52	+0xD0	0064f570	cSC4PowerLineTool::GetFailureReasonString	8	2	edx:eax?	low	tail->0062bf60
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	53	+0xD4	00652980	cSC4PowerLineTool::DoNetworkSpecificPlacement	8	2	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	53	+0xD4	00652980	cSC4PowerLineTool::DoNetworkSpecificPlacement	8	2	al	high	re-specs14b: always returns 1; network-tools.md §9
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	54	+0xD8	00624210	cSC4NetworkTool::CreateNetworkOccupant	16	4	via-call	low	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	55	+0xDC	006258c0	cSC4NetworkTool::InsertOccupantsForSolvedCells	12	3	eax-or-void	medium	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	56	+0xE0	00644b20	cSC4NetworkTool::CanTilesBeSupportedOnTerrain	4	1	eax-or-void	medium	
@@ -2938,8 +2958,11 @@ cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	77	+0x134	00637b90		4	1	e
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	78	+0x138	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	79	+0x13C	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	80	+0x140	00623ce0	cSC4NetworkTool::SetQuadTrianglesToDraw	8	2	via-call	low	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	81	+0x144	0064fed0	cSC4PowerLineTool::CheckForReservedTiles	4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	81	+0x144	0064fed0	cSC4PowerLineTool::CheckForReservedTiles	4	1	void	medium	re-specs14b: sets 0xF0000011/12/13
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	82	+0x148	0064f2b0	cSC4PowerLineTool::SetTerrainHilight	4	1	eax-or-void	medium	
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	74	+0x128	00648f20	cSC4UndergroundNetworkTool::GetPlacementHeight	4	1	x87	high	re-specs14b: arg - [this+0x36C]; same entry in 0x00AAA5C0 and 0x00AAA950
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	81	+0x144	00648f40	cSC4PipeTool::GetOccupantClass	0	0	eax	high	re-specs14b: name is ours; returns 0x49C05B9F; used by UpdateUndergroundOccupantTerrainHeights
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	81	+0x144	00653d90	cSC4SubwayTool::GetOccupantClass	0	0	eax	high	re-specs14b: name is ours; returns 0xCA16374F
 cISC4Demolition	cSC4Demolition	00a88004	0	+0x0	004664b0	cSC4Demolition::QueryInterface	8	2	eax-or-void	medium	
 cISC4Demolition	cSC4Demolition	00a88004	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
 cISC4Demolition	cSC4Demolition	00a88004	2	+0x8	00466950	cSC4Demolition::Release	0	0	eax-or-void	medium	
@@ -3853,34 +3876,34 @@ cISC4TractDeveloper	cSC4TractDeveloper	00ab3118	11	+0x2C	0070c850	cSC4TractDevel
 cISC4TractDeveloper	cSC4TractDeveloper	00ab3118	12	+0x30	0070c860	cSC4TractDeveloper::UseAllStylesAtOnce	4	1	eax-or-void	medium	
 cISC4TractDeveloper	cSC4TractDeveloper	00ab3118	13	+0x34	00407ba0	icf::cGZGraphicSystem::GetGDriver	0	0	eax-or-void	medium	
 cISC4TractDeveloper	cSC4TractDeveloper	00ab3118	14	+0x38	0070c880	cSC4TractDeveloper::SetYearsBetweenStyleChanges	4	1	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	0	+0x0	004896a0	cSC4LotConfigurationManager::QueryInterface	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	2	+0x8	004897c0	cSC4LotConfigurationManager::Release	0	0	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	3	+0xC	0048a5e0	cSC4LotConfigurationManager::Init	0	0	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	4	+0x10	004897f0	cSC4LotConfigurationManager::Shutdown	0	0	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	5	+0x14	00489a60	cSC4LotConfigurationManager::AddLotConfiguration	4	1	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	6	+0x18	0048a690	cSC4LotConfigurationManager::AddLotConfiguration	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	7	+0x1C	0048a2d0	cSC4LotConfigurationManager::RemoveLotConfiguration	4	1	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	8	+0x20	0048a320	cSC4LotConfigurationManager::GetLotConfiguration	4	1	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	9	+0x24	0048b1a0	cSC4LotConfigurationManager::GetLotConfigurationsByFilter	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	10	+0x28	0048a7e0	cSC4LotConfigurationManager::GetLotConfigurationsByFamily	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	11	+0x2C	0048a8b0	cSC4LotConfigurationManager::GetLotConfigurationsBySize	12	3	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	12	+0x30	0048a370	cSC4LotConfigurationManager::ClearLotConfigurationSet	4	1	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	13	+0x34	0048a9a0	cSC4LotConfigurationManager::GetLotConfigurationIDsByFilter	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	14	+0x38	0048aa80	cSC4LotConfigurationManager::GetLotConfigurationIDsByFamily	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	15	+0x3C	0048ab50	cSC4LotConfigurationManager::GetLotConfigurationIDsBySize	12	3	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	16	+0x40	00489aa0	cSC4LotConfigurationManager::LotConfigurationHasBuildingFamily	12	3	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	17	+0x44	00489b40	cSC4LotConfigurationManager::LotConfigurationHasBuildingType	12	3	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	18	+0x48	0048a660	cSC4LotConfigurationManager::RegisterLotConfigurationFilter	4	1	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	19	+0x4C	0048a3f0	cSC4LotConfigurationManager::UnregisterLotConfigurationFilter	4	1	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	20	+0x50	00489720	cSC4LotConfigurationManager::GetLotConfigurationMap	0	0	eax	high	re-answers9 DG3: address of the STLport hash_map at 0x00B216C8, no reference; 12-byte nodes {next, key, config*}
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	21	+0x54	00489730	cSC4LotConfigurationManager::GetLotConfigurationFamilyIDSet	0	0	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	22	+0x58	0048bcf0	cSC4LotConfigurationManager::CreateGenericLotConfiguration	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	23	+0x5C	0048b3b0	cSC4LotConfigurationManager::FixLotConfiguration	4	1	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	24	+0x60	00489e10	cSC4LotConfigurationManager::GetMaxFootprintForBuildingFamilies	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	25	+0x64	0048b860	cSC4LotConfigurationManager::GetMaxFootprintForFloraFamilies	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	26	+0x68	00489f50	cSC4LotConfigurationManager::GetMaxFootprintForPropFamilies	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	27	+0x6C	0048ba10	cSC4LotConfigurationManager::GetObjectIDArray	8	2	eax-or-void	medium	
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	0	+0x0	004896a0	cSC4LotConfigurationManager::QueryInterface(iid, void**)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): 1/0xC8EDBEC0 -> this; 0xE4FDA3D4 -> this+8; B1
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	1	+0x4	004f7ba0	cSC4LotConfigurationManager::AddRef	0	0	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): shared
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	2	+0x8	004897c0	cSC4LotConfigurationManager::Release	0	0	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): at 0: Shutdown then slot 28(1); B1
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	3	+0xC	0048a5e0	cSC4LotConfigurationManager::Init	0	0	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): StaticInit reloads the catalogue when the detail preference changed; true; B4.1
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	4	+0x10	004897f0	cSC4LotConfigurationManager::Shutdown	0	0	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): true; B4.2
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	5	+0x14	00489a60	cSC4LotConfigurationManager::AddLotConfiguration(key const&)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): SDK error: the SDK declares (cfg, bool) here; reads with Load(key, detail level); B3.2
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	6	+0x18	0048a690	cSC4LotConfigurationManager::AddLotConfiguration(cfg, bool add)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): always 1; erase does not release; B3.4
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	7	+0x1C	0048a2d0	cSC4LotConfigurationManager::RemoveLotConfiguration(id)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): B3.4
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	8	+0x20	0048a320	cSC4LotConfigurationManager::GetLotConfiguration(id)	4	1	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): no reference added; B5.1
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	9	+0x24	0048b1a0	cSC4LotConfigurationManager::GetLotConfigurationsByFilter(set&, filter)	8	2	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): match count; reference per match; registered filters cached; B5.2 B5.4
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	10	+0x28	0048a7e0	cSC4LotConfigurationManager::GetLotConfigurationsByFamily(set&, family)	8	2	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): match count; B5.2
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	11	+0x2C	0048a8b0	cSC4LotConfigurationManager::GetLotConfigurationsBySize(set&, x, z)	12	3	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): match count; B5.2
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	12	+0x30	0048a370	cSC4LotConfigurationManager::ClearLotConfigurationSet(set&)	4	1	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; B5.2
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	13	+0x34	0048a9a0	cSC4LotConfigurationManager::GetLotConfigurationIDsByFilter(set&, filter)	8	2	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): match count; B5.2
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	14	+0x38	0048aa80	cSC4LotConfigurationManager::GetLotConfigurationIDsByFamily(set&, family)	8	2	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): match count; B5.2
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	15	+0x3C	0048ab50	cSC4LotConfigurationManager::GetLotConfigurationIDsBySize(set&, x, z)	12	3	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): match count; B5.2
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	16	+0x40	00489aa0	cSC4LotConfigurationManager::LotConfigurationHasBuildingFamily(cfg, family, obj**)	12	3	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): B5.3
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	17	+0x44	00489b40	cSC4LotConfigurationManager::LotConfigurationHasBuildingType(cfg, type, obj**)	12	3	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): B5.3
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	18	+0x48	0048a660	cSC4LotConfigurationManager::RegisterLotConfigurationFilter(filter)	4	1	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; B5.4
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	19	+0x4C	0048a3f0	cSC4LotConfigurationManager::UnregisterLotConfigurationFilter(filter)	4	1	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; B5.4
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	20	+0x50	00489720	cSC4LotConfigurationManager::GetLotConfigurationMap()	0	0	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): address of the hash_map at 0x00B216C8, no reference; B5.1
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	21	+0x54	00489730	cSC4LotConfigurationManager::GetLotConfigurationFamilyIDSet()	0	0	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): address of the set at 0x00B216DC; B5.1
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	22	+0x58	0048bcf0	cSC4LotConfigurationManager::CreateGenericLotConfiguration(cfg*&, buildingType)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): B5.7
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	23	+0x5C	0048b3b0	cSC4LotConfigurationManager::FixLotConfiguration(cfg)	4	1	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): code 0-6 of the first problem; B5.7
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	24	+0x60	00489e10	cSC4LotConfigurationManager::GetMaxFootprintForBuildingFamilies(vec const&, rect&)	8	2	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; start (4,4,0,0); B5.5
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	25	+0x64	0048b860	cSC4LotConfigurationManager::GetMaxFootprintForFloraFamilies(vec const&, rect&)	8	2	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; start (2,2,0,0); B5.5
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	26	+0x68	00489f50	cSC4LotConfigurationManager::GetMaxFootprintForPropFamilies(vec const&, rect&)	8	2	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; start (2,2,0,0); B5.5
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	27	+0x6C	0048ba10	cSC4LotConfigurationManager::GetObjectIDArray(obj, vec&)	8	2	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; building families assign vec; B5.6
 cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	0	+0x0	004777b0	cSC4LotConfiguration::QueryInterface	8	2	eax-or-void	medium	
 cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	1	+0x4	005f47f0	icf::cGZCommandSystemSupport::AddRef	0	0	eax-or-void	medium	
 cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	2	+0x8	00479ce0	cSC4LotConfiguration::FinalRelease	0	0	eax-or-void	medium	
@@ -3961,11 +3984,11 @@ cISTESurfaceWater	cSTESurfaceWater	00ab3b00	5	+0x14	0073d200	cSTESurfaceWater::G
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	6	+0x18	0073d210	cSTESurfaceWater::GetWaterDepthForCell	8	2	x87	high	
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	7	+0x1C	0073cef0	cSTESurfaceWater::IsNavigable	20	5	via-call	low	
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	8	+0x20	0073ebf0	cSTESurfaceWater::IsNavigable	16	4	eax-or-void	medium	
-cISTESurfaceWater	cSTESurfaceWater	00ab3b00	9	+0x24	0068d1c0	cSC4AuraSimulator::GetTransientAuraGrid	0	0	eax-or-void	medium	
+cISTESurfaceWater	cSTESurfaceWater	00ab3b00	9	+0x24	0068d1c0	cSTESurfaceWater::GetBodyOfWaterMap (folded getter, +0x4C)	0	0	eax	high	uint16 SimGrid; replaces folded name cSC4AuraSimulator::GetTransientAuraGrid; terrain.md §10.2
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	10	+0x28	0073d4f0	cSTESurfaceWater::AltitudeAtWhichFloodingWillOccur	8	2	x87	high	
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	11	+0x2C	0073d7c0	cSTESurfaceWater::GetWaterVelocity	8	2	eax-or-void	medium	
-cISTESurfaceWater	cSTESurfaceWater	00ab3b00	12	+0x30	0073d7f0	cSTESurfaceWater::GetWaterType	8	2	eax-or-void	medium	
-cISTESurfaceWater	cSTESurfaceWater	00ab3b00	13	+0x34	0073cdb0	cSTESurfaceWater::HasDraftClearance	8	2	eax-or-void	medium	
+cISTESurfaceWater	cSTESurfaceWater	00ab3b00	12	+0x30	0073d7f0	cSTESurfaceWater::GetWaterType(x,z)	8	2	eax	high	0 dry, 2 above sea, 3 at or below sea
+cISTESurfaceWater	cSTESurfaceWater	00ab3b00	13	+0x34	0073cdb0	cSTESurfaceWater::HasDraftClearance(x,z)	8	2	al	medium	GetWaterDepthForCell > 5.0
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	14	+0x38	0073e970	cSTESurfaceWater::~cSTESurfaceWater	4	1	eax-or-void	medium	
 cISC4TrafficSource	cSC4Lot	00ab1914	0	+0x0	006c22b0		8	2	eax-or-void	medium	tail->006bf190
 cISC4TrafficSource	cSC4Lot	00ab1914	1	+0x4	006c22c0		0	0	eax-or-void	medium	tail->004664a0
@@ -4140,6 +4163,15 @@ cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	2	+0x8	0064ddc0		0	0	ea
 cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	3	+0xC	005ece90	cSC4PropOccupant::Write	4	1	eax-or-void	medium	
 cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	4	+0x10	005ef360	cSC4PropOccupant::Read	4	1	eax-or-void	medium	
 cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	5	+0x14	005ee0e0	cSC4PropOccupant::GetGZCLSID	0	0	eax-or-void	medium	
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	0	+0x0	005ecc10	cSC4PropOccupantVisualEffect::QueryInterface	8	2	al	high	re-specs14b: IIDs 0x09820792 and 0x2977AA49 -> object base
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	1	+0x4	005ecaf0	cSC4PropOccupantVisualEffect::AddRef	0	0	eax	low	re-specs14b
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	2	+0x8	005ecb00	cSC4PropOccupantVisualEffect::Release	0	0	eax	low	re-specs14b
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	3	+0xC	005f8400	cSC4PropOccupantVisualEffect::AsOccupant	0	0	eax	high	re-specs14b: this+0xC
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	4	+0x10	005fd7e0	cSC4PropOccupantVisualEffect::AsPropOccupant	0	0	eax	high	re-specs14b: this+4
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	5	+0x14	005ef7d0	cSC4PropOccupantVisualEffect::SetEffectType(uint32)	4	1	void	high	re-specs14b: overloads compiled in reverse SDK order
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	6	+0x18	005f0780	cSC4PropOccupantVisualEffect::SetEffectType(char const*)	4	1	void	high	re-specs14b: pothole name (network-manager.md §8.8, NM5)
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	7	+0x1C	005eda50	cSC4PropOccupantVisualEffect::StartEffect	4	1	al	high	re-specs14b: true iff an effect object exists
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	8	+0x20	005edaa0	cSC4PropOccupantVisualEffect::StopEffect	4	1	al	high	re-specs14b: true iff an effect object exists and it was started
 cIGZSerializable(PropOccupantVisualEffect)	cSC4PropOccupantVisualEffect	00aa4dc4	0	+0x0	005f02f0		8	2	eax-or-void	medium	tail->005ecc10
 cIGZSerializable(PropOccupantVisualEffect)	cSC4PropOccupantVisualEffect	00aa4dc4	1	+0x4	005ed650		0	0	eax-or-void	medium	tail->005ecaf0
 cIGZSerializable(PropOccupantVisualEffect)	cSC4PropOccupantVisualEffect	00aa4dc4	2	+0x8	005ed660		0	0	eax-or-void	medium	tail->005ecb00
@@ -4828,3 +4860,58 @@ cISC4Automaton	cSC4Pedestrian	00a9a718	66	+0x108	00505a40	cSC4Automaton::GetColl
 cISC4Automaton	cSC4Pedestrian	00a9a718	67	+0x10C	00505d40	cSC4Automaton::GetAutomataGroup	0	0	eax-or-void	medium	
 cISC4Automaton	cSC4Pedestrian	00a9a718	68	+0x110	0050ec10	cSC4Automaton::RegisterInGameDataRegistry	0	0	eax-or-void	medium	
 cISC4Automaton	cSC4Pedestrian	00a9a718	69	+0x114	0050b5e0	cSC4Automaton::UnregisterInGameDataRegistry	0	0	eax-or-void	medium	
+cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	0	+0x0	0060c760	cSC4NetworkLotManager::QueryInterface	8	2	al	high	NEW. IID 0x89A5BA3F; 0x452294AA -> +4; 0xE4FDA3D4 -> +8; network-manager.md 1; re-specs13c
+cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	1	+0x4	0060c730	cSC4NetworkLotManager::AddRef	0	0	eax	medium	NEW; re-specs13c
+cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	2	+0x8	0060c740	cSC4NetworkLotManager::Release	0	0	eax	medium	NEW. deletes at count <= 1; re-specs13c
+cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	3	+0xC	00610120	cSC4NetworkLotManager::Init	0	0	al	high	NEW. subscribes 0x89D3E9F3 0x99EF1143 0xA9B6C2D6 0x07699455 0xE8BDA2E7 0x69247DC8; loads type-0x21 configurations; network-manager.md 3.2; re-specs13c
+cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	4	+0x10	0060e570	cSC4NetworkLotManager::Shutdown	0	0	al	high	NEW. network-manager.md 3.2; re-specs13c
+cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	5	+0x14	0060d650	cSC4NetworkLotManager::GetNetworkLot(int32 x, int32 z)	8	2	eax	high	NEW. borrowed; key (x&0xFF)<<8|z; network-manager.md 8.1; re-specs13c
+cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	6	+0x18	0060dbf0	cSC4NetworkLotManager::GetNetworkLotConfigurationSet(set&)	4	1	void	medium	NEW. clears, then inserts every configuration AddRef-ed; re-specs13c
+cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	7	+0x1C	0060d9a0	cSC4NetworkLotManager::GetNetworkLotConfigurationById(uint32 id, cISC4NetworkLotConfiguration* out)	8	2	al	high	NEW. true if some configuration has the id; never writes out (quirk); network-manager.md 8.6; re-specs13c
+cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	8	+0x20	0060cf80	cSC4NetworkLotManager::CreateProp(cISC4NetworkLot*, uint32 objectIndex, uint32 propId)	12	3	eax	high	NEW. prop manager slot 32 AddStreetProp; borrowed; network-manager.md 8.6; re-specs13c
+cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	9	+0x24	0060d030	cSC4NetworkLotManager::GetZoneTypeForNetwork(int32 x, int32 z)	8	2	eax	high	NEW. replaces the low-confidence edx:eax guess in vtables.tsv; network-manager.md 8.2; re-specs13c
+cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	10	+0x28	0060cbb0	cSC4NetworkLotManager::GetWealthForNetwork(int32 x, int32 z)	8	2	eax	high	NEW. network-manager.md 8.3; re-specs13c
+cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	11	+0x2C	0060d820	cSC4NetworkLotManager::IterateAllNetworkLots(cb(x, z, lot, ctx), void* ctx)	8	2	al	high	NEW. stops at the first false; re-specs13c
+cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	12	+0x30	0060d5e0	cSC4NetworkLotManager::RedevelopLot(uint32 x, uint32 z, cISC4NetworkLot*)	12	3	void	high	NEW. network-manager.md 8.6; re-specs13c
+cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	13	+0x34	0060cb80	cSC4NetworkLotManager::SetLotConfigurationForNextPiece(cISC4NetworkLotConfiguration*)	4	1	void	high	NEW. ICF body shared with cSC4Lot::SetLotConfiguration; sets the forced configuration (AddRef); network-manager.md 8.5; re-specs13c
+cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	14	+0x38	0060e810	cSC4NetworkLotManager::WriteLotConfiguration(cISC4NetworkLotConfiguration*, cIGZPersistDBSegment*)	8	2	al	medium	NEW. tooling (configurations of version < 2); re-specs13c
+cISC4NetworkLotManager	cSC4NetworkLotManager	00aa7958	15	+0x3C	0060ef20	cSC4NetworkLotManager::~cSC4NetworkLotManager (deleting)	4	1	eax	medium	NEW; re-specs13c
+cIGZMessageTarget2(NetworkLotManager)	cSC4NetworkLotManager	00aa7948	0	+0x0	0060e510	cSC4NetworkLotManager::QueryInterface thunk (this-4)	8	2	al	high	NEW. sub-object +4.; re-specs13c
+cIGZMessageTarget2(NetworkLotManager)	cSC4NetworkLotManager	00aa7948	1	+0x4	0060e520	cSC4NetworkLotManager::AddRef thunk	0	0	eax	high	NEW. sub-object +4.; re-specs13c
+cIGZMessageTarget2(NetworkLotManager)	cSC4NetworkLotManager	00aa7948	2	+0x8	0060e530	cSC4NetworkLotManager::Release thunk	0	0	eax	high	NEW. sub-object +4.; re-specs13c
+cIGZMessageTarget2(NetworkLotManager)	cSC4NetworkLotManager	00aa7948	3	+0xC	0060fc30	cSC4NetworkLotManager::DoMessage	4	1	al	high	NEW. sub-object +4. 6 messages; network-manager.md 6.2; re-specs13c
+cIGZSerializable(NetworkLotManager)	cSC4NetworkLotManager	00aa7930	0	+0x0	0060e540	cSC4NetworkLotManager::QueryInterface thunk (this-8)	8	2	al	high	NEW. sub-object +8.; re-specs13c
+cIGZSerializable(NetworkLotManager)	cSC4NetworkLotManager	00aa7930	1	+0x4	0060e550	cSC4NetworkLotManager::AddRef thunk	0	0	eax	high	NEW. sub-object +8.; re-specs13c
+cIGZSerializable(NetworkLotManager)	cSC4NetworkLotManager	00aa7930	2	+0x8	0060e560	cSC4NetworkLotManager::Release thunk	0	0	eax	high	NEW. sub-object +8.; re-specs13c
+cIGZSerializable(NetworkLotManager)	cSC4NetworkLotManager	00aa7930	3	+0xC	0060d6b0	cSC4NetworkLotManager::Write(cIGZOStream&)	4	1	al	high	NEW. sub-object +8. component 11 record, version 2; network-manager.md 4.2; re-specs13c
+cIGZSerializable(NetworkLotManager)	cSC4NetworkLotManager	00aa7930	4	+0x10	0060dac0	cSC4NetworkLotManager::Read(cIGZIStream&)	4	1	al	high	NEW. sub-object +8. version must be 2; network-manager.md 4.2; re-specs13c
+cIGZSerializable(NetworkLotManager)	cSC4NetworkLotManager	00aa7930	5	+0x14	0060c720	cSC4NetworkLotManager::GetGZCLSID	0	0	eax	high	NEW. sub-object +8. returns 0xE9A6CD3B; re-specs13c
+cIGZMessageTarget2(NetworkManager)	cSC4NetworkManager	00aa7abc	0	+0x0	006120d0	cSC4NetworkManager::QueryInterface thunk (this-4)	8	2	al	high	NEW. sub-object +4.; re-specs13c
+cIGZMessageTarget2(NetworkManager)	cSC4NetworkManager	00aa7abc	1	+0x4	006c2270	cSC4NetworkManager::AddRef thunk	0	0	eax	high	NEW. sub-object +4. tail->004664a0; re-specs13c
+cIGZMessageTarget2(NetworkManager)	cSC4NetworkManager	00aa7abc	2	+0x8	006120e0	cSC4NetworkManager::Release thunk	0	0	eax	high	NEW. sub-object +4.; re-specs13c
+cIGZMessageTarget2(NetworkManager)	cSC4NetworkManager	00aa7abc	3	+0xC	00613950	cSC4NetworkManager::DoMessage	4	1	al	high	NEW. sub-object +4. 11 messages; network-manager.md 6.1; re-specs13c
+cIGZSerializable(NetworkManager)	cSC4NetworkManager	00aa7aa4	0	+0x0	006120f0	cSC4NetworkManager::QueryInterface thunk (this-8)	8	2	al	high	NEW. sub-object +8.; re-specs13c
+cIGZSerializable(NetworkManager)	cSC4NetworkManager	00aa7aa4	1	+0x4	006c2290	cSC4NetworkManager::AddRef thunk	0	0	eax	high	NEW. sub-object +8.; re-specs13c
+cIGZSerializable(NetworkManager)	cSC4NetworkManager	00aa7aa4	2	+0x8	00612100	cSC4NetworkManager::Release thunk	0	0	eax	high	NEW. sub-object +8.; re-specs13c
+cIGZSerializable(NetworkManager)	cSC4NetworkManager	00aa7aa4	3	+0xC	006111e0	cSC4NetworkManager::Write(cIGZOStream&)	4	1	al	high	NEW. sub-object +8. component 53 record, version 1; network-manager.md 4.1; re-specs13c
+cIGZSerializable(NetworkManager)	cSC4NetworkManager	00aa7aa4	4	+0x10	006124c0	cSC4NetworkManager::Read(cIGZIStream&)	4	1	al	high	NEW. sub-object +8. version must be 1; appends without clearing; network-manager.md 4.1; re-specs13c
+cIGZSerializable(NetworkManager)	cSC4NetworkManager	00aa7aa4	5	+0x14	00610530	cSC4NetworkManager::GetGZCLSID	0	0	eax	high	NEW. sub-object +8. returns 0xC990BD46; re-specs13c
+cSC4DisasterManagerRiot(riot interface)	cSC4DisasterManagerRiot	00a9e7c8	9	+0x24	0057da40	cSC4DisasterManagerRiot::LockNetworkOccupant(cISC4NetworkOccupant*)	4	1	void	high	NEW. name FreeCity4's; AddRef, AsOccupant().UnsetRemovalFlags(2), insert into the set once; reached through riot instance +0x24; network-manager.md 10; re-specs13c
+cISC4Nation	cSC4Nation	00a8ef00	0	+0x0	00497220	cSC4Nation::QueryInterface	8	2	al	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	1	+0x4	004f7ba0	AddRef (shared)	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	2	+0x8	004972c0	cSC4Nation::Release	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	3	+0xC	00498750	cSC4Nation::Init	0	0	al	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	4	+0x10	00497a80	cSC4Nation::Shutdown	0	0	al	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	5	+0x14	004976f0	cSC4Nation::GetRegionDirectory	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	6	+0x18	00497730	cSC4Nation::GetRegionCount	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	7	+0x1C	004ed900	cSC4Nation::GetActiveRegionIndex (folded getter, +0x20)	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	8	+0x20	00497770	cSC4Nation::GetActiveRegion	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	9	+0x24	004972f0	cSC4Nation::SetActiveRegion(index)	4	1	void	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	10	+0x28	00497820	cSC4Nation::GetIndexOfCurrentRegionSettingInPreferences	4	1	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	11	+0x2C	00497740	cSC4Nation::GetRegion(index)	4	1	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	12	+0x30	00497f60	cSC4Nation::DeleteRegion	4	1	al	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	13	+0x34	00497ee0	cSC4Nation::AddNewRegion	4	1	al	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	14	+0x38	00498cf0	cSC4Nation::ResetTutorialCities	0	0	void	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	15	+0x3C	00497700	cSC4Nation::GetRegionDownloadDirectory	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	16	+0x40	00497570	cSC4Nation::GetEconomyModifier(demandID)	4	1	x87	high	nation.md §4; returns float in st0, value rounded to float
+cISC4Nation	cSC4Nation	00a8ef00	17	+0x44	00497800	cSC4Nation::~cSC4Nation (deleting)	4	1	eax	medium	nation.md §4

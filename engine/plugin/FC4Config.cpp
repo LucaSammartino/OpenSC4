@@ -293,7 +293,11 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "zonedev_shadow", "zonedev_seed",
                                   // the histclock lane (FC4HistoryShadow.h, FC4Clock24Shadow.h)
                                   "history_shadow", "clock24_shadow",
-                                  "lotdev_shadow", "lotdev_seed", "lotdev_lot_log"};
+                                  "lotdev_shadow", "lotdev_seed", "lotdev_lot_log",
+                                  // the traffic2 lane (FC4TrafficShadow.h)
+                                  "traffic_shadow", "traffic_shadow_diffs", "traffic_shadow_lines",
+                                  "traffic_shadow_hypotheses"};
+
 
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

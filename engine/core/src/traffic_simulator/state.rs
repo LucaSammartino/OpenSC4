@@ -9,6 +9,7 @@
 
 use std::cell::Cell;
 use std::collections::{BTreeMap, HashSet};
+use std::rc::Rc;
 
 use crate::grid::ScanIterator;
 use crate::pathfinder::{Pathfinder, SharedWorkCheck};
@@ -57,13 +58,15 @@ pub struct StatRow {
 }
 
 impl StatRow {
-    /// The state-2 entry reset (§4.9): `max := −1.0`, the other fields 0.
+    /// The state-2 entry reset (`0x00721196`–`0x007211D6`, §4.9, TS40): the
+    /// five fields 0. The −1.0 start is the separate comparison value
+    /// ([`State::stat_max_cmp`]), not the row's `max`.
     pub const RESET: StatRow = StatRow {
         sum: 0.0,
         congested: 0,
         max_x: 0,
         max_z: 0,
-        max: -1.0,
+        max: 0.0,
     };
 }
 
@@ -196,12 +199,18 @@ pub struct SourceIter {
     pub conns: Vec<u64>,
     /// The next connection to return.
     pub conn_pos: usize,
-    /// The lot list as the walk last read it.
-    pub lots_seen: Vec<u64>,
+    /// The lot list as the walk last read it (the host's own list while
+    /// that is unchanged: [`Host::lots_shared`](super::TrafficSimHost::lots_shared)).
+    pub lots_seen: Rc<[u64]>,
     /// The last lot returned; `None` before the first.
     pub last_lot: Option<u64>,
     /// The walk has passed the last lot.
     pub lots_done: bool,
+    /// A cache: the first position of `last_lot` in `lots_seen` (`None`
+    /// before the first lot or when it is not listed).
+    last_index: Option<usize>,
+    /// A cache: `lots_seen` lists some lot twice.
+    seen_dups: bool,
 }
 
 impl SourceIter {
@@ -218,12 +227,21 @@ impl SourceIter {
     /// lot after the last one returned is the first lot after it, in the
     /// list as last read, that is still listed; else the first lot appended
     /// since. `None` (and the walk leaves the lots) at the end.
-    pub fn next_lot(&mut self, lots: Vec<u64>) -> Option<u64> {
+    ///
+    /// The list is normally the one the walk last read: then every lot
+    /// listed was seen and every lot seen is listed, and (no lot listed
+    /// twice) the rule gives the lot right after the last one, found from
+    /// the cached position in O(1). Any other list takes the general rule.
+    pub fn next_lot(&mut self, lots: impl Into<Rc<[u64]>>) -> Option<u64> {
         if self.lots_done {
             return None;
         }
+        let lots: Rc<[u64]> = lots.into();
+        let same = Rc::ptr_eq(&lots, &self.lots_seen) || *lots == *self.lots_seen;
+        let fast = same && !self.seen_dups;
         let next = match self.last_lot {
             None => lots.first().copied(),
+            Some(_) if fast => self.last_index.and_then(|i| self.lots_seen.get(i + 1).copied()),
             Some(last) => {
                 let now: HashSet<u64> = lots.iter().copied().collect();
                 let seen: HashSet<u64> = self.lots_seen.iter().copied().collect();
@@ -238,10 +256,28 @@ impl SourceIter {
                     .or_else(|| lots.iter().copied().find(|l| !seen.contains(l)))
             }
         };
+        if !same {
+            let mut set = HashSet::with_capacity(lots.len());
+            self.seen_dups = !lots.iter().all(|&l| set.insert(l));
+        }
+        // The host's list is kept even when equal, so that the next step
+        // finds the same list by pointer.
         self.lots_seen = lots;
         match next {
-            Some(l) => self.last_lot = Some(l),
-            None => self.lots_done = true,
+            Some(l) => {
+                self.last_index = match (self.last_lot, self.last_index) {
+                    (Some(_), Some(i)) if fast => Some(i + 1),
+                    _ => self.lots_seen.iter().position(|&x| x == l),
+                };
+                self.last_lot = Some(l);
+            }
+            None => {
+                if !fast {
+                    let last = self.last_lot;
+                    self.last_index = last.and_then(|last| self.lots_seen.iter().position(|&x| x == last));
+                }
+                self.lots_done = true;
+            }
         }
         next
     }
@@ -269,11 +305,11 @@ pub struct SaveExtras {
     /// scan ends or the iterator is reset. `None` writes the iterator's own
     /// byte.
     pub scan_state_byte: Option<u8>,
-    /// The two phase positions (s16; u8 before version 25). The trip phases
-    /// store the cell of the source they take here, and the DoPostCityInit
-    /// resume (§3.5 step 11) looks for it *[question: §3.5 names "the saved
-    /// source cell" of row 14 without naming the field; these are the
-    /// row's only cell-sized pair besides the re-route context's]*.
+    /// The two phase positions (s16; u8 before version 25), the saved
+    /// source or lot cell x, z (§6.1 row 14, +0x90C/+0x90E; TS44, TS45).
+    /// The trip phases store the cell of the source they take here and
+    /// FinishTripMap each lot's location; the 16–18 entry action zeroes
+    /// them; the DoPostCityInit resume (§3.5 step 11) looks for them.
     pub phase_positions: [i16; 2],
     /// The lot iterator position (30 bytes: s8, s8, 7 × s32).
     pub lot_iter: [u8; 30],
@@ -379,6 +415,11 @@ pub struct State {
     /// The per-slot record counts `count[s]` (u32, s = 0…13) the averages
     /// divide by (§4.9). Not saved: CreateMaps runs in one call.
     pub stat_counts: [u32; 14],
+    /// The per-slot comparison value a record's `r` must beat to write the
+    /// row's max fields (§4.9 step 1, TS40): −1.0 after the state-2 entry
+    /// reset, then the largest `r` so far. Separate from the row's `max`,
+    /// which the reset zeroes. Not saved *[choice: −1.0 at construction]*.
+    pub stat_max_cmp: [f32; 14],
     /// `cells[t]`, the cell counts per network type (§3.6, saved in §6.1 row
     /// 18): bumped by the occupant messages, replaced by the record counts
     /// at the end of every CreateMaps pass (§4.9, TS9).
@@ -482,7 +523,37 @@ pub struct State {
     /// grids, the departments, the destination map and the scanning
     /// iterator *[choice]*.
     pub loaded: bool,
+    /// The traffic shadow's stepping (tooling, not saved): a ReRouteTrips or
+    /// FullTrips slice ends right after its last unit instead of first
+    /// running on to the next trip to examine (see [`super::shadow`]).
+    pub shadow_lazy: bool,
+    /// The traffic shadow's scan stop (tooling, not saved): in the cycle
+    /// state given, a cell-scanning phase (2, 4, 5, 6, 10) stops, not
+    /// finished, once its scanning iterator rests running at the cell given
+    /// (where the original's deadline stopped it).
+    pub shadow_scan_stop: Option<(u8, i32, i32)>,
+    /// The traffic shadow's FinishTripMap stop (tooling, not saved): the
+    /// lot walk of state 15 stops, not finished, after the lot at this cell
+    /// (the original's saved cell when its deadline stopped the walk).
+    pub shadow_finish_stop: Option<[i16; 2]>,
+    /// The traffic shadow's hypotheses (tooling, not saved; 0 = the spec as
+    /// written): each bit an alternative reading of a point the spec leaves
+    /// unclear, which the shadow can run to test it against the original
+    /// (the TS questions of the traffic shadow's lane report).
+    /// [`HYP_MERGE_ABSORBED`], [`HYP_TYPE_COUNTS_SWAP`],
+    /// [`HYP_REROUTE_MERGE_ALL`].
+    pub shadow_hypotheses: u32,
 }
+
+/// Hypothesis: the ConfirmTrips merge (§4.3) sets a routed trip to status 0
+/// only when it absorbed a later trip; one that absorbed none stays routed.
+pub const HYP_MERGE_ABSORBED: u32 = 1;
+/// Hypothesis: §6.1 row 19's pairs are (published, building), and the end
+/// of FullTrips (§4.4) swaps the two vectors instead of copying.
+pub const HYP_TYPE_COUNTS_SWAP: u32 = 2;
+/// Hypothesis: the ReRouteTrips merge (§4.4) absorbs every later trip of
+/// the same type and strategy, routed ones (status 3) included.
+pub const HYP_REROUTE_MERGE_ALL: u32 = 4;
 
 impl State {
     /// The constructor values (§1): cycle state 0, last day −1, strike
@@ -519,6 +590,7 @@ impl State {
             stats_last: StatsSet::default(),
             stats_work: StatsSet::default(),
             stat_counts: [0; 14],
+            stat_max_cmp: [-1.0; 14],
             cells_per_type: [0; 13],
             budget_total: 0,
             transit_income: 0.0,
@@ -569,6 +641,10 @@ impl State {
             pf2: None,
             extras: SaveExtras::default(),
             loaded: false,
+            shadow_lazy: false,
+            shadow_scan_stop: None,
+            shadow_finish_stop: None,
+            shadow_hypotheses: 0,
         }
     }
 
