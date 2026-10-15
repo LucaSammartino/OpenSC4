@@ -3939,6 +3939,37 @@ updated above (the AddRef lead is disproved). The lane's choices are in brackets
   resource exemplar or the occupant? [the type's exemplar is loaded from the catalogue key and passed; 0 when it does
   not load or the budget simulator is not reachable]
 
+## From applying the exemplar, graphics, protection, landfill and agent-order answers (filed by the coordinator from the `apply10b` lane's report, 2026-10-15)
+
+apply10b applied EX34, EX35, EX38, EX39, GF7, PR17, PR18, LG21, LG23 and AO1 (merged `0f3ad91`, ABI 50) and cited
+EX36, EX37, PR19, AO2, LG22, LG24-LG26, RG25-RG28, NB19 and PG16. EX39 is applied as the spec says: the C ABI slice
+setters now always store an array, and the vector readers read a scalar as empty. In game the shadows are exact
+(development 928/928, protection 288/288, landfill 72/72) and a replacement run that zones a new landfill reaches the
+LG21 view route (rotation 0). GF13 and GF14 are reserved by graphics-formats §8.5, so these questions start at GF15.
+The lane's choices are in brackets.
+
+- **EX40:** EX34 (data-formats, `format_float`): when the 63 kept characters hold no significant digit (the first one
+  falls at the 64th or 65th character), does the trailing-zero strip also remove the `.`? [only `0` characters are
+  stripped, so it leaves `0.` or `-0.`; marked [literal reading]]
+- **GF15:** GF7 (graphics-formats §4.2): is the zoom mask's bit number the zoom index as passed (0-4, before the
+  detail remap), and is the mask read as the property's first integer value whatever its stored type? [yes to both; a
+  mask with no value counts as 0; [literal reading] in `keys::occupant_models`]
+- **GF16:** GF7 (§4.2): for b+0..b+3 (RKT0-RKT3) and b+5 (RKT5), does `GetAllModelInstanceIDs` write T and G to its
+  out pointers, as it does for a matching RKT4 record? [yes, v[0] and v[1]; [inferred]]
+- **GF17:** GF7 (§4.2): when a rule needs a value past the end of the whole property (too few values), or the zoom
+  is above 4, what is appended? [nothing, neither an instance nor an offset, matching `model_key`'s "no model"; inside
+  the array an RKT3 record at zoom 3-4 does read into the next record, as the quirk says]
+- **GF18:** GF7 (§4.2): which stored types do the model keys and the zoom mask accept (the original's read
+  conversion)? [the integer types up to 32 bits, converted; anything else counts as absent; shipped keys are Uint32
+  arrays; [choice] in `keys::property_u32s`]
+- **LG30:** LG21 (landfill §4.7.5): should the view rotation be read when the zot is placed (what the glue does) or
+  cached at view init, as the original's global is? [read at placement through the documented route; 0 without a
+  view. Only rotation 0 has been seen in game: no script action rotates the view]
+- **AO3:** AO1 (foundations §13.4): the two port developers share the name `cSC4PortDeveloper` and rank 2. Is their
+  relative order registration order? [yes, registration order]
+- **PR20:** PR18 (protection §5.1): the answer covers `UpdateUnadjusted`'s caller record. Does the separate
+  dispatch-message handler also carry leftovers into its own record? [no: it keeps a zeroed record]
+
 ## From the city situation, demolition, dispatch, port, prop developer and city detail specs (re-specs10 lane, 2026-10-14)
 
 Open points from city-situation.md, demolition.md, dispatch.md, port-developers.md, prop-developer.md and

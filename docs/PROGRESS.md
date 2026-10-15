@@ -84,6 +84,7 @@ budget is off by default (enable = <key>).
 - [x] `engine/formats` matches spec §11 for DBPF, QFS and LTEXT (merged b5bdf8a; the sweep over real game data shows 0 failures across 22 .dat files and 1,004 saves)
 - [x] `exemplar.rs` matches data-formats §4, §5 and the §11 exemplar rows (merged 64a25d2): the install sweep loads 9,347 of 9,347 exemplars and re-encodes 9,345 binary records byte-identically
 - [x] FSH texture and S3D model readers (graphics-formats §2–§4, merged 2db780b): `fc4-dat fsh|s3d`; the sweep reads every FSH and S3D in the install
+- [x] Occupant model keys (graphics-formats §4.2, GF7; apply10b, merged 0f3ad91): the zoom mask, RKT0–RKT5 and the RKT4 record walk; `fc4-dat models`; the install sweep reproduces the spec's survey exactly
 - [ ] Rendering, UI, audio, region; a standalone executable
 
 **Cross-cutting**
