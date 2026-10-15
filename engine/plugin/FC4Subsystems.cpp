@@ -50,6 +50,8 @@
 #include "FC4ZonesShadow.h"
 #include "cFC4Residential.h"
 #include "cFC4ZoneManager.h"
+#include "FC4ZoneDevShadow.h"
+#include "cFC4ZoneDeveloper.h"
 #include "FC4NeighborsShadow.h"
 #include "FC4DevelopmentShadow.h"
 #include "cFC4Neighbors.h"
@@ -246,6 +248,13 @@ const ClassEntry kTractClasses[] = {
     {kFC4_CLSID_cSC4TractDeveloper, "cSC4TractDeveloper", &CreateFC4TractDeveloper},
 };
 
+// docs/specs/zones.md §1, §1.2, §11.2, §11.3: the zone developer / lot manager
+// (city components 7 and 8). Off by default (M4 glue trial): enable = zonedev.
+// Lot creation waits for re-specs11 (CreateLot fails, logged).
+const ClassEntry kZoneDevClasses[] = {
+    {kFC4_CLSID_cSC4ZoneDeveloper, "cSC4ZoneDeveloper", &CreateFC4ZoneDeveloper},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -272,6 +281,7 @@ const Subsystem kSubsystems[] = {
      false},
     {"traffic", nullptr, kTrafficClasses, sizeof(kTrafficClasses) / sizeof(kTrafficClasses[0]), false},
     {"tract", nullptr, kTractClasses, sizeof(kTractClasses) / sizeof(kTractClasses[0]), false},
+    {"zonedev", nullptr, kZoneDevClasses, sizeof(kZoneDevClasses) / sizeof(kZoneDevClasses[0]), false},
     {"history", nullptr, kHistoryClasses, sizeof(kHistoryClasses) / sizeof(kHistoryClasses[0]), false},
     {"clock24", nullptr, kClock24Classes, sizeof(kClock24Classes) / sizeof(kClock24Classes[0]), false},
 };
@@ -396,6 +406,8 @@ void Resolve() {
     DevelopmentShadowStartup(g_enabled[0], enabledKey("development"));
     // The tract developer shadow (FC4TractShadow.h; it compares the original tract developer).
     TractShadowStartup(enabledKey("tract"));
+    // The zone developer shadow (FC4ZoneDevShadow.h; it compares the original lot manager).
+    ZoneDevShadowStartup(enabledKey("zonedev"));
     // The history warehouse shadow (FC4HistoryShadow.h; it follows the original warehouse).
     HistoryShadowStartup(enabledKey("history"));
     // The 24-hour clock shadow (FC4Clock24Shadow.h; it follows the original clock).
