@@ -107,6 +107,8 @@ constexpr uint32_t kIID_cISC4Demand = 0x0797A4E8;
 constexpr uint32_t kIID_cISCExemplarPropertyHolder = 0x0AC2B5F7;
 constexpr uint32_t kIID_cIGZCheatCodeManager = 0xA1085722;  // as used by the SDK examples
 constexpr uint32_t kCLSID_cSC4BuildingOccupant = 0xA9BD882D;
+constexpr uint32_t kIID_cISC4FoundationOccupant = 0xC8FCE101;   // §4.9.2
+constexpr uint32_t kCLSID_cSC4FoundationOccupant = 0x49C05C8F;  // §4.9.2 [choice: through GZCOM]
 constexpr uint32_t kCLSID_cSC4Demand = 0x8990C12D;
 
 // Messages (§3.1, §3.2, §5).
@@ -519,12 +521,13 @@ private:
     uint32_t refs_ = 1;
 };
 
-// §4.7.4: every lot configuration. [spec question, choice] The spec reads the
-// lot configuration manager's slot 20 GetLotConfigurationMap, whose layout is
-// not in docs/abi; the configurations come from slot 9
+// §4.7.4: every lot configuration. The original reads the lot configuration
+// manager's slot 20 GetLotConfigurationMap (its own STLport hash_map, no
+// reference); the configurations come from slot 9
 // GetLotConfigurationsByFilter with an accept-all filter (allocators.md: an
 // STLport hash_set filled with B, one reference per configuration, released
-// here). The density table keeps maxima, so the order does not matter.
+// here). DG3 (§4.7.4 Inputs): the same configurations; the density table
+// keeps maxima, so the order does not matter.
 void LotConfigurations(void* u, fc4_lot_config_visitor visit, void* ctx) {
     if (visit == nullptr) return;
     cISC4City* city = CityOf(u);
@@ -555,10 +558,13 @@ void LotConfigurations(void* u, fc4_lot_config_visitor visit, void* ctx) {
     for (cISC4LotConfiguration* cfg : configs) {
         fc4_lot_config c{};
         cfg->GetSize(c.size_x, c.size_z);  // slot 7
+        // DG20 (§4.7.4): the original asks zones 0..15 only (z < 16).
         for (uint32_t z = 0; z < 16; ++z) {
             if (cfg->IsCompatibleWithZoneType(static_cast<cISC4ZoneManager::ZoneType>(z))) c.zones |= 1u << z;  // slot 15
         }
         ids.clear();
+        // DG10 (§4.7.4 Inputs): the SDK's cSC4LotConfigurationObject is the
+        // exact 0x34-byte layout; slot 24 returns the first object of type 0.
         cSC4LotConfigurationObject* obj = cfg->GetPrimaryBuildingConfigurationObject();  // slot 24
         if (obj != nullptr) {
             c.has_primary = 1;
@@ -590,9 +596,10 @@ fc4_props* Tuning(void* u) {
 
 // ---- framework (§1.3, §1.4, §5) ----------------------------------------------------------------------
 
-// §1.3 step 1: app slot 69 RegisterStaticCleanup. [spec question, choice] The
-// application's slot 69 is not in docs/abi: not registered (the catalogue
-// lives until the process ends, which is what the cleanup ends anyway).
+// §1.3 step 1: app slot 69 RegisterStaticCleanup. [choice] Not registered.
+// DG7 (§1.3 step 1): the original's callback runs only at application
+// shutdown (it empties the catalogue), so not registering it is unobservable
+// while the process lives.
 void RegisterStaticCleanup(void*) {
     NoteOnce(g_noteCleanup, "development: the static-data cleanup is not registered with the application (app slot "
                             "69 is not in docs/abi); the catalogue lives until the process ends");
@@ -692,8 +699,8 @@ void RemoveAgent(void* u) {
 }
 
 // §1.3 step 10: RegisterCheatCode (slot 3) and AddNotification2 (slot 7).
-// [spec question, choice] The notification is added for the cheat's id (as
-// the flora glue).
+// DG13 (§1.3 step 10): the notification is added for the cheat's own id; the
+// delivered message is 0x230E27AC with data1 = that id.
 void RegisterCheat(void* u, uint32_t id, const char* name, size_t len) {
     if (!Writes(u)) return;
     fc4::DevelopmentContext* c = Ctx(u);
@@ -817,8 +824,8 @@ void NodeSetSupply(void*, uint64_t n, float v) {
 void NodeSetDemand(void*, uint64_t n, float v) {
     if (cFC4ISC4Demand* d = NodeOf(n)) d->SetDemandValue(v);  // slot 19
 }
-// Slot 17 AddToDemandValue. [spec question] §8 gives no return channel; the
-// result is not used (declared bool in AL, as the other setters).
+// Slot 17 AddToDemandValue. DG1 (growth-developer §5.3, docs/abi): bool in
+// AL, nothing left on the x87 stack; the result is not used.
 void NodeAddToDemand(void*, uint64_t n, float v) {
     if (cFC4ISC4Demand* d = NodeOf(n)) d->AddToDemandValue(v);
 }
@@ -930,9 +937,10 @@ void LotCenter(void* u, uint64_t lot, float* out3) {
     out3[2] = v[2];
 }
 
-// §4.11 "lot.GetSlope()": §8 gives lot slot 19 (+0x4C, ST0). [spec question]
-// FreeCity4's cISC4Lot declaration names slot 19 GetSlopeAtTimeOfConstruction
-// (slot 18 is GetSlope); the spec's slot number is followed.
+// §4.11 "lot.GetSlope()": lot slot 19 (+0x4C, ST0); DG15 (§4.11) confirms the
+// slot. FreeCity4's cISC4Lot declaration names slot 19
+// GetSlopeAtTimeOfConstruction (slot 18 is GetSlope); the slot number is what
+// counts.
 float LotSlope(void* u, uint64_t lot) {
     if (lot == 0 || !Gate(u, fc4::Sw::DevelopmentLots, "development lot slope (0)")) return 0.0f;
     return fc4::AsGame(LotOf(lot))->GetSlopeAtTimeOfConstruction();  // slot 19
@@ -1243,29 +1251,32 @@ void SetBuildingType(void* u, uint64_t occ, uint32_t type) {
     WithBuilding(occ, [&](cISC4BuildingOccupant* b) { b->SetBuildingType(type); });
 }
 
-// The type's exemplar key: the catalogue mirror, else the process statics.
-bool BuildingKey(uint32_t type, fc4_res_key* out);
+// Building occupant slot 4 GetBuildingType() (§4.9.1 loader step 2).
+uint32_t BuildingTypeOf(void* u, uint64_t occ) {
+    if (occ == 0 || !Gate(u, fc4::Sw::DevelopmentOccupants, "development GetBuildingType (0)")) return 0;
+    uint32_t t = 0;
+    WithBuilding(occ, [&](cISC4BuildingOccupant* b) { t = b->GetBuildingType(); });
+    return t;
+}
 
-// §4.9 0x00698490 (LoadBuildingOccupantProperties). [spec question, choice]
-// The body is not specified: the type's exemplar (resource manager
-// GetResource) becomes the occupant's default exemplar
-// (cISCExemplarPropertyHolder 0x0AC2B5F7 slot 3 SetDefaultExemplar). False
-// when the type has no key, the exemplar does not load or the occupant has
-// no exemplar holder.
-bool LoadBuildingOccupant(void* u, uint64_t occ, uint32_t type) {
-    if (occ == 0 || !Gate(u, fc4::Sw::DevelopmentOccupants, "development building properties (failed)")) return false;
-    fc4_res_key k{};
-    if (!BuildingKey(type, &k)) {
-        ++Ctx(u)->loadsFailed;
-        return false;
-    }
+// The exemplar half of the loaders (§4.9.1 steps 1, 4-5 and 7; §4.9.2
+// slots 26 / 29 steps 1, 3-5): GetResource(key, 0xA52160F5), then
+// SetDefaultExemplar on the occupant's cISCExemplarPropertyHolder (QI
+// 0x0AC2B5F7 on the cISC4Occupant: the building's, the foundation's and the
+// wall's QI chains end in the property-holder base, §4.9.1-§4.9.2); the
+// resource's reference dropped. False when the resource does not load.
+// [spec question, choice] A missing holder (the original does not test it)
+// also gives false.
+bool SetDefaultExemplar(void* u, uint64_t occ, const fc4_res_key* k) {
+    if (occ == 0 || k == nullptr || !Writes(u)) return false;
+    if (!Gate(u, fc4::Sw::DevelopmentOccupants, "development SetDefaultExemplar (failed)")) return false;
     cIGZPersistResourceManagerPtr rm;
     if (!rm) {
         ++Ctx(u)->loadsFailed;
         return false;
     }
     FC4_OUT(cISCResExemplar*, res, "cISCResExemplar* (GetResource out pointer)");
-    const bool got = rm->GetResource(cGZPersistResourceKey(k.type_id, k.group, k.instance), GZIID_cISCResExemplar,
+    const bool got = rm->GetResource(cGZPersistResourceKey(k->type_id, k->group, k->instance), GZIID_cISCResExemplar,
                                      reinterpret_cast<void**>(res.ptr()), 0, nullptr);
     res.Check();
     cISCResExemplar* ex = res.get();
@@ -1281,6 +1292,26 @@ bool LoadBuildingOccupant(void* u, uint64_t occ, uint32_t type) {
     FC4_RELEASE(ex);
     if (!ok) ++Ctx(u)->loadsFailed;
     return ok;
+}
+
+// The float32 values of the occupant's property `id` through its own holder
+// (which falls back to the default exemplar and its cohorts, §4.9.1).
+// [spec question, choice] Other numeric types are converted (the original
+// reads the raw float32 values).
+bool OccupantPropertyF32s(void* u, uint64_t occ, uint32_t id, float* out, size_t n, size_t* count) {
+    if (count != nullptr) *count = 0;
+    if (occ == 0 || !Gate(u, fc4::Sw::DevelopmentOccupants, "development occupant float property (none)")) {
+        return false;
+    }
+    const cISCPropertyHolder* h = HolderOf(occ);
+    if (!fc4::props::Has(h, id)) return false;
+    std::vector<float> v;
+    fc4::props::GetF32s(h, id, v);
+    if (count != nullptr) *count = v.size();
+    if (out != nullptr) {
+        for (size_t i = 0; i < v.size() && i < n; ++i) out[i] = v[i];
+    }
+    return true;
 }
 
 // cISC4Occupant GetBoundingBox(min, max): min then max.
@@ -1319,11 +1350,99 @@ void InitOccupant(void* u, uint64_t occ) {
     OccOf(occ)->Init();
 }
 
+// ---- foundations and retaining walls (§4.9.2, DG6) -------------------------------------------------
+
+// §4.9.2 slot 23 step 1: a foundation occupant (class 0x49C05C8F) through
+// GZCOM. [spec question, choice] As for buildings (§4.9.1, DG5), the object
+// GZCOM returns already carries the caller's reference: no extra AddRef.
+uint64_t CreateFoundationOccupant(void* u) {
+    if (!Writes(u)) return 0;
+    if (!Gate(u, fc4::Sw::DevelopmentOccupants, "development foundation occupant creation (none)")) return 0;
+    cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
+    void* p = nullptr;
+    if (com == nullptr || !com->GetClassObject(kCLSID_cSC4FoundationOccupant, kIID_cISC4Occupant, &p) ||
+        p == nullptr) {
+        fc4::Log("development: WARNING could not create a foundation occupant (class 0x%08X)",
+                 kCLSID_cSC4FoundationOccupant);
+        return 0;
+    }
+    ++Ctx(u)->foundationsCreated;
+    return NoteCreated(u, p);
+}
+
+// The foundation interface (IID 0xC8FCE101) of an occupant token (borrowed
+// after the QueryInterface's reference is dropped: the token holds one).
+template <class F>
+void WithFoundation(void* u, uint64_t occ, const char* what, F f) {
+    if (occ == 0 || !Gate(u, fc4::Sw::DevelopmentOccupants, what)) return;
+    cISC4FoundationOccupant* fo = Query<cISC4FoundationOccupant>(FromToken(occ), kIID_cISC4FoundationOccupant);
+    if (fo == nullptr) return;
+    f(fo);
+    Drop(fo);
+}
+
+uint32_t FoundationType(void* u, uint64_t occ) {
+    uint32_t t = 0;
+    WithFoundation(u, occ, "development GetFoundationType (0)",
+                   [&](cISC4FoundationOccupant* fo) { t = fo->GetFoundationType(); });  // slot 4
+    return t;
+}
+
+void SetFoundationType(void* u, uint64_t occ, uint32_t type) {
+    if (!Writes(u)) return;
+    WithFoundation(u, occ, "development SetFoundationType",
+                   [&](cISC4FoundationOccupant* fo) { fo->SetFoundationType(type); });  // slot 5
+}
+
+void SetFoundationMaxHeight(void* u, uint64_t occ, float v) {
+    if (!Writes(u)) return;
+    WithFoundation(u, occ, "development SetMaxHeight",
+                   [&](cISC4FoundationOccupant* fo) { fo->SetMaxHeight(v); });  // slot 7
+}
+
+void SetFoundationSize(void* u, uint64_t occ, const float* size3) {
+    if (size3 == nullptr || !Writes(u)) return;
+    WithFoundation(u, occ, "development foundation SetSize",
+                   [&](cISC4FoundationOccupant* fo) { fo->SetSize(size3); });  // slot 8
+}
+
+void SetFoundationUsage(void* u, uint64_t occ, int32_t usage) {
+    if (!Writes(u)) return;
+    WithFoundation(u, occ, "development SetUsage",
+                   [&](cISC4FoundationOccupant* fo) { fo->SetUsage(usage); });  // slot 10
+}
+
+void SetFoundationOrientation(void* u, uint64_t occ, int32_t orientation) {
+    if (!Writes(u)) return;
+    WithFoundation(u, occ, "development foundation SetOrientation",
+                   [&](cISC4FoundationOccupant* fo) { fo->SetOrientation(orientation); });  // slot 12
+}
+
+// The wall's slot 11 GetRetainingWallType(). [spec question, choice] No IID
+// of cISC4LotRetainingWallOccupant is known, so the wall cannot be reached
+// from its occupant token: slot 29 keeps the wall it was called with
+// (currentWall) and this answers for that wall only (0 otherwise).
+uint32_t RetainingWallType(void* u, uint64_t occ) {
+    fc4::DevelopmentContext* c = Ctx(u);
+    cISC4LotRetainingWallOccupant* w = static_cast<cISC4LotRetainingWallOccupant*>(c->currentWall);
+    if (w == nullptr || occ == 0 || occ != c->currentWallToken) return 0;
+    return w->GetRetainingWallType();
+}
+
+// Lot developer slot 17, the int32 overload of GetLowestOrHighestAreaAltitude
+// (MSVC reverses the overloads: float at 16, int32 at 17), §4.9.2 steps 4-5.
+float AreaAltitudeCells(void* u, const fc4_cell_rect* r, bool lowest, bool withWater) {
+    cISC4LotDeveloper* ld = LotDeveloper(u, "development GetLowestOrHighestAreaAltitude cells (0)");
+    if (ld == nullptr || r == nullptr) return 0.0f;
+    return ld->GetLowestOrHighestAreaAltitude(SC4Rect<int32_t>(r->x1, r->z1, r->x2, r->z2), lowest, withWater);
+}
+
 // ---- advisors (§4.10) ------------------------------------------------------------------------------
 
 // advisorSystem.GetAdvisor(0x17).PushEvent(event, null) (city slot 81, slots
 // 7 and 18). [quirk, §4.10] The subject the core built is discarded: the
-// original pushes a null subject, so none is created here.
+// original pushes a null subject, so none is created here (DG16: not
+// creating it is unobservable).
 void PushAdvisorEvent(void* u, uint32_t advisor, uint32_t event, const fc4_advice_subject*) {
     if (!Writes(u)) return;
     if (!Gate(u, fc4::Sw::DevelopmentAdvisor, "development advisor event")) return;
@@ -1381,7 +1500,8 @@ bool DeveloperListsValid(void*, uint64_t dev) {
 }
 
 // Slots 11 / 12: the 12-byte items. §8: the BDS reads the third field as a
-// uint8 stage, so only its low byte is passed on.
+// uint8 stage, so only its low byte is passed on (DG18, §4.4: the growth
+// developer writes the whole int32, Grow reads the low byte).
 void DeveloperList(void*, uint64_t dev, uint32_t which, fc4_growth_items_sink sink, void* ctx) {
     cFC4ISC4GrowthDeveloper* d = DevOf(dev);
     if (d == nullptr || sink == nullptr) return;
@@ -1459,8 +1579,8 @@ cIGZString* NewName(const std::string& text) {
 
 void SetCapacities(FC4BuildingProfile& p, const std::vector<std::pair<uint32_t, uint32_t>>& caps, bool present) {
     p.capacityBegin = p.capacityEnd = p.capacityCap = nullptr;
-    // [spec question, choice] A profile with a capacity table has one map in
-    // its vector; one without has an empty vector.
+    // DG11 (§4.7.1): a present 0x27812834 always pushes one map, even an
+    // empty one; only a missing property leaves the vector empty.
     if (!present || !fc4::StlNodeAllocator::Available()) return;
     auto* m = static_cast<fc4::GameMapObject*>(fc4::StlNodeAllocator::Allocate(sizeof(fc4::GameMapObject)));
     if (m == nullptr) return;
@@ -1500,6 +1620,22 @@ void DensityEntry(void* ctx, uint32_t zone, uint32_t key, float, float maxCapaci
     (*static_cast<std::unordered_map<uint32_t, float>*>(ctx))[(zone << 8) | (key & 0xFF)] = maxCapacity;
 }
 
+// DG4 (§4.7.1, layouts.md Building profile +0x38): the sum of the `cost`
+// fields of the items budget simulator slot 50 GetBudgetItemInfo(holder,
+// vector&) returns for the building's exemplar; 0 when it returns none.
+// [choice, DG4] 0 when the budget simulator (or the game's allocator for the
+// vector) is not reachable.
+int64_t BudgetItemCost(cFC4ISC4BudgetSimulator* budget, const fc4_res_key& k) {
+    if (budget == nullptr || !fc4::StlNodeAllocator::Available()) return 0;
+    fc4::props::Exemplar ex;
+    if (!ex.Load(k.type_id, k.group, k.instance)) return 0;
+    fc4::GameVector<cFC4ISC4BudgetSimulator::BudgetItem> items;  // the callers pass an empty vector (allocators.md)
+    if (!budget->GetBudgetItemInfo(const_cast<cISCPropertyHolder*>(ex.Holder()), items)) return 0;
+    int64_t sum = 0;
+    for (const auto& i : items) sum += i.cost;
+    return sum;
+}
+
 // Builds the mirror from the process statics (process lock held).
 void BuildMirror(const fc4_development_process* pp) {
     if (pp == nullptr || !fc4_development_catalogue_loaded(pp)) return;
@@ -1535,7 +1671,10 @@ void BuildMirror(const fc4_development_process* pp) {
             // loaded ("" for an unknown type) is kept as it is.
         }
     }
-    uint32_t profiles = 0;
+    uint32_t profiles = 0, budgeted = 0;
+    cISC4City* city = AppCity();
+    cISC4BudgetSimulator* bs = city ? city->GetBudgetSimulator() : nullptr;  // borrowed
+    cFC4ISC4BudgetSimulator* budget = bs ? fc4::AsGame(bs) : nullptr;
     for (uint32_t t : CatalogueList(pp, 4)) {
         fc4_building_profile bp{};
         std::vector<std::pair<uint32_t, uint32_t>> caps;
@@ -1545,8 +1684,9 @@ void BuildMirror(const fc4_development_process* pp) {
             slot = new FC4BuildingProfile();
             std::memset(static_cast<void*>(slot), 0, sizeof(*slot));
         }
-        // [spec question, choice] A zero profile inserted before the
-        // catalogue loaded is replaced in place (its address is kept).
+        // DG12 (layouts.md Building profile): a zero profile inserted before
+        // the catalogue loaded is assigned over in place (its address is
+        // kept), as the original's AddBuildingData does.
         FC4BuildingProfile& p = *slot;
         p.purpose = bp.purpose;
         p.wealth = bp.wealth;
@@ -1556,33 +1696,20 @@ void BuildMirror(const fc4_development_process* pp) {
         p.categoryFlags = bp.category_flags;
         std::memcpy(p.occupantSize, bp.occupant_size, sizeof(p.occupantSize));
         p.plopCost = bp.plop_cost;
-        // [spec question, choice] The budget item cost (+0x38) comes from the
-        // budget simulator in the original (§4.7.1, not specified): 0.
-        p.budgetItemCost = 0;
-        SetCapacities(p, caps, bp.n_capacities != 0);
+        auto key = m.keys[0].find(t);
+        p.budgetItemCost = key != m.keys[0].end() ? BudgetItemCost(budget, key->second) : 0;
+        if (p.budgetItemCost != 0) ++budgeted;
+        SetCapacities(p, caps, bp.capacities_present != 0);
         ++profiles;
     }
     fc4_development_catalogue_density(pp, &DensityEntry, &m.maxCapacity);
     m.built = true;
-    fc4::Log("development catalogue: %u building types, %u families, %u foundations, %u walls, %u profiles, %u "
-             "density entries, names as %s",
+    fc4::Log("development catalogue: %u building types, %u families, %u foundations, %u walls, %u profiles "
+             "(%u with a budget item cost%s), %u density entries, names as %s",
              static_cast<unsigned>(m.types.size()), static_cast<unsigned>(m.families.size()),
-             static_cast<unsigned>(m.foundations.size()), static_cast<unsigned>(m.walls.size()), profiles,
-             static_cast<unsigned>(m.maxCapacity.size()), m.gameStrings ? "game strings" : "SDK strings");
-}
-
-bool BuildingKey(uint32_t type, fc4_res_key* out) {
-    {
-        MirrorLock lock;
-        Mirror& m = TheMirror();
-        if (m.built) {
-            auto it = m.keys[0].find(type);
-            if (it == m.keys[0].end()) return false;
-            *out = it->second;
-            return true;
-        }
-    }
-    return fc4_development_catalogue_key(fc4::DevelopmentProcess(), 0, type, out);  // the process lock is held
+             static_cast<unsigned>(m.foundations.size()), static_cast<unsigned>(m.walls.size()), profiles, budgeted,
+             budget ? "" : ", no budget simulator", static_cast<unsigned>(m.maxCapacity.size()),
+             m.gameStrings ? "game strings" : "SDK strings");
 }
 
 // §4.7.2: slot 39 inserts an all-zero profile for an unknown type.
@@ -1658,8 +1785,8 @@ uint32_t FillVector(fc4::GameVector<uint32_t>& v, const std::vector<uint32_t>& s
 }
 
 // The game's cISC4BuildingTypeFilter (only forward-declared by the SDK): §4.7.2
-// calls its slot 3 with the type and tests the result. [spec question] The
-// spec gives no signature; declared bool(uint32) in AL.
+// calls its slot 3 with the type and tests the result. DG17 (§4.7.2):
+// bool(uint32 type), pop 4, AL.
 class FC4BuildingTypeFilter : public cIGZUnknown {
 public:
     virtual bool IsBuildingTypeIncluded(uint32_t type) = 0;  // 3
@@ -1831,7 +1958,9 @@ fc4_development_host MakeDevelopmentHost(DevelopmentContext* ctx, const HostGrid
     h.occupant_position = &OccupantPosition;
     h.create_building_occupant = &CreateBuildingOccupant;
     h.set_building_type = &SetBuildingType;
-    h.load_building_occupant = &LoadBuildingOccupant;
+    h.building_type = &BuildingTypeOf;
+    h.set_default_exemplar = &SetDefaultExemplar;
+    h.occupant_property_f32s = &OccupantPropertyF32s;
     h.occupant_bounding_box = &OccupantBoundingBox;
     h.set_occupant_bounding_box = &SetOccupantBoundingBox;
     h.set_occupant_position = &SetOccupantPosition;
@@ -1839,6 +1968,15 @@ fc4_development_host MakeDevelopmentHost(DevelopmentContext* ctx, const HostGrid
     h.init_occupant = &InitOccupant;
     h.add_ref = &AddRefToken;
     h.release = &ReleaseToken;
+    h.create_foundation_occupant = &CreateFoundationOccupant;
+    h.foundation_type = &FoundationType;
+    h.set_foundation_type = &SetFoundationType;
+    h.set_foundation_max_height = &SetFoundationMaxHeight;
+    h.set_foundation_size = &SetFoundationSize;
+    h.set_foundation_usage = &SetFoundationUsage;
+    h.set_foundation_orientation = &SetFoundationOrientation;
+    h.retaining_wall_type = &RetainingWallType;
+    h.area_altitude_cells = &AreaAltitudeCells;
     h.push_advisor_event = &PushAdvisorEvent;
     h.create_developer = &CreateDeveloper;
     h.developer_init = &DeveloperInit;
@@ -2171,7 +2309,8 @@ void cFC4BuildingDevelopmentSimulator::LogState(const char* what) {
     fc4::Log("development %s: init=%u loaded=%u state=%u cheats=0x%X developers=%u specials=%u stages=%u plan=%u "
              "marks=%u/%u types=%u budget=%s resources=%d/%d supply=%.1f demand=%.1f grows=%u built=%u declines=%u "
              "declined=%u reentrant=%u city=%dx%d rng=%llu map=%p node=%p offMain=%u occupants=%u loadsFailed=%u "
-             "inserts=%u removals=%u advisor=%u demolitions=%u dezones=%u lotUpdates=%u",
+             "inserts=%u removals=%u advisor=%u demolitions=%u dezones=%u lotUpdates=%u foundations=%u/%u "
+             "foundationLoads=%u/%u wallLoads=%u/%u",
              what, st.initialized, st.loaded, st.state, st.cheats, st.developers, st.special_buildings,
              st.highest_stages, st.decline_plan, st.marked_types, st.marked_cells, st.building_types, budget,
              st.free_resources, st.total_resources, st.supply, st.demand, st.grow_calls, st.built, st.decline_calls,
@@ -2179,7 +2318,8 @@ void cFC4BuildingDevelopmentSimulator::LogState(const char* what) {
              static_cast<unsigned long long>(st.rng_steps), static_cast<void*>(FromToken(st.building_map)),
              static_cast<void*>(FromToken(st.construction_node)), offMainCalls_.load(), ctx_.occupantsCreated,
              ctx_.loadsFailed, ctx_.inserts, ctx_.removals, ctx_.advisorEvents, ctx_.demolitions, ctx_.dezones,
-             ctx_.lotElementUpdates);
+             ctx_.lotElementUpdates, ctx_.foundationCalls, ctx_.foundationsAdded, ctx_.foundationLoads,
+             ctx_.foundationLoadsOk, ctx_.wallLoads, ctx_.wallLoadsOk);
 }
 
 // The status lines' date: the simulator's, else (no city) the last SimNewDay's data1.
@@ -2189,7 +2329,8 @@ uint32_t cFC4BuildingDevelopmentSimulator::StatusDay() {
 }
 
 // One line per SimNewMonth: the month's growth and decline (differences from
-// the previous line) and the state.
+// the previous line) and the state. DG8: glue-only; declines are counted by
+// wealth (the original counts nothing by stage).
 void cFC4BuildingDevelopmentSimulator::LogMonth() {
     fc4_development_state st{};
     st.struct_size = sizeof(st);
@@ -2209,7 +2350,8 @@ void cFC4BuildingDevelopmentSimulator::LogMonth() {
     fc4::Log("development month %s: developers=%u built=%u (stages%s) (wealth %u/%u/%u/%u) declined=%u (wealth "
              "%u/%u/%u/%u) grows=%u declines=%u specials=%u city=%dx%d stage=%.2f resources=%d/%d supply=%.0f "
              "demand=%.0f state=%u plan=%u marks=%u/%u types=%u rng=%llu reentrant=%u offMain=%u occupants=%u "
-             "loadsFailed=%u advisor=%u demolitions=%u dezones=%u lotUpdates=%u",
+             "loadsFailed=%u advisor=%u demolitions=%u dezones=%u lotUpdates=%u foundations=%u/%u "
+             "foundationLoads=%u/%u wallLoads=%u/%u",
              DateText(StatusDay()).c_str(), st.developers, st.built - p.built, stages.c_str(),
              st.built_by_wealth[0] - p.built_by_wealth[0], st.built_by_wealth[1] - p.built_by_wealth[1],
              st.built_by_wealth[2] - p.built_by_wealth[2], st.built_by_wealth[3] - p.built_by_wealth[3],
@@ -2220,7 +2362,8 @@ void cFC4BuildingDevelopmentSimulator::LogMonth() {
              st.free_resources, st.total_resources, st.supply, st.demand, st.state, st.decline_plan, st.marked_types,
              st.marked_cells, st.building_types, static_cast<unsigned long long>(st.rng_steps), st.reentrant_calls,
              offMainCalls_.load(), ctx_.occupantsCreated, ctx_.loadsFailed, ctx_.advisorEvents, ctx_.demolitions,
-             ctx_.dezones, ctx_.lotElementUpdates);
+             ctx_.dezones, ctx_.lotElementUpdates, ctx_.foundationCalls, ctx_.foundationsAdded, ctx_.foundationLoads,
+             ctx_.foundationLoadsOk, ctx_.wallLoads, ctx_.wallLoadsOk);
     lastMonth_ = st;
     haveLastMonth_ = true;
     if (fc4::On(fc4::Sw::DevelopmentLots)) {
@@ -2251,7 +2394,8 @@ void CollectPlan(void* ctx, const fc4_plan_entry* e) {
 }
 }  // namespace
 
-// One line per completed PlanDecline (the planning state 4 -> 0, §4.2).
+// One line per completed PlanDecline (the planning state 4 -> 0, §4.2). DG9:
+// glue-only; state 4 -> 0 is where the original finishes executing a plan.
 void cFC4BuildingDevelopmentSimulator::LogDeclinePlan() {
     PlanText p;
     fc4_development_decline_plan(core_, &CollectPlan, &p);
@@ -2417,15 +2561,26 @@ bool cFC4BuildingDevelopmentSimulator::GetFoundationKeyFromType(uint32_t type, c
     return MirrorKey(2, type, key);
 }
 
-// Slot 23: foundation placement (not used by growth). [spec question,
-// choice] Its behaviour is not specified: false (logged once).
-bool cFC4BuildingDevelopmentSimulator::AddNewFoundationOccupantAt(uint32_t, int32_t, float*, float, float, int32_t,
-                                                                  float) {
-    if (fc4::OnDevelopmentMainThread()) {
-        NoteOnce(g_noteFoundationAt, "development: AddNewFoundationOccupant (slot 23, seven arguments) is not "
-                                     "specified; it returns false");
+// Slot 23 (§4.9.2, DG6; lot-developer.md §17.5.3 calls it): the foundation
+// occupant is created, loaded (slot 26), sized from the lot developer's
+// highest / lowest cell altitudes and inserted; the caller's pos[1] is
+// written when it was below 0. Pop 28, AL (docs/abi).
+bool cFC4BuildingDevelopmentSimulator::AddNewFoundationOccupantAt(uint32_t type, int32_t usage, float* position,
+                                                                  float sizeX, float sizeZ, int32_t orientation,
+                                                                  float base) {
+    Call call(this);
+    if (!call.ok()) {
+        if (fc4::OnDevelopmentMainThread()) {
+            NoteOnce(g_noteFoundationAt,
+                     "development: AddNewFoundationOccupant (slot 23) without the simulator; it returns false");
+        }
+        return false;
     }
-    return false;
+    ++ctx_.foundationCalls;
+    const bool ok =
+        fc4_development_add_foundation(core_, type, usage, position, sizeX, sizeZ, orientation, base);
+    if (ok) ++ctx_.foundationsAdded;
+    return ok;
 }
 
 bool cFC4BuildingDevelopmentSimulator::AddNewFoundationOccupant(cISC4FoundationOccupant* occupant) {
@@ -2438,13 +2593,21 @@ bool cFC4BuildingDevelopmentSimulator::DemolishFoundationOccupant(cISC4Foundatio
     return call.ok() && fc4_development_demolish_foundation(core_, OccupantToken(occupant));
 }
 
-// Slots 26 / 29: [spec question, choice] not specified: false (logged once).
-bool cFC4BuildingDevelopmentSimulator::LoadFoundationProperties(cISC4FoundationOccupant*, uint32_t) {
-    if (fc4::OnDevelopmentMainThread()) {
-        NoteOnce(g_noteFoundationProps, "development: LoadFoundationProperties (slot 26) is not specified; it returns "
-                                        "false");
+// Slot 26 (§4.9.2, DG6): the foundation key map's exemplar becomes the
+// occupant's default exemplar; 0x88FCC3E3 sets the maximum height.
+bool cFC4BuildingDevelopmentSimulator::LoadFoundationProperties(cISC4FoundationOccupant* occupant, uint32_t type) {
+    Call call(this);
+    if (!call.ok()) {
+        if (fc4::OnDevelopmentMainThread()) {
+            NoteOnce(g_noteFoundationProps,
+                     "development: LoadFoundationProperties (slot 26) without the simulator; it returns false");
+        }
+        return false;
     }
-    return false;
+    ++ctx_.foundationLoads;
+    const bool ok = fc4_development_load_foundation(core_, OccupantToken(occupant), type);
+    if (ok) ++ctx_.foundationLoadsOk;
+    return ok;
 }
 
 uint32_t cFC4BuildingDevelopmentSimulator::GetAllLotRetainingWallTypes(fc4::GameVector<uint32_t>& types) {
@@ -2455,12 +2618,30 @@ bool cFC4BuildingDevelopmentSimulator::GetLotRetainingWallKeyFromType(uint32_t t
     return MirrorKey(3, type, key);
 }
 
-bool cFC4BuildingDevelopmentSimulator::LoadLotRetainingWallProperties(cISC4LotRetainingWallOccupant*, uint32_t) {
-    if (fc4::OnDevelopmentMainThread()) {
-        NoteOnce(g_noteWallProps, "development: LoadLotRetainingWallProperties (slot 29) is not specified; it returns "
-                                  "false");
+// Slot 29 (§4.9.2, DG6; the wall factory gives up when it fails): the
+// retaining-wall key map's exemplar becomes the occupant's default exemplar.
+// The wall is kept for the call so retaining_wall_type can answer slot 11.
+bool cFC4BuildingDevelopmentSimulator::LoadLotRetainingWallProperties(cISC4LotRetainingWallOccupant* occupant,
+                                                                      uint32_t type) {
+    Call call(this);
+    if (!call.ok()) {
+        if (fc4::OnDevelopmentMainThread()) {
+            NoteOnce(g_noteWallProps,
+                     "development: LoadLotRetainingWallProperties (slot 29) without the simulator; it returns false");
+        }
+        return false;
     }
-    return false;
+    ++ctx_.wallLoads;
+    const uint64_t token = occupant ? TokenOf(occupant->AsOccupant()) : 0;
+    cIGZUnknown* const savedWall = ctx_.currentWall;
+    const uint64_t savedToken = ctx_.currentWallToken;
+    ctx_.currentWall = occupant;
+    ctx_.currentWallToken = token;
+    const bool ok = fc4_development_load_retaining_wall(core_, token, type);
+    ctx_.currentWall = savedWall;
+    ctx_.currentWallToken = savedToken;
+    if (ok) ++ctx_.wallLoadsOk;
+    return ok;
 }
 
 uint32_t cFC4BuildingDevelopmentSimulator::GetDeveloperType(uint32_t purpose, uint32_t wealth) {

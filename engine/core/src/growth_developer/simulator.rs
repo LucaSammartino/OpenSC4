@@ -96,6 +96,8 @@ impl GrowthData {
             growth: Vec::new(),
             decline: Vec::new(),
             last_phantom_sum: 0,
+            // DG1 (growth-developer §2, §9): the original's constructor never
+            // initialises total capacity (+0x108); [choice] 0 for a new city.
             total_capacity: 0,
             source_demand: None,
             last_salt: None,
@@ -295,7 +297,8 @@ impl GrowthDeveloper {
             }
             self.d.borrow_mut().services.push(s);
         }
-        // Step 3 ([choice]: a null holder fails).
+        // Step 3 ([choice]: a null holder fails; DG24: the original AddRefs
+        // the holder without a null test, so it would crash).
         let Some(holder) = holder else { return false };
         {
             let mut d = self.d.borrow_mut();

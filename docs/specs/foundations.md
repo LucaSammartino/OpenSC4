@@ -797,7 +797,9 @@ There is **no** single simulation RNG. Each subsystem uses its own instance:
 | a file-local `cRZRandom` per source file (seeded once at static initialisation, never re-seeded) | `cRZTime()` local wall clock XOR a per-file constant | building development simulator (`0x00B485F0`, XOR `0x0C09C0B8`; building-development.md §4.14), growth developers (`0x00B49080`, XOR `0xAC09C0E8`, shared by all of them; growth-developer.md §7), tract developers (`0x00B4AFD8`, XOR `0x4C09C113`, shared; tract-developer.md §4.22), zone developer (`0x00B4B398`, XOR `0x8C09C68A`; zones.md), lot developer (`0x00B49AF0`, XOR `0x6C09C0F4`; lot-developer.md) |
 | a temporary `cRZRandom` | `((x << 16) + z) << 4` XOR a per-month salt | growth developer decline-list ordering (growth-developer.md §7) |
 | a temporary `cRZRandom` | `((tx << 16) + tz) << 4` (tract (0, 0) seeds 0, so its multiplicative path is clock-seeded) | tract developer `UpdatePopulation` (tract-developer.md §4.18) |
-| a `cRZRandomSuper` member | wall clock at `Init` | traffic simulator, traffic network map, prop developer (clock × 28) |
+| a `cRZRandomSuper` member | wall clock at `Init` | traffic simulator, traffic network map |
+| a `cRZRandomSuper` member | wall clock × 28 (mod 2³²) **at construction** (`0x006F34A3`–`0x006F34B1`), not at `Init` | prop developer (prop-developer.md §5; re-specs10) |
+| a `cRZRandomSuper` member | wall clock (seed −1) at construction | city situation manager, draws only during a mission (city-situation.md §5; re-specs10) |
 | a process-wide `cRZRandom` (lazy) | wall clock | neighbours deal propositions |
 | a temporary `cRZRandom` | **cell coordinates** `(x << 16) + z` | lot developer desirability test (one `RandomDoubleRangeUniform(0, 7)`): deterministic per cell (lot-developer.md) |
 | a temporary `cRZRandom` | wall clock | civic building monthly simulation |
