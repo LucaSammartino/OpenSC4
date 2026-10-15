@@ -1,7 +1,7 @@
 # Handoff (start here)
 
 This file is for the agents that take turns on this repo, the coordinator first. Read it before you start and update
-§0 before you stop. Milestones are tracked in the [README Progress checklist](../README.md#progress); the in-game run
+§0 before you stop. Milestones are tracked in the [Progress checklist](PROGRESS.md); the in-game run
 log is [docs/manual-checks.md](manual-checks.md); history is `git log`. This file holds only the current state and the
 operating knowledge that is still true.
 
@@ -32,7 +32,7 @@ original prompt from `build-runs/lane-prompts/<lane>-prompt.txt` plus the "next 
 
 - **main:** `FC4_ABI_VERSION` 48 (tract merge `76bf685`). Last gate: the tract lane's final gate (tract-final), cargo 1946/0;
   clippy clean, ctest 46/46. Test switches `sim_turbo`, `autotest_end_date`, `script`, `close_dialogs` (engine/README). Every glue except the simulator and the budget is off by default (`enable = <key>`).
-- **Milestones** (details in the README): M0, M1 and M2 done. **M3 exit met in run 103** (regress r6c): every grid
+- **Milestones** (details in [PROGRESS.md](PROGRESS.md)): M0, M1 and M2 done. **M3 exit met in run 103** (regress r6c): every grid
   shadow exact, including power 463/463, plumbing 179/179 and landfill 89/89, zero INCOMPLETE lines. M4: all cores
   merged; glue merged for residential, zones phase 1 and development (BDS + growth developers, opt-in), but the
   development glue fails in game (runs 101-102). M5: all three cores merged; traffic glue in a paused lane. M6: the
@@ -174,7 +174,7 @@ roadmap in `docs/ARCHITECTURE.md`, build and ini keys in `engine/README.md`.
 
 ## 4. Milestones
 
-See the [README Progress checklist](../README.md#progress). Keep it current at every merge.
+See the [Progress checklist](PROGRESS.md). Keep it current at every merge.
 
 ## 5. Lessons that engine comments and lane prompts cite
 
@@ -222,7 +222,7 @@ lane implements it.
   pointer). Renumber ABI / seam ops / switch counts at that point; rerun `python tests/gen_abi_entries.py` from
   `engine/` (revert `abi_entries.inc` if only line endings change). Merge with `git merge --no-ff -F <msgfile>`.
 - **After the merge:** copy the DLL/PDB to `build-runs/dlls/FreeCity4-<tag>.*`, run regress, record the run in
-  `docs/manual-checks.md`, file the lane's questions in `docs/specs/QUESTIONS.md`, tick the README.
+  `docs/manual-checks.md`, file the lane's questions in `docs/specs/QUESTIONS.md`, tick docs/PROGRESS.md.
 - **Pause / stop:** `TaskStop`, resume with `SendMessage`. After a hard stop, check the worktree's *unstaged* diff:
   the agent may have been writing the fix to something it had just committed.
 - **QUESTIONS.md:** answered entries are struck and kept (`~~**ID**~~ ... ANSWERED`). Open entries are found with
