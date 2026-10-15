@@ -3979,70 +3979,70 @@ in-game harness with the FreeCity4 turbo clock and a message log.
 - ~~**CS1:** what does 3D view slot 57 do when the situation popup is shown (`0xEBB67EF7`)? [hides the mission status
   panel]~~ **ANSWERED 2026-10-14** in this lane from the exe (3D view vtable slot 57, `+0xE4`,
   `HideMissionStatusPanel`) and written into city-situation.md §3.
-- **CS2:** the argument meanings of city situation manager slots 22–25 (`InitiateSituationForOccupant`,
+- ~~**CS2:** the argument meanings of city situation manager slots 22–25 (`InitiateSituationForOccupant`,
   `InitiateSituationByAutomataGroup`, `StartJoyride`, `TreatAutomatonAsGroup`). [the symbol port's names; the
   argument counts are verified from the pops (8, 12, 12, 8 bytes); nothing FreeCity4 replaces calls them. A call
-  trace of the four slots while the shipped situations run (car chase, UFO, joyride) in a turbo run would settle it]
-- **CS3:** who posts `0x2C16BDE7` (the situation popup without an advice)? [no code in the executable; only a script
-  or a plugin could. A turbo run that triggers every shipped situation should log 0 posts of `0x2C16BDE7`]
-- **DM1:** demolition filter step 7: in a view level other than 1, networks with any flag of `0x1F4F` are refused.
+  trace of the four slots while the shipped situations run (car chase, UFO, joyride) in a turbo run would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered from the exe and the Mac build's symbols (city-situation.md §8, slots 22–25). Slot 22 `(cISC4Occupant*, cISC4CitySituationAdvice*)`: QI for the automaton, then `InitiateSituation(advice or the first matching active entry, automaton, true)`. Slot 23 `(uint32 group, bool, bool search)`: starts the active entry that accepts the group, else (only when `search`) looks for the group's automata. Slot 24 `(cISC4Automaton*, bool, cIGZMessageTarget2*)`: sets `justActivated`, posts `0xABBBCA64`, enters the drive view. Slot 25 `(cISC4Automaton*, uint32 group)`: sets the automaton's group and tracks it. MATCHES: nothing FreeCity4 replaces calls them.
+- ~~**CS3:** who posts `0x2C16BDE7` (the situation popup without an advice)? [no code in the executable; only a script
+  or a plugin could. A turbo run that triggers every shipped situation should log 0 posts of `0x2C16BDE7`]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES. The ID's four bytes occur once in the whole executable, at the handler's compare (`0x0052EE1F`), so no code and no data table can post it (city-situation.md §3). Only a script or plugin could.
+- ~~**DM1:** demolition filter step 7: in a view level other than 1, networks with any flag of `0x1F4F` are refused.
   Is that mask the surface networks, so that only pipes and subways can be demolished underground? [yes, from the bit
   layout. In a turbo run, demolish a rectangle over a road crossing a pipe in the underground view: the road must
-  stay and the pipe go]
-- **DM2:** `ModifyTerrainHeight` (slot 9) returns a vertex count and never writes `*cost`. [as specified; no shipped
-  caller passes a cost pointer. A call trace of slot 9 with the level and raise tools would confirm both]
-- **DM3:** `0xA9DED179` has a handler and no poster. [no poster in the exe; FreeCity4 keeps the handler. A turbo
-  run with demolitions, disasters and terrain edits should log 0 posts]
-- **DM4:** occupant flag 1 means "inserted in the occupant manager", so poles removed earlier in the same call are
+  stay and the pipe go]~~ **ANSWERED 2026-10-15 (re-answers11):** **DIFFERS** in part (demolition.md §4.2 step 7). `0x1F4F` is every network type bit except 4 (water pipe), 5 (power line) and 7 (subway), so in a view level other than 1 a network passes only when it carries none of the other nine types: pipes, subways and also type-5 power line pieces. Power poles are a separate occupant type and step 7 does not test them. The bracket's "pipes and subways" is right for the underground networks.
+- ~~**DM2:** `ModifyTerrainHeight` (slot 9) returns a vertex count and never writes `*cost`. [as specified; no shipped
+  caller passes a cost pointer. A call trace of slot 9 with the level and raise tools would confirm both]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES, now verified (demolition.md §4.7). `0x00467BB0`–`0x00468191` (`ret 0x28`) never loads its tenth argument; the ninth (`reason`) is read for the redisplays (`0x00467F59`, `0x00468157`). It returns the vertex count.
+- ~~**DM3:** `0xA9DED179` has a handler and no poster. [no poster in the exe; FreeCity4 keeps the handler. A turbo
+  run with demolitions, disasters and terrain edits should log 0 posts]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (demolition.md §3). The ID's bytes occur only at `0x00466A03` (Shutdown), `0x00466F29` (Init) and `0x00467002` (DoMessage) in the whole file.
+- ~~**DM4:** occupant flag 1 means "inserted in the occupant manager", so poles removed earlier in the same call are
   skipped. [yes, inferred from the occupant manager's insert and remove paths; flora.md agrees. A breakpoint on the
-  occupant manager's insert and remove watching flag 1 would settle it]
-- **DP1:** dispatch types 2, 3, 4 and 7: no shipped source handles them. [unused in the shipped game; a plugin may
-  use them, so FreeCity4 keeps them as plain numbers]
-- **DP2:** 409 template saves hold `toolType` 4, while the shipped tool's "none" is 8. [written by an earlier build;
+  occupant manager's insert and remove watching flag 1 would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES, now verified (demolition.md §4.6). `InsertOccupant` returns early when flag 1 is set (`0x0049EF8E`) and sets it before posting `0x99EF1142` (`0x0049F202`); `RemoveOccupant` needs it set (`0x0049F264`) and clears it after posting `0x99EF1143` (`0x0049F382`).
+- ~~**DP1:** dispatch types 2, 3, 4 and 7: no shipped source handles them. [unused in the shipped game; a plugin may
+  use them, so FreeCity4 keeps them as plain numbers]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (dispatch.md §2). The four `cISC4DispatchSource` classes handle 0 (police `0x006E0210`), 1 (fire `0x006ACFA0`), 5 and 6 (air sources: slot 3 `0x006DF760` compares `+0x14`, set to 5 at `0x006ACE33` and 6 at `0x006DFFA3`). The Mac symbols list no other `CanHandleDispatchType`.
+- ~~**DP2:** 409 template saves hold `toolType` 4, while the shipped tool's "none" is 8. [written by an earlier build;
   every value loads the same and is overwritten when the tool opens. Nothing more to settle unless a value other
-  than 4–8 turns up]
+  than 4–8 turns up]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (dispatch.md §7). This build writes `toolType` only with 8 (`0x0046A116`, `0x0046A4F6`, `0x0046A56B`) or with a handled type in `BeginDispatchTool` (`0x0046B0AA`), so 4 can only come from an earlier build. All values load the same.
 - **DP3:** dispatch states: 0 idle, 3 dispatched and 5 working are inferred names; who sets the others? [the automata
   controllers; only state 5 changes `active`. A trace of `UpdateDispatchState` while a fire engine answers a fire in
   a turbo run would list the states in order]
-- **PD1:** `GetLeastEfficientPort` loops forever with two or more ports. Does anything call it? [no caller in the exe
+- ~~**PD1:** `GetLeastEfficientPort` loops forever with two or more ports. Does anything call it? [no caller in the exe
   and no Lua binding found; FreeCity4 returns the least efficient port (*[choice]*). Searching the shipped Lua
   (`SimCity_1.dat` advisor scripts) for a binding, then a turbo run with two airports and every advisor open, would
-  settle it]
-- **PD2:** the port's monthly `UpdateOccupantEffects(building, old ratio, new ratio)` adds the usage-ratio change on
+  settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice confirmed; port-developers.md §4.7). No direct caller, and no Lua binding: the only port names the executable exposes to scripts are the `g_*airport*` and `g_seaport_*` count and volume globals, and no string contains `LeastEfficient`.
+- ~~**PD2:** the port's monthly `UpdateOccupantEffects(building, old ratio, new ratio)` adds the usage-ratio change on
   top of the demand effects the building already has as an occupied building. Do both apply? [yes: the port call
   moves the effect by the ratio change only. Logging the demand caps (demand.md §8) before and after an airport's
-  first month with known office jobs in a turbo run would settle it]
+  first month with known office jobs in a turbo run would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (port-developers.md §4.3). `UpdateOccupantEffects` removes the effects at the old ratio and adds them at the new one (demand.md §7.1), starting from 0, on top of the effects the occupied building already adds, so a port gives (1 + usage) × its effects *[inferred: port lots take the common occupancy path]*.
 - **PD3:** what does lot condition 2 mean on a port lot (set when the port is stressed for more than 90 days)?
   [what it means on any lot (lot-developer.md §5.5): the presentation of a distressed lot; the port developer resets
   it to 0 each month it is not stressed. A turbo run with an airport above 96 % usage for four months, logging
   condition and state changes of its lot, would show whether anything else reacts]
-- **PD4:** the seaport type declares an 11 × 5 terrain grid but ships 72 values (12 × 6). Data error, or are the
+- ~~**PD4:** the seaport type declares an 11 × 5 terrain grid but ships 72 values (12 × 6). Data error, or are the
   dimensions counted in cells while the values are vertices? [data error as far as the code goes: the grid is
   rejected, so seaports never re-level terrain. Plopping a seaport on an uneven coast and comparing vertex heights
-  before and after would settle it]
-- **PV1:** the prop developer's night batch size (`+0xA34`) is not initialised; 225 shipped records hold
+  before and after would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (data error; port-developers.md §4.8). The code counts cells in both places: load needs rows × columns = value count (`0x006EA676`–`0x006EA690`), and use needs rows × columns = the lot rectangle's cell area, one vertex per cell (`0x007013D7`–`0x0070141A`). The declared 11 × 5 is wrong for 72 values; 12 × 6 would load.
+- ~~**PV1:** the prop developer's night batch size (`+0xA34`) is not initialised; 225 shipped records hold
   `0xBAADF00D`. [never read while the night mode is 0; *[choice]* FreeCity4 writes 0 for a new city and writes a
-  loaded value back unchanged. A new city saved by the original would show what the GOG build writes]
+  loaded value back unchanged. A new city saved by the original would show what the GOG build writes]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice confirmed; prop-developer.md §2). The constructor never writes `+0xA34`, so the original saves whatever the heap block held (`0xBAADF00D` is the debug heap's fill *[inferred]*); there is no fixed value to match, and the field is never read while the mode is 0.
 - **PV2:** a tagged prop whose tag names no object of its lot's configuration lowers the block's slot count by one.
   Which props have such tags in practice? [props left over from a different configuration (a lot redeveloped with a
   new configuration, or a lower detail level before the city detail manager's reduce); reproduced. Counting, in a
   corpus city, lot props whose tag matches no object of their lot's configuration would show how common it is]
-- **PV3:** `UpdateAllOptionalProps` (slot 7) has no caller. [none in the exe; FreeCity4 implements it as specified
-  (every block, x outer). A plugin scan or a call trace in a long turbo run would settle it]
-- **PV4:** the block step runs on every Idle delivery, also while paused, so props develop at a frame-rate-dependent
+- ~~**PV3:** `UpdateAllOptionalProps` (slot 7) has no caller. [none in the exe; FreeCity4 implements it as specified
+  (every block, x outer). A plugin scan or a call trace in a long turbo run would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (prop-developer.md §4.2). No direct call targets `0x006F4DB0`; it is reachable only through vtable slot 7. Implementing it as specified is harmless.
+- ~~**PV4:** the block step runs on every Idle delivery, also while paused, so props develop at a frame-rate-dependent
   speed. Does the original really grow optional props while paused? [yes, from simulator.md §5.4. In a turbo run,
   pause a fresh city with zoned growth for 60 s of real time and log `0x99EF1142` for props carrying `0x89A1C16C`:
-  posts while paused confirm it]
-- **PV5:** the requester index stored on a prop is not bounds-checked, and `RemovePropRequester` shifts later
+  posts while paused confirm it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES. The simulator delivers Idle whenever `hiddenPauseCount ≤ 0`, with data2 = (pauseCount > 0) (simulator.md §5.4), and the prop developer's Idle handler ignores the message data (prop-developer.md §3), so player pause does not stop the block step.
+- ~~**PV5:** the requester index stored on a prop is not bounds-checked, and `RemovePropRequester` shifts later
   indexes. [only pollution removes its requester, at `Shutdown`; an index ≥ the requester count cannot occur in the
-  shipped game. *[choice]* FreeCity4 treats it as "no index". Nothing to settle in game]
-- **PV6:** a power change switches night-lit **street** props at once but leaves night-lit **lot** props until the
+  shipped game. *[choice]* FreeCity4 treats it as "no index". Nothing to settle in game]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice confirmed). Static: only pollution removes its requester, at Shutdown; nothing to settle in game.
+- ~~**PV6:** a power change switches night-lit **street** props at once but leaves night-lit **lot** props until the
   next dusk, dawn or switch. [reproduced, from the exe. At night in a turbo run, cut the power line to a lit block and
-  watch a lit lot prop and a lit street lamp: the lamp goes dark at once, the lot prop at dawn]
-- **CD1:** which lot configuration objects are dropped at each city detail level? [the lot configuration manager
+  watch a lit lot prop and a lit street lamp: the lamp goes dark at once, the lot prop at dawn]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (reproduced from the exe, prop-developer.md). What remains is a visual check, not a behaviour question.
+- ~~**CD1:** which lot configuration objects are dropped at each city detail level? [the lot configuration manager
   filters objects by the detail preference when it builds configurations (it passes the preference to the
   configuration's reader); the exact field belongs to a lot configuration spec. Comparing one lot configuration's
-  object count at detail 1 and 3 would settle it]
+  object count at detail 1 and 3 would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered (city-detail.md §3, "Which objects a detail level keeps"). `ConvertPropertiesToObjectArray` (`0x00479D10`) keeps an object when its type byte is 0 (building) or `(value1 & 0x30) < 16 × d` (`0x00479EB1`–`0x00479EC6`): level bits `0x00` at every detail, `0x10` from medium, `0x20` only at high, `0x30` never. Network lot configurations use d = 3 (`0x0060F80E`). MATCHES the bracket; the field is value 1's bits 4–5.
 - **CD2:** after a detail change every network lot is redeveloped (network lot manager slot 12). Does that change
   saved state, such as street props drawn from the network lot manager's generator? [yes, inferred: redevelopment
   re-creates the network lot's objects. Saving a city, reopening it at another detail level and saving again, then

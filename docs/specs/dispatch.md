@@ -72,7 +72,11 @@ The record `DispatchInfo` (0x2C bytes) is specified in docs/abi/layouts.md: type
 number), vehicle-view handle, `active` byte, target x/y/z, station occupant, automaton, pylon.
 
 **Dispatch types** *[inferred]* from the sources: **0** police car, **1** fire engine, **5** fire plane, **6**
-police helicopter; **8** means "no tool". No shipped source handles 2, 3, 4 or 7.
+police helicopter; **8** means "no tool". No shipped source handles 2, 3, 4 or 7 (DP1, verified): the only four
+`cISC4DispatchSource` classes (the Mac build's symbols list no other `CanHandleDispatchType`) are the police
+simulator (type 0, `0x006E0210`), the fire simulator (type 1, `0x006ACFA0`) and the two air sources, whose shared
+slot 3 (`0x006DF760`) compares with `+0x14`, set to 5 by the fire plane constructor (`0x006ACE33`) and to 6 by the
+police helicopter constructor (`0x006DFFA3`).
 
 ## 3. Agents, messages and cadence
 
@@ -248,6 +252,9 @@ the saved tool state has no effect.
 
 `toolType` 4, 5 and 7 cannot be produced by the shipped tool's "none" (8) unless the tool was open; the 409 saves
 with 4 were presumably written by an earlier build whose "none" was 4 *[inferred]*. All values load identically.
+This build cannot write 4 (DP2): apart from `Read`, the field is written only with 8 (`Init` `0x0046A116`,
+`EndDispatchTool` `0x0046A4F6`, `0x0046A56B`) and with the tool's type in `BeginDispatchTool` (`0x0046B0AA`), which
+first requires a source for that type (0, 1, 5 or 6).
 
 ## 8. Interface slot table *[compat]*
 
