@@ -1158,15 +1158,36 @@ impl TrafficSimulator {
     }
 
     /// In ReRouteTrips or FullTrips: runs on, examining no trip, to where
-    /// the original stopped after its last unit: the end of the source at
-    /// `target` (the original's saved source cell) or the next trip to
-    /// examine, whichever comes first (`trip_run_on`). True when the phase
-    /// finished on the way (the state is left as it is); false in any other
-    /// state.
+    /// the original stopped after its last unit: the source at `target` (the
+    /// original's saved source cell) held, or the next trip to examine,
+    /// whichever comes first (`trip_run_on`). True when the phase finished
+    /// on the way (the state is left as it is); false in any other state.
     pub fn shadow_advance(&self, target: [i16; 2]) -> bool {
         self.run(|r| match r.st.cycle_state {
             cycle_state::REROUTE_TRIPS => r.trip_run_on(false, target),
             cycle_state::FULL_TRIPS => r.trip_run_on(true, target),
+            _ => false,
+        })
+    }
+
+    /// In ReRouteTrips or FullTrips: the held source with no trip left to
+    /// examine whose list end (merge or `CompleteTripSourceCalculations`) is
+    /// not taken yet (tooling: the traffic shadow decides it from the
+    /// original's record and trip list).
+    pub fn shadow_pending_list_end(&self) -> Option<Source> {
+        self.run(|r| match r.st.cycle_state {
+            cycle_state::REROUTE_TRIPS => r.pending_list_end(false),
+            cycle_state::FULL_TRIPS => r.pending_list_end(true),
+            _ => None,
+        })
+    }
+
+    /// Takes [`Self::shadow_pending_list_end`]'s list end (the next source is
+    /// not taken). False when there is none.
+    pub fn shadow_end_list(&self) -> bool {
+        self.run(|r| match r.st.cycle_state {
+            cycle_state::REROUTE_TRIPS => r.end_pending_list(false),
+            cycle_state::FULL_TRIPS => r.end_pending_list(true),
             _ => false,
         })
     }

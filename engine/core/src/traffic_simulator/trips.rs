@@ -647,8 +647,9 @@ impl Run<'_, '_> {
     /// before the next source is taken), which §3.4 does not name (TS
     /// question in the lane report). The copy runs on without examining a
     /// trip: past every list with no trip left to examine, until the source
-    /// at `target` (the original's saved source cell, §6.1 row 14) is ended
-    /// or a trip to examine is next. True when the phase finished on the way.
+    /// at `target` (the original's saved source cell, §6.1 row 14) is held
+    /// (its list's end is left to the shadow, [`Self::end_pending_list`]) or
+    /// a trip to examine is next. True when the phase finished on the way.
     pub(crate) fn trip_run_on(&mut self, full: bool, target: [i16; 2]) -> bool {
         let want = if full { status::SEARCH } else { status::REROUTE };
         loop {
@@ -670,12 +671,35 @@ impl Run<'_, '_> {
             {
                 return false;
             }
-            let at_target = self.st.extras.phase_positions == target;
-            self.end_source(full, src, trips);
-            if at_target {
+            if self.st.extras.phase_positions == target {
                 return false;
             }
+            self.end_source(full, src, trips);
         }
+    }
+
+    /// The traffic shadow (tooling): the source held with no trip left to
+    /// examine, its list's end not taken yet.
+    pub(crate) fn pending_list_end(&self, full: bool) -> Option<Source> {
+        let want = if full { status::SEARCH } else { status::REROUTE };
+        let src = self.st.current?;
+        let trips = self.h.trip_list(src);
+        let left = trips[self.st.trip_pos.min(trips.len())..]
+            .iter()
+            .any(|t| t.status == want);
+        (!left).then_some(src)
+    }
+
+    /// The traffic shadow (tooling): takes the list end of
+    /// [`Self::pending_list_end`]'s source (the merge or
+    /// `CompleteTripSourceCalculations`); the next source is not taken.
+    pub(crate) fn end_pending_list(&mut self, full: bool) -> bool {
+        let Some(src) = self.pending_list_end(full) else {
+            return false;
+        };
+        let trips = self.h.trip_list(src);
+        self.end_source(full, src, trips);
+        true
     }
 
     /// `SetupTrip` then `PerformPathSearch` with the two pathfinders.
@@ -1026,8 +1050,12 @@ impl Run<'_, '_> {
 
     /// FinishTripMap (state 15, §4.7, TS26), in one call. After a load in
     /// state 15 the lot walk starts after the lot DoPostCityInit found at
-    /// the saved cell (§3.5 step 11).
-    pub(crate) fn finish_trip_map(&mut self) {
+    /// the saved cell (§3.5 step 11). True when finished; false only at the
+    /// traffic shadow's stop ([`State::shadow_finish_stop`], tooling: the
+    /// walk resumes after that lot).
+    ///
+    /// [`State::shadow_finish_stop`]: super::State::shadow_finish_stop
+    pub(crate) fn finish_trip_map(&mut self) -> bool {
         let h = self.h;
         let mut lots = h.lots();
         if let Some(after) = self.st.finish_resume.take() {
@@ -1041,24 +1069,36 @@ impl Run<'_, '_> {
             // §3.5 step 11 reads them back.
             let (lx, lz) = h.lot_location(lot);
             self.st.extras.phase_positions = [lx as i16, lz as i16];
-            h.clear_lot_flag(lot, 0x80);
-            let zone = h.lot_zone(lot);
-            if !(zone == 8 || zone == 9) || h.lot_has_road_access(lot) {
-                continue;
+            let stop_here = self.st.shadow_finish_stop == Some(self.st.extras.phase_positions);
+            self.finish_lot(lot);
+            if stop_here {
+                self.st.finish_resume = Some(lot);
+                return false;
             }
-            let Some(g) = self.st.trip_length.clone() else { continue };
-            // `value := 0`; the linked lot's location, else the donor cell.
-            let from = match h.lot_link(lot) {
-                Some(link) => Some(h.lot_location(link)),
-                None => self.search_trip_length_donor(lot, zone),
-            };
-            let v = from.map_or(0, |(sx, sz)| g.get_cell_value(sx, sz));
-            // No donor writes 0 over the rect (TS26).
-            let r = h.lot_bounding_rect(lot);
-            for x in r.x1..=r.x2 {
-                for z in r.z1..=r.z2 {
-                    g.set(x, z, v);
-                }
+        }
+        true
+    }
+
+    /// FinishTripMap's work on one lot (§4.7).
+    fn finish_lot(&mut self, lot: u64) {
+        let h = self.h;
+        h.clear_lot_flag(lot, 0x80);
+        let zone = h.lot_zone(lot);
+        if !(zone == 8 || zone == 9) || h.lot_has_road_access(lot) {
+            return;
+        }
+        let Some(g) = self.st.trip_length.clone() else { return };
+        // `value := 0`; the linked lot's location, else the donor cell.
+        let from = match h.lot_link(lot) {
+            Some(link) => Some(h.lot_location(link)),
+            None => self.search_trip_length_donor(lot, zone),
+        };
+        let v = from.map_or(0, |(sx, sz)| g.get_cell_value(sx, sz));
+        // No donor writes 0 over the rect (TS26).
+        let r = h.lot_bounding_rect(lot);
+        for x in r.x1..=r.x2 {
+            for z in r.z1..=r.z2 {
+                g.set(x, z, v);
             }
         }
     }

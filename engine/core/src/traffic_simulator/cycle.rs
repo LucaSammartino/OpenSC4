@@ -283,10 +283,7 @@ impl Run<'_, '_> {
                 }
                 done
             }
-            cs::FINISH_TRIP_MAP => {
-                self.finish_trip_map();
-                true
-            }
+            cs::FINISH_TRIP_MAP => self.finish_trip_map(),
             cs::CREATE_MAPS => self.create_maps(),
             cs::CREATE_FINAL_MAP => self.create_final_map(),
             cs::CLEAR_DESTINATIONS => self.clear_trip_destinations(),

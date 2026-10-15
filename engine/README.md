@@ -1362,10 +1362,11 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      differs from the copy's record the copy reads it (a resync, counted); the trip lists and the lot and
      connection holder arrays the delivery may change are snapshotted. Just after, the record again gives the
      cycle state and phase progress the original stopped at; the copy steps one unit at a time to the same point
-     (a cell-scanning phase stopped mid-scan stops at the original's iterator cell; in ReRouteTrips and FullTrips
-     the copy then runs on, examining no trip, to the original's saved source cell: a "run-on") and takes the
-     original's day step on its share, then its record (fields named), every trip list, the
-     holder arrays and its grids are compared bitwise with the original's. The copy reads the city through the
+     (a cell-scanning phase stopped mid-scan stops at the original's iterator cell, FinishTripMap after the lot at
+     the original's saved cell; in ReRouteTrips and FullTrips the copy then runs on, examining no trip, to the
+     original's saved source cell: a "run-on"; that source's list end is taken when the original's record or trip
+     list shows it was: "list ends") and takes the original's day step on its share, then its record (fields
+     named), every trip list, the holder arrays and its grids are compared bitwise with the original's. The copy reads the city through the
      traffic glue's read callbacks (every write callback NULL: its writes, posts, budget calls and references
      stay inside it) and the original's grids through `GetTractValue`; the messages the original subscribes to
      are forwarded to it. The lot strategy byte (no getter) is read as the last byte of the lot's own record
@@ -1373,14 +1374,15 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      pothole and accident draws' choices (the original's generator is not readable), posted messages, history,
      incomes, network costs, budget items and accidents. **Known differences** are counted apart on the month
      line, not as mismatches, and cause no resync: a new trip's undefined destination and travel types (§4.1.1),
-     a reversible trip's return route the original keeps, a statistics set's unnamed last byte, pass counters 0
+     a reversible trip's return route the original keeps, a status-0 trip's destination (written by a search the
+     original's deadline suspended; ours never suspend), a statistics set's unnamed last byte, pass counters 0
      and 4-8 (§10 Q4) and the unnamed fields of rows 14-15. `traffic_shadow_hypotheses` is a bit mask of
      alternative readings of unclear spec points the copy runs instead of the spec as written (fc4.h
      `FC4_TRAFFIC_SHADOW_HYP_*`: 1 the ConfirmTrips merge sets status 0 only on a trip that absorbed one, 2 row
      19's pairs are (published, building) and FullTrips' end swaps them, 4 the ReRouteTrips merge absorbs routed
-     trips too); the month line names the mask. With 7, Konradshohe 2026-01-27 to 2026-06-01 is clean on every
-     delivery; with 0 most trip-phase days differ. Lines (always written; longer ones continue on
-     `traffic shadow (cont.)` lines):
+     trips too); the month line names the mask. With 7, Konradshohe 2026-01-27 to 2026-08-01 is clean but for a
+     few deliveries (lane traffic2 questions); with 0 most trip-phase days differ. Lines (always written; longer
+     ones continue on `traffic shadow (cont.)` lines):
 
      ```
      traffic shadow: ON (traffic_shadow from …): …                                          (game start)
@@ -1391,8 +1393,8 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      traffic shadow month to yyyy-mm-dd [(hypotheses 0x…)]: clean|mismatches=N; deliveries=D (day d, month m, other o) compared=C
        clean=K incomplete=I; record fields compared=… mismatched=… (FIELD xN, …); trip lists compared=…
        mismatched=…; holder properties compared=… mismatched=…; grid tracts compared=… mismatched=…; known
-       differences (not counted): … xN, …; between deliveries: resyncs=R; ours: units=… run-ons=… day steps=…,
-       kept posts=… …; first differences: …
+       differences (not counted): … xN, …; between deliveries: resyncs=R; ours: units=… run-ons=… (list ends …)
+       day steps=…, kept posts=… …; first differences: …
      ```
 
      Success is `clean` on every month line, `resyncs=0` and no `INCOMPLETE` line.

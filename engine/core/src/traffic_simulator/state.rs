@@ -532,6 +532,10 @@ pub struct State {
     /// finished, once its scanning iterator rests running at the cell given
     /// (where the original's deadline stopped it).
     pub shadow_scan_stop: Option<(u8, i32, i32)>,
+    /// The traffic shadow's FinishTripMap stop (tooling, not saved): the
+    /// lot walk of state 15 stops, not finished, after the lot at this cell
+    /// (the original's saved cell when its deadline stopped the walk).
+    pub shadow_finish_stop: Option<[i16; 2]>,
     /// The traffic shadow's hypotheses (tooling, not saved; 0 = the spec as
     /// written): each bit an alternative reading of a point the spec leaves
     /// unclear, which the shadow can run to test it against the original
@@ -639,6 +643,7 @@ impl State {
             loaded: false,
             shadow_lazy: false,
             shadow_scan_stop: None,
+            shadow_finish_stop: None,
             shadow_hypotheses: 0,
         }
     }

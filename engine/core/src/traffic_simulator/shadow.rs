@@ -1323,6 +1323,7 @@ fn trip_bytes(t: &[TripData]) -> Vec<u8> {
 fn known_trip_difference(orig: &[TripData], ours: &[TripData]) -> Option<&'static str> {
     const RETURN: &str = "a reversible trip's return route kept by the original";
     const UNDEFINED: &str = "a new trip's undefined destination and travel types (§4.1.1 quirk)";
+    const SUSPENDED: &str = "a status-0 trip's destination (the original's suspended search, §3.4 [choice])";
     if orig.len() != ours.len() {
         return None;
     }
@@ -1333,8 +1334,17 @@ fn known_trip_difference(orig: &[TripData], ours: &[TripData]) -> Option<&'stati
         }
         let mut o2 = o.clone();
         o2.return_route.clear();
+        let mut o4 = o.clone();
+        o4.dest_x = b.dest_x;
+        o4.dest_z = b.dest_z;
         let k = if o2 == *b && b.flags & 1 != 0 {
             RETURN
+        } else if o.status == super::status::SEARCH && o4 == *b {
+            // A search the original's deadline suspended (pathfinder max
+            // work time, §4.4 step 3) has written the trip's destination;
+            // the copy's searches never suspend (§3.4). Read by nothing
+            // before the trip's search.
+            SUSPENDED
         } else {
             let fresh = b.route.is_empty() && b.dest_x == 0 && b.dest_z == 0 && b.travel_types_used == 0;
             let mut o3 = o.clone();
@@ -1482,6 +1492,7 @@ struct MonthAcc {
     grid_mismatches: u64,
     units: u64,
     run_ons: u32,
+    list_ends: u32,
     day_steps: u32,
     detail_lines: u32,
     first: Vec<String>,
@@ -1761,7 +1772,7 @@ impl TrafficShadow {
     /// Steps the copy to where the original's day stopped: `t` is the
     /// original's state after its delivery. Returns (units, a note when the
     /// copy could not get there).
-    fn run_day(&mut self, t: &State) -> (u32, Option<String>) {
+    fn run_day(&mut self, t: &State, orig: &[u8]) -> (u32, Option<String>) {
         self.copy.shadow_day_start();
         let s0 = self.copy.cycle_state();
         let to = t.cycle_state;
@@ -1783,15 +1794,21 @@ impl TrafficShadow {
         // copy's scan stops at the same cell.
         let stop = (is_scan_phase(to) && t.scan.state == ScanState::Running).then_some((to, t.scan.x, t.scan.z));
         self.copy.update_state(|st| st.shadow_scan_stop = stop);
+        // FinishTripMap (state 15) stopped by the original's deadline: the
+        // copy's lot walk stops after the lot at the original's saved cell.
+        let finish_stop = (to == cs::FINISH_TRIP_MAP).then_some(t.extras.phase_positions);
+        self.copy.update_state(|st| st.shadow_finish_stop = finish_stop);
         let mut steps = 0u32;
         let mut note = None;
         loop {
-            let (s, p, at_stop) = self.copy.read_state(|st| {
+            let (s, p, at_stop, pos) = self.copy.read_state(|st| {
                 let at = st.scan.state == ScanState::Running && Some((st.cycle_state, st.scan.x, st.scan.z)) == stop;
-                (st.cycle_state, progress(st), at)
+                (st.cycle_state, progress(st), at, st.extras.phase_positions)
             });
             let reached = if is_trip_phase(s) {
                 p >= want
+            } else if s == cs::FINISH_TRIP_MAP {
+                finish_stop.is_none_or(|f| f == pos)
             } else {
                 stop.is_none() || at_stop
             };
@@ -1816,7 +1833,10 @@ impl TrafficShadow {
             self.copy.shadow_slice();
             steps += 1;
         }
-        self.copy.update_state(|st| st.shadow_scan_stop = None);
+        self.copy.update_state(|st| {
+            st.shadow_scan_stop = None;
+            st.shadow_finish_stop = None;
+        });
         let s = self.copy.cycle_state();
         let target = t.extras.phase_positions;
         let moved = want > p0 || self.copy.read_state(|st| st.extras.phase_positions) != target;
@@ -1830,6 +1850,20 @@ impl TrafficShadow {
                     "state {s}: ours found no further trip to examine after progress {want}, \
                      the original stopped before one"
                 ));
+            } else if let Some(src) = self.copy.shadow_pending_list_end() {
+                // At the original's source with nothing left to examine: the
+                // original stopped before or after the list's end (merge or
+                // CompleteTripSourceCalculations). Taken when the record or
+                // that source's trip list says so.
+                let record_differs = !compare_record_split(orig, &self.record()).0.is_empty();
+                let list_differs = self.host.expected_trips(src).is_some_and(|exp| {
+                    let live = self.host.inner().trip_list(src);
+                    trip_bytes(&live) != trip_bytes(&exp) && known_trip_difference(&live, &exp).is_none()
+                });
+                if record_differs || list_differs {
+                    self.copy.shadow_end_list();
+                    self.month.list_ends += 1;
+                }
             }
         }
         // The share step (§3.3): the original ended its day on its share.
@@ -1921,7 +1955,7 @@ impl TrafficShadow {
         }
         // Ours.
         let (units, note) = if d.msg_type == msg::DAY {
-            self.run_day(&t)
+            self.run_day(&t, &r1.bytes)
         } else {
             self.copy.do_message(&Message {
                 msg_type: d.msg_type,
@@ -2235,7 +2269,7 @@ impl TrafficShadow {
             "traffic shadow month to {}{hyp}: {head}; deliveries={} (day {}, month {}, other {}) compared={} clean={} \
              incomplete={}{reasons}; record fields compared={} mismatched={}{field_list}; trip lists compared={} \
              mismatched={}; holder properties compared={} mismatched={}; grid tracts compared={} mismatched={}{known}; \
-             between deliveries: resyncs={}; ours: units={} run-ons={} day steps={}, kept posts={} history={} \
+             between deliveries: resyncs={}; ours: units={} run-ons={} (list ends {}) day steps={}, kept posts={} history={} \
              incomes={} network costs={} budget items={} accidents={}; first differences: {first}",
             date(d.julian),
             m.deliveries,
@@ -2256,6 +2290,7 @@ impl TrafficShadow {
             m.drifts,
             m.units,
             m.run_ons,
+            m.list_ends,
             m.day_steps,
             kept.posts,
             kept.history,
@@ -2264,5 +2299,38 @@ impl TrafficShadow {
             kept.budget_items,
             kept.accidents,
         ));
+    }
+}
+
+#[cfg(test)]
+mod known_difference_tests {
+    use super::*;
+
+    /// A status-0 trip differing only in its destination is the original's
+    /// suspended search (known); a routed one, or one differing elsewhere,
+    /// is a mismatch.
+    #[test]
+    fn a_status_0_destination_is_known_only_alone() {
+        let ours = TripData {
+            count: 7,
+            status: super::super::status::SEARCH,
+            dest_x: 18,
+            dest_z: 40,
+            trip_length: 4.0,
+            ..TripData::default()
+        };
+        let mut orig = ours.clone();
+        orig.dest_x = 28;
+        orig.dest_z = 37;
+        let k = known_trip_difference(std::slice::from_ref(&orig), std::slice::from_ref(&ours));
+        assert!(k.is_some_and(|k| k.contains("suspended")));
+        let mut longer = orig.clone();
+        longer.trip_length = 5.0;
+        assert_eq!(known_trip_difference(&[longer], std::slice::from_ref(&ours)), None);
+        let mut routed = ours.clone();
+        routed.status = super::super::status::ROUTED;
+        let mut routed_orig = routed.clone();
+        routed_orig.dest_x = 28;
+        assert_eq!(known_trip_difference(&[routed_orig], &[routed]), None);
     }
 }
