@@ -4143,15 +4143,15 @@ brackets.
 
 - ~~**HW13:** `Release` on a warehouse that was initialised but never shut down (history §1): does `Release` at a count
   of 1 or less run `Shutdown` first? [`Shutdown` first, then delete]~~ **ANSWERED 2026-10-15 (re-answers11):** **DIFFERS** (history.md §1). The original's `Release` (`0x00476AA0`) does not call `Shutdown`: its destructor frees only the series map (`0x00476918`–`0x00476952`) and leaves the subscriptions, relying on the city's `Shutdown` call. Running `Shutdown` first is an accepted *[choice]* that changes nothing in the normal order.
-- **HW14:** when the history shadow sees the original's 5 ms timer split a yearly-pass step (the original answers
+- ~~**HW14:** when the history shadow sees the original's 5 ms timer split a yearly-pass step (the original answers
   false where the shadow answered true), what is the intended comparison? [the shadow skips the original's repeats
-  until the original answers true and counts `split_steps`; 0 in every lane run]
-- **HW15:** the warehouse's raw save record cannot be read in game from outside the class store. [the load comparison
+  until the original answers true and counts `split_steps`; 0 in every lane run]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (history.md §4.3). The pass's timer is a local `cRZTimer` with unit 4, milliseconds (`0x0088FEDF(4)` at `0x00475E56`; no longer *[inferred]*). It is read after every cursor advance (`0x00475F1B`), and the call stops at 5 or more (unsigned, `0x00475F27`). The split depends only on real time; the coalesced keys, their order and the final state do not. Skipping the original's repeats until it answers true, and comparing the result, is the right comparison.
+- ~~**HW15:** the warehouse's raw save record cannot be read in game from outside the class store. [the load comparison
   uses the original's own `Write` into memory; the save sweep (`engine/formats/tests/save_records.rs`) checks the raw
-  records of the 417 stock saves]
-- **HW16:** queue lengths set through slot 13 (the producers' `Init`, not a message) are invisible to the history
+  records of the 417 stock saves]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (history.md §7). No slot returns the raw record, and `Write` (`0x00475D2C`) is the only serialiser, so the original's own `Write` into a memory stream is the read path. The in-memory layout is now in §2 for a direct read.
+- ~~**HW16:** queue lengths set through slot 13 (the producers' `Init`, not a message) are invisible to the history
   shadow. Should there be a read path for them? [a series that differs only by its queue length is named and counted
-  as a mismatch; none occurred]
+  as a mismatch; none occurred]~~ **ANSWERED 2026-10-15 (re-answers12):** Answered (history.md §2). No slot returns a queue length, but the shadow already has two read paths: the original's `Write` (HW15) writes each series' `maxCount`, or the tree can be read directly (key at node `+0x10`, points list `+0x14`, `maxCount` `+0x18`; `0x00476FF2`, `0x00475EC1`). Naming such a series as a mismatch until then is fine.
 - ~~**HW17:** 403 of the 417 stock saves hold version-1 history records, which cannot be rewritten byte for byte (the
   writer always writes version 2; a queue length of 100 reads as 0; unset or repeated dates are folded). Is converting
   on the first save the intended behaviour, since the original also writes version 2? [yes: the sweep reports them as
@@ -4165,14 +4165,14 @@ brackets.
 - ~~**CK19:** slots 5, 8 and 11 have no meaningful return value in the spec. [return 1]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice; clock24.md §8). The original leaves EAX as a by-product (slot 8 the day quotient at `0x0044549B`, slots 5 and 11 the last call's result), so returning 1 is safe.
 - ~~**CK20:** if a tuning property (`0x897E709F`, `0x09B73421`, `0x09B73422`) is stored as an array, which value is used?
   [the first value]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (clock24.md §6). All three are read with the converting getters (Float32 `0x005FD4F0`, Uint32 `0x005FD480`), so an array gives its first value. An array of count 0 gives 0, and a float hour is truncated (data-formats §5.1).
-- **CK21:** the original's timer at +0x50 (a `cRZTimer`) has no read path or layout in the spec, so the clock shadow
+- ~~**CK21:** the original's timer at +0x50 (a `cRZTimer`) has no read path or layout in the spec, so the clock shadow
   cannot replay real elapsed time. [the shadow copies each of the original's steps through a synthetic elapsed time at
   magnification 1 (a game-time jump of 61 to 1200 s between idle passes is one step); any other game-time change is a
-  jump (`SetHour`, `SetMinute`, `SetSeconds`); messages and derived values are compared]
-- **CK22:** under the turbo clock the framework idle loop is starved (about 24 `OnIdle` passes in 29 s), so the clock
+  jump (`SetHour`, `SetMinute`, `SetSeconds`); messages and derived values are compared]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES, and the layout is now specified (clock24.md §4.3 timer layout). `cRZTimer`: `+0` unit, `+8` start tick (u64, 0 = stopped), `+0x10` accumulated ticks (u64). Unit 3 is QueryPerformanceCounter ticks × 10^6 / frequency, so microseconds (`0x0088FFFF`; no longer *[inferred]*), less a calibrated per-interval overhead (`0x00B54358`). After each step the start tick at clock `+0x58` holds the step's moment, so a shadow can bound each step's real elapsed time. The value read inside the step is not stored, so the synthetic-elapsed replay stays the exact method.
+- ~~**CK22:** under the turbo clock the framework idle loop is starved (about 24 `OnIdle` passes in 29 s), so the clock
   advances only about one game hour per turbo run and reaches no day/night boundary. Is that acceptable for the
   harness, or should turbo give the idle loop time? [nothing changed; normal-speed runs cover the clock (598 steps,
-  323 posts in 330 s)]
+  323 posts in 330 s)]~~ **ANSWERED 2026-10-15 (re-answers12):** Not an RE question; the bracket stands. Exe fact for the decision (clock24.md §3.1): the clock advances only in `OnIdle`, and a pass advances it by at most 1200 game seconds (`0x00445874`). So a starved idle loop slows the clock in game time too; nothing else advances it. So 24 passes advance the clock by 8 game hours at most, and 12 game hours need at least 36 passes. Normal-speed runs covering the clock is a sound choice.
 
 ## From the commercial, industrial, civic and park glue (filed by the coordinator from the `cmglue` lane's report, 2026-10-15)
 
