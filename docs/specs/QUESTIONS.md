@@ -4043,10 +4043,14 @@ in-game harness with the FreeCity4 turbo clock and a message log.
   filters objects by the detail preference when it builds configurations (it passes the preference to the
   configuration's reader); the exact field belongs to a lot configuration spec. Comparing one lot configuration's
   object count at detail 1 and 3 would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered (city-detail.md §3, "Which objects a detail level keeps"). `ConvertPropertiesToObjectArray` (`0x00479D10`) keeps an object when its type byte is 0 (building) or `(value1 & 0x30) < 16 × d` (`0x00479EB1`–`0x00479EC6`): level bits `0x00` at every detail, `0x10` from medium, `0x20` only at high, `0x30` never. Network lot configurations use d = 3 (`0x0060F80E`). MATCHES the bracket; the field is value 1's bits 4–5.
-- **CD2:** after a detail change every network lot is redeveloped (network lot manager slot 12). Does that change
+- ~~**CD2:** after a detail change every network lot is redeveloped (network lot manager slot 12). Does that change
   saved state, such as street props drawn from the network lot manager's generator? [yes, inferred: redevelopment
   re-creates the network lot's objects. Saving a city, reopening it at another detail level and saving again, then
-  comparing the street prop records, would settle it]
+  comparing the street prop records, would settle it]~~ **ANSWERED 2026-10-15 (re-specs13c):** the bracket
+  MATCHES. `RedevelopLot` (`0x0060D5E0`) removes the cell's street props (prop manager slot 33) and flora (flora
+  slot 20), then `CreateLotObjects` draws again from generator `0x00B44870` for every prop and flora object with
+  candidates, so the prop manager's and the flora's saved state change; the network lot record (component 11)
+  does not. network-manager.md §8.6 and §17.
 
 ## From lot creation, the plop test, the lot developer and the graphics formats (re-specs11 lane, 2026-10-15)
 
@@ -4306,3 +4310,21 @@ comments and the game log cite. The current answer is in brackets.
   `lotdev_shadow = 1` should show mismatches=0 on every line (the `s25r` entries give the ranges)]
 - **LD30:** the tuning cannot be read back from the original (no getter), so the shadow cannot check that both sides
   use the same `kMaxCellAltitudeDeltaForFlatness` and the other §3.5 values. Is there an accessor? [not compared]
+
+## From the network manager and network lot manager spec (re-specs13c lane, 2026-10-15)
+
+Open points from network-manager.md §15. The current answer is in brackets; each entry says what would settle it.
+
+- **NM1:** are the globally managed network occupants (bridges, tunnels, prebuilt-model pieces) also saved by the
+  occupant manager, or only through component 53? [both hold refs to the same objects; the occupant manager spec
+  (re-specs13b) settles it]
+- **NM2:** does the occupant manager post `0x99EF1142` while a city loads? If it does, the network manager's managed
+  list (read first) gets every piece twice. [no, inferred. A turbo run that saves, loads and saves again and compares
+  the component 53 counts would settle it]
+- **NM3:** meanings of network flags `0x40000`, `0x80000`, `0x40000000` and `0x80000000`, and of the terrain kinds 3,
+  4 and 6 in the network manager's terrain handler. [unknown; logging `data4` of `0x278E6003` for each terraforming
+  brush settles the kinds]
+- **NM4:** the exact visited and rejected set tests of the avenue flood in `UpdateAvenueStyle`. [a cell is visited
+  once; styling an avenue loop through an intersection and logging the styled cells settles it]
+- **NM5:** the effect-prop slots 6, 7 and 8 used for potholes. [set the effect name, start, stop; the prop occupant
+  spec should confirm]
