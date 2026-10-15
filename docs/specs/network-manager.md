@@ -972,7 +972,7 @@ Each test names its section. "City" means a fresh 64 × 64 city unless stated ot
    `DestroyOccupantsAndResolve` call for the surface group, containing A and B once each.
 9. **Groups** (§7.2). A list with a road R, a pipe P and a subway S → three tool calls: type 0 with [R], type 4 with
    [P], type 7 with [S], in that order.
-10. **Terrain rect** (§7.6). data1 = `0x00060009`, data2 = `0x0000000F`, 64 × 64 city → rect x 5..9, z −1→0..15.
+10. **Terrain rect** (§7.6). data1 = `0x00060009`, data2 = `0x0000000F`, 64 × 64 city → rect x 5..9, z 0..15 (z1 = −1 clamped to 0).
     With `longTerrainOp` and a previous `dirty` of x 8..20, z 3..4 → `dirty` = x 5..20, z 0..15.
 11. **Corner rule** (§7.6). Road whose corners stand 0.005 above the terrain, kind 1 → kept. 0.02 above → destroyed.
     0.001 below → destroyed. Same road, kind 4 → kept. A pipe 0.02 off, kind 1 → kept; kind 3 → destroyed.
