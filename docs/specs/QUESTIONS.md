@@ -3696,32 +3696,32 @@ The cause was the shadow's classifier, not the power core: building messages sti
 turbo makes more frequent. The lane fixed it in the shadow (exact under turbo and at normal speed) and implemented
 the brackets below, marked *[choice]* in code.
 
-- **PW9:** power §5.2 takes the first bookkeeping line as the baseline of differences inherited from the save, but
+- ~~**PW9:** power §5.2 takes the first bookkeeping line as the baseline of differences inherited from the save, but
   that line can have building messages in flight. Should the spec say how the baseline is chosen? [the first line
   equal to its predecessor; never edited afterwards; an entry that reads 0 is listed as absent and counts as
   inherited again when it returns; a non-inherited difference is a mismatch only when it is unchanged at a line
-  where nothing else changed, or unchanged across three lines]
-- **PW10:** given §5.3 (PW5: a partial rebuild leaves bits set outside the rebuilt area, and no insertion filters
+  where nothing else changed, or unchanged across three lines]~~ **ANSWERED 2026-10-15 (re-answers10):** glue, accepted, with a better rule now in the spec. A posted occupant message reaches every subscriber in the same `MessageSend`, so a shadow subscribed to `0x99EF1142`/`0x99EF1143` has seen exactly the messages power has handled. The occupants in flight are those whose listing in the occupant manager differs from the delivered messages. Recommended: build the expected counts from the delivered messages, which removes case 2. Otherwise take the baseline at the first line with nothing in flight. The bracket's heuristic is accepted. power §5.2.
+- ~~**PW10:** given §5.3 (PW5: a partial rebuild leaves bits set outside the rebuilt area, and no insertion filters
   run during a rebuild), should the bookkeeping line compare wire bits at all? [listed as "wire bits, not counted";
   kept out of the baseline and the mismatch count. The cycle lines still compare every rebuild's wire bits exactly.
-  No counted check then covers the wire bits that §5.1 insertion sets directly]
-- **PW11:** under turbo the baseline can settle late (the 9th line in one run), so a real difference that appears
+  No counted check then covers the wire bits that §5.1 insertion sets directly]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES (accepted): the original's wire bits depend on history. Insertion sets them with filters; a rebuild clears and re-wires only the dirty rect, without filters and with no margin for zoned cells; bits outside a rebuilt rect only accumulate. So no counted comparison against a rebuild is exact. Only a mirror that replays the same sequence covers the §5.1 bits. power §5.2.
+- ~~**PW11:** under turbo the baseline can settle late (the 9th line in one run), so a real difference that appears
   earlier is taken as inherited; and a frame that opens two month days keeps the first day's messages in flight at
   the second, which then looks settled. Is a count of queued occupant messages (from the message server) a
-  documented, reliable signal that the shadow could use instead of this guesswork? [not used]
+  documented, reliable signal that the shadow could use instead of this guesswork? [not used]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES (not used). The queue count exists: `cIGZMessageServer2` slot 10 (`0x0092D0F4`) returns the number of queued messages, excluding the one being delivered. But it counts every type and is never 0 at a month line, because the day's SimNewDay/SimNewMonth are queued in the same tick. The reliable signal is the delivered occupant-message stream (PW9). power §5.2.
 
 ## From applying the graphics-format answers (filed by the coordinator from the `apply9c` lane's report, 2026-10-14)
 
-- **FS15:** FS4: a later `0x7B` frame that has its own valid 256 × 1 palette. Does the original use that palette,
+- ~~**FS15:** FS4: a later `0x7B` frame that has its own valid 256 × 1 palette. Does the original use that palette,
   frame 0's, or upload grey? §2.6 covers only a frame with no usable palette. [its own palette; a palette that is
   missing, the wrong size, outside the record, or behind a chain that leaves the record counts as "no usable
-  palette" → grey, and the record is still accepted]
-- **FS16:** FS12: the original's `towlower` works on UTF-16 code units, so it probably does not lower characters
+  palette" → grey, and the record is still accepted]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS** (accepted as a choice): the original applies no palette to any frame. `SetCurrentFrameByIndex` stores each frame's own palette (`+0x10`), but its only reader (`0x00808DE0`) is called once, by the frame-0 check in `SerialRead` (`0x008008FA`). Every `0x7B` frame uploads its indices as luminance (grey). The bracket (own palette, else grey; record accepted) equals that for the shipped grey ramps. graphics-formats §2.6.
+- ~~**FS16:** FS12: the original's `towlower` works on UTF-16 code units, so it probably does not lower characters
   outside the BMP. Should FreeCity4 match that? [no: every character is lowered by Unicode simple case mapping, as
-  §3.11 says]
-- **FS17:** §2.13 does not record the 15 shipped frames, in multi-frame DXT1 records, whose own A field would give the
+  §3.11 says]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS** for non-BMP or invalid names only; the bracket is accepted. The original's UTF-8 decoder (`0x00910E18`) makes no surrogates: a 4-byte character becomes one unit, its code point mod 0x10000 (U+1F600 → U+F600), which `towlower` may lower and which is written back. The decoder also stops at the first invalid sequence, cutting the name (`Café` → `caf`). Shipped names are all ASCII. graphics-formats §3.11.
+- ~~**FS17:** §2.13 does not record the 15 shipped frames, in multi-frame DXT1 records, whose own A field would give the
   other DXT1 format (they report frame 0's format since FS5; the pixels are the same). Should it? [no code depends
-  on it]
+  on it]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES (no code depends on it); the count is recorded in the §2.13 survey table as the lane's measurement (15 frames, all in multi-frame records, given frame 0's format). graphics-formats §2.13.
 
 ## From the development glue fixes (filed by the coordinator from the `devglue2` lane's report, 2026-10-14)
 
@@ -3730,10 +3730,10 @@ building's own property list holds only its own properties; most building data s
 shadow is exact (305/305 lines), and the replacement grows like the original at equal pacing without going
 bankrupt. QI `0x0AC2B5F7` on new building occupants works (154 created, 0 failures), unlike the landfill tile (LG27).
 
-- **DG28:** the growth developer's special-building copy is released last, in its destructor; in an unsaved city
+- ~~**DG28:** the growth developer's special-building copy is released last, in its destructor; in an unsaved city
   that release is the last reference (the five warnings on class `0xA9BD882D` in run 102). Does the original also
   free those occupants there, after the load's object table has dropped its references? [yes, assumed; the release
-  is marked expected (`FC4_RELEASE_AT_DESTRUCTION`), and still warns if the reference was never taken] *Lead from re-answers9 (DG5):* `CreateInstance(0xA9BD882D)` already returns a count of 1, so an extra AddRef after it leaves one reference too many per building; the five warnings may come from that, not from destructor timing.
+  is marked expected (`FC4_RELEASE_AT_DESTRUCTION`), and still warns if the reference was never taken] *Lead from re-answers9 (DG5):* `CreateInstance(0xA9BD882D)` already returns a count of 1, so an extra AddRef after it leaves one reference too many per building; the five warnings may come from that, not from destructor timing.~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS**: the city's `Shutdown` (`0x0045B1D0`) shuts down and releases the BDS (`+0x164`) before the occupant manager (`+0x12C`). The BDS releases each developer (destroying it, so its copy is released) before its own special list. Both happen while the occupant manager still holds every building in the city, so the copy is the last reference only for a special building that left the city since the last state-14 copy. Our last release means our developer outlives the original's order, or a reference is missing. An extra `AddRef` (the DG5 lead) would leak instead. building-development §1.4.
 - ~~**DG29:** data-formats §4.4 says `EnumProperties` gives the effective property list, but in game it lists only a
   holder's own properties. Is there an effective enumerator, and what does the original's lookup do with cohorts?
   [the glue walks the parent cohort chain itself (`EffectiveProperties`), with cycle detection]~~ **Answered (re-answers9, data-formats §4.4):** `EnumProperties` (slots 19/20) walks only the own list; every lookup binary-searches a sorted vector that already holds the inherited properties; the effective enumerator is slot 4 `GetPropertyList` (ascending ID order, one reference). The glue's own chain walk is acceptable when own properties win.
