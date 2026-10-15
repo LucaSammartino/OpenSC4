@@ -2357,6 +2357,8 @@ manager), and the stub's `double`, `u32` (`n`).
 | extra: `DetermineLotSize`'s int32 score (ZQ9), `sx = 0` (ZQ10), missing candidates (ZQ7) | `zn15_41_determine_lot_size_int32_score` |
 | extra: `LayInJogStreets`' parallel test has a draft branch (§7.12, ZQ4) | `zn15_42_jog_parallel_draft` |
 | extra: a failed size check is an ABORT (§6, ZG17): the type-14 landfill cost of the whole region, skipFunds, error 1 replacing 3 or 4 | `zn15_43_size_abort_landfill_cost` |
+| extra: `Init` copies the alpha to the default alpha whenever the exemplar is found, also without Zone Display Alpha (§10.1, ZG18); no exemplar leaves both | `zn15_44_default_alpha_without_property` |
+| extra: the dezone under a network clips a rectangle that crosses the city edge and dezones the inside cells (§5.1, ZG21) | `zn15_45_dezone_across_city_edge` |
 
 The two extras took the numbers 30 and 31 before §15 gained tests 30–32, so tests 30, 31 and 32 are the vectors
 numbered 32, 33 and 34.

@@ -230,7 +230,7 @@ fn create_lot_if_possible_facing_minus_one_draws_once() {
 fn shipped_tuning_reads_the_spec_values() {
     let h = shipped_tuning();
     let mut t = Tuning::default();
-    assert!(t.read(Some(&h)), "the alpha was read (ZG3)");
+    assert!(t.read(Some(&h)), "the exemplar was found (ZG18)");
     assert_eq!(t.min_size[7], 4);
     assert_eq!(t.max_size[0], 32768);
     assert_eq!(t.create_cost[1], 10);
@@ -240,7 +240,9 @@ fn shipped_tuning_reads_the_spec_values() {
     assert_eq!(t.display_alpha, 170);
     assert_eq!(t.max_slope[0], 256.0);
     assert_eq!(t.max_slope[1], 15.0);
-    // ZG3: no exemplar, or no Zone Display Alpha: not read, the alpha kept.
+    // ZG3: no exemplar, or no Zone Display Alpha: the alpha kept. ZG18: the
+    // exemplar without the property still counts as found (the copy to the
+    // default alpha runs), no exemplar does not.
     let mut u = Tuning {
         display_alpha: 33,
         ..Tuning::default()
@@ -248,7 +250,7 @@ fn shipped_tuning_reads_the_spec_values() {
     assert!(!u.read(None));
     let mut no_alpha = shipped_tuning();
     assert!(no_alpha.remove(super::manager::prop::DISPLAY_ALPHA));
-    assert!(!u.read(Some(&no_alpha)));
+    assert!(u.read(Some(&no_alpha)));
     assert_eq!((u.display_alpha, u.min_size[7]), (33, 4));
 }
 
