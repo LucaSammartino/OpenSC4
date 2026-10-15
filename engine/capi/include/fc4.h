@@ -7242,6 +7242,8 @@ typedef struct fc4_citysit_host {
     uint64_t (*first_target)(void* user, uint64_t advice);
     uint32_t (*target_count)(void* user, uint64_t advice);
     void (*target_name)(void* user, uint64_t advice, uint64_t target, fc4_bytes_sink sink, void* ctx);
+    /* Advice slot 53 (+0xD4): the advice accepts the automaton (slot 22). */
+    bool (*advice_accepts_automaton)(void* user, uint64_t advice, uint64_t automaton);
     /* Automata: QueryInterface(0xA9B40F05), a property's presence, the
      * advice's candidate vehicles, flags, type, the indicator (TrackOccupant
      * kind 4: the handle), the listener, freezing a manager, a sound, the
@@ -7331,11 +7333,13 @@ void fc4_citysit_tick(fc4_citysit* m, float t_ms);
 /* Situations triggered / untriggered (§4.2). */
 void fc4_citysit_situation_triggered(fc4_citysit* m, uint64_t advice);
 void fc4_citysit_situation_untriggered(fc4_citysit* m, uint64_t advice);
-/* Slots 36, 21, 22, 37-39 (§4.3): initiate (vehicle 0 = none; false when it
- * could not start), by GUID, for an occupant, activate, deactivate, end. */
+/* Slots 36, 21, 22, 37-39 (§4.3, §8): initiate (vehicle 0 = none; false when
+ * it could not start), by GUID, for an occupant (false unless an automaton;
+ * `advice` 0 = the first track-list entry whose vehicle it is or whose advice
+ * accepts it), activate, deactivate, end. */
 bool fc4_citysit_initiate_situation(fc4_citysit* m, uint64_t advice, uint64_t vehicle, bool show_briefing);
 bool fc4_citysit_initiate_situation_by_guid(fc4_citysit* m, uint32_t guid, bool show_briefing, uint32_t data3);
-bool fc4_citysit_initiate_situation_for_occupant(fc4_citysit* m, uint64_t occupant);
+bool fc4_citysit_initiate_situation_for_occupant(fc4_citysit* m, uint64_t occupant, uint64_t advice);
 void fc4_citysit_activate_situation(fc4_citysit* m);
 void fc4_citysit_deactivate_situation(fc4_citysit* m);
 void fc4_citysit_end_situation(fc4_citysit* m);
@@ -7601,7 +7605,7 @@ static_assert(sizeof(fc4_citysit_advice_info) == 40, "fc4_citysit_advice_info la
 static_assert(sizeof(fc4_citysit_track_entry) == 24, "fc4_citysit_track_entry layout");
 static_assert(sizeof(fc4_citysit_success_count) == 8, "fc4_citysit_success_count layout");
 static_assert(sizeof(fc4_citysit_state) == 96, "fc4_citysit_state layout");
-static_assert(sizeof(fc4_citysit_host) == (sizeof(void*) == 4 ? 268 : 536), "fc4_citysit_host layout");
+static_assert(sizeof(fc4_citysit_host) == (sizeof(void*) == 4 ? 272 : 544), "fc4_citysit_host layout");
 static_assert(sizeof(fc4_tract_profile) == 24, "fc4_tract_profile layout");
 static_assert(sizeof(fc4_tract_construction) == 32, "fc4_tract_construction layout");
 static_assert(sizeof(fc4_tract_building_profile) == 12, "fc4_tract_building_profile layout");
@@ -7646,7 +7650,7 @@ _Static_assert(sizeof(fc4_citysit_advice_info) == 40, "fc4_citysit_advice_info l
 _Static_assert(sizeof(fc4_citysit_track_entry) == 24, "fc4_citysit_track_entry layout");
 _Static_assert(sizeof(fc4_citysit_success_count) == 8, "fc4_citysit_success_count layout");
 _Static_assert(sizeof(fc4_citysit_state) == 96, "fc4_citysit_state layout");
-_Static_assert(sizeof(fc4_citysit_host) == (sizeof(void*) == 4 ? 268 : 536), "fc4_citysit_host layout");
+_Static_assert(sizeof(fc4_citysit_host) == (sizeof(void*) == 4 ? 272 : 544), "fc4_citysit_host layout");
 #endif
 
 #endif /* FC4_H */

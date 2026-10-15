@@ -57,6 +57,8 @@ pub(crate) struct World {
     retired: RefCell<BTreeSet<u64>>,
     autos: RefCell<BTreeMap<u64, Auto>>,
     candidates: RefCell<BTreeMap<u64, Vec<u64>>>,
+    /// (advice, automaton) pairs advice slot 53 accepts.
+    accepts: RefCell<BTreeSet<(u64, u64)>>,
     rewards: RefCell<Vec<u32>>,
     status_answer: Cell<u32>,
     button: Cell<u32>,
@@ -79,6 +81,7 @@ impl World {
             retired: RefCell::new(BTreeSet::new()),
             autos: RefCell::new(BTreeMap::new()),
             candidates: RefCell::new(BTreeMap::new()),
+            accepts: RefCell::new(BTreeSet::new()),
             rewards: RefCell::new(vec![0; REWARD_SLOTS]),
             status_answer: Cell::new(3),
             button: Cell::new(0),
@@ -274,6 +277,14 @@ impl CitySituationHost for World {
     }
     fn target_name(&self, _a: Option<u64>, t: Option<u64>) -> String {
         t.map_or_else(String::new, |t| format!("target 0x{t:X}"))
+    }
+    fn advice_accepts_automaton(&self, a: u64, v: u64) -> bool {
+        let ok = self.accepts.borrow().contains(&(a, v));
+        self.ev(
+            "advice_accepts",
+            vec![("advice", tok(a)), ("automaton", tok(v)), ("accepted", Json::Bool(ok))],
+        );
+        ok
     }
     fn is_automaton(&self, o: u64) -> bool {
         self.autos.borrow().contains_key(&o)
@@ -553,6 +564,13 @@ fn advice(w: &World, op: &Json) -> R<()> {
     if let Some(v) = opt(op, "time_limit") {
         a.time_limit = f32_of(v, "time_limit")?;
     }
+    if let Some(v) = opt(op, "accepts") {
+        let mut acc = w.accepts.borrow_mut();
+        acc.retain(|&(x, _)| x != t);
+        for e in arr(v, "accepts")? {
+            acc.insert((t, token_of(e, "accepts")?));
+        }
+    }
     w.advices.borrow_mut().insert(t, a);
     Ok(())
 }
@@ -695,9 +713,13 @@ fn call(w: &World, op: &Json) -> R<()> {
         "initiate_situation_by_guid" => {
             Json::Bool(m.initiate_situation_by_guid(a_u32(op, 0)?, a_bool(op, 1)?, a_u32(op, 2)?))
         }
-        "initiate_situation_for_occupant" => {
-            Json::Bool(m.initiate_situation_for_occupant(a_tok(op, 0)?.ok_or("occupant must not be null")?))
-        }
+        "initiate_situation_for_occupant" => Json::Bool(m.initiate_situation_for_occupant(
+            a_tok(op, 0)?.ok_or("occupant must not be null")?,
+            match op.get("args").and_then(Json::as_array).map_or(0, |a| a.len()) {
+                0 | 1 => None,
+                _ => a_tok(op, 1)?,
+            },
+        )),
         "activate_situation" => {
             m.activate_situation();
             Json::Null

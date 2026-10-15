@@ -38,6 +38,8 @@ struct World {
     time_limit: Cell<f32>,
     funds: Cell<i64>,
     next_handle: Cell<u32>,
+    /// (advice, automaton) pairs advice slot 53 accepts.
+    accepts: RefCell<Vec<(u64, u64)>>,
 }
 
 impl World {
@@ -56,6 +58,7 @@ impl World {
             time_limit: Cell::new(0.0),
             funds: Cell::new(100_000),
             next_handle: Cell::new(1),
+            accepts: RefCell::new(Vec::new()),
         })
     }
     fn ev(&self, s: impl Into<String>) {
@@ -204,6 +207,10 @@ impl CitySituationHost for World {
     }
     fn target_name(&self, _a: Option<u64>, t: Option<u64>) -> String {
         format!("{t:?}")
+    }
+    fn advice_accepts_automaton(&self, a: u64, v: u64) -> bool {
+        self.ev(format!("accepts? {a} {v}"));
+        self.accepts.borrow().contains(&(a, v))
     }
     fn is_automaton(&self, o: u64) -> bool {
         self.autos.borrow().contains_key(&o)
@@ -886,9 +893,38 @@ fn post_city_init_and_guid_initiation() {
     });
     assert_eq!(m.active_situation(), None);
     assert_eq!(w.refs(ADV), 0);
-    // Occupant slot 22.
-    assert!(m.initiate_situation_for_occupant(CAR));
-    assert!(!m.initiate_situation_for_occupant(0x1));
+    // Occupant slot 22 (§8, CS2): the entry whose vehicle it is, without asking slot 53.
+    w.take();
+    assert!(m.initiate_situation_for_occupant(CAR, None));
+    assert_eq!(m.active_situation(), Some(ADV));
+    assert!(!w.take().iter().any(|e| e.starts_with("accepts?")));
+    m.end_situation();
+    // Not an automaton: false.
+    assert!(!m.initiate_situation_for_occupant(0x1, None));
+    assert!(!m.initiate_situation_for_occupant(0x1, Some(ADV)));
+    // Another automaton: only when the entry's advice accepts it.
+    const BUS: u64 = 0x701;
+    w.auto(BUS, AUTO_FLAG_DRIVABLE, (0.0, 0.0));
+    w.take();
+    assert!(!m.initiate_situation_for_occupant(BUS, None));
+    assert_eq!(w.take(), vec![format!("accepts? {ADV} {BUS}")]);
+    w.accepts.borrow_mut().push((ADV, BUS));
+    assert!(m.initiate_situation_for_occupant(BUS, None));
+    assert_eq!(m.active_situation(), Some(ADV));
+    m.end_situation();
+    // With an advice: that one, whatever the track list says.
+    const ADV2: u64 = 0x501;
+    w.advice(
+        ADV2,
+        AdviceInfo {
+            guid: 0x77,
+            ..Default::default()
+        },
+    );
+    w.take();
+    assert!(m.initiate_situation_for_occupant(BUS, Some(ADV2)));
+    assert_eq!(m.active_situation(), Some(ADV2));
+    assert!(w.take().contains(&format!("post_popup Some({ADV2}) Some({BUS})")));
 }
 
 #[test]

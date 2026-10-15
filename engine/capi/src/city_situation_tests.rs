@@ -190,6 +190,10 @@ unsafe extern "C" fn target_name(_: *mut c_void, _a: u64, t: u64, sink: fc4_byte
     let s = format!("target {t:#x}");
     sink.unwrap()(ctx, s.as_ptr(), s.len());
 }
+unsafe extern "C" fn advice_accepts_automaton(u: *mut c_void, a: u64, v: u64) -> bool {
+    game(u).log(format!("accepts? {a:#x} {v:#x}"));
+    false
+}
 unsafe extern "C" fn is_automaton(u: *mut c_void, o: u64) -> bool {
     game(u).autos.borrow().contains_key(&o)
 }
@@ -319,6 +323,7 @@ fn host(g: &Game) -> fc4_citysit_host {
         first_target: None,
         target_count: None,
         target_name: Some(target_name),
+        advice_accepts_automaton: Some(advice_accepts_automaton),
         is_automaton: Some(is_automaton),
         occupant_has_property: None,
         candidate_vehicles: Some(candidate_vehicles),
@@ -623,7 +628,9 @@ fn tracking_popup_and_cheat() {
         assert!(e[0].handle != 0);
         // Slot 22 starts it with a briefing.
         g.take();
-        assert!(fc4_citysit_initiate_situation_for_occupant(m, CAR));
+        assert!(!fc4_citysit_initiate_situation_for_occupant(m, 0x1, 0));
+        assert!(!fc4_citysit_initiate_situation_for_occupant(m, 0, ADV));
+        assert!(fc4_citysit_initiate_situation_for_occupant(m, CAR, 0));
         assert!(g.take().contains(&"post_popup 0x500 0x700".to_string()));
         // The posted popup: closed with START activates the mission.
         g.button.set(6);

@@ -142,6 +142,8 @@ pub struct fc4_citysit_host {
     pub target_count: Option<unsafe extern "C" fn(U, u64) -> u32>,
     /// The name (UTF-8) through the sink.
     pub target_name: Option<unsafe extern "C" fn(U, u64, u64, fc4_bytes_sink, *mut c_void)>,
+    /// Advice slot 53 (`+0xD4`): the advice accepts the automaton (slot 22).
+    pub advice_accepts_automaton: Option<unsafe extern "C" fn(U, u64, u64) -> bool>,
     // automata
     pub is_automaton: Option<unsafe extern "C" fn(U, u64) -> bool>,
     pub occupant_has_property: Option<unsafe extern "C" fn(U, u64, u32) -> bool>,
@@ -236,7 +238,7 @@ pub struct fc4_citysit_state {
 }
 
 /// Number of callbacks in [`fc4_citysit_host`].
-const HOST_CALLBACKS: usize = 65;
+const HOST_CALLBACKS: usize = 66;
 
 const _: () = {
     assert!(std::mem::size_of::<fc4_citysit_advice_info>() == 40);
@@ -427,6 +429,9 @@ impl CitySituationHost for CHost {
             &mut v as *mut Vec<u8> as *mut c_void
         );
         String::from_utf8_lossy(&v).into_owned()
+    }
+    fn advice_accepts_automaton(&self, advice: u64, automaton: u64) -> bool {
+        cb!(self, advice_accepts_automaton, false, advice, automaton)
     }
     fn is_automaton(&self, object: u64) -> bool {
         cb!(self, is_automaton, false, object)
@@ -698,10 +703,22 @@ pub unsafe extern "C" fn fc4_citysit_initiate_situation_by_guid(
     })
 }
 
-/// Slot 22: the situation whose entry tracks the occupant, with a briefing.
+/// Slot 22 `InitiateSituationForOccupant(occupant, advice)` (§8; `advice`
+/// 0 = none): false unless the occupant is an automaton; that advice, else
+/// the first track-list entry whose vehicle it is or whose advice accepts
+/// it, starts with a briefing.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_citysit_initiate_situation_for_occupant(p: *mut fc4_citysit, occupant: u64) -> bool {
-    with_p(p, false, |h| h.sim.initiate_situation_for_occupant(occupant))
+pub unsafe extern "C" fn fc4_citysit_initiate_situation_for_occupant(
+    p: *mut fc4_citysit,
+    occupant: u64,
+    advice: u64,
+) -> bool {
+    if occupant == 0 {
+        return false;
+    }
+    with_p(p, false, |h| {
+        h.sim.initiate_situation_for_occupant(occupant, opt(advice))
+    })
 }
 
 /// Slot 37 `ActivateSituation` (§4.3).

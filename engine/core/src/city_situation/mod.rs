@@ -60,10 +60,15 @@
 //! - **The outcome position** (§4.5 step 4) is the active vehicle's, else
 //!   the current target's; without either no aura is added [question CS9].
 //! - **Slots 17, 18** answer the success aura and the success money of the
-//!   active advice; **slots 19, 20** answer whether the automaton is tracked;
-//!   **slot 22** starts the situation whose entry tracks the occupant, with
-//!   a briefing; **slots 23, 25** do nothing and slot 23 answers false
-//!   (CS2: the argument meanings are not known).
+//!   active advice; **slots 19, 20** answer whether the automaton is tracked.
+//!   **Slot 22** `(occupant, advice)` follows §8 (CS2, answered): the
+//!   occupant must be an automaton; with an advice it starts that one,
+//!   else the first track-list entry whose vehicle is this automaton or
+//!   whose advice accepts it (advice slot 53), always with a briefing.
+//!   **Slots 23 to 25** do nothing and slot 23 answers false: §8 now names
+//!   their arguments, but slot 23's search is not traced, slot 24's post has
+//!   no named IGZUnknown and slot 25's "tracks" is not said to be the
+//!   indicator tracking of §4.2 [question CS11].
 //! - **Automaton notifications** (`0x09D92FC3`, §3): 9 re-checks success of
 //!   a running mission's vehicle, 2 fails it; 0xB, and 0xC with data3 =
 //!   0x14, drop the automaton from tracking like a removed occupant
@@ -350,6 +355,8 @@ pub trait CitySituationHost {
     fn target_count(&self, advice: u64) -> u32;
     /// Slot 16: the current target's name.
     fn target_name(&self, advice: Option<u64>, target: Option<u64>) -> String;
+    /// Advice slot 53 (`+0xD4`): the advice accepts the automaton (§8 slot 22).
+    fn advice_accepts_automaton(&self, advice: u64, automaton: u64) -> bool;
 
     // ---- automata ----
     /// `QueryInterface(0xA9B40F05)` succeeds.

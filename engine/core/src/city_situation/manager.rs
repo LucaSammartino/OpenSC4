@@ -496,16 +496,32 @@ impl CitySituationManager {
         ok
     }
 
-    /// Slot 22 `InitiateSituationForOccupant(occupant, …)`: the situation
-    /// whose entry tracks the occupant, with a briefing (CS2).
-    pub fn initiate_situation_for_occupant(&self, occupant: u64) -> bool {
-        let advice = self
-            .s
-            .borrow()
-            .track_list
-            .iter()
-            .find(|e| e.automaton == Some(occupant))
-            .map(|e| e.advice);
+    /// Slot 22 `InitiateSituationForOccupant(occupant, advice)` (§8, CS2):
+    /// false unless the occupant is an automaton; with an advice,
+    /// `InitiateSituation(advice, automaton, true)`; without one, the same
+    /// call with the first track-list entry whose vehicle is the automaton or
+    /// whose advice accepts it (advice slot 53); false when none matches.
+    pub fn initiate_situation_for_occupant(&self, occupant: u64, advice: Option<u64>) -> bool {
+        let h = &*self.host;
+        if !h.is_automaton(occupant) {
+            return false;
+        }
+        let advice = match advice {
+            Some(a) => Some(a),
+            None => {
+                let entries: Vec<(u64, Option<u64>)> = self
+                    .s
+                    .borrow()
+                    .track_list
+                    .iter()
+                    .map(|e| (e.advice, e.automaton))
+                    .collect();
+                entries
+                    .into_iter()
+                    .find(|&(a, v)| v == Some(occupant) || h.advice_accepts_automaton(a, occupant))
+                    .map(|(a, _)| a)
+            }
+        };
         match advice {
             Some(a) => self.initiate_situation(a, Some(occupant), true),
             None => false,
