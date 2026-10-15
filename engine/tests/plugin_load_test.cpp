@@ -79,6 +79,7 @@
 #include "cIGZOStream.h"
 #include "FC4Interfaces.h"
 #include "FC4HistClock.h"
+#include "FC4HistoryShadow.h"
 #include "FC4TestSeam.h"
 #include "cFC4TrafficSimulator.h"
 #include "cFC4ZoneManager.h"
@@ -9662,6 +9663,8 @@ int main(int argc, char** argv) {
     if (mode == "--ini-dialogs") return DialogsIniTest(dll, ini, log);
     // The history warehouse (history.md): the replacement through the test hooks (seam op 54).
     if (mode == "--ini-enable-history") return HistoryEnableTest(dll, ini, log);
+    // The history shadow (FC4HistoryShadow.h, seam op 54 op 1).
+    if (mode == "--ini-history-shadow") return HistoryShadowIniTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).

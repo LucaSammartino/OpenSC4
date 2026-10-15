@@ -1651,8 +1651,8 @@ class cISC4HistoryWarehouse;
 // cISC4HistoryWarehouse (IID 0x69F4A803, vtable 0x00A8CCB4, 14 slots; §8).
 // SDK errors fixed (foundations §16): the two Dispose overloads are in the
 // reverse of the SDK's order (slot 10 takes the key alone), and Coalesce
-// (slot 9) takes two dates and the granularity. Slot 12's return value is not
-// meaningful in the original ([choice] FreeCity4 returns true, HW12). Every
+// (slot 9) takes two dates and the granularity. Slot 12 returns false (HW12:
+// the original returns the final Release's EAX, 0; no caller reads it). Every
 // slot returns in AL / EAX and pops its arguments (docs/abi).
 class cFC4ISC4HistoryWarehouse : public cIGZUnknown {
 public:

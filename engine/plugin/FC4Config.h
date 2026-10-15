@@ -107,6 +107,9 @@
 //   tract_shadow = 0 / 1          the tract developer shadow (default 0; needs the
 //                                 ORIGINAL tract developer: do not enable tract;
 //                                 FC4TractShadow.h)
+//   history_shadow = 0 / 1        the history warehouse shadow (default 0; needs the
+//                                 ORIGINAL warehouse: do not enable history;
+//                                 FC4HistoryShadow.h)
 //   tract_seed = N                the tract developer generator's session seed
 //                                 (default: the cRZTime clock; cFC4TractDeveloper.cpp)
 //   tract_grow_log = 0 / 1        one line per Grow call (default 0; enable = tract)

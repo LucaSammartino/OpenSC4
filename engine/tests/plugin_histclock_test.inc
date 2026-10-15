@@ -440,4 +440,123 @@ int HistoryEnableTest(const std::string& dll, const std::string& ini, const std:
     return g_failures == 0 ? 0 : 1;
 }
 
+// ---- the history shadow (FC4HistoryShadow.h, seam op 54 op 1) --------------------------------------------
+
+intptr_t HcShadow(FC4TestSeamFn seam, FC4HistoryShadowTestInput& in) {
+    in.struct_size = sizeof(in);
+    FC4HistClockTestInput t{};
+    t.op = 1;
+    t.arg = &in;
+    return seam(kFC4SeamHistClock, &t, nullptr);
+}
+
+FC4HistoryShadowTestInput HcEvent(cIGZUnknown* orig, uint32_t event, uint32_t type = 0, uint32_t d1 = 0,
+                                  uint32_t d2 = 0, int32_t julian = 0) {
+    FC4HistoryShadowTestInput in{};
+    in.event = event;
+    in.original = orig;
+    in.type = type;
+    in.data1 = d1;
+    in.data2 = d2;
+    in.julian = julian;
+    return in;
+}
+
+int HistoryShadowIniTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    // With ours enabled the shadow is inactive in the game; the seam still
+    // runs it, with FreeCity4's warehouse standing in for the original.
+    WriteTextFile(ini, "[subsystems]\nenable = history\n[tools]\nhistory_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    SetGamePrecision();
+    if (director != nullptr && seam != nullptr) {
+        static HcWorld w;
+        const FC4HistClockHooks hooks = HcHistoryHooks(&w);
+        CHECK(HcInstall(seam, &hooks) == 1);
+        void* obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_History, kIID_cISC4HistoryWarehouse, &obj));
+        auto* h = static_cast<cFC4ISC4HistoryWarehouse*>(obj);
+        if (h != nullptr) {
+            cIGZUnknown* orig = h;
+            CHECK(h->Init());
+            w.deliverTo = w.notes.empty() ? nullptr : w.notes[0].target;
+            // Before the load: no shadow core, nothing taken.
+            FC4HistoryShadowTestInput in = HcEvent(orig, 3);
+            CHECK(HcShadow(seam, in) == -1);
+            const uint32_t K = 0x0A1100E8, K2 = 0xAA11F837;
+            CHECK(h->SetHistoryDataQueueLength(K, 3));
+            for (uint32_t i = 0; i < 40; ++i) {
+                w.date = kHcDay0 + 10 * i;
+                h->RecordHistoryData(K, static_cast<int32_t>(i * i));
+                h->RecordHistoryData(K2, static_cast<int32_t>(1000 - 7 * i));
+            }
+            // City load: the original's record read and written back, then
+            // the queries on it.
+            in = HcEvent(orig, 0, 0, 0, 0, static_cast<int32_t>(w.date));
+            CHECK(HcShadow(seam, in) == 0);
+            CHECK(in.compared > 2);
+            // Messages reach both (as the message server delivers them).
+            for (uint32_t i = 40; i < 80; ++i) {
+                w.date = kHcDay0 + 10 * i;
+                h->RecordHistoryData(K2, static_cast<int32_t>(3 * i));
+                in = HcEvent(orig, 1, kHcMsgRecord, K2, 3 * i);
+                CHECK(HcShadow(seam, in) == 1);
+            }
+            HcMessage q(kHcMsgQueueLength, 0x6A51178B, 2);
+            w.deliverTo->DoMessage(&q);
+            in = HcEvent(orig, 1, kHcMsgQueueLength, 0x6A51178B, 2);
+            CHECK(HcShadow(seam, in) == 1);
+            // The yearly pass through the agent deliveries: the shadow steps
+            // its core after the original's step.
+            w.date = kHcDay0 + 3650;  // 2009-12-29
+            in = HcEvent(orig, 2, kHcMsgSimNewYear);
+            CHECK(HcShadow(seam, in) == 1 && in.finished == 1);
+            for (int i = 0; i < 4; ++i) {
+                in = HcEvent(orig, 2, kHcMsgSimNewDay);
+                CHECK(HcShadow(seam, in) == 1);
+            }
+            // The month comparison: exact.
+            in = HcEvent(orig, 3, 0, 0, 0, static_cast<int32_t>(w.date));
+            CHECK(HcShadow(seam, in) == 0);
+            CHECK(in.compared > 100);
+            // A record the shadow did not see: found, then the core is rebuilt.
+            w.date += 1;
+            h->RecordHistoryData(K2, 77);
+            in = HcEvent(orig, 3, 0, 0, 0, static_cast<int32_t>(w.date));
+            CHECK(HcShadow(seam, in) > 0);
+            in = HcEvent(orig, 3, 0, 0, 0, static_cast<int32_t>(w.date));
+            CHECK(HcShadow(seam, in) == 0);
+            // City shutdown: the core dropped.
+            in = HcEvent(orig, 4);
+            CHECK(HcShadow(seam, in) == 0);
+            in = HcEvent(orig, 3);
+            CHECK(HcShadow(seam, in) == -1);
+            CHECK(h->Shutdown());
+            w.deliverTo = nullptr;
+            CHECK(h->Release() == 0);
+        }
+        CHECK(HcInstall(seam, nullptr) == 1);
+    }
+    FreeLibrary(hd);
+    const std::string text = ReadFile(log);
+    const auto npos = std::string::npos;
+    CHECK(text.find("history shadow: requested (history_shadow from FreeCity4.ini) but INACTIVE") != npos);
+    CHECK(text.find("load: the original's record") != npos && text.find("written back identical; mismatches=0") != npos);
+    CHECK(text.find("month: series=3 ") != npos);
+    CHECK(text.find("record=") != npos && text.find("DIFFERENT") != npos);
+    CHECK(text.find("history shadow (cont.) series 0xAA11F837") != npos);
+    CHECK(text.find("rebuilt from the original's record") != npos);
+    CHECK(text.find("years=1") != npos);
+    CHECK(text.find("WARNING: released last reference") == npos && text.find("WARNING: over-release") == npos);
+    if (g_failures == 0) std::printf("plugin history shadow test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 }  // namespace

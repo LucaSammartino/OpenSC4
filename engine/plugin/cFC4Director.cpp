@@ -27,6 +27,7 @@
 #include "FC4Diag.h"
 #include "FC4Dialogs.h"
 #include "FC4FlammabilityShadow.h"
+#include "FC4HistoryShadow.h"
 #include "FC4Fpu.h"
 #include "FC4GrowthProbe.h"
 #include "FC4LandValueShadow.h"
@@ -324,6 +325,7 @@ public:
         fc4::GrowthProbeStart();  // growth_probe (FC4GrowthProbe.h): building-development.md §12
         fc4::LandValueShadowStart();     // landvalue_shadow (FC4LandValueShadow.h)
         fc4::FlammabilityShadowStart();  // flammability_shadow (FC4FlammabilityShadow.h)
+        fc4::HistoryShadowStart();       // history_shadow (FC4HistoryShadow.h)
         fc4::FpuLog("hook PostAppInit (exit)");
         return true;
     }
@@ -331,6 +333,7 @@ public:
     bool PreAppShutdown() override {
         FC4_LOGV("hook PreAppShutdown");
         fc4::FpuLog("hook PreAppShutdown");
+        fc4::HistoryShadowStop();
         fc4::FlammabilityShadowStop();
         fc4::LandValueShadowStop();
         fc4::GrowthProbeStop();

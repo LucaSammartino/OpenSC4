@@ -133,4 +133,44 @@ private:
 // §4.7, foundations §18): 24 for PC = 24-bit, 53 otherwise (HW10).
 uint32_t CallerPrecisionBits();
 
+// Sets the x87 precision control to 24 or 53 bits for its lifetime and puts
+// the caller's control word back (the shadows' queries at both precisions).
+class PrecisionScope {
+public:
+    explicit PrecisionScope(uint32_t bits);
+    ~PrecisionScope();
+    PrecisionScope(const PrecisionScope&) = delete;
+    PrecisionScope& operator=(const PrecisionScope&) = delete;
+
+private:
+    uint16_t saved_ = 0;
+};
+
+// In-memory core streams (fc4_ostream / fc4_istream) for the shadows: a core
+// record written to bytes, or read from the bytes a game object wrote.
+class MemOStream {
+public:
+    MemOStream();
+    const fc4_ostream* Get() const { return &s_; }
+    std::vector<uint8_t> bytes;
+
+private:
+    fc4_ostream s_{};
+};
+
+class MemIStream {
+public:
+    explicit MemIStream(const std::vector<uint8_t>& b);
+    const fc4_istream* Get() const { return &s_; }
+    size_t Remaining() const { return pos_ <= b_.size() ? b_.size() - pos_ : 0; }
+    bool Take(void* out, size_t n);
+    bool Bad() const { return bad_; }
+
+private:
+    const std::vector<uint8_t>& b_;
+    size_t pos_ = 0;
+    bool bad_ = false;
+    fc4_istream s_{};
+};
+
 }  // namespace fc4

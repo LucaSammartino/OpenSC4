@@ -258,6 +258,8 @@ if(FC4_IS_WIN32_X86)
         # test hooks, and their shadows (docs/specs/history.md, clock24.md).
         plugin/FC4HistClock.cpp
         plugin/FC4HistClock.h
+        plugin/FC4HistoryShadow.cpp
+        plugin/FC4HistoryShadow.h
         plugin/cFC4History.cpp
         plugin/cFC4History.h
         # The tract developer (tract-developer.md): `enable = tract`, tract_shadow.
@@ -513,6 +515,13 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_history_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-history)
     set_tests_properties(plugin_ini_enable_history_test PROPERTIES RUN_SERIAL TRUE)
+    # The history shadow (FC4HistoryShadow.h): inactive with ours; through
+    # seam op 54 op 1, on FreeCity4's warehouse as the "original": the load
+    # round trip, messages, the pass steps, the month comparison exact, then a
+    # record the shadow did not see found.
+    add_test(NAME plugin_ini_history_shadow_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-history-shadow)
+    set_tests_properties(plugin_ini_history_shadow_test PROPERTIES RUN_SERIAL TRUE)
     # References read from a save (in-game run 88): land value grids and a
     # foreign ordinance, with and without a save before Shutdown, and land value
     # grids created through GZCOM; no reference warning, each released once.

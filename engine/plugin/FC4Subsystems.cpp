@@ -44,6 +44,7 @@
 #include "cFC4Landfill.h"
 #include "FC4LandValueShadow.h"
 #include "FC4FlammabilityShadow.h"
+#include "FC4HistoryShadow.h"
 #include "FC4ResidentialShadow.h"
 #include "FC4ZonesShadow.h"
 #include "cFC4Residential.h"
@@ -386,6 +387,8 @@ void Resolve() {
     DevelopmentShadowStartup(g_enabled[0], enabledKey("development"));
     // The tract developer shadow (FC4TractShadow.h; it compares the original tract developer).
     TractShadowStartup(enabledKey("tract"));
+    // The history warehouse shadow (FC4HistoryShadow.h; it follows the original warehouse).
+    HistoryShadowStartup(enabledKey("history"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.
