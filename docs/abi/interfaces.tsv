@@ -1851,24 +1851,24 @@ cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	8	+0x20	0057ba70	cSC4D
 cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	9	+0x24	0057b850	cSC4DisasterManagerFire::SetCause	4	1	eax-or-void	medium	
 cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	10	+0x28	0057b8c0	cSC4DisasterManagerFire::GetCause	0	0	eax-or-void	medium	
 cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	11	+0x2C	00579ba0	cSC4DisasterManagerFire::GetFireInstance	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	0	+0x0	0043efe0	cSC4TutorialSystem::QueryInterface	8	2	eax-or-void	medium	tail->009457c6
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	1	+0x4	004186e0	icf::cSC4AdvisorSystem::AddRef	0	0	eax-or-void	medium	tail->00968b60
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	2	+0x8	00449310	icf::cSC4AdvisorSystem::Release	0	0	eax-or-void	medium	tail->0090d997
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	3	+0xC	0043f7a0	cSC4TutorialSystem::Init	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	4	+0x10	0043f330	cSC4TutorialSystem::Shutdown	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	5	+0x14	0043f080	cSC4TutorialSystem::startTutorial	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	6	+0x18	0043f110	cSC4TutorialSystem::endTutorial	4	1	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	7	+0x1C	0043f490	cSC4TutorialSystem::GetScriptingContext	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	8	+0x20	0043f650	cSC4TutorialSystem::IsTutorial	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	9	+0x24	0043f500	cSC4TutorialSystem::IsEdgeScrollingAllowed	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	10	+0x28	0043f6d0	cSC4TutorialSystem::GetCurrentTask	0	0	eax-or-void	medium	indirect-jump dword ptr [eax + 0x24]
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	11	+0x2C	004ed900	cSC4SimGrid<T>::GetTractCountX	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	12	+0x30	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	13	+0x34	0043f3c0	cSC4TutorialSystem::FilterMessage	4	1	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	14	+0x38	0043f440	cSC4TutorialSystem::ShowUIHintsForUsers	0	0	unknown	low	indirect-jump dword ptr [eax + 0x1c]
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	15	+0x3C	0043f470	cSC4TutorialSystem::HandleCatalogMenu	4	1	eax-or-void	medium	
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	16	+0x40	0043f450	cSC4TutorialSystem::FilterLeftMouseClick	12	3	eax-or-void	medium	indirect-jump dword ptr [eax + 0x28]
-cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	17	+0x44	0043f410	cSC4TutorialSystem::ResetTutorialNumAndIndex	8	2	eax-or-void	medium	
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	0	+0x0	0043efe0	cSC4TutorialSystem::QueryInterface(iid, void**)	8	2	al	high	re-specs13d (tutorial.md, numbers are sections): 0xAA3836F6 -> this; 0x452294AA -> +4; 0xE98B2F57 -> +8; 0xE4FDA3D4 -> +0x10; else cRZUnknown; 1
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	1	+0x4	004186e0	cSC4TutorialSystem::AddRef	0	0	eax	high	re-specs13d (tutorial.md, numbers are sections): shared (ICF); refcount +0x14
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	2	+0x8	00449310	cSC4TutorialSystem::Release	0	0	eax	high	re-specs13d (tutorial.md, numbers are sections): shared (ICF)
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	3	+0xC	0043f7a0	cSC4TutorialSystem::Init	0	0	al	high	re-specs13d (tutorial.md, numbers are sections): subscribes 3 messages, registers cheat 0x6A382BAF; true; 4.3
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	4	+0x10	0043f330	cSC4TutorialSystem::Shutdown	0	0	al	high	re-specs13d (tutorial.md, numbers are sections): true; 4.3
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	5	+0x14	0043f080	cSC4TutorialSystem::startTutorial	0	0	eax-or-void	medium	re-specs13d (tutorial.md, numbers are sections): AL left by registry SetActive, not a defined result; 4.2
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	6	+0x18	0043f110	cSC4TutorialSystem::endTutorial(bool endRegistry)	4	1	al	high	re-specs13d (tutorial.md, numbers are sections): AL = argument; 4.2
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	7	+0x1C	0043f490	cSC4TutorialSystem::GetScriptingContext	0	0	eax	high	re-specs13d (tutorial.md, numbers are sections): 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	8	+0x20	0043f650	cSC4TutorialSystem::IsTutorial	0	0	eax	high	re-specs13d (tutorial.md, numbers are sections): 0/1 in full EAX; read by the fire (no burn-down) and flammability; 4.1
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	9	+0x24	0043f500	cSC4TutorialSystem::IsEdgeScrollingAllowed	0	0	al	high	re-specs13d (tutorial.md, numbers are sections): 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	10	+0x28	0043f6d0	cSC4TutorialSystem::GetCurrentTask	0	0	eax	high	re-specs13d (tutorial.md, numbers are sections): null without a window, else tail call to window slot 9; 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	11	+0x2C	004ed900	cSC4TutorialSystem::GetTutorialTaskNumber	0	0	eax	high	re-specs13d (tutorial.md, numbers are sections): ICF-shared getter of +0x20 (row was named cSC4SimGrid<T>::GetTractCountX); 6
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	12	+0x30	006bdd80	cSC4TutorialSystem::GetTutorialGUID	0	0	eax	high	re-specs13d (tutorial.md, numbers are sections): ICF-shared getter of +0x24 (row was named cSC4SimGrid<T>::GetTractCountZ); 6
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	13	+0x34	0043f3c0	cSC4TutorialSystem::FilterMessage(msg)	4	1	al	high	re-specs13d (tutorial.md, numbers are sections): true; 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	14	+0x38	0043f440	cSC4TutorialSystem::ShowUIHintsForUsers	0	0	eax-or-void	high	re-specs13d (tutorial.md, numbers are sections): no defined return value; tail call to window slot 7 when present; 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	15	+0x3C	0043f470	cSC4TutorialSystem::HandleCatalogMenu(menu)	4	1	al	high	re-specs13d (tutorial.md, numbers are sections): true; 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	16	+0x40	0043f450	cSC4TutorialSystem::FilterLeftMouseClick(x&, z&, n)	12	3	al	high	re-specs13d (tutorial.md, numbers are sections): true without a window; 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	17	+0x44	0043f410	cSC4TutorialSystem::ResetTutorialNumAndIndex(a, b)	8	2	al	high	re-specs13d (tutorial.md, numbers are sections): false without a window; 4.4
 cISC4Occupant	cSC4Occupant	00aa41d8	0	+0x0	005e89c0	cSC4Occupant::QueryInterface	8	2	eax-or-void	medium	tail->005fd310
 cISC4Occupant	cSC4Occupant	00aa41d8	1	+0x4	005e89b0	cSC4Occupant::AddRef	0	0	eax-or-void	medium	
 cISC4Occupant	cSC4Occupant	00aa41d8	2	+0x8	005e8df0	cSC4Occupant::Release	0	0	eax-or-void	medium	
@@ -2154,46 +2154,46 @@ cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	7	+0x1C	006f4db0	cSC4PropDeveloper
 cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	8	+0x20	006f1210	cSC4PropDeveloper::ShowSignsAndLabels	4	1	eax-or-void	medium	
 cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	9	+0x24	006f2bf0	cSC4PropDeveloper::ToggleSignsAndLabels	0	0	via-call	low	
 cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	10	+0x28	006f2c10	cSC4PropDeveloper::AreSignsAndLabelsVisible	0	0	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	0	+0x0	004a1d30	cSC4PropManager::QueryInterface	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	2	+0x8	004a2340	cSC4PropManager::Release	0	0	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	3	+0xC	004a4380	cSC4PropManager::Init	0	0	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	4	+0x10	004a2370	cSC4PropManager::Shutdown	0	0	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	5	+0x14	004a2bf0	cSC4PropManager::GetAllPropTypes	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	6	+0x18	004a2cb0	cSC4PropManager::GetAllPropFamilyTypes	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	7	+0x1C	004a2d70	cSC4PropManager::GetPropKeyFromType	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	8	+0x20	004a2dd0	cSC4PropManager::IsPropTypeValid	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	9	+0x24	004a2e90	cSC4PropManager::GetPropTypesByFamily	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	10	+0x28	004a2f80	cSC4PropManager::IsPropInFamily	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	11	+0x2C	004a2e10	cSC4PropManager::IsPropFamilyTypeValid	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	12	+0x30	004a4360	cSC4PropManager::GetPropName	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	13	+0x34	004a3750	cSC4PropManager::GetPropProfile	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	14	+0x38	004a2ff0	cSC4PropManager::GetPropProfilePtr	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	15	+0x3C	004a3040	cSC4PropManager::CreateProp	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	16	+0x40	004a24d0	cSC4PropManager::CreateGenericProp	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	17	+0x44	004a1df0	cSC4PropManager::GetCityProps	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	18	+0x48	004a1db0	cSC4PropManager::GetCityProps	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	19	+0x4C	004a1f30	cSC4PropManager::AddCityProp	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	20	+0x50	004a1e70	cSC4PropManager::AddCityProp	12	3	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	21	+0x54	004a38f0	cSC4PropManager::RemoveCityProps	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	22	+0x58	004a3850	cSC4PropManager::RemoveCityProps	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	23	+0x5C	004a1fd0	cSC4PropManager::GetLotProps	12	3	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	24	+0x60	004a3240	cSC4PropManager::GetLotProps	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	25	+0x64	004a20c0	cSC4PropManager::AddLotProp	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	26	+0x68	004a2670	cSC4PropManager::AddLotProp	12	3	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	27	+0x6C	004a3af0	cSC4PropManager::RemoveLotProps	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	28	+0x70	004a3a50	cSC4PropManager::RemoveLotProps	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	29	+0x74	004a27b0	cSC4PropManager::RemovePropA	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	30	+0x78	004a1f90	cSC4PropManager::GetStreetProps	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	31	+0x7C	004a3150	cSC4PropManager::GetStreetProps	12	3	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	32	+0x80	004a2120	cSC4PropManager::AddStreetProp	12	3	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	33	+0x84	004a3990	cSC4PropManager::RemoveStreetPropsFromTile	8	2	unknown	low	
-cISC4PropManager	cSC4PropManager	00a8f928	34	+0x88	004a2140	cSC4PropManager::GetBuildingProps	12	3	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	35	+0x8C	004a3770	cSC4PropManager::GetBuildingProps	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	36	+0x90	004a3b90	cSC4PropManager::AddBuildingProp	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	37	+0x94	004a21a0	cSC4PropManager::RemoveBuildingProps	8	2	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	38	+0x98	004a3390	cSC4PropManager::RemoveBuildingProps	4	1	eax-or-void	medium	
-cISC4PropManager	cSC4PropManager	00a8f928	39	+0x9C	004a27c0	cSC4PropManager::RemoveBuildingProp	8	2	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	0	+0x0	004a1d30	cSC4PropManager::QueryInterface(iid, void**)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): 0x28326F3E -> this; 1/0x452294AA -> this+4; 0xE4FDA3D4 -> this+8; A1
+cISC4PropManager	cSC4PropManager	00a8f928	1	+0x4	004f7ba0	cSC4PropManager::AddRef	0	0	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): shared; refcount +0x10
+cISC4PropManager	cSC4PropManager	00a8f928	2	+0x8	004a2340	cSC4PropManager::Release	0	0	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): at 0: Shutdown then slot 40(1); A1
+cISC4PropManager	cSC4PropManager	00a8f928	3	+0xC	004a4380	cSC4PropManager::Init	0	0	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): once; the first time builds the process-wide prop catalogue; true; A4.1
+cISC4PropManager	cSC4PropManager	00a8f928	4	+0x10	004a2370	cSC4PropManager::Shutdown	0	0	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): true; A4.2
+cISC4PropManager	cSC4PropManager	00a8f928	5	+0x14	004a2bf0	cSC4PropManager::GetAllPropTypes(vec&)	4	1	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; clears then appends in bucket order; A5
+cISC4PropManager	cSC4PropManager	00a8f928	6	+0x18	004a2cb0	cSC4PropManager::GetAllPropFamilyTypes(vec&)	4	1	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; A5
+cISC4PropManager	cSC4PropManager	00a8f928	7	+0x1C	004a2d70	cSC4PropManager::GetPropKeyFromType(id, key&)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A5
+cISC4PropManager	cSC4PropManager	00a8f928	8	+0x20	004a2dd0	cSC4PropManager::IsPropTypeValid(id)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A5
+cISC4PropManager	cSC4PropManager	00a8f928	9	+0x24	004a2e90	cSC4PropManager::GetPropTypesByFamily(vec&, id)	8	2	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): count; assigns vec; a single prop type gives vec=[id] and returns 0; A5
+cISC4PropManager	cSC4PropManager	00a8f928	10	+0x28	004a2f80	cSC4PropManager::IsPropInFamily(type, family)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A5
+cISC4PropManager	cSC4PropManager	00a8f928	11	+0x2C	004a2e10	cSC4PropManager::IsPropFamilyTypeValid(id)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): family map or type map; A5
+cISC4PropManager	cSC4PropManager	00a8f928	12	+0x30	004a4360	cSC4PropManager::GetPropName(id)	4	1	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): string ref, always empty; A5
+cISC4PropManager	cSC4PropManager	00a8f928	13	+0x34	004a3750	cSC4PropManager::GetPropProfile(id)	4	1	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): 0x1C-byte profile ref; inserts a zero profile for an unknown ID; A3.2
+cISC4PropManager	cSC4PropManager	00a8f928	14	+0x38	004a2ff0	cSC4PropManager::GetPropProfilePtr(id)	4	1	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): profile or null; A5
+cISC4PropManager	cSC4PropManager	00a8f928	15	+0x3C	004a3040	cSC4PropManager::CreateProp(id, prop*&)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A6.1
+cISC4PropManager	cSC4PropManager	00a8f928	16	+0x40	004a24d0	cSC4PropManager::CreateGenericProp(key const&, prop*&)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A6.2
+cISC4PropManager	cSC4PropManager	00a8f928	17	+0x44	004a1df0	cSC4PropManager::GetCityProps(list&, SC4Rect<float> const&)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): SDK overload order reversed; occupant manager slot 36; A7.2
+cISC4PropManager	cSC4PropManager	00a8f928	18	+0x48	004a1db0	cSC4PropManager::GetCityProps(list&, SC4Rect<int32> const&)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): occupant manager slot 40; A7.2
+cISC4PropManager	cSC4PropManager	00a8f928	19	+0x4C	004a1f30	cSC4PropManager::AddCityProp(occ)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): usage 1; A7.1
+cISC4PropManager	cSC4PropManager	00a8f928	20	+0x50	004a1e70	cSC4PropManager::AddCityProp(id, pos const&, orient)	12	3	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): occupant or null, no reference for the caller; A7.1
+cISC4PropManager	cSC4PropManager	00a8f928	21	+0x54	004a38f0	cSC4PropManager::RemoveCityProps(SC4Rect<float> const&)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): true; A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	22	+0x58	004a3850	cSC4PropManager::RemoveCityProps(SC4Rect<int32> const&)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): true; A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	23	+0x5C	004a1fd0	cSC4PropManager::GetLotProps(list&, x, z)	12	3	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A7.2
+cISC4PropManager	cSC4PropManager	00a8f928	24	+0x60	004a3240	cSC4PropManager::GetLotProps(list&, lot)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): filters the whole list by the lot world box, upper bounds exclusive; A7.2
+cISC4PropManager	cSC4PropManager	00a8f928	25	+0x64	004a20c0	cSC4PropManager::AddLotProp(lot, occ)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): usage 2; lot ignored; A7.1
+cISC4PropManager	cSC4PropManager	00a8f928	26	+0x68	004a2670	cSC4PropManager::AddLotProp(id, pos const&, orient)	12	3	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): usage 2; A7.1
+cISC4PropManager	cSC4PropManager	00a8f928	27	+0x6C	004a3af0	cSC4PropManager::RemoveLotProps(x, z)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): true; A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	28	+0x70	004a3a50	cSC4PropManager::RemoveLotProps(lot)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): true; A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	29	+0x74	004a27b0	cSC4PropManager::RemoveProp(occ)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): SDK RemovePropA; true; A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	30	+0x78	004a1f90	cSC4PropManager::GetStreetProps(list&, SC4Rect<int32> const&)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): usage 4; A7.2
+cISC4PropManager	cSC4PropManager	00a8f928	31	+0x7C	004a3150	cSC4PropManager::GetStreetProps(list&, x, z)	12	3	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): always false (AL cleared) even with results; A7.2
+cISC4PropManager	cSC4PropManager	00a8f928	32	+0x80	004a2120	cSC4PropManager::AddStreetProp(id, pos const&, orient)	12	3	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): usage 4; A7.1
+cISC4PropManager	cSC4PropManager	00a8f928	33	+0x84	004a3990	cSC4PropManager::RemoveStreetPropsFromTile(x, z)	8	2	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	34	+0x88	004a2140	cSC4PropManager::GetBuildingProps(list&, x, z)	12	3	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A7.2
+cISC4PropManager	cSC4PropManager	00a8f928	35	+0x8C	004a3770	cSC4PropManager::GetBuildingProps(list&, building)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): building property 0xA8322B7F; A7.2
+cISC4PropManager	cSC4PropManager	00a8f928	36	+0x90	004a3b90	cSC4PropManager::AddBuildingProp(building, prop)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): usage 3; non-owning vector in property 0xA8322B7F; A7.1
+cISC4PropManager	cSC4PropManager	00a8f928	37	+0x94	004a21a0	cSC4PropManager::RemoveBuildingProps(x, z)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	38	+0x98	004a3390	cSC4PropManager::RemoveBuildingProps(building)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	39	+0x9C	004a27c0	cSC4PropManager::RemoveBuildingProp(building, prop)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): found; A7.3
 cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	0	+0x0	006eabc0	cSC4PowerSimulator::QueryInterface	8	2	eax-or-void	medium	
 cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
 cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	2	+0x8	006eb190	cSC4PowerSimulator::Release	0	0	eax-or-void	medium	
@@ -3873,34 +3873,34 @@ cISC4TractDeveloper	cSC4TractDeveloper	00ab3118	11	+0x2C	0070c850	cSC4TractDevel
 cISC4TractDeveloper	cSC4TractDeveloper	00ab3118	12	+0x30	0070c860	cSC4TractDeveloper::UseAllStylesAtOnce	4	1	eax-or-void	medium	
 cISC4TractDeveloper	cSC4TractDeveloper	00ab3118	13	+0x34	00407ba0	icf::cGZGraphicSystem::GetGDriver	0	0	eax-or-void	medium	
 cISC4TractDeveloper	cSC4TractDeveloper	00ab3118	14	+0x38	0070c880	cSC4TractDeveloper::SetYearsBetweenStyleChanges	4	1	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	0	+0x0	004896a0	cSC4LotConfigurationManager::QueryInterface	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	2	+0x8	004897c0	cSC4LotConfigurationManager::Release	0	0	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	3	+0xC	0048a5e0	cSC4LotConfigurationManager::Init	0	0	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	4	+0x10	004897f0	cSC4LotConfigurationManager::Shutdown	0	0	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	5	+0x14	00489a60	cSC4LotConfigurationManager::AddLotConfiguration	4	1	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	6	+0x18	0048a690	cSC4LotConfigurationManager::AddLotConfiguration	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	7	+0x1C	0048a2d0	cSC4LotConfigurationManager::RemoveLotConfiguration	4	1	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	8	+0x20	0048a320	cSC4LotConfigurationManager::GetLotConfiguration	4	1	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	9	+0x24	0048b1a0	cSC4LotConfigurationManager::GetLotConfigurationsByFilter	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	10	+0x28	0048a7e0	cSC4LotConfigurationManager::GetLotConfigurationsByFamily	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	11	+0x2C	0048a8b0	cSC4LotConfigurationManager::GetLotConfigurationsBySize	12	3	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	12	+0x30	0048a370	cSC4LotConfigurationManager::ClearLotConfigurationSet	4	1	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	13	+0x34	0048a9a0	cSC4LotConfigurationManager::GetLotConfigurationIDsByFilter	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	14	+0x38	0048aa80	cSC4LotConfigurationManager::GetLotConfigurationIDsByFamily	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	15	+0x3C	0048ab50	cSC4LotConfigurationManager::GetLotConfigurationIDsBySize	12	3	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	16	+0x40	00489aa0	cSC4LotConfigurationManager::LotConfigurationHasBuildingFamily	12	3	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	17	+0x44	00489b40	cSC4LotConfigurationManager::LotConfigurationHasBuildingType	12	3	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	18	+0x48	0048a660	cSC4LotConfigurationManager::RegisterLotConfigurationFilter	4	1	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	19	+0x4C	0048a3f0	cSC4LotConfigurationManager::UnregisterLotConfigurationFilter	4	1	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	20	+0x50	00489720	cSC4LotConfigurationManager::GetLotConfigurationMap	0	0	eax	high	re-answers9 DG3: address of the STLport hash_map at 0x00B216C8, no reference; 12-byte nodes {next, key, config*}
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	21	+0x54	00489730	cSC4LotConfigurationManager::GetLotConfigurationFamilyIDSet	0	0	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	22	+0x58	0048bcf0	cSC4LotConfigurationManager::CreateGenericLotConfiguration	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	23	+0x5C	0048b3b0	cSC4LotConfigurationManager::FixLotConfiguration	4	1	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	24	+0x60	00489e10	cSC4LotConfigurationManager::GetMaxFootprintForBuildingFamilies	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	25	+0x64	0048b860	cSC4LotConfigurationManager::GetMaxFootprintForFloraFamilies	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	26	+0x68	00489f50	cSC4LotConfigurationManager::GetMaxFootprintForPropFamilies	8	2	eax-or-void	medium	
-cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	27	+0x6C	0048ba10	cSC4LotConfigurationManager::GetObjectIDArray	8	2	eax-or-void	medium	
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	0	+0x0	004896a0	cSC4LotConfigurationManager::QueryInterface(iid, void**)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): 1/0xC8EDBEC0 -> this; 0xE4FDA3D4 -> this+8; B1
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	1	+0x4	004f7ba0	cSC4LotConfigurationManager::AddRef	0	0	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): shared
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	2	+0x8	004897c0	cSC4LotConfigurationManager::Release	0	0	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): at 0: Shutdown then slot 28(1); B1
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	3	+0xC	0048a5e0	cSC4LotConfigurationManager::Init	0	0	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): StaticInit reloads the catalogue when the detail preference changed; true; B4.1
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	4	+0x10	004897f0	cSC4LotConfigurationManager::Shutdown	0	0	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): true; B4.2
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	5	+0x14	00489a60	cSC4LotConfigurationManager::AddLotConfiguration(key const&)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): SDK error: the SDK declares (cfg, bool) here; reads with Load(key, detail level); B3.2
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	6	+0x18	0048a690	cSC4LotConfigurationManager::AddLotConfiguration(cfg, bool add)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): always 1; erase does not release; B3.4
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	7	+0x1C	0048a2d0	cSC4LotConfigurationManager::RemoveLotConfiguration(id)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): B3.4
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	8	+0x20	0048a320	cSC4LotConfigurationManager::GetLotConfiguration(id)	4	1	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): no reference added; B5.1
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	9	+0x24	0048b1a0	cSC4LotConfigurationManager::GetLotConfigurationsByFilter(set&, filter)	8	2	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): match count; reference per match; registered filters cached; B5.2 B5.4
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	10	+0x28	0048a7e0	cSC4LotConfigurationManager::GetLotConfigurationsByFamily(set&, family)	8	2	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): match count; B5.2
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	11	+0x2C	0048a8b0	cSC4LotConfigurationManager::GetLotConfigurationsBySize(set&, x, z)	12	3	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): match count; B5.2
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	12	+0x30	0048a370	cSC4LotConfigurationManager::ClearLotConfigurationSet(set&)	4	1	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; B5.2
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	13	+0x34	0048a9a0	cSC4LotConfigurationManager::GetLotConfigurationIDsByFilter(set&, filter)	8	2	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): match count; B5.2
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	14	+0x38	0048aa80	cSC4LotConfigurationManager::GetLotConfigurationIDsByFamily(set&, family)	8	2	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): match count; B5.2
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	15	+0x3C	0048ab50	cSC4LotConfigurationManager::GetLotConfigurationIDsBySize(set&, x, z)	12	3	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): match count; B5.2
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	16	+0x40	00489aa0	cSC4LotConfigurationManager::LotConfigurationHasBuildingFamily(cfg, family, obj**)	12	3	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): B5.3
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	17	+0x44	00489b40	cSC4LotConfigurationManager::LotConfigurationHasBuildingType(cfg, type, obj**)	12	3	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): B5.3
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	18	+0x48	0048a660	cSC4LotConfigurationManager::RegisterLotConfigurationFilter(filter)	4	1	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; B5.4
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	19	+0x4C	0048a3f0	cSC4LotConfigurationManager::UnregisterLotConfigurationFilter(filter)	4	1	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; B5.4
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	20	+0x50	00489720	cSC4LotConfigurationManager::GetLotConfigurationMap()	0	0	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): address of the hash_map at 0x00B216C8, no reference; B5.1
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	21	+0x54	00489730	cSC4LotConfigurationManager::GetLotConfigurationFamilyIDSet()	0	0	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): address of the set at 0x00B216DC; B5.1
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	22	+0x58	0048bcf0	cSC4LotConfigurationManager::CreateGenericLotConfiguration(cfg*&, buildingType)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): B5.7
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	23	+0x5C	0048b3b0	cSC4LotConfigurationManager::FixLotConfiguration(cfg)	4	1	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): code 0-6 of the first problem; B5.7
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	24	+0x60	00489e10	cSC4LotConfigurationManager::GetMaxFootprintForBuildingFamilies(vec const&, rect&)	8	2	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; start (4,4,0,0); B5.5
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	25	+0x64	0048b860	cSC4LotConfigurationManager::GetMaxFootprintForFloraFamilies(vec const&, rect&)	8	2	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; start (2,2,0,0); B5.5
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	26	+0x68	00489f50	cSC4LotConfigurationManager::GetMaxFootprintForPropFamilies(vec const&, rect&)	8	2	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; start (2,2,0,0); B5.5
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	27	+0x6C	0048ba10	cSC4LotConfigurationManager::GetObjectIDArray(obj, vec&)	8	2	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; building families assign vec; B5.6
 cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	0	+0x0	004777b0	cSC4LotConfiguration::QueryInterface	8	2	eax-or-void	medium	
 cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	1	+0x4	005f47f0	icf::cGZCommandSystemSupport::AddRef	0	0	eax-or-void	medium	
 cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	2	+0x8	00479ce0	cSC4LotConfiguration::FinalRelease	0	0	eax-or-void	medium	
