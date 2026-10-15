@@ -187,6 +187,11 @@
 //         (FC4TrafficShadow.h): one delivery through the traffic shadow to a
 //         fake original; returns the delivery's difference count, -1 (not
 //         taken, nothing delivered), -2 (delivered, nothing compared).
+//   op 52 kFC4SeamLotDev          a = const FC4LotDevTestInput*
+//         (cFC4LotDeveloper.h): the lot developer's test hooks (a host table
+//         answering instead of the game, test allocators), one shadow
+//         comparison, or the class's counters. Returns what LotDevTestSeam
+//         returns, -1 for a null argument.
 //   op 53 kFC4SeamZoneDev          a = const FC4ZoneDevTestInput* (cFC4ZoneDeveloper.h),
 //         b = the state block for kFC4ZoneDevTestState: the zone developer's test
 //         hooks (a host table answering instead of the game, the raw structures'
@@ -266,6 +271,7 @@ enum : uint32_t {
     kFC4SeamDialogs = 47,  // the harness lane
     kFC4SeamNeighborsApp = 48,  // the neighbours apply lane (NG14)
     kFC4SeamTrafficShadow = 51,  // the traffic shadow (FC4TrafficShadow.h FC4TrafficShadowTestInput)
+    kFC4SeamLotDev = 52,  // the lot developer (cFC4LotDeveloper.h FC4LotDevTestInput)
     kFC4SeamZoneDev = 53,  // the zone developer (cFC4ZoneDeveloper.h FC4ZoneDevTestInput)
     kFC4SeamHistClock = 54,  // the history and clock lane
     kFC4SeamParks = 57,         // the cmglue lane (cFC4Parks.h FC4ParksTestInput)

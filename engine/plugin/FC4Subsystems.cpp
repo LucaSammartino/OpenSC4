@@ -66,6 +66,8 @@
 #include "FC4ParksShadow.h"       // the cmglue lane
 #include "FC4TrafficShadow.h"
 #include "cFC4TractDeveloper.h"
+#include "FC4LotDevShadow.h"
+#include "cFC4LotDeveloper.h"
 #include "cFC4Commercial.h"  // the cmglue lane: commercial, industrial
 #include "cFC4Civic.h"       // the cmglue lane: civic
 #include "cFC4Parks.h"       // the cmglue lane: parks
@@ -255,6 +257,13 @@ const ClassEntry kTractClasses[] = {
     {kFC4_CLSID_cSC4TractDeveloper, "cSC4TractDeveloper", &CreateFC4TractDeveloper},
 };
 
+// docs/specs/lot-developer.md §1. Off by default (M4 glue trial):
+// `enable = lotdev`. The BDS, the tract developer, the lot manager, the
+// occupant and prop managers stay whoever the city runs.
+const ClassEntry kLotDevClasses[] = {
+    {kFC4_CLSID_cSC4LotDeveloper, "cSC4LotDeveloper", &CreateFC4LotDeveloper},
+};
+
 // docs/specs/commercial-industrial.md §1. Off by default (M4 glue trial):
 // `enable = commercial` / `enable = industrial`. The growth developers and the
 // query tool read the commercial proximity grids through slot 5.
@@ -308,6 +317,7 @@ const Subsystem kSubsystems[] = {
      false},
     {"traffic", nullptr, kTrafficClasses, sizeof(kTrafficClasses) / sizeof(kTrafficClasses[0]), false},
     {"tract", nullptr, kTractClasses, sizeof(kTractClasses) / sizeof(kTractClasses[0]), false},
+    {"lotdev", nullptr, kLotDevClasses, sizeof(kLotDevClasses) / sizeof(kLotDevClasses[0]), false},
     {"commercial", nullptr, kCommercialClasses, sizeof(kCommercialClasses) / sizeof(kCommercialClasses[0]), false},
     {"industrial", nullptr, kIndustrialClasses, sizeof(kIndustrialClasses) / sizeof(kIndustrialClasses[0]), false},
     {"civic", nullptr, kCivicClasses, sizeof(kCivicClasses) / sizeof(kCivicClasses[0]), false},
@@ -437,6 +447,8 @@ void Resolve() {
     DevelopmentShadowStartup(g_enabled[0], enabledKey("development"));
     // The tract developer shadow (FC4TractShadow.h; it compares the original tract developer).
     TractShadowStartup(enabledKey("tract"));
+    // The lot developer shadow (FC4LotDevShadow.h; it compares the original lot developer).
+    LotDevShadowStartup(enabledKey("lotdev"));
     // The commercial shadow (FC4CommercialShadow.h; it compares the original commercial simulator).
     CommercialShadowStartup(g_enabled[0], enabledKey("commercial"));
     // The civic shadow (FC4CivicShadow.h; it compares the original civic building simulator).

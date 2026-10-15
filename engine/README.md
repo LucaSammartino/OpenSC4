@@ -444,6 +444,31 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
        `tract_abandon`, `tract_lot_changes`, `tract_demolition`, `tract_population`, `tract_resources`,
        `tract_filters`, `tract_lot_lists`, `tract_traffic`, `tract_style_map`, `tract_roads`, `tract_family_sets`,
        `tract_agents` (see `plugin/FC4Config.h`).
+     - `lotdev`: the lot developer (`cSC4LotDeveloper`, CLSID `0xA990BFE0`; lot-developer spec), the class that
+       looks after existing lots: the daily pass (abandonment, condition, zots, business units), construction and
+       its lot content (props, flora, base textures), demolition and explosion, the night lights, and the terrain
+       helpers (altitudes, slopes, levelling, foundations, development cost) other systems call. Its 65 slots with
+       the §11.1 return channels (Release returns 0; slots 15-18 and 27-31 ST0, 19-21 counts, 32 EDX:EAX, 39 and 40
+       `&orient`), the message target (+4: the agent at levels 0, 4 and 6, nine messages, the animation tick) and
+       the record (version 1; 24 bytes with an empty night deque, its buildings as object references).
+       It works with the original BDS, tract developer, lot manager and occupant managers (or ours) through their
+       interfaces only. Every call into the core holds the object's lock; references the game's lists give and
+       objects made for a call are kept until the outermost call returns. `lotdev_seed = N` (env `FC4_LOTDEV_SEED`) fixes the session seed (default: the
+       cRZTime clock); `lotdev_lot_log = 1` (env `FC4_LOTDEV_LOT_LOG`) adds one line per lot the daily pass changed
+       (`lotdev lot x,z: state a->b condition c->d zot e->f building=0x…`). The log has
+       `lotdev Init|Read|Write|Shutdown: init=… daily=… visited=… vertsX=… extent=…,… cells=…,… night=cursor/len
+       mode=… lit=… … lots=… abandoned=… restored=… conditions=… zots=… started=… finished=… demolitions=…
+       nightBatches=… refused=… queued=… agents=… tick=… buildings=…/… props=… … iterators=… fallbacks=… faults=…
+       listsRefused=… content: …` (counters: ID arrays, flora types, flora and prop adds, completions, and the
+       props and flora the configurations listed) and one line per month: `lotdev month yyyy-mm-dd: days=…
+       redelivered=… lots=… abandoned=…
+       restored=… conditions=… zots=… started=… finished=… demolitions=… nightBatches=… night=…/… mode=…
+       buildings=… props=… flora=… textures=… removed=… lights=… refused=… queued=…` (the counts since the previous
+       line; `refused` should stay 0). Not specified, so not done (logged once each): retaining walls, the
+       burnt-building prop and the rubble decal, network connection nodes, UpdateLotObjectAlitudes.
+       Its game calls have their own switches (default `1`, environment `FC4_LOTDEV_<KEY>`): `lotdev_lot_writes`,
+       `lotdev_buildings`, `lotdev_demolition`, `lotdev_props`, `lotdev_textures`, `lotdev_terrain`,
+       `lotdev_night`, `lotdev_units`, `lotdev_agents` (see `plugin/FC4Config.h`).
      - `commercial`: the commercial simulator (`cSC4CommercialSimulator`, CLSID `0x8990C080`;
        commercial-industrial spec): the CO$$ and CO$$$ proximity grids (the game's own `cSC4SimGrid<uint8>`,
        created through GZCOM or handed over by the save), the four agents, the occupant subscriptions, the
@@ -1366,10 +1391,10 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      the original's saved cell; in ReRouteTrips and FullTrips the copy then runs on, examining no trip, to the
      original's saved source cell: a "run-on"; that source's list end is taken when the original's record or trip
      list shows it was: "list ends") and takes the original's day step on its share, then its record (fields
-     named), every trip list, the holder arrays and its grids are compared bitwise with the original's. The copy reads the city through the
-     traffic glue's read callbacks (every write callback NULL: its writes, posts, budget calls and references
-     stay inside it) and the original's grids through `GetTractValue`; the messages the original subscribes to
-     are forwarded to it. The lot strategy byte (no getter) is read as the last byte of the lot's own record
+     named), every trip list, the holder arrays and its grids are compared bitwise with the original's. The copy
+     reads the city through the traffic glue's read callbacks (every write callback NULL: its writes, posts,
+     budget calls and references stay inside it) and the original's grids through `GetTractValue`; the messages
+     the original subscribes to are forwarded to it. The lot strategy byte (no getter) is read as the last byte of the lot's own record
      (§6.3). **Not compared** (said in the start line): the strategy draws (property `0x4A611773`) and the
      pothole and accident draws' choices (the original's generator is not readable), posted messages, history,
      incomes, network costs, budget items and accidents. **Known differences** are counted apart on the month
@@ -1390,14 +1415,37 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      traffic shadow yyyy-mm-dd day|month|begin (state A -> B, progress P, units U): mismatches=N; record FIELD:
        orig … ours …; trips of lot (x, z): …; holder … property 0x…: …; grid NAME: K of T tracts differ: …
      traffic shadow yyyy-mm-dd day: INCOMPLETE (why); not compared
-     traffic shadow month to yyyy-mm-dd [(hypotheses 0x…)]: clean|mismatches=N; deliveries=D (day d, month m, other o) compared=C
-       clean=K incomplete=I; record fields compared=… mismatched=… (FIELD xN, …); trip lists compared=…
+     traffic shadow month to yyyy-mm-dd [(hypotheses 0x…)]: clean|mismatches=N; deliveries=D (day d, month m,
+       other o) compared=C clean=K incomplete=I; record fields compared=… mismatched=… (FIELD xN, …); trip lists compared=…
        mismatched=…; holder properties compared=… mismatched=…; grid tracts compared=… mismatched=…; known
        differences (not counted): … xN, …; between deliveries: resyncs=R; ours: units=… run-ons=… (list ends …)
        day steps=…, kept posts=… …; first differences: …
      ```
 
      Success is `clean` on every month line, `resyncs=0` and no `INCOMPLETE` line.
+   - **Lot developer shadow** (`lotdev_shadow = 1`, env `FC4_LOTDEV_SHADOW`; off by default;
+     `plugin/FC4LotDevShadow.h`): a same-process differential of the lot developer. It needs the **original** lot
+     developer (do not enable `lotdev`); otherwise it logs `lotdev shadow: requested … but INACTIVE` at game start.
+     At PostCityInit and each SimNewMonth it reads the original's record (its own `Write` into memory) into a
+     FreeCity4 core made for the run over a read-only table on the city's services (Read, then Init, which stops
+     before the agent: the table has no simulator), and compares the core's `Write` bytes and night state with the
+     record; then, on up to 64 lots spread over the city, the original's slots 15-18, 22, 25-32, 39, 40, 46, 48,
+     51, 56 and 57 with the core's, bit for bit (never a slot that changes the city). Not compared (logged at game
+     start): the daily pass, construction, demolition, explosion and the night lights (they change the city and
+     draw from the generators), levelling and the foundation add / remove slots, slots 42 / 43 (the boundary map
+     is filled past the read-only Init), the §5 tests and the tuning (no getter). Lines (always written):
+
+     ```
+     lotdev shadow: ON (lotdev_shadow from …): …                                            (game start)
+     lotdev shadow: NOT compared: …                                                         (game start)
+     lotdev shadow yyyy-mm-dd load|month: record=N bytes roundtrip=same night=L cursor=C mode=M lit=B lots=N
+       sampled=S compared=C mismatches=N rawAL=R first=…
+     ```
+
+     Slot 22's truth value is compared (the original's AL is that of its second `PositionToCell`, which need not
+     be 0 / 1); `rawAL` counts the lots where it was neither. A slot 25 difference adds a `s25r@x,z` entry with the
+     rectangle and both sides' slot 27 range.
+     Success is `roundtrip=same` and `mismatches=0` on every line, and no `INCOMPLETE` line.
    - **Commercial shadow** (`commercial_shadow = 1`, env `FC4_COMMERCIAL_SHADOW`; `commercial_shadow_cells = N`
      differing cells listed per grid, default 4; off by default; `plugin/FC4CommercialShadow.h`): a same-process
      differential of the commercial simulator's proximity maps. It needs FreeCity4's simulator and the
