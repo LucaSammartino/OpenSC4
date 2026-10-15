@@ -19,6 +19,7 @@
 #include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
@@ -186,7 +187,9 @@ fc4_props* Tuning(void* u) {
 
 // The core seeds its own cRZRandom with this at Init (§4.1 step 2,
 // foundations §6.1).
-uint32_t WallClockSeed(void*) { return static_cast<uint32_t>(GetTickCount64() ^ GetCurrentProcessId()); }
+// The session seed (foundations §6.3, FC4Seed.h): the generator made at Init
+// takes derive(S, GZCLSID).
+uint32_t SessionSeedCb(void*) { return fc4::SessionSeed(); }
 
 bool CumulativeFactor(void* u, uint32_t id, uint32_t index, float* out) {
     if (!Gate(u, fc4::Sw::PlumbingOrdinance, "plumbing GetCumulativeFactor (absent)")) return false;
@@ -800,7 +803,7 @@ void FillReads(fc4_plumbing_host& h) {
     h.cell_counts = &CellCounts;
     h.position_to_cell = &PositionToCell;
     h.tuning = &Tuning;
-    h.wall_clock_seed = &WallClockSeed;
+    h.session_seed = &SessionSeedCb;
     h.cumulative_factor = &CumulativeFactor;
     h.water_value = &WaterValue;
     // occupants

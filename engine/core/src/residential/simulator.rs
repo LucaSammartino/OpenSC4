@@ -22,7 +22,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use crate::grid::{GridProvider, ScanIterator, TractGrid, MAX_TRACTS};
-use crate::rng::{derive_seed, RzRandom, SeedSource, CLOCK_SEED};
+use crate::rng::{RzRandom, SeedSource, CLOCK_SEED};
 use crate::x87::{ftol32, mul_i64_f32, rhe, u32_to_float};
 
 use super::education_health::{OrdinanceEffect, Service};
@@ -31,7 +31,7 @@ use super::tuning::{le_curve, new_ages_by_wealth, pct, workforce_curve, Populati
 use super::{
     group, history, instance, msg, state as st, wealth, CreatedEffect, DepartmentBlock, OccupantLists, ResidentialHost,
     ResidentialMessage, ResidentialRandom, AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, AGE_BUCKETS,
-    BUILDING_PURPOSE_RESIDENTIAL, BUZZARDS_EFFECT, CLSID_RESIDENTIAL_SIMULATOR, DEFAULT_TRACT_SIZE,
+    BUILDING_PURPOSE_RESIDENTIAL, BUZZARDS_EFFECT, DEFAULT_TRACT_SIZE,
     DEFAULT_WORK_BUDGET, DEVELOPERS, MAX_QUOTIENT, OCCUPANT_TYPE_BUILDING, PROP_AUTO_BUDGET, PROXIMITY_TRACT_SIZE,
 };
 
@@ -298,7 +298,7 @@ impl ResidentialRng {
     /// generator seeded from the wall clock uses the owning class's GZCLSID as
     /// its constant, so `derive_seed(session, 0x4990C013)`.
     pub fn from_session(session: u32, seeds: &dyn SeedSource) -> ResidentialRng {
-        ResidentialRng(RzRandom::new(derive_seed(session, CLSID_RESIDENTIAL_SIMULATOR), seeds))
+        ResidentialRng(RzRandom::new(crate::seeding::seed(session, crate::seeding::keys::RESIDENTIAL), seeds))
     }
 }
 

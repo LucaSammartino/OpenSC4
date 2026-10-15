@@ -19,7 +19,7 @@ use super::{
     COFFEE_BAR_BUILDING, COFFEE_BAR_CFG, OCCUPANT_TYPE_BUILDING, OCCUPANT_TYPE_NETWORK, OCCUPANT_TYPE_PROP,
     PROP_NIGHT_LIGHT, PROP_ZOT_NUMBER, SUBSCRIBED, TEXTURE_RESOURCE,
 };
-use crate::rng::{derive_seed, file_seed, CrtRand, FixedSeeds, RzRandom, SeedSource};
+use crate::rng::{CrtRand, FixedSeeds, RzRandom, SeedSource};
 use crate::stl::StlHashSet;
 use crate::stream::{InStream, OutStream, RefValue};
 use crate::x87::{ftol32, r24};
@@ -159,7 +159,7 @@ pub type SharedStatics = Rc<RefCell<LotDeveloperStatics>>;
 impl LotDeveloperStatics {
     /// The statics with the file-local generator seeded with `seed` and
     /// `rand()` at its process-start state 1. Tests use a fixed seed; the
-    /// original's seed is the local wall clock XOR [`file_seed::LOT_DEVELOPER`].
+    /// original's seed is the local wall clock XOR [`crate::rng::file_seed::LOT_DEVELOPER`].
     pub fn new(seed: u32, seeds: FixedSeeds) -> SharedStatics {
         Rc::new(RefCell::new(LotDeveloperStatics {
             rng: RzRandom::new(seed, &seeds),
@@ -172,7 +172,7 @@ impl LotDeveloperStatics {
     /// The statics seeded from the session seed `session` (foundations §6.3
     /// *[choice]*): `derive_seed(session, 0x6C09C0F4)`.
     pub fn from_session(session: u32, seeds: FixedSeeds) -> SharedStatics {
-        LotDeveloperStatics::new(derive_seed(session, file_seed::LOT_DEVELOPER), seeds)
+        LotDeveloperStatics::new(crate::seeding::seed(session, crate::seeding::keys::LOT_DEVELOPER), seeds)
     }
 
     /// Appends a draw to the trace (when tracing is on).

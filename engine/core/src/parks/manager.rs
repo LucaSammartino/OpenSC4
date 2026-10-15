@@ -11,7 +11,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use crate::curve::ResponseCurve;
-use crate::rng::{derive_seed, FixedSeeds, RzRandomSuper};
+use crate::rng::RzRandomSuper;
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 
 use super::{
@@ -91,13 +91,10 @@ impl ParkManager {
     /// member generator is seeded with `derive_seed(session_seed,
     /// 0xAA3FE6BC)` (§5 *[choice]*).
     pub fn new(host: Rc<dyn ParkHost>, token: u64, session_seed: u32) -> Rc<ParkManager> {
-        let seed = derive_seed(session_seed, CLSID_PARK_MANAGER);
+        let key = crate::seeding::keys::PARK_MANAGER;
         let rng = RzRandomSuper::new(
-            seed,
-            &FixedSeeds {
-                wall_clock: seed,
-                process_clock: seed,
-            },
+            crate::seeding::seed(session_seed, key),
+            &crate::seeding::clocks(session_seed, key),
         );
         Rc::new(ParkManager {
             host,

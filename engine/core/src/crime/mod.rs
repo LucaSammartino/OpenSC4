@@ -494,6 +494,15 @@ impl CrimeShared {
         CrimeShared::new(Box::new(RzRandomSuper::new(seed, seeds)))
     }
 
+    /// Process state with the generator seeded from the session seed
+    /// (foundations §6.3 *[choice]*): `derive(0x6C09C3F6)`, the original's
+    /// `cRZTime() XOR 0x6C09C3F6` with the session seed in place of the
+    /// clock.
+    pub fn from_session(session: u32) -> Rc<CrimeShared> {
+        let key = crate::seeding::keys::CRIME;
+        CrimeShared::seeded(crate::seeding::seed(session, key), &crate::seeding::clocks(session, key))
+    }
+
     /// The loaded crime type list (`None` before the first `Init`).
     pub fn types(&self) -> Option<Rc<Vec<CrimeType>>> {
         self.types.borrow().clone()

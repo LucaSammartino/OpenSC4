@@ -345,6 +345,13 @@ impl FlammabilityRng {
         }
     }
 
+    /// Seeded with 0 like the original; the double path's clock reseed uses
+    /// `derive(GZCLSID)` (`0xE990C045`) of the session seed (foundations
+    /// §6.3 *[choice]*: a constant-seeded member keeps the constant).
+    pub fn from_session(session: u32) -> FlammabilityRng {
+        FlammabilityRng::new(&crate::seeding::clocks(session, crate::seeding::keys::FLAMMABILITY_RESEED))
+    }
+
     /// The double path's state (for tests).
     pub fn mul_state(&self) -> u32 {
         self.rz.mul_state()

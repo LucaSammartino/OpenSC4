@@ -175,7 +175,7 @@ impl TractDeveloperStatics {
     /// the session seed in place of the clock. `rand()` stays at state 1
     /// (the game never seeds it, foundations §12).
     pub fn from_session(session: u32, seeds: &dyn SeedSource) -> SharedStatics {
-        TractDeveloperStatics::new(crate::rng::derive_seed(session, super::RNG_SEED_XOR), seeds)
+        TractDeveloperStatics::new(crate::seeding::seed(session, crate::seeding::keys::TRACT_DEVELOPER), seeds)
     }
 
     /// Appends a draw to the trace (when tracing is on). The core records
@@ -2126,12 +2126,8 @@ impl TractDeveloper {
         let dev_type = h.dev_subtype(dev);
         let wealth = h.dev_wealth(dev);
         // §4.18 [choice]: tract (0, 0) seeds 0 (a clock reseed in the
-        // original); it uses the fixed substitute 1.
-        let seed = if tx == 0 && tz == 0 {
-            1
-        } else {
-            (tx.wrapping_shl(16).wrapping_add(tz)).wrapping_shl(4) as u32
-        };
+        // original); it uses the fixed substitute 1 (foundations §6.3).
+        let seed = crate::seeding::coordinate_seed((tx.wrapping_shl(16).wrapping_add(tz)).wrapping_shl(4) as u32);
         let mut g = RzRandom::new(
             seed,
             &FixedSeeds {

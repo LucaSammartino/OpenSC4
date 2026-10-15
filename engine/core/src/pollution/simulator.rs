@@ -429,13 +429,26 @@ impl PollutionSim {
     /// A new simulator with constructor values (§3); `fx_seed` seeds the
     /// visual-effect `cRZRandomSuper` (foundations §6.2, §6.3).
     pub fn new(host: Rc<dyn PollutionHost>, token: u64, fx_seed: u32, seeds: &dyn SeedSource) -> Rc<PollutionSim> {
+        PollutionSim::with_fx(host, token, RzRandomSuper::new(fx_seed, seeds))
+    }
+
+    /// A new simulator whose visual-effect generator is seeded from the
+    /// session seed (foundations §6.3 *[choice]*): the file-local
+    /// `cRZRandomSuper` takes `derive(0x4C09C4D3)`.
+    pub fn from_session(host: Rc<dyn PollutionHost>, token: u64, session: u32) -> Rc<PollutionSim> {
+        let key = crate::seeding::keys::POLLUTION_EFFECTS;
+        let fx = RzRandomSuper::new(crate::seeding::seed(session, key), &crate::seeding::clocks(session, key));
+        PollutionSim::with_fx(host, token, fx)
+    }
+
+    fn with_fx(host: Rc<dyn PollutionHost>, token: u64, fx: RzRandomSuper) -> Rc<PollutionSim> {
         Rc::new(PollutionSim {
             host,
             token: Cell::new(token),
             s: Mutex::new(PollutionState::default()),
             tuning: Mutex::new(Tuning::default()),
             crt: RefCell::new(CrtRand::default()),
-            fx: RefCell::new(RzRandomSuper::new(fx_seed, seeds)),
+            fx: RefCell::new(fx),
             shuffle_override: RefCell::new(None),
             cycle_resets: Cell::new(0),
         })

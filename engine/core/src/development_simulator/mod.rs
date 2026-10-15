@@ -744,7 +744,7 @@ impl BdsProcess {
     /// the original's `cRZTime() XOR 0x0C09C0B8` with the session seed in
     /// place of the clock.
     pub fn from_session(session: u32, seeds: &dyn SeedSource) -> SharedProcess {
-        BdsProcess::new(crate::rng::derive_seed(session, CLOCK_SEED_XOR), seeds)
+        BdsProcess::new(crate::seeding::seed(session, crate::seeding::keys::BUILDING_DEVELOPMENT), seeds)
     }
 
     /// Re-seeds the generator (the host injects the seed; the step count

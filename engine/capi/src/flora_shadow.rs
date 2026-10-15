@@ -923,7 +923,7 @@ mod tests {
         let host = crate::flora_tests::empty_host();
         unsafe {
             let reg = crate::flora::fc4_flora_registry_create(&rh);
-            let f = crate::flora::fc4_flora_create(&host, reg, 1, 1, 2);
+            let f = crate::flora::fc4_flora_create(&host, reg, 1, 1);
             let mut o = crate::test_streams::Out::default();
             assert!(crate::flora::fc4_flora_write(f, &crate::test_streams::ostream(&mut o)));
             let r = parse_record(&o.bytes).unwrap();

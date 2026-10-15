@@ -781,6 +781,17 @@ impl ProtectionRng {
     pub fn with_seed(seed: u32, seeds: &dyn SeedSource) -> ProtectionRng {
         ProtectionRng(RzRandom::new(seed, seeds))
     }
+
+    /// Seeded from the session seed (foundations §6.3 *[choice]*: a member
+    /// seeded from the clock takes `derive(GZCLSID)`: fire `0x2990C05A`,
+    /// police `0x6990C04F`).
+    pub fn from_session(kind: ProtectionKind, session: u32) -> ProtectionRng {
+        let key = match kind {
+            ProtectionKind::Fire => crate::seeding::keys::FIRE_PROTECTION,
+            ProtectionKind::Police => crate::seeding::keys::POLICE,
+        };
+        ProtectionRng::with_seed(crate::seeding::seed(session, key), &crate::seeding::clocks(session, key))
+    }
 }
 
 impl ProtectionRandom for ProtectionRng {
