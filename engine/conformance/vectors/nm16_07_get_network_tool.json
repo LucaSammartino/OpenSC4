@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "net_get_network_tool",
+  "spec": ["network-manager 3.1", "network-manager 7.1", "network-manager 16.7"],
+  "description": "Init subscribes the 11 messages in order and creates the 13 tools (types 0..12, tokens 0x7000 + type), each held by the cache. GetNetworkTool(13, *) is null; (5, false) twice returns the same cached tool without a new reference; (5, true) creates a new tool with the caller's reference. Before Init and after PreCityShutdown (which drops every tool, releasing it) the cache is null.",
+  "steps": [
+    {"op": "net_create"},
+    {"op": "net_call", "method": "get_network_tool", "args": [5, false], "expect": null},
+    {"op": "net_init", "expect": true},
+    {"op": "net_expect_events", "filter": {"event": "subscribe"}, "events": [
+      {"type": "0xA6B79602"}, {"type": "0x278E6003"}, {"type": "0xEA3B0AF1"}, {"type": "0x6A3B0AFD"},
+      {"type": "0x6AB97795"}, {"type": "0x26D31EC2"}, {"type": "0x26D31EC1"}, {"type": "0x99EF1142"},
+      {"type": "0x99EF1143"}, {"type": "0xC9DA96E8"}, {"type": "0xC9DA96E9"}
+    ]},
+    {"op": "net_expect", "state": {"initialized": true, "tools": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]}},
+    {"op": "net_init", "expect": true},
+    {"op": "net_expect_event_count", "count": 0},
+    {"op": "net_call", "method": "get_network_tool", "args": [13, false], "expect": null},
+    {"op": "net_call", "method": "get_network_tool", "args": [13, true], "expect": null},
+    {"op": "net_call", "method": "get_network_tool", "args": [5, false], "expect": {"tool": "0x7005", "type": 5}},
+    {"op": "net_call", "method": "get_network_tool", "args": [5, false], "expect": {"tool": "0x7005", "type": 5}},
+    {"op": "net_expect_refs", "refs": {"0x7005": 1}},
+    {"op": "net_clear_events"},
+    {"op": "net_call", "method": "get_network_tool", "args": [5, true], "expect": {"tool": "0x700D", "type": 5}},
+    {"op": "net_expect_events", "events": [{"event": "create_tool", "type": 5, "tool": "0x700D"}]},
+    {"op": "net_expect_refs", "refs": {"0x700D": 1, "0x7005": 1}},
+    {"op": "net_message", "type": "PreCityShutdown", "expect": true},
+    {"op": "net_call", "method": "get_network_tool", "args": [5, false], "expect": null},
+    {"op": "net_expect_refs", "refs": {"0x7000": 0, "0x7005": 0, "0x700C": 0}},
+    {"op": "net_expect", "state": {"tools": [null, null, null, null, null, null, null, null, null, null, null, null, null]}}
+  ]
+}
