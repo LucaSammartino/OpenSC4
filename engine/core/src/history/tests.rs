@@ -513,6 +513,7 @@ fn hw12_07_widened_ranges() {
     assert_eq!(widened_range(&p, 5, 12), 0..2); // the first point: no predecessor
     assert_eq!(widened_range(&p, 38, 45), 3..4); // runs to the last point: not widened
     assert_eq!(widened_range(&p, 15, 35), 1..3); // two points: as they are
+
     // HW6: from > to, neither pre-check: the first point after `to` and its
     // predecessor (test 11: 35 / 15 gives days 10 and 20).
     assert_eq!(widened_range(&p, 25, 15), 0..2);
