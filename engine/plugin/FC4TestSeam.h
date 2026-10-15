@@ -201,6 +201,11 @@
 //         and on-idle lists, the cheat manager, the timer, the tuning, the
 //         shadows' city); the other ops run one shadow event. Returns what
 //         HistClockTestSeam returns, -1 for a null argument.
+//   op 57 kFC4SeamParks           a = const FC4ParksTestInput* (the cmglue
+//         lane, cFC4Parks.h): the park host's ZooEscape post (parks §4.5) to
+//         a's message server, with void1 = a's manager and IGZUnknown = a's
+//         zoo; returns the number of posts the server accepted, -1 for a null
+//         input.
 #pragma once
 
 #include <cstdint>
@@ -264,6 +269,7 @@ enum : uint32_t {
     kFC4SeamLotDev = 52,  // the lot developer (cFC4LotDeveloper.h FC4LotDevTestInput)
     kFC4SeamZoneDev = 53,  // the zone developer (cFC4ZoneDeveloper.h FC4ZoneDevTestInput)
     kFC4SeamHistClock = 54,  // the history and clock lane
+    kFC4SeamParks = 57,         // the cmglue lane (cFC4Parks.h FC4ParksTestInput)
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

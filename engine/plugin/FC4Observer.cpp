@@ -34,6 +34,9 @@
 #include "cFC4ZoneDeveloper.h"
 #include "cFC4ZoneManager.h"
 #include "FC4TractShadow.h"
+#include "FC4CommercialShadow.h"
+#include "FC4CivicShadow.h"
+#include "FC4ParksShadow.h"
 #include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
 #include "cFC4TractDeveloper.h"
@@ -572,6 +575,9 @@ public:
             case kMsgPreCityShutdown:
                 TractShadowCityShutdown();  // tract_shadow: the forwarder's core goes with the city
                 LotDevShadowCityShutdown();
+                CommercialShadowCityShutdown();  // commercial_shadow: the shadow core goes with the city
+                CivicShadowCityShutdown();  // civic_shadow: the shadow core and its references go with the city
+                ParksShadowCityShutdown();  // parks_shadow: the same
                 AutotestOnCityShutdown(false);
                 break;
             case kMsgPostCityShutdown:

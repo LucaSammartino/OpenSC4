@@ -61,9 +61,15 @@
 #include "cFC4Clock24.h"
 #include "cFC4History.h"
 #include "FC4TractShadow.h"
+#include "FC4CommercialShadow.h"  // the cmglue lane
+#include "FC4CivicShadow.h"       // the cmglue lane
+#include "FC4ParksShadow.h"       // the cmglue lane
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
 #include "cFC4LotDeveloper.h"
+#include "cFC4Commercial.h"  // the cmglue lane: commercial, industrial
+#include "cFC4Civic.h"       // the cmglue lane: civic
+#include "cFC4Parks.h"       // the cmglue lane: parks
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
 
@@ -257,6 +263,26 @@ const ClassEntry kLotDevClasses[] = {
     {kFC4_CLSID_cSC4LotDeveloper, "cSC4LotDeveloper", &CreateFC4LotDeveloper},
 };
 
+// docs/specs/commercial-industrial.md §1. Off by default (M4 glue trial):
+// `enable = commercial` / `enable = industrial`. The growth developers and the
+// query tool read the commercial proximity grids through slot 5.
+const ClassEntry kCommercialClasses[] = {
+    {kFC4_CLSID_cSC4CommercialSimulator, "cSC4CommercialSimulator", &CreateFC4CommercialSimulator},
+};
+const ClassEntry kIndustrialClasses[] = {
+    {kFC4_CLSID_cSC4IndustrialSimulator, "cSC4IndustrialSimulator", &CreateFC4IndustrialSimulator},
+};
+// docs/specs/civic-buildings.md §1. Off by default (M4 glue trial):
+// `enable = civic`. The building menu, the advisors and Lua reach in through
+// slots 5-8.
+const ClassEntry kCivicClasses[] = {
+    {kFC4_CLSID_cSC4CivicBuildingSimulator, "cSC4CivicBuildingSimulator", &CreateFC4CivicBuildingSimulator},
+};
+// docs/specs/parks.md §1. Off by default (M4 glue trial): `enable = parks`.
+// Nothing calls into it beyond Init and Shutdown (§9).
+const ClassEntry kParkClasses[] = {
+    {kFC4_CLSID_cSC4ParkManager, "cSC4ParkManager", &CreateFC4ParkManager},
+};
 // docs/specs/zones.md §1, §1.2, §11.2, §11.3: the zone developer / lot manager
 // (city components 7 and 8). Off by default (M4 glue trial): enable = zonedev.
 // Lot creation waits for re-specs11 (CreateLot fails, logged).
@@ -291,6 +317,10 @@ const Subsystem kSubsystems[] = {
     {"traffic", nullptr, kTrafficClasses, sizeof(kTrafficClasses) / sizeof(kTrafficClasses[0]), false},
     {"tract", nullptr, kTractClasses, sizeof(kTractClasses) / sizeof(kTractClasses[0]), false},
     {"lotdev", nullptr, kLotDevClasses, sizeof(kLotDevClasses) / sizeof(kLotDevClasses[0]), false},
+    {"commercial", nullptr, kCommercialClasses, sizeof(kCommercialClasses) / sizeof(kCommercialClasses[0]), false},
+    {"industrial", nullptr, kIndustrialClasses, sizeof(kIndustrialClasses) / sizeof(kIndustrialClasses[0]), false},
+    {"civic", nullptr, kCivicClasses, sizeof(kCivicClasses) / sizeof(kCivicClasses[0]), false},
+    {"parks", nullptr, kParkClasses, sizeof(kParkClasses) / sizeof(kParkClasses[0]), false},
     {"zonedev", nullptr, kZoneDevClasses, sizeof(kZoneDevClasses) / sizeof(kZoneDevClasses[0]), false},
     {"history", nullptr, kHistoryClasses, sizeof(kHistoryClasses) / sizeof(kHistoryClasses[0]), false},
     {"clock24", nullptr, kClock24Classes, sizeof(kClock24Classes) / sizeof(kClock24Classes[0]), false},
@@ -418,6 +448,12 @@ void Resolve() {
     TractShadowStartup(enabledKey("tract"));
     // The lot developer shadow (FC4LotDevShadow.h; it compares the original lot developer).
     LotDevShadowStartup(enabledKey("lotdev"));
+    // The commercial shadow (FC4CommercialShadow.h; it compares the original commercial simulator).
+    CommercialShadowStartup(g_enabled[0], enabledKey("commercial"));
+    // The civic shadow (FC4CivicShadow.h; it compares the original civic building simulator).
+    CivicShadowStartup(g_enabled[0], enabledKey("civic"));
+    // The parks shadow (FC4ParksShadow.h; it compares the original park manager).
+    ParksShadowStartup(g_enabled[0], enabledKey("parks"));
     // The zone developer shadow (FC4ZoneDevShadow.h; it compares the original lot manager).
     ZoneDevShadowStartup(enabledKey("zonedev"));
     // The history warehouse shadow (FC4HistoryShadow.h; it follows the original warehouse).

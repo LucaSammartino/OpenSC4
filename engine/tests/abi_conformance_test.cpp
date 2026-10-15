@@ -62,6 +62,9 @@
 #include "cISC4NetworkManager.h"
 #include "cISC4NeighborDeal.h"
 #include "cISC4BuildingOccupant.h"
+#include "cISC4IndustrialSimulator.h"  // the cmglue lane
+#include "cISC4CivicBuildingSimulator.h"
+#include "cISC4ParkManager.h"
 #include "cISC4City.h"
 #include "cISC4ResidentialSimulator.h"
 #include "cISC4BuildingDevelopmentSimulator.h"

@@ -4173,3 +4173,39 @@ brackets.
   advances only about one game hour per turbo run and reaches no day/night boundary. Is that acceptable for the
   harness, or should turbo give the idle loop time? [nothing changed; normal-speed runs cover the clock (598 steps,
   323 posts in 330 s)]
+
+## From the commercial, industrial, civic and park glue (filed by the coordinator from the `cmglue` lane's report, 2026-10-15)
+
+About `docs/specs/commercial-industrial.md`, `civic-buildings.md` and `parks.md` and the replacements
+`cFC4CommercialSimulator` and `cFC4IndustrialSimulator` (`enable = commercial, industrial`),
+`cFC4CivicBuildingSimulator` (`enable = civic`) and `cFC4ParkManager` (`enable = parks`) with their shadows
+(`commercial_shadow = 1`, `civic_shadow = 1`, `parks_shadow = 1`); merged as `58b6d11`, ABI 53. The lane numbered
+these CIV-1..CIV-6, PKG-1, PKG-2 and SWEEP-1. CIV-4 is the CB6 answer, applied: civic `Read` inserts in file order at
+the head of each chain (a repeated exclusion is a no-op, a repeated status key's last value wins in place), conformance
+`cb12_09` and `cb12_10` follow it, and the civic shadow pre-reverses the chains of the original's captured record. The
+current answer is in brackets.
+
+- **CB15:** Lua `civic.get_landmark_count` has no published registry node (the budget and aura glues stub
+  `register_lua` too). [logged as not published (stub)]
+- **CB16:** `docs/abi` lists only slots 3, 5 and 6 of `cIGZCommandParameterSet`, so a Lua getter cannot append its
+  output parameter. [not published until the rows exist]
+- **CB17:** civic slot 7 `UpdateConditionalBuildingStatus`: the spec does not say how to read the caller's tooltip.
+  [read as a `cRZString`-layout begin/end pair; the status is copied, never written back]
+- **CB18:** civic `Write` returns true when the stream refuses strings (`SetGZStr` false), so a stream without string
+  support writes a short record with success. Is that the original's behaviour? [as the spec says: the result is the
+  stream error state only]
+- **CB19:** the in-memory layout of the 193-bucket status map beyond the bucket order (node allocation, erase) is not
+  specified. [a game-layout hash map whose values keep a fixed address, merged field by field with the core; the core
+  keeps the 193 order]
+- **PK10:** in game the original park manager's threshold reads 0.25 (the code default), not the exemplar value, so
+  the PK1 quirk is not observed. Why does the original not take the exemplar tuning? [the glue follows the spec
+  (exemplar tuning at the first `Init`); the shadow follows the original "as without exemplar" and says so on every
+  line]
+- **PK11:** `fc4_park_destroy` and `fc4_civic_destroy` do not release the list entries of a never-initialised object
+  (as the original's destructor, CB7), which leaks the references a `Read` took if `Init` never runs. [as the spec
+  says]
+- **CM10:** the save sweep for the commercial, industrial, civic and park records runs in `fc4-capi`
+  (`capi/src/save_sweep_tests.rs`, over the C ABI); histclock's record mode is in `fc4-formats`
+  (`formats/tests/save_records.rs`). Should the four records move there, over core-level hosts (about 100 host methods
+  and object-ID-keeping streams)? [they stay in `fc4-capi`; both read `FC4_SAVES_DIR` and both READMEs point at each
+  other]

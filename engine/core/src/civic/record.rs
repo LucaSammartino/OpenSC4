@@ -107,39 +107,26 @@ impl Reader<'_> {
     }
 }
 
-/// The file's entries without repeats, first occurrence kept (STL `insert`
-/// keeps the value already present).
-fn first_occurrences<T>(entries: Vec<(u32, T)>) -> Vec<(u32, T)> {
-    let mut seen = std::collections::HashSet::new();
-    entries.into_iter().filter(|(k, _)| seen.insert(*k)).collect()
-}
-
-/// Inserts `ids` so that the set iterates them in file order (see the
-/// module documentation of `civic`): grow first, then insert in reverse.
-fn insert_set_in_order(set: &mut StlHashSet, ids: Vec<u32>) {
-    let ids: Vec<u32> = first_occurrences(ids.into_iter().map(|k| (k, ())).collect())
-        .into_iter()
-        .map(|(k, _)| k)
-        .filter(|k| !set.contains(*k))
-        .collect();
-    set.reserve(set.len() + ids.len());
-    for k in ids.into_iter().rev() {
+/// Inserts the file's exclusion IDs in file order, each at the head of its
+/// chain (§7, QUESTIONS CB6): every chain of two or more IDs comes out
+/// reversed, and a second round trip restores it. An ID already present or
+/// repeated in the file is not inserted again (a set).
+fn insert_set_in_file_order(set: &mut StlHashSet, ids: Vec<u32>) {
+    for k in ids {
         set.insert(k);
     }
 }
 
-/// [`insert_set_in_order`] for the status map.
-fn insert_map_in_order(
+/// [`insert_set_in_file_order`] for the status map, except that a key
+/// already present or repeated in the file **overwrites** the stored status,
+/// count and text (the last value in the file wins) and keeps its position
+/// in the chain (§7, CB6).
+fn insert_map_in_file_order(
     map: &mut StlHashMap<ConditionalBuildingStatus>,
     entries: Vec<(u32, ConditionalBuildingStatus)>,
 ) {
-    let entries: Vec<_> = first_occurrences(entries)
-        .into_iter()
-        .filter(|(k, _)| !map.contains(*k))
-        .collect();
-    map.reserve(map.len() + entries.len());
-    for (k, v) in entries.into_iter().rev() {
-        map.entry(k, || v);
+    for (k, v) in entries {
+        *map.entry(k, ConditionalBuildingStatus::default) = v;
     }
 }
 
@@ -189,8 +176,8 @@ impl SaveObject for CivicSim {
         };
         let old_department = {
             let mut s = self.s.borrow_mut();
-            insert_set_in_order(&mut s.exclusions, p.exclusions);
-            insert_map_in_order(&mut s.statuses, p.statuses);
+            insert_set_in_file_order(&mut s.exclusions, p.exclusions);
+            insert_map_in_file_order(&mut s.statuses, p.statuses);
             // The lists are replaced without releasing their old entries
             // (the shared list reader, §7).
             s.disease_centers = p.disease_centers;
