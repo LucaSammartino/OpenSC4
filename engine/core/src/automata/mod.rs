@@ -100,17 +100,14 @@ pub use controller_manager::{
 };
 pub use hooks::{
     pause_all, resume_all, riot_leader_template, FireHook, FireHost, RiotHost, RiotLeader, RiotLeaders,
-    FIRE_OCCUPANT_GROUP, RIOT_CREATE_MODE, RIOT_CREATE_TAIL, RIOT_END_STATE_ARGS, RIOT_LEADER_STATE_ARGS,
-    RIOT_STAGES,
+    FIRE_OCCUPANT_GROUP, RIOT_CREATE_MODE, RIOT_CREATE_TAIL, RIOT_END_STATE_ARGS, RIOT_LEADER_STATE_ARGS, RIOT_STAGES,
 };
 pub use manager::{
     AutomataManager, CreateArgs, FerryEntry, Incident, ManagerBase, ManagerKind, ManagerPart, ManagerRecord,
     RouteElement, TrafficPart, AIRCRAFT_MANAGER_VERSION, INCIDENT_LIST_TAG, MANAGER_BASE_VERSION, MAX_COUNT_LIMIT,
     TRAFFIC_MANAGER_VERSION, WATERCRAFT_MANAGER_VERSION,
 };
-pub use script::{
-    ControllerTemplate, OccupantGroup, ScriptSource, ScriptSystem, TemplateKind, SCRIPT_SYSTEM_VERSION,
-};
+pub use script::{ControllerTemplate, OccupantGroup, ScriptSource, ScriptSystem, TemplateKind, SCRIPT_SYSTEM_VERSION};
 
 // ---- class IDs (§0, §3.5, §6.4) -----------------------------------------------------------------------------
 

@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use fc4_core::automata::{
-    self, Automaton, AutomataManager, Controller, ControllerManager, ManagerKind, ManagerPart, NoControllerHost,
+    self, AutomataManager, Automaton, Controller, ControllerManager, ManagerKind, ManagerPart, NoControllerHost,
     ScriptSystem,
 };
 use fc4_core::store::{crc32_mpeg2, CRC_LIMIT, STORE_GROUP};
@@ -106,7 +106,9 @@ fn object_for(class: u32) -> Option<Obj> {
         return Some(Obj::Script(ScriptSystem::new()));
     }
     if class == automata::CLSID_CONTROLLER_MANAGER {
-        return Some(Obj::ControllerManager(ControllerManager::new(Box::new(NoControllerHost))));
+        return Some(Obj::ControllerManager(ControllerManager::new(Box::new(
+            NoControllerHost,
+        ))));
     }
     if let Some(k) = ManagerKind::from_class(class) {
         return Some(Obj::Manager(AutomataManager::new(k)));
@@ -281,7 +283,9 @@ fn check_package<S: Source>(name: &str, pkg: &Package<S>, rep: &mut Report) {
             let s = rep.by_class.entry(class).or_default();
             s.entries += 1;
             if payload.len() >= 2 {
-                *s.versions.entry(u16::from_le_bytes([payload[0], payload[1]])).or_insert(0) += 1;
+                *s.versions
+                    .entry(u16::from_le_bytes([payload[0], payload[1]]))
+                    .or_insert(0) += 1;
             }
             *s.sizes.entry(payload.len()).or_insert(0) += 1;
             match result {
@@ -345,13 +349,7 @@ fn summary(m: &BTreeMap<impl std::fmt::Display, usize>, hex: bool, limit: usize)
     let mut v: Vec<String> = m
         .iter()
         .take(limit)
-        .map(|(k, n)| {
-            if hex {
-                format!("{k} {n}")
-            } else {
-                format!("{k}:{n}")
-            }
-        })
+        .map(|(k, n)| if hex { format!("{k} {n}") } else { format!("{k}:{n}") })
         .collect();
     if m.len() > limit {
         v.push(format!("… ({} more)", m.len() - limit));
@@ -412,7 +410,7 @@ fn sweep_automata_records() {
     let bv: BTreeMap<String, usize> = rep.base_versions.iter().map(|(c, n)| (format!("v{c}"), *n)).collect();
     println!("  automaton base versions: {}", summary(&bv, true, 10));
     println!("  controller templates: {}", summary(&rep.template_names, true, 30));
-    for (c, _) in &rep.listed {
+    for c in rep.listed.keys() {
         if !automata::RECORD_CLASSES.contains(c) {
             rep.failures
                 .push(format!("a listed class without a record here: {c:#010x}"));
@@ -422,7 +420,11 @@ fn sweep_automata_records() {
         println!("FAILURE {f}");
     }
     println!("automata_records: {} failures", rep.failures.len());
-    assert!(rep.failures.is_empty(), "{} failures (see the output)", rep.failures.len());
+    assert!(
+        rep.failures.is_empty(),
+        "{} failures (see the output)",
+        rep.failures.len()
+    );
 }
 
 // ---- synthetic records (no corpus needed) ---------------------------------------------------------------------
@@ -439,7 +441,10 @@ fn hex(s: &str) -> Vec<u8> {
 fn synthetic_records_round_trip_through_the_sweep() {
     let mut rep = Report::default();
     let cm = hex("0100 1893010A29F9E7A7 000000000000 000000000000 00000000 00000000");
-    assert_eq!(round_trip(automata::CLSID_CONTROLLER_MANAGER, &cm, &mut rep).unwrap(), cm);
+    assert_eq!(
+        round_trip(automata::CLSID_CONTROLLER_MANAGER, &cm, &mut rep).unwrap(),
+        cm
+    );
     let vm = hex("0200 0400 50010000 00 00 00000000 01000000 01000000");
     assert_eq!(round_trip(automata::CLSID_VEHICLE_MANAGER, &vm, &mut rep).unwrap(), vm);
     let mut cut = vm.clone();

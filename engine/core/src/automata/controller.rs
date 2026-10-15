@@ -13,8 +13,8 @@ use std::rc::Rc;
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 
 use super::codec::{
-    get_curve, get_ref_checked, get_refs, get_time, get_vec3, put_curve, put_refs, put_time, put_vec3,
-    ref_lists_equal, refs_equal, ControllerTime, Vec3,
+    get_curve, get_ref_checked, get_refs, get_time, get_vec3, put_curve, put_refs, put_time, put_vec3, ref_lists_equal,
+    refs_equal, ControllerTime, Vec3,
 };
 use super::script::{ControllerTemplate, TemplateKind};
 use super::{

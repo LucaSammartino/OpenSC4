@@ -14,8 +14,8 @@ use std::rc::Rc;
 use crate::stream::{InStream, OutStream, RefValue};
 
 use super::codec::{
-    get_n_refs, get_ref_checked, get_time, get_vec3, put_time, put_vec3, ref_id, ref_lists_equal, refs_equal,
-    same_ref, ControllerTime, RefId, Vec3,
+    get_n_refs, get_ref_checked, get_time, get_vec3, put_time, put_vec3, ref_id, ref_lists_equal, refs_equal, same_ref,
+    ControllerTime, RefId, Vec3,
 };
 use super::controller::{ref_is_transient, Controller};
 use super::script::{ControllerTemplate, OccupantGroup, ScriptSource};
@@ -238,7 +238,11 @@ impl ControllerManager {
 
     /// Every controller, entry by entry.
     pub fn all_controllers(&self) -> Vec<RefValue> {
-        self.rec.entries.iter().flat_map(|e| e.controllers.iter().cloned()).collect()
+        self.rec
+            .entries
+            .iter()
+            .flat_map(|e| e.controllers.iter().cloned())
+            .collect()
     }
 
     fn push_controller(&mut self, occupant: &RefValue, c: RefValue) {
@@ -249,7 +253,7 @@ impl ControllerManager {
                     self.host.add_ref(*token);
                 }
                 self.rec.entries.push(OccupantEntry {
-                occupant: occupant.clone(),
+                    occupant: occupant.clone(),
                     controllers: vec![c],
                 })
             }
@@ -305,7 +309,9 @@ impl ControllerManager {
         extra: u32,
     ) -> bool {
         let Some(s) = scripts else { return false };
-        let Some(g) = s.occupant_group_by_id(group_id) else { return false };
+        let Some(g) = s.occupant_group_by_id(group_id) else {
+            return false;
+        };
         self.add_group(s, g, occupant, extra);
         true
     }
@@ -319,7 +325,9 @@ impl ControllerManager {
         extra: u32,
     ) -> bool {
         let Some(s) = scripts else { return false };
-        let Some(g) = s.occupant_group_by_name(name) else { return false };
+        let Some(g) = s.occupant_group_by_name(name) else {
+            return false;
+        };
         self.add_group(s, g, occupant, extra);
         true
     }
@@ -383,7 +391,7 @@ impl ControllerManager {
     fn remove_group(&mut self, group: OccupantGroup, occupant: &RefValue) -> usize {
         let names = group.templates;
         self.remove_where(occupant, move |c| {
-            Self::template_of(c).is_some_and(|n| names.iter().any(|x| *x == n))
+            Self::template_of(c).is_some_and(|n| names.contains(&n))
         })
     }
 
@@ -449,7 +457,9 @@ impl ControllerManager {
             let mut unknown: Vec<RefId> = Vec::new();
             for c in self.controllers_of(&occ) {
                 let RefValue::Object(o) = &c else { continue };
-                let Ok(ctl) = o.clone().as_any_rc().downcast::<Controller>() else { continue };
+                let Ok(ctl) = o.clone().as_any_rc().downcast::<Controller>() else {
+                    continue;
+                };
                 let name = ctl.template_name();
                 match scripts.controller_template(&name) {
                     Some(t) => {
@@ -490,7 +500,12 @@ impl ControllerManager {
             .rec
             .entries
             .iter()
-            .map(|e| (&e.occupant, e.controllers.iter().filter(|c| !self.transient(c)).collect::<Vec<_>>()))
+            .map(|e| {
+                (
+                    &e.occupant,
+                    e.controllers.iter().filter(|c| !self.transient(c)).collect::<Vec<_>>(),
+                )
+            })
             .filter(|(_, cs)| !cs.is_empty())
             .collect();
         out.put_u32(saved.len() as u32);

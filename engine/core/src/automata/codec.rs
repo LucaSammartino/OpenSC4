@@ -156,9 +156,16 @@ pub fn same_ref(a: &RefValue, b: &RefValue) -> bool {
 pub fn refs_equal(a: &RefValue, b: &RefValue) -> bool {
     match (a, b) {
         (RefValue::Null, RefValue::Null) => true,
-        (RefValue::Host { token: t1, class_id: c1 }, RefValue::Host { token: t2, class_id: c2 }) => {
-            t1 == t2 && c1 == c2
-        }
+        (
+            RefValue::Host {
+                token: t1,
+                class_id: c1,
+            },
+            RefValue::Host {
+                token: t2,
+                class_id: c2,
+            },
+        ) => t1 == t2 && c1 == c2,
         (RefValue::Object(_), RefValue::Object(_)) => same_ref(a, b),
         _ => false,
     }

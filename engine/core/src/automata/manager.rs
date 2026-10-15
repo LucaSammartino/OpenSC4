@@ -15,8 +15,8 @@ use crate::stream::{InStream, OutStream, RefValue};
 
 use super::automaton::{Automaton, AutomatonRecord, PedestrianRecord, VehicleRecord};
 use super::codec::{
-    get_byte_vec, get_n_refs, get_ref_checked, get_refs, get_vec3, put_byte_vec, put_vec3, ref_lists_equal,
-    refs_equal, same_ref, Vec3,
+    get_byte_vec, get_n_refs, get_ref_checked, get_refs, get_vec3, put_byte_vec, put_vec3, ref_lists_equal, refs_equal,
+    same_ref, Vec3,
 };
 use super::{
     CLSID_AIRCRAFT_MANAGER, CLSID_PEDESTRIAN_MANAGER, CLSID_VEHICLE_MANAGER, CLSID_WATERCRAFT_MANAGER, IID_AUTOMATON,
@@ -344,8 +344,7 @@ pub enum ManagerPart {
 
 fn pairs_equal(a: &[(RefValue, RefValue)], b: &[(RefValue, RefValue)]) -> bool {
     a.len() == b.len()
-        && a
-            .iter()
+        && a.iter()
             .zip(b)
             .all(|(x, y)| refs_equal(&x.0, &y.0) && refs_equal(&x.1, &y.1))
 }
@@ -354,13 +353,9 @@ impl PartialEq for ManagerPart {
     fn eq(&self, o: &Self) -> bool {
         match (self, o) {
             (ManagerPart::Traffic(a), ManagerPart::Traffic(b)) => a == b,
-            (
-                ManagerPart::Aircraft { pairs, spots },
-                ManagerPart::Aircraft {
-                    pairs: p2,
-                    spots: s2,
-                },
-            ) => pairs_equal(pairs, p2) && spots == s2,
+            (ManagerPart::Aircraft { pairs, spots }, ManagerPart::Aircraft { pairs: p2, spots: s2 }) => {
+                pairs_equal(pairs, p2) && spots == s2
+            }
             (
                 ManagerPart::Watercraft {
                     lots,
@@ -634,7 +629,10 @@ impl ManagerRecord {
             let n = inp.get_u32()?;
             let mut pairs = Vec::new();
             for _ in 0..n {
-                pairs.push((get_ref_checked(inp, IID_OCCUPANT)?, get_ref_checked(inp, IID_AUTOMATON)?));
+                pairs.push((
+                    get_ref_checked(inp, IID_OCCUPANT)?,
+                    get_ref_checked(inp, IID_AUTOMATON)?,
+                ));
             }
             let m = inp.get_u32()?;
             let mut spots = Vec::new();

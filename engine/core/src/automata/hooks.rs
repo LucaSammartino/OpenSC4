@@ -142,7 +142,9 @@ impl RiotLeaders {
     /// as occupant, "riot_leader_<stage>", 0)`. Returns whether the call was
     /// made.
     pub fn set_stage(&mut self, host: &mut dyn RiotHost, index: usize, stage: i32) -> bool {
-        let Some(l) = self.leaders.get_mut(index) else { return false };
+        let Some(l) = self.leaders.get_mut(index) else {
+            return false;
+        };
         l.stage = stage;
         if stage <= l.max_stage || stage >= RIOT_STAGES {
             return false;

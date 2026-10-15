@@ -187,9 +187,14 @@ impl PartialEq for StateExtra {
             (T0F(x), T0F(y)) => x == y,
             (PlayerDrive(x), PlayerDrive(y)) => x == y,
             (T11(x), T11(y)) => x == y,
-            (AttachAnim { model, a, b }, AttachAnim { model: m2, a: a2, b: b2 }) => {
-                refs_equal(model, m2) && a == a2 && b == b2
-            }
+            (
+                AttachAnim { model, a, b },
+                AttachAnim {
+                    model: m2,
+                    a: a2,
+                    b: b2,
+                },
+            ) => refs_equal(model, m2) && a == a2 && b == b2,
             (T15(x), T15(y)) => x == y,
             (Chase(x), Chase(y)) => refs_equal(x, y),
             _ => false,
