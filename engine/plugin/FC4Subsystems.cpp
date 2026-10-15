@@ -56,6 +56,8 @@
 #include "cFC4TrafficSimulator.h"
 #include "FC4TractShadow.h"
 #include "cFC4TractDeveloper.h"
+#include "FC4LotDevShadow.h"
+#include "cFC4LotDeveloper.h"
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
 
@@ -230,6 +232,13 @@ const ClassEntry kTractClasses[] = {
     {kFC4_CLSID_cSC4TractDeveloper, "cSC4TractDeveloper", &CreateFC4TractDeveloper},
 };
 
+// docs/specs/lot-developer.md §1. Off by default (M4 glue trial):
+// `enable = lotdev`. The BDS, the tract developer, the lot manager, the
+// occupant and prop managers stay whoever the city runs.
+const ClassEntry kLotDevClasses[] = {
+    {kFC4_CLSID_cSC4LotDeveloper, "cSC4LotDeveloper", &CreateFC4LotDeveloper},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -256,6 +265,7 @@ const Subsystem kSubsystems[] = {
      false},
     {"traffic", nullptr, kTrafficClasses, sizeof(kTrafficClasses) / sizeof(kTrafficClasses[0]), false},
     {"tract", nullptr, kTractClasses, sizeof(kTractClasses) / sizeof(kTractClasses[0]), false},
+    {"lotdev", nullptr, kLotDevClasses, sizeof(kLotDevClasses) / sizeof(kLotDevClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -378,6 +388,8 @@ void Resolve() {
     DevelopmentShadowStartup(g_enabled[0], enabledKey("development"));
     // The tract developer shadow (FC4TractShadow.h; it compares the original tract developer).
     TractShadowStartup(enabledKey("tract"));
+    // The lot developer shadow (FC4LotDevShadow.h; it compares the original lot developer).
+    LotDevShadowStartup(enabledKey("lotdev"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.

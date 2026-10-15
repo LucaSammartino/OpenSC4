@@ -37,6 +37,7 @@ FC4 = os.path.join(ENGINE, "plugin", "FC4Interfaces.h")
 FC4C = os.path.join(ENGINE, "plugin", "FC4CrimeInterfaces.h")
 FCD = os.path.join(ENGINE, "plugin", "FC4DevelopmentInterfaces.h")
 FC4T = os.path.join(ENGINE, "plugin", "FC4TractInterfaces.h")
+FCL = os.path.join(ENGINE, "plugin", "FC4LotDevInterfaces.h")
 FCW = os.path.join(ENGINE, "plugin", "FC4WinInterfaces.h")
 
 # (table interface, class, header, required)
@@ -244,6 +245,13 @@ INTERFACES = [
     # configuration manager through the compiled slot order (slot 9's set is
     # the game's hash_set; the SDK row above stays for other glue's calls).
     ("cISC4LotConfigurationManager", "cFC4ISC4LotConfigurationManager", FC4T, True),
+    # The lot developer (docs/specs/lot-developer.md section 11): implemented through
+    # the compiled slot order (the SDK row above stays for other glue's calls), its
+    # sub-object interfaces, and the animation-tick manager it registers with.
+    ("cISC4LotDeveloper", "cFC4ISC4LotDeveloper", FCL, True),
+    ("cIGZMessageTarget2(LotDeveloper)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cIGZSerializable(LotDeveloper)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("vt:cSC4AnimationTickManager::vftable", "cFC4ISC4AnimationTickManager", FCL, True),
     # The dialog closer (docs/specs/modal-dialogs.md section 3.2; tooling switch
     # close_dialogs): the window manager and the window through the compiled
     # slot order (the SDK headers are wrong for these slots), the legacy message

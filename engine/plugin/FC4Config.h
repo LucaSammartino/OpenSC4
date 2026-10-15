@@ -110,6 +110,13 @@
 //   tract_seed = N                the tract developer generator's session seed
 //                                 (default: the cRZTime clock; cFC4TractDeveloper.cpp)
 //   tract_grow_log = 0 / 1        one line per Grow call (default 0; enable = tract)
+//   lotdev_shadow = 0 / 1         the lot developer shadow (default 0; needs the
+//                                 ORIGINAL lot developer: do not enable lotdev;
+//                                 FC4LotDevShadow.h)
+//   lotdev_seed = N               the lot developer generator's session seed
+//                                 (default: the cRZTime clock; cFC4LotDeveloper.cpp)
+//   lotdev_lot_log = 0 / 1        one line per lot change of the daily pass (SetState,
+//                                 SetCondition, zot; default 0; enable = lotdev)
 //   growth_probe = 0 / 1          the growth calibration probe (default 0; needs the
 //                                 ORIGINAL BDS and tract developer; counts the tract
 //                                 developer's Grow calls per game day; env
@@ -428,6 +435,19 @@ enum class Sw : unsigned {
     TractRoads,         // tract_roads: the configurations' GetRequiredRoads (off: no road required)
     TractFamilySets,    // tract_family_sets: the BDS's GetBuildingTypesByFamily (off: no building)
     TractAgents,        // tract_agents: AddAgent / RemoveAgent (off: not registered, no Year message)
+    // Lot developer host callbacks (FC4LotDevHost.cpp), one per group of game
+    // calls; only used when the lotdev subsystem is enabled.
+    LotdevLotWrites,     // lotdev_lot_writes: lot SetState / SetCondition / flags / configuration / properties
+                         //   and the other lot setters (off: not written)
+    LotdevBuildings,     // lotdev_buildings: BDS AddNewBuildingOccupant and the construction occupant (off: none)
+    LotdevDemolition,    // lotdev_demolition: RemoveOccupant, DemolishOccupant, DemolishLots, DeleteLot (off:
+                         //   nothing removed)
+    LotdevProps,         // lotdev_props: props, zots, flora and rubble (off: none added or removed)
+    LotdevTextures,      // lotdev_textures: the base-texture occupants (off: none made or changed)
+    LotdevTerrain,       // lotdev_terrain: ModifyTerrainHeight and the foundation occupants (off: refused)
+    LotdevNight,         // lotdev_night: building SetLit and the night-light prop messages (off: not sent)
+    LotdevUnits,         // lotdev_units: the business units (off: none made, joined or left)
+    LotdevAgents,        // lotdev_agents: AddAgent / RemoveAgent and the animation tick (off: not registered)
     Count
 };
 
