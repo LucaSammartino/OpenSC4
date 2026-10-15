@@ -29,6 +29,10 @@ impl BuildingProfile {
         let wealth = if raw_wealth <= 3 { raw_wealth } else { 0 };
         let purpose = props::u32_of(h, prop::PURPOSE).unwrap_or(0) as u8;
         let mut capacities = BTreeMap::new();
+        // DG11 (§4.7.1): presence, not the value count, decides whether the
+        // game profile gets a capacity map; an unpaired last value is
+        // ignored [choice].
+        let capacities_present = h.get(prop::CAPACITY_SATISFIED).is_some();
         for (t, amount) in props::u32_pairs(h, prop::CAPACITY_SATISFIED) {
             capacities.insert(t, amount as u16);
         }
@@ -48,6 +52,7 @@ impl BuildingProfile {
             wealth,
             purpose,
             capacities,
+            capacities_present,
             capacity,
             flag_27812836: props::bool_of(h, prop::FLAG_27812836).unwrap_or(false),
             value_499afa38: props::u32_of(h, prop::VALUE_499AFA38).map_or(30, |v| v as u8),
@@ -127,6 +132,8 @@ impl BuildingCatalogue {
         *self.keys.entry(t, ResKey::default) = key;
         let name = props::string_of(h, prop::EXEMPLAR_NAME).unwrap_or_default();
         *self.exemplar_names.entry(t, Vec::new) = name;
+        // DG14 (§4.7.1): the localized LTEXT (0x8A416A99), else property
+        // 0x899AFBAD, else "".
         let bname = localized_name
             .or_else(|| props::string_of(h, prop::BUILDING_NAME))
             .unwrap_or_default();
@@ -360,7 +367,7 @@ impl BuildingCatalogue {
     }
 
     /// `GetMaxCapacity(zone, p, w)` (45): `float(trunc(entry))`, 0.0 when
-    /// absent.
+    /// absent (DG19, §4.7.4: a zone outside 0..15 is never a key, so 0.0).
     pub fn max_capacity(&self, zone: u32, purpose: u32, wealth: u32) -> f32 {
         match self.density(zone, building_map_key(purpose, wealth)) {
             Some(v) => ftol32(f64::from(v)) as f32,

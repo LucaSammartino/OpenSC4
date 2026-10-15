@@ -1191,7 +1191,11 @@ impl DevelopmentSim {
             pos[1] = h.area_altitude_cells(cells, false, true);
         }
         // Step 5: a NaN base counts as >= 0.
-        let b = if base < 0.0 { h.area_altitude_cells(cells, true, true) } else { base };
+        let b = if base < 0.0 {
+            h.area_altitude_cells(cells, true, true)
+        } else {
+            base
+        };
         let mut height = r24(f64::from(pos[1]) - f64::from(b));
         if height < 0.5 {
             height = 0.5;
@@ -1287,6 +1291,8 @@ impl DevelopmentSim {
                 lot,
                 data1: (u32::from(stage) << 24) | dt,
             };
+            // DG16 (§4.10): the original fills a subject and pushes the event
+            // with a null one; the host pushes null and may skip the subject.
             h.push_advisor_event(CITY_PLANNING_ADVISOR, HIGHEST_STAGE_EVENT, &subject);
         }
     }

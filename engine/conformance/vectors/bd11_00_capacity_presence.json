@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "bds_capacity_map_presence",
+  "spec": ["building-development 4.7.1"],
+  "description": "DG11 (4.7.1): when property 0x27812834 exists, the profile's capacity vector gets exactly one map, even when the property has no values (an empty map); only a missing property leaves the vector empty. An unpaired last value is ignored [choice]. Type 0x100 has the pair (0x1010, 5); 0x101 a present but empty 0x27812834; 0x102 none; 0x103 (0x1010, 7, 99) with an odd count. capacities_present is what the plugin's mirror turns into the one map (null: no profile).",
+  "steps": [
+    {"op": "bds_process", "seed": 1},
+    {"op": "bds_exemplars", "list": [
+      {"building": "0x100", "purpose": 1, "wealth": 1, "capacity": 5},
+      {"building": "0x101", "purpose": 1, "wealth": 1, "props": {"0x27812834": {"u32": []}}},
+      {"building": "0x102", "purpose": 1, "wealth": 1},
+      {"building": "0x103", "purpose": 1, "wealth": 1, "props": {"0x27812834": {"u32": [4112, 7, 99]}}}]},
+    {"op": "bds_create"},
+    {"op": "bds_init", "expect": true},
+    {"op": "bds_call", "method": "capacities_present", "args": ["0x100"], "expect": true},
+    {"op": "bds_call", "method": "capacities_present", "args": ["0x101"], "expect": true},
+    {"op": "bds_call", "method": "capacities_present", "args": ["0x102"], "expect": false},
+    {"op": "bds_call", "method": "capacities_present", "args": ["0x103"], "expect": true},
+    {"op": "bds_call", "method": "capacities_present", "args": ["0x104"], "expect": null},
+    {"op": "bds_call", "method": "profile_ptr", "args": ["0x100"], "expect": {"purpose": 1, "wealth": 1, "capacity": 5, "size": [0, 0, 0]}},
+    {"op": "bds_call", "method": "profile_ptr", "args": ["0x101"], "expect": {"purpose": 1, "wealth": 1, "capacity": 0, "size": [0, 0, 0]}},
+    {"op": "bds_call", "method": "profile_ptr", "args": ["0x103"], "expect": {"purpose": 1, "wealth": 1, "capacity": 7, "size": [0, 0, 0]}}
+  ]
+}

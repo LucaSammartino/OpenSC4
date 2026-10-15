@@ -1641,6 +1641,10 @@ fn call(w: &World, op: &Json) -> R<()> {
                 ]),
             }
         }
+        // DG11: whether the game profile gets one capacity map (null: no profile).
+        "capacities_present" => s
+            .building_profile_ptr(a_u32(0)?)
+            .map_or(Json::Null, |p| Json::Bool(p.capacities_present)),
         "building_key" => key_json(s.building_key_from_type(a_u32(0)?)),
         "foundation_key" => key_json(s.foundation_key_from_type(a_u32(0)?)),
         "wall_key" => key_json(s.retaining_wall_key_from_type(a_u32(0)?)),
