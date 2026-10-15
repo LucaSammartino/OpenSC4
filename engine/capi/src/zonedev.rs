@@ -55,7 +55,8 @@ use fc4_core::property::PropertyHolder;
 use fc4_core::rng::{derive_seed, FixedSeeds};
 use fc4_core::stream::{InStream, RefValue, SaveObject};
 use fc4_core::zones::{
-    developer_answers_iid, BuildingProfile, CellRegion, Component, GrowthItem, InsertionPoint, Position, Service,
+    developer_answers_iid, BuildingProfile, CellRegion, Component, GrowthItem, InsertionPoint, LotObject, Position,
+    Service,
     SharedZoneStatics, ZoneDeveloper, ZoneDeveloperStatics, ZonesHost, ZonesMessage, CLSID_ZONE_DEVELOPER, IID_LOT,
     RNG_SEED_XOR,
 };
@@ -131,6 +132,26 @@ pub struct fc4_zonedev_state {
     pub max_capacity_grid: u64,
 }
 
+/// One lot configuration object record (fc4.h `fc4_zonedev_cfg_object`,
+/// lot configuration slot 23, §8.4.1).
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct fc4_zonedev_cfg_object {
+    pub kind: u8,
+    pub orientation: u8,
+    pub reserved: [u8; 2],
+    pub min_x: f32,
+    pub min_z: f32,
+    pub max_x: f32,
+    pub max_z: f32,
+    /// `values[0..n_values]`, borrowed for the call.
+    pub values: *const u32,
+    pub n_values: usize,
+}
+
+pub type fc4_zonedev_cfg_object_callback =
+    Option<unsafe extern "C" fn(ctx: *mut c_void, obj: *const fc4_zonedev_cfg_object)>;
+
 /// Everything the zone developer asks of the game (fc4.h
 /// `fc4_zonedev_host`).
 #[repr(C)]
@@ -170,7 +191,7 @@ pub struct fc4_zonedev_host {
     /// Network tool `kind` (3 or 11) slot 9 `OccupantExists(x, z, flag,
     /// mask)`: true with `mask[0..4]` written, or false (mask untouched).
     pub network_tool_occupant_exists: Option<unsafe extern "C" fn(U, u32, i32, i32, u32, *mut u8) -> bool>,
-    /// InsertOccupant step 3 (§5.2): the street-joining helper for data4.
+    /// Not called since ABI 54 (the joins are the core's, §5.2.1–§5.2.2).
     pub street_joining_helper: Option<unsafe extern "C" fn(U, u64, u32)>,
     // terrain
     pub cell_has_water: Option<unsafe extern "C" fn(U, i32, i32) -> bool>,
@@ -264,13 +285,51 @@ pub struct fc4_zonedev_host {
     pub master_remove: Option<unsafe extern "C" fn(U, u64)>,
     /// The list replaced by `lots[0..n]` (`Read`; empty at `Shutdown`).
     pub master_reset: Option<unsafe extern "C" fn(U, *const u64, usize)>,
+    // ABI 54 (re-specs11)
+    /// Lot developer slot 29 `GetAreaSlope(rect, withWater)` (ST0).
+    pub area_slope: Option<unsafe extern "C" fn(U, *const fc4_cell_rect, bool) -> f32>,
+    /// Lot configuration slot 8 `GetMaximumSlope` (ST0).
+    pub cfg_max_slope: Option<unsafe extern "C" fn(U, u64) -> f32>,
+    /// Lot configuration slot 23: `cb(ctx, obj)` once per record, in order.
+    pub cfg_objects: Option<unsafe extern "C" fn(U, u64, fc4_zonedev_cfg_object_callback, U)>,
+    /// Network occupant slot 12 `GetNetworkFlags`.
+    pub network_flags: Option<unsafe extern "C" fn(U, u64) -> u32>,
+    /// Network occupant slot 8 (every bit of `mask`).
+    pub network_has_all_flags: Option<unsafe extern "C" fn(U, u64, u32) -> bool>,
+    /// Network occupant slot 38 `GetEdgeTypesFlag(type)`.
+    pub network_edge_mask: Option<unsafe extern "C" fn(U, u64, u32) -> u32>,
+    /// Network occupant slot 22 `IsOfType(type)`: 1 / 0, or −1 when not a
+    /// network occupant.
+    pub network_is_of_type: Option<unsafe extern "C" fn(U, u64, u32) -> i32>,
+    /// Network occupant slot 17 (the flag `0x400000` test).
+    pub network_is_flag_0x400000: Option<unsafe extern "C" fn(U, u64) -> bool>,
+    /// Occupant slot 11 `GetBoundingCityCells`.
+    pub occupant_bounding_cells: Option<unsafe extern "C" fn(U, u64, *mut fc4_cell_rect)>,
+    /// Whether the network tool of `kind` (0, 3, 11) is held.
+    pub network_tool_present: Option<unsafe extern "C" fn(U, u32) -> bool>,
+    /// Tool `kind`'s `PlaceNetworkOccupants(a, b, 0, null, 1, −1)`.
+    pub network_tool_join: Option<unsafe extern "C" fn(U, u32, i32, i32, i32, i32)>,
+    /// Terrain slot 35 `CellHasLand`.
+    pub cell_has_land: Option<unsafe extern "C" fn(U, i32, i32) -> bool>,
+    /// City slot 99 `CellIsInBounds`.
+    pub cell_is_in_bounds: Option<unsafe extern "C" fn(U, i32, i32) -> bool>,
+    /// Surface water slot 8 `IsNavigable(x, z, 0, null)`.
+    pub is_navigable: Option<unsafe extern "C" fn(U, i32, i32) -> bool>,
+    /// Lot slot 32 `UpdateZoneType`.
+    pub lot_update_zone_type: Option<unsafe extern "C" fn(U, u64)>,
+    /// Lot developer slot 46 `GetForceEmptyLotBaseTextures`.
+    pub force_empty_lot_base_textures: Option<unsafe extern "C" fn(U) -> bool>,
+    /// Zone manager slot 11 `PlaceZone(region, 0, 1, 1, 0, 1, 0, null, null,
+    /// null)` (§7.2.2 step 3).
+    pub zone_manager_dezone: Option<unsafe extern "C" fn(U, *const fc4_zone_region)>,
 }
 
 const _: () = {
     assert!(std::mem::size_of::<fc4_zonedev_profile>() == 12);
     assert!(std::mem::size_of::<fc4_zonedev_parcel_result>() == 32);
     assert!(std::mem::size_of::<fc4_zonedev_state>() == 56);
-    assert!(std::mem::size_of::<fc4_zonedev_host>() == if cfg!(target_pointer_width = "32") { 332 } else { 664 });
+    assert!(std::mem::size_of::<fc4_zonedev_host>() == if cfg!(target_pointer_width = "32") { 400 } else { 800 });
+    assert!(std::mem::size_of::<fc4_zonedev_cfg_object>() == if cfg!(target_pointer_width = "32") { 28 } else { 40 });
 };
 
 // ---- host adapter -----------------------------------------------------------------------------------
@@ -354,6 +413,26 @@ unsafe extern "C" fn push_u32(ctx: *mut c_void, v: u32) {
     if let Some(out) = (ctx as *mut Vec<u32>).as_mut() {
         out.push(v);
     }
+}
+
+unsafe extern "C" fn push_cfg_object(ctx: *mut c_void, obj: *const fc4_zonedev_cfg_object) {
+    let (Some(out), Some(o)) = ((ctx as *mut Vec<LotObject>).as_mut(), obj.as_ref()) else {
+        return;
+    };
+    let values = if o.values.is_null() || o.n_values == 0 {
+        Vec::new()
+    } else {
+        std::slice::from_raw_parts(o.values, o.n_values).to_vec()
+    };
+    out.push(LotObject {
+        kind: o.kind,
+        orientation: o.orientation,
+        min_x: o.min_x,
+        min_z: o.min_z,
+        max_x: o.max_x,
+        max_z: o.max_z,
+        values,
+    });
 }
 
 unsafe extern "C" fn take_growth_items(ctx: *mut c_void, items: *const fc4_growth_item, n: usize) {
@@ -581,6 +660,33 @@ impl ZonesHost for CHost {
         }
         cb!(self, street_joining_helper, (), occupant, data4)
     }
+    fn network_flags(&self, occupant: u64) -> u32 {
+        cb!(self, network_flags, 0, occupant)
+    }
+    fn network_has_all_flags(&self, occupant: u64, mask: u32) -> bool {
+        cb!(self, network_has_all_flags, false, occupant, mask)
+    }
+    fn network_edge_mask(&self, occupant: u64, net_type: u32) -> u32 {
+        cb!(self, network_edge_mask, 0, occupant, net_type)
+    }
+    fn network_is_of_type(&self, occupant: u64, net_type: u32) -> Option<bool> {
+        match cb!(self, network_is_of_type, -1, occupant, net_type) {
+            v if v < 0 => None,
+            v => Some(v != 0),
+        }
+    }
+    fn network_is_flag_0x400000(&self, occupant: u64) -> bool {
+        cb!(self, network_is_flag_0x400000, false, occupant)
+    }
+    fn network_tool_present(&self, kind: u32) -> bool {
+        cb!(self, network_tool_present, false, kind)
+    }
+    fn network_tool_join(&self, kind: u32, a: (i32, i32), b: (i32, i32)) {
+        if self.shadow {
+            return self.swallow();
+        }
+        cb!(self, network_tool_join, (), kind, a.0, a.1, b.0, b.1)
+    }
 
     // ---- terrain ----
     fn cell_has_water(&self, x: i32, z: i32) -> bool {
@@ -591,6 +697,22 @@ impl ZonesHost for CHost {
     }
     fn terrain_vertex_altitude(&self, vx: i32, vz: i32) -> f32 {
         cb!(self, terrain_vertex_altitude, 0.0, vx, vz)
+    }
+    fn cell_has_land(&self, x: i32, z: i32) -> bool {
+        cb!(self, cell_has_land, true, x, z)
+    }
+    fn cell_is_in_bounds(&self, x: i32, z: i32) -> bool {
+        match self.c.cell_is_in_bounds {
+            // SAFETY: valid callback.
+            Some(f) => unsafe { f(self.c.user, x, z) },
+            None => {
+                let (cx, cz) = self.city_cell_counts();
+                (0..cx).contains(&x) && (0..cz).contains(&z)
+            }
+        }
+    }
+    fn is_navigable(&self, x: i32, z: i32) -> bool {
+        cb!(self, is_navigable, false, x, z)
     }
 
     // ---- city and occupants ----
@@ -626,8 +748,11 @@ impl ZonesHost for CHost {
         cb!(self, occupant_position, (), occupant, p.as_mut_ptr());
         p
     }
-    fn occupant_bounding_cells(&self, _occupant: u64) -> CellRect {
-        CellRect::new(0, 0, -1, -1)
+    fn occupant_bounding_cells(&self, occupant: u64) -> CellRect {
+        if self.c.occupant_bounding_cells.is_none() {
+            return CellRect::new(0, 0, -1, -1);
+        }
+        self.rect_of(|out| cb!(self, occupant_bounding_cells, (), occupant, out))
     }
     fn occupant_can_remove(&self, _occupant: u64, _flags: u32) -> bool {
         false
@@ -731,6 +856,12 @@ impl ZonesHost for CHost {
         }
         cb!(self, lot_set_vertices_locked, (), lot, locked)
     }
+    fn lot_update_zone_type(&self, lot: u64) {
+        if self.shadow {
+            return self.swallow();
+        }
+        cb!(self, lot_update_zone_type, (), lot)
+    }
     /// The save writes the lot by reference (`WriteGZSerializable`, §10.2).
     fn lot_ref(&self, lot: u64) -> RefValue {
         RefValue::Host {
@@ -783,6 +914,25 @@ impl ZonesHost for CHost {
         };
         present.then_some(ids)
     }
+    fn cfg_max_slope(&self, cfg: u64) -> f32 {
+        cb!(self, cfg_max_slope, f32::MAX, cfg)
+    }
+    fn cfg_objects(&self, cfg: u64) -> Vec<LotObject> {
+        let Some(f) = self.c.cfg_objects else {
+            return Vec::new();
+        };
+        let mut v: Vec<LotObject> = Vec::new();
+        // SAFETY: valid callback; `v` outlives the call.
+        unsafe {
+            f(
+                self.c.user,
+                cfg,
+                Some(push_cfg_object),
+                &mut v as *mut Vec<LotObject> as *mut c_void,
+            )
+        };
+        v
+    }
     fn lot_configurations(&self) -> Vec<u64> {
         let Some(f) = self.c.lot_configurations else {
             return Vec::new();
@@ -795,8 +945,9 @@ impl ZonesHost for CHost {
     }
 
     // ---- lot developer ----
-    fn area_slope(&self, _rect: CellRect, _with_water: bool) -> f32 {
-        0.0
+    fn area_slope(&self, rect: CellRect, with_water: bool) -> f32 {
+        let r = fc4_cell_rect::from(rect);
+        cb!(self, area_slope, 0.0, &r, with_water)
     }
     fn attempt_area_levelling(&self, rect: CellRect) {
         if self.shadow {
@@ -829,6 +980,16 @@ impl ZonesHost for CHost {
             return self.swallow();
         }
         cb!(self, set_empty_lot_base_texture, (), lot)
+    }
+    fn force_empty_lot_base_textures(&self) -> bool {
+        cb!(self, force_empty_lot_base_textures, false)
+    }
+    fn zone_manager_dezone(&self, region: &CellRegion) {
+        if self.shadow {
+            return self.swallow();
+        }
+        let (_bytes, raw) = region_raw(region);
+        cb!(self, zone_manager_dezone, (), &raw)
     }
 
     // ---- traffic simulator ----
@@ -1544,6 +1705,20 @@ pub unsafe extern "C" fn fc4_zonedev_can_create_lot(
     dev(p, 0, |d| {
         d.can_create_lot_cfg(x, z, w, h, zone_not_needed, water_allowed, opt(cfg))
     })
+}
+
+/// Slot 21 `CanCreatePloppedLot(rect, facing, cfg)` (§8.4.1): 0 outside, 1
+/// water, 3 network, 4 too steep, 5 / 6 constraint tile, 7 special zone, 8
+/// free. A NULL rect gives 0. Writes nothing.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_zonedev_can_create_plopped_lot(
+    p: *const fc4_zonedev,
+    rect: *const fc4_cell_rect,
+    facing: i32,
+    cfg: u64,
+) -> i32 {
+    let Some(r) = rect_in(rect) else { return 0 };
+    dev(p, 0, |d| d.can_create_plopped_lot(r, facing, cfg))
 }
 
 /// Slot 22 `CreateLotIfPossible(x, z, w, h, facing, out, zoneNotNeeded,

@@ -65,6 +65,7 @@
 #include "cISC4TrafficSimulator.h"
 #include "cISC4ZoneManager.h"
 #include "cISTETerrain.h"
+#include "SC4Vector.h"
 #include "cS3DVector3.h"
 #include "cSC4LotConfigurationObject.h"
 #include "cRZCOMDllDirector.h"
@@ -127,6 +128,8 @@ volatile LONG g_noteForeignIterator = 0;
 volatile LONG g_noteMissing = 0;
 volatile LONG g_noteFamilySet = 0;
 volatile LONG g_noteNewLot = 0;
+volatile LONG g_noteJoin = 0;
+volatile LONG g_noteDezone = 0;
 
 // The app's current city (borrowed).
 cISC4City* AppCity() {
@@ -410,17 +413,112 @@ bool NetworkToolOccupantExists(void* u, uint32_t kind, int32_t x, int32_t z, uin
     return true;
 }
 
-// §5.2 step 3: 0x00731F60 / 0x00732450 are not traced (zones.md §14.3 Q4).
-// [question] Not called: one line, then silence.
+// The ABI 51 street-joining hook: since re-specs11 the core runs
+// JoinDeadEndStubs / JoinAcrossRail itself (§5.2.1, §5.2.2) and never calls
+// it. Kept for the table; logs if it ever is.
 void StreetJoiningHelper(void* u, uint64_t occupant, uint32_t data4) {
     ZD_TEST(street_joining_helper, occupant, data4);
     (void)occupant;
-    char line[200];
-    _snprintf_s(line, sizeof(line), _TRUNCATE,
-                "zonedev: InsertOccupant data4=%u: the street-joining helper (zones.md §5.2 step 3, §14.3 Q4) is "
-                "not specified; nothing done",
+    char line[160];
+    _snprintf_s(line, sizeof(line), _TRUNCATE, "zonedev: the old street-joining hook was called (data4=%u); ignored",
                 data4);
     NoteFew(&g_noteJoining, line);
+}
+
+// The network occupant interface of an occupant token, with a reference
+// (Drop it), or null when it is not a network occupant.
+cISC4NetworkOccupant* Network(uint64_t occupant) {
+    return occupant ? Query<cISC4NetworkOccupant>(FromToken(occupant), kIID_cISC4NetworkOccupant) : nullptr;
+}
+
+// Network occupant slot 12 GetNetworkFlags.
+uint32_t NetworkFlags(void* u, uint64_t occupant) {
+    ZD_TEST(network_flags, occupant);
+    if (!Gate(u, fc4::Sw::ZoneDevOccupants, "zonedev GetNetworkFlags (0)")) return 0;
+    cISC4NetworkOccupant* n = Network(occupant);
+    if (n == nullptr) return 0;
+    const uint32_t f = n->GetNetworkFlag();
+    Drop(n);
+    return f;
+}
+
+// Network occupant slot 8: every bit of `mask` set (§8.4.1).
+bool NetworkHasAllFlags(void* u, uint64_t occupant, uint32_t mask) {
+    ZD_TEST(network_has_all_flags, occupant, mask);
+    if (!Gate(u, fc4::Sw::ZoneDevOccupants, "zonedev HasNetworkFlag (false)")) return false;
+    cISC4NetworkOccupant* n = Network(occupant);
+    if (n == nullptr) return false;
+    const bool r = n->HasNetworkFlag(mask);
+    Drop(n);
+    return r;
+}
+
+// Network occupant slot 38 GetEdgeTypesFlag(type).
+uint32_t NetworkEdgeMask(void* u, uint64_t occupant, uint32_t netType) {
+    ZD_TEST(network_edge_mask, occupant, netType);
+    if (!Gate(u, fc4::Sw::ZoneDevOccupants, "zonedev GetEdgeTypesFlag (0)")) return 0;
+    cISC4NetworkOccupant* n = Network(occupant);
+    if (n == nullptr) return 0;
+    const uint32_t m = n->GetEdgeTypesFlag(static_cast<cISC4NetworkOccupant::eNetworkType>(netType));
+    Drop(n);
+    return m;
+}
+
+// Network occupant slot 22 IsOfType(type): 1 / 0, -1 when not a network.
+int32_t NetworkIsOfType(void* u, uint64_t occupant, uint32_t netType) {
+    ZD_TEST(network_is_of_type, occupant, netType);
+    if (!Gate(u, fc4::Sw::ZoneDevOccupants, "zonedev IsOfType (not a network)")) return -1;
+    cISC4NetworkOccupant* n = Network(occupant);
+    if (n == nullptr) return -1;
+    const bool r = n->IsOfType(static_cast<cISC4NetworkOccupant::eNetworkType>(netType));
+    Drop(n);
+    return r ? 1 : 0;
+}
+
+// Network occupant slot 17 (the flag 0x400000 test; the SDK's IsImmovable).
+bool NetworkIsFlag400000(void* u, uint64_t occupant) {
+    ZD_TEST(network_is_flag_0x400000, occupant);
+    if (!Gate(u, fc4::Sw::ZoneDevOccupants, "zonedev slot 17 (false)")) return false;
+    cISC4NetworkOccupant* n = Network(occupant);
+    if (n == nullptr) return false;
+    const bool r = n->IsImmovable();
+    Drop(n);
+    return r;
+}
+
+// Occupant slot 11 GetBoundingCityCells.
+void OccupantBoundingCells(void* u, uint64_t occupant, fc4_cell_rect* out) {
+    ZD_TEST(occupant_bounding_cells, occupant, out);
+    if (out == nullptr) return;
+    *out = fc4_cell_rect{0, 0, -1, -1};
+    if (occupant == 0 || !Gate(u, fc4::Sw::ZoneDevOccupants, "zonedev GetBoundingCityCells (empty)")) return;
+    SC4Rect<long> r;
+    if (OccOf(occupant)->GetBoundingCityCells(r)) {
+        *out = fc4_cell_rect{static_cast<int32_t>(r.topLeftX), static_cast<int32_t>(r.topLeftY),
+                             static_cast<int32_t>(r.bottomRightX), static_cast<int32_t>(r.bottomRightY)};
+    }
+}
+
+// Whether the network tool of `kind` (0, 3 or 11) is held (PostCityInit).
+bool NetworkToolPresent(void* u, uint32_t kind) {
+    ZD_TEST(network_tool_present, kind);
+    return ToolOf(u, kind) != nullptr;
+}
+
+// §5.2.1 / §5.2.2: tool `kind`'s slot 7 PlaceNetworkOccupants(a, b, 0, null,
+// 1, -1); AL not used.
+void NetworkToolJoin(void* u, uint32_t kind, int32_t ax, int32_t az, int32_t bx, int32_t bz) {
+    ZD_TEST(network_tool_join, kind, ax, az, bx, bz);
+    if (!Writes(u) || !Gate(u, fc4::Sw::ZoneDevStreets, "zonedev street join")) return;
+    cFC4ISC4NetworkTool* t = ToolOf(u, kind);
+    if (t == nullptr) return;
+    ++Ctx(u)->joins;
+    char line[160];
+    _snprintf_s(line, sizeof(line), _TRUNCATE, "zonedev: join with tool %u (%d,%d)-(%d,%d)", kind, ax, az, bx, bz);
+    NoteFew(&g_noteJoin, line);
+    t->ToolSlot07(static_cast<uint32_t>(ax), static_cast<uint32_t>(az), static_cast<uint32_t>(bx),
+                  static_cast<uint32_t>(bz), 0u, 0u, 1u, 0xFFFFFFFFu);
+    FC4_X87_CHECK("zonedev join PlaceNetworkOccupants");
 }
 
 // ---- terrain ------------------------------------------------------------------------------------------
@@ -455,6 +553,31 @@ float TerrainVertexAltitude(void* u, int32_t vx, int32_t vz) {
     return t->GetAltitudeAtVertex(vx, vz);  // slot 14, ST0
 }
 
+// Terrain slot 35 CellHasLand. The core asks only for cells CellHasWater
+// answered true for (§8.4.2); a negative cell answers land.
+bool CellHasLand(void* u, int32_t x, int32_t z) {
+    ZD_TEST(cell_has_land, x, z);
+    cISTETerrain* t = Terrain(u);
+    if (t == nullptr || x < 0 || z < 0 || !Gate(u, fc4::Sw::ZoneDevTerrain, "zonedev CellHasLand (land)")) {
+        return true;
+    }
+    return t->CellHasLand(static_cast<uint32_t>(x), static_cast<uint32_t>(z));
+}
+
+// Surface water slot 8 IsNavigable(x, z, 0, null) (city slot 83, borrowed):
+// called through the vtable (the SDK's overload order differs, as in
+// cFC4TrafficSimulator.cpp). AL.
+bool IsNavigable(void* u, int32_t x, int32_t z) {
+    ZD_TEST(is_navigable, x, z);
+    cISC4City* c = City(u);
+    if (c == nullptr || !Gate(u, fc4::Sw::ZoneDevTerrain, "zonedev IsNavigable (false)")) return false;
+    void* sw = static_cast<void*>(c->GetSurfaceWater());
+    if (sw == nullptr) return false;
+    using Fn = uint8_t(__fastcall*)(void* self, void* edx, int32_t cx, int32_t cz, int32_t radius, void* lot);
+    void** vt = *reinterpret_cast<void***>(sw);
+    return reinterpret_cast<Fn>(vt[8])(sw, nullptr, x, z, 0, nullptr) != 0;  // pop 16
+}
+
 // ---- city and occupants -----------------------------------------------------------------------------------
 
 // City slot 98 LocationIsInBounds(x, z) (AL).
@@ -468,6 +591,13 @@ bool LocationInBounds(void* u, const float* pos) {
 // declares it void). [abi] Called through the vtable to read AL: __thiscall
 // through __fastcall (ECX = this, EDX unused, the four arguments on the stack,
 // callee pops 16).
+// City slot 99 CellIsInBounds.
+bool CellIsInBounds(void* u, int32_t x, int32_t z) {
+    ZD_TEST(cell_is_in_bounds, x, z);
+    cISC4City* c = City(u);
+    return c != nullptr && c->CellIsInBounds(x, z);
+}
+
 bool PositionToCell(void* u, const float* pos, int32_t* x, int32_t* z) {
     ZD_TEST(position_to_cell, pos, x, z);
     cISC4City* c = City(u);
@@ -550,6 +680,25 @@ void AddRefToken(void* u, uint64_t t) {
     ZD_TEST(add_ref, t);
     cIGZUnknown* o = FromToken(t);
     if (o == nullptr) return;
+    fc4::ZoneDevContext* c = Ctx(u);
+    if (c->freshLot != nullptr && static_cast<void*>(o) == c->freshLot) {
+        // §8.5 step 2: a lot NewLot just built (count 0) gets the caller's
+        // reference, then the manager's. The first is taken before the
+        // audit's once-per-class lookup, whose QueryInterface / Release pair
+        // would free a lot at count 0 (§8.5.1 Free). The caller's reference
+        // is handed on in slots 22 / 23 (forCaller); the manager's is ours.
+        const uint32_t n = ++c->freshAdds;
+        if (n >= 2) c->freshLot = nullptr;
+        if (n == 1) {
+            const uint32_t r = o->AddRef();
+            const fc4::RefTarget audit = fc4::RefBefore(o);
+            fc4::RefNote(audit, +1, static_cast<long>(r), c->forCaller ? "AddRef for the caller (new lot)" : "AddRef (new lot)",
+                         FC4_SITE, !c->forCaller);
+        } else {
+            FC4_ADDREF(o);
+        }
+        return;
+    }
     if (fc4::IsOurObject(o)) {
         o->AddRef();
     } else if (Ctx(u)->forCaller) {
@@ -577,20 +726,62 @@ void ReleaseToken(void* u, uint64_t t) {
 
 // ---- lots (cISC4Lot, §12) ------------------------------------------------------------------------------------
 
-// §8.5 step 1: the game's lot (0x006BF430 + constructor 0x006C1E50) has no
-// row in docs/abi yet. STAGE A: none is built; CreateLot fails cleanly.
+bool LotWrites(void* u, const char* what) { return Writes(u) && Gate(u, fc4::Sw::ZoneDevLotChanges, what); }
+
+// §8.5 step 1, §8.5.1: a lot block from the game's lot pool (0x006BF430,
+// cdecl, the size pushed and unread) built by the game's constructor
+// (0x006C1E50, thiscall (x, z, w, h, facing), pop 20, EAX = this; called
+// through __fastcall with EDX unused): docs/abi/direct-calls.md. Its
+// reference count is 0; the core AddRefs it twice (AddRefToken). The block
+// address is the cISC4Lot* (vtable at +0). [choice] (§8.5.1) The vacate
+// reason at +0x83, which the constructor leaves as the block held it, is
+// written 0. Without the two addresses (the executable not identified) or
+// with zonedev_lot_changes off no lot is built and CreateLot fails cleanly.
+using LotPoolAllocateFn = void*(__cdecl*)(uint32_t size);
+using LotConstructFn = void*(__fastcall*)(void* self, void* edx, int32_t x, int32_t z, int32_t w, int32_t h,
+                                          int32_t facing);
+constexpr uint32_t kLotBlockSize = 0x8C;
+constexpr uint32_t kLotVacateReason = 0x83;
+
 uint64_t NewLot(void* u, int32_t x, int32_t z, int32_t w, int32_t h, int32_t facing) {
     ZD_TEST(new_lot, x, z, w, h, facing);
-    ++Ctx(u)->newLotRefusals;
-    char line[200];
-    _snprintf_s(line, sizeof(line), _TRUNCATE,
-                "zonedev: CreateLot(%d, %d, %d, %d, facing %d) refused: no lot constructor [waiting for re-specs11]",
-                x, z, w, h, facing);
-    NoteFew(&g_noteNewLot, line);
-    return 0;
+    fc4::ZoneDevContext* c = Ctx(u);
+    const char* why = nullptr;
+    uintptr_t allocate = 0, construct = 0;
+    if (!LotWrites(u, "zonedev CreateLot (no lot)")) {
+        why = "zonedev_lot_changes is off";
+    } else {
+        allocate = fc4::compat::DirectCall(fc4::compat::Direct::LotPoolAllocate);
+        construct = fc4::compat::DirectCall(fc4::compat::Direct::LotConstruct);
+        if (allocate == 0 || construct == 0) why = "the lot pool / constructor is not available";
+    }
+    void* block = why == nullptr ? reinterpret_cast<LotPoolAllocateFn>(allocate)(kLotBlockSize) : nullptr;
+    if (why == nullptr && block == nullptr) why = "the lot pool returned null";
+    if (why != nullptr) {
+        ++c->newLotRefusals;
+        char line[200];
+        _snprintf_s(line, sizeof(line), _TRUNCATE, "zonedev: CreateLot(%d, %d, %d, %d, facing %d) refused: %s", x, z,
+                    w, h, facing, why);
+        NoteFew(&g_noteNewLot, line);
+        return 0;
+    }
+    void* lot = reinterpret_cast<LotConstructFn>(construct)(block, nullptr, x, z, w, h, facing);
+    FC4_X87_CHECK("zonedev lot constructor");
+    if (lot == nullptr) lot = block;
+    static_cast<uint8_t*>(lot)[kLotVacateReason] = 0;
+    ++c->lotsBuilt;
+    c->freshLot = lot;
+    c->freshAdds = 0;
+    return TokenOf(lot);
 }
 
-bool LotWrites(void* u, const char* what) { return Writes(u) && Gate(u, fc4::Sw::ZoneDevLotChanges, what); }
+// Lot slot 32 UpdateZoneType (§7.2.2).
+void LotUpdateZoneType(void* u, uint64_t lot) {
+    ZD_TEST(lot_update_zone_type, lot);
+    if (lot == 0 || !LotWrites(u, "zonedev lot UpdateZoneType")) return;
+    ++Ctx(u)->zoneUpdates;
+    LotOf(lot)->UpdateZoneType();
+}
 
 void LotInit(void* u, uint64_t lot) {
     ZD_TEST(lot_init, lot);
@@ -705,6 +896,35 @@ bool CfgPrimaryBuildingIds(void* u, uint64_t cfg, fc4_u32_callback cb, void* ctx
     return true;
 }
 
+// Slot 8 GetMaximumSlope (ST0).
+float CfgMaxSlope(void* u, uint64_t cfg) {
+    ZD_TEST(cfg_max_slope, cfg);
+    return cfg ? CfgOf(cfg)->GetMaximumSlope() : FLT_MAX;
+}
+
+// Slot 23 GetLotConfigurationObjectArray: each 0x34-byte record's type,
+// rotation, footprint (+0x10 max, +0x18 min) and data vector, in order.
+void CfgObjects(void* u, uint64_t cfg, fc4_zonedev_cfg_object_callback cb, void* ctx) {
+    ZD_TEST(cfg_objects, cfg, cb, ctx);
+    if (cfg == 0 || cb == nullptr) return;
+    SC4Vector<cSC4LotConfigurationObject>* v = CfgOf(cfg)->GetLotConfigurationObjectArray();
+    if (v == nullptr) return;
+    std::vector<uint32_t> values;
+    for (const cSC4LotConfigurationObject& o : *v) {
+        values.assign(o.data.begin(), o.data.end());
+        fc4_zonedev_cfg_object r{};
+        r.type = static_cast<uint8_t>(o.type);
+        r.orientation = static_cast<uint8_t>(o.rotation);
+        r.min_x = o.rectMinX;
+        r.min_z = o.rectMinZ;
+        r.max_x = o.rectMaxX;
+        r.max_z = o.rectMaxZ;
+        r.values = values.empty() ? nullptr : values.data();
+        r.n_values = values.size();
+        cb(ctx, &r);
+    }
+}
+
 // The lot configuration filter that accepts everything (§7.2.1 step 5: the
 // core applies DetermineLotSize's own filter). Lives on the stack; the
 // manager does not keep it.
@@ -810,6 +1030,44 @@ void RemoveLotFromBusinessUnit(void* u, uint64_t lot) {
     if (!Gate(u, fc4::Sw::ZoneDevLotDeveloper, "zonedev RemoveLotFromItsBusinessUnit")) return;
     cISC4LotDeveloper* ld = LotDeveloper(u);
     if (ld != nullptr) ld->RemoveLotFromItsBusinessUnit(SdkLotOf(lot));  // slot 33
+}
+
+// Slot 29 GetAreaSlope(rect, withWater) (ST0).
+float AreaSlope(void* u, const fc4_cell_rect* rect, bool withWater) {
+    ZD_TEST(area_slope, rect, withWater);
+    if (rect == nullptr || !Gate(u, fc4::Sw::ZoneDevLotDeveloper, "zonedev GetAreaSlope (0)")) return 0.0f;
+    cISC4LotDeveloper* ld = LotDeveloper(u);
+    if (ld == nullptr) return 0.0f;
+    const float s = ld->GetAreaSlope(SC4Rect<int32_t>(rect->x1, rect->z1, rect->x2, rect->z2), withWater);
+    FC4_X87_CHECK("zonedev GetAreaSlope");
+    return s;
+}
+
+// Slot 46 GetForceEmptyLotBaseTextures.
+bool ForceEmptyLotBaseTextures(void* u) {
+    ZD_TEST0(force_empty_lot_base_textures);
+    cISC4LotDeveloper* ld = LotDeveloper(u);
+    return ld != nullptr && ld->GetForceEmptyLotBaseTextures();
+}
+
+// §7.2.2 step 3: the active zone manager's slot 11 PlaceZone(D, 0, commit 1,
+// skipFunds 1, checkSlope 0, skipSize 1, lotInside 0, null, null, null) on a
+// region of ours in the §11.4 layout. It dezones the cells, posts its own
+// ZoningChange and calls back into DoParcellization (nested, under the lock).
+void ZoneManagerDezone(void* u, const fc4_zone_region* region) {
+    ZD_TEST(zone_manager_dezone, region);
+    fc4::ZoneDevContext* c = Ctx(u);
+    if (!Writes(u) || region == nullptr || c->zones == nullptr) return;
+    if (!Gate(u, fc4::Sw::ZoneDevDemolition, "zonedev UpdateZoneType dezone")) return;
+    fc4::ZoneRegionBuffer rb;
+    if (!rb.Build(*region)) return;
+    ++c->dezoneCalls;
+    char line[160];
+    _snprintf_s(line, sizeof(line), _TRUNCATE, "zonedev: UpdateZoneType dezones cells of %d,%d..%d,%d", region->x0,
+                region->z0, region->x1, region->z1);
+    NoteFew(&g_noteDezone, line);
+    fc4::AsGame(c->zones)->PlaceZone(rb.Game(), 0, true, true, false, true, false, nullptr, nullptr, nullptr);
+    FC4_X87_CHECK("zonedev UpdateZoneType PlaceZone");
 }
 
 void SetEmptyLotBaseTexture(void* u, uint64_t lot) {
@@ -1250,6 +1508,24 @@ fc4_zonedev_host MakeZoneDevHost(ZoneDevContext* ctx) {
     h.master_insert = &MasterInsert;
     h.master_remove = &MasterRemove;
     h.master_reset = &MasterReset;
+    // ABI 54 (re-specs11)
+    h.area_slope = &AreaSlope;
+    h.cfg_max_slope = &CfgMaxSlope;
+    h.cfg_objects = &CfgObjects;
+    h.network_flags = &NetworkFlags;
+    h.network_has_all_flags = &NetworkHasAllFlags;
+    h.network_edge_mask = &NetworkEdgeMask;
+    h.network_is_of_type = &NetworkIsOfType;
+    h.network_is_flag_0x400000 = &NetworkIsFlag400000;
+    h.occupant_bounding_cells = &OccupantBoundingCells;
+    h.network_tool_present = &NetworkToolPresent;
+    h.network_tool_join = &NetworkToolJoin;
+    h.cell_has_land = &CellHasLand;
+    h.cell_is_in_bounds = &CellIsInBounds;
+    h.is_navigable = &IsNavigable;
+    h.lot_update_zone_type = &LotUpdateZoneType;
+    h.force_empty_lot_base_textures = &ForceEmptyLotBaseTextures;
+    h.zone_manager_dezone = &ZoneManagerDezone;
     return h;
 }
 
@@ -1290,6 +1566,9 @@ fc4_zonedev_host MakeZoneDevReadOnlyHost(ZoneDevContext* ctx) {
     h.master_insert = nullptr;
     h.master_remove = nullptr;
     h.master_reset = nullptr;
+    h.network_tool_join = nullptr;
+    h.lot_update_zone_type = nullptr;
+    h.zone_manager_dezone = nullptr;
     return h;
 }
 

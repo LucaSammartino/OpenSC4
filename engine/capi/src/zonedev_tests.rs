@@ -9,9 +9,11 @@
 //! lot creation and deletion with their references and the master-list
 //! mirror, a host that cannot construct lots, the lot lists of §8.3 (tests 11
 //! and 12, the corner rule, uniqueness against the caller's list), the save
-//! record byte for byte and its round trip, shadow mode, and
+//! record byte for byte and its round trip, shadow mode,
 //! `DoParcellization` of an agricultural rect, a residential rect with
-//! streets and a dezone.
+//! streets and a dezone, and the re-specs11 table entries (ABI 54): slot 21
+//! `CanCreatePloppedLot` with configuration objects, `UpdateZoneType`'s
+//! dezone and the street joins.
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap};
@@ -75,6 +77,16 @@ struct Game {
     textures: RefCell<Vec<u64>>,
     levellings: Cell<u32>,
     removed_occupants: RefCell<Vec<u64>>,
+    // ABI 54 (re-specs11)
+    slope: Cell<f32>,
+    /// Lot configuration 2's object records (configuration 1 has none).
+    objects: RefCell<Vec<(u8, u8, [f32; 4], Vec<u32>)>>,
+    no_land: RefCell<BTreeSet<(i32, i32)>>,
+    /// zone_manager_dezone calls: the cells of each region.
+    dezones: RefCell<Vec<Vec<(i32, i32)>>>,
+    /// network_tool_join calls: (kind, ax, az, bx, bz).
+    joins: RefCell<Vec<(u32, i32, i32, i32, i32)>>,
+    zone_updates: Cell<u32>,
 }
 
 fn game(u: *mut c_void) -> &'static Game {
@@ -390,9 +402,11 @@ unsafe extern "C" fn cfg_bool_u(_: *mut c_void, _c: u64, _v: u32) -> bool {
 unsafe extern "C" fn cfg_id(_: *mut c_void, _c: u64) -> u32 {
     0
 }
-unsafe extern "C" fn cfg_size(_: *mut c_void, _c: u64, x: *mut u32, z: *mut u32) {
-    *x = 0;
-    *z = 0;
+unsafe extern "C" fn cfg_size(_: *mut c_void, c: u64, x: *mut u32, z: *mut u32) {
+    // Configuration 2 (the plop test's) is 2 x 2.
+    let n = if c == 2 { 2 } else { 0 };
+    *x = n;
+    *z = n;
 }
 unsafe extern "C" fn cfg_stage(_: *mut c_void, _c: u64) -> u8 {
     0
@@ -454,6 +468,90 @@ unsafe extern "C" fn master_reset(u: *mut c_void, lots: *const u64, n: usize) {
     } else {
         std::slice::from_raw_parts(lots, n).to_vec()
     };
+}
+
+unsafe extern "C" fn area_slope(u: *mut c_void, _r: *const fc4_cell_rect, _w: bool) -> f32 {
+    game(u).slope.get()
+}
+unsafe extern "C" fn cfg_max_slope(_: *mut c_void, _c: u64) -> f32 {
+    10.0
+}
+unsafe extern "C" fn cfg_objects(u: *mut c_void, c: u64, cb: fc4_zonedev_cfg_object_callback, ctx: *mut c_void) {
+    if c != 2 {
+        return;
+    }
+    for (kind, orientation, r, values) in game(u).objects.borrow().iter() {
+        let o = fc4_zonedev_cfg_object {
+            kind: *kind,
+            orientation: *orientation,
+            reserved: [0; 2],
+            min_x: r[0],
+            min_z: r[1],
+            max_x: r[2],
+            max_z: r[3],
+            values: values.as_ptr(),
+            n_values: values.len(),
+        };
+        cb.unwrap()(ctx, &o);
+    }
+}
+unsafe extern "C" fn network_flags(u: *mut c_void, occ: u64) -> u32 {
+    Game::net_cell(occ).map_or(0, |c| game(u).nets.borrow().get(&c).copied().unwrap_or(0))
+}
+unsafe extern "C" fn network_has_all_flags(u: *mut c_void, occ: u64, mask: u32) -> bool {
+    network_flags(u, occ) & mask == mask
+}
+unsafe extern "C" fn network_edge_mask(_: *mut c_void, _occ: u64, _t: u32) -> u32 {
+    0
+}
+unsafe extern "C" fn network_is_of_type(u: *mut c_void, occ: u64, t: u32) -> i32 {
+    match Game::net_cell(occ) {
+        Some(_) => i32::from(network_flags(u, occ) & (1 << t) != 0),
+        None => -1,
+    }
+}
+unsafe extern "C" fn network_is_flag_0x400000(u: *mut c_void, occ: u64) -> bool {
+    network_flags(u, occ) & 0x40_0000 != 0
+}
+unsafe extern "C" fn occupant_bounding_cells(_: *mut c_void, occ: u64, out: *mut fc4_cell_rect) {
+    if let Some((x, z)) = Game::net_cell(occ) {
+        *out = fc4_cell_rect { x1: x, z1: z, x2: x, z2: z };
+    }
+}
+unsafe extern "C" fn network_tool_present(u: *mut c_void, _kind: u32) -> bool {
+    game(u).tools.get() > 0
+}
+unsafe extern "C" fn network_tool_join(u: *mut c_void, kind: u32, ax: i32, az: i32, bx: i32, bz: i32) {
+    game(u).joins.borrow_mut().push((kind, ax, az, bx, bz));
+}
+unsafe extern "C" fn cell_has_land(u: *mut c_void, x: i32, z: i32) -> bool {
+    !game(u).no_land.borrow().contains(&(x, z))
+}
+unsafe extern "C" fn cell_is_in_bounds(u: *mut c_void, x: i32, z: i32) -> bool {
+    let g = game(u);
+    (0..g.cx).contains(&x) && (0..g.cz).contains(&z)
+}
+unsafe extern "C" fn is_navigable(_: *mut c_void, _x: i32, _z: i32) -> bool {
+    false
+}
+unsafe extern "C" fn lot_update_zone_type(u: *mut c_void, t: u64) {
+    let g = game(u);
+    g.zone_updates.set(g.zone_updates.get() + 1);
+    let (x1, z1, _, _) = with_lot(u, t, |l| l.rect);
+    let zone = zone_type(u, x1, z1);
+    with_lot(u, t, |l| l.zone = zone);
+}
+unsafe extern "C" fn force_empty(_: *mut c_void) -> bool {
+    false
+}
+/// The zone manager's dezone: the region's cells become 0.
+unsafe extern "C" fn zone_manager_dezone(u: *mut c_void, r: *const fc4_zone_region) {
+    let g = game(u);
+    let cells = cells_of(&*r);
+    for &c in &cells {
+        g.zones.borrow_mut().insert(c, 0);
+    }
+    g.dezones.borrow_mut().push(cells);
 }
 
 fn host(g: &Game) -> fc4_zonedev_host {
@@ -532,6 +630,23 @@ fn host(g: &Game) -> fc4_zonedev_host {
         master_insert: Some(master_insert),
         master_remove: Some(master_remove),
         master_reset: Some(master_reset),
+        area_slope: Some(area_slope),
+        cfg_max_slope: Some(cfg_max_slope),
+        cfg_objects: Some(cfg_objects),
+        network_flags: Some(network_flags),
+        network_has_all_flags: Some(network_has_all_flags),
+        network_edge_mask: Some(network_edge_mask),
+        network_is_of_type: Some(network_is_of_type),
+        network_is_flag_0x400000: Some(network_is_flag_0x400000),
+        occupant_bounding_cells: Some(occupant_bounding_cells),
+        network_tool_present: Some(network_tool_present),
+        network_tool_join: Some(network_tool_join),
+        cell_has_land: Some(cell_has_land),
+        cell_is_in_bounds: Some(cell_is_in_bounds),
+        is_navigable: Some(is_navigable),
+        lot_update_zone_type: Some(lot_update_zone_type),
+        force_empty_lot_base_textures: Some(force_empty),
+        zone_manager_dezone: Some(zone_manager_dezone),
     }
 }
 
@@ -1062,4 +1177,100 @@ fn parcellization_agriculture_residential_with_streets_and_a_dezone() {
     assert_eq!(covered(&g, 12, 21), None);
     let s = state(&d);
     assert_eq!((s.parcellizations, s.dezones), (3, 1));
+}
+
+// ---- re-specs11 (ABI 54) ------------------------------------------------------------------------------
+
+#[test]
+fn can_create_plopped_lot_codes_and_configuration_objects() {
+    let g = Game::new(32, 32);
+    let d = init(&g);
+    let r = rect(10, 10, 11, 11);
+    let code = |c: u64| unsafe { fc4_zonedev_can_create_plopped_lot(d.p, &r, 0, c) };
+    // Configuration 1: not water-compatible (cfg_bool), no objects.
+    assert_eq!(code(1), 8);
+    g.zone(11, 11, 11, 11, 15);
+    assert_eq!(code(1), 3);
+    g.zone(11, 11, 11, 11, 12);
+    assert_eq!(code(1), 7);
+    g.zone(11, 11, 11, 11, 0);
+    g.water.borrow_mut().insert((10, 10));
+    assert_eq!(code(1), 1);
+    g.water.borrow_mut().clear();
+    g.road(10, 11, 10, 11, 1);
+    assert_eq!(code(1), 3);
+    g.nets.borrow_mut().clear();
+    g.slope.set(10.5);
+    assert_eq!(code(1), 4, "GetAreaSlope above GetMaximumSlope");
+    g.slope.set(10.0);
+    assert_eq!(code(1), 8, "strict");
+    let outside = rect(31, 10, 32, 11);
+    assert_eq!(unsafe { fc4_zonedev_can_create_plopped_lot(d.p, &outside, 0, 1) }, 0);
+    assert_eq!(unsafe { fc4_zonedev_can_create_plopped_lot(d.p, std::ptr::null(), 0, 1) }, 0);
+    // The objects reach the core through the table: configuration 2 is not
+    // water-compatible either, so its constraint records are not looked at;
+    // a type-7 record on (10, 10) for road type 0 lets a road with matching
+    // edges through (both masks 0 match an edge mask of 0).
+    g.objects
+        .borrow_mut()
+        .push((7, 0, [0.0, 0.0, 16.0, 16.0], vec![0, 0, 0]));
+    g.road(11, 11, 11, 11, 1);
+    assert_eq!(code(2), 8, "the facing-0 record covers lot cell (0, 0) -> city (11, 11)");
+    g.nets.borrow_mut().clear();
+    g.road(10, 10, 10, 10, 1);
+    assert_eq!(code(2), 3, "no record on (10, 10)");
+    assert!(g.lots.borrow().is_empty() && g.refs.borrow().is_empty(), "writes nothing");
+}
+
+#[test]
+fn update_zone_type_dezones_uncovered_cells_through_the_table() {
+    // Agriculture over a 6 x 6 zone with water on (12, 12): the water cell
+    // gets no lot, so UpdateZoneType hands it (and any other uncovered cell)
+    // to zone_manager_dezone, which writes 0.
+    let g = Game::new(32, 32);
+    let d = init(&g);
+    g.zone(10, 10, 15, 15, 7);
+    g.water.borrow_mut().insert((12, 12));
+    let mut res = fc4_zonedev_parcel_result::default();
+    unsafe { fc4_zonedev_do_parcellization(d.p, &region(10, 10, 15, 15), 7, false, &mut res) };
+    let dezones = g.dezones.borrow();
+    assert_eq!(dezones.len(), 1, "{res:?}");
+    assert!(dezones[0].contains(&(12, 12)));
+    for &(x, z) in &dezones[0] {
+        assert!((10..=15).contains(&x) && (10..=15).contains(&z));
+        assert_eq!(covered(&g, x, z), None, "only cells without a lot");
+        assert_eq!(g.zones.borrow()[&(x, z)], 0);
+    }
+    for x in 10..=15 {
+        for z in 10..=15 {
+            let dezoned = dezones[0].contains(&(x, z));
+            assert_eq!(covered(&g, x, z).is_some(), !dezoned, "({x}, {z})");
+        }
+    }
+}
+
+#[test]
+fn join_dead_end_stubs_through_the_table() {
+    // A new road piece on (20, 20) (data4 1) next to a dead-end street on
+    // (19, 20) that connects only west, to (18, 20).
+    let g = Game::new(32, 32);
+    let d = init(&g);
+    g.tools.set(1);
+    g.road(18, 20, 19, 20, 0x8);
+    g.road(20, 20, 20, 20, 0x1);
+    let occ = NET_BASE | (20 << 12) | 20;
+    unsafe {
+        fc4_zonedev_do_message(d.p, 0x99EF_1142, occ, 0, NETWORK_OCCUPANT_TYPE, 1, 0, std::ptr::null_mut());
+    }
+    assert_eq!(*g.joins.borrow(), vec![(0, 20, 20, 19, 20)]);
+    // Shadow mode swallows the join.
+    let h = host(&g);
+    let s = unsafe { fc4_zonedev_create_shadow(&h, 0) };
+    g.joins.borrow_mut().clear();
+    unsafe {
+        assert!(fc4_zonedev_init(s));
+        fc4_zonedev_do_message(s, 0x99EF_1142, occ, 0, NETWORK_OCCUPANT_TYPE, 1, 0, std::ptr::null_mut());
+        fc4_zonedev_destroy(s);
+    }
+    assert!(g.joins.borrow().is_empty());
 }

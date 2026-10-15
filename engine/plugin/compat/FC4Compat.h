@@ -37,6 +37,10 @@ enum class Direct : unsigned {
     GlobalHeapAllocate,    // allocator C allocate (the game's operator new): cdecl void* (uint32_t size)
                            //   (docs/abi/allocators.md; the zone developer's safe lot iterator
                            //   blocks, zones.md §8.3 slot 15, §13.2)
+    LotPoolAllocate,       // the cSC4Lot pool's allocate: cdecl void* (uint32_t size = 0x8C, unread), the
+                           //   caller pops (docs/abi/direct-calls.md; zones.md §8.5.1)
+    LotConstruct,          // the cSC4Lot constructor: thiscall (x, z, w, h, facing), pop 20, EAX = this
+                           //   (docs/abi/direct-calls.md; zones.md §8.5.1)
     Count
 };
 

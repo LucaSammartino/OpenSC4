@@ -50,6 +50,8 @@ const ExecutableVersion kVersions[] = {
             0x004A79A0,  // the same maps' subtree free (_M_erase)
             0x005E5620,  // global heap (allocator C) free (docs/abi/allocators.md)
             0x005E55E0,  // global heap (allocator C) allocate (docs/abi/allocators.md)
+            0x006BF430,  // the cSC4Lot pool's allocate (docs/abi/direct-calls.md; zones.md §8.5.1)
+            0x006C1E50,  // the cSC4Lot constructor (x, z, w, h, facing)
         },
         {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
         0x00AB3118,  // cSC4TractDeveloper primary vtable (tract-developer.md §1.1, §7.1)
@@ -450,7 +452,8 @@ const void* GameDelayWindowVtable() {
 uintptr_t DirectCall(Direct which) {
     static const char* const kNames[] = {"RemoveConnection",      "SetWateredState", "air dispatch Init",
                                          "air dispatch Shutdown", "map operator[]",  "map subtree free",
-                                         "global heap free",      "global heap allocate"};
+                                         "global heap free",      "global heap allocate",
+                                         "lot pool allocate",     "lot constructor"};
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused
     static uintptr_t address[static_cast<unsigned>(Direct::Count)] = {};
