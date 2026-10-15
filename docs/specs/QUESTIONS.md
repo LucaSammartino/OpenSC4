@@ -4425,3 +4425,39 @@ Open points from terrain.md §17. The current answer is in brackets; each entry 
 - **TR3:** `GetLerpedWaterLevel` (terrain slot 32) and `AltitudeAtWhichFloodingWillOccur` (surface water slot 10)
   are from pseudocode only. [bilinear over the four corners; maximum over wet neighbours. Check the bytes if a
   simulation consumer appears]
+
+## From the disaster layer core (filed by the coordinator from the `cores13` lane's report, 2026-10-15; merged `333ecde`)
+
+cores13 implemented disasters.md §2-§14 as a Rust core (`engine/core/src/disasters/`), a C ABI (`fc4_disasters`,
+ABI 57) and conformance vectors (`ds18_*`, `ds00_*`). Q4 (the riot's removal lock) is answered by network-manager.md
+§10 and implemented. There is no plugin glue yet, so none of these readings has been checked in game. The lane's own
+numbers (its Q6-Q25, continuing disasters.md §17) are given in parentheses; the current choice is in brackets.
+
+- **DS1:** (Q6) the fire generator's class and seed are unspecified. [the core takes them from the host generator]
+- **DS2:** (Q7) which draw method (raw, u32, double, range, gaussian) does each random use? [the spec text as far as it
+  goes]
+- **DS3:** (Q8) is the fire ID drawn once per IgniteCell, also when the cell does not ignite?
+- **DS4:** (Q9) are timer seconds truncated or rounded?
+- **DS5:** (Q10) where does GoToNextDisaster's cursor start?
+- **DS6:** (Q11) the effectiveness with no timers, or with an overall total of zero. [0]
+- **DS7:** (Q12) what is the dispatch key's data2, and does any message create an entry?
+- **DS8:** (Q13) instance Shutdown: does the instance stay in its manager's list, with no DisasterHasEnded sent? [yes,
+  it stays and nothing is sent]
+- **DS9:** (Q14) D3-D5 property arrays of other lengths. [the D4 index is clamped]
+- **DS10:** (Q15) which fires count for ExtinguishCell and GetFireCountInCellRect?
+- **DS11:** (Q16) riot defaults when the exemplar is missing (max riots, max leaders, zoom). [no leaders-spawned
+  default]
+- **DS12:** (Q17) what does message `0xEA400622` mean?
+- **DS13:** (Q18) the exact spiral order of the cell search.
+- **DS14:** (Q19) does the riot leave its manager right after phase 3?
+- **DS15:** (Q20) the tuning defaults of the short forms (earthquake, pipe burst, volcano, effect).
+- **DS16:** (Q21) the earthquake's fault line geometry.
+- **DS17:** (Q22) the earthquake's transition from rumble to deformation.
+- **DS18:** (Q23) the sinkhole brush parameters.
+- **DS19:** (Q24) when is the pipe-burst occupant inserted and removed?
+- **DS20:** (Q25) the volcano: the timing of states 3 to 5, its end request, and state 7.
+- **DS21:** is the toast list processed only when Update runs? [yes]
+- **DS22:** the contents of the special-building record.
+- **DS23:** the network default cost. [taken from the host]
+- **DS24:** the order in which the riot releases its removal locks. [insertion order, a choice the spec does not
+  make]
