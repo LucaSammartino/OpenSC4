@@ -79,6 +79,7 @@
 #include "cIGZOStream.h"
 #include "FC4Interfaces.h"
 #include "FC4HistClock.h"
+#include "FC4Clock24Shadow.h"
 #include "FC4HistoryShadow.h"
 #include "FC4TestSeam.h"
 #include "cFC4TrafficSimulator.h"
@@ -9667,6 +9668,8 @@ int main(int argc, char** argv) {
     if (mode == "--ini-history-shadow") return HistoryShadowIniTest(dll, ini, log);
     // The 24-hour clock (clock24.md): the replacement through the test hooks (seam op 54).
     if (mode == "--ini-enable-clock24") return Clock24EnableTest(dll, ini, log);
+    // The 24-hour clock shadow (FC4Clock24Shadow.h, seam op 54 op 2).
+    if (mode == "--ini-clock24-shadow") return Clock24ShadowIniTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).

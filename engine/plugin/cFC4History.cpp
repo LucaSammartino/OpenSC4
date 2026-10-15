@@ -386,12 +386,31 @@ bool cFC4HistoryWarehouse::Write(cIGZOStream& s) {
     FC4_TRACE("HistoryWarehouse::Write");
     fc4::OStreamAdapter a(s);
     bool ok;
+    fc4::MemOStream mem;
     {
         fc4::CoreLock::Section sec(lock_, "history Write");
         ok = fc4_history_write(core_, a.Get());
+        fc4_history_write(core_, mem.Get());
+    }
+    // The record read back by a scratch core and written again (§7): the
+    // save's bytes must survive a load.
+    bool same = false;
+    {
+        fc4_history_host h{};
+        h.struct_size = sizeof(h);
+        fc4_history* scratch = fc4_history_create(&h);
+        fc4::MemIStream in(mem.bytes);
+        fc4::MemOStream again;
+        if (scratch != nullptr && fc4_history_read(scratch, in.Get()) && in.Remaining() == 0 &&
+            fc4_history_write(scratch, again.Get())) {
+            same = again.bytes == mem.bytes;
+        }
+        fc4_history_destroy(scratch);
     }
     const fc4_history_state st = State();
-    fc4::Log("history Write -> %d (%u series, %u points)", ok ? 1 : 0, st.series_count, st.total_points);
+    fc4::Log("history Write -> %d (%u series, %u points; %u bytes, read back and rewritten %s)", ok ? 1 : 0,
+             st.series_count, st.total_points, static_cast<unsigned>(mem.bytes.size()),
+             same ? "identical" : "DIFFERENT");
     return ok;
 }
 

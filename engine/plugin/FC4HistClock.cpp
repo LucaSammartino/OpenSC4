@@ -13,6 +13,7 @@
 
 #include "FC4HistClock.h"
 
+#include "FC4Clock24Shadow.h"
 #include "FC4Fpu.h"
 #include "FC4HistoryShadow.h"
 #include "FC4Watchdog.h"
@@ -169,6 +170,8 @@ intptr_t HistClockTestSeam(const FC4HistClockTestInput* in) {
             return 1;
         case 1:  // the history shadow (FC4HistoryShadow.h)
             return HistoryShadowTest(static_cast<FC4HistoryShadowTestInput*>(in->arg));
+        case 2:  // the 24-hour clock shadow (FC4Clock24Shadow.h)
+            return Clock24ShadowTest(static_cast<FC4Clock24ShadowTestInput*>(in->arg));
         default:
             return -1;
     }

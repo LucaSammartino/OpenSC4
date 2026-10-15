@@ -435,6 +435,7 @@ int HistoryEnableTest(const std::string& dll, const std::string& ini, const std:
     CHECK(text.find("subsystem 'history': enabled (1 class replaced) by FreeCity4.ini (enable=)") != npos);
     CHECK(text.find("history Init: ok=1") != npos);
     CHECK(text.find("off-main calls") != npos);
+    CHECK(text.find("read back and rewritten identical)") != npos);
     CHECK(text.find("WARNING: released last reference") == npos && text.find("WARNING: over-release") == npos);
     if (g_failures == 0) std::printf("plugin history replacement test: all checks passed\n");
     return g_failures == 0 ? 0 : 1;
@@ -906,8 +907,155 @@ int Clock24EnableTest(const std::string& dll, const std::string& ini, const std:
     CHECK(text.find("subsystem 'clock24': enabled (1 class replaced) by FreeCity4.ini (enable=)") != npos);
     CHECK(text.find("clock24 Init: ok=1 cheats=yes tuning=yes") != npos);
     CHECK(text.find("clock24 Shutdown:") != npos);
+    CHECK(text.find("26 bytes, read back and rewritten identical;") != npos);
     CHECK(text.find("WARNING: released last reference") == npos && text.find("WARNING: over-release") == npos);
     if (g_failures == 0) std::printf("plugin 24-hour clock replacement test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
+// ---- the 24-hour clock shadow (FC4Clock24Shadow.h, seam op 54 op 2) ---------------------------------------------
+
+intptr_t HcClockShadow(FC4TestSeamFn seam, FC4Clock24ShadowTestInput& in) {
+    in.struct_size = sizeof(in);
+    FC4HistClockTestInput t{};
+    t.op = 2;
+    t.arg = &in;
+    return seam(kFC4SeamHistClock, &t, nullptr);
+}
+
+FC4Clock24ShadowTestInput HcClockEvent(cIGZUnknown* orig, uint32_t event, uint32_t type = 0, uint32_t d2 = 0,
+                                       uint32_t d3 = 0) {
+    FC4Clock24ShadowTestInput in{};
+    in.event = event;
+    in.original = orig;
+    in.type = type;
+    in.data2 = d2;
+    in.data3 = d3;
+    in.julian = static_cast<int32_t>(kHcDay0);
+    return in;
+}
+
+// The original's posts so far, to the shadow in order; the sum of the results.
+intptr_t HcClockDeliver(FC4TestSeamFn seam, cIGZUnknown* orig, HcClockWorld& w) {
+    intptr_t sum = 0;
+    for (const HcPost& p : w.posts) {
+        FC4Clock24ShadowTestInput in = HcClockEvent(orig, 2, p.type, p.d2, p.d3);
+        const intptr_t r = HcClockShadow(seam, in);
+        sum += r < 0 ? 1000 : r;
+    }
+    w.posts.clear();
+    return sum;
+}
+
+int Clock24ShadowIniTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    // With ours enabled the shadow is inactive in the game; the seam still
+    // runs it, with FreeCity4's clock standing in for the original.
+    WriteTextFile(ini, "[subsystems]\nenable = clock24\n[tools]\nclock24_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    SetGamePrecision();
+    if (director != nullptr && seam != nullptr) {
+        static HcClockWorld w;
+        const FC4HistClockHooks hooks = HcClockHooks(&w);
+        CHECK(HcInstall(seam, &hooks) == 1);
+        void* obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Clock24, kIID_cISC424HourClock, &obj));
+        auto* c = static_cast<cFC4ISC424HourClock*>(obj);
+        cIGZSystemService* svc = nullptr;
+        if (c != nullptr) c->QueryInterface(GZIID_cIGZSystemService, reinterpret_cast<void**>(&svc));
+        CHECK(svc != nullptr);
+        if (c != nullptr && svc != nullptr) {
+            cIGZUnknown* orig = c;
+            // Before the load: no shadow core.
+            FC4Clock24ShadowTestInput in = HcClockEvent(orig, 3);
+            CHECK(HcClockShadow(seam, in) == -1);
+            CHECK(c->Init());
+            c->EnableDayNightTransitionNotifications(true);
+            // City load: the record, the tuning, the values.
+            in = HcClockEvent(orig, 0);
+            CHECK(HcClockShadow(seam, in) == 0);
+            CHECK(in.compared > 10);
+            // 1000 steps of 63 s from noon (past 20:00 and 01:00), some with the
+            // messages before the idle pass, a stall, a hidden pause, a mode
+            // change and a cheat on the way.
+            intptr_t bad = 0;
+            for (int i = 0; i < 1000; ++i) {
+                w.now += (i == 300) ? 50000000 : 466676;  // a stall: 1200 s
+                CHECK(svc->OnIdle(0));
+                if (i % 3 == 0) {
+                    bad += HcClockDeliver(seam, orig, w);  // the message first: it samples itself
+                    in = HcClockEvent(orig, 1);
+                    bad += HcClockShadow(seam, in) == 0 ? 0 : 1;
+                } else {
+                    in = HcClockEvent(orig, 1);
+                    bad += HcClockShadow(seam, in) == 0 ? 0 : 1;
+                    bad += HcClockDeliver(seam, orig, w);
+                }
+                if (i == 100) {
+                    c->HiddenPause(true);
+                    bad += HcClockDeliver(seam, orig, w);
+                    w.now += 466676;
+                    svc->OnIdle(0);  // paused: no step
+                    c->HiddenPause(false);
+                    bad += HcClockDeliver(seam, orig, w);  // the pause and resume, between two samples
+                }
+                if (i == 500) {
+                    c->SetVisualTimeMode(1);
+                    in = HcClockEvent(orig, 1);
+                    bad += HcClockShadow(seam, in) == 0 ? 0 : 1;
+                    bad += HcClockDeliver(seam, orig, w);
+                    c->SetVisualTimeMode(0);
+                    bad += HcClockDeliver(seam, orig, w);
+                }
+                if (i == 700) {
+                    c->SetHour(3);  // WhatTimeIzIt 3: a jump
+                    bad += HcClockDeliver(seam, orig, w);
+                }
+            }
+            CHECK(bad == 0);
+            in = HcClockEvent(orig, 3);
+            CHECK(HcClockShadow(seam, in) == 0);
+            CHECK(in.compared > 1000);
+            // A magnification the shadow did not see: found once, then mirrored.
+            c->SetTimeMagnification(50.0f);
+            in = HcClockEvent(orig, 3);
+            CHECK(HcClockShadow(seam, in) > 0);
+            in = HcClockEvent(orig, 3);
+            CHECK(HcClockShadow(seam, in) == 0);
+            // A message the shadow core did not post.
+            in = HcClockEvent(orig, 2, 0x44778230, 5, 0);
+            CHECK(HcClockShadow(seam, in) == 1);
+            in = HcClockEvent(orig, 3);
+            CHECK(HcClockShadow(seam, in) == 1);
+            // City shutdown: the core dropped.
+            in = HcClockEvent(orig, 4);
+            CHECK(HcClockShadow(seam, in) == 0);
+            in = HcClockEvent(orig, 3);
+            CHECK(HcClockShadow(seam, in) == -1);
+            CHECK(c->Shutdown());
+        }
+        if (svc != nullptr) svc->Release();
+        if (c != nullptr) CHECK(c->Release() == 0);
+        CHECK(HcInstall(seam, nullptr) == 1);
+    }
+    FreeLibrary(hd);
+    const std::string text = ReadFile(log);
+    const auto npos = std::string::npos;
+    CHECK(text.find("clock shadow: requested (clock24_shadow from FreeCity4.ini) but INACTIVE") != npos);
+    CHECK(text.find("load: the original's record 26 bytes (version 2") != npos);
+    CHECK(text.find("written back identical") != npos);
+    CHECK(text.find("month: time=") != npos && text.find("mismatches=0; comparisons=1 clean=1") != npos);
+    CHECK(text.find("GetTimeMagnification (EAX): original") != npos);
+    CHECK(text.find("the original posted HourChanged (5, 0)") != npos);
+    CHECK(text.find("WARNING: released last reference") == npos && text.find("WARNING: over-release") == npos);
+    if (g_failures == 0) std::printf("plugin 24-hour clock shadow test: all checks passed\n");
     return g_failures == 0 ? 0 : 1;
 }
 

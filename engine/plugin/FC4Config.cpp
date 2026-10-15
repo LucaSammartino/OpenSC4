@@ -263,8 +263,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "sim_turbo", "sim_turbo_frame_ms", "sim_turbo_until", "autotest_end_date", "script",
                                   "sim_turbo_wait_days", "close_dialogs",
                                   "tract_shadow", "tract_seed", "tract_grow_log",
-                                  // the histclock lane (FC4HistoryShadow.h)
-                                  "history_shadow"};
+                                  // the histclock lane (FC4HistoryShadow.h, FC4Clock24Shadow.h)
+                                  "history_shadow", "clock24_shadow"};
 
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

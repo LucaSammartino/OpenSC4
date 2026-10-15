@@ -127,10 +127,12 @@ fc4_clock24_host MakeHost(cFC4Clock24* self) {
     return h;
 }
 
+}  // namespace
+
 // §6: the "Main Simulator" exemplar's clock properties; false = no exemplar.
 // A property of another numeric type is converted (FC4Properties.h); an
 // array property gives its first value [choice].
-bool ReadTuning(fc4_clock24_tuning& t) {
+bool FC4Clock24ReadTuning(fc4_clock24_tuning& t) {
     t = fc4_clock24_tuning{};
     t.struct_size = sizeof(t);
     if (const FC4HistClockHooks* h = fc4::HistClockHooks()) {
@@ -155,8 +157,6 @@ bool ReadTuning(fc4_clock24_tuning& t) {
     }
     return true;
 }
-
-}  // namespace
 
 cIGZUnknown* CreateFC4Clock24() {
     return static_cast<cIGZUnknown*>(static_cast<cFC4ISC424HourClock*>(new cFC4Clock24()));
@@ -297,7 +297,7 @@ bool cFC4Clock24::Init() {
     if (State().initialized != 0) return true;  // also the framework's own Init through the +0xC thunk
     hasCheatManager_ = AcquireCheatManager();
     fc4_clock24_tuning tuning{};
-    const bool haveTuning = ReadTuning(tuning);
+    const bool haveTuning = FC4Clock24ReadTuning(tuning);
     bool ok;
     {
         fc4::CoreLock::Section s(lock_, "clock24 Init");
@@ -501,14 +501,33 @@ bool cFC4Clock24::Write(cIGZOStream& s) {
     FC4_TRACE("Clock24::Write");
     fc4::OStreamAdapter a(s);
     bool ok;
+    fc4::MemOStream mem;
     {
         fc4::CoreLock::Section sec(lock_, "clock24 Write");
         ok = fc4_clock24_write(core_, a.Get());
+        fc4_clock24_write(core_, mem.Get());
+    }
+    // The record read back by a scratch core and written again (§7): the
+    // save's bytes must survive a load.
+    bool same = false;
+    {
+        fc4_clock24_host h{};
+        h.struct_size = sizeof(h);
+        fc4_clock24* scratch = fc4_clock24_create(&h);
+        fc4::MemIStream in(mem.bytes);
+        fc4::MemOStream again;
+        if (scratch != nullptr && fc4_clock24_read(scratch, in.Get()) && in.Remaining() == 0 &&
+            fc4_clock24_write(scratch, again.Get())) {
+            same = again.bytes == mem.bytes;
+        }
+        fc4_clock24_destroy(scratch);
     }
     const fc4_clock24_state st = State();
-    fc4::Log("clock24 Write -> %d (time %u, pause %d, magnification %.3f / max %.3f, night %u -> %u)", ok ? 1 : 0,
-             st.seconds, st.pause_count, static_cast<double>(st.magnification),
-             static_cast<double>(st.max_magnification), st.night_start, st.night_end);
+    fc4::Log("clock24 Write -> %d (%u bytes, read back and rewritten %s; time %u, pause %d, magnification %.3f / "
+             "max %.3f, night %u -> %u)",
+             ok ? 1 : 0, static_cast<unsigned>(mem.bytes.size()), same ? "identical" : "DIFFERENT", st.seconds,
+             st.pause_count, static_cast<double>(st.magnification), static_cast<double>(st.max_magnification),
+             st.night_start, st.night_end);
     return ok;
 }
 

@@ -145,3 +145,7 @@ private:
 
 // Factory for the subsystem table (reference count 0).
 cIGZUnknown* CreateFC4Clock24();
+
+// §6: the "Main Simulator" exemplar's clock properties (or the test hooks');
+// false = no exemplar. Main thread (the class's Init and the shadow).
+bool FC4Clock24ReadTuning(fc4_clock24_tuning& t);
