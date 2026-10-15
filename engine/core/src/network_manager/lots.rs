@@ -23,8 +23,8 @@ use super::config::{
 use super::flags::{flag, has_all, has_any};
 use super::ordered::OrderedMap;
 use super::{
-    key_cell, lot_key, msg, NetworkLotHost, NetworkLotMessage, NetworkLotRandom, Position,
-    CLSID_NETWORK_LOT_MANAGER, IID_EFFECT_PROP, IID_NETWORK_OCCUPANT, LOT_RECORD_VERSION,
+    key_cell, lot_key, msg, NetworkLotHost, NetworkLotMessage, NetworkLotRandom, Position, CLSID_NETWORK_LOT_MANAGER,
+    IID_EFFECT_PROP, IID_NETWORK_OCCUPANT, LOT_RECORD_VERSION,
 };
 
 /// The edge-type kind avenue style asks for (§8.7 `GetEdgeTypesFlag(6)`).
@@ -371,7 +371,8 @@ impl NetworkLotManager {
         rotation: i32,
         flip: i32,
     ) -> bool {
-        is_lot_compatible_pattern(cfg, x, z, zone, wealth, rotation, flip) && slope_fits(cfg, self.host.area_slope(x, z))
+        is_lot_compatible_pattern(cfg, x, z, zone, wealth, rotation, flip)
+            && slope_fits(cfg, self.host.area_slope(x, z))
     }
 
     /// Slot 6 `GetNetworkLotConfigurationSet`: every configuration.
@@ -708,7 +709,11 @@ impl NetworkLotManager {
             return None;
         }
         let p = h.add_street_prop(id, pos, orientation)?;
-        let field = lot.config.as_ref().and_then(|c| c.objects.get(i)).map_or(0, |o| o.field_24);
+        let field = lot
+            .config
+            .as_ref()
+            .and_then(|c| c.objects.get(i))
+            .map_or(0, |o| o.field_24);
         h.street_prop_slot28(p, field);
         if lot.occupant.is_some_and(|o| h.flip(o) != 0) {
             h.street_prop_slot29(p, FLIPPED_PROP_FLAG);

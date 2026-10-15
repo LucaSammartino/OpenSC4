@@ -18,6 +18,11 @@ use super::*;
 const CITY: (i32, i32) = (64, 64);
 const HOST_CLASS: u32 = 0x1234_5678;
 
+/// (tool type, occupants) of one `DestroyOccupantsAndResolve` call.
+type DestroyCall = (u32, Vec<u64>);
+/// (tool type, cells, occupants) of one underground refit call.
+type UndergroundCall = (u32, Vec<(i32, i32)>, Vec<u64>);
+
 fn rect(x1: i32, z1: i32, x2: i32, z2: i32) -> CellRect {
     CellRect { x1, z1, x2, z2 }
 }
@@ -77,8 +82,8 @@ struct MState {
     unsubs: Vec<u32>,
     next_tool: u64,
     tool_type: BTreeMap<u64, u32>,
-    destroy_calls: Vec<(u32, Vec<u64>)>,
-    underground_calls: Vec<(u32, Vec<(i32, i32)>, Vec<u64>)>,
+    destroy_calls: Vec<DestroyCall>,
+    underground_calls: Vec<UndergroundCall>,
     rect_queries: Vec<(CellRect, u32)>,
     lit_calls: Vec<(u64, bool)>,
     removed: Vec<u64>,
@@ -501,7 +506,7 @@ fn t10_terrain_rect() {
 
 /// Runs one terrain change over the cell (5, 5) and returns the destroy
 /// calls.
-fn terrain_case(flags: u32, height: f32, kind: u32) -> (Vec<(u32, Vec<u64>)>, Vec<(CellRect, u32)>) {
+fn terrain_case(flags: u32, height: f32, kind: u32) -> (Vec<DestroyCall>, Vec<(CellRect, u32)>) {
     let (f, m) = manager();
     f.add(
         41,

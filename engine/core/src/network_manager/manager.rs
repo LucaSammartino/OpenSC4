@@ -504,8 +504,7 @@ impl NetworkManager {
                 if !self.corners_mismatch(n) {
                     continue;
                 }
-                if kind == terrain_kind::SKIP_80000 && h.network_flags(n) & flag::UNKNOWN_80000 == flag::UNKNOWN_80000
-                {
+                if kind == terrain_kind::SKIP_80000 && h.network_flags(n) & flag::UNKNOWN_80000 == flag::UNKNOWN_80000 {
                     continue;
                 }
                 kept.push(n);
