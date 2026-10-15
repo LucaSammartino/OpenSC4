@@ -2001,7 +2001,8 @@ grid; `cISC4LotManager::GetMaximumCapacityGrid` (27, `0x00809240`) → the `uint
    (a) the internals of the street tool's `PlaceNetworkOccupants` (when it fails, what it costs, whether it draws
    random numbers, whether it inserts occupants before returning *[inferred: yes]* and whether it auto-connects
    neighbouring networks; its draft records and how it lengthens a Place into a neighbouring network or draft are
-   now in §8.8, ZQ11–ZQ12); the conformance tests below replace it by a stub; (b) the exact semantics of the network
+   now in §8.8, ZQ11–ZQ12); the conformance tests below replace it by a stub. *(a) answered (re-specs14b)*:
+   network-tools.md §16 (and §3-§8: inserts before returning, free, no random draws, no regional connection); (b) the exact semantics of the network
    occupant's `ConnectsToNeighbor` (slot 47) for mixed network types in one cell.
 2. ~~`CanCreatePloppedLot` (slot 21) and the highlight texture code (UI).~~ *Answered (re-specs11)*: §8.4.1–§8.4.3
    and §7.1.1; tests 36–40 and 45.
