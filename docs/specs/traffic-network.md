@@ -1524,6 +1524,8 @@ Non-virtual helpers that also serve pathfinder.md:
     *[choice]*.
 
   Under the grid-ownership rule, a replacement creates the switch grids as the game's grid classes. They are saved.
+- **What a replacement must read from the game** for this model (occupant queries, path connections and path info,
+  tunnel pairs): traffic-simulator.md §9.1 (TG2).
 - **Memory reached into by this class**:
   - the paired portal of `cSC4NetworkTunnelOccupant` (a member of the concrete class, not an interface method), so
     a replacement tunnel occupant breaks the original simulator;
