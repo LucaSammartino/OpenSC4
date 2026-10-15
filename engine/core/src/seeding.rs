@@ -102,8 +102,9 @@ pub fn coordinate_seed(seed: u32) -> u32 {
 /// situation manager (member), advisors and MySims (members, MySims per
 /// instance), the `cSC4Lot`, wealth requester, network lot manager, network
 /// construction crew, construction / base-texture / retaining-wall / prop /
-/// fire occupants, earthquake, pipe-burst and riot disasters, automata,
-/// region creation and advice file-local generators.
+/// fire occupants, automata, region creation and advice file-local
+/// generators. The disaster layer's core is merged (its glue is not): its
+/// generators are listed here.
 pub mod keys {
     use super::{file_seed, SeedKey};
 
@@ -125,6 +126,12 @@ pub mod keys {
     pub const CRIME: SeedKey = SeedKey::FileLocal(file_seed::CRIME);
     /// Pollution simulator visual effects (`0x00B49BD0`, `cRZRandomSuper`).
     pub const POLLUTION_EFFECTS: SeedKey = SeedKey::FileLocal(file_seed::POLLUTION);
+    /// Earthquake disaster (`0x00B22AE8`, `cRZRandom`; disasters.md).
+    pub const EARTHQUAKE: SeedKey = SeedKey::FileLocal(file_seed::EARTHQUAKE);
+    /// Pipe-burst disaster (`0x00B22B60`, `cRZRandom`; disasters.md).
+    pub const PIPE_BURST: SeedKey = SeedKey::FileLocal(file_seed::PIPE_BURST);
+    /// Riot disaster (`0x00B22B80`, `cRZRandom`; disasters.md).
+    pub const RIOT: SeedKey = SeedKey::FileLocal(file_seed::RIOT);
 
     // ---- member generators seeded from the clock (K = GZCLSID) -----------
 
@@ -150,6 +157,9 @@ pub mod keys {
     /// Park manager (`cRZRandomSuper`, wall clock at construction; parks.md
     /// §5).
     pub const PARK_MANAGER: SeedKey = SeedKey::member(crate::parks::CLSID_PARK_MANAGER);
+    /// The disaster fire instance's own `cRZRandom` (flammability.md §13.1;
+    /// K = the fire instance class `0x69C1718F`, disasters lane choice, QUESTIONS DS1).
+    pub const DISASTER_FIRE: SeedKey = SeedKey::member(crate::disasters::instance_class::FIRE);
 
     // ---- members seeded with a constant -----------------------------------
 
@@ -175,6 +185,16 @@ pub mod keys {
     pub const fn neighbors_proposals(n: u32) -> SeedKey {
         SeedKey::Temporary {
             clsid: crate::neighbors::CLSID_NEIGHBORS_SIMULATOR,
+            n,
+        }
+    }
+
+    /// The argument-less pipe burst's throwaway generator (disasters.md §8),
+    /// the `n`-th made by this layer object; `K` = the pipe-burst manager
+    /// class `0x4A132FDF` XOR `n`.
+    pub const fn pipe_burst_start(n: u32) -> SeedKey {
+        SeedKey::Temporary {
+            clsid: crate::disasters::seed::PIPE_BURST_MANAGER,
             n,
         }
     }
@@ -218,6 +238,32 @@ mod tests {
         assert_eq!(derive_seed(0xFFFF_FFFF, 0), 0xFFFF_FFFE);
         assert_eq!(derive_seed(0, 0), 1);
         assert_eq!(derive_seed(0xA5A5_0000, 0x0000_5A5A), 0xA5A5_5A5A);
+    }
+
+    #[test]
+    fn k_earthquake() {
+        check(keys::EARTHQUAKE, 0x6C09_C1AB);
+    }
+
+    #[test]
+    fn k_pipe_burst() {
+        check(keys::PIPE_BURST, 0xEC09_C1D1);
+    }
+
+    #[test]
+    fn k_riot() {
+        check(keys::RIOT, 0x4C09_C187);
+    }
+
+    #[test]
+    fn k_disaster_fire() {
+        check(keys::DISASTER_FIRE, 0x69C1_718F);
+    }
+
+    #[test]
+    fn k_pipe_burst_start() {
+        check(keys::pipe_burst_start(0), 0x4A13_2FDF);
+        check(keys::pipe_burst_start(3), 0x4A13_2FDC);
     }
 
     #[test]
@@ -392,6 +438,10 @@ mod tests {
             keys::TRAFFIC_SIMULATOR,
             keys::PARK_MANAGER,
             keys::FLAMMABILITY_RESEED,
+            keys::EARTHQUAKE,
+            keys::PIPE_BURST,
+            keys::RIOT,
+            keys::DISASTER_FIRE,
         ];
         for key in all {
             assert_eq!(seed(S, key), seed(S, key));

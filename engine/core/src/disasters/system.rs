@@ -21,10 +21,11 @@ use super::riot::{RiotSnapshot, RiotState, RiotTuning};
 use super::toxic::{ToxicSnapshot, ToxicState};
 use super::volcano::{VolcanoSnapshot, VolcanoState, VolcanoTuning};
 use super::{
-    instance_class, kind, msg, seed, CellRect, DerivedSeeds, DisasterHost, DisasterMessage, DisasterRandom, Generator,
+    instance_class, kind, msg, CellRect, DerivedSeeds, DisasterHost, DisasterMessage, DisasterRandom, Generator,
     Target,
 };
-use crate::rng::{derive_seed, RzRandom};
+use crate::rng::RzRandom;
+use crate::seeding::{keys, SeedKey};
 
 /// A manager (§3.1): its instance list, AddRef'd, with the deferred add and
 /// remove lists used while its `Shutdown` walks the list.
@@ -107,8 +108,10 @@ pub(crate) struct Core {
     pub volcano_tuning: Option<VolcanoTuning>,
 }
 
-fn default_rng(session: u32, k: u32) -> Box<dyn DisasterRandom> {
-    let s = derive_seed(session, k);
+/// A generator seeded with `derive(S, K)` (foundations §6.3, through
+/// [`crate::seeding`]).
+fn default_rng(session: u32, key: SeedKey) -> Box<dyn DisasterRandom> {
+    let s = crate::seeding::seed(session, key);
     Box::new(RzRandom::new(s, &DerivedSeeds(s)))
 }
 
@@ -121,10 +124,10 @@ impl Core {
             managers: BTreeMap::new(),
             instances: BTreeMap::new(),
             next_id: 1,
-            rng_fire: default_rng(session_seed, seed::FIRE),
-            rng_riot: default_rng(session_seed, seed::RIOT),
-            rng_quake: default_rng(session_seed, seed::EARTHQUAKE),
-            rng_pipe: default_rng(session_seed, seed::PIPE_BURST),
+            rng_fire: default_rng(session_seed, keys::DISASTER_FIRE),
+            rng_riot: default_rng(session_seed, keys::RIOT),
+            rng_quake: default_rng(session_seed, keys::EARTHQUAKE),
+            rng_pipe: default_rng(session_seed, keys::PIPE_BURST),
             rng_pipe_start: None,
             pipe_start_count: 0,
             fire_instance: None,

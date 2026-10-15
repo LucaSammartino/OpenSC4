@@ -8,11 +8,11 @@
 
 use super::system::{Core, InstanceState};
 use super::{
-    instance_class, kind, msg, seed, zoom_of, DerivedSeeds, DisasterMessage, DisasterPost, DisasterRandom,
+    instance_class, kind, msg, zoom_of, DerivedSeeds, DisasterMessage, DisasterPost, DisasterRandom,
     PIPE_BURST_FLAGS, TICK_PRIORITY,
 };
 use crate::property::PropertyHolder;
-use crate::rng::{derive_seed, RzRandom};
+use crate::rng::RzRandom;
 
 /// Tuning properties of the "PipeBurst" exemplar (§8).
 pub mod pipe_prop {
@@ -130,7 +130,7 @@ impl Core {
         let (sx, sz) = match self.rng_pipe_start.as_mut() {
             Some(r) => (r.uniform_u32(cx), r.uniform_u32(cz)),
             None => {
-                let s = derive_seed(self.session_seed, seed::PIPE_BURST_MANAGER ^ n);
+                let s = crate::seeding::seed(self.session_seed, crate::seeding::keys::pipe_burst_start(n));
                 let mut r = RzRandom::new(s, &DerivedSeeds(s));
                 (
                     DisasterRandom::uniform_u32(&mut r, cx),
