@@ -1298,7 +1298,11 @@ keeps A's label. *[compat]*
 When state 13 is entered (in the work cycle, and synchronously in DoPostCityInit):
 
 1. Clear the working vector and resize it to `counter` default entries. Index 0 is unused.
-2. Reset the scanning region to the whole city (cell order: x inner, z outer).
+2. Reset the scanning region to the whole city (cell order: x inner, z outer). In the work cycle this is the
+   simulator's own **scanning iterator** (member `+0x818`, the one saved in traffic-simulator §6.1 row 14), reset
+   on entering 13 to state 0 at (0, 0) with its rectangle and step kept (`0x00721308`–`0x0072132A`; state 2 at once
+   if (0, 0) is outside the rectangle). Entering 12 does not touch it, and UpdateSubnetworks (state 12) does not use
+   it (TS64).
 
 For each cell (x, z) of the region with `lot = GetLot(x, z, true)` (lot manager slot 6; only the lot's anchor cell
 answers, so each lot is visited once):
@@ -1336,6 +1340,16 @@ Then the working vector is copied to the published vector. All queries read the 
 
 The work is time-sliced with an adaptive work-unit counter (statics `0x00B4B33C`, `0x00B4B340`, start 1024; the same
 scheme as pathfinder.md §4.11). Slicing changes only when the result is published, not the result itself.
+
+**The iterator during and after state 13** (TS64). The deadline test comes before each step of the iterator
+(`0x00716212`), so a call can stop between two cells; the iterator then reads state 1 (running) at the last cell
+visited, and the next call continues from it. A step adds `step` (1) to x; past `x1`, x returns to `x0` and z grows
+by `step`; past `z1` the state becomes 2 (done) and the neighbour connections are added in the same call with no
+further deadline test. So right after 13 finishes, the iterator reads state 2 at `(x0, z1 + 1)`, for a 128-cell
+city (0, 128), and it stays so until the next scanning state resets it (traffic-simulator §3.2). Example: entering
+13 shows state 0 at (0, 0); a call that stops after visiting (34, 87) shows state 1 at (34, 87). DoPostCityInit
+(§1 step 7) runs the same work on a **local** iterator with a deadline about 2^63 cycles away
+(`0x00720808`–`0x00720847`), so the member iterator keeps its loaded value there.
 
 ### 4.13 Connectivity queries (slots 36–42)
 

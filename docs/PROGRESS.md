@@ -89,6 +89,8 @@ budget is off by default (enable = <key>).
 - [x] `exemplar.rs` matches data-formats §4, §5 and the §11 exemplar rows (merged 64a25d2): the install sweep loads 9,347 of 9,347 exemplars and re-encodes 9,345 binary records byte-identically
 - [x] FSH texture and S3D model readers (graphics-formats §2–§4, merged 2db780b): `fc4-dat fsh|s3d`; the sweep reads every FSH and S3D in the install
 - [x] Occupant model keys (graphics-formats §4.2, GF7; apply10b, merged 0f3ad91): the zoom mask, RKT0–RKT5 and the RKT4 record walk; `fc4-dat models`; the install sweep reproduces the spec's survey exactly
+- [x] Disaster layer core and C ABI (disasters.md §2-§14; cores13, merged 333ecde, ABI 57): fire, riot, toxic spill, earthquake, pipe burst, volcano and effect managers, the riot removal lock (Q4, network-manager §10); every §18 test as a unit test and a `ds*` vector
+- [ ] Disaster glue: wire `fc4_disasters_host` to the game's managers and shadow it against the original; answer DS1–DS24
 - [ ] Rendering, UI, audio, region; a standalone executable
 
 **Cross-cutting**
