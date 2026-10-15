@@ -1643,7 +1643,11 @@ Concretely, month-level (level 6) agents are ordered by:
 | land value | `"cSC4LandValueSimulator"` | 0, 10, 4, 6; 2 | landvalue §4.1 |
 
 Because both port developers share one name, a name-keyed rank gives them the same rank; their order between
-themselves is free (*[choice]*: registration order). `GetAgentEnabled` / `SetAgentEnabled("cSC4PortDeveloper")`
+themselves is free (*[choice]*: registration order). In the original the two are ranked by heap address like every
+other agent, and the logs do not separate them, so there is no fixed original order to follow (AO3). Neither reads
+the other's results: each walks its own port list, records history under its own key, makes no random draw
+(port-developers.md §5), and its demand updates are additive. The only visible effect of their order is which of
+two upgrade advisor messages sent in the same month comes first. `GetAgentEnabled` / `SetAgentEnabled("cSC4PortDeveloper")`
 (simulator §4) likewise act on both.
 
 **With the original simulator** (AO2) the order stays ascending target-pointer order (§13.1) and nothing in the

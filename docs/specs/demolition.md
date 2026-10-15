@@ -84,7 +84,8 @@ Subscriptions (made in `Init`, removed in `Shutdown`):
 |---|---|
 | `0xC53D10AA` (exemplar changed, foundations §5 table) | `ReadProperties()` (§6) **unconditionally**: data1/data2 are not compared with the tuning exemplars *[quirk]* |
 | `0x26D31EC1` (PostCityInit) | subscribed, ignored (returns true) |
-| `0xA9DED179` (deferred lot demolition) | data1 points to a heap record `{cISC4Lot* lot, bool dezone}`. If `lot` is non-null and `lot.IsInitialized()` (lot slot 6): `lotDeveloper.EndDemolishLot(lot)` (slot 13); if `dezone`: `zoneManager.PlaceZone(lot rect, 0, 1, 1, 0, 1, 1, 0, 0, 0)` (dezone the lot's rectangle, zones.md); release the lot. The record is then freed by the handler. **Nothing in the executable posts this message** (no immediate `0xA9DED179` outside `Init`/`Shutdown`/`DoMessage`) *[quirk]*; FreeCity4 must keep the subscription and the handling for plugins. |
+| `0xA9DED179` (deferred lot demolition) | data1 points to a heap record `{cISC4Lot* lot, bool dezone}`. If `lot` is non-null and `lot.IsInitialized()` (lot slot 6): `lotDeveloper.EndDemolishLot(lot)` (slot 13); if `dezone`: `zoneManager.PlaceZone(lot rect, 0, 1, 1, 0, 1, 1, 0, 0, 0)` (dezone the lot's rectangle, zones.md); release the lot. The record is then freed by the handler. **Nothing in the executable posts this message** (no immediate `0xA9DED179` outside `Init`/`Shutdown`/`DoMessage`; the ID's bytes occur only at `0x00466A03`,
+`0x00466F29` and `0x00467002` in the whole file, so no data table names it either, DM3) *[quirk]*; FreeCity4 must keep the subscription and the handling for plugins. |
 
 Sent (synchronously, `MessageSend`):
 
@@ -135,7 +136,9 @@ order), unsubscribe the three messages and clear `initialized`. Returns AL = 1 e
 6. `viewFilter` non-null and it rejects `o` → reject.
 7. Network `0xC772BF98` while the 3D view's level (`GetCurrentViewLevel`, view slot 22) is **not 1**: reject if
    its `cISC4NetworkOccupant` reports `HasAnyNetworkFlag(0x1F4F)` (slot 9) — in the underground view only the
-   networks outside that mask can be demolished *[inferred]* reading of the mask.
+   networks outside that mask can be demolished. `0x1F4F` is every network type bit except 4 (water pipe), 5
+   (power line) and 7 (subway) (DM1), so a network occupant passes step 7 in another view level only when it carries
+   none of the other nine types. Power poles are a separate occupant type and are not tested here.
 8. Accept.
 
 ### 4.3 `DemolishOccupant(doIt, o, privilege, flags, int64* cost, bool skipNetworkUpdate, list* orphans)` (`0x004691F0`, slot 8) *[compat]*
@@ -245,12 +248,17 @@ For each occupant `o` in the set (set order) with `o.IsFlagSet(1)`:
 If the list is non-empty: `networkManager.DestroyNetworkOccupants(list)` (slot 6), then release the list (occupant
 manager slot 48).
 
-Occupant flag 1 means "currently in the occupant manager" *[inferred]*: poles already removed in §4.3 are skipped.
+Occupant flag 1 means "currently in the occupant manager" (DM4, verified): `InsertOccupant` returns at once when it
+is set (`0x0049EF8E`) and sets it (`SetFlag(1)`, `0x0049F202`) just before posting `0x99EF1142`; `RemoveOccupant`
+goes on only when it is set (`0x0049F264`) and clears it (`ClearFlag(1)`, `0x0049F382`) after posting `0x99EF1143`.
+So poles already removed in §4.3 are skipped.
 
 ### 4.7 `ModifyTerrainHeight(doIt, perVertex, x0, z0, x1, z1, float h, cISC4Lot* exempt, uint32 reason, int64* cost)` (`0x00467BB0`, slot 9) *[compat]*
 
 Returns an int (EAX), the number of vertices that differ from `h` (area mode) or that were (or would be) set
-(per-vertex mode) *[inferred]*. `cost` is **never written** *[inferred]*: no shipped caller passes one.
+(per-vertex mode) *[inferred]*. `cost` is **never written** (DM2, verified): the function (`0x00467BB0`–
+`0x00468191`, `ret 0x28`) never loads its tenth argument; the only late argument it reads is the ninth, `reason`, for
+the redisplay calls (`0x00467F59`, `0x00468157`). No shipped caller passes a cost pointer.
 
 Let `Q := (max(x0 − 1, 0), max(z0 − 1, 0), min(x1, cellsX − 1), min(z1, cellsZ − 1))`. Query the immovable occupants
 in `Q` (occupant manager slot 40, at most 1 result in area mode, all in per-vertex mode) with the immovability

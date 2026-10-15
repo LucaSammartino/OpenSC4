@@ -1,0 +1,65 @@
+{
+  "format": 1,
+  "name": "lot_developer_float_rect_altitude",
+  "spec": ["lot-developer 17.2", "lot-developer 16"],
+  "description": "Test 28 (§17.2, slot 16 GetLowestOrHighestAreaAltitude over a float rectangle in metres). The terrain is flat at 50 and dry; the default city is 64 x 64 cells of 16 m, so Init stores extentX = extentZ = 1024. (100, 200, 110, 230) has no interior vertex (vx from trunc(116 / 16) = 7 to trunc(6.875) = 6) and makes exactly 26 GetAltitude(x, z) calls (terrain slot 13), none through slot 15, in the order of §17.2 step 3: x = 100, 104, 108, 110 at z = 200; z = 200 ... 228, 230 at x = 110; x = 100 ... 110 at z = 230; z = 200 ... 230 at x = 100. With withWater each is followed by one GetWaterLevel(x, z). (0, 0, 64, 64) samples the 16 interior vertices (1..4, 1..4, x outer) with slot 15 first, then 4 x 17 = 68 edge points. (-5, -5, 1e9, 20) is clamped to (0, 0, extentX - 0.1, 20): 63 interior vertices (vx 1..63, vz 1), then 257 + 6 + 257 + 6 edge samples, the x sweeps ending at 1023.9. With every altitude 50 except GetAltitude(110, 216) = 80 (a sample of the x = 110 edge), the highest is 80 and the lowest 50.",
+  "steps": [
+    {"op": "ldev_terrain", "flat": 50},
+    {"op": "ldev_create", "seed": 12345},
+    {"op": "ldev_init", "expect": true},
+    {"op": "ldev_expect", "extent_x": 1024, "extent_z": 1024, "verts_x": 65},
+    {"op": "ldev_world", "trace_terrain": true},
+
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_altitude_f", "rect": [100, 200, 110, 230], "lowest": false, "water": false, "expect": 50},
+    {"op": "ldev_expect_events", "events": [
+      {"event": "alt_at", "x": 100, "z": 200}, {"event": "alt_at", "x": 104, "z": 200},
+      {"event": "alt_at", "x": 108, "z": 200}, {"event": "alt_at", "x": 110, "z": 200},
+      {"event": "alt_at", "x": 110, "z": 200}, {"event": "alt_at", "x": 110, "z": 204},
+      {"event": "alt_at", "x": 110, "z": 208}, {"event": "alt_at", "x": 110, "z": 212},
+      {"event": "alt_at", "x": 110, "z": 216}, {"event": "alt_at", "x": 110, "z": 220},
+      {"event": "alt_at", "x": 110, "z": 224}, {"event": "alt_at", "x": 110, "z": 228},
+      {"event": "alt_at", "x": 110, "z": 230},
+      {"event": "alt_at", "x": 100, "z": 230}, {"event": "alt_at", "x": 104, "z": 230},
+      {"event": "alt_at", "x": 108, "z": 230}, {"event": "alt_at", "x": 110, "z": 230},
+      {"event": "alt_at", "x": 100, "z": 200}, {"event": "alt_at", "x": 100, "z": 204},
+      {"event": "alt_at", "x": 100, "z": 208}, {"event": "alt_at", "x": 100, "z": 212},
+      {"event": "alt_at", "x": 100, "z": 216}, {"event": "alt_at", "x": 100, "z": 220},
+      {"event": "alt_at", "x": 100, "z": 224}, {"event": "alt_at", "x": 100, "z": 228},
+      {"event": "alt_at", "x": 100, "z": 230}]},
+
+    {"op": "ldev_altitude_f", "rect": [100, 200, 110, 230], "lowest": true, "water": true, "expect": 50,
+      "note": "withWater: every sample is followed by GetWaterLevel(x, z); here the water level 0 is not larger, so the lowest stays 50"},
+    {"op": "ldev_expect_event_count", "filter": {"event": "alt_at"}, "count": 26},
+    {"op": "ldev_expect_event_count", "filter": {"event": "water_at"}, "count": 26},
+    {"op": "ldev_expect_event_count", "filter": {"event": "alt_vertex"}, "count": 0},
+    {"op": "ldev_clear_events"},
+
+    {"op": "ldev_altitude_f", "rect": [0, 0, 64, 64], "lowest": true, "water": false, "expect": 50},
+    {"op": "ldev_expect_events", "filter": {"event": "alt_vertex"}, "note": "vertices (1..4, 1..4), x outer: index = x + 65 z",
+      "events": [
+        {"index": 66}, {"index": 131}, {"index": 196}, {"index": 261},
+        {"index": 67}, {"index": 132}, {"index": 197}, {"index": 262},
+        {"index": 68}, {"index": 133}, {"index": 198}, {"index": 263},
+        {"index": 69}, {"index": 134}, {"index": 199}, {"index": 264}]},
+    {"op": "ldev_altitude_f", "rect": [0, 0, 64, 64], "lowest": true, "water": false},
+    {"op": "ldev_expect_event_count", "filter": {"event": "alt_vertex"}, "count": 16},
+    {"op": "ldev_expect_event_count", "filter": {"event": "alt_at"}, "count": 68},
+    {"op": "ldev_clear_events"},
+
+    {"op": "ldev_altitude_f", "rect": [-5, -5, 1e9, 20], "lowest": true, "water": false, "expect": 50},
+    {"op": "ldev_expect_event_count", "filter": {"event": "alt_vertex"}, "count": 63},
+    {"op": "ldev_expect_event_count", "filter": {"event": "alt_at"}, "count": 526},
+    {"op": "ldev_expect_event_count", "filter": {"event": "alt_at", "x": 0, "z": 0}, "count": 2},
+    {"op": "ldev_expect_event_count", "filter": {"event": "alt_at", "x": 1023.9, "z": 0}, "count": 2},
+    {"op": "ldev_expect_event_count", "filter": {"event": "alt_at", "x": 1023.9, "z": 20}, "count": 2},
+    {"op": "ldev_expect_event_count", "filter": {"event": "alt_at", "x": 0, "z": -5}, "count": 0},
+    {"op": "ldev_clear_events"},
+
+    {"op": "ldev_terrain", "pos": [[110, 216, 80]]},
+    {"op": "ldev_altitude_f", "rect": [100, 200, 110, 230], "lowest": false, "water": false, "expect": 80},
+    {"op": "ldev_altitude_f", "rect": [100, 200, 110, 230], "lowest": true, "water": false, "expect": 50},
+    {"op": "ldev_altitude_f", "rect": [100, 200, 108, 230], "lowest": false, "water": false, "expect": 50,
+      "note": "x = 110 is no longer an edge: the 80 is not sampled"}
+  ]
+}

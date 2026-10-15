@@ -59,7 +59,11 @@ serializable `0x00AB0C54` (Write `0x0069D920`, Read `0x0069E820`, GetGZCLSID `0x
 
 `ConditionalBuildingStatus` (SDK `cISC4CivicBuildingSimulator::ConditionalBuildingStatus`) is
 `{u8 status; u16 buildingCount; cRZString itemToolTip}`. Status bits (SDK enum): **1** hidden, **2** available,
-**4** advisor event data set. The key is the building exemplar's instance ID (for example `0x032B0000` for the
+**4** advisor event data set. Bit 4 is the reward advice's "already announced" mark (CB3): the reward advice
+(advisors.md §6.6) sets the status to 6 (available and announced) when its condition first returns 1, and fires
+the advice only while bit 4 is clear. A later condition result keeps the bit: a string clears bits 1 and 2 (4),
+number 0 sets hidden and clears available (5). That accounts for the corpus values 4, 5 and 6. The key is the
+building exemplar's instance ID (for example `0x032B0000` for the
 Opera House).
 
 Both hash containers are STLport hash tables with the identity hash, created with a size hint that gives **193

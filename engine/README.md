@@ -68,6 +68,34 @@ CRT (`/MT`), so the DLL needs no runtime DLLs. CTest runs `cargo test` for the s
 `capi_smoke` test. On other platforms or architectures CMake builds and tests only the Rust parts and skips the
 plugin.
 
+### Save sweep (records read back from every save)
+
+`capi/src/save_sweep_tests.rs` reads class records from every distinct `.sc4` below `FC4_SAVES_DIR` (else
+`FC4_GAME_DIR`, else the default GOG install; read-only; identical files counted once; it passes with a note when
+the directory is missing), reads each entry into a fresh object over the C ABI and writes it back. References
+(foundations §2.7) go through as `classID << 32 | objectID`, so a record needs no other record of the save.
+The history and 24-hour clock records have their own record mode in `fc4-formats` (`formats/tests/save_records.rs`,
+over the core types); these four go through the C ABI with the `fc4-capi` test hosts, so the two stay separate tests.
+
+| Record | Class | Check |
+|---|---|---|
+| commercial (commercial-industrial §8.1, §12 test 9) | `0x8990C080` | byte-identical |
+| industrial (§8.2) | `0xA990C022` | byte-identical |
+| civic (civic-buildings §7, §12 test 10) | `0x0A413481` | the record with each multi-entry bucket chain reversed (CB6), and byte-identical after a second round trip |
+| parks (parks §7, §12 test 8) | `0xAA3FE6BC` | byte-identical |
+
+```sh
+cd engine
+cargo test -p fc4-capi --release save_sweep -- --nocapture
+# another corpus, e.g. the regions folder:  FC4_SAVES_DIR=<dir> cargo test -p fc4-capi --release save_sweep -- --nocapture
+```
+
+Each class prints `save sweep <name>: records=… identical=… chains-reversed=… (chains …) second-trip-identical=…
+failures=…; sizes: …` and the first failures. Result on SimCity 4 Deluxe (GOG), 2026-10-15: 417 saves, all
+distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 bytes), civic 417/417 identical and
+417 identical after a second trip (no save has a bucket with two entries; 3,821 to 5,305 bytes), parks 417/417
+(10 bytes ×411, 18, 34, 58, 82).
+
 ## Installing and checking in game
 
 1. Copy `build-x86/FreeCity4.dll` to the game's plugin folder, for example
@@ -416,6 +444,63 @@ plugin.
        `tract_abandon`, `tract_lot_changes`, `tract_demolition`, `tract_population`, `tract_resources`,
        `tract_filters`, `tract_lot_lists`, `tract_traffic`, `tract_style_map`, `tract_roads`, `tract_family_sets`,
        `tract_agents` (see `plugin/FC4Config.h`).
+     - `lotdev`: the lot developer (`cSC4LotDeveloper`, CLSID `0xA990BFE0`; lot-developer spec), the class that
+       looks after existing lots: the daily pass (abandonment, condition, zots, business units), construction and
+       its lot content (props, flora, base textures), demolition and explosion, the night lights, and the terrain
+       helpers (altitudes, slopes, levelling, foundations, development cost) other systems call. Its 65 slots with
+       the §11.1 return channels (Release returns 0; slots 15-18 and 27-31 ST0, 19-21 counts, 32 EDX:EAX, 39 and 40
+       `&orient`), the message target (+4: the agent at levels 0, 4 and 6, nine messages, the animation tick) and
+       the record (version 1; 24 bytes with an empty night deque, its buildings as object references).
+       It works with the original BDS, tract developer, lot manager and occupant managers (or ours) through their
+       interfaces only. Every call into the core holds the object's lock; references the game's lists give and
+       objects made for a call are kept until the outermost call returns. `lotdev_seed = N` (env `FC4_LOTDEV_SEED`) fixes the session seed (default: the
+       cRZTime clock); `lotdev_lot_log = 1` (env `FC4_LOTDEV_LOT_LOG`) adds one line per lot the daily pass changed
+       (`lotdev lot x,z: state a->b condition c->d zot e->f building=0x…`). The log has
+       `lotdev Init|Read|Write|Shutdown: init=… daily=… visited=… vertsX=… extent=…,… cells=…,… night=cursor/len
+       mode=… lit=… … lots=… abandoned=… restored=… conditions=… zots=… started=… finished=… demolitions=…
+       nightBatches=… refused=… queued=… agents=… tick=… buildings=…/… props=… … iterators=… fallbacks=… faults=…
+       listsRefused=… content: …` (counters: ID arrays, flora types, flora and prop adds, completions, and the
+       props and flora the configurations listed) and one line per month: `lotdev month yyyy-mm-dd: days=…
+       redelivered=… lots=… abandoned=…
+       restored=… conditions=… zots=… started=… finished=… demolitions=… nightBatches=… night=…/… mode=…
+       buildings=… props=… flora=… textures=… removed=… lights=… refused=… queued=…` (the counts since the previous
+       line; `refused` should stay 0). Not specified, so not done (logged once each): retaining walls, the
+       burnt-building prop and the rubble decal, network connection nodes, UpdateLotObjectAlitudes.
+       Its game calls have their own switches (default `1`, environment `FC4_LOTDEV_<KEY>`): `lotdev_lot_writes`,
+       `lotdev_buildings`, `lotdev_demolition`, `lotdev_props`, `lotdev_textures`, `lotdev_terrain`,
+       `lotdev_night`, `lotdev_units`, `lotdev_agents` (see `plugin/FC4Config.h`).
+     - `commercial`: the commercial simulator (`cSC4CommercialSimulator`, CLSID `0x8990C080`;
+       commercial-industrial spec): the CO$$ and CO$$$ proximity grids (the game's own `cSC4SimGrid<uint8>`,
+       created through GZCOM or handed over by the save), the four agents, the occupant subscriptions, the
+       `DoIdle` state machine and the record (version 1, 19 bytes with both grids). Slot 5 hands out the grid
+       pointers published after each `Init`, `Read` and `Shutdown`, from any thread. The log has `commercial
+       Init|Read|Shutdown: ok=… init=… dirty=… state=… flag=… grids CO$$=… CO$$$=… …`, `commercial Write -> 1`,
+       one `commercial rebuild N yyyy-mm-dd (msg …): CO$$ cells=… edge1=… zeros=…; CO$$$ …` line per finished
+       pair of map rebuilds and one `commercial month yyyy-mm-dd: dirty=… state=… rebuilds=… occupants=…
+       offices=… days=… idles=…` line per SimNewMonth. Its grid writes have the switch `commercial_grid_writes`
+       (default `1`, environment `FC4_COMMERCIAL_GRID_WRITES`).
+     - `industrial`: the industrial simulator stub (`cSC4IndustrialSimulator`, CLSID `0xA990C022`): no agent, no
+       subscription, the record `01 00`. The log has `industrial Init|Read|Write|Shutdown`.
+     - `civic`: the civic building simulator (`cSC4CivicBuildingSimulator`, CLSID `0x0A413481`; civic-buildings
+       spec): the month agent, the occupant and lot-state subscriptions, the exclusion IDs, the conditional
+       building statuses, the disease-center and maintained-building lists, the Landmarks department, the lot
+       condition pass and the record (version 6). Slot 6 hands out a stable `ConditionalBuildingStatus*` per key:
+       a mirror entry in the game's layout (the tooltip a game `cRZString` from the game's string allocator) that
+       is written back to the core before the core next reads the statuses; without the game's allocator (tests)
+       slot 6 answers null and the core keeps every status. The Lua table `civic` is not published (no interface
+       rows for the registry). `civic_seed = N` (env `FC4_CIVIC_SEED`) fixes the session seed of the ape escape's
+       temporary generators, else the clock. The log has `civic Init|Read|Shutdown: ok=… exclusions=… statuses=…
+       centers=… maintained=… landmarks=… …`, `civic Write -> 0|1 (…)` and one `civic month yyyy-mm-dd:
+       exclusions=… statuses=… … occupants=…/… lots=…/… writebacks=…` line per SimNewMonth.
+     - `parks`: the park manager (`cSC4ParkManager`, CLSID `0xAA3FE6BC`; parks spec): the month agent, the
+       occupant subscriptions, the park and zoo lists, the Parks and Recreation line items, the run-down latch,
+       the zoo escape (the ZooEscape message `0xAA667CE2` with void1 = the manager and IGZUnknown = the zoo,
+       `MessagePost(msg, false)`, then `zoomanji` controllers) and the record (version 2). The tuning exemplar
+       "Parks Manager" (`0x6534284A` / `0x67CD5FA1` / `0x8A4805BC`) is handed to the core at the first `Init`.
+       `parks_seed = N` (env `FC4_PARKS_SEED`) fixes the session seed of the member generator, else the clock.
+       The log has `parks Init|Read|Shutdown: ok=… init=… parks=… zoos=… threshold=… curve=… dept=… latch=… …`,
+       `parks Write -> 0|1 (…)` and one `parks month yyyy-mm-dd: parks=… zoos=… funding=… latch=… lot-writes=…
+       escapes=… occupants=…` line per SimNewMonth.
      - `zonedev`: the zone developer / lot manager (`cSC4ZoneDeveloper`, CLSID `0x498F9B01`; zones.md §1-§11),
        one object with the original's four interfaces at its offsets (`cISC4ZoneDeveloper` +0, `cISC4LotManager`
        +4 in the compiled slot order of §11.3, `cIGZMessageTarget2` +8, `cIGZSerializable` +0xC; city components 7
@@ -1289,6 +1374,96 @@ plugin.
      ```
 
      Success is `roundtrip=same`, `mismatches=0` and `failures=0` on every line.
+   - **Lot developer shadow** (`lotdev_shadow = 1`, env `FC4_LOTDEV_SHADOW`; off by default;
+     `plugin/FC4LotDevShadow.h`): a same-process differential of the lot developer. It needs the **original** lot
+     developer (do not enable `lotdev`); otherwise it logs `lotdev shadow: requested … but INACTIVE` at game start.
+     At PostCityInit and each SimNewMonth it reads the original's record (its own `Write` into memory) into a
+     FreeCity4 core made for the run over a read-only table on the city's services (Read, then Init, which stops
+     before the agent: the table has no simulator), and compares the core's `Write` bytes and night state with the
+     record; then, on up to 64 lots spread over the city, the original's slots 15-18, 22, 25-32, 39, 40, 46, 48,
+     51, 56 and 57 with the core's, bit for bit (never a slot that changes the city). Not compared (logged at game
+     start): the daily pass, construction, demolition, explosion and the night lights (they change the city and
+     draw from the generators), levelling and the foundation add / remove slots, slots 42 / 43 (the boundary map
+     is filled past the read-only Init), the §5 tests and the tuning (no getter). Lines (always written):
+
+     ```
+     lotdev shadow: ON (lotdev_shadow from …): …                                            (game start)
+     lotdev shadow: NOT compared: …                                                         (game start)
+     lotdev shadow yyyy-mm-dd load|month: record=N bytes roundtrip=same night=L cursor=C mode=M lit=B lots=N
+       sampled=S compared=C mismatches=N rawAL=R first=…
+     ```
+
+     Slot 22's truth value is compared (the original's AL is that of its second `PositionToCell`, which need not
+     be 0 / 1); `rawAL` counts the lots where it was neither. A slot 25 difference adds a `s25r@x,z` entry with the
+     rectangle and both sides' slot 27 range.
+     Success is `roundtrip=same` and `mismatches=0` on every line, and no `INCOMPLETE` line.
+   - **Commercial shadow** (`commercial_shadow = 1`, env `FC4_COMMERCIAL_SHADOW`; `commercial_shadow_cells = N`
+     differing cells listed per grid, default 4; off by default; `plugin/FC4CommercialShadow.h`): a same-process
+     differential of the commercial simulator's proximity maps. It needs FreeCity4's simulator and the
+     **original** commercial simulator (do not enable `commercial`). Before each SimIdle / SimNewDay delivery to the
+     original's agent it reads the original's `dirty` byte and `state` (+0x20 / +0x24, read-only, only while the
+     object's vtable is the original's from the compat table); before a rebuild step (state 0..2) the original's
+     CO$$ and CO$$$ grids are copied into the shadow core's own grids; after the original's step the shadow core is
+     set to the original's before-state (`fc4_commercial_set_machine`, ABI 53) and runs the same step on the live
+     building map, and the machine and both grids are compared cell by cell. Idle-state steps are compared
+     (machine only) and counted in the next line. Lines (always written):
+
+     ```
+     commercial shadow: ON (commercial_shadow from …): …                                     (game start)
+     commercial shadow: following the original commercial simulator … (agent …, vtable 00AB0CCC): dirty=… state=…
+     commercial shadow yyyy-mm-dd rebuild N CO$$|CO$$$ (state s->s' orig, s->s' ours; dirty d/d): cells=… edge1=…
+       zeros=…; other grid unchanged mismatches=…; idle steps since the last line=K (machine mismatches=m);
+       mismatches=N[; first differing (x,z) orig/ours: …]
+     commercial shadow: city shutdown: N rebuild lines, M with mismatches=0
+     ```
+
+     Success is `mismatches=0` on every line.
+   - **Civic shadow** (`civic_shadow = 1`, env `FC4_CIVIC_SHADOW`; off by default; `plugin/FC4CivicShadow.h`): a
+     same-process differential of the civic building simulator. It needs FreeCity4's simulator and the
+     **original** civic simulator (do not enable `civic`). A shadow core with a read-only host follows the occupant
+     and lot-state messages the original receives (its own subscription). At each SimNewMonth delivery to the
+     original's agent the original's record is captured through its own Write and compared with the shadow core
+     (exclusions and status keys in hash order, building counts, the maintained and disease-center lists, the
+     Landmarks department, slots 5 and 8); then the shadow core restarts from that record (with each multi-entry
+     bucket chain pre-reversed, because `Read` reverses them, civic §7 / CB6) and runs its month with
+     lot writes recorded, the original's month runs, and each maintained building's lot condition is compared
+     with ours. The ape escape is not compared (the original seeds its generator from the clock); status bytes and
+     tooltips written by others through slots 6 / 7 are counted as external writes. Lines (always written):
+
+     ```
+     civic shadow: ON (civic_shadow from …): …                                                (game start)
+     civic shadow: following the original civic simulator … (agent …)
+     civic shadow month yyyy-mm-dd: followed=yes|first exclusions=… statuses=… counted=… maintained=… centers=…
+       landmarks=… excluded-slot5=n/m; external status writes=k; messages followed=…; pass: lots=… funding-reads=…
+       run-down=… recovered=…; ape escape not compared (centers=…, ours escaped=…); mismatches=N[; differences: …]
+     civic shadow: city shutdown: N month lines, M with mismatches=0
+     ```
+
+     Success is `mismatches=0` on every line.
+   - **Parks shadow** (`parks_shadow = 1`, env `FC4_PARKS_SHADOW`; off by default; `plugin/FC4ParksShadow.h`): a
+     same-process differential of the park manager. It needs FreeCity4's simulator and the **original** park
+     manager (do not enable `parks`). At the first SimNewMonth delivery to the original's agent a shadow core with
+     a read-only host starts from the original's record (captured through its own Write) and the shipped tuning,
+     then follows the occupant messages the original receives (when the original's threshold reads as the code
+     default 0.25 while the exemplar gives another value, ours starts as without the exemplar, and every line says
+     `tuning=as-without-exemplar`). At each SimNewMonth the park and zoo lists are
+     compared with the original's record (a difference restarts ours), the original's latch (+0x15) and threshold
+     (+0x34) are read raw (only while its vtable is the original's, compat table) and compared with ours before
+     and after the month, ours runs its month with lot writes recorded, the original's month runs, and every park
+     lot's condition is compared with ours. The zoo escape is not compared (clock-seeded generator); both escape
+     counts are given (the original's from its ZooEscape posts). Lines (always written):
+
+     ```
+     parks shadow: ON (parks_shadow from …): …                                                (game start)
+     parks shadow: following the original park manager … (agent …, vtable ok): latch=… threshold=…
+     parks shadow month yyyy-mm-dd: followed=yes|first|resynced parks=… zoos=… latch orig a->b ours c->d
+       threshold orig/ours tuning=exemplar|as-without-exemplar (…); funding=… p=…; pass: lots=… run-down=…
+       restored=…; zoo escapes orig=… ours=…
+       (not compared: clock-seeded generator); messages followed=…; mismatches=N[; differences: …]
+     parks shadow: city shutdown: N month lines, M with mismatches=0
+     ```
+
+     Success is `mismatches=0` on every line.
    - **Zone developer shadow** (`zonedev_shadow = 1`, env `FC4_ZONEDEV_SHADOW`; off by default;
      `plugin/FC4ZoneDevShadow.h`): a same-process differential of the lot manager. It needs the **original** zone
      developer (do not enable `zonedev`); otherwise it logs `zonedev shadow: requested … but INACTIVE`. At
