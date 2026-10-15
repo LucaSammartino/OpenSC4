@@ -241,6 +241,8 @@ pub struct fc4_budget_host {
     pub add_ref: Option<unsafe extern "C" fn(U, u64)>,
     pub release: Option<unsafe extern "C" fn(U, u64)>,
     pub create_object: Option<unsafe extern "C" fn(U, u32) -> *mut c_void>,
+    /// ABI 57 (EX39): 1 array, 0 scalar, -1 absent; NULL counts every property as an array.
+    pub property_is_array: Option<unsafe extern "C" fn(U, u64, u32) -> i32>,
 }
 
 const _: () = {
@@ -253,7 +255,7 @@ const _: () = {
     assert!(std::mem::size_of::<fc4_budget_state>() == 432);
     assert!(std::mem::size_of::<fc4_tax_lot>() == 24);
     assert!(std::mem::size_of::<fc4_tax_scan>() == 408);
-    assert!(std::mem::size_of::<fc4_budget_host>() == if cfg!(target_pointer_width = "32") { 124 } else { 248 });
+    assert!(std::mem::size_of::<fc4_budget_host>() == if cfg!(target_pointer_width = "32") { 128 } else { 256 });
 };
 
 // ---- host adapter -----------------------------------------------------------------------------------
@@ -435,6 +437,13 @@ impl BudgetHost for CBudgetHost {
     }
     fn copy_property(&self, src: u64, dst: u64, prop: u32) -> bool {
         cb!(self, copy_property, false, src, dst, prop)
+    }
+    fn property_is_array(&self, holder: u64, prop: u32) -> Option<bool> {
+        match cb!(self, property_is_array, -1, holder, prop) {
+            0 => Some(false),
+            1 => Some(true),
+            _ => None,
+        }
     }
     fn occupant_of(&self, holder: u64) -> Option<u64> {
         let t = cb!(self, occupant_of, 0, holder);

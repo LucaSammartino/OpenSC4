@@ -40,17 +40,41 @@ pub fn local_funding_percent(fraction: f32) -> f32 {
     fraction * 100.0
 }
 
+/// A vector-helper read of one item array (data-formats §5.2, EX39): a
+/// property stored as a scalar has count 0 and gives an **empty** vector, as
+/// the original's `vec<…>` helpers do; only the converting getters keep a
+/// scalar's value. Two shipped landfill tiles (`0x02F10000`, `0x034E0000`)
+/// store the cost `0xEA54D286` as a Sint64 scalar, which the budget simulator
+/// reads with `vec<s64>`: no cost entry. *[literal reading]* The rule is applied
+/// to all five item arrays (§2 lists each as an array); on shipped data only
+/// the cost is ever a scalar. A host that cannot tell (`None`) keeps the value.
+fn item_array<T>(host: &dyn BudgetHost, holder: u64, prop: u32, values: Option<Vec<T>>) -> Option<Vec<T>> {
+    let mut v = values?;
+    if host.property_is_array(holder, prop) == Some(false) {
+        v.clear();
+    }
+    Some(v)
+}
+
 /// `GetBudgetItemInfo` (§6): `None` if the department array is missing or
-/// empty; short arrays use the defaults of §2.
+/// empty; short arrays use the defaults of §2. A scalar reads as an empty
+/// array ([`item_array`], EX39).
 pub fn budget_items(host: &dyn BudgetHost, holder: u64) -> Option<Vec<BudgetItem>> {
-    let departments = host.get_u32s(holder, prop::DEPARTMENT)?;
+    let u32s = |p| item_array(host, holder, p, host.get_u32s(holder, p));
+    let departments = u32s(prop::DEPARTMENT)?;
     if departments.is_empty() {
         return None;
     }
-    let lines = host.get_u32s(holder, prop::LINE).unwrap_or_default();
-    let purposes = host.get_u32s(holder, prop::PURPOSE).unwrap_or_default();
-    let costs = host.get_i64s(holder, prop::COST).unwrap_or_default();
-    let funding = host.get_f32s(holder, prop::LOCAL_FUNDING).unwrap_or_default();
+    let lines = u32s(prop::LINE).unwrap_or_default();
+    let purposes = u32s(prop::PURPOSE).unwrap_or_default();
+    let costs = item_array(host, holder, prop::COST, host.get_i64s(holder, prop::COST)).unwrap_or_default();
+    let funding = item_array(
+        host,
+        holder,
+        prop::LOCAL_FUNDING,
+        host.get_f32s(holder, prop::LOCAL_FUNDING),
+    )
+    .unwrap_or_default();
     Some(
         departments
             .iter()
@@ -76,7 +100,7 @@ pub fn item_for_purpose(host: &dyn BudgetHost, holder: u64, purpose: u32) -> Opt
 /// `ChangeBudgetItemLine` (§6): sets entry `index` of the line array (only if
 /// it exists) and writes the whole array back. Returns whether it was set.
 pub fn change_item_line(host: &dyn BudgetHost, holder: u64, index: u32, line: u32) -> bool {
-    let Some(mut lines) = host.get_u32s(holder, prop::LINE) else {
+    let Some(mut lines) = item_array(host, holder, prop::LINE, host.get_u32s(holder, prop::LINE)) else {
         return false;
     };
     let Some(slot) = lines.get_mut(index as usize) else {
@@ -88,7 +112,7 @@ pub fn change_item_line(host: &dyn BudgetHost, holder: u64, index: u32, line: u3
 
 /// `ChangeBudgetItemCost` (§6), like `change_item_line` for the cost array.
 pub fn change_item_cost(host: &dyn BudgetHost, holder: u64, index: u32, cost: i64) -> bool {
-    let Some(mut costs) = host.get_i64s(holder, prop::COST) else {
+    let Some(mut costs) = item_array(host, holder, prop::COST, host.get_i64s(holder, prop::COST)) else {
         return false;
     };
     let Some(slot) = costs.get_mut(index as usize) else {
@@ -102,7 +126,13 @@ pub fn change_item_cost(host: &dyn BudgetHost, holder: u64, index: u32, cost: i6
 /// 100.0f`) (RG13), growing the array to `index + 1` with 0.0 first [compat]
 /// (other items that had no entry become 0 % funded).
 pub fn change_item_local_funding(host: &dyn BudgetHost, holder: u64, index: u32, fraction: f32) -> bool {
-    let mut funding = host.get_f32s(holder, prop::LOCAL_FUNDING).unwrap_or_default();
+    let mut funding = item_array(
+        host,
+        holder,
+        prop::LOCAL_FUNDING,
+        host.get_f32s(holder, prop::LOCAL_FUNDING),
+    )
+    .unwrap_or_default();
     let i = index as usize;
     if funding.len() < i + 1 {
         funding.resize(i + 1, 0.0);

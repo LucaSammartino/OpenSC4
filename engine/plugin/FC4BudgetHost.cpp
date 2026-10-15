@@ -47,6 +47,7 @@
 #include "cIGZFrameWork.h"
 #include "cIGZMessageServer2.h"
 #include "cIGZString.h"
+#include "cIGZVariant.h"
 #include "cISC4App.h"
 #include "cISC4BuildingDevelopmentSimulator.h"
 #include "cISC4BuildingOccupant.h"
@@ -653,6 +654,16 @@ bool SetF32s(void*, uint64_t h, uint32_t p, const float* v, size_t n) {
 
 bool CopyProperty(void*, uint64_t src, uint64_t dst, uint32_t p) { return props::Copy(Holder(src), Holder(dst), p); }
 
+// ABI 57 (data-formats §5.2, EX39): whether a property is an array (1), a
+// scalar (0) or absent (-1). The core reads the budget item arrays as the
+// original's vector helpers do, a scalar (count 0) giving an empty vector;
+// GetI64s and friends keep converting a scalar to one value for the tuning.
+int32_t PropertyIsArray(void*, uint64_t h, uint32_t p) {
+    const uint16_t type = props::TypeOf(Holder(h), p);
+    if (type == 0) return -1;
+    return (type & cIGZVariant::TypeArray) != 0 ? 1 : 0;
+}
+
 uint64_t OccupantOf(void*, uint64_t h) {
     cIGZUnknown* u = FromToken(h);
     if (u == nullptr) return 0;
@@ -765,6 +776,7 @@ fc4_budget_host MakeHost() {
     h.add_ref = &AddRefToken;
     h.release = &ReleaseToken;
     h.create_object = &CreateObject;
+    h.property_is_array = &PropertyIsArray;
     return h;
 }
 
@@ -792,6 +804,7 @@ fc4_budget_host MakeReadOnlyHost() {
     h.get_f32s = &GetF32s;
     h.occupant_of = &OccupantOf;
     h.class_of = &ClassOf;
+    h.property_is_array = &PropertyIsArray;
     return h;
 }
 

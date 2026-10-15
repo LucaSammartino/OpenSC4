@@ -94,8 +94,10 @@ extern "C" {
  *      the civic building simulator (fc4_civic) and the park manager (fc4_park);
  * 48 = adds the tract developer (fc4_tract, tract-developer.md) and its shadow mode
  *      (fc4_tract_create_shadow, the fc4_tract_probe_* functions; taken as 40 on its lane,
- *      then 45 and 47; renumbered at merge). */
-#define FC4_ABI_VERSION 48u
+ *      then 45 and 47; renumbered at merge);
+ * 57 = the budget host's optional property_is_array (data-formats §5.2, EX39: the budget item
+ *      arrays read a scalar as empty) (apply10b lane; the coordinator renumbers at merge). */
+#define FC4_ABI_VERSION 57u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -551,6 +553,12 @@ typedef struct fc4_budget_host {
     /* Creates a department (0xE990BFFC) or line item (0xAA313C9F) through the
      * class registry; returns its core handle (fc4_department* / fc4_line_item*). */
     void* (*create_object)(void* user, uint32_t class_id);
+    /* ABI 57 (data-formats §5.2, EX39): 1 if the property is an array, 0 if it is a
+     * scalar, -1 if absent. The budget item arrays are read with the original's vector
+     * helpers, which give a scalar (count 0) an EMPTY vector, while get_u32s / get_i64s /
+     * get_f32s convert a scalar to one value (the converting getters, for tuning). NULL:
+     * every property counts as an array (the old one-value reading). */
+    int32_t (*property_is_array)(void* user, uint64_t holder, uint32_t prop);
 } fc4_budget_host;
 
 /* Lifetime: called by the GZCOM object that fronts the core object; `token` is
