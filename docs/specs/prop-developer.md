@@ -92,7 +92,9 @@ pollution.md calls the requester vector "+0x9FC"; that offset is relative to the
 
 The field at `+0xA34` is never set by the constructor. The shipped city templates hold the heap fill value
 `0xBAADF00D` there (§7). It is read only while the night mode is non-zero, and every assignment of a non-zero mode
-also sets it, so the value is never used.
+also sets it, so the value is never used (PV1). `0xBAADF00D` is the Windows heap's fill for a fresh block when the
+debug heap is active *[inferred]*, so a new city saved by the original holds whatever its heap block held: there is
+no fixed original value to match, and writing 0 is safe.
 
 ## 3. Agents, messages and cadence
 
@@ -193,7 +195,7 @@ Blocks are visited with x inner and z outer: (0, 0), (1, 0), …, (x1, 0), (0, 1
 restarts at (0, 0) at once.
 
 `UpdateAllOptionalProps` (slot 7, `0x006F4DB0`) updates every block of the clip with **x outer, z inner**. No caller
-exists in the game.
+exists in the game: no direct call targets it, and it is reachable only through slot 7 of the vtable (PV3).
 
 ### 4.3 Block update (`UpdateTract`, `0x006F4080`) *[compat]*
 

@@ -569,7 +569,10 @@ Open questions:
   the `floor(x / 64) + 64` approximation misses edge and flora-model cases.
 - **Q2** Where do vacate-reason values > 6 come from? Every observed caller passes 0…6 (`UpdateLot` 0…4, tract
   developer 5 and 6); all vacant lots in saves hold 1…6, so the large values were written in an earlier state or
-  build. A writer copies the byte.
+  build. A writer copies the byte. *Answered* in zones.md §8.5.1 *[inferred]* (cited by re-answers11, ZQ16): the
+  lot constructor `0x006C1E50` writes the byte at `+0x80` (`0x006C1F19`) but never the vacate reason at `+0x83`, so a
+  new lot keeps the byte left in its pool block by the lot that used it before, and a lot that was never vacant
+  saves that stale value.
 - **Q3** Names of the 19 scalar fields of the construction occupant (§9 #14).
 - **Q4** Meaning of the five `0xFF`-default bytes of a base-texture record (§6) and of the effect prop's two bytes
   and u32 (§10.2).

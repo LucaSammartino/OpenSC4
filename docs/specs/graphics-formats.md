@@ -627,8 +627,27 @@ mode (byte, default **3**), direction (+1), speed (float32, default the "unset" 
   vehicle (`0x00524468`) and the getaway van (`0x00533AEA`). Everything else keeps mode 3.
 - Drivers: a prop occupant advances each animated instance on the animation tick message `0x86AD10EE` by the
   message's milliseconds (data3, float32) × the simulator's time dilation (`cISC4Simulator` slot 32), in
-  `cSC4PropOccupant::DoMessage` (`0x005ECFB0`), and `SetState` sets the frame to the state (`0x005ED3AC`). The
-  automata's own per-tick driver is not traced here (GF14).
+  `cSC4PropOccupant::DoMessage` (`0x005ECFB0`), and `SetState` sets the frame to the state (`0x005ED3AC`).
+- **Automata** (GF14). The automata manager receives the same tick (`cSC4AutomataManager::DoMessage`,
+  `0x00506AFC`–`0x00506B14`) and calls each automaton's `DoAnimationTick(data2, data3)` (µs, ms; through
+  `0x0050A7B0`, call at `0x0050A89C`, automaton slot 72 `+0x120`). That passes **data3 (milliseconds), with no time
+  dilation**, to the automaton's animation step, slot 103 (`+0x19C`; e.g. the airplane at `0x00504A12`). The base
+  step (`cSC4Automaton`, `0x005089F0`):
+  1. If the simulator is paused (`cISC4Simulator` slot 15 `IsPaused`) and not emergency-paused (slot 17), do
+     nothing (`0x005089F3`–`0x00508A0F`): **automata do not animate while the game is paused**.
+  2. `Advance(ms)` (slot 15) on every model instance in the automaton's list (`+0x110`…`+0x114`), with the
+     instance's own speed (the file rate unless something set it).
+  3. If the automaton has queued animation events (list `+0x188` not empty) and its first instance's frame (slot 11)
+     is ≥ frame count (slot 12) − 1, call the automaton's slot 102 (`+0x198`) with (1, 0): the end-of-animation
+     notification.
+  4. Add ms to the automaton's animation clock (`+0x1C0`).
+
+  Pedestrians (and the classes built on them, such as the fire crew; `0x00544C90`) add ms to `+0x1C0` first, skip
+  steps 2–3 when the automaton has flag `0x20` and neither `0x2000` nor `2`, apply the same pause test, and call
+  `SetSpeed(0.01)` (slot 14, `0x3C23D70A`) on each instance right before its `Advance`: a walking figure always runs at
+  10 frames per second, whatever its file rate. No automaton code calls `SetFrame` (slot 10) per tick; the frame
+  moves only through `Advance`, and `AttachAnim` (`0x005102A0`) sets the mode (slot 16) and the fade (slot 18,
+  `0x007FAFE0`) of the state's instance. Nothing in a save depends on any of this.
 
 Example: F = 4, rate 30, mode 3, frame 0. Speed becomes float32(0.03) = 0.030000001. `Advance(40)`: acc = 1.2, step
 to frame 1, acc = 0.20000005. `Advance(100)`: acc = 3.2, step to frame 2, acc = 1.0. `Advance(0)`: step to frame 3,
@@ -695,6 +714,19 @@ used.**
   `0x005E6AC2`).
 - Consequence: an identity record (zero axis) divides by zero, so its orientation is NaN; its position is correct.
   FreeCity4 reproduces the exe's reading, and uses no rotation for a zero axis *[choice]* (GF13).
+- What the effect does with it (GF13). The visual effect (vtable `0x00AA1170`, constructor `0x005C0150`) forwards
+  `SetTransform` (slot 8, `0x005BE880`) to its transform node (sub-object `+0x04`, slot 3 `0x005BEC20`) together with
+  its own placement transform (`+0x34`). The node stores both (each a version byte, a flag byte, a 3 × 3 rotation, a
+  translation and a scale; flag byte 0 means identity, the model-effects update sends 5) and composes them: the
+  result's **translation** is the own rotation × the incoming translation × the own scale + the own translation
+  (`0x005BEDF3`–`0x005BEEA9`), so it never touches the incoming rotation and **stays exact**; the result's rotation is
+  the product of the two rotations, so it is **NaN**. The node then computes the effect's reference point as the
+  composed rotation × a local offset (zeroed at `0x005BF143`–`0x005BF155`) × scale + translation
+  (`0x005BF307`–`0x005BF388`); since NaN × 0 is NaN, that point is NaN even for a zero offset. *[inferred]* Every
+  particle placed through the composed rotation gets a NaN position and is not drawn, while code that reads only
+  the composed translation still sees the right place; which emitters of `blue_blinking_light_slow` do which is
+  in the effect description, not in the code. An in-game look at a bridge light whose record is the identity
+  settles the visible result.
 
 **Consumer 2: fire crews** *[compat]*. `cSC4SimFireCrew::InitRegTranslationArray` (`0x00548F10`) looks up
 `regpoint01` (string `0x00A9B2E4`) in the crew's first model and copies the position (f0, f1, f2) of every record.
@@ -835,6 +867,27 @@ offsets (three floats per instance):
      offset (0, 0, 0). A base of 0 gives 0 from the RKT1 rule, then s × `0x10000`.
    - b + 4 (RKT4): a list of records, below. Every record whose selector equals s adds one instance and one
      offset.
+
+**Details of the read** (GF15–GF18, re-answers11, from `0x00496C90`–`0x0049710D`):
+
+- **The zoom mask** is read with the converting `GetProperty(id, uint32&)` (`0x005FD480`, variant slot 25
+  `0x009176C8`), so any stored type is converted by data-formats §5.1: a Uint32 scalar as is, other scalars
+  converted (floats truncated), an array through the text round trip (its first element; an array of count 0 or an
+  Empty value gives 0, so every zoom is masked off). The bit tested is the **zoom as passed**, before the detail
+  remap (`0x00496D16`–`0x00496D25`; the shift takes the zoom mod 32). All 1,009 shipped masks are Uint32 scalars.
+- **The keys** are read with `vec<u32>` (`0x005FF510`, data-formats §5.1 EX33): the raw 32-bit words of whatever
+  type is stored, with no conversion (a Float32 gives its bits, a narrower type is over-read, a wider one gives
+  its leading bytes), and a scalar gives an empty vector. Every shipped key (RKT0, RKT1, RKT3, RKT4, RKT5 and the
+  `0x2781292x` forms) is a Uint32 array.
+- **T and G** are written to the out pointers (when non-null) for every form: RKT0 directly (`0x00496D80`,
+  `0x00496D8A`), RKT2 and RKT3 at `0x00496EFC`–`0x00496F06`, RKT1, RKT5 and each matching RKT4 record through the
+  rule helper (`0x00496830`, which writes them at `0x00496929`–`0x00496933`; v[0] and v[1] of the key or record).
+- **Nothing is range-checked for RKT0–RKT3 and RKT5**: one instance and, if asked, one offset (0, 0, 0)
+  (`0x004970EA`) are **always appended**, even a 0 instance (an RKT1 base of 0 appends 0, `0x00496E1E`–
+  `0x00496E35`). A key with too few values reads past its array, and an empty one (a scalar) reads through a null
+  data pointer *[inferred: crash]*; a zoom above 4 reads past the remap table (§4.2 above). Only RKT4 checks its
+  length (below). *[choice]* FreeCity4 appends nothing in those out-of-range cases, and treats a key whose stored
+  type is not a 32-bit integer as absent; shipped data never reaches either case.
 
 **RKT4 records.** Each record is a header of five values (selector, x, y, z, kind) followed by the values of an
 RKT0–RKT3 key of that kind, read with that kind's rule at that position. The kind sets the record's length
