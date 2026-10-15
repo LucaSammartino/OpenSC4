@@ -1548,10 +1548,10 @@ cISTETerrain	cSTETerrain	00ab3d18	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	
 cISTETerrain	cSTETerrain	00ab3d18	2	+0x8	00741f70	cSTETerrain::Release	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	3	+0xC	0074fea0	cSTETerrain::Init	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	4	+0x10	007435c0	cSTETerrain::Shutdown	0	0	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	5	+0x14	005b9d30	icf::cSCParticleSimulatorBase::IsInDelayedStop	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	5	+0x14	005b9d30	cSTETerrain::IsInitialized (folded getter, byte +0x0C)	0	0	al	high	replaces folded name icf::cSCParticleSimulatorBase::IsInDelayedStop; terrain.md §15.1
 cISTETerrain	cSTETerrain	00ab3d18	6	+0x18	0074c5c0	cSTETerrain::CellWidth	0	0	x87	high	
-cISTETerrain	cSTETerrain	00ab3d18	7	+0x1C	0060fb80	icf::cGZDrawContext::GetEngine	0	0	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	8	+0x20	004abad0	icf::cSC4CatalogItem::GetCost	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	7	+0x1C	0060fb80	cSTETerrain::GetCellCountX (folded getter, +0x28)	0	0	eax	high	replaces folded name icf::cGZDrawContext::GetEngine
+cISTETerrain	cSTETerrain	00ab3d18	8	+0x20	004abad0	cSTETerrain::GetCellCountZ (folded getter, +0x2C)	0	0	eax	high	replaces folded name icf::cSC4CatalogItem::GetCost
 cISTETerrain	cSTETerrain	00ab3d18	9	+0x24	0074c5d0	cSTETerrain::GetVertIndex	8	2	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	10	+0x28	0074c5e0	cSTETerrain::GetVertex	12	3	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	11	+0x2C	0074c610	cSTETerrain::LocationIsInBounds	8	2	eax-or-void	medium	
@@ -1577,15 +1577,15 @@ cISTETerrain	cSTETerrain	00ab3d18	30	+0x78	007449b0	cSTETerrain::GetWaterLevel	8
 cISTETerrain	cSTETerrain	00ab3d18	31	+0x7C	00744980	cSTETerrain::GetWaterLevel	4	1	x87	high	
 cISTETerrain	cSTETerrain	00ab3d18	32	+0x80	007444e0	cSTETerrain::GetLerpedWaterLevel	8	2	x87	high	
 cISTETerrain	cSTETerrain	00ab3d18	33	+0x84	00744ab0	cSTETerrain::GetWaterDepthAtVertex	8	2	x87	high	
-cISTETerrain	cSTETerrain	00ab3d18	34	+0x88	00743fa0	cSTETerrain::CellHasWater	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	35	+0x8C	00744030	cSTETerrain::CellHasLand	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	36	+0x90	00747680	cSTETerrain::IsLandVertex	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	37	+0x94	007476d0	cSTETerrain::IsWaterVertex	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	38	+0x98	00741b30	cSTETerrain::IsSeaVertex	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	34	+0x88	00743fa0	cSTETerrain::CellHasWater	8	2	al	high	bool in AL only; upper EAX not cleared on the out-of-bounds path
+cISTETerrain	cSTETerrain	00ab3d18	35	+0x8C	00744030	cSTETerrain::CellHasLand	8	2	al	high	bool in AL only
+cISTETerrain	cSTETerrain	00ab3d18	36	+0x90	00747680	cSTETerrain::IsLandVertex	8	2	al	high	bool in AL only
+cISTETerrain	cSTETerrain	00ab3d18	37	+0x94	007476d0	cSTETerrain::IsWaterVertex	8	2	al	high	bool in AL only
+cISTETerrain	cSTETerrain	00ab3d18	38	+0x98	00741b30	cSTETerrain::IsSeaVertex	8	2	al	high	bool in AL only
 cISTETerrain	cSTETerrain	00ab3d18	39	+0x9C	00740750	cSTETerrain::AreSeaVertices	4	1	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	40	+0xA0	00749540	cSTETerrain::DoPostCityInit	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	41	+0xA4	00749a00	cSTETerrain::SetTerrainType	4	1	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	42	+0xA8	0040cf10	cSC4SimGrid<T>::GetTractSize	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	42	+0xA8	0040cf10	cSTETerrain::GetTerrainType (folded getter, +0x18)	0	0	eax	high	replaces folded name cSC4SimGrid<T>::GetTractSize
 cISTETerrain	cSTETerrain	00ab3d18	43	+0xAC	0074a220	cSTETerrain::CreateFlatAreas	4	1	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	44	+0xB0	0074c0f0	cSTETerrain::CreateShoreCliffs	4	1	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	45	+0xB4	00743550	cSTETerrain::SetSeaLevel	4	1	eax-or-void	medium	
@@ -1594,13 +1594,13 @@ cISTETerrain	cSTETerrain	00ab3d18	47	+0xBC	0074c660	cSTETerrain::GetDefaultTerra
 cISTETerrain	cSTETerrain	00ab3d18	48	+0xC0	00746440	cSTETerrain::ChangeTerrainLevel	8	2	via-call	low	
 cISTETerrain	cSTETerrain	00ab3d18	49	+0xC4	00744f10	cSTETerrain::SetAltitude	16	4	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	50	+0xC8	00744e60	cSTETerrain::SetAltitudeAtVertex	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	51	+0xCC	00744f90	cSTETerrain::SetAltitude	12	3	x87|eax	low	
+cISTETerrain	cSTETerrain	00ab3d18	51	+0xCC	00744f90	cSTETerrain::SetAltitude(x,z,h)	12	3	void	high	no meaningful return (x87|eax in the table is a path artefact); terrain.md §6
 cISTETerrain	cSTETerrain	00ab3d18	52	+0xD0	00741f90	cSTETerrain::LockAltitude	8	2	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	53	+0xD4	00744b40	cSTETerrain::NumberOfWaterVertices	4	1	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	54	+0xD8	0074c6e0	cSC4WinRegionView::GetSelectedCity	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	54	+0xD8	0074c6e0	cSTETerrain::<getter +0xE4> (folded)	0	0	eax	high	render object; replaces folded name cSC4WinRegionView::GetSelectedCity
 cISTETerrain	cSTETerrain	00ab3d18	55	+0xDC	007448c0	cSTETerrain::GetSedimentValue	8	2	x87	high	
 cISTETerrain	cSTETerrain	00ab3d18	56	+0xE0	00747720	cSTETerrain::StartFlood	0	0	via-call	low	tail->007467f0
-cISTETerrain	cSTETerrain	00ab3d18	57	+0xE4	0074f0e0	cSTETerrain::ApplyBrush	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	57	+0xE4	0074f0e0	cSTETerrain::ApplyBrush(brushID, tBrushParameters*)	8	2	al	high	true if the brush exists; terrain.md §9.2
 cISTETerrain	cSTETerrain	00ab3d18	58	+0xE8	007415d0	cSTETerrain::GetBrushExemplarID	8	2	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	59	+0xEC	00747a30	cSTETerrain::BeginBrushScrub	8	2	via-call	low	
 cISTETerrain	cSTETerrain	00ab3d18	60	+0xF0	00747bb0	cSTETerrain::EndBrushScrub	8	2	via-call	low	
@@ -1611,7 +1611,7 @@ cISTETerrain	cSTETerrain	00ab3d18	64	+0x100	0074bad0	cSTETerrain::UpdateWaveProd
 cISTETerrain	cSTETerrain	00ab3d18	65	+0x104	00747510	cSTETerrain::IsGoodWaveProducerLocation	12	3	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	66	+0x108	00741810	cSTETerrain::GetView	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	67	+0x10C	00742930	cSTETerrain::DoLighting	4	1	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	68	+0x110	00749850	cSTETerrain::RedisplayTerrain	16	4	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	68	+0x110	00749850	cSTETerrain::RedisplayTerrain(bool terrain, bool water, int rect[4]*, uint32 data4)	16	4	void	high	posts 0x278E6003, 0x678E6E3A, 0x870BC918 (queued) only after DoPostCityInit; terrain.md §8.1
 cISTETerrain	cSTETerrain	00ab3d18	69	+0x114	00743460	cSTETerrain::RedisplayTerrain	20	5	via-call	low	
 cISTETerrain	cSTETerrain	00ab3d18	70	+0x118	00741c20	cSTETerrain::IsTriangulationFlipped	8	2	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	71	+0x11C	007418f0	cSTETerrain::HideTerrainCell	12	3	eax-or-void	medium	
@@ -1626,12 +1626,12 @@ cISTETerrain	cSTETerrain	00ab3d18	79	+0x13C	00749a70	cSTETerrain::StopAccumulati
 cISTETerrain	cSTETerrain	00ab3d18	80	+0x140	0074c6f0	cSTETerrain::IsAccumulatingTextureUpdates	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	81	+0x144	00742000	cSTETerrain::SetTerrainCellFlags	12	3	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	82	+0x148	00741770	cSTETerrain::GetTerrainCellFlags	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	83	+0x14C	00741740	icf::cGZGraphicSystem::IsPageFlippingEnabled	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	83	+0x14C	00741740	cSTETerrain::GetWaterSurfaceDisplayState (folded getter, byte +0xDD)	0	0	al	high	replaces folded name icf::cGZGraphicSystem::IsPageFlippingEnabled
 cISTETerrain	cSTETerrain	00ab3d18	84	+0x150	007434e0	cSTETerrain::SetWaterSurfaceDisplayState	4	1	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	85	+0x154	00741750	cSTETerrain::GetPlumbingInfoDisplayState	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	86	+0x158	00741ff0	cSTETerrain::SetPlumbingInfoDisplayState	4	1	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	87	+0x15C	00743b40	cSTETerrain::BeginLongTerrainOperation	0	0	unknown	low	
-cISTETerrain	cSTETerrain	00ab3d18	88	+0x160	007443a0	cSTETerrain::EndLongTerrainOperation	0	0	unknown	low	
+cISTETerrain	cSTETerrain	00ab3d18	87	+0x15C	00743b40	cSTETerrain::BeginLongTerrainOperation	0	0	void	high	posts 0xEA3B0AF1 (queued); no nesting counter
+cISTETerrain	cSTETerrain	00ab3d18	88	+0x160	007443a0	cSTETerrain::EndLongTerrainOperation	0	0	void	high	posts 0x6A3B0AFD (queued)
 cISTETerrain	cSTETerrain	00ab3d18	89	+0x164	0074ed40	cSTETerrain::ReconcileEdgesWithNeighboringCities	12	3	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	90	+0x168	00742150	cSTETerrain::SaveObliterated			forward	medium	indirect-jump dword ptr [edx + 0x184]
 cISTETerrain	cSTETerrain	00ab3d18	91	+0x16C	0074db90	cSTETerrain::~cSTETerrain	4	1	eax-or-void	medium	
@@ -3984,11 +3984,11 @@ cISTESurfaceWater	cSTESurfaceWater	00ab3b00	5	+0x14	0073d200	cSTESurfaceWater::G
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	6	+0x18	0073d210	cSTESurfaceWater::GetWaterDepthForCell	8	2	x87	high	
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	7	+0x1C	0073cef0	cSTESurfaceWater::IsNavigable	20	5	via-call	low	
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	8	+0x20	0073ebf0	cSTESurfaceWater::IsNavigable	16	4	eax-or-void	medium	
-cISTESurfaceWater	cSTESurfaceWater	00ab3b00	9	+0x24	0068d1c0	cSC4AuraSimulator::GetTransientAuraGrid	0	0	eax-or-void	medium	
+cISTESurfaceWater	cSTESurfaceWater	00ab3b00	9	+0x24	0068d1c0	cSTESurfaceWater::GetBodyOfWaterMap (folded getter, +0x4C)	0	0	eax	high	uint16 SimGrid; replaces folded name cSC4AuraSimulator::GetTransientAuraGrid; terrain.md §10.2
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	10	+0x28	0073d4f0	cSTESurfaceWater::AltitudeAtWhichFloodingWillOccur	8	2	x87	high	
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	11	+0x2C	0073d7c0	cSTESurfaceWater::GetWaterVelocity	8	2	eax-or-void	medium	
-cISTESurfaceWater	cSTESurfaceWater	00ab3b00	12	+0x30	0073d7f0	cSTESurfaceWater::GetWaterType	8	2	eax-or-void	medium	
-cISTESurfaceWater	cSTESurfaceWater	00ab3b00	13	+0x34	0073cdb0	cSTESurfaceWater::HasDraftClearance	8	2	eax-or-void	medium	
+cISTESurfaceWater	cSTESurfaceWater	00ab3b00	12	+0x30	0073d7f0	cSTESurfaceWater::GetWaterType(x,z)	8	2	eax	high	0 dry, 2 above sea, 3 at or below sea
+cISTESurfaceWater	cSTESurfaceWater	00ab3b00	13	+0x34	0073cdb0	cSTESurfaceWater::HasDraftClearance(x,z)	8	2	al	medium	GetWaterDepthForCell > 5.0
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	14	+0x38	0073e970	cSTESurfaceWater::~cSTESurfaceWater	4	1	eax-or-void	medium	
 cISC4TrafficSource	cSC4Lot	00ab1914	0	+0x0	006c22b0		8	2	eax-or-void	medium	tail->006bf190
 cISC4TrafficSource	cSC4Lot	00ab1914	1	+0x4	006c22c0		0	0	eax-or-void	medium	tail->004664a0
@@ -4897,3 +4897,21 @@ cIGZSerializable(NetworkManager)	cSC4NetworkManager	00aa7aa4	3	+0xC	006111e0	cSC
 cIGZSerializable(NetworkManager)	cSC4NetworkManager	00aa7aa4	4	+0x10	006124c0	cSC4NetworkManager::Read(cIGZIStream&)	4	1	al	high	NEW. sub-object +8. version must be 1; appends without clearing; network-manager.md 4.1; re-specs13c
 cIGZSerializable(NetworkManager)	cSC4NetworkManager	00aa7aa4	5	+0x14	00610530	cSC4NetworkManager::GetGZCLSID	0	0	eax	high	NEW. sub-object +8. returns 0xC990BD46; re-specs13c
 cSC4DisasterManagerRiot(riot interface)	cSC4DisasterManagerRiot	00a9e7c8	9	+0x24	0057da40	cSC4DisasterManagerRiot::LockNetworkOccupant(cISC4NetworkOccupant*)	4	1	void	high	NEW. name FreeCity4's; AddRef, AsOccupant().UnsetRemovalFlags(2), insert into the set once; reached through riot instance +0x24; network-manager.md 10; re-specs13c
+cISC4Nation	cSC4Nation	00a8ef00	0	+0x0	00497220	cSC4Nation::QueryInterface	8	2	al	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	1	+0x4	004f7ba0	AddRef (shared)	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	2	+0x8	004972c0	cSC4Nation::Release	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	3	+0xC	00498750	cSC4Nation::Init	0	0	al	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	4	+0x10	00497a80	cSC4Nation::Shutdown	0	0	al	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	5	+0x14	004976f0	cSC4Nation::GetRegionDirectory	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	6	+0x18	00497730	cSC4Nation::GetRegionCount	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	7	+0x1C	004ed900	cSC4Nation::GetActiveRegionIndex (folded getter, +0x20)	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	8	+0x20	00497770	cSC4Nation::GetActiveRegion	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	9	+0x24	004972f0	cSC4Nation::SetActiveRegion(index)	4	1	void	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	10	+0x28	00497820	cSC4Nation::GetIndexOfCurrentRegionSettingInPreferences	4	1	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	11	+0x2C	00497740	cSC4Nation::GetRegion(index)	4	1	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	12	+0x30	00497f60	cSC4Nation::DeleteRegion	4	1	al	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	13	+0x34	00497ee0	cSC4Nation::AddNewRegion	4	1	al	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	14	+0x38	00498cf0	cSC4Nation::ResetTutorialCities	0	0	void	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	15	+0x3C	00497700	cSC4Nation::GetRegionDownloadDirectory	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	16	+0x40	00497570	cSC4Nation::GetEconomyModifier(demandID)	4	1	x87	high	nation.md §4; returns float in st0, value rounded to float
+cISC4Nation	cSC4Nation	00a8ef00	17	+0x44	00497800	cSC4Nation::~cSC4Nation (deleting)	4	1	eax	medium	nation.md §4
