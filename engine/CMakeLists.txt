@@ -260,6 +260,8 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4HistClock.h
         plugin/FC4HistoryShadow.cpp
         plugin/FC4HistoryShadow.h
+        plugin/cFC4Clock24.cpp
+        plugin/cFC4Clock24.h
         plugin/cFC4History.cpp
         plugin/cFC4History.h
         # The tract developer (tract-developer.md): `enable = tract`, tract_shadow.
@@ -522,6 +524,13 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_history_shadow_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-history-shadow)
     set_tests_properties(plugin_ini_history_shadow_test PROPERTIES RUN_SERIAL TRUE)
+    # The 24-hour clock (docs/specs/clock24.md): off by default; `enable =
+    # clock24` registers it (the QI table with the +0xC system service, the
+    # game-form slots, the framework and cheat registration in order, the
+    # step, the cheats, the 26-byte record and versions 1 / 3, threads).
+    add_test(NAME plugin_ini_enable_clock24_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-clock24)
+    set_tests_properties(plugin_ini_enable_clock24_test PROPERTIES RUN_SERIAL TRUE)
     # References read from a save (in-game run 88): land value grids and a
     # foreign ordinance, with and without a save before Shutdown, and land value
     # grids created through GZCOM; no reference warning, each released once.

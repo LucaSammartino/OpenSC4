@@ -55,6 +55,7 @@
 #include "cFC4Development.h"
 #include "cFC4GrowthDeveloper.h"
 #include "cFC4TrafficSimulator.h"
+#include "cFC4Clock24.h"
 #include "cFC4History.h"
 #include "FC4TractShadow.h"
 #include "cFC4TractDeveloper.h"
@@ -231,6 +232,12 @@ const ClassEntry kHistoryClasses[] = {
     {kFC4_CLSID_cSC4HistoryWarehouse, "cSC4HistoryWarehouse", &CreateFC4HistoryWarehouse},
 };
 
+// docs/specs/clock24.md §1: the 24-hour clock (city component 50). Off by
+// default (glue trial): `enable = clock24`.
+const ClassEntry kClock24Classes[] = {
+    {kFC4_CLSID_cSC424HourClock, "cSC424HourClock", &CreateFC4Clock24},
+};
+
 // docs/specs/tract-developer.md §1. Off by default (M4 glue trial):
 // `enable = tract`. The BDS, the growth developers, the lot developer, the
 // lot manager and the lot configuration manager stay whoever the city runs.
@@ -265,6 +272,7 @@ const Subsystem kSubsystems[] = {
     {"traffic", nullptr, kTrafficClasses, sizeof(kTrafficClasses) / sizeof(kTrafficClasses[0]), false},
     {"tract", nullptr, kTractClasses, sizeof(kTractClasses) / sizeof(kTractClasses[0]), false},
     {"history", nullptr, kHistoryClasses, sizeof(kHistoryClasses) / sizeof(kHistoryClasses[0]), false},
+    {"clock24", nullptr, kClock24Classes, sizeof(kClock24Classes) / sizeof(kClock24Classes[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

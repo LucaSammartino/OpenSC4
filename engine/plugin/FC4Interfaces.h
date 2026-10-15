@@ -1672,6 +1672,46 @@ public:
     virtual bool SetHistoryDataQueueLength(uint32_t key, uint32_t n) = 0;      // 13
 };
 
+// ---- 24-hour clock (docs/specs/clock24.md §8) ------------------------------------------------------
+
+class cISC424HourClock;
+
+// cISC424HourClock (IID 0x681BD53A, vtable 0x00A86588, 30 slots; §8). SDK
+// errors fixed (the game's form is binding): slots 7 and 9 take a float* out
+// and return nothing (SDK: float(void)); slot 19 takes a dword index (SDK:
+// bool); slot 20 returns the float's bits in EAX. Every slot returns in AL /
+// EAX and pops its arguments (docs/abi); none returns in ST0.
+class cFC4ISC424HourClock : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                      // 3
+    virtual bool Shutdown() = 0;                                                  // 4
+    virtual uint32_t SetVisualTimeMode(int32_t mode) = 0;                         // 5  (no meaningful value)
+    virtual int32_t GetVisualTimeMode() = 0;                                      // 6
+    virtual void GetTimePercentage(float* out) = 0;                               // 7
+    virtual uint32_t SetTimePercentage(float& p) = 0;                             // 8  (no meaningful value)
+    virtual void GetVisualTimePercentage(float* out) = 0;                         // 9
+    virtual uint32_t GetHour() = 0;                                               // 10
+    virtual uint32_t SetHour(uint32_t hour) = 0;                                  // 11 (no meaningful value)
+    virtual uint32_t GetVisualHour() = 0;                                         // 12
+    virtual uint32_t GetMinute() = 0;                                             // 13
+    virtual uint32_t SetMinute(uint32_t minute) = 0;                              // 14 the new seconds
+    virtual uint32_t GetVisualMinute() = 0;                                       // 15
+    virtual uint32_t GetSeconds() = 0;                                            // 16
+    virtual uint32_t SetSeconds(uint32_t seconds) = 0;                            // 17 GetMinute()
+    virtual uint32_t GetVisualSeconds() = 0;                                      // 18
+    virtual uint32_t GetEventHour(uint32_t index) = 0;                            // 19
+    virtual uint32_t GetTimeMagnification(float& out) = 0;                        // 20 the bits
+    virtual bool SetTimeMagnification(float m) = 0;                               // 21
+    virtual uint32_t GetTimeMagnificationMinMax(float& min, float& max) = 0;      // 22 the bits of max
+    virtual bool SetTimeMagnificationMinMax(float min, float max) = 0;            // 23
+    virtual bool Pause(bool on) = 0;                                              // 24
+    virtual bool IsPaused() = 0;                                                  // 25
+    virtual bool HiddenPause(bool on) = 0;                                        // 26
+    virtual bool IsHiddenPaused() = 0;                                            // 27
+    virtual bool IsNight() = 0;                                                   // 28
+    virtual void EnableDayNightTransitionNotifications(bool on) = 0;              // 29
+};
+
 namespace fc4 {
 // A simulator handed out by the game (cISC4City::GetSimulator), seen through
 // the verified slot order instead of the SDK's declaration.
@@ -1787,4 +1827,8 @@ inline cFC4ISC4FloraTypeFilter* AsGame(cISC4FloraTypeFilter* p) {
 inline cFC4ISC4HistoryWarehouse* AsGame(cISC4HistoryWarehouse* p) {
     return reinterpret_cast<cFC4ISC4HistoryWarehouse*>(p);
 }
+
+// The 24-hour clock travels as the SDK's pointer (cISC4City slot 86); slots
+// 7, 9, 19 and 20 only ever through the compiled declaration (clock24.md §8).
+inline cFC4ISC424HourClock* AsGame(cISC424HourClock* p) { return reinterpret_cast<cFC4ISC424HourClock*>(p); }
 }  // namespace fc4

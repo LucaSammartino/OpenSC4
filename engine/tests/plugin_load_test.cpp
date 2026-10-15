@@ -9665,6 +9665,8 @@ int main(int argc, char** argv) {
     if (mode == "--ini-enable-history") return HistoryEnableTest(dll, ini, log);
     // The history shadow (FC4HistoryShadow.h, seam op 54 op 1).
     if (mode == "--ini-history-shadow") return HistoryShadowIniTest(dll, ini, log);
+    // The 24-hour clock (clock24.md): the replacement through the test hooks (seam op 54).
+    if (mode == "--ini-enable-clock24") return Clock24EnableTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).
