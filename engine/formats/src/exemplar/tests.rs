@@ -1400,6 +1400,8 @@ fn cohort_inheritance_through_a_package() {
     // The exemplar and cohort types keep the store's own factories.
     assert!(!fresh.add_factory(TYPE_EXEMPLAR, |_| true));
     assert!(!fresh.add_factory(TYPE_COHORT, |_| true));
+    // EX38: each refusal is logged.
+    assert_eq!(fresh.errors().len(), 2);
 
     // A missing parent ends the diagnostic chain and fails the load.
     let mut orphan = Exemplar::new(Kind::Exemplar);
@@ -1466,11 +1468,16 @@ fn ex31_eager_reads_follow_the_winning_record() {
     let user = Exemplar::parse(&user.to_binary()).unwrap();
     let mut late = ExemplarStore::new();
     late.load_package(&res_pkg);
+    assert!(late.errors().is_empty());
     assert!(!late.add_factory(0x1234_5678, |_| true));
+    // EX38: the refusal stands as [choice], but it is logged as an error, never ignored silently.
+    assert_eq!(late.errors().len(), 1);
+    assert!(late.errors()[0].starts_with("error: factory for type 12345678 refused"));
     late.insert(exemplar_key(61), user.clone());
     assert!(late.load(&exemplar_key(61)).is_err());
     let mut early = ExemplarStore::new();
     assert!(early.add_factory(0x1234_5678, |d| d == b"data"));
+    assert!(early.errors().is_empty());
     early.load_package(&res_pkg);
     early.insert(exemplar_key(61), user);
     assert!(early.load(&exemplar_key(61)).is_ok());

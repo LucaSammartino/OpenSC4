@@ -2115,13 +2115,16 @@ pub enum ChainEnd {
 ///    before it, also when it fails to read: the key then does not load ([`LoadError::Unreadable`]), as the
 ///    original reads only the winning segment and never falls back to an earlier one. Inside one package the first
 ///    index entry with a key is the one read (§2.3). The store keeps no cache of looked-up records, so a lookup
-///    always sees every package loaded so far; the original keeps a looked-up record, so the two agree when every
-///    package is loaded before the first lookup, as at the game's startup (§3.1).
+///    always sees every package loaded so far; the original keeps a looked-up record (§3 "Cache", EX37), so the two
+///    agree when every package is loaded before the first lookup, as at the game's startup (§3.1). *\[choice\]* No
+///    cache is kept (EX37): a store that registered packages after lookups would have to keep the first record of
+///    each key looked up.
 /// 2. *A record that failed is read again later.* Parsing a record depends on its bytes only, so only a later
 ///    package's record can change it, and that one is read. A failure that depends on other records (a parent
 ///    cohort, a kind-1 resource, the depth limit) is decided at each [`ExemplarStore::load`], never remembered.
 /// 3. *A factory registered later applies to earlier packages.* The store does not keep the packages, so it cannot
-///    read their records again: [`ExemplarStore::add_factory`] refuses a type that a loaded package already holds.
+///    read their records again: [`ExemplarStore::add_factory`] refuses a type that a loaded package already holds,
+///    and logs the refusal as an error ([`ExemplarStore::errors`], §3 "A factory added late", EX38).
 #[derive(Default)]
 pub struct ExemplarStore {
     map: HashMap<Tgi, Exemplar>,
@@ -2136,6 +2139,8 @@ pub struct ExemplarStore {
     factories: HashMap<u32, Factory>,
     /// The types other than exemplars and cohorts that the loaded packages hold (EX31 condition 3).
     seen_types: HashSet<u32>,
+    /// The store's error log: one line per refused factory (§3 "A factory added late", EX38).
+    errors: Vec<String>,
 }
 
 /// A registered factory's read of one record: true when it succeeds ([`ExemplarStore::add_factory`]).
@@ -2203,12 +2208,31 @@ impl ExemplarStore {
     /// too (§3, EX31). This store reads eagerly and does not keep the packages, so *\[choice\]* it refuses (returns
     /// false, nothing registered) a type that an already loaded package holds: every factory the store accepts has
     /// seen every record of its type (§3 condition 3). Register factories before loading packages.
+    ///
+    /// EX38: the original never refuses a late factory, so the refusal stands only while every factory is added
+    /// before the first package; a refused factory is logged as an error ([`ExemplarStore::errors`]), never ignored
+    /// silently. *\[literal reading\]* A factory for the exemplar or cohort type, which the store's own factories
+    /// serve, is refused and logged too.
     pub fn add_factory(&mut self, type_id: u32, read: impl Fn(&[u8]) -> bool + 'static) -> bool {
-        if Kind::from_type_id(type_id).is_some() || self.seen_types.contains(&type_id) {
+        if Kind::from_type_id(type_id).is_some() {
+            self.errors.push(format!(
+                "error: factory for type {type_id:08X} refused: the store's own exemplar and cohort factories serve it"
+            ));
+            return false;
+        }
+        if self.seen_types.contains(&type_id) {
+            self.errors.push(format!(
+                "error: factory for type {type_id:08X} refused: added after a loaded package holding the type (EX38)"
+            ));
             return false;
         }
         self.factories.insert(type_id, Box::new(read));
         true
+    }
+
+    /// The store's error log, oldest first: one line per factory that [`ExemplarStore::add_factory`] refused (EX38).
+    pub fn errors(&self) -> &[String] {
+        &self.errors
     }
 
     /// Parses every exemplar and cohort entry of a package into the store, with the factory's type check
