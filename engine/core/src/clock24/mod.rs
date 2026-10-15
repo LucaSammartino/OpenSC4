@@ -39,17 +39,21 @@
 //!
 //! # Choices made where the spec is open (`[choice]`)
 //!
-//! - The step is an unsigned 32-bit value (§4.1 "all arithmetic is unsigned
-//!   32-bit"): a negative product (a negative minimum magnification) wraps to
-//!   a large step, which is clamped to 1200.
-//! - `Timer::restart` starts a stopped timer (§4.3 "keeps the timer
-//!   running"); the clock only restarts a running timer.
+//! - The step is the low 32 bits of `_ftol`'s 64-bit truncation, compared
+//!   unsigned (§4.3, CK8): a product of −1 or less wraps to a large step,
+//!   which is clamped to 1200.
+//! - `Timer::start` on a running timer does nothing (§4.3 allows it; the
+//!   clock never starts a running timer). `Timer::restart` starts a stopped
+//!   timer (CK15).
 //! - `Init` registers each cheat and then subscribes to it, cheat by cheat
-//!   (the mirror of `Shutdown`'s order). `Shutdown` unregisters only when the
-//!   cheat code manager exists.
-//! - The cheat text is split at blanks (space, tab, CR, LF); a double quote
-//!   groups blanks into one argument and is removed. `atol` skips leading
-//!   blanks, takes one sign and wraps on overflow.
+//!   (CK12). `Shutdown` unregisters only when the cheat code manager exists
+//!   (CK13).
+//! - The cheat text is split as §4.8 (CK11) says: separators space, tab and
+//!   newline; a separator inside an odd number of quotes is kept; only an
+//!   argument that starts and ends with a quote loses that outer pair.
+//!   `atol` skips leading white space, takes one sign and wraps (CK10).
+//! - `Init` starts the timer only when both pause counters are exactly 0, so
+//!   a saved negative `pauseCount` leaves the clock frozen (§4.7, CK14).
 //! - The dead fields at `+0x78` / `+0x8C` are omitted (CK3).
 
 mod clock;
@@ -107,13 +111,7 @@ pub const STEP_THRESHOLD: u32 = 60;
 pub const MAX_STEP: u32 = 1_200;
 /// `9.99999997e-07f` (§4.3).
 pub const STEP_FACTOR_BITS: u32 = 0x3586_37BD;
-/// `1.1574074e-05f` (§4.1), `1 / 86400` as a float.
-///
-/// [choice] §4.1 gives this value with the bit pattern `0x37C22E45`, but
-/// that pattern is `2.3148148e-05` (`1 / 43200`), which would make
-/// `GetTimePercentage` 1.0 at noon. The decimal value, the name and §12.1
-/// (0.5 at noon) agree on `1 / 86400`, whose float is `0x37422E45`; that is
-/// what FreeCity4 uses (see the lane's spec questions).
+/// `1.1574074e-05f` (§4.1, CK7), `f32(1 / 86400)`: noon gives exactly 0.5.
 pub const PERCENT_FACTOR_BITS: u32 = 0x3742_2E45;
 
 /// Constructor values (§2).

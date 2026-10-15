@@ -5406,7 +5406,7 @@ bool fc4_history_shutdown(fc4_history* h);
  * interval), SimNewYear. True otherwise (and for a re-entrant call). */
 bool fc4_history_do_message(fc4_history* h, uint32_t msg_type, uint32_t data1, uint32_t data2);
 /* RecordHistoryData (slot 12, §4.1): sends the record message through the
- * host's send without touching the warehouse. True for a live object. */
+ * host's send without touching the warehouse. Returns false (HW12). */
 bool fc4_history_record(const fc4_history* h, uint32_t key, int32_t value);
 /* SetHistoryDataQueueLength (slot 13, §4.2). */
 bool fc4_history_set_queue_length(fc4_history* h, uint32_t key, uint32_t n);

@@ -2,7 +2,7 @@
   "format": 1,
   "name": "hw12_10_save",
   "spec": ["history 7", "history 12"],
-  "description": "Test 10. Write: u16 2, u32 series count, then per series in ascending key order key, maxCount, point count and (date, value) pairs. write -> read -> write is byte-identical. A version-1 record whose series starts with the date 2000-01-01 three times reads as one point with the last value (a date not after the previous one overwrites the last value), and maxCount 100 becomes 0 in version 1 (kept in version 2). Version 3 is rejected. 0xCDCDCDCD dates become the previous date + 1; a first date of 0 is not after the start (0) and is dropped [choice: the original writes into its list header]. Read does not clear the map and keeps an existing key's series. A truncated record fails; series read completely before it stay. The 421 corpus saves are not in the repository (see the coverage notes).",
+  "description": "Test 10. Write: u16 2, u32 series count, then per series in ascending key order key, maxCount, point count and (date, value) pairs. write -> read -> write is byte-identical. A version-1 record whose series starts with the date 2000-01-01 three times reads as one point with the last value (a date not after the previous one overwrites the last value), and maxCount 100 becomes 0 in version 1 (kept in version 2). Version 3 is rejected. 0xCDCDCDCD dates become the previous date + 1; a first date of 0 is not after the start (0) and is dropped [choice: the original writes into its list header]. Read does not clear the map; a key it already holds keeps its series, and Read returns false at once, leaving the rest of the record unread (HW7). A truncated record fails; series read completely before it stay. The 421 corpus saves are not in the repository (see the coverage notes).",
   "steps": [
     {"op": "hw_create"},
     {"op": "hw_series", "key": "0x20", "points": [["2001-01-01", -5], ["2001-01-02", 7]], "max_count": 365},
@@ -29,9 +29,9 @@
     {"op": "hw_create"},
     {"op": "hw_record", "read": "0200 01000000 37F811AA 00000000 04000000 0000000009000000 5968250001000000 CDCDCDCD02000000 CDCDCDCD03000000", "expect": true},
     {"op": "hw_expect", "series": "0xAA11F837", "points": [["2000-01-01", 1], ["2000-01-02", 2], ["2000-01-03", 3]]},
-    {"op": "hw_record", "read": "0200 02000000 37F811AA 00000000 01000000 5968250032000000 99000000 00000000 01000000 5968250033000000", "expect": true},
+    {"op": "hw_record", "read": "0200 02000000 37F811AA 00000000 01000000 5968250032000000 99000000 00000000 01000000 5968250033000000", "expect": false, "remaining": 20},
     {"op": "hw_expect", "series": "0xAA11F837", "points": [["2000-01-01", 1], ["2000-01-02", 2], ["2000-01-03", 3]]},
-    {"op": "hw_expect", "series": "0x99", "points": [["2000-01-01", 51]]},
+    {"op": "hw_expect", "series": "0x99", "missing": true},
     {"op": "hw_create"},
     {"op": "hw_record", "read": "0200020000000100000000000000010000005968250001000000020000000000000001000000596825000200", "expect": false},
     {"op": "hw_expect", "state": {"keys": [1]}}

@@ -345,10 +345,10 @@ bool cFC4HistoryWarehouse::DisposeRange(uint32_t key, cFC4IGZDate const& from, c
 }
 
 // §4.1: sends the record message and does not touch the series; outside the
-// lock. [choice] Returns true (HW12: the original's value is not meaningful).
+// lock. Returns false (HW12 [compat]: the original returns the final
+// Release's EAX, 0 once the message is destroyed; no caller reads it).
 bool cFC4HistoryWarehouse::RecordHistoryData(uint32_t key, int32_t value) {
-    fc4_history_record(core_, key, value);
-    return true;
+    return fc4_history_record(core_, key, value);
 }
 
 bool cFC4HistoryWarehouse::SetHistoryDataQueueLength(uint32_t key, uint32_t n) {

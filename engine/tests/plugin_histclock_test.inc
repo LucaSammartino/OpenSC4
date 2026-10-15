@@ -200,7 +200,7 @@ void HcHistoryRecordAndQuery(cFC4ISC4HistoryWarehouse* h, HcWorld& w) {
     const size_t sentBefore = w.sent.size();
     for (const auto& r : recs) {
         w.date = r.day;
-        CHECK(h->RecordHistoryData(K, r.value));  // slot 12: MessageSend, delivered back
+        CHECK(!h->RecordHistoryData(K, r.value));  // slot 12: MessageSend, delivered back; false (HW12)
     }
     CHECK(w.sent.size() == sentBefore + 4);
     if (w.sent.size() == sentBefore + 4) {
@@ -240,7 +240,7 @@ void HcHistoryRecordAndQuery(cFC4ISC4HistoryWarehouse* h, HcWorld& w) {
     const uint32_t K2 = 0x6A51178B;
     for (uint32_t i = 0; i < 4; ++i) {
         w.date = d100 + 10 + i;
-        CHECK(h->RecordHistoryData(K2, static_cast<int32_t>(i)));
+        CHECK(!h->RecordHistoryData(K2, static_cast<int32_t>(i)));
     }
     CHECK(h->GetCount(K2, HcDate(d100), HcDate(d100 + 20), n) && n == 4.0f);
     CHECK(!h->Coalesce(0x12345678, HcDate(d100), HcDate(d100 + 20), 0));
