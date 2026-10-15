@@ -19,6 +19,7 @@
 #include "FC4DemandShadow.h"
 #include "FC4DevelopmentShadow.h"
 #include "FC4FlammabilityShadow.h"
+#include "FC4HistoryShadow.h"
 #include "FC4FloraShadow.h"
 #include "FC4Fpu.h"
 #include "FC4LandfillShadow.h"
@@ -368,6 +369,8 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
     // The development shadow (opt-in, FC4DevelopmentShadow.h) wraps the
     // original growth developers' SimIdle / SimNewDay and the original BDS's
     // SimNewMonth deliveries.
+    // The history shadow (opt-in, FC4HistoryShadow.h) steps its core after
+    // the original warehouse's SimNewDay / SimNewYear deliveries.
     // The flammability shadow (opt-in, FC4FlammabilityShadow.h) polls after
     // the original flammability simulator's SimNewDay deliveries.
     // The commercial shadow (opt-in, FC4CommercialShadow.h) wraps the
@@ -392,7 +395,8 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
         !fc4::FlammabilityShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::CommercialShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::CivicShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
-        !fc4::ParksShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) {
+        !fc4::ParksShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
+        !fc4::HistoryShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) {
         finished = target->DoMessage(m);
     }
     fc4::DeliveryEnd();

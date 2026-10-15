@@ -17,7 +17,7 @@
     {"op": "hw_call", "method": "init", "expect": true},
     {"op": "hw_expect_event_count", "count": 4},
     {"op": "hw_clear_events"},
-    {"op": "hw_call", "method": "record", "args": ["0xAA11F837", 5], "expect": true},
+    {"op": "hw_call", "method": "record", "args": ["0xAA11F837", 5], "expect": false},
     {"op": "hw_clear_events"},
     {"op": "hw_call", "method": "shutdown", "expect": true},
     {"op": "hw_expect_events", "events": [{"event": "unsubscribe", "msg": "0x89EFA536"}, {"event": "unsubscribe", "msg": "0x89EFA537"}, {"event": "remove_agent"}]},

@@ -22,7 +22,9 @@
 //! the ID is not 0) are read as the token `classID << 32 | objectID` and
 //! written back from it, so the sweep needs no other record of the save.
 //!
-//! Saves: every `.sc4` below `FC4_SAVE_DIR`, else `FC4_GAME_DIR`, else the
+//! Saves: every `.sc4` below `FC4_SAVES_DIR` (as `fc4-formats`'s record mode,
+//! `formats/tests/save_records.rs`; `FC4_SAVE_DIR` also works), else
+//! `FC4_GAME_DIR`, else the
 //! default GOG install (read-only; identical files counted once). The test
 //! passes with a note when the directory does not exist. Run with output:
 //!
@@ -304,7 +306,8 @@ fn civic_chains_reversed(rec: &[u8]) -> Option<(Vec<u8>, usize)> {
 const DEFAULT_DIR: &str = r"C:\Program Files (x86)\GOG Galaxy\Games\SimCity 4 Deluxe Edition";
 
 fn save_dir() -> Option<PathBuf> {
-    let dir = std::env::var_os("FC4_SAVE_DIR")
+    let dir = std::env::var_os("FC4_SAVES_DIR")
+        .or_else(|| std::env::var_os("FC4_SAVE_DIR"))
         .or_else(|| std::env::var_os("FC4_GAME_DIR"))
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(DEFAULT_DIR));
@@ -385,7 +388,7 @@ struct Tally {
 #[test]
 fn save_sweep_commercial_industrial_civic_parks() {
     let Some(dir) = save_dir() else {
-        eprintln!("save sweep: no save directory (FC4_SAVE_DIR / FC4_GAME_DIR / the GOG default); skipped");
+        eprintln!("save sweep: no save directory (FC4_SAVES_DIR / FC4_GAME_DIR / the GOG default); skipped");
         return;
     };
     let mut files = Vec::new();

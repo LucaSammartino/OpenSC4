@@ -281,7 +281,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // the cmglue lane (FC4CommercialShadow.h, cFC4Civic.cpp, cFC4Parks.cpp)
                                   "commercial_shadow", "commercial_shadow_cells", "civic_shadow", "civic_seed",
                                   "parks_shadow", "parks_seed",
-                                  "zonedev_shadow", "zonedev_seed"};
+                                  "zonedev_shadow", "zonedev_seed",
+                                  // the histclock lane (FC4HistoryShadow.h, FC4Clock24Shadow.h)
+                                  "history_shadow", "clock24_shadow"};
 
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

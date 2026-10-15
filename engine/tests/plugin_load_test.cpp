@@ -78,6 +78,9 @@
 #include "cS3DVector3.h"
 #include "cIGZOStream.h"
 #include "FC4Interfaces.h"
+#include "FC4HistClock.h"
+#include "FC4Clock24Shadow.h"
+#include "FC4HistoryShadow.h"
 #include "FC4TestSeam.h"
 #include "cFC4TrafficSimulator.h"
 #include "cFC4ZoneManager.h"
@@ -10158,6 +10161,9 @@ int DialogsIniTest(const std::string& dll, const std::string& ini, const std::st
     return g_failures == 0 ? 0 : 1;
 }
 
+// The history warehouse and the 24-hour clock (history.md, clock24.md; seam op 54).
+#include "plugin_histclock_test.inc"
+
 // ---- the tract developer (tract-developer.md; test seam op 45) ----------------------------------------------
 constexpr uint32_t kCLSID_TractDeveloper = 0x2990C142;
 constexpr uint32_t kIID_cISC4TractDeveloper = 0xA818ED1B;
@@ -10442,6 +10448,14 @@ int main(int argc, char** argv) {
         return DialogsChild(dll, ini, mode.substr(dialogsPrefix.size()));
     }
     if (mode == "--ini-dialogs") return DialogsIniTest(dll, ini, log);
+    // The history warehouse (history.md): the replacement through the test hooks (seam op 54).
+    if (mode == "--ini-enable-history") return HistoryEnableTest(dll, ini, log);
+    // The history shadow (FC4HistoryShadow.h, seam op 54 op 1).
+    if (mode == "--ini-history-shadow") return HistoryShadowIniTest(dll, ini, log);
+    // The 24-hour clock (clock24.md): the replacement through the test hooks (seam op 54).
+    if (mode == "--ini-enable-clock24") return Clock24EnableTest(dll, ini, log);
+    // The 24-hour clock shadow (FC4Clock24Shadow.h, seam op 54 op 2).
+    if (mode == "--ini-clock24-shadow") return Clock24ShadowIniTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).

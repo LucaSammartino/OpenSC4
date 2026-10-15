@@ -238,6 +238,17 @@ INTERFACES = [
     ("vt:cSC4TrafficSimulator::vftable_2", "cIGZSerializable", "cIGZSerializable.h", True),
     ("cISC4PathFinder", "cFC4ISC4PathFinder", FC4, True),
     ("cISC4SimGrid<uint32>", "cISC4SimGrid<uint32_t>", "cISC4SimGrid.h", True),
+    # History (docs/specs/history.md section 8): the warehouse implemented through the
+    # compiled slot order (the SDK row above stays for the other glue's calls; its
+    # Dispose overloads and Coalesce are waived), and its serializable.
+    ("cISC4HistoryWarehouse", "cFC4ISC4HistoryWarehouse", FC4, True),
+    ("vt:cSC4HistoryWarehouse::vftable_2", "cIGZSerializable", "cIGZSerializable.h", True),
+    # The 24-hour clock (docs/specs/clock24.md section 8): the compiled slot
+    # order (slots 7, 9, 19 and 20 differ from the SDK), its serializable
+    # and its system service.
+    ("cISC424HourClock", "cFC4ISC424HourClock", FC4, True),
+    ("vt:cSC424HourClock::vftable_2", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("vt:cSC424HourClock::vftable_3", "cIGZSystemService", "cIGZSystemService.h", True),
     # Crime type names (crime.md section 7 step 3; lua-host.md section 10.1).
     ("cISCStringDetokenizer", "cFC4ISCStringDetokenizer", FC4C, True),
     # The tract developer (docs/specs/tract-developer.md section 8): the lot

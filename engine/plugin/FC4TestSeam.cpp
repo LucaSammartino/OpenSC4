@@ -22,6 +22,7 @@
 #include "FC4FlammabilityShadow.h"
 #include "FC4FloraShadow.h"
 #include "FC4GrowthProbe.h"
+#include "FC4HistClock.h"
 #include "FC4LandValueShadow.h"
 #include "FC4LandfillShadow.h"
 #include "FC4Fpu.h"
@@ -189,6 +190,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return fc4::ScriptLoad(static_cast<const char*>(a), "test seam");
         case kFC4SeamDialogs:  // the harness lane (FC4Dialogs.h)
             return DialogsTestSeam(static_cast<const FC4DialogsTestInput*>(a));
+        case kFC4SeamHistClock:  // the history and clock lane (FC4HistClock.h)
+            return HistClockTestSeam(static_cast<const FC4HistClockTestInput*>(a));
         case kFC4SeamParks:  // the cmglue lane (cFC4Parks.h)
             return a == nullptr ? -1 : fc4::ParksTestZooEscape(static_cast<const FC4ParksTestInput*>(a));
         case kFC4SeamNeighborsApp:  // the neighbours apply lane (NG14, NG4)
