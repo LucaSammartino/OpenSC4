@@ -4093,3 +4093,43 @@ harness with the FreeCity4 turbo clock and a message log.
   lot-records.md should cite zones.md §8.5.1 under Q2. Settled for good by creating lots in a fresh city in a turbo
   run and reading field 17 of never-vacant lots: values that change with the order of earlier demolitions confirm
   it]
+
+## From the zone developer / lot manager glue, Stage A (filed by the coordinator from the `zones2` lane's report, 2026-10-15)
+
+About `docs/specs/zones.md` §1.2, §7-§11.3 and the replacement `cFC4ZoneDeveloper` (`enable = zonedev`) with its shadow
+(`zonedev_shadow = 1`); merged as `9a9b0df`, ABI 51. The lane numbered these ZONES-ZD1..ZD13. The current answer is in
+brackets. ZG23, ZG24 and ZG27 were asked before re-specs11 merged; zones.md §8.5.1, §7.1.1 and §8.4.1-§8.4.3 now cover
+them, and Stage B applies those sections.
+
+- **ZG22:** lot manager slot 19 `GetLotSavvyCellAltitude`: does it write `*ok`? §8.7 does not say. [`*ok` left
+  untouched]
+- **ZG23:** lot construction (§8.5 step 1): the lot object's allocation and constructor arguments. [Stage A: `new_lot`
+  builds nothing, CreateLot fails and is logged; **answered by re-specs11** in zones.md §8.5.1 (pool `0x00B0D3AC`,
+  allocate `0x006BF430`, constructor `0x006C1E50`); Stage B implements it]
+- **ZG24:** `HighlightParcels`' `*out` region (§7.2, §13.2): its allocator and the caller that frees it are not
+  traced. [`*out = null`, logged once; zones.md §7.1.1 now describes the highlight textures; check whether it also
+  settles the region's owner]
+- **ZG25:** §5.2 step 3, the street-joining helpers `0x00731F60` / `0x00732450`, are not specified. [no-op plus a log
+  line; zones.md §5.2.1-§5.2.2 (`JoinDeadEndStubs`, `JoinAcrossRail`, ZQ14) may cover them]
+- **ZG26:** the PlopAllLots / PlopAllBuildings cheats (§1.2 step 7): their bodies are not specified, and the host has
+  no cheat-manager registration call. [not registered]
+- **ZG27:** slot 21 `CanCreatePloppedLot` (§14.3 Q2). [Stage A returns 0, logged; **answered by re-specs11** in zones.md
+  §8.4.1-§8.4.3 (codes 0, 1, 3-8); Stage B implements it]
+- **ZG28:** slots 11 and 24-26 leave EAX undefined in the original. [return true]
+- **ZG29:** the budget and traffic glue walk the original lot manager's raw list (the list object at `lm+0x5C`). Our
+  master list keeps the same raw layout and list object, but not at `+0x5C` inside our object. Does any caller read the
+  member directly rather than through slot 15? [assumed none; not traced]
+- **ZG30:** parcellization has no dry run (`HighlightParcels` draws, posts and places street drafts). [the shadow
+  compares the lookups and CanCreateLot only]
+- **ZG31:** a traffic insertion-point iterator from a foreign list at CreateLot (§8.5 step 4). [the lot is appended,
+  logged]
+- **ZG32:** reference audit for the manager's last lot reference at DeleteLot / Shutdown. [`FC4_RELEASE_AT_DESTRUCTION`,
+  as DG28]
+- **ZG33:** another thread that cannot take the lock within 20 ms. [neutral answers, except the snapshotted lot count
+  and grid; counted as a fallback]
+- **ZG34:** with `enable = zonedev` and CreateLot refused, the original tract developer's Grow (2026-01-30 on
+  Konradshohe) gives two "over-release of game object [class 0xC9BD5D4A] at ReleaseToken" warnings (DeleteLot's
+  manager release, §8.6 step 6) and then an access violation at `0x0070690C` / `0x00AB1995` (runs `zonedev-enable-1`,
+  `-2`). Does the game's growth path tolerate a failed CreateLot after DeleteLot, or must lot creation never fail
+  there? [not resolved; re-test after Stage B builds lots, then audit Grow's delete-and-recreate reference flow (slot 7
+  caller references against the manager's)]

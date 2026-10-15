@@ -66,7 +66,7 @@ budget is off by default (enable = <key>).
 - [ ] Seeding rules (foundations §6.3)
 - [x] **Development glue** (building development simulator, growth developers and `development_shadow`; merged c787ecf, fixed in devglue2 38524aa): the catalogue loads 744/744 types and 281 families, the shadow is exact (913/913 in regress m850, run 104), and the replacement grows like the original at equal pacing. Our unit is about 3x slower per game day; the DG4/DG5/DG6/DG11 answers are applied (apply10a, merged b398049: BDS foundation and retaining wall slots 23/26/29, the budget item cost sum; regress run 110 PASS)
 - [x] Tract developer glue (merged on main 76bf685; regress mtract PASS, run 109)
-- [ ] Lot developer glue (lane running); zone developer and lot manager, zones phase 2 (lane running); re-specs11 fills their spec gaps (lot developer levelling and foundations, creating game lots)
+- [ ] Lot developer glue (lane running); zone developer and lot manager, zones phase 2: **Stage A merged** (9a9b0df, `enable = zonedev`, shadow exact in lane runs; regress zones2 PASS, run 112), Stage B (lot creation, plop test, highlight textures) next; re-specs11 filled their spec gaps (lot developer levelling and foundations, creating game lots)
 - [x] Specs: commercial and industrial simulators, civic buildings, park manager, history warehouse, 24-hour clock (re-specs9, a3599a0)
 - [ ] Cores for them: **history warehouse and 24-hour clock merged** (0757437: every §12 test, `hw12_*` and `ck12_*` vectors; glue lane running); **commercial, industrial, civic and parks merged** (ab3c1c3: `ci13_*`, `cb12_*`, `pk12_*`); then glue (two lanes running)
 - [ ] The growth statistics distribution matches across seeded runs (M4 exit)
