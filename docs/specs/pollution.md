@@ -1165,7 +1165,8 @@ Findings:
 1. *(resolved, PG5)* **Prop requester after load**: `AddPropRequester` is only called for a new city. A loaded
    city keeps its garbage props because the prop developer saves its requesters itself:
    - **`Write`** (`0x006F1970`–`0x006F19B6`) writes the requester count, then each requester by ref. The
-     requesters are the vector at prop developer `+0x9FC`.
+     requesters are the vector at prop developer `+0xA04` (object offset; `+0x9FC` from the serializable sub-object
+     at +8; prop-developer.md §2, re-specs10).
    - **`Read`** (`0x006F3680`–`0x006F36C8`) resizes that vector and reads each ref with IID `0x89C498BE`.
    - So after a load the vector again points at the loaded pollution simulator's requester sub-object.
    - **Do not add it again.** `AddPropRequester` (`0x006F21C0`) appends with no duplicate check, so a second call

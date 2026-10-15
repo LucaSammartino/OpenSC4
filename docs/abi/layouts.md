@@ -280,3 +280,41 @@ the caller's 0 then stays.
 
 A plugin creating landfill tiles calls `SetDefaultExemplar` on the `+0x20` sub-object before `Init` and before
 inserting the tile (landfill.md, LG27).
+
+## Prop profile (`cISC4PropManager::PropProfile`, 0x1C bytes)
+
+`cISC4PropManager::GetPropProfile(uint32_t propID)` (slot 13, `0x004A3750`, pop 4) returns a **pointer into the prop
+manager's static profile hash map** (`0x00B2179C`; lookup `0x0065FAD0`). An ID that is not in the map is
+**inserted** with an all-zero profile (7 zero dwords) and that new entry is returned, so the result is never null.
+The caller borrows it and must not free it *[inferred: each entry is a separately allocated node, so the pointer
+stays valid while the map lives]*.
+
+| Offset | Size | Field |
+|---|---|---|
+| +0x00…+0x0C | 16 | not read by the prop developer, the wealth requester or the crime simulator (not mapped by this lane) |
+| +0x10 | 4 | requester satisfaction ID (`uint32_t`, exemplar property `0x49A1E05A`); compared with `GetRequesterSatisfactionId()` (prop developer `0x006F16C3`, `0x006F1757`) |
+| +0x14 | 1 | wealth (`uint8_t`, property `0xE9A316EB`, default 0); compared by the wealth requester's `SelectProp` (`0x006F1D74`) |
+| +0x18 | 4 | crime incident type (`uint32_t`, property `0x8AA864D5`); read by the crime simulator's `SelectProp` (`0x006A016E`, crime.md) |
+
+Hash map node: `+0` next, `+4` key (prop ID), `+8` the 0x1C-byte profile (the returned pointer).
+
+## Wealth prop requester (`cSC4WealthRequester`, class `0x89C49986`, 0xC bytes)
+
+| Offset | Size | Field |
+|---|---|---|
+| +0x00 | 4 | `cISC4PropRequester` vtable `0x00AB29B0` |
+| +0x04 | 4 | `cIGZSerializable` vtable `0x00AB2998` |
+| +0x08 | 4 | reference count; the last `Release` (`0x006F1040`) deletes it |
+
+## City detail manager (`cSC4CityDetailManager`, class `0xEAD4BA36`, 0x10 bytes)
+
+| Offset | Size | Field |
+|---|---|---|
+| +0x00 | 4 | `cISC4CityDetailManager` vtable `0x00A87888` |
+| +0x04 | 4 | `cIGZSerializable` vtable `0x00A87870` |
+| +0x08 | 4 | detail level the city was last initialised with (`0xFFFFFFFF` = none); saved; slot 5 returns it |
+| +0x0C | 4 | reference count |
+
+These two objects are not read directly by other game code; the tables are here because a plugin replacing them
+must keep the sub-object offsets that `QueryInterface` hands out. The other re-specs10 components keep their
+state layouts in their specs (§2 of each); no other game code reads those fields directly.
