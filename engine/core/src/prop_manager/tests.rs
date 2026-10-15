@@ -437,7 +437,13 @@ fn init_builds_once_and_shutdown_keeps_catalogue() {
     assert!(!m.is_prop_type_valid(0x11), "only ExemplarType 0x1E is catalogued");
     let s = m.snapshot();
     assert_eq!(
-        (s.occupant_manager, s.resource_manager, s.lot_manager, s.view_filter, s.filter),
+        (
+            s.occupant_manager,
+            s.resource_manager,
+            s.lot_manager,
+            s.view_filter,
+            s.filter
+        ),
         (Some(OM), Some(RM), Some(LM), Some(VF), true)
     );
     // A second Init does nothing.
@@ -587,7 +593,10 @@ fn create_prop_classes() {
     g.exemplar(0x21, h);
     let m = manager(&g);
     m.init();
-    assert_eq!(g.occ(m.create_prop(0x20).unwrap()).builtin, Some(BuiltinProp::TerrainDecal));
+    assert_eq!(
+        g.occ(m.create_prop(0x20).unwrap()).builtin,
+        Some(BuiltinProp::TerrainDecal)
+    );
     g.gzcom_classes.borrow_mut().push(0x7777);
     let t = m.create_prop(0x21).unwrap();
     assert_eq!(g.occ(t).class_id, 0x7777);
@@ -629,7 +638,10 @@ fn add_props_by_usage() {
     assert_eq!(g.occ(0x200).usage, usage::CITY);
     let t = m.add_lot_prop_new(0x30, [5.0, 0.0, 6.0], 1).unwrap();
     let o = g.occ(t);
-    assert_eq!((o.usage, o.pos, o.flags & FLAG_INSERTED), (usage::LOT, [5.0, 0.0, 6.0], 1));
+    assert_eq!(
+        (o.usage, o.pos, o.flags & FLAG_INSERTED),
+        (usage::LOT, [5.0, 0.0, 6.0], 1)
+    );
     // The creation reference is gone; the occupant manager holds one.
     assert_eq!(g.refs(t), 1);
     let t = m.add_street_prop(0x30, [1.0, 0.0, 1.0], 0).unwrap();
@@ -696,9 +708,7 @@ fn t6_building_props() {
     let g = Game::new();
     let m = manager(&g);
     m.init();
-    g.buildings
-        .borrow_mut()
-        .insert(0x400, ((3, 4), BuildingProps::Absent));
+    g.buildings.borrow_mut().insert(0x400, ((3, 4), BuildingProps::Absent));
     g.add_occ(0x401, [0.0; 3], 0, false);
     g.add_occ(0x402, [0.0; 3], 0, false);
     assert!(m.add_building_prop(0x400, 0x401));

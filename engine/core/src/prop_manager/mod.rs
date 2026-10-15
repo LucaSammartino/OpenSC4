@@ -147,7 +147,12 @@ pub mod msg {
     /// `kSC4MessagePostCityInit`.
     pub const POST_CITY_INIT: u32 = 0x26D3_1EC1;
     /// The subscriptions of `Init`, in order.
-    pub const SUBSCRIPTIONS: [u32; 4] = [VIEW_ZR_CHANGE3, POST_VIEW_FILTER_CHANGE, POST_CITY_INIT, CREATE_TEXT_DECAL];
+    pub const SUBSCRIPTIONS: [u32; 4] = [
+        VIEW_ZR_CHANGE3,
+        POST_VIEW_FILTER_CHANGE,
+        POST_CITY_INIT,
+        CREATE_TEXT_DECAL,
+    ];
     /// `kSC4MessagePropExemplarDataUpdated`, posted once by `StaticInit`.
     pub const PROP_EXEMPLAR_DATA_UPDATED: u32 = 0x896F_DC70;
 }

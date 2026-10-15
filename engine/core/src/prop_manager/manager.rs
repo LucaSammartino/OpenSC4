@@ -321,11 +321,7 @@ impl PropManager {
     /// OccupantSize, or (1, 1, 1) without one; missing values 0 [choice].
     fn size_prop(&self, p: u64, ex: &PropertyHolder) {
         let max = match props::f32s(ex, prop::OCCUPANT_SIZE) {
-            Some(v) if !v.is_empty() => [
-                v[0],
-                v.get(1).copied().unwrap_or(0.0),
-                v.get(2).copied().unwrap_or(0.0),
-            ],
+            Some(v) if !v.is_empty() => [v[0], v.get(1).copied().unwrap_or(0.0), v.get(2).copied().unwrap_or(0.0)],
             _ => [1.0, 1.0, 1.0],
         };
         self.host.set_bounding_box(p, [0.0; 3], max);
