@@ -770,6 +770,14 @@ return r
 5. Terrain slot 68 `RedisplayTerrain(0, 0, &rect, 0)`.
 6. Return `lot ≠ null`.
 
+**A failed step 4 is not safe** (ZG34). The deleted lots are gone, `Build` returns 0, and the pass goes on to the
+next candidate (§4.3 breaks only on 20, on `built ≥ desired` or on 27). Candidate lot sets hold **borrowed**
+pointers (§4.5, §4.13: `GetLot` without AddRef), and overlapping aggregation candidates share lots, so a later
+candidate can reach step 1 with a lot that has already been deleted and freed: its AddRef (`0x0070690C`, the first
+call through `L`) goes through a stale vtable. In the original, step 4 runs on the rectangle it has just cleared, so
+in practice it succeeds; a replacement lot manager must not let `CreateLotIfPossible` fail there (or must not
+reach step 1 at all while it cannot create lots).
+
 #### 4.15.4 `PerformSubdivision(c)` (`0x0070A9B0`, pop 4) *[compat]*
 
 Piece size, origin offset and step by facing (`(cw, ch)` = configuration size, origin = the parent lot's location):
