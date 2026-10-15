@@ -415,23 +415,8 @@ void SetLotCondition(void*, uint64_t lot, uint32_t condition) {
     if (cFC4ISC4Lot* l = LotOf(lot)) l->SetCondition(condition);  // slot 36
 }
 
-// §4.6 step 1: AddControllersFromOccupantGroup("ape_escape", occ, 0), the name
-// as a game cRZString.
-void AddControllers(void*, const char* name, uint64_t occ) {
-    cISC4City* city = AppCity();
-    cISC4AutomataControllerManager* m = city ? city->GetAutomataControllerManager() : nullptr;  // slot 47
-    if (m == nullptr || name == nullptr) return;
-    fc4::GameString s{};
-    if (!fc4::GameStringInit(s, name, std::strlen(name))) {
-        fc4::Log("civic: ape escape: no game string allocator; no controllers added");
-        return;
-    }
-    const bool ok = reinterpret_cast<cFC4ISC4AutomataControllerManager*>(m)->AddControllersFromOccupantGroup(
-        s, OccOf(occ), nullptr);
-    fc4::GameStringDestroy(s);
-    fc4::Log("civic: ape escape at occupant %p: AddControllersFromOccupantGroup(\"%s\") -> %d",
-             static_cast<void*>(OccOf(occ)), name, ok ? 1 : 0);
-}
+// §4.6 step 1: AddControllersFromOccupantGroup("ape_escape", occ, 0).
+void AddControllers(void*, const char* name, uint64_t occ) { fc4::AddOccupantGroupControllers("civic", name, occ); }
 
 }  // namespace
 
@@ -480,6 +465,23 @@ fc4_civic_host fc4::MakeCivicHost(CivicContext* ctx) {
     h.set_lot_condition = &SetLotCondition;
     h.add_controllers = &AddControllers;
     return h;
+}
+
+// The name as a game cRZString (automata controller manager slot 10).
+void fc4::AddOccupantGroupControllers(const char* who, const char* name, uint64_t occ) {
+    cISC4City* city = AppCity();
+    cISC4AutomataControllerManager* m = city ? city->GetAutomataControllerManager() : nullptr;  // slot 47
+    if (m == nullptr || name == nullptr) return;
+    fc4::GameString s{};
+    if (!fc4::GameStringInit(s, name, std::strlen(name))) {
+        fc4::Log("%s: %s: no game string allocator; no controllers added", who, name);
+        return;
+    }
+    const bool ok = reinterpret_cast<cFC4ISC4AutomataControllerManager*>(m)->AddControllersFromOccupantGroup(
+        s, OccOf(occ), nullptr);
+    fc4::GameStringDestroy(s);
+    fc4::Log("%s: AddControllersFromOccupantGroup(\"%s\", occupant %p) -> %d", who, name,
+             static_cast<void*>(OccOf(occ)), ok ? 1 : 0);
 }
 
 // §5 [choice]: the session seed S, as crime's (foundations §6.3).

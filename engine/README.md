@@ -439,6 +439,15 @@ plugin.
        temporary generators, else the clock. The log has `civic Init|Read|Shutdown: ok=… exclusions=… statuses=…
        centers=… maintained=… landmarks=… …`, `civic Write -> 0|1 (…)` and one `civic month yyyy-mm-dd:
        exclusions=… statuses=… … occupants=…/… lots=…/… writebacks=…` line per SimNewMonth.
+     - `parks`: the park manager (`cSC4ParkManager`, CLSID `0xAA3FE6BC`; parks spec): the month agent, the
+       occupant subscriptions, the park and zoo lists, the Parks and Recreation line items, the run-down latch,
+       the zoo escape (the ZooEscape message `0xAA667CE2` with void1 = the manager and IGZUnknown = the zoo,
+       `MessagePost(msg, false)`, then `zoomanji` controllers) and the record (version 2). The tuning exemplar
+       "Parks Manager" (`0x6534284A` / `0x67CD5FA1` / `0x8A4805BC`) is handed to the core at the first `Init`.
+       `parks_seed = N` (env `FC4_PARKS_SEED`) fixes the session seed of the member generator, else the clock.
+       The log has `parks Init|Read|Shutdown: ok=… init=… parks=… zoos=… threshold=… curve=… dept=… latch=… …`,
+       `parks Write -> 0|1 (…)` and one `parks month yyyy-mm-dd: parks=… zoos=… funding=… latch=… lot-writes=…
+       escapes=… occupants=…` line per SimNewMonth.
    - Each budget behaviour that touches game objects has a switch. The switches are re-read at every city load
      (budget `Read`/`Init`). Each defaults to `1`; `0` makes the behaviour a no-op with a neutral result. The
      matching environment variable is `FC4_BUDGET_<KEY>`. `budget_default = 0` turns every unset switch off.

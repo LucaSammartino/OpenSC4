@@ -183,6 +183,11 @@
 //         cISC4NeighborDeal** receiving a new deal of ours with a's state
 //         (one reference for the caller; NeighborsTestCopyDeal, NG4).
 //         Returns 1, 0 if none was made.
+//   op 57 kFC4SeamParks           a = const FC4ParksTestInput* (the cmglue
+//         lane, cFC4Parks.h): the park host's ZooEscape post (parks §4.5) to
+//         a's message server, with void1 = a's manager and IGZUnknown = a's
+//         zoo; returns the number of posts the server accepted, -1 for a null
+//         input.
 #pragma once
 
 #include <cstdint>
@@ -243,6 +248,7 @@ enum : uint32_t {
     kFC4SeamScript = 46,  // the harness lane
     kFC4SeamDialogs = 47,  // the harness lane
     kFC4SeamNeighborsApp = 48,  // the neighbours apply lane (NG14)
+    kFC4SeamParks = 57,         // the cmglue lane (cFC4Parks.h FC4ParksTestInput)
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

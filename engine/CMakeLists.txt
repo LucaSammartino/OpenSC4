@@ -271,6 +271,8 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Civic.h
         plugin/FC4CivicShadow.cpp
         plugin/FC4CivicShadow.h
+        plugin/cFC4Parks.cpp
+        plugin/cFC4Parks.h
         # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h
         plugin/FC4Turbo.cpp
@@ -510,6 +512,11 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_civic_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-civic)
     set_tests_properties(plugin_ini_enable_civic_test PROPERTIES RUN_SERIAL TRUE)
+    # `enable = parks`: the park manager (parks.md): QI table, record, Init
+    # without a city, a fake zoo's escape (the ZooEscape message, §4.5).
+    add_test(NAME plugin_ini_enable_parks_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-parks)
+    set_tests_properties(plugin_ini_enable_parks_test PROPERTIES RUN_SERIAL TRUE)
     # `enable = neighbors`: the neighbours simulator, its connections (an
     # original's accepted on load) and deals, through a fake city and region.
     add_test(NAME plugin_ini_enable_neighbors_test

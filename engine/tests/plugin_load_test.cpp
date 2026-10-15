@@ -9642,6 +9642,7 @@ int main(int argc, char** argv) {
     // The cmglue lane (plugin_cmglue_test.inc): commercial / industrial, civic, parks.
     if (mode == "--ini-enable-commercial") return CommercialEnableTest(dll, ini, log);
     if (mode == "--ini-enable-civic") return CivicEnableTest(dll, ini, log);
+    if (mode == "--ini-enable-parks") return ParksEnableTest(dll, ini, log);
     // Land value and flammability grid shadows on fake originals; both inactive with ours.
     if (mode == "--ini-landvalue-shadow") return LandValueShadowTest(dll, ini, log);
     if (mode == "--ini-flammability-shadow") return FlammabilityShadowTest(dll, ini, log);

@@ -499,3 +499,147 @@ int CivicEnableTest(const std::string& dll, const std::string& ini, const std::s
     if (g_failures == 0) std::printf("plugin civic enable test: all checks passed\n");
     return g_failures == 0 ? 0 : 1;
 }
+
+// ---- the park manager (parks.md) -------------------------------------------------------------------
+
+#include "cFC4Parks.h"
+#include "cIGZMessageServer2.h"
+
+namespace cmglue_test {
+constexpr uint32_t kCLSID_Parks = 0xAA3FE6BC;
+constexpr uint32_t kIID_Parks = 0xAA3FE6BC;  // §1: the CLSID's value
+
+// A message server that records the posts (seam op 57).
+class PostRecorder final : public cIGZMessageServer2 {
+public:
+    uint32_t posts = 0, type = 0;
+    void* void1 = nullptr;
+    cIGZUnknown* unknown = nullptr;
+    bool highPriority = true;
+    bool standard = false;
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool MessageSend(cIGZMessage2*) override { return false; }
+    bool MessagePost(cIGZMessage2* m, bool high) override {
+        ++posts;
+        highPriority = high;
+        if (m == nullptr) return false;
+        type = m->GetType();
+        cIGZMessage2Standard* s = nullptr;
+        if (m->QueryInterface(GZIID_cIGZMessage2Standard, reinterpret_cast<void**>(&s)) && s != nullptr) {
+            standard = true;
+            void1 = s->GetVoid1();
+            unknown = s->GetIGZUnknown();
+            s->Release();
+        }
+        return true;
+    }
+    bool AddNotification(cIGZMessageTarget2*, uint32_t) override { return false; }
+    bool RemoveNotification(cIGZMessageTarget2*, uint32_t) override { return false; }
+    bool GeneralMessagePostToTarget(cIGZMessage2*, cIGZMessageTarget2*) override { return false; }
+    bool CancelGeneralMessagePostsToTarget(cIGZMessageTarget2*) override { return false; }
+    bool OnTick(uint32_t) override { return false; }
+    uint32_t GetMessageQueueSize() override { return 0; }
+    cIGZMessageServer2* SetAlwaysClearQueueOnTick(bool) override { return this; }
+    uint32_t GetRefCount() override { return 1; }
+    cIGZMessage2* CreateMessage(uint32_t, uint32_t, void**) override { return nullptr; }
+};
+
+// A zoo occupant stand-in (only its identity and reference count are used).
+class FakeZoo final : public cIGZUnknown {
+public:
+    uint32_t refs = 1;
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return refs > 0 ? --refs : 0u; }
+};
+}  // namespace cmglue_test
+
+int ParksEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    using namespace cmglue_test;
+    // Off by default; `enable = parks` registers it. No city: the QI table
+    // (§1), Init / Shutdown (§8), DoMessage (§3), the record (§7) and, through
+    // seam op 57, the ZooEscape post (§4.5).
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = parks\nparks_seed = 9\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr);
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    CHECK(seam != nullptr);
+    SetGamePrecision();
+    // §7: version 2, two empty lists (the corpus's 413 records).
+    const std::vector<uint8_t> empty = {2, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    if (director != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        CHECK(classes.size() == 5);  // simulator (1) + budget (3) + parks (1)
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Parks) == 1);
+        if (auto* p = Create<cISC4ParkManager>(director, kCLSID_Parks, kIID_Parks)) {
+            CheckQiTable(p, kIID_Parks, kCLSID_Parks);
+            bool ok = false;
+            CHECK(RecordOf(p, &ok) == empty && ok);
+            CHECK(p->Init());  // §4.1: no city, no budget: true
+            CHECK(p->Init());  // already initialised: true
+            if (cIGZMessageTarget2* mt = TargetOf(p)) {
+                ResidentialDayMessage month(0x66956816, kJulian20000201);
+                CHECK(mt->DoMessage(&month));
+                ResidentialDayMessage inserted(0x99EF1142, 0);  // void1 null
+                CHECK(mt->DoMessage(&inserted));
+                ResidentialDayMessage other(0x12345678, 0);
+                CHECK(mt->DoMessage(&other));
+                mt->Release();
+            }
+            CHECK(RecordOf(p, &ok) == empty && ok);
+            // §4.5 step 2 through the host (seam op 57).
+            if (seam != nullptr) {
+                PostRecorder server;
+                FakeZoo zoo;
+                FC4ParksTestInput in{&server, p, &zoo};
+                CHECK(seam(kFC4SeamParks, &in, nullptr) == 1);
+                CHECK(server.posts == 1);
+                CHECK(server.type == 0xAA667CE2);
+                CHECK(server.standard);
+                CHECK(server.void1 == static_cast<void*>(p));
+                CHECK(server.unknown == static_cast<cIGZUnknown*>(&zoo));
+                CHECK(!server.highPriority);
+                CHECK(zoo.refs == 1);  // the message's reference is gone with it
+                CHECK(seam(kFC4SeamParks, nullptr, nullptr) == -1);
+            }
+            CHECK(p->Shutdown());
+            CHECK(p->Release() == 0);
+        }
+        std::vector<uint8_t> again;
+        CHECK(ReadInto<cISC4ParkManager>(director, kCLSID_Parks, kIID_Parks, empty, &again));
+        CHECK(again == empty);
+        for (uint8_t v : {1, 3}) {  // §12 test 8: only version 2
+            std::vector<uint8_t> bad = empty;
+            bad[0] = v;
+            CHECK(!ReadInto<cISC4ParkManager>(director, kCLSID_Parks, kIID_Parks, bad, nullptr));
+        }
+        CheckCw("parks");
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    const auto npos = std::string::npos;
+    CHECK(text.find("subsystem 'parks': enabled (1 class replaced) by FreeCity4.ini (enable=)") != npos);
+    CHECK(text.find("session seed 9 (parks_seed)") != npos);
+    CHECK(text.find("parks Init: ok=1 init=1 parks=0 zoos=0") != npos);
+    CHECK(text.find("parks month 2000-02-01: parks=0 zoos=0") != npos);
+    CHECK(text.find("parks: zoo escape at") != npos);
+    CHECK(CountOf(text, "parks Read: ok=1") == 1);
+    CHECK(CountOf(text, "parks Read: ok=0") == 2);
+    CHECK(text.find("structured exception") == npos);
+    CHECK(text.find("config: WARNING unknown key") == npos);
+    CHECK(text.find("WARNING: released last reference") == npos);
+    CHECK(text.find("WARNING: over-release") == npos);
+    CHECK(text.find("streams: WARNING") == npos);
+    if (g_failures == 0) std::printf("plugin parks enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}

@@ -60,6 +60,7 @@
 #include "cFC4TractDeveloper.h"
 #include "cFC4Commercial.h"  // the cmglue lane: commercial, industrial
 #include "cFC4Civic.h"       // the cmglue lane: civic
+#include "cFC4Parks.h"       // the cmglue lane: parks
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
 
@@ -249,6 +250,11 @@ const ClassEntry kIndustrialClasses[] = {
 const ClassEntry kCivicClasses[] = {
     {kFC4_CLSID_cSC4CivicBuildingSimulator, "cSC4CivicBuildingSimulator", &CreateFC4CivicBuildingSimulator},
 };
+// docs/specs/parks.md §1. Off by default (M4 glue trial): `enable = parks`.
+// Nothing calls into it beyond Init and Shutdown (§9).
+const ClassEntry kParkClasses[] = {
+    {kFC4_CLSID_cSC4ParkManager, "cSC4ParkManager", &CreateFC4ParkManager},
+};
 
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
@@ -279,6 +285,7 @@ const Subsystem kSubsystems[] = {
     {"commercial", nullptr, kCommercialClasses, sizeof(kCommercialClasses) / sizeof(kCommercialClasses[0]), false},
     {"industrial", nullptr, kIndustrialClasses, sizeof(kIndustrialClasses) / sizeof(kIndustrialClasses[0]), false},
     {"civic", nullptr, kCivicClasses, sizeof(kCivicClasses) / sizeof(kCivicClasses[0]), false},
+    {"parks", nullptr, kParkClasses, sizeof(kParkClasses) / sizeof(kParkClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

@@ -81,6 +81,11 @@ fc4_civic_host MakeCivicHost(CivicContext* ctx);
 // the cRZTime clock.
 uint32_t CivicSessionSeed(bool* fixed);
 
+// city.GetAutomataControllerManager(), if any: AddControllersFromOccupantGroup(
+// name, occ, 0) with the name as a game cRZString (civic §4.6 "ape_escape",
+// parks §4.5 "zoomanji"); one log line prefixed with `who`.
+void AddOccupantGroupControllers(const char* who, const char* name, uint64_t occ);
+
 // One mirrored status in the game's layout (SDK ConditionalBuildingStatus).
 struct CivicStatusEntry {
     uint8_t status;
