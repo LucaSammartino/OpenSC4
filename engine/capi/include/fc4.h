@@ -105,9 +105,9 @@ extern "C" {
  *      arrays read a scalar as empty); fc4_props_set_u32s/i32s/i64s/f32s/bools store an array
  *      even for one value (the core's vector readers read a scalar as empty, EX39) (taken as 57
  *      on its lane; renumbered at merge);
- * 54 = adds the zone developer / lot manager (fc4_zonedev, zones.md §1.2, §7-§11.3) and its shadow mode
- *      (fc4_zonedev_create_shadow). */
-#define FC4_ABI_VERSION 54u
+ * 51 = adds the zone developer / lot manager (fc4_zonedev, zones.md §1.2, §7-§11.3) and its shadow mode
+ *      (fc4_zonedev_create_shadow) (taken as 54 on its lane; renumbered at merge). */
+#define FC4_ABI_VERSION 51u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
