@@ -7348,7 +7348,7 @@ void fc4_citysit_show_situation_popup(fc4_citysit* m, uint64_t advice, uint64_t 
 void fc4_citysit_success(fc4_citysit* m, uint64_t advice);
 void fc4_citysit_failure(fc4_citysit* m, uint64_t advice);
 /* Slot 5 / Lua get_success_count; Lua activate_situation. */
-uint16_t fc4_citysit_success_count(const fc4_citysit* m, uint32_t guid);
+uint16_t fc4_citysit_get_success_count(const fc4_citysit* m, uint32_t guid);
 bool fc4_citysit_lua_activate_situation(fc4_citysit* m, uint32_t guid, bool show_briefing);
 /* Slots 6-12 (tokens borrowed, 0 = none). */
 uint64_t fc4_citysit_active_situation(const fc4_citysit* m);

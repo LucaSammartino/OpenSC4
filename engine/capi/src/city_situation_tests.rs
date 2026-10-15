@@ -475,7 +475,7 @@ fn cs12_01_record_round_trip() {
     let mut i = In::new(payloads[2]);
     let is = istream(&mut i);
     assert!(unsafe { fc4_citysit_read(m, &is) });
-    assert_eq!(unsafe { fc4_citysit_success_count(m, G) }, 1);
+    assert_eq!(unsafe { fc4_citysit_get_success_count(m, G) }, 1);
     let mut c = [fc4_citysit_success_count::default(); 2];
     assert_eq!(unsafe { fc4_citysit_success_counts(m, c.as_mut_ptr(), 2) }, 1);
     assert_eq!((c[0].guid, c[0].count), (G, 1));
@@ -536,7 +536,7 @@ fn cs12_05_success_payout() {
             "post_popup 0x500 0x700"
         ]
     );
-    assert_eq!(unsafe { fc4_citysit_success_count(m, G) }, 1);
+    assert_eq!(unsafe { fc4_citysit_get_success_count(m, G) }, 1);
     unsafe { fc4_citysit_destroy(m) };
 }
 

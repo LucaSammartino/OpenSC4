@@ -763,7 +763,7 @@ pub unsafe extern "C" fn fc4_citysit_failure(p: *mut fc4_citysit, advice: u64) {
 
 /// Slot 5 / Lua `get_success_count`.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_citysit_success_count(p: *const fc4_citysit, guid: u32) -> u16 {
+pub unsafe extern "C" fn fc4_citysit_get_success_count(p: *const fc4_citysit, guid: u32) -> u16 {
     with_p(p, 0, |h| h.sim.success_count(guid))
 }
 
