@@ -106,8 +106,11 @@ extern "C" {
  *      even for one value (the core's vector readers read a scalar as empty, EX39) (taken as 57
  *      on its lane; renumbered at merge);
  * 51 = adds the zone developer / lot manager (fc4_zonedev, zones.md §1.2, §7-§11.3) and its shadow mode
- *      (fc4_zonedev_create_shadow) (taken as 54 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 51u
+ *      (fc4_zonedev_create_shadow) (taken as 54 on its lane; renumbered at merge);
+ * 63 = adds fc4_grid_set_bulk_reader (a performance hook: one host call reads a whole grid);
+ *      fc4_development_developers / _special_buildings run their callback without a copy, so it
+ *      must not call back into the simulator (devperf lane). */
+#define FC4_ABI_VERSION 63u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -1361,6 +1364,17 @@ typedef struct fc4_grid_api {
     void (*shutdown)(void* user, uint64_t grid);
     void (*release)(void* user, uint64_t grid);
 } fc4_grid_api;
+
+/* 63: a performance hook (devperf). The host's bulk tract reader copies every
+ * tract value of `grid`, x outer (out[x * count_z + z]), as native elements of
+ * class `kind` into `out` (room for `count`) and returns the number written
+ * (0 for a kind it does not support); the core uses the copy only when that is
+ * count_x * count_z, and reads tract by tract through `get` otherwise, with
+ * the same values. Registered process-wide for the grids whose
+ * fc4_grid_api.get is `get`; a NULL `reader` removes it. */
+typedef uint32_t (*fc4_grid_bulk_reader)(uint64_t grid, uint32_t kind, void* out, uint32_t count);
+void fc4_grid_set_bulk_reader(double (*get)(void* user, uint64_t grid, uint32_t kind, int32_t tx, int32_t tz),
+                              fc4_grid_bulk_reader reader);
 
 /* An inclusive cell rectangle. */
 typedef struct fc4_cell_rect {

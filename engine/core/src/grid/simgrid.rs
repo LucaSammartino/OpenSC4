@@ -167,6 +167,15 @@ pub trait TractGrid<T: GridElem> {
     /// The reference an owner writes into its record (§5).
     fn save_ref(&self) -> RefValue;
 
+    /// Every tract value at once, x outer (`count_x × count_z` values, each
+    /// equal to what [`TractGrid::get`] returns for it), when the grid can
+    /// hand them out faster than tract by tract; `None` otherwise (the
+    /// default). A performance hook only: walkers that use it read the same
+    /// values (see [`GridSnapshot`]).
+    fn snapshot_values(&self) -> Option<Vec<T>> {
+        None
+    }
+
     /// `SetTractValues(v)`.
     fn fill(&self, v: T) {
         let g = self.geometry();
@@ -253,6 +262,65 @@ fn quotient<T: GridElem>(sum: i64, w: i32, h: i32) -> T {
     // One x87 division at 24-bit precision with exact integer operands
     // (foundations §18): the correctly rounded float32 quotient.
     T::from_quotient(f64::from((sum as f64 / f64::from(n)) as f32))
+}
+
+/// A grid read through one [`TractGrid::snapshot_values`] call when the grid
+/// offers it, tract by tract otherwise. Reads return exactly what
+/// [`TractGrid::get`] returns (0 outside the grid); [`GridSnapshot::set`]
+/// writes through to the grid and keeps the copy current. Valid while
+/// nothing else writes the grid (a walker's own loop).
+pub struct GridSnapshot<'a, T: GridElem> {
+    grid: &'a dyn TractGrid<T>,
+    geom: TractGeometry,
+    values: Option<Vec<T>>,
+}
+
+impl<'a, T: GridElem> GridSnapshot<'a, T> {
+    pub fn new(grid: &'a dyn TractGrid<T>) -> GridSnapshot<'a, T> {
+        let geom = grid.geometry();
+        let n = if geom.count_x > 0 && geom.count_z > 0 {
+            (geom.count_x as usize).checked_mul(geom.count_z as usize)
+        } else {
+            None
+        };
+        // A copy of any other length is not used.
+        let values = n.and_then(|n| grid.snapshot_values().filter(|v| v.len() == n));
+        GridSnapshot { grid, geom, values }
+    }
+
+    /// Whether the values came in one call (tests).
+    pub fn is_copy(&self) -> bool {
+        self.values.is_some()
+    }
+
+    fn index(&self, tx: i32, tz: i32) -> Option<usize> {
+        if tx < 0 || tz < 0 || tx >= self.geom.count_x || tz >= self.geom.count_z {
+            return None;
+        }
+        Some(tx as usize * self.geom.count_z as usize + tz as usize)
+    }
+
+    /// `GetTractValue(tx, tz)`.
+    pub fn get(&self, tx: i32, tz: i32) -> T {
+        match &self.values {
+            Some(v) => self.index(tx, tz).map_or_else(T::default, |i| v[i]),
+            None => self.grid.get(tx, tz),
+        }
+    }
+
+    /// `SetTractValue(tx, tz, v)` on the grid; the copy follows.
+    pub fn set(&mut self, tx: i32, tz: i32, value: T) {
+        self.grid.set(tx, tz, value);
+        if let (Some(i), Some(v)) = (self.index(tx, tz), self.values.as_mut()) {
+            v[i] = value;
+        }
+    }
+
+    /// `GetCellValue(cx, cz)` (the trait's default: the containing tract).
+    pub fn get_cell_value(&self, cx: i32, cz: i32) -> T {
+        let (tx, tz) = self.geom.cell_to_tract(cx, cz);
+        self.get(tx, tz)
+    }
 }
 
 /// The mutable state of a core grid.

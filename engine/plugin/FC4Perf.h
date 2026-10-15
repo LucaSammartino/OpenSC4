@@ -54,6 +54,9 @@ enum Section : uint32_t {
     kGrowthStateLast = kGrowthState0 + 20,  // ... to 20
     kGridGet,           // count only: grid callbacks GetTractValue
     kGridSet,           // count only: grid callbacks SetTractValue
+    kGridBulk,          // count only: whole-grid reads (fc4_grid_set_bulk_reader)
+    kBdsPeek,           // count only: BDS getters answered from the published copies (no call in progress)
+    kGrowthPeek,        // count only: growth getters answered from the published copies
     kSectionCount
 };
 
@@ -63,6 +66,9 @@ bool On();
 uint64_t Now();
 void Add(Section s, uint64_t ticks);
 void Count(Section s);
+// Count only: an outermost call into a core, by the glue function that made it
+// (what is a string literal such as __FUNCTION__; reported per name).
+void CountCall(const char* unit, const char* what);
 // One delivery of our simulator (inclusive, any agent).
 void AddDelivery(const void* agent, uint32_t level, const char* name, uint64_t ticks);
 // One OnTick of our simulator.

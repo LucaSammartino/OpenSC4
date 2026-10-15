@@ -284,6 +284,8 @@ public:
 private:
     class Call;  // the process lock and depth counting around core calls
     friend class Call;
+    class Peek;  // a pure getter's read of the published copies when no call is in progress (devperf)
+    friend class Peek;
     void LogState(const char* what);
     void LogMonth();
     void LogDeclinePlan();
@@ -294,6 +296,7 @@ private:
     uint32_t refCount_ = 0;
     bool destroying_ = false;
     uint32_t depth_ = 0;
+    bool published_ = false;  // a Publish ran (Peek reads the copies only then)
     fc4::DevelopmentContext ctx_;
     fc4::HostGridContext gridCtx_;
     fc4_development_host host_{};

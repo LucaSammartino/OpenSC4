@@ -19,7 +19,7 @@ use std::rc::Rc;
 use crate::curve::ResponseCurve;
 use crate::development::{building_fits_in_zone, ConstructionProfile, GrowthItem, GrowthProfile};
 use crate::grid::{
-    add_radius_effect, process_two_grids, GridElem, GridProvider, ScanIterator, TractGrid, IID_SIM_GRID,
+    add_radius_effect, process_two_grids, GridElem, GridProvider, GridSnapshot, ScanIterator, TractGrid, IID_SIM_GRID,
 };
 use crate::property::PropertyHolder;
 use crate::rng::CLOCK_SEED;
@@ -659,7 +659,11 @@ impl GrowthDeveloper {
         let (sa, sb) = (ga.safe_shift(), gb.safe_shift());
         let (ax, az) = counts(&*w);
         let (bx, bz) = counts(&*src);
-        let add = |x: i32, z: i32, input: f32| {
+        // Each grid read in one host call when it offers it (devperf); the
+        // same values as tract by tract.
+        let src = GridSnapshot::new(&*src);
+        let mut w = GridSnapshot::new(&*w);
+        let mut add = |x: i32, z: i32, input: f32| {
             let old = w.get(x, z);
             let new = add_curve(old, curve.eval(input));
             if new != old {
@@ -718,6 +722,9 @@ impl GrowthDeveloper {
         };
         let s = i64::from(w.geometry().tract_size.clamp(0, 1 << MAX_LOOP_SHIFT));
         let (cx, cz) = counts(&*w);
+        // Each grid read in one host call when it offers it (devperf).
+        let trip = GridSnapshot::new(&*trip);
+        let mut w = GridSnapshot::new(&*w);
         for x in 0..cx {
             for z in 0..cz {
                 let cells = (0..s).flat_map(|i| (0..s).map(move |j| (i, j)));
@@ -818,6 +825,8 @@ impl GrowthDeveloper {
         growth.clear();
         if let Some(w) = &g.working {
             let (cx, cz) = counts(&**w);
+            // W read in one host call when it offers it (devperf).
+            let w = GridSnapshot::new(&**w);
             if let Some(dm) = &g.desirability {
                 for x in 0..cx {
                     for z in 0..cz {
@@ -826,6 +835,7 @@ impl GrowthDeveloper {
                 }
             }
             if let Some(zoned) = &g.zoned {
+                let zoned = GridSnapshot::new(&**zoned);
                 for x in 0..cx {
                     for z in 0..cz {
                         if zoned.get(x, z) > 0 {

@@ -100,6 +100,36 @@ double Get(void*, uint64_t t, uint32_t kind, int32_t x, int32_t z) {
     }
 }
 
+// The bulk reader (fc4_grid_set_bulk_reader, a performance hook): the same
+// GetTractValue calls as Get, in one host call per grid, x outer.
+template <class T>
+uint32_t ReadAll(uint64_t t, void* out, uint32_t count) {
+    const cISC4SimGrid<T>* g = As<T>(t);
+    const int32_t nx = g->GetTractCountX();
+    const int32_t nz = g->GetTractCountZ();
+    if (nx <= 0 || nz <= 0 || static_cast<uint64_t>(nx) * static_cast<uint64_t>(nz) != count) return 0;
+    T* o = static_cast<T*>(out);
+    for (int32_t x = 0; x < nx; ++x) {
+        for (int32_t z = 0; z < nz; ++z) *o++ = g->GetTractValue(x, z);
+    }
+    return count;
+}
+
+uint32_t BulkRead(uint64_t t, uint32_t kind, void* out, uint32_t count) {
+    if (t == 0 || out == nullptr || count == 0) return 0;
+    if (perf::On()) perf::Count(perf::kGridBulk);  // tooling: perf_profile (FC4Perf.h)
+    switch (kind) {
+        case kClsI16: return ReadAll<int16_t>(t, out, count);
+        case kClsI8: return ReadAll<int8_t>(t, out, count);
+        case kClsU16: return ReadAll<uint16_t>(t, out, count);
+        case kClsU32: return ReadAll<uint32_t>(t, out, count);
+        case kClsF32: return ReadAll<float>(t, out, count);
+        case kClsU8:
+        case kClsBool: return ReadAll<uint8_t>(t, out, count);
+        default: return 0;
+    }
+}
+
 // The core converts with its element type, so the double is exact.
 template <class T>
 T Narrow(double v) {
@@ -207,6 +237,7 @@ fc4_grid_api MakeGridApi(const HostGridContext* ctx) {
     a.fill = &Fill;
     a.shutdown = &Shutdown;
     a.release = &Release;
+    fc4_grid_set_bulk_reader(&Get, &BulkRead);  // devperf: one host call per grid read
     return a;
 }
 

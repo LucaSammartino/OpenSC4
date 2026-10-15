@@ -687,9 +687,12 @@ void ReleaseGrowthContext(GrowthContext* ctx) {
 // returns, the game copies are refreshed and the held references dropped.
 class cFC4GrowthDeveloper::Call {
 public:
-    explicit Call(const cFC4GrowthDeveloper* d) : d_(const_cast<cFC4GrowthDeveloper*>(d)) {
+    Call(const cFC4GrowthDeveloper* d, const char* what) : d_(const_cast<cFC4GrowthDeveloper*>(d)) {
         if (lock_.held()) {
-            if (++d_->depth_ == 1 && fc4::perf::On()) perfT0_ = fc4::perf::Now();  // tooling: perf_profile
+            if (++d_->depth_ == 1 && fc4::perf::On()) {  // tooling: perf_profile (FC4Perf.h)
+                perfT0_ = fc4::perf::Now();
+                fc4::perf::CountCall("growth", what);
+            }
         } else {
             ++d_->offMainCalls_;
         }
@@ -713,6 +716,30 @@ private:
     cFC4GrowthDeveloper* d_;
     fc4::DevelopmentLock lock_;
     uint64_t perfT0_ = 0;
+};
+
+// A pure getter's fast path (devperf). Every change of the core happens inside
+// an outermost Call, whose Publish refreshes the published copies before the
+// lock is released; so with the lock held and no call in progress (depth 0)
+// the copies equal what the core would answer, and the getter reads them
+// without a core call, a Publish or a token drop. Inside a call (depth > 0:
+// the core may be part way through a change) the getter makes its Call as
+// before. Without the lock (another thread, after the wait) the copies answer,
+// as Call does then.
+class cFC4GrowthDeveloper::Peek {
+public:
+    explicit Peek(const cFC4GrowthDeveloper* d) : d_(const_cast<cFC4GrowthDeveloper*>(d)) {
+        if (!lock_.held()) ++d_->offMainCalls_;
+        if (published() && fc4::perf::On()) fc4::perf::Count(fc4::perf::kGrowthPeek);  // tooling: perf_profile
+    }
+    Peek(const Peek&) = delete;
+    Peek& operator=(const Peek&) = delete;
+    // Whether the published copies answer.
+    bool published() const { return !lock_.held() || d_->core_ == nullptr || (d_->depth_ == 0 && d_->published_); }
+
+private:
+    cFC4GrowthDeveloper* d_;
+    fc4::DevelopmentLock lock_;
 };
 
 cIGZUnknown* CreateFC4GrowthDeveloper() {
@@ -778,6 +805,7 @@ void CollectStyle(void* ctx, uint32_t key, float value) {
 }  // namespace
 
 void cFC4GrowthDeveloper::Publish() {
+    published_ = false;
     if (core_ == nullptr) return;
     fc4_growth_state st{};
     st.struct_size = sizeof(st);
@@ -798,6 +826,7 @@ void cFC4GrowthDeveloper::Publish() {
     fc4_growth_caps(core_, caps);
     caps_ = static_cast<uint32_t>(caps[0]) | (static_cast<uint32_t>(caps[1]) << 8) |
             (static_cast<uint32_t>(caps[2]) << 16) | (static_cast<uint32_t>(caps[3]) << 24);
+    published_ = true;
     updateState_ = st.update_state;
     // The lists change in states 17 and 20 only (§5.1, §5.4).
     const bool moved = st.update_state != lastState_;
@@ -886,8 +915,12 @@ void cFC4GrowthDeveloper::LogUpdate(const fc4_growth_state& st) {
 }
 
 uint64_t cFC4GrowthDeveloper::GridToken(uint32_t which) {
+    if (which < 4) {
+        Peek peek(this);
+        if (peek.published()) return grids_[which].load();
+    }
     uint64_t t = which < 4 ? grids_[which].load() : 0;
-    Call call(this);
+    Call call(this, __FUNCTION__);
     if (call.ok()) t = fc4_growth_grid(core_, which);
     return t;
 }
@@ -900,7 +933,7 @@ bool cFC4GrowthDeveloper::Init(cISCPropertyHolder* holder) {
     FC4_TRACE("GrowthDeveloper::Init");
     bool ok = false;
     {
-        Call call(this);
+        Call call(this, __FUNCTION__);
         if (!call.ok()) return false;
         ok = fc4_growth_init(core_, holder != nullptr ? fc4::props::ToCoreAll(holder) : nullptr);
         listsDirty_ = stylesDirty_ = true;
@@ -915,7 +948,7 @@ bool cFC4GrowthDeveloper::Shutdown() {
     // their references (unless this already is the final Release).
     if (!destroying_) AddRef();
     {
-        Call call(this);
+        Call call(this, __FUNCTION__);
         if (call.ok()) {
             fc4_growth_state st{};
             st.struct_size = sizeof(st);
@@ -934,28 +967,36 @@ bool cFC4GrowthDeveloper::Shutdown() {
 // the developer type (+0xCC), the key of the BDS developer map (docs/abi
 // cISC4GrowthDeveloper rows 5 and 6, re-answers9).
 int32_t cFC4GrowthDeveloper::GetType() {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() ? fc4_growth_target_zone(core_) : type_.load();
 }
 
 uint32_t cFC4GrowthDeveloper::GetSubType() {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() ? fc4_growth_sub_type(core_) : subType_.load();
 }
 
 uint32_t cFC4GrowthDeveloper::GetPurpose() {
-    Call call(this);
+    {
+        Peek peek(this);
+        if (peek.published()) return purpose_.load();
+    }
+    Call call(this, __FUNCTION__);
     return call.ok() ? fc4_growth_purpose(core_) : purpose_.load();
 }
 
 uint32_t cFC4GrowthDeveloper::GetWealth() {
-    Call call(this);
+    {
+        Peek peek(this);
+        if (peek.published()) return wealth_.load();
+    }
+    Call call(this, __FUNCTION__);
     return call.ok() ? fc4_growth_wealth(core_) : wealth_.load();
 }
 
 // §6.2: the info fields written, the rest of the profile untouched.
 void cFC4GrowthDeveloper::GetConstructionInfo(FC4ConstructionProfile& profile) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     if (!call.ok()) return;
     fc4_construction_profile p{};
     static_assert(sizeof(p) == sizeof(profile), "ConstructionProfile layouts");
@@ -978,7 +1019,7 @@ uint32_t BoolOf(bool v) { return v ? 1u : 0u; }
 // 1 (slot 10 = state < 17 signed, slot 28 = state = 0).
 bool cFC4GrowthDeveloper::GrowthAndDeclineListsAreValid() {
     const uint32_t v = BoolOf([this] {
-        Call call(this);
+        Call call(this, __FUNCTION__);
         return call.ok() ? fc4_growth_lists_valid(core_) : updateState_.load() < 17;
     }());
     __asm mov eax, v
@@ -1007,21 +1048,29 @@ cISC4SimGrid<uint16_t>* cFC4GrowthDeveloper::GetMaxCapacityMap() {
 }
 
 int32_t cFC4GrowthDeveloper::GetTotalCapacity() {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() ? fc4_growth_total_capacity(core_) : totalCapacity_.load();
 }
 
 cISC4Demand* cFC4GrowthDeveloper::GetSourceDemand() {
     uint64_t t = sourceDemand_.load();
     {
-        Call call(this);
+        Peek peek(this);
+        if (peek.published()) return reinterpret_cast<cISC4Demand*>(FromToken(sourceDemand_.load()));  // borrowed
+    }
+    {
+        Call call(this, __FUNCTION__);
         if (call.ok()) t = fc4_growth_source_demand(core_);
     }
     return reinterpret_cast<cISC4Demand*>(FromToken(t));  // borrowed
 }
 
 uint8_t cFC4GrowthDeveloper::CapAt(uint32_t i) {
-    Call call(this);
+    {
+        Peek peek(this);
+        if (peek.published()) return static_cast<uint8_t>(caps_.load() >> (8 * (i & 3)));
+    }
+    Call call(this, __FUNCTION__);
     if (call.ok()) {
         uint8_t caps[4] = {0, 0, 0, 0};
         fc4_growth_caps(core_, caps);
@@ -1040,25 +1089,25 @@ uint8_t cFC4GrowthDeveloper::GetFireCoverageCap() { return CapAt(2); }
 uint8_t cFC4GrowthDeveloper::GetParkCap() { return CapAt(3); }
 
 int32_t cFC4GrowthDeveloper::GetDesirabilityThreshold() {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() ? fc4_growth_desirability_threshold(core_) : threshold_.load();
 }
 
 // Slot 24 (ST0): the inserting lookup (§10.1 error 4).
 float cFC4GrowthDeveloper::GetAbandonmentThreshold(int32_t densityType) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() ? fc4_growth_abandonment_threshold(core_, densityType) : 0.0f;
 }
 
 int32_t cFC4GrowthDeveloper::GetMonopolyUse() {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() ? static_cast<int32_t>(fc4_growth_monopoly_use(core_)) : monopoly_.load();
 }
 
 fc4::GameMapObject* cFC4GrowthDeveloper::GetStylePercentages() { return &styles_; }
 
 void cFC4GrowthDeveloper::StartMapUpdate() {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     if (call.ok()) fc4_growth_start_map_update(core_);
 }
 
@@ -1066,7 +1115,7 @@ void cFC4GrowthDeveloper::StartMapUpdate() {
 #pragma warning(disable : 4035)
 bool cFC4GrowthDeveloper::IsMapUpdateFinished() {
     const uint32_t v = BoolOf([this] {
-        Call call(this);
+        Call call(this, __FUNCTION__);
         return call.ok() ? fc4_growth_map_update_finished(core_) : updateState_.load() == 0;
     }());
     __asm mov eax, v
@@ -1075,7 +1124,7 @@ bool cFC4GrowthDeveloper::IsMapUpdateFinished() {
 
 // Slot 29: the int16 in AX (§10.1 error 2; the upper half is the sign).
 int16_t cFC4GrowthDeveloper::EstimateDesirability(int32_t cellX, int32_t cellZ) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     return call.ok() ? static_cast<int16_t>(fc4_growth_estimate_desirability(core_, cellX, cellZ)) : 0;
 }
 
@@ -1083,7 +1132,7 @@ int16_t cFC4GrowthDeveloper::EstimateDesirability(int32_t cellX, int32_t cellZ) 
 // (DG27, glue-only: -4 / 20 are what the original's slot 30 gives for an
 // index outside its vectors, growth-developer §10.1).
 void cFC4GrowthDeveloper::GetSubjectiveThresholds(int32_t index, int32_t& min, int32_t& max) {
-    Call call(this);
+    Call call(this, __FUNCTION__);
     if (call.ok()) {
         fc4_growth_subjective_thresholds(core_, index, &min, &max);
         return;
@@ -1103,7 +1152,7 @@ bool cFC4GrowthDeveloper::DoMessage(cIGZMessage2* pMessage) {
     fc4::perf::Scope perf(perfType == kMsgSimIdle || perfType == kMsgSimNewDay
                               ? static_cast<fc4::perf::Section>(fc4::perf::kGrowthState0 + perfState)
                               : fc4::perf::kGrowthOtherMsg);
-    Call call(this);
+    Call call(this, __FUNCTION__);
     if (!call.ok()) return true;  // [choice] (DG21, glue-only) a message from another thread without the lock is dropped
     fc4_growth_message m{};
     m.msg_type = pMessage->GetType();
@@ -1136,7 +1185,7 @@ bool cFC4GrowthDeveloper::DoMessage(cIGZMessage2* pMessage) {
 
 bool cFC4GrowthDeveloper::Write(cIGZOStream& s) {
     FC4_TRACE("GrowthDeveloper::Write");
-    Call call(this);
+    Call call(this, __FUNCTION__);
     if (!call.ok()) return false;
     fc4::OStreamAdapter a(s);
     const bool ok = fc4_growth_write(core_, a.Get());
@@ -1149,7 +1198,7 @@ bool cFC4GrowthDeveloper::Read(cIGZIStream& s) {
     FC4_TRACE("GrowthDeveloper::Read");
     bool ok = false;
     {
-        Call call(this);
+        Call call(this, __FUNCTION__);
         if (!call.ok()) return false;
         fc4::IStreamAdapter a(s);
         ok = fc4_growth_read(core_, a.Get());

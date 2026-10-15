@@ -81,7 +81,8 @@ pub use elem::{GridElem, RadiusElem};
 pub use random_iter::{CellIterator, IteratorState, MODE_PRIME, MODE_TABLE, PRIME_TABLE};
 pub use scan::{ScanIterator, ScanState};
 pub use simgrid::{
-    create_for_clsid, tract_shift, CityDims, CoreGrids, GridProvider, SimGrid, SimGridData, TractGeometry, TractGrid,
+    create_for_clsid, tract_shift, CityDims, CoreGrids, GridProvider, GridSnapshot, SimGrid, SimGridData, TractGeometry,
+    TractGrid,
     GRID_RECORD_VERSION, MAX_TRACTS,
 };
 
@@ -93,7 +94,8 @@ pub const CLSID_BOOL_GRID: u32 = 0x49B9_E601;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stream::{ByteReader, ByteWriter, SaveObject};
+    use crate::stream::{ByteReader, ByteWriter, RefValue, SaveObject};
+    use std::rc::Rc;
 
     fn city() -> CityDims {
         CityDims::square(256)
@@ -286,5 +288,66 @@ mod tests {
             n += 1;
         });
         assert_eq!((n, b.get(3, 3)), (16, 1));
+    }
+
+    /// A grid that hands out its values in one call and counts tract reads.
+    struct Bulk<T: GridElem>(Rc<SimGrid<T>>, std::cell::Cell<usize>);
+
+    impl<T: GridElem> TractGrid<T> for Bulk<T> {
+        fn geometry(&self) -> TractGeometry {
+            self.0.geometry()
+        }
+        fn get(&self, tx: i32, tz: i32) -> T {
+            self.1.set(self.1.get() + 1);
+            self.0.get(tx, tz)
+        }
+        fn set(&self, tx: i32, tz: i32, v: T) {
+            self.0.set(tx, tz, v)
+        }
+        fn save_ref(&self) -> RefValue {
+            RefValue::Null
+        }
+        fn snapshot_values(&self) -> Option<Vec<T>> {
+            let g = self.0.geometry();
+            Some((0..g.count_x).flat_map(|x| (0..g.count_z).map(move |z| (x, z))).map(|(x, z)| self.0.get(x, z)).collect())
+        }
+    }
+
+    #[test]
+    fn snapshot_reads_equal_tract_reads() {
+        // Every shift relation; A changes as it goes (writes reach the grid
+        // and the copy), and the walk with copies matches the plain one.
+        for (sa, sb) in [(2, 2), (4, 1), (1, 4)] {
+            let fill = |g: &SimGrid<i16>, k: i32| {
+                let geo = g.geometry();
+                for x in 0..geo.count_x {
+                    for z in 0..geo.count_z {
+                        g.set(x, z, ((x * 37 + z * 11 + k) % 61 - 30) as i16);
+                    }
+                }
+            };
+            let (a1, b1) = (SimGrid::<i16>::create(&CityDims::square(16), 0, sa), SimGrid::<i16>::create(&CityDims::square(16), 0, sb));
+            let (a2, b2) = (a1.duplicate(), b1.duplicate());
+            fill(&a1, 3);
+            fill(&a2, 3);
+            fill(&b1, 7);
+            fill(&b2, 7);
+            let walk = |a: &dyn TractGrid<i16>, b: &dyn TractGrid<i16>| {
+                let mut seen = Vec::new();
+                process_two_grids(a, b, |x, z, v, bv| {
+                    seen.push((x, z, *v, bv));
+                    *v = v.wrapping_add(bv).wrapping_add(1);
+                });
+                seen
+            };
+            let (ba, bb) = (Bulk(a2.clone(), Default::default()), Bulk(b2.clone(), Default::default()));
+            assert_eq!(walk(&*a1, &*b1), walk(&ba, &bb), "shifts {sa} {sb}");
+            assert_eq!((a1.values(), b1.values()), (a2.values(), b2.values()));
+            assert_eq!((ba.1.get(), bb.1.get()), (0, 0));
+            let snap = GridSnapshot::new(&bb);
+            assert!(snap.is_copy());
+            assert_eq!((snap.get(-1, 0), snap.get(0, 99), snap.get(1, 2), snap.get_cell_value(5, 9)), (0, 0, b2.get(1, 2), b2.get_cell_value(5, 9)));
+            assert!(!GridSnapshot::new(&*b1).is_copy());
+        }
     }
 }

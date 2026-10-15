@@ -46,6 +46,8 @@ struct AgentTotal {
 
 // Deliveries happen on the main thread only (our simulator's OnTick).
 std::map<std::pair<const void*, uint32_t>, AgentTotal> g_agents;
+// Outermost core calls by (unit, glue function); main thread (the lock holder).
+std::map<std::pair<const char*, const char*>, uint64_t> g_calls;
 uint64_t g_tickTicks = 0;
 uint64_t g_tickCount = 0;
 
@@ -82,6 +84,9 @@ const char* SectionName(uint32_t s) {
     }
     if (s == kGridGet) return "grid:get";
     if (s == kGridSet) return "grid:set";
+    if (s == kGridBulk) return "grid:bulk";
+    if (s == kBdsPeek) return "bds:peek";
+    if (s == kGrowthPeek) return "growth:peek";
     return "?";
 }
 
@@ -125,6 +130,8 @@ void Count(Section s) {
     if (s >= kSectionCount) return;
     g_sections[s].count.fetch_add(1, std::memory_order_relaxed);
 }
+
+void CountCall(const char* unit, const char* what) { ++g_calls[std::make_pair(unit, what)]; }
 
 void AddDelivery(const void* agent, uint32_t level, const char* name, uint64_t ticks) {
     AgentTotal& a = g_agents[std::make_pair(agent, level)];
@@ -189,7 +196,7 @@ void Report(const char* date, int32_t days, uint32_t realMs) {
         if (n == 0) continue;
         const uint64_t t = g_sections[s].ticks.load(std::memory_order_relaxed);
         char b[160];
-        if (s == kGridGet || s == kGridSet) {
+        if (s == kGridGet || s == kGridSet || s == kGridBulk || s == kBdsPeek || s == kGrowthPeek) {
             std::snprintf(b, sizeof(b), "%s %llu", SectionName(s), static_cast<unsigned long long>(n));
         } else {
             std::snprintf(b, sizeof(b), "%s %sms (%llu)", SectionName(s), Ms(t).c_str(),
@@ -200,6 +207,21 @@ void Report(const char* date, int32_t days, uint32_t realMs) {
     }
     if (!any) line += " none";
     Log("%s", line.c_str());
+
+    std::vector<std::pair<uint64_t, std::string>> calls;
+    for (const auto& kv : g_calls) {
+        if (kv.second == 0) continue;
+        calls.emplace_back(kv.second, std::string(kv.first.first) + ":" + (kv.first.second ? kv.first.second : "?") +
+                                          " " + std::to_string(kv.second));
+    }
+    if (!calls.empty()) {
+        std::sort(calls.begin(), calls.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+        const std::string callsHead = std::string("perf month ") + date + " calls";
+        line = callsHead + ":";
+        for (size_t i = 0; i < calls.size() && i < 16; ++i) Append(line, callsHead, calls[i].second);
+        Log("%s", line.c_str());
+    }
+    for (auto& kv : g_calls) kv.second = 0;
 
     for (auto& c : g_sections) {
         c.ticks.store(0, std::memory_order_relaxed);
