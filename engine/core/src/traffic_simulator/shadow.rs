@@ -1808,7 +1808,7 @@ impl TrafficShadow {
             let reached = if is_trip_phase(s) {
                 p >= want
             } else if s == cs::FINISH_TRIP_MAP {
-                finish_stop.is_none_or(|f| f == pos)
+                finish_stop.map_or(true, |f| f == pos)
             } else {
                 stop.is_none() || at_stop
             };
