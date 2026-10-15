@@ -3948,27 +3948,27 @@ setters now always store an array, and the vector readers read a scalar as empty
 LG21 view route (rotation 0). GF13 and GF14 are reserved by graphics-formats §8.5, so these questions start at GF15.
 The lane's choices are in brackets.
 
-- **EX40:** EX34 (data-formats, `format_float`): when the 63 kept characters hold no significant digit (the first one
+- ~~**EX40:** EX34 (data-formats, `format_float`): when the 63 kept characters hold no significant digit (the first one
   falls at the 64th or 65th character), does the trailing-zero strip also remove the `.`? [only `0` characters are
-  stripped, so it leaves `0.` or `-0.`; marked [literal reading]]
-- **GF15:** GF7 (graphics-formats §4.2): is the zoom mask's bit number the zoom index as passed (0-4, before the
+  stripped, so it leaves `0.` or `-0.`; marked [literal reading]]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (data-formats.md §5.1, the 63-character cut). The strip clears only `0` characters, walking back from the 63rd character and never testing the first (`0x00910686`–`0x00910697`), so it stops at the point and leaves `0.` or `-0.`. Examples: 1.5e-62 prints `0.`, −1.5e-61 prints `-0.`. The case needs more digits after the first significant one; a lone digit at the 64th character is cut without a strip.
+- ~~**GF15:** GF7 (graphics-formats §4.2): is the zoom mask's bit number the zoom index as passed (0-4, before the
   detail remap), and is the mask read as the property's first integer value whatever its stored type? [yes to both; a
-  mask with no value counts as 0; [literal reading] in `keys::occupant_models`]
-- **GF16:** GF7 (§4.2): for b+0..b+3 (RKT0-RKT3) and b+5 (RKT5), does `GetAllModelInstanceIDs` write T and G to its
-  out pointers, as it does for a matching RKT4 record? [yes, v[0] and v[1]; [inferred]]
-- **GF17:** GF7 (§4.2): when a rule needs a value past the end of the whole property (too few values), or the zoom
+  mask with no value counts as 0; [literal reading] in `keys::occupant_models`]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES, with the stored-type rule made exact (graphics-formats.md §4.2, "Details of the read"). The bit is the zoom as passed, before the detail remap (`0x00496D16`–`0x00496D25`; shift count mod 32). The mask is read with the converting getter (`0x005FD480` → variant slot 25 `0x009176C8`): scalars converted by data-formats §5.1 (floats truncated), an array by the text round trip (first element), and count 0 or Empty gives 0. All 1,009 shipped masks are Uint32 scalars.
+- ~~**GF16:** GF7 (§4.2): for b+0..b+3 (RKT0-RKT3) and b+5 (RKT5), does `GetAllModelInstanceIDs` write T and G to its
+  out pointers, as it does for a matching RKT4 record? [yes, v[0] and v[1]; [inferred]]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES. T and G are written for every form: RKT0 at `0x00496D80`/`0x00496D8A`, RKT2 and RKT3 at `0x00496EFC`–`0x00496F06`, and RKT1, RKT5 and matching RKT4 records through the rule helper `0x00496830` (`0x00496929`–`0x00496933`), each time v[0] and v[1].
+- ~~**GF17:** GF7 (§4.2): when a rule needs a value past the end of the whole property (too few values), or the zoom
   is above 4, what is appended? [nothing, neither an instance nor an offset, matching `model_key`'s "no model"; inside
-  the array an RKT3 record at zoom 3-4 does read into the next record, as the quirk says]
-- **GF18:** GF7 (§4.2): which stored types do the model keys and the zoom mask accept (the original's read
+  the array an RKT3 record at zoom 3-4 does read into the next record, as the quirk says]~~ **ANSWERED 2026-10-15 (re-answers11):** **DIFFERS** (choice accepted). The original checks nothing for RKT0–RKT3 and RKT5: it always appends one instance, plus offset (0, 0, 0) if asked (`0x004970EA`), reading past the property's array, or past the remap table for a zoom above 4. An in-range RKT1 base of 0 also appends a 0 instance (`0x00496E1E`–`0x00496E35`). Appending nothing in the out-of-range cases is a *[choice]*, since the original's values are garbage; shipped data never reaches them. Only RKT4 checks lengths.
+- ~~**GF18:** GF7 (§4.2): which stored types do the model keys and the zoom mask accept (the original's read
   conversion)? [the integer types up to 32 bits, converted; anything else counts as absent; shipped keys are Uint32
-  arrays; [choice] in `keys::property_u32s`]
-- **LG30:** LG21 (landfill §4.7.5): should the view rotation be read when the zot is placed (what the glue does) or
+  arrays; [choice] in `keys::property_u32s`]~~ **ANSWERED 2026-10-15 (re-answers11):** **DIFFERS** (choice accepted). The keys are read with `vec<u32>` (`0x005FF510`): the raw 32-bit words of any stored type with no conversion; a scalar gives an empty vector, and RKT0–RKT3 and RKT5 then read through a null data pointer *[inferred: crash]*. The zoom mask alone uses the converting getter (GF15). Every shipped key is a Uint32 array and every mask a Uint32 scalar, so treating other key types as absent is a safe *[choice]*.
+- ~~**LG30:** LG21 (landfill §4.7.5): should the view rotation be read when the zot is placed (what the glue does) or
   cached at view init, as the original's global is? [read at placement through the documented route; 0 without a
-  view. Only rotation 0 has been seen in game: no script action rotates the view]
-- **AO3:** AO1 (foundations §13.4): the two port developers share the name `cSC4PortDeveloper` and rank 2. Is their
-  relative order registration order? [yes, registration order]
-- **PR20:** PR18 (protection §5.1): the answer covers `UpdateUnadjusted`'s caller record. Does the separate
-  dispatch-message handler also carry leftovers into its own record? [no: it keeps a zeroed record]
+  view. Only rotation 0 has been seen in game: no script action rotates the view]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (landfill.md §4.7.5, "When the rotation is read"). The global caches the view-utilities object pointer, not the rotation; `AddZot` reads `+0x10` at placement (`0x006BB510`, `0x006BB51F`), so the original also uses the rotation current at placement. Without a view the original reads through a null pointer, and the glue's 0 is a *[choice]*.
+- ~~**AO3:** AO1 (foundations §13.4): the two port developers share the name `cSC4PortDeveloper` and rank 2. Is their
+  relative order registration order? [yes, registration order]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES as a choice (foundations.md §13.4). The original ranks both agents by heap address and the logs do not separate them, so there is no original order to follow. Neither agent reads the other's results (separate port lists and history keys, no random draws, additive demand updates); the only visible difference is the order of two upgrade advisor messages in the same month. Registration order is confirmed.
+- ~~**PR20:** PR18 (protection §5.1): the answer covers `UpdateUnadjusted`'s caller record. Does the separate
+  dispatch-message handler also carry leftovers into its own record? [no: it keeps a zeroed record]~~ **ANSWERED 2026-10-15 (re-answers11):** **DIFFERS** in the letter, choice accepted (protection.md §7.2, PR18 table). The handler's record is in its own stack frame (`0x006F61F0` reserves 0x44 bytes and writes nothing to the effect record before the call at `0x006F6221`), so it does not carry `UpdateUnadjusted`'s values. It holds stale bytes from unrelated earlier calls. Only the radius is used; a successful call with the radius property writes it, and FreeCity4 skips the update on failure, so a zeroed record is equivalent on shipped data.
 
 ## From the city situation, demolition, dispatch, port, prop developer and city detail specs (re-specs10 lane, 2026-10-14)
 

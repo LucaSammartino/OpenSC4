@@ -868,6 +868,27 @@ offsets (three floats per instance):
    - b + 4 (RKT4): a list of records, below. Every record whose selector equals s adds one instance and one
      offset.
 
+**Details of the read** (GF15–GF18, re-answers11, from `0x00496C90`–`0x0049710D`):
+
+- **The zoom mask** is read with the converting `GetProperty(id, uint32&)` (`0x005FD480`, variant slot 25
+  `0x009176C8`), so any stored type is converted by data-formats §5.1: a Uint32 scalar as is, other scalars
+  converted (floats truncated), an array through the text round trip (its first element; an array of count 0 or an
+  Empty value gives 0, so every zoom is masked off). The bit tested is the **zoom as passed**, before the detail
+  remap (`0x00496D16`–`0x00496D25`; the shift takes the zoom mod 32). All 1,009 shipped masks are Uint32 scalars.
+- **The keys** are read with `vec<u32>` (`0x005FF510`, data-formats §5.1 EX33): the raw 32-bit words of whatever
+  type is stored, with no conversion (a Float32 gives its bits, a narrower type is over-read, a wider one gives
+  its leading bytes), and a scalar gives an empty vector. Every shipped key (RKT0, RKT1, RKT3, RKT4, RKT5 and the
+  `0x2781292x` forms) is a Uint32 array.
+- **T and G** are written to the out pointers (when non-null) for every form: RKT0 directly (`0x00496D80`,
+  `0x00496D8A`), RKT2 and RKT3 at `0x00496EFC`–`0x00496F06`, RKT1, RKT5 and each matching RKT4 record through the
+  rule helper (`0x00496830`, which writes them at `0x00496929`–`0x00496933`; v[0] and v[1] of the key or record).
+- **Nothing is range-checked for RKT0–RKT3 and RKT5**: one instance and, if asked, one offset (0, 0, 0)
+  (`0x004970EA`) are **always appended**, even a 0 instance (an RKT1 base of 0 appends 0, `0x00496E1E`–
+  `0x00496E35`). A key with too few values reads past its array, and an empty one (a scalar) reads through a null
+  data pointer *[inferred: crash]*; a zoom above 4 reads past the remap table (§4.2 above). Only RKT4 checks its
+  length (below). *[choice]* FreeCity4 appends nothing in those out-of-range cases, and treats a key whose stored
+  type is not a 32-bit integer as absent; shipped data never reaches either case.
+
 **RKT4 records.** Each record is a header of five values (selector, x, y, z, kind) followed by the values of an
 RKT0–RKT3 key of that kind, read with that kind's rule at that position. The kind sets the record's length
 (`0x00496F87`–`0x00496FC2`): 3 values after the header for RKT0 and RKT1 (T, G, instance or base); **30** for RKT2
