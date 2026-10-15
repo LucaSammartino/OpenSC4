@@ -3647,11 +3647,11 @@ answer is in brackets; each entry says what would settle it.
 - ~~**CB5:** The income line is keyed by the building type, not by the item's line. The line that
   `CreateLineItemForBuildingType` returns is used without a null check. [keep the keying. *[choice]* FreeCity4
   skips the income when creation fails, which the shipped budget never does for a new type]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice harmless). `CreateLineItem` always creates and stores a new item and returns it (budget.md, the department budget methods), so the null case does not arise in the original apart from an allocation failure.
-- **PK1:** The shipped distress threshold 25.0 is compared with a fraction. So the first monthly pass of each session
+- ~~**PK1:** The shipped distress threshold 25.0 is compared with a fraction. So the first monthly pass of each session
   marks every park lot run down (condition 2), and the park manager never restores it. Yet in the corpus every park
   lot is at condition 0 (one at 1). What resets the condition? [the lot developer's condition test
   (lot-developer.md §5.5) *[inferred]*. An in-game check would settle it: play one month with a park, then save,
-  or watch the lot condition in the query tool]
+  or watch the lot condition in the query tool]~~ **ANSWERED 2026-10-15 (re-answers12):** Answered: there is no quirk (parks.md §4.4, PK10). The threshold is read with the percent getter (`0x005FDAC0`, × 0.01f), so the shipped 25.0 becomes 0.25 and parks are marked run down only at 25 % funding or less. The corpus's condition 0 needs no other reset.
 - ~~**PK2:** The zoo escape runs only when the park list is not empty. A park budget item that names a missing
   department crashes the original. [the shipped zoo is in both groups, so the first point cannot show in the
   shipped game. *[choice]* FreeCity4 skips the charge for a missing department (parks.md §4.2)]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice confirmed). Shipped data cannot reach the crash; skipping the charge is a safe *[choice]*.
@@ -4185,30 +4185,30 @@ the head of each chain (a repeated exclusion is a no-op, a repeated status key's
 `cb12_09` and `cb12_10` follow it, and the civic shadow pre-reverses the chains of the original's captured record. The
 current answer is in brackets.
 
-- **CB15:** Lua `civic.get_landmark_count` has no published registry node (the budget and aura glues stub
-  `register_lua` too). [logged as not published (stub)]
-- **CB16:** `docs/abi` lists only slots 3, 5 and 6 of `cIGZCommandParameterSet`, so a Lua getter cannot append its
-  output parameter. [not published until the rows exist]
-- **CB17:** civic slot 7 `UpdateConditionalBuildingStatus`: the spec does not say how to read the caller's tooltip.
-  [read as a `cRZString`-layout begin/end pair; the status is copied, never written back]
-- **CB18:** civic `Write` returns true when the stream refuses strings (`SetGZStr` false), so a stream without string
+- ~~**CB15:** Lua `civic.get_landmark_count` has no published registry node (the budget and aura glues stub
+  `register_lua` too). [logged as not published (stub)]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS** (civic-buildings.md §4.1 step 6). The original publishes a game-data registry node, as the budget does: node `"civic"` under the root (registry slot 5, key = the simulator) and a call entry `"get_landmark_count"` (slot 3, key and callback `0x0069D740`, flags 1, context = the simulator). The callback writes `GetLandmarkCount()` as a Uint32 variant into output parameter ID 1 (`cIGZCommandParameterSet` slot 7). `Shutdown` removes the node (slot 7). The stub can become this recipe once the CB16 rows exist.
+- ~~**CB16:** `docs/abi` lists only slots 3, 5 and 6 of `cIGZCommandParameterSet`, so a Lua getter cannot append its
+  output parameter. [not published until the rows exist]~~ **ANSWERED 2026-10-15 (re-answers12):** Answered (rows in `build-runs/re-answers12-abi-rows.md`; `docs/abi/vtables.tsv` already lists the whole vtable `0x00AD16C8`). The two slots a getter needs: 7 `SetParameter(uint32 id, const cIGZVariant&)` (`0x0092ABEB`, pop 8; find-or-insert by ID, then assign) and 8 `AppendParameter(const cIGZVariant&)` (`0x00929E19`, pop 4; ID = last ID + 1, or 0 when empty). The civic callback uses slot 7 with ID 1 (civic-buildings.md §4.1).
+- ~~**CB17:** civic slot 7 `UpdateConditionalBuildingStatus`: the spec does not say how to read the caller's tooltip.
+  [read as a `cRZString`-layout begin/end pair; the status is copied, never written back]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (civic-buildings.md §4.7). The source struct is read in place: byte `+0`, u16 `+2`, and the `cRZString` at `+4` whose STLport begin / end pointers are at `+8` / `+0xC`; the range is assigned unless it is the same string (`0x0069EA1D`). Nothing is written back.
+- ~~**CB18:** civic `Write` returns true when the stream refuses strings (`SetGZStr` false), so a stream without string
   support writes a short record with success. Is that the original's behaviour? [as the spec says: the result is the
-  stream error state only]
-- **CB19:** the in-memory layout of the 193-bucket status map beyond the bucket order (node allocation, erase) is not
+  stream error state only]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (civic-buildings.md §7). `Write` (`0x0069D920`) ignores every stream call's result, `SetGZStr` included (`0x0069DA1E`), and returns `!stream.GetError()` (stream slot 18, `0x0069DA88`). Whether a stream that refuses strings also sets its error flag is the stream's own behaviour.
+- ~~**CB19:** the in-memory layout of the 193-bucket status map beyond the bucket order (node allocation, erase) is not
   specified. [a game-layout hash map whose values keep a fixed address, merged field by field with the core; the core
-  keeps the 193 order]
-- **PK10:** in game the original park manager's threshold reads 0.25 (the code default), not the exemplar value, so
+  keeps the 193 order]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (civic-buildings.md §2). Nothing outside the class touches the table; slot 6 hands out the node's value address. Layout for reference: table at `+0x2C`, buckets at `+0x30`/`+0x34`, count at `+0x3C`; 0x20-byte nodes from allocator B (`+0` next, `+4` key, `+8` status, `+0xA` count, `+0xC` `cRZString`), so a value's address never moves while its node lives.
+- ~~**PK10:** in game the original park manager's threshold reads 0.25 (the code default), not the exemplar value, so
   the PK1 quirk is not observed. Why does the original not take the exemplar tuning? [the glue follows the spec
   (exemplar tuning at the first `Init`); the shadow follows the original "as without exemplar" and says so on every
-  line]
-- **PK11:** `fc4_park_destroy` and `fc4_civic_destroy` do not release the list entries of a never-initialised object
+  line]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS**: the spec was wrong, and the original does take the exemplar (parks.md §4.4, §6, tests 2 and 6 corrected). The threshold is read with the **percent** getter `0x005FDAC0` (`0x006D59EB`), which multiplies by `0.01f`: 25.0 becomes 0.25 exactly, which is what the game shows. The glue and the shadow should read `0xCA480830` × 0.01f; with the shipped data both give 0.25, so only a modded exemplar would differ.
+- ~~**PK11:** `fc4_park_destroy` and `fc4_civic_destroy` do not release the list entries of a never-initialised object
   (as the original's destructor, CB7), which leaks the references a `Read` took if `Init` never runs. [as the spec
-  says]
-- **CM10:** the save sweep for the commercial, industrial, civic and park records runs in `fc4-capi`
+  says]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (parks.md, civic-buildings.md §8). The park manager's destructor (`0x006D5860`) frees the nodes of both lists (`0x00413FE0`) without releasing their entries, and the civic one does the same (CB7). A never-initialised object that read references therefore leaks them in the original too.
+- ~~**CM10:** the save sweep for the commercial, industrial, civic and park records runs in `fc4-capi`
   (`capi/src/save_sweep_tests.rs`, over the C ABI); histclock's record mode is in `fc4-formats`
   (`formats/tests/save_records.rs`). Should the four records move there, over core-level hosts (about 100 host methods
   and object-ID-keeping streams)? [they stay in `fc4-capi`; both read `FC4_SAVES_DIR` and both READMEs point at each
-  other]
+  other]~~ **ANSWERED 2026-10-15 (re-answers12):** Not an RE question: the original has no counterpart. Keeping the four records' sweep in `fc4-capi` is the coordinator's choice; the bracket stands.
 
 ## From the lot developer glue (filed by the coordinator from the `lotglue` lane's report, 2026-10-15)
 
