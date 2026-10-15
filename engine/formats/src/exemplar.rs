@@ -1036,8 +1036,10 @@ fn atou64_hex(s: &[u8]) -> u64 {
 /// by digit in x87 arithmetic at the main thread's 24-bit precision**, every operation rounded once: an integer
 /// digit gives value × 10 + digit, a fraction digit multiplies a running scale by 0.1 and adds digit × scale. An
 /// `e` / `E` exponent is read as a 32-bit integer; 10ⁿ is computed in 32-bit integer arithmetic, **wrapping**, and
-/// loaded as a signed integer, then multiplied in (divided for a negative exponent). There is no hexadecimal,
-/// `inf` or `nan`: parsing stops at the first character that does not fit, so `inf` gives 0 and `1.#INF` 1.
+/// loaded as a signed integer, then multiplied in. A negative exponent is a **reciprocal and then a multiply**
+/// (EX35): 1/10ⁿ is rounded to the 24-bit precision first, then multiplied in, two roundings, so `9e-1` gives
+/// `0x3F666667` where one division gives `0x3F666666`. There is no hexadecimal, `inf` or `nan`: parsing stops at
+/// the first character that does not fit, so `inf` gives 0 and `1.#INF` 1.
 ///
 /// The result keeps a 24-bit significand and the register's exponent range; a Float32 target rounds it once more
 /// when it is stored (a Float64 target gets it as is). Worked examples (§4.3): `0.05` gives `0x3D4CCCCC` (a correctly
@@ -1052,10 +1054,9 @@ fn atou64_hex(s: &[u8]) -> u64 {
 /// - After the mantissa, whatever it consumed, an `e` / `E` starts the exponent (EX23). It takes one optional `+`
 ///   or `-`, then decimal digits (none: exponent 0). So `e5` and `.e5` give 0, `-e5` −0.0, `2.5e+3` 2500, `1e` 1,
 ///   and `e-32` the default NaN (`0xFFC00000` as a Float32), as `0e-32` does: 10³² wraps to 0, 1/0 is +∞, and
-///   0 × ∞ is invalid. Dividing 0 by the wrapped 0, as this code does, is invalid too and gives the same NaN.
-///
-/// Literal readings where §4.3 does not spell out the step: the sign applies to the result, so it flips a NaN's
-/// sign as `fchs` would; a negative exponent divides by 10ⁿ ("divided for a negative exponent"), one rounding.
+///   0 × ∞ is invalid.
+/// - The sign is applied last (`fchs` after the exponent step, EX36), so it flips a NaN's sign too: `-e-32` gives
+///   `0x7FC00000` and `-1e-32` gives −∞.
 pub fn parse_float(s: &[u8]) -> f64 {
     let digit = |i: usize| s.get(i).filter(|c| c.is_ascii_digit()).map(|&c| f64::from(c - b'0'));
     let mut i = s.iter().take_while(|&&b| is_space(b)).count();
@@ -1105,9 +1106,15 @@ pub fn parse_float(s: &[u8]) -> f64 {
         let n = if exp_neg { (n as i32).wrapping_neg() } else { n as i32 };
         // 10^|n| mod 2^32 (0 from n = 32 on), loaded as a signed 32-bit integer.
         let power = f64::from(10u32.wrapping_pow(n.unsigned_abs()) as i32);
-        v = if n >= 0 { x87::mul(v, power) } else { x87::div(v, power) };
-        // The only NaN this parser makes is 0 with a negative exponent whose 10ⁿ wrapped to 0: the x87 default NaN
-        // (EX23).
+        // EX35: a positive exponent is one multiply; a negative one rounds the reciprocal 1/10ⁿ first (`fld1` /
+        // `fdivrp`), then multiplies it in (`fmul`): two roundings, not one divide.
+        v = if n >= 0 {
+            x87::mul(v, power)
+        } else {
+            x87::mul(v, x87::div(1.0, power))
+        };
+        // The only NaN this parser makes is 0 with a negative exponent whose 10ⁿ wrapped to 0: 1/0 is +∞ and 0 × ∞
+        // is invalid, the x87 default NaN (EX23).
         if v.is_nan() {
             v = x87::default_nan();
         }
@@ -1126,9 +1133,12 @@ pub fn parse_float(s: &[u8]) -> f64 {
 /// zeros, so a value never prints more than 17 non-zero digits and an integer part longer than 17 digits ends in
 /// zeros. The printer's own limit of 24 digits after the fraction's leading zeros is kept, but it never takes effect
 /// (EX29). A text longer than 63 characters is **cut** to 63 (a 64-byte buffer; the callers ignore the printer's
-/// false), whatever the type (EX29).
+/// false), whatever the type (EX29). When the cut falls among the significant fraction digits (the 65th character
+/// is a digit after the fraction's leading zeros), trailing zeros are **stripped** from the 63 characters kept; a
+/// cut anywhere else, and a text of exactly 64 characters, is not stripped (EX34).
 ///
-/// - Zero, −0.0 included, prints `0`: the runtime drops a zero's sign (EX24).
+/// - Zero, −0.0 included, prints `0`: the runtime drops a zero's sign (EX24). A tiny negative value whose digits
+///   all round away keeps its sign: −4e-65 prints `-0` (EX34).
 /// - NaN and the infinities print as the C runtime prints them: `1.#INF`, `-1.#INF`, `1.#QNAN` / `-1.#QNAN`, and
 ///   `-1.#IND` for the default NaN. The value is loaded onto the x87 stack first, which quiets a signalling NaN and
 ///   keeps its sign and payload, so a Float64 sNaN prints `1.#QNAN` too, never `1.#SNAN` (EX28). They parse back as
@@ -1137,7 +1147,7 @@ pub fn parse_float(s: &[u8]) -> f64 {
 /// Examples (§5.1): 2.75 gives `2.75`; Float32 0.1 `0.10000000149011612`; Float32 0.001 `0.0010000000474974513`;
 /// Float32 3.14159 `3.1415901184082031`; Float32 1e30 `1000000015047466200000000000000`; Float32 2⁻²⁵ (a tie at the
 /// 18th digit) `0.000000029802322387695313`; Float32 `0x80000001` `-0.`, 44 zeros and `1401298464324817` (63
-/// characters, the 17th digit cut).
+/// characters, the 17th digit cut); Float64 1.0000000000000002e-47 `0.`, 46 zeros and `1` (cut, then stripped).
 fn format_float(x: f64) -> String {
     if x.is_nan() {
         // EX28: the x87 load quiets a signalling NaN (the quiet bit set, sign and payload kept).
@@ -1174,16 +1184,28 @@ fn format_float(x: f64) -> String {
         f
     };
     let lead = fraction.iter().take_while(|&&b| b == b'0').count();
+    // Where the significant fraction digits start in `out` (none: past the end).
+    let mut significant = usize::MAX;
     if lead < fraction.len() {
         let rest = &fraction[lead..];
         let kept = &rest[..rest.iter().rposition(|&b| b != b'0').map_or(0, |i| i + 1)];
         out.push('.');
         out.push_str(&String::from_utf8_lossy(&fraction[..lead]));
+        significant = out.len();
         // At most 24 digits after the leading zeros, cut (never reached: at most 17 digits are non-zero, EX29).
         let shown = if kept.len() <= 24 { kept } else { &rest[..24] };
         out.push_str(&String::from_utf8_lossy(shown));
     }
+    // EX34: a significant digit still to be written when 64 characters are there (the 65th character) means the
+    // cut falls among the significant fraction digits, and the 63 characters kept lose their trailing zeros.
+    let strip = out.len() > 64 && significant <= 64;
     out.truncate(63);
+    if strip {
+        // [literal reading] Only `0` characters are stripped, so a cut whose 63 characters hold no significant
+        // digit (the first one at the 64th or 65th character) leaves `0.` (§5.1 does not say whether the `.` goes).
+        let len = out.trim_end_matches('0').len();
+        out.truncate(len);
+    }
     out
 }
 
@@ -1193,9 +1215,10 @@ fn format_float(x: f64) -> String {
 ///    significant digits, rounded half-up**: from the exact value, a tail of half an ulp or more rounds up, a tie
 ///    included (away from zero).
 /// 2. `_fptostr` then writes `decpt + 64` digits (64 places after the point): the 17 digits, padded with zeros.
-///    *\[literal reading\]* `_fcvt` rounds at the place it is asked for, so when the 17 digits reach past the 64th
-///    place (only below 10⁻⁴⁷) they are rounded half-up again at that place, and below 10⁻⁶⁴ no digit is left. A
-///    Float32 never gets there, and a Float64 text there is cut at 63 characters anyway.
+///    When that is fewer than 17 (decpt ≤ −48, a 17-digit value below 10⁻⁴⁸; from 10⁻⁴⁸ up to 10⁻⁴⁷ all 17 still
+///    fit) the kept digits are rounded **half-up a second time** on the next one, a carry running through 9s
+///    (EX34). At decpt = −64 no digit is kept and the first one rounds; below that nothing is kept and nothing
+///    rounds. So 2e-49 prints `0.`, 48 zeros and `2`, and 4e-65 prints `0`. A Float32 never gets there.
 fn fcvt64(x: f64) -> (Vec<u8>, i32) {
     /// Adds one at the last digit; true when it carried out of the first (all nines), leaving all zeros.
     fn round_up(d: &mut [u8]) -> bool {
@@ -2092,13 +2115,16 @@ pub enum ChainEnd {
 ///    before it, also when it fails to read: the key then does not load ([`LoadError::Unreadable`]), as the
 ///    original reads only the winning segment and never falls back to an earlier one. Inside one package the first
 ///    index entry with a key is the one read (§2.3). The store keeps no cache of looked-up records, so a lookup
-///    always sees every package loaded so far; the original keeps a looked-up record, so the two agree when every
-///    package is loaded before the first lookup, as at the game's startup (§3.1).
+///    always sees every package loaded so far; the original keeps a looked-up record (§3 "Cache", EX37), so the two
+///    agree when every package is loaded before the first lookup, as at the game's startup (§3.1). *\[choice\]* No
+///    cache is kept (EX37): a store that registered packages after lookups would have to keep the first record of
+///    each key looked up.
 /// 2. *A record that failed is read again later.* Parsing a record depends on its bytes only, so only a later
 ///    package's record can change it, and that one is read. A failure that depends on other records (a parent
 ///    cohort, a kind-1 resource, the depth limit) is decided at each [`ExemplarStore::load`], never remembered.
 /// 3. *A factory registered later applies to earlier packages.* The store does not keep the packages, so it cannot
-///    read their records again: [`ExemplarStore::add_factory`] refuses a type that a loaded package already holds.
+///    read their records again: [`ExemplarStore::add_factory`] refuses a type that a loaded package already holds,
+///    and logs the refusal as an error ([`ExemplarStore::errors`], §3 "A factory added late", EX38).
 #[derive(Default)]
 pub struct ExemplarStore {
     map: HashMap<Tgi, Exemplar>,
@@ -2113,6 +2139,8 @@ pub struct ExemplarStore {
     factories: HashMap<u32, Factory>,
     /// The types other than exemplars and cohorts that the loaded packages hold (EX31 condition 3).
     seen_types: HashSet<u32>,
+    /// The store's error log: one line per refused factory (§3 "A factory added late", EX38).
+    errors: Vec<String>,
 }
 
 /// A registered factory's read of one record: true when it succeeds ([`ExemplarStore::add_factory`]).
@@ -2180,12 +2208,31 @@ impl ExemplarStore {
     /// too (§3, EX31). This store reads eagerly and does not keep the packages, so *\[choice\]* it refuses (returns
     /// false, nothing registered) a type that an already loaded package holds: every factory the store accepts has
     /// seen every record of its type (§3 condition 3). Register factories before loading packages.
+    ///
+    /// EX38: the original never refuses a late factory, so the refusal stands only while every factory is added
+    /// before the first package; a refused factory is logged as an error ([`ExemplarStore::errors`]), never ignored
+    /// silently. *\[literal reading\]* A factory for the exemplar or cohort type, which the store's own factories
+    /// serve, is refused and logged too.
     pub fn add_factory(&mut self, type_id: u32, read: impl Fn(&[u8]) -> bool + 'static) -> bool {
-        if Kind::from_type_id(type_id).is_some() || self.seen_types.contains(&type_id) {
+        if Kind::from_type_id(type_id).is_some() {
+            self.errors.push(format!(
+                "error: factory for type {type_id:08X} refused: the store's own exemplar and cohort factories serve it"
+            ));
+            return false;
+        }
+        if self.seen_types.contains(&type_id) {
+            self.errors.push(format!(
+                "error: factory for type {type_id:08X} refused: added after a loaded package holding the type (EX38)"
+            ));
             return false;
         }
         self.factories.insert(type_id, Box::new(read));
         true
+    }
+
+    /// The store's error log, oldest first: one line per factory that [`ExemplarStore::add_factory`] refused (EX38).
+    pub fn errors(&self) -> &[String] {
+        &self.errors
     }
 
     /// Parses every exemplar and cohort entry of a package into the store, with the factory's type check

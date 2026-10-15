@@ -251,6 +251,9 @@ INTERFACES = [
     ("cIGZWinMgr", "cFC4IGZWinMgr", FCW, True),
     ("cIGZWin", "cFC4IGZWin", FCW, True),
     ("cIGZMessageServer", "cFC4IGZMessageServer", FCW, True),
+    # The landfill zot's view rotation (landfill.md section 4.7.5, LG21):
+    # cISC43DRender through slot 8 GetViewUtilities.
+    ("vt:cSC43DRender::vftable", "cFC4ISC43DRender", FCW, True),
     ("cIGZMessageTarget(AudioEventHandler)", "cIGZMessageTarget", "cIGZMessageTarget.h", True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),

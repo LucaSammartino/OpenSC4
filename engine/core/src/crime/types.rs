@@ -56,7 +56,10 @@ pub fn parse_mask(bytes: Option<&[u8]>) -> u32 {
 }
 
 /// The bytes of a byte-array property: numeric elements reduced to their
-/// low 8 bits; `None` if absent or not numeric ([choice]).
+/// low 8 bits; `None` if absent or not numeric ([choice]). A scalar is read
+/// as an empty array (data-formats §5.2, EX39: a vector reader gives a
+/// scalar no values), so its mask is 0 [literal reading; no shipped crime
+/// type stores a mask as a scalar].
 fn bytes_of(h: &PropertyHolder, id: u32) -> Option<Vec<u8>> {
     props::u32s(h, id).map(|v| v.into_iter().map(|x| x as u8).collect())
 }
@@ -552,7 +555,8 @@ mod tests {
         h.add(3, Variant::Scalar(Elem::U8(2)));
         assert_eq!(mask_of(&h, 1), ANY_BITS);
         assert_eq!(mask_of(&h, 2), 0);
-        assert_eq!(mask_of(&h, 3), 0x2);
+        // EX39: a scalar is an empty array to a vector reader: mask 0.
+        assert_eq!(mask_of(&h, 3), 0);
         assert_eq!(mask_of(&h, 4), ANY_BITS);
     }
 
