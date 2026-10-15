@@ -4133,3 +4133,43 @@ them, and Stage B applies those sections.
   `-2`). Does the game's growth path tolerate a failed CreateLot after DeleteLot, or must lot creation never fail
   there? [not resolved; re-test after Stage B builds lots, then audit Grow's delete-and-recreate reference flow (slot 7
   caller references against the manager's)]
+
+## From the history warehouse and 24-hour clock glue (filed by the coordinator from the `histclock` lane's report, 2026-10-15)
+
+About `docs/specs/history.md` and `clock24.md` and the replacements `cFC4HistoryWarehouse` (`enable = history`) and
+`cFC4Clock24` (`enable = clock24`) with their shadows (`history_shadow = 1`, `clock24_shadow = 1`); merged as
+`efac89a`, ABI 52. The lane numbered these history 1, 7, 8, 11, 12 and clock24 2-6, 9, 10. The current answer is in
+brackets.
+
+- **HW13:** `Release` on a warehouse that was initialised but never shut down (history §1): does `Release` at a count
+  of 1 or less run `Shutdown` first? [`Shutdown` first, then delete]
+- **HW14:** when the history shadow sees the original's 5 ms timer split a yearly-pass step (the original answers
+  false where the shadow answered true), what is the intended comparison? [the shadow skips the original's repeats
+  until the original answers true and counts `split_steps`; 0 in every lane run]
+- **HW15:** the warehouse's raw save record cannot be read in game from outside the class store. [the load comparison
+  uses the original's own `Write` into memory; the save sweep (`engine/formats/tests/save_records.rs`) checks the raw
+  records of the 417 stock saves]
+- **HW16:** queue lengths set through slot 13 (the producers' `Init`, not a message) are invisible to the history
+  shadow. Should there be a read path for them? [a series that differs only by its queue length is named and counted
+  as a mismatch; none occurred]
+- **HW17:** 403 of the 417 stock saves hold version-1 history records, which cannot be rewritten byte for byte (the
+  writer always writes version 2; a queue length of 100 reads as 0; unset or repeated dates are folded). Is converting
+  on the first save the intended behaviour, since the original also writes version 2? [yes: the sweep reports them as
+  converted and checks that the conversion is stable]
+- **CK16:** `cIGZSystemService::OnTick`: the value the clock's system service returns is not in clock24.md. [true, the
+  SDK default]
+- **CK17:** `GetServiceTickPriority` is not specified. [the service priority, -2,000,000]
+- **CK18:** does the system-service base's `QueryInterface` answer any IID besides `0x287FB697` (for example IID 1
+  through the +0xC sub-object)? [only `0x287FB697` through the base; the object's QI table answers the other four
+  IIDs]
+- **CK19:** slots 5, 8 and 11 have no meaningful return value in the spec. [return 1]
+- **CK20:** if a tuning property (`0x897E709F`, `0x09B73421`, `0x09B73422`) is stored as an array, which value is used?
+  [the first value]
+- **CK21:** the original's timer at +0x50 (a `cRZTimer`) has no read path or layout in the spec, so the clock shadow
+  cannot replay real elapsed time. [the shadow copies each of the original's steps through a synthetic elapsed time at
+  magnification 1 (a game-time jump of 61 to 1200 s between idle passes is one step); any other game-time change is a
+  jump (`SetHour`, `SetMinute`, `SetSeconds`); messages and derived values are compared]
+- **CK22:** under the turbo clock the framework idle loop is starved (about 24 `OnIdle` passes in 29 s), so the clock
+  advances only about one game hour per turbo run and reaches no day/night boundary. Is that acceptable for the
+  harness, or should turbo give the idle loop time? [nothing changed; normal-speed runs cover the clock (598 steps,
+  323 posts in 330 s)]
