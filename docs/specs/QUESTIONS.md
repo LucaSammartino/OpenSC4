@@ -4321,10 +4321,35 @@ Open points from network-manager.md §15. The current answer is in brackets; eac
 - **NM2:** does the occupant manager post `0x99EF1142` while a city loads? If it does, the network manager's managed
   list (read first) gets every piece twice. [no, inferred. A turbo run that saves, loads and saves again and compares
   the component 53 counts would settle it]
-- **NM3:** meanings of network flags `0x40000`, `0x80000`, `0x40000000` and `0x80000000`, and of the terrain kinds 3,
+- **NM3:** meanings of network flags `0x40000`, `0x80000`, `0x40000000` and `0x80000000`, ~~and of the terrain kinds 3,
   4 and 6 in the network manager's terrain handler. [unknown; logging `data4` of `0x278E6003` for each terraforming
-  brush settles the kinds]
+  brush settles the kinds]~~ **PARTLY ANSWERED 2026-10-15 (re-specs14a):** the kinds are settled from every call
+  site of `RedisplayTerrain` (terrain.md §8.2): 0 internal (sea level, flat areas, shore cliffs, texture-only),
+  1 terraforming in god mode, `ChangeTerrainLevel` and the edge reconciliation, 2 terraforming in mayor mode and
+  the `ApplyTerrainBrush` script command,
+  3 disasters and water (earthquake, pipe-burst sinkhole, effect brushes such as the volcano, lava solidification,
+  the surface water's animation, and the `tBrushParameters` default), 4 the network height solver (road and rail
+  grading, `0x00644530`), 5 levelling (demolition `ModifyTerrainHeight`, lot developer, landfill), 6 the tunnel cut
+  (`cSC4NetworkTool::InsertTunnelPiece`). Flag `0x40000` is the **bridge** flag *[inferred from use]*: the surface
+  water's `IsNavigable` reads a deck height from a piece with that flag and requires 20 m of clearance over the
+  water, and its `0x89D3E9F3` handler tests it with "no adjacent piece" (terrain.md §10.3–§10.4). Still open: `0x80000`,
+  `0x40000000`, `0x80000000` (a network-tool spec settles them; `0x80000` is the piece kept by a tunnel cut,
+  *[inferred]* a tunnel portal).
 - **NM4:** the exact visited and rejected set tests of the avenue flood in `UpdateAvenueStyle`. [a cell is visited
   once; styling an avenue loop through an intersection and logging the styled cells settles it]
 - **NM5:** the effect-prop slots 6, 7 and 8 used for potholes. [set the effect name, start, stop; the prop occupant
   spec should confirm]
+
+## From the terrain and nation specs (re-specs14a lane, 2026-10-15)
+
+Open points from terrain.md §17. The current answer is in brackets; each entry says what would settle it.
+
+- **TR1:** the exact operations of brush component kinds 2, 3, 5, 6 and 8–10 (smoothing, levelling, erosion, lake,
+  rain, spring). [summarised only; only the god-mode terraforming tool uses them. A trace of `0x00745DE0` and
+  `0x00745BA0` settles 2 and 5]
+- **TR2:** the brush values of the `volcano_control` effect (level, strength and radius ranges, repetitions per
+  update). [effect brushes use `data4 = 3` and redisplay on the last repetition; the effects manager spec, INVENTORY
+  rank 7, settles the values]
+- **TR3:** `GetLerpedWaterLevel` (terrain slot 32) and `AltitudeAtWhichFloodingWillOccur` (surface water slot 10)
+  are from pseudocode only. [bilinear over the four corners; maximum over wet neighbours. Check the bytes if a
+  simulation consumer appears]
