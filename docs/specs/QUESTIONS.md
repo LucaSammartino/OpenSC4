@@ -3912,9 +3912,9 @@ parks §12.8) wait for a glue lane's save sweep, which the coordinator runs.
 - **PK7:** park zoo removal of an occupant that was not listed. [released once anyway: the literal reading]
 - **PK8:** park `Read`. [atomic; the lists are replaced without releasing their old entries]
 - **PK9:** the park generator. [`cRZRandomSuper` seeded with derive(S, 0xAA3FE6BC)]
-- **RN1:** foundations §6: in a mutation check, session seeds `0x1234` and `0x1235` gave identical park draws. Since
+- ~~**RN1:** foundations §6: in a mutation check, session seeds `0x1234` and `0x1235` gave identical park draws. Since
   `derive` is an XOR, the generator seems to ignore bit 0 of its seed. Does the original `cRZRandomSuper` (or its
-  seeding) also drop bit 0, and does it matter for any other generator? [not investigated]
+  seeding) also drop bit 0, and does it matter for any other generator? [not investigated]~~ **ANSWERED 2026-10-15 (re-answers10):** yes, and it is the original's own behaviour: `cRZRandomSuper::Seed` (`0x00913A72`) ORs the seed with 1 (`0x00913A97`) before the seeding loop, after the clock test, so `s` and `s XOR 1` give identical streams. This matches our generator. `cRZRandom::Seed` (`0x00913667`) keeps all 32 bits. It matters only for `cRZRandomSuper` users (the file-local generators of §6.3, the park generator, …). Seed-mutation tests should flip another bit (e.g. `S XOR 2`), and `derive`'s XOR 1 fix-up is invisible to them. foundations §6.1.
 
 ## From the city situation, demolition, dispatch, port, prop developer and city detail specs (re-specs10 lane, 2026-10-14)
 

@@ -749,6 +749,16 @@ for i in 0 .. 623:
 regenerate all 624 words (standard MT twist); next output is word 0
 ```
 
+**Bit 0 of the seed is ignored** *[compat]* (RN1; `Seed` `0x00913A72`, the `or eax, 1` at `0x00913A97`). The OR comes
+after the clock test, so it applies to a given seed and to a clock-derived one alike. Seeds `s` and `s XOR 1` give
+identical streams. Every `cRZRandomSuper` therefore has only 2^31 distinct streams, and the clock value's bit 0 is
+lost. `cRZRandom::Seed` (`0x00913667`) stores all 32 bits in both states, so the effect is limited to the
+`cRZRandomSuper` users of §6.2 and §6.3: the file-local generators (budget, crime, pollution effects, lots, network
+lots and the rest of that list) and any other caller that seeds a `cRZRandomSuper`, such as the park generator.
+A test that varies the session seed to prove a `cRZRandomSuper` user depends on it must change a bit other than
+bit 0 (for example `S XOR 2`). The same applies to the `derive` fix-up of §6.3, whose XOR 1 is invisible to these
+generators.
+
 | Operation | Definition |
 |---|---|
 | `RandomUint32Uniform()` | next tempered word |
