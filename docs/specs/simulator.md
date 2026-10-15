@@ -317,6 +317,52 @@ by the daily growth budget (building-development §4.4.1), and posted messages a
 agents. A harness that drives the original faster than about 20 days per second measures the pacing, not the
 simulation.
 
+#### 5.7.1 Work per day and per cycle at the shipped tuning (DG31)
+
+**Deliveries per day.** Each round of the `OnTick` loop (§5.1) opens at most one day (§5.2 step 8) and then makes
+one idle pass (§5.4). An idle pass gives every enabled idle agent one delivery, unless the frame budget runs out
+first; the next frame then continues from `idleCursor`. So with K idle passes per day, each idle agent gets **K**
+idle deliveries per day plus its **one** day delivery (more when its day delivery reports "not finished", §5.3).
+
+- At the shipped speeds K is large: a 50 ms day holds many short rounds.
+- When the clock opens a day in every round (a day shorter than a round, as under a turbo clock), **K ≤ 1**. K is 0
+  for the agents that a frame-ending pass did not reach.
+- Each idle delivery offers `min(frameBudgetMs − t, frameBudgetMs / 3)` ms (§5.4), at least 0 and at most 22 ms (the
+  budget is at least 15 ms and at most 66 ms).
+
+**Per-cycle amounts.** "Call" means one day or idle delivery to that agent. A time-sliced state processes items until
+its millisecond budget runs out, so how many items fit in a call depends on the machine. The code fixes only the
+item count; the clock is read through the adaptive helper of §5.5.
+
+| Agent | One call does | Calls per cycle | What starts a cycle | A month during a cycle |
+|---|---|---|---|---|
+| Growth developer (12 shipped types, each with its own day and idle agents; growth-developer §3) | one state; state 15 applies one special-building effect; state 18 updates tracts for up to the ms budget (day: 5 ms) | **20 + E** at least (E = special buildings with an effect for that developer type), plus extra state-18 calls when the tracts (64², 128², 256² cities: 256, 1,024, 4,096 at S = 4) do not fit in one budget | the BDS month, only when the BDS is idle (building-development §4.1) | the day is held open while `state < elapsed days` (kind 1). The highest state is 20, so a cycle ends by about day 21 of its start; a slower pace slows the calendar instead |
+| BDS rebuild (building-development §4.2) | waits for all 12 developers, then one more call for `PlanDecline` | the slowest developer's cycle + 2 | its month handler when `state = 0` | **skipped**, with its construction-resource update; but the developers' kind-1 bound ends them by about day 21, so this needs a month shorter than that |
+| Aura (aura §5.1, §6) | one state; state 3 one landmark department; state 5 lots for up to the ms budget | **17 + N** at least (N = departments in the landmark map), plus extra state-5 calls | month, if state 0 | day held open while behind (kind 1): the cycle ends by about day 18 |
+| Plumbing (plumbing §6) | one state; states 6 and 7 cells for up to the ms budget (5 ms on the day, which then reports "not finished") | **2W + 7** at least (W = water networks flooded), plus extra calls for states 6 and 7 over all city cells (4,096 / 16,384 / 65,536) | the recompute flag: every month, every building or pipe change, every pipe burst and water-deal change | not lost: the flag stays set and starts the next pass |
+| Demand census (demand §6.2) | state 0 runs straight into state 1; state 1 runs `PerformCensus` on cells for up to the ms budget; state 2 records history | **2** at least, plus as many calls as the cells (4,096 / 16,384 / 65,536, every cell visited) need | month, only from state 3 | **skipped** (kind 2): no new census or modifiers that month |
+| Land value (landvalue §5, §6) | one state; state 7 one developer; states 1, 3, 4, 5 and 8 tracts for up to the ms budget | **21** at least (9 + 12 developers; 22 with the zoning fallback), plus extra calls for the tract states (64², 128², 256²: 1,024, 4,096, 16,384 tracts at S = 2; slope 64, 256, 1,024) | month, only when the pass is finished and `dirty` | deferred: `dirty` stays set, so the next month starts a pass |
+| Crime (crime §5) | one state, no slicing | **6** | month, only from state 6 | **lost**: no crime pass for that month |
+| Power (power §6) | one state, no slicing (the wire rebuild of §5.3 runs first in the same call) | **5** | the recompute flag: every month and every relevant occupant or zoning change | not lost: recompute stays set |
+
+**Predicting skipped months at a given pace.** With D game days per month (28 to 31) and K idle passes per day:
+
+- **Step agents** (crime, power, land value, aura, growth developers): a cycle of C calls takes about C / (1 + K)
+  days. At K = 1 this is 3 days for crime and power, about 11 for land value, 9 + N/2 for aura and 10 + E/2 for
+  each growth developer. Crime loses a month only if fewer than 6 deliveries arrive in a month, which needs
+  K ≪ 1.
+- **The BDS** cannot skip a month at any K. Its developers' kind-1 bound finishes them by about day 21, and the BDS
+  needs one or two more calls after that. A large E or a small K holds days open (the calendar slows) instead.
+- **The demand census** is bound by time, not calls. It skips months when its CPU time T (all cells) exceeds about
+  D × (5 + K × m) ms, where m is the share of an idle delivery that it actually gets. The code does not fix T; it
+  has to be measured on the machine (one census of the city's cells).
+- **Plumbing, aura and the growth developers** never skip a month. Kind 1 holds the day open, which slows the
+  calendar (days per real second) instead.
+
+*[inferred]* The table counts calls at their minimum and assumes that each time-sliced state finishes in one call.
+On a current machine that holds for every per-tract state at these sizes. The census of a 256² city is the most
+likely exception.
+
 ## 6. Speed and pause
 
 | Method | Behaviour |

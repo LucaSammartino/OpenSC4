@@ -936,7 +936,7 @@ to the source's own STL `std::list<cSC4TripData>` (allocator B), and the traffic
 (traffic-simulator.md §4.1, §7). A FreeCity4 connection must therefore own a list of that exact STL layout, as it
 already does. Everything else about the object's memory is free.
 
-### 15.4 Original behaviour behind the glue's choices (NG2–NG34) *[compat]*
+### 15.4 Original behaviour behind the glue's choices (NG2–NG44) *[compat]*
 
 The neighbours glue (`cFC4NeighborsSimulator`, `FC4NeighboursShadow`) made a choice wherever the spec was silent.
 Each item below gives what the original does, then whether that choice matches. Items marked *glue* have no
@@ -1248,6 +1248,163 @@ implementer's.
 **NG34. A null connection reference in a save.** The original appends the null and then releases it without a check,
 so it crashes inside `Read` (§13, NB7; `0x006CFEC5`). Skipping it is the *[choice]* already recorded in §13; the
 bracket matches it.
+
+**NG35. Asking the player when popups are on.** `nSC4UI::GenericConfirmationDialog` (`0x0078DFF0`) is a free
+function, not an interface method. It is cdecl with four arguments `(title, text, yesLabel, noLabel)`: the title and
+text are `cIGZString*`, and each label is a `cIGZString*` or null for the default Yes and No. The caller pops 16. It
+returns `AL` true only when the dialog was closed with the Yes button (ID `0x8A8DFD4E`). It first tests gate a
+(`SC4GetPopupModalDialogsEnabled`, NG36) and returns false at once when popups are off. Otherwise it takes the hidden
+pause (simulator and clock, modal-dialogs.md §4) and runs the dialog modally. The neighbours call is at `0x006D16DA`,
+with both labels null.
+
+- The bracket (confirm without asking when popups are on) differs: the player is never asked and cannot decline.
+- *[choice]* When popups are on, call the function at its build-1.1.641 address and return its answer. Gate the
+  address on the build, as for other free functions. When popups are off, refuse, as the bracket already does. A
+  FreeCity4 UI with its own dialog may show that instead, provided Yes is the only "true" answer.
+
+**NG36. The popup flag without an app.** `SC4GetPopupModalDialogsEnabled` (`0x005F9090`) returns **false** when the
+app global (`0x00B43C94`) is null; otherwise it returns `cISC4App` slot 23 (`+0x5C`). So with no app the original
+behaves as if popups were **off**, and `RequestCreateConnection` refuses. The bracket (enabled) differs. The case
+cannot arise in the game, where the app exists before any city; it matters only for tests that run the glue without
+an app. *[choice]* Treat a missing app as "off".
+
+**NG37. What `AddPropertyData` stores.** Holder slot 10, `AddPropertyData` (`0x005FFA40`, pops 16), finds the
+property or creates it. It then passes the data pointer and the length to the variant's raw-bytes setter (variant
+slot 58, `0x00915743`). That setter stores **raw bytes**, memory type `0x8000` (foundations §9.1), with
+count = length:
+
+- If the variant already holds type `0x8000` with the same count, it reuses the buffer.
+- Otherwise it destroys the old value and allocates `length` bytes with allocator C (`0x005E55E0`).
+- Then it copies the bytes. It skips the copy when `data` is null, and the buffer keeps whatever the allocator gave.
+
+`GetPropertyData` (slot 5, NG23) reads back exactly this type. The bracket (a `Uint8` array, `0x8002`) differs:
+
+- NG23 step 2 refuses any type other than `0x8000`, so the original getter returns false for a `Uint8` array.
+- The record would write the `Uint8`-array tag instead of the void-array tag (foundations §9.2).
+
+Store type `0x8000`.
+
+**NG38. A failing `GetPosition`.** In the original, `cISC4Occupant::GetPosition(cS3DVector3&)` (slot 8) cannot fail:
+every implementation writes the vector, and the caller ignores `AL`.
+
+- The base class (`cSC4Occupant`, `0x005E8A20`) writes **(0, 0, 0)**.
+- Network occupants forward to their own position slot (`0x00604E40`).
+- Poles and power lines copy their stored position (`0x00649DA0`, `0x005B2B00`).
+
+`DeleteOccupantConnection` passes an uninitialised local and never checks the result (`0x006CEF62`). An occupant
+without a position of its own therefore gives the zero vector, and `PositionToCell` turns that into cell (0, 0). The
+bracket (unchecked, a zero vector, cell (0, 0)) matches. *[choice]* A FreeCity4 occupant whose position query can
+fail should fill in the zero vector, as the base class does, so that callers see no difference.
+
+**NG39. The rectangle form of `GetCityProps`.** Prop manager slot 18, `GetCityProps(list, const SC4Rect<long>& cells)`
+(`0x004A1DB0`, pops 8):
+
+1. No occupant manager (prop manager `+0x14`) → false.
+2. Set the usage field (`+0x0C`) of the prop manager's filter (`+0x1C`) to 1.
+3. Call the occupant manager's cell-rectangle query (slot 40, `0x0049E250`) and return its result. The arguments are
+   the list, the rectangle's two corners as `SC4Point<long>` (`(x1, z1)` and `(x2, z2)`, both inclusive), the filter
+   and −1.
+
+The cell-rectangle query (slot 40):
+
+1. Clamps each corner to the city's cells, `[0, size − 1]` on each axis. A missing first corner means cell (0, 0); a
+   missing second corner means the city's size.
+2. Turns `(x1, z1)` into world coordinates with slot 18 (`0x0049DB20`: 16 × cell), and `(x2 + 1, z2 + 1)` the same way.
+3. Shrinks the box by 0.1 m on each side (`0x00A8F768`) and opens the height range to all floats.
+4. Runs the world-box query (slot 36, `0x004A0670`) with the same filter.
+
+So for one cell `(cx, cz)` the query covers x from 16·cx + 0.1 to 16·cx + 15.9, the same in z, at any height. The
+filter passes only props with usage 1 (NG25). Slot 17 (`0x004A1DF0`) is the world-rectangle form: it takes a float
+rectangle and goes straight to slot 36.
+
+The bracket (no `GetCityProps` call; the usage test added to its cell query) matches for the markers, which sit at the
+centre of the inner cell. It differs in two cases only:
+
+- a city prop that reaches less than 0.1 m into the cell;
+- a query cell outside the city, which the original clamps to the edge cell.
+
+**NG40 (glue). State bytes behind an unidentified vtable.** In the original these bytes can always be read at the
+offsets of NG7. An unidentified vtable means a mod has replaced the simulator, so the fallback is the implementer's
+choice. One fact bears on it: between `Init` and `Shutdown`, in a city past ConnectionsReady, the original's usual
+values are:
+
+- ready = 1;
+- **initialized = 1**;
+- uiDisabled = 0, except while the budget window's neighbour tab is open;
+- busy = 0, except inside `simulate_deals`.
+
+The bracket's initialized = 0 is not the usual value, but nothing reads it (NG41).
+
+**NG41. The `initialized` byte.** Only `Init` and `Shutdown` read it (`0x006D38FA`, `0x006CFBC4`), and the
+constructor writes 0 (`0x006D0960`).
+
+- `Init` returns true at once when the byte is already set, and does nothing again.
+- `Shutdown` returns true at once when the byte is clear.
+- Otherwise `Init` sets the byte (`0x006D3911`) and `Shutdown` clears it (`0x006CFBD6`).
+
+No other method looks at it, so it changes nothing that the shadow compares. The bracket (read and logged only)
+matches.
+
+**NG42. When the simulator lets go of a deal.** The original's deal list holds one reference to each deal, including
+a caller's object (NG4). The list releases it exactly when the deal leaves the list: `simulate_deals` erases the
+marked deals one by one (`0x006D1588`), and each erase releases its entry (`0x004216F9`). Every other holder keeps its
+own reference on the same object and releases it on its own schedule (NG5):
+
+- the regional cities, until the next push;
+- queued status reports, until delivery;
+- lists handed to callers, until the caller releases them.
+
+The bracket (the core's object goes when nothing in the core holds it, which is normally list removal) matches. The
+condition is that each core holder that outlives list removal stands for one of those original holders. A core-only
+cache that kept the foreign deal longer would only delay its destruction, which no correct caller can observe (NG5).
+
+**NG43. The result of `AddDeal`.** The original has no failure path (`0x006D2870`). It:
+
+1. clears flag `0x80` (Silent) on the deal;
+2. appends the deal to the list, with **no duplicate check** (adding the same deal twice lists it twice);
+3. pushes the deal list and the statistics to every adjacent city and to the current city (§9.2), whatever the dirty
+   flags say, then clears both dirty flags (`+0x3C`, `+0x3D`);
+4. returns true.
+
+A null deal crashes at step 1.
+
+- "True" matches.
+- Not listing the deal differs. The original always lists it, and the simulation then judges it (§7.3). For example,
+  a deal with no usable connection is removed with report 3.
+- *[choice]* Return true. If the core cannot represent the deal at all, giving the reference back is acceptable as a
+  deviation that only a mod can see (no shipped code calls `AddDeal`). Log it.
+
+**NG44. Signed, 64-bit and float values read with `GetProperty(id, uint32&)`.** The full rules are in data-formats.md
+§5.1 (variant conversions). For holder slot 8 they come to the following.
+
+Scalars convert by number, not through text (`0x00917350` → `0x00915AA5`):
+
+- Signed types are sign-extended, then the low 32 bits are kept. These are Sint8, Sint16 and Sint32, plus Char and
+  RZChar, which count as signed bytes. Sint32 −1 and Sint8 −1 both give `0xFFFFFFFF`.
+- Uint64 and Sint64 give their low 32 bits.
+- Float32 and Float64 are truncated toward zero to an `int64` (`_ftol`, foundations §18), then the low 32 bits are
+  kept. 2.9 gives 2 and −1.5 gives `0xFFFFFFFF`. NaN, ±∞ and magnitudes ≥ 2⁶³ give 0.
+
+Arrays convert through the text of their first element (NG27):
+
+- Signed elements print with `%d`/`%lld` and parse back as signed, and 64-bit elements parse back as 64-bit. Both
+  give the same bits as the scalar rule.
+- Float elements print in fixed point (data-formats §5.1). Text with a fraction parses as floating point and is
+  truncated, so `{2.75}` gives 2. A whole number prints with no `.` and parses as an unsigned decimal, so `{30.0}`
+  gives 30. Two cases differ from the scalar rule:
+  - A value of 2⁶³ or more prints all its digits, and these wrap in 64 bits. Float32 `{1e30}` prints
+    `1000000015047466200000000000000` and gives `0x19058000` (419,790,848); the scalar gives 0.
+  - NaN and ∞ print as `1.#QNAN`, `1.#INF` and so on, which parse as ±1. So `{NaN}` gives 1, or `0xFFFFFFFF` for the
+    default NaN `-1.#IND`; the scalar gives 0.
+- An **empty character array** (`0x800C`, `0x800D` or `0x800E` with count 0) gives the empty text (`0x00917183`),
+  which parses as the unsigned number 0. The getter therefore returns **true** with 0, like an empty numeric array.
+
+Against the bracket:
+
+- "As C converts them" matches for in-range signed and 64-bit values, which wrap the same way.
+- For floats it matches C's truncation only in range. C leaves an out-of-range or NaN conversion undefined, while
+  the original gives 0 for a scalar.
+- "The empty character array stays false" differs: the original returns true with 0.
 
 ## 16. Original quirks (reproduced)
 

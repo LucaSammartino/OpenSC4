@@ -170,6 +170,15 @@ Notes:
   and later frames need no palette, which is never applied anyway (FS4). FreeCity4 checks frame 0 the same way and
   decodes a later frame with no usable palette as grey, (i, i, i, 255) for index i, which is the original's
   luminance upload read unsigned *[choice]*.
+- **A later `0x7B` frame with its own palette** (FS15). Selecting a frame (`SetCurrentFrameByIndex` `0x00808CE0`)
+  clears the palette pointer (`+0x10`) and then stores that frame's own palette, if its chain has one. But the only
+  reader of the pointer, the palette-info getter `0x00808DE0`, has a single caller: the frame-0 check in `SerialRead`
+  (`0x008008FA`). So the original never uses any palette for pixels, neither the frame's own nor frame 0's. Every
+  `0x7B` frame uploads its indices as luminance, which is the grey of the previous item. FreeCity4's rule (§2.11:
+  index through the frame's own palette; grey when it is missing, the wrong size, outside the record or behind a
+  chain that leaves the record; the record is still accepted) is *[choice]*. It gives the original's grey for
+  identity grey-ramp palettes, which are the only shipped ones. A frame with a non-grey palette would show colours
+  that the original never shows. The CPU readers of the group need the raw indices in any case (§2.13).
 
 ### 2.7 What the factory accepts (`SerialRead` `0x00800860`) *[compat]*
 
@@ -300,6 +309,7 @@ check and does not load. There is no in-file compression: codes with bit 7 set a
 | Sizes | `0x61` 4–256 × 4–512; `0x60` 2–256 × 2–256; `0x7B` 32–257 × 1–128; `0x7D` 2–256 square; `0x7F` 1–16 × 1–128. Most common: 256 × 256 (25,943), 128 × 128 (3,391), 32 × 32 (3,208), 64 × 64 (3,178). Non-square: 4,188. Non-power-of-two: 2 widths (257, code `0x7B`), no heights |
 | Mip count M | 0 in 44,974 entries; DXT1: 4–8 (304 entries); DXT3: 2–8 (109); never on other codes |
 | A (12-bit field) on DXT1 | 0: 13,762; 1: 5,030; 8: 563; −30: 2 |
+| DXT1 frames whose own A gives the other format | 15, all in multi-frame records (measured by the apply9c lane, FS17). They get frame 0's format (§2.10, FS5); the pixels are the same |
 | Bits 12–27 of +12 non-zero | 294 (ignored); centre fields non-zero: 722 (ignored) |
 | Attachments | `0x70` (name text, e.g. a source path) 15,899; `0x6F` 102; palette `0x24` 24 (after every `0x7B`, 256 × 1, identity grey ramp); palette `0x2A` 3 (after `0x61` entries, ignored) |
 | Level layout | 16-byte padded as §2.8 everywhere except 167 DXT1 mipped entries packed without padding |
@@ -695,6 +705,27 @@ byte by byte with the C library's `tolower`; any other name is converted from UT
 299 have capitals, and 14 repeat an earlier name of the same model once lowered. FreeCity4 lowers ASCII letters and
 keeps the name's bytes (UTF-8 when valid, else Latin-1); for a valid UTF-8 name it also lowers non-ASCII letters
 with Unicode simple case mapping *[choice]*, close to the original under a Western-language locale.
+
+What the original's non-ASCII path really does (FS16, from the exe). The test is made byte by byte (`0x0090EAE4`):
+ASCII bytes are lowered in place until the first byte ≥ `0x7F`, and then the whole name goes through UTF-16. The
+original's UTF-8 decoder (`0x00910E18`, called through `0x009113EF` with source encoding 8 and target `0x10`) differs
+from a standard decoder in three ways:
+
+- **No surrogates.** A 4-byte sequence becomes **one** UTF-16 unit holding only the low 16 bits of the code point
+  (`0x00910FE1`–`0x0091103E`). The 5- and 6-byte forms likewise keep the low 16 bits of their last three bytes. So
+  `towlower` never sees a character outside the BMP. It sees an unrelated BMP character, lowers it if that character
+  is an upper-case letter, and the name is written back with that character in place of the original one. For
+  example, U+1F600 comes back as U+F600.
+- **It stops at the first invalid sequence** (`0x0091113A`): a stray continuation byte, a lead byte below `0xC2`,
+  `0xFE` or `0xFF`, a truncated sequence, or an overlong 3- to 6-byte form. The length it reports covers only the
+  units before that point, so the lowered name is **cut** there. A Latin-1 name such as `Café` becomes `caf`.
+- It accepts encoded surrogates (`0xED 0xA0`…) and lead bytes `0xF5`–`0xF7` without complaint.
+
+Shipped names are all ASCII, so none of this is visible in the base game. The bracket (every character lowered by
+Unicode simple case mapping) differs only for names with characters outside the BMP or with invalid UTF-8. Such
+names never equal the ASCII names that the readers look up (`regpoint01`, …). They can only change which of two
+such names count as repeats of each other. *[choice]* The bracket is accepted; reproducing the corruption is not
+required.
 
 ### 3.12 Building and drawing a frame *[compat]*
 
