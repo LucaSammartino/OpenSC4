@@ -8097,6 +8097,7 @@ struct ZdStub {
     int8_t zone[8][8] = {};
     int newLots = 0, defers = 0, services = 0, levellings = 0, streets = 0, demolitions = 0;
     int gridCreates = 0, gridReleases = 0, foreignRefs = 0;
+    int dezones = 0, joins = 0, zoneUpdates = 0;  // ABI 55
     std::vector<uint32_t> subscribed, unsubscribed;
 };
 ZdStub* g_zd = nullptr;
@@ -8251,6 +8252,29 @@ void ZdGridShutdown(void*, uint64_t) {}
 void ZdGridRelease(void*, uint64_t) { ++g_zd->gridReleases; }
 
 // The master_* mirror callbacks stay NULL: the plugin's raw list runs.
+// ABI 55 (re-specs11): flat land, no slope, no configuration objects, no
+// networks; the dezone and the joins only counted (the stub's zones stay).
+float ZdAreaSlope(void*, const fc4_cell_rect*, bool) { return 0.0f; }
+float ZdCfgMaxSlope(void*, uint64_t) { return 100.0f; }
+void ZdCfgObjects(void*, uint64_t, fc4_zonedev_cfg_object_callback, void*) {}
+uint32_t ZdNetU32(void*, uint64_t) { return 0; }
+bool ZdNetAll(void*, uint64_t, uint32_t) { return false; }
+uint32_t ZdNetEdges(void*, uint64_t, uint32_t) { return 0; }
+int32_t ZdNetIsOfType(void*, uint64_t, uint32_t) { return -1; }
+bool ZdNetBool(void*, uint64_t) { return false; }
+void ZdOccCells(void*, uint64_t, fc4_cell_rect* out) { *out = fc4_cell_rect{0, 0, -1, -1}; }
+bool ZdToolPresent(void*, uint32_t) { return false; }
+void ZdJoin(void*, uint32_t, int32_t, int32_t, int32_t, int32_t) { ++g_zd->joins; }
+bool ZdLand(void*, int32_t, int32_t) { return true; }
+bool ZdCellInBounds(void*, int32_t x, int32_t z) { return x >= 0 && x < 8 && z >= 0 && z < 8; }
+bool ZdNavigable(void*, int32_t, int32_t) { return false; }
+void ZdLotUpdateZone(void*, uint64_t t) {
+    ++g_zd->zoneUpdates;
+    if (ZdIsLot(t)) ZdLotOf(t)->zone = ZdZoneType(nullptr, ZdLotOf(t)->x, ZdLotOf(t)->z);
+}
+bool ZdForceEmpty(void*) { return false; }
+void ZdDezone(void*, const fc4_zone_region*) { ++g_zd->dezones; }
+
 fc4_zonedev_host ZdStubHost() {
     fc4_zonedev_host h{};
     h.struct_size = sizeof(h);
@@ -8331,6 +8355,23 @@ fc4_zonedev_host ZdStubHost() {
     h.dev_desirability_shift = &ZdDevU32;
     h.dev_purpose = &ZdDevU32;
     h.dev_wealth = &ZdDevU32;
+    h.area_slope = &ZdAreaSlope;
+    h.cfg_max_slope = &ZdCfgMaxSlope;
+    h.cfg_objects = &ZdCfgObjects;
+    h.network_flags = &ZdNetU32;
+    h.network_has_all_flags = &ZdNetAll;
+    h.network_edge_mask = &ZdNetEdges;
+    h.network_is_of_type = &ZdNetIsOfType;
+    h.network_is_flag_0x400000 = &ZdNetBool;
+    h.occupant_bounding_cells = &ZdOccCells;
+    h.network_tool_present = &ZdToolPresent;
+    h.network_tool_join = &ZdJoin;
+    h.cell_has_land = &ZdLand;
+    h.cell_is_in_bounds = &ZdCellInBounds;
+    h.is_navigable = &ZdNavigable;
+    h.lot_update_zone_type = &ZdLotUpdateZone;
+    h.force_empty_lot_base_textures = &ZdForceEmpty;
+    h.zone_manager_dezone = &ZdDezone;
     return h;
 }
 
@@ -8539,7 +8580,7 @@ void CheckZoneDevNeutral(cFC4ISC4LotManager* lm) {
     CHECK(lm->GetMaximumCapacityGrid() == nullptr);
     CHECK(lm->GetRandomLot() == nullptr);
     CHECK(lm->GetOccupantLot(nullptr) == nullptr);
-    // Slot 21 is not specified: 0, logged.
+    // Slot 21 (§8.4.1): no map yet, 0 (logged).
     CHECK(lm->CanCreatePloppedLot(SC4Rect<long>(1, 1, 2, 2), 1, nullptr) == 0);
 }
 
@@ -8549,7 +8590,7 @@ void ZdParcellize(cISC4ZoneDeveloper* zd, int32_t x1, int32_t z1, int32_t x2, in
                          static_cast<cISC4ZoneManager::ZoneType>(type), false);
 }
 
-// The live object through the stub: Init, STAGE A refusals, lots from the
+// The live object through the stub: Init, refused lots, lots from the
 // stub, the lists, the iterator, the shadow, DeleteLot, Shutdown.
 void ZoneDevStubTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
     static ZdStub stub;
@@ -8583,7 +8624,8 @@ void ZoneDevStubTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
         for (int z = 1; z <= 2; ++z) stub.zone[x][z] = 7;  // agriculture: 1 x 1 lots (§7.5)
     }
 
-    // STAGE A: no lot constructor (the plugin's own new_lot): CreateLot and a
+    // The plugin's own new_lot outside the game (the lot pool and constructor
+    // not available, the executable not identified): CreateLot and a
     // parcellization fail cleanly, logged.
     host.new_lot = nullptr;
     {
@@ -8592,7 +8634,7 @@ void ZoneDevStubTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
         CHECK(ZdState(seam, zd).newLotRefusals == 1);
         ZdParcellize(zd, 1, 1, 2, 2, 7);
         const FC4ZoneDevTestState st = ZdState(seam, zd);
-        CHECK(st.newLotRefusals == 5 && st.masterSize == 0 && st.heldConfigs == 0);
+        CHECK(st.newLotRefusals == 5 && st.masterSize == 0 && st.heldConfigs == 0 && st.lotsBuilt == 0);
         CHECK(lm->GetLotCount() == 0 && stub.defers == 2);
     }
 
@@ -8802,14 +8844,15 @@ int ZoneDevEnableTest(const std::string& dll, const std::string& ini, const std:
     CHECK(text.find("zonedev: no city; services not acquired") != npos);
     CHECK(text.find("zonedev Init FAILED: version=1 init=0") != npos);
     CHECK(text.find("zonedev month 2000-02-01: version=1") != npos);
-    CHECK(text.find("is not specified (zones.md \xC2\xA7" "14.3 Q2): 0") != npos);
+    CHECK(text.find("zonedev: CanCreatePloppedLot(1,1..2,2, facing 1) = 0") != npos);
     CHECK(text.find("zonedev Read -> 1") != npos);
     CHECK(text.find("zonedev Read -> 0") != npos);
     CHECK(text.find("zonedev: test hooks installed") != npos);
     CHECK(text.find("zonedev Init: version=1 init=1 loaded=0 real=") != npos);
-    CHECK(text.find("refused: no lot constructor [waiting for re-specs11]") != npos);
+    CHECK(text.find("zonedev: CreateLot(1, 1, 1, 1, facing 0) refused: the lot pool / constructor is not available") !=
+          npos);
     CHECK(text.find("zonedev parcellize: type=7 rect=1,1..2,2 cells=4 flag=0 lots=0 failed=4 deleted=0 streets=0/0 "
-                    "demolish=0 [lot creation waiting for re-specs11]") != npos);
+                    "demolish=0 [lots refused, see CreateLot]") != npos);
     CHECK(text.find("zonedev parcellize: type=7 rect=1,1..2,2 cells=4 flag=0 lots=4 failed=0 deleted=0") != npos);
     CHECK(text.find("zonedev shadow (lots) 2000-02-01 load: mismatches=0 count=5/5") != npos);
     CHECK(text.find("zonedev shadow (lots) 2000-02-01 month: mismatches=1 count=6/5") != npos);

@@ -1,0 +1,107 @@
+{
+  "format": 1,
+  "name": "zn15_45_create_lot_order",
+  "spec": [
+    "zones 8.5",
+    "zones 15 test 35"
+  ],
+  "description": "Test 35: CreateLot's effects in order: the pool allocation and constructor (new_lot), Init, SetState(1, 0, 0), the cell writes, the traffic simulator's GetDesiredLotInsertionPoint, then SetEmptyLotBaseTexture(lot). Two references (the caller's and the manager's).",
+  "steps": [
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_env",
+      "trace_calls": true
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_call",
+      "method": "create_lot",
+      "args": [
+        3,
+        3,
+        2,
+        2,
+        0
+      ],
+      "expect": 4096
+    },
+    {
+      "op": "zone_expect_log",
+      "events": [
+        {
+          "event": "new_lot",
+          "lot": 4096
+        },
+        {
+          "event": "lot_init",
+          "lot": 4096
+        },
+        {
+          "event": "lot_set_state",
+          "lot": 4096,
+          "state": 1,
+          "a": 0,
+          "b": 0
+        },
+        {
+          "event": "insertion_point"
+        },
+        {
+          "event": "set_empty_lot_base_texture",
+          "lot": 4096
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "get_lot",
+      "args": [
+        4,
+        4,
+        false
+      ],
+      "expect": 4096
+    },
+    {
+      "op": "zone_call",
+      "method": "lot_info",
+      "args": [
+        4096
+      ],
+      "expect": {
+        "rect": [
+          3,
+          3,
+          4,
+          4
+        ],
+        "location": [
+          4,
+          3
+        ],
+        "size": [
+          2,
+          2
+        ],
+        "zone": 0,
+        "state": 1,
+        "refs": 2
+      }
+    }
+  ]
+}
