@@ -18,8 +18,6 @@ use fc4_core::lot_developer::CfgObject;
 pub type fc4_u64s_sink = Option<unsafe extern "C" fn(ctx: *mut c_void, items: *const u64, len: usize)>;
 /// Appends `len` u32 values.
 pub type fc4_u32s_sink = Option<unsafe extern "C" fn(ctx: *mut c_void, items: *const u32, len: usize)>;
-/// Appends `len` floats.
-pub type fc4_f32s_sink = Option<unsafe extern "C" fn(ctx: *mut c_void, items: *const f32, len: usize)>;
 
 /// One lot configuration object (SDK `cSC4LotConfigurationObject`, a
 /// 0x34-byte record of cfg slot 23): the fields the cores read.
@@ -62,10 +60,6 @@ pub(crate) unsafe extern "C" fn collect_u32s(ctx: *mut c_void, items: *const u32
     (*(ctx as *mut Vec<u32>)).extend_from_slice(slice(items, len));
 }
 
-pub(crate) unsafe extern "C" fn collect_f32s(ctx: *mut c_void, items: *const f32, len: usize) {
-    (*(ctx as *mut Vec<f32>)).extend_from_slice(slice(items, len));
-}
-
 pub(crate) unsafe extern "C" fn collect_cfg_objects(ctx: *mut c_void, items: *const fc4_lot_cfg_object, len: usize) {
     let v = &mut *(ctx as *mut Vec<CfgObject>);
     for o in slice(items, len) {
@@ -91,14 +85,6 @@ pub(crate) fn u32s(f: impl FnOnce(fc4_u32s_sink, *mut c_void)) -> Vec<u32> {
     let mut v: Vec<u32> = Vec::new();
     f(Some(collect_u32s), &mut v as *mut Vec<u32> as *mut c_void);
     v
-}
-
-/// Calls `f(sink, ctx)` with a float-collecting sink; returns what `f`
-/// returned with the values.
-pub(crate) fn f32s<R>(f: impl FnOnce(fc4_f32s_sink, *mut c_void) -> R) -> (R, Vec<f32>) {
-    let mut v: Vec<f32> = Vec::new();
-    let r = f(Some(collect_f32s), &mut v as *mut Vec<f32> as *mut c_void);
-    (r, v)
 }
 
 /// Calls `f(sink, ctx)` with a configuration-object sink; `None` when `f`

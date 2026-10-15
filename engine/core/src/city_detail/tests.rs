@@ -259,7 +259,7 @@ fn t4_reduce() {
     c.occ(0x15, 0x10, OCCUPANT_TYPE_PROP, None); // untagged: stays
     c.occ(0x16, 0x10, 0x2781_28A0, Some(0x7)); // a building: untouched
     c.occ(0x17, 0x10, OCCUPANT_TYPE_PROP, Some(0xC)); // a texture object's tag: not kept
-    // A lot without a configuration.
+                                                      // A lot without a configuration.
     c.lots.borrow_mut().push(0x20);
     c.occ(0x21, 0x20, OCCUPANT_TYPE_PROP, Some(0x7));
     c.network.borrow_mut().extend([(3, 4, 0x50), (5, 6, 0x51)]);
@@ -294,7 +294,10 @@ fn t4_reduce() {
 fn t5_increase() {
     let c = City::new();
     // Required props A, B; optional prop C; required flora D.
-    c.lot(0x10, vec![obj(1, 0, 0xA), obj(1, 0, 0xB), obj(1, 1, 0xC), obj(4, 0, 0xD)]);
+    c.lot(
+        0x10,
+        vec![obj(1, 0, 0xA), obj(1, 0, 0xB), obj(1, 1, 0xC), obj(4, 0, 0xD)],
+    );
     c.occ(0x11, 0x10, OCCUPANT_TYPE_PROP, Some(0xA));
     c.ids.borrow_mut().insert((0x10, 3), vec![0xD0, 0xD1, 0xD2]);
     c.network.borrow_mut().push((1, 1, 0x50));
@@ -327,7 +330,10 @@ fn t5_increase() {
 #[test]
 fn increase_edge_cases() {
     let c = City::new();
-    c.lot(0x10, vec![obj(1, 0, 0xA), obj(1, 0, 0xA), obj(1, 0, 0xB), obj(4, 0, 0xE)]);
+    c.lot(
+        0x10,
+        vec![obj(1, 0, 0xA), obj(1, 0, 0xA), obj(1, 0, 0xB), obj(4, 0, 0xE)],
+    );
     c.ids.borrow_mut().insert((0x10, 2), vec![]);
     c.ids.borrow_mut().insert((0x10, 3), vec![0]);
     let m = manager(&c);

@@ -28,13 +28,15 @@ struct Obj {
     ids: Vec<u32>,
 }
 
+/// occupant → (lot, type, tag)
+type Occupants = BTreeMap<u64, (u64, u32, Option<u32>)>;
+
 #[derive(Default)]
 struct Game {
     setting: Cell<u32>,
     lots: RefCell<Vec<u64>>,
     configs: RefCell<BTreeMap<u64, Vec<Obj>>>,
-    /// occupant → (lot, type, tag)
-    occs: RefCell<BTreeMap<u64, (u64, u32, Option<u32>)>>,
+    occs: RefCell<Occupants>,
     network: RefCell<Vec<(i32, i32, u64)>>,
     log: RefCell<Vec<String>>,
     next: Cell<u64>,
@@ -297,7 +299,10 @@ fn cd8_reduce_and_increase() {
         fc4_city_detail_init(p);
         assert_eq!(g.take(), ["remove 12", "demolish 13", "redevelop 4 5 50"]);
         let s = state(p);
-        assert_eq!((s.level, s.last_pass, s.last_removed, s.last_network_lots), (1, 1, 2, 1));
+        assert_eq!(
+            (s.level, s.last_pass, s.last_removed, s.last_network_lots),
+            (1, 1, 2, 1)
+        );
 
         // Increase: B is missing (four IDs, one draw), C is optional, D
         // exists; the flora callback answers no occupant.

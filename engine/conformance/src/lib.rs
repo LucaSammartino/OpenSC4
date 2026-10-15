@@ -35,6 +35,7 @@ pub(crate) mod parks;
 pub(crate) mod pathfinder;
 pub(crate) mod plumbing;
 pub(crate) mod pollution;
+pub(crate) mod port_developer;
 pub(crate) mod power;
 pub(crate) mod protection;
 pub(crate) mod residential;

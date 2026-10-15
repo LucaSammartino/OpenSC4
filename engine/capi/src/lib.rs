@@ -800,6 +800,7 @@ pub mod plumbing;
 pub mod plumbing_shadow;
 pub mod pollution;
 pub mod pollution_shadow;
+pub mod port_developer;
 pub mod power;
 pub mod power_shadow;
 pub mod props;
@@ -876,6 +877,9 @@ mod plumbing_shadow_tests;
 
 #[cfg(test)]
 mod pollution_tests;
+
+#[cfg(test)]
+mod port_developer_tests;
 
 #[cfg(test)]
 mod power_tests;
