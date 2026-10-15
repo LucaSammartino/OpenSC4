@@ -156,7 +156,8 @@ fn hw12_02_store_recording_example() {
     f.date.set(200);
     assert!(w.do_message(msg::RECORD, 0x77, (-3i32) as u32));
     assert_eq!(points_of(&w, 0x77), vec![(200, -3)]);
-    assert!(HistoryWarehouse::record_history_data(&H(f.clone()), 0x78, -4));
+    // HW12: it returns false (the original's final Release leaves EAX = 0).
+    assert!(!HistoryWarehouse::record_history_data(&H(f.clone()), 0x78, -4));
     assert_eq!(*f.sent.borrow(), vec![(msg::RECORD, 0x78, (-4i32) as u32)]);
     assert!(w.series(0x78).is_none());
 }
@@ -512,11 +513,19 @@ fn hw12_07_widened_ranges() {
     assert_eq!(widened_range(&p, 5, 12), 0..2); // the first point: no predecessor
     assert_eq!(widened_range(&p, 38, 45), 3..4); // runs to the last point: not widened
     assert_eq!(widened_range(&p, 15, 35), 1..3); // two points: as they are
-    assert_eq!(widened_range(&p, 25, 15), 1..3); // [choice] from > to, no point
+
+    // HW6: from > to, neither pre-check: the first point after `to` and its
+    // predecessor (test 11: 35 / 15 gives days 10 and 20).
+    assert_eq!(widened_range(&p, 25, 15), 0..2);
+    assert_eq!(widened_range(&p, 35, 15), 0..2);
+    assert_eq!(widened_range(&p, 50, 45), 3..4);
+    assert_eq!(widened_range(&p, 8, 5), 0..1);
+    assert_eq!(widened_range(&p, 40, 30), 2..4); // the point on `to` is excluded
+    assert_eq!(plain_range(&p, 35, 15), 0..0);
     assert_eq!(widened_range(&[], 0, 100), 0..0);
     assert_eq!(plain_range(&p, 20, 30), 1..3);
-    assert_eq!(plain_range(&p, 21, 29), 2..2);
-    assert_eq!(plain_range(&p, 30, 20), 2..2);
+    assert!(plain_range(&p, 21, 29).is_empty());
+    assert!(plain_range(&p, 30, 20).is_empty());
 }
 
 #[test]
@@ -744,11 +753,20 @@ fn hw12_10_read_quirks() {
     let (_f, mut w) = new();
     assert!(w.read(&mut ByteReader::new(&bytes)));
     assert_eq!(points_of(&w, K), vec![(j, 1), (j + 1, 2), (j + 2, 3)]);
-    // Read does not clear, and a duplicate key keeps the existing series.
-    let bytes = v1_record(&[(K, 0, &[(j, 50)]), (0x99, 0, &[(j, 51)])], 2);
-    assert!(w.read(&mut ByteReader::new(&bytes)));
+    // Read does not clear; a duplicate key keeps the existing series and
+    // stops the read with false (HW7): the later series is not read.
+    let bytes = v1_record(&[(0x98, 0, &[(j, 49)]), (K, 0, &[(j, 50)]), (0x99, 0, &[(j, 51)])], 2);
+    assert!(!w.read(&mut ByteReader::new(&bytes)));
     assert_eq!(points_of(&w, K), vec![(j, 1), (j + 1, 2), (j + 2, 3)]);
-    assert_eq!(points_of(&w, 0x99), vec![(j, 51)]);
+    assert_eq!(points_of(&w, 0x98), vec![(j, 49)]);
+    assert!(w.series(0x99).is_none());
+    // Test 14: a record listing keys A, A, B reads A, returns false, and B
+    // is absent.
+    let bytes = v1_record(&[(0xA, 0, &[(j, 1)]), (0xA, 0, &[(j, 2)]), (0xB, 0, &[(j, 3)])], 2);
+    let (_f, mut w) = new();
+    assert!(!w.read(&mut ByteReader::new(&bytes)));
+    assert_eq!(w.keys(), vec![0xA]);
+    assert_eq!(points_of(&w, 0xA), vec![(j, 1)]);
     // A truncated record fails; complete series before it stay.
     let mut bytes = v1_record(&[(0x1, 0, &[(j, 1)]), (0x2, 0, &[(j, 2)])], 2);
     bytes.truncate(bytes.len() - 2);
@@ -791,4 +809,69 @@ fn hw12_10_corpus_shaped_v1_record() {
     let (_f, mut w2) = new();
     assert!(w2.read(&mut ByteReader::new(&again)));
     assert_eq!(record(&w2), again);
+}
+
+// ---- re-answers10: HW5, HW6, HW8, HW9, HW12 (tests 11-15) -------------------------------------
+
+#[test]
+fn hw12_11_inverted_ranges() {
+    let (_f, mut w) = new();
+    w.set_series(K, series(&[(10, 1), (20, 2), (30, 3), (40, 4)], 0));
+    assert_eq!(w.get_count(K, 35, 15), Some(2.0));
+    assert_eq!(w.get_count(K, 50, 45), Some(1.0));
+    assert_eq!(w.get_count(K, 8, 5), Some(1.0));
+    // GetMinMaxAverage(35, 15) reads no point and adds GetPoint(35) and
+    // GetPoint(15): the two-point line through (10, 1) and (20, 2) based at
+    // 35 gives 3.5, and the 3-point line around 20 gives 2.
+    let p35 = w.get_point(K, 35, P24).unwrap();
+    let p15 = w.get_point(K, 15, P24).unwrap();
+    assert_eq!(p35, 3.5);
+    assert_eq!(p15, 1.5);
+    let (min, max, avg) = w.get_min_max_average(K, 35, 15, P24).unwrap();
+    assert_eq!((min, max, avg), (1.5, 3.5, 2.5));
+}
+
+#[test]
+fn hw12_12_statistics_order() {
+    let (_f, mut w) = new();
+    let from = 5000;
+    w.set_series(K, series(&[(from, 0), (from + 1, 1), (from + 3, 1)], 0));
+    let (s, i) = w.get_trend(K, from, from + 3, P24).unwrap();
+    assert_eq!((s.to_bits(), i.to_bits()), (0x3E92_4922, 0x3E92_4928));
+    w.set_series(K, series(&[(from, 0), (from + 1, 3), (from + 3, 8)], 0));
+    let (s, i) = w.get_trend(K, from, from + 3, P24).unwrap();
+    assert_eq!((s.to_bits(), i.to_bits()), (0x4029_2492, 0x3E12_492B));
+}
+
+#[test]
+fn hw12_13_min_max_average_from_equals_to() {
+    let (_f, mut w) = new();
+    w.set_series(K, series(&[(10, 4)], 0));
+    assert_eq!(w.get_min_max_average(K, 15, 15, P24), Some((4.0, 4.0, 4.0)));
+    w.set_series(K, series(&[(10, 4), (20, 8)], 0));
+    assert_eq!(w.get_min_max_average(K, 15, 15, P24), Some((6.0, 6.0, 6.0)));
+    // With a point on that date neither GetPoint call happens.
+    assert_eq!(w.get_min_max_average(K, 20, 20, P24), Some((8.0, 8.0, 8.0)));
+}
+
+#[test]
+fn hw12_15_record_and_unlimited_trim() {
+    let (f, mut w) = new();
+    assert!(!HistoryWarehouse::record_history_data(&H(f.clone()), K, 1));
+    // SetSize(K, -1): maxCount 0xFFFFFFFF never trims (HW8).
+    w.set_size(K, u32::MAX);
+    for d in 1..=5u32 {
+        f.date.set(100 + d);
+        w.store(K, d as i32);
+    }
+    assert_eq!(w.series(K).unwrap().points.len(), 5);
+    // A series longer than its maxCount (after Read) keeps its length.
+    w.set_series(K, series(&[(1, 1), (2, 2), (3, 3)], 2));
+    f.date.set(10);
+    w.store(K, 9);
+    assert_eq!(points_of(&w, K), vec![(2, 2), (3, 3), (10, 9)]);
+    // [quirk] A record on day number 0 into an empty series is lost.
+    f.date.set(0);
+    w.store(0x5, 7);
+    assert_eq!(w.series(0x5).unwrap().points.len(), 0);
 }

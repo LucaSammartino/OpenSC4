@@ -625,12 +625,26 @@ fn cheat_text_parsing() {
     assert_eq!(s(b"  Stopwatch   magnify\t5 "), vec!["Stopwatch", "magnify", "5"]);
     assert_eq!(s(b"a \"b c\" \"\""), vec!["a", "b c", ""]);
     assert!(s(b"").is_empty());
+    assert!(s(b" \t\n ").is_empty());
+    // CK11: only space, tab and newline separate; CR is ordinary.
+    assert_eq!(s(b"a\rb c"), vec!["a\rb", "c"]);
+    // A separator inside an odd number of quotes is kept; only an argument
+    // that starts and ends with a quote loses that outer pair.
+    assert_eq!(s(b"a\"b c\"d e"), vec!["a\"b c\"d", "e"]);
+    assert_eq!(s(b"\"x y\""), vec!["x y"]);
+    assert_eq!(s(b"x \""), vec!["x", ""]);
+    assert_eq!(s(b"x \"abc def"), vec!["x", "\"abc def"]);
+    assert_eq!(s(b"Stopwatch pa\"use"), vec!["Stopwatch", "pa\"use"]);
+    assert_eq!(s(b"Stopwatch \"pause\""), vec!["Stopwatch", "pause"]);
     assert_eq!(atol(b"12abc"), 12);
     assert_eq!(atol(b" -7"), -7);
     assert_eq!(atol(b"+3"), 3);
     assert_eq!(atol(b"abc"), 0);
     assert_eq!(atol(b"0.5"), 0);
-    assert_eq!(atol(b"4294967297"), 1); // [choice] wraps
+    assert_eq!(atol(b"4294967297"), 1); // CK10: wraps
+    assert_eq!(atol(b"4294967296"), 0);
+    assert_eq!(atol(b"3000000000"), -1_294_967_296);
+    assert_eq!(atol(b"-1"), -1);
 }
 
 // ---- §12.12 the record -------------------------------------------------------------------------
@@ -765,4 +779,59 @@ fn ck12_13_load_order() {
     assert_eq!(c.time_of_day(), 43_200);
     c.cheat(CHEAT_STOPWATCH, b"Stopwatch resume");
     assert!(c.timer().running);
+}
+
+// ---- re-answers10: CK14, CK15 (tests 16, 17) -------------------------------------------------------
+
+#[test]
+fn ck12_17_timer_restart_and_stop() {
+    // CK15: Restart on a stopped timer starts it with elapsed 0; Stop on a
+    // stopped timer changes nothing.
+    let mut t = Timer::default();
+    t.stop(500);
+    assert_eq!(t, Timer::default());
+    t.restart(1_000);
+    assert!(t.running);
+    assert_eq!(t.elapsed(1_000), 0);
+    assert_eq!(t.elapsed(1_250), 250);
+    t.stop(2_000);
+    t.stop(9_000);
+    assert!(!t.running);
+    assert_eq!(t.elapsed(9_999), 1_000);
+}
+
+#[test]
+fn ck12_16_negative_pause_count_freezes_the_clock() {
+    let (f, mut c) = new();
+    f.tuning.set(Some(SHIPPED_TUNING));
+    let mut w = ByteWriter::new();
+    w.put_u16(2);
+    w.put_i32(-1);
+    w.put_f32(135.0);
+    w.put_f32(2000.0);
+    w.put_u32(43_200);
+    w.put_u32(20);
+    w.put_u32(1);
+    assert!(c.read(&mut ByteReader::new(&w.into_bytes())));
+    assert!(!c.is_paused());
+    assert!(c.init());
+    assert!(!c.timer().running);
+    f.advance(10_000_000);
+    c.on_idle();
+    assert_eq!(c.time_of_day(), 43_200);
+    c.pause(false);
+    assert_eq!(c.state().pause_count, -1);
+    c.hidden_pause(true);
+    c.hidden_pause(false);
+    f.advance(10_000_000);
+    c.on_idle();
+    assert_eq!(c.time_of_day(), 43_200);
+    f.take_posts();
+    c.pause(true); // -1 -> 0: no message
+    assert!(f.take_posts().is_empty());
+    c.hidden_pause(true);
+    c.hidden_pause(false);
+    assert!(c.timer().running);
+    step(&f, &mut c, 1_000_000);
+    assert_eq!(c.time_of_day(), 43_335);
 }

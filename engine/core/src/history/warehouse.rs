@@ -112,23 +112,30 @@ impl HistoryWarehouse {
     /// `RecordHistoryData` (slot 12): sends the record message (type
     /// `0x89EFA536`, data1 = key, data2 = value) synchronously through the
     /// host; the warehouse's own `DoMessage` stores it. It does not touch the
-    /// warehouse, so it takes only the host. [choice] Returns true.
+    /// warehouse, so it takes only the host. Returns false (HW12, [compat]:
+    /// the original returns the final `Release`'s EAX, 0 once the message is
+    /// destroyed; no shipped caller reads it).
     pub fn record_history_data(host: &dyn HistoryHost, key: u32, value: i32) -> bool {
         host.send(msg::RECORD, key, value as u32);
-        true
+        false
     }
 
     /// `Store(key, value)` (§4.1): a second record on the same day (or an
     /// earlier one) overwrites the last point; a full queue drops its first
-    /// point.
+    /// point. The count is compared unsigned with `maxCount` (HW8).
     pub fn store(&mut self, key: u32, value: i32) {
         let day = self.host.sim_date();
         let s = self.series.entry(key).or_default();
-        if let Some(last) = s.points.last_mut() {
-            if day <= last.date {
+        match s.points.last_mut() {
+            Some(last) if day <= last.date => {
                 last.value = value;
                 return;
             }
+            // [quirk] An empty series compares the day with 0: a record on
+            // day number 0 is lost (the original writes it into the list
+            // header, §4.1). No real date is 0.
+            None if day == 0 => return,
+            _ => {}
         }
         if s.max_count != 0 && s.points.len() as u64 >= u64::from(s.max_count) {
             s.points.remove(0);
@@ -388,8 +395,10 @@ impl HistoryWarehouse {
         ok && out.error() == 0
     }
 
-    /// `Read` (§7): versions 0–2. The map is not cleared; a key that already
-    /// exists keeps its series and the read one is discarded.
+    /// `Read` (§7): versions 0–2. The map is not cleared. A key that already
+    /// exists (in the map or earlier in the record) keeps its series, the
+    /// read one is discarded and `Read` returns false at once, leaving the
+    /// rest of the record unread (HW7).
     pub fn read(&mut self, inp: &mut dyn InStream) -> bool {
         let Some(version) = inp.get_u16() else {
             return false;
@@ -404,7 +413,10 @@ impl HistoryWarehouse {
             let Some(s) = Self::read_series(inp, version) else {
                 return false;
             };
-            self.series.entry(s.0).or_insert(s.1);
+            if self.series.contains_key(&s.0) {
+                return false;
+            }
+            self.series.insert(s.0, s.1);
         }
         inp.error() == 0
     }
