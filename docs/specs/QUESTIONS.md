@@ -4214,6 +4214,83 @@ current answer is in brackets.
   and object-ID-keeping streams)? [they stay in `fc4-capi`; both read `FC4_SAVES_DIR` and both READMEs point at each
   other]
 
+## From the lot developer glue (filed by the coordinator from the `lotglue` lane's report, 2026-10-15)
+
+About `docs/specs/lot-developer.md` and the replacement `cFC4LotDeveloper` (`enable = lotdev`, host
+`FC4LotDevHost`) with its shadow (`lotdev_shadow = 1`); merged as `5212df2`, ABI 54. The lane numbered its first
+questions LD-Q1..LD-Q11; they are filed here as LD2..LD11 (LD-Q9 is left out: it was superseded by LD1, answered
+strict, and the conformance world's slot 37 query is now strict). LD12..LD30 keep the lane's numbers, which the code
+comments and the game log cite. The current answer is in brackets.
+
+- **LD2:** §16 test 30 says a 2-cell-wide rectangle makes no slot 19 call, but §17.4 step 2 gives it one interior
+  column of vertices. [implemented as §17.4 is written: only a 1-cell-wide rectangle gives no call]
+- **LD3:** the retaining-wall helpers `0x005E3070`, `0x005E3960` and `0x005E37F0` have no rows in direct-calls.md.
+  [host calls the plugin cannot make, so no walls are built; logged once]
+- **LD4:** what does slot 42 do with an empty boundary map, before `Init`? [nothing is written, and slot 43's record
+  gets texture 0]
+- **LD5:** what does `PickLotFoundationAltitude` do with a facing outside 0-3? [taken mod 4]
+- **LD6:** what does slot 40 return when the lot has no configuration or no primary object? [position (0,0,0),
+  orientation 0]
+- **LD7:** what does slot 58 do with a null configuration? [treated as having no primary object]
+- **LD8:** where does the orientation of a §6.6 normal base-texture record come from? [from slot 39: object
+  orientation plus facing]
+- **LD9:** is there a limit on slot 16's edge sweep for huge rectangles? [capped at `MAX_EDGE_SAMPLES` = 1<<20
+  samples]
+- **LD10:** interfaces.tsv has no return-channel rows yet for slots 18, 19, 20, 21, 39, 40, 42 and 61. [these slots
+  follow §11.1 and §17]
+- **LD11:** carried over from earlier stages (as in the earlier stages' code comments): the C++ runtime `rand()`
+  state; the off-thread fallback; refusing re-entrant calls; base texture usage 2; hash set order; the terrain cell
+  width read through city slot 91; the class ID behind `building_ref`; the reference returned by `unit_create`; side
+  effects of `Write` in shadow mode; tuning that cannot be read from the original. [as in those comments]
+- **LD12:** the view rotation used by the lot content and the base textures is not specified. [the host reads none;
+  rotation 0]
+- **LD13:** creating a business unit: the GZCOM class and IID for the new unit are not specified. [no unit is
+  created; joining and leaving existing units works (units=2 in a 6-year run)]
+- **LD14:** §7.3: the burnt-building prop and the rubble decal (type IDs, placement) are not specified. [not added;
+  logged once]
+- **LD15:** slot 38's body is not specified beyond its signature. [answers neutrally from the host side; logged once]
+- **LD16:** slots 41 and 45 lack details (arguments, effects). [host side, neutral answer; logged once]
+- **LD17:** `UpdateLotObjectAlitudes` and `Add/RemoveNetworkConnectionNodes` (§6.5 b) are named but not specified.
+  [nothing is done; logged once. The completions counter counts the `AddNetworkConnectionNodes` calls: 116 in a
+  2-year diagnostic run]
+- **LD18:** what is AL from city slot 95 (used by the host)? [read as a bool, 0 / non-zero]
+- **LD19:** flora placement: is the occupant manager's blocking filter applied before the typed flora query, or
+  after? [typed query first, then the filter. Konradshohe's configurations list no flora (`cfgFlora=0`), so no game
+  run has exercised this]
+- **LD20:** lot slot 61 `GetOccupancy`: its ABI (return channel and arguments) is not in interfaces.tsv. [treated as
+  returning in EAX]
+- **LD21:** the night deque and the shadow: the original's record has 670-740 night-deque buildings while the mode
+  stays 0 in turbo, and ours matches (`roundtrip=same`, `night=L`). Should the deque be filled on insertion even when
+  the visual time never changes? [yes, as recorded]
+- **LD22:** the §5 tests (`TestCondition` / `TestAbandonment`) have no read-only entry in the original, so the shadow
+  cannot compare them. Is there a getter, or a message that exposes their result? [not compared]
+- **LD23:** safe lot iterator fallback order: is `GetLotsInCellRect`'s snapshot order (used when the executable is
+  not identified) acceptable in place of the master-list order? [used only as a fallback; `fallbacks=0` in every run]
+- **LD24:** which base-texture occupant belongs to a lot when a cell has several? [the first occupant of type base
+  texture whose lot pointer matches]
+- **LD25:** the construction occupant: §6.2 creates it through the BDS. When that answers null, should it be created
+  directly with `new`? [no direct `new`; construction is refused and counted]
+- **LD26:** the base-texture record layout (`extra[5]`, frame) beyond the documented fields. [the undocumented bytes
+  are copied unchanged]
+- **LD27:** slot 22 `GetOccupantCellCoverage`'s AL is the raw AL of its second `PositionToCell`. In game it is
+  0x32 / 0x33 for 62-64 of the 64 sampled buildings per month (`rawAL=62-64`), not 0 / 1. Do callers rely on the raw
+  byte, or only on whether it is true? [the core returns a bool, and the shadow compares only the truth value;
+  rectangles match. If callers need the byte, `fc4_lotdev_occupant_cell_coverage` returns it and the shadow's
+  `CompareLot` compares it raw]
+- **LD28:** the night batches (§8.3) never ran in any turbo run: `nightBatches=0` and `mode=0` throughout to 2032.
+  Does a turbo city ever send the day/night change `0x44778234` without the 24-hour clock running? [not exercised;
+  lights are set at insertion instead (`lights=203`)]
+- **LD29:** slot 25 `IsAreaFlat` disagrees with "altitude range within `0xE900EA24`" (shipped 1.0). In the shadow,
+  the original answers flat for lots whose slot 27 range is bit-identical on both sides and > 1.0. Observed: 1.0355,
+  1.0623, 1.0735, 1.0886, 1.0948, 1.1135, 1.1373, 1.1757, 1.1858, 1.2204, 1.2268, 1.2937, 1.3282, 1.3630, 1.4001,
+  1.4131, 1.4340, 1.4482, 1.4526, 1.5149, 1.6784, all on both the dry and with-water variants; slot 26 follows. What
+  exactly does slot 25 compare: another measure, another threshold, or a scaled tuning value? [range <=
+  `kMaxCellAltitudeDeltaForFlatness`; 0-24 mismatches per shadow line, all of them this. Settled by the exe; then
+  only `LotDeveloper::is_area_flat` (core `lot_developer/terrain.rs`) changes, with a §16 vector, and
+  `lotdev_shadow = 1` should show mismatches=0 on every line (the `s25r` entries give the ranges)]
+- **LD30:** the tuning cannot be read back from the original (no getter), so the shadow cannot check that both sides
+  use the same `kMaxCellAltitudeDeltaForFlatness` and the other §3.5 values. Is there an accessor? [not compared]
+
 ## From the network manager and network lot manager spec (re-specs13c lane, 2026-10-15)
 
 Open points from network-manager.md §15. The current answer is in brackets; each entry says what would settle it.
