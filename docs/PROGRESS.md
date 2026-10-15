@@ -68,7 +68,8 @@ budget is off by default (enable = <key>).
 - [x] Tract developer glue (merged on main 76bf685; regress mtract PASS, run 109)
 - [ ] Lot developer glue (lane running); zone developer and lot manager, zones phase 2: **Stage A merged** (9a9b0df, `enable = zonedev`, shadow exact in lane runs; regress zones2 PASS, run 112), Stage B (lot creation, plop test, highlight textures) next; re-specs11 filled their spec gaps (lot developer levelling and foundations, creating game lots)
 - [x] Specs: commercial and industrial simulators, civic buildings, park manager, history warehouse, 24-hour clock (re-specs9, a3599a0)
-- [ ] Cores for them: **history warehouse and 24-hour clock merged** (0757437: every §12 test, `hw12_*` and `ck12_*` vectors; glue lane running); **commercial, industrial, civic and parks merged** (ab3c1c3: `ci13_*`, `cb12_*`, `pk12_*`); then glue (two lanes running)
+- [ ] Cores for them: **history warehouse and 24-hour clock merged** (0757437: every §12 test, `hw12_*` and `ck12_*` vectors; glue merged, below); **commercial, industrial, civic and parks merged** (ab3c1c3: `ci13_*`, `cb12_*`, `pk12_*`); then glue (cmglue lane)
+- [x] **History warehouse and 24-hour clock glue** (merged efac89a, ABI 52; regress histclock PASS, run 113): `enable = history, clock24`, both off by default; `history_shadow` and `clock24_shadow` exact in every lane run (224/224 and 207/207 at normal speed to 2043); the save sweep (`engine/formats/tests/save_records.rs`) reads and rewrites both records of all 417 stock saves (history version 1 converts to version 2 stably)
 - [ ] The growth statistics distribution matches across seeded runs (M4 exit)
 
 **M5: traffic**

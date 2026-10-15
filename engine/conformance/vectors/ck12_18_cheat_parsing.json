@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "ck12_18_cheat_parsing",
+  "spec": ["clock24 4.8", "clock24 12"],
+  "description": "Test 18 (CK10, CK11). Leading, trailing and repeated blanks are one break: '  Stopwatch   pause  ' pauses. An argument that starts and ends with a quote loses that pair: 'Stopwatch \"pause\"' pauses. A separator inside an odd number of quotes is kept: 'Stopwatch \"pa use\"' gives 'pa use' (nothing). No inner quote is removed: 'Stopwatch pa\"use' does nothing. atol wraps in 32 bits: 'WhatTimeIzIt -1' is SetHour(4294967295), 15:00; 'WhatTimeIzIt 4294967303' wraps to 7, 07:00; 'Stopwatch magnify 3000000000' wraps negative and is clamped to 0.05. The registration order (test 19, CK12, CK13) is in ck12_01_construction.",
+  "steps": [
+    {"op": "ck_create"},
+    {"op": "ck_call", "method": "init"},
+    {"op": "ck_call", "method": "cheat", "args": ["Stopwatch", "  Stopwatch   pause  "], "expect": true},
+    {"op": "ck_expect", "state": {"pause_count": 1}},
+    {"op": "ck_call", "method": "cheat", "args": ["Stopwatch", "Stopwatch resume"]},
+    {"op": "ck_expect", "state": {"pause_count": 0}},
+    {"op": "ck_call", "method": "cheat", "args": ["Stopwatch", "Stopwatch \"pause\""]},
+    {"op": "ck_expect", "state": {"pause_count": 1}},
+    {"op": "ck_call", "method": "cheat", "args": ["Stopwatch", "Stopwatch resume"]},
+    {"op": "ck_expect", "state": {"pause_count": 0}},
+    {"op": "ck_clear_events"},
+    {"op": "ck_call", "method": "cheat", "args": ["Stopwatch", "Stopwatch \"pa use\""]},
+    {"op": "ck_call", "method": "cheat", "args": ["Stopwatch", "Stopwatch pa\"use"]},
+    {"op": "ck_expect", "state": {"pause_count": 0}},
+    {"op": "ck_expect_event_count", "count": 0},
+    {"op": "ck_call", "method": "cheat", "args": ["WhatTimeIzIt", "WhatTimeIzIt -1"]},
+    {"op": "ck_expect", "state": {"seconds": 54000}},
+    {"op": "ck_call", "method": "cheat", "args": ["WhatTimeIzIt", "WhatTimeIzIt 4294967303"]},
+    {"op": "ck_expect", "state": {"seconds": 25200}},
+    {"op": "ck_call", "method": "cheat", "args": ["Stopwatch", "Stopwatch magnify 3000000000"]},
+    {"op": "ck_expect", "state": {"magnification_bits": "0x3D4CCCCD"}}
+  ]
+}
