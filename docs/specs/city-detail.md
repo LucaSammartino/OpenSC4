@@ -50,9 +50,9 @@ is at +0xC; the last `Release` calls the deleting destructor (slot 6).
 
 The current setting is the preferences byte at `+0xF16` of the preferences object (global `0x00B43CD8`): 1 low,
 2 medium, 3 high; default 3 (`cSC4Preferences` constructor). The video options page writes it. The lot
-configuration manager builds lot configurations for the current setting and rebuilds them when it changes
-(`StaticInit`, `0x0048A540`), so a configuration's object array depends on it *[inferred: which objects are
-dropped at which level is a lot configuration matter]*.
+configuration manager builds lot configurations for the current setting and rebuilds them at the next city `Init`
+after it changes (`StaticInit`, `0x0048A540`), so a configuration's object array depends on it: an object is kept
+when it is the building or when its LOD is below the setting (prop-lotconfig.md §B3.3).
 
 No agents, no messages, no tuning.
 

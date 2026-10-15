@@ -4039,10 +4039,16 @@ in-game harness with the FreeCity4 turbo clock and a message log.
 - **PV6:** a power change switches night-lit **street** props at once but leaves night-lit **lot** props until the
   next dusk, dawn or switch. [reproduced, from the exe. At night in a turbo run, cut the power line to a lit block and
   watch a lit lot prop and a lit street lamp: the lamp goes dark at once, the lot prop at dawn]
-- **CD1:** which lot configuration objects are dropped at each city detail level? [the lot configuration manager
+- ~~**CD1:** which lot configuration objects are dropped at each city detail level? [the lot configuration manager
   filters objects by the detail preference when it builds configurations (it passes the preference to the
   configuration's reader); the exact field belongs to a lot configuration spec. Comparing one lot configuration's
-  object count at detail 1 and 3 would settle it]
+  object count at detail 1 and 3 would settle it]~~ **ANSWERED 2026-10-15 (re-specs13d):** MATCHES, now exact and
+  written into prop-lotconfig.md §B3. The manager reads each configuration with `Load(key, d)`, `d` = the detail
+  preference at that moment (`0x00489910`), and the reader (`0x00479D10`, from `0x0047A536`) keeps an object when
+  its type is 0 (the building) or when `LOD < d`, with `LOD = (v1 >> 4) & 3` from the object's second value
+  (`0x00479EB1`–`0x00479EC6`). LOD 0 is kept at every level, LOD 1 at medium and high, LOD 2 at high only, LOD 3
+  never. The catalogue is rebuilt at the next city `Init` after the preference changes (`0x0048A540`). Shipped data:
+  73,832 objects at detail 3, 39,781 at detail 2, 23,265 at detail 1 (§B3.3 has the table by type).
 - **CD2:** after a detail change every network lot is redeveloped (network lot manager slot 12). Does that change
   saved state, such as street props drawn from the network lot manager's generator? [yes, inferred: redevelopment
   re-creates the network lot's objects. Saving a city, reopening it at another detail level and saving again, then
