@@ -87,6 +87,10 @@ struct ExecutableVersion {
     // object's dirty byte (+0x20) and DoIdle state (+0x24) only when its
     // vtable is this one.
     uint32_t commercialSimulatorVtableVA;
+    // The original park manager's primary vtable (parks.md §1): the parks
+    // shadow reads the object's latch (+0x15) and distress threshold (+0x34)
+    // only when its vtable is this one.
+    uint32_t parkManagerVtableVA;
 };
 
 // The running executable if it is a table entry loaded at its preferred base
@@ -161,6 +165,10 @@ const void* NeighborsSimulatorVtable();
 // vtable (commercial-industrial.md §1.1), or nullptr (logged once; the same
 // checks). For the commercial shadow's raw read of dirty and state (§2.1).
 const void* CommercialSimulatorVtable();
+// The original park manager's primary (cISC4ParkManager) vtable (parks.md
+// §1), or nullptr (logged once; the same checks). For the parks shadow's raw
+// read of the latch and the threshold (§2).
+const void* ParkManagerVtable();
 
 // The compatibility table.
 const ExecutableVersion* SupportedVersions(int* count);

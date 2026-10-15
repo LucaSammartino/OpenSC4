@@ -57,6 +57,7 @@
 #include "FC4TractShadow.h"
 #include "FC4CommercialShadow.h"  // the cmglue lane
 #include "FC4CivicShadow.h"       // the cmglue lane
+#include "FC4ParksShadow.h"       // the cmglue lane
 #include "cFC4TractDeveloper.h"
 #include "cFC4Commercial.h"  // the cmglue lane: commercial, industrial
 #include "cFC4Civic.h"       // the cmglue lane: civic
@@ -412,6 +413,8 @@ void Resolve() {
     CommercialShadowStartup(g_enabled[0], enabledKey("commercial"));
     // The civic shadow (FC4CivicShadow.h; it compares the original civic building simulator).
     CivicShadowStartup(g_enabled[0], enabledKey("civic"));
+    // The parks shadow (FC4ParksShadow.h; it compares the original park manager).
+    ParksShadowStartup(g_enabled[0], enabledKey("parks"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.

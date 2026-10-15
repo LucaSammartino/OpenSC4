@@ -238,55 +238,6 @@ Record Parse(const WriteCapture& cap) {
     return r;
 }
 
-// The capture as an fc4_istream for the shadow core's Read (§7): references
-// come back as their objects (a host object with one reference, ours without,
-// as FC4Streams.h's IStreamAdapter does).
-struct CaptureIn {
-    const WriteCapture* cap;
-    Bytes bytes;
-};
-
-CaptureIn* In(void* u) { return static_cast<CaptureIn*>(u); }
-bool InU8(void* u, uint8_t* o) { return In(u)->bytes.Val(*o); }
-bool InU16(void* u, uint16_t* o) { return In(u)->bytes.Val(*o); }
-bool InU32(void* u, uint32_t* o) { return In(u)->bytes.Val(*o); }
-bool InU64(void* u, uint64_t* o) { return In(u)->bytes.Val(*o); }
-bool InF32(void* u, float* o) { return In(u)->bytes.Val(*o); }
-bool InF64(void* u, double* o) { return In(u)->bytes.Val(*o); }
-bool InBytes(void* u, uint8_t* o, size_t n) { return In(u)->bytes.Get(o, n); }
-bool InSkip(void* u, size_t n) {
-    std::vector<uint8_t> tmp(n);
-    return In(u)->bytes.Get(tmp.data(), n);
-}
-bool InStr(void* u, fc4_bytes_sink sink, void* ctx) {
-    std::string s;
-    if (!In(u)->bytes.Str(s)) return false;
-    if (sink != nullptr) sink(ctx, reinterpret_cast<const uint8_t*>(s.data()), s.size());
-    return true;
-}
-bool InRef(void* u, uint32_t iid, fc4_ref* out) {
-    uint32_t id = 0, cls = 0;
-    if (!In(u)->bytes.Ref(id, cls)) return false;
-    fc4_ref r{};
-    r.class_id = cls;
-    cIGZUnknown* obj = reinterpret_cast<cIGZUnknown*>(In(u)->cap->Object(id));
-    if (obj != nullptr) {
-        void* p = nullptr;
-        if (obj->QueryInterface(iid == 0 ? GZIID_cIGZUnknown : iid, &p) && p != nullptr) {
-            cIGZUnknown* q = static_cast<cIGZUnknown*>(p);
-            if (IsOurObject(q)) {
-                q->Release();  // ours: no reference travels (ResolveRef takes one)
-            } else {
-                FC4_ACQUIRED(q, "QueryInterface");  // the core's reference
-            }
-            r.token = TokenOf(q);
-        }
-    }
-    if (out != nullptr) *out = r;
-    return true;
-}
-int32_t InError(void* u) { return In(u)->bytes.good() ? 0 : 1; }
-
 // ---- the shadow core ------------------------------------------------------------------------------
 
 void DropCore() {
@@ -311,22 +262,8 @@ bool Restart(const WriteCapture& cap, const void* sim) {
     g_host.add_controllers = &RecordControllers;
     g_core = fc4_civic_create(&g_host, kShadowSeed);
     if (g_core == nullptr) return false;
-    CaptureIn in{&cap, Bytes(cap.Bytes())};
-    fc4_istream s{};
-    s.struct_size = sizeof(s);
-    s.user = &in;
-    s.get_u8 = &InU8;
-    s.get_u16 = &InU16;
-    s.get_u32 = &InU32;
-    s.get_u64 = &InU64;
-    s.get_f32 = &InF32;
-    s.get_f64 = &InF64;
-    s.get_bytes = &InBytes;
-    s.get_str = &InStr;
-    s.get_ref = &InRef;
-    s.skip = &InSkip;
-    s.error = &InError;
-    const bool ok = fc4_civic_read(g_core, &s);
+    CaptureIStream in(cap);  // FC4WriteCapture.h
+    const bool ok = fc4_civic_read(g_core, in.Get());
     fc4_civic_init(g_core);
     if (!ok) {
         DropCore();

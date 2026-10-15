@@ -273,6 +273,8 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4CivicShadow.h
         plugin/cFC4Parks.cpp
         plugin/cFC4Parks.h
+        plugin/FC4ParksShadow.cpp
+        plugin/FC4ParksShadow.h
         # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h
         plugin/FC4Turbo.cpp

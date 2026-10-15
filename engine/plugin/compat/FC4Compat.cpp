@@ -58,6 +58,7 @@ const ExecutableVersion kVersions[] = {
         0x00AA56C0,  // cSC4WinGameDelay primary vtable (docs/abi/vtables.tsv; modal-dialogs.md §3.4)
         0x00AB1EE0,  // cSC4NeighborsSimulator's cISC4NeighborsSimulator vtable (neighbors.md §15.4 NG7)
         0x00AB0CCC,  // cSC4CommercialSimulator primary vtable (commercial-industrial.md §1.1, §2.1)
+        0x00AB20AC,  // cSC4ParkManager primary vtable (parks.md §1, §2)
     },
 };
 
@@ -558,6 +559,37 @@ const void* CommercialSimulatorVtable() {
         } else {
             Log("compat: original cISC4CommercialSimulator vtable NOT available (%s); the commercial shadow cannot "
                 "read the original's dirty byte and state",
+                v ? "address rejected" : "executable not identified");
+        }
+    }
+    return state == 1 ? vtable : nullptr;
+}
+
+const void* ParkManagerVtable() {
+    static int state = 0;  // 0 unknown, 1 available, -1 refused
+    static const void* vtable = nullptr;
+    if (state == 0) {
+        state = -1;
+        const ExecutableVersion* v = IdentifiedVersion();
+        MEMORY_BASIC_INFORMATION mbi{};
+        const uintptr_t va = v ? v->parkManagerVtableVA : 0;
+        bool ok = v != nullptr && va != 0 && va % 4 == 0 &&
+                  VirtualQuery(reinterpret_cast<const void*>(va), &mbi, sizeof(mbi)) == sizeof(mbi) &&
+                  mbi.State == MEM_COMMIT && mbi.Type == MEM_IMAGE &&
+                  reinterpret_cast<uintptr_t>(mbi.AllocationBase) == v->imageBase &&
+                  !(mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS));
+        if (ok) {
+            // The first entry (QueryInterface) must be code inside the image.
+            const uintptr_t first = *reinterpret_cast<const uintptr_t*>(va);
+            ok = CheckCode("cISC4ParkManager vtable entry 0", first, v->imageBase);
+        }
+        if (ok) {
+            vtable = reinterpret_cast<const void*>(va);
+            state = 1;
+            Log("compat: original cISC4ParkManager vtable at 0x%08lX", static_cast<unsigned long>(va));
+        } else {
+            Log("compat: original cISC4ParkManager vtable NOT available (%s); the parks shadow cannot read the "
+                "original's latch and threshold",
                 v ? "address rejected" : "executable not identified");
         }
     }

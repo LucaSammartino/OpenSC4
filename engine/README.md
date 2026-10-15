@@ -1337,6 +1337,27 @@ plugin.
      ```
 
      Success is `mismatches=0` on every line.
+   - **Parks shadow** (`parks_shadow = 1`, env `FC4_PARKS_SHADOW`; off by default; `plugin/FC4ParksShadow.h`): a
+     same-process differential of the park manager. It needs FreeCity4's simulator and the **original** park
+     manager (do not enable `parks`). At the first SimNewMonth delivery to the original's agent a shadow core with
+     a read-only host starts from the original's record (captured through its own Write) and the shipped tuning,
+     then follows the occupant messages the original receives. At each SimNewMonth the park and zoo lists are
+     compared with the original's record (a difference restarts ours), the original's latch (+0x15) and threshold
+     (+0x34) are read raw (only while its vtable is the original's, compat table) and compared with ours before
+     and after the month, ours runs its month with lot writes recorded, the original's month runs, and every park
+     lot's condition is compared with ours. The zoo escape is not compared (clock-seeded generator); both escape
+     counts are given (the original's from its ZooEscape posts). Lines (always written):
+
+     ```
+     parks shadow: ON (parks_shadow from …): …                                                (game start)
+     parks shadow: following the original park manager … (agent …, vtable ok): latch=… threshold=…
+     parks shadow month yyyy-mm-dd: followed=yes|first|resynced parks=… zoos=… latch orig a->b ours c->d
+       threshold orig/ours; funding=… p=…; pass: lots=… run-down=… restored=…; zoo escapes orig=… ours=…
+       (not compared: clock-seeded generator); messages followed=…; mismatches=N[; differences: …]
+     parks shadow: city shutdown: N month lines, M with mismatches=0
+     ```
+
+     Success is `mismatches=0` on every line.
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,
