@@ -27,6 +27,9 @@ const BURNING: u32 = 0x69DB_EBE1;
 const FLAME: u32 = 0xC9B6_B73D;
 const D3: u32 = 0xA9B6_ECD3;
 
+/// An occupant: (cell, in the occupant manager, burning).
+type Occ = ((i32, i32), bool, bool);
+
 #[derive(Default)]
 struct Game {
     log: RefCell<Vec<String>>,
@@ -34,8 +37,7 @@ struct Game {
     emergency: Cell<i32>,
     saves_off: Cell<i32>,
     next: Cell<u64>,
-    /// occupant → (cell, in manager, burning)
-    occs: RefCell<BTreeMap<u64, ((i32, i32), bool, bool)>>,
+    occs: RefCell<BTreeMap<u64, Occ>>,
     refs: RefCell<BTreeMap<u64, i32>>,
     roads: RefCell<BTreeSet<(i32, i32)>>,
     leaders: RefCell<BTreeMap<u64, (i32, i32)>>,
