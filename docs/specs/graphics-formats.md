@@ -28,7 +28,7 @@ reads its full width or fails, and a failure fails the whole record.
 | Conformance tests | §8 |
 | Community descriptions versus the exe | §9 |
 | What `engine/formats` should add | §10 |
-| Open questions (also in QUESTIONS.md, GF1–GF12) | §11 |
+| Open questions (also in QUESTIONS.md, GF1–GF14) | §11 |
 
 Survey of the shipped data (scripts in the session scratch folder; root `.dat`, language `.DAT`, `Sku_Data`,
 `Plugins`; for each key the first index entry of its package, data-formats §2.3):
@@ -595,6 +595,10 @@ mode (byte, default **3**), direction (+1), speed (float32, default the "unset" 
 
 - `SetFrame(f)` (slot 10, `0x007FDAF0`): if f is the current frame, return 2. Else build frame f with
   `GetModelFrame` (§3.12); if that fails (f ≥ F) return 0 and keep the frame; else the current frame is f, return 2.
+  `SetFrame`, slot 9 (`0x007FDA90`) and `Step` first test a pointer at instance `+0xA4` (a frame sub-range table)
+  and use it instead when it is set; the constructor nulls it and no other store to it was found in
+  `0x007F0000`–`0x00812000` (the model and instance code) *[inferred: always null]*, so the paths above are the
+  only ones FreeCity4 needs.
 - `SetSpeed(s)` (slot 14, `0x007FC170`): s = −200.0 means "from the file": speed = rate × 0.001 (rate as an exact
   integer, constant float32 `0x00A867A4`, product stored as float32). Any other s is stored as given.
 - `Advance(dt)` (slot 15, `0x007FC1C0`), dt in milliseconds:
@@ -614,7 +618,7 @@ mode (byte, default **3**), direction (+1), speed (float32, default the "unset" 
 - Drivers: a prop occupant advances each animated instance on the animation tick message `0x86AD10EE` by the
   message's milliseconds (data3, float32) × the simulator's time dilation (`cISC4Simulator` slot 32), in
   `cSC4PropOccupant::DoMessage` (`0x005ECFB0`), and `SetState` sets the frame to the state (`0x005ED3AC`). The
-  automata's own per-tick driver is not traced here *[incomplete: automata spec]*.
+  automata's own per-tick driver is not traced here (GF14).
 
 Example: F = 4, rate 30, mode 3, frame 0. Speed becomes float32(0.03) = 0.030000001. `Advance(40)`: acc = 1.2, step
 to frame 1, acc = 0.20000005. `Advance(100)`: acc = 3.2, step to frame 2, acc = 1.0. `Advance(0)`: step to frame 3,
@@ -1053,6 +1057,36 @@ The test model T is version 1.5, one triangle. Fields in order (hex):
 43. Every S3D record (42,915) loads; 167,070 vertex blocks, 155,661 index blocks, 138,735 primitives, 155,827
     materials; 71 meshes dropped; every texture ID resolves at step 1 of §4.1 or is 0.
 
+### 8.5 Animation playback and model effects
+
+An animated instance of a model with F frames (§3.9), mode 3 and speed unset unless stated; "A(dt)" is
+`Advance(dt)` (slot 15), and each line gives the frame after the call, the return value and the accumulator.
+
+44. **Speed from the file.** F = 4, rate 30: the first A(40) sets the speed to float32 bits `0x3CF5C290`
+    (0.030000001) and gives frame 1, 2, acc 0.20000005. A(100): frame 2, 2, acc 1.0 (|acc| was 3.2000003: one step
+    only). A(0): frame 3, 2, acc 0. A(40): frame 0 (loop), 2. `SetSpeed(−200)` before the first call gives the same
+    speed; rate 0 → speed 0 and every `Advance` returns 0 with frame and acc unchanged. F = 1, rate 30: A(40)
+    returns 2, frame 0 (the step does nothing), acc 0.20000005.
+45. **Ping-pong.** F = 3, `SetAnimMode(2)`, `SetSpeed(1/32)` (0.03125, exact). Six calls A(32) give frames 1, 2, 1,
+    0, 1, 2, each returning 2, with acc after the calls 0, 0, 2, 2, 0, 0: the step that reverses the direction
+    is followed by acc − direction with the new direction (1 − (−1) = 2), and the next call adds −1 back to 1.
+46. **Play once.** F = 3, `SetAnimMode(1)`, speed 1/32: A(32) twice → frames 1, 2; the third A(32) → frame 2,
+    returns 2, direction 0, acc 0; every later A(32) → frame 2, returns 0. Any mode other than 2 and 3 (0, 4, 255)
+    behaves the same.
+47. **`SetFrame`.** F = 4, frame 0: `SetFrame(0)` → 2, no frame build; `SetFrame(3)` → 2, frame 3; `SetFrame(4)` → 0,
+    frame stays 3. `SetFrame` does not touch acc or direction.
+48. **Effect names** (`InitEffectsList`, §3.11). REGP names (lower-cased on read, so `FX_00_RotOR` is `fx_00_rotor`)
+    give these effect names: `fx_00_planeprop` → `planeprop`; `fx_00_rotor` → `rotor`;
+    `fx_straight_road_bridge_collumn_foam` → `straight_road_bridge_collumn_foam`; `fx_7` → `7` (a digit but no
+    `_`); `fx_1a_b_c` → `b_c` (after the first `_` only); `regpoint01`, `stop_car_x` and `fxa` → no effect. The map
+    is walked in name order, so `fx_00_b` is added before `fx_01_a`. A name whose effect the effects manager cannot
+    create leaves no entry.
+49. **Effect transform** (Update, §3.11). Instance at translation (100, 0, 200), identity rotation, scale 1, frame 0;
+    record 0 = (1, 2, 3, 0, 0, 2, π/2) (axis normalised to (0, 0, 1)): position (101, 2, 203); local rotation rows
+    (0, −1, 0), (1, 0, 0), (0, 0, 1), each element within 1e-6. Record (1, 2, 3, 0, 0, 0, 1) (a shipped identity
+    record): position (101, 2, 203); the original's orientation is NaN, FreeCity4's is the identity (GF13). Fire
+    crew (`regpoint01`, 2 records) at frame 5: it uses record 1 (clamped).
+
 ---
 
 ## 9. Community descriptions versus the exe
@@ -1100,7 +1134,7 @@ Common modding descriptions of FSH and S3D were the starting point. Where they d
 
 ## 11. Open questions
 
-Also filed in QUESTIONS.md, "From the graphics formats spec", GF1–GF12.
+Also filed in QUESTIONS.md: GF1–GF12 under "From the graphics formats spec", GF13–GF14 in the re-specs11 section.
 
 1. GF1: what a model shows when its texture cannot be created under DX7 (codes of Q6).
    **Answered** (§2.6): drawn untextured, in its diffuse colour.
@@ -1127,10 +1161,10 @@ Also filed in QUESTIONS.md, "From the graphics formats spec", GF1–GF12.
 11. GF11: consumers of PROP and REGP, and the meaning of REGP's 7 floats.
     **Answered** (§3.10, §3.11): PROP has none; REGP feeds model effects of automata and bridges (`fx_` names) and
     fire crews (`regpoint01`); one record per frame, read as position, axis and angle.
-13. GF13: what a visual effect does with a NaN orientation (identity REGP records). Open; not yet filed in
-    QUESTIONS.md.
-
-*[incomplete: conformance tests for §3.9 playback and §3.11 effect names were not written; the examples in §3.9
-and §3.11 are their basis.]*
 12. GF12: whether anything reads the FSH centre fields or the bits 12–27 of `+0x0C`.
     **Answered** (§2.4): nothing reads them.
+13. GF13: what a visual effect does with a NaN orientation (identity REGP records). Open (QUESTIONS.md GF13).
+14. GF14: the automata's per-tick animation driver: what `dt` an automaton passes to `Advance` and when it calls
+    `SetFrame` (§3.9). Open (QUESTIONS.md GF14).
+
+Playback and effect names are covered by tests 44–49 (§8.5).
