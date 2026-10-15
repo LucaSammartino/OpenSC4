@@ -55,6 +55,7 @@
 #include "cFC4GrowthDeveloper.h"
 #include "cFC4TrafficSimulator.h"
 #include "FC4TractShadow.h"
+#include "FC4TrafficShadow.h"
 #include "cFC4TractDeveloper.h"
 #include "FC4Turbo.h"  // the harness lane: sim_turbo
 #include "FC4Script.h"  // the harness lane: script
@@ -378,6 +379,8 @@ void Resolve() {
     DevelopmentShadowStartup(g_enabled[0], enabledKey("development"));
     // The tract developer shadow (FC4TractShadow.h; it compares the original tract developer).
     TractShadowStartup(enabledKey("tract"));
+    // The traffic shadow (FC4TrafficShadow.h; it compares the original traffic simulator).
+    TrafficShadowStartup(g_enabled[0], enabledKey("traffic"));
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.

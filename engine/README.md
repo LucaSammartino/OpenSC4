@@ -1263,6 +1263,41 @@ plugin.
      ```
 
      Success is `roundtrip=same`, `mismatches=0` and `failures=0` on every line.
+   - **Traffic shadow** (`traffic_shadow = 1`, env `FC4_TRAFFIC_SHADOW`; off by default;
+     `traffic_shadow_diffs = N`, env `FC4_TRAFFIC_SHADOW_DIFFS`, default 8, 1..64; `traffic_shadow_lines = N`,
+     env `FC4_TRAFFIC_SHADOW_LINES`, default 8; `plugin/FC4TrafficShadow.h`): a same-process differential of the
+     traffic simulator. It needs **our simulator and the original traffic simulator** (do not enable `traffic`);
+     otherwise it logs `traffic shadow: requested … but INACTIVE` at game start. It wraps every delivery of our
+     simulator to the original's agents (`cSC4TrafficSimulator`: the one-shot, the day and the month). The
+     original's day ends on a 4 ms wall-clock deadline (traffic-simulator.md §3.3), so FreeCity4's simulator (a
+     private copy, started on the original's record at its first delivery) runs **after** it, on the inputs as
+     they stood before: just before the delivery the original's own `Write` goes into a memory stream; when it
+     differs from the copy's record the copy reads it (a resync, counted); the trip lists and the lot and
+     connection holder arrays the delivery may change are snapshotted. Just after, the record again gives the
+     cycle state and phase progress the original stopped at; the copy steps one unit at a time to the same point
+     (and takes the original's day step on its share), then its record (fields named), every trip list, the
+     holder arrays and its grids are compared bitwise with the original's. The copy reads the city through the
+     traffic glue's read callbacks (every write callback NULL: its writes, posts, budget calls and references
+     stay inside it) and the original's grids through `GetTractValue`; the messages the original subscribes to
+     are forwarded to it. The lot strategy byte (no getter) is read as the last byte of the lot's own record
+     (§6.3). **Not compared** (said in the start line): the strategy draws (property `0x4A611773`) and the
+     pothole and accident draws' choices (the original's generator is not readable), posted messages, history,
+     incomes, network costs, budget items and accidents. Lines (always written; longer ones continue on
+     `traffic shadow (cont.)` lines):
+
+     ```
+     traffic shadow: ON (traffic_shadow from …): …                                          (game start)
+     traffic shadow: comparing with the original traffic simulator … (city …); …            (first delivery)
+     traffic shadow yyyy-mm-dd day|month|begin (state A -> B, progress P, units U): mismatches=N; record FIELD:
+       orig … ours …; trips of lot (x, z): …; holder … property 0x…: …; grid NAME: K of T tracts differ: …
+     traffic shadow yyyy-mm-dd day: INCOMPLETE (why); not compared
+     traffic shadow month to yyyy-mm-dd: clean|mismatches=N; deliveries=D (day d, month m, other o) compared=C
+       clean=K incomplete=I; record fields compared=… mismatched=… (FIELD xN, …); trip lists compared=…
+       mismatched=…; holder properties compared=… mismatched=…; grid tracts compared=… mismatched=…; between
+       deliveries: resyncs=R; ours: units=… run-ons=… day steps=…, kept posts=… …; first differences: …
+     ```
+
+     Success is `clean` on every month line, `resyncs=0` and no `INCOMPLETE` line.
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,

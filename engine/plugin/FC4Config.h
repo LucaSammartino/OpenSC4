@@ -121,6 +121,11 @@
 //                                 cFC4TrafficSimulator.cpp)
 //   traffic_seed = N              the traffic generator's session seed (default: the
 //                                 cRZTime clock; env FC4_TRAFFIC_SEED)
+//   traffic_shadow = 0 / 1        the traffic shadow (default 0; needs FreeCity4's
+//                                 simulator and the ORIGINAL traffic simulator: do not
+//                                 enable traffic; FC4TrafficShadow.h)
+//   traffic_shadow_diffs = N      its differences named per line (default 8, 1..64)
+//   traffic_shadow_lines = N      its delivery lines per month (default 8)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.

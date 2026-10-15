@@ -262,7 +262,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // FC4Dialogs.h)
                                   "sim_turbo", "sim_turbo_frame_ms", "sim_turbo_until", "autotest_end_date", "script",
                                   "sim_turbo_wait_days", "close_dialogs",
-                                  "tract_shadow", "tract_seed", "tract_grow_log"};
+                                  "tract_shadow", "tract_seed", "tract_grow_log",
+                                  "traffic_shadow", "traffic_shadow_diffs", "traffic_shadow_lines"};
 
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

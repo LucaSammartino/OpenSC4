@@ -183,6 +183,10 @@
 //         cISC4NeighborDeal** receiving a new deal of ours with a's state
 //         (one reference for the caller; NeighborsTestCopyDeal, NG4).
 //         Returns 1, 0 if none was made.
+//   op 51 kFC4SeamTrafficShadow   a = const FC4TrafficShadowTestInput*
+//         (FC4TrafficShadow.h): one delivery through the traffic shadow to a
+//         fake original; returns the delivery's difference count, -1 (not
+//         taken, nothing delivered), -2 (delivered, nothing compared).
 #pragma once
 
 #include <cstdint>
@@ -243,6 +247,7 @@ enum : uint32_t {
     kFC4SeamScript = 46,  // the harness lane
     kFC4SeamDialogs = 47,  // the harness lane
     kFC4SeamNeighborsApp = 48,  // the neighbours apply lane (NG14)
+    kFC4SeamTrafficShadow = 51,  // the traffic shadow (FC4TrafficShadow.h FC4TrafficShadowTestInput)
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

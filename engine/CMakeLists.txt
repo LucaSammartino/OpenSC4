@@ -217,6 +217,8 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Landfill.h
         plugin/FC4LandfillShadow.cpp
         plugin/FC4LandfillShadow.h
+        plugin/FC4TrafficShadow.cpp
+        plugin/FC4TrafficShadow.h
         plugin/FC4WriteCapture.cpp
         plugin/FC4WriteCapture.h
         plugin/FC4LandValueShadow.cpp
