@@ -231,8 +231,8 @@ cFC4ZoneDeveloper::cFC4ZoneDeveloper() {
         g_instances.push_back(this);
     }
     RefreshSnapshot();
-    fc4::Log("cFC4ZoneDeveloper(%p) created, core %p, session seed 0x%08X (%s); lot creation waits for re-specs11 "
-             "(CreateLot fails, logged)",
+    fc4::Log("cFC4ZoneDeveloper(%p) created, core %p, session seed 0x%08X (%s); lots from the game's lot pool "
+             "(§8.5.1)",
              static_cast<void*>(Primary()), static_cast<void*>(core_), seed_, seedFixed_ ? "zonedev_seed" : "cRZTime");
 }
 
@@ -375,11 +375,13 @@ void cFC4ZoneDeveloper::LogState(const char* what) {
     st.struct_size = sizeof(st);
     if (core_ == nullptr || !fc4_zonedev_get_state(core_, &st)) return;
     fc4::Log("zonedev %s: version=1 init=%u loaded=%u real=%u lots=%u map=%dx%d created=%u deleted=%u "
-             "iterators=%u issued=%u parcellizations=%u dezones=%u reentrant=%u refused=%u streets=%u "
-             "demolitions=%u levellings=%u removed=%u posts=%u options=0x%X grid=%p view=0x%X fallbacks=%u",
+             "iterators=%u issued=%u parcellizations=%u dezones=%u reentrant=%u refused=%u built=%u streets=%u "
+             "joins=%u demolitions=%u levellings=%u removed=%u posts=%u options=0x%X grid=%p view=0x%X "
+             "fallbacks=%u",
              what, st.initialized, st.loaded, st.real_mode, st.lot_count, st.map_x, st.map_z, st.lots_created,
              st.lots_deleted, master_.RegisteredIterators(), ctx_.iteratorsIssued, st.parcellizations, st.dezones,
-             st.reentrant_calls, ctx_.newLotRefusals, ctx_.streetsPlaced, ctx_.demolitions, ctx_.levellings,
+             st.reentrant_calls, ctx_.newLotRefusals, ctx_.lotsBuilt, ctx_.streetsPlaced, ctx_.joins,
+             ctx_.demolitions, ctx_.levellings,
              ctx_.removedOccupants, ctx_.posts, st.options, static_cast<void*>(FromToken(st.max_capacity_grid)),
              st.view_value, fallbacks_.load());
 }
@@ -478,7 +480,7 @@ void cFC4ZoneDeveloper::DoParcellization(SC4CellRegion<long> const& region, cISC
              (t >= 1 && t <= 9) ? "parcellize" : "dezone", t, r.x0, r.z0, r.x1, r.z1, cells, flag ? 1u : 0u,
              res.lots_created, res.lot_failures, res.lots_deleted, res.streets_placed, res.streets_failed,
              res.demolish_regions,
-             ctx_.newLotRefusals != refusedBefore ? " [lot creation waiting for re-specs11]" : "");
+             ctx_.newLotRefusals != refusedBefore ? " [lots refused, see CreateLot]" : "");
 }
 
 void cFC4ZoneDeveloper::SetOptions(bool alternateOrientation, bool placeStreets, bool customZoneSize) {
@@ -665,16 +667,20 @@ int32_t cFC4ZoneDeveloper::CanCreateLot(int32_t x, int32_t z, int32_t w, int32_t
     return fc4_zonedev_can_create_lot(core_, x, z, w, h, zoneNotNeeded, waterAllowed, TokenOf(config));
 }
 
-// Slot 21 (the plop path) is not specified (§8.4, §14.3 Q2). [question]
-// Code 0 ("cannot"), logged.
+// Slot 21 (the plop path, §8.4.1): the facing `n` and the configuration's
+// objects; reads only. The first few answers are logged.
 int32_t cFC4ZoneDeveloper::CanCreatePloppedLot(SC4Rect<long> bounds, int32_t n, cISC4LotConfiguration* config) {
-    (void)config;
+    Section sec(this);
+    if (!sec.ok() || core_ == nullptr) return 0;
+    const fc4_cell_rect r{static_cast<int32_t>(bounds.topLeftX), static_cast<int32_t>(bounds.topLeftY),
+                          static_cast<int32_t>(bounds.bottomRightX), static_cast<int32_t>(bounds.bottomRightY)};
+    const int32_t code = fc4_zonedev_can_create_plopped_lot(core_, &r, n, TokenOf(config));
+    FC4_X87_CHECK("zonedev CanCreatePloppedLot");
     char line[200];
-    _snprintf_s(line, sizeof(line), _TRUNCATE,
-                "zonedev: CanCreatePloppedLot(%ld,%ld..%ld,%ld, %d) is not specified (zones.md §14.3 Q2): 0",
-                bounds.topLeftX, bounds.topLeftY, bounds.bottomRightX, bounds.bottomRightY, n);
+    _snprintf_s(line, sizeof(line), _TRUNCATE, "zonedev: CanCreatePloppedLot(%d,%d..%d,%d, facing %d) = %d", r.x1,
+                r.z1, r.x2, r.z2, n, code);
     NoteFew(&g_notePlopped, line);
-    return 0;
+    return code;
 }
 
 // Slot 22 (cfg ignored, §8.5): *out := the lot with ONE reference, or null.
@@ -692,7 +698,8 @@ bool cFC4ZoneDeveloper::CreateLotIfPossible(int32_t x, int32_t z, int32_t w, int
     return r;
 }
 
-// Slot 23: STAGE A, the host builds no lot (FC4ZoneDevHost.cpp NewLot): false.
+// Slot 23 (§8.5): *out := the lot with the caller's reference, or null (no
+// lot built: FC4ZoneDevHost.cpp NewLot).
 bool cFC4ZoneDeveloper::CreateLot(int32_t x, int32_t z, int32_t w, int32_t h, int32_t facing, cISC4Lot*& lot) {
     lot = nullptr;
     Section sec(this);
@@ -759,7 +766,7 @@ bool cFC4ZoneDeveloper::DoMessage(cIGZMessage2* pMessage) {
     if (type == kMsgInsertOccupant && (out.lots_deleted != 0 || out.lots_created != 0 || out.lot_failures != 0)) {
         fc4::Log("zonedev InsertOccupant: occupant %p data4=%u deleted=%u remnants=%u failed=%u%s",
                  static_cast<void*>(FromToken(occupant)), d4, out.lots_deleted, out.lots_created, out.lot_failures,
-                 out.lot_failures != 0 ? " [lot creation waiting for re-specs11]" : "");
+                 out.lot_failures != 0 ? " [lots refused, see CreateLot]" : "");
     }
     return true;  // §5: always
 }
@@ -819,4 +826,5 @@ void cFC4ZoneDeveloper::TestState(FC4ZoneDevTestState& out) {
     out.iterators = master_.RegisteredIterators();
     out.newLotRefusals = ctx_.newLotRefusals;
     out.heldConfigs = static_cast<uint32_t>(ctx_.heldConfigs.size());
+    out.lotsBuilt = ctx_.lotsBuilt;
 }

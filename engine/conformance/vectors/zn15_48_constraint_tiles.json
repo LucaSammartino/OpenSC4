@@ -1,0 +1,457 @@
+{
+  "format": 1,
+  "name": "zn15_48_constraint_tiles",
+  "spec": [
+    "zones 8.4.2",
+    "zones 15 test 40"
+  ],
+  "description": "Test 40: CheckConstraintTiles for a water-compatible 1 x 2 configuration on {30, 30, 30, 31}. A water record W (type 5, footprint (0, 16)-(16, 32)) covers city cell (30, 31) at facing 2 and (30, 30) at facing 0; it needs CellHasWater and not CellHasLand (else 5). A land record L (type 6, footprint (0, 0)-(16, 16)) on (30, 30) needs no water (else 6, which wins over 5). W with extra value 1 also needs the two-cell strip in front, r = (orientation + facing + 2) mod 4, in bounds and navigable, z outer: (30, 29), (30, 30) at facing 2, (30, 31), (30, 32) at facing 0; each row stops at its first failure.",
+  "steps": [
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_cfg",
+      "id": 300,
+      "w": 1,
+      "h": 2,
+      "water": true,
+      "objects": [
+        {
+          "type": 5,
+          "orientation": 0,
+          "min": [
+            0,
+            16
+          ],
+          "max": [
+            16,
+            32
+          ]
+        }
+      ]
+    },
+    {
+      "op": "zone_water",
+      "cells": [
+        [
+          30,
+          31
+        ]
+      ]
+    },
+    {
+      "op": "zone_env",
+      "no_land": [
+        [
+          30,
+          31
+        ]
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          30,
+          30,
+          30,
+          31
+        ],
+        2,
+        300
+      ],
+      "expect": 8
+    },
+    {
+      "op": "zone_env",
+      "no_land": []
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          30,
+          30,
+          30,
+          31
+        ],
+        2,
+        300
+      ],
+      "expect": 5
+    },
+    {
+      "op": "zone_water",
+      "clear": true
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          30,
+          30,
+          30,
+          31
+        ],
+        2,
+        300
+      ],
+      "expect": 5
+    },
+    {
+      "op": "zone_cfg",
+      "id": 300,
+      "w": 1,
+      "h": 2,
+      "water": true,
+      "objects": [
+        {
+          "type": 5,
+          "orientation": 0,
+          "min": [
+            0,
+            16
+          ],
+          "max": [
+            16,
+            32
+          ]
+        },
+        {
+          "type": 6,
+          "orientation": 0,
+          "min": [
+            0,
+            0
+          ],
+          "max": [
+            16,
+            16
+          ]
+        }
+      ]
+    },
+    {
+      "op": "zone_water",
+      "cells": [
+        [
+          30,
+          31
+        ]
+      ]
+    },
+    {
+      "op": "zone_env",
+      "no_land": [
+        [
+          30,
+          31
+        ]
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          30,
+          30,
+          30,
+          31
+        ],
+        2,
+        300
+      ],
+      "expect": 8
+    },
+    {
+      "op": "zone_water",
+      "cells": [
+        [
+          30,
+          30
+        ],
+        [
+          30,
+          31
+        ]
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          30,
+          30,
+          30,
+          31
+        ],
+        2,
+        300
+      ],
+      "expect": 6
+    },
+    {
+      "op": "zone_water",
+      "clear": true,
+      "cells": [
+        [
+          30,
+          30
+        ]
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          30,
+          30,
+          30,
+          31
+        ],
+        2,
+        300
+      ],
+      "expect": 6
+    },
+    {
+      "op": "zone_cfg",
+      "id": 300,
+      "w": 1,
+      "h": 2,
+      "water": true,
+      "objects": [
+        {
+          "type": 5,
+          "orientation": 0,
+          "min": [
+            0,
+            16
+          ],
+          "max": [
+            16,
+            32
+          ],
+          "values": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "op": "zone_water",
+      "clear": true,
+      "cells": [
+        [
+          30,
+          31
+        ]
+      ]
+    },
+    {
+      "op": "zone_env",
+      "no_land": [
+        [
+          30,
+          31
+        ]
+      ],
+      "navigable": [
+        [
+          30,
+          29
+        ],
+        [
+          30,
+          30
+        ]
+      ]
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          30,
+          30,
+          30,
+          31
+        ],
+        2,
+        300
+      ],
+      "expect": 8
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "is_navigable"
+      },
+      "events": [
+        {
+          "event": "is_navigable",
+          "x": 30,
+          "z": 29
+        },
+        {
+          "event": "is_navigable",
+          "x": 30,
+          "z": 30
+        }
+      ]
+    },
+    {
+      "op": "zone_env",
+      "navigable": [
+        [
+          30,
+          30
+        ],
+        [
+          30,
+          28
+        ]
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          30,
+          30,
+          30,
+          31
+        ],
+        2,
+        300
+      ],
+      "expect": 5
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "is_navigable"
+      },
+      "events": [
+        {
+          "event": "is_navigable",
+          "x": 30,
+          "z": 29
+        },
+        {
+          "event": "is_navigable",
+          "x": 30,
+          "z": 30
+        }
+      ]
+    },
+    {
+      "op": "zone_water",
+      "clear": true,
+      "cells": [
+        [
+          30,
+          30
+        ]
+      ]
+    },
+    {
+      "op": "zone_env",
+      "no_land": [
+        [
+          30,
+          30
+        ]
+      ],
+      "navigable": [
+        [
+          30,
+          31
+        ],
+        [
+          30,
+          32
+        ]
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          30,
+          30,
+          30,
+          31
+        ],
+        0,
+        300
+      ],
+      "expect": 8
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "is_navigable"
+      },
+      "events": [
+        {
+          "event": "is_navigable",
+          "x": 30,
+          "z": 31
+        },
+        {
+          "event": "is_navigable",
+          "x": 30,
+          "z": 32
+        }
+      ]
+    },
+    {
+      "op": "zone_env",
+      "navigable": [
+        [
+          30,
+          31
+        ]
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "can_create_plopped_lot",
+      "args": [
+        [
+          30,
+          30,
+          30,
+          31
+        ],
+        0,
+        300
+      ],
+      "expect": 5
+    }
+  ]
+}

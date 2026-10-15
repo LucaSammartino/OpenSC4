@@ -432,9 +432,10 @@ The configuration builds its object array (lot-developer.md §17.1) from the lot
   every level, LOD 1 at medium and high, LOD 2 at high only, LOD 3 never (unless the object is the building).
 - A dropped object leaves no gap: the array holds only the kept objects, in property order.
 
-The other details of the record (fixed-point offsets, the tag, the generated serial number for configurations of
-version < 2 at `0x00B2166C`) are in lot-developer.md §17.1. The configuration's version is property `0x88EDC789`;
-every shipped configuration has version 2.
+The same reader builds the object lists of network lot configurations, always with d = 3 (`0x0060F80E`;
+city-detail.md §3.1). The other details of the record (fixed-point offsets, the tag, the generated serial number
+for configurations of version < 2 at `0x00B2166C`) are in lot-developer.md §17.1. The configuration's version is
+property `0x88EDC789`; every shipped configuration has version 2.
 
 **Shipped data** (`SimCity_1.dat` … `SimCity_5.dat`: 1908 lot configurations, all in group `0xA8FBD372`, all
 version 2; 73,832 object properties with at least 10 values). Count by type and LOD:

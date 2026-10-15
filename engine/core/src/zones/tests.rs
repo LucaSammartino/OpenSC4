@@ -268,3 +268,75 @@ fn is_rci_zone_table() {
         assert!(!is_rci_zone(t), "zone {t}");
     }
 }
+
+// ---- the plop test's helpers (tests 38, 39, 40; §8.4.1–§8.4.3) ---------------------------------
+
+/// Test 38: `Matches` (`0x00729EC0`).
+#[test]
+fn plop_mask_matches_test_38() {
+    assert!(plop_mask_matches(0, 0x1234_5678));
+    assert!(plop_mask_matches(0x1, 0x1));
+    assert!(plop_mask_matches(0x1, 0x11));
+    assert!(!plop_mask_matches(0x1, 0x2));
+    assert!(plop_mask_matches(0x10, 0));
+    assert!(!plop_mask_matches(0x10, 0x1));
+    assert!(plop_mask_matches(0x20, 0x5));
+    assert!(plop_mask_matches(0x100, 0x100));
+    assert!(!plop_mask_matches(0x100, 0));
+}
+
+/// Test 39: `RotateLotRect` with size (3, 2) and `GetNetworkObjectPlacement`.
+#[test]
+fn rotate_lot_rect_and_placement_test_39() {
+    let r = CellRect::new(0, 0, 0, 1);
+    assert_eq!(rotate_lot_rect(0, 3, 2, r), Some(CellRect::new(2, 0, 2, 1)));
+    assert_eq!(rotate_lot_rect(1, 3, 2, r), Some(CellRect::new(0, 2, 1, 2)));
+    assert_eq!(rotate_lot_rect(2, 3, 2, r), Some(CellRect::new(0, 0, 0, 1)));
+    assert_eq!(rotate_lot_rect(3, 3, 2, r), Some(CellRect::new(0, 0, 1, 0)));
+    assert_eq!(rotate_lot_rect(4, 3, 2, r), None);
+    let obj = LotObject {
+        kind: 7,
+        orientation: 0,
+        min_x: 0.0,
+        min_z: 16.0,
+        max_x: 16.0,
+        max_z: 32.0,
+        values: vec![0, 0x0001_0001, 0],
+    };
+    let at = |facing| {
+        let p = network_object_placement((3, 2), &obj, (40, 40), facing);
+        (p.x, p.z)
+    };
+    assert_eq!(at(0), (42, 40));
+    assert_eq!(at(1), (41, 42));
+    assert_eq!(at(2), (40, 41));
+    assert_eq!(at(3), (40, 40));
+    // The masks turn with the lot: q = (orientation + facing) mod 4 bytes.
+    let p = network_object_placement((3, 2), &obj, (40, 40), 1);
+    assert_eq!(p.mask_a, 0x0100_0100);
+    assert_eq!(p.net_type, 0);
+}
+
+/// Test 40's record geometry: W (type 5, min (0, 16) max (16, 32)) on a
+/// (1, 2) configuration at (30, 30) covers (30, 31) with facing 2 and (30, 30)
+/// with facing 0.
+#[test]
+fn constraint_record_rect_test_40() {
+    let w = LotObject {
+        kind: 5,
+        orientation: 0,
+        min_x: 0.0,
+        min_z: 16.0,
+        max_x: 16.0,
+        max_z: 32.0,
+        values: vec![],
+    };
+    assert_eq!(
+        constraint_record_rect((1, 2), &w, (30, 30), 2),
+        CellRect::new(30, 31, 30, 31)
+    );
+    assert_eq!(
+        constraint_record_rect((1, 2), &w, (30, 30), 0),
+        CellRect::new(30, 30, 30, 30)
+    );
+}
