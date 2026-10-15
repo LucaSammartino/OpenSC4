@@ -657,4 +657,6 @@ All of these have been applied to the specs named (M6 integration); the list sta
   would close this.
 - Q4: The `0x89D9B9EE` record written by the city and the View3D record are not specified; FreeCity4 does not
   replace their writers, but standalone mode needs both.
-- Q5: The unnamed classes `0xA9C741B3`, `0xC9B84E10`, `0xCA15ED6B` and `0xEA0A5ACF` (§3.2).
+- Q5: The unnamed classes `0xA9C741B3`, `0xC9B84E10`, `0xCA15ED6B` and `0xEA0A5ACF` (§3.2). *Partly answered*
+  (re-specs14a): `0xC9B84E10` is the terrain's 3D view, saved through a reference in the terrain's class record
+  (u16 1 and one byte, render only; terrain.md §13.2).

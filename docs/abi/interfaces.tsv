@@ -1548,10 +1548,10 @@ cISTETerrain	cSTETerrain	00ab3d18	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	
 cISTETerrain	cSTETerrain	00ab3d18	2	+0x8	00741f70	cSTETerrain::Release	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	3	+0xC	0074fea0	cSTETerrain::Init	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	4	+0x10	007435c0	cSTETerrain::Shutdown	0	0	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	5	+0x14	005b9d30	icf::cSCParticleSimulatorBase::IsInDelayedStop	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	5	+0x14	005b9d30	cSTETerrain::IsInitialized (folded getter, byte +0x0C)	0	0	al	high	replaces folded name icf::cSCParticleSimulatorBase::IsInDelayedStop; terrain.md §15.1
 cISTETerrain	cSTETerrain	00ab3d18	6	+0x18	0074c5c0	cSTETerrain::CellWidth	0	0	x87	high	
-cISTETerrain	cSTETerrain	00ab3d18	7	+0x1C	0060fb80	icf::cGZDrawContext::GetEngine	0	0	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	8	+0x20	004abad0	icf::cSC4CatalogItem::GetCost	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	7	+0x1C	0060fb80	cSTETerrain::GetCellCountX (folded getter, +0x28)	0	0	eax	high	replaces folded name icf::cGZDrawContext::GetEngine
+cISTETerrain	cSTETerrain	00ab3d18	8	+0x20	004abad0	cSTETerrain::GetCellCountZ (folded getter, +0x2C)	0	0	eax	high	replaces folded name icf::cSC4CatalogItem::GetCost
 cISTETerrain	cSTETerrain	00ab3d18	9	+0x24	0074c5d0	cSTETerrain::GetVertIndex	8	2	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	10	+0x28	0074c5e0	cSTETerrain::GetVertex	12	3	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	11	+0x2C	0074c610	cSTETerrain::LocationIsInBounds	8	2	eax-or-void	medium	
@@ -1577,15 +1577,15 @@ cISTETerrain	cSTETerrain	00ab3d18	30	+0x78	007449b0	cSTETerrain::GetWaterLevel	8
 cISTETerrain	cSTETerrain	00ab3d18	31	+0x7C	00744980	cSTETerrain::GetWaterLevel	4	1	x87	high	
 cISTETerrain	cSTETerrain	00ab3d18	32	+0x80	007444e0	cSTETerrain::GetLerpedWaterLevel	8	2	x87	high	
 cISTETerrain	cSTETerrain	00ab3d18	33	+0x84	00744ab0	cSTETerrain::GetWaterDepthAtVertex	8	2	x87	high	
-cISTETerrain	cSTETerrain	00ab3d18	34	+0x88	00743fa0	cSTETerrain::CellHasWater	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	35	+0x8C	00744030	cSTETerrain::CellHasLand	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	36	+0x90	00747680	cSTETerrain::IsLandVertex	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	37	+0x94	007476d0	cSTETerrain::IsWaterVertex	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	38	+0x98	00741b30	cSTETerrain::IsSeaVertex	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	34	+0x88	00743fa0	cSTETerrain::CellHasWater	8	2	al	high	bool in AL only; upper EAX not cleared on the out-of-bounds path
+cISTETerrain	cSTETerrain	00ab3d18	35	+0x8C	00744030	cSTETerrain::CellHasLand	8	2	al	high	bool in AL only
+cISTETerrain	cSTETerrain	00ab3d18	36	+0x90	00747680	cSTETerrain::IsLandVertex	8	2	al	high	bool in AL only
+cISTETerrain	cSTETerrain	00ab3d18	37	+0x94	007476d0	cSTETerrain::IsWaterVertex	8	2	al	high	bool in AL only
+cISTETerrain	cSTETerrain	00ab3d18	38	+0x98	00741b30	cSTETerrain::IsSeaVertex	8	2	al	high	bool in AL only
 cISTETerrain	cSTETerrain	00ab3d18	39	+0x9C	00740750	cSTETerrain::AreSeaVertices	4	1	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	40	+0xA0	00749540	cSTETerrain::DoPostCityInit	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	41	+0xA4	00749a00	cSTETerrain::SetTerrainType	4	1	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	42	+0xA8	0040cf10	cSC4SimGrid<T>::GetTractSize	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	42	+0xA8	0040cf10	cSTETerrain::GetTerrainType (folded getter, +0x18)	0	0	eax	high	replaces folded name cSC4SimGrid<T>::GetTractSize
 cISTETerrain	cSTETerrain	00ab3d18	43	+0xAC	0074a220	cSTETerrain::CreateFlatAreas	4	1	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	44	+0xB0	0074c0f0	cSTETerrain::CreateShoreCliffs	4	1	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	45	+0xB4	00743550	cSTETerrain::SetSeaLevel	4	1	eax-or-void	medium	
@@ -1594,13 +1594,13 @@ cISTETerrain	cSTETerrain	00ab3d18	47	+0xBC	0074c660	cSTETerrain::GetDefaultTerra
 cISTETerrain	cSTETerrain	00ab3d18	48	+0xC0	00746440	cSTETerrain::ChangeTerrainLevel	8	2	via-call	low	
 cISTETerrain	cSTETerrain	00ab3d18	49	+0xC4	00744f10	cSTETerrain::SetAltitude	16	4	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	50	+0xC8	00744e60	cSTETerrain::SetAltitudeAtVertex	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	51	+0xCC	00744f90	cSTETerrain::SetAltitude	12	3	x87|eax	low	
+cISTETerrain	cSTETerrain	00ab3d18	51	+0xCC	00744f90	cSTETerrain::SetAltitude(x,z,h)	12	3	void	high	no meaningful return (x87|eax in the table is a path artefact); terrain.md §6
 cISTETerrain	cSTETerrain	00ab3d18	52	+0xD0	00741f90	cSTETerrain::LockAltitude	8	2	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	53	+0xD4	00744b40	cSTETerrain::NumberOfWaterVertices	4	1	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	54	+0xD8	0074c6e0	cSC4WinRegionView::GetSelectedCity	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	54	+0xD8	0074c6e0	cSTETerrain::<getter +0xE4> (folded)	0	0	eax	high	render object; replaces folded name cSC4WinRegionView::GetSelectedCity
 cISTETerrain	cSTETerrain	00ab3d18	55	+0xDC	007448c0	cSTETerrain::GetSedimentValue	8	2	x87	high	
 cISTETerrain	cSTETerrain	00ab3d18	56	+0xE0	00747720	cSTETerrain::StartFlood	0	0	via-call	low	tail->007467f0
-cISTETerrain	cSTETerrain	00ab3d18	57	+0xE4	0074f0e0	cSTETerrain::ApplyBrush	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	57	+0xE4	0074f0e0	cSTETerrain::ApplyBrush(brushID, tBrushParameters*)	8	2	al	high	true if the brush exists; terrain.md §9.2
 cISTETerrain	cSTETerrain	00ab3d18	58	+0xE8	007415d0	cSTETerrain::GetBrushExemplarID	8	2	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	59	+0xEC	00747a30	cSTETerrain::BeginBrushScrub	8	2	via-call	low	
 cISTETerrain	cSTETerrain	00ab3d18	60	+0xF0	00747bb0	cSTETerrain::EndBrushScrub	8	2	via-call	low	
@@ -1611,7 +1611,7 @@ cISTETerrain	cSTETerrain	00ab3d18	64	+0x100	0074bad0	cSTETerrain::UpdateWaveProd
 cISTETerrain	cSTETerrain	00ab3d18	65	+0x104	00747510	cSTETerrain::IsGoodWaveProducerLocation	12	3	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	66	+0x108	00741810	cSTETerrain::GetView	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	67	+0x10C	00742930	cSTETerrain::DoLighting	4	1	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	68	+0x110	00749850	cSTETerrain::RedisplayTerrain	16	4	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	68	+0x110	00749850	cSTETerrain::RedisplayTerrain(bool terrain, bool water, int rect[4]*, uint32 data4)	16	4	void	high	posts 0x278E6003, 0x678E6E3A, 0x870BC918 (queued) only after DoPostCityInit; terrain.md §8.1
 cISTETerrain	cSTETerrain	00ab3d18	69	+0x114	00743460	cSTETerrain::RedisplayTerrain	20	5	via-call	low	
 cISTETerrain	cSTETerrain	00ab3d18	70	+0x118	00741c20	cSTETerrain::IsTriangulationFlipped	8	2	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	71	+0x11C	007418f0	cSTETerrain::HideTerrainCell	12	3	eax-or-void	medium	
@@ -1626,12 +1626,12 @@ cISTETerrain	cSTETerrain	00ab3d18	79	+0x13C	00749a70	cSTETerrain::StopAccumulati
 cISTETerrain	cSTETerrain	00ab3d18	80	+0x140	0074c6f0	cSTETerrain::IsAccumulatingTextureUpdates	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	81	+0x144	00742000	cSTETerrain::SetTerrainCellFlags	12	3	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	82	+0x148	00741770	cSTETerrain::GetTerrainCellFlags	8	2	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	83	+0x14C	00741740	icf::cGZGraphicSystem::IsPageFlippingEnabled	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	83	+0x14C	00741740	cSTETerrain::GetWaterSurfaceDisplayState (folded getter, byte +0xDD)	0	0	al	high	replaces folded name icf::cGZGraphicSystem::IsPageFlippingEnabled
 cISTETerrain	cSTETerrain	00ab3d18	84	+0x150	007434e0	cSTETerrain::SetWaterSurfaceDisplayState	4	1	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	85	+0x154	00741750	cSTETerrain::GetPlumbingInfoDisplayState	0	0	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	86	+0x158	00741ff0	cSTETerrain::SetPlumbingInfoDisplayState	4	1	eax-or-void	medium	
-cISTETerrain	cSTETerrain	00ab3d18	87	+0x15C	00743b40	cSTETerrain::BeginLongTerrainOperation	0	0	unknown	low	
-cISTETerrain	cSTETerrain	00ab3d18	88	+0x160	007443a0	cSTETerrain::EndLongTerrainOperation	0	0	unknown	low	
+cISTETerrain	cSTETerrain	00ab3d18	87	+0x15C	00743b40	cSTETerrain::BeginLongTerrainOperation	0	0	void	high	posts 0xEA3B0AF1 (queued); no nesting counter
+cISTETerrain	cSTETerrain	00ab3d18	88	+0x160	007443a0	cSTETerrain::EndLongTerrainOperation	0	0	void	high	posts 0x6A3B0AFD (queued)
 cISTETerrain	cSTETerrain	00ab3d18	89	+0x164	0074ed40	cSTETerrain::ReconcileEdgesWithNeighboringCities	12	3	eax-or-void	medium	
 cISTETerrain	cSTETerrain	00ab3d18	90	+0x168	00742150	cSTETerrain::SaveObliterated			forward	medium	indirect-jump dword ptr [edx + 0x184]
 cISTETerrain	cSTETerrain	00ab3d18	91	+0x16C	0074db90	cSTETerrain::~cSTETerrain	4	1	eax-or-void	medium	
@@ -2801,24 +2801,24 @@ cISC4NetworkTool	cSC4NetworkTool	00aa8748	1	+0x4	00695330	icf::cSC4AutomataContr
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	2	+0x8	00623270		0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	3	+0xC	006269c0	cSC4NetworkTool::Init	0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	4	+0x10	00626d30		0	0	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	5	+0x14	00626f90	cSC4NetworkTool::Reset	0	0	edx:eax?	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	5	+0x14	00626f90	cSC4NetworkTool::Reset	0	0	void	medium	re-specs14b: SDK Reset; called by cSC4NetworkToolUI::DoPlacement 0x00645370
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	6	+0x18	00623b20		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	7	+0x1C	00629210	cSC4NetworkTool::PlaceNetworkOccupants	32	8	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	8	+0x20	00624fd0	cSC4NetworkTool::PlaceNetworkOccupantById	20	5	via-call	low	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	9	+0x24	006248d0		16	4	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	7	+0x1C	00629210	cSC4NetworkTool::PlaceNetworkOccupants	32	8	al	high	re-specs14b: (x1,z1,x2,z2,mask,callback,real,type); sets +0x208=3 at 0x0062924A, back to 1 at 0x00629980; network-tools.md §3
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	8	+0x20	00624fd0	cSC4NetworkTool::PlaceNetworkOccupantById	20	5	void	high	re-specs14b: (x,z,piece,usable,type); forces +0x50=1 around slot 72; network-tools.md §4
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	9	+0x24	006248d0	cSC4NetworkTool::OccupantExists	16	4	al	medium	re-specs14b: SDK name; zones.md §8.8
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	10	+0x28	0062c900		20	5	unknown	low	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	11	+0x2C	0062c8c0		0	0	unknown	low	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	12	+0x30	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	13	+0x34	0062c8e0		0	0	unknown	low	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	14	+0x38	0062c8f0		0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	13	+0x34	0062c8e0	cSC4NetworkTool::ClearFailureReason	0	0	void	medium	re-specs14b: SDK name (SDK index 10)
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	14	+0x38	0062c8f0	cSC4NetworkTool::GetFailureState	0	0	eax	medium	re-specs14b: returns failure code +0x20C (0xF0000001..8, 0xF0000011..13)
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	15	+0x3C	0062ca40		4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	16	+0x40	00625580		0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	17	+0x44	00625f10		0	0	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	18	+0x48	0063af40	cSC4NetworkTool::DrawNetworkLine	16	4	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	19	+0x4C	0063bdc0	cSC4NetworkTool::PlaceAllSegments	16	4	eax-or-void	medium	indirect-jump dword ptr [edx*4 + 0x63bf18]
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	20	+0x50	00625640		0	0	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	21	+0x54	0062c8d0		4	1	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	22	+0x58	0062ca20		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	20	+0x50	00625640	cSC4NetworkTool::GetCostOfSolution	0	0	eax	high	re-specs14b: price only, never withdraws; network-tools.md §8.1
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	21	+0x54	0062c8d0	cSC4NetworkTool::EnablePreviewUpdate	4	1	void	medium	re-specs14b: byte +0x234 (default 1) gates the inserts in PlaceNetwork
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	22	+0x58	0062ca20	cSC4NetworkTool::SetAnchorPoints	4	1	void	medium	re-specs14b: SDK name (SDK index 19)
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	23	+0x5C	0062ca30		4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	24	+0x60	0062ca10	cSC4NetworkTool::SetValidStepCount	4	1	eax-or-void	medium	tail->00624bf0
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	25	+0x64	00407ab0	icf::cSC4Advice::GetPriority	0	0	eax-or-void	medium	
@@ -2849,7 +2849,7 @@ cISC4NetworkTool	cSC4NetworkTool	00aa8748	49	+0xC4	0062d450	cSC4NetworkTool::Que
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	50	+0xC8	0062a5c0	cSC4NetworkTool::DestroyOccupantsAndResolve	4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	51	+0xCC	0062cd30		4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	52	+0xD0	0062bf60	cSC4NetworkTool::GetFailureReasonString	8	2	eax-or-void	medium	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	53	+0xD4	0062c980	icf::cIGZWinProc::DoWinProcMessage	8	2	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	53	+0xD4	0062c980	cSC4NetworkTool::DoNetworkSpecificPlacement	8	2	al	high	re-specs14b: base stub returns false (ICF-folded); power-line override 0x00652980 returns true; PlaceNetwork 0x0063B8B3 returns true at once when it does
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	54	+0xD8	00624210	cSC4NetworkTool::CreateNetworkOccupant	16	4	via-call	low	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	55	+0xDC	006258c0	cSC4NetworkTool::InsertOccupantsForSolvedCells	12	3	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	56	+0xE0	00644b20	cSC4NetworkTool::CanTilesBeSupportedOnTerrain	4	1	eax-or-void	medium	
@@ -2870,7 +2870,7 @@ cISC4NetworkTool	cSC4NetworkTool	00aa8748	70	+0x118	00407990	_memset	0	0	unknown
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	71	+0x11C	00633250	cSC4NetworkTool::CreateCellInfosForCurrentPlacementTiles	4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	72	+0x120	006278a0	cSC4NetworkTool::InsertNetworkOccupant	12	3	via-call	low	indirect-jump dword ptr [edx*4 + 0x62836c]
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	73	+0x124	006444f0		4	1	x87	high	
-cISC4NetworkTool	cSC4NetworkTool	00aa8748	74	+0x128	0062c990		4	1	x87	high	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	74	+0x128	0062c990	cSC4NetworkTool::GetPlacementHeight	4	1	x87	high	re-specs14b: name is ours; base returns its float argument; underground 0x00648F20 returns arg - depth(+0x36C)
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	75	+0x12C	00407990	_memset	0	0	unknown	low	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	76	+0x130	006360c0	cSC4NetworkTool::InsertRangeConstraintsForCell	4	1	eax-or-void	medium	
 cISC4NetworkTool	cSC4NetworkTool	00aa8748	77	+0x134	00637b90		4	1	eax-or-void	medium	
@@ -2930,7 +2930,7 @@ cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	49	+0xC4	0062d450	cSC4Net
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	50	+0xC8	0062a5c0	cSC4NetworkTool::DestroyOccupantsAndResolve	4	1	eax-or-void	medium	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	51	+0xCC	00650560		4	1	eax-or-void	medium	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	52	+0xD0	0064f570	cSC4PowerLineTool::GetFailureReasonString	8	2	edx:eax?	low	tail->0062bf60
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	53	+0xD4	00652980	cSC4PowerLineTool::DoNetworkSpecificPlacement	8	2	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	53	+0xD4	00652980	cSC4PowerLineTool::DoNetworkSpecificPlacement	8	2	al	high	re-specs14b: always returns 1; network-tools.md §9
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	54	+0xD8	00624210	cSC4NetworkTool::CreateNetworkOccupant	16	4	via-call	low	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	55	+0xDC	006258c0	cSC4NetworkTool::InsertOccupantsForSolvedCells	12	3	eax-or-void	medium	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	56	+0xE0	00644b20	cSC4NetworkTool::CanTilesBeSupportedOnTerrain	4	1	eax-or-void	medium	
@@ -2958,8 +2958,11 @@ cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	77	+0x134	00637b90		4	1	e
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	78	+0x138	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	79	+0x13C	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	80	+0x140	00623ce0	cSC4NetworkTool::SetQuadTrianglesToDraw	8	2	via-call	low	
-cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	81	+0x144	0064fed0	cSC4PowerLineTool::CheckForReservedTiles	4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	81	+0x144	0064fed0	cSC4PowerLineTool::CheckForReservedTiles	4	1	void	medium	re-specs14b: sets 0xF0000011/12/13
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	82	+0x148	0064f2b0	cSC4PowerLineTool::SetTerrainHilight	4	1	eax-or-void	medium	
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	74	+0x128	00648f20	cSC4UndergroundNetworkTool::GetPlacementHeight	4	1	x87	high	re-specs14b: arg - [this+0x36C]; same entry in 0x00AAA5C0 and 0x00AAA950
+cISC4NetworkTool(Pipe)	cSC4PipeTool	00aa99a8	81	+0x144	00648f40	cSC4PipeTool::GetOccupantClass	0	0	eax	high	re-specs14b: name is ours; returns 0x49C05B9F; used by UpdateUndergroundOccupantTerrainHeights
+cISC4NetworkTool(Subway)	cSC4SubwayTool	00aaa5c0	81	+0x144	00653d90	cSC4SubwayTool::GetOccupantClass	0	0	eax	high	re-specs14b: name is ours; returns 0xCA16374F
 cISC4Demolition	cSC4Demolition	00a88004	0	+0x0	004664b0	cSC4Demolition::QueryInterface	8	2	eax-or-void	medium	
 cISC4Demolition	cSC4Demolition	00a88004	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
 cISC4Demolition	cSC4Demolition	00a88004	2	+0x8	00466950	cSC4Demolition::Release	0	0	eax-or-void	medium	
@@ -3981,11 +3984,11 @@ cISTESurfaceWater	cSTESurfaceWater	00ab3b00	5	+0x14	0073d200	cSTESurfaceWater::G
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	6	+0x18	0073d210	cSTESurfaceWater::GetWaterDepthForCell	8	2	x87	high	
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	7	+0x1C	0073cef0	cSTESurfaceWater::IsNavigable	20	5	via-call	low	
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	8	+0x20	0073ebf0	cSTESurfaceWater::IsNavigable	16	4	eax-or-void	medium	
-cISTESurfaceWater	cSTESurfaceWater	00ab3b00	9	+0x24	0068d1c0	cSC4AuraSimulator::GetTransientAuraGrid	0	0	eax-or-void	medium	
+cISTESurfaceWater	cSTESurfaceWater	00ab3b00	9	+0x24	0068d1c0	cSTESurfaceWater::GetBodyOfWaterMap (folded getter, +0x4C)	0	0	eax	high	uint16 SimGrid; replaces folded name cSC4AuraSimulator::GetTransientAuraGrid; terrain.md §10.2
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	10	+0x28	0073d4f0	cSTESurfaceWater::AltitudeAtWhichFloodingWillOccur	8	2	x87	high	
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	11	+0x2C	0073d7c0	cSTESurfaceWater::GetWaterVelocity	8	2	eax-or-void	medium	
-cISTESurfaceWater	cSTESurfaceWater	00ab3b00	12	+0x30	0073d7f0	cSTESurfaceWater::GetWaterType	8	2	eax-or-void	medium	
-cISTESurfaceWater	cSTESurfaceWater	00ab3b00	13	+0x34	0073cdb0	cSTESurfaceWater::HasDraftClearance	8	2	eax-or-void	medium	
+cISTESurfaceWater	cSTESurfaceWater	00ab3b00	12	+0x30	0073d7f0	cSTESurfaceWater::GetWaterType(x,z)	8	2	eax	high	0 dry, 2 above sea, 3 at or below sea
+cISTESurfaceWater	cSTESurfaceWater	00ab3b00	13	+0x34	0073cdb0	cSTESurfaceWater::HasDraftClearance(x,z)	8	2	al	medium	GetWaterDepthForCell > 5.0
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	14	+0x38	0073e970	cSTESurfaceWater::~cSTESurfaceWater	4	1	eax-or-void	medium	
 cISC4TrafficSource	cSC4Lot	00ab1914	0	+0x0	006c22b0		8	2	eax-or-void	medium	tail->006bf190
 cISC4TrafficSource	cSC4Lot	00ab1914	1	+0x4	006c22c0		0	0	eax-or-void	medium	tail->004664a0
@@ -4160,6 +4163,15 @@ cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	2	+0x8	0064ddc0		0	0	ea
 cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	3	+0xC	005ece90	cSC4PropOccupant::Write	4	1	eax-or-void	medium	
 cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	4	+0x10	005ef360	cSC4PropOccupant::Read	4	1	eax-or-void	medium	
 cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	5	+0x14	005ee0e0	cSC4PropOccupant::GetGZCLSID	0	0	eax-or-void	medium	
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	0	+0x0	005ecc10	cSC4PropOccupantVisualEffect::QueryInterface	8	2	al	high	re-specs14b: IIDs 0x09820792 and 0x2977AA49 -> object base
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	1	+0x4	005ecaf0	cSC4PropOccupantVisualEffect::AddRef	0	0	eax	low	re-specs14b
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	2	+0x8	005ecb00	cSC4PropOccupantVisualEffect::Release	0	0	eax	low	re-specs14b
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	3	+0xC	005f8400	cSC4PropOccupantVisualEffect::AsOccupant	0	0	eax	high	re-specs14b: this+0xC
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	4	+0x10	005fd7e0	cSC4PropOccupantVisualEffect::AsPropOccupant	0	0	eax	high	re-specs14b: this+4
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	5	+0x14	005ef7d0	cSC4PropOccupantVisualEffect::SetEffectType(uint32)	4	1	void	high	re-specs14b: overloads compiled in reverse SDK order
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	6	+0x18	005f0780	cSC4PropOccupantVisualEffect::SetEffectType(char const*)	4	1	void	high	re-specs14b: pothole name (network-manager.md §8.8, NM5)
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	7	+0x1C	005eda50	cSC4PropOccupantVisualEffect::StartEffect	4	1	al	high	re-specs14b: true iff an effect object exists
+cISC4PropOccupantVisualEffect	cSC4PropOccupantVisualEffect	00aa4ed8	8	+0x20	005edaa0	cSC4PropOccupantVisualEffect::StopEffect	4	1	al	high	re-specs14b: true iff an effect object exists and it was started
 cIGZSerializable(PropOccupantVisualEffect)	cSC4PropOccupantVisualEffect	00aa4dc4	0	+0x0	005f02f0		8	2	eax-or-void	medium	tail->005ecc10
 cIGZSerializable(PropOccupantVisualEffect)	cSC4PropOccupantVisualEffect	00aa4dc4	1	+0x4	005ed650		0	0	eax-or-void	medium	tail->005ecaf0
 cIGZSerializable(PropOccupantVisualEffect)	cSC4PropOccupantVisualEffect	00aa4dc4	2	+0x8	005ed660		0	0	eax-or-void	medium	tail->005ecb00
@@ -4885,3 +4897,21 @@ cIGZSerializable(NetworkManager)	cSC4NetworkManager	00aa7aa4	3	+0xC	006111e0	cSC
 cIGZSerializable(NetworkManager)	cSC4NetworkManager	00aa7aa4	4	+0x10	006124c0	cSC4NetworkManager::Read(cIGZIStream&)	4	1	al	high	NEW. sub-object +8. version must be 1; appends without clearing; network-manager.md 4.1; re-specs13c
 cIGZSerializable(NetworkManager)	cSC4NetworkManager	00aa7aa4	5	+0x14	00610530	cSC4NetworkManager::GetGZCLSID	0	0	eax	high	NEW. sub-object +8. returns 0xC990BD46; re-specs13c
 cSC4DisasterManagerRiot(riot interface)	cSC4DisasterManagerRiot	00a9e7c8	9	+0x24	0057da40	cSC4DisasterManagerRiot::LockNetworkOccupant(cISC4NetworkOccupant*)	4	1	void	high	NEW. name FreeCity4's; AddRef, AsOccupant().UnsetRemovalFlags(2), insert into the set once; reached through riot instance +0x24; network-manager.md 10; re-specs13c
+cISC4Nation	cSC4Nation	00a8ef00	0	+0x0	00497220	cSC4Nation::QueryInterface	8	2	al	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	1	+0x4	004f7ba0	AddRef (shared)	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	2	+0x8	004972c0	cSC4Nation::Release	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	3	+0xC	00498750	cSC4Nation::Init	0	0	al	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	4	+0x10	00497a80	cSC4Nation::Shutdown	0	0	al	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	5	+0x14	004976f0	cSC4Nation::GetRegionDirectory	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	6	+0x18	00497730	cSC4Nation::GetRegionCount	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	7	+0x1C	004ed900	cSC4Nation::GetActiveRegionIndex (folded getter, +0x20)	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	8	+0x20	00497770	cSC4Nation::GetActiveRegion	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	9	+0x24	004972f0	cSC4Nation::SetActiveRegion(index)	4	1	void	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	10	+0x28	00497820	cSC4Nation::GetIndexOfCurrentRegionSettingInPreferences	4	1	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	11	+0x2C	00497740	cSC4Nation::GetRegion(index)	4	1	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	12	+0x30	00497f60	cSC4Nation::DeleteRegion	4	1	al	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	13	+0x34	00497ee0	cSC4Nation::AddNewRegion	4	1	al	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	14	+0x38	00498cf0	cSC4Nation::ResetTutorialCities	0	0	void	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	15	+0x3C	00497700	cSC4Nation::GetRegionDownloadDirectory	0	0	eax	medium	nation.md §4
+cISC4Nation	cSC4Nation	00a8ef00	16	+0x40	00497570	cSC4Nation::GetEconomyModifier(demandID)	4	1	x87	high	nation.md §4; returns float in st0, value rounded to float
+cISC4Nation	cSC4Nation	00a8ef00	17	+0x44	00497800	cSC4Nation::~cSC4Nation (deleting)	4	1	eax	medium	nation.md §4
