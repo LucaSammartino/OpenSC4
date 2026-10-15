@@ -28,6 +28,9 @@
 #include "FC4PowerShadow.h"
 #include "FC4ResidentialShadow.h"
 #include "FC4NeighborsShadow.h"
+#include "FC4CommercialShadow.h"
+#include "FC4CivicShadow.h"
+#include "FC4ParksShadow.h"
 #include "FC4HarnessLogic.h"
 #include "FC4Perf.h"
 #include "FC4Turbo.h"
@@ -371,6 +374,12 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
     // the original warehouse's SimNewDay / SimNewYear deliveries.
     // The flammability shadow (opt-in, FC4FlammabilityShadow.h) polls after
     // the original flammability simulator's SimNewDay deliveries.
+    // The commercial shadow (opt-in, FC4CommercialShadow.h) wraps the
+    // original commercial simulator's SimIdle / SimNewDay deliveries.
+    // The civic shadow (opt-in, FC4CivicShadow.h) wraps the original civic
+    // building simulator's SimNewMonth deliveries.
+    // The parks shadow (opt-in, FC4ParksShadow.h) wraps the original park
+    // manager's SimNewMonth deliveries.
     bool finished = false;
     const uint64_t perfT0 = fc4::perf::On() ? fc4::perf::Now() : 0;  // tooling: perf_profile (FC4Perf.h)
     if (!fc4::BudgetShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
@@ -386,6 +395,9 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
         !fc4::NeighborsShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::DevelopmentShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::FlammabilityShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
+        !fc4::CommercialShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
+        !fc4::CivicShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
+        !fc4::ParksShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::HistoryShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) {
         finished = target->DoMessage(m);
     }

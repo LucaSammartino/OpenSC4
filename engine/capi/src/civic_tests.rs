@@ -703,9 +703,21 @@ fn cb12_09_record_round_trip_over_the_abi() {
         assert_eq!((list(d, 0), list(d, 1)), (vec![0x32], vec![0x32]));
         let mut keys = [0u32; 3];
         assert_eq!(fc4_civic_status_keys(d, keys.as_mut_ptr(), 3), 3);
-        assert_eq!(keys, [194, 1, 2], "hash order: 194 and 1 share bucket 1, newer first");
+        assert_eq!(
+            keys,
+            [1, 194, 2],
+            "CB6: file order, each at the head of bucket 1's chain"
+        );
         assert_eq!(status(d, 194), Some((1, 194, b"t194".to_vec())));
-        assert_eq!(write(d).bytes, o.bytes, "write → read → write");
+        let once = write(d).bytes;
+        assert_eq!(once.len(), o.bytes.len());
+        assert_ne!(once, o.bytes, "write → read → write reverses the chain");
+        let d2 = fc4_civic_create(&host(&g), SEED);
+        let mut i = In::new(&once);
+        let is = istream(&mut i);
+        assert!(fc4_civic_read(d2, &is));
+        assert_eq!(write(d2).bytes, o.bytes, "a second round trip restores the record");
+        fc4_civic_destroy(d2);
 
         // Version 5 is refused and changes nothing.
         let mut v5 = o.bytes.clone();
@@ -738,5 +750,20 @@ fn null_handles_are_harmless() {
             std::ptr::null_mut()
         ));
         fc4_civic_destroy(std::ptr::null_mut());
+    }
+}
+
+/// The save sweep (`save_sweep_tests.rs`): `rec` read into a fresh simulator
+/// and written again.
+pub(super) fn sweep_round_trip(rec: &[u8]) -> Result<Vec<u8>, String> {
+    let g = Game::new();
+    unsafe {
+        let c = fc4_civic_create(&host(&g), SEED);
+        if c.is_null() {
+            return Err("create failed".into());
+        }
+        let r = crate::save_sweep_tests::read_write(rec, |i| fc4_civic_read(c, i), |o| fc4_civic_write(c, o));
+        fc4_civic_destroy(c);
+        r
     }
 }

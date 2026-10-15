@@ -441,7 +441,7 @@ has 90 types and no families; the devglue shadow's `types=744/91` (manual-checks
 | profile capacities satisfied | property `0x27812834`: pairs (developer type, amount) → a map developer type → uint16. DG11: when the property **exists**, exactly one map is pushed into the profile's vector, **even when it has no values** (an empty map); only a missing property leaves the vector empty (`0x0069BBB7`, push `0x0069BC46`–`0x0069BC7E`). An odd count reads one value past the end for the last pair (`0x0069BC18`) *[quirk]*; *[choice]* ignore an unpaired last value (no shipped exemplar has one *[inferred]*) |
 | profile.capacity | the amount of that map for `GetDeveloperType(purpose, wealth)` (0 if absent) |
 | profile.categoryFlags | property `0xAA1DD396` (occupant groups, uint32 list): §4.7.1.1 |
-| further profile fields | `0x27812836` (bool), `0x499AFA38` (uint8, default 30), occupant size `0x27812810` (3 floats), plop cost `0x49CAC341` (int64), budget item cost (budget simulator); not used by growth *[inferred: field mapping to the SDK's BuildingProfile]*. DG4: the budget item cost (`+0x38`, int64) is the sum of the `cost` fields (`BudgetItem` `+0x10`, int64) of the items that budget simulator slot 50 `GetBudgetItemInfo(holder, vector&)` returns for the exemplar (`0x0069BE00`–`0x0069BE3F`), 0 when it returns none; e.g. two items costing 120 and 80 give 200. No reader of `+0x38` was found in the exe *[inferred]* |
+| further profile fields | `0x27812836` (bool), `0x499AFA38` (uint8, default 30), occupant size `0x27812810` (3 floats), plop cost `0x49CAC341` (int64), budget item cost (budget simulator); not used by growth *[inferred: field mapping to the SDK's BuildingProfile]*. DG4: the budget item cost (`+0x38`, int64) is the sum of the `cost` fields (`BudgetItem` `+0x10`, int64) of the items that budget simulator slot 50 `GetBudgetItemInfo(holder, vector&)` returns for the exemplar (`0x0069BE00`–`0x0069BE3F`), 0 when it returns none; e.g. two items costing 120 and 80 give 200. No reader of `+0x38` was found in the exe *[inferred]*. DG38: the holder passed is the building **exemplar's** property holder, the same one every other field of this table is read from: `AddBuildingData` (`0x0069D0A0`) loads the exemplar by its key and passes the result of its slot 7 to `LoadBuildingProperties` (`0x0069D0CF`–`0x0069D0FF`), not an occupant. The budget simulator pointer (`0x00B43D64`) is used without a null test (`0x0069BDCF`–`0x0069BE00`): *[choice]* a replacement with no budget simulator takes 0 |
 | families | property `0x27812870` (uint32 list): the type is appended to each family's member list |
 
 The profile that `GetBuildingProfile` inserts for an unknown type (§4.7.2) is all zero, including the
@@ -724,6 +724,15 @@ its `cISC4Occupant` sub-object at `+0x04`):
 6. `h := o.AsPropertyHolder()` (occupant slot 6); `p := h.GetProperty(0x27812810)` (occupant size). If `p` exists:
    `occ.SetBoundingBox((0, 0, 0), size)`, where `size` is the property's three float32 values (variant slot 111,
    the raw value pointer; no type or count check). Release `ex`.
+   *[compat]* (DG32) Variant slot 111 (`0x0060CE80`) returns the variant's value field (`+0x04`) whatever its type,
+   and the loader hands it to `SetBoundingBox` as the address of three floats (`0x00698582`–`0x00698592`). So:
+   a Float32 array of 3 or more values gives its first three; a Float32 array of 1 or 2 values gives them and
+   then reads past the end of the array's heap block (the missing values are whatever follows it, not 0); a
+   scalar (count 0) gives its value bits used as an address, and an Empty value a null address (both a crash or
+   garbage); a Uint32 or Sint32 array gives its bits as floats (16 becomes about 2.2e−44), a narrower array is
+   over-read and a 64-bit array gives the halves of its first value. Every one of the 743 shipped building
+   exemplars has `0x27812810` as a Float32 array of 3 (own or inherited), so none of these cases is reachable with
+   shipped data. *[choice]* A replacement may take missing values as 0 and convert other numeric types.
 7. Release `x` if it is not null; return true.
 
 So the property lookup in step 6 goes through the occupant's own holder, which falls back to the default exemplar set
@@ -784,6 +793,30 @@ building key map (§4.7.1.2). No properties are read at that time. Slots 21/22 a
    `occ.SetMaxHeight(value)` (slot 7). Release `ex`. **True.**
 5. Every exit releases `x` if it is not null.
 
+Edge cases of slots 26 and 29 *[compat]*:
+
+- (DG33) The max-height read is the converting Float32 getter (`0x005FD4F0` → variant slot 37 `0x00917852`), and
+  `SetMaxHeight` is called only when it returns true (`0x00698397`). A property with **no values** (an array of
+  count 0, or an Empty value) takes the text round trip of data-formats §5.1: the text `0`, parsed as 0.0, and the
+  getter succeeds. So the max height is **set to 0.0**. A missing property leaves the constructor's value. Shipped
+  data: 46 of the 50 foundation exemplars have no `0x88FCC3E3`, 4 have one Float32 value.
+- (DG34) Neither slot tests the occupant: the first instruction calls `occ.AsOccupant()` through it
+  (`0x006982C7`, `0x006983D0`), so a null occupant **crashes** the original. *[choice]* A replacement returns false.
+- (DG37) Step 4's `x.SetDefaultExemplar(ex)` (and the wall's) is called without testing `x` (`0x0069836A`–`0x00698375`;
+  wall `0x00698452`–`0x0069845D`; building loader `0x0069853A`–`0x00698545`), so an occupant that does not answer
+  QI `0x0AC2B5F7` **crashes** the original once its type is found and its exemplar loads. It cannot happen with
+  the game's classes: buildings, foundations and retaining walls all pass unknown IIDs to the `cSC4Occupant` base
+  (`0x005E89C0`) and on to the property-holder base, which answers it (§4.9.1). *[choice]* A replacement may skip
+  the call and go on as if the exemplar had been set (FreeCity4 returns false from the holder call and the loader
+  still returns true, with the constructor's empty box).
+- (DG35) The interface the wall slots receive is `cISC4LotRetainingWallOccupant`, **IID `0x295D1162`**: the wall
+  occupant's `QueryInterface` (`0x005E28C0`) answers it with the object's primary interface (`+0x00`, vtable
+  `0x00AA3080`) and passes everything else to the `cSC4Occupant` base (`+0x04`, vtable `0x00AA2FF8`, whose slot 0
+  `0x005E29A0` adjusts back to `0x005E28C0`). The game reaches a wall from an occupant the same way
+  (`AddRetainingWallModels` `0x005E3766`, `UpdateRetainingWalls` `0x005E385A`). Slot 11 of `0x00AA3080`
+  (`+0x2C`, `0x0080BC00`, pop 0, EAX) returns the wall type at object `+0x38`; the occupant type is `0x895D1169`
+  (constructor `0x005E2F40`).
+
 **`LoadLotRetainingWallProperties(occ, type)`** (slot 29, `0x006983C0`, pop 8, AL): the same steps 1–3 with the
 wall key map and `occ.GetRetainingWallType()` (slot 11) as the fallback; then `x.SetDefaultExemplar(ex)`, release
 `ex`, **true**. No property is read.
@@ -820,6 +853,14 @@ Foundation occupant (type `0x68FD0C69`, IID `0xC8FCE101`) fields used here: foun
 `+0x3C` (float), size `+0x4C`…`+0x54`, usage `+0x58` (int8; slot 9 sign-extends), orientation `+0x59` (int8).
 *[choice]* A replacement may create the occupant through GZCOM (then without the extra AddRef, §4.9.1), or forward the
 three slots to an original BDS kept alive for the purpose; it must not return false for valid input.
+
+(DG36) GZCOM class **`0x49C05C8F`** is the foundation occupant (`GetGZCLSID` `0x005D6130`; registered at
+`0x004607F7` with factory `0x005D64C0`). The factory takes a block from the same pool as slot 23 (`0x00B0A830`), runs
+the same constructor (`0x005D6440`, count 0) and returns the `cISC4Occupant` sub-object (`+0x04`) without an AddRef.
+The director's `GetClassObject` (`0x0090DFAC`) then calls `QueryInterface(iid)` on it (`0x0090DFFC`–`0x0090E00B`),
+which AddRefs; when that QI fails it AddRefs and Releases, destroying the object, and returns false. So, exactly
+as for buildings (§4.9.1), **`CreateInstance(0x49C05C8F, iid)` returns with the caller's reference already counted
+(1)**, and a creator must not AddRef it again.
 
 ### 4.10 `DoBuildingChanged(lot, wealth, built)` (`0x0069CA80`)
 

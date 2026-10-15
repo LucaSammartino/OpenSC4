@@ -113,7 +113,7 @@ and all with flags **2** (enabled only once the city is established, simulator.m
 
 The month and one-shot registrations still count for foundations §13 (agent order): the commercial simulator is
 one of the month-level agents even though it does nothing there (QUESTIONS AO1: its AddAgent name is
-`cSC4CommercialSimulator`).
+`cSC4CommercialSimulator`; foundations §13.4 ranks it by that name, CM1).
 
 It subscribes on the message server to:
 
