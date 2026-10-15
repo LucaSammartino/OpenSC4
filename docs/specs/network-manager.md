@@ -398,7 +398,8 @@ So removing one cell of an intersection re-inserts a plain piece built from the 
 
 ### 7.6 Terrain changes
 
-**`0x278E6003`** (data1, data2 = packed cells, data4 = kind; building-development.md §4.11, landfill.md §3.2):
+**`0x278E6003`** (data1, data2 = packed cells, data4 = kind; building-development.md §4.11, landfill.md §3.2; the
+kinds and their senders are listed in terrain.md §8.2):
 
 1. `x1 := (data1 >> 16) − 1`, `z1 := (data2 >> 16) − 1`, `x2 := data1 & 0xFFFF`, `z2 := data2 & 0xFFFF`. Clamp
    `x1, z1 ≥ 0`, `x2 ≤ X − 1`, `z2 ≤ Z − 1`.
@@ -953,8 +954,10 @@ The tools, models, remap tables and retrofit are presentation or legacy. A FreeC
   bridge, tunnel and prebuilt `Init`s (`0x0061CB50`, `0x00604BF0`, `0x006471C0`, `0x0061DB00`) never insert. So
   `managed` comes only from component 53, once per piece.
 - **NM3.** Meanings of flags `0x40000`, `0x80000`, `0x40000000`, `0x80000000` and of terrain kinds 3, 4 and 6
-  (§7.6). Logging `data4` of `0x278E6003` while using each terraforming brush would settle the kinds. Leads
-  (network-tools.md §6.2, §10):
+  (§7.6). *Partly answered* (re-specs14a): the kinds are settled in terrain.md §8.2 (3 = disasters and water
+  changes, 4 = the network height solver's own grading, 5 = levelling, 6 = the tunnel cut); `0x40000` is the bridge
+  flag *[inferred from use]*. The other three flags stay open.
+  Leads for the open flags (network-tools.md §6.2, §10):
   - `0x40000000` is set with `0x8000000` when the tool adds support structures (elevated pieces) *[inferred]*;
   - `0x80000` marks a tunnel portal: `DestroyOccupantsAndResolve` QIs such a piece to the tunnel occupant
     (`0x8A4BD52B`) to bring in the other portal *[inferred]*.
