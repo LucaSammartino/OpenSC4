@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "name": "disaster_layer_and_locations",
+  "spec": ["disasters 2.1", "disasters 2.3", "disasters 2.6", "disasters 3"],
+  "description": "Init creates the seven managers and inits them in ascending type order; Shutdown removes them. Locations: the most recent one wins (instance 0 = any), an occupant's location follows the occupant while it is in the occupant manager and falls back to the stored cell once it has gone, the location holds a reference to its occupant, GoToNextDisaster walks the list from the first entry. DisasterHasBegun and DisasterHasEnded nest; an end without a begin does nothing.",
+  "steps": [
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_expect", "state": {"initialised": true, "managers": ["0x42963812", "0x4A1332E8", "0x621CDA33", "0x6A7B4397", "0xC4C90997", "0xCA380B06", "0xEBFB0404"]}},
+    {"op": "dis_call", "method": "has_manager", "args": ["fire"], "expect": true},
+    {"op": "dis_call", "method": "has_manager", "args": ["0x6A6D0EE7"], "expect": false},
+
+    {"op": "dis_occupant", "occupant": "0x10", "cell": [7, 8]},
+    {"op": "dis_call", "method": "register_location", "args": [9, 1, 2, 0, 3, false]},
+    {"op": "dis_call", "method": "register_location", "args": [9, 0, 0, "0x10", 3, false]},
+    {"op": "dis_call", "method": "register_location", "args": [4, 30, 31, 0, 2, false]},
+    {"op": "dis_call", "method": "most_recent_location", "args": [0], "expect": [30, 31]},
+    {"op": "dis_call", "method": "most_recent_location", "args": [9], "expect": [7, 8]},
+    {"op": "dis_occupant", "occupant": "0x10", "in_manager": false},
+    {"op": "dis_call", "method": "most_recent_location", "args": [9], "expect": [0, 0], "note": "the stored cell once the occupant has gone"},
+    {"op": "dis_call", "method": "most_recent_location", "args": [5], "expect": null},
+    {"op": "dis_expect_refs", "refs": {"0x10": 1}},
+    {"op": "dis_clear_events"},
+    {"op": "dis_call", "method": "go_to_next_disaster"},
+    {"op": "dis_call", "method": "go_to_next_disaster"},
+    {"op": "dis_expect_events", "filter": {"event": "go_to"}, "events": [
+      {"event": "go_to", "x": 1, "z": 2, "zoom": 3},
+      {"event": "go_to", "x": 0, "z": 0, "zoom": 3}
+    ]},
+    {"op": "dis_call", "method": "unregister_location_by_occupant", "args": [9, "0x10"]},
+    {"op": "dis_expect_refs", "refs": {"0x10": 0}},
+    {"op": "dis_call", "method": "location_count", "expect": 2},
+    {"op": "dis_call", "method": "unregister_locations", "args": [9]},
+    {"op": "dis_call", "method": "location_count", "expect": 1},
+    {"op": "dis_env", "follow": true},
+    {"op": "dis_call", "method": "register_location", "args": [4, 5, 6, 0, 1, true]},
+    {"op": "dis_expect_event_count", "filter": {"event": "go_to"}, "count": 1, "note": "focus with follow on: GoToNextDisaster"},
+
+    {"op": "dis_clear_events"},
+    {"op": "dis_call", "method": "disaster_has_ended"},
+    {"op": "dis_expect_events", "events": []},
+    {"op": "dis_call", "method": "disaster_has_begun", "args": [0]},
+    {"op": "dis_call", "method": "disaster_has_begun", "args": [0]},
+    {"op": "dis_expect", "state": {"ongoing": 2, "emergency": 1, "save_disabled": 1, "assessing": true}},
+    {"op": "dis_call", "method": "disaster_has_ended"},
+    {"op": "dis_expect", "state": {"ongoing": 1, "emergency": 1}},
+    {"op": "dis_call", "method": "disaster_has_ended"},
+    {"op": "dis_expect", "state": {"ongoing": 0, "emergency": 0, "save_disabled": 0, "assessing": false}},
+
+    {"op": "dis_shutdown", "expect": true},
+    {"op": "dis_call", "method": "has_manager", "args": ["fire"], "expect": false},
+    {"op": "dis_expect", "state": {"initialised": false, "managers": []}}
+  ]
+}

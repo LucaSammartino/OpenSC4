@@ -591,7 +591,6 @@ vectors `nb18_*`). The core's current answer is in brackets.
 - Lane choices worth knowing: the proposal generator is per simulator, seeded `derive_seed(session, 0xC990C0A4)`
   (the original's is process-wide and clock-seeded); save reads are capped at 65,536 zones.
 
-
 ## From the exemplar reader (filed by the coordinator from the lane's report, 2026-10-14; merged)
 
 About `docs/specs/data-formats.md` §4, §5 and the §11 exemplar rows (`engine/formats/src/exemplar.rs`). The install
@@ -4326,9 +4325,20 @@ Open points from network-manager.md §15. The current answer is in brackets; eac
   the component 53 counts would settle it]~~ **ANSWERED 2026-10-15 (re-specs14b):** no. Loading posts no Insert. Since
   the base occupant `Read` (`0x005E8D60`) sets bit 1 of the state byte, the base `Init` (`0x005E8C90`) posts no
   Create either. The network occupant `Init`s never insert. MATCHES. network-manager.md §15.
-- **NM3:** meanings of network flags `0x40000`, `0x80000`, `0x40000000` and `0x80000000`, and of the terrain kinds 3,
+- **NM3:** meanings of network flags `0x40000`, `0x80000`, `0x40000000` and `0x80000000`, ~~and of the terrain kinds 3,
   4 and 6 in the network manager's terrain handler. [unknown; logging `data4` of `0x278E6003` for each terraforming
-  brush settles the kinds]
+  brush settles the kinds]~~ **PARTLY ANSWERED 2026-10-15 (re-specs14a):** the kinds are settled from every call
+  site of `RedisplayTerrain` (terrain.md §8.2): 0 internal (sea level, flat areas, shore cliffs, texture-only),
+  1 terraforming in god mode, `ChangeTerrainLevel` and the edge reconciliation, 2 terraforming in mayor mode and
+  the `ApplyTerrainBrush` script command,
+  3 disasters and water (earthquake, pipe-burst sinkhole, effect brushes such as the volcano, lava solidification,
+  the surface water's animation, and the `tBrushParameters` default), 4 the network height solver (road and rail
+  grading, `0x00644530`), 5 levelling (demolition `ModifyTerrainHeight`, lot developer, landfill), 6 the tunnel cut
+  (`cSC4NetworkTool::InsertTunnelPiece`). Flag `0x40000` is the **bridge** flag *[inferred from use]*: the surface
+  water's `IsNavigable` reads a deck height from a piece with that flag and requires 20 m of clearance over the
+  water, and its `0x89D3E9F3` handler tests it with "no adjacent piece" (terrain.md §10.3–§10.4). Still open: `0x80000`,
+  `0x40000000`, `0x80000000` (a network-tool spec settles them; `0x80000` is the piece kept by a tunnel cut,
+  *[inferred]* a tunnel portal).
 - **NM4:** the exact visited and rejected set tests of the avenue flood in `UpdateAvenueStyle`. [a cell is visited
   once; styling an avenue loop through an intersection and logging the styled cells settles it]
 - ~~**NM5:** the effect-prop slots 6, 7 and 8 used for potholes. [set the effect name, start, stop; the prop occupant
@@ -4401,3 +4411,53 @@ current answer is in brackets.
 - **TS66:** §4.15 draws: the pothole and accident draws and the strategy draws (property `0x4A611773`) cannot be compared
   because the original's generator state is not readable. Is there a readable generator, or a deterministic seed path?
   [not compared]
+
+## From the terrain and nation specs (re-specs14a lane, 2026-10-15)
+
+Open points from terrain.md §17. The current answer is in brackets; each entry says what would settle it.
+
+- **TR1:** the exact operations of brush component kinds 2, 3, 5, 6 and 8–10 (smoothing, levelling, erosion, lake,
+  rain, spring). [summarised only; only the god-mode terraforming tool uses them. A trace of `0x00745DE0` and
+  `0x00745BA0` settles 2 and 5]
+- **TR2:** the brush values of the `volcano_control` effect (level, strength and radius ranges, repetitions per
+  update). [effect brushes use `data4 = 3` and redisplay on the last repetition; the effects manager spec, INVENTORY
+  rank 7, settles the values]
+- **TR3:** `GetLerpedWaterLevel` (terrain slot 32) and `AltitudeAtWhichFloodingWillOccur` (surface water slot 10)
+  are from pseudocode only. [bilinear over the four corners; maximum over wet neighbours. Check the bytes if a
+  simulation consumer appears]
+
+## From the disaster layer core (filed by the coordinator from the `cores13` lane's report, 2026-10-15; merged `333ecde`)
+
+cores13 implemented disasters.md §2-§14 as a Rust core (`engine/core/src/disasters/`), a C ABI (`fc4_disasters`,
+ABI 57) and conformance vectors (`ds18_*`, `ds00_*`). Q4 (the riot's removal lock) is answered by network-manager.md
+§10 and implemented. There is no plugin glue yet, so none of these readings has been checked in game. The lane's own
+numbers (its Q6-Q25, continuing disasters.md §17) are given in parentheses; the current choice is in brackets.
+
+- **DS1:** (Q6) the fire generator's class and seed are unspecified. [the core takes them from the host generator]
+- **DS2:** (Q7) which draw method (raw, u32, double, range, gaussian) does each random use? [the spec text as far as it
+  goes]
+- **DS3:** (Q8) is the fire ID drawn once per IgniteCell, also when the cell does not ignite?
+- **DS4:** (Q9) are timer seconds truncated or rounded?
+- **DS5:** (Q10) where does GoToNextDisaster's cursor start?
+- **DS6:** (Q11) the effectiveness with no timers, or with an overall total of zero. [0]
+- **DS7:** (Q12) what is the dispatch key's data2, and does any message create an entry?
+- **DS8:** (Q13) instance Shutdown: does the instance stay in its manager's list, with no DisasterHasEnded sent? [yes,
+  it stays and nothing is sent]
+- **DS9:** (Q14) D3-D5 property arrays of other lengths. [the D4 index is clamped]
+- **DS10:** (Q15) which fires count for ExtinguishCell and GetFireCountInCellRect?
+- **DS11:** (Q16) riot defaults when the exemplar is missing (max riots, max leaders, zoom). [no leaders-spawned
+  default]
+- **DS12:** (Q17) what does message `0xEA400622` mean?
+- **DS13:** (Q18) the exact spiral order of the cell search.
+- **DS14:** (Q19) does the riot leave its manager right after phase 3?
+- **DS15:** (Q20) the tuning defaults of the short forms (earthquake, pipe burst, volcano, effect).
+- **DS16:** (Q21) the earthquake's fault line geometry.
+- **DS17:** (Q22) the earthquake's transition from rumble to deformation.
+- **DS18:** (Q23) the sinkhole brush parameters.
+- **DS19:** (Q24) when is the pipe-burst occupant inserted and removed?
+- **DS20:** (Q25) the volcano: the timing of states 3 to 5, its end request, and state 7.
+- **DS21:** is the toast list processed only when Update runs? [yes]
+- **DS22:** the contents of the special-building record.
+- **DS23:** the network default cost. [taken from the host]
+- **DS24:** the order in which the riot releases its removal locks. [insertion order, a choice the spec does not
+  make]

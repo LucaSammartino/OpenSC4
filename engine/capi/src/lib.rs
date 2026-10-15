@@ -785,6 +785,7 @@ pub mod commercial;
 pub mod crime;
 pub mod demand;
 pub mod development;
+pub mod disasters;
 pub mod flammability;
 pub mod flammability_shadow;
 pub mod flora;
@@ -846,6 +847,9 @@ mod demand_tests;
 
 #[cfg(test)]
 mod development_tests;
+
+#[cfg(test)]
+mod disasters_tests;
 
 #[cfg(test)]
 mod flora_tests;
