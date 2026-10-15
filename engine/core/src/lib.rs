@@ -23,6 +23,7 @@
 pub mod aura;
 pub mod budget;
 pub mod calibration;
+pub mod city_detail;
 pub mod civic;
 pub mod clock24;
 pub mod commercial;

@@ -773,6 +773,7 @@ pub unsafe extern "C" fn fc4_sim_get_agent_info(
 pub mod aura;
 pub mod aura_shadow;
 pub mod budget;
+pub mod city_detail;
 pub mod civic;
 pub mod clock24;
 pub mod commercial;
@@ -805,6 +806,7 @@ pub mod props;
 pub mod protection;
 pub mod residential;
 pub mod residential_shadow;
+pub mod sinks;
 pub mod stream;
 pub mod traffic;
 pub mod tract_developer;
@@ -820,6 +822,9 @@ mod aura_tests;
 
 #[cfg(test)]
 mod budget_tests;
+
+#[cfg(test)]
+mod city_detail_tests;
 
 #[cfg(test)]
 mod civic_tests;

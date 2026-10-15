@@ -11,6 +11,7 @@
 
 pub(crate) mod aura;
 pub(crate) mod budget;
+pub(crate) mod city_detail;
 pub(crate) mod civic;
 pub(crate) mod clock24;
 pub(crate) mod commercial;
