@@ -99,6 +99,8 @@ container must release each element once.
 | `cISC4PropManager::GetLotProps` (24) | `ilist<cISC4Occupant*>` | A | yes | appends through occupant manager slot 40 (one reference each), then erases (release, free node with A) every element outside the lot's world rectangle, over the **whole** list, including elements present before the call | `0x004A3240`; caller `0x006C9780` |
 | `cISC4LotConfigurationManager::GetObjectIDArray` (27) | `std::vector<uint32_t>` | B | **no** | clears first (end = begin), then appends the object's IDs with families expanded in hash order | `0x0048BA10`; caller `0x006C6D70` |
 | `cISC4CrimeSimulator::GetCrimeIncidentArray` | `std::vector<tCrimeEvent>`, 28-byte elements | B | **no** | the game's caller `0x00553370`; the original's `0x006A1960` grows the vector's buffer with B (re-answers2 CQ1) | `0x006A1960` |
+| `cISC4AirportDeveloper::GetAllPortLots` / `cISC4SeaportDeveloper::GetAllPortLots` (8; port sub-object slot 8) | `std::vector<cISC4Lot*>` (the SDK says a vector of lots) | B | **no** | Does not clear; appends every port's lot (resolving it from the lot manager first if needed), **one AddRef each**: the caller releases them. Growth through the shared vector insert `0x0051CA60` (B allocate, B free of the old buffer) | `0x0068B000` → `0x006EA2F0` (insert `0x006EA38A`) |
+| `cISC4PropRequester::SelectProp` (6) | `std::vector<uint32_t> const&` (input: the candidate prop IDs) | none used (B by declaration) | layout only | the game calls a requester that a plugin may implement. Read-only: the requester reads `{begin, end}` and returns one ID; it must not free or grow it. STLport layout `{begin, end, capacity_end}` | prop developer `0x006F1CB0` (the wealth requester's own `SelectProp`); callers in the block update (prop-developer.md §4.3) |
 
 The list in slots 25 and 28–30 holds `cISC4NeighborDeal` references, not `cISC4NeighborConnection`.
 
@@ -505,6 +507,28 @@ Read from the exe by the `re-specs9` lane (2026-10-14); not yet confirmed in gam
 - The civic hash tables, the history warehouse's map and lists, and the clock's string buffer use the STL node
   allocator (**B**, `0x0090CF54`).
 - The clock's messages come from `operator new` (0x2C bytes each).
+
+## City components from re-specs10 (city situation, demolition, dispatch, ports, prop developer, city detail)
+
+Read from the exe by the `re-specs10` lane (2026-10-14); not yet confirmed in game.
+- Component objects come from the global heap (**C**, `0x005E55E0`) and are freed with `0x005E5620`. Sizes: city
+  situation manager 0xB00 (factory `0x005148C0`), demolition 0x34 (`0x00466E40`), dispatch manager 0x4C
+  (`0x0046A7B0`), airport developer 0x64 (`0x0068B520`), seaport developer 0x7C (`0x007019F0`), prop developer 0xA70
+  (`0x006F3600`), wealth prop requester 0xC (`0x006F1500`; the prop developer's `Init` also creates one at
+  `0x006F1FC3`), city detail manager 0x10 (`0x0045D420`).
+- Port developers: each port lot (`cPortLot`, 0x28 bytes, `0x006EA10F`, `0x006EAAEF` in `Read`), port type
+  (`cPortTypeConfig`, 0x30, `0x006EA79E`) and growth rule (0x20, `0x006EA517`) comes from **C**. The port lot list
+  uses **B** (0xC-byte nodes, `0x006E9CB5`, `0x006EAB74`); the port type vector and the seaport's sea-access byte
+  vector are default-allocator vectors (**B** by the rule of thumb). Nothing crosses except `GetAllPortLots`.
+- Dispatch manager: the dispatch list (`std::list<DispatchInfo>`, 0x34-byte nodes) and both vectors use **B**.
+- Prop developer: the requester and night vectors, the four prop lists (0xC-byte nodes), the trigger hash map
+  (100 buckets) and its per-trigger lists, and some working lists with 0x18-byte nodes all use **B** (28 call
+  sites of `0x0090CF54` in `0x006F0D00`-`0x006F5400`, none of `0x005E55E0` apart from the two objects). Nothing
+  crosses an interface except the `SelectProp` input vector (above).
+- City detail manager: the temporary `hash_set<uint32_t>` (100 buckets) of `Init` uses **B** (`0x0045D523`,
+  `0x0045D57B`); nothing crosses.
+- Demolition: `DemolishLots` and `DemolishOccupant` crossings are already in section (1); its internal sets use
+  **B**.
 
 ## Unresolved
 

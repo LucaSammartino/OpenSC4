@@ -69,7 +69,7 @@ Migration path (to all-Rust, or any other rewrite) built in from day one:
 
 ## Roadmap
 
-Current status: [README Progress](../README.md#progress).
+Current status: [PROGRESS.md](PROGRESS.md).
 
 | Milestone | Scope | Exit criteria |
 |---|---|---|
