@@ -218,7 +218,9 @@ pub trait OccupantHost {
     fn release(&self, occ: u64);
 
     // ---- the occupant (`cISC4Occupant`) ----
-    /// Slot 3 `Init`: the base posts Create on the first call (§5.6).
+    /// Slot 3 `Init`: the base posts Create on the first call, unless bit 1
+    /// of `+0x2E` is set (a loaded occupant, set by its own `Read`): then it
+    /// calls occupant slot 17 (0, 0) instead (§5.6, §13).
     fn init(&self, occ: u64);
     /// Slot 4 `Shutdown`: the base posts Destroy when initialised (§5.6).
     fn shutdown(&self, occ: u64);

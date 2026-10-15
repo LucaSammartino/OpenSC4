@@ -28,6 +28,9 @@ struct Occ {
     /// The stored manager box (`None` = the 0xFF "no box" mark).
     om: Option<CellBox>,
     initialized: bool,
+    /// Bit 1 of `+0x2E` (set by the occupant's own `Read`, §13): the base
+    /// `Init` calls slot 17 instead of posting Create (§5.6).
+    loaded: bool,
     /// `+0x30` is set: Move is sent synchronously.
     sync: bool,
 }
@@ -51,6 +54,8 @@ struct World {
     /// Filters: token → occupants excluded.
     filters: RefCell<BTreeMap<u64, BTreeSet<u64>>>,
     depth: Cell<i32>,
+    /// Occupants whose base `Init` called slot 17 (loaded ones).
+    slot17: RefCell<Vec<u64>>,
     /// "lock" / "unlock" when tracing.
     trace: RefCell<Vec<String>>,
     tracing: Cell<bool>,
@@ -133,7 +138,11 @@ impl OccupantHost for World {
             return;
         }
         self.with(occ, |o| o.initialized = true);
-        self.post(occ, msg::CREATE, 0, false);
+        if self.get(occ).loaded {
+            self.slot17.borrow_mut().push(occ);
+        } else {
+            self.post(occ, msg::CREATE, 0, false);
+        }
     }
     fn shutdown(&self, occ: u64) {
         if self.get(occ).initialized {
@@ -806,13 +815,19 @@ fn om18_19_save_round_trip() {
     let mut res = Resolver(entries, w.clone());
     assert!(!m4.read(&mut ByteReader::with_resolver(&bytes[..bytes.len() - 4], &mut res)));
     assert_eq!([w.refs(1), w.refs(2)], [2, 2]);
-    // Init after the load initialises the loaded occupants once each.
+    // Init after the load initialises the loaded occupants once each. Their
+    // own Read set bit 1 of +0x2E, so the base Init calls slot 17 and posts
+    // no Create (§2.2, §5.6, §13 as corrected by re-specs14b).
     for o in [1, 2] {
-        w.with(o, |o| o.initialized = false);
+        w.with(o, |o| {
+            o.initialized = false;
+            o.loaded = true;
+        });
     }
     w.take();
     assert!(m2.init());
-    assert_eq!(ids(&w.take()), vec![(msg::CREATE, 2), (msg::CREATE, 1)]);
+    assert!(w.take().is_empty());
+    assert_eq!(*w.slot17.borrow(), vec![2, 1]);
 }
 
 // ================================================================ §18.20

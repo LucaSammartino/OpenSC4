@@ -1757,7 +1757,7 @@ manager), and the stub's `double`, `u32` (`n`).
 The occupant manager vectors (`om18_…`, `om14_…`) drive `fc4_core::occupant_manager::OccupantManager`
 (`docs/specs/occupant-manager.md`) over one scripted world implementing `OccupantHost`. Every op name starts with
 `om_`. Occupants are tokens with a bounding box, a type, flags, a stored manager box and the base occupant behaviour
-of §5.6: the first `Init` posts Create (unless `quiet`: then an `occupant_slot17` event), `Shutdown` of an
+of §5.6: the first `Init` posts Create (unless `quiet`, bit 1 of `+0x2E` as a loaded occupant's own `Read` sets it: then an `occupant_slot17` event), `Shutdown` of an
 initialised occupant posts Destroy, and `PostOccupantMessage` records a `post` event (a Move of a `sync` occupant is
 marked `sync: true`). References are counted per token (net). Query results are released by the runner after the
 checks (unless `keep: true`), so reference counts show only the manager's own references.

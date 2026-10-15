@@ -258,7 +258,8 @@ impl OccupantManager {
     /// Slot 3 `Init` (§2.2): once. Creates the shared filter (type 0); builds
     /// an empty 192 × 192 grid for a new city, or initialises every loaded
     /// occupant in the city's cells through slot 44's defaults (§15 quirk
-    /// 13). Always true.
+    /// 13; a loaded occupant's base `Init` posts no Create, §2.2). Always
+    /// true.
     pub fn init(&self) -> bool {
         let _g = self.lock();
         if self.is_initialized() {
