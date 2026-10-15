@@ -275,7 +275,11 @@ impl Run<'_, '_> {
                 if done {
                     // End of FullTrips: the counts built in this pass are
                     // published (§4.4).
-                    self.st.type_count_published = self.st.type_count_building;
+                    if self.st.shadow_hypotheses & super::state::HYP_TYPE_COUNTS_SWAP != 0 {
+                        std::mem::swap(&mut self.st.type_count_published, &mut self.st.type_count_building);
+                    } else {
+                        self.st.type_count_published = self.st.type_count_building;
+                    }
                 }
                 done
             }
@@ -283,18 +287,9 @@ impl Run<'_, '_> {
                 self.finish_trip_map();
                 true
             }
-            cs::CREATE_MAPS => {
-                self.create_maps();
-                true
-            }
-            cs::CREATE_FINAL_MAP => {
-                self.create_final_map();
-                true
-            }
-            cs::CLEAR_DESTINATIONS => {
-                self.clear_trip_destinations();
-                true
-            }
+            cs::CREATE_MAPS => self.create_maps(),
+            cs::CREATE_FINAL_MAP => self.create_final_map(),
+            cs::CLEAR_DESTINATIONS => self.clear_trip_destinations(),
             cs::UPDATE_NEIGHBOURS => {
                 self.update_neighbor_connections();
                 true
@@ -307,14 +302,8 @@ impl Run<'_, '_> {
                 self.dump_edge_densities();
                 true
             }
-            cs::REDUCE_EDGES => {
-                self.reduce_edge_densities();
-                true
-            }
-            cs::REFRESH_COMMUTE => {
-                self.refresh_commute_map();
-                true
-            }
+            cs::REDUCE_EDGES => self.reduce_edge_densities(),
+            cs::REFRESH_COMMUTE => self.refresh_commute_map(),
             cs::UPDATE_SUBNETWORKS => {
                 // traffic-network.md §4.11, in one call; the stale flag is
                 // consumed here *[choice]*.
@@ -410,6 +399,24 @@ impl Run<'_, '_> {
         }
     }
 
+    /// The scanning iterator's next cell; `None` at the end of the scan, or
+    /// at the traffic shadow's stop ([`State::shadow_scan_stop`], tooling),
+    /// which [`Self::scan_stopped`] tells apart.
+    pub(crate) fn next_scan_cell(&mut self) -> Option<(i32, i32)> {
+        if self.scan_stopped() {
+            return None;
+        }
+        self.st.scan.next_cell()
+    }
+
+    /// The scan rests at the traffic shadow's stop (never without the
+    /// shadow).
+    pub(crate) fn scan_stopped(&self) -> bool {
+        let it = &self.st.scan;
+        it.state == crate::grid::ScanState::Running
+            && self.st.shadow_scan_stop == Some((self.st.cycle_state, it.x, it.z))
+    }
+
     /// Resets the scanning iterator to the first cell of the city.
     pub(crate) fn reset_scan(&mut self) {
         let (x0, z0) = (self.st.scan.x0, self.st.scan.z0);
@@ -437,15 +444,18 @@ impl Run<'_, '_> {
     /// terminal's arrival cell, in list order (the departure cell has
     /// network info from the ferry phase of every rebuild). Missing records
     /// are not created.
-    fn reduce_edge_densities(&mut self) {
+    fn reduce_edge_densities(&mut self) -> bool {
         let mut cells = Vec::new();
-        while let Some((x, z)) = self.st.scan.next_cell() {
+        while let Some((x, z)) = self.next_scan_cell() {
             if !self.cx.s.info_at(x, z).is_empty() || self.cx.s.switch_id_at(x, z) != 0 {
                 cells.push((x, z));
             }
         }
-        for t in &self.cx.s.ferries {
-            cells.push((i32::from(t.arr_x), i32::from(t.arr_z)));
+        let stopped = self.scan_stopped();
+        if !stopped {
+            for t in &self.cx.s.ferries {
+                cells.push((i32::from(t.arr_x), i32::from(t.arr_z)));
+            }
         }
         for (x, z) in cells {
             for evening in [false, true] {
@@ -456,6 +466,7 @@ impl Run<'_, '_> {
                 }
             }
         }
+        !stopped
     }
 
     /// `ReduceTransitSwitches` (state 3, `0x00713750`, §4.8, TS3): for every

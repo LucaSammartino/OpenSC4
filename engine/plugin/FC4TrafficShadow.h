@@ -19,6 +19,11 @@
 //                                (env FC4_TRAFFIC_SHADOW_DIFFS, default 8, 1..64)
 //   traffic_shadow_lines = N     delivery lines per month
 //                                (env FC4_TRAFFIC_SHADOW_LINES, default 8)
+//   traffic_shadow_hypotheses = N  the copy's alternative readings of unclear
+//                                spec points, to test them against the original
+//                                (a bit mask, fc4.h FC4_TRAFFIC_SHADOW_HYP_*;
+//                                env FC4_TRAFFIC_SHADOW_HYPOTHESES; default 0, the
+//                                spec as written)
 //
 // It needs FreeCity4's simulator and the ORIGINAL traffic simulator (the
 // default: `traffic` is not enabled). Our simulator delivers the clock to the
@@ -39,7 +44,8 @@
 //      named), every source's trip list, the lot and connection holder
 //      arrays and the grids with the original's.
 // The copy reads the game through the traffic host table (cFC4TrafficSimulator's
-// read callbacks over this city; every write callback NULL) and the
+// read callbacks over this city; every write callback NULL but the lot
+// deactivation, which is a lookup of the holder's budget item) and the
 // original's grids through the grid table's geometry and get. The messages
 // the original subscribes to (§1 Init step 3) are forwarded to the copy (a
 // message that arrives during a wrapped delivery is forwarded after it).

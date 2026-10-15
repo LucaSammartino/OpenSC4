@@ -453,9 +453,12 @@ fn write_record(
         holder.write(out);
     }
     out.mark("travel type counts");
+    let swap = s.shadow_hypotheses & super::state::HYP_TYPE_COUNTS_SWAP != 0;
     for i in 0..9 {
-        out.put_u32(s.type_count_building[i]);
-        out.put_u32(s.type_count_published[i]);
+        let (a, b) = (s.type_count_building[i], s.type_count_published[i]);
+        let (a, b) = if swap { (b, a) } else { (a, b) };
+        out.put_u32(a);
+        out.put_u32(b);
     }
     out.mark("ferry total");
     out.put_u32(s.ferry_total);
@@ -1027,6 +1030,8 @@ impl Parse<'_> {
             for i in 0..self.d {
                 let a = inp.get_u32()?;
                 let b = inp.get_u32()?;
+                let swap = self.s.shadow_hypotheses & super::state::HYP_TYPE_COUNTS_SWAP != 0;
+                let (a, b) = if swap { (b, a) } else { (a, b) };
                 if i < 9 {
                     self.s.type_count_building[i] = a;
                     self.s.type_count_published[i] = b;

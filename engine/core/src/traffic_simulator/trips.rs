@@ -215,11 +215,20 @@ pub fn reconcile_connection(trips: &mut Vec<TripData>, targets: &[[u32; 9]; 3]) 
 /// The ConfirmTrips merge (§4.3): each routed trip absorbs every later trip
 /// of the same type and strategy and becomes status 0.
 pub fn merge_routed(trips: &mut Vec<TripData>) {
+    merge_routed_with(trips, false);
+}
+
+/// [`merge_routed`]; with `only_absorbing` (the traffic shadow's hypothesis
+/// [`super::state::HYP_MERGE_ABSORBED`]) a routed trip that absorbed no
+/// later trip stays routed.
+pub fn merge_routed_with(trips: &mut Vec<TripData>, only_absorbing: bool) {
     let mut i = 0;
     while i < trips.len() {
         if trips[i].status == status::ROUTED {
-            absorb_later(trips, i, |_| true);
-            trips[i].status = status::SEARCH;
+            let n = absorb_later(trips, i, |_| true);
+            if n > 0 || !only_absorbing {
+                trips[i].status = status::SEARCH;
+            }
         }
         i += 1;
     }
@@ -237,18 +246,22 @@ pub fn merge_search(trips: &mut Vec<TripData>) {
     }
 }
 
-fn absorb_later(trips: &mut Vec<TripData>, i: usize, also: impl Fn(&TripData) -> bool) {
+/// The number of trips absorbed.
+fn absorb_later(trips: &mut Vec<TripData>, i: usize, also: impl Fn(&TripData) -> bool) -> usize {
     let (ty, st) = (trips[i].trip_type, trips[i].strategy);
+    let mut absorbed = 0;
     let mut j = i + 1;
     while j < trips.len() {
         if trips[j].trip_type == ty && trips[j].strategy == st && also(&trips[j]) {
             let c = trips[j].count;
             trips[i].count = trips[i].count.wrapping_add(c);
             trips.remove(j);
+            absorbed += 1;
         } else {
             j += 1;
         }
     }
+    absorbed
 }
 
 /// The result of a trip's search.
@@ -431,7 +444,7 @@ impl Run<'_, '_> {
         let reroute = (pc[super::PC_SOURCE_COUNTER] & 3) == pc[super::PC_REROUTE_BUCKET];
         let mut trips = self.h.trip_list(src);
         if reroute {
-            merge_routed(&mut trips);
+            merge_routed_with(&mut trips, self.st.shadow_hypotheses & super::state::HYP_MERGE_ABSORBED != 0);
         }
         let rect = self.source_rect(src);
         for slot in trips.iter_mut() {

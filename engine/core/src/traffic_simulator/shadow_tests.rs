@@ -363,3 +363,58 @@ fn shadow_reports_trips_and_grids() {
     assert!(line.contains("trips of lot (0, 6)"), "{line}");
     assert!(line.contains("grid volume 0: 1 of"), "{line}");
 }
+
+/// The copy keeps the original's hash orders across a Read: keys sharing a
+/// bucket (the damage sets, the edge densities) are written in the
+/// original's order after the copy reads its record.
+#[test]
+fn shadow_keeps_hash_orders() {
+    let w = World::new();
+    ten_sources(&w);
+    let orig = sim(&w);
+    orig.update_damage(|d| {
+        for k in [5u16, 198, 391, 7] {
+            d.road.insert_cell(k);
+        }
+    });
+    orig.network().update_state(|n| {
+        for k in [0x0102_0003u32, 0x0102_0003 + 193, 0x0102_0003 + 386] {
+            n.edge_density.entry(k, || crate::traffic_network::EDGE_DENSITY_ZERO);
+        }
+    });
+    let mut live = Live::default();
+    let mut sh = TrafficShadow::new(w.clone(), 0, 8, 8);
+    assert_eq!(deliver(&mut sh, &orig, &mut live, msg::DAY, 2_460_000), 0);
+    assert_eq!(deliver(&mut sh, &orig, &mut live, msg::DAY, 2_460_001), 0);
+    assert_eq!(sh.stats.resyncs, 0);
+}
+
+/// An original stopped mid-scan by its deadline (CreateMaps resting at a
+/// cell) is followed: the copy's scan stops at the same cell.
+#[test]
+fn shadow_follows_a_scan_stopped_mid_way() {
+    let w = World::new();
+    ten_sources(&w);
+    let orig = sim(&w);
+    let mut live = Live::default();
+    let mut sh = TrafficShadow::new(w.clone(), 0, 8, 8);
+    let mut day = 0u32;
+    while orig.cycle_state() != cycle_state::CREATE_MAPS {
+        assert!(day < 200, "the original never reached CreateMaps");
+        w.day.set(day % 28 + 1);
+        assert_eq!(deliver(&mut sh, &orig, &mut live, msg::DAY, 2_460_000 + day as i32), 0, "day {day}");
+        day += 1;
+    }
+    let (x, z) = orig.read_state(|s| (s.scan.x0 + 2, s.scan.z0 + 1));
+    orig.update_state(|s| s.shadow_scan_stop = Some((cycle_state::CREATE_MAPS, x, z)));
+    w.day.set(day % 28 + 1);
+    assert_eq!(deliver(&mut sh, &orig, &mut live, msg::DAY, 2_460_000 + day as i32), 0, "the stop");
+    assert_eq!(orig.cycle_state(), cycle_state::CREATE_MAPS);
+    assert_eq!(orig.read_state(|s| (s.scan.x, s.scan.z)), (x, z));
+    orig.update_state(|s| s.shadow_scan_stop = None);
+    day += 1;
+    w.day.set(day % 28 + 1);
+    assert_eq!(deliver(&mut sh, &orig, &mut live, msg::DAY, 2_460_000 + day as i32), 0, "the rest");
+    assert_ne!(orig.cycle_state(), cycle_state::CREATE_MAPS);
+    assert_eq!(sh.stats.resyncs, 0);
+}

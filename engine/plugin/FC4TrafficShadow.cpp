@@ -35,7 +35,9 @@
 #include "cIGZMessageTarget2.h"
 #include "cIGZSerializable.h"
 #include "cIGZString.h"
+#include "FC4Interfaces.h"
 #include "cISC4App.h"
+#include "cISC4BudgetSimulator.h"
 #include "cISC4City.h"
 #include "cISC4TrafficSimulator.h"
 
@@ -242,6 +244,7 @@ CaptureStream g_lotStream(true);
 bool g_enabled = false;
 long g_diffs = kDefaultDiffs;
 long g_lines = kDefaultLines;
+long g_hypotheses = 0;  // fc4_traffic_shadow_set_hypotheses
 int32_t g_settingsJulian = INT_MIN;
 int32_t g_julian = 0;  // the last day delivered (the one-shot's date)
 
@@ -266,6 +269,7 @@ const void* g_shadowCity = nullptr;
 const void* g_shadowSim = nullptr;
 long g_shadowDiffs = 0;
 long g_shadowLines = 0;
+long g_shadowHypotheses = 0;
 const void* g_shadowFailedFor = nullptr;
 
 // The lot strategy bytes read in this call (lot token -> byte; the lot's own
@@ -297,6 +301,11 @@ struct Queued {
 };
 std::vector<Queued> g_queued;
 uint32_t g_forwarded = 0;
+// A structured exception inside the copy left it unusable (its state may be
+// taken out mid-operation): it is dropped and started again at the next
+// delivery.
+bool g_faulted = false;
+uint32_t g_restarts = 0;
 uint32_t g_offThread = 0;
 
 void ReadSettings() {
@@ -308,6 +317,7 @@ void ReadSettings() {
     long l = SettingInt("traffic_shadow_lines", "FC4_TRAFFIC_SHADOW_LINES", kDefaultLines);
     if (l <= 0) l = kDefaultLines;
     g_lines = l;
+    g_hypotheses = SettingInt("traffic_shadow_hypotheses", "FC4_TRAFFIC_SHADOW_HYPOTHESES", 0);
 }
 
 cISC4City* CurrentCity() {
@@ -408,6 +418,20 @@ uint8_t LotStrategyByte(void*, uint64_t lot) {
     return b;
 }
 
+// The copy's lot deactivation (§4.1.3 DoLotDeactivated step 3) as a lookup:
+// the cost of the holder's 0xCA550301 budget item (budget slot 51); nothing
+// is removed. (The table's own callback removes the items.)
+int64_t DeactivationCostLookup(void* u, uint64_t holder) {
+    TrafficContext* c = static_cast<TrafficContext*>(u);
+    if (c == nullptr || c->city == nullptr || holder == 0) return 0;
+    cISC4BudgetSimulator* b = c->city->GetBudgetSimulator();  // borrowed
+    if (b == nullptr) return 0;
+    cFC4ISC4BudgetSimulator::BudgetItem item{};
+    cISCPropertyHolder* h = reinterpret_cast<cISCPropertyHolder*>(FromToken(holder));
+    if (!AsGame(b)->GetBudgetItemForPurpose(h, 0xCA550301u, item)) return 0;
+    return item.cost;
+}
+
 void MakeHost() {
     g_ctx.grid = HostGridContext{"traffic shadow", Sw::TrafficGridWrites};
     g_host = MakeTrafficHost(&g_ctx);
@@ -423,7 +447,7 @@ void MakeHost() {
     g_host.release_department = nullptr;
     g_host.set_line_item_income = nullptr;
     g_host.activate_budget_items = nullptr;
-    g_host.deactivate_budget_items = nullptr;
+    g_host.deactivate_budget_items = &DeactivationCostLookup;  // a lookup, nothing removed
     g_host.record_history = nullptr;
     g_host.clear_lot_flag = nullptr;
     g_host.update_traffic_volume = nullptr;
@@ -450,8 +474,8 @@ void DropShadow() {
 }
 
 bool EnsureShadow(const void* city, const void* sim) {
-    if (g_shadow != nullptr && g_shadowCity == city && g_shadowSim == sim && g_shadowDiffs == g_diffs &&
-        g_shadowLines == g_lines) {
+    if (g_shadow != nullptr && !g_faulted && g_shadowCity == city && g_shadowSim == sim && g_shadowDiffs == g_diffs &&
+        g_shadowLines == g_lines && g_shadowHypotheses == g_hypotheses) {
         return true;
     }
     DropShadow();
@@ -465,13 +489,23 @@ bool EnsureShadow(const void* city, const void* sim) {
         }
         return false;
     }
+    if (g_faulted) {
+        g_faulted = false;
+        ++g_restarts;
+        Log("traffic shadow: the copy is started again after a fault (restart %u); it starts on the original's "
+            "record at this delivery",
+            g_restarts);
+    }
     g_shadowCity = city;
     g_shadowSim = sim;
     g_shadowDiffs = g_diffs;
     g_shadowLines = g_lines;
+    g_shadowHypotheses = g_hypotheses;
+    fc4_traffic_shadow_set_hypotheses(g_shadow, static_cast<uint32_t>(g_hypotheses));
     Log("traffic shadow: comparing with the original traffic simulator %p (city %p); differences named per line: "
-        "%ld, delivery lines per month: %ld",
-        sim, city, g_diffs, g_lines);
+        "%ld, delivery lines per month: %ld, hypotheses 0x%lX%s",
+        sim, city, g_diffs, g_lines, static_cast<unsigned long>(g_hypotheses),
+        g_hypotheses == 0 ? " (the spec as written)" : " (alternative readings, fc4.h FC4_TRAFFIC_SHADOW_HYP_*)");
     return true;
 }
 
@@ -524,14 +558,19 @@ void ForwardStep(void* p) {
 
 void ForwardNow(cISC4City* city, const Forward& f) {
     BeginCall(city);
-    SehGuard("traffic shadow (a message to the copy)", &ForwardStep, const_cast<Forward*>(&f));
+    if (!SehGuard("traffic shadow (a message to the copy)", &ForwardStep, const_cast<Forward*>(&f))) {
+        g_faulted = true;
+        Log("traffic shadow: the copy faulted on message 0x%08X (data %u, %u, %u, object %s); it is started again "
+            "at the next delivery",
+            f.type, f.d1, f.d2, f.d3, f.object != 0 ? "set" : "none");
+    }
     EndCall();
 }
 
 // A message the original subscribes to (§1 Init step 3): to the copy, now,
 // or after the delivery in progress.
 void ForwardToShadow(cIGZMessage2* msg) {
-    if (g_shadow == nullptr || msg == nullptr) return;
+    if (g_shadow == nullptr || msg == nullptr || g_faulted) return;
     if (g_mainTid != 0 && GetCurrentThreadId() != g_mainTid) {
         if (++g_offThread <= 3) Log("traffic shadow: a message off the main thread is not forwarded to the copy");
         return;
@@ -565,7 +604,7 @@ void FlushQueued(cISC4City* city) {
     std::vector<Queued> q;
     q.swap(g_queued);
     for (const Queued& m : q) {
-        ForwardNow(city, Forward{m.type, m.d1, m.d2, m.d3, TokenOf(m.object)});
+        if (!g_faulted) ForwardNow(city, Forward{m.type, m.d1, m.d2, m.d3, TokenOf(m.object)});
         if (m.object != nullptr) FC4_RELEASE(m.object);
     }
 }
@@ -673,6 +712,7 @@ bool TrafficShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     const bool afterClean = SehGuard("traffic shadow (after the original's delivery)", &AfterStep, nullptr);
     if (!afterClean && !g_d.finished) g_d.result = fc4_traffic_shadow_after(g_shadow, nullptr, &Sink, nullptr);
     EndCall();
+    if (!beforeClean || !afterClean) g_faulted = true;
     FlushQueued(city);
     if (type == kMsgSimNewMonth && (g_strategyFailures > 0 || g_offThread > 0)) {
         Log("traffic shadow: strategy bytes read %u (failed %u); messages forwarded %u (off the main thread %u)",

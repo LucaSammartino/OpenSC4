@@ -151,9 +151,12 @@ pub fn commercial_window(s: &NetworkState, bx: i32, bz: i32) -> u16 {
 
 impl Run<'_, '_> {
     /// CreateMaps (state 2, `0x0071A0C0`, §4.9).
-    pub(crate) fn create_maps(&mut self) {
-        while let Some((x, z)) = self.st.scan.next_cell() {
+    pub(crate) fn create_maps(&mut self) -> bool {
+        while let Some((x, z)) = self.next_scan_cell() {
             self.create_maps_cell(x, z);
+        }
+        if self.scan_stopped() {
+            return false;
         }
         // The end of the pass (`0x0071A5D7`–`0x0071A701`).
         // 1. The averages; the five fields of each slot with records go to
@@ -182,6 +185,7 @@ impl Run<'_, '_> {
         self.update_mass_transit_budget();
         // 4.
         self.st.accident_check = std::mem::take(&mut self.st.accidents);
+        true
     }
 
     /// `UpdateRoadsBudget` (`0x0070D8A0`, §4.9): the roads department's
@@ -301,10 +305,10 @@ impl Run<'_, '_> {
 
     /// CreateFinalMap (state 4, `0x0070F460`, §4.10), then
     /// `TrafficMapChanged`.
-    pub(crate) fn create_final_map(&mut self) {
+    pub(crate) fn create_final_map(&mut self) -> bool {
         let curve = self.st.tuning.congestion_curve.clone();
         let scale = self.st.tuning.congestion_scale;
-        while let Some((x, z)) = self.st.scan.next_cell() {
+        while let Some((x, z)) = self.next_scan_cell() {
             let b = self.st.peak_volume.as_ref().map_or(0.0, |g| g.get(x, z));
             let d = self.st.peak_ratio.as_ref().map_or(0.0, |g| g.get(x, z));
             // Tract size 1 assumed for both grids *[quirk]*.
@@ -315,7 +319,11 @@ impl Run<'_, '_> {
                 g.set(x, z, congestion_byte(b, d, &curve, scale));
             }
         }
+        if self.scan_stopped() {
+            return false;
+        }
         self.h.post_message(SimMessage::of_type(msg::TRAFFIC_MAP_CHANGED));
+        true
     }
 
     /// `GetTransitSwitchQueryData(x, z, out)` (slot 35, `0x0071CB80`, §4.16,
@@ -390,8 +398,8 @@ impl Run<'_, '_> {
     /// ClearTripDestinations (state 5, §4.11): each lot once, at its origin
     /// cell; the roll goes through the element store (TS18), so a lot
     /// without the property gets one.
-    pub(crate) fn clear_trip_destinations(&mut self) {
-        while let Some((x, z)) = self.st.scan.next_cell() {
+    pub(crate) fn clear_trip_destinations(&mut self) -> bool {
+        while let Some((x, z)) = self.next_scan_cell() {
             let Some(lot) = self.h.lot_at(x, z, true) else { continue };
             let holder = self.h.lot_holder(lot);
             for k in 0..4 {
@@ -404,13 +412,14 @@ impl Run<'_, '_> {
                 self.st.job_capacity[k] = self.st.job_capacity[k].wrapping_add(c);
             }
         }
+        !self.scan_stopped()
     }
 
     /// RefreshCommuteMap (state 10, §4.11): the destination map. The bits of
     /// the lot are ORed in after `&= 0xF8`, so bit 3 is never cleared
     /// *[quirk]*.
-    pub(crate) fn refresh_commute_map(&mut self) {
-        while let Some((x, z)) = self.st.scan.next_cell() {
+    pub(crate) fn refresh_commute_map(&mut self) -> bool {
+        while let Some((x, z)) = self.next_scan_cell() {
             let mut byte = self.st.dest_byte(x, z) & 0xF8;
             let (lot, count) = match self.h.lot_at(x, z, true) {
                 Some(l) => (Some(l), true),
@@ -429,5 +438,6 @@ impl Run<'_, '_> {
             }
             self.st.set_dest_byte(x, z, byte);
         }
+        !self.scan_stopped()
     }
 }

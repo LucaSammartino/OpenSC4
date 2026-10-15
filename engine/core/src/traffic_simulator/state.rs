@@ -527,7 +527,25 @@ pub struct State {
     /// FullTrips slice ends right after its last unit instead of first
     /// running on to the next trip to examine (see [`super::shadow`]).
     pub shadow_lazy: bool,
+    /// The traffic shadow's scan stop (tooling, not saved): in the cycle
+    /// state given, a cell-scanning phase (2, 4, 5, 6, 10) stops, not
+    /// finished, once its scanning iterator rests running at the cell given
+    /// (where the original's deadline stopped it).
+    pub shadow_scan_stop: Option<(u8, i32, i32)>,
+    /// The traffic shadow's hypotheses (tooling, not saved; 0 = the spec as
+    /// written): each bit an alternative reading of a point the spec leaves
+    /// unclear, which the shadow can run to test it against the original
+    /// (the TS questions of the traffic shadow's lane report).
+    /// [`HYP_MERGE_ABSORBED`], [`HYP_TYPE_COUNTS_SWAP`].
+    pub shadow_hypotheses: u32,
 }
+
+/// Hypothesis: the ConfirmTrips merge (§4.3) sets a routed trip to status 0
+/// only when it absorbed a later trip; one that absorbed none stays routed.
+pub const HYP_MERGE_ABSORBED: u32 = 1;
+/// Hypothesis: §6.1 row 19's pairs are (published, building), and the end
+/// of FullTrips (§4.4) swaps the two vectors instead of copying.
+pub const HYP_TYPE_COUNTS_SWAP: u32 = 2;
 
 impl State {
     /// The constructor values (§1): cycle state 0, last day −1, strike
@@ -616,6 +634,8 @@ impl State {
             extras: SaveExtras::default(),
             loaded: false,
             shadow_lazy: false,
+            shadow_scan_stop: None,
+            shadow_hypotheses: 0,
         }
     }
 

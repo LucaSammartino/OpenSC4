@@ -126,6 +126,9 @@
 //                                 enable traffic; FC4TrafficShadow.h)
 //   traffic_shadow_diffs = N      its differences named per line (default 8, 1..64)
 //   traffic_shadow_lines = N      its delivery lines per month (default 8)
+//   traffic_shadow_hypotheses = N its alternative readings of unclear spec points
+//                                 (a bit mask, default 0 = the spec as written; fc4.h
+//                                 FC4_TRAFFIC_SHADOW_HYP_*)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.

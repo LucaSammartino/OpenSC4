@@ -164,7 +164,9 @@ unsafe fn emit(lines: &[String], sink: fc4_bytes_sink, ctx: *mut c_void) {
 
 /// Creates a shadow over a host table. The shadow calls only the table's
 /// read callbacks (its writes, posts, budget and reference calls are kept
-/// inside it; they may be NULL) and the grid table's `geometry` and `get`.
+/// inside it; they may be NULL), `deactivate_budget_items` as a lookup (the
+/// table must answer the cost of the holder's `0xCA550301` item and remove
+/// nothing; NULL reads 0) and the grid table's `geometry` and `get`.
 /// `session_seed` seeds the copy's generator (its draws are not the
 /// original's: §4.15 draws are not compared). `max_diffs`: differences named
 /// per line (0 → 8, at most 64); `detail_lines`: delivery lines per month
@@ -281,6 +283,18 @@ pub unsafe extern "C" fn fc4_traffic_shadow_message(
             data3,
             object,
         });
+        true
+    })
+}
+
+/// The copy's hypotheses (fc4.h `FC4_TRAFFIC_SHADOW_HYP_*`): alternative
+/// readings of unclear spec points, to test them against the original; 0
+/// (the default) is the spec as written. Set before the first delivery.
+/// False for a NULL shadow.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_traffic_shadow_set_hypotheses(s: *mut fc4_traffic_shadow, mask: u32) -> bool {
+    with_shadow(s, false, |sh| {
+        sh.core.set_hypotheses(mask);
         true
     })
 }

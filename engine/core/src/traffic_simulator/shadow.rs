@@ -57,9 +57,10 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
 
-use crate::grid::{CellRect, CityDims, GridElem, GridProvider, SimGrid, TractGeometry, TractGrid};
+use crate::grid::{CellRect, CityDims, GridElem, GridProvider, ScanState, SimGrid, TractGeometry, TractGrid};
 use crate::julian::civil_from_julian;
 use crate::property::PropertyHolder;
+use crate::stl::{StlHashMap, StlHashSet, STL_DEFAULT_HINT, STL_PRIMES};
 use crate::stream::{ByteReader, InStream, OutStream, RefValue};
 use crate::traffic_network::{NetworkHost, NetworkState, PathInfo};
 use crate::variant::Variant;
@@ -958,14 +959,14 @@ impl TrafficSimHost for ShadowHost {
             .map_or(0, |(_, cost)| cost)
     }
     /// The deactivation's cost (§4.1.3, TS23), read without removing
-    /// anything: the shadow asks slot 51 on the lot's holder as a building
-    /// [choice: the host's lookup takes a building; a lot holder that is no
-    /// building reads 0].
+    /// anything: the shadow's host table gives `deactivate_budget_items` as
+    /// a lookup on the lot's holder (slot 51, nothing removed; fc4.h traffic
+    /// shadow). The original's own handler may have removed the item first
+    /// (it gets the lot message before the copy): the cost is 0 then and
+    /// the next record check resyncs the copy's total.
     fn deactivate_budget_items(&self, holder: u64) -> i64 {
         self.keep(|k| k.budget_items += 1);
-        self.inner
-            .budget_item_for_purpose(holder, prop::BUDGET_ITEM)
-            .map_or(0, |(_, cost)| cost)
+        self.inner.deactivate_budget_items(holder)
     }
     fn budget_item_for_purpose(&self, building: u64, purpose: u32) -> Option<(u32, i64)> {
         self.inner.budget_item_for_purpose(building, purpose)
@@ -1098,6 +1099,50 @@ impl TrafficSimHost for ShadowHost {
 
 // ---- comparisons ------------------------------------------------------------------------------------
 
+/// An edge-density record in row 7: u32 key, 16 + 1 + 16 u16.
+const EDGE_RECORD_BYTES: usize = 4 + 2 * 33;
+
+/// The keys of a damage key list (u32 n, n × u16).
+fn damage_keys(b: &[u8]) -> Option<Vec<u32>> {
+    let n = u32::from_le_bytes(b.get(..4)?.try_into().ok()?) as usize;
+    if b.len() != 4 + 2 * n {
+        return None;
+    }
+    Some(b[4..].chunks_exact(2).map(|c| u32::from(u16::from_le_bytes([c[0], c[1]]))).collect())
+}
+
+/// The leading u32 key of each `size`-byte record.
+fn record_keys(b: &[u8], size: usize) -> Option<Vec<u32>> {
+    if b.len() % size != 0 {
+        return None;
+    }
+    Some(b.chunks_exact(size).map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect())
+}
+
+/// The smallest listed bucket count, at least the default (193) and the key
+/// count, under which `keys` is in bucket-ascending order (a table never
+/// shrinks, so a larger count than this is possible; the first few
+/// candidates are tried).
+fn order_bucket_count(keys: &[u32]) -> Option<usize> {
+    let min = keys.len().max(STL_DEFAULT_HINT);
+    STL_PRIMES
+        .iter()
+        .map(|&p| p as usize)
+        .filter(|&p| p >= min)
+        .take(6)
+        .find(|&p| keys.windows(2).all(|w| w[0] as usize % p <= w[1] as usize % p))
+}
+
+/// A set whose iteration order is `keys` (see `restore_orders`).
+fn ordered_set(keys: &[u32]) -> Option<StlHashSet> {
+    let p = order_bucket_count(keys)?;
+    let mut s = StlHashSet::with_hint(p);
+    for &k in keys.iter().rev() {
+        s.insert(k);
+    }
+    (s.iter_order() == keys).then_some(s)
+}
+
 fn hex(b: &[u8]) -> String {
     let mut s = String::with_capacity(b.len() * 2);
     for x in b {
@@ -1123,6 +1168,21 @@ fn describe_field(orig: &[u8], ours: &[u8]) -> String {
             ));
         }
         return s;
+    }
+    if orig.len() == ours.len() && orig.len() % 4 == 0 && orig.len() <= 80 {
+        // A short table of words: each differing u32.
+        let words: Vec<String> = orig
+            .chunks_exact(4)
+            .zip(ours.chunks_exact(4))
+            .enumerate()
+            .filter(|(_, (o, b))| o != b)
+            .map(|(i, (o, b))| {
+                let o = u32::from_le_bytes([o[0], o[1], o[2], o[3]]);
+                let b = u32::from_le_bytes([b[0], b[1], b[2], b[3]]);
+                format!("[{i}] {o}/{b}")
+            })
+            .collect();
+        return format!("u32 words orig/ours: {}", words.join(" "));
     }
     let n = orig.len().min(ours.len());
     let differing = (0..n).filter(|&i| orig[i] != ours[i]).count() + orig.len().max(ours.len()) - n;
@@ -1176,6 +1236,61 @@ pub fn compare_record(orig: &[u8], ours: &CanonicalWriter) -> Vec<(&'static str,
     out
 }
 
+/// A record-field difference of a known kind (not counted):
+/// - the pass counters whose increments the spec does not give (§6.1 row
+///   15, §10 Q4: counters 0, 5, 6, 7 and 8; and counter 4, which the
+///   original also advances in ConfirmTrips, where §4.4 names only
+///   ReRouteTrips' send-backs);
+/// - the unnamed fields of rows 14 and 15 (labels with `~`), which the copy
+///   keeps as read and the original changes;
+/// - the unnamed trailing byte of a statistics set (row 16), likewise.
+///
+/// Each is a TS question in the lane report.
+fn known_record_difference(name: &str, orig: &[u8], ours: &[u8]) -> Option<&'static str> {
+    if orig.len() != ours.len() {
+        return None;
+    }
+    if name.starts_with('~') {
+        return Some("unnamed fields of rows 14-15 (kept as read)");
+    }
+    if name.starts_with("statistics (") {
+        let n = orig.len();
+        return (n > 0 && orig[..n - 1] == ours[..n - 1]).then_some("a statistics set's unnamed last byte");
+    }
+    if name != "pass counters" || orig.len() % 4 != 0 {
+        return None;
+    }
+    let unknown_only = orig
+        .chunks_exact(4)
+        .zip(ours.chunks_exact(4))
+        .enumerate()
+        .all(|(i, (o, b))| o == b || matches!(i, 0 | 4 | 5 | 6 | 7 | 8));
+    unknown_only.then_some("pass counters 0, 4-8 (§10 Q4)")
+}
+
+/// [`compare_record`] with the differences of a known kind
+/// ([`known_record_difference`]) set apart: (the others, the known kinds).
+pub fn compare_record_split(orig: &[u8], ours: &CanonicalWriter) -> (Vec<(&'static str, String)>, Vec<&'static str>) {
+    let all = compare_record(orig, ours);
+    if orig.len() != ours.bytes.len() {
+        return (all, Vec::new());
+    }
+    let mut known = Vec::new();
+    let mut rest = Vec::new();
+    let fields = ours.fields();
+    for (name, text) in all {
+        let k = fields
+            .iter()
+            .find(|f| f.0 == name)
+            .and_then(|&(_, s, e)| known_record_difference(name, &orig[s..e], &ours.bytes[s..e]));
+        match k {
+            Some(k) => known.push(k),
+            None => rest.push((name, text)),
+        }
+    }
+    (rest, known)
+}
+
 /// A trip list as its saved bytes (§6.3): count, then each trip.
 fn trip_bytes(t: &[TripData]) -> Vec<u8> {
     let mut w = CanonicalWriter::new();
@@ -1184,6 +1299,48 @@ fn trip_bytes(t: &[TripData]) -> Vec<u8> {
         write_trip(&mut w, trip);
     }
     w.bytes
+}
+
+/// A trip-list difference of a known kind (not counted). The lists agree but
+/// for, on each differing trip, either
+/// - the return route the original keeps on a trip our search found
+///   reversible (theirs non-empty, ours empty): §2's table says a
+///   reversible trip's return route is empty, the original's
+///   PerformPathSearch (§4.4) does not say it clears it (TS question in the
+///   lane report); or
+/// - the destination and travel-type fields of a trip appended by the
+///   reconcile (§4.1.1, §4.1.4), undefined in the original *[quirk]*, 0 in
+///   ours *[choice]*: ours unrouted with (0, 0) and mask 0.
+fn known_trip_difference(orig: &[TripData], ours: &[TripData]) -> Option<&'static str> {
+    const RETURN: &str = "a reversible trip's return route kept by the original";
+    const UNDEFINED: &str = "a new trip's undefined destination and travel types (§4.1.1 quirk)";
+    if orig.len() != ours.len() {
+        return None;
+    }
+    let mut kind = None;
+    for (o, b) in orig.iter().zip(ours) {
+        if o == b {
+            continue;
+        }
+        let mut o2 = o.clone();
+        o2.return_route.clear();
+        let k = if o2 == *b && b.flags & 1 != 0 {
+            RETURN
+        } else {
+            let fresh = b.route.is_empty() && b.dest_x == 0 && b.dest_z == 0 && b.travel_types_used == 0;
+            let mut o3 = o.clone();
+            o3.dest_x = 0;
+            o3.dest_z = 0;
+            o3.travel_types_used = 0;
+            if fresh && o3 == *b {
+                UNDEFINED
+            } else {
+                return None;
+            }
+        };
+        kind.get_or_insert(k);
+    }
+    kind
 }
 
 fn show_trip(t: &TripData) -> String {
@@ -1219,6 +1376,15 @@ fn date(julian: i32) -> String {
     }
     let d = civil_from_julian(julian);
     format!("{:04}-{:02}-{:02}", d.year, d.month, d.day)
+}
+
+/// The cell-scanning phases (§3.2), which the original's deadline can stop
+/// mid-scan.
+fn is_scan_phase(s: u8) -> bool {
+    matches!(
+        s,
+        cs::CREATE_MAPS | cs::CREATE_FINAL_MAP | cs::CLEAR_DESTINATIONS | cs::REDUCE_EDGES | cs::REFRESH_COMMUTE
+    )
 }
 
 fn is_trip_phase(s: u8) -> bool {
@@ -1311,6 +1477,8 @@ struct MonthAcc {
     detail_lines: u32,
     first: Vec<String>,
     reasons: BTreeMap<String, u32>,
+    /// Differences of a known kind (a spec question, not counted).
+    known: BTreeMap<&'static str, u64>,
 }
 
 /// The delivery between [`TrafficShadow::before`] and
@@ -1343,6 +1511,10 @@ pub struct TrafficShadow {
     /// The copy's grids hold the original's values (as of the last
     /// comparison).
     grids_synced: bool,
+    hypotheses: u32,
+    /// The previous delivery's target (cycle state, progress), for the
+    /// original's advance within a phase.
+    last_target: Option<(u8, u64)>,
     max_diffs: usize,
     detail_lines_per_month: u32,
     pending: Option<Pending>,
@@ -1365,6 +1537,8 @@ impl TrafficShadow {
             copy,
             started: false,
             grids_synced: false,
+            hypotheses: 0,
+            last_target: None,
             max_diffs: max_diffs.max(1),
             detail_lines_per_month: detail_lines,
             pending: None,
@@ -1384,6 +1558,15 @@ impl TrafficShadow {
     /// The copy's host.
     pub fn host(&self) -> &Rc<ShadowHost> {
         &self.host
+    }
+
+    /// The copy's hypotheses ([`State::shadow_hypotheses`]): alternative
+    /// readings of unclear spec points, for testing them against the
+    /// original (0, the default, is the spec as written). Named in every
+    /// month line.
+    pub fn set_hypotheses(&mut self, mask: u32) {
+        self.hypotheses = mask;
+        self.copy.update_state(|st| st.shadow_hypotheses = mask);
     }
 
     /// Whether the copy has started (the first delivery read the original's
@@ -1422,9 +1605,68 @@ impl TrafficShadow {
         if !self.copy.read(&mut CaptureReader::new(c)) {
             return false;
         }
+        self.restore_orders(c);
         self.copy.shadow_resume();
         self.copy.shadow_apply_damage_costs();
         true
+    }
+
+    /// After a Read: gives the copy's SGI hash containers (the damage key
+    /// sets, row 13, and the edge densities, row 7) the iteration order of
+    /// the record they were read from. Our Read inserts the keys one by one,
+    /// which reverses each bucket's chain, so a record written after it would
+    /// list the keys of a shared bucket in the other order (and the pothole
+    /// picks, §4.12, would take other cells); how the original's Read
+    /// rebuilds them is not stated (TS question in the lane report). The
+    /// tooling *[choice]* rebuilds each container with the smallest listed
+    /// bucket count (at least the default 193 and the key count) under which
+    /// the record's order is bucket-ascending, inserting the keys last first;
+    /// a container whose order no such count explains is left as read.
+    /// Returns the containers rebuilt.
+    fn restore_orders(&self, c: &Capture) -> u32 {
+        let ours = self.record();
+        if ours.bytes.len() != c.bytes.len() {
+            return 0;
+        }
+        let field = |label: &str| -> Option<&[u8]> {
+            ours.fields()
+                .into_iter()
+                .find(|f| f.0 == label)
+                .map(|(_, a, b)| &c.bytes[a..b])
+        };
+        let mut done = 0;
+        for (kind, labels) in super::record::DAMAGE_LABELS.iter().enumerate() {
+            for (set_index, label) in labels[1..].iter().enumerate() {
+                let Some(keys) = field(label).and_then(damage_keys) else { continue };
+                let Some(set) = ordered_set(&keys) else { continue };
+                self.copy.update_damage(|d| {
+                    let b = if kind == 0 { &mut d.road } else { &mut d.rail };
+                    let target = if set_index == 0 { &mut b.intact } else { &mut b.damaged };
+                    if target.len() == set.len() && keys.iter().all(|&k| target.contains(k)) {
+                        *target = set;
+                        done += 1;
+                    }
+                });
+            }
+        }
+        if let Some(keys) = field("edge densities").and_then(|b| record_keys(b, EDGE_RECORD_BYTES)) {
+            self.copy.network().update_state(|n| {
+                if keys.len() != n.edge_density.len() {
+                    return;
+                }
+                let Some(p) = order_bucket_count(&keys) else { return };
+                let mut m = StlHashMap::with_hint(p);
+                for &k in keys.iter().rev() {
+                    let Some(v) = n.edge_density.get(k).copied() else { return };
+                    m.entry(k, || v);
+                }
+                if m.keys() == keys {
+                    n.edge_density = m;
+                    done += 1;
+                }
+            });
+        }
+        done
     }
 
     /// The copy's start on the original's record: Read (a load), Init,
@@ -1472,7 +1714,9 @@ impl TrafficShadow {
                         self.grids_synced = true;
                     }
                     let ours = self.record();
-                    p.drift = compare_record(&r0.bytes, &ours);
+                    // A known kind of difference alone does not resync:
+                    // the copy keeps its own value.
+                    p.drift = compare_record_split(&r0.bytes, &ours).0;
                     if !p.drift.is_empty() {
                         self.load_grids(&r0, live);
                         if !self.resync(&r0) {
@@ -1508,13 +1752,37 @@ impl TrafficShadow {
         self.copy.shadow_day_start();
         let s0 = self.copy.cycle_state();
         let to = t.cycle_state;
-        let want = progress(t);
+        // The original's progress in the target phase, as the copy counts:
+        // - in the phase it was in before (the previous target, when no
+        //   resync came between): the copy's own progress plus the
+        //   original's advance (the counters a known difference leaves
+        //   apart, e.g. pass counter 4, do not matter);
+        // - entering 17 or 18 ends the original's day (§3.3): none;
+        // - otherwise the target's own count (zeroed on the phase's entry).
+        let p0 = self.copy.read_state(progress);
+        let want = match self.last_target {
+            Some((ls, lp)) if ls == to && s0 == to => p0.saturating_add(progress(t).saturating_sub(lp)),
+            _ if s0 != to && matches!(to, cs::REROUTE_TRIPS | cs::FULL_TRIPS) => 0,
+            _ => progress(t),
+        };
         let allowed = chain(s0, to);
+        // A scanning phase the original's deadline stopped mid-scan: the
+        // copy's scan stops at the same cell.
+        let stop = (is_scan_phase(to) && t.scan.state == ScanState::Running).then_some((to, t.scan.x, t.scan.z));
+        self.copy.update_state(|st| st.shadow_scan_stop = stop);
         let mut steps = 0u32;
         let mut note = None;
         loop {
-            let (s, p) = self.copy.read_state(|st| (st.cycle_state, progress(st)));
-            if s == to && (!is_trip_phase(s) || p >= want) {
+            let (s, p, at_stop) = self.copy.read_state(|st| {
+                let at = st.scan.state == ScanState::Running && Some((st.cycle_state, st.scan.x, st.scan.z)) == stop;
+                (st.cycle_state, progress(st), at)
+            });
+            let reached = if is_trip_phase(s) {
+                p >= want
+            } else {
+                stop.is_none() || at_stop
+            };
+            if s == to && reached {
                 if is_trip_phase(s) && p > want {
                     note = Some(format!(
                         "ours passed the original's progress in state {s}: {p} > {want}"
@@ -1535,8 +1803,9 @@ impl TrafficShadow {
             self.copy.shadow_slice();
             steps += 1;
         }
+        self.copy.update_state(|st| st.shadow_scan_stop = None);
         let s = self.copy.cycle_state();
-        if note.is_none() && s == to && matches!(s, cs::REROUTE_TRIPS | cs::FULL_TRIPS) && want > 0 {
+        if note.is_none() && s == to && s0 == to && matches!(s, cs::REROUTE_TRIPS | cs::FULL_TRIPS) && want > p0 {
             // The original's deadline test stops a slice at the next trip to
             // examine (§3.4): run on to it.
             self.month.run_ons += 1;
@@ -1630,6 +1899,10 @@ impl TrafficShadow {
             return Outcome { mismatches: -1, lines };
         };
         let t = target.state;
+        let drifted = !p.drift.is_empty();
+        if drifted {
+            self.last_target = None;
+        }
         // Ours.
         let (units, note) = if d.msg_type == msg::DAY {
             self.run_day(&t)
@@ -1645,6 +1918,7 @@ impl TrafficShadow {
         };
         self.month.units += u64::from(units);
         self.stats.units += u64::from(units);
+        self.last_target = Some((t.cycle_state, progress(&t)));
 
         // The comparison.
         let mut diffs: Vec<String> = Vec::new();
@@ -1663,7 +1937,10 @@ impl TrafficShadow {
             self.month.drifts += 1;
         }
         let ours = self.record();
-        let rec = compare_record(&r1.bytes, &ours);
+        let (rec, known) = compare_record_split(&r1.bytes, &ours);
+        for k in known {
+            *self.month.known.entry(k).or_default() += 1;
+        }
         self.month.record_fields += ours.marks.len() as u64;
         self.stats.record_fields += rec.len() as u64;
         for (field, text) in &rec {
@@ -1695,6 +1972,10 @@ impl TrafficShadow {
             let orig = h.trip_list(s);
             trip_compared += 1;
             if trip_bytes(&orig) != trip_bytes(&exp) {
+                if let Some(k) = known_trip_difference(&orig, &exp) {
+                    *self.month.known.entry(k).or_default() += 1;
+                    continue;
+                }
                 trip_bad += 1;
                 if diffs.len() < self.max_diffs * 4 {
                     let (what, (x, z)) = match s {
@@ -1900,10 +2181,21 @@ impl TrafficShadow {
         } else {
             m.first.join(" | ")
         };
+        let known = if m.known.is_empty() {
+            String::new()
+        } else {
+            let k: Vec<String> = m.known.iter().map(|(k, v)| format!("{k} x{v}")).collect();
+            format!("; known differences (not counted): {}", k.join(", "))
+        };
+        let hyp = if self.hypotheses == 0 {
+            String::new()
+        } else {
+            format!(" (hypotheses 0x{:X})", self.hypotheses)
+        };
         lines.push(format!(
-            "traffic shadow month to {}: {head}; deliveries={} (day {}, month {}, other {}) compared={} clean={} \
+            "traffic shadow month to {}{hyp}: {head}; deliveries={} (day {}, month {}, other {}) compared={} clean={} \
              incomplete={}{reasons}; record fields compared={} mismatched={}{field_list}; trip lists compared={} \
-             mismatched={}; holder properties compared={} mismatched={}; grid tracts compared={} mismatched={}; \
+             mismatched={}; holder properties compared={} mismatched={}; grid tracts compared={} mismatched={}{known}; \
              between deliveries: resyncs={}; ours: units={} run-ons={} day steps={}, kept posts={} history={} \
              incomes={} network costs={} budget items={} accidents={}; first differences: {first}",
             date(d.julian),

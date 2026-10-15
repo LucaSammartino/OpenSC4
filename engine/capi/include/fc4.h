@@ -5403,9 +5403,18 @@ typedef struct fc4_traffic_shadow_stats {
 } fc4_traffic_shadow_stats;
 
 /* NULL when the table is incomplete. max_diffs: differences named per line (0
- * -> 8, at most 64); detail_lines: delivery lines per month (0 -> 8). */
+ * -> 8, at most 64); detail_lines: delivery lines per month (0 -> 8). The
+ * shadow calls the table's read callbacks, and deactivate_budget_items as a
+ * LOOKUP: the table given here must answer it with the cost of the holder's
+ * 0xCA550301 budget item without removing anything (NULL reads 0). */
 fc4_traffic_shadow* fc4_traffic_shadow_create(const fc4_traffic_host* host, uint32_t session_seed,
                                               uint32_t max_diffs, uint32_t detail_lines);
+/* The copy's hypotheses: alternative readings of unclear spec points, to test
+ * them against the original (0, the default: the spec as written); set before
+ * the first delivery; named in every month line. False for NULL. */
+#define FC4_TRAFFIC_SHADOW_HYP_MERGE_ABSORBED 0x1u /* the ConfirmTrips merge sets status 0 only on a trip that absorbed one */
+#define FC4_TRAFFIC_SHADOW_HYP_TYPE_COUNTS_SWAP 0x2u /* row 19 pairs (published, building); FullTrips' end swaps them */
+bool fc4_traffic_shadow_set_hypotheses(fc4_traffic_shadow* s, uint32_t mask);
 void fc4_traffic_shadow_destroy(fc4_traffic_shadow* s);
 /* before: NULL or not ok -> the delivery is reported INCOMPLETE. 0; -1 for NULL s. */
 int32_t fc4_traffic_shadow_before(fc4_traffic_shadow* s, uint32_t msg_type, uint32_t data1, uint32_t data2,
