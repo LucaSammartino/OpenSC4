@@ -1356,7 +1356,7 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      original's agent it reads the original's `dirty` byte and `state` (+0x20 / +0x24, read-only, only while the
      object's vtable is the original's from the compat table); before a rebuild step (state 0..2) the original's
      CO$$ and CO$$$ grids are copied into the shadow core's own grids; after the original's step the shadow core is
-     set to the original's before-state (`fc4_commercial_set_machine`, ABI 58) and runs the same step on the live
+     set to the original's before-state (`fc4_commercial_set_machine`, ABI 53) and runs the same step on the live
      building map, and the machine and both grids are compared cell by cell. Idle-state steps are compared
      (machine only) and counted in the next line. Lines (always written):
 

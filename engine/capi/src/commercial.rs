@@ -281,7 +281,7 @@ pub unsafe extern "C" fn fc4_commercial_do_idle(c: *mut fc4_commercial) {
     with_c(c, (), |h| h.sim.do_idle())
 }
 
-/// Tooling (the commercial shadow, ABI 58): sets the `DoIdle` machine to the
+/// Tooling (the commercial shadow, ABI 53): sets the `DoIdle` machine to the
 /// original's `dirty` and `state` (§2.1, §4.3). False for a state outside
 /// 0..3, which changes nothing.
 #[no_mangle]
