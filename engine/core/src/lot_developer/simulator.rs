@@ -16,9 +16,8 @@ use super::tuning::Tuning;
 use super::{
     lot_prop, lot_state, msg, object_type, reason, zot, BuildingProfile, BurntBuilding, CellRect, CfgObject, Cheat,
     LotDevMessage, LotDeveloperHost, TextureRecord, Vec3, AGENT_LEVELS, ANCHOR_GROUP, BASE_TEXTURE_EXTRA_DEFAULT,
-    COFFEE_BAR_BUILDING,
-    COFFEE_BAR_CFG, OCCUPANT_TYPE_BUILDING, OCCUPANT_TYPE_NETWORK, OCCUPANT_TYPE_PROP, PROP_NIGHT_LIGHT,
-    PROP_ZOT_NUMBER, SUBSCRIBED, TEXTURE_RESOURCE,
+    COFFEE_BAR_BUILDING, COFFEE_BAR_CFG, OCCUPANT_TYPE_BUILDING, OCCUPANT_TYPE_NETWORK, OCCUPANT_TYPE_PROP,
+    PROP_NIGHT_LIGHT, PROP_ZOT_NUMBER, SUBSCRIBED, TEXTURE_RESOURCE,
 };
 use crate::rng::{derive_seed, file_seed, CrtRand, FixedSeeds, RzRandom, SeedSource};
 use crate::stl::StlHashSet;
@@ -446,7 +445,8 @@ impl LotDeveloper {
     /// accumulator and the night count into the batch size (quirk 10).
     pub fn read_tuning(&mut self) {
         let h = self.host.tuning();
-        self.view.tuning
+        self.view
+            .tuning
             .read(h.as_deref(), &mut self.night_acc, &mut self.night_batch);
     }
 
@@ -1491,15 +1491,8 @@ impl LotDeveloper {
         level: bool,
         walls: bool,
     ) -> bool {
-        self.view.add_lot_foundation_type(
-            &*self.host,
-            &self.statics,
-            lot,
-            ftype,
-            use_lot_altitude,
-            level,
-            walls,
-        )
+        self.view
+            .add_lot_foundation_type(&*self.host, &self.statics, lot, ftype, use_lot_altitude, level, walls)
     }
 
     /// Slot 61 `UpdateLotFoundation(lot)` (§17.5.4; R8 possible).
@@ -2097,7 +2090,8 @@ impl LotDeveloper {
     /// Slots 16 / 17 `GetLowestOrHighestAreaAltitude(rect, lowest,
     /// withWater)` over the vertices `x1 ..= x2 + 1`, `z1 ..= z2 + 1`.
     pub fn lowest_or_highest_area_altitude(&self, rect: CellRect, lowest: bool, with_water: bool) -> f32 {
-        self.view.lowest_or_highest_area_altitude(&*self.host, rect, lowest, with_water)
+        self.view
+            .lowest_or_highest_area_altitude(&*self.host, rect, lowest, with_water)
     }
 
     /// Slot 18 `GetAverageAreaAltitude(rect, withWater)`.

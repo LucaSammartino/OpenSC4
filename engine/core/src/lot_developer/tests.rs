@@ -746,16 +746,24 @@ impl LotDeveloperHost for Script {
         self.cfgs.borrow().get(&cfg).map_or(Vec::new(), |c| c.objects.clone())
     }
     fn cfg_primary_building_object(&self, cfg: u64) -> Option<CfgObject> {
-        self.cfgs.borrow().get(&cfg).and_then(|c| c.primary_building.clone()).map(|ids| CfgObject {
-            ids,
-            ..CfgObject::default()
-        })
+        self.cfgs
+            .borrow()
+            .get(&cfg)
+            .and_then(|c| c.primary_building.clone())
+            .map(|ids| CfgObject {
+                ids,
+                ..CfgObject::default()
+            })
     }
     fn cfg_primary_foundation_object(&self, cfg: u64) -> Option<CfgObject> {
-        self.cfgs.borrow().get(&cfg).and_then(|c| c.primary_foundation.clone()).map(|ids| CfgObject {
-            ids,
-            ..CfgObject::default()
-        })
+        self.cfgs
+            .borrow()
+            .get(&cfg)
+            .and_then(|c| c.primary_foundation.clone())
+            .map(|ids| CfgObject {
+                ids,
+                ..CfgObject::default()
+            })
     }
     fn cfg_has_objects_of_type(&self, cfg: u64, object_type: u32) -> bool {
         if object_type == object_type::WATER {
@@ -903,7 +911,11 @@ impl LotDeveloperHost for Script {
             .borrow()
             .iter()
             .filter(|(_, o)| {
-                o.foundation_kind.is_some() && o.cells.x1 <= rect.x2 && rect.x1 <= o.cells.x2 && o.cells.z1 <= rect.z2 && rect.z1 <= o.cells.z2
+                o.foundation_kind.is_some()
+                    && o.cells.x1 <= rect.x2
+                    && rect.x1 <= o.cells.x2
+                    && o.cells.z1 <= rect.z2
+                    && rect.z1 <= o.cells.z2
             })
             .map(|(&t, _)| t)
             .collect()
@@ -930,7 +942,11 @@ impl LotDeveloperHost for Script {
         _orient: i32,
         _bottom: f32,
     ) -> bool {
-        let name = if kind == foundation_kind::LOT { "add_lot_foundation" } else { "add_building_foundation" };
+        let name = if kind == foundation_kind::LOT {
+            "add_lot_foundation"
+        } else {
+            "add_building_foundation"
+        };
         self.say(format!("{name} {foundation_type:#x} y={}", pos[1]));
         true
     }
@@ -1083,7 +1099,9 @@ impl LotDeveloperHost for Script {
         h: f32,
         exempt: Option<u64>,
     ) -> i32 {
-        self.say(format!("modify_terrain {per_vertex} {x0},{z0},{x1},{z1} {h} {exempt:?}"));
+        self.say(format!(
+            "modify_terrain {per_vertex} {x0},{z0},{x1},{z1} {h} {exempt:?}"
+        ));
         1
     }
     fn demolish_lot(&self, lot: u64) -> bool {

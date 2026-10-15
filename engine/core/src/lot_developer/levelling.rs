@@ -65,7 +65,13 @@ impl TerrainView {
     /// Slot 20 `LevelBorderingVertices(rect, h, unused, lot)` (§17.4):
     /// `ModifyTerrainHeight(1, 1, x1, z1, x2 + 1, z2 + 1, h, lot, 5, null)`
     /// over **every** vertex of the rectangle; returns its EAX.
-    pub fn level_bordering_vertices(&self, host: &dyn LotDeveloperHost, rect: CellRect, h: f32, lot: Option<u64>) -> i32 {
+    pub fn level_bordering_vertices(
+        &self,
+        host: &dyn LotDeveloperHost,
+        rect: CellRect,
+        h: f32,
+        lot: Option<u64>,
+    ) -> i32 {
         host.modify_terrain_height(
             true,
             rect.x1,

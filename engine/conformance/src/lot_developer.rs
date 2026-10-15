@@ -18,16 +18,16 @@ use std::rc::{Rc, Weak};
 
 use fc4_core::development::BuildingProfile;
 use fc4_core::lot_developer::{
-    answers_iid, is_empty_lot_suitable_for_zot, lot_prop, lot_state, reason, rubble_count,
-    BurntBuilding, CellRect, CfgObject, Cheat, Draw, DrawKind, LotDevMessage, LotDeveloper, LotDeveloperHost,
-    LotDeveloperStatics, SharedStatics, TerrainView, TextureRecord, Tuning, Vec3, FLT_MAX, IID_BUILDING_OCCUPANT,
+    answers_iid, is_empty_lot_suitable_for_zot, lot_prop, lot_state, reason, rubble_count, BurntBuilding, CellRect,
+    CfgObject, Cheat, Draw, DrawKind, LotDevMessage, LotDeveloper, LotDeveloperHost, LotDeveloperStatics,
+    SharedStatics, TerrainView, TextureRecord, Tuning, Vec3, FLT_MAX, IID_BUILDING_OCCUPANT,
     OCCUPANT_TYPE_BASE_TEXTURE, OCCUPANT_TYPE_BUILDING, OCCUPANT_TYPE_FOUNDATION, OCCUPANT_TYPE_PROP,
 };
-use fc4_core::x87::{ftol32, r24};
 use fc4_core::property::PropertyHolder;
 use fc4_core::rng::{CrtRand, FixedSeeds, RzRandom};
 use fc4_core::stream::{ByteReader, ByteWriter, RefResolver, RefValue, SaveRegistry};
 use fc4_core::variant::{mem, Elem, Variant};
+use fc4_core::x87::{ftol32, r24};
 
 use crate::foundations::{hex_decode, hex_encode};
 use crate::json::Json;
@@ -351,7 +351,11 @@ impl World {
 
     fn vertex_alt(&self, x: i32, z: i32) -> f32 {
         let i = x.wrapping_add(z.wrapping_mul(self.verts_x()));
-        self.terrain_alt.borrow().get(&i).copied().unwrap_or(self.flat_alt.get())
+        self.terrain_alt
+            .borrow()
+            .get(&i)
+            .copied()
+            .unwrap_or(self.flat_alt.get())
     }
 
     fn set_vertex_alt(&self, x: i32, z: i32, h: f32) {
@@ -369,7 +373,10 @@ impl World {
         let (tx, tz) = (fx - ix, fz - iz);
         let (ix, iz) = (ix as i32, iz as i32);
         let a = |dx: i32, dz: i32| f64::from(self.vertex_alt(ix + dx, iz + dz));
-        let v = a(0, 0) * (1.0 - tx) * (1.0 - tz) + a(1, 0) * tx * (1.0 - tz) + a(0, 1) * (1.0 - tx) * tz + a(1, 1) * tx * tz;
+        let v = a(0, 0) * (1.0 - tx) * (1.0 - tz)
+            + a(1, 0) * tx * (1.0 - tz)
+            + a(0, 1) * (1.0 - tx) * tz
+            + a(1, 1) * tx * tz;
         v as f32
     }
 
@@ -538,7 +545,11 @@ impl LotDeveloperHost for World {
     }
     fn terrain_altitude(&self, index: i32) -> f32 {
         self.trace("alt_vertex", vec![("index", ji(index))]);
-        self.terrain_alt.borrow().get(&index).copied().unwrap_or(self.flat_alt.get())
+        self.terrain_alt
+            .borrow()
+            .get(&index)
+            .copied()
+            .unwrap_or(self.flat_alt.get())
     }
     fn terrain_water_level(&self, index: i32) -> f32 {
         self.trace("water_vertex", vec![("index", ji(index))]);
@@ -605,9 +616,8 @@ impl LotDeveloperHost for World {
         let lots = self.lots.borrow();
         let cell = CellRect::new(x, z, x, z);
         order.iter().copied().find(|&t| {
-            lots.get(&t).is_some_and(|l| {
-                (l.x == x && l.z == z) || (!origin && overlaps(World::lot_rect(l), cell))
-            })
+            lots.get(&t)
+                .is_some_and(|l| (l.x == x && l.z == z) || (!origin && overlaps(World::lot_rect(l), cell)))
         })
     }
     fn lots_in_cell_rect(&self, _rect: CellRect, _origin: bool) -> Vec<u64> {
@@ -2137,8 +2147,10 @@ fn set_terrain(w: &World, op: &Json) -> R<()> {
         if let Some(v) = opt(op, k) {
             for e in arr(v, k)? {
                 let a = arr(e, k)?;
-                map.borrow_mut()
-                    .insert(pos_key(f32_of(&a[0], "x")?, f32_of(&a[1], "z")?), f32_of(&a[2], "value")?);
+                map.borrow_mut().insert(
+                    pos_key(f32_of(&a[0], "x")?, f32_of(&a[1], "z")?),
+                    f32_of(&a[2], "value")?,
+                );
             }
         }
     }
@@ -2229,8 +2241,14 @@ fn set_tuning(w: &World, op: &Json) -> R<()> {
         PropertyHolder::new()
     };
     for (k, id) in [
-        ("auto_level_delta", fc4_core::lot_developer::prop::AUTO_LEVEL_INTERNAL_ALTITUDE_DELTA),
-        ("max_area_slope", fc4_core::lot_developer::prop::MAX_AREA_SLOPE_FOR_LEVELLING),
+        (
+            "auto_level_delta",
+            fc4_core::lot_developer::prop::AUTO_LEVEL_INTERNAL_ALTITUDE_DELTA,
+        ),
+        (
+            "max_area_slope",
+            fc4_core::lot_developer::prop::MAX_AREA_SLOPE_FOR_LEVELLING,
+        ),
     ] {
         if let Some(v) = opt(op, k) {
             h.add(id, Variant::Scalar(Elem::F32(f32_of(v, k)?)));
@@ -2679,7 +2697,10 @@ fn check_bits(op: &Json, v: f32) -> R<()> {
     if let Some(b) = opt(op, "expect_bits") {
         let want = u32_of(b, "expect_bits")?;
         if v.to_bits() != want {
-            return Err(format!("returned {v} ({:#010X}), expected bits {want:#010X}", v.to_bits()));
+            return Err(format!(
+                "returned {v} ({:#010X}), expected bits {want:#010X}",
+                v.to_bits()
+            ));
         }
     }
     Ok(())
@@ -2746,7 +2767,12 @@ fn level_internal(w: &World, op: &Json) -> R<()> {
     let skip_water = flag(op, "skip_water", true);
     let force = flag(op, "force", false);
     let lot = opt_token_null(op, "lot")?;
-    w.with_sim(|s| check_expect(op, ji(s.level_area_internal_vertices(rect, target, skip_water, force, lot))))
+    w.with_sim(|s| {
+        check_expect(
+            op,
+            ji(s.level_area_internal_vertices(rect, target, skip_water, force, lot)),
+        )
+    })
 }
 
 /// `ldev_level_bordering`: slot 20, `rect`, `h`, `lot`; `expect`.
@@ -2805,13 +2831,15 @@ fn boundary_texture(w: &World, op: &Json) -> R<()> {
         return Err("'sides' must have four entries".into());
     }
     w.with_sim(|s| {
-        let got = s.boundary_lot_texture([a[0], a[1], a[2], a[3]]).map_or(Json::Null, |r| {
-            Json::Object(vec![
-                ("texture".into(), ji(r.texture)),
-                ("rotation".into(), ji(r.rotation)),
-                ("flip".into(), Json::Bool(r.flip)),
-            ])
-        });
+        let got = s
+            .boundary_lot_texture([a[0], a[1], a[2], a[3]])
+            .map_or(Json::Null, |r| {
+                Json::Object(vec![
+                    ("texture".into(), ji(r.texture)),
+                    ("rotation".into(), ji(r.rotation)),
+                    ("flip".into(), Json::Bool(r.flip)),
+                ])
+            });
         check_expect(op, got)
     })
 }
@@ -2920,7 +2948,11 @@ fn expect_terrain(w: &World, op: &Json) -> R<()> {
         let (x, z) = (i32_of(&a[0], "x")?, i32_of(&a[1], "z")?);
         let got = jf(w.vertex_alt(x, z));
         if !matches(&got, &a[2], false) {
-            return Err(format!("vertex ({x}, {z}): got {}, expected {}", show(&got), show(&a[2])));
+            return Err(format!(
+                "vertex ({x}, {z}): got {}, expected {}",
+                show(&got),
+                show(&a[2])
+            ));
         }
     }
     Ok(())
@@ -2943,7 +2975,10 @@ fn expect_occ(w: &World, op: &Json) -> R<()> {
     let got = vec![
         ("exists".to_owned(), Json::Bool(true)),
         ("position".to_owned(), pos_json(o.position)),
-        ("bbox".to_owned(), Json::Array(vec![pos_json(o.bbox.0), pos_json(o.bbox.1)])),
+        (
+            "bbox".to_owned(),
+            Json::Array(vec![pos_json(o.bbox.0), pos_json(o.bbox.1)]),
+        ),
         ("cells".to_owned(), rect_json(o.cells)),
         ("orientation".to_owned(), ji(o.orientation)),
         ("foundation_kind".to_owned(), o.foundation_kind.map_or(Json::Null, ji)),

@@ -245,7 +245,13 @@ impl TerrainView {
     /// middle of the two corners of the side the lot faces.
     /// *[choice]* A facing outside 0–3 (the original indexes past the
     /// corner array) is taken modulo 4.
-    pub fn pick_lot_foundation_altitude(&self, host: &dyn LotDeveloperHost, lot: u64, corners: &[f32; 4], f: i32) -> f32 {
+    pub fn pick_lot_foundation_altitude(
+        &self,
+        host: &dyn LotDeveloperHost,
+        lot: u64,
+        corners: &[f32; 4],
+        f: i32,
+    ) -> f32 {
         if let Some(cfg) = host.lot_configuration(lot) {
             if host.cfg_is_compatible_with_water(cfg) {
                 let r = host.lot_bounding_rect(lot);

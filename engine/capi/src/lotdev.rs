@@ -10,9 +10,9 @@
 //! The host implements [`fc4_lotdev_host`]: one callback per
 //! `LotDeveloperHost` method of the core, in the trait's order. The plugin's
 //! `cISC4LotDeveloper` (with its message-target and serializable
-//! sub-objects) forwards its slots to the `fc4_lotdev_*` functions; the
-//! geometry slots the spec leaves to the terrain / lot-content spec (§12.2
-//! Q4) are the host's own and are not routed through here.
+//! sub-objects) forwards its slots to the `fc4_lotdev_*` functions. The
+//! §17 geometry slots (16, 18–21, 39, 40, 42, 43, 48–61) are here; slots
+//! 38, 41, 45 and 62–64 (and the retaining-wall helpers) stay the host's.
 //!
 //! The class-wide statics of §10.1 (the file-local `cRZRandom` and the
 //! `rand()` state of R15) are one [`fc4_lotdev_statics`] the host creates
@@ -32,8 +32,9 @@
 //! host keeps its tokens alive until then). Any other call that arrives
 //! while the core is busy is **refused**: it returns the slot's neutral value
 //! and is counted (`fc4_lotdev_state::refused_calls`) *[choice]*. The
-//! terrain and cost slots (15–18, 22, 25–32) never need the core: they read
-//! a snapshot ([`TerrainView`]) refreshed after `Init` and `Read`, so they
+//! terrain, cost and §17 geometry slots (15–22, 25–32, 39–40, 42–43, 48–61)
+//! never need the core: they run on a snapshot ([`TerrainView`], refreshed
+//! when each outermost core call returns) and the shared statics, so they
 //! answer even in the middle of a core call (the BDS asks for a lot slope
 //! while `StartConstruction` places a building).
 //!
@@ -46,9 +47,9 @@ use std::ffi::c_void;
 use std::rc::Rc;
 
 use fc4_core::lot_developer::{
-    answers_iid, cell_rect_of_float, lot_prop, lot_state, msg, BuildingProfile, BurntBuilding, CellRect, CfgObject,
-    Cheat, LotDevMessage, LotDeveloper, LotDeveloperHost, LotDeveloperStatics, SharedStatics, TerrainView,
-    TextureRecord, Tuning, Vec3, IID_LOT_DEVELOPER, IID_MESSAGE_TARGET2, IID_SERIALIZABLE, IID_UNKNOWN,
+    answers_iid, lot_prop, lot_state, msg, BuildingProfile, BurntBuilding, CellRect, CfgObject, Cheat, LotDevMessage,
+    LotDeveloper, LotDeveloperHost, LotDeveloperStatics, SharedStatics, TerrainView, TextureRecord, Tuning, Vec3,
+    IID_LOT_DEVELOPER, IID_MESSAGE_TARGET2, IID_SERIALIZABLE, IID_UNKNOWN,
 };
 use fc4_core::property::PropertyHolder;
 use fc4_core::rng::FixedSeeds;
@@ -66,18 +67,33 @@ type U = *mut c_void;
 pub type fc4_u32s_sink = Option<unsafe extern "C" fn(ctx: *mut c_void, values: *const u32, n: usize)>;
 
 /// One lot configuration object (fc4.h `fc4_lotdev_cfg_object`): the fields
-/// of a 0x34-byte `cSC4LotConfigurationObject` the lot developer reads.
+/// of a 0x34-byte `cSC4LotConfigurationObject` the lot developer reads. The
+/// field offsets are the record's (§17.1); the layout is `#[repr(C)]` so the
+/// host fills it in place.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct fc4_lotdev_cfg_object {
+    /// `+0x00`: 1 prop, 2 base texture, 4 flora, 7 water, … .
     pub object_type: u32,
+    /// `+0x01`: the flag byte.
     pub flags: u8,
+    /// `+0x02`: the orientation.
     pub orientation: u8,
+    /// `+0x03`: the mirror flag / object byte 3.
     pub byte3: u8,
-    pub reserved: u8,
+    /// `+0x04`, `+0x08`, `+0x0C`: the lot-space offsets x, y, z.
+    pub offset: [f32; 3],
+    /// `+0x10`, `+0x14`: the footprint's max x, max z.
+    pub footprint_max: [f32; 2],
+    /// `+0x18`, `+0x1C`: the footprint's min x, min z.
+    pub footprint_min: [f32; 2],
+    /// `+0x20`: the foundation type.
+    pub foundation: u32,
+    /// `+0x24`: the lot tag.
     pub tag: u32,
+    /// `+0x28`: the ID count.
     pub n_ids: u32,
-    /// The object's ID list (`n_ids` values; families not expanded).
+    /// `+0x2C`: the object's ID list (`n_ids` values; families not expanded).
     pub ids: *const u32,
 }
 
@@ -85,16 +101,23 @@ pub struct fc4_lotdev_cfg_object {
 pub type fc4_lotdev_cfg_object_callback =
     Option<unsafe extern "C" fn(ctx: *mut c_void, object: *const fc4_lotdev_cfg_object)>;
 
-/// One base-texture record (fc4.h `fc4_lotdev_texture`, §6.6).
+/// One base-texture record (fc4.h `fc4_lotdev_texture`, §6.6, §17.7): the
+/// fields of the 14-byte record of lot-records.md §6, the cell as int32.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct fc4_lotdev_texture {
     pub texture: u32,
     pub x: i32,
     pub z: i32,
+    /// The orientation (normal textures) or rotation (empty-lot textures).
     pub orientation: u8,
+    /// Object byte 3 (normal textures) or the flip (empty-lot textures).
     pub byte3: u8,
-    pub reserved: [u8; 2],
+    /// `0xFF` x 5 for normal textures; the zone's colour (three bytes, from
+    /// the top), the display alpha and 3 for empty-lot textures.
+    pub extra: [u8; 5],
+    /// The frame byte (`0xFF`).
+    pub frame: u8,
 }
 
 /// The burnt-building prop of `ExplodeLot` (fc4.h `fc4_lotdev_burnt`, §7.2).
@@ -228,8 +251,6 @@ pub struct fc4_lotdev_host {
     pub unsubscribe: Option<unsafe extern "C" fn(U, u32)>,
     pub register_animation_tick: Option<unsafe extern "C" fn(U)>,
     pub unregister_animation_tick: Option<unsafe extern "C" fn(U)>,
-    pub init_boundary_rules: Option<unsafe extern "C" fn(U)>,
-    pub clear_boundary_rules: Option<unsafe extern "C" fn(U)>,
     /// `(type, data1, lot)`: a queued standard message, data2–4 = 0.
     pub post_message: Option<unsafe extern "C" fn(U, u32, u32, u64)>,
     // city, simulator, terrain
@@ -239,11 +260,27 @@ pub struct fc4_lotdev_host {
     pub city_cell_widths: Option<unsafe extern "C" fn(U, *mut f32)>,
     /// `PositionToCell(x, z)` into `out[2]`; returns its AL.
     pub position_to_cell: Option<unsafe extern "C" fn(U, f32, f32, *mut i32) -> bool>,
+    /// City slot 96 `CellCornerToPosition(x, z)`: position into `out[2]`.
+    pub cell_corner_to_position: Option<unsafe extern "C" fn(U, i32, i32, *mut f32)>,
+    /// City slot 97 `CellCenterToPosition(x, z)`: position into `out[2]`.
+    pub cell_center_to_position: Option<unsafe extern "C" fn(U, i32, i32, *mut f32)>,
     pub sim_date: Option<unsafe extern "C" fn(U) -> u32>,
     pub terrain_cell_counts: Option<unsafe extern "C" fn(U, *mut i32)>,
     pub terrain_cell_width: Option<unsafe extern "C" fn(U) -> f32>,
     pub terrain_altitude: Option<unsafe extern "C" fn(U, i32) -> f32>,
     pub terrain_water_level: Option<unsafe extern "C" fn(U, i32) -> f32>,
+    /// Terrain slot 13 `GetAltitude(x, z)` at a position in metres.
+    pub terrain_altitude_at: Option<unsafe extern "C" fn(U, f32, f32) -> f32>,
+    /// Terrain slot 30 `GetWaterLevel(x, z)` at a position in metres.
+    pub terrain_water_level_at: Option<unsafe extern "C" fn(U, f32, f32) -> f32>,
+    /// Terrain slot 37 `IsWaterVertex(x, z)`.
+    pub terrain_is_water_vertex: Option<unsafe extern "C" fn(U, i32, i32) -> bool>,
+    /// Terrain slot 34 `CellHasWater(x, z)`.
+    pub terrain_cell_has_water: Option<unsafe extern "C" fn(U, i32, i32) -> bool>,
+    /// Zone manager slot 15 `GetZoneDragColor(zone)`.
+    pub zone_drag_color: Option<unsafe extern "C" fn(U, i32) -> u32>,
+    /// Zone manager slot 16 `GetZoneDisplayAlpha()`.
+    pub zone_display_alpha: Option<unsafe extern "C" fn(U) -> u8>,
     pub view_rotation: Option<unsafe extern "C" fn(U) -> i32>,
     pub visual_time_mode: Option<unsafe extern "C" fn(U) -> u32>,
     pub resource_exists: Option<unsafe extern "C" fn(U, u32, u32, u32) -> bool>,
@@ -270,6 +307,11 @@ pub struct fc4_lotdev_host {
     pub lot_bounding_rect: Option<unsafe extern "C" fn(U, u64, *mut fc4_cell_rect)>,
     pub lot_center: Option<unsafe extern "C" fn(U, u64, *mut f32)>,
     pub lot_zone_type: Option<unsafe extern "C" fn(U, u64) -> i32>,
+    /// Lot slots 16 / 17 `GetAltitude` / `SetAltitude`.
+    pub lot_altitude: Option<unsafe extern "C" fn(U, u64) -> f32>,
+    pub lot_set_altitude: Option<unsafe extern "C" fn(U, u64, f32)>,
+    /// Lot slot 23 `GetFacing` (0-3).
+    pub lot_facing: Option<unsafe extern "C" fn(U, u64) -> i32>,
     pub lot_flags: Option<unsafe extern "C" fn(U, u64) -> u32>,
     pub lot_set_flags: Option<unsafe extern "C" fn(U, u64, u32)>,
     pub lot_set_vertices_locked: Option<unsafe extern "C" fn(U, u64, bool)>,
@@ -314,37 +356,33 @@ pub struct fc4_lotdev_host {
     pub cfg_growth_stage: Option<unsafe extern "C" fn(U, u64) -> u8>,
     pub cfg_is_compatible_with_water: Option<unsafe extern "C" fn(U, u64) -> bool>,
     pub cfg_objects: Option<unsafe extern "C" fn(U, u64, fc4_lotdev_cfg_object_callback, *mut c_void)>,
-    /// The primary building object's IDs to `sink`; false without one.
-    pub cfg_primary_building_ids: Option<unsafe extern "C" fn(U, u64, fc4_u32s_sink, *mut c_void) -> bool>,
-    pub cfg_primary_foundation_ids: Option<unsafe extern "C" fn(U, u64, fc4_u32s_sink, *mut c_void) -> bool>,
+    /// Slot 24 `GetPrimaryBuildingConfigurationObject`: the object to `cb`
+    /// (once); false without one.
+    pub cfg_primary_building_object:
+        Option<unsafe extern "C" fn(U, u64, fc4_lotdev_cfg_object_callback, *mut c_void) -> bool>,
+    /// Slot 26 `GetPrimaryFoundationConfigurationObject`, likewise.
+    pub cfg_primary_foundation_object:
+        Option<unsafe extern "C" fn(U, u64, fc4_lotdev_cfg_object_callback, *mut c_void) -> bool>,
     pub cfg_has_objects_of_type: Option<unsafe extern "C" fn(U, u64, u32) -> bool>,
     pub get_lot_configuration: Option<unsafe extern "C" fn(U, u32) -> u64>,
     /// Manager slot 27 for object `index`: the IDs, families expanded.
     pub object_id_array: Option<unsafe extern "C" fn(U, u64, u32, fc4_u32s_sink, *mut c_void)>,
-    // geometry slots left to the host (§12.2 Q4)
-    /// Slot 39: position into `pos[3]`; returns the orientation.
-    pub object_position: Option<unsafe extern "C" fn(U, u64, u64, u32, *mut f32) -> i32>,
-    /// Slot 40: position into `pos[3]`, orientation into `*orient`.
-    pub position_for_building: Option<unsafe extern "C" fn(U, u64, *mut f32, *mut i32) -> bool>,
+    // slots and helpers §17 does not cover
+    /// Slot 38 `GetFirstBuilding(lot)` (borrowed).
     pub first_building: Option<unsafe extern "C" fn(U, u64) -> u64>,
-    pub level_area_internal_vertices:
-        Option<unsafe extern "C" fn(U, *const fc4_cell_rect, f32, bool, bool, u64) -> bool>,
-    pub attempt_area_levelling:
-        Option<unsafe extern "C" fn(U, *const fc4_cell_rect, f32, bool, bool, f32, u64) -> bool>,
-    pub add_lot_foundation_type: Option<unsafe extern "C" fn(U, u64, u32, bool, bool, bool) -> bool>,
-    pub add_building_foundation: Option<unsafe extern "C" fn(U, u64, u64) -> bool>,
-    pub remove_building_foundation: Option<unsafe extern "C" fn(U, u64) -> bool>,
-    pub update_lot_foundation: Option<unsafe extern "C" fn(U, u64) -> bool>,
+    /// Slot 62 `UpdateLotRetainingWalls(lot)`.
     pub update_lot_retaining_walls: Option<unsafe extern "C" fn(U, u64) -> bool>,
     pub update_lot_object_altitudes: Option<unsafe extern "C" fn(U, u64)>,
+    /// Slot 45 `UpdateLotBaseTextureOccupant(lot, hadFoundation)`.
     pub update_lot_base_texture_occupant: Option<unsafe extern "C" fn(U, u64, bool) -> bool>,
-    pub set_empty_lot_base_texture: Option<unsafe extern "C" fn(U, u64)>,
+    /// Slot 41 `GetLotBaseTextureOccupant(lot, &occ, create)`: the occupant
+    /// (borrowed), 0 when the slot returns false.
     pub base_texture_occupant: Option<unsafe extern "C" fn(U, u64, bool) -> u64>,
-    pub base_texture_is_inserted: Option<unsafe extern "C" fn(U, u64) -> bool>,
+    /// Base-texture slot 8 `SetTextureSpecification(records, n, 0)`.
     pub base_texture_set: Option<unsafe extern "C" fn(U, u64, *const fc4_lotdev_texture, usize)>,
-    pub remove_lot_retaining_walls: Option<unsafe extern "C" fn(U, u64)>,
-    pub remove_lot_foundation: Option<unsafe extern "C" fn(U, i32, i32) -> bool>,
-    pub update_surrounding_lot_foundations: Option<unsafe extern "C" fn(U, u64)>,
+    /// `AddRetainingWallOccupant(lot, flag)` (`0x005E3070`).
+    pub add_retaining_wall_occupant: Option<unsafe extern "C" fn(U, u64, u32)>,
+    /// `UpdateSurroundingRetainingWalls(lot)` (`0x005E3960`).
     pub update_surrounding_retaining_walls: Option<unsafe extern "C" fn(U, u64)>,
     pub add_network_connection_nodes: Option<unsafe extern "C" fn(U, u64, u64)>,
     pub remove_network_connection_nodes: Option<unsafe extern "C" fn(U, u64)>,
@@ -355,6 +393,10 @@ pub struct fc4_lotdev_host {
     pub building_add_ref: Option<unsafe extern "C" fn(U, u64)>,
     pub building_release: Option<unsafe extern "C" fn(U, u64)>,
     pub building_set_lit: Option<unsafe extern "C" fn(U, u64, bool)>,
+    /// Occupant slot 7 `GetType`.
+    pub occupant_type: Option<unsafe extern "C" fn(U, u64) -> u32>,
+    /// Occupant slot 8 `GetPosition` into `out[3]`.
+    pub occupant_position: Option<unsafe extern "C" fn(U, u64, *mut f32)>,
     /// Min then max corner into `out[6]`.
     pub occupant_bounding_box: Option<unsafe extern "C" fn(U, u64, *mut f32)>,
     pub occupant_city_cells: Option<unsafe extern "C" fn(U, u64, *mut fc4_cell_rect)>,
@@ -366,6 +408,10 @@ pub struct fc4_lotdev_host {
     pub occupant_set_property: Option<unsafe extern "C" fn(U, u64, u32, u32)>,
     pub occupant_init: Option<unsafe extern "C" fn(U, u64)>,
     pub occupant_set_flag: Option<unsafe extern "C" fn(U, u64, u32)>,
+    /// Occupant slot 32 `IsFlagSet(flag)`.
+    pub occupant_is_flag_set: Option<unsafe extern "C" fn(U, u64, u32) -> bool>,
+    /// Occupant slot 4 `Shutdown`.
+    pub occupant_shutdown: Option<unsafe extern "C" fn(U, u64)>,
     pub occupant_set_orientation: Option<unsafe extern "C" fn(U, u64, u32)>,
     pub occupant_set_position: Option<unsafe extern "C" fn(U, u64, *const f32)>,
     pub occupant_insert: Option<unsafe extern "C" fn(U, u64)>,
@@ -373,6 +419,20 @@ pub struct fc4_lotdev_host {
     pub occupant_changed: Option<unsafe extern "C" fn(U, u64)>,
     pub occupants_in_bbox: Option<unsafe extern "C" fn(U, *const f32, *const f32, fc4_token_callback, *mut c_void)>,
     pub occupants_in_cells: Option<unsafe extern "C" fn(U, *const fc4_cell_rect, u32, fc4_token_callback, *mut c_void)>,
+    /// Occupant manager slot 37: the occupants of a type whose box meets
+    /// the closed box `min[3]`..`max[3]`, in list order (borrowed).
+    pub occupants_in_box: Option<unsafe extern "C" fn(U, *const f32, *const f32, u32, fc4_token_callback, *mut c_void)>,
+    /// Building slot 14 `GetOrientation`.
+    pub building_orientation: Option<unsafe extern "C" fn(U, u64) -> i32>,
+    // foundations (cISC4FoundationOccupant, §17.5)
+    /// `QueryInterface(0xC8FCE101)` then slot 9 `GetKind()` into `*out`;
+    /// false when the occupant is not a foundation.
+    pub foundation_kind: Option<unsafe extern "C" fn(U, u64, *mut i32) -> bool>,
+    /// Slot 4 `GetFoundationType()`.
+    pub foundation_type: Option<unsafe extern "C" fn(U, u64) -> u32>,
+    /// BDS slot 23 `AddNewFoundationOccupant(type, kind, pos, dx, dz,
+    /// orient, bottom)`: `pos[3]` in/out; AL.
+    pub add_new_foundation_occupant: Option<unsafe extern "C" fn(U, u32, i32, *mut f32, f32, f32, i32, f32) -> bool>,
     // prop manager
     pub prop_create: Option<unsafe extern "C" fn(U, u32) -> u64>,
     pub lot_props: Option<unsafe extern "C" fn(U, u64, fc4_token_callback, *mut c_void)>,
@@ -413,6 +473,9 @@ pub struct fc4_lotdev_host {
     // demolition
     pub demolish_occupant: Option<unsafe extern "C" fn(U, u64) -> bool>,
     pub demolish_lot: Option<unsafe extern "C" fn(U, u64) -> bool>,
+    /// Slot 9 `ModifyTerrainHeight(1, perVertex, x0, z0, x1, z1, h, exempt,
+    /// 5, null)` (§17.3): EAX, the count.
+    pub modify_terrain_height: Option<unsafe extern "C" fn(U, bool, i32, i32, i32, i32, f32, u64) -> i32>,
     // business units
     pub unit_members: Option<unsafe extern "C" fn(U, u64, fc4_token_callback, *mut c_void)>,
     pub unit_create: Option<unsafe extern "C" fn(U) -> u64>,
@@ -421,12 +484,12 @@ pub struct fc4_lotdev_host {
 }
 
 /// The number of callbacks in [`fc4_lotdev_host`].
-pub const LOTDEV_HOST_CALLBACKS: usize = 169;
+pub const LOTDEV_HOST_CALLBACKS: usize = 176;
 
 const _: () = {
     let ptr = std::mem::size_of::<usize>();
-    assert!(std::mem::size_of::<fc4_lotdev_cfg_object>() == 16 + ptr);
-    assert!(std::mem::size_of::<fc4_lotdev_texture>() == 16);
+    assert!(std::mem::size_of::<fc4_lotdev_cfg_object>() == 48 + ptr);
+    assert!(std::mem::size_of::<fc4_lotdev_texture>() == 20);
     assert!(std::mem::size_of::<fc4_lotdev_burnt>() == 32);
     assert!(std::mem::size_of::<fc4_lotdev_profile>() == 12);
     assert!(std::mem::size_of::<fc4_lotdev_message>() == 40);
@@ -496,10 +559,14 @@ unsafe extern "C" fn push_cfg_object(ctx: *mut c_void, o: *const fc4_lotdev_cfg_
     v.push(CfgObject {
         object_type: o.object_type,
         flags: o.flags,
-        ids,
-        tag: o.tag,
         orientation: o.orientation,
         byte3: o.byte3,
+        offset: o.offset,
+        footprint_max: o.footprint_max,
+        footprint_min: o.footprint_min,
+        foundation: o.foundation,
+        tag: o.tag,
+        ids,
     });
 }
 
@@ -555,12 +622,6 @@ impl LotDeveloperHost for CHost {
     fn unregister_animation_tick(&self) {
         cb!(self, unregister_animation_tick, ())
     }
-    fn init_boundary_rules(&self) {
-        cb!(self, init_boundary_rules, ())
-    }
-    fn clear_boundary_rules(&self) {
-        cb!(self, clear_boundary_rules, ())
-    }
     fn post_message(&self, msg_type: u32, data1: u32, lot: Option<u64>) {
         cb!(self, post_message, (), msg_type, data1, lot.unwrap_or(0))
     }
@@ -581,6 +642,16 @@ impl LotDeveloperHost for CHost {
         let ok = cb!(self, position_to_cell, false, x, z, v.as_mut_ptr());
         (ok, v[0], v[1])
     }
+    fn cell_corner_to_position(&self, x: i32, z: i32) -> (f32, f32) {
+        let mut v = [0.0f32; 2];
+        cb!(self, cell_corner_to_position, (), x, z, v.as_mut_ptr());
+        (v[0], v[1])
+    }
+    fn cell_center_to_position(&self, x: i32, z: i32) -> (f32, f32) {
+        let mut v = [0.0f32; 2];
+        cb!(self, cell_center_to_position, (), x, z, v.as_mut_ptr());
+        (v[0], v[1])
+    }
     fn sim_date(&self) -> u32 {
         cb!(self, sim_date, 0)
     }
@@ -597,6 +668,24 @@ impl LotDeveloperHost for CHost {
     }
     fn terrain_water_level(&self, index: i32) -> f32 {
         cb!(self, terrain_water_level, 0.0, index)
+    }
+    fn terrain_altitude_at(&self, x: f32, z: f32) -> f32 {
+        cb!(self, terrain_altitude_at, 0.0, x, z)
+    }
+    fn terrain_water_level_at(&self, x: f32, z: f32) -> f32 {
+        cb!(self, terrain_water_level_at, 0.0, x, z)
+    }
+    fn terrain_is_water_vertex(&self, x: i32, z: i32) -> bool {
+        cb!(self, terrain_is_water_vertex, false, x, z)
+    }
+    fn terrain_cell_has_water(&self, x: i32, z: i32) -> bool {
+        cb!(self, terrain_cell_has_water, false, x, z)
+    }
+    fn zone_drag_color(&self, zone: i32) -> u32 {
+        cb!(self, zone_drag_color, 0, zone)
+    }
+    fn zone_display_alpha(&self) -> u8 {
+        cb!(self, zone_display_alpha, 0)
     }
     fn view_rotation(&self) -> i32 {
         cb!(self, view_rotation, 0)
@@ -681,6 +770,15 @@ impl LotDeveloperHost for CHost {
     }
     fn lot_zone_type(&self, lot: u64) -> i32 {
         cb!(self, lot_zone_type, 0, lot)
+    }
+    fn lot_altitude(&self, lot: u64) -> f32 {
+        cb!(self, lot_altitude, 0.0, lot)
+    }
+    fn lot_set_altitude(&self, lot: u64, altitude: f32) {
+        cb!(self, lot_set_altitude, (), lot, altitude)
+    }
+    fn lot_facing(&self, lot: u64) -> i32 {
+        cb!(self, lot_facing, 0, lot)
     }
     fn lot_flags(&self, lot: u64) -> u32 {
         cb!(self, lot_flags, 0, lot)
@@ -835,13 +933,39 @@ impl LotDeveloperHost for CHost {
         );
         v
     }
-    fn cfg_primary_building_ids(&self, cfg: u64) -> Option<Vec<u32>> {
-        let (found, ids) = collect_u32s(|f, ctx| cb!(self, cfg_primary_building_ids, false, cfg, f, ctx));
-        found.then_some(ids)
+    fn cfg_primary_building_object(&self, cfg: u64) -> Option<CfgObject> {
+        let mut v: Vec<CfgObject> = Vec::new();
+        let ctx = &mut v as *mut Vec<CfgObject> as *mut c_void;
+        let found = cb!(
+            self,
+            cfg_primary_building_object,
+            false,
+            cfg,
+            Some(push_cfg_object),
+            ctx
+        );
+        if found {
+            v.into_iter().next()
+        } else {
+            None
+        }
     }
-    fn cfg_primary_foundation_ids(&self, cfg: u64) -> Option<Vec<u32>> {
-        let (found, ids) = collect_u32s(|f, ctx| cb!(self, cfg_primary_foundation_ids, false, cfg, f, ctx));
-        found.then_some(ids)
+    fn cfg_primary_foundation_object(&self, cfg: u64) -> Option<CfgObject> {
+        let mut v: Vec<CfgObject> = Vec::new();
+        let ctx = &mut v as *mut Vec<CfgObject> as *mut c_void;
+        let found = cb!(
+            self,
+            cfg_primary_foundation_object,
+            false,
+            cfg,
+            Some(push_cfg_object),
+            ctx
+        );
+        if found {
+            v.into_iter().next()
+        } else {
+            None
+        }
     }
     fn cfg_has_objects_of_type(&self, cfg: u64, object_type: u32) -> bool {
         cb!(self, cfg_has_objects_of_type, false, cfg, object_type)
@@ -854,68 +978,9 @@ impl LotDeveloperHost for CHost {
         collect_u32s(|f, ctx| cb!(self, object_id_array, (), cfg, i, f, ctx)).1
     }
 
-    // ---- geometry slots left to the host ----
-    fn object_position(&self, lot: u64, cfg: u64, index: usize) -> (Vec3, i32) {
-        let mut pos = [0.0f32; 3];
-        let i = u32::try_from(index).unwrap_or(u32::MAX);
-        let o = cb!(self, object_position, 0, lot, cfg, i, pos.as_mut_ptr());
-        (pos, o)
-    }
-    fn position_for_building(&self, lot: u64) -> (bool, Vec3, i32) {
-        let mut pos = [0.0f32; 3];
-        let mut o = 0i32;
-        let ok = cb!(self, position_for_building, false, lot, pos.as_mut_ptr(), &mut o);
-        (ok, pos, o)
-    }
+    // ---- slots and helpers §17 does not cover ----
     fn first_building(&self, lot: u64) -> Option<u64> {
         opt(cb!(self, first_building, 0, lot))
-    }
-    fn level_area_internal_vertices(&self, rect: CellRect, altitude: f32, water: bool, flag: bool, lot: u64) -> bool {
-        let r = rect_arg(rect);
-        cb!(
-            self,
-            level_area_internal_vertices,
-            false,
-            &r,
-            altitude,
-            water,
-            flag,
-            lot
-        )
-    }
-    fn attempt_area_levelling(
-        &self,
-        rect: CellRect,
-        max_slope: f32,
-        flag: bool,
-        water: bool,
-        max_area_slope: f32,
-        lot: u64,
-    ) -> bool {
-        let r = rect_arg(rect);
-        cb!(
-            self,
-            attempt_area_levelling,
-            false,
-            &r,
-            max_slope,
-            flag,
-            water,
-            max_area_slope,
-            lot
-        )
-    }
-    fn add_lot_foundation_type(&self, lot: u64, foundation: u32, a: bool, b: bool, c: bool) -> bool {
-        cb!(self, add_lot_foundation_type, false, lot, foundation, a, b, c)
-    }
-    fn add_building_foundation(&self, building: u64, cfg: u64) -> bool {
-        cb!(self, add_building_foundation, false, building, cfg)
-    }
-    fn remove_building_foundation(&self, building: u64) -> bool {
-        cb!(self, remove_building_foundation, false, building)
-    }
-    fn update_lot_foundation(&self, lot: u64) -> bool {
-        cb!(self, update_lot_foundation, false, lot)
     }
     fn update_lot_retaining_walls(&self, lot: u64) -> bool {
         cb!(self, update_lot_retaining_walls, false, lot)
@@ -926,14 +991,8 @@ impl LotDeveloperHost for CHost {
     fn update_lot_base_texture_occupant(&self, lot: u64, had_foundation: bool) -> bool {
         cb!(self, update_lot_base_texture_occupant, false, lot, had_foundation)
     }
-    fn set_empty_lot_base_texture(&self, lot: u64) {
-        cb!(self, set_empty_lot_base_texture, (), lot)
-    }
     fn base_texture_occupant(&self, lot: u64, create: bool) -> Option<u64> {
         opt(cb!(self, base_texture_occupant, 0, lot, create))
-    }
-    fn base_texture_is_inserted(&self, occ: u64) -> bool {
-        cb!(self, base_texture_is_inserted, false, occ)
     }
     fn base_texture_set(&self, occ: u64, records: &[TextureRecord]) {
         let v: Vec<fc4_lotdev_texture> = records
@@ -944,19 +1003,14 @@ impl LotDeveloperHost for CHost {
                 z: r.z,
                 orientation: r.orientation,
                 byte3: r.byte3,
-                reserved: [0; 2],
+                extra: r.extra,
+                frame: r.frame,
             })
             .collect();
         cb!(self, base_texture_set, (), occ, v.as_ptr(), v.len())
     }
-    fn remove_lot_retaining_walls(&self, lot: u64) {
-        cb!(self, remove_lot_retaining_walls, (), lot)
-    }
-    fn remove_lot_foundation(&self, x: i32, z: i32) -> bool {
-        cb!(self, remove_lot_foundation, false, x, z)
-    }
-    fn update_surrounding_lot_foundations(&self, lot: u64) {
-        cb!(self, update_surrounding_lot_foundations, (), lot)
+    fn add_retaining_wall_occupant(&self, lot: u64, flag: u32) {
+        cb!(self, add_retaining_wall_occupant, (), lot, flag)
     }
     fn update_surrounding_retaining_walls(&self, lot: u64) {
         cb!(self, update_surrounding_retaining_walls, (), lot)
@@ -984,6 +1038,14 @@ impl LotDeveloperHost for CHost {
     }
     fn building_set_lit(&self, building: u64, lit: bool) {
         cb!(self, building_set_lit, (), building, lit)
+    }
+    fn occupant_type(&self, occ: u64) -> u32 {
+        cb!(self, occupant_type, 0, occ)
+    }
+    fn occupant_position(&self, occ: u64) -> Vec3 {
+        let mut v = [0.0f32; 3];
+        cb!(self, occupant_position, (), occ, v.as_mut_ptr());
+        v
     }
     fn occupant_bounding_box(&self, occ: u64) -> (Vec3, Vec3) {
         let mut v = [0.0f32; 6];
@@ -1018,6 +1080,12 @@ impl LotDeveloperHost for CHost {
     fn occupant_set_flag(&self, occ: u64, flag: u32) {
         cb!(self, occupant_set_flag, (), occ, flag)
     }
+    fn occupant_is_flag_set(&self, occ: u64, flag: u32) -> bool {
+        cb!(self, occupant_is_flag_set, false, occ, flag)
+    }
+    fn occupant_shutdown(&self, occ: u64) {
+        cb!(self, occupant_shutdown, (), occ)
+    }
     fn occupant_set_orientation(&self, occ: u64, orientation: u32) {
         cb!(self, occupant_set_orientation, (), occ, orientation)
     }
@@ -1039,6 +1107,55 @@ impl LotDeveloperHost for CHost {
     fn occupants_in_cells(&self, rect: CellRect, occupant_type: u32) -> Vec<u64> {
         let r = rect_arg(rect);
         collect_tokens(|f, ctx| cb!(self, occupants_in_cells, (), &r, occupant_type, f, ctx))
+    }
+    fn occupants_in_box(&self, min: Vec3, max: Vec3, occupant_type: u32) -> Vec<u64> {
+        collect_tokens(|f, ctx| {
+            cb!(
+                self,
+                occupants_in_box,
+                (),
+                min.as_ptr(),
+                max.as_ptr(),
+                occupant_type,
+                f,
+                ctx
+            )
+        })
+    }
+    fn building_orientation(&self, building: u64) -> i32 {
+        cb!(self, building_orientation, 0, building)
+    }
+
+    // ---- foundations ----
+    fn foundation_kind(&self, occ: u64) -> Option<i32> {
+        let mut k = 0i32;
+        cb!(self, foundation_kind, false, occ, &mut k).then_some(k)
+    }
+    fn foundation_type(&self, occ: u64) -> u32 {
+        cb!(self, foundation_type, 0, occ)
+    }
+    fn add_new_foundation_occupant(
+        &self,
+        foundation_type: u32,
+        kind: i32,
+        pos: &mut Vec3,
+        dx: f32,
+        dz: f32,
+        orient: i32,
+        bottom: f32,
+    ) -> bool {
+        cb!(
+            self,
+            add_new_foundation_occupant,
+            false,
+            foundation_type,
+            kind,
+            pos.as_mut_ptr(),
+            dx,
+            dz,
+            orient,
+            bottom
+        )
     }
 
     // ---- prop manager ----
@@ -1177,6 +1294,29 @@ impl LotDeveloperHost for CHost {
     }
     fn demolish_lot(&self, lot: u64) -> bool {
         cb!(self, demolish_lot, false, lot)
+    }
+    fn modify_terrain_height(
+        &self,
+        per_vertex: bool,
+        x0: i32,
+        z0: i32,
+        x1: i32,
+        z1: i32,
+        h: f32,
+        exempt: Option<u64>,
+    ) -> i32 {
+        cb!(
+            self,
+            modify_terrain_height,
+            0,
+            per_vertex,
+            x0,
+            z0,
+            x1,
+            z1,
+            h,
+            exempt.unwrap_or(0)
+        )
     }
 
     // ---- business units ----
@@ -1341,6 +1481,7 @@ pub struct fc4_lotdev {
 
 struct Handle {
     host: Rc<CHost>,
+    statics: SharedStatics,
     core: RefCell<LotDeveloper>,
     terrain: RefCell<TerrainView>,
     depth: Cell<u32>,
@@ -1371,6 +1512,9 @@ impl Handle {
                 if let Ok(mut core) = self.core.try_borrow_mut() {
                     self.message(&mut core, &m);
                 }
+            }
+            if let Ok(core) = self.core.try_borrow() {
+                self.refresh_terrain(&core);
             }
         }
         self.depth.set(self.depth.get() - 1);
@@ -1404,14 +1548,24 @@ impl Handle {
         }
     }
 
+    /// Refreshes the snapshot (skipped while a geometry slot is reading it:
+    /// the next outermost call refreshes it).
     fn refresh_terrain(&self, core: &LotDeveloper) {
-        *self.terrain.borrow_mut() = core.terrain_view();
+        if let Ok(mut t) = self.terrain.try_borrow_mut() {
+            *t = core.terrain_view();
+        }
     }
 
-    /// Runs a terrain slot on the snapshot (never the core).
+    /// Runs a terrain or geometry slot on the snapshot (never the core).
     fn terrain<R>(&self, f: impl FnOnce(&TerrainView, &dyn LotDeveloperHost) -> R) -> R {
         let t = self.terrain.borrow();
         f(&t, &*self.host)
+    }
+
+    /// Like [`Handle::terrain`], with the class statics (R8).
+    fn geometry<R>(&self, f: impl FnOnce(&TerrainView, &dyn LotDeveloperHost, &SharedStatics) -> R) -> R {
+        let t = self.terrain.borrow();
+        f(&t, &*self.host, &self.statics)
     }
 }
 
@@ -1459,10 +1613,11 @@ pub unsafe extern "C" fn fc4_lotdev_create(
             t: h,
             counters: Counters::default(),
         });
-        let core = LotDeveloper::new(host.clone(), statics);
+        let core = LotDeveloper::new(host.clone(), statics.clone());
         let terrain = core.terrain_view();
         Box::into_raw(Box::new(Handle {
             host,
+            statics,
             core: RefCell::new(core),
             terrain: RefCell::new(terrain),
             depth: Cell::new(0),
@@ -1502,13 +1657,7 @@ pub unsafe extern "C" fn fc4_lotdev_destroy(p: *mut fc4_lotdev) {
 /// `Init` (slot 3, §1.3).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_lotdev_init(p: *mut fc4_lotdev) -> bool {
-    with_handle(p, false, |h| {
-        h.call(false, |c| {
-            let r = c.init();
-            h.refresh_terrain(c);
-            r
-        })
-    })
+    with_handle(p, false, |h| h.call(false, LotDeveloper::init))
 }
 
 /// `Shutdown` (slot 4, §1.4): always true for a live object.
@@ -1654,19 +1803,6 @@ pub unsafe extern "C" fn fc4_lotdev_set_force_empty(p: *mut fc4_lotdev, f: bool)
     core(p, (), |c| c.set_force_empty_lot_base_texture(f))
 }
 
-/// Slot 54 `AddLotFoundation(lot, cfg, a, b, c)` (draws R8).
-#[no_mangle]
-pub unsafe extern "C" fn fc4_lotdev_add_lot_foundation(
-    p: *mut fc4_lotdev,
-    lot: u64,
-    cfg: u64,
-    a: bool,
-    b: bool,
-    c: bool,
-) -> bool {
-    core(p, false, |d| d.add_lot_foundation(lot, opt(cfg), a, b, c))
-}
-
 /// `UpdateLot(lot)` (§4.2): the daily visit of one lot (tests and tools).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_lotdev_update_lot(p: *mut fc4_lotdev, lot: u64) -> bool {
@@ -1725,48 +1861,102 @@ pub unsafe extern "C" fn fc4_lotdev_terrain_altitude_by_vertex(
     })
 }
 
-/// Slots 16 (`float_rect` true: `SC4Rect<float>`, converted first) / 17
-/// (`SC4Rect<int32>`) `GetLowestOrHighestAreaAltitude(rect, lowest,
-/// withWater)`. `rect` is `{x1, z1, x2, z2}` as int32 or float.
+/// Slot 16 `GetLowestOrHighestAreaAltitude(SC4Rect<float>, lowest,
+/// withWater)` (§17.2): `rect4 = {x1, z1, x2, z2}` in metres.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lotdev_area_altitude(
+pub unsafe extern "C" fn fc4_lotdev_area_altitude_f(
     p: *const fc4_lotdev,
-    rect: *const c_void,
-    float_rect: bool,
+    rect4: *const f32,
     lowest: bool,
     with_water: bool,
 ) -> f32 {
-    let Some(r) = rect_of(rect, float_rect) else { return 0.0 };
+    if rect4.is_null() {
+        return 0.0;
+    }
+    let f = std::slice::from_raw_parts(rect4, 4);
+    let r = [f[0], f[1], f[2], f[3]];
+    with_handle(p, 0.0, |h| {
+        h.terrain(|t, host| t.lowest_or_highest_area_altitude_f(host, r, lowest, with_water))
+    })
+}
+
+/// Slot 17 `GetLowestOrHighestAreaAltitude(SC4Rect<int32>, lowest,
+/// withWater)` over the vertices `x1 ..= x2 + 1`, `z1 ..= z2 + 1`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_area_altitude(
+    p: *const fc4_lotdev,
+    rect: *const fc4_cell_rect,
+    lowest: bool,
+    with_water: bool,
+) -> f32 {
+    let Some(r) = rect_in(rect) else { return 0.0 };
     with_handle(p, 0.0, |h| {
         h.terrain(|t, host| t.lowest_or_highest_area_altitude(host, r, lowest, with_water))
     })
 }
 
-/// SAFETY: `rect` must be NULL or point at four int32 or four float values.
-unsafe fn rect_of(rect: *const c_void, float_rect: bool) -> Option<CellRect> {
-    if rect.is_null() {
-        return None;
-    }
-    if float_rect {
-        let f = std::slice::from_raw_parts(rect as *const f32, 4);
-        Some(cell_rect_of_float([f[0], f[1], f[2], f[3]]))
-    } else {
-        rect_in(rect as *const fc4_cell_rect)
-    }
-}
-
-/// Slot 18 `GetAverageAreaAltitude(SC4Rect<float>, withWater)`.
+/// Slot 18 `GetAverageAreaAltitude(SC4Rect<int32>, withWater)` (§11.1: the
+/// SDK's float rectangle is wrong).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_lotdev_average_area_altitude(
     p: *const fc4_lotdev,
-    rect: *const f32,
+    rect: *const fc4_cell_rect,
     with_water: bool,
 ) -> f32 {
-    let Some(r) = rect_of(rect as *const c_void, true) else {
-        return 0.0;
-    };
+    let Some(r) = rect_in(rect) else { return 0.0 };
     with_handle(p, 0.0, |h| {
         h.terrain(|t, host| t.average_area_altitude(host, r, with_water))
+    })
+}
+
+// ---- levelling (§17.4) --------------------------------------------------------------------------------
+
+/// Slot 19 `LevelAreaInternalVertices(rect, target, skipWater, force, lot)`:
+/// the number of `ModifyTerrainHeight` calls (EAX, not a bool).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_level_area_internal_vertices(
+    p: *mut fc4_lotdev,
+    rect: *const fc4_cell_rect,
+    target: f32,
+    skip_water: bool,
+    force: bool,
+    lot: u64,
+) -> i32 {
+    let Some(r) = rect_in(rect) else { return 0 };
+    with_handle(p, 0, |h| {
+        h.terrain(|t, host| t.level_area_internal_vertices(host, r, target, skip_water, force, opt(lot)))
+    })
+}
+
+/// Slot 20 `LevelBorderingVertices(rect, h, unused, lot)`:
+/// `ModifyTerrainHeight`'s EAX.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_level_bordering_vertices(
+    p: *mut fc4_lotdev,
+    rect: *const fc4_cell_rect,
+    height: f32,
+    lot: u64,
+) -> i32 {
+    let Some(r) = rect_in(rect) else { return 0 };
+    with_handle(p, 0, |h| {
+        h.terrain(|t, host| t.level_bordering_vertices(host, r, height, opt(lot)))
+    })
+}
+
+/// Slot 21 `AttemptAreaLevelling(rect, unused, withWater, perVertex,
+/// maxAreaSlope, lot)`: 0 or `ModifyTerrainHeight`'s EAX.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_attempt_area_levelling(
+    p: *mut fc4_lotdev,
+    rect: *const fc4_cell_rect,
+    with_water: bool,
+    per_vertex: bool,
+    max_area_slope: f32,
+    lot: u64,
+) -> i32 {
+    let Some(r) = rect_in(rect) else { return 0 };
+    with_handle(p, 0, |h| {
+        h.terrain(|t, host| t.attempt_area_levelling(host, r, with_water, per_vertex, max_area_slope, opt(lot)))
     })
 }
 
@@ -1853,6 +2043,237 @@ pub unsafe extern "C" fn fc4_lotdev_lot_development_cost(p: *const fc4_lotdev, r
     with_handle(p, 0, |h| h.terrain(|t, host| t.lot_development_cost(host, r)))
 }
 
+// ---- object positions (§17.6) -----------------------------------------------------------------------
+
+/// SAFETY: `o` must be valid, its `ids` NULL or `n_ids` values.
+unsafe fn cfg_object_in(o: &fc4_lotdev_cfg_object) -> CfgObject {
+    let mut v: Vec<CfgObject> = Vec::new();
+    push_cfg_object(&mut v as *mut Vec<CfgObject> as *mut c_void, o);
+    v.pop().unwrap_or_default()
+}
+
+/// Slot 39 `GetPositionForLotConfigurationObject(lot, cfg, obj, pos,
+/// orient)`: the position into `pos3`, the orientation returned (the slot's
+/// EAX is the address of `orient`, §17.6; the plugin returns that).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_object_position(
+    p: *const fc4_lotdev,
+    lot: u64,
+    cfg: u64,
+    obj: *const fc4_lotdev_cfg_object,
+    pos3: *mut f32,
+) -> i32 {
+    let Some(o) = obj.as_ref() else { return 0 };
+    let o = cfg_object_in(o);
+    let (pos, orient) = with_handle(p, ([0.0f32; 3], 0), |h| {
+        h.terrain(|t, host| t.object_position(host, lot, opt(cfg), &o))
+    });
+    if !pos3.is_null() {
+        std::ptr::copy_nonoverlapping(pos.as_ptr(), pos3, 3);
+    }
+    orient
+}
+
+/// Slot 40 `GetPositionForBuilding(lot, pos, orient)`: false (EAX 0) and
+/// nothing written without a configuration or primary building object.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_position_for_building(
+    p: *const fc4_lotdev,
+    lot: u64,
+    pos3: *mut f32,
+    orient: *mut i32,
+) -> bool {
+    let got = with_handle(p, None, |h| h.terrain(|t, host| t.position_for_building(host, lot)));
+    let Some((pos, o)) = got else { return false };
+    if !pos3.is_null() {
+        std::ptr::copy_nonoverlapping(pos.as_ptr(), pos3, 3);
+    }
+    if let Some(r) = orient.as_mut() {
+        *r = o;
+    }
+    true
+}
+
+// ---- boundary textures (§17.7) ------------------------------------------------------------------------
+
+/// Slot 42 `GetBoundaryLotTexture(sides, texture, rotation, flip)`: false
+/// and nothing written while the boundary map is empty (before `Init`,
+/// after `Shutdown`; LD-Q3). The slot has no defined return.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_boundary_lot_texture(
+    p: *const fc4_lotdev,
+    sides4: *const i32,
+    texture: *mut u32,
+    rotation: *mut u8,
+    flip: *mut bool,
+) -> bool {
+    if sides4.is_null() {
+        return false;
+    }
+    let a = std::slice::from_raw_parts(sides4, 4);
+    let sides = [a[0], a[1], a[2], a[3]];
+    let Some(rule) = with_handle(p, None, |h| h.terrain(|t, _| t.boundary_lot_texture(sides))) else {
+        return false;
+    };
+    if let Some(r) = texture.as_mut() {
+        *r = rule.texture;
+    }
+    if let Some(r) = rotation.as_mut() {
+        *r = rule.rotation;
+    }
+    if let Some(r) = flip.as_mut() {
+        *r = rule.flip;
+    }
+    true
+}
+
+/// Slot 43 `SetEmptyLotBaseTexture(lot)`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_set_empty_lot_base_texture(p: *mut fc4_lotdev, lot: u64) {
+    with_handle(p, (), |h| h.terrain(|t, host| t.set_empty_lot_base_texture(host, lot)))
+}
+
+// ---- foundations (§17.5) ------------------------------------------------------------------------------
+
+/// Slot 48 `GetFoundationByOccupant(occ)`: borrowed, 0 = none.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_foundation_by_occupant(p: *const fc4_lotdev, occ: u64) -> u64 {
+    with_handle(p, 0, |h| {
+        h.terrain(|t, host| t.foundation_by_occupant(host, occ).unwrap_or(0))
+    })
+}
+
+/// Slot 49 `GetFoundationByStandardCityCell(kind, x, z)`: borrowed.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_foundation_by_cell(p: *const fc4_lotdev, kind: i32, x: i32, z: i32) -> u64 {
+    with_handle(p, 0, |h| {
+        h.terrain(|t, host| t.foundation_by_cell(host, kind, x, z).unwrap_or(0))
+    })
+}
+
+/// Slot 50 `GetFoundationByPosition(kind, x, z)`: borrowed.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_foundation_by_position(p: *const fc4_lotdev, kind: i32, x: f32, z: f32) -> u64 {
+    with_handle(p, 0, |h| {
+        h.terrain(|t, host| t.foundation_by_position(host, kind, x, z).unwrap_or(0))
+    })
+}
+
+/// Slot 51 `GetLotFoundation(lot)`: borrowed.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_lot_foundation(p: *const fc4_lotdev, lot: u64) -> u64 {
+    with_handle(p, 0, |h| h.terrain(|t, host| t.lot_foundation(host, lot).unwrap_or(0)))
+}
+
+/// Slot 52 `RemoveFoundation(kind, x, z)`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_remove_foundation(p: *mut fc4_lotdev, kind: i32, x: f32, z: f32) -> bool {
+    with_handle(p, false, |h| h.terrain(|t, host| t.remove_foundation(host, kind, x, z)))
+}
+
+/// Slot 53 `RemoveLotFoundation(x, z)`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_remove_lot_foundation(p: *mut fc4_lotdev, x: i32, z: i32) -> bool {
+    with_handle(p, false, |h| {
+        h.terrain(|t, host| t.remove_lot_foundation_at(host, x, z))
+    })
+}
+
+/// Slot 54 `AddLotFoundation(lot, cfg, useLotAltitude, level, walls)`
+/// (draws R8).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_add_lot_foundation(
+    p: *mut fc4_lotdev,
+    lot: u64,
+    cfg: u64,
+    use_lot_altitude: bool,
+    level: bool,
+    walls: bool,
+) -> bool {
+    with_handle(p, false, |h| {
+        h.geometry(|t, host, s| t.add_lot_foundation(host, s, lot, opt(cfg), use_lot_altitude, level, walls))
+    })
+}
+
+/// Slot 55 `AddLotFoundation(lot, type, useLotAltitude, level, walls)`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_add_lot_foundation_type(
+    p: *mut fc4_lotdev,
+    lot: u64,
+    foundation_type: u32,
+    use_lot_altitude: bool,
+    level: bool,
+    walls: bool,
+) -> bool {
+    with_handle(p, false, |h| {
+        h.geometry(|t, host, s| {
+            t.add_lot_foundation_type(host, s, lot, foundation_type, use_lot_altitude, level, walls)
+        })
+    })
+}
+
+/// Slot 56 `IsLotObjectFoundationRequired(occ)`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_is_occupant_foundation_required(p: *const fc4_lotdev, occ: u64) -> bool {
+    with_handle(p, false, |h| {
+        h.terrain(|t, host| t.is_occupant_foundation_required(host, occ))
+    })
+}
+
+/// Slot 57 `IsLotObjectFoundationRequired(min, max)`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_is_box_foundation_required(
+    p: *const fc4_lotdev,
+    min3: *const f32,
+    max3: *const f32,
+) -> bool {
+    if min3.is_null() || max3.is_null() {
+        return false;
+    }
+    let a = std::slice::from_raw_parts(min3, 3);
+    let b = std::slice::from_raw_parts(max3, 3);
+    let (min, max) = ([a[0], a[1], a[2]], [b[0], b[1], b[2]]);
+    with_handle(p, false, |h| {
+        h.terrain(|t, host| t.is_box_foundation_required(host, min, max))
+    })
+}
+
+/// Slot 58 `AddBuildingFoundation(building, cfg)`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_add_building_foundation(p: *mut fc4_lotdev, building: u64, cfg: u64) -> bool {
+    with_handle(p, false, |h| {
+        h.terrain(|t, host| t.add_building_foundation(host, building, cfg))
+    })
+}
+
+/// Slot 59 `AddBuildingFoundation(building, type)`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_add_building_foundation_type(
+    p: *mut fc4_lotdev,
+    building: u64,
+    foundation_type: u32,
+) -> bool {
+    with_handle(p, false, |h| {
+        h.terrain(|t, host| t.add_building_foundation_type(host, building, foundation_type))
+    })
+}
+
+/// Slot 60 `RemoveBuildingFoundation(occ)`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_remove_building_foundation(p: *mut fc4_lotdev, occ: u64) -> bool {
+    with_handle(p, false, |h| {
+        h.terrain(|t, host| t.remove_building_foundation(host, occ))
+    })
+}
+
+/// Slot 61 `UpdateLotFoundation(lot)` (may draw R8).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lotdev_update_lot_foundation(p: *mut fc4_lotdev, lot: u64) -> bool {
+    with_handle(p, false, |h| {
+        h.geometry(|t, host, s| t.update_lot_foundation(host, s, lot))
+    })
+}
+
 // ---- persistence (§13) ------------------------------------------------------------------------------
 
 /// `Write` (§13). References go out as `fc4_ref`s with the building token.
@@ -1886,15 +2307,13 @@ pub unsafe extern "C" fn fc4_lotdev_read(p: *mut fc4_lotdev, inp: *const fc4_ist
             for b in c.night().iter().flatten() {
                 host.building_release(*b);
             }
-            let ok = c.read(&mut LIn {
+            c.read(&mut LIn {
                 inner: CIn {
                     stream: i,
                     decode: no_core_objects,
                 },
                 host: &host,
-            });
-            h.refresh_terrain(c);
-            ok
+            })
         })
     })
 }

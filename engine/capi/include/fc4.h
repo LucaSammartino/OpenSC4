@@ -5358,8 +5358,8 @@ bool fc4_traffic_pf_get_state(const fc4_traffic_pf* pf, fc4_traffic_pf_state* ou
  * cSC4LotDeveloper (class 0xA990BFE0, city component 16). The host implements
  * fc4_lotdev_host (one callback per LotDeveloperHost method of the core, in
  * its order); the plugin's cISC4LotDeveloper forwards its slots to the
- * fc4_lotdev_* functions. The geometry and foundation slots the spec leaves
- * open (19-21, 38-43, 45, 48-53, 55-64; §12.2 Q4) are the host's own.
+ * fc4_lotdev_* functions. The §17 geometry slots (16, 18-21, 39, 40, 42,
+ * 43, 48-61) are here; slots 38, 41, 45, 62-64 stay the host's.
  * Tokens: lots (cISC4Lot*), configurations (cISC4LotConfiguration*),
  * occupants (cISC4Occupant*), buildings (cISC4BuildingOccupant*), units
  * (cISC4BusinessUnit*), growth developers, the safe lot iterator; 0 = null.
@@ -5370,27 +5370,39 @@ bool fc4_traffic_pf_get_state(const fc4_traffic_pf* pf, fc4_traffic_pf_state* ou
  * Re-entrancy: a message delivered during a call is queued and handled when
  * the outermost call returns (the host keeps its tokens alive until then);
  * any other call made while the core is busy is refused (the slot's neutral
- * value, counted in refused_calls). The terrain and cost slots (15-18, 22,
- * 25-32) never need the core and always answer.
+ * value, counted in refused_calls). The terrain, cost and geometry slots
+ * (15-22, 25-32, 39-40, 42-43, 48-61) run on a snapshot refreshed when each
+ * outermost call returns, never need the core and always answer.
  * Threads: single-threaded; the host serialises every call on one object. */
 typedef void (*fc4_u32s_sink)(void* ctx, const uint32_t* values, size_t n);
 
 typedef struct fc4_lotdev_statics fc4_lotdev_statics;
 typedef struct fc4_lotdev fc4_lotdev;
 
+/* The fields of a 0x34-byte cSC4LotConfigurationObject (§17.1). */
 typedef struct fc4_lotdev_cfg_object {
-    uint32_t object_type; /* 1 prop, 2 base texture, 4 flora, 7 water, ... */
-    uint8_t flags, orientation, byte3, reserved;
-    uint32_t tag;
+    uint32_t object_type;         /* +0x00: 1 prop, 2 base texture, 4 flora, 7 water, ... */
+    uint8_t flags;                /* +0x01 */
+    uint8_t orientation;          /* +0x02 */
+    uint8_t byte3;                /* +0x03 */
+    float offset[3];              /* +0x04 .. +0x0C: lot-space x, y, z */
+    float footprint_max[2];       /* +0x10, +0x14: max x, max z */
+    float footprint_min[2];       /* +0x18, +0x1C: min x, min z */
+    uint32_t foundation;          /* +0x20: the foundation type */
+    uint32_t tag;                 /* +0x24 */
     uint32_t n_ids;
     const uint32_t* ids; /* families not expanded */
 } fc4_lotdev_cfg_object;
 typedef void (*fc4_lotdev_cfg_object_callback)(void* ctx, const fc4_lotdev_cfg_object* object);
 
+/* One base-texture record (§6.6, §17.7; lot-records.md §6). */
 typedef struct fc4_lotdev_texture {
     uint32_t texture;
     int32_t x, z;
-    uint8_t orientation, byte3, reserved[2];
+    uint8_t orientation; /* orientation (normal) or rotation (empty lot) */
+    uint8_t byte3;       /* object byte 3 (normal) or the flip (empty lot) */
+    uint8_t extra[5];    /* 0xFF x 5 (normal); colour >> 24, >> 16, >> 8, alpha, 3 (empty lot) */
+    uint8_t frame;       /* 0xFF */
 } fc4_lotdev_texture;
 
 typedef struct fc4_lotdev_burnt {
@@ -5454,18 +5466,24 @@ typedef struct fc4_lotdev_host {
     void (*unsubscribe)(void* user, uint32_t message);
     void (*register_animation_tick)(void* user);
     void (*unregister_animation_tick)(void* user);
-    void (*init_boundary_rules)(void* user);
-    void (*clear_boundary_rules)(void* user);
     void (*post_message)(void* user, uint32_t msg_type, uint32_t data1, uint64_t lot);
     /* city, simulator, terrain */
     void (*city_cell_counts)(void* user, int32_t* out2);
     void (*city_cell_widths)(void* user, float* out2);
     bool (*position_to_cell)(void* user, float x, float z, int32_t* out2);
+    void (*cell_corner_to_position)(void* user, int32_t x, int32_t z, float* out2); /* city slot 96 */
+    void (*cell_center_to_position)(void* user, int32_t x, int32_t z, float* out2); /* city slot 97 */
     uint32_t (*sim_date)(void* user);
     void (*terrain_cell_counts)(void* user, int32_t* out2);
     float (*terrain_cell_width)(void* user);
     float (*terrain_altitude)(void* user, int32_t index);
     float (*terrain_water_level)(void* user, int32_t index);
+    float (*terrain_altitude_at)(void* user, float x, float z);    /* terrain slot 13, metres */
+    float (*terrain_water_level_at)(void* user, float x, float z); /* terrain slot 30 */
+    bool (*terrain_is_water_vertex)(void* user, int32_t x, int32_t z); /* terrain slot 37 */
+    bool (*terrain_cell_has_water)(void* user, int32_t x, int32_t z);  /* terrain slot 34 */
+    uint32_t (*zone_drag_color)(void* user, int32_t zone); /* zone manager slot 15 */
+    uint8_t (*zone_display_alpha)(void* user);             /* zone manager slot 16 */
     int32_t (*view_rotation)(void* user);
     uint32_t (*visual_time_mode)(void* user);
     bool (*resource_exists)(void* user, uint32_t type, uint32_t group, uint32_t instance);
@@ -5488,6 +5506,9 @@ typedef struct fc4_lotdev_host {
     void (*lot_bounding_rect)(void* user, uint64_t lot, fc4_cell_rect* out);
     void (*lot_center)(void* user, uint64_t lot, float* out3);
     int32_t (*lot_zone_type)(void* user, uint64_t lot);
+    float (*lot_altitude)(void* user, uint64_t lot);                /* lot slot 16 */
+    void (*lot_set_altitude)(void* user, uint64_t lot, float altitude); /* lot slot 17 */
+    int32_t (*lot_facing)(void* user, uint64_t lot);                /* lot slot 23 */
     uint32_t (*lot_flags)(void* user, uint64_t lot);
     void (*lot_set_flags)(void* user, uint64_t lot, uint32_t flags);
     void (*lot_set_vertices_locked)(void* user, uint64_t lot, bool locked);
@@ -5531,34 +5552,21 @@ typedef struct fc4_lotdev_host {
     uint8_t (*cfg_growth_stage)(void* user, uint64_t cfg);
     bool (*cfg_is_compatible_with_water)(void* user, uint64_t cfg);
     void (*cfg_objects)(void* user, uint64_t cfg, fc4_lotdev_cfg_object_callback cb, void* ctx);
-    bool (*cfg_primary_building_ids)(void* user, uint64_t cfg, fc4_u32s_sink sink, void* ctx);
-    bool (*cfg_primary_foundation_ids)(void* user, uint64_t cfg, fc4_u32s_sink sink, void* ctx);
+    /* cfg slots 24 / 26: the primary building / foundation object to cb (once); false = none */
+    bool (*cfg_primary_building_object)(void* user, uint64_t cfg, fc4_lotdev_cfg_object_callback cb, void* ctx);
+    bool (*cfg_primary_foundation_object)(void* user, uint64_t cfg, fc4_lotdev_cfg_object_callback cb, void* ctx);
     bool (*cfg_has_objects_of_type)(void* user, uint64_t cfg, uint32_t object_type);
     uint64_t (*get_lot_configuration)(void* user, uint32_t id);
     void (*object_id_array)(void* user, uint64_t cfg, uint32_t index, fc4_u32s_sink sink, void* ctx);
-    /* geometry slots left to the host (§12.2 Q4) */
-    int32_t (*object_position)(void* user, uint64_t lot, uint64_t cfg, uint32_t index, float* pos3);
-    bool (*position_for_building)(void* user, uint64_t lot, float* pos3, int32_t* orient);
-    uint64_t (*first_building)(void* user, uint64_t lot);
-    bool (*level_area_internal_vertices)(void* user, const fc4_cell_rect* rect, float altitude, bool water, bool flag,
-                                         uint64_t lot);
-    bool (*attempt_area_levelling)(void* user, const fc4_cell_rect* rect, float max_slope, bool flag, bool water,
-                                   float max_area_slope, uint64_t lot);
-    bool (*add_lot_foundation_type)(void* user, uint64_t lot, uint32_t foundation, bool a, bool b, bool c);
-    bool (*add_building_foundation)(void* user, uint64_t building, uint64_t cfg);
-    bool (*remove_building_foundation)(void* user, uint64_t building);
-    bool (*update_lot_foundation)(void* user, uint64_t lot);
-    bool (*update_lot_retaining_walls)(void* user, uint64_t lot);
+    /* slots and helpers §17 does not cover */
+    uint64_t (*first_building)(void* user, uint64_t lot); /* slot 38, borrowed */
+    bool (*update_lot_retaining_walls)(void* user, uint64_t lot); /* slot 62 */
     void (*update_lot_object_altitudes)(void* user, uint64_t lot);
-    bool (*update_lot_base_texture_occupant)(void* user, uint64_t lot, bool had_foundation);
-    void (*set_empty_lot_base_texture)(void* user, uint64_t lot);
-    uint64_t (*base_texture_occupant)(void* user, uint64_t lot, bool create);
-    bool (*base_texture_is_inserted)(void* user, uint64_t occ);
+    bool (*update_lot_base_texture_occupant)(void* user, uint64_t lot, bool had_foundation); /* slot 45 */
+    uint64_t (*base_texture_occupant)(void* user, uint64_t lot, bool create); /* slot 41; 0 = false */
     void (*base_texture_set)(void* user, uint64_t occ, const fc4_lotdev_texture* records, size_t n);
-    void (*remove_lot_retaining_walls)(void* user, uint64_t lot);
-    bool (*remove_lot_foundation)(void* user, int32_t x, int32_t z);
-    void (*update_surrounding_lot_foundations)(void* user, uint64_t lot);
-    void (*update_surrounding_retaining_walls)(void* user, uint64_t lot);
+    void (*add_retaining_wall_occupant)(void* user, uint64_t lot, uint32_t flag); /* 0x005E3070 */
+    void (*update_surrounding_retaining_walls)(void* user, uint64_t lot);     /* 0x005E3960 */
     void (*add_network_connection_nodes)(void* user, uint64_t lot, uint64_t cfg);
     void (*remove_network_connection_nodes)(void* user, uint64_t lot);
     void (*start_construction_occupant)(void* user, uint64_t lot); /* §6.3 hand-off */
@@ -5567,6 +5575,8 @@ typedef struct fc4_lotdev_host {
     void (*building_add_ref)(void* user, uint64_t building);
     void (*building_release)(void* user, uint64_t building);
     void (*building_set_lit)(void* user, uint64_t building, bool lit);
+    uint32_t (*occupant_type)(void* user, uint64_t occ);               /* occupant slot 7 */
+    void (*occupant_position)(void* user, uint64_t occ, float* out3); /* occupant slot 8 */
     void (*occupant_bounding_box)(void* user, uint64_t occ, float* out6); /* min, max */
     void (*occupant_city_cells)(void* user, uint64_t occ, fc4_cell_rect* out);
     bool (*occupant_in_group)(void* user, uint64_t occ, uint32_t group);
@@ -5577,6 +5587,8 @@ typedef struct fc4_lotdev_host {
     void (*occupant_set_property)(void* user, uint64_t occ, uint32_t id, uint32_t value);
     void (*occupant_init)(void* user, uint64_t occ);
     void (*occupant_set_flag)(void* user, uint64_t occ, uint32_t flag);
+    bool (*occupant_is_flag_set)(void* user, uint64_t occ, uint32_t flag); /* occupant slot 32 */
+    void (*occupant_shutdown)(void* user, uint64_t occ);                   /* occupant slot 4 */
     void (*occupant_set_orientation)(void* user, uint64_t occ, uint32_t orientation);
     void (*occupant_set_position)(void* user, uint64_t occ, const float* pos3);
     void (*occupant_insert)(void* user, uint64_t occ);
@@ -5585,6 +5597,16 @@ typedef struct fc4_lotdev_host {
     void (*occupants_in_bbox)(void* user, const float* min3, const float* max3, fc4_token_callback cb, void* ctx);
     void (*occupants_in_cells)(void* user, const fc4_cell_rect* rect, uint32_t occupant_type, fc4_token_callback cb,
                                void* ctx);
+    /* occupant manager slot 37: the occupants of a type whose box meets the closed box, in list order */
+    void (*occupants_in_box)(void* user, const float* min3, const float* max3, uint32_t occupant_type,
+                             fc4_token_callback cb, void* ctx);
+    int32_t (*building_orientation)(void* user, uint64_t building); /* building slot 14 */
+    /* foundations (cISC4FoundationOccupant, §17.5) */
+    bool (*foundation_kind)(void* user, uint64_t occ, int32_t* out); /* false = not a foundation */
+    uint32_t (*foundation_type)(void* user, uint64_t occ);
+    /* BDS slot 23 AddNewFoundationOccupant; pos3 in/out */
+    bool (*add_new_foundation_occupant)(void* user, uint32_t type, int32_t kind, float* pos3, float dx, float dz,
+                                        int32_t orient, float bottom);
     /* prop manager */
     uint64_t (*prop_create)(void* user, uint32_t prop_type);
     void (*lot_props)(void* user, uint64_t lot, fc4_token_callback cb, void* ctx);
@@ -5623,6 +5645,9 @@ typedef struct fc4_lotdev_host {
     /* demolition */
     bool (*demolish_occupant)(void* user, uint64_t occ);
     bool (*demolish_lot)(void* user, uint64_t lot);
+    /* demolition slot 9 ModifyTerrainHeight(1, per_vertex, x0, z0, x1, z1, h, exempt, 5, NULL): the count */
+    int32_t (*modify_terrain_height)(void* user, bool per_vertex, int32_t x0, int32_t z0, int32_t x1, int32_t z1,
+                                     float h, uint64_t exempt);
     /* business units */
     void (*unit_members)(void* user, uint64_t unit, fc4_token_callback cb, void* ctx);
     uint64_t (*unit_create)(void* user);
@@ -5654,11 +5679,20 @@ bool fc4_lotdev_remove_building_zot_prop(fc4_lotdev* p, uint64_t lot);
 bool fc4_lotdev_start_demolish_lot(fc4_lotdev* p, uint64_t lot);
 bool fc4_lotdev_end_demolish_lot(fc4_lotdev* p, uint64_t lot);
 bool fc4_lotdev_explode_lot(fc4_lotdev* p, uint64_t lot, bool burnt);
-/* slots 15-18, 22, 25-32: the terrain snapshot (never refused) */
+/* slots 15-22, 25-32: the terrain snapshot (never refused) */
 float fc4_lotdev_terrain_altitude_by_vertex(const fc4_lotdev* p, int32_t x, int32_t z, bool with_water);
-/* slot 16 (float_rect: SC4Rect<float>, truncated) / 17 (SC4Rect<int32>); rect = {x1, z1, x2, z2} */
-float fc4_lotdev_area_altitude(const fc4_lotdev* p, const void* rect, bool float_rect, bool lowest, bool with_water);
-float fc4_lotdev_average_area_altitude(const fc4_lotdev* p, const float* rect4, bool with_water);
+/* slot 16: SC4Rect<float> in metres, rect4 = {x1, z1, x2, z2} */
+float fc4_lotdev_area_altitude_f(const fc4_lotdev* p, const float* rect4, bool lowest, bool with_water);
+/* slot 17: SC4Rect<int32> */
+float fc4_lotdev_area_altitude(const fc4_lotdev* p, const fc4_cell_rect* rect, bool lowest, bool with_water);
+/* slot 18: SC4Rect<int32> (the SDK's float rectangle is wrong) */
+float fc4_lotdev_average_area_altitude(const fc4_lotdev* p, const fc4_cell_rect* rect, bool with_water);
+/* slots 19-21 return EAX counts, not bools (§17.4) */
+int32_t fc4_lotdev_level_area_internal_vertices(fc4_lotdev* p, const fc4_cell_rect* rect, float target,
+                                                bool skip_water, bool force, uint64_t lot);
+int32_t fc4_lotdev_level_bordering_vertices(fc4_lotdev* p, const fc4_cell_rect* rect, float h, uint64_t lot);
+int32_t fc4_lotdev_attempt_area_levelling(fc4_lotdev* p, const fc4_cell_rect* rect, bool with_water,
+                                          bool per_vertex, float max_area_slope, uint64_t lot);
 bool fc4_lotdev_occupant_cell_coverage(const fc4_lotdev* p, uint64_t occ, fc4_cell_rect* out);
 bool fc4_lotdev_is_area_flat(const fc4_lotdev* p, const fc4_cell_rect* rect, bool with_water);
 bool fc4_lotdev_is_lot_flat(const fc4_lotdev* p, uint64_t lot, bool with_water);
@@ -5668,7 +5702,7 @@ float fc4_lotdev_area_slope(const fc4_lotdev* p, const fc4_cell_rect* rect, bool
 float fc4_lotdev_lot_slope(const fc4_lotdev* p, uint64_t lot, bool with_water);
 float fc4_lotdev_occupant_slope(const fc4_lotdev* p, uint64_t occ, bool with_water);
 int64_t fc4_lotdev_lot_development_cost(const fc4_lotdev* p, const fc4_cell_rect* rect);
-/* slots 33-37, 44, 46, 47, 54 */
+/* slots 33-37, 39-61 */
 bool fc4_lotdev_remove_lot_from_its_business_unit(fc4_lotdev* p, uint64_t lot);
 void fc4_lotdev_update_travel_designates(fc4_lotdev* p, uint64_t* unit); /* in/out */
 void fc4_lotdev_update_travel_populations(fc4_lotdev* p, uint64_t unit);
@@ -5677,7 +5711,32 @@ bool fc4_lotdev_update_lot_elements(fc4_lotdev* p, uint64_t lot, uint32_t kind);
 void fc4_lotdev_set_normal_lot_base_texture(fc4_lotdev* p, uint64_t lot, uint64_t cfg, bool flag);
 bool fc4_lotdev_get_force_empty(const fc4_lotdev* p);
 void fc4_lotdev_set_force_empty(fc4_lotdev* p, bool force);
-bool fc4_lotdev_add_lot_foundation(fc4_lotdev* p, uint64_t lot, uint64_t cfg, bool a, bool b, bool c);
+/* slot 39: position into pos3, the orientation returned (the slot's EAX is &orient) */
+int32_t fc4_lotdev_object_position(const fc4_lotdev* p, uint64_t lot, uint64_t cfg, const fc4_lotdev_cfg_object* obj,
+                                   float* pos3);
+/* slot 40: false = no configuration or primary building object (nothing written) */
+bool fc4_lotdev_position_for_building(const fc4_lotdev* p, uint64_t lot, float* pos3, int32_t* orient);
+/* slot 42: false = empty boundary map (nothing written) */
+bool fc4_lotdev_boundary_lot_texture(const fc4_lotdev* p, const int32_t* sides4, uint32_t* texture,
+                                     uint8_t* rotation, bool* flip);
+void fc4_lotdev_set_empty_lot_base_texture(fc4_lotdev* p, uint64_t lot); /* slot 43 */
+/* slots 48-61 (§17.5); lookups return borrowed foundation occupants, 0 = none */
+uint64_t fc4_lotdev_foundation_by_occupant(const fc4_lotdev* p, uint64_t occ);
+uint64_t fc4_lotdev_foundation_by_cell(const fc4_lotdev* p, int32_t kind, int32_t x, int32_t z);
+uint64_t fc4_lotdev_foundation_by_position(const fc4_lotdev* p, int32_t kind, float x, float z);
+uint64_t fc4_lotdev_lot_foundation(const fc4_lotdev* p, uint64_t lot);
+bool fc4_lotdev_remove_foundation(fc4_lotdev* p, int32_t kind, float x, float z);
+bool fc4_lotdev_remove_lot_foundation(fc4_lotdev* p, int32_t x, int32_t z);
+bool fc4_lotdev_add_lot_foundation(fc4_lotdev* p, uint64_t lot, uint64_t cfg, bool use_lot_altitude, bool level,
+                                   bool walls);
+bool fc4_lotdev_add_lot_foundation_type(fc4_lotdev* p, uint64_t lot, uint32_t type, bool use_lot_altitude,
+                                        bool level, bool walls);
+bool fc4_lotdev_is_occupant_foundation_required(const fc4_lotdev* p, uint64_t occ);
+bool fc4_lotdev_is_box_foundation_required(const fc4_lotdev* p, const float* min3, const float* max3);
+bool fc4_lotdev_add_building_foundation(fc4_lotdev* p, uint64_t building, uint64_t cfg);
+bool fc4_lotdev_add_building_foundation_type(fc4_lotdev* p, uint64_t building, uint32_t type);
+bool fc4_lotdev_remove_building_foundation(fc4_lotdev* p, uint64_t occ);
+bool fc4_lotdev_update_lot_foundation(fc4_lotdev* p, uint64_t lot);
 /* UpdateLot (§4.2), for tests and tools */
 bool fc4_lotdev_update_lot(fc4_lotdev* p, uint64_t lot);
 /* §13 */
@@ -6690,14 +6749,14 @@ static_assert(sizeof(fc4_neighbors_shadow_city) == 168, "fc4_neighbors_shadow_ci
 static_assert(sizeof(fc4_neighbors_shadow_conn) == 40, "fc4_neighbors_shadow_conn layout");
 static_assert(sizeof(fc4_neighbors_shadow_input) == (sizeof(void*) == 4 ? 208 : 232), "fc4_neighbors_shadow_input layout");
 static_assert(sizeof(fc4_neighbors_shadow_counters) == 32, "fc4_neighbors_shadow_counters layout");
-static_assert(sizeof(fc4_lotdev_cfg_object) == 16 + sizeof(void*), "fc4_lotdev_cfg_object layout");
-static_assert(sizeof(fc4_lotdev_texture) == 16, "fc4_lotdev_texture layout");
+static_assert(sizeof(fc4_lotdev_cfg_object) == 48 + sizeof(void*), "fc4_lotdev_cfg_object layout");
+static_assert(sizeof(fc4_lotdev_texture) == 20, "fc4_lotdev_texture layout");
 static_assert(sizeof(fc4_lotdev_burnt) == 32, "fc4_lotdev_burnt layout");
 static_assert(sizeof(fc4_lotdev_profile) == 12, "fc4_lotdev_profile layout");
 static_assert(sizeof(fc4_lotdev_message) == 40, "fc4_lotdev_message layout");
 static_assert(sizeof(fc4_lotdev_tuning) == 172, "fc4_lotdev_tuning layout");
 static_assert(sizeof(fc4_lotdev_state) == 112, "fc4_lotdev_state layout");
-static_assert(sizeof(fc4_lotdev_host) == (sizeof(void*) == 4 ? 8 + 169 * 4 : 16 + 169 * 8), "fc4_lotdev_host layout");
+static_assert(sizeof(fc4_lotdev_host) == (sizeof(void*) == 4 ? 8 + 176 * 4 : 16 + 176 * 8), "fc4_lotdev_host layout");
 static_assert(sizeof(fc4_history_host) == (sizeof(void*) == 4 ? 36 : 72), "fc4_history_host layout");
 static_assert(sizeof(fc4_history_point) == 8, "fc4_history_point layout");
 static_assert(sizeof(fc4_history_state) == 28, "fc4_history_state layout");
@@ -6727,14 +6786,14 @@ _Static_assert(sizeof(fc4_power_shadow_counts) == 24, "fc4_power_shadow_counts l
 _Static_assert(sizeof(fc4_power_shadow_stats) == 72, "fc4_power_shadow_stats layout");
 _Static_assert(sizeof(fc4_neighbor_deal_data) == 72, "fc4_neighbor_deal_data layout");
 _Static_assert(sizeof(fc4_neighbors_shadow_city) == 168, "fc4_neighbors_shadow_city layout");
-_Static_assert(sizeof(fc4_lotdev_cfg_object) == 16 + sizeof(void*), "fc4_lotdev_cfg_object layout");
-_Static_assert(sizeof(fc4_lotdev_texture) == 16, "fc4_lotdev_texture layout");
+_Static_assert(sizeof(fc4_lotdev_cfg_object) == 48 + sizeof(void*), "fc4_lotdev_cfg_object layout");
+_Static_assert(sizeof(fc4_lotdev_texture) == 20, "fc4_lotdev_texture layout");
 _Static_assert(sizeof(fc4_lotdev_burnt) == 32, "fc4_lotdev_burnt layout");
 _Static_assert(sizeof(fc4_lotdev_profile) == 12, "fc4_lotdev_profile layout");
 _Static_assert(sizeof(fc4_lotdev_message) == 40, "fc4_lotdev_message layout");
 _Static_assert(sizeof(fc4_lotdev_tuning) == 172, "fc4_lotdev_tuning layout");
 _Static_assert(sizeof(fc4_lotdev_state) == 112, "fc4_lotdev_state layout");
-_Static_assert(sizeof(fc4_lotdev_host) == (sizeof(void*) == 4 ? 8 + 169 * 4 : 16 + 169 * 8), "fc4_lotdev_host layout");
+_Static_assert(sizeof(fc4_lotdev_host) == (sizeof(void*) == 4 ? 8 + 176 * 4 : 16 + 176 * 8), "fc4_lotdev_host layout");
 _Static_assert(sizeof(fc4_history_host) == (sizeof(void*) == 4 ? 36 : 72), "fc4_history_host layout");
 _Static_assert(sizeof(fc4_history_point) == 8, "fc4_history_point layout");
 _Static_assert(sizeof(fc4_history_state) == 28, "fc4_history_state layout");

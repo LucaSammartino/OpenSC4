@@ -53,6 +53,10 @@ unsafe extern "C" fn cell_width(_: *mut c_void) -> f32 {
 unsafe extern "C" fn altitude(_: *mut c_void, index: i32) -> f32 {
     index as f32 * 0.5
 }
+/// The same ramp at a position in metres (linear between vertices).
+unsafe extern "C" fn altitude_at(_: *mut c_void, x: f32, z: f32) -> f32 {
+    (x / 16.0 + 65.0 * z / 16.0) * 0.5
+}
 unsafe extern "C" fn lot_rect(u: *mut c_void, lot: u64, out: *mut fc4_cell_rect) {
     if let Some(&(x, z, _)) = w(u).lots.borrow().get(&lot) {
         *out = fc4_cell_rect {
@@ -125,6 +129,7 @@ fn table(world: &World) -> fc4_lotdev_host {
     h.city_cell_counts = Some(terrain_counts);
     h.terrain_cell_width = Some(cell_width);
     h.terrain_altitude = Some(altitude);
+    h.terrain_altitude_at = Some(altitude_at);
     h.lot_bounding_rect = Some(lot_rect);
     h.lot_state = Some(lot_state_cb);
     h.lot_set_state = Some(lot_set_state_cb);
@@ -303,16 +308,20 @@ fn terrain_slots_match_the_core_formulas() {
             x2: 3,
             z2: 4,
         };
-        let lo = fc4_lotdev_area_altitude(d.p, &r as *const fc4_cell_rect as *const c_void, false, true, false);
-        let hi = fc4_lotdev_area_altitude(d.p, &r as *const fc4_cell_rect as *const c_void, false, false, false);
+        let lo = fc4_lotdev_area_altitude(d.p, &r, true, false);
+        let hi = fc4_lotdev_area_altitude(d.p, &r, false, false);
         assert_eq!(lo, (2 + 3 * 65) as f32 * 0.5);
         assert_eq!(hi, (4 + 5 * 65) as f32 * 0.5);
         assert_eq!(fc4_lotdev_area_altitude_range(d.p, &r, false), hi - lo);
         assert_eq!(fc4_lotdev_lot_altitude_range(d.p, 1, false), hi - lo);
-        // The float overload truncates its rectangle (LD-Q2).
-        let f = [2.9f32, 3.2, 3.99, 4.5];
-        let lo_f = fc4_lotdev_area_altitude(d.p, f.as_ptr() as *const c_void, true, true, false);
-        assert_eq!(lo_f, lo);
+        // Slot 16 samples the float rectangle in metres (§17.2): the same
+        // corners as the cell rectangle's vertices.
+        let f = [32.0f32, 48.0, 64.0, 80.0];
+        assert_eq!(fc4_lotdev_area_altitude_f(d.p, f.as_ptr(), true, false), lo);
+        assert_eq!(fc4_lotdev_area_altitude_f(d.p, f.as_ptr(), false, false), hi);
+        // Slot 18 reads an int32 rectangle.
+        let avg = fc4_lotdev_average_area_altitude(d.p, &r, false);
+        assert!(avg > lo && avg < hi);
         assert_eq!(
             fc4_lotdev_lot_slope(d.p, 1, false).to_bits(),
             fc4_lotdev_area_slope(d.p, &r, false).to_bits()
@@ -321,5 +330,118 @@ fn terrain_slots_match_the_core_formulas() {
         assert_eq!(fc4_lotdev_lot_development_cost(d.p, &r), 0);
         assert!(!fc4_lotdev_is_area_flat(d.p, &r, false));
         assert!(!fc4_lotdev_is_lot_flat(d.p, 1, false));
+    }
+}
+
+/// One `modify_terrain_height` call: per vertex, rectangle, h, exempt.
+type MthCall = (bool, [i32; 4], f32, u64);
+
+thread_local! {
+    static MTH: RefCell<Vec<MthCall>> = const { RefCell::new(Vec::new()) };
+}
+
+unsafe extern "C" fn modify_terrain(
+    _: *mut c_void,
+    per_vertex: bool,
+    x0: i32,
+    z0: i32,
+    x1: i32,
+    z1: i32,
+    h: f32,
+    exempt: u64,
+) -> i32 {
+    MTH.with(|m| m.borrow_mut().push((per_vertex, [x0, z0, x1, z1], h, exempt)));
+    7
+}
+unsafe extern "C" fn corner(_: *mut c_void, x: i32, z: i32, out: *mut f32) {
+    *out = x as f32 * 16.0;
+    *out.add(1) = z as f32 * 16.0;
+}
+unsafe extern "C" fn facing(_: *mut c_void, _lot: u64) -> i32 {
+    2
+}
+
+#[test]
+fn geometry_slots_run_on_the_snapshot() {
+    let world = World::default();
+    world.lots.borrow_mut().insert(1, (10, 20, 1));
+    let s = fc4_lotdev_statics_create(1);
+    let mut h = table(&world);
+    h.modify_terrain_height = Some(modify_terrain);
+    h.cell_corner_to_position = Some(corner);
+    h.lot_facing = Some(facing);
+    // SAFETY: valid table, statics and out pointers.
+    unsafe {
+        let p = fc4_lotdev_create(&h, s);
+        assert!(!p.is_null());
+        // Slot 42 before Init: the boundary map is empty, nothing written.
+        let sides = [2i32, 0, 1, 1];
+        let (mut tex, mut rot, mut flip) = (0xDEADu32, 9u8, true);
+        assert!(!fc4_lotdev_boundary_lot_texture(
+            p,
+            sides.as_ptr(),
+            &mut tex,
+            &mut rot,
+            &mut flip
+        ));
+        assert_eq!((tex, rot, flip), (0xDEAD, 9, true));
+        assert!(fc4_lotdev_init(p));
+        assert!(fc4_lotdev_boundary_lot_texture(
+            p,
+            sides.as_ptr(),
+            &mut tex,
+            &mut rot,
+            &mut flip
+        ));
+        assert_eq!((tex, rot, flip), (0x2700, 0, false));
+        let sides = [2i32, 1, 1, 0];
+        assert!(fc4_lotdev_boundary_lot_texture(
+            p,
+            sides.as_ptr(),
+            &mut tex,
+            &mut rot,
+            &mut flip
+        ));
+        assert_eq!((tex, rot, flip), (0x2700, 0, true));
+
+        // Slot 20 returns ModifyTerrainHeight's EAX; the range is every vertex.
+        let r = fc4_cell_rect {
+            x1: 2,
+            z1: 3,
+            x2: 4,
+            z2: 5,
+        };
+        assert_eq!(fc4_lotdev_level_bordering_vertices(p, &r, 101.5, 1), 7);
+        MTH.with(|m| assert_eq!(m.borrow().as_slice(), &[(true, [2, 3, 5, 6], 101.5, 1)]));
+
+        // Slot 39, worked example 4 at facing 2: (168, ·, 324), orientation 3.
+        let obj = fc4_lotdev_cfg_object {
+            object_type: 1,
+            flags: 0,
+            orientation: 1,
+            byte3: 0,
+            offset: [8.0, 0.5, 4.0],
+            footprint_max: [10.0, 6.0],
+            footprint_min: [6.0, 2.0],
+            foundation: 0,
+            tag: 0,
+            n_ids: 0,
+            ids: std::ptr::null(),
+        };
+        let mut pos = [0.0f32; 3];
+        assert_eq!(fc4_lotdev_object_position(p, 1, 0, &obj, pos.as_mut_ptr()), 3);
+        assert_eq!((pos[0], pos[2]), (168.0, 324.0));
+        // Slot 40 without a configuration: false, nothing written.
+        let mut o = 5i32;
+        pos = [1.0; 3];
+        assert!(!fc4_lotdev_position_for_building(p, 1, pos.as_mut_ptr(), &mut o));
+        assert_eq!((pos, o), ([1.0; 3], 5));
+        // Slot 61 with neither flag bit: no call (AL = the flags' low byte).
+        assert!(!fc4_lotdev_update_lot_foundation(p, 1));
+        // No foundation occupant in an empty world.
+        assert_eq!(fc4_lotdev_lot_foundation(p, 1), 0);
+        assert!(!fc4_lotdev_remove_lot_foundation(p, 10, 20));
+        fc4_lotdev_destroy(p);
+        fc4_lotdev_statics_destroy(s);
     }
 }

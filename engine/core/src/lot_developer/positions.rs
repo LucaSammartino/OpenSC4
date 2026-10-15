@@ -22,7 +22,13 @@ impl TerrainView {
     /// altitude when its flags have bit 0, else the lot foundation's top,
     /// else the terrain under the object (types 1, 2, 4) or the highest
     /// altitude under its footprint (slot 16, other types).
-    pub fn object_position(&self, host: &dyn LotDeveloperHost, lot: u64, cfg: Option<u64>, obj: &CfgObject) -> (Vec3, i32) {
+    pub fn object_position(
+        &self,
+        host: &dyn LotDeveloperHost,
+        lot: u64,
+        cfg: Option<u64>,
+        obj: &CfgObject,
+    ) -> (Vec3, i32) {
         // 1. Corners and facing.
         let r: CellRect = host.lot_bounding_rect(lot);
         let (c0x, c0z) = host.cell_corner_to_position(r.x1, r.z1);

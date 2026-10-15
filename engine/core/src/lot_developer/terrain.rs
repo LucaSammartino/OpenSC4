@@ -103,7 +103,9 @@ fn sweep(start: f32, end: f32, mut sample: impl FnMut(f32)) {
     loop {
         sample(t);
         n += 1;
-        if !(t < end) || n >= MAX_EDGE_SAMPLES {
+        // NaN stops the sweep too.
+        let below = t.partial_cmp(&end) == Some(std::cmp::Ordering::Less);
+        if !below || n >= MAX_EDGE_SAMPLES {
             return;
         }
         let next = r24(f64::from(t) + EDGE_STEP) as f32;
