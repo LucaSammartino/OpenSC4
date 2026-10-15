@@ -103,49 +103,67 @@ pub fn add_r24(a: f64, b: f64) -> f64 {
     }
 }
 
-/// The points with `from ≤ date ≤ to`, without widening (§4.6), as an index
-/// range. [choice] The range is found as a list walk would find it: from the
-/// first point with `date ≥ from` up to the first later point with
-/// `date > to`. On the date-ordered lists the warehouse keeps that is exactly
-/// the inclusive range; only a `Coalesce` over a range that does not start on
-/// a period boundary can disorder a list.
-pub fn plain_range(points: &[Point], from: u32, to: u32) -> std::ops::Range<usize> {
-    let lo = points.iter().position(|p| p.date >= from).unwrap_or(points.len());
-    let hi = lo
-        + points[lo..]
-            .iter()
-            .position(|p| p.date > to)
-            .unwrap_or(points.len() - lo);
-    lo..hi
+/// The range walk of §4.6 (HW6, `cVecRange`): one walk from the first point,
+/// every date comparison unsigned. With `widen` the two pre-checks come
+/// first (`from` after the last point: the last point; `to` before the first
+/// point: the first point). Until the range has begun each point is tested
+/// first against `to` (`date > to`: with widening its predecessor and
+/// itself, without widening nothing), then against `from` (`date ≥ from`
+/// begins the range). Once begun, the first point after `to` ends it; with
+/// widening a one-point range becomes its predecessor, itself and that
+/// successor. A walk that reaches the end after beginning runs to the last
+/// point (never widened); one that never began is empty.
+pub fn walk_range(points: &[Point], from: u32, to: u32, widen: bool) -> std::ops::Range<usize> {
+    let n = points.len();
+    if widen && n > 0 {
+        if from > points[n - 1].date {
+            return n - 1..n;
+        }
+        if to < points[0].date {
+            return 0..1;
+        }
+    }
+    let mut begin: Option<usize> = None;
+    for (i, p) in points.iter().enumerate() {
+        match begin {
+            None => {
+                if p.date > to {
+                    return if widen { i.saturating_sub(1)..i + 1 } else { 0..0 };
+                }
+                if p.date >= from {
+                    begin = Some(i);
+                }
+            }
+            Some(b) => {
+                if p.date > to {
+                    if widen && i - b == 1 {
+                        return b.saturating_sub(1)..i + 1;
+                    }
+                    return b..i;
+                }
+            }
+        }
+    }
+    match begin {
+        Some(b) => b..n,
+        None => 0..0,
+    }
 }
 
-/// The widened range of §4.6 (every query except `GetMinMaxAverage`).
+/// The points with `from ≤ date ≤ to`, without widening (§4.6), as an index
+/// range, found by the walk of [`walk_range`]. On the date-ordered lists the
+/// warehouse keeps this is exactly the inclusive range (empty when
+/// `from > to`); only a `Coalesce` over a range that does not start on a
+/// period boundary can disorder a list, and the walk then follows the list.
+pub fn plain_range(points: &[Point], from: u32, to: u32) -> std::ops::Range<usize> {
+    walk_range(points, from, to, false)
+}
+
+/// The widened range of §4.6 (every query except `GetMinMaxAverage`). With
+/// `from > to` and neither pre-check true it is the first point after `to`
+/// and its predecessor (HW6).
 pub fn widened_range(points: &[Point], from: u32, to: u32) -> std::ops::Range<usize> {
-    let n = points.len();
-    if n == 0 {
-        return 0..0;
-    }
-    if from > points[n - 1].date {
-        return n - 1..n;
-    }
-    if to < points[0].date {
-        return 0..1;
-    }
-    let r = plain_range(points, from, to);
-    if r.is_empty() {
-        // No point in [from, to]: the two points around the gap. `from` is
-        // not after the last point, so `r.start < n`; `to` is not before the
-        // first one, so `r.start ≥ 1`. [choice] With `from > to` this is the
-        // point before the first one at or after `from`, and that one.
-        let lo = r.start.max(1);
-        return lo - 1..(lo + 1).min(n);
-    }
-    if r.len() == 1 && r.end < n {
-        // Exactly one point and a later point exists: its predecessor (if
-        // any), itself and its successor.
-        return r.start.saturating_sub(1)..r.end + 1;
-    }
-    r
+    walk_range(points, from, to, true)
 }
 
 /// The statistics of §4.7 over a range, with `x = date − base` (int32) and
@@ -211,11 +229,15 @@ pub fn statistics(points: &[Point], base: u32, prec: Precision) -> Stats {
     st.sx = prec.sqrt(prec.div(ssx, nf));
     st.sy = prec.sqrt(prec.div(ssy, nf));
     if st.sx != 0.0 && st.sy != 0.0 {
+        // HW5: the reciprocals once, each rounded; the standardised values
+        // are multiplied by them.
+        let ix = prec.div(1.0, st.sx);
+        let iy = prec.div(1.0, st.sy);
         let mut sum = 0.0;
         for p in points {
             let (x, y) = xy(p, base);
-            let zx = prec.div(prec.add(x, -st.mean_x), st.sx);
-            let zy = prec.div(prec.add(y, -st.mean_y), st.sy);
+            let zx = prec.mul(prec.add(x, -st.mean_x), ix);
+            let zy = prec.mul(prec.add(y, -st.mean_y), iy);
             sum = prec.add(sum, prec.mul(zx, zy));
         }
         st.r = prec.div(sum, nf);

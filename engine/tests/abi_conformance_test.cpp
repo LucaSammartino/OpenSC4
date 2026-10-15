@@ -93,6 +93,7 @@
 #include "cISCResExemplarCohort.h"
 #include "cIGZMessageTarget2.h"
 #include "cIGZSerializable.h"
+#include "cIGZSystemService.h"
 #include "cISC4GrowthDeveloper.h"
 #include "cISC4LandValueSimulator.h"
 #include "cISC4LotDeveloper.h"

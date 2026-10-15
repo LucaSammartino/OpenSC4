@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "ck12_16_negative_pause_count",
+  "spec": ["clock24 4.2", "clock24 4.7", "clock24 12"],
+  "description": "Test 16 (CK14). A record with pauseCount = -1 loads with IsPaused false. Init starts the timer only when both counters are exactly 0, so the timer stays stopped and every OnIdle sees e = 0: the clock stays frozen. Pause(false) does nothing at -1. HiddenPause(true) then (false) posts its two messages but neither stops nor starts the timer (pauseCount is not exactly 0). Pause(true) brings the count to 0 with no message; then a hidden pause cycle starts the timer and the next large enough e steps (135 game seconds for 1,000,000 us at the shipped magnification).",
+  "steps": [
+    {"op": "ck_create"},
+    {"op": "ck_record", "read": "0200 FFFFFFFF 00000743 0000FA44 C0A80000 14000000 01000000", "expect": true, "remaining": 0},
+    {"op": "ck_call", "method": "is_paused", "expect": false},
+    {"op": "ck_call", "method": "init", "expect": true},
+    {"op": "ck_expect", "state": {"pause_count": -1, "timer_running": false, "timer_elapsed": 0, "seconds": 43200}},
+    {"op": "ck_clear_events"},
+    {"op": "ck_idle", "advance": 10000000, "expect": true},
+    {"op": "ck_expect", "state": {"seconds": 43200, "timer_running": false}},
+    {"op": "ck_call", "method": "pause", "args": [false], "expect": true},
+    {"op": "ck_expect", "state": {"pause_count": -1}},
+    {"op": "ck_expect_event_count", "count": 0},
+    {"op": "ck_call", "method": "hidden_pause", "args": [true], "expect": true},
+    {"op": "ck_call", "method": "hidden_pause", "args": [false], "expect": true},
+    {"op": "ck_expect_events", "events": [{"event": "post", "name": "HiddenPauseChanged", "data2": 1, "data3": 0}, {"event": "post", "name": "HiddenPauseChanged", "data2": 0, "data3": 0}]},
+    {"op": "ck_idle", "advance": 10000000, "expect": true},
+    {"op": "ck_expect", "state": {"seconds": 43200, "timer_running": false}},
+    {"op": "ck_call", "method": "pause", "args": [true], "expect": true},
+    {"op": "ck_expect", "state": {"pause_count": 0, "timer_running": false}},
+    {"op": "ck_expect_event_count", "count": 0},
+    {"op": "ck_call", "method": "hidden_pause", "args": [true], "expect": true},
+    {"op": "ck_call", "method": "hidden_pause", "args": [false], "expect": true},
+    {"op": "ck_expect", "state": {"timer_running": true, "timer_elapsed": 0}},
+    {"op": "ck_idle", "elapsed": 1000000, "expect": true},
+    {"op": "ck_expect", "state": {"seconds": 43335}}
+  ]
+}
