@@ -167,7 +167,10 @@ pub struct fc4_disasters_host {
     pub is_road_cell: Option<unsafe extern "C" fn(U, i32, i32) -> bool>,
     pub cell_corner_position: Option<unsafe extern "C" fn(U, i32, i32, *mut f32, *mut f32)>,
     pub create_riot_leader: Option<unsafe extern "C" fn(U, f32, f32) -> u64>,
-    pub mark_riot_network: Option<unsafe extern "C" fn(U, *const fc4_cell_rect)>,
+    /// The network occupant (road, rail, ...) at a cell (0 = none).
+    pub network_occupant_at: Option<unsafe extern "C" fn(U, i32, i32) -> u64>,
+    pub unset_removal_flags: Option<unsafe extern "C" fn(U, u64, u32)>,
+    pub set_removal_flags: Option<unsafe extern "C" fn(U, u64, u32)>,
     pub automaton_cell: Option<unsafe extern "C" fn(U, u64, *mut i32, *mut i32) -> bool>,
     pub set_riot_effect: Option<unsafe extern "C" fn(U, u64, i32)>,
     pub send_riot_message: Option<unsafe extern "C" fn(U, u64, i32)>,
@@ -223,7 +226,8 @@ pub struct fc4_disasters_state {
     pub fire_effectiveness: f32,
     pub police_effectiveness: f32,
     pub damaged_buildings: u32,
-    pub reserved2: u32,
+    /// How many network occupants the riots hold locked (network-manager.md §10).
+    pub riot_locked: u32,
     pub disaster_cost: i64,
 }
 
@@ -274,7 +278,7 @@ pub struct fc4_riot_leader {
     pub reserved: u32,
 }
 
-const CALLBACKS: usize = 80;
+const CALLBACKS: usize = 82;
 
 const _: () = {
     assert!(std::mem::size_of::<fc4_disaster_post>() == 32);
@@ -576,9 +580,14 @@ impl DisasterHost for CHost {
     fn create_riot_leader(&self, x: f32, z: f32) -> Option<u64> {
         opt(cb!(self, create_riot_leader, 0, x, z))
     }
-    fn mark_riot_network(&self, rect: CellRect) {
-        let r = rect_to_c(rect);
-        cb!(self, mark_riot_network, (), &r)
+    fn network_occupant_at(&self, x: i32, z: i32) -> Option<u64> {
+        opt(cb!(self, network_occupant_at, 0, x, z))
+    }
+    fn unset_removal_flags(&self, occupant: u64, flags: u32) {
+        cb!(self, unset_removal_flags, (), occupant, flags)
+    }
+    fn set_removal_flags(&self, occupant: u64, flags: u32) {
+        cb!(self, set_removal_flags, (), occupant, flags)
     }
     fn automaton_cell(&self, a: u64) -> Option<(i32, i32)> {
         self.cell_pair(self.h.automaton_cell, a)
@@ -1071,7 +1080,7 @@ pub unsafe extern "C" fn fc4_disasters_get_state(d: *const fc4_disasters, out: *
             fire_effectiveness: l.fire_effectiveness,
             police_effectiveness: l.police_effectiveness,
             damaged_buildings: l.damage.building_count,
-            reserved2: 0,
+            riot_locked: h.sys.riot_locked().len() as u32,
             disaster_cost: h.sys.disaster_cost(),
         };
         true

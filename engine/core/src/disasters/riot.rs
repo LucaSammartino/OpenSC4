@@ -8,7 +8,7 @@
 
 use super::layer::Timer;
 use super::system::{Core, InstanceState};
-use super::{history, instance_class, kind, prop, trunc_i32, zoom_of, CellRect, TICK_PRIORITY};
+use super::{history, instance_class, kind, prop, trunc_i32, zoom_of, TICK_PRIORITY};
 use crate::curve::ResponseCurve;
 use crate::property::PropertyHolder;
 
@@ -35,9 +35,12 @@ pub const DEFAULT_UNKNOWN_622: u32 = 3;
 pub const DEFAULT_ZOOM: u32 = 4;
 /// The police limit of §6.4 step 2: `trunc(curve(coverage)) < 2`.
 pub const POLICE_LIMIT: i32 = 2;
-/// The road search radius (§6.4 step 1) and the riot-blocked radius (§6.3).
+/// The road search radius (§6.4 step 1) and the removal-lock radius (§6.3).
 pub const ROAD_SEARCH_RADIUS: i32 = 7;
 pub const BLOCK_RADIUS: i32 = 3;
+/// The removal privilege the riot locks: the player's (network-manager.md
+/// §10).
+pub const PLAYER_REMOVAL: u32 = 2;
 /// The leader's offset inside its cell: `16 × RandomDoubleUniform()` per
 /// axis (aura.md §6.16).
 pub const LEADER_OFFSET: f64 = 16.0;
@@ -212,14 +215,48 @@ impl Core {
         self.mark_riot_network(x, z);
     }
 
+    /// `MarkRiotNetworkOccupants(x, z)` (network-manager.md §10): the
+    /// network occupants of the cells within ±3 (x outer) are locked against
+    /// the player's bulldozer. The bounds compare unsigned: within 3 cells of
+    /// the west or north edge nothing is locked [quirk].
     fn mark_riot_network(&mut self, x: i32, z: i32) {
-        let rect = self.clamp_rect(CellRect {
-            x0: x.saturating_sub(BLOCK_RADIUS),
-            z0: z.saturating_sub(BLOCK_RADIUS),
-            x1: x.saturating_add(BLOCK_RADIUS),
-            z1: z.saturating_add(BLOCK_RADIUS),
-        });
-        self.host.mark_riot_network(rect);
+        if x < BLOCK_RADIUS || z < BLOCK_RADIUS {
+            return;
+        }
+        for i in x - BLOCK_RADIUS..=x.saturating_add(BLOCK_RADIUS) {
+            for j in z - BLOCK_RADIUS..=z.saturating_add(BLOCK_RADIUS) {
+                if let Some(n) = self.host.network_occupant_at(i, j) {
+                    self.lock_network_occupant(n);
+                }
+            }
+        }
+    }
+
+    /// `LockNetworkOccupant(n)` (riot manager slot 9): once per occupant
+    /// (a reference held, the player's removal counter decremented).
+    fn lock_network_occupant(&mut self, n: u64) {
+        if n == 0 || self.riot_locked.contains(&n) {
+            return;
+        }
+        self.host.add_ref(n);
+        self.host.unset_removal_flags(n, PLAYER_REMOVAL);
+        self.riot_locked.push(n);
+    }
+
+    /// `ClearRiotNetworkOccupants`: every locked occupant gets its counter
+    /// back and its reference released, in locking order [choice]. Run when
+    /// the last riot instance leaves the manager and at the manager's
+    /// `Shutdown`.
+    pub(crate) fn clear_riot_network(&mut self) {
+        let host = self.host.clone();
+        for n in std::mem::take(&mut self.riot_locked) {
+            host.set_removal_flags(n, PLAYER_REMOVAL);
+            host.release(n);
+        }
+    }
+
+    pub(crate) fn riot_locked(&self) -> Vec<u64> {
+        self.riot_locked.clone()
     }
 
     /// The nearest road cell (§6.4 step 1): rings of radius 0..7 around the

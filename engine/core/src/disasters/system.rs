@@ -100,6 +100,8 @@ pub(crate) struct Core {
     pub toxic_instance: Option<u32>,
     pub fire_tuning: Option<FireTuning>,
     pub riot_tuning: Option<RiotTuning>,
+    /// The network occupants the riots have locked (network-manager.md §10).
+    pub riot_locked: Vec<u64>,
     pub quake_tuning: Option<QuakeTuning>,
     pub pipe_tuning: Option<PipeTuning>,
     pub volcano_tuning: Option<VolcanoTuning>,
@@ -129,6 +131,7 @@ impl Core {
             toxic_instance: None,
             fire_tuning: None,
             riot_tuning: None,
+            riot_locked: Vec::new(),
             quake_tuning: None,
             pipe_tuning: None,
             volcano_tuning: None,
@@ -180,6 +183,10 @@ impl Core {
         let mut released = std::mem::take(&mut m.instances);
         released.extend(pending_remove);
         m.instances = pending_add;
+        if mtype == kind::RIOT {
+            self.clear_riot_network();
+        }
+        let Some(m) = self.managers.get_mut(&mtype) else { return };
         if m.initialised && mtype == kind::TOXIC {
             self.host
                 .unsubscribe(Target::Manager(kind::TOXIC), msg::TOXIC_SPILL_CHEAT);
@@ -214,7 +221,11 @@ impl Core {
             return;
         }
         m.instances.retain(|i| *i != id);
+        let last = m.instances.is_empty();
         self.release_instance(id);
+        if last && mtype == kind::RIOT {
+            self.clear_riot_network();
+        }
     }
 
     fn release_instance(&mut self, id: u32) {
@@ -713,6 +724,10 @@ impl Disasters {
 
     pub fn riot_snapshot(&self, id: u32) -> Option<RiotSnapshot> {
         self.read(None, |c| c.riot_snapshot(id))
+    }
+    /// The network occupants the riots hold locked, in locking order.
+    pub fn riot_locked(&self) -> Vec<u64> {
+        self.read(Vec::new(), |c| c.riot_locked())
     }
 
     // ---- toxic spill (§9) ----

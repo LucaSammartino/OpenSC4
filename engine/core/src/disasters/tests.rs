@@ -42,6 +42,7 @@ struct Fake {
     flammability: RefCell<BTreeMap<(i32, i32), u8>>,
     police: RefCell<BTreeMap<(i32, i32), u8>>,
     roads: RefCell<BTreeSet<(i32, i32)>>,
+    network: RefCell<BTreeMap<(i32, i32), u64>>,
     automata: RefCell<BTreeMap<u64, Option<(i32, i32)>>>,
     tuning: RefCell<BTreeMap<u32, Rc<PropertyHolder>>>,
     pipes: RefCell<BTreeMap<(i32, i32), u64>>,
@@ -332,8 +333,14 @@ impl DisasterHost for Fake {
         self.log(format!("leader {t} {x} {z}"));
         Some(t)
     }
-    fn mark_riot_network(&self, r: CellRect) {
-        self.log(format!("mark {} {} {} {}", r.x0, r.z0, r.x1, r.z1));
+    fn network_occupant_at(&self, x: i32, z: i32) -> Option<u64> {
+        self.network.borrow().get(&(x, z)).copied()
+    }
+    fn unset_removal_flags(&self, o: u64, flags: u32) {
+        self.log(format!("unset_removal {o} {flags}"));
+    }
+    fn set_removal_flags(&self, o: u64, flags: u32) {
+        self.log(format!("set_removal {o} {flags}"));
     }
     fn automaton_cell(&self, a: u64) -> Option<(i32, i32)> {
         self.automata.borrow().get(&a).copied().flatten()
@@ -762,6 +769,52 @@ fn t07b_riot_suppressed() {
     assert!(log.contains(&"post AA1B2002 0 0 0 0 0".to_string()));
     assert!(w.sys.riot_snapshot(id).is_none(), "the riot left its manager");
     assert_eq!(w.sys.active_count(kind::RIOT), 0);
+}
+
+/// network-manager.md §10 (disasters.md Q4): the riots lock the network
+/// pieces around their starts and leaders against the player's bulldozer
+/// until the last riot leaves the manager.
+#[test]
+fn riot_locks_the_network_until_the_last_riot_ends() {
+    let w = riot_world();
+    for x in 0..64 {
+        w.host.network.borrow_mut().insert((x, 20), 0x7000 + x as u64);
+    }
+    let a = w.sys.attempt_start(kind::RIOT, 10, 20).unwrap();
+    let row = |r: std::ops::RangeInclusive<u64>| r.map(|x| 0x7000 + x).collect::<Vec<_>>();
+    assert_eq!(w.sys.riot_locked(), row(7..=13), "each piece once");
+    assert_eq!(w.host.count("unset_removal"), 7);
+    assert_eq!(w.host.refs.borrow().get(&0x700A).copied(), Some(1));
+    let b = w.sys.attempt_start(kind::RIOT, 12, 20).unwrap();
+    assert_eq!(w.sys.riot_locked(), row(7..=15));
+    // Within 3 cells of the west edge nothing is locked.
+    let c = w.sys.attempt_start(kind::RIOT, 2, 20).unwrap();
+    assert_eq!(w.sys.riot_locked().len(), 9);
+    w.host.take();
+    // Each riot ends at coverage 255 on its leader's cell; nothing unlocks
+    // while one remains.
+    let end = |id: u32, cell: (i32, i32)| {
+        w.host.police.borrow_mut().insert(cell, 255);
+        w.host.advance(1000);
+        w.sys.tick(id, 16_000);
+        assert!(w.sys.riot_snapshot(id).is_none());
+    };
+    end(a, (10, 20));
+    end(b, (12, 20));
+    assert_eq!(w.host.count("set_removal"), 0);
+    assert_eq!(w.sys.riot_locked().len(), 9);
+    end(c, (2, 20));
+    assert!(w.sys.riot_locked().is_empty());
+    assert_eq!(w.host.count("set_removal"), 9);
+    assert!(w.host.refs.borrow().values().all(|r| *r == 0));
+    // The manager's Shutdown unlocks too.
+    w.host.police.borrow_mut().clear();
+    w.sys.attempt_start(kind::RIOT, 30, 20).unwrap();
+    assert_eq!(w.sys.riot_locked().len(), 7);
+    w.host.take();
+    assert!(w.sys.shutdown());
+    assert_eq!(w.host.count("set_removal"), 7);
+    assert!(w.sys.riot_locked().is_empty());
 }
 
 // ---- §18 test 8 ----

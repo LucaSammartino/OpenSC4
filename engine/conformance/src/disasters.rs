@@ -68,6 +68,7 @@ pub(crate) struct World {
     flammability: RefCell<BTreeMap<(i32, i32), u8>>,
     police: RefCell<BTreeMap<(i32, i32), u8>>,
     roads: RefCell<BTreeSet<(i32, i32)>>,
+    network: RefCell<BTreeMap<(i32, i32), u64>>,
     pipes: RefCell<BTreeMap<(i32, i32), u64>>,
     pipe_neighbours: RefCell<BTreeMap<u64, Vec<(i32, i32)>>>,
     automata: RefCell<BTreeMap<u64, Option<(i32, i32)>>>,
@@ -172,6 +173,7 @@ impl World {
             flammability: RefCell::new(BTreeMap::new()),
             police: RefCell::new(BTreeMap::new()),
             roads: RefCell::new(BTreeSet::new()),
+            network: RefCell::new(BTreeMap::new()),
             pipes: RefCell::new(BTreeMap::new()),
             pipe_neighbours: RefCell::new(BTreeMap::new()),
             automata: RefCell::new(BTreeMap::new()),
@@ -511,11 +513,14 @@ impl DisasterHost for World {
         );
         Some(t)
     }
-    fn mark_riot_network(&self, r: CellRect) {
-        self.ev(
-            "mark",
-            vec![("x0", ji(r.x0)), ("z0", ji(r.z0)), ("x1", ji(r.x1)), ("z1", ji(r.z1))],
-        );
+    fn network_occupant_at(&self, x: i32, z: i32) -> Option<u64> {
+        self.network.borrow().get(&(x, z)).copied()
+    }
+    fn unset_removal_flags(&self, o: u64, flags: u32) {
+        self.ev("unset_removal", vec![("occupant", ji(o as i64)), ("flags", ji(flags))]);
+    }
+    fn set_removal_flags(&self, o: u64, flags: u32) {
+        self.ev("set_removal", vec![("occupant", ji(o as i64)), ("flags", ji(flags))]);
     }
     fn automaton_cell(&self, a: u64) -> Option<(i32, i32)> {
         self.automata.borrow().get(&a).copied().flatten()
@@ -971,7 +976,9 @@ fn occupant_op(w: &World, op: &Json) -> R<()> {
 
 /// `dis_cell`: `cell` [x, z] (or `cells`: a list, or `rect` [x0, z0, x1,
 /// z1] inclusive) with any of
-/// `flammability`, `police`, `road` (bool), `pipe` (a token; null: none),
+/// `flammability`, `police`, `road` (bool), `network` (the network
+/// occupant's token; null: none), `network_base` (each cell its own network
+/// occupant: the base plus the cell's index), `pipe` (a token; null: none),
 /// `pipe_neighbours` (for `pipe`: the connected cells).
 fn cell_op(w: &World, op: &Json) -> R<()> {
     let cells: Vec<(i32, i32)> = if let Some(v) = opt(op, "cells") {
@@ -984,12 +991,25 @@ fn cell_op(w: &World, op: &Json) -> R<()> {
     } else {
         vec![pair(field(op, "cell")?, "cell")?]
     };
-    for c in cells {
+    let base = opt(op, "network_base").map(|v| tok(v, "network_base")).transpose()?;
+    for (index, c) in cells.into_iter().enumerate() {
+        if let Some(b) = base {
+            w.network.borrow_mut().insert(c, b + index as u64);
+        }
         if let Some(v) = opt(op, "flammability") {
             w.flammability.borrow_mut().insert(c, u32_of(v, "flammability")? as u8);
         }
         if let Some(v) = opt(op, "police") {
             w.police.borrow_mut().insert(c, u32_of(v, "police")? as u8);
+        }
+        match op.get("network") {
+            Some(Json::Null) => {
+                w.network.borrow_mut().remove(&c);
+            }
+            Some(v) => {
+                w.network.borrow_mut().insert(c, tok(v, "network")?);
+            }
+            None => {}
         }
         if let Some(v) = opt(op, "road") {
             if bool_of(v, "road")? {
@@ -1319,6 +1339,10 @@ fn expect(w: &World, op: &Json) -> R<()> {
         ("save_disabled".into(), ji(w.save_disabled.get())),
         ("fire_count".into(), ji(s.fire_count())),
         ("reentrant_refused".into(), ji(s.reentrant_refused())),
+        (
+            "riot_locked".into(),
+            Json::Array(s.riot_locked().iter().map(|t| ji(*t as i64)).collect()),
+        ),
     ];
     if let Some(f) = s.fire_snapshot() {
         got.extend([

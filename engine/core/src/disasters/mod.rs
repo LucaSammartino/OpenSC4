@@ -536,9 +536,15 @@ pub trait DisasterHost {
     /// Creates a riot-leader pedestrian (kind `0x4107`) at a position on the
     /// terrain, sets it to riot-leader mode and starts it.
     fn create_riot_leader(&self, x: f32, z: f32) -> Option<u64>;
-    /// Marks the network occupants in a rectangle riot-blocked (network
-    /// occupant slot 48, flag 2).
-    fn mark_riot_network(&self, rect: CellRect);
+    /// The occupant of the traffic network map's tile at a cell
+    /// (`SafeGetTileInfoAtCell`, slot 14); `None` for no tile, no occupant
+    /// or a cell off the map (network-manager.md §10).
+    fn network_occupant_at(&self, x: i32, z: i32) -> Option<u64>;
+    /// `AsOccupant().UnsetRemovalFlags(flags)` (cISC4Occupant slot 13): the
+    /// riot's removal lock decrements the player's counter (flags 2).
+    fn unset_removal_flags(&self, occupant: u64, flags: u32);
+    /// `SetRemovalFlags(flags)`: the lock's release increments it back.
+    fn set_removal_flags(&self, occupant: u64, flags: u32);
     /// The automaton's cell; `None` when it is gone.
     fn automaton_cell(&self, automaton: u64) -> Option<(i32, i32)>;
     /// The "Riot%d" effects for a stage.

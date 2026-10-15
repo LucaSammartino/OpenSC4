@@ -243,6 +243,19 @@ unsafe extern "C" fn create_riot_leader(u: *mut c_void, x: f32, z: f32) -> u64 {
     g.log(format!("leader {t:X} {x} {z}"));
     t
 }
+unsafe extern "C" fn network_occupant_at(u: *mut c_void, x: i32, z: i32) -> u64 {
+    if game(u).roads.borrow().contains(&(x, z)) {
+        0x7000 + x as u64
+    } else {
+        0
+    }
+}
+unsafe extern "C" fn unset_removal_flags(u: *mut c_void, o: u64, flags: u32) {
+    game(u).log(format!("unset_removal {o:X} {flags}"));
+}
+unsafe extern "C" fn set_removal_flags(u: *mut c_void, o: u64, flags: u32) {
+    game(u).log(format!("set_removal {o:X} {flags}"));
+}
 unsafe extern "C" fn automaton_cell(u: *mut c_void, a: u64, x: *mut i32, z: *mut i32) -> bool {
     match game(u).leaders.borrow().get(&a) {
         Some((cx, cz)) => {
@@ -337,6 +350,9 @@ fn host(g: &Game) -> fc4_disasters_host {
     h.cell_corner_position = Some(cell_corner_position);
     h.create_riot_leader = Some(create_riot_leader);
     h.automaton_cell = Some(automaton_cell);
+    h.network_occupant_at = Some(network_occupant_at);
+    h.unset_removal_flags = Some(unset_removal_flags);
+    h.set_removal_flags = Some(set_removal_flags);
     h.create_toxic_occupant = Some(create_toxic_occupant);
     h.remove_toxic_occupant = Some(remove_toxic_occupant);
     h.find_watered_pipe = Some(find_watered_pipe);
@@ -569,6 +585,19 @@ fn riot_leaders_and_toxic_spill() {
         let mut l = [fc4_riot_leader::default(); 4];
         assert_eq!(fc4_disasters_riot_leaders(f.d, id, l.as_mut_ptr(), l.len()), 1);
         assert_eq!((l[0].x, l[0].z, l[0].counter), (10, 20, 0));
+        // The removal lock (network-manager.md section 10): the roads within 3 cells.
+        let locked: Vec<String> = g
+            .take()
+            .into_iter()
+            .filter(|l| l.starts_with("unset_removal"))
+            .collect();
+        assert_eq!(
+            locked,
+            (7..=13)
+                .map(|x| format!("unset_removal {:X} 2", 0x7000 + x))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(state(f.d).riot_locked, 7);
         let mut i = fc4_disaster_instance::default();
         assert!(fc4_disasters_get_instance(f.d, id, &mut i));
         assert_eq!((i.manager_type, i.phase, i.tick_registered), (RIOT, 1, 1));

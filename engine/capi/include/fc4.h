@@ -6994,7 +6994,11 @@ typedef struct fc4_disasters_host {
     bool (*is_road_cell)(void* user, int32_t x, int32_t z);
     void (*cell_corner_position)(void* user, int32_t x, int32_t z, float* wx, float* wz);
     uint64_t (*create_riot_leader)(void* user, float x, float z);
-    void (*mark_riot_network)(void* user, const fc4_cell_rect* rect);
+    /* The riot's removal lock (network-manager.md §10): the network occupant at a cell
+     * (0 = none) and its removal flags (2 = the player's bulldozer). */
+    uint64_t (*network_occupant_at)(void* user, int32_t x, int32_t z);
+    void (*unset_removal_flags)(void* user, uint64_t occ, uint32_t flags);
+    void (*set_removal_flags)(void* user, uint64_t occ, uint32_t flags);
     bool (*automaton_cell)(void* user, uint64_t automaton, int32_t* x, int32_t* z);
     void (*set_riot_effect)(void* user, uint64_t automaton, int32_t stage);
     void (*send_riot_message)(void* user, uint64_t automaton, int32_t stage);
@@ -7041,7 +7045,7 @@ typedef struct fc4_disasters_state {
     uint32_t fire_timers, police_timers;
     float fire_effectiveness, police_effectiveness;
     uint32_t damaged_buildings;
-    uint32_t reserved2;
+    uint32_t riot_locked; /* network occupants the riots hold locked */
     int64_t disaster_cost;
 } fc4_disasters_state;
 
@@ -7343,7 +7347,7 @@ static_assert(sizeof(fc4_park_host) == (sizeof(void*) == 4 ? 160 : 320), "fc4_pa
 static_assert(sizeof(fc4_disaster_post) == 32, "fc4_disaster_post layout");
 static_assert(sizeof(fc4_disaster_message) == 48, "fc4_disaster_message layout");
 static_assert(sizeof(fc4_world_box) == 16, "fc4_world_box layout");
-static_assert(sizeof(fc4_disasters_host) == (sizeof(void*) == 4 ? 328 : 656), "fc4_disasters_host layout");
+static_assert(sizeof(fc4_disasters_host) == (sizeof(void*) == 4 ? 336 : 672), "fc4_disasters_host layout");
 static_assert(sizeof(fc4_disasters_state) == 80, "fc4_disasters_state layout");
 static_assert(sizeof(fc4_disaster_fire) == 56, "fc4_disaster_fire layout");
 static_assert(sizeof(fc4_disaster_instance) == 24, "fc4_disaster_instance layout");
@@ -7384,7 +7388,7 @@ _Static_assert(sizeof(fc4_civic_state) == 40, "fc4_civic_state layout");
 _Static_assert(sizeof(fc4_park_state) == 48, "fc4_park_state layout");
 _Static_assert(sizeof(fc4_disaster_post) == 32, "fc4_disaster_post layout");
 _Static_assert(sizeof(fc4_disaster_message) == 48, "fc4_disaster_message layout");
-_Static_assert(sizeof(fc4_disasters_host) == (sizeof(void*) == 4 ? 328 : 656), "fc4_disasters_host layout");
+_Static_assert(sizeof(fc4_disasters_host) == (sizeof(void*) == 4 ? 336 : 672), "fc4_disasters_host layout");
 _Static_assert(sizeof(fc4_disasters_state) == 80, "fc4_disasters_state layout");
 _Static_assert(sizeof(fc4_disaster_fire) == 56, "fc4_disaster_fire layout");
 #endif
