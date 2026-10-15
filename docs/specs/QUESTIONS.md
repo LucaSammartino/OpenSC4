@@ -3647,11 +3647,11 @@ answer is in brackets; each entry says what would settle it.
 - ~~**CB5:** The income line is keyed by the building type, not by the item's line. The line that
   `CreateLineItemForBuildingType` returns is used without a null check. [keep the keying. *[choice]* FreeCity4
   skips the income when creation fails, which the shipped budget never does for a new type]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice harmless). `CreateLineItem` always creates and stores a new item and returns it (budget.md, the department budget methods), so the null case does not arise in the original apart from an allocation failure.
-- **PK1:** The shipped distress threshold 25.0 is compared with a fraction. So the first monthly pass of each session
+- ~~**PK1:** The shipped distress threshold 25.0 is compared with a fraction. So the first monthly pass of each session
   marks every park lot run down (condition 2), and the park manager never restores it. Yet in the corpus every park
   lot is at condition 0 (one at 1). What resets the condition? [the lot developer's condition test
   (lot-developer.md §5.5) *[inferred]*. An in-game check would settle it: play one month with a park, then save,
-  or watch the lot condition in the query tool]
+  or watch the lot condition in the query tool]~~ **ANSWERED 2026-10-15 (re-answers12):** Answered: there is no quirk (parks.md §4.4, PK10). The threshold is read with the percent getter (`0x005FDAC0`, × 0.01f), so the shipped 25.0 becomes 0.25 and parks are marked run down only at 25 % funding or less. The corpus's condition 0 needs no other reset.
 - ~~**PK2:** The zoo escape runs only when the park list is not empty. A park budget item that names a missing
   department crashes the original. [the shipped zoo is in both groups, so the first point cannot show in the
   shipped game. *[choice]* FreeCity4 skips the charge for a missing department (parks.md §4.2)]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice confirmed). Shipped data cannot reach the crash; skipping the charge is a safe *[choice]*.
@@ -4042,7 +4042,8 @@ in-game harness with the FreeCity4 turbo clock and a message log.
 - ~~**CD1:** which lot configuration objects are dropped at each city detail level? [the lot configuration manager
   filters objects by the detail preference when it builds configurations (it passes the preference to the
   configuration's reader); the exact field belongs to a lot configuration spec. Comparing one lot configuration's
-  object count at detail 1 and 3 would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered (city-detail.md §3, "Which objects a detail level keeps"). `ConvertPropertiesToObjectArray` (`0x00479D10`) keeps an object when its type byte is 0 (building) or `(value1 & 0x30) < 16 × d` (`0x00479EB1`–`0x00479EC6`): level bits `0x00` at every detail, `0x10` from medium, `0x20` only at high, `0x30` never. Network lot configurations use d = 3 (`0x0060F80E`). MATCHES the bracket; the field is value 1's bits 4–5.
+  object count at detail 1 and 3 would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered (city-detail.md §3, "Which objects a detail level keeps"). `ConvertPropertiesToObjectArray` (`0x00479D10`) keeps an object when its type byte is 0 (building) or `(value1 & 0x30) < 16 × d` (`0x00479EB1`–`0x00479EC6`): level bits `0x00` at every detail, `0x10` from medium, `0x20` only at high, `0x30` never. Network lot configurations use d = 3 (`0x0060F80E`). MATCHES the bracket; the field is value 1's bits 4–5. Confirmed independently by re-specs13d (prop-lotconfig.md §B3.3, with the shipped counts: 73,832 / 39,781 /
+  23,265 objects kept at detail 3 / 2 / 1, and the rebuild at the next city `Init` after the preference changes).
 - ~~**CD2:** after a detail change every network lot is redeveloped (network lot manager slot 12). Does that change
   saved state, such as street props drawn from the network lot manager's generator? [yes, inferred: redevelopment
   re-creates the network lot's objects. Saving a city, reopening it at another detail level and saving again, then
@@ -4115,28 +4116,28 @@ them, and Stage B applies those sections.
   settles the region's owner]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered (zones.md §13.2, the HighlightParcels row). The only caller that passes `out` is `cSC4ViewInputControlZone::DoCursorUpdate` (`0x004DBDCE`), which keeps the region in its `+0x58` and frees the previous one (rows and object) when it stores the next (`0x004DBDD1`–`0x004DBDF3`). `ClearHighlights` (`0x004DAE2D`) and `ComputeAndMarkSelectedArea` (`0x004DB734`) pass null. So the zone tool owns it; `*out = null` is safe only for a glue with no zone tool.
 - ~~**ZG25:** §5.2 step 3, the street-joining helpers `0x00731F60` / `0x00732450`, are not specified. [no-op plus a log
   line; zones.md §5.2.1-§5.2.2 (`JoinDeadEndStubs`, `JoinAcrossRail`, ZQ14) may cover them]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered by zones.md §5.2.1 (`JoinDeadEndStubs`) and §5.2.2 (`JoinAcrossRail`), with the data4 values in §5.2 (ZQ14): 1 for player-drawn networks, 3 for networks laid by code. The no-op is now a gap Stage B can close.
-- **ZG26:** the PlopAllLots / PlopAllBuildings cheats (§1.2 step 7): their bodies are not specified, and the host has
-  no cheat-manager registration call. [not registered]
+- ~~**ZG26:** the PlopAllLots / PlopAllBuildings cheats (§1.2 step 7): their bodies are not specified, and the host has
+  no cheat-manager registration call. [not registered]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (zones.md §5.4, now specified). Both cheats are registered only when the debug-functionality flag (app slot 21) is set, so a shipped game without it never reaches them. `PlopAllLotTypes` (`0x0072C8E0`) places one lot per lot configuration in rows from (0, 0). `PlopAllBuildingTypes` (`0x0072BE50`) places one generic lot per building type on a spiral from the map centre. Both use `CreateLotIfPossible(…, true, false, cfg)` followed by `ConstructDefaultLot`. Leaving them unregistered is a safe *[choice]*.
 - ~~**ZG27:** slot 21 `CanCreatePloppedLot` (§14.3 Q2). [Stage A returns 0, logged; **answered by re-specs11** in zones.md
   §8.4.1-§8.4.3 (codes 0, 1, 3-8); Stage B implements it]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered by re-specs11 (zones.md §8.4.1–§8.4.3), with the two network flags now named (ZQ15); nothing to add.
 - ~~**ZG28:** slots 11 and 24-26 leave EAX undefined in the original. [return true]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice). The original leaves EAX undefined, so no caller can depend on it; returning true is safe.
 - ~~**ZG29:** the budget and traffic glue walk the original lot manager's raw list (the list object at `lm+0x5C`). Our
   master list keeps the same raw layout and list object, but not at `+0x5C` inside our object. Does any caller read the
   member directly rather than through slot 15? [assumed none; not traced]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (zones.md §8.3). No load of the lot manager from `0x00B43D08`, or from city slot 33 (`+0x84`), is followed by a read of `+0x5C` anywhere in the executable, and the budget's tax pass reaches the list through slot 15 (budget.md BQ6). Every other class goes through the interface.
-- **ZG30:** parcellization has no dry run (`HighlightParcels` draws, posts and places street drafts). [the shadow
-  compares the lookups and CanCreateLot only]
-- **ZG31:** a traffic insertion-point iterator from a foreign list at CreateLot (§8.5 step 4). [the lot is appended,
-  logged]
-- **ZG32:** reference audit for the manager's last lot reference at DeleteLot / Shutdown. [`FC4_RELEASE_AT_DESTRUCTION`,
-  as DG28]
-- **ZG33:** another thread that cannot take the lock within 20 ms. [neutral answers, except the snapshotted lot count
-  and grid; counted as a fallback]
-- **ZG34:** with `enable = zonedev` and CreateLot refused, the original tract developer's Grow (2026-01-30 on
+- ~~**ZG30:** parcellization has no dry run (`HighlightParcels` draws, posts and places street drafts). [the shadow
+  compares the lookups and CanCreateLot only]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (zones.md §7.1). The executable has no side-effect-free parcellization. `HighlightParcels` is the closest, but it still draws random numbers (§9), posts both DeferOccupantOperations messages and places street drafts. A shadow cannot call it without moving the zone developer's generator `0x00B4B398`. Comparing the lookups and `CanCreateLot` is the right scope.
+- ~~**ZG31:** a traffic insertion-point iterator from a foreign list at CreateLot (§8.5 step 4). [the lot is appended,
+  logged]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (zones.md §8.5 step 4). The iterator is the traffic simulator's safe lot iterator, taken at its `Init` from slot 15 of the lot manager installed at that time (traffic-network.md §4.14). It is returned only in work-cycle state 1, which the cycle never enters, so it is null in practice and appending is exact. A foreign iterator is reachable only if the traffic simulator's `Init` ran against the original manager.
+- ~~**ZG32:** reference audit for the manager's last lot reference at DeleteLot / Shutdown. [`FC4_RELEASE_AT_DESTRUCTION`,
+  as DG28]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS** in timing (zones.md §1.2 Shutdown). The original deletes every lot in `Shutdown`, not in its destructor: `0x0072B8D0` (called at `0x00733663`) walks the cell map x outer, z inner, and calls its own `DeleteLot` (slot 24) on each non-null cell. That runs the full §8.6 sequence: zot prop, base texture, cells, master list, business unit, `lot.Shutdown()`, and the manager's release. The expected-release marker therefore belongs at `Shutdown`'s `DeleteLot`, as at any `DeleteLot`.
+- ~~**ZG33:** another thread that cannot take the lock within 20 ms. [neutral answers, except the snapshotted lot count
+  and grid; counted as a fallback]~~ **ANSWERED 2026-10-15 (re-answers12):** Not an RE question; the bracket stands. The original lot manager has no lock: every caller runs on the simulation thread, so there is no original behaviour to match.
+- ~~**ZG34:** with `enable = zonedev` and CreateLot refused, the original tract developer's Grow (2026-01-30 on
   Konradshohe) gives two "over-release of game object [class 0xC9BD5D4A] at ReleaseToken" warnings (DeleteLot's
   manager release, §8.6 step 6) and then an access violation at `0x0070690C` / `0x00AB1995` (runs `zonedev-enable-1`,
   `-2`). Does the game's growth path tolerate a failed CreateLot after DeleteLot, or must lot creation never fail
   there? [not resolved; re-test after Stage B builds lots, then audit Grow's delete-and-recreate reference flow (slot 7
-  caller references against the manager's); **Stage B (2026-10-15):** with lots built it does not reproduce (`zonedev-enable-final` clean, ref_warnings=0, 68 lots built, 0 refused); the refusal path is still logged. Open part: is a refused CreateLot on the growth path ever expected?]
+  caller references against the manager's); **Stage B (2026-10-15):** with lots built it does not reproduce (`zonedev-enable-final` clean, ref_warnings=0, 68 lots built, 0 refused); the refusal path is still logged. Open part: is a refused CreateLot on the growth path ever expected?]~~ **ANSWERED 2026-10-15 (re-answers12):** **Answered: lot creation must not fail there** (tract-developer.md §4.15.3). After a failed `CreateLotIfPossible`, `Build` returns 0 and the pass continues with the next candidate (§4.3). Candidate lot sets hold borrowed pointers (`GetLot`, no AddRef), and overlapping aggregation candidates share lots, so the next aggregation runs `PerformAggregation` step 1 on lots that were already deleted and freed. That gives the two over-release warnings at the second `DeleteLot` of the same lot, then the AddRef at `0x0070690C` through a stale vtable (`0x00AB1995` is data, not code). The original clears the rectangle itself first, so in practice step 4 succeeds there. Stage A must not let Grow reach aggregation while it cannot create lots; Stage B's working `CreateLot` removes the cause. Stage B's clean run (`zonedev-enable-final`) agrees: with `CreateLot` working the path is not reached, so a refused CreateLot on the growth path is never expected.
 
 ## From the zone developer / lot manager glue, Stage B (filed by the coordinator from the `zones2` lane's report, 2026-10-15)
 
@@ -4167,15 +4168,15 @@ brackets.
 
 - ~~**HW13:** `Release` on a warehouse that was initialised but never shut down (history §1): does `Release` at a count
   of 1 or less run `Shutdown` first? [`Shutdown` first, then delete]~~ **ANSWERED 2026-10-15 (re-answers11):** **DIFFERS** (history.md §1). The original's `Release` (`0x00476AA0`) does not call `Shutdown`: its destructor frees only the series map (`0x00476918`–`0x00476952`) and leaves the subscriptions, relying on the city's `Shutdown` call. Running `Shutdown` first is an accepted *[choice]* that changes nothing in the normal order.
-- **HW14:** when the history shadow sees the original's 5 ms timer split a yearly-pass step (the original answers
+- ~~**HW14:** when the history shadow sees the original's 5 ms timer split a yearly-pass step (the original answers
   false where the shadow answered true), what is the intended comparison? [the shadow skips the original's repeats
-  until the original answers true and counts `split_steps`; 0 in every lane run]
-- **HW15:** the warehouse's raw save record cannot be read in game from outside the class store. [the load comparison
+  until the original answers true and counts `split_steps`; 0 in every lane run]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (history.md §4.3). The pass's timer is a local `cRZTimer` with unit 4, milliseconds (`0x0088FEDF(4)` at `0x00475E56`; no longer *[inferred]*). It is read after every cursor advance (`0x00475F1B`), and the call stops at 5 or more (unsigned, `0x00475F27`). The split depends only on real time; the coalesced keys, their order and the final state do not. Skipping the original's repeats until it answers true, and comparing the result, is the right comparison.
+- ~~**HW15:** the warehouse's raw save record cannot be read in game from outside the class store. [the load comparison
   uses the original's own `Write` into memory; the save sweep (`engine/formats/tests/save_records.rs`) checks the raw
-  records of the 417 stock saves]
-- **HW16:** queue lengths set through slot 13 (the producers' `Init`, not a message) are invisible to the history
+  records of the 417 stock saves]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (history.md §7). No slot returns the raw record, and `Write` (`0x00475D2C`) is the only serialiser, so the original's own `Write` into a memory stream is the read path. The in-memory layout is now in §2 for a direct read.
+- ~~**HW16:** queue lengths set through slot 13 (the producers' `Init`, not a message) are invisible to the history
   shadow. Should there be a read path for them? [a series that differs only by its queue length is named and counted
-  as a mismatch; none occurred]
+  as a mismatch; none occurred]~~ **ANSWERED 2026-10-15 (re-answers12):** Answered (history.md §2). No slot returns a queue length, but the shadow already has two read paths: the original's `Write` (HW15) writes each series' `maxCount`, or the tree can be read directly (key at node `+0x10`, points list `+0x14`, `maxCount` `+0x18`; `0x00476FF2`, `0x00475EC1`). Naming such a series as a mismatch until then is fine.
 - ~~**HW17:** 403 of the 417 stock saves hold version-1 history records, which cannot be rewritten byte for byte (the
   writer always writes version 2; a queue length of 100 reads as 0; unset or repeated dates are folded). Is converting
   on the first save the intended behaviour, since the original also writes version 2? [yes: the sweep reports them as
@@ -4189,14 +4190,14 @@ brackets.
 - ~~**CK19:** slots 5, 8 and 11 have no meaningful return value in the spec. [return 1]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice; clock24.md §8). The original leaves EAX as a by-product (slot 8 the day quotient at `0x0044549B`, slots 5 and 11 the last call's result), so returning 1 is safe.
 - ~~**CK20:** if a tuning property (`0x897E709F`, `0x09B73421`, `0x09B73422`) is stored as an array, which value is used?
   [the first value]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (clock24.md §6). All three are read with the converting getters (Float32 `0x005FD4F0`, Uint32 `0x005FD480`), so an array gives its first value. An array of count 0 gives 0, and a float hour is truncated (data-formats §5.1).
-- **CK21:** the original's timer at +0x50 (a `cRZTimer`) has no read path or layout in the spec, so the clock shadow
+- ~~**CK21:** the original's timer at +0x50 (a `cRZTimer`) has no read path or layout in the spec, so the clock shadow
   cannot replay real elapsed time. [the shadow copies each of the original's steps through a synthetic elapsed time at
   magnification 1 (a game-time jump of 61 to 1200 s between idle passes is one step); any other game-time change is a
-  jump (`SetHour`, `SetMinute`, `SetSeconds`); messages and derived values are compared]
-- **CK22:** under the turbo clock the framework idle loop is starved (about 24 `OnIdle` passes in 29 s), so the clock
+  jump (`SetHour`, `SetMinute`, `SetSeconds`); messages and derived values are compared]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES, and the layout is now specified (clock24.md §4.3 timer layout). `cRZTimer`: `+0` unit, `+8` start tick (u64, 0 = stopped), `+0x10` accumulated ticks (u64). Unit 3 is QueryPerformanceCounter ticks × 10^6 / frequency, so microseconds (`0x0088FFFF`; no longer *[inferred]*), less a calibrated per-interval overhead (`0x00B54358`). After each step the start tick at clock `+0x58` holds the step's moment, so a shadow can bound each step's real elapsed time. The value read inside the step is not stored, so the synthetic-elapsed replay stays the exact method.
+- ~~**CK22:** under the turbo clock the framework idle loop is starved (about 24 `OnIdle` passes in 29 s), so the clock
   advances only about one game hour per turbo run and reaches no day/night boundary. Is that acceptable for the
   harness, or should turbo give the idle loop time? [nothing changed; normal-speed runs cover the clock (598 steps,
-  323 posts in 330 s)]
+  323 posts in 330 s)]~~ **ANSWERED 2026-10-15 (re-answers12):** Not an RE question; the bracket stands. Exe fact for the decision (clock24.md §3.1): the clock advances only in `OnIdle`, and a pass advances it by at most 1200 game seconds (`0x00445874`). So a starved idle loop slows the clock in game time too; nothing else advances it. So 24 passes advance the clock by 8 game hours at most, and 12 game hours need at least 36 passes. Normal-speed runs covering the clock is a sound choice.
 
 ## From the commercial, industrial, civic and park glue (filed by the coordinator from the `cmglue` lane's report, 2026-10-15)
 
@@ -4209,30 +4210,30 @@ the head of each chain (a repeated exclusion is a no-op, a repeated status key's
 `cb12_09` and `cb12_10` follow it, and the civic shadow pre-reverses the chains of the original's captured record. The
 current answer is in brackets.
 
-- **CB15:** Lua `civic.get_landmark_count` has no published registry node (the budget and aura glues stub
-  `register_lua` too). [logged as not published (stub)]
-- **CB16:** `docs/abi` lists only slots 3, 5 and 6 of `cIGZCommandParameterSet`, so a Lua getter cannot append its
-  output parameter. [not published until the rows exist]
-- **CB17:** civic slot 7 `UpdateConditionalBuildingStatus`: the spec does not say how to read the caller's tooltip.
-  [read as a `cRZString`-layout begin/end pair; the status is copied, never written back]
-- **CB18:** civic `Write` returns true when the stream refuses strings (`SetGZStr` false), so a stream without string
+- ~~**CB15:** Lua `civic.get_landmark_count` has no published registry node (the budget and aura glues stub
+  `register_lua` too). [logged as not published (stub)]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS** (civic-buildings.md §4.1 step 6). The original publishes a game-data registry node, as the budget does: node `"civic"` under the root (registry slot 5, key = the simulator) and a call entry `"get_landmark_count"` (slot 3, key and callback `0x0069D740`, flags 1, context = the simulator). The callback writes `GetLandmarkCount()` as a Uint32 variant into output parameter ID 1 (`cIGZCommandParameterSet` slot 7). `Shutdown` removes the node (slot 7). The stub can become this recipe once the CB16 rows exist.
+- ~~**CB16:** `docs/abi` lists only slots 3, 5 and 6 of `cIGZCommandParameterSet`, so a Lua getter cannot append its
+  output parameter. [not published until the rows exist]~~ **ANSWERED 2026-10-15 (re-answers12):** Answered (rows in `build-runs/re-answers12-abi-rows.md`; `docs/abi/vtables.tsv` already lists the whole vtable `0x00AD16C8`). The two slots a getter needs: 7 `SetParameter(uint32 id, const cIGZVariant&)` (`0x0092ABEB`, pop 8; find-or-insert by ID, then assign) and 8 `AppendParameter(const cIGZVariant&)` (`0x00929E19`, pop 4; ID = last ID + 1, or 0 when empty). The civic callback uses slot 7 with ID 1 (civic-buildings.md §4.1).
+- ~~**CB17:** civic slot 7 `UpdateConditionalBuildingStatus`: the spec does not say how to read the caller's tooltip.
+  [read as a `cRZString`-layout begin/end pair; the status is copied, never written back]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (civic-buildings.md §4.7). The source struct is read in place: byte `+0`, u16 `+2`, and the `cRZString` at `+4` whose STLport begin / end pointers are at `+8` / `+0xC`; the range is assigned unless it is the same string (`0x0069EA1D`). Nothing is written back.
+- ~~**CB18:** civic `Write` returns true when the stream refuses strings (`SetGZStr` false), so a stream without string
   support writes a short record with success. Is that the original's behaviour? [as the spec says: the result is the
-  stream error state only]
-- **CB19:** the in-memory layout of the 193-bucket status map beyond the bucket order (node allocation, erase) is not
+  stream error state only]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (civic-buildings.md §7). `Write` (`0x0069D920`) ignores every stream call's result, `SetGZStr` included (`0x0069DA1E`), and returns `!stream.GetError()` (stream slot 18, `0x0069DA88`). Whether a stream that refuses strings also sets its error flag is the stream's own behaviour.
+- ~~**CB19:** the in-memory layout of the 193-bucket status map beyond the bucket order (node allocation, erase) is not
   specified. [a game-layout hash map whose values keep a fixed address, merged field by field with the core; the core
-  keeps the 193 order]
-- **PK10:** in game the original park manager's threshold reads 0.25 (the code default), not the exemplar value, so
+  keeps the 193 order]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (civic-buildings.md §2). Nothing outside the class touches the table; slot 6 hands out the node's value address. Layout for reference: table at `+0x2C`, buckets at `+0x30`/`+0x34`, count at `+0x3C`; 0x20-byte nodes from allocator B (`+0` next, `+4` key, `+8` status, `+0xA` count, `+0xC` `cRZString`), so a value's address never moves while its node lives.
+- ~~**PK10:** in game the original park manager's threshold reads 0.25 (the code default), not the exemplar value, so
   the PK1 quirk is not observed. Why does the original not take the exemplar tuning? [the glue follows the spec
   (exemplar tuning at the first `Init`); the shadow follows the original "as without exemplar" and says so on every
-  line]
-- **PK11:** `fc4_park_destroy` and `fc4_civic_destroy` do not release the list entries of a never-initialised object
+  line]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS**: the spec was wrong, and the original does take the exemplar (parks.md §4.4, §6, tests 2 and 6 corrected). The threshold is read with the **percent** getter `0x005FDAC0` (`0x006D59EB`), which multiplies by `0.01f`: 25.0 becomes 0.25 exactly, which is what the game shows. The glue and the shadow should read `0xCA480830` × 0.01f; with the shipped data both give 0.25, so only a modded exemplar would differ.
+- ~~**PK11:** `fc4_park_destroy` and `fc4_civic_destroy` do not release the list entries of a never-initialised object
   (as the original's destructor, CB7), which leaks the references a `Read` took if `Init` never runs. [as the spec
-  says]
-- **CM10:** the save sweep for the commercial, industrial, civic and park records runs in `fc4-capi`
+  says]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (parks.md, civic-buildings.md §8). The park manager's destructor (`0x006D5860`) frees the nodes of both lists (`0x00413FE0`) without releasing their entries, and the civic one does the same (CB7). A never-initialised object that read references therefore leaks them in the original too.
+- ~~**CM10:** the save sweep for the commercial, industrial, civic and park records runs in `fc4-capi`
   (`capi/src/save_sweep_tests.rs`, over the C ABI); histclock's record mode is in `fc4-formats`
   (`formats/tests/save_records.rs`). Should the four records move there, over core-level hosts (about 100 host methods
   and object-ID-keeping streams)? [they stay in `fc4-capi`; both read `FC4_SAVES_DIR` and both READMEs point at each
-  other]
+  other]~~ **ANSWERED 2026-10-15 (re-answers12):** Not an RE question: the original has no counterpart. Keeping the four records' sweep in `fc4-capi` is the coordinator's choice; the bracket stands.
 
 ## From the lot developer glue (filed by the coordinator from the `lotglue` lane's report, 2026-10-15)
 
@@ -4242,74 +4243,74 @@ questions LD-Q1..LD-Q11; they are filed here as LD2..LD11 (LD-Q9 is left out: it
 strict, and the conformance world's slot 37 query is now strict). LD12..LD30 keep the lane's numbers, which the code
 comments and the game log cite. The current answer is in brackets.
 
-- **LD2:** §16 test 30 says a 2-cell-wide rectangle makes no slot 19 call, but §17.4 step 2 gives it one interior
-  column of vertices. [implemented as §17.4 is written: only a 1-cell-wide rectangle gives no call]
-- **LD3:** the retaining-wall helpers `0x005E3070`, `0x005E3960` and `0x005E37F0` have no rows in direct-calls.md.
-  [host calls the plugin cannot make, so no walls are built; logged once]
-- **LD4:** what does slot 42 do with an empty boundary map, before `Init`? [nothing is written, and slot 43's record
-  gets texture 0]
-- **LD5:** what does `PickLotFoundationAltitude` do with a facing outside 0-3? [taken mod 4]
-- **LD6:** what does slot 40 return when the lot has no configuration or no primary object? [position (0,0,0),
-  orientation 0]
-- **LD7:** what does slot 58 do with a null configuration? [treated as having no primary object]
-- **LD8:** where does the orientation of a §6.6 normal base-texture record come from? [from slot 39: object
-  orientation plus facing]
-- **LD9:** is there a limit on slot 16's edge sweep for huge rectangles? [capped at `MAX_EDGE_SAMPLES` = 1<<20
-  samples]
-- **LD10:** interfaces.tsv has no return-channel rows yet for slots 18, 19, 20, 21, 39, 40, 42 and 61. [these slots
-  follow §11.1 and §17]
-- **LD11:** carried over from earlier stages (as in the earlier stages' code comments): the C++ runtime `rand()`
+- ~~**LD2:** §16 test 30 says a 2-cell-wide rectangle makes no slot 19 call, but §17.4 step 2 gives it one interior
+  column of vertices. [implemented as §17.4 is written: only a 1-cell-wide rectangle gives no call]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (lot-developer.md §17.4, §16 test 30 corrected). Slot 19 (`0x006C43D0`) walks `x1+1 … x2`, `z1+1 … z2`, so only a 1-cell-wide rectangle has no interior vertex; a 2-cell-wide one checks its one interior column. Test 30 was wrong: the "2-cell" skip is slot 55's own guard (`x2 − x1 > 1` and `z2 − z1 > 1`) before it calls slot 19.
+- ~~**LD3:** the retaining-wall helpers `0x005E3070`, `0x005E3960` and `0x005E37F0` have no rows in direct-calls.md.
+  [host calls the plugin cannot make, so no walls are built; logged once]~~ **ANSWERED 2026-10-15 (re-answers12):** Answered (lot-developer.md §7.2, ABI rows in `build-runs/re-answers12-abi-rows.md`). The three are `__cdecl` statics of `cSC4LotRetainingWallOccupant` taking the `cISC4Lot*`, caller pops: `AddRetainingWallOccupant(lot, bool add)` `0x005E3070` (8 bytes, AL; callers `0x006C8A3D`, `0x006C8C23`), `UpdateRetainingWalls(lot)` `0x005E37F0` (4 bytes, AL a leftover), `UpdateSurroundingRetainingWalls(lot)` `0x005E3960` (4 bytes, no return). They use the global occupant manager, lot manager and BDS, so a plugin can call them by address behind the executable check. Not building walls stays a gap until the host calls them.
+- ~~**LD4:** what does slot 42 do with an empty boundary map, before `Init`? [nothing is written, and slot 43's record
+  gets texture 0]~~ **ANSWERED 2026-10-15 (re-answers12):** DIFFERS, choice stands (lot-developer.md §17.7). With an empty map the key-0 retry also returns the end node (`0x006C6D2F`), and the three outputs are read from the head node's never-initialised value area: they are written, with indeterminate values. Writing nothing and giving slot 43 texture 0 is a safe *[choice]*; after `Init` key 0 always exists.
+- ~~**LD5:** what does `PickLotFoundationAltitude` do with a facing outside 0-3? [taken mod 4]~~ **ANSWERED 2026-10-15 (re-answers12):** DIFFERS, choice stands (lot-developer.md §17.5.4). The facing is not masked (`0x006C53E6`): `corners[f]` and `corners[(f + 1) % 4]` (C signed remainder) read outside the 4-float array for a facing outside 0-3. Facings are 0-3, so `mod 4` is a safe *[choice]*.
+- ~~**LD6:** what does slot 40 return when the lot has no configuration or no primary object? [position (0,0,0),
+  orientation 0]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS** (lot-developer.md §17.6, verified `0x006C3CF0`). With no configuration (lot slot 9) or no primary object (cfg slot 24) slot 40 returns EAX = 0 and writes neither `pos` nor `orient`: the caller's values stay. Do not write (0,0,0) / 0.
+- ~~**LD7:** what does slot 58 do with a null configuration? [treated as having no primary object]~~ **ANSWERED 2026-10-15 (re-answers12):** DIFFERS, choice stands (lot-developer.md §17.5.5). `cfg` is called through its vtable without a null check (`0x006C40F5`), so the original faults on a null configuration. Treating it as having no primary object is a safe *[choice]*.
+- ~~**LD8:** where does the orientation of a §6.6 normal base-texture record come from? [from slot 39: object
+  orientation plus facing]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (lot-developer.md §6.6). The record's orientation byte is slot 39's `orient` output, `(object byte +0x02 + lot facing) mod 4` (stored at `0x006CA9F7`).
+- ~~**LD9:** is there a limit on slot 16's edge sweep for huge rectangles? [capped at `MAX_EDGE_SAMPLES` = 1<<20
+  samples]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES, the cap never binds (lot-developer.md §17.2). The original has no cap; after the clamp both ends lie in `[0, extent − 0.1]`, so an edge has at most `extent / 4 + 2` samples (1,026 for a 4,096 m city), and a NaN end skips the sweep.
+- ~~**LD10:** interfaces.tsv has no return-channel rows yet for slots 18, 19, 20, 21, 39, 40, 42 and 61. [these slots
+  follow §11.1 and §17]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES. interfaces.tsv now has `CORRECTS` rows for slots 18-21, 39, 40 and 42 (re-specs11, `be30d89`). Slot 61 returns the AL of slot 55 / 54, or the flags' low byte when the lot has no foundation flag (lot-developer.md §17.5.4); the proposed row is in `build-runs/re-answers12-abi-rows.md`. Slot 22 has no result (LD27).
+- ~~**LD11:** carried over from earlier stages (as in the earlier stages' code comments): the C++ runtime `rand()`
   state; the off-thread fallback; refusing re-entrant calls; base texture usage 2; hash set order; the terrain cell
   width read through city slot 91; the class ID behind `building_ref`; the reference returned by `unit_create`; side
-  effects of `Write` in shadow mode; tuning that cannot be read from the original. [as in those comments]
-- **LD12:** the view rotation used by the lot content and the base textures is not specified. [the host reads none;
-  rotation 0]
-- **LD13:** creating a business unit: the GZCOM class and IID for the new unit are not specified. [no unit is
-  created; joining and leaving existing units works (units=2 in a 6-year run)]
-- **LD14:** §7.3: the burnt-building prop and the rubble decal (type IDs, placement) are not specified. [not added;
-  logged once]
-- **LD15:** slot 38's body is not specified beyond its signature. [answers neutrally from the host side; logged once]
-- **LD16:** slots 41 and 45 lack details (arguments, effects). [host side, neutral answer; logged once]
-- **LD17:** `UpdateLotObjectAlitudes` and `Add/RemoveNetworkConnectionNodes` (§6.5 b) are named but not specified.
+  effects of `Write` in shadow mode; tuning that cannot be read from the original. [as in those comments]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (glue choices; nothing in the executable contradicts them). Facts where the executable has one: base-texture usage 2 is set on every path of slot 41 (`0x006C41FB`, `0x006C426F`; lot-developer.md §6.6); the unit reference is LD13; the tuning cannot be read back (LD30). The C runtime `rand()` state, the off-thread fallback, re-entrancy refusal and shadow-mode `Write` effects have no original counterpart.
+- ~~**LD12:** the view rotation used by the lot content and the base textures is not specified. [the host reads none;
+  rotation 0]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS** for zots only (lot-developer.md §5.6, §12.2 Q3). The lot developer reads the view rotation once, for the zot prop's orientation (`SC4ViewUtilities` `0x00B43DD8` +0x10 at `0x006C99ED`); base textures, props, flora and buildings use only the lot facing and the object orientation. Rotation 0 is right except for zots, which must follow the view (0 without a view).
+- ~~**LD13:** creating a business unit: the GZCOM class and IID for the new unit are not specified. [no unit is
+  created; joining and leaving existing units works (units=2 in a 6-year run)]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS** (lot-developer.md §5.7 step 4). The unit is `cSC4BusinessUnit`, class `0x4A232DA8`, IID `0x6A233069` (`cISC4BusinessUnit`; QI `0x006BF390` also answers 1 and `0xE4FDA3D4` at +4). The original builds it directly (0x20 bytes from C, constructor `0x006C0800`, count 0, no AddRef: the member lots hold the references), and the class is registered (factory `0x006C0EB0`). A replacement creates it with `CreateInstance(0x4A232DA8, 0x6A233069)`, adds the candidate and the lot, then releases its own reference.
+- ~~**LD14:** §7.3: the burnt-building prop and the rubble decal (type IDs, placement) are not specified. [not added;
+  logged once]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS** (lot-developer.md §7.2 ExplodeLot steps 2 and 4; §7.3 already gives the rubble types). Burnt building: class `0xC9EFB016`, constructor `0x005EF810(1)`, non-virtual `SetBoundsFromOccupant` `0x005EEB70` (`__thiscall` on the base, pop 4), occupant sub-object at +8 (flag `0x40`, `Init`). Decal: `cSC4PropOccupantTerrainDecal`, class `0x2977AA48`, IID `0xE982078A`, slots 3 `SetDecalTexture(key*, 2s)` and 4 `SetOpacity(0.7)`, occupant sub-object at +0xC, key `{0x7AB50E44, 0x1ABE787D, burnt ? 0x49C80EC7 : 0x2A2EF55D}`. Both classes are registered in the COM directory; both go in through prop manager slot 25.
+- ~~**LD15:** slot 38's body is not specified beyond its signature. [answers neutrally from the host side; logged once]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS** (lot-developer.md §7.1). Slot 38 (`0x006C9100`): the building occupants (`0x278128A0`) in the lot's bounding rectangle from occupant manager slot 41 (flags 1); only the first entry is QueryInterfaced for `0x87DDA3A9`, that reference is released at once, the list is released (slot 48), and the pointer (no reference) or null is returned.
+- ~~**LD16:** slots 41 and 45 lack details (arguments, effects). [host side, neutral answer; logged once]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS** (lot-developer.md §6.6). Slot 41: `out := null`; the first base-texture occupant at the lot's location cell (lot slot 21; occupant manager slot 33) is QueryInterfaced for `0x097F6D98` and given `SetUsage(2)`; otherwise, with `create`, `CreateInstance(0xC97F987C, 0x097F6D98)` (fallback `new`, constructor `0x005E05B0`), `Init`, `SetUsage(2)`, not inserted; AL = `out ≠ null`, caller owns the reference. Slot 45: slot 41 without create, then `UpdateVertexAltitudes(true, force, null)` (base-texture slot 9): rebounds from the terrain and, when forced or the box changed, notifies the occupant manager (slot 24) and rebuilds the models.
+- ~~**LD17:** `UpdateLotObjectAlitudes` and `Add/RemoveNetworkConnectionNodes` (§6.5 b) are named but not specified.
   [nothing is done; logged once. The completions counter counts the `AddNetworkConnectionNodes` calls: 116 in a
-  2-year diagnostic run]
-- **LD18:** what is AL from city slot 95 (used by the host)? [read as a bool, 0 / non-zero]
-- **LD19:** flora placement: is the occupant manager's blocking filter applied before the typed flora query, or
+  2-year diagnostic run]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS** (lot-developer.md §6.5). All three use interfaces only. `UpdateLotObjectAlitudes` (`0x006C91F0`): for each building, prop and flora occupant of the lot whose y differs from its slot 39 position (or the terrain without a configuration object) by more than 0.1, set only y, notify the occupant manager (slot 24, 1) and, for a building, redo its foundation (slots 48, 60, 56, 59 / 58). `AddNetworkConnectionNodes` (`0x006C9C80`): per type-7 object with ≥ 3 IDs, network manager slot 20 `CreateConnectionNode(&n, ids[0], &cell, rotl(ids[1], 8·orient), rotl(ids[2], 8·orient), ids[3] or 0, orient)`, then slot 21 `AutoconnectLotNodes(lot, &list)`. `RemoveNetworkConnectionNodes` (`0x006C9FB0`): the lot's network occupants with flag `0x200000` go to network manager slot 6 `DestroyNetworkOccupants`.
+- ~~**LD18:** what is AL from city slot 95 (used by the host)? [read as a bool, 0 / non-zero]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS** (lot-developer.md §17.2). City slot 95 `PositionToCell` (`0x004599E0`) returns nothing; AL is the low byte of the x87 status word from its last `fnstsw` (sticky exception flags: 0x20 precision, 0x10 underflow, 0x02 denormal, 0x01 invalid). Treat it as void and do not read AL.
+- ~~**LD19:** flora placement: is the occupant manager's blocking filter applied before the typed flora query, or
   after? [typed query first, then the filter. Konradshohe's configurations list no flora (`cfgFlora=0`), so no game
-  run has exercised this]
-- **LD20:** lot slot 61 `GetOccupancy`: its ABI (return channel and arguments) is not in interfaces.tsv. [treated as
-  returning in EAX]
-- **LD21:** the night deque and the shadow: the original's record has 670-740 night-deque buildings while the mode
+  run has exercised this]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (lot-developer.md §6.2). The filter is passed into occupant manager slot 36 and tests only the type (`IsOccupantIncluded` → `IsOccupantTypeIncluded(o.GetType())`, accept = `0x74758926`, `0x006C3C20`), so typed query then filter gives the same set; the order is the manager's box-query order.
+- ~~**LD20:** lot slot 61 `GetOccupancy`: its ABI (return channel and arguments) is not in interfaces.tsv. [treated as
+  returning in EAX]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS** (lot-developer.md §11.4, §12.3). Slot 61 is `void GetOccupancy(float& out)`, pop 4: it writes the float through the pointer (`0x006C0E8A`; 0.0 from the BSS constant `0x00B49114` when the capacity is 0) and leaves EAX = the out pointer, so reading EAX gives an address, not the occupancy.
+- ~~**LD21:** the night deque and the shadow: the original's record has 670-740 night-deque buildings while the mode
   stays 0 in turbo, and ours matches (`roundtrip=same`, `night=L`). Should the deque be filled on insertion even when
-  the visual time never changes? [yes, as recorded]
-- **LD22:** the §5 tests (`TestCondition` / `TestAbandonment`) have no read-only entry in the original, so the shadow
-  cannot compare them. Is there a getter, or a message that exposes their result? [not compared]
-- **LD23:** safe lot iterator fallback order: is `GetLotsInCellRect`'s snapshot order (used when the executable is
-  not identified) acceptable in place of the master-list order? [used only as a fallback; `fallbacks=0` in every run]
-- **LD24:** which base-texture occupant belongs to a lot when a cell has several? [the first occupant of type base
-  texture whose lot pointer matches]
-- **LD25:** the construction occupant: §6.2 creates it through the BDS. When that answers null, should it be created
-  directly with `new`? [no direct `new`; construction is refused and counted]
-- **LD26:** the base-texture record layout (`extra[5]`, frame) beyond the documented fields. [the undocumented bytes
-  are copied unchanged]
-- **LD27:** slot 22 `GetOccupantCellCoverage`'s AL is the raw AL of its second `PositionToCell`. In game it is
+  the visual time never changes? [yes, as recorded]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (lot-developer.md §8.1). Insertion (`0x006C8F80`) appends every building to the deque with no mode test; turbo with mode 0 still fills it.
+- ~~**LD22:** the §5 tests (`TestCondition` / `TestAbandonment`) have no read-only entry in the original, so the shadow
+  cannot compare them. Is there a getter, or a message that exposes their result? [not compared]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (not compared). There is no read-only entry. The outcomes are visible only as lot changes: `cSC4Lot::SetCondition` posts `0xE99B3D4D` (`0x006C2773`) and `cSC4Lot::SetState` posts `0xE8BDA2E7` (`0x006C347C`), so a shadow can compare the condition / state after each daily pass instead.
+- ~~**LD23:** safe lot iterator fallback order: is `GetLotsInCellRect`'s snapshot order (used when the executable is
+  not identified) acceptable in place of the master-list order? [used only as a fallback; `fallbacks=0` in every run]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES as a fallback only (glue choice). The original always walks the master list through its safe iterator (§4.1); any other order changes which lots draw first from the file RNG, so the fallback is not exact. Keep it counted and logged.
+- ~~**LD24:** which base-texture occupant belongs to a lot when a cell has several? [the first occupant of type base
+  texture whose lot pointer matches]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS** (lot-developer.md §6.6 slot 41, §16 test 43). The original asks occupant manager slot 33 for the first base-texture occupant overlapping the lot's location cell (lot slot 21, bytes +0x7A / +0x7B), in the cell bucket's order, with **no lot-pointer check**.
+- ~~**LD25:** the construction occupant: §6.2 creates it through the BDS. When that answers null, should it be created
+  directly with `new`? [no direct `new`; construction is refused and counted]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS** in the premise (lot-developer.md §6.3). The construction occupant does not come from the BDS: it is `CreateInstance(0xA97F909E, 0x496E7636)` (`0x006CC7E9`), with a direct `new` (0x1A0 bytes, constructor `0x005D00F0(1)`) only if that fails. The class is registered (factory `0x005D0BC0`), so the fallback is never reached in the shipped game. Use `CreateInstance`; refusing when it fails is acceptable.
+- ~~**LD26:** the base-texture record layout (`extra[5]`, frame) beyond the documented fields. [the undocumented bytes
+  are copied unchanged]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (lot-developer.md §17.7, lot-records.md §6). The in-memory record is 16 bytes: texture, x, z, orientation, flip / object byte, five bytes (constructor `0x005CA770` sets `0xFF`), frame (`0xFF`), 2 bytes padding. For empty lots the five bytes are the zone drag colour R, G, B, the display alpha and 3; for normal textures they stay `0xFF`. Copying them unchanged is right.
+- ~~**LD27:** slot 22 `GetOccupantCellCoverage`'s AL is the raw AL of its second `PositionToCell`. In game it is
   0x32 / 0x33 for 62-64 of the 64 sampled buildings per month (`rawAL=62-64`), not 0 / 1. Do callers rely on the raw
   byte, or only on whether it is true? [the core returns a bool, and the shadow compares only the truth value;
   rectangles match. If callers need the byte, `fc4_lotdev_occupant_cell_coverage` returns it and the shadow's
-  `CompareLot` compares it raw]
-- **LD28:** the night batches (§8.3) never ran in any turbo run: `nightBatches=0` and `mode=0` throughout to 2032.
+  `CompareLot` compares it raw]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (lot-developer.md §17.2). The byte is the x87 status flags left by `PositionToCell` (LD18), not a result. Slot 22's only callers are `ChangeBuilding` (`0x006C52DB`), `GetOccupantSlope` (`0x006C5F64`) and `StartConstruction` (`0x006CC764`), through `this`; none reads AL. Comparing only the rectangle is right.
+- ~~**LD28:** the night batches (§8.3) never ran in any turbo run: `nightBatches=0` and `mode=0` throughout to 2032.
   Does a turbo city ever send the day/night change `0x44778234` without the 24-hour clock running? [not exercised;
-  lights are set at insertion instead (`lights=203`)]
-- **LD29:** slot 25 `IsAreaFlat` disagrees with "altitude range within `0xE900EA24`" (shipped 1.0). In the shadow,
+  lights are set at insertion instead (`lights=203`)]~~ **ANSWERED 2026-10-15 (re-answers12):** Answered (lot-developer.md §8.2). Only the 24-hour clock posts `0x44778234` (`ChangeVisualTime` `0x00445701`, `EnableDayNightTransitionNotifications(true)` `0x0044566E`); every other use is a subscription. Without a visual-time crossing (turbo starves the idle loop, CK22) there is no message and no batches; insertion lighting is the only path, as observed.
+- ~~**LD29:** slot 25 `IsAreaFlat` disagrees with "altitude range within `0xE900EA24`" (shipped 1.0). In the shadow,
   the original answers flat for lots whose slot 27 range is bit-identical on both sides and > 1.0. Observed: 1.0355,
   1.0623, 1.0735, 1.0886, 1.0948, 1.1135, 1.1373, 1.1757, 1.1858, 1.2204, 1.2268, 1.2937, 1.3282, 1.3630, 1.4001,
   1.4131, 1.4340, 1.4482, 1.4526, 1.5149, 1.6784, all on both the dry and with-water variants; slot 26 follows. What
   exactly does slot 25 compare: another measure, another threshold, or a scaled tuning value? [range <=
   `kMaxCellAltitudeDeltaForFlatness`; 0-24 mismatches per shadow line, all of them this. Settled by the exe; then
   only `LotDeveloper::is_area_flat` (core `lot_developer/terrain.rs`) changes, with a §16 vector, and
-  `lotdev_shadow = 1` should show mismatches=0 on every line (the `s25r` entries give the ranges)]
-- **LD30:** the tuning cannot be read back from the original (no getter), so the shadow cannot check that both sides
-  use the same `kMaxCellAltitudeDeltaForFlatness` and the other §3.5 values. Is there an accessor? [not compared]
+  `lotdev_shadow = 1` should show mismatches=0 on every line (the `s25r` entries give the ranges)]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS** (lot-developer.md §17.2, §16 test 42). Slot 25 (`0x006C5C30`) compares each vertex with the **first vertex** `(x1, z1)`, not the range: `ref := f32(slot 15(x1, z1, true))` (always with water, literal 1 at `0x006C5C4B`), then for x outer, z inner over `x1 … x2+1`, `z1 … z2+1`: `|slot 15(x, z, withWater) − ref| > +0xD0` (kMaxCellAltitudeDeltaForFlatness, strict, NaN no) → false. A range up to twice the tuning value is flat, which explains every observed range 1.0355-1.6784.
+- ~~**LD30:** the tuning cannot be read back from the original (no getter), so the shadow cannot check that both sides
+  use the same `kMaxCellAltitudeDeltaForFlatness` and the other §3.5 values. Is there an accessor? [not compared]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (lot-developer.md §3.5). No accessor: `ReadSimulatorTunableValues` (`0x006C4A20`) has one caller, `Init` (`0x006CB9C7`), and nothing else writes the members (`kMaxCellAltitudeDeltaForFlatness` at `+0xD0`). A shadow reads the same exemplar with the same rules to get the original's values.
 
 ## From the network manager and network lot manager spec (re-specs13c lane, 2026-10-15)
 

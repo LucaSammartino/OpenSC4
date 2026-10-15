@@ -178,11 +178,18 @@ pub struct RouteStep {
 
 /// The route reader's records (§4.3): the exit is the direction of the
 /// following unit step, or for a following jump [`jump_exit`]; a jump to an
-/// x-neighbour (exit none) also clears the cell's own entry. The entry of
-/// the next cell is the side facing back, `(exit + 2) mod 4`; after a jump
-/// whose exit is none the previous cell's entry carries over, which that
-/// jump has just cleared *[question: §4.3 gives both rules; the carried
-/// entry is therefore none]*.
+/// x-neighbour (exit none) also blanks the cell's own entry in its record.
+/// The entry of the next cell is the side facing back, `(exit + 2) mod 4`;
+/// after a jump whose exit is none it is the entry side the cell before the
+/// jump had on arrival (TS36, `0x006D666F`): the reader blanks that side only
+/// in the record of the cell before the jump and keeps it for the next one,
+/// so it is none only when the cell before the jump is the first cell (the
+/// reader starts with none, `0x006D64FD`).
+///
+/// The `0x80` jump flag (TS39) is bit 7 of the jump token that leads to the
+/// next record: the reader keeps it in the record the jump arrives at
+/// (`0x006D65C6`–`0x006D65CC`) and a run token clears it (`0x006D6593`), so
+/// a cell's `ferry_jump_next` is the flag of the following jump record.
 pub fn read_route(bytes: &[u8]) -> Vec<RouteStep> {
     let cells = decode_route(bytes);
     let mut out = Vec::with_capacity(cells.len());
@@ -196,10 +203,12 @@ pub fn read_route(bytes: &[u8]) -> Vec<RouteStep> {
                 step_dir((c.x, c.z), (n.x, n.z))
             }
         });
+        // The side this cell was entered through.
+        let arrival = entry;
         let own_entry = if next.is_some_and(|n| n.jump) && exit.is_none() {
             None
         } else {
-            entry
+            arrival
         };
         out.push(RouteStep {
             x: c.x,
@@ -212,7 +221,7 @@ pub fn read_route(bytes: &[u8]) -> Vec<RouteStep> {
         });
         entry = match exit {
             Some(x) => Some((x + 2) % 4),
-            None => own_entry,
+            None => arrival,
         };
     }
     out
@@ -231,7 +240,8 @@ pub fn read_route(bytes: &[u8]) -> Vec<RouteStep> {
 ///    on the ferry bit with no strike; `t ≠ t'` fails during a strike, else
 ///    needs nibble `x` of `switch[t]` = `t'`.
 ///
-/// A travel type above 8 fails *[choice]*.
+/// A travel type above 8 fails *[choice]* (TS48: the original reads
+/// unrelated record words).
 pub fn confirm_route(net: &NetworkState, strike_state: u8, route: &[u8]) -> bool {
     let steps = read_route(route);
     if steps.is_empty() {
@@ -436,7 +446,10 @@ impl Run<'_, '_> {
         for (i, s) in steps.iter().enumerate() {
             let t = usize::from(s.t);
             if t >= travel::COUNT {
-                // *[choice]* a damaged type byte adds nothing.
+                // *[choice]* (TS48) a damaged type byte (above 8; the reader
+                // allows 0…63) adds nothing. The original indexes its
+                // 9-entry tables unchecked (`0x00719C2F`, `0x00719C4B`,
+                // `0x00719EE9`) and may add volume or income.
                 continue;
             }
             let q = q_of(s.t);
@@ -497,7 +510,8 @@ impl Run<'_, '_> {
                     _ if i < last => return,
                     _ => {}
                 }
-                // 4. Ferry legs (TS16).
+                // 4. Ferry legs (TS16): the next record's jump flag (TS39,
+                // tested at `0x00719E97`).
                 if i < last && s.ferry_jump_next {
                     let nx = steps[i + 1];
                     if self.ferry_leg((s.x, s.z), (nx.x, nx.z), mode, qi) {

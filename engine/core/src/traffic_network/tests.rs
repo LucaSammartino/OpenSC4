@@ -2231,14 +2231,14 @@ fn pool_sweep_and_edge_pass_skip_the_last_record() {
     s.set_neighbour_edge(3, 4, edge_rec(1 << 1, 4, 0.0)); // last record of side 3
     s.set_neighbour_edge(1, 4, edge_rec(0, 5, 0.0)); // mask 0
     let ids: Vec<u16> = s.pool_ids_in_use().into_iter().collect();
-    assert_eq!(ids, vec![1, 2, 5]);
+    assert_eq!(ids, vec![0, 1, 2, 5]); // the other swept records have pool 0 (TS42)
     let cells: Vec<(Edge, (i32, i32))> = s.edge_pass_records().into_iter().map(|(e, c, _)| (e, c)).collect();
     assert_eq!(cells, vec![(Edge::West, (-1, 0)), (Edge::North, (2, -1))]);
     // *[choice]* (TN26) each loop stops at min(X − 1, its length): with
     // Z < X the z-indexed arrays stop at their end.
     let mut s = edge_state(5, 2);
     s.set_neighbour_edge(-1, 1, edge_rec(1 << 2, 6, 0.0));
-    assert_eq!(s.pool_ids_in_use().into_iter().collect::<Vec<_>>(), vec![6]);
+    assert_eq!(s.pool_ids_in_use().into_iter().collect::<Vec<_>>(), vec![0, 6]);
     assert_eq!(s.edge_pass_records().len(), 1);
     // With Z > X, records X−1 … Z−1 of sides 0 and 2 are skipped, as in the
     // original: X = 2 visits index 0 only.
@@ -2246,7 +2246,7 @@ fn pool_sweep_and_edge_pass_skip_the_last_record() {
     s.set_neighbour_edge(-1, 0, edge_rec(1 << 2, 7, 0.0));
     s.set_neighbour_edge(-1, 3, edge_rec(1 << 2, 8, 0.0));
     s.set_neighbour_edge(2, 1, edge_rec(1 << 2, 9, 0.0));
-    assert_eq!(s.pool_ids_in_use().into_iter().collect::<Vec<_>>(), vec![7]);
+    assert_eq!(s.pool_ids_in_use().into_iter().collect::<Vec<_>>(), vec![0, 7]);
     let cells: Vec<(i32, i32)> = s.edge_pass_records().into_iter().map(|(_, c, _)| c).collect();
     assert_eq!(cells, vec![(-1, 0)]);
 }

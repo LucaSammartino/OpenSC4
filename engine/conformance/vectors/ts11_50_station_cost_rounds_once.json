@@ -1,0 +1,99 @@
+{
+  "format": 1,
+  "name": "ts11_50_station_cost_rounds_once",
+  "spec": [
+    "traffic-simulator 4.16"
+  ],
+  "description": "§4.16 (TS46): the station cost loads the int64 item cost exactly and multiplies by the f32 funding fraction with one rounding to 24 bits, then truncates. 16,777,217 at 0.75: 12,582,912.75 rounds to 12,582,913 (an f32 conversion first would give 16,777,216 x 0.75 = 12,582,912). Below 2^24 the readings agree: 150 at 0.75 = 112.5 -> 112.",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        8,
+        8
+      ],
+      "transit_funding": 0.75,
+      "query_items": [
+        [
+          900,
+          3374436075,
+          16777217
+        ],
+        [
+          901,
+          3374436075,
+          150
+        ]
+      ]
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_net",
+      "switch_ids": [
+        [
+          3,
+          3,
+          5
+        ],
+        [
+          4,
+          4,
+          6
+        ]
+      ],
+      "switches": [
+        [
+          5,
+          {
+            "building": 900,
+            "capacity": 2500,
+            "prev_usage": 0,
+            "ratio": 0
+          }
+        ],
+        [
+          6,
+          {
+            "building": 901,
+            "capacity": 2500,
+            "prev_usage": 0,
+            "ratio": 0
+          }
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "transit_switch_query_data",
+      "args": [
+        3,
+        3
+      ],
+      "expect": {
+        "available": 2500,
+        "max_capacity": 2500,
+        "load_fraction": 0,
+        "usage": 0,
+        "cost": 12582913
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "transit_switch_query_data",
+      "args": [
+        4,
+        4
+      ],
+      "expect": {
+        "available": 2500,
+        "max_capacity": 2500,
+        "load_fraction": 0,
+        "usage": 0,
+        "cost": 112
+      }
+    }
+  ]
+}
