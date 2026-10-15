@@ -773,8 +773,10 @@ fails on `base` has already written `count` and `flags`; an output whose propert
 
 The dispatch manager posts begin/active/inactive/end (§5). Active and inactive rebuild the unadjusted grid and
 copy the box around the dispatch position into the adjusted grid; end returns the unit to its station without a
-grid update; the cone is removed by the inactive message, which the dispatch manager is expected to post first
-*[inferred]*.
+grid update; the cone is removed by the inactive message. The dispatch manager posts inactive only from
+`UpdateDispatchState` (the unit leaves state 5, e.g. a fire put out; dispatch.md §4.3). `EndDispatch` posts **no**
+inactive message (`0x0046ACE0`, dispatch.md §4.4): a dispatch revoked while still active, and a dispatch dropped
+because its station was removed, leave their cone until the simulator's next full rebuild *[quirk]* (re-specs10).
 
 ### 8.4 Air dispatch sources
 

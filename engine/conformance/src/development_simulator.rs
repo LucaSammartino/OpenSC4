@@ -111,7 +111,14 @@ struct Occ {
     bbox: (Vec3, Vec3),
     cost: Option<i64>,
     refs: i64,
-    load_fails: bool,
+    /// `GetResource` fails for this occupant's exemplar (§4.9.1 step 4).
+    resource_fails: bool,
+    /// The type getters' values (building, foundation, retaining wall).
+    building_type: u32,
+    foundation_type: u32,
+    wall_type: u32,
+    /// The default exemplar `set_default_exemplar` stored.
+    exemplar: Option<ResKey>,
 }
 
 pub(crate) struct World {
@@ -126,6 +133,8 @@ pub(crate) struct World {
     cell_counts: Cell<(i32, i32)>,
     altitude: Cell<f32>,
     area_altitude: Cell<f32>,
+    /// Lot developer slot 17 over cells: (lowest, highest).
+    cell_altitudes: Cell<(f32, f32)>,
     exemplars: RefCell<Vec<(ResKey, Rc<PropertyHolder>)>>,
     lot_configs: RefCell<Vec<LotConfigInfo>>,
     tuning: RefCell<Option<Rc<PropertyHolder>>>,
@@ -168,6 +177,7 @@ impl World {
             cell_counts: Cell::new((64, 64)),
             altitude: Cell::new(300.0),
             area_altitude: Cell::new(250.0),
+            cell_altitudes: Cell::new((240.0, 260.0)),
             exemplars: RefCell::new(Vec::new()),
             lot_configs: RefCell::new(Vec::new()),
             tuning: RefCell::new(None),
@@ -599,15 +609,33 @@ impl DevelopmentHost for World {
         Some(t)
     }
     fn set_building_type(&self, occ: OccupantId, t: u32) {
+        self.occupants.borrow_mut().entry(occ).or_default().building_type = t;
         self.log("set_building_type", vec![("occ", ji(occ as i64)), ("type", ji(t))]);
     }
-    fn load_building_occupant(&self, occ: OccupantId, t: u32) -> bool {
-        let ok = !self.occ(occ).load_fails;
+    fn building_type(&self, occ: OccupantId) -> u32 {
+        self.occ(occ).building_type
+    }
+    fn set_default_exemplar(&self, occ: OccupantId, key: ResKey) -> bool {
+        let ok = !self.occ(occ).resource_fails && self.exemplars.borrow().iter().any(|(k, _)| *k == key);
+        if ok {
+            self.occupants.borrow_mut().entry(occ).or_default().exemplar = Some(key);
+        }
         self.log(
-            "load_occupant",
-            vec![("occ", ji(occ as i64)), ("type", ji(t)), ("result", Json::Bool(ok))],
+            "set_default_exemplar",
+            vec![
+                ("occ", ji(occ as i64)),
+                ("key", key_json(Some(key))),
+                ("result", Json::Bool(ok)),
+            ],
         );
         ok
+    }
+    fn occupant_property_f32s(&self, occ: OccupantId, id: u32) -> Option<Vec<f32>> {
+        let key = self.occ(occ).exemplar?;
+        let ex = self.exemplars.borrow();
+        let h = ex.iter().find(|(k, _)| *k == key).map(|(_, h)| h.clone())?;
+        h.get(id)?;
+        Some(fc4_core::props::f32s(&h, id).unwrap_or_default())
     }
     fn occupant_bounding_box(&self, occ: OccupantId) -> (Vec3, Vec3) {
         self.occ(occ).bbox
@@ -661,6 +689,55 @@ impl DevelopmentHost for World {
                 Some(*token)
             }
             _ => None,
+        }
+    }
+
+    fn create_foundation_occupant(&self) -> Option<OccupantId> {
+        let t = self.token();
+        let template = self.occupants.borrow().get(&0).cloned().unwrap_or_default();
+        self.occupants.borrow_mut().insert(t, Occ { refs: 1, ..template });
+        self.log("create_foundation", vec![("occ", ji(t as i64))]);
+        Some(t)
+    }
+    fn foundation_type(&self, occ: OccupantId) -> u32 {
+        self.occ(occ).foundation_type
+    }
+    fn set_foundation_type(&self, occ: OccupantId, t: u32) {
+        self.occupants.borrow_mut().entry(occ).or_default().foundation_type = t;
+        self.log("set_foundation_type", vec![("occ", ji(occ as i64)), ("type", ji(t))]);
+    }
+    fn set_foundation_max_height(&self, occ: OccupantId, v: f32) {
+        self.log("set_max_height", vec![("occ", ji(occ as i64)), ("value", jf(v))]);
+    }
+    fn set_foundation_size(&self, occ: OccupantId, size: Vec3) {
+        self.log("set_size", vec![("occ", ji(occ as i64)), ("size", vec3_json(size))]);
+    }
+    fn set_foundation_usage(&self, occ: OccupantId, usage: i32) {
+        self.log("set_usage", vec![("occ", ji(occ as i64)), ("usage", ji(usage))]);
+    }
+    fn set_foundation_orientation(&self, occ: OccupantId, orientation: i32) {
+        self.log(
+            "set_foundation_orientation",
+            vec![("occ", ji(occ as i64)), ("orientation", ji(orientation))],
+        );
+    }
+    fn retaining_wall_type(&self, occ: OccupantId) -> u32 {
+        self.occ(occ).wall_type
+    }
+    fn area_altitude_cells(&self, rect: CellRect, lowest: bool, with_water: bool) -> f32 {
+        self.log(
+            "area_altitude_cells",
+            vec![
+                ("rect", rect_json(rect)),
+                ("lowest", Json::Bool(lowest)),
+                ("water", Json::Bool(with_water)),
+            ],
+        );
+        let (lo, hi) = self.cell_altitudes.get();
+        if lowest {
+            lo
+        } else {
+            hi
         }
     }
 
@@ -1015,6 +1092,9 @@ fn set_world(w: &World, op: &Json) -> R<()> {
     if let Some(v) = opt(op, "area_altitude") {
         w.area_altitude.set(f32_of(v, "area_altitude")?);
     }
+    if let Some(v) = opt(op, "cell_altitudes") {
+        w.cell_altitudes.set(pair_f(v, "cell_altitudes")?);
+    }
     if let Some(v) = opt(op, "census") {
         let mut c = w.census.borrow_mut();
         c.clear();
@@ -1324,8 +1404,9 @@ fn lots(w: &World, op: &Json) -> R<()> {
 }
 
 /// `bds_occupants {list: [{id, groups, preview, pos, bbox: [min, max],
-/// cost, load_fails}], building_cells: [[x, z]…]}`. Occupant 0 is the
-/// template for created building occupants.
+/// cost, resource_fails, building_type, foundation_type, wall_type}],
+/// building_cells: [[x, z]…]}`. Occupant 0 is the template for created
+/// building and foundation occupants.
 fn occupants(w: &World, op: &Json) -> R<()> {
     if let Some(list) = opt(op, "list") {
         let mut occs = w.occupants.borrow_mut();
@@ -1354,8 +1435,17 @@ fn occupants(w: &World, op: &Json) -> R<()> {
             if let Some(v) = opt(o, "cost") {
                 occ.cost = Some(i64_of(v, "cost")?);
             }
-            if let Some(v) = opt(o, "load_fails") {
-                occ.load_fails = bool_of(v, "load_fails")?;
+            if let Some(v) = opt(o, "resource_fails") {
+                occ.resource_fails = bool_of(v, "resource_fails")?;
+            }
+            if let Some(v) = opt(o, "building_type") {
+                occ.building_type = u32_of(v, "building_type")?;
+            }
+            if let Some(v) = opt(o, "foundation_type") {
+                occ.foundation_type = u32_of(v, "foundation_type")?;
+            }
+            if let Some(v) = opt(o, "wall_type") {
+                occ.wall_type = u32_of(v, "wall_type")?;
             }
             occs.insert(id, occ);
         }
@@ -1551,6 +1641,10 @@ fn call(w: &World, op: &Json) -> R<()> {
                 ]),
             }
         }
+        // DG11: whether the game profile gets one capacity map (null: no profile).
+        "capacities_present" => s
+            .building_profile_ptr(a_u32(0)?)
+            .map_or(Json::Null, |p| Json::Bool(p.capacities_present)),
         "building_key" => key_json(s.building_key_from_type(a_u32(0)?)),
         "foundation_key" => key_json(s.foundation_key_from_type(a_u32(0)?)),
         "wall_key" => key_json(s.retaining_wall_key_from_type(a_u32(0)?)),
@@ -1630,6 +1724,28 @@ fn call(w: &World, op: &Json) -> R<()> {
         "demolish_foundation" => Json::Bool(s.demolish_foundation_occupant(u64::from(a_u32(0)?))),
         "demolition_cost" => ji(s.cost_of_building_demolition(u64::from(a_u32(0)?))),
         "foundation_cost" => ji(s.cost_of_foundation_demolition(u64::from(a_u32(0)?))),
+        "load_building_properties" => Json::Bool(s.load_building_occupant_properties(u64::from(a_u32(0)?), a_u32(1)?)),
+        "load_foundation" => Json::Bool(s.load_foundation_properties(u64::from(a_u32(0)?), a_u32(1)?)),
+        "load_wall" => Json::Bool(s.load_retaining_wall_properties(u64::from(a_u32(0)?), a_u32(1)?)),
+        // args: type, usage, pos, sizeX, sizeZ, orientation, base → {result, pos}
+        "add_foundation" => {
+            let mut pos = vec3(arg(op, 2)?, "args")?;
+            let a_f32 = |i: usize| -> R<f32> { f32_of(arg(op, i)?, "args") };
+            let ok = s.add_new_foundation_occupant(
+                a_u32(0)?,
+                a_i32(1)?,
+                &mut pos,
+                a_f32(3)?,
+                a_f32(4)?,
+                a_i32(5)?,
+                a_f32(6)?,
+            );
+            Json::Object(vec![("result".into(), Json::Bool(ok)), ("pos".into(), vec3_json(pos))])
+        }
+        "foundation_cells" => {
+            let pos = vec3(arg(op, 0)?, "args")?;
+            rect_json(s.foundation_cells(&pos, f32_of(arg(op, 1)?, "args")?, f32_of(arg(op, 2)?, "args")?))
+        }
         "building_changed" => {
             s.do_building_changed(u64::from(a_u32(0)?), a_u32(1)?, bool_of(arg(op, 2)?, "args")?);
             Json::Null

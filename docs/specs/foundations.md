@@ -749,6 +749,16 @@ for i in 0 .. 623:
 regenerate all 624 words (standard MT twist); next output is word 0
 ```
 
+**Bit 0 of the seed is ignored** *[compat]* (RN1; `Seed` `0x00913A72`, the `or eax, 1` at `0x00913A97`). The OR comes
+after the clock test, so it applies to a given seed and to a clock-derived one alike. Seeds `s` and `s XOR 1` give
+identical streams. Every `cRZRandomSuper` therefore has only 2^31 distinct streams, and the clock value's bit 0 is
+lost. `cRZRandom::Seed` (`0x00913667`) stores all 32 bits in both states, so the effect is limited to the
+`cRZRandomSuper` users of §6.2 and §6.3: the file-local generators (budget, crime, pollution effects, lots, network
+lots and the rest of that list) and any other caller that seeds a `cRZRandomSuper`, such as the park generator.
+A test that varies the session seed to prove a `cRZRandomSuper` user depends on it must change a bit other than
+bit 0 (for example `S XOR 2`). The same applies to the `derive` fix-up of §6.3, whose XOR 1 is invisible to these
+generators.
+
 | Operation | Definition |
 |---|---|
 | `RandomUint32Uniform()` | next tempered word |
@@ -797,7 +807,9 @@ There is **no** single simulation RNG. Each subsystem uses its own instance:
 | a file-local `cRZRandom` per source file (seeded once at static initialisation, never re-seeded) | `cRZTime()` local wall clock XOR a per-file constant | building development simulator (`0x00B485F0`, XOR `0x0C09C0B8`; building-development.md §4.14), growth developers (`0x00B49080`, XOR `0xAC09C0E8`, shared by all of them; growth-developer.md §7), tract developers (`0x00B4AFD8`, XOR `0x4C09C113`, shared; tract-developer.md §4.22), zone developer (`0x00B4B398`, XOR `0x8C09C68A`; zones.md), lot developer (`0x00B49AF0`, XOR `0x6C09C0F4`; lot-developer.md) |
 | a temporary `cRZRandom` | `((x << 16) + z) << 4` XOR a per-month salt | growth developer decline-list ordering (growth-developer.md §7) |
 | a temporary `cRZRandom` | `((tx << 16) + tz) << 4` (tract (0, 0) seeds 0, so its multiplicative path is clock-seeded) | tract developer `UpdatePopulation` (tract-developer.md §4.18) |
-| a `cRZRandomSuper` member | wall clock at `Init` | traffic simulator, traffic network map, prop developer (clock × 28) |
+| a `cRZRandomSuper` member | wall clock at `Init` | traffic simulator, traffic network map |
+| a `cRZRandomSuper` member | wall clock × 28 (mod 2³²) **at construction** (`0x006F34A3`–`0x006F34B1`), not at `Init` | prop developer (prop-developer.md §5; re-specs10) |
+| a `cRZRandomSuper` member | wall clock (seed −1) at construction | city situation manager, draws only during a mission (city-situation.md §5; re-specs10); park manager (`0x006D5855`; parks.md §5) |
 | a process-wide `cRZRandom` (lazy) | wall clock | neighbours deal propositions |
 | a temporary `cRZRandom` | **cell coordinates** `(x << 16) + z` | lot developer desirability test (one `RandomDoubleRangeUniform(0, 7)`): deterministic per cell (lot-developer.md) |
 | a temporary `cRZRandom` | wall clock | civic building monthly simulation |
@@ -832,8 +844,9 @@ There is **no** single simulation RNG. Each subsystem uses its own instance:
   - *Members seeded with a constant* (flammability: 0) keep the constant. Where a zero multiplicative state later
     reseeds from the clock (§6.1), FreeCity4 uses `derive(GZCLSID)` for that reseed.
   - *Temporaries seeded from the clock* (civic building monthly simulation, the neighbours' process-wide
-    generator): `K` = the owner's GZCLSID XOR `n`, where `n` counts earlier creations at that site in this
-    session (not saved).
+    generator): `K` = the owner's GZCLSID XOR `n`, where `n` counts earlier creations at that site by the
+    owning object, from 0 when the object is constructed (not saved; a newly loaded city starts again at 0;
+    QUESTIONS CB14).
   - *Temporaries seeded from coordinates*: unchanged, because they are deterministic already. The one case whose
     seed is 0 (tract developer `UpdatePopulation` for tract (0, 0)) uses `0x00000001` *[choice]*
     (tract-developer.md §4.18).

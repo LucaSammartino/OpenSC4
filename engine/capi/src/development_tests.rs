@@ -22,7 +22,7 @@ use fc4_core::variant::{mem, Elem, Variant};
 use crate::budget::fc4_token_callback;
 use crate::development::*;
 use crate::growth::*;
-use crate::hostgrid::fc4_grid_api;
+use crate::hostgrid::{fc4_cell_rect, fc4_grid_api};
 use crate::landvalue::fc4_grid_geometry;
 use crate::props::fc4_props;
 use crate::test_streams::{istream, ostream, In, Out};
@@ -86,6 +86,10 @@ struct Game {
     agents_g: RefCell<Vec<u32>>,
     tract_sizes: RefCell<Vec<(u64, i32)>>,
     released_services: RefCell<Vec<u32>>,
+    // foundations (§4.9.2): (occupant, exemplar instance) of each default
+    // exemplar set, and the sizes set
+    exemplars_set: RefCell<Vec<(u64, u32)>>,
+    sizes: RefCell<Vec<[f32; 3]>>,
 }
 
 fn game(u: *mut c_void) -> &'static Game {
@@ -873,6 +877,106 @@ fn suitability_and_construction_resources() {
         assert!(fc4_development_release_resources(p, 60));
         assert_eq!(fc4_development_free_resources(p), 100);
         assert_eq!(fc4_development_stage_population_multiplier(p), 1.0);
+        assert!(fc4_development_shutdown(p));
+        fc4_development_destroy(p);
+        fc4_development_process_destroy(pp);
+    }
+}
+
+#[test]
+fn foundation_slots_reach_the_host() {
+    // §4.9.2 (DG6) through the C ABI: slot 23 creates, loads, sizes and
+    // inserts a foundation and writes the caller's pos[1]; slots 26 / 29.
+    const FOUND: u64 = 0x7100;
+    unsafe extern "C" fn create_f(u: *mut c_void) -> u64 {
+        game(u).refs.borrow_mut().insert(FOUND, 1);
+        FOUND
+    }
+    unsafe extern "C" fn set_default(u: *mut c_void, occ: u64, k: *const fc4_res_key) -> bool {
+        game(u).exemplars_set.borrow_mut().push((occ, (*k).instance));
+        true
+    }
+    unsafe extern "C" fn cells(_u: *mut c_void, r: *const fc4_cell_rect, lowest: bool, water: bool) -> f32 {
+        let r = &*r;
+        assert_eq!((r.x1, r.z1, r.x2, r.z2, water), (5, 10, 6, 12, true));
+        if lowest {
+            304.0
+        } else {
+            310.0
+        }
+    }
+    unsafe extern "C" fn set_size(u: *mut c_void, _occ: u64, s: *const f32) {
+        game(u).sizes.borrow_mut().push([*s, *s.add(1), *s.add(2)]);
+    }
+    unsafe extern "C" fn has_om(_u: *mut c_void) -> bool {
+        true
+    }
+    unsafe extern "C" fn insert(u: *mut c_void, occ: u64) -> bool {
+        b_add_ref(u, occ);
+        true
+    }
+    unsafe extern "C" fn wall_type(_u: *mut c_void, _occ: u64) -> u32 {
+        0x3333
+    }
+    unsafe extern "C" fn counts64(_u: *mut c_void, out: *mut i32) {
+        *out = 64;
+        *out.add(1) = 64;
+    }
+    unsafe {
+        let g = Game::default();
+        let pp = fc4_development_process_create(7);
+        let mut host = bds_host(&g);
+        host.terrain_cell_counts = Some(counts64);
+        host.create_foundation_occupant = Some(create_f);
+        host.set_default_exemplar = Some(set_default);
+        host.area_altitude_cells = Some(cells);
+        host.set_foundation_size = Some(set_size);
+        host.has_occupant_manager = Some(has_om);
+        host.insert_occupant = Some(insert);
+        host.retaining_wall_type = Some(wall_type);
+        let p = fc4_development_create(&host, pp, 0xB0);
+        assert!(!p.is_null());
+        assert!(fc4_development_init(p));
+        let mut pos = [96.0f32, -1.0, 184.0];
+        assert!(fc4_development_add_foundation(
+            p,
+            FOUNDATION,
+            2,
+            pos.as_mut_ptr(),
+            32.0,
+            48.0,
+            1,
+            -1.0
+        ));
+        assert_eq!(pos, [96.0, 310.0, 184.0]);
+        assert_eq!(*g.sizes.borrow(), vec![[32.0, 6.0, 48.0]]);
+        assert_eq!(g.refs_of(FOUND), 1, "the occupant manager's reference only");
+        assert!(!fc4_development_add_foundation(
+            p,
+            0x999,
+            2,
+            pos.as_mut_ptr(),
+            32.0,
+            48.0,
+            1,
+            -1.0
+        ));
+        assert_eq!(g.refs_of(FOUND), 0, "an unknown type: created, released");
+        assert!(!fc4_development_add_foundation(
+            p,
+            FOUNDATION,
+            2,
+            std::ptr::null_mut(),
+            32.0,
+            48.0,
+            1,
+            -1.0
+        ));
+        assert!(fc4_development_load_foundation(p, OCC, FOUNDATION));
+        assert!(!fc4_development_load_foundation(p, 0, FOUNDATION));
+        // No wall type is in the fake catalogue: slot 29 asks the wall for its type, then fails.
+        assert!(!fc4_development_load_retaining_wall(p, OCC, 0));
+        assert_eq!(*g.exemplars_set.borrow(), vec![(FOUND, FOUNDATION), (OCC, FOUNDATION)]);
         assert!(fc4_development_shutdown(p));
         fc4_development_destroy(p);
         fc4_development_process_destroy(pp);
