@@ -241,7 +241,7 @@ pub struct fc4_budget_host {
     pub add_ref: Option<unsafe extern "C" fn(U, u64)>,
     pub release: Option<unsafe extern "C" fn(U, u64)>,
     pub create_object: Option<unsafe extern "C" fn(U, u32) -> *mut c_void>,
-    /// ABI 57 (EX39): 1 array, 0 scalar, -1 absent; NULL counts every property as an array.
+    /// ABI 50 (EX39): 1 array, 0 scalar, -1 absent; NULL counts every property as an array.
     pub property_is_array: Option<unsafe extern "C" fn(U, u64, u32) -> i32>,
 }
 

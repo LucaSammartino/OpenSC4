@@ -26,7 +26,7 @@ namespace {
 // stays a scalar (fc4_props_set_typed), because the core's vector readers
 // read a scalar as empty and its converting getters read its value
 // (data-formats §5.2, EX39); an array goes in as an array, one value included
-// (fc4_props_set_u32s and the like, ABI 57).
+// (fc4_props_set_u32s and the like, ABI 50).
 template <class T, class SetArray>
 void SetShaped(fc4_props* p, const cISCPropertyHolder* holder, uint32_t id, uint16_t memType,
                const std::vector<T>& v, SetArray setArray) {

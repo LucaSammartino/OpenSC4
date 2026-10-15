@@ -51,7 +51,7 @@ pub unsafe extern "C" fn fc4_props_destroy(p: *mut fc4_props) {
 macro_rules! setter {
     ($name:ident, $t:ty, $mem:expr, $elem:expr) => {
         /// Sets property `id` (replacing it) to an **array** of `count`
-        /// values, one value included (ABI 57: it was a scalar before, which
+        /// values, one value included (ABI 50: it was a scalar before, which
         /// the vector readers now read as empty, data-formats §5.2 EX39; a
         /// scalar is set with `fc4_props_set_typed`). `values` may be NULL
         /// when `count` is 0 (an empty array).
@@ -171,7 +171,7 @@ pub unsafe extern "C" fn fc4_props_set_typed(
 mod tests {
     use super::*;
 
-    /// ABI 57 (data-formats §5.2, EX39): a slice setter stores an array even
+    /// ABI 50 (data-formats §5.2, EX39): a slice setter stores an array even
     /// for one value, which the core's vector readers read as that value; a
     /// scalar set through `fc4_props_set_typed` reads as an empty vector and
     /// keeps its value for the converting getters.

@@ -39,7 +39,7 @@
 //! A holder must therefore keep the game's shape: the glue copies variants
 //! exactly (`fc4_props_set_typed`), and the C ABI's slice setters
 //! (`fc4_props_set_u32s` and the like) store an array even for one value
-//! (ABI 57), so a one-element array is never mistaken for a scalar.
+//! (ABI 50), so a one-element array is never mistaken for a scalar.
 
 use crate::property::PropertyHolder;
 use crate::stream::ResKey;

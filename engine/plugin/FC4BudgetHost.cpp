@@ -654,7 +654,7 @@ bool SetF32s(void*, uint64_t h, uint32_t p, const float* v, size_t n) {
 
 bool CopyProperty(void*, uint64_t src, uint64_t dst, uint32_t p) { return props::Copy(Holder(src), Holder(dst), p); }
 
-// ABI 57 (data-formats §5.2, EX39): whether a property is an array (1), a
+// ABI 50 (data-formats §5.2, EX39): whether a property is an array (1), a
 // scalar (0) or absent (-1). The core reads the budget item arrays as the
 // original's vector helpers do, a scalar (count 0) giving an empty vector;
 // GetI64s and friends keep converting a scalar to one value for the tuning.

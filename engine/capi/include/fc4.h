@@ -101,11 +101,11 @@ extern "C" {
  *      callbacks; adds fc4_development_add_foundation / _load_foundation /
  *      _load_retaining_wall (BDS slots 23, 26, 29); fc4_building_profile.reserved1 becomes
  *      capacities_present (taken as 56 on its lane; renumbered at merge);
- * 57 = the budget host's optional property_is_array (data-formats §5.2, EX39: the budget item
+ * 50 = the budget host's optional property_is_array (data-formats §5.2, EX39: the budget item
  *      arrays read a scalar as empty); fc4_props_set_u32s/i32s/i64s/f32s/bools store an array
- *      even for one value (the core's vector readers read a scalar as empty, EX39) (apply10b
- *      lane; the coordinator renumbers at merge). */
-#define FC4_ABI_VERSION 57u
+ *      even for one value (the core's vector readers read a scalar as empty, EX39) (taken as 57
+ *      on its lane; renumbered at merge). */
+#define FC4_ABI_VERSION 50u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -561,7 +561,7 @@ typedef struct fc4_budget_host {
     /* Creates a department (0xE990BFFC) or line item (0xAA313C9F) through the
      * class registry; returns its core handle (fc4_department* / fc4_line_item*). */
     void* (*create_object)(void* user, uint32_t class_id);
-    /* ABI 57 (data-formats §5.2, EX39): 1 if the property is an array, 0 if it is a
+    /* ABI 50 (data-formats §5.2, EX39): 1 if the property is an array, 0 if it is a
      * scalar, -1 if absent. The budget item arrays are read with the original's vector
      * helpers, which give a scalar (count 0) an EMPTY vector, while get_u32s / get_i64s /
      * get_f32s convert a scalar to one value (the converting getters, for tuning). NULL:
@@ -843,7 +843,7 @@ typedef struct fc4_props fc4_props;
 fc4_props* fc4_props_create(void);
 void fc4_props_destroy(fc4_props* p);
 /* Set (replace) property `id` to an ARRAY of `count` values (one value
- * included; ABI 57, data-formats §5.2 EX39: the core's vector readers read a
+ * included; ABI 50, data-formats §5.2 EX39: the core's vector readers read a
  * scalar as empty, so a scalar is set with fc4_props_set_typed). `values` may
  * be NULL when `count` is 0. */
 bool fc4_props_set_u32s(fc4_props* p, uint32_t id, const uint32_t* values, size_t count);
