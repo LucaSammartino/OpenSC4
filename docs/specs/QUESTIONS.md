@@ -3750,34 +3750,34 @@ Our traffic simulator (with the pathfinder) replaces the original in game (`enab
 at normal speed for 84 months and across two saves, with 0 reference warnings. There is no traffic shadow yet.
 The lane's implemented answers are in brackets; most are glue choices that need only a confirmation or a spec line.
 
-- **TG1:** `FindPath` with a route deque. [returns 0, logged once, counted; the deque is untouched]
-- **TG2:** host callbacks left NULL: `path_info` and its helpers, `sim_clock_ms`, `update_network_costs`,
+- ~~**TG1:** `FindPath` with a route deque. [returns 0, logged once, counted; the deque is untouched]~~ **ANSWERED 2026-10-15 (re-answers10):** the original fills the deque (pathfinder §4.13 step 5, also after the flag-2 fallback of §4.12); the automata, emergency and MySim dispatch and the query tool read it. The bracket **DIFFERS**: fill it. The deque's 0x28-byte layout and the clear / push_front / map-regrowth rules are in pathfinder §7 (traffic-simulator §9.1).
+- ~~**TG2:** host callbacks left NULL: `path_info` and its helpers, `sim_clock_ms`, `update_network_costs`,
   `lot_strategy_byte`, `take_connection_volume_dirty`, `occupants_in_cells`, `occupant_filter_includes`,
   `cell_has_network_occupant`, `tunnel_paired_portal`, `view_cell_rect`, `create_accident`. Which of these does
-  the original need for the simulation (not the view)? [all NULL in phase 1]
-- **TG3:** the trip record layout. [FreeCity4's own `FC4TripData`]
-- **TG4:** `Init` after state was loaded by `Read`. [the loaded state is kept]
-- **TG5:** slot 34's record size. [0x23C]
-- **TG6:** slot 22. [returns null, logged]
-- **TG7:** departments. [`Get`, else `Create(id, 0)`; `SetMaxAllowedFunding`; line items 1–6]
-- **TG8:** `GetLanguageUtility`. [borrowed, not AddRef'd]
-- **TG9:** `DoLotActivated` budget items. [copied, then `AddBudgetItemToBudget(lot holder, item.index)`]
-- **TG10:** lot order. [the master list through the safe iterator; a rect query as fallback]
-- **TG11:** `Shutdown`. [unsubscribe; `RemoveAgentAllLevels`]
-- **TG12:** `department_funding` with a null department. [1.0]
-- **TG13:** slot 12. [a ring of 64 records]
-- **TG14:** slot 29. [a vector kept per tile pair]
-- **TG15:** slots 20/21 called off the main thread. [a direct property read]
-- **TG16:** a lot's `AsTrafficSource`. [borrowed]
-- **TG17:** `CreatePathFinder(null)`. [false]
-- **TG18:** `SetupPathFinderForLot` with a pathfinder the original created. [false]
-- **TG19:** stale lot or connection tokens. [refused; a connection removed mid-phase is skipped]
-- **TG20:** which messages carry an object. [only the lot message `0xE8BDA2E7` and the occupant messages
-  `0x99EF1142`/`0x99EF1143`]
-- **TG21:** a message on another thread while the lock is busy; slot 19 while the lock is busy. [dropped; slot 19
-  counted as a fallback]
-- **TG22:** units per slice against the original's 4 ms deadline (traffic-simulator §3.4). [16 deterministic units
-  per slice; our turbo runs at about 43–46 game days/s with traffic against about 76 without]
+  the original need for the simulation (not the view)? [all NULL in phase 1]~~ **ANSWERED 2026-10-15 (re-answers10):** by what the original reads (traffic-simulator §9.1 tables): **needed** for the simulation are the occupant query over a rectangle (`occupants_in_cells`), path connections and path info (`path_info` and helpers), the tunnel's paired portal (`tunnel_paired_portal`), the neighbour connection's volume-dirty test-and-clear (`take_connection_volume_dirty`; one sync per connection object), the roads and mass-transit department cost updates (`update_network_costs`, if that is what it does) and the lot's strategy byte at lot + 0x88 (`lot_strategy_byte`, only if our core computes the lots' trip targets). **Not needed**: the wall-clock deadline (`sim_clock_ms`), the accident check (`view_cell_rect`, `cell_has_network_occupant`, `create_accident`: monthly, wall-clock gated, visible cells only; it costs only the visible crashes) and `occupant_filter_includes` (filter 2 unreachable). So all-NULL **DIFFERS** for the first group.
+- ~~**TG3:** the trip record layout. [FreeCity4's own `FC4TripData`]~~ **ANSWERED 2026-10-15 (re-answers10):** the lots' and connections' own `std::list<cSC4TripData>` (0x2C-byte records, allocator B) are read by their `Write`/`Read`, by the query tool's route display (`0x004CA460`, `0x004C5E20`, `0x004CFD20`) and by `SetupPathFinderForLot`. `FC4TripData` is acceptable only if those lists hold the trips in that layout whenever those run (copied in at load, written back before the lots save, kept current for the query tool); otherwise **DIFFERS** (a save loses every trip). traffic-simulator §9.1.
+- ~~**TG4:** `Init` after state was loaded by `Read`. [the loaded state is kept]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES. In a load `Read` always runs before `Init` (foundations §3.7), and `Init` creates each grid, the iterators, the generator, the departments and the pathfinders only when the member is still null; the cycle state is reset only with a new scanning iterator (`0x0071F4FE`). Init rebuilds only unsaved structures (tuning, subscriptions, edge vectors, cell array). traffic-simulator §1.
+- ~~**TG5:** slot 34's record size. [0x23C]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: 0x23C bytes at simulator +0x1E4 (last field u8 at +0x238; next member +0x420; working set at +0x440). traffic-simulator §7.
+- ~~**TG6:** slot 22. [returns null, logged]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: slot 22 returns the lot iterator only in cycle state 1, which nothing enters (a loaded 1 becomes 0 at PostCityInit). traffic-simulator §9.1.
+- ~~**TG7:** departments. [`Get`, else `Create(id, 0)`; `SetMaxAllowedFunding`; line items 1–6]~~ **ANSWERED 2026-10-15 (re-answers10):** partly **DIFFERS**: `CreateDepartmentBudget` returns an existing department, so get-else-create is right, but the original uses group `0xAA369059`, sets the department and line-item names, makes mass-transit line 2 and roads line 5 Income, and runs these only when the member is null after Read; lines 4–6 are created on every Init when missing. Exact calls in traffic-simulator §9.1.
+- ~~**TG8:** `GetLanguageUtility`. [borrowed, not AddRef'd]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: the language manager returns a pointer to its own member (`0x00924B50`) and nobody AddRefs or releases it. traffic-simulator §9.1.
+- ~~**TG9:** `DoLotActivated` budget items. [copied, then `AddBudgetItemToBudget(lot holder, item.index)`]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: `GetBudgetItemForPurpose(building holder, …)`, then `CopyBudgetItemProperties(building holder, lot holder)` and `AddBudgetItemToBudget(lot holder, item.index)` (index at record +0x18). traffic-simulator §9.1, §4.1.3.
+- ~~**TG10:** lot order. [the master list through the safe iterator; a rect query as fallback]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES for the safe iterator, which is the original's only order; the rectangle fallback has no counterpart and must not run in normal play. traffic-simulator §4.1, §9.1.
+- ~~**TG11:** `Shutdown`. [unsubscribe; `RemoveAgentAllLevels`]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: unsubscribe the nine messages, then `RemoveAgent(this + 4)` on every level through the city's simulator (skipped when null). traffic-simulator §1.
+- ~~**TG12:** `department_funding` with a null department. [1.0]~~ **ANSWERED 2026-10-15 (re-answers10):** no original behaviour (the original never checks; only a failed Read leaves a null department). 1.0 accepted. traffic-simulator §9.1.
+- ~~**TG13:** slot 12. [a ring of 64 records]~~ **ANSWERED 2026-10-15 (re-answers10):** accepted as a choice. The original returns a live pointer into the hash node (or the shared zero record), valid until the record is erased; the ring gives call-time copies and must keep each pointer valid until the caller's next call. traffic-simulator §9.1.
+- ~~**TG14:** slot 29. [a vector kept per tile pair]~~ **ANSWERED 2026-10-15 (re-answers10):** accepted as a choice if each call returns the current route as an STLport `vector<u8>` (allocator B) and null in exactly the original's cases; the original points into the terminal link's stored vector. traffic-simulator §9.1.
+- ~~**TG15:** slots 20/21 called off the main thread. [a direct property read]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: slots 19–21 use no simulator state, only the holder's property `0x8A0B4100`, with no lock in the original. traffic-simulator §9.1.
+- ~~**TG16:** a lot's `AsTrafficSource`. [borrowed]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: lot slot 4 is a cast without AddRef; the source iterator AddRefs the lot or connection object itself. traffic-simulator §4.1.
+- ~~**TG17:** `CreatePathFinder(null)`. [false]~~ **ANSWERED 2026-10-15 (re-answers10):** no original behaviour (the original writes through the null pointer). false accepted. traffic-simulator §9.1.
+- ~~**TG18:** `SetupPathFinderForLot` with a pathfinder the original created. [false]~~ **ANSWERED 2026-10-15 (re-answers10):** **DIFFERS** in principle (the original configures any `cISC4PathFinder` through its interface), but unreachable when ours is the city's simulator. Accepted. traffic-simulator §9.1.
+- ~~**TG19:** stale lot or connection tokens. [refused; a connection removed mid-phase is skipped]~~ **ANSWERED 2026-10-15 (re-answers10):** lots MATCH (skipped by the safe iterator). Connections **DIFFER**: the original's connection list is a snapshot of counted references, so a connection removed mid-phase is still visited until the next Reset (entering 16, 17 or 18). traffic-simulator §9.1, §4.1.
+- ~~**TG20:** which messages carry an object. [only the lot message `0xE8BDA2E7` and the occupant messages
+  `0x99EF1142`/`0x99EF1143`]~~ **ANSWERED 2026-10-15 (re-answers10):** MATCHES: only the lot message (IGZUnknown, QI `0xE818FCED`) and the occupant messages (void1, QI `0xA821EF94`) carry an object the handler reads; `0x08DAC3E7` reads data2 and the simulator's own department. traffic-simulator §9.1.
+- ~~**TG21:** a message on another thread while the lock is busy; slot 19 while the lock is busy. [dropped; slot 19
+  counted as a fallback]~~ **ANSWERED 2026-10-15 (re-answers10):** messages: the original never drops one (no lock, handled on the delivering thread), so a drop **DIFFERS** whenever it happens; keep it counted and rare. Slot 19 needs no lock at all (TG15): the direct write is the normal path. traffic-simulator §9.1.
+- ~~**TG22:** units per slice against the original's 4 ms deadline (traffic-simulator §3.4). [16 deterministic units
+  per slice; our turbo runs at about 43–46 game days/s with traffic against about 76 without]~~ **ANSWERED 2026-10-15 (re-answers10):** no original constant (TS27); 16 accepted. The original's per-day traffic work is the share `total/days` plus the last slice's overshoot, so N changes only the overshoot. traffic-simulator §9.1, §3.4.
 
 ## From applying the REH, flora, residential and flammability answers (filed by the coordinator from the `apply9d` lane's report, 2026-10-14)
 
