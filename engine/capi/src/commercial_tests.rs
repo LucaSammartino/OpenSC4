@@ -498,6 +498,40 @@ fn ci13_08_industrial_over_the_abi() {
 }
 
 #[test]
+fn set_machine_drives_the_next_step() {
+    let g = Game::new(8);
+    g.set_map(2, 0, OFFICE_KEY_CO2);
+    g.set_map(4, 0, OFFICE_KEY_CO3);
+    unsafe {
+        let c = fc4_commercial_create(&host(&g));
+        assert!(fc4_commercial_init(c));
+        // Out of range: refused, nothing changes.
+        assert!(!fc4_commercial_set_machine(c, false, 4));
+        assert!(!fc4_commercial_set_machine(c, false, -1));
+        assert_eq!((state(c).state, state(c).dirty), (3, 1));
+        // State 3, clean: the step changes nothing.
+        assert!(fc4_commercial_set_machine(c, false, 3));
+        fc4_commercial_do_idle(c);
+        assert_eq!((state(c).state, state(c).dirty, state(c).flag), (3, 0, 0));
+        // State 2: the CO$$$ rebuild alone, then idle.
+        assert!(fc4_commercial_set_machine(c, false, 2));
+        assert_eq!(state(c).flag, 1);
+        fc4_commercial_do_idle(c);
+        let s = state(c);
+        assert_eq!((s.state, s.dirty), (3, 0));
+        assert_eq!(g.cells_of(s.co3_grid), edge(8, &[4]));
+        // State 1 keeps dirty as set: CO$$, then state 2.
+        assert!(fc4_commercial_set_machine(c, true, 1));
+        fc4_commercial_do_idle(c);
+        let s = state(c);
+        assert_eq!((s.state, s.dirty), (2, 1));
+        assert_eq!(g.cells_of(s.co2_grid), edge(8, &[2]));
+        fc4_commercial_destroy(c);
+        assert!(!fc4_commercial_set_machine(std::ptr::null_mut(), false, 3));
+    }
+}
+
+#[test]
 fn null_handles_are_harmless() {
     unsafe {
         assert!(!fc4_commercial_init(std::ptr::null_mut()));
@@ -506,5 +540,31 @@ fn null_handles_are_harmless() {
         fc4_commercial_destroy(std::ptr::null_mut());
         assert!(!fc4_industrial_init(std::ptr::null_mut()));
         fc4_industrial_destroy(std::ptr::null_mut());
+    }
+}
+
+/// The save sweep (`save_sweep_tests.rs`): `rec` read into a fresh simulator
+/// and written again. The two grid references become grids of this host.
+pub(super) fn sweep_round_trip(rec: &[u8]) -> Result<Vec<u8>, String> {
+    let g = Game::new(1);
+    for t in crate::save_sweep_tests::ref_tokens(rec, 3, 2) {
+        g.grids.borrow_mut().insert(
+            t,
+            Grid {
+                instance: 0,
+                data: vec![0.0],
+                refs: 1,
+                shut: false,
+            },
+        );
+    }
+    unsafe {
+        let c = fc4_commercial_create(&host(&g));
+        if c.is_null() {
+            return Err("create failed".into());
+        }
+        let r = crate::save_sweep_tests::read_write(rec, |i| fc4_commercial_read(c, i), |o| fc4_commercial_write(c, o));
+        fc4_commercial_destroy(c);
+        r
     }
 }

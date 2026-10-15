@@ -2615,7 +2615,7 @@ cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	13	+0x34	00619110		8	2	eax-or-
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	14	+0x38	0061a020		8	2	via-call	low	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	15	+0x3C	00619150		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	16	+0x40	0061a090		4	1	via-call	low	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	17	+0x44	00604d50		0	0	via-call	low	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	17	+0x44	00604d50		0	0	via-call	low	re-answers11 ZQ15(b): tests every bit of network flag 0x400000 (HasAllNetworkFlags(0x400000), pre-built-model piece not placed by the tool); zones.md 8.4.1
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	18	+0x48	00604d60				forward	medium	indirect-jump dword ptr [eax + 0x28]/dword ptr [edx + 0x2c]
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	19	+0x4C	00604d80		0	0	via-call	low	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	20	+0x50	00604d90				forward	medium	indirect-jump dword ptr [eax + 0x28]/dword ptr [edx + 0x2c]
@@ -4122,6 +4122,7 @@ cIGZSerializable(LotRetainingWallOccupant)	cSC4LotRetainingWallOccupant	00aa2fdc
 cIGZSerializable(LotRetainingWallOccupant)	cSC4LotRetainingWallOccupant	00aa2fdc	3	+0xC	005e2ab0	cSC4LotRetainingWallOccupant::Write	4	1	eax-or-void	medium	
 cIGZSerializable(LotRetainingWallOccupant)	cSC4LotRetainingWallOccupant	00aa2fdc	4	+0x10	005e2b40	cSC4LotRetainingWallOccupant::Read	4	1	eax-or-void	medium	
 cIGZSerializable(LotRetainingWallOccupant)	cSC4LotRetainingWallOccupant	00aa2fdc	5	+0x14	005e2990	cSC4LotRetainingWallOccupant::GetGZCLSID	0	0	eax-or-void	medium	
+cISC4LotRetainingWallOccupant	cSC4LotRetainingWallOccupant	00aa3080	11	+0x2C	0080bc00	cSC4LotRetainingWallOccupant::GetRetainingWallType	0	0	eax-or-void	medium	re-answers11 DG35: IID 0x295D1162 (QI 0x005E28C0); returns the dword at +0x38; building-development.md 4.9.2
 cIGZSerializable(FoundationOccupant)	cSC4FoundationOccupant	00aa28fc	0	+0x0	005d61e0		8	2	eax-or-void	medium	tail->005d6160
 cIGZSerializable(FoundationOccupant)	cSC4FoundationOccupant	00aa28fc	1	+0x4	005e29e0		0	0	eax-or-void	medium	tail->005e28f0
 cIGZSerializable(FoundationOccupant)	cSC4FoundationOccupant	00aa28fc	2	+0x8	005e29f0		0	0	eax-or-void	medium	tail->005e2900
@@ -4482,6 +4483,19 @@ cISC424HourClock	cSC424HourClock	00a86588	26	+0x68	004455b0	cSC424HourClock::Hid
 cISC424HourClock	cSC424HourClock	00a86588	27	+0x6C	00703d60	IsHiddenPaused (shared with cSC4Simulator::IsHiddenPaused)	0	0	eax-or-void	high	EAX 0/1 (count at +0x34 > 0)
 cISC424HourClock	cSC424HourClock	00a86588	28	+0x70	004453e0	cSC424HourClock::IsNight	0	0	eax-or-void	high	EAX 0/1, visual hour
 cISC424HourClock	cSC424HourClock	00a86588	29	+0x74	00445620	cSC424HourClock::EnableDayNightTransitionNotifications	4	1	eax-or-void	high	void
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	0	+0x0	00445a80	cSC424HourClock::QueryInterface (thunk)	8	2	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); tail->00444e40
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	1	+0x4	00445a90	cSC424HourClock::AddRef (thunk)	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); tail->00825d60
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	2	+0x8	00445af0	cSC424HourClock::Release (thunk)	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); tail->004451f0
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	3	+0xC	009cede1	cRZSystemService::GetServiceID	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); icf; returns 0xA7E7F92A for the clock
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	4	+0x10	00894f6d	cRZSystemService::SetServiceID	4	1	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); icf
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	5	+0x14	0099be66	cRZSystemService::GetServicePriority	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); icf; -2,000,000
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	6	+0x18	00932b83	cRZSystemService::IsServiceRunning	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8)
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	7	+0x1C	0091dd91	cRZSystemService::SetServiceRunning	4	1	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8)
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	8	+0x20	00445c70	cSC424HourClock::Init (thunk)	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); tail->00445b70
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	9	+0x24	00445b00	cSC424HourClock::Shutdown (thunk)	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); tail->00445130
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	10	+0x28	0091559a	cRZSystemService::OnTick	4	1	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); icf; AL = 1, nothing else
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	11	+0x2C	00445820	cSC424HourClock::OnIdle	4	1	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); AL = 1
+cIGZSystemService(24HourClock)	cSC424HourClock	00a8652c	12	+0x30	009d4714	cRZSystemService::GetServiceTickPriority	0	0	eax-or-void	medium	re-answers11 CK16-CK18 (clock24.md 8); icf; -2,000,000
 cISC43DRender	cSC43DRender	00abab60	8	+0x20	007c9fb0	cSC43DRender::GetViewUtilities	0	0	eax	high	re-answers9 LG21: borrowed, not a GZCOM object; view rotation int32 at +0x10
 cISC4App	cSC4App	00a86af0	37	+0x94	0081f910	cSC4App::GetCity	0	0	eax	high	re-answers9 NB19: borrowed app+0x5C; same pointer as global 0x00B43CEC until the city's Shutdown
 cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	0	+0x0	005246b0	cSC4CitySituationManager::QueryInterface	8	2	eax-or-void	high	QueryInterface(iid, void); ret AL; city-situation.md §8; re-specs10
@@ -4700,3 +4714,43 @@ cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	8	+0x20	005e0b20
 cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	9	+0x24	005df820	cSC4LotBaseTextureOccupant::UpdateVertexAltitudes	12	3	eax-or-void	low	symbol-port name; re-specs11
 cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	10	+0x28	005e0050	cSC4LotBaseTextureOccupant::LoadModels	4	1	eax-or-void	low	symbol-port name; re-specs11
 cISC4LotBaseTextureOccupant	cSC4LotBaseTextureOccupant	00aa2e18	11	+0x2C	005dee00	cSC4LotBaseTextureOccupant::UnloadModels	0	0	eax-or-void	low	symbol-port name; re-specs11
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	3	+0xC	0057a310	cSC4DisasterInstanceFire::Init	0	0	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	4	+0x10	0057bf10	cSC4DisasterInstanceFire::Update	0	0	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	5	+0x14	0057a540	cSC4DisasterInstanceFire::Shutdown	0	0	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	6	+0x18	0057a7d0	cSC4DisasterInstanceFire::Ignite(occupant, bool force, uint32 fireID, bool focus)	16	4	AL	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	7	+0x1C	0057b170	cSC4DisasterInstanceFire::IgniteCell(x, z, bool useProbability, bool teleport, uint32 fireID)	20	5	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	8	+0x20	0057b350	cSC4DisasterInstanceFire::ExtinguishCell(x, z, amount)	12	3	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	9	+0x24	0057b500	cSC4DisasterInstanceFire::QuickBurnCell(x, z)	8	2	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	10	+0x28	0057af10	cSC4DisasterInstanceFire::IgniteCellRadius(x, z, r0, r1)	16	4	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	11	+0x2C	00579bd0	cSC4DisasterInstanceFire::Extinguish(occupant)	4	1	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	12	+0x30	00579bf0	cSC4DisasterInstanceFire::BurnDown(occupant)	4	1	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	13	+0x34	00579230	cSC4DisasterInstanceFire::SetCause(uint32)	4	1	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	14	+0x38	00441090	cSC4DisasterInstanceFire::GetCause()	0	0	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	15	+0x3C	00579a60	cSC4DisasterInstanceFire::GetFireCountInCellRect(rect const&)	4	1	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstanceFire (internal)	cSC4DisasterInstanceFire	00a9e5b0	16	+0x40	0057a2f0	cSC4DisasterInstanceFire::GetFireCount()	0	0	eax-or-void	medium	disasters.md §15; fire manager forwards here
+cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	0	+0x0	0057ad40	cSC4DisasterInstanceFire::QueryInterface	8	2	eax-or-void	medium	disasters.md §3.2
+cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	1	+0x4	007637d0	cSC4DisasterInstanceFire::AddRef	0	0	eax-or-void	medium	disasters.md §3.2
+cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	2	+0x8	0057ad50	cSC4DisasterInstanceFire::Release	0	0	eax-or-void	medium	disasters.md §3.2
+cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	3	+0xC	0057ad80	cSC4DisasterInstanceFire::Shutdown (thunk to 0x0057A540)	0	0	eax-or-void	medium	disasters.md §3.2
+cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	4	+0x10	005793e0	cSC4DisasterInstanceFire::GetManager()	0	0	eax-or-void	medium	disasters.md §3.2
+cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	5	+0x14	005792a0	cSC4DisasterInstanceFire::GetID() = 0x621CDA33	0	0	eax-or-void	medium	disasters.md §3.2
+cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	6	+0x18	0062c980	cSC4DisasterInstanceFire::GetLocation(int32& x, int32& z) (fire: returns false; folded body)	8	2	AL	medium	disasters.md §3.2
+cISC4DisasterInstance	cSC4DisasterInstanceFire	00a9e590	7	+0x1C	00420d90	cSC4DisasterInstanceFire::GetPhase() (+0xC0)	0	0	eax-or-void	medium	disasters.md §3.2
+cIGZMessageTarget2	cSC4DisasterInstanceFire	00a9e580	3	+0xC	00579600	cSC4DisasterInstanceFire::DoMessage	4	1	AL	medium	0x86AD10EE, 0x66956813, 0x06CDB65B, 0xA6B79602 (disasters.md §5.3, §5.8)
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	0	+0x0	0057ec10	cSC4DisasterManagerToxic::QueryInterface	8	2	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	1	+0x4	00429ce0	cSC4DisasterManagerToxic::AddRef	0	0	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	2	+0x8	00429cf0	cSC4DisasterManagerToxic::Release	0	0	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	3	+0xC	0057ec80	cSC4DisasterManagerToxic::Init	0	0	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	4	+0x10	0057ecd0	cSC4DisasterManagerToxic::Shutdown	0	0	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	5	+0x14	0057eaf0	cSC4DisasterManagerToxic::GetID() = 0xEBFB0404	0	0	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	6	+0x18	0057f220	cSC4DisasterManagerToxic::AttemptDisasterStart(int32 cellX, int32 cellZ) (spills 120)	8	2	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	7	+0x1C	004e13e0	cSC4DisasterManagerToxic::AttemptDisasterStart() (folded: returns null)	0	0	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	8	+0x20	00578230	cSC4DisasterManagerToxic::AddInstanceToList	4	1	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	9	+0x24	00578310	cSC4DisasterManagerToxic::RemoveInstanceFromList	4	1	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	10	+0x28	00577990	cSC4DisasterManagerToxic::GetActiveInstanceCount	0	0	eax-or-void	medium	disasters.md §9
+cISC4DisasterManager(Toxic)	cSC4DisasterManagerToxic	00a9e89c	11	+0x2C	00577450	cSC4DisasterManagerToxic::GetInstances	0	0	eax-or-void	medium	disasters.md §9
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	22	+0x58	00525dc0	cSC4CitySituationManager::InitiateSituationForOccupant	8	2	eax-or-void	medium	re-answers11 CS2: (cISC4Occupant*, cISC4CitySituationAdvice*); AL; city-situation.md 8
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	23	+0x5C	0052ab00	cSC4CitySituationManager::InitiateSituationByAutomataGroup	12	3	eax-or-void	medium	re-answers11 CS2: (uint32, bool, bool); AL; city-situation.md 8
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	24	+0x60	00524e20	cSC4CitySituationManager::StartJoyride	12	3	eax-or-void	medium	re-answers11 CS2: (cISC4Automaton*, bool, cIGZMessageTarget2*); city-situation.md 8
+cISC4CitySituationManager	cSC4CitySituationManager	00a97e58	25	+0x64	0052a7a0	cSC4CitySituationManager::TreatAutomatonAsGroup	8	2	eax-or-void	medium	re-answers11 CS2: (cISC4Automaton*, uint32); city-situation.md 8
+cSTETerrainView3D::vftable_2	cSTETerrainView3D	00ab4410	4	+0x10	007526e0	cSTETerrainView3D::MarkSelected	28	7	eax-or-void	medium	re-answers11 ZQ15(a): (SC4Point<int> const&, cGZPersistResourceKey const&, uint8 rotation, bool flip, uint32 colour, cGDCombiner::tOp, bool clearFirst); tail->00751a70; zones.md 7.1.1

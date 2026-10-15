@@ -40,7 +40,7 @@
 //!
 //! # Choices made where the spec is open (`[choice]`)
 //!
-//! - `RecordHistoryData` returns true (§4.1) and is an associated function:
+//! - `RecordHistoryData` returns false (§4.1, HW12) and is an associated function:
 //!   it only sends the record message through the host, which delivers it
 //!   to every subscriber (the warehouse's own `DoMessage` stores it). It
 //!   never touches the warehouse itself, so the host may re-enter the
@@ -49,12 +49,12 @@
 //!   series has no point yet (the original writes into its list header, §7).
 //!   It stops at the first failed read and returns false; the series read
 //!   completely before the failure stay inserted, the one being read is
-//!   dropped.
-//! - `r` of §4.7 is the product of the standardised values,
-//!   `((x − meanX)/sx) · ((y − meanY)/sy)` (the spec's spacing groups it so).
-//! - Ranges are walked like a list (see `stats::plain_range`); a widened
-//!   range with `from > to` and no point in it takes the point before the
-//!   first one at or after `from`, and that one.
+//!   dropped (§7, HW7: the original keeps the partial series' points).
+//! - `r` of §4.7 multiplies each centred value by the rounded reciprocal of
+//!   its standard deviation (HW5, not a choice any more).
+//! - Ranges are walked like a list (`stats::walk_range`, HW6); a widened
+//!   range with `from > to` and neither pre-check true is the first point
+//!   after `to` and its predecessor.
 //! - The pass cursor is held as the key of its series (`None` = the end); a
 //!   series inserted during a pass is visited if its key comes after the
 //!   cursor, as with a map iterator.
@@ -67,7 +67,7 @@ mod warehouse;
 #[cfg(test)]
 mod tests;
 
-pub use stats::{add_r24, fit_line, plain_range, statistics, widened_range, Precision, Stats};
+pub use stats::{add_r24, fit_line, plain_range, statistics, walk_range, widened_range, Precision, Stats};
 pub use warehouse::HistoryWarehouse;
 
 /// Class and interface IDs (§1).

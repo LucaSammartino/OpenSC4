@@ -73,6 +73,29 @@ primitive blocks with 138,735 primitives (all triangle lists), 155,827 materials
 dropped, every draw inside its buffers; all 155,822 non-zero texture IDs resolve at step 1 of §4.1 (2 IDs are 0).
 The shipped records of §8.1 tests 19 (unpadded mips) and 20 (the fallback texture) match.
 
+`tests/save_records.rs` is the save sweep's record mode (dev-dependency `fc4-core`). For every distinct `.sc4` below
+`FC4_SAVES_DIR` (else the game directory, as above) it finds the history warehouse record (class `0x89EFA536`) and
+the 24-hour clock record (class `0xA7E7F929`) of the class-object store (foundations §3.3), checks each entry's size
+and CRC (§3.4), reads the payload with the `fc4_core` history and clock cores (to the last byte), writes it back
+and compares: a version-2 history payload must be byte-identical; an older one is converted to version 2 (history
+§7) and the conversion must be stable (read and written again, unchanged); the clock's 26-byte version-2 output
+must equal the saved bytes with the version set to 2 and, below version 2, the 10-byte timer record left out
+(clock24 §7). Failures name the save, the object and the first differing byte. `FC4_SAVE_RECORDS_VERBOSE=1` prints
+every record. Synthetic records (both versions of each, a wrong CRC, trailing bytes, a cut record) are unit tests in
+the same file.
+
+```sh
+cargo test -p fc4-formats --release --test save_records -- --nocapture
+```
+
+Result on the GOG install, 2026-10-15: 417 saves (417 distinct), each with one history and one clock entry, all
+CRCs correct. History: 14 version 2, byte-identical; 403 version 1, converted, stable; 26,552 series, 127,182
+points. Clock: 407 version 1 and 10 version 2, all 417 identical after the version normalisation. No failures.
+
+The commercial, industrial, civic and park records have the same mode in `fc4-capi`
+(`capi/src/save_sweep_tests.rs`, through the C ABI and its test hosts; same `FC4_SAVES_DIR`):
+`cargo test -p fc4-capi --release save_sweep -- --nocapture` (see `engine/README.md`, "Save sweep").
+
 ## Sources
 
 Written from public format documentation, checked against the shipped data:

@@ -20,9 +20,10 @@
     {"op": "ldev_set_normal_texture", "lot": 1, "cfg": 9, "note": "no variant resource present -> the base pick 0x2A000000"},
     {"op": "ldev_expect_draws", "draws": [["R4", 3, 0]], "note": "Uniform(3) = 0 -> base 0x2A000000"},
     {"op": "ldev_expect_events", "filter": {"event": "set_texture"},
-      "note": "the orientation byte comes from GetPositionForLotConfigurationObject (slot 39), scripted as 0 here; byte3 is the object's byte 3; texture 0x2A000000 is the base pick",
+      "note": "the orientation comes from GetPositionForLotConfigurationObject (slot 39, §17.6): (object orientation 2 + facing 0) mod 4 = 2; byte3 is the object's byte 3; the five bytes after it and the frame stay 0xFF for a normal texture; texture 0x2A000000 is the base pick",
       "events": [
-      {"event": "set_texture", "texture": "0x2A000000", "x": 0, "z": 0, "orientation": 0, "byte3": 1}]},
+      {"event": "set_texture", "texture": "0x2A000000", "x": 0, "z": 0, "orientation": 2, "byte3": 1,
+        "extra": [255, 255, 255, 255, 255], "frame": 255}]},
 
     {"op": "ldev_resource", "instances": ["0x2A002000"], "replace": true,
       "note": "wealth 2 decay 0: ((2<<4)|0)<<8 = 0x2000 and (2<<12) = 0x2000 both give 0x2A002000"},
@@ -53,9 +54,19 @@
     {"op": "ldev_set", "force_empty": true},
     {"op": "ldev_clear_events"},
     {"op": "ldev_set_normal_texture", "lot": 2, "cfg": 9},
-    {"op": "ldev_expect_events", "filter": {"event": "set_empty_texture"}, "events": [
-      {"event": "set_empty_texture", "lot": 2}]},
+    {"op": "ldev_expect_events", "filter": {"event": "set_textures"},
+      "note": "SetEmptyLotBaseTexture (§17.7). This instance never ran Init, so its stored cell counts (+0x4C / +0x50, §1.3 step 4) are 0 and every cell is skipped: one SetTextureSpecification with no record",
+      "events": [{"event": "set_textures", "occ": "0xB0", "n": 0}]},
     {"op": "ldev_expect_draws", "draws": [], "note": "the empty route draws nothing"},
+    {"op": "ldev_init", "expect": true, "note": "Init stores the cell counts (its forced refresh draws for lot 1)"},
+    {"op": "ldev_set", "force_empty": true},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_set_normal_texture", "lot": 2, "cfg": 9},
+    {"op": "ldev_expect_events", "filter": {"event": "set_texture"},
+      "note": "after Init: the 1 x 1 zone-1 lot facing 0 at (0, 0); (0, -1) is outside the city, (0, 1) and (1, 0) hold no lot, (-1, 0) is outside; GetLot(0, 0) finds lot 1 first, but the cell's own lot is never looked up. s0 = 2 (facing side), s1 = s2 = s3 = 1 -> 0x2111 -> 0x2300 rotation 0, with the zone colour 0xFFB23300, alpha 0xAA and 3",
+      "events": [
+      {"event": "set_texture", "texture": "0x2300", "x": 0, "z": 0, "orientation": 0, "byte3": 0,
+        "extra": [255, 178, 51, 170, 3], "frame": 255}]},
 
     {"op": "ldev_lot", "id": 3, "x": 5, "z": 0, "state": 3, "cfg": 9, "note": "the condition-changed message looks the lot up by location, so lot 3 gets its own cell (5,0); it re-picks the texture for a lot in state 3"},
     {"op": "ldev_set", "force_empty": false},

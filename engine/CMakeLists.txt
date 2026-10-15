@@ -254,6 +254,18 @@ if(FC4_IS_WIN32_X86)
         # The traffic simulator, its network model and its pathfinders (M5 glue).
         plugin/cFC4TrafficSimulator.cpp
         plugin/cFC4TrafficSimulator.h
+        # The history warehouse and the 24-hour clock, their shared lock and
+        # test hooks, and their shadows (docs/specs/history.md, clock24.md).
+        plugin/FC4Clock24Shadow.cpp
+        plugin/FC4Clock24Shadow.h
+        plugin/FC4HistClock.cpp
+        plugin/FC4HistClock.h
+        plugin/FC4HistoryShadow.cpp
+        plugin/FC4HistoryShadow.h
+        plugin/cFC4Clock24.cpp
+        plugin/cFC4Clock24.h
+        plugin/cFC4History.cpp
+        plugin/cFC4History.h
         # The tract developer (tract-developer.md): `enable = tract`, tract_shadow.
         plugin/cFC4TractDeveloper.cpp
         plugin/cFC4TractDeveloper.h
@@ -261,6 +273,27 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4TractInterfaces.h
         plugin/FC4TractShadow.cpp
         plugin/FC4TractShadow.h
+        # The lot developer (lot-developer.md): `enable = lotdev`, lotdev_shadow.
+        plugin/cFC4LotDeveloper.cpp
+        plugin/cFC4LotDeveloper.h
+        plugin/FC4LotDevHost.cpp
+        plugin/FC4LotDevInterfaces.h
+        plugin/FC4LotDevShadow.cpp
+        plugin/FC4LotDevShadow.h
+        # The commercial / industrial simulators, the civic building simulator and the
+        # park manager (cmglue): `enable = commercial, industrial, civic, parks`, their shadows.
+        plugin/cFC4Commercial.cpp
+        plugin/cFC4Commercial.h
+        plugin/FC4CommercialShadow.cpp
+        plugin/FC4CommercialShadow.h
+        plugin/cFC4Civic.cpp
+        plugin/cFC4Civic.h
+        plugin/FC4CivicShadow.cpp
+        plugin/FC4CivicShadow.h
+        plugin/cFC4Parks.cpp
+        plugin/cFC4Parks.h
+        plugin/FC4ParksShadow.cpp
+        plugin/FC4ParksShadow.h
         # The zone developer / lot manager (zones.md §1.2, §7-§11.3): enable = zonedev,
         # zonedev_shadow.
         plugin/cFC4ZoneDeveloper.cpp
@@ -506,6 +539,29 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_tract_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-tract)
     set_tests_properties(plugin_ini_enable_tract_test PROPERTIES RUN_SERIAL TRUE)
+    # The lot developer (lot-developer.md): `enable = lotdev` (no city: the QI
+    # table, Release's 0, the record round trip, lifecycle without services)
+    # and, through seam op 52 with stub hosts, Init's registrations and the
+    # lot developer shadow (lotdev_shadow = 1: INACTIVE with `enable = lotdev`).
+    add_test(NAME plugin_ini_enable_lotdev_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-lotdev)
+    set_tests_properties(plugin_ini_enable_lotdev_test PROPERTIES RUN_SERIAL TRUE)
+    # The cmglue lane (tests/plugin_cmglue_test.inc): `enable = commercial,
+    # industrial` (no city: the QI tables, slot 5, the records' round trips,
+    # Init without services, DoMessage).
+    add_test(NAME plugin_ini_enable_commercial_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-commercial)
+    set_tests_properties(plugin_ini_enable_commercial_test PROPERTIES RUN_SERIAL TRUE)
+    # `enable = civic` (no city: the QI table, slots 5-8, the record with the
+    # mod-193 order, DoMessage).
+    add_test(NAME plugin_ini_enable_civic_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-civic)
+    set_tests_properties(plugin_ini_enable_civic_test PROPERTIES RUN_SERIAL TRUE)
+    # `enable = parks`: the park manager (parks.md): QI table, record, Init
+    # without a city, a fake zoo's escape (the ZooEscape message, §4.5).
+    add_test(NAME plugin_ini_enable_parks_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-parks)
+    set_tests_properties(plugin_ini_enable_parks_test PROPERTIES RUN_SERIAL TRUE)
     # `enable = neighbors`: the neighbours simulator, its connections (an
     # original's accepted on load) and deals, through a fake city and region.
     add_test(NAME plugin_ini_enable_neighbors_test
@@ -518,6 +574,33 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_traffic_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-traffic)
     set_tests_properties(plugin_ini_enable_traffic_test PROPERTIES RUN_SERIAL TRUE)
+    # The history warehouse (docs/specs/history.md): off by default; `enable =
+    # history` registers it (QueryInterface quirk, slots, record, the record
+    # message reaching the core through the test hooks of op 54).
+    add_test(NAME plugin_ini_enable_history_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-history)
+    set_tests_properties(plugin_ini_enable_history_test PROPERTIES RUN_SERIAL TRUE)
+    # The history shadow (FC4HistoryShadow.h): inactive with ours; through
+    # seam op 54 op 1, on FreeCity4's warehouse as the "original": the load
+    # round trip, messages, the pass steps, the month comparison exact, then a
+    # record the shadow did not see found.
+    add_test(NAME plugin_ini_history_shadow_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-history-shadow)
+    set_tests_properties(plugin_ini_history_shadow_test PROPERTIES RUN_SERIAL TRUE)
+    # The 24-hour clock (docs/specs/clock24.md): off by default; `enable =
+    # clock24` registers it (the QI table with the +0xC system service, the
+    # game-form slots, the framework and cheat registration in order, the
+    # step, the cheats, the 26-byte record and versions 1 / 3, threads).
+    add_test(NAME plugin_ini_enable_clock24_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-clock24)
+    set_tests_properties(plugin_ini_enable_clock24_test PROPERTIES RUN_SERIAL TRUE)
+    # The 24-hour clock shadow (FC4Clock24Shadow.h): inactive with ours;
+    # through seam op 54 op 2, on FreeCity4's clock as the "original": the
+    # load, mirrored steps and messages exact, then a magnification and a
+    # missing message found.
+    add_test(NAME plugin_ini_clock24_shadow_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-clock24-shadow)
+    set_tests_properties(plugin_ini_clock24_shadow_test PROPERTIES RUN_SERIAL TRUE)
     # References read from a save (in-game run 88): land value grids and a
     # foreign ordinance, with and without a save before Shutdown, and land value
     # grids created through GZCOM; no reference warning, each released once.

@@ -42,6 +42,7 @@
 #include "FC4DevelopmentInterfaces.h"
 #include "FC4Interfaces.h"
 #include "FC4TractInterfaces.h"
+#include "FC4LotDevInterfaces.h"
 #include "FC4WinInterfaces.h"
 
 #include "SC4Vector.h"
@@ -61,6 +62,9 @@
 #include "cISC4NetworkManager.h"
 #include "cISC4NeighborDeal.h"
 #include "cISC4BuildingOccupant.h"
+#include "cISC4IndustrialSimulator.h"  // the cmglue lane
+#include "cISC4CivicBuildingSimulator.h"
+#include "cISC4ParkManager.h"
 #include "cISC4City.h"
 #include "cISC4ResidentialSimulator.h"
 #include "cISC4BuildingDevelopmentSimulator.h"
@@ -93,6 +97,7 @@
 #include "cISCResExemplarCohort.h"
 #include "cIGZMessageTarget2.h"
 #include "cIGZSerializable.h"
+#include "cIGZSystemService.h"
 #include "cISC4GrowthDeveloper.h"
 #include "cISC4LandValueSimulator.h"
 #include "cISC4LotDeveloper.h"
