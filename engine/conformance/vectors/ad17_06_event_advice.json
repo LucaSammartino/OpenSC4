@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "advisor_event_advice",
+  "spec": ["advisors 6.3", "advisors 17.6"],
+  "description": "An event advice (event 0xAA31A210) is not batch-evaluated; PushEvent with subject s makes it take the subject and activate on the next day pass; after its deactivation a second push re-activates it the next day regardless of nextDay.",
+  "steps": [
+    {"op": "adv_advisor", "class": "Advisor", "id": 23},
+    {"op": "adv_advice", "guid": "0x10", "event": "0xAA31A210", "frequency": 1000, "timeout": 1},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_expect", "object": {"advice": "0x10"}, "state": {"event": "0xAA31A210"}},
+    {"op": "adv_expect", "object": {"advisor": 23}, "state": {"events": {"0xAA31A210": [0]}}},
+    {"op": "adv_set", "object": {"advisor": 23}, "month_counter": 3},
+    {"op": "adv_day", "day": 1000, "advisor": {"advisor": 23}},
+    {"op": "adv_expect", "object": {"advice": "0x10"}, "state": {"active": false}, "note": "event advices are not batch-evaluated"},
+    {"op": "adv_subject", "name": "s", "data1": 7},
+    {"op": "adv_push_event", "event": "0xAA31A210", "subject": "s", "expect": true},
+    {"op": "adv_day", "day": 1001, "advisor": {"advisor": 23}},
+    {"op": "adv_expect", "object": {"advice": "0x10"}, "state": {"active": true, "subject": {"location": null, "object": null, "data1": 7, "data2": 0}}},
+    {"op": "adv_day", "day": 1002, "advisor": {"advisor": 23}},
+    {"op": "adv_expect", "object": {"advice": "0x10"}, "state": {"active": false, "next_day": 2002}},
+    {"op": "adv_push_event", "event": "0xAA31A210", "expect": true},
+    {"op": "adv_day", "day": 1003, "advisor": {"advisor": 23}},
+    {"op": "adv_expect", "object": {"advice": "0x10"}, "state": {"active": true}, "note": "re-activated regardless of nextDay"}
+  ]
+}

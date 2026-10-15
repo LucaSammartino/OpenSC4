@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "advisor_utility_counts",
+  "spec": ["advisors 7.7", "advisors 17.19"],
+  "description": "Incinerator capacity 1000 -> g_incinerator_capacity_daily 30000; the region's exported garbage (3) = 5 -> g_garbage_imported 5 (and imported 2 -> g_garbage_exported 2); landfill usage 30 of 100; a negative air pollution reads 0.",
+  "steps": [
+    {"op": "adv_advisor", "class": "Utility", "id": 23},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_value", "src": "IncineratorCapacity", "value": {"i": 1000}},
+    {"op": "adv_value", "src": "RegionExported", "a": 3, "value": {"f": 5.0}},
+    {"op": "adv_value", "src": "RegionImported", "a": 3, "value": {"f": 2.0}},
+    {"op": "adv_value", "src": "LandfillUsage", "value": {"i": 30, "n": 100}},
+    {"op": "adv_value", "src": "AirPollution", "value": {"i": -4}},
+    {"op": "adv_update_variables", "advisor": {"advisor": 23}},
+    {"op": "adv_expect_globals", "values": {"g_incinerator_capacity_daily": 30000, "g_garbage_imported": 5, "g_garbage_exported": 2, "g_landfill_capacity": 100, "g_available_landfill_capacity": 70, "ga_air_pollution": 0}}
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "advisor_subject_record",
+  "spec": ["advisors 11.4", "advisors 17.15"],
+  "description": "A subject without a location writes u16 4, the byte 0, data1, data2 and a null reference; with a location: the byte 1, x, z, then data1, data2 and the object reference. Read back it has the location and the object; a version-3 record fails.",
+  "steps": [
+    {"op": "adv_advisor", "class": "Advisor", "id": 23},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_subject", "name": "s", "data1": 5, "data2": 6},
+    {"op": "adv_write", "object": "s", "name": "r1", "expect": true},
+    {"op": "adv_expect_record", "name": "r1", "hex": "040000050000000600000000000000"},
+    {"op": "adv_subject", "name": "s", "location": [1.5, 2.5], "object": "0x42"},
+    {"op": "adv_write", "object": "s", "name": "r2", "expect": true},
+    {"op": "adv_expect_record", "name": "r2", "hex": "0400010000C03F0000204005000000060000000100000078563412"},
+    {"op": "adv_subject", "name": "t"},
+    {"op": "adv_read", "object": "t", "record": "r2", "expect": true},
+    {"op": "adv_expect", "object": "t", "state": {"location": [1.5, 2.5], "object": 1, "data1": 5, "data2": 6}},
+    {"op": "adv_read", "object": "t", "hex": "0300010000C03F0000204005000000060000000100000078563412", "expect": false, "note": "version 3"}
+  ]
+}

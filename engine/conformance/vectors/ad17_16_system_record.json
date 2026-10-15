@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "advisor_system_record",
+  "spec": ["advisors 11.1", "advisors 17.16"],
+  "description": "Two advisors with IDs 23 and 26 (table order 26, 23): u16 1, u32 2, then each advisor reference and ID in ascending ID order. Loaded, the system is marked loaded-from-save and Init keeps the loaded advisors; version 2 fails, version 1 with no advisors reads.",
+  "steps": [
+    {"op": "adv_advisor", "class": "Advisor", "id": 26},
+    {"op": "adv_advisor", "class": "Advisor", "id": 23},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_write", "object": "system", "name": "sys", "expect": true},
+    {"op": "adv_expect_record", "name": "sys", "hex": "01000200000001000000B437C9EA1700000002000000B437C9EA1A000000"},
+    {"op": "adv_save", "name": "city"},
+    {"op": "adv_create"},
+    {"op": "adv_load", "name": "city", "expect": true},
+    {"op": "adv_expect", "object": "system", "state": {"loaded_from_save": true, "advisors": [23, 26]}},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_expect", "object": "system", "state": {"advisors": [23, 26], "initialized": true}},
+    {"op": "adv_read", "object": "system", "hex": "020000000000", "expect": false},
+    {"op": "adv_read", "object": "system", "hex": "010000000000", "expect": true}
+  ]
+}

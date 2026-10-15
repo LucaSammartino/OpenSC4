@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "advisor_city_planning_record",
+  "spec": ["advisors 11.5", "advisors 17.17"],
+  "description": "CityPlanning with counters 10, 2, 2 and landmarks {0x1234: 1} writes the version-3 record of section 11.5 (u16 3, the advisor record, the counters, the landmark map); a version-2 record reads the counters and keeps the current landmark map.",
+  "steps": [
+    {"op": "adv_advisor", "class": "CityPlanning", "id": 23},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_set", "object": {"advisor": 23}, "building_count": 10, "park_count": 2, "recreation_count": 2, "landmarks": {"0x1234": 1}},
+    {"op": "adv_write", "object": {"advisor": 23}, "name": "cp", "expect": true},
+    {"op": "adv_expect_record", "name": "cp", "hex": "030003000100000008000000506C616E6E696E6703000000426F620000000000000000170000000000000000000000000000000A0000000200000002000000010000003412000001000000"},
+    {"op": "adv_create_object", "class": "CityPlanning", "as": "other", "expect": true},
+    {"op": "adv_set", "object": "other", "landmarks": {"0x99": 4}},
+    {"op": "adv_read", "object": "other", "hex": "020003000100000008000000506C616E6E696E6703000000426F62000000000000000017000000000000000000000000000000070000000100000001000000", "expect": true},
+    {"op": "adv_expect", "object": "other", "state": {"building_count": 7, "park_count": 1, "recreation_count": 1, "landmarks": {"0x99": 4}}, "note": "version 2 keeps the landmark map"},
+    {"op": "adv_read", "object": "other", "record": "cp", "expect": true},
+    {"op": "adv_expect", "object": "other", "state": {"building_count": 10, "landmarks": {"0x1234": 1}}}
+  ]
+}

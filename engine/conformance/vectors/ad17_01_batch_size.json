@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "name": "advisor_batch_size",
+  "spec": ["advisors 6.2", "advisors 17.1"],
+  "description": "The daily evaluation batch: max(1, int(float32(n) / 30 + 1)) truncated, so n = 0, 1 and 29 give 1, 30 gives 2, 59 gives 2, 60 gives 3, 100 gives 4 and 250 gives 9.",
+  "steps": [
+    {"op": "adv_batch_size", "n": 0, "expect": 1},
+    {"op": "adv_batch_size", "n": 1, "expect": 1},
+    {"op": "adv_batch_size", "n": 29, "expect": 1},
+    {"op": "adv_batch_size", "n": 30, "expect": 2},
+    {"op": "adv_batch_size", "n": 59, "expect": 2},
+    {"op": "adv_batch_size", "n": 60, "expect": 3},
+    {"op": "adv_batch_size", "n": 100, "expect": 4},
+    {"op": "adv_batch_size", "n": 250, "expect": 9}
+  ]
+}

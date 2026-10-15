@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "advisor_lua_functions",
+  "spec": ["advisors 8.3", "advisors 17.22"],
+  "description": "_combine_guids(0x0F0F0000, 0x00F0F0F0) = 268431600; _combine_guids(0x80000000, 0) = -2147483648 (signed); one argument missing -> -1. trend_slope with slope 1.0 = f32(atan(1) x 63.6618f) = 49.999863 over the last 60 days; trend_count over the last 30 days.",
+  "steps": [
+    {"op": "adv_advisor", "class": "Advisor", "id": 23},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_lua", "fn": "_combine_guids", "args": ["0x0F0F0000", "0x00F0F0F0"], "expect": [268431600]},
+    {"op": "adv_lua", "fn": "_combine_guids", "args": ["0x80000000", 0], "expect": [-2147483648]},
+    {"op": "adv_lua", "fn": "_combine_guids", "args": [1], "expect": [-1]},
+    {"op": "adv_env", "day": 10000},
+    {"op": "adv_history", "type": 5, "value": 12, "slope": 1.0, "count": 3},
+    {"op": "adv_lua", "fn": "trend_slope", "args": [5, 2], "expect_bits": "0x4048FFFB80000000"},
+    {"op": "adv_expect_history_days", "days": [[5, 9940, 10000]]},
+    {"op": "adv_lua", "fn": "trend_count", "args": [5, 1], "expect": [3]},
+    {"op": "adv_expect_history_days", "days": [[5, 9971, 10000]]},
+    {"op": "adv_lua", "fn": "trend_value", "args": [5, 1], "expect": [12]},
+    {"op": "adv_lua", "fn": "trend_value", "args": [6, 1], "expect": [0]},
+    {"op": "adv_lua", "fn": "no_such_function", "expect": null}
+  ]
+}

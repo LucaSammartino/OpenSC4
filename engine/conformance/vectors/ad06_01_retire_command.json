@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "advisor_retire_and_command",
+  "spec": ["advisors 6.4", "advisors 12.2"],
+  "description": "CommandWouldTrigger(c) is true when a non-event advice with that command has a true trigger; RetireAdvice of a null or inactive advice is false; retiring an active advice deactivates it (nextDay = day + frequency).",
+  "steps": [
+    {"op": "adv_advisor", "class": "Advisor", "id": 23},
+    {"op": "adv_advice", "guid": 1, "trigger": "false", "command": "0x77"},
+    {"op": "adv_advice", "guid": 2, "trigger": "true", "command": "0x77"},
+    {"op": "adv_advice", "guid": 3, "trigger": "true", "command": "0x78", "event": 5},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_command_would_trigger", "advisor": {"advisor": 23}, "command": "0x77", "expect": true},
+    {"op": "adv_command_would_trigger", "advisor": {"advisor": 23}, "command": "0x78", "expect": false, "note": "event advices are skipped"},
+    {"op": "adv_command_would_trigger", "advisor": {"advisor": 23}, "command": "0x79", "expect": false},
+    {"op": "adv_retire", "advisor": {"advisor": 23}, "expect": false, "note": "null advice"},
+    {"op": "adv_retire", "advisor": {"advisor": 23}, "advice": {"advice": 1}, "expect": false, "note": "inactive"},
+    {"op": "adv_set", "object": {"advisor": 23}, "month_counter": 1},
+    {"op": "adv_day", "day": 0, "advisor": {"advisor": 23}},
+    {"op": "adv_day", "day": 0, "advisor": {"advisor": 23}},
+    {"op": "adv_expect", "object": {"advisor": 23}, "state": {"active": [2]}},
+    {"op": "adv_retire", "advisor": {"advisor": 23}, "advice": {"advice": 2}, "expect": true},
+    {"op": "adv_expect", "object": {"advisor": 23}, "state": {"active": []}},
+    {"op": "adv_expect", "object": {"advice": 2}, "state": {"active": false, "next_day": 35}}
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "advisor_paused",
+  "spec": ["advisors 5.1", "advisors 17.9"],
+  "description": "Paused on the same day: 600 ms after the last update one daily step runs (the idle timer restarts); 300 ms and exactly 500 ms do nothing; unpaused nothing either.",
+  "steps": [
+    {"op": "adv_advisor", "class": "Advisor", "id": 23},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_env", "now_ms": 1000, "date": [2001, 3, 10]},
+    {"op": "adv_ticker"},
+    {"op": "adv_expect", "object": "system", "state": {"idle_start": 1000}},
+    {"op": "adv_env", "paused": true, "now_ms": 1300},
+    {"op": "adv_ticker"},
+    {"op": "adv_expect", "object": "system", "state": {"idle_start": 1000}, "note": "300 ms: none"},
+    {"op": "adv_env", "now_ms": 1600},
+    {"op": "adv_ticker"},
+    {"op": "adv_expect", "object": "system", "state": {"idle_start": 1600}, "note": "600 ms: one daily step"},
+    {"op": "adv_env", "now_ms": 2100},
+    {"op": "adv_ticker"},
+    {"op": "adv_expect", "object": "system", "state": {"idle_start": 1600}, "note": "exactly 500 ms: none"},
+    {"op": "adv_env", "paused": false, "now_ms": 9000},
+    {"op": "adv_ticker"},
+    {"op": "adv_expect", "object": "system", "state": {"idle_start": 1600}}
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "advisor_advice_record",
+  "spec": ["advisors 11.3", "advisors 17.14"],
+  "description": "A version-3 advice record (no effect list) reads the subject right after mood; the read advice is marked loaded and text-dirty. Version 4 appends its effect list to the current one [quirk]. A cut record fails.",
+  "steps": [
+    {"op": "adv_advisor", "class": "Advisor", "id": 23},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_create_object", "class": "Advice", "as": "a", "expect": true},
+    {"op": "adv_read", "object": "a", "hex": "030003000000BC0A000002000000170000000A000000140000001E000000FFFFFFFF00000000", "expect": true},
+    {"op": "adv_expect", "object": "a", "state": {"guid": "0xABC", "mood": -1, "priority": 10, "frequency": 20, "timeout": 30, "advisor": 23, "table_index": 3, "effects": [], "subject": null, "loaded": true, "flags": "0x12"}},
+    {"op": "adv_read", "object": "a", "hex": "040003000000BC0A000002000000170000000A000000140000001E000000FFFFFFFF02000000070000000800000000000000", "expect": true},
+    {"op": "adv_read", "object": "a", "hex": "040003000000BC0A000002000000170000000A000000140000001E000000FFFFFFFF010000000900000000000000", "expect": true},
+    {"op": "adv_expect", "object": "a", "state": {"effects": [7, 8, 9]}, "note": "version 4 appends the effects [quirk]"},
+    {"op": "adv_read", "object": "a", "hex": "040003000000BC0A000002000000170000000A000000140000001E000000FFFFFFFF01000000090000000000", "expect": false, "note": "a cut record"}
+  ]
+}
