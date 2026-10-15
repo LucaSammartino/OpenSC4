@@ -1,0 +1,65 @@
+{
+  "format": 1,
+  "name": "disaster_riot_lock",
+  "spec": ["disasters 6.3", "disasters 6.4", "network-manager 10"],
+  "description": "MarkRiotNetworkOccupants(x, z) locks the network occupants of the cells within 3 of the riot's start and of each leader's cell (x outer, then z) against the player's bulldozer: once per occupant, a reference held and UnsetRemovalFlags(2). The bounds compare unsigned, so a riot within 3 cells of the west or north edge locks nothing. Nothing unlocks while a riot instance remains; when the last one leaves the manager, and at the manager's Shutdown, every locked occupant gets SetRemovalFlags(2) and its reference back.",
+  "steps": [
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_cell", "rect": [0, 20, 63, 20], "road": true, "network_base": "0x7000",
+      "note": "piece 0x7000 + x on row 20"},
+    {"op": "dis_cell", "cell": [11, 21], "network": "0x7100"},
+    {"op": "dis_clear_events"},
+    {"op": "dis_call", "method": "attempt_start", "args": ["riot", 10, 20], "expect": 1},
+    {"op": "dis_expect", "state": {"riot_locked": ["0x7007", "0x7008", "0x7009", "0x700A", "0x700B", "0x7100", "0x700C", "0x700D"]}},
+    {"op": "dis_expect_events", "filter": {"event": "unset_removal"}, "events": [
+      {"event": "unset_removal", "occupant": "0x7007", "flags": 2},
+      {"event": "unset_removal", "occupant": "0x7008", "flags": 2},
+      {"event": "unset_removal", "occupant": "0x7009", "flags": 2},
+      {"event": "unset_removal", "occupant": "0x700A", "flags": 2},
+      {"event": "unset_removal", "occupant": "0x700B", "flags": 2},
+      {"event": "unset_removal", "occupant": "0x7100", "flags": 2},
+      {"event": "unset_removal", "occupant": "0x700C", "flags": 2},
+      {"event": "unset_removal", "occupant": "0x700D", "flags": 2}
+    ]},
+    {"op": "dis_expect_refs", "refs": {"0x7007": 1, "0x700A": 1, "0x7100": 1}},
+
+    {"op": "dis_call", "method": "attempt_start", "args": ["riot", 2, 20], "expect": 2, "note": "x < 3: nothing locked"},
+    {"op": "dis_expect_event_count", "filter": {"event": "unset_removal"}, "count": 0},
+    {"op": "dis_call", "method": "attempt_start", "args": ["riot", 20, 2], "expect": 3, "note": "z < 3: no road near, no leader, nothing locked"},
+    {"op": "dis_expect_event_count", "filter": {"event": "unset_removal"}, "count": 0},
+
+    {"op": "dis_cell", "cell": [10, 20], "police": 255},
+    {"op": "dis_tick", "instance": 1, "advance_ms": 1000, "note": "the leader ends, so does the riot"},
+    {"op": "dis_expect_riot", "instance": 1, "absent": true},
+    {"op": "dis_expect_event_count", "filter": {"event": "set_removal"}, "count": 0},
+    {"op": "dis_expect", "state": {"riot_locked": ["0x7007", "0x7008", "0x7009", "0x700A", "0x700B", "0x7100", "0x700C", "0x700D"]}},
+    {"op": "dis_cell", "cell": [2, 20], "police": 255},
+    {"op": "dis_tick", "instance": 2, "advance_ms": 1000},
+    {"op": "dis_expect_riot", "instance": 2, "absent": true},
+    {"op": "dis_expect_event_count", "filter": {"event": "set_removal"}, "count": 0},
+    {"op": "dis_shutdown", "expect": true, "note": "riot 3 remains: the manager's Shutdown unlocks"},
+    {"op": "dis_expect_events", "filter": {"event": "set_removal"}, "events": [
+      {"event": "set_removal", "occupant": "0x7007", "flags": 2},
+      {"event": "set_removal", "occupant": "0x7008", "flags": 2},
+      {"event": "set_removal", "occupant": "0x7009", "flags": 2},
+      {"event": "set_removal", "occupant": "0x700A", "flags": 2},
+      {"event": "set_removal", "occupant": "0x700B", "flags": 2},
+      {"event": "set_removal", "occupant": "0x7100", "flags": 2},
+      {"event": "set_removal", "occupant": "0x700C", "flags": 2},
+      {"event": "set_removal", "occupant": "0x700D", "flags": 2}
+    ]},
+    {"op": "dis_expect_refs", "refs": {"0x7007": 0, "0x700A": 0, "0x7100": 0}},
+
+    {"op": "dis_create"},
+    {"op": "dis_init", "expect": true},
+    {"op": "dis_cell", "rect": [10, 20, 10, 20], "police": 0},
+    {"op": "dis_call", "method": "attempt_start", "args": ["riot", 10, 20], "expect": 1},
+    {"op": "dis_expect", "state": {"riot_locked": ["0x7007", "0x7008", "0x7009", "0x700A", "0x700B", "0x7100", "0x700C", "0x700D"]}},
+    {"op": "dis_clear_events"},
+    {"op": "dis_cell", "cell": [10, 20], "police": 255},
+    {"op": "dis_tick", "instance": 1, "advance_ms": 1000, "note": "the last riot leaves the manager"},
+    {"op": "dis_expect_event_count", "filter": {"event": "set_removal"}, "count": 8},
+    {"op": "dis_expect", "state": {"riot_locked": []}}
+  ]
+}
