@@ -259,7 +259,7 @@ pub struct fc4_lotdev_host {
     /// `CellWidthX`, `CellWidthZ` into `out[2]`.
     pub city_cell_widths: Option<unsafe extern "C" fn(U, *mut f32)>,
     /// `PositionToCell(x, z)` into `out[2]`; returns its AL.
-    pub position_to_cell: Option<unsafe extern "C" fn(U, f32, f32, *mut i32) -> bool>,
+    pub position_to_cell: Option<unsafe extern "C" fn(U, f32, f32, *mut i32)>,
     /// City slot 96 `CellCornerToPosition(x, z)`: position into `out[2]`.
     pub cell_corner_to_position: Option<unsafe extern "C" fn(U, i32, i32, *mut f32)>,
     /// City slot 97 `CellCenterToPosition(x, z)`: position into `out[2]`.
@@ -637,10 +637,10 @@ impl LotDeveloperHost for CHost {
         cb!(self, city_cell_widths, (), v.as_mut_ptr());
         (v[0], v[1])
     }
-    fn position_to_cell(&self, x: f32, z: f32) -> (bool, i32, i32) {
+    fn position_to_cell(&self, x: f32, z: f32) -> (i32, i32) {
         let mut v = [0i32; 2];
-        let ok = cb!(self, position_to_cell, false, x, z, v.as_mut_ptr());
-        (ok, v[0], v[1])
+        cb!(self, position_to_cell, (), x, z, v.as_mut_ptr());
+        (v[0], v[1])
     }
     fn cell_corner_to_position(&self, x: i32, z: i32) -> (f32, f32) {
         let mut v = [0.0f32; 2];
@@ -1960,19 +1960,16 @@ pub unsafe extern "C" fn fc4_lotdev_attempt_area_levelling(
     })
 }
 
-/// Slot 22 `GetOccupantCellCoverage(occupant, rect&)`.
+/// Slot 22 `GetOccupantCellCoverage(occupant, rect&)`: writes the
+/// rectangle. The slot has no defined result (LD18, LD27), so none is
+/// returned.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_lotdev_occupant_cell_coverage(
-    p: *const fc4_lotdev,
-    occ: u64,
-    out: *mut fc4_cell_rect,
-) -> bool {
-    let Some(o) = out.as_mut() else { return false };
-    let (ok, r) = with_handle(p, (false, CellRect::new(0, 0, 0, 0)), |h| {
-        h.terrain(|t, host| t.occupant_cell_coverage_with_flag(host, occ))
+pub unsafe extern "C" fn fc4_lotdev_occupant_cell_coverage(p: *const fc4_lotdev, occ: u64, out: *mut fc4_cell_rect) {
+    let Some(o) = out.as_mut() else { return };
+    let r = with_handle(p, CellRect::new(0, 0, 0, 0), |h| {
+        h.terrain(|t, host| t.occupant_cell_coverage(host, occ))
     });
     *o = fc4_cell_rect::from(r);
-    ok
 }
 
 /// Slot 25 `IsAreaFlat(rect, withWater)`.

@@ -479,9 +479,9 @@ impl LotDeveloperHost for Script {
     fn city_cell_widths(&self) -> (f32, f32) {
         self.cell_widths.get()
     }
-    fn position_to_cell(&self, x: f32, z: f32) -> (bool, i32, i32) {
+    fn position_to_cell(&self, x: f32, z: f32) -> (i32, i32) {
         let (cx, _cz) = self.cell_widths.get();
-        (true, (x / cx).floor() as i32, (z / cx).floor() as i32)
+        ((x / cx).floor() as i32, (z / cx).floor() as i32)
     }
     fn cell_corner_to_position(&self, x: i32, z: i32) -> (f32, f32) {
         let (cx, cz) = self.cell_widths.get();

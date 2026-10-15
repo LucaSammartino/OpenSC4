@@ -438,8 +438,10 @@ pub trait LotDeveloperHost {
     fn city_cell_counts(&self) -> (i32, i32);
     /// City slots 91 / 92 (`CellWidthX`, `CellWidthZ`).
     fn city_cell_widths(&self) -> (f32, f32);
-    /// City slot 95 `PositionToCell(x, z)`.
-    fn position_to_cell(&self, x: f32, z: f32) -> (bool, i32, i32);
+    /// City slot 95 `PositionToCell(x, z)`: the cell `(cx, cz)`. It returns
+    /// nothing (§17.2, LD18): AL is left from the x87 status word, so no
+    /// result is read.
+    fn position_to_cell(&self, x: f32, z: f32) -> (i32, i32);
     /// City slot 96 `CellCornerToPosition(x, z)` (§17.6).
     fn cell_corner_to_position(&self, x: i32, z: i32) -> (f32, f32);
     /// City slot 97 `CellCenterToPosition(x, z)` (§17.5.4).

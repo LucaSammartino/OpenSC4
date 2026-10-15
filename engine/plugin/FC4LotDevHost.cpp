@@ -560,22 +560,17 @@ void CityCellWidths(void* u, float* out2) {
     out2[1] = c ? c->CellWidthZ() : 16.0f;  // slot 92, ST0
 }
 
-// City slot 95 PositionToCell: the SDK declares it void; the compiled one
-// answers AL (in the city). Called raw on the slot.
-bool PositionToCell(void* u, float x, float z, int32_t* out2) {
+// City slot 95 PositionToCell returns nothing (lot-developer.md §17.2,
+// LD18): its AL is the low byte of the x87 status word, so it is called as
+// the SDK declares it (void) and no result is read.
+void PositionToCell(void* u, float x, float z, int32_t* out2) {
     LOTDEV_TEST(position_to_cell, x, z, out2);
     int cx = 0, cz = 0;
-    bool ok = false;
-    if (cISC4City* c = City(u)) {
-        using Fn = uint8_t(__fastcall*)(void*, void*, float, float, int*, int*);
-        void** vt = *reinterpret_cast<void***>(c);
-        ok = reinterpret_cast<Fn>(vt[95])(c, nullptr, x, z, &cx, &cz) != 0;
-    }
+    if (cISC4City* c = City(u)) c->PositionToCell(x, z, cx, cz);  // slot 95
     if (out2 != nullptr) {
         out2[0] = cx;
         out2[1] = cz;
     }
-    return ok;
 }
 
 void CellCornerToPosition(void* u, int32_t x, int32_t z, float* out2) {

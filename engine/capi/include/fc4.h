@@ -5856,7 +5856,7 @@ typedef struct fc4_lotdev_host {
     /* city, simulator, terrain */
     void (*city_cell_counts)(void* user, int32_t* out2);
     void (*city_cell_widths)(void* user, float* out2);
-    bool (*position_to_cell)(void* user, float x, float z, int32_t* out2);
+    void (*position_to_cell)(void* user, float x, float z, int32_t* out2); /* city slot 95, no result (LD18) */
     void (*cell_corner_to_position)(void* user, int32_t x, int32_t z, float* out2); /* city slot 96 */
     void (*cell_center_to_position)(void* user, int32_t x, int32_t z, float* out2); /* city slot 97 */
     uint32_t (*sim_date)(void* user);
@@ -6079,7 +6079,7 @@ int32_t fc4_lotdev_level_area_internal_vertices(fc4_lotdev* p, const fc4_cell_re
 int32_t fc4_lotdev_level_bordering_vertices(fc4_lotdev* p, const fc4_cell_rect* rect, float h, uint64_t lot);
 int32_t fc4_lotdev_attempt_area_levelling(fc4_lotdev* p, const fc4_cell_rect* rect, bool with_water,
                                           bool per_vertex, float max_area_slope, uint64_t lot);
-bool fc4_lotdev_occupant_cell_coverage(const fc4_lotdev* p, uint64_t occ, fc4_cell_rect* out);
+void fc4_lotdev_occupant_cell_coverage(const fc4_lotdev* p, uint64_t occ, fc4_cell_rect* out); /* no result (LD18, LD27) */
 bool fc4_lotdev_is_area_flat(const fc4_lotdev* p, const fc4_cell_rect* rect, bool with_water);
 bool fc4_lotdev_is_lot_flat(const fc4_lotdev* p, uint64_t lot, bool with_water);
 float fc4_lotdev_area_altitude_range(const fc4_lotdev* p, const fc4_cell_rect* rect, bool with_water);

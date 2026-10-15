@@ -316,20 +316,16 @@ impl TerrainView {
 
     /// Slot 22 `GetOccupantCellCoverage(occupant, rect&)` (§17.2): the
     /// bounding box shrunk by 0.05 on each side, converted with
-    /// `PositionToCell`.
+    /// `PositionToCell`. The slot has no defined result (LD18, LD27): the
+    /// original's AL is the x87 status flags `PositionToCell` leaves, and no
+    /// caller reads it, so only the rectangle is returned.
     pub fn occupant_cell_coverage(&self, host: &dyn LotDeveloperHost, occ: u64) -> CellRect {
-        self.occupant_cell_coverage_with_flag(host, occ).1
-    }
-
-    /// Slot 22 with its return: AL is the **second** `PositionToCell`'s
-    /// (§17.2).
-    pub fn occupant_cell_coverage_with_flag(&self, host: &dyn LotDeveloperHost, occ: u64) -> (bool, CellRect) {
         let (min, max) = host.occupant_bounding_box(occ);
         let grow = |v: f32| (r24(f64::from(v) + 0.05)) as f32;
         let shrink = |v: f32| (r24(f64::from(v) - 0.05)) as f32;
-        let (_ok1, x1, z1) = host.position_to_cell(grow(min[0]), grow(min[2]));
-        let (ok2, x2, z2) = host.position_to_cell(shrink(max[0]), shrink(max[2]));
-        (ok2, CellRect::new(x1, z1, x2, z2))
+        let (x1, z1) = host.position_to_cell(grow(min[0]), grow(min[2]));
+        let (x2, z2) = host.position_to_cell(shrink(max[0]), shrink(max[2]));
+        CellRect::new(x1, z1, x2, z2)
     }
 
     /// Slot 28 `GetLotAltitudeRange(lot, withWater)`: slot 27 on the lot's

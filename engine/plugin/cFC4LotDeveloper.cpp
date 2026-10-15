@@ -527,12 +527,14 @@ int32_t cFC4LotDeveloper::AttemptLevelling(SC4Rect<int32_t> const& rect, float, 
 bool cFC4LotDeveloper::GetOccupantCellCoverage(cISC4Occupant* occupant, SC4Rect<int32_t>& rect) {
     Section sec(this);
     fc4_cell_rect r{rect.topLeftX, rect.topLeftY, rect.bottomRightX, rect.bottomRightY};
-    const bool ok = fc4_lotdev_occupant_cell_coverage(core_, TokenOf(occupant), &r);
+    fc4_lotdev_occupant_cell_coverage(core_, TokenOf(occupant), &r);
     rect.topLeftX = r.x1;
     rect.topLeftY = r.z1;
     rect.bottomRightX = r.x2;
     rect.bottomRightY = r.z2;
-    return ok;
+    // [choice] The original's AL is the x87 status flags PositionToCell
+    // leaves (section 17.2, LD18 / LD27); no caller reads it. True.
+    return true;
 }
 
 // Slots 23 and 24: AL 0 (§11.1: the original's stubs).
