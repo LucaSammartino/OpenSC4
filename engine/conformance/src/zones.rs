@@ -25,7 +25,7 @@ use fc4_core::store::{save_store, Package};
 use fc4_core::stream::{ByteReader, ByteWriter, OutStream, RefValue, SaveObject, SaveRegistry};
 use fc4_core::zones::{
     adjust_depth_range, block_depth, capacity_value, depth_rule, middle_row, occupant_cell, savvy_cell, shipped_tuning,
-    zone_density, CellRect, CellRegion, Component, Draw, GridProvider, GrowthItem, InsertionPoint, LotSize,
+    zone_density, CellRect, CellRegion, Component, Draw, GridProvider, GrowthItem, InsertionPoint, LotObject, LotSize,
     PlaceZoneResult, Position, Service, SharedZoneStatics, VirtualLot, ZoneDeveloper, ZoneDeveloperStatics,
     ZoneManager, ZonesHost, ZonesMessage, CLSID_ZONE_DEVELOPER, CLSID_ZONE_MANAGER, IID_LOT, LANDFILL_TYPE,
     NETWORK_OCCUPANT_TYPE, RNG_SEED_XOR,
@@ -46,6 +46,29 @@ use crate::scalar::{
 struct NetCell {
     kind: u32,
     edges: [bool; 4],
+    /// `GetNetworkFlags` (slot 12); `1 << kind` unless the run sets `flags`.
+    flags: u32,
+    /// Further types `IsOfType` (slot 22) answers true for, as a bit mask
+    /// (bit t); the kind always answers true.
+    types: u32,
+    /// `GetEdgeTypesFlag(type)` (slot 38) for any type; `None`: byte e is 1
+    /// when the cell connects on edge e and `type` is its kind, else 0.
+    mask: Option<u32>,
+}
+
+impl NetCell {
+    fn new(kind: u32) -> NetCell {
+        NetCell {
+            kind,
+            edges: [false; 4],
+            flags: 1u32.wrapping_shl(kind),
+            types: 0,
+            mask: None,
+        }
+    }
+    fn is_of_type(&self, t: u32) -> bool {
+        t == self.kind || (t < 32 && self.types & (1 << t) != 0)
+    }
 }
 
 /// A lot the core creates through `new_lot`. The core owns the cell → lot map;
@@ -72,6 +95,22 @@ impl Lot {
     fn rect(&self) -> CellRect {
         CellRect::new(self.x, self.z, self.x + self.w - 1, self.z + self.h - 1)
     }
+    /// The location (origin) the constructor stores by facing (§8.5.1).
+    fn location(&self) -> (i32, i32) {
+        location_of(self.x, self.z, self.w, self.h, self.facing)
+    }
+}
+
+/// The lot constructor's location by facing (§8.5.1): 0 `(x + w − 1, z)`, 1
+/// `(x + w − 1, z + h − 1)`, 2 `(x, z + h − 1)`, 3 `(x, z)`, other `(0, 0)`.
+fn location_of(x: i32, z: i32, w: i32, h: i32, facing: i32) -> (i32, i32) {
+    match facing {
+        0 => (x + w - 1, z),
+        1 => (x + w - 1, z + h - 1),
+        2 => (x, z + h - 1),
+        3 => (x, z),
+        _ => (0, 0),
+    }
 }
 
 /// A lot configuration (§7.2.1).
@@ -89,6 +128,10 @@ struct Cfg {
     stage: u8,
     /// Slot 24, the primary building object's ID list; `None`: null object.
     object: Option<Vec<u32>>,
+    /// Slot 8 `GetMaximumSlope`.
+    max_slope: f32,
+    /// Slot 23, the lot configuration object records.
+    objects: Vec<LotObject>,
 }
 
 /// A growth developer (§7.2.1).
@@ -117,6 +160,9 @@ struct Occ {
     /// The network flags `HasAnyNetworkFlag(flags)` answers for (the occupant
     /// is a `cISC4NetworkOccupant` when its kind is the network type).
     net_flags: u32,
+    /// The network types `IsOfType` (slot 22) answers true for, as a bit mask
+    /// (bit t).
+    net_types: u32,
 }
 
 /// One network tool's draft records: cell → (network flags, edge mask).
@@ -176,6 +222,20 @@ pub(crate) struct World {
     parcel_log: RefCell<Vec<Json>>,
     /// Saved cities by slot name (zone_save / zone_load).
     saves: RefCell<BTreeMap<String, ZonesSaved>>,
+    // re-specs11 stubs (§5.2.1–§5.2.2, §7.2.2, §8.4.1–§8.4.2, §8.5).
+    /// Log the lot calls of `CreateLot` and `UpdateZoneType` and the
+    /// `GetAreaSlope` calls as events (`zone_env` `trace_calls`).
+    trace_calls: Cell<bool>,
+    /// Lot developer slot 46 `GetForceEmptyLotBaseTextures`.
+    force_empty: Cell<bool>,
+    /// What `GetAreaSlope` returns.
+    slope: Cell<f32>,
+    /// The network tool kinds present (bit kind); all by default.
+    tools_present: Cell<u32>,
+    /// Cells where `CellHasLand` is false (true everywhere else).
+    no_land: RefCell<BTreeSet<(i32, i32)>>,
+    /// Cells where surface water `IsNavigable` is true.
+    navigable: RefCell<BTreeSet<(i32, i32)>>,
 }
 
 /// One saved city: the store package plus the host (lot) tokens by
@@ -230,6 +290,12 @@ impl World {
             levelling_count: Cell::new(0),
             parcel_log: RefCell::new(Vec::new()),
             saves: RefCell::new(BTreeMap::new()),
+            trace_calls: Cell::new(false),
+            force_empty: Cell::new(false),
+            slope: Cell::new(0.0),
+            tools_present: Cell::new(u32::MAX),
+            no_land: RefCell::new(BTreeSet::new()),
+            navigable: RefCell::new(BTreeSet::new()),
         });
         *w.me.borrow_mut() = Rc::downgrade(&w);
         w
@@ -257,6 +323,19 @@ impl World {
             .borrow()
             .clone()
             .ok_or_else(|| "no zone developer (use zone_create)".to_owned())
+    }
+
+    /// Pushes `name` as an event when `trace_calls` is on.
+    fn trace(&self, name: &str, fields: Vec<(&str, Json)>) {
+        if self.trace_calls.get() {
+            self.events.push(name, fields);
+        }
+    }
+
+    /// A network cell by its token (`(x << 32) | z`).
+    fn net_of(&self, token: u64) -> Option<NetCell> {
+        let (x, z) = ((token >> 32) as i32, (token & 0xFFFF_FFFF) as i32);
+        self.nets.borrow().get(&(x, z)).copied()
     }
 
     fn lot<T: Default>(&self, l: u64, f: impl FnOnce(&Lot) -> T) -> T {
@@ -487,10 +566,7 @@ impl ZonesHost for World {
         // Put a street (kind 3) on every cell of a..b with no network.
         let mut nets = self.nets.borrow_mut();
         for &(x, z) in &cells {
-            nets.entry((x, z)).or_insert_with(|| NetCell {
-                kind,
-                edges: [false; 4],
-            });
+            nets.entry((x, z)).or_insert_with(|| NetCell::new(kind));
         }
         // Connect the run along its direction.
         for i in 0..cells.len() {
@@ -570,10 +646,65 @@ impl ZonesHost for World {
         self.events.push("street_joining_helper", vec![("data4", ji(data4))]);
         let _ = occupant;
     }
+    fn network_flags(&self, occupant: u64) -> u32 {
+        if let Some(o) = self.occupants.borrow().get(&occupant) {
+            if o.kind == NETWORK_OCCUPANT_TYPE {
+                return o.net_flags;
+            }
+        }
+        self.net_of(occupant).map_or(0, |n| n.flags)
+    }
+    fn network_has_all_flags(&self, occupant: u64, mask: u32) -> bool {
+        self.network_flags(occupant) & mask == mask
+    }
+    fn network_edge_mask(&self, occupant: u64, net_type: u32) -> u32 {
+        let Some(n) = self.net_of(occupant) else { return 0 };
+        if let Some(m) = n.mask {
+            return m;
+        }
+        if n.kind != net_type {
+            return 0;
+        }
+        (0..4).filter(|&e| n.edges[e]).fold(0, |m, e| m | 1 << (8 * e))
+    }
+    fn network_is_of_type(&self, occupant: u64, net_type: u32) -> Option<bool> {
+        if let Some(o) = self.occupants.borrow().get(&occupant) {
+            if o.kind == NETWORK_OCCUPANT_TYPE {
+                return Some(net_type < 32 && o.net_types & (1 << net_type) != 0);
+            }
+            return None;
+        }
+        self.net_of(occupant).map(|n| n.is_of_type(net_type))
+    }
+    fn network_is_flag_0x400000(&self, occupant: u64) -> bool {
+        self.network_flags(occupant) & 0x40_0000 != 0
+    }
+    fn network_tool_present(&self, kind: u32) -> bool {
+        kind < 32 && self.tools_present.get() & (1 << kind) != 0
+    }
+    fn network_tool_join(&self, kind: u32, a: (i32, i32), b: (i32, i32)) {
+        self.events.push(
+            "network_tool_join",
+            vec![
+                ("tool", ji(kind)),
+                ("x1", ji(a.0)),
+                ("z1", ji(a.1)),
+                ("x2", ji(b.0)),
+                ("z2", ji(b.1)),
+            ],
+        );
+    }
 
     // ---- terrain ----
     fn cell_has_water(&self, x: i32, z: i32) -> bool {
         self.water.borrow().contains(&(x, z))
+    }
+    fn cell_has_land(&self, x: i32, z: i32) -> bool {
+        !self.no_land.borrow().contains(&(x, z))
+    }
+    fn is_navigable(&self, x: i32, z: i32) -> bool {
+        self.events.push("is_navigable", vec![("x", ji(x)), ("z", ji(z))]);
+        self.navigable.borrow().contains(&(x, z))
     }
     fn terrain_altitude(&self, x: f32, z: f32) -> f32 {
         self.terrain.borrow().get(&(x as i32, z as i32)).copied().unwrap_or(0.0)
@@ -635,6 +766,9 @@ impl ZonesHost for World {
             if let Some(r) = o.bounding {
                 return r;
             }
+        } else if self.net_of(occupant).is_some() {
+            let (x, z) = ((occupant >> 32) as i32, (occupant & 0xFFFF_FFFF) as i32);
+            return CellRect::new(x, z, x, z);
         }
         let p = self.occupant_position(occupant);
         let (x, z) = ((p[0] / 16.0) as i32, (p[2] / 16.0) as i32);
@@ -652,8 +786,7 @@ impl ZonesHost for World {
                 return Some(o.net_flags & flags != 0);
             }
         }
-        let (x, z) = ((occupant >> 32) as i32, (occupant & 0xFFFF_FFFF) as i32);
-        self.nets.borrow().get(&(x, z)).map(|n| (1u32 << n.kind) & flags != 0)
+        self.net_of(occupant).map(|n| n.flags & flags != 0)
     }
     fn remove_occupant(&self, occupant: u64) {
         self.events.push("remove_occupant", vec![("occ", ji(occupant as i64))]);
@@ -678,7 +811,10 @@ impl ZonesHost for World {
     // ---- lots ----
     fn new_lot(&self, x: i32, z: i32, w: i32, h: i32, facing: i32) -> u64 {
         let t = self.token();
-        let zone = self.zone_type(x, z);
+        // The zone of the location cell, read once here (§8.5.1).
+        let (lx, lz) = location_of(x, z, w, h, facing);
+        let zone = self.zone_type(lx, lz);
+        self.trace("new_lot", vec![("lot", ji(t as i64))]);
         self.log_lot(x, z, w, h, facing);
         self.lots.borrow_mut().insert(
             t,
@@ -701,7 +837,9 @@ impl ZonesHost for World {
         );
         t
     }
-    fn lot_init(&self, _lot: u64) {}
+    fn lot_init(&self, lot: u64) {
+        self.trace("lot_init", vec![("lot", ji(lot as i64))]);
+    }
     fn lot_shutdown(&self, _lot: u64) {}
     fn lot_post_city_init(&self, _lot: u64) {}
     fn lot_configuration(&self, lot: u64) -> Option<u64> {
@@ -717,7 +855,7 @@ impl ZonesHost for World {
         self.lot(lot, |l| l.altitude)
     }
     fn lot_location(&self, lot: u64) -> (i32, i32) {
-        self.lot(lot, |l| (l.x, l.z))
+        self.lot(lot, |l| l.location())
     }
     fn lot_facing(&self, lot: u64) -> i32 {
         self.lot(lot, |l| l.facing)
@@ -731,9 +869,29 @@ impl ZonesHost for World {
     fn lot_state(&self, lot: u64) -> u32 {
         self.lot(lot, |l| l.state)
     }
-    fn lot_set_state(&self, lot: u64, state: u32, _a: u32, _b: u32) {
+    fn lot_set_state(&self, lot: u64, state: u32, a: u32, b: u32) {
+        self.trace(
+            "lot_set_state",
+            vec![
+                ("lot", ji(lot as i64)),
+                ("state", ji(state)),
+                ("a", ji(a)),
+                ("b", ji(b)),
+            ],
+        );
         if let Some(l) = self.lots.borrow_mut().get_mut(&lot) {
             l.state = state;
+        }
+    }
+    fn lot_update_zone_type(&self, lot: u64) {
+        let loc = self.lot(lot, |l| l.location());
+        let zone = self.zone_type(loc.0, loc.1);
+        self.trace(
+            "lot_update_zone_type",
+            vec![("lot", ji(lot as i64)), ("zone", ji(zone))],
+        );
+        if let Some(l) = self.lots.borrow_mut().get_mut(&lot) {
+            l.zone = zone;
         }
     }
     fn lot_building(&self, lot: u64) -> Option<u64> {
@@ -788,14 +946,27 @@ impl ZonesHost for World {
     fn cfg_primary_building_ids(&self, cfg: u64) -> Option<Vec<u32>> {
         self.cfgs.borrow().get(&cfg).and_then(|c| c.object.clone())
     }
+    fn cfg_max_slope(&self, cfg: u64) -> f32 {
+        self.cfgs.borrow().get(&cfg).map_or(0.0, |c| c.max_slope)
+    }
+    fn cfg_objects(&self, cfg: u64) -> Vec<LotObject> {
+        self.cfgs
+            .borrow()
+            .get(&cfg)
+            .map_or_else(Vec::new, |c| c.objects.clone())
+    }
     fn lot_configurations(&self) -> Vec<u64> {
         self.events.push("lot_configurations", vec![]);
         self.cfg_order.borrow().clone()
     }
 
     // ---- lot developer ----
-    fn area_slope(&self, _rect: CellRect, _with_water: bool) -> f32 {
-        0.0
+    fn area_slope(&self, rect: CellRect, with_water: bool) -> f32 {
+        self.trace(
+            "area_slope",
+            vec![("rect", rect_json(rect)), ("with_water", Json::Bool(with_water))],
+        );
+        self.slope.get()
     }
     fn attempt_area_levelling(&self, _rect: CellRect) {
         self.levelling_count.set(self.levelling_count.get() + 1);
@@ -805,10 +976,26 @@ impl ZonesHost for World {
         None
     }
     fn remove_lot_from_business_unit(&self, _lot: u64) {}
-    fn set_empty_lot_base_texture(&self, _lot: u64) {}
+    fn set_empty_lot_base_texture(&self, lot: u64) {
+        self.trace("set_empty_lot_base_texture", vec![("lot", ji(lot as i64))]);
+    }
+    fn force_empty_lot_base_textures(&self) -> bool {
+        self.force_empty.get()
+    }
+    fn zone_manager_dezone(&self, region: &CellRegion) {
+        // PlaceZone(D, 0, commit 1, skipFunds 1, checkSlope 0, skipSize 1,
+        // lotInside 0) on the active zone manager (§7.2.2 step 3).
+        self.events
+            .push("zone_manager_dezone", vec![("count", ji(region.count() as i64))]);
+        if let Ok(m) = self.mgr() {
+            let mut d = region.clone();
+            m.place_zone(&mut d, 0, true, true, false, true, false);
+        }
+    }
 
     // ---- traffic simulator ----
     fn desired_lot_insertion_point(&self) -> Option<InsertionPoint> {
+        self.trace("insertion_point", vec![]);
         *self.insertion.borrow()
     }
     fn set_lot_insertion_point(&self, _node: Option<u64>) {}
@@ -1015,8 +1202,32 @@ fn field_at(a: &[Json], i: usize) -> R<&Json> {
 }
 
 /// `zone_env`: `cells` (`[x, z]`), `funds`, `landfill_cost`, `services_ok`,
-/// `tuning` (`"shipped"` or null).
+/// `tuning` (`"shipped"` or null); the re-specs11 stubs `trace_calls`,
+/// `force_empty`, `area_slope`, `tools` (the network tool kinds present),
+/// `no_land` and `navigable` (`[[x, z], ...]`, replacing the set).
 fn env(w: &World, op: &Json) -> R<()> {
+    if let Some(v) = opt(op, "trace_calls") {
+        w.trace_calls.set(bool_of(v, "trace_calls")?);
+    }
+    if let Some(v) = opt(op, "force_empty") {
+        w.force_empty.set(bool_of(v, "force_empty")?);
+    }
+    if let Some(v) = opt(op, "area_slope") {
+        w.slope.set(f32_of(v, "area_slope")?);
+    }
+    if let Some(v) = opt(op, "tools") {
+        w.tools_present.set(
+            u32_list(v, "tools")?
+                .iter()
+                .fold(0u32, |m, &t| m | 1u32.wrapping_shl(t)),
+        );
+    }
+    if let Some(v) = opt(op, "no_land") {
+        *w.no_land.borrow_mut() = cells_of(v, "no_land")?.into_iter().collect();
+    }
+    if let Some(v) = opt(op, "navigable") {
+        *w.navigable.borrow_mut() = cells_of(v, "navigable")?.into_iter().collect();
+    }
     if let Some(v) = opt(op, "cells") {
         let a = arr(v, "cells")?;
         w.city.set((
@@ -1111,13 +1322,27 @@ fn network(w: &World, op: &Json) -> R<()> {
             return Err("a run needs 'rect' or 'cells'".into());
         };
         for &(x, z) in &cells {
-            nets.insert(
-                (x, z),
-                NetCell {
-                    kind,
-                    edges: [false; 4],
-                },
-            );
+            nets.insert((x, z), NetCell::new(kind));
+        }
+        let explicit_edges = match opt(run, "edges") {
+            Some(v) => Some(u32_list(v, "edges")?),
+            None => None,
+        };
+        let flags = opt(run, "flags").map(|v| u32_of(v, "flags")).transpose()?;
+        let types = match opt(run, "types") {
+            Some(v) => u32_list(v, "types")?
+                .iter()
+                .fold(0u32, |m, &t| m | 1u32.wrapping_shl(t)),
+            None => 0,
+        };
+        let mask = opt(run, "mask").map(|v| u32_of(v, "mask")).transpose()?;
+        for &(x, z) in &cells {
+            let n = nets.get_mut(&(x, z)).unwrap();
+            if let Some(f) = flags {
+                n.flags = f;
+            }
+            n.types = types;
+            n.mask = mask;
         }
         for i in 0..cells.len() {
             let (x, z) = cells[i];
@@ -1130,6 +1355,18 @@ fn network(w: &World, op: &Json) -> R<()> {
                 }
                 if e2 >= 0 {
                     nets.get_mut(&(nx, nz)).unwrap().edges[e2 as usize] = true;
+                }
+            }
+        }
+        // `edges` ([e, ...]): the exact edges every cell of the run connects on.
+        if let Some(es) = &explicit_edges {
+            for &(x, z) in &cells {
+                let n = nets.get_mut(&(x, z)).unwrap();
+                n.edges = [false; 4];
+                for &e in es {
+                    if let Some(slot) = n.edges.get_mut(e as usize) {
+                        *slot = true;
+                    }
                 }
             }
         }
@@ -1249,11 +1486,43 @@ fn cfg(w: &World, op: &Json) -> R<()> {
         wealths: list("wealths")?,
         stage: opt(op, "stage").map_or(Ok(1), |v| u32_of(v, "stage"))? as u8,
         object: list("object")?,
+        max_slope: match opt(op, "max_slope") {
+            Some(Json::Str(s)) if s == "nan" => f32::NAN,
+            Some(v) => f32_of(v, "max_slope")?,
+            None => f32::MAX,
+        },
+        objects: match opt(op, "objects") {
+            Some(v) => arr(v, "objects")?.iter().map(lot_object).collect::<R<Vec<_>>>()?,
+            None => Vec::new(),
+        },
     };
     if w.cfgs.borrow_mut().insert(id, c).is_none() {
         w.cfg_order.borrow_mut().push(id);
     }
     Ok(())
+}
+
+/// One lot configuration object record (`zone_cfg` `objects`): `{type,
+/// orientation?, min: [x, z], max: [x, z], values?: [u32, ...]}`.
+fn lot_object(j: &Json) -> R<LotObject> {
+    let pair = |k: &str| -> R<(f32, f32)> {
+        let a = arr(field(j, k)?, k)?;
+        Ok((f32_of(field_at(a, 0)?, "x")?, f32_of(field_at(a, 1)?, "z")?))
+    };
+    let (min_x, min_z) = pair("min")?;
+    let (max_x, max_z) = pair("max")?;
+    Ok(LotObject {
+        kind: u32_of(field(j, "type")?, "type")? as u8,
+        orientation: opt(j, "orientation").map_or(Ok(0), |v| u32_of(v, "orientation"))? as u8,
+        min_x,
+        min_z,
+        max_x,
+        max_z,
+        values: match opt(j, "values") {
+            Some(v) => u32_list(v, "values")?,
+            None => Vec::new(),
+        },
+    })
 }
 
 /// `zone_dev`: a growth developer `{token, type, purpose, wealth, shift?,
@@ -1347,6 +1616,12 @@ fn occupant(w: &World, op: &Json) -> R<()> {
     let kind = u32_of(field(op, "type")?, "type")?;
     let bounding = opt(op, "bounding").map(rect_of).transpose()?;
     let net_flags = opt(op, "net_flags").map_or(Ok(0), |v| u32_of(v, "net_flags"))?;
+    let net_types = match opt(op, "net_types") {
+        Some(v) => u32_list(v, "net_types")?
+            .iter()
+            .fold(0u32, |m, &t| m | 1u32.wrapping_shl(t)),
+        None => 0,
+    };
     w.occupants.borrow_mut().insert(
         token,
         Occ {
@@ -1355,6 +1630,7 @@ fn occupant(w: &World, op: &Json) -> R<()> {
             can_remove: opt(op, "can_remove").and_then(boolean).unwrap_or(true),
             bounding,
             net_flags,
+            net_types,
         },
     );
     let cell = (p[0] as i32 / 16, p[2] as i32 / 16);
@@ -1873,6 +2149,62 @@ fn call(w: &World, op: &Json) -> R<()> {
             ])
         }
         ("developer", "get_lot_count") => ji(w.dev()?.lot_count() as i64),
+        ("developer", "create_lot") => {
+            let x = i64_of(a(0)?, "x")? as i32;
+            let z = i64_of(a(1)?, "z")? as i32;
+            let ww = i64_of(a(2)?, "w")? as i32;
+            let h = i64_of(a(3)?, "h")? as i32;
+            let facing = i64_of(a(4)?, "facing")? as i32;
+            match w.dev()?.create_lot(x, z, ww, h, facing) {
+                Some(l) => ji(l as i64),
+                None => Json::Null,
+            }
+        }
+        ("developer", "get_lot") => {
+            let x = i64_of(a(0)?, "x")? as i32;
+            let z = i64_of(a(1)?, "z")? as i32;
+            let oo = a(2).ok().and_then(boolean).unwrap_or(false);
+            match w.dev()?.get_lot(x, z, oo) {
+                Some(l) => ji(l as i64),
+                None => Json::Null,
+            }
+        }
+        // The world's view of one lot: rect, location, size by facing, zone,
+        // state, reference count.
+        ("developer", "lot_info") => {
+            let lot = u32_of(a(0)?, "lot")? as u64;
+            let l = w.lots.borrow().get(&lot).copied().ok_or("no such lot")?;
+            let (lx, lz) = l.location();
+            let size = match l.facing {
+                0 | 2 => (l.w, l.h),
+                1 | 3 => (l.h, l.w),
+                _ => (0, 0),
+            };
+            Json::Object(vec![
+                ("rect".into(), rect_json(l.rect())),
+                ("location".into(), Json::Array(vec![ji(lx), ji(lz)])),
+                ("size".into(), Json::Array(vec![ji(size.0), ji(size.1)])),
+                ("zone".into(), ji(l.zone)),
+                ("state".into(), ji(l.state)),
+                ("refs".into(), ji(l.refs)),
+            ])
+        }
+        ("developer", "can_create_plopped_lot") => {
+            let r = rect_of(a(0)?)?;
+            let facing = i64_of(a(1)?, "facing")? as i32;
+            let cfg = u32_of(a(2)?, "cfg")? as u64;
+            // A fourth argument is the restriction region (`{rect, cells?}`).
+            match a(3) {
+                Ok(rj) => ji(w
+                    .dev()?
+                    .can_create_plopped_lot_for_test(&region_of(rj)?, r, facing, cfg)),
+                Err(_) => ji(w.dev()?.can_create_plopped_lot(r, facing, cfg)),
+            }
+        }
+        ("developer", "update_zone_type") => {
+            w.dev()?.update_zone_type(&region_of(a(0)?)?);
+            Json::Bool(true)
+        }
         ("developer", "master_lots") => {
             let v = w.dev()?.master_lots();
             Json::Array(v.iter().map(|&l| ji(l as i64)).collect())

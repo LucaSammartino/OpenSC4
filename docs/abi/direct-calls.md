@@ -208,3 +208,37 @@ Never free the header: the game keeps using this map object.
 
 They require a live, consistent game map in ECX: header non-null, count equal to the number of nodes.
 `0x00497A00` must not be used on a map whose value is not 4 bytes: the `uint16_t` maps have their own `0x00699030`.
+
+## The lot pool and the lot constructor: `0x006BF430` and `0x006C1E50`
+
+The zone developer's `CreateLot` is the only maker of new lots (docs/specs/zones.md §8.5, §8.5.1, §13.1). A
+replacement lot manager that creates the game's own lots must take their memory from the lot pool and construct
+them with the game's constructor, because the lot's deleting destructor (reached from its last `Release`) gives
+the block back to that pool by address.
+
+### Allocate `0x006BF430`
+
+| | |
+|---|---|
+| Convention | `__cdecl` (the only exception in this file) |
+| `this` | none |
+| Arguments | one 4-byte slot: the size; the original pushes `0x8C` and the callee never reads it |
+| Pops | 0 (the caller pops 4) |
+| Return | EAX = a 0x8C-byte block of the lot pool. There is no failure path |
+
+### Constructor `0x006C1E50`
+
+`cSC4Lot(int32 x, int32 z, int32 w, int32 h, int32 facing)`
+
+| | |
+|---|---|
+| Convention | `__thiscall` |
+| `this` | the block `0x006BF430` returned; the constructed object's **base** is its `cISC4Lot` sub-object (vtable `0x00AB19B0` at +0), so the block address is the `cISC4Lot*` |
+| Arguments | five int32 slots, stored as bytes (low 8 bits) |
+| Pops | 20 |
+| Return | EAX = `this` |
+| Reference count | 0 (at +0x0C, shared by every interface): the caller AddRefs |
+| Not written | +0x83 (the vacate reason) keeps the block's old contents; zones.md §8.5.1 gives every field written |
+
+The constructor reads the active zone manager's `GetZoneType` at the location cell through the global
+`0x00B43D14`, so it must run while a city is loaded.

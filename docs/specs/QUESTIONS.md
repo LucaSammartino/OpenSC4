@@ -4042,11 +4042,16 @@ in-game harness with the FreeCity4 turbo clock and a message log.
 - ~~**CD1:** which lot configuration objects are dropped at each city detail level? [the lot configuration manager
   filters objects by the detail preference when it builds configurations (it passes the preference to the
   configuration's reader); the exact field belongs to a lot configuration spec. Comparing one lot configuration's
-  object count at detail 1 and 3 would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered (city-detail.md §3, "Which objects a detail level keeps"). `ConvertPropertiesToObjectArray` (`0x00479D10`) keeps an object when its type byte is 0 (building) or `(value1 & 0x30) < 16 × d` (`0x00479EB1`–`0x00479EC6`): level bits `0x00` at every detail, `0x10` from medium, `0x20` only at high, `0x30` never. Network lot configurations use d = 3 (`0x0060F80E`). MATCHES the bracket; the field is value 1's bits 4–5.
-- **CD2:** after a detail change every network lot is redeveloped (network lot manager slot 12). Does that change
+  object count at detail 1 and 3 would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered (city-detail.md §3, "Which objects a detail level keeps"). `ConvertPropertiesToObjectArray` (`0x00479D10`) keeps an object when its type byte is 0 (building) or `(value1 & 0x30) < 16 × d` (`0x00479EB1`–`0x00479EC6`): level bits `0x00` at every detail, `0x10` from medium, `0x20` only at high, `0x30` never. Network lot configurations use d = 3 (`0x0060F80E`). MATCHES the bracket; the field is value 1's bits 4–5. Confirmed independently by re-specs13d (prop-lotconfig.md §B3.3, with the shipped counts: 73,832 / 39,781 /
+  23,265 objects kept at detail 3 / 2 / 1, and the rebuild at the next city `Init` after the preference changes).
+- ~~**CD2:** after a detail change every network lot is redeveloped (network lot manager slot 12). Does that change
   saved state, such as street props drawn from the network lot manager's generator? [yes, inferred: redevelopment
   re-creates the network lot's objects. Saving a city, reopening it at another detail level and saving again, then
-  comparing the street prop records, would settle it]
+  comparing the street prop records, would settle it]~~ **ANSWERED 2026-10-15 (re-specs13c):** the bracket
+  MATCHES. `RedevelopLot` (`0x0060D5E0`) removes the cell's street props (prop manager slot 33) and flora (flora
+  slot 20), then `CreateLotObjects` draws again from generator `0x00B44870` for every prop and flora object with
+  candidates, so the prop manager's and the flora's saved state change; the network lot record (component 11)
+  does not. network-manager.md §8.6 and §17.
 
 ## From lot creation, the plop test, the lot developer and the graphics formats (re-specs11 lane, 2026-10-15)
 
@@ -4132,7 +4137,27 @@ them, and Stage B applies those sections.
   manager release, §8.6 step 6) and then an access violation at `0x0070690C` / `0x00AB1995` (runs `zonedev-enable-1`,
   `-2`). Does the game's growth path tolerate a failed CreateLot after DeleteLot, or must lot creation never fail
   there? [not resolved; re-test after Stage B builds lots, then audit Grow's delete-and-recreate reference flow (slot 7
-  caller references against the manager's)]~~ **ANSWERED 2026-10-15 (re-answers12):** **Answered: lot creation must not fail there** (tract-developer.md §4.15.3). After a failed `CreateLotIfPossible`, `Build` returns 0 and the pass continues with the next candidate (§4.3). Candidate lot sets hold borrowed pointers (`GetLot`, no AddRef), and overlapping aggregation candidates share lots, so the next aggregation runs `PerformAggregation` step 1 on lots that were already deleted and freed. That gives the two over-release warnings at the second `DeleteLot` of the same lot, then the AddRef at `0x0070690C` through a stale vtable (`0x00AB1995` is data, not code). The original clears the rectangle itself first, so in practice step 4 succeeds there. Stage A must not let Grow reach aggregation while it cannot create lots; Stage B's working `CreateLot` removes the cause.
+  caller references against the manager's); **Stage B (2026-10-15):** with lots built it does not reproduce (`zonedev-enable-final` clean, ref_warnings=0, 68 lots built, 0 refused); the refusal path is still logged. Open part: is a refused CreateLot on the growth path ever expected?]~~ **ANSWERED 2026-10-15 (re-answers12):** **Answered: lot creation must not fail there** (tract-developer.md §4.15.3). After a failed `CreateLotIfPossible`, `Build` returns 0 and the pass continues with the next candidate (§4.3). Candidate lot sets hold borrowed pointers (`GetLot`, no AddRef), and overlapping aggregation candidates share lots, so the next aggregation runs `PerformAggregation` step 1 on lots that were already deleted and freed. That gives the two over-release warnings at the second `DeleteLot` of the same lot, then the AddRef at `0x0070690C` through a stale vtable (`0x00AB1995` is data, not code). The original clears the rectangle itself first, so in practice step 4 succeeds there. Stage A must not let Grow reach aggregation while it cannot create lots; Stage B's working `CreateLot` removes the cause. Stage B's clean run (`zonedev-enable-final`) agrees: with `CreateLot` working the path is not reached, so a refused CreateLot on the growth path is never expected.
+
+## From the zone developer / lot manager glue, Stage B (filed by the coordinator from the `zones2` lane's report, 2026-10-15)
+
+About `docs/specs/zones.md` §5.2.1-§5.2.2, §7.2.2, §8.4.1-§8.4.3, §8.5.1 and their implementation in `cFC4ZoneDeveloper` /
+`FC4ZoneDevHost` (`enable = zonedev`); merged as `3cb9b43`, ABI 55. The lane numbered these ZONES-ZD1..ZD19; ZD1-ZD13
+repeat ZG22-ZG34. Stage B did not apply two re-answers11 answers: ZG22 (slot 19 always writes `*ok`; ours leaves it
+untouched) and ZG24 (the zone tool owns the highlight region; ours returns null with the zone tool present). The current
+answer is in brackets.
+
+- **ZG35:** §8.5.1: the lot constructor does not write the vacate reason at `+0x83`, and the pool block is not zeroed, so a
+  new lot carries a stale byte there. [choice: FreeCity4 writes 0 after construction]
+- **ZG36:** §8.4.1 `RotateLotRect` with a facing outside 0..3. [choice: the rect is left unrotated]
+- **ZG37:** §8.4.2 / §8.4.3: a constraint or network configuration object whose data vector has fewer values than the
+  check reads. [choice: missing values read as 0]
+- **ZG38:** §8.7 `PositionToCell`: the core computes `floor(p / 16)`; does the original round differently at negative
+  positions or at the map edge? [floor]
+- **ZG39:** §1.2 Shutdown and §5.2 PostCityInit: `GetNetworkTool(type, 1)` returns a tool whose only reference is the zone
+  developer's AddRef, so Shutdown's Release frees it (the lane's game runs show this). The spec does not state the
+  ownership. [`FC4_RELEASE_CREATED`]
+- **ZG40:** `UpdateHighlightTextures` (§7.1.1), which the spec allows to be omitted, is not implemented. [omitted]
 
 ## From the history warehouse and 24-hour clock glue (filed by the coordinator from the `histclock` lane's report, 2026-10-15)
 
@@ -4286,3 +4311,21 @@ comments and the game log cite. The current answer is in brackets.
   `lotdev_shadow = 1` should show mismatches=0 on every line (the `s25r` entries give the ranges)]~~ **ANSWERED 2026-10-15 (re-answers12):** **DIFFERS** (lot-developer.md §17.2, §16 test 42). Slot 25 (`0x006C5C30`) compares each vertex with the **first vertex** `(x1, z1)`, not the range: `ref := f32(slot 15(x1, z1, true))` (always with water, literal 1 at `0x006C5C4B`), then for x outer, z inner over `x1 … x2+1`, `z1 … z2+1`: `|slot 15(x, z, withWater) − ref| > +0xD0` (kMaxCellAltitudeDeltaForFlatness, strict, NaN no) → false. A range up to twice the tuning value is flat, which explains every observed range 1.0355-1.6784.
 - ~~**LD30:** the tuning cannot be read back from the original (no getter), so the shadow cannot check that both sides
   use the same `kMaxCellAltitudeDeltaForFlatness` and the other §3.5 values. Is there an accessor? [not compared]~~ **ANSWERED 2026-10-15 (re-answers12):** MATCHES (lot-developer.md §3.5). No accessor: `ReadSimulatorTunableValues` (`0x006C4A20`) has one caller, `Init` (`0x006CB9C7`), and nothing else writes the members (`kMaxCellAltitudeDeltaForFlatness` at `+0xD0`). A shadow reads the same exemplar with the same rules to get the original's values.
+
+## From the network manager and network lot manager spec (re-specs13c lane, 2026-10-15)
+
+Open points from network-manager.md §15. The current answer is in brackets; each entry says what would settle it.
+
+- **NM1:** are the globally managed network occupants (bridges, tunnels, prebuilt-model pieces) also saved by the
+  occupant manager, or only through component 53? [both hold refs to the same objects; the occupant manager spec
+  (re-specs13b) settles it]
+- **NM2:** does the occupant manager post `0x99EF1142` while a city loads? If it does, the network manager's managed
+  list (read first) gets every piece twice. [no, inferred. A turbo run that saves, loads and saves again and compares
+  the component 53 counts would settle it]
+- **NM3:** meanings of network flags `0x40000`, `0x80000`, `0x40000000` and `0x80000000`, and of the terrain kinds 3,
+  4 and 6 in the network manager's terrain handler. [unknown; logging `data4` of `0x278E6003` for each terraforming
+  brush settles the kinds]
+- **NM4:** the exact visited and rejected set tests of the avenue flood in `UpdateAvenueStyle`. [a cell is visited
+  once; styling an avenue loop through an intersection and logging the styled cells settles it]
+- **NM5:** the effect-prop slots 6, 7 and 8 used for potholes. [set the effect name, start, stop; the prop occupant
+  spec should confirm]

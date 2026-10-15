@@ -509,20 +509,25 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
        reference per cell) are the Rust core's. The master lot list is kept in the game's raw layout, so the
        safe lot iterators of slot 15 (8-byte C blocks) work as the original's for the budget and traffic code;
        an iterator still registered at Shutdown is orphaned (its list object cleared) and its owner frees it.
-       **STAGE A: lot creation is not wired yet** (the game's lot constructor has no ABI row; re-specs11): every
-       CreateLot fails cleanly and logs `zonedev: CreateLot(x, z, w, h, facing f) refused: no lot constructor
-       [waiting for re-specs11]` (three times, then silence), so a parcellization creates no lot. Lots loaded
-       from a save are kept, queried, deleted and saved. `zonedev_seed = N` (env `FC4_ZONEDEV_SEED`) fixes the
+       Lots are built from the game's lot pool by the game's lot constructor (`0x006BF430` / `0x006C1E50`,
+       docs/abi/direct-calls.md; §8.5.1), then laid on their cells, given their insertion point and their empty
+       base texture (§8.5). UpdateZoneType (§7.2.2) dezones the cells a parcellization left without a lot
+       through the zone manager's PlaceZone; an inserted network piece joins dead-end streets and crosses rail
+       with the street / road tools (§5.2.1, §5.2.2); CanCreatePloppedLot (slot 21, §8.4.1) checks the plop
+       footprint, the slope and the configuration's constraint and network objects. Without the two addresses
+       (the executable not identified) or with `zonedev_lot_changes = 0` every CreateLot fails cleanly and logs
+       `zonedev: CreateLot(x, z, w, h, facing f) refused: …` (three times, then silence). Lots loaded from a
+       save are kept, queried, deleted and saved. `zonedev_seed = N` (env `FC4_ZONEDEV_SEED`) fixes the
        session seed (default: the cRZTime clock). Every call into the core holds the object's lock; another
        thread waits at most 20 ms and then gets the lot count / grid snapshot or the neutral answer (a fallback).
        The log has `zonedev Init|Read|Write|Shutdown: version=1 init=… loaded=… real=… lots=… map=XxZ created=…
-       deleted=… iterators=… issued=… parcellizations=… dezones=… reentrant=… refused=… streets=… demolitions=…
-       levellings=… removed=… posts=… options=0x… grid=… view=0x… fallbacks=…` and the same line once a month
+       deleted=… iterators=… issued=… parcellizations=… dezones=… reentrant=… refused=… built=… streets=… joins=…
+       demolitions=… levellings=… removed=… posts=… options=0x… grid=… view=0x… fallbacks=…` and the same line once a month
        (`zonedev month yyyy-mm-dd: …`), one line per parcellization or dezone (`zonedev parcellize|dezone:
        type=… rect=… cells=… flag=… lots=… failed=… deleted=… streets=placed/failed demolish=…`, with
-       `[lot creation waiting for re-specs11]` when a lot was refused) and `zonedev InsertOccupant: …` when an
-       inserted network deleted or re-created lots. Unspecified slots answer neutrally and say so once:
-       CanCreatePloppedLot (slot 21) returns 0; HighlightParcels hands out no region (`*out = null`).
+       `[lots refused, see CreateLot]` when a lot was refused) and `zonedev InsertOccupant: …` when an
+       inserted network deleted or re-created lots. HighlightParcels hands out no region (`*out = null`); the
+       first few CanCreatePloppedLot answers are logged (`zonedev: CanCreatePloppedLot(…) = code`).
        Its game calls have their own switches (default `1`, environment `FC4_ZONEDEV_<KEY>`):
        `zonedev_grid_writes`, `zonedev_messages`, `zonedev_network_tools`, `zonedev_posts`, `zonedev_demolition`,
        `zonedev_streets`, `zonedev_occupants`, `zonedev_terrain`, `zonedev_lot_changes`, `zonedev_growth`,
