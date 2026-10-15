@@ -418,18 +418,18 @@ struct LotManagerProbe final : cFC4ISC4LotManager {
     cISC4Lot* GetLotAtPoint(cS3DVector3 const& point) override { g_hit = 5; return static_cast<cISC4Lot*>(0); }
     cISC4Lot* GetLot(int32_t cellX, int32_t cellZ, bool b) override { g_hit = 6; return static_cast<cISC4Lot*>(0); }
     uint32_t GetLotsInCellRect(fc4::GameList<cISC4Lot*>& lots, int32_t x1, int32_t z1, int32_t x2, int32_t z2, bool locationOnly) override { g_hit = 7; return 0; }
-    bool GetLotsSurroundingCell(int32_t cellX, int32_t cellZ, fc4::GameList<cISC4Lot*>& lots, int32_t flags) override { g_hit = 8; return static_cast<bool>(0); }
-    bool GetLotsSurroundingLot(cISC4Lot const* lot, fc4::GameList<cISC4Lot*>& lots, int32_t flags) override { g_hit = 9; return static_cast<bool>(0); }
-    bool GetLotsSurroundingRect(SC4Rect<long> const& rect, fc4::GameList<cISC4Lot*>& lots, int32_t flags) override { g_hit = 10; return static_cast<bool>(0); }
+    uint32_t GetLotsSurroundingCell(int32_t cellX, int32_t cellZ, fc4::GameList<cISC4Lot*>& lots, int32_t flags) override { g_hit = 8; return 0; }
+    uint32_t GetLotsSurroundingLot(cISC4Lot const* lot, fc4::GameList<cISC4Lot*>& lots, int32_t flags) override { g_hit = 9; return 0; }
+    uint32_t GetLotsSurroundingRect(SC4Rect<long> const& rect, fc4::GameList<cISC4Lot*>& lots, int32_t flags) override { g_hit = 10; return 0; }
     bool GetVerticesAtEdgeOfLot(SC4Rect<long> const& cells, int32_t flags, SC4Rect<long>& vertices) override { g_hit = 11; return static_cast<bool>(0); }
     bool GetNeighborCellsAtEdgeOfLot(SC4Rect<long> const& cells, int32_t flags, SC4Rect<long>& out) override { g_hit = 12; return static_cast<bool>(0); }
     cISC4Lot* GetRandomLot() override { g_hit = 13; return static_cast<cISC4Lot*>(0); }
     cISC4Lot* GetOccupantLot(cISC4Occupant* occupant) override { g_hit = 14; return static_cast<cISC4Lot*>(0); }
     intptr_t GetSafeLotIterator() override { g_hit = 15; return static_cast<intptr_t>(0); }
     int32_t GetLotCount() override { g_hit = 16; return static_cast<int32_t>(0); }
-    int32_t GetLotSavvyTerrainVertexAltitude(int32_t x, int32_t y, cISC4Lot* lot, bool& ok) override { g_hit = 17; return static_cast<int32_t>(0); }
+    float GetLotSavvyTerrainVertexAltitude(int32_t x, int32_t z, cISC4Lot* exclude, bool* ok) override { g_hit = 17; return static_cast<float>(0); }
     float GetLotSavvyTerrainAltitude(float x, float z, bool* onLot) override { g_hit = 18; return static_cast<float>(0); }
-    int32_t GetLotSavvyCellAltitude(int32_t cellX, int32_t cellZ, bool& ok) override { g_hit = 19; return static_cast<int32_t>(0); }
+    float GetLotSavvyCellAltitude(int32_t cellX, int32_t cellZ, bool* ok) override { g_hit = 19; return static_cast<float>(0); }
     int32_t CanCreateLot(int32_t x, int32_t z, int32_t w, int32_t h, bool zoneNotNeeded, bool ignoreConfig, cISC4LotConfiguration* config) override { g_hit = 20; return static_cast<int32_t>(0); }
     int32_t CanCreatePloppedLot(SC4Rect<long> bounds, int32_t n, cISC4LotConfiguration* config) override { g_hit = 21; return static_cast<int32_t>(0); }
     bool CreateLotIfPossible(int32_t x, int32_t z, int32_t w, int32_t h, int32_t n, cISC4Lot*& lot, bool zoneNotNeeded, bool ignoreConfig, cISC4LotConfiguration* config) override { g_hit = 22; return static_cast<bool>(0); }
@@ -437,7 +437,7 @@ struct LotManagerProbe final : cFC4ISC4LotManager {
     bool DeleteLot(cISC4Lot* lot) override { g_hit = 24; return static_cast<bool>(0); }
     bool DeleteLots(int32_t x1, int32_t z1, int32_t x2, int32_t z2) override { g_hit = 25; return static_cast<bool>(0); }
     bool GetLotVertexAltitudeAdjustmentRange(int32_t x, int32_t z, float& rangeX, float& rangeY) override { g_hit = 26; return static_cast<bool>(0); }
-    cISC4SimGrid<short>* GetMaximumCapacityGrid() override { g_hit = 27; return static_cast<cISC4SimGrid<short>*>(0); }
+    cISC4SimGrid<uint16_t>* GetMaximumCapacityGrid() override { g_hit = 27; return static_cast<cISC4SimGrid<uint16_t>*>(0); }
 };
 
 const Expect kLotManager[] = {
@@ -446,8 +446,8 @@ const Expect kLotManager[] = {
     {9, 3, false, "GetLotsSurroundingLot"}, {10, 3, false, "GetLotsSurroundingRect"},
     {11, 3, false, "GetVerticesAtEdgeOfLot"}, {12, 3, false, "GetNeighborCellsAtEdgeOfLot"},
     {13, 0, false, "GetRandomLot"}, {14, 1, false, "GetOccupantLot"}, {15, 0, false, "GetSafeLotIterator"},
-    {16, 0, false, "GetLotCount"}, {17, 4, false, "GetLotSavvyTerrainVertexAltitude"},
-    {18, 3, true, "GetLotSavvyTerrainAltitude"}, {19, 3, false, "GetLotSavvyCellAltitude"},
+    {16, 0, false, "GetLotCount"}, {17, 4, true, "GetLotSavvyTerrainVertexAltitude"},
+    {18, 3, true, "GetLotSavvyTerrainAltitude"}, {19, 3, true, "GetLotSavvyCellAltitude"},
     {20, 7, false, "CanCreateLot"}, {21, 6, false, "CanCreatePloppedLot"}, {22, 9, false, "CreateLotIfPossible"},
     {23, 6, false, "CreateLot"}, {24, 1, false, "DeleteLot"}, {25, 4, false, "DeleteLots"},
     {26, 4, false, "GetLotVertexAltitudeAdjustmentRange"}, {27, 0, false, "GetMaximumCapacityGrid"},
