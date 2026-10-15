@@ -195,6 +195,23 @@ public:
                                       uint32_t quitResult) = 0;                     // 63
 };
 
+// cISC43DRender (vtable cSC43DRender::vftable 0x00ABAB60), slots 3-8 only:
+// the landfill zot's orientation (landfill.md §4.7.5, LG21) reads the view
+// rotation through cISC4View3DWin slot 4 GetRenderer (borrowed) and this
+// slot 8 GetViewUtilities, which returns a BORROWED pointer to an object
+// that is not a GZCOM object (no QueryInterface, never released); the
+// rotation is its int32 at +0x10. Declared here rather than through the SDK
+// header, whose later slots return classes by value.
+class cFC4ISC43DRender : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                        // 3
+    virtual bool Shutdown() = 0;                                                    // 4
+    virtual bool SetMapScaleFactor(int32_t factor) = 0;                             // 5
+    virtual bool SetGraphicSystem(void* graphicSystem) = 0;                         // 6
+    virtual bool SetGDriver(void* driver) = 0;                                      // 7
+    virtual void* GetViewUtilities() = 0;                                           // 8 (borrowed, not GZCOM)
+};
+
 class cFC4IGZMessageServer : public cIGZUnknown {
 public:
     virtual bool MessageSend(const cGZMessage& msg) = 0;                            // 3 (synchronous)

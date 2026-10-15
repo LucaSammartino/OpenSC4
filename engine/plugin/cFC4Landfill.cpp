@@ -23,6 +23,7 @@
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
+#include "FC4WinInterfaces.h"
 #include "cFC4Message2Standard.h"
 
 #include "GZServPtrs.h"
@@ -49,6 +50,7 @@
 #include "cISC4PropManager.h"
 #include "cISC4Simulator.h"
 #include "cISC4TrafficSimulator.h"
+#include "cISC4View3DWin.h"
 #include "cISC4ZoneManager.h"
 #include "cISCExemplarPropertyHolder.h"
 #include "cISCPropertyHolder.h"
@@ -371,7 +373,10 @@ uintptr_t TargetAddress(cIGZUnknown* agent) {
 // budget's. FreeCity4's simulator ranks it by name (foundations §13.4). The
 // game's own simulator walks a level in ascending target-pointer order: the
 // line logs where this object's target falls and warns when it is not above
-// both (the order cannot be changed from here).
+// both (the order cannot be changed from here). AO2 (foundations §13.4): no
+// original behaviour can re-rank the game's simulator, so this log and its
+// WARNING are the minimum; allocating the target from the game's heap would
+// only reproduce the original's usual placement [choice, not taken].
 void LogMonthOrder(fc4::LandfillContext* c, cISC4City* city, cISC4Simulator* sim) {
     if (fc4::IsOurObject(sim)) {
         fc4::Log("landfill: month agent registered with FreeCity4's simulator: ranked after the unranked month "
@@ -812,10 +817,10 @@ void RemoveIncompatibleOccupants(void* u, int32_t x, int32_t z) {
 }
 
 // The texture record SetTextureSpecification takes (§4.8.5, lot-records.md
-// §6): the saved record's 14 bytes in their saved order [inferred: the
-// in-memory record is laid out as saved; spec question]. With one record the
-// stride does not matter; the two trailing bytes are zero so a 16-byte stride
-// reads nothing past the record.
+// §6): the saved record's 14 bytes in their saved order with a 16-byte
+// stride (LG22, answered; the bracket matches). The two trailing padding
+// bytes are copied but never read or saved; the original leaves them unset,
+// here they are zero.
 struct TextureRecord {
     uint32_t texture;
     uint8_t x;
@@ -928,7 +933,9 @@ void RemoveBaseTexture(void* u, int32_t x, int32_t z) {
 // and AsPropertyHolder() (occupant slot 6) +0x0C; otherwise nothing more is
 // called (SetTileID dereferences a missing exemplar, §4.8.1) and the tile is
 // kept in FreeCity4. After SetDefaultExemplar, GetDefaultExemplar (holder slot
-// 4, no AddRef) must return the exemplar.
+// 4, no AddRef) must return the exemplar. The holder's vtable has five slots
+// (LG25, answered: 0-2 the cIGZUnknown thunks, 3 SetDefaultExemplar, 4
+// GetDefaultExemplar, borrowed); the landfill itself calls only slot 3.
 //
 // Diagnostics: the first kTileFailuresLogged failures are logged in full, each
 // with the step that failed and what every step before it returned or read
@@ -1112,6 +1119,9 @@ uint64_t InsertLandfillTile(void* u, int32_t x, int32_t z, uint32_t tile, int32_
             LogTileTrace(tr, 0);
         }
     } else {
+        // LG26 (§4.8.1, answered): a refused insert releases the tile without
+        // Shutdown, as the original's queued release would ("matches"); the
+        // tile is then kept in FreeCity4 and the failure logged [choice].
         ++c->tilesFailed;
         if (g_tileFailuresLogged < kTileFailuresLogged) LogTileTrace(tr, ++g_tileFailuresLogged);
     }
@@ -1149,15 +1159,57 @@ bool RemoveProp(void* u, uint64_t occ) {
     return pm->RemovePropA(OccOf(occ));  // slot 29
 }
 
-// §4.7.5 (LG5 [compat]): the original uses the current view rotation, field
-// +0x10 of the global SC4ViewUtilities object. [choice] 0, which matches the
-// original at the view's first rotation (the spec's choice for a core with no
-// view): that object is reached only through a global or cISC43DRender slot 8,
-// and neither it nor its field is in docs/abi (spec question). The value is
-// saved with the prop; nothing else reads it.
+// §4.7.5 (LG5 [compat], LG21): the original uses the current view rotation,
+// field +0x10 of the global SC4ViewUtilities object, which SL::OnView3DInit
+// fills from the city view. The glue follows the same route through
+// interfaces, at the moment the zot is placed ([choice] of LG21):
+//   1. cISC4App::GetMainWindow (borrowed), child 0x6104489A (borrowed), then
+//      GetChildAs(0x9A47B417, IID_cISC4View3DWin 0xFA47B3F9) (a reference we
+//      take and release; SC4UI::GetView3DWin does the same);
+//   2. cISC4View3DWin slot 4 GetRenderer: a borrowed cISC43DRender*;
+//   3. cISC43DRender slot 8 GetViewUtilities: a borrowed pointer to an object
+//      that is not a GZCOM object (never released);
+//   4. the int32 at +0x10 of that object, 0 to 3.
+// Any null on the way (no view, e.g. a headless or region screen) gives 0,
+// the spec's value for a core with no view. The value is saved with the prop;
+// nothing else reads it.
+const uint32_t kWinSC4App = 0x6104489A;
+const uint32_t kWinSC4View3DWin = 0x9A47B417;
+const uint32_t kIID_cISC4View3DWin = 0xFA47B3F9;
+const uintptr_t kViewUtilitiesRotation = 0x10;
+bool g_noteZotView = false;
+
 int32_t ZotOrientation(void*) {
-    NoteOnce(g_noteZot, "landfill: the zot's orientation is 0 (the view rotation of §4.7.5 is not read)");
-    return 0;
+    cIGZFrameWork* fw = RZGetFrameWork();
+    cIGZApp* app = fw ? fw->Application() : nullptr;
+    cISC4App* sc4 = nullptr;
+    if (app == nullptr || !app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) || sc4 == nullptr) {
+        NoteOnce(g_noteZot, "landfill: no cISC4App; the zot's orientation is 0 (§4.7.5)");
+        return 0;
+    }
+    FC4_ACQUIRED(sc4, "QueryInterface");
+    int32_t rotation = 0;
+    cISC4View3DWin* view = nullptr;
+    auto* main = reinterpret_cast<cFC4IGZWin*>(sc4->GetMainWindow());  // borrowed
+    cFC4IGZWin* parent = main ? main->GetChildWindowFromID(kWinSC4App) : nullptr;  // slot 34, borrowed
+    if (parent != nullptr &&
+        parent->GetChildAs(kWinSC4View3DWin, kIID_cISC4View3DWin, reinterpret_cast<void**>(&view)) &&  // slot 36
+        view != nullptr) {
+        FC4_ACQUIRED(view, "GetChildAs");
+        auto* render = reinterpret_cast<cFC4ISC43DRender*>(view->GetRenderer());  // slot 4, borrowed
+        void* utilities = render ? render->GetViewUtilities() : nullptr;           // slot 8, borrowed, not GZCOM
+        if (utilities != nullptr) {
+            rotation = *reinterpret_cast<const int32_t*>(static_cast<const uint8_t*>(utilities) +
+                                                         kViewUtilitiesRotation);
+        }
+        FC4_RELEASE(view);
+        fc4::Log("landfill: zot orientation %d from the view rotation (§4.7.5, LG21)%s", rotation,
+                 utilities ? "" : "; the renderer has no view utilities: 0");
+    } else {
+        NoteOnce(g_noteZotView, "landfill: no city view; the zot's orientation is 0 (§4.7.5, LG21)");
+    }
+    FC4_RELEASE(sc4);
+    return rotation;
 }
 
 // ---- traffic ----------------------------------------------------------------------------------------
