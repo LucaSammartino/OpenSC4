@@ -7,6 +7,7 @@ name = "fc4-capi"
 version = "0.1.0"
 dependencies = [
  "fc4-core",
+ "fc4-formats",
 ]
 
 [[package]]

@@ -68,6 +68,32 @@ CRT (`/MT`), so the DLL needs no runtime DLLs. CTest runs `cargo test` for the s
 `capi_smoke` test. On other platforms or architectures CMake builds and tests only the Rust parts and skips the
 plugin.
 
+### Save sweep (records read back from every save)
+
+`capi/src/save_sweep_tests.rs` reads class records from every distinct `.sc4` below `FC4_SAVE_DIR` (else
+`FC4_GAME_DIR`, else the default GOG install; read-only; identical files counted once; it passes with a note when
+the directory is missing), reads each entry into a fresh object over the C ABI and writes it back. References
+(foundations §2.7) go through as `classID << 32 | objectID`, so a record needs no other record of the save.
+
+| Record | Class | Check |
+|---|---|---|
+| commercial (commercial-industrial §8.1, §12 test 9) | `0x8990C080` | byte-identical |
+| industrial (§8.2) | `0xA990C022` | byte-identical |
+| civic (civic-buildings §7, §12 test 10) | `0x0A413481` | the record with each multi-entry bucket chain reversed (CB6), and byte-identical after a second round trip |
+| parks (parks §7, §12 test 8) | `0xAA3FE6BC` | byte-identical |
+
+```sh
+cd engine
+cargo test -p fc4-capi --release save_sweep -- --nocapture
+# another corpus, e.g. the regions folder:  FC4_SAVE_DIR=<dir> cargo test -p fc4-capi --release save_sweep -- --nocapture
+```
+
+Each class prints `save sweep <name>: records=… identical=… chains-reversed=… (chains …) second-trip-identical=…
+failures=…; sizes: …` and the first failures. Result on SimCity 4 Deluxe (GOG), 2026-10-15: 417 saves, all
+distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 bytes), civic 417/417 identical and
+417 identical after a second trip (no save has a bucket with two entries; 3,821 to 5,305 bytes), parks 417/417
+(10 bytes ×411, 18, 34, 58, 82).
+
 ## Installing and checking in game
 
 1. Copy `build-x86/FreeCity4.dll` to the game's plugin folder, for example
@@ -1348,7 +1374,8 @@ plugin.
      and lot-state messages the original receives (its own subscription). At each SimNewMonth delivery to the
      original's agent the original's record is captured through its own Write and compared with the shadow core
      (exclusions and status keys in hash order, building counts, the maintained and disease-center lists, the
-     Landmarks department, slots 5 and 8); then the shadow core restarts from that record and runs its month with
+     Landmarks department, slots 5 and 8); then the shadow core restarts from that record (with each multi-entry
+     bucket chain pre-reversed, because `Read` reverses them, civic §7 / CB6) and runs its month with
      lot writes recorded, the original's month runs, and each maintained building's lot condition is compared
      with ours. The ape escape is not compared (the original seeds its generator from the clock); status bytes and
      tooltips written by others through slots 6 / 7 are counted as external writes. Lines (always written):

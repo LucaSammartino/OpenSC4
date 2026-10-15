@@ -133,10 +133,12 @@ private:
 // the stream and its objects the read.
 class CaptureIStream {
 public:
-    explicit CaptureIStream(const WriteCapture& cap);
+    // `bytes`, when given, replaces the capture's bytes (same references,
+    // e.g. a record with reordered entries); it must outlive the stream.
+    explicit CaptureIStream(const WriteCapture& cap, const std::vector<uint8_t>* bytes = nullptr);
     const fc4_istream* Get() const { return &api_; }
     bool good() const { return good_; }
-    bool atEnd() const { return pos_ == cap_.Bytes().size(); }
+    bool atEnd() const { return pos_ == B().size(); }
 
     // fc4_istream callbacks (public for the C table).
     bool Take(void* out, size_t n);
@@ -144,7 +146,9 @@ public:
     bool Ref(uint32_t iid, fc4_ref* out);
 
 private:
+    const std::vector<uint8_t>& B() const { return bytes_ != nullptr ? *bytes_ : cap_.Bytes(); }
     const WriteCapture& cap_;
+    const std::vector<uint8_t>* bytes_ = nullptr;
     size_t pos_ = 0;
     bool good_ = true;
     fc4_istream api_{};

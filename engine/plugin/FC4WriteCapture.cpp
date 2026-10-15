@@ -172,7 +172,8 @@ int32_t CisError(void* u) { return CIS(u).good() ? 0 : 1; }
 
 }  // namespace
 
-CaptureIStream::CaptureIStream(const WriteCapture& cap) : cap_(cap) {
+CaptureIStream::CaptureIStream(const WriteCapture& cap, const std::vector<uint8_t>* bytes)
+    : cap_(cap), bytes_(bytes) {
     api_.struct_size = sizeof(api_);
     api_.user = this;
     api_.get_u8 = &CisU8;
@@ -189,7 +190,7 @@ CaptureIStream::CaptureIStream(const WriteCapture& cap) : cap_(cap) {
 }
 
 bool CaptureIStream::Take(void* out, size_t n) {
-    const std::vector<uint8_t>& b = cap_.Bytes();
+    const std::vector<uint8_t>& b = B();
     if (!good_ || n > b.size() - pos_) {
         good_ = false;
         return false;
@@ -202,7 +203,7 @@ bool CaptureIStream::Take(void* out, size_t n) {
 bool CaptureIStream::Str(fc4_bytes_sink sink, void* ctx) {
     uint32_t n = 0;
     if (!Take(&n, 4)) return false;
-    const std::vector<uint8_t>& b = cap_.Bytes();
+    const std::vector<uint8_t>& b = B();
     if (n > b.size() - pos_) {
         good_ = false;
         return false;

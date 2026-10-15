@@ -542,3 +542,29 @@ fn null_handles_are_harmless() {
         fc4_industrial_destroy(std::ptr::null_mut());
     }
 }
+
+/// The save sweep (`save_sweep_tests.rs`): `rec` read into a fresh simulator
+/// and written again. The two grid references become grids of this host.
+pub(super) fn sweep_round_trip(rec: &[u8]) -> Result<Vec<u8>, String> {
+    let g = Game::new(1);
+    for t in crate::save_sweep_tests::ref_tokens(rec, 3, 2) {
+        g.grids.borrow_mut().insert(
+            t,
+            Grid {
+                instance: 0,
+                data: vec![0.0],
+                refs: 1,
+                shut: false,
+            },
+        );
+    }
+    unsafe {
+        let c = fc4_commercial_create(&host(&g));
+        if c.is_null() {
+            return Err("create failed".into());
+        }
+        let r = crate::save_sweep_tests::read_write(rec, |i| fc4_commercial_read(c, i), |o| fc4_commercial_write(c, o));
+        fc4_commercial_destroy(c);
+        r
+    }
+}

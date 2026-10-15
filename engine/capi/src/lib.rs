@@ -885,6 +885,9 @@ mod protection_tests;
 mod residential_tests;
 
 #[cfg(test)]
+mod save_sweep_tests;
+
+#[cfg(test)]
 mod test_streams;
 
 #[cfg(test)]

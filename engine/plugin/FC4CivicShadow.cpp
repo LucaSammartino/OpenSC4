@@ -238,6 +238,52 @@ Record Parse(const WriteCapture& cap) {
     return r;
 }
 
+// The record with every multi-entry bucket chain of the exclusions and the
+// statuses reversed (civic §7, QUESTIONS CB6): Read inserts in file order at
+// the head of each chain, so reading this gives ours the original's own
+// in-memory order. Empty (read the capture as it is) when the record did
+// not parse or either container holds 194 or more entries (the table then
+// grows while reading).
+std::vector<uint8_t> ChainsReversed(const std::vector<uint8_t>& in, const Record& r) {
+    std::vector<uint8_t> out;
+    if (!r.ok || r.exclusions.size() >= 194 || r.statuses.size() >= 194) return out;
+    auto bucket = [](uint32_t k) { return k % 193u; };
+    auto put = [&out](const void* p, size_t n) {
+        const uint8_t* b = static_cast<const uint8_t*>(p);
+        out.insert(out.end(), b, b + n);
+    };
+    auto put32 = [&put](uint32_t v) { put(&v, 4); };
+    const uint16_t version = 6;
+    put(&version, 2);
+    put32(static_cast<uint32_t>(r.exclusions.size()));
+    for (size_t i = 0; i < r.exclusions.size();) {
+        size_t j = i;
+        while (j < r.exclusions.size() && bucket(r.exclusions[j]) == bucket(r.exclusions[i])) ++j;
+        for (size_t k = j; k > i; --k) put32(r.exclusions[k - 1]);
+        i = j;
+    }
+    put32(static_cast<uint32_t>(r.statuses.size()));
+    size_t statusBytes = 0;
+    for (size_t i = 0; i < r.statuses.size();) {
+        size_t j = i;
+        while (j < r.statuses.size() && bucket(r.statuses[j].key) == bucket(r.statuses[i].key)) ++j;
+        for (size_t k = j; k > i; --k) {
+            const Status& s = r.statuses[k - 1];
+            put32(s.key);
+            put(&s.status, 1);
+            put(&s.count, 2);
+            put32(static_cast<uint32_t>(s.text.size()));
+            put(s.text.data(), s.text.size());
+            statusBytes += 11 + s.text.size();
+        }
+        i = j;
+    }
+    const size_t head = 2 + 4 + 4 * r.exclusions.size() + 4 + statusBytes;
+    if (head != out.size() || head > in.size()) return {};
+    out.insert(out.end(), in.begin() + static_cast<std::ptrdiff_t>(head), in.end());
+    return out;
+}
+
 // ---- the shadow core ------------------------------------------------------------------------------
 
 void DropCore() {
@@ -251,7 +297,7 @@ void DropCore() {
 
 // A fresh shadow core from the original's capture: Read, then Init (which
 // creates nothing with the read-only host and makes Shutdown release).
-bool Restart(const WriteCapture& cap, const void* sim) {
+bool Restart(const WriteCapture& cap, const Record& rec, const void* sim) {
     DropCore();
     g_ctx = CivicContext{};
     g_ctx.readOnly = true;
@@ -262,7 +308,9 @@ bool Restart(const WriteCapture& cap, const void* sim) {
     g_host.add_controllers = &RecordControllers;
     g_core = fc4_civic_create(&g_host, kShadowSeed);
     if (g_core == nullptr) return false;
-    CaptureIStream in(cap);  // FC4WriteCapture.h
+    // CB6: the chains pre-reversed, so ours reads back the original's order.
+    const std::vector<uint8_t> reordered = ChainsReversed(cap.Bytes(), rec);
+    CaptureIStream in(cap, reordered.empty() ? nullptr : &reordered);  // FC4WriteCapture.h
     const bool ok = fc4_civic_read(g_core, in.Get());
     fc4_civic_init(g_core);
     if (!ok) {
@@ -402,7 +450,7 @@ void MonthBefore(void* ctx) {
     if (mo.followed) CompareFollowed(mo.rec, sim, &mo.d, &mo.external, &mo.slot5, &mo.slot5Total, &mo.counts);
     // Step 2: ours restarts from the record and runs its month on the same
     // inputs, lot writes recorded.
-    if (!Restart(g_capture, sim)) {
+    if (!Restart(g_capture, mo.rec, sim)) {
         mo.incomplete = "the shadow core could not read the original's record";
         return;
     }
