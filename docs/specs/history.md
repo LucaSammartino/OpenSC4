@@ -78,7 +78,8 @@ day** (§4.1). `maxCount = 0` means "no limit" (thinned by §4.3); `maxCount = n
 | `0x66956817` SimNewYear | if `passState = 0`: `passState := 1` | true |
 | other | — | true |
 
-No subsystem posts `0x89EFA537` in the executable; queue lengths are set through the interface (slot 13). The win
+No subsystem posts `0x89EFA537` in the executable (HW4: its four bytes occur only in `Init` `0x00476726`,
+`Shutdown` `0x00475900` and `DoMessage` `0x004770BE`); queue lengths are set through the interface (slot 13). The win
 trend bar (`cSC4WinTrendBar`, UI) also subscribes to `0x89EFA536` and sees every recorded value.
 
 ## 4. Behaviour

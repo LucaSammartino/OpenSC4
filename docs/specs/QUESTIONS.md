@@ -3613,20 +3613,20 @@ step and adds a fallback. The current answer is in brackets.
 Open points from commercial-industrial.md, civic-buildings.md, parks.md, history.md and clock24.md. The current
 answer is in brackets; each entry says what would settle it.
 
-- **CM1:** AO1, the commercial part: which AddAgent name does the commercial simulator use, and does it count at the
+- ~~**CM1:** AO1, the commercial part: which AddAgent name does the commercial simulator use, and does it count at the
   month level? [`cSC4CommercialSimulator`. It registers a one-shot, an idle, a day and a month agent; the month agent
   ignores its message but still takes a place in the month order (commercial-industrial.md §3). AO1 and
-  foundations §13.4 can take this name. The two port developers are still open]
-- **CM2:** If FreeCity4 ever corrects RG23 (the proximity seed covers only the z = 0 edge), the CO$$ and CO$$$ maps
+  foundations §13.4 can take this name. The two port developers are still open]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (commercial-industrial.md §3, foundations §13.4). The name is `cSC4CommercialSimulator`, and it is in the §13.4 tail table with levels 0, 10, 4, 6. The port developers' name is settled too (AO1, AO3: both use `cSC4PortDeveloper`).
+- ~~**CM2:** If FreeCity4 ever corrects RG23 (the proximity seed covers only the z = 0 edge), the CO$$ and CO$$$ maps
   stop being constant and offices start to affect growth. Should the correction be offered? [no: compatibility
   keeps the defect. A correction would be a separate *[choice]* behind an option, off by default. This is a
-  coordinator decision, not an RE question]
+  coordinator decision, not an RE question]~~ **ANSWERED 2026-10-15 (re-answers11):** Not an RE question: the original's behaviour is the defect, and RE has nothing more to add. The bracket stands as the coordinator's policy (compatibility keeps it; any correction is an off-by-default *[choice]*).
 - **CM3:** The demand nodes `0x3000` and `0x3800` are held but never read, yet `Init` fails without them. Can the
   shipped game reach `Init` without them? [no case found: the demand simulator creates them first, and FreeCity4
   keeps the failure path. A load test with a city whose demand record is missing would settle it]
-- **IN1:** Does anything call the industrial simulator beyond the city's lifecycle calls? [no other reference to its
+- ~~**IN1:** Does anything call the industrial simulator beyond the city's lifecycle calls? [no other reference to its
   interface or class ID was found, so the implementation is a stub with a version record. A runtime call trace on
-  its vtable would settle it]
+  its vtable would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES as far as static analysis reaches. The interface IID `0x477A9E7D` and class ID `0xA990C022` occur only in `cSC4City::CreateCityComponents` (`0x0045AE5E`), `cSC4City::Read` (`0x0045CF15`), the class's own `QueryInterface`/`GetGZCLSID` (`0x006B8975`, `0x006B8961`) and the class table (`0x00B08E78`); the vtable `0x00AB1530` is referenced only by its constructor and destructor (`0x006B8A4A`, `0x006B8AF0`). A caller through the city getter (slot 60) cannot be ruled out statically; a runtime trace would.
 - **CB1:** Lot placement and exclusion IDs. The civic simulator has no preview-occupant test, so a preview occupant
   of a building with `0xEA2E078B` adds that ID and then erases it. If the preview's removal came after the real
   building's insertion, the ID would be lost and the building could be placed twice. [in the shipped game a placed
@@ -3637,57 +3637,57 @@ answer is in brackets; each entry says what would settle it.
   `maintained` a second time. Does the shipped game send state 3 twice for a civic lot? [reproduced as is. The
   corpus holds 7 `maintained` entries in 5 cities and no duplicate. A lot-state message log for an abandoned and
   restored civic building would settle it]
-- **CB3:** Status bytes 4, 5 and 6 occur in the corpus (15, 8 and 32 entries). The SDK calls bit 4 "advisor event
+- ~~**CB3:** Status bytes 4, 5 and 6 occur in the corpus (15, 8 and 32 entries). The SDK calls bit 4 "advisor event
   data set". Who sets it, and does anything read it back? [carried through `Read` and `Write` unchanged; the
-  advisors write through `GetConditionalBuildingStatus`. A trace of the writers of the status byte would settle it]
+  advisors write through `GetConditionalBuildingStatus`. A trace of the writers of the status byte would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** Answered (civic-buildings.md §2). Bit 4 is the reward advice's "already announced" mark: advisors.md §6.6 sets status 6 when the condition first returns 1 and fires only while bit 4 is clear. Later results keep it (a string gives 4, number 0 gives 5), which accounts for the corpus values 4, 5 and 6. The advisor reads it back; nothing else does.
 - **CB4:** `buildingCount` is a u16 that wraps. A removal without a matching insert gives 65,535: for example a
   building inserted before its status entry existed, or removed before activation. [reproduce the wrap. Counts
   above 0 occur in only 13 entries of 5 cities, and none has wrapped. A save that loads with a building but
   without its status entry would show it]
-- **CB5:** The income line is keyed by the building type, not by the item's line. The line that
+- ~~**CB5:** The income line is keyed by the building type, not by the item's line. The line that
   `CreateLineItemForBuildingType` returns is used without a null check. [keep the keying. *[choice]* FreeCity4
-  skips the income when creation fails, which the shipped budget never does for a new type]
+  skips the income when creation fails, which the shipped budget never does for a new type]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice harmless). `CreateLineItem` always creates and stores a new item and returns it (budget.md, the department budget methods), so the null case does not arise in the original apart from an allocation failure.
 - **PK1:** The shipped distress threshold 25.0 is compared with a fraction. So the first monthly pass of each session
   marks every park lot run down (condition 2), and the park manager never restores it. Yet in the corpus every park
   lot is at condition 0 (one at 1). What resets the condition? [the lot developer's condition test
   (lot-developer.md §5.5) *[inferred]*. An in-game check would settle it: play one month with a park, then save,
   or watch the lot condition in the query tool]
-- **PK2:** The zoo escape runs only when the park list is not empty. A park budget item that names a missing
+- ~~**PK2:** The zoo escape runs only when the park list is not empty. A park budget item that names a missing
   department crashes the original. [the shipped zoo is in both groups, so the first point cannot show in the
-  shipped game. *[choice]* FreeCity4 skips the charge for a missing department (parks.md §4.2)]
-- **PK3:** Park line items are never removed. A removal message releases the occupant once even when it was not
+  shipped game. *[choice]* FreeCity4 skips the charge for a missing department (parks.md §4.2)]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (choice confirmed). Shipped data cannot reach the crash; skipping the charge is a safe *[choice]*.
+- ~~**PK3:** Park line items are never removed. A removal message releases the occupant once even when it was not
   listed. [reproduced; an empty line stays in the budget panel at 0 and 0. A budget-panel check after demolishing
-  every park of one type would confirm the visible effect]
-- **HW1:** The yearly thinning keeps the last point of every `Dispose` range and leaves the last group of every
+  every park of one type would confirm the visible effect]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (reproduced from the exe, parks.md §4). What remains is a visual check of the budget panel, not a behaviour question.
+- ~~**HW1:** The yearly thinning keeps the last point of every `Dispose` range and leaves the last group of every
   `Coalesce` range open. Is that an off-by-one in the original, or intended? [reproduced as is; Konradshohe's 296
-  points match this model exactly]
+  points match this model exactly]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES. The intent cannot be recovered from the code; the behaviour is as reproduced, and the 296-point corpus match confirms it. Keep it as *[compat]*.
 - **HW2:** `GetPoint` at an interior point returns the regression value through three points (a smoothing), and
   `GetCount` counts the widened range. Do the graph windows depend on this? [reproduced; the graph and Lua callers
   are not traced yet. A trace of the graph window's calls would settle it]
 - **HW3:** The regression sums are `double` variables, but they follow the caller's x87 precision: 24-bit from the
   simulators, 53-bit inside Lua calls (foundations §18). [FreeCity4 evaluates them per caller. A differential test
   through a Lua advisor call would confirm the 53-bit path]
-- **HW4:** Version 1 records turn `maxCount = 100` into 0, duplicate dates overwrite the last point, and nothing in the
+- ~~**HW4:** Version 1 records turn `maxCount = 100` into 0, duplicate dates overwrite the last point, and nothing in the
   executable posts `0x89EFA537`. Why `100 → 0`, and does any plugin post `0x89EFA537`? [reproduced; the message stays
   handled for plugins. The city getter is settled: slot 32 (`+0x80`) returns the field that `CreateCityComponents`
-  fills with the warehouse (history.md §1); docs/abi still shows a folded name for it]
+  fills with the warehouse (history.md §1); docs/abi still shows a folded name for it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (history.md §3). The four bytes of `0x89EFA537` occur only in the warehouse's `Init` (`0x00476726`), `Shutdown` (`0x00475900`) and `DoMessage` (`0x004770BE`), so nothing in the executable posts it. The reason for `100 → 0` is not recoverable from the code.
 - **CK1:** Does the clock run while the player pauses the simulation (pause button or speed 0)? [yes *[inferred]*:
   only hidden pauses (through `SC4GamePause` and the scrubber) stop it, and nothing links the simulator's `Pause()`
   or speed to the clock. An in-game check would settle it: pause, then watch the clock display and the lighting]
 - **CK2:** Is the clock timer's unit 3 microseconds? [yes *[inferred]* from the `1e-6` factor, which gives a
   640-second day at magnification 135. The unit factors from `0x00B54360` onwards are calibrated at runtime.
   Reading that table in a running game, or timing one game day, would settle it]
-- **CK3:** What is the object at `+0x8C` that `Shutdown` hands the string at `+0x78` to? [dead: nothing in the clock
-  sets it, so FreeCity4 omits both fields. A write breakpoint on `+0x8C` would settle it]
-- **CK4:** A saved `pauseCount > 0` leaves the clock stopped after the load, and only `Stopwatch resume` restarts it.
-  [reproduced; the corpus has no such save]
-- **CK5:** Each step loses the fraction of a game second left after truncation, so the day is up to about 1.6 %
+- ~~**CK3:** What is the object at `+0x8C` that `Shutdown` hands the string at `+0x78` to? [dead: nothing in the clock
+  sets it, so FreeCity4 omits both fields. A write breakpoint on `+0x8C` would settle it]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (dead; clock24.md §2). The clock's only writes to `+0x8C` are the constructor's 0 (`0x00445A15`) and `Shutdown`'s clear (`0x0044516B`), and no accessor hands it out.
+- ~~**CK4:** A saved `pauseCount > 0` leaves the clock stopped after the load, and only `Stopwatch resume` restarts it.
+  [reproduced; the corpus has no such save]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (reproduced from the exe; the corpus has no such save, so there is nothing more to settle).
+- ~~**CK5:** Each step loses the fraction of a game second left after truncation, so the day is up to about 1.6 %
   longer than 86,400 / magnification real seconds, depending on the idle cadence. [FreeCity4 reproduces the formula. The
-  visible day length follows FreeCity4's own idle cadence, which conformance does not test]
-- **CK6:** The SDK header declares `GetTimePercentage` and `GetVisualTimePercentage` as `float (void)`, but the game
+  visible day length follows FreeCity4's own idle cadence, which conformance does not test]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (formula reproduced; the visible day length is FreeCity4's own cadence and outside conformance).
+- ~~**CK6:** The SDK header declares `GetTimePercentage` and `GetVisualTimePercentage` as `float (void)`, but the game
   takes an out pointer and pops 4 bytes. `GetEventHour` takes a dword index, not a `bool`. [the game's form is
   binding (clock24.md §8), and docs/abi should note it. Plugins built on the SDK declaration would corrupt the
-  stack in the original too]
+  stack in the original too]~~ **ANSWERED 2026-10-15 (re-answers11):** MATCHES (clock24.md §8). Re-checked: `GetTimePercentage` and `GetVisualTimePercentage` end with `ret 4` (`0x0044543E`, `0x0044546E`), and `GetEventHour` tests the whole dword (`0x00445024`, `0x0044502E`). The docs/abi note is the coordinator's to add.
 
 ## From the power shadow under the turbo clock (filed by the coordinator from the `powerturbo` lane's report, 2026-10-14)
 
@@ -3737,8 +3737,8 @@ bankrupt. QI `0x0AC2B5F7` on new building occupants works (154 created, 0 failur
 - ~~**DG29:** data-formats §4.4 says `EnumProperties` gives the effective property list, but in game it lists only a
   holder's own properties. Is there an effective enumerator, and what does the original's lookup do with cohorts?
   [the glue walks the parent cohort chain itself (`EffectiveProperties`), with cycle detection]~~ **Answered (re-answers9, data-formats §4.4):** `EnumProperties` (slots 19/20) walks only the own list; every lookup binary-searches a sorted vector that already holds the inherited properties; the effective enumerator is slot 4 `GetPropertyList` (ascending ID order, one reference). The glue's own chain walk is acceptable when own properties win.
-- **DG30:** the suitability comparison tests each building type at a cell whose zone fits it, rotating through lots
-  in state 1, lots in other states and empty cells. Tooling only. [accepted as tooling]
+- ~~**DG30:** the suitability comparison tests each building type at a cell whose zone fits it, rotating through lots
+  in state 1, lots in other states and empty cells. Tooling only. [accepted as tooling]~~ **ANSWERED 2026-10-15 (re-answers11):** Not an RE question (tooling only); accepted as tooling.
 - ~~**DG31:** with the original simulators, a city run at about 85 game days per real second (`sim_turbo`) ends with
   lower income (3540-3647 against 4202-4593 at 8-20 days/s) and negative funds. Which original work is bound to
   frames or real time rather than game days? [unknown; compare runs only at equal pacing. Separately, our

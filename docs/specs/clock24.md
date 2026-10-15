@@ -74,7 +74,9 @@ slot 3 is the deleting destructor thunk).
 | `+0x8C` | an object pointer | null | no |
 
 Nothing in the clock ever sets `+0x8C`. `Shutdown` passes the string at `+0x78` to that object's slot 7 and releases
-it, but only when the pointer is non-null *[inferred: dead code]*. *[choice]* FreeCity4 omits both fields (CK3).
+it, but only when the pointer is non-null: dead code (CK3, verified: the clock's only writes to `+0x8C` are the
+constructor's 0 at `0x00445A15` and `Shutdown`'s clear at `0x0044516B`, and no accessor hands the field out).
+*[choice]* FreeCity4 omits both fields.
 
 ## 3. Cadence and messages
 
