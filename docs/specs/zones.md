@@ -7,6 +7,10 @@ cell → lot map and lot lists, both save records, every slot of the interfaces)
 highlight preview, plopped lots) is described only as far as it shares state or random draws with growth.
 Round 6 added the exact parcellization geometry: `Parcellize` (§7.6), `DrawStreet` (§7.10), `ExtendAsStreets`
 (§7.11), `LayInJogStreets` (§7.12), the connection test (§7.13) and conformance tests 19–29.
+Round re-specs11 added lot creation down to the lot object (§8.5.1: pool, constructor fields, first `Init`), the
+plop test `CanCreatePloppedLot` (§8.4.1–§8.4.3), the zoning preview textures (§7.1.1), `UpdateZoneType` (§7.2.2),
+the two network-join handlers (§5.2.1, §5.2.2), the safe lot iterator (§8.3.1), quirks 19–22 and tests 34–45;
+§14.3 Q2–Q8 are answered.
 
 Tags: *[compat]* observable, must match; *[choice]* FreeCity4 decision; *[inferred]* not proven;
 *[quirk]* original behaviour that looks unintended but is reproduced (or that a replacement must survive).
@@ -88,9 +92,11 @@ pollution, terrain, city, occupant manager, then `Shutdown` and `Release` the gr
 
 Idempotent. In order:
 
-1. Re-point its lot developer reference to `0x00B43D20` (AddRef new, release old). Clear the cached 3D-view value.
-2. Take, in this order: the 3D-view global `0x00B43DD0` (set by `SL::OnView3DInit` `0x00602590`; its slot 10 result
-   is cached), BDS (`0x00B43D68`), city (`0x00B43CEC`) and its cell counts, occupant manager (`0x00B43D0C`), terrain
+1. Re-point its lot developer reference to `0x00B43D20` (AddRef new, release old). Clear the cached view value
+   (`+0xD4`).
+2. Take, in this order: the renderer global `0x00B43DD0` (set by `SL::OnView3DInit` `0x00602590` from the 3D view's
+   slot 4; when it is set, the cached view value := the u32 at `+0x14` of the object its slot 10 returns, getter
+   `0x004E82A0` = renderer `+0x11C`, else 0; §5.2), BDS (`0x00B43D68`), city (`0x00B43CEC`) and its cell counts, occupant manager (`0x00B43D0C`), terrain
    (`0x00B43CF4`), traffic simulator (`0x00B43DA8`), zone manager (`0x00B43D14`), message server (`0x00B43CCC`).
    **If any is null, return AL = 0 with the initialised flag unset.** A host without a 3D view therefore cannot
    initialise the original zone developer *[compat]* (§13).
@@ -98,9 +104,13 @@ Idempotent. In order:
    call `lot.Init()` (lot slot 5) for every lot at its origin cell, x outer, z inner.
 4. If there is no maximum-capacity grid: construct a **`uint16` grid directly** (C, 0x44 bytes, constructor
    `0x0045F9B0`, game class `0x49B9E604`), AddRef, `Init`, `SetTractSize(4)`, `SetInstanceID(0x69D5C456)`. It is not
-   saved by this class (§10.2) *[inferred: no writer found in this class]*.
+   saved by this class (§10.2). **Nothing in the exe writes or reads it** (§14.3 Q7): the zone
+   developer touches it only here, in `Shutdown` and in lot-manager slot 27, the instance ID `0x69D5C456` occurs only
+   in this `Init`, and no caller of slot 27 exists (every `call [reg + 0x6C]` site was checked). The grid therefore
+   stays all zero for the whole session. A replacement may create it lazily or hand out an all-zero grid.
 5. `InitBoundaryRules` (`0x0072FF80`; lot-boundary texture rules, UI).
-6. Subscribe to `0x99EF1142` (InsertOccupant), `0x26D31EC1` (PostCityInit), `0xA6B79602` (unnamed view message).
+6. Subscribe to `0x99EF1142` (InsertOccupant), `0x26D31EC1` (PostCityInit), `0xA6B79602`
+   (`kSC4MessageViewZRChange3`, §5.2).
 7. Register the cheats "PlopAllLots" (`0x8929E68E`) and "PlopAllBuildings" (`0x4AB569C9`) with the cheat manager
    (`0x00B43CAC`) when the app's slot 21 (`0x00B43C94`) is true, and subscribe to the cheat message `0x230E27AC`.
 8. Set the initialised flag; return 1.
@@ -178,7 +188,7 @@ inserts a zero entry (§11.1), which then appears in the next save *[quirk]*.
 | restriction region (borrowed or owned pointer, §7) | null | no |
 | highlight point, virtual-lot maps (created / deleted cells → `{x, z, facing}`) | empty | no |
 | street, dirt-road and road network tools (from the network manager at PostCityInit) | null | no |
-| boundary-rule map, cached view value (UI) | — | no |
+| boundary-rule map; cached view value `+0xD4` (UI: read only by the highlight-texture code, §5.2) | — | no |
 | file-local `cRZRandom` `0x00B4B398` (shared by every instance) | static init (§9) | no |
 | initialised flag, loaded flag | false | no |
 
@@ -248,7 +258,7 @@ nested inside the outer `PlaceZone` *[inferred: synchronous delivery, §5.2]*.
 |---|---|
 | `0x26D31EC1` PostCityInit | Take the terrain view (`SL::TerrainView`). From the network manager (`SL::NetworkManager` slot 5 `GetNetworkTool(type, 1)`) take the **network tools** of types 3 (street), 11 (dirt road) and 0 (road), each AddRef'd and its slot 3 called. If the city was loaded, call `lot.PostCityInit()` (lot slot 8) for every lot at its origin cell, x outer, z inner. |
 | `0x230E27AC` cheat (ID = data1) | `0x8929E68E` → `PlopAllLotTypes` (`0x0072C8E0`); `0x4AB569C9` → `PlopAllBuildingTypes` (`0x0072BE50`). Debug only; not specified. |
-| `0xA6B79602` | stores the u32 at `*void2` (used for highlight textures). |
+| `0xA6B79602` `kSC4MessageViewZRChange3` | cached view value (`+0xD4`) := the u32 at `*void2` (message slot 15 `GetVoid2`; handler `0x00732BC5`). UI only, see below. |
 | `0x99EF1142` InsertOccupant, data3 = `0xC772BF98` | see below |
 
 InsertOccupant of a network occupant:
@@ -258,14 +268,73 @@ InsertOccupant of a network occupant:
    **one** cell: remember its rect (lot slot 14), facing (slot 23) and zone (slot 31); set the current zone type to
    that zone; `DeleteLot(lot)` (§8.6); if `IsRCIZone(zone)`, `CreateLotRemnants(rect, facing)` (§7.8); reset the
    current zone type.
-3. Then by the message's data4 (message slot 24 *[inferred: GetData4]*): 1 or 2 → `0x00731F60(occupant)`; 3 →
-   `0x00732450(occupant)`. Names *[inferred]*: street-joining helpers (connect a new road to adjacent streets /
-   streets across rail). Not traced; they draw no random numbers (no RNG call in the class outside §9).
+3. Then by the message's data4 (message slot 24 *[inferred: GetData4]*): 1 or 2 → `JoinDeadEndStubs(occupant)`
+   (`0x00731F60`, §5.2.1); 3 → `JoinAcrossRail(occupant)` (`0x00732450`, §5.2.2); any other value → nothing. The
+   names are FreeCity4's. Neither draws a random number. Who posts which data4 is outside this spec (ZQ14).
 
-**Order with the zone manager.** Both classes handle the same synchronous InsertOccupant. The zone manager
-subscribed first (§1.1), so its dezone (and the re-parcelling it triggers) runs before step 2 here *[inferred:
-subscription order follows Init order, foundations §5.1, §3.7]*. Step 2 then usually finds no lot (it was deleted
-by the dezone) unless the lot's zone is not dezoned by `OnDezone` (§7.9).
+**Order with the zone manager** (verified, §14.3 Q8). Both classes handle the same synchronous InsertOccupant. The
+city's `Init` (`cISC4City` slot 3, `0x0045BD20`) initialises its components in this order: occupant manager
+(city `+0x12C`), zone manager (`+0x134`), the component at `+0x148`, zone developer (`+0x138`), …, lot manager
+(`+0x144`; its `Init` is the zone developer's, already done). Each `Init` subscribes with `AddNotification`
+(message server slot 5, `0x0092E795`), which appends the target to the message type's list, and `MessageSend`
+delivers in list order (foundations §5.1). So the zone manager's dezone (and the re-parcelling it triggers) runs
+before step 2 here. Step 2 then usually finds no lot (it was deleted by the dezone) unless the lot's zone is not
+dezoned by `OnDezone` (§7.9).
+
+The view message `0xA6B79602` is `kSC4MessageViewZRChange3` (the exe's message-name table at `0x00B086C0`;
+neighbours `0xA6B79600`/`01` ZRChange1/2, `0xA6B79610`–`12` ViewTChange1–3, `0xA6B79620`–`22` PostViewInit,
+PostViewRefresh, PreViewShutdown). The camera control sends it synchronously (`MessageSend`) from
+`SendPostViewChangeMessage` (`0x007CC0B0`) for a change of kind 2, right after `0xA6B79601`, with void1 = camera
+`+0x100` and void2 = camera `+0x110`. The cached value is read only by the zone developer's highlight-texture code,
+which adds it to a texture instance *[inferred: the zoom level]*. It has no effect on simulation, lots or saves; a
+replacement may ignore the message.
+
+#### 5.2.1 `JoinDeadEndStubs(occupant)` (`0x00731F60`, pop 4)
+
+Joins a newly placed road piece to a street or dirt-road stub that ends next to it, pointing at it.
+
+1. `n :=` the occupant queried for `cISC4NetworkOccupant` (`0xA821EF94`); none → return.
+2. The tool, by the new piece's kind (network occupant slot 22 `IsOfType(t)`, tested in this order): road (0) or
+   one-way road (10) → the road tool; street (3) → the street tool; dirt road (11) → the dirt-road tool; anything
+   else → return. A null tool (before PostCityInit) → return.
+3. If `n` has network flag `0x400000` (slot 17) → return.
+4. `(x, z) :=` the first cell of its bounding cells (occupant slot 11: x1, z1).
+5. For each neighbour in the order W `(x−1, z)`, N `(x, z−1)`, E `(x+1, z)`, S `(x, z+1)`, with **expected edge**
+   0, 1, 2, 3 respectively (the network edge that points away from the new piece):
+   1. `m := GetNetwork(nx, nz, 0xC09)` (§7.13; road, street, one-way, dirt). Skip the neighbour if there is none,
+      or unless `m` is a street or dirt road and neither a one-way nor a road (`0x00729F90`: `IsOfType(3)` or
+      `IsOfType(11)`, and not `IsOfType(10)`, and not `IsOfType(0)`).
+   2. For each edge e = 0..3, the first that holds counts: `ConnectsToNeighbor(e, 3)` (slot 47) → a street
+      connection on e; else `ConnectsToNeighbor(e, 11)` → a dirt connection on e. (A third, road arm,
+      `ConnectsToNeighbor(e, 0)` or `(e, 10)`, is gated by the static byte `0x00B4B391`, which lies in the
+      zero-filled part of `.data`, has no reference that writes it and is therefore always 0. A replacement omits it.)
+   3. If exactly one connection was counted and it is on the expected edge: `tool.PlaceNetworkOccupants(x, z, nx,
+      nz, 0, null, 1, −1)` (tool slot 7, real mode). Its result is ignored.
+6. Release `n`.
+
+So a straight street or dirt stub that stops one cell short of the new piece is extended into it, with a one-cell
+segment of the new piece's own kind. A neighbour that connects elsewhere too, or whose only connection points at the
+new piece, is left alone.
+
+#### 5.2.2 `JoinAcrossRail(occupant)` (`0x00732450`, pop 4)
+
+Joins a newly placed piece to a street or dirt road on the far side of a single rail line.
+
+1. Query `cISC4NetworkOccupant`; none → return. If the dirt-road tool or the street tool is null → return. If the
+   piece has network flag `0x400000` → return. `(x, z) :=` its first bounding cell.
+2. For each direction `d = (dx, dz)` in the order W (−1, 0), N (0, −1), E (+1, 0), S (0, +1):
+   1. `r := GetNetwork(x + dx, z + dz, 2)`; it must exist and be rail only (`GetNetworkFlags()` (slot 12)
+      `& 0x1F4F = 2`).
+   2. `r` must run across `d`: for W and E it connects (`ConnectsToNeighbor(e, 1)`) on edges 1 and 3 and not on 0
+      and 2; for N and S on 0 and 2 and not on 1 and 3. (The four tests run in edge order and stop at the first
+      that fails.)
+   3. At the far cell `f := (x + 2dx, z + 2dz)`: if `GetNetwork(f, 8)` exists and `IsOfType(3)` → the street tool;
+      else if `GetNetwork(f, 0x800)` exists and `IsOfType(11)` → the dirt-road tool; else skip this direction.
+   4. `tool.PlaceNetworkOccupants(x, z, f.x, f.z, 0, null, 1, −1)`.
+3. Release the query.
+
+The tool follows the far cell's kind, not the new piece's. Each Place inserts network occupants, whose own
+InsertOccupant messages re-enter this handler synchronously.
 
 ### 5.3 Messages posted
 
@@ -436,8 +505,8 @@ Callers relevant to growth: the zone manager's own dezone (§5.1); the BDS `DoTe
 `HighlightParcels(region, type, point*, SC4CellRegion** out)` (slot 5, `0x00733F30`, pop 16): UI preview. It stores
 the point, sets the real-mode flag false and sets the current zone type := type. If `IsRCIZone(type)`: clear the
 highlight (below), `OnZone(region, out)` (§7.2), then `UpdateHighlightTextures(region)` (`0x0072DB60`). That last
-call is UI: it walks the virtual-lot map and draws each entry through the terrain view, *[inferred]* changing no
-simulation state. In every case it then sets real mode back to true, the type to 0 and the point to null. A non-RCI
+call is UI (§7.1.1): it draws the virtual lots and the real lots under the drag through the terrain view and
+changes no simulation state. In every case it then sets real mode back to true, the type to 0 and the point to null. A non-RCI
 type does nothing else: the highlight is not cleared and `*out` is not written. The virtual maps and the street
 tool's drafts are **not** cleared at the end. They stay until the next clear.
 
@@ -461,10 +530,50 @@ same cell overwrites the earlier one.
 | `ExistsNetworkOfType`, `ExistsConnectionOfType`, `LayInJogStreets`' parallel test (§8.8, §7.13, §7.12) | real networks | also the street and dirt-road tools' drafts |
 | `DrawStreet` (§7.10) | a street | a draft (`PlaceNetworkOccupants` with realMode false) |
 | `Parcellize` (§7.6.2) | levels every rect, locks created lots | neither (no lot is returned) |
-| `OnZone` step 7 (§7.2) | `0x0072B180` | skipped |
+| `OnZone` step 7 (§7.2) | `UpdateZoneType` (§7.2.2) | skipped |
 
 Everything else runs as in real mode. `ExamineCell`'s lot test sees only real lots (§7.3), both DeferOccupantOperations
 messages are posted (§7.2), and random numbers are still **drawn** (§9) *[compat]*.
+
+#### 7.1.1 `UpdateHighlightTextures(region)` (`0x0072DB60`, pop 4) — UI
+
+Draws the zoning preview, one highlight texture per previewed cell, through the terrain view (`+0x38`, taken at
+PostCityInit from `SL::TerrainView`, terrain slot 66). It changes no simulation state, reads no lot developer state and
+draws no random number; a headless replacement may leave it out (§14.3 Q2).
+
+1. `colour := zoneManager.GetZoneDragColor(currentZone)` (slot 15). `edges := currentZone ∉ {7, 8, 9}`.
+2. **Virtual lots.** For every entry of the virtual-lot map (`+0xD8`: cell `(x, z)` → `{x1, z1, facing}` of the lot
+   that recorded it), in map order:
+   1. Side codes as in lot-developer.md §17.7: `s0` towards z − 1, `s1` towards x + 1, `s2` towards z + 1, `s3`
+      towards x − 1; 0 = the same lot continues, 1 = a boundary, 2 = the boundary the lot faces. All start at 1.
+      With `edges`, the neighbours are tested in the order `(x, z − 1)` → `s0`, `(x, z + 1)` → `s2`, `(x − 1, z)` →
+      `s3`, `(x + 1, z)` → `s1`: if the map has an entry for the neighbour (`0x0072AC60`) with the same `{x1, z1}`, the
+      side is 0; otherwise it is 2 when **this** entry's facing equals the side's number, else it stays 1. Without
+      `edges` all four are 0.
+   2. `rule :=` the zone developer's own boundary-rule map (`+0xF0`, filled by `InitBoundaryRules` `0x0072FF80` at
+      §1.2 step 5) at `key := s0·0x1000 + s1·0x100 + s2·0x10 + s3`, or at key 0 when absent (`0x0072C180`).
+   3. `view.slot4(&(x, z), &{0x7AB50E44, 0x0986135E, rule.texture + viewValue}, rule.rotation, rule.flip, colour,
+      3, 0)` (terrain view `+0x10`, seven arguments). `viewValue` is the cached view value `+0xD4` (§5.2). The rotation
+      and flip are single bytes pushed as dwords; their upper bytes are whatever the stack held.
+3. **Real lots under the drag.** For every cell `(x, z)` of the region's rect, **z outer, x inner**, whose bit is set:
+   skip it if `ExistsNetworkOfType(x, z, 0x1F4F)` (slot 8; in highlight mode this sees drafts too, §8.8); `lot :=
+   GetLot(x, z, false)`; skip it if there is no lot, if `lot.GetZoneType()` (lot slot 31) equals `currentZone`, or if
+   the cell has an entry in the virtual-lot map. Otherwise the side codes come from the real cell map, in the same
+   neighbour order: 0 when `GetLot(neighbour, false)` is the same lot, else 2 when `lot.GetFacing()` (lot slot 23) is
+   the side's number, else 1 (all 0 without `edges`). Then the same lookup and draw as step 2.
+
+**The preview rules differ from the lot developer's** *[quirk]*. The map holds the 47 rules of lot-developer.md
+§17.7 except four flipped rules, whose rotations 1 and 3 are exchanged:
+
+| Key | Zone developer (`0x0072FF80`) | Lot developer (`0x006CA160`) |
+|---|---|---|
+| `0x0210` | `0x2400`, rotation 3, flip (`0x0073024D`) | `0x2400`, rotation 1, flip (`0x006CA42D`) |
+| `0x1002` | `0x2400`, rotation 1, flip (`0x0073029B`) | `0x2400`, rotation 3, flip (`0x006CA47B`) |
+| `0x0211` | `0x2700`, rotation 3, flip (`0x007305AD`) | `0x2700`, rotation 1, flip (`0x006CA78D`) |
+| `0x1102` | `0x2700`, rotation 1, flip (`0x007305FB`) | `0x2700`, rotation 3, flip (`0x006CA7DB`) |
+
+The other 43 rules are identical (both functions were listed insertion by insertion). A previewed cell with one of
+these four codes is therefore drawn turned by 180° from the base texture the lot gets when it is created.
 
 ### 7.2 `OnZone(region, out)` (`0x00733770`)
 
@@ -508,8 +617,31 @@ written. This path never looks at the highlight point.
    The previous `*out` is freed either way (`0x00733E02`–`0x00733E95`). That bit is read **without a bounds check**
    (`0x00733E1C`): for a P outside `*out`'s rect the original reads outside the bit array, giving garbage or a crash.
    *[choice]* FreeCity4 treats such a P as a clear bit, so `*out` := null.
-7. In real mode, `0x0072B180(region)` (not traced; *[inferred: UpdateZoneType-like bookkeeping, no RNG]*).
+7. In real mode, `UpdateZoneType(region)` (§7.2.2) on the region as passed in.
 8. Post DeferOccupantOperations (data1 = 0).
+
+#### 7.2.2 `UpdateZoneType(region)` (`0x0072B180`, pop 4)
+
+Brings the lots of the region up to date with the zone grid and **dezones every cell of the region that ended up
+without a lot**. No random draws.
+
+1. `D :=` a new all-clear region of the input's width and height, with the input's rect (`0x004422A0`, on the
+   stack; destroyed with `0x00441A60` at the end). `f := lotDeveloper.GetForceEmptyLotBaseTextures()` (lot developer
+   slot 46).
+2. Walk the input's rect, **z outer, x inner** (a rect with x2 < x1 or z2 < z1 is empty). Skip cells whose bit is
+   clear (unsigned offset test, so cells outside the bit array are clear). For each set cell (x, z):
+   - If a lot has its **origin** there (`GetLot(x, z, true)`, slot 6): `z0 := lot.GetZoneType()` (slot 31);
+     `lot.UpdateZoneType()` (slot 32: the zone of its location cell); `z1 := lot.GetZoneType()`. If `z1 ≠ z0` and
+     (`f` or `lot.GetState()` (slot 33) < 2): `lotDeveloper.SetEmptyLotBaseTexture(lot)` (slot 43).
+   - Else, if no lot covers the cell at all (`GetLot(x, z, false)` is null): set the cell's bit in `D`.
+   - (A cell covered by a lot whose origin is elsewhere does neither.)
+3. If any bit of `D` was set: `zoneManager.PlaceZone(D, 0, commit = 1, skipFunds = 1, checkSlope = 0, skipSize = 1,
+   lotInside = 0, null, null, null)` (§6): those cells become unzoned, free of charge. This nested `PlaceZone` runs
+   the dezone path (§7.9) and posts its own ZoningChange.
+
+So after a real-mode zoning pass the zone layer holds only cells that carry a lot: cells the parcelling turned into
+streets, cells it skipped (water, networks, cells where no lot fitted) and remnants that could not be made into lots
+all revert to zone 0.
 
 #### 7.2.1 `DetermineLotSize` (`0x00732BF0`)
 
@@ -617,7 +749,7 @@ Scores the four sides of the restriction region R to decide which side lots face
 | network of `0x2` (rail) | := 2 | += 5 |
 | other network of `0x1F4F` | — | — |
 | no network: a lot on the cell, or water | := 2 | += 5 |
-| no network: each occupant in the cell (occupant manager slot 41, all types) of type `0x278128A0` (building) or `0x2890D4DE` (unnamed) | := 2 | += 5 each |
+| no network: each occupant in the cell (occupant manager slot 41, all types) of type `0x278128A0` (building) or `0x2890D4DE` (power pole, `cSC4PowerPoleOccupant`: its constructor `0x0064DB30` stores that type, `0x0064DD33`) | := 2 | += 5 each |
 | then, in every case: if C[side] = 0 | | += 1 |
 
 - In highlight mode the network tests also see drafts (§8.8), but in practice only street drafts. Every test whose
@@ -1043,7 +1175,40 @@ All lot-manager methods are called on the `+4` sub-object (global `0x00B43D08`).
 | 8 | `GetLotsSurroundingLot(x, z, list, flags)` → count | lot at `(x, z)` via slot 6 (false); none → 0; else slot 9 |
 | 9 | `GetLotsSurroundingLot(lot, list, flags)` → count *[inferred: EAX of slot 10]* | `lot.GetBoundingRect()` then slot 10 |
 | 10 | `GetLotsSurroundingRect(rect, list, flags)` → count | walks the ring one cell outside the rect (`0x0060CEE0`); side bits 1 = row z1−1, 2 = column x2+1, 4 = row z2+1, 8 = column x1−1; bits for sides outside the city are cleared. `flags = 0xF` → every ring cell; otherwise a ring cell needs its side's bit (a corner needs both). Appends each lot **that does not intersect the rect**, once (linear search of the whole list, including old elements), one AddRef each. Does not clear. Returns the number appended in this call. **Walk order — verified from the exe, was `[inferred]`:** row by row, ascending z. The iterator is `{state, value=x, index=z, step, start=x1−1, limit=x2+1, count=z2+1}`; `index` (z) runs z1−1 → z2+1, and within each row `value` (x) runs from `start` with `step`, where `step = 1` for the first and last index but `step = max(limit − start, 1)` for every interior index (`0x0060CF4C`–`0x0060CF67`: `EDX = limit; EDX −= start; step = (EDX < 1) ? 1 : EDX`). So the first row z1−1 walks **every** x ascending, each interior row z1..z2 visits **only its two side cells** (x1−1 then x2+1), and the last row z2+1 again walks every x ascending. Assembly: at `0x0060CF4A` `JGE 0x0060CF6C` takes the `step = EAX (=1)` arm on the final index, otherwise `0x0060CF4C` computes the jump. The side-mask filter in the caller `0x0072E2B0` matches the four bits exactly (`iVar4 != local_3c \|\| bit1`, `iVar5 != local_38 \|\| bit2`, `iVar4 != local_34 \|\| bit4`, `iVar5 != iVar8 \|\| bit8`), confirming the side-to-bit mapping |
-| 15 | `GetSafeLotIterator()` | an 8-byte C object `{node, master list}` registered with the manager, so lot removal advances it. Freeing not traced (§14.3) |
+| 15 | `GetSafeLotIterator()` | an 8-byte C object `{node, master list}` registered with the manager, so lot removal advances it; the caller unregisters and frees it (§8.3.1) |
+
+#### 8.3.1 The safe lot iterator (slot 15) *[compat]*
+
+`GetSafeLotIterator` (`0x00734850`) adds `0x5C` to `this` (the `+4` sub-object) and jumps to `0x00734860` with
+`L` = the address of the **master list object** (sub-object `+0x5C`; the list object is one pointer, to its
+sentinel node). The registry of live iterators is a second list object at `L + 4` (sub-object `+0x60`), and the lot
+count is at `L + 8` (`+0x64`).
+
+1. Allocate 8 bytes with C (`0x005E55E0`): `{+0 node := the master list's first node (sentinel→next), +4 list := L}`.
+2. Register it (`0x0072BA10`): append a B node `{next, prev, iterator*}` (0xC bytes) to the registry at `L + 4`.
+3. Return it in EAX. No AddRef: the iterator is not reference counted.
+
+**Walking.** The caller reads the fields directly. While `it.list ≠ null` and `it.node ≠ *it.list` (the sentinel):
+`n := it.node; it.node := n→next; lot := n→value` (the lot pointer at node `+8`, borrowed: no AddRef). The cursor
+is advanced **before** the lot is used, so the caller may delete that lot.
+
+**Removal from the master list** (`0x0072B990`, used by `DeleteLot` step 4): for every registered iterator whose
+`node` is the node being removed, `node := removed→next`; then unlink the node, free it with B, count −= 1.
+`InsertLotAtSafeIterator` (`0x0072C810`, `CreateLot` step 4) is the insertion counterpart for the traffic
+simulator's iterator.
+
+**Freeing** (by the caller, who owns it): if `it.list ≠ null`, remove every registry node whose value is `it`
+(`std::list::remove` on `it.list + 4`, `0x00809580`; nodes freed with B); then free the 8 bytes with C (`0x005E5620`).
+`cSC4SafeListIterator<cISC4Lot*>::Release` (`0x0045D5B0`) does exactly this and is called at `0x0068FB47` (aura
+`DoMessage`) and `0x0080C45B` (gambling ordinance `SetOn`); the lot developer's `Shutdown` (`0x006C75DB`),
+`SetForceEmptyLotBaseTextures` (`0x006C7844`) and the aura's `Shutdown` (`0x0068E135`) inline the same steps. Other
+callers of slot 15 (budget, lot developer, the traffic simulator and its `TrafficSourceIterator`, which keeps one
+across calls) use one of these two forms. An iterator that is never freed stays registered and is still advanced
+by removals.
+
+A replacement lot manager that hands its iterator to original game code must keep this layout: a C-allocated
+`{node, list}` pair whose `node` is a B-allocated STLport list node `{next, prev, cISC4Lot*}` of a list object `L`,
+with the registry list object at `L + 4` (B nodes), because the game walks and frees it inline.
 
 ### 8.4 `CanCreateLot(x, z, w, h, zoneNotNeeded, waterAllowed, cfg)` (slot 20, `0x0072C2D0`, pop 28) → int32
 
@@ -1062,7 +1227,113 @@ result is the **minimum** cell code over the rect (x outer, z inner), starting f
 Code 7 means "free except for existing lots"; the tract developer treats 7 and 8 as success
 (`tract-developer.md` §4.15).
 
-`CanCreatePloppedLot` (slot 21, `0x007306C0`, pop 24) is the plop path; not specified.
+`CanCreatePloppedLot` (slot 21) is the plop path's test (§8.4.1).
+
+#### 8.4.1 `CanCreatePloppedLot(SC4Rect<int32> rect, int32 facing, cISC4LotConfiguration* cfg)` (slot 21, `0x007306C0`, pop 24) → int32
+
+The rect is passed **by value** (four dwords, inclusive cells), then the facing, then the configuration, which is
+read without a null test. Returns a code in EAX; no random draw; nothing is written. Real and highlight mode behave
+the same (the real-mode flag is not read).
+
+1. `waterOK := cfg.IsCompatibleWithWater()` (configuration slot 14, AL).
+2. If `waterOK`: `r := CheckConstraintTiles(rect, facing, cfg)` (§8.4.2); if `r ≠ 8`, return `r`.
+3. `s := lotDeveloper.GetAreaSlope(rect, waterOK)` (lot developer slot 29, the reference at `+0x50` of the zone
+   developer; lot-developer.md §11.4). If `s > cfg.GetMaxSlope()` (configuration slot 8, ST0; strict, and a NaN on
+   either side passes): return 4.
+4. `result := 8`. For `x := x1 … x2` (outer), `z := z1 … z2` (inner) — an empty rect gives 8 — the cell's code is
+   the first that applies, and `result := min(result, code)`; no cell ends the walk:
+   - **0**: `x < 0`, `x ≥ cellsX`, `z < 0` or `z ≥ cellsZ`, or a restriction region is set and does not include the
+     cell;
+   - **1**: not `waterOK` and `IsCellWater(x, z)` (zone developer slot 9);
+   - otherwise `n := GetNetwork(x, z, 0x1F4F)` (§7.13). **No network:** the cell's zone `t :=
+     zoneManager.GetZoneType(x, z)` (slot 12) gives **3** for 15 (plopped), **7** for 10–14 (military, airport,
+     seaport, spaceport, landfill) and **8** for anything else, zones 0–9 included. (The test is bit `t mod 32` of
+     the mask `0xFC00`, with 15 picked out; only 0–15 are ever stored.)
+   - **network with every bit of `0x200000`** (network occupant slot 8, `HasAllNetworkFlags`: `(flags & m) = m`):
+     **3**;
+   - **other network: 3, unless a network object of the lot takes the piece.** Walk the configuration's object
+     records (slot 23; 0x34-byte records, lot-developer.md §17.1) in order, skipping every record whose type byte
+     is not 7. For a type-7 record take its placement `P` (§8.4.3). If `P`'s cell is not `(x, z)`, go on with the
+     next record. If `n.GetNetworkFlags() & 0x1FFF` (slot 12) is not exactly `1 << P.type` (table `0x00AB3680`),
+     **stop the walk**, keeping the code reached so far. Otherwise `e := n.slot38(P.type)` (network occupant slot
+     38, pop 4: the piece's four per-edge bytes for that network type, 0 when the piece does not carry the type);
+     if `Matches(P.maskA, e)` and `Matches(P.maskB, e)` (below), the code becomes **8**; go on with the next record.
+5. If `result = 8`, the outward connections are checked. For every type-7 record, again in order, with its
+   placement `P`, and for each network edge `i` = 0 (−x), 1 (−z), 2 (+x), 3 (+z) with neighbour
+   `(P.x − 1, P.z)`, `(P.x, P.z − 1)`, `(P.x + 1, P.z)`, `(P.x, P.z + 1)` (table `0x00AB3780`): when the neighbour
+   is in the city (unsigned compare with `cellsX`, `cellsZ`), lies **outside** the rect, and byte `i` of
+   `P.maskB` is non-zero: `flags := 1 << P.type`, replaced by `0x1F4F` when it shares a bit with `0x1F4F`; if
+   `m := GetNetwork(nx, nz, flags)` exists and `m.HasAnyNetworkFlag(0x600000)` (slot 9), `result := 3` and the next
+   record is taken.
+6. Return `result`.
+
+So the codes are 0 outside, 1 water, 3 a network, a plopped zone or a blocked outward connection, 4 too steep,
+5 and 6 a constraint tile (§8.4.2), 7 a special zone, 8 free. Code 2 is never returned. **Existing lots and the
+virtual-lot maps are not consulted**: the plop tool demolishes what is in the way after a code 8.
+
+`Matches(mask, e)` (`0x00729EC0`, cdecl, AL): `k := (((mask + 0x0F0F0F0F) >> 4) & 0x01010101) × 15` (32-bit
+arithmetic), true when `(mask XOR e) & k = 0`. For bytes 0…15 this reads: every non-zero byte of `mask` must have the
+same low nibble as the same byte of `e`; a zero byte of `mask` matches anything. A byte of 0x10 is active and needs a
+zero low nibble in `e`; a byte of 0x20…0xF0 (or one above 0xF0, which also carries into the next byte) does not follow
+the simple rule *[quirk]*.
+
+**The caller.** The only call is in the plop tool (`cSC4ViewInputControlPlaceLot::CanPlaceLot` `0x004C1110`, call
+`0x004C125E`), with the lot's cell coverage, its orientation and its configuration. On 8 it goes on to its own
+demolition test; any other code selects a message (`cSLString` group `0x0A419226`): 0 `0xCA711914`, 1 `0xAA71194E`,
+2 `0xAA711938`, 3 `0x6A71193F`, 4 `0xCABC118F`, 5 `0x6A711955`, 6 `0xAA71195C`, 7 `0x6A711944`.
+
+#### 8.4.2 `CheckConstraintTiles(rect, facing, cfg)` (`0x0072B480`, pop 24) → int32 5, 6 or 8
+
+Called by §8.4.1 for water-compatible configurations. Walks every object record of `cfg` (slot 23) in order and keeps
+two failure flags; nothing stops early.
+
+- **Type 5 (water constraint).** `p0 :=` the record's first extra value (`+0x28` vector), or 0 when the vector is
+  empty. The record's cells in lot space: `(a, b) := city.PositionToCell(mnX + 8, mnZ + 8)` and `(c, d) :=
+  PositionToCell(mxX + 8, mxZ + 8)` (each sum one `r24` add; `mn` = record `+0x18`/`+0x1C`, `mx` = `+0x10`/`+0x14`),
+  giving the lot-space rect `{a, b, c − 1, d − 1}` (the footprint rounded to whole cells). Turn it into city cells
+  with `RotateLotRect(facing, sizeX, sizeZ, …)` (§8.4.3; size from configuration slot 7) and add `(x1, z1)`.
+  - Every cell of that rect, **z outer, x inner**, must be all water: `terrain.CellHasWater(x, z)` (`cISTETerrain`
+    slot 34: some corner of the cell is under water; false outside the terrain) and not `terrain.CellHasLand(x, z)`
+    (slot 35). The first failing cell sets the water flag and ends that row.
+  - If `p0 = 1`, a two-cell-deep strip beyond the rect must be open water. With `r := (record orientation byte +
+    facing + 2) mod 4` and the city rect `{X1, Z1, X2, Z2}` from above, the strip is: r = 0 → rows `Z1 − 2 … Z1 − 1`
+    over `X1 … X2`; r = 1 → columns `X2 + 1 … X2 + 2` over `Z1 … Z2`; r = 2 → rows `Z2 + 1 … Z2 + 2`; r = 3 →
+    columns `X1 − 2 … X1 − 1`. Each strip cell, z outer and x inner, must satisfy `city.CellIsInBounds(x, z)` (city
+    slot 99) and `surfaceWater.IsNavigable(x, z, 0, null)` (`0x00B43CF0`, `cISTESurfaceWater` slot 8,
+    traffic-network.md §4.10); the first failure sets the water flag and ends that row.
+- **Type 6 (land constraint).** The same lot-space rect, rotation and offset; every cell must be dry: the first cell
+  with `IsCellWater(x, z)` (zone developer slot 9 → terrain slot 34) sets the land flag and ends that row.
+- Other types are ignored.
+
+Return 6 if the land flag is set, else 5 if the water flag is set, else 8.
+
+#### 8.4.3 Lot-space helpers
+
+**`RotateLotRect(facing, sizeX, sizeZ, const SC4Rect& in, SC4Rect& out)`** (`0x004BDFD0`, cdecl, caller pops 20).
+Maps a rect of lot cells, given in the lot's own frame, onto the frame of a lot with this facing. With `X := sizeX −
+1` and `Z := sizeZ − 1`:
+
+| facing | out |
+|---|---|
+| 0 | `{X − in.x2, Z − in.z2, X − in.x1, Z − in.z1}` |
+| 1 | `{in.z1, X − in.x2, in.z2, X − in.x1}` |
+| 2 | `in` (the lot's own frame is the frame of facing 2) |
+| 3 | `{Z − in.z2, in.x1, Z − in.z1, in.x2}` |
+| other | `out` is not written |
+
+This is the cell form of lot-developer.md §17.6's position table.
+
+**`GetNetworkObjectPlacement(cfg, record, const int32 origin[2], facing, &x, &z, &maskA, &maskB, &type)`**
+(`0x0072AD00`, cdecl, caller pops 36):
+1. `(sx, sz) := cfg.GetSize()` (configuration slot 7).
+2. The record's centre in lot space, `cx := r24((mnX + mxX) · 0.5)`, `cz := r24((mnZ + mxZ) · 0.5)`;
+   `(lx, lz) := city.PositionToCell(cx, cz)` (slot 95, floor of `p / 16`).
+3. `R := RotateLotRect(facing, sx, sz, {lx, lz, lx, lz})`; `x := origin.x + R.x1`, `z := origin.z + R.z1` (origin =
+   the rect's `(x1, z1)`).
+4. From the record's extra values (`+0x28`, read without a size check): `type := v[0]`, `maskA := v[1]`, `maskB :=
+   v[2]`.
+5. `q := (record orientation byte + facing) mod 4`; `maskA` and `maskB` are rotated left by `8q` bits (byte `k` moves
+   to byte `(k + q) mod 4`, so an edge mask turns with the lot).
 
 ### 8.5 Creating lots
 
@@ -1075,10 +1346,11 @@ rect, x outer and z inner. A facing of −1 is recorded as is, with no draw. `*o
 
 `CreateLot(x, z, w, h, facing, cISC4Lot*& out)` (slot 23, `0x0072E520`, pop 24) → EAX 0/1. No checks:
 
-1. Allocate and construct a lot (`0x006BF430` 0x8C bytes, constructor `0x006C1E50(x, z, w, h, facing)`).
-2. `out := lot` with one AddRef **for the caller**; `lot.Init()` (slot 5); `lot.SetState(1, 0, 0)` (slot 34);
-   one more AddRef for the manager.
-3. Write the lot into every cell of the rect (overwriting).
+1. Allocate a lot from the lot pool (`0x006BF430`) and construct it with `0x006C1E50(x, z, w, h, facing)` (§8.5.1).
+2. `out := lot` with one AddRef **for the caller**; `lot.Init()` (slot 5; **one random draw**, §8.5.1, §9 Z3);
+   `lot.SetState(1, 0, 0)` (slot 34); one more AddRef for the manager. The count is then 2.
+3. Write the lot into every cell of `{x, z, max(x + w − 1, x), max(z + h − 1, z)}`, z outer, x inner (overwriting).
+   A width or depth below 1 still writes one column or row, while the lot's own rect bytes keep `x + w − 1`.
 4. `it := trafficSimulator.GetDesiredLotInsertionPoint()` (traffic simulator slot 22). If `it` is non-null: when its
    list is set, insert the lot after the iterator's node (append if the iterator is at the end), move the iterator to
    its node's predecessor, and count it; when its list is null nothing is inserted and the count is unchanged
@@ -1086,6 +1358,100 @@ rect, x outer and z inner. A facing of −1 is recorded as is, with no draw. `*o
    The traffic simulator answers only in its work-cycle state 1, which the cycle never enters (traffic-simulator.md
    §3), so `it` is null in practice and new lots are appended *[inferred]*.
 5. `bds.GetLotDeveloper().SetEmptyLotBaseTexture(lot)` (BDS slot 36, lot developer slot 43).
+
+#### 8.5.1 The lot object: allocation, constructor and first `Init` *[compat]*
+
+`CreateLot` is the only place in the exe that makes a new lot: the allocation `0x006BF430` and the constructor
+`0x006C1E50` have no other caller. Loaded lots come from the class factory (`0x006C2FC0`, registered with the COM director
+at `0x0046045A`: the same pool, default constructor `0x006C2340`, then `Read`, lot-records.md §3.4). `SetCondition` (`0x006C26D0`) and `SetState`
+(`0x006C3100`) also take blocks from this pool for lot copies (copy constructor `0x006C2450`).
+
+**The lot pool.** `cSC4Lot` has its own fixed-size allocator: the pool object `0x00B0D3AC` (static, set up at
+`0x00A74DA0`), whose current page pointer is `0x00B0D3B0`.
+- A page is 16 KiB, aligned to 16 KiB, taken from the game's page allocator (`0x0090D8E0(14)`, through the pool's
+  slot 2 `0x006BF3F0`). Its 16-byte header is `{next page, previous page, first free block, use count}` and 116
+  blocks of 0x8C bytes follow (`+0x10` … `+0x3EF4`). A free block's first dword links to the next free block.
+- **Allocate** (`0x006BF430`, cdecl; the caller pushes 0x8C and pops it, the size is never read): take the first free
+  block of the current page; when the page has none, `0x0090CF9A` parks it on the full list (use count +=
+  `0x40000000`) and makes the next available page current, allocating a new page when there is none. Use count += 1.
+  There is no failure path.
+- **Free** (the deleting destructor `0x006C3000`, reached from `Release` `0x006BF460` when the count is at most 1:
+  `Shutdown` (slot 7), then the property holder's slot 22 with 1): page := block address with the low 14 bits
+  cleared; the block goes to the front of that page's free list; use count −= 1. A page whose count reaches 0 is
+  given back (`0x0090D031`); a parked page whose count falls to `0x40000057` (87 of 116 blocks in use) returns to the
+  available list (`0x0090CFF9`).
+
+A lot whose memory comes from anywhere else corrupts the game's heap at its last `Release`. **A replacement lot
+manager that creates the game's own lots must allocate them with `0x006BF430` and construct them with
+`0x006C1E50`**; C, B or a private heap will not do. A FreeCity4 lot class with its own `Release` may allocate as it
+likes.
+
+**Constructor** `0x006C1E50(x, z, w, h, facing)` (thiscall, pop 20, EAX = `this`). The five arguments are int32 and
+are stored as bytes (low 8 bits). Every field it writes:
+
+| Offset | Field | Value |
+|---|---|---|
+| +0x00 | `cISC4Lot` vtable | `0x00AB19B0` |
+| +0x04 | `cIGZSerializable` vtable | `0x00AB1994` |
+| +0x08 | property holder: vtable `0x00AB1930`; `+0x0C` the **reference count**, shared by every interface (AddRef `0x004664A0` increments it); `+0x10` … `+0x18` the empty property set (property holder constructor `0x005FF100`) | count 0 |
+| +0x1C | `cISC4TrafficSource` vtable | `0x00AB1914` |
+| +0x20 … +0x23 | bounding rect x1, z1, x2, z2 (bytes) | `x`, `z`, `x + w − 1`, `z + h − 1` |
+| +0x24 | altitude (f32) | 0 |
+| +0x28, +0x2C | slope at the last altitude change, current slope (f32) | 0, 0 |
+| +0x30 | configuration ID (u32) | 0 |
+| +0x34 | configuration object | null |
+| +0x38 | day of the last state change | 0 |
+| +0x3C | building type | 0 |
+| +0x40, +0x44 | road-access cache, `map<PurposeType, bool>` (STLport tree: a 0x18-byte header node from B with colour 0, parent null, left = right = the header; count 0) | empty |
+| +0x4C | business unit | null |
+| +0x50 | travel designate | null |
+| +0x54 … +0x5C | population maps, `vector<map<u32, u16>>` (begin, end, capacity) | null, null, null |
+| +0x60, +0x64 | travel-population map, `map<u32, u16>` (header from B as above) | empty |
+| +0x6C … +0x74 | travel jobs (3 × f32) | 0 |
+| +0x78 | initialised flag | 0 |
+| +0x79 | lot flags (lot-records.md §3.2 field 3) | 0 |
+| +0x7A, +0x7B | location x, z | by facing (below) |
+| +0x7C, +0x7D | size x, size z | by facing (below) |
+| +0x7E | facing | `facing` |
+| +0x7F | state | 0 |
+| +0x80 | condition | 0 |
+| +0x81 | zone type | `zoneManager.GetZoneType(location x, location z)` (slot 12, through `0x00B43D14`), low byte |
+| +0x82 | occupant wealth | 0 |
+| +0x83 | vacate reason | **not written** *[quirk]* (below) |
+| +0x84 | trip list (STLport list: a 0x34-byte sentinel node from B, next = previous = itself) | empty |
+| +0x88 | traffic strategy byte | `0xFF` |
+
+`+0x48`, `+0x68` (the two trees' empty comparison objects) and `+0x89` … `+0x8B` are padding and are not written.
+
+| facing | location | size (x, z) |
+|---|---|---|
+| 0 | `(x + w − 1, z)` | `(w, h)` |
+| 1 | `(x + w − 1, z + h − 1)` | `(h, w)` |
+| 2 | `(x, z + h − 1)` | `(w, h)` |
+| 3 | `(x, z)` | `(h, w)` |
+| other | `(0, 0)` | `(0, 0)` |
+
+The location is a corner on the side the lot faces, and it is the lot's **origin** for `GetLot(x, z, true)` (§8.2).
+The zone type is read **once, here**, at the location cell, with no bounds check; a facing outside 0…3 reads cell
+`(0, 0)`. The lot is not yet in the cell map when this happens.
+
+**The vacate reason is left as the block held it** *[quirk]*. The destructor and the free path do not write `+0x83`
+(the free list uses only the first dword), so a reused block carries the vacate reason of the lot that last used it,
+and a block of a new page carries the page's earlier contents. A lot that has never been vacant saves that byte as
+lot-records.md field 17. This is the source of the stale values of lot-records.md §16 Q2 *[inferred: no writer of the
+byte other than `SetState(4, …)` and `Read`]*. FreeCity4 writes 0 for lots it creates *[choice]*; a loaded lot keeps
+its loaded byte.
+
+**The first `Init`** (lot slot 5, `0x006BF490`, lot-records.md §3.5), as `CreateLot` runs it on a new lot:
+1. The initialised flag is 0, so: travel jobs := 0, 0, 0; `c := lot.GetCenter()` (slot 15) = `(r24((16·x1 +
+   16·(x2 + 1)) · 0.5), altitude, r24((16·z1 + 16·(z2 + 1)) · 0.5))`; `lot.SetAltitude(terrain.GetAltitude(c.x,
+   c.z))` (terrain slot 13; lot slot 17). `SetAltitude(h)` writes only when `|h − altitude| > 0.001` (a double
+   compare; NaN writes nothing): altitude := h, then both slopes := `lotDeveloper.GetLotSlope(lot, false)` (BDS slot
+   36, lot developer slot 30). A lot on terrain within 0.001 m of altitude 0 therefore keeps altitude 0 and slopes 0.
+   Initialised := 1.
+2. The strategy byte is `0xFF`, so **one draw** `RandomUint32Uniform(100)` on the lot generator `0x00B49120` goes into
+   `+0x88` (§9, Z3).
+3. The configuration object is null and the configuration ID is 0, so nothing is released or looked up.
 
 ### 8.6 Deleting lots
 
@@ -1198,7 +1564,8 @@ Slot 18's cell is ⌊x/16⌋ except that x/16 with fraction > 0.999 rounds up (x
 initialisation (`0x00A74F00`, constructor `0x00913A5C`) with `cRZTime()` local wall clock XOR **`0x8C09C68A`**, never
 re-seeded, not saved (foundations §6.2). FreeCity4 seeds it from the host's per-instance seed (foundations §6.3).
 Only `RandomUint32Uniform(n)` is used (one `NextRaw` advance per call when n > 0). No `rand()`, `random_shuffle`,
-random iterator or `cRZRandomSuper` is used by either class.
+random iterator or `cRZRandomSuper` is used by either class itself; the one draw that `CreateLot` causes is the new
+lot's own (Z3).
 
 | # | Operation | Generator / method | Arguments, order | Draws |
 |---|---|---|---|---|
@@ -1207,6 +1574,7 @@ random iterator or `cRZRandomSuper` is used by either class.
 | Z2a | … from `SimpleParcellize` (zones 7, 8, 9 and any non-1..6 zone reaching `OnZone`), also in highlight mode | | x ascending outer, z ascending inner, every cell of each component's rect; components in `SubdivideTheZone` order | 1 per rect cell |
 | Z2b | … from `CreateLotRemnants` when the current zone is 7, 8 or 9 | | z outer, x inner, every cell of the deleted lot | 1 per cell |
 | Z2c | … from `CreateLotIfPossible` with facing −1, real mode, code 8 | | tract developer aggregation (`tract-developer.md` §4.15.3, purposes 5–8 with a square configuration) | 1 per call |
+| Z3 | `CreateLot` (lot manager slot 23) → the new lot's `Init` (§8.5.1) | the lot generator `0x00B49120` (lot-records.md §3.5), `RandomUint32Uniform(100)` | step 2 of `CreateLot`, after `CreateLotToFaceRoad`'s Z2 draw when that is the path | 1 per created lot (none in highlight mode, which creates no lot) |
 
 Paths that reach Z2b: `OnDezone` (zoning to 0 over agricultural or industrial lots, including the zone manager's
 dezone under new networks, §5.1) and the zone developer's InsertOccupant handler (§5.2). `Parcellize` (zones 1–6),
@@ -1463,7 +1831,9 @@ only be exercised in the running game; FreeCity4's zone developer must not depen
   likewise (§13.2).
 - **Lot objects** are created by the zone developer directly (`0x006BF430` + `0x006C1E50`), not through GZCOM. A
   replacement must create the game's own lot objects so that the original lot developer and the save format keep
-  working *[inferred]*.
+  working *[inferred]*, and it must take their memory from the lot pool (`0x006BF430`), because the lot's deleting
+  destructor returns the block to that pool by address (§8.5.1). The constructor, the first `Init` and its random
+  draw are in §8.5.1.
 - **Global pointers**: the BDS, tract developer, lot developer, budget and UI read the zone manager and lot manager
   through `0x00B43D14` / `0x00B43D08`, which the city fills from components 6 and 8; replacing the classes through
   the GZCOM class registry (CLSIDs `0x298F9B2D`, `0x498F9B01`) is enough for those *[inferred]*.
@@ -1488,7 +1858,8 @@ SDK container compatible? | Notes | Evidence.
 | `cISC4ZoneManager::PlaceZone` (11), argument 10 `outLots` | `std::set<cRZAutoRefCount<cISC4Lot>>*` (the STLport tree of [docs/abi/allocators.md](../abi/allocators.md) *map and set*: 0x14-byte nodes, lot pointer at +0x10; SDK `intptr_t`) | B (nodes) | **no** | does not clear; inserts each lot to be demolished (unique); AddRef only on a new insertion. The caller releases each element and frees the nodes with B | `0x004DDCBB` → `0x00467950` → `0x00467720` |
 | `cISC4ZoneManager::PlaceZone` (11), argument 1 `region` | `SC4CellRegion<long>&` (in/out) | C (row array and rows) | n/a | the game only clears the bits of rejected cells; it never reallocates or frees the region | `0x004DD780` |
 | `cISC4ZoneDeveloper::HighlightParcels` (5), argument 4 `out` | `SC4CellRegion<long>*` stored into `*out` | C (object 0x24 bytes, row array, rows) | n/a | the game allocates a new region; with a highlight point it frees that region at the end and stores either the point's component (a new region) or null (§7.2 step 6). The caller owns the final region and frees rows, row array and object with C *[inferred: caller not traced]* | `0x00733A1C`, `0x00733E89`, `0x00733E95`, `0x00733891` |
-| `cISC4LotManager::GetSafeLotIterator` (15) | 8-byte iterator object `{node, list}` | C | n/a | registered in the manager's iterator list (B node), advanced by lot removal; freeing not traced | `0x00734850` → `0x00734860`, `0x0072BA10` |
+| `cISC4LotManager::GetSafeLotIterator` (15) | 8-byte iterator object `{node, list}` | C | n/a | registered in the manager's iterator list (B node), advanced by lot removal. The caller removes its registry nodes (B) and frees the object with C (`cSC4SafeListIterator<cISC4Lot*>::Release` `0x0045D5B0`, or inline); §8.3.1 | `0x00734850` → `0x00734860`, `0x0072BA10`; frees `0x0045D5B0`, `0x0068E135`, `0x006C75DB` |
+| `cISC4LotManager::CreateLot` (23), the lot object itself | `cSC4Lot` (0x8C bytes) | the lot pool `0x00B0D3AC` (`0x006BF430`), not A, B or C | n/a | freed by the lot's own deleting destructor (`0x006C3000`) into the 16 KiB-aligned page that holds it; a replacement creating original lots must use `0x006BF430` (§8.5.1) | `0x0072E530`, `0x006C3000` |
 | `cISC4LotManager::CreateLot` (23), `CreateLotIfPossible` (22), argument `out` | `cISC4Lot*&` | — | n/a | one reference for the caller, who releases it; the manager keeps its own | `0x0072E520` |
 | `cISC4LotManager::GetLot` (5, 6), `GetRandomLot` (13), `GetOccupantLot` (14) | `cISC4Lot*` | — | n/a | **no AddRef**; valid until the lot is deleted | `0x0072B410`, `0x0072B3C0`, `0x0072A110` |
 | ZoningChange `0x07699455` void2 (posted by `PlaceZone`) | `SC4CellRegion<long>*` | C | n/a | owned by the message; its destructor `0x004DCC30` frees it with C; receivers must not free or keep it | `0x004DD780`, `0x004DCC30` |
@@ -1533,6 +1904,12 @@ grid; `cISC4LotManager::GetMaximumCapacityGrid` (27, `0x00809240`) → the `uint
 17. `ExistsConnectionOfType`'s draft branch ignores the type, asks both tools whatever the flag bits, and reads byte 3
     for a side outside 0..3 (§7.13, test 33d).
 18. `ClearHighlight` resets the street and road tools but not the dirt-road tool (§7.1).
+19. The lot constructor does not write the vacate reason, so a new lot carries whatever its pool block held (§8.5.1).
+20. The zoning preview's boundary rules exchange rotations 1 and 3 in four flipped rules relative to the lot
+    developer's table (§7.1.1).
+21. `CanCreatePloppedLot` ends its network-object walk at the first object on the cell whose network type differs
+    from the piece's, and its `Matches` test treats mask bytes of 0x20 and above as inactive (§8.4.1).
+22. `CreateLot` writes one column (row) of the cell map for a width (depth) below 1 (§8.5).
 
 ### 14.2 Corrections to earlier notes
 
@@ -1556,13 +1933,23 @@ grid; `cISC4LotManager::GetMaximumCapacityGrid` (27, `0x00809240`) → the `uint
    neighbouring networks; its draft records and how it lengthens a Place into a neighbouring network or draft are
    now in §8.8, ZQ11–ZQ12); the conformance tests below replace it by a stub; (b) the exact semantics of the network
    occupant's `ConnectsToNeighbor` (slot 47) for mixed network types in one cell.
-2. `CanCreatePloppedLot` (slot 21) and the highlight texture code (UI).
-3. Who frees the `GetSafeLotIterator` object, and with what.
-4. Identity of `0x00731F60` / `0x00732450` (InsertOccupant data4 1/2 and 3) and of `0x0072B180` (end of `OnZone`).
-5. Occupant type `0x2890D4DE` (counted as an obstacle by `ExamineCell`).
-6. Message `0xA6B79602` name; the 3D-view global's slot 10 value.
-7. Writers and readers of the maximum-capacity grid outside this class.
-8. Dispatch order of InsertOccupant between the zone manager and the zone developer (inferred from Init order).
+2. ~~`CanCreatePloppedLot` (slot 21) and the highlight texture code (UI).~~ *Answered (re-specs11)*: §8.4.1–§8.4.3
+   and §7.1.1; tests 36–40 and 45.
+3. ~~Who frees the `GetSafeLotIterator` object, and with what.~~ *Answered*: the caller, with C after removing its
+   registry nodes (§8.3.1); test 44.
+4. ~~Identity of `0x00731F60` / `0x00732450` and of `0x0072B180`.~~ *Answered*: `JoinDeadEndStubs` (§5.2.1),
+   `JoinAcrossRail` (§5.2.2), `UpdateZoneType` (§7.2.2); tests 41–43. Who posts each InsertOccupant data4 is ZQ14.
+5. ~~Occupant type `0x2890D4DE`.~~ *Answered*: the power pole (`cSC4PowerPoleOccupant`, §7.3 table).
+6. ~~Message `0xA6B79602` name; the 3D-view global's slot 10 value.~~ *Answered*: `kSC4MessageViewZRChange3`; the
+   cached value is the u32 at `+0x14` of the renderer's slot-10 object, used only as an offset added to the preview
+   texture instances (§1.2, §5.2, §7.1.1).
+7. ~~Writers and readers of the maximum-capacity grid outside this class.~~ *Answered*: none; it stays all zero
+   (§1.2 step 4).
+8. ~~Dispatch order of InsertOccupant between the zone manager and the zone developer.~~ *Answered*: verified from
+   the city's `Init` order and `AddNotification` (§5.2).
+9. *(new, re-specs11)* The lot constructor `0x006C1E50` and allocation `0x006BF430` are specified in §8.5.1 (test
+   34). Still open: what the terrain view's slot 4 does with its last two arguments (3, 0), and the meaning of
+   network flags `0x200000` / `0x400000` as used by §8.4.1 (traffic-network.md Q3; ZQ15). Lot creation: tests 34–35.
 
 ---
 
@@ -1888,3 +2275,86 @@ desirability tract values 55, 41, 40; `0x1030` 1/3, 39, 5000.0; `0x3110` 2/1, 10
       - (14..15, 11..13) → {14, 11, 0}.
 
       No real street is laid. `*out` is the input region (rect {10, 10, 15, 13}).
+
+**Lot creation, plop test, preview and helpers (tests 34–45, re-specs11).** City 64 × 64, flat terrain at altitude 0
+and dry unless stated; stubs as named.
+
+34. **Lot constructor and first `Init`** (§8.5.1). Zone grid raw: (7, 7) = 1, (7, 8) = 2, (5, 8) = 3, (5, 7) = 4.
+    `CreateLot(5, 7, 3, 2, f, out)` on an empty manager, for each f:
+
+    | f | rect bytes | location | size | zone | `GetLot(location, true)` |
+    |---|---|---|---|---|---|
+    | 0 | 5, 7, 7, 8 | (7, 7) | (3, 2) | 1 | the lot |
+    | 1 | 5, 7, 7, 8 | (7, 8) | (2, 3) | 2 | the lot |
+    | 2 | 5, 7, 7, 8 | (5, 8) | (3, 2) | 3 | the lot |
+    | 3 | 5, 7, 7, 8 | (5, 7) | (2, 3) | 4 | the lot |
+
+    In every case: returns 1; state 1; reference count 2; initialised 1; flags 0; configuration none; travel jobs 0;
+    strategy byte = the first `U(100)` of the lot generator (exactly one draw); altitude 0 and both slopes 0 (no
+    `GetLotSlope` call, since |0 − 0| ≤ 0.001); vacate reason 0 in FreeCity4. With the terrain flat at 100: `GetCenter`
+    = (104, 100, 128), altitude 100, both slopes = the lot developer's `GetLotSlope(lot, false)`. A facing of 7 gives
+    location (0, 0), size (0, 0) and the zone of cell (0, 0). `CreateLot(10, 10, 0, 1, 0)` stores rect bytes
+    {10, 10, 9, 10} and puts the lot in cell (10, 10) only.
+35. **`CreateLot` order of effects.** With stubs logging calls: `Init`, then `SetState(1, 0, 0)`, then the cell
+    writes, then the traffic simulator's `GetDesiredLotInsertionPoint`, then `SetEmptyLotBaseTexture(lot)`.
+36. **`CanCreatePloppedLot` cell codes** (§8.4.1). Configuration stub: not water-compatible, `GetMaxSlope` 10, size
+    (2, 2), no objects; `GetAreaSlope` stub 0. Rect {10, 10, 11, 11}, facing 0:
+    - nothing there → 8; a lot covering (10, 10) → still 8;
+    - (11, 11) zoned 15 → 3; zoned 12 → 7; zoned 9 → 8;
+    - a road (flags `0x1`) on (10, 11) → 3; a piece with flags `0x200001` there → 3;
+    - (10, 10) water → 1; water on (10, 10) and zone 15 on (11, 11) → 1 (the minimum);
+    - rect {63, 10, 64, 11} → 0; a restriction region without (10, 10) → 0;
+    - `GetAreaSlope` 10.5 → 4 on an otherwise free rect; 10 → 8 (strict); `GetMaxSlope` NaN → 8;
+    - empty rect {11, 10, 10, 11} → 8.
+    With a water-compatible configuration without objects: (10, 10) water → 8, and `GetAreaSlope` is called with
+    `withWater` true.
+37. **Network objects** (§8.4.1, §8.4.3). Configuration size (1, 1), one type-7 record: orientation byte 2,
+    footprint min (0, 0) max (16, 16), extra values `[0, 0x00010001, 0]`. Rect {20, 20, 20, 20}; on (20, 20) a road
+    piece with `GetNetworkFlags` = `0x1`:
+    - facing 2 (q = 0): `slot38(0)` = `0x00010001` → 8; `0x01000100` → 3; flags `0x9` → 3; flags `0x200001` → 3;
+    - facing 3 (q = 1, maskA = `0x01000100`): `slot38(0)` = `0x01000100` → 8; `0x00010001` → 3.
+    With extra values `[0, 0x00010001, 0x00000001]`, facing 2 and `slot38(0)` = `0x00010001` (pass 1 gives 8): a road
+    with flags `0x1` on (19, 20) → 8; with flags `0x400001` → 3; the same road on (21, 20) → 8 (byte 2 of maskB is 0).
+38. **`Matches`** (`0x00729EC0`): (0, any) → true; (`0x1`, `0x1`) → true; (`0x1`, `0x11`) → true; (`0x1`, `0x2`) →
+    false; (`0x10`, 0) → true; (`0x10`, `0x1`) → false; (`0x20`, `0x5`) → true; (`0x100`, `0x100`) → true; (`0x100`,
+    0) → false.
+39. **`RotateLotRect`** with size (3, 2) and in = {0, 0, 0, 1}: facing 0 → {2, 0, 2, 1}; 1 → {0, 2, 1, 2}; 2 →
+    {0, 0, 0, 1}; 3 → {0, 0, 1, 0}; 4 → out unchanged. `GetNetworkObjectPlacement` for size (3, 2), footprint min
+    (0, 16) max (16, 32), origin (40, 40): lot cell (0, 1); facing 0 → (42, 40); facing 1 → (41, 42); facing 2 →
+    (40, 41); facing 3 → (40, 40).
+40. **Constraint tiles** (§8.4.2). Water-compatible configuration, size (1, 2), slope stub 0. Record W: type 5,
+    orientation 0, footprint min (0, 16) max (16, 32), no extra values. Rect {30, 30, 30, 31}, facing 2, so W covers
+    city cell (30, 31):
+    - terrain stub for (30, 31): `CellHasWater` true and `CellHasLand` false → 8; `CellHasLand` true → 5;
+      `CellHasWater` false → 5;
+    - add record L: type 6, footprint min (0, 0) max (16, 16) (city cell (30, 30)): (30, 30) dry → as before; (30, 30)
+      with water → 6, also when W fails;
+    - W with extra values `[1]`: r = (0 + 2 + 2) mod 4 = 0, strip cells (30, 29) and (30, 30), z outer: both
+      navigable → 8; (30, 29) not navigable → 5; (30, 28) is never asked. Facing 0 instead, without L (W then
+      covers (30, 30), r = 2): the strip is (30, 31) and (30, 32).
+41. **`UpdateZoneType`** (§7.2.2). Zone 1 on (10 … 12, 10). Lot A = `CreateLot(10, 10, 1, 1, 0)` made while (10, 10)
+    was zoned 4 (A's zone 4, state 1); lot B = `CreateLot(12, 9, 1, 2, 0)` (origin (12, 9)); no lot on (11, 10).
+    `GetForceEmptyLotBaseTextures` false. `UpdateZoneType({10 … 12} × {10}, all bits)`: A's zone becomes 1 and
+    `SetEmptyLotBaseTexture(A)` is called once; nothing happens for B; then `PlaceZone` with type 0, commit, free,
+    for the one cell (11, 10): it becomes 0 at no cost, one ZoningChange is posted, (10, 10) and (12, 10) stay 1. With
+    A in state 3 the texture call happens only when `GetForceEmptyLotBaseTextures` is true.
+42. **`JoinDeadEndStubs`** (§5.2.1), data4 = 1. New road piece (type 0) on (20, 20), flag `0x400000` clear. A street
+    on (19, 20) whose only connection is `ConnectsToNeighbor(0, 3)` → one call to the **road** tool:
+    `PlaceNetworkOccupants(20, 20, 19, 20, 0, null, 1, −1)`. No call when the street connects on edges 0 and 2, when
+    it connects only on edge 2, when it is also a one-way (`IsOfType(10)`), or when the new piece has flag `0x400000`.
+43. **`JoinAcrossRail`** (§5.2.2), data4 = 3. New street on (20, 20). Rail on (21, 20) (`GetNetworkFlags & 0x1F4F`
+    = 2) connecting on edges 1 and 3 only; a street on (22, 20) → street tool `PlaceNetworkOccupants(20, 20, 22, 20, 0,
+    null, 1, −1)`. A dirt road on (22, 20) instead → the dirt-road tool. Rail connecting on edges 0 and 2, or rail
+    flags `0x3`, → no call for that direction.
+44. **Safe iterator** (§8.3.1). Lots A, B, C created in that order. `it := GetSafeLotIterator()`; the first step
+    yields A and leaves the cursor on B; `DeleteLot(B)` moves the cursor to C; the next step yields C; then the
+    cursor is the sentinel. After the caller's release sequence the registry list is empty and a further `DeleteLot`
+    touches no iterator.
+45. **Preview textures** (§7.1.1), with a terrain-view stub logging slot 4 calls, cached view value 2, drag colour
+    `c` for zone 1:
+    - zone 1 preview with virtual cells (3, 7) and (4, 7) recorded by one lot `{3, 7, facing 0}`: (3, 7) → key
+      `0x2011`, instance `0x2702`, rotation 0, flip 0; (4, 7) → key `0x2110`, instance `0x2702`, rotation 0, flip 1;
+      both with `c`, 3, 0;
+    - zone 1 preview of a 2 × 2 virtual lot on (10 … 11, 10 … 11), facing 1: cell (11, 11) → key `0x0210`,
+      instance `0x2402`, **rotation 3**, flip 1 (the lot developer gives rotation 1 for the same key);
+    - zone 7 preview: every cell → key 0, instance `0x3002`, rotation 0, flip 0.

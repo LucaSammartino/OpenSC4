@@ -3939,6 +3939,37 @@ updated above (the AddRef lead is disproved). The lane's choices are in brackets
   resource exemplar or the occupant? [the type's exemplar is loaded from the catalogue key and passed; 0 when it does
   not load or the budget simulator is not reachable]
 
+## From applying the exemplar, graphics, protection, landfill and agent-order answers (filed by the coordinator from the `apply10b` lane's report, 2026-10-15)
+
+apply10b applied EX34, EX35, EX38, EX39, GF7, PR17, PR18, LG21, LG23 and AO1 (merged `0f3ad91`, ABI 50) and cited
+EX36, EX37, PR19, AO2, LG22, LG24-LG26, RG25-RG28, NB19 and PG16. EX39 is applied as the spec says: the C ABI slice
+setters now always store an array, and the vector readers read a scalar as empty. In game the shadows are exact
+(development 928/928, protection 288/288, landfill 72/72) and a replacement run that zones a new landfill reaches the
+LG21 view route (rotation 0). GF13 and GF14 are reserved by graphics-formats §8.5, so these questions start at GF15.
+The lane's choices are in brackets.
+
+- **EX40:** EX34 (data-formats, `format_float`): when the 63 kept characters hold no significant digit (the first one
+  falls at the 64th or 65th character), does the trailing-zero strip also remove the `.`? [only `0` characters are
+  stripped, so it leaves `0.` or `-0.`; marked [literal reading]]
+- **GF15:** GF7 (graphics-formats §4.2): is the zoom mask's bit number the zoom index as passed (0-4, before the
+  detail remap), and is the mask read as the property's first integer value whatever its stored type? [yes to both; a
+  mask with no value counts as 0; [literal reading] in `keys::occupant_models`]
+- **GF16:** GF7 (§4.2): for b+0..b+3 (RKT0-RKT3) and b+5 (RKT5), does `GetAllModelInstanceIDs` write T and G to its
+  out pointers, as it does for a matching RKT4 record? [yes, v[0] and v[1]; [inferred]]
+- **GF17:** GF7 (§4.2): when a rule needs a value past the end of the whole property (too few values), or the zoom
+  is above 4, what is appended? [nothing, neither an instance nor an offset, matching `model_key`'s "no model"; inside
+  the array an RKT3 record at zoom 3-4 does read into the next record, as the quirk says]
+- **GF18:** GF7 (§4.2): which stored types do the model keys and the zoom mask accept (the original's read
+  conversion)? [the integer types up to 32 bits, converted; anything else counts as absent; shipped keys are Uint32
+  arrays; [choice] in `keys::property_u32s`]
+- **LG30:** LG21 (landfill §4.7.5): should the view rotation be read when the zot is placed (what the glue does) or
+  cached at view init, as the original's global is? [read at placement through the documented route; 0 without a
+  view. Only rotation 0 has been seen in game: no script action rotates the view]
+- **AO3:** AO1 (foundations §13.4): the two port developers share the name `cSC4PortDeveloper` and rank 2. Is their
+  relative order registration order? [yes, registration order]
+- **PR20:** PR18 (protection §5.1): the answer covers `UpdateUnadjusted`'s caller record. Does the separate
+  dispatch-message handler also carry leftovers into its own record? [no: it keeps a zeroed record]
+
 ## From the city situation, demolition, dispatch, port, prop developer and city detail specs (re-specs10 lane, 2026-10-14)
 
 Open points from city-situation.md, demolition.md, dispatch.md, port-developers.md, prop-developer.md and
@@ -4016,3 +4047,49 @@ in-game harness with the FreeCity4 turbo clock and a message log.
   saved state, such as street props drawn from the network lot manager's generator? [yes, inferred: redevelopment
   re-creates the network lot's objects. Saving a city, reopening it at another detail level and saving again, then
   comparing the street prop records, would settle it]
+
+## From lot creation, the plop test, the lot developer and the graphics formats (re-specs11 lane, 2026-10-15)
+
+Open points from zones.md (§5.2, §7.1.1, §8.4, §8.5.1), lot-developer.md §17 and graphics-formats.md §3.9 and
+§3.11. The current answer is in brackets; each entry says what would settle it. "Turbo run" means the in-game
+harness with the FreeCity4 turbo clock and a message log.
+
+- ~~**LD1:** is the occupant manager's box query inclusive at the box edges? Lot developer slot 50
+  (`GetFoundationByPosition`) queries a degenerate box (a vertical line), which finds anything only if the test
+  keeps a point inside the occupant's box. [inclusive or strict, unknown]~~
+  **ANSWERED 2026-10-15** in this lane from the exe (slot 36 `0x004A0670`: one-cell path `0x0049D8B0`, many-cell
+  path `0x004A08CC`–`0x004A0938`; six `fcomp` tests, each keeping the occupant only when its minimum is below the
+  query's maximum and the query's minimum is below its maximum) and written into lot-developer.md §17.5.1 and test
+  34. **Strict on every axis**, as flora.md §6.4.2 already states: the line at `(x − 0.05, z + 0.05)` finds a
+  foundation only when it lies strictly inside the foundation's box, and only through the index cell of that
+  point. A foundation whose edge is exactly on the line is not found.
+- **GF13:** what does a visual effect do with a NaN orientation? An identity REGP record (zero axis) makes the
+  model-effects update divide by zero, so `SetTransform` receives a NaN rotation (graphics-formats.md §3.11; 344
+  shipped records). [unknown; *[choice]* FreeCity4 uses no rotation for a zero axis. Watching one of the 1,320
+  `blue_blinking_light_slow` effects on a bridge in the original would settle it: drawn in place, drawn elsewhere or
+  not drawn. The effect side (`cISC4VisualEffect` slot 8 and the effect renderer) is not specified]
+- **GF14:** the automata's per-tick animation driver. graphics-formats.md §3.9 traces the prop occupant's driver
+  (animation tick `0x86AD10EE`, milliseconds × time dilation) and `SetAnimMode(1)` from `cSC4Automaton::AttachAnim`,
+  but not what an automaton passes to `Advance` (slot 15) each tick, nor when it calls `SetFrame` (slot 10) or
+  `SetSpeed` (slot 14). [inferred: the same tick message and dilation as props; nothing in saves depends on it.
+  Settled by tracing the automaton's `DoAnimationTick` or equivalent and its calls through instance slots 10, 14
+  and 15; the fire crew's `DoAnimationTick` (`0x00549CF1`) is the place to start]
+- **ZQ14:** who posts InsertOccupant with data4 = 1, 2 or 3? The zone developer joins dead-end stubs on 1 and 2
+  (`JoinDeadEndStubs`, zones.md §5.2.1) and joins across a rail line on 3 (`JoinAcrossRail`, §5.2.2). [inferred:
+  the network tools' real-mode Place, with a value per network kind; not traced. Settled by finding the callers of
+  occupant manager slot 20 (`InsertOccupant`) that pass a non-zero data4, or in a turbo run by logging data4 of
+  `InsertOccupant` messages while laying a road, a street and a rail line]
+- **ZQ15:** two values of the zone developer's preview and plop test are not explained. (a) The terrain view's slot 4
+  (zones.md §7.1.1) takes seven arguments; the last two are always 3 and 0 here. (b) `CanCreatePloppedLot`
+  (§8.4.1) rejects a cell whose network has every bit of `0x200000`, and blocks an outward connection to a network
+  with any bit of `0x600000`. [(a) unknown, *[inferred]* a draw layer and a flag; the preview is UI and a headless
+  replacement leaves it out. (b) the flag meanings belong to traffic-network.md (its Q3); the codes are reproduced
+  from the bits without needing the names. Settled by the terrain view's slot 4 and by the network spec naming the
+  two bits]
+- **ZQ16:** lot-records.md §16 Q2 (vacate-reason values above 6 in saves) has an answer that lot-records.md does not
+  carry yet. [**answered** in zones.md §8.5.1 *[inferred]*: the lot constructor `0x006C1E50` does not write the
+  vacate reason (`+0x83`) and the pool's free path writes only the block's first dword, so a new lot inherits the
+  byte of whatever last used its block, and a lot that has never been vacant saves that stale byte. The owner of
+  lot-records.md should cite zones.md §8.5.1 under Q2. Settled for good by creating lots in a fresh city in a turbo
+  run and reading field 17 of never-vacant lots: values that change with the order of earlier demolitions confirm
+  it]

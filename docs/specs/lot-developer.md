@@ -1844,8 +1844,8 @@ Unless stated, tuning is the shipped exemplar and the file RNG is seeded explici
     `UpdateLotFoundation` on a lot with flags bit 0 and no foundation occupant draws once (through slot 54).
 34. **Foundation lookup by position** (§17.5.1): a lot foundation whose box covers x ∈ [100, 132], z ∈ [100, 132]:
     `GetFoundationByPosition(2, 100.04, 120)` → null (the query line is at x = 99.99); `(2, 131.9, 99.96)` → found
-    (line at (131.85, 100.01)) *[inferred: the occupant manager's box query keeps an occupant whose box contains
-    the line]*. The result carries no reference (its count is unchanged by the call).
+    (line at (131.85, 100.01)), since the box query keeps an occupant whose box contains the line strictly (LD1).
+    The result carries no reference (its count is unchanged by the call).
 35. **Object positions** (§17.6 worked example 4): the four facings give the table's positions and orientations;
     `f = 5` gives `pos.x = pos.z = 0` and orientation `(1 + 5) mod 4 = 2`. The returned EAX equals the address of
     the `orient` argument. A lot with flag bit 0 and altitude 77 gives `pos.y = 77.5` for every object type.
@@ -2084,7 +2084,10 @@ foundation"; bit 0 also makes slot 39 use the lot's altitude.
   occupant manager `0x00B43D0C` into `+0x28` if that is null. Query: occupant manager slot 37 (box query with an
   occupant-type filter; it forwards to slot 36) with `(list, min, max, 0x68FD0C69, −1)`, `min = (x − 0.05, −FLT_MAX,
   z + 0.05)`, `max = (x − 0.05, +FLT_MAX, z + 0.05)`: a **vertical line** at `(x − 0.05, z + 0.05)`, not a 0.1 m
-  square *[quirk]*. Same match rule and no reference.
+  square *[quirk]*. Same match rule and no reference. The box query's overlap test is strict on every axis
+  (flora.md §6.4.2; `0x0049D8B0` and `0x004A08CC`–`0x004A0938`), so the line finds a foundation only when
+  `x − 0.05` and `z + 0.05` lie **strictly inside** its box (a line on the box's edge misses it) and the foundation
+  is listed in the 64 m index cell of that point, which its box (shrunk by 0.1 m when wider than 1 m) decides (LD1).
 - **Slot 48** `GetFoundationByOccupant(occ)` (`0x006C3E10`, pop 4): `p := occ.GetPosition()` (occupant slot 8);
   `kind := 1` if the occupant type is `0x278128A0` (building), 3 if `0xA823821E` (prop), else 4; return slot 50(kind,
   p.x, p.z).
