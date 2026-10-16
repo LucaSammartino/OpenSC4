@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "lot_config_object_id_array",
+  "spec": ["prop-lotconfig B5.6", "prop-lotconfig Q13", "prop-lotconfig T9"],
+  "description": "Building types T1 = 0x71, T2 = 0x72, T3 = 0x73, family F1 = 0xF1 of {T1, T2}. Building record [T3, F1]: the family assigns its vector, so T3 is lost (quirk 13): [T1, T2]. [F1, T3]: [T1, T2, T3]. Prop record [P1, PF] with PF = 0xAF = [P2, P3]: [P1, P2, P3]. A texture record: empty.",
+  "steps": [
+    {"op": "lcm_building_type", "type": "0x71"},
+    {"op": "lcm_building_type", "type": "0x72"},
+    {"op": "lcm_building_type", "type": "0x73"},
+    {"op": "lcm_building_family", "type": "0xF1", "types": ["0x71", "0x72"]},
+    {"op": "lcm_prop_type", "type": "0xA1", "size": [1, 1]},
+    {"op": "lcm_prop_type", "type": "0xA2", "size": [1, 1]},
+    {"op": "lcm_prop_type", "type": "0xA3", "size": [1, 1]},
+    {"op": "lcm_prop_family", "type": "0xAF", "types": ["0xA2", "0xA3"]},
+    {"op": "lcm_create"},
+    {"op": "lcm_call", "method": "object_id_array", "args": [0, ["0x73", "0xF1"]], "expect": ["0x71", "0x72"]},
+    {"op": "lcm_call", "method": "object_id_array", "args": [0, ["0xF1", "0x73"]], "expect": ["0x71", "0x72", "0x73"]},
+    {"op": "lcm_call", "method": "object_id_array", "args": [1, ["0xA1", "0xAF"]], "expect": ["0xA1", "0xA2", "0xA3"]},
+    {"op": "lcm_call", "method": "object_id_array", "args": [2, ["0xA1"]], "expect": []}
+  ]
+}
