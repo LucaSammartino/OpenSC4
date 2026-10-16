@@ -1773,6 +1773,37 @@ namespace fc4 {
 inline cFC4ISC4TutorialSystem* AsGame(cISC4TutorialSystem* p) { return static_cast<cFC4ISC4TutorialSystem*>(p); }
 }  // namespace fc4
 
+// ---- command parameter set (docs/abi/interfaces.tsv, re-answers12 CB16) -----------------------------
+
+#include "cIGZCommandParameterSet.h"
+
+// cIGZCommandParameterSet as compiled (cGZCommandParameterSet, vtable
+// 0x00AD16C8), declared up to slot 10, the last slot docs/abi lists (rows 3
+// and 5-8, 10). The SDK declares slot 10 as SetStatusParameterValue(int32_t);
+// the game's takes the value as a variant and stores it under the status ID
+// (cIGZCommandParameterSet::kStatusParameterID). Slots 4 and 9 have no rows:
+// the SDK's signatures, never called. The building development and flora glue
+// call slots 3 and 5 through the SDK's pointer (its declaration agrees there);
+// call slot 10 only through this one.
+class cFC4IGZCommandParameterSet : public cIGZUnknown {
+public:
+    virtual uint32_t GetParameterCount() const = 0;                        // 3
+    virtual void SetParameterCount(uint32_t count) = 0;                    // 4 (no row)
+    virtual cIGZVariant* operator[](uint32_t id) = 0;                      // 5 never null
+    virtual cIGZVariant* GetParameter(uint32_t id) = 0;                    // 6 null when absent
+    virtual void SetParameter(uint32_t id, cIGZVariant const& value) = 0;  // 7 find-or-insert
+    virtual void AppendParameter(cIGZVariant const& value) = 0;            // 8 ID = last + 1
+    virtual void RemoveParameter(uint32_t id) = 0;                         // 9 (no row)
+    virtual void SetStatusParameterValue(cIGZVariant const& value) = 0;    // 10
+};
+
+namespace fc4 {
+// A parameter set travels as the SDK's pointer (cIGZCommandServer slot 5).
+inline cFC4IGZCommandParameterSet* AsGame(cIGZCommandParameterSet* p) {
+    return reinterpret_cast<cFC4IGZCommandParameterSet*>(p);
+}
+}  // namespace fc4
+
 namespace fc4 {
 // A simulator handed out by the game (cISC4City::GetSimulator), seen through
 // the verified slot order instead of the SDK's declaration.

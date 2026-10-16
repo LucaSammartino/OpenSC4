@@ -9,8 +9,10 @@ is part of every verdict):
            residential, neighbours, zones, development, tract, zone developer (zonedev), lot developer (lotdev, exact
            since apply13 applied LD29; added in run 132), history warehouse (history),
            24-hour clock (clock; under turbo the clock steps rarely, CK22), commercial (CO$$/CO$$$ map rebuilds),
-           civic buildings (civic), parks and traffic (traffic_shadow_hypotheses = 7, the alternative readings of
-           TS55-TS57; traffic_shadow_lines = 1 keeps one day line per month next to the month line). A shadow line is
+           civic buildings (civic), parks, traffic (traffic_shadow_hypotheses = 7, the alternative readings of
+           TS55-TS57; traffic_shadow_lines = 1 keeps one day line per month next to the month line) and terrain
+           (terrain_shadow = 1, glue16; added in run 138: 105/105 lines and every query exact to 2032, 0 unfollowed; see "Terrain" below). disasters_shadow stays out (it needs
+           scripted disasters and is not exact, glue13). A shadow line is
            clean when every mismatch count on it is 0. Known difference: the traffic shadow is not exact to 2032 (run
            121: 43 of 72 month lines clean, 3066 of 3165 deliveries, 0 incomplete; 49 of 72 alone at 4.5 days/s; the
            scanning iterator after state 13 (TS64), the original's stop part-way through state 15 (TS63) and rare
@@ -52,12 +54,21 @@ nothing. -NormalSpeed: the old timed profile, -Seconds (default 150) of real tim
 
 Logs: build-runs\regress-<Tag>-<run>.log (ini: .ini). A summary per run is printed by tools\run_summary.ps1; the
 table at the end reads: verdict, problem count (foreign exceptions, stalls, reference warnings, panics, structured
-exceptions, INCOMPLETE shadow lines), and per shadow "clean/lines".
+exceptions, INCOMPLETE shadow lines, terrain unfollowed vertices), the terrain column and per shadow "clean/lines".
+
+Terrain. Besides its lines ("terrain N/N" among the shadows), the terrain shadow counts vertices: run_summary reads
+its city shutdown line into "terrain queries" (exact/total per query: altitude, normal, water, land, depth, type,
+navigable) and "terrain vertices" (unfollowed, followed late, pending at shutdown). The table's terrain column shows
+"7/7 exact" (or the queries that are not, with their counts) and "unf U, late L, pend P". Terrain messages are queued
+posts: under turbo they arrive up to ~40 game days after the change, so the month re-read finds some vertices ahead
+of their message. Followed late (the message came later) and pending (its message had not come at shutdown) are
+exact; unfollowed (no message covered the change by the next month) is a problem and counts in the problem column.
 
 Delta: after the table, one line per run verdict, problem count and shadow against an earlier regress, read from
 its build-runs\regress-<tag>.out (the coordinator's redirected output): -Baseline <tag> or a path; default the newest
 earlier regress-*.out with a PASS line and the same pacing. A shadow is "worse" when both the number and the share of
-its lines with a mismatch grew ("better" when both fell; a timed run's line count varies). Any worse line adds
+its lines with a mismatch grew ("better" when both fell; a timed run's line count varies). The terrain totals get one
+line per run: a query is worse by the same rule, and more unfollowed vertices is worse. Any worse line adds
 "REGRESS <tag>: N worse (vs <baseline>)" after the verdict line.
 
 Pacing. With the original simulators a city run at about 85 game days per real second (turbo) ends with other income
@@ -154,7 +165,7 @@ $Out = Join-Path $PSScriptRoot "..\build-runs"
 New-Item -ItemType Directory -Force $Out | Out-Null
 
 $runs = [ordered]@{
-    shadows = "disable = budget`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1`nflora_shadow = 1`nlandfill_shadow = 1`npower_shadow = 1`nplumbing_shadow = 1`nlandvalue_shadow = 1`nflammability_shadow = 1`nresidential_shadow = 1`nneighbours_shadow = 1`nzones_shadow = 1`ndevelopment_shadow = 1`ntract_shadow = 1`nzonedev_shadow = 1`nlotdev_shadow = 1`nhistory_shadow = 1`nclock24_shadow = 1`ncommercial_shadow = 1`ncivic_shadow = 1`nparks_shadow = 1`ntraffic_shadow = 1`ntraffic_shadow_hypotheses = 7`ntraffic_shadow_lines = 1"
+    shadows = "disable = budget`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1`nflora_shadow = 1`nlandfill_shadow = 1`npower_shadow = 1`nplumbing_shadow = 1`nlandvalue_shadow = 1`nflammability_shadow = 1`nresidential_shadow = 1`nneighbours_shadow = 1`nzones_shadow = 1`ndevelopment_shadow = 1`ntract_shadow = 1`nzonedev_shadow = 1`nlotdev_shadow = 1`nhistory_shadow = 1`nclock24_shadow = 1`ncommercial_shadow = 1`ncivic_shadow = 1`nparks_shadow = 1`ntraffic_shadow = 1`ntraffic_shadow_hypotheses = 7`ntraffic_shadow_lines = 1`nterrain_shadow = 1"
     replace = "enable = $Replace"
 }
 $after = if ($Turbo) { $TurboTimeout } else { $Seconds }
@@ -254,6 +265,29 @@ foreach ($name in $jobs.Keys) {
 }
 $wall = [int]((Get-Date) - $wallStart).TotalSeconds
 
+# The terrain shadow's totals, from run_summary's "terrain queries" / "terrain vertices" lines (also read back from an
+# .out, where they carry two more spaces): per query [exact, total], and the vertex counts (strings; "-" when unknown).
+function TerrainOf($lines) {
+    $t = $null
+    foreach ($line in $lines) {
+        if ($line -match "^\s+terrain queries\s+\d+/\d+ exact: (.+?)(; other checks .*)?$") {
+            if (-not $t) { $t = @{ q = [ordered]@{}; unfollowed = "-"; late = "-"; pending = "-" } }
+            foreach ($p in [regex]::Matches($Matches[1], "([a-z]+) (\d+)/(\d+)")) { $t.q[$p.Groups[1].Value] = @([long]$p.Groups[2].Value, [long]$p.Groups[3].Value) }
+        } elseif ($line -match "^\s+terrain vertices\s+unfollowed (\S+), followed late (\S+), pending at shutdown (\S+);") {
+            if (-not $t) { $t = @{ q = [ordered]@{}; unfollowed = "-"; late = "-"; pending = "-" } }
+            $t.unfollowed = $Matches[1]; $t.late = $Matches[2]; $t.pending = $Matches[3]
+        }
+    }
+    return $t
+}
+# The table column: "7/7 exact" (or the queries that are not, "normal 7340/7348"), then the vertex counts.
+function TerrainText($t) {
+    if (-not $t) { return "" }
+    $bad = @($t.q.Keys | Where-Object { $t.q[$_][0] -ne $t.q[$_][1] } | ForEach-Object { "{0} {1}/{2}" -f $_, $t.q[$_][0], $t.q[$_][1] })
+    $qs = if ($bad.Count -eq 0) { "$($t.q.Count)/$($t.q.Count) exact" } else { "$($t.q.Count - $bad.Count)/$($t.q.Count) exact ($($bad -join ', '))" }
+    return "{0}; unf {1}, late {2}, pend {3}" -f $qs, $t.unfollowed, $t.late, $t.pending
+}
+
 $rows = @()
 $cur = @{}
 foreach ($name in $results.Keys) {
@@ -282,8 +316,9 @@ foreach ($name in $results.Keys) {
     $months = ($s | Select-String "^\s+([a-z ()]+?)\s+(\d+) lines" | Where-Object { $_.Line -notmatch "with every" } | Measure-Object).Count
     $dpsm = @($r) + @($s) | Select-String "AUTOTEST VERDICT: .*days_per_second=([\d.]+)" | Select-Object -First 1   # run_summary cuts its verdict line
     $dps = if ($dpsm) { $dpsm.Matches[0].Groups[1].Value } else { "-" }
-    $rows += [pscustomobject]@{ run = $name; verdict = $v; problems = $problems; monthGroups = $months; "days/s" = $dps; shadows = $shadow }
-    $cur[$name] = @{ verdict = $v; problems = $problems; shadows = $sh; dps = $dps }
+    $ter = TerrainOf $s
+    $rows += [pscustomobject]@{ run = $name; verdict = $v; problems = $problems; monthGroups = $months; "days/s" = $dps; terrain = (TerrainText $ter); shadows = $shadow }
+    $cur[$name] = @{ verdict = $v; problems = $problems; shadows = $sh; dps = $dps; terrain = $ter }
 }
 Write-Output ""
 $slotsUsed = @(foreach ($qi in $queueInfo.Values) { foreach ($l in $qi) { if ($l -match '^request: .* in slot (\d+)') { $Matches[1] } } }) -join " and "
@@ -295,14 +330,16 @@ $rows | Format-Table -AutoSize | Out-String -Width 200 | Write-Output
 function ReadOut([string]$path) {
     $runsOut = @{}; $runName = $null; $inTable = $false
     foreach ($line in (Get-Content -LiteralPath $path)) {
-        if ($line -match "^=== regress-.+-(shadows|replace) \(") { $runName = $Matches[1]; $runsOut[$runName] = @{ verdict = "NONE"; problems = $null; shadows = [ordered]@{} }; continue }
+        if ($line -match "^=== regress-.+-(shadows|replace) \(") { $runName = $Matches[1]; $runsOut[$runName] = @{ verdict = "NONE"; problems = $null; shadows = [ordered]@{}; tlines = @() }; continue }
         if ($line -match "^=== regress \S+ ===") { $inTable = $true; $runName = $null; continue }
         if ($inTable -and $line -match "^(shadows|replace)\s+(\S+)\s+(\d+)\s+\d+") { if ($runsOut[$Matches[1]]) { $runsOut[$Matches[1]].problems = [int]$Matches[3] }; continue }
         if (-not $runName) { continue }
         if ($line -match "^\s+\[[^\]]+\] AUTOTEST VERDICT: .*days_per_second=([\d.]+)") { $runsOut[$runName].dps = $Matches[1]; continue }
         if ($line -match "^\s+verdict:\s+AUTOTEST VERDICT: ([a-z]+)") { $runsOut[$runName].verdict = $Matches[1] }
         elseif ($line -match "^\s+([a-z]+)\s+(\d+) lines, (\d+) with every") { $runsOut[$runName].shadows[$Matches[1]] = @([int]$Matches[3], [int]$Matches[2]) }
+        elseif ($line -match "^\s+terrain (queries|vertices)\s") { $runsOut[$runName].tlines += $line }
     }
+    foreach ($k in @($runsOut.Keys)) { $runsOut[$k].terrain = TerrainOf $runsOut[$k].tlines }
     return $runsOut
 }
 # Pacing of an .out: "turbo <end date>" or "normal" (no profile line: an older regress, always normal).
@@ -378,6 +415,26 @@ if ($basePath) {
             Write-Output ("  {0}: {1} {2}/{3} -> {4}/{5} ({6})" -f $name, $k, $o[0], $o[1], $n[0], $n[1], $how)
         }
         foreach ($k in $c.shadows.Keys) { if (-not $b.shadows.Contains($k)) { $n = $c.shadows[$k]; Write-Output ("  {0}: {1} new {2}/{3}" -f $name, $k, $n[0], $n[1]) } }
+        # Terrain totals: a query is worse as a shadow is (more mismatches and a larger share); more unfollowed vertices
+        # is worse; followed late and pending are exact and only shown.
+        $tb = $b.terrain; $tc = $c.terrain
+        if ($tc -and -not $tb) { Write-Output ("  {0}: terrain totals new: {1}" -f $name, (TerrainText $tc)) }
+        elseif ($tb -and -not $tc) { $worse++; Write-Output ("  {0}: terrain totals {1} -> missing (worse)" -f $name, (TerrainText $tb)) }
+        elseif ($tb -and $tc) {
+            $tw = @(); $tbt = @()
+            foreach ($k in $tb.q.Keys) {
+                if (-not $tc.q.Contains($k)) { $tw += "$k missing"; continue }
+                $o = @($tb.q[$k][0], $tb.q[$k][1]); $n = @($tc.q[$k][0], $tc.q[$k][1])
+                $mo = $o[1] - $o[0]; $mn = $n[1] - $n[0]; $ro = Rate $o; $rn = Rate $n
+                if ($mn -gt $mo -and $rn -gt $ro) { $tw += "$k $($o[0])/$($o[1]) -> $($n[0])/$($n[1])" }
+                elseif ($mn -lt $mo -and $rn -lt $ro) { $tbt += "$k $($o[0])/$($o[1]) -> $($n[0])/$($n[1])" }
+            }
+            $uo = $tb.unfollowed -as [int]; $un = $tc.unfollowed -as [int]
+            if ($null -ne $uo -and $null -ne $un) { if ($un -gt $uo) { $tw += "unfollowed $uo -> $un" } elseif ($un -lt $uo) { $tbt += "unfollowed $uo -> $un" } }
+            $how = if ($tw.Count -gt 0) { "worse: $($tw -join ', ')" } elseif ($tbt.Count -gt 0) { "better: $($tbt -join ', ')" } else { "same" }
+            if ($tw.Count -gt 0) { $worse++ }
+            Write-Output ("  {0}: terrain totals {1} -> {2} ({3})" -f $name, (TerrainText $tb), (TerrainText $tc), $how)
+        }
     }
 }
 $bad = @($rows | Where-Object { $_.verdict -ne "clean" -or $_.problems -ne 0 }).Count
