@@ -6,7 +6,8 @@ Runs (each through tools\ingame_run.ps1 with popup_dialogs = 0 and autotest_end 
 is part of every verdict):
   shadows  every same-process shadow at once, on the original subsystems: budget (needs disable = budget), demand,
            pollution, protection, crime, aura, flora, landfill, power, plumbing, land value, flammability,
-           residential, neighbours, zones, development, tract, zone developer (zonedev), history warehouse (history),
+           residential, neighbours, zones, development, tract, zone developer (zonedev), lot developer (lotdev, exact
+           since apply13 applied LD29; added in run 128), history warehouse (history),
            24-hour clock (clock; under turbo the clock steps rarely, CK22), commercial (CO$$/CO$$$ map rebuilds),
            civic buildings (civic), parks and traffic (traffic_shadow_hypotheses = 7, the alternative readings of
            TS55-TS57; traffic_shadow_lines = 1 keeps one day line per month next to the month line). A shadow line is
@@ -17,7 +18,6 @@ is part of every verdict):
            read its column against the baseline, not as 72/72. Shadow mismatches never fail the verdict (only
            INCOMPLETE lines count as problems; a shadow with more mismatching lines than the baseline is a "worse"
            line of the delta). The traffic shadow makes this run the long one (2.5-3.5 game days/s, 10-15 minutes).
-           Not in it: the lot developer shadow (lotdev_shadow; slots 25/26 differ until LD29).
   replace  every merged replacement at once (-Replace overrides the list; 27 keys: the 20 of run 114
            plus commercial, industrial, civic, parks, lotdev and zonedev (run 118) and traffic (run 121). With development (our development unit runs about 3x
            slower per game day than the original: 23-29 game days/s under turbo against 80-90) the replace run takes
@@ -154,7 +154,7 @@ $Out = Join-Path $PSScriptRoot "..\build-runs"
 New-Item -ItemType Directory -Force $Out | Out-Null
 
 $runs = [ordered]@{
-    shadows = "disable = budget`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1`nflora_shadow = 1`nlandfill_shadow = 1`npower_shadow = 1`nplumbing_shadow = 1`nlandvalue_shadow = 1`nflammability_shadow = 1`nresidential_shadow = 1`nneighbours_shadow = 1`nzones_shadow = 1`ndevelopment_shadow = 1`ntract_shadow = 1`nzonedev_shadow = 1`nhistory_shadow = 1`nclock24_shadow = 1`ncommercial_shadow = 1`ncivic_shadow = 1`nparks_shadow = 1`ntraffic_shadow = 1`ntraffic_shadow_hypotheses = 7`ntraffic_shadow_lines = 1"
+    shadows = "disable = budget`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1`nflora_shadow = 1`nlandfill_shadow = 1`npower_shadow = 1`nplumbing_shadow = 1`nlandvalue_shadow = 1`nflammability_shadow = 1`nresidential_shadow = 1`nneighbours_shadow = 1`nzones_shadow = 1`ndevelopment_shadow = 1`ntract_shadow = 1`nzonedev_shadow = 1`nlotdev_shadow = 1`nhistory_shadow = 1`nclock24_shadow = 1`ncommercial_shadow = 1`ncivic_shadow = 1`nparks_shadow = 1`ntraffic_shadow = 1`ntraffic_shadow_hypotheses = 7`ntraffic_shadow_lines = 1"
     replace = "enable = $Replace"
 }
 $after = if ($Turbo) { $TurboTimeout } else { $Seconds }
