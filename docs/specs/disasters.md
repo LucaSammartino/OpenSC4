@@ -232,8 +232,27 @@ The advisors read these at `0xAA1B2002` (advisors.md §7.6).
 
 ### 2.6 Cost (`GetDisasterCost` slot 18, `ResetDisasterCost`)
 
-`GetDisasterCost()` returns `totalCost`. `ResetDisasterCost` zeroes the counts, the costs and the special-building
-records.
+`GetDisasterCost()` (slot 18, `0x00578900`, pop 0) returns a **pointer to the layer's statistics record**, not
+`totalCost` *[compat]*. The record starts at layer instance `+0x50`; the interface sits at `+0x08`, so the pointer is
+the interface pointer + `0x48`. Its layout, in record offsets (instance offset in parentheses):
+
+| Record | Instance | Contents |
+|---|---|---|
+| `+0x00` | `+0x50` | `uint32` building count |
+| `+0x08` | `+0x58` | `int64` total cost |
+| `+0x10` / `+0x18` | `+0x60` / `+0x68` | kind pair for flag bit 1: `uint32` count, `int64` cost |
+| `+0x20` / `+0x28` | `+0x70` / `+0x78` | kind pair for bit 2 |
+| `+0x30` / `+0x38` | `+0x80` / `+0x88` | kind pair for bit 4 |
+| `+0x40` / `+0x48` | `+0x90` / `+0x98` | kind pair for bit `0x20` |
+| `+0x50` | `+0xA0` | vector of special-building records {name, cost} |
+| `+0x5C` | `+0xAC` | `float` fire effectiveness (§2.5) |
+| `+0x60` | `+0xB0` | `float` police effectiveness (§2.5) |
+
+The only reader is the safety advisor (`0x00416ED1`): it copies `+0x00` into the damaged-building count, `+0x08` into
+the damage cost, and `+0x60` × 100 and `+0x5C` × 100 into the police and fire effectiveness percentages. A
+replacement must return a pointer to a record with this layout and keep it valid for the layer's lifetime.
+
+`ResetDisasterCost` zeroes the counts, the costs and the special-building records.
 
 ### 2.7 Locations (slots 12–17, `GoToNextDisaster` slot 11)
 
@@ -241,17 +260,34 @@ records.
   1. Append the entry and AddRef the occupant.
   2. If `focus` is true and the "follow disasters" preference byte (`0x00B43CD8 + 0xF08`) is set, call
      `GoToNextDisaster`.
-- **Occupant-based entries**: an entry with an occupant takes its x and z from the occupant whenever it is read
-  (`ResolveDisasterLocation`). This happens only while the occupant is still in the occupant manager. Otherwise
-  the stored x and z stay.
+- **Occupant-based entries** *[compat]*. An entry is 20 bytes: {instance, x, z, zoom, occupant}. Its stored x and
+  z change only when the entry is **resolved** (`ResolveDisasterLocation`, `0x00577540`):
+  - With an occupant: if the occupant manager still holds it (occupant manager slot 27, `FindOccupant(occ, false,
+    null, null)`), take the occupant's position (occupant slot 8) and convert it to a cell (city slot 95,
+    `PositionToCell`). The result is **written back into the entry**. If the occupant is gone, nothing changes.
+  - Without an occupant: call the instance's `GetLocation` (instance slot 6); if it returns true, store its x and
+    z in the entry.
+
+  Only two functions resolve: `GetMostRecentDisasterLocation` (slot 12, at `0x0057764E`) and
+  `GetNextDisasterLocation` (`0x005777C3`, used by `GoToNextDisaster`). `GetDisasterLocationByIndex` (slot 17) does
+  **not** resolve. So an entry registered with (0, 0) reads (0, 0) through slot 17 until something resolves it,
+  and afterwards keeps the cell of its last resolution, not the occupant's current cell *[quirk]*. In practice an
+  entry is resolved when:
+  - `DisasterHasBegun` calls slot 12 for its instance (§2.4), which resolves that instance's newest entry;
+  - `RegisterDisasterLocation` runs with `focus` and the preference set, since `GoToNextDisaster` resolves the new
+    entry (and moves the cursor one step back);
+  - the player uses the "next disaster" view command (`0x0992FD36`, `GoToNextDisaster`).
+
+  The walking views (MySim, MyStreetSim) read slots 16 and 17 and therefore see these stale cells.
 - **`UnregisterDisasterLocations(instance)`** (slot 14) removes all of the instance's entries.
   **`UnregisterDisasterLocationByOccupant(instance, occupant)`** (slot 15) removes the matching entries. Both
   release the occupants.
 - **`GetMostRecentDisasterLocation(instance, &x, &z)`** (slot 12, pop 12) searches from the newest entry. It
   takes the newest entry overall when `instance` is null, else the newest entry of that instance. It returns false
   when there is none.
-- **`GetDisasterLocationCount`** (slot 16) and **`GetDisasterLocationByIndex`** (slot 17, pop 16) give plain
-  access.
+- **`GetDisasterLocationCount`** (slot 16) and **`GetDisasterLocationByIndex`** (slot 17, pop 16, `0x00577920`)
+  give plain access to the stored values, unresolved. Slot 17 AddRefs the instance it returns; the caller releases
+  it.
 - **The cursor** (`+0xC0`). `RegisterDisasterLocation` sets it to the new entry's index (`count − 1`) on every
   registration (`0x005783D0`). `GetNextDisasterLocation` (`0x00577770`):
   1. If there are no entries, return false.
@@ -424,7 +460,9 @@ Returns true if the occupant burns afterwards.
    and return true; else return false.
 6. If `fireID` is 0, draw one: `RandomUint32Uniform()` (the raw draw, §13). The draw happens only here, after all
    the refusals above. If the ID is new, register a location with the layer:
-   `RegisterDisasterLocation(instance, 0, 0, occupant, zoomLevel, focus)`. Then add the ID to the set.
+   `RegisterDisasterLocation(instance, 0, 0, occupant, zoomLevel, focus')`, where `focus' := focus and the fire-ID
+   set was empty` (`0x0057A9BA`–`0x0057A9D6`; the set's size is at instance `+0xF4`, the zoom byte at `+0xC4`). Only
+   the first ID of an episode can move the camera. Then add the ID to the set.
 7. Create a fire occupant (class `0x69D25C5F`):
    1. Add it to the list and `Init` it.
    2. Set its target to the occupant (§5.11) and its fire ID to `fireID`.
@@ -435,6 +473,20 @@ Returns true if the occupant burns afterwards.
 10. Post `0x49E3DB1D` with data1 = the fire occupant and data2 = 1 (fire started).
 11. Count the ignition: flora → `+0xD4`, building → `+0xD0` (props are not counted).
 12. Run `UpdatePhase` (§5.9).
+
+**The refusals, exactly.** `Ignite` returns false at these five exits and no others:
+
+| Exit | Test | Detail |
+|---|---|---|
+| step 1 (`0x0057A80D`) | not `force`, not emergency-paused (simulator slot 17), paused (slot 15) | |
+| step 2 (`0x0057A907`) | type not flora, prop or building | |
+| step 3 | flammability `0x29244DB5` = 0 | read through the occupant's own property holder (occupant slot 6) with the property helper `0x005FD480`, as an unsigned integer (variant slot 25, converting); a missing property reads 0 |
+| step 4 | not `force` and `round(D9(coverage)) > 0` | the rectangle is the occupant's `GetBoundingCityCells` (occupant slot 11) intersected with the city (`0x0048ED90`; no overlap gives an empty rectangle); the average is `GetAverageValueInCellRect(x, z, w, h)` (`0x0045DE50`: sum / (w × h), truncated by `_ftol`, as a byte); D9 is the curve at instance `+0xA4`; the rounding uses the 12582912 constant at `0x00A9E434` |
+| step 5 | target's `0x69DBEBE1` true and not `force` | |
+
+The "burning" property `0x69DBEBE1` is set only by the fire occupant's `SetTarget` (`0x004719DF`) and cleared only
+by the fire occupant's `Shutdown` (`0x00470E5D`), which runs when `KillFire` removes the fire occupant (§5.10). A
+target therefore reads "burning" for exactly as long as a fire occupant on it exists.
 
 `IgniteOccupant(o)` (manager slot 4, `0x0057B930`) returns false for a null `o`. Otherwise it calls `Ignite(o,
 false, 0, true)` and returns **true whatever `Ignite` returned** *[quirk]*.
@@ -503,11 +555,21 @@ hour), but no hour agent is registered for it *[inferred]*. Each run:
    later tick *[compat]*.
 4. If any ignitions were counted, post `0x49D15B73` with data1 = buildings and data2 = flora, then zero both.
 
-**`UpdateAllFires`**:
+**The fire list** is a `std::list` at instance `+0xE0`. `Ignite` appends the new fire at the end (`push_back`,
+`0x007E98C0`).
+
+**`UpdateAllFires`** (`0x0057BEA0`):
 
 1. Read the tutorial's no-burn-down flag (tutorial system slot 8) into `+0x54`.
-2. If any fire has a null target, kill all fires (`KillAllFires`) and stop.
-3. Otherwise run `UpdateFire` on each.
+2. Walk the list from the front. For each node, remember the **next** node before working on this one, then:
+   1. If the fire's target (`GetTarget`) is null, run `KillAllFires` and stop. The fires before it in the list
+      have already been stepped in this pass.
+   2. Otherwise run `UpdateFire` on it.
+   3. Continue with the remembered next node.
+
+Because the next node is taken before the step, a fire appended during the pass (by a spread's `IgniteCell`) is
+stepped **in the same pass** when the spreading fire was not the last node at the start of its step, and is **not**
+stepped when the spreading fire was the last node (its remembered next was the end) *[compat]*.
 
 ### 5.9 Phase (`UpdatePhase`, `0x0057A0D0`)
 
@@ -534,7 +596,8 @@ One episode lasts from the first fire to the moment the list is empty. The emerg
 For one fire with target `t`:
 
 1. If `t` is no longer in the occupant manager (occupant slot 32 `+0x80` with 1 returns false): `KillFire`, stop.
-2. If the fire has an extinguish time: if that time has passed, `KillFire`. Stop either way.
+2. If the fire has an extinguish time: if the timer's elapsed milliseconds are **strictly greater** than that time
+   (unsigned, `0x0057BBE0`), `KillFire`. Stop either way.
 3. **Resistance**:
    1. `k := round(D9(average coverage over t's cell rectangle))`, as in §5.4 step 4, rounding half to even.
    2. If the fire is being hosed (`hosed > 0`, the number of hoses on it): `k += 4 × hosed`.
@@ -575,9 +638,14 @@ For one fire with target `t`:
 **`KillFire(fire)`** (`0x0057B640`):
 
 1. Post `0x49E3DB1D` with data2 = 0 (fire ended).
-2. `layer.UnregisterDisasterLocationByOccupant(instance, target)`.
-3. If another fire has the same ID, register that fire's target as the ID's location. Otherwise erase the ID.
-4. Remove the fire occupant from the occupant manager and the list.
+2. `removed := layer.UnregisterDisasterLocationByOccupant(instance, target)`. It returns true if it removed at least
+   one (instance, occupant) entry (`0x00577DE0`).
+3. **Only if `removed`**: look for another fire in the list with the same ID (fire occupant slot 13). If there is
+   one, register its target: `RegisterDisasterLocation(instance, 0, 0, that target, zoomLevel, false)`. Otherwise
+   erase the ID from the set (`0x0046FAB0`). When nothing was removed (the dying fire's target was not the ID's
+   registered occupant), the ID and the locations stay as they are.
+4. Remove the fire occupant from the occupant manager (`RemoveOccupant(fire's occupant, true, 0)`, so its
+   `Shutdown` runs, §5.11) and from the list.
 
 **`BurnDownFire(fire)`** runs `KillFire`, then `ToastOccupant(target)`.
 
@@ -671,12 +739,25 @@ first `AddRiotLeader` failed stays in phase 0 and does not count either.
 ### 6.3 Instance `Init`
 
 1. Register with the animation tick manager.
-2. Start a timer with units 5 (seconds).
-3. Mark the network occupants within ±3 cells of the start as riot-locked (`MarkRiotNetworkOccupants` `0x0057D300`):
+2. Start a timer with units 5 (seconds) (`0x00890181`, then started at `0x008905C4`). `next` (`+0x48`) is not
+   touched: the constructor set it to 0 (`0x0057DB29`).
+3. For each leader already in the list, mark the network around the cell of its last network occupant
+   (`0x0057E85C`). At a fresh start the list is empty, so this marks nothing; it matters only for an instance that
+   already has leaders. The locking itself is `MarkRiotNetworkOccupants` (`0x0057D300`), which marks the network
+   occupants within ±3 cells as riot-locked:
    each one's player removal counter is decremented (`UnsetRemovalFlags(2)` on `AsOccupant()`, network occupant slot
    48), so the player cannot bulldoze it until the riot manager shuts down (§6.7). This is not a network flag and
    does not touch traffic. A start within 3 cells of the west or north edge locks nothing *[quirk]*. Full rule:
    network-manager.md §10.
+
+**Where locks are taken.** `MarkRiotNetworkOccupants(unused, x, z)` loops x outermost with unsigned bounds and calls
+`LockNetworkOccupant` (`0x0057DA40`) on each tile occupant: a null occupant or one already in the riot's lock set is
+skipped; otherwise it is AddRef'd, its removal flag 2 is unset (`AsOccupant`, network occupant slot 48, then
+`UnsetRemovalFlags(2)`), and it joins the set. Only the riot calls it. It has exactly three callers:
+
+1. `AddRiotLeader`, after the location registration (`0x0057DF18`, §6.4 step 5);
+2. the update step, when a surviving leader stands on a new network occupant (`0x0057E382`, §6.5 step 6);
+3. `Init`, for leaders already in the list (`0x0057E85C`, step 3 above).
 
 ### 6.4 `AddRiotLeader(x, z, spawned)`
 
@@ -699,16 +780,24 @@ first `AddRiotLeader` failed stays in phase 0 and does not count either.
 4. `layer.RegisterDisasterLocation(instance, 0, 0, automaton, zoomLevel, not spawned)`.
 5. Mark the network around the cell (§6.3) and run `UpdatePhase` (§6.7).
 
-A new leader record starts with stage −1 and maximum stage −1 and a counter of 0.
+A new leader record starts with stage −1 and maximum stage −1 and a counter of 0. Its "last network occupant"
+(record `+0x18`) starts as the tile occupant that `FindNearestRoadTile` returned (`0x0057DE67`–`0x0057DE78`), not
+null, so the first step does not re-mark the start cell. Records are appended at the end of the leader list
+(`push_back`, `0x0057D8D0`).
 
 ### 6.5 Update (once per real second)
 
 `Update` (`0x0057DFE0`) runs on every animation tick but does its work only once per whole second: it reads the
 timer with the integer `GetElapsedTime` (units 5, truncated seconds), and when `elapsed ≥ next` it sets `next :=
-elapsed + 1` (no backlog is kept) and runs the step. `next` starts at 0, so the first step runs at the first tick
-after `Init`, at elapsed 0. Step *n* therefore runs at about *n* − 1 seconds.
+elapsed + 1` (no backlog is kept) and runs the step. `next` starts at 0 (constructor, `0x0057DB29`; `Init` does not
+change it), so the first step runs at the first tick after `Init`, at elapsed 0. Step *n* therefore runs at about
+*n* − 1 seconds.
 
-In the step, for each leader:
+In the step, the leader list is walked from the front; before each leader is processed the next node is remembered
+(`0x0057E026`). A leader spawned in step 4 is appended at the end, so it is processed **in the same pass** when the
+spawning leader was not the last node, and not when it was *[compat]*.
+
+For each leader:
 
 1. `counter += trunc(1.0f − curve(police coverage at its cell))` (truncation toward zero, `_ftol`). With a curve
    value below 2 this adds 1 or 0; only a curve of 2 or more makes it negative.
@@ -727,9 +816,13 @@ In the step, for each leader:
    2. `layer.UnregisterDisasterLocationByOccupant` (layer slot 15).
    3. Release the automaton, erase the leader and release its last network occupant.
 6. Otherwise:
-   1. `cell := floor(position / 16)`. If the network tile occupant at that cell differs from the one the leader
-      last stood on, mark the network around the cell (`MarkRiotNetworkOccupants`, §6.3) and remember it. **A
-      walking leader keeps locking more road** *[compat]*.
+   1. `cell := floor(position / 16)`, from the automaton's position (automaton slot 7), computed exactly (× 0.0625,
+      then the 12582912 rounding with a −0.5 bias; constants `0x00A9E77C`, `0x00A84D2C`, `0x00A9E780`). Take the
+      tile at that cell (traffic map slot 14, `SafeGetTileInfoAtCell`, §6.4) and its occupant (the tile's first
+      field). If that occupant is **non-null** and differs from the leader's last network occupant, mark the
+      network around the cell (`MarkRiotNetworkOccupants`, §6.3; `0x0057E382`) and remember it (AddRef the new,
+      Release the old). **A walking leader keeps locking more road** *[compat]*. Only the cell under the leader at
+      each step is sampled; cells it crossed between two steps are not.
    2. The leader follows the road under it (`DoRiotLeaderTick`: random turns on the traffic network).
 
 Unopposed (coverage 0), a leader gains 1 per step. Its counter is *n* after step *n*:
@@ -1091,7 +1184,9 @@ replacement must not add a record.
 
 `cISC4DisasterLayer` (vtable `0x00A9E390`), `cISC4DisasterManager` and `cISC4DisasterManagerFire` (`0x00A9E4DC`)
 are in `docs/abi/interfaces.tsv`. The proposed rows for the fire instance's interfaces and the toxic manager are in
-`build-runs/re-specs12-rows.tsv` of the re-specs12 lane.
+`build-runs/re-specs12-rows.tsv` of the re-specs12 lane. The `cISC4DisasterLayer` slot 18 row (`GetDisasterCost`,
+`0x00578900`) must say it returns a pointer to the statistics record of §2.6; the replacement row and the fire
+occupant rows below are in `build-runs/re-answers23-abi-rows.tsv` of the re-answers23 lane.
 
 **Fire instance, internal interface (`0x00A9E5B0`)**, called by the fire manager:
 
@@ -1133,6 +1228,11 @@ are in `docs/abi/interfaces.tsv`. The proposed rows for the fire instance's inte
 12. A manager-started earthquake never rumbles and always has intensity 0.1 (§7).
 13. The volcano ends the disaster when its lava stops (§10). Its argument-less start uses cell counts as world
     units (§10).
+14. Disaster locations read by index keep the cell of their last resolution, (0, 0) if never resolved; they do not
+    follow a burning building's or a walking riot leader's occupant (§2.7).
+15. `GetDisasterCost` returns a pointer to a statistics record, not a number (§2.6).
+16. A fire lit during an `UpdateAllFires` pass is stepped in the same pass unless the spreading fire was the last in
+    the list (§5.8); the same holds for riot leaders spawned during a riot step (§6.5).
 
 ## 17. Open questions
 
@@ -1186,6 +1286,28 @@ The cores13 implementers' questions Q6–Q25 (QUESTIONS.md DS1–DS20) and DS21�
 - ~~DS24. The riot's lock release order.~~ Ascending occupant address (a `std::set`); not observable, so any order
   conforms.
 
+The glue13 lane's questions (QUESTIONS.md DS25–DS40; the lane's own numbers Q26–Q42 are used here), answered
+2026-10-16 (re-answers23):
+
+- ~~**Q37** (DS35). Do occupant locations follow the occupant?~~ **DIFFERS** from the earlier text "whenever it is
+  read": entries are written only when resolved, which only slot 12 and `GoToNextDisaster` do; slot 17 reads the
+  stored values (§2.7). The glue's observation (0, 0, or the cell at a focused registration) MATCHES.
+- ~~**Q38** (DS36). When does the riot lock network occupants?~~ MATCHES §6.5 step 6, now with the exact rule and
+  the three callers (§6.3). The core, which locks only at `AddRiotLeader`, **DIFFERS**.
+- ~~**Q39** (DS37). The riot's second offset.~~ MATCHES §6.5: `next` starts at 0, the first step runs at elapsed 0,
+  stage 1 at step 30 (29 s). The core's choice of a first step 1 s after `Init` **DIFFERS**.
+- ~~**Q40** (DS38). Which `Ignite`s are refused?~~ Exactly the five exits of §5.4 ("The refusals, exactly"). The
+  log's refused targets could not be attributed to one exit statically; the shadow should log the original-side
+  inputs (pause and emergency pause, type, flammability, the clamped rectangle and its average coverage, and
+  `0x69DBEBE1`) at each refusal. For spread targets the likeliest exit is step 5: a spread cell often lies on a
+  target that already burns (any fire occupant on it, including one in the same pass). Partly open.
+- ~~**Q41** (DS39). Slot 18.~~ The slot is right; the return type is a pointer to the statistics record (§2.6).
+  **DIFFERS** from the earlier §2.6. The logged 332771428 is `0x13D5B064`, the layer identity `0x13D5B014` + `0x50`.
+- ~~**Q42** (DS40). Is a fire lit during the pass stepped?~~ Sometimes: a `std::list` walked with the next node
+  taken before each step (§5.8). The mirror's "never" **DIFFERS**. Also: a null target triggers `KillAllFires`
+  only after the earlier fires were stepped; the extinguish-time test is strict (§5.10 step 2); `KillFire`
+  re-registers or erases the ID only when its target's entry was removed (§5.10).
+
 ## 18. Conformance tests (must exist in `engine/conformance` if the layer is replaced)
 
 1. **Coverage threshold.** D9 is shipped. Average coverage 50 → D9 = 0.5 → round half to even = 0 → `Ignite`
@@ -1238,3 +1360,17 @@ The cores13 implementers' questions Q6–Q25 (QUESTIONS.md DS1–DS20) and DS21�
     +z first).
 14. **Volcano phases.** Start a volcano with lava enabled: right after the start call its state is 5 and
     `GetPhase` is 2 (not counted as active). After T seconds of ticks: `DisasterHasEnded` once, state 3, phase 1.
+15. **Location resolution.** Ignite a building at cell (12, 7) with `focus` false while no other fire burns:
+    `GetDisasterLocationByIndex` reads (0, 0) until `DisasterHasBegun` runs in the same `Ignite`; after it, slot 17
+    reads (12, 7). Register a riot leader's automaton, move the automaton three cells: slot 17 still reads the old
+    cell; `GetMostRecentDisasterLocation` returns the new cell and slot 17 then reads it too.
+16. **Statistics pointer.** `GetDisasterCost()` = interface pointer + `0x48`. After one building with demolition
+    cost 500 is removed during a disaster, `*(uint32*)p = 1` and `*(int64*)(p + 8) = 500`.
+17. **Same-pass stepping.** Fires [A, B]; A's step spreads to C (list [A, B, C]): C is stepped in this pass, after B.
+    Fires [A]; A's step spreads to C: C is not stepped until the next pass.
+18. **KillFire ID handling.** Fires A and B share an ID, only A's target registered. Kill B: the unregister call
+    removes nothing, so the ID and A's entry stay. Kill A instead: A's entry is removed and B's target is
+    registered with `focus` false.
+19. **Riot locks while walking.** A leader moves from road piece P to road piece Q between two steps: the step after
+    the move locks every network occupant within ±3 cells of Q's cell. Moving back onto P later locks around P
+    again (no new pieces if nothing changed).

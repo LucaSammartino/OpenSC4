@@ -4942,18 +4942,50 @@ numbers (its Q26-Q42) are given in parentheses; the current choice is in bracket
 - **DS33:** (Q34) the extinguish delay Random(4000) and a covered fire's counter draw cannot be followed: the mirror's
   draw is 0.
 - **DS34:** (Q35) does IgniteCellRadius take its radii as float or int?
-- **DS35:** (Q37) occupant location entries read (0,0), or the cell at registration when focus = 1, and never follow
+- ~~**DS35:** (Q37) occupant location entries read (0,0), or the cell at registration when focus = 1, and never follow
   the occupant, although §2.7 says they resolve while the occupant is in the manager. Do they resolve only on focus or
-  GoToNextDisaster? [tagged in the log: fire location 43 lines, riot location 2339 in dis-final-11]
-- **DS36:** (Q38) the original calls LockNetworkOccupant whenever a riot leader enters a new cell, not only at
-  AddRiotLeader. When exactly? [the core locks at AddRiotLeader; 316 riot lines tagged]
-- **DS37:** (Q39) the original's riot counter is one second ahead: its stage-1 leader spawns at 29 s, while the core's
-  *[choice]* puts the first update 1 s after Init. What is the riot's second offset?
-- **DS38:** (Q40) the original refuses some Ignites the spec admits: an edge building at (0,36) with flammability 75,
+  GoToNextDisaster? [tagged in the log: fire location 43 lines, riot location 2339 in dis-final-11]~~ **ANSWERED
+  2026-10-16 (re-answers23):** **DIFFERS** from the old §2.7 wording, MATCHES the glue's observation. An entry's x and
+  z are written only when it is resolved (`ResolveDisasterLocation` `0x00577540`: the occupant's cell while the
+  occupant manager holds it, else the instance's `GetLocation`), and only slot 12 (`0x0057764E`) and
+  `GetNextDisasterLocation` (`0x005777C3`) resolve; slot 17 (`0x00577920`) reads the stored values. So an entry reads
+  (0, 0) until `DisasterHasBegun`, a focused registration with the preference set, or the view's next-disaster command
+  resolves it, then keeps that cell. Also: `Ignite` passes focus only for the first ID of an episode (`0x0057A9BA`).
+  disasters.md §2.7, §5.4, test 15.
+- ~~**DS36:** (Q38) the original calls LockNetworkOccupant whenever a riot leader enters a new cell, not only at
+  AddRiotLeader. When exactly? [the core locks at AddRiotLeader; 316 riot lines tagged]~~ **ANSWERED 2026-10-16
+  (re-answers23):** MATCHES disasters.md §6.5 step 6; the core **DIFFERS**. `MarkRiotNetworkOccupants` (`0x0057D300`)
+  has three callers: `AddRiotLeader` (`0x0057DF18`); the update step (`0x0057E382`), once per step for each surviving
+  leader whose cell floor(pos/16) has a non-null tile occupant different from the leader's last one (the last one
+  starts as the road tile's occupant found at creation); and `Init` (`0x0057E85C`) for leaders already in the list
+  (none at a fresh start). Cells crossed between steps are not sampled. disasters.md §6.3, §6.4, §6.5, test 19.
+- ~~**DS37:** (Q39) the original's riot counter is one second ahead: its stage-1 leader spawns at 29 s, while the core's
+  *[choice]* puts the first update 1 s after Init. What is the riot's second offset?~~ **ANSWERED 2026-10-16
+  (re-answers23):** MATCHES disasters.md §6.5; the core's choice **DIFFERS**. `next` is 0 from the constructor
+  (`0x0057DB29`) and `Init` leaves it; `Update` (`0x0057DFE0`) steps when integer elapsed seconds ≥ next and sets next
+  := elapsed + 1, so step 1 runs at elapsed 0 and stage 1 spawns at step 30 (29 s). Leaders spawned in a step are
+  processed in the same pass unless the spawner was the last node (`0x0057E026`). disasters.md §6.5.
+- ~~**DS38:** (Q40) the original refuses some Ignites the spec admits: an edge building at (0,36) with flammability 75,
   coverage 0, not paused; interior buildings; spread targets with coverage 0-4 during the emergency pause. Which
-  Ignites does it refuse? [the mirror puts its fire out at once]
-- **DS39:** (Q41) layer slot 18 (GetDisasterCost) returns a pointer-like value (about 332 million) against ours
-  (140-1630), although §2.6 says totalCost. Is the slot or the return type wrong? [cost not compared]
-- **DS40:** (Q42) does UpdateAllFires step a fire lit during the same pass? The original sometimes does (spread
+  Ignites does it refuse? [the mirror puts its fire out at once]~~ **ANSWERED 2026-10-16 (re-answers23):** Partly
+  answered. `Ignite` (`0x0057A7D0`) refuses at exactly five exits: manual pause without emergency pause and without
+  force (`0x0057A80D`); wrong type (`0x0057A907`); flammability `0x29244DB5` = 0; not forced and
+  round-half-even(D9(average coverage over the city-clamped bounding cell rectangle)) > 0; target's `0x69DBEBE1` true
+  and not forced. No other refusal exists. Which exit refused the logged targets cannot be fixed statically: the
+  shadow should log those original-side inputs at each refusal. For spread targets the likeliest is the burning test.
+  disasters.md §5.4 "The refusals, exactly".
+- ~~**DS39:** (Q41) layer slot 18 (GetDisasterCost) returns a pointer-like value (about 332 million) against ours
+  (140-1630), although §2.6 says totalCost. Is the slot or the return type wrong? [cost not compared]~~ **ANSWERED
+  2026-10-16 (re-answers23):** The slot is right; the return type is wrong (**DIFFERS** from §2.6). `GetDisasterCost`
+  (`0x00578900`) returns a pointer to the layer's statistics record at instance `+0x50` (interface + `0x48`): building
+  count, total cost, four kind pairs, special records, fire and police effectiveness. The logged 332771428 =
+  `0x13D5B064` = identity `0x13D5B014` + `0x50`. Reader: the safety advisor (`0x00416ED1`). The interfaces.tsv row
+  must change (`build-runs/re-answers23-abi-rows.tsv`). disasters.md §2.6, test 16.
+- ~~**DS40:** (Q42) does UpdateAllFires step a fire lit during the same pass? The original sometimes does (spread
   `150215A4` burned down one step earlier than in the mirror); the mirror never does, and §5.4 / §5.8 do not say which
-  container the fire list is or how it is iterated. [never]
+  container the fire list is or how it is iterated. [never]~~ **ANSWERED 2026-10-16 (re-answers23):** Sometimes, as
+  the glue saw; the mirror's "never" **DIFFERS**. The fire list is a `std::list` at instance `+0xE0`, appended by
+  `Ignite`; `UpdateAllFires` (`0x0057BEA0`) takes the next node before each step, so a fire appended during the pass
+  is stepped in it unless the spreading fire was the last node. A null target triggers `KillAllFires` after the
+  earlier fires were stepped. Also: the extinguish-time test is strict (`0x0057BBE0`), and `KillFire` (`0x0057B640`)
+  re-registers or erases the ID only when the unregister removed an entry. disasters.md §5.8, §5.10, tests 17-18.
