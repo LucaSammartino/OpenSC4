@@ -7203,12 +7203,13 @@ typedef struct fc4_port_host {
     void (*lot_rect)(void* user, uint64_t lot, fc4_cell_rect* out);
     uint32_t (*lot_facing)(void* user, uint64_t lot);
     bool (*lot_zone_compatible)(void* user, uint64_t lot, uint16_t zone);
-    /* The lot configuration with this ID (0 = none). */
+    /* The lot configuration with this ID (0 = none: the swap still goes on, PD5). */
     uint64_t (*lot_configuration)(void* user, uint32_t id);
     void (*start_demolish_lot)(void* user, uint64_t lot);
     void (*end_demolish_lot)(void* user, uint64_t lot);
     /* CreateLot(x, z, width, depth, facing); the lot (0 = none). */
     uint64_t (*create_lot)(void* user, int32_t x, int32_t z, int32_t width, int32_t depth, uint32_t facing);
+    /* SetLotConfiguration + UpdateZoneType, ConstructDefaultLot(lot, cfg, 0, 1); `configuration` may be 0 (null, PD5). */
     void (*set_lot_configuration)(void* user, uint64_t lot, uint64_t configuration);
     bool (*construct_default_lot)(void* user, uint64_t lot, uint64_t configuration);
     void (*dezone)(void* user, const fc4_cell_rect* rect);
@@ -7223,6 +7224,9 @@ typedef struct fc4_port_host {
     void (*terrain_size)(void* user, uint32_t* width, uint32_t* depth);
     bool (*cell_has_water)(void* user, uint32_t x, uint32_t z);
     uint32_t (*set_access_props_state)(void* user, uint64_t lot, uint32_t property, uint32_t state);
+    /* cISTETerrain slot 51 SetAltitude(x, z, h): vertex indices. The seaport passes the truncated metre
+     * coordinates of a cell centre, as the original does (§4.8 step 4, PD6); ones outside the terrain's
+     * vertices are skipped. */
     void (*set_altitude)(void* user, int32_t x, int32_t z, float altitude);
 } fc4_port_host;
 
@@ -7258,7 +7262,9 @@ bool fc4_port_developer_query_interface(uint32_t kind, uint32_t iid, uint32_t* o
 uint32_t fc4_port_developer_add_ref(fc4_port_developer* p);
 /* Release: the last release calls Shutdown and returns 0; the handle stays valid until fc4_port_developer_destroy. */
 uint32_t fc4_port_developer_release(fc4_port_developer* p);
-/* Init: tuning, department, agent; the seaport's map. */
+/* Init (guarded: a second call returns true at once): tuning, agent, department; the seaport's map.
+ * Shutdown (nothing without Init): deletes every port and port type, removes the agent; keeps the
+ * tuning-loaded flag (PD10). */
 bool fc4_port_developer_init(fc4_port_developer* p);
 bool fc4_port_developer_shutdown(fc4_port_developer* p);
 /* DoMessage (§3): `data` is the occupant (0x99EF1142) or the lot (0xE8BDA2E7,
@@ -7276,7 +7282,9 @@ size_t fc4_port_developer_all_port_lots(const fc4_port_developer* p, uint64_t* o
 uint32_t fc4_port_developer_num_ports(const fc4_port_developer* p, uint32_t size_flags, uint32_t stage_flags);
 uint32_t fc4_port_developer_num_airports(const fc4_port_developer* p, uint32_t size);
 uint32_t fc4_port_developer_num_seaports(const fc4_port_developer* p);
-/* Get...UsageValues(lot): false (0, 0) if not a port. */
+/* Get...UsageValues(lot): usage = min(trips, capacity), cap = capacity, then with funding the funded
+ * cap and the usage clamped to it (§4.7; the month uses the plain capacity, PD8); false (0, 0) if not
+ * a port. */
 bool fc4_port_developer_usage_values(const fc4_port_developer* p, uint64_t lot, uint32_t* usage, uint32_t* cap);
 uint32_t fc4_port_developer_num_trips(const fc4_port_developer* p);
 /* GetMaintenanceCost(lot) (0 if not a port). */

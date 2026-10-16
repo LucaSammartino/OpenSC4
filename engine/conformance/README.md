@@ -1846,7 +1846,7 @@ terrain's water. Every op name starts with `pd_`. A lot configuration's token is
 
 | op | Arguments | Effect / check |
 |---|---|---|
-| `pd_env` | any of `kind`, `line` (`[full, current]` or null), `follow` (current expenses follow SetFullExpenses), `department` (a token or null), `offices` (`[[CO$$ per subnetwork], [CO$$$ per subnetwork]]`), `terrain` (`[width, depth]`), `water` (`[[x, z]]`, replacing the set), `create_lot`, `construct` (whether CreateLot and ConstructDefaultLot succeed), `exemplars` (`{"0xINSTANCE": {properties} \| null}`) | the world |
+| `pd_env` | any of `kind`, `line` (`[full, current]` or null), `follow` (current expenses follow SetFullExpenses), `department` (a token or null), `offices` (`[[CO$$ per subnetwork], [CO$$$ per subnetwork]]`), `terrain` (`[width, depth]`), `water` (`[[x, z]]`, replacing the set), `create_lot`, `construct` (whether CreateLot and ConstructDefaultLot succeed), `missing_configs` (configuration IDs the manager does not have; ConstructDefaultLot with the null configuration then leaves the lot in state 2 with condition 1 and answers true, PD5), `exemplars` (`{"0xINSTANCE": {properties} \| null}`) | the world |
 | `pd_lot` | `lot`, any of `config` (`[id, growth stage]` or null), `x`, `z`, `state`, `condition`, `days`, `rect` (`[x0, z0, x1, z1]`), `facing`, `compatible`, `subnetworks`, `arrived` | creates or updates a lot |
 | `pd_occupant` | `occupant`, `lot`, `type?` (`"building"` or an ID), `group?`, `preview?` | a building occupant |
 | `pd_create` | `kind?` (`"airport"` or `"seaport"`) | a new developer |
@@ -3256,7 +3256,10 @@ available, but no vector pins its draws).
 | 8 a destroyed port lot | `pd12_08_removal` |
 | 9 the seaport map | `pd12_09_seaport_map`, `pd12_11_seaport_tick` |
 | 10 no ports | `pd12_10_no_ports` |
-| other sections | `pd12_12_funding`, `pd12_13_queries`, `pd12_14_tuning`, `pd12_15_reference_count` |
+| 11 funding scales only the public query (PD8) | `pd12_16_funding_month` |
+| 12 a missing next-stage configuration (PD5) | `pd12_17_missing_configuration` |
+| 13 `Init` guarded, `Shutdown` empties the ports and types (PD10) | `pd12_18_init_shutdown` |
+| other sections | `pd12_12_funding`, `pd12_13_queries`, `pd12_14_tuning`, `pd12_15_reference_count`, `pd12_19_terrain_grid` (§4.8 grid, PD4, PD6) |
 
 ## Coverage (prop developer §12)
 
