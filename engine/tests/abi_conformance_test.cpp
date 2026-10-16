@@ -378,15 +378,6 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4NetworkTool(PowerLine)", 11, 83,
      "cFC4ISC4NetworkTool declares slots 3-10 only: the power simulator calls Init, Shutdown and UpdateOnZoneChange "
      "(power §11.1)"},
-    {"cISC4TrafficSimulator", 43, 44,
-     "slot 43 is cSC4TrafficSimulator's scalar deleting destructor (pops 4; docs/abi rows added in main): "
-     "class-private"},
-    {"cISC4PathFinder", 33, 34,
-     "slot 33 is cSC4PathFinder's scalar deleting destructor (pops 4): class-private (pathfinder.md section 7: "
-     "33 interface slots + destructor)"},
-    {"cISC4Demolition", 12, 13,
-     "slot 12 is cSC4Demolition's destructor (pops 4): class-private. The plugin calls slot 7 (DemolishLots) "
-     "only (power §5.5)"},
     {"cISTETerrain", 91, 98,
      "slot 91 is cSTETerrain's destructor and slots 92-97 (GetWaterDepthAtVertex, Flip*Triangulation, "
      "Load/SaveObliterated, Load, Save) are cSTETerrain's own virtuals, past the SDK interface"},
@@ -399,12 +390,6 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4CrimeSimulator", 14, 16,
      "slot 14 is cSC4CrimeSimulator's scalar deleting destructor (pops 4) and slot 15 its GetSimulatorType: "
      "class-private (crime spec section 1: 14 interface slots; cFC4CrimeSimulator declares both)"},
-    {"cISC4AuraSimulator", 16, 17,
-     "slot 16 is cSC4AuraSimulator's scalar deleting destructor (pops 4): class-private (aura spec section 12.1: "
-     "16 interface slots + destructor)"},
-    {"cISC4FloraSimulator", 25, 26,
-     "slot 25 is cSC4FloraSimulator's scalar deleting destructor (pops 4): class-private (flora spec section 11.1: "
-     "3 + 22 interface slots + destructor; only the game's own Release calls it)"},
     {"cISC4TrafficNetworkMap", 9, 52,
      "cFC4ISC4TrafficNetworkMap declares slots 3-8 only: the landfill developer calls slot 8 (FindNetworkTile) "
      "only (landfill §4.4.5, §8)"},
@@ -415,9 +400,10 @@ const SlotCount kReviewedSlotCounts[] = {
      "the table has the one row the landfill spec added (slot 3 SetDefaultExemplar, landfill LG3); the SDK's slot 4 "
      "GetDefaultExemplar has no row. The landfill developer (§4.8.1) and the building development simulator "
      "(building-development.md §4.9) call slot 3 only"},
-    {"cIGZCommandParameterSet", 15, 7,
-     "the table lists slots 3, 5 and 6 only; the building development simulator calls slots 3 "
-     "(GetParameterCount) and 5 (operator[]) (building-development.md §4.12)"},
+    {"cIGZCommandParameterSet", 15, 11,
+     "the table lists slots 3, 5-8 and 10 only (cFC4IGZCommandParameterSet declares 3-10 as compiled); the "
+     "building development simulator calls slots 3 (GetParameterCount) and 5 (operator[]) through the SDK "
+     "declaration (building-development.md §4.12)"},
     {"cISC4VisualEffect", 18, 13,
      "the table has rows only for the slots re-answers2 PG4 traced (2-5, 8, 12; no RTTI); the SDK declares 0-17. "
      "The residential glue calls slots 2, 3 and 8 only (REH 4.7 step 3, RG1)"},
