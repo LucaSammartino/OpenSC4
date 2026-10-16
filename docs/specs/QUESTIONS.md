@@ -5013,3 +5013,36 @@ answers (23002/23002). The current choice is in brackets.
   manager slot 41 (the typed GetOccupantsByStandardCityCells) for the single cell min = max = (x, z), so any pole whose
   bounding cells include (x, z) blocks it. Does the original test the pole's own position cell instead? And is (x, z)
   the visited spiral cell, not the query's centre? [the visited cell, bounding-cell overlap]
+
+## From the prop manager, lot configuration manager and tutorial cores (filed by the coordinator from the `cores15` lane's report, 2026-10-16; merged `03e2dcf`)
+
+cores15 implemented prop-lotconfig.md (Parts A and B), the object reader of lot-configuration.md §3.5 and tutorial.md
+as Rust cores (`engine/core/src/{prop_manager,lot_config_manager,tutorial}/`), C ABIs (`fc4_prop_manager`,
+`fc4_lot_config`, `fc4_tutorial`, ABI 68) and conformance vectors (`plt_*`, `tu8_*`, `tu00_*`). There is no plugin
+glue yet, so none of these readings has been checked in game. The current choice is in brackets. The lane numbered
+these PL4-PL10 and TU3-TU4; they are filed as PL8-PL14 (plumbing's first-generation questions used PL4 and PL7) and
+TU4-TU5 (tutorial.md already has TU3).
+
+- **PL8:** (prop-lotconfig §A3.2) in what order does the profile reader `0x004A3DB0` apply its properties (class,
+  size, satisfaction, wealth, crime)? OccupantSize values past the third overwrite the dwords from +0x10 on; values past
+  the profile's end are dropped (the original writes past its local copy). [that table order, each over the defaults]
+- **PL9:** (§A6.1 step 5) what bounding box does an OccupantSize with one or two values give? [the missing values are
+  0 (the building loader's bracket, DG32); an absent or empty size gives (1,1,1)]
+- **PL10:** (§A7.1, slot 36 AddBuildingProp) when the building has no property holder, does the original skip the
+  property step and still set usage 3 and return true? [yes *[inferred]*]
+- **PL11:** (§B4.3, `0x0048AD40`) how does a building type whose exemplar does not load affect the building
+  information? lot-configuration.md §4 does not cover it. [monopoly property absent (sets +0x8C), no groups
+  *[inferred]*]
+- **PL12:** (§B5.7, CreateGenericLotConfiguration) what are the lot size and the object placement? [ceil(w/16) x
+  ceil(d/16) cells, at least 1, for the slot 24 footprint, the building object centred *[choice]*]
+- **PL13:** (§B5.7, FixLotConfiguration) which validity test applies per record type, and how is the footprint
+  recomputed? [building: BDS slot 16; prop: prop manager slot 11; flora: slot 11 or a non-empty family. The footprint
+  is rebuilt from slots 24-26 (w and d swapped for orientations 1 and 3) around the old footprint's centre; one moved
+  outside the lot by more than 0.049 m is shifted back in, a centre outside it is clamped *[choice]*. The result is
+  the first problem's code]
+- **PL14:** (§B5.7) what counts as a valid retaining wall ID for the slot 28 list in FixLotConfiguration, and is only
+  the first invalid ID removed (code 6)? [a host callback decides; the first invalid ID is removed]
+- **TU4:** (tutorial.md §1) what does the shared advisor-system Release do on the last reference? [marks the object
+  destroyed without running Shutdown or closing the window *[inferred]*]
+- **TU5:** (tutorial.md §4.3, "Shutdown undoes both") what exactly does Shutdown undo? [unsubscribes the three
+  messages and, when a cheat manager exists, unregisters the cheat and its handler *[inferred]*]

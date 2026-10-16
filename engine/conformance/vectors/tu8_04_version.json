@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "name": "tutorial_version",
+  "spec": ["tutorial 3", "tutorial 8.4"],
+  "description": "A record whose version is not 2 reads false and nothing else is read: a fresh instance keeps GUID 0xFFFFFFFF, is-tutorial 0 and task 0.",
+  "steps": [
+    {"op": "tut_create"},
+    {"op": "tut_read", "hex": "0300010000000001000000", "expect": false},
+    {"op": "tut_expect", "state": {"is_tutorial": 0, "task_number": 0, "guid": "0xFFFFFFFF"}},
+    {"op": "tut_read", "hex": "0100010000000001000000", "expect": false},
+    {"op": "tut_expect", "state": {"is_tutorial": 0, "guid": "0xFFFFFFFF"}}
+  ]
+}
