@@ -1778,6 +1778,12 @@ impl TrafficShadow {
         // copy's lot walk stops after the lot at the original's saved cell.
         let finish_stop = (to == cs::FINISH_TRIP_MAP).then_some(t.extras.phase_positions);
         self.copy.update_state(|st| st.shadow_finish_stop = finish_stop);
+        // The original entered 15 in this delivery and its saved cell reads
+        // (0, 0): it stopped at the test point before the first lot (TS63),
+        // having taken none. The copy stops on entry. (What leaves the
+        // positions at (0, 0) there, not at the last FullTrips source's
+        // cell, is open: lane question TS67; the record shows it.)
+        let finish_on_entry = s0 != cs::FINISH_TRIP_MAP && finish_stop == Some([0, 0]);
         let mut steps = 0u32;
         let mut note = None;
         loop {
@@ -1791,7 +1797,7 @@ impl TrafficShadow {
                 // state 16 left it (17) or 0 (18), compared with the record.
                 entering || p >= want
             } else if s == cs::FINISH_TRIP_MAP {
-                finish_stop.map_or(true, |f| f == pos)
+                finish_on_entry || finish_stop.map_or(true, |f| f == pos)
             } else {
                 stop.is_none() || at_stop
             };
