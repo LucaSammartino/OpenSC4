@@ -1,0 +1,79 @@
+{
+  "format": 1,
+  "name": "audio_handler_routing_and_city_set",
+  "spec": [
+    "audio 16.12",
+    "audio 7.2"
+  ],
+  "description": "DoMessage routes 0x8A385DD8, 0xA9E3B6E3, 0xAA396960 and 0xEA3ADA33 to HandleAutomataMessages and no other type there. 0x26D31EC1 subscribes those four (with seven more) to the handler main target and 0x26D31EC2 unsubscribes exactly that set, so outside a city the messages are not heard.",
+  "steps": [
+    {
+      "op": "aud_handler_init"
+    },
+    {
+      "op": "aud_handler_expect",
+      "state": {
+        "subscribed": 13,
+        "city_loaded": false
+      }
+    },
+    {
+      "op": "aud_handler_message",
+      "type": 2318949848,
+      "expect": true
+    },
+    {
+      "op": "aud_handler_message",
+      "type": 2850272995,
+      "expect": true
+    },
+    {
+      "op": "aud_handler_message",
+      "type": 2855889248,
+      "expect": true
+    },
+    {
+      "op": "aud_handler_message",
+      "type": 3929725491,
+      "expect": true
+    },
+    {
+      "op": "aud_handler_message",
+      "type": 651370177,
+      "expect": false,
+      "note": "handled by DoMessage, but not by HandleAutomataMessages; the state check shows the effect"
+    },
+    {
+      "op": "aud_handler_message",
+      "type": 708499027,
+      "expect": false
+    },
+    {
+      "op": "aud_handler_message",
+      "type": 651370177,
+      "expect": false,
+      "note": "handled by DoMessage, but not by HandleAutomataMessages; the state check shows the effect"
+    },
+    {
+      "op": "aud_handler_expect",
+      "state": {
+        "city_loaded": true,
+        "subscribed": 24
+      }
+    },
+    {
+      "op": "aud_handler_message",
+      "type": 651370178,
+      "expect": false,
+      "note": "handled by DoMessage, but not by HandleAutomataMessages; the state check shows the effect"
+    },
+    {
+      "op": "aud_handler_expect",
+      "state": {
+        "city_loaded": false,
+        "subscribed": 13
+      },
+      "note": "exactly the city set is removed; the Init set stays"
+    }
+  ]
+}

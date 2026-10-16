@@ -1,0 +1,137 @@
+{
+  "format": 1,
+  "name": "audio_rate_limiter",
+  "spec": [
+    "audio 16.13",
+    "audio 7.3",
+    "audio 14.5",
+    "audio 14.13"
+  ],
+  "description": "On a play whose payload slot 9 is 0xA9F14C47, if the handler timer at +0x30 is running and the elapsed time is below the threshold at +0x48 the play is dropped. Otherwise the timer restarts and the threshold becomes 1000 + rand()*3000/0x7FFF, i.e. 1000-4000 ms inclusive of 4000. Two automata sharing one handler share one timer and one threshold. The limiter fires only for that one payload value [quirks 5, 13].",
+  "steps": [
+    {
+      "op": "aud_handler_init"
+    },
+    {
+      "op": "aud_env",
+      "rand": 0,
+      "note": "the window becomes exactly 1000 ms"
+    },
+    {
+      "op": "aud_handler_message",
+      "type": 2318949848,
+      "payload": 2851163207,
+      "sound": 5,
+      "instance": 5,
+      "expect": 1
+    },
+    {
+      "op": "aud_handler_expect",
+      "state": {
+        "timer_running": true,
+        "window_ms": 1000,
+        "elapsed_ms": 0,
+        "events": 2
+      }
+    },
+    {
+      "op": "aud_handler_timer",
+      "elapsed": 999
+    },
+    {
+      "op": "aud_handler_message",
+      "type": 2318949848,
+      "payload": 2851163207,
+      "sound": 6,
+      "instance": 6,
+      "expect": 1
+    },
+    {
+      "op": "aud_handler_expect",
+      "state": {
+        "events": 2
+      },
+      "note": "inside the window the play is dropped"
+    },
+    {
+      "op": "aud_handler_timer",
+      "elapsed": 1000
+    },
+    {
+      "op": "aud_handler_message",
+      "type": 2318949848,
+      "payload": 2851163207,
+      "sound": 7,
+      "instance": 7,
+      "expect": 1
+    },
+    {
+      "op": "aud_handler_expect",
+      "state": {
+        "events": 4,
+        "window_ms": 1000
+      },
+      "note": "at the threshold it goes through and the window is redrawn"
+    },
+    {
+      "op": "aud_handler_timer",
+      "elapsed": 1000,
+      "note": "the previous play reset the timer; advance past the window"
+    },
+    {
+      "op": "aud_env",
+      "rand": 32767,
+      "note": "0x7FFF: the window becomes exactly 4000 ms"
+    },
+    {
+      "op": "aud_handler_message",
+      "type": 2318949848,
+      "payload": 2851163207,
+      "sound": 8,
+      "instance": 8,
+      "expect": 1
+    },
+    {
+      "op": "aud_handler_expect",
+      "state": {
+        "window_ms": 4000,
+        "events": 6
+      }
+    },
+    {
+      "op": "aud_handler_timer",
+      "elapsed": 0
+    },
+    {
+      "op": "aud_handler_message",
+      "type": 2318949848,
+      "payload": 305419896,
+      "sound": 9,
+      "instance": 9,
+      "expect": 1
+    },
+    {
+      "op": "aud_handler_expect",
+      "state": {
+        "events": 8
+      },
+      "note": "every other payload plays immediately (14.5)"
+    },
+    {
+      "op": "aud_handler_event_expect",
+      "index": 0,
+      "state": {
+        "event": 3930396931,
+        "a": 5,
+        "b": 5
+      }
+    },
+    {
+      "op": "aud_handler_event_expect",
+      "index": 1,
+      "state": {
+        "event": 3393526031
+      }
+    }
+  ]
+}

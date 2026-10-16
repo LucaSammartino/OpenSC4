@@ -1,0 +1,102 @@
+{
+  "format": 1,
+  "name": "audio_pool_state_word",
+  "spec": [
+    "audio 16.6",
+    "audio 4.2",
+    "audio 14.8"
+  ],
+  "description": "Taking a page into service adds 0x40000000 to page+0x0C; allocating increments it and releasing decrements it. A release whose post-dec value is 0 hands the page back through pool vtable slot 3; one whose value is exactly 0x40000045 clears the marker (add 0xC0000000) and unlinks the page from the active ring instead. The word is not a plain live count: the marker is part of it [quirk 8]. AU6 on the initial value is open.",
+  "steps": [
+    {
+      "op": "aud_env",
+      "page_base": 2097152
+    },
+    {
+      "op": "aud_pool_alloc",
+      "expect": 2097168
+    },
+    {
+      "op": "aud_pool_expect",
+      "page": 2097152,
+      "state": {
+        "marker": true,
+        "state": 1073741825,
+        "live": 1
+      },
+      "note": "entry adds 0x40000000 and alloc increments"
+    },
+    {
+      "op": "aud_pool_free_index",
+      "index": 0,
+      "expect": "none",
+      "note": "post-dec is the marker alone: neither threshold"
+    },
+    {
+      "op": "aud_pool_expect",
+      "page": 2097152,
+      "state": {
+        "state": 1073741824,
+        "marker": true
+      }
+    },
+    {
+      "op": "aud_pool_alloc_n",
+      "count": 70,
+      "state": {
+        "count": 70,
+        "page": 2097152,
+        "state": 1073741894
+      },
+      "note": "70 live objects in service"
+    },
+    {
+      "op": "aud_pool_free_index",
+      "index": 70,
+      "expect": "retired",
+      "note": "post-dec is exactly 0x40000045"
+    },
+    {
+      "op": "aud_pool_expect",
+      "page": 2097152,
+      "state": {
+        "state": 69,
+        "marker": false,
+        "retired": true,
+        "active": false,
+        "handed_back": false
+      },
+      "note": "the marker is cleared and the page is off the active ring (FUN_0090CFF9)"
+    },
+    {
+      "op": "aud_pool_free_index",
+      "index": 2,
+      "count": 68,
+      "expect": "none",
+      "note": "the retired page drains its live objects"
+    },
+    {
+      "op": "aud_pool_expect",
+      "page": 2097152,
+      "state": {
+        "state": 1,
+        "marker": false
+      }
+    },
+    {
+      "op": "aud_pool_free_index",
+      "index": 1,
+      "expect": "handed_back",
+      "note": "post-dec is 0: pool vtable slot 3 (FUN_0090D031)"
+    },
+    {
+      "op": "aud_pool_expect",
+      "page": 2097152,
+      "state": {
+        "handed_back": true,
+        "retired": false,
+        "active": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "name": "audio_message_presence_flags",
+  "spec": [
+    "audio 16.4",
+    "audio 3.2",
+    "audio 14.4"
+  ],
+  "description": "Each setter ORs one bit into the presence byte at +0x08. SetType(t) with t != 0, SetData1, SetData2 and SetVoid1(p) with p != 0 leave 0x87 there and the four values at +0x0C, +0x10, +0x14 and +0x24. SetType(0) stores 0 and CLEARS bit 0, so a type-0 message is indistinguishable from an untyped one [quirk 4].",
+  "steps": [
+    {
+      "op": "aud_msg_build",
+      "type": 2318949848,
+      "data1": 305419896,
+      "data2": 42,
+      "void1": 11534340,
+      "state": {
+        "flags": 135,
+        "type": 2318949848,
+        "data1": 305419896,
+        "data2": 42,
+        "void1": 11534340
+      }
+    },
+    {
+      "op": "aud_msg_build",
+      "type": 2318949848,
+      "data1": 1,
+      "data2": 2,
+      "data3": 3,
+      "data4": 4,
+      "void1": 5,
+      "state": {
+        "flags": 159
+      },
+      "note": "0x01|0x02|0x04|0x08|0x10|0x80"
+    },
+    {
+      "op": "aud_msg_build",
+      "type": 2318949848,
+      "type_after": 0,
+      "state": {
+        "flags": 0,
+        "type": 0
+      },
+      "note": "SetType(0) stores 0 and clears bit 0 (14.4)"
+    },
+    {
+      "op": "aud_msg_build",
+      "void1": 0,
+      "state": {
+        "flags": 0,
+        "void1": 0
+      },
+      "note": "a null target clears bit 7 but still writes +0x24"
+    }
+  ]
+}

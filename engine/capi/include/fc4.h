@@ -10867,6 +10867,203 @@ bool fc4_sim_set_pacing(fc4_sim* sim, uint32_t mode, const fc4_pacing_hooks* hoo
 /* Pointers may be NULL. `day_settled` is always true under original pacing. */
 bool fc4_sim_get_pacing(const fc4_sim* sim, uint32_t* mode, bool* day_settled);
 
+/* ---- audio (docs/specs/audio.md) --------------------------------------------
+ * The sound-event system, the sound managers and the sound data. Four opaque
+ * handles: fc4_audio is one instance of the whole layer (the sound-event pool
+ * of §4, the automaton's SFX slots of §6, the audio event handler of §7, the
+ * sound manager of §8 and the process-global instance-id counter of §8.4);
+ * fc4_audio_msg is a cRZMessage2Standard (§3.2), fc4_audio_snd_event a
+ * cGZSndEventStd (§3.1) and fc4_audio_component the effects sound component
+ * (§9). Tokens are opaque host identities (the automaton's occupant, instance
+ * handles); 0 is null.
+ *
+ * Threads: the game calls getters from a second thread while the main thread
+ * is inside OnTick, so every main-thread call publishes an fc4_audio_state
+ * snapshot and fc4_audio_get_state reads only that. fc4_audio_instance_id is a
+ * counter and is safe from either thread.
+ *
+ * Nothing in the audio layer is saved (§12): there is no Read/Write pair. */
+typedef struct fc4_audio fc4_audio;
+typedef struct fc4_audio_msg fc4_audio_msg;
+typedef struct fc4_audio_snd_event fc4_audio_snd_event;
+typedef struct fc4_audio_component fc4_audio_component;
+
+/* One posted message (§6.4): the four fields and the message-server priority. */
+typedef struct fc4_audio_post {
+    uint32_t struct_size; /* sizeof(fc4_audio_post) */
+    uint32_t type;        /* +0x0C */
+    uint32_t data1;       /* +0x10: the SFX id */
+    uint32_t data2;       /* +0x14: the instance id */
+    uint32_t high_priority; /* MessagePost's second argument: always 0 */
+    uint32_t flags;       /* +0x08: the presence flags (0x87 for both SFX) */
+    uint64_t void1;       /* +0x24: the automaton's occupant */
+} fc4_audio_post;
+
+/* One sound-event pool page (§4.2). The page a pointer belongs to is
+ * `p & 0xFFFFC000`; +0x0C is the count/state word, marker included. */
+typedef struct fc4_audio_pool_page {
+    uint32_t struct_size;
+    uint32_t base;
+    uint32_t free_head;   /* +0x08 */
+    uint32_t state;       /* +0x0C */
+    uint32_t live;        /* state with the 0x40000000 marker removed */
+    uint32_t in_service;  /* 1 when the marker is set */
+    uint32_t active;
+    uint32_t retired;
+    uint32_t handed_back;
+} fc4_audio_pool_page;
+
+/* The published snapshot the second-thread getters read. */
+typedef struct fc4_audio_state {
+    uint32_t struct_size;
+    uint32_t instance_id;      /* automaton +0x8C */
+    uint32_t posts;
+    uint32_t live_sounds;
+    uint32_t snd_sys_events;
+    uint32_t rate_window_ms;   /* the handler's +0x48 */
+    uint32_t pooled_events;
+    uint32_t master_volume;    /* the manager's +0x14 */
+    uint32_t voice_gate;       /* tuning 0xAABAA0D3, +0x64 */
+    uint32_t one_shot;         /* tuning 0x0A946A57, +0x68 */
+    uint32_t update_period;    /* tuning 0x4A946A5D, +0x6C */
+    uint32_t component_active;
+    uint32_t reserved;
+} fc4_audio_state;
+
+/* fc4_audio_pool_free's result (§4.2). */
+#define FC4_AUDIO_RELEASE_NONE        0
+#define FC4_AUDIO_RELEASE_HANDED_BACK 1 /* post-dec 0: pool vtable slot 3 */
+#define FC4_AUDIO_RELEASE_RETIRED     2 /* post-dec 0x40000045: marker cleared */
+/* fc4_audio_manager_stop's result (§8.3). */
+#define FC4_AUDIO_STOP_UNKNOWN  0 /* the id is not present: nothing happens */
+#define FC4_AUDIO_STOP_STOPPED  1
+/* fc4_audio_data_extension's segment (§10.2). */
+#define FC4_AUDIO_CTX_HITLISTS 0
+#define FC4_AUDIO_CTX_TLO      1
+#define FC4_AUDIO_CTX_SAMPLE   2
+
+/* ---- the layer ---- */
+fc4_audio* fc4_audio_create(void);
+/* NULL is a no-op. */
+void fc4_audio_destroy(fc4_audio* a);
+/* Safe from the second thread. False for a NULL handle or out. */
+bool fc4_audio_get_state(const fc4_audio* a, fc4_audio_state* out);
+
+/* ---- the message object (§3.2) ---- SetType(0) stores 0 and CLEARS presence
+ * bit 0 (§14.4); SetVoid1(0) clears bit 7 but still writes +0x24. */
+fc4_audio_msg* fc4_audio_msg_create(void);
+void fc4_audio_msg_destroy(fc4_audio_msg* m);
+void fc4_audio_msg_set_type(fc4_audio_msg* m, uint32_t t);
+void fc4_audio_msg_set_data1(fc4_audio_msg* m, uint32_t v);
+void fc4_audio_msg_set_data2(fc4_audio_msg* m, uint32_t v);
+void fc4_audio_msg_set_data3(fc4_audio_msg* m, uint32_t v);
+void fc4_audio_msg_set_data4(fc4_audio_msg* m, uint32_t v);
+void fc4_audio_msg_set_void1(fc4_audio_msg* m, uint64_t p);
+uint32_t fc4_audio_msg_flags(const fc4_audio_msg* m);
+
+/* ---- the sound event (§3.1) ---- the default constructor leaves +0x30 and
+ * +0x34 at 0; the five-argument one stores `payload` and writes 1 to +0x34. */
+fc4_audio_snd_event* fc4_audio_snd_event_create(void);
+fc4_audio_snd_event* fc4_audio_snd_event_create5(uint32_t payload, uint32_t data1, uint32_t data2,
+                                                 uint32_t data3, uint32_t data4);
+void fc4_audio_snd_event_destroy(fc4_audio_snd_event* e);
+/* 0x5B523BA4 answers this+0x2C and AddRefs; any other IID falls through and
+ * the result is 0xFFFFFFFF. */
+uint32_t fc4_audio_snd_event_qi(fc4_audio_snd_event* e, uint32_t iid);
+void fc4_audio_snd_event_set_value(fc4_audio_snd_event* e, uint32_t v);
+uint32_t fc4_audio_snd_event_get_value(const fc4_audio_snd_event* e);
+uint32_t fc4_audio_snd_event_get_flag(const fc4_audio_snd_event* e);
+/* GetOuter: `this - 0x2C`. */
+uint32_t fc4_audio_snd_event_get_outer(uint32_t secondary);
+
+/* ---- the automaton's SFX slots (§6) ---- StartSFX is slot 61 (+0xF4,
+ * 0x00509950) and returns 1, or 0 when the id is 0; StopSFX is slot 62
+ * (+0xF8, 0x00505B50) and always returns 1 (§14.3). Both post queued at
+ * normal priority and return before any sound starts or stops (§6.4).
+ * StopSFX never clears automaton +0x8C (§14.1). */
+uint32_t fc4_audio_start_sfx(fc4_audio* a, uint32_t sfx_id, uint64_t occupant);
+uint32_t fc4_audio_stop_sfx(fc4_audio* a, uint32_t sfx_id, uint64_t occupant);
+/* HandleEnterState / HandleExitState (§6.1): the slot is called only when
+ * state+0x18 is non-zero. Returns 1 when it was called. */
+uint32_t fc4_audio_handle_enter_state(fc4_audio* a, uint32_t sfx_id, uint64_t occupant);
+uint32_t fc4_audio_handle_exit_state(fc4_audio* a, uint32_t sfx_id, uint64_t occupant);
+bool fc4_audio_get_post(const fc4_audio* a, uint32_t index, fc4_audio_post* out);
+
+/* ---- the instance-id counter (§8.4) ---- one process-wide counter, the
+ * pre-increment value, never 0 (including after a 32-bit wrap). */
+uint32_t fc4_audio_instance_id(fc4_audio* a);
+
+/* ---- the sound-event pool (§4) ---- alloc is FUN_005E16E0, free is
+ * FUN_005E1780 (a null pointer is a no-op, §4.3). Only a request of 0x38
+ * bytes uses the pool (§4.1, §14.7). */
+uint32_t fc4_audio_pool_alloc(fc4_audio* a);
+uint32_t fc4_audio_pool_free(fc4_audio* a, uint32_t p);
+uint32_t fc4_audio_pool_page_of(uint32_t p);
+uint32_t fc4_audio_pool_size_uses(uint32_t size);
+bool fc4_audio_pool_get_page(const fc4_audio* a, uint32_t base, fc4_audio_pool_page* out);
+
+/* ---- the audio event handler (§7) ---- Init subscribes the 13 main types;
+ * 0x26D31EC1 adds the city set of 11 and 0x26D31EC2 removes exactly that set,
+ * so the automata SFX messages are only heard while a city is loaded (§7.2). */
+uint32_t fc4_audio_handler_init(fc4_audio* a);
+void fc4_audio_handler_city_message(fc4_audio* a, uint32_t type);
+/* HandleAutomataMessages (§7.3). The rate limiter of 1000-4000 ms applies only
+ * when `payload` is 0xA9F14C47 (§14.5). */
+uint32_t fc4_audio_handler_play(fc4_audio* a, uint32_t payload, uint32_t rand, uint32_t sound_id,
+                                uint32_t instance);
+uint32_t fc4_audio_handler_stop(fc4_audio* a, uint32_t sound_id, uint32_t instance);
+
+/* ---- the sound manager (§8) ---- DoMessage handles exactly the eight types
+ * of §8.3; 0x8A385DD8 and 0xAA396960 are NOT among them (§14.11). */
+uint32_t fc4_audio_manager_message(fc4_audio* a, uint32_t type);
+/* _StartSound: an instance id that is already live is stopped first (§8.3). */
+uint32_t fc4_audio_manager_start(fc4_audio* a, uint32_t sound_id, uint32_t instance, uint32_t param);
+/* _StopSound: a miss returns FC4_AUDIO_STOP_UNKNOWN and does nothing (§14.12). */
+uint32_t fc4_audio_manager_stop(fc4_audio* a, uint32_t instance, uint32_t hard);
+/* _ReadTuningValues (§10.8): no clamping; read_ok 0 restores the defaults and
+ * logs the failure. */
+void fc4_audio_manager_tuning(fc4_audio* a, uint32_t read_ok, uint32_t voice_gate, uint32_t one_shot,
+                              uint32_t update_period);
+
+/* ---- the effects sound component (§9) ---- the description's sound id,
+ * 1/locationUpdateRate and length (§10.9). Start's and Stop's mode arguments
+ * are never read (§9.1, §14.14). */
+fc4_audio_component* fc4_audio_component_create(uint32_t sound_id, float inv_location_rate,
+                                                uint32_t length);
+void fc4_audio_component_destroy(fc4_audio_component* c);
+void fc4_audio_component_start(fc4_audio_component* c, uint32_t mode, uint32_t this_addr,
+                               uint32_t snd_sys);
+void fc4_audio_component_stop(fc4_audio_component* c, uint32_t mode);
+void fc4_audio_component_update(fc4_audio_component* c, float dt);
+void fc4_audio_component_set_transform(fc4_audio_component* c, float x, float y, float z);
+/* IsActive is the +0x1C started byte (§9.3). */
+uint32_t fc4_audio_component_is_active(const fc4_audio_component* c);
+/* Component record +0x10 bit 0 -> runtime flag bit 2 (§9.3). */
+uint32_t fc4_audio_ignore_flags(uint32_t record_flags, uint32_t runtime_flags);
+uint32_t fc4_audio_check_finished_considers(uint32_t runtime_flags);
+
+/* ---- the data (§10) ---- */
+/* Resolve a resource type to its extension in a DB segment (§10.2, §10.11).
+ * Copies up to cap-1 bytes NUL-terminated and returns the length without the
+ * NUL, or 0xFFFFFFFF when the type resolves to nothing. `out` may be NULL. */
+uint32_t fc4_audio_data_extension(uint32_t type, uint32_t context, uint8_t* out, uint32_t cap);
+uint32_t fc4_audio_data_entries(void); /* Sound.dat: 2776 (§10.1) */
+uint64_t fc4_audio_data_bytes(void);   /* Sound.dat: 122,372,241 (§10.1) */
+/* AU1: the "AB" magic is reported, not required to load a bank (§10.7). */
+uint32_t fc4_audio_aems_magic_present(uint32_t version, uint8_t magic0, uint8_t magic1);
+/* 0x1C for version >= 8, 0x14 below (§10.7). */
+uint32_t fc4_audio_aems_module_stride(uint32_t version);
+
+/* ---- the director (§1.1) ---- */
+uint32_t fc4_audio_director_id(void);          /* 0xFDB5CA17 */
+uint32_t fc4_audio_director_class_count(void); /* 92 */
+/* Copies the index-th OnStart name NUL-terminated; returns its length without
+ * the NUL, or 0xFFFFFFFF when index is out of range. `out` may be NULL. */
+uint32_t fc4_audio_director_on_start(uint32_t index, uint8_t* out, uint32_t cap);
+
+/* ---- nothing is saved (§12) ---- always 0. */
+uint32_t fc4_audio_has_save_record(void);
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -11063,6 +11260,9 @@ int32_t fc4_prop_record_versions(uint16_t* out);
 
 /* Layout checks (must match #[repr(C)] in engine/capi/src/lib.rs). */
 #ifdef __cplusplus
+static_assert(sizeof(fc4_audio_post) == 32, "fc4_audio_post layout");
+static_assert(sizeof(fc4_audio_pool_page) == 36, "fc4_audio_pool_page layout");
+static_assert(sizeof(fc4_audio_state) == 52, "fc4_audio_state layout");
 static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
 static_assert(sizeof(fc4_debug) == 76, "fc4_debug layout");

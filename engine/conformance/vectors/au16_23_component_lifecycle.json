@@ -1,0 +1,168 @@
+{
+  "format": 1,
+  "name": "audio_sound_component_lifecycle",
+  "spec": [
+    "audio 16.23",
+    "audio 9.1",
+    "audio 9.2",
+    "audio 14.14",
+    "audio 14.15"
+  ],
+  "description": "Start posts 0xEA451903 with the description's +0x10 sound id and this as the instance key; Update posts 0xCA45190F with INTEGER coordinates once per desc+0x14 seconds and calls Stop(1) once elapsed > desc+0x18 when that length is non-zero; Stop posts 0x6A451908, ignores its mode argument, and clears +0x1C before checking whether the sound system is present. Start's mode is never read either.",
+  "steps": [
+    {
+      "op": "aud_component_create",
+      "sound": 13303297,
+      "rate": 0.5,
+      "length": 0,
+      "note": "locationUpdateRate 0.5 s, no max length"
+    },
+    {
+      "op": "aud_component_call",
+      "method": "set_transform",
+      "x": 1.7,
+      "y": -2.2,
+      "z": 3.9
+    },
+    {
+      "op": "aud_component_call",
+      "method": "start",
+      "mode": 0,
+      "this": 11538996
+    },
+    {
+      "op": "aud_component_expect",
+      "state": {
+        "active": true,
+        "instance": 11538996,
+        "events": 1
+      }
+    },
+    {
+      "op": "aud_component_event_expect",
+      "index": 0,
+      "state": {
+        "event": 3930396931,
+        "a": 13303297,
+        "b": 11538996
+      }
+    },
+    {
+      "op": "aud_component_call",
+      "method": "start",
+      "mode": 4294967295,
+      "this": 11573657
+    },
+    {
+      "op": "aud_component_expect",
+      "state": {
+        "events": 1
+      },
+      "note": "a second Start is a no-op and the mode is never read"
+    },
+    {
+      "op": "aud_component_call",
+      "method": "update",
+      "dt": 0.5
+    },
+    {
+      "op": "aud_component_expect",
+      "state": {
+        "events": 2
+      }
+    },
+    {
+      "op": "aud_component_event_expect",
+      "index": 1,
+      "state": {
+        "event": 3393526031,
+        "a": 11538996,
+        "b": 1,
+        "c": -2,
+        "d": 3
+      },
+      "note": "ftol: 1.7 -> 1, -2.2 -> -2, 3.9 -> 3"
+    },
+    {
+      "op": "aud_component_call",
+      "method": "update",
+      "dt": 0.2
+    },
+    {
+      "op": "aud_component_expect",
+      "state": {
+        "events": 2
+      },
+      "note": "inside the period"
+    },
+    {
+      "op": "aud_component_call",
+      "method": "update",
+      "dt": 0.5
+    },
+    {
+      "op": "aud_component_expect",
+      "state": {
+        "events": 3
+      },
+      "note": "once per period"
+    },
+    {
+      "op": "aud_component_call",
+      "method": "stop",
+      "mode": 0
+    },
+    {
+      "op": "aud_component_expect",
+      "state": {
+        "active": false,
+        "snd_sys": false,
+        "events": 4
+      }
+    },
+    {
+      "op": "aud_component_event_expect",
+      "index": 3,
+      "state": {
+        "event": 1782913288,
+        "a": 11538996
+      }
+    },
+    {
+      "op": "aud_component_create",
+      "sound": 13303298,
+      "rate": 0.0,
+      "length": 50
+    },
+    {
+      "op": "aud_component_call",
+      "method": "start",
+      "this": 66
+    },
+    {
+      "op": "aud_component_call",
+      "method": "update",
+      "dt": 49.0
+    },
+    {
+      "op": "aud_component_expect",
+      "state": {
+        "active": true,
+        "elapsed": 49.0
+      },
+      "note": "still running at t = 49"
+    },
+    {
+      "op": "aud_component_call",
+      "method": "update",
+      "dt": 2.0
+    },
+    {
+      "op": "aud_component_expect",
+      "state": {
+        "active": false
+      },
+      "note": "Update calls Stop(1) once elapsed > 50"
+    }
+  ]
+}

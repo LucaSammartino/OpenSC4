@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "name": "audio_posts_are_queued",
+  "spec": [
+    "audio 16.10",
+    "audio 6.4"
+  ],
+  "description": "StartSFX and StopSFX return before the sound starts or stops: the message-server call is MessagePost, not MessageSend, and the second argument is 0 (normal priority) in both cases.",
+  "steps": [
+    {
+      "op": "aud_env"
+    },
+    {
+      "op": "aud_start_sfx",
+      "id": 1,
+      "expect": 1
+    },
+    {
+      "op": "aud_stop_sfx",
+      "id": 1,
+      "expect": 1
+    },
+    {
+      "op": "aud_post_expect",
+      "index": 0,
+      "state": {
+        "high_priority": 0,
+        "type": 2318949848
+      }
+    },
+    {
+      "op": "aud_post_expect",
+      "index": 1,
+      "state": {
+        "high_priority": 0,
+        "type": 2855889248
+      }
+    }
+  ]
+}

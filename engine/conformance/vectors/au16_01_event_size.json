@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "name": "audio_event_size",
+  "spec": [
+    "audio 16.1",
+    "audio 3.1",
+    "audio 4.1",
+    "audio 14.7"
+  ],
+  "description": "A cGZSndEventStd is 0x38 bytes and the pool is used when and only when the requested size is 0x38 (0x0096BAD1). Any other size goes to the ordinary heap, so changing the object size silently loses the pool and its 16 KB page behaviour.",
+  "steps": [
+    {
+      "op": "aud_snd_event_size",
+      "size": 56,
+      "expect": true,
+      "note": "0x38 uses the pool"
+    },
+    {
+      "op": "aud_snd_event_size",
+      "size": 44,
+      "expect": false,
+      "note": "0x2C is the message base: the ordinary heap"
+    },
+    {
+      "op": "aud_snd_event_size",
+      "size": 55,
+      "expect": false
+    },
+    {
+      "op": "aud_snd_event_size",
+      "size": 57,
+      "expect": false
+    },
+    {
+      "op": "aud_pool_size_uses",
+      "size": 56,
+      "expect": true
+    },
+    {
+      "op": "aud_pool_size_uses",
+      "size": 0,
+      "expect": false
+    }
+  ]
+}

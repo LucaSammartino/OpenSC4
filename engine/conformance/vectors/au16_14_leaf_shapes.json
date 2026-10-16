@@ -1,0 +1,96 @@
+{
+  "format": 1,
+  "name": "audio_leaf_class_shapes",
+  "spec": [
+    "audio 16.14",
+    "audio 11.1"
+  ],
+  "description": "16 of the 83 leaf factories allocate 8 bytes, 31 allocate 16 and 36 allocate 20, writing the vtable and leaving the remaining fields zeroed. Slots 3 and 4 of every one of the 83 leaf vtables are the shared stub 0x00648F00 = mov al, 1; ret: predicates that always return true.",
+  "steps": [
+    {
+      "op": "aud_leaf_registry",
+      "state": {
+        "count": 83,
+        "size8": 16,
+        "size16": 31,
+        "size20": 36,
+        "common_iid": 1245710156
+      }
+    },
+    {
+      "op": "aud_leaf_create",
+      "shape": 8,
+      "add_ref": true,
+      "expect": 0
+    },
+    {
+      "op": "aud_leaf_expect",
+      "index": 0,
+      "state": {
+        "size": 8,
+        "refcount": 1,
+        "id": 0,
+        "flag": 0
+      }
+    },
+    {
+      "op": "aud_leaf_create",
+      "shape": 16,
+      "add_ref": true,
+      "expect": 1
+    },
+    {
+      "op": "aud_leaf_expect",
+      "index": 1,
+      "state": {
+        "size": 16,
+        "refcount": 1,
+        "id": 0,
+        "flag": 0
+      }
+    },
+    {
+      "op": "aud_leaf_create",
+      "shape": 20,
+      "add_ref": true,
+      "expect": 2
+    },
+    {
+      "op": "aud_leaf_expect",
+      "index": 2,
+      "state": {
+        "size": 20,
+        "refcount": 1
+      }
+    },
+    {
+      "op": "aud_leaf_call",
+      "index": 1,
+      "method": "capability",
+      "slot": 3,
+      "expect": true
+    },
+    {
+      "op": "aud_leaf_call",
+      "index": 1,
+      "method": "capability",
+      "slot": 4,
+      "expect": true
+    },
+    {
+      "op": "aud_leaf_call",
+      "index": 1,
+      "method": "capability",
+      "slot": 2,
+      "expect": false
+    },
+    {
+      "op": "aud_leaf_call",
+      "index": 1,
+      "method": "capability",
+      "slot": 5,
+      "expect": false,
+      "note": "slot 5 is the one real, per-class method (AU5)"
+    }
+  ]
+}

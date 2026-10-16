@@ -1,0 +1,107 @@
+{
+  "format": 1,
+  "name": "audio_full_play_stop_chain",
+  "spec": [
+    "audio 16.25",
+    "audio 8.7"
+  ],
+  "description": "From HandleEnterState to _StartSound one request produces a fresh instance id in automaton+0x8C, one queued 0x8A385DD8, one 0xEA451903 sound event after the handler rate-limit gate and position lookup, and one tSound in the manager hashtable keyed by that id. The stop chain is identical with 0xAA396960 and 0x6A451908 into _StopSound. Nothing in the chain touches the city save.",
+  "steps": [
+    {
+      "op": "aud_env",
+      "rand": 0
+    },
+    {
+      "op": "aud_handler_init"
+    },
+    {
+      "op": "aud_state",
+      "enter": true,
+      "id": 13303297,
+      "expect": true
+    },
+    {
+      "op": "aud_automaton_expect",
+      "state": {
+        "instance_id": 1,
+        "posts": 1
+      }
+    },
+    {
+      "op": "aud_post_expect",
+      "index": 0,
+      "state": {
+        "type": 2318949848,
+        "data1": 13303297,
+        "data2": 1,
+        "high_priority": 0
+      }
+    },
+    {
+      "op": "aud_chain_play",
+      "id": 13303297,
+      "expect": true
+    },
+    {
+      "op": "aud_handler_expect",
+      "state": {
+        "events": 2
+      }
+    },
+    {
+      "op": "aud_handler_event_expect",
+      "index": 0,
+      "state": {
+        "event": 3930396931,
+        "a": 13303297,
+        "b": 1
+      }
+    },
+    {
+      "op": "aud_manager_expect",
+      "state": {
+        "instances": 1,
+        "list": 1
+      }
+    },
+    {
+      "op": "aud_chain_stop",
+      "id": 13303297,
+      "state": {
+        "live": 0
+      }
+    },
+    {
+      "op": "aud_post_expect",
+      "index": 1,
+      "state": {
+        "type": 2855889248,
+        "data1": 13303297,
+        "data2": 1
+      }
+    },
+    {
+      "op": "aud_handler_event_expect",
+      "index": 2,
+      "state": {
+        "event": 1782913288,
+        "a": 13303297,
+        "b": 1
+      }
+    },
+    {
+      "op": "aud_manager_expect",
+      "state": {
+        "instances": 0,
+        "list": 0
+      }
+    },
+    {
+      "op": "aud_save_expect",
+      "state": {
+        "has_save_record": false
+      },
+      "note": "nothing in the chain touches the city save"
+    }
+  ]
+}

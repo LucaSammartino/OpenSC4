@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "name": "audio_start_sfx_zero",
+  "spec": [
+    "audio 16.7",
+    "audio 6.2"
+  ],
+  "description": "StartSFX(0) returns 0 immediately: no message is allocated, no instance id is issued and automaton+0x8C is left unchanged (0x00509950 step 2).",
+  "steps": [
+    {
+      "op": "aud_env"
+    },
+    {
+      "op": "aud_start_sfx",
+      "id": 0,
+      "occupant": 11534340,
+      "expect": 0
+    },
+    {
+      "op": "aud_automaton_expect",
+      "state": {
+        "instance_id": 0,
+        "posts": 0
+      }
+    },
+    {
+      "op": "aud_start_sfx",
+      "id": 7,
+      "expect": 1
+    },
+    {
+      "op": "aud_start_sfx",
+      "id": 0,
+      "expect": 0
+    },
+    {
+      "op": "aud_automaton_expect",
+      "state": {
+        "instance_id": 1,
+        "posts": 1
+      },
+      "note": "the id-0 call changed neither the instance id nor the post count"
+    }
+  ]
+}

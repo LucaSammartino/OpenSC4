@@ -1,0 +1,66 @@
+{
+  "format": 1,
+  "name": "audio_tuning_unclamped",
+  "spec": [
+    "audio 16.19",
+    "audio 10.8"
+  ],
+  "description": "_ReadTuningValues (0x004F9250) reads 0x6A946A50, 0xAABAA0D3, 0x0A946A57 and 0x4A946A5D from the one exemplar 0x6534284A/0xCA25875D/0x6A359C5C and applies no clamping, defaulting to 3, 10 and 30 when the read fails and logging the failure.",
+  "steps": [
+    {
+      "op": "aud_data_tuning",
+      "state": {
+        "default_voice_gate": 3,
+        "default_one_shot": 10,
+        "default_update_period": 30,
+        "shipped_voice_gate": 3,
+        "shipped_one_shot": 10,
+        "shipped_update_period": 30
+      }
+    },
+    {
+      "op": "aud_manager_tuning",
+      "voice_gate": 7,
+      "one_shot": 8,
+      "update_period": 9
+    },
+    {
+      "op": "aud_manager_expect",
+      "state": {
+        "voice_gate": 7,
+        "one_shot": 8,
+        "update_period": 9,
+        "tuning_log": 0
+      }
+    },
+    {
+      "op": "aud_manager_tuning",
+      "voice_gate": 0,
+      "one_shot": 4294967295,
+      "update_period": 0,
+      "note": "no clamping is applied (10.8)"
+    },
+    {
+      "op": "aud_manager_expect",
+      "state": {
+        "voice_gate": 0,
+        "one_shot": 4294967295,
+        "update_period": 0
+      }
+    },
+    {
+      "op": "aud_manager_tuning",
+      "fail": true
+    },
+    {
+      "op": "aud_manager_expect",
+      "state": {
+        "voice_gate": 3,
+        "one_shot": 10,
+        "update_period": 30,
+        "tuning_log": 1
+      },
+      "note": "a failed read restores the defaults and logs"
+    }
+  ]
+}

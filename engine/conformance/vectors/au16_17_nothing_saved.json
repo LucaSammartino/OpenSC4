@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "name": "audio_nothing_is_saved",
+  "spec": [
+    "audio 16.17",
+    "audio 12",
+    "audio 14.9"
+  ],
+  "description": "No audio class has GetGZCLSID and save-records.md contains no audio record. After a load every automaton's +0x8C is 0 and no sound is playing, including for an automaton that was mid-state; the pool, the AEMS banks' loaded state, the Hit and freshness players and the radio's playlist position are runtime-only. Because HandleEnterState is the only place StartSFX is called, a loaded automaton already inside a sounding state is silent until it next changes state [quirk 9].",
+  "steps": [
+    {
+      "op": "aud_env"
+    },
+    {
+      "op": "aud_state",
+      "enter": true,
+      "id": 13303297,
+      "expect": true,
+      "note": "mid-state on save"
+    },
+    {
+      "op": "aud_automaton_expect",
+      "state": {
+        "instance_id": 1,
+        "posts": 1
+      }
+    },
+    {
+      "op": "aud_save_expect",
+      "state": {
+        "automaton_instance_id": 0,
+        "live_sounds": 0,
+        "pooled_events": 0,
+        "aems_banks_loaded": false,
+        "has_save_record": false
+      }
+    }
+  ]
+}

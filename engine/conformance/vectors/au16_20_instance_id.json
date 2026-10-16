@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "name": "audio_instance_id_counter",
+  "spec": [
+    "audio 16.20",
+    "audio 8.4"
+  ],
+  "description": "GenerateNewInstanceId (0x004F7BB0) returns 1, 2, 3 and so on from a single process-wide counter at 0x00B098C0, returns the pre-increment value, and skips 0 even after a 32-bit wrap (a zero counter is forced to 1 first). There is no saturation.",
+  "steps": [
+    {
+      "op": "aud_instance_id",
+      "seed": 0,
+      "count": 4,
+      "state": {
+        "ids": [
+          1,
+          2,
+          3,
+          4
+        ]
+      }
+    },
+    {
+      "op": "aud_instance_id",
+      "seed": 4294967295,
+      "count": 3,
+      "state": {
+        "ids": [
+          4294967295,
+          1,
+          2
+        ]
+      },
+      "note": "the wrap: 0xFFFFFFFF, then the counter word is 0 and is forced to 1"
+    },
+    {
+      "op": "aud_instance_id",
+      "seed": 1,
+      "count": 1,
+      "state": {
+        "ids": [
+          1
+        ]
+      }
+    },
+    {
+      "op": "aud_instance_id",
+      "seed": 0,
+      "count": 1,
+      "state": {
+        "ids": [
+          1
+        ]
+      },
+      "note": "0 is never issued"
+    }
+  ]
+}

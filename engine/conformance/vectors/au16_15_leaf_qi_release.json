@@ -1,0 +1,118 @@
+{
+  "format": 1,
+  "name": "audio_leaf_qi_and_release",
+  "spec": [
+    "audio 16.15",
+    "audio 11.1"
+  ],
+  "description": "For both IIDs of a family (0x4A40074C plus 0xCA400753 / 0xEA40074F / 0xCA400757) QueryInterface writes the object's own pointer - no sub-object offset - calls AddRef and returns 1; every other IID returns 0 without touching the out-parameter. Release decrements while the count is > 1 and, at 1, frees the object and returns 0. The refcount lives at +0x0C (16-byte family), +0x04 (8-byte) or +0x10 (20-byte).",
+  "steps": [
+    {
+      "op": "aud_leaf_create",
+      "shape": 16,
+      "expect": 0
+    },
+    {
+      "op": "aud_leaf_call",
+      "index": 0,
+      "method": "query_interface",
+      "iid": 1245710156,
+      "expect": true
+    },
+    {
+      "op": "aud_leaf_expect",
+      "index": 0,
+      "state": {
+        "refcount": 2
+      }
+    },
+    {
+      "op": "aud_leaf_call",
+      "index": 0,
+      "method": "query_interface",
+      "iid": 3393193811,
+      "expect": true
+    },
+    {
+      "op": "aud_leaf_expect",
+      "index": 0,
+      "state": {
+        "refcount": 3
+      }
+    },
+    {
+      "op": "aud_leaf_call",
+      "index": 0,
+      "method": "query_interface",
+      "iid": 305419896,
+      "expect": false
+    },
+    {
+      "op": "aud_leaf_expect",
+      "index": 0,
+      "state": {
+        "refcount": 3
+      },
+      "note": "a miss does not AddRef and does not touch the out-parameter"
+    },
+    {
+      "op": "aud_leaf_call",
+      "index": 0,
+      "method": "release",
+      "expect": false
+    },
+    {
+      "op": "aud_leaf_call",
+      "index": 0,
+      "method": "release",
+      "expect": false
+    },
+    {
+      "op": "aud_leaf_expect",
+      "index": 0,
+      "state": {
+        "refcount": 1
+      }
+    },
+    {
+      "op": "aud_leaf_call",
+      "index": 0,
+      "method": "release",
+      "expect": true,
+      "note": "at 1 the object is freed and Release returns 0"
+    },
+    {
+      "op": "aud_leaf_expect",
+      "index": 0,
+      "state": {
+        "refcount": 0
+      }
+    },
+    {
+      "op": "aud_leaf_create",
+      "shape": 8,
+      "expect": 1
+    },
+    {
+      "op": "aud_leaf_call",
+      "index": 1,
+      "method": "query_interface",
+      "iid": 3930064719,
+      "expect": true,
+      "note": "the 8-byte family's second IID"
+    },
+    {
+      "op": "aud_leaf_create",
+      "shape": 20,
+      "expect": 2
+    },
+    {
+      "op": "aud_leaf_call",
+      "index": 2,
+      "method": "query_interface",
+      "iid": 3393193815,
+      "expect": true,
+      "note": "the 20-byte family's second IID"
+    }
+  ]
+}
