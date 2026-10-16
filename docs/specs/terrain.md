@@ -1663,9 +1663,13 @@ slot 4 `MarkSelected` at `+0x10` with seven arguments in `UpdateHighlightTexture
 `base+0x0C`**, i.e. the `0x00AB4410` table of §15.5.3 — which is why "the terrain view `+0x10`" in zones.md §7.1.1
 is slot 4 of that table (`0x007526E0`), and "slot 9" is `0x00751ED0`.
 
-*[inferred]* zones.md §7.1.1 also attributes the cached view to the zone developer's `+0x38`; the bytes show the
-`PostCityInit` handler storing it at `+0x30` (`0x0073291A`). What would settle it: check whether `+0x38` is a
-second copy used by `UpdateHighlightTextures`, or whether zones.md's offset is off by one field.
+**MATCHES (zones.md).** The zone developer's `PostCityInit` handler stores the view at `esi+0x30`, but `esi` there
+is its **message-target interface at `this+8`** (`lea ecx,[esi-8]` at `0x00732A2B`, `0x00732A52`, `0x00732B73`,
+`0x00732B9C`, `0x00732BB1`), so the field is `+0x38` — exactly what zones.md §7.1.1 says. The other three fields in
+that handler line up the same way: `esi+0x3C`/`+0x40`/`+0x44` are `+0x44` (dirt road), `+0x48` (street) and `+0x4C`
+(road), matching zones.md §7.1.1. **The rule to carry forward: each object's message-target interface sits at a
+different offset** — terrain `+4`, zone developer `+8`, terrain view `+0x10` (§15.5.2) — so an offset read out of a
+`DoMessage` must be rebased before it is written down as an object field.
 
 ### 15.5.7 The exact sequence the game runs
 
