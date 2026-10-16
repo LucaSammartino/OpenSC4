@@ -154,7 +154,7 @@ the ones `cores19` added).
 7. **`CreateVisualEffect` by ID pair** (slot 6, §4.2). The core's directory lookup is by name; the pair's
    `HasEffectDesc` semantics are not modelled, so the ID-pair form returns false and logs. Pollution
    (pollution.md §4.10) is the caller. **What do the two IDs of the pair select on?**
-9. **The class replacement faults the game.** With `effects_replace = 1` (and `enable = effects`) the game
+9. **The class replacement faults the game.** With `enable = effects` (before the fail-closed gate) the game
    raises `0xC0000005 ACCESS_VIOLATION (writing address 0x0000004D)` at `eip=0x0....8023` ("no module"), about
    100 ms after `cFC4EffectsManager::Init` returns, during city init. Registers at the fault: `eax=0`, `esi=0`,
    `ebp=0`, `edi=0x0....801E`; the return addresses on the stack are `SimCity 4.exe+0x9D909`, `+0xA175F`,
