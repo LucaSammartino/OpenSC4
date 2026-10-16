@@ -1447,9 +1447,10 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
        sampled=S compared=C mismatches=N rawAL=R first=…
      ```
 
-     Slot 22's truth value is compared (the original's AL is that of its second `PositionToCell`, which need not
-     be 0 / 1); `rawAL` counts the lots where it was neither. A slot 25 difference adds a `s25r@x,z` entry with the
-     rectangle and both sides' slot 27 range.
+     Slot 22 is compared by its rectangle only: its AL is the x87 status flags `PositionToCell` leaves, not a result
+     (LD18, LD27); `rawAL` counts the lots where the original's byte was neither 0 nor 1 (information only). A slot
+     25 difference adds a `s25r@x,z` entry with the rectangle and both sides' slot 27 range (slot 25 compares each
+     vertex with the first vertex read with water, LD29).
      Success is `roundtrip=same` and `mismatches=0` on every line, and no `INCOMPLETE` line.
    - **Commercial shadow** (`commercial_shadow = 1`, env `FC4_COMMERCIAL_SHADOW`; `commercial_shadow_cells = N`
      differing cells listed per grid, default 4; off by default; `plugin/FC4CommercialShadow.h`): a same-process

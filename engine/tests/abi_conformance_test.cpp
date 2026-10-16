@@ -372,6 +372,9 @@ const SlotCount kReviewedSlotCounts[] = {
      "the SDK declares slots 0-13; the plugin calls slots 6 (GetParent) and 8 (AsISCPropertyHolder) only "
      "(FC4Properties.cpp EffectiveProperties). Slots 14-15 (DebugInstanceTag and one unnamed, both popping 4) are "
      "not declared"},
+    {"cISC4NetworkManager", 24, 25,
+     "slot 24 is cSC4NetworkManager's deleting destructor (pops 4): class-private. cFC4ISC4NetworkManager "
+     "(FC4LotDevInterfaces.h) declares slots 3-23 as compiled; the lot developer calls 6, 20 and 21 (LD17)"},
     {"cISC4NetworkTool(PowerLine)", 11, 83,
      "cFC4ISC4NetworkTool declares slots 3-10 only: the power simulator calls Init, Shutdown and UpdateOnZoneChange "
      "(power §11.1)"},

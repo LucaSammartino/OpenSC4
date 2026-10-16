@@ -105,7 +105,10 @@ impl TerrainView {
     /// (§17.7): the rule of `key := ((s0·16 + s1)·16 + s2)·16 + s3` (int32,
     /// no masking), else the rule of key 0. `None` only when the boundary
     /// map is empty (before `Init`, after `Shutdown`), where the original
-    /// reads the map's end node *[choice: nothing is written]*.
+    /// reads the map's end node *[choice: nothing is written]*. LD4
+    /// (re-answers12): the original writes indeterminate values from the head
+    /// node there; writing nothing (slot 43 then uses texture 0) is the safe
+    /// choice, and after `Init` key 0 always exists.
     pub fn boundary_lot_texture(&self, sides: [i32; 4]) -> Option<BoundaryRule> {
         if !self.boundary_ready {
             return None;

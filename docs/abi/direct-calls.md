@@ -6,7 +6,8 @@ address, behind a check that the executable is SimCity 4 Deluxe 1.1.641 (GOG). T
 needs: the calling convention, the arguments, the bytes the callee pops, the return channel and exactly which
 `this` pointer the function expects. No logic is recorded here.
 
-All of these functions are `__thiscall`: `this` in ECX, the arguments on the stack, popped by the callee. A
+Unless a section says otherwise (the lot pool allocator, the retaining-wall helpers and the confirmation dialog are
+`__cdecl`), these functions are `__thiscall`: `this` in ECX, the arguments on the stack, popped by the callee. A
 `bool` argument is passed as a full 4-byte stack slot; only its low byte is read.
 
 ## Finding the `this` pointer
@@ -220,7 +221,7 @@ the block back to that pool by address.
 
 | | |
 |---|---|
-| Convention | `__cdecl` (the only exception in this file) |
+| Convention | `__cdecl` (like the retaining-wall helpers and the confirmation dialog below) |
 | `this` | none |
 | Arguments | one 4-byte slot: the size; the original pushes `0x8C` and the callee never reads it |
 | Pops | 0 (the caller pops 4) |
@@ -265,3 +266,18 @@ Callers in the lot developer: `0x006C8A3D` and `0x006C8A62` (`ClearLot`), `0x006
 `void SetBoundsFromOccupant(cISC4Occupant* source)`: `__thiscall`, `this` = the **base** of a
 `cSC4PropOccupantBurntBuilding` (class `0xC9EFB016`; `QueryInterface` for `cISC4PropOccupant` `0xE9793A65` returns
 the base), `source` = the building's `cISC4Occupant*`; pops 4; no return. Caller: `ExplodeLot` `0x006CC33C`.
+
+## nSC4UI::GenericConfirmationDialog `0x0078DFF0` (NG35)
+
+`bool GenericConfirmationDialog(cIGZString* title, cIGZString* text, cIGZString* yesLabel, cIGZString* noLabel)`:
+a free function, not a method. The neighbours' RequestCreateConnection calls it at `0x006D16DA` with both labels
+null (docs/specs/neighbors.md §15.4 NG35).
+
+| | |
+|---|---|
+| Convention | `__cdecl`, no `this` |
+| Arguments | four 4-byte slots: `title` and `text` are `cIGZString*`; each label is a `cIGZString*` or null for the default Yes / No |
+| Pops | 0 (the caller pops 16) |
+| Return | AL: true only when the dialog was closed with the Yes button (ID `0x8A8DFD4E`) |
+| Popups off | returns false at once (gate a, `SC4GetPopupModalDialogsEnabled`, NG36) |
+| Popups on | takes the hidden pause (simulator and clock) and runs the dialog modally: the caller must not hold a lock the game's other threads or the dialog's own callers need |
