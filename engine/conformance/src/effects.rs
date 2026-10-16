@@ -22,7 +22,9 @@ use fc4_core::terrain::BrushParams;
 
 use crate::json::Json;
 use crate::runner::{field, HostRef};
-use crate::scalar::{self, arg, arr, bool_of, check_expect, check_state, i64_of, jf, ji, opt, str_of, u32_of, EventLog, R};
+use crate::scalar::{
+    self, arg, arr, bool_of, check_expect, check_state, i64_of, jf, ji, opt, str_of, u32_of, EventLog, R,
+};
 
 struct Env {
     dilation: Option<f32>,
@@ -82,8 +84,10 @@ impl EffectsHost for Env {
         self.events.push("end_long", vec![]);
     }
     fn ignite_cell_radius(&mut self, x: i32, z: i32, r0: i32, r1: i32) {
-        self.events
-            .push("ignite", vec![("x", ji(x)), ("z", ji(z)), ("r0", ji(r0)), ("r1", ji(r1))]);
+        self.events.push(
+            "ignite",
+            vec![("x", ji(x)), ("z", ji(z)), ("r0", ji(r0)), ("r1", ji(r1))],
+        );
     }
     fn set_fire_cause(&mut self, cause: u32) {
         self.events.push("cause", vec![("cause", ji(cause))]);
@@ -279,17 +283,22 @@ fn directory(j: Option<&Json>) -> R<EffectDirectory> {
             .iter()
             .map(component)
             .collect::<R<Vec<_>>>()?;
-        let mut d = EffectDescription::new(
-            opt(e, "priority").map_or(Ok(1), |v| u32_of(v, "priority"))?,
-            comps,
-        );
+        let mut d = EffectDescription::new(opt(e, "priority").map_or(Ok(1), |v| u32_of(v, "priority"))?, comps);
         if let Some(f) = opt(e, "flags") {
             d.flags = u32_of(f, "flags")?;
         }
         effects.push(d);
-        names.push((str_of(field(e, "name")?, "name")?.to_owned(), (effects.len() - 1) as u32));
+        names.push((
+            str_of(field(e, "name")?, "name")?.to_owned(),
+            (effects.len() - 1) as u32,
+        ));
     }
-    Ok(EffectDirectory::from_parts(shipped::BRUSHES.to_vec(), games, effects, names))
+    Ok(EffectDirectory::from_parts(
+        shipped::BRUSHES.to_vec(),
+        games,
+        effects,
+        names,
+    ))
 }
 
 fn create(w: &World, op: &Json) -> R<()> {
@@ -343,7 +352,9 @@ fn effect(w: &World, op: &Json) -> R<()> {
         w.labels.borrow_mut().insert(str_of(l, "as")?.to_owned(), id);
     }
     if let Some(i) = opt(op, "expect_index") {
-        let got = id.and_then(|id| w.with(|m, _| Ok(m.effect(id))).ok().flatten()).map(|e| e.index);
+        let got = id
+            .and_then(|id| w.with(|m, _| Ok(m.effect(id))).ok().flatten())
+            .map(|e| e.index);
         if got != Some(i64_of(i, "expect_index")? as i32) {
             return Err(format!("index {got:?}, expected {}", scalar::show(i)));
         }
@@ -386,7 +397,10 @@ fn call(w: &World, op: &Json) -> R<()> {
                 Ok(Json::Null)
             })?,
             "set_zoom" => {
-                let (z, o) = (i64_of(arg(op, 0)?, "zoom")? as i32, i64_of(arg(op, 1)?, "offset")? as i32);
+                let (z, o) = (
+                    i64_of(arg(op, 0)?, "zoom")? as i32,
+                    i64_of(arg(op, 1)?, "offset")? as i32,
+                );
                 w.with(|m, h| {
                     m.set_zoom(z, o, h);
                     Ok(Json::Null)

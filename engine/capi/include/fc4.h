@@ -159,8 +159,12 @@ extern "C" {
  *      to 66, on its lane; renumbered at merge);
  * 68 = adds the prop manager, lot configuration manager and tutorial system (fc4_prop_manager,
  *      fc4_lot_config, fc4_tutorial; prop-lotconfig.md, tutorial.md) (taken as 70 on its lane;
- *      renumbered at merge). */
-#define FC4_ABI_VERSION 68u
+ *      renumbered at merge);
+ * 69 = adds the effects manager (fc4_effects, fc4_effects_directory; effects.md): the effect
+ *      directory parser, creation, LOD and select groups, the tick, finishing (the hook or the
+ *      draw-pass compat mode), the brush and game effects through host callbacks (renumbered at
+ *      merge). */
+#define FC4_ABI_VERSION 69u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -9112,6 +9116,194 @@ size_t fc4_terrain_write_record(const fc4_terrain* t, uint32_t record, uint8_t* 
 /* An edge record's altitudes: the count, or -1 for a bad record. */
 int64_t fc4_terrain_read_edge(const uint8_t* record, size_t len, float* out, size_t capacity);
 
+/* ---- effects manager (docs/specs/effects.md; engine/capi/src/effects.rs) ------
+ * The visual effects' simulation side: the effect directory (resource
+ * 0xEA5118B0 / 0xEA5118B1 / 1, parsed from the bytes the host reads), the
+ * manager (creation by name under the detail setting, LOD ranges and select
+ * groups, the animation tick, finishing), the brush effect (terrain brushes
+ * through the host, e.g. fc4_terrain_apply_brush) and the game effect (fire,
+ * toxic spills, demolition, extinguishing, message posts, pauses). Rendering is
+ * the host's. Effects are named by IDs from 1. A missing callback does nothing
+ * and reads as 0 / false; `simulator` missing or returning false = no simulator.
+ * Finishing (EF2): by default the host calls fc4_effects_finish_hook once per
+ * frame after the tick; in the compat mode (FC4_EFFECTS_FINISH_DRAW_PASS) only
+ * fc4_effects_draw_pass finishes effects, as the original's draw pass does.
+ * A call into the same manager from inside a callback is refused (the fallback
+ * value). */
+typedef struct fc4_effects_directory fc4_effects_directory;
+typedef struct fc4_effects fc4_effects;
+
+#define FC4_EFFECTS_FINISH_HOOK      0u
+#define FC4_EFFECTS_FINISH_DRAW_PASS 1u
+#define FC4_EFFECTS_UNKNOWN          (-2)
+
+/* A post: an effect's end message (data2 = data3 = 0) or a game record's message
+ * (data1 = the instance parameter, data2 / data3 = the cell). */
+typedef struct fc4_effects_post {
+    uint32_t msg_type;
+    int32_t data2;
+    uint64_t data1;
+    int32_t data3;
+    uint32_t reserved;
+} fc4_effects_post;
+
+/* An inclusive cell rectangle, clipped to the city. */
+typedef struct fc4_effects_rect {
+    int32_t x0, z0, x1, z1;
+} fc4_effects_rect;
+
+/* A game record's demolition filter (§9.3). */
+typedef struct fc4_effects_demolish_filter {
+    bool no_networks;
+    bool no_flora;
+    uint8_t _pad[2];
+    float min_size;
+    float max_size;
+} fc4_effects_demolish_filter;
+
+/* What the demolition filter needs of an occupant. */
+typedef struct fc4_effects_occupant_facts {
+    bool signpost;
+    bool text_decal;
+    bool network;
+    bool flora;
+    float extents[3];
+} fc4_effects_occupant_facts;
+
+typedef struct fc4_effects_host {
+    uint32_t struct_size;
+    void* user;
+    /* Whether there is a simulator; *dilation = its slot 32. */
+    bool (*simulator)(void* user, float* dilation);
+    void (*sim_pause)(void* user);
+    void (*sim_resume)(void* user);
+    void (*sim_hidden_pause)(void* user);
+    void (*sim_hidden_resume)(void* user);
+    void (*clock_pause)(void* user, bool on);
+    void (*city_cells)(void* user, int32_t* x, int32_t* z);
+    bool (*location_in_bounds)(void* user, float x, float z);
+    /* ApplyBrush(brush_id, params) on the terrain. */
+    bool (*apply_brush)(void* user, uint32_t brush_id, fc4_brush_params* params);
+    void (*begin_long_terrain_operation)(void* user);
+    void (*end_long_terrain_operation)(void* user);
+    /* The fire simulator's IgniteCellRadius and SetCause. */
+    void (*ignite_cell_radius)(void* user, int32_t x, int32_t z, int32_t r0, int32_t r1);
+    void (*set_fire_cause)(void* user, uint32_t cause);
+    /* The toxic-spill disaster's attempt at a cell. */
+    void (*toxic_attempt_start)(void* user, int32_t x, int32_t z);
+    /* Demolish the occupants of `rect` the filter does not skip (fc4_effects_demolish_filter_skips). */
+    void (*demolish_region)(void* user, const fc4_effects_rect* rect, uint32_t flags, bool dezone,
+                            const fc4_effects_demolish_filter* filter);
+    void (*extinguish_cell)(void* user, int32_t x, int32_t z, int32_t amount);
+    void (*post)(void* user, const fc4_effects_post* msg);
+    /* IsActive of a render component (`component` its index in the effect); missing = inactive. */
+    bool (*render_component_active)(void* user, uint32_t effect, uint32_t component, uint8_t kind);
+} fc4_effects_host;
+
+typedef struct fc4_effects_directory_counts {
+    uint32_t brushes, attractors, games, effects, names;
+    uint16_t root_version;
+    uint16_t effects_version;
+} fc4_effects_directory_counts;
+
+typedef struct fc4_effects_state {
+    uint64_t created, recycled, end_posts, select_draws, ticks, sweeps;
+    uint64_t total_us;          /* accumulated dilated microseconds */
+    float total_seconds;
+    uint32_t effect_count, active_count, level_of_detail, max_priority, finish_mode;
+} fc4_effects_state;
+
+typedef struct fc4_effect_info {
+    int32_t index;              /* the description; -1 = none (a no-op) */
+    uint32_t flags, refs;
+    bool started, stopping, active;
+    uint8_t _pad;
+    uint32_t components;        /* built */
+    uint32_t end_type;
+    uint64_t end_data1;
+    float position[3];
+    uint32_t reserved;
+} fc4_effect_info;
+
+typedef struct fc4_effects_brush_state {
+    uint32_t brush_id;
+    float rate, length, strength, radius, acc, t;
+    float prev[2], cur[2];
+    bool one_shot, active, long_op;
+    uint8_t _pad;
+    uint64_t applications;
+} fc4_effects_brush_state;
+
+typedef struct fc4_effects_game_state {
+    bool started, pending, map_applied;
+    uint8_t _pad;
+    float timer;
+    uint32_t count, applies;
+    int32_t cell_x, cell_z;
+    uint64_t data;
+} fc4_effects_game_state;
+
+/* The directory: parsed from the resource's bytes (NULL if it does not parse), or the
+ * small synthetic volcano / meteor-crater directory (tests, hosts without an install). */
+fc4_effects_directory* fc4_effects_directory_parse(const uint8_t* data, size_t len);
+fc4_effects_directory* fc4_effects_directory_volcano(void);
+void fc4_effects_directory_destroy(fc4_effects_directory* d);
+bool fc4_effects_directory_get_counts(const fc4_effects_directory* d, fc4_effects_directory_counts* out);
+/* The description `name` resolves to under `max_priority`: its index, -1 if none
+ * qualifies, FC4_EFFECTS_UNKNOWN for an unknown name. */
+int32_t fc4_effects_directory_find(const fc4_effects_directory* d, const char* name, uint32_t max_priority);
+/* Writes the resource (the parser's inverse) when `cap` suffices; returns the size needed. */
+size_t fc4_effects_directory_write(const fc4_effects_directory* d, uint8_t* buf, size_t cap);
+
+/* The manager. NULL for a NULL or short host table. `session_seed` seeds the brush
+ * generator; the select generator uses the constant 0x1105. */
+fc4_effects* fc4_effects_create(const fc4_effects_host* host, uint32_t session_seed);
+void fc4_effects_destroy(fc4_effects* fx);
+/* Shares the directory (the caller may destroy its handle afterwards). */
+bool fc4_effects_set_directory(fc4_effects* fx, const fc4_effects_directory* d);
+/* The detail setting (default 5). */
+void fc4_effects_set_max_priority(fc4_effects* fx, uint32_t max_priority);
+/* Level of detail = max(zoom - offset + 1, 1); rebuilds every effect. */
+void fc4_effects_set_zoom(fc4_effects* fx, int32_t zoom, int32_t offset);
+bool fc4_effects_set_finish_mode(fc4_effects* fx, uint32_t mode);
+/* Whether meta components also update their children (the original's double update, EF9; default true). */
+void fc4_effects_set_nested_update(fc4_effects* fx, bool on);
+bool fc4_effects_has(const fc4_effects* fx, const char* name);
+/* CreateVisualEffect: the new ID (two references: the caller's and the manager's).
+ * False for an unknown name; no description under the detail setting = a no-op (index -1). */
+bool fc4_effects_create_effect(fc4_effects* fx, const char* name, uint32_t* out_id);
+bool fc4_effects_create_effect_by_index(fc4_effects* fx, uint32_t index, uint32_t* out_id);
+bool fc4_effects_add_ref(fc4_effects* fx, uint32_t id);
+bool fc4_effects_release(fc4_effects* fx, uint32_t id);
+bool fc4_effects_start(fc4_effects* fx, uint32_t id, uint32_t mode);
+/* mode 0 = soft (unless the description's hard-stop flag), otherwise hard. */
+bool fc4_effects_stop(fc4_effects* fx, uint32_t id, uint32_t mode);
+bool fc4_effects_is_started(const fc4_effects* fx, uint32_t id);
+bool fc4_effects_is_stopping(const fc4_effects* fx, uint32_t id);
+bool fc4_effects_set_position(fc4_effects* fx, uint32_t id, float x, float y, float z);
+/* Posted when the effect finishes (type 0 = none). */
+bool fc4_effects_set_end_message(fc4_effects* fx, uint32_t id, uint32_t msg_type, uint64_t data1);
+/* SetParameter, forwarded to the components and children (13 = the game records' message data). */
+bool fc4_effects_forward_parameter(fc4_effects* fx, uint32_t id, uint32_t index, uint64_t value);
+/* The animation tick (microseconds, scaled by the simulator's dilation; runs while paused). */
+void fc4_effects_tick(fc4_effects* fx, uint32_t us);
+/* The finishing pass of the mode: whether it ran. */
+bool fc4_effects_finish_hook(fc4_effects* fx);
+bool fc4_effects_draw_pass(fc4_effects* fx);
+/* Stops every effect (hard) and forgets them. */
+void fc4_effects_shutdown(fc4_effects* fx);
+bool fc4_effects_get_state(const fc4_effects* fx, fc4_effects_state* out);
+bool fc4_effects_get_effect(const fc4_effects* fx, uint32_t id, fc4_effect_info* out);
+/* The name, NUL-terminated (truncated to cap - 1); returns its length (0 = unknown ID). */
+size_t fc4_effects_get_name(const fc4_effects* fx, uint32_t id, char* buf, size_t cap);
+/* The child of the effect's n-th built meta component. */
+bool fc4_effects_get_child(const fc4_effects* fx, uint32_t id, uint32_t n, uint32_t* out_id);
+bool fc4_effects_get_brush(const fc4_effects* fx, uint32_t id, uint32_t n, fc4_effects_brush_state* out);
+bool fc4_effects_get_game(const fc4_effects* fx, uint32_t id, uint32_t n, fc4_effects_game_state* out);
+/* Whether the filter keeps (skips) the occupant: signposts and text decals always; networks
+ * and flora by the flags; max_size > 0: a largest extent >= max; min_size > 0: a smallest <= min. */
+bool fc4_effects_demolish_filter_skips(const fc4_effects_demolish_filter* f, const fc4_effects_occupant_facts* o);
+
 /* ---- automata layer (docs/specs/automata.md, short form; engine/capi/src/automata.rs) ----
  * The saved records of components 40, 41 and 43-46 and of the objects they
  * reference, the slots other specs call, and the riot, fire and U-Drive-It
@@ -9702,6 +9894,16 @@ static_assert(sizeof(fc4_occ_cell_box) == 4, "fc4_occ_cell_box layout");
 static_assert(sizeof(fc4_occ_filter) == 16, "fc4_occ_filter layout");
 static_assert(sizeof(fc4_occmgr_state) == 56, "fc4_occmgr_state layout");
 static_assert(sizeof(fc4_occmgr_host) == (sizeof(void*) == 4 ? 68 : 136), "fc4_occmgr_host layout");
+static_assert(sizeof(fc4_effects_post) == 24, "fc4_effects_post layout");
+static_assert(sizeof(fc4_effects_rect) == 16, "fc4_effects_rect layout");
+static_assert(sizeof(fc4_effects_demolish_filter) == 12, "fc4_effects_demolish_filter layout");
+static_assert(sizeof(fc4_effects_occupant_facts) == 16, "fc4_effects_occupant_facts layout");
+static_assert(sizeof(fc4_effects_directory_counts) == 24, "fc4_effects_directory_counts layout");
+static_assert(sizeof(fc4_effects_state) == 80, "fc4_effects_state layout");
+static_assert(sizeof(fc4_effect_info) == 48, "fc4_effect_info layout");
+static_assert(sizeof(fc4_effects_brush_state) == 56, "fc4_effects_brush_state layout");
+static_assert(sizeof(fc4_effects_game_state) == 32, "fc4_effects_game_state layout");
+static_assert(sizeof(fc4_effects_host) == (sizeof(void*) == 4 ? 80 : 160), "fc4_effects_host layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
@@ -9781,6 +9983,16 @@ _Static_assert(sizeof(fc4_automata_automaton_state) == 32, "fc4_automata_automat
 _Static_assert(sizeof(fc4_automata_cm_state) == 48, "fc4_automata_cm_state layout");
 _Static_assert(sizeof(fc4_automata_manager_state) == 36, "fc4_automata_manager_state layout");
 _Static_assert(sizeof(fc4_automata_riot_leader) == 32, "fc4_automata_riot_leader layout");
+_Static_assert(sizeof(fc4_effects_post) == 24, "fc4_effects_post layout");
+_Static_assert(sizeof(fc4_effects_rect) == 16, "fc4_effects_rect layout");
+_Static_assert(sizeof(fc4_effects_demolish_filter) == 12, "fc4_effects_demolish_filter layout");
+_Static_assert(sizeof(fc4_effects_occupant_facts) == 16, "fc4_effects_occupant_facts layout");
+_Static_assert(sizeof(fc4_effects_directory_counts) == 24, "fc4_effects_directory_counts layout");
+_Static_assert(sizeof(fc4_effects_state) == 80, "fc4_effects_state layout");
+_Static_assert(sizeof(fc4_effect_info) == 48, "fc4_effect_info layout");
+_Static_assert(sizeof(fc4_effects_brush_state) == 56, "fc4_effects_brush_state layout");
+_Static_assert(sizeof(fc4_effects_game_state) == 32, "fc4_effects_game_state layout");
+_Static_assert(sizeof(fc4_effects_host) == (sizeof(void*) == 4 ? 80 : 160), "fc4_effects_host layout");
 #endif
 
 #endif /* FC4_H */
