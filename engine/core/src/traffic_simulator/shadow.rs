@@ -1759,14 +1759,14 @@ impl TrafficShadow {
         // The original's progress in the target phase, as the copy counts:
         // - in the phase it was in before (the previous target, when no
         //   resync came between): the copy's own progress plus the
-        //   original's advance (the counters a known difference leaves
-        //   apart, e.g. pass counter 4, do not matter);
-        // - entering 17 or 18 ends the original's day (§3.3): none;
+        //   original's advance;
+        // - entering 17 or 18 ends the original's day (§3.3): the copy
+        //   stops on entry (`entering`);
         // - otherwise the target's own count (zeroed on the phase's entry).
         let p0 = self.copy.read_state(progress);
+        let entering = s0 != to && matches!(to, cs::REROUTE_TRIPS | cs::FULL_TRIPS);
         let want = match self.last_target {
             Some((ls, lp)) if ls == to && s0 == to => p0.saturating_add(progress(t).saturating_sub(lp)),
-            _ if s0 != to && matches!(to, cs::REROUTE_TRIPS | cs::FULL_TRIPS) => 0,
             _ => progress(t),
         };
         let allowed = chain(s0, to);
@@ -1786,14 +1786,17 @@ impl TrafficShadow {
                 (st.cycle_state, progress(st), at, st.extras.phase_positions)
             });
             let reached = if is_trip_phase(s) {
-                p >= want
+                // Entering 17 or 18 ends the original's day (§3.3): the copy
+                // stops on entry. Its progress there is pass counter 4 as
+                // state 16 left it (17) or 0 (18), compared with the record.
+                entering || p >= want
             } else if s == cs::FINISH_TRIP_MAP {
                 finish_stop.map_or(true, |f| f == pos)
             } else {
                 stop.is_none() || at_stop
             };
             if s == to && reached {
-                if is_trip_phase(s) && p > want {
+                if is_trip_phase(s) && !entering && p > want {
                     note = Some(format!(
                         "ours passed the original's progress in state {s}: {p} > {want}"
                     ));
@@ -1819,6 +1822,29 @@ impl TrafficShadow {
         });
         let s = self.copy.cycle_state();
         let target = t.extras.phase_positions;
+        // The share step (§3.3): the original ended its day on its share.
+        // Taken before the run-on's record check below, which compares the
+        // day index exactly (TS60): a run-on examines no trip and ending a
+        // list leaves `processed` alone, so the share test reads the same.
+        let (di, days, total, processed) = self
+            .copy
+            .read_state(|st| (st.day_index, st.days, st.total, st.processed));
+        if is_trip_phase(s) && s == to && t.day_index == di.wrapping_add(1) {
+            let share = (total as u32)
+                .wrapping_mul(di.wrapping_add(1))
+                .checked_div(days)
+                .unwrap_or(u32::MAX);
+            if di < days && processed as u32 >= share {
+                self.copy.update_state(|st| st.day_index = st.day_index.wrapping_add(1));
+                self.month.day_steps += 1;
+            } else if note.is_none() {
+                note = Some(format!(
+                    "the original took day step {di} -> {} that our share test refuses \
+                     (processed {processed}, share {share}, days {days})",
+                    di.wrapping_add(1)
+                ));
+            }
+        }
         let moved = want > p0 || self.copy.read_state(|st| st.extras.phase_positions) != target;
         if note.is_none() && s == to && s0 == to && matches!(s, cs::REROUTE_TRIPS | cs::FULL_TRIPS) && moved {
             // The original's deadline stopped it after its last unit at a
@@ -1844,26 +1870,6 @@ impl TrafficShadow {
                     self.copy.shadow_end_list();
                     self.month.list_ends += 1;
                 }
-            }
-        }
-        // The share step (§3.3): the original ended its day on its share.
-        let (di, days, total, processed) = self
-            .copy
-            .read_state(|st| (st.day_index, st.days, st.total, st.processed));
-        if is_trip_phase(s) && s == to && t.day_index == di.wrapping_add(1) {
-            let share = (total as u32)
-                .wrapping_mul(di.wrapping_add(1))
-                .checked_div(days)
-                .unwrap_or(u32::MAX);
-            if di < days && processed as u32 >= share {
-                self.copy.update_state(|st| st.day_index = st.day_index.wrapping_add(1));
-                self.month.day_steps += 1;
-            } else if note.is_none() {
-                note = Some(format!(
-                    "the original took day step {di} -> {} that our share test refuses \
-                     (processed {processed}, share {share}, days {days})",
-                    di.wrapping_add(1)
-                ));
             }
         }
         (steps, note)
