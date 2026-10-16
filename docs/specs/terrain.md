@@ -1621,6 +1621,22 @@ layout — using its own cached `vertsX`. A replacement whose `+0x6C` is null, o
 faults the first time the view draws. The same direct access is used in the span and draw code
 (`0x0075ABA0` `ComputeTextureSpansForRow`, `0x0075BD10` `DrawTerrainSurface`).
 
+**MATCHES (§7).** The four flag bits the view tests are exactly the §7 ones, so the drawing depends on those being
+right and nothing new is introduced:
+
+| Test in `0x00752AF0` | Bit | §7 meaning |
+|---|---|---|
+| `shr bl,5; and bl,1` (`0x00752B36`) | `0x0020` | even triangle hidden |
+| `shr al,6; and al,1` (`0x00752B16`) | `0x0040` | odd triangle hidden |
+| `shr eax,9; and al,1` (`0x00752B23`) | `0x0200` | cell flag 4 |
+| `test ch,0x30` (`0x00752B48`) | `0x3000` | the two triangulation flips (same mask as slot 70) |
+
+`cSTETerrainView3D::Update` (`0x0075BFD0`, the object-base slot 3) is the draw entry. It returns immediately unless
+the draw context says the view is visible (`[drawCtx+0x38]` → `+0x0C` → byte `+0x1FC`, `0x0075BFDB`–`0x0075BFE6`),
+null-checks the terrain at `+0x20`, then reads terrain slot **22 `GetMaximumAltitude`** and slot **21
+`GetMinimumAltitude`** as **x87 floats** into `view+0x64` and `view+0x68` (`0x0075BFF3`–`0x0075C003`). Both must
+return in `st0`.
+
 ### 15.5.6 What slot 66 is, and what zones.md §5.2's call does — TR21
 
 **Slot 66 is `GetView`, `0x00741810`** (already in `interfaces.tsv` as `cSTETerrain::GetView`, pop 0, 0 args,
@@ -1704,6 +1720,9 @@ drawing is exercised.
 19. The ini's `RaiseLowerAmount` is parsed and thrown away; slot 47 returns the constant 20.0 (§9.7).
 20. Kinds 1 and 3 scatter objects and draw from the terrain generator per vertex, so their RNG cost is not the
     one draw per application of §9.3 (§9.4.2).
+21. `DoPostCityInit`'s factory-fallback path does not null-check `operator new(0xE8)`: if the allocation fails it
+    faults at `0x007495CD` (`mov edx,[eax]`). The factory-success path does **not** `AddRef`; the fallback path does
+    (`0x007495D1`) (§15.5.1 steps 3–4).
 16. Flat indices are not checked in the §10.5 slots, and coordinates past the last column wrap to the next row.
 
 ---
@@ -1732,6 +1751,19 @@ drawing is exercised.
   and `stream_cut_fx_terrain` (effects.md §8.4 records 22–24). Which caller starts those two effect names is still
   untraced.
 - TR3 to TR18 are answered in place (QUESTIONS.md has the list).
+- ~~**TR21.** The terrain 3D view's init contract.~~ **ANSWERED 2026-10-16 (re-answers30):** §15.5. The terrain's own
+  `DoPostCityInit` (slot 40, `0x00749540`) creates it — factory CLSID `0xC9B84E10` / IID `0x6771477D`, falling back
+  to `operator new(0xE8)` + ctor `0x007567C0` — then calls `view->Init(terrain)` (`0x0075C420`, one stack argument =
+  the terrain) and only then sets the view-ready flag `+0xEC`. Slot 66 is `GetView` (`0x00741810`) and returns
+  `view+0x0C`. Object layout (size `0xE8`), all five vtables with return channels, the `Init` contract (terrain
+  slots 1, 7, 8, 42) and the draw-time reads (the vertex array at `+0x6C`, read directly) are in §15.5.
+- ~~**TR23.** The camera zoom word of `0xA6B79602`.~~ **ANSWERED 2026-10-16 (re-answers30):** **DIFFERS** from the
+  old §2.3 text. The zoom is at **`*GetVoid2()`** — message slot 15 (`0x0074AADD`), dereferenced at `0x0074AAE0` —
+  not `data1`. Same source zones.md §5.2 uses. The **initial** value at `DoPostCityInit` comes from the 3D camera
+  global `0x00B43DD8` `+0xC` (`0x00749553`–`0x0074955F`). The camera is **not** reachable from the terrain object,
+  but it is reachable at all: `SL::OnView3DInit` (`0x006025D7`) stores `0x00B43DD0` slot 8 into `0x00B43DD8`, and
+  `0x00B43DD0` is the same draw-callback registry the view's `Init` already uses (§15.5.4 step 12). A host that has
+  neither leaves `+0xBC` at 0, which is what a headless harness sees and is harmless until the first view message.
 
 
 ---
