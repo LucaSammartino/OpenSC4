@@ -179,9 +179,12 @@ roadmap in `docs/ARCHITECTURE.md`, build and ini keys in `engine/README.md`.
   apply13's LD29), `history_shadow`, `clock24_shadow`, `commercial_shadow`, `civic_shadow` and `parks_shadow`, plus
   `traffic_shadow` with `traffic_shadow_hypotheses = 7` as a **known difference**: not exact to 2032 (TS63 state-15
   stop, TS64 scanning iterator; 43 of 72 month lines clean in run 121, the share moves with the pacing), so compare
-  its column with the baseline; lists of run 132, baseline `build-runs/regress-rl4.out`; the traffic shadow makes the
-  shadows run the long one, 2.5-3.5 days/s, 10-15 min, `-TurboTimeout` 1800 s) through the run queue with
-  coordinator priority
+  its column with the baseline; and `terrain_shadow = 1` since run 137, whose vertex totals go into the table's
+  `terrain` column: exact/total per query, `unf` (unfollowed vertices: a problem, counted in the problem column),
+  `late` (followed late: exact, its queued message came after the month re-read) and `pend` (pending at shutdown:
+  exact so far); `disasters_shadow` stays out (needs scripted disasters, not exact); lists of run 137, baseline
+  `build-runs/regress-rl5.out`; the traffic shadow makes the shadows run the long one, 2.5-3.5 days/s, 10-15 min,
+  `-TurboTimeout` 1800 s) through the run queue with coordinator priority
   (`priority = high`: they jump the lanes' requests and run side by side), turbo to 2032-01-01 on Konradshohe by
   default (`-NormalSpeed` for the old timed runs), and prints one table, `REGRESS <tag>: PASS/FAIL`, and a delta
   against the previous PASS of the same pacing (`-Baseline <tag>`; the original's results depend on days/s, DG31).
