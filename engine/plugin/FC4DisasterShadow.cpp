@@ -444,9 +444,17 @@ void FireLine(const char* what) {
         if (!fc4_disasters_get_fire(g.core, i, &f)) break;
         ours.insert(f.target);
     }
-    // A fire of ours the original refused (Q40), until it dies.
-    bool resync = false;
-    for (uint64_t t : ours) resync = resync || g.resyncTargets.count(t) != 0;
+    // A fire of ours the original refused (Q40), until it dies, or the
+    // episode only such a fire began in the mirror (until it ends).
+    bool resync = false, onlyResync = true;
+    for (uint64_t t : ours) {
+        const bool r = g.resyncTargets.count(t) != 0;
+        resync = resync || r;
+        onlyResync = onlyResync && r;
+    }
+    const int32_t origPhase = g.fireInst ? g.fireInst->GetPhase() : 0;  // slot 7
+    resync = resync || (g.resyncs != 0 && onlyResync && origPhase != 1 &&
+                        s.fire_phase != static_cast<uint32_t>(origPhase));
     if (origCount != static_cast<int32_t>(s.fire_count)) {
         if (resync) {
             d.AddQ("Q40", "fires orig %d ours %u", origCount, s.fire_count);
@@ -485,7 +493,6 @@ void FireLine(const char* what) {
             }
         }
     }
-    const int32_t origPhase = g.fireInst ? g.fireInst->GetPhase() : 0;  // slot 7
     // After a refused ignition (Q40) the mirror can have begun and ended an
     // episode the original never had (phase 3 against 0).
     const bool phaseQ40 = resync || (g.resyncs != 0 && origPhase == 0 && s.fire_phase == 3);
