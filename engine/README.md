@@ -766,7 +766,7 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      ```
 
      Two runs with the same `session_seed` give our generators the same seeds, but not yet the same city: in
-     two runs of the 26 regress replacements on Konradshohe with `session_seed = 0x5EED1234` (turbo to
+     two runs of the 26 regress replacements of run 118 (all but `traffic`) on Konradshohe with `session_seed = 0x5EED1234` (turbo to
      2032-01-01, and speed 2 to 2028-01-01) the `DIGEST` lines differ from the first month (2026-02-01). The
      first differences are pacing counters (simulator.md §5.7): the lot developer's day re-deliveries
      (`days=5` / `7`, its 5 ms cycle budget), the aura and plumbing states reached, the commercial idle
