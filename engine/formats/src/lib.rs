@@ -36,6 +36,7 @@
 #![forbid(unsafe_code)]
 
 pub mod dbpf;
+pub mod effects;
 pub mod error;
 pub mod exemplar;
 pub mod fsh;
