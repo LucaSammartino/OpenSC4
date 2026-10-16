@@ -22,6 +22,12 @@
 //! Those rules are here as pure predicates over the record shapes that
 //! `fc4_formats::effects` parses. The rendering, the particles, the decals and
 //! the brushes themselves are not modelled.
+//!
+//! [`shipped`] holds the brush and game **record tables** the shipped effect
+//! directory carries (§8.4, §9.4).
+
+/// The brush and game records of the shipped effect directory (§8.4, §9.4).
+pub mod shipped;
 
 /// The effect flags of §7, and the runtime component flags of `comp + 0x40`.
 pub mod flags {
