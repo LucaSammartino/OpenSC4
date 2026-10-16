@@ -66,7 +66,8 @@ drawing side needs.
 
 | Item | Value |
 |---|---|
-| Class ID | `0x2977AA47` (`re/class_id_table.tsv`; lot-records.md §1) |
+| Class name string | `cSC4PropOccupant` (the ASCII literal in the exe; `re/class_id_table.tsv`) |
+| Class ID | `0x2977AA47`, registered in the exe's class-id table at **`0x00B08C48`** (the next four entries are the subclasses: `0x00B08C50` burnt building, `0x00B08C58` terrain decal, `0x00B08C60` visual effect, `0x00B08C68` automata controller) |
 | Occupant type u32 | `0xA823821E`, stored at `+0x2C` by the constructor (§2.2) |
 | Primary interface | `cISC4PropOccupant`, IID `0xE9793A65`, vtable `0x00AA4900` at `+0x00` |
 | Other IIDs answered | `0x2977AA47` (the class ID itself) → `this`; `0x452294AA` (`cIGZMessageTarget2`) → `this + 4` |
