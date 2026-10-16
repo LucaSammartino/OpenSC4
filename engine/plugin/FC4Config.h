@@ -143,6 +143,9 @@
 //                                 cRZTime clock; cFC4Civic.cpp)
 //   parks_shadow = 0 / 1          the park manager shadow (default 0; needs the ORIGINAL
 //                                 park manager: do not enable parks; FC4ParksShadow.h)
+//   disasters_shadow = 0 / 1     the disaster layer shadow (default 0; needs the ORIGINAL
+//                                 disaster layer: do not enable disasters; fire and riot;
+//                                 FC4DisasterShadow.h)
 //   parks_seed = N                the park member generator's session seed (default:
 //                                 the cRZTime clock; cFC4Parks.cpp)
 //   growth_probe = 0 / 1          the growth calibration probe (default 0; needs the
@@ -174,6 +177,12 @@
 //                                 FC4CityDetailShadow.h)
 //   citydetail_seed = N           the city detail pass generator's session seed
 //                                 (default: the session seed; cFC4CityDetail.cpp)
+//   terrain_shadow = 0 / 1        the terrain shadow (default 0; compares FreeCity4's
+//                                 terrain core with the ORIGINAL terrain, which is
+//                                 never replaced; FC4TerrainShadow.h)
+//   terrain_shadow_points = N     its sample points per month (default 256, 16..4096)
+//   terrain_shadow_diffs = N      its differences named per line (default 8, 1..64)
+//   terrain_shadow_lines = N      its change lines per month (default 8, 0..1000)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.

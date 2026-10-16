@@ -152,8 +152,12 @@ extern "C" {
  *      manager (fc4_city_detail), the airport/seaport developers (fc4_port_developer) and the prop
  *      developer (fc4_prop_developer) (taken as 61 on its lane; renumbered at merge);
  * 66 = adds the network manager and network lot manager (fc4_netmgr, fc4_netlot, network-manager.md)
- *      (taken as 68 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 66u
+ *      (taken as 68 on its lane; renumbered at merge);
+ * 67 = adds the disaster layer's mirror tooling (fc4_disasters_set_mirror_random,
+ *      fc4_disasters_get_location, fc4_disasters_riot_locked, fc4_disasters_fire_ids): the plugin's
+ *      disasters_shadow (a same-process differential of the original layer) (taken as 61, then 62
+ *      to 66, on its lane; renumbered at merge). */
+#define FC4_ABI_VERSION 67u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -7750,6 +7754,21 @@ bool fc4_disasters_get_fire(const fc4_disasters* d, size_t index, fc4_disaster_f
 bool fc4_disasters_get_instance(const fc4_disasters* d, uint32_t instance, fc4_disaster_instance* out);
 /* Returns the number of leaders (0 for no such riot); copies at most `capacity`. */
 size_t fc4_disasters_riot_leaders(const fc4_disasters* d, uint32_t instance, fc4_riot_leader* out, size_t capacity);
+/* Mirror tooling (67; the plugin's disasters_shadow, not spec behaviour). set_mirror_random: the
+ * fire, riot, earthquake and pipe-burst generators become deterministic (new fire IDs count from
+ * 0x80000001; uniform_u32 0; uniform 1.0, so a fire never spreads by itself; range(a, b) b;
+ * gaussian(a, b) a): a core that mirrors the original makes no random decision of its own. */
+bool fc4_disasters_set_mirror_random(fc4_disasters* d);
+typedef struct fc4_disaster_location {
+    uint32_t instance, zoom;
+    int32_t x, z;      /* an occupant entry's resolved as GetDisasterLocationByIndex reads it */
+    uint64_t occupant; /* 0 = a cell entry */
+} fc4_disaster_location;
+bool fc4_disasters_get_location(const fc4_disasters* d, size_t index, fc4_disaster_location* out);
+/* The riots' locked network occupants (locking order) / the fire-ID set (ascending, the fire
+ * instance not created). Return the count; copy at most `capacity` (`out` may be NULL). */
+size_t fc4_disasters_riot_locked(const fc4_disasters* d, uint64_t* out, size_t capacity);
+size_t fc4_disasters_fire_ids(const fc4_disasters* d, uint32_t* out, size_t capacity);
 
 /* ---- network manager (docs/specs/network-manager.md; engine/capi/src/network_manager.rs) ----
  * cSC4NetworkManager (component 53) and cSC4NetworkLotManager (component 11).

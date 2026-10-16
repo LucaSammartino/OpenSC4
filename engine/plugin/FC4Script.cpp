@@ -15,15 +15,19 @@
 
 #include "FC4Config.h"
 #include "FC4Diag.h"
+#include "FC4DisasterShadow.h"
 #include "FC4HarnessLogic.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
+#include "FC4TerrainShadow.h"  // the glue16 lane: terrain
 #include "FC4Turbo.h"
 #include "FC4Watchdog.h"
 #include "cFC4ZoneManager.h"
 
+#include "SC4Rect.h"
 #include "cISC4City.h"
+#include "cISTETerrain.h"
 
 #include <cctype>
 #include <cstdio>
@@ -43,7 +47,10 @@
 //   cISC4Simulator 9 Pause, 12 Resume, 15 IsPaused, 27 GetSimSpeed,
 //   28 SetSimSpeed (pop 4) - all eax-or-void;
 //   save: cISC4App 16 SaveCity(bool) (docs/abi/vtables.tsv cSC4App::vftable_3,
-//   pop 4, eax-or-void), called by the observer (ObserverSaveCity).
+//   pop 4, eax-or-void), called by the observer (ObserverSaveCity);
+//   terrain: cISC4City 84 GetTerrain (borrowed); cISTETerrain 7, 8 the cell
+//   counts (eax), 14 GetAltitudeAtVertex (x87), 49 SetAltitude(rect*, h,
+//   redisplay, data4) (pop 16, eax-or-void).
 
 namespace fc4 {
 namespace {
@@ -190,6 +197,46 @@ std::string RunSave(const harness::ScriptAction& a, cISC4City* city) {
     return b;
 }
 
+// ---- terrain: cISTETerrain::SetAltitude(rect, h, true, kind) (terrain.md §6) ---------------------------
+
+struct TerrainCall {
+    cISTETerrain* t;
+    const harness::ScriptAction* a;
+    float before;
+    float after;
+};
+
+void TerrainStep(void* p) {
+    auto* c = static_cast<TerrainCall*>(p);
+    const harness::ScriptAction& a = *c->a;
+    c->before = c->t->GetAltitudeAtVertex(a.x0, a.z0);  // slot 14
+    const SC4Rect<int32_t> r(a.x0, a.z0, a.x1, a.z1);
+    c->t->SetAltitude(r, a.height, true, static_cast<uint32_t>(a.kind));  // slot 49
+    c->after = c->t->GetAltitudeAtVertex(a.x0, a.z0);
+}
+
+std::string RunTerrain(const harness::ScriptAction& a, int32_t julian, cISC4City* city) {
+    cISTETerrain* t = city ? city->GetTerrain() : nullptr;  // city slot 84, borrowed
+    if (t == nullptr) return "skipped: no city terrain";
+    // [choice] The original does not check the rectangle (§6): one outside the
+    // vertices is refused here.
+    const uint32_t cx = t->CellCountX(), cz = t->CellCountZ();  // slots 7, 8
+    if (static_cast<uint32_t>(a.x1) > cx || static_cast<uint32_t>(a.z1) > cz) {
+        char b[160];
+        std::snprintf(b, sizeof(b), "skipped: the rectangle is outside the %ux%u vertices", cx + 1, cz + 1);
+        return b;
+    }
+    TerrainCall c{t, &a, 0.0f, 0.0f};
+    const bool clean = SehGuard("script SetAltitude", &TerrainStep, &c);
+    if (clean) TerrainShadowScriptedSetAltitude(a.x0, a.z0, a.x1, a.z1, a.height, static_cast<uint32_t>(a.kind),
+                                                julian);  // terrain_shadow = 1 only
+    char b[224];
+    std::snprintf(b, sizeof(b), "SetAltitude(%d,%d..%d,%d, %.9g, true, %d): vertex (%d,%d) %.9g -> %.9g%s", a.x0, a.z0,
+                  a.x1, a.z1, a.height, a.kind, a.x0, a.z0, c.before, c.after,
+                  clean ? "" : " [structured exception in SetAltitude]");
+    return b;
+}
+
 void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) {
     using harness::ScriptOp;
     std::string result;
@@ -215,6 +262,8 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
             break;
         case ScriptOp::Mark: result = "marked"; break;
         case ScriptOp::Save: result = RunSave(a, city); break;
+        case ScriptOp::Terrain: result = RunTerrain(a, julian, city); break;
+        case ScriptOp::Disaster: result = DisasterScriptAction(city, a.disaster, a.x0, a.z0); break;
     }
     std::string late;
     if (julian != a.julian) late = " (run on " + harness::FormatDate(harness::CivilFromJulian(julian)) + ")";
