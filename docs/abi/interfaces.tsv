@@ -1800,6 +1800,7 @@ cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	45	+0xB4	0049de40	cSC4Occupant
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	46	+0xB8	0049de80	cSC4OccupantManager::IterateOccupantsByStandardCityCell(bool(*)(cISC4Occupant*, void*), void*, int const*, int const*, uint32 type)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0xbc]; the TYPED overload comes first in this pair only (SDK declaration order gives the opposite); 9.4
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	47	+0xBC	0049e370	cSC4OccupantManager::IterateOccupantsByStandardCityCell(bool(*)(cISC4Occupant*, void*), void*, int const*, int const*, cISC4OccupantFilter*)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): false when uninitialised (0x0049E487); slot 40 conversion; calls slot 42 through the vtable at 0x0049E477; 9.3
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	48	+0xC0	0049ef30	cSC4OccupantManager::ReleaseOccupantList(ilist&)	4	1	eax-or-void	medium	re-specs13b (occupant-manager.md, numbers are sections): re-answers5 LG1; any slot 36-41 list: Release each, free the nodes with A (0x00413E60), head kept; no lock; 9.5
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	49	+0xC4	004a18c0	cSC4OccupantManager::(deleting destructor)(uint32 flags)	4	1	eax	medium	re-specs13b (occupant-manager.md, numbers are sections): vtable entry after slot 48 (0x00A8F8B4); Release calls it with 1
 cIGZSerializable	cSC4OccupantManager	00a8f7d4	0	+0x0	004a05c0	cSC4OccupantManager::QueryInterface	8	2	al	high	re-specs13b: thunk to the primary interface
 cIGZSerializable	cSC4OccupantManager	00a8f7d4	1	+0x4	004a05e0	cSC4OccupantManager::AddRef	0	0	eax	high	re-specs13b: thunk to the primary interface
 cIGZSerializable	cSC4OccupantManager	00a8f7d4	2	+0x8	004a05f0	cSC4OccupantManager::Release	0	0	eax	high	re-specs13b: thunk to the primary interface
@@ -1869,6 +1870,9 @@ cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	14	+0x38	0043f440	cSC4TutorialSy
 cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	15	+0x3C	0043f470	cSC4TutorialSystem::HandleCatalogMenu(menu)	4	1	al	high	re-specs13d (tutorial.md, numbers are sections): true; 4.4
 cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	16	+0x40	0043f450	cSC4TutorialSystem::FilterLeftMouseClick(x&, z&, n)	12	3	al	high	re-specs13d (tutorial.md, numbers are sections): true without a window; 4.4
 cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	17	+0x44	0043f410	cSC4TutorialSystem::ResetTutorialNumAndIndex(a, b)	8	2	al	high	re-specs13d (tutorial.md, numbers are sections): false without a window; 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	18	+0x48	0043f4e0	cSC4TutorialSystem::OnTutorialEvent(e)	4	1	al	high	re-specs13d (tutorial.md, numbers are sections): new row, not in the SDK; true; 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	19	+0x4C	006ce100	cSC4TutorialSystem::SetTutorialTaskNumber(n)	4	1	eax-or-void	high	re-specs13d (tutorial.md, numbers are sections): no defined return value; new row, not in the SDK; ICF-shared setter of +0x20; 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	20	+0x50	0043f660	cSC4TutorialSystem::IncrementTutorialTaskNumber()	0	0	eax-or-void	high	re-specs13d (tutorial.md, numbers are sections): no defined return value; new row, not in the SDK; +0x20 += 1; 4.4
 cISC4Occupant	cSC4Occupant	00aa41d8	0	+0x0	005e89c0	cSC4Occupant::QueryInterface	8	2	eax-or-void	medium	tail->005fd310
 cISC4Occupant	cSC4Occupant	00aa41d8	1	+0x4	005e89b0	cSC4Occupant::AddRef	0	0	eax-or-void	medium	
 cISC4Occupant	cSC4Occupant	00aa41d8	2	+0x8	005e8df0	cSC4Occupant::Release	0	0	eax-or-void	medium	
@@ -2194,6 +2198,7 @@ cISC4PropManager	cSC4PropManager	00a8f928	36	+0x90	004a3b90	cSC4PropManager::Add
 cISC4PropManager	cSC4PropManager	00a8f928	37	+0x94	004a21a0	cSC4PropManager::RemoveBuildingProps(x, z)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A7.3
 cISC4PropManager	cSC4PropManager	00a8f928	38	+0x98	004a3390	cSC4PropManager::RemoveBuildingProps(building)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A7.3
 cISC4PropManager	cSC4PropManager	00a8f928	39	+0x9C	004a27c0	cSC4PropManager::RemoveBuildingProp(building, prop)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): found; A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	40	+0xA0	004a2310	cSC4PropManager::~cSC4PropManager (scalar deleting dtor)	4	1	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): new row; A9
 cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	0	+0x0	006eabc0	cSC4PowerSimulator::QueryInterface	8	2	eax-or-void	medium	
 cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
 cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	2	+0x8	006eb190	cSC4PowerSimulator::Release	0	0	eax-or-void	medium	
@@ -3904,6 +3909,7 @@ cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	24	+0x60	00489
 cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	25	+0x64	0048b860	cSC4LotConfigurationManager::GetMaxFootprintForFloraFamilies(vec const&, rect&)	8	2	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; start (2,2,0,0); B5.5
 cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	26	+0x68	00489f50	cSC4LotConfigurationManager::GetMaxFootprintForPropFamilies(vec const&, rect&)	8	2	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; start (2,2,0,0); B5.5
 cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	27	+0x6C	0048ba10	cSC4LotConfigurationManager::GetObjectIDArray(obj, vec&)	8	2	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; building families assign vec; B5.6
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	28	+0x70	0048a220	cSC4LotConfigurationManager::~cSC4LotConfigurationManager (scalar deleting dtor)	4	1	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): new row; B7
 cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	0	+0x0	004777b0	cSC4LotConfiguration::QueryInterface(iid, void**)	8	2	al	high	re-specs15a (lot-configuration.md, numbers are sections): 1/0x68EDBEBC -> this with AddRef; else false; 1
 cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	1	+0x4	005f47f0	cSC4LotConfiguration::AddRef	0	0	eax	high	re-specs15a (lot-configuration.md, numbers are sections): shared (icf); refcount +0x04; 1
 cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	2	+0x8	00479ce0	cSC4LotConfiguration::Release	0	0	eax	high	re-specs15a (lot-configuration.md, numbers are sections): count > 1: decrement and return it; else Shutdown, slot 33(1), return 0; 1
