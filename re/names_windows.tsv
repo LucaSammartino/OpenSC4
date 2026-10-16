@@ -9411,8 +9411,51 @@ va	name	source	confidence	note
 0082fb40	cGZDrawContext::DirectFillQuad	auto:D	medium	mac 0045eef0 score 0.5 support 1
 0082fb90	cGZDrawContext::DirectFillPolygon	auto:D	medium	mac 0045e428 score 0.5 support 1
 0082fc30	cGZDrawContext::DrawNoTransform	auto:B6	medium	mac 0045f998 score 0.975 support 1.0
+0082fd60	cGZDrawContextRenderToBuffer::QueryInterface	manual:gzdraw-softrender.tsv	high	slot 0 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)
+0082fd90	cGZDrawContextRenderToBuffer::SetClipRect	manual:gzdraw-softrender.tsv	high	slot 6 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)
+0082fdb0	cGZDrawContextRenderToBuffer::SetGradientTransform	manual:gzdraw-softrender.tsv	high	slot 12 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)
+0082fe60	cGZDrawContextRenderToBuffer::ClearBltTiling	manual:gzdraw-softrender.tsv	high	slot 14 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)
+0082fe70	cGZDrawContextRenderToBuffer::SetBltTiling	manual:gzdraw-softrender.tsv	high	slot 15 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)
+0082fea0	cGZDrawContextRenderToBuffer::SetAlphaBlend	manual:gzdraw-softrender.tsv	high	slot 8 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)
+0082feb0	cGZDrawContextRenderToBuffer::SetBltModulate	manual:gzdraw-softrender.tsv	high	slot 9 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)
+0082fec0	cGZDrawContextRenderToBuffer::SetAntialiasing	manual:gzdraw-softrender.tsv	high	slot 10 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)
+0082fed0	cGZDrawContextRenderToBuffer::LockTarget	manual:gzdraw-softrender.tsv	high	slot 19 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)
+0082ff00	nGZDrawSoftRender::cISpanRender::~cISpanRender (deleting destructor, slot 0 of the five span renderer vtables)	manual:gzdraw-softrender.tsv	high	sets vtable 00AC17AC, deletes when flag 1; slot 0 of vtables 00AC182C/44/5C/74/8C
+0082ff20	cGZDrawContextRenderToBuffer::Shutdown	manual:gzdraw-softrender.tsv	high	slot 4 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)
+0082ff70	cGZDrawContextRenderToBuffer::SetColorTable	manual:gzdraw-softrender.tsv	high	slot 7 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)
+0082ffd0	cGZDrawContextRenderToBuffer::SetBltSource	manual:gzdraw-softrender.tsv	high	slot 13 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)
+008302a0	cGZDrawContextRenderToBuffer::Suspend	manual:gzdraw-softrender.tsv	high	slot 17 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)
+008302c0	cGZDrawContextRenderToBuffer::Resume	manual:gzdraw-softrender.tsv	high	slot 18 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)
+008302e0	cGZDrawContextRenderToBuffer::DrawPreclippedSpanList	manual:gzdraw-softrender.tsv	high	slot 22 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21)
+008306c0	cGZDrawContextRenderToBuffer::Release	manual:gzdraw-softrender.tsv	high	slot 2 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21); decrements +0x4, on zero deletes the span renderer at +0xB0 and releases +0x24 and +0x8
+00830710	cGZDrawContextRenderToBuffer::Init	manual:gzdraw-softrender.tsv	high	slot 3 of vtable 00AC17D0 (23 slots; Mac __ZTV28cGZDrawContextRenderToBuffer slot order, anchored by Init slot 3 and Draw 00831000 slot 21); QueryInterface 0x20732180 on the buffer, then by its color type creates the span renderer at +0xB0 (2: 0xac188c, 4/6: 0xac182c, 5: 0xac1844, 7: 0xac185c, 8/9: 0xac1874)
 008308d0	cGZDrawContextRenderToBuffer::FillAntialiasedPolygon	auto:B0	medium	mac 00460ef4 score 0.983 support 2.0
 00831000	cGZDrawContextRenderToBuffer::Draw	auto:B1	medium	mac 004615ba score 0.978 support 1.0
+008310b0	nGZDrawSoftRender::cSpanRender1555::RenderSolid	manual:gzdraw-softrender.tsv	high	slot 1 of vtable 00AC182C (Mac vtable slot order)
+00831100	nGZDrawSoftRender::cSpanRender1555::RenderGradient	manual:gzdraw-softrender.tsv	high	slot 2 of vtable 00AC182C (Mac vtable slot order)
+00831200	nGZDrawSoftRender::cSpanRender1555::RenderAlpha	manual:gzdraw-softrender.tsv	high	slot 3 of vtable 00AC182C (Mac vtable slot order)
+008312d0	nGZDrawSoftRender::cSpanRender1555::RenderAlphaGradient	manual:gzdraw-softrender.tsv	high	slot 4 of vtable 00AC182C (Mac vtable slot order)
+00831470	nGZDrawSoftRender::cSpanRender1555::RenderBlt	manual:gzdraw-softrender.tsv	high	slot 5 of vtable 00AC182C (Mac vtable slot order); indexes the 14x12 blit dispatch table ending at 00AC1B44
+0083de50	nGZDrawSoftRender::cSpanRender565::RenderSolid	manual:gzdraw-softrender.tsv	high	slot 1 of vtable 00AC1844 (Mac vtable slot order)
+0083dea0	nGZDrawSoftRender::cSpanRender565::RenderGradient	manual:gzdraw-softrender.tsv	high	slot 2 of vtable 00AC1844 (Mac vtable slot order)
+0083dfb0	nGZDrawSoftRender::cSpanRender565::RenderAlpha	manual:gzdraw-softrender.tsv	high	slot 3 of vtable 00AC1844 (Mac vtable slot order)
+0083e070	nGZDrawSoftRender::cSpanRender565::RenderAlphaGradient	manual:gzdraw-softrender.tsv	high	slot 4 of vtable 00AC1844 (Mac vtable slot order)
+0083e210	nGZDrawSoftRender::cSpanRender565::RenderBlt	manual:gzdraw-softrender.tsv	high	slot 5 of vtable 00AC1844 (Mac vtable slot order); indexes the 14x12 blit dispatch table ending at 00AC1E28
+00847ce0	nGZDrawSoftRender::cSpanRender4444::RenderSolid	manual:gzdraw-softrender.tsv	high	slot 1 of vtable 00AC185C (Mac vtable slot order)
+00847d30	nGZDrawSoftRender::cSpanRender4444::RenderGradient	manual:gzdraw-softrender.tsv	high	slot 2 of vtable 00AC185C (Mac vtable slot order)
+00847e40	nGZDrawSoftRender::cSpanRender4444::RenderAlpha	manual:gzdraw-softrender.tsv	high	slot 3 of vtable 00AC185C (Mac vtable slot order)
+00847f10	nGZDrawSoftRender::cSpanRender4444::RenderAlphaGradient	manual:gzdraw-softrender.tsv	high	slot 4 of vtable 00AC185C (Mac vtable slot order)
+008480c0	nGZDrawSoftRender::cSpanRender4444::RenderBlt	manual:gzdraw-softrender.tsv	high	slot 5 of vtable 00AC185C (Mac vtable slot order); indexes the 14x12 blit dispatch table ending at 00AC2100
+00854e10	nGZDrawSoftRender::cSpanRender8888::RenderSolid	manual:gzdraw-softrender.tsv	high	slot 1 of vtable 00AC1874 (Mac vtable slot order)
+00854e60	nGZDrawSoftRender::cSpanRender8888::RenderGradient	manual:gzdraw-softrender.tsv	high	slot 2 of vtable 00AC1874 (Mac vtable slot order)
+00854f70	nGZDrawSoftRender::cSpanRender8888::RenderAlpha	manual:gzdraw-softrender.tsv	high	slot 3 of vtable 00AC1874 (Mac vtable slot order)
+00855040	nGZDrawSoftRender::cSpanRender8888::RenderAlphaGradient	manual:gzdraw-softrender.tsv	high	slot 4 of vtable 00AC1874 (Mac vtable slot order)
+008551d0	nGZDrawSoftRender::cSpanRender8888::RenderBlt	manual:gzdraw-softrender.tsv	high	slot 5 of vtable 00AC1874 (Mac vtable slot order); indexes the 14x12 blit dispatch table ending at 00AC23D8
+0085e640	nGZDrawSoftRender::cSpanRender8::RenderSolid	manual:gzdraw-softrender.tsv	high	slot 1 of vtable 00AC188C (Mac vtable slot order)
+0085e6a0	nGZDrawSoftRender::cSpanRender8::RenderGradient	manual:gzdraw-softrender.tsv	high	slot 2 of vtable 00AC188C (Mac vtable slot order)
+0085e720	nGZDrawSoftRender::cSpanRender8::RenderAlpha	manual:gzdraw-softrender.tsv	high	slot 3 of vtable 00AC188C (Mac vtable slot order)
+0085e740	nGZDrawSoftRender::cSpanRender8::RenderAlphaGradient	manual:gzdraw-softrender.tsv	high	slot 4 of vtable 00AC188C (Mac vtable slot order)
+0085e750	nGZDrawSoftRender::cSpanRender8::RenderBlt	manual:gzdraw-softrender.tsv	high	slot 5 of vtable 00AC188C (Mac vtable slot order); indexes the 14x12 blit dispatch table ending at 00AC26B0
 00864b60	SNDSYSI_100hzserver	auto:B0	medium	mac 00589230 score 0.986 support 1.5
 00864d10	_SNDSYS_entercritical	auto:D	medium	mac 00589400 score 0.5 support 14
 00864d30	_SNDSYS_leavecritical	auto:D	medium	mac 0058942c score 0.5 support 12
@@ -16125,3 +16168,10 @@ va	name	source	confidence	note
 00a7f220	___tcf_3	auto:B2	medium	mac 0045b2e6 score 0.9 support 1.0
 00ab0840	kTaxTypeByPurposeAndWealth	manual:clock-budget-neighbors.tsv	high	s16[9][4] data table indexed purpose*4+wealth; read by ComputeTax
 00ab3480	cSC4TrafficSimulator::WorkOnSimCycle::kNextState (data, uint32[20])	manual:traffic.tsv	high	indexed by state in WorkOnSimCycle (mov edi,[edx*4+0xAB3480])
+00ac17ac	nGZDrawSoftRender::cISpanRender::vftable	manual:gzdraw-softrender.tsv	high	installed by the deleting destructor 0082FF00
+00ac17d0	cGZDrawContextRenderToBuffer::vftable	manual:gzdraw-softrender.tsv	high	23 slots, installed by Release 008306C0; slot 21 = Draw 00831000 (symport B1), slot 3 = Init (Mac constant 0x20732180)
+00ac182c	nGZDrawSoftRender::cSpanRender1555::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color types 4 R5G5B5 and 6 A1R5G5B5; Mac __ZTVN17nGZDrawSoftRender15cSpanRender1555E
+00ac1844	nGZDrawSoftRender::cSpanRender565::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color type 5 R5G6B5; Mac __ZTVN17nGZDrawSoftRender14cSpanRender565E
+00ac185c	nGZDrawSoftRender::cSpanRender4444::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color type 7 A4R4G4B4; Mac __ZTVN17nGZDrawSoftRender15cSpanRender4444E
+00ac1874	nGZDrawSoftRender::cSpanRender8888::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color types 8 R8G8B8 and 9 A8R8G8B8; Mac __ZTVN17nGZDrawSoftRender15cSpanRender8888E
+00ac188c	nGZDrawSoftRender::cSpanRender8::vftable	manual:gzdraw-softrender.tsv	high	6 slots (slot 0 = 0082FF00); created by cGZDrawContextRenderToBuffer::Init 00830710 for color type 2 RGB8; Mac __ZTVN17nGZDrawSoftRender12cSpanRender8E

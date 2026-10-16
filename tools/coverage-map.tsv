@@ -57,13 +57,21 @@ cSC4TrafficNetworkMap	traffic	simulation	traffic-network.md	core/src/traffic_net
 cSC4PathInfo*	traffic	simulation	traffic-network.md	core/src/traffic_network	traffic_shadow	traffic
 cSC4WaterPathFinder	traffic	simulation	traffic-network.md	core/src/traffic_network	traffic_shadow	traffic
 cSC4PathFinder	traffic	simulation	pathfinder.md	core/src/pathfinder	traffic_shadow	traffic
+cSC4PathFinder::*	traffic	simulation	pathfinder.md	core/src/pathfinder	traffic_shadow	traffic
 cSC4CompressedRouteReader	traffic	simulation	pathfinder.md	core/src/pathfinder	traffic_shadow	traffic
 cSC4HistoryWarehouse	history	simulation	history.md	core/src/history	history_shadow	history
+# cVecRange: the series range walk of history.md §4.6 (HW6, constructor 0x00475B00); only the history warehouse calls it
+cVecRange	history	simulation	history.md	core/src/history	history_shadow	history
 cSC424HourClock	24-hour clock	simulation	clock24.md	core/src/clock24	clock24_shadow	clock24
 cSC4CivicBuildingSimulator	civic buildings	simulation	civic-buildings.md	core/src/civic	civic_shadow	civic
 cSC4ParkManager	parks	simulation	parks.md	core/src/parks	parks_shadow	parks
 cSC4SimGrid	sim grids	simulation	simgrid.md	core/src/grid	-	-
 cSC4MapUtilities	sim grids	simulation	simgrid.md	core/src/grid	-	-
+# grid iterators used by several simulators: the random cell iterator (GetNext 0x0049CB10; weather.md §6.7, simgrid.md §7.4,
+# core grid/random_iter.rs) and the spiral iterator (0x0043FE10; simgrid.md §7.4, plumbing.md §7.2, core plumbing NearestWater
+# and landfill spiral_cells)
+RandomIterator	sim grids	simulation	simgrid.md,weather.md	core/src/grid/random_iter.rs	-	-
+SpiralIterator	sim grids	simulation	simgrid.md,plumbing.md	core/src/plumbing,core/src/landfill	-	-
 cSC4ResponseCurve	foundations	simulation	foundations.md	core/src/curve.rs	-	-
 # ---- simulation: city managers specified (cores without glue, or no core yet)
 cSC4DisasterLayer	disasters	simulation	disasters.md	core/src/disasters	disasters_shadow	-
@@ -85,6 +93,11 @@ cSC4OccupantManager	occupant manager	simulation	occupant-manager.md	core/src/occ
 cSC4NetworkManager	network manager	simulation	network-manager.md	core/src/network_manager	-	-
 cSC4NetworkLotManager	network manager	simulation	network-manager.md	core/src/network_manager	-	-
 cSC4NetworkConstructionCrew	network manager	simulation	network-manager.md	core/src/network_manager	-	-
+# the network lot and its configuration object, each a section of network-manager.md (§2.3 vtable 0x00AA78E0,
+# IID 0x89A5BA66; §2.4 vtable 0x00AA7998), implemented by core/src/network_manager (lots.rs, config.rs). They are
+# listed before the cSC4Network* catch-all, which would otherwise file them under network occupants
+cSC4NetworkLot	network manager	simulation	network-manager.md	core/src/network_manager	-	-
+cSC4NetworkLotConfiguration	network manager	simulation	network-manager.md	core/src/network_manager	-	-
 cSTETerrain	terrain	simulation	terrain.md	core/src/terrain	terrain_shadow	-
 cSTESurfaceWater	terrain	simulation	terrain.md	core/src/terrain	terrain_shadow	-
 cSTEVolcanoLava	terrain	simulation	terrain.md	core/src/terrain	-	-
@@ -92,12 +105,15 @@ cSC4CityDetailManager	city detail	simulation	city-detail.md	core/src/city_detail
 cSC4PortDeveloper	port developers	simulation	port-developers.md	core/src/port_developer	-	-
 cSC4AirportDeveloper	port developers	simulation	port-developers.md	core/src/port_developer	-	-
 cSC4SeaportDeveloper	port developers	simulation	port-developers.md	core/src/port_developer	-	-
+cPortTypeConfig	port developers	simulation	port-developers.md	core/src/port_developer	-	-
 cSC4PropDeveloper	prop developer	simulation	prop-developer.md	core/src/prop_developer	-	-
 cSC4WealthRequester	prop developer	simulation	prop-developer.md	core/src/prop_developer	-	-
 cSC4NetworkTool	network tools	simulation	network-tools.md,network-geometry.md,network-bridges.md	-	-	-
 cSC4PowerLineTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
 cSC4UndergroundNetworkTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
 cSC4PipeTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
+cSC4SubwayTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
+fn:ReadSupportStructureInfo*	network tools	simulation	network-geometry.md	-	-	-
 cSC4VertexHtConstraintSatisfier	network tools	simulation	network-geometry.md	-	-	-
 cSC4NetworkCellInfo	network tools	simulation	network-geometry.md	-	-	-
 fn:ReadBridge*	network tools	simulation	network-bridges.md	-	-	-
@@ -136,6 +152,17 @@ cSC4LotRetainingWallOccupant	lots and lot records	simulation	lot-records.md	-	-	
 cSC4City	city and save file	simulation	foundations.md,save-records.md	core/src/save.rs	-	-
 cSC4DBSegment*	city and save file	simulation	foundations.md	core/src/save.rs,core/src/stream.rs	-	-
 cSC4COMSerializer	city and save file	simulation	foundations.md	core/src/save.rs	-	-
+# the save-game object file (0x005D9490-0x005DC0xx: cSC4AutoLoad/AutoSave streams and records, then the typed stream
+# operators, then SC4OpenSaveGame / SC4ReadBinaryRecord); the operators are called from the Read / Write of the simulators'
+# records (weather, traffic, residential, flora, sim grids, automata, effects, occupants). Two operator<< overloads of the
+# same name live elsewhere (0x005192E0 automata, 0x005AFFF0 effects resource, 1,110 bytes) and share the owner. No spec
+# has them as its subject
+cSC4AutoLoadStream	city and save file	simulation	-	-	-	-
+cSC4AutoSaveStream	city and save file	simulation	-	-	-	-
+cSC4AutoLoadRecord	city and save file	simulation	-	-	-	-
+cSC4AutoSaveRecord	city and save file	simulation	-	-	-	-
+fn:operator>>	city and save file	simulation	-	-	-	-
+fn:operator<<	city and save file	simulation	-	-	-	-
 # ---- simulation: no spec yet
 cSC4Aircraft	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4Airplane	automata (vehicles, animation)	simulation	-	-	-	-
@@ -154,8 +181,12 @@ cSC4RiotPolice	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4TrailerVehicle	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4Bus	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4GetawayVan	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4AutomataGenerator	automata (vehicles, animation)	simulation	-	-	-	-
-cSC4AutomataAttractor	automata (vehicles, animation)	simulation	-	-	-	-
+# the generator (class 0x4A1628C5) and attractor (0x6A1628BA) controller records of automata.md §3.5, specified as
+# records (Write / Read addresses and fields) and implemented by core/src/automata (controller.rs). Only these two of
+# the vehicle-side classes are specified: automata.md §0 says the short form covers the records and the hooks, not
+# movement, path following or animation, so the rest of this block keeps spec -
+cSC4AutomataGenerator	automata (vehicles, animation)	simulation	automata.md	core/src/automata	-	-
+cSC4AutomataAttractor	automata (vehicles, animation)	simulation	automata.md	core/src/automata	-	-
 cSC4AttractorDescription	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4ControllerGrid	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4PropOccupantAutomataController	automata (vehicles, animation)	simulation	-	-	-	-
@@ -210,7 +241,21 @@ cSCExemplar*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/sr
 cSCPropertyHolder	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
 cSCPropertyHelp	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
 cSCProperty	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
+# the exemplar text form (data-formats.md §4.3 and EX32: InterpretEntry 0x0067DFD0 reads, WriteEntry and
+# RemoveUnnecessaryFloatingPointDigits 0x0067C2B0 write; called from cSCResExemplarFactory / CohortFactory), the exemplar
+# reader and the resource property object of exemplars (cSCResProperty, created by the exemplar factories)
+fn:InterpretEntry	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar.rs	-	-
+fn:WriteEntry	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar.rs	-	-
+fn:RemoveUnnecessaryFloatingPointDigits	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar.rs	-	-
+(anonymous_namespace)::cExemplarReader	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar.rs	-	-
+cSCResProperty	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
 cRZVariant	foundations	framework	foundations.md	core/src/variant.rs	-	-
+# the two generator classes of foundations.md §6.1, specified operation by operation (cRZRandom's lcg / mul states and
+# cRZRandomSuper's reload), and the session seeding of §6.3 that core/src/seeding.rs derives from the host seed with a
+# per-generator constant K; core/src/rng.rs is the two generators. cRZRandomSuper is listed before cRZRandom* so the
+# two classes can diverge later; both land on the same subsystem today
+cRZRandomSuper	random numbers and seeding	framework	foundations.md	core/src/seeding.rs,core/src/rng.rs	-	-
+cRZRandom*	random numbers and seeding	framework	foundations.md	core/src/seeding.rs,core/src/rng.rs	-	-
 cS3DFSHTextureFactory	graphics formats (FSH, S3D)	renderer	graphics-formats.md	formats/src/fsh	-	-
 cS3DResModel*	graphics formats (FSH, S3D)	renderer	graphics-formats.md	formats/src/s3d	-	-
 cS3DShapeFile	graphics formats (FSH, S3D)	renderer	graphics-formats.md	formats/src/fsh	-	-
@@ -220,6 +265,9 @@ cGZLuaScriptServer	Lua host	framework	lua-host.md	-	-	-
 SCLuaHelp	Lua host	framework	lua-host.md	-	-	-
 cLUAExtensionsCollector*	Lua host	framework	lua-host.md	-	-	-
 fn:lua_extension_*	Lua host	framework	lua-host.md	-	-	-
+# the game.* extension functions (LUAExtension_camera_jump, _trigger_event, ...): lua-host.md §8 covers how they reach the
+# host, not what each one does
+fn:LUAExtension_*	Lua host	framework	-	-	-	-
 # ---- audio
 cSC4Audio*	audio	audio	-	-	-	-
 cGZSnd*	audio	audio	-	-	-	-
@@ -233,6 +281,8 @@ cGZPlayList	audio	audio	-	-	-	-
 cSC4SoundDescription	audio	audio	-	-	-	-
 tSound	audio	audio	-	-	-	-
 cSC4MadCowPlayerWin	audio	audio	-	-	-	-
+# cGroupLayer: the sound group layer under the ambience layer (every caller is cSC4AudioAmbienceLayer)
+cGroupLayer	audio	audio	-	-	-	-
 # ---- renderer
 nSGLDX7*	3D driver (DirectX 7)	renderer	-	-	-	-
 nRZSimGL*	3D driver (DirectX 7)	renderer	-	-	-	-
@@ -282,6 +332,15 @@ cSC4CoverageRadiusEffectHelper	effects (particles, decals, visuals)	renderer	-	-
 cGZGraphicSystem*	2D drawing and fonts	renderer	-	-	-	-
 cGZGraphicCOMDirector	2D drawing and fonts	renderer	-	-	-	-
 cGZDraw*	2D drawing and fonts	renderer	-	-	-	-
+# the software span renderers of cGZDrawContextRenderToBuffer, one class per buffer color type (Init 00830710).
+# The five rows come before the nGZDrawSoftRender* catch-all so that the 793 template instantiations of
+# tools/coverage-ranges.tsv land on the class whose colour format they convert. No spec has them as its subject.
+nGZDrawSoftRender::cSpanRender1555	2D drawing (span render 1555)	renderer	-	-	-	-
+nGZDrawSoftRender::cSpanRender565	2D drawing (span render 565)	renderer	-	-	-	-
+nGZDrawSoftRender::cSpanRender4444	2D drawing (span render 4444)	renderer	-	-	-	-
+nGZDrawSoftRender::cSpanRender8888	2D drawing (span render 8888)	renderer	-	-	-	-
+nGZDrawSoftRender::cSpanRender8	2D drawing (span render 8)	renderer	-	-	-	-
+nGZDrawSoftRender*	2D drawing and fonts	renderer	-	-	-	-
 cGZAlphaBlt	2D drawing and fonts	renderer	-	-	-	-
 cGZCanvas*	2D drawing and fonts	renderer	-	-	-	-
 cGZFont*	2D drawing and fonts	renderer	-	-	-	-
@@ -327,6 +386,10 @@ cGZCheatCodeManager	widget toolkit	ui	-	-	-	-
 cSC*EntryView	resource and exemplar editor	ui	-	-	-	-
 cSC*View	resource and exemplar editor	ui	-	-	-	-
 cSCEditValueDlg	resource and exemplar editor	ui	-	-	-	-
+# free functions of the cSCPropertyView object file (0x0066F8E0-0x00671080), called from cSCPropertyView
+fn:getDefaultValue	resource and exemplar editor	ui	-	-	-	-
+fn:getUnquotedString	resource and exemplar editor	ui	-	-	-	-
+fn:convertStringToFloatValue	resource and exemplar editor	ui	-	-	-	-
 # ---- framework
 cSC4App	application	framework	-	-	-	-
 cWinSC4App	application	framework	-	-	-	-

@@ -41,7 +41,8 @@ def collect():
     _, lo, hi = cov.pe_text(exe)
     regress = cov.newest_regress()
     att = cov.Attribution(export, REPO / "re" / "names_windows.tsv", REPO / "docs" / "abi" / "vtables.tsv",
-                          REPO / "docs" / "abi" / "interfaces.tsv", REPO / "tools" / "coverage-libs.tsv", lo, hi)
+                          REPO / "docs" / "abi" / "interfaces.tsv", REPO / "tools" / "coverage-libs.tsv",
+                          REPO / "tools" / "coverage-ranges.tsv", lo, hi)
     owner, _ = att.run()
     rows = cov.read_map(REPO / "tools" / "coverage-map.tsv")
     replace_list, shadow_list = cov.regress_lists(REPO / "tools" / "regress.ps1")
