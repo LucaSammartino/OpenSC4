@@ -709,7 +709,16 @@ def consolidate_abi_history(wt, lanes, batch_id):
         return None
     lines = text.split(NL)
     body.append("#define FC4_ABI_VERSION %du" % new)
-    text = NL.join(lines[:_as] + body + lines[_ae:])
+    rest = lines[_ae:]
+    # A union can leave one lane's history entries *after* the macro. They start with ` *` and belong to the
+    # block we just rebuilt, so drop them; stop at anything else (blank lines and the next real comment).
+    while rest and rest[0].strip() == "":
+        rest.pop(0)
+    while rest and rest[0].lstrip().startswith("*") and not rest[0].lstrip().startswith("/*"):
+        rest.pop(0)
+    while rest and rest[0].strip() == "":
+        rest.pop(0)
+    text = NL.join(lines[:_as] + body + rest)
     text = VERSION_RE_C.sub(lambda x: "%s%d%s" % (x.group(1), new, x.group(3)), text, count=1)
     path.write_text(text, encoding="utf-8")
     git(["-C", str(wt), "add", ABI_HEADER], check=False)
