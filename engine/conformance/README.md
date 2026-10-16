@@ -2756,6 +2756,9 @@ Not covered by a vector, and why:
 | extra: the s16 phase positions: zeroed on entering 16–18, the taken source's cell, the 16-bit resume, FinishTripMap's lot location (TS44, TS45) | `ts11_48_phase_positions` |
 | extra: the state-2 statistics reset, the −1.0 comparison values, a NaN record (TS40, §4.9) | `ts11_49_statistics_reset` |
 | extra: the station cost rounded once above 2^24 (TS46, §4.16) | `ts11_50_station_cost_rounds_once` |
+| extra: the ConfirmTrips merge (a routed trip goes back to 0 only when it absorbed one) and pass counters 3, 4, 5, 7, 8 (TS55, TS59, §4.3) | `ts11_51_confirm_trips_merge_counters` |
+| extra: the re-route context cell written with the phase positions (TS60, §6.1 row 14) | `ts11_52_context_cell` |
+| extra: entering 13 resets the scanning iterator; done at (x0, z1 + 1) after it (TS64, traffic-network §4.12) | `ts11_53_subnetwork_info_scan` |
 
 Not covered by a vector, and why:
 

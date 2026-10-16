@@ -1247,36 +1247,17 @@ pub fn compare_record(orig: &[u8], ours: &CanonicalWriter) -> Vec<(&'static str,
     out
 }
 
-/// A record-field difference of a known kind (not counted):
-/// - the pass counters whose increments the spec does not give (§6.1 row
-///   15, §10 Q4: counters 0, 5, 6, 7 and 8; and counter 4, which the
-///   original also advances in ConfirmTrips, where §4.4 names only
-///   ReRouteTrips' send-backs);
-/// - the unnamed fields of rows 14 and 15 (labels with `~`), which the copy
-///   keeps as read and the original changes;
-/// - the unnamed trailing byte of a statistics set (row 16), likewise.
+/// A record-field difference of a known kind (not counted): a field of rows
+/// 14 and 15 the spec leaves unnamed (labels with `~`: the lot iterator
+/// position, the re-route context but its cell, the context table and
+/// flags, the three unused pacing words), which the copy keeps as read. The
+/// kind is the field's own label, so the month line names it.
 ///
-/// Each is a TS question in the lane report.
-fn known_record_difference(name: &str, orig: &[u8], ours: &[u8]) -> Option<&'static str> {
-    if orig.len() != ours.len() {
-        return None;
-    }
-    if name.starts_with('~') {
-        return Some("unnamed fields of rows 14-15 (kept as read)");
-    }
-    if name.starts_with("statistics (") {
-        let n = orig.len();
-        return (n > 0 && orig[..n - 1] == ours[..n - 1]).then_some("a statistics set's unnamed last byte");
-    }
-    if name != "pass counters" || orig.len() % 4 != 0 {
-        return None;
-    }
-    let unknown_only = orig
-        .chunks_exact(4)
-        .zip(ours.chunks_exact(4))
-        .enumerate()
-        .all(|(i, (o, b))| o == b || matches!(i, 0 | 4 | 5 | 6 | 7 | 8));
-    unknown_only.then_some("pass counters 0, 4-8 (§10 Q4)")
+/// The pass counters (TS59), the re-route context cell and `dayIndex`
+/// (TS60) and a statistics set's last byte (`freightByte`, TS61) are
+/// modelled and compared exactly.
+fn known_record_difference(name: &'static str, orig: &[u8], ours: &[u8]) -> Option<&'static str> {
+    (orig.len() == ours.len() && name.starts_with('~')).then_some(name)
 }
 
 /// [`compare_record`] with the differences of a known kind
@@ -1314,18 +1295,21 @@ fn trip_bytes(t: &[TripData]) -> Vec<u8> {
 
 /// A trip-list difference of a known kind (not counted). The lists agree but
 /// for, on each differing trip, either
-/// - the return route the original keeps on a trip our search found
-///   reversible (theirs non-empty, ours empty): §2's table says a
-///   reversible trip's return route is empty, the original's
-///   PerformPathSearch (§4.4) does not say it clears it (TS question in the
-///   lane report); or
+/// - what a search the original's deadline suspended leaves in a status-0
+///   trip: the destination, written as soon as the outbound leg is found
+///   (`0x0071C752`), and on the two-leg path flags bit 0 cleared
+///   (`0x0071C858`), nothing else (§4.4, TS65); the copy's searches never
+///   suspend (§3.4 *[choice]*, accepted in TS65); or
 /// - the destination and travel-type fields of a trip appended by the
 ///   reconcile (§4.1.1, §4.1.4), undefined in the original *[quirk]*, 0 in
 ///   ours *[choice]*: ours unrouted with (0, 0) and mask 0.
+///
+/// A reversible trip's return route is no longer a known kind: both sides
+/// keep it (TS58).
 fn known_trip_difference(orig: &[TripData], ours: &[TripData]) -> Option<&'static str> {
-    const RETURN: &str = "a reversible trip's return route kept by the original";
     const UNDEFINED: &str = "a new trip's undefined destination and travel types (§4.1.1 quirk)";
-    const SUSPENDED: &str = "a status-0 trip's destination (the original's suspended search, §3.4 [choice])";
+    const SUSPENDED: &str =
+        "a status-0 trip's destination and flags bit 0 (the original's suspended search, TS65, §3.4 [choice])";
     if orig.len() != ours.len() {
         return None;
     }
@@ -1334,18 +1318,15 @@ fn known_trip_difference(orig: &[TripData], ours: &[TripData]) -> Option<&'stati
         if o == b {
             continue;
         }
-        let mut o2 = o.clone();
-        o2.return_route.clear();
         let mut o4 = o.clone();
         o4.dest_x = b.dest_x;
         o4.dest_z = b.dest_z;
-        let k = if o2 == *b && b.flags & 1 != 0 {
-            RETURN
-        } else if o.status == super::status::SEARCH && o4 == *b {
-            // A search the original's deadline suspended (pathfinder max
-            // work time, §4.4 step 3) has written the trip's destination;
-            // the copy's searches never suspend (§3.4). Read by nothing
-            // before the trip's search.
+        // Bit 0 cleared by the original's suspended two-leg search.
+        if o4.flags & 1 == 0 && b.flags & 1 != 0 {
+            o4.flags |= 1;
+        }
+        let k = if o.status == super::status::SEARCH && b.status == super::status::SEARCH && o4 == *b {
+            // Read by nothing before the trip's search.
             SUSPENDED
         } else {
             let fresh = b.route.is_empty() && b.dest_x == 0 && b.dest_z == 0 && b.travel_types_used == 0;
@@ -1400,11 +1381,17 @@ fn date(julian: i32) -> String {
 }
 
 /// The cell-scanning phases (§3.2), which the original's deadline can stop
-/// mid-scan.
+/// mid-scan; UpdateSubnetworkInfo (13) among them, on the same scanning
+/// iterator (traffic-network.md §4.12, TS64).
 fn is_scan_phase(s: u8) -> bool {
     matches!(
         s,
-        cs::CREATE_MAPS | cs::CREATE_FINAL_MAP | cs::CLEAR_DESTINATIONS | cs::REDUCE_EDGES | cs::REFRESH_COMMUTE
+        cs::CREATE_MAPS
+            | cs::CREATE_FINAL_MAP
+            | cs::CLEAR_DESTINATIONS
+            | cs::REDUCE_EDGES
+            | cs::REFRESH_COMMUTE
+            | cs::SUBNETWORK_INFO
     )
 }
 
@@ -1533,7 +1520,6 @@ pub struct TrafficShadow {
     /// The copy's grids hold the original's values (as of the last
     /// comparison).
     grids_synced: bool,
-    hypotheses: u32,
     /// The previous delivery's target (cycle state, progress), for the
     /// original's advance within a phase.
     last_target: Option<(u8, u64)>,
@@ -1559,7 +1545,6 @@ impl TrafficShadow {
             copy,
             started: false,
             grids_synced: false,
-            hypotheses: 0,
             last_target: None,
             max_diffs: max_diffs.max(1),
             detail_lines_per_month: detail_lines,
@@ -1580,15 +1565,6 @@ impl TrafficShadow {
     /// The copy's host.
     pub fn host(&self) -> &Rc<ShadowHost> {
         &self.host
-    }
-
-    /// The copy's hypotheses ([`State::shadow_hypotheses`]): alternative
-    /// readings of unclear spec points, for testing them against the
-    /// original (0, the default, is the spec as written). Named in every
-    /// month line.
-    pub fn set_hypotheses(&mut self, mask: u32) {
-        self.hypotheses = mask;
-        self.copy.update_state(|st| st.shadow_hypotheses = mask);
     }
 
     /// Whether the copy has started (the first delivery read the original's
@@ -1635,12 +1611,14 @@ impl TrafficShadow {
 
     /// After a Read: gives the copy's SGI hash containers (the damage key
     /// sets, row 13, and the edge densities, row 7) the iteration order of
-    /// the record they were read from. Our Read inserts the keys one by one,
-    /// which reverses each bucket's chain, so a record written after it would
-    /// list the keys of a shared bucket in the other order (and the pothole
-    /// picks, §4.12, would take other cells); how the original's Read
-    /// rebuilds them is not stated (TS question in the lane report). The
-    /// tooling *[choice]* rebuilds each container with the smallest listed
+    /// the record they were read from. Our Read, like the original's (§6.2,
+    /// TS54), inserts the keys one by one at the head of their chains, so it
+    /// reverses each bucket's chain: right for a load, but the shadow reads
+    /// the record the original WROTE from its live containers, whose order
+    /// a Read does not give back (a record written after it would list the
+    /// keys of a shared bucket in the other order, and the pothole picks,
+    /// §4.12, would take other cells). The tooling *[choice]* rebuilds each
+    /// container with the smallest listed
     /// bucket count (at least the default 193 and the key count) under which
     /// the record's order is bucket-ascending, inserting the keys last first;
     /// a container whose order no such count explains is left as read.
@@ -2262,13 +2240,8 @@ impl TrafficShadow {
             let k: Vec<String> = m.known.iter().map(|(k, v)| format!("{k} x{v}")).collect();
             format!("; known differences (not counted): {}", k.join(", "))
         };
-        let hyp = if self.hypotheses == 0 {
-            String::new()
-        } else {
-            format!(" (hypotheses 0x{:X})", self.hypotheses)
-        };
         lines.push(format!(
-            "traffic shadow month to {}{hyp}: {head}; deliveries={} (day {}, month {}, other {}) compared={} clean={} \
+            "traffic shadow month to {}: {head}; deliveries={} (day {}, month {}, other {}) compared={} clean={} \
              incomplete={}{reasons}; record fields compared={} mismatched={}{field_list}; trip lists compared={} \
              mismatched={}; holder properties compared={} mismatched={}; grid tracts compared={} mismatched={}{known}; \
              between deliveries: resyncs={}; ours: units={} run-ons={} (list ends {}) day steps={}, kept posts={} history={} \
@@ -2334,5 +2307,33 @@ mod known_difference_tests {
         let mut routed_orig = routed.clone();
         routed_orig.dest_x = 28;
         assert_eq!(known_trip_difference(&[routed_orig], &[routed]), None);
+    }
+
+    /// TS65: the original's suspended return leg leaves the new destination
+    /// and flags bit 0 cleared on a status-0 trip (known); bit 0 set on the
+    /// original's side only, or any other flag, is a mismatch.
+    #[test]
+    fn a_suspended_return_leg_clears_bit_0() {
+        let ours = TripData {
+            count: 15,
+            status: super::super::status::SEARCH,
+            flags: 1,
+            dest_x: 18,
+            dest_z: 40,
+            ..TripData::default()
+        };
+        let mut orig = ours.clone();
+        orig.flags = 0;
+        orig.dest_x = 28;
+        orig.dest_z = 37;
+        let k = known_trip_difference(std::slice::from_ref(&orig), std::slice::from_ref(&ours));
+        assert!(k.is_some_and(|k| k.contains("TS65")));
+        assert_eq!(
+            known_trip_difference(std::slice::from_ref(&ours), std::slice::from_ref(&orig)),
+            None
+        );
+        let mut other = orig.clone();
+        other.flags = 4;
+        assert_eq!(known_trip_difference(&[other], std::slice::from_ref(&ours)), None);
     }
 }

@@ -273,13 +273,11 @@ impl Run<'_, '_> {
             cs::FULL_TRIPS => {
                 let done = self.trip_slice(true);
                 if done {
-                    // End of FullTrips: the counts built in this pass are
-                    // published (§4.4).
-                    if self.st.shadow_hypotheses & super::state::HYP_TYPE_COUNTS_SWAP != 0 {
-                        std::mem::swap(&mut self.st.type_count_published, &mut self.st.type_count_building);
-                    } else {
-                        self.st.type_count_published = self.st.type_count_building;
-                    }
+                    // End of FullTrips: the two count vectors are swapped,
+                    // not copied (`0x0071D806`–`0x0071D84E`, §4.4, TS56):
+                    // building holds the previous published counts until
+                    // entering 18 refills it with zeros.
+                    std::mem::swap(&mut self.st.type_count_published, &mut self.st.type_count_building);
                 }
                 done
             }
@@ -309,7 +307,7 @@ impl Run<'_, '_> {
                 self.cx.s.subnetworks_stale = false;
                 true
             }
-            cs::SUBNETWORK_INFO => self.cx.work_on_subnetwork_info(usize::MAX),
+            cs::SUBNETWORK_INFO => self.subnetwork_info(),
             cs::FERRY_ROUTES => {
                 while !self.cx.ferry_pass_step() {}
                 true
@@ -387,7 +385,14 @@ impl Run<'_, '_> {
                 }
                 self.reset_scan();
             }
-            cs::SUBNETWORK_INFO => self.cx.begin_subnetwork_info(),
+            cs::SUBNETWORK_INFO => {
+                // The working vector reset, and the simulator's own scanning
+                // iterator reset to state 0 at (0, 0), rectangle and step
+                // kept (`0x00721308`–`0x0072132A`, traffic-network.md §4.12,
+                // TS64). Entering 12 does not touch it.
+                self.cx.reset_subnetwork_working();
+                self.reset_scan();
+            }
             cs::FERRY_ROUTES => {
                 let riders = self.cx.begin_ferry_pass();
                 self.st.ferry_total = self.st.ferry_total.wrapping_add(riders);
@@ -414,11 +419,30 @@ impl Run<'_, '_> {
             && self.st.shadow_scan_stop == Some((self.st.cycle_state, it.x, it.z))
     }
 
-    /// Resets the scanning iterator to the first cell of the city.
+    /// Resets the scanning iterator to (0, 0), rectangle and step kept: state
+    /// 0, or 2 at once when (0, 0) is outside the rectangle (`0x00721308`,
+    /// §6.1 "The scanning iterator in row 14", TS64).
     pub(crate) fn reset_scan(&mut self) {
-        let (x0, z0) = (self.st.scan.x0, self.st.scan.z0);
-        self.st.scan.reset(x0, z0);
+        self.st.scan.reset(0, 0);
         self.st.extras.scan_state_byte = None;
+    }
+
+    /// UpdateSubnetworkInfo (state 13, `0x00716180`, traffic-network.md
+    /// §4.12, TS64) on the simulator's scanning iterator: one cell per step
+    /// (the original tests its deadline before each step, `0x00716212`, so
+    /// a stop leaves the iterator running at the last cell visited). When
+    /// the scan ends (the iterator then reads done at `(x0, z1 + 1)`) the
+    /// neighbour connections are added and the working vector is published
+    /// in the same call. False only at the traffic shadow's stop.
+    fn subnetwork_info(&mut self) -> bool {
+        while let Some((x, z)) = self.next_scan_cell() {
+            self.cx.subnetwork_info_cell(x, z);
+        }
+        if self.scan_stopped() {
+            return false;
+        }
+        self.cx.finish_subnetwork_info();
+        true
     }
 
     // ---- §4.8 the small edge and switch phases ----

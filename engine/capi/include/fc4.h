@@ -136,8 +136,12 @@ extern "C" {
  *      (fc4_lotdev_conn_node), lot_occupants, lot_configuration_object and occupant_moved appended (taken as
  *      71 on its lane; renumbered at merge);
  * 61 = traffic re-answers10 (traffic-simulator §9.1 TG7): fc4_traffic_host grows create_line_item at
- *      its end (404 -> 408 bytes on 32-bit) (taken as 72 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 61u
+ *      its end (404 -> 408 bytes on 32-bit) (taken as 72 on its lane; renumbered at merge);
+ * 62 = traffic re-answers13 (apply14traffic lane): fc4_traffic_shadow_set_hypotheses and the
+ *      FC4_TRAFFIC_SHADOW_HYP_* bits removed (TS55-TS57 confirmed: the core's only behaviour);
+ *      fc4_traffic_stats.freight_byte reads the published statistics set's last byte (TS61)
+ *      (renumbered at merge). */
+#define FC4_ABI_VERSION 62u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -5756,13 +5760,9 @@ typedef struct fc4_traffic_shadow_stats {
  * 0xCA550301 budget item without removing anything (NULL reads 0). */
 fc4_traffic_shadow* fc4_traffic_shadow_create(const fc4_traffic_host* host, uint32_t session_seed,
                                               uint32_t max_diffs, uint32_t detail_lines);
-/* The copy's hypotheses: alternative readings of unclear spec points, to test
- * them against the original (0, the default: the spec as written); set before
- * the first delivery; named in every month line. False for NULL. */
-#define FC4_TRAFFIC_SHADOW_HYP_MERGE_ABSORBED 0x1u /* the ConfirmTrips merge sets status 0 only on a trip that absorbed one */
-#define FC4_TRAFFIC_SHADOW_HYP_TYPE_COUNTS_SWAP 0x2u /* row 19 pairs (published, building); FullTrips' end swaps them */
-#define FC4_TRAFFIC_SHADOW_HYP_REROUTE_MERGE_ALL 0x4u /* the ReRouteTrips merge absorbs routed trips too */
-bool fc4_traffic_shadow_set_hypotheses(fc4_traffic_shadow* s, uint32_t mask);
+/* (ABI 62: fc4_traffic_shadow_set_hypotheses and FC4_TRAFFIC_SHADOW_HYP_* are
+ * gone: their three readings were confirmed (traffic-simulator TS55-TS57) and
+ * are the core's only behaviour.) */
 void fc4_traffic_shadow_destroy(fc4_traffic_shadow* s);
 /* before: NULL or not ok -> the delivery is reported INCOMPLETE. 0; -1 for NULL s. */
 int32_t fc4_traffic_shadow_before(fc4_traffic_shadow* s, uint32_t msg_type, uint32_t data1, uint32_t data2,

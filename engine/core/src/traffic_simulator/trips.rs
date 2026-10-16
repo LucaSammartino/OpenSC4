@@ -212,53 +212,49 @@ pub fn reconcile_connection(trips: &mut Vec<TripData>, targets: &[[u32; 9]; 3]) 
     }
 }
 
-/// The ConfirmTrips merge (§4.3): each routed trip absorbs every later trip
-/// of the same type and strategy and becomes status 0.
-pub fn merge_routed(trips: &mut Vec<TripData>) {
-    merge_routed_with(trips, false);
-}
-
-/// [`merge_routed`]; with `only_absorbing` (the traffic shadow's hypothesis
-/// [`super::state::HYP_MERGE_ABSORBED`]) a routed trip that absorbed no
-/// later trip stays routed.
-pub fn merge_routed_with(trips: &mut Vec<TripData>, only_absorbing: bool) {
+/// The ConfirmTrips merge (`0x0071D983`–`0x0071DA18`, §4.3, TS55): each
+/// trip that is routed (status 3) when the walk reaches it absorbs every
+/// later trip of the same type and strategy, whatever that trip's status,
+/// and becomes status 0 **only when it absorbed at least one** (the store
+/// is inside the match, `0x0071D9B6`); a routed trip with no partner stays
+/// routed. Returns the number of absorbing trips (pass counter 5,
+/// `0x0071DA0D`).
+pub fn merge_routed(trips: &mut Vec<TripData>) -> u32 {
+    let mut merges = 0;
     let mut i = 0;
     while i < trips.len() {
-        if trips[i].status == status::ROUTED {
-            let n = absorb_later(trips, i, |_| true);
-            if n > 0 || !only_absorbing {
-                trips[i].status = status::SEARCH;
-            }
+        if trips[i].status == status::ROUTED && absorb_later(trips, i) > 0 {
+            trips[i].status = status::SEARCH;
+            merges += 1;
         }
         i += 1;
     }
+    merges
 }
 
-/// The ReRouteTrips merge (§4.4): each status-0 trip absorbs the later trips
-/// of the same type and strategy whose status is not 3.
+/// The ReRouteTrips merge (`0x0071D2B2`–`0x0071D344`, §4.4, TS57): each
+/// status-0 trip absorbs every later trip of the same type and strategy,
+/// whatever its status (0, 1, 3, 4 or 5): the test meant to skip routed
+/// trips reads the absorbing trip's status (`0x0071D2D7`), always 0 there
+/// *[quirk]*. The absorbing trip stays status 0; no counter moves.
 pub fn merge_search(trips: &mut Vec<TripData>) {
-    merge_search_with(trips, false);
-}
-
-/// [`merge_search`]; with `routed_too` (the traffic shadow's hypothesis
-/// [`super::state::HYP_REROUTE_MERGE_ALL`]) routed trips are absorbed too.
-pub fn merge_search_with(trips: &mut Vec<TripData>, routed_too: bool) {
     let mut i = 0;
     while i < trips.len() {
         if trips[i].status == status::SEARCH {
-            absorb_later(trips, i, |t| routed_too || t.status != status::ROUTED);
+            absorb_later(trips, i);
         }
         i += 1;
     }
 }
 
-/// The number of trips absorbed.
-fn absorb_later(trips: &mut Vec<TripData>, i: usize, also: impl Fn(&TripData) -> bool) -> usize {
+/// Every later trip of trip `i`'s type and strategy into trip `i`; the
+/// number of trips absorbed.
+fn absorb_later(trips: &mut Vec<TripData>, i: usize) -> usize {
     let (ty, st) = (trips[i].trip_type, trips[i].strategy);
     let mut absorbed = 0;
     let mut j = i + 1;
     while j < trips.len() {
-        if trips[j].trip_type == ty && trips[j].strategy == st && also(&trips[j]) {
+        if trips[j].trip_type == ty && trips[j].strategy == st {
             let c = trips[j].count;
             trips[i].count = trips[i].count.wrapping_add(c);
             trips.remove(j);
@@ -427,9 +423,16 @@ impl Run<'_, '_> {
     /// A trip phase takes `src`: its cell is stored in the two s16 phase
     /// positions for the load resume (§3.5 step 11, §6.1 row 14, TS44;
     /// `0x0071E276`, `0x0071D0FD`, `0x0071D51C`).
+    /// The re-route context cell (`+0x83C`, `+0x840`) is written too, the
+    /// two s16 widened (`0x0071E26D`, `0x0071D104`, `0x0071D523`; §6.1 row
+    /// 14, TS60).
     fn take_source(&mut self, src: Source) {
         let (x, z) = self.source_cell(src);
-        self.st.extras.phase_positions = [x as i16, z as i16];
+        let (px, pz) = (x as i16, z as i16);
+        let e = &mut self.st.extras;
+        e.phase_positions = [px, pz];
+        e.context_x = i32::from(px);
+        e.context_z = i32::from(pz);
     }
 
     // ---- §4.3 ConfirmTrips ----
@@ -453,18 +456,24 @@ impl Run<'_, '_> {
         }
     }
 
-    /// `ConfirmTrips(source)` (`0x0071D920`, §4.3).
+    /// `ConfirmTrips(source)` (`0x0071D920`, §4.3), with the pass counters
+    /// of §10 Q4 (TS59): 3 per source, 7 the status-0 trips met before the
+    /// merge, 5 per merge, 0 per route confirmed, 6 per return leg not
+    /// confirmed, 4 per full destination, 8 per failure retried.
     pub(crate) fn confirm_source(&mut self, src: Source) {
+        use super::state::{PC_CAPACITY_SEND_BACKS, PC_CONFIRMED, PC_FAILURES_RETRIED, PC_MERGES, PC_SEARCH_TRIPS_MET};
         let pc = &mut self.st.pass_counters;
         pc[super::PC_SOURCE_COUNTER] = pc[super::PC_SOURCE_COUNTER].wrapping_add(1);
         let reroute = (pc[super::PC_SOURCE_COUNTER] & 3) == pc[super::PC_REROUTE_BUCKET];
         let mut trips = self.h.trip_list(src);
+        // Counter 7, every source, before anything else (`0x0071D95D`).
+        let met = trips.iter().filter(|t| t.status == status::SEARCH).count() as u32;
+        pc[PC_SEARCH_TRIPS_MET] = pc[PC_SEARCH_TRIPS_MET].wrapping_add(met);
         if reroute {
-            merge_routed_with(
-                &mut trips,
-                self.st.shadow_hypotheses & super::state::HYP_MERGE_ABSORBED != 0,
-            );
+            let merges = merge_routed(&mut trips);
+            pc[PC_MERGES] = pc[PC_MERGES].wrapping_add(merges);
         }
+        let bump = |st: &mut super::State, i: usize| st.pass_counters[i] = st.pass_counters[i].wrapping_add(1);
         let rect = self.source_rect(src);
         for slot in trips.iter_mut() {
             self.st.processed = self.st.processed.wrapping_add(1);
@@ -482,10 +491,18 @@ impl Run<'_, '_> {
                         }
                     } else {
                         t.status = status::SEARCH;
+                        bump(self.st, PC_CAPACITY_SEND_BACKS);
                     }
                 }
-                status::FAILED => t.status = status::SEARCH,
+                status::FAILED => {
+                    t.status = status::SEARCH;
+                    bump(self.st, PC_FAILURES_RETRIED);
+                }
                 _ => {}
+            }
+            if t.status == status::ROUTED {
+                // Only `confirm_old_route` leaves a routed trip routed here.
+                bump(self.st, PC_CONFIRMED);
             }
             match t.status {
                 status::REROUTE => self.st.to_reroute = self.st.to_reroute.wrapping_add(1),
@@ -515,6 +532,9 @@ impl Run<'_, '_> {
             }
         } else {
             if !confirm_route(self.net(), strike, &t.return_route) {
+                // The status stays 1; pass counter 6 (`0x0071DBA0`, TS59).
+                let c = &mut self.st.pass_counters[super::state::PC_RETURN_NOT_CONFIRMED];
+                *c = c.wrapping_add(1);
                 return;
             }
             if !probe {
@@ -639,10 +659,7 @@ impl Run<'_, '_> {
             let rect = self.source_rect(src);
             self.complete_trip_source_calculations(src, rect, &mut trips);
         } else {
-            merge_search_with(
-                &mut trips,
-                self.st.shadow_hypotheses & super::state::HYP_REROUTE_MERGE_ALL != 0,
-            );
+            merge_search(&mut trips);
         }
         self.h.set_trip_list(src, trips);
         self.st.current = None;
@@ -927,9 +944,11 @@ impl Run<'_, '_> {
                 t.flags |= trip_flag::REVERSIBLE;
                 mode::BOTH
             };
+            // Only the outbound route is fetched: `returnRoute` keeps what
+            // it held (an earlier two-leg result, the split's source, the
+            // save) (§2, §4.4, TS58).
             t.travel_types_used = pf.get_compressed_route(self.net(), &mut route);
             t.route = route;
-            t.return_route.clear();
             if !probe {
                 let r = t.route.clone();
                 self.apply_route(&r, arrived, rect, dest, m, t.trip_type);
