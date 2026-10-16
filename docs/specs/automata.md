@@ -365,6 +365,26 @@ any other type gets the default state, whose record is the base record alone.
 **State base, version 3** (Write `0x00509D00`, Read `0x00505E50`, accepts ≤ 3): `u16` 3, `ref` controller (null
 when it has flag 8; read checks `0x6A1857F8`), `u32`, `f32`, `bool`, `u32`, `u32`, and in version 3 a final `u32`.
 
+**Object offsets (Q5, re-answers29).** The record maps onto the state object like this; the stream order is the
+compatibility surface.
+
+| Object offset | Stream | Notes |
+|---|---|---|
+| `+0x00` | — | vtable (per state class) |
+| `+0x04` | — | the state type number; set by the factory, **not** in this record (the outer writer stores it) |
+| `+0x08` | `ref` | the controller |
+| `+0x0C` | `u32` | |
+| `+0x10` | `f32` | |
+| `+0x14` | `bool` (one byte) | |
+| `+0x18` | `u32` | |
+| `+0x1C` | `u32` | |
+| `+0x20` | `u32` | written only at version ≥ 3 |
+| `+0x24` | **not in the record** | Read zeroes it; the default-state constructor also zeroes it |
+
+**Version behaviour.** Write **always emits version 3 and all seven fields**, whatever version was read; Read
+accepts ≤ 3 and reads `+0x20` only at version ≥ 3. So a re-save of an older state record upgrades it (see
+QUESTIONS.md AM1). The default state's constructor (`0x0050B7F0`'s default branch) zeroes `+0x08` … `+0x24`.
+
 | Type | Name | After the base | Write / Read |
 |---|---|---|---|
 | 8 | RiotLeader | `s32`, `s32`, `u8` | `0x00509DE0` / `0x00505F50` |
