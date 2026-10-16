@@ -336,3 +336,22 @@ fn cd8_reduce_and_increase() {
         fc4_city_detail_destroy(p);
     }
 }
+
+/// The save sweep (`save_sweep_tests.rs`): `rec` read into a fresh manager and
+/// written again. The record is the 8 bytes of city-detail.md §4 (version 0 and
+/// the detail level) and must round-trip byte for byte. Most corpus saves carry
+/// no city detail record at all (the shipped templates never ran), so the sweep
+/// counts those as missing rather than failing.
+pub(super) fn sweep_round_trip(rec: &[u8]) -> Result<Vec<u8>, String> {
+    let g = Game::new();
+    unsafe {
+        let p = fc4_city_detail_create(&host(&g), 0xEAD4_BA36, 0x77);
+        if p.is_null() {
+            return Err("create failed".into());
+        }
+        let r =
+            crate::save_sweep_tests::read_write(rec, |i| fc4_city_detail_read(p, i), |o| fc4_city_detail_write(p, o));
+        fc4_city_detail_destroy(p);
+        r
+    }
+}
