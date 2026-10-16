@@ -53,7 +53,7 @@ use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use crate::lot_developer::CfgObject;
-use crate::rng::{derive_seed, FixedSeeds, RzRandom};
+use crate::rng::{FixedSeeds, RzRandom};
 use crate::stream::{InStream, OutStream, SaveObject};
 
 /// Class ID (§1).
@@ -133,7 +133,7 @@ impl DetailSession {
     /// The seed of the `n`-th increase pass (§3.5 *[choice]*):
     /// `derive_seed(S, 0xEAD4BA36 XOR n)`.
     pub fn pass_seed(&self, n: u32) -> u32 {
-        derive_seed(self.seed, CLSID_CITY_DETAIL ^ n)
+        crate::seeding::seed(self.seed, crate::seeding::keys::city_detail_increase(n))
     }
 
     /// The generator of the next increase pass; counts the pass.

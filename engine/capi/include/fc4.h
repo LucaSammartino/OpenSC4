@@ -7098,7 +7098,8 @@ typedef void (*fc4_network_lot_sink)(void* ctx, int32_t x, int32_t z, uint64_t n
 typedef struct fc4_city_detail_host {
     uint32_t struct_size; /* sizeof(fc4_city_detail_host) */
     void* user;
-    /* The city detail setting (0 low, 1 medium, 2 high). */
+    /* The city detail setting: the preferences byte, 1 low, 2 medium, 3 high
+       (city-detail.md §2; the original's default is 3). */
     uint32_t (*detail_setting)(void* user);
     /* Every lot of the lot manager. */
     void (*lots)(void* user, fc4_u64s_sink sink, void* ctx);

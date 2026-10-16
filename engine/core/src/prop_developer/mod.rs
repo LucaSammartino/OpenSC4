@@ -60,7 +60,7 @@ use std::rc::Rc;
 use crate::grid::{CellRect, ScanIterator, ScanState};
 use crate::lot_developer::CfgObject;
 use crate::property::PropertyHolder;
-use crate::rng::{derive_seed, file_seed, CrtRand, FixedSeeds, RzRandomSuper};
+use crate::rng::{CrtRand, FixedSeeds, RzRandomSuper};
 use crate::stl::StlHashMap;
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 use crate::variant::Elem;
@@ -188,7 +188,7 @@ pub fn wealth_query_interface(iid: u32) -> Option<u32> {
 
 /// The member generator's seed (§5): `derive_seed(S, 0x89C48F47) × 28`.
 pub fn member_seed(session: u32) -> u32 {
-    derive_seed(session, CLSID_PROP_DEVELOPER).wrapping_mul(28)
+    crate::seeding::prop_developer_seed(session)
 }
 
 fn super_random(seed: u32) -> RzRandomSuper {
@@ -208,7 +208,7 @@ pub fn member_generator(session: u32) -> RzRandomSuper {
 
 /// The wealth requester's file generator of a session (§5, K `0x4C09C51F`).
 pub fn wealth_generator(session: u32) -> RzRandomSuper {
-    super_random(derive_seed(session, file_seed::WEALTH_REQUESTER))
+    super_random(crate::seeding::seed(session, crate::seeding::keys::WEALTH_REQUESTER))
 }
 
 /// The draws of §5.

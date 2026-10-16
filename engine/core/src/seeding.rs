@@ -247,6 +247,16 @@ pub mod keys {
         }
     }
 
+    /// The city detail manager's increase-pass generator (city-detail.md
+    /// §3.5 *[choice]*), the `n`-th increase pass of the session; `K` =
+    /// `0xEAD4BA36` XOR `n`.
+    pub const fn city_detail_increase(n: u32) -> SeedKey {
+        SeedKey::Temporary {
+            clsid: crate::city_detail::CLSID_CITY_DETAIL,
+            n,
+        }
+    }
+
     /// A growth developer's decline-key temporary whose coordinate seed is
     /// `0xFFFFFFFF` (growth-developer.md §7 *[quirk]*: `Seed` then reads the
     /// clock), the `n`-th such clock read by this developer object.
@@ -318,6 +328,13 @@ mod tests {
         // derive(K) = 0x40000000 gives 0 after × 28.
         assert_eq!(prop_developer_seed(0x4000_0000 ^ 0x89C4_8F47), 0);
         assert_eq!(prop_developer_seed(0x89C4_8F47), 28);
+    }
+
+    #[test]
+    fn k_city_detail_increase() {
+        check(keys::city_detail_increase(0), 0xEAD4_BA36);
+        check(keys::city_detail_increase(1), 0xEAD4_BA37);
+        check(keys::city_detail_increase(5), 0xEAD4_BA33);
     }
 
     #[test]

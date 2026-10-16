@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::rc::Rc;
 
 use super::*;
+use crate::rng::derive_seed;
 use crate::stream::{ByteReader, ByteWriter, RefResolver};
 use crate::variant::{mem, Variant};
 
