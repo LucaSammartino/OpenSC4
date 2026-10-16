@@ -195,6 +195,15 @@ record history (key +0x38, round(AverageEfficiency() × 100))
   nearest integer, ties to even (the original adds 1.5 × 2²³ in float) and sent as data2 of `0x89EFA536` with data1
   = the history key. Nothing is recorded in a month without ports.
 - A port that is skipped (condition 1) keeps last month's efficiency and usage.
+- **What condition 2 does on a port lot** (PD3). The same as on any lot; nothing reads it as "port stressed". The
+  lot developer's civic branch (lot-developer.md §4.2, purpose 0) changes only conditions 0 → 1 (unpowered), 1 → 0
+  (powered) and 5, 6 → 0, and `TestPower` and the power-changed handler likewise only 0 ↔ 1 (§5.2, §9 there), so condition 2 stays until this
+  month sets 0 again. Two consequences *[compat]*: a stressed port that then loses power is **not** set to 1, so the
+  month above does not skip it and it keeps updating its efficiency and usage; and when it stops being stressed it
+  gets 0, and an unpowered port then becomes 1 at the lot developer's next visit. The readers of condition 2 are the
+  generic ones: the base texture is re-picked with decay variant 1 (lot-developer.md §6.5, `0xE99B3D4D` and
+  `PickLotBaseTextureForLot`; only when a matching texture resource exists), the crime simulator's lot condition bit `0x2`
+  (crime.md §6.7, `GetLotBits`), and the MySim `home_condition` value (mysims.md).
 
 ### 4.4 Trips
 
@@ -432,7 +441,7 @@ release, 12 `GetTripsForPort(p)` (airport `0x0068B250`, seaport `0x00700F60`; po
 
 ## 11. Open questions
 
-See QUESTIONS.md, section "From the re-specs10 specs" (PD1–PD4).
+See QUESTIONS.md, section "From the re-specs10 specs" (PD1–PD4); all answered (PD3 by re-answers19, §4.3).
 
 ## 12. Conformance tests
 

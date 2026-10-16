@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "port_developers_reference_count",
+  "spec": ["port-developers 1", "port-developers 3"],
+  "description": "The reference count: the last Release calls Shutdown (the agent is removed from every level) and destroys the object.",
+  "steps": [
+    {"op": "pd_create", "kind": "seaport"},
+    {"op": "pd_init"},
+    {"op": "pd_clear_events"},
+    {"op": "pd_add_ref", "expect": 1},
+    {"op": "pd_add_ref", "expect": 2},
+    {"op": "pd_release", "expect": 1},
+    {"op": "pd_expect_events", "events": []},
+    {"op": "pd_release", "expect": 0},
+    {"op": "pd_expect_events", "events": [{"event": "remove_agent", "name": "cSC4PortDeveloper"}]},
+    {"op": "pd_expect", "state": {"destroyed": true, "ref_count": 0, "initialized": false}}
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "prop_developer_split",
+  "spec": ["prop-developer 4.3", "prop-developer 4.5", "prop-developer 10", "prop-developer 12"],
+  "description": "Section 12 test 7 and example D: the target N is split by the requested shares, q = N div total to each share, then the remainder in single units starting at index 1 [quirk] and skipping zero shares. Shares (5, 3, 2), N = 13: want (6, 4, 3). Shares (10, 0, 0), N = 2: (2, 0, 0). Shares (0, 4, 0), N = 3: (0, 3, 0). The three requesters are host requesters read from a record (class 1); N = occupancy 1.0 x the lot's empty optional slots.",
+  "steps": [
+    {"op": "pv_requester", "token": "0x100", "share": 5, "satisfaction": "0x77"},
+    {"op": "pv_requester", "token": "0x101", "share": 3, "satisfaction": "0x77"},
+    {"op": "pv_requester", "token": "0x102", "share": 2, "satisfaction": "0x77"},
+    {"op": "pv_read", "fresh": true, "hex": "0400 01 00 00000000 00000000 01000000 00000000 00000000 07000000 07000000 01 03000000 00010000 01000000 01010000 01000000 02010000 01000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00 00000000 00000000 00000000 00000000 00000000", "expect": true},
+    {"op": "pv_lot", "lot": "0x10", "x": 0, "z": 0, "occupancy": 1.0, "objects": [{"tag": 160}, {"tag": 161}, {"tag": 162}, {"tag": 163}, {"tag": 164}, {"tag": 165}, {"tag": 166}, {"tag": 167}, {"tag": 168}, {"tag": 169}, {"tag": 170}, {"tag": 171}, {"tag": 172}]},
+    {"op": "pv_update_block", "block": [0, 0]},
+    {"op": "pv_expect_block", "state": {"slots": 13, "target": 13, "want": [6, 4, 3]}},
+
+    {"op": "pv_requester", "token": "0x100", "share": 10, "satisfaction": "0x77"},
+    {"op": "pv_requester", "token": "0x101", "share": 0, "satisfaction": "0x77"},
+    {"op": "pv_requester", "token": "0x102", "share": 0, "satisfaction": "0x77"},
+    {"op": "pv_read", "fresh": true, "hex": "0400 01 00 00000000 00000000 01000000 00000000 00000000 07000000 07000000 01 03000000 00010000 01000000 01010000 01000000 02010000 01000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00 00000000 00000000 00000000 00000000 00000000", "expect": true},
+    {"op": "pv_lot", "lot": "0x10", "x": 0, "z": 0, "occupancy": 1.0, "objects": [{"tag": 160}, {"tag": 161}]},
+    {"op": "pv_update_block", "block": [0, 0]},
+    {"op": "pv_expect_block", "state": {"slots": 2, "target": 2, "want": [2, 0, 0]}},
+
+    {"op": "pv_requester", "token": "0x100", "share": 0, "satisfaction": "0x77"},
+    {"op": "pv_requester", "token": "0x101", "share": 4, "satisfaction": "0x77"},
+    {"op": "pv_requester", "token": "0x102", "share": 0, "satisfaction": "0x77"},
+    {"op": "pv_read", "fresh": true, "hex": "0400 01 00 00000000 00000000 01000000 00000000 00000000 07000000 07000000 01 03000000 00010000 01000000 01010000 01000000 02010000 01000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00 00000000 00000000 00000000 00000000 00000000", "expect": true},
+    {"op": "pv_lot", "lot": "0x10", "x": 0, "z": 0, "occupancy": 1.0, "objects": [{"tag": 160}, {"tag": 161}, {"tag": 162}]},
+    {"op": "pv_update_block", "block": [0, 0]},
+    {"op": "pv_expect_block", "state": {"slots": 3, "target": 3, "want": [0, 3, 0]}}
+  ]
+}

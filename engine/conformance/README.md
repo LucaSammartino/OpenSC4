@@ -1757,6 +1757,157 @@ Park events: `tuning` (the exemplar was asked for), `acquire` (`service`, `ok`),
 `void1`, `unknown`: the posted ZooEscape), `controllers` (`name`, `occupant`; only with an automata controller
 manager), and the stub's `double`, `u32` (`n`).
 
+## Network manager ops
+
+The network manager vectors (`nm16_…`, `nm00_…`) drive `fc4_core::network_manager` (`docs/specs/network-manager.md`):
+the network manager (`NetworkManager`, component 53), the network lot manager (`NetworkLotManager`, component 11) and
+the riot's removal lock (`RiotLock`), over one scripted 64 × 64 city implementing `NetworkManagerHost`,
+`NetworkLotHost` and `RiotHost`. Every op name starts with `net_`. Ops that address one manager take `of`:
+`"manager"` (the default) or `"lots"`. The default world: day, no UK paths, flat terrain at altitude 0, area slope
+0, a traffic network map, crews that unregister themselves at their slot 5, no occupants, zones, lots or
+configurations, and the stub generator (queued `u32s`, then 0; every draw is a `draw` event with `n`). The managers'
+own tokens are `0xA000` and `0xB000`. Tool tokens are `0x7000 + n` in creation order (`Init` creates types 0..12,
+so the cached tool of type `t` is `0x7000 + t`); street props, flora and effect props get `0x5000`, `0x5001`, … in
+creation order. Cell (x, z) has its corner at `(16x, 16z)` and its centre at `(16x + 8, 16z + 8)`; an occupant's
+altitude is the terrain's plus its `height`. A save reference to an occupant or an effect prop resolves with one
+reference; any other token does not resolve. References held are counted per token (`net_expect_refs`); `add_ref` /
+`release` are not events.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `net_env` | any of `night`, `uk_paths`, `terrain` (the flat altitude), `slope` (the lot developer's area slope; `"nan"` allowed), `traffic_map`, `crews_unregister`, `random` (`"stub"` or `"default"`), `session_seed`, `u32s` | the world |
+| `net_occupant` | `occupant`, `flags?` (an integer or a list of names: `road`, `rail`, `highway`, `street`, `pipe`, `power_line`, `avenue`, `subway`, `light_rail`, `monorail`, `one_way_road`, `dirt_road`, `ground_highway`, `translucent`, `pipe_distressed`, `pipe_burst`, `flag_40000`, `flag_80000`, `intersection`, `connection_node`, `usable`, `flag_80000000`, or integers), `cell?`, `in_city?` (true: occupant flag 1), `managed?` (globally managed), `lit?` (CanBeLit), `height?` (`"nan"` allowed), `creation?` (the token), `retrofit?` (CheckForRetrofit), `flag4?` (occupant flag 4), `removable?` (true), `piece?`, `rotation?`, `flip?`, `intersection?`, `edges6?` (GetEdgeTypesFlag(6)), `active_edges?`; or `remove: true` | creates or updates an occupant (fields left out keep their value); a network occupant is one with a type flag (`0x1FFF`) |
+| `net_zone` | `cells` (`[[x, z, zone]]`), `clear?` | the zone grid |
+| `net_lot` | `lot`, `rect` (`[x1, z1, x2, z2]`) or `cell`, `wealth?` (0), `livable?`, `building_type?`; `profiles?` (`{"0xTYPE": wealth}`); `clear?` | a lot over its cells, building profiles |
+| `net_config` | `id`, `piece`, `token?` (the ID), `zones?` / `wealths?` (allowed values; absent: all), `mask?` (4 bytes), `period?`, `min_slope?`, `max_slope?`, `rotations?`, `flip_rule?`, `objects?` (`[{kind: "prop" \| "flora" \| n, flags?, orientation?, offset?: [x, y, z], field_24?, ids?: [...]}]`, `ids` being the object's candidate list); `clear?` | a network lot configuration, loaded at the lot manager's `Init` |
+| `net_create` | `of?` (`"manager"`, `"lots"` or `"both"`, the default) | new constructed managers |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `net_init` / `net_shutdown` / `net_add_ref` / `net_release` | `of?`, `expect?` | the lifecycle slots |
+| `net_identity` | `of?`, `iids` (`{"0xIID": bool}`), `class` | `QueryInterface` and `GetGZCLSID` |
+| `net_message` | `of?`, `type` (`ViewChanged`, `TerrainChanged`, `LongTerrainBegin`, `LongTerrainEnd`, `WaterDisplayChanged`, `PreCityShutdown`, `PostCityInit`, `OccupantInserted`, `OccupantRemoved`, `Dawn`, `Dusk`, `UsableChanged`, `CreateLotObjects`, `ZoningChanged`, `LotStateChanged`, `RoadDamageChanged` or an ID), `data1`..`data4`, `occupant` (void1), `unknown` (the IGZUnknown), `view` (`[old, new]`), `rect` (the zoning rectangle), `expect?` | `DoMessage` |
+| `net_call` | `method`, `args`, `expect?` | manager: `get_network_tool [type, unique]` (`{tool, type}` or null), `destroy_network_occupants [[occ…]]`, `queue_removals [on]`, `remove_or_replace_occupant [tool, occ \| null]` (`[result, replaced]`), `register_construction_crew [c]`, `unregister_construction_crew [c]`, `add_to_retrofit_list [n]`, `terrain_rect [data1, data2]` (`[x1, z1, x2, z2]`), `corner_mismatch [d]`, `set_network_flag [flags, bits, in_city]` / `clear_network_flag [flags, bits]` (`{flags, usable_post, translucency}`); lot manager: `zone_type_for_network [x, z]`, `wealth_for_network [x, z]`, `is_lot_compatible [config, x, z, zone, wealth, rotation, flip]`, `object_position [[x, z], rotation, flipped, o, [ox, oy, oz]]` (`{pos, orientation}`, the altitude being the flat terrain's), `update_roads_in_cell [x, z]`, `update_road_style [x, z, n]`, `add_pending [x, z]`, `add_border_to_pending [[x1, z1, x2, z2]]`, `process_update_list`, `set_lot_configuration_for_next_piece [config \| null]`, `redevelop_lot [x, z]`, `do_road_damage_change [x, z, damaged]`, `get_network_lot [x, z]`, `configuration_by_id [id]`, `pothole_offset [e]`, `road_texture [zone, wealth]`, `road_variation [zone, wealth]` |
+| `net_riot` | `action?` (`add_instance`, `remove_instance`, `shutdown`, or `mark` with `cell`), `can_remove?` (`{"0xOCC": [level, bool]}`, checked after the action) | the riot lock over the world's removal counters |
+| `net_expect` | `of?`, `state`: manager (partial: `initialized`, `destroyed`, `ref_count`, `uk_paths`, `long_terrain_op`, `dirty` (`[x1, z1, x2, z2]`, null when empty), `managed`, `pending`, `queueing`, `retrofit`, `crews`, `tools` (each cached tool's type or null), `riot_locked`, `riot_instances`); lots (partial: `initialized`, `destroyed`, `ref_count`, `lots` (`[{cell, occupant, config, config_id, locked}]` in map order), `lot_count`, `potholes` (`[{cell, prop}]`), `pending` (cells in key order), `pending_count`, `forced`, `configs` (IDs, sorted)) | the state |
+| `net_expect_lot` | `cell`, `state` (partial: `occupant`, `config`, `config_id`, `locked`) or `absent: true` | a network lot |
+| `net_expect_refs` | `refs` (`{"token": count}`) | references held |
+| `net_write` | `of?`, `slot?`, `expect?`, `length?`, `hex?`, `registered?` (the tokens in save-registry order) | the record |
+| `net_read` | `of?`, `slot` or `hex` (object IDs resolve to themselves), `length?` (cut), `reuse?` (the current manager, else a new one), `error?` (the stream starts in error), `position?` (bytes consumed), `expect?` | the record |
+| `net_expect_record` | `slot`, `same_as?`, `length?` | a saved record |
+| `net_expect_events` / `net_expect_event_count` / `net_clear_events` | see the shared conventions | host calls |
+
+Network manager events: `subscribe` / `unsubscribe` (`type`), `create_tool` (`type`, `tool`), `tool_init` /
+`tool_shutdown` (`type`), `destroy` (`type`, `occupants`), `underground` (`type`, `network_type`, `cells`,
+`occupants`), `cell_info` (`type`, `packed`), `reinsert` (`type`, `info`), `set_lit` (`occupant`, `lit`), `retrofit`
+(`occupant`), `remove_occupant` (`occupant`), `query` (`rect`, `mask`: the occupant manager's rectangle query),
+`refresh` (`occupant`: the posted `0x99EF1145`), `view_rotation`, `crew_shutdown` (`crew`). Network lot manager
+events: `texture` (`occupant`, `texture`), `variation` (`occupant`, `variation`), `set_flag` (`occupant`, `bits`),
+`intersection` (`occupant`), `remove_props` / `demolish_flora` (`cell`), `prop` (`id`, `pos`, `orientation`,
+`token`), `prop28` / `prop29` (`prop`, `value`), `flora` (`id`, `pos`, `token`), `flora28` (`flora`, `index`),
+`effect` (`token`), `effect_name` (`prop`, `name`), `effect_start` / `effect_stop` (`prop`), `position` (`prop`,
+`pos`), `insert` / `remove` (`occupant`), and the stub's `draw` (`n`). Riot events: `unset_removal` /
+`set_removal` (`occupant`, `mask`).
+
+## City detail ops
+
+The city detail vectors (`cd8_…`) drive `fc4_core::city_detail::CityDetailManager` (`docs/specs/city-detail.md`)
+over one scripted city implementing `CityDetailHost`. Every op name starts with `cd_`. The default world: preference
+3, no lots, no network lots, creation succeeds, the stub generator.
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `cd_env` | any of `setting` (the preference), `session_seed` (a new session), `random` (`"stub"` or `"session"`), `u32s` (the stub's queue), `network` (`[[x, z, lot]]`), `create` (whether AddLotProp / AddNewFloraOccupant answer an occupant) | the world |
+| `cd_lot` | `lot`, `objects` (`[{type: "prop" \| "flora" \| n, flags?, tag, ids?}]`, `ids` defaulting to `[tag]`; null: no configuration) | appends a lot |
+| `cd_occupant` | `occupant`, `lot`, `type` (`"prop"`, `"flora"`, `"building"` or an ID), `tag?` | an occupant |
+| `cd_ids` | `lot`, `index`, `ids` | the configuration manager's ID array of an object (families expanded) |
+| `cd_create` | | a new manager |
+| `cd_init` / `cd_shutdown` / `cd_add_ref` / `cd_release` / `cd_get_level` | `expect?` | the slots |
+| `cd_set` | `level` | the stored level (test setup) |
+| `cd_identity` | `iids` (`{"0xIID": bool}`), `class?` | `QueryInterface`, `GetGZCLSID` |
+| `cd_expect` | `state` (partial: `level`, `ref_count`, `destroyed`, `last_pass`, `removed`, `created`, `draws`, `network_lots`, `session_passes`) | the manager |
+| `cd_expect_occupants` | `lot`, `occupants` (`[[occupant, kind or type, tag or null]]`, token order) | a lot's occupants |
+| `cd_write` / `cd_read` | `hex?`, `slot?`, `fresh?`, `expect?` | the record |
+| `cd_expect_events` / `cd_expect_event_count` / `cd_clear_events` | see the shared conventions | host calls |
+
+City detail events: `demolish_flora` / `remove_prop` (`occupant`), `placement` (`lot`, `index`), `add_prop` /
+`add_flora` (`id`, the placement, `occupant`), `set_tag` (`occupant`, `tag`), `redevelop` (`x`, `z`, `lot`), `draw`.
+
+## Port developer ops
+
+The port developer vectors (`pd12_…`) drive `fc4_core::port_developer::PortDeveloper`
+(`docs/specs/port-developers.md`) over one scripted city implementing `PortHost`: the shipped airport and seaport
+exemplars, lots and building occupants, the budget line, office counts per subnetwork, freight arrivals and the
+terrain's water. Every op name starts with `pd_`. A lot configuration's token is its ID.
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `pd_env` | any of `kind`, `line` (`[full, current]` or null), `follow` (current expenses follow SetFullExpenses), `department` (a token or null), `offices` (`[[CO$$ per subnetwork], [CO$$$ per subnetwork]]`), `terrain` (`[width, depth]`), `water` (`[[x, z]]`, replacing the set), `create_lot`, `construct` (whether CreateLot and ConstructDefaultLot succeed), `exemplars` (`{"0xINSTANCE": {properties} \| null}`) | the world |
+| `pd_lot` | `lot`, any of `config` (`[id, growth stage]` or null), `x`, `z`, `state`, `condition`, `days`, `rect` (`[x0, z0, x1, z1]`), `facing`, `compatible`, `subnetworks`, `arrived` | creates or updates a lot |
+| `pd_occupant` | `occupant`, `lot`, `type?` (`"building"` or an ID), `group?`, `preview?` | a building occupant |
+| `pd_create` | `kind?` (`"airport"` or `"seaport"`) | a new developer |
+| `pd_init` / `pd_shutdown` / `pd_add_ref` / `pd_release` / `pd_month` | `expect?` | the slots; the month tick |
+| `pd_message` | `msg`, `data?`, `old?`, `new?`, `expect?` | `DoMessage` |
+| `pd_set_port` | `index`, any of `stage`, `trips`, `efficiency`, `usage` | pokes a port (test setup) |
+| `pd_identity` | `kind`, `iids` (`{"0xIID": offset \| false}`) | `QueryInterface` |
+| `pd_query` | `query` (`num_ports`, `num_airports`, `num_seaports`, `num_trips`, `avg_efficiency`, `least_efficient`, `all_port_lots`, `usage_values`, `maintenance_cost`, `city_has_sea`, `cell_sea_access`, `funding_ratio`, `required_budget`), `args?`, `expect` | the queries |
+| `pd_expect` | `state` (partial: `tuning_loaded`, `initialized`, `tuning_instance`, `type_count`, `types`, `zone_type`, `ports`, `ref_count`, `destroyed`, `recheck_access`, `city_has_sea`, `department`, `full`, `current`, `month_ran`, `history`, `event`, `skipped`) | the developer |
+| `pd_expect_port` | `index`, `state` (partial: `stage`, `type`, `x`, `z`, `efficiency`, `usage`, `trips`, `lot`, `needs_lookup`, `swapping`, `access`) | a port |
+| `pd_expect_map` | `cells` (row-major), `size?` | the sea-access map |
+| `pd_write` / `pd_read` | `hex?`, `slot?`, `fresh?`, `expect?` | the record |
+| `pd_expect_events` / `pd_expect_event_count` / `pd_clear_events` | see the shared conventions | host calls |
+
+Port developer events: `create_department`, `add_agent`, `remove_agent`, `full_expenses`, `withdraw`, `condition`,
+`start_demolish`, `end_demolish`, `create_lot`, `set_configuration`, `construct`, `dezone`, `effects`, `history`,
+`advisor`, `trip_capacity`, `props_state`, `altitude`.
+
+## Prop developer ops
+
+The prop developer vectors (`pv12_…`) drive `fc4_core::prop_developer::PropDeveloper`
+(`docs/specs/prop-developer.md`) over one scripted city implementing `PropHost`. Every op name starts with `pv_`.
+The default world: a 64 × 64 city, cell width 16, no lots, no props, every cell powered, no 24-hour clock, visual
+mode 0, day, a 3D view with every trigger off, the managers and wealth requester token of the corpus. A network
+occupant's token names its first cell (`0xXXXXZZZZ`). Records are written and read with each reference as
+`u32 token, u32 class`, so the spec's corpus records round-trip byte for byte. Every generator draw is logged as a
+`draw` event (`gen` `"member"` or `"wealth"`; `call` `"RS"` with `lo`, `hi`, or `"U"` with `n`; `value`).
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `pv_env` | any of `cells`, `clock` (`[hour, minute]` or null), `visual_mode`, `night` (the lighting manager), `view`, `triggers_on`, `date`, `heights` (`[terrain, water]`), `unpowered` (`[[x, z]]`, replacing the set), `zones` (`[[x, z, type]]`), `profiles` (`[[id, satisfaction, wealth]]`), `families` (`{"0xFAMILY": [ids]}`), `exemplars` (`{"0xID": {properties}}`, the properties of a created prop of that type), `wealth_token` | the world |
+| `pv_lot` | `lot`, any of `x`, `z`, `size`, `livable`, `building`, `occupancy`, `wealth`, `state`, `objects` (`[{tag, ids?, type? (1), flags? (1)}]`; null: no configuration) | creates or updates a lot |
+| `pv_network_lot` | `token`, `cell`, `objects?`, `wealth?` | a network lot |
+| `pv_prop` | `prop`, any of `lot` (null: a street prop), `cell`, `tag`, `type`, `class`, `properties`, `state`, `pos` | creates or updates a prop |
+| `pv_requester` | `token`, any of `share`, `satisfaction`, `custom`, `select` (what SelectProp answers; null: the first ID) | a host requester |
+| `pv_script` | `member?`, `wealth?` (results to append) | the scripted generators |
+| `pv_create` | `seed?` (the session seed: real generators, the wealth one shared per seed; none: scripted) | a new developer |
+| `pv_init` / `pv_shutdown` / `pv_add_ref` / `pv_release` | `expect?` | the slots |
+| `pv_add_requester` | `token`, `class` (`0x89C49986` is a wealth requester) | `AddPropRequester` |
+| `pv_remove_requester` | `token`, `expect?` | `RemovePropRequester` |
+| `pv_message` | `msg`, `object?`, `data1`…`data4?`, `expect?` | `DoMessage` |
+| `pv_step` | `expect` (`[bx, bz]` or null) | one block step |
+| `pv_update_block` | `block` (`[bx, bz]`) | one block update |
+| `pv_update_all` | | `UpdateAllOptionalProps` |
+| `pv_signs` | `show?`, `toggle?`, `expect?` (visible afterwards) | slots 8–10 |
+| `pv_wealth_select` | `ids`, `x`, `z`, `expect` | the wealth requester's `SelectProp` |
+| `pv_identity` | `iids?`, `wealth_iids?` (`{"0xIID": offset \| false}`), `member_seed?` (`[S, seed]`) | `QueryInterface`, the member seed |
+| `pv_expect` | `state` (partial: `initialized`, `scan_flag`, `scanner` (`"fresh"`, `"running"`, `"done"`), `scan_at`, `clip`, `wealth_added`, `night_cursor`, `night_mode`, `night_batch`, `night_acc`, `is_night`, `tod_last`, `signs_visible`, `ref_count`, `destroyed`, `crt_state`, and the list lengths `requesters`, `night`, `triggers`, `time_of_day`, `dated`, `power`, `signs`) | the developer |
+| `pv_expect_block` | `state` (partial: `block`, `lots`, `occ_sum`, `slots`, `kept_all`, `target`, `want`, `kept`, `removed`, `created`, `member_draws`, `stopped`) | the last block update |
+| `pv_expect_lists` | any of `requesters` (`[[token, class]]`), `night`, `time_of_day`, `dated`, `power`, `signs` (tokens), `triggers` (`[[trigger, [tokens]]]`), `classes` (`{"0xTOKEN": class}`) | the lists |
+| `pv_expect_prop` | `prop`, `state` (partial: `exists`, `state`, `type`, `lot`, `tag`, `requester`, `pos`) | a prop in the world |
+| `pv_write` / `pv_read` | `hex?`, `length?`, `slot?`, `fresh?`, `seed?`, `expect?` | the record |
+| `pv_expect_events` / `pv_expect_event_count` / `pv_clear_events` | see the shared conventions | host calls |
+
+Prop developer events: `create_wealth_requester`, `add_agent` (`level`, `name`, `flags`), `remove_agents`,
+`subscribe` (`msg`), `unsubscribe_all`, `animation_tick` (`priority`), `unregister_animation_tick`,
+`post_lot_state_props` (`x`, `z`, `entered`), `hold` / `release` (`token`), `share` (`requester`, `rect`), `select`
+(`requester`, `ids`, `x`, `z`), `remove_prop`, `create_prop` (`lot`, `index`, `id`, `prop`), `create_network_prop`,
+`prop_state`, `timer` (`prop`, `mask`, `on`), `chance`, `time_of_day_range`, `date_range`, `tick_date`, `position`,
+`flag`, `draw`.
+
 ## Automata ops
 
 The automata vectors (`am14_…`) drive `fc4_core::automata` (`docs/specs/automata.md`). Every op name starts with
@@ -1978,8 +2129,10 @@ Terrain events: `post` (`msg`, `data1`..`data4`), `ignite` (`x`, `z`), `quick_bu
    `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `ld16_…` (lot developer §16),
    `zn15_…` (zones §15), `lf11_…` (landfill §11), `nb18_…` (neighbours §18), `tn11_…` (traffic network §11),
    `pf11_…` (pathfinder §11), `rs15_…` (residential §15), `rs00_…` (other residential behaviour), `ts11_…`
-   (traffic simulator §11), `hw12_…` (history §12), `ck12_…` (clock24 §12), `ds18_…` and `ds00_…` (disasters §18 and the
-   rest of disasters), `tr18_…` and `tr00_…` (terrain §18 and the rest of terrain), `nt05_…` (nation §5), `am14_…`
+   (traffic simulator §11), `hw12_…` (history §12), `ck12_…` (clock24 §12), `nm16_…` (network manager §16;
+   `nm00_…` for other network manager behaviour), `cd8_…` (city detail §8), `pd12_…` (port developers §12),
+   `pv12_…` (prop developer §12), `ds18_…` and `ds00_…` (disasters §18 and the rest of disasters), `tr18_…` and
+   `tr00_…` (terrain §18 and the rest of terrain), `nt05_…` (nation §5), `am14_…`
    (automata §14) and `om18_…` / `om14_…` (occupant manager §18 / §14).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
@@ -2973,6 +3126,88 @@ shapes of the §7.1 table.
 
 Not covered by a vector: the 421-save corpus itself (part of item 8) is not available to this suite; `pk12_08`
 replays the record shapes §7 reports.
+
+## Coverage (network manager §16)
+
+| §16 item | Vector |
+|---|---|
+| 1 component 53 empty (version 2 rejected after 2 bytes, a stream in error, a null reference (NM6), an unresolvable one) | `nm16_01_component_53_empty` |
+| 2 component 11 empty (version 1 rejected, nothing else read) | `nm16_02_component_11_empty` |
+| 3 managed list order (swap-and-pop, the record C then B, byte-identical round trip, Read appends) | `nm16_03_managed_list_order` |
+| 4 duplicate insert | `nm16_04_duplicate_insert` |
+| 5 not managed (a plain road, a non-network occupant, no occupant) | `nm16_05_not_managed` |
+| 6 lighting (dusk, dawn, PostCityInit by day and at night) | `nm16_06_lighting` |
+| 7 GetNetworkTool (Init's subscriptions and tools, type 13, cached, unique, PreCityShutdown) | `nm16_07_get_network_tool` |
+| 8 QueueRemovals dedupe (creation order, the references kept) | `nm16_08_queue_removals_dedupe` |
+| 9 groups (road, pipe, subway in that order; power lines ignored; null tools skipped) | `nm16_09_groups` |
+| 10 terrain rect (clamping, the long-operation merge, LongTerrainEnd's refit) | `nm16_10_terrain_rect` |
+| 11 corner rule (0.005, 0.02, −0.001, kind 4, NaN, a pipe with kinds 1 and 3, kind 5, kind 6) | `nm16_11_corner_rule` |
+| 12 riot lock (the set, two riots, the riot manager's Shutdown) | `nm16_12_riot_lock` |
+| 13 riot edge (x < 3, z < 3, the (3, 3) boundary) | `nm16_13_riot_edge` |
+| 14 zone for network (priorities, the diagonals, a zoned cell, ties, the city edge) | `nm16_14_zone_for_network` |
+| 15 wealth for network (tie up; 1, 1, 2; a diagonal; none; out of range; the building profile) | `nm16_15_wealth_for_network` |
+| 16 compatibility pattern (rows and columns, no zone list, slope, rotation, flip rule, wealth) | `nm16_16_compatibility_pattern` |
+| 17 object position (rotations 0–3 and 4, flipped) | `nm16_17_object_position` |
+| 18 choose and keep (one lot draw, the object draws, keeping, rezoning, usable off) | `nm16_18_choose_and_keep` |
+| 19 forced configuration (locked, never replaced; connection nodes and underground pieces) | `nm16_19_forced_configuration` |
+| 20 road style (street, rail, agriculture, skipped pieces, the tables) | `nm16_20_road_style` |
+| 21 pothole (the W dead end, repeat, rail, no network, repair, nothing to repair) | `nm16_21_pothole` |
+| 22 usable message (in and out of the city; translucency) | `nm16_22_usable_message` |
+| 23 lot state ring (the 14 border cells, processed in key order, the city edge) | `nm16_23_lot_state_ring` |
+| (§3.2, §4.2, §8.6, §17) the component 11 record with a lot and a pothole, Init resolving and dropping lots, RedevelopLot's draws, Shutdown | `nm00_01_lot_record_and_lifecycle` |
+
+Not covered by a vector: the presentation slots 13–15, `CreateConnectionNode`, `AutoconnectLotNodes` and
+`GetAllIntersectionPieces`, which are not in the core; the default generator's values (`random: "default"` is
+available, but no vector pins its draws).
+
+## Coverage (city detail §8)
+
+| §8 item | Vector |
+|---|---|
+| 1 new city record (default preference, preference 1) | `cd8_01_new_city` |
+| 2 version 1 rejected | `cd8_02_record` |
+| 3 same level: nothing changes | `cd8_03_same_level` |
+| 4 reduce (unlisted tags removed, untagged and listed stay) | `cd8_04_reduce` |
+| 5 increase (one prop per missing required object, at the developer's placement; optional skipped; one draw each) | `cd8_05_increase`, `cd8_06_session_generator` |
+| 6 network lots redeveloped once in both directions, none in a new city | `cd8_01_new_city`, `cd8_04_reduce`, `cd8_05_increase` |
+
+## Coverage (port developers §12)
+
+| §12 item | Vector |
+|---|---|
+| 1 empty records, versions 1 and 3 rejected | `pd12_01_empty_records` |
+| 2 round trip of the §7 example, the counts | `pd12_02_round_trip` |
+| 3 adoption (phase-2 lot and preview ignored) | `pd12_03_adoption` |
+| 4 month with one small airport | `pd12_04_month` |
+| 5 two airports in one subnetwork | `pd12_05_two_airports` |
+| 6 the advisor event and condition 2 | `pd12_06_advice` |
+| 7 growth to the next stage | `pd12_07_growth`, `pd12_07b_growth_failures` |
+| 8 a destroyed port lot | `pd12_08_removal` |
+| 9 the seaport map | `pd12_09_seaport_map`, `pd12_11_seaport_tick` |
+| 10 no ports | `pd12_10_no_ports` |
+| other sections | `pd12_12_funding`, `pd12_13_queries`, `pd12_14_tuning`, `pd12_15_reference_count` |
+
+## Coverage (prop developer §12)
+
+| §12 item | Vector |
+|---|---|
+| 1 empty record (127 bytes), Init, identity | `pv12_01_empty_record` |
+| 2 template read (batch `0xBAADF00D` kept, written as version 5; version 3 rejected) | `pv12_02_template_read` |
+| 3 round trip (the §7 example; every list filled) | `pv12_03_round_trip` |
+| 4 block order | `pv12_04_block_order` |
+| 5, 6 worked examples A, B, C (and E) | `pv12_05_example_a_b_c`, `pv12_06_example_e` |
+| 7 split (example D) | `pv12_07_split` |
+| 8 no lots | `pv12_08_no_lots` |
+| 9 wealth selection | `pv12_09_wealth_selection` |
+| 10 night sweep (and switch all) | `pv12_10_night_sweep`, `pv12_11_switch_all` |
+| 11 time of day | `pv12_12_time_of_day` |
+| 12 registration (and triggers, power, unregistering) | `pv12_13_registration` |
+| 13 signs | `pv12_14_signs` |
+| 14 lot state | `pv12_15_lot_state` |
+| other sections | `pv12_16_cell_walk_quirks`, `pv12_17_requesters` |
+
+Not covered by a vector: the 421-save corpus itself (item 3) is not available to this suite; `pv12_02` and `pv12_03`
+replay the records §7 quotes.
 
 ## Coverage (disasters §18)
 

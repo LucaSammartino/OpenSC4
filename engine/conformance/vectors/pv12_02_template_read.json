@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "prop_developer_template_read",
+  "spec": ["prop-developer 2", "prop-developer 3.1", "prop-developer 7", "prop-developer 12"],
+  "description": "Section 12 test 2: the 122-byte version-4 record of a shipped city template reads, keeps the uninitialised batch 0xBAADF00D [quirk], keeps signsVisible 1 (version 4 has no fields 12 and 13), and writes back as version 5 (127 bytes) with the batch unchanged. The requester of class 0x89C49986 is the wealth requester. Init after the read creates no second wealth requester (wealthAdded 1) and keeps the scan flag 1. Version 3 and a short record are rejected and change nothing [choice: atomic].",
+  "steps": [
+    {"op": "pv_create"},
+    {"op": "pv_read", "hex": "0300 01 00 00000000 00000000 01000000 00000000 00000000 0F000000 0F000000 01 03000000 C02FB513 8699C489 B82BB413 9AC09089 90763411 65C09089 38003113 019B8F49 6C873711 10BD90A9 FC35B413 3BCDA6E9 00000000 00000000 0DF0ADBA 00000000 00 00000000 00000000 00000000 00000000 00000000", "expect": false},
+    {"op": "pv_expect", "state": {"requesters": 0, "night_batch": 0, "wealth_added": false}},
+    {"op": "pv_read", "hex": "0400 01 00 00000000 00000000 01000000 00000000 00000000 0F000000 0F000000 01 03000000 C02FB513 8699C489 B82BB413 9AC09089 90763411 65C09089 38003113 019B8F49 6C873711 10BD90A9 FC35B413 3BCDA6E9 000000", "expect": false},
+    {"op": "pv_expect", "state": {"requesters": 0, "scan_flag": 0}},
+    {"op": "pv_read", "hex": "0400 01 00 00000000 00000000 01000000 00000000 00000000 0F000000 0F000000 01 03000000 C02FB513 8699C489 B82BB413 9AC09089 90763411 65C09089 38003113 019B8F49 6C873711 10BD90A9 FC35B413 3BCDA6E9 00000000 00000000 0DF0ADBA 00000000 00 00000000 00000000 00000000 00000000 00000000", "expect": true},
+    {"op": "pv_expect", "state": {"scan_flag": 1, "scanner": "fresh", "clip": [0, 0, 15, 15], "wealth_added": true, "night_mode": 0, "night_batch": "0xBAADF00D", "night_acc": 0, "signs_visible": true, "requesters": 3}},
+    {"op": "pv_expect_lists", "requesters": [["0x13B52FC0", "0x89C49986"], ["0x13B42BB8", "0x8990C09A"], ["0x11347690", "0x8990C065"]]},
+    {"op": "pv_write", "hex": "0500 01 00 00000000 00000000 01000000 00000000 00000000 0F000000 0F000000 01 03000000 C02FB513 8699C489 B82BB413 9AC09089 90763411 65C09089 38003113 019B8F49 6C873711 10BD90A9 FC35B413 3BCDA6E9 00000000 00000000 0DF0ADBA 00000000 00 00000000 00000000 00000000 00000000 00000000 01 00000000", "length": 127},
+    {"op": "pv_clear_events"},
+    {"op": "pv_init"},
+    {"op": "pv_expect_event_count", "filter": {"event": "create_wealth_requester"}, "count": 0},
+    {"op": "pv_expect", "state": {"scan_flag": 1, "requesters": 3}}
+  ]
+}

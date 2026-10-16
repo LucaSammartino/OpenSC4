@@ -28,6 +28,7 @@
 // (FC4LotDevShadow.cpp) runs on the main thread.
 
 #include "cFC4LotDeveloper.h"
+#include "cFC4ZoneDeveloper.h"
 
 #include "FC4Config.h"
 #include "FC4CoreProps.h"
@@ -138,9 +139,6 @@ constexpr uint32_t kPropZot = 0xC999C45E;
 constexpr uint32_t kDemolishFlags = 0x800;
 // §6.4: hash sets built with bucket hint 100 (193 buckets).
 constexpr uint32_t kSetHint = 100;
-// [abi] Lot manager slot 15 moves to the lot list object at this + 0x5C
-// (aura.md §6.5, FC4BudgetHost.cpp).
-constexpr uintptr_t kLotListObjectOffset = 0x5C;
 // Registered safe iterators are few; a longer ring is not trusted.
 constexpr uint32_t kMaxRegisteredIterators = 4096;
 // The cIGZVariant type of a uint32 property.
@@ -814,18 +812,28 @@ void RawReleaseFn(void* p) {
     m->removed = fc4::safelots::Release(m->block, m->freeNode, m->freeBlock, kMaxRegisteredIterators);
 }
 
-// The game's iterator block, when it can be walked as the original walks it:
-// the identified executable (allocators B and C) and the original lot
-// manager (its vtable in the image); the block's list object is lm + 0x5C.
-bool RawUsable(cFC4ISC4LotManager* lm, fc4::compat::StlNodeFreeFn* freeNode, uintptr_t* freeBlock) {
-    const fc4::compat::ExecutableVersion* v = fc4::compat::IdentifiedVersion();
+// The allocators a block's release needs: B (its iterator list node) and C
+// (the block), on the identified executable only.
+bool RawAllocators(fc4::compat::StlNodeFreeFn* freeNode, uintptr_t* freeBlock) {
     *freeBlock = fc4::compat::DirectCall(fc4::compat::Direct::GlobalHeapFree);
-    if (v == nullptr || *freeBlock == 0 || !fc4::compat::StlNodeAllocator(nullptr, freeNode)) return false;
-    const uintptr_t vtable = *reinterpret_cast<const uintptr_t*>(lm);
-    return vtable >= v->imageBase && vtable - v->imageBase < v->sizeOfImage;
+    return fc4::compat::IdentifiedVersion() != nullptr && *freeBlock != 0 &&
+           fc4::compat::StlNodeAllocator(nullptr, freeNode);
 }
 
-const void* ListObjectOf(cFC4ISC4LotManager* lm) { return reinterpret_cast<const char*>(lm) + kLotListObjectOffset; }
+// The list object of the game's iterator blocks, when they can be walked as
+// the original walks them: the identified executable (allocators B and C)
+// and the original lot manager (its vtable in the image: lm + 0x5C) or
+// FreeCity4's (enable = zonedev: its raw master list mirror,
+// cFC4ZoneDeveloper::MasterListObject()); null otherwise, *why saying why.
+const void* RawListObject(cFC4ISC4LotManager* lm, const char** why) {
+    fc4::compat::StlNodeFreeFn freeNode = nullptr;
+    uintptr_t freeBlock = 0;
+    if (!RawAllocators(&freeNode, &freeBlock)) {
+        *why = "executable not identified, or allocator B / C unavailable";
+        return nullptr;
+    }
+    return cFC4ZoneDeveloper::SafeIteratorListObject(lm, why);
+}
 
 // The fallback: every lot of the city (GetLotsInCellRect over the whole
 // city, one reference each, kept by the iterator).
@@ -849,12 +857,15 @@ void Snapshot(void* u, fc4::LotDevIterator* it) {
     }
 }
 
+// The block came from a lot manager RawListObject accepted; its release reads
+// only the block's own list object (null after FreeCity4's lot manager
+// orphaned it at Shutdown: then nothing to unregister, BQ4).
 void FreeRaw(fc4::LotDevIterator* it, cFC4ISC4LotManager* lm) {
     if (it->block == nullptr) return;
     fc4::compat::StlNodeFreeFn freeNode = nullptr;
     uintptr_t freeBlock = 0;
     bool released = false;
-    if (lm != nullptr && RawUsable(lm, &freeNode, &freeBlock)) {
+    if (lm != nullptr && RawAllocators(&freeNode, &freeBlock)) {
         RawRelease r{static_cast<fc4::safelots::Block*>(it->block), reinterpret_cast<fc4::safelots::FreeFn>(freeNode),
                      reinterpret_cast<fc4::safelots::FreeFn>(freeBlock), -1};
         released = fc4::SehGuard("lotdev safe lot iterator release", &RawReleaseFn, &r) && r.removed >= 0;
@@ -864,6 +875,7 @@ void FreeRaw(fc4::LotDevIterator* it, cFC4ISC4LotManager* lm) {
                                      "leaked, not freed");
     }
     it->block = nullptr;
+    it->listObject = nullptr;
 }
 
 // Slot 15 GetSafeLotIterator: the game's block (walked raw) or the fallback.
@@ -872,20 +884,30 @@ uint64_t SafeLotIterator(void* u) {
     cFC4ISC4LotManager* lm = LotManager(u);
     if (lm == nullptr) return 0;
     auto* it = new fc4::LotDevIterator();
-    fc4::compat::StlNodeFreeFn freeNode = nullptr;
-    uintptr_t freeBlock = 0;
-    if (RawUsable(lm, &freeNode, &freeBlock)) {
+    const char* why = nullptr;
+    const void* listObject = RawListObject(lm, &why);
+    if (listObject != nullptr) {
         it->block = reinterpret_cast<void*>(lm->GetSafeLotIterator());  // slot 15
-        if (it->block != nullptr) {
-            RawStep s{static_cast<fc4::safelots::Block*>(it->block), ListObjectOf(lm), nullptr, false, false};
-            if (!fc4::SehGuard("lotdev safe lot iterator check", &RawRewindFn, &s) || s.bad) FreeRaw(it, lm);
+        it->listObject = listObject;
+        if (it->block == nullptr) {
+            why = "GetSafeLotIterator returned null";
+        } else {
+            RawStep s{static_cast<fc4::safelots::Block*>(it->block), listObject, nullptr, false, false};
+            if (!fc4::SehGuard("lotdev safe lot iterator check", &RawRewindFn, &s) || s.bad) {
+                why = "the new iterator failed its check (unexpected list object, or a broken list)";
+                FreeRaw(it, lm);
+            }
         }
     }
     if (it->block == nullptr) {
+        it->listObject = nullptr;
         ++Ctx(u)->iteratorFallbacks;
-        NoteOnce(g_noteIteratorFallback, "lotdev: the lot manager's list is not walked raw (executable not "
-                                         "identified, or not the original lot manager); the daily pass walks a "
-                                         "GetLotsInCellRect list instead (lot order: question)");
+        if (!g_noteIteratorFallback) {
+            g_noteIteratorFallback = true;
+            fc4::Log("lotdev: the lot manager's list is not walked raw (%s); the daily pass walks a "
+                     "GetLotsInCellRect list instead (lot order: question)",
+                     why != nullptr ? why : "?");
+        }
         Snapshot(u, it);
     }
     Ctx(u)->iterators.push_back(it);
@@ -905,9 +927,9 @@ void SafeLotIteratorRewind(void* u, uint64_t t) {
     it->faulted = false;
     if (it->block != nullptr) {
         cFC4ISC4LotManager* lm = LotManager(u);
-        RawStep s{static_cast<fc4::safelots::Block*>(it->block), lm ? ListObjectOf(lm) : nullptr, nullptr, false,
-                  false};
-        if (lm == nullptr || !fc4::SehGuard("lotdev safe lot iterator rewind", &RawRewindFn, &s) || s.bad) {
+        RawStep s{static_cast<fc4::safelots::Block*>(it->block), it->listObject, nullptr, false, false};
+        if (lm == nullptr || it->listObject == nullptr ||
+            !fc4::SehGuard("lotdev safe lot iterator rewind", &RawRewindFn, &s) || s.bad) {
             ++Ctx(u)->iteratorFaults;
             it->faulted = true;
         }
@@ -926,9 +948,9 @@ uint64_t SafeLotIteratorNext(void* u, uint64_t t) {
     if (it != nullptr && !it->faulted) {
         if (it->block != nullptr) {
             cFC4ISC4LotManager* lm = LotManager(u);
-            RawStep s{static_cast<fc4::safelots::Block*>(it->block), lm ? ListObjectOf(lm) : nullptr, nullptr, false,
-                      false};
-            if (lm == nullptr || !fc4::SehGuard("lotdev safe lot iterator step", &RawNextFn, &s) || s.bad) {
+            RawStep s{static_cast<fc4::safelots::Block*>(it->block), it->listObject, nullptr, false, false};
+            if (lm == nullptr || it->listObject == nullptr ||
+                !fc4::SehGuard("lotdev safe lot iterator step", &RawNextFn, &s) || s.bad) {
                 ++Ctx(u)->iteratorFaults;
                 it->faulted = true;  // the end from now on (the next rewind tries again)
             } else if (!s.end) {

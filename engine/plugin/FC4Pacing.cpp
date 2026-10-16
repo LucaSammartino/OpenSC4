@@ -33,7 +33,7 @@
 
 namespace {
 
-// The conformance shadows (FC4Config.h); any of them on makes `original` the
+// The conformance shadows (FC4Config.h; 26 keys); any of them on makes `original` the
 // default when `pacing` is unset.
 const char* const kShadowKeys[] = {
     "budget_shadow",      "demand_shadow",     "pollution_shadow",   "protection_shadow", "crime_shadow",
@@ -41,6 +41,7 @@ const char* const kShadowKeys[] = {
     "landvalue_shadow",   "flammability_shadow", "residential_shadow", "zones_shadow",    "neighbours_shadow",
     "development_shadow", "tract_shadow",      "commercial_shadow",  "civic_shadow",      "parks_shadow",
     "zonedev_shadow",     "history_shadow",    "clock24_shadow",     "lotdev_shadow",     "traffic_shadow",
+    "disasters_shadow",
 };
 
 struct PacingValue {

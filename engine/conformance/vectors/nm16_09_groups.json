@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "net_groups",
+  "spec": ["network-manager 7.2", "network-manager 16.9"],
+  "description": "A list with a power line, a subway S, a pipe P and a road R gives three tool calls in group order: type 0 (surface mask 0x1F4F) with [R], type 4 (pipe) with [P], type 7 (subway) with [S]; each tool is held, Init, DestroyOccupantsAndResolve, Shutdown, released. The power line is in no group and is not held. After PreCityShutdown the tools are null and the groups are skipped (choice).",
+  "steps": [
+    {"op": "net_occupant", "occupant": "0x40", "flags": ["road"], "cell": [1, 1]},
+    {"op": "net_occupant", "occupant": "0x41", "flags": ["pipe"], "cell": [1, 1]},
+    {"op": "net_occupant", "occupant": "0x42", "flags": ["subway"], "cell": [1, 1]},
+    {"op": "net_occupant", "occupant": "0x43", "flags": ["power_line"], "cell": [1, 1]},
+    {"op": "net_create"},
+    {"op": "net_init"},
+    {"op": "net_clear_events"},
+    {"op": "net_call", "method": "destroy_network_occupants", "args": [["0x43", "0x42", "0x41", "0x40"]]},
+    {"op": "net_expect_events", "events": [
+      {"event": "tool_init", "type": 0},
+      {"event": "destroy", "type": 0, "occupants": ["0x40"]},
+      {"event": "tool_shutdown", "type": 0},
+      {"event": "tool_init", "type": 4},
+      {"event": "destroy", "type": 4, "occupants": ["0x41"]},
+      {"event": "tool_shutdown", "type": 4},
+      {"event": "tool_init", "type": 7},
+      {"event": "destroy", "type": 7, "occupants": ["0x42"]},
+      {"event": "tool_shutdown", "type": 7}
+    ]},
+    {"op": "net_expect_refs", "refs": {"0x40": 1, "0x41": 1, "0x42": 1, "0x43": 0, "0x7000": 1, "0x7004": 1, "0x7007": 1}},
+    {"op": "net_message", "type": "PreCityShutdown"},
+    {"op": "net_call", "method": "destroy_network_occupants", "args": [["0x40"]]},
+    {"op": "net_expect_events", "events": []}
+  ]
+}

@@ -731,3 +731,46 @@ fn layouts() {
     assert_eq!(std::mem::size_of::<fc4_disaster_instance>(), 24);
     assert_eq!(std::mem::size_of::<fc4_riot_leader>(), 32);
 }
+
+#[test]
+fn mirror_tooling_ids_locations_and_locks() {
+    let f = fx();
+    let g = &f.g;
+    g.building(0x10, 5, 5);
+    for x in 0..64 {
+        g.roads.borrow_mut().insert((x, 20));
+    }
+    unsafe {
+        assert!(!fc4_disasters_set_mirror_random(std::ptr::null_mut()));
+        assert_eq!(fc4_disasters_fire_ids(std::ptr::null(), std::ptr::null_mut(), 0), 0);
+        assert_eq!(fc4_disasters_riot_locked(std::ptr::null(), std::ptr::null_mut(), 0), 0);
+        let mut loc = fc4_disaster_location::default();
+        assert!(!fc4_disasters_get_location(std::ptr::null(), 0, &mut loc));
+        assert!(fc4_disasters_init(f.d));
+        assert!(fc4_disasters_set_mirror_random(f.d));
+        // No fire instance yet: no IDs, and asking does not create it.
+        assert_eq!(fc4_disasters_fire_ids(f.d, std::ptr::null_mut(), 0), 0);
+        assert!(fc4_disasters_ignite(f.d, 0x10, false, 0, false));
+        let mut ids = [0u32; 2];
+        assert_eq!(fc4_disasters_fire_ids(f.d, ids.as_mut_ptr(), ids.len()), 1);
+        assert_eq!(ids[0], 0x8000_0001);
+        assert!(fc4_disasters_get_location(f.d, 0, &mut loc));
+        assert_eq!((loc.occupant, loc.x, loc.z), (0x10, 5, 5));
+        assert_eq!(loc.instance, fc4_disasters_fire_instance(f.d));
+        assert!(!fc4_disasters_get_location(f.d, 1, &mut loc));
+        assert!(!fc4_disasters_get_location(f.d, 0, std::ptr::null_mut()));
+
+        let id = fc4_disasters_attempt_start(f.d, RIOT, 10, 20);
+        assert_ne!(id, 0);
+        let n = fc4_disasters_riot_locked(f.d, std::ptr::null_mut(), 0);
+        assert_eq!(n, 7);
+        let mut locked = vec![0u64; n];
+        assert_eq!(fc4_disasters_riot_locked(f.d, locked.as_mut_ptr(), 3), 7);
+        assert_eq!(&locked[..3], &[0x7007, 0x7008, 0x7009]);
+        assert!(fc4_disasters_get_location(f.d, 1, &mut loc));
+        // The leader's entry: registered with (0, 0), resolved only while
+        // the host has the automaton in its occupant manager (this one not).
+        assert_eq!((loc.instance, loc.x, loc.z), (id, 0, 0));
+        assert_ne!(loc.occupant, 0);
+    }
+}
