@@ -114,6 +114,18 @@ the one-argument overload) on the city's simulator (city slot 50 `GetSimulator`;
 `0x00719807`–`0x00719821`). It then releases the strategy-bucket and other containers, the property holder and the
 ferry water pathfinder (its own `Shutdown` first), and returns true.
 
+*The traffic-source iterator in Shutdown* (TG26, `0x007196F8`–`0x00719765`; the iterator object is the member at
+`+0x908` of the simulator's primary base). If it exists: its connection list is cleared, releasing every connection
+reference of the snapshot (`0x00411D70`: `Release` on each element, then the node freed); the list's sentinel node is
+freed; the 16-byte iterator object is freed with allocator C; the member is set to null. This comes right after the
+simulator's own safe lot iterator is unregistered and freed (`+0x904`), and before the message unsubscriptions.
+*[quirk]* The **lot** safe iterator that the traffic-source iterator holds (its first field, zones.md §8.3.1) is
+neither unregistered nor freed here: it stays in the lot manager's registry until the lot manager itself goes. A
+later `Init` sees a null member and creates a new iterator (`0x0071F5FF`). The destructor does not touch the member;
+`Release` of the last reference calls `Shutdown` first (`0x0070E305`), which returns at once if the simulator was
+already shut down. On a city close the city's `Shutdown` runs the simulator's `Shutdown` (foundations.md, city close
+order), so the snapshot is released at the close, not when the simulator object is finally destroyed.
+
 ## 2. State
 
 The data model, by meaning (offsets are deliberately not part of it):
@@ -368,7 +380,7 @@ whole order (TS7):
 13. `days := lotCount div 18` (lot manager slot 16 `GetLotCount`, unsigned; **no** `max(1, …)`, so 0 with fewer than
     18 lots). `total`, `dayIndex` and `processed` keep their loaded values; §3.3's share test is skipped while
     `dayIndex ≥ days`.
-14. `UpdateMassTransitBudget`, then `UpdateRoadsBudget` (§4.9): the departments' monthly costs from the loaded cell
+14. `UpdateMassTransitBudget`, then `UpdateRoadsBudget` (§4.9.1): the departments' monthly costs from the loaded cell
     counts.
 
 ### 3.6 Network occupant bookkeeping: DoRoadChanged, DoRailChanged, DoSubwayChanged *[compat]*
@@ -390,7 +402,7 @@ An occupant with several of these types gets several calls (Avenue and Road: ste
 and Monorail 9 get no bookkeeping.
 
 `cells[t]` (t = 0…12, u32, saved in §6.1 row 18) are the per-network-type counts that `UpdateRoadsBudget` and
-`UpdateMassTransitBudget` (§4.9) price. `bump(t)` is `cells[t] += 1` on insert. On remove it is `cells[t] −= 1` only
+`UpdateMassTransitBudget` (§4.9.1) price. `bump(t)` is `cells[t] += 1` on insert. On remove it is `cells[t] −= 1` only
 if `cells[t] > 0`; at 0 it stays 0. At the end of every CreateMaps pass, `cells[t]` is replaced by the pass's count
 of network-info records of type `t` (§4.9; about two per road or street cell, bridges excluded). So these bumps hold
 only until the next pass.
@@ -479,7 +491,9 @@ DoPostCityInit resume (§3.5).
 
 - **Connections are a snapshot.** `Reset` has the neighbour simulator clear and refill the iterator's own list
   (`0x007107C2`). The list holds counted references (`cRZAutoRefCount`), so a connection removed during the phase
-  stays alive and is still visited, and one added during the phase is not.
+  stays alive and is still visited, and one added during the phase is not. The snapshot is released only in two
+  places (TG26): by the next `Reset` (the neighbour simulator's clear releases the old elements before it refills),
+  and by the simulator's `Shutdown` (below). `Read`, `Init` and the destructor never touch it.
 - **Lots are live.** The iterator walks the lot manager's master list through the manager's safe lot iterator
   (zones.md §8.2 slot 15; created once, at the first `Reset`, and rewound to the list's first node by every
   `Reset`). A lot removed before the iterator reaches it is skipped, because removal advances the safe iterator.
@@ -1189,9 +1203,9 @@ At the end of the pass (`0x0071A5D7`–`0x0071A701`):
    `cells[t] := records[t]` (u32). This replaces the running counts that the occupant messages keep between passes
    (§3.6). The bridge slot's `records[13]` is neither published nor a cell count, so bridge pieces are in no cell
    count after a pass. Road-like counts are about twice the cells. *[compat]*
-3. `UpdateRoadsBudget` (`0x0070D8A0`) and `UpdateMassTransitBudget` (`0x0070DA40`) set the departments' monthly
-   costs from these counts and the per-tile costs `0x6A84493E` (budget.md). Road line: Road + OneWayRoad. Street
-   line: Street. Highway line: Highway + GroundHighway. Avenue line: Avenue.
+3. `UpdateRoadsBudget` (`0x0070D8A0`), then `UpdateMassTransitBudget` (`0x0070DA40`) (call sites `0x0071A6FA`,
+   `0x0071A701`), every pass, whether or not a count changed. They set the departments' line items from these
+   counts and the per-tile costs `0x6A84493E`; the exact rule is §4.9.1.
 4. The accident-prone list is copied for the accident check.
 
 Corpus check (read-only, the eleven shipped saves with record version ≥ 37):
@@ -1205,6 +1219,97 @@ Corpus check (read-only, the eleven shipped saves with record version ≥ 37):
 population grid values (developer slot 15 `GetCellValue`, s16) at the cell for residential `0x1010, 0x1020,
 0x1030`, commercial `0x3110, 0x3120, 0x3130, 0x3320, 0x3330`, industrial `0x4100, 0x4200, 0x4300, 0x4400`:
 `r24(r24(r24(R × bg[0]) + r24(C × bg[1])) + r24(I × bg[2]))`, returned in ST0.
+
+#### 4.9.1 UpdateRoadsBudget and UpdateMassTransitBudget (TG23, re-answers21) *[compat]*
+
+Both functions price the per-network-type counts `cells[t]` (§3.6, replaced at every CreateMaps pass) with the
+per-tile costs `tileCost[t]` (property `0x6A84493E`, 13 floats indexed by network type, §4.14) and **set** (not add
+to) the full expenses of fixed line items of the simulator's own departments. They read nothing else, keep no
+"previous value", and have no early return: every call rewrites every line item below.
+
+**Pricing one type.** `price(t)` is a u32 computed with single-precision x87 arithmetic (24-bit rounding, as all
+simulation arithmetic):
+
+1. `n := cells[t]` loaded as an unsigned 32-bit value (a value at or above 2³¹ is corrected by adding 2³²).
+2. `p := r24(n × tileCost[t])`.
+3. `s := r24(p + 12582912.0)` (the f32 constant `0x4B400000`, 1.5 × 2²³), stored as an f32.
+4. `price(t) := bits(s) − 0x4B400000`, as a u32 (wrapping).
+
+For `0 ≤ p < 2²²` this is `p` rounded to the nearest integer, **ties to even** (0.5 → 0, 1.5 → 2, 2.5 → 2,
+10.5 → 10). Outside that range the bit pattern gives something else, which a replacement keeps *[compat]*: a
+negative tuned cost gives a negative integer read as a u32 (−3 → `0xFFFFFFFD`), and a product of 2²² or more no
+longer lands on an integer grid of 1. With the shipped costs a product of 2²² would need tens of millions of
+records, so normal play never leaves the exact range.
+
+**Combining two types.** A line item fed by two types gets `price(a) + price(b)` computed as an unsigned 64-bit
+sum of the two u32 values (the carry goes into the high word, `0x0070D91C`/`0x0070D91E`). A line item fed by one
+type gets that u32 zero-extended to 64 bits.
+
+**Writing.** For each line item, in the order of the tables below: `department.GetLineItem(i)`
+(cISC4DepartmentBudget slot 20, `+0x50`, `0x006AA500`, borrowed pointer or null), then
+`lineItem.SetFullExpenses(v)` (cISC4LineItem slot 12, `+0x30`, `0x006A9A00`; argument is the int64 `v`, pushed as
+two dwords). `SetFullExpenses` is budget.md §8: `full := v`, `current := trunc(v × department funding fraction)` for
+a non-local line, then the department's `0x08DAC3E8` notification, which is sent even when `v` equals the old value.
+`AddToFullExpenses` (slot 13) is **not** used.
+
+UpdateRoadsBudget (`0x0070D8A0`), roads department `0xC921CEEA`:
+
+| Order | Line item | Name (TG7) | `v` |
+|---|---|---|---|
+| 1 | 2 | `0x2A8446DA` | `price(0 Road) + price(10 OneWayRoad)` |
+| 2 | 1 | `0xEA8446BE` | `price(3 Street)` |
+| 3 | 3 | `0x2A8446DF` | `price(2 Highway) + price(12 GroundHighway)` |
+| 4 | 4 | `0xCBCE33D5` | `price(6 Avenue)` |
+
+No line item is null-checked: Init creates items 1–4 (§9.1 TG7), and the original would fault on a missing one. Roads
+items 5 (tolls, Income) and 6 are not touched.
+
+UpdateMassTransitBudget (`0x0070DA40`), mass transit department `0xC921CEEB`:
+
+| Order | Line item | Name (TG7) | `v` |
+|---|---|---|---|
+| 1 | 3 | `0x6A8B0CFB` | `price(1 Rail)` |
+| 2 | 4 | `0x2AB7EA93` | `price(7 Subway)` |
+| 3 | 5 | `0x8BCE33E0` | `price(8 LightRail)` |
+| 4 | 6 | `0x8BCE33E1` | `price(9 Monorail)` |
+
+Item 3 alone is null-checked: when `GetLineItem(3)` returns null, it is created on the spot with
+`CreateLineItem(3, false)` (slot 17, `+0x44`) and named `SetName(0x6A3FF01C, 0x6A8B0CFB)` (`0x0070DA8A`–
+`0x0070DAAA`), then priced. Items 4–6 are not checked. Items 1 (`0xEA5F96E7`) and 2 (the Income line `0x8A5F978C`)
+are not touched. The types 4, 5 and 11 (DirtRoad) are priced by neither function.
+
+**Callers** (every direct call in the executable, found by a scan for calls to the two addresses):
+
+| Caller | Calls |
+|---|---|
+| DoRoadChanged (§3.6, `0x00715630`) | UpdateRoadsBudget, after `bump(t)`, on every insert and remove of a counted road type, highways included |
+| DoRailChanged (§3.6, `0x00715927`) | UpdateMassTransitBudget, level crossings included |
+| DoSubwayChanged (§3.6, `0x0070EA85` insert, `0x0070EA9E` remove) | UpdateMassTransitBudget |
+| CreateMaps (§4.9 step 3, `0x0071A6FA`, `0x0071A701`) | UpdateRoadsBudget, then UpdateMassTransitBudget |
+| DoPostCityInit (§3.5 step 14, `0x00720E06`, `0x00720E0D`) | UpdateMassTransitBudget, then UpdateRoadsBudget |
+
+So after a load the departments' saved full expenses are overwritten at PostCityInit from the saved cell counts and
+the current tuning, and afterwards they follow every road, rail or subway piece placed or removed and every
+CreateMaps pass.
+
+Worked example (shipped costs `0.1, 0.03, 0.5, 0.05, 0, 0, 0.15, 0.3, 0.2, 0.3, 0.1, 0, 0.5`). Counts Road 538,
+OneWayRoad 10, Street 458, Highway 100, GroundHighway 21, Avenue 37, Rail 143, Subway 60, LightRail 7, Monorail 3:
+
+| Type | `p` | `price` |
+|---|---|---|
+| Road 538 | 53.799999 | 54 |
+| OneWayRoad 10 | 1.0 | 1 |
+| Street 458 | 22.9 | 23 |
+| Highway 100 | 50.0 | 50 |
+| GroundHighway 21 | 10.5 | 10 (tie to even) |
+| Avenue 37 | 5.55 | 6 |
+| Rail 143 | 4.29 | 4 |
+| Subway 60 | 18.0 | 18 |
+| LightRail 7 | 1.4 | 1 |
+| Monorail 3 | 0.90000004 | 1 |
+
+Roads: item 2 := 55, item 1 := 23, item 3 := 60, item 4 := 6. Mass transit: item 3 := 4, item 4 := 18, item 5 := 1,
+item 6 := 1.
 
 ### 4.10 CreateFinalMap (state 4, `0x0070F460`)
 
@@ -1775,7 +1880,7 @@ money or trips, so a replacement that leaves it out differs from the original in
 | The paired portal of `cSC4NetworkTunnelOccupant` (a member of the concrete class) | traffic-network §4.8 | tunnel records; with no pair no record is made and the tunnel carries no trips |
 | The lot's own strategy byte (`cSC4Lot` + `0x88`, that is traffic source + `0x6C`, read at `0x006C2986`; no interface getter) | §4.1.1 | which single strategy a residential lot with fewer than 50 commuters uses; only needed when the replacement computes the lots' trip targets itself instead of calling the lot's own `UpdateTrafficVolume` (traffic source slot 4) |
 | The neighbour connection's volume-dirty byte (connection + `0x40`), tested and cleared | §4.1.4 (neighbors.md NG8) | the trip reconcile of a neighbour connection: it runs **once per connection object** (after creation, or after the load that created it). Treating the flag as always clear means no neighbour trips; treating it as always set re-syncs a connection whose other side was missing at its first sync, which the original never does |
-| The roads and mass-transit departments' monthly cost update (`UpdateRoadsBudget` `0x0070D8A0`, `UpdateMassTransitBudget` `0x0070DA40`) and the monthly funding reads (`ApplyRoadFunding`, `ApplyMassTransitFunding`, `UpdateStrikes`) | §3.5 step 14, §3.6, §4.9 step 3, §4.12 | the transport line items of the city budget, potholes and strikes |
+| The roads and mass-transit departments' cost update (`UpdateRoadsBudget` `0x0070D8A0`, `UpdateMassTransitBudget` `0x0070DA40`; exact rule §4.9.1, TG23) and the monthly funding reads (`ApplyRoadFunding`, `ApplyMassTransitFunding`, `UpdateStrikes`) | §3.5 step 14, §3.6, §4.9 step 3, §4.9.1, §4.12 | the transport line items of the city budget, potholes and strikes |
 
 Not needed for the simulation:
 
@@ -1890,6 +1995,26 @@ share `total/days` plus the overshoot of the last 4 ms slice, so the per-day cos
 the slice length; N changes only the overshoot. 16 is accepted; the turbo cost against a city without traffic is
 the cost of the share, which the original pays too.
 
+**TG23, the network cost update** (re-answers21). §4.9.1 gives the exact rule: SetFullExpenses (slot 12), never
+AddToFullExpenses, on roads items 2, 1, 3, 4 and mass transit items 3, 4, 5, 6, with the count × tile cost rounded to
+nearest, ties to even, and called unconditionally from five places (every road, rail and subway insert or remove,
+every CreateMaps pass, and PostCityInit). Leaving the update out (the line items keep the expenses they were loaded
+with) **differs**: in the original the budget window's road and transit maintenance follow the network within the
+same day, and a city whose tuning changed is re-priced at PostCityInit.
+
+**TG24, path info.** traffic-network.md §4.4 and §7.3 give the slots, arguments, return values and containers. The
+path info returned by occupant slot 49 is **borrowed** (the occupant's cached member, returned without `AddRef`;
+neither caller releases it). The turn-around test (slot 4) tests the whole of EAX: slot 4 returns a path pointer or
+null, not a bool. Leaving lane continuity out **differs** next to occupants with network flags in `0x1F4F`.
+
+**TG25, the paired portal.** The member at `+0x1D0` of `cSC4NetworkTunnelOccupant`, a counted reference to the
+other portal (traffic-network.md §4.8). Leaving it out **differs**: no tunnel record, so tunnels carry no trips.
+
+**TG26, the connection snapshot.** Released by the next `Reset` and by `Shutdown` (§1, §4.1); `Read` never touches
+it. In the original a `Read` always comes before the `Init` that creates the iterator, so there is no snapshot to
+release at `Read` time; releasing at a `Read` into a live simulator is a glue choice for a case the original never
+reaches, and is accepted.
+
 ## 10. Quirks and open questions
 
 Quirks reproduced: strategy byte 0 always picks strategy 0; percentage splits can lose or gain commuters; the
@@ -1903,8 +2028,9 @@ never read.
 
 Open questions:
 
-* **Q1** `UpdateStrikes`, `ApplyRoad/MassTransitFunding` and `UpdateRoads/MassTransitBudget` were not traced line
-  by line *[inferred]*; their observable outputs (strike state, department costs) need differential tests.
+* **Q1** `UpdateStrikes` and `ApplyRoad/MassTransitFunding` were not traced line by line *[inferred]*; their
+  observable outputs (strike state, potholes) need differential tests. *`UpdateRoads/MassTransitBudget` answered*
+  (re-answers21, TG23): §4.9.1.
   (`DoLotDeactivated` is traced in §4.1.3, TS23.)
 * **Q2** The meaning of the slot-59 lot link and of zones 8/9 in FinishTripMap (§4.7).
 * **Q3** *Answered* (§5): `0x0C05E4C3`, data1 = x, data2 = z, posted queued, no compiled receiver; rail accidents
@@ -2002,6 +2128,17 @@ Shipped tuning unless stated. Exact values are float32 bit patterns where given.
 15. **Save round trip.** Write then Read of a fresh simulator gives the same bytes; the header is
     `29 00 0D 00 00 00 01 00 00 00 0D 00 00 00 09 00 00 00`; a trip record with empty routes is
     `02 00 00 00 | 00 00 00 00 | 00 00 00 00 | count | type strategy flags status | destX destZ | length | mask`.
+16. **Network cost update** (§4.9.1, TG23). Shipped tile costs, counts as the §4.9.1 worked example: after
+    `UpdateRoadsBudget` the roads department's full expenses are item 1 = 23, item 2 = 55, item 3 = 60, item 4 = 6
+    (items 5 and 6 unchanged); after `UpdateMassTransitBudget` the mass transit items 3–6 are 4, 18, 1, 1 (items 1 and
+    2 unchanged). Ties: Street counts 10, 30, 50 give item 1 = 0, 2, 2; Street 15 and 25 give 1 and 1. Calling either
+    function twice with the same counts leaves the same values (set, not added) and sends the department's
+    `0x08DAC3E8` notification once per line item per call. With mass transit item 3 deleted beforehand, the call
+    re-creates it as an Expense line named `0x6A3FF01C`/`0x6A8B0CFB` with full expenses `price(Rail)`.
+17. **Snapshot release** (§1 Shutdown, TG26). Two neighbour connections, enter state 16 (`Reset` takes the snapshot:
+    each connection's reference count rises by 1). Remove one connection from the neighbour simulator: its count
+    stays raised and `GetNext` still yields it. `Shutdown`: both counts drop by 1. A `Read` between the `Reset` and
+    the `Shutdown` changes neither count.
 
 ## 12. Calibration (counters for the observer in the original)
 
