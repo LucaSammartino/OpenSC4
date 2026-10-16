@@ -4509,8 +4509,14 @@ above. The spec's tentative answer is in brackets.
   vector resize); tool `+0x2B0` = p+0x20.
 - **NB2 (bridges):** the suspension profile (`0x0062E690`), the cable plotting (`0x00630F70`) and
   `AddSuspendedBridgeStructures` (`0x0062DF30`) in detail. [drawing only *[inferred]*]
-- **NB3 (bridges):** the occupant position height used as the column top in `InsertBridgePiece` (network-bridges.md
-  §11.3). [the piece's model height Y *[inferred]*]
+- ~~**NB3 (bridges):** the occupant position height used as the column top in `InsertBridgePiece` (network-bridges.md
+  §11.3). [the piece's model height Y *[inferred]*]~~ **ANSWERED 2026-10-16 (re-answers26):** **DIFFERS**
+  (network-bridges.md §11.2 step 2, §11.3 step 2). The position is the network occupant's (`0x006193D0`, reached
+  through `GetPosition` `0x00604E40` → primary slot 75): x, z = the mean of its four corner points, height = the
+  **highest** of the four corner heights, which `CreateNetworkOccupant` took from the cell info, i.e. the piece's
+  corners (§8.3). The exemplar's model offset `dy = Y − height` puts the model's origin at `Y`, but the column top is
+  `highest corner − depth`. They differ by `+0xD4` (deck), `+0xD4 + +0xC4` (pier), `+0xD4 − b_u` (ramp u) or
+  `P.Y + +0xD4 − max(h[k], h[k+1])` (specialised); 0 for the shipped road parametric pieces.
 
 ## From the network rules spec (re-specs17b lane, 2026-10-16)
 

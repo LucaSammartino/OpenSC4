@@ -753,9 +753,17 @@ cell's info (key `(z << 16) + x`; it must exist), set its byte `+0x51 := 1` (a b
 ### 11.2 InsertBridgePiece (`0x0062EEB0`)
 
 1. Create the occupant with `CreateNetworkOccupant` (slot 54, network-geometry.md §10.1), class `0x49CC1BCD` (the
-   bridge occupant).
-2. Set its exemplar with the piece and rotation (`0x00624860`), with the model offset `dy := Y − ` the occupant's
-   height, then occupant slot 30.
+   bridge occupant). Slot 54 gives the occupant the cell's four corner points, in the cell info corner order:
+   `(x·s, c0, z·s)`, `(x·s, c1, z·s + s)`, `(x·s + s, c2, z·s + s)`, `(x·s + s, c3, z·s)`, with `s` the cell size
+   and `c0`–`c3` the cell info's corner heights `+0x58`. For a bridge cell those are its piece's corners (§8.3):
+   slot 55 rewrites the corners of solved cells only, and bridge cells are not solved cells. (Occupant slot 3,
+   `0x00619050`, stores them.)
+2. Read the occupant's **position** (network occupant slot 48 gives its occupant interface, whose `GetPosition`,
+   `0x00604E40`, forwards to primary slot 75, `0x006193D0`): x and z are the means of the four corner points' x and z
+   (summed in corner order, then × 0.25), and the **height is the highest of the four corner heights** (a corner
+   replaces the running value, which starts at −FLT_MAX, only when strictly greater). Set the exemplar with the piece
+   and rotation (`0x00624860`) and the model offset `(0, dy, 0)`, `dy := r24(Y − height)`, so that the model's origin
+   is at `Y`; then occupant slot 30.
 3. Flags: clear `0x2000000` and `0x4000000`, set `0x8000000`. If the occupant is usable (`0x10000000`), clear
    `0x4000`, else set it (network-manager.md §5).
 4. If the piece's exemplar lacks property `0xABE1B5A3`: occupant slot 68 `:=` the lowest corner of the cell
@@ -767,8 +775,10 @@ A piece's depth is how far its own model reaches below the occupant's origin. A 
 the gap between the bottom of the model and the ground (`0x0062F012`–`0x0062F378`):
 
 1. Nothing when the depth is < 0.
-2. `top :=` the occupant's position height (occupant query `0x0062F02C`–`0x0062F03B`) `− depth` *[inferred: the
-   position height is the piece's model height Y]*.
+2. `top := r24(height − depth)`, where `height` is the occupant's position height read again
+   (`0x0062F02C`–`0x0062F03B`): the **highest corner** of the piece (§11.2 step 2), not its model height `Y`
+   *[compat]*. Nothing between the two reads moves the corners: the exemplar call and slot 30 change the model
+   offset and rotation only.
 3. `bottom :=` the lowest of the terrain altitudes (slot 12) at the cell info's four vertex ids.
 4. If `top < bottom`, the model already reaches the ground: no column.
 5. The column's four corners are the footprint `+0x8C` for a pier piece (kind 1), else `+0x80`, in the variant for the
@@ -779,6 +789,19 @@ the gap between the bottom of the model and the ground (`0x0062F012`–`0x0062F3
 
 So the road level bridge's pier centre (depth 498) and first ramp (depth 256) get a column only where the ground is
 more than 498 m or 256 m below them; the pieces with depth −1 never get one.
+
+The column top and the model's origin differ by `Y − height`:
+
+| Piece | `Y` (§9.3, §10.3) | `height` (highest corner) | `Y − height` |
+|---|---|---|---|
+| parametric deck | `elev + +0xD4` | `elev` | `+0xD4` |
+| parametric pier | `elev + +0xD4 + +0xC4` | `elev` | `+0xD4 + +0xC4` |
+| parametric ramp `u` (drops decreasing inward) | `elev − +0x6C[u] + +0xD4` | `elev − +0x60[u + 1]` | `+0xD4 − b_u` (§2.4) |
+| specialised | `elev + P.Y + +0xD4` | `elev + max(h[k], h[k + 1])` | `P.Y + +0xD4 − max(h[k], h[k + 1])` |
+
+(each sum rounded as in §9.3 and §10.3). For the shipped road types, which set neither `+0xD4` nor `+0xC4` and whose
+ramp pairs have `b` = 0, the parametric rows give 0 *[inferred: an absent property leaves 0]*. The ground highway's
+types (`+0xD4` = −15.5) measure the column top from a point 15.5 m above the model's origin.
 
 ### 11.4 Suspension and cables
 
@@ -823,6 +846,8 @@ its steps regular, and the height solver then treats them as ordinary terrain.
   `0x482CB44F`, land); every shipped type sets the property, so there is no shipped effect. The pass itself: §7.
 - **NB1** (§16, answered 2026-10-16, re-answers26): §8.3, with the solver side in network-geometry.md §9.8. There was
   no implemented answer to compare.
+- **NB3** (§16, answered 2026-10-16, re-answers26): §11.2 step 2 and §11.3 step 2. **DIFFERS** from the inference:
+  the position height is the highest of the piece's four corners, not `Y`.
 
 ## 15. Quirks (summary)
 
@@ -851,8 +876,11 @@ its steps regular, and the height solver then treats them as ordinary terrain.
   (network-geometry.md §9.8, new), which runs in step 2 of each `SmoothenNetwork` level.
 - **NB2.** The suspension profile (`0x0062E690`), the cable plotting (`0x00630F70`) and `AddSuspendedBridgeStructures`
   in detail. Drawing only *[inferred]*.
-- **NB3.** The occupant position height used for the column top (§11.3): inferred to be the piece's model height Y
-  set in §11.2, not checked.
+- ~~**NB3.** The occupant position height used for the column top (§11.3): inferred to be the piece's model height Y
+  set in §11.2, not checked.~~ **ANSWERED 2026-10-16 (re-answers26):** **DIFFERS.** It is the network occupant's
+  position height (`0x006193D0`), the highest of the four corner heights that `CreateNetworkOccupant` gave the
+  occupant, which for a bridge cell are its piece's corners (§8.3). The model offset makes the model's origin `Y`,
+  but the column top is `highest corner − depth` (§11.2, §11.3).
 
 ## 17. Conformance tests
 
@@ -942,3 +970,9 @@ surface level (slot 18) is the water level. Unless stated, the banks are flat an
     ranges [250, 250], [250, 260], [250, 268]. After it the plane falls from 270 at x = 19 (step 19's trailing edge) to
     250 at x = 31: at x = 20, `h` ≈ 268.33334, allowed ≈ [233.33334, 303.33334], preferred ≈ [250, 268.33334]; at x = 25,
     [225, 295]; at x = 31, [215, 285].
+28. **Column top** (§11.2, §11.3). A test bridge type like road key 1 but with `+0xD4` = 10 and `+0xC4` = 5, deck
+    `elev` = 270, over dry ground at 0 m: a pier centre piece (depth 498) has its four corners at 270, so its position
+    height is 270 and `dy` = 285 − 270 = 15 (the model's origin is at `Y` = 285); its column top is 270 − 498 = −228,
+    below the ground, so no column. With depth 200: top 70, a column from 0 up to 70 (not 85). A road key 2 ramp
+    piece `u` = 0 (corners `elev − 36.652` outside and `elev − 34.905` inside): position height `elev − 34.905`; with
+    depth 100 the column top is `elev − 134.905`.
