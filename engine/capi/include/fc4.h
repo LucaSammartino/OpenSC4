@@ -7791,7 +7791,7 @@ typedef struct fc4_netmgr_host {
     uint64_t (*tool_cell_info)(void* user, uint64_t tool, uint32_t packed_cell); /* (z << 16) + x */
     void (*tool_reinsert_piece)(void* user, uint64_t tool, uint64_t info);
     /* network occupants */
-    uint64_t (*query_network_occupant)(void* user, uint64_t occupant); /* borrowed; 0 = not one */
+    uint64_t (*query_network_occupant)(void* user, uint64_t occupant); /* one reference for the core; 0 = not one */
     bool (*is_network_occupant)(void* user, uint64_t occupant);
     uint32_t (*network_flags)(void* user, uint64_t n);
     bool (*is_of_type)(void* user, uint64_t n, uint32_t network_type);
@@ -7883,7 +7883,7 @@ typedef struct fc4_netlot_host {
     void (*release)(void* user, uint64_t token);
     uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid); /* one reference held; 0 = none */
     /* network occupants */
-    uint64_t (*query_network_occupant)(void* user, uint64_t unknown); /* borrowed; 0 = not one */
+    uint64_t (*query_network_occupant)(void* user, uint64_t unknown); /* one reference for the core; 0 = not one */
     uint32_t (*network_flags)(void* user, uint64_t n);
     uint32_t (*piece_id)(void* user, uint64_t n);
     int32_t (*rotation)(void* user, uint64_t n);
@@ -7911,7 +7911,7 @@ typedef struct fc4_netlot_host {
     bool (*lot_is_livable)(void* user, uint64_t lot);
     uint32_t (*lot_building_type)(void* user, uint64_t lot);
     bool (*building_profile_wealth)(void* user, uint32_t building_type, int32_t* wealth);
-    uint64_t (*query_lot)(void* user, uint64_t unknown); /* borrowed; 0 = not a lot */
+    uint64_t (*query_lot)(void* user, uint64_t unknown); /* one reference for the core; 0 = not a lot */
     void (*lot_bounding_rect)(void* user, uint64_t lot, fc4_cell_rect* out);
     float (*area_slope)(void* user, int32_t x, int32_t z);
     /* street props and flora (§8.6); a position is float[3] (x, y, z) */

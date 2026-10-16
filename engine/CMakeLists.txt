@@ -305,6 +305,11 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4ZoneDevHost.cpp
         plugin/FC4ZoneDevShadow.cpp
         plugin/FC4ZoneDevShadow.h
+        # The network manager and network lot manager (network-manager.md): netmgr_shadow.
+        plugin/FC4NetMgrHost.cpp
+        plugin/FC4NetMgrHost.h
+        plugin/FC4NetMgrShadow.cpp
+        plugin/FC4NetMgrShadow.h
         # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h
         plugin/FC4Turbo.cpp

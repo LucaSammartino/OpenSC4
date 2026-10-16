@@ -18,6 +18,7 @@
 #include "FC4HarnessLogic.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4NetMgrShadow.h"
 #include "FC4Observer.h"
 #include "FC4Turbo.h"
 #include "FC4Watchdog.h"
@@ -214,7 +215,10 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
             digest = true;
             break;
         case ScriptOp::Mark: result = "marked"; break;
-        case ScriptOp::Save: result = RunSave(a, city); break;
+        case ScriptOp::Save:
+            NetMgrShadowBeforeSave(city, julian);  // netmgr_shadow = 1 only: the records the save writes
+            result = RunSave(a, city);
+            break;
     }
     std::string late;
     if (julian != a.julian) late = " (run on " + harness::FormatDate(harness::CivilFromJulian(julian)) + ")";
