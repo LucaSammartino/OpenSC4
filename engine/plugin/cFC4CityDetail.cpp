@@ -376,7 +376,7 @@ bool cFC4CityDetailManager::Init() {
              "(lot order: %s)",
              ctx_.settingRead, static_cast<int>(before), static_cast<int>(st.level),
              st.last_pass < 3 ? kPass[st.last_pass] : "?", st.last_removed, st.last_created, st.last_draws,
-             st.last_network_lots, ctx_.lotsOrdered ? "the lot list" : "GetLotsInCellRect (question CD6)");
+             st.last_network_lots, ctx_.lotsOrdered ? "the lot list" : "GetLotsInCellRect, not the spec's list order");
     return true;  // §3.1
 }
 

@@ -233,7 +233,7 @@ std::vector<cISC4Lot*> AllLots(cISC4City* city, cISC4LotManager* sdkLm, CallPool
     }
     NoteOnce(fallbackNoted,
              "propcity: the lot manager's list is not walked raw (%s); the lots of GetLotsInCellRect are used "
-             "instead (lot order: question CD6)",
+             "instead (not the list order of city-detail.md §3.2)",
              why != nullptr ? why : "?");
     out.clear();
     if (city == nullptr || !StlNodeAllocator::Available()) return out;

@@ -93,7 +93,7 @@ constexpr uint32_t kMsgLotState = 0xE8BDA2E7;
 // The animation-tick manager (lot-developer.md §6.7.8).
 constexpr uint32_t kTickPriority = 0xC0;
 // The renderer's slot 9 GetLightingManager (docs/abi/vtables.tsv
-// cSC43DRender::vftable slot 9, medium confidence; question PV14).
+// cSC43DRender::vftable slot 9, medium confidence; question PV15).
 class cFC4PropRender : public cIGZUnknown {
 public:
     virtual bool Init() = 0;                         // 3
@@ -454,7 +454,7 @@ bool PropTypeValid(void*, uint32_t id) {
 }
 
 // Slot 9 GetPropTypesByFamily(vector, family). [abi inferred] (question
-// PV15) a std::vector<uint32_t> with allocator B, as the game's vector
+// PV14) a std::vector<uint32_t> with allocator B, as the game's vector
 // out-parameters are (allocators.md: the rule of thumb; this method is not
 // in its table).
 void PropsByFamily(void*, uint32_t family, fc4_u32s_sink sink, void* ctx) {
@@ -689,7 +689,7 @@ void ReadNight(void* p) {
     r->read = true;
 }
 
-// §3.3 PostCityInit: the lighting manager's slot 9. [choice] (question PV14)
+// §3.3 PostCityInit: the lighting manager's slot 9. [choice] (question PV15)
 // Reached through the city view's renderer (slot 9); false without a view.
 bool LightingIsNight(void*) {
     cISC4View3DWin* v = fc4::propcity::View3D();
@@ -700,7 +700,7 @@ bool LightingIsNight(void*) {
     static bool noted = false;
     if (!r.read && !noted) {
         noted = true;
-        fc4::Log("propdev: the lighting manager could not be read; IsNight reads as false (question PV14)");
+        fc4::Log("propdev: the lighting manager could not be read; IsNight reads as false (question PV15)");
     }
     return r.night;
 }

@@ -83,6 +83,8 @@ over the core types); these four go through the C ABI with the `fc4-capi` test h
 | industrial (§8.2) | `0xA990C022` | byte-identical |
 | civic (civic-buildings §7, §12 test 10) | `0x0A413481` | the record with each multi-entry bucket chain reversed (CB6), and byte-identical after a second round trip |
 | parks (parks §7, §12 test 8) | `0xAA3FE6BC` | byte-identical |
+| prop developer (prop-developer §7; `capi/src/prop_city_sweep_tests.rs`) | `0x89C48F47` | version 5 byte-identical; version 4 written as version 5 (version 4 -> 5, `01 00000000` appended) and byte-identical after a second trip |
+| city detail (city-detail §4; the same file) | `0xEAD4BA36` | byte-identical |
 
 ```sh
 cd engine
@@ -95,6 +97,12 @@ failures=…; sizes: …` and the first failures. Result on SimCity 4 Deluxe (GO
 distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 bytes), civic 417/417 identical and
 417 identical after a second trip (no save has a bucket with two entries; 3,821 to 5,305 bytes), parks 417/417
 (10 bytes ×411, 18, 34, 58, 82).
+
+The prop developer and city detail records have their own test (`cargo test -p fc4-capi --release
+prop_city_save_sweep -- --nocapture`), printing `save sweep propdev|citydetail: records=… identical=…
+v4-written-as-v5=… second-trip-identical=… failures=…`. Result, 2026-10-16: 417 saves; prop developer 417 records,
+10 version 5 identical and 407 version 4 (122 bytes) written as version 5, all identical after a second trip; city
+detail 14 records (8 bytes, 403 saves have none), all identical.
 
 ## Installing and checking in game
 
@@ -501,6 +509,22 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
        The log has `parks Init|Read|Shutdown: ok=… init=… parks=… zoos=… threshold=… curve=… dept=… latch=… …`,
        `parks Write -> 0|1 (…)` and one `parks month yyyy-mm-dd: parks=… zoos=… funding=… latch=… lot-writes=…
        escapes=… occupants=…` line per SimNewMonth.
+     - `propdev`: the prop developer (`cSC4PropDeveloper`, CLSID `0x89C48F47`, city component 10;
+       prop-developer spec) and its wealth requester (`cSC4WealthRequester`, class `0x89C49986`, resolved from
+       saved records): the Idle and Day agents (the block step), the 13 subscriptions of §3.1, the animation tick
+       (priority `0xC0`, the night batches), the requesters (wealth answered by the core, crime and pollution
+       held), the night, time-of-day, dated, power, trigger and sign lists, and the record (version 5; a version-4
+       record is read and written back as 5). The lighting manager's IsNight is read through the city view's
+       renderer (slot 9; question PV15). `propdev_seed = N` (env `FC4_PROPDEV_SEED`) fixes the session seed of the
+       member and wealth generators, else the session seed. The log has `propdev Init|Read|Shutdown|Write -> 0|1:
+       ok=… scan=… scanner=(…) wealthAdded=… requesters=… night=… …` and one `propdev month yyyy-mm-dd: blocks=…
+       (idle …, day …) removed=… created=… posts=… …` line per SimNewMonth.
+     - `citydetail`: the city detail manager (`cSC4CityDetailManager`, CLSID `0xEAD4BA36`, city component 51;
+       city-detail spec): Init's reduce / increase pass over every lot (the lot list's order) and
+       every network lot (IterateAllNetworkLots' callback answers true, question CD6), slot 5 and the record (version 0, 8 bytes). The setting is the preferences byte
+       (`videoPreferences.cityDetail`, default 3). `citydetail_seed = N` (env `FC4_CITYDETAIL_SEED`) fixes the
+       session seed of the pass generator. The log has `citydetail Init: setting=… level a->b pass=none|reduce|increase
+       removed=… created=… draws=… network-lots=…` and `citydetail Read|Write -> 0|1 (level …)`.
      - `zonedev`: the zone developer / lot manager (`cSC4ZoneDeveloper`, CLSID `0x498F9B01`; zones.md §1-§11),
        one object with the original's four interfaces at its offsets (`cISC4ZoneDeveloper` +0, `cISC4LotManager`
        +4 in the compiled slot order of §11.3, `cIGZMessageTarget2` +8, `cIGZSerializable` +0xC; city components 7
@@ -1554,6 +1578,41 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      ```
 
      Success is `mismatches=0` on every line.
+   - **Prop developer shadow** (`propdev_shadow = 1`, env `FC4_PROPDEV_SHADOW`; off by default;
+     `plugin/FC4PropDevShadow.h`): a same-process differential of the prop developer. It needs FreeCity4's
+     simulator and the **original** prop developer (do not enable `propdev`). At the first Idle or Day delivery to
+     the original's agent a shadow core with a read-only host reads the original's record (its own Write) and
+     inits; a listener follows the 13 messages of §3.1 and the animation tick for it. Every block step of the
+     original is wrapped: ours steps first (its removals and creations recorded, not made; a crime keep check
+     is answered without calling the crime simulator, certain only for a prop with crime incident ID 0), the
+     block's props are listed, the original steps, and the scan flag and scanner (raw +0x14 / +0x18, only while
+     the object's vtable lies in the identified executable and its class is `0x89C48F47`) are compared with ours;
+     when every keep check was certain, the number of props the original removed from the block must equal ours,
+     and every prop ours did not keep must be among them. Which kept prop the member generator removes and the
+     creations are not compared (member and wealth generators). At each SimNewMonth the original's record is read
+     into a second core and compared with ours (scan flag, scanner, wealthAdded, night state, requesters in order,
+     the night list as a set, the time-of-day, dated, power and sign lists in order, the trigger map); a
+     difference resyncs ours. Lines (always written):
+
+     ```
+     propdev shadow: ON (propdev_shadow from …): …                                              (game start)
+     propdev shadow: following the original prop developer … (agent …, class 0x89C48F47, raw scanner readable)
+     propdev shadow month yyyy-mm-dd: followed=yes|first|resynced steps=… blocks=… certain=… raw-compared=…
+       removed orig/ours a/b (not kept k) created orig/ours c/d (not compared) messages=… ticks=…
+       message-removals=…; record: scan=… scanner=(…) requesters=… night=… …; mismatches=N[; differences: …]
+     propdev shadow: city shutdown: N month lines, M with mismatches=0
+     ```
+
+     Success is `mismatches=0` on every line.
+   - **City detail shadow** (`citydetail_shadow = 1`, env `FC4_CITYDETAIL_SHADOW`; off by default;
+     `plugin/FC4CityDetailShadow.h`): needs the **original** class (do not enable `citydetail`). The city's own
+     instance is not reachable, so at each PostCityInit a fresh original object (GZCOM class `0xEAD4BA36`) and a
+     fresh core (read-only host) go through the same inputs that leave the city alone: a fresh Init, a Read of the
+     current setting's record then Init, a Read of the none record then Init, and a version-1 record (both must
+     refuse it); Read's result, slot 5 and the written record are compared. The other levels would run a pass on
+     the original, so only ours runs them with a recording host and the line gives what its pass would do. Line:
+     `citydetail shadow load yyyy-mm-dd: setting=… fresh=… read-same=… read-none=… read-v1=…; dry runs: …;
+     mismatches=N[; differences: …]`.
    - **Zone developer shadow** (`zonedev_shadow = 1`, env `FC4_ZONEDEV_SHADOW`; off by default;
      `plugin/FC4ZoneDevShadow.h`): a same-process differential of the lot manager. It needs the **original** zone
      developer (do not enable `zonedev`); otherwise it logs `zonedev shadow: requested … but INACTIVE`. At
