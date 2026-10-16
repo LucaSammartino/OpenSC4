@@ -367,8 +367,7 @@ impl NetworkManagerHost for World {
         self.occ(occupant).map_or(occupant, |o| o.creation)
     }
     fn remove_occupant(&self, occupant: u64) -> bool {
-        self.events
-            .push("remove_occupant", vec![("occupant", tok(occupant))]);
+        self.events.push("remove_occupant", vec![("occupant", tok(occupant))]);
         self.occ(occupant).is_some_and(|o| o.removable)
     }
     fn occupants_in_rect(&self, rect: CellRect, mask: u32) -> Vec<u64> {
@@ -579,10 +578,8 @@ impl NetworkLotHost for World {
     }
     fn add_flora(&self, id: u32, pos: Position) -> Option<u64> {
         let t = self.new_object();
-        self.events.push(
-            "flora",
-            vec![("id", ji(id)), ("pos", pos_json(pos)), ("token", tok(t))],
-        );
+        self.events
+            .push("flora", vec![("id", ji(id)), ("pos", pos_json(pos)), ("token", tok(t))]);
         Some(t)
     }
     fn flora_slot28(&self, flora: u64, index: u32) {
@@ -971,7 +968,12 @@ fn lot(w: &World, op: &Json) -> R<()> {
         (Some(r), _) => rect_of(r, "rect")?,
         (None, Some(c)) => {
             let (x, z) = cell_of(c, "cell")?;
-            CellRect { x1: x, z1: z, x2: x, z2: z }
+            CellRect {
+                x1: x,
+                z1: z,
+                x2: x,
+                z2: z,
+            }
         }
         _ => return Err("a lot needs 'rect' or 'cell'".into()),
     };
@@ -1208,10 +1210,7 @@ fn lot_json(cell: (i32, i32), l: &LotEntry) -> Json {
     Json::Object(vec![
         ("cell".into(), cell_json(cell.0, cell.1)),
         ("occupant".into(), l.occupant.map_or(Json::Null, tok)),
-        (
-            "config".into(),
-            l.config.as_ref().map_or(Json::Null, |c| ji(c.id)),
-        ),
+        ("config".into(), l.config.as_ref().map_or(Json::Null, |c| ji(c.id))),
         ("config_id".into(), ji(l.config_id)),
         ("locked".into(), Json::Bool(l.locked)),
     ])
@@ -1291,7 +1290,10 @@ fn call(w: &World, op: &Json) -> R<()> {
         "is_lot_compatible" => {
             // [config id, x, z, zone, wealth, rotation, flip]
             let c = config_by_id(w, au(0)?)?;
-            Json::Bool(w.lots()?.is_lot_compatible(&c, ai(1)?, ai(2)?, ai(3)?, ai(4)?, ai(5)?, ai(6)?))
+            Json::Bool(
+                w.lots()?
+                    .is_lot_compatible(&c, ai(1)?, ai(2)?, ai(3)?, ai(4)?, ai(5)?, ai(6)?),
+            )
         }
         "object_position" => {
             // [[x, z], rotation, flipped, o, [ox, oy, oz]]
@@ -1315,7 +1317,8 @@ fn call(w: &World, op: &Json) -> R<()> {
             Json::Null
         }
         "update_road_style" => {
-            w.lots()?.update_road_style(ai(0)?, ai(1)?, token_of(a(2)?, "occupant")?);
+            w.lots()?
+                .update_road_style(ai(0)?, ai(1)?, token_of(a(2)?, "occupant")?);
             Json::Null
         }
         "add_pending" => {
@@ -1346,12 +1349,15 @@ fn call(w: &World, op: &Json) -> R<()> {
             Json::Null
         }
         "do_road_damage_change" => {
-            w.lots()?.do_road_damage_change(ai(0)?, ai(1)?, bool_of(a(2)?, "damaged")?);
+            w.lots()?
+                .do_road_damage_change(ai(0)?, ai(1)?, bool_of(a(2)?, "damaged")?);
             Json::Null
         }
         "get_network_lot" => {
             let (x, z) = (ai(0)?, ai(1)?);
-            w.lots()?.get_network_lot(x, z).map_or(Json::Null, |l| lot_json((x, z), &l))
+            w.lots()?
+                .get_network_lot(x, z)
+                .map_or(Json::Null, |l| lot_json((x, z), &l))
         }
         "configuration_by_id" => Json::Bool(w.lots()?.configuration_by_id(au(0)?)),
         "pothole_offset" => {
@@ -1453,10 +1459,7 @@ fn expect(w: &World, op: &Json) -> R<()> {
                 ),
             ),
             ("pending_count".to_owned(), ji(s.pending.len() as i64)),
-            (
-                "forced".to_owned(),
-                s.forced.as_ref().map_or(Json::Null, |c| ji(c.id)),
-            ),
+            ("forced".to_owned(), s.forced.as_ref().map_or(Json::Null, |c| ji(c.id))),
             ("configs".to_owned(), Json::Array(ids.into_iter().map(ji).collect())),
         ]
     } else {
@@ -1489,10 +1492,7 @@ fn expect(w: &World, op: &Json) -> R<()> {
                         .collect(),
                 ),
             ),
-            (
-                "riot_locked".to_owned(),
-                tokens_json(&w.riot.borrow().locked()),
-            ),
+            ("riot_locked".to_owned(), tokens_json(&w.riot.borrow().locked())),
             ("riot_instances".to_owned(), ji(w.riot.borrow().instances())),
         ]
     };
@@ -1513,10 +1513,7 @@ fn expect_lot(w: &World, op: &Json) -> R<()> {
     let l = l.ok_or_else(|| format!("no network lot at ({x}, {z})"))?;
     let got = vec![
         ("occupant".to_owned(), l.occupant.map_or(Json::Null, tok)),
-        (
-            "config".to_owned(),
-            l.config.as_ref().map_or(Json::Null, |c| ji(c.id)),
-        ),
+        ("config".to_owned(), l.config.as_ref().map_or(Json::Null, |c| ji(c.id))),
         ("config_id".to_owned(), ji(l.config_id)),
         ("locked".to_owned(), Json::Bool(l.locked)),
     ];
