@@ -1,6 +1,7 @@
 # Terrain (`cSTETerrain`, `cSTESurfaceWater`, `cSTEVolcanoLava`): behaviour spec
 
-Status: round 1 (re-specs14a, 2026-10-15). Written from the Windows 1.1.641 executable (terrain code
+Status: round 2 (re-answers17, 2026-10-16: TR1 kinds 2 and 5, TR3–TR18 answered in place). Round 1:
+re-specs14a, 2026-10-15. Written from the Windows 1.1.641 executable (terrain code
 `0x007405D0`–`0x0074FEA0`, surface water `0x0073CD50`–`0x0073FE70`, lava `0x0075CE60`–`0x0075FAE0`). Every numeric
 rule below was checked against the instruction bytes unless it is tagged *[decomp only]*. The save-record facts were
 also checked against a corpus of 502 saves in the user's regions.
@@ -84,7 +85,7 @@ vertex above the sea has a negative depth. **"Water" always means depth > 0**, "
 | `+0x78` | tuning `0x48CD7B20` (shipped 308); saved |
 | `+0x7C` | sea level (slot 29) |
 | `+0x84..+0xA0` | the 8 neighbour index offsets (for the lava and the flood code) |
-| `+0xBC` | the default brush level (§9.2) |
+| `+0xBC` | the default brush level (§9.2): the view's zoom index. 0 from the constructor (`0x0074C408`); `DoPostCityInit` copies the 3D camera's zoom into it when a camera exists (`0x0074955F`; the camera is the global at `0x00B43DD8`, its `+0xC`); each view-update message `0xA6B79602` whose first data word differs from it stores that word (`0x0074AAE2`–`0x0074AAF4`) |
 | `+0xC0` | "accumulating texture updates" flag (slots 78–80; render) |
 | `+0xD8` | tick counter for the reconciliation post (§12.1) |
 | `+0xDD` | water-surface display state (slot 83 returns it, slot 84 sets it) |
@@ -206,10 +207,10 @@ All read the surface water's depth array. Water level = altitude + depth.
 | Slot | Function | Rule *[compat]* |
 |---|---|---|
 | 29 | `GetSeaLevel()` | `+0x7C` |
-| 30 | `GetWaterLevel(x, z)` (`0x007449B0`) | vertex `(floor(x / 16), floor(z / 16))` (no bounds clamp): `depth + altitude` |
-| 31 | `GetWaterLevel(index)` (`0x00744980`) | `depth + altitude` |
-| 32 | `GetLerpedWaterLevel(x, z)` (`0x007444E0`) | bilinear interpolation of `depth + altitude` over the four corners of the cell *[decomp only]* |
-| 33, 92 | `GetWaterDepthAtVertex(x, z)` / `(index)` | the depth (may be negative) |
+| 30 | `GetWaterLevel(x, z)` (`0x007449B0`) | not `LocationIsInBounds(x, z)` → 0.0; else vertex `(floor(r24(x × 0.0625)), floor(r24(z × 0.0625)))` (the floor of §4.1, no further clamp; `x = sizeX` gives the vertex column `cellsX`): `depth + altitude` |
+| 31 | `GetWaterLevel(index)` (`0x00744980`) | `index ≥ vertexCount` (unsigned) → 0.0; else `depth + altitude` |
+| 32 | `GetLerpedWaterLevel(x, z)` (`0x007444E0`) | §5.1 |
+| 33, 92 | `GetWaterDepthAtVertex(x, z)` (`0x00744AB0`) / `(index)` (`0x00744A80`) | vertex out of bounds (unsigned) or `index ≥ vertexCount` → 0.0; else the depth (may be negative) |
 | 18 | `GetMaxSurfaceLevel(x, z)` (`0x00744620`) | cell in bounds, else 0.0. The maximum over the corners `(x, z)`, `(x, z + 1)`, `(x + 1, z + 1)`, `(x + 1, z)` of `altitude + max(depth, 0)` |
 | 34 | `CellHasWater(x, z)` (`0x00743FA0`) | cell out of bounds → false. True if **any** of the corners `(x, z)`, `(x + 1, z)`, `(x, z + 1)`, `(x + 1, z + 1)` has `depth > 0`. A NaN depth is not water |
 | 35 | `CellHasLand(x, z)` (`0x00744030`) | cell out of bounds → false. True if any corner has `depth ≤ 0`. A NaN depth is not land |
@@ -217,10 +218,23 @@ All read the surface water's depth array. Water level = altitude + depth.
 | 37 | `IsWaterVertex(x, z)` (`0x007476D0`) | vertex out of bounds → false; `depth > 0` |
 | 38 | `IsSeaVertex(x, z)` (`0x00741B30`) | vertex out of bounds → false; `altitude < seaLevel` |
 | 53 | `NumberOfWaterVertices(rect*)` | counts `depth > 0` in an inclusive rectangle *[decomp only]* |
-| 55 | `GetSedimentValue(x, z)` | the sediment field |
+| 55 | `GetSedimentValue(x, z)` (`0x007448C0`) | not `LocationIsInBounds(x, z)` → 0.0; else the sediment field |
 
 The boolean slots return their result in AL only (the upper bytes of EAX are not cleared on every path); callers test
 AL. A cell can be both "has water" and "has land" (a shore cell).
+
+### 5.1 `GetLerpedWaterLevel(x, z)` (slot 32, `0x007444E0`) *[compat]*
+
+Checked in the bytes (TR3). Every operation rounds (`r24`).
+
+1. Not `LocationIsInBounds(x, z)` → 0.0.
+2. `tx := r24(x × 0.0625)`, `tz := r24(z × 0.0625)`; `ix := floor(tx)`, `iz := floor(tz)` (the floor of §4.1).
+   **No clamp**: at `x = sizeX`, `ix = cellsX` and the `ix + 1` corner below is read from the flat index, which is
+   the first vertex of the next row (or past the array on the last row) *[quirk]*.
+3. `fx := tx − ix`, `fz := tz − iz`.
+4. With `L(v) := depth(v) + altitude(v)`, `i := ix + iz × vertsX`:
+   `a := L(i) + (L(i + 1) − L(i)) × fx`, `b := L(i + vertsX) + (L(i + vertsX + 1) − L(i + vertsX)) × fx`,
+   result `a + (b − a) × fz`.
 
 ---
 
@@ -281,8 +295,21 @@ hide slots 71–77 work on the same bits. Values seen in the corpus: `0x0`, `0x8
    rectangle grown by 1 (render), and post **`0x278E6003`** (terrain heights changed) with
    `data1 = (x0 << 16) + x1`, `data2 = (z0 << 16) + z1`, `data3 = 0`, `data4 = data4`.
 3. If `waterFlag`: post **`0x678E6E3A`** (water heights changed) with the same four values.
-4. Always (when the view is ready): post `0x870BC918` (texture redisplay; data1/data2 pack a render rectangle, data3
-   the minimum and maximum altitude truncated to integers). Only the renderer reads it.
+4. Always (when the view is ready): post `0x870BC918` (texture redisplay). Only the renderer reads it. Its words
+   (TR11, checked at `0x00749894`–`0x007499EE`):
+   - the **render rectangle** `r`: with the terrain flag, `rect` padded by 1 on every side and clamped to
+     `[0, cellsX] × [0, cellsZ]` (`PadRectangle` `0x00741E30`; the union with the unpadded `rect` only matters for
+     a rectangle outside the city); without it, `rect` itself;
+   - `data1 = (r.x0 << 16) + r.x1`, `data2 = (r.z0 << 16) + r.z1` (the packing of step 2);
+   - `data3 = (trunc(lo) << 16) + trunc(hi)`, where `lo, hi` is the altitude band that the 3D view redraws
+     (`ComputeMinAndMaxAltitudeForTerrainRedisplay` `0x00742660`): the minimum and maximum altitude of the vertices
+     of `r` (the cached §4.6 values when `r` is the whole city), widened by 20 m and merged with the 3D view's own
+     band, `lo := 0` when the camera sees a city edge that `r` touches, then `lo ≥ 0` and `hi` clamped between the
+     sea level and the maximum allowed height *[render; decomp only for the widening]*;
+   - `data4 = data4`.
+
+   A replacement that keeps no 3D view may post `lo, hi` = the plain minimum and maximum altitude over `r`
+   *[choice]*; nothing in the simulation reads data3.
 
 All three are posted with `MessagePost(msg, false)` (queued, normal priority, through the helper `0x00743380`), in
 this order. Receivers see them on the next message pump, never during the edit.
@@ -327,7 +354,7 @@ state. The earthquake and the network grading use them.
 |---|---|---|
 | `0x89171496` sea level changed | `SetSeaLevel` | 0 |
 | `0xC922EB91` terrain type changed | `SetTerrainType` | data1 = the new type |
-| `0x6AB97795` water display state | `SetWaterSurfaceDisplayState` (slot 84) | data1 = the state |
+| `0x6AB97795` water display state | `SetWaterSurfaceDisplayState` (slot 84, `0x007434E0`): **only when the new byte differs** from `+0xDD`; it stores the byte, then posts (queued, the §8.1 post) | data1 = the state (zero-extended byte); the rest 0 |
 | `0xCA63D517` TerrainReconciliation | the animation tick (§12.1) | 0 (foundations §11.6) |
 
 ---
@@ -350,8 +377,20 @@ up to four **components**; component `i` (0–3) uses the properties `0x8A020202
 | `+2` | uint8 neutral grey value |
 | `+4`..`+7` | texture, angle (`× 1/360`), and render values |
 
-Whole-brush properties: a random-walk angle step (`× π/180`; when non-zero the start angle is random in [0, 2π)),
-UI and cost values (render and tool only).
+Whole-brush properties (`ReadBrushWholeProperties` `0x00747EC0`): the random-walk angle step `0x8A020102` in
+degrees, **0.5 when the property is missing**, stored `× π/180`; UI and cost values (render and tool only).
+
+**The two angles of a description** (TR8). Each description holds its own pair, so they are per description and
+shared by every caller and every city of the process (the map is static):
+- the **walk angle** (`+0x68`): when the step is non-zero (NaN counts as non-zero) the walk flag (`+0x04`) is set and
+  the walk angle starts at `RandomRange(0, 2π)` of the terrain's own generator (the global `cRZRandom` at
+  `0x00B4BC78`, seeded once per process from the clock XOR `0x4C09C543`, `0x00A74FF0`); with a zero step the flag is
+  clear and the angle is 0;
+- the **stroke angle** (`+0x6C`): always starts at **0**.
+
+None of the shipped brushes in the table below has `0x8A020102`, so all of them have the walk flag set with a
+0.5° step. Their components are all oriented, so they draw with the stroke angle and the walk angle only consumes
+draws (§9.3 step 2).
 
 The shipped brushes the simulation uses:
 
@@ -387,37 +426,89 @@ The shipped brushes the simulation uses:
 ### 9.3 Applying the components (`ApplyBrushComponents` `0x0074D730`) *[compat]*
 
 1. The centre vertex is `vx := trunc(r24(to.x × 0.0625))`, `vz := trunc(r24(to.z × 0.0625))` (truncation, `_ftol`).
-   If `vx ≥ vertsX` or `vz ≥ vertsZ` (unsigned): nothing is applied.
-2. The **angle**:
-   - oriented components: `angle := atan2(to.z − from.z, to.x − from.x) + π/2`, kept in the description. When
-     `from = to`, the previous angle of that description is reused *[quirk: global state shared by every caller]*;
-   - otherwise, with a random-walk step: `angle += step`, or `−= step` when `RandomUint32Uniform(5) = 0`, wrapped to
-     [0, 2π);
-   - otherwise 0.
+   If `vx ≥ vertsX` or `vz ≥ vertsZ` (unsigned): nothing is applied (and no random draw is made).
+2. The **angles** (checked at `0x0074D7BD`–`0x0074D855`), both updated once per call, before the components and
+   whatever their kinds:
+   1. Walk angle: if the walk flag is set, draw `RandomUint32Uniform(5)` from the terrain generator (`0x00B4BC78`).
+      Not 0: `walk := r24(step + walk)`, and if `walk ≥ 2π` (f32 `6.2831855`): `walk −= 2π`. 0: `walk := r24(walk −
+      step)`, and if `walk < 0`: `walk += 2π`. If the flag is clear: `walk := 0`.
+   2. Stroke angle: if `from.x ≠ to.x` or `from.z ≠ to.z` (a NaN counts as different): `stroke := f32(atan2(to.z −
+      from.z, to.x − from.x) + f32(π/2))` (x87 `fpatan`, then the add, rounded to f32 on the store). When
+      `from = to` the previous stroke angle of that description is reused *[quirk: global state shared by every
+      caller]*.
+   3. Each component uses `stroke` when it is oriented (component property `−1`), else `walk`.
 3. For each component: `strength := strength[level] × params.strength`, `radius := radius[level] × params.radius`,
    and the kind's operation runs on the bitmap footprint (§9.4).
 
-**Bitmap footprint** (`0x00742180`). With `W × H` the bitmap size, `k := 16 / (radius / W)`, `c := cos(angle)`,
-`s := sin(angle)`:
-- the footprint is a `radius × (H·radius / W)` metre rectangle centred on `(16vx, 16vz)`, rotated by the angle; its
-  vertex rows and column spans come from `ComputeSpansForRectangle` (`0x00740BB0`);
-- for each row `z` and the first vertex `x0` of its span: `U := s·(dz·k) + c·(dx·k) + W/2`,
-  `V := c·(dz·k) − s·(dx·k) + H/2` with `dz = z − vz`, `dx = x0 − vx`; then per step in x, `U += c·k`, `V −= s·k`;
+**Bitmap footprint** (`0x00742180`). With `W × H` the bitmap size, `q := r24(radius / W)`, `k := r24(16 / q)`,
+`c := f32(cos(angle))`, `s := f32(sin(angle))` (x87 `fcos` / `fsin` on the f32 angle, rounded on the store at
+`0x00742216`–`0x0074221E`; no snapping to 0 or ±1, TR16):
+- the footprint is a `w × h` metre rectangle with `w := radius`, `h := r24(H × q)`, centred on `(cx, cz) :=
+  (16vx, 16vz)`, rotated by the angle; its vertex rows and column spans come from `ComputeSpansForRectangle` (below);
+- rows `z` ascending (outer), and in each row the span's vertices `x` ascending (inner). For the first vertex `x0`
+  of the row: `U := s·(dz·k) + c·(dx·k) + W/2`, `V := c·(dz·k) − s·(dx·k) + H/2` with `dz = z − vz`, `dx = x0 − vx`;
+  then per step in x, `U += c·k`, `V −= s·k`;
 - the pixel is `(trunc(U), trunc(V))`. If `u < W` and `v < H` (unsigned) the operation runs with that grey value `b`;
   when it reports a change, the vertex joins the out rectangle.
 
 *[quirk]* Truncation maps U in (−1, 0) to column 0, so the footprint reaches half a pixel further on the low side.
 
+*[quirk]* Because `s` and `c` are not snapped, an angle that is a multiple of π/2 in exact arithmetic still gives a
+tiny non-zero `s` or `c` (for example `f32(sin(f32(π)))` ≈ −8.7e−8). The rectangle's edges are then not exactly
+axis-aligned, and the spans below can differ by one vertex at the rectangle's sides from those of an exact
+rectangle. The original computes this way; a replacement must too (TR16).
+
+**The rectangle's corners** (`0x00740AB0`). With `a := −w/2`, `e := −h/2` (the code multiplies by −0.5), the local
+corners in order are `p0 = (a, e)`, `p1 = (a, −e)`, `p2 = (−a, −e)`, `p3 = (−a, e)`, and each maps to
+`x := r24(r24(c·px) − r24(s·pz)) + cx`, `z := r24(r24(s·px) + r24(c·pz)) + cz` (each step rounded). The edges are
+`p0→p1→p2→p3→p0`.
+
+**`ComputeSpansForRectangle(corners, start[], end[], &zMin, &zMax)`** (`0x00740BB0`, checked in the bytes, TR7). It
+scan-converts the rotated rectangle; it is **not** the bounding rectangle:
+1. `zMin`, `zMax` := the minimum and maximum over the four corners of `trunc(r24(z × 0.0625))` (`_ftol`, toward
+   zero). Then `zMin := max(zMin, 0)` (signed); `zMax := cellsZ` if `zMax > cellsZ` compared **unsigned** (so a
+   negative `zMax` also becomes `cellsZ`).
+2. For each row `z` from `zMin` to `zMax` (signed, inclusive): `Z := 16z`; `start[z] := INT32_MAX`,
+   `end[z] := INT32_MIN`. For each edge `i = 0..3` from corner `i` to corner `j = (i + 1) mod 4`, the edge
+   **crosses** the row when `zi ≤ Z < zj` or `zj ≤ Z < zi` (half-open, so a horizontal edge never crosses, and a
+   NaN never crosses). For a crossing edge:
+   - if `xi = xj` (exact compare): `col := trunc(r24(xi × 0.0625))`;
+   - else `x := r24(xi + r24(r24(Z − zi) × r24(r24(xj − xi) / r24(zj − zi))))`, `col := trunc(r24(trunc(x) ×
+     0.0625))` (the crossing is truncated to whole metres first; the result equals `trunc(x / 16)`);
+
+   and `start[z] := min(start[z], col)`, `end[z] := max(end[z], col)` (signed).
+3. Then `start[z] := max(start[z], 0)` (signed) and `end[z] := end[z] + 1`, set to `cellsX` if larger
+   **unsigned**.
+
+The footprint loop visits `x` from `start[z]` to `end[z]` inclusive (signed compare), so:
+- a row that no edge crosses (`start = INT32_MAX`, `end` → `cellsX`) is empty;
+- the first row is often empty: with the rectangle's lowest corner at `z_lo`, the row `trunc(z_lo / 16)` lies at
+  `Z < z_lo` unless `z_lo` is a multiple of 16; likewise a top corner exactly on a row is not crossed. The rows
+  that can hold vertices are those with `z_lo ≤ 16z < z_hi`;
+- each column span runs from the leftmost crossing column to **one past** the rightmost crossing column, so it
+  includes the vertex just right of the rectangle, and, through the truncation, the vertex at or just left of its
+  left side (the bitmap test then decides);
+- a row whose crossings all lie left of `x = −16` gets `end + 1 ≤ −1`, which the unsigned clamp turns into
+  `cellsX`: the whole row is visited, and the bitmap test rejects the extra vertices.
+
+The original keeps `start[]` and `end[]` in 256-entry stack arrays; row 256 of a 256-cell city is written one entry
+past each array, into stack words that nothing reads afterwards. A replacement sizes them `cellsZ + 1`.
+
+*Worked example* (the sinkhole of §9.5 with a square bitmap and angle 0, so `w = h = 16`, `c = 1`, `s = 0`):
+centre (160, 160), corners (152, 152), (152, 168), (168, 168), (168, 152). Rows 9..10. Row 9 (`Z = 144`): no
+crossing, empty. Row 10 (`Z = 160`): the edges p0→p1 (x 152, column 9) and p2→p3 (x 168, column 10) cross; the span
+is 9..11. The bitmap test keeps only vertex (10, 10) (`U = W/2`); vertices 9 and 11 give `U = −W/2` and `3W/2`.
+
 ### 9.4 Component kinds *[compat for 0, 2, 5, 7; others summarised]*
 
 | Kind | Operation |
 |---|---|
-| 0 | raise or lower (`0x00745C60`): `b > neutral` → `RaiseVertex(i, (b − neutral) × strength)`; `b < neutral` → `LowerVertex(i, (neutral − b) × strength)`; equal → no change |
+| 0 | raise or lower (`0x00745C60`): `b > neutral` → `RaiseVertex(i, f32((b − neutral) × strength))`; `b < neutral` → `LowerVertex(i, f32((neutral − b) × strength))`; equal → no change. Every `b ≠ neutral` **reports a change**, even when the vertex is locked or already at the clamp (TR15) |
 | 1 | flora painting |
-| 2 | smoothing (`0x00745DE0`; strength capped at 1.0; the out rectangle grows by 1) |
+| 2 | talus smoothing (`0x00745DE0`; strength capped at 1.0 by the caller; the out rectangle grows by 1): §9.4.1 |
 | 3 | (`0x00749130`) |
 | 4 | animals (render) |
-| 5 | level toward the target height `+0x34` (`0x00745BA0`) |
+| 5 | level toward the target height `+0x34` (`0x00745BA0`): §9.4.1 |
 | 6 | water erosion |
 | 7 | mark: sets flag `0x0400` (`0x00740820`) |
 | 8 | lake (adds water) |
@@ -425,6 +516,31 @@ The shipped brushes the simulation uses:
 | 10 | spring (surface water) |
 
 Kinds 1, 3, 4, 6, 8–11 are used only by the terraforming tool's god-mode brushes, which a harness does not drive.
+
+#### 9.4.1 Kinds 2 and 5 *[compat; checked in the bytes, TR1]*
+
+Both read the grey value `b` and the scaled strength, and compute `step := r24(r24(b × strength) × (1/256))`.
+`b = 0` → no change (false).
+
+**Kind 5, level** (`0x00745BA0`), with `T` the target height (`tBrushParameters +0x34`): `d := r24(alt − T)`.
+- `d > 0`: `d ≤ step` → `SetAltitudeAtVertex(i, T)` (slot 50, §6); else (`d > step`) → `LowerVertex(i, step)`.
+- `d < 0`: `d < −step` → `RaiseVertex(i, step)`; else `SetAltitudeAtVertex(i, T)`.
+- `d = 0` or NaN: no change (false).
+
+Every other branch reports a change, also for a locked vertex.
+
+**Kind 2, talus smoothing** (`0x00745DE0`). Two thresholds come from the terrain ini (`ReadTerrainIniFile`
+`0x0074DC30`, section `WindErosion`, key `TalusAngle` in degrees, × π/180; code default 0.79 rad):
+`Tedge := f32(tan(angle) × 16)`, `Tdiag := r24(Tedge × √2)` *[decomp only for the ini]*. With the neighbour mask of
+§11.3 (the `GetNeighbors` rules, computed inline from `x = i mod vertsX`, `z = i div vertsX`), for each neighbour `n`
+in the offset order W, NW, N, NE, E, SE, S, SW (`+0x84`…`+0xA0`) that the mask allows:
+1. `excess := r24(r24(alt_i − alt_n) − T)` with `T = Tedge` for W, N, E, S and `Tdiag` for the diagonals.
+2. If `excess > 0`: `move := r24(excess × step)`. If `i` is not locked: `alt_i := r24(alt_i − move)`, clamped to the
+   minimum allowed height, `depth_i := sea − alt_i`. If `n` is not locked: `alt_n := r24(alt_n + move)`, clamped to
+   the maximum, `depth_n := sea − alt_n`. Either way the call reports a change.
+
+`alt_i` is re-read for each neighbour, so a vertex can shed material to several lower neighbours in one call.
+Material only moves downhill from `i`.
 
 ### 9.5 Who applies brushes
 
@@ -470,15 +586,15 @@ priority `0xC0`.
 
 | Slot | Function | Rule |
 |---|---|---|
-| 5 | `GetWaterDepthAtVertex(i)` | the depth |
-| 6 | `GetWaterDepthForCell(x, z)` (`0x0073D210`) | `i := terrain.GetVertIndex(x, z)` (no bounds check). `m :=` the minimum of the depths at `i`, `i + 1`, `i + 1 + vertsX`, `i + vertsX`, in that order, a NaN candidate never replacing the minimum. Return `m` if `m > 0`, else 0.0 |
+| 5 | `GetWaterDepthAtVertex(i)` (`0x0073D200`) | the depth (no bounds check, §10.5) |
+| 6 | `GetWaterDepthForCell(x, z)` (`0x0073D210`) | `i := terrain.GetVertIndex(x, z)` (no bounds check, §10.5). `m :=` the minimum of the depths at `i`, `i + 1`, `i + 1 + vertsX`, `i + vertsX`, in that order, a NaN candidate never replacing the minimum. Return `m` if `m > 0`, else 0.0 |
 | 13 | `HasDraftClearance(x, z)` (`0x0073CDB0`) | `GetWaterDepthForCell(x, z) > 5.0` |
 | 8 | `IsNavigable(x, z, r, lot)` (`0x0073EBF0`) | §10.4 |
 | 7 | `IsNavigable(position…)` (5 arguments) | converts the position to a cell (city slot 95) and calls slot 8 |
 | 9 | `GetBodyOfWaterMap()` | the uint16 grid at `+0x4C` (SimGrid type `0x49B9E600`, ID `0x4BE3618B`), one value per cell, 0 = none |
-| 10 | `AltitudeAtWhichFloodingWillOccur(i, start)` | the maximum of `start` and the water levels of the 8 neighbours with `depth > 0` *[decomp only]* |
-| 11 | `GetWaterVelocity(x, z)` | a pointer to the vertex's velocity |
-| 12 | `GetWaterType(x, z)` (`0x0073D7F0`) | vertex `i := GetVertIndex(x, z)`. `depth ≤ 0` → **0**; else `level := depth + alt`: `level > sea` (or NaN) → **2** (fresh water above the sea), otherwise **3** (sea water) |
+| 10 | `AltitudeAtWhichFloodingWillOccur(x, z)` (`0x0073D4F0`) | checked in the bytes (TR3). `i := GetVertIndex(x, z)` (no bounds check). `r := sea level`. With `L(v) := depth(v) + alt(v)` (one rounded add): if `depth(i) > 0` and `L(i) > r`: `r := L(i)`. Then `GetVertex(i)` and the `GetNeighbors` mask of §11.3; for each allowed neighbour in the offset order W, NW, N, NE, E, SE, S, SW: if its `depth > 0` and its `L > r` (strict; NaN never wins): `r := L`. Return `r` |
+| 11 | `GetWaterVelocity(x, z)` (`0x0073D7C0`) | a pointer to the vertex's velocity (no bounds check) |
+| 12 | `GetWaterType(x, z)` (`0x0073D7F0`) | vertex `i := GetVertIndex(x, z)` (no bounds check). `depth ≤ 0` → **0**; else `level := depth + alt`: `level > sea` (or NaN) → **2** (fresh water above the sea), otherwise **3** (sea water). A **NaN depth** is not `≤ 0`, so it takes the second test with a NaN level and returns **2** (checked at `0x0073D811`–`0x0073D83E`, TR6) |
 
 ### 10.3 Bodies of water *[compat]*
 
@@ -489,18 +605,25 @@ in the order west, east, north, south, labels every navigable cell it reaches.
 It runs:
 - on `0x26D31EC1` (only if the city is established, city slot 22) and on `0x26D31EC4`, after
   `UpdateNeighborConnections`;
-- on SimNewDay `0x66956814` when the dirty flag (`+0x48`) is set;
+- on SimNewDay `0x66956814` when the dirty flag (byte `+0x50` of the object; `+0x48` of the message-target
+  interface at `+0x08`) is set, which it then clears;
 - on `0x89D3E9F3` for a bridge piece (network flag `0x40000`) with no adjacent bridge piece;
 - at `EndBrushScrub` when the city is established.
 
-A power pole inserted or removed (`0x99EF1142` / `0x99EF1143`, pole slot 13 false) on a cell with `depth > 0` sets
-the dirty flag.
+A power pole inserted or removed (`0x99EF1142` / `0x99EF1143`, occupant type `0x2890D4DE`, pole interface
+`0xA8C86142` with slot 13 false) sets the dirty flag when `GetWaterDepthForCell(x, z) > 0` (strict) at the pole's
+cell (pole slot 8) (`0x0074022F`–`0x007402A4`, TR13). Both messages are posted by the occupant manager, so this
+handler runs from the queue (occupant-manager.md).
 
 ### 10.4 `IsNavigable(x, z, r, lot)` (slot 8) *[compat]*
 
 Visit the cells of the square `[x − r, x + r] × [z − r, z + r]` with the spiral iterator (from the centre outward;
-when `max < min` the maximum is set to the minimum). For each cell:
-1. Out of the city (city slot 99): return false.
+when `max < min` the maximum is set to the minimum). It is the plumbing iterator (constructor `0x0043FE10`,
+`GetNext` `0x00440850`; plumbing.md §7.2 gives the clockwise order and the clipping), and the square is **not**
+clipped to the city first (`0x0073EBF0`–`0x0073EC80`, TR17). For each cell:
+1. Out of the city: `city.CellIsInBounds(x, z)` (city slot 99, `0x004594D0`) is `0 ≤ x < cellsX` and
+   `0 ≤ z < cellsZ`, signed, with the city's cell counts (`+0x118`, `+0x11C`, the same values the terrain takes in
+   `Init`). Out: return false. So the first out-of-city cell in spiral order ends the walk with false.
 2. Not `HasDraftClearance`: return false.
 3. If `lot ≠ 0`: the lot at the cell centre (city slot 97, y = sea level; lot manager slot 5) must be null or `lot`.
 4. If the traffic network map has a tile at the cell (`FindNetworkTile(x, z, 0x1F4F, 1)`) with network flag
@@ -516,6 +639,29 @@ makes the whole square navigable from that point of the spiral.
 
 Consumers: traffic-network.md §4.10 (ferries and watercraft), zones.md (seaport and waterfront tests), the city
 situation manager (`IsNavigable(r = 2)`, `GetWaterDepthForCell`), the watercraft automata.
+
+### 10.5 Slots without a bounds check (TR12)
+
+Checked in the bytes. These slots form a flat index and use it as is:
+
+| Object | Slot | Index used |
+|---|---|---|
+| terrain | 50 `SetAltitudeAtVertex(i, h)` (`0x00744E60`) | `i` |
+| terrain | 51 `SetAltitude(x, z, h)` (`0x00744F90`) | `x + z × vertsX` |
+| surface water | 5 `GetWaterDepthAtVertex(i)`, 11 `GetWaterVelocity(x, z)`, 12 `GetWaterType(x, z)` | `i`, `GetVertIndex(x, z)` |
+| surface water | 6 `GetWaterDepthForCell(x, z)` (and 13 through it) | `i`, `i + 1`, `i + vertsX`, `i + vertsX + 1` with `i = GetVertIndex(x, z)` |
+| surface water | 10 `AltitudeAtWhichFloodingWillOccur(x, z)` | `GetVertIndex(x, z)`, then the neighbour mask |
+
+Every other index-taking slot of §4.2 and §5 is checked and returns 0.0 (or false, or leaves its output untouched).
+
+*[compat]* While the flat index lies inside the array (`0 ≤ index < vertexCount`), the original reads or writes that
+element, even when a coordinate is out of range: `GetWaterDepthForCell(cellsX, z)` reads the vertex `(cellsX, z)`
+and, as `i + 1`, the first vertex of row `z + 1`. A replacement must do the same.
+
+*[choice]* A flat index outside the array reads or writes memory past the array in the original (undefined: heap
+garbage or a crash); no caller in the simulation does it (the callers check the city bounds first). A replacement
+returns 0.0 for a float read (the value of the checked siblings), 0 for `GetWaterType`, and a pointer to a shared
+zero vector for `GetWaterVelocity`, and ignores the write. NaN is not used.
 
 ---
 
@@ -561,9 +707,8 @@ Each volcano tick sets the production rate and the solidification rate (disaster
 2. Every source vertex: `lava += dt × productionRate` (the active rectangle grows to include it).
 3. For each vertex of the active rectangle (z outer, x inner) with `lava > 0`:
    1. **Flow.** On the city edge (`x = 0`, `x = cellsX`, `z = 0` or `z = cellsZ`): `amount := dt × 1e-7 × lava`,
-      and it leaves the map. Otherwise find the neighbour with the lowest surface (`alt + lava`):
-      `GetNeighborWithLowestLavaLevel` (`0x0075DA90`) takes the best drop among the 4 edge neighbours, then lets a
-      diagonal neighbour win only when its drop exceeds `√2 ×` that best drop. No neighbour lower: no flow. Else
+      and it leaves the map. Otherwise find the neighbour with the lowest surface (`lava + alt`):
+      `GetNeighborWithLowestLavaLevel` (`0x0075DA90`), below. No neighbour lower: no flow. Else
       `h := (surface − neighbourSurface) × 0.5`; `rate := h < 12 ? (4e-6 / 12) × h : 4e-6`; `h := min(h, lava)`;
       `amount := min(dt × h × rate, h)`.
    2. If `amount > 0`: if there is a neighbour, `SetThingsOnFire(neighbour, its old lava, amount)` (§11.5) and
@@ -574,6 +719,34 @@ Each volcano tick sets the production rate and the solidification rate (disaster
 4. Grow the active rectangle by 1.
 5. If the touched rectangle is not empty: `RedisplayTerrain(1, 1, touched, 3)` (texture-accumulation calls around it
    are render-only).
+
+**`GetNeighborWithLowestLavaLevel(i)`** (checked in the bytes, TR4). The 8 neighbour offsets at terrain
+`+0x84`…`+0xA0` are set in `Init` (`0x007500E0`–`0x00750129`), in this order (k = 0..7; "north" is z − 1):
+
+| k | offset | neighbour |
+|---|---|---|
+| 0 | `−1` | W `(x − 1, z)` |
+| 1 | `−1 − vertsX` | NW `(x − 1, z − 1)` |
+| 2 | `−vertsX` | N `(x, z − 1)` |
+| 3 | `1 − vertsX` | NE `(x + 1, z − 1)` |
+| 4 | `+1` | E `(x + 1, z)` |
+| 5 | `vertsX + 1` | SE `(x + 1, z + 1)` |
+| 6 | `vertsX` | S `(x, z + 1)` |
+| 7 | `vertsX − 1` | SW `(x − 1, z + 1)` |
+
+`GetNeighbors(x, z)` (`0x00741710`) gives a mask, bit k for neighbour k: start `0xFF`; `x < 1` (signed) → `0x7C`;
+`x ≥ cellsX` (unsigned) → `& 0xC7`; `z < 1` (signed) → `& 0xF1`; `z ≥ cellsZ` (unsigned) → `& 0x1F`.
+
+1. `surf := r24(lava(i) + alt(i))`; `best := 0`; `result := −1`.
+2. The edge neighbours, k = 0, 2, 4, 6 (W, N, E, S), when the mask allows: `drop := r24(surf − r24(lava(n) +
+   alt(n)))`; if `drop > best` (strict, so the **first wins a tie** and a NaN never wins): `best := drop`,
+   `result := k`.
+3. `best := r24(√2 × best)` (√2 is `f32(sqrt(2.0))`, computed once).
+4. The diagonals, k = 1, 3, 5, 7 (NW, NE, SE, SW), the same test against `best`; a diagonal that wins sets `best` to
+   its own unscaled drop, which the next diagonals must beat.
+5. Return `result` (the neighbour index is `i + offset[result]`).
+
+So with no edge neighbour lower, any lower diagonal wins (the scaled best is 0).
 
 *[quirk]* With the shipped factor 0 the lava never raises the ground, but every solidifying vertex still gets
 `RaiseVertex(…, 0)`, which rewrites its water depth to `sea − alt` (§6) and posts `0x278E6003` with kind 3 for the
@@ -592,9 +765,13 @@ that the flammability simulator calls flammable (slot 6, `IsCellFlammable`) call
 - Else if `oldLava < 3 ≤ oldLava + amount`: mode **burn**.
 - Else nothing.
 
-For the four cells around the vertex, `(x − 1 … x) × (z − 1 … z)`, that are flammable: ignite →
-`IgniteCell(cx, cz, false, true, 0)`, burn → `QuickBurnCell(cx, cz)`; then `SetCause(3)` (fire interface slots 5, 7
-and 9; disasters.md §5).
+With `x = vertex mod vertsX`, `z = vertex div vertsX`, for the four cells in the order `(x − 1, z − 1)`,
+`(x − 1, z)`, `(x, z − 1)`, `(x, z)` (x outer, z inner): if the flammability simulator's `IsCellFlammable(cx, cz)`
+(slot 6, false outside the city) is true: ignite → `IgniteCell(cx, cz, false, true, 0)`, burn →
+`QuickBurnCell(cx, cz)`; then **`SetCause(3)` for that cell** (fire interface slots 5, 7 and 9; disasters.md §5).
+So a call makes one `SetCause(3)` per flammable cell, 0 to 4 in all, and none for a cell that is not flammable
+(checked at `0x0075DEE6`–`0x0075DF5A`, TR5). The thresholds compare `oldLava` and the rounded sum
+`r24(oldLava + amount)`; a NaN fails both modes.
 
 ### 11.6 Messages
 
@@ -648,7 +825,12 @@ on demand by the region code.
 | `0xA9DD6FF4 / 0xE98F9525 / 0x64 + side` edges | u16 1 | u32 `n`, then `n` f32: side 0 = the column `x = 0` (`n = vertsZ`), 1 = the row `z = 0` (`n = vertsX`), 2 = the column `x = cellsX`, 3 = the row `z = cellsZ` |
 
 The loader takes `vertsX` and `vertsZ` from the record and sets the vertex count from them; it does not check them
-against the city size. Corpus: 129 × 129 (302 saves), 257 × 257 (11), 65 × 65 (189); terrain type 0 and `+0x78` =
+against the city size.
+
+**The sea level is not saved** (TR10). `Init` (`0x007500D5`–`0x007500DD`) sets `+0x7C` from the process-wide tuning
+value (`0x48CD7B21`, clamped to at least the minimum allowed height by `ReadTuningParameters`, shipped 250), and
+`Load` (`0x00747800` and its three record readers) never writes `+0x7C`. So after a load the sea level is that
+tuning value, whatever a script set before the save. The water array is then rebuilt from it (§10.1). Corpus: 129 × 129 (302 saves), 257 × 257 (11), 65 × 65 (189); terrain type 0 and `+0x78` =
 308 in every save.
 
 ### 13.2 Class record
@@ -735,6 +917,25 @@ network, zones, city situation, watercraft).
 
 ---
 
+### 15.4 Re-entrancy (for the glue, TR18)
+
+The original takes no lock: the lava and the brushes call their collaborators synchronously and keep running. What
+they call, as traced in the bytes:
+
+| Path | Synchronous callees | Do they call the terrain or surface water back? |
+|---|---|---|
+| lava flow and burning (§11.3–§11.5) | flammability `IsCellFlammable` (a grid read); fire manager `IgniteCell`, `QuickBurnCell`, `SetCause`; the terrain's own `RaiseVertex` and `RedisplayTerrain` | No. `QuickBurnCell` only appends to the toast list. `IgniteCell` creates fire occupants and inserts them in the occupant manager, whose Insert message is **queued** (occupant-manager.md). The fire manager, fire occupant and flammability code hold no reference to the terrain globals (`0x00B43CF4`, `0x00B43CF0`) or city slot 84. Deeper effect and audio paths of a new fire occupant were not traced *[inferred]* |
+| brush kinds 0, 2, 5, 7 (all the simulation uses) | none outside the terrain: the vertex setters, the terrain generator's draw, and the queued posts of `RedisplayTerrain` | No |
+| brush kind 1 (god-mode flora painting, `0x00745A40`) | the terrain's own `GetAltitude`, then the flora placer (terrain `+0x104`, slot 17) and a simulator (`0x00B43D60`, slot 6) | Possibly, read-only *[inferred]* |
+| brush kinds 8–10 (god-mode water) | the surface water (the terrain's own `+0x24`) | Yes, by design: the same component pair |
+| every `RedisplayTerrain`, `SetSeaLevel`, `SetTerrainType`, slot 84, long-operation messages | `MessagePost` (queued) | No: receivers run on the next pump |
+
+So on the simulation's paths the original never re-enters the terrain from a lava or brush callback. The cores16
+contract (a re-entrant call on the same handle is refused and counted) is therefore compatible: the count should
+stay 0, and queueing is not needed. A non-zero count in a run points at an untraced path and is worth a report. If
+the glue ever drives kinds 1 or 8–10, it must run the flora and water calls as part of the core's own operation (or
+outside the borrow), not refuse them.
+
 ## 16. Quirks (summary)
 
 1. `GetAltitude` ignores the triangulation flips (§4.1).
@@ -747,17 +948,24 @@ network, zones, city situation, watercraft).
 8. `IsNavigable` accepts the rest of the square at the first high bridge (§10.4).
 9. Lakes are not saved (§13.3).
 10. The boolean slots return in AL only (§5).
+11. The brush spans are a scan conversion with half-open rows and a one-past-right column (§9.3); the brush `sin` /
+    `cos` are never snapped (§9.3).
+12. Every shipped brush has the 0.5° walk step by default, so each in-bounds application draws from the terrain
+    generator even though no component uses the walk angle (§9.1, §9.3).
+13. The default brush level follows the view's zoom (§2.3).
+14. `SetWaterSurfaceDisplayState` posts only on a change (§8.4).
+15. The sea level is not saved; a load always restores the tuning value (§13.1).
+16. Flat indices are not checked in the §10.5 slots, and coordinates past the last column wrap to the next row.
 
 ---
 
 ## 17. Open questions
 
-- **TR1.** The exact component operations of kinds 2, 3, 5, 6 and 8–10 (§9.4). Only the god-mode tool uses them; the
-  harness does not. A trace of `0x00745DE0` and `0x00745BA0` settles 2 and 5.
+- **TR1.** Kinds 2 and 5 are settled (§9.4.1). Still open: the exact operations of kinds 3, 6 and 8–10 (§9.4), and
+  the shipped `TalusAngle` value in the terrain ini. Only the god-mode tool uses them; the harness does not.
 - **TR2.** The `volcano_control` effect's brush values (level, strength and radius ranges, repetition count). They
   live in the effects resource; the effects manager spec (INVENTORY rank 7) settles them.
-- **TR3.** `GetLerpedWaterLevel` (slot 32) and `AltitudeAtWhichFloodingWillOccur` are from pseudocode only; no
-  simulation consumer was found. Check against the bytes if one appears.
+- TR3 to TR18 are answered in place (QUESTIONS.md has the list).
 
 ---
 
@@ -798,3 +1006,23 @@ network, zones, city situation, watercraft).
     `33333 × 1e-7 × 10 ≈ 0.0333` and ignites nothing.
 14. **Records** (§13.1): a 64-cell city round-trips the four record kinds with the sizes 26 bytes, `2 + 65·65·4`,
     `2 + 65·65·2` and `2 + 4 + 65·4`.
+15. **Lava neighbour order** (§11.3): flat ground, a centre vertex with lava 10. (a) W at 0 and the rest at 1 →
+    W wins. (b) W at 10, N and E both at 2, the rest at 10 → **N** wins (k = 2 comes before E, k = 4). (c) Every edge
+    neighbour at 10 and NE at 9 → NE wins (any lower diagonal beats a scaled best of 0). (d) N at 5 (drop 5), NW
+    at 3 (drop 7 ≤ √2 × 5 ≈ 7.07) and the rest at 10 → N; with NW at 2 (drop 8) → NW.
+16. **SetThingsOnFire** (§11.5): a vertex (5, 5) crossing 1.5 with all four cells flammable calls
+    `IgniteCell(4, 4)`, `SetCause(3)`, `IgniteCell(4, 5)`, `SetCause(3)`, `IgniteCell(5, 4)`, `SetCause(3)`,
+    `IgniteCell(5, 5)`, `SetCause(3)`, in that order; with only (5, 4) flammable, one `IgniteCell` and one
+    `SetCause(3)`.
+17. **GetWaterType with NaN depth** (§10.2) → 2. **AltitudeAtWhichFloodingWillOccur**: sea 250, the vertex dry, one
+    wet neighbour at level 260 and one at 255 → 260; all neighbours dry → 250.
+18. **Spans** (§9.3): the worked example (sinkhole, angle 0, square bitmap) touches only vertex (10, 10); a 45°
+    rectangle gives rows whose spans follow the crossing columns, not the bounding box.
+19. **Brush angles** (§9.1, §9.3): a fresh description's stroke angle is 0, so a first `ApplyBrush` with
+    `from = to` uses angle 0; a later one with `from = to` reuses the last stroke angle.
+20. **Default brush level** (§2.3): 0 before `DoPostCityInit` and with no camera.
+21. **SetWaterSurfaceDisplayState** (§8.4): setting the current state posts nothing; a different state posts one
+    `0x6AB97795` with data1 = the state.
+22. **Kind 5** (§9.4.1): target 100, `b = 255`, strength 1 → step ≈ 0.996: alt 105 → 104.004; alt 100.5 → 100;
+    alt 100 → no change, reported false.
+23. **Sea level after load** (§13.1): `SetSeaLevel(100)`, save, load → `GetSeaLevel() = 250`.
