@@ -201,7 +201,7 @@ enum class ScriptOp {
     Save,
     Terrain,
     Disaster,
-    Network
+    Network;
 };
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side

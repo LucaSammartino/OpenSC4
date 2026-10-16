@@ -683,7 +683,7 @@ void CompareTuning(Dev& d) {
     const GameMapStatus ms = WalkGameMap(d.orig->GetStylePercentages(), 64, [&](const GameMapNode& n) {
         os.emplace_back(n.key, n.value);
     });
-    fc4_growth_styles(
+    fc4_growth_styles(;
         d.gs->core,
         [](void* c, uint32_t k, float v) {
             uint32_t bits = 0;

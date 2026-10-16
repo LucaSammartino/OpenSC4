@@ -12789,8 +12789,8 @@ int main(int argc, char** argv) {
             // the site this game month, counted every time); nothing is popped.
             CHECK(seam(kFC4SeamX87Check, nullptr, nullptr) == 0);
             __asm {
-                fld1
-                fldz
+                fld1;
+                fldz;
             }
             const intptr_t found = seam(kFC4SeamX87Check, nullptr, nullptr);
             const intptr_t again = seam(kFC4SeamX87Check, nullptr, nullptr);

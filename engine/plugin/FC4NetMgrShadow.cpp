@@ -409,7 +409,7 @@ void OccupantsInRect(void* u, const fc4_cell_rect* r, uint32_t mask, fc4_token_c
         void* ctx;
         bool record;
     } tap{cb, ctx, mask == kAllTypes};
-    g_readMgr.occupants_in_rect(
+    g_readMgr.occupants_in_rect(;
         u, r, mask,
         [](void* c, uint64_t n) {
             Tap* t = static_cast<Tap*>(c);

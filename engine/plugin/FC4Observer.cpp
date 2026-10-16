@@ -643,8 +643,8 @@ public:
                 DispatchShadowMonth(CurrentCity(), julian);    // dispatch_shadow = 1 only
                 NetMgrShadowMonth(CurrentCity(), julian);       // netmgr_shadow = 1 only                ++monthsSinceLoad_;
                 OccMgrShadowMonth(CurrentCity(), julian);       // occmgr_shadow = 1 only
-                ++monthsSinceLoad_
-if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
+                ++monthsSinceLoad_;
+                if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the
                     // simulator's month-change message.
                     saveStarted_ = true;
