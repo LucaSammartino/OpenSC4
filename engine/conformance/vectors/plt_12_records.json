@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "prop_and_lot_config_records",
+  "spec": ["prop-lotconfig A8", "prop-lotconfig B6", "prop-lotconfig T12"],
+  "description": "Prop manager record (component 5): version 1, then the occupant manager (object 1, class 0x098F964D) and the lot manager (object 2, class 0x498F9B01) as references: 18 bytes. Lot configuration manager record (component 9): version 1 and three references, classes 0x8990BE7A, 0xC990C034, 0xA990BD10: 26 bytes. Reading them back restores the references (object n resolves to token 0x4F + n); a record with version 2 reads false.",
+  "steps": [
+    {"op": "pm_create"},
+    {"op": "pm_init", "expect": true},
+    {"op": "pm_record", "hex": "0100010000004d968f0902000000019b8f49"},
+    {"op": "pm_create"},
+    {"op": "pm_read", "hex": "0100010000004d968f0902000000019b8f49", "expect": true},
+    {"op": "pm_expect", "state": {"occupant_manager": "0x50", "lot_manager": "0x51", "initialized": false}},
+    {"op": "pm_create"},
+    {"op": "pm_read", "hex": "0200010000004d968f0902000000019b8f49", "expect": false},
+    {"op": "pm_expect", "state": {"occupant_manager": null, "lot_manager": null}},
+    {"op": "lcm_create"},
+    {"op": "lcm_init", "expect": true},
+    {"op": "lcm_record", "hex": "0100010000007abe90890200000034c090c90300000010bd90a9"},
+    {"op": "lcm_create"},
+    {"op": "lcm_read", "hex": "0100010000007abe90890200000034c090c90300000010bd90a9", "expect": true},
+    {"op": "lcm_expect", "state": {"building_development": "0x50", "flora": "0x51", "prop_manager": "0x52"}},
+    {"op": "lcm_create"},
+    {"op": "lcm_read", "hex": "0200010000007abe90890200000034c090c90300000010bd90a9", "expect": false},
+    {"op": "lcm_expect", "state": {"building_development": null, "flora": null, "prop_manager": null}}
+  ]
+}

@@ -11,7 +11,7 @@ is part of every verdict):
            24-hour clock (clock; under turbo the clock steps rarely, CK22), commercial (CO$$/CO$$$ map rebuilds),
            civic buildings (civic), parks, traffic (traffic_shadow_hypotheses = 7, the alternative readings of
            TS55-TS57; traffic_shadow_lines = 1 keeps one day line per month next to the month line) and terrain
-           (terrain_shadow = 1, glue16; added in run 137: 105/105 lines and every query exact to 2032, 0 unfollowed; see "Terrain" below). disasters_shadow stays out (it needs
+           (terrain_shadow = 1, glue16; added in run 138: 105/105 lines and every query exact to 2032, 0 unfollowed; see "Terrain" below). disasters_shadow stays out (it needs
            scripted disasters and is not exact, glue13). A shadow line is
            clean when every mismatch count on it is 0. Known difference: the traffic shadow is not exact to 2032 (run
            121: 43 of 72 month lines clean, 3066 of 3165 deliveries, 0 incomplete; 49 of 72 alone at 4.5 days/s; the

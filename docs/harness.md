@@ -173,7 +173,7 @@ same month and shadow lines. `-NormalSpeed [-Seconds 150]` runs the old timed pr
 The shadows run includes `development_shadow = 1` and the replace run `development` (our development unit runs about
 3x slower per game day than the original, 23-29 game days/s under turbo against 80-90). Since run 121 the shadows run
 also has `traffic_shadow = 1`, which makes it the long one (2.5-3.5 game days/s, 10-15 minutes to 2032; the turbo
-timeout is 1800 s), and the replace run `traffic`. Since run 137 the shadows run also has `terrain_shadow = 1`; its
+timeout is 1800 s), and the replace run `traffic`. Since run 138 the shadows run also has `terrain_shadow = 1`; its
 vertex totals (exact/total per query, unfollowed, followed late, pending at shutdown) are the table's `terrain` column,
 and unfollowed vertices count as problems.
 
