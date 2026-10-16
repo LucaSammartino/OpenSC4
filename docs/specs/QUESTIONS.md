@@ -4801,3 +4801,46 @@ current choice is in brackets.
   load in the same process (crime and the development cores already keep theirs process-wide). Should budget and
   pollution keep their generator across city loads like the original, or is a restart at each load an acceptable
   *[choice]*? [restart at each load]
+
+## From the city detail, port developer and prop developer cores (filed by the coordinator from the `cores12b` lane's report, 2026-10-16; merged `3eb6d22`)
+
+cores12b implemented city-detail.md, port-developers.md and prop-developer.md as Rust cores
+(`engine/core/src/{city_detail,port_developer,prop_developer}/`), C ABIs (`fc4_city_detail`, `fc4_port_developer`,
+`fc4_prop_developer`, ABI 65) and conformance vectors (`cd8_*`, `pd12_*`, `pv12_*`). There is no plugin glue yet, so
+none of these readings has been checked in game. The current choice is in brackets.
+
+- **PD5:** when the next stage's lot configuration is missing, growth fails before anything is demolished and no funds
+  are withdrawn. Is that the original order, or is the lot demolished first?
+- **PD6:** §4.8 does not say how the terrain grid's orientation follows the lot's facing. [the grid is rotated by
+  facing; facing 0 = rows along z as stored. Moot with shipped data (PD4: the grid never loads), but a correct 12 × 6
+  declaration would use it]
+- **PD7:** after a failed swap the port's lot lookup can return null. [the month skips such a port (counted in
+  `month_skipped`) and does not stop] Confirm.
+- **PD8:** in the month, does the usage value use cap = trunc(capacity × fr) (the §4.3 comment) or the plain capacity
+  (§4.7 PortUsageValues)? [§4.7]
+- **PD9:** is a seaport port with no sea access counted for the "if any" advisor-event condition in the seaport tick?
+  [excluded]
+- **PD10:** Init removes any existing agent before adding it, and Shutdown does not clear the port list (Read or
+  adoption rebuilds it). Confirm against the original.
+- **PD11:** Read loads the tuning exemplar from the record's instance even when a later field rejects the record. Does
+  the original leave the tuning loaded? [the rest of Read is atomic; the tuning stays loaded]
+- **CD3:** Init compares the saved level with the current preference on every call, not only the first; a second Init
+  at the same level does nothing. Confirm.
+- **CD4:** increase step 4 is implemented literally: one creation per required object missing from the lot; optional
+  objects are never created. Is an object present by its tag alone, whatever the occupant's type? [by tag]
+- **CD5:** the increase pass's session generator counter n (derive_seed(S, 0xEAD4BA36 XOR n)) is kept per thread and
+  per session seed. Should it reset on a new city load within the same session? [it does not reset]
+- **PV7:** a night batch decides on or off with the mode it started with, so the batch that ends a dusk sweep (mode
+  becomes 0) still switches its props on. Does the original read the mode before the end-of-sweep reset?
+- **PV8:** §4.4 step 6 does not test the created occupant for null. [a null creation returns false: the slot is
+  consumed and need is not decremented]
+- **PV9:** a timed prop with a non-zero global trigger while the 3D view is missing: the spec covers only the
+  view-present and zero cases. [mask 4 unchanged: neither on nor added to the trigger map]
+- **PV10:** a total share of 0 would divide by zero (§4.3 step 4). It cannot happen with the wealth requester present,
+  but can after a Read of a record without it. [stop after the cell walk]
+- **PV11:** §4.13 step 1 (night-lit street props in the power-change rectangle) does not say which cell IsPowered is
+  asked for. [trunc(position / cell width), as in the batch]
+- **PV12:** unregistering (§4.7) looks the prop up in every list whatever its properties, and Shutdown clears the
+  power list ([choice] per §3.2). Does the original test each list's join condition instead of looking everywhere?
+- **PV13:** a scanner state byte above 2 in the record: what does the original do? No corpus record has one. [Read
+  returns false and nothing changes]
