@@ -24,6 +24,7 @@
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "cFC4ZoneManager.h"
+#include "compat/FC4Compat.h"
 
 #include "SC4CellRegion.h"
 #include "SC4Point.h"
@@ -310,6 +311,24 @@ cFC4ZoneDeveloper* cFC4ZoneDeveloper::FromAny(const void* p) {
         }
     }
     return nullptr;
+}
+
+const void* cFC4ZoneDeveloper::SafeIteratorListObject(const void* lotManager, const char** why) {
+    const char* reason = nullptr;
+    const void* list = nullptr;
+    const fc4::compat::ExecutableVersion* v = fc4::compat::IdentifiedVersion();
+    if (lotManager == nullptr) {
+        reason = "no lot manager";
+    } else if (v == nullptr) {
+        reason = "executable not identified";
+    } else {
+        const cFC4ZoneDeveloper* ours = FromAny(lotManager);
+        list = fc4::safelots::ExpectedListObject(lotManager, v->imageBase, v->sizeOfImage,
+                                                 ours != nullptr ? ours->MasterListObject() : nullptr);
+        if (list == nullptr) reason = "the lot manager is neither the original nor FreeCity4's";
+    }
+    if (why != nullptr) *why = reason;
+    return list;
 }
 
 void cFC4ZoneDeveloper::SetTestHooks(const fc4_zonedev_host* test) {
