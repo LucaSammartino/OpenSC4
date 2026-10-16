@@ -393,7 +393,7 @@ impl PlumbingHost for ShadowHost {
         *self.tuning.borrow_mut() = Some(t.clone());
         t
     }
-    fn wall_clock_seed(&self) -> u32 {
+    fn session_seed(&self) -> u32 {
         0
     }
     fn add_agent(&self, _level: u32, _name: &str, _flags: u32) {
