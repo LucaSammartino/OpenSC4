@@ -705,7 +705,7 @@ def parse_history(text):
     return first, last + 1, entries
 
 
-def consolidate_abi_history(wt, lanes, batch_id):
+def consolidate_abi_history(wt, lanes, batch_id, force=False):
     """Write ONE fc4.h history line for the batch and set the constant.
 
     Each lane appends its own ` * <n> = ...` entry and bumps FC4_ABI_VERSION. Rather than parse the merged
@@ -748,8 +748,10 @@ def consolidate_abi_history(wt, lanes, batch_id):
                 numbers.append(num)
         if mine:
             descs.append("%s: %s" % (lane, " ".join(mine)))
-    if not descs and all(key(ls) in main_keys for _n, ls in main_entries):
+    if not descs and not force:
         return None
+    if not descs:
+        descs = ["merged (no C ABI history entry of its own)"]
     new = max([main_ver + 1] + numbers)
     body = []
     for _n, ls in main_entries:
@@ -1005,7 +1007,7 @@ def cmd_merge_batch(args):
     need_abi = any(r["abi"] for r in batch if r["lane"] in merged)
     note = []
     lane_pairs = [(r["lane"], r["branch"]) for r in batch if r["lane"] in merged]
-    abi_n = consolidate_abi_history(wt, lane_pairs, batch_id)
+    abi_n = consolidate_abi_history(wt, lane_pairs, batch_id, force=need_abi)
     if abi_n is not None:
         note.append(f"ABI: one history line for the batch at {abi_n}")
     elif need_abi:
