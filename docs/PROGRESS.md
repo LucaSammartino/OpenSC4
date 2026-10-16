@@ -11,7 +11,7 @@ budget is off by default (enable = <key>).
 **M0: toolchain**
 - [x] CMake project, Rust core, C ABI, conformance runner (658 vector files)
 - [x] `FreeCity4.dll` loads in SC4 1.1.641 and replaces `cSC4Simulator`
-- [x] Unattended in-game runs: autoload a city, autotest verdict, monthly observer (`tools/ingame_run.ps1`)
+- [x] Unattended in-game runs: autoload a city, autotest verdict, monthly observer (`tools/ingame_run.ps1`); the autoload no longer depends on GetCityLocations' eax-or-void return value and retries a truly empty city list on the wall clock (autoloadfix, merged 4c92365; regress run 127 PASS)
 - [x] Hands-free game control: advisor popups and the save box closed automatically, scripted UI actions (`-Actions`), the test city restored after a save (`tools/sc4ctl.ps1`)
 - [x] Popups off without side effects: `popup_dialogs = 0` now waits for ConnectionsReady (d161d20). Set earlier, it silently kept power, plumbing and neighbours disabled (runs 58–64; foundations §11.6)
 
