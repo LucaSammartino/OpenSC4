@@ -134,8 +134,8 @@ unsafe extern "C" fn add_ref(u: *mut c_void, t: u64) {
 unsafe extern "C" fn release(u: *mut c_void, t: u64) {
     *game(u).refs.borrow_mut().entry(t).or_default() -= 1;
 }
-unsafe extern "C" fn set_fire_dispatch_effectiveness(u: *mut c_void, v: f32) {
-    game(u).log(format!("fire_effectiveness {v}"));
+unsafe extern "C" fn fire_dispatch_count(_u: *mut c_void) -> u32 {
+    2
 }
 unsafe extern "C" fn occupant_type(u: *mut c_void, o: u64) -> u32 {
     if game(u).occs.borrow().contains_key(&o) {
@@ -333,7 +333,7 @@ fn host(g: &Game) -> fc4_disasters_host {
     h.record_history = Some(record_history);
     h.add_ref = Some(add_ref);
     h.release = Some(release);
-    h.set_fire_dispatch_effectiveness = Some(set_fire_dispatch_effectiveness);
+    h.fire_dispatch_count = Some(fire_dispatch_count);
     h.occupant_type = Some(occupant_type);
     h.occupant_in_manager = Some(occupant_in_manager);
     h.occupant_cell = Some(occupant_cell);
@@ -563,9 +563,11 @@ fn hosed_fire_and_dispatch_effectiveness() {
         assert_eq!(fc4_disasters_fire_count(f.d), 0);
         g.take();
         fc4_disasters_fire_update(f.d);
-        // One timer of 20 s over 40 s: 0.5.
-        assert!(g.take().contains(&"fire_effectiveness 0.5".to_string()));
-        assert_eq!(state(f.d).fire_effectiveness, 0.5);
+        // One timer of 20 s over 40 s with 2 dispatch units: 0.25, stored
+        // only; no police count callback reads as 0, which gives 0.
+        assert!(!g.take().iter().any(|l| l.contains("effectiveness")));
+        assert_eq!(state(f.d).fire_effectiveness, 0.25);
+        assert_eq!(state(f.d).police_effectiveness, 0.0);
     }
 }
 
@@ -578,13 +580,19 @@ fn riot_leaders_and_toxic_spill() {
     }
     unsafe {
         assert!(fc4_disasters_init(f.d));
-        let id = fc4_disasters_attempt_start(f.d, RIOT, 10, 20);
+        assert_eq!(fc4_disasters_manager_instances(f.d, RIOT, std::ptr::null_mut(), 0), 0);
+        // AttemptDisasterStart is always null (§6.2): the riot is in the list.
+        assert_eq!(fc4_disasters_attempt_start(f.d, RIOT, 10, 20), 0);
+        let mut ids = [0u32; 2];
+        assert_eq!(fc4_disasters_manager_instances(f.d, RIOT, ids.as_mut_ptr(), ids.len()), 1);
+        let id = ids[0];
         assert_ne!(id, 0);
+        assert_eq!(fc4_disasters_manager_instances(std::ptr::null(), RIOT, ids.as_mut_ptr(), 2), 0);
         assert_eq!(fc4_disasters_active_count(f.d, RIOT), 1);
         assert_eq!(fc4_disasters_riot_leaders(f.d, id, std::ptr::null_mut(), 0), 1);
         let mut l = [fc4_riot_leader::default(); 4];
         assert_eq!(fc4_disasters_riot_leaders(f.d, id, l.as_mut_ptr(), l.len()), 1);
-        assert_eq!((l[0].x, l[0].z, l[0].counter), (10, 20, 0));
+        assert_eq!((l[0].x, l[0].z, l[0].counter, l[0].stage, l[0].max_stage), (10, 20, 0, -1, -1));
         // The removal lock (network-manager.md section 10): the roads within 3 cells.
         let locked: Vec<String> = g
             .take()
@@ -605,15 +613,15 @@ fn riot_leaders_and_toxic_spill() {
             g.now.set(g.now.get() + 1000);
             fc4_disasters_tick(f.d, id, 16_000);
         }
-        // No exemplar: no leaders spawned by default.
-        assert_eq!(fc4_disasters_riot_leaders(f.d, id, std::ptr::null_mut(), 0), 1);
-        assert_eq!(fc4_disasters_riot_leaders(f.d, id, l.as_mut_ptr(), l.len()), 1);
+        // No exemplar: the defaults spawn one leader at stage 1 (§6.1).
+        assert_eq!(fc4_disasters_riot_leaders(f.d, id, std::ptr::null_mut(), 0), 2);
+        assert_eq!(fc4_disasters_riot_leaders(f.d, id, l.as_mut_ptr(), l.len()), 2);
         assert_eq!(l[0].stage, 1);
-        // Shutdown ends the leaders and the tick; the instance stays in its
-        // manager's list until the manager removes it.
+        // Shutdown ends the leaders and the tick, and the riot leaves its
+        // manager (§3.1).
         fc4_disasters_instance_shutdown(f.d, id);
-        assert!(fc4_disasters_get_instance(f.d, id, &mut i));
-        assert_eq!(i.tick_registered, 0);
+        assert!(!fc4_disasters_get_instance(f.d, id, &mut i));
+        assert_eq!(fc4_disasters_manager_instances(f.d, RIOT, std::ptr::null_mut(), 0), 0);
         assert_eq!(fc4_disasters_riot_leaders(f.d, id, std::ptr::null_mut(), 0), 0);
 
         // §18 test 9 with one hose: 30 updates.
@@ -760,8 +768,9 @@ fn mirror_tooling_ids_locations_and_locks() {
         assert!(!fc4_disasters_get_location(f.d, 1, &mut loc));
         assert!(!fc4_disasters_get_location(f.d, 0, std::ptr::null_mut()));
 
-        let id = fc4_disasters_attempt_start(f.d, RIOT, 10, 20);
-        assert_ne!(id, 0);
+        assert_eq!(fc4_disasters_attempt_start(f.d, RIOT, 10, 20), 0);
+        let mut id = 0u32;
+        assert_eq!(fc4_disasters_manager_instances(f.d, RIOT, &mut id, 1), 1);
         let n = fc4_disasters_riot_locked(f.d, std::ptr::null_mut(), 0);
         assert_eq!(n, 7);
         let mut locked = vec![0u64; n];

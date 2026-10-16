@@ -46,9 +46,10 @@
 //!   fire instance): seeded with `derive_seed(S, 0x69C1718F)` (the instance
 //!   class, foundations §6.3 rule for member generators seeded from the
 //!   clock) [choice, Q6]. `Random(4000)` is `RandomUint32Uniform(4000)`; the
-//!   spread draw `uniform[0, 1)` is `RandomDoubleUniform`; the two Gaussian
-//!   draws are `RandomDoubleRangeGaussian` over the widened box, x first
-//!   [choice, Q7].
+//!   spread draw is `RandomDoubleRangeUniform(0, 1)`, made only by a step
+//!   that reaches the spread; the two cell draws are
+//!   `RandomDoubleRangeGaussianFast` over the box widened by the radius and
+//!   the wind vector, x first (§5.10 step 9, §13).
 //! - **`IgniteCell`** follows flammability.md §13.1 where disasters.md §5.5
 //!   is shorter: the grid is read and the curve evaluated on every call, the
 //!   probability draw is `RandomDoubleRangeUniform(0, 100)` and fails only
@@ -90,7 +91,10 @@ pub use riot::{
 };
 pub use system::{instance_class_of, Disasters, InstanceInfo, ManagerSnapshot};
 pub use toxic::{ToxicSnapshot, ToxicSpill};
-pub use volcano::{VolcanoSnapshot, VolcanoTuning};
+pub use volcano::{
+    shipped_volcano, volcano_phase, volcano_prop, VolcanoSnapshot, VolcanoTuning, SHIPPED_LAVA_SECONDS, SHIPPED_PRODUCTION,
+    SHIPPED_SCALE, SHIPPED_SOLIDIFICATION,
+};
 
 use std::rc::Rc;
 
@@ -234,6 +238,9 @@ pub mod prop {
     pub const ZOOM_LEVEL: u32 = 0xCA82_1B8C;
 }
 
+/// The cost of a removed network piece without `0x8A1C3E72` (§2.5 step 3:
+/// one int64 constant for every network type).
+pub const NETWORK_DEFAULT_COST: i64 = 10;
 /// The default maximum fire stage (§5.10).
 pub const DEFAULT_MAX_STAGE: u32 = 2;
 /// The fire step period, ms (§5.1).
@@ -360,8 +367,8 @@ pub trait DisasterRandom {
     fn uniform_f64(&mut self) -> f64;
     /// `RandomDoubleRangeUniform(a, b)`.
     fn range_f64(&mut self, a: f64, b: f64) -> f64;
-    /// `RandomDoubleRangeGaussian(a, b)`.
-    fn range_gaussian(&mut self, a: f64, b: f64) -> f64;
+    /// `RandomDoubleRangeGaussianFast(a, b)` (three uniform draws).
+    fn range_gaussian_fast(&mut self, a: f64, b: f64) -> f64;
 }
 
 impl DisasterRandom for RzRandom {
@@ -377,8 +384,8 @@ impl DisasterRandom for RzRandom {
     fn range_f64(&mut self, a: f64, b: f64) -> f64 {
         RzRandom::range_f64(self, a, b)
     }
-    fn range_gaussian(&mut self, a: f64, b: f64) -> f64 {
-        RzRandom::range_gaussian(self, a, b)
+    fn range_gaussian_fast(&mut self, a: f64, b: f64) -> f64 {
+        RzRandom::range_gaussian_fast(self, a, b)
     }
 }
 
@@ -402,12 +409,12 @@ pub enum Generator {
 /// - `raw_u32` (a new fire ID) counts from `0x8000_0001`, so the mirror's
 ///   own IDs are recognisable;
 /// - `uniform_u32(n)` is 0 (a covered fire's change, `Random(4000)`);
-/// - `uniform_f64` is 1.0, so the spread test `u < 1 / D4[s]` (§5.10 step
-///   9) never passes for a D4 of 1 or more: the original's spreads arrive
-///   as its own `Ignite` calls;
-/// - `range_f64(a, b)` is `b` (the `IgniteCell` probability draw fails for
-///   any curve value below 100);
-/// - `range_gaussian(a, b)` is `a`.
+/// - `uniform_f64` is 1.0;
+/// - `range_f64(a, b)` is `b`: the spread test `r < 1 / D4[s]` (§5.10 step
+///   9, `r` drawn on [0, 1]) never passes for a D4 of 1 or more, so the
+///   original's spreads arrive as its own `Ignite` calls, and the
+///   `IgniteCell` probability draw fails for any curve value below 100;
+/// - `range_gaussian_fast(a, b)` is `a`.
 #[derive(Clone, Debug, Default)]
 pub struct MirrorRandom {
     next_id: u32,
@@ -431,7 +438,7 @@ impl DisasterRandom for MirrorRandom {
     fn range_f64(&mut self, _a: f64, b: f64) -> f64 {
         b
     }
-    fn range_gaussian(&mut self, a: f64, _b: f64) -> f64 {
+    fn range_gaussian_fast(&mut self, a: f64, _b: f64) -> f64 {
         a
     }
 }
@@ -499,14 +506,12 @@ pub trait DisasterHost {
     fn go_to_location(&self, x: i32, z: i32, zoom: u32);
 
     // ---- damage assessment (§2.5) ----
-    /// Fire protection slot 25 / police slot 26.
-    fn set_fire_dispatch_effectiveness(&self, value: f32);
-    fn set_police_dispatch_effectiveness(&self, value: f32);
+    /// Fire protection slot 25 / police slot 26: `GetTotalDispatchCount()`,
+    /// the dispatch units over all stations (the effectiveness divisor).
+    fn fire_dispatch_count(&self) -> u32;
+    fn police_dispatch_count(&self) -> u32;
     /// The BDS building-type flags of a building occupant.
     fn building_type_flags(&self, occupant: u64) -> u32;
-    /// The default cost of a network piece without `0x8A1C3E72` (the table at
-    /// `0x00B0A1C0`, by network type).
-    fn network_default_cost(&self, occupant: u64) -> i64;
 
     // ---- occupants ----
     fn occupant_type(&self, occupant: u64) -> u32;
@@ -556,8 +561,8 @@ pub trait DisasterHost {
     fn add_fire_aura(&self, occupant: u64);
     /// Tutorial system slot 8.
     fn tutorial_no_burn_down(&self) -> bool;
-    /// Weather slot 22: the wind.
-    fn wind(&self) -> f32;
+    /// Weather slot 22: the wind vector (x, z).
+    fn wind(&self) -> (f32, f32);
     /// A visual effect on an occupant.
     fn play_effect(&self, name: &str, occupant: u64);
     /// A visual effect at a position (world units).
@@ -634,8 +639,9 @@ pub trait DisasterHost {
     fn demolish_pipe(&self, pipe: u64, flags: u32);
 
     // ---- volcano (§10) ----
+    /// Starts the "volcano_control" effect; its completion is delivered as
+    /// `0xCA493C1D` with data1 = the instance (§10 state 3).
     fn volcano_start_deformation(&self, instance: u32, x: f32, z: f32);
-    fn volcano_end_deformation(&self, instance: u32);
     fn volcano_start_lava(&self, instance: u32, x: f32, z: f32, radius: f32);
     fn volcano_lava_rates(&self, instance: u32, production: f32, solidification: f32);
     fn volcano_end_lava(&self, instance: u32);

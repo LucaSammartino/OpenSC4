@@ -4,12 +4,23 @@
 // Copyright (C) 2026 FreeCity4 contributors
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
-//! The volcano (§10, short form). The deformation and the lava are the
-//! host's (the lava is a terrain class); the core runs the states and the
-//! rates. The spec does not say when state 3 hands over to 5, who asks the
-//! volcano to end, or what state 7 does: state 3 goes to 5 at the next tick,
-//! [`super::Disasters::volcano_request_end`] asks it to end, and state 7 is
-//! not used [choice, Q25].
+//! The volcano (§10, short form; Q25). The "volcano_control" effect and the
+//! lava are the host's (the lava is a terrain class); the core runs the
+//! states, the clock and the rates:
+//!
+//! - start: the location set, `Init` (state 1), state 3, which starts the
+//!   effect once and, with lava enabled, creates the lava and goes to 5,
+//!   which starts the flow, all inside the start call;
+//! - each tick while the lava flows: after `T` seconds (strictly)
+//!   `EndVolcanoLava` (which ends the disaster) and state 3, or 8 when the
+//!   end was requested; otherwise the rates;
+//! - `0xCA493C1D` for the instance (the effect finished) is the end request,
+//!   state 7: stay in the flow, or go to 8, which removes and shuts the
+//!   instance down.
+//!
+//! The start registers a location twice, once when the location is set and
+//! once in `Init`; the spec lists both steps, and we keep both [question,
+//! DS42].
 
 use super::system::{Core, InstanceState};
 use super::{instance_class, kind, msg, TICK_PRIORITY};
@@ -26,12 +37,16 @@ pub mod volcano_prop {
     pub const LAVA_FLOWS: u32 = 0x6A4B_C8ED;
 }
 
-/// The values of §10, also the defaults [choice, Q20].
+/// The shipped "Volcano" values (§10).
 pub const SHIPPED_PRODUCTION: [(f32, f32); 5] = [(0.0, 0.0), (0.075, 0.0), (0.25, 0.25), (0.8, 0.25), (1.0, 0.0)];
 pub const SHIPPED_SOLIDIFICATION: [(f32, f32); 4] = [(0.0, 0.0), (0.4, 0.0), (0.9, 0.01), (1.0, 0.15)];
 pub const SHIPPED_SCALE: f32 = 6.0;
 pub const SHIPPED_LAVA_SECONDS: f32 = 50.0;
-pub const SHIPPED_VENT_RADIUS: f32 = 20.0;
+/// The process statics' values before any read (§10): also what a missing
+/// property keeps.
+pub const DEFAULT_SCALE: f32 = 1.0;
+pub const DEFAULT_LAVA_SECONDS: f32 = 20.0;
+pub const DEFAULT_VENT_RADIUS: f32 = 100.0;
 /// The rate divisor (§10).
 pub const RATE_DIVISOR: f32 = 100_000.0;
 
@@ -42,6 +57,7 @@ pub struct VolcanoTuning {
     pub scale: f32,
     pub lava_seconds: f32,
     pub vent_radius: f32,
+    /// `0x6A4BC8ED`: lava is enabled.
     pub lava_flows: bool,
 }
 
@@ -52,26 +68,30 @@ impl Default for VolcanoTuning {
 }
 
 impl VolcanoTuning {
+    /// The read at `Init` (§10): without the exemplar, T = 20 s, scale 1,
+    /// radius 100, empty curves and no lava; with it, each property present
+    /// overrides, and the lava flag is false unless present.
     pub fn from_holder(h: Option<&PropertyHolder>) -> VolcanoTuning {
-        let curve = |id, d: &[(f32, f32)]| {
-            h.and_then(|h| crate::props::curve(h, id))
-                .unwrap_or_else(|| ResponseCurve::from_points(d))
-        };
+        let curve = |id| h.and_then(|h| crate::props::curve(h, id)).unwrap_or_default();
         let f = |id, d: f32| h.and_then(|h| crate::props::f32_of(h, id)).unwrap_or(d);
         VolcanoTuning {
-            production: curve(volcano_prop::PRODUCTION, &SHIPPED_PRODUCTION),
-            solidification: curve(volcano_prop::SOLIDIFICATION, &SHIPPED_SOLIDIFICATION),
-            scale: f(volcano_prop::SCALE, SHIPPED_SCALE),
-            lava_seconds: f(volcano_prop::LAVA_SECONDS, SHIPPED_LAVA_SECONDS),
-            vent_radius: f(volcano_prop::VENT_RADIUS, SHIPPED_VENT_RADIUS),
+            production: curve(volcano_prop::PRODUCTION),
+            solidification: curve(volcano_prop::SOLIDIFICATION),
+            scale: f(volcano_prop::SCALE, DEFAULT_SCALE),
+            lava_seconds: f(volcano_prop::LAVA_SECONDS, DEFAULT_LAVA_SECONDS),
+            vent_radius: f(volcano_prop::VENT_RADIUS, DEFAULT_VENT_RADIUS),
             lava_flows: h
                 .and_then(|h| crate::props::bool_of(h, volcano_prop::LAVA_FLOWS))
-                .unwrap_or(true),
+                .unwrap_or(false),
         }
     }
 
-    /// (production, solidification) at `t` µs into a lava phase (§10).
+    /// (production, solidification) at `t_us` µs into the flow (§10 "Lava"
+    /// step 1): both 0 when the production curve has no points *[quirk]*.
     pub fn rates(&self, t_us: u64) -> (f32, f32) {
+        if self.production.is_empty() {
+            return (0.0, 0.0);
+        }
         let period = self.lava_seconds * 1e6;
         let r = if period > 0.0 { t_us as f32 / period } else { 1.0 };
         (
@@ -81,14 +101,41 @@ impl VolcanoTuning {
     }
 }
 
+/// The shipped "Volcano" exemplar (§10), for tests and tools: the lava is
+/// enabled (shipped true); T and scale as shipped; the vent radius is not
+/// given, so it is left out.
+pub fn shipped_volcano() -> PropertyHolder {
+    use crate::variant::{mem, Elem, Variant};
+    let mut h = PropertyHolder::new();
+    let curve = |v: &[(f32, f32)]| Variant::Array {
+        elem: mem::FLOAT32,
+        items: v.iter().flat_map(|&(x, y)| [Elem::F32(x), Elem::F32(y)]).collect(),
+    };
+    h.add(volcano_prop::PRODUCTION, curve(&SHIPPED_PRODUCTION));
+    h.add(volcano_prop::SOLIDIFICATION, curve(&SHIPPED_SOLIDIFICATION));
+    h.add(volcano_prop::SCALE, Variant::Scalar(Elem::F32(SHIPPED_SCALE)));
+    h.add(volcano_prop::LAVA_SECONDS, Variant::Scalar(Elem::F32(SHIPPED_LAVA_SECONDS)));
+    h.add(volcano_prop::LAVA_FLOWS, Variant::Scalar(Elem::Bool(true)));
+    h
+}
+
 #[derive(Clone, Debug, Default)]
 pub(crate) struct VolcanoState {
     pub state: u32,
     pub position: (f32, f32),
     pub cell: (i32, i32),
+    /// The flow's clock (µs).
     pub lava_us: u64,
     pub end_requested: bool,
-    pub deforming: bool,
+    /// The "volcano_control" effect was started.
+    pub effect_started: bool,
+    /// The lava object exists / flows / has run once.
+    pub lava_created: bool,
+    pub lava_flowing: bool,
+    pub lava_has_run: bool,
+    /// `DisasterHasBegun` ran and `DisasterHasEnded` has not yet.
+    pub begun: bool,
+    /// Flows started.
     pub lava_phases: u32,
 }
 
@@ -96,13 +143,27 @@ pub(crate) struct VolcanoState {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct VolcanoSnapshot {
     pub id: u32,
+    /// `GetPhase` (§3.2).
     pub phase: u32,
     pub state: u32,
     pub position: (f32, f32),
     pub cell: (i32, i32),
     pub lava_us: u64,
     pub end_requested: bool,
+    pub lava_flowing: bool,
+    pub lava_has_run: bool,
     pub lava_phases: u32,
+}
+
+/// The volcano's `GetPhase` (§3.2): state 0 → 0, 1 → 2, 2 and 3 → 1,
+/// 4 → 3, 5 to 8 → 2.
+pub fn volcano_phase(state: u32) -> u32 {
+    match state {
+        0 => 0,
+        2 | 3 => 1,
+        4 => 3,
+        _ => 2,
+    }
 }
 
 impl Core {
@@ -113,23 +174,19 @@ impl Core {
         }
     }
 
-    fn vs_ref(&self, id: u32) -> Option<&VolcanoState> {
+    pub(crate) fn vs_ref(&self, id: u32) -> Option<&VolcanoState> {
         match &self.instances.get(&id)?.state {
             InstanceState::Volcano(v) => Some(v),
             _ => None,
         }
     }
 
-    fn vt(&mut self) -> VolcanoTuning {
-        if self.volcano_tuning.is_none() {
-            let h = self.host.tuning(super::tuning_instance::VOLCANO);
-            self.volcano_tuning = Some(VolcanoTuning::from_holder(h.as_deref()));
-        }
+    fn vt(&self) -> VolcanoTuning {
         self.volcano_tuning.clone().unwrap_or_default()
     }
 
-    /// `AttemptDisasterStart(x, z)` (§10), world units: only when no volcano
-    /// exists.
+    /// `AttemptDisasterStart(x, z)` (§10), world units: only when the
+    /// manager's list is empty.
     pub(crate) fn volcano_attempt_start(&mut self, x: i32, z: i32) -> Option<u32> {
         if self
             .managers
@@ -141,17 +198,23 @@ impl Core {
         let id = self.new_instance(
             kind::VOLCANO,
             instance_class::VOLCANO,
-            InstanceState::Volcano(Box::new(VolcanoState {
-                position: (x as f32, z as f32),
-                ..VolcanoState::default()
-            })),
+            InstanceState::Volcano(Box::default()),
         );
         self.add_instance_to_list(kind::VOLCANO, id);
+        // SetLocation: store and register at the position's cell.
+        let (px, pz) = (x as f32, z as f32);
+        let cell = self.world_to_cell(px, pz);
+        if let Some(v) = self.vs(id) {
+            v.position = (px, pz);
+            v.cell = cell;
+        }
+        self.register_location(id, cell.0, cell.1, 0, 0, false);
         self.volcano_init(id);
-        self.volcano_enter(id, 3);
+        self.volcano_set_state(id, 3);
         Some(id)
     }
 
+    /// `Init` (§10).
     fn volcano_init(&mut self, id: u32) {
         let (sx, sz) = self.city_world_size();
         let Some(v) = self.vs_ref(id) else { return };
@@ -163,102 +226,146 @@ impl Core {
             v.cell = cell;
         }
         self.subscribe(id, msg::VOLCANO_MESSAGE);
-        self.vt();
+        let h = self.host.tuning(super::tuning_instance::VOLCANO);
+        self.volcano_tuning = Some(VolcanoTuning::from_holder(h.as_deref()));
         self.register_tick(id, TICK_PRIORITY);
-        self.volcano_enter(id, 1);
-        if let Some(i) = self.instances.get_mut(&id) {
-            i.phase = 1;
-        }
+        self.volcano_set_state(id, 1);
         self.register_location(id, cell.0, cell.1, 0, 0, false);
+        if let Some(v) = self.vs(id) {
+            v.begun = true;
+        }
         self.disaster_has_begun(id);
     }
 
-    fn volcano_enter(&mut self, id: u32, state: u32) {
+    /// `SetState` (§10): setting the current state again does nothing.
+    fn volcano_set_state(&mut self, id: u32, state: u32) {
         let tuning = self.vt();
         let host = self.host.clone();
         let Some(v) = self.vs(id) else { return };
+        if v.state == state {
+            return;
+        }
         v.state = state;
         let (x, z) = v.position;
         match state {
-            3 if !v.deforming => {
-                v.deforming = true;
-                host.volcano_start_deformation(id, x, z);
+            3 => {
+                if !v.effect_started {
+                    v.effect_started = true;
+                    host.volcano_start_deformation(id, x, z);
+                }
+                let Some(v) = self.vs(id) else { return };
+                if tuning.lava_flows && !v.lava_flowing && !v.lava_has_run {
+                    v.lava_created = true;
+                    self.volcano_set_state(id, 5);
+                }
             }
             5 => {
-                v.lava_us = 0;
-                v.lava_phases += 1;
-                if tuning.lava_flows {
+                if tuning.lava_flows && !v.lava_flowing {
+                    v.lava_us = 0;
+                    v.lava_flowing = true;
+                    v.lava_created = true;
+                    v.lava_phases += 1;
                     host.volcano_start_lava(id, x, z, tuning.vent_radius);
                 }
             }
+            7 => {
+                v.end_requested = true;
+                if v.lava_flowing {
+                    self.volcano_set_state(id, 5);
+                } else {
+                    self.volcano_set_state(id, 8);
+                }
+            }
             8 => {
-                if v.deforming {
-                    v.deforming = false;
-                    host.volcano_end_deformation(id);
+                if tuning.lava_flows {
+                    self.end_volcano_lava(id);
                 }
-                self.unregister_locations(id);
-                if let Some(i) = self.instances.get_mut(&id) {
-                    i.phase = 3;
+                if !self.vs_ref(id).is_some_and(|v| v.lava_flowing) {
+                    self.instance_finish(id);
                 }
-                self.disaster_has_ended();
-                self.instance_finish(id);
             }
             _ => {}
         }
     }
 
+    /// `EndVolcanoLava` (§10): the lava shut down and marked as run; a
+    /// begun disaster ends and its locations go.
+    fn end_volcano_lava(&mut self, id: u32) {
+        let host = self.host.clone();
+        let Some(v) = self.vs(id) else { return };
+        if v.lava_created {
+            host.volcano_end_lava(id);
+        }
+        v.lava_created = false;
+        v.lava_flowing = false;
+        v.lava_has_run = true;
+        let begun = std::mem::take(&mut v.begun);
+        if begun {
+            self.disaster_has_ended();
+            self.unregister_locations(id);
+        }
+    }
+
+    /// The tick (§10), only while lava is enabled and flowing.
     pub(crate) fn volcano_tick(&mut self, id: u32, us: u32) {
         let tuning = self.vt();
         let host = self.host.clone();
         let Some(v) = self.vs(id) else { return };
-        match v.state {
-            3 => {
-                if v.end_requested {
-                    self.volcano_enter(id, 8);
-                } else {
-                    self.volcano_enter(id, 5);
-                }
-            }
-            5 => {
-                v.lava_us += u64::from(us);
-                let t = v.lava_us;
-                let end = v.end_requested;
-                let (p, s) = tuning.rates(t);
-                if tuning.lava_flows {
-                    host.volcano_lava_rates(id, p, s);
-                }
-                if t as f64 >= f64::from(tuning.lava_seconds) * 1e6 {
-                    if tuning.lava_flows {
-                        host.volcano_end_lava(id);
-                    }
-                    self.volcano_enter(id, if end { 8 } else { 3 });
-                }
-            }
-            _ => {}
+        if !(tuning.lava_flows && v.lava_flowing) {
+            return;
+        }
+        v.lava_us = v.lava_us.wrapping_add(u64::from(us));
+        let t = v.lava_us as f64 * 1e-6;
+        let end = v.end_requested;
+        let lava_us = v.lava_us;
+        if t > f64::from(tuning.lava_seconds) {
+            self.end_volcano_lava(id);
+            self.volcano_set_state(id, if end { 8 } else { 3 });
+        } else if v.state == 5 {
+            let (p, s) = tuning.rates(lava_us);
+            host.volcano_lava_rates(id, p, s);
         }
     }
 
+    /// `0xCA493C1D` (§10): the "volcano_control" effect of this instance
+    /// finished (data1 = the instance): the end request, state 7.
+    pub(crate) fn volcano_message(&mut self, id: u32, data1: i64) -> bool {
+        if data1 != i64::from(id) {
+            return false;
+        }
+        self.volcano_set_state(id, 7);
+        true
+    }
+
+    /// The end request (state 7) for a host that has no effect message.
     pub(crate) fn volcano_request_end(&mut self, id: u32) -> bool {
-        match self.vs(id) {
-            Some(v) => {
-                v.end_requested = true;
-                true
-            }
-            None => false,
+        if self.vs_ref(id).is_none() {
+            return false;
+        }
+        self.volcano_set_state(id, 7);
+        true
+    }
+
+    /// `Shutdown` (§3.1): a begun disaster ends through `EndVolcanoLava`;
+    /// the caller removes the instance from its manager.
+    pub(crate) fn volcano_shutdown(&mut self, id: u32) {
+        if self.vs_ref(id).is_some_and(|v| v.begun) {
+            self.end_volcano_lava(id);
         }
     }
 
     pub(crate) fn volcano_snapshot(&self, id: u32) -> Option<VolcanoSnapshot> {
-        let i = self.instances.get(&id)?;
         let v = self.vs_ref(id)?;
         Some(VolcanoSnapshot {
             id,
-            phase: i.phase,
+            phase: volcano_phase(v.state),
             state: v.state,
             position: v.position,
             cell: v.cell,
             lava_us: v.lava_us,
             end_requested: v.end_requested,
+            lava_flowing: v.lava_flowing,
+            lava_has_run: v.lava_has_run,
             lava_phases: v.lava_phases,
         })
     }

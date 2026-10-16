@@ -273,9 +273,6 @@ impl Core {
             .is_some_and(|p| p.leaks.is_empty() && p.waits.is_empty())
         {
             self.unregister_locations(id);
-            if let Some(i) = self.instances.get_mut(&id) {
-                i.phase = 3;
-            }
             self.disaster_has_ended();
             self.instance_finish(id);
         }

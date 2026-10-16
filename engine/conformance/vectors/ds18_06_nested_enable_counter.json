@@ -2,7 +2,7 @@
   "format": 1,
   "name": "disaster_nested_enable_counter",
   "spec": ["disasters 2.2", "disasters 18.6"],
-  "description": "EnableDisasters(false) twice, then EnableDisasters(true) once: DisastersEnabled() is false. Once more: true. A further EnableDisasters(true) keeps the counter at 0. Each call returns the state after it.",
+  "description": "EnableDisasters(false) twice, then EnableDisasters(true) once: DisastersEnabled() is false. Once more: true. A further EnableDisasters(true) keeps the counter at 0. Each call returns the state after it. The counter is only read back: nothing in the layer gates on it (Q5).",
   "steps": [
     {"op": "dis_create"},
     {"op": "dis_init", "expect": true},

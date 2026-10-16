@@ -32,7 +32,7 @@ pub mod fire_prop {
     pub const DA_IGNITION: u32 = 0xA9B6_ECDA;
 }
 
-/// The code defaults of §5.1.
+/// The code defaults of §5.1, used only when the whole exemplar is missing.
 pub const DEFAULT_D3: [u32; 5] = [10; 5];
 pub const DEFAULT_D4: [u32; 5] = [10; 5];
 pub const DEFAULT_D5: [u32; 5] = [0, 3, 5, 7, 9];
@@ -65,14 +65,14 @@ pub const SHIPPED_DA: [(f32, f32); 8] = [
 ];
 pub const SHIPPED_ZOOM: u32 = 3;
 
-/// The fire tuning as read (§5.1).
+/// The fire tuning as read (§5.1). D3–D5 keep their stored lengths.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FireTuning {
-    pub d3: [u32; 5],
-    /// The cumulative stage thresholds (`D3cum`).
+    pub d3: Vec<u32>,
+    /// The cumulative stage thresholds (`D3cum`, from D3 indices 0 to 4).
     pub d3cum: [u32; 5],
-    pub d4: [u32; 5],
-    pub d5: [u32; 5],
+    pub d4: Vec<u32>,
+    pub d5: Vec<u32>,
     pub d6: f32,
     pub d7: ResponseCurve,
     pub d8: ResponseCurve,
@@ -87,43 +87,63 @@ impl Default for FireTuning {
     }
 }
 
-/// Five `Uint32` values: missing ones keep their default, extra ones are
-/// ignored [choice, Q14].
-fn five(h: Option<&PropertyHolder>, id: u32, default: [u32; 5]) -> [u32; 5] {
-    let mut out = default;
-    if let Some(v) = h.and_then(|h| crate::props::u32s(h, id)) {
-        for (o, x) in out.iter_mut().zip(v) {
-            *o = x;
-        }
-    }
-    out
+/// An array entry (§5.1 "Array lengths"): an index past the end takes the
+/// last entry [choice, §5.1], and an empty array reads 0 [choice, DS41].
+pub fn array_at(v: &[u32], i: usize) -> u32 {
+    v.get(i).or_else(|| v.last()).copied().unwrap_or(0)
 }
 
 impl FireTuning {
-    /// `ReadTunableValues` (§5.1): defaults where a property is missing; a
-    /// missing curve is empty and evaluates to 0.
+    /// `ReadTunableValues` (§5.1). The defaults apply only when the whole
+    /// exemplar is missing; in an exemplar, a missing array or curve stays
+    /// empty and a missing D6 or zoom byte is 0.
     pub fn from_holder(h: Option<&PropertyHolder>) -> FireTuning {
-        let d3 = five(h, fire_prop::D3_DURATIONS, DEFAULT_D3);
+        let Some(h) = h else {
+            return FireTuning::with_d3(
+                DEFAULT_D3.to_vec(),
+                DEFAULT_D4.to_vec(),
+                DEFAULT_D5.to_vec(),
+                0.0,
+                DEFAULT_ZOOM,
+                |_| ResponseCurve::default(),
+            );
+        };
+        let arr = |id| crate::props::u32s(h, id).unwrap_or_default();
+        FireTuning::with_d3(
+            arr(fire_prop::D3_DURATIONS),
+            arr(fire_prop::D4_SPREAD_DIVISOR),
+            arr(fire_prop::D5_SPREAD_RADIUS),
+            crate::props::f32_of(h, fire_prop::D6_WIND_FACTOR).unwrap_or(0.0),
+            zoom_of(Some(h), 0),
+            |id| crate::props::curve(h, id).unwrap_or_default(),
+        )
+    }
+
+    fn with_d3(
+        d3: Vec<u32>,
+        d4: Vec<u32>,
+        d5: Vec<u32>,
+        d6: f32,
+        zoom: u32,
+        curve: impl Fn(u32) -> ResponseCurve,
+    ) -> FireTuning {
         let mut d3cum = [0u32; 5];
         let mut acc = 0u32;
-        for (c, d) in d3cum.iter_mut().zip(d3) {
-            acc = acc.wrapping_add(d);
+        for (i, c) in d3cum.iter_mut().enumerate() {
+            acc = acc.wrapping_add(array_at(&d3, i));
             *c = acc;
         }
-        let curve = |id| h.and_then(|h| crate::props::curve(h, id)).unwrap_or_default();
         FireTuning {
             d3,
             d3cum,
-            d4: five(h, fire_prop::D4_SPREAD_DIVISOR, DEFAULT_D4),
-            d5: five(h, fire_prop::D5_SPREAD_RADIUS, DEFAULT_D5),
-            d6: h
-                .and_then(|h| crate::props::f32_of(h, fire_prop::D6_WIND_FACTOR))
-                .unwrap_or(0.0),
+            d4,
+            d5,
+            d6,
             d7: curve(fire_prop::D7_TOP_FLAMES),
             d8: curve(fire_prop::D8_SIDE_FLAMES),
             d9: curve(fire_prop::D9_COVERAGE),
             da: curve(fire_prop::DA_IGNITION),
-            zoom: zoom_of(h, DEFAULT_ZOOM),
+            zoom,
         }
     }
 
@@ -292,21 +312,21 @@ impl Core {
         self.fire_update();
     }
 
-    /// `Shutdown`: every fire's occupant removed, the toast list released
-    /// [choice, Q13].
-    pub(crate) fn fire_shutdown(&mut self, _id: u32) {
+    /// `Shutdown` (§3.1): `KillAllFires` (each fire posts its end and its
+    /// occupant goes), the toast list released, the fire IDs cleared, the
+    /// locations unregistered; the phase is kept and `DisasterHasEnded` is
+    /// not called. The caller removes the instance from its manager (Q13).
+    pub(crate) fn fire_shutdown(&mut self, id: u32) {
         let host = self.host.clone();
+        self.kill_all_fires();
         let Some(f) = self.fs() else { return };
-        let fires = std::mem::take(&mut f.fires);
         let toast = std::mem::take(&mut f.toast);
         f.fire_ids.clear();
         f.initialised = false;
-        for e in fires {
-            host.remove_fire_occupant(e.occupant, e.target);
-        }
         for o in toast {
             host.release(o);
         }
+        self.unregister_locations(id);
     }
 
     // ---- §5.4 ----
@@ -494,23 +514,33 @@ impl Core {
 
     // ---- §5.7 ----
 
+    /// `AddToToastList` (§5.7): AddRef'd, no duplicate check; into a list
+    /// of `n ≥ 1` entries it goes before element `RandomUint32Uniform(n)`
+    /// (one draw), into an empty list with no draw.
     fn toast_push(&mut self, o: u64) {
         let host = self.host.clone();
+        let Some(n) = self.fs_ref().map(|f| f.toast.len()) else { return };
+        host.add_ref(o);
+        let i = if n == 0 {
+            0
+        } else {
+            (self.rng_fire.uniform_u32(n as u32) as usize).min(n)
+        };
         if let Some(f) = self.fs() {
-            host.add_ref(o);
-            f.toast.push_back(o);
+            f.toast.insert(i, o);
         }
     }
 
-    /// `ExtinguishCell(x, z, amount)` (slot 8): every fire whose target's
-    /// cell rectangle holds the cell [choice, Q15].
+    /// `ExtinguishCell(x, z, amount)` (slot 8, §5.7): the fires whose fire
+    /// occupant's cells hold (x, z) and whose target is set, extinguishing
+    /// ones included, in the fire list's order [choice, Q15].
     pub(crate) fn fire_extinguish_cell(&mut self, x: i32, z: i32, amount: i32) {
         let host = self.host.clone();
         let Some(f) = self.fs_ref() else { return };
         let hits: Vec<u64> = f
             .fires
             .iter()
-            .filter(|e| host.occupant_cell_rect(e.target).contains(x, z))
+            .filter(|e| e.target != 0 && host.occupant_cell_rect(e.occupant).contains(x, z))
             .map(|e| e.occupant)
             .collect();
         for fo in hits {
@@ -592,11 +622,20 @@ impl Core {
         self.fs_ref()?.fires.iter().find(|e| e.target == o).map(|e| e.occupant)
     }
 
-    pub(crate) fn fire_set_cause(&mut self, cause: u32) {
-        if self.ensure_fire().is_some() {
-            if let Some(f) = self.fs() {
-                f.cause = cause;
+    /// `SetCause(c)` (slot 13, §5.7): only while the cause is 0, so the
+    /// first cause of an episode wins; returns the cause.
+    pub(crate) fn fire_set_cause(&mut self, cause: u32) -> u32 {
+        if self.ensure_fire().is_none() {
+            return 0;
+        }
+        match self.fs() {
+            Some(f) => {
+                if f.cause == 0 {
+                    f.cause = cause;
+                }
+                f.cause
             }
+            None => 0,
         }
     }
 
@@ -608,13 +647,14 @@ impl Core {
         self.fs_ref().map_or(0, |f| f.fires.len() as u32)
     }
 
-    /// `GetFireCountInCellRect(rect)` (slot 15): fires whose target's cell
-    /// rectangle meets the rectangle [choice, Q15].
+    /// `GetFireCountInCellRect(rect)` (slot 15, §5.7): every fire, those
+    /// with an extinguish time included, whose fire occupant's bounding
+    /// cells meet the rectangle (inclusive).
     pub(crate) fn fire_count_in_rect(&self, r: CellRect) -> u32 {
         self.fs_ref().map_or(0, |f| {
             f.fires
                 .iter()
-                .filter(|e| self.host.occupant_cell_rect(e.target).intersects(&r))
+                .filter(|e| self.host.occupant_cell_rect(e.occupant).intersects(&r))
                 .count() as u32
         })
     }
@@ -641,6 +681,11 @@ impl Core {
         self.process_toast_list();
         self.fire_update_phase();
         let now = self.fire_now();
+        if let Some(f) = self.fs() {
+            if !f.fires.is_empty() && f.next_ms == 0 {
+                f.next_ms = now;
+            }
+        }
         let due = self.fs_ref().is_some_and(|f| !f.fires.is_empty() && now >= f.next_ms);
         if due {
             self.update_all_fires();
@@ -706,6 +751,9 @@ impl Core {
             })
         };
         if has_fires && phase != 1 {
+            if let Some(f) = self.fs() {
+                f.cause = 0;
+            }
             self.disaster_has_begun(inst);
             self.register_tick(inst, TICK_PRIORITY);
             let now = self.fire_now();
@@ -796,14 +844,24 @@ impl Core {
                 }
             }
         }
-        let u = self.rng_fire.uniform_f64();
-        let d4 = tuning.d4[(s as usize).min(4)];
-        let p = crate::x87::r24(1.0 / f64::from(d4));
-        if u < p {
-            let r = tuning.d5[(s as usize).min(4)] as f32 + host.wind() * tuning.d6;
-            let b = host.occupant_bbox(t);
-            let x = self.rng_fire.range_gaussian(f64::from(b.x0 - r), f64::from(b.x1 + r));
-            let z = self.rng_fire.range_gaussian(f64::from(b.z0 - r), f64::from(b.z1 + r));
+        // Step 9: only a step that gets here draws.
+        let q = 1.0f32 / array_at(&tuning.d4, s as usize) as f32;
+        let r = self.rng_fire.range_f64(0.0, 1.0);
+        if r < f64::from(q) {
+            let stage = self
+                .fs_ref()
+                .and_then(|f| f.fires.iter().find(|x| x.occupant == fo))
+                .map_or(s, |x| x.stage);
+            let rad = array_at(&tuning.d5, stage as usize) as f32;
+            let (wx, wz) = host.wind();
+            let (wx, wz) = (wx * tuning.d6, wz * tuning.d6);
+            let b = host.occupant_bbox(fo);
+            let x = self
+                .rng_fire
+                .range_gaussian_fast(f64::from(b.x0 - (wx + rad)), f64::from(b.x1 + (wx + rad)));
+            let z = self
+                .rng_fire
+                .range_gaussian_fast(f64::from(b.z0 - (wz + rad)), f64::from(b.z1 + (wz + rad)));
             let (cx, cz) = self.world_to_cell(x as f32, z as f32);
             if self.inside_city(cx, cz) {
                 self.fire_ignite_cell(cx, cz, true, false, e.fire_id);

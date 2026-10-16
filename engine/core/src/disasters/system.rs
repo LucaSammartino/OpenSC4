@@ -62,7 +62,8 @@ pub(crate) enum InstanceState {
 pub(crate) struct Instance {
     pub mtype: u32,
     pub class: u32,
-    /// 0 idle, 1 active, 3 ended (§3.2).
+    /// 0 idle, 1 active, 3 ended (§3.2); see [`Core::phase_of`] for the
+    /// kinds that compute it.
     pub phase: u32,
     pub tick_registered: bool,
     pub subscriptions: Vec<u32>,
@@ -241,13 +242,25 @@ impl Core {
         }
     }
 
-    /// `GetActiveInstanceCount` (slot 10): instances in phase 1.
+    /// `GetActiveInstanceCount` (slot 10): instances whose `GetPhase` is 1.
     pub(crate) fn active_count(&self, mtype: u32) -> u32 {
         self.managers.get(&mtype).map_or(0, |m| {
             m.instances
                 .iter()
-                .filter(|i| self.instances.get(i).is_some_and(|x| x.phase == 1))
+                .filter(|i| self.phase_of(**i) == Some(1))
                 .count() as u32
+        })
+    }
+
+    /// An instance's `GetPhase` (§3.2): the volcano maps its state, the
+    /// earthquake and the pipe burst always answer 1, the others keep a
+    /// phase.
+    pub(crate) fn phase_of(&self, id: u32) -> Option<u32> {
+        let i = self.instances.get(&id)?;
+        Some(match &i.state {
+            InstanceState::Volcano(v) => super::volcano::volcano_phase(v.state),
+            InstanceState::Quake(_) | InstanceState::Pipe(_) => 1,
+            _ => i.phase,
         })
     }
 
@@ -308,27 +321,52 @@ impl Core {
         }
     }
 
-    /// An instance's `Shutdown` (slot 3): the kind's own cleanup, then the
-    /// tick and the subscriptions go. It does not end the disaster
-    /// (`DisasterHasEnded` belongs to each kind's own end) [choice, Q13].
+    /// An instance's `Shutdown` (slot 3, §3.1, Q13): the kind's own
+    /// cleanup, then the tick and the subscriptions go. The fire, riot,
+    /// pipe burst, toxic spill and volcano then remove themselves from
+    /// their manager; the earthquake does not (its state 4 removes it
+    /// first), nor the effect (not checked) [choice]. No phase changes.
     pub(crate) fn instance_shutdown(&mut self, id: u32) {
         let Some(i) = self.instances.get(&id) else { return };
-        match i.state {
-            InstanceState::Fire(_) => self.fire_shutdown(id),
-            InstanceState::Riot(_) => self.riot_shutdown(id),
-            InstanceState::Toxic(_) => self.toxic_shutdown(id),
-            InstanceState::Pipe(_) => self.pipe_shutdown(id),
-            _ => {}
-        }
+        let mtype = i.mtype;
+        let removes_itself = match i.state {
+            InstanceState::Fire(_) => {
+                self.fire_shutdown(id);
+                true
+            }
+            InstanceState::Riot(_) => {
+                self.riot_shutdown(id);
+                true
+            }
+            InstanceState::Toxic(_) => {
+                self.toxic_shutdown(id);
+                true
+            }
+            InstanceState::Pipe(_) => {
+                self.pipe_shutdown(id);
+                true
+            }
+            InstanceState::Volcano(_) => {
+                self.volcano_shutdown(id);
+                true
+            }
+            InstanceState::Quake(_) | InstanceState::Effect(_) => false,
+        };
         self.unregister_tick(id);
         self.unsubscribe_all(id);
+        if removes_itself {
+            self.remove_instance_from_list(mtype, id);
+        }
     }
 
-    /// A kind's own end: shutdown, then leave the manager.
+    /// A kind's own end: leave the manager and shut down (a no-op removal
+    /// when the shutdown already removed it).
     pub(crate) fn instance_finish(&mut self, id: u32) {
         let mtype = self.instance_type(id);
         self.instance_shutdown(id);
-        self.remove_instance_from_list(mtype, id);
+        if self.instances.contains_key(&id) {
+            self.remove_instance_from_list(mtype, id);
+        }
     }
 
     // ---- dispatch ----
@@ -375,7 +413,10 @@ impl Core {
                         true
                     }
                     InstanceState::Effect(_) => self.effect_message(id, m),
-                    InstanceState::Volcano(_) => true,
+                    InstanceState::Volcano(_) if m.msg_type == msg::VOLCANO_MESSAGE => {
+                        self.volcano_message(id, m.data1)
+                    }
+                    InstanceState::Volcano(_) => false,
                     _ => false,
                 }
             }
@@ -394,7 +435,7 @@ impl Core {
             id,
             mtype: i.mtype,
             class: i.class,
-            phase: i.phase,
+            phase: self.phase_of(id).unwrap_or(i.phase),
             location,
             tick_registered: i.tick_registered,
         })
@@ -647,8 +688,15 @@ impl Disasters {
     pub fn instance_info(&self, id: u32) -> Option<InstanceInfo> {
         self.read(None, |c| c.instance_info(id))
     }
-    /// An instance's `Shutdown` (instance slot 3). It stays in its manager's
-    /// list until the manager removes it.
+    /// `GetInstances()` (manager slot 11): the manager's list, in order.
+    pub fn manager_instances(&self, mtype: u32) -> Vec<u32> {
+        self.read(Vec::new(), |c| {
+            c.managers.get(&mtype).map_or(Vec::new(), |m| m.instances.clone())
+        })
+    }
+    /// An instance's `Shutdown` (instance slot 3, §3.1): the fire, riot,
+    /// pipe burst, toxic spill and volcano leave their manager's list; the
+    /// earthquake and the effect stay in it.
     pub fn instance_shutdown(&self, id: u32) {
         self.with((), |c| c.instance_shutdown(id))
     }
@@ -698,8 +746,10 @@ impl Disasters {
     pub fn burn_down(&self, o: u64) {
         self.with((), |c| c.fire_burn_down_occupant(o))
     }
-    pub fn set_cause(&self, cause: u32) {
-        self.with((), |c| c.fire_set_cause(cause))
+    /// `SetCause(c)` (slot 13): the first cause of an episode wins; returns
+    /// the cause.
+    pub fn set_cause(&self, cause: u32) -> u32 {
+        self.with(0, |c| c.fire_set_cause(cause))
     }
     pub fn cause(&self) -> u32 {
         self.read(0, Core::fire_cause)
@@ -756,8 +806,7 @@ impl Disasters {
     pub fn volcano_snapshot(&self, id: u32) -> Option<VolcanoSnapshot> {
         self.read(None, |c| c.volcano_snapshot(id))
     }
-    /// Asks a volcano to end after its current lava phase (§10 "asked to
-    /// end").
+    /// The volcano's end request (§10 state 7, as `0xCA493C1D` for it).
     pub fn volcano_request_end(&self, id: u32) -> bool {
         self.with(false, |c| c.volcano_request_end(id))
     }

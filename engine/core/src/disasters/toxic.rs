@@ -154,13 +154,9 @@ impl Core {
                 host.set_toxic_amount(s.occupant, amount);
             }
         }
+        // None left: the instance shuts down (§9; §3.1 ends the disaster).
         if self.ts_ref(id).is_some_and(|t| t.spills.is_empty()) {
             self.unregister_tick(id);
-            self.unregister_locations(id);
-            if let Some(i) = self.instances.get_mut(&id) {
-                i.phase = 3;
-            }
-            self.disaster_has_ended();
             self.instance_finish(id);
         }
     }
@@ -177,7 +173,9 @@ impl Core {
         }
     }
 
-    /// Instance `Shutdown`: the toxic occupants removed [choice, Q13].
+    /// Instance `Shutdown` (§3.1, Q13): the remaining toxic occupants
+    /// removed [choice], `DisasterHasEnded`, then the locations go; the
+    /// caller removes the instance from its manager.
     pub(crate) fn toxic_shutdown(&mut self, id: u32) {
         let host = self.host.clone();
         let list = self.ts(id).map_or(Vec::new(), |t| std::mem::take(&mut t.spills));
@@ -185,6 +183,8 @@ impl Core {
             host.remove_toxic_occupant(s.occupant);
             self.unregister_location_by_occupant(id, s.occupant);
         }
+        self.disaster_has_ended();
+        self.unregister_locations(id);
     }
 
     pub(crate) fn toxic_snapshot(&self) -> Option<ToxicSnapshot> {

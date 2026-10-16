@@ -156,8 +156,12 @@ extern "C" {
  * 67 = adds the disaster layer's mirror tooling (fc4_disasters_set_mirror_random,
  *      fc4_disasters_get_location, fc4_disasters_riot_locked, fc4_disasters_fire_ids): the plugin's
  *      disasters_shadow (a same-process differential of the original layer) (taken as 61, then 62
- *      to 66, on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 67u
+ *      to 66, on its lane; renumbered at merge);
+ * 68 = the disaster layer after re-answers14 (disasters.md): the host's dispatch-unit counts
+ *      (fire_dispatch_count / police_dispatch_count) replace the effectiveness setters, the wind is a
+ *      vector, network_default_cost and volcano_end_deformation are gone; fc4_disasters_set_cause
+ *      returns the cause; adds fc4_disasters_manager_instances. */
+#define FC4_ABI_VERSION 68u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -7569,14 +7573,15 @@ typedef struct fc4_disasters_host {
     void (*record_history)(void* user, uint32_t series, int32_t value);
     void (*add_ref)(void* user, uint64_t token);
     void (*release)(void* user, uint64_t token);
-    /* The camera and fire / police protection's dispatch effectiveness (slot 25). */
+    /* The camera; fire protection's (slot 25) and police's (slot 26) GetTotalDispatchCount, the
+     * dispatch effectiveness divisor (§2.5). */
     bool (*follow_disasters)(void* user);
     void (*go_to_location)(void* user, int32_t x, int32_t z, uint32_t zoom);
-    void (*set_fire_dispatch_effectiveness)(void* user, float value);
-    void (*set_police_dispatch_effectiveness)(void* user, float value);
-    /* Occupants. occupant_cell: false once it has left the occupant manager. */
+    uint32_t (*fire_dispatch_count)(void* user);
+    uint32_t (*police_dispatch_count)(void* user);
+    /* Occupants. occupant_cell: false once it has left the occupant manager. A fire occupant's
+     * cell rectangle and box are its own (§5.7, §5.10). */
     uint32_t (*building_type_flags)(void* user, uint64_t occ);
-    int64_t (*network_default_cost)(void* user, uint64_t occ);
     uint32_t (*occupant_type)(void* user, uint64_t occ);
     bool (*occupant_in_manager)(void* user, uint64_t occ);
     bool (*occupant_cell)(void* user, uint64_t occ, int32_t* x, int32_t* z);
@@ -7601,7 +7606,7 @@ typedef struct fc4_disasters_host {
     void (*remove_fire_occupant)(void* user, uint64_t fire, uint64_t target);
     void (*add_fire_aura)(void* user, uint64_t occ);
     bool (*tutorial_no_burn_down)(void* user);
-    float (*wind)(void* user);
+    void (*wind)(void* user, float* x, float* z); /* weather slot 22: the wind vector */
     void (*play_effect)(void* user, const char* name, uint64_t occ);
     void (*play_effect_at)(void* user, const char* name, float x, float z);
     void (*burn_flora)(void* user, uint64_t occ);
@@ -7640,9 +7645,9 @@ typedef struct fc4_disasters_host {
     bool (*create_leak_effect)(void* user, uint64_t pipe, uint32_t view_level);
     size_t (*connected_pipe_cells)(void* user, uint64_t pipe, int32_t* xz, size_t capacity);
     void (*demolish_pipe)(void* user, uint64_t pipe, uint32_t flags);
-    /* Volcano (§10): the deformation and the lava terrain class are the host's. */
+    /* Volcano (§10): the "volcano_control" effect (its completion is delivered as 0xCA493C1D with
+     * data1 = the instance) and the lava terrain class are the host's. */
     void (*volcano_start_deformation)(void* user, uint32_t instance, float x, float z);
-    void (*volcano_end_deformation)(void* user, uint32_t instance);
     void (*volcano_start_lava)(void* user, uint32_t instance, float x, float z, float radius);
     void (*volcano_lava_rates)(void* user, uint32_t instance, float production, float solidification);
     void (*volcano_end_lava)(void* user, uint32_t instance);
@@ -7717,11 +7722,13 @@ void fc4_disasters_reset_cost(fc4_disasters* d);
 /* DoMessage on a target (FC4_DISASTER_TARGET_*); false for an unknown kind or NULL. */
 bool fc4_disasters_do_message(fc4_disasters* d, uint32_t target_kind, uint32_t id, const fc4_disaster_message* m);
 void fc4_disasters_tick(fc4_disasters* d, uint32_t instance, uint32_t us);
-/* AttemptDisasterStart(x, z) / AttemptDisasterStart(): the instance, 0 = none. */
+/* AttemptDisasterStart(x, z) / AttemptDisasterStart(): the instance, 0 = none (always 0 for the
+ * fire and the riot, §5.5, §6.2; a new riot is the last of fc4_disasters_manager_instances). */
 uint32_t fc4_disasters_attempt_start(fc4_disasters* d, uint32_t manager_type, int32_t x, int32_t z);
 uint32_t fc4_disasters_attempt_start_any(fc4_disasters* d, uint32_t manager_type);
 uint32_t fc4_disasters_active_count(const fc4_disasters* d, uint32_t manager_type);
-/* The instance's Shutdown; it stays in its manager's list. */
+/* The instance's Shutdown (§3.1): the fire, riot, pipe burst, toxic spill and volcano leave their
+ * manager; the earthquake and the effect stay in its list. */
 void fc4_disasters_instance_shutdown(fc4_disasters* d, uint32_t instance);
 /* Fire (§5). fire_instance creates it at first use. */
 uint32_t fc4_disasters_fire_instance(const fc4_disasters* d);
@@ -7736,7 +7743,8 @@ void fc4_disasters_quick_burn_cell(fc4_disasters* d, int32_t x, int32_t z);
 void fc4_disasters_ignite_cell_radius(fc4_disasters* d, int32_t x, int32_t z, int32_t r0, int32_t r1);
 void fc4_disasters_extinguish(fc4_disasters* d, uint64_t occupant);
 void fc4_disasters_burn_down(fc4_disasters* d, uint64_t occupant);
-void fc4_disasters_set_cause(fc4_disasters* d, uint32_t cause);
+/* SetCause: only while the cause is 0 (the first of an episode wins); returns the cause. */
+uint32_t fc4_disasters_set_cause(fc4_disasters* d, uint32_t cause);
 uint32_t fc4_disasters_cause(const fc4_disasters* d);
 uint32_t fc4_disasters_fire_count(const fc4_disasters* d);
 uint32_t fc4_disasters_fire_count_in_rect(const fc4_disasters* d, const fc4_cell_rect* rect);
@@ -7755,8 +7763,8 @@ bool fc4_disasters_get_instance(const fc4_disasters* d, uint32_t instance, fc4_d
 size_t fc4_disasters_riot_leaders(const fc4_disasters* d, uint32_t instance, fc4_riot_leader* out, size_t capacity);
 /* Mirror tooling (67; the plugin's disasters_shadow, not spec behaviour). set_mirror_random: the
  * fire, riot, earthquake and pipe-burst generators become deterministic (new fire IDs count from
- * 0x80000001; uniform_u32 0; uniform 1.0, so a fire never spreads by itself; range(a, b) b;
- * gaussian(a, b) a): a core that mirrors the original makes no random decision of its own. */
+ * 0x80000001; uniform_u32 0; uniform 1.0; range(a, b) b, so a fire never spreads by itself;
+ * gaussian_fast(a, b) a): a core that mirrors the original makes no random decision of its own. */
 bool fc4_disasters_set_mirror_random(fc4_disasters* d);
 typedef struct fc4_disaster_location {
     uint32_t instance, zoom;
@@ -7768,6 +7776,10 @@ bool fc4_disasters_get_location(const fc4_disasters* d, size_t index, fc4_disast
  * instance not created). Return the count; copy at most `capacity` (`out` may be NULL). */
 size_t fc4_disasters_riot_locked(const fc4_disasters* d, uint64_t* out, size_t capacity);
 size_t fc4_disasters_fire_ids(const fc4_disasters* d, uint32_t* out, size_t capacity);
+/* A manager's instance list (GetInstances, slot 11), in order (68). Returns the count; copies at
+ * most `capacity` (`out` may be NULL). */
+size_t fc4_disasters_manager_instances(const fc4_disasters* d, uint32_t manager_type, uint32_t* out,
+                                       size_t capacity);
 
 /* ---- network manager (docs/specs/network-manager.md; engine/capi/src/network_manager.rs) ----
  * cSC4NetworkManager (component 53) and cSC4NetworkLotManager (component 11).
