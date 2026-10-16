@@ -90,6 +90,8 @@ network type's bridge type vector, without a bounds check.
 | `0x00632AD0` | `IdentifyLandBridgeCells` | §7 |
 | `0x00632580` | `CreateLandBridge` *[inferred]* | §7.3 |
 | `0x0062EA90` | `SelectBridgeElevation` *[inferred]* | §8.2 |
+| `0x00638B40` | `RemoveBridgePiecesFromSetOfCellsToBeSolved` | §8.3 |
+| `0x0062FB90` | `CopyBridgeElevationConstraintsIntoCellInfo` *[inferred]* | §8.3 |
 | `0x00632060` | `ConstructSpecializedBridge` *[inferred]* | §9 |
 | `0x00631300` | `ConstructParametricBridge` *[inferred]* | §10 |
 | `0x0062F610` | `InsertBridgePieces` | §11 |
@@ -566,6 +568,52 @@ A record has a **reference** elevation (`+0x14`), the bank height chosen by `Adj
 So the deck is the highest of the override and, per step, the last cell's surface plus the water or land height. For a
 one-cell-wide network the quirk changes nothing. For two-wide networks the first cell of each step is ignored.
 
+### 8.3 The bridge in the height solve (answers NB1)
+
+The network geometry spec has the solve order (network-geometry.md §8, §9.4) and the plane constraint of the regular
+cells (§9.8). A bridge takes part in four places:
+
+1. **Out of the piece solve.** `RemoveBridgePiecesFromSetOfCellsToBeSolved` (`0x00638B40`), the last step of
+   `BuildSetOfCellsToBeSolved` (network-geometry.md §8 step 2): for each bridge record in order, stopping at the
+   first whose end step is ≥ `+0x78` (as §11.1), the cell key `(z << 16) + x` of each of its piece records is erased
+   from the solve set `+0x84`. The rule solver never chooses a piece for a bridge cell: the models of §9 and §10 are
+   its pieces.
+2. **Fixed cells.** Every cell of a kind-1 step is marked fixed when its cell info is made, whether or not a piece is
+   already there (network-geometry.md §8.1).
+3. **Pinned corners and the constraint entry.** `CopyBridgeElevationConstraintsIntoCellInfo` (`0x0062FB90`) runs at
+   every smoothing level (network-geometry.md §9.4 step 2). For each bridge record in order, stopping at the first
+   whose end step is ≥ `+0x78`:
+   - it appends the entry `{start, end, e, e}` to the level's constraint list, with
+     `e := r24(deck − +0x60[0])`: the record's deck elevation `+0x10` minus the bridge type's total ramp rise
+     (`+0x60[0]` = `+0x78`, §2.4). For a parametric bridge that is the height of the abutments' **outer** edges
+     (§10.3); a specialised bridge's outer edge is `h[0] + deck` (§9.3), which `e` ignores. The bridge type is
+     found through the tool's own type info (`+0x358`, vector `+0x30`) and the record's index `+0x0C`;
+   - it walks the steps `start … end`, and each step's cells first to last (network-geometry.md §2.2), with one
+     counter over the record's piece records starting at 0. Each cell info gets the piece's four corner heights
+     (`+0x14` … `+0x20`) as its corner heights `+0x58[i]`, index for index (the two use the same corner order), and
+     its allowed range `+0x68[i]` := `[corner, corner]`. The preferred range is not touched.
+
+   The piece records are in lane order (§9.1), which runs last to first when `R` is 2 or 3, so on a bridge more than
+   one cell wide built with pen 0 or 6 the records of a step land on its cells in reverse *[quirk]*. Both models give
+   every lane of a step the same corner heights (§9.3, §10.3), so this has no effect.
+
+   Slot 76 then fixes each corner of each bridge cell at that height (network-geometry.md §9.3): in the network
+   satisfier every vertex of a bridge is pinned at its pieces' corners. Bridge cells, being fixed, get no slope or
+   smoothness constraints (network-geometry.md §9.2); the regular cells beside them are tied to them through the
+   shared vertices.
+4. **The plane of the regular cells.** The entry anchors the plane constraint on each side of the bridge
+   (network-geometry.md §9.8): the regular cells between two bridges (or a bridge and a tunnel) must stay within the
+   type's plane tolerance (35 m for road, 15 m for the other shipped types) of the straight line from the first one's
+   end height `e` to the second one's start height, unless their own height is farther; before the first bridge and
+   after the last, the line runs to the run's end at the terrain. The line is anchored on the abutment steps' inner
+   edges (network-geometry.md quirk 13).
+
+A run with a bridge starts smoothing at level 1 (network-geometry.md §9.4). In the terrain pass (network-geometry.md
+§9.6) a bridge cell is fixed but not yet placed (`+0x51` is set by §11.1, after the smoothing loop), and it has no
+solved piece and no existing occupant to ask for supports, so its vertices get the range `[t − p10, min(n, t + p0C)]`
+with the preferred value `t`: the terrain under a bridge is left alone unless a vertex it shares with a regular cell is
+graded there *[inferred]*.
+
 ---
 
 ## 9. The specialised model: ConstructSpecializedBridge(&record, &entry) (`0x00632060`, pop 8)
@@ -705,9 +753,17 @@ cell's info (key `(z << 16) + x`; it must exist), set its byte `+0x51 := 1` (a b
 ### 11.2 InsertBridgePiece (`0x0062EEB0`)
 
 1. Create the occupant with `CreateNetworkOccupant` (slot 54, network-geometry.md §10.1), class `0x49CC1BCD` (the
-   bridge occupant).
-2. Set its exemplar with the piece and rotation (`0x00624860`), with the model offset `dy := Y − ` the occupant's
-   height, then occupant slot 30.
+   bridge occupant). Slot 54 gives the occupant the cell's four corner points, in the cell info corner order:
+   `(x·s, c0, z·s)`, `(x·s, c1, z·s + s)`, `(x·s + s, c2, z·s + s)`, `(x·s + s, c3, z·s)`, with `s` the cell size
+   and `c0`–`c3` the cell info's corner heights `+0x58`. For a bridge cell those are its piece's corners (§8.3):
+   slot 55 rewrites the corners of solved cells only, and bridge cells are not solved cells. (Occupant slot 3,
+   `0x00619050`, stores them.)
+2. Read the occupant's **position** (network occupant slot 48 gives its occupant interface, whose `GetPosition`,
+   `0x00604E40`, forwards to primary slot 75, `0x006193D0`): x and z are the means of the four corner points' x and z
+   (summed in corner order, then × 0.25), and the **height is the highest of the four corner heights** (a corner
+   replaces the running value, which starts at −FLT_MAX, only when strictly greater). Set the exemplar with the piece
+   and rotation (`0x00624860`) and the model offset `(0, dy, 0)`, `dy := r24(Y − height)`, so that the model's origin
+   is at `Y`; then occupant slot 30.
 3. Flags: clear `0x2000000` and `0x4000000`, set `0x8000000`. If the occupant is usable (`0x10000000`), clear
    `0x4000`, else set it (network-manager.md §5).
 4. If the piece's exemplar lacks property `0xABE1B5A3`: occupant slot 68 `:=` the lowest corner of the cell
@@ -719,8 +775,10 @@ A piece's depth is how far its own model reaches below the occupant's origin. A 
 the gap between the bottom of the model and the ground (`0x0062F012`–`0x0062F378`):
 
 1. Nothing when the depth is < 0.
-2. `top :=` the occupant's position height (occupant query `0x0062F02C`–`0x0062F03B`) `− depth` *[inferred: the
-   position height is the piece's model height Y]*.
+2. `top := r24(height − depth)`, where `height` is the occupant's position height read again
+   (`0x0062F02C`–`0x0062F03B`): the **highest corner** of the piece (§11.2 step 2), not its model height `Y`
+   *[compat]*. Nothing between the two reads moves the corners: the exemplar call and slot 30 change the model
+   offset and rotation only.
 3. `bottom :=` the lowest of the terrain altitudes (slot 12) at the cell info's four vertex ids.
 4. If `top < bottom`, the model already reaches the ground: no column.
 5. The column's four corners are the footprint `+0x8C` for a pier piece (kind 1), else `+0x80`, in the variant for the
@@ -732,12 +790,43 @@ the gap between the bottom of the model and the ground (`0x0062F012`–`0x0062F3
 So the road level bridge's pier centre (depth 498) and first ramp (depth 256) get a column only where the ground is
 more than 498 m or 256 m below them; the pieces with depth −1 never get one.
 
+The column top and the model's origin differ by `Y − height`:
+
+| Piece | `Y` (§9.3, §10.3) | `height` (highest corner) | `Y − height` |
+|---|---|---|---|
+| parametric deck | `elev + +0xD4` | `elev` | `+0xD4` |
+| parametric pier | `elev + +0xD4 + +0xC4` | `elev` | `+0xD4 + +0xC4` |
+| parametric ramp `u` (drops decreasing inward) | `elev − +0x6C[u] + +0xD4` | `elev − +0x60[u + 1]` | `+0xD4 − b_u` (§2.4) |
+| specialised | `elev + P.Y + +0xD4` | `elev + max(h[k], h[k + 1])` | `P.Y + +0xD4 − max(h[k], h[k + 1])` |
+
+(each sum rounded as in §9.3 and §10.3). For the shipped road types, which set neither `+0xD4` nor `+0xC4` and whose
+ramp pairs have `b` = 0, the parametric rows give 0 *[inferred: an absent property leaves 0]*. The ground highway's
+types (`+0xD4` = −15.5) measure the column top from a point 15.5 m above the model's origin.
+
 ### 11.4 Suspension and cables
 
 After the columns, `InsertBridgePiece` calls `AddSuspendedBridgeStructures` (`0x0062DF30`) when the piece's support
 flags (`+0x40`) are not 0, then adds the piece's cable pieces (`+0x44`, filled by the cable plotting `0x00630F70`). The suspension profile (`0x0062E690`) turns the piece positions between two supports into the
-per-corner weights `+0x2C`–`+0x38`, with the parameter given (`+0x9C` or `+0xA0`) and an end mode (0, 1 or 2). These
-are drawing data: nothing in the simulation reads them *[inferred]*. Their exact formulas are left open (NB2).
+per-corner weights `+0x2C`–`+0x38`, with the parameter given (`+0x9C` or `+0xA0`) and an end mode (0, 1 or 2).
+
+**Where the data goes** (NB2, partly answered). The suspension profile (`0x0062E690`) is a leaf: it calls nothing and
+writes only the piece records' weights. The cable plotting (`0x00630F70`) appends cable pieces to each piece record's
+vector `+0x44` (through `0x006307A0`). The piece records' readers are `RemoveBridgePiecesFromSetOfCellsToBeSolved`
+(the cell, §8.3), `CopyBridgeElevationConstraintsIntoCellInfo` (the corners, §8.3) and `InsertBridgePiece`; only the
+last reads the weights, `+0x3C`, the flags `+0x40` and the cables. It turns them into **triangles** on the bridge
+occupant: `AddSuspendedBridgeStructures` (through `0x0062DCB0`) and the cable loop (four triangles per cable piece,
+`0x0062F4E6`–`0x0062F546`) call network occupant slot 31 (`0x0061C800`), which appends one `0x4C`-byte textured
+triangle (three points with texture coordinates, colour `0xFFFFFFFF`) to the occupant's triangle list `+0x118`, then
+recomputes the occupant's bounding box (slot 80, `0x0061DB50`; both its paths include the triangle list) and calls
+slot 46.
+
+So these data are drawing data with one side effect: `InsertBridgePiece` inserts the occupant into the occupant
+manager **after** adding the triangles (occupant manager slot 20, `0x0062F5A8`), and the insert files the occupant
+under every cell its x/z bounding box covers (occupant-manager.md §5.1). A replacement that draws its own suspension
+and cable geometry *[choice]* keeps the original's behaviour as long as the piece's x/z box, shrunk by 0.1 m per side,
+stays inside the same cells. Whether any shipped bridge's triangles reach past the piece's own cell, and so file it
+under a neighbouring cell, was not measured; the formulas of the profile and the cable plotting are not specified
+(they are visual).
 
 ---
 
@@ -773,6 +862,13 @@ its steps regular, and the height solver then treats them as ordinary terrain.
   parametric model reads `+0x34`–`+0x7C` and `+0xA8`–`+0xD4`, not `+0xF8`–`+0x120` (those are suspension tower data).
 - **NG4**: §7 and §2.5. `+0x354` is set by an address test (`0x00626B53`) of bridge type `+0x98` (property
   `0x482CB44F`, land); every shipped type sets the property, so there is no shipped effect. The pass itself: §7.
+- **NB1** (§16, answered 2026-10-16, re-answers26): §8.3, with the solver side in network-geometry.md §9.8. There was
+  no implemented answer to compare.
+- **NB2** (§16, partly answered 2026-10-16, re-answers26): §11.4. MATCHES the inference that nothing in the
+  simulation reads the suspension and cable data, with one side effect: the triangles they become enlarge the bridge
+  occupant's bounding box, which the occupant manager indexes by cell.
+- **NB3** (§16, answered 2026-10-16, re-answers26): §11.2 step 2 and §11.3 step 2. **DIFFERS** from the inference:
+  the position height is the highest of the piece's four corners, not `Y`.
 
 ## 15. Quirks (summary)
 
@@ -787,16 +883,30 @@ its steps regular, and the height solver then treats them as ordinary terrain.
 8. `InsertBridgePieces` stops at the first record past `v` instead of skipping it (§11.1).
 9. The specialised walk does not check the piece list's length against the cells (§9.3); the shipped files were not
    checked for a mismatch.
+10. The height pins copy a step's piece records onto its cells first to last, while the records are in lane order;
+    no effect, since every lane of a step has the same corners (§8.3).
 
 ## 16. Open questions
 
-- **NB1.** The rule that the network solver applies to bridge cells (`RemoveBridgePiecesFromSetOfCellsToBeSolved`,
+- ~~**NB1.** The rule that the network solver applies to bridge cells (`RemoveBridgePiecesFromSetOfCellsToBeSolved`,
   `0x00638B40`, and `CopyBridgeElevationConstraintsIntoCellInfo`): how the corner heights of §9 and §10 constrain the
-  height solver (network-geometry.md §9). Not read.
+  height solver (network-geometry.md §9). Not read.~~ **ANSWERED 2026-10-16 (re-answers26):** §8.3. Bridge cells
+  leave the piece solve set; they are fixed, and at every smoothing level their corners and allowed ranges are set to
+  their pieces' corners, so the satisfier pins every bridge vertex. Each bridge also adds the entry
+  `{start, end, deck − +0x60[0], same}` that anchors the plane constraint of the regular cells
+  (network-geometry.md §9.8, new), which runs in step 2 of each `SmoothenNetwork` level.
 - **NB2.** The suspension profile (`0x0062E690`), the cable plotting (`0x00630F70`) and `AddSuspendedBridgeStructures`
-  in detail. Drawing only *[inferred]*.
-- **NB3.** The occupant position height used for the column top (§11.3): inferred to be the piece's model height Y
-  set in §11.2, not checked.
+  in detail. Drawing only *[inferred]*. **PARTLY ANSWERED 2026-10-16 (re-answers26):** §11.4. Nothing but
+  `InsertBridgePiece` reads the weights, the flags and the cable pieces; it turns them into triangles on the occupant
+  (slot 31), which also enlarge its bounding box before the occupant manager files it by cell. Still open: do the
+  shipped suspension or cable triangles reach past a piece's own cell (an occupant-manager query over the cells next
+  to a suspension bridge's tower or cable pieces in the original would settle it), and the formulas themselves, which
+  matter only for drawing.
+- ~~**NB3.** The occupant position height used for the column top (§11.3): inferred to be the piece's model height Y
+  set in §11.2, not checked.~~ **ANSWERED 2026-10-16 (re-answers26):** **DIFFERS.** It is the network occupant's
+  position height (`0x006193D0`), the highest of the four corner heights that `CreateNetworkOccupant` gave the
+  occupant, which for a bridge cell are its piece's corners (§8.3). The model offset makes the model's origin `Y`,
+  but the column top is `highest corner − depth` (§11.2, §11.3).
 
 ## 17. Conformance tests
 
@@ -877,3 +987,23 @@ surface level (slot 18) is the water level. Unless stated, the banks are flat an
     added); `IsMajorBridgeLandBridge` is true and `GetMajorBridgeAltitude` gives 100.
 25. **Getters** (§1.1). With no bridge: `GetMajorBridge` = −1, `GetMajorBridgeAltitude` false.
     `GetBridgeBitmapKey(0, …)` for road: true, (`0x6A386D26`, 1).
+26. **Bridge pins** (§8.3). The bridge of test 14 (road key 1, drag (0, 10) → (30, 10), start 9, end 19, deck 270): the
+    constraint entry is {9, 19, 270, 270}; every corner of every cell of steps 9 … 19 has height 270, allowed range
+    [270, 270], and is fixed; none of those cells is in the solve set `+0x84`.
+27. **Plane beside a bridge** (§8.3, network-geometry.md §9.8). The same run, regular corners (terrain 250 m, plane
+    tolerance 35): before the bridge the plane rises from 250 at x = 0 to 270 at x = 10 (step 9's leading edge, one
+    cell inside the bridge): allowed [215, 285] at x = 0, [225, 295] at x = 5, [233, 303] at x = 9, with preferred
+    ranges [250, 250], [250, 260], [250, 268]. After it the plane falls from 270 at x = 19 (step 19's trailing edge) to
+    250 at x = 31: at x = 20, `h` ≈ 268.33334, allowed ≈ [233.33334, 303.33334], preferred ≈ [250, 268.33334]; at x = 25,
+    [225, 295]; at x = 31, [215, 285].
+28. **Column top** (§11.2, §11.3). A test bridge type like road key 1 but with `+0xD4` = 10 and `+0xC4` = 5, deck
+    `elev` = 270, over dry ground at 0 m: a pier centre piece (depth 498) has its four corners at 270, so its position
+    height is 270 and `dy` = 285 − 270 = 15 (the model's origin is at `Y` = 285); its column top is 270 − 498 = −228,
+    below the ground, so no column. With depth 200: top 70, a column from 0 up to 70 (not 85). A road key 2 ramp
+    piece `u` = 0 (corners `elev − 36.652` outside and `elev − 34.905` inside): position height `elev − 34.905`; with
+    depth 100 the column top is `elev − 134.905`.
+29. **Suspension data stay on the occupant** (§11.4). A road key 5 bridge (medium suspension, cable models set): after
+    the run, the bridge occupants of the cable spans carry triangles in their own triangle lists. Compared with the same
+    bridge with both cable model ids cleared (which turns the support flags, the profile and the cables off, §10.4),
+    only the piece records' weights, flags and cable vectors and the occupants' triangles and boxes differ: no cell
+    info corner or range, cost or failure code does.
