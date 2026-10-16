@@ -262,34 +262,63 @@ void HcHistoryRecordAndQuery(cFC4ISC4HistoryWarehouse* h, HcWorld& w) {
 }
 
 // The two-thread checks below interleave a reader thread with the main
-// thread's steps. On a busy machine a new thread may not run at all before
-// the main thread's loop ends, so the main thread does not assume it ran:
-// every `kHcThreadCheckpoint` steps it waits (yielding, with a generous
-// deadline shared by the whole loop) until the reader has answered again
-// since the last checkpoint. False if the deadline passed first.
+// thread's steps. On a busy machine a freshly created thread may not run at
+// all before the main thread's loop ends (the 2000/3000 steps take only
+// milliseconds), so the main thread never assumes it ran: the reader signals
+// HcAnswerGate every time the plugin answers it, and the main thread blocks on
+// that signal with a bounded deadline -- never a sleep, so it wakes the moment
+// the answer lands. Every `kHcThreadCheckpoint` steps it waits until the
+// reader has answered again since the previous checkpoint, which also proves
+// the getters answer between the steps throughout (stronger than the single
+// end-of-loop check, kept below). A wait that runs out of time makes the
+// check fail rather than hang.
 constexpr int kHcThreadCheckpoint = 500;
-constexpr ULONGLONG kHcThreadDeadlineMs = 60000;
+constexpr std::chrono::seconds kHcThreadDeadline{60};
 
-bool HcWaitForAnswer(const std::atomic<int>& answers, int& seen, ULONGLONG deadline) {
-    while (answers.load() <= seen) {
-        if (GetTickCount64() >= deadline) return false;
-        Sleep(1);
+class HcAnswerGate {
+public:
+    // Called by the reader thread once the plugin has answered it.
+    void Arrive() {
+        {
+            std::lock_guard<std::mutex> hold(m_);
+            ++count_;
+        }
+        cv_.notify_all();
     }
-    seen = answers.load();
-    return true;
-}
+    // Blocks until the reader has answered again since `seen`, then updates
+    // `seen`. False once `deadline` passes first. The increment happens under
+    // m_ and the waiter holds m_ across its check and its wait, so an answer
+    // cannot slip between them and be missed.
+    bool WaitForAnswer(int& seen, std::chrono::steady_clock::time_point deadline) {
+        std::unique_lock<std::mutex> hold(m_);
+        while (count_ <= seen) {
+            if (cv_.wait_until(hold, deadline) == std::cv_status::timeout && count_ <= seen) return false;
+        }
+        seen = count_;
+        return true;
+    }
+    int Answers() const {
+        std::lock_guard<std::mutex> hold(m_);
+        return count_;
+    }
+
+private:
+    mutable std::mutex m_;
+    std::condition_variable cv_;
+    int count_ = 0;
+};
 
 // Queries from another thread while the main thread records (the lock).
 void HcHistoryThreads(cFC4ISC4HistoryWarehouse* h, HcWorld& w) {
     std::atomic<bool> stop{false};
-    std::atomic<int> answers{0};
+    HcAnswerGate gate;
     std::thread t([&] {
         float n = 0;
         while (!stop.load()) {
-            if (h->GetCount(0x0A1100E8, HcDate(kHcDay0), HcDate(kHcDay0 + 100000), n)) ++answers;
+            if (h->GetCount(0x0A1100E8, HcDate(kHcDay0), HcDate(kHcDay0 + 100000), n)) gate.Arrive();
         }
     });
-    const ULONGLONG deadline = GetTickCount64() + kHcThreadDeadlineMs;
+    const auto deadline = std::chrono::steady_clock::now() + kHcThreadDeadline;
     int seen = 0, checkpoints = 0;
     bool answering = true;
     for (int i = 0; i < 2000; ++i) {
@@ -297,14 +326,14 @@ void HcHistoryThreads(cFC4ISC4HistoryWarehouse* h, HcWorld& w) {
         h->RecordHistoryData(0x0A1100E8, i);
         // From the first record on the key exists, so every query answers.
         if (answering && i % kHcThreadCheckpoint == 0) {
-            answering = HcWaitForAnswer(answers, seen, deadline);
+            answering = gate.WaitForAnswer(seen, deadline);
             if (answering) ++checkpoints;
         }
     }
     stop = true;
     t.join();
     CHECK(answering && checkpoints == 2000 / kHcThreadCheckpoint);  // answers between the records, throughout
-    CHECK(answers.load() > 0);
+    CHECK(gate.Answers() > 0);  // the reader thread got an answer from the plugin
 }
 
 std::vector<uint8_t> HcWrite(cIGZSerializable* s) {
@@ -859,32 +888,32 @@ int Clock24EnableTest(const std::string& dll, const std::string& ini, const std:
             // Getters from another thread while the main thread steps (the lock).
             if (svc != nullptr) {
                 std::atomic<bool> stop{false};
-                std::atomic<int> answers{0};
+                HcAnswerGate gate;
                 std::thread th([&] {
                     while (!stop.load()) {
-                        if (c->GetHour() < 24 && c->GetVisualMinute() < 60) ++answers;
+                        if (c->GetHour() < 24 && c->GetVisualMinute() < 60) gate.Arrive();
                         float pf = 0;
                         c->GetVisualTimePercentage(&pf);
                     }
                 });
-                // Every kHcThreadCheckpoint steps, wait until the getters
-                // answered again (HcWaitForAnswer), so they run between the
-                // steps throughout however late the thread starts.
-                const ULONGLONG deadline = GetTickCount64() + kHcThreadDeadlineMs;
+                // Every kHcThreadCheckpoint steps, wait on HcAnswerGate until
+                // the getters answered again, so they run between the steps
+                // throughout however late the thread starts.
+                const auto deadline = std::chrono::steady_clock::now() + kHcThreadDeadline;
                 int seen = 0, checkpoints = 0;
                 bool answering = true;
                 for (int i = 0; i < 3000; ++i) {
                     w.now += 500000;
                     svc->OnIdle(0);
                     if (answering && i % kHcThreadCheckpoint == 0) {
-                        answering = HcWaitForAnswer(answers, seen, deadline);
+                        answering = gate.WaitForAnswer(seen, deadline);
                         if (answering) ++checkpoints;
                     }
                 }
                 stop = true;
                 th.join();
                 CHECK(answering && checkpoints == 3000 / kHcThreadCheckpoint);
-                CHECK(answers.load() > 0);
+                CHECK(gate.Answers() > 0);  // the reader thread got an answer from the plugin
             }
             // §7: version 2, 26 bytes; the §7 example at noon with the shipped values.
             if (ser != nullptr) {
