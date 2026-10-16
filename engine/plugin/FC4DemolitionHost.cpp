@@ -42,6 +42,7 @@
 #include "cISC4LotConfiguration.h"
 #include "cISC4LotManager.h"
 #include "cISC4NetworkOccupant.h"
+#include "cISC4BuildingOccupant.h"
 #include "cISC4Occupant.h"
 #include "cISC4OccupantFilter.h"
 #include "cISC4OccupantManager.h"
@@ -80,6 +81,7 @@ constexpr uint32_t kIID_cISC4FoundationOccupant = 0xC8FCE101;
 constexpr uint32_t kIID_cISC4PowerPoleOccupant = 0xA8C86142;
 constexpr uint32_t kIID_cISC4NetworkOccupant = 0xA821EF94;
 constexpr uint32_t kIID_cISC4Occupant = 0x26BB767E;
+constexpr uint32_t kIID_cISC4BuildingOccupant = 0x87DDA3A9;
 constexpr uint32_t kMsgPreDemolishNetworkOccupant = 0xAA7A014D;
 // §4.2 step 7: every network type bit except water pipe, power line, subway.
 constexpr uint32_t kUndergroundHiddenFlags = 0x1F4F;
@@ -514,21 +516,26 @@ void OccupantsInCellRect(void* u, const fc4_cell_rect* r, fc4_token_callback cb,
 // -- prices and removals (§4.3) --
 
 bool BuildingDemolitionCost(void* u, uint64_t t, int64_t* out) {
-    // The building development cost getter (building, 1): city slot
-    // 53, then slot 10 (int64 property 0x099AFACD). The building type's
-    // occupant IS the cISC4BuildingOccupant the slot takes, so no QI: no
-    // reference is taken and none is released (HANDOFF §5.1b).
+    // The building development cost getter (building, 1): city slot 53, then
+    // slot 10 (int64 property 0x099AFACD).
     cISC4City* c = City(u);
     cISC4Occupant* o = Occ(t);
     if (c == nullptr || o == nullptr) return false;
     cISC4BuildingDevelopmentSimulator* bds = c->GetBuildingDevelopmentSimulator();  // slot 53
     if (bds == nullptr) return false;
+    // The slot takes the cISC4BuildingOccupant* interface, which is not
+    // necessarily the cISC4Occupant* at offset 0: QueryInterface for it and
+    // release the reference that gives (HANDOFF §5.1b).
+    void* p = nullptr;
+    if (!o->QueryInterface(kIID_cISC4BuildingOccupant, &p) || p == nullptr) return false;
+    cISC4BuildingOccupant* b = static_cast<cISC4BuildingOccupant*>(p);
+    FC4_ACQUIRED(b, "QueryInterface");
     if (out) {
         // abi: via cFC4ISC4BuildingDevelopmentSimulator (slot 10; the SDK's
-        // slot 9 is the flora-body overload and declares it with no arguments)
-        *out = fc4::AsGame(bds)->GetCostOfOccupantDemolition(  // abi: via cFC4I
-            reinterpret_cast<cISC4BuildingOccupant*>(o), 1);  // slot 10
+        // slot 9 is the foundation/flora-body overload)
+        *out = fc4::AsGame(bds)->GetCostOfOccupantDemolition(b, 1);  // abi: via cFC4I, slot 10
     }
+    FC4_RELEASE(b);
     return true;
 }
 
