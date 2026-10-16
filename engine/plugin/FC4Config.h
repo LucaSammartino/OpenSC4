@@ -164,7 +164,7 @@
 //                                 enable traffic; FC4TrafficShadow.h)
 //   traffic_shadow_diffs = N      its differences named per line (default 8, 1..64)
 //   traffic_shadow_lines = N      its delivery lines per month (default 8)
-//   traffic_shadow_hypotheses = N retired (ABI 68): accepted and ignored, logged once;
+//   traffic_shadow_hypotheses = N retired (ABI 69): accepted and ignored, logged once;
 //                                 its readings (TS55-TS57) are the core's behaviour
 //   terrain_shadow = 0 / 1        the terrain shadow (default 0; compares FreeCity4's
 //                                 terrain core with the ORIGINAL terrain, which is

@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "lot_config_prop_footprint",
+  "spec": ["prop-lotconfig B5.5", "prop-lotconfig T11"],
+  "description": "Slot 26 with [PF] where PF = 0xAF = {P2 size (3, 1, 5), P3 size (4, 1, 2)}: the rectangle starts at (2, 2) and each dimension grows to the largest prop's x and z: (4, 5, 0, 0). An empty list keeps (2, 2, 0, 0).",
+  "steps": [
+    {"op": "lcm_prop_type", "type": "0xA2", "size": [3, 5]},
+    {"op": "lcm_prop_type", "type": "0xA3", "size": [4, 2]},
+    {"op": "lcm_prop_family", "type": "0xAF", "types": ["0xA2", "0xA3"]},
+    {"op": "lcm_create"},
+    {"op": "lcm_call", "method": "footprint_props", "args": [["0xAF"]], "expect": [4, 5, 0, 0]},
+    {"op": "lcm_call", "method": "footprint_props", "args": [[]], "expect": [2, 2, 0, 0]}
+  ]
+}
