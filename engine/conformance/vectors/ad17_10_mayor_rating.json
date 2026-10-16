@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "advisor_mayor_rating",
+  "spec": ["advisors 7.3", "advisors 17.10"],
+  "description": "Aura rating -5, minimum -20 at cell (14, 22), maximum 40 at (3, 5): ga_mayor_rating -5, l_mayor_rating_l -20 with subject (14.0, 22.0), l_mayor_rating_h 40 with subject (3.0, 5.0). A missing source is not written.",
+  "steps": [
+    {"op": "adv_advisor", "class": "CityPlanning", "id": 23},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_value", "src": "MayorRating", "value": {"i": -5}},
+    {"op": "adv_value", "src": "MinMayorRating", "value": {"i": -20, "cell": [14, 22]}},
+    {"op": "adv_value", "src": "MaxMayorRating", "value": {"i": 40, "cell": [3, 5]}},
+    {"op": "adv_update_variables", "advisor": {"advisor": 23}},
+    {"op": "adv_expect_globals", "values": {"ga_mayor_rating": -5, "g_tax_rate_neutral": null}},
+    {"op": "adv_expect_local", "name": "l_mayor_rating_l", "value": -20, "subject": {"location": [14.0, 22.0]}},
+    {"op": "adv_expect_local", "name": "l_mayor_rating_h", "value": 40, "subject": {"location": [3.0, 5.0]}}
+  ]
+}

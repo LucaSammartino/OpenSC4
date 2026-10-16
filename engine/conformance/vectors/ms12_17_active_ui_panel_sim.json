@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "mysim_active_ui_panel_sim",
+  "spec": ["mysims 7.1", "mysims 12.17"],
+  "description": "MySims at indices 0-4 with slots 4, 3, 2, 1, 0: SetActiveUIPanelSim(1) -> GetActiveUIPanelSim returns the MySim at index 3 and i = 3; SetActiveUIPanelSim(7) -> null, i unchanged.",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_set", "sim": 0, "slot": 4},
+    {"op": "mysim_set", "sim": 1, "slot": 3},
+    {"op": "mysim_set", "sim": 2, "slot": 2},
+    {"op": "mysim_set", "sim": 3, "slot": 1},
+    {"op": "mysim_set", "sim": 4, "slot": 0},
+    {"op": "mysim_agent", "method": "set_active_ui_panel_sim", "slot": 1},
+    {"op": "mysim_agent", "method": "get_active_ui_panel_sim", "expect": {"sim": 4, "index": 3}},
+    {"op": "mysim_agent", "method": "set_active_ui_panel_sim", "slot": 7},
+    {"op": "mysim_agent", "method": "get_active_ui_panel_sim", "index": -7, "expect": {"sim": null, "index": -7}}
+  ]
+}

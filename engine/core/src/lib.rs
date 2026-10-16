@@ -20,6 +20,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod advisors;
 pub mod aura;
 pub mod automata;
 pub mod budget;
@@ -46,6 +47,7 @@ pub mod landfill;
 pub mod landvalue;
 pub mod lot_config_manager;
 pub mod lot_developer;
+pub mod mysims;
 pub mod neighbors;
 pub mod network_manager;
 pub mod occupant_manager;

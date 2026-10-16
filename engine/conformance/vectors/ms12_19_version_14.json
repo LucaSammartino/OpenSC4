@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "mysim_version_14",
+  "spec": ["mysims 6.2", "mysims 12.19"],
+  "description": "A version-14 record (five discarded s32 instead of the car and pedestrian keys, no rows 25 and 31) loads with the keys zero and the last player trip day 0; it is written back as version 17.",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_building", "token": "0x900", "position": [100, 0, 100], "lot": {"cell": [6, 6], "wealth": 2, "condition": 1}},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 0, "method": "move_in", "slot": 0},
+    {"op": "mysim_call", "sim": 0, "method": "set_residence", "building": "0x900", "expect": true},
+    {"op": "mysim_set", "sim": 0, "state": 2},
+    {"op": "mysim_building", "token": "0x500", "position": [0, 0, 0]},
+    {"op": "mysim_call", "sim": 0, "method": "job_found", "building": "0x500", "cell": [9, 8]},
+    {"op": "mysim_set", "sim": 0, "neighbor_cell": [-1, -2], "jobless_days": 4, "vehicle_key": [10, 11, 12], "is_male": true, "age": 33, "birth_month": 5, "last_commute_time": 17, "retired": true, "last_local_disaster": "0x77", "eq_index": 2, "eq_delta": 1.5, "eq_ring": [1, 2, 3, 4, 5, 6], "hq_index": 4, "hq_delta": -2.5, "hq_ring": [7, 8, 9, 10, 11, 12], "car_key": [20, 21, 22], "pedestrian_key": [30, 31, 32], "unnamed_pair": [-5, 6], "dispatch": "0x5555", "pylon": [1, "0x0102030405060708", 1], "dispatch_tool": "0x6666", "unnamed_flag": true, "last_player_trip_day": 1234},
+    {"op": "mysim_write", "sim": 0, "name": "rec", "expect": true},
+    {"op": "mysim_write", "sim": 0, "name": "part", "advisor_part": true, "expect": true},
+    {"op": "mysim_compose", "name": "v14", "parts": [{"hex": "0E00"}, {"record": "rec", "from": 2, "to": 166}, {"hex": "000000000100000002000000030000000400000000000000016300000000000000000001"}, {"record": "part"}]},
+    {"op": "mysim_read", "new": "MySim", "as": "old", "record": "v14", "expect": true},
+    {"op": "mysim_expect", "sim": "old", "state": {"car_key": [0, 0, 0], "pedestrian_key": [0, 0, 0], "last_player_trip_day": 0, "unnamed_pair": [0, 0], "age": 33, "hq_ring": [7, 8, 9, 10, 11, 12], "pylon": [1, 99, 0], "unnamed_flag": true, "dispatch": null}},
+    {"op": "mysim_write", "sim": "old", "name": "again", "expect": true},
+    {"op": "mysim_expect_record", "name": "again", "hex": "1100", "prefix": true, "note": "written back as version 17"}
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "mysim_riot_subject",
+  "spec": ["mysims 4.10", "mysims 12.13"],
+  "description": "DoDisaster(0xCA380B06, 10, 20): subject location (10.0, 20.0), data1 = the distance from the home to the centre of cell (10, 20) (cell centres 16 x c + 8: 237); a fire (0x621CDA33) pushes nothing. A pipe burst at cell (6, 6) and a tornado at (6, 7) push their events with distances 5 and 20.",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_building", "token": "0x900", "position": [100, 0, 100], "lot": {"cell": [6, 6], "wealth": 2, "condition": 1}},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 0, "method": "move_in", "slot": 0},
+    {"op": "mysim_call", "sim": 0, "method": "set_residence", "building": "0x900", "expect": true},
+    {"op": "mysim_set", "sim": 0, "state": 2},
+    {"op": "mysim_set", "sim": 0, "queue": []},
+    {"op": "mysim_call", "sim": 0, "method": "disaster", "type": "0xCA380B06", "cell": [10, 20]},
+    {"op": "mysim_expect_subject", "sim": 0, "event": "0x8AC11A9B", "state": {"location": [10.0, 20.0], "data1": 237}},
+    {"op": "mysim_set", "sim": 0, "queue": []},
+    {"op": "mysim_call", "sim": 0, "method": "disaster", "type": "0x621CDA33", "cell": [10, 20]},
+    {"op": "mysim_expect", "sim": 0, "state": {"events": []}, "note": "fire: no event"},
+    {"op": "mysim_message", "type": "0xEA1F0DCD", "data1": 6, "data2": 6, "expect": true},
+    {"op": "mysim_message", "type": "0x0A36F1E9", "data2": 6, "data3": 7, "expect": true},
+    {"op": "mysim_expect", "sim": 0, "state": {"events": ["0x6A5E598C", "0x0A5E8243"]}},
+    {"op": "mysim_expect_subject", "sim": 0, "event": "0x6A5E598C", "state": {"data1": 5}},
+    {"op": "mysim_expect_subject", "sim": 0, "event": "0x0A5E8243", "state": {"data1": 20}}
+  ]
+}

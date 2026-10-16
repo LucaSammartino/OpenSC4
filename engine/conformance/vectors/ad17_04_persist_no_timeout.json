@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "advisor_persist_no_timeout",
+  "spec": ["advisors 6.2", "advisors 17.4"],
+  "description": "A persist advice whose trigger turns false stays active until its expiry; a no_timeout advice that is not persist is deactivated the same day its trigger is false; a no_timeout persist advice stays active forever.",
+  "steps": [
+    {"op": "adv_advisor", "class": "Advisor", "id": 23},
+    {"op": "adv_advice", "guid": 1, "trigger": "t1", "persist": true},
+    {"op": "adv_advice", "guid": 2, "trigger": "t2", "no_timeout": true},
+    {"op": "adv_advice", "guid": 3, "trigger": "t3", "persist": true, "no_timeout": true},
+    {"op": "adv_trigger", "text": "t1", "result": true},
+    {"op": "adv_trigger", "text": "t2", "result": true},
+    {"op": "adv_trigger", "text": "t3", "result": true},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_set", "object": {"advisor": 23}, "month_counter": 1},
+    {"op": "adv_day", "day": 1000, "advisor": {"advisor": 23}, "note": "batch size 1: one advice a day"},
+    {"op": "adv_day", "day": 1001, "advisor": {"advisor": 23}},
+    {"op": "adv_day", "day": 1002, "advisor": {"advisor": 23}},
+    {"op": "adv_expect", "object": {"advisor": 23}, "state": {"active": [1, 2, 3]}},
+    {"op": "adv_trigger", "text": "t1", "result": false},
+    {"op": "adv_trigger", "text": "t2", "result": false},
+    {"op": "adv_trigger", "text": "t3", "result": false},
+    {"op": "adv_day", "day": 1003, "advisor": {"advisor": 23}},
+    {"op": "adv_expect", "object": {"advice": 1}, "state": {"active": true}},
+    {"op": "adv_expect", "object": {"advice": 2}, "state": {"active": false}},
+    {"op": "adv_expect", "object": {"advice": 3}, "state": {"active": true}},
+    {"op": "adv_day", "day": 1045, "advisor": {"advisor": 23}},
+    {"op": "adv_expect", "object": {"advice": 1}, "state": {"active": false}, "note": "persist: until expiry 1000 + 45"},
+    {"op": "adv_day", "day": 5000, "advisor": {"advisor": 23}},
+    {"op": "adv_expect", "object": {"advice": 3}, "state": {"active": true}, "note": "no_timeout and persist: forever"}
+  ]
+}

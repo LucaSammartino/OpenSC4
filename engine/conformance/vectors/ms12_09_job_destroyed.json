@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "mysim_job_destroyed",
+  "spec": ["mysims 4.8", "mysims 12.9"],
+  "description": "Removing the job building (data4 0) pushes 0xCA48F879, sets employed 0 and state 2 (at home).",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_building", "token": "0x900", "position": [100, 0, 100], "lot": {"cell": [6, 6], "wealth": 2, "condition": 1}},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 0, "method": "move_in", "slot": 0},
+    {"op": "mysim_call", "sim": 0, "method": "set_residence", "building": "0x900", "expect": true},
+    {"op": "mysim_set", "sim": 0, "state": 2},
+    {"op": "mysim_building", "token": "0x500", "position": [0, 0, 0], "lot": {"cell": [9, 9], "wealth": 2, "condition": 1}},
+    {"op": "mysim_call", "sim": 0, "method": "job_found", "building": "0x500", "cell": [9, 9]},
+    {"op": "mysim_set", "sim": 0, "state": 3, "queue": []},
+    {"op": "mysim_message", "type": "0x99EF1143", "data3": "0x278128A0", "void1": "0x500", "expect": true},
+    {"op": "mysim_expect", "sim": 0, "state": {"events": ["0xCA48F879"], "state": 2, "job": null}},
+    {"op": "mysim_expect_fields", "sim": 0, "fields": {"employed": 0}}
+  ]
+}

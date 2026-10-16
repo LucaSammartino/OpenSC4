@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "advisor_reinit",
+  "spec": ["advisors 4.2", "advisors 4.3"],
+  "description": "Advisor Init against a changed advices table: a GUID still present keeps its advice (active state cleared), a GUID gone is shut down, a GUID whose class changed is re-created, a new GUID is added (the first entry of a duplicate GUID wins); AdviceRemovedAll is sent with the advisor.",
+  "steps": [
+    {"op": "adv_advisor", "class": "Advisor", "id": 23},
+    {"op": "adv_advice", "guid": 1},
+    {"op": "adv_advice", "guid": 2},
+    {"op": "adv_advice", "guid": 3},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_expect", "object": {"advisor": 23}, "state": {"caption": "Planning", "name": "Bob", "advices": [1, 2, 3]}},
+    {"op": "adv_set", "object": {"advisor": 23}, "month_counter": 1},
+    {"op": "adv_day", "day": 1000, "advisor": {"advisor": 23}},
+    {"op": "adv_expect", "object": {"advice": 1}, "state": {"active": true}},
+    {"op": "adv_advice", "guid": 1, "replace": true},
+    {"op": "adv_advice", "guid": 3, "class": "RewardAdvice"},
+    {"op": "adv_advice", "guid": 4},
+    {"op": "adv_advice", "guid": 4, "trigger": "false"},
+    {"op": "adv_clear_events"},
+    {"op": "adv_advisor_init", "object": {"advisor": 23}, "table_index": 1, "expect": true},
+    {"op": "adv_expect", "object": {"advisor": 23}, "state": {"advices": [1, 3, 4], "active": []}},
+    {"op": "adv_expect", "object": {"advice": 1}, "state": {"active": false}, "note": "kept, active state cleared"},
+    {"op": "adv_expect", "object": {"advice": 3}, "state": {"kind": "Reward"}, "note": "re-created with its new class"},
+    {"op": "adv_expect", "object": {"advice": 4}, "state": {"table_index": 3}, "note": "the first entry of a GUID wins"},
+    {"op": "adv_expect_events", "filter": {"event": "send", "type": "0x8A09FA67"}, "events": [{"event": "send", "type": "0x8A09FA67", "data1": 0, "object": "advisor:23"}]}
+  ]
+}

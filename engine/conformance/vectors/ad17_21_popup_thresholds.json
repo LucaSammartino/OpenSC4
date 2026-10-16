@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "advisor_popup_thresholds",
+  "spec": ["advisors 6.5", "advisors 17.21"],
+  "description": "The shipped popup table (low 60, medium 80, high 100): difficulty 1 -> 80, difficulty 7 -> 60, difficulty 2 -> 100; a missing table -> 100.",
+  "steps": [
+    {"op": "adv_advisor", "class": "Advisor", "id": 23},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_env", "popup": {"low": 60, "medium": 80, "high": 100}, "difficulty": 1},
+    {"op": "adv_popup", "init": true, "expect": 80},
+    {"op": "adv_env", "difficulty": 7},
+    {"op": "adv_popup", "expect": 60},
+    {"op": "adv_env", "difficulty": 2},
+    {"op": "adv_popup", "expect": 100},
+    {"op": "adv_env", "popup": null, "difficulty": 1},
+    {"op": "adv_popup", "init": true, "expect": 100, "note": "missing table"}
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "mysim_job_search",
+  "spec": ["mysims 4.2", "mysims 4.7", "mysims 12.6"],
+  "description": "No job, state 2: FindNewJob false on three consecutive days -> unemployed_days 3. The dispatch reports a job found: unemployed_days 0, employed 1, the job held, event 0xAA3EDBB1 pushed.",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_building", "token": "0x900", "position": [100, 0, 100], "lot": {"cell": [6, 6], "wealth": 2, "condition": 1}},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 0, "method": "move_in", "slot": 0},
+    {"op": "mysim_call", "sim": 0, "method": "set_residence", "building": "0x900", "expect": true},
+    {"op": "mysim_set", "sim": 0, "state": 2},
+    {"op": "mysim_simulate", "sim": 0, "kind": 0, "day": 1001},
+    {"op": "mysim_simulate", "sim": 0, "kind": 0, "day": 1002},
+    {"op": "mysim_simulate", "sim": 0, "kind": 0, "day": 1003},
+    {"op": "mysim_expect", "sim": 0, "state": {"jobless_days": 3}},
+    {"op": "mysim_call", "sim": 0, "method": "update_variables"},
+    {"op": "mysim_expect_fields", "sim": 0, "fields": {"unemployed_days": 3}},
+    {"op": "mysim_building", "token": "0x500", "position": [0, 0, 0], "lot": {"cell": [9, 9], "wealth": 2, "condition": 1}},
+    {"op": "mysim_env", "job_destination": {"building": "0x500", "cell": [9, 9]}},
+    {"op": "mysim_set", "sim": 0, "queue": []},
+    {"op": "mysim_message", "sim": 0, "type": "0x2BA06B99", "data1": "0xEBA06BF4", "expect": true},
+    {"op": "mysim_expect_fields", "sim": 0, "fields": {"unemployed_days": 0, "employed": 1}},
+    {"op": "mysim_expect", "sim": 0, "state": {"events": ["0xAA3EDBB1"], "job": "0x500", "jobless_days": 0}},
+    {"op": "mysim_expect_refs", "refs": {"0x500": 1}}
+  ]
+}

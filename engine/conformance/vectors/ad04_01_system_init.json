@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "advisor_system_init",
+  "spec": ["advisors 4.1", "advisors 4.4", "advisors 12.1"],
+  "description": "System Init registers the Lua API, creates the tags, registers the detokenizer and reloads the data (the scripts, the local API, the tutorial functions), then loads the advisors (ID 0 and unknown classes make none). A second Init only restarts the advisor window; Shutdown sends AdvisorRemovedAll, closes Lua and empties the advisor map. Without an advisors table Init still succeeds with no advisors.",
+  "steps": [
+    {"op": "adv_env", "debug": true},
+    {"op": "adv_advisor", "class": "Advisor", "id": 0},
+    {"op": "adv_advisor", "class": "0x12345678", "id": 30},
+    {"op": "adv_advisor", "class": "Finance", "id": 23},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_expect_events", "filter": {"event": "lua"}, "events": [{"event": "lua", "call": "register_api(true)"}, {"event": "lua", "call": "create_tags"}, {"event": "lua", "call": "register_detokenizer(true)"}, {"event": "lua", "call": "reload_scripts"}, {"event": "lua", "call": "register_api(false)"}, {"event": "lua", "call": "set_tutorial_lua(true)"}]},
+    {"op": "adv_expect", "object": "system", "state": {"advisors": [23], "initialized": true, "tags": [1, 2]}, "note": "ID 0 and an unknown class make no advisor"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_expect_events", "events": [{"event": "window", "start": true}], "note": "a second Init only restarts the window"},
+    {"op": "adv_shutdown", "expect": true},
+    {"op": "adv_expect_event_count", "filter": {"event": "send", "type": "0x8A09FA6B", "object": "none"}, "count": 1},
+    {"op": "adv_expect_event_count", "filter": {"event": "lua", "call": "close_lua"}, "count": 1},
+    {"op": "adv_expect", "object": "system", "state": {"advisors": [], "initialized": false}},
+
+    {"op": "adv_env", "advisors_table": false},
+    {"op": "adv_create"},
+    {"op": "adv_init", "expect": true},
+    {"op": "adv_expect", "object": "system", "state": {"advisors": []}, "note": "no advisors table: Init still succeeds"}
+  ]
+}

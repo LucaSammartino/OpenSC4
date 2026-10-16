@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "mysim_eq_not_positive",
+  "spec": ["mysims 4.5", "mysims 12.4"],
+  "description": "EQ 50, then the residential call returns 0.0: the EQ stays 50.",
+  "steps": [
+    {"op": "mysim_create"},
+    {"op": "mysim_building", "token": "0x900", "position": [100, 0, 100], "lot": {"cell": [6, 6], "wealth": 2, "condition": 1}},
+    {"op": "mysim_env", "eq": 50.0, "hq": 60.0},
+    {"op": "mysim_call", "sim": 0, "method": "move_in", "slot": 0},
+    {"op": "mysim_call", "sim": 0, "method": "set_residence", "building": "0x900", "expect": true},
+    {"op": "mysim_expect_fields", "sim": 0, "fields": {"eq": 50, "hq": 60}},
+    {"op": "mysim_env", "eq": 0.0},
+    {"op": "mysim_call", "sim": 0, "method": "update_variables"},
+    {"op": "mysim_expect_fields", "sim": 0, "fields": {"eq": 50}},
+    {"op": "mysim_expect", "sim": 0, "state": {"eq": 50.0}}
+  ]
+}
