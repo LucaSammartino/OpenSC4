@@ -557,7 +557,7 @@ stores).
 | Field | Object offsets (x, y, z) | Slot | Setter | Getter |
 |---|---|---|---|---|
 | position | `+0x40`, `+0x44`, `+0x48` | 8 | `SetPosition` `0x00507D90` | slot 7 `GetPosition` `0x00505520` |
-| destination | `+0x4C`, `+0x50`, `+0x54` | 10 | `SetDestination` `0x0054E5B0` | slot 11 `GetDestination` `0x004ADB30` |
+| destination | `+0x4C`, `+0x50`, `+0x54` | 10 | `SetDestination` base `0x00505560`, traffic `0x0054E5B0` | slot 11 `GetDestination` `0x004ADB30` |
 | orientation | `+0x58`, `+0x5C`, `+0x60` | 14 | `SetOrientation` `0x0050AF10` | slot 15 `GetOrientation` `0x00505540` |
 
 Write (`0x0050AC00`) serialises them in that order (§6.1 field 2). The meanings are the Mac accessors'
@@ -580,8 +580,16 @@ Write (`0x0050AC00`) serialises them in that order (§6.1 field 2). The meanings
    orientation is therefore always a **unit vector**, and a zero input stays zero (the divide is not guarded).
 4. Then call `PositionModelInstance` (`0x005094A0`) for every entry of the same `+0x110`…`+0x114` array.
 
-**`SetDestination` (`0x0054E5B0`)** — note this is a *traffic* automaton override, so it is the pedestrian and
-vehicle behaviour; `GetDestination` is the shared `0x004ADB30`. It also changes two other things:
+**`SetDestination` (slot 10)** has **two** implementations, and only one of them has side effects:
+
+- **Base, `0x00505560`** — a plain store. Copy the three floats into `+0x4C`, `+0x50`, `+0x54` and return
+  (`ret 4`). Nothing else happens: no flag, no turn, no `MoveTo`. This is what aircraft and the classes whose
+  vtable is not in the traffic family use (vtables `0x00A94608`, `0x00A94B38`, `0x00A95AC0`, `0x00A97188`,
+  `0x00A991E0`, `0x00A9DBB8`).
+- **Traffic override, `0x0054E5B0`** — the pedestrian, vehicle, emergency, patrol, trailer and watercraft-family
+  behaviour (every other vtable that shares the automaton getters). This is the one with the extra steps below.
+
+The traffic override:
 
 1. `SetAutomataFlag(4, 0)` (slot 30): **clears the "reached destination" flag** (§6.1 field 4, bit 4).
 2. Copy the three floats into `+0x4C`, `+0x50`, `+0x54`.
@@ -591,6 +599,11 @@ vehicle behaviour; `GetDestination` is the shared `0x004ADB30`. It also changes 
    **`MoveTo(0, &orientation)`**. So setting a destination also turns the automaton to face it.
 5. If `d ≤ 0.0` (the destination is on top of the automaton): `SetAutomataFlag(4, 1)` — mark it as having
    reached the destination instead, and do not touch the orientation.
+
+`MoveTo` likewise has three bodies: the traffic one `0x00544530` (pedestrian family), the plain helper
+`0x005080C0` used directly as slot 16 by most other classes, and `0x00567D80` on vtable `0x00A9DBB8`. A
+replacement that only keeps the records needs none of them; one that animates should pick the base behaviour
+(a store) and add the traffic behaviour for vehicles and pedestrians.
 
 **`MoveTo` (slot 16, `0x00544530`; helper `0x005080C0`)** takes two optional `const vec3*`: a position and an
 orientation. When the orientation is given it is copied into a local with **y forced to 0** — only x and z are
