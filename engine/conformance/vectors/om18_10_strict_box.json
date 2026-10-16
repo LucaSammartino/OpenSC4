@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "om18_10_strict_box",
+  "spec": ["occupant-manager 7", "occupant-manager 8.2", "occupant-manager 8.4", "occupant-manager 18.10"],
+  "description": "F (x 0..16, z 0..16) and G (x 16..32): slot 40 over standard cell (0, 0) (box 0.1..15.9) returns [F] only. Slot 36 with min = max = (8, 0, 8) finds F only while F's y range strictly contains 0 (-1..5 yes, 0..5 no; LD1). Slots 32 and 28 on the same pair (slot 28: min <= f < max on the real box).",
+  "steps": [
+    {"op": "om_create"},
+    {"op": "om_call", "method": "set_city_size", "args": [1024, 1024], "expect": true},
+    {"op": "om_call", "method": "init", "expect": true},
+    {"op": "om_occupant", "occupant": "0x6", "type": 1, "min": [0, -1, 0], "max": [16, 5, 16]},
+    {"op": "om_occupant", "occupant": "0x7", "type": 1, "min": [16, -1, 0], "max": [32, 5, 16]},
+    {"op": "om_call", "method": "insert", "occupant": "0x6", "data4": 0, "expect": true},
+    {"op": "om_call", "method": "insert", "occupant": "0x7", "data4": 0, "expect": true},
+    {"op": "om_call", "method": "by_standard_cells", "min": [0, 0], "max": [0, 0], "expect": true, "expect_list": ["0x6"]},
+    {"op": "om_call", "method": "by_standard_cells", "min": [1, 0], "max": [1, 0], "expect": true, "expect_list": ["0x7"]},
+    {"op": "om_call", "method": "by_bbox", "min": [8, 0, 8], "max": [8, 0, 8], "expect": true, "expect_list": ["0x6"]},
+    {"op": "om_occupant", "occupant": "0x6", "min": [0, 0, 0]},
+    {"op": "om_call", "method": "by_bbox", "min": [8, 0, 8], "max": [8, 0, 8], "expect": true, "expect_list": []},
+    {"op": "om_call", "method": "by_bbox", "min": [0, -1, 0], "max": [16, 1, 16], "expect": true, "expect_list": ["0x6"], "note": "G only touches x = 16"},
+    {"op": "om_call", "method": "first_by_standard_cell", "args": [0, 0], "expect": "0x6"},
+    {"op": "om_call", "method": "first_by_standard_cell", "args": [1, 0], "expect": "0x7"},
+    {"op": "om_call", "method": "first_by_standard_cells", "min": [0, 0], "max": [0, 0], "expect": "0x6"},
+    {"op": "om_call", "method": "first_by_position", "args": [16, 8], "expect": "0x7"},
+    {"op": "om_call", "method": "first_by_position", "args": [15.99, 8], "expect": "0x6"},
+    {"op": "om_call", "method": "first_by_position", "args": [32, 8], "expect": null},
+    {"op": "om_expect_refs", "refs": {"0x6": 1, "0x7": 1}}
+  ]
+}

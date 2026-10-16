@@ -19,7 +19,7 @@
 //                                (env FC4_TRAFFIC_SHADOW_DIFFS, default 8, 1..64)
 //   traffic_shadow_lines = N     delivery lines per month
 //                                (env FC4_TRAFFIC_SHADOW_LINES, default 8)
-//   traffic_shadow_hypotheses = N  retired (ABI 62; env
+//   traffic_shadow_hypotheses = N  retired (ABI 64; env
 //                                FC4_TRAFFIC_SHADOW_HYPOTHESES): accepted, ignored
 //                                and logged once; its three readings were
 //                                confirmed (traffic-simulator TS55-TS57) and are

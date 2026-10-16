@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "om18_03_standard_cell_floor",
+  "spec": ["occupant-manager 3.4", "occupant-manager 18.3"],
+  "description": "Slot 19: t = f * 0.0625, n = rhe(t - 0.5), n + 1 when t == n + 1: an exact floor. 0, 15.99, 16, 31.99, 32, -0.1, -16 -> 0, 0, 1, 1, 2, -1, -1. Slot 18: x * 16.",
+  "steps": [
+    {"op": "om_call", "method": "position_to_standard_cell", "args": [0, 0], "expect": [0, 0]},
+    {"op": "om_call", "method": "position_to_standard_cell", "args": [15.99, 15.99], "expect": [0, 0]},
+    {"op": "om_call", "method": "position_to_standard_cell", "args": [16, 16], "expect": [1, 1]},
+    {"op": "om_call", "method": "position_to_standard_cell", "args": [31.99, 31.99], "expect": [1, 1]},
+    {"op": "om_call", "method": "position_to_standard_cell", "args": [32, 32], "expect": [2, 2]},
+    {"op": "om_call", "method": "position_to_standard_cell", "args": [-0.1, -0.1], "expect": [-1, -1]},
+    {"op": "om_call", "method": "position_to_standard_cell", "args": [-16, -16], "expect": [-1, -1]},
+    {"op": "om_call", "method": "position_to_standard_cell", "args": [4095.99, 4095.99], "expect": [255, 255]},
+    {"op": "om_call", "method": "position_to_standard_cell", "args": [4096, 4096], "expect": [256, 256]},
+    {"op": "om_call", "method": "standard_cell_to_position", "args": [2, 3], "expect": [32, 48]}
+  ]
+}
