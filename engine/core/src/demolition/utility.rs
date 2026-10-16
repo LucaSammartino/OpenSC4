@@ -268,8 +268,9 @@ impl DemolitionUtility {
         true
     }
 
-    /// The `0xA9DED179` handler (§3). [question DM10] The lot is released
-    /// whenever it is non-null.
+    /// The `0xA9DED179` handler (§3). The lot is released whenever it is
+    /// non-null: the spec's *[choice]* (DM10; the original leaks it when the
+    /// lot is not initialised, which nothing can observe).
     pub fn deferred_lot_demolition(&self, lot: Option<u64>, dezone: bool) {
         let h = &*self.host;
         let Some(lot) = lot else { return };
@@ -318,7 +319,7 @@ impl DemolitionUtility {
         // 5. Type.
         let t = h.occupant_type(o);
         match t {
-            // [question DM5] Without the foundation interface: rejected.
+            // DM5 [choice]: without the foundation interface, rejected.
             occ_type::FOUNDATION => return h.foundation_slot9(o) == Some(1),
             occ_type::BUILDING
             | occ_type::POWER_POLE
@@ -445,14 +446,14 @@ impl DemolitionUtility {
             if !h.occupant_flag_set(o, OCCUPANT_FLAG_IN_MANAGER) {
                 continue;
             }
-            // [question DM9] The kinds by occupant type (and the network
-            // interface).
+            // DM9: by occupant type alone (no QueryInterface, no network
+            // kind filter).
             match h.occupant_type(o) {
                 occ_type::POWER_POLE => {
                     h.send_pre_demolish(o);
                     h.remove_occupant(o, true);
                 }
-                occ_type::NETWORK if h.is_network_occupant(o) => {
+                occ_type::NETWORK => {
                     list.push(o);
                     h.delete_occupant_connection(o);
                 }
@@ -486,7 +487,9 @@ impl DemolitionUtility {
         // 1.
         let effects = do_it && flags & flag::CAUSE != 0;
         self.s.borrow_mut().region = Some(region.clone());
-        // 2. [choice] No view: no filter, level 1.
+        // 2. [choice] No view: no filter, level 1. DM12: the view filter is
+        // fetched whatever `use_view` is; it gates only Φ, while the empty-lot
+        // qualification (step 4) and the effect gate (step 5) use it directly.
         let view_filter = h.acquire_view_filter();
         let _ = h.view_level();
         let level = if privilege == PRIVILEGE_SYSTEM { 1 } else { 2 };
@@ -771,8 +774,8 @@ impl DemolitionUtility {
             z1.min(cells_z - 1),
         );
         let immovable = self.immovables(q);
-        // [question DM6] |float32 difference| against the double 0.05.
-        let differs = |a: f32| f64::from((a - alt).abs());
+        // DM6: |alt − h| in f32 against 0.05f (the x87 runs at 24 bits).
+        let differs = |a: f32| (a - alt).abs();
         let locked = |l: u64| Some(l) != exempt && h.lot_vertices_locked(l);
         if !per_vertex {
             // 1.
@@ -793,7 +796,7 @@ impl DemolitionUtility {
             }
             // 3.
             let is_locked = h.lots_in_cell_rect(q).into_iter().any(locked);
-            // 4. [question DM7] rect′ = rect.
+            // 4. DM7: the redisplay gets the SetAltitude rectangle.
             if !is_locked && do_it {
                 let rect = CellRect::new(x0.max(0), z0.max(0), x1.min(cells_x), z1.min(cells_z));
                 h.set_altitude_rect(rect, alt, reason);
@@ -808,6 +811,7 @@ impl DemolitionUtility {
                 if h.is_water_vertex(x, z) {
                     continue;
                 }
+                // [question DM15] `<` as §4.7 states: exactly 0.05f is set.
                 if differs(h.altitude_at_vertex(x, z)) < LEVEL_TOLERANCE {
                     continue;
                 }
@@ -847,8 +851,8 @@ impl DemolitionUtility {
 
     // ---- effects (§4.8) ----
 
-    /// Slot 10 `DoDemolishOccupantEffect` (§4.8). [question DM13] An occupant
-    /// type without a listed nibble uses nibble 0.
+    /// Slot 10 `DoDemolishOccupantEffect` (§4.8). An occupant type without a
+    /// listed nibble (foundation, construction) uses nibble 0 (DM13).
     pub fn do_demolish_occupant_effect(&self, o: u64, flags: u32, lot: Option<u64>, clicked: bool, sx: i32, sy: i32) {
         let h = &*self.host;
         let Some(s) = h.effect_extent(o) else { return };

@@ -923,6 +923,30 @@ fn dm12_11_networks_one_batch() {
 }
 
 #[test]
+fn dm12_14_float_tolerance() {
+    // DM6: |alt − h| in f32 against 0.05f. Exactly 0.05f: area mode does not
+    // count it (a widened f64 compare with 0.05 would).
+    let (w, d) = setup();
+    let next_up = f32::from_bits(0.05f32.to_bits() + 1);
+    let next_down = f32::from_bits(0.05f32.to_bits() - 1);
+    w.alt.borrow_mut().insert((1, 1), 0.05);
+    w.alt.borrow_mut().insert((3, 3), next_up);
+    w.alt.borrow_mut().insert((5, 5), next_down);
+    assert_eq!(d.modify_terrain_height(false, false, 1, 1, 1, 1, 0.0, None, 5), 0);
+    assert_eq!(d.modify_terrain_height(false, false, 3, 3, 3, 3, 0.0, None, 5), 1);
+    assert_eq!(d.modify_terrain_height(false, true, 5, 5, 5, 5, 0.0, None, 5), 0);
+    assert_eq!(d.modify_terrain_height(false, true, 3, 3, 3, 3, 0.0, None, 5), 1);
+    // [question DM15] Per-vertex mode skips `< 0.05f` (§4.7), so exactly
+    // 0.05f is set; §12 test 14 says "counted by neither".
+    assert_eq!(d.modify_terrain_height(false, true, 1, 1, 1, 1, 0.0, None, 5), 1);
+    // The subtraction rounds to f32: 10.05f − 10 is not 0.05f.
+    w.alt.borrow_mut().insert((7, 7), 10.05);
+    let diff = (10.05f32 - 10.0f32).abs();
+    let expect = i32::from(diff > 0.05f32);
+    assert_eq!(d.modify_terrain_height(false, false, 7, 7, 7, 7, 10.0, None, 5), expect);
+}
+
+#[test]
 fn dm12_12_terrain_per_vertex() {
     let (w, d) = setup();
     // A building whose box covers vertex (5, 5) ± 14.5 m.
@@ -1040,6 +1064,8 @@ fn effect_keys_and_sizes() {
     assert_eq!(group_size_class(0, &t), 0);
     assert_eq!(group_size_class(21, &t), 1);
     assert_eq!(group_size_class(101, &t), 2);
+    // DM8: unsigned compares, so a negative n is the large variant.
+    assert_eq!(group_size_class(-1, &t), 2);
     let (w, d) = setup();
     // A large building on a run-down lot: 0x0312 → grey, keys down to 0x0310.
     let mut b = Occ::at(occ_type::BUILDING, 1, 1);

@@ -2,7 +2,7 @@
   "format": 1,
   "name": "demolition_networks_one_batch",
   "spec": ["demolition 4.3", "demolition 4.4", "demolition 12.11"],
-  "description": "Three road occupants in a region are destroyed by one DestroyNetworkOccupants call between QueueRemovals(true) and QueueRemovals(false), after deleting each one's connection; the cost is the sum (15). DemolishOccupant called directly without skipNetworkUpdate destroys its network at once.",
+  "description": "Three road occupants in a region are destroyed by one DestroyNetworkOccupants call between QueueRemovals(true) and QueueRemovals(false), after deleting each one's connection; the cost is the sum (15). DemolishOccupant called directly without skipNetworkUpdate destroys its network at once. A network-type occupant without the network interface is not demolished (no cost) but UpdateNetworks still queues it: the test is the occupant type alone (DM9).",
   "steps": [
     {"op": "demolition_create"},
     {"op": "demolition_init", "expect": true},
@@ -14,6 +14,9 @@
     {"op": "demolition_expect_events", "events": [{"event": "queue", "on": true}, {"event": "delete_connection", "occupant": "0x30"}, {"event": "delete_connection", "occupant": "0x31"}, {"event": "delete_connection", "occupant": "0x32"}, {"event": "destroy", "occupants": ["0x30", "0x31", "0x32"]}, {"event": "queue", "on": false}]},
     {"op": "demolition_occupant", "occupant": "0x33", "type": "network", "cell": [9, 9]},
     {"op": "demolition_demolish_occupant", "do_it": true, "occupant": "0x33", "privilege": 1, "flags": "0x2001"},
-    {"op": "demolition_expect_events", "events": [{"event": "delete_connection", "occupant": "0x33"}, {"event": "destroy", "occupants": ["0x33"]}]}
+    {"op": "demolition_expect_events", "events": [{"event": "delete_connection", "occupant": "0x33"}, {"event": "destroy", "occupants": ["0x33"]}]},
+    {"op": "demolition_occupant", "occupant": "0x34", "type": "network", "network": false, "cell": [5, 7]},
+    {"op": "demolition_region", "do_it": true, "rect": [5, 7, 5, 7], "privilege": 1, "flags": 0, "expect": {"ok": true, "cost": 0}},
+    {"op": "demolition_expect_events", "events": [{"event": "queue", "on": true}, {"event": "delete_connection", "occupant": "0x34"}, {"event": "destroy", "occupants": ["0x34"]}, {"event": "queue", "on": false}]}
   ]
 }

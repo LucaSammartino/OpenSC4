@@ -3004,7 +3004,7 @@ replays the record shapes §7 reports.
 | §12 item | Vector |
 |---|---|
 | 1 record (`01 00`; version 2 and a cut record rejected) | `dm12_01_record` |
-| 2 empty list (and a list of null lots): true, cost untouched | `dm12_02_empty_list` |
+| 2 empty list (and lists of null lots, §12 item 15): true, cost untouched | `dm12_02_empty_list` |
 | 3 building price 1234, nothing removed; no building development simulator | `dm12_03_building_price` |
 | 4 destroyed 3 × 2 lot: 12, dry run and committed | `dm12_04_destroyed_lot` |
 | 5 not demolishable: true, 0, untouched | `dm12_05_not_demolishable` |
@@ -3013,9 +3013,10 @@ replays the record shapes §7 reports.
 | 8 dezone, and zones 11, 12, 15 | `dm12_08_dezone` |
 | 9 explode `0x303` / `0x1303`; no water configuration; water-compatible | `dm12_09_explode` |
 | 10 power pole: `0xAA7A014D` once before the removal, the orphan in the same call; dry run; a caller list; no pole interface | `dm12_10_power_pole` |
-| 11 three networks in one `DestroyNetworkOccupants` inside the `QueueRemovals` bracket; directly | `dm12_11_networks` |
+| 11 three networks in one `DestroyNetworkOccupants` inside the `QueueRemovals` bracket; directly; a network-type occupant without the network interface is still queued (DM9) | `dm12_11_networks` |
 | 12 per-vertex terrain (building box, locked lot, water, tolerance, exempt lot, movable building, the redisplay rectangle); area mode | `dm12_12_terrain` |
 | 13 effects: none with cause 0, none in a dry run; the occupant and group effects | `dm12_13_effects` |
+| 14 the `float` tolerance: exactly 0.05f not counted in area mode, the next `f32` above counted and set, the one below skipped (DM6) | `dm12_14_tolerance` |
 | extra: identity, Init / Shutdown, Release, the tuning and ExemplarChanged | `dm00_lifecycle` |
 | extra: the deferred lot demolition message | `dm00_deferred` |
 

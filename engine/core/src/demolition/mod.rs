@@ -41,24 +41,31 @@
 //! - **A null entry** in `DemolishLots`' list is skipped (the spec's
 //!   *[choice]*).
 //! - **A foundation without `cISC4FoundationOccupant`** (§4.2 step 5) is
-//!   rejected [question DM5].
-//! - **The 0.05 tolerance** of §4.7 compares the float32 difference widened
-//!   to double with the double constant 0.05 [question DM6].
-//! - **The area-mode redisplay rectangle** `rect′` (§4.7 step 4) is the
-//!   `SetAltitude` rectangle [question DM7].
-//! - **The group effect size** (§4.8): 2 when `n` exceeds the medium/large
-//!   group threshold, else 1 when it exceeds the small/medium one, else 0;
-//!   the centre cell is `((x0 + x1) / 2, (z0 + z1) / 2)` with truncating
-//!   division [question DM8].
-//! - **`UpdateNetworks`' kinds** (§4.6): "power pole" is occupant type
-//!   `0x2890D4DE`; "network occupant" is type `0xC772BF98` with the network
-//!   interface [question DM9].
+//!   rejected: the spec's *[choice]* (DM5; the original crashes).
+//! - **The 0.05 tolerance** of §4.7 is a `float` comparison: `|alt − h|` in
+//!   `f32` against `0.05f32` (DM6). Per-vertex mode skips `|d| < 0.05f` as
+//!   §4.7 states, so a vertex exactly 0.05f away is set there; the spec's
+//!   "counted in neither" and §12 test 14 say otherwise [question DM15].
+//! - **The area-mode redisplay rectangle** (§4.7 step 4) is the `SetAltitude`
+//!   rectangle (DM7).
+//! - **The group effect size** (§4.8, DM8): unsigned and strict, 2 when `n`
+//!   exceeds the medium/large group threshold, else 1 when it exceeds the
+//!   small/medium one, else 0; the centre cell is `((x0 + x1) / 2,
+//!   (z0 + z1) / 2)` with truncating division.
+//! - **`UpdateNetworks`' kinds** (§4.6, DM9): by occupant type alone, power
+//!   pole `0x2890D4DE` and network `0xC772BF98` (no interface test).
 //! - **The deferred lot demolition** (§3, `0xA9DED179`) releases the lot
-//!   whenever it is non-null, initialised or not [question DM10].
-//! - **Pole orphans** (§4.3): tokens are borrowed, so the remembered poles
-//!   that keep connections need no release; an orphan is appended to the
-//!   caller's list (`list_append`, the host takes its reference) or dropped
-//!   when there is no list [question DM11].
+//!   whenever it is non-null, initialised or not: the spec's *[choice]*
+//!   (DM10; the original leaks an uninitialised lot's reference, which
+//!   nothing can observe).
+//! - **The 3D view's filter** (§4.4 step 2, DM12) is fetched on every
+//!   `DemolishRegion`; `useView` gates only Φ. The empty-lot qualification
+//!   and the effect gate use it directly, also with privilege 0 or `0x2000`.
+//! - **Pole orphans** (§4.3, DM11): tokens are borrowed, so the remembered
+//!   poles that keep connections need no release; an orphan is appended to
+//!   the caller's list (`list_append`, the host takes its reference) or
+//!   dropped when there is no list. The net reference balance is the
+//!   original's (zero); the glue keeps the sets' own references.
 //! - **The tuning** (§6) is per object here (the original's module globals);
 //!   the glue keeps one utility per city, so nothing observable changes.
 //! - **Threading** (foundations §19.3): the state is a `RefCell`; the core is
@@ -159,8 +166,8 @@ pub const EFFECT_GROUP: u32 = 0x6A35_89A0;
 pub const PROP_EFFECT_PROP: u32 = 0x8A5E_5DB8;
 pub const PROP_SOUND: u32 = 0x0A93_036F;
 pub const GROUP_PROP_FLORA_LIKE: u32 = 0x5004;
-/// The tolerance of §4.7.
-pub const LEVEL_TOLERANCE: f64 = 0.05;
+/// The tolerance of §4.7: the `float` constant 0.05f (`0x3D4CCCCD`, DM6).
+pub const LEVEL_TOLERANCE: f32 = 0.05;
 /// The immovable-overlap half side of §4.7 (per-vertex mode).
 pub const VERTEX_HALF_SIDE: f32 = 14.5;
 /// Metres per cell.
@@ -502,12 +509,13 @@ pub fn model_size_class(s: f32, t: &DemolitionTuning) -> u32 {
     }
 }
 
-/// The size of the group effect (§4.8) [question DM8].
+/// The size of the group effect (§4.8): unsigned, strict compares (DM8;
+/// `jbe` at `0x004675BB`), so a negative `n` is the large variant.
 pub fn group_size_class(n: i32, t: &DemolitionTuning) -> u32 {
-    let n = i64::from(n);
-    if n > i64::from(t.medium_large_group) {
+    let n = n as u32;
+    if n > t.medium_large_group {
         2
-    } else if n > i64::from(t.small_medium_group) {
+    } else if n > t.small_medium_group {
         1
     } else {
         0

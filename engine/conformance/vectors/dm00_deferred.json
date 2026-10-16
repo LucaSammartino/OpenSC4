@@ -2,7 +2,7 @@
   "format": 1,
   "name": "demolition_deferred_lot",
   "spec": ["demolition 3", "demolition 4.8"],
-  "description": "The deferred lot demolition message (0xA9DED179): an initialised lot is finished (EndDemolishLot), dezoned when the record asks, and released; an uninitialised lot is only released (literal reading, DM10).",
+  "description": "The deferred lot demolition message (0xA9DED179): an initialised lot is finished (EndDemolishLot), dezoned when the record asks, and released; an uninitialised lot is only released (the spec's choice, DM10).",
   "steps": [
     {"op": "demolition_create"},
     {"op": "demolition_init", "expect": true},
