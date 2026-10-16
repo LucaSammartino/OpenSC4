@@ -305,6 +305,111 @@ pub fn occupant_cell(p: f32) -> i32 {
 /// (= 0.49900001), so this literal is bit-exact.
 const SAVVY_OFFSET: f32 = 0.499;
 
+/// `JoinDeadEndStubs`' neighbour query (§5.2.1 step 5.1): road, street,
+/// one-way road and dirt road.
+const JOIN_FLAGS: u32 = 0xC09;
+/// The rail network type (`ConnectsToNeighbor(e, 1)`, §5.2.2 step 2.2).
+const RAIL_TYPE: u32 = 1;
+/// `CanCreatePloppedLot` (§8.4.1): a piece with every bit of this is never
+/// taken by a lot's network object (code 3).
+const PLOP_BLOCKING_FLAGS: u32 = 0x20_0000;
+/// `CanCreatePloppedLot` step 5: a neighbour piece with any of these blocks
+/// an outward connection.
+const PLOP_OUTWARD_FLAGS: u32 = 0x60_0000;
+/// The configuration object types §8.4.1–§8.4.2 read.
+const OBJECT_WATER_CONSTRAINT: u8 = 5;
+const OBJECT_LAND_CONSTRAINT: u8 = 6;
+const OBJECT_NETWORK: u8 = 7;
+
+/// `Matches(mask, e)` (`0x00729EC0`, §8.4.1): `k := (((mask + 0x0F0F0F0F) >>
+/// 4) & 0x01010101) × 15` in 32-bit arithmetic; true when `(mask XOR e) & k
+/// = 0`. Mask bytes of 0x20 and above do not follow the simple "same low
+/// nibble" rule *[quirk]*.
+pub fn plop_mask_matches(mask: u32, e: u32) -> bool {
+    let k = ((mask.wrapping_add(0x0F0F_0F0F) >> 4) & 0x0101_0101).wrapping_mul(15);
+    (mask ^ e) & k == 0
+}
+
+/// `RotateLotRect(facing, sizeX, sizeZ, in, out)` (`0x004BDFD0`, §8.4.3): a
+/// rect of lot cells in the lot's own frame (the frame of facing 2) mapped
+/// onto the frame of a lot with this facing. `None` for a facing outside
+/// 0..3 (`out` is not written).
+pub fn rotate_lot_rect(facing: i32, size_x: u32, size_z: u32, r: CellRect) -> Option<CellRect> {
+    let xx = (size_x as i32).wrapping_sub(1);
+    let zz = (size_z as i32).wrapping_sub(1);
+    Some(match facing {
+        0 => CellRect::new(xx - r.x2, zz - r.z2, xx - r.x1, zz - r.z1),
+        1 => CellRect::new(r.z1, xx - r.x2, r.z2, xx - r.x1),
+        2 => r,
+        3 => CellRect::new(zz - r.z2, r.x1, zz - r.z1, r.x2),
+        _ => return None,
+    })
+}
+
+/// City slot 95 `PositionToCell` on a lot-space position (§8.4.2, §8.4.3):
+/// the floor of `p / 16`.
+fn lot_space_cell(p: f64) -> i32 {
+    (p / 16.0).floor() as i32
+}
+
+/// A network object's placement (`GetNetworkObjectPlacement`, §8.4.3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NetworkObjectPlacement {
+    pub x: i32,
+    pub z: i32,
+    pub mask_a: u32,
+    pub mask_b: u32,
+    pub net_type: u32,
+}
+
+/// `GetNetworkObjectPlacement(cfg, record, origin, facing, …)`
+/// (`0x0072AD00`, §8.4.3) for a configuration of size `(sx, sz)`.
+///
+/// *[choice]* A facing outside 0..3 leaves `RotateLotRect`'s output
+/// unwritten in the original (an uninitialised local); here the lot cell is
+/// used unrotated. Missing extra values (the original reads them without a
+/// size check) read as 0.
+pub fn network_object_placement(
+    size: (u32, u32),
+    obj: &super::LotObject,
+    origin: (i32, i32),
+    facing: i32,
+) -> NetworkObjectPlacement {
+    let cx = r24((obj.min_x as f64 + obj.max_x as f64) * 0.5);
+    let cz = r24((obj.min_z as f64 + obj.max_z as f64) * 0.5);
+    let (lx, lz) = (lot_space_cell(cx), lot_space_cell(cz));
+    let cell = CellRect::new(lx, lz, lx, lz);
+    let r = rotate_lot_rect(facing, size.0, size.1, cell).unwrap_or(cell);
+    let v = |i: usize| obj.values.get(i).copied().unwrap_or(0);
+    let q = ((obj.orientation as i32).wrapping_add(facing) & 3) as u32;
+    NetworkObjectPlacement {
+        x: origin.0.wrapping_add(r.x1),
+        z: origin.1.wrapping_add(r.z1),
+        mask_a: v(1).rotate_left(8 * q),
+        mask_b: v(2).rotate_left(8 * q),
+        net_type: v(0),
+    }
+}
+
+/// The city rect a constraint record covers (§8.4.2): its footprint rounded
+/// to whole cells in lot space, rotated by `facing` and offset by the rect's
+/// origin. *[choice]* As [`network_object_placement`], a facing outside 0..3
+/// leaves the lot-space rect unrotated.
+pub fn constraint_record_rect(size: (u32, u32), obj: &super::LotObject, origin: (i32, i32), facing: i32) -> CellRect {
+    let a = lot_space_cell(r24(obj.min_x as f64 + 8.0));
+    let b = lot_space_cell(r24(obj.min_z as f64 + 8.0));
+    let c = lot_space_cell(r24(obj.max_x as f64 + 8.0));
+    let d = lot_space_cell(r24(obj.max_z as f64 + 8.0));
+    let lot = CellRect::new(a, b, c - 1, d - 1);
+    let r = rotate_lot_rect(facing, size.0, size.1, lot).unwrap_or(lot);
+    CellRect::new(
+        r.x1.wrapping_add(origin.0),
+        r.z1.wrapping_add(origin.1),
+        r.x2.wrapping_add(origin.0),
+        r.z2.wrapping_add(origin.1),
+    )
+}
+
 /// The `rhe(r24(r24(x × 0.0625) − 0.499))` cell of
 /// `GetLotSavvyTerrainAltitude` (§8.7 slot 18).
 pub fn savvy_cell(p: f32) -> i32 {
@@ -610,9 +715,136 @@ impl ZoneDeveloper {
                 self.st.borrow_mut().current_zone = 0;
             }
         }
-        // 3. By data4: 1 or 2 → 0x00731F60; 3 → 0x00732450.
-        if matches!(m.data4, 1..=3) {
-            self.host.street_joining_helper(occ, m.data4);
+        // 3. By data4: 1 or 2 → JoinDeadEndStubs; 3 → JoinAcrossRail;
+        //    anything else → nothing.
+        match m.data4 {
+            1 | 2 => self.join_dead_end_stubs(occ),
+            3 => self.join_across_rail(occ),
+            _ => {}
+        }
+    }
+
+    /// The first cell of a network piece's bounding cells (occupant slot 11:
+    /// x1, z1).
+    fn first_bounding_cell(&self, occ: u64) -> (i32, i32) {
+        let r = self.host.occupant_bounding_cells(occ);
+        (r.x1, r.z1)
+    }
+
+    /// `JoinDeadEndStubs(occupant)` (`0x00731F60`, §5.2.1): a street or
+    /// dirt-road stub that ends next to the new piece, pointing away from it,
+    /// is joined to it with a one-cell segment of the new piece's own kind.
+    /// No random draw.
+    fn join_dead_end_stubs(&self, occ: u64) {
+        // 1. Not a network occupant → return.
+        if self.host.network_has_any_flag(occ, 0).is_none() {
+            return;
+        }
+        // 2. The tool by the new piece's kind, tested in this order.
+        let is = |t: u32| self.host.network_is_of_type(occ, t) == Some(true);
+        let tool = if is(network_kind::ROAD) || is(network_kind::ONE_WAY_ROAD) {
+            network_kind::ROAD
+        } else if is(network_kind::STREET) {
+            network_kind::STREET
+        } else if is(network_kind::DIRT_ROAD) {
+            network_kind::DIRT_ROAD
+        } else {
+            return;
+        };
+        if !self.host.network_tool_present(tool) {
+            return;
+        }
+        // 3. Flag 0x400000 (slot 17) → return.
+        if self.host.network_is_flag_0x400000(occ) {
+            return;
+        }
+        // 4. The first bounding cell.
+        let (x, z) = self.first_bounding_cell(occ);
+        // 5. W, N, E, S with the expected edges 0, 1, 2, 3.
+        for (expected, (nx, nz)) in [(x - 1, z), (x, z - 1), (x + 1, z), (x, z + 1)].into_iter().enumerate() {
+            let Some(m) = self.get_network(nx, nz, JOIN_FLAGS) else {
+                continue;
+            };
+            // 0x00729F90: a street or dirt road, neither one-way nor road.
+            let m_is = |t: u32| self.host.network_is_of_type(m, t) == Some(true);
+            let stub = (m_is(network_kind::STREET) || m_is(network_kind::DIRT_ROAD))
+                && !m_is(network_kind::ONE_WAY_ROAD)
+                && !m_is(network_kind::ROAD);
+            if !stub {
+                continue;
+            }
+            // The first of street / dirt that holds counts per edge (the road
+            // arm is gated by an always-zero byte and omitted).
+            let mut count = 0;
+            let mut last_edge = -1;
+            for e in 0..4 {
+                if self.host.connects_to_neighbor(m, e, network_kind::STREET)
+                    || self.host.connects_to_neighbor(m, e, network_kind::DIRT_ROAD)
+                {
+                    count += 1;
+                    last_edge = e;
+                }
+            }
+            if count == 1 && last_edge == expected as i32 {
+                self.host.network_tool_join(tool, (x, z), (nx, nz));
+            }
+        }
+    }
+
+    /// `JoinAcrossRail(occupant)` (`0x00732450`, §5.2.2): joins the new
+    /// piece to a street or dirt road on the far side of a single rail line,
+    /// with the tool of the far cell's kind. No random draw.
+    fn join_across_rail(&self, occ: u64) {
+        // 1.
+        if self.host.network_has_any_flag(occ, 0).is_none() {
+            return;
+        }
+        if !self.host.network_tool_present(network_kind::DIRT_ROAD)
+            || !self.host.network_tool_present(network_kind::STREET)
+        {
+            return;
+        }
+        if self.host.network_is_flag_0x400000(occ) {
+            return;
+        }
+        let (x, z) = self.first_bounding_cell(occ);
+        // 2. W, N, E, S.
+        for (dx, dz) in [(-1, 0), (0, -1), (1, 0), (0, 1)] {
+            // 2.1 Rail only.
+            let Some(r) = self.get_network(x + dx, z + dz, net::RAIL) else {
+                continue;
+            };
+            if self.host.network_flags(r) & net::ANY != net::RAIL {
+                continue;
+            }
+            // 2.2 The rail runs across d: for W and E it connects on edges 1
+            //     and 3 and not on 0 and 2; for N and S the other way. The
+            //     four tests run in edge order and stop at the first failure.
+            let across_x = dx != 0;
+            let crosses = (0..4).all(|e| {
+                let wanted = if across_x { e % 2 == 1 } else { e % 2 == 0 };
+                self.host.connects_to_neighbor(r, e, RAIL_TYPE) == wanted
+            });
+            if !crosses {
+                continue;
+            }
+            // 2.3 The far cell's kind picks the tool.
+            let (fx, fz) = (x + 2 * dx, z + 2 * dz);
+            let tool = if self
+                .get_network(fx, fz, net::STREET)
+                .is_some_and(|n| self.host.network_is_of_type(n, network_kind::STREET) == Some(true))
+            {
+                network_kind::STREET
+            } else if self
+                .get_network(fx, fz, net::DIRT)
+                .is_some_and(|n| self.host.network_is_of_type(n, network_kind::DIRT_ROAD) == Some(true))
+            {
+                network_kind::DIRT_ROAD
+            } else {
+                continue;
+            };
+            // 2.4
+            self.host.network_tool_join(tool, (x, z), (fx, fz));
         }
     }
 
@@ -801,9 +1033,231 @@ impl ZoneDeveloper {
                 .and_then(|r| r.components().into_iter().find(|c| c.includes(px, pz)))
                 .map(|c| c.compress());
         }
-        // 7. real mode: 0x0072B180(region) — not traced, left out
+        // 7. Real mode: UpdateZoneType(region) on the region as passed in
         //    (highlight mode skips it).
+        if self.st.borrow().real_mode {
+            self.update_zone_type(region);
+        }
         self.host.post_defer_occupant_operations(false); // 8.
+    }
+
+    /// `UpdateZoneType(region)` (`0x0072B180`, §7.2.2): brings the lots
+    /// whose origin is in the region up to date with the zone grid and
+    /// dezones every set cell no lot covers, through the zone manager's
+    /// `PlaceZone` (free, committed). No random draws.
+    pub fn update_zone_type(&self, region: &super::CellRegion) {
+        // 1.
+        let rect = region.rect;
+        let mut d = super::CellRegion::new(rect, false);
+        let force = self.host.force_empty_lot_base_textures();
+        let mut any = false;
+        // 2. z outer, x inner; clear cells are skipped.
+        if rect.x2 >= rect.x1 && rect.z2 >= rect.z1 {
+            for z in rect.z1..=rect.z2 {
+                for x in rect.x1..=rect.x2 {
+                    if !region.includes(x, z) {
+                        continue;
+                    }
+                    if let Some(lot) = self.get_lot(x, z, true) {
+                        let z0 = self.host.lot_zone_type(lot);
+                        self.host.lot_update_zone_type(lot);
+                        let z1 = self.host.lot_zone_type(lot);
+                        if z1 != z0 && (force || self.host.lot_state(lot) < 2) {
+                            self.host.set_empty_lot_base_texture(lot);
+                        }
+                    } else if self.get_lot(x, z, false).is_none() {
+                        d.set(x, z, true);
+                        any = true;
+                    }
+                }
+            }
+        }
+        // 3.
+        if any {
+            self.host.zone_manager_dezone(&d);
+        }
+    }
+
+    /// Slot 21 `CanCreatePloppedLot(rect, facing, cfg)` (§8.4.1): the plop
+    /// tool's test. Codes 0 outside, 1 water, 3 a network / plopped zone /
+    /// blocked outward connection, 4 too steep, 5 / 6 a constraint tile, 7 a
+    /// special zone, 8 free. No draw, nothing written; real and highlight
+    /// mode behave the same, and existing lots are not consulted.
+    pub fn can_create_plopped_lot(&self, rect: CellRect, facing: i32, cfg: u64) -> i32 {
+        // 1.
+        let water_ok = self.host.cfg_compatible_with_water(cfg);
+        let objects = self.host.cfg_objects(cfg);
+        // 2.
+        if water_ok {
+            let r = self.check_constraint_tiles(rect, facing, cfg, &objects);
+            if r != lot_code::FREE {
+                return r;
+            }
+        }
+        // 3. Strict, and a NaN on either side passes.
+        let s = self.host.area_slope(rect, water_ok);
+        if s > self.host.cfg_max_slope(cfg) {
+            return lot_code::TOO_STEEP;
+        }
+        // 4.
+        let (cells_x, cells_z) = self.host.city_cell_counts();
+        let size = self.host.cfg_size(cfg);
+        let origin = (rect.x1, rect.z1);
+        let network_objects: Vec<NetworkObjectPlacement> = objects
+            .iter()
+            .filter(|o| o.kind == OBJECT_NETWORK)
+            .map(|o| network_object_placement(size, o, origin, facing))
+            .collect();
+        let mut result = lot_code::FREE;
+        if rect.x2 >= rect.x1 && rect.z2 >= rect.z1 {
+            for x in rect.x1..=rect.x2 {
+                for z in rect.z1..=rect.z2 {
+                    let code = self.plopped_cell_code(x, z, cells_x, cells_z, water_ok, &network_objects);
+                    result = result.min(code);
+                }
+            }
+        }
+        // 5. The outward connections.
+        if result == lot_code::FREE {
+            for p in &network_objects {
+                let around = [(p.x - 1, p.z), (p.x, p.z - 1), (p.x + 1, p.z), (p.x, p.z + 1)];
+                for (i, &(nx, nz)) in around.iter().enumerate() {
+                    let in_city = (nx as u32) < (cells_x as u32) && (nz as u32) < (cells_z as u32);
+                    let outside = !(rect.x1..=rect.x2).contains(&nx) || !(rect.z1..=rect.z2).contains(&nz);
+                    if !in_city || !outside || (p.mask_b >> (8 * i)) & 0xFF == 0 {
+                        continue;
+                    }
+                    let mut flags = 1u32.wrapping_shl(p.net_type);
+                    if flags & net::ANY != 0 {
+                        flags = net::ANY;
+                    }
+                    let blocked = self
+                        .get_network(nx, nz, flags)
+                        .is_some_and(|m| self.host.network_has_any_flag(m, PLOP_OUTWARD_FLAGS) == Some(true));
+                    if blocked {
+                        result = lot_code::NETWORK;
+                        break; // the next record
+                    }
+                }
+            }
+        }
+        // 6.
+        result
+    }
+
+    /// One cell of `CanCreatePloppedLot` step 4 (§8.4.1).
+    fn plopped_cell_code(
+        &self,
+        x: i32,
+        z: i32,
+        cells_x: i32,
+        cells_z: i32,
+        water_ok: bool,
+        network_objects: &[NetworkObjectPlacement],
+    ) -> i32 {
+        if x < 0 || x >= cells_x || z < 0 || z >= cells_z {
+            return lot_code::OUTSIDE;
+        }
+        let excluded = self.st.borrow().restriction.as_ref().is_some_and(|r| !r.includes(x, z));
+        if excluded {
+            return lot_code::OUTSIDE;
+        }
+        if !water_ok && self.is_cell_water(x, z) {
+            return lot_code::WATER;
+        }
+        let Some(n) = self.get_network(x, z, net::ANY) else {
+            // No network: the zone (bit t mod 32 of 0xFC00, 15 picked out).
+            let t = self.host.zone_type(x, z);
+            return if t == 15 {
+                lot_code::NETWORK
+            } else if (0xFC00u32 >> (t as u32 & 31)) & 1 != 0 {
+                lot_code::OCCUPIED
+            } else {
+                lot_code::FREE
+            };
+        };
+        if self.host.network_has_all_flags(n, PLOP_BLOCKING_FLAGS) {
+            return lot_code::NETWORK;
+        }
+        // Another network: 3 unless a network object of the lot takes the
+        // piece; a record on this cell with another network type ends the
+        // walk.
+        let mut code = lot_code::NETWORK;
+        for p in network_objects {
+            if (p.x, p.z) != (x, z) {
+                continue;
+            }
+            if self.host.network_flags(n) & 0x1FFF != 1u32.wrapping_shl(p.net_type) {
+                break;
+            }
+            let e = self.host.network_edge_mask(n, p.net_type);
+            if plop_mask_matches(p.mask_a, e) && plop_mask_matches(p.mask_b, e) {
+                code = lot_code::FREE;
+            }
+        }
+        code
+    }
+
+    /// `CheckConstraintTiles(rect, facing, cfg)` (`0x0072B480`, §8.4.2): 6
+    /// when a land-constraint cell is wet, else 5 when a water-constraint
+    /// cell (or its open-water strip) fails, else 8. Every record is walked.
+    fn check_constraint_tiles(&self, rect: CellRect, facing: i32, cfg: u64, objects: &[super::LotObject]) -> i32 {
+        let size = self.host.cfg_size(cfg);
+        let origin = (rect.x1, rect.z1);
+        let (mut water_flag, mut land_flag) = (false, false);
+        for obj in objects {
+            if obj.kind != OBJECT_WATER_CONSTRAINT && obj.kind != OBJECT_LAND_CONSTRAINT {
+                continue;
+            }
+            let r = constraint_record_rect(size, obj, origin, facing);
+            // Every cell, z outer and x inner; the first failure of a row
+            // sets the flag and ends that row.
+            let rows = |test: &dyn Fn(i32, i32) -> bool, area: CellRect| -> bool {
+                let mut failed = false;
+                if area.x2 >= area.x1 && area.z2 >= area.z1 {
+                    for z in area.z1..=area.z2 {
+                        for x in area.x1..=area.x2 {
+                            if !test(x, z) {
+                                failed = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                failed
+            };
+            if obj.kind == OBJECT_WATER_CONSTRAINT {
+                let all_water = |x: i32, z: i32| self.host.cell_has_water(x, z) && !self.host.cell_has_land(x, z);
+                if rows(&all_water, r) {
+                    water_flag = true;
+                }
+                if obj.values.first().copied().unwrap_or(0) == 1 {
+                    let o = ((obj.orientation as i32).wrapping_add(facing).wrapping_add(2)) & 3;
+                    let strip = match o {
+                        0 => CellRect::new(r.x1, r.z1 - 2, r.x2, r.z1 - 1),
+                        1 => CellRect::new(r.x2 + 1, r.z1, r.x2 + 2, r.z2),
+                        2 => CellRect::new(r.x1, r.z2 + 1, r.x2, r.z2 + 2),
+                        _ => CellRect::new(r.x1 - 2, r.z1, r.x1 - 1, r.z2),
+                    };
+                    let open = |x: i32, z: i32| self.host.cell_is_in_bounds(x, z) && self.host.is_navigable(x, z);
+                    if rows(&open, strip) {
+                        water_flag = true;
+                    }
+                }
+            } else {
+                let dry = |x: i32, z: i32| !self.is_cell_water(x, z);
+                if rows(&dry, r) {
+                    land_flag = true;
+                }
+            }
+        }
+        if land_flag {
+            lot_code::LAND_CONSTRAINT
+        } else if water_flag {
+            lot_code::WATER_CONSTRAINT
+        } else {
+            lot_code::FREE
+        }
     }
 
     /// Test/conformance affordance for `DetermineLotSize` (test 30): sets
@@ -1525,6 +1979,22 @@ impl ZoneDeveloper {
         let prev = self.st.borrow_mut().restriction.replace(region.clone());
         self.draw_street(x1, z1, x2, z2, per_cell);
         self.st.borrow_mut().restriction = prev;
+    }
+
+    /// Test/conformance affordance for `CanCreatePloppedLot` (test 36): sets
+    /// `region` as the restriction region, runs the test, and restores the
+    /// previous restriction. Not part of the interface.
+    pub fn can_create_plopped_lot_for_test(
+        &self,
+        region: &super::CellRegion,
+        rect: CellRect,
+        facing: i32,
+        cfg: u64,
+    ) -> i32 {
+        let prev = self.st.borrow_mut().restriction.replace(region.clone());
+        let r = self.can_create_plopped_lot(rect, facing, cfg);
+        self.st.borrow_mut().restriction = prev;
+        r
     }
 
     /// Test/conformance affordance for `LayInJogStreets` (§7.12): sets
@@ -2574,24 +3044,30 @@ impl ZoneDeveloper {
     /// Slot 23 `CreateLot(x, z, w, h, facing)` (§8.5). No checks. Returns the
     /// lot's caller reference.
     pub fn create_lot(&self, x: i32, z: i32, w: i32, h: i32, facing: i32) -> Option<u64> {
-        // 1. Allocate and construct a lot (a new token with no reference).
-        //    [choice] A host that cannot construct one (0) fails the call:
-        //    nothing is written (zones phase 2, lot creation not specified).
+        // 1. Allocate a lot from the lot pool and construct it (§8.5.1; a new
+        //    token with no reference). [choice] A host that cannot construct
+        //    one (0) fails the call: nothing is written (the original has no
+        //    failure path).
         let lot = self.host.new_lot(x, z, w, h, facing);
         if lot == 0 {
             return None;
         }
-        // 2. One AddRef for the caller; Init; SetState(1,0,0); one more AddRef
-        //    for the manager.
+        // 2. One AddRef for the caller; Init (the lot's one draw, Z3);
+        //    SetState(1,0,0); one more AddRef for the manager.
         self.host.add_ref(lot); // caller's reference (returned)
         self.host.lot_init(lot);
         self.host.lot_set_state(lot, 1, 0, 0);
         self.host.add_ref(lot); // manager's reference
-                                // 3. Write the lot into every cell of the rect.
+
+        // 3. Write the lot into every cell of {x, z, max(x+w−1, x),
+        //    max(z+h−1, z)}, z outer, x inner: a width or depth below 1 still
+        //    writes one column or row.
         {
             let mut s = self.st.borrow_mut();
-            for xx in x..x + w {
-                for zz in z..z + h {
+            let x2 = x.saturating_add(w).saturating_sub(1).max(x);
+            let z2 = z.saturating_add(h).saturating_sub(1).max(z);
+            for zz in z..=z2 {
+                for xx in x..=x2 {
                     if let Some(i) = Self::index_in(xx, zz, s.map_x, s.map_z) {
                         if i < s.cell_map.len() {
                             s.cell_map[i] = Some(lot);

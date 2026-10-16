@@ -1,0 +1,339 @@
+{
+  "format": 1,
+  "name": "zn15_51_join_across_rail",
+  "spec": [
+    "zones 5.2",
+    "zones 5.2.2",
+    "zones 15 test 43"
+  ],
+  "description": "Test 43: InsertOccupant of a new street on (20, 20) with data4 = 3 runs JoinAcrossRail. Rail on (21, 20) (flags & 0x1F4F = 2) connecting on edges 1 and 3 only, with a street on (22, 20) -> the street tool's PlaceNetworkOccupants(20, 20, 22, 20, 0, null, 1, -1); a dirt road there -> the dirt-road tool. Rail connecting on edges 0 and 2, or rail flags 0x3 -> no call.",
+  "steps": [
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 1,
+          "cells": [
+            [
+              21,
+              20
+            ]
+          ],
+          "edges": [
+            1,
+            3
+          ]
+        },
+        {
+          "kind": 3,
+          "cells": [
+            [
+              22,
+              20
+            ]
+          ],
+          "edges": [
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "op": "zone_occupant",
+      "token": 600,
+      "type": "0xC772BF98",
+      "pos": [
+        328,
+        0,
+        328
+      ],
+      "net_flags": 8,
+      "net_types": [
+        3
+      ]
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_message",
+      "target": "developer",
+      "id": "0x99EF1142",
+      "occupant": 600,
+      "data3": "0xC772BF98",
+      "data4": 3,
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "network_tool_join"
+      },
+      "events": [
+        {
+          "event": "network_tool_join",
+          "tool": 3,
+          "x1": 20,
+          "z1": 20,
+          "x2": 22,
+          "z2": 20
+        }
+      ]
+    },
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 1,
+          "cells": [
+            [
+              21,
+              20
+            ]
+          ],
+          "edges": [
+            1,
+            3
+          ]
+        },
+        {
+          "kind": 11,
+          "cells": [
+            [
+              22,
+              20
+            ]
+          ],
+          "edges": [
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "op": "zone_occupant",
+      "token": 601,
+      "type": "0xC772BF98",
+      "pos": [
+        328,
+        0,
+        328
+      ],
+      "net_flags": 8,
+      "net_types": [
+        3
+      ]
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_message",
+      "target": "developer",
+      "id": "0x99EF1142",
+      "occupant": 601,
+      "data3": "0xC772BF98",
+      "data4": 3,
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "network_tool_join"
+      },
+      "events": [
+        {
+          "event": "network_tool_join",
+          "tool": 11,
+          "x1": 20,
+          "z1": 20,
+          "x2": 22,
+          "z2": 20
+        }
+      ]
+    },
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 1,
+          "cells": [
+            [
+              21,
+              20
+            ]
+          ],
+          "edges": [
+            0,
+            2
+          ]
+        },
+        {
+          "kind": 3,
+          "cells": [
+            [
+              22,
+              20
+            ]
+          ],
+          "edges": [
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "op": "zone_occupant",
+      "token": 602,
+      "type": "0xC772BF98",
+      "pos": [
+        328,
+        0,
+        328
+      ],
+      "net_flags": 8,
+      "net_types": [
+        3
+      ]
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_message",
+      "target": "developer",
+      "id": "0x99EF1142",
+      "occupant": 602,
+      "data3": "0xC772BF98",
+      "data4": 3,
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "network_tool_join"
+      },
+      "events": []
+    },
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_network",
+      "runs": [
+        {
+          "kind": 1,
+          "cells": [
+            [
+              21,
+              20
+            ]
+          ],
+          "edges": [
+            1,
+            3
+          ],
+          "flags": 3
+        },
+        {
+          "kind": 3,
+          "cells": [
+            [
+              22,
+              20
+            ]
+          ],
+          "edges": [
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "op": "zone_occupant",
+      "token": 603,
+      "type": "0xC772BF98",
+      "pos": [
+        328,
+        0,
+        328
+      ],
+      "net_flags": 8,
+      "net_types": [
+        3
+      ]
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_message",
+      "target": "developer",
+      "id": "0x99EF1142",
+      "occupant": 603,
+      "data3": "0xC772BF98",
+      "data4": 3,
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "network_tool_join"
+      },
+      "events": []
+    }
+  ]
+}

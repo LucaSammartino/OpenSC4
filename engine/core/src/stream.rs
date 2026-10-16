@@ -107,6 +107,12 @@ pub trait OutStream {
     /// after emitting part of a value (variants, foundations §9.2). Host
     /// streams without such a call ignore it.
     fn set_error(&mut self) {}
+    /// Names the field that the next bytes belong to (tooling: a shadow's
+    /// record comparison names the differing fields). Writes nothing; every
+    /// stream but such a recorder ignores it.
+    fn mark(&mut self, label: &'static str) {
+        let _ = label;
+    }
 
     fn put_i8(&mut self, v: i8) -> bool {
         self.put_u8(v as u8)

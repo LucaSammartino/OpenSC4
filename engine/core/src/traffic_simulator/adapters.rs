@@ -18,7 +18,7 @@ use crate::stream::RefValue;
 use crate::traffic_network::{NetworkHost, NetworkState, PathInfo};
 use crate::variant::{mem, Elem, Variant};
 
-use super::pools::{pool_of_token, pool_token, Pools};
+use super::pools::{pool_of_token, pool_token, Pools, POOL_KEY0_TOKEN};
 use super::state::{DamageState, State};
 use super::{prop, TrafficSimHost};
 
@@ -52,12 +52,21 @@ pub struct Holders<'a> {
 
 impl HolderStore for Holders<'_> {
     fn get_property(&self, holder: u64, id: u32) -> Option<Variant> {
+        if holder == POOL_KEY0_TOKEN {
+            return self.pools.borrow().map.get(&0).and_then(|h| h.get(id).cloned());
+        }
         match pool_of_token(holder) {
             Some(p) => self.pools.borrow().holder(p).and_then(|h| h.get(id).cloned()),
             None => self.h.holder_property(holder, id),
         }
     }
     fn put_property(&self, holder: u64, id: u32, value: Variant) {
+        if holder == POOL_KEY0_TOKEN {
+            if let Some(h) = self.pools.borrow_mut().map.get_mut(&0) {
+                h.add(id, value);
+            }
+            return;
+        }
         match pool_of_token(holder) {
             Some(p) => {
                 if let Some(h) = self.pools.borrow_mut().holder_mut(p) {

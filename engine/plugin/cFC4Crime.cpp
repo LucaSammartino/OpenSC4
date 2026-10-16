@@ -595,8 +595,37 @@ uint32_t ZoneType(void* u, int32_t x, int32_t z) {
 void AddRefToken(void*, uint64_t t) {
     if (cIGZUnknown* o = FromToken(t)) FC4_ADDREF(o);
 }
-void ReleaseToken(void*, uint64_t t) {
-    if (cIGZUnknown* o = FromToken(t)) FC4_RELEASE(o);
+
+// The incident list is cleared (each lot's reference released) at month
+// step 4 and at Shutdown (§6.3). A lot the game removed from the city during
+// the month (bulldozed, burnt down, redeveloped) is then held by the
+// incident alone: the original frees it at this release too. Such a lot is
+// no longer the lot manager's lot at its own location (lot slot 21, then lot
+// manager slot 6); a lot that still is keeps the manager's reference, so a
+// last release of it stays a reference warning.
+bool LotLeftCity(void* u, uint64_t t) {
+    if (!fc4::On(fc4::Sw::CrimeLots)) return false;
+    cFC4ISC4LotManager* lm = LotMgr(u);
+    if (lm == nullptr) return false;
+    int32_t x = 0, z = 0;
+    if (!LotOf(t)->GetLocation(x, z)) return false;
+    return lm->GetLot(x, z, false) != RawLot(t);
+}
+
+void ReleaseToken(void* u, uint64_t t) {
+    cIGZUnknown* o = FromToken(t);
+    if (o == nullptr) return;
+    if (!LotLeftCity(u, t)) {
+        FC4_RELEASE(o);
+        return;
+    }
+    const uint32_t left = FC4_RELEASE_LAST_HOLDER(o);
+    static volatile LONG notes = 0;  // any thread
+    if (InterlockedIncrement(&notes) <= 10) {
+        fc4::Log("crime: incident lot %p left the city during the month; its reference released (%u left%s)",
+                 static_cast<void*>(o), left,
+                 left == 0 ? ": the incident was its last holder, freed here as in the original" : "");
+    }
 }
 
 // ---- occupants and props (§6.10, §11.3, §11.6) ----------------------------------------------------

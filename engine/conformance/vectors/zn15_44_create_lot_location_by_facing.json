@@ -1,0 +1,563 @@
+{
+  "format": 1,
+  "name": "zn15_44_create_lot_location_by_facing",
+  "spec": [
+    "zones 8.5",
+    "zones 8.5.1",
+    "zones 15 test 34"
+  ],
+  "description": "Test 34 (the parts the core and its host see): CreateLot(5, 7, 3, 2, f) on an empty manager with zone grid (7, 7) = 1, (7, 8) = 2, (5, 8) = 3, (5, 7) = 4. The constructor's location is (x + w - 1, z), (x + w - 1, z + h - 1), (x, z + h - 1), (x, z) for facings 0..3, the size (w, h) or (h, w), the zone the zone grid's at the location; facing 7 gives location (0, 0), size (0, 0) and the zone of cell (0, 0). State 1 and reference count 2 after the call; GetLot(location, true) is the lot. CreateLot(10, 10, 0, 1, 0) keeps rect bytes {10, 10, 9, 10} and writes cell (10, 10) only (max(x + w - 1, x)).",
+  "steps": [
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_zones",
+      "cells": [
+        [
+          7,
+          7,
+          1
+        ],
+        [
+          7,
+          8,
+          2
+        ],
+        [
+          5,
+          8,
+          3
+        ],
+        [
+          5,
+          7,
+          4
+        ],
+        [
+          0,
+          0,
+          5
+        ]
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "create_lot",
+      "args": [
+        5,
+        7,
+        3,
+        2,
+        0
+      ],
+      "expect": 4096
+    },
+    {
+      "op": "zone_call",
+      "method": "lot_info",
+      "args": [
+        4096
+      ],
+      "expect": {
+        "rect": [
+          5,
+          7,
+          7,
+          8
+        ],
+        "location": [
+          7,
+          7
+        ],
+        "size": [
+          3,
+          2
+        ],
+        "zone": 1,
+        "state": 1,
+        "refs": 2
+      }
+    },
+    {
+      "op": "zone_call",
+      "method": "get_lot",
+      "args": [
+        7,
+        7,
+        true
+      ],
+      "expect": 4096
+    },
+    {
+      "op": "zone_call",
+      "method": "get_lot_count",
+      "args": [],
+      "expect": 1
+    },
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_zones",
+      "cells": [
+        [
+          7,
+          7,
+          1
+        ],
+        [
+          7,
+          8,
+          2
+        ],
+        [
+          5,
+          8,
+          3
+        ],
+        [
+          5,
+          7,
+          4
+        ],
+        [
+          0,
+          0,
+          5
+        ]
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "create_lot",
+      "args": [
+        5,
+        7,
+        3,
+        2,
+        1
+      ],
+      "expect": 4097
+    },
+    {
+      "op": "zone_call",
+      "method": "lot_info",
+      "args": [
+        4097
+      ],
+      "expect": {
+        "rect": [
+          5,
+          7,
+          7,
+          8
+        ],
+        "location": [
+          7,
+          8
+        ],
+        "size": [
+          2,
+          3
+        ],
+        "zone": 2,
+        "state": 1,
+        "refs": 2
+      }
+    },
+    {
+      "op": "zone_call",
+      "method": "get_lot",
+      "args": [
+        7,
+        8,
+        true
+      ],
+      "expect": 4097
+    },
+    {
+      "op": "zone_call",
+      "method": "get_lot_count",
+      "args": [],
+      "expect": 1
+    },
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_zones",
+      "cells": [
+        [
+          7,
+          7,
+          1
+        ],
+        [
+          7,
+          8,
+          2
+        ],
+        [
+          5,
+          8,
+          3
+        ],
+        [
+          5,
+          7,
+          4
+        ],
+        [
+          0,
+          0,
+          5
+        ]
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "create_lot",
+      "args": [
+        5,
+        7,
+        3,
+        2,
+        2
+      ],
+      "expect": 4098
+    },
+    {
+      "op": "zone_call",
+      "method": "lot_info",
+      "args": [
+        4098
+      ],
+      "expect": {
+        "rect": [
+          5,
+          7,
+          7,
+          8
+        ],
+        "location": [
+          5,
+          8
+        ],
+        "size": [
+          3,
+          2
+        ],
+        "zone": 3,
+        "state": 1,
+        "refs": 2
+      }
+    },
+    {
+      "op": "zone_call",
+      "method": "get_lot",
+      "args": [
+        5,
+        8,
+        true
+      ],
+      "expect": 4098
+    },
+    {
+      "op": "zone_call",
+      "method": "get_lot_count",
+      "args": [],
+      "expect": 1
+    },
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_zones",
+      "cells": [
+        [
+          7,
+          7,
+          1
+        ],
+        [
+          7,
+          8,
+          2
+        ],
+        [
+          5,
+          8,
+          3
+        ],
+        [
+          5,
+          7,
+          4
+        ],
+        [
+          0,
+          0,
+          5
+        ]
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "create_lot",
+      "args": [
+        5,
+        7,
+        3,
+        2,
+        3
+      ],
+      "expect": 4099
+    },
+    {
+      "op": "zone_call",
+      "method": "lot_info",
+      "args": [
+        4099
+      ],
+      "expect": {
+        "rect": [
+          5,
+          7,
+          7,
+          8
+        ],
+        "location": [
+          5,
+          7
+        ],
+        "size": [
+          2,
+          3
+        ],
+        "zone": 4,
+        "state": 1,
+        "refs": 2
+      }
+    },
+    {
+      "op": "zone_call",
+      "method": "get_lot",
+      "args": [
+        5,
+        7,
+        true
+      ],
+      "expect": 4099
+    },
+    {
+      "op": "zone_call",
+      "method": "get_lot_count",
+      "args": [],
+      "expect": 1
+    },
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_zones",
+      "cells": [
+        [
+          7,
+          7,
+          1
+        ],
+        [
+          0,
+          0,
+          5
+        ]
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "create_lot",
+      "args": [
+        5,
+        7,
+        3,
+        2,
+        7
+      ],
+      "expect": 4100
+    },
+    {
+      "op": "zone_call",
+      "method": "lot_info",
+      "args": [
+        4100
+      ],
+      "expect": {
+        "rect": [
+          5,
+          7,
+          7,
+          8
+        ],
+        "location": [
+          0,
+          0
+        ],
+        "size": [
+          0,
+          0
+        ],
+        "zone": 5,
+        "state": 1,
+        "refs": 2
+      }
+    },
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_call",
+      "method": "create_lot",
+      "args": [
+        10,
+        10,
+        0,
+        1,
+        0
+      ],
+      "expect": 4101
+    },
+    {
+      "op": "zone_call",
+      "method": "lot_info",
+      "args": [
+        4101
+      ],
+      "expect": {
+        "rect": [
+          10,
+          10,
+          9,
+          10
+        ],
+        "location": [
+          9,
+          10
+        ],
+        "size": [
+          0,
+          1
+        ],
+        "zone": 0,
+        "state": 1,
+        "refs": 2
+      }
+    },
+    {
+      "op": "zone_call",
+      "method": "get_lot",
+      "args": [
+        10,
+        10,
+        false
+      ],
+      "expect": 4101
+    },
+    {
+      "op": "zone_call",
+      "method": "get_lot",
+      "args": [
+        9,
+        10,
+        false
+      ],
+      "expect": null
+    },
+    {
+      "op": "zone_call",
+      "method": "get_lot",
+      "args": [
+        11,
+        10,
+        false
+      ],
+      "expect": null
+    },
+    {
+      "op": "zone_call",
+      "method": "get_lot",
+      "args": [
+        10,
+        11,
+        false
+      ],
+      "expect": null
+    }
+  ]
+}

@@ -564,14 +564,27 @@ pub(crate) struct Counters {
 pub(crate) struct CHost {
     c: fc4_traffic_host,
     counters: Cell<Counters>,
+    /// Inside an outermost call ([`Handle::call`]): the lot list read
+    /// first in it is handed out again (`lots_shared`). The plugin keeps
+    /// one lot walk per outermost call, so the list cannot differ.
+    in_call: Cell<bool>,
+    lots_cache: RefCell<Option<Rc<[u64]>>>,
 }
 
 impl CHost {
-    fn new(c: fc4_traffic_host) -> CHost {
+    pub(crate) fn new(c: fc4_traffic_host) -> CHost {
         CHost {
             c,
             counters: Cell::new(Counters::default()),
+            in_call: Cell::new(false),
+            lots_cache: RefCell::new(None),
         }
+    }
+
+    /// The outermost call starts or ends: the lot list is read afresh.
+    fn set_in_call(&self, on: bool) {
+        self.in_call.set(on);
+        self.lots_cache.borrow_mut().take();
     }
 
     fn note(&self, f: impl FnOnce(&mut Counters)) {
@@ -968,6 +981,17 @@ impl TrafficSimHost for CHost {
             .filter(|&t| t != 0)
             .collect()
     }
+    fn lots_shared(&self) -> Rc<[u64]> {
+        if !self.in_call.get() {
+            return self.lots().into();
+        }
+        if let Some(l) = self.lots_cache.borrow().as_ref() {
+            return l.clone();
+        }
+        let l: Rc<[u64]> = self.lots().into();
+        *self.lots_cache.borrow_mut() = Some(l.clone());
+        l
+    }
     fn as_lot(&self, object: u64) -> Option<u64> {
         if object == 0 {
             return None;
@@ -1257,6 +1281,7 @@ impl Handle {
     fn call<R>(&self, f: impl FnOnce(&Handle) -> R) -> R {
         let outer = self.depth.get() == 0;
         if outer {
+            self.host.set_in_call(true);
             self.refresh();
         } else {
             self.reentrant.set(self.reentrant.get().wrapping_add(1));
@@ -1281,6 +1306,7 @@ impl Handle {
         }
         self.depth.set(self.depth.get() - 1);
         if outer {
+            self.host.set_in_call(false);
             self.refresh();
         }
         r

@@ -136,7 +136,7 @@ INTERFACES = [
     ("cIGZMessageTarget2(Pollution)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
     ("cISC4PropRequester(Pollution)", "cFC4ISC4PropRequester", FC4, True),
     # The SDK declares slots 0-10, which match prop-developer.md section 8.1; slot 11 is the
-    # class's scalar deleting destructor (reviewed in abi_conformance_test.cpp).
+    # class's scalar deleting destructor (the trailing deleting destructor rule in abi_conformance_test.cpp).
     ("cISC4PropDeveloper", "cISC4PropDeveloper", "cISC4PropDeveloper.h", True),
     # Flammability (docs/specs/flammability.md §11, §12): implemented, and the
     # services it calls. The SDK declaration of the simulator matches docs/abi.
@@ -145,7 +145,9 @@ INTERFACES = [
     ("cIGZMessageTarget2(Flammability)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
     ("cISC4DisasterManagerFire", "cISC4DisasterManagerFire", "cISC4DisasterManagerFire.h", True),
     ("cISC4DisasterLayer", "cISC4DisasterLayer", "cISC4DisasterLayer.h", True),
-    ("cISC4TutorialSystem", "cISC4TutorialSystem", "cISC4TutorialSystem.h", True),
+    # The tutorial system (tutorial.md section 6): the SDK declaration (slots 0-17, which the
+    # flammability glue calls) extended by the three slots the SDK header lacks (18-20).
+    ("cISC4TutorialSystem", "cFC4ISC4TutorialSystem", FC4, True),
     # Protection (docs/specs/protection.md §14, §15): both simulators, the
     # sub-object interfaces of their own vtables, and the services they call.
     ("cISC4FireProtectionSimulator", "cFC4ISC4FireProtectionSimulator", FC4, True),

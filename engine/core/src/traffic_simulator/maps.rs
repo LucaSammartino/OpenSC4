@@ -151,15 +151,18 @@ pub fn commercial_window(s: &NetworkState, bx: i32, bz: i32) -> u16 {
 
 impl Run<'_, '_> {
     /// CreateMaps (state 2, `0x0071A0C0`, §4.9).
-    pub(crate) fn create_maps(&mut self) {
-        while let Some((x, z)) = self.st.scan.next_cell() {
+    pub(crate) fn create_maps(&mut self) -> bool {
+        while let Some((x, z)) = self.next_scan_cell() {
             self.create_maps_cell(x, z);
+        }
+        if self.scan_stopped() {
+            return false;
         }
         // The end of the pass (`0x0071A5D7`–`0x0071A701`).
         // 1. The averages; the five fields of each slot with records go to
-        // the published set. A slot with no record publishes (0, 0, 0, 0,
-        // 0) *[question: §4.9 says it "keeps (0, 0, 0, 0, 0)" while the
-        // entry reset leaves max −1.0]*.
+        // the published set. A slot with no record publishes (0.0, 0, 0, 0,
+        // 0.0) (TS40); a slot whose records never beat −1.0 (NaN ratios)
+        // publishes its max fields as the reset left them, 0.
         let w = &mut self.st.stats_work;
         let last = &mut self.st.stats_last;
         let counts = self.st.stat_counts;
@@ -182,6 +185,7 @@ impl Run<'_, '_> {
         self.update_mass_transit_budget();
         // 4.
         self.st.accident_check = std::mem::take(&mut self.st.accidents);
+        true
     }
 
     /// `UpdateRoadsBudget` (`0x0070D8A0`, §4.9): the roads department's
@@ -256,7 +260,12 @@ impl Run<'_, '_> {
                 row.sum = r24(f64::from(row.sum) + f64::from(r)) as f32;
                 self.st.stat_counts[s] = self.st.stat_counts[s].wrapping_add(1);
                 *records = records.wrapping_add(1);
-                if r > row.max {
+                // The max fields are written only when `r` beats the
+                // separate comparison value (ordered: a NaN never does;
+                // `0x0071A3D7`–`0x0071A40C`, TS40).
+                let cmp = &mut self.st.stat_max_cmp[s];
+                if r > *cmp {
+                    *cmp = r;
                     row.max = r;
                     row.max_x = x;
                     row.max_z = z;
@@ -296,10 +305,10 @@ impl Run<'_, '_> {
 
     /// CreateFinalMap (state 4, `0x0070F460`, §4.10), then
     /// `TrafficMapChanged`.
-    pub(crate) fn create_final_map(&mut self) {
+    pub(crate) fn create_final_map(&mut self) -> bool {
         let curve = self.st.tuning.congestion_curve.clone();
         let scale = self.st.tuning.congestion_scale;
-        while let Some((x, z)) = self.st.scan.next_cell() {
+        while let Some((x, z)) = self.next_scan_cell() {
             let b = self.st.peak_volume.as_ref().map_or(0.0, |g| g.get(x, z));
             let d = self.st.peak_ratio.as_ref().map_or(0.0, |g| g.get(x, z));
             // Tract size 1 assumed for both grids *[quirk]*.
@@ -310,7 +319,11 @@ impl Run<'_, '_> {
                 g.set(x, z, congestion_byte(b, d, &curve, scale));
             }
         }
+        if self.scan_stopped() {
+            return false;
+        }
         self.h.post_message(SimMessage::of_type(msg::TRAFFIC_MAP_CHANGED));
+        true
     }
 
     /// `GetTransitSwitchQueryData(x, z, out)` (slot 35, `0x0071CB80`, §4.16,
@@ -322,12 +335,16 @@ impl Run<'_, '_> {
     /// lies in the bounding rect of `GetLot(x, z, false)`: riders last
     /// period in the three counts and 1.0, all 0 during a strike, the cost
     /// from the lot's building. `None` (false, `out` untouched) for neither,
-    /// and for a switch ID with no switch *[choice]*.
+    /// and for a switch ID with no switch *[choice]* (TS49: the original
+    /// inserts a default switch at `0x0071CBB7`, writes four of the five
+    /// fields and crashes reading its null building at `0x0071CC14`; only a
+    /// damaged save has such an ID).
     pub(crate) fn transit_switch_query_data(&self, x: i32, z: i32) -> Option<SwitchQueryData> {
         let strike = self.st.strike_state == 1;
         let s = self.net();
         let id = s.switch_id_at(x, z);
         if id != 0 {
+            // TS49 *[choice]*: no switch behind the ID answers false.
             let sw = s.switches.get(id)?;
             let cap = ftol(f64::from(sw.capacity)) as u32;
             return Some(SwitchQueryData {
@@ -359,8 +376,11 @@ impl Run<'_, '_> {
     }
 
     /// The query's maintenance cost (§4.16): the building's first
-    /// `0xCA550301` budget item and its department; `low32(ftol(r24(float(
-    /// cost) × funding)))`, 0 when either is missing or with no building.
+    /// `0xCA550301` budget item and its department; `low32(ftol(r24(cost ×
+    /// funding)))`, 0 when either is missing or with no building. The int64
+    /// cost is loaded exactly (x87 `fild`, `0x0071CC55`, `0x0071CD6F`) and
+    /// the product with the f32 fraction rounded once to 24 bits (TS46):
+    /// 16,777,217 at 0.75 gives 12,582,913, not 12,582,912.
     fn query_cost(&self, building: Option<u64>) -> u32 {
         let Some(b) = building.filter(|&b| b != 0) else {
             return 0;
@@ -372,15 +392,14 @@ impl Run<'_, '_> {
             return 0;
         };
         let f = self.h.department_funding(dept);
-        let c = r24(cost as f64);
-        ftol(r24(c * f64::from(f))) as u32
+        ftol(f64::from(crate::x87::mul_i64_f32(cost, f))) as u32
     }
 
     /// ClearTripDestinations (state 5, §4.11): each lot once, at its origin
     /// cell; the roll goes through the element store (TS18), so a lot
     /// without the property gets one.
-    pub(crate) fn clear_trip_destinations(&mut self) {
-        while let Some((x, z)) = self.st.scan.next_cell() {
+    pub(crate) fn clear_trip_destinations(&mut self) -> bool {
+        while let Some((x, z)) = self.next_scan_cell() {
             let Some(lot) = self.h.lot_at(x, z, true) else { continue };
             let holder = self.h.lot_holder(lot);
             for k in 0..4 {
@@ -393,13 +412,14 @@ impl Run<'_, '_> {
                 self.st.job_capacity[k] = self.st.job_capacity[k].wrapping_add(c);
             }
         }
+        !self.scan_stopped()
     }
 
     /// RefreshCommuteMap (state 10, §4.11): the destination map. The bits of
     /// the lot are ORed in after `&= 0xF8`, so bit 3 is never cleared
     /// *[quirk]*.
-    pub(crate) fn refresh_commute_map(&mut self) {
-        while let Some((x, z)) = self.st.scan.next_cell() {
+    pub(crate) fn refresh_commute_map(&mut self) -> bool {
+        while let Some((x, z)) = self.next_scan_cell() {
             let mut byte = self.st.dest_byte(x, z) & 0xF8;
             let (lot, count) = match self.h.lot_at(x, z, true) {
                 Some(l) => (Some(l), true),
@@ -418,5 +438,6 @@ impl Run<'_, '_> {
             }
             self.st.set_dest_byte(x, z, byte);
         }
+        !self.scan_stopped()
     }
 }
