@@ -237,7 +237,11 @@ deviations, 0 when n = 0); `r = Σ((x − meanX)/sx · (y − meanY)/sy) / n`, w
 **line** of a non-empty range: if `sx = 0`, slope 0 and intercept = the first point's value; otherwise
 `slope = (sy / sx) · r` and `intercept = (Σy − slope · Σx) / n`, the value at `x = 0`, i.e. at `from`. An empty
 range has no line (false). The sums are held in `double` variables, but the x87 precision of the caller applies
-(foundations §18): 24-bit from the simulators, 53-bit inside Lua calls.
+(foundations §18). Only two callers reach the regression (slots 5, 6 and 8; HW3, checked in the bytes): the Lua
+functions `game.trend_value`, `trend_slope` and `trend_count` (advisors.md §8.3), which run inside the guarded Lua
+call and so at **53-bit**, and the graph window's `GetPoint` calls (`0x0076BF69`, `0x0076C510`, `0x0076C53A`), on
+the main thread at **24-bit**. No simulator reaches it: the simulators use slots 7, 12 and 13 only, and the safety
+advisor only writes (slot 12). So advisor results are 53-bit and graph curves 24-bit.
 
 **Operation order** (HW5, HW11; verified in the bytes). "Rounded" below means rounded once, at the caller's precision,
 from the exact result of that one operation on its exact operands. Integer operands (values, `x`, `n`) are loaded
