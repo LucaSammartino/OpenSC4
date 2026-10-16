@@ -131,9 +131,13 @@ extern "C" {
  *      data-formats §5.1); fc4_props_set_typed and the neighbour connection property callback carry
  *      the void array (raw bytes, mem_type 0 with is_array; NG37) (taken as 66 on the apply12
  *      lane; renumbered at merge);
- * 60 = adds the occupant manager (fc4_occmgr, occupant-manager.md) (taken as 67 on its lane;
+ * 60 = lot developer re-answers12 (apply13 lane): fc4_lotdev_host 178 callbacks: update_lot_object_altitudes
+ *      removed (the core moves the objects, LD17), add_network_connection_nodes takes the nodes
+ *      (fc4_lotdev_conn_node), lot_occupants, lot_configuration_object and occupant_moved appended (taken as
+ *      71 on its lane; renumbered at merge);
+ * 61 = adds the occupant manager (fc4_occmgr, occupant-manager.md) (taken as 67 on its lane;
  *      renumbered at merge). */
-#define FC4_ABI_VERSION 60u
+#define FC4_ABI_VERSION 61u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -5821,6 +5825,17 @@ typedef struct fc4_lotdev_burnt {
     float min[3], max[3];
 } fc4_lotdev_burnt;
 
+/* One network connection node of AddNetworkConnectionNodes (§6.5, LD17): the arguments of network manager slot 20
+ * CreateConnectionNode(&n, node_type, &cell, b, c, d, orientation). b and c are rotl32(ids[1 / 2], 8 * orientation),
+ * d is ids[3] or 0. */
+typedef struct fc4_lotdev_conn_node {
+    uint32_t node_type; /* ids[0] */
+    int32_t x, z;       /* the object's cell */
+    uint32_t b, c, d;
+    uint8_t orientation;
+    uint8_t reserved[3];
+} fc4_lotdev_conn_node;
+
 typedef struct fc4_lotdev_profile {
     uint32_t purpose, wealth;
     uint16_t capacity; /* for GetDeveloperType(purpose, wealth) */
@@ -5881,7 +5896,7 @@ typedef struct fc4_lotdev_host {
     /* city, simulator, terrain */
     void (*city_cell_counts)(void* user, int32_t* out2);
     void (*city_cell_widths)(void* user, float* out2);
-    bool (*position_to_cell)(void* user, float x, float z, int32_t* out2);
+    void (*position_to_cell)(void* user, float x, float z, int32_t* out2); /* city slot 95, no result (LD18) */
     void (*cell_corner_to_position)(void* user, int32_t x, int32_t z, float* out2); /* city slot 96 */
     void (*cell_center_to_position)(void* user, int32_t x, int32_t z, float* out2); /* city slot 97 */
     uint32_t (*sim_date)(void* user);
@@ -5972,13 +5987,15 @@ typedef struct fc4_lotdev_host {
     /* slots and helpers §17 does not cover */
     uint64_t (*first_building)(void* user, uint64_t lot); /* slot 38, borrowed */
     bool (*update_lot_retaining_walls)(void* user, uint64_t lot); /* slot 62 */
-    void (*update_lot_object_altitudes)(void* user, uint64_t lot);
     bool (*update_lot_base_texture_occupant)(void* user, uint64_t lot, bool had_foundation); /* slot 45 */
     uint64_t (*base_texture_occupant)(void* user, uint64_t lot, bool create); /* slot 41; 0 = false */
     void (*base_texture_set)(void* user, uint64_t occ, const fc4_lotdev_texture* records, size_t n);
     void (*add_retaining_wall_occupant)(void* user, uint64_t lot, uint32_t flag); /* 0x005E3070 */
     void (*update_surrounding_retaining_walls)(void* user, uint64_t lot);     /* 0x005E3960 */
-    void (*add_network_connection_nodes)(void* user, uint64_t lot, uint64_t cfg);
+    /* AddNetworkConnectionNodes steps 2-3 (§6.5, LD17): network manager slot 20 for each of the n nodes, every
+     * result in one list, then slot 21 AutoconnectLotNodes(lot, &list) (also with n = 0) */
+    void (*add_network_connection_nodes)(void* user, uint64_t lot, const fc4_lotdev_conn_node* nodes, size_t n);
+    /* RemoveNetworkConnectionNodes(lot) (§6.5, LD17): flag-0x200000 network occupants to network manager slot 6 */
     void (*remove_network_connection_nodes)(void* user, uint64_t lot);
     void (*start_construction_occupant)(void* user, uint64_t lot); /* §6.3 hand-off */
     /* buildings and other occupants */
@@ -6064,6 +6081,12 @@ typedef struct fc4_lotdev_host {
     uint64_t (*unit_create)(void* user);
     bool (*unit_add)(void* user, uint64_t unit, uint64_t lot);
     bool (*unit_remove)(void* user, uint64_t unit, uint64_t lot);
+    /* UpdateLotObjectAlitudes (§6.5, LD17; ABI 60) */
+    void (*lot_occupants)(void* user, uint64_t lot, fc4_token_callback cb, void* ctx); /* lot slot 49, list order */
+    /* lot slot 11 GetLotConfigurationObject(occ) to cb (once); false = none */
+    bool (*lot_configuration_object)(void* user, uint64_t lot, uint64_t occ, fc4_lotdev_cfg_object_callback cb,
+                                     void* ctx);
+    void (*occupant_moved)(void* user, uint64_t occ); /* occupant manager slot 24 (occ, 1) */
 } fc4_lotdev_host;
 
 /* The class statics (§10.1): one per process; the generator is seeded with
@@ -6104,7 +6127,7 @@ int32_t fc4_lotdev_level_area_internal_vertices(fc4_lotdev* p, const fc4_cell_re
 int32_t fc4_lotdev_level_bordering_vertices(fc4_lotdev* p, const fc4_cell_rect* rect, float h, uint64_t lot);
 int32_t fc4_lotdev_attempt_area_levelling(fc4_lotdev* p, const fc4_cell_rect* rect, bool with_water,
                                           bool per_vertex, float max_area_slope, uint64_t lot);
-bool fc4_lotdev_occupant_cell_coverage(const fc4_lotdev* p, uint64_t occ, fc4_cell_rect* out);
+void fc4_lotdev_occupant_cell_coverage(const fc4_lotdev* p, uint64_t occ, fc4_cell_rect* out); /* no result (LD18, LD27) */
 bool fc4_lotdev_is_area_flat(const fc4_lotdev* p, const fc4_cell_rect* rect, bool with_water);
 bool fc4_lotdev_is_lot_flat(const fc4_lotdev* p, uint64_t lot, bool with_water);
 float fc4_lotdev_area_altitude_range(const fc4_lotdev* p, const fc4_cell_rect* rect, bool with_water);
@@ -7906,7 +7929,7 @@ static_assert(sizeof(fc4_lotdev_profile) == 12, "fc4_lotdev_profile layout");
 static_assert(sizeof(fc4_lotdev_message) == 40, "fc4_lotdev_message layout");
 static_assert(sizeof(fc4_lotdev_tuning) == 172, "fc4_lotdev_tuning layout");
 static_assert(sizeof(fc4_lotdev_state) == 112, "fc4_lotdev_state layout");
-static_assert(sizeof(fc4_lotdev_host) == (sizeof(void*) == 4 ? 8 + 176 * 4 : 16 + 176 * 8), "fc4_lotdev_host layout");
+static_assert(sizeof(fc4_lotdev_host) == (sizeof(void*) == 4 ? 8 + 178 * 4 : 16 + 178 * 8), "fc4_lotdev_host layout");
 static_assert(sizeof(fc4_history_host) == (sizeof(void*) == 4 ? 36 : 72), "fc4_history_host layout");
 static_assert(sizeof(fc4_history_point) == 8, "fc4_history_point layout");
 static_assert(sizeof(fc4_history_state) == 28, "fc4_history_state layout");
@@ -7964,7 +7987,7 @@ _Static_assert(sizeof(fc4_lotdev_profile) == 12, "fc4_lotdev_profile layout");
 _Static_assert(sizeof(fc4_lotdev_message) == 40, "fc4_lotdev_message layout");
 _Static_assert(sizeof(fc4_lotdev_tuning) == 172, "fc4_lotdev_tuning layout");
 _Static_assert(sizeof(fc4_lotdev_state) == 112, "fc4_lotdev_state layout");
-_Static_assert(sizeof(fc4_lotdev_host) == (sizeof(void*) == 4 ? 8 + 176 * 4 : 16 + 176 * 8), "fc4_lotdev_host layout");
+_Static_assert(sizeof(fc4_lotdev_host) == (sizeof(void*) == 4 ? 8 + 178 * 4 : 16 + 178 * 8), "fc4_lotdev_host layout");
 _Static_assert(sizeof(fc4_history_host) == (sizeof(void*) == 4 ? 36 : 72), "fc4_history_host layout");
 _Static_assert(sizeof(fc4_history_point) == 8, "fc4_history_point layout");
 _Static_assert(sizeof(fc4_history_state) == 28, "fc4_history_state layout");

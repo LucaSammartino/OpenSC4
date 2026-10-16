@@ -269,6 +269,9 @@ impl TerrainView {
                 }
             }
         }
+        // LD5 (re-answers12, §17.5.4): the original does not mask the facing
+        // (a facing outside 0-3 reads outside `corners`); facings are 0-3, so
+        // the mask is a safe [choice].
         let k = (f & 3) as usize;
         let a = corners[k];
         let b = corners[(k + 1) & 3];
@@ -338,8 +341,8 @@ impl TerrainView {
     /// Slot 57 `IsLotObjectFoundationRequired(min, max)` (§17.5.5): the
     /// slope of the cells of the box, one cell larger in x and z (quirk).
     pub fn is_box_foundation_required(&self, host: &dyn LotDeveloperHost, min: Vec3, max: Vec3) -> bool {
-        let (_, a, b) = host.position_to_cell(min[0], min[2]);
-        let (_, c, d) = host.position_to_cell(max[0], max[2]);
+        let (a, b) = host.position_to_cell(min[0], min[2]);
+        let (c, d) = host.position_to_cell(max[0], max[2]);
         let rect = CellRect::new(a, b, c.wrapping_add(1), d.wrapping_add(1));
         self.area_slope(host, rect, true) > self.tuning.max_slope_for_flatness
     }
@@ -350,7 +353,14 @@ impl TerrainView {
     /// default (`0x6916516B`); type 0 → false; else slot 59.
     pub fn add_building_foundation(&self, host: &dyn LotDeveloperHost, building: u64, cfg: u64) -> bool {
         let mut t = self.tuning.default_building_foundation_type;
-        match host.cfg_primary_building_object(cfg) {
+        // LD7: a null configuration (token 0) reads as having no primary
+        // object *[choice]*.
+        let primary = if cfg == 0 {
+            None
+        } else {
+            host.cfg_primary_building_object(cfg)
+        };
+        match primary {
             Some(obj) if obj.foundation != 0 => t = obj.foundation,
             _ => {
                 if let Some(v) = host.occupant_property(building, PROP_BUILDING_FOUNDATION_TYPE) {
