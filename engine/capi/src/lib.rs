@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 67;
+pub const FC4_ABI_VERSION: u32 = 68;
 
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
@@ -803,6 +803,7 @@ pub mod lotdev;
 pub mod neighbors;
 pub mod neighbors_shadow;
 pub mod network_manager;
+pub mod network_rules;
 pub mod occupant_manager;
 pub mod ordinance;
 pub mod panic_log;
@@ -888,6 +889,8 @@ mod neighbors_tests;
 
 #[cfg(test)]
 mod network_manager_tests;
+#[cfg(test)]
+mod network_rules_tests;
 
 #[cfg(test)]
 mod occupant_manager_tests;

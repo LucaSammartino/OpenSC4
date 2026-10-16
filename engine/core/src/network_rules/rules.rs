@@ -306,6 +306,7 @@ impl NetworkRules {
         };
         let (taken, ignored) = self.int_rules.load(&secs);
         rep.entries = taken;
+        rep.rules = taken;
         rep.ignored = ignored;
         rep
     }

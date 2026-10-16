@@ -156,8 +156,11 @@ extern "C" {
  * 67 = adds the disaster layer's mirror tooling (fc4_disasters_set_mirror_random,
  *      fc4_disasters_get_location, fc4_disasters_riot_locked, fc4_disasters_fire_ids): the plugin's
  *      disasters_shadow (a same-process differential of the original layer) (taken as 61, then 62
- *      to 66, on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 67u
+ *      to 66, on its lane; renumbered at merge);
+ * 68 = adds the network rules (fc4_network_rules, fc4_network_rules_grid, network-rules.md): the rule
+ *      database from resource bytes, tile rule evaluation and the rule stages of SolveNetwork over a
+ *      cell grid. */
+#define FC4_ABI_VERSION 68u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -8039,6 +8042,125 @@ bool fc4_netlot_get_state(const fc4_netlot* l, fc4_netlot_state* out);
  * effect props (IID 0x09820792) come back through resolve_ref. */
 bool fc4_netlot_write(const fc4_netlot* l, const fc4_ostream* out);
 bool fc4_netlot_read(fc4_netlot* l, const fc4_istream* in);
+
+/* ---- network rules (docs/specs/network-rules.md; engine/capi/src/network_rules.rs) ----
+ * The rule database (the tile rule files with #Transmogrify, RUL0 intersection
+ * rules, RUL1 multi-type solutions and overrides, RUL2 rule overrides, the
+ * network INI's tile verifiers), tile rule evaluation, and the rule stages of
+ * SolveNetwork (§6.1) over an explicit cell grid. No callbacks. Network types
+ * are 0..12 (Road, Rail, Highway, Street, Pipe, PowerLine, Avenue, Subway,
+ * LightRail, Monorail, OneWayRoad, DirtRoad, GroundHighway). A cell (x, z) has
+ * the key (z << 16) + x. */
+typedef struct fc4_network_rules fc4_network_rules;
+typedef struct fc4_network_rules_grid fc4_network_rules_grid;
+
+/* fc4_network_rules_report.status for a tile file; -1 for an INI resource. */
+#define FC4_NR_STATUS_MISSING    0  /* no bytes: the evaluator exists and never matches */
+#define FC4_NR_STATUS_COMPLETE   1
+#define FC4_NR_STATUS_REJECTED   2  /* the first line is not a '#' header: no rules */
+#define FC4_NR_STATUS_BAD_CENTRE 3  /* a centre token other than 1: the rules before it stay */
+#define FC4_NR_STATUS_TRUNCATED  4  /* the file ended inside a centre line */
+
+/* The network INI's instance (fc4_network_rules_load). */
+#define FC4_NR_NETWORK_INI 0x8A5993B9u
+
+typedef struct fc4_network_rules_report {
+    uint32_t struct_size;      /* 36 */
+    int32_t status;            /* FC4_NR_STATUS_* or -1 */
+    uint32_t transmogrify;     /* the file started with #Transmogrify */
+    uint32_t source_rules;     /* rules read from the file */
+    uint32_t rules;            /* rules kept (after the Transmogrify expansion) */
+    uint32_t dropped_variants; /* Transmogrify variants dropped as repeats */
+    uint32_t entries;          /* INI entries used */
+    uint32_t ignored;          /* INI entries ignored or failed */
+    uint32_t sections;         /* INI sections read */
+} fc4_network_rules_report;
+
+typedef struct fc4_network_rules_output {
+    uint32_t id;          /* the piece */
+    uint8_t m;            /* metaposition 0..24 */
+    uint8_t orientation;  /* rot | 0x80 when flipped */
+    uint8_t reserved[2];
+} fc4_network_rules_output;
+
+typedef struct fc4_network_rules_cell {
+    uint32_t struct_size; /* 116 */
+    int32_t x, z;
+    uint32_t flags;       /* +0x08: type bits 0x1FFF plus other flags (0x40000 bridge, ...) */
+    uint32_t edges[13];   /* the edge word per type */
+    uint32_t union_edges; /* read back only: the OR of edges[] */
+    uint8_t one_way;
+    uint8_t in_run;       /* the cell belongs to the drag (its step counts for the unsolved result) */
+    uint8_t intersection; /* an intersection piece is there */
+    uint8_t fixed;        /* the cell cannot change */
+    uint8_t node;         /* a connection node (+0x56) */
+    uint8_t has_occupant;
+    uint8_t occ_has_node_edges; /* the occupant's slot 13 answers occ_node_edges */
+    uint8_t occ_has_anchor;
+    int32_t step;         /* the drag step */
+    int32_t solved;       /* +0xB8: the solved-record index, -1 for none */
+    uint32_t occ_piece;
+    uint32_t occ_orientation;
+    uint32_t occ_network_flags; /* GetNetworkFlag() */
+    uint32_t occ_node_edges[2];
+    int32_t occ_anchor[2];
+} fc4_network_rules_cell;
+
+typedef struct fc4_network_rules_solved {
+    uint32_t id;
+    uint32_t orientation;
+    int32_t x, z;
+} fc4_network_rules_solved;
+
+typedef struct fc4_network_rules_potential {
+    int32_t x, z;
+    uint32_t types; /* the type bits, or 4 for a run lasting to the last step */
+} fc4_network_rules_potential;
+
+/* An empty database; NULL only on failure. */
+fc4_network_rules* fc4_network_rules_create(void);
+void fc4_network_rules_destroy(fc4_network_rules* r);
+/* LoadResource (§2.1) from bytes: `instance` is a rule resource's instance
+ * (type 0x0A5BCF4B, group 0xAA5BCF57: a tile file, 0x10000000 RUL0,
+ * 0x10000001 RUL1, 0x10000002 RUL2) or FC4_NR_NETWORK_INI. A tile instance
+ * appends one evaluator to its type's list; NULL bytes with len 0 is a
+ * missing tile file. `out` may be NULL. False on a bad argument. */
+bool fc4_network_rules_load(fc4_network_rules* r, uint32_t instance, const uint8_t* bytes, size_t len,
+                            fc4_network_rules_report* out);
+/* The tile instances of type t in load order (§2.2); the count (0 for PowerLine). */
+uint32_t fc4_network_rules_tile_instances(uint32_t t, uint32_t* out, uint32_t cap);
+uint32_t fc4_network_rules_evaluator_count(const fc4_network_rules* r, uint32_t t);
+uint32_t fc4_network_rules_rule_count(const fc4_network_rules* r, uint32_t t, uint32_t index);
+uint32_t fc4_network_rules_intersection_count(const fc4_network_rules* r);
+/* Evaluate (§5) with evaluator `index` of type t at (x, z): -1 when no rule
+ * passes (or a bad argument), else the output count (at most cap written). */
+int32_t fc4_network_rules_evaluate(const fc4_network_rules* r, uint32_t t, uint32_t index,
+                                   const fc4_network_rules_grid* g, int32_t x, int32_t z,
+                                   fc4_network_rules_output* out, uint32_t cap);
+/* The rule stages of SolveNetwork (§6.1) with the tool's type; *result gets
+ * its result (the valid count, or the lowest unsolved in-run step, §6.3). */
+bool fc4_network_rules_solve(const fc4_network_rules* r, fc4_network_rules_grid* g, uint32_t tool_type,
+                             bool resolve, int32_t* result);
+
+/* The cell grid and the solve state (S, the solved list, the potential list). */
+fc4_network_rules_grid* fc4_network_rules_grid_create(uint32_t width, uint32_t height);
+void fc4_network_rules_grid_destroy(fc4_network_rules_grid* g);
+/* Puts a cell info (replacing the one there); false for a NULL or short cell. */
+bool fc4_network_rules_grid_set_cell(fc4_network_rules_grid* g, const fc4_network_rules_cell* cell);
+bool fc4_network_rules_grid_get_cell(const fc4_network_rules_grid* g, int32_t x, int32_t z,
+                                     fc4_network_rules_cell* out);
+bool fc4_network_rules_grid_remove_cell(fc4_network_rules_grid* g, int32_t x, int32_t z);
+/* Adds (x, z) to S; whether it was new. */
+bool fc4_network_rules_grid_add_to_solve(fc4_network_rules_grid* g, int32_t x, int32_t z);
+bool fc4_network_rules_grid_set_valid_count(fc4_network_rules_grid* g, int32_t count);
+/* Clears the solve state; the cells stay. */
+bool fc4_network_rules_grid_reset_solve(fc4_network_rules_grid* g);
+/* The solved list, the potential list and the cells left in S (as x, z
+ * pairs, 2 * cap integers), in order; each returns the full count. */
+uint32_t fc4_network_rules_grid_solved(const fc4_network_rules_grid* g, fc4_network_rules_solved* out, uint32_t cap);
+uint32_t fc4_network_rules_grid_potential(const fc4_network_rules_grid* g, fc4_network_rules_potential* out,
+                                          uint32_t cap);
+uint32_t fc4_network_rules_grid_unsolved(const fc4_network_rules_grid* g, int32_t* xz, uint32_t cap);
 
 /* ---- occupant manager (docs/specs/occupant-manager.md) ---------------------
  * cSC4OccupantManager (0x098F964D): the city's spatial index of occupants, a

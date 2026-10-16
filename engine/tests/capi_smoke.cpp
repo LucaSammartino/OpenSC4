@@ -237,6 +237,65 @@ void TestOccupantManager() {
     fc4_occmgr_destroy(m);
 }
 
+// The network rules (network-rules.md) over the C ABI: a Transmogrify file
+// loaded from bytes, one evaluation, and a Road / Rail crossing solved by a
+// RUL1 entry.
+void TestNetworkRules() {
+    static_assert(sizeof(fc4_network_rules_report) == 36, "report layout");
+    static_assert(sizeof(fc4_network_rules_output) == 8, "output layout");
+    static_assert(sizeof(fc4_network_rules_cell) == 116, "cell layout");
+    static_assert(sizeof(fc4_network_rules_solved) == 16, "solved layout");
+    static_assert(sizeof(fc4_network_rules_potential) == 12, "potential layout");
+
+    uint32_t inst[4] = {};
+    CHECK(fc4_network_rules_tile_instances(0, inst, 4) == 2 && inst[0] == 0x8 && inst[1] == 0x7);
+
+    fc4_network_rules* r = fc4_network_rules_create();
+    CHECK(r != nullptr);
+    const char tiles[] = "#Transmogrify\n1,0,2,0,2\n3,0,0x100,0,0";
+    fc4_network_rules_report rep{};
+    CHECK(fc4_network_rules_load(r, 0x8, reinterpret_cast<const uint8_t*>(tiles), sizeof(tiles) - 1, &rep));
+    CHECK(rep.struct_size == 36 && rep.status == FC4_NR_STATUS_COMPLETE && rep.transmogrify == 1);
+    CHECK(rep.source_rules == 1 && rep.rules == 2 && rep.dropped_variants == 6);
+    CHECK(fc4_network_rules_evaluator_count(r, 0) == 1);
+
+    fc4_network_rules_grid* g = fc4_network_rules_grid_create(64, 64);
+    fc4_network_rules_cell c{};
+    c.struct_size = sizeof c;
+    c.x = 10;
+    c.z = 10;
+    c.flags = 1;
+    c.edges[0] = 0x00020002u;
+    c.solved = -1;
+    CHECK(fc4_network_rules_grid_set_cell(g, &c));
+    fc4_network_rules_output out[2] = {};
+    CHECK(fc4_network_rules_evaluate(r, 0, 0, g, 10, 10, out, 2) == 1);
+    CHECK(out[0].id == 0x100 && out[0].m == 0 && out[0].orientation == 1);
+
+    const char multi[] = "[RoadRailIntersectionSolutions]\nk=0x02000200,0x00020002,0x1234,1,0\n";
+    CHECK(fc4_network_rules_load(r, 0x10000001u, reinterpret_cast<const uint8_t*>(multi), sizeof(multi) - 1, &rep));
+    CHECK(rep.status == -1 && rep.entries == 1);
+    c.flags = 3;
+    c.edges[0] = 0x02000200u;
+    c.edges[1] = 0x00020002u;
+    c.in_run = 1;
+    CHECK(fc4_network_rules_grid_set_cell(g, &c));
+    CHECK(fc4_network_rules_grid_add_to_solve(g, 10, 10));
+    CHECK(fc4_network_rules_grid_set_valid_count(g, 1));
+    int32_t result = -9;
+    CHECK(fc4_network_rules_solve(r, g, 0, false, &result) && result == 1);
+    fc4_network_rules_solved solved[2] = {};
+    CHECK(fc4_network_rules_grid_solved(g, solved, 2) == 1);
+    CHECK(solved[0].id == 0x1234 && solved[0].orientation == 1 && solved[0].x == 10 && solved[0].z == 10);
+    fc4_network_rules_potential pot[2] = {};
+    CHECK(fc4_network_rules_grid_potential(g, pot, 2) == 1 && pot[0].types == 3);
+    CHECK(fc4_network_rules_grid_unsolved(g, nullptr, 0) == 0);
+    fc4_network_rules_cell back{};
+    CHECK(fc4_network_rules_grid_get_cell(g, 10, 10, &back) && back.solved == 0 && back.union_edges == 0x02020202u);
+    fc4_network_rules_grid_destroy(g);
+    fc4_network_rules_destroy(r);
+}
+
 }  // namespace
 
 int main() {
@@ -246,6 +305,7 @@ int main() {
     TestDays();
     TestReentrancyAndNames();
     TestOccupantManager();
+    TestNetworkRules();
     if (g_failures == 0) std::printf("fc4 C ABI smoke test: all checks passed (%zu-bit)\n", sizeof(void*) * 8);
     return g_failures == 0 ? 0 : 1;
 }
