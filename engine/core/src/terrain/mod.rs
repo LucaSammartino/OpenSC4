@@ -17,8 +17,10 @@
 //!   height queries of §4, the water queries of §5, the setters of §6, the
 //!   flags of §7, `RedisplayTerrain` and the messages of §8, and the records
 //!   of §13 (`records.rs`).
-//! - Brushes (`brush.rs`): the descriptions of §9.1 and `ApplyBrush` (§9.2,
-//!   §9.3) with component kind 0 (§9.4).
+//! - Brushes (`brush.rs`): the descriptions of §9.1 with their walk and
+//!   stroke angles, `ApplyBrush` (§9.2, §9.3) with the scan-converted
+//!   footprint (`ComputeSpansForRectangle`), and the component kinds 0, 2, 5
+//!   and 7 (§9.4, §9.4.1).
 //! - The volcano lava (`lava.rs`): the start, the flow step, the fire
 //!   thresholds and the burning draws of §11.
 //! - Surface water (`water.rs`): the cell queries and navigability of §10.2
@@ -37,13 +39,15 @@
 //!
 //! # Choices made where the spec is open (`[choice]`)
 //!
-//! Each is tagged in the code and listed in the lane report as a TR question:
-//! the bounds of the slots the original leaves unchecked (an index past the
-//! arrays reads as 0.0 / does nothing), the texture message's packing, the
-//! brush footprint's row spans (`ComputeSpansForRectangle` is not spelled
-//! out), the brush angle's initial value and where it is kept, the default
-//! brush level, the sea level after a load, and the power pole's "cell with
-//! depth > 0" test.
+//! Each is tagged in the code. Round 2 of the spec (re-answers17, TR3-TR18)
+//! settled most of the first round's; what remains: a flat index past the
+//! arrays in the unchecked slots of §10.5 reads 0.0 (0, a zero vector) and
+//! a write does nothing (accepted by TR12); the texture message's altitude
+//! band is the plain minimum and maximum over its rectangle (§8.1, allowed
+//! for a view-less replacement); the brush descriptions are kept per terrain
+//! and the host carries their angles across cities (TR8); and the open
+//! points TR19-TR21 (kind 2's out rectangle, kind 7, the vertex of
+//! `GetSedimentValue`).
 
 mod brush;
 mod field;
@@ -56,7 +60,7 @@ mod tests;
 
 pub use brush::{
     shipped_brush, BrushBitmap, BrushComponent, BrushDescription, BrushParams, ADD_BRUSH_MAX_COMPONENTS,
-    MAX_COMPONENT_KIND,
+    DEFAULT_TALUS_ANGLE, DEFAULT_WALK_STEP, MAX_COMPONENT_KIND, TWO_PI_F32,
 };
 pub use field::{Post, Terrain, TerrainTuning, VertRect, WaterVertex, MAX_CELLS};
 pub use lava::{FireMode, Lava, LavaHost, LavaTuning, BURN_DRAWS_PER_TICK, BURN_HALF_WIDTH, NEIGHBOURS};
