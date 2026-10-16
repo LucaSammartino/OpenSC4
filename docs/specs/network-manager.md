@@ -333,8 +333,12 @@ placed.
 - `type ≥ 13` (unsigned) → null.
 - `unique = false` → `tools[type]`, borrowed (no AddRef). It is null before `Init`, after PreCityShutdown and after
   `Shutdown`.
-- `unique = true` → a **new** tool of that type (the same classes as `Init`), with the caller's reference. Null if
-  allocation fails.
+- `unique = true` → a **new** tool of that type (the same classes as `Init`). Null if allocation fails. The new
+  tool's reference count is **0** (`+0x14`, cleared by the base constructor `0x0062C5F0` at `0x0062C617`, which types
+  0, 3 and 11 call directly, `0x0061090B`, `0x00610928`, `0x00610A68`; the factory
+  returns it with no AddRef, `0x00610907`–`0x00610910`): the caller must AddRef it, and its last Release (tool
+  slot 2 `0x00623270`: a count of at most 1 runs the deleting destructor) frees it. The zone developer's AddRef at
+  PostCityInit is the only reference, so its `Shutdown` Release destroys the tool (zones.md §1.2, ZG39).
 
 zones.md §5.2 takes three unique tools at PostCityInit; power.md takes the shared power-line tool.
 
