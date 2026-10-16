@@ -818,6 +818,9 @@ def consolidate_abi_history(wt, lanes, batch_id, force=False):
     body.append(" * %d = merge-train batch %s (%s): %s"
                 % (new, batch_id, ", ".join(l for l, _b in lanes), " | ".join(descs) or "no C ABI change"))
     body = close_comment(body)
+    # The rewrite must touch nothing outside the history block. A bug here deleted every
+    # FC4_ADV_SRC_* define and 300 declarations from the header once; refuse rather than repeat it.
+    outside_before = [l for k, l in enumerate(text.split(NL)) if not (_as <= k < _ae)]
     path = Path(wt) / ABI_HEADER
     text = path.read_text(encoding="utf-8", errors="replace")
     _as, _ae = history_span(text, VERSION_RE_C)
@@ -834,7 +837,13 @@ def consolidate_abi_history(wt, lanes, batch_id, force=False):
         rest.pop(0)
     while rest and rest[0].strip() == "":
         rest.pop(0)
-    text = NL.join(lines[:_as] + body + rest)
+    rebuilt = lines[:_as] + body + rest
+    outside_after = lines[:_as] + rest
+    if len(outside_after) != len(outside_before):
+        raise RuntimeError(
+            f"consolidate_abi_history would change {abs(len(outside_after) - len(outside_before))} "
+            f"line(s) outside the ABI history block of {ABI_HEADER}; refusing")
+    text = NL.join(rebuilt)
     text = VERSION_RE_C.sub(lambda x: "%s%d%s" % (x.group(1), new, x.group(3)), text, count=1)
     path.write_text(text, encoding="utf-8")
     git(["-C", str(wt), "add", ABI_HEADER], check=False)
