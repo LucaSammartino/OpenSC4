@@ -533,6 +533,9 @@ new-cell tolerance). An existing occupant's info (`ComputeAndStoreCellInfo`, `0x
 
 ### 8.2 IdentifyHighwayIntersections and the rule solver: outline for a follow-up spec (NG5)
 
+The follow-up spec is [network-rules.md](network-rules.md) (re-specs17b), which replaces this outline: rule files
+§2–§5, the solve stages §6, edge subtypes §7, multi-type intersections §8, tile subsets §9, `cIntRule` §10.
+
 **`IdentifyHighwayIntersections(v, type)`** (`0x0063B340`, pop 8; called at `0x0063BAC2`). It clears the tool's
 intersection list (`+0xCC`/`+0xD0`), then for each step `< v` and each cell of the step that has an existing occupant
 (cell info `+0x0C`): it walks the global highway-intersection rule map (`0x00B452B0`, buckets `0x00B452B4`…), and a
@@ -868,8 +871,8 @@ Any code refuses the whole run (`+0x78 := 0`), even when a pass only cut it (net
   "previous result".
 - **NT4**: §12.
 - **NT5**: this spec (§3–§9).
-- **NG1, NG3, NG6, NG7** (§17, answered 2026-10-16): §9.1, §4.5, §2.3 and §10.2, §13. **NG2, NG5** partly: §7,
-  §7.1, §8.2.
+- **NG1, NG3, NG6, NG7** (§17, answered 2026-10-16): §9.1, §4.5, §2.3 and §10.2, §13. **NG2** partly: §7, §7.1.
+  **NG5**: §8.2 and [network-rules.md](network-rules.md) (answered 2026-10-16, re-specs17b).
 - **NM3** (network-manager.md §15): §10.3. `0x40000` MATCHES (bridge); `0x80000` MATCHES (tunnel portal);
   `0x40000000` MATCHES (supports); `0x80000000` = draft occupant.
 
@@ -903,7 +906,8 @@ Any code refuses the whole run (`+0x78 := 0`), even when a pass only cut it (net
   type with at least one bridge type (§4.4).*
 - ~~**NG5.** The rule-driven piece solver and `IdentifyHighwayIntersections`.~~ **PARTLY ANSWERED 2026-10-16
   (re-answers19):** `IdentifyHighwayIntersections` is described and never fails (§8.2, quirk 7); the rule solver is
-  left to a follow-up spec, outlined in §8.2.
+  left to a follow-up spec, outlined in §8.2. **ANSWERED 2026-10-16 (re-specs17b):** the follow-up spec is
+  [network-rules.md](network-rules.md).
 - ~~**NG6.** What reads type info `+0x110` and p+0xA0, and the source of road's support info.~~ **ANSWERED 2026-10-16
   (re-answers19):** nothing reads `+0x110`; p+0xA0 is read only for its emptiness (§9.2); the support info comes
   from the `0x8974F80F` exemplars for seven types (§10.2).
