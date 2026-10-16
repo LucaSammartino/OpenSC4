@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "dispatch_corpus_round_trip",
+  "spec": ["dispatch 7", "dispatch 4.1", "dispatch 12.2"],
+  "description": "The 22-byte corpus forms (toolType 4, 5, 7, 8; nextID 0 or 1) read and write back byte-identical and set 'loaded'; after Init the tool type is 8.",
+  "steps": [
+    {"op": "dispatch_read", "hex": "0200 00000000 00000000 00000000 00000000 04000000", "expect": true},
+    {"op": "dispatch_expect", "state": {"loaded": true, "next_id": 0, "tool_type": 4}},
+    {"op": "dispatch_write", "expect": true, "hex": "0200 00000000 00000000 00000000 00000000 04000000"},
+    {"op": "dispatch_init", "expect": true},
+    {"op": "dispatch_expect", "state": {"tool_type": 8}},
+    {"op": "dispatch_read", "hex": "0200 00000000 00000000 00000000 00000000 08000000", "expect": true},
+    {"op": "dispatch_expect", "state": {"loaded": true, "next_id": 0, "tool_type": 8}},
+    {"op": "dispatch_write", "expect": true, "hex": "0200 00000000 00000000 00000000 00000000 08000000"},
+    {"op": "dispatch_init", "expect": true},
+    {"op": "dispatch_expect", "state": {"tool_type": 8}},
+    {"op": "dispatch_read", "hex": "0200 00000000 01000000 00000000 00000000 08000000", "expect": true},
+    {"op": "dispatch_expect", "state": {"loaded": true, "next_id": 1, "tool_type": 8}},
+    {"op": "dispatch_write", "expect": true, "hex": "0200 00000000 01000000 00000000 00000000 08000000"},
+    {"op": "dispatch_init", "expect": true},
+    {"op": "dispatch_expect", "state": {"tool_type": 8}},
+    {"op": "dispatch_read", "hex": "0200 00000000 00000000 00000000 00000000 05000000", "expect": true},
+    {"op": "dispatch_expect", "state": {"loaded": true, "next_id": 0, "tool_type": 5}},
+    {"op": "dispatch_write", "expect": true, "hex": "0200 00000000 00000000 00000000 00000000 05000000"},
+    {"op": "dispatch_init", "expect": true},
+    {"op": "dispatch_expect", "state": {"tool_type": 8}},
+    {"op": "dispatch_read", "hex": "0200 00000000 00000000 00000000 00000000 07000000", "expect": true},
+    {"op": "dispatch_expect", "state": {"loaded": true, "next_id": 0, "tool_type": 7}},
+    {"op": "dispatch_write", "expect": true, "hex": "0200 00000000 00000000 00000000 00000000 07000000"},
+    {"op": "dispatch_init", "expect": true},
+    {"op": "dispatch_expect", "state": {"tool_type": 8}}
+  ]
+}
