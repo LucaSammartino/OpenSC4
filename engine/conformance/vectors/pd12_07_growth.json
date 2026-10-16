@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "port_developers_growth",
+  "spec": ["port-developers 4.5", "port-developers 4.6", "port-developers 12"],
+  "description": "Section 12 test 7: after test 6, posting 0xEA394B74 (the advice's YES) runs GrowPortsToNextStage. The lot (rectangle (3,4)-(7,6), facing 0) is demolished (StartDemolishLot, EndDemolishLot) and recreated with CreateLot(3, 4, 5, 3, 0), given configuration 0xCA2436C1 and built with ConstructDefaultLot; the port moves to stage 1, 5700 is withdrawn [quirk: the result is ignored, so the upgrade happens even though the fake budget refuses], line 1's full expenses become 800. The port is marked swapping, so the old lot's state change to 5 only clears the flag. Another growth message right away grows nothing (the new lot is constructing).",
+  "steps": [
+    {"op": "pd_create", "kind": "airport"},
+    {"op": "pd_init"},
+    {"op": "pd_lot", "lot": "0x10", "config": ["0xCA2436C0", 1], "x": 3, "z": 4, "rect": [3, 4, 7, 6], "days": 91, "state": 3},
+    {"op": "pd_occupant", "occupant": "0x100", "lot": "0x10"},
+    {"op": "pd_message", "msg": "0x99EF1142", "data": "0x100"},
+    {"op": "pd_env", "offices": [[9700], [0]]},
+    {"op": "pd_month"},
+    {"op": "pd_env", "follow": false, "line": [700, 0]},
+    {"op": "pd_clear_events"},
+    {"op": "pd_message", "msg": "0xEA394B74", "expect": true},
+    {"op": "pd_expect_events", "events": [{"event": "start_demolish", "lot": "0x10"}, {"event": "end_demolish", "lot": "0x10"}, {"event": "create_lot", "x": 3, "z": 4, "width": 5, "depth": 3, "facing": 0, "lot": "0x9000"}, {"event": "set_configuration", "lot": "0x9000", "config": "0xCA2436C1"}, {"event": "construct", "lot": "0x9000", "config": "0xCA2436C1"}, {"event": "withdraw", "amount": 5700}, {"event": "full_expenses", "value": 800}]},
+    {"op": "pd_expect_port", "index": 0, "state": {"stage": 1, "lot": "0x9000", "swapping": true}},
+    {"op": "pd_message", "msg": "0xE8BDA2E7", "data": "0x10", "old": 3, "new": 5},
+    {"op": "pd_expect_events", "events": []},
+    {"op": "pd_expect", "state": {"ports": 1, "full": 800}},
+    {"op": "pd_expect_port", "index": 0, "state": {"swapping": false}},
+    {"op": "pd_message", "msg": "0xEA394B74"},
+    {"op": "pd_expect_events", "events": []},
+    {"op": "pd_write", "hex": "0200 0100 9D0E27CA 0B00 0100 01000000 0000 0300 0400"}
+  ]
+}

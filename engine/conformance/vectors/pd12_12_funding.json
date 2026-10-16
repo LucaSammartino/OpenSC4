@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "port_developers_funding",
+  "spec": ["port-developers 4.2", "port-developers 4.3", "port-developers 4.4", "port-developers 4.7"],
+  "description": "The funding ratio fr = current / full of line 1 (1.0 when full is 0; it can exceed 1). At 350 of 700: fr 0.5, maintenance cost 350, a port with 8000 trips has usage values (min(8000, 5000), 5000); at 840 of 700: (8000, 12000) and a cost of 840. Unfunded (0 of 700): every airport share is 0/0 = NaN, truncated to 0, so the trips are 0 and the efficiency 1.0; the month ratio funded/required is 0 and funded <= 0 makes the port stressed (condition 2) once its lot is older than 90 days.",
+  "steps": [
+    {"op": "pd_create", "kind": "airport"},
+    {"op": "pd_init"},
+    {"op": "pd_lot", "lot": "0x10", "config": ["0xCA2436C0", 1], "x": 3, "z": 4, "rect": [3, 4, 7, 6]},
+    {"op": "pd_occupant", "occupant": "0x100", "lot": "0x10"},
+    {"op": "pd_message", "msg": "0x99EF1142", "data": "0x100"},
+    {"op": "pd_query", "query": "funding_ratio", "expect": 1.0},
+    {"op": "pd_query", "query": "required_budget", "expect": 700},
+    {"op": "pd_env", "follow": false, "line": [700, 350]},
+    {"op": "pd_query", "query": "funding_ratio", "expect": 0.5},
+    {"op": "pd_query", "query": "maintenance_cost", "args": ["0x10"], "expect": 350},
+    {"op": "pd_set_port", "index": 0, "trips": 8000},
+    {"op": "pd_query", "query": "usage_values", "args": ["0x10"], "expect": [5000, 5000]},
+    {"op": "pd_env", "line": [700, 840]},
+    {"op": "pd_query", "query": "usage_values", "args": ["0x10"], "expect": [8000, 12000]},
+    {"op": "pd_query", "query": "maintenance_cost", "args": ["0x10"], "expect": 840},
+    {"op": "pd_env", "line": [0, 0]},
+    {"op": "pd_query", "query": "funding_ratio", "expect": 1.0},
+    {"op": "pd_env", "line": [700, 0], "offices": [[4000], [0]]},
+    {"op": "pd_lot", "lot": "0x10", "days": 91},
+    {"op": "pd_clear_events"},
+    {"op": "pd_month"},
+    {"op": "pd_expect_port", "index": 0, "state": {"trips": 0, "efficiency": 1.0}},
+    {"op": "pd_expect_events", "filter": {"event": "condition"}, "events": [{"event": "condition", "lot": "0x10", "condition": 2}]}
+  ]
+}
