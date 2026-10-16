@@ -1740,6 +1740,48 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      vehicle view and the pylons are not wired (the tool's presentation). Lines: `dispatch Init: …`,
      `dispatch Read|Write -> …`, `dispatch Shutdown: …`. **Off by default**; the `dispatch_shadow` differential
      above is the in-game check while it is.
+   - **Occupant manager shadow** (`occmgr_shadow = 1`, env `FC4_OCCMGR_SHADOW`; off by default;
+     `occmgr_shadow_samples = N`, default 4, 1..64; `occmgr_shadow_probe = 0/1`, default 1;
+     `plugin/FC4OccMgrShadow.h`): a same-process differential of the city's occupant manager
+     (`docs/specs/occupant-manager.md`) against the `fc4_occmgr` core. FreeCity4 never replaces the occupant
+     manager, so the shadow always follows the **original**. At PostCityInit a core with a read-only host starts
+     from the original's record (its own `Write` into memory); each occupant's stored box and flag 1 are read from
+     the occupant into the host's own state, which the core then changes instead of the occupant (nothing is
+     posted, initialised or shut down; the core's references are audited AddRefs). The core follows the Insert,
+     Remove and Move messages the original posts (after each Insert or Move the core's box is compared with the box
+     the original stored in the occupant). At each SimNewMonth: occupants whose stored box changed without a Move
+     message are moved in the core; the original's record is compared with the core's cells, in list order
+     (occupants whose Insert or Remove message is still queued, by their flag 1, are set aside; a difference left
+     after that restarts the core from the record, `resynced`); then, on the followed core when nothing was set
+     aside and otherwise on a fresh core read from the month's record, slots 25, 27 and 28-47 each run N times on
+     the original (through its
+     vtable, slots 46/47 in the game's order) and on the core with the same arguments (points, cells and
+     rectangles around the record's occupants or anywhere around the city, a null filter or one deterministic
+     filter shared by both, record types, 0 or an unused type, maxCounts and callbacks that stop early), and the
+     return values and occupants (in order) must be equal. The probe points the original's vtable entries of
+     slots 1, 2, 12, 20-22, 24, 25, 27, 28, 30, 32, 34, 36, 38, 40, 42 and 44 at counting forwarders (only while each
+     holds the 1.1.641 address; removed at PreCityShutdown) and counts calls per thread, the shadow's own excluded
+     (`overlaps` = entries while another thread was inside one of them; questions OM1, OM3). Lines (always written):
+
+     ```
+     occmgr shadow: ON (occmgr_shadow from …): …                                            (game start)
+     occmgr shadow: following the original occupant manager …: record B bytes, N occupants, R references; …
+     occmgr shadow: probe installed on 18 of 18 slots of vtable … (main thread …)
+     occmgr shadow month yyyy-mm-dd: followed=yes|first|resynced occupants=N refs=R record=exact (P set aside)|D
+       cells differ (P set aside); silent moves=S; messages ins/rem/move=a/b/c refused=r off-thread=t boxes=x/y;
+       queries on followed|fresh core q/Q (every slot exact)| differ: sN=e/t …; probe: slots=18 main=… other=… (threads tid:calls …)
+       overlaps=… slot12=… overflow=0; stray releases=0; mismatches=N[; differences: …]
+     occmgr shadow: city shutdown: N month lines, M with mismatches=0; resyncs=K; per slot exact/total: 25=…;
+       probe: … thread tid (main): s1=… …
+     ```
+
+     Success is `mismatches=0` on every line (they count cell, box and query differences and stray releases).
+     `refused` counts followed messages the core refused (an Insert of an occupant already read from the record, a
+     Remove of one not in it): possible right after the city load or a `resynced` month, otherwise a sign of a
+     missed message. In the lane's turbo runs to 2032 on Konradshohe (alone and with the 27 replacements) every
+     line had `mismatches=0`, `resyncs=0`, `refused=0` and every probed call on the main thread. OM1 was answered
+     statically (re-answers18): the background model loader's thread calls slot 40, one standard cell at a time,
+     when its filter flag is set; slot 40 is probed for that reason.
    - **History warehouse and 24-hour clock** (`enable = history`, `enable = clock24`; `plugin/cFC4History.*`,
      `plugin/cFC4Clock24.*`, over the `fc4_history` and `fc4_clock24` cores). The warehouse is the city's
      `cSC4HistoryWarehouse` (class `0x89EFA536`): it hears the record and queue-length messages, adds itself as a

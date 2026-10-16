@@ -522,8 +522,9 @@ fn iteration_lock_regions_and_reentry() {
         ));
         assert_eq!(c.seen, vec![(1, 0), (2, 0)]);
         c.seen.clear();
-        // Slot 44: the whole walk holds it (plus the per-cell hold), and a
-        // callback may insert (re-entrant lock).
+        // Slot 44: the whole walk holds it (the per-cell hold is dropped
+        // before the callbacks, OM7), and a callback may insert (re-entrant
+        // lock).
         c.insert = 9;
         assert!(fc4_occmgr_iterate(
             m,
@@ -533,8 +534,8 @@ fn iteration_lock_regions_and_reentry() {
             std::ptr::null(),
             std::ptr::null()
         ));
-        assert_eq!(c.seen[0], (1, 2));
-        assert!(c.seen.iter().all(|&(_, d)| d == 2));
+        assert_eq!(c.seen[0], (1, 1));
+        assert!(c.seen.iter().all(|&(_, d)| d == 1));
         assert_eq!(cell(m, 65, 65), Some(vec![(9, true)]));
         assert_eq!(fc4_occmgr_lock_depth(m), 0);
         assert!(!fc4_occmgr_iterate(

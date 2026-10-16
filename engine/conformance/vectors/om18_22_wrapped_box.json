@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "om18_22_wrapped_box",
+  "spec": ["occupant-manager 5.7", "occupant-manager 15", "occupant-manager 16 OM6", "occupant-manager 18.22"],
+  "description": "A bounding box x -4100..-4000, z 100..120 is shrunk to -4099.9..-4000.1: its low x cell is -1, stored as byte 255, its high x cell 1, so the stored box (255, 65, 1, 65) visits no cells (low byte > high byte). Insert returns true, sets flag 1 and posts Insert, but no cell holds it; Remove returns true and posts Remove (OM6 MATCHES).",
+  "steps": [
+    {"op": "om_create"},
+    {"op": "om_call", "method": "set_city_size", "args": [1024, 1024], "expect": true},
+    {"op": "om_call", "method": "init", "expect": true},
+    {"op": "om_occupant", "occupant": "0x1", "min": [-4100, 0, 100], "max": [-4000, 10, 120]},
+    {"op": "om_clear_events"},
+    {"op": "om_call", "method": "insert", "occupant": "0x1", "data4": 6, "expect": true},
+    {"op": "om_expect_occupant", "occupant": "0x1", "state": {"om_box": [255, 65, 1, 65], "flags": 1}},
+    {"op": "om_expect", "state": {"holders": 0, "nodes": 0}},
+    {"op": "om_expect_events", "filter": {"event": "post"}, "events": [{"event": "post", "type": "0x99EF1140", "occupant": "0x1"}, {"event": "post", "type": "0x99EF1142", "occupant": "0x1", "data4": 6, "inserted": true}]},
+    {"op": "om_expect_refs", "refs": {"0x1": 1}},
+    {"op": "om_clear_events"},
+    {"op": "om_call", "method": "remove", "occupant": "0x1", "data4": 4, "expect": true},
+    {"op": "om_expect_events", "filter": {"event": "post"}, "events": [{"event": "post", "type": "0x99EF1143", "occupant": "0x1", "data4": 4}]},
+    {"op": "om_expect_occupant", "occupant": "0x1", "state": {"flags": 0}},
+    {"op": "om_expect_refs", "refs": {"0x1": 0}}
+  ]
+}

@@ -2300,7 +2300,8 @@ filter; the typed overloads take `type`):
 - conversions (`args`): `position_to_world_cell`, `position_to_manager_cell`, `position_to_standard_cell` (two
   floats); `world_to_manager_cell`, `manager_to_world_cell`, `standard_to_world_cell`, `world_cell_to_position`,
   `manager_cell_to_position`, `standard_cell_to_position`, `bounding_cells` (two ints); `world_to_standard_cell`
-  (x, z, the old z output); `query_interface` (IID → view offset 0 / 4 / 8 or null);
+  (x, z, the old z output); `query_interface` (IID → view offset 0 / 4 / 8 or null); `shrink_bits` (min, max
+  floats: §5.1 step 5 on one axis, the two bounds as `float` bit patterns);
 - lifecycle: `set_city_size` (`args`), `init`, `shutdown`, `add_ref`, `release`, `class_id`, `cell_sizes`,
   `world_cell_count`, `cell_count`, `cell_bounds`;
 - `insert` (`occupant`, `data4`), `remove` (`occupant`, `shutdown`, `data4`), `remove_occupants` (`filter`,
@@ -3735,6 +3736,10 @@ add/remove table, set queries, filter caches, building information, CreateGeneri
 | 18 iteration | `om18_18_iteration` |
 | 19 save round-trip | `om18_19_save_round_trip` |
 | 20 shutdown | `om18_20_shutdown` |
+| 21 slot 34 clamp (OM5) | `om18_21_slot34_clamp` |
+| 22 wrapped box (OM6) | `om18_22_wrapped_box` |
+| 23 slot 44 batches (OM7) | `om18_23_slot44_batches` |
+| 24 shrink precision (OM4) | `om18_24_shrink_precision` |
 | §14 lock regions and re-entrant callbacks | `om14_lock_regions`, `om14_reentrant_callbacks` |
 
 ## Coverage (terrain §18)

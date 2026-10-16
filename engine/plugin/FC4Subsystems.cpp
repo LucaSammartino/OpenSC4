@@ -74,6 +74,7 @@
 #include "FC4ParksShadow.h"       // the cmglue lane
 #include "FC4DisasterShadow.h"    // the glue13 lane
 #include "FC4TrafficShadow.h"
+#include "FC4OccMgrShadow.h"  // the glue14b lane
 #include "cFC4TractDeveloper.h"
 #include "FC4LotDevShadow.h"
 #include "cFC4LotDeveloper.h"
@@ -486,7 +487,8 @@ void Resolve() {
     TrafficShadowStartup(g_enabled[0], enabledKey("traffic"));
     // The network manager shadow (FC4NetMgrShadow.h; it follows the original network managers).
     NetMgrShadowStartup();
-    // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
+    // The occupant manager shadow (FC4OccMgrShadow.h; it follows the original occupant manager).
+    OccMgrShadowStartup();    // The terrain shadow (FC4TerrainShadow.h; it compares the original terrain, never replaced).
     TerrainShadowStartup();
     // The glue17 lane's three shadows (they compare the original city situation
     // manager, demolition utility and dispatch manager).

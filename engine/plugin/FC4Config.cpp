@@ -313,8 +313,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "netmgr_shadow", "netmgr_shadow_order", "netmgr_shadow_wide",
                                   // the devperf lane's tooling (FC4Perf.h)
                                   "perf_profile",
-};
-// The switches that are off, for lock-free readers (autotest verdict).
+                                  // the glue14b lane (FC4OccMgrShadow.h)
+                                  "occmgr_shadow", "occmgr_shadow_samples", "occmgr_shadow_probe",
+};// The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
 
 volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,

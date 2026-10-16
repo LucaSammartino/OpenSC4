@@ -188,7 +188,13 @@
 //                                 settle point; `original` keeps the clock-bound pacing
 //                                 (conformance shadows). Read once at game start;
 //                                 FC4Pacing.h
-//   terrain_shadow = 0 / 1        the terrain shadow (default 0; compares FreeCity4's
+//   occmgr_shadow = 0 / 1         the occupant manager shadow (default 0; follows the
+//                                 ORIGINAL occupant manager, which FreeCity4 never
+//                                 replaces; FC4OccMgrShadow.h)
+//   occmgr_shadow_samples = N     its sampled calls per query slot and month (default 4,
+//                                 1..64)
+//   occmgr_shadow_probe = 0 / 1   its thread probe on the original's vtable (default 1;
+//                                 calls per thread, OM1 / OM3)//   terrain_shadow = 0 / 1        the terrain shadow (default 0; compares FreeCity4's
 //                                 terrain core with the ORIGINAL terrain, which is
 //                                 never replaced; FC4TerrainShadow.h)
 //   terrain_shadow_points = N     its sample points per month (default 256, 16..4096)
