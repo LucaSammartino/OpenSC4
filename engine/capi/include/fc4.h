@@ -159,21 +159,8 @@ extern "C" {
  *      to 66, on its lane; renumbered at merge);
  * 68 = adds the prop manager, lot configuration manager and tutorial system (fc4_prop_manager,
  *      fc4_lot_config, fc4_tutorial; prop-lotconfig.md, tutorial.md) (taken as 70 on its lane;
- *      renumbered at merge);
- * 69 = adds the advisor system and the MySims (fc4_advisors, fc4_adv_obj, fc4_advisor_host,
- *      fc4_mysim_host; advisors.md, mysims.md) (taken as 62 on its lane; renumbered at merge). */
- * 69 = deterministic pacing (simulator.md §5.7 [choice]): fc4_pacing_set_process / fc4_pacing_process,
- *      fc4_sim_set_pacing / fc4_sim_get_pacing with fc4_pacing_hooks (the day's settle point), and
- *      every core with an idle-driven cycle runs it to completion in one settle delivery under
- *      FC4_PACING_DETERMINISTIC (taken as 65 on its lane, then 68; renumbered at merge). */#define FC4_ABI_VERSION 69u
- * 69 = adds the network rules (fc4_network_rules, fc4_network_rules_grid, network-rules.md): the rule
- *      database from resource bytes, tile rule evaluation and the rule stages of SolveNetwork over a
- *      cell grid (taken as 68 on its lane; renumbered at merge). */
-#define FC4_ABI_VERSION 69u
- * 69 = the disaster layer after re-answers14 (disasters.md): the host's dispatch-unit counts
- *      (fire_dispatch_count / police_dispatch_count) replace the effectiveness setters, the wind is a
- *      vector, network_default_cost and volcano_end_deformation are gone; fc4_disasters_set_cause
- *      returns the cause; adds fc4_disasters_manager_instances (taken as 68 on its lane). */
+ *      renumbered at merge).
+ * 69 = merge-train batch train2 (re-answers28, mergetrain-docs, re-answers29, cores12c, detpacing, cores18, apply14dis, glue12b2, coverage2, apply15c, apply15b, cores17): cores12c: adds the advisor system and the MySims (fc4_advisors, fc4_adv_obj, fc4_advisor_host, fc4_mysim_host; advisors.md, mysims.md) (taken as 62 on its lane; renumbered at merge). | detpacing: deterministic pacing (simulator.md §5.7 [choice]): fc4_pacing_set_process / fc4_pacing_process, fc4_sim_set_pacing / fc4_sim_get_pacing with fc4_pacing_hooks (the day's settle point), and every core with an idle-driven cycle runs it to completion in one settle delivery under FC4_PACING_DETERMINISTIC (taken as 65 on its lane, then 68; renumbered at merge). | cores18: adds the network rules (fc4_network_rules, fc4_network_rules_grid, network-rules.md): the rule database from resource bytes, tile rule evaluation and the rule stages of SolveNetwork over a cell grid (taken as 68 on its lane; renumbered at merge). | apply14dis: the disaster layer after re-answers14 (disasters.md): the host's dispatch-unit counts (fire_dispatch_count / police_dispatch_count) replace the effectiveness setters, the wind is a vector, network_default_cost and volcano_end_deformation are gone; fc4_disasters_set_cause returns the cause; adds fc4_disasters_manager_instances (taken as 68 on its lane). | glue12b2: adds fc4_port_developer_required_budget and fc4_port_developer_funding_ratio (the port glue's shadow; glue12b2 lane, taken as 66 on the lane, renumbered at merge). | cores17: adds the network geometry (fc4_netgeom, fc4_vhcs, network-geometry.md §3-§9): the drag, the validation passes, the cell infos, the smoothing loop, CanTilesBeSupportedOnTerrain, the grading (host terrain or a bound fc4_terrain), the height satisfier and the §10-§13 helpers (cores17 lane; taken as 63, then 64-68 on its lane; renumbered at merge). */
 #define FC4_ABI_VERSION 69u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
