@@ -549,6 +549,9 @@ class SaveResult:
         self.fx_versions = Counter()
         self.prop_usage = Counter()
         self.fx_usage = Counter()
+        self.prop_extra = Counter()   # has_date_range, tod00, timer, orient, state
+        self.chance_min = 255
+        self.chance_max = 0
         self.no_tag = {"prop": 0, "fx": 0}
         self.lots = []
         self.props = []
@@ -641,6 +644,16 @@ def parse_save(path, sha, want_crc=True):
                     if fields["lot_tag"] == NO_TAG:
                         res.no_tag["fx"] += 1
                     res.fxprops.append(Prop(oid, fields, True))
+                # the field-value histograms cover every prop record, including the
+                # ones embedded in an effect prop, to match lot-records.md 10.1
+                e = res.prop_extra
+                e["has_date_range"] += 1 if fields["has_date_range"] else 0
+                e["tod_0_0"] += 1 if fields["tod"] == (0, 0) else 0
+                e["timer_%d" % fields["timer"]] += 1
+                e["orient_%d" % fields["orientation"]] += 1
+                e["state_%d" % fields["state"]] += 1
+                res.chance_min = min(res.chance_min, fields["chance"])
+                res.chance_max = max(res.chance_max, fields["chance"])
                 if cons == len(payload):
                     res.parse_ok[kind] += 1
                 elif cons < len(payload):
@@ -763,6 +776,9 @@ def main(argv=None):
     ap.add_argument("--dbpf", default=DEFAULT_DBPF)
     ap.add_argument("--json", default=None, help="write the raw tallies to this JSON file")
     ap.add_argument("--quick", action="store_true", help="skip the per-entry CRC check")
+    ap.add_argument("--stock-only", action="store_true",
+                    help="restrict the corpus to the 417-save GOG stock subset "
+                         "(distinct hashes that appear outside the FC4 Test region)")
     args = ap.parse_args(argv)
 
     _install_dbpf(args.dbpf)
@@ -843,7 +859,6 @@ def main(argv=None):
     by_hash = {}
     for h, p in reg_files:
         by_hash.setdefault(h, p)
-    corpus = sorted(by_hash.items(), key=lambda kv: kv[1].lower())
 
     # per-region file counts and how each region's files relate
     region_files = defaultdict(list)
@@ -858,12 +873,19 @@ def main(argv=None):
     if berlin and fct:
         print("    Berlin vs FC4 Test: shared %d, only Berlin %d, only FC4 Test %d"
               % (len(berlin & fct), len(berlin - fct), len(fct - berlin)))
-        stock = set()
-        for name, rows in region_files.items():
-            if name != "FC4 Test":
-                stock |= set(h for h, _ in rows)
-        print("    distinct hashes ignoring the FC4 Test region: %s  (= the GOG stock set)"
-              % fmt(len(stock)))
+    stock = set()
+    for name, rows in region_files.items():
+        if name != "FC4 Test":
+            stock |= set(h for h, _ in rows)
+    print("    distinct hashes ignoring the FC4 Test region: %s  (= the GOG stock set)"
+          % fmt(len(stock)))
+
+    corpus = sorted(by_hash.items(), key=lambda kv: kv[1].lower())
+    if args.stock_only:
+        corpus = [(h, p) for h, p in corpus if h in stock]
+        print("    --stock-only: analysing %s distinct saves" % fmt(len(corpus)))
+    else:
+        print("    analysing all %s distinct saves" % fmt(len(corpus)))
 
     # ---------------- Part 3: parse validation ----------------
     print("\n[3] PARSE VALIDATION  (class store of every distinct save)")
@@ -928,18 +950,65 @@ def main(argv=None):
 
     # version / usage histograms
     lv = Counter(); pv = Counter(); fv = Counter()
-    pu = Counter(); fu = Counter(); nt = Counter()
+    pu = Counter(); fu = Counter(); nt = Counter(); px = Counter()
+    px_stock = Counter(); nt_stock = Counter()
+    lots_cfg0 = 0
+    lots_cfg0_stock = 0
+    chance_min, chance_max = 255, 0
+    chance_min_s, chance_max_s = 255, 0
     for r in per_save:
         lv.update(r.lot_versions); pv.update(r.prop_versions); fv.update(r.fx_versions)
         pu.update(r.prop_usage); fu.update(r.fx_usage)
         nt["prop"] += r.no_tag["prop"]; nt["fx"] += r.no_tag["fx"]
+        px.update(r.prop_extra)
+        n0 = sum(1 for l in r.lots if l["config_id"] == 0)
+        lots_cfg0 += n0
+        if r.props:
+            chance_min = min(chance_min, r.chance_min)
+            chance_max = max(chance_max, r.chance_max)
+        if r.sha in stock:
+            px_stock.update(r.prop_extra)
+            nt_stock["prop"] += r.no_tag["prop"]; nt_stock["fx"] += r.no_tag["fx"]
+            lots_cfg0_stock += n0
+            if r.props:
+                chance_min_s = min(chance_min_s, r.chance_min)
+                chance_max_s = max(chance_max_s, r.chance_max)
     print("    lot record versions:    %s" % dict(sorted(lv.items())))
     print("    prop record versions:   %s" % dict(sorted(pv.items())))
     print("    fx-prop outer versions: %s" % dict(sorted(fv.items())))
-    print("    prop_usage histogram (props): %s" % dict(sorted(pu.items())))
+    print("    prop_usage histogram (props): %s   [lot-records 10.1: 1, 2, 4]"
+          % dict(sorted(pu.items())))
     print("    prop_usage histogram (fx):    %s" % dict(sorted(fu.items())))
-    print("    props with lot_tag 0xFFFFFFFF (no tag): %s props, %s fx-props"
-          % (fmt(nt["prop"]), fmt(nt["fx"])))
+    print("    Observed field values over every prop record (0x2977AA47 plus the")
+    print("    prop records embedded in 0x2977AA49 effect props), in both scopes.")
+    print("    The published lot-records.md 3.2 / 10.1 figures are for the 417-save stock corpus:")
+    print("      %-34s %-18s %-18s %s" % ("field", "this run", "417 stock subset", "published"))
+    print("      %-34s %-18s %-18s %s"
+          % ("props + fx-props with no lot tag",
+             fmt(nt["prop"] + nt["fx"]), fmt(nt_stock["prop"] + nt_stock["fx"]), "221"))
+    print("      %-34s %-18s %-18s %s"
+          % ("lots with lot_configuration_ID 0", fmt(lots_cfg0), fmt(lots_cfg0_stock), "692"))
+    print("      %-34s %-18s %-18s %s"
+          % ("prop records with has_date_range", fmt(px["has_date_range"]),
+             fmt(px_stock["has_date_range"]), "174"))
+    print("      %-34s %-18s %-18s %s"
+          % ("prop records with time-of-day (0,0)", fmt(px["tod_0_0"]),
+             fmt(px_stock["tod_0_0"]), "120,401"))
+    print("      %-34s %-18s %-18s %s"
+          % ("chance min / max",
+             "%s / %s" % (chance_min, chance_max),
+             "%s / %s" % (chance_min_s, chance_max_s), "1 / 100"))
+    print("      %-34s %-18s %-18s %s"
+          % ("orientation values", ",".join(sorted(k[7:] for k in px if k.startswith("orient_"))),
+             ",".join(sorted(k[7:] for k in px_stock if k.startswith("orient_"))), "0,1,2,3"))
+    print("      %-34s %-18s %-18s %s"
+          % ("state values", ",".join(sorted(k[6:] for k in px if k.startswith("state_"))),
+             ",".join(sorted(k[6:] for k in px_stock if k.startswith("state_"))), "0,1,2"))
+    print("      %-34s %-18s %-18s %s"
+          % ("timer-bit values", ",".join(sorted((k[6:] for k in px if k.startswith("timer_")),
+                                                key=int)),
+             ",".join(sorted((k[6:] for k in px_stock if k.startswith("timer_")), key=int)),
+             "0,6,7,11,13,14,15"))
 
     if overruns:
         print("    first records that did not consume the entry exactly:")
@@ -1071,7 +1140,7 @@ def main(argv=None):
                             position_residuals.append(d)
                             position_checked += 1
                             dx, dz = p.cx - ex, p.cz - ez
-                            if d == 0.0:
+                            if d < 1e-6:
                                 exact_zero += 1
                             if d < 1e-6:
                                 resid_buckets["exactly 0"] += 1
@@ -1091,7 +1160,7 @@ def main(argv=None):
                             s[2] += dz
                             s[3] += dx * dx
                             s[4] += dz * dz
-                            if d == 0.0:
+                            if d < 1e-6:
                                 s[5] += 1
                             if d <= 1.0:
                                 within_1m += 1
@@ -1251,6 +1320,8 @@ def main(argv=None):
             "saves_with_lots": saves_with_lots, "saves_with_props": saves_with_props,
             "prop_usage": dict(pu), "fx_usage": dict(fu),
             "no_tag": dict(nt),
+            "lots_with_config_id_0": lots_cfg0,
+            "prop_extra": dict(px),
         },
         "pv2": {
             "plain": {
