@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "demolition_terrain_tolerance",
+  "spec": ["demolition 4.7", "demolition 12.14"],
+  "description": "The 0.05 tolerance is a float comparison (DM6): with h = 0, a vertex whose altitude is exactly 0.05f (0.0500000007...) is not counted in area mode (a double compare with 0.05 would count it); the next f32 above (0.0500000045) is counted in area mode and set in per-vertex mode; the f32 below (0.049999997) is skipped by per-vertex mode.",
+  "steps": [
+    {"op": "demolition_create"},
+    {"op": "demolition_init", "expect": true},
+    {"op": "demolition_env", "altitudes": [[1, 1, 0.05], [3, 3, 0.0500000045], [5, 5, 0.049999997]]},
+    {"op": "demolition_clear_events"},
+    {"op": "demolition_terrain", "do_it": true, "per_vertex": false, "rect": [1, 1, 1, 1], "altitude": 0, "expect": 0},
+    {"op": "demolition_expect_events", "events": []},
+    {"op": "demolition_terrain", "do_it": false, "per_vertex": false, "rect": [3, 3, 3, 3], "altitude": 0, "expect": 1},
+    {"op": "demolition_terrain", "do_it": true, "per_vertex": true, "rect": [5, 5, 5, 5], "altitude": 0, "expect": 0},
+    {"op": "demolition_expect_events", "events": []},
+    {"op": "demolition_terrain", "do_it": true, "per_vertex": true, "rect": [3, 3, 3, 3], "altitude": 0, "expect": 1},
+    {"op": "demolition_expect_events", "events": [{"event": "set_vertex", "x": 3, "z": 3, "height": 0}, {"event": "redisplay", "rect": [2, 2, 4, 4], "reason": 5}]}
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "dispatch_messages",
+  "spec": ["dispatch 3"],
+  "description": "DisasterPeriodEnded sends every dispatched vehicle home; ViewChanged refreshes the vehicle view. A pylon dragged while its unit is out re-targets the same record (begin posted again, no new ID); dropped on its own station it is revoked and parked once.",
+  "steps": [
+    {"op": "dispatch_create"},
+    {"op": "dispatch_init", "expect": true},
+    {"op": "dispatch_source", "source": "0x500", "types": [1], "stations": [{"station": "0x600", "base": 1, "count": 3}]},
+    {"op": "dispatch_clear_events"},
+    {"op": "dispatch_call", "method": "dispatch", "args": [1, 1, 1], "expect": 1},
+    {"op": "dispatch_clear_events"},
+    {"op": "dispatch_message", "type": "DisasterPeriodEnded", "expect": true},
+    {"op": "dispatch_message", "type": "ViewChanged", "expect": true},
+    {"op": "dispatch_expect_events", "events": [{"event": "go_home"}, {"event": "refresh_view", "view": "0x7E"}]},
+    {"op": "dispatch_call", "method": "revoke_all_dispatches", "args": [1], "expect": true},
+    {"op": "dispatch_call", "method": "begin_dispatch_tool", "args": [1], "expect": true},
+    {"op": "dispatch_expect", "state": {"available_pylons": ["0x1002", "0x1003", "0x1004"]}},
+    {"op": "dispatch_call", "method": "set_active_pylon", "args": ["0x1002"]},
+    {"op": "dispatch_call", "method": "dispatch", "args": [1, 10, 10], "expect": 2},
+    {"op": "dispatch_clear_events"},
+    {"op": "dispatch_call", "method": "dispatch", "args": [1, 30, 40], "expect": 2},
+    {"op": "dispatch_call", "method": "get_dispatch_info", "args": [2], "expect": {"target": [30, 0.7, 40]}},
+    {"op": "dispatch_expect", "state": {"next_id": 2}},
+    {"op": "dispatch_expect_events", "filter": {"event": "post"}, "events": [{"event": "post", "type": "0xE94671EB", "dispatch_type": 1, "id": 2}]},
+    {"op": "dispatch_call", "method": "revoke_dispatch_by_pylon", "args": ["0x1002"], "expect": true},
+    {"op": "dispatch_expect", "state": {"record_count": 0, "active_pylon": null}},
+    {"op": "dispatch_call", "method": "revoke_dispatch_by_pylon", "args": ["0x1002"], "expect": false},
+    {"op": "dispatch_expect_refs", "refs": {"0x1002": 1}}
+  ]
+}

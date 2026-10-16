@@ -1680,6 +1680,58 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      ```
 
      Success is `mismatches=0` and `unread=0` on every line; a line that cannot compare says `INCOMPLETE (why)`.
+   - **City situation, demolition and dispatch shadows** (`citysit_shadow = 1`, `demolition_shadow = 1`,
+     `dispatch_shadow = 1`; env `FC4_CITYSIT_SHADOW`, `FC4_DEMOLITION_SHADOW`, `FC4_DISPATCH_SHADOW`; off by
+     default; `plugin/FC4CitySitShadow.h`, `plugin/FC4DemolitionShadow.h`, `plugin/FC4DispatchShadow.h`, the
+     shared record round trip in `plugin/FC4CoreShadow.h`): same-process differentials of the city situation
+     manager (city-situation.md), the demolition utility (demolition.md) and the dispatch manager (dispatch.md).
+     Each needs the **original** (do not enable `citysit`, `demolition` or `dispatch`); otherwise it logs
+     `… requested … but INACTIVE`. At PostCityInit and each SimNewMonth, the original's record (its own
+     `cIGZSerializable::Write` into memory) is read into a FreeCity4 core made for the run over a read-only host
+     table, and the core's `Write` must give the same bytes back (a reference is written as the capture's own
+     object number). Then the original's getters are compared with the core's: for dispatch, the record and
+     slots 10-12, 18 and 21 for the four dispatch types and 8 (counts, ID arrays, records field by field and as
+     object identities, the active pylon); for citysit, the record and slots 5-15, 17, 18, 27, 28, 30 and 32 (the
+     success counts of every GUID the record carries, the indicator flag, the status block and the three ST0
+     float times compared bit for bit) — this shadow is the only in-game check of that core; for demolition, the
+     record and the core's own state against the §6 code defaults. Lines (always written):
+
+     ```
+     dispatch shadow: ON (dispatch_shadow from …): …                                  (game start)
+     dispatch shadow: NOT readable read-only (so not compared): …
+     dispatch shadow yyyy-mm-dd load|month: record=N bytes roundtrip=same|DIFFERENT; compared=C mismatches=M first=…
+     dispatch shadow: city shutdown: L lines, C with mismatches=0; compared K values, M mismatched; differences: …
+     ```
+
+     and the same shape for `citysit shadow …` and `demolition shadow …`. Success is `mismatches=0` on every line
+     and `roundtrip=same`. What is not compared is named at game start: for dispatch the automaton events
+     (`0x09D92FC3`), the posted messages and the vehicle view's tracking; for citysit the indicator tracking, the
+     mission itself (city-situation.md §0 leaves targets, pursuit, coverage and the player-drive camera to the
+     host), the Lua table, the popup and the reward list; for demolition the `Demolish*` prices and the
+     `ModifyTerrainHeight` counts (a dry run needs the demolition host's occupant-query callbacks, which this lane
+     did not wire — the core is covered by its conformance vectors `dm00`-`dm12`), the effects and the §6 tuning
+     (module globals, no getter).
+   - **Dispatch manager** (`enable = dispatch`; `plugin/cFC4Dispatch.*`, over the `fc4_dispatch` core): the
+     city's `cSC4DispatchManager` (class `0x4990BD93`, city component 3, the slot 39 getter). It answers
+     `cISC4DispatchManager` (dispatch.md §8, 24 slots), `cIGZMessageTarget2` and `cIGZSerializable`; `Read` runs
+     before `Init` and sizes nothing from the city. It holds the message server and subscribes to RemoveOccupant
+     (`0x99EF1143`), DisasterPeriodEnded (`0xAA1B2002`) and the view-changed message, posts the four dispatch
+     messages of §3, and reads the terrain altitude and the protection simulators' dispatch sources (§8.2). The
+     vehicle view and the pylons are not wired (the tool's presentation). Lines: `dispatch Init: …`,
+     `dispatch Read|Write -> …`, `dispatch Shutdown: …`. **Off by default**; the `dispatch_shadow` differential
+     above is the in-game check while it is.
+   - **City situation manager** (`enable = citysit`; `plugin/cFC4CitySituation.*`, over the `fc4_citysit` core):
+     the city's `cSC4CitySituationManager` (class `0x0BB14381`, city component 52, the slot 49 getter). It answers
+     `cISC4CitySituationManager` (city-situation.md §8, 40 slots), `cIGZMessageTarget2`, the legacy
+     `cIGZMessageTarget` and `cIGZSerializable`; `Read` runs before `Init` and sizes nothing from the city. This is
+     the spec's §8 **minimal replacement** [choice]: the record byte for byte and the interface answered with "no
+     situation" — the mission gameplay (targets, pursuit, coverage, the player-drive camera, the popup) is
+     deliberately out of scope (§0 calls a full one "several thousand lines"), and unattended play never starts a
+     mission (§0: "its popup never opens by itself"). The host wires the message server and the ten subscriptions
+     of §3, the preferences' reward list, the advice and automaton queries the interface needs, the aura's
+     `AddTransientEffect` and the budget's `DepositFunds` (the §4.5 outcome) and the messages of §3; the mission
+     pieces are not wired. Lines: `citysit Init: …`, `citysit Read|Write -> …`, `citysit Shutdown: …`. **Off by
+     default**; the `citysit_shadow` differential above is the in-game check while it is.
    - **History warehouse and 24-hour clock** (`enable = history`, `enable = clock24`; `plugin/cFC4History.*`,
      `plugin/cFC4Clock24.*`, over the `fc4_history` and `fc4_clock24` cores). The warehouse is the city's
      `cSC4HistoryWarehouse` (class `0x89EFA536`): it hears the record and queue-length messages, adds itself as a

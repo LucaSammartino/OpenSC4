@@ -876,13 +876,16 @@ pub mod aura_shadow;
 pub mod automata;
 pub mod budget;
 pub mod city_detail;
+pub mod city_situation;
 pub mod civic;
 pub mod clock24;
 pub mod commercial;
 pub mod crime;
 pub mod demand;
+pub mod demolition;
 pub mod development;
 pub mod disasters;
+pub mod dispatch;
 pub mod flammability;
 pub mod flammability_shadow;
 pub mod flora;
@@ -947,6 +950,9 @@ mod budget_tests;
 mod city_detail_tests;
 
 #[cfg(test)]
+mod city_situation_tests;
+
+#[cfg(test)]
 mod civic_tests;
 
 #[cfg(test)]
@@ -962,10 +968,16 @@ mod crime_tests;
 mod demand_tests;
 
 #[cfg(test)]
+mod demolition_tests;
+
+#[cfg(test)]
 mod development_tests;
 
 #[cfg(test)]
 mod disasters_tests;
+
+#[cfg(test)]
+mod dispatch_tests;
 
 #[cfg(test)]
 mod flora_tests;
