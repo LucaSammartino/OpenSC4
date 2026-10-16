@@ -27,6 +27,7 @@
 #include <windows.h>
 
 #include <cctype>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -128,6 +129,12 @@ bool Deferrable(uint32_t type) {
 // sending (a handler that posts again); the rest are released unsent.
 constexpr size_t kMaxFlush = 1u << 20;
 
+// [choice] The most message-server ticks one settle runs to empty the post
+// queue (simulator.md §5.7: posted messages are delivered before the next
+// day's agents). The ticks also stop when one leaves the queue no shorter (a
+// message that is posted again at every tick stays for the frame's tick).
+constexpr uint32_t kMaxPumps = 64;
+
 }  // namespace
 
 namespace fc4 {
@@ -189,7 +196,6 @@ bool PacingDefer(cIGZMessage2* msg) {
 }
 
 uint32_t PacingFlush(cIGZMessageServer2* ms, int32_t julian) {
-    (void)julian;
     uint32_t sent = 0;
     size_t done = 0;
     // A handler may defer more while we send (the day is still open): they go
@@ -208,6 +214,32 @@ uint32_t PacingFlush(cIGZMessageServer2* ms, int32_t julian) {
     }
     g_queue.clear();
     g_dayOpen = false;
+    // Everything else posted during the day (the original's lot StateChanged
+    // among it, and our cores' own posts): the message server's tick, until
+    // its queue is empty.
+    if (ms != nullptr) {
+        uint32_t pumps = 0;
+        uint32_t size = ms->GetMessageQueueSize();
+        while (pumps < kMaxPumps && size > 0) {
+            ms->OnTick(0);
+            ++pumps;
+            const uint32_t after = ms->GetMessageQueueSize();
+            if (after >= size) {
+                size = after;
+                break;
+            }
+            size = after;
+        }
+        g_stats.pumps += pumps;
+        if (size > 0) {
+            ++g_stats.leftovers;
+            if (g_stats.leftovers <= 3) {
+                Log("pacing: the post queue still holds %u message(s) after %u message-server tick(s) at the settle "
+                    "point of julian %d",
+                    size, pumps, julian);
+            }
+        }
+    }
     ++g_stats.settles;
     g_stats.sent += sent;
     return sent;
@@ -228,5 +260,11 @@ void PacingDrop(const char* why) {
 }
 
 PacingStats PacingCounters() { return g_stats; }
+
+uint32_t PacingFixedIdleSteps(const char* name) {
+    if (!PacingDeterministic() || name == nullptr) return 0;
+    if (std::strcmp(name, "cSC4PropDeveloper") == 0) return 20;
+    return 0;
+}
 
 }  // namespace fc4

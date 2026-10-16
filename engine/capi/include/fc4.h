@@ -8156,6 +8156,11 @@ typedef struct fc4_pacing_hooks {
     bool (*is_paced)(void* user, fc4_agent agent);
     /* May be NULL. */
     void (*settle)(void* user, int32_t julian);
+    /* How many SimIdle a paced agent gets at each settle point before the
+     * re-delivery passes (clamped to 1..1024): 1 for our cores (they run their
+     * cycle to completion), a fixed count for an original agent that does a
+     * fixed amount of work per delivery. NULL: 1. */
+    uint32_t (*idle_steps)(void* user, fc4_agent agent);
 } fc4_pacing_hooks;
 /* `hooks` may be NULL (every idle agent paced, no settle callback); it is
  * copied. False for an unknown mode, a short struct or a NULL sim. */

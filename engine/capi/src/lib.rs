@@ -728,6 +728,7 @@ pub struct fc4_pacing_hooks {
     pub user: *mut c_void,
     pub is_paced: Option<unsafe extern "C" fn(user: *mut c_void, agent: fc4_agent) -> bool>,
     pub settle: Option<unsafe extern "C" fn(user: *mut c_void, julian: i32)>,
+    pub idle_steps: Option<unsafe extern "C" fn(user: *mut c_void, agent: fc4_agent) -> u32>,
 }
 
 struct CPacingHooks(fc4_pacing_hooks);
@@ -744,6 +745,13 @@ impl fc4_core::PacingHooks for CPacingHooks {
         if let Some(f) = self.0.settle {
             // SAFETY: as above.
             unsafe { f(self.0.user, julian) }
+        }
+    }
+    fn idle_steps(&self, agent: AgentHandle) -> u32 {
+        match self.0.idle_steps {
+            // SAFETY: as above.
+            Some(f) => unsafe { f(self.0.user, agent) },
+            None => 1,
         }
     }
 }

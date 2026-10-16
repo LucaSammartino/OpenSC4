@@ -420,6 +420,7 @@ fn deterministic_pacing_through_the_abi() {
             user: &pr as *const PacingRecorder as *mut c_void,
             is_paced: Some(paced_is_8),
             settle: Some(record_settle),
+            idle_steps: None,
         };
         let short = fc4_pacing_hooks {
             struct_size: 4,

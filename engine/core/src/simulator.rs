@@ -62,7 +62,19 @@ pub trait PacingHooks {
     fn is_paced(&self, agent: AgentHandle) -> bool;
     /// The day's settle point, after the paced idle pass.
     fn settle(&self, julian: i32);
+    /// How many `SimIdle` deliveries a paced agent gets at each settle point
+    /// before the re-delivery passes (clamped to `1..=`[`MAX_SETTLE_IDLE_STEPS`]).
+    /// Our cores run their cycle to completion on the first; an original
+    /// agent that does a fixed amount of work per delivery (the prop
+    /// developer's block step) gets a fixed number per day.
+    fn idle_steps(&self, _agent: AgentHandle) -> u32 {
+        1
+    }
 }
+
+/// [choice] The most `SimIdle` deliveries [`PacingHooks::idle_steps`] can
+/// ask for at one settle point.
+pub const MAX_SETTLE_IDLE_STEPS: u32 = 1024;
 
 /// [choice] `data3` (the idle budget in ms) of a settle `SimIdle`: the
 /// largest share §5.4 can offer. Deterministic cores ignore it.
@@ -70,6 +82,13 @@ pub const SETTLE_IDLE_BUDGET_MS: i64 = 22;
 
 /// [choice] The most idle passes one settle makes (see [`PacingHooks`]).
 pub const MAX_SETTLE_PASSES: u32 = 4;
+
+/// [choice] Deterministic pacing: while a day is open the walk of levels
+/// 2..7 ignores the frame budget, so the day runs from its opening to its
+/// settle point in one tick with no message-server tick in between (§5.7
+/// item 4). This many ms in one walk still yield the frame (a stall guard;
+/// the day then continues in the next frame).
+pub const DETERMINISTIC_WALK_CAP_MS: u32 = 10_000;
 
 /// Tuning values read from the "Main Simulator" exemplar (spec §7).
 /// `None` (or a value of the wrong length) keeps the §3 defaults.
@@ -830,7 +849,14 @@ impl Simulator {
                             let remove = enabled && l == level::ONE_SHOT as usize;
                             s.finish_at_cursor(l, serial, remove);
                         }
-                        s.slice_elapsed(host) >= s.frame_budget_ms
+                        // §5.7 [choice]: an open day's levels 2..7 run in one tick.
+                        let day_walk = s.pacing.is_deterministic() && !s.day_settled && l >= level::MINUTE as usize;
+                        let budget = if day_walk {
+                            DETERMINISTIC_WALK_CAP_MS
+                        } else {
+                            s.frame_budget_ms
+                        };
+                        s.slice_elapsed(host) >= budget
                     });
                     if stop {
                         return;
@@ -862,15 +888,28 @@ impl Simulator {
             Some(k) => k.is_paced(h),
             None => true,
         });
-        for _ in 0..MAX_SETTLE_PASSES {
+        let registered = |h: AgentHandle| self.read(|s| s.agents[IDLE].iter().any(|e| e.handle == h && e.enabled));
+        for pass in 0..MAX_SETTLE_PASSES {
             let mut again = Vec::new();
             for h in pending {
-                // An agent removed or disabled by an earlier delivery is skipped.
-                if !self.read(|s| s.agents[IDLE].iter().any(|e| e.handle == h && e.enabled)) {
-                    continue;
+                let steps = if pass == 0 {
+                    hooks
+                        .as_ref()
+                        .map_or(1, |k| k.idle_steps(h))
+                        .clamp(1, MAX_SETTLE_IDLE_STEPS)
+                } else {
+                    1
+                };
+                let mut finished = true;
+                for _ in 0..steps {
+                    // An agent removed or disabled by an earlier delivery is skipped.
+                    if !registered(h) {
+                        break;
+                    }
+                    let m = Message::new(msg::SIM_IDLE, i64::from(julian), 0, SETTLE_IDLE_BUDGET_MS);
+                    finished = self.host.deliver(self, h, &m);
                 }
-                let m = Message::new(msg::SIM_IDLE, i64::from(julian), 0, SETTLE_IDLE_BUDGET_MS);
-                if !self.host.deliver(self, h, &m) {
+                if !finished {
                     again.push(h);
                 }
             }
@@ -1464,6 +1503,8 @@ mod pacing_tests {
     #[derive(Default)]
     struct Log {
         now: Cell<u32>,
+        /// ms the fake clock advances per delivery
+        step_ms: Cell<u32>,
         events: RefCell<Vec<String>>,
         /// idle answers: agent -> how many false answers before true
         busy: RefCell<Vec<(AgentHandle, u32)>>,
@@ -1477,6 +1518,7 @@ mod pacing_tests {
     }
     impl crate::host::AgentDelivery for H {
         fn deliver(&self, _sim: &Simulator, agent: AgentHandle, m: &Message) -> bool {
+            self.0.now.set(self.0.now.get() + self.0.step_ms.get());
             let kind = match m.msg_type {
                 msg::SIM_NEW_DAY => "day",
                 msg::SIM_NEW_MONTH => "month",
@@ -1510,7 +1552,14 @@ mod pacing_tests {
     struct Hooks(Rc<Log>);
     impl PacingHooks for Hooks {
         fn is_paced(&self, agent: AgentHandle) -> bool {
-            agent < 200
+            agent < 200 || agent >= 300
+        }
+        fn idle_steps(&self, agent: AgentHandle) -> u32 {
+            if agent >= 300 {
+                3
+            } else {
+                1
+            }
         }
         fn settle(&self, julian: i32) {
             self.0.events.borrow_mut().push(format!("settle {julian}"));
@@ -1550,6 +1599,49 @@ mod pacing_tests {
 
     fn take(log: &Log) -> Vec<String> {
         std::mem::take(&mut *log.events.borrow_mut())
+    }
+
+    #[test]
+    fn idle_steps_gives_a_fixed_number_of_deliveries() {
+        // Agent 300 (an original agent paced with 3 steps a day) gets three
+        // settle deliveries and no frame idle.
+        let (s, log) = sim(Pacing::Deterministic);
+        s.add_agent(300, level::IDLE, "fixed", 3);
+        round(&s);
+        take(&log);
+        round(&s);
+        let j = s.julian_day();
+        let ev = take(&log);
+        let fixed: Vec<&String> = ev.iter().filter(|e| e.starts_with("idle 300")).collect();
+        assert_eq!(fixed.len(), 3, "{ev:?}");
+        assert!(fixed.iter().all(|e| **e == format!("idle 300 {j}")));
+        s.simulate_idle_time();
+        assert!(!take(&log).iter().any(|e| e.starts_with("idle 300")));
+    }
+
+    #[test]
+    fn deterministic_day_walk_ignores_the_frame_budget() {
+        // Every delivery takes 10 ms of a 15 ms frame: under original pacing
+        // the walk yields after the second day agent; under deterministic
+        // pacing the open day runs to its settle point in one walk.
+        for pacing in [Pacing::Original, Pacing::Deterministic] {
+            let (s, log) = sim(pacing);
+            for a in 2..5 {
+                s.add_agent(a, level::DAY, "day", 3);
+            }
+            round(&s);
+            take(&log);
+            log.step_ms.set(10);
+            s.simulate_time_passage();
+            s.simulate_agents();
+            let days = take(&log).iter().filter(|e| e.starts_with("day ")).count();
+            if pacing == Pacing::Original {
+                assert!(days < 4, "original: the frame budget cuts the walk ({days})");
+            } else {
+                assert_eq!(days, 4, "deterministic: the whole day in one walk");
+                assert!(s.day_settled());
+            }
+        }
     }
 
     #[test]

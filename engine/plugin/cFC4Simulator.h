@@ -109,6 +109,7 @@ public:
     // paced; the day's settle point sends the deferred posts.
     static bool HostIsPaced(void* user, fc4_agent agent);
     static void HostSettle(void* user, int32_t julian);
+    static uint32_t HostIdleSteps(void* user, fc4_agent agent);
 
     // Limit-timer calibration sources/sink (fc4_timer_source, spec §5.5).
     static uint64_t TimerQpc(void* user);
@@ -182,6 +183,9 @@ private:
     uint32_t turboRefTicks_ = 0;   // ticks_ then
     int32_t turboRefJulian_ = 0;   // the date then
     // The hold until the city is ready (FC4Turbo.h): reset at each Init.
+    // Deterministic pacing: the original's idle agents paced with a fixed
+    // number of SimIdle per day (FC4Pacing.h PacingFixedIdleSteps).
+    std::map<uintptr_t, uint32_t> fixedIdle_;
     bool cityReady_ = false;          // this load's first ConnectionsReady was seen
     bool turboHeld_ = false;          // a request waits for it
     int32_t turboHeldUntil_ = 0;      // its end date (0 = none)

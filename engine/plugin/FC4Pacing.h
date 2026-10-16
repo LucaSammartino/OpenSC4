@@ -62,6 +62,15 @@ void PacingStartup();
 // DLL's image): a paced agent under deterministic pacing.
 bool PacingIsOurs(const cIGZMessageTarget2* target);
 
+// [choice] Under deterministic pacing, the SimIdle deliveries per day at the
+// settle point for an ORIGINAL idle agent registered under `name` (level 10),
+// or 0 (not paced: it keeps the frame idle passes). Only agents that do a
+// fixed amount of work per delivery are paced: the prop developer (one block
+// step per Idle, prop-developer.md §3.3) gets 20, the idle deliveries of a
+// day at the middle speed (1000 ms per day at 20 frames per second,
+// simulator.md §7).
+uint32_t PacingFixedIdleSteps(const char* name);
+
 // Our simulator (main thread): a day was opened (SimNewDay posted) / settled.
 // Between the two, PacingDefer queues the deferrable posts.
 void PacingDayOpened(int32_t julian);
@@ -70,8 +79,10 @@ void PacingDayOpened(int32_t julian);
 // Main thread only.
 bool PacingDefer(cIGZMessage2* msg);
 // The day's settle point: sends every deferred message with `ms` (including
-// those deferred while sending), in order, releases them and closes the day.
-// A null `ms` releases them unsent. Returns the number sent.
+// those deferred while sending), in order, releases them and closes the day;
+// then runs the message server's tick until its post queue is empty (at most
+// 64 ticks), so every other post of the day is delivered too. A null `ms`
+// releases them unsent. Returns the number sent.
 uint32_t PacingFlush(cIGZMessageServer2* ms, int32_t julian);
 // City shutdown: releases anything still queued, unsent; closes the day.
 void PacingDrop(const char* why);
@@ -82,6 +93,8 @@ struct PacingStats {
     uint64_t sent = 0;
     uint64_t settles = 0;
     uint64_t dropped = 0;
+    uint64_t pumps = 0;      // message-server ticks run at settle points
+    uint64_t leftovers = 0;  // settle points that left posts queued
 };
 PacingStats PacingCounters();
 

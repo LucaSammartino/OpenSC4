@@ -561,12 +561,24 @@ void cFC4Simulator::InstallPacing() {
     hooks.user = this;
     hooks.is_paced = &cFC4Simulator::HostIsPaced;
     hooks.settle = &cFC4Simulator::HostSettle;
+    hooks.idle_steps = &cFC4Simulator::HostIdleSteps;
     if (!fc4_sim_set_pacing(sim_, static_cast<uint32_t>(mode), &hooks)) {
         fc4::Log("cFC4Simulator: WARNING fc4_sim_set_pacing(%s) refused", fc4::PacingName(mode));
     }
 }
 
-bool cFC4Simulator::HostIsPaced(void*, fc4_agent agent) { return fc4::PacingIsOurs(AgentPtr(agent)); }
+bool cFC4Simulator::HostIsPaced(void* user, fc4_agent agent) {
+    if (fc4::PacingIsOurs(AgentPtr(agent))) return true;
+    const auto* self = static_cast<const cFC4Simulator*>(user);
+    return self != nullptr && self->fixedIdle_.count(static_cast<uintptr_t>(agent)) != 0;
+}
+
+uint32_t cFC4Simulator::HostIdleSteps(void* user, fc4_agent agent) {
+    const auto* self = static_cast<const cFC4Simulator*>(user);
+    if (self == nullptr) return 1;
+    const auto it = self->fixedIdle_.find(static_cast<uintptr_t>(agent));
+    return it != self->fixedIdle_.end() ? it->second : 1;
+}
 
 void cFC4Simulator::HostSettle(void* user, int32_t julian) {
     auto* self = static_cast<cFC4Simulator*>(user);
@@ -589,9 +601,11 @@ void cFC4Simulator::Post(const fc4_message& msg) {
     if (msg.type == kMsgSimNewMonth) fc4::HeartbeatNow("month start");
     if (msg.type == kMsgSimNewMonth && fc4::PacingDeterministic()) {
         const fc4::PacingStats ps = fc4::PacingCounters();
-        fc4::Log("pacing: days settled %llu, messages deferred %llu, sent at settle %llu, released unsent %llu",
+        fc4::Log("pacing: days settled %llu, messages deferred %llu, sent at settle %llu, released unsent %llu, "
+                 "message-server ticks %llu, settles with posts left %llu",
                  static_cast<unsigned long long>(ps.settles), static_cast<unsigned long long>(ps.deferred),
-                 static_cast<unsigned long long>(ps.sent), static_cast<unsigned long long>(ps.dropped));
+                 static_cast<unsigned long long>(ps.sent), static_cast<unsigned long long>(ps.dropped),
+                 static_cast<unsigned long long>(ps.pumps), static_cast<unsigned long long>(ps.leftovers));
     }
     if (msg.type == kMsgSimNewMonth && turboUsed_) TurboMonthLine(static_cast<int32_t>(msg.data1));  // tooling
     const bool logIt = calendar || postsLogged_ < 200;
@@ -916,6 +930,14 @@ bool cFC4Simulator::AddAgent(cIGZMessageTarget2* pAgent, uint32_t agentType, cIG
     Stats(pAgent, static_cast<uint32_t>(agentType)).name = name.empty() ? std::string("(unnamed)") : name;
     const bool ok = fc4_sim_add_agent(sim_, AgentHandle(pAgent), static_cast<uint32_t>(agentType), name.data(),
                                       name.size(), static_cast<uint32_t>(flags));
+    if (ok && agentType == 10 && !fc4::PacingIsOurs(pAgent)) {
+        const uint32_t steps = fc4::PacingFixedIdleSteps(name.c_str());
+        if (steps != 0) {
+            fixedIdle_[reinterpret_cast<uintptr_t>(pAgent)] = steps;
+            fc4::Log("pacing: the original's idle agent '%s' (%p) gets %u SimIdle per day at the settle point",
+                     name.c_str(), static_cast<void*>(pAgent), steps);
+        }
+    }
     FC4_LOGV("AddAgent(%p, level %u, '%s', flags %u) -> %d", static_cast<void*>(pAgent),
              static_cast<uint32_t>(agentType), name.c_str(), static_cast<uint32_t>(flags), ok ? 1 : 0);
     return ok;
@@ -923,6 +945,7 @@ bool cFC4Simulator::AddAgent(cIGZMessageTarget2* pAgent, uint32_t agentType, cIG
 
 bool cFC4Simulator::RemoveAgent(cIGZMessageTarget2* pAgent, uint32_t agentType) {
     const bool ok = fc4_sim_remove_agent(sim_, AgentHandle(pAgent), static_cast<uint32_t>(agentType));
+    if (agentType == 10) fixedIdle_.erase(reinterpret_cast<uintptr_t>(pAgent));
     FC4_LOGV("RemoveAgent(%p, level %u) -> %d", static_cast<void*>(pAgent), static_cast<uint32_t>(agentType),
              ok ? 1 : 0);
     return ok;
@@ -930,13 +953,18 @@ bool cFC4Simulator::RemoveAgent(cIGZMessageTarget2* pAgent, uint32_t agentType) 
 
 bool cFC4Simulator::RemoveAgentAllLevels(cIGZMessageTarget2* pAgent) {
     const bool ok = fc4_sim_remove_agent_all_levels(sim_, AgentHandle(pAgent));
+    fixedIdle_.erase(reinterpret_cast<uintptr_t>(pAgent));
     FC4_LOGV("RemoveAgent(%p, all levels) -> %d", static_cast<void*>(pAgent), ok ? 1 : 0);
     return ok;
 }
 
-bool cFC4Simulator::RemoveAllAgents() { return fc4_sim_remove_all_agents(sim_); }
+bool cFC4Simulator::RemoveAllAgents() {
+    fixedIdle_.clear();
+    return fc4_sim_remove_all_agents(sim_);
+}
 
 bool cFC4Simulator::RemoveAllAgentsAt(uint32_t agentType) {
+    if (agentType == 10) fixedIdle_.clear();
     return fc4_sim_remove_all_agents_at(sim_, static_cast<uint32_t>(agentType));
 }
 

@@ -26,6 +26,9 @@ pub struct HistoryWarehouse {
     /// The pass cursor: the key of its series, `None` at the end of the map.
     cursor: Option<u32>,
     pass_counter: u32,
+    /// simulator.md §5.7: captured from [`crate::pacing::process`] at
+    /// construction; deterministic pacing never reads the clock in the pass.
+    pacing: crate::pacing::Pacing,
 }
 
 /// The day number of a civil date, as the warehouse's `u32` dates.
@@ -59,7 +62,19 @@ impl HistoryWarehouse {
             pass_state: PASS_IDLE,
             cursor: None,
             pass_counter: 0,
+            pacing: crate::pacing::process(),
         }
+    }
+
+    /// The pacing this warehouse runs (simulator.md §5.7).
+    pub fn pacing(&self) -> crate::pacing::Pacing {
+        self.pacing
+    }
+
+    /// Shadows and tests: [`crate::pacing::Pacing::Original`] keeps the
+    /// pass's 5 ms limit.
+    pub fn set_pacing(&mut self, p: crate::pacing::Pacing) {
+        self.pacing = p;
     }
 
     // ---- lifecycle (§3) -----------------------------------------------------------------------
@@ -187,7 +202,9 @@ impl HistoryWarehouse {
             PASS_RUNNING => {}
             _ => return true,
         }
-        let start = self.host.now_ms();
+        // Deterministic pacing (simulator.md §5.7): the item count only.
+        let timed = !self.pacing.is_deterministic();
+        let start = if timed { self.host.now_ms() } else { 0 };
         if self.series.is_empty() {
             self.pass_state = PASS_IDLE;
             return true;
@@ -205,7 +222,7 @@ impl HistoryWarehouse {
                 self.pass_counter += 1;
             }
             self.advance_cursor();
-            if self.host.now_ms().wrapping_sub(start) >= PASS_TIME_LIMIT_MS {
+            if timed && self.host.now_ms().wrapping_sub(start) >= PASS_TIME_LIMIT_MS {
                 break;
             }
         }
