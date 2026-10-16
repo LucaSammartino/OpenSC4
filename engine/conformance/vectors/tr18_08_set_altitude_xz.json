@@ -1,0 +1,183 @@
+{
+  "format": 1,
+  "name": "tr18_08_set_altitude_xz",
+  "spec": [
+    "terrain 6",
+    "terrain 18.8"
+  ],
+  "description": "SetAltitude(x, z, h) with the shipped clamps (20, 2500) and the sea at 250: 260 -> 3000 clamps to 2500, depth = 250 - 2500 = -2250. 30 -> 10 is LowerVertex(20): 10, clamped to 20, depth 230. A locked vertex never changes. Equal or NaN: nothing. The index is (cellsX + 1) * z + x with no bounds check: (2, 0) on a 1-cell city is the vertex (0, 1).",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        1,
+        1
+      ],
+      "altitudes": [
+        260,
+        300,
+        300,
+        300
+      ],
+      "sea": 250
+    },
+    {
+      "op": "ter_call",
+      "method": "set_altitude",
+      "args": [
+        0,
+        0,
+        3000
+      ]
+    },
+    {
+      "op": "ter_expect_vertices",
+      "vertex": [
+        0,
+        0
+      ],
+      "altitude": 2500,
+      "depth": -2250
+    },
+    {
+      "op": "ter_create",
+      "cells": [
+        1,
+        1
+      ],
+      "altitudes": [
+        30,
+        300,
+        300,
+        300
+      ],
+      "sea": 250
+    },
+    {
+      "op": "ter_call",
+      "method": "set_altitude",
+      "args": [
+        0,
+        0,
+        10
+      ]
+    },
+    {
+      "op": "ter_expect_vertices",
+      "vertex": [
+        0,
+        0
+      ],
+      "altitude": 20,
+      "depth": 230
+    },
+    {
+      "op": "ter_create",
+      "cells": [
+        1,
+        1
+      ],
+      "altitudes": [
+        260,
+        300,
+        300,
+        300
+      ],
+      "sea": 250
+    },
+    {
+      "op": "ter_call",
+      "method": "lock_altitude",
+      "args": [
+        0,
+        0,
+        1,
+        1,
+        true
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "set_altitude",
+      "args": [
+        0,
+        0,
+        3000
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "set_altitude",
+      "args": [
+        0,
+        0,
+        10
+      ]
+    },
+    {
+      "op": "ter_expect_vertices",
+      "vertex": [
+        0,
+        0
+      ],
+      "altitude": 260,
+      "depth": -10
+    },
+    {
+      "op": "ter_call",
+      "method": "lock_altitude",
+      "args": [
+        0,
+        0,
+        1,
+        1,
+        false
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "set_altitude",
+      "args": [
+        0,
+        0,
+        "nan"
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "set_altitude",
+      "args": [
+        0,
+        0,
+        260
+      ]
+    },
+    {
+      "op": "ter_expect_vertices",
+      "vertex": [
+        0,
+        0
+      ],
+      "altitude": 260,
+      "depth": -10
+    },
+    {
+      "op": "ter_call",
+      "method": "set_altitude",
+      "args": [
+        2,
+        0,
+        280
+      ]
+    },
+    {
+      "op": "ter_expect_vertices",
+      "vertex": [
+        0,
+        1
+      ],
+      "altitude": 280,
+      "depth": -30
+    }
+  ]
+}

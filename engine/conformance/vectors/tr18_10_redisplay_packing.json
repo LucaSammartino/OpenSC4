@@ -1,0 +1,174 @@
+{
+  "format": 1,
+  "name": "tr18_10_redisplay_packing",
+  "spec": [
+    "terrain 8.1",
+    "terrain 8.3",
+    "terrain 18.10"
+  ],
+  "description": "RedisplayTerrain(1, 1, (3, 5, 10, 12), 4) before DoPostCityInit posts nothing. After it: 0x278E6003 with data1 = (3 << 16) + 10 = 0x0003000A, data2 = (5 << 16) + 12 = 0x0005000C, data3 0, data4 4; then 0x678E6E3A with the same; then 0x870BC918. Water only: 0x678E6E3A then the texture message. Slot 69 sorts the cell corners (5, 2), (3, 7) and sets x1 = 5 + 1, z1 = 7 + 1. Begin / EndLongTerrainOperation post 0xEA3B0AF1 / 0x6A3B0AFD on each call, with no nesting counter, even before DoPostCityInit.",
+  "steps": [
+    {
+      "op": "ter_create",
+      "cells": [
+        16,
+        16
+      ],
+      "view_ready": false
+    },
+    {
+      "op": "ter_call",
+      "method": "redisplay",
+      "args": [
+        true,
+        true,
+        3,
+        5,
+        10,
+        12,
+        4
+      ]
+    },
+    {
+      "op": "ter_expect_events",
+      "events": []
+    },
+    {
+      "op": "ter_call",
+      "method": "begin_long_terrain_operation"
+    },
+    {
+      "op": "ter_call",
+      "method": "begin_long_terrain_operation"
+    },
+    {
+      "op": "ter_call",
+      "method": "end_long_terrain_operation"
+    },
+    {
+      "op": "ter_expect_events",
+      "events": [
+        {
+          "event": "post",
+          "msg": "0xEA3B0AF1",
+          "data1": 0,
+          "data2": 0,
+          "data3": 0,
+          "data4": 0
+        },
+        {
+          "event": "post",
+          "msg": "0xEA3B0AF1"
+        },
+        {
+          "event": "post",
+          "msg": "0x6A3B0AFD",
+          "data1": 0,
+          "data2": 0,
+          "data3": 0,
+          "data4": 0
+        }
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "post_city_init"
+    },
+    {
+      "op": "ter_call",
+      "method": "redisplay",
+      "args": [
+        true,
+        true,
+        3,
+        5,
+        10,
+        12,
+        4
+      ]
+    },
+    {
+      "op": "ter_expect_events",
+      "events": [
+        {
+          "event": "post",
+          "msg": "0x278E6003",
+          "data1": "0x0003000A",
+          "data2": "0x0005000C",
+          "data3": 0,
+          "data4": 4
+        },
+        {
+          "event": "post",
+          "msg": "0x678E6E3A",
+          "data1": "0x0003000A",
+          "data2": "0x0005000C",
+          "data3": 0,
+          "data4": 4
+        },
+        {
+          "event": "post",
+          "msg": "0x870BC918"
+        }
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "redisplay",
+      "args": [
+        false,
+        true,
+        0,
+        0,
+        1,
+        1,
+        3
+      ]
+    },
+    {
+      "op": "ter_expect_events",
+      "events": [
+        {
+          "event": "post",
+          "msg": "0x678E6E3A",
+          "data1": 1,
+          "data2": 1,
+          "data4": 3
+        },
+        {
+          "event": "post",
+          "msg": "0x870BC918"
+        }
+      ]
+    },
+    {
+      "op": "ter_call",
+      "method": "redisplay_cells",
+      "args": [
+        true,
+        false,
+        5,
+        2,
+        3,
+        7,
+        1
+      ]
+    },
+    {
+      "op": "ter_expect_events",
+      "events": [
+        {
+          "event": "post",
+          "msg": "0x278E6003",
+          "data1": "0x00030006",
+          "data2": "0x00020008",
+          "data4": 1
+        },
+        {
+          "event": "post",
+          "msg": "0x870BC918"
+        }
+      ]
+    }
+  ]
+}
