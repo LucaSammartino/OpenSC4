@@ -1742,8 +1742,9 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
    - **Occupant manager shadow** (`occmgr_shadow = 1`, env `FC4_OCCMGR_SHADOW`; off by default;
      `occmgr_shadow_samples = N`, default 4, 1..64; `occmgr_shadow_probe = 0/1`, default 1;
      `plugin/FC4OccMgrShadow.h`): a same-process differential of the city's occupant manager
-     (`docs/specs/occupant-manager.md`) against the `fc4_occmgr` core. FreeCity4 never replaces the occupant
-     manager, so the shadow always follows the **original**. At PostCityInit a core with a read-only host starts
+     (`docs/specs/occupant-manager.md`) against the `fc4_occmgr` core. It follows **whichever manager the city
+     holds** - the original, or the `enable = occmgr` replacement below, whose wrapper and record it then checks.
+     At PostCityInit a core with a read-only host starts
      from the original's record (its own `Write` into memory); each occupant's stored box and flag 1 are read from
      the occupant into the host's own state, which the core then changes instead of the occupant (nothing is
      posted, initialised or shut down; the core's references are audited AddRefs). The core follows the Insert,
@@ -1768,11 +1769,29 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      occmgr shadow: probe installed on 18 of 18 slots of vtable … (main thread …)
      occmgr shadow month yyyy-mm-dd: followed=yes|first|resynced occupants=N refs=R record=exact (P set aside)|D
        cells differ (P set aside); silent moves=S; messages ins/rem/move=a/b/c refused=r off-thread=t boxes=x/y;
-       queries on followed|fresh core q/Q (every slot exact)| differ: sN=e/t …; probe: slots=18 main=… other=… (threads tid:calls …)
+       queries on followed|fresh core q/Q (every slot exact)| differ: sN=e/t …; msgorder=a/b (exact)| destroy=o/n/e;
+       probe: slots=18 main=… other=… (threads tid:calls …)
        overlaps=… slot12=… overflow=0; stray releases=0; mismatches=N[; differences: …]
      occmgr shadow: city shutdown: N month lines, M with mismatches=0; resyncs=K; per slot exact/total: 25=…;
        probe: … thread tid (main): s1=… …
      ```
+
+     `msgorder` is the message-order comparison (glue25): the manager's own messages (Insert `0x99EF1142`, Remove
+     `0x99EF1143`, Move `0x99EF1146`) as the followed manager posts them against the core's own posts, element by
+     element on kind, occupant and data4. `destroy=o/n/e` is §5.3 step 4's interleaving over the `0x99EF1141`
+     stream: `o` Destroy messages immediately after their own Remove, `n` whose own Remove is outstanding but not
+     just before them (the Removes and the Destroys batched the other way round - a mismatch), and `e` of occupants
+     shut down outside the manager (counted only). Success is `msgorder=… (exact)` and `destroy=…/0/…`.
+   - **Occupant manager** (`enable = occmgr`; `plugin/cFC4OccMgr.*`, over the `fc4_occmgr` core): the city's
+     `cSC4OccupantManager` (class `0x098F964D`, city component 4). It answers `cISC4OccupantManager`
+     (occupant-manager.md §11, 50 slots in the game's compiled order - every overload pair has a unique name and
+     slots 46/47 are typed-first, §9.4), `cIGZSerializable` at +4 and `cIGZMessageTarget2` at +8. The grid of
+     192 x 192 64 m cells, the newest-first cell lists, the Insert / Remove / RemoveOccupants / Move message
+     order, the queries and the v1 save record all live in the core; the class adapts the interfaces and the
+     `fc4_occmgr_host` table (occupant AddRef / Release / Init / Shutdown / box / flags / `PostOccupantMessage`,
+     and `resolve_ref` for the save's references). `Read` runs before `Init` and sizes nothing from the city.
+     Lines: `occmgr Write|Read -> … (version 1, size … counts … rows=… holders=… nodes=…)`. **Off by default**;
+     the `occmgr_shadow` differential above follows this manager when it is on.
 
      Success is `mismatches=0` on every line (they count cell, box and query differences and stray releases).
      `refused` counts followed messages the core refused (an Insert of an occupant already read from the record, a
