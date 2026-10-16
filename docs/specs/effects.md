@@ -1243,3 +1243,106 @@ saves nothing).
 15. **`volcano_control` end condition** (§10.1, re-integrate1). The effect finishes only after the chosen
     `volcanocreator*` child has finished on a previous sweep **and** that child's brush, particle and decal
     components are all inactive on this one. The attractor and the game record never hold it.
+
+## 18. The manager's interface sub-objects *[compat]*
+
+**Answer to glue22 question 9** (`enable = effects` faults `ACCESS_VIOLATION` writing `0x4D` at a wild `eip`
+about 100 ms after `Init` returns, with `eax = esi = ebp = 0`, `edi = 0x0.....801E`, and no method of the
+replacement entered). Verdict: **DIFFERS** from the replacement's current shape. The original
+`cSC4EffectsManager` is **not** one interface; it is six C++ sub-objects with their own vptrs, and the game
+holds two of them by *offset*, not by the primary pointer. The change to make is in §18.4.
+
+### 18.1 The sub-object map
+
+The constructor/destructor of `cSC4EffectsManager` (`0x0058FA60`) stores every vptr, which fixes the layout
+exactly:
+
+```c
+this->field0_0x0    = vftable;             // 0x00A9F264
+this->field1_0x4    = vftable_1;           // 0x00A9F250
+this->field2_0x8    = &PTR_FUN_00a9f240;   // 0x00A9F240
+this->field3_0xc    = &PTR_FUN_00a9f210;   // 0x00A9F210
+this->field4_0x10   = vftable_4;           // 0x00A9F1F8
+this->field133_0x94 = (int)vftable_5;      // 0x00A9F198
+```
+
+The Mac build agrees independently: `cSC4EffectsManager` has exactly five non-virtual thunks, and the
+`__ZThnN_` adjustment in each mangled name is the sub-object offset (`__ZThn4_`, `__ZThn8_`, `__ZThn12_`,
+`__ZThn16_`, `__ZThn148_` — i.e. +4, +8, +12, +16, +148 = `0x4`, `0x8`, `0xC`, `0x10`, `0x94`).
+
+| Offset | Windows vtable | Slots | Methods on that sub-object (Mac thunks) | Interface |
+|---|---|---|---|---|
+| **`+0x00`** | `0x00A9F264` | 12 | the §11 `cISC4EffectsManager` slot table | `cISC4EffectsManager`, IID `0xC97CF5CD` |
+| **`+0x04`** | `0x00A9F250` | 5 | QI, AddRef, Release, `Update(SC4DrawContext*)`, `Pick(cS3DVector3 const&, cS3DVector3 const&, SC4DrawContext*, float*)` | the draw-pass / pick interface |
+| **`+0x08`** | `0x00A9F240` | 4 | QI, AddRef, Release, **`DoMessage(cIGZMessage2*)`** | **`cIGZMessageTarget2`, IID `0x452294AA`** |
+| **`+0x0C`** | `0x00A9F210` | 12 | QI, AddRef, Release, D0, D1, … | unnamed base *[inferred]* |
+| **`+0x10`** | `0x00A9F1F8` | 6 | QI, AddRef, Release, D0, D1, … | unnamed base *[inferred]* |
+| **`+0x94`** | `0x00A9F198` | 24 | QI, AddRef, Release, **`BeginCollection`**, **`EndCollection`** | the effects-collection interface, IID `0xC97CF5CE` |
+
+`DoMessage` is `0x00594120`, which is slot 3 of the `+0x08` vtable `0x00A9F240` — that is how the `+0x08`
+identity is pinned. The draw-pass `Update(SC4DrawContext*)` (`0x00593120`, §7) is slot 3 of `0x00A9F250`, so
+the draw-pass sub-object is **`+0x04`** and the `+4` experiment had the right offset.
+
+### 18.2 What `QueryInterface` hands out
+
+`cSC4EffectsManager::QueryInterface` is `0x0058D9E0`. It returns a **sub-object pointer**, never the primary,
+for two IIDs:
+
+| `riid` | returned | sub-object |
+|---|---|---|
+| `0xC97CF5CD` | `this` | `+0x00` |
+| `1` (`GZIID_cIGZUnknown`) | `this` | `+0x00` |
+| **`0x452294AA`** | **`this + 8`** | **`+0x08`** (`cIGZMessageTarget2`) |
+| **`0xC97CF5CE`** | **`this + 0x94`** | **`+0x94`** (collection) |
+| `0x0A5EAA1A` | forwarded to the object at `this + 0xD98` | a nested object, not a base |
+
+Any other IID returns 0 with the out pointer left alone. Note the same IID/CLSID confusion that broke the
+automata classes (automata §15): the two "extra" IIDs here are **interface** IIDs, and the primary pointer is
+only correct for `1` and `0xC97CF5CD`.
+
+### 18.3 Why the replacement faults the way it does
+
+The message service (`0x00B43CCC`) takes a `cIGZMessageTarget2*` and later dispatches to it. The original
+hands out `this + 8`. A replacement that is only as big as one interface has **nothing at `+0x08`**, so a
+target pointer formed the way the original forms it points just past the object; fetching `*(obj + 8)` as a
+vptr yields adjacent heap, the call jumps to whatever that contains (the observed `eip = 0x0.....8023`,
+"no module"), and the garbage instruction faults on a write to `0x4D`. That also explains why **no method of
+the replacement is entered after `Init`** and why `AddNotification` still returns normally: the subscription
+succeeds and only the later dispatch goes wrong. The `+4` draw-pass sub-object does not help because the
+dispatch is on `+0x08`, not `+0x04`, and `Update` is never reached before the fault
+*[inferred — the exact call site of the dispatch was not traced]*.
+
+The stack frame `SimCity 4.exe+0x5BF36` in the crash report is the return address of `call [edx+0x0C]` at
+`0x45BF33` in `FUN_0045bd20` (the city's Init loop), i.e. the `Init` of the component at `cSC4City + 0x12C`
+(`CreateObject(0x098F964D, 0xC6BB8334, …)`, `decomp/cSC4City.c:1999`), which runs **after** the effects
+manager's own `Init` (`0x45BF12`, next instruction `0x45BF15`). So the fault is during a later component's
+`Init`, not inside `cFC4EffectsManager::Init` — consistent with a dispatch that arrives after our `Init`
+returned.
+
+### 18.4 The change to make
+
+Do **not** ship a single-interface object. Either
+
+1. **Lay out all six sub-objects at exactly `+0x00`, `+0x04`, `+0x08`, `+0x0C`, `+0x10`, `+0x94`** and put the
+   matching vtable at each, with `QueryInterface` returning `this`, `this+8` and `this+0x94` for
+   `0xC97CF5CD`/`1`, `0x452294AA` and `0xC97CF5CE` respectively (§18.2); or
+2. keep the object small but make every `QueryInterface` answer return a sub-object that **actually exists**
+   at the offset the caller will use, and never return `this + N` for an `N` past the end of the object.
+
+At minimum the object must be large enough to hold `+0x94`, since that is a real sub-object the original
+returns from `QueryInterface`, and it must expose `cIGZMessageTarget2` at `+0x08` with `DoMessage` at that
+sub-object's slot 3. Return the **sub-object** pointer for those IIDs, not the primary — the same rule as
+automata §15.
+
+State the original keeps at `+0x1B4`, `+0x1B8`, `+0x1BC`, `+0x1C0`, `+0xB90`, `+0xBAC`, `+0xC84`, `+0xC8C`,
+`+0xD64` and `+0xD98` (§2 and §18.2) is inside the primary object and must exist at those offsets too if the
+replacement is to survive the game's own direct field access.
+
+### 18.5 Still open
+
+- The interface identities of the `+0x0C` and `+0x10` bases (12 and 6 slots, both with `D0`/`D1`) are
+  *[inferred]* to be internal bases: neither is returned by `QueryInterface` (`0x0058D9E0` handles only
+  `0xC97CF5CD`, `1`, `0x452294AA`, `0xC97CF5CE` and `0x0A5EAA1A`).
+- The exact dispatch site that reaches `+0x08` before the first draw needs a runtime probe: log every call
+  into the replacement after `Init` together with `this` and `this+8`, or break on `cIGZMessageTarget2`'s
+  `DoMessage` in the original and record the caller.

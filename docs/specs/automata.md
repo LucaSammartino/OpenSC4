@@ -1454,10 +1454,14 @@ argument types given above for script slots 11 and 12 are checked, the others ar
    all.
 9. **A trailer only keeps vehicle refs** (§6.4). Its refs are checked against the vehicle's class ID used as an
    IID, so any other automaton reads as null and is dropped.
-10. **`+0x0C` is a stack index, not a semantic field** (§6.2, re-integrate1). `PushState` computes it as
-    `stack.size()-1` after the push (Mac `0x000bf7d0`) and `PrevState` uses it as an index (Mac `0x000bbee4`,
-    Windows `0x00509900`). It round-trips, but a replacement must **recompute it after any stack mutation**
-    rather than trust the stream.
+10. **`+0x0C` is a stack index, not a semantic field** (§6.2, re-integrate1; **wording corrected by A1**,
+    re-answers31). `PushState` computes it as `stack.size()-1` after the push (Mac `0x000bf7d0`) and `PrevState`
+    uses it as an index (Mac `0x000bbee4`, Windows `0x00509900`). It round-trips. A replacement must **recompute
+    it after any stack mutation** (`PushState` / `PopState`) and must **store the streamed value unchanged on
+    Read** — `tAutomataState::Read` (`0x00505E50`) reads it into `state+0x0C` and does not derive it, and
+    `Write` (`0x00509D00`) emits it, so re-deriving on Read breaks the byte-exact re-save. "Rather than trust
+    the stream" in the earlier wording applied to *stack mutations*, not to Read; test 29 as originally written
+    read the other way and was wrong.
 11. **`+0x14` is `final`, and it has teeth** (§6.2, re-integrate1). `SetState` returns 0 and changes nothing
     while the top state has it (Mac `0x000bd3ca`, Windows `0x00509860`). RiotLeader (`0x0057DD97`) and Collide
     (Mac `0x000a091e`) are both pushed `final=1`. `PopState` on a `final` state that is not already type 1 does
@@ -1630,6 +1634,17 @@ New from the re-integrate1 reports (the probe named is the one the source gives)
   zeroed at the end of the pull-over move tick) *[inferred]*. **Probe:** `cSC4Automaton::GetSpeed`'s body
   (slot 34). Windows slot `0xA0` in `DoStopSignTick` step 3 being `ReturnToDefaultSpeed` is likewise
   *[inferred]* — settle by dumping the Windows vtable entry at `+0x280`.
+- **A4 (settled here).** The city's Init fault at `SimCity 4.exe+0x0045BF1B` with the six automata GZCOM classes
+  registered. **ANSWERED 2026-10-16 (re-answers31; QUESTIONS.md A4).** The null is the component at
+  `cSC4City + 0x1E4`, the script system; `QueryInterface` answers the **CLSID** `0x4A1B664E` but not the **IID**
+  `0x8A1B6647` the city creates it with, so the out parameter is left null and the city calls `Init` on it
+  without a null check. The same IID gap is on all six classes. Full chain, addresses and the change to make:
+  **§15**.
+- **A1 (settled here).** Whether `+0x0C` (the state stack index) must be recomputed **on Read**.
+  **ANSWERED 2026-10-16 (re-answers31; QUESTIONS.md A1).** **DIFFERS** from test 29 as written: the stream value
+  is authoritative and must be stored as read, or a byte-exact re-save breaks. Recompute only after a *stack
+  mutation* (`PushState` / `PopState`), which is what §12 quirk 10 already says. See the correction to §14
+  test 29.
 
 ## 14. Conformance tests (must exist in `engine/conformance`)
 
@@ -1717,9 +1732,14 @@ Each test reads the record, checks the decoded fields, writes it back and compar
 28. **Returned 0 means the generic seek** (§6.5). A state type with no `DoStateTick` case (0, 2, 3, 4, …) makes
     `DoStateTick` return 0, and `DoAnimationTick` then seeks `destination` at `GetCurrentSpeed()`, setting flag
     4 on arrival. A type that returns 1 (e.g. RANDOM_WALK) does not seek.
-29. **Stack index recomputation** (quirk 10). Push three states, pop one, and check that every remaining
-    state's `+0x0C` equals its 0-based position from the bottom. A record read from a stream must have `+0x0C`
-    recomputed rather than trusted.
+29. **Stack index: stored as read, recomputed on stack mutation** (quirk 10; **corrected by A1**,
+    re-answers31 2026-10-16). Push three states, pop one, and check that every remaining state's `+0x0C` equals
+    its 0-based position from the bottom — that recomputation is the job of `PushState` / `PopState` only.
+    **A record read from a stream must keep the `+0x0C` the stream gives it, unchanged.** Do **not** recompute
+    it on Read: `tAutomataState::Read` (`0x00505E50`) reads the `u32` straight into `state+0x0C`
+    (`lea eax,[edi+0x0C]` / `call [stream+0x24]` at `0x505E99`–`0x505E9F`) and never derives it, while
+    `tAutomataState::Write` (`0x00509D00`) emits it. Recomputing on Read therefore changes a saved byte and
+    breaks the byte-exact re-save the corpus requires (it shifts byte 174 of a 342-byte pedestrian record).
 30. **`dt` is ms, tween durations are seconds** (quirk 17). `TweenSpeed(target, 1.0)` with `dt` of 500 ms
     reaches the target after two ticks; `state+0x10 = 1000.0` expires after one 1000 ms tick.
 31. **Chase is record-only** (§6.2, quirk 15). `ChaseAutomaton` (manager slot 22) pushes `0x34` and stores the
@@ -1728,3 +1748,131 @@ Each test reads the record, checks the decoded fields, writes it back and compar
 32. **The blocked wait's exit** (§6.2 type 13, §6.5). While `state+0x10 > 0` and flag `0x20` is clear the tick
     returns 0 and does nothing. With `0x20` set it decrements by `GetSpeedModifier()·dt`. On expiry it clears
     `0x20` and `0x10`, and `PopState`s only when the network map reports the way clear.
+
+## 15. GZCOM creation contract (city Init) *[compat]*
+
+**Answer to A4** (glue19 automata lane: the city's Init phase faults at `SimCity 4.exe+0x0045BF1B` with
+`ACCESS_VIOLATION reading 0`, `eax=1 ecx=0 edx=0x3000 ebx=0x00A80810`, after every component reports `Read -> 1`).
+Verdict: **DIFFERS** — the missing piece is not a component record and not a list sentinel. It is the **IID the
+city asks for at create time**. See the change to make at the end of this section.
+
+### 15.1 The faulting instruction
+
+`0x0045BF1B` is inside `FUN_0045bd20` (`0x45bd20`–`0x45c196`), the city's one-shot initialiser. The instruction is
+
+```
+0x45BF1B   8B 11      MOV  EDX, dword ptr [ECX]     ; fetch the object's vtable
+0x45BF1D   FF 52 0C   CALL dword ptr [EDX+0x0C]     ; vtable slot 3 = Init
+```
+
+`ECX = 0` is the object pointer, so the vtable fetch reads address 0. The pointer is loaded one instruction
+earlier:
+
+```
+0x45BF15   8B 8E E4 01 00 00   MOV ECX, dword ptr [ESI+0x1E4]
+```
+
+`ESI` is the `cSC4City` `this` (the prologue keeps it there; `0x45bebb` has `8B CE` `MOV ECX, ESI`). So the null
+is the **component pointer at `cSC4City + 0x1E4`**, and the city calls its `Init` (slot 3) with **no null check**.
+
+The call order in `FUN_0045bd20` around the fault is `+0x1F4`, `+0x1F0`, `+0x1FC` (the effects manager,
+`cSC4EffectsManager`, class `0x49822F75`, `re/class_id_table.tsv:396`), then **`+0x1E4`**, then `+0x1E0`. The four
+automata managers (`+0x1D0`, `+0x1D4`, `+0x1D8`, `+0x1DC`) are initialised much later in the same loop, which is
+why the fault lands on the script system first.
+
+### 15.2 What lives at `cSC4City + 0x1E4`
+
+`cSC4City::field138_0x1e4` is the **automata script system** (component 40, §2). `re/class_id_table.tsv:361`
+gives `0x4A1B664E -> cSC4AutomataScriptSystem`. The city creates it in its ensure-components helper:
+
+```c
+if (this->field138_0x1e4 == (int *)0x0) {
+  (**(code **)(*piVar1 + 0xc))(0x4a1b664e, 0x8a1b6647, &this->field138_0x1e4);   // decomp/cSC4City.c:2144-2145
+}
+```
+
+That is `CreateObject(clsid = 0x4A1B664E, iid = 0x8A1B6647, &out)`: **class** `cSC4AutomataScriptSystem`,
+**interface** `cISC4AutomataScriptSystem`. Note the asymmetry: the create helper *does* null-check before
+creating (`2144`) and the destroy helper *does* null-check before releasing (`2300`–`2303`), but the Init
+dispatcher (`FUN_0045bd20`) and the other raw slot-3 call at `decomp/cSC4City.c:2722` do not.
+
+The same pattern creates the other five, each with its own **IID** — note that for the four managers the IID is
+shared and is *not* any of their CLSIDs:
+
+| City field | Class (CLSID) | IID asked for | Interface |
+|---|---|---|---|
+| `+0x1D0` | `0xA98F9D3B` vehicle | `0x098F9BF4` | `cISC4AutomataManager` |
+| `+0x1D4` | `0xC98F9D17` pedestrian | `0x098F9BF4` | `cISC4AutomataManager` |
+| `+0x1D8` | `0xC98F9D4A` aircraft | `0x098F9BF4` | `cISC4AutomataManager` |
+| `+0x1DC` | `0xA98F9D28` watercraft | `0x098F9BF4` | `cISC4AutomataManager` |
+| `+0x1E0` | `0xCA14CA03` controller mgr | `0xCA14C9FC` | `cISC4AutomataControllerManager` |
+| **`+0x1E4`** | **`0x4A1B664E` script system** | **`0x8A1B6647`** | **`cISC4AutomataScriptSystem`** |
+
+(`decomp/cSC4City.c:2132`–`2149`; the IIDs match the §0 table.)
+
+### 15.3 The third cause: `QueryInterface` answers the CLSID, not the IID
+
+The create call resolves the class and then `QueryInterface`s for the **IID**. A replacement class must therefore
+answer its **interface IID**, not merely `1` (`GZIID_cIGZUnknown`) and its own CLSID. The lane's implementation
+does the latter:
+
+```cpp
+bool cFC4AutomataScriptSystem::QueryInterface(uint32_t riid, void** ppvObj) {
+    if (ppvObj == nullptr) return false;
+    *ppvObj = nullptr;                                    // <-- clears the out param first
+    if (riid == GZIID_cIGZSerializable) { ... }
+    else if (riid == 1 || riid == kFC4_CLSID_cSC4AutomataScriptSystem) { ... }   // 0x4A1B664E = the CLASS id
+    else return false;                                    // <-- 0x8A1B6647 lands here
+    ...
+}
+```
+
+(`cFC4Automata.cpp:94`–`105` in the automata lane's worktree; `kFC4_CLSID_cSC4AutomataScriptSystem = 0x4A1B664E`
+at `cFC4Automata.h:36`.) `0x8A1B6647` matches no branch, so the function sets `*ppvObj = nullptr` and returns
+false — the city's out parameter is left **null**, the create helper does not notice, and `FUN_0045bd20` later
+dereferences it at `0x45BF1B`. Exactly the observed `ECX = 0`.
+
+The same defect is on all six classes, which is why registering them all still faults at the first one in Init
+order:
+
+- script system (`cFC4Automata.cpp:94`): accepts `GZIID_cIGZSerializable` (`0xE4FDA3D4`),
+  `GZIID_cIGZUnknown` (`1`) and CLSID `0x4A1B664E` — **missing IID `0x8A1B6647`**.
+- controller manager (`cFC4Automata.cpp:147`): those plus `cIGZMessageTarget2` (`0x452294AA`) and CLSID
+  `0xCA14CA03` — **missing IID `0xCA14C9FC`**.
+- the shared manager (`cFC4Automata.cpp:212`): those plus `classId_` — **missing IID `0x098F9BF4`** for all four.
+
+This is the third cause in the same family as the two already fixed (the `cIGZSerializable` primary-pointer mix-up
+and the zeroed `SC4List` containers): it is a `QueryInterface` contract bug, not a record bug.
+
+**Change to make.** In every automata class's `QueryInterface`, accept the **interface IID** and return the
+interface sub-object for it:
+
+| Class | Accept `riid ==` | Return |
+|---|---|---|
+| `cFC4AutomataScriptSystem` | `0x8A1B6647` | `cFC4ISC4AutomataScriptSystem*` |
+| `cFC4AutomataControllerManager` | `0xCA14C9FC` | `cFC4ISC4AutomataControllerManager*` |
+| `cFC4AutomataManager` (all four) | `0x098F9BF4` | `cFC4ISC4AutomataManager*` |
+
+Keep the CLSID branch if you like (the original answers the CLSID too — that is the ordinary GZCOM convention),
+but it is **not** a substitute for the IID. Do **not** return the raw primary `cIGZUnknown*` for the IID: return
+the interface sub-object the city will call `+0x0C` on, so the vtable the game fetches has `Init` at slot 3
+(§11). The four manager classes share one IID even though they have four distinct CLSIDs — a single
+`riid == 0x098F9BF4` branch is correct for all four.
+
+**Scope.** Fixing this unblocks the `Read -> 1`/Init crash only. It does not by itself make the six components
+behave; the records and hooks are §2–§7.
+
+### 15.4 On the `Read -> 1` log
+
+All six logging `Read -> 1` and still ending with a null at `+0x1E4` is not a contradiction: the two paths ask for
+different IIDs. The city's create path is `CreateObject(CLSID, IID)` (`decomp/cSC4City.c:2145`), while the save
+path is `SC4ReadGZSerializable(stream, <other IID>, &field, 0)` (`decomp/cSC4City.c:3378`, itself gated on save
+version `> 10`), which resolves through the class-object store and a different IID. A class can therefore answer
+the serialization IID and report `Read -> 1` while the create path still leaves `+0x1E4` null
+*[inferred]* — the two paths were not traced end to end here.
+
+**Probe to settle it** (needs an in-game run, not available to this lane): log the return of
+`CreateObject(0x4A1B664E, 0x8A1B6647, …)` and the value written to `cSC4City+0x1E4` immediately after the
+ensure-components helper, and separately log what `SC4ReadGZSerializable` writes into the same field. If the
+create leaves null and the read writes non-null, the ordering of ensure-components versus `cSC4City::Read`
+decides which one wins and the crash depends on that order.

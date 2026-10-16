@@ -5468,3 +5468,106 @@ lane numbered these TR21-TR27.
   **DIFFERS** on §10.3: the SimNewDay `0x66956814` trigger is **unreachable** — the handler exists (`0x0074019A`)
   but `Init` never subscribes to it and there is no wildcard — so the dirty flag `+0x50` is set by the power-pole
   handlers (`0x007402A4`) and never read. `0x26D31EC5` is subscribed and its handler does nothing.
+
+## From the enable=/spec-contradiction wave (filed by the coordinator from the implementer lanes' reports, 2026-10-16; answered by re-answers31)
+
+These were filed in the implementer lanes' own `docs/lanes/<lane>.md` files, which are not merged here, so each
+entry is recorded with the lane it came from. Every answer is written into the spec named below.
+
+- ~~**A4** (glue19): the city's Init phase faults at `SimCity 4.exe+0x0045BF1B` (`ACCESS_VIOLATION` reading 0,
+  `eax=1 ecx=0 edx=0x3000 ebx=0x00A80810`) after the terrain/surface-water `AddAgent`, with all six components
+  reporting `Read -> 1`. Two causes were already fixed (QueryInterface returning the primary for
+  `cIGZSerializable`; stubs returning a zeroed container where an empty `SC4List` has sentinel nodes). Find the
+  third.~~ **ANSWERED 2026-10-16 (re-answers31): DIFFERS.** The null is the component at `cSC4City + 0x1E4`, the
+  automata **script system** (CLSID `0x4A1B664E`, IID `0x8A1B6647`). `QueryInterface` answers the **CLSID** but
+  not the **IID** the city creates it with, so the out parameter is left null and `FUN_0045bd20` calls `Init` on
+  it with no null check. Same IID gap on all six classes. Written into [automata.md](automata.md) **§15**.
+
+- ~~**A1** (glue19 / re-integrate1 §14 test 29): the state stack index (`+0x0C`) must be recomputed **on Read**;
+  the corpus contradicts it (recomputing changes byte 174 of a 342-byte pedestrian record and breaks byte-exact
+  re-save). Which is right?~~ **ANSWERED 2026-10-16 (re-answers31): DIFFERS from test 29 as written.** The
+  stream value is authoritative and must be stored unchanged; `tAutomataState::Read` (`0x00505E50`) reads it
+  straight into `state+0x0C` (`0x505E99`-`0x505E9F`) and never derives it. Recompute only after a stack
+  *mutation*. Corrected in [automata.md](automata.md) §12 quirk 10 and §14 test 29.
+
+- ~~**glue22 question 9** (`enable = effects`): `ACCESS_VIOLATION` writing `0x4D` at a wild `eip` about 100 ms
+  after `Init`, no method of ours entered; the game calls through a vtable pointer read past our object. A `+4`
+  draw-pass sub-object did not help. What are all the interface sub-objects of the original
+  `cSC4EffectsManager`, at which offsets?~~ **ANSWERED 2026-10-16 (re-answers31): DIFFERS.** The manager is
+  **six** sub-objects with vptrs at `+0x00`, `+0x04`, `+0x08`, `+0x0C`, `+0x10`, `+0x94` (destructor
+  `0x0058FA60`, confirmed by the Mac `__ZThnN_` this-adjustments). `QueryInterface` (`0x0058D9E0`) returns
+  `this + 8` for IID `0x452294AA` (`cIGZMessageTarget2`) and `this + 0x94` for `0xC97CF5CE`. The message
+  dispatch fetches the vptr at `+0x08`, which is past a single-interface object. Written into
+  [effects.md](effects.md) **§18**.
+
+- ~~**GLUE21-1** (`lot-configuration.md` §1): `cSC4LotConfiguration` is not registered with GZCOM for creation
+  (0xC0 bytes, ctor `0x004797A0`). Is there a named route to the game's allocate-and-construct pair, or must the
+  configuration class itself be reimplemented? This blocks `enable = lotcfg`.~~ **ANSWERED 2026-10-16
+  (re-answers31): PARTLY.** There **is** a named route and it is not GZCOM: `FUN_00489910` (`0x00489910`)
+  allocates `0xC0` bytes (`FUN_005E55E0`), constructs at `0x004797A0`, AddRefs, `Load(key, detail)` at slot 31,
+  and inserts (`FUN_00648F00`). The public routes are manager slots 5, 6 and 22, and the **manager is
+  GZCOM-creatable** (CLSID `0x299062C0`). Replace or drive the manager; do not probe GZCOM for the
+  configuration class. Written into [lot-configuration.md](lot-configuration.md) **§1.1**.
+
+- ~~**GLUE21-2** (`enable = propmgr`): the game reads `0x7C` from a null (`esi = 0`) at
+  `SimCity 4.exe+0x2F44EF` on the prop path (slot 15 `CreateProp`). Should `CreateProp` / `Add*Prop` fail the
+  call instead of returning a null?~~ **ANSWERED 2026-10-16 (re-answers31): DIFFERS.** Neither. The original
+  never returns a null: `cSC4PropManager::CreateProp` (`0x004A3040`) validates the type, tries
+  `CreateObject(cls, 0xE9793A65, &out)`, and on failure **allocates and constructs the occupant itself**
+  (`0x94` / `0xA0` / `0x68` by class family), returning the `+4` sub-object. Written into
+  [prop-developer.md](prop-developer.md) **§13**.
+
+- ~~**DQ2** (`demolition.md` §2): the cell counts are called "city slots 93, 94" but
+  `docs/abi/interfaces.tsv` names those `GetLightingManager` / `GetDrawContext`. `CellCountX`/`CellCountZ`
+  returned 128x128 in game. Which is right?~~ **ANSWERED 2026-10-16 (re-answers31): MATCHES the spec.** Slots
+  93 and 94 really are the cell counts (`0x007C1910` `mov eax,[ecx+0x118]`, `0x004E82A0`
+  `mov eax,[ecx+0x11c]`); the `interfaces.tsv` names are code-fold misattributions. `cISC4City.h:218-219`
+  declares `CellCountX`/`CellCountZ` there, and `GetCitySizeType` (slot 87) discriminates `+0x118` against
+  `0x40`/`0x80`. 128x128 is correct. Held ABI rows in `build-runs/pending-abi/re-answers31-rows.tsv`. Written
+  into [demolition.md](demolition.md) §2.
+
+- ~~**DQ4** (`demolition.md` §4.4 step 4): `lotManager.GetLot(x, z)` is called "slot 5"; slot 5 is
+  `GetLotAtPoint` and slot 6 is `GetLot(x, z, bool)`, which every glue lane calls. Which?~~ **ANSWERED
+  2026-10-16 (re-answers31): DIFFERS.** The cell overload is **slot 6** (`0x0072B410`, pop 12,
+  `GetLot(int32, int32, bool)`); slot 5 (`0x0072A1C0`, pop 4) is `GetLot(cS3DVector3 const&)`. The SDK
+  `cISC4LotManager.h:42-43` has them the other way round and is wrong, as `crime.md` already records. Written
+  into [demolition.md](demolition.md) §4.4.
+
+- ~~**NR8** (`network-rules.md` §6.5 step 2.4): the step says only "skip `s`", but test 26 needs the east flow
+  code dropped. Does a skipped side lose its flow code, on all three skip reasons or only missing-neighbour?~~
+  **ANSWERED 2026-10-16 (re-answers31): DIFFERS.** A skipped side **keeps** its code, for all three reasons.
+  The propagation only reads the code field; the sole zeroing is the conflict sweep of step 3
+  (`decomp/cSC4NetworkTool.c:11343`). Test 26's X east drop is that sweep (edge word `0x00000202` maps sides 0
+  and 2 both to partner side 2 with contradictory flows). Drop the `[choice]` in `solve.rs`. Written into
+  [network-rules.md](network-rules.md) §6.5 step 2.4.
+
+- ~~**DS38 leftover**: why does the original refuse `Ignite` of a **spread** target (logged
+  `rect=56,86..56,87 coverage=1 flammability=40 burning=0 paused=1 emergency=1`, `exits=none-of-1,2,3,5`)?~~
+  **ANSWERED 2026-10-16 (re-answers31): exit 4, the average-coverage test.** The log rules exits 1, 2, 3 and 5
+  out on its own; `coverage=1` is exactly exit 4's input. A spread target is a cell the fire has already
+  covered, so `round(D9(average coverage)) > 0` refuses it unless forced. The earlier guess that it was the
+  burning test (exit 5) is ruled out by `burning=0`. Written into [disasters.md](disasters.md) §5.4.
+
+- ~~**NR12** (cores22): `fc4_network_rules_cell` carries neither `+0x57` (the one-way pass's re-solve mark) nor
+  the occupant's paired portal (interface `0x8A4BD52B` slot 59), so a cell that crosses the C boundary loses
+  both. Should the cell struct grow those fields, or should a glue lane pass them another way?~~
+  **ANSWERED 2026-10-16 (re-answers31): neither belongs in the cell struct.** `+0x57` is per-pass scratch on the
+  world-cache cell info (set in §6.5 step 2.1 and again in the sweep at `decomp/cSC4NetworkTool.c:11360`, never
+  saved, read by nothing outside `ResolveOneWayConflicts`); the paired portal is a property of the *occupant*,
+  reached only when the cell flags carry `0x80000`, through `0x8A4BD52B` slot 59 on the occupant's `+0x1D0`.
+  Use a marks side-channel for the former and resolve the latter on demand. Written into
+  [network-rules.md](network-rules.md) §14.
+
+### Not settled by this lane
+
+- **NR9, NR10, NR11, NR13** (cores22: the tile grid width field `+0xC4` and `GetTileInfo`, the mark/remove cell
+  set, stale `AddTypes` links, bridge/rule-solver coupling). Not answered here; each needs its own pass over
+  `network-rules.md` §10 and `network-bridges.md` §7-§8.
+- **TR24 - TR27** (glue18: the §15.1 terrain slots, the surface-water `IsNavigableAtPosition` argument dwords,
+  the water's message target and animation tick). Not answered here.
+- **PO2, PO3, PO5, PO6, PO1b** (cores21 / `prop-occupant.md` §10: the sixth sub-object at `+0x24`, the
+  occupant-to-placeable-to-3D seam, terrain re-solving of a prop's box y, the SDK names of slots 5 and 6, the
+  stride-`0x88` allocator group). Note `prop-occupant.md` exists only on branch `re-answers27` and is not on
+  `main`.
+- **glue19 A2, A3** and **cores21 "Questions 1-12"** were never written into a tracked file; the lane reports
+  were trimmed to their merge-train rows. They have to be re-filed by their lanes before they can be answered.
