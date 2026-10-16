@@ -351,7 +351,12 @@ uint32_t cFC4PropDeveloper::GetGZCLSID() { return kFC4_CLSID_cSC4PropDeveloper; 
 void cFC4PropDeveloper::MonthLine(int32_t julian) {
     cFC4PropDeveloper* d = g_live.load();
     if (d == nullptr || d->core_ == nullptr) return;
-    static uint32_t lastIdle = 0, lastDay = 0, lastRemoves = 0, lastCreates = 0, lastPosts = 0;
+    static uint32_t lastIdle = 0, lastDay = 0, lastRemoves = 0, lastCreates = 0, lastPosts = 0, lastTicks = 0;
+    static const cFC4PropDeveloper* lastOwner = nullptr;
+    if (lastOwner != d) {  // a new city's developer: its counters start at 0
+        lastOwner = d;
+        lastIdle = lastDay = lastRemoves = lastCreates = lastPosts = lastTicks = 0;
+    }
     fc4_prop_state st{};
     st.struct_size = sizeof(st);
     fc4_prop_developer_get_state(d->core_, &st);
@@ -361,10 +366,11 @@ void cFC4PropDeveloper::MonthLine(int32_t julian) {
              fc4::propcity::DateText(julian, date), (d->idle_ - lastIdle) + (d->day_ - lastDay), d->idle_ - lastIdle,
              d->day_ - lastDay, d->ctx_.removes - lastRemoves, d->ctx_.creates - lastCreates,
              d->ctx_.posts - lastPosts, st.scanner_x, st.scanner_z, st.requester_count, st.night_count,
-             st.time_of_day_count, st.dated_count, st.power_count, st.sign_count, st.is_night, d->ticks_);
+             st.time_of_day_count, st.dated_count, st.power_count, st.sign_count, st.is_night, d->ticks_ - lastTicks);
     lastIdle = d->idle_;
     lastDay = d->day_;
     lastRemoves = d->ctx_.removes;
     lastCreates = d->ctx_.creates;
     lastPosts = d->ctx_.posts;
+    lastTicks = d->ticks_;
 }
