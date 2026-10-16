@@ -433,7 +433,7 @@ pub struct fc4_traffic_host {
     pub drives_on_right: Option<unsafe extern "C" fn(U) -> bool>,
     pub view_cell_rect: Option<unsafe extern "C" fn(U, *mut fc4_cell_rect) -> bool>,
     pub create_accident: Option<unsafe extern "C" fn(U, i32, i32, i64)>,
-    // ---- ABI 60 ----
+    // ---- ABI 61 ----
     /// `CreateLineItem(line, false)`, `SetName(0x6A3FF01C, name)`, Income
     /// when `income`; with `only_if_missing` nothing when the line exists
     /// (traffic-simulator §9.1 TG7).

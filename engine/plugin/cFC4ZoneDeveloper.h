@@ -200,6 +200,7 @@ struct ZoneDevContext {
     uint32_t freshAdds = 0;
     // Observability (the status lines): since construction.
     uint32_t newLotRefusals = 0;  // new_lot calls that built no lot (switch off, executable not identified)
+    uint32_t canCreateRefusals = 0;  // slot 20 answers of 0 because lots cannot be built (ZG34)
     uint32_t lotsBuilt = 0;       // lots built from the game's lot pool (§8.5.1)
     uint32_t joins = 0;           // street joins (§5.2.1, §5.2.2)
     uint32_t dezoneCalls = 0;     // UpdateZoneType's PlaceZone dezones (§7.2.2)
@@ -228,6 +229,10 @@ void ZoneDevReleaseHeld(ZoneDevContext* ctx);
 void ZoneDevReleaseServices(ZoneDevContext* ctx);
 // Test seam op 53: the raw structures' allocators (null: the game's).
 void ZoneDevSetTestAllocators(void* (*allocate)(uint32_t), void (*free)(void*));
+// Whether `ctx`'s host can build new lots (ZG34): the test table's new_lot
+// when one is installed, else zonedev_lot_changes on and the lot pool and
+// constructor available (the executable identified). No side effects.
+bool ZoneDevLotsConstructible(const ZoneDevContext* ctx);
 
 // The zone developer the city runs, if it is FreeCity4's (null otherwise);
 // main thread. The observer's month hook writes its month line.
@@ -384,6 +389,7 @@ struct FC4ZoneDevTestState {
     uint32_t newLotRefusals;  // new_lot calls that built no lot
     uint32_t heldConfigs;    // configuration references not given back yet (0 between calls)
     uint32_t lotsBuilt;      // lots built from the game's lot pool
+    uint32_t canCreateRefusals;  // slot 20 answers of 0 because lots cannot be built (ZG34)
 };
 // Op 53's body: kFC4ZoneDevTestHooks returns 1 (installed), 0 (allocators
 // only) or -1 (not a FreeCity4 zone developer); kFC4ZoneDevTestShadow returns
