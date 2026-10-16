@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "net_usable_message",
+  "spec": ["network-manager 5", "network-manager 16.22"],
+  "description": "SetNetworkFlag(0x10000000) on a placed piece posts one 0x89D3E9F3 with data1 = 1; setting it again posts none; ClearNetworkFlag(0x10000000) posts one with data1 = 0, and clearing again none. On a piece not in the city: set posts none, clear posts one. Setting 0x4000 changes the translucency.",
+  "steps": [
+    {"op": "net_call", "method": "set_network_flag", "args": [["road"], ["usable"], true],
+      "expect": {"flags": "0x10000001", "usable_post": 1, "translucency": false}},
+    {"op": "net_call", "method": "set_network_flag", "args": ["0x10000001", ["usable"], true],
+      "expect": {"flags": "0x10000001", "usable_post": null, "translucency": false}},
+    {"op": "net_call", "method": "clear_network_flag", "args": ["0x10000001", ["usable"]],
+      "expect": {"flags": 1, "usable_post": 0, "translucency": false}},
+    {"op": "net_call", "method": "clear_network_flag", "args": [1, ["usable"]],
+      "expect": {"flags": 1, "usable_post": null, "translucency": false}},
+    {"op": "net_call", "method": "set_network_flag", "args": [0, ["usable"], false],
+      "expect": {"flags": "0x10000000", "usable_post": null, "translucency": false}},
+    {"op": "net_call", "method": "clear_network_flag", "args": ["0x10000000", ["usable"]],
+      "expect": {"flags": 0, "usable_post": 0, "translucency": false}},
+    {"op": "net_call", "method": "set_network_flag", "args": [0, ["translucent"], true],
+      "expect": {"flags": "0x4000", "usable_post": null, "translucency": true}}
+  ]
+}
