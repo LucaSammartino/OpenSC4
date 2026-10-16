@@ -68,7 +68,8 @@ The plan:
      one fc4.h history line per batch listing the lanes.
    - **Per-lane files.** Each lane writes `docs/lanes/<lane>.md` (today's HANDOFF §0 row) and `docs/runs/<tag>.md`
      (today's manual-checks rows, keyed by tag, not by a sequential run number). A script regenerates the HANDOFF §0
-     table, the manual-checks index and the "latest in-game run" line from them.
+     table, the manual-checks index and the "latest in-game run" line from them. **Done** (mergetrain-docs):
+     `tools/gen_handoff_tables.py`, with the row formats and the merge-queue contract in `docs/lanes/README.md`.
    - **abi_entries.inc** becomes a build-time generated file (CMake runs gen_abi_entries.py) and leaves git.
    - **QUESTIONS.md.** Use per-spec question files, or keep one file with a fixed "append at the end of your spec's
      section" rule.
