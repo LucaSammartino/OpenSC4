@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "citysit_success_payout",
+  "spec": ["city-situation 4.4", "city-situation 4.5", "city-situation 12.5"],
+  "description": "An active advice with success_money 10000, aura (256, 50) and its vehicle at (100, 200): CheckForSuccess answers 1, the end delay becomes 1.0 s; after 1.0 s of ticks the success effect, AddTransientEffect(100, 200, 256, 50), DepositFunds(10000), the success script, RetireAdvice, and one 0xEBB67EF7 post with the vehicle; successCounts[g] = 1. Later ticks do nothing more.",
+  "steps": [
+    {"op": "citysit_create"},
+    {"op": "citysit_add_ref", "expect": 1},
+    {"op": "citysit_advice", "advice": "0x500", "guid": "0x8C151EFD", "success_money": 10000, "success_aura": [256, 50]},
+    {"op": "citysit_automaton", "automaton": "0x700", "position": [100, 200]},
+    {"op": "citysit_init", "expect": true},
+    {"op": "citysit_call", "method": "initiate_situation", "args": ["0x500", "0x700", false], "expect": true},
+    {"op": "citysit_call", "method": "activate_situation", "args": []},
+    {"op": "citysit_ticks", "count": 1, "ms": 16},
+    {"op": "citysit_ticks", "count": 1, "ms": 4000},
+    {"op": "citysit_expect", "state": {"status": 3, "countdown": 0}},
+    {"op": "citysit_clear_events"},
+    {"op": "citysit_env", "status": 1},
+    {"op": "citysit_ticks", "count": 1, "ms": 16},
+    {"op": "citysit_expect", "state": {"status": 1, "end_delay": 1.0}},
+    {"op": "citysit_clear_events"},
+    {"op": "citysit_ticks", "count": 4, "ms": 250},
+    {"op": "citysit_expect_events", "events": [{"event": "outcome_effect", "advice": "0x500", "success": true}, {"event": "aura", "x": 100, "z": 200, "radius": 256, "magnitude": 50}, {"event": "deposit", "amount": 10000, "accepted": true}, {"event": "script", "advice": "0x500", "script": "success"}, {"event": "retire", "advice": "0x500"}, {"event": "post", "type": "0xEBB67EF7", "advice": "0x500", "vehicle": "0x700"}]},
+    {"op": "citysit_expect", "state": {"success_counts": {"0x8C151EFD": 1}}},
+    {"op": "citysit_expect_world", "state": {"funds": 110000, "retired": ["0x500"]}},
+    {"op": "citysit_ticks", "count": 10, "ms": 250},
+    {"op": "citysit_expect_events", "events": []}
+  ]
+}
