@@ -803,6 +803,7 @@ pub mod pollution;
 pub mod pollution_shadow;
 pub mod power;
 pub mod power_shadow;
+pub mod prop_manager;
 pub mod props;
 pub mod protection;
 pub mod residential;
@@ -811,6 +812,7 @@ pub mod stream;
 pub mod traffic;
 pub mod traffic_shadow;
 pub mod tract_developer;
+pub mod tutorial;
 pub mod weather;
 pub mod zonedev;
 pub mod zones;
@@ -894,6 +896,9 @@ mod protection_tests;
 mod residential_tests;
 
 #[cfg(test)]
+mod prop_manager_tests;
+
+#[cfg(test)]
 mod save_sweep_tests;
 
 #[cfg(test)]
@@ -903,6 +908,8 @@ mod test_streams;
 mod traffic_tests;
 #[cfg(test)]
 mod tract_developer_tests;
+#[cfg(test)]
+mod tutorial_tests;
 
 #[cfg(test)]
 mod weather_tests;
