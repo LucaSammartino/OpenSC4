@@ -765,9 +765,17 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      session seed: WARNING session_seed = 'abc' (FreeCity4.ini) is not a 32-bit number; using the clock
      ```
 
-     Two runs with the same `session_seed` give our generators the same streams; what still differs between
-     them (the original's own generators, `rand()` call order, real-time pacing) is listed in
-     `docs/HANDOFF.md` once measured.
+     Two runs with the same `session_seed` give our generators the same seeds, but not yet the same city: in
+     two runs of the 26 regress replacements on Konradshohe with `session_seed = 0x5EED1234` (turbo to
+     2032-01-01, and speed 2 to 2028-01-01) the `DIGEST` lines differ from the first month (2026-02-01). The
+     first differences are pacing counters (simulator.md §5.7): the lot developer's day re-deliveries
+     (`days=5` / `7`, its 5 ms cycle budget), the aura and plumbing states reached, the commercial idle
+     deliveries, crime's requested props, the BDS's construction resources and draws, and the dates on which
+     posted month messages reach civic, parks, residential and flora. Our cores still slice their work by real
+     time (§5.5 helpers, idle deliveries per frame), which §5.7's *[choice]* says they should not; the original
+     subsystems still in the city (traffic simulator and network map, prop developer, occupants, network lot
+     manager and construction crew, automata, disasters, advisors, MySims) seed from the clock, and `rand()`
+     (state 1 at process start) is drawn in a pacing-dependent order.
    - **Monthly digest** (also at `FC4_LOG_LEVEL=1`; `digest = 0` turns it off): at every `SimNewMonth`, one line
      for diffing the original against FreeCity4 on the same save, read only through public interfaces:
 
