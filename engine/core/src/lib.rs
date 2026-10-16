@@ -46,11 +46,8 @@ pub mod landfill;
 pub mod landvalue;
 pub mod lot_developer;
 pub mod neighbors;
-<<<<<<< HEAD
-pub mod network_rules;
-=======
 pub mod network_manager;
->>>>>>> main
+pub mod network_rules;
 pub mod occupant_manager;
 pub mod ordinance;
 pub mod parks;
