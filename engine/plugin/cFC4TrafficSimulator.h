@@ -109,6 +109,14 @@ struct TrafficContext {
     std::unordered_set<uint64_t> liveLots, seenLots;
     std::unordered_set<uint64_t> liveConns, seenConns;
     bool liveConnsValid = false;
+    // The references the core holds (add_ref / release): the switch
+    // buildings and the source iterator's connection snapshot (§9.1 TG19,
+    // a connection removed during a phase is still visited). A held
+    // connection token stays usable; `heldConns` marks the tokens that were
+    // connections when the core took them.
+    std::unordered_map<uint64_t, uint32_t> coreRefs;
+    std::unordered_set<uint64_t> heldConns;
+    uint32_t connsLeftHeld = 0;  // held connections released after they left the city
     uint32_t staleTokens = 0;  // calls refused on a token no longer in the city
     // Observability (the status lines): calls made since construction.
     uint32_t posts = 0;           // messages posted (or handed to the sink)
@@ -120,6 +128,7 @@ struct TrafficContext {
     uint32_t holderWrites = 0;         // holder properties written through AddProperty
     uint32_t budgetActivations = 0;    // activate_budget_items calls that found an item
     uint32_t departments = 0;          // departments handed to the core
+    uint32_t lineItems = 0;            // line items created (TG7)
     uint32_t lotWalksMaster = 0;       // lot lists from the master list (slot 15)
     uint32_t lotWalksRect = 0;         // lot lists from GetLotsInCellRect
 };
@@ -324,6 +333,11 @@ private:
     DWORD mainTid_ = 0;
     int depth_ = 0;  // nesting of sections held (by the lock holder)
     mutable std::atomic<uint32_t> fallbacks_{0};
+    // §9.1 TG21: messages another thread delivered while the lock was busy
+    // (the original drops none); TG15: slot 19 writes made directly on the
+    // holder, without the lock (the original's own path).
+    std::atomic<uint32_t> droppedMessages_{0};
+    std::atomic<uint32_t> directCapacityWrites_{0};
     Snapshot snap_;
 
     // The pathfinders this simulator handed out and still lives with.

@@ -112,6 +112,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -9486,6 +9487,8 @@ struct TrafficStub {
     std::vector<uint32_t> subscribed;
     int agents = 0, posts = 0, rectQueries = 0, pathQueries = 0;
     std::vector<void*> blocks;  // the test allocator's blocks alive
+    // create_line_item calls: department, line, name, income, only if missing (TG7).
+    std::vector<std::tuple<uint64_t, uint32_t, uint32_t, bool, bool>> lineItems;
 };
 
 TrafficStub* g_tr = nullptr;
@@ -9560,6 +9563,9 @@ uint64_t TrCreateDepartment(void*, uint32_t, float) {
     g_tr->deptRefs[t] = 1;
     return t;
 }
+void TrCreateLineItem(void*, uint64_t dept, uint32_t line, uint32_t name, bool income, bool onlyIfMissing) {
+    g_tr->lineItems.emplace_back(dept, line, name, income, onlyIfMissing);
+}
 void TrReleaseDepartment(void*, uint64_t t) {
     CHECK(g_tr->deptRefs.count(t) == 1);
     --g_tr->deptRefs[t];
@@ -9633,6 +9639,7 @@ fc4_traffic_host TrafficStubHost(TrafficStub& s) {
     h.position_to_cell = &TrPositionToCell;
     h.cell_width = &TrCellWidth;
     h.create_department = &TrCreateDepartment;
+    h.create_line_item = &TrCreateLineItem;
     h.release_department = &TrReleaseDepartment;
     h.department_funding = &TrDepartmentFunding;
     h.set_line_item_income = &TrSetLineItemIncome;
@@ -9751,6 +9758,18 @@ void TrafficPathFinderTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
     CHECK(TrafficHooks(seam, ts, &host) == 1);
     CHECK(ts->Init());
     CHECK(!stub.grids.empty() && stub.deptRefs.size() == 2 && !stub.subscribed.empty() && stub.agents > 0);
+    // TG7 (traffic-simulator.md §9.1): lines 1-3 with each new department,
+    // then lines 4-6 of both when missing; the two Income lines.
+    CHECK(stub.lineItems.size() == 12);
+    if (stub.lineItems.size() == 12) {
+        const uint64_t roads = std::get<0>(stub.lineItems[0]);
+        const uint64_t transit = std::get<0>(stub.lineItems[3]);
+        CHECK(roads != transit && stub.deptRefs.count(roads) == 1 && stub.deptRefs.count(transit) == 1);
+        CHECK((stub.lineItems[4] == std::make_tuple(transit, 2u, 0x8A5F978Cu, true, false)));
+        CHECK((stub.lineItems[6] == std::make_tuple(transit, 4u, 0x2AB7EA93u, false, true)));
+        CHECK((stub.lineItems[10] == std::make_tuple(roads, 5u, 0x0C3BF3C4u, true, true)));
+        CHECK((stub.lineItems[11] == std::make_tuple(roads, 6u, 0xEA5F96E7u, false, true)));
+    }
     // DoPostCityInit (§1): the whole city rebuilt from the network occupants.
     cIGZMessageTarget2* mt = nullptr;
     CHECK(ts->QueryInterface(kIID_cIGZMessageTarget2T, reinterpret_cast<void**>(&mt)) && mt != nullptr);

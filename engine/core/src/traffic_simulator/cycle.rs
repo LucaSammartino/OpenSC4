@@ -12,7 +12,7 @@ use std::cell::RefCell;
 
 use crate::grid::{CellRect, GridProvider, ScanIterator};
 use crate::pathfinder::{PathCx, Pathfinder};
-use crate::traffic_network::{inverse_max_speed, Cx, NetworkState};
+use crate::traffic_network::{inverse_max_speed, Cx, NetworkHost, NetworkState};
 use crate::variant::{Elem, Variant};
 use crate::x87::{ftol, r24};
 
@@ -882,9 +882,26 @@ impl TrafficSimulator {
                 s.mass_transit,
             )
         });
-        // A department a `Read` resolved is kept *[choice]* (as the grids).
-        let roads = loaded_roads.or_else(|| h.create_department(dept::ROADS, roads_max));
-        let transit = loaded_transit.or_else(|| h.create_department(dept::MASS_TRANSIT, transit_max));
+        // A department a `Read` resolved is kept, with its saved maximum
+        // funding; only a null member is created, with its name and line
+        // items 1-3 (§9.1 TG7).
+        let create = |id: u32, max: f32, lines: &[dept::LineItem; 3]| {
+            let d = h.create_department(id, max)?;
+            for &item in lines {
+                h.create_line_item(d, item, false);
+            }
+            Some(d)
+        };
+        let roads = loaded_roads.or_else(|| create(dept::ROADS, roads_max, &dept::ROADS_LINES));
+        let transit =
+            loaded_transit.or_else(|| create(dept::MASS_TRANSIT, transit_max, &dept::MASS_TRANSIT_LINES));
+        // Then, on every Init, lines 4-6 of both when missing, in the
+        // original's order (§9.1 TG7).
+        for (mass_transit, item) in dept::INIT_LINES {
+            if let Some(d) = if mass_transit { transit } else { roads } {
+                h.create_line_item(d, item, true);
+            }
+        }
         self.update_state(|s| {
             s.roads = roads;
             s.mass_transit = transit;
@@ -926,8 +943,14 @@ impl TrafficSimulator {
             s.peak_ratio = None;
             s.initialised = false;
             s.loaded = false;
-            vec![s.roads.take(), s.mass_transit.take()]
+            (vec![s.roads.take(), s.mass_transit.take()], std::mem::take(&mut s.iter))
         });
+        let (depts, iter) = depts;
+        // The source iterator's connection references (§9.1 TG19) *[choice]*:
+        // given back here, before the connections go with the city.
+        for c in iter.conns {
+            NetworkHost::release(&*self.host, c);
+        }
         // The network's two switch grids go with the others *[choice]*.
         self.net.update_state(|n| {
             n.switch_mode = None;
