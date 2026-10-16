@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "name": "dispatch_failed_init",
+  "spec": ["dispatch 4.3", "dispatch 12.5"],
+  "description": "A failed InitDispatch (DispatchFromNearestStation finds no station) still advances nextID; no record, no post.",
+  "steps": [
+    {"op": "dispatch_create"},
+    {"op": "dispatch_init", "expect": true},
+    {"op": "dispatch_source", "source": "0x500", "types": [1], "stations": [{"station": "0x600", "base": 1, "count": 3}]},
+    {"op": "dispatch_clear_events"},
+    {"op": "dispatch_source", "source": "0x500", "nearest": false},
+    {"op": "dispatch_call", "method": "dispatch", "args": [1, 1, 1], "expect": 0},
+    {"op": "dispatch_expect", "state": {"next_id": 1, "record_count": 0}},
+    {"op": "dispatch_expect_event_count", "filter": {"event": "post"}, "count": 0}
+  ]
+}
