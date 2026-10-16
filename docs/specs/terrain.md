@@ -509,8 +509,8 @@ at `0x0074DB64`, kinds 0–10 (a kind > 11 is rejected at load, §9.1). Each kin
 | 0 | raise or lower: §9.4.1 | `0x00745C60` |
 | 1 | flora painting: §9.4.2 | `0x00745A40` |
 | 2 | talus smoothing: §9.4.1 | `0x00745DE0` |
-| 3 | (no shipped brush; not yet traced) *[inferred: a height edit]* | `0x00749130` |
-| 4 | animals (render): §9.4.2 | `0x00749310` |
+| 3 | object scatter with a per-cell count: §9.4.3 | `0x00749130` |
+| 4 | object placement (the animal brushes): §9.4.2 | `0x00749310` |
 | 5 | level toward the target height: §9.4.1 | `0x00745BA0` |
 | 6 | hydrological erosion (no bitmap footprint): §9.4.4 | `0x007479B0` |
 | 7 | mark: sets vertex flag `0x0400`: §9.4.2 | `0x00740820` |
@@ -520,8 +520,9 @@ at `0x0074DB64`, kinds 0–10 (a kind > 11 is rejected at load, §9.1). Each kin
 
 **What each kind returns** (§9.4.6). Kinds 0–5, 7 and 8 return a **per-vertex callback** pointer; the bitmap
 footprint (`FUN_00742180`, §9.3) or the solid footprint (`FUN_00742440`, §9.4.6) then runs it once per vertex and keeps
-the vertices where it reports a change. Kinds 6, 9 and 10 do **not** use the footprint at all: they run once per
-component and write the out rectangle themselves.
+the vertices where it reports a change. Kinds 6, 9 and 10 do **not** use the footprint: they run once per
+component and write the out rectangle themselves. (Kind 9 has a per-vertex alternative selected by a surface-water
+mode byte that this build never sets; see §9.4.5.)
 
 **Per-kind pre-steps** (`0x0074D91D`–`0x0074D94C`), before the kind is selected:
 - kind 1: nothing (the kind-1 branch below decides);
@@ -538,18 +539,20 @@ component and write the out rectangle themselves.
 **Random draws.** The walk-angle draw of §9.3 step 2 (one `RandomUint32Uniform(5)` of the terrain generator at
 `0x00B4BC78` per in-bounds application, and only when the description's walk flag is set — true for every shipped
 brush, §9.1) is the only draw in a **height** brush. Kinds 0, 2, 5, 6, 8, 9 and 10 draw nothing themselves, so the
-count "one terrain RNG draw per in-bounds `ApplyBrush`" is **confirmed** for those, including kind 8. **Kinds 1 and
-3 draw from the same generator per vertex** (§9.4.2, §9.4.3), so an application of `FloraBrush` or of a kind-3 brush
-consumes `1 + (draws per vertex that passes its gate)`, not 1. Kind 4 is render-only and draws nothing.
+count "one terrain RNG draw per in-bounds `ApplyBrush`" is **confirmed** for those, including kind 8. **Kinds 1, 3
+and 4 draw from the same generator per vertex** (§9.4.2, §9.4.3): kind 1 up to four draws
+(`RandomUint32Uniform(100)`, two `RandomFloatUniform`, then `RandomUint32Uniform(t->+0x108)`), kind 3 up to three
+`RandomFloatUniform`, kind 4 exactly two. So an application of `FloraBrush`, `Animals` or a kind-3 brush consumes
+`1 + (draws per vertex that passes its gate)`, not 1.
 
 **The change message.** No kind posts the terrain's own change message. The only post is step 4 of `ApplyBrush`
 (§9.2): `RedisplayTerrain(1, 1, out, data4)` with the **caller's** `data4` (`tBrushParameters +0x20`), and only when
 the caller set the redisplay byte and the out rectangle is non-empty. So every kind posts `0x278E6003` with the
 `data4` its caller chose: 3 for the disasters and the effects manager, 2 for the mayor-mode tool and
 `ApplyTerrainBrush`, 1 for the god-mode tool (§9.5, §9.6). Kinds 6, 9 and 10 also post nothing extra; their water and
-height edits reach the view through that same single message. **Kinds 1 and 3 are different**: each posts a message of
-its own through the global message service at `0x00B43CB8` (§9.4.2, §9.4.3) when a scatter actually happens — those
-are occupant-side messages, not `0x278E6003`.
+height edits reach the view through that same single message. **Kind 1 is different**: when it refuses a placement
+because the vertex is wet it posts its own message through the global message service at `0x00B43CB8`
+(`0xAA62C9D5`, §9.4.2) — an occupant-side message, not `0x278E6003`. Kinds 3, 4 and 7 post nothing of their own.
 
 #### 9.4.1 Kinds 2 and 5 *[compat; checked in the bytes, TR1]*
 
@@ -581,52 +584,92 @@ the angle. With the shipped value: `Tedge ≈ 1.39982 m`, `Tdiag ≈ 1.97964 m`;
 `alt_i` is re-read for each neighbour, so a vertex can shed material to several lower neighbours in one call.
 Material only moves downhill from `i`.
 
-#### 9.4.2 Kinds 1, 4 and 7 (the flora, animal and mark brushes) *[compat where stated]*
+#### 9.4.2 Kinds 1, 4 and 7 (the flora, animal and mark brushes) *[compat]*
 
-**Kind 1, flora painting** (`0x00745A40`-`0x00745B97`; `ret 8`). The dispatcher sets the callback only when the
+All three are per-vertex callbacks in the contract of §9.4.6 and **all three return 0** except kind 7, so a
+brush made only of kinds 1 and 4 never adds a vertex to the out rectangle and posts no `0x278E6003`. None of them
+writes the altitude, the water array or any vertex flag except kind 7.
+
+**Kind 1, flora painting** (`0x00745A40`-`0x00745B97`, `ret 8`). The dispatcher sets the callback only when the
 terrain's count at `+0x108` is non-zero (`0x0074D973`-`0x0074D97B`: `test eax, eax; jbe` skips the whole kind
-otherwise). `+0x108` is the count of flora types; the placer itself is `+0x104` (section 15.4). Per vertex:
+otherwise). `+0x108` is the number of flora types; the flora simulator is the terrain's `+0x104`. Per vertex:
 
 1. `b < 10` (unsigned) to no change (`0x00745A4A`: `cmp byte [ctx+0x14], 0xa; jb`). **The neutral grey is not
    consulted**; the gate is a fixed 10.
-2. One draw of `RandomUint32Uniform(100)` on the terrain generator (`0x00B4BC78`); if the result is `> 30` the
-   vertex is skipped (`0x00745A54`-`0x00745A63`). So the placement chance is **31/100** per vertex.
-3. Read the water depth of the vertex from the surface water array (`terrain +0x24` then `+0x18`, 36-byte records,
+2. `RandomUint32Uniform(100)` on the terrain generator (`0x00B4BC78`); if the result is `> 30` the vertex is skipped
+   (`0x00745A54`-`0x00745A63`). So the placement chance is **31/100** per vertex.
+3. Read the vertex's water depth from the surface water array (`terrain +0x24` then `+0x18`, 36-byte records,
    `+0x00`). If `depth > 0.0` (strict; a NaN takes the flora path) the placement is refused and a message is posted
    through the global message service at `0x00B43CB8`: vtable `+0x2C` with `(1, 0xAA62C9D5, 0, 0, 0)`
-   (`0x00745A86`-`0x00745AA3`), skipped when the global is null. No flora is placed on water.
-4. Otherwise `x := i mod vertsX`, `z := i div vertsX`; if `x >= cellsX` or `z >= cellsZ` (unsigned) nothing happens.
+   (`0x00745A86`-`0x00745AA3`), skipped when the global is null. **No flora is placed on water.**
+4. `x := i mod vertsX`, `z := i div vertsX`; if `x >= cellsX` or `z >= cellsZ` (unsigned) nothing happens.
 5. Three more draws on the same generator: `rx := RandomFloatUniform(x*16, x*16 + 16)`,
-   `rz := RandomFloatUniform(z*16, z*16 + 16)` (no clamp to the city), and `k := RandomUint32Uniform(count_108)` -
-   a flora-type index. So a kind-1 vertex that reaches the scatter costs **four** generator draws.
-6. `h := terrain.GetAltitude(rx, rz)` (vtable `+0x34`, slot 13), then the flora placer (`terrain +0x104`, vtable
-   `+0x44`) is called as `(0, &(rx, h, rz), 0)`. Then `(*(void**)0x00B43CEC)->vtable+0x58` is consulted and, if it is
-   non-zero, `(*(void**)0x00B43D60)->vtable+0x18` is called with `(rx, rz, 1)`.
-7. The call **always returns 0**: a kind-1 vertex never joins the out rectangle, so a flora-only brush posts no
-   `0x278E6003`.
+   `rz := RandomFloatUniform(z*16, z*16 + 16)` (no clamp to the city, unlike kinds 3 and 4) and
+   `k := RandomUint32Uniform(t->+0x108)` - a flora-type index. So a kind-1 vertex that reaches the scatter costs
+   **four** generator draws.
+6. `h := GetAltitude(rx, rz)` (terrain slot 13, vtable `+0x34`, the return is an f32 in ST0), then
+   `floraSimulator.AddNewFloraOccupant(0, &{rx, h, rz}, 0)` (`terrain +0x104`, **slot 17**, vtable `+0x44`,
+   3 arguments, callee pops 12) at `0x00745B56`-`0x00745B67`.
+7. Then `city.GetEstablished()` (`0x00B43CEC`, **slot 22**, vtable `+0x58`, no arguments, the result tested in AL) at
+   `0x00745B6A`-`0x00745B77`; when it is false the vertex stops here. When it is true the aura simulator
+   (`0x00B43D60`) **slot 6** (vtable `+0x18`) is called with `(rx, rz, 1)` (`0x00745B79`-`0x00745B8D`).
+8. Returns **0**.
 
-It writes no altitude, no water and no vertex flag; it creates flora occupants (objects) through the placer.
+**Kind 4, object placement** (`0x00749310`-`0x00749537`, `ret 8`). The `Animals`, `AnimalsTemperate` and
+`GodValleyRain` brushes. It is **not** render-only: it creates an object through a placement manager.
 
-**Kind 4, animals** (`0x00749310`). Render-only: it paints the animal layer and never writes the vertex array, the
-water array or any flag. It is not gated by `+0x108`.
+1. `c := ctx->component`; if null, no change. **`b == neutral` to no change** (`0x00749326`-`0x0074932C`) - unlike
+   kinds 1, 3 and 7, this one does compare against the component's neutral grey, and acts in **both** directions.
+2. `x := i mod vertsX`, `z := i div vertsX`, `lin := vertsX*z + x`.
+3. A per-cell counter lives in the `std::map` at `terrain +0x1D4` (key `uint32` at node `+0x10`, counter `uint32` at
+   node `+0x14`; lookup `FUN_0x497520`, insert `FUN_0x4FB6C0`). If the counter is already `> component.maxCount`
+   (the component's `+0x2C`, unsigned compare) nothing happens.
+4. `FUN_0x7493A8`: ask the placement manager at `terrain +0xFC` (vtable `+0x18`) for an object from
+   `(component +0x38, component +0x3C)`; if it refuses, nothing happens. Only then is the counter incremented.
+5. `xHi = min(x*16 + 16, terrain +0x50)`, `zHi = min(z*16 + 16, terrain +0x54)` (the city size; NaN keeps the
+   unclamped bound), then `randX := RandomFloatUniform(x*16, xHi)` and `randZ := RandomFloatUniform(z*16, zHi)` -
+   exactly **two** generator draws.
+6. `h := GetAltitude(randX, randZ)`; if `h < seaLevel` then `h := seaLevel` (NaN passes through).
+7. Build the 0x38-byte placement descriptor at `0x007494F1`-`0x00749510`: a counter byte and a flags byte with bit 0
+   set, then thirteen floats: `1, 0, 0, 0, 1, 0, 0, 0, 1, randX, h, randZ, 1`. *[inferred: an orientation or scale
+   block rather than a row-major 4x4 identity+translation, whose diagonal would sit elsewhere; the position
+   `(randX, h, randZ)` is unambiguous.]*
+8. `obj.vtable+0x20(&desc)`, then `obj.vtable+0x0C(0)`, then `obj.vtable+0x08()`.
+9. Returns **0**.
 
-**Kind 7, mark** (`0x00740820`). Sets vertex flag `0x0400` (section 7) on every vertex it is run on and reports a
-change there. After the whole component, `FUN_00748040(&out)` grows the out rectangle once more.
+**Kind 7, mark** (`0x00740820`-`0x00740845`, `ret 8`). 25 instructions, no calls, no stack frame.
 
-#### 9.4.3 Kind 3, the object scatter *[partly compat; checked in the bytes, TR1]*
+1. `b == 0` to no change (`0x00740820`-`0x0074082D`) - **`!= 0`, not `!= neutral`**.
+2. `vertex[i].flags |= 0x0400` - byte `+0x23` of the 36-byte record `or`ed with 4 (`0x0074083A`), which is bit 2 of
+   the high byte of the uint16 at `+0x22` (§7).
+3. Returns **1** (reports a change). Idempotent.
 
-`0x00749130`-`0x00749309` (`ret 8`). It is **not** a height edit: it is a scatter of objects or creatures, in the
-same family as kind 1. **No shipped brush uses kind 3** (section 9.7.1), so nothing observable in the shipped data
-depends on it.
+After the component the dispatcher calls `FUN_00748040(&out)` once more for kind 7 only.
 
-1. `mgr := terrain +0xF8`; if null, no change. `c := ctx->component` (`ctx +0x20`); if null, no change.
-2. `b == 0` to no change (`0x0074915A`). As with kind 1, the **neutral grey is not consulted**.
+#### 9.4.3 Kind 3, the object scatter *[compat; checked in the bytes, TR1]*
+
+`0x00749130`-`0x00749308`, `ret 8`, thiscall with `ECX` = the terrain. **No shipped brush uses kind 3** (§9.7.1),
+so nothing observable in the shipped data depends on it. It is the same family as kind 4: a per-cell object scatter
+with a hard cap.
+
+1. `mgr := terrain +0xF8`; if null, no change. `c := ctx->component`; if null, no change.
+2. **`b == 0` to no change** (`0x0074915A`) - `!= 0`, not `!= neutral`.
 3. `x := i mod vertsX`, `z := i div vertsX`; `x >= cellsX` or `z >= cellsZ` (unsigned) to no change.
+4. `lin := vertsX*z + x`; look the counter up in the `std::map` at `terrain +0x1D4` (kind 4's map) and insert it with
+   0 when it is new. If `counter > component.maxCount` (the component's `+0x2C`, unsigned) nothing happens.
+5. `counter++`.
+6. Build a 12-byte id triple `d := (0x7AB50E44, 0x891B0E1A, component +0x30)` - the grey-image type and group of
+§9.1 with the component's own id - and `pos := (0, 0)`.
+7. `aux := 0`; only when `component +0x34 > 0.0` (strict; a NaN gives 0) is
+   `aux := RandomFloatUniform(0.0, component +0x34)` drawn.
+8. `xHi := min(x*16 + 16, terrain +0x50)`, `zHi := min(z*16 + 16, terrain +0x54)` (NaN keeps the unclamped bound),
+   then `pos.x := RandomFloatUniform(x*16, xHi)`, `pos.z := RandomFloatUniform(z*16, zHi)`.
+9. `mgr.vtable+0x14(&d, &pos, scaledStrength, aux)` - four arguments, the strength from the argument block.
 
-The remainder of the operation (how many objects per vertex, which type table is used, and the message it posts) was
-not finished in this pass *[inferred: a per-vertex scatter through the `+0xF8` manager with its own draws]*. A trace
-of `0x00749130` from `0x00749170` settles it; conformance test 29 reserves a slot for it. The dispatcher gives it no
-pre- or post-step, and it never writes altitude or water.
+So up to **three** generator draws per vertex (the `aux` draw only when the component's `+0x34` is positive). It
+posts **no** message and never reports a change (return 0). The only state it writes is the counter in the map at
+`+0x1D4`; no altitude, water, sediment or flag is touched. What the `+0xF8` manager does with the placement is
+outside the terrain *[inferred: it spawns the object]*.
 
 #### 9.4.4 Kind 6, hydrological erosion *[compat; checked in the bytes, TR1]*
 
@@ -808,10 +851,24 @@ and the component (76 bytes, the stride of §9.1's list at `0x0074D7A7`) carries
 `+0x28` the neutral grey byte.
 
 - **With a bitmap** (`FUN_00742180`, `0x00742180`) the walker is the §9.3 footprint and `b` is the bitmap pixel.
-- **Without one** (`FUN_00742440`, `0x00742440`) the walker covers a solid rectangle and passes a constant grey; the
-  component's neutral then decides the direction. The exact grey value is *[inferred: 255]*; what would settle it is
-  the body of `FUN_00742440`. Only `GodValleySpring` and `ErosionBrush`'s kind-6 component ship without a bitmap, and
-  neither uses the callback path, so nothing observable in the shipped data depends on it.
+- **Without one** (`FUN_00742440`, `0x00742440`, `ret 0x24`) the walker is the same rectangle scan but it **never
+  writes the grey byte**. Its loop body at `0x00742530`–`0x0074253D` only pushes the arguments and calls; the store
+  `mov byte [ctx+0x14], cl` that the bitmap walker makes at `0x0074239E` has no counterpart here, and a raw-byte
+  scan of the whole dispatcher finds no store into the block at all. So the grey the callback sees is the residual
+  byte left in the dispatcher's stack slot — neither a constant nor the component's neutral. *[quirk]* Kind 0 and
+  kind 4 compare that residual against the neutral grey, and kinds 1, 3 and 7 test it against 0, so the no-bitmap
+  path is not reproducible from the component alone. Only `GodValleySpring` and `ErosionBrush`'s kind-6 component
+  ship without a bitmap (§9.7.1), and neither uses the callback path, so nothing observable in the shipped data
+  depends on it. A replacement must choose one; the natural choice is the component's neutral grey, recorded as a
+  *[choice]*.
+
+  The solid walker takes one argument more than the bitmap one: a pass count, which the dispatcher sets to **1**
+  (`0x0074DA78`), so its loop runs exactly once; the bitmap walker passes 0 there and uses the slot as the ECX
+  offset instead. Both walkers report their changes the same way: they initialise the out rectangle to
+  `(INT32_MAX, INT32_MAX, INT32_MIN, INT32_MIN)` and widen it with the x and z of every vertex whose callback
+  returned non-zero (`0x00742548`–`0x0074255C`), so a component that changes nothing leaves it empty — and that
+  sentinel pair is what `ApplyBrush`'s step 4 tests before it posts.
+
 
 **Kind 0** (`0x00745C60`) reads `p +0x14` (b), `p +0x18` (scaled strength) and `p +0x20 → +0x28` (neutral):
 `b == neutral` → false; `b > neutral` → `RaiseVertex(i, f32((b − neutral) × strength))` (`0x00744CA0`); `b < neutral`
@@ -1356,10 +1413,13 @@ pointer without calling the object, which a replacement should treat as the same
   9 and 10 are checked in the bytes (§9.4), and the whole terrain ini with its shipped values is in §9.7. Shipped
   `TalusAngle` is **5 degrees** (group `0x8A5971C5`, instance `0xAA597172` in `SimCity_1.dat`), which gives
   `Tedge ≈ 1.39982 m`, `Tdiag ≈ 1.97964 m` — very different from the compiled fallback of 0.79 rad. **Still open
-  within TR1:** kind 3 (`0x00749130`) is not traced; the solid-footprint grey value of `FUN_00742440` is
-  *[inferred: 255]*; the surface-water tick's use of the water fields at `+0x04` (spring) and `+0x08` (rain) is
-  *[inferred]*. None of these is reachable from the harness: kind 3 has no shipped brush, and only `GodValleySpring`
-  and the `ErosionBrush` ship without a bitmap (neither uses the callback path).
+  within TR1:** the surface-water tick's use of the water fields at `+0x04` (spring) and `+0x08` (rain) is
+  *[inferred]*, and what the `+0xF8` / `+0xFC` placement managers do with a kind-3 / kind-4 placement is outside the
+  terrain. One thing is settled but not reproducible: the solid footprint walker `FUN_00742440` **never writes the
+  grey byte**, so a no-bitmap component sees whatever residual byte is in the dispatcher's stack slot (§9.4.6) —
+  a replacement has to pick one and mark it *[choice]*. None of this is reachable from the harness: kinds 3 and 7
+  have no shipped brush, and only `GodValleySpring` and the `ErosionBrush` ship without a bitmap (neither uses the
+  callback path).
 - ~~**TR2.** The `volcano_control` effect's brush values.~~ **ANSWERED 2026-10-15 (re-specs16), re-checked
   2026-10-16 (re-answers28):** effects.md §8.4 matches §9.5 exactly — level 1, strength 1.0 (range 1–1), radius scale
   0.5, 0.5, 0.6, 0.6, 0.8, 0.8, 1.0, 1.0 or 1.3 (one of nine creators, degenerate ranges, but both
@@ -1446,8 +1506,10 @@ pointer without calling the object, which a replacement should treat as the same
     `amount = -153`, `target = -53`, `tol = 9.5625`. A dry vertex at 300 is lowered toward -53 in steps of at most
     `tol`, so one application takes it to `300 - 9.5625`; a wet vertex (`depth > 0`) with `target > alt` is
     **unchanged** and reports false; a vertex already at the target reports false.
-29. **Kind 3 reserved** (§9.4.3): a kind-3 component on a terrain whose `+0xF8` is null changes nothing
-    and reports no change; the rest of the operation is open.
+29. **Kind 3, the scatter** (§9.4.3): on a terrain whose `+0xF8` is null nothing happens. With a manager, a
+    component with `maxCount = 1` and `b = 1` places one object per cell and a second application to the same cell
+    places none; the position is uniform in `[x*16, min(x*16+16, sizeX))` x `[z*16, min(z*16+16, sizeZ))`, the
+    `aux` term is 0 when the component's `+0x34` is 0 or negative, and no vertex ever reports a change.
 30. **Terrain ini** (§9.7): reading `WindErosion` / `TalusAngle = 5` from the shipped resource leaves
     `Tedge = tan(5 degrees) * 16` at `0x00B4BCF4` and `Tdiag = Tedge * sqrt(2)` at `0x00B4BCF0`; a missing key keeps
     the 0.79 rad fallback and its much larger thresholds. `RaiseLowerAmount` is stored and never read.
