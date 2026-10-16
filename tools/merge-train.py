@@ -137,11 +137,13 @@ def queue_files():
         if d.is_dir():
             files.extend(sorted(f for f in d.glob("*.json") if not f.name.endswith(".merged.json")))
 
-    for d in QUEUE_DIRS:
-        collect(d)
+    # Lane worktrees first: a lane writes its own queue file there, and it must win over a stale copy the
+    # coordinator seeded in the main checkout before that lane finished.
     if WT_ROOT.is_dir():
         for wt in sorted(WT_ROOT.iterdir()):
             collect(wt / "build-runs" / "merge-queue")
+    for d in QUEUE_DIRS:
+        collect(d)
     return files
 
 
