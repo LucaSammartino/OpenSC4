@@ -449,10 +449,14 @@ def union_merge(wt, rel):
     stages = {}
     for n, name in ((1, "base"), (2, "ours"), (3, "theirs")):
         p = git(["-C", str(wt), "show", f":{n}:{rel}"], check=False)
-        if p.returncode != 0:
-            return False
+        body = p.stdout if p.returncode == 0 else None
+        if body is None:
+            # An add/add conflict has no base stage; an empty base makes this a pure union.
+            if n != 1:
+                return False
+            body = ""
         stages[name] = tmp / f"{name}-{Path(rel).name}"
-        stages[name].write_text(p.stdout, encoding="utf-8", newline="")
+        stages[name].write_text(body, encoding="utf-8", newline="")
     out = sh(["git", "merge-file", "--union", "-L", "ours", "-L", "base", "-L", "theirs",
               str(stages["ours"]), str(stages["base"]), str(stages["theirs"])],
              check=False)
