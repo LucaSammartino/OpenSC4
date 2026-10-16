@@ -1,0 +1,3 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| regresslists4 (tooling: regress lists) | `regresslists4` / (tooling lane) | **merged `cdacc71`** (tools/docs only, no ABI rows; regress rl4 run 132 PASS, 469 s, DLL `FreeCity4-autoloadfix`; baseline `build-runs/regress-rl4.out`): the regress shadows run gains `lotdev_shadow = 1` (exact since apply13's LD29; rl4: lotdev 73/73, 281978 slot compares, 0 mismatches, every line `roundtrip=same`); replace list unchanged (27 keys). Recorded on the lane as run 128, renumbered 132 at the merge. Regresses before this merge (runs 127-131 and masterlist's) ran the old lists; a delta against `rl4`/`rl4a` there shows "lotdev missing", which is expected. | - |

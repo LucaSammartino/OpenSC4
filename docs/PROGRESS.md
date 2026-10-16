@@ -116,5 +116,9 @@ budget is off by default (enable = <key>).
 - [x] Test harness switches in the plugin (6147be6, tooling, off by default): `sim_turbo` (our clock without the msPerDay wait), `autotest_end_date`, `script = <file>` (dated zone / dezone / speed / save / digest actions through the game's interfaces); turbo runs about 100 game days/s in game and waits for ConnectionsReady (0786064)
 - [x] Parallel game slots and a per-lane run queue (9e0fa74): up to 3 games at once, each lane tests its own DLL in game ([docs/harness.md](harness.md)); `regress -Parallel` in about 164 s
 - [x] Game dialogs ended from inside the plugin (dba09eb, tooling, off by default): `close_dialogs = 1` presses each modal dialog's default button through the window manager ([docs/specs/modal-dialogs.md](specs/modal-dialogs.md))
+- [x] Per-lane state and run files with a generator (mergetrain-docs): each lane writes `docs/lanes/<lane>.md` and
+  `docs/runs/<tag>.md`, and `tools/gen_handoff_tables.py` rebuilds the HANDOFF section 0 lane table, the "Latest
+  in-game run" line and the `manual-checks.md` run log from them, so docs-only merges stop conflicting. 73 lanes and
+  130 runs migrated. The merge-queue contract (how a lane lands) is in [`docs/lanes/README.md`](lanes/README.md)
 - [ ] SDK errata (289 findings) re-checked against upstream gzcom-dll and reported (needs the owner's OK)
 - [ ] In-game manual checklist ([docs/manual-checks.md](manual-checks.md)): two human checks remain, the budget window's look and the cheats (`RiskyMoney`, `WeaknessPays`, `Moolah`)
