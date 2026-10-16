@@ -1438,7 +1438,7 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      pothole and accident draws' choices (the original's generator is not readable), posted messages, history,
      incomes, network costs, budget items and accidents. **Known differences** are counted apart on the month
      line, not as mismatches, and cause no resync: a new trip's undefined destination and travel types (§4.1.1),
-     a status-0 trip's destination and cleared flags bit 0 (written by a search the original's deadline
+     a status-0 or status-1 trip's destination and cleared flags bit 0 (written by a search the original's deadline
      suspended, TS65; ours never suspend) and the record fields still unmodelled (labels starting `~`, named
      one by one). The pass counters (TS59), the day index and re-route context cell (TS60), the statistics
      byte (TS61) and the return routes (TS58) are modelled and compared exactly. `traffic_shadow_hypotheses`

@@ -1309,7 +1309,7 @@ fn trip_bytes(t: &[TripData]) -> Vec<u8> {
 fn known_trip_difference(orig: &[TripData], ours: &[TripData]) -> Option<&'static str> {
     const UNDEFINED: &str = "a new trip's undefined destination and travel types (§4.1.1 quirk)";
     const SUSPENDED: &str =
-        "a status-0 trip's destination and flags bit 0 (the original's suspended search, TS65, §3.4 [choice])";
+        "a status-0 or status-1 trip's destination and flags bit 0 (the original's suspended search, TS65, §3.4 [choice])";
     if orig.len() != ours.len() {
         return None;
     }
@@ -1325,7 +1325,10 @@ fn known_trip_difference(orig: &[TripData], ours: &[TripData]) -> Option<&'stati
         if o4.flags & 1 == 0 && b.flags & 1 != 0 {
             o4.flags |= 1;
         }
-        let k = if o.status == super::status::SEARCH && b.status == super::status::SEARCH && o4 == *b {
+        // A trip FullTrips (status 0) or ReRouteTrips (status 1) searches
+        // (TS65: a suspended return leg leaves the new destination).
+        let searched = matches!(o.status, super::status::SEARCH | super::status::REROUTE);
+        let k = if searched && o.status == b.status && o4 == *b {
             // Read by nothing before the trip's search.
             SUSPENDED
         } else {
@@ -2347,5 +2350,14 @@ mod known_difference_tests {
         let mut other = orig.clone();
         other.flags = 4;
         assert_eq!(known_trip_difference(&[other], std::slice::from_ref(&ours)), None);
+        // ReRouteTrips' trips (status 1) too; a status change is a mismatch.
+        let (mut o1, mut b1) = (orig.clone(), ours.clone());
+        o1.status = super::super::status::REROUTE;
+        b1.status = super::super::status::REROUTE;
+        assert!(known_trip_difference(std::slice::from_ref(&o1), std::slice::from_ref(&b1)).is_some());
+        assert_eq!(
+            known_trip_difference(std::slice::from_ref(&o1), std::slice::from_ref(&ours)),
+            None
+        );
     }
 }
