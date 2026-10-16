@@ -56,6 +56,12 @@ pub struct fc4_network_rules_output {
 }
 
 /// A cell info (fc4.h `fc4_network_rules_cell`).
+///
+/// The C view covers what the rule stages that cores18 exported read and
+/// write. It does **not** carry `+0x57` (the one-way pass's re-solve mark) or
+/// the occupant's paired portal, so a cell that crosses this boundary loses
+/// those two; a glue lane that drives `ResolveOneWayConflicts` over tunnels
+/// needs them (cores22's lane report).
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct fc4_network_rules_cell {
@@ -190,6 +196,10 @@ impl fc4_network_rules_cell {
                 node_edge_types: (self.occ_has_node_edges != 0)
                     .then_some((self.occ_node_edges[0], self.occ_node_edges[1])),
                 anchor: (self.occ_has_anchor != 0).then_some((self.occ_anchor[0], self.occ_anchor[1])),
+                // `fc4_network_rules_cell` has no paired-portal field yet, so
+                // a C host cannot describe a tunnel pair; only the one-way
+                // pass (§6.5) reads it. See the cores22 lane report.
+                paired_portal: None,
             });
         }
         c

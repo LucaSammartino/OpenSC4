@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "name": "po11_19_store_framing",
+  "spec": [
+    "prop-occupant 7",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 19. In a save with N props the record (0x2977AA47, 0x299B2D1B, 0) parses into exactly N entries with no trailing bytes, and each entry's CRC verifies under CRC-32/MPEG-2 over min(entrySize - 8, 250000) bytes from the object ID (foundations 3.3-3.4).",
+  "steps": [
+    {
+      "op": "po_store",
+      "method": "write",
+      "args": [
+        3
+      ],
+      "expect": [
+        3,
+        3,
+        3,
+        3,
+        true
+      ]
+    },
+    {
+      "op": "po_store",
+      "method": "write",
+      "args": [
+        1
+      ],
+      "expect": [
+        1,
+        1,
+        1,
+        1,
+        true
+      ]
+    }
+  ]
+}

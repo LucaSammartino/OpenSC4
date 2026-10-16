@@ -1,0 +1,92 @@
+{
+  "format": 1,
+  "name": "po11_21_effect_attach",
+  "spec": [
+    "prop-occupant 6.2",
+    "prop-occupant 11"
+  ],
+  "description": "Section 11 test 21. Create a 0x2977AA49 prop, SetEffectType(name), StartEffect(true): the call returns true only when an effect object exists at +0x6C. StopEffect(true) returns true only when one existed and was started. With no effect object StartEffect still sets started and returns false (network-tools 13.2).",
+  "steps": [
+    {
+      "op": "po_effect_create"
+    },
+    {
+      "op": "po_game",
+      "in_city": true,
+      "clear": true
+    },
+    {
+      "op": "po_effect_call",
+      "method": "set_effect_type_name",
+      "args": [
+        "pothole"
+      ],
+      "expect": true
+    },
+    {
+      "op": "po_effect_call",
+      "method": "effect_id",
+      "expect": 0
+    },
+    {
+      "op": "po_effect_call",
+      "method": "start_effect",
+      "args": [
+        true
+      ],
+      "expect": true
+    },
+    {
+      "op": "po_effect_call",
+      "method": "is_started",
+      "expect": true
+    },
+    {
+      "op": "po_effect_call",
+      "method": "stop_effect",
+      "args": [
+        true
+      ],
+      "expect": true
+    },
+    {
+      "op": "po_effect_call",
+      "method": "is_started",
+      "expect": false
+    },
+    {
+      "op": "po_effect_call",
+      "method": "stop_effect",
+      "args": [
+        true
+      ],
+      "expect": false
+    },
+    {
+      "op": "po_effect_call",
+      "method": "as_occupant_offset",
+      "expect": "0x0C"
+    },
+    {
+      "op": "po_effect_call",
+      "method": "as_prop_occupant_offset",
+      "expect": 4
+    },
+    {
+      "op": "po_effect_call",
+      "method": "query_interface",
+      "args": [
+        "0x09820792"
+      ],
+      "expect": 0
+    },
+    {
+      "op": "po_effect_call",
+      "method": "query_interface",
+      "args": [
+        "0x2977AA49"
+      ],
+      "expect": 0
+    }
+  ]
+}

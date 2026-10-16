@@ -405,39 +405,59 @@ impl Core {
         self.layer.locations = kept;
     }
 
-    /// `ResolveDisasterLocation`: an occupant entry reads its occupant's cell
-    /// while the occupant is in the occupant manager.
-    pub(crate) fn resolve_location(&self, l: &Location) -> (i32, i32) {
-        if l.occupant != 0 && self.host.occupant_in_manager(l.occupant) {
-            if let Some(c) = self.host.occupant_cell(l.occupant) {
-                return c;
+    /// `ResolveDisasterLocation` (`0x00577540`, §2.7): the entry's stored x
+    /// and z change **only here**. With an occupant the cell of its position
+    /// is written back while the occupant manager still holds it; without one
+    /// the instance's `GetLocation` (instance slot 6) writes its x and z when
+    /// it answers true. A gone occupant or a false `GetLocation` changes
+    /// nothing *[quirk]*: an entry keeps the cell of its last resolution,
+    /// (0, 0) if never resolved.
+    pub(crate) fn resolve_location(&mut self, index: usize) -> Option<(i32, i32)> {
+        let l = *self.layer.locations.get(index)?;
+        let resolved = if l.occupant != 0 {
+            if self.host.occupant_in_manager(l.occupant) {
+                self.host.occupant_cell(l.occupant)
+            } else {
+                None
             }
+        } else {
+            // Instance slot 6 `GetLocation`; false changes nothing (§3.2).
+            self.instance_info(l.instance).and_then(|i| i.location)
+        };
+        if let Some((x, z)) = resolved {
+            if let Some(e) = self.layer.locations.get_mut(index) {
+                e.x = x;
+                e.z = z;
+            }
+            Some((x, z))
+        } else {
+            Some((l.x, l.z))
         }
-        (l.x, l.z)
     }
 
     /// `GetMostRecentDisasterLocation` (slot 12): the newest entry overall
-    /// (`None`) or of the instance.
-    pub(crate) fn most_recent_location(&self, instance: Option<u32>) -> Option<(i32, i32)> {
-        let l = self
+    /// (`None`) or of the instance, resolved (§2.7).
+    pub(crate) fn most_recent_location(&mut self, instance: Option<u32>) -> Option<(i32, i32)> {
+        let index = self
             .layer
             .locations
             .iter()
+            .enumerate()
             .rev()
-            .find(|l| instance.map_or(true, |i| l.instance == i))?;
-        Some(self.resolve_location(l))
+            .find(|(_, l)| instance.map_or(true, |i| l.instance == i))
+            .map(|(i, _)| i)?;
+        self.resolve_location(index)
     }
 
-    /// `GetDisasterLocationByIndex` (slot 17), resolved.
+    /// `GetDisasterLocationByIndex` (slot 17): the stored values, **not**
+    /// resolved (§2.7) *[quirk, DS35]*.
     pub(crate) fn location_by_index(&self, i: usize) -> Option<Location> {
-        let l = *self.layer.locations.get(i)?;
-        let (x, z) = self.resolve_location(&l);
-        Some(Location { x, z, ..l })
+        self.layer.locations.get(i).copied()
     }
 
     /// `GetNextDisasterLocation` (§2.7): the entry at the cursor (clamped
-    /// to the newest), then the cursor steps back, wrapping to the newest
-    /// below 0 (Q10).
+    /// to the newest), resolved, then the cursor steps back, wrapping to the
+    /// newest below 0 (Q10).
     pub(crate) fn next_location(&mut self) -> Option<Location> {
         let n = self.layer.locations.len();
         if n == 0 {
@@ -445,7 +465,9 @@ impl Core {
         }
         let c = self.layer.cursor.map_or(n - 1, |c| c.min(n - 1));
         self.layer.cursor = Some(if c == 0 { n - 1 } else { c - 1 });
-        self.location_by_index(c)
+        let l = *self.layer.locations.get(c)?;
+        let (x, z) = self.resolve_location(c)?;
+        Some(Location { x, z, ..l })
     }
 
     /// `GoToNextDisaster` (view-side): the next location, then the camera.

@@ -1,0 +1,82 @@
+{
+  "format": 1,
+  "name": "nr15_25_rule_overrides_order",
+  "spec": [
+    "network-rules 9.1"
+  ],
+  "description": "Two RuleOverrides lines with the same pattern: both are kept and the first line wins; with the lines swapped the other one wins (NR5, file order).",
+  "steps": [
+    {
+      "op": "nr_reset"
+    },
+    {
+      "op": "nr_load",
+      "resource": "overrides",
+      "text": [
+        "[RuleOverrides]",
+        "0x10,1,0,0x20,1,0=0x11,1,0,0x21,1,0",
+        "0x10,1,0,0x20,1,0=0x12,1,0,0x22,1,0"
+      ],
+      "expect": {
+        "entries": 2
+      }
+    },
+    {
+      "op": "nr_patch",
+      "a": [
+        "0x10",
+        0
+      ],
+      "b": [
+        "0x20",
+        0
+      ],
+      "side": 1,
+      "expect": 1,
+      "expect_a": [
+        "0x11",
+        0
+      ],
+      "expect_b": [
+        "0x21",
+        0
+      ]
+    },
+    {
+      "op": "nr_reset"
+    },
+    {
+      "op": "nr_load",
+      "resource": "overrides",
+      "text": [
+        "[RuleOverrides]",
+        "0x10,1,0,0x20,1,0=0x12,1,0,0x22,1,0",
+        "0x10,1,0,0x20,1,0=0x11,1,0,0x21,1,0"
+      ],
+      "expect": {
+        "entries": 2
+      }
+    },
+    {
+      "op": "nr_patch",
+      "a": [
+        "0x10",
+        0
+      ],
+      "b": [
+        "0x20",
+        0
+      ],
+      "side": 1,
+      "expect": 1,
+      "expect_a": [
+        "0x12",
+        0
+      ],
+      "expect_b": [
+        "0x22",
+        0
+      ]
+    }
+  ]
+}

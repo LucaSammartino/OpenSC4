@@ -180,19 +180,32 @@ fn automaton_slots_act_on_the_record() {
         assert!(fc4_automata_object_same(a, c));
         fc4_automata_object_set_token(a, 0x77);
         assert_eq!(fc4_automata_object_token(c), 0x77);
-        fc4_automata_automaton_set_state(a, 8, 0, -1.0, 1, 0, 0, 0);
-        fc4_automata_automaton_push_state(a, 0x10);
+        // [AT3] The RiotLeader is pushed `final=1`, so the stack never drains.
+        assert!(fc4_automata_automaton_set_state(a, 8, 0, -1.0, 1, 0, 0, 0));
+        assert!(fc4_automata_automaton_push_state(a, 0x10, 0, -1.0, 0, 0, 0, 0));
         fc4_automata_automaton_set_visible(a, true);
         fc4_automata_automaton_set_position(a, [1.0f32, 2.0, 3.0].as_ptr());
         let mut st = fc4_automata_automaton_state::default();
         assert!(fc4_automata_automaton_get_state(c, &mut st));
         assert_eq!((st.states, st.current_state, st.visible), (2, 0x10, 1));
         assert_eq!(st.position, [1.0, 2.0, 3.0]);
+        // PlayerDrive is not `final`: this pops it.
         assert!(fc4_automata_automaton_pop_state(a));
-        assert!(fc4_automata_automaton_pop_state(a));
-        assert!(!fc4_automata_automaton_pop_state(a));
         assert!(fc4_automata_automaton_get_state(c, &mut st));
-        assert_eq!(st.current_state, FC4_AUTOMATA_NO_STATE);
+        assert_eq!(st.current_state, 8);
+        // [AT3] The `final` leader is not popped: DISAPPEAR is pushed instead.
+        assert!(fc4_automata_automaton_pop_state(a));
+        assert!(fc4_automata_automaton_get_state(c, &mut st));
+        assert_eq!(st.current_state, FC4_AUTOMATA_STATE_DISAPPEAR);
+        assert_eq!(st.states, 2);
+        // ...and the leader is still there under it.
+        assert!(fc4_automata_automaton_pop_state(a));
+        assert!(fc4_automata_automaton_get_state(c, &mut st));
+        assert_eq!(st.current_state, 8);
+        // An empty stack pops false.
+        let empty = fc4_automata_object_create(PEDESTRIAN);
+        assert!(!fc4_automata_automaton_pop_state(empty));
+        fc4_automata_object_destroy(empty);
         fc4_automata_automaton_remove(a);
         fc4_automata_automaton_return_to_source(a);
         assert!(fc4_automata_automaton_get_state(c, &mut st));

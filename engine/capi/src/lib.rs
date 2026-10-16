@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 70;
+pub const FC4_ABI_VERSION: u32 = 71;
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
 pub const FC4_ERR_TRUNCATED: i32 = -2;
@@ -915,6 +915,7 @@ pub mod power;
 pub mod power_shadow;
 pub mod prop_developer;
 pub mod prop_manager;
+pub mod prop_occupant;
 pub mod props;
 pub mod protection;
 pub mod residential;
@@ -1045,6 +1046,9 @@ mod residential_tests;
 
 #[cfg(test)]
 mod prop_manager_tests;
+
+#[cfg(test)]
+mod prop_occupant_tests;
 
 #[cfg(test)]
 mod save_sweep_tests;

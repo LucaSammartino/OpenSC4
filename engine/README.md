@@ -1670,13 +1670,32 @@ cargo test -p fc4-formats --release --test network_rules -- --nocapture
      disasters shadow riot start x,z: orig instance … ours …
      disasters shadow riot R start|update N|removed …: phase o/o leaders o/o [cells] active o/o locked o/o
        ongoing o/o locations o/o mismatches=N[; differences: …]
-     disasters shadow quiet: posts orig/ours …; cost …; … mismatches=N[; differences: …]
+     disasters shadow quiet: posts orig/ours …; cost record buildings b/b total c/c fire e/e police p/p; …
+       mismatches=N[; differences: …]
      disasters shadow: city shutdown: N lines, M with mismatches=0 (fire a/b, riot c/d, quiet e/f); lines whose
        every difference is a numbered question: …; differences by kind: <kind> [Qnn] count, …
      ```
 
-     Success is `mismatches=0` on every line. A difference with a question number (`[Q37]` and so on, the glue13
-     lane report) is a known gap of the spec, not a defect of the core.
+     The quiet line's "cost record" is layer slot 18, which returns a **pointer to the statistics record** (§2.6,
+     DS39), not a cost: the four fields the safety advisor reads (the damaged-building count at `+0x00`, the total
+     cost at `+0x08`, the fire and police effectiveness at `+0x5C` / `+0x60`) are read through that pointer and
+     compared with the mirror's. Every `Ignite` line carries the original-side inputs §5.4's five refusals are
+     taken on (DS38): `type`, `flammability` read as an unsigned integer, the clamped cell `rect`, its average
+     `coverage`, `burning` (`0x69DBEBE1`) and the pause samples; a refusal the original made and the mirror did
+     not also names which of exits 1, 2, 3 and 5 those inputs admit (exit 4 needs the D9 curve: read it from the
+     `coverage`, ≥ 51 blocks with the shipped curve).
+
+     Success is `mismatches=0` on every line. A difference with a question number (`[Q37]` and so on, the lane
+     reports) is a known gap of the spec, not a defect of the core.
+
+     The shadow's writes are recorded, never made. The host's two creates are **wired for a live layer**, though
+     there is no `enable = disasters` yet: `create_fire_occupant` makes the fire occupant class `0x69D25C5F`
+     (GZCOM `0x29D25F1D`, interface `0x69D25C60`) and runs its own `SetTarget` (§5.11), `create_riot_leader` a
+     pedestrian automaton of group `0x4107` with `SetState(8, ...)` and `SetVisible(true)` (§6.4, automata.md
+     §8.1). `end_riot_leader` makes the `SetState(1, ...)` call the spec's End order names but does **not** rely
+     on it (the RiotLeader state was pushed `final=1`, so the call is a no-op against a leader still in it):
+     `RemoveControllers` and the release are what end it. `set_riot_effect` is still not made (its add,
+     `AddRegEffect`, takes two names and §8.1 names one).
    - **Zone developer shadow** (`zonedev_shadow = 1`, env `FC4_ZONEDEV_SHADOW`; off by default;
      `plugin/FC4ZoneDevShadow.h`): a same-process differential of the lot manager. It needs the **original** zone
      developer (do not enable `zonedev`); otherwise it logs `zonedev shadow: requested … but INACTIVE`. At

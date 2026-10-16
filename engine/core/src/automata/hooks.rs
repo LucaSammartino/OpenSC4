@@ -21,22 +21,25 @@ pub const RIOT_CREATE_MODE: u32 = 2;
 /// `CreateAutomaton`'s three trailing `u32`s for a riot leader (§7.2).
 pub const RIOT_CREATE_TAIL: [u32; 3] = [0, 0xFF, 0];
 /// `SetState(8, 0, −1.0, 1, 0, 0, 0)`: the RiotLeader state (§8.1 step 5).
+/// The fourth argument is **`final = 1`** (§12 quirk 11), so the riot end's
+/// `SetState(1, …)` below does nothing to the leader. [AT3]
 pub const RIOT_LEADER_STATE_ARGS: SetStateArgs = SetStateArgs {
-    a: 0,
-    b: -1.0,
-    c: 1,
-    d: 0,
-    e: 0,
-    f: 0,
+    controller: 0,
+    timeout_ms: -1.0,
+    is_final: 1,
+    anim_id: 0,
+    sfx_id: 0,
+    behaviour_template: 0,
 };
-/// `SetState(1, 0, −1.0, 0, 0, 0, 0)` at the end (§8.1 end step 1).
+/// `SetState(1, 0, −1.0, 0, 0, 0, 0)` at the end (§8.1 end step 1). The call is
+/// made; against a `final` leader it is a no-op. [AT3]
 pub const RIOT_END_STATE_ARGS: SetStateArgs = SetStateArgs {
-    a: 0,
-    b: -1.0,
-    c: 0,
-    d: 0,
-    e: 0,
-    f: 0,
+    controller: 0,
+    timeout_ms: -1.0,
+    is_final: 0,
+    anim_id: 0,
+    sfx_id: 0,
+    behaviour_template: 0,
 };
 /// The number of riot stages: a new maximum stage below it attaches a
 /// controller (disasters §6.5 step 4).

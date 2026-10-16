@@ -61,6 +61,10 @@
 #include <vector>
 
 namespace fc4 {
+
+// Defined below (outside the anonymous namespace): drives the mirror's own
+// fire tick when the original refused an ignition (the resync).
+void ResyncTick();
 namespace {
 
 using compat::DisasterHook;
@@ -248,6 +252,22 @@ void DropAll(std::set<uint64_t>& set) {
     set.clear();
 }
 
+// Drops the kept reference of every occupant that has left the occupant
+// manager (flag 1 clear, occupant-manager.md §5.2). The comparison skips them
+// anyway, and holding them until the city closes would keep a burned-down
+// building alive and then release the game's last reference (refaudit).
+void PruneGone(std::set<uint64_t>& set) {
+    for (auto it = set.begin(); it != set.end();) {
+        cISC4Occupant* o = AsOcc(*it);
+        if (o != nullptr && o->IsFlagSet(1)) {
+            ++it;
+            continue;
+        }
+        if (o != nullptr) FC4_RELEASE(o);
+        it = set.erase(it);
+    }
+}
+
 // ---- calls into the mirror core ----------------------------------------------------------------
 
 template <class F>
@@ -426,8 +446,11 @@ void CompareLayer(Diffs& d, char* out, size_t cap, const char* countQ) {
             // the occupant's cell of now (Q37).
             const bool occupantEntry = mapped == loc.instance && loc.occupant != 0;
             if (occupantEntry) {
-                d.AddQ("Q37", "location %d orig (inst %u, %d,%d) ours (inst %u, %d,%d)", i, mapped, x, z,
-                       loc.instance, loc.x, loc.z);
+                d.AddQ("Q37",
+                       "location %d orig (inst %u, %d,%d) ours (inst %u, %d,%d occ %016llX in-manager %d)", i,
+                       mapped, x, z, loc.instance, loc.x, loc.z,
+                       (unsigned long long)loc.occupant,
+                       loc.occupant != 0 && AsOcc(loc.occupant) != nullptr && AsOcc(loc.occupant)->IsFlagSet(1) ? 1 : 0);
                 continue;
             }
             d.Add("location %d orig (inst %u, %d,%d) ours (inst %u, %d,%d)", i, mapped, x, z, loc.instance, loc.x,
@@ -441,6 +464,7 @@ void CompareLayer(Diffs& d, char* out, size_t cap, const char* countQ) {
 
 void FireLine(const char* what) {
     Diffs d;
+    PruneGone(g.targets);
     d.scope = "fire";
     const fc4_disasters_state s = CoreState();
     const int32_t origCount = OrigFireCount();
@@ -516,9 +540,13 @@ void FireLine(const char* what) {
             if (lot != nullptr && it != g.ctx.lotConditions.end()) {
                 ++lots;
                 const uint32_t live = AsGame(lot)->GetCondition();
+                // A fire a spread lit is mirrored after the mirror's own step
+                // of that tick (its `Ignite` ran inside the original's step),
+                // so its stage - and the lot condition that follows it - can
+                // be one step behind. Same family as the §5.8 walk (DS40).
                 if (live != it->second && g.resyncTargets.count(t) != 0) {
                     d.AddQ("Q40", "lot %p condition orig %u ours %u", static_cast<void*>(lot), live, it->second);
-                } else if (live != it->second && !ob && g.spreadTargets.count(t) != 0) {
+                } else if (live != it->second && g.spreadTargets.count(t) != 0) {
                     d.AddQ("Q42", "lot %p condition orig %u ours %u", static_cast<void*>(lot), live, it->second);
                 } else if (live != it->second) {
                     d.Add("lot %p condition orig %u ours %u", static_cast<void*>(lot), live, it->second);
@@ -554,6 +582,7 @@ void FireLine(const char* what) {
 }
 
 std::set<uint64_t> LiveLocked() {
+    PruneGone(g.origLocked);
     std::set<uint64_t> live;
     std::set<uint64_t> all = g.origLocked;
     all.insert(g.ctx.locked.begin(), g.ctx.locked.end());
@@ -671,18 +700,45 @@ void MirrorIgnite(uint64_t o, bool force, uint32_t id, bool focus, bool origResu
         g.resyncTargets.insert(o);
         ++g.resyncs;
         g.resyncInEpisode = true;
+        // Close the mirror's phantom episode here, not at the next framework
+        // tick: a call that follows inside the same tick (two script actions
+        // in one catch-up batch) must see the original's state, and must run
+        // its own DisasterHasBegun so §2.7 resolves its location (DS35).
+        for (int i = 0; i < 32 && CoreState().fire_phase == 1; ++i) {
+            const uint64_t before = g.coreSteps;
+            ResyncTick();
+            if (g.coreSteps == before) break;
+        }
     }
     if (!compare && origResult && ours) g.spreadTargets.insert(o);
     TrackFirePhase();
     g.dirty = true;
-    const uint8_t cover = DisasterFireCoverage(g.city, AsOcc(o));
-    if (cover > 50) ++g.unfollowable;
-    char what[240];
+    // §5.4 "The refusals, exactly", logged at every call (DS38): the
+    // original-side inputs the answer names, plus which of the five exits
+    // those inputs admit. Exit 4 needs the D9 curve and is not in the mask;
+    // the coverage and the clamped rectangle are there to read it from.
+    const DisasterIgniteInputs in =
+        DisasterIgniteInputsOf(g.city, AsOcc(o), force, g.ctx.pausedSample, g.ctx.emergencySample);
+    if (in.coverage > 50) ++g.unfollowable;
+    char exits[24] = "";
+    if (refused) {
+        std::string e;
+        for (uint32_t i = 0; i < 5; ++i) {
+            if ((in.exits & (1u << i)) == 0) continue;
+            if (!e.empty()) e += ",";
+            e += std::to_string(i + 1);
+        }
+        if (e.empty()) e = "none-of-1,2,3,5";
+        std::snprintf(exits, sizeof(exits), " exits=%s", e.c_str());
+    }
+    char what[320];
     std::snprintf(what, sizeof(what),
-                  "%s %p force=%d id=%08X->%08X focus=%d coverage=%u paused=%d emergency=%d -> orig %d ours %d%s",
-                  why, reinterpret_cast<void*>(static_cast<uintptr_t>(o)), force, id, mid, focus, cover,
-                  g.ctx.pausedSample, g.ctx.emergencySample, origResult, ours,
-                  refused ? " (refused by the original: Q40; ours put out)" : "");
+                  "%s %p force=%d id=%08X->%08X focus=%d type=%08X flammability=%u rect=%d,%d..%d,%d "
+                  "coverage=%u burning=%d paused=%d emergency=%d -> orig %d ours %d%s%s",
+                  why, reinterpret_cast<void*>(static_cast<uintptr_t>(o)), force, id, mid, focus, in.type,
+                  in.flammability, in.x0, in.z0, in.x1, in.z1, in.coverage, in.burning ? 1 : 0, g.ctx.pausedSample,
+                  g.ctx.emergencySample, origResult, ours,
+                  refused ? " (refused by the original: Q40; ours put out)" : "", exits);
     if (origResult != ours) ++g.calls.lines;  // counted in the line below too
     if (compare) {
         FireLine(what);
@@ -1327,20 +1383,52 @@ void QuietLine() {
     }
     if (g.ctx.pauses != 0 || g.ctx.saveOff != 0) d.Add("ours left pause %d save-off %d", g.ctx.pauses, g.ctx.saveOff);
     cISC4DisasterLayer* l = Layer();
-    // Slot 18 (pop 0): the int64 total cost in edx:eax (§2.6; the SDK
-    // declares int32).
-    using CostFn = int64_t(__fastcall*)(void*, void*);
-    const int64_t origCost = l ? reinterpret_cast<CostFn>((*reinterpret_cast<void***>(l))[18])(l, nullptr) : 0;
-    const int64_t ourCost = fc4_disasters_cost(g.core);
+    // Slot 18 (pop 0) returns a **pointer to the statistics record**, not a
+    // cost (§2.6, DS39): in the original the interface pointer + 0x48. The
+    // four fields the safety advisor reads (§2.6) are compared here.
+    using CostFn = void*(__fastcall*)(void*, void*);
+    const uint8_t* rec =
+        l ? static_cast<const uint8_t*>(reinterpret_cast<CostFn>((*reinterpret_cast<void***>(l))[18])(l, nullptr))
+          : nullptr;
+    const fc4_disasters_state st = CoreState();
+    uint32_t origBuildings = 0;
+    int64_t origTotal = 0;
+    float origFire = 0.0f, origPolice = 0.0f;
+    if (rec != nullptr) {
+        std::memcpy(&origBuildings, rec + 0x00, sizeof(origBuildings));
+        std::memcpy(&origTotal, rec + 0x08, sizeof(origTotal));
+        std::memcpy(&origFire, rec + 0x5C, sizeof(origFire));
+        std::memcpy(&origPolice, rec + 0x60, sizeof(origPolice));
+    }
+    if (rec == nullptr) {
+        d.Add("cost record: the original returned null");
+    } else {
+        if (origBuildings != st.damaged_buildings) {
+            d.Add("cost record buildings orig %u ours %u", origBuildings, st.damaged_buildings);
+        }
+        if (origTotal != st.disaster_cost) {
+            d.Add("cost record total orig %lld ours %lld", (long long)origTotal, (long long)st.disaster_cost);
+        }
+        if (origFire != st.fire_effectiveness) {
+            d.Add("cost record fire effectiveness orig %g ours %g", static_cast<double>(origFire),
+                  static_cast<double>(st.fire_effectiveness));
+        }
+        if (origPolice != st.police_effectiveness) {
+            d.Add("cost record police effectiveness orig %g ours %g", static_cast<double>(origPolice),
+                  static_cast<double>(st.police_effectiveness));
+        }
+    }
     char layer[96];
     CompareLayer(d, layer, sizeof(layer), nullptr);
     ++g.quietLines.lines;
     if (d.n == 0) ++g.quietLines.clean;
     if (d.n != 0 && d.unexplained == 0) ++g.quietLines.questioned;
-    Log("disasters shadow quiet: posts orig/ours %s; cost orig %lld ours %lld (not compared: Q41); %s "
-        "deferred=%llu refused-by-the-original=%llu unfollowable=%llu id-guesses=%llu leaders-missing=%llu "
-        "cell-fallbacks=%llu radius=%llu extinguish=%llu mismatches=%u%s%s",
-        text.c_str(), (long long)origCost, (long long)ourCost, layer, (unsigned long long)g.deferredIgnites,
+    Log("disasters shadow quiet: posts orig/ours %s; cost record buildings %u/%u total %lld/%lld fire %g/%g "
+        "police %g/%g; %s deferred=%llu refused-by-the-original=%llu unfollowable=%llu id-guesses=%llu "
+        "leaders-missing=%llu cell-fallbacks=%llu radius=%llu extinguish=%llu mismatches=%u%s%s",
+        text.c_str(), origBuildings, st.damaged_buildings, (long long)origTotal, (long long)st.disaster_cost,
+        static_cast<double>(origFire), static_cast<double>(st.fire_effectiveness), static_cast<double>(origPolice),
+        static_cast<double>(st.police_effectiveness), layer, (unsigned long long)g.deferredIgnites,
         (unsigned long long)g.resyncs, (unsigned long long)g.unfollowable,
         (unsigned long long)g.idGuesses, (unsigned long long)g.ctx.leadersMissing, (unsigned long long)g.cellFallbacks,
         (unsigned long long)g.radiusCalls, (unsigned long long)g.extinguishCalls, d.n,
