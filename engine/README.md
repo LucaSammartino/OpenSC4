@@ -770,9 +770,10 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      (below) nearly the same city, but not yet the same one. Runs of the 27 regress replacements of run 121 on
      Konradshohe with `session_seed = 0x5EED1234` (lane detpacing, 2026-10-16):
      - before deterministic pacing, two turbo runs to 2032-01-01 differed in the `DIGEST` from the first month;
-     - with it, two turbo runs to 2032-01-01 give the same `DIGEST` until 2026-12 (`dp-c1` / `dp-c2`; until
-       2027-05 in an earlier pair), and a speed-2 run without turbo to 2028-01-01 gives the turbo run's `DIGEST`
-       until 2027-05 (`dp-s1` / `dp-c1`); the `ordinance` and `zones` month lines are the same in every run, and
+     - with it, two turbo runs to 2032-01-01 give the same `DIGEST` until 2027-02 (`dp-final1` / `dp-final2`;
+       until 2026-12 and 2027-05 in earlier pairs), and a speed-2 run without turbo to 2028-01-01 gives the turbo
+       run's `DIGEST` until 2027-05 (`dp-s1` / `dp-c1`); the `ordinance` and `zones` month lines are the same in
+       every run, and
        `demand`, `landfill`, `plumbing`, `power`, `protection` and `neighbours` are the same at speed 2 and in
        turbo to 2028;
      - the first differences come from the original's frame-driven or clock-seeded subsystems still in the city:
@@ -780,8 +781,10 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
        construction crew; from the third month), the occupants whose flammability the flammability scan reads
        (`wateredQueries`, one query a month), the traffic route counts by travel type (`routes applied … by travel
        type`, from the seventh month), and the props the original prop developer places and asks crime to select
-       (its generator is seeded from the clock). Small differences there reach population (R ±4) after 11 to 16
-       months and then every subsystem. `rand()` (state 1 at process start) is drawn by the original in a
+       (its generator is seeded from the clock; crime's `SelectProp` draws crime's own generator). The first
+       difference in our state is one tree more or less that flora plants on a cell (after 9 to 12 months), which
+       moves the flammability scan and the pollution absorption; small differences reach population (R ±4) after
+       11 to 16 months and then every subsystem. `rand()` (state 1 at process start) is drawn by the original in a
        frame-dependent order.
    - **Pacing** (`pacing = deterministic | original`, env `FC4_PACING`; `plugin/FC4Pacing.h`, `core/src/pacing.rs`,
      fc4.h "pacing"; simulator.md §5.7 *[choice]*): how the work of our cores is bound to game days. The default
