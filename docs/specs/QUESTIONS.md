@@ -4440,7 +4440,13 @@ Open points from network-geometry.md §17. The current answer is in brackets; ea
   bridge record (`+0xD8`, `0x28` bytes) and corrects the length map: bridge type `+0x16C`, keyed by the step count
   `end − start + 1` (`0x00632A68`), not `+0x164`. §7.1 lists the entry points for a follow-up bridge spec (span
   selection `0x00630570`, step test `0x0062FDB0`, edge test `0x0062EB80`, elevation `0x0062EA90`, specialised
-  `0x00632060`, parametric `0x00631300`, the piece inserters and the loaders).
+  `0x00632060`, parametric `0x00631300`, the piece inserters and the loaders). **ANSWERED 2026-10-16 (re-specs17a):**
+  MATCHES the outline, now specified in network-bridges.md: the INI sections and the `0x178`-byte bridge type record
+  with every exemplar property (§2), the specialisation grammar (§3), the water pass, span selection, bank adjustment
+  and type choice (§4–§6), the elevations (§8), the specialised and parametric models (§9, §10), pieces and columns
+  (§11), the cost (§12). Corrections: the straight test reads `v` (§4.1); the parametric model reads bridge type
+  `+0x34`–`+0x7C` and `+0xA8`–`+0xD4`, not `+0xF8`–`+0x120`; the bridge cost fields are bridge **type** fields, not
+  record fields (network-tools.md §8.1 fixed). New open questions NB1–NB3 (network-bridges.md §16).
 - ~~**NG3:** who fills the tool's extra-cell list (`+0xF0`), and whether `CheckForGoodTerrain`'s inverted extra-cell
   test can be reached. [empty in an ordinary drag, inferred]~~ **ANSWERED 2026-10-16 (re-answers19):** MATCHES
   (network-geometry.md §4.5). Only `0x00629170` appends (20-byte entries: x, z, edge word, network type, two bytes),
@@ -4448,9 +4454,16 @@ Open points from network-geometry.md §17. The current answer is in brackets; ea
   `0x00661078`, `OnMouseMove` `0x00661657`), between two tool resets around `InsertIsolatedHighwayIntersection`
   (`0x0062CD50`). That function runs slot 68 but never slot 69, so the inverted test is unreachable in the shipped
   game.
-- **NG4:** `IdentifyLandBridgeCells` and which types set `+0x354`. [not specified] *Partly answered 2026-10-16
+- ~~**NG4:** `IdentifyLandBridgeCells` and which types set `+0x354`. [not specified]~~ *Partly answered 2026-10-16
   (re-answers19): `Init` sets `+0x354` for every type with at least one bridge type, because it tests a field's
-  address (`0x00626B53`); network-geometry.md §4.4. The pass itself is still open.*
+  address (`0x00626B53`); network-geometry.md §4.4.* **ANSWERED 2026-10-16 (re-specs17a):** MATCHES. The address
+  test is confirmed (`lea` of bridge type `+0x98`, then a null test); the field is the land flag (property
+  `0x482CB44F`), which every shipped bridge type sets, so reading the byte would give the same result: no shipped
+  effect. The pass (network-bridges.md §7) scans the first cell's +x or +z edge altitudes for a drop below the last
+  bank, keeps the lowest ground, and builds a land bridge (`CreateLandBridge` `0x00632580`) when the span has ≥ 4
+  steps, is deeper than p+0x3C (55 m road, 30 m others) and the far bank is within p+0x40 (`0xC804DD96`, 20 m) of the
+  near bank. The deck is the near bank's height; any occupant in the span's rectangle blocks it; the record's byte
+  `+0x18` is 1. It never lowers `v` and sets no code.
 - ~~**NG5:** the rule-driven piece solver (`SolveUsingEvaluator`, `ApplyNetworkRules`, tile subsets) and
   `IdentifyHighwayIntersections`. [a later spec]~~ **PARTLY ANSWERED 2026-10-16 (re-answers19):** MATCHES for the
   solver (network-geometry.md §8.2 outlines the follow-up spec: the three rule INI resources, type `0x0A5BCF4B`
