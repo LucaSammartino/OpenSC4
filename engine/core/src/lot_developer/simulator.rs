@@ -15,9 +15,9 @@ use super::terrain::TerrainView;
 use super::tuning::Tuning;
 use super::{
     lot_prop, lot_state, msg, object_type, reason, zot, BuildingProfile, BurntBuilding, CellRect, CfgObject, Cheat,
-    LotDevMessage, LotDeveloperHost, TextureRecord, Vec3, AGENT_LEVELS, ANCHOR_GROUP, BASE_TEXTURE_EXTRA_DEFAULT,
-    COFFEE_BAR_BUILDING, COFFEE_BAR_CFG, OCCUPANT_TYPE_BUILDING, OCCUPANT_TYPE_NETWORK, OCCUPANT_TYPE_PROP,
-    PROP_NIGHT_LIGHT, PROP_ZOT_NUMBER, SUBSCRIBED, TEXTURE_RESOURCE,
+    ConnectionNode, LotDevMessage, LotDeveloperHost, TextureRecord, Vec3, AGENT_LEVELS, ANCHOR_GROUP,
+    BASE_TEXTURE_EXTRA_DEFAULT, COFFEE_BAR_BUILDING, COFFEE_BAR_CFG, OCCUPANT_TYPE_BUILDING, OCCUPANT_TYPE_FLORA,
+    OCCUPANT_TYPE_NETWORK, OCCUPANT_TYPE_PROP, PROP_NIGHT_LIGHT, PROP_ZOT_NUMBER, SUBSCRIBED, TEXTURE_RESOURCE,
 };
 use crate::rng::{derive_seed, file_seed, CrtRand, FixedSeeds, RzRandom, SeedSource};
 use crate::stl::StlHashSet;
@@ -47,6 +47,9 @@ pub const ZOT_HEIGHT: f64 = 3.0;
 pub const BLOCKING_TOP_MARGIN: f64 = 32.0;
 /// The slope above which `UpdateLotObjectAlitudes` runs (§6.4).
 pub const OBJECT_ALTITUDE_SLOPE: f32 = 0.25;
+/// `UpdateLotObjectAlitudes`'s altitude tolerance (float `0x00A8C950`;
+/// §6.5, LD17).
+pub const OBJECT_ALTITUDE_TOLERANCE: f32 = 0.1;
 /// The empty-lot commute check's age threshold in days (§4.2 step 4).
 pub const EMPTY_LOT_COMMUTE_DAYS: u32 = 30;
 /// Days without zots after the city is established (§3.2).
@@ -1458,7 +1461,7 @@ impl LotDeveloper {
                     added = true;
                 }
                 if s.abs() > OBJECT_ALTITUDE_SLOPE {
-                    self.host.update_lot_object_altitudes(lot);
+                    self.update_lot_object_altitudes(lot);
                 }
             }
         }
@@ -1554,7 +1557,101 @@ impl LotDeveloper {
         if b {
             self.add_lot_props(l2, cfg);
             self.add_lot_flora(l2, cfg);
-            self.host.add_network_connection_nodes(l2, cfg);
+            self.add_network_connection_nodes(l2, cfg);
+        }
+    }
+
+    /// `AddNetworkConnectionNodes(lot, cfg, unused)` (`0x006C9C80`; §6.5,
+    /// LD17): for each configuration object of type 7 with at least 3 IDs,
+    /// in array order, a connection node at the object's cell (slot 39's
+    /// position through city slot 95, which floors `p / 16`) with
+    /// `ids[0]`, `rotl32(ids[1], 8·o)`, `rotl32(ids[2], 8·o)`, `ids[3]` (or
+    /// 0) and the orientation `o`; then the host creates them and
+    /// autoconnects the lot (also with none). No draws.
+    pub fn add_network_connection_nodes(&mut self, lot: u64, cfg: u64) {
+        let nodes = self.connection_nodes(lot, cfg);
+        self.host.add_network_connection_nodes(lot, &nodes);
+    }
+
+    /// The nodes of [`Self::add_network_connection_nodes`].
+    pub fn connection_nodes(&self, lot: u64, cfg: u64) -> Vec<ConnectionNode> {
+        let mut nodes = Vec::new();
+        for obj in self.host.cfg_objects(cfg) {
+            if obj.object_type != object_type::NETWORK || obj.ids.len() < 3 {
+                continue;
+            }
+            let (pos, orient) = self.object_position(lot, Some(cfg), &obj);
+            let (x, z) = self.host.position_to_cell(pos[0], pos[2]);
+            // x86 ROL: the count is taken mod 32.
+            let r = (orient as u32).wrapping_mul(8) & 31;
+            nodes.push(ConnectionNode {
+                node_type: obj.ids[0],
+                x,
+                z,
+                b: obj.ids[1].rotate_left(r),
+                c: obj.ids[2].rotate_left(r),
+                d: obj.ids.get(3).copied().unwrap_or(0),
+                orientation: orient as u8,
+            });
+        }
+        nodes
+    }
+
+    /// `UpdateLotObjectAlitudes(lot)` (`0x006C91F0`; §6.5, LD17), from
+    /// slot 37 when `|slope| > 0.25`. For each building, prop and flora
+    /// occupant of the lot (lot slot 49, list order): the target altitude
+    /// is slot 39's for its configuration object (lot slot 11), else the
+    /// terrain's at its x, z; when `|P.y − Q.y| > 0.1` (f32, strict, NaN
+    /// no) only y moves (occupant slot 9), the occupant manager is told
+    /// (slot 24 with 1) and a building's foundation is redone: slot 48, its
+    /// type and slot 60 when there is one; then, if slot 56 asks for one,
+    /// slot 59 with that type, else slot 58 with the lot's configuration.
+    /// *[inferred, LD31]* The foundation step belongs to the move (the
+    /// spec's "and, for a building only" follows the move's actions).
+    /// Network occupants and the rest are left. No draws.
+    pub fn update_lot_object_altitudes(&mut self, lot: u64) {
+        let host = &*self.host;
+        for o in host.lot_occupants(lot) {
+            let t = host.occupant_type(o);
+            if !matches!(t, OCCUPANT_TYPE_BUILDING | OCCUPANT_TYPE_PROP | OCCUPANT_TYPE_FLORA) {
+                continue;
+            }
+            let mut p = host.occupant_position(o);
+            let cfg = host.lot_configuration(lot);
+            let qy = match host.lot_configuration_object(lot, o) {
+                Some(obj) => self.view.object_position(host, lot, cfg, &obj).0[1],
+                None => host.terrain_altitude_at(p[0], p[2]),
+            };
+            let d = r24(f64::from(p[1]) - f64::from(qy)).abs();
+            if d <= f64::from(OBJECT_ALTITUDE_TOLERANCE) || d.is_nan() {
+                continue;
+            }
+            p[1] = qy;
+            host.occupant_set_position(o, p);
+            host.occupant_moved(o);
+            if t != OCCUPANT_TYPE_BUILDING {
+                continue;
+            }
+            let found = self.view.foundation_by_occupant(host, o);
+            let ftype = found.map(|f| {
+                let ft = host.foundation_type(f);
+                self.view.remove_building_foundation(host, o);
+                ft
+            });
+            if self.view.is_occupant_foundation_required(host, o) {
+                if let Some(b) = host.occupant_as_building(o) {
+                    match ftype {
+                        Some(ft) => {
+                            self.view.add_building_foundation_type(host, b, ft);
+                        }
+                        // LD7: a null configuration reads as having no
+                        // primary object.
+                        None => {
+                            self.view.add_building_foundation(host, b, cfg.unwrap_or(0));
+                        }
+                    }
+                }
+            }
         }
     }
 

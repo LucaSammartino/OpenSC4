@@ -128,9 +128,11 @@
 //!   handler (ignored, quirk 15), the blocking filter object (the host's
 //!   `occupants_in_bbox` applies it), `GetJobs` / `GetBoundingRect` calls
 //!   whose results are unused, and the slots §17 does not cover (41, 45,
-//!   62–64, `UpdateLotObjectAlitudes`, the retaining-wall helpers: host
-//!   calls, no draws). The boundary map is the constant table of §17.7
-//!   ([`BOUNDARY_RULES`]); `Init` / `Shutdown` only switch it on and off.
+//!   62–64, the retaining-wall helpers, `RemoveNetworkConnectionNodes`:
+//!   host calls, no draws). `UpdateLotObjectAlitudes` and the parameters of
+//!   `AddNetworkConnectionNodes` are the core's (§6.5, LD17). The boundary
+//!   map is the constant table of §17.7 ([`BOUNDARY_RULES`]); `Init` /
+//!   `Shutdown` only switch it on and off.
 //!
 //! Host callbacks must not call back into the lot developer.
 
@@ -298,6 +300,9 @@ pub mod object_type {
     pub const TEXTURE: u32 = 2;
     pub const FLORA: u32 = 4;
     pub const WATER: u32 = 7;
+    /// Type 7 read as the network objects of `AddNetworkConnectionNodes`
+    /// (§6.5, LD17).
+    pub const NETWORK: u32 = 7;
 }
 
 /// The coffee-bar cheat (§5.8).
@@ -389,6 +394,25 @@ pub struct TextureRecord {
     pub extra: [u8; 5],
     /// The frame byte (`0xFF`: the occupant draws one).
     pub frame: u8,
+}
+
+/// One network connection node of `AddNetworkConnectionNodes` (§6.5,
+/// LD17): the arguments of network manager slot 20
+/// `CreateConnectionNode(&n, node_type, &cell, b, c, d, orientation)`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ConnectionNode {
+    /// `ids[0]`.
+    pub node_type: u32,
+    /// The object's cell (`floor(pos / 16)`, the rounding of city slot 95).
+    pub x: i32,
+    pub z: i32,
+    /// `rotl32(ids[1], 8·orientation)`, `rotl32(ids[2], 8·orientation)`.
+    pub b: u32,
+    pub c: u32,
+    /// `ids[3]` with at least 4 IDs, else 0.
+    pub d: u32,
+    /// Slot 39's orientation (passed as a byte).
+    pub orientation: u8,
 }
 
 /// The burnt-building prop made from a building by `ExplodeLot` (§7.2
@@ -601,8 +625,13 @@ pub trait LotDeveloperHost {
     fn first_building(&self, lot: u64) -> Option<u64>;
     /// Slot 62 `UpdateLotRetainingWalls(lot)` (`0x005E37F0`).
     fn update_lot_retaining_walls(&self, lot: u64) -> bool;
-    /// `UpdateLotObjectAlitudes` (§6.4).
-    fn update_lot_object_altitudes(&self, lot: u64);
+    /// Lot slot 49 `GetLotOccupants` (§6.5 `UpdateLotObjectAlitudes`,
+    /// LD17): the lot's occupants in list order (references kept for the
+    /// call).
+    fn lot_occupants(&self, lot: u64) -> Vec<u64>;
+    /// Lot slot 11 `GetLotConfigurationObject(occ)` (§6.5, LD17): the
+    /// configuration object the occupant was made from, `None` without one.
+    fn lot_configuration_object(&self, lot: u64, occ: u64) -> Option<CfgObject>;
     /// Slot 45 `UpdateLotBaseTextureOccupant(lot, hadFoundation)`.
     fn update_lot_base_texture_occupant(&self, lot: u64, had_foundation: bool) -> bool;
     /// Slot 41 `GetLotBaseTextureOccupant(lot, occ, create)`: the
@@ -619,8 +648,14 @@ pub trait LotDeveloperHost {
     /// `cSC4LotRetainingWallOccupant::UpdateSurroundingRetainingWalls(lot)`
     /// (`0x005E3960`).
     fn update_surrounding_retaining_walls(&self, lot: u64);
-    /// `AddNetworkConnectionNodes(lot, cfg, 1)` / `RemoveNetworkConnectionNodes`.
-    fn add_network_connection_nodes(&self, lot: u64, cfg: u64);
+    /// `AddNetworkConnectionNodes` steps 2-3 (§6.5, LD17): network manager
+    /// slot 20 `CreateConnectionNode` for each node in order, every result
+    /// appended to one list (also a failed one), then slot 21
+    /// `AutoconnectLotNodes(lot, &list)` (also with no node), then the list's
+    /// entries are released.
+    fn add_network_connection_nodes(&self, lot: u64, nodes: &[ConnectionNode]);
+    /// `RemoveNetworkConnectionNodes(lot)` (§6.5, LD17): the lot's network
+    /// occupants with flag `0x200000` go to network manager slot 6.
     fn remove_network_connection_nodes(&self, lot: u64);
     /// §6.3: create a construction occupant, `SetLot(lot)`, insert it.
     fn start_construction_occupant(&self, lot: u64);
@@ -666,6 +701,9 @@ pub trait LotDeveloperHost {
     fn occupant_remove(&self, occ: u64, a: u32, flags: u32);
     /// Occupant manager slot 24: occupant changed `(occ, 0)`.
     fn occupant_changed(&self, occ: u64);
+    /// Occupant manager slot 24 with 1: the occupant moved
+    /// (`UpdateLotObjectAlitudes`, §6.5, LD17).
+    fn occupant_moved(&self, occ: u64);
     /// Occupant manager slot 36 `GetOccupantsByBBox` with the blocking
     /// filter (flora `0x74758926` only).
     fn occupants_in_bbox(&self, min: Vec3, max: Vec3) -> Vec<u64>;

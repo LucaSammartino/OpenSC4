@@ -19,8 +19,8 @@ use std::rc::{Rc, Weak};
 use fc4_core::development::BuildingProfile;
 use fc4_core::lot_developer::{
     answers_iid, is_empty_lot_suitable_for_zot, lot_prop, lot_state, reason, rubble_count, BurntBuilding, CellRect,
-    CfgObject, Cheat, Draw, DrawKind, LotDevMessage, LotDeveloper, LotDeveloperHost, LotDeveloperStatics,
-    SharedStatics, TerrainView, TextureRecord, Tuning, Vec3, FLT_MAX, IID_BUILDING_OCCUPANT,
+    CfgObject, Cheat, ConnectionNode, Draw, DrawKind, LotDevMessage, LotDeveloper, LotDeveloperHost,
+    LotDeveloperStatics, SharedStatics, TerrainView, TextureRecord, Tuning, Vec3, FLT_MAX, IID_BUILDING_OCCUPANT,
     OCCUPANT_TYPE_BASE_TEXTURE, OCCUPANT_TYPE_BUILDING, OCCUPANT_TYPE_FOUNDATION, OCCUPANT_TYPE_PROP,
 };
 use fc4_core::property::PropertyHolder;
@@ -157,6 +157,8 @@ struct Occ {
     inserted: bool,
     /// Listed by the demolition filter as immovable (§17.3).
     immovable: bool,
+    /// Lot slot 11 `GetLotConfigurationObject(occ)` (LD17).
+    cfg_object: Option<CfgObject>,
 }
 
 impl Default for Occ {
@@ -177,6 +179,7 @@ impl Default for Occ {
             occ_type: None,
             inserted: true,
             immovable: false,
+            cfg_object: None,
         }
     }
 }
@@ -870,9 +873,17 @@ impl LotDeveloperHost for World {
             .push("update_retaining_walls", vec![("lot", ji(lot as i64))]);
         true
     }
-    fn update_lot_object_altitudes(&self, lot: u64) {
-        self.events
-            .push("update_object_altitudes", vec![("lot", ji(lot as i64))]);
+    fn lot_occupants(&self, lot: u64) -> Vec<u64> {
+        self.events.push("lot_occupants", vec![("lot", ji(lot as i64))]);
+        self.occs
+            .borrow()
+            .iter()
+            .filter(|(_, o)| o.lot == Some(lot))
+            .map(|(&t, _)| t)
+            .collect()
+    }
+    fn lot_configuration_object(&self, _lot: u64, occ: u64) -> Option<CfgObject> {
+        self.occs.borrow().get(&occ).and_then(|o| o.cfg_object.clone())
     }
     fn update_lot_base_texture_occupant(&self, lot: u64, had: bool) -> bool {
         self.events.push(
@@ -922,8 +933,25 @@ impl LotDeveloperHost for World {
         self.events
             .push("update_surrounding_walls", vec![("lot", ji(lot as i64))]);
     }
-    fn add_network_connection_nodes(&self, lot: u64, _cfg: u64) {
-        self.events.push("add_network_nodes", vec![("lot", ji(lot as i64))]);
+    fn add_network_connection_nodes(&self, lot: u64, nodes: &[ConnectionNode]) {
+        let list = nodes
+            .iter()
+            .map(|n| {
+                Json::Array(vec![
+                    ji(n.node_type),
+                    ji(n.x),
+                    ji(n.z),
+                    ji(n.b),
+                    ji(n.c),
+                    ji(n.d),
+                    ji(n.orientation),
+                ])
+            })
+            .collect();
+        self.events.push(
+            "add_network_nodes",
+            vec![("lot", ji(lot as i64)), ("nodes", Json::Array(list))],
+        );
     }
     fn remove_network_connection_nodes(&self, lot: u64) {
         self.events.push("remove_network_nodes", vec![("lot", ji(lot as i64))]);
@@ -1003,6 +1031,11 @@ impl LotDeveloperHost for World {
     }
     fn occupant_changed(&self, occ: u64) {
         self.events.push("occupant_changed", vec![("occ", ji(occ as i64))]);
+    }
+    fn occupant_moved(&self, occ: u64) {
+        let y = self.occ(occ, |o| o.position[1]);
+        self.events
+            .push("occupant_moved", vec![("occ", ji(occ as i64)), ("y", jf(y))]);
     }
     fn occupants_in_bbox(&self, _min: Vec3, _max: Vec3) -> Vec<u64> {
         Vec::new()
@@ -1970,7 +2003,7 @@ fn set_cfg(w: &World, op: &Json) -> R<()> {
 /// [maxx,maxy,maxz]]`, `cells [x1,z1,x2,z2]`, `group`, `lit`, `position`,
 /// `orientation`, `night_light`, `lot`, `props {hexId: value}`,
 /// `foundation_kind`, `foundation_type`, `type` (the occupant type),
-/// `inserted`, `immovable`.
+/// `inserted`, `immovable`, `cfg_object` (an object record, lot slot 11).
 fn set_occ(w: &World, op: &Json) -> R<()> {
     let id = token_of(op, "id")?;
     let mut o = w.occs.borrow().get(&id).cloned().unwrap_or_default();
@@ -2001,6 +2034,7 @@ fn set_occ(w: &World, op: &Json) -> R<()> {
             "type" => o.occ_type = Some(u32_of(v, k)?),
             "inserted" => o.inserted = bool_of(v, k)?,
             "immovable" => o.immovable = bool_of(v, k)?,
+            "cfg_object" => o.cfg_object = Some(cfg_object_of(v)?),
             other => return Err(format!("unknown occ field '{other}'")),
         }
     }

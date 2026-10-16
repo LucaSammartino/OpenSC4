@@ -350,7 +350,14 @@ impl TerrainView {
     /// default (`0x6916516B`); type 0 → false; else slot 59.
     pub fn add_building_foundation(&self, host: &dyn LotDeveloperHost, building: u64, cfg: u64) -> bool {
         let mut t = self.tuning.default_building_foundation_type;
-        match host.cfg_primary_building_object(cfg) {
+        // LD7: a null configuration (token 0) reads as having no primary
+        // object *[choice]*.
+        let primary = if cfg == 0 {
+            None
+        } else {
+            host.cfg_primary_building_object(cfg)
+        };
+        match primary {
             Some(obj) if obj.foundation != 0 => t = obj.foundation,
             _ => {
                 if let Some(v) = host.occupant_property(building, PROP_BUILDING_FOUNDATION_TYPE) {

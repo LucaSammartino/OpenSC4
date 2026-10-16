@@ -120,7 +120,10 @@ impl Tuning {
             prop::AUTO_LEVEL_INTERNAL_ALTITUDE_DELTA,
             &mut self.auto_level_internal_altitude_delta,
         );
-        f(prop::MAX_AREA_SLOPE_FOR_LEVELLING, &mut self.max_area_slope_for_levelling);
+        f(
+            prop::MAX_AREA_SLOPE_FOR_LEVELLING,
+            &mut self.max_area_slope_for_levelling,
+        );
         if let Some(v) = props::u32_of(h, prop::NIGHT_UPDATE_INTERVAL) {
             *night_acc = v;
         }
@@ -154,8 +157,8 @@ impl Tuning {
         h.add(prop::NIGHT_UPDATE_INTERVAL, u(100));
         h.add(prop::NIGHT_UPDATE_COUNT, u(10));
         let curve = [
-            0.0, 0.0, 0.555_556, 10.0, 1.111_11, 20.0, 1.666_67, 40.0, 2.222_22, 80.0, 2.777_78, 170.0, 3.333_33, 350.0,
-            3.888_89, 720.0, 4.444_45, 1470.0, 5.0, 3000.0,
+            0.0, 0.0, 0.555_556, 10.0, 1.111_11, 20.0, 1.666_67, 40.0, 2.222_22, 80.0, 2.777_78, 170.0, 3.333_33,
+            350.0, 3.888_89, 720.0, 4.444_45, 1470.0, 5.0, 3000.0,
         ];
         h.add(
             prop::COST_VS_SLOPE,

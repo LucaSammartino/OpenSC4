@@ -47,9 +47,9 @@ use std::ffi::c_void;
 use std::rc::Rc;
 
 use fc4_core::lot_developer::{
-    answers_iid, lot_prop, lot_state, msg, BuildingProfile, BurntBuilding, CellRect, CfgObject, Cheat, LotDevMessage,
-    LotDeveloper, LotDeveloperHost, LotDeveloperStatics, SharedStatics, TerrainView, TextureRecord, Tuning, Vec3,
-    IID_LOT_DEVELOPER, IID_MESSAGE_TARGET2, IID_SERIALIZABLE, IID_UNKNOWN,
+    answers_iid, lot_prop, lot_state, msg, BuildingProfile, BurntBuilding, CellRect, CfgObject, Cheat, ConnectionNode,
+    LotDevMessage, LotDeveloper, LotDeveloperHost, LotDeveloperStatics, SharedStatics, TerrainView, TextureRecord,
+    Tuning, Vec3, IID_LOT_DEVELOPER, IID_MESSAGE_TARGET2, IID_SERIALIZABLE, IID_UNKNOWN,
 };
 use fc4_core::property::PropertyHolder;
 use fc4_core::rng::FixedSeeds;
@@ -118,6 +118,22 @@ pub struct fc4_lotdev_texture {
     pub extra: [u8; 5],
     /// The frame byte (`0xFF`).
     pub frame: u8,
+}
+
+/// One network connection node of `AddNetworkConnectionNodes` (fc4.h
+/// `fc4_lotdev_conn_node`, §6.5, LD17): the arguments of network manager
+/// slot 20 `CreateConnectionNode(&n, type, &cell, b, c, d, orientation)`.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct fc4_lotdev_conn_node {
+    pub node_type: u32,
+    pub x: i32,
+    pub z: i32,
+    pub b: u32,
+    pub c: u32,
+    pub d: u32,
+    pub orientation: u8,
+    pub reserved: [u8; 3],
 }
 
 /// The burnt-building prop of `ExplodeLot` (fc4.h `fc4_lotdev_burnt`, §7.2).
@@ -372,7 +388,6 @@ pub struct fc4_lotdev_host {
     pub first_building: Option<unsafe extern "C" fn(U, u64) -> u64>,
     /// Slot 62 `UpdateLotRetainingWalls(lot)`.
     pub update_lot_retaining_walls: Option<unsafe extern "C" fn(U, u64) -> bool>,
-    pub update_lot_object_altitudes: Option<unsafe extern "C" fn(U, u64)>,
     /// Slot 45 `UpdateLotBaseTextureOccupant(lot, hadFoundation)`.
     pub update_lot_base_texture_occupant: Option<unsafe extern "C" fn(U, u64, bool) -> bool>,
     /// Slot 41 `GetLotBaseTextureOccupant(lot, &occ, create)`: the occupant
@@ -384,7 +399,11 @@ pub struct fc4_lotdev_host {
     pub add_retaining_wall_occupant: Option<unsafe extern "C" fn(U, u64, u32)>,
     /// `UpdateSurroundingRetainingWalls(lot)` (`0x005E3960`).
     pub update_surrounding_retaining_walls: Option<unsafe extern "C" fn(U, u64)>,
-    pub add_network_connection_nodes: Option<unsafe extern "C" fn(U, u64, u64)>,
+    /// `AddNetworkConnectionNodes` steps 2-3 (§6.5, LD17): network manager
+    /// slot 20 for each of the `n` nodes, every result in one list, then
+    /// slot 21 `AutoconnectLotNodes(lot, &list)` (also with `n` = 0).
+    pub add_network_connection_nodes: Option<unsafe extern "C" fn(U, u64, *const fc4_lotdev_conn_node, usize)>,
+    /// `RemoveNetworkConnectionNodes(lot)` (§6.5, LD17).
     pub remove_network_connection_nodes: Option<unsafe extern "C" fn(U, u64)>,
     pub start_construction_occupant: Option<unsafe extern "C" fn(U, u64)>,
     // buildings and other occupants
@@ -481,16 +500,27 @@ pub struct fc4_lotdev_host {
     pub unit_create: Option<unsafe extern "C" fn(U) -> u64>,
     pub unit_add: Option<unsafe extern "C" fn(U, u64, u64) -> bool>,
     pub unit_remove: Option<unsafe extern "C" fn(U, u64, u64) -> bool>,
+    // UpdateLotObjectAlitudes (§6.5, LD17; ABI 71)
+    /// Lot slot 49 `GetLotOccupants`: the occupants in list order
+    /// (references kept for the call).
+    pub lot_occupants: Option<unsafe extern "C" fn(U, u64, fc4_token_callback, *mut c_void)>,
+    /// Lot slot 11 `GetLotConfigurationObject(occ)`: the object through the
+    /// callback; false without one.
+    pub lot_configuration_object:
+        Option<unsafe extern "C" fn(U, u64, u64, fc4_lotdev_cfg_object_callback, *mut c_void) -> bool>,
+    /// Occupant manager slot 24 `(occ, 1)`: the occupant moved.
+    pub occupant_moved: Option<unsafe extern "C" fn(U, u64)>,
 }
 
 /// The number of callbacks in [`fc4_lotdev_host`].
-pub const LOTDEV_HOST_CALLBACKS: usize = 176;
+pub const LOTDEV_HOST_CALLBACKS: usize = 178;
 
 const _: () = {
     let ptr = std::mem::size_of::<usize>();
     assert!(std::mem::size_of::<fc4_lotdev_cfg_object>() == 48 + ptr);
     assert!(std::mem::size_of::<fc4_lotdev_texture>() == 20);
     assert!(std::mem::size_of::<fc4_lotdev_burnt>() == 32);
+    assert!(std::mem::size_of::<fc4_lotdev_conn_node>() == 28);
     assert!(std::mem::size_of::<fc4_lotdev_profile>() == 12);
     assert!(std::mem::size_of::<fc4_lotdev_message>() == 40);
     assert!(std::mem::size_of::<fc4_lotdev_tuning>() == 172);
@@ -985,8 +1015,26 @@ impl LotDeveloperHost for CHost {
     fn update_lot_retaining_walls(&self, lot: u64) -> bool {
         cb!(self, update_lot_retaining_walls, false, lot)
     }
-    fn update_lot_object_altitudes(&self, lot: u64) {
-        cb!(self, update_lot_object_altitudes, (), lot)
+    fn lot_occupants(&self, lot: u64) -> Vec<u64> {
+        collect_tokens(|f, ctx| cb!(self, lot_occupants, (), lot, f, ctx))
+    }
+    fn lot_configuration_object(&self, lot: u64, occ: u64) -> Option<CfgObject> {
+        let mut v: Vec<CfgObject> = Vec::new();
+        let ctx = &mut v as *mut Vec<CfgObject> as *mut c_void;
+        let found = cb!(
+            self,
+            lot_configuration_object,
+            false,
+            lot,
+            occ,
+            Some(push_cfg_object),
+            ctx
+        );
+        if found {
+            v.into_iter().next()
+        } else {
+            None
+        }
     }
     fn update_lot_base_texture_occupant(&self, lot: u64, had_foundation: bool) -> bool {
         cb!(self, update_lot_base_texture_occupant, false, lot, had_foundation)
@@ -1015,8 +1063,21 @@ impl LotDeveloperHost for CHost {
     fn update_surrounding_retaining_walls(&self, lot: u64) {
         cb!(self, update_surrounding_retaining_walls, (), lot)
     }
-    fn add_network_connection_nodes(&self, lot: u64, cfg: u64) {
-        cb!(self, add_network_connection_nodes, (), lot, cfg)
+    fn add_network_connection_nodes(&self, lot: u64, nodes: &[ConnectionNode]) {
+        let v: Vec<fc4_lotdev_conn_node> = nodes
+            .iter()
+            .map(|n| fc4_lotdev_conn_node {
+                node_type: n.node_type,
+                x: n.x,
+                z: n.z,
+                b: n.b,
+                c: n.c,
+                d: n.d,
+                orientation: n.orientation,
+                reserved: [0; 3],
+            })
+            .collect();
+        cb!(self, add_network_connection_nodes, (), lot, v.as_ptr(), v.len())
     }
     fn remove_network_connection_nodes(&self, lot: u64) {
         cb!(self, remove_network_connection_nodes, (), lot)
@@ -1100,6 +1161,9 @@ impl LotDeveloperHost for CHost {
     }
     fn occupant_changed(&self, occ: u64) {
         cb!(self, occupant_changed, (), occ)
+    }
+    fn occupant_moved(&self, occ: u64) {
+        cb!(self, occupant_moved, (), occ)
     }
     fn occupants_in_bbox(&self, min: Vec3, max: Vec3) -> Vec<u64> {
         collect_tokens(|f, ctx| cb!(self, occupants_in_bbox, (), min.as_ptr(), max.as_ptr(), f, ctx))

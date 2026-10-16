@@ -303,6 +303,11 @@ struct Script {
     order: RefCell<Vec<u64>>,
     cfgs: RefCell<BTreeMap<u64, Cfg>>,
     occs: RefCell<BTreeMap<u64, Occ>>,
+    /// Lot slot 49 per lot, and lot slot 11 per occupant (LD17).
+    lot_occs: RefCell<BTreeMap<u64, Vec<u64>>>,
+    occ_objects: RefCell<BTreeMap<u64, CfgObject>>,
+    /// Occupant types other than building (LD17).
+    occ_types: RefCell<BTreeMap<u64, u32>>,
     profiles: RefCell<BTreeMap<u32, Profile>>,
     families: RefCell<BTreeMap<u32, Vec<u32>>>,
     valid_buildings: RefCell<BTreeMap<u32, bool>>,
@@ -353,6 +358,9 @@ impl Default for Script {
             order: RefCell::new(Vec::new()),
             cfgs: RefCell::new(BTreeMap::new()),
             occs: RefCell::new(BTreeMap::new()),
+            lot_occs: RefCell::new(BTreeMap::new()),
+            occ_objects: RefCell::new(BTreeMap::new()),
+            occ_types: RefCell::new(BTreeMap::new()),
             profiles: RefCell::new(BTreeMap::new()),
             families: RefCell::new(BTreeMap::new()),
             valid_buildings: RefCell::new(BTreeMap::new()),
@@ -791,8 +799,12 @@ impl LotDeveloperHost for Script {
         self.say(format!("update_retaining_walls {lot}"));
         true
     }
-    fn update_lot_object_altitudes(&self, lot: u64) {
-        self.say(format!("update_object_altitudes {lot}"));
+    fn lot_occupants(&self, lot: u64) -> Vec<u64> {
+        self.say(format!("lot_occupants {lot}"));
+        self.lot_occs.borrow().get(&lot).cloned().unwrap_or_default()
+    }
+    fn lot_configuration_object(&self, _lot: u64, occ: u64) -> Option<CfgObject> {
+        self.occ_objects.borrow().get(&occ).cloned()
     }
     fn update_lot_base_texture_occupant(&self, lot: u64, had: bool) -> bool {
         self.say(format!("update_base_texture_occupant {lot} had={had}"));
@@ -814,8 +826,14 @@ impl LotDeveloperHost for Script {
     fn update_surrounding_retaining_walls(&self, lot: u64) {
         self.say(format!("update_surrounding_walls {lot}"));
     }
-    fn add_network_connection_nodes(&self, lot: u64, _cfg: u64) {
-        self.say(format!("add_network_nodes {lot}"));
+    fn add_network_connection_nodes(&self, lot: u64, nodes: &[ConnectionNode]) {
+        self.say(format!("add_network_nodes {lot} n={}", nodes.len()));
+        for n in nodes {
+            self.say(format!(
+                "node {:#x} @{},{} {:#x} {:#x} {:#x} o={}",
+                n.node_type, n.x, n.z, n.b, n.c, n.d, n.orientation
+            ));
+        }
     }
     fn remove_network_connection_nodes(&self, lot: u64) {
         self.say(format!("remove_network_nodes {lot}"));
@@ -836,6 +854,9 @@ impl LotDeveloperHost for Script {
         }
     }
     fn occupant_type(&self, occ: u64) -> u32 {
+        if let Some(&t) = self.occ_types.borrow().get(&occ) {
+            return t;
+        }
         self.occs
             .borrow()
             .get(&occ)
@@ -898,6 +919,10 @@ impl LotDeveloperHost for Script {
     }
     fn occupant_changed(&self, occ: u64) {
         self.say(format!("occupant_changed {occ}"));
+    }
+    fn occupant_moved(&self, occ: u64) {
+        let y = self.occupant_position(occ)[1];
+        self.say(format!("occupant_moved {occ} y={y}"));
     }
     fn occupants_in_bbox(&self, _min: Vec3, _max: Vec3) -> Vec<u64> {
         Vec::new()
@@ -2268,6 +2293,171 @@ fn is_area_flat_walks_x_outer_and_reads_the_reference_first() {
     host.terrain_alts.borrow_mut().insert(0, f32::NAN);
     host.terrain_alts.borrow_mut().insert(1, 500.0);
     assert!(d.is_area_flat(CellRect::new(0, 0, 0, 0), false));
+}
+
+#[test]
+fn network_connection_nodes_follow_the_type_7_objects() {
+    // §6.5 AddNetworkConnectionNodes (LD17): type-7 objects with at least 3
+    // IDs, in array order; the cell of slot 39's position; ids[1] and ids[2]
+    // rotated left by 8·orientation, ids[3] or 0.
+    let host = Rc::new(Script::default());
+    let obj = |t: u32, ids: Vec<u32>, orientation: u8, off: Vec3| CfgObject {
+        object_type: t,
+        ids,
+        orientation,
+        offset: off,
+        ..CfgObject::default()
+    };
+    let cfg = host.token();
+    host.cfgs.borrow_mut().insert(
+        cfg,
+        Cfg {
+            id: 0x6000_0001,
+            w: 1,
+            h: 1,
+            objects: vec![
+                obj(7, vec![0x0A, 0x1122_3344, 0x5566_7788, 0x99], 1, [8.0, 0.0, 4.0]),
+                obj(7, vec![0x0B, 0x1], 0, [8.0, 0.0, 8.0]),
+                obj(1, vec![0x0C, 0x1, 0x2], 0, [8.0, 0.0, 8.0]),
+                obj(7, vec![0x0D, 0xAABB_CCDD, 0x0102_0304], 0, [15.0, 0.0, 1.0]),
+                obj(7, vec![0x0E, 0x8000_0001, 0x1, 0x2, 0x3], 3, [1.0, 0.0, 15.0]),
+            ],
+            ..Cfg::default()
+        },
+    );
+    let lot = host.add_lot(|l| {
+        l.x = 2;
+        l.z = 3;
+        l.cfg = Some(cfg);
+    });
+    let mut d = dev_with(host.clone());
+    assert!(d.init());
+    // Facing 0: pos = c1 − offset with c1 = (48, 64).
+    let nodes = d.connection_nodes(lot, cfg);
+    assert_eq!(
+        nodes,
+        vec![
+            ConnectionNode {
+                node_type: 0x0A,
+                x: 2,
+                z: 3,
+                b: 0x2233_4411,
+                c: 0x6677_8855,
+                d: 0x99,
+                orientation: 1
+            },
+            ConnectionNode {
+                node_type: 0x0D,
+                x: 2,
+                z: 3,
+                b: 0xAABB_CCDD,
+                c: 0x0102_0304,
+                d: 0,
+                orientation: 0
+            },
+            ConnectionNode {
+                node_type: 0x0E,
+                x: 2,
+                z: 3,
+                b: 0x0180_0000,
+                c: 0x0100_0000,
+                d: 0x2,
+                orientation: 3
+            },
+        ]
+    );
+    // The host gets them all in one call, also with none.
+    host.clear_events();
+    d.add_network_connection_nodes(lot, cfg);
+    let ev = host.events();
+    assert!(ev.contains(&"add_network_nodes 2 n=3".to_string()) || ev.iter().any(|e| e.ends_with(" n=3")));
+    let empty = host.token();
+    host.cfgs.borrow_mut().insert(empty, Cfg::default());
+    host.clear_events();
+    d.add_network_connection_nodes(lot, empty);
+    assert!(host
+        .events()
+        .iter()
+        .any(|e| e.starts_with("add_network_nodes") && e.ends_with(" n=0")));
+}
+
+#[test]
+fn update_lot_object_altitudes_moves_only_y_beyond_the_tolerance() {
+    // §6.5 UpdateLotObjectAlitudes (LD17): buildings, props and flora of the
+    // lot (lot slot 49, list order); the target is slot 39's y for the
+    // occupant's configuration object, else the terrain's at its x, z;
+    // |P.y − Q.y| > 0.1 (strict) moves y only and notifies (slot 24, 1).
+    let host = Rc::new(Script::default());
+    host.pos_alt.set(100.0);
+    let cfg = host.token();
+    host.cfgs.borrow_mut().insert(
+        cfg,
+        Cfg {
+            w: 1,
+            h: 1,
+            ..Cfg::default()
+        },
+    );
+    let lot = host.add_lot(|l| l.cfg = Some(cfg));
+    let building = host.add_occ(|o| {
+        o.is_building = true;
+        o.position = [3.0, 105.0, 4.0];
+    });
+    let prop_near = host.add_occ(|o| o.position = [5.0, 100.05, 6.0]);
+    let flora_far = host.add_occ(|o| o.position = [7.0, 99.8, 8.0]);
+    let prop_cfg = host.add_occ(|o| o.position = [1.0, 100.0, 2.0]);
+    let network = host.add_occ(|o| o.position = [9.0, 50.0, 9.0]);
+    let other = host.add_occ(|o| o.position = [9.0, 50.0, 9.0]);
+    host.occ_types.borrow_mut().insert(prop_near, OCCUPANT_TYPE_PROP);
+    host.occ_types.borrow_mut().insert(flora_far, OCCUPANT_TYPE_FLORA);
+    host.occ_types.borrow_mut().insert(prop_cfg, OCCUPANT_TYPE_PROP);
+    host.occ_types.borrow_mut().insert(network, OCCUPANT_TYPE_NETWORK);
+    host.occ_types.borrow_mut().insert(other, 0x1234_5678);
+    // A prop object 2.0 above the ground at the lot's centre (type 1: the
+    // terrain at its x, z): target 102.
+    host.occ_objects.borrow_mut().insert(
+        prop_cfg,
+        CfgObject {
+            object_type: 1,
+            offset: [8.0, 2.0, 8.0],
+            ..CfgObject::default()
+        },
+    );
+    host.lot_occs
+        .borrow_mut()
+        .insert(lot, vec![building, prop_near, flora_far, prop_cfg, network, other]);
+    let mut d = dev_with(host.clone());
+    assert!(d.init());
+    host.clear_events();
+    d.update_lot_object_altitudes(lot);
+    let moved: Vec<String> = host
+        .events()
+        .into_iter()
+        .filter(|e| e.starts_with("occupant_moved"))
+        .collect();
+    assert_eq!(
+        moved,
+        vec![
+            format!("occupant_moved {building} y=100"),
+            format!("occupant_moved {flora_far} y=100"),
+            format!("occupant_moved {prop_cfg} y=102"),
+        ]
+    );
+    // Only y moved.
+    assert_eq!(host.occupant_position(building), [3.0, 100.0, 4.0]);
+    assert_eq!(host.occupant_position(prop_near), [5.0, 100.05, 6.0]);
+    assert_eq!(host.occupant_position(network), [9.0, 50.0, 9.0]);
+    assert_eq!(host.occupant_position(other), [9.0, 50.0, 9.0]);
+    // The terrain was read at the occupants' own x, z (no object).
+    let ev = host.events();
+    assert!(ev.contains(&"altitude_at 3 4".to_string()));
+    assert!(ev.contains(&"altitude_at 5 6".to_string()));
+    assert!(!ev.contains(&"altitude_at 9 9".to_string()));
+    // Exactly 0.1 away (in f32) is not moved.
+    host.occupant_set_position(flora_far, [7.0, 100.1, 8.0]);
+    host.clear_events();
+    d.update_lot_object_altitudes(lot);
+    assert!(!host.events().iter().any(|e| e.starts_with("occupant_moved")));
 }
 
 /// A small deterministic generator for test data.
