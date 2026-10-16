@@ -80,6 +80,14 @@ pub fn clocks(session: u32, key: SeedKey) -> FixedSeeds {
     }
 }
 
+/// The prop developer's seed (§6.3: the original's × 28 of the clock value
+/// is applied to `derive(K)` instead): `derive(S, 0x89C48F47) × 28 mod
+/// 2^32`. Never `0xFFFFFFFF` (the product is even); it may be 0, which a
+/// `cRZRandomSuper` seeds as 1 like any other value (bit 0 is ignored, RN1).
+pub fn prop_developer_seed(session: u32) -> u32 {
+    seed(session, keys::PROP_DEVELOPER).wrapping_mul(28)
+}
+
 /// A coordinate-seeded temporary's seed (§6.3): unchanged, except that the
 /// one case whose seed is 0 (tract developer `UpdatePopulation` for tract
 /// (0, 0), whose multiplicative path the original reseeds from the clock)
@@ -167,6 +175,42 @@ pub mod keys {
     pub const FLAMMABILITY_RESEED: SeedKey =
         SeedKey::ZeroStateReseed(crate::flammability::CLSID_FLAMMABILITY_SIMULATOR);
 
+    // ---- generators of cores still in flight (§6.3 table, §6.2) ----------
+    //
+    // Not used by a merged core yet: their glue adopts them.
+
+    /// `cSC4Lot` (`0x00B49120`, `cRZRandomSuper`).
+    pub const LOT: SeedKey = SeedKey::FileLocal(file_seed::LOT);
+    /// Wealth requester prop selection (`0x00B4A5C0`, `cRZRandomSuper`).
+    pub const WEALTH_REQUESTER: SeedKey = SeedKey::FileLocal(file_seed::WEALTH_REQUESTER);
+    /// Network lot manager (`0x00B44870`, `cRZRandomSuper`).
+    pub const NETWORK_LOT_MANAGER: SeedKey = SeedKey::FileLocal(file_seed::NETWORK_LOT_MANAGER);
+    /// Network construction crew (`0x00B43E88`, `cRZRandomSuper`).
+    pub const NETWORK_CONSTRUCTION_CREW: SeedKey = SeedKey::FileLocal(file_seed::NETWORK_CONSTRUCTION_CREW);
+    /// Construction occupant (`0x00B22FB0`, `cRZRandom`): `K` = 0, not the
+    /// static's `0xEC09C32A` ([`file_seed::CONSTRUCTION_OCCUPANT`]), because
+    /// the first `StaticInit` reseeds it with the plain clock before any draw
+    /// (§6.3 table), so `derive(0)` = `S` (moved off 0 / `0xFFFFFFFF`).
+    pub const CONSTRUCTION_OCCUPANT: SeedKey = SeedKey::FileLocal(0);
+    /// Lot base-texture occupant (`0x00B23078`, `cRZRandom`).
+    pub const BASE_TEXTURE_OCCUPANT: SeedKey = SeedKey::FileLocal(file_seed::BASE_TEXTURE_OCCUPANT);
+    /// Lot retaining-wall occupant (`0x00B230C8`, `cRZRandom`).
+    pub const RETAINING_WALL_OCCUPANT: SeedKey = SeedKey::FileLocal(file_seed::RETAINING_WALL_OCCUPANT);
+    /// Prop occupant (`0x00B231B0`, `cRZRandomSuper`).
+    pub const PROP_OCCUPANT: SeedKey = SeedKey::FileLocal(file_seed::PROP_OCCUPANT);
+    /// Fire occupant, flames (`0x00B21648`, `cRZRandom`).
+    pub const FIRE_OCCUPANT: SeedKey = SeedKey::FileLocal(file_seed::FIRE_OCCUPANT);
+    /// Automata (`0x00B21D78`, `cRZRandomSuper`).
+    pub const AUTOMATA: SeedKey = SeedKey::FileLocal(file_seed::AUTOMATA);
+    /// Region creation (`0x00B217C0`, `cRZRandom`).
+    pub const REGION_CREATION: SeedKey = SeedKey::FileLocal(file_seed::REGION_CREATION);
+    /// Advice (`0x00B22E58`, `cRZRandom`).
+    pub const ADVICE: SeedKey = SeedKey::FileLocal(file_seed::ADVICE);
+    /// Prop developer (`cRZRandomSuper` member seeded with the wall clock
+    /// × 28 at construction; GZCLSID `0x89C48F47`, prop-developer.md §1):
+    /// seed it with [`super::prop_developer_seed`].
+    pub const PROP_DEVELOPER: SeedKey = SeedKey::member(0x89C4_8F47);
+
     // ---- temporaries seeded from the clock (K = GZCLSID XOR n) -----------
 
     /// The civic building simulator's monthly temporary, the `n`-th made by
@@ -237,6 +281,38 @@ mod tests {
         assert_eq!(derive_seed(0xFFFF_FFFF, 0), 0xFFFF_FFFE);
         assert_eq!(derive_seed(0, 0), 1);
         assert_eq!(derive_seed(0xA5A5_0000, 0x0000_5A5A), 0xA5A5_5A5A);
+    }
+
+    #[test]
+    fn k_in_flight_file_locals() {
+        check(keys::LOT, 0x0C09_C461);
+        check(keys::WEALTH_REQUESTER, 0x4C09_C51F);
+        check(keys::NETWORK_LOT_MANAGER, 0x8C09_C379);
+        check(keys::NETWORK_CONSTRUCTION_CREW, 0x6C09_C07B);
+        check(keys::BASE_TEXTURE_OCCUPANT, 0x8C09_C2D5);
+        check(keys::RETAINING_WALL_OCCUPANT, 0x0C09_C347);
+        check(keys::PROP_OCCUPANT, 0xAC09_C2EC);
+        check(keys::FIRE_OCCUPANT, 0xEC09_C147);
+        check(keys::AUTOMATA, 0x4C09_C170);
+        check(keys::REGION_CREATION, 0xAC35_7AF9);
+        check(keys::ADVICE, 0x2C09_C27B);
+    }
+
+    #[test]
+    fn k_construction_occupant_is_zero() {
+        // The static's constant is overwritten by the plain clock (§6.3).
+        check(keys::CONSTRUCTION_OCCUPANT, 0);
+        assert_eq!(seed(S, keys::CONSTRUCTION_OCCUPANT), S);
+        assert_eq!(seed(0, keys::CONSTRUCTION_OCCUPANT), 1);
+    }
+
+    #[test]
+    fn k_prop_developer() {
+        check(keys::PROP_DEVELOPER, 0x89C4_8F47);
+        assert_eq!(prop_developer_seed(S), (S ^ 0x89C4_8F47).wrapping_mul(28));
+        // derive(K) = 0x40000000 gives 0 after × 28.
+        assert_eq!(prop_developer_seed(0x4000_0000 ^ 0x89C4_8F47), 0);
+        assert_eq!(prop_developer_seed(0x89C4_8F47), 28);
     }
 
     #[test]
