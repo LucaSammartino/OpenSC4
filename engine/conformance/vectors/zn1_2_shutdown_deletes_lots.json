@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "zn1_2_shutdown_deletes_lots",
+  "spec": ["zones 1.2", "zones 8.6"],
+  "description": "ZG32: the zone developer's Shutdown deletes every lot of the cell map through its own DeleteLot (slot 24, §8.6), walking the map x outer, z inner: for each lot, at its first cell, the zot prop, the base texture, the cells, the master list, the business unit, lot.Shutdown() and the manager's release. Since DeleteLot nulls the lot's cells, each lot is deleted once. The network tools are released after the lots.",
+  "steps": [
+    {"op": "zone_env", "cells": [64, 64]},
+    {"op": "zone_create", "session": 0},
+    {"op": "zone_init"},
+    {"op": "zone_call", "method": "create_lot", "args": [5, 2, 1, 1, 0], "expect": 4096},
+    {"op": "zone_call", "method": "create_lot", "args": [3, 3, 2, 2, 0], "expect": 4097},
+    {"op": "zone_env", "trace_calls": true},
+    {"op": "zone_clear_events"},
+    {"op": "zone_shutdown"},
+    {"op": "zone_expect_log",
+      "note": "the zone manager shuts down first (zone_shutdown); then the developer: lot 4097 (cells x 3-4) comes before lot 4096 (x 5) in the x-outer walk; each is deleted once (DeleteLot, no base texture or business unit here); refs 1 is the vector's own caller reference from create_lot; the network tools only after the lots",
+      "events": [
+        {"event": "unsubscribe", "who": 6},
+        {"event": "manager_release_services"},
+        {"event": "shutdown_grid", "class": "0x49B9E603"},
+        {"event": "unsubscribe", "who": 7},
+        {"event": "remove_building_zot_prop", "lot": 4097},
+        {"event": "lot_shutdown", "lot": 4097},
+        {"event": "release_lot", "lot": 4097, "refs": 1},
+        {"event": "remove_building_zot_prop", "lot": 4096},
+        {"event": "lot_shutdown", "lot": 4096},
+        {"event": "release_lot", "lot": 4096, "refs": 1},
+        {"event": "release_network_tools"},
+        {"event": "shutdown_grid", "class": "0x49B9E604"},
+        {"event": "developer_release_services"}]},
+    {"op": "zone_call", "method": "get_lot", "args": [3, 3, false], "expect": null}
+  ]
+}
