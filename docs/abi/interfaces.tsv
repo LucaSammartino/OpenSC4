@@ -1800,6 +1800,7 @@ cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	45	+0xB4	0049de40	cSC4Occupant
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	46	+0xB8	0049de80	cSC4OccupantManager::IterateOccupantsByStandardCityCell(bool(*)(cISC4Occupant*, void*), void*, int const*, int const*, uint32 type)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): indirect-jump dword ptr [eax + 0xbc]; the TYPED overload comes first in this pair only (SDK declaration order gives the opposite); 9.4
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	47	+0xBC	0049e370	cSC4OccupantManager::IterateOccupantsByStandardCityCell(bool(*)(cISC4Occupant*, void*), void*, int const*, int const*, cISC4OccupantFilter*)	20	5	al	high	re-specs13b (occupant-manager.md, numbers are sections): false when uninitialised (0x0049E487); slot 40 conversion; calls slot 42 through the vtable at 0x0049E477; 9.3
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	48	+0xC0	0049ef30	cSC4OccupantManager::ReleaseOccupantList(ilist&)	4	1	eax-or-void	medium	re-specs13b (occupant-manager.md, numbers are sections): re-answers5 LG1; any slot 36-41 list: Release each, free the nodes with A (0x00413E60), head kept; no lock; 9.5
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	49	+0xC4	004a18c0	cSC4OccupantManager::(deleting destructor)(uint32 flags)	4	1	eax	medium	re-specs13b (occupant-manager.md, numbers are sections): vtable entry after slot 48 (0x00A8F8B4); Release calls it with 1
 cIGZSerializable	cSC4OccupantManager	00a8f7d4	0	+0x0	004a05c0	cSC4OccupantManager::QueryInterface	8	2	al	high	re-specs13b: thunk to the primary interface
 cIGZSerializable	cSC4OccupantManager	00a8f7d4	1	+0x4	004a05e0	cSC4OccupantManager::AddRef	0	0	eax	high	re-specs13b: thunk to the primary interface
 cIGZSerializable	cSC4OccupantManager	00a8f7d4	2	+0x8	004a05f0	cSC4OccupantManager::Release	0	0	eax	high	re-specs13b: thunk to the primary interface
@@ -1869,6 +1870,9 @@ cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	14	+0x38	0043f440	cSC4TutorialSy
 cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	15	+0x3C	0043f470	cSC4TutorialSystem::HandleCatalogMenu(menu)	4	1	al	high	re-specs13d (tutorial.md, numbers are sections): true; 4.4
 cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	16	+0x40	0043f450	cSC4TutorialSystem::FilterLeftMouseClick(x&, z&, n)	12	3	al	high	re-specs13d (tutorial.md, numbers are sections): true without a window; 4.4
 cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	17	+0x44	0043f410	cSC4TutorialSystem::ResetTutorialNumAndIndex(a, b)	8	2	al	high	re-specs13d (tutorial.md, numbers are sections): false without a window; 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	18	+0x48	0043f4e0	cSC4TutorialSystem::OnTutorialEvent(e)	4	1	al	high	re-specs13d (tutorial.md, numbers are sections): new row, not in the SDK; true; 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	19	+0x4C	006ce100	cSC4TutorialSystem::SetTutorialTaskNumber(n)	4	1	eax-or-void	high	re-specs13d (tutorial.md, numbers are sections): no defined return value; new row, not in the SDK; ICF-shared setter of +0x20; 4.4
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	20	+0x50	0043f660	cSC4TutorialSystem::IncrementTutorialTaskNumber()	0	0	eax-or-void	high	re-specs13d (tutorial.md, numbers are sections): no defined return value; new row, not in the SDK; +0x20 += 1; 4.4
 cISC4Occupant	cSC4Occupant	00aa41d8	0	+0x0	005e89c0	cSC4Occupant::QueryInterface	8	2	eax-or-void	medium	tail->005fd310
 cISC4Occupant	cSC4Occupant	00aa41d8	1	+0x4	005e89b0	cSC4Occupant::AddRef	0	0	eax-or-void	medium	
 cISC4Occupant	cSC4Occupant	00aa41d8	2	+0x8	005e8df0	cSC4Occupant::Release	0	0	eax-or-void	medium	
@@ -2194,6 +2198,7 @@ cISC4PropManager	cSC4PropManager	00a8f928	36	+0x90	004a3b90	cSC4PropManager::Add
 cISC4PropManager	cSC4PropManager	00a8f928	37	+0x94	004a21a0	cSC4PropManager::RemoveBuildingProps(x, z)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A7.3
 cISC4PropManager	cSC4PropManager	00a8f928	38	+0x98	004a3390	cSC4PropManager::RemoveBuildingProps(building)	4	1	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): A7.3
 cISC4PropManager	cSC4PropManager	00a8f928	39	+0x9C	004a27c0	cSC4PropManager::RemoveBuildingProp(building, prop)	8	2	al	high	re-specs13d (prop-lotconfig.md, numbers are sections): found; A7.3
+cISC4PropManager	cSC4PropManager	00a8f928	40	+0xA0	004a2310	cSC4PropManager::~cSC4PropManager (scalar deleting dtor)	4	1	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): new row; A9
 cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	0	+0x0	006eabc0	cSC4PowerSimulator::QueryInterface	8	2	eax-or-void	medium	
 cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
 cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	2	+0x8	006eb190	cSC4PowerSimulator::Release	0	0	eax-or-void	medium	
@@ -3904,39 +3909,40 @@ cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	24	+0x60	00489
 cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	25	+0x64	0048b860	cSC4LotConfigurationManager::GetMaxFootprintForFloraFamilies(vec const&, rect&)	8	2	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; start (2,2,0,0); B5.5
 cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	26	+0x68	00489f50	cSC4LotConfigurationManager::GetMaxFootprintForPropFamilies(vec const&, rect&)	8	2	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; start (2,2,0,0); B5.5
 cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	27	+0x6C	0048ba10	cSC4LotConfigurationManager::GetObjectIDArray(obj, vec&)	8	2	eax-or-void	high	re-specs13d (prop-lotconfig.md, numbers are sections): no defined return value; building families assign vec; B5.6
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	0	+0x0	004777b0	cSC4LotConfiguration::QueryInterface	8	2	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	1	+0x4	005f47f0	icf::cGZCommandSystemSupport::AddRef	0	0	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	2	+0x8	00479ce0	cSC4LotConfiguration::FinalRelease	0	0	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	3	+0xC	004777e0	icf::cGZLua5Thread::GetContext	0	0	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	4	+0x10	004777f0	cSC4LotConfiguration::GetName			forward	medium	indirect-jump dword ptr [edx + 0x34]
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	5	+0x14	00477a90	cSC4LotConfiguration::BelongsToFamily	4	1	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	6	+0x18	00477810	icf::cGZWin::GetAreaToDrawTo	0	0	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	7	+0x1C	00477820	cSC4LotConfiguration::GetSize	8	2	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	8	+0x20	00477840	cSC4SimGrid<T>::GetOneOverTractWidthX	0	0	x87	high	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	9	+0x24	00477850	cSC4SimGrid<T>::GetOneOverTractWidthZ	0	0	x87	high	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	10	+0x28	00477860	icf::cSC4LotConfiguration::GetMaximumSlopeBeforeFoundation	0	0	x87	high	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	11	+0x2C	00477870	cSC4LotConfiguration::GetGrowthStage	0	0	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	12	+0x30	004798e0	cSC4LotConfiguration::GetMinBuildingCapacity	0	0	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	13	+0x34	004798f0	cSC4LotConfiguration::GetMaxBuildingCapacity	0	0	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	14	+0x38	00477880	cSC4LotConfiguration::IsCompatibleWithWater	0	0	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	15	+0x3C	00477d00	cSC4LotConfiguration::IsCompatibleWithZoneType	4	1	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	16	+0x40	00477d50	cSC4LotConfiguration::IsCompatibleWithWealthType	4	1	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	17	+0x44	00477da0	cSC4LotConfiguration::IsCompatibleWithPurposeType	4	1	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	18	+0x48	00477ac0	cSC4LotConfiguration::IsCompatibleWithStyle	4	1	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	19	+0x4C	004fc900	icf::cRZNetStreamSocket::DoMessage	4	1	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	20	+0x50	00479900	cSC4LotConfiguration::IsDoConstruction	0	0	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	21	+0x54	00478200	cSC4LotConfiguration::GetRequiredRoads	4	1	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	22	+0x58	00477af0	cSC4LotConfiguration::GetLotConfigurationObjectCount	0	0	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	23	+0x5C	00477890	icf::cSC4Advice::GetTriggerString	0	0	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	24	+0x60	00477df0	cSC4LotConfiguration::GetPrimaryBuildingConfigurationObject	0	0	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	25	+0x64	00477e00	cSC4LotConfiguration::GetPrimaryBaseConfigurationObject	0	0	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	26	+0x68	00477e10	cSC4LotConfiguration::GetPrimaryFoundationConfigurationObject	0	0	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	27	+0x6C	00477b60	cSC4LotConfiguration::HasObjectsOfType	4	1	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	28	+0x70	004778a0	icf::cSC4FireProtectionSimulator::GetPercentCoverage	0	0	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	29	+0x74	004778b0	cSC4LotConfiguration::GetFenceIDArray	0	0	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	30	+0x78	004778c0	cSC4LotConfiguration::GetFenceSegmentPositionArray	0	0	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	31	+0x7C	00479f70	cSC4LotConfiguration::Load	8	2	eax-or-void	medium	
-cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	32	+0x80	00479580	cSC4LotConfiguration::Save	8	2	eax-or-void	medium	
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	28	+0x70	0048a220	cSC4LotConfigurationManager::~cSC4LotConfigurationManager (scalar deleting dtor)	4	1	eax	high	re-specs13d (prop-lotconfig.md, numbers are sections): new row; B7
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	0	+0x0	004777b0	cSC4LotConfiguration::QueryInterface(iid, void**)	8	2	al	high	re-specs15a (lot-configuration.md, numbers are sections): 1/0x68EDBEBC -> this with AddRef; else false; 1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	1	+0x4	005f47f0	cSC4LotConfiguration::AddRef	0	0	eax	high	re-specs15a (lot-configuration.md, numbers are sections): shared (icf); refcount +0x04; 1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	2	+0x8	00479ce0	cSC4LotConfiguration::Release	0	0	eax	high	re-specs15a (lot-configuration.md, numbers are sections): count > 1: decrement and return it; else Shutdown, slot 33(1), return 0; 1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	3	+0xC	004777e0	cSC4LotConfiguration::GetID	0	0	eax	high	re-specs15a (lot-configuration.md, numbers are sections): shared (icf); +0x08 = exemplar instance; 5.1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	4	+0x10	004777f0	cSC4LotConfiguration::GetName(cIGZString&)	4	1	eax	high	re-specs15a (lot-configuration.md, numbers are sections): tail call to the caller string slot 13 (operator=): returns that string reference, not a bool (SDK error); 5.1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	5	+0x14	00477a90	cSC4LotConfiguration::BelongsToFamily(id)	4	1	al	high	re-specs15a (lot-configuration.md, numbers are sections): linear scan of the family list +0x24; 5.2
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	6	+0x18	00477810	cSC4LotConfiguration::GetFamilyIDArray	0	0	eax	high	re-specs15a (lot-configuration.md, numbers are sections): shared (icf); &+0x24; 5.1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	7	+0x1C	00477820	cSC4LotConfiguration::GetSize(uint32& w, uint32& d)	8	2	eax-or-void	high	re-specs15a (lot-configuration.md, numbers are sections): no defined result (SDK bool); u8 +0x20, +0x21 zero-extended; 5.1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	8	+0x20	00477840	cSC4LotConfiguration::GetMaximumSlope	0	0	x87	high	re-specs15a (lot-configuration.md, numbers are sections): shared (icf); f32 +0x30; 5.1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	9	+0x24	00477850	cSC4LotConfiguration::GetMinimumSlope	0	0	x87	high	re-specs15a (lot-configuration.md, numbers are sections): shared (icf); f32 +0x34; 5.1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	10	+0x28	00477860	cSC4LotConfiguration::GetMaximumSlopeBeforeFoundation	0	0	x87	high	re-specs15a (lot-configuration.md, numbers are sections): shared (icf); f32 +0x38; 5.1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	11	+0x2C	00477870	cSC4LotConfiguration::GetGrowthStage	0	0	al	high	re-specs15a (lot-configuration.md, numbers are sections): u8 +0x3C; 5.1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	12	+0x30	004798e0	cSC4LotConfiguration::GetMinBuildingCapacity	0	0	eax	high	re-specs15a (lot-configuration.md, numbers are sections): AX = u16 +0x3E (manager fills at PostCityInit, default 0xFFFF); 4, 5.1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	13	+0x34	004798f0	cSC4LotConfiguration::GetMaxBuildingCapacity	0	0	eax	high	re-specs15a (lot-configuration.md, numbers are sections): AX = u16 +0x40 (default 0); 4, 5.1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	14	+0x38	00477880	cSC4LotConfiguration::IsCompatibleWithWater	0	0	al	high	re-specs15a (lot-configuration.md, numbers are sections): u8 +0x42; 5.1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	15	+0x3C	00477d00	cSC4LotConfiguration::IsCompatibleWithZoneType(type)	4	1	al	high	re-specs15a (lot-configuration.md, numbers are sections): bit of the 16-bit vector +0x44; no bound check; 5.2
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	16	+0x40	00477d50	cSC4LotConfiguration::IsCompatibleWithWealthType(wealth)	4	1	al	high	re-specs15a (lot-configuration.md, numbers are sections): bit of the 4-bit vector +0x58; no bound check; 5.2
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	17	+0x44	00477da0	cSC4LotConfiguration::IsCompatibleWithPurposeType(purpose)	4	1	al	high	re-specs15a (lot-configuration.md, numbers are sections): bit of the 9-bit vector +0x6C; no bound check; 5.2
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	18	+0x48	00477ac0	cSC4LotConfiguration::IsCompatibleWithStyleType(group)	4	1	al	high	re-specs15a (lot-configuration.md, numbers are sections): linear scan of the style vector +0x80; 5.2
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	19	+0x4C	004fc900	cSC4LotConfiguration::IsCompatibleWithMonopolyPieceUse(unused)	4	1	al	high	re-specs15a (lot-configuration.md, numbers are sections): shared (icf) stub: AL = 1, ret 4; SDK error: SDK declares no argument; does not read +0x8C (PL3); 5.4
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	20	+0x50	00479900	cSC4LotConfiguration::IsDoConstruction	0	0	al	high	re-specs15a (lot-configuration.md, numbers are sections): u8 +0x8D; 5.1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	21	+0x54	00478200	cSC4LotConfiguration::GetRequiredRoads(vector<bool>&)	4	1	eax-or-void	high	re-specs15a (lot-configuration.md, numbers are sections): no defined result (SDK bool); resizes to 4, out[i] = bit i of +0x8E; 5.3
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	22	+0x58	00477af0	cSC4LotConfiguration::GetLotConfigurationObjectCount	0	0	eax	high	re-specs15a (lot-configuration.md, numbers are sections): record count of +0x90 (0x34-byte records); 5.1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	23	+0x5C	00477890	cSC4LotConfiguration::GetLotConfigurationObjectArray	0	0	eax	high	re-specs15a (lot-configuration.md, numbers are sections): shared (icf); &+0x90; 5.1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	24	+0x60	00477df0	cSC4LotConfiguration::GetPrimaryBuildingConfigurationObject	0	0	eax	high	re-specs15a (lot-configuration.md, numbers are sections): first record of type 0 or null; 5.3
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	25	+0x64	00477e00	cSC4LotConfiguration::GetPrimaryBaseConfigurationObject	0	0	eax	high	re-specs15a (lot-configuration.md, numbers are sections): first record of type 2 or null; 5.3
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	26	+0x68	00477e10	cSC4LotConfiguration::GetPrimaryFoundationConfigurationObject	0	0	eax	high	re-specs15a (lot-configuration.md, numbers are sections): first record of type 3 or null; 5.3
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	27	+0x6C	00477b60	cSC4LotConfiguration::HasObjectsOfType(type)	4	1	al	high	re-specs15a (lot-configuration.md, numbers are sections): compares the record type byte; 5.2
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	28	+0x70	004778a0	cSC4LotConfiguration::GetRetainingWallIDArray	0	0	eax	high	re-specs15a (lot-configuration.md, numbers are sections): shared (icf); &+0x9C; 5.1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	29	+0x74	004778b0	cSC4LotConfiguration::GetFenceIDArray	0	0	eax	high	re-specs15a (lot-configuration.md, numbers are sections): &+0xA8; 5.1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	30	+0x78	004778c0	cSC4LotConfiguration::GetFenceSegmentPositionArray	0	0	eax	high	re-specs15a (lot-configuration.md, numbers are sections): &+0xB4; 5.1
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	31	+0x7C	00479f70	cSC4LotConfiguration::Load(key const&, detail)	8	2	al	high	re-specs15a (lot-configuration.md, numbers are sections): second argument is the city detail 1-3 (SDK: prop array size); 3
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	32	+0x80	00479580	cSC4LotConfiguration::Save(key const&, segment)	8	2	al	high	re-specs15a (lot-configuration.md, numbers are sections): editor only; sets y := 0 in the live configuration; 7
 cISC4LotConfigurationFilter	cSC4TractDeveloperLotConfigurationFilter	00ab30dc	0	+0x0	0062c980	icf::cIGZWinProc::DoWinProcMessage	8	2	eax-or-void	medium	
 cISC4LotConfigurationFilter	cSC4TractDeveloperLotConfigurationFilter	00ab30dc	1	+0x4	008cd450	cSC4EffectsManager::Release	0	0	eax-or-void	medium	
 cISC4LotConfigurationFilter	cSC4TractDeveloperLotConfigurationFilter	00ab30dc	2	+0x8	008cd450	cSC4EffectsManager::Release	0	0	eax-or-void	medium	
