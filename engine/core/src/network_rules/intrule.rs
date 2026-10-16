@@ -28,6 +28,41 @@ pub const ONE_WAY_PATTERNS: [u8; 8] = [0x22, 0xAA, 0x88, 0x99, 0x11, 0x55, 0x44,
 /// The occupant flag of an intersection piece (network occupant slot 8).
 pub const INTERSECTION_FLAG: u32 = 0x10_0000;
 
+/// One value of a rule's tile map (`+0xD0`, §10.3): what the occupied cell
+/// at one grid entry contributes to the pieces of §10.9.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TileMapValue {
+    /// `col * 0x100 + row * 0x10`, fixed at parse time. The piece id is
+    /// `AutoTileBase + tile`, so a transform never changes which piece a cell
+    /// gets, only how it is turned.
+    pub tile: u32,
+    /// The orientation byte (rotation in bits 0-1, flip in bit 7); 0 until a
+    /// transform of §10.4 turns it.
+    pub orientation: u8,
+    /// 1 unless the cell is also a tagged cell (then 0).
+    pub new_cell: u8,
+}
+
+/// One piece an intersection places at commit (§10.9), derived without
+/// touching the game: the occupant creation itself is the geometry layer's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct IntersectionPiece {
+    /// The occupied cell's offset from the rule's position.
+    pub offset: (i32, i32),
+    /// `AutoTileBase + tile`.
+    pub piece_id: u32,
+    /// The tile map entry's orientation.
+    pub orientation: u8,
+    /// `AutoPathBase + tile`, or 0 when `AutoPathBase` is 0: the path
+    /// override a piece stores (§10.9 step 5).
+    pub path: u32,
+    /// Every piece of one intersection gets the rule's position `(x, z)` as
+    /// its anchor (§10.9).
+    pub anchor: (i32, i32),
+    /// The tile map entry's new-cell byte.
+    pub new_cell: u8,
+}
+
 /// One check type (24 bytes, §10.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CheckType {
@@ -233,16 +268,27 @@ pub struct IntRule {
     pub costs: i32,
     pub auto_tile_base: u32,
     pub auto_path_base: u32,
+    /// The **tile grid** (`+0xB8`, a byte vector) and its width (`+0xC4`):
+    /// one code byte per cell of the bounds rectangle, row by row. Built from
+    /// the occupied cells in list order (§10.3).
+    pub tile_grid: Vec<u8>,
+    pub tile_width: usize,
+    /// The **tile map** (`+0xD0`, a hash map from the code byte).
+    pub tile_map: BTreeMap<u8, TileMapValue>,
     /// `+0xE4`: the OR of the type bits named by the check types.
     pub type_mask: u32,
     /// `+0xE8`.
     pub one_way_dir: u8,
     /// `+0xE9`.
     pub auto_place: bool,
-    /// `RotationRing` links (`+0xEC` previous, `+0xF0` next).
+    /// The **rotation ring** (`RotationRing`, `+0xEC` previous, `+0xF0` next),
+    /// a circular list of rule ids that the rotate command walks.
     pub ring_prev: u32,
     pub ring_next: u32,
-    /// `AddTypes` links (`+0xF4`, `+0xF8`) *[inferred, NR3]*.
+    /// The **type ring** (`AddTypes`, `+0xF4` previous, `+0xF8` next), the
+    /// circular list that cycles between intersection types. Populated by the
+    /// `AddTypes` lines (§10.8, NR3), which also form rotation rings of their
+    /// own.
     pub add_prev: u32,
     pub add_next: u32,
     pub cell_lines: Vec<String>,
@@ -344,6 +390,7 @@ impl IntRule {
             self.bounds.max_x -= cx;
             self.bounds.min_z -= cz;
             self.bounds.max_z -= cz;
+            self.build_tile_grid();
         }
         if !self.cons_lines.is_empty() {
             let (mut cx, mut cz) = (-1, -1);
@@ -377,6 +424,96 @@ impl IntRule {
             self.constraint_centre = (cx, cz);
             self.constraint_cells = cells.into_iter().map(|(x, z, c)| (x - cx, z - cz, c)).collect();
         }
+    }
+
+    /// Builds the tile grid and its map (§10.3) from the occupied cells, in
+    /// list order. The grid has `(maxZ - minZ + 1) * (maxX - minX + 1)`
+    /// entries, row by row, all 0 at first; each occupied cell writes its
+    /// **tile code** `(row * 16 + col + 1) & 0xFF` at `row * width + col`,
+    /// and the map gets for that code `{tile = col * 0x100 + row * 0x10,
+    /// orientation 0, new-cell byte}`, the new-cell byte being 0 when the
+    /// cell is also a tagged cell. A repeated code is overwritten *[quirk
+    /// 13]*.
+    ///
+    /// Codes repeat when a layout is more than 16 columns wide, or when
+    /// `row * 16 + col + 1` passes 255; such cells share one map entry, so
+    /// they all get the last one's tile and orientation.
+    fn build_tile_grid(&mut self) {
+        self.tile_grid.clear();
+        self.tile_map.clear();
+        self.tile_width = 0;
+        if self.occupied.is_empty() {
+            return;
+        }
+        let w = (self.bounds.max_x - self.bounds.min_x + 1).max(1) as usize;
+        let h = (self.bounds.max_z - self.bounds.min_z + 1).max(1) as usize;
+        self.tile_width = w;
+        self.tile_grid = vec![0u8; w * h];
+        for &(x, z) in &self.occupied {
+            let col = (x - self.bounds.min_x) as usize;
+            let row = (z - self.bounds.min_z) as usize;
+            if col >= w || row >= h {
+                continue;
+            }
+            let code = ((row * 16 + col + 1) & 0xFF) as u8;
+            self.tile_grid[row * w + col] = code;
+            let tagged = self.tagged.iter().any(|t| t.x == x && t.z == z);
+            self.tile_map.insert(
+                code,
+                TileMapValue {
+                    tile: (col as u32) * 0x100 + (row as u32) * 0x10,
+                    orientation: 0,
+                    new_cell: u8::from(!tagged),
+                },
+            );
+        }
+    }
+
+    /// `GetTileInfo(dx, dz)` (`0x00624F00`, §10.9): the tile map value of the
+    /// grid entry at `(dx - minX, dz - minZ)`, or none when the coordinate is
+    /// outside the grid or its code is not in the map. Both bounds are
+    /// compared unsigned.
+    pub fn get_tile_info(&self, dx: i32, dz: i32) -> Option<TileMapValue> {
+        let col = dx.wrapping_sub(self.bounds.min_x);
+        let row = dz.wrapping_sub(self.bounds.min_z);
+        let w = self.tile_width as u32;
+        if w == 0 {
+            return None;
+        }
+        let idx = (row as u32).wrapping_mul(w).wrapping_add(col as u32);
+        if (col as u32) >= w || (idx as usize) >= self.tile_grid.len() {
+            return None;
+        }
+        self.tile_map.get(&self.tile_grid[idx as usize]).copied()
+    }
+
+    /// The pieces an intersection at `(x, z)` places at commit (§10.9), one
+    /// per occupied cell of the rule in list order, when the tool has a cell
+    /// info there and `GetTileInfo` finds a tile: `pieceId := AutoTileBase +
+    /// tile`, `path := AutoPathBase + tile` when `AutoPathBase` is not 0 else
+    /// 0, orientation the map entry's. Every piece gets the rule's position
+    /// as its anchor.
+    pub fn intersection_pieces(&self, x: i32, z: i32, grid: &CellGrid) -> Vec<IntersectionPiece> {
+        let mut out = Vec::new();
+        for &(rx, rz) in &self.occupied {
+            if grid.at(x + rx, z + rz).is_none() {
+                continue;
+            }
+            let Some(t) = self.get_tile_info(rx, rz) else { continue };
+            out.push(IntersectionPiece {
+                offset: (rx, rz),
+                piece_id: self.auto_tile_base.wrapping_add(t.tile),
+                orientation: t.orientation,
+                path: if self.auto_path_base == 0 {
+                    0
+                } else {
+                    self.auto_path_base.wrapping_add(t.tile)
+                },
+                anchor: (x, z),
+                new_cell: t.new_cell,
+            });
+        }
+        out
     }
 
     /// `Translate(a, b)` (`0x00608D20`, §10.4).
@@ -428,6 +565,10 @@ impl IntRule {
                 m.rot.wrapping_sub(1) & 3
             };
         }
+        for v in self.tile_map.values_mut() {
+            v.orientation = transpose_orientation(v.orientation);
+        }
+        transpose_grid(&mut self.tile_grid, &mut self.tile_width);
         sw(&mut self.handle_offset);
         let b = self.bounds;
         self.bounds = Bounds {
@@ -477,6 +618,12 @@ impl IntRule {
             } else {
                 m.rot.wrapping_sub(n) & 3
             };
+        }
+        for v in self.tile_map.values_mut() {
+            v.orientation = turn_orientation(v.orientation, i32::from(n));
+        }
+        for _ in 0..n {
+            turn_grid(&mut self.tile_grid, &mut self.tile_width);
         }
         for ct in self.check_types.values_mut() {
             let r = 8 * u32::from(n);
@@ -663,6 +810,68 @@ fn swap_sides(e: u32) -> u32 {
     u32::from_le_bytes([b[1], b[0], b[3], b[2]])
 }
 
+/// Turns one orientation byte by `n` quarter turns (§10.4): `+n` when it is
+/// not flipped and `-n` when it is, the flip kept.
+fn turn_orientation(o: u8, n: i32) -> u8 {
+    let flip = o & 0x80;
+    let rot = o & 3;
+    let rot = if flip != 0 {
+        rot.wrapping_sub(n as u8) & 3
+    } else {
+        rot.wrapping_add(n as u8) & 3
+    };
+    flip | rot
+}
+
+/// The transpose of one orientation byte (§10.4): the flip is toggled, and
+/// the rotation is `+1` when the byte becomes flipped, `-1` when it becomes
+/// unflipped.
+fn transpose_orientation(o: u8) -> u8 {
+    let rot = o & 3;
+    if o & 0x80 != 0 {
+        rot.wrapping_sub(1) & 3
+    } else {
+        0x80 | (rot.wrapping_add(1) & 3)
+    }
+}
+
+/// One quarter turn of a tile grid (`0x00609040`, §10.4): the entry at
+/// `(col, row)` of a `w` x `h` grid moves to `(h - 1 - row, col)` in a grid
+/// `h` wide. The width follows the turn.
+fn turn_grid(grid: &mut Vec<u8>, width: &mut usize) {
+    let w = *width;
+    if w == 0 || grid.len() % w != 0 {
+        return;
+    }
+    let h = grid.len() / w;
+    let mut out = vec![0u8; grid.len()];
+    for row in 0..h {
+        for col in 0..w {
+            out[col * h + (h - 1 - row)] = grid[row * w + col];
+        }
+    }
+    *grid = out;
+    *width = h;
+}
+
+/// The transpose of a tile grid (`0x00608F20`, §10.4): `(col, row)` moves to
+/// `(row, col)`.
+fn transpose_grid(grid: &mut Vec<u8>, width: &mut usize) {
+    let w = *width;
+    if w == 0 || grid.len() % w != 0 {
+        return;
+    }
+    let h = grid.len() / w;
+    let mut out = vec![0u8; grid.len()];
+    for row in 0..h {
+        for col in 0..w {
+            out[col * h + row] = grid[row * w + col];
+        }
+    }
+    *grid = out;
+    *width = h;
+}
+
 /// The transpose of a check type's edges (`0x00608C50`): the side swap, and
 /// each byte whose whole value is 1, 2 or 3 becomes `4 - value` (a byte with
 /// subtype bits is left as it is *[quirk 7]*).
@@ -728,13 +937,17 @@ impl IntRuleMap {
 
     /// `ReadHighwayIntersectionRules` (`0x00641B60`, §10.1): every section in
     /// file order. Returns (rules read, keys or sections that failed).
+    ///
+    /// The ordering cursor `K` is built once per file and kept across every
+    /// `Ordering…` section (§10.8).
     pub fn load(&mut self, sections: &[IniSection]) -> (usize, usize) {
         let mut rules = 0;
         let before = self.failures.len();
+        let mut cursor: i32 = -1;
         for sec in sections {
             let lower = sec.name.to_ascii_lowercase();
             if lower.starts_with("ordering") {
-                self.read_ordering(sec);
+                self.read_ordering(sec, &mut cursor);
             } else if let Some(hex) = lower.strip_prefix("highwayintersectioninfo_") {
                 let rule = self.read_rule(rz_atou32_hex(hex), sec);
                 self.insert(rule);
@@ -833,30 +1046,85 @@ impl IntRuleMap {
     }
 
     /// `ReadIntersectionOrderingEntries` (`0x006416B0`, §10.8).
-    fn read_ordering(&mut self, sec: &IniSection) {
-        let find = |name: &str| sec.entries.iter().find(|(k, _)| k.eq_ignore_ascii_case(name));
-        let (ring, entry) = match (find("RotationRing"), find("AddTypes")) {
-            (Some(e), _) => (true, e),
-            (None, Some(e)) => (false, e),
-            (None, None) => return,
-        };
-        let ids: Vec<u32> = entry
-            .1
-            .split(',')
-            .map(rz_atou32_hex)
-            .filter(|id| self.map.contains(*id))
-            .collect();
-        let n = ids.len();
-        for (i, &id) in ids.iter().enumerate() {
-            let prev = ids[(i + n - 1) % n];
-            let next = ids[(i + 1) % n];
-            if let Some(r) = self.map.get_mut(id) {
-                if ring {
-                    (r.ring_prev, r.ring_next) = (prev, next);
-                } else {
-                    (r.add_prev, r.add_next) = (prev, next);
-                }
+    ///
+    /// Every line is handled on its own, so one section may hold both keys
+    /// and several of each (NR3). `cursor` is the file's ordering cursor `K`,
+    /// kept across sections; a `RotationRing` line resets it to −1 first.
+    fn read_ordering(&mut self, sec: &IniSection, cursor: &mut i32) {
+        for (key, value) in &sec.entries {
+            let rotation_ring = if key.eq_ignore_ascii_case("RotationRing") {
+                true
+            } else if key.eq_ignore_ascii_case("AddTypes") {
+                false
+            } else {
+                continue;
+            };
+            if rotation_ring {
+                *cursor = -1;
             }
+            // The base of the type ring for this line: the rule the previous
+            // `RotationRing` or `AddTypes` line left in `K`. A negative `K`
+            // reads as a huge id, which is unknown, exactly as the spec's
+            // "if `cur` is unknown" branch wants.
+            let mut cur = *cursor as u32;
+            let (mut head, mut prev) = (None, None);
+            for tok in value.split(',') {
+                let id = rz_atou32_hex(tok);
+                if rotation_ring {
+                    // The first token sets `K` even when no rule has that id;
+                    // a `K` with bit 31 set stays negative and is overwritten
+                    // by the next token *[quirk 12]*.
+                    if *cursor < 0 {
+                        *cursor = id as i32;
+                    }
+                } else if head.is_none() {
+                    *cursor = id as i32;
+                }
+                if !self.map.contains(id) {
+                    continue;
+                }
+                if let (Some(h), Some(p)) = (head, prev) {
+                    self.link_rotation(id, h, p);
+                }
+                prev = Some(id);
+                if head.is_none() {
+                    head = Some(id);
+                }
+                if rotation_ring {
+                    continue;
+                }
+                // `R` goes into `C`'s type ring right after `C`.
+                let Some(c) = self.map.get(cur) else {
+                    continue;
+                };
+                let (c_id, n) = (cur, c.add_next);
+                let next_of_c = c.ring_next;
+                if let Some(r) = self.map.get_mut(id) {
+                    (r.add_prev, r.add_next) = (c_id, n);
+                }
+                if let Some(c) = self.map.get_mut(c_id) {
+                    c.add_next = id;
+                }
+                if let Some(n) = self.map.get_mut(n) {
+                    n.add_prev = id;
+                }
+                cur = next_of_c;
+            }
+        }
+    }
+
+    /// Links `id` into a rotation ring whose head is `head` and whose previous
+    /// member is `prev` (§10.8): `R.prev := P`, `R.next := F`, `P.next := R`,
+    /// `F.prev := R`. The ring stays closed after every step.
+    fn link_rotation(&mut self, id: u32, head: u32, prev: u32) {
+        if let Some(r) = self.map.get_mut(id) {
+            (r.ring_prev, r.ring_next) = (prev, head);
+        }
+        if let Some(p) = self.map.get_mut(prev) {
+            p.ring_next = id;
+        }
+        if let Some(h) = self.map.get_mut(head) {
+            h.ring_prev = id;
         }
     }
 }

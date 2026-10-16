@@ -1113,12 +1113,8 @@ fn copy_transpose_translate_and_rings() {
     let c = m.get(3).unwrap();
     assert_eq!(c.new_cells, vec![(0, -1)]);
     assert_eq!(c.models[0].rot, 0);
-    // The rings.
-    assert_eq!((a.ring_prev, a.ring_next), (3, 2));
-    assert_eq!((b.ring_prev, b.ring_next), (1, 3));
-    assert_eq!((c.ring_prev, c.ring_next), (2, 1));
-    assert_eq!((b.add_prev, b.add_next, c.add_prev, c.add_next), (3, 3, 2, 2));
-    assert_eq!((a.add_prev, a.add_next), (1, 1));
+    // The rings of this file's own lines are checked in
+    // `t15_27_ordering_rings`.
     // A transposed subtype byte is left as it is (quirk 7).
     let mut r = IntRule::new(9);
     r.add_check_type(b'x', CheckType::parse("x - Road:0x00000009").unwrap().1);
@@ -1220,4 +1216,201 @@ fn solve_runs_every_type_and_keeps_claimed_padding() {
         }]
     );
     assert_eq!(g.at(5, 6).unwrap().solved, -1);
+}
+
+// ---- §15 tests 25-29 (the re-answers24 addendum) ------------------------------------------------------------
+
+#[test]
+fn t15_25_rule_overrides_order() {
+    // The same pattern twice: both entries are kept and the first line wins.
+    let text = "[RuleOverrides]\n0x10,1,0,0x20,1,0=0x11,1,0,0x21,1,0\n0x10,1,0,0x20,1,0=0x12,1,0,0x22,1,0\n";
+    let mut rules = NetworkRules::new();
+    let rep = rules.load_rule_overrides(text.as_bytes());
+    assert_eq!(rep.entries, 2);
+    let mut a = TilePiece {
+        id: 0x10,
+        orientation: 0,
+    };
+    let mut b = TilePiece {
+        id: 0x20,
+        orientation: 0,
+    };
+    assert_eq!(patch_tile_pair(&rules, &mut a, &mut b, 1), 1);
+    assert_eq!((a.id, b.id), (0x11, 0x21));
+
+    // The two lines swapped: now the other one is first.
+    let text = "[RuleOverrides]\n0x10,1,0,0x20,1,0=0x12,1,0,0x22,1,0\n0x10,1,0,0x20,1,0=0x11,1,0,0x21,1,0\n";
+    let mut rules = NetworkRules::new();
+    assert_eq!(rules.load_rule_overrides(text.as_bytes()).entries, 2);
+    let mut a = TilePiece {
+        id: 0x10,
+        orientation: 0,
+    };
+    let mut b = TilePiece {
+        id: 0x20,
+        orientation: 0,
+    };
+    assert_eq!(patch_tile_pair(&rules, &mut a, &mut b, 1), 1);
+    assert_eq!((a.id, b.id), (0x12, 0x22));
+}
+
+/// One OneWayRoad cell with an edge word, a one-way byte and the run marks.
+fn ow(x: i32, z: i32, e: u32, one_way: u8) -> CellInfo {
+    let mut c = CellInfo::new(x, z).with_type(ONE_WAY_ROAD, e);
+    c.one_way = one_way;
+    c
+}
+
+#[test]
+fn t15_26_one_way_propagation_and_sweep() {
+    let mut g = grid();
+    // D (9, 10) step 0 and X (10, 10) step 1: both already in the run and in
+    // the solve set (`+0x57 = 1`).
+    let mut d = ow(9, 10, 0x0002_0000, 0x11);
+    d.in_run = true;
+    d.marked = true;
+    let mut x = ow(10, 10, 0x0000_0202, 0x15);
+    x.in_run = true;
+    x.marked = true;
+    g.insert(d);
+    g.insert(x);
+    g.insert(ow(10, 9, 0x0200_0200, 0x44)); // Y
+    g.insert(ow(10, 8, 0x0200_0000, 0x40)); // Z
+                                            // (8, 10): a cell info of its own, not in the run and not in the solve set.
+    g.insert(ow(8, 10, 0x0000_0002, 0x10));
+    // (11, 10) has no cell info.
+
+    let mut st = SolveState::new();
+    st.s = set_of(&[cell_key(9, 10), cell_key(10, 10)]);
+    st.valid_count = 2;
+    let steps = vec![vec![(9, 10)], vec![(10, 10)]];
+    resolve_one_way_conflicts(&mut g, &mut st, &steps);
+
+    // X leaves northward; the existing road is reversed to follow.
+    assert_eq!(g.at(10, 10).unwrap().one_way, 0x09);
+    assert_eq!(g.at(10, 9).unwrap().one_way, 0x88);
+    assert_eq!(g.at(10, 8).unwrap().one_way, 0x80);
+    assert_eq!(g.at(9, 10).unwrap().one_way, 0x10);
+    assert_eq!(g.at(8, 10).unwrap().one_way, 0x00);
+    // Y and Z joined the solve set.
+    assert!(st.s.contains(cell_key(10, 9)));
+    assert!(st.s.contains(cell_key(10, 8)));
+    // (8, 10) is marked but never joins the solve set (quirk 11).
+    assert!(g.at(8, 10).unwrap().marked);
+    assert!(!st.s.contains(cell_key(8, 10)));
+}
+
+#[test]
+fn t15_27_ordering_rings() {
+    // One section holding both keys and several of each (NR3).
+    let m = int_rules(
+        "[HighwayIntersectionInfo_0xA1]\n[HighwayIntersectionInfo_0xA2]\n[HighwayIntersectionInfo_0xB1]\n\
+         [HighwayIntersectionInfo_0xB2]\n[HighwayIntersectionInfo_0xC1]\n[HighwayIntersectionInfo_0xC2]\n\
+         [Ordering1]\nRotationRing=0xA1,0xA2\nAddTypes=0xB1,0xB2\nAddTypes=0xC1,0xC2\n",
+    );
+    assert_eq!(m.len(), 6);
+    // Rotation rings: one per line, `AddTypes` lines included.
+    let ring_next = |id: u32| m.get(id).unwrap().ring_next;
+    assert_eq!((ring_next(0xA1), ring_next(0xA2)), (0xA2, 0xA1));
+    assert_eq!((ring_next(0xB1), ring_next(0xB2)), (0xB2, 0xB1));
+    assert_eq!((ring_next(0xC1), ring_next(0xC2)), (0xC2, 0xC1));
+    // Type rings: the k-th rule of each line joins the k-th base rule.
+    let type_next = |id: u32| m.get(id).unwrap().add_next;
+    assert_eq!((type_next(0xA1), type_next(0xB1), type_next(0xC1)), (0xB1, 0xC1, 0xA1));
+    assert_eq!((type_next(0xA2), type_next(0xB2), type_next(0xC2)), (0xB2, 0xC2, 0xA2));
+    assert_eq!(
+        (
+            m.get(0xA1).unwrap().add_prev,
+            m.get(0xB1).unwrap().add_prev,
+            m.get(0xC1).unwrap().add_prev
+        ),
+        (0xC1, 0xA1, 0xB1)
+    );
+
+    // An unknown id in the middle changes nothing, and `cur` does not move.
+    let m = int_rules(
+        "[HighwayIntersectionInfo_0xA1]\n[HighwayIntersectionInfo_0xA2]\n[HighwayIntersectionInfo_0xB1]\n\
+         [HighwayIntersectionInfo_0xB2]\n[Ordering1]\nRotationRing=0xA1,0xA2\nAddTypes=0xB1,0x999,0xB2\n",
+    );
+    let ring_next = |id: u32| m.get(id).unwrap().ring_next;
+    let type_next = |id: u32| m.get(id).unwrap().add_next;
+    assert_eq!((ring_next(0xB1), ring_next(0xB2)), (0xB2, 0xB1));
+    assert_eq!((type_next(0xA1), type_next(0xB1)), (0xB1, 0xA1));
+    assert_eq!((type_next(0xA2), type_next(0xB2)), (0xB2, 0xA2));
+}
+
+#[test]
+fn t15_28_intersection_tiles() {
+    let m = int_rules(
+        "[HighwayIntersectionInfo_0x1]\nCheckType=a - Road:0x00020002\nAutoTileBase=0x5000\nAutoPathBase=0\n\
+         CellLayout=aaa<\nCellLayout=a\nCellLayout=...^\n",
+    );
+    let r = m.get(1).unwrap();
+    // The occupied cells are (col, row) (0, 0), (1, 0), (2, 0) and (0, 1) of
+    // the bounds, whatever their offsets from the anchor.
+    assert_eq!(r.tile_width, 3);
+    assert_eq!(r.tile_grid.len(), 6);
+    let cols = |r: &IntRule| -> Vec<(usize, usize)> {
+        r.occupied
+            .iter()
+            .map(|&(x, z)| ((x - r.bounds.min_x) as usize, (z - r.bounds.min_z) as usize))
+            .collect()
+    };
+    assert_eq!(cols(r), vec![(0, 0), (1, 0), (2, 0), (0, 1)]);
+    // `GetTileInfo(dx, dz)` is called with the rule's own cell offsets.
+    for (i, &(rx, rz)) in r.occupied.iter().enumerate() {
+        let want = [0x0000u32, 0x0100, 0x0200, 0x0010][i];
+        assert_eq!(r.get_tile_info(rx, rz).unwrap().tile, want, "cell {i}");
+    }
+    assert!(r.get_tile_info(r.occupied[0].0 + 1, r.occupied[0].1 + 1).is_none());
+    assert!(r.get_tile_info(-4, 0).is_none()); // outside the grid
+
+    let mut g = grid();
+    for &(x, z) in &r.occupied {
+        g.insert(CellInfo::new(10 + x, 10 + z).with_type(ROAD, 0x0002_0002));
+    }
+    let pieces = r.intersection_pieces(10, 10, &g);
+    assert_eq!(
+        pieces.iter().map(|p| p.piece_id).collect::<Vec<_>>(),
+        vec![0x5000, 0x5100, 0x5200, 0x5010]
+    );
+    assert_eq!(pieces.iter().map(|p| p.path).collect::<Vec<_>>(), vec![0; 4]);
+    assert!(pieces.iter().all(|p| p.orientation == 0));
+    // Every piece of one intersection shares the rule's position as anchor.
+    assert!(pieces.iter().all(|p| p.anchor == (10, 10)));
+
+    // With an AutoPathBase the pieces get path overrides.
+    let m = int_rules(
+        "[HighwayIntersectionInfo_0x1]\nCheckType=a - Road:0x00020002\nAutoTileBase=0x5000\nAutoPathBase=0x7000\n\
+         CellLayout=aaa<\nCellLayout=a\nCellLayout=...^\n",
+    );
+    let r = m.get(1).unwrap();
+    let pieces = r.intersection_pieces(10, 10, &g);
+    assert_eq!(
+        pieces.iter().map(|p| p.path).collect::<Vec<_>>(),
+        vec![0x7000, 0x7100, 0x7200, 0x7010]
+    );
+}
+
+#[test]
+fn t15_29_preview_piece() {
+    // The evaluator of test 11: key 0x02000200, outputs (m 0, 0x100) and
+    // (m 7, 0x101).
+    let mut rules = NetworkRules::new();
+    rules.add_tile_file(ROAD, Some(b"#T#\n1,0,2,0,2\n3,0,0x100,0,0\n3,7,0x101,0,0"));
+    let mut g = grid();
+    g.insert(road(5, 5, 0x0200_0200));
+    g.insert(road(5, 6, 0x0200_0200));
+    let mut st = SolveState::new();
+    st.s = set_of(&[cell_key(5, 5), cell_key(5, 6)]);
+    let evs = rules.evaluators[ROAD as usize].iter().collect::<Vec<_>>();
+    assert_eq!(
+        solve_multi_type_separation(evs.iter().copied(), &g, 5, 5, ROAD),
+        Some((0x100, 0, 0))
+    );
+    // The preview never claims: the solved list stays empty.
+    assert!(st.solved.is_empty());
+    // A cell the rules do not match gives no piece.
+    g.insert(road(7, 7, 0x0000_0002));
+    assert_eq!(solve_multi_type_separation(evs.iter().copied(), &g, 7, 7, ROAD), None);
 }

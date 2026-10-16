@@ -9,13 +9,14 @@
 
 use crate::stl::{StlHashSet, STL_DEFAULT_HINT};
 
-use super::grid::{CellGrid, SolveState, SolvedRecord};
+use super::grid::{CellGrid, CellInfo, IntersectionRecord, SolveState, SolvedRecord};
+use super::intrule::IntRuleMap;
 use super::rules::NetworkRules;
 use super::tile::{Evaluator, Neighbourhood, Output};
 use super::{
     cell_key, covers, d_mask, edge_byte, elevated, key_cell, meta_offset, reset_minor_types, type_bit, type_of,
-    with_edge_byte, within, ALL_TYPES, AVENUE, DIRT_ROAD, ONE_WAY_ROAD, PRIORITY, ROAD, SIDE_DX, SIDE_DZ, STREET,
-    SUBTYPE_SCHEME, TYPE_COUNT,
+    with_edge_byte, within, ALL_TYPES, AVENUE, DIRT_ROAD, FLAG_PORTAL, ONE_WAY_ROAD, PRIORITY, ROAD, SIDE_DX, SIDE_DZ,
+    STREET, SUBTYPE_SCHEME, TYPE_COUNT,
 };
 
 /// The bucket hint of the sets the spec does not size (`P`, `Q`, `R`): the
@@ -53,19 +54,42 @@ pub fn build_padded_network_set(grid: &CellGrid, src: &StlHashSet, pad: i32) -> 
 
 // ---- §5.1 ------------------------------------------------------------------------------------------------
 
-/// The neighbourhood of a cell for type `t` over a [`CellGrid`] (§5.1), with
-/// the valid-position check on (the solver always builds it so).
+/// The neighbourhood of a cell for type `t` over a [`CellGrid`] (§5.1).
+///
+/// `override_valid` is the solver's override flag: when it is set,
+/// `valid(m)` is always true, so an output may land on a cell that carries
+/// another type. `SolveNetwork` builds the neighbourhood with the flag off;
+/// [`solve_multi_type_separation`] builds it with the flag on (§8.3).
 pub struct GridNeighbourhood<'a> {
     grid: &'a CellGrid,
     x: i32,
     z: i32,
     t: u8,
+    override_valid: bool,
 }
 
 /// The neighbourhood of the cell `key` for type `t`.
 pub fn neighbourhood(grid: &CellGrid, key: u32, t: u8) -> GridNeighbourhood<'_> {
     let (x, z) = key_cell(key);
-    GridNeighbourhood { grid, x, z, t }
+    GridNeighbourhood {
+        grid,
+        x,
+        z,
+        t,
+        override_valid: false,
+    }
+}
+
+/// The neighbourhood of the cell `(x, z)` for type `t` with the override flag
+/// on (§5.1, §8.3): `valid(m)` is always true.
+pub fn neighbourhood_overriding(grid: &CellGrid, x: i32, z: i32, t: u8) -> GridNeighbourhood<'_> {
+    GridNeighbourhood {
+        grid,
+        x,
+        z,
+        t,
+        override_valid: true,
+    }
 }
 
 impl Neighbourhood for GridNeighbourhood<'_> {
@@ -83,6 +107,9 @@ impl Neighbourhood for GridNeighbourhood<'_> {
     }
 
     fn valid(&self, m: i32) -> bool {
+        if self.override_valid {
+            return true;
+        }
         let (dx, dz) = meta_offset(m);
         let other = type_bit(self.t) ^ ALL_TYPES;
         self.grid
@@ -172,6 +199,212 @@ pub fn solve_using_evaluator(grid: &mut CellGrid, state: &mut SolveState, p: &mu
     apply_network_rules(grid, state, p, &mut w, ev, u);
     for k in w.iter_order() {
         p.insert(k);
+    }
+}
+
+// ---- §6.5 -----------------------------------------------------------------------------------------------
+
+/// The flow code of side `s` of a cell's one-way byte (§6.5).
+fn flow_code(one_way: u8, s: usize) -> u8 {
+    (one_way >> (2 * (s & 3))) & 3
+}
+
+/// Sets the flow code of side `s`.
+fn set_flow_code(info: &mut CellInfo, s: usize, code: u8) {
+    let (s, code) = (s & 3, code & 3);
+    info.one_way = (info.one_way & !(3 << (2 * s))) | (code << (2 * s));
+}
+
+/// `ResolveOneWayConflicts(type)` (`0x0063A640`, pop 4, §6.5): carries the
+/// dragged run's direction into the existing one-way roads it joins, then
+/// clears the codes that make a cell's flow contradict itself.
+///
+/// Called by `PlaceNetwork` for type 10 only, after
+/// `BuildSetOfCellsToBeSolved` and before `MarkNeighborConnections`. `steps`
+/// is the dragged run (step 0 and the last step are the seeds; the steps in
+/// between are not). The pass returns nothing: the cleared and propagated
+/// codes reach the occupants at commit and are used by `Test` and
+/// `DoAutoComplete` (§10.5) and by the multi-type stage (§8.2).
+///
+/// Every cell the pass visits gets `+0x10 := 1` and, when `+0x57` is 0, that
+/// mark and a place in the solve set, so a visited cell is re-solved whether
+/// or not it is a run cell *[compat]*.
+pub fn resolve_one_way_conflicts(grid: &mut CellGrid, state: &mut SolveState, steps: &[Vec<(i32, i32)>]) {
+    // 1. Seeds: step 0 and the last dragged step.
+    let mut a: Vec<(i32, i32, i32)> = Vec::new();
+    let seed = |steps: &[Vec<(i32, i32)>], i: usize, a: &mut Vec<(i32, i32, i32)>| {
+        if let Some(cells) = steps.get(i) {
+            for &(x, z) in cells {
+                a.push((x, z, -1));
+            }
+        }
+    };
+    seed(steps, 0, &mut a);
+    if let Some(last) = steps.len().checked_sub(1) {
+        if last != 0 {
+            seed(steps, last, &mut a);
+        }
+    }
+
+    // 2. Propagation.
+    while !a.is_empty() {
+        let mut b: Vec<(i32, i32, i32)> = Vec::new();
+        for &(x, z, mut from) in &a {
+            // There is no null test in the original: a cell with no info
+            // would be read anyway. Ours skips it *[choice]*.
+            let Some(info) = grid.at_mut(x, z) else { continue };
+            info.in_run = true;
+            if !info.marked {
+                info.marked = true;
+                state.s.insert(cell_key(x, z));
+            }
+            let e = info.edges[ONE_WAY_ROAD as usize];
+            let arms = (0..4).filter(|&s| edge_byte(e, s) & 7 != 0).count();
+            if arms != 1 && arms != 2 {
+                continue;
+            }
+            let one_way = info.one_way;
+            let portal = if info.flags & FLAG_PORTAL != 0 {
+                info.occupant.and_then(|o| o.paired_portal)
+            } else {
+                None
+            };
+            let portal_side = portal.and_then(|(ox, oz)| {
+                if ox < x {
+                    Some(0)
+                } else if oz < z {
+                    Some(1)
+                } else if ox > x {
+                    Some(2)
+                } else if oz > z {
+                    Some(3)
+                } else {
+                    None
+                }
+            });
+            drop(info);
+            let mut to: i32 = -1;
+            let mut t_key = 0u32;
+            let mut dropped: Vec<usize> = Vec::new();
+            for s in 0..4 {
+                if flow_code(one_way, s) == 0 {
+                    continue;
+                }
+                let (mx, mz) = if portal_side == Some(s) {
+                    match portal {
+                        Some(p) => p,
+                        None => {
+                            dropped.push(s);
+                            continue;
+                        }
+                    }
+                } else {
+                    (x + SIDE_DX[s], z + SIDE_DZ[s])
+                };
+                // Outside the city (unsigned compare), no info, or a highway
+                // intersection cell: the side is skipped. A side the pass
+                // cannot follow also loses its flow code *[choice]*: §6.5
+                // step 2.4 says only "skip `s`", but §15 test 26's X (`0x15`
+                // with no cell info at (11, 10)) comes out `0x09`, which
+                // needs the east code dropped. See the lane report's
+                // question NR8.
+                let (mx, mz) = (mx as u32, mz as u32);
+                if mx >= grid.width || mz >= grid.height {
+                    dropped.push(s);
+                    continue;
+                }
+                let m_key = cell_key(mx as i32, mz as i32);
+                match grid.get(m_key) {
+                    None => dropped.push(s),
+                    Some(m) if m.intersection => dropped.push(s),
+                    Some(m) => {
+                        if m.in_run && (from < 0 || s as i32 == from) {
+                            from = s as i32;
+                        } else {
+                            to = s as i32;
+                            t_key = m_key;
+                        }
+                    }
+                }
+            }
+            if !dropped.is_empty() {
+                if let Some(c) = grid.at_mut(x, z) {
+                    for s in dropped {
+                        set_flow_code(c, s, 0);
+                    }
+                }
+            }
+            if from < 0 || to < 0 {
+                continue;
+            }
+            let mut n = flow_code(one_way, from as usize);
+            // A turn between W and N, or between E and S (`to = from ^ 1`),
+            // reverses the axis sense.
+            if (to ^ from) == 1 {
+                n ^= 3;
+            }
+            if flow_code(one_way, to as usize) == n {
+                continue;
+            }
+            if let Some(c) = grid.at_mut(x, z) {
+                set_flow_code(c, to as usize, n);
+            }
+            let (tx, tz) = key_cell(t_key);
+            if let Some(c) = grid.at_mut(tx, tz) {
+                set_flow_code(c, (to as usize + 2) & 3, n);
+            }
+            b.push((tx, tz, (to - 2) & 3));
+        }
+        a = b;
+    }
+
+    // 3. Conflict sweep.
+    let mut w1 = state.s.clone();
+    let mut w2 = StlHashSet::with_hint(SET_HINT);
+    while !w1.is_empty() {
+        for k in w1.iter_order() {
+            let Some(info) = grid.get(k) else { continue };
+            let one_way = info.one_way;
+            let e = info.edges[ONE_WAY_ROAD as usize];
+            let (cx, cz) = key_cell(k);
+            let mut seen = [0u8; 4];
+            for s in 0..4 {
+                // The partner side the arm on `s` pairs with.
+                let p = ((edge_byte(e, s) as usize).wrapping_add(s)) & 3;
+                let mut f = flow_code(one_way, s);
+                if f == 0 {
+                    continue;
+                }
+                if (p ^ s) & 2 == 0 {
+                    f ^= 3;
+                }
+                if seen[p] != 0 && seen[p] != f {
+                    if let Some(c) = grid.at_mut(cx, cz) {
+                        set_flow_code(c, p, 0);
+                    }
+                    let (mx, mz) = (cx + SIDE_DX[p], cz + SIDE_DZ[p]);
+                    if (mx as u32) < grid.width && (mz as u32) < grid.height {
+                        if let Some(m) = grid.at_mut(mx, mz) {
+                            set_flow_code(m, (p + 2) & 3, 0);
+                            // A neighbour whose code was cleared is marked
+                            // but the *current* cell's key is what joins W2,
+                            // so that neighbour never joins the solve set
+                            // *[quirk 11]*.
+                            if !m.marked {
+                                m.marked = true;
+                                w2.insert(k);
+                            }
+                        }
+                    }
+                }
+                seen[p] = f;
+            }
+        }
+        for k in w2.iter_order() {
+            state.s.insert(k);
+        }
+        w1 = std::mem::take(&mut w2);
+        w2 = StlHashSet::with_hint(SET_HINT);
     }
 }
 
@@ -498,6 +731,43 @@ pub fn solve_multi_type_intersections(
     }
 }
 
+// ---- §8.3 -----------------------------------------------------------------------------------------------
+
+/// `SolveMultiTypeSeparation(cell, t, &id, &rot, &flip)` (`0x00633FA0`, pop
+/// 20): the preview's per-type piece lookup.
+///
+/// Walks the tile evaluators of type `t` in load order (the type record's
+/// `+0x24` vector, stopped at a null entry) and returns the piece the first
+/// of them that matches gives the cell itself:
+/// `(piece id, orientation & 0x7F, flip)`. Its callers only draw, so this
+/// never changes the solved list, the sets or the cell infos, the rules'
+/// other outputs are ignored, and no claiming happens (§6.4 is not
+/// involved) *[compat]*. A rule that matches but has no output on the cell
+/// itself sends the walk on to the next evaluator.
+///
+/// The neighbourhood is built with the override flag on, so `valid(m)` is
+/// always true (§8.3) and an output may land on a cell that carries another
+/// type.
+pub fn solve_multi_type_separation<'a>(
+    evaluators: impl IntoIterator<Item = &'a Evaluator>,
+    grid: &CellGrid,
+    x: i32,
+    z: i32,
+    t: u8,
+) -> Option<(u32, u8, u8)> {
+    let n = neighbourhood_overriding(grid, x, z, t);
+    for ev in evaluators {
+        let Some(outputs) = ev.evaluate(&n) else { continue };
+        for o in outputs {
+            let (dx, dz) = meta_offset(i32::from(o.m));
+            if dx == 0 && dz == 0 {
+                return Some((o.id, o.orientation & 0x7F, o.orientation >> 7));
+            }
+        }
+    }
+    None
+}
+
 // ---- §9.1 -----------------------------------------------------------------------------------------------
 
 /// A piece: an id and an orientation byte.
@@ -655,6 +925,78 @@ pub fn adjust_tile_subsets(rules: &NetworkRules, grid: &mut CellGrid, state: &mu
         }
         if !changed {
             return true;
+        }
+    }
+}
+
+// ---- §10.6, and the bridge interaction (network-bridges.md §8.3.1) ---------------------------------------
+
+/// `MarkHighwayIntersectionPieces(on)` (`0x0063B7F0`, §10.6): sets or clears
+/// the intersection flag `+0x52` on the cell infos of the rule's occupied
+/// cells, for the records whose start step is below `valid_count` (`+0x78`),
+/// in record order.
+///
+/// The set of cells one record marks is the rule's occupied-cell list
+/// *[inferred]*: §10.6 names the function and the records it walks but not
+/// the cells, and `MarkIntersection` (§10.6 step 2) marks exactly those.
+pub fn mark_highway_intersection_pieces(
+    rules: &IntRuleMap,
+    grid: &mut CellGrid,
+    records: &[IntersectionRecord],
+    valid_count: i32,
+    on: bool,
+) {
+    for r in records {
+        if r.start_step >= valid_count {
+            break;
+        }
+        let Some(rule) = rules.get(r.rule_id) else { continue };
+        for &(rx, rz) in &rule.occupied {
+            if let Some(c) = grid.at_mut(r.x + rx, r.z + rz) {
+                c.intersection = on;
+            }
+        }
+    }
+}
+
+/// `RemoveHighwayIntersectionPiecesFromSetOfCellsToBeSolved` (`0x0063B1A0`,
+/// §10.6): erases the cell key of each of those records' cells from the solve
+/// set `+0x84`, so the rule solver never chooses a piece for a cell an
+/// intersection already owns. Records whose start step is at or above
+/// `valid_count` are not walked *[inferred]*, as §10.6 says of the pair.
+pub fn remove_highway_intersection_pieces_from_solve_set(
+    rules: &IntRuleMap,
+    state: &mut SolveState,
+    records: &[IntersectionRecord],
+    valid_count: i32,
+) {
+    for r in records {
+        if r.start_step >= valid_count {
+            break;
+        }
+        let Some(rule) = rules.get(r.rule_id) else { continue };
+        for &(rx, rz) in &rule.occupied {
+            state.s.remove(cell_key(r.x + rx, r.z + rz));
+        }
+    }
+}
+
+/// `RemoveBridgePiecesFromSetOfCellsToBeSolved` (`0x00638B40`), the last step
+/// of `BuildSetOfCellsToBeSolved` (network-bridges.md §8.3.1): for each bridge
+/// record in order, stopping at the first whose end step is at or above
+/// `valid_count`, the cell key of each of its piece records is erased from the
+/// solve set. The rule solver never chooses a piece for a bridge cell: the
+/// bridge models are its pieces.
+///
+/// `bridge_cells` is one list of solved-piece cell keys per bridge record, in
+/// record order; the geometry core owns the bridge records themselves.
+pub fn remove_bridge_pieces_from_solve_set(state: &mut SolveState, bridge_cells: &[(i32, Vec<u32>)], valid_count: i32) {
+    for &(end_step, ref cells) in bridge_cells {
+        if end_step >= valid_count {
+            break;
+        }
+        for &k in cells {
+            state.s.remove(k);
         }
     }
 }
