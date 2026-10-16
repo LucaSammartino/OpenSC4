@@ -1805,7 +1805,7 @@ pub unsafe extern "C" fn fc4_automata_riot_count(r: *const fc4_automata_riot) ->
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn fc4_automata_riot_leader(
+pub unsafe extern "C" fn fc4_automata_riot_get_leader(
     r: *const fc4_automata_riot,
     index: u32,
     out: *mut fc4_automata_riot_leader,

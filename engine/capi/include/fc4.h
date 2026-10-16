@@ -7526,7 +7526,7 @@ bool fc4_automata_riot_set_stage(fc4_automata_riot* r, uint32_t index, int32_t s
 /* The end; the leader is erased (later indices move down). */
 bool fc4_automata_riot_end(fc4_automata_riot* r, uint32_t index);
 uint32_t fc4_automata_riot_count(const fc4_automata_riot* r);
-bool fc4_automata_riot_leader(const fc4_automata_riot* r, uint32_t index, fc4_automata_riot_leader* out);
+bool fc4_automata_riot_get_leader(const fc4_automata_riot* r, uint32_t index, fc4_automata_riot_leader* out);
 
 /* The fire occupant (§8.2). NULL for a NULL or short host table. */
 fc4_automata_fire* fc4_automata_fire_create(const fc4_automata_fire_host* host);

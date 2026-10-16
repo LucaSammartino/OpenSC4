@@ -724,7 +724,7 @@ fn riot_leader_calls_in_order() {
             ]
         );
         let mut l = fc4_automata_riot_leader::default();
-        assert!(fc4_automata_riot_leader(r, 0, &mut l));
+        assert!(fc4_automata_riot_get_leader(r, 0, &mut l));
         assert_eq!((l.automaton, l.position), (0x500, [56.0, 0.0, 72.0]));
         assert!(fc4_automata_riot_set_stage(r, 0, 2));
         assert!(!fc4_automata_riot_set_stage(r, 0, 2));
