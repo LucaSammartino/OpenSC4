@@ -210,6 +210,12 @@
 //         a's message server, with void1 = a's manager and IGZUnknown = a's
 //         zoo; returns the number of posts the server accepted, -1 for a null
 //         input.
+//   op 66 kFC4SeamNeighborsConfirm a = fc4::NeighborsConfirmFn (cdecl bool
+//         (cIGZString* title, cIGZString* text, cIGZString* yes,
+//         cIGZString* no); null: the game's again) (the apply12 lane,
+//         neighbors.md §15.4 NG35): the confirmation dialog the neighbours
+//         simulator's RequestCreateConnection calls when popups are on.
+//         Returns 1.
 #pragma once
 
 #include <cstdint>
@@ -275,6 +281,7 @@ enum : uint32_t {
     kFC4SeamZoneDev = 53,  // the zone developer (cFC4ZoneDeveloper.h FC4ZoneDevTestInput)
     kFC4SeamHistClock = 54,  // the history and clock lane
     kFC4SeamParks = 57,         // the cmglue lane (cFC4Parks.h FC4ParksTestInput)
+    kFC4SeamNeighborsConfirm = 66,  // the apply12 lane (NG35, cFC4Neighbors.h NeighborsTestSetConfirm)
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

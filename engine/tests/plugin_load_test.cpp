@@ -2081,6 +2081,24 @@ struct FakePopupApp {
 
 FakePopupApp* g_popupApp = nullptr;
 
+// NG35 (neighbors.md §15.4): a stand-in for nSC4UI::GenericConfirmationDialog
+// (cdecl, four strings, true only for Yes), given to the plugin through
+// FC4TestSeam op 66.
+struct FakeConfirm {
+    int calls = 0;
+    bool answer = false;
+    bool stringsOk = false;   // title and text non-null, with text
+    bool labelsNull = false;  // the default Yes / No
+};
+FakeConfirm g_fakeConfirm;
+bool __cdecl FakeConfirmDialog(cIGZString* title, cIGZString* text, cIGZString* yes, cIGZString* no) {
+    ++g_fakeConfirm.calls;
+    g_fakeConfirm.stringsOk =
+        title != nullptr && text != nullptr && title->ToChar() != nullptr && text->ToChar() != nullptr;
+    g_fakeConfirm.labelsNull = yes == nullptr && no == nullptr;
+    return g_fakeConfirm.answer;
+}
+
 bool __fastcall AppGetPopupDialogsEnabled(void*, void*) {  // cISC4App 23 (+0x5C), pops 0
     ++g_popupApp->gets;
     return g_popupApp->enabled;
@@ -4530,6 +4548,40 @@ constexpr uint32_t kIID_cISC4BuildingDevelopmentSimulator = 0x07813EAE;
 constexpr uint32_t kIID_cIGZMessageTargetDev = 0xE98B2F57;
 constexpr uint32_t kIID_cIGZMessageTarget2Dev = 0x452294AA;
 
+// DG35 (§4.9.2): a retaining wall (primary interface: slot 3 AsOccupant,
+// slot 11 GetRetainingWallType) whose occupant sub-object (+0x04) answers QI
+// 0x295D1162 with the wall, AddRef'd; the wall's own QI (slot 0, probed by
+// the reference audit) answers nothing. Other slots trap.
+struct FakeWall {
+    void** vtbl;
+    void** occVtbl;
+    int refs = 1;  // the caller's
+    int qis = 0;
+    int typeCalls = 0;
+    bool isWall = true;
+    uint32_t type = 7;
+};
+FakeWall* g_wall = nullptr;
+FakeVtable g_wallVt, g_wallOccVt;
+bool __fastcall WallOccQi(void*, void*, uint32_t iid, void** out) {  // occupant 0
+    ++g_wall->qis;
+    if (out == nullptr || !g_wall->isWall || iid != 0x295D1162u) return false;
+    *out = g_wall;
+    ++g_wall->refs;
+    return true;
+}
+bool __fastcall WallQi(void*, void*, uint32_t, void** out) {  // wall 0: the reference audit's class probe
+    if (out != nullptr) *out = nullptr;
+    return false;
+}
+uint32_t __fastcall WallAddRef(void*, void*) { return static_cast<uint32_t>(++g_wall->refs); }   // 1
+uint32_t __fastcall WallRelease(void*, void*) { return static_cast<uint32_t>(--g_wall->refs); }  // 2
+void* __fastcall WallAsOccupant(FakeWall* w, void*) { return &w->occVtbl; }                      // wall 3
+uint32_t __fastcall WallType(FakeWall* w, void*) {                                               // wall 11
+    ++w->typeCalls;
+    return w->type;
+}
+
 // The answers without a city or catalogue (§7.1), through the compiled
 // slots. The AL-only slots 42 / 43 are also called raw: the whole of EAX
 // must be the key (zero-extended).
@@ -4556,6 +4608,28 @@ void CheckDevelopmentNeutral(cFC4ISC4BuildingDevelopmentSimulator* b, uint32_t t
     CHECK(pos[1] == 0.0f);
     // 26 / 29: a null occupant [choice] and a type outside the (empty) key maps: false.
     CHECK(!b->LoadFoundationProperties(nullptr, 1) && !b->LoadLotRetainingWallProperties(nullptr, 1));
+    // 29, DG35: type 0 takes the wall's type, reached from its occupant
+    // token by QI 0x295D1162 (released after); the type is not in the
+    // (empty) key map: false. An occupant that is not a wall gives type 0.
+    {
+        FakeWall wall;
+        g_wall = &wall;
+        g_wallVt.slots[1] = g_wallOccVt.slots[1] = reinterpret_cast<void*>(&WallAddRef);
+        g_wallVt.slots[2] = g_wallOccVt.slots[2] = reinterpret_cast<void*>(&WallRelease);
+        g_wallVt.slots[3] = reinterpret_cast<void*>(&WallAsOccupant);
+        g_wallVt.slots[11] = reinterpret_cast<void*>(&WallType);
+        g_wallOccVt.slots[0] = reinterpret_cast<void*>(&WallOccQi);
+        g_wallVt.slots[0] = reinterpret_cast<void*>(&WallQi);
+        wall.vtbl = g_wallVt.slots.data();
+        wall.occVtbl = g_wallOccVt.slots.data();
+        auto* w = reinterpret_cast<cISC4LotRetainingWallOccupant*>(&wall);
+        CHECK(!b->LoadLotRetainingWallProperties(w, 0));
+        CHECK(wall.qis == 1 && wall.typeCalls == 1 && wall.refs == 1);
+        wall.isWall = false;
+        CHECK(!b->LoadLotRetainingWallProperties(w, 0));
+        CHECK(wall.qis == 2 && wall.typeCalls == 1 && wall.refs == 1);
+        g_wall = nullptr;
+    }
     CHECK(!b->CheatIgnorePlumbing() && !b->CheatIgnorePower() && !b->CheatIgnoreCaps() && !b->CheatDebugGrowth() &&
           !b->CheatCoffeeBar());
     // 42 / 43: 4p + w + 1, in EAX.
@@ -4828,7 +4902,7 @@ int DevelopmentEnableTest(const std::string& dll, const std::string& ini, const 
     // refused a null occupant. The month and state lines count the calls (calls/successes).
     CHECK(text.find("development: WARNING could not create a foundation occupant (class 0x49C05C8F)") !=
           std::string::npos);
-    CHECK(text.find("lotUpdates=0 foundations=1/0 foundationLoads=1/0 wallLoads=1/0") != std::string::npos);
+    CHECK(text.find("lotUpdates=0 foundations=1/0 foundationLoads=1/0 wallLoads=3/0") != std::string::npos);
     // The growth developers: one created and initialised (refused), two read.
     CHECK(text.find("development: growth statics ") != std::string::npos);
     CHECK(CountOf(text, "cFC4GrowthDeveloper(") == 8);  // created and destroyed (one for the shadow's bridge)
@@ -7845,6 +7919,50 @@ void CheckGetPropertyData(cISC4NeighborConnection* conn, NbGameProperty& raw) {
     u = 9;
     CHECK(h->GetPropertyU32(0x5AFE0205, u) && u == 0);
     CHECK(h->RemoveProperty(0x5AFE0204, false) && h->RemoveProperty(0x5AFE0205, false));
+    // NG44 (data-formats §5.1): an empty character array gives the empty
+    // text, which parses as 0: true and 0 (it was false); a string parses as
+    // a number; a signed scalar sign-extends.
+    char none[1] = {};
+    arr.SetRefRZChar(none, 0);
+    CHECK(h->AddPropertyVariant(0x5AFE0206, &arr, false));
+    u = 9;
+    CHECK(h->GetPropertyU32(0x5AFE0206, u) && u == 0);
+    char twelve[2] = {'1', '2'};
+    arr.SetRefRZChar(twelve, 2);
+    CHECK(h->AddPropertyVariant(0x5AFE0207, &arr, false));
+    CHECK(h->GetPropertyU32(0x5AFE0207, u) && u == 12);
+    arr.SetValSint32(-1);
+    CHECK(h->AddPropertyVariant(0x5AFE0208, &arr, false));
+    CHECK(h->GetPropertyU32(0x5AFE0208, u) && u == 0xFFFFFFFFu);
+    float big[1] = {1e30f};
+    arr.SetRefFloat32(big, 1);
+    CHECK(h->AddPropertyVariant(0x5AFE0209, &arr, false));
+    CHECK(h->GetPropertyU32(0x5AFE0209, u) && u == 0x19058000u);
+    CHECK(h->RemoveProperty(0x5AFE0206, false) && h->RemoveProperty(0x5AFE0207, false));
+    CHECK(h->RemoveProperty(0x5AFE0208, false) && h->RemoveProperty(0x5AFE0209, false));
+    // NG37: AddPropertyData (slot 10) stores raw bytes (type 0x8000, count =
+    // length), which GetPropertyData reads back; a null `data` keeps the
+    // count; the void array reads as 0 through slot 8.
+    uint8_t five[5] = {9, 8, 7, 6, 5};
+    CHECK(h->AddPropertyData(0x5AFE020A, five, 5, false));
+    cISCProperty* dp = h->GetProperty(0x5AFE020A);
+    CHECK(dp != nullptr);
+    if (dp != nullptr) {
+        const cFC4IGZVariant* dv = fc4::AsGame(dp->GetPropertyValue());
+        CHECK(dv->GetType() == cIGZVariant::VoidArray && dv->GetCount() == 5);
+        uint8_t back[5] = {};
+        uint32_t want = 5;
+        CHECK(dv->GetValVoid(back, want) && want == 5 && back[0] == 9 && back[4] == 5);  // slot 57
+    }
+    uint8_t got[8] = {};
+    len = 8;
+    CHECK(h->GetPropertyData(0x5AFE020A, got, len) && len == 5 && got[0] == 9 && got[4] == 5);
+    u = 9;
+    CHECK(h->GetPropertyU32(0x5AFE020A, u) && u == 0);
+    CHECK(h->AddPropertyData(0x5AFE020A, nullptr, 3, false));
+    len = 8;
+    CHECK(h->GetPropertyData(0x5AFE020A, got, len) && len == 3);
+    CHECK(h->RemoveProperty(0x5AFE020A, false));
 }
 
 int NeighborsEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
@@ -7904,9 +8022,11 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
             CHECK(sim->Init());  // §14.1: true (no city here)
             CHECK(sim->GetTuningExemplar() == nullptr);
             // NG14 (§15.4): with popups disabled the original's confirmation
-            // dialog answers no, so the request is refused; enabled, it is
-            // confirmed without the dialog [choice]. The app's flag through
-            // its slot 23 (an app whose other slots trap).
+            // dialog answers no, so the request is refused. Enabled (NG35),
+            // the dialog is asked and its answer returned; with no dialog (an
+            // unidentified executable, as here) it is confirmed without
+            // asking [choice]. The app's flag through its slot 23 (an app
+            // whose other slots trap).
             static FakePopupApp popupApp;
             g_popupApp = &popupApp;
             popupApp.vt.slots[23] = reinterpret_cast<void*>(&AppGetPopupDialogsEnabled);
@@ -7921,13 +8041,33 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
                 popupApp.enabled = true;
                 CHECK(sim->RequestCreateConnection(NbType::Road, -1, 5, false));
                 CHECK(popupApp.gets == 2 && !sim->HasConnection(NbType::Road, -1, 5));
+                // NG35: the dialog's answer, with the §6.2 title and text and
+                // null labels; No refuses, Yes confirms.
+                CHECK(seam(kFC4SeamNeighborsConfirm, reinterpret_cast<void*>(&FakeConfirmDialog), nullptr) == 1);
+                g_fakeConfirm.answer = false;
+                CHECK(!sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(g_fakeConfirm.calls == 1 && g_fakeConfirm.stringsOk && g_fakeConfirm.labelsNull);
+                g_fakeConfirm.answer = true;
+                CHECK(sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(g_fakeConfirm.calls == 2 && popupApp.gets == 4);
+                // Popups off: refused before the dialog.
+                popupApp.enabled = false;
+                CHECK(!sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(g_fakeConfirm.calls == 2 && popupApp.gets == 5);
+                popupApp.enabled = true;
+                // NG36: no app (tests have no framework) counts as popups off.
+                CHECK(seam(kFC4SeamNeighborsApp, nullptr, nullptr) == 1);
+                CHECK(!sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(g_fakeConfirm.calls == 2);
+                CHECK(seam(kFC4SeamNeighborsApp, &popupApp.app, nullptr) == 1);
+                CHECK(seam(kFC4SeamNeighborsConfirm, nullptr, nullptr) == 1);
             }
             cISC4NeighborConnection* conn = sim->CreateConnection(NbType::Road, -1, 5, false);
             CHECK(conn != nullptr);
             if (seam != nullptr) {
                 // It exists: refused before any dialog (§6.2).
                 CHECK(!sim->RequestCreateConnection(NbType::Road, -1, 5, false));
-                CHECK(popupApp.gets == 2);
+                CHECK(popupApp.gets == 5);
                 CHECK(seam(kFC4SeamNeighborsApp, nullptr, nullptr) == 1);
             }
             CHECK(sim->CreateConnection(NbType::Road, -1, 5, false) == nullptr);  // §6.3 step 1

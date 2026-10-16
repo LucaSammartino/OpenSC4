@@ -91,6 +91,8 @@ budget is off by default (enable = <key>).
 - [x] Occupant model keys (graphics-formats §4.2, GF7; apply10b, merged 0f3ad91): the zoom mask, RKT0–RKT5 and the RKT4 record walk; `fc4-dat models`; the install sweep reproduces the spec's survey exactly
 - [x] Disaster layer core and C ABI (disasters.md §2-§14; cores13, merged 333ecde, ABI 57): fire, riot, toxic spill, earthquake, pipe burst, volcano and effect managers, the riot removal lock (Q4, network-manager §10); every §18 test as a unit test and a `ds*` vector
 - [ ] Disaster glue: wire `fc4_disasters_host` to the game's managers and shadow it against the original; answer DS1–DS24
+- [x] Terrain core and C ABI (terrain.md; cores16, merged d651d74, ABI 58, regress run 124 PASS): height field and records, GetAltitude and face normals, setters, RedisplayTerrain, brushes (kind 0, earthquake, random walk), surface water, navigability and bodies of water, volcano lava; nation.md GetEconomyModifier; every §18 test as a `tr18_*` vector
+- [ ] Terrain glue: wire `cISTETerrain` / `cISTESurfaceWater` to `fc4_terrain_*` (mind the re-entrancy rule, TR18) and shadow it against the original; answer TR1–TR18
 - [ ] Rendering, UI, audio, region; a standalone executable
 
 **Cross-cutting**

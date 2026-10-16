@@ -14,3 +14,6 @@ name = "fc4_conformance"
 
 [dependencies]
 fc4-core = { path = "../core" }
+# variant_get_u32 (neighbors.md §15.4 NG44): the converting getters' text
+# round trip (data-formats §5.1) lives in the exemplar reader.
+fc4-formats = { path = "../formats" }

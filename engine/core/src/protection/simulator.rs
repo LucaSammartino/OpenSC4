@@ -521,6 +521,10 @@ impl ProtectionSim {
                         // uninitialised stack record; [choice] a zeroed one
                         // (the same on success when the station has its
                         // outer and radius, as every shipped station has).
+                        // PR20 (re-answers11): it does not carry
+                        // UpdateUnadjusted's values but stale bytes of
+                        // earlier calls; the zeroed record stays the
+                        // accepted choice.
                         let (ok, e) = self.dispatch_effect(info.station);
                         if ok {
                             self.update_both_grids_by_position(info.x, info.z, e.radius);
