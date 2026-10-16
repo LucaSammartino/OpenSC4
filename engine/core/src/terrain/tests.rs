@@ -993,6 +993,13 @@ fn is_navigable_rules() {
     // A power pole.
     let pole = Nav { pole: (4, 4), ..none };
     assert!(!t.is_navigable(5, 5, 1, 0, &pole));
+    // [TR20] §T 25: a pole blocks **only its own cell**. A pole whose own
+    // cell is (5, 5) but whose bounds reach (6, 5) blocks
+    // IsNavigable(5, 5, 0, 0) and not IsNavigable(6, 5, 0, 0): a pole that
+    // merely overlaps a neighbouring cell never blocks it.
+    let own = Nav { pole: (5, 5), ..none };
+    assert!(!t.is_navigable(5, 5, 0, 0, &own), "its own cell is blocked");
+    assert!(t.is_navigable(6, 5, 0, 0, &own), "a bounds overlap is not");
     // Bridges: deck 270 over a surface at 250 clears by exactly 20.
     let high = Nav {
         bridge: ((5, 5), Bridge::Deck(270.0)),

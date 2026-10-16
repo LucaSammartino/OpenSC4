@@ -71,7 +71,9 @@
 //   occupant 12 GetNetworkFlag, 67 GetPassageCeiling(float&) (the deck height
 //   of terrain.md §10.4 step 4);
 //   cISC4OccupantManager 41 GetOccupantsByStandardCityCells (typed; an A
-//   list, one reference per entry).
+//   list, one reference per entry);
+//   cISC4PowerPoleOccupant 8 GetCell (the pole's own cell, §10.4 step 5,
+//   TR20).
 
 namespace fc4 {
 namespace {
@@ -88,6 +90,7 @@ constexpr uint32_t kIID_cIGZMessageTarget2 = 0x452294AA;
 constexpr uint32_t kNetworkTileMask = 0x1F4F;      // §10.4 step 4
 constexpr uint32_t kNetworkFlagBridge = 0x40000;   // §10.4 step 4
 constexpr uint32_t kOccupantTypePowerPole = 0x2890D4DE;  // §10.4 step 5
+constexpr uint32_t kIID_cISC4PowerPoleOccupant = 0xA8C86142;  // §10.4 step 5 (TR20)
 
 constexpr long kDefaultPoints = 256;
 constexpr long kDefaultDiffs = 8;
@@ -191,12 +194,18 @@ int32_t HostBridgeAt(void* u, int32_t x, int32_t z, float* deck) {
     return FC4_TERRAIN_BRIDGE_DECK;
 }
 
+// [TR20] §10.4 step 5: the occupant manager's typed cell query (min = max =
+// the visited cell) lists every power pole whose *bounds* touch that cell,
+// so a pole whose own cell is a neighbour is listed too. The cell is blocked
+// only when the pole's own cell (`GetCell`, pole slot 8) **equals** the
+// visited cell. An occupant that does not answer `cISC4PowerPoleOccupant`
+// (`0xA8C86142`), or a pole whose own cell is another one, does not block.
+// Every occupant is visited even after a match, and each is released (the
+// list carries one reference per entry; QueryInterface a second).
 bool HostPowerPole(void* u, int32_t x, int32_t z) {
     cISC4City* c = G(u)->city;
     cISC4OccupantManager* om = c ? c->GetOccupantManager() : nullptr;  // city slot 34, borrowed
     if (om == nullptr) return false;
-    // [inferred] "a power pole whose cell is (x, z)": the poles the typed
-    // cell query lists for that one cell.
     SC4List<cISC4Occupant*> list;
     const SC4Point<int> cell(x, z);
     om->GetOccupantsByStandardCityCells(list, &cell, &cell, kOccupantTypePowerPole, 0xFFFFFFFFu);  // slot 41
@@ -204,7 +213,15 @@ bool HostPowerPole(void* u, int32_t x, int32_t z) {
     for (cISC4Occupant*& o : list) {
         if (o == nullptr) continue;
         FC4_ACQUIRED(o, "GetOccupantsByStandardCityCells list entry");
-        any = true;
+        cFC4ISC4PowerPoleOccupant* p = nullptr;
+        if (o->QueryInterface(kIID_cISC4PowerPoleOccupant, reinterpret_cast<void**>(&p)) && p != nullptr) {
+            FC4_ACQUIRED(p, "QueryInterface");
+            int32_t px = 0, pz = 0;
+            p->GetCell(px, pz);  // pole slot 8; its return channel is not read
+            if (px == x && pz == z) any = true;
+            FC4_RELEASE(p);
+            p = nullptr;
+        }
         FC4_RELEASE(o);
         o = nullptr;  // the list's destructor then only frees its nodes
     }
