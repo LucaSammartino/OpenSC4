@@ -298,3 +298,258 @@ The resulting map entry holds the pieces and the heights (piece vector at entry 
 entry is passed as `map node + 0x14`).
 
 ---
+
+## 4. The water pass: IdentifyBridgeCells (`0x00632830`)
+
+### 4.1 Preconditions
+
+`IdentifyBridgeCells(&v, type)` (pop 8) is pass 5 of `PlaceNetwork` (network-geometry.md §4). It does nothing unless:
+
+- `AllowBridges` (slot 61) is true;
+- `v ≥ 4` and `v ≤ +0x74`, the **straight** step count (`0x0063284C`–`0x00632858`). network-geometry.md §7 words
+  this as "dragged count ≤ straight count"; the test reads the valid count `v`, which at this point is at most the
+  dragged count;
+- the network type has at least one bridge type (type info `+0x30` not empty).
+
+### 4.2 The step test (`0x0062FDB0`)
+
+A step is **clear** when the occupant manager finds no occupant passing the tool's OR filter (`+0x364`) in the
+rectangle of the step's first and last cells, grown by one cell on every side: occupant manager slot 40 with
+`maxCount` −1 (occupant-manager.md §8.4). A failed query also counts as clear. The list is released with slot 48.
+
+The OR filter is made in `Init` (`0x00626AB9`–`0x00626AE9`). It passes a network occupant (type `0xC772BF98`) whose
+network-flag test `HasAnyNetworkFlag(mask)` (network occupant slot 9, `0x0061F560`) is true. The mask is `0x1F4F`
+(road, rail, highway, street, avenue, light rail, monorail, one-way road, dirt road and ground highway) for those
+types, and only the type's own bit (`1 << type`) for pipe, power line and subway.
+
+### 4.3 The edge test: CheckBridgeStepEdgeTypes(step, type) (`0x0062EB80`)
+
+For every cell of the step that already has a cell info (network-geometry.md §8.1), the step **fails** when:
+
+- the cell info's type mask (`+0x08`) has a bit of the low 13 other than `1 << type`: another network is there; or
+- the cell info's edge word for this type (`+0x18 + 4 × type`) has a bit outside the **allowed** mask below.
+
+| Pen direction | one-cell step | first cell | middle cells | last cell |
+|---|---|---|---|---|
+| 0 or 4 (x) | `0x00020002` | `0x04020002` | `0x04020402` | `0x00020402` |
+| 2 or 6 (z) | `0x02000200` | `0x02040200` | `0x02040204` | `0x02000204` |
+
+"First" and "last" are the step's first and last cell indexes (network-geometry.md §2.2). Cells without a cell info
+pass. In words: an existing piece of the same network is allowed only where it already runs straight along the drag
+and, inside a wide step, joins its neighbour in the step.
+
+### 4.4 The loop
+
+`i` runs from 2 while `i < v`. For each `i`:
+
+1. Skip `i` unless steps `i`, `i − 1` and `i − 2` are all kind 0 (regular).
+2. Skip `i` unless step `i` is clear (§4.2), at least one of its cells has water (terrain slot 34), and
+   `CheckBridgeStepEdgeTypes(i)` passes.
+3. `SelectBridgeStartAndEnd(i, &start, &end, &index, &refElev, type)` (§5.1). If it fails, or `index < 0`: **cut** the
+   run, `v := i`, and stop (`0x00632ABB`).
+4. If `end − start ≥ 4` and `end − start + 1 ≥` the bridge type's minimum span (`0x006329C1`–`0x006329D4`):
+   1. mark steps `start … end` kind 1;
+   2. append a bridge record (§4.5) with the network type, start, end, index, reference elevation `refElev` at
+      `+0x14` and the land byte `+0x18 := 0`;
+   3. `SelectBridgeElevation` on it (§8.2);
+   4. look `end − start + 1` up in the bridge type's length map `+0x16C` (`0x00632A75`). Found: the **specialised**
+      model with the entry (§9). Not found: the **parametric** model (§10).
+5. Otherwise nothing is recorded and the steps stay regular. The water steps are then refused later by
+   `CheckForGoodTerrain` with `0xF0000001` (network-geometry.md §4.5) *[compat]*.
+
+On exit `v` is written back: unchanged after a full loop, `i` after a cut. `PlaceNetwork` turns a lowered `v` into
+the failure code `0xF0000003` (§13).
+
+A recorded bridge covers its steps with kind 1, so `i = end + 1` and `i = end + 2` fail step 1. A wet step there
+is skipped, not bridged, and `CheckForGoodTerrain` refuses it later: a second crossing must leave at least two dry
+regular steps after the first bridge's last step.
+
+### 4.5 The bridge record (`0x28` bytes, tool vector `+0xD8`)
+
+| Offset | Meaning |
+|---|---|
+| `+0x00` | network type |
+| `+0x04`, `+0x08` | start and end step (inclusive) |
+| `+0x0C` | bridge type index (into type info `+0x30`) |
+| `+0x10` | the **deck** elevation (§8.2; land: §7.3) |
+| `+0x14` | the **reference** elevation (§5.2; land: the same as `+0x10`) |
+| `+0x18` | byte: 1 = land bridge (§7.3), 0 = water bridge |
+| `+0x1C`–`+0x24` | vector of piece records (`0x50` bytes each, §9.2) |
+
+The vector is cleared at the start of each run (network-tools.md §5.1 step 2).
+
+---
+
+## 5. The water span
+
+### 5.1 SelectBridgeStartAndEnd(i, &start, &end, &index, &refElev, type) (`0x00630570`, pop 24)
+
+1. `start := i − 1`. Fail unless `start ≥ 0`, step `start` is kind 0 and passes the edge test. (Step `start` is not
+   tested for occupants.)
+2. `end := i + 1`. Fail unless `end < +0x78 − 1`.
+3. Loop: fail unless step `end` is kind 0, clear and passes the edge test. If none of its cells has water, it is the
+   far bank: go to 4. Otherwise `end := end + 1`, and fail if `end ≥ +0x78 − 1`.
+4. Fail if `end ≥ +0x74` (the straight count).
+5. `AdjustBridgeSpan(&start, &end, &clearance, &refElev, type)` (§5.2).
+6. `index := FindBestBridgeType(&start, &end, water = 1, clearance, type)` (§6). Succeed when `index ≥ 0`.
+
+So the first span is the wet run plus one dry step on each side.
+
+### 5.2 AdjustBridgeSpan(&start, &end, &clearance, &elev, type) (`0x0062FED0`, pop 20)
+
+It finds the banks' heights, chooses the reference elevation, then widens the span until it meets the banks.
+
+Two thresholds come from the placement parameter p+0x00 (the maximum slope, **in radians**, network-geometry.md
+§2.4): `c14 := r24(p0 × 14.0)` (`0x00A98F48`) and `c4 := r24(p0 × 4.0)` (`0x00A8E17C`). Road: p0 = 35° ≈ 0.61087, so
+c14 ≈ 8.5522 and c4 ≈ 2.4435. Multiplying an angle by a plain constant suggests that a rise per cell was meant
+*[quirk; inferred intent]*.
+
+Two step measures:
+
+- `lowOf(step)`: the largest, over the step's cells, of the cell's **lowest** terrain corner (terrain slot 17), but at
+  least 0;
+- `surfaceOf(step)`: the largest, over the step's cells, of the cell's surface level (terrain slot 18: the corner
+  altitude plus any water depth), but at least 0.
+
+**Back bank.** `A := 0`, `B := 0`, `low := 1`. For `k := start` down while `k > 1`:
+
+1. If steps `k`, `k − 1` and `k − 2` are not all kind 0, or step `k` is not clear, or fails the edge test:
+   `low := k` and stop.
+2. `d := surfaceOf(k − 1) − lowOf(k)`. If `d > c14`: `A := surfaceOf(k − 1)`. If `d > c4`: `B := surfaceOf(k − 1)`.
+
+Every step that qualifies overwrites A or B, so the **farthest** qualifying step wins.
+
+**Far bank.** `A2 := 0`, `B2 := 0`, `far := +0x78 − 2`, `done := false`. For `j := end` while `j < +0x78 − 2`:
+
+1. If steps `j`, `j + 1` and `j + 2` are not all kind 0, or step `j` is not clear, or fails the edge test:
+   `far := j` and stop.
+2. If `done`, go on with the next `j` (the tests in 1 still run).
+3. `d := surfaceOf(j + 1) − lowOf(j)`. If `d > c14`: `A2 := surfaceOf(j + 1)`. If `d > c4`: `B2 := surfaceOf(j + 1)`;
+   otherwise `done := true`.
+
+**Elevation.** `elev := min(B, B2, max(A, A2))`. If the override `+0x204 ≥ 0.0`, `elev := +0x204` instead
+(`0x0063030D`).
+
+**Widen.** While `start > low` and `surfaceOf(start) < elev`: `start := start − 1`. While `end < far` and
+`surfaceOf(end) < elev`: `end := end + 1`.
+
+**Floor.** If `elev < 0.01` (a double, `0x00A92688`): `elev :=` the surface level (slot 18) of the first cell of step
+`start`.
+
+**Clearance.** `clearance := 0`. For each step `k` from `start` to `end − 1`: if the step has a wet cell, take the
+first one, `c`, and `clearance := max(clearance, elev − surface(c))`.
+
+On flat banks (every `d ≤ c4`), `elev` is 0, so the floor rule puts it at the near bank's surface, and the span is
+not widened.
+
+---
+
+## 6. FindBestBridgeType(&start, &end, water, h, type) (`0x0062F760`, pop 20)
+
+### 6.1 The choice
+
+The candidate list is the tool's water list `+0x33C` when `water` is true, else the land list `+0x348` (§2.5).
+`n := end − start + 1`. A bridge type is a candidate unless:
+
+- a preferred bridge is set (`+0x200 ≥ 0`) and this is not it;
+- `h < +0xC8` or `h > +0xCC` (the clearance range, both ends inclusive);
+- `+0x08 < n` (too long);
+- `+0x04 > n` (too short) and `PadStepsToMakeMinBridgeSpan(+0x04, …)` (§6.2) fails on **copies** of start and end.
+
+No candidate: return −1. Otherwise score each candidate with `d := n − minSpan`, and `d := d − 100000` when `d < 0`.
+The smallest `|d|` wins; the **first** candidate in list order wins a tie. If the winner's `d < 0`, run
+`PadStepsToMakeMinBridgeSpan(minSpan, &start, &end, type)` on the **real** start and end (its result is ignored).
+The tool's candidate list `+0x1F4` is replaced by the candidates, and the winner's index is returned.
+
+So an exact fit wins, then the longest bridge type that fits without padding, and padding is a last resort.
+
+### 6.2 PadStepsToMakeMinBridgeSpan(minLen, &start, &end, type) (`0x0062ECD0`)
+
+If `end − start + 1 ≥ minLen`: true. Otherwise alternate one step back, then one step forward, while steps are still
+needed:
+
+- back: `start := start − 1`; it is allowed while `start > 1`, steps `start` and `start − 1` are kind 0 and step
+  `start` passes the edge test; otherwise undo it and stop going back;
+- forward: `end := end + 1`; it is allowed while `end < v`, step `end` is kind 0 and passes the edge test; otherwise
+  undo it and stop going forward.
+
+If both directions are blocked while steps are still needed: false. At the end: true when `end < +0x74` and the span
+is at least `minLen`. Padding does not test for occupants.
+
+### 6.3 The candidate list
+
+`+0x1F4`–`+0x1FC` is a vector of bridge type indices. `GetPossibleBridges` (slot 30) copies it; the player's bridge
+menu uses it with `SetPreferredBridge` (slot 32). It holds the candidates of the **last** `FindBestBridgeType` call in
+the run.
+
+---
+
+## 7. The land pass: IdentifyLandBridgeCells (`0x00632AD0`)
+
+### 7.1 Preconditions
+
+`IdentifyLandBridgeCells(v, type)` (pop 8, `v` by value) is pass 7 of `PlaceNetwork`, run only when `+0x354` is set
+(§2.5). It needs `AllowBridges`, and `limit := min(+0x74, v) − 1 ≥ 4`. It never changes `v` and sets no failure code.
+
+### 7.2 The scan
+
+For each step it reads two terrain vertex altitudes (terrain slot 12) at the **first** cell of the step: vertex
+`z × +0x248 + x` plus `+0x250[d]` and plus `+0x270[d]`, with `d := pen & 3` (network-geometry.md §6.1). So `d` is 0
+for pen 0 and 4 and 2 for pen 2 and 6: the scan always reads the cell's +x edge (x drags) or +z edge (z drags),
+whichever way the drag runs *[quirk]*. `hi` and `lo` are the larger and smaller of the two.
+
+State: `inSpan := false`, `A := 0`, `B := 0`, `spanStart`, `D`, `E`, `C`. For `i := 1` while `i < limit`:
+
+1. If step `i` is not kind 0 or fails the edge test (§4.3): `inSpan := false`, next `i`. (A and B are not updated.)
+2. Not in a span:
+   - if `hi < A`: the ground **drops**. Start a span: `spanStart := i − 1`, `D := B`, `E := hi`, `C := FLT_MAX`,
+     `inSpan := true`; next `i`;
+   - otherwise `A := lo`, `B := hi`; next `i`.
+3. In a span, if `hi < D` (still below the deck):
+   - if `B < E` or `hi < E`: `C := min(C, lo)`; next `i`;
+   - otherwise: `spanStart := spanStart + 1`, `D := E`, then the check (4).
+4. In a span with `hi ≥ D`, and after 3's second branch: the **check**. If `i − spanStart + 1 ≥ 4`, `D − C > +0x2CC`
+   and `|D − hi| ≤ +0x2D0`: `CreateLandBridge(spanStart, i, D, type)` (§7.3). In every case `inSpan := false`.
+
+`A` and `B` are the low and high altitudes of the last step seen outside a span. `D` is the near bank's height (the
+deck), `C` the lowest ground under the span. The first step of a span never lowers `C` (it is not in the span yet
+when `C` is reset), so `C` comes from the second step on. `+0x2CC` is p+0x3C (`0xC804DD95`, the maximum height above
+the graded terrain: 55 for road, one-way and dirt road, 30 for the others) and `+0x2D0` is p+0x40 (`0xC804DD96`,
+read at `0x0063CD5B`; 20 for every shipped type). A land bridge therefore needs a valley deeper than 55 m (road) or
+30 m, at least 4 steps from bank to bank, and a far bank within 20 m of the near bank's height.
+
+### 7.3 CreateLandBridge(start, end, elev, type) (`0x00632580`, pop 16)
+
+1. `index := FindBestBridgeType(&start, &end, water = 0, h = 0.0, type)`. If `index < 0`: return false.
+2. Query the occupant manager (slot 40, `maxCount` −1) with **no filter** over the rectangle spanned by the first
+   cell of step `start` and the last cell of step `end`, grown by one cell on every side. If the query succeeds and
+   finds anything: clear the candidate list `+0x1F4`, release the list and return false. So any occupant at all
+   blocks a land bridge, unlike the water pass's filtered test *[compat]*.
+3. Mark steps `start … end` kind 1. Append a record: network type `+0x35C`, start, end, index, `+0x10 := elev`,
+   `+0x14 := elev`, `+0x18 := 1`.
+4. As in §4.4 step 4.4: the length map, then the specialised or the parametric model. `SelectBridgeElevation` is
+   **not** run: the deck is at the near bank's height `D`, without the type's `+0x5C` or `+0x78`.
+
+The return value is not used by the scan.
+
+---
+
+## 8. Elevations
+
+### 8.1 The two values
+
+A record has a **reference** elevation (`+0x14`), the bank height chosen by `AdjustBridgeSpan` (§5.2), and a
+**deck** elevation (`+0x10`), the height the models build at. Both are returned to the UI by slots 37 and 38.
+
+### 8.2 SelectBridgeElevation(&record) (`0x0062EA90`, pop 4)
+
+1. `+0x10 :=` the override `+0x204` (−1.0 when none).
+2. For each step `k` from `start` to `end − 1` (the end step is excluded): compute, for each cell `c` of the step,
+   `surface(c) + +0x5C` if the cell has water (terrain slot 34), else `surface(c) + +0x78` (surface = terrain slot 18;
+   `+0x5C`, `+0x78` of the bridge type). Only the **last** cell's value is kept (the earlier ones are discarded,
+   `0x0062EAF0`) *[quirk]*. If that value `> +0x10`: `+0x10 :=` it.
+
+So the deck is the highest of the override and, per step, the last cell's surface plus the water or land height. For a
+one-cell-wide network the quirk changes nothing. For two-wide networks the first cell of each step is ignored.
+
+---
