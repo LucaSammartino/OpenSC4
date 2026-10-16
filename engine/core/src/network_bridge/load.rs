@@ -9,9 +9,7 @@
 
 use crate::network_rules::{find_section, ini_sections};
 
-use super::types::{
-    footprint_variants, ramp_heights, BridgeType, Footprint, PieceDef, DEFAULT_MAX_SPAN,
-};
+use super::types::{footprint_variants, ramp_heights, BridgeType, Footprint, PieceDef, DEFAULT_MAX_SPAN};
 use super::BridgeHost;
 
 /// An exemplar property value (§2.3). The shapes the record reads.
@@ -172,13 +170,16 @@ pub trait BridgeSource {
     fn localized_string(&self, id: u32) -> Option<String>;
 }
 
+/// An exemplar's property list, in the order the loader should see it.
+pub type PropertyList = Vec<(u32, PropValue)>;
+
 /// A source over raw INI bytes and a fixed property table: what the
 /// conformance vectors and the unit tests drive.
 #[derive(Clone, Debug, Default)]
 pub struct TextSource {
     pub ini: Vec<u8>,
     /// The properties by exemplar, in the order the loader should see them.
-    pub exemplars: Vec<((u32, u32, u32), Vec<(u32, PropValue)>)>,
+    pub exemplars: Vec<((u32, u32, u32), PropertyList)>,
     pub strings: Vec<(u32, String)>,
 }
 
@@ -193,17 +194,14 @@ impl BridgeSource for TextSource {
             })
             .collect()
     }
-    fn exemplar_properties(&self, exemplar: (u32, u32, u32)) -> Option<Vec<(u32, PropValue)>> {
+    fn exemplar_properties(&self, exemplar: (u32, u32, u32)) -> Option<PropertyList> {
         self.exemplars
             .iter()
             .find(|(e, _)| *e == exemplar)
             .map(|(_, p)| p.clone())
     }
     fn localized_string(&self, id: u32) -> Option<String> {
-        self.strings
-            .iter()
-            .find(|(i, _)| *i == id)
-            .map(|(_, s)| s.clone())
+        self.strings.iter().find(|(i, _)| *i == id).map(|(_, s)| s.clone())
     }
 }
 
@@ -270,7 +268,7 @@ pub fn read_bridge_type_info(
     true
 }
 
-fn find_prop<'a>(props: &'a [(u32, PropValue)], id: u32) -> Option<&'a PropValue> {
+fn find_prop(props: &[(u32, PropValue)], id: u32) -> Option<&PropValue> {
     props.iter().find(|(k, _)| *k == id).map(|(_, v)| v)
 }
 
@@ -322,11 +320,7 @@ fn apply_properties(t: &mut BridgeType, props: &[(u32, PropValue)], default_widt
         .and_then(PropValue::f32s)
         .map(|v| v.to_vec())
         .unwrap_or_default();
-    let pairs: Vec<(f32, f32)> = pairs_f
-        .chunks_exact(2)
-        .take(n)
-        .map(|c| (c[0], c[1]))
-        .collect();
+    let pairs: Vec<(f32, f32)> = pairs_f.chunks_exact(2).take(n).map(|c| (c[0], c[1])).collect();
     let (drops, offsets) = ramp_heights(&pairs);
     t.ramp_drops = drops;
     t.ramp_offsets = offsets;
@@ -346,14 +340,9 @@ fn apply_properties(t: &mut BridgeType, props: &[(u32, PropValue)], default_widt
     t.max_piers = u(prop::MAX_PIERS).unwrap_or(super::types::DEFAULT_MAX_PIER_COUNT);
     t.cable_a = u(prop::CABLE_A).unwrap_or(0);
     t.cable_b = u(prop::CABLE_B).unwrap_or(0);
-    for (i, id) in [
-        prop::CABLE_P0,
-        prop::CABLE_P1,
-        prop::CABLE_P2,
-        prop::CABLE_P3,
-    ]
-    .iter()
-    .enumerate()
+    for (i, id) in [prop::CABLE_P0, prop::CABLE_P1, prop::CABLE_P2, prop::CABLE_P3]
+        .iter()
+        .enumerate()
     {
         t.cable_params[i] = f(*id).unwrap_or(0.0);
     }

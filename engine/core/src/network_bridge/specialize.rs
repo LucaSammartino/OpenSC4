@@ -62,8 +62,8 @@ impl Specialization {
 pub fn tokenize(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();
-    let mut chars = text.chars().peekable();
-    while let Some(c) = chars.next() {
+    let chars = text.chars().peekable();
+    for c in chars {
         if c.is_whitespace() {
             if !cur.is_empty() {
                 out.push(std::mem::take(&mut cur));
@@ -176,8 +176,7 @@ fn parse_instance(lx: &mut Lexer) -> Option<(SpecialPiece, f32, f32)> {
     };
     // `:OPT{,OPT}` where OPT is a number (the model depth), `pylon` or `end`.
     if lx.eat(":") {
-        loop {
-            let Some(t) = lx.next() else { break };
+        while let Some(t) = lx.next() {
             match t.as_str() {
                 "pylon" => p.support = SupportKind::Pylon,
                 "end" => p.support = SupportKind::End,
@@ -209,7 +208,7 @@ fn append_ref(dst: &mut Specialization, src: &Specialization, rev: bool, width: 
     if !rev {
         for p in &src.pieces {
             let mut q = *p;
-            q.y = q.y + last;
+            q.y += last;
             dst.pieces.push(q);
         }
         for &h in src.heights.iter().skip(1) {
@@ -220,7 +219,7 @@ fn append_ref(dst: &mut Specialization, src: &Specialization, rev: bool, width: 
         let shift = last - end;
         for p in src.pieces.iter().rev() {
             let mut q = *p;
-            q.y = q.y + shift;
+            q.y += shift;
             q.rotation ^= 2;
             dst.pieces.push(q);
         }
@@ -235,19 +234,13 @@ fn append_ref(dst: &mut Specialization, src: &Specialization, rev: bool, width: 
 ///
 /// `width` is the bridge type's W (§3.2: the step height advances after every
 /// W pieces). Returns `false` on a malformed body.
-fn parse_body(
-    lx: &mut Lexer,
-    p: &Parser,
-    width: usize,
-    inside_bridge: bool,
-) -> Option<Specialization> {
+fn parse_body(lx: &mut Lexer, p: &Parser, width: usize, inside_bridge: bool) -> Option<Specialization> {
     let mut body = Specialization {
         heights: vec![0.0],
         ..Specialization::default()
     };
     let mut count_in_step = 0usize;
-    loop {
-        let Some(head) = lx.peek().map(str::to_string) else { break };
+    while let Some(head) = lx.peek().map(str::to_string) {
         match head.as_str() {
             "end" | "stop" | "section" | "bridge" | "length" => break,
             "height" => {
@@ -259,8 +252,7 @@ fn parse_body(
                 lx.next();
                 // To the end of the line: the tokenizer has no newlines, so a
                 // body's line is a run of items until the next keyword.
-                loop {
-                    let Some(t) = lx.peek().map(str::to_string) else { break };
+                while let Some(t) = lx.peek().map(str::to_string) {
                     if matches!(
                         t.as_str(),
                         "end" | "stop" | "section" | "bridge" | "length" | "height" | "piece"
@@ -293,7 +285,7 @@ fn parse_body(
                         ht_delta = hd;
                         for _ in 0..repeat {
                             let mut q = piece;
-                            q.y = q.y + body.end_height();
+                            q.y += body.end_height();
                             body.pieces.push(q);
                             count_in_step += 1;
                             if width > 0 && count_in_step == width {
@@ -308,7 +300,7 @@ fn parse_body(
                         let (name, rev) = parse_ref(lx)?;
                         let src = lookup(p, &name, inside_bridge)?;
                         let n = src.pieces.len();
-                        append_ref(&mut body, &src, rev, width);
+                        append_ref(&mut body, src, rev, width);
                         count_in_step = (count_in_step + n) % width.max(1);
                         if width > 0 && n > 0 && count_in_step == 0 {
                             // The reference's own heights carried the steps.

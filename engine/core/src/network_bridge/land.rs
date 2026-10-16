@@ -21,12 +21,7 @@ use super::{step_cells_of, BridgeRecord, BridgeTerrain, BridgeTool};
 /// the scan always reads the cell's +x edge (x drags) or +z edge (z drags),
 /// whichever way the drag runs (quirk 6). `hi` and `lo` are the larger and
 /// smaller of the two.
-pub fn step_edge_pair(
-    t: &dyn BridgeTerrain,
-    run: &Run,
-    step: u32,
-    city_x: i32,
-) -> (f32, f32) {
+pub fn step_edge_pair(t: &dyn BridgeTerrain, run: &Run, step: u32, city_x: i32) -> (f32, f32) {
     let Some(&(x, z)) = step_cells_of(run, step).first() else {
         return (0.0, 0.0);
     };
@@ -37,8 +32,8 @@ pub fn step_edge_pair(
     // core's `edge_offsets` reads them: the two ends of the cell's +x edge
     // for d = 0, and of its +z edge for d = 2.
     let (o1, o2) = match d {
-        0 => (stride, 1),      // (x, z+1) and (x+1, z+1): the +x edge
-        2 => (1, stride + 1),  // (x+1, z) and (x+1, z+1): the +z edge
+        0 => (stride, 1),     // (x, z+1) and (x+1, z+1): the +x edge
+        2 => (1, stride + 1), // (x+1, z) and (x+1, z+1): the +z edge
         _ => (stride, 1),
     };
     let h1 = t.vertex_altitude(base + o1);
@@ -83,7 +78,7 @@ pub fn identify_land_bridge_cells(
     if limit < 4 {
         return;
     }
-    let run = w.run;
+    let run: &Run = w.run;
     let mut st = LandScan {
         c: f32::MAX,
         ..LandScan::default()

@@ -8,6 +8,7 @@
 //! (`PadStepsToMakeMinBridgeSpan`, §6.2).
 
 use crate::network_geometry::drag::StepKind;
+use crate::network_geometry::Run;
 
 use super::span::SpanWorld;
 use super::types::BridgeType;
@@ -27,13 +28,8 @@ pub struct BridgeCandidate {
 ///
 /// Padding does not test for occupants. `v` is the tool's `+0x78`; `straight`
 /// its `+0x74`.
-pub fn pad_steps_to_make_min_bridge_span(
-    w: &SpanWorld<'_>,
-    min_len: u32,
-    start: &mut u32,
-    end: &mut u32,
-) -> bool {
-    let run = w.run;
+pub fn pad_steps_to_make_min_bridge_span(w: &SpanWorld<'_>, min_len: u32, start: &mut u32, end: &mut u32) -> bool {
+    let run: &Run = w.run;
     if end.saturating_sub(*start) + 1 >= min_len {
         return true;
     }
@@ -41,6 +37,12 @@ pub fn pad_steps_to_make_min_bridge_span(
     let mut forward_open = true;
     while end.saturating_sub(*start) + 1 < min_len {
         let mut moved = false;
+        // Each direction runs only while steps are still needed (6.2): a
+        // round that satisfies the span on its back step does not also take a
+        // forward one.
+        if end.saturating_sub(*start) + 1 >= min_len {
+            break;
+        }
         // Back: allowed while `start > 1`, steps `start` and `start − 1` are
         // kind 0 and step `start` passes the edge test.
         if back_open {
@@ -49,10 +51,7 @@ pub fn pad_steps_to_make_min_bridge_span(
                 && s < run.steps.len() as u32
                 && regular3(run, s)
                 && s > 0
-                && run
-                    .steps
-                    .get(s as usize)
-                    .is_some_and(|st| st.kind == StepKind::Regular)
+                && run.steps.get(s as usize).is_some_and(|st| st.kind == StepKind::Regular)
                 && w.edge_ok(s)
                 && run
                     .steps
@@ -67,14 +66,11 @@ pub fn pad_steps_to_make_min_bridge_span(
         }
         // Forward: allowed while `end < v`, step `end` is kind 0 and passes
         // the edge test.
-        if forward_open {
+        if forward_open && end.saturating_sub(*start) + 1 < min_len {
             let e = *end + 1;
             if e < w.valid
                 && e < run.steps.len() as u32
-                && run
-                    .steps
-                    .get(e as usize)
-                    .is_some_and(|st| st.kind == StepKind::Regular)
+                && run.steps.get(e as usize).is_some_and(|st| st.kind == StepKind::Regular)
                 && w.edge_ok(e)
             {
                 *end = e;
@@ -135,10 +131,7 @@ pub fn find_best_bridge_type(
         // `d := n − minSpan`, and `d := d − 100000` when `d < 0`.
         let d = i64::from(n) - i64::from(t.min_span);
         let score = if d < 0 { d - 100_000 } else { d };
-        candidates.push(BridgeCandidate {
-            index: idx,
-            score,
-        });
+        candidates.push(BridgeCandidate { index: idx, score });
     }
     if candidates.is_empty() {
         return None;
@@ -233,6 +226,6 @@ pub fn candidate_score(n: u32, min_span: u32) -> i64 {
 }
 
 /// The type a candidate index names.
-pub fn type_at<'a>(tool: &'a BridgeTool, index: u32) -> Option<&'a BridgeType> {
+pub fn type_at(tool: &BridgeTool, index: u32) -> Option<&BridgeType> {
     tool.types.get(index as usize)
 }

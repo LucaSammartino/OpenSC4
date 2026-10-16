@@ -235,7 +235,7 @@ pub fn pier_positions(t: &BridgeType, start: u32, end: u32) -> (i64, i64, u32, i
     let mut span = last - first;
     for pass in 0..2u32 {
         // count := span / u34 (unsigned): the number of gaps between piers.
-        let mut count = if u34 > 0 { span / u34 } else { 0 };
+        let mut count = span.checked_div(u34).unwrap_or(0);
         // If `count > +0xAC` and `+0xAC ≠ 1`: `count := +0xAC − 1` (0 if
         // `+0xAC` is 0).
         if count > t.max_piers && t.max_piers != 1 {
@@ -282,15 +282,10 @@ pub fn construct_parametric_bridge(
     o: &Orientation,
     cells_of: &dyn Fn(u32) -> Vec<(i32, i32)>,
 ) {
-    let (n, m, w) = (
-        bridge.ramp_steps,
-        bridge.pier_steps,
-        bridge.width.max(1),
-    );
+    let (n, m, w) = (bridge.ramp_steps, bridge.pier_steps, bridge.width.max(1));
     let elev = record.deck;
     let (d4, c4) = (bridge.model_height_offset, bridge.cable_params[3]);
-    let (next_i0, placed_i0, spacing, last_pier) =
-        pier_positions(bridge, record.start, record.end);
+    let (next_i0, placed_i0, spacing, last_pier) = pier_positions(bridge, record.start, record.end);
     let mut next_i = next_i0;
     let mut placed_i = placed_i0;
     for s in record.start..=record.end {

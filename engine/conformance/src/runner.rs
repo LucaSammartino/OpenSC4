@@ -1256,6 +1256,7 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
             .or_else(|| crate::terrain::exec(host, other, op))
             .or_else(|| crate::advisors::exec(host, other, op))
             .or_else(|| crate::mysims::exec(host, other, op))
+            .or_else(|| crate::network_bridge::exec(host, other, op))
             .or_else(|| crate::network_geometry::exec(host, other, op))
             .unwrap_or_else(|| Err(format!("unknown op '{other}'"))),
     }

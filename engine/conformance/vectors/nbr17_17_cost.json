@@ -1,0 +1,47 @@
+{
+ "format": 1,
+ "name": "nbr17_17_cost",
+ "spec": [
+  "network-bridges 12",
+  "17.17"
+ ],
+ "description": "The bridge of test 8 (start 9, end 20) on flat land: the bridge term is 11 x 100 = 1100; with the highway per-step cost it is 11 x 1000 = 11000.",
+ "steps": [
+  {
+   "op": "nbr_city",
+   "altitude": 250,
+   "sea": 250,
+   "wet_columns": [
+    [
+     10,
+     19,
+     10
+    ]
+   ]
+  },
+  {
+   "op": "nbr_types",
+   "type": 0
+  },
+  {
+   "op": "nbr_drag",
+   "steps": 31,
+   "z": 10,
+   "pen": 4
+  },
+  {
+   "op": "nbr_water",
+   "expect": 1
+  },
+  {
+   "op": "nbr_cost",
+   "per_step": 100,
+   "expect": 1100
+  },
+  {
+   "op": "nbr_cost",
+   "per_step": 1000,
+   "expect": 11000
+  }
+ ]
+}

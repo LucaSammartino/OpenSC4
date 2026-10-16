@@ -71,11 +71,7 @@ pub fn select_bridge_elevation(
 /// stopping at the first whose end step is ≥ `valid` (as §11.1), the cell key
 /// `(z << 16) + x` of each of its piece records is erased from the solve set
 /// `+0x84`. The rule solver never chooses a piece for a bridge cell.
-pub fn remove_bridge_pieces_from_solve_set(
-    tool: &BridgeTool,
-    valid: u32,
-    solve_set: &mut dyn FnMut(i32, bool),
-) {
+pub fn remove_bridge_pieces_from_solve_set(tool: &BridgeTool, valid: u32, solve_set: &mut dyn FnMut(i32, bool)) {
     // The callback is `(cell key, erase)`: §8.3.1 erases every listed key.
     for r in &tool.records {
         if r.end >= valid {
@@ -90,13 +86,7 @@ pub fn remove_bridge_pieces_from_solve_set(
 /// The cell keys §8.3.1 erases, as a list.
 pub fn bridge_solve_set_removals(tool: &BridgeTool, valid: u32) -> Vec<i32> {
     let mut out = Vec::new();
-    remove_bridge_pieces_from_solve_set(tool, valid, &mut |k, erase| {
-        if erase {
-            out.push(k);
-        } else {
-            out.push(k);
-        }
-    });
+    remove_bridge_pieces_from_solve_set(tool, valid, &mut |k, _erase| out.push(k));
     out
 }
 
@@ -166,9 +156,9 @@ pub fn bridge_elevation_constraints(
 /// allowed range `+0x68[i]` becomes `[corner, corner]`. The preferred range
 /// is not touched.
 pub fn pin_cell_to_piece_corners(ci: &mut CellInfo, corners: &[f32; 4]) {
-    for i in 0..4 {
-        ci.corners[i] = corners[i];
-        ci.allowed[i] = (corners[i], corners[i]);
+    for (i, &c) in corners.iter().enumerate() {
+        ci.corners[i] = c;
+        ci.allowed[i] = (c, c);
     }
     ci.fixed = true;
 }

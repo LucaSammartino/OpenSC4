@@ -47,12 +47,7 @@ pub fn occupant_position(corners: &[f32; 4], x: i32, z: i32, cell: f32) -> (f32,
     // `(x·s + s, c3, z·s)`.
     let (xs, zs) = (f64::from(x) * f64::from(cell), f64::from(z) * f64::from(cell));
     let s = f64::from(cell);
-    let pts = [
-        (xs, zs),
-        (xs, zs + s),
-        (xs + s, zs + s),
-        (xs + s, zs),
-    ];
+    let pts = [(xs, zs), (xs, zs + s), (xs + s, zs + s), (xs + s, zs)];
     let sx: f64 = pts.iter().map(|p| p.0).sum();
     let sz: f64 = pts.iter().map(|p| p.1).sum();
     let mut h = -f32::MAX;
@@ -61,11 +56,7 @@ pub fn occupant_position(corners: &[f32; 4], x: i32, z: i32, cell: f32) -> (f32,
             h = c;
         }
     }
-    (
-        r24(sx * 0.25) as f32,
-        r24(sz * 0.25) as f32,
-        h,
-    )
+    (r24(sx * 0.25) as f32, r24(sz * 0.25) as f32, h)
 }
 
 /// §11.2 step 2's model offset: `dy := r24(Y − height)`, so the model's
@@ -99,10 +90,7 @@ pub fn pillar_columns(
         return Vec::new();
     }
     let top = r24(f64::from(height) - f64::from(rec.depth)) as f32;
-    let bottom = vertex_altitudes
-        .iter()
-        .copied()
-        .fold(f32::MAX, f32::min);
+    let bottom = vertex_altitudes.iter().copied().fold(f32::MAX, f32::min);
     if top < bottom {
         return Vec::new();
     }

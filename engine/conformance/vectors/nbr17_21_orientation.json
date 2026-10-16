@@ -1,0 +1,51 @@
+{
+ "format": 1,
+ "name": "nbr17_21_orientation",
+ "spec": [
+  "network-bridges 9.1",
+  "17.21"
+ ],
+ "description": "Pen 0 -> R 3, cells last to first, t = 2; pen 2 -> R 0, t = 1; pen 4 -> R 1, t = 0, cells first to last; pen 6 -> R 2, t = 3. t_mirror is t taken with (R - 2) & 3 (9.3, for a mirrored ramp).",
+ "steps": [
+  {
+   "op": "nbr_orient",
+   "pen": 0,
+   "expect": {
+    "r": 3,
+    "t": 2,
+    "t_mirror": 0,
+    "forward": false
+   }
+  },
+  {
+   "op": "nbr_orient",
+   "pen": 2,
+   "expect": {
+    "r": 0,
+    "t": 1,
+    "t_mirror": 3,
+    "forward": true
+   }
+  },
+  {
+   "op": "nbr_orient",
+   "pen": 4,
+   "expect": {
+    "r": 1,
+    "t": 0,
+    "t_mirror": 2,
+    "forward": true
+   }
+  },
+  {
+   "op": "nbr_orient",
+   "pen": 6,
+   "expect": {
+    "r": 2,
+    "t": 3,
+    "t_mirror": 1,
+    "forward": false
+   }
+  }
+ ]
+}

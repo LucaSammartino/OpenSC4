@@ -20,6 +20,8 @@ struct MockTerrain {
     h: f32,
     sea: f32,
     wet: Vec<(i32, i32)>,
+    /// A per-cell height override: what test 16's sloping banks need.
+    over: BTreeMap<(i32, i32), f32>,
 }
 
 impl MockTerrain {
@@ -28,7 +30,26 @@ impl MockTerrain {
             h,
             sea: h,
             wet: Vec::new(),
+            over: BTreeMap::new(),
         }
+    }
+    fn river(h: f32, sea: f32, x0: i32, x1: i32, z: i32) -> MockTerrain {
+        let mut t = MockTerrain {
+            h,
+            sea,
+            wet: Vec::new(),
+            over: BTreeMap::new(),
+        };
+        for x in x0..=x1 {
+            t.wet.push((x, z));
+        }
+        t
+    }
+    fn set(&mut self, x: i32, z: i32, h: f32) {
+        self.over.insert((x, z), h);
+    }
+    fn at(&self, x: i32, z: i32) -> f32 {
+        self.over.get(&(x, z)).copied().unwrap_or(self.h)
     }
     fn is_wet(&self, x: i32, z: i32) -> bool {
         self.wet.contains(&(x, z))
@@ -54,14 +75,14 @@ impl crate::network_geometry::GeometryTerrain for MockTerrain {
 }
 
 impl BridgeTerrain for MockTerrain {
-    fn lowest_corner(&self, _x: i32, _z: i32) -> f32 {
-        self.h
+    fn lowest_corner(&self, x: i32, z: i32) -> f32 {
+        self.at(x, z)
     }
     fn surface_level(&self, x: i32, z: i32) -> f32 {
         if self.is_wet(x, z) {
             self.sea
         } else {
-            self.h
+            self.at(x, z)
         }
     }
     fn water_level(&self, _x: i32, _z: i32) -> f32 {
@@ -93,16 +114,12 @@ fn run_x(n: u32, z: i32) -> Run {
     }
 }
 
-fn world<'a>(
-    run: &'a Run,
-    valid: u32,
-    t: &'a MockTerrain,
-    host: &'a NoBridgeHost,
-) -> span::SpanWorld<'a> {
+fn world<'a>(run: &'a mut Run, valid: u32, t: &'a MockTerrain, host: &'a NoBridgeHost) -> span::SpanWorld<'a> {
+    let straight = run.straight_count;
     span::SpanWorld {
         run,
         valid,
-        straight: run.straight_count,
+        straight,
         type_id: 0,
         terrain: t,
         host,
@@ -147,8 +164,10 @@ fn t17_01_loading() {
 #[test]
 fn t17_02_default_min_span() {
     // An exemplar with N = 3 ramp steps and no `0x482CB458`: minimum span 8.
-    let mut t = types::BridgeType::default();
-    t.ramp_steps = 3;
+    let mut t = types::BridgeType {
+        ramp_steps: 3,
+        ..types::BridgeType::default()
+    };
     if find::min_span_is_default(&t) {
         t.min_span = types::BridgeType::default_min_span(t.ramp_steps);
     }
@@ -198,10 +217,13 @@ fn t17_03_malformed_entry() {
     assert_eq!(out.len(), 10, "[quirk 1] the default record stays");
     let d = &out[9];
     assert_eq!(d.key, 10);
-    assert_eq!(*d, types::BridgeType {
-        key: 10,
-        ..types::BridgeType::default()
-    });
+    assert_eq!(
+        *d,
+        types::BridgeType {
+            key: 10,
+            ..types::BridgeType::default()
+        }
+    );
 }
 
 // ---- §17 test 4: ramp heights ---------------------------------------------------
@@ -253,8 +275,11 @@ fn t17_06_land_flag() {
     assert!(!load::land_bridge_flag(0));
     // A test bridge type with `0x482CB44F` false as the only road type: still
     // 1 (the address test, quirk 3).
-    let mut t = types::BridgeType::default();
-    t.land = false;
+    let t = types::BridgeType {
+        land: false,
+        ..types::BridgeType::default()
+    };
+    assert!(!t.land);
     assert!(load::land_bridge_flag(1), "[quirk 3] the address, not the byte");
 }
 
@@ -270,12 +295,7 @@ fn t17_07_edge_mask() {
     ci.edges[0] = 0x0002_0002;
     ci.flags = 1;
     let infos = |c: CellInfo| move |x, z| if (x, z) == (1, 10) { Some(c.clone()) } else { None };
-    assert!(span::bridge_step_edge_types_ok(
-        &run,
-        1,
-        0,
-        &infos(ci.clone())
-    ));
+    assert!(span::bridge_step_edge_types_ok(&run, 1, 0, &infos(ci.clone())));
     // The same with `0x00000200` (a z-direction road): fails.
     ci.edges[0] = 0x0000_0200;
     assert!(!span::bridge_step_edge_types_ok(&run, 1, 0, &infos(ci.clone())));
@@ -284,12 +304,7 @@ fn t17_07_edge_mask() {
     ci.flags = 1 | 2;
     assert!(!span::bridge_step_edge_types_ok(&run, 1, 0, &infos(ci)));
     // A cell without a cell info passes.
-    assert!(span::bridge_step_edge_types_ok(
-        &run,
-        1,
-        0,
-        &|_x, _z| None
-    ));
+    assert!(span::bridge_step_edge_types_ok(&run, 1, 0, &|_x, _z| None));
     // The masks of §4.3.
     assert_eq!(span::EdgeMask::allowed(4, 0, 1), 0x0002_0002);
     assert_eq!(span::EdgeMask::allowed(0, 0, 3), 0x0402_0002);
@@ -348,7 +363,7 @@ fn t17_21_orientation() {
     assert_eq!(o2.r, 0);
     assert_eq!(o2.t, 1);
     // A deck piece with `+0x30` = 1 on pen 4 has rotation 2.
-    assert_eq!(o4.rotate((1 + 2 * 0) & 3), 2);
+    assert_eq!(o4.rotate(1 & 3), 2);
 }
 
 // ---- §17 test 25: getters -------------------------------------------------------
@@ -363,10 +378,7 @@ fn t17_25_getters() {
     assert!(G::get_major_bridge_reference_altitude(&tool).is_none());
     assert!(G::is_major_bridge_land_bridge(&tool).is_none());
     // `GetBridgeBitmapKey(0, …)` for road: true, (`0x6A386D26`, 1).
-    assert_eq!(
-        G::get_bridge_bitmap_key(&tool, 0),
-        Some((0x6A38_6D26, 1))
-    );
+    assert_eq!(G::get_bridge_bitmap_key(&tool, 0), Some((0x6A38_6D26, 1)));
     // Reset: `+0x200 := −1`, `+0x204 := −1.0`.
     G::set_preferred_bridge(&mut tool, 4);
     G::set_bridge_altitude_override(&mut tool, 300.0);
@@ -487,10 +499,12 @@ fn t17_19_pier_fraction() {
 fn t17_20_squeezed_piers() {
     // M = 1, `+0x38` = 6, `+0x7C` = 0, `+0xA8` = 2, start 0, end 9: first 6 >
     // last 3, so both become 4, and no pier piece is placed (quirk 7).
-    let mut t = types::BridgeType::default();
-    t.pier_steps = 1;
-    t.first_pier = 6;
-    t.min_piers = 2;
+    let t = types::BridgeType {
+        pier_steps: 1,
+        first_pier: 6,
+        min_piers: 2,
+        ..types::BridgeType::default()
+    };
     let (next, placed, _s, _last) = model::pier_positions(&t, 0, 9);
     assert_eq!(next, -1, "[quirk 7] no pier is placed");
     assert_eq!(placed, -1);
@@ -561,8 +575,14 @@ fn t17_24_land_record() {
     assert_eq!(r.land, 1);
     assert_eq!((r.deck, r.reference), (100.0, 100.0));
     // `IsMajorBridgeLandBridge` is true and `GetMajorBridgeAltitude` gives 100.
-    assert_eq!(getters::ToolBridgeGetters::is_major_bridge_land_bridge(&tool), Some(true));
-    assert_eq!(getters::ToolBridgeGetters::get_major_bridge_altitude(&tool), Some(100.0));
+    assert_eq!(
+        getters::ToolBridgeGetters::is_major_bridge_land_bridge(&tool),
+        Some(true)
+    );
+    assert_eq!(
+        getters::ToolBridgeGetters::get_major_bridge_altitude(&tool),
+        Some(100.0)
+    );
 }
 
 // ---- §17 test 26: bridge pins ---------------------------------------------------
@@ -587,7 +607,7 @@ fn t17_26_bridge_pins() {
         for _lane in 0..1 {
             rec.pieces.push(model::PieceRecord {
                 kind: PieceKind::Deck,
-                x: k as i32,
+                x: k,
                 z: 10,
                 corners: [270.0; 4],
                 ..model::PieceRecord::default()
@@ -600,9 +620,9 @@ fn t17_26_bridge_pins() {
     let mut map: BTreeMap<i32, CellInfo> = BTreeMap::new();
     for k in 9..=19 {
         map.insert(
-            crate::network_geometry::smoothing::cell_key(k as i32, 10),
+            crate::network_geometry::smoothing::cell_key(k, 10),
             CellInfo {
-                x: k as i32,
+                x: k,
                 z: 10,
                 ..CellInfo::default()
             },
@@ -612,7 +632,7 @@ fn t17_26_bridge_pins() {
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].as_tuple(), (9, 19, 270.0, 270.0));
     for k in 9..=19 {
-        let ci = map.get(&crate::network_geometry::smoothing::cell_key(k as i32, 10)).unwrap();
+        let ci = map.get(&crate::network_geometry::smoothing::cell_key(k, 10)).unwrap();
         assert_eq!(ci.corners, [270.0; 4], "cell {k}");
         assert_eq!(ci.allowed, [(270.0, 270.0); 4], "cell {k}");
         assert!(ci.fixed, "cell {k}");
@@ -629,13 +649,12 @@ fn t17_11_short_river() {
     // A river at x = 10 … 11 (2 wet steps): start 9, end 12, `end − start` =
     // 3 < 4: no record.
     let t = road_key1();
-    assert!(3 < 4);
     assert_eq!(t.min_span, 10);
-    let n = 12 - 9 + 1;
-    assert_eq!(n, 4);
     // `end − start ≥ 4` and `n ≥` the minimum: 3 ≥ 4 is false, so nothing is
-    // recorded (§4.4 step 4).
-    assert!(12 - 9 < 4);
+    // recorded (§4.4 step 4). The water-pass case is `t17_11_short_river_no_record`.
+    let (start, end) = (9u32, 12u32);
+    assert_eq!(end - start, 3);
+    assert!(!(end - start >= 4), "end - start must be under 4");
 }
 
 #[test]
@@ -667,7 +686,8 @@ fn t17_10_padding() {
     let run = run_x(31, 10);
     let t = MockTerrain::flat(250.0);
     let host = NoBridgeHost;
-    let w = world(&run, 31, &t, &host);
+    let mut run = run;
+    let w = world(&mut run, 31, &t, &host);
     let (mut s, mut e) = (9u32, 20u32);
     assert!(select::pad_steps_to_make_min_bridge_span(&w, 22, &mut s, &mut e));
     assert_eq!((s, e), (4, 25));
@@ -676,7 +696,7 @@ fn t17_10_padding() {
     // the back side is blocked at once (`start` must stay > 1) and the forward
     // side takes all ten: start 2, end 23.
     let (mut s, mut e) = (2u32, 13u32);
-    let w = world(&run, 24, &t, &host);
+    let w = world(&mut run, 24, &t, &host);
     assert!(select::pad_steps_to_make_min_bridge_span(&w, 22, &mut s, &mut e));
     assert_eq!((s, e), (2, 23));
 }
@@ -689,4 +709,160 @@ mod find {
     pub fn min_span_is_default(t: &BridgeType) -> bool {
         t.min_span == BridgeType::default_min_span(0) || t.min_span == 2
     }
+}
+
+// ---- 17 tests 8, 11, 12, 14, 16: the water pass --------------------------------
+
+/// Road's maximum slope in radians (p+0x00 = 35 degrees), so `c14 = 8.5521`
+/// and `c4 = 2.4435` (5.2).
+const ROAD_MAX_SLOPE: f32 = 0.610_865_24;
+
+/// Runs the water pass over a straight x-drag of `n` steps with a river
+/// `x0..=x1` at row `z`, on flat banks at `bank`.
+fn water_pass(n: u32, z: i32, x0: i32, x1: i32, bank: f32, sea: f32, override_h: f32) -> (BridgeTool, u32, Run) {
+    let mut run = run_x(n, z);
+    let t = MockTerrain::river(bank, sea, x0, x1, z);
+    let host = NoBridgeHost;
+    let mut tool = road_tool();
+    tool.altitude_override = override_h;
+    let mut valid = n;
+    {
+        let mut w = span::SpanWorld {
+            run: &mut run,
+            valid,
+            straight: n,
+            type_id: 0,
+            terrain: &t,
+            host: &host,
+            infos: &|_x, _z| None,
+        };
+        identify_bridge_cells(&mut tool, &mut w, &mut valid, ROAD_MAX_SLOPE);
+    }
+    (tool, valid, run)
+}
+
+#[test]
+fn t17_08_water_pass_simple() {
+    // Road, straight drag (0, 10) -> (30, 10), pen 4, a river at x = 10..19:
+    // start 9, end 20, n = 12. The winner is key 8 (cantilever truss, index
+    // 7, d = 0). One record, +0x18 = 0, v unchanged.
+    let (tool, valid, _run) = water_pass(31, 10, 10, 19, 250.0, 250.0, -1.0);
+    assert_eq!(valid, 31, "v unchanged");
+    assert_eq!(tool.records.len(), 1);
+    let r = &tool.records[0];
+    assert_eq!((r.start, r.end), (9, 20));
+    assert_eq!(tool.types[r.bridge_type as usize].key, 8);
+    assert_eq!(r.bridge_type, 7);
+    assert_eq!(r.land, 0);
+    assert_eq!(select::candidate_score(12, 12), 0);
+}
+
+#[test]
+fn t17_11_short_river_no_record() {
+    // A river at x = 10..11 (2 wet steps): end - start = 3 < 4: no record,
+    // v unchanged. CheckForGoodTerrain then refuses the run with 0xF0000001.
+    let (tool, valid, _run) = water_pass(31, 10, 10, 11, 250.0, 250.0, -1.0);
+    assert_eq!(valid, 31, "v unchanged");
+    assert!(tool.records.is_empty());
+    assert_eq!(cost::CODE_BAD_TERRAIN, 0xF000_0001);
+}
+
+#[test]
+fn t17_12_no_far_bank() {
+    // Road, (0, 10) -> (15, 10) with a river from x = 10 to past the end:
+    // the end reaches +0x78 - 1; v := 10.
+    let (tool, valid, _run) = water_pass(16, 10, 10, 30, 250.0, 250.0, -1.0);
+    assert_eq!(valid, 10, "the run is cut at the wet step");
+    assert!(tool.records.is_empty());
+}
+
+#[test]
+fn t17_14_deck_elevation() {
+    // As test 9 (road key 1), water level 250 m, flat banks at 250 m:
+    // reference elevation +0x14 = 250, deck +0x10 = 270.
+    let (tool, valid, _run) = water_pass(31, 10, 10, 18, 250.0, 250.0, -1.0);
+    assert_eq!(valid, 31);
+    assert_eq!(tool.records.len(), 1);
+    let r = &tool.records[0];
+    assert_eq!(tool.types[r.bridge_type as usize].key, 1);
+    assert_eq!((r.start, r.end), (9, 19));
+    assert_eq!(r.reference, 250.0);
+    assert_eq!(r.deck, 270.0);
+    // With SetBridgeAltitudeOverride(300): the reference is 300; the flat
+    // banks never reach it, so the span widens to start 1 and end v - 2;
+    // the deck is 300.
+    let (tool, _v, _run) = water_pass(31, 10, 10, 18, 250.0, 250.0, 300.0);
+    let r = &tool.records[0];
+    assert_eq!(r.reference, 300.0);
+    assert_eq!((r.start, r.end), (1, 29));
+    assert_eq!(r.deck, 300.0);
+}
+
+#[test]
+fn t17_16_steep_banks() {
+    // Road (c14 = 8.5521, c4 = 2.4435), water level 250. The land behind the
+    // bank step is flat at 262: at k = start, d = 262 - 250 = 12 > c14, so
+    // A = B = 262. The far bank is the mirror image. elev = 262, no
+    // widening.
+    let c14 = (f64::from(ROAD_MAX_SLOPE) * 14.0) as f32;
+    let c4 = (f64::from(ROAD_MAX_SLOPE) * 4.0) as f32;
+    assert!((c14 - 8.552_14).abs() < 0.01, "c14 = {c14}");
+    assert!((c4 - 2.443_47).abs() < 0.01, "c4 = {c4}");
+
+    let mut run = run_x(31, 10);
+    let mut t = MockTerrain::river(250.0, 250.0, 10, 19, 10);
+    for x in 0..10 {
+        t.set(x, 10, 262.0);
+    }
+    for x in 21..31 {
+        t.set(x, 10, 262.0);
+    }
+    let host = NoBridgeHost;
+    let mut tool = road_tool();
+    let mut valid = 31u32;
+    {
+        let mut w = span::SpanWorld {
+            run: &mut run,
+            valid,
+            straight: 31,
+            type_id: 0,
+            terrain: &t,
+            host: &host,
+            infos: &|_x, _z| None,
+        };
+        identify_bridge_cells(&mut tool, &mut w, &mut valid, ROAD_MAX_SLOPE);
+    }
+    assert_eq!(tool.records.len(), 1);
+    let r = &tool.records[0];
+    assert_eq!(r.reference, 262.0, "min(B, B2, max(A, A2))");
+    assert_eq!((r.start, r.end), (9, 20), "no widening");
+
+    // With a rise of 5 m instead (d = 5, between c4 and c14): B = B2 = 255,
+    // A = A2 = 0, elev = min(255, 255, 0) = 0, so the floor rule gives the
+    // surface of step start's first cell, 255.
+    let mut run = run_x(31, 10);
+    let mut t = MockTerrain::river(255.0, 250.0, 10, 19, 10);
+    for x in 0..10 {
+        t.set(x, 10, 255.0);
+    }
+    for x in 21..31 {
+        t.set(x, 10, 255.0);
+    }
+    let mut tool = road_tool();
+    let mut valid = 31u32;
+    {
+        let mut w = span::SpanWorld {
+            run: &mut run,
+            valid,
+            straight: 31,
+            type_id: 0,
+            terrain: &t,
+            host: &host,
+            infos: &|_x, _z| None,
+        };
+        identify_bridge_cells(&mut tool, &mut w, &mut valid, ROAD_MAX_SLOPE);
+    }
+    assert_eq!(tool.records.len(), 1);
+    let r = &tool.records[0];
+    assert_eq!(r.reference, 255.0, "the floor rule");
 }

@@ -68,12 +68,7 @@ pub type InfoMap<'a> = &'a dyn Fn(i32, i32) -> Option<CellInfo>;
 /// mask has a bit of the low 13 other than `1 << type`, or its edge word for
 /// this type has a bit outside the allowed mask. Cells without a cell info
 /// pass.
-pub fn bridge_step_edge_types_ok(
-    run: &Run,
-    step: u32,
-    type_id: u32,
-    infos: InfoMap<'_>,
-) -> bool {
+pub fn bridge_step_edge_types_ok(run: &Run, step: u32, type_id: u32, infos: InfoMap<'_>) -> bool {
     let cells = step_cells_of(run, step);
     let n = cells.len();
     for (k, &(x, z)) in cells.iter().enumerate() {
@@ -116,8 +111,9 @@ pub trait StepMeasures: BridgeTerrain {
 
 /// Everything the water pass needs from the tool and the world.
 pub struct SpanWorld<'a> {
-    /// The dragged run.
-    pub run: &'a Run,
+    /// The dragged run. The water pass marks its steps kind 1 (§4.4), so
+    /// this is exclusive.
+    pub run: &'a mut Run,
     /// The tool's `+0x78`, the valid step count.
     pub valid: u32,
     /// The tool's `+0x74`, the straight step count.
@@ -177,7 +173,7 @@ pub fn adjust_bridge_span(
     // a plain constant suggests a rise per cell was meant.
     let c14 = r24(f64::from(max_slope_rad) * 14.0) as f32;
     let c4 = r24(f64::from(max_slope_rad) * 4.0) as f32;
-    let (t, run) = (w.terrain, w.run);
+    let (t, run) = (w.terrain, &*w.run);
     let mut s = start;
     let mut e = end;
 
@@ -255,10 +251,7 @@ pub fn adjust_bridge_span(
     // `elev − surface(c)`.
     let mut clearance = 0.0f32;
     for k in s..e {
-        if let Some(&(x, z)) = step_cells_of(run, k)
-            .iter()
-            .find(|&&(x, z)| t.cell_has_water(x, z))
-        {
+        if let Some(&(x, z)) = step_cells_of(run, k).iter().find(|&&(x, z)| t.cell_has_water(x, z)) {
             let c = r24(f64::from(elev) - f64::from(t.surface_level(x, z))) as f32;
             clearance = clearance.max(c);
         }
@@ -276,7 +269,7 @@ pub fn adjust_bridge_span(
 /// run plus one dry step on each side. Returns `(start, end)`; `None` fails
 /// the span.
 pub fn select_bridge_start_and_end(w: &SpanWorld<'_>, i: u32) -> Option<(u32, u32)> {
-    let run = w.run;
+    let run: &Run = w.run;
     // 1. `start := i − 1`. Fail unless `start ≥ 0`, step `start` is kind 0
     // and passes the edge test. (Step `start` is not tested for occupants.)
     let start = i.checked_sub(1)?;

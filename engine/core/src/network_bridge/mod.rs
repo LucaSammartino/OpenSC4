@@ -68,28 +68,25 @@ use std::collections::BTreeMap;
 
 pub use cost::{bridge_cost, Failure};
 pub use elev::{
-    bridge_elevation_constraints, remove_bridge_pieces_from_solve_set, select_bridge_elevation,
-    BridgeConstraintEntry,
+    bridge_elevation_constraints, remove_bridge_pieces_from_solve_set, select_bridge_elevation, BridgeConstraintEntry,
 };
 pub use getters::ToolBridgeGetters;
 pub use land::{create_land_bridge, identify_land_bridge_cells, LandScan};
-pub use load::{
-    bridge_type_lists, land_bridge_flag, load_bridge_types, BridgeSource, IniEntry, PropValue,
-};
+pub use load::{bridge_type_lists, land_bridge_flag, load_bridge_types, BridgeSource, IniEntry, PropValue};
 pub use model::{
-    construct_parametric_bridge, construct_specialized_bridge, lane_cells, support_flags,
-    Orientation, PieceKind, PieceRecord, CORNER_BASE,
+    construct_parametric_bridge, construct_specialized_bridge, lane_cells, support_flags, Orientation, PieceKind,
+    PieceRecord, CORNER_BASE,
 };
 pub use pieces::{insert_bridge_piece, insert_bridge_pieces, pillar_columns, PillarColumn};
 pub use select::{find_best_bridge_type, pad_steps_to_make_min_bridge_span, BridgeCandidate};
 pub use span::{
-    adjust_bridge_span, bridge_step_edge_types_ok, is_step_good_for_bridge,
-    select_bridge_start_and_end, AdjustedSpan, EdgeMask,
+    adjust_bridge_span, bridge_step_edge_types_ok, is_step_good_for_bridge, select_bridge_start_and_end, AdjustedSpan,
+    EdgeMask,
 };
-pub use specialize::{parse_specializations, Specialization, SpecialPiece, SupportKind};
+pub use specialize::{parse_specializations, SpecialPiece, Specialization, SupportKind};
 pub use types::{
-    ramp_heights, BridgeType, PieceDef, ShippedBridgeType, DEFAULT_MAX_CLEARANCE, DEFAULT_MAX_SPAN,
-    DEFAULT_MAX_PIER_COUNT,
+    ramp_heights, BridgeType, PieceDef, ShippedBridgeType, DEFAULT_MAX_CLEARANCE, DEFAULT_MAX_PIER_COUNT,
+    DEFAULT_MAX_SPAN,
 };
 
 use crate::network_geometry::drag::StepKind;
@@ -199,6 +196,97 @@ pub fn mark_bridge_steps(run: &mut Run, start: u32, end: u32) {
     }
 }
 
+/// `IdentifyBridgeCells` (`0x00632830`, §4): the water pass.
+///
+/// It does nothing unless `AllowBridges` is true, `v ≥ 4` and `v ≤` the
+/// straight step count (§4.1), and the network type has at least one bridge
+/// type. On exit `v` is written back: unchanged after a full loop, `i` after
+/// a cut. `PlaceNetwork` turns a lowered `v` into the failure code
+/// `0xF0000003` (§13).
+///
+/// Returns the number of bridges recorded. `max_slope_rad` is the placement
+/// parameter p+0x00 and `w_ctx` carries the terrain, the host and the cell
+/// infos.
+#[allow(clippy::too_many_arguments)]
+pub fn identify_bridge_cells(
+    tool: &mut BridgeTool,
+    w: &mut span::SpanWorld<'_>,
+    v: &mut u32,
+    max_slope_rad: f32,
+) -> u32 {
+    // §4.1 preconditions: `AllowBridges`, `v ≥ 4` and `v ≤` the straight step
+    // count, and at least one bridge type.
+    if *v < 4 || *v > w.straight || tool.types.is_empty() {
+        return 0;
+    }
+    let mut i = 2u32;
+    let mut recorded = 0u32;
+    while i < *v {
+        // 1. Skip `i` unless steps `i`, `i − 1` and `i − 2` are all kind 0.
+        if !regular3(w.run, i) {
+            i += 1;
+            continue;
+        }
+        // 2. Clear, wet and a passing edge test.
+        if !(w.step_clear(i) && w.step_wet(i) && w.edge_ok(i)) {
+            i += 1;
+            continue;
+        }
+        // 3. `SelectBridgeStartAndEnd`. A failure, or `index < 0`, **cuts**
+        // the run: `v := i` and stop.
+        let Some((mut start, mut end)) = span::select_bridge_start_and_end(w, i) else {
+            *v = i;
+            return recorded;
+        };
+        let adj = span::adjust_bridge_span(w, start, end, max_slope_rad, tool.altitude_override);
+        let Some(a) = adj else {
+            *v = i;
+            return recorded;
+        };
+        start = a.start;
+        end = a.end;
+        let Some(index) = select::find_best_bridge_type_recording(tool, w, &mut start, &mut end, true, a.clearance)
+        else {
+            *v = i;
+            return recorded;
+        };
+        // 4. `end − start ≥ 4` and `end − start + 1 ≥` the minimum span.
+        let min_span = tool.types.get(index as usize).map(|t| t.min_span).unwrap_or(0);
+        if end.saturating_sub(start) >= 4 && end.saturating_sub(start) + 1 >= min_span {
+            mark_bridge_steps(w.run, start, end);
+            let rec = BridgeRecord {
+                type_id: w.type_id,
+                start,
+                end,
+                bridge_type: index,
+                // `+0x10` is filled by `SelectBridgeElevation`; `+0x14` is
+                // the reference elevation `refElev`.
+                deck: a.reference,
+                reference: a.reference,
+                land: 0,
+                pieces: Vec::new(),
+            };
+            tool.append_record(rec);
+            // 4.3 `SelectBridgeElevation` (§8.2).
+            let idx = tool.records.len() - 1;
+            let bt = tool.types[index as usize].clone();
+            if let Some(r) = tool.records.get_mut(idx) {
+                elev::select_bridge_elevation(w, r, &bt, tool.altitude_override);
+            }
+            // 4.4 The length map, then the specialised or the parametric
+            // model. The caller builds it once the record exists.
+            recorded += 1;
+            // A recorded bridge covers its steps with kind 1, so
+            // `i = end + 1` and `i = end + 2` fail step 1 (§4.4).
+            i = end + 1;
+            continue;
+        }
+        // 5. Otherwise nothing is recorded and the steps stay regular.
+        i += 1;
+    }
+    recorded
+}
+
 /// The rectangle a step's cells span, grown by one cell on every side
 /// (§4.2): the step's first and last cells. `None` when the step has no
 /// cells.
@@ -213,7 +301,7 @@ pub fn step_rect(run: &Run, step: u32, grow: i32) -> Option<((i32, i32), (i32, i
 }
 
 /// The cells of a step, first to last (network-geometry.md §2.2).
-pub fn step_cells_of<'a>(run: &'a Run, step: u32) -> &'a [(i32, i32)] {
+pub fn step_cells_of(run: &Run, step: u32) -> &[(i32, i32)] {
     match run.steps.get(step as usize) {
         Some(s) => {
             let (a, b) = (s.first as usize, s.last as usize);
@@ -230,13 +318,9 @@ pub fn step_cells_of<'a>(run: &'a Run, step: u32) -> &'a [(i32, i32)] {
 /// True when every cell of the step is a regular step's (§4.4 step 1 reads
 /// the kind of three steps in a row).
 pub fn regular3(run: &Run, i: u32) -> bool {
-    [i, i.wrapping_sub(1), i.wrapping_sub(2)].iter().all(|&k| {
-        k < 0x8000_0000
-            && run
-                .steps
-                .get(k as usize)
-                .is_some_and(|s| s.kind == StepKind::Regular)
-    })
+    [i, i.wrapping_sub(1), i.wrapping_sub(2)]
+        .iter()
+        .all(|&k| k < 0x8000_0000 && run.steps.get(k as usize).is_some_and(|s| s.kind == StepKind::Regular))
 }
 
 /// The terrain measures §5.2 uses over a step's cells.
@@ -259,20 +343,13 @@ pub trait BridgeHost {
     /// `mask` is the tool's OR filter (§4.2): a network occupant whose
     /// `HasAnyNetworkFlag(mask)` is true. `None` = no filter (§7.3 step 2:
     /// any occupant at all). A failed query reports `false` (§4.2).
-    fn occupant_present(
-        &self,
-        rect: ((i32, i32), (i32, i32)),
-        mask: Option<u32>,
-    ) -> bool {
+    fn occupant_present(&self, rect: ((i32, i32), (i32, i32)), mask: Option<u32>) -> bool {
         let _ = (rect, mask);
         false
     }
     /// The properties of a bridge exemplar (§2.2 step 5). `None` = the lookup
     /// failed and the record is removed again.
-    fn exemplar_properties(
-        &self,
-        _exemplar: (u32, u32, u32),
-    ) -> Option<Vec<(u32, load::PropValue)>> {
+    fn exemplar_properties(&self, _exemplar: (u32, u32, u32)) -> Option<Vec<(u32, load::PropValue)>> {
         None
     }
     /// The localised string an exemplar's `0x482CD466` names (§2.2 step 6).

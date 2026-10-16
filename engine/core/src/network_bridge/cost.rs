@@ -64,8 +64,5 @@ pub fn cost_terms(tool: &BridgeTool, r: &BridgeRecord, per_step: u32) -> (u32, u
     let Some(t) = tool.type_of_record(r) else {
         return (0, 0);
     };
-    (
-        t.cost_per_step.saturating_add(per_step),
-        t.cost_fixed,
-    )
+    (t.cost_per_step.saturating_add(per_step), t.cost_fixed)
 }

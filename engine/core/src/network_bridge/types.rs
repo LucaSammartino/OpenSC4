@@ -344,7 +344,21 @@ pub fn shipped_types(type_id: u32) -> Vec<ShippedBridgeType> {
         // 2 highway: three of the eleven published (§2.6).
         2 => vec![
             s(1, 0x0200_0001, "level", 4, 0.0, 0, 1, 2, 5, 5, 0, 0.0, (0, 0)),
-            s(2, 0x0200_0002, "Golden Gate", 43, 35.119, 3, 1, 2, 35, 6, 0, 0.0, (0, 0)),
+            s(
+                2,
+                0x0200_0002,
+                "Golden Gate",
+                43,
+                35.119,
+                3,
+                1,
+                2,
+                35,
+                6,
+                0,
+                0.0,
+                (0, 0),
+            ),
             s(5, 0x0200_0005, "cable stayed", 32, 45.0, 1, 1, 2, 15, 7, 0, 0.0, (0, 0)),
         ],
         // 8 light rail, 9 monorail: one each (§2.6).
@@ -353,8 +367,36 @@ pub fn shipped_types(type_id: u32) -> Vec<ShippedBridgeType> {
         // 12 ground highway repeats highway's with `+0xD4` = −15.5 (§2.6).
         12 => vec![
             s(1, 0x0A00_0001, "level", 4, 0.0, 0, 1, 2, 5, 5, 0, -15.5, (0, 0)),
-            s(2, 0x0A00_0002, "Golden Gate", 43, 35.119, 3, 1, 2, 35, 6, 0, -15.5, (0, 0)),
-            s(5, 0x0A00_0005, "cable stayed", 32, 45.0, 1, 1, 2, 15, 7, 0, -15.5, (0, 0)),
+            s(
+                2,
+                0x0A00_0002,
+                "Golden Gate",
+                43,
+                35.119,
+                3,
+                1,
+                2,
+                35,
+                6,
+                0,
+                -15.5,
+                (0, 0),
+            ),
+            s(
+                5,
+                0x0A00_0005,
+                "cable stayed",
+                32,
+                45.0,
+                1,
+                1,
+                2,
+                15,
+                7,
+                0,
+                -15.5,
+                (0, 0),
+            ),
         ],
         // 3 street, 4 pipe, 5 power line, 6 avenue, 7 subway, 10 one-way
         // road, 11 dirt road: no published column set here. Avenue's nine
@@ -379,6 +421,10 @@ pub fn from_shipped(type_id: u32, s: &ShippedBridgeType) -> BridgeType {
         model_height_offset: s.model_height_offset,
         bitmap_key: s.bitmap_key,
         name: s.name.to_string(),
+        // 2.3: every shipped exemplar sets both 0x482CB44F (land) and
+        // 0x482CB450 (water) to true.
+        land: true,
+        water: true,
         ..BridgeType::default()
     };
     // §2.6: the two ramp pair sets the tests read.
