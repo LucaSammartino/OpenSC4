@@ -52,7 +52,8 @@
 //     calls. The return value and the occupants (in order) must be equal;
 //     FindOccupant's x and z too.
 //   - The thread probe (OM1, OM3): the original's vtable entries of slots 1,
-//     2, 12, 20-22, 24, 25, 27, 28, 30, 32, 34, 36, 38, 42 and 44 forward to
+//     2, 12, 20-22, 24, 25, 27, 28, 30, 32, 34, 36, 38, 40 (the model loader's
+//     slot, OM1), 42 and 44 forward to
 //     counting stubs (installed at PostCityInit only while each holds the
 //     expected 1.1.641 address, removed at PreCityShutdown), which count the
 //     calls per thread (the shadow's own calls excluded) and the entries made

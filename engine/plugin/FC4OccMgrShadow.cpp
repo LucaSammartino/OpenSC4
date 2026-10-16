@@ -453,7 +453,7 @@ cISC4OccupantManager* OriginalOf(cISC4City* city) {
 // ---- the thread probe (OM1, OM3) ------------------------------------------------------------------
 
 constexpr uintptr_t kOriginalVtable = 0x00A8F7F0;  // §1, §11
-constexpr int kProbeSlots = 17;
+constexpr int kProbeSlots = 18;
 constexpr int kProbeThreads = 16;
 
 struct ProbeEntry {
@@ -463,7 +463,8 @@ struct ProbeEntry {
 constexpr ProbeEntry kProbe[kProbeSlots] = {
     {1, 0x0049DF80},  {2, 0x0049DFB0},  {12, 0x0049DA30}, {20, 0x0049EF60}, {21, 0x0049F240}, {22, 0x0049FCD0},
     {24, 0x0049F3C0}, {25, 0x0049E490}, {27, 0x0049FB30}, {28, 0x0049E4D0}, {30, 0x0049E5E0}, {32, 0x0049E690},
-    {34, 0x0049E800}, {36, 0x004A0670}, {38, 0x004A0A70}, {42, 0x004A0D70}, {44, 0x004A1360},
+    {34, 0x0049E800}, {36, 0x004A0670}, {38, 0x004A0A70}, {40, 0x0049E250}, {42, 0x004A0D70},
+    {44, 0x004A1360},
 };
 
 uintptr_t g_probeOrig[kProbeSlots] = {};
@@ -545,8 +546,9 @@ void* const kProbeFwd[kProbeSlots] = {
     reinterpret_cast<void*>(&ProbeForward<12, P, CP, CP, P>),
     reinterpret_cast<void*>(&ProbeForward<13, P, CP, CP, P, uint32_t>),
     reinterpret_cast<void*>(&ProbeForward<14, P, CP, CP, P, uint32_t>),
-    reinterpret_cast<void*>(&ProbeForward<15, P, P, CP, CP, P>),
+    reinterpret_cast<void*>(&ProbeForward<15, P, CP, CP, P, uint32_t>),
     reinterpret_cast<void*>(&ProbeForward<16, P, P, CP, CP, P>),
+    reinterpret_cast<void*>(&ProbeForward<17, P, P, CP, CP, P>),
 };
 
 bool WriteEntry(void** entry, void* value) {
@@ -1538,7 +1540,7 @@ void OccMgrShadowStartup() {
         "manager's record at each city load and follows its Insert / Remove / Move messages (the core's box compared "
         "with the occupant's after each); at each SimNewMonth the record is compared cell by cell and %d samples of "
         "each of slots 25, 27 and 28-47 run on both (occupant-manager.md); probe %s",
-        src, g_samples, g_probeWanted ? "on (slots 1, 2, 12, 20-22, 24, 25, 27, 28-38 even, 42, 44: calls per thread)" : "off");
+        src, g_samples, g_probeWanted ? "on (slots 1, 2, 12, 20-22, 24, 25, 27, 28-40 even, 42, 44: calls per thread)" : "off");
 }
 
 void OccMgrShadowCityLoaded(cISC4City* city) {

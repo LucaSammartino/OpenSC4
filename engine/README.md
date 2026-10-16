@@ -1595,17 +1595,17 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      rectangles around the record's occupants or anywhere around the city, a null filter or one deterministic
      filter shared by both, record types, 0 or an unused type, maxCounts and callbacks that stop early), and the
      return values and occupants (in order) must be equal. The probe points the original's vtable entries of
-     slots 1, 2, 12, 20-22, 24, 25, 27, 28, 30, 32, 34, 36, 38, 42 and 44 at counting forwarders (only while each
+     slots 1, 2, 12, 20-22, 24, 25, 27, 28, 30, 32, 34, 36, 38, 40, 42 and 44 at counting forwarders (only while each
      holds the 1.1.641 address; removed at PreCityShutdown) and counts calls per thread, the shadow's own excluded
      (`overlaps` = entries while another thread was inside one of them; questions OM1, OM3). Lines (always written):
 
      ```
      occmgr shadow: ON (occmgr_shadow from …): …                                            (game start)
      occmgr shadow: following the original occupant manager …: record B bytes, N occupants, R references; …
-     occmgr shadow: probe installed on 17 of 17 slots of vtable … (main thread …)
+     occmgr shadow: probe installed on 18 of 18 slots of vtable … (main thread …)
      occmgr shadow month yyyy-mm-dd: followed=yes|first|resynced occupants=N refs=R record=exact (P set aside)|D
        cells differ (P set aside); silent moves=S; messages ins/rem/move=a/b/c refused=r off-thread=t boxes=x/y;
-       queries on followed|fresh core q/Q (every slot exact)| differ: sN=e/t …; probe: slots=17 main=… other=… (threads tid:calls …)
+       queries on followed|fresh core q/Q (every slot exact)| differ: sN=e/t …; probe: slots=18 main=… other=… (threads tid:calls …)
        overlaps=… slot12=… overflow=0; stray releases=0; mismatches=N[; differences: …]
      occmgr shadow: city shutdown: N month lines, M with mismatches=0; resyncs=K; per slot exact/total: 25=…;
        probe: … thread tid (main): s1=… …
@@ -1615,7 +1615,9 @@ distinct; commercial 417/417 identical (19 bytes each), industrial 417/417 (2 by
      `refused` counts followed messages the core refused (an Insert of an occupant already read from the record, a
      Remove of one not in it): possible right after the city load or a `resynced` month, otherwise a sign of a
      missed message. In the lane's turbo runs to 2032 on Konradshohe (alone and with the 27 replacements) every
-     line had `mismatches=0`, `resyncs=0`, `refused=0` and every probed call on the main thread.
+     line had `mismatches=0`, `resyncs=0`, `refused=0` and every probed call on the main thread. OM1 was answered
+     statically (re-answers18): the background model loader's thread calls slot 40, one standard cell at a time,
+     when its filter flag is set; slot 40 is probed for that reason.
    - **History warehouse and 24-hour clock** (`enable = history`, `enable = clock24`; `plugin/cFC4History.*`,
      `plugin/cFC4Clock24.*`, over the `fc4_history` and `fc4_clock24` cores). The warehouse is the city's
      `cSC4HistoryWarehouse` (class `0x89EFA536`): it hears the record and queue-length messages, adds itself as a
