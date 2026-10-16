@@ -45,7 +45,6 @@ use fc4_core::crime::{
 };
 use fc4_core::grid::{GridProvider, SimGrid, TractGeometry, TractGrid};
 use fc4_core::property::PropertyHolder;
-use fc4_core::rng::{derive_seed, file_seed, FixedSeeds};
 use fc4_core::stream::{RefValue, ResKey, SaveObject};
 
 use crate::guard;
@@ -563,15 +562,7 @@ thread_local! {
 fn shared(session_seed: u32) -> Rc<CrimeShared> {
     SHARED.with(|s| {
         s.borrow_mut()
-            .get_or_insert_with(|| {
-                // derive_seed never returns 0xFFFFFFFF, so the clock values
-                // are never read (foundations §6.3).
-                let seeds = FixedSeeds {
-                    wall_clock: session_seed,
-                    process_clock: session_seed,
-                };
-                CrimeShared::seeded(derive_seed(session_seed, file_seed::CRIME), &seeds)
-            })
+            .get_or_insert_with(|| CrimeShared::from_session(session_seed))
             .clone()
     })
 }

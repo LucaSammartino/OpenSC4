@@ -193,7 +193,7 @@ use std::rc::Rc;
 
 use crate::development::GrowthProfile;
 use crate::grid::{GridProvider, TractGrid};
-use crate::rng::{derive_seed, file_seed, RzRandom, SeedSource};
+use crate::rng::{RzRandom, SeedSource};
 use crate::variant::Variant;
 
 /// Class ID (§1).
@@ -573,8 +573,10 @@ pub trait GrowthDeveloperHost: GridProvider<u8> + GridProvider<i16> + GridProvid
     fn limit_timer_start(&self, ms: u32);
     /// Whether the deadline has passed.
     fn limit_timer_expired(&self) -> bool;
-    /// The wall-clock seed `cRZRandom::Seed(0xFFFFFFFF)` uses (§7 quirk).
-    fn wall_clock_seed(&self) -> u32;
+    /// The session seed `S` (foundations §6.3). Read only when a decline
+    /// key's coordinate seed is `0xFFFFFFFF` (§7 quirk: the original's
+    /// `Seed` then reads the clock; ours uses `derive(0x0990C138 XOR n)`).
+    fn session_seed(&self) -> u32;
 }
 
 /// The adaptive step of the time-slice helper (simulator §5.5, aura §6.5).
@@ -641,7 +643,10 @@ impl GrowthStatics {
     /// `cRZTime() XOR 0xAC09C0E8` with the session seed in place of the
     /// clock.
     pub fn from_session(session: u32, seeds: &dyn SeedSource) -> Rc<GrowthStatics> {
-        GrowthStatics::new(derive_seed(session, file_seed::GROWTH_DEVELOPER), seeds)
+        GrowthStatics::new(
+            crate::seeding::seed(session, crate::seeding::keys::GROWTH_DEVELOPER),
+            seeds,
+        )
     }
 
     /// One salt (§7 row 1): `NextRaw()`.

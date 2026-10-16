@@ -226,7 +226,7 @@ pub struct fc4_budget_host {
     pub record_history: Option<unsafe extern "C" fn(U, u32, i32)>,
     pub set_history_queue_length: Option<unsafe extern "C" fn(U, u32, u32)>,
     pub try_start_disaster: Option<unsafe extern "C" fn(U, u32, f32, f32) -> bool>,
-    pub rng_seed: Option<unsafe extern "C" fn(U) -> u32>,
+    pub session_seed: Option<unsafe extern "C" fn(U) -> u32>,
     pub ltext: Option<unsafe extern "C" fn(U, u32, u32, fc4_bytes_sink, *mut c_void) -> bool>,
     pub building_type_name: Option<unsafe extern "C" fn(U, u32, fc4_bytes_sink, *mut c_void) -> bool>,
     pub get_u32s: Option<unsafe extern "C" fn(U, u64, u32, *mut u32, usize) -> i32>,
@@ -396,8 +396,8 @@ impl BudgetHost for CBudgetHost {
     fn try_start_disaster(&self, id: u32, x: f32, z: f32) -> bool {
         cb!(self, try_start_disaster, false, id, x, z)
     }
-    fn rng_seed(&self) -> u32 {
-        cb!(self, rng_seed, 0)
+    fn session_seed(&self) -> u32 {
+        cb!(self, session_seed, 0)
     }
     fn ltext(&self, group: u32, instance: u32) -> Vec<u8> {
         self.string(self.0.ltext, group, instance)

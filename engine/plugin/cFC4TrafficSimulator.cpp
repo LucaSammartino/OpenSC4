@@ -22,6 +22,7 @@
 #include "FC4GameMap.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Seed.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4RouteDeque.h"
@@ -287,8 +288,8 @@ uint32_t SessionSeed(bool* fixed) {
         }
     }
     *fixed = false;
-    constexpr int64_t kRzTimeUnixOffset = 2177452800;  // 1901-01-01 to 1970-01-01
-    return static_cast<uint32_t>(static_cast<int64_t>(std::time(nullptr)) + kRzTimeUnixOffset);
+    // Else the process's one session seed (FC4Seed.h, foundations §6.3).
+    return fc4::SessionSeed();
 }
 
 // ---- framework (§1, §5) ------------------------------------------------------------------------------
@@ -1859,7 +1860,7 @@ cFC4TrafficSimulator::cFC4TrafficSimulator() {
     }
     RefreshSnapshot();
     fc4::Log("cFC4TrafficSimulator(%p) created, core %p, session seed %u (%s)", static_cast<void*>(Primary()),
-             static_cast<void*>(core_), seed_, seedFixed_ ? "traffic_seed" : "the clock");
+             static_cast<void*>(core_), seed_, seedFixed_ ? "traffic_seed" : "session seed");
 }
 
 cFC4TrafficSimulator::~cFC4TrafficSimulator() {

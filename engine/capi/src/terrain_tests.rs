@@ -237,7 +237,7 @@ fn setters_and_the_stale_cache() {
 }
 
 #[test]
-fn water_queries_and_the_display_state_abi64() {
+fn water_queries_and_the_display_state_abi65() {
     let g = Game::default();
     unsafe {
         let t = flat(&g, true, 8, 200.0); // 50 m of sea everywhere

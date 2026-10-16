@@ -33,7 +33,6 @@ use fc4_core::flammability::{
 };
 use fc4_core::grid::{GridProvider, TractGrid};
 use fc4_core::property::PropertyHolder;
-use fc4_core::rng::FixedSeeds;
 use fc4_core::stream::{RefValue, SaveObject};
 use fc4_core::variant::Variant;
 
@@ -342,25 +341,21 @@ fn message_of(m: &fc4_flammability_message) -> Message {
 }
 
 /// Creates the core object (constructor values, §3). The host table is copied.
-/// `token` is the host identity of the simulator itself; the two clock values
-/// seed its own `cRZRandom` (§7, foundations §6.1).
+/// `token` is the host identity of the simulator itself; `session_seed` is
+/// foundations §6.3's `S`: its own `cRZRandom` is seeded with 0 (§7) and the
+/// double path's clock reseed takes `derive(S, 0xE990C045)`.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_flammability_create(
     host: *const fc4_flammability_host,
     token: u64,
-    wall_clock_seed: u32,
-    process_clock: u32,
+    session_seed: u32,
 ) -> *mut fc4_flammability {
     guard(std::ptr::null_mut(), || match host.as_ref() {
         Some(h) if (h.struct_size as usize) >= std::mem::size_of::<fc4_flammability_host>() && h.grids.complete() => {
             // The simulator holds the host, which is where every grid callback
             // goes, so the handle needs no reference of its own.
             let host = Rc::new(CHost(*h));
-            let seeds = FixedSeeds {
-                wall_clock: wall_clock_seed,
-                process_clock,
-            };
-            let rng: Box<dyn FlammabilityRandom> = Box::new(FlammabilityRng::new(&seeds));
+            let rng: Box<dyn FlammabilityRandom> = Box::new(FlammabilityRng::from_session(session_seed));
             let sim = FlammabilitySim::new(host, token, rng);
             Box::into_raw(Box::new(Handle {
                 sim,

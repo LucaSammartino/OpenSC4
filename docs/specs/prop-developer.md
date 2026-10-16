@@ -566,7 +566,17 @@ AL true, nothing transferred), 5 `GetGZCLSID` `0x006F0E00` → `0x89C49986`.
 ## 10. Quirks (reproduced unless marked *[choice]*)
 
 1. A tagged prop whose tag names no object lowers the block's slot count by one (§4.3 step 2.3.2), which lowers the
-   target.
+   target. Where such props come from (PV2): a lot tag is the configuration object's ID (`+0x24`), written when the
+   prop is created (lot-developer.md §6.5, `CreateLotProp`, the city detail increase) and saved with the prop. A
+   configuration of version < 2 gets **generated** IDs instead: a per-process serial (`0x00B2166C`, seeded through
+   the GZCOM framework on first use and incremented per object, `ConvertPropertiesToObjectArray` `0x00479D10`), so
+   its props' saved tags match nothing after the next load. No shipped configuration is of version < 2 (all 1908
+   lot configurations and all 543 network lot configurations are version 2), so with shipped data only these remain:
+   a prop whose object the current detail level filtered out of the configuration, which the city detail manager's
+   reduce removes at `Init` (city-detail.md §3.2), so only until then; and a prop of an earlier configuration of the
+   lot, if one survives a change of configuration *[not traced]*. `GetLotProps` selects by the lot's **rectangle**
+   (prop-lotconfig.md A7.2), not by owner, so any tagged prop inside it counts. Plugin lots of version < 2 hit the
+   rule with every tagged prop after each load *[inferred]*.
 2. At most one removal per requester per block update; creations are not limited.
 3. The remainder of the split starts at requester index 1 (§4.3 step 4).
 4. A failed creation still consumes the free slot for the rest of the update.
@@ -581,7 +591,7 @@ AL true, nothing transferred), 5 `GetGZCLSID` `0x006F0E00` → `0x89C49986`.
 
 ## 11. Open questions
 
-See QUESTIONS.md, section "From the re-specs10 specs" (PV1–PV6).
+See QUESTIONS.md, section "From the re-specs10 specs" (PV1–PV6). PV2 answered by re-answers19 (§10 quirk 1).
 
 ## 12. Conformance tests
 

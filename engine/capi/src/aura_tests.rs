@@ -475,7 +475,7 @@ fn ratings_of(p: *const fc4_aura) -> fc4_aura_ratings {
 
 fn started(g: &Game) -> *mut fc4_aura {
     let h = host(g);
-    let p = unsafe { fc4_aura_create(&h, 0xA0, 1, 2) };
+    let p = unsafe { fc4_aura_create(&h, 0xA0, 1) };
     assert!(!p.is_null());
     assert!(unsafe { fc4_aura_init(p) });
     p
@@ -501,12 +501,12 @@ fn create_rejects_short_tables_and_null_handles_answer_fallbacks() {
     let g = Game::new();
     let mut h = host(&g);
     unsafe {
-        assert!(fc4_aura_create(std::ptr::null(), 1, 1, 1).is_null());
+        assert!(fc4_aura_create(std::ptr::null(), 1, 1).is_null());
         h.struct_size -= 4;
-        assert!(fc4_aura_create(&h, 1, 1, 1).is_null());
+        assert!(fc4_aura_create(&h, 1, 1).is_null());
         h.struct_size += 4;
         h.grids.struct_size = 8;
-        assert!(fc4_aura_create(&h, 1, 1, 1).is_null());
+        assert!(fc4_aura_create(&h, 1, 1).is_null());
 
         let p = std::ptr::null_mut();
         assert!(!fc4_aura_init(p));
@@ -729,7 +729,7 @@ fn record_round_trip_through_host_streams() {
 
     // Read runs before Init: the reader takes the references the stream hands over.
     let h = host(&g);
-    let q = unsafe { fc4_aura_create(&h, 0xA1, 1, 2) };
+    let q = unsafe { fc4_aura_create(&h, 0xA1, 1) };
     let gp: *const Game = &*g;
     let take = move |r: &mut crate::stream::fc4_ref| unsafe {
         if let Some(gr) = (*gp).grids.borrow_mut().get_mut(&r.token) {
@@ -757,7 +757,7 @@ fn record_round_trip_through_host_streams() {
 
     // A version above 9 fails.
     let bad = 10u16.to_le_bytes();
-    let q = unsafe { fc4_aura_create(&h, 0xA2, 1, 2) };
+    let q = unsafe { fc4_aura_create(&h, 0xA2, 1) };
     let mut inp = In::new(&bad);
     let is = istream(&mut inp);
     assert!(!unsafe { fc4_aura_read(q, &is) });
