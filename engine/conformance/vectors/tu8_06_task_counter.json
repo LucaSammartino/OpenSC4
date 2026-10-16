@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "tutorial_task_counter",
+  "spec": ["tutorial 4.4", "tutorial 3", "tutorial 8.6"],
+  "description": "Slot 19 (4), slot 20, slot 20: slot 11 returns 6 and the next record stores task 6.",
+  "steps": [
+    {"op": "tut_create"},
+    {"op": "tut_call", "method": "set_task_number", "args": [4]},
+    {"op": "tut_call", "method": "increment_task_number"},
+    {"op": "tut_call", "method": "increment_task_number"},
+    {"op": "tut_call", "method": "task_number", "expect": 6},
+    {"op": "tut_record", "hex": "02000006000000ffffffff"}
+  ]
+}

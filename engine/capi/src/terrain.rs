@@ -984,21 +984,21 @@ pub unsafe extern "C" fn fc4_terrain_water_type(t: *const fc4_terrain, x: i32, z
     read(t, 0, |i, _| i.terrain.water_type(x, z))
 }
 
-/// `GetLerpedWaterLevel(x, z)` (slot 32, Â§5.1, ABI 68).
+/// `GetLerpedWaterLevel(x, z)` (slot 32, Â§5.1, ABI 69).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_terrain_lerped_water_level(t: *const fc4_terrain, x: f32, z: f32) -> f32 {
     read(t, 0.0, |i, _| i.terrain.lerped_water_level(x, z))
 }
 
 /// Surface water slot 10, `AltitudeAtWhichFloodingWillOccur(x, z)` (Â§10.2,
-/// ABI 68).
+/// ABI 69).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_terrain_flooding_altitude(t: *const fc4_terrain, x: i32, z: i32) -> f32 {
     read(t, 0.0, |i, _| i.terrain.altitude_at_which_flooding_will_occur(x, z))
 }
 
 /// Surface water slot 11, `GetWaterVelocity(x, z)`: `out[3]` (a zero vector
-/// past the arrays, Â§10.5; ABI 68). False only for a NULL handle or `out`.
+/// past the arrays, Â§10.5; ABI 69). False only for a NULL handle or `out`.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_terrain_water_velocity(t: *const fc4_terrain, x: i32, z: i32, out: *mut f32) -> bool {
     if out.is_null() {
@@ -1012,7 +1012,7 @@ pub unsafe extern "C" fn fc4_terrain_water_velocity(t: *const fc4_terrain, x: i3
 }
 
 /// `GetSedimentValue(x, z)` (slot 55): world metres, 0.0 unless
-/// `LocationIsInBounds` (Â§5; ABI 68).
+/// `LocationIsInBounds` (Â§5; ABI 69).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_terrain_sediment_at(t: *const fc4_terrain, x: f32, z: f32) -> f32 {
     read(t, 0.0, |i, _| i.terrain.sediment_at(x, z))
@@ -1313,7 +1313,7 @@ pub unsafe extern "C" fn fc4_terrain_brush_angle(t: *const fc4_terrain, id: u32,
 }
 
 /// Both angles of a brush description: the walk angle (`+0x68`) and the
-/// stroke angle (`+0x6C`) (Â§9.1, TR8; ABI 68). Either pointer may be NULL.
+/// stroke angle (`+0x6C`) (Â§9.1, TR8; ABI 69). Either pointer may be NULL.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_terrain_brush_angles(
     t: *const fc4_terrain,
@@ -1331,7 +1331,7 @@ pub unsafe extern "C" fn fc4_terrain_brush_angles(
     })
 }
 
-/// Sets both angles of a brush description (ABI 68): the walk angle's start
+/// Sets both angles of a brush description (ABI 69): the walk angle's start
 /// draw (`RandomRange(0, 2Ï€)` of the terrain generator, which the original
 /// makes when it reads a description whose step is not 0), or angles carried
 /// over from another terrain (the original's descriptions are process-wide).
@@ -1342,7 +1342,7 @@ pub unsafe extern "C" fn fc4_terrain_set_brush_angles(t: *mut fc4_terrain, id: u
 }
 
 /// The talus angle of brush kind 2, radians (the terrain ini's `WindErosion`
-/// `TalusAngle` Ã— Ï€/180; 0.79 by default, Â§9.4.1; ABI 68).
+/// `TalusAngle` Ã— Ï€/180; 0.79 by default, Â§9.4.1; ABI 69).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_terrain_talus_angle(t: *const fc4_terrain) -> f32 {
     read(t, 0.0, |i, _| i.terrain.talus_angle())

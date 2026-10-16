@@ -509,7 +509,7 @@ fn call(w: &World, op: &Json) -> R<()> {
                 }
                 "is_triangulation_flipped" => Json::Bool(t.is_triangulation_flipped(n(0)?, n(1)?)),
                 "cell_flags" => ji(t.cell_flags(n(0)?, n(1)?)),
-                // Round 2 (re-answers17, ABI 68).
+                // Round 2 (re-answers17, ABI 69).
                 "lerped_water_level" => jnum(t.lerped_water_level(f(0)?, f(1)?)),
                 "flooding_altitude" => jnum(t.altitude_at_which_flooding_will_occur(n(0)?, n(1)?)),
                 "water_velocity" => Json::Array(t.water_velocity(n(0)?, n(1)?).iter().map(|&v| jnum(v)).collect()),
