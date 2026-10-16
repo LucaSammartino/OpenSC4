@@ -4689,9 +4689,18 @@ apply13 applied LD2-LD30 (lot-developer.md) and ZG26, ZG30-ZG34 (zones.md, tract
 as 71 on the lane. Not applied here: ZG22 (slot 19 always writes `*ok`) and ZG24 (the zone tool owns the highlight
 region), from re-answers11. The lane's choices are in brackets.
 
-- **LD31:** (lot-developer.md §6.6, LD17) UpdateLotObjectAltitudes: is the building's foundation redone only after the
-  object actually moved (beyond the 0.1 tolerance), or for every building visited? [only after a move (inferred)]
-- **LD32:** (lot-developer.md §6.5) AddNetworkConnectionNodes: when CreateConnectionNode (network manager slot 20)
+- ~~**LD31:** (lot-developer.md §6.6, LD17) UpdateLotObjectAltitudes: is the building's foundation redone only after the
+  object actually moved (beyond the 0.1 tolerance), or for every building visited? [only after a move (inferred)]~~
+  **ANSWERED 2026-10-16 (re-answers19):** MATCHES (lot-developer.md §6.5). When `|P.y − Q.y| ≤ 0.1` the jump at
+  `0x006C9326` skips the move **and** the foundation work; the building test (`0x278128A0`, `0x006C934B`) comes after
+  `SetPosition` and the occupant manager notify, inside the moved branch.
+- ~~**LD32:** (lot-developer.md §6.5) AddNetworkConnectionNodes: when CreateConnectionNode (network manager slot 20)
   fails and leaves its out-parameter null, the original appends whatever was returned to the list that
   AutoconnectLotNodes (slot 21) reads. Is a null entry appended and passed on? [a null result is not appended; it is
-  counted as `nodesFailed` (choice)]
+  counted as `nodesFailed` (choice)]~~ **ANSWERED 2026-10-16 (re-answers19):** **DIFFERS** in the letter; the
+  choice is accepted (lot-developer.md §6.5, quirk 17). The out-parameter is not nulled: it is one stack slot for
+  the whole loop, never cleared, and `CreateConnectionNode` writes it only on success (`0x006114DE`). The append
+  (`0x006C9EE4`) does not test the result, so after a failure the list gets the previous object's node again (or an
+  uninitialised value for the first network object). `AutoconnectLotNodes` QueryInterfaces every entry with no null
+  test (`0x006115F7`), and the final release (occupant manager slot 48) over-releases a repeated node. Nothing in the
+  original avoids this, so skipping the failed entry is the safe *[choice]*.
