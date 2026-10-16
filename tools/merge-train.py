@@ -418,7 +418,8 @@ def union_hunks(wt, rel):
     # A bad join shows up as a `fn` signature glued onto the end of a doc line.
     for ln in text.split(NL):
         s = ln.strip()
-        if "    fn " in ln and s.startswith(("///", "*", "//")):
+        import re as _re
+        if _re.search(r"[^\s]\s*(pub(\(crate\))? )?fn [A-Za-z_]", ln) and                 not s.startswith(("fn ", "pub fn ", "pub(crate) fn ")):
             return False
     # Structural check: for an additive union the merged brace balance must equal ours + theirs - base.
     # A duplicated (or dropped) `};` breaks that arithmetic, which is exactly the failure mode that
