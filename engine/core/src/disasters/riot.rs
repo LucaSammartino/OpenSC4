@@ -351,23 +351,24 @@ impl Core {
         }
     }
 
-    /// One riot step (§6.5). Leaders spawned during the pass first move in
-    /// the next one [choice]. The coverage is read at the automaton's cell
-    /// (its last known cell once it is gone).
+    /// One riot step (§6.5). The leader list is walked from the front, the
+    /// **next** node remembered before each leader is processed (`0x0057E026`):
+    /// a leader spawned in step 4 is appended at the end, so it is processed
+    /// in the same pass when the spawning leader was not the last node, and
+    /// not when it was *[compat]* (the §5.8 rule of the fire list, DS40).
+    /// The coverage is read at the automaton's cell (its last known cell once
+    /// it is gone).
     pub(crate) fn riot_update(&mut self, id: u32) {
         let tuning = self.rt();
         let host = self.host.clone();
-        let list: Vec<u64> = self
-            .rs_ref(id)
-            .map_or(Vec::new(), |r| r.leaders.iter().map(|l| l.automaton).collect());
-        for a in list {
-            let Some(l) = self
+        let mut at = 0usize;
+        while let Some(l) = self.rs_ref(id).and_then(|r| r.leaders.get(at).copied()) {
+            let a = l.automaton;
+            // 0 = the end of the list, taken before this leader is processed.
+            let next = self
                 .rs_ref(id)
-                .and_then(|r| r.leaders.iter().find(|l| l.automaton == a))
-                .copied()
-            else {
-                continue;
-            };
+                .and_then(|r| r.leaders.get(at + 1).map(|x| x.automaton))
+                .unwrap_or(0);
             let here = host.automaton_cell(a);
             let cell = here.unwrap_or(l.cell);
             let c = tuning.police.eval(f32::from(host.police_coverage(cell.0, cell.1)));
@@ -418,6 +419,18 @@ impl Core {
                     }
                 }
                 host.riot_leader_tick(a);
+            }
+            if next == 0 {
+                break;
+            }
+            // A step erases the leader it ended, which shifts the entries
+            // after it; the remembered node is found by its automaton.
+            match self
+                .rs_ref(id)
+                .and_then(|r| r.leaders.iter().position(|x| x.automaton == next))
+            {
+                Some(j) => at = j,
+                None => break,
             }
         }
         self.riot_update_phase(id);

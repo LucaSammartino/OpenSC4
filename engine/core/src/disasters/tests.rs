@@ -1987,3 +1987,35 @@ fn an_ignite_resolves_its_location_before_it_returns() {
         "slot 17 reads the stored cell"
     );
 }
+
+/// §6.5 (DS40's riot half): a leader step 4 spawns is processed in the same
+/// pass when its spawner was not the last node when that step began - the
+/// §5.8 rule of the fire list, applied to the leader list (`0x0057E026`).
+#[test]
+fn a_leader_spawned_by_a_non_last_leader_is_processed_in_the_same_pass() {
+    let w = riot_world();
+    w.f64s.borrow_mut().extend([0.5, 0.25]);
+    let id = w.riot(10, 20).expect("riot");
+    // Step 30: the only leader reaches stage 1 and spawns. It was the last
+    // node, so the new one waits for the next pass.
+    for n in 1..=30 {
+        w.riot_tick(id, if n == 1 { 0 } else { 1000 });
+        w.host.take();
+    }
+    let r = w.sys.riot_snapshot(id).unwrap();
+    assert_eq!(r.leaders.len(), 2, "{:?}", r.leaders);
+    assert_eq!(r.leaders[1].counter, 0, "the spawner was the last node");
+    // Step 90: the first leader reaches stage 3 and spawns again. It is not
+    // the last node (the step-30 leader is behind it), so the new one is
+    // processed in this pass and its counter is 1, not 0.
+    for _ in 31..=90 {
+        w.riot_tick(id, 1000);
+        w.host.take();
+    }
+    let r = w.sys.riot_snapshot(id).unwrap();
+    assert_eq!(r.leaders.len(), 5, "{:?}", r.leaders);
+    assert_eq!(
+        r.leaders[4].counter, 1,
+        "spawned by a non-last leader, stepped in the same pass"
+    );
+}
