@@ -217,6 +217,14 @@ Both records are written through the component's cIGZSerializable (`+8`). Stream
 each appended to `managed` (the vector is **not** cleared first). Any failed ref read returns false at once. Then
 returns `GetError() == 0`.
 
+What counts as a failed ref read (NM6, `0x00612521`–`0x0061252B`, helper `0x005D96C0`) *[compat]*:
+
+- A **null reference** (saved object ID 0) is a successful read. The helper returns true with a null pointer
+  (`0x005D96F2`–`0x005D9713`), and the null is appended to `managed` like any other entry.
+- A reference the stream cannot resolve (an unknown class, a failed creation; foundations §2.7) is a failed read,
+  and so is an object that does not answer QueryInterface for `0xA821EF94`. The read returns false at once
+  (`0x00612583`). Nothing is released or removed: the entries appended so far stay in `managed`.
+
 Worked example: an empty list is `01 00 | 00 00 00 00` (6 bytes).
 
 ### 4.2 Component 11 (network lot manager)
@@ -429,11 +437,17 @@ survives every kind but 3.
 
 **`0x6A3B0AFD`** (and the tail of step 4), the **underground refit**:
 
-1. If `dirty` is not empty: query the occupants in `dirty` with flags meeting `0x90`. Split them into the pipes
-   (type 4) and the subways (type 7), keeping each cell and an AddRef'd occupant list per kind.
-2. For the pipes: tool 4 `Init`, `UpdateUndergroundOccupantTerrainHeights(cells, list, 4)` (`0x006588D0`),
-   `Shutdown`. The same for the subways with tool 7.
-3. `dirty := empty`.
+1. If `dirty` is not empty (`x1 ≤ x2` and `z1 ≤ z2`, signed, `0x00613C94`–`0x00613CA6`): query the occupants in
+   `dirty` with flags meeting `0x90` (occupant manager slot 40). If the query returns false, skip to step 3.
+   Otherwise split them, in query order: for each occupant and each type `t` = 0 … 12 it `IsOfType` (slot 22), its
+   cell (slot 59) is appended to a per-type cell list; an occupant of type 4 (pipe) or 7 (subway) is also AddRef'd and
+   appended to that kind's occupant list. Each occupant is released once after its 13 tests.
+2. **For each kind whose occupant list is not empty** (NM9; pipes `0x00613E53`–`0x00613E59`, subways
+   `0x00613E9B`–`0x00613EA1`): `GetNetworkTool(4, false)`, `Init`,
+   `UpdateUndergroundOccupantTerrainHeights(cells, list, 4)` (`0x006588D0`), `Shutdown`. The same for the subways
+   with `GetNetworkTool(7, false)` and 7. A kind with no occupant in `dirty` gets no call at all, not a call with an
+   empty list.
+3. `dirty := empty` (`x1 = z1 = 0x7FFFFFFF`, `x2 = z2 = −1`).
 4. Always `longTerrainOp := false`.
 
 ### 7.7 CreateConnectionNode(&out, type, &p, edgesA, edgesB, pathOverride, c) (slot 20, `0x00611300`, pop 28)
@@ -491,7 +505,16 @@ For each `retrofit` entry whose `CheckForRetrofit()` (slot 6) is still true:
    4. `SetRetrofitFlag(false)` (slot 7).
    5. Post `0x99EF1145` for it.
 
-Then empty the list (`0x00611A20`). The model and path work is presentation and path data. FreeCity4 loads only
+Then empty the list (`0x00611A20`). The model and path work is presentation and path data.
+
+The list's references (NM7) *[compat]*:
+
+- An empty list returns at once (`0x0061283A`); nothing is created or released.
+- Otherwise every entry is **released once inside the walk**, right after its `CheckForRetrofit` test and the
+  retrofit, **whether or not it still asked** (`0x00612DB3`; the false branch at `0x006128E0` jumps straight there).
+  This balances the AddRef that slot 23 took.
+- `0x00611A20` then frees the list nodes only (through the allocator service `0x3AE4BEA3`/`0x3AE4BEAB`, slot 4); it
+  releases nothing. So the list is always emptied, and each entry loses exactly one reference. FreeCity4 loads only
 saves written by 1.1.641, whose pieces need no retrofit *[choice]*. It keeps the list and slot 23 for
 compatibility.
 
@@ -532,6 +555,19 @@ Priority `P` (table `0x00AA76E8`, lower wins):
 
 Ties keep the earlier neighbour. So industry beats commerce, which mostly beats residence.
 
+**Zone values outside 0..15** (NM8). The zone grid holds only 0..15 in a game that the zone manager wrote (zones.md
+§2), so these values come only from a corrupt or foreign save. The original has no range check:
+
+- A non-zero own-cell value is returned as it is, sign-extended (`0x0060D05D`–`0x0060D062`).
+- A neighbour's value `n` (read with sign extension, `0x0060D0E7`) indexes `P` as a signed 32-bit table with no
+  bound (`0x0060D0EB`, compared signed at `0x0060D0F9`). Out of range, it reads the neighbouring read-only data: from
+  16 on, the bytes of the `V` and `T` tables of §8.7 and the offset tables; below 0, the data before `P`. Most such
+  `n` read a large value and never win, but some read less than 18 and do win, for example `n = 28` reads 0 (the first
+  entry of `T`), `n = 92` reads −1 and `n = −4` reads 2.
+
+*[choice]* FreeCity4 treats a neighbour zone outside 0..15 as never winning, and returns an out-of-range own-cell
+value unchanged. The result differs from the original only for such corrupt grids.
+
 ### 8.3 GetWealthForNetwork(x, z) (slot 10, `0x0060CBB0`)
 
 1. `count[0..3] := 0`.
@@ -562,6 +598,20 @@ All of these must hold, tested in this order:
 5. `flipRule`: 1 needs `flip ≠ 0`; 2 needs `flip = 0`; other values allow both.
 6. **Slope**: `s := lotDeveloper.GetAreaSlope({x, z, x, z}, true)` (lot developer slot 29, through BDS slot 36).
    `cfg.minSlope ≤ s ≤ cfg.maxSlope`, compared as floats. A NaN fails.
+
+**Zone and wealth outside the tables** (NM8). `zones` and `wealths` are bit vectors (`+0x34`/`+0x38` and `+0x48`),
+indexed with no range check (`0x0060CD66`–`0x0060CD9E`, `0x00477A40`). The constructor (`0x0060FA90`) sizes them to
+16 and 4 bits through `0x0060D310`. On an empty vector that call takes its "grow" branch, which allocates one fresh
+storage word and writes only the 16 (or 4) bits in use (`0x00477E70` → `0x004779E0`, a bit-by-bit fill). Nothing
+later clears the rest of the word (`ReadLotConfiguration` sets bits below 16 and 4 only). So:
+
+- zone 16..31 and wealth 4..31 read the unused high bits of that word, whose value is whatever the STL node
+  allocator's block held;
+- a negative value, or 32 and above, reads outside the vector's storage (heap memory).
+
+Neither case has a defined result. The wealth argument always comes from §8.3, which clamps it to 0..3. The zone
+argument comes from §8.2, so only a corrupt zone grid reaches this. *[choice]* FreeCity4 fails any zone outside 0..15
+and any wealth outside 0..3, which is what the original gives when the leftover bits happen to be 0.
 
 ### 8.5 Choosing, keeping and removing network lots
 
@@ -690,6 +740,12 @@ writes `out` *[quirk]*.
 
 `V` (table `0x00AA7728`, `V[zone][w']`): zone 0 → 0 0 0; zones 1 and 4 → 1 2 3; zones 2, 3, 5 and 6 → 4 5 6;
 zones 7 and 14 → 7 7 7; zones 8 and 9 → 1 1 2; zones 10–13 and 15 → 1 1 1.
+
+Both lookups are unchecked (NM8): `T` is read at dword `4·zt + w` (`0x0060F5AA`–`0x0060F5AE`) and `V` at byte
+`3·zt + w'` (`0x0060F5D6`–`0x0060F5DA`). A zone outside 0..15 (§8.2 passes a corrupt own-cell value through) reads
+the bytes after the tables (for zone 16, `T` gives the side offset table: `0xFFFFFFFF, 0, 1, 0`) or before them.
+*[choice]* FreeCity4 gives such a zone the "every other zone" rows of `T` and the zones 10–13 row of `V`
+(`1 1 1`). This differs from the original only for corrupt zone grids.
 
 **UpdateAvenueStyle(x, z)** (`0x0060EF40`): an avenue is styled as one block.
 
@@ -1008,6 +1064,10 @@ The tools, models, remap tables and retrofit are presentation or legacy. A FreeC
   start, stop).~~ **Answered (re-specs14b):** confirmed. They are `SetEffectType(char const*)`, `StartEffect(bool)` and
   `StopEffect(bool)` of cISC4PropOccupantVisualEffect (vtable `0x00AA4ED8`; the two `SetEffectType` overloads compile
   in reverse SDK order). Behaviour: network-tools.md §13.2.
+- ~~**NM6–NM9** (filed by the cores14c lane, QUESTIONS.md).~~ **ANSWERED 2026-10-16 (re-answers24):** NM6 (§4.1, a
+  null reference is a successful read), NM7 (§7.10, every entry released once in the walk, the list always emptied),
+  NM8 (§8.2, §8.4, §8.7, no range checks: out-of-range values read neighbouring data; the FreeCity4 choices are
+  confirmed) and NM9 (§7.6, **DIFFERS**: each kind runs only when its occupant list is not empty).
 
 ---
 

@@ -7,6 +7,84 @@ operating knowledge that is still true.
 
 ## 0. Current state
 
+### Stop 2026-10-16 ~09:10 (user shut down): how to resume
+
+All lanes were stopped at once, without asking them to commit first. Main is clean at the last merge (re-answers24,
+`7d06e75`); the stale `build-runs/main-merge.lock` was removed. Each stopped lane's committed work is on its branch,
+and its worktree under `.claude/worktrees/` is kept. Uncommitted edits in a worktree may be partial: check
+`git -C .claude/worktrees/<lane> status` before resuming. Every lane below had finished its own work and was waiting in
+its merge step, except glue15, flakyfix and apply15b, which were stopped mid-lane. Resuming a lane means re-running its
+merge: merge main, gate, regress for engine lanes, then `--no-ff` into main.
+
+- Engine, with game runs: cores12a (revert the revert `dff8e4e`; re-apply seeding's `e451878` city-situation change),
+  cores12c, devperf, cores17 (network geometry), apply14traffic, glue14b (occupant manager shadow), apply15terrain,
+  detpacing (deterministic pacing default), glue12b1 (prop developer, city detail), glue12b2 (ports), glue14c (network
+  manager shadow), apply14dis (disaster DIFFERS).
+- Engine, core only: cores18 (network rules), cores19 (effects).
+- RE, docs only: re-answers20 (AM1-AM12), re-answers23 (disasters DS25-DS40), re-answers26 (NB1-NB3), re-inventory6
+  (INVENTORY-M6.md, the renderer/UI/audio scoping).
+- Tools: coverage2 (attribute the 203 KB draw range, split catch-all owners, map the new cores).
+- Stopped mid-lane: glue15 (prop manager, lot configuration, tutorial glue), flakyfix (the history/clock24 thread tests
+  fail gates under load; fix these first), apply15b (re-answers22 DIFFERS: ports PD4-PD10, prop developer PV8/12/13,
+  city detail CD4/5, seeding RN3).
+- Not started: apply TG23-TG25 after apply14traffic; terrain replacement after apply15terrain (TR9 zoom, message
+  latency); bridges core after cores17 and NB1; engine follow-ups PL12, PL13, TR20, TU5; held ABI rows in
+  `build-runs/pending-abi/re-answers25-rows.tsv` (rebuild build-x86 at main's tip first).
+
+Progress is measured with `python tools/coverage.py` and drawn with `python tools/coverage_treemap.py`
+(`docs/coverage-report.md`, `docs/coverage-map.svg`). Quote those numbers, not estimates.
+
+#### First task next session: replace the merge lock with a merge train (before spawning any lane)
+
+The merge of each lane is slow, not git. Measured on 2026-10-16:
+
+- Each lane ran its own gate and regress (cargo, ctest, two game runs to 2032: 20-40 min on a loaded machine).
+- Every merge into main forced each waiting lane to merge main again and re-gate. cores14c lost the lock 12 times and
+  re-merged 11 times, so N waiting lanes cost about N² gates.
+- Nearly every lane edits the same lines, so every merge conflicts and needs an agent:
+  - the FC4_ABI_VERSION number;
+  - the HANDOFF §0 rows;
+  - the run numbers in manual-checks.md;
+  - QUESTIONS.md sections;
+  - abi_entries.inc.
+- About 25 agents polled `build-runs/main-merge.lock`; the fastest poller won, so docs-only lanes waited about 2 h.
+
+The plan:
+
+1. **Merge queue with a single owner of main.** A lane that is ready writes `build-runs/merge-queue/<lane>.json`
+   (branch, tip, kind, abi needs, game-run labels) and stops. One merge-train agent is the only writer of main.
+   Lanes no longer take the lock or merge main.
+2. **Batches with bisection.**
+   1. The train takes up to K ready lanes (start with K = 8), oldest first.
+   2. It merges them one after another onto `integration/<n>` from main, resolving conflicts once.
+   3. It runs the gate and regress once for the whole batch.
+   4. On a pass, main fast-forwards to the integration branch and each lane gets a merged notice.
+   5. On a fail, it splits the batch in halves and gates both halves in parallel on separate game-queue slots, until
+      the culprit lane is isolated (about log2 K extra gates). The culprit goes back to its lane with the failure, and
+      the rest land.
+   6. Docs-only and RE lanes skip regress and can be batched freely.
+3. **Remove the shared conflict hotspots**, so most batches merge with no agent conflict resolution:
+   - **ABI version.** Lanes never bump FC4_ABI_VERSION. The train bumps it once per batch with a script, and writes
+     one fc4.h history line per batch listing the lanes.
+   - **Per-lane files.** Each lane writes `docs/lanes/<lane>.md` (today's HANDOFF §0 row) and `docs/runs/<tag>.md`
+     (today's manual-checks rows, keyed by tag, not by a sequential run number). A script regenerates the HANDOFF §0
+     table, the manual-checks index and the "latest in-game run" line from them.
+   - **abi_entries.inc** becomes a build-time generated file (CMake runs gen_abi_entries.py) and leaves git.
+   - **QUESTIONS.md.** Use per-spec question files, or keep one file with a fixed "append at the end of your spec's
+     section" rule.
+   - **Docs-only movement on main** never triggers a re-gate (engine/, tools/ or tests/ unchanged means the gate
+     result stands).
+4. **Tooling.** Build `tools/merge-train.ps1` (or .py): queue scan, batch merge, gate, regress via the game queue,
+   bisection, fast-forward, notices. Change `lane.js` so the merge step only enqueues. Update the lane prompts (MKWT,
+   LOCK) and CONTRIBUTING if it mentions the lock.
+5. **First batch.** Run it on the lanes listed above that were stopped while waiting to merge.
+
+Expected effect: no lock waits, several times fewer regress runs, and most of the merge-time agent work (re-merging,
+renumbering, conflict resolution) gone. The estimate for a standalone OpenSC4 was about 450-550 more lanes and
+150-300M agent tokens, measured from about 400k tokens per lane. With the train, the CPU (20 threads) becomes the
+limit instead of the merge, which takes that from about 3-4 weeks of continuous running to about 2-3. Also log each
+lane's token count against the coverage bytes it moved, so tokens per coverage point becomes a measured figure.
+
 ### Wind-down 2026-10-14 ~16:20 (usage limit): how to resume
 
 Every lane was asked to stop at a clean point, commit everything on its branch (`WIP:` commits where tests did not pass)
@@ -75,6 +153,7 @@ original prompt from `build-runs/lane-prompts/<lane>-prompt.txt` plus the "next 
 | coverage (byte-weighted reimplementation coverage metric) | `coverage` | (tooling lane) | **merged `50f2bb6`** (tools and docs only: `tools/coverage.py`, `tools/coverage-map.tsv`, `tools/coverage-libs.tsv`, `docs/COVERAGE.md`, `docs/coverage-report.md`; no conflict at merge; no ABI rows): `python tools/coverage.py` (about 15 s, deterministic) attributes every function of the Ghidra export of the exe to one owner by fixed rules (library ranges, names, vtables, reach, neighbours, thunks) and sums body bytes per status from the map. Library and compiler code (6,073 functions, 923,344 bytes) is outside the denominator; shared (206,377 bytes) and unattributed (301,590 bytes) stay in it. Report regenerated on main at the merge (regress-cores15, the newest merged lane's PASS run): game code 29,481 functions, 5,586,418 bytes; **specified 32.6%, implemented 21.0%, verified 8.3%, replaced 12.1%** of game bytes; simulation (34.3% of game bytes) 78.2% specified, 56.5% implemented, 24.1% verified, 35.3% replaced; UI and audio 0%. Class-level attribution, not per-function byte matching. Known nit: the input-hash table hashes working-copy bytes, so a CRLF checkout (main) and an LF worktree give different hash rows (numbers unchanged) | Next: (1) rerun `python tools/coverage.py` after each merge and each regress run on main, commit the report; (2) attribute 0x008310B0-0x00864B58 (203 KB, draw and span dispatch tables), most of the unattributed bytes; (3) terrain_shadow is in the regress list since regresslists5 but no regress run on main has terrain lines yet; disasters_shadow is still out; (4) split the catch-all owners (fn:getDefaultValue, operator>>/<<, WriteEntry/InterpretEntry, cGroupLayer, cSCResProperty) into map rows; (5) map rows for UI, audio and renderer as their specs land; (6) normalise line endings before hashing inputs |
 | abitidy2 (ABI conformance: held rows, command parameter set) | `abitidy2` | (engine lane) | **merged `6da51f0`** (test and docs only, no C ABI change, ABI stays 68; gate abitidy2h at `3755a85`: cargo 2595/0, clippy clean, ctest 54/56 with the two histclock thread tests failing under 100% CPU and passing on rerun; regress abitidy2 run 140 PASS): the held interfaces.tsv rows applied (cISC4LotConfiguration slot 33, re-specs15a; cIGZCommandParameterSet slots 7, 8, 10, re-answers12 CB16; their files in `build-runs/pending-abi/` deleted), `cFC4IGZCommandParameterSet` in `FC4Interfaces.h` checked by the conformance test (178 interfaces), five `kReviewedSlotCounts` entries dropped for the trailing destructor rule | done. `plugin_ini_enable_history_test` and `plugin_ini_enable_clock24_test` (`plugin_histclock_test.inc` lines 280, 849) need a reader thread that is sure to run before the writes end. abitidy2 carries the cores12a merge `cd3c5b0` and its revert `dff8e4e`: a cores12a re-merge must revert the revert or re-commit the files |
 | re-answers25 (RE answers: PL8-PL14, TU4-TU5, TR19-TR20, CB1/CB2/CB4, HW3, CK1-CK2) | `re-answers25` | (RE lane) | **merged `786b860`** (docs only, 7 spec files plus QUESTIONS.md; no conflict at merge; 17 entries struck; ABI rows not applied: conformance with build-x86 at main reports 1 required mismatch already on main (cIGZCommandParameterSet declares 15 slots, the table has 11), so the two rows (`cISC4NetworkOccupant` `00aa8080` slot 67 GetPassageCeiling(float&) `00619900`, slot 68 SetPassageCeiling(float) `0061b9a0`) wait in `build-runs/pending-abi/re-answers25-rows.tsv`). Prop/lot configuration (prop-lotconfig.md, lot-configuration.md): PL8 DIFFERS (size property read first, a seventh value overwrites the return address), PL9 DIFFERS (OccupantSize raw pointer, no count check), PL10 DIFFERS (no property holder: early exit, usage not written), PL11 MATCHES (a type whose exemplar fails to load still counts), **PL12 DIFFERS** (lot side 1+floor(w/16)), **PL13** (footprint rebuilt around the record offset; out-of-lot footprint only sets code 4; offset outside moved to the footprint centre), PL14 MATCHES. Tutorial: TU4 DIFFERS (last Release frees without Shutdown, releases the window once without closing it), **TU5 DIFFERS** (Shutdown closes and double-releases the window, unregisters the cheat without the slot-21 test). Terrain: TR19 MATCHES (slot 67 GetPassageCeiling, clearance >= 20.0), **TR20** pole test DIFFERS (blocks only on its own cell). Civic: CB1 (preview never inserted into the occupant manager), CB2 (no double lot state 3), CB4 (count wrap kept). HW3 MATCHES (only Lua 53-bit and the graph window 24-bit reach the regression). CK1 MATCHES (clock runs while paused), CK2 MATCHES (unit 3 = QPC microseconds; table from QueryPerformanceFrequency, only call overhead measured) | Next: engine follow-ups PL12 lot size, PL13 FixLotConfiguration footprint, TR20 IsNavigable pole own-cell test, TU5 tutorial Shutdown window teardown; apply `pending-abi/re-answers25-rows.tsv` once the cIGZCommandParameterSet mismatch is fixed (or build-x86 is rebuilt at main); optional in-game confirmations of CB1/CB2/CB4/HW3/CK1 (breakpoints in the lane report) |
+| voidbool (return-channel audit of the plugin) | `voidbool` | (engine lane) | **merged `2501158`** (plugin and test only, no C ABI change, ABI stays 68; gate voidbool4 at lane `10afe0d`: cargo 2595/0, clippy clean, ctest 57/57; regress voidbool run 141 PASS): `engine/tests/check_ret_channels.py`, ctest `ret_channel_check` (skipped without Python 3), matches every use of a game method's return value in `engine/plugin` to the slot's `ret` column (interfaces.tsv / vtables.tsv) and to `SPEC_FACTS` (cited spec answers: bool, none, wide, or spec-silent `sdk`); `--verbose` lists the trusted spec-silent uses, `--impl` the eax rows the plugin implements as bool. Fixed (each marked `[abi-ret]`): F1/F2 budget slots 29/31, F3 DeleteLot, F4 SetDefaultExemplar (judged by GetDefaultExemplar; a behaviour bug), F5 RegisterDispatchSource (shutdown unregister), F6 RegisterLotConfigurationFilter, F7 AttemptLevelling read as int32. Merge mechanics: SPEC_FACTS rows for glue16's terrain shadow (surface water slot 8 AL; network occupant slot 67 bool per TR19) | Any new glue that reads a game bool from a non-`al` slot needs a cited `SPEC_FACTS` entry or an `[abi-ret]` comment (ctest enforces it); when HG2, HG3, LD33, LD34, ZG41 or ZG42 is answered, move its `SPEC_FACTS` entry from `sdk` to `bool` / `none` and fix what the checker flags |
 
 *Last updated 2026-10-15, at the merge of traffic2 (`40d9eab`), after run 119.*
 
@@ -85,7 +164,7 @@ original prompt from `build-runs/lane-prompts/<lane>-prompt.txt` plus the "next 
   merged; glue merged for residential, zones phase 1 and development (BDS + growth developers, opt-in), but the
   development glue fails in game (runs 101-102). M5: all three cores merged; traffic glue phase 1 and the traffic shadow (phase 2) merged; calibration open. M6: the
   landfill, neighbours, exemplar and formats work is merged.
-- **Latest in-game run:** 140 (regress abitidy2, PASS, lists as run 138); 139 (regress masterlist, PASS, lists as run 121: it ran at 05:51 before runs 133-138 and is recorded after them); 138 (regress rl5, regresslists5, PASS, the first lists with `terrain_shadow`; baseline `build-runs/regress-rl5.out`); 137 (regress cores15, PASS, lists as run 132); 136 (regress glue16, PASS, lists as run 132); 135 (regress glue13, PASS, lists as run 132); 134 (regress cores14c, PASS, lists as run 132); 133 (regress cores12b, PASS, lists as run 132); 132 (regress rl4, regresslists4, PASS, the first lists with `lotdev_shadow`; recorded after masterlist's regress had finished, whose record follows); 131 (regress seeding, PASS, lists as run 121); 128 (regress apply11traffic, PASS, lists as run 121); 127 (regress autoloadfix, PASS, lists as run 121); 126 (regress apply13, PASS, lists as run 121); 125 (regress apply12, PASS, lists as run 121); 124 (regress cores16, PASS); 123 (regress cores12a, FAIL: no city load; merge reverted); 122 (regress abitidy, PASS, lists as run 118); 121 (regress rl3, PASS) is the first with the traffic lists. See `docs/manual-checks.md`.
+- **Latest in-game run:** 141 (regress voidbool, PASS, lists as run 138); 140 (regress abitidy2, PASS, lists as run 138); 139 (regress masterlist, PASS, lists as run 121: it ran at 05:51 before runs 133-138 and is recorded after them); 138 (regress rl5, regresslists5, PASS, the first lists with `terrain_shadow`; baseline `build-runs/regress-rl5.out`); 137 (regress cores15, PASS, lists as run 132); 136 (regress glue16, PASS, lists as run 132); 135 (regress glue13, PASS, lists as run 132); 134 (regress cores14c, PASS, lists as run 132); 133 (regress cores12b, PASS, lists as run 132); 132 (regress rl4, regresslists4, PASS, the first lists with `lotdev_shadow`; recorded after masterlist's regress had finished, whose record follows); 131 (regress seeding, PASS, lists as run 121); 128 (regress apply11traffic, PASS, lists as run 121); 127 (regress autoloadfix, PASS, lists as run 121); 126 (regress apply13, PASS, lists as run 121); 125 (regress apply12, PASS, lists as run 121); 124 (regress cores16, PASS); 123 (regress cores12a, FAIL: no city load; merge reverted); 122 (regress abitidy, PASS, lists as run 118); 121 (regress rl3, PASS) is the first with the traffic lists. See `docs/manual-checks.md`.
 
 ### Lanes
 

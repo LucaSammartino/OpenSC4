@@ -4489,18 +4489,86 @@ Open points from network-geometry.md §17. The current answer is in brackets; ea
   (re-answers19):** **DIFFERS** from the premise: there is no swapped key. Every key in the function is
   `(z << 16) + x` (row loop `0x0062B4E1`; neighbour key `0x0062BA9A`–`0x0062BA9D`); the earlier reading came from
   the decompiler's variable naming. network-geometry.md §13.
+## From the network bridges spec (re-specs17a lane, 2026-10-16)
+
+Open points from network-bridges.md §16. These NB numbers are the bridge spec's own; they are not the neighbours NB1–NB19
+above. The spec's tentative answer is in brackets.
+
+- ~~**NB1 (bridges):** how bridge cells and their corner heights constrain the network height solver
+  (`RemoveBridgePiecesFromSetOfCellsToBeSolved` `0x00638B40`, `CopyBridgeElevationConstraintsIntoCellInfo`). [not
+  read]~~ **ANSWERED 2026-10-16 (re-answers26):** network-bridges.md §8.3 and network-geometry.md §9.8 (new). The bridge
+  cells are erased from the piece solve set `+0x84` (last step of `BuildSetOfCellsToBeSolved`), are fixed (every cell
+  of a kind ≠ 0 step, new or not; network-geometry.md §8.1 corrected), and at every `SmoothenNetwork` level, in its step
+  2, get their pieces' four corner heights as corner heights and as a collapsed allowed range (`0x0062FB90`); slot 76
+  then pins them in the satisfier. Each bridge also appends `{start, end, r24(deck − +0x60[0]), same}` to a constraint
+  list that the tunnels extend (`0x006274B0`, which pins the portal cells), and slot 77 `ApplyPlaneConstraintToRegularCells`
+  (`0x00637B90`) uses it to clamp every regular corner to a window of ± p+0x20 (`0xC804DD89`: road 35 m, others
+  15 m) around the straight plane from one structure to the next, or to the run's ends at the terrain, widened to
+  include the corner's current height, and replaces its preferred range by [min(h, k), max(h, k)]. Every surface run
+  gets this plane, bridge or not. Side corrections: `ComputeInitialSmoothingSet` is `0x00636AB0` (`0x00637720` is a
+  vector resize); tool `+0x2B0` = p+0x20.
+- **NB2 (bridges):** the suspension profile (`0x0062E690`), the cable plotting (`0x00630F70`) and
+  `AddSuspendedBridgeStructures` (`0x0062DF30`) in detail. [drawing only *[inferred]*] **PARTLY ANSWERED 2026-10-16
+  (re-answers26):** MATCHES, with one side effect (network-bridges.md §11.4). The profile is a leaf that writes only
+  the piece records' weights; the cable plotting fills each record's cable vector; only `InsertBridgePiece` reads
+  them, turning them into textured triangles on the occupant (network occupant slot 31, `0x0061C800`: append to the
+  triangle list `+0x118`, recompute the bounding box, which includes the triangles). The occupant is inserted into the
+  occupant manager after that (`0x0062F5A8`), so the triangles can widen the cells it is filed under. Still open:
+  whether any shipped suspension or cable triangle reaches past its piece's own cell (an in-game occupant query beside
+  a suspension bridge would settle it), and the formulas (visual only).
+- ~~**NB3 (bridges):** the occupant position height used as the column top in `InsertBridgePiece` (network-bridges.md
+  §11.3). [the piece's model height Y *[inferred]*]~~ **ANSWERED 2026-10-16 (re-answers26):** **DIFFERS**
+  (network-bridges.md §11.2 step 2, §11.3 step 2). The position is the network occupant's (`0x006193D0`, reached
+  through `GetPosition` `0x00604E40` → primary slot 75): x, z = the mean of its four corner points, height = the
+  **highest** of the four corner heights, which `CreateNetworkOccupant` took from the cell info, i.e. the piece's
+  corners (§8.3). The exemplar's model offset `dy = Y − height` puts the model's origin at `Y`, but the column top is
+  `highest corner − depth`. They differ by `+0xD4` (deck), `+0xD4 + +0xC4` (pier), `+0xD4 − b_u` (ramp u) or
+  `P.Y + +0xD4 − max(h[k], h[k+1])` (specialised); 0 for the shipped road parametric pieces.
+
 ## From the network rules spec (re-specs17b lane, 2026-10-16)
 
 Spec: [network-rules.md](network-rules.md) §14. RE-side follow-ups; nothing here blocks an implementer of §2–§10.
 
-- **NR1:** the texture an ordinary piece id selects, and how the orientation byte turns it (network-rules.md §11).
-  [not specified]
-- **NR2:** the placement of intersection models (`InsertHighwayIntersectionPiece(s)`, `0x006276D0`, `0x0062C4B0`),
+- ~~**NR1:** the texture an ordinary piece id selects, and how the orientation byte turns it (network-rules.md §11).
+  [not specified]~~ **ANSWERED 2026-10-16 (re-answers24), simulation part:** the piece id (or an intersection
+  piece's path override) also selects the occupant's **path info**: `GetPathInfo` (network occupant slot 49,
+  `0x0061B510`) maps it with `MapPath`, loads the path resource `{0x296678F7, 0x69668828 or 0xA966883F, id}` and
+  makes the occupant's transformed copy, which is where the orientation turns the paths (network-rules.md §11.1). The
+  texture an ordinary piece id selects is drawing only and is left to the renderer specs. The path-info internals are
+  filed as NR6.
+- ~~**NR2:** the placement of intersection models (`InsertHighwayIntersectionPiece(s)`, `0x006276D0`, `0x0062C4B0`),
   the rule's tile grid and map, `AutoTileBase`, `AutoPathBase` and the constraint layout's consumer (§10.3).
-  [not specified]
-- **NR3:** the exact `AddTypes` ring links (§10.8). [inferred: a second circular list through `+0xF4`/`+0xF8`]
-- **NR4:** `ResolveOneWayConflicts` and the preview's `SolveMultiTypeSeparation` (`0x00633FA0`). [not specified]
-- **NR5:** the order of several `[RuleOverrides]` patterns with the same first id (§9.1). [file order, inferred]
+  [not specified]~~ **ANSWERED 2026-10-16 (re-answers24):** specified in network-rules.md §10.3 (the tile codes, a
+  byte `row × 16 + col + 1`, and the map values `col × 0x100 + row × 0x10`) and §10.9 (each occupied cell gets piece
+  `AutoTileBase + tile`, path override `AutoPathBase + tile` when `AutoPathBase` is set, the prebuilt-model class,
+  group `0xA8434037`, the flags and the anchor). The constraint layout's consumer is `InsertIntersectionConstraints`
+  (`0x00644710`) in the smoothing loop, height geometry; the codes' meaning is filed as NR7.
+- ~~**NR3:** the exact `AddTypes` ring links (§10.8). [inferred: a second circular list through `+0xF4`/`+0xF8`]~~
+  **ANSWERED 2026-10-16 (re-answers24):** the shape MATCHES: `+0xF4`/`+0xF8` form a second circular list of rule
+  ids (the type ring). The spec's premise that `AddTypes` is read only without a `RotationRing` **DIFFERS**: every
+  line is tested on its own (`RotationRing` first, then `AddTypes`, case-insensitively), so both may share a section.
+  An `AddTypes` line forms its own rotation ring, and its k-th known rule enters the type ring of the k-th rule of
+  the previous `RotationRing`/`AddTypes` line of the file, right after it (a file-wide cursor). network-rules.md
+  §10.8, test 27.
+- ~~**NR4:** `ResolveOneWayConflicts` and the preview's `SolveMultiTypeSeparation` (`0x00633FA0`). [not
+  specified]~~ **ANSWERED 2026-10-16 (re-answers24):** network-rules.md §6.5 (the flow codes of `+0x50`, the codes
+  `AssignEdgeMajorTypes` writes for the one-way tool, the propagation from the run's first and last steps into the
+  existing one-way roads, and the per-cell conflict sweep, with a quirk: the sweep queues the current key instead of
+  the neighbour's) and §8.3 (`SolveMultiTypeSeparation` returns the first evaluator's self-targeting output for one
+  cell; it only draws and changes no state). Tests 26 and 29.
+- ~~**NR5:** the order of several `[RuleOverrides]` patterns with the same first id (§9.1). [file order,
+  inferred]~~ **ANSWERED 2026-10-16 (re-answers24):** file order MATCHES. `cRZIniFile::EnumEntries` (`0x0091D91C`)
+  keeps every line, repeated keys included, in file order; the multimap insertion (`0x0063C920`) puts an equal `idA`
+  after the existing entries; `PatchTilePair` walks the equal range forward, so the first matching line wins.
+  network-rules.md §9.1, test 25.
+- **NR6:** the path resource (`{0x296678F7, 0x69668828 or 0xA966883F, MapPath(id)}`, interface `0xA9667793`): its
+  file format, and what path-info slots 25 `CreateTransformedCopy`, 26 `RemoveWrongWayPaths`, 27
+  `InitializeNetworkConnectionBitmap`, 29 `OffsetAndScissor` and 40 `VerifyPathEdges` do; also who writes the
+  override offset `+0x168`/`+0x16C` that slot 29 receives (network-rules.md §11.1). [not specified; the traffic
+  rebuild borrows the original's path infos]
+- **NR7:** the constraint layout's codes 1–8 as `InsertIntersectionConstraints` (`0x00644710`) applies them: which
+  vertex heights each code makes equal and which slope limits it sets (network-rules.md §10.3; network-geometry.md
+  §9.4 step 4). [not specified]
 
 ## From the traffic glue, phase 2: the traffic shadow (filed by the coordinator from the `traffic2` lane's report, 2026-10-15)
 
@@ -4864,24 +4932,28 @@ ABI 62, reserved 65 on the lane) and conformance vectors (`am14_01`-`am14_14`); 
 readings has been checked in game. The core predates re-answers16 (AT2-AT5 above), which a later lane applies. AM is the
 prefix the code comments use; automata.md's own Q1-Q6 keep their numbers. The current choice is in brackets.
 
-- **AM1:** (versions on re-save) the original's writers always write the current version (traffic manager 3 / base 6,
+- ~~**AM1:** (versions on re-save) the original's writers always write the current version (traffic manager 3 / base 6,
   automaton base 8, state 3, aircraft 5, watercraft 6), but §14 test 4 expects a version-2 record to round-trip byte
   for byte. Must a re-save upgrade old versions, or keep them? [writes the version it read; raises it only when the data
-  needs the newer layout]
-- **AM2:** §6.4 gives no read check for the pedestrian (5), vehicle, emergency vehicle, patrol car and trailer (2)
+  needs the newer layout]~~ **ANSWERED 2026-10-16 (re-answers20):** **DIFFERS** (automata.md §4.1). Every writer writes a constant, its current version: base 6 `0x0050CB80`, traffic manager 3 `0x00553570`, aircraft manager 5, watercraft manager 6, automaton base 8 `0x0050AC0D`, state 3 `0x00509D0A`, pedestrian 5, vehicle, emergency and trailer 2. It never writes the version it read, and the missing fields come from the live object: a version-2 traffic manager re-saves as 3 with its incident list, and a version-4 base as 6 with the source building counts that `PostCityInit` recounted. A live save must write the current versions. A record codec may keep the read version for byte round-trip tests *[choice]*; §14 test 4 is such a codec test, and test 18 is the re-save.
+- ~~**AM2:** §6.4 gives no read check for the pedestrian (5), vehicle, emergency vehicle, patrol car and trailer (2)
   versions, nor for the incident list's `u16` 1. Do the original readers reject other versions? [any value accepted
-  and kept]
-- **AM3:** §5.1 field 4 (the ID at the traffic manager's list cursor): what are the IDs of the list nodes, and what
-  should a new manager write? [the value read is kept; 0 for a new manager]
-- **AM4:** §7.3 SetMaxCount removes the automata "beyond" the new maximum: which ones? Does CreateAutomaton refuse at
-  the hard limit? [the newest first; CreateAutomaton returns null at the limit]
-- **AM5:** (§3.1) how exactly do the controller manager's two times A and B advance with HourChanged, and when can A
-  differ from B?
-- **AM6:** (§7.1 slots 5, 6, 9, 10) what does the `extra` argument mean? [ignored]
-- **AM7:** (§7.1 slots 11 and 12) does the original track the controllers that an occupant group itself created?
+  and kept]~~ **ANSWERED 2026-10-16 (re-answers20):** **DIFFERS** (automata.md §4.1 table, §6.4). The original requires exact values: pedestrian 5 (`0x005446D5`), vehicle 2 (`0x0055BCF0`), emergency 2 (`0x0052FAE0`), patrol car 2 (`0x00543E05`), trailer 2 (`0x00556C47`), and the incident list's `u16` 1 (`0x00553E90`). A mismatch makes that Read return false. The incident's ref is checked against the occupant IID `0x26BB767E`.
+- ~~**AM3:** §5.1 field 4 (the ID at the traffic manager's list cursor): what are the IDs of the list nodes, and what
+  should a new manager write? [the value read is kept; 0 for a new manager]~~ **ANSWERED 2026-10-16 (re-answers20):** Read value kept: MATCHES. New manager writes 0: **DIFFERS**, it writes 1 (automata.md §5.1). The list is the manager's fixed **layer list**, one node per traffic layer with the layer ID and an accumulated time. Vehicle `0x0055FB50`: 1, 2, 3, 5, 4, 7, 6, 8, 9, 10; pedestrian `0x00545500`: 1, 7, 8. The cursor starts on the first node, so a new manager writes 1, which every empty-city corpus record holds. Each population pass moves it on, wrapping and skipping layers disabled in the tuning mask. Write gives 0 only when the cursor is at the end, after a Read that found no node with the saved ID. Field 3 is the default path type: vehicle 1, pedestrian 2.
+- ~~**AM4:** §7.3 SetMaxCount removes the automata "beyond" the new maximum: which ones? Does CreateAutomaton refuse at
+  the hard limit? [the newest first; CreateAutomaton returns null at the limit]~~ **ANSWERED 2026-10-16 (re-answers20):** **DIFFERS** (automata.md §7.2, §7.3, §12 quirk 8). `SetMaxCount` (`0x0050AA60`): clamp to 0–5000; an unchanged n does nothing. Otherwise it walks the list from the **front** (oldest first) while n < count. Every automaton without flag `0x200000` and below priority `0xFF` goes to the unplace hook (slot 62, `0x00507430`), which takes it out of the renderer and the occupant manager. The hook does not erase it from the list or lower the count, so all eligible automata are unplaced and none leaves the list or the save. Then max = n and hard limit = trunc(n × 1.25). `CreateAutomaton` refuses above the **max** (count > max) unless make-room (`0x0050A740`) succeeds. Make-room needs count < hard limit and p > 0, and evicts the first automaton of lower priority with `Remove(false)`. Flag `0x80` and priority `0xFF` bypass even the hard limit.
+- ~~**AM5:** (§3.1) how exactly do the controller manager's two times A and B advance with HourChanged, and when can A
+  differ from B?~~ **ANSWERED 2026-10-16 (re-answers20):** Answered (automata.md §3.1). A is the current time (object `+0x34`), the one slot 24 `GetControllerTime` (`0x0051A310`) returns. §3.1 and §7.1 said B; **corrected**. B (`+0x3C`) is A at the previous animation tick.
+  - `HourChanged` (`0x005193BF`) adds 1.0 h to A (`0x00515080`), unnormalised, so A can reach 24 or more. Each controller then gets slot 24 with (A, A − B).
+  - Each animation tick (`0x00518B80`): t = hour + minute × (1/60); if t < A's hour, A's day + 1; A's hour = t; delta = A − B; A is normalised (NaN → 0, hour into [0, 24), day mod 7); then B = A.
+
+  So A ≠ B only between an `HourChanged` and the next tick (A = B + 1 h). Both must round-trip.
+- ~~**AM6:** (§7.1 slots 5, 6, 9, 10) what does the `extra` argument mean? [ignored]~~ **ANSWERED 2026-10-16 (re-answers20):** Mostly MATCHES (automata.md §7.1). `extra` is a `const vec3*` position. Slot 6 (`0x0051AD20`) uses it only when the occupant is null: it calls controller slot 17 (`+0x44`) with it at `0x0051B117`. With an occupant, slot 14 attaches the controller (`0x0051B091`) and `extra` is unused. Every known caller passes an occupant and 0, so ignoring it is correct there. A null-occupant call must place the controller at `*extra`.
+- ~~**AM7:** (§7.1 slots 11 and 12) does the original track the controllers that an occupant group itself created?
   ["remove the controllers that the group added" is the occupant's controllers whose template is one of the group's
-  templates, which also works after a load]
-- **AM8:** §6.4 gives the emergency vehicle record as `u16 2, vehicle record, …`, but §12 quirk 3 says the vehicle
+  templates, which also works after a load]~~ **ANSWERED 2026-10-16 (re-answers20):** MATCHES (automata.md §7.1). Nothing tracks which controllers a group created. The body (`0x0051A350`) removes the occupant's controllers whose template (controller slot 8) is in the group's template list. Each removed controller gets the message `0xEA298D50`, leaves the grid, and is shut down and released. When the list becomes empty, the occupant's queue entry and its list entry are dropped. The call returns true if anything was removed. Slot 14 is the same body with a null template, which matches all.
+- ~~**AM8:** §6.4 gives the emergency vehicle record as `u16 2, vehicle record, …`, but §12 quirk 3 says the vehicle
   loader "reads the vehicle part and leaves the rest unread". With the §6.4 layout a vehicle reader meets the
   emergency's own `u16` first and misaligns, failing at the occupant base version. Which layout is correct?
 - **AM9:** §5.3 gives no upper version check for the watercraft manager. [fails above 6, as §5.2 does for the aircraft
@@ -4958,19 +5030,39 @@ cores14c implemented network-manager.md as a Rust core (`engine/core/src/network
 `fc4_netlot`, ABI 66) and conformance vectors (`nm16_*`, `nm00_*`). There is no plugin glue yet, so none of these
 readings has been checked in game. The current choice is in brackets.
 
-- **NM6:** §4.1, Read of component 53: "any failed ref read returns false at once". Does a null reference in the
+- ~~**NM6:** §4.1, Read of component 53: "any failed ref read returns false at once". Does a null reference in the
   saved list count as a failed read, or is it appended as a null entry? [a null reference is appended as a null entry
   and counts as read; a reference that does not resolve fails the read at once, and the entries appended so far stay.
-  Core `manager.rs` read_record, vector `nm16_01`]
-- **NM7:** §7.10, the retrofit at PostCityInit: when the list is emptied (`0x00611A20`), is each entry released? Is
+  Core `manager.rs` read_record, vector `nm16_01`]~~ **ANSWERED 2026-10-16 (re-answers24):** MATCHES
+  (network-manager.md §4.1). The ref helper (`0x005D96C0`) returns true with a null pointer for object ID 0
+  (`0x005D96F2`–`0x005D9713`), and Read appends it (`0x0061252D`–`0x00612544`). An unresolved reference, or one that
+  fails the QI to `0xA821EF94`, makes the helper return false and Read returns false at once (`0x0061252B`), with
+  nothing released or removed.
+- ~~**NM7:** §7.10, the retrofit at PostCityInit: when the list is emptied (`0x00611A20`), is each entry released? Is
   the list emptied even when no entry still asks for a retrofit? [every entry still asking goes to the host's retrofit
-  callback, then the list is always emptied and every entry released once (the reference taken at slot 23)]
-- **NM8:** §8.2, §8.4, §8.7: zone and wealth values outside the tables (zone outside 0..15, wealth outside 0..3, for
+  callback, then the list is always emptied and every entry released once (the reference taken at slot 23)]~~
+  **ANSWERED 2026-10-16 (re-answers24):** MATCHES (network-manager.md §7.10). The release is in the walk, not in
+  `0x00611A20`: each entry is released once right after its `CheckForRetrofit` test (`0x00612DB3`, also on the false
+  branch from `0x006128E0`), and `0x00611A20` then frees the nodes without releasing. An empty list returns at once
+  (`0x0061283A`). The net effect is the bracket's.
+- ~~**NM8:** §8.2, §8.4, §8.7: zone and wealth values outside the tables (zone outside 0..15, wealth outside 0..3, for
   example from a corrupt zone grid). [a neighbour zone outside 0..15 never wins in GetZoneTypeForNetwork;
-  IsLotCompatible fails for such a zone or wealth; the road style tables give such a zone the "every other zone" rows]
-- **NM9:** §7.6, the underground refit: step 2 has no "if any" test, unlike §7.2. When dirty is not empty but holds no
+  IsLotCompatible fails for such a zone or wealth; the road style tables give such a zone the "every other zone" rows]~~
+  **ANSWERED 2026-10-16 (re-answers24):** no defined original behaviour; the choices are **confirmed** as *[choice]*
+  (network-manager.md §8.2, §8.4, §8.7). None of the three has a range check. GetZoneTypeForNetwork indexes the
+  priority table with the signed neighbour value (`0x0060D0E7`–`0x0060D0F9`) and reads the neighbouring read-only
+  tables: most such values never win, but some do (28 reads 0, 92 reads −1, −4 reads 2); an out-of-range own-cell
+  value is returned as it is. IsLotCompatible reads bit vectors whose unused bits the constructor never initialises
+  (`0x00477E70` grows them bit by bit), and beyond 31 or below 0 reads heap memory. Road style reads past `T` and `V`
+  (`0x0060F5AE`, `0x0060F5DA`). Only a corrupt zone grid reaches any of this (wealth comes from §8.3, which clamps).
+  For `V`, the "every other zone" row is taken to be the zones 10–13 row, `1 1 1`.
+- ~~**NM9:** §7.6, the underground refit: step 2 has no "if any" test, unlike §7.2. When dirty is not empty but holds no
   pipe (or no subway), are tool 4 (or 7) Init, UpdateUndergroundOccupantTerrainHeights and Shutdown still called with
-  an empty list? [yes: both kinds always run when dirty is not empty (vector `nm16_10`)]
+  an empty list? [yes: both kinds always run when dirty is not empty (vector `nm16_10`)]~~ **ANSWERED 2026-10-16
+  (re-answers24):** **DIFFERS** (network-manager.md §7.6). Each kind runs only when its occupant list is not empty:
+  pipes at `0x00613E53`–`0x00613E59`, subways at `0x00613E9B`–`0x00613EA1`. A kind with no occupant in `dirty` gets no
+  `GetNetworkTool`, `Init`, `UpdateUndergroundOccupantTerrainHeights` or `Shutdown`. Also: a failed query (occupant
+  manager slot 40 returning false) skips the split and both kinds. Vector `nm16_10` needs updating.
 
 ## From the disaster layer glue (filed by the coordinator from the `glue13` lane's report, 2026-10-16; merged `e7386b0`)
 
@@ -4981,35 +5073,109 @@ of the questions below in the log. The lane's Q36 (the riot's AttemptDisasterSta
 (it always returns null; the shadow takes the instance from the first riot RegisterDisasterLocation). The lane's own
 numbers (its Q26-Q42) are given in parentheses; the current choice is in brackets.
 
-- **DS25:** (Q26) fire ID mapping: IgniteCell passes a drawn nonzero ID to Ignite, although §5.5 says 0. [the shadow maps
-  the original's IDs to the mirror's by a heuristic]
-- **DS26:** (Q27) the fire occupant class `0x69D25C5F`: its interface and visuals are not specified. [not wired in live
-  mode]
-- **DS27:** (Q28) how riot leader automata are created is not specified. [not wired in live mode]
+- ~~**DS25:** (Q26) fire ID mapping: IgniteCell passes a drawn nonzero ID to Ignite, although §5.5 says 0. [the shadow maps
+  the original's IDs to the mirror's by a heuristic]~~ **ANSWERED 2026-10-16 (re-answers23):** MATCHES disasters.md
+  §5.5, which never said 0: `IgniteCell` (`0x0057B170`) draws the ID itself (`0x0057B201`) only when its argument is 0
+  and the probability passed, then calls `Ignite(o, teleport, id, !teleport)` through slot 6 with that non-zero ID, so
+  those `Ignite`s draw nothing. `Ignite` draws only when called with 0 (through `IgniteOccupant`). For the shadow:
+  copy the original fire generator's state (`lcg` at identity `+0x18`, `mul` at `+0x1C`) into the mirror before each
+  forwarded call and every ID matches, with no heuristic. disasters.md §5.5, §13.
+- ~~**DS26:** (Q27) the fire occupant class `0x69D25C5F`: its interface and visuals are not specified. [not wired in live
+  mode]~~ **ANSWERED 2026-10-16 (re-answers23):** Specified in disasters.md §5.11 and the ABI rows. Object `0x6C`
+  bytes (constructor `0x004711C0`, GZCLSID `0x29D25F1D`); interface `0x69D25C60` at vtable `0x00A88460`, slots 0-14
+  (AsOccupant, SetTarget, GetTarget, Get/SetStage, GetMaxStage, Get/SetCounter, GetHosed, AddHosed, Get/SetFireID);
+  occupant sub-object at `+4` (vtable `0x00A883D8`) overriding Init (group `0x5005`, flames), Shutdown, GetPosition
+  and GetBoundingBox (forwarded to the target). **DIFFERS** from the old §5.11 in one point: `SetTarget`'s occupant
+  slot 12 call is `SetRemovalFlags(2)`, so a burning occupant cannot be bulldozed; `Shutdown` clears `0x69DBEBE1` and
+  undoes it. Rows: `build-runs/re-answers23-abi-rows.tsv`.
+- ~~**DS27:** (Q28) how riot leader automata are created is not specified. [not wired in live mode]~~ **ANSWERED
+  2026-10-16 (re-answers23):** MATCHES automata.md §7.2/§8.1 and disasters.md §6.4; §6.4 now has the whole sequence of
+  `AddRiotLeader` (`0x0057DD00`): corner + 16·(u1, u2) at terrain altitude, pedestrian manager slot 15
+  `CreateAutomaton(0x4107, &pos, 2, &{0,0,0}, null, 0xFF, null)`, AddRef, the leader record (last network occupant =
+  the found road tile's occupant), `SetState(8, 0, −1.0f, 1, 0, 0, 0)`, slot 9 (1), the location registration, the
+  network mark, then `UpdatePhase`. The visuals are the "Riot<n>" automaton effects (`0x0057DC20`) and the
+  "riot_leader_%d" controller message.
 - **DS28:** (Q29) toxic spill, terrain, pipe burst and volcano are not mirrored: no start path was exercised. [fire and
   riot only]
-- **DS29:** (Q30) the data1 token of the posts.
-- **DS30:** (Q31) the follow-disasters preference, the BDS type flags, and the dispatch effectiveness slots 25 and 26.
-- **DS31:** (Q32) the road cell test.
-- **DS32:** (Q33) SafeGetTileInfoAtCell. [a fallback; it matched 4/4 at the start]
-- **DS33:** (Q34) the extinguish delay Random(4000) and a covered fire's counter draw cannot be followed: the mirror's
-  draw is 0.
-- **DS34:** (Q35) does IgniteCellRadius take its radii as float or int?
-- **DS35:** (Q37) occupant location entries read (0,0), or the cell at registration when focus = 1, and never follow
+- ~~**DS29:** (Q30) the data1 token of the posts.~~ **ANSWERED 2026-10-16 (re-answers23):** data1 of `0x49E3DB1D` is
+  the fire occupant's `cISC4Occupant` pointer (fire occupant + 4), data2 1 or 0. Nothing in the executable subscribes
+  to it (the only other reference is the debug name table `0x00B080C0`), so a mirror token is acceptable as a choice;
+  live mode should keep the pointer for plugins. All fire posts are `MessagePost(msg, false)` with the fire instance
+  as IGZUnknown. Minor correction: `0xCA1B1E64` carries the instance as IGZUnknown (slot `+0x84`), not void1.
+  disasters.md §2.4, §12.
+- ~~**DS30:** (Q31) the follow-disasters preference, the BDS type flags, and the dispatch effectiveness slots 25 and
+  26.~~ **ANSWERED 2026-10-16 (re-answers23):** Preference: byte `+0xF08` of `cISC4App` (`0x00B43C94`) slot 38's
+  preferences object, cached in `0x00B43CD8`, default 1 (`0x00449070`), set by the game-preferences checkbox
+  `0x4A7F19F2`. BDS flags: building slot 11 (`0x00459250`) is BDS (`0x00B43D68`) slot 39 `GetBuildingProfile(type at
+  +0x38)`, flags at profile `+0x1C` (an empty static profile without a BDS). Slots 25 (fire) and 26 (police) are both
+  `GetTotalDispatchCount`, unsigned: MATCHES §2.5; if either simulator is missing neither value is written
+  (`0x00577C0F`). disasters.md §2.5, §2.7.
+- ~~**DS31:** (Q32) the road cell test.~~ **ANSWERED 2026-10-16 (re-answers23):** `FindNearestRoadTile` (`0x0057D4C0`)
+  accepts a cell whose tile occupant passes network occupant slot 22 `IsNetworkType(t)` (`0x00619520`) for t = 0, 3 or
+  6; slot 22 maps t to one bit (table `0x00AA7CE8`) and tests `(flags +0x13C & mask) == mask` (slot 8). So road,
+  street and avenue only. The occupant is not null-checked. disasters.md §6.4 step 1, test 21.
+- ~~**DS32:** (Q33) SafeGetTileInfoAtCell. [a fallback; it matched 4/4 at the start]~~ **ANSWERED 2026-10-16
+  (re-answers23):** Traffic map slot 14 (`0x004AE0C0`): null unless `0 ≤ x < width (+0x1C)` and `0 ≤ z < height
+  (+0x20)`, else slot 13 (`0x004B3AC0`), the table at `+0x18` indexed `(z << shift(+0x24)) + x`, which may itself be
+  null; the tile's first field is the network occupant. MATCHES the glue's fallback. disasters.md §6.4 step 1.
+- ~~**DS33:** (Q34) the extinguish delay Random(4000) and a covered fire's counter draw cannot be followed: the mirror's
+  draw is 0.~~ **ANSWERED 2026-10-16 (re-answers23):** Not a spec gap: both are ordinary draws on the fire generator
+  (`ExtinguishFire` `0x00579250`: `RandomUint32Uniform(4000)` once; the step's `RandomUint32Uniform(k + 1)`). Copy the
+  original generator's state into the mirror before each forwarded call (as in DS25), or read the outcomes back: the
+  counter through fire occupant slot 9 and the extinguish time at fire occupant `+0x50`. disasters.md §13.
+- ~~**DS34:** (Q35) does IgniteCellRadius take its radii as float or int?~~ **ANSWERED 2026-10-16 (re-answers23):**
+  MATCHES §5.6 (r × cell width). Unsigned 32-bit integers in cells: each is loaded as unsigned and multiplied by the
+  `float` cell width (city slot 91) into `float` metres; the distance `sqrt(dx² + dz²)` (`0x005D76A0`) is unrounded
+  x87. The ID is drawn first; the box clamps are signed below and unsigned above; the toast branch also requires
+  flammability > 0; the call returns whether anything happened. The effect action (`0x005BCBF0`) calls it with r0 = 0,
+  then `SetCause(4)`. These details are now in disasters.md §5.6, test 20.
+- ~~**DS35:** (Q37) occupant location entries read (0,0), or the cell at registration when focus = 1, and never follow
   the occupant, although §2.7 says they resolve while the occupant is in the manager. Do they resolve only on focus or
-  GoToNextDisaster? [tagged in the log: fire location 43 lines, riot location 2339 in dis-final-11]
-- **DS36:** (Q38) the original calls LockNetworkOccupant whenever a riot leader enters a new cell, not only at
-  AddRiotLeader. When exactly? [the core locks at AddRiotLeader; 316 riot lines tagged]
-- **DS37:** (Q39) the original's riot counter is one second ahead: its stage-1 leader spawns at 29 s, while the core's
-  *[choice]* puts the first update 1 s after Init. What is the riot's second offset?
-- **DS38:** (Q40) the original refuses some Ignites the spec admits: an edge building at (0,36) with flammability 75,
+  GoToNextDisaster? [tagged in the log: fire location 43 lines, riot location 2339 in dis-final-11]~~ **ANSWERED
+  2026-10-16 (re-answers23):** **DIFFERS** from the old §2.7 wording, MATCHES the glue's observation. An entry's x and
+  z are written only when it is resolved (`ResolveDisasterLocation` `0x00577540`: the occupant's cell while the
+  occupant manager holds it, else the instance's `GetLocation`), and only slot 12 (`0x0057764E`) and
+  `GetNextDisasterLocation` (`0x005777C3`) resolve; slot 17 (`0x00577920`) reads the stored values. So an entry reads
+  (0, 0) until `DisasterHasBegun`, a focused registration with the preference set, or the view's next-disaster command
+  resolves it, then keeps that cell. Also: `Ignite` passes focus only for the first ID of an episode (`0x0057A9BA`).
+  disasters.md §2.7, §5.4, test 15.
+- ~~**DS36:** (Q38) the original calls LockNetworkOccupant whenever a riot leader enters a new cell, not only at
+  AddRiotLeader. When exactly? [the core locks at AddRiotLeader; 316 riot lines tagged]~~ **ANSWERED 2026-10-16
+  (re-answers23):** MATCHES disasters.md §6.5 step 6; the core **DIFFERS**. `MarkRiotNetworkOccupants` (`0x0057D300`)
+  has three callers: `AddRiotLeader` (`0x0057DF18`); the update step (`0x0057E382`), once per step for each surviving
+  leader whose cell floor(pos/16) has a non-null tile occupant different from the leader's last one (the last one
+  starts as the road tile's occupant found at creation); and `Init` (`0x0057E85C`) for leaders already in the list
+  (none at a fresh start). Cells crossed between steps are not sampled. disasters.md §6.3, §6.4, §6.5, test 19.
+- ~~**DS37:** (Q39) the original's riot counter is one second ahead: its stage-1 leader spawns at 29 s, while the core's
+  *[choice]* puts the first update 1 s after Init. What is the riot's second offset?~~ **ANSWERED 2026-10-16
+  (re-answers23):** MATCHES disasters.md §6.5; the core's choice **DIFFERS**. `next` is 0 from the constructor
+  (`0x0057DB29`) and `Init` leaves it; `Update` (`0x0057DFE0`) steps when integer elapsed seconds ≥ next and sets next
+  := elapsed + 1, so step 1 runs at elapsed 0 and stage 1 spawns at step 30 (29 s). Leaders spawned in a step are
+  processed in the same pass unless the spawner was the last node (`0x0057E026`). disasters.md §6.5.
+- ~~**DS38:** (Q40) the original refuses some Ignites the spec admits: an edge building at (0,36) with flammability 75,
   coverage 0, not paused; interior buildings; spread targets with coverage 0-4 during the emergency pause. Which
-  Ignites does it refuse? [the mirror puts its fire out at once]
-- **DS39:** (Q41) layer slot 18 (GetDisasterCost) returns a pointer-like value (about 332 million) against ours
-  (140-1630), although §2.6 says totalCost. Is the slot or the return type wrong? [cost not compared]
-- **DS40:** (Q42) does UpdateAllFires step a fire lit during the same pass? The original sometimes does (spread
+  Ignites does it refuse? [the mirror puts its fire out at once]~~ **ANSWERED 2026-10-16 (re-answers23):** Partly
+  answered. `Ignite` (`0x0057A7D0`) refuses at exactly five exits: manual pause without emergency pause and without
+  force (`0x0057A80D`); wrong type (`0x0057A907`); flammability `0x29244DB5` = 0; not forced and
+  round-half-even(D9(average coverage over the city-clamped bounding cell rectangle)) > 0; target's `0x69DBEBE1` true
+  and not forced. No other refusal exists. Which exit refused the logged targets cannot be fixed statically: the
+  shadow should log those original-side inputs at each refusal. For spread targets the likeliest is the burning test.
+  disasters.md §5.4 "The refusals, exactly".
+- ~~**DS39:** (Q41) layer slot 18 (GetDisasterCost) returns a pointer-like value (about 332 million) against ours
+  (140-1630), although §2.6 says totalCost. Is the slot or the return type wrong? [cost not compared]~~ **ANSWERED
+  2026-10-16 (re-answers23):** The slot is right; the return type is wrong (**DIFFERS** from §2.6). `GetDisasterCost`
+  (`0x00578900`) returns a pointer to the layer's statistics record at instance `+0x50` (interface + `0x48`): building
+  count, total cost, four kind pairs, special records, fire and police effectiveness. The logged 332771428 =
+  `0x13D5B064` = identity `0x13D5B014` + `0x50`. Reader: the safety advisor (`0x00416ED1`). The interfaces.tsv row
+  must change (`build-runs/re-answers23-abi-rows.tsv`). disasters.md §2.6, test 16.
+- ~~**DS40:** (Q42) does UpdateAllFires step a fire lit during the same pass? The original sometimes does (spread
   `150215A4` burned down one step earlier than in the mirror); the mirror never does, and §5.4 / §5.8 do not say which
-  container the fire list is or how it is iterated. [never]
+  container the fire list is or how it is iterated. [never]~~ **ANSWERED 2026-10-16 (re-answers23):** Sometimes, as
+  the glue saw; the mirror's "never" **DIFFERS**. The fire list is a `std::list` at instance `+0xE0`, appended by
+  `Ignite`; `UpdateAllFires` (`0x0057BEA0`) takes the next node before each step, so a fire appended during the pass
+  is stepped in it unless the spreading fire was the last node. A null target triggers `KillAllFires` after the
+  earlier fires were stepped. Also: the extinguish-time test is strict (`0x0057BBE0`), and `KillFire` (`0x0057B640`)
+  re-registers or erases the ID only when the unregister removed an entry. disasters.md §5.8, §5.10, tests 17-18.
 
 ## From the terrain shadow (filed by the coordinator from the `glue16` lane's report, 2026-10-16; merged `4cc88cf`)
 
@@ -5059,3 +5225,42 @@ TU4-TU5 (tutorial.md already has TU3).
   destroyed without running Shutdown or closing the window *[inferred]*]~~ **ANSWERED 2026-10-16 (re-answers25):** **DIFFERS**: it destroys the object, it does not just mark it. Release (`0x00449310` → `0x0090D997`) works on the reference-count sub-object at +0x14 (count at **+0x18**, not +0x14); at the last reference it calls the scalar deleting destructor (`0x0043F6C0` → `0x0043F780`, flag 1), which runs `0x0043F6E0` and frees the 0x44-byte object. The destructor releases the window (+0x40) **once** without closing it (`0x0043F70F`–`0x0043F718`), frees the vector buffer at +0x34, releases the Lua context (+0x30), runs the sub-object's base destructor (`0x0090D990`) and clears the global instance pointer `0x00B20E88` (`0x0043F746`). "Without running Shutdown or closing the window" MATCHES: no unsubscription, no cheat unregistration. A window that is still open keeps one of its two references (leak, *[quirk]*). tutorial.md §1.
 - ~~**TU5:** (tutorial.md §4.3, "Shutdown undoes both") what exactly does Shutdown undo? [unsubscribes the three
   messages and, when a cheat manager exists, unregisters the cheat and its handler *[inferred]*]~~ **ANSWERED 2026-10-16 (re-answers25):** **DIFFERS**: the bracket misses the window. Shutdown (`0x0043F330`) does, in order: (1) when the cheat manager `0x00B43CAC` exists (no `cISC4App` slot 21 test, unlike Init): slot 6 with (handler +8, 0), then slot 4 with `0x6A382BAF`; (2) when a window exists (+0x40): close (`0x00442C80`), release, clear +0x40, release again, the same window teardown as endTutorial; (3) when the message server `0x00B43CCC` exists: unsubscribe `0xAA3840E6`, `0xEA8AE29A`, `0x26C63343`; returns true. Is-tutorial, end-pending, the registry and the 3D view are not touched. tutorial.md §4.3, test 7.
+
+## From the return-channel audit (filed by the coordinator from the `voidbool` lane's report, 2026-10-16; merged `2501158`)
+
+voidbool checked every place `engine/plugin` reads a game method's return value against that slot's `ret` column in
+`docs/abi/interfaces.tsv` and the specs, fixed 10 call sites in 7 groups (F1-F7, each marked `[abi-ret]`) and added
+the checker `engine/tests/check_ret_channels.py` (ctest `ret_channel_check`). Its `SPEC_FACTS` table marks each slot
+bool, none, wide or spec-silent (`sdk`); the uses it trusts without a spec answer are listed by `--verbose` and asked
+below. When a spec answers one, move its `SPEC_FACTS` entry from "sdk" to "bool" or "none" and fix any call the checker
+then flags. The current reading is in brackets.
+
+- **HG2:** cISC4App (`vt:cSC4App::vftable_3`) return channels are in no spec: slot 10 RequestQuit (the autotest falls
+  back to AutotestFinish when it reads false), slot 13 LoadCity, slots 15/16 SaveCity, slot 21
+  GetDebugFunctionalityEnabled (it gates the cheat-code registration in `cFC4Budget.cpp` and `cFC4Simulator.cpp`).
+  Does each set AL/EAX, and with what meaning? [SDK bool trusted; LoadCity and SaveCity only logged; a garbage
+  RequestQuit true is covered by the 90 s quit grace]
+- **HG3:** framework slots read as bool with no spec: `vt:cGZCOM` slot 3 GetClassObject (every site also tests the out
+  pointer), cIGZPersistResourceManager slots 4 GetPrivateResource and 14, cIGZDate slots 4 SetDayNumber and 6
+  SetMonthDayYear (passed through by cFC4Date / cFC4Simulator), cIGZVariant slot 54 CreateValString, cIGZWin slot 36
+  GetChildAs. Is each a real bool? [SDK bool trusted]
+- **LD33:** (lot-developer.md §6.6) cSC4LotBaseTextureOccupant slot 9 UpdateVertexAltitudes(bool, bool, ptr): what does
+  it return? §6.6 passes it through as slot 45's AL. [passed through unchanged, as the original does]
+- **LD34:** lot-developer.md §11.1 gives slot 8 AbandonBuilding as "AL of SetState", and lot-records.md §13.2 gives lot
+  slot 34 SetState as "none defined". So is AbandonBuilding's result undefined? tract-developer.md's interface table
+  lists it as plain AL. [passed through; the tract core never reads it]
+- **ZG41:** lot manager slot 24 DeleteLot is "EAX undefined; error: no bool result" in zones.md §8.6 and §11.3, but
+  lot-developer.md (cross-reference table near line 1659) and tract-developer.md's interface table (line 1164) list it
+  as AL. Those two tables should be corrected. [our hosts ignore it and return true (F3)]
+- **ZG42:** (tract-developer.md, the lane's "Q8") the tract-developer.md interface table gives lot configuration manager
+  slots 18/19 (Register/UnregisterLotConfigurationFilter) as AL, but prop-lotconfig.md §B7 gives "—" (no defined
+  return). Which is right? [no defined return; the result is not tested (F6)]
+  emergency's own `u16` first and misaligns, failing at the occupant base version. Which layout is correct?~~ **ANSWERED 2026-10-16 (re-answers20):** The §6.4 layout is correct and **quirk 3 was wrong** (automata.md §12 quirk 3, §6.4). The emergency Write (`0x0052FA60`) writes `u16` 2, the full vehicle record, then its own fields. Reloaded under the vehicle class ID, the readers shift by one `u16`: vehicle (2 ok), traffic (2 ok), automaton base (2, ≤ 8 ok). The occupant base then reads 8 where it needs 4 (`0x005E8D75`) and fails, so that object's Read fails; it does not stop partway with success. The cores14a description is right.
+- ~~**AM9:** §5.3 gives no upper version check for the watercraft manager. [fails above 6, as §5.2 does for the aircraft
+  manager above 5]~~ **ANSWERED 2026-10-16 (re-answers20):** MATCHES. `0x00574A0B`: below 6 is a base-only record, above 6 fails (`0x00574A26`). automata.md §5.3.
+- ~~**AM10:** §6.4 names no IID for the trailer's list of vehicle references. [read with the automaton IID
+  `0xA9B40F05`]~~ **ANSWERED 2026-10-16 (re-answers20):** **DIFFERS**: the IID is `0x896E714A` (`0x00556C8B`; automata.md §6.4). That is the vehicle's class ID, which the vehicle's `QueryInterface` (`0x0055B665`) answers. Refs to vehicles, emergency vehicles, patrol cars and trailers resolve; any other automaton reads as null. Null entries are dropped from the list.
+- ~~**AM11:** (§4, §12 item 4) the original base Read ignores stream errors. Should a truncated manager record load
+  partially, as in the original? [a short or cut record is a failed, atomic read, so round trips can be checked]~~ **ANSWERED 2026-10-16 (re-answers20):** Atomic failure accepted as *[choice]* (automata.md §4.1). The original stores fields as it reads and never rolls back. The current-version wrappers return `GetError() == 0`: controller manager `0x0051B9B8`, traffic v3 through the incident reader, aircraft v5 `0x004FBFC3`, watercraft v6 `0x00575153`. A cut record of a current version therefore returns false, as in the core. Only a cut base-only old version (traffic 2, aircraft < 5, watercraft < 6) returns true in the original. That is a **DIFFERS** case that no save contains.
+- ~~**AM12:** (§7.3 slot 31, TrackAutomataGroupInstances) what are the semantics? [adds delta, does not go below 0,
+  appends a new group]~~ **ANSWERED 2026-10-16 (re-answers20):** **DIFFERS** (automata.md §7.3, §4). Slot 31 `TrackAutomataGroupInstances(group, bool track)` (`0x00513C40`) is not a counter. When slot 30 says the group is known, `track` = true creates an unsaved **set of the group's automata**, with a reference each, filled from the list; an existing set is kept. `track` = false releases the set and erases it. Later adds and removals keep the sets current, and slot 32 reads them. §4 field 6 was mislabelled: it holds the **source building counts**, occupant group ID → number of complete buildings, which slots 36 and 37 read. They are seeded at `Init` from script slot 18 (`0x0050F930`) and recounted at `PostCityInit` for base versions below 6 (`0x0050F341`). The record bytes are unchanged; only the meaning changes.
