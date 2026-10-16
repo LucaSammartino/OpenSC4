@@ -166,6 +166,11 @@ struct Shadow {
     // Ignitions the original refused and the mirror took (Q40): the mirror's
     // fire is put out at once (it dies at the mirror's next step).
     std::set<uint64_t> resyncTargets;
+    // Spreads both sides took (mirrored after the mirror's step), and whether
+    // one of them outlived the original's in the mirror's current episode
+    // (Q42: the original sometimes steps a fire lit during its pass).
+    std::set<uint64_t> spreadTargets;
+    bool lagInEpisode = false;
     uint64_t resyncs = 0, resyncSteps = 0;
     bool resyncInEpisode = false;  // a refused fire was put out in the mirror's current episode  // resyncSteps: mirror steps with no original fire tick
     // The original's fire instance.
@@ -294,6 +299,7 @@ void TrackFirePhase() {
     } else if (phase != 1) {
         g.fireNextValid = false;
         g.resyncInEpisode = false;
+        g.lagInEpisode = false;
     }
     g.corePhase = phase;
 }
@@ -457,16 +463,37 @@ void FireLine(const char* what) {
     const int32_t origPhase = g.fireInst ? g.fireInst->GetPhase() : 0;  // slot 7
     resync = resync || (g.resyncs != 0 && onlyResync && origPhase != 1 &&
                         s.fire_phase != static_cast<uint32_t>(origPhase));
+    // [question Q42] A spread's fire still burning in the mirror after the
+    // original's has gone: the original stepped it in the pass that lit it
+    // (here and there; the mirror never does, §5.8).
+    std::set<uint64_t> all = g.targets;
+    all.insert(ours.begin(), ours.end());
+    int32_t lags = 0;
+    bool otherBurning = false;
+    for (uint64_t t : all) {
+        cISC4Occupant* o = AsOcc(t);
+        if (o == nullptr || !o->IsFlagSet(1)) continue;
+        const bool ob = DisasterOccupantBurning(o);
+        const bool cb = ours.count(t) != 0;
+        if (ob == cb) continue;
+        if (!ob && g.spreadTargets.count(t) != 0) {
+            ++lags;
+        } else {
+            otherBurning = true;
+        }
+    }
+    if (lags != 0) g.lagInEpisode = true;
+    const bool lagOnly = lags != 0 && !otherBurning && static_cast<int32_t>(s.fire_count) - origCount == lags;
     if (origCount != static_cast<int32_t>(s.fire_count)) {
         if (resync) {
             d.AddQ("Q40", "fires orig %d ours %u", origCount, s.fire_count);
+        } else if (lagOnly) {
+            d.AddQ("Q42", "fires orig %d ours %u", origCount, s.fire_count);
         } else {
             d.Add("fires orig %d ours %u", origCount, s.fire_count);
         }
     }
     uint32_t origBurning = 0, oursBurning = 0, lots = 0;
-    std::set<uint64_t> all = g.targets;
-    all.insert(ours.begin(), ours.end());
     for (uint64_t t : all) {
         cISC4Occupant* o = AsOcc(t);
         if (o == nullptr || !o->IsFlagSet(1)) continue;
@@ -476,6 +503,8 @@ void FireLine(const char* what) {
         oursBurning += cb;
         if (ob != cb && g.resyncTargets.count(t) != 0) {
             d.AddQ("Q40", "occupant %p burning orig %d ours %d", static_cast<void*>(o), ob, cb);
+        } else if (ob != cb && !ob && g.spreadTargets.count(t) != 0) {
+            d.AddQ("Q42", "occupant %p burning orig %d ours %d", static_cast<void*>(o), ob, cb);
         } else if (ob != cb) {
             d.Add("occupant %p burning orig %d ours %d", static_cast<void*>(o), ob, cb);
         }
@@ -489,6 +518,8 @@ void FireLine(const char* what) {
                 const uint32_t live = AsGame(lot)->GetCondition();
                 if (live != it->second && g.resyncTargets.count(t) != 0) {
                     d.AddQ("Q40", "lot %p condition orig %u ours %u", static_cast<void*>(lot), live, it->second);
+                } else if (live != it->second && !ob && g.spreadTargets.count(t) != 0) {
+                    d.AddQ("Q42", "lot %p condition orig %u ours %u", static_cast<void*>(lot), live, it->second);
                 } else if (live != it->second) {
                     d.Add("lot %p condition orig %u ours %u", static_cast<void*>(lot), live, it->second);
                 }
@@ -510,7 +541,9 @@ void FireLine(const char* what) {
     char layer[96];
     // Putting a refused fire out runs the mirror's KillFire, which can
     // register another fire's target as the ID's location again (§5.10).
-    CompareLayer(d, layer, sizeof(layer), resync || g.resyncInEpisode ? "Q40" : nullptr);
+    // A spread's fire dying a step later in the mirror (Q42) does the same.
+    CompareLayer(d, layer, sizeof(layer),
+                 resync || g.resyncInEpisode ? "Q40" : (g.lagInEpisode ? "Q42" : nullptr));
     ++g.fire.lines;
     if (d.n == 0) ++g.fire.clean;
     if (d.n != 0 && d.unexplained == 0) ++g.fire.questioned;
@@ -637,6 +670,7 @@ void MirrorIgnite(uint64_t o, bool force, uint32_t id, bool focus, bool origResu
         ++g.resyncs;
         g.resyncInEpisode = true;
     }
+    if (!compare && origResult && ours) g.spreadTargets.insert(o);
     TrackFirePhase();
     g.dirty = true;
     const uint8_t cover = DisasterFireCoverage(g.city, AsOcc(o));
@@ -1437,6 +1471,8 @@ void DisastersShadowCityLoaded(cISC4City* city) {
     g.resyncTargets.clear();
     g.resyncs = g.resyncSteps = 0;
     g.resyncInEpisode = false;
+    g.spreadTargets.clear();
+    g.lagInEpisode = false;
     g.origBegun = g.origEnded = 0;
     g.origPosts.clear();
     g.origD1.clear();

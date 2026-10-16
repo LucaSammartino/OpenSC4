@@ -79,7 +79,9 @@
 // mirror's own step of that tick (a fire lit during the pass is not stepped in it). An ignition the
 // original refuses and the mirror takes (Q40) is put out in the mirror at once (its extinguish delay
 // is 0; when the original has no fire tick the mirror's runs from the framework tick until its episode
-// ends), and the differences it leaves carry [Q40].
+// ends), and the differences it leaves carry [Q40]. A spread's fire that still burns in the mirror after
+// the original's has gone (the original now and then steps a fire in the pass that lit it, Q42) and the
+// differences it leaves carry [Q42].
 #pragma once
 
 #include <cstdint>
