@@ -195,17 +195,13 @@ void RunStep(void* p) {
         if (on != sn) d.Add("numTargets orig=%u ours=%u", on, sn);
         if (orr != sr) d.Add("targetsRemaining orig=%u ours=%u", orr, sr);
     }
+    // NOT GetTrackedAutomataCount (slot 28) or GetMaxCSI (slot 27): the first
+    // is the size of the indicator tracking (§4.2), which is built from the
+    // AdviceAdded / AdviceRemoved messages this shadow does not follow; the
+    // second is a process-wide static the automata manager loads from its own
+    // tuning (§2 "a static byte (0x00B21D34), not a member"), not this
+    // manager's state. Both are named in the game-start line.
     {
-        const uint32_t oc = cm->GetTrackedAutomataCount();
-        const uint32_t sc = g_core != nullptr ? fc4_citysit_tracked_automata_count(g_core) : 0;
-        ++compared;
-        if (oc != sc) d.Add("tracked orig=%u ours=%u", oc, sc);
-
-        const uint8_t om = cm->GetMaxCSI();
-        const uint8_t sm = g_core != nullptr ? fc4_citysit_max_csi(g_core) : 0;
-        ++compared;
-        if (om != sm) d.Add("maxCSI orig=%u ours=%u", om, sm);
-
         const uint32_t ok = cm->CountdownIsInProgress();
         const bool sk = g_core != nullptr && fc4_citysit_countdown_in_progress(g_core);
         ++compared;
@@ -293,13 +289,15 @@ void CitySitShadowStartup(bool citysitReplaced) {
     }
     Log("citysit shadow: ON (citysit_shadow from %s): at PostCityInit and each SimNewMonth, the original city "
         "situation manager's record (its own Write into memory) loaded into FreeCity4's core and written back, byte "
-        "for byte, and its getters (slots 5-15, 17, 18, 27, 28, 30, 32) against the core's. This is the only in-game "
+        "for byte, and its getters (slots 5-15, 17, 18, 30, 32) against the core's. This is the only in-game "
         "check of this core.",
         src);
-    Log("citysit shadow: NOT readable read-only (so not compared): the indicator tracking's automata and handles "
-        "(slots 19, 20, 22-25 mark vehicles), the mission itself (targets, pursuit, coverage, the player-drive "
-        "camera: city-situation.md §0 leaves those to the host), the Lua table, the popup, the reward list it writes "
-        "into the preferences, and the messages it sends");
+    Log("citysit shadow: NOT readable read-only (so not compared): the indicator tracking and its count (slots 19, "
+        "20, 22-25 mark vehicles and slot 28 counts them: it is built from the AdviceAdded / AdviceRemoved messages "
+        "this shadow does not follow), GetMaxCSI (slot 27: a process-wide static the automata manager loads from its "
+        "own tuning, city-situation.md §2, not this manager's state), the mission itself (targets, pursuit, "
+        "coverage, the player-drive camera: §0 leaves those to the host), the Lua table, the popup, the reward list "
+        "it writes into the preferences, and the messages it sends");
 }
 
 bool CitySitShadowEnabled() { return g_enabled; }

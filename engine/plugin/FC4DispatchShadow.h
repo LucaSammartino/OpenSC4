@@ -27,16 +27,18 @@
 //      The core's Write must give the same bytes back (a reference is written
 //      as the capture's own object number, FC4CoreShadow.h);
 //   2. the original's answers through cISC4DispatchManager against the shadow
-//      core's: GetDispatchCount (slot 11) and GetAvailablePylonCount (21) for
-//      the four dispatch types and 8, GetDispatchIDArray (12) and
-//      GetDispatchInfo (10) record by record (type, ID, call ID, active, the
-//      vehicle-view handle and the station, automaton and pylon as object
-//      identities), and GetActivePylon (18) as an object identity.
+//      core's: GetDispatchCount (slot 11) for the four dispatch types and 8,
+//      GetDispatchIDArray (12) and GetDispatchInfo (10) record by record
+//      (type, ID, call ID, active, the vehicle-view handle and the station,
+//      automaton and pylon as object identities), and GetActivePylon (18) as
+//      an object identity.
 //
 // Not readable read-only, hence not compared (logged at game start): the
 // automaton events (0x09D92FC3) the manager receives as the vehicle's event
-// target, the messages it POSTS (0xE94671EB-ED, 0x894671F6), the tool's Begin
-// / End (slots 16, 17 write the pylon list) and the vehicle view's tracking
+// target, the messages it POSTS (0xE94671EB-ED, 0x894671F6), the tool's pylon
+// list and everything derived from it (Begin / End, slots 16, 17, and
+// GetAvailablePylonCount, slot 21: the free units of the sources' stations,
+// which a record-only shadow cannot see) and the vehicle view's tracking
 // (slot 22 is presentation).
 //
 // Log lines (always written, not the verbose channel), one per event:

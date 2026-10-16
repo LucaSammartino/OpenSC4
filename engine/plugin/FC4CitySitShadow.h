@@ -29,18 +29,20 @@
 //      shadow core's: the success count of every GUID the record carries
 //      (slot 5), the indicator flag (30), the status (6-12), the three float
 //      times (13-15, bit for bit), the situation aura and money (17, 18),
-//      the tracked count (28), the max CSI (27), the countdown flag (32) and
-//      the core's fc4_citysit_get_state.
+//      the countdown flag (32) and the core's fc4_citysit_get_state.
 //
 // This is the only in-game check of this core: without a shadow nothing calls
 // it (city-situation.md §0 says a replacement is not planned, and the
 // original stays by default).
 //
 // Not readable read-only, hence not compared (logged at game start): the
-// indicator tracking's automata and handles (slots 19, 20, 22-25 mark
-// vehicles), the mission itself (targets, pursuit, coverage, the player-drive
-// camera: §0 leaves those to the host), the Lua table, the popup, the reward
-// list it writes into the preferences, and the messages it sends.
+// indicator tracking and its count (slots 19, 20, 22-25 mark vehicles, slot 28
+// counts them: built from the AdviceAdded / AdviceRemoved messages this shadow
+// does not follow), GetMaxCSI (slot 27: a process-wide static the automata
+// manager loads from its own tuning, §2, not this manager's state), the
+// mission itself (targets, pursuit, coverage, the player-drive camera: §0
+// leaves those to the host), the Lua table, the popup, the reward list it
+// writes into the preferences, and the messages it sends.
 //
 // Log lines (always written, not the verbose channel), one per event:
 //   citysit shadow YYYY-MM-DD load|month: record=N bytes roundtrip=same|DIFFERENT; compared=C mismatches=M first=...

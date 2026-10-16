@@ -132,19 +132,16 @@ void RunStep(void* p) {
               unknownRefs != 0 ? ", refs not in the capture" : "");
     }
 
-    // 2. the getters the original answers, type by type (slots 11, 21).
+    // 2. the count of each type's records (slot 11). NOT GetAvailablePylonCount
+    //    (slot 21): it is the free units of the tool's pylon list, filled by
+    //    BeginDispatchTool from the registered sources (§4.5), not state the
+    //    record carries (the log line at game start names it).
     for (size_t i = 0; i < kTypeCount; ++i) {
         const int32_t t = kTypes[i];
         const uint32_t oc = dm->GetDispatchCount(t);
         const uint32_t sc = g_core != nullptr ? fc4_dispatch_get_count(g_core, static_cast<uint32_t>(t)) : 0;
         ++compared;
         if (oc != sc) d.Add("count(%d) orig=%u ours=%u", t, oc, sc);
-
-        const uint32_t oa = dm->GetAvailablePylonCount(t);
-        const uint32_t sa =
-            g_core != nullptr ? fc4_dispatch_get_available_pylon_count(g_core, static_cast<uint32_t>(t)) : 0;
-        ++compared;
-        if (oa != sa) d.Add("availPylons(%d) orig=%u ours=%u", t, oa, sa);
     }
 
     // 3. the ID arrays (slot 12) and the records (slot 10).
@@ -244,7 +241,7 @@ void DispatchShadowStartup(bool dispatchReplaced) {
     }
     Log("dispatch shadow: ON (dispatch_shadow from %s): at PostCityInit and each SimNewMonth, the original dispatch "
         "manager's record (its own Write into memory) loaded into FreeCity4's core and written back, byte for byte, "
-        "and its getters (slots 10-12, 18, 21) against the core's",
+        "and its getters (slots 10-12, 18) against the core's",
         src);
     Log("dispatch shadow: NOT readable read-only (so not compared): the automaton events (0x09D92FC3) the manager "
         "gets as the vehicle's event target, the messages it posts (0xE94671EB-ED, 0x894671F6), the tool's Begin / "
