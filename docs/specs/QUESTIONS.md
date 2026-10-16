@@ -4461,3 +4461,38 @@ numbers (its Q6-Q25, continuing disasters.md §17) are given in parentheses; the
 - **DS23:** the network default cost. [taken from the host]
 - **DS24:** the order in which the riot releases its removal locks. [insertion order, a choice the spec does not
   make]
+
+## From the terrain core (filed by the coordinator from the `cores16` lane's report, 2026-10-16; merged `d651d74`)
+
+cores16 implemented terrain.md as a Rust core (`engine/core/src/terrain/`), a C ABI (`fc4_terrain`, ABI 58) and
+conformance vectors (`tr18_*`, `tr00_*`, `nt05_economy_modifier`), and nation.md GetEconomyModifier. There is no
+plugin glue yet, so none of these readings has been checked in game. Each choice is marked `[choice]` in the code
+and the vectors. The current choice is in brackets.
+
+- **TR4:** (terrain §11.3/§11.5) in what order are the lava neighbour offsets scanned? When several neighbours tie
+  for the largest drop, the first one wins. [west, east, north, south, then the diagonals]
+- **TR5:** (terrain §11.5) does SetThingsOnFire call SetCause(3) after each ignited cell, or once per call? [per cell]
+- **TR6:** (terrain §10.2) what does GetWaterType return for a vertex with a NaN depth? [the comparisons fail, so it
+  falls through to fresh water (2)]
+- **TR7:** (terrain §9.3) ComputeSpansForRectangle's footprint spans are not fully specified. [an inclusive vertex
+  rectangle clamped to the terrain]
+- **TR8:** (terrain §9.1/§9.4) what is a brush description's starting angle, and is it stored per terrain or per
+  description? [0, per description]
+- **TR9:** (terrain §2.3) what is the starting value of the default brush level at `+0xBC`? [0]
+- **TR10:** (terrain §13.1) no record holds the sea level, so what is it after a load? [the tuning's `new_sea_level`]
+- **TR11:** (terrain §8.1) how are the data words of texture message `0x870BC918` packed? [no data, all zero]
+- **TR12:** (terrain §3/§15) what do the slots with unchecked indices (GetAltitudeAtIndex, SetAltitude(x, z) and
+  others) do out of range? [a read returns 0 or NaN, a write does nothing]
+- **TR13:** (terrain §10.4) does a power pole block navigation only on a cell with depth > 0? [yes: depth > 0 means
+  GetWaterDepthForCell > 0]
+- **TR14:** (terrain §8.4) does SetWaterSurfaceDisplayState post on every call or only when the state changes?
+  [every call]
+- **TR15:** (terrain §9.3) is a kind-0 brush reported as a change even when every touched vertex was locked or
+  clamped? [yes: the out rectangle and the redisplay still happen]
+- **TR16:** (terrain §9.4) with an angle of exactly pi, sin(pi) in f32 is not 0, which gives a one-pixel fringe on the
+  earthquake stroke. Is that intended? [kept as computed]
+- **TR17:** (terrain §10.4, plumbing §7.2) for IsNavigable, are the city bounds behind slot 99 the terrain's cells,
+  and does the search follow the plumbing §7.2 spiral? [yes to both]
+- **TR18:** (glue contract) the lava and brush host callbacks run while the core holds the terrain mutably, so a
+  callback that calls back into the same `fc4_terrain` handle is refused (and counted). Should the glue lane queue
+  such work instead? [refused and counted; for the glue lane to decide]
