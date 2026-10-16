@@ -311,6 +311,10 @@ public:
     // The instance any of whose four interfaces is `p`, or null (the shadow,
     // test seam op 53).
     static cFC4ZoneDeveloper* FromAny(const void* p);
+    // The raw master list object the safe lot iterators of slot 15 point to
+    // (the original's lot manager + 0x5C): the traffic simulator's lot walk
+    // (traffic-simulator §4.1, §9.1 TG10) checks its blocks against it.
+    const void* MasterListObject() const { return master_.Object(); }
     void SetTestHooks(const fc4_zonedev_host* test);
     void TestState(FC4ZoneDevTestState& out);
 
