@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "city_detail_session_generator",
+  "spec": ["city-detail 3.3", "city-detail 3.5", "city-detail 8.5"],
+  "description": "[choice] The temporary cRZRandom of an increase pass is seeded with derive_seed(S, 0xEAD4BA36 XOR n), n the number of earlier increase passes in the session. With S = 0x12345678 the first pass's seed is 0xF8E0EC4E; RandomUint32Uniform(4) draws raw 0xE6351218 -> 3, then RandomUint32Uniform(3) draws raw 0x4178DB9F -> 0. A reduce pass does not count; the next increase is pass n = 1.",
+  "steps": [
+    {"op": "cd_env", "session_seed": "0x12345678", "random": "session", "setting": 3},
+    {"op": "cd_lot", "lot": "0x10", "objects": [
+      {"type": "prop", "tag": "0xA", "ids": ["0xA0", "0xA1", "0xA2", "0xA3"]},
+      {"type": "flora", "tag": "0xB", "ids": ["0xB0", "0xB1", "0xB2"]}
+    ]},
+    {"op": "cd_create"},
+    {"op": "cd_read", "hex": "00000000 01000000", "expect": true},
+    {"op": "cd_init"},
+    {"op": "cd_expect_events", "filter": {"event": "draw"}, "events": [
+      {"event": "draw", "n": 4, "value": 3},
+      {"event": "draw", "n": 3, "value": 0}
+    ]},
+    {"op": "cd_expect_occupants", "lot": "0x10", "occupants": [["0x9000", "prop", "0xA"], ["0x9001", "flora", "0xB"]]},
+    {"op": "cd_expect", "state": {"session_passes": 1}},
+    {"op": "cd_env", "setting": 2},
+    {"op": "cd_init"},
+    {"op": "cd_expect", "state": {"last_pass": 1, "session_passes": 1}},
+    {"op": "cd_env", "setting": 3},
+    {"op": "cd_init"},
+    {"op": "cd_expect", "state": {"last_pass": 2, "draws": 0, "session_passes": 2}}
+  ]
+}
