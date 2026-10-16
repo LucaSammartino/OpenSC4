@@ -44,6 +44,7 @@ pub mod landfill;
 pub mod landvalue;
 pub mod lot_developer;
 pub mod neighbors;
+pub mod network_geometry;
 pub mod ordinance;
 pub mod parks;
 pub mod pathfinder;
