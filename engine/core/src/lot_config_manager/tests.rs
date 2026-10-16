@@ -862,7 +862,7 @@ fn post_city_init_building_info() {
     }
 }
 
-/// §B5.7: CreateGenericLotConfiguration (PL8).
+/// §B5.7: CreateGenericLotConfiguration (PL8, PL12).
 #[test]
 fn create_generic() {
     let g = Game::new();
@@ -884,6 +884,44 @@ fn create_generic() {
     let c = g.cfg(m.create_generic(0x72).unwrap());
     assert_eq!(c.size, (1, 1));
     assert_eq!(c.objects[0].max_x, 10.0);
+}
+
+/// §T 14: the lot side is `1 + floor(w / 16)`, not `ceil(w / 16)` (PL12).
+#[test]
+fn t14_generic_lot_side() {
+    let g = Game::new();
+    let m = manager(&g);
+    // A footprint of exactly 16 m is the case that separates the two: the
+    // lot is 2 × 2, not 1 × 2.
+    g.building_type(0x81, 0, Some((16.0, 30.0)), None);
+    let c = g.cfg(m.create_generic(0x81).unwrap());
+    assert_eq!(c.size, (2, 2));
+    let o = &c.objects[0];
+    assert_eq!(o.offset, [16.0, 0.0, 16.0]);
+    assert_eq!((o.min_x, o.min_z), (8.0, 1.0));
+    assert_eq!((o.max_x, o.max_z), (24.0, 31.0));
+    // (4, 4): one cell either way, object at the lot's centre.
+    g.building_type(0x82, 0, Some((4.0, 4.0)), None);
+    let c = g.cfg(m.create_generic(0x82).unwrap());
+    assert_eq!(c.size, (1, 1));
+    let o = &c.objects[0];
+    assert_eq!(o.offset, [8.0, 0.0, 8.0]);
+    assert_eq!((o.min_x, o.min_z, o.max_x, o.max_z), (6.0, 6.0, 10.0, 10.0));
+    // (33, 47.5): 3 × 3.
+    g.building_type(0x83, 0, Some((33.0, 47.5)), None);
+    assert_eq!(g.cfg(m.create_generic(0x83).unwrap()).size, (3, 3));
+    // `1 − trunc(m × −0.0625)` for each side (PL12).
+    for (ty, w, d, side) in [
+        (0x84u32, 4.0f32, 4.0f32, (1u32, 1u32)),
+        (0x85, 15.9, 15.9, (1, 1)),
+        (0x86, 16.0, 16.0, (2, 2)),
+        (0x87, 24.0, 24.0, (2, 2)),
+        (0x88, 32.0, 32.0, (3, 3)),
+        (0x89, 40.0, 40.0, (3, 3)),
+    ] {
+        g.building_type(ty, 0, Some((w, d)), None);
+        assert_eq!(g.cfg(m.create_generic(ty).unwrap()).size, side, "{w}");
+    }
 }
 
 fn placed(k: u32, ids: &[u32], rect: (f32, f32, f32, f32), centre: (f32, f32)) -> LotConfigObject {
@@ -936,36 +974,68 @@ fn fix_codes() {
     o[2].ids.clear();
     g.set_config_objects(cfg, o);
     assert_eq!(m.fix(Some(cfg)), 2);
-    // 3: the footprint recomputed around its centre, swapped for
-    // orientation 1.
+    // 3: the footprint recomputed around the record's offset (PL13),
+    // swapped for orientation 1.
     let mut o = good();
     o[0].min_x = 5.0;
     o[0].max_x = 11.0;
     g.set_config_objects(cfg, o);
     assert_eq!(m.fix(Some(cfg)), 3);
     assert_eq!(g.cfg(cfg).objects, good());
+    // [PL13] The rebuild is around the **offset** (8, 8), not the old
+    // footprint's centre (3, 3).
+    let mut o = good();
+    o[0] = placed(0, &[0x71], (0.0, 0.0, 6.0, 6.0), (8.0, 8.0));
+    g.set_config_objects(cfg, o);
+    assert_eq!(m.fix(Some(cfg)), 3);
+    let p = &g.cfg(cfg).objects[0];
+    assert_eq!(
+        (p.min_x, p.min_z, p.max_x, p.max_z),
+        (4.0, 4.0, 12.0, 12.0),
+        "rebuilt around the offset (8, 8), not the old centre (3, 3)"
+    );
     g.building_type(0x72, 0, Some((8.0, 4.0)), None);
     let mut o = good();
     o[0] = placed(0, &[0x72], (6.0, 4.0, 10.0, 12.0), (8.0, 8.0));
     o[0].orientation = 1;
     g.set_config_objects(cfg, o.clone());
     assert_eq!(m.fix(Some(cfg)), 0);
-    // 4: outside the lot beyond the margin, moved back inside.
+    // 4 (PL13): a footprint outside the lot only sets code 4; **nothing is
+    // moved**. The lot is 16 × 16, so `ex + 0.001` is 15.951.
     let mut o = good();
-    o[1] = placed(1, &[0xA1], (-0.03125, 1.0, 1.96875, 3.0), (1.0, 2.0));
-    g.set_config_objects(cfg, o.clone());
-    assert_eq!(m.fix(Some(cfg)), 0, "within the margin");
     o[1] = placed(1, &[0xA1], (15.0, 1.0, 17.0, 3.0), (16.0, 2.0));
     g.set_config_objects(cfg, o);
     assert_eq!(m.fix(Some(cfg)), 4);
     let p = &g.cfg(cfg).objects[1];
-    assert_eq!((p.min_x, p.max_x, p.offset[0]), (14.0, 16.0, 16.0));
-    // 5: a centre outside its footprint.
+    assert_eq!(
+        (p.min_x, p.min_z, p.max_x, p.max_z, p.offset[0], p.offset[2]),
+        (15.0, 1.0, 17.0, 3.0, 16.0, 2.0),
+        "code 4 leaves the record where it was"
+    );
+    // The low edge: the footprint must sit at least 0.049 m inside the
+    // lot (`minX < 0.049`), the stored `0x3D48B43A`.
+    let margin = f32::from_bits(FIX_MARGIN_BITS);
+    let mut o = good();
+    let lo = margin;
+    o[1] = placed(1, &[0xA1], (lo, 1.0, lo + 2.0, 3.0), (lo + 1.0, 2.0));
+    g.set_config_objects(cfg, o);
+    assert_eq!(m.fix(Some(cfg)), 0, "exactly on the margin is inside");
+    let mut o = good();
+    let lo = margin - 0.001;
+    o[1] = placed(1, &[0xA1], (lo, 1.0, lo + 2.0, 3.0), (lo + 1.0, 2.0));
+    g.set_config_objects(cfg, o);
+    assert_eq!(m.fix(Some(cfg)), 4, "one ULP-ish short of the margin is outside");
+    // 5 (PL13): a centre outside its footprint is moved to the footprint's
+    // **centre**, not clamped to its nearest point.
     let mut o = good();
     o[2].offset = [9.0, 0.0, 13.0];
     g.set_config_objects(cfg, o);
     assert_eq!(m.fix(Some(cfg)), 5);
-    assert_eq!(g.cfg(cfg).objects[2].offset, [10.0, 0.0, 12.0]);
+    assert_eq!(
+        g.cfg(cfg).objects[2].offset,
+        [11.0, 0.0, 11.0],
+        "the footprint (10, 10)–(12, 12) centres on (11, 11)"
+    );
     // 6: the first invalid retaining wall ID.
     g.set_config_objects(cfg, good());
     g.set_config_retaining_walls(cfg, vec![0x5, 0x6, 0x7]);
@@ -977,6 +1047,37 @@ fn fix_codes() {
     o[1].ids.push(0xBAD);
     g.set_config_objects(cfg, o);
     assert_eq!(m.fix(Some(cfg)), 3);
+}
+
+/// §T 15: FixLotConfiguration on a 2 × 2 lot (PL13).
+#[test]
+fn t15_fix_lot_configuration() {
+    let g = Game::new();
+    // P has size (4, 1, 2) → slot 26 gives (4, 2); P' has size (2, 1, 2)
+    // → (2, 2).
+    g.prop_types.borrow_mut().insert(0xB1, (4.0, 2.0));
+    g.prop_types.borrow_mut().insert(0xB2, (2.0, 2.0));
+    let m = manager(&g);
+    // Orientation 1 swaps (4, 2) to (2, 4). Offset (10, 12) and footprint
+    // (9, 11)–(11, 13) (old 2 × 2) differ → the footprint is rebuilt
+    // around the offset to (9, 10)–(11, 14); inside the lot; the offset is
+    // inside → result 3.
+    let mut o = placed(1, &[0xB1], (9.0, 11.0, 11.0, 13.0), (10.0, 12.0));
+    o.orientation = 1;
+    let cfg = g.make_cfg(2, &[], (2, 2), vec![o]);
+    assert_eq!(m.fix(Some(cfg)), 3);
+    let p = &g.cfg(cfg).objects[0];
+    assert_eq!((p.min_x, p.min_z, p.max_x, p.max_z), (9.0, 10.0, 11.0, 14.0));
+    assert_eq!(p.offset, [10.0, 0.0, 12.0]);
+    // The same record with offset (31.5, 12) and footprint
+    // (30.5, 11)–(32.5, 13), P' (2, 2) swapped is still (2, 2): no rebuild;
+    // 32.5 > 31.95 + 0.001 → code 4; the offset is inside → the record is
+    // unchanged and the result is 4.
+    let mut o = placed(1, &[0xB2], (30.5, 11.0, 32.5, 13.0), (31.5, 12.0));
+    o.orientation = 1;
+    let cfg = g.make_cfg(3, &[], (2, 2), vec![o.clone()]);
+    assert_eq!(m.fix(Some(cfg)), 4);
+    assert_eq!(g.cfg(cfg).objects, vec![o], "code 4 changes nothing");
 }
 
 struct Resolver;

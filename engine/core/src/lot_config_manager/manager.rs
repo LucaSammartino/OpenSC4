@@ -18,7 +18,8 @@ use crate::stream::{InStream, OutStream, RefValue, ResKey, SaveObject};
 use super::catalogue::SharedLotConfigCatalogue;
 use super::{
     kind, prop, BuildingInfo, LcmService, LotConfigHost, LotConfigObject, Rect2D, CELL_METRES,
-    CLSID_LOT_CONFIG_MANAGER, FIX_MARGIN, IID_BUILDING_DEVELOPMENT, IID_FLORA, IID_LOT_CONFIG_MANAGER,
+    CLSID_LOT_CONFIG_MANAGER, FIX_EDGE_BITS, FIX_EPS_BITS, FIX_MARGIN_BITS, IID_BUILDING_DEVELOPMENT, IID_FLORA,
+    IID_LOT_CONFIG_MANAGER,
     IID_PROP_MANAGER, IID_SERIALIZABLE, IID_UNKNOWN, LOT_CONFIG_GROUP, MSG_POST_CITY_INIT, RECORD_VERSION,
 };
 
@@ -615,7 +616,7 @@ impl LotConfigManager {
     /// when BDS slot 16 rejects the type; else a configuration (not added to
     /// the map, one reference for the caller) whose only object is the
     /// building, sized from slot 24 and centred on a lot of
-    /// `ceil(w / 16) × ceil(d / 16)` cells [choice] (PL8).
+    /// `1 + floor(w / 16) × 1 + floor(d / 16)` cells (PL12).
     pub fn create_generic(&self, ty: u32) -> Option<u64> {
         let h = &*self.host;
         if !h.is_building_family_type_valid(ty) {
@@ -623,8 +624,14 @@ impl LotConfigManager {
         }
         let fp = self.footprint_buildings(&[ty]);
         let (w, d) = (fp[0], fp[1]);
-        let cells = |m: f32| ((m / CELL_METRES).ceil() as u32).max(1);
-        let size = (cells(w), cells(d));
+        // [PL12] The lot side is `1 − trunc(m × −0.0625)` (`0x0048BD66`,
+        // float multiply then `_ftol` truncation toward zero): `1 +
+        // floor(m / 16)` for `m ≥ 0`, one cell *more* than `ceil(m / 16)`
+        // when `m` is a multiple of 16. w = 4 → 1, 15.9 → 1, 16 → 2,
+        // 24 → 2, 32 → 3, 40 → 3. Slot 24 gives at least 4 × 4 (§B5.5), so
+        // the side is at least 1.
+        let cells = |m: f32| 1.0f32 - (m * -0.0625f32).trunc();
+        let size = (cells(w) as u32, cells(d) as u32);
         let (cx, cz) = (size.0 as f32 * CELL_METRES * 0.5, size.1 as f32 * CELL_METRES * 0.5);
         let obj = LotConfigObject {
             kind: kind::BUILDING as u8,
@@ -667,15 +674,15 @@ impl LotConfigManager {
     /// 1. IDs that are not valid types or families are removed (code 1);
     /// 2. a record left with no IDs is removed (code 2);
     /// 3. the footprint is recomputed from slots 24–26 (`w`, `d` swapped for
-    ///    orientations 1 and 3) around the old footprint's centre [choice]
-    ///    (code 3 when it changed);
-    /// 4. a footprint reaching more than 0.049 m outside the lot
-    ///    (`size × 16` m) is moved back inside [choice] (code 4);
-    /// 5. a centre (offset x, z) outside the footprint is moved to its
-    ///    nearest point inside [choice] (code 5).
+    ///    orientations 1 and 3) **around the record's offset** (code 3 when
+    ///    it changed) [PL13];
+    /// 4. a footprint outside the lot (`size × 16` m, 0.049 m margin) only
+    ///    sets code 4 — **nothing is moved** [PL13];
+    /// 5. an offset (x, z) outside its footprint is moved to the
+    ///    footprint's **centre** (code 5) [PL13].
     ///
     /// Finally the first invalid ID of the slot 28 list is removed (code 6).
-    /// A null configuration gives 0 [choice]. Questions PL9, PL10.
+    /// A null configuration gives 0 [choice]. Questions PL9, PL10, PL13.
     pub fn fix(&self, cfg: Option<u64>) -> u32 {
         let h = &*self.host;
         let Some(cfg) = cfg else {
@@ -718,47 +725,49 @@ impl LotConfigManager {
             if o.orientation == 1 || o.orientation == 3 {
                 std::mem::swap(&mut w, &mut d);
             }
-            let cx = (o.min_x + o.max_x) * 0.5;
-            let cz = (o.min_z + o.max_z) * 0.5;
-            let new = (cx - w * 0.5, cz - d * 0.5, cx + w * 0.5, cz + d * 0.5);
-            if new != (o.min_x, o.min_z, o.max_x, o.max_z) {
-                (o.min_x, o.min_z, o.max_x, o.max_z) = new;
+            // [PL13] The rebuild is **gated on the size** (`|oldW − w| > 0`
+            // or `|oldD − d| > 0`, strict, NaN false), and then centres the
+            // footprint on the record's **offset** (+0x04, +0x0C), not on
+            // the old footprint's centre: `min := (x − w × 0.5,
+            // z − d × 0.5)` and `max := (x + w × 0.5, z + d × 0.5)`. A
+            // footprint of the right size is left where it is, even when it
+            // is not centred on the offset (that is step 5's case).
+            let (old_w, old_d) = (o.max_x - o.min_x, o.max_z - o.min_z);
+            if (old_w - w).abs() > 0.0 || (old_d - d).abs() > 0.0 {
+                let (x, z) = (o.offset[0], o.offset[2]);
+                (o.min_x, o.min_z, o.max_x, o.max_z) =
+                    (x - w * 0.5, z - d * 0.5, x + w * 0.5, z + d * 0.5);
                 note(3);
                 changed = true;
             }
-            let shift = |lo: f32, hi: f32, len: f32| -> f32 {
-                if lo < -FIX_MARGIN {
-                    -lo
-                } else if hi > len + FIX_MARGIN {
-                    len - hi
-                } else {
-                    0.0
-                }
-            };
-            let dx = shift(o.min_x, o.max_x, lw);
-            let dz = shift(o.min_z, o.max_z, ld);
-            if dx != 0.0 || dz != 0.0 {
-                o.min_x += dx;
-                o.max_x += dx;
-                o.min_z += dz;
-                o.max_z += dz;
+            // [PL13] `ex := f32(lotW − 0.05)`, `ez := f32(lotD − 0.05)`;
+            // code 4 when `minX < 0.049` or `minZ < 0.049` or
+            // `ex + 0.001 < maxX` or `ez + 0.001 < maxZ` (strict, NaN
+            // never). **Nothing is moved**: the record stays outside the
+            // lot. The three constants are the stored float bit patterns of
+            // §B5.7 (`0x3D48B43A`, `0x3D4CCCCD`, `0x3A83126F`), so the
+            // footprint must sit ~0.049 m inside every lot edge.
+            let margin = f32::from_bits(FIX_MARGIN_BITS);
+            let (ex, ez) = (
+                lw - f32::from_bits(FIX_EDGE_BITS),
+                ld - f32::from_bits(FIX_EDGE_BITS),
+            );
+            let eps = f32::from_bits(FIX_EPS_BITS);
+            if o.min_x < margin || o.min_z < margin || ex + eps < o.max_x || ez + eps < o.max_z {
                 note(4);
-                changed = true;
             }
-            let inside = |v: f32, lo: f32, hi: f32| -> f32 {
-                if v < lo {
-                    lo
-                } else if v > hi {
-                    hi
-                } else {
-                    v
-                }
-            };
-            let nx = inside(o.offset[0], o.min_x, o.max_x);
-            let nz = inside(o.offset[2], o.min_z, o.max_z);
-            if nx != o.offset[0] || nz != o.offset[2] {
-                o.offset[0] = nx;
-                o.offset[2] = nz;
+            // [PL13] A centre outside its footprint is moved to the
+            // footprint's **centre**, not clamped to its nearest point:
+            // `x := (maxX + minX) × 0.5`, `z := (minZ + maxZ) × 0.5`. A
+            // rebuilt footprint is centred on the offset, so this fires
+            // only for an unchanged footprint.
+            if o.offset[0] < o.min_x
+                || o.offset[0] > o.max_x
+                || o.offset[2] < o.min_z
+                || o.offset[2] > o.max_z
+            {
+                o.offset[0] = (o.max_x + o.min_x) * 0.5;
+                o.offset[2] = (o.min_z + o.max_z) * 0.5;
                 note(5);
                 changed = true;
             }
