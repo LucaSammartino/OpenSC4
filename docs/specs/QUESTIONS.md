@@ -4843,38 +4843,39 @@ cores12b implemented city-detail.md, port-developers.md and prop-developer.md as
 `fc4_prop_developer`, ABI 65) and conformance vectors (`cd8_*`, `pd12_*`, `pv12_*`). There is no plugin glue yet, so
 none of these readings has been checked in game. The current choice is in brackets.
 
-- **PD5:** when the next stage's lot configuration is missing, growth fails before anything is demolished and no funds
-  are withdrawn. Is that the original order, or is the lot demolished first?
-- **PD6:** §4.8 does not say how the terrain grid's orientation follows the lot's facing. [the grid is rotated by
+- ~~**PD5:** when the next stage's lot configuration is missing, growth fails before anything is demolished and no funds
+  are withdrawn. Is that the original order, or is the lot demolished first?~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** (port-developers.md §4.5). The original never tests the next-stage configuration: the swap (`0x006E92A0`) uses `GetLotConfiguration`'s result as is (`0x006E9303`), demolishes the old lot, creates the new one, sets a null configuration and calls `ConstructDefaultLot(new, null, 0, 1)`, which reaches `StartConstruction` with type 0: state 2, condition 1, no construction occupant, return true. So the swap succeeds, the stage advances, the upgrade cost is withdrawn and the budget updated; the port is left on an empty lot stuck in state 2 (skipped every month, never grows again). Unreachable with shipped data; reproduce it, or keep failing early as a documented *[choice]*.
+- ~~**PD6:** §4.8 does not say how the terrain grid's orientation follows the lot's facing. [the grid is rotated by
   facing; facing 0 = rows along z as stored. Moot with shipped data (PD4: the grid never loads), but a correct 12 × 6
-  declaration would use it]
-- **PD7:** after a failed swap the port's lot lookup can return null. [the month skips such a port (counted in
-  `month_skipped`) and does not stop] Confirm.
-- **PD8:** in the month, does the usage value use cap = trunc(capacity × fr) (the §4.3 comment) or the plain capacity
-  (§4.7 PortUsageValues)? [§4.7]
-- **PD9:** is a seaport port with no sea access counted for the "if any" advisor-event condition in the seaport tick?
-  [excluded]
-- **PD10:** Init removes any existing agent before adding it, and Shutdown does not clear the port list (Read or
-  adoption rebuilds it). Confirm against the original.
-- **PD11:** Read loads the tuning exemplar from the record's instance even when a later field rejects the record. Does
-  the original leave the tuning loaded? [the rest of Read is atomic; the tuning stays loaded]
-- **CD3:** Init compares the saved level with the current preference on every call, not only the first; a second Init
-  at the same level does nothing. Confirm.
-- **CD4:** increase step 4 is implemented literally: one creation per required object missing from the lot; optional
-  objects are never created. Is an object present by its tag alone, whatever the occupant's type? [by tag]
-- **CD5:** the increase pass's session generator counter n (derive_seed(S, 0xEAD4BA36 XOR n)) is kept per thread and
-  per session seed. Should it reset on a new city load within the same session? [it does not reset]
-- **PV7:** a night batch decides on or off with the mode it started with, so the batch that ends a dusk sweep (mode
-  becomes 0) still switches its props on. Does the original read the mode before the end-of-sweep reset?
-- **PV8:** §4.4 step 6 does not test the created occupant for null. [a null creation returns false: the slot is
-  consumed and need is not decremented]
-- **PV9:** a timed prop with a non-zero global trigger while the 3D view is missing: the spec covers only the
-  view-present and zero cases. [mask 4 unchanged: neither on nor added to the trigger map]
-- **PV10:** a total share of 0 would divide by zero (§4.3 step 4). It cannot happen with the wealth requester present,
-  but can after a Read of a record without it. [stop after the cell walk]
-- **PV11:** §4.13 step 1 (night-lit street props in the power-change rectangle) does not say which cell IsPowered is
-  asked for. [trunc(position / cell width), as in the batch]
-- **PV12:** unregistering (§4.7) looks the prop up in every list whatever its properties, and Shutdown clears the
-  power list ([choice] per §3.2). Does the original test each list's join condition instead of looking everywhere?
-- **PV13:** a scanner state byte above 2 in the record: what does the original do? No corpus record has one. [Read
+  declaration would use it]~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** (port-developers.md §4.8, with a correction to PD4). At facing 0 the grid's rows run along **x** (row = x − x1, column = z − z1), not along z; facing 2 is the 180° turn of 0; facings 1 and 3 are the **transpose** (row = z2 − 1 − z, column = x2 − 1 − x for 1; row = z − z1, column = x − x1 for 3), so they mirror rather than rotate (jump table `0x007016F8`). The use test compares only the product R × C with (x2 − x1)(z2 − z1), i.e. 55 for a 12 × 6 lot: the shipped 11 × 5 declaration is what the use test wants, and a 12 × 6 declaration would load but would not apply to a 12 × 6 lot. The write passes `trunc(CellCenterToPosition)` metres to `SetAltitude(x, z, h)`, which takes vertex indices, so it would write the wrong vertices (`0x007014AE`). Never runs with shipped data.
+- ~~**PD7:** after a failed swap the port's lot lookup can return null. [the month skips such a port (counted in
+  `month_skipped`) and does not stop] Confirm.~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** from the original, *[choice]* confirmed (port-developers.md §4.3). After a failed swap `p.lot` is null (`0x006E9385`) and the original faults at the next month (`GetState` on the null lot, `0x006E9A2D`–`0x006E9A31`), and likewise in the removal lookup (`0x006E947A`) and the seaport tick. Skipping such a port and counting it is a safe *[choice]*; apply it to every walk over the ports.
+- ~~**PD8:** in the month, does the usage value use cap = trunc(capacity × fr) (the §4.3 comment) or the plain capacity
+  (§4.7 PortUsageValues)? [§4.7]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES the plain capacity (port-developers.md §4.3, §4.7). The month calls the internal `0x006E9770` (`0x006E9A7C`): usage = min(trips, stage capacity), cap = stage capacity, no funding scaling. Only the public slot 12 query (`0x00700FE0`) then scales the cap by funding, as trunc(float(capacity) / full × float(current)) (`0x00701027`–`0x00701063`), and clamps usage again. If the core applies the funding scaling in the month, that DIFFERS.
+- ~~**PD9:** is a seaport port with no sea access counted for the "if any" advisor-event condition in the seaport tick?
+  [excluded]~~ **ANSWERED 2026-10-16 (re-answers22):** Answered (port-developers.md §4.4). "If any" is over ports: the event flag is set for every listed port whose lot has no sea access (`0x00701FDE`), before the prop switch and whatever props the port has; a port with access never raises it. So a port without access **is counted**; if [excluded] means such a port does not raise the event, it **DIFFERS**.
+- ~~**PD10:** Init removes any existing agent before adding it, and Shutdown does not clear the port list (Read or
+  adoption rebuilds it). Confirm against the original.~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** on both points (port-developers.md §3). `Init` is guarded by `initialized` (`0x0068B013`, `0x006EA956`) and adds the agent without removing anything first (a duplicate cannot arise; removing first is harmless). `Shutdown` (`0x006E9F60`) **does** clear the port list: it deletes every port lot (resolving its lot first) and empties the list (`0x006E9FB2`–`0x006EA03D`), and deletes the port types and empties their vector (`0x006EA040`–`0x006EA07D`). It does not reset `tuningLoaded`, `typeCount` or the instance list *[quirk]*; the city never re-uses a developer.
+- ~~**PD11:** Read loads the tuning exemplar from the record's instance even when a later field rejects the record. Does
+  the original leave the tuning loaded? [the rest of Read is atomic; the tuning stays loaded]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (port-developers.md §7). In the original nothing after the version checks can reject the record: the port lots are appended without any check and `Read` returns true. The tuning is loaded (`0x006EAAC8`) before the first port lot, so a FreeCity4 rejection for an out-of-range index leaving the tuning loaded is what the original's order gives.
+- ~~**CD3:** Init compares the saved level with the current preference on every call, not only the first; a second Init
+  at the same level does nothing. Confirm.~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (city-detail.md §3.1). `Init` (`0x0045DD10`) has no initialised flag: every call compares the stored level with the preference, runs reduce or increase, and stores the preference; a second call at the same level does nothing.
+- ~~**CD4:** increase step 4 is implemented literally: one creation per required object missing from the lot; optional
+  objects are never created. Is an object present by its tag alone, whatever the occupant's type? [by tag]~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** in part (city-detail.md §3.3). The presence test (callback `0x0045D5E0`) counts only occupants whose type is flora `0x74758926` or prop `0xA823821E`, then their lot tag; any other occupant type is ignored whatever its tag. Within those two types the tag alone decides (a prop may satisfy a flora object and the reverse). Step 4 is literal (one creation per missing required prop or flora object, optional never created), but it walks every object: an object of another type whose ID is in `need` still costs a draw when its ID list is not empty and creates nothing (`0x0045DC3F`, `0x0045DC4F`–`0x0045DC6F`).
+- ~~**CD5:** the increase pass's session generator counter n (derive_seed(S, 0xEAD4BA36 XOR n)) is kept per thread and
+  per session seed. Should it reset on a new city load within the same session? [it does not reset]~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** (city-detail.md §3.5, foundations §6.3). The original seeds a fresh clock temporary each pass and keeps no counter; foundations §6.3 counts clock-seeded temporaries per owning object, from 0 at its construction. The city makes a new city detail manager for each city, so n restarts at 0 at every city load (and is 0 in practice, since `Init` runs once per city). A per-thread, per-session counter that does not reset gives a different seed on the second city of a session.
+- ~~**PV7:** a night batch decides on or off with the mode it started with, so the batch that ends a dusk sweep (mode
+  becomes 0) still switches its props on. Does the original read the mode before the end-of-sweep reset?~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (prop-developer.md §4.8). The batch (`0x006F0EC0`) reads `mode = 1` into a flag at `0x006F0EF6`–`0x006F0F04`, before the end test sets the mode to 0 (`0x006F0F53`), and decides on or off from that flag; the batch that ends a dusk sweep switches its props on.
+- ~~**PV8:** §4.4 step 6 does not test the created occupant for null. [a null creation returns false: the slot is
+  consumed and need is not decremented]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES the bracket; the spec was wrong (prop-developer.md §4.4). The original does test the created occupant: null → return false (`0x006F18C6`), so the free entry is consumed and `need` is not decremented.
+- ~~**PV9:** a timed prop with a non-zero global trigger while the 3D view is missing: the spec covers only the
+  view-present and zero cases. [mask 4 unchanged: neither on nor added to the trigger map]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (prop-developer.md §4.6). With a non-zero trigger and no 3D view (global `0x00B43DC8` null, or QueryInterface `0xFA47B3F9` failing) the code jumps past the step (`0x006F3D24`, `0x006F3D3A`): mask 4 unchanged, no trigger-map entry.
+- ~~**PV10:** a total share of 0 would divide by zero (§4.3 step 4). It cannot happen with the wealth requester present,
+  but can after a Read of a record without it. [stop after the cell walk]~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** from the original, *[choice]* confirmed (prop-developer.md §4.3). The split is an unsigned `div` by the total (`0x006F4A69`); a total of 0 is a divide fault that ends the original. Stopping after the cell walk (its selector draws and removals done, nothing of steps 4–6) is a safe *[choice]*.
+- ~~**PV11:** §4.13 step 1 (night-lit street props in the power-change rectangle) does not say which cell IsPowered is
+  asked for. [trunc(position / cell width), as in the batch]~~ **ANSWERED 2026-10-16 (re-answers22):** MATCHES (prop-developer.md §4.13). The power-change handler asks `IsPowered(trunc(x / trunc(cellWidthX)), trunc(z / trunc(cellWidthZ)))` from the prop's position (`0x006F2491`–`0x006F25EE`), the same cell as the night batch.
+- ~~**PV12:** unregistering (§4.7) looks the prop up in every list whatever its properties, and Shutdown clears the
+  power list ([choice] per §3.2). Does the original test each list's join condition instead of looking everywhere?~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** for unregistering (prop-developer.md §4.7); the Shutdown *[choice]* is confirmed (the original releases the power list without clearing it). `HandleRemoveOccupant` (`0x006F2FF0`) searches each list only when the prop passes that list's test: night-lit = 1 and a prop occupant; trigger present, non-zero and the 3D view present; the time-of-day, date and power properties present (values not read); the two sign types. The visible difference from looking everywhere: a trigger-map prop is not removed (and stays held) when the 3D view is gone at its removal.
+- ~~**PV13:** a scanner state byte above 2 in the record: what does the original do? No corpus record has one. [Read
   returns false and nothing changes]
+~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** (prop-developer.md §7). The original stores the state byte as read (`0x005DA410`, no check), and `GetNext` (`0x0060C8D0`) treats every value other than 0 and 2 as running without rewriting it; so a state above 2 behaves as 1 and is written back unchanged until the scan finishes or resets. `Read` must not fail on it.
