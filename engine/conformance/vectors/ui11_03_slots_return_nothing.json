@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "ui11_03_slots_return_nothing",
+  "spec": [
+    "ui-windows 3.3",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 3: neither CloseSecondaryMenu (slot 59) nor CloseTertiaryMenu (slot 60) produces a value - a caller must not read EAX. ui-windows 3.3 corrects vtables.tsv, which records slot 60 as via-call; the body at 0x007E5E90 ends in a plain ret after pop ecx; pop esi, so the channel is none (void) and the confidence is high. Slot 3 does produce a value (eax), slot 0 is al only.",
+  "steps": [
+    {
+      "op": "uiw_layout",
+      "state": {
+        "slot_count": 61,
+        "slot59_ret": "none",
+        "slot59_produces_value": false,
+        "slot60_ret": "none",
+        "slot60_produces_value": false,
+        "slot3_ret": "eax",
+        "slot3_produces_value": true,
+        "slot0_ret": "al",
+        "slot0_produces_value": true,
+        "slot58_ret": "eax-or-void",
+        "slot58_produces_value": false
+      }
+    }
+  ]
+}

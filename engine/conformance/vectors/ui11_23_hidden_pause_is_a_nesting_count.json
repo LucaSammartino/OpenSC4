@@ -1,0 +1,81 @@
+{
+  "format": 1,
+  "name": "ui11_23_hidden_pause_is_a_nesting_count",
+  "spec": [
+    "ui-windows 6.1",
+    "ui-windows 6.4",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 23 [game for the observation that the original does this; this vector pins the replacement]. While an advisor popup is open IsHiddenPaused() is true and IsPaused() is false, and the count returns to its previous value when the dialog ends. A camera move (cSC4View3DWin::DoTemporarySimHiddenPause, 0x007E5B40) raises the SAME count with no dialog open, so a harness must not equate the two. 6.4: the hidden count is a nesting count, shared by saves, city-situation popups and camera moves.",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "hidden_pause_count": 0,
+        "hidden_paused": false,
+        "paused": false
+      }
+    },
+    {
+      "op": "uiw_pause_enter",
+      "is_dialog": true
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "hidden_pause_count": 1,
+        "hidden_paused": true,
+        "paused": false
+      }
+    },
+    {
+      "op": "uiw_pause_enter",
+      "is_dialog": false
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "hidden_pause_count": 2,
+        "hidden_paused": true,
+        "paused": false
+      }
+    },
+    {
+      "op": "uiw_pause_leave",
+      "is_dialog": false
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "hidden_pause_count": 1,
+        "hidden_paused": true
+      }
+    },
+    {
+      "op": "uiw_pause_leave",
+      "is_dialog": true
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "hidden_pause_count": 0,
+        "hidden_paused": false
+      }
+    },
+    {
+      "op": "uiw_pause_enter",
+      "is_dialog": false
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "hidden_pause_count": 1,
+        "hidden_paused": true,
+        "paused": false
+      }
+    }
+  ]
+}

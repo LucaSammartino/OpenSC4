@@ -1,0 +1,79 @@
+{
+  "format": 1,
+  "name": "ui11_14_invoke_drops_the_tool_first",
+  "spec": [
+    "ui-windows 4.3",
+    "ui-windows 10",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 14 / quirk 3: RemoveAllViewInputControls runs before the open-menu test, even when the result is a toggle-close. Opening a catalog menu that is already open still costs the player their tool.",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_set_tool",
+      "tool": 81
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "input_control": 81
+      }
+    },
+    {
+      "op": "uiw_invoke_secondary",
+      "instance": 1,
+      "kind": "0x1111",
+      "target_win_id": 1,
+      "expect": "opened"
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "input_control": 0
+      }
+    },
+    {
+      "op": "uiw_set_tool",
+      "tool": 82
+    },
+    {
+      "op": "uiw_clear_ops"
+    },
+    {
+      "op": "uiw_invoke_secondary",
+      "instance": 1,
+      "kind": "0x1111",
+      "target_win_id": 1,
+      "expect": "toggled"
+    },
+    {
+      "op": "uiw_expect_ops",
+      "only": [
+        "remove_all_view_input_controls",
+        "create_window"
+      ],
+      "ops": [
+        {
+          "event": "remove_all_view_input_controls",
+          "force": 0
+        }
+      ]
+    },
+    {
+      "op": "uiw_expect_ops_absent",
+      "ops": [
+        {
+          "event": "create_window"
+        }
+      ]
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "input_control": 0
+      }
+    }
+  ]
+}

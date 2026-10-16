@@ -1,0 +1,69 @@
+{
+  "format": 1,
+  "name": "ui11_19_alignment_and_show_order",
+  "spec": [
+    "ui-windows 4.3",
+    "ui-windows 4.4",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 19: AlignWindowToWindow is called once per create as (win->GetID(), 0xAAAA, <caller arg4>, 0) - its third argument a target window id (observed 1 and 0xAB9537B7), not a coordinate - then PullToFront (slot 23) then ShowWindow (slot 69), and only then are the fields written. A test that reads the fields must see the window already shown.",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_invoke_tertiary",
+      "instance": 1,
+      "kind": 2,
+      "caller_data": 7,
+      "target_win_id": "0xAB9537B7",
+      "margin": -75,
+      "expect": "opened"
+    },
+    {
+      "op": "uiw_expect_last_align",
+      "state": {
+        "anchor": "0xAAAA",
+        "target": "0xAB9537B7",
+        "flags": 0
+      }
+    },
+    {
+      "op": "uiw_expect_ops",
+      "only": [
+        "get_id",
+        "align_window_to_window",
+        "pull_to_front",
+        "show_window"
+      ],
+      "ops": [
+        {
+          "event": "get_id",
+          "win": "0x9001"
+        },
+        {
+          "event": "align_window_to_window",
+          "win": 1,
+          "anchor": "0xAAAA",
+          "target": "0xAB9537B7",
+          "flags": 0
+        },
+        {
+          "event": "pull_to_front",
+          "win": "0x9001"
+        },
+        {
+          "event": "show_window",
+          "win": "0x9001"
+        }
+      ]
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "tertiary_kind": 2,
+        "tertiary_win": "0x9001"
+      }
+    }
+  ]
+}

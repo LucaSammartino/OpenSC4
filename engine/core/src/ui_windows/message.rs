@@ -22,9 +22,9 @@
 //! # `DoWinProcMessage`'s first argument is the window
 //!
 //! `DoWinProcMessage(cIGZWin* win, cGZMessage& msg)` — **arg1 is the window**,
-//! not the message (§6.5). `0x00762D32` loads `arg1` and uses it as `this`
+//! not the message (§6.5). `0x0076_2D32` loads `arg1` and uses it as `this`
 //! for `GetParam`, which is how the advisor tracker reaches the dialog's
-//! advice property (`0xEA9F13C0`). A shim that passes the message instead
+//! advice property (`0xEA9F_13C0`). A shim that passes the message instead
 //! fails conformance test 21.
 //!
 //! # There is no keyboard message in the advisor popup's procedure
@@ -34,7 +34,7 @@
 //! message is one of the kinds it looks at. A click on Close is a **command**
 //! message, so the dialog ends.
 
-use super::win::{WinOp, WinToken, WinStore};
+use super::win::{WinOp, WinStore, WinToken};
 
 /// The message vocabulary this layer switches on (§6.5).
 ///
@@ -42,24 +42,24 @@ use super::win::{WinOp, WinToken, WinStore};
 /// table below carries.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MsgKind {
-    /// A command message (type 3), data1 `0x287259F6`. data2 is the **button
+    /// A command message (type 3), data1 `0x2872_59F6`. data2 is the **button
     /// ID** and data3 its toggle state.
     Command,
-    /// The link message `0xE4A85D91`.
+    /// The link message `0xE4A8_5D91`.
     Link,
-    /// The win-proc attach/detach notices `0xA2BF8AD5` / `0xA2BF8AD6`.
+    /// The win-proc attach/detach notices `0xA2BF_8AD5` / `0xA2BF_8AD6`.
     ///
     /// **Swallowed** by the advisor tracker. They are **not** key down/up
     /// (modal-dialogs.md §6).
     AttachNotice,
     DetachNotice,
-    /// The legacy modal begin notice `0x62BA7B42`: data1 the window ID, data2
+    /// The legacy modal begin notice `0x62BA_7B42`: data1 the window ID, data2
     /// the window, data3 the nest count **before**.
     ModalBegin,
-    /// The legacy modal end notice `0x62BA7B43`: data3 the nest count
+    /// The legacy modal end notice `0x62BA_7B43`: data3 the nest count
     /// **after**.
     ModalEnd,
-    /// GZ type `0xF` → Win32 `0x700`, posted: data2 the window (wParam), data3
+    /// GZ type `0x000F` → Win32 `0x0700`, posted: data2 the window (wParam), data3
     /// the result (lParam). Ends the modal loop.
     ModalEndPosted,
     /// A key-down message.
@@ -102,21 +102,21 @@ impl MsgKind {
     }
 }
 
-/// `0x287259F6`: a button was pressed. data2 is the button ID (§6.5).
+/// `0x2872_59F6`: a button was pressed. data2 is the button ID (§6.5).
 pub const MSG_COMMAND: u32 = 0x2872_59F6;
-/// `0xE4A85D91`: a link (§6.5).
+/// `0xE4A8_5D91`: a link (§6.5).
 pub const MSG_LINK: u32 = 0xE4A8_5D91;
-/// `0xA2BF8AD5`: win-proc attached (§6.5).
+/// `0xA2BF_8AD5`: win-proc attached (§6.5).
 pub const MSG_ATTACH: u32 = 0xA2BF_8AD5;
-/// `0xA2BF8AD6`: win-proc detached (§6.5).
+/// `0xA2BF_8AD6`: win-proc detached (§6.5).
 pub const MSG_DETACH: u32 = 0xA2BF_8AD6;
-/// `0x62BA7B42`: modal begin notice, sent (§6.5).
+/// `0x62BA_7B42`: modal begin notice, sent (§6.5).
 pub const MSG_MODAL_BEGIN: u32 = 0x62BA_7B42;
-/// `0x62BA7B43`: modal end notice, sent (§6.5).
+/// `0x62BA_7B43`: modal end notice, sent (§6.5).
 pub const MSG_MODAL_END: u32 = 0x62BA_7B43;
-/// GZ type `0xF`, which is Win32 `0x700` once posted to the canvas window
+/// GZ type `0x000F`, which is Win32 `0x0700` once posted to the canvas window
 /// (§6.5). Ends the modal loop.
-pub const MSG_MODAL_END_POSTED: u32 = 0x0F;
+pub const MSG_MODAL_END_POSTED: u32 = 0x000F;
 /// A key-down. Named only so a vector can show the dialog handler ignores it.
 pub const MSG_KEY_DOWN: u32 = 0x0100;
 /// A key-up.
@@ -124,7 +124,7 @@ pub const MSG_KEY_UP: u32 = 0x0101;
 
 /// The window property a dialog's advice is reached under (§6.2).
 ///
-/// `cIGZWin` slot 113 `GetParam(0xEA9F13C0, &out)` — the advisor tracker's
+/// `cIGZWin` slot 113 `GetParam(0xEA9F_13C0, &out)` — the advisor tracker's
 /// `DoWinProcMessage` reads it on **every** message before testing flags.
 pub const PARAM_ADVICE: u32 = 0xEA9F_13C0;
 
@@ -135,7 +135,7 @@ pub struct GzMessage {
     /// The message type word. For [`MsgKind::Command`] this is `data1` and
     /// equals [`MSG_COMMAND`].
     pub msg_type: u32,
-    /// data1. For a command, `0x287259F6`.
+    /// data1. For a command, `0x2872_59F6`.
     pub data1: u32,
     /// data2. For a command, the **button ID**.
     pub data2: u32,
@@ -144,7 +144,7 @@ pub struct GzMessage {
 }
 
 impl GzMessage {
-    /// A button command: data1 is `0x287259F6`, data2 the button ID.
+    /// A button command: data1 is `0x2872_59F6`, data2 the button ID.
     pub fn command(button_id: u32, toggle: u32) -> GzMessage {
         GzMessage {
             kind: MsgKind::Command,
@@ -195,7 +195,13 @@ impl GzMessage {
         } else {
             (MsgKind::DetachNotice, MSG_DETACH)
         };
-        GzMessage { kind, msg_type, data1: 0, data2: 0, data3: 0 }
+        GzMessage {
+            kind,
+            msg_type,
+            data1: 0,
+            data2: 0,
+            data3: 0,
+        }
     }
 
     /// The modal begin/end legacy notices (§6.5).
@@ -283,7 +289,11 @@ pub fn deliver(
 
     // (4) A type-3 message reaches GZOnCommand (slot 143) after both.
     if msg.is_type3() {
-        store.push(WinOp::GZOnCommand { win, command: msg.data1, data: msg.data2 });
+        store.push(WinOp::GZOnCommand {
+            win,
+            command: msg.data1,
+            data: msg.data2,
+        });
         stages.push("GZOnCommand");
     }
     stages
@@ -305,7 +315,7 @@ pub mod delivery {
     pub const RETURNS_STATUS: bool = false;
     /// `PostMsg` (slot 147) returns the manager's slot 15 result, not a
     /// status (§6.5).
-    pub const POST_MSG_RETURNS: &'static str = "manager slot 15 result";
+    pub const POST_MSG_RETURNS: &str = "manager slot 15 result";
 }
 
 #[cfg(test)]
@@ -319,7 +329,14 @@ mod tests {
         let win = s.create(1);
         let msg = GzMessage::command(0, 0);
         s.clear_ops();
-        let stages = deliver(&mut s, win, &msg, |_, _| Handled::No, |_, _| Handled::No, |_, _| Handled::No);
+        let stages = deliver(
+            &mut s,
+            win,
+            &msg,
+            |_, _| Handled::No,
+            |_, _| Handled::No,
+            |_, _| Handled::No,
+        );
         assert_eq!(stages, ["DoWinProcMessage", "DoWinMsg", "DoMessage", "GZOnCommand"]);
         let ops: Vec<&str> = s
             .ops()
@@ -340,7 +357,14 @@ mod tests {
         let win = s.create(1);
         let msg = GzMessage::link();
         s.clear_ops();
-        let stages = deliver(&mut s, win, &msg, |_, _| Handled::No, |_, _| Handled::No, |_, _| Handled::No);
+        let stages = deliver(
+            &mut s,
+            win,
+            &msg,
+            |_, _| Handled::No,
+            |_, _| Handled::No,
+            |_, _| Handled::No,
+        );
         assert!(!stages.contains(&"GZOnCommand"));
     }
 
@@ -350,7 +374,14 @@ mod tests {
         let win = s.create(1);
         let msg = GzMessage::command(0, 0);
         s.clear_ops();
-        let stages = deliver(&mut s, win, &msg, |_, _| Handled::Yes, |_, _| Handled::No, |_, _| Handled::No);
+        let stages = deliver(
+            &mut s,
+            win,
+            &msg,
+            |_, _| Handled::Yes,
+            |_, _| Handled::No,
+            |_, _| Handled::No,
+        );
         assert_eq!(stages, ["DoWinProcMessage"]);
     }
 

@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "ui11_05_tertiary_close_is_a_noop",
+  "spec": [
+    "ui-windows 4.1",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 5: with +0x1FC == 0, CloseTertiaryMenu must return without touching +0x204. The null check is its only early return.",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_set_catalog_state",
+      "present": true,
+      "field0": 5,
+      "field1": 6
+    },
+    {
+      "op": "uiw_clear_ops"
+    },
+    {
+      "op": "uiw_close_tertiary"
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "tertiary_kind": 0,
+        "catalog_field0": 5,
+        "catalog_field1": 6
+      }
+    },
+    {
+      "op": "uiw_expect_ops",
+      "ops": []
+    }
+  ]
+}

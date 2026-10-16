@@ -16,8 +16,8 @@
 //!
 //! # The load-bearing measurement
 //!
-//! **`cSC4View3DWin::AsIGZWin` at `0x005F8400` returns `this + 0x0C`.** A
-//! `cSC4View3DWin` carries its `cIGZWin` sub-object at `+0x0C`; the primary
+//! **`cSC4View3DWin::AsIGZWin` at `0x005F_8400` returns `this + 0x000C`.** A
+//! `cSC4View3DWin` carries its `cIGZWin` sub-object at `+0x000C`; the primary
 //! vptr at `+0` is `cISC4View3DWin`; the two are distinct objects within one
 //! allocation. Every catalog-menu teardown goes through that sub-object, never
 //! through the game interface. See [`slots::as_igzwin`] and
@@ -38,7 +38,7 @@
 //! - [`catalog`]: the secondary/tertiary catalog menus (§4) — the cascade
 //!   (`CloseSecondaryMenu` calls slot 60 first), the toggle semantics of
 //!   `Invoke*`, the tool drop that runs before the open test, the parent
-//!   `AsIGZWin()` and the script group `0x96A006B0`.
+//!   `AsIGZWin()` and the script group `0x96A0_06B0`.
 //! - [`script`]: `SC4CreateWindowFromScript`, a 3-argument thunk to
 //!   `cGZUIScriptService` **slot 4** (§5.1), and the name-collision trap.
 //! - [`message`]: the message vocabulary and the `DoMessage` contracts (§6.5).
@@ -51,7 +51,7 @@
 //! - **`SC4CreateWindowFromScript`'s argument order.** §4.3 infers
 //!   `(out_ptr, parent, instance)` from a push sequence that interleaves
 //!   register saves, while §5.1 establishes that one of the three is the UI
-//!   **group** `0x96A006B0` and one an **instance**. We take them **named**
+//!   **group** `0x96A0_06B0` and one an **instance**. We take them **named**
 //!   ([`script::ScriptWindowRequest`]) so the order cannot leak into a caller
 //!   and a later binding can fix the order in one place. **Question 3.**
 //! - **The fifth argument of `InvokeTertiaryMenu`** (`−25` / `−75`) is
@@ -112,35 +112,32 @@ pub mod view3d;
 pub mod win;
 
 pub use catalog::{
-    close_secondary_menu, close_tertiary_menu, invoke_secondary_menu, invoke_tertiary_menu,
-    CatalogHost, InvokeResult, MenuLevel, SecondaryInvoke, TertiaryInvoke, ALIGN_ANCHOR,
-    ALIGN_FLAGS, ALIGN_TARGET_SCREEN,
+    close_secondary_menu, close_tertiary_menu, invoke_secondary_menu, invoke_tertiary_menu, CatalogHost, InvokeResult,
+    MenuLevel, SecondaryInvoke, TertiaryInvoke, ALIGN_ANCHOR, ALIGN_FLAGS, ALIGN_TARGET_SCREEN,
 };
 pub use dialog::{
-    advisor_popup_instance, close_dialog, dialog_attach_point, popup_closes_on, popup_win_proc,
-    advice_flag, AttachPoint, AutoGamePause, HiddenPause, PopupAction,
-    ADVISOR_POPUP_INSTANCE_HIGH_MOOD, ADVISOR_POPUP_INSTANCE_LOW_MOOD, ADVISOR_POPUP_MOOD_THRESHOLD,
+    advice_flag, advisor_popup_instance, close_dialog, dialog_attach_point, popup_closes_on, popup_win_proc,
+    AttachPoint, AutoGamePause, HiddenPause, PopupAction, ADVISOR_POPUP_INSTANCE_HIGH_MOOD,
+    ADVISOR_POPUP_INSTANCE_LOW_MOOD, ADVISOR_POPUP_MOOD_THRESHOLD,
 };
 pub use message::{
-    deliver, GzMessage, Handled, MsgKind, MSG_ATTACH, MSG_COMMAND, MSG_DETACH, MSG_KEY_DOWN,
-    MSG_KEY_UP, MSG_LINK, MSG_MODAL_BEGIN, MSG_MODAL_END, MSG_MODAL_END_POSTED, PARAM_ADVICE,
+    deliver, GzMessage, Handled, MsgKind, MSG_ATTACH, MSG_COMMAND, MSG_DETACH, MSG_KEY_DOWN, MSG_KEY_UP, MSG_LINK,
+    MSG_MODAL_BEGIN, MSG_MODAL_END, MSG_MODAL_END_POSTED, PARAM_ADVICE,
 };
 pub use script::{
-    iface_is_class_minus_one, sc4_create_window_from_script, service_lookup, ScriptWindowRequest,
-    ScriptWindowResult, StoreScriptService, UIScriptService,
+    iface_is_class_minus_one, sc4_create_window_from_script, service_lookup, ScriptWindowRequest, ScriptWindowResult,
+    StoreScriptService, UIScriptService,
 };
 pub use slots::{
-    as_igzwin, RetChannel, SlotInfo, CHILD_DELETE_FORWARDS_TO, IID_CATALOG_STATE, IID_IGZ_WIN,
-    IID_IGZ_WIN_GEN, IID_VIEW_MANAGER, SCRIPT_SERVICE_CREATE_SLOT, UI_SCRIPT_GROUP,
-    UI_SCRIPT_IFACE, UI_SCRIPT_SERVICE, VIEW3D_CLASS_ID, VIEW3D_OFF_CATALOG_STATE,
-    VIEW3D_OFF_MSG_FILTER, VIEW3D_OFF_PRIMARY_VPTR, VIEW3D_OFF_SECONDARY_KIND,
-    VIEW3D_OFF_SECONDARY_WIN, VIEW3D_OFF_TERTIARY_KIND, VIEW3D_OFF_TERTIARY_WIN,
-    VIEW3D_OFF_VIEW_MANAGER, VIEW3D_OFF_WIN, VIEW3D_SAVE_GROUP, VIEW3D_SAVE_INSTANCE,
-    VIEW3D_SAVE_TYPE, VIEW3D_SAVE_VERSION, VIEW3D_SLOT_COUNT, VIEW3D_SLOTS, VIEW3D_VTABLE,
-    WIN_GEN_VTABLE, WIN_SLOTS,
+    as_igzwin, RetChannel, SlotInfo, CHILD_DELETE_FORWARDS_TO, IID_CATALOG_STATE, IID_IGZ_WIN, IID_IGZ_WIN_GEN,
+    IID_VIEW_MANAGER, SCRIPT_SERVICE_CREATE_SLOT, UI_SCRIPT_GROUP, UI_SCRIPT_IFACE, UI_SCRIPT_SERVICE, VIEW3D_CLASS_ID,
+    VIEW3D_OFF_CATALOG_STATE, VIEW3D_OFF_MSG_FILTER, VIEW3D_OFF_PRIMARY_VPTR, VIEW3D_OFF_SECONDARY_KIND,
+    VIEW3D_OFF_SECONDARY_WIN, VIEW3D_OFF_TERTIARY_KIND, VIEW3D_OFF_TERTIARY_WIN, VIEW3D_OFF_VIEW_MANAGER,
+    VIEW3D_OFF_WIN, VIEW3D_SAVE_GROUP, VIEW3D_SAVE_INSTANCE, VIEW3D_SAVE_TYPE, VIEW3D_SAVE_VERSION, VIEW3D_SLOTS,
+    VIEW3D_SLOT_COUNT, VIEW3D_VTABLE, WIN_GEN_VTABLE, WIN_SLOTS,
 };
-pub use view3d::{CatalogState, SaveRef, View3DWin, View3DSave, VIEW3D_LAYOUT};
+pub use view3d::{CatalogState, SaveRef, View3DSave, View3DWin, VIEW3D_LAYOUT};
 pub use win::{
-    FilterToken, WinFlags, WinId, WinOp, WinParam, WinStore, WinToken, ZWin,
-    VIEW3D_MSG_FILTER_OFFSET, WIN_GEN_FLAG_1, WIN_GEN_FLAG_4,
+    FilterToken, WinFlags, WinId, WinOp, WinParam, WinStore, WinToken, ZWin, VIEW3D_MSG_FILTER_OFFSET, WIN_GEN_FLAG_1,
+    WIN_GEN_FLAG_4,
 };

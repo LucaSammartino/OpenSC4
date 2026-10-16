@@ -8,7 +8,7 @@
 //! actually uses on it (ui-windows.md §2).
 //!
 //! Three interfaces, one object (§2.1): the framework window `cIGZWin` (IID
-//! `0x22BA0121`), its generator interface `cIGZWinGen` (IID `0x5386D516`) and
+//! `0x22BA_0121`), its generator interface `cIGZWinGen` (IID `0x5386_D516`) and
 //! the manager `cIGZWinMgr` that owns it. A game window such as
 //! [`crate::ui_windows::view3d::View3DWin`] is **not** a `cGZWinGen`: it
 //! *contains* one, reached through a second vtable on the same allocation.
@@ -48,7 +48,7 @@ pub type FilterToken = u64;
 
 /// What `cIGZWin::GetParam` (slot 113) hands back for a key.
 ///
-/// The advisor popup's advice is reached this way under key `0xEA9F13C0`
+/// The advisor popup's advice is reached this way under key `0xEA9F_13C0`
 /// (§6.2); the window layer does not interpret the value.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum WinParam {
@@ -209,9 +209,17 @@ impl ZWin {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum WinOp {
     /// `ChildAdd` (slot 14).
-    ChildAdd { parent: WinToken, child: WinToken, ok: bool },
+    ChildAdd {
+        parent: WinToken,
+        child: WinToken,
+        ok: bool,
+    },
     /// `ChildRemove` (slot 15): detach only.
-    ChildRemove { parent: WinToken, child: WinToken, ok: bool },
+    ChildRemove {
+        parent: WinToken,
+        child: WinToken,
+        ok: bool,
+    },
     /// `ChildDelete` (slot 16): forwarded to the manager's `DestroyWindow`.
     ///
     /// Emitted once per `ChildDelete`, and the `DestroyWindow` it forwards to
@@ -234,11 +242,20 @@ pub enum WinOp {
     /// §4.3 runs first.
     RemoveAllViewInputControls(u32),
     /// `SC4CreateWindowFromScript` was asked to build a window.
-    CreateWindow { parent: WinToken, group: u32, instance: u32 },
+    CreateWindow {
+        parent: WinToken,
+        group: u32,
+        instance: u32,
+    },
     /// The factory returned this window (or 0).
     WindowCreated { token: WinToken, ok: bool },
     /// `nSC4UI::AlignWindowToWindow` (§4.3).
-    AlignWindowToWindow { win: u32, anchor: u32, target: u32, flags: u32 },
+    AlignWindowToWindow {
+        win: u32,
+        anchor: u32,
+        target: u32,
+        flags: u32,
+    },
     /// `cIGZWinGen::SetWinGenFlag(flag, value)` (§4.3).
     SetWinGenFlag { flag: u32, value: bool },
     /// `QueryInterface` on a window (slot 0).
@@ -254,11 +271,11 @@ pub enum WinOp {
     GZOnCommand { win: WinToken, command: u32, data: u32 },
     /// `cIGZWinMgr::IsWindowValid` (slot 24).
     IsWindowValid(WinToken),
-    /// A catalog state dword was written through `view+0x208` (§4.1).
+    /// A catalog state dword was written through `view+0x0208` (§4.1).
     CatalogStateWrite { offset: u32, value: u32 },
     /// `cIGZWin::GetID` was read (slot 63).
     GetID(WinToken),
-    /// The window's `cIGZWinGen` interface was queried (IID `0x5386D516`).
+    /// The window's `cIGZWinGen` interface was queried (IID `0x5386_D516`).
     QueryWinGen(WinToken),
 }
 
@@ -492,7 +509,7 @@ impl WinStore {
     }
 
     /// `AddMessageFilter` (slot 116). The filter is an **inline sub-object**,
-    /// so the caller passes the address of a field (§3.2, `+0x08`).
+    /// so the caller passes the address of a field (§3.2, `+0x0008`).
     pub fn add_message_filter(&mut self, token: WinToken, offset: u32) -> bool {
         let ok = match self.wins.get_mut(&token) {
             Some(w) => {
@@ -528,9 +545,10 @@ impl WinStore {
     /// `GetChildWindowFromID` (slot 34).
     pub fn child_from_id(&self, parent: WinToken, id: WinId) -> Option<WinToken> {
         let p = self.wins.get(&parent)?;
-        p.children.iter().copied().find(|c| {
-            self.wins.get(c).map(|w| w.id) == Some(id)
-        })
+        p.children
+            .iter()
+            .copied()
+            .find(|c| self.wins.get(c).map(|w| w.id) == Some(id))
     }
 
     /// `GetID` (slot 63).
@@ -556,7 +574,11 @@ impl WinStore {
 
     /// `GZOnCommand` (slot 143). Returns nothing useful (§2.2).
     pub fn gz_on_command(&mut self, token: WinToken, command: u32, data: u32) {
-        self.push(WinOp::GZOnCommand { win: token, command, data });
+        self.push(WinOp::GZOnCommand {
+            win: token,
+            command,
+            data,
+        });
     }
 
     /// `cIGZWinProc::DoWinProcMessage(win, msg)` — arg1 is the **window**,
@@ -572,13 +594,13 @@ impl WinStore {
     /// §4.1's call is the **2-argument** form (`iid, &out`), not the SDK's
     /// 3-argument COM form: the callee writes the out pointer.
     pub fn query_interface(&mut self, token: WinToken, iid: u32) -> bool {
-        let ok = self.wins.contains_key(&token)
-            && matches!(iid, super::slots::IID_IGZ_WIN | super::slots::IID_IGZ_WIN_GEN);
+        let ok =
+            self.wins.contains_key(&token) && matches!(iid, super::slots::IID_IGZ_WIN | super::slots::IID_IGZ_WIN_GEN);
         self.push(WinOp::QueryInterface { win: token, iid, ok });
         ok
     }
 
-    /// `QueryInterface(0x5386D516)` for the generator interface (§4.3).
+    /// `QueryInterface(0x5386_D516)` for the generator interface (§4.3).
     pub fn query_win_gen(&mut self, token: WinToken) -> bool {
         self.push(WinOp::QueryWinGen(token));
         self.wins.contains_key(&token)
@@ -603,10 +625,10 @@ pub const WIN_GEN_FLAG_4: u32 = 4;
 
 /// The `cIGZWinMessageFilter` sub-object offset on a `cSC4View3DWin` (§3.2).
 ///
-/// `InvokeSecondaryMenu` does `lea eax,[edi+8]; call [edx+0x1d0]` — it passes
+/// `InvokeSecondaryMenu` does `lea eax,[edi+8]; call [edx+0x01D0]` — it passes
 /// the **address** of the field, so the filter is inline at `+8`, not a
 /// pointer. Its vtable is not read (ui-windows.md UIW-9).
-pub const VIEW3D_MSG_FILTER_OFFSET: u32 = 0x08;
+pub const VIEW3D_MSG_FILTER_OFFSET: u32 = 0x0008;
 
 /// The slot a `cIGZWinProc` entry point is reached through is not a vtable
 /// slot: `DoWinProcMessage` is the object a window's `SetWinProc` attached
@@ -617,9 +639,9 @@ pub mod winproc {
 
     /// `DoWinProcMessage(win, msg)`. **Arg1 is the window.**
     ///
-    /// §6.5: `0x00762D32` loads `arg1` and uses it as `this` for `GetParam`,
+    /// §6.5: `0x0076_2D32` loads `arg1` and uses it as `this` for `GetParam`,
     /// which is how the advisor tracker reaches the dialog's advice property
-    /// (`0xEA9F13C0`).
+    /// (`0xEA9F_13C0`).
     pub const ARG1_IS_WINDOW: bool = true;
     /// Returns bool (§6.5 table).
     pub type Ret = bool;
@@ -663,10 +685,7 @@ mod tests {
         s.child_delete(parent, child);
         assert_eq!(
             s.ops(),
-            &[
-                WinOp::ChildDelete { parent, child },
-                WinOp::DestroyWindow(child),
-            ]
+            &[WinOp::ChildDelete { parent, child }, WinOp::DestroyWindow(child),]
         );
     }
 
@@ -685,20 +704,20 @@ mod tests {
     fn get_flag_set_flag_return_0_or_1() {
         let mut s = WinStore::new();
         let w = s.create(1);
-        assert_eq!(s.get(w).unwrap().get_flag(0x4), 0);
-        assert_eq!(s.get_mut(w).unwrap().set_flag(0x4, true), 1);
-        assert_eq!(s.get(w).unwrap().get_flag(0x4), 1);
-        assert_eq!(s.get_mut(w).unwrap().set_flag(0x4, false), 0);
+        assert_eq!(s.get(w).unwrap().get_flag(0x0004), 0);
+        assert_eq!(s.get_mut(w).unwrap().set_flag(0x0004, true), 1);
+        assert_eq!(s.get(w).unwrap().get_flag(0x0004), 1);
+        assert_eq!(s.get_mut(w).unwrap().set_flag(0x0004, false), 0);
     }
 
     #[test]
     fn as_igzwin_layout_matches_the_measurement() {
         // Two vtables, one allocation (conformance test 2): the view's
         // primary vptr and the window sub-object's are different, and the
-        // sub-object sits at +0x0C.
+        // sub-object sits at +0x000C.
         use super::super::slots::{as_igzwin, VIEW3D_OFF_WIN, VIEW3D_VTABLE, WIN_GEN_VTABLE};
         assert_ne!(VIEW3D_VTABLE, WIN_GEN_VTABLE);
-        assert_eq!(VIEW3D_OFF_WIN, 0x0C);
+        assert_eq!(VIEW3D_OFF_WIN, 0x000C);
         assert_eq!(as_igzwin(0x2000), 0x200C);
     }
 }

@@ -20,7 +20,7 @@
 //! header, so a conformance vector can assert them against this crate and a
 //! glue lane cannot drift from them:
 //!
-//! - [`fc4_uiwin_as_igzwin`] is the measurement — `this + 0x0C`, or 0 for a
+//! - [`fc4_uiwin_as_igzwin`] is the measurement — `this + 0x000C`, or 0 for a
 //!   null `this` (conformance test 1);
 //! - [`fc4_uiwin_vtable_primary`] and [`fc4_uiwin_vtable_window`] are the two
 //!   vtables of one allocation (test 2);
@@ -33,10 +33,10 @@ use fc4_core::ui_windows::catalog::{CatalogHost, InvokeResult};
 use fc4_core::ui_windows::dialog::{popup_win_proc, AutoGamePause, HiddenPause, PopupAction};
 use fc4_core::ui_windows::message::GzMessage;
 use fc4_core::ui_windows::slots::{
-    as_igzwin, RetChannel, IID_CATALOG_STATE, VIEW3D_OFF_WIN, VIEW3D_SLOT_COUNT, VIEW3D_SLOTS,
-    VIEW3D_VTABLE, WIN_GEN_VTABLE,
+    as_igzwin, RetChannel, IID_CATALOG_STATE, VIEW3D_OFF_WIN, VIEW3D_SLOTS, VIEW3D_SLOT_COUNT, VIEW3D_VTABLE,
+    WIN_GEN_VTABLE,
 };
-use fc4_core::ui_windows::view3d::{CatalogState, View3DWin, View3DSave};
+use fc4_core::ui_windows::view3d::{CatalogState, View3DSave, View3DWin};
 use fc4_core::ui_windows::win::{WinStore, WinToken};
 
 use crate::guard;
@@ -63,11 +63,10 @@ pub struct fc4_uiwin_host {
     /// script service is missing.
     ///
     /// Quirk 10: do **not** route this to the method named
-    /// `CreateWindowFromScript` at `0x0094B08B` — that is a 5-argument QI
+    /// `CreateWindowFromScript` at `0x0094_B08B` — that is a 5-argument QI
     /// wrapper returning `AL` that releases the window it just made.
-    pub create_window_from_script:
-        Option<unsafe extern "C" fn(U, u32, u64, u32, *mut u64) -> bool>,
-    /// `QueryInterface(0x8A2CAD8B, &p)` (§4.1): the **2-argument** form on
+    pub create_window_from_script: Option<unsafe extern "C" fn(U, u32, u64, u32, *mut u64) -> bool>,
+    /// `QueryInterface(0x8A2C_AD8B, &p)` (§4.1): the **2-argument** form on
     /// slot 0. Writes the interface handle to `out`.
     pub query_catalog_iface: Option<unsafe extern "C" fn(U, u64, u32, *mut u64) -> bool>,
     /// The catalog interface's slot 17 (§4.1) — written to `state+0`.
@@ -79,7 +78,7 @@ pub struct fc4_uiwin_host {
     /// `cIGZWinGen::SetWinGenFlag(flag, value)` (gen slot 6, §4.3).
     pub set_win_gen_flag: Option<unsafe extern "C" fn(U, u64, u32, bool)>,
     /// `nSC4UI::AlignWindowToWindow(winID, anchor, targetWinID, flags)` at
-    /// `0x0078DB20` (§4.3).
+    /// `0x0078_DB20` (§4.3).
     pub align_window_to_window: Option<unsafe extern "C" fn(U, u32, u32, u32, u32)>,
 }
 
@@ -93,19 +92,19 @@ pub struct fc4_uiwin_state {
     pub struct_size: u32,
     /// The object's synthetic address, so `AsIGZWin` is checkable.
     pub this_addr: u32,
-    /// `AsIGZWin()` = the `cIGZWin` sub-object token at `+0x0C`.
+    /// `AsIGZWin()` = the `cIGZWin` sub-object token at `+0x000C`.
     pub win: u64,
-    /// `+0x1F8`.
+    /// `+0x01F8`.
     pub secondary_win: u64,
-    /// `+0x1FC`.
+    /// `+0x01FC`.
     pub tertiary_win: u64,
-    /// `+0x300`.
+    /// `+0x0300`.
     pub view_manager: u64,
-    /// `+0x200`.
+    /// `+0x0200`.
     pub secondary_kind: u32,
-    /// `+0x204`.
+    /// `+0x0204`.
     pub tertiary_kind: u32,
-    /// `+0x208` as a raw pointer: 0 when the field is null.
+    /// `+0x0208` as a raw pointer: 0 when the field is null.
     pub catalog_state_ptr: u32,
     /// `state+0`, the slot-17 result.
     pub catalog_field0: u32,
@@ -145,10 +144,10 @@ pub struct fc4_uiwin_save {
     pub instance: u32,
     /// The further integer pushed alongside. *[inferred]* a record version.
     pub version: u32,
-    /// `this+0xF0`'s class id, 0 when the reference is null.
+    /// `this+0x00F0`'s class id, 0 when the reference is null.
     pub ref_f0_class: u32,
     pub ref_f0_present: u32,
-    /// `this+0xF4`'s class id, written as `obj + 8` when non-null else null.
+    /// `this+0x00F4`'s class id, written as `obj + 8` when non-null else null.
     pub ref_f4_class: u32,
     pub ref_f4_present: u32,
 }
@@ -157,10 +156,7 @@ const _: () = {
     assert!(std::mem::size_of::<fc4_uiwin_state>() == 72);
     assert!(std::mem::size_of::<fc4_uiwin_slot>() == 32);
     assert!(std::mem::size_of::<fc4_uiwin_save>() == 36);
-    assert!(
-        std::mem::size_of::<fc4_uiwin_host>()
-            == if cfg!(target_pointer_width = "32") { 36 } else { 68 }
-    );
+    assert!(std::mem::size_of::<fc4_uiwin_host>() == if cfg!(target_pointer_width = "32") { 36 } else { 72 });
 };
 
 // ---- host adapter --------------------------------------------------------------------------
@@ -187,14 +183,17 @@ struct Handle {
 struct HostRef<'a>(&'a mut fc4_uiwin_host);
 
 impl CatalogHost for HostRef<'_> {
-    fn create_window_from_script(
-        &mut self,
-        group: u32,
-        parent: WinToken,
-        instance: u32,
-    ) -> Option<WinToken> {
+    fn create_window_from_script(&mut self, group: u32, parent: WinToken, instance: u32) -> Option<WinToken> {
         let mut out: u64 = 0;
-        let ok = cb!(self.0, create_window_from_script, false, group, parent, instance, &mut out);
+        let ok = cb!(
+            self.0,
+            create_window_from_script,
+            false,
+            group,
+            parent,
+            instance,
+            &mut out
+        );
         (ok && out != 0).then_some(out)
     }
 
@@ -227,25 +226,25 @@ impl CatalogHost for HostRef<'_> {
 
 impl Handle {
     fn close_secondary(&mut self) {
-        let Handle { view, store, h: tbl, .. } = self;
+        let Handle {
+            view, store, h: tbl, ..
+        } = self;
         let mut host = HostRef(tbl);
         fc4_core::ui_windows::catalog::close_secondary_menu(&mut host, view, store);
     }
 
     fn close_tertiary(&mut self) {
-        let Handle { view, store, h: tbl, .. } = self;
+        let Handle {
+            view, store, h: tbl, ..
+        } = self;
         let mut host = HostRef(tbl);
         fc4_core::ui_windows::catalog::close_tertiary_menu(&mut host, view, store);
     }
 
-    fn invoke_secondary(
-        &mut self,
-        instance: u32,
-        kind: u32,
-        caller_data: u32,
-        target_win_id: u32,
-    ) -> InvokeResult {
-        let Handle { view, store, h: tbl, .. } = self;
+    fn invoke_secondary(&mut self, instance: u32, kind: u32, caller_data: u32, target_win_id: u32) -> InvokeResult {
+        let Handle {
+            view, store, h: tbl, ..
+        } = self;
         let mut host = HostRef(tbl);
         let args = fc4_core::ui_windows::catalog::SecondaryInvoke {
             instance,
@@ -264,7 +263,9 @@ impl Handle {
         target_win_id: u32,
         margin: i32,
     ) -> InvokeResult {
-        let Handle { view, store, h: tbl, .. } = self;
+        let Handle {
+            view, store, h: tbl, ..
+        } = self;
         let mut host = HostRef(tbl);
         let args = fc4_core::ui_windows::catalog::TertiaryInvoke {
             instance,
@@ -306,7 +307,7 @@ fn ret_code(r: RetChannel) -> u32 {
 
 // ---- layout (ui-windows.md §3.2, conformance tests 1 and 2) ---------------------------------
 
-/// `cSC4View3DWin::AsIGZWin` (`0x005F8400`, slot 3): `this + 0x0C`, or 0 for a
+/// `cSC4View3DWin::AsIGZWin` (`0x005F_8400`, slot 3): `this + 0x000C`, or 0 for a
 /// null `this`.
 ///
 /// Quirk 4: the only null check is on `this` itself. A non-null result is
@@ -316,19 +317,19 @@ pub extern "C" fn fc4_uiwin_as_igzwin(this_addr: u32) -> u32 {
     as_igzwin(this_addr)
 }
 
-/// The offset `AsIGZWin` adds: `0x0C`.
+/// The offset `AsIGZWin` adds: `0x000C`.
 #[no_mangle]
 pub extern "C" fn fc4_uiwin_win_offset() -> u32 {
     VIEW3D_OFF_WIN
 }
 
-/// The `cISC4View3DWin` vtable of a `cSC4View3DWin` (`0x00ABCE40`).
+/// The `cISC4View3DWin` vtable of a `cSC4View3DWin` (`0x00AB_CE40`).
 #[no_mangle]
 pub extern "C" fn fc4_uiwin_vtable_primary() -> u32 {
     VIEW3D_VTABLE
 }
 
-/// The `cGZWinGen` vtable of the window sub-object at `+0x0C` (`0x00ADC678`).
+/// The `cGZWinGen` vtable of the window sub-object at `+0x000C` (`0x00AD_C678`).
 #[no_mangle]
 pub extern "C" fn fc4_uiwin_vtable_window() -> u32 {
     WIN_GEN_VTABLE
@@ -379,19 +380,16 @@ pub extern "C" fn fc4_uiwin_slot_produces_value(slot: u32) -> bool {
 /// Create a view at a given object address.
 ///
 /// The `cIGZWin` sub-object's token is **derived**, not supplied: it is
-/// `AsIGZWin(this_addr)` = `this_addr + 0x0C`, which is the measurement of
+/// `AsIGZWin(this_addr)` = `this_addr + 0x000C`, which is the measurement of
 /// §3.2. The host names its own window by that token, so a caller cannot
 /// disagree with the layout (conformance test 1).
 #[no_mangle]
-pub unsafe extern "C" fn fc4_uiwin_create(
-    host: *const fc4_uiwin_host,
-    this_addr: u32,
-) -> *mut fc4_uiwin {
+pub unsafe extern "C" fn fc4_uiwin_create(host: *const fc4_uiwin_host, this_addr: u32) -> *mut fc4_uiwin {
     guard(std::ptr::null_mut(), || match host.as_ref() {
         Some(h) if (h.struct_size as usize) >= std::mem::size_of::<fc4_uiwin_host>() => {
             let mut store = WinStore::new();
             // The measured address arithmetic is 32-bit (it is `lea eax,
-            // [ecx+0xc]`); a token is a `u64` so a host can name a window
+            // [ecx+0x000C]`); a token is a `u64` so a host can name a window
             // without colliding with a raw pointer.
             let win = u64::from(as_igzwin(this_addr));
             store.adopt(win, 0, 0);
@@ -452,7 +450,7 @@ pub unsafe extern "C" fn fc4_uiwin_add_window(u: *mut fc4_uiwin, id: u32) -> u64
     })
 }
 
-/// Set `+0x208` to a catalog state, or clear it with `present = 0`.
+/// Set `+0x0208` to a catalog state, or clear it with `present = 0`.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_uiwin_set_catalog_state(
     u: *mut fc4_uiwin,
@@ -508,7 +506,7 @@ fn invoke_result_code(r: InvokeResult) -> u32 {
     }
 }
 
-/// `InvokeSecondaryMenu` (`0x007E5C10`): 4 arguments.
+/// `InvokeSecondaryMenu` (`0x007E_5C10`): 4 arguments.
 ///
 /// Returns 1 = toggled closed, 2 = replaced then the create failed, 3 =
 /// opened. The tool is dropped **before** the open-menu test either way
@@ -523,11 +521,16 @@ pub unsafe extern "C" fn fc4_uiwin_invoke_secondary(
 ) -> u32 {
     try_guard(0, || {
         let h = handle(u)?;
-        Some(invoke_result_code(h.invoke_secondary(instance, kind, caller_data, target_win_id)))
+        Some(invoke_result_code(h.invoke_secondary(
+            instance,
+            kind,
+            caller_data,
+            target_win_id,
+        )))
     })
 }
 
-/// `InvokeTertiaryMenu` (`0x007E5D80`): 5 arguments.
+/// `InvokeTertiaryMenu` (`0x007E_5D80`): 5 arguments.
 ///
 /// `margin` is arg5 — the small negative integer (−25 / −75) the secondary
 /// form lacks. It does **not** reach `AlignWindowToWindow` (§4.4); this core
@@ -640,13 +643,7 @@ fn msg_kind_of(code: u32) -> Option<fc4_core::ui_windows::message::MsgKind> {
 /// Conformance test 20: a button command with **any** ID ends it, and a key
 /// message is **ignored** — that is why Esc and Enter do nothing.
 #[no_mangle]
-pub extern "C" fn fc4_uiwin_popup_action(
-    advice_flags: u32,
-    msg_kind: u32,
-    data1: u32,
-    data2: u32,
-    data3: u32,
-) -> u32 {
+pub extern "C" fn fc4_uiwin_popup_action(advice_flags: u32, msg_kind: u32, data1: u32, data2: u32, data3: u32) -> u32 {
     try_guard(4, || {
         let msg = GzMessage {
             kind: msg_kind_of(msg_kind)?,
@@ -692,7 +689,7 @@ pub unsafe extern "C" fn fc4_uiwin_pause_leave(u: *mut fc4_uiwin, is_dialog: boo
     })
 }
 
-/// `IsHiddenPaused()`: the nesting count at `+0x34` is > 0.
+/// `IsHiddenPaused()`: the nesting count at `+0x0034` is > 0.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_uiwin_is_hidden_paused(u: *mut fc4_uiwin) -> bool {
     try_guard(false, || Some(handle(u)?.pause.is_hidden_paused()))
@@ -706,7 +703,7 @@ pub unsafe extern "C" fn fc4_uiwin_is_paused(u: *mut fc4_uiwin) -> bool {
 
 // ---- save (§3.3a, conformance test 25) -------------------------------------------------------
 
-/// `DoSave` (`0x007EA5B0`): the View3D record and **nothing else**.
+/// `DoSave` (`0x007E_A5B0`): the View3D record and **nothing else**.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_uiwin_save(u: *mut fc4_uiwin, out: *mut fc4_uiwin_save) -> bool {
     try_guard(false, || {
@@ -728,7 +725,7 @@ pub unsafe extern "C" fn fc4_uiwin_save(u: *mut fc4_uiwin, out: *mut fc4_uiwin_s
     })
 }
 
-/// `DoLoad` (`0x007EBFB0`): resolve the references by class id and leave every
+/// `DoLoad` (`0x007E_BFB0`): resolve the references by class id and leave every
 /// UI field clear.
 ///
 /// Quirk 13: a catalog popup open at save time is closed at load time. A
@@ -763,7 +760,7 @@ pub extern "C" fn fc4_uiwin_save_carries_ui_state() -> bool {
     false
 }
 
-/// The catalog-state interface IID the tertiary close queries (`0x8A2CAD8B`).
+/// The catalog-state interface IID the tertiary close queries (`0x8A2C_AD8B`).
 #[no_mangle]
 pub extern "C" fn fc4_uiwin_catalog_iface_iid() -> u32 {
     IID_CATALOG_STATE

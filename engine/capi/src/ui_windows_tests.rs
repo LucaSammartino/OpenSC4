@@ -23,7 +23,7 @@ struct Game {
     create_ok: RefCell<bool>,
     /// The window the factory hands back; 0 = none.
     next_win: RefCell<u64>,
-    /// Whether `QueryInterface(0x8A2CAD8B)` answers (§4.1).
+    /// Whether `QueryInterface(0x8A2C_AD8B)` answers (§4.1).
     catalog_iface_ok: RefCell<bool>,
     slot17: RefCell<u32>,
     slot9: RefCell<u32>,
@@ -41,8 +41,8 @@ impl Game {
         *g.create_ok.borrow_mut() = true;
         *g.next_win.borrow_mut() = 0x9001;
         *g.catalog_iface_ok.borrow_mut() = true;
-        *g.slot17.borrow_mut() = 0xAA;
-        *g.slot9.borrow_mut() = 0xBB;
+        *g.slot17.borrow_mut() = 0x00AA;
+        *g.slot9.borrow_mut() = 0x00BB;
         g
     }
     fn user(&self) -> *mut c_void {
@@ -69,7 +69,9 @@ unsafe extern "C" fn create_window_from_script(
     out: *mut u64,
 ) -> bool {
     let g = game(u);
-    g.log(format!("create group={group:08X} parent={parent:X} instance={instance:08X}"));
+    g.log(format!(
+        "create group={group:08X} parent={parent:X} instance={instance:08X}"
+    ));
     *g.last_create.borrow_mut() = Some((group, parent, instance));
     if !*g.create_ok.borrow() {
         return false;
@@ -89,7 +91,7 @@ unsafe extern "C" fn query_catalog_iface(u: *mut c_void, win: u64, iid: u32, out
         return false;
     }
     if !out.is_null() {
-        *out = 0xC0;
+        *out = 0x00C0;
     }
     true
 }
@@ -115,7 +117,9 @@ unsafe extern "C" fn set_win_gen_flag(u: *mut c_void, win: u64, flag: u32, value
 }
 
 unsafe extern "C" fn align_window_to_window(u: *mut c_void, win: u32, anchor: u32, target: u32, flags: u32) {
-    game(u).log(format!("align win={win:X} anchor={anchor:04X} target={target:08X} flags={flags}"));
+    game(u).log(format!(
+        "align win={win:X} anchor={anchor:04X} target={target:08X} flags={flags}"
+    ));
     *game(u).last_align.borrow_mut() = Some((win, anchor, target, flags));
 }
 
@@ -150,11 +154,11 @@ fn state(u: *mut fc4_uiwin) -> fc4_uiwin_state {
 }
 
 #[test]
-fn as_igzwin_is_this_plus_0x0c() {
+fn as_igzwin_is_this_plus_offset() {
     // Conformance test 1.
     assert_eq!(fc4_uiwin_as_igzwin(0), 0, "a null this returns null");
     assert_eq!(fc4_uiwin_as_igzwin(0x1000), 0x100C);
-    assert_eq!(fc4_uiwin_win_offset(), 0x0C);
+    assert_eq!(fc4_uiwin_win_offset(), 0x000C);
     let (g, u, w) = setup();
     let s = state(u);
     assert_eq!(s.this_addr, 0x2000);
@@ -206,8 +210,11 @@ fn close_secondary_is_a_noop_when_nothing_is_open() {
     // SAFETY: `u` is live.
     unsafe { fc4_uiwin_close_secondary(u) };
     let after = state(u);
-    assert_eq!(after.secondary_kind, before.secondary_kind, "+0x200 left alone");
-    assert!(g.take().iter().all(|l| !l.starts_with("create")), "no create, no teardown");
+    assert_eq!(after.secondary_kind, before.secondary_kind, "+0x0200 left alone");
+    assert!(
+        g.take().iter().all(|l| !l.starts_with("create")),
+        "no create, no teardown"
+    );
     assert_eq!(after.win, w);
     // SAFETY: `u` is live.
     unsafe { fc4_uiwin_destroy(u) };
@@ -221,7 +228,7 @@ fn close_tertiary_is_a_noop_when_nothing_is_open() {
     g.take();
     // SAFETY: `u` is live.
     unsafe { fc4_uiwin_close_tertiary(u) };
-    assert_eq!(state(u).tertiary_kind, before.tertiary_kind, "+0x204 left alone");
+    assert_eq!(state(u).tertiary_kind, before.tertiary_kind, "+0x0204 left alone");
     assert!(g.take().is_empty());
     // SAFETY: `u` is live.
     unsafe { fc4_uiwin_destroy(u) };
@@ -232,19 +239,19 @@ fn invoke_toggles_and_the_parent_and_group_are_right() {
     // Conformance tests 12, 15 and 16.
     let (g, u, _w) = setup();
     // SAFETY: `u` is live.
-    let r = unsafe { fc4_uiwin_invoke_secondary(u, 0x9DE3_002, 0x9DE8_798, 0, 1) };
+    let r = unsafe { fc4_uiwin_invoke_secondary(u, 0x09DE_3002, 0x09DE_8798, 0, 1) };
     assert_eq!(r, 3, "opened");
     let open = state(u);
     assert_ne!(open.secondary_win, 0);
-    assert_eq!(open.secondary_kind, 0x9DE8_798);
+    assert_eq!(open.secondary_kind, 0x09DE_8798);
     let (group, parent, instance) = g.last_create.borrow().expect("a create call");
     assert_eq!(group, 0x96A0_06B0, "the UI script group (test 16)");
     assert_eq!(parent, open.win, "AsIGZWin() (test 15)");
-    assert_eq!(instance, 0x9DE3_002);
+    assert_eq!(instance, 0x09DE_3002);
 
     // The same kind toggles it closed.
     // SAFETY: `u` is live.
-    let r2 = unsafe { fc4_uiwin_invoke_secondary(u, 0x9DE3_002, 0x9DE8_798, 0, 1) };
+    let r2 = unsafe { fc4_uiwin_invoke_secondary(u, 0x09DE_3002, 0x09DE_8798, 0, 1) };
     assert_eq!(r2, 1, "toggled");
     let closed = state(u);
     assert_eq!(closed.secondary_win, 0);
@@ -278,8 +285,8 @@ fn the_tool_is_dropped_before_the_open_test() {
     // open-menu test.
     let (g, u, _w) = setup();
     // SAFETY: `u` is live.
-    assert!(unsafe { fc4_uiwin_set_input_control(u, 0x51) });
-    assert_eq!(state(u).input_control, 0x51, "a tool is held");
+    assert!(unsafe { fc4_uiwin_set_input_control(u, 0x0051) });
+    assert_eq!(state(u).input_control, 0x0051, "a tool is held");
     // SAFETY: `u` is live.
     unsafe { fc4_uiwin_invoke_secondary(u, 1, 0x1111, 0, 1) };
     assert_eq!(state(u).input_control, 0, "dropped on the first invoke");
@@ -288,13 +295,16 @@ fn the_tool_is_dropped_before_the_open_test() {
     // result is a toggle-close and no window is created, yet the tool is
     // still gone.
     // SAFETY: `u` is live.
-    assert!(unsafe { fc4_uiwin_set_input_control(u, 0x52) });
-    assert_eq!(state(u).input_control, 0x52);
+    assert!(unsafe { fc4_uiwin_set_input_control(u, 0x0052) });
+    assert_eq!(state(u).input_control, 0x0052);
     g.take();
     // SAFETY: `u` is live.
     let r = unsafe { fc4_uiwin_invoke_secondary(u, 1, 0x1111, 0, 1) };
     assert_eq!(r, 1, "toggled closed, no create");
-    assert!(g.take().iter().all(|l| !l.starts_with("create")), "and no create was attempted");
+    assert!(
+        g.take().iter().all(|l| !l.starts_with("create")),
+        "and no create was attempted"
+    );
     assert_eq!(state(u).input_control, 0, "but the tool was still dropped first");
     // SAFETY: `u` is live.
     unsafe { fc4_uiwin_destroy(u) };
@@ -309,9 +319,9 @@ fn generator_flags_are_cleared_and_the_iface_released() {
     let flags = g.flags.borrow().clone();
     assert_eq!(flags.len(), 2);
     assert_eq!(flags[0].1, 4);
-    assert_eq!(flags[0].2, false);
+    assert!(!flags[0].2, "flag 4 is cleared");
     assert_eq!(flags[1].1, 1);
-    assert_eq!(flags[1].2, false);
+    assert!(!flags[1].2, "flag 1 is cleared");
     // The gen interface is released after the two flags (test 18). That
     // release is `cIGZWin` slot 2 on the new window, which the core logs;
     // `catalog_iface_release` is a different Release (§4.1) and must not fire.
@@ -369,8 +379,8 @@ fn tertiary_writes_two_dwords_in_order() {
     // SAFETY: `u` is live.
     unsafe { fc4_uiwin_close_tertiary(u) };
     let s = state(u);
-    assert_eq!(s.catalog_field0, 0xAA, "slot 17 to state+0");
-    assert_eq!(s.catalog_field1, 0xBB, "slot 9 to state+4");
+    assert_eq!(s.catalog_field0, 0x00AA, "slot 17 to state+0");
+    assert_eq!(s.catalog_field1, 0x00BB, "slot 9 to state+4");
     let log = g.take();
     let order: Vec<&str> = log
         .iter()
@@ -399,7 +409,7 @@ fn tertiary_skips_the_save_on_a_failed_query() {
     // SAFETY: `u` is live.
     unsafe { fc4_uiwin_close_tertiary(u) };
     let s = state(u);
-    assert_eq!(s.catalog_field0, 5, "+0x208 untouched");
+    assert_eq!(s.catalog_field0, 5, "+0x0208 untouched");
     assert_eq!(s.catalog_field1, 6);
     assert_eq!(s.tertiary_win, 0, "but the fields are cleared");
     assert_eq!(s.tertiary_kind, 0);
@@ -419,7 +429,7 @@ fn secondary_does_not_write_catalog_state() {
     // SAFETY: `u` is live.
     unsafe { fc4_uiwin_close_secondary(u) };
     let s = state(u);
-    assert_eq!(s.catalog_field0, 5, "CloseSecondaryMenu must not write +0x208");
+    assert_eq!(s.catalog_field0, 5, "CloseSecondaryMenu must not write +0x0208");
     assert_eq!(s.catalog_field1, 6);
     // SAFETY: `u` is live.
     unsafe { fc4_uiwin_destroy(u) };
@@ -448,7 +458,11 @@ fn secondary_close_cascades_and_clears_both_fields() {
 #[test]
 fn esc_and_enter_do_nothing_and_any_button_closes() {
     // Conformance test 20 (the replacement-side half).
-    assert_eq!(fc4_uiwin_popup_action(2, msg_kind_code::KEY_DOWN, 0, 0, 0), 4, "ignored");
+    assert_eq!(
+        fc4_uiwin_popup_action(2, msg_kind_code::KEY_DOWN, 0, 0, 0),
+        4,
+        "ignored"
+    );
     assert_eq!(fc4_uiwin_popup_action(2, msg_kind_code::KEY_UP, 0, 0, 0), 4, "ignored");
     for button in [0u32, 1, 0x8A8D_FD4E] {
         assert_eq!(
@@ -459,7 +473,10 @@ fn esc_and_enter_do_nothing_and_any_button_closes() {
     }
     // An inactive advice ends it; an active one with expire ends it.
     assert_eq!(fc4_uiwin_popup_action(0, msg_kind_code::COMMAND, 0x2872_59F6, 0, 0), 1);
-    assert_eq!(fc4_uiwin_popup_action(2 | 8, msg_kind_code::COMMAND, 0x2872_59F6, 0, 0), 1);
+    assert_eq!(
+        fc4_uiwin_popup_action(2 | 8, msg_kind_code::COMMAND, 0x2872_59F6, 0, 0),
+        1
+    );
     // Link: follow then end.
     assert_eq!(fc4_uiwin_popup_action(2, msg_kind_code::LINK, 0, 0, 0), 2);
     // Attach/detach notices are swallowed, not key messages.
@@ -473,10 +490,10 @@ fn delivery_order_is_proc_then_message_then_command() {
     // second argument, so a shim cannot pass the message there.
     let (_g, u, _w) = setup();
     // SAFETY: `u` is live.
-    let mask = unsafe { fc4_uiwin_deliver(u, 0x40, msg_kind_code::COMMAND, 0x2872_59F6, 0, 0) };
+    let mask = unsafe { fc4_uiwin_deliver(u, 0x0040, msg_kind_code::COMMAND, 0x2872_59F6, 0, 0) };
     assert_eq!(mask, 1 | 2 | 4 | 8, "all four stages, a type-3 message");
     // SAFETY: `u` is live.
-    let mask2 = unsafe { fc4_uiwin_deliver(u, 0x40, msg_kind_code::LINK, 0, 0, 0) };
+    let mask2 = unsafe { fc4_uiwin_deliver(u, 0x0040, msg_kind_code::LINK, 0, 0, 0) };
     assert_eq!(mask2, 1 | 2 | 4, "GZOnCommand is type-3 only");
     // SAFETY: `u` is live.
     unsafe { fc4_uiwin_destroy(u) };
@@ -550,7 +567,10 @@ fn a_null_handle_is_harmless() {
     // SAFETY: `s` is writable; the handle is the documented NULL case.
     assert!(!unsafe { fc4_uiwin_get_state(std::ptr::null_mut(), &mut s) });
     // SAFETY: passing NULL is the documented no-op case.
-    assert_eq!(unsafe { fc4_uiwin_invoke_secondary(std::ptr::null_mut(), 1, 1, 0, 1) }, 0);
+    assert_eq!(
+        unsafe { fc4_uiwin_invoke_secondary(std::ptr::null_mut(), 1, 1, 0, 1) },
+        0
+    );
     assert_eq!(fc4_uiwin_slot_count(), 61);
 }
 

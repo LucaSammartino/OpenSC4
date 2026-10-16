@@ -1,0 +1,69 @@
+{
+  "format": 1,
+  "name": "ui11_13_invoke_replaces",
+  "spec": [
+    "ui-windows 4.3",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 13: with a different menu open, Invoke closes the open one first and only then creates the new one. The close is observed before the create call.",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_invoke_secondary",
+      "instance": 1,
+      "kind": "0x1111",
+      "target_win_id": 1,
+      "expect": "opened"
+    },
+    {
+      "op": "uiw_clear_ops"
+    },
+    {
+      "op": "uiw_invoke_secondary",
+      "instance": 2,
+      "kind": "0x2222",
+      "target_win_id": 1,
+      "expect": "opened"
+    },
+    {
+      "op": "uiw_expect_ops",
+      "only": [
+        "child_delete",
+        "destroy_window",
+        "create_window",
+        "window_created"
+      ],
+      "ops": [
+        {
+          "event": "child_delete",
+          "parent": "0x200C",
+          "child": "0x9001"
+        },
+        {
+          "event": "destroy_window",
+          "win": "0x9001"
+        },
+        {
+          "event": "create_window",
+          "parent": "0x200C",
+          "group": "0x96A006B0",
+          "instance": 2
+        },
+        {
+          "event": "window_created",
+          "win": "0x9002",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "secondary_kind": "0x2222",
+        "secondary_win": "0x9002"
+      }
+    }
+  ]
+}

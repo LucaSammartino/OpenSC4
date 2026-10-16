@@ -1,0 +1,95 @@
+{
+  "format": 1,
+  "name": "ui11_12_invoke_toggles",
+  "spec": [
+    "ui-windows 4.3",
+    "ui-windows 4.4",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 12: invoking the menu that is already open closes it and creates no new window. Both the secondary and the tertiary form toggle.",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_invoke_secondary",
+      "instance": "0x9DE3002",
+      "kind": "0x9DE8798",
+      "target_win_id": 1,
+      "expect": "opened"
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "secondary_kind": "0x9DE8798",
+        "secondary_win": "0x9001"
+      }
+    },
+    {
+      "op": "uiw_clear_ops"
+    },
+    {
+      "op": "uiw_invoke_secondary",
+      "instance": "0x9DE3002",
+      "kind": "0x9DE8798",
+      "target_win_id": 1,
+      "expect": "toggled"
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "secondary_win": 0,
+        "secondary_kind": 0
+      }
+    },
+    {
+      "op": "uiw_expect_ops_absent",
+      "ops": [
+        {
+          "event": "create_window"
+        }
+      ]
+    },
+    {
+      "op": "uiw_invoke_tertiary",
+      "instance": "0x9DE3002",
+      "kind": "0xAB954023",
+      "target_win_id": 1,
+      "margin": -25,
+      "expect": "opened"
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "tertiary_kind": "0xAB954023",
+        "tertiary_win": "0x9002"
+      }
+    },
+    {
+      "op": "uiw_clear_ops"
+    },
+    {
+      "op": "uiw_invoke_tertiary",
+      "instance": "0x9DE3002",
+      "kind": "0xAB954023",
+      "target_win_id": 1,
+      "margin": -25,
+      "expect": "toggled"
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "tertiary_win": 0,
+        "tertiary_kind": 0
+      }
+    },
+    {
+      "op": "uiw_expect_ops_absent",
+      "ops": [
+        {
+          "event": "create_window"
+        }
+      ]
+    }
+  ]
+}

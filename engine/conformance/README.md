@@ -2325,6 +2325,62 @@ until set. `sim` is a vector index (0–5) or a name from `mysim_read`.
 MySim events: `create_table`, `activate` (`sim`), `agent_lua` (`on`), `mysim_post` (`type`, `data1`, `data2`,
 `void1`, `sim`), `dispatch` (`sim`, `what`), `trigger` (`name`, `position`), `mysim_subscribe` (`type`, `on`).
 
+## UI window ops
+
+The UI window vectors (`ui11_…`) drive `fc4_core::ui_windows` (`docs/specs/ui-windows.md`): the window object,
+`cSC4View3DWin`, its catalog menus and the dialog close path. Every op name starts with `uiw_`. One vector per
+conformance test of §11, named `ui11_NN_<name>` where `NN` is the test number.
+
+`uiw_create` builds the view at a fixed object address `0x2000`, so its `cIGZWin` sub-object's token is always
+`0x200C` — `AsIGZWin()` is `this + 0x0C` and that *is* the token. Pre-seeded catalog menus use the fixed tokens
+`0x20` (secondary) and `0x30` (tertiary); a window the script factory creates is `0x9001`, `0x9002`, … in call order.
+
+### Setup and state
+
+| op | Arguments | Effect |
+|---|---|---|
+| `uiw_create` | | the view, its window store and the hidden-pause counter (logs cleared) |
+| `uiw_env` | any of `create_ok` (the script factory answers), `catalog_iface_ok` (`QueryInterface(0x8A2CAD8B)` answers), `slot17`, `slot9` | the host's answers |
+| `uiw_seed_secondary` / `uiw_seed_tertiary` | `kind` | a catalog menu already open at `+0x1F8` / `+0x1FC` |
+| `uiw_set_catalog_state` | `present?` (true), `field0?`, `field1?` | sets or clears `+0x208` |
+| `uiw_set_tool` | `tool` (0 clears) | the current view input control |
+| `uiw_expect` | `state` (partial) | `this_addr`, `win`, `as_igzwin`, `win_offset`, `secondary_win`, `tertiary_win`, `secondary_kind`, `tertiary_kind`, `catalog_state_ptr`, `catalog_field0`, `catalog_field1`, `view_manager`, `input_control`, `refs`, `hidden_pause_count`, `hidden_paused`, `paused`, `painted` |
+| `uiw_layout` | `state` (partial) | `as_igzwin_null`, `as_igzwin`, `win_offset`, `vtable_primary`, `vtable_window`, `slot_count`, `catalog_state_offset`, and `slot<N>_ret` / `slot<N>_produces_value` for every `cISC4View3DWin` slot |
+
+### Calls
+
+| op | Arguments | Effect |
+|---|---|---|
+| `uiw_close_secondary` / `uiw_close_tertiary` | | slots 59 / 60. Secondary cascades to slot 60 first |
+| `uiw_invoke_secondary` | `instance`, `kind`, `caller_data?`, `target_win_id?` (1), `expect?` (`toggled`, `replaced_then_failed`, `opened`) | `InvokeSecondaryMenu` (4 arguments) |
+| `uiw_invoke_tertiary` | the same + `margin?` | `InvokeTertiaryMenu` (5 arguments; `margin` is arg5, the −25 / −75 the secondary form lacks) |
+| `uiw_deliver` | `msg`, `data1?`, `data2?`, `data3?`, `expect?` (the stage list) | the §6.5 chain, returning the stages reached |
+| `uiw_popup` | `advice_flags?` (2), `msg`, `data1?`, `data2?`, `data3?`, `expect?` | the advisor popup's win-proc decision |
+| `uiw_popup_instance` | `mood?`, `expect?` | which UI script instance an advisor popup is built from |
+| `uiw_pause_enter` / `uiw_pause_leave` | `is_dialog?` (true) | one level of the hidden pause |
+| `uiw_paint` / `uiw_sweep_effects` | | the view paints / the effects sweep runs |
+| `uiw_save` / `uiw_load` | `state` / the record fields, `expect?` | `DoSave` / `DoLoad` of the View3D record |
+
+`msg` is one of `command`, `link`, `attach`, `detach`, `modal_begin`, `modal_end`, `modal_end_posted`, `key_down`,
+`key_up`. For `command`, `data1` is forced to `0x287259F6` and `data2` is the button id.
+
+### Checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `uiw_expect_ops` | `ops`, `only?` (an event-kind filter) | the window ops taken since `uiw_clear_ops`, one to one and **in order** |
+| `uiw_expect_ops_contain` / `uiw_expect_ops_absent` | `ops`, `only?` | every listed op present / none present |
+| `uiw_expect_last_align` | `state` | the one `AlignWindowToWindow` call |
+| `uiw_expect_events` / `uiw_expect_event_count` / `uiw_clear_events` | | the host callbacks taken |
+
+`uiw_expect_ops`'s events are `child_add`, `child_remove`, `child_delete`, `destroy_window`, `hide_window`,
+`show_window`, `pull_to_front`, `add_message_filter`, `remove_message_filter`, `remove_all_view_input_controls`,
+`create_window`, `window_created`, `align_window_to_window`, `set_win_gen_flag`, `query_interface`, `query_win_gen`,
+`release`, `do_message`, `do_win_proc_message`, `gz_on_command`, `is_window_valid`, `catalog_state_write`, `get_id`.
+Ordering is the point of several tests: `only` restricts the comparison to the named kinds so a vector can pin an
+order across kinds without listing every intermediate step.
+
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
@@ -3637,3 +3693,38 @@ Item 3: the `delta_eq` field is written by `UpdateVariables` (§4.3 step 3) befo
 field after step k shows the delta of step k − 1; the vector checks both. Item 20 in its full-game form (every
 simulator record byte-identical over 24 months with and without MySims) needs the whole simulator stack; the vector
 checks that the MySims make no simulator-facing host call.
+## Coverage (ui-windows §11)
+
+| §11 item | Vector |
+|---|---|
+| 1 AsIGZWin offset (`this + 0x0C`, null for a null `this`) | `ui11_01_as_igzwin_offset` |
+| 2 two vtables, one allocation | `ui11_02_two_vtables_one_allocation` |
+| 3 slots 59 and 60 return nothing | `ui11_03_slots_return_nothing` |
+| 4 secondary close is a no-op when nothing is open | `ui11_04_secondary_close_is_a_noop` |
+| 5 tertiary close is a no-op when nothing is open | `ui11_05_tertiary_close_is_a_noop` |
+| 6 secondary close cascades | `ui11_06_secondary_close_cascades` |
+| 7 teardown order (Hide, Release, ChildDelete) | `ui11_07_teardown_order` |
+| 8 both fields cleared | `ui11_08_both_fields_cleared` |
+| 9 secondary does not write catalog state | `ui11_09_secondary_does_not_write_catalog_state` |
+| 10 tertiary writes two dwords, slot 17 then slot 9 | `ui11_10_tertiary_writes_two_dwords` |
+| 11 tertiary skips the save on a failed query | `ui11_11_tertiary_skips_the_save_on_a_failed_query` |
+| 12 invoke toggles (secondary and tertiary) | `ui11_12_invoke_toggles` |
+| 13 invoke replaces | `ui11_13_invoke_replaces` |
+| 14 invoke drops the tool first | `ui11_14_invoke_drops_the_tool_first` |
+| 15 parent is the view's window | `ui11_15_parent_is_the_views_window` |
+| 16 script group | `ui11_16_script_group` |
+| 17 null create is safe | `ui11_17_null_create_is_safe` |
+| 18 generator flags | `ui11_18_generator_flags` |
+| 19 alignment and show order | `ui11_19_alignment_and_show_order` |
+| 20 advisor popup close path (`[game]` observation; replacement side pinned) | `ui11_20_advisor_popup_close_path` |
+| 21 `DoWinProcMessage` gets the window as arg1 | `ui11_21_do_win_proc_message_takes_the_window` |
+| 22 message delivery order | `ui11_22_message_delivery_order` |
+| 23 the hidden pause is a nesting count (`[game]`; replacement pinned) | `ui11_23_hidden_pause_is_a_nesting_count` |
+| 24 effects end messages need a paint (`[game]`; window-side consequence) | `ui11_24_effects_end_messages_need_a_paint` |
+| 25 only the View3D record is saved | `ui11_25_only_the_view3d_record_is_saved` |
+
+Tests 20, 23 and 24 are marked **[game]** in ui-windows.md §11: they need the original. Their vectors pin the
+replacement-side behaviour that makes the observation true — the popup's flag table (including that a key message is
+never looked at, which is why Esc and Enter do nothing), the hidden pause as a nesting count that a camera move raises
+with no dialog open, and the window-side consequence of effects.md EF2 (a view that is never painted never reaches the
+effects draw pass).

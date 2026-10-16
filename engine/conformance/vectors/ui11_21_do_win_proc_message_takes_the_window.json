@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "name": "ui11_21_do_win_proc_message_takes_the_window",
+  "spec": [
+    "ui-windows 6.2",
+    "ui-windows 6.5",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 21: DoWinProcMessage gets the WINDOW as arg1, not the message (6.5). A win proc must be able to GetParam on its first argument and reach the dialog's properties (0xEA9F13C0 for the advice). A shim that passes the message instead fails this. [choice] the deliver op names its window argument separately from the message so the swap cannot be expressed.",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_deliver",
+      "msg": "command",
+      "data1": "0x287259F6",
+      "data2": 0,
+      "expect": [
+        "DoWinProcMessage",
+        "DoWinMsg",
+        "DoMessage",
+        "GZOnCommand"
+      ]
+    },
+    {
+      "op": "uiw_expect_ops",
+      "only": [
+        "do_win_proc_message",
+        "do_message",
+        "gz_on_command"
+      ],
+      "ops": [
+        {
+          "event": "do_win_proc_message",
+          "win": "0x200C",
+          "msg": "0x287259F6"
+        },
+        {
+          "event": "do_message",
+          "win": "0x200C",
+          "msg": "0x287259F6"
+        },
+        {
+          "event": "gz_on_command",
+          "win": "0x200C",
+          "command": "0x287259F6",
+          "data": 0
+        }
+      ]
+    }
+  ]
+}

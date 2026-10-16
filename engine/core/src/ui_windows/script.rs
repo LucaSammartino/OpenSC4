@@ -8,7 +8,7 @@
 //!
 //! # `SC4CreateWindowFromScript` is a 3-argument thunk
 //!
-//! Three overloads exist (`0x005F9390`, `0x005F93F0`, `0x005F9480`); the one
+//! Three overloads exist (`0x005F_9390`, `0x005F_93F0`, `0x005F_9480`); the one
 //! the view calls is the first. Decompiled whole:
 //!
 //! ```c
@@ -17,7 +17,7 @@
 //!   int *svc = 0;
 //!   int *com = FUN_008793ec();                    // the framework / cGZCOM accessor
 //!   if (com != 0)
-//!       com->slot5(0x5A356E15, 0xFA3562FA, &svc); // GetSystemService(service, iid, &out)
+//!       com->slot5(0x5A35_6E15, 0xFA35_62FA, &svc); // GetSystemService(service, iid, &out)
 //!   if (svc != 0) {
 //!       u = svc->slot4(param_1, param_2, param_3); // cGZUIScriptService::CreateWindowFromScript
 //!       FUN_004495c0();
@@ -40,29 +40,29 @@
 //!
 //! | Address | Signature | Returns | What it does |
 //! |---|---|---|---|
-//! | `0x0094B08B` | 5 dwords (`ret 0x14`), thiscall | **bool in `AL`** | `w = this->slot4(p1,p2,p3);` if `w`: `ok = w->QueryInterface(p4,p5); w->Release();` return `ok` |
-//! | `0x0094B210` | one struct pointer (reads `+0`,`+4`,`+8`) | — | a struct-taking overload |
+//! | `0x0094_B08B` | 5 dwords (`ret 0x0014`), thiscall | **bool in `AL`** | `w = this->slot4(p1,p2,p3);` if `w`: `ok = w->QueryInterface(p4,p5); w->Release();` return `ok` |
+//! | `0x0094_B210` | one struct pointer (reads `+0`,`+4`,`+8`) | — | a struct-taking overload |
 //! | **slot 4** (unnamed) | 3 dwords | **`cIGZWin*` in EAX** | the actual factory |
 //!
-//! So `0x0094B08B` is a **QI wrapper that consumes the window it created**: it
+//! So `0x0094_B08B` is a **QI wrapper that consumes the window it created**: it
 //! returns only whether the query worked, and releases the window before
 //! returning. A caller that wants the window must call slot 4. Confusing the
 //! two is the difference between getting a window and getting `AL` (and a
 //! freed window).
 
 use super::slots::{UI_SCRIPT_GROUP, UI_SCRIPT_IFACE, UI_SCRIPT_SERVICE};
-use super::win::{WinToken, WinStore};
+use super::win::{WinStore, WinToken};
 
 /// The three arguments of `SC4CreateWindowFromScript` (§5.1).
 ///
 /// The argument **order** is not fully settled (§4.3: "*[inferred]* the order
 /// is `(out_ptr, parent, instance)` from the push sequence (`push eax` /
 /// `push edx` / `push ebx`, right-to-left)", while §5.1 establishes that one
-/// of the three is the UI **group** `0x96A006B0` and one is an **instance**).
+/// of the three is the UI **group** `0x96A0_06B0` and one is an **instance**).
 /// We take them named so the order cannot leak into a caller; see question 3.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct ScriptWindowRequest {
-    /// The UI script **group**: `0x96A006B0` for every scripted window
+    /// The UI script **group**: `0x96A0_06B0` for every scripted window
     /// (INVENTORY-M6 §4.1). Conformance test 16: a group, **not** a window ID.
     pub group: u32,
     /// The parent window. For a catalog menu this is `AsIGZWin()` — the view's
@@ -77,7 +77,11 @@ pub struct ScriptWindowRequest {
 impl ScriptWindowRequest {
     /// The catalog-menu request shape (§4.3).
     pub fn catalog(parent: WinToken, instance: u32) -> ScriptWindowRequest {
-        ScriptWindowRequest { group: UI_SCRIPT_GROUP, parent, instance }
+        ScriptWindowRequest {
+            group: UI_SCRIPT_GROUP,
+            parent,
+            instance,
+        }
     }
 }
 
@@ -110,11 +114,11 @@ pub trait UIScriptService {
     /// in EAX. Three arguments forwarded unchanged.
     ///
     /// Do **not** call the method named `CreateWindowFromScript` at
-    /// `0x0094B08B`: that is the 5-argument QI wrapper of quirk 10.
+    /// `0x0094_B08B`: that is the 5-argument QI wrapper of quirk 10.
     fn create_window(&mut self, req: &ScriptWindowRequest) -> WinToken;
 }
 
-/// `SC4CreateWindowFromScript` (`0x005F9390`): the 3-argument thunk to
+/// `SC4CreateWindowFromScript` (`0x005F_9390`): the 3-argument thunk to
 /// `cGZUIScriptService` slot 4.
 ///
 /// Returns the window in EAX, or 0 when the script service is missing. Quirk
@@ -128,15 +132,18 @@ pub fn sc4_create_window_from_script(
         None => 0,
     };
     // FUN_004495C0 runs on both exits (quirk 8).
-    ScriptWindowResult { window, cleanup_ran: true }
+    ScriptWindowResult {
+        window,
+        cleanup_ran: true,
+    }
 }
 
 /// The service lookup `SC4CreateWindowFromScript` performs (§5.1).
 ///
 /// `cRZSysServPtr<cIGZUIScriptService, 4197802746ul, 1513451029ul>`
-/// (`0x00449750`): `4197802746 = 0xFA3562FA` is the interface id and
-/// `1513451029 = 0x5A356E15` the service id. The class is `cGZUIScriptService`,
-/// class id `0xFA3562FB` — the interface id is one less than the class id.
+/// (`0x0044_9750`): `4197802746 = 0xFA35_62FA` is the interface id and
+/// `1513451029 = 0x5A35_6E15` the service id. The class is `cGZUIScriptService`,
+/// class id `0xFA35_62FB` — the interface id is one less than the class id.
 pub fn service_lookup() -> (u32, u32) {
     (UI_SCRIPT_SERVICE, UI_SCRIPT_IFACE)
 }
@@ -160,7 +167,10 @@ pub struct StoreScriptService {
 
 impl StoreScriptService {
     pub fn new() -> StoreScriptService {
-        StoreScriptService { next_id: 0x1000, present: true }
+        StoreScriptService {
+            next_id: 0x1000,
+            present: true,
+        }
     }
 
     /// Build the window in `store`, parenting it to the request's parent.
@@ -200,8 +210,11 @@ mod tests {
 
     #[test]
     fn thunk_calls_slot_4_and_returns_the_window() {
-        let mut svc = FakeService { token: 42, calls: Vec::new() };
-        let req = ScriptWindowRequest::catalog(7, 0x9DE3_002);
+        let mut svc = FakeService {
+            token: 42,
+            calls: Vec::new(),
+        };
+        let req = ScriptWindowRequest::catalog(7, 0x09DE_3002);
         let r = sc4_create_window_from_script(Some(&mut svc), &req);
         assert_eq!(r.window, 42);
         assert!(r.ok());
@@ -230,7 +243,7 @@ mod tests {
     #[test]
     fn the_catalog_request_carries_the_ui_script_group() {
         let r = ScriptWindowRequest::catalog(1, 2);
-        assert_eq!(r.group, UI_SCRIPT_GROUP, "0x96A006B0, not a window ID");
+        assert_eq!(r.group, UI_SCRIPT_GROUP, "0x96A0_06B0, not a window ID");
     }
 
     #[test]
@@ -238,11 +251,15 @@ mod tests {
         let mut store = WinStore::new();
         let parent = store.create(1);
         let mut svc = StoreScriptService::new();
-        let req = ScriptWindowRequest { group: UI_SCRIPT_GROUP, parent, instance: 0x9DE3_002 };
+        let req = ScriptWindowRequest {
+            group: UI_SCRIPT_GROUP,
+            parent,
+            instance: 0x09DE_3002,
+        };
         let win = svc.create_in(&mut store, &req);
         assert!(store.is_window_valid(win));
         assert_eq!(store.get(win).unwrap().parent(), Some(parent));
-        assert_eq!(store.get(win).unwrap().id(), 0x9DE3_002, "the instance becomes GetID");
+        assert_eq!(store.get(win).unwrap().id(), 0x09DE_3002, "the instance becomes GetID");
     }
 
     #[test]

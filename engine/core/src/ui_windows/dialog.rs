@@ -14,17 +14,17 @@
 //!
 //! # Why Esc and Enter do nothing (§6.2)
 //!
-//! `cSC4AdvisorPopupTracker::DoWinProcMessage` (`0x00762D30`) handles **no
+//! `cSC4AdvisorPopupTracker::DoWinProcMessage` (`0x0076_2D30`) handles **no
 //! keyboard messages**. Its first act on every message is to read the advice
 //! the dialog is showing through the window property [`PARAM_ADVICE`]
-//! (`0xEA9F13C0`, `cIGZWin` slot 113 `GetParam`) and then test that advice's
-//! flags. A click on Close is a **command message** (data1 `0x287259F6`), so
+//! (`0xEA9F_13C0`, `cIGZWin` slot 113 `GetParam`) and then test that advice's
+//! flags. A click on Close is a **command message** (data1 `0x2872_59F6`), so
 //! the dialog ends. `docs/manual-checks.md` run 48 records the observation;
 //! this is the code that makes it true.
 //!
 //! **Corrects the premise about coordinates.** The close path is
 //! **message-based, not coordinate-based**. There is no pixel test anywhere in
-//! `0x00762D30`. If a run clicked at a client point, what the game sees is the
+//! `0x0076_2D30`. If a run clicked at a client point, what the game sees is the
 //! command message, not the coordinates.
 //!
 //! # The pause hook is not a popup counter (§6.4)
@@ -37,14 +37,14 @@
 //! popups are open" (conformance test 23).
 
 use super::message::{GzMessage, Handled, MsgKind};
-use super::win::{WinToken, WinStore};
+use super::win::{WinStore, WinToken};
 
 /// The window property the advice is reached under (§6.2).
 pub use super::message::PARAM_ADVICE as ADVICE_PARAM;
 
 /// The UI script instance an advisor popup is built from (§6.1 step 3).
 ///
-/// The same group `0x96A006B0` the catalog menus use (§4.3).
+/// The same group `0x96A0_06B0` the catalog menus use (§4.3).
 pub const ADVISOR_POPUP_INSTANCE_LOW_MOOD: u32 = 0x4A5A_89D4;
 /// The instance for mood >= 3 (§6.1).
 pub const ADVISOR_POPUP_INSTANCE_HIGH_MOOD: u32 = 0x4A5A_89D5;
@@ -67,19 +67,19 @@ pub mod advice_flag {
 pub enum PopupAction {
     /// Leave the dialog open.
     KeepOpen,
-    /// End the dialog (`cSC4AdvisorPopupTracker::EndDialog`, `0x00762CD0`).
+    /// End the dialog (`cSC4AdvisorPopupTracker::EndDialog`, `0x0076_2CD0`).
     End,
     /// Follow the link (`cSC4HTMLLinkHandler::DoURL`), then end it.
     FollowLinkThenEnd,
-    /// Swallowed: the win-proc attach/detach notices `0xA2BF8AD5` /
-    /// `0xA2BF8AD6`. They are **not** key down/up (modal-dialogs.md §6).
+    /// Swallowed: the win-proc attach/detach notices `0xA2BF_8AD5` /
+    /// `0xA2BF_8AD6`. They are **not** key down/up (modal-dialogs.md §6).
     Swallow,
     /// The message is one the procedure does not look at at all — a keyboard
     /// message. Nothing happens, which is why Esc and Enter do nothing.
     Ignored,
 }
 
-/// `cSC4AdvisorPopupTracker::DoWinProcMessage` (`0x00762D30`) as a pure
+/// `cSC4AdvisorPopupTracker::DoWinProcMessage` (`0x0076_2D30`) as a pure
 /// decision over an advice's flags (§6.2).
 ///
 /// The first act on every message is to read the advice; then:
@@ -89,9 +89,9 @@ pub enum PopupAction {
 /// | `CheckFlags(2)` false (no longer active) | end the dialog |
 /// | `CheckFlags(2)` true **and** `CheckFlags(8)` true | end it |
 /// | `CheckFlags(2)` true and `CheckFlags(8)` false | leave it open |
-/// | a command message (type 3, data1 `0x287259F6`) | end it — **any** button ID |
-/// | a link message `0xE4A85D91` | follow the link, then end it |
-/// | types `0xA2BF8AD5` / `0xA2BF8AD6` | swallowed |
+/// | a command message (type 3, data1 `0x2872_59F6`) | end it — **any** button ID |
+/// | a link message `0xE4A8_5D91` | follow the link, then end it |
+/// | types `0xA2BF_8AD5` / `0xA2BF_8AD6` | swallowed |
 pub fn popup_win_proc(advice_flags: u32, msg: &GzMessage) -> PopupAction {
     // A keyboard message is never looked at (§6.2). This is the whole of
     // "Esc and Enter do nothing".
@@ -135,7 +135,7 @@ pub fn popup_closes_on(advice_flags: u32, msg: &GzMessage) -> bool {
 /// The scoped hidden pause an advisor popup takes (§6.1 step 4).
 ///
 /// `cSC4AutoGamePause(sound no, animation no, simulator yes, clock yes)`
-/// (`0x005F9320`/`0x005F9360`) → `SC4GamePause` (`0x005F91C0`) →
+/// (`0x005F_9320`/`0x005F_9360`) → `SC4GamePause` (`0x005F_91C0`) →
 /// `cISC4Simulator` slot 10 `HiddenPause()` and the city clock's
 /// `HiddenPause(1)`. `IsPaused()` stays **false**; `IsHiddenPaused()` becomes
 /// **true**.
@@ -151,22 +151,32 @@ impl AutoGamePause {
     /// The pause an advisor popup takes (§6.1 step 4): simulator and clock
     /// only.
     pub fn advisor_popup() -> AutoGamePause {
-        AutoGamePause { sound: false, animation: false, simulator: true, clock: true }
+        AutoGamePause {
+            sound: false,
+            animation: false,
+            simulator: true,
+            clock: true,
+        }
     }
 
-    /// The pause `cSC4View3DWin::DoTemporarySimHiddenPause` (`0x007E5B40`)
+    /// The pause `cSC4View3DWin::DoTemporarySimHiddenPause` (`0x007E_5B40`)
     /// takes for a camera move (§6.4). It raises the **same** count with no
     /// dialog open — which is why a harness must not equate the two
     /// (conformance test 23).
     pub fn camera_move() -> AutoGamePause {
-        AutoGamePause { sound: false, animation: false, simulator: true, clock: true }
+        AutoGamePause {
+            sound: false,
+            animation: false,
+            simulator: true,
+            clock: true,
+        }
     }
 }
 
 /// The hidden-pause nesting counter (§6.4).
 ///
-/// `cISC4Simulator` slot 16 `IsHiddenPaused` (`0x00703D60`) is shared with the
-/// clock and answers "count at `+0x34` > 0". The count is a **nesting count**,
+/// `cISC4Simulator` slot 16 `IsHiddenPaused` (`0x0070_3D60`) is shared with the
+/// clock and answers "count at `+0x0034` > 0". The count is a **nesting count**,
 /// so a second `hidden` pause while one is open leaves it at 2 and ending one
 /// leaves it at 1 — never at "one popup open".
 #[derive(Debug, Default)]
@@ -202,7 +212,7 @@ impl HiddenPause {
         }
     }
 
-    /// `IsHiddenPaused()`: count at `+0x34` > 0.
+    /// `IsHiddenPaused()`: count at `+0x0034` > 0.
     pub fn is_hidden_paused(&self) -> bool {
         self.count > 0
     }
@@ -231,11 +241,11 @@ impl HiddenPause {
 /// **Corrects** `docs/harness.md`'s "end each game modal dialog by its default
 /// button" and `docs/PROGRESS.md`'s "presses each modal dialog's default
 /// button": button ID 0 is **not** necessarily the default. For a
-/// confirmation, 0 is "no" (yes is `0x8A8DFD4E`); for a scripted dialog 0 is
+/// confirmation, 0 is "no" (yes is `0x8A8D_FD4E`); for a scripted dialog 0 is
 /// "cancel"; two dialog families **ignore** button 0 entirely and need the
 /// `EndModal` fallback.
 ///
-/// A spec-conformant description is: *the closer posts command `0x287259F6`
+/// A spec-conformant description is: *the closer posts command `0x2872_59F6`
 /// with button ID 0, and falls back to `EndModal(window, 0)` if no end notice
 /// arrives*.
 pub mod close_dialogs {
@@ -321,7 +331,7 @@ pub fn advisor_popup_instance(mood: i32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui_windows::message::{GzMessage, MsgKind, MSG_COMMAND};
+    use crate::ui_windows::message::{GzMessage, MsgKind, MSG_COMMAND, PARAM_ADVICE};
 
     const ACTIVE: u32 = advice_flag::ACTIVE;
     const EXPIRE: u32 = advice_flag::EXPIRE;
@@ -351,25 +361,43 @@ mod tests {
 
     #[test]
     fn expire_requested_ends_an_active_dialog() {
-        assert_eq!(popup_win_proc(ACTIVE | EXPIRE, &GzMessage::command(0, 0)), PopupAction::End);
+        assert_eq!(
+            popup_win_proc(ACTIVE | EXPIRE, &GzMessage::command(0, 0)),
+            PopupAction::End
+        );
     }
 
     #[test]
     fn active_without_expire_stays_open_on_a_non_command() {
-        let m = GzMessage { kind: MsgKind::ModalBegin, msg_type: 0x62BA_7B42, data1: 0, data2: 0, data3: 0 };
+        let m = GzMessage {
+            kind: MsgKind::ModalBegin,
+            msg_type: 0x62BA_7B42,
+            data1: 0,
+            data2: 0,
+            data3: 0,
+        };
         assert_eq!(popup_win_proc(ACTIVE, &m), PopupAction::KeepOpen);
         assert!(!popup_closes_on(ACTIVE, &m));
     }
 
     #[test]
     fn link_follows_then_ends() {
-        assert_eq!(popup_win_proc(ACTIVE, &GzMessage::link()), PopupAction::FollowLinkThenEnd);
+        assert_eq!(
+            popup_win_proc(ACTIVE, &GzMessage::link()),
+            PopupAction::FollowLinkThenEnd
+        );
     }
 
     #[test]
     fn attach_detach_notices_are_swallowed() {
-        assert_eq!(popup_win_proc(ACTIVE, &GzMessage::attach_notice(true)), PopupAction::Swallow);
-        assert_eq!(popup_win_proc(ACTIVE, &GzMessage::attach_notice(false)), PopupAction::Swallow);
+        assert_eq!(
+            popup_win_proc(ACTIVE, &GzMessage::attach_notice(true)),
+            PopupAction::Swallow
+        );
+        assert_eq!(
+            popup_win_proc(ACTIVE, &GzMessage::attach_notice(false)),
+            PopupAction::Swallow
+        );
     }
 
     #[test]
@@ -425,15 +453,12 @@ mod tests {
         let mut s = WinStore::new();
         let w = s.create(1);
         assert_eq!(close_dialog(&mut s, w, true), ["post_command_0"]);
-        assert_eq!(
-            close_dialog(&mut s, w, false),
-            ["post_command_0", "EndModal(win, 0)"]
-        );
+        assert_eq!(close_dialog(&mut s, w, false), ["post_command_0", "EndModal(win, 0)"]);
     }
 
     #[test]
     fn a_parentless_dialog_attaches_to_the_main_window() {
-        let view = 0x0C;
+        let view = 0x000C;
         assert_eq!(dialog_attach_point(false, view), AttachPoint::MainWindow);
         assert_eq!(dialog_attach_point(true, view), AttachPoint::ViewWindow(view));
     }

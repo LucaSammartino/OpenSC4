@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "name": "ui11_24_effects_end_messages_need_a_paint",
+  "spec": [
+    "ui-windows 7",
+    "ui-windows 11"
+  ],
+  "description": "Conformance test 24 [game; this vector is the window-side consequence of effects.md EF2]. The draw pass runs because the city view paints (7): cGZWinGen::GZPaint is slot 88 and the renderer's passes are DrawStaticView / DrawDynamicView. A city view that is never painted never reaches cSC4EffectsManager::DeactivateUnusedVisualEffects (0x005922A0), so no effect end message is posted. A headless run has to synthesise the sweep exactly as EF2 says.",
+  "steps": [
+    {
+      "op": "uiw_create"
+    },
+    {
+      "op": "uiw_clear_ops"
+    },
+    {
+      "op": "uiw_sweep_effects"
+    },
+    {
+      "op": "uiw_expect_events",
+      "events": []
+    },
+    {
+      "op": "uiw_paint"
+    },
+    {
+      "op": "uiw_clear_events"
+    },
+    {
+      "op": "uiw_sweep_effects"
+    },
+    {
+      "op": "uiw_expect_events",
+      "events": [
+        {
+          "event": "effect_end_message"
+        }
+      ]
+    },
+    {
+      "op": "uiw_expect",
+      "state": {
+        "painted": true
+      }
+    }
+  ]
+}
