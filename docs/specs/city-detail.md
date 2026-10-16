@@ -67,6 +67,9 @@ No agents, no messages, no tuning.
 - `cur > saved`: **increase** (§3.3).
 - Then `stored := cur`.
 
+There is no initialised flag (CD3): **every** call compares and stores (`0x0045DD10`–`0x0045DD49`), so a second
+`Init` at the same setting does nothing, and a second `Init` after the preference changed adjusts again.
+
 The city detail manager is the last component the city initialises (foundations §3.6), so every lot, prop, flora
 occupant and network lot exists when it runs.
 
@@ -106,7 +109,11 @@ One temporary `cRZRandom` is created for the whole pass, seeded with `0xFFFFFFFF
    optional props are the prop developer's business).
 3. Visit every occupant in the lot's cell rectangle (`lot.GetBoundingRect`, lot slot 14; occupant manager slot 46
    `IterateOccupantsByStandardCityCell` with no filter). For each flora or prop occupant with a lot tag, remove the
-   tag from `need`.
+   tag from `need`. The callback (`0x0045D5E0`) tests the occupant's type first (occupant slot 7: flora
+   `0x74758926` or prop `0xA823821E`, anything else is ignored whatever its tag), then `GetLotTag` (slot 27), then
+   erases the tag from `need` (CD4). The occupant's type is **not** matched with the object's: a prop tagged with a
+   flora object's ID satisfies that flora object, and the reverse. Any flora or prop occupant in the rectangle
+   counts, whether or not it belongs to this lot.
 4. For each configuration object in array order whose ID is still in `need`:
    - `(pos, orientation) := lotDeveloper.GetPositionForLotConfigurationObject(lot, cfg, object)` (lot developer
      slot 39);
@@ -114,10 +121,17 @@ One temporary `cRZRandom` is created for the whole pass, seeded with `0xFFFFFFFF
      empty → next object;
    - `id := ids[RandomUint32Uniform(n)]` (the temporary generator); `id = 0` → next object;
    - type 1: `occ := propManager.AddLotProp(id, pos, orientation)` (prop manager slot 26); type 4:
-     `occ := flora.AddNewFloraOccupant(id, pos, false)` (flora slot 17);
+     `occ := flora.AddNewFloraOccupant(id, pos, false)` (flora slot 17); any other type: nothing
+     (`0x0045DC4F`–`0x0045DC6F`);
    - if `occ` is not null, `occ.SetLotTag(object ID)` (occupant slot 28).
 
 An ID stays in `need` after it is used, so two required objects with the same ID are both created *[quirk]*.
+
+Step 4 walks **every** object of the array, not only types 1 and 4: an object of another type (a building, a network
+piece) whose object ID equals a required prop's or flora's ID still gets its position, its ID list and, when the
+list is not empty, **a random draw**, and then creates nothing *[quirk]*. So it is one creation per required prop or
+flora object missing from the lot (CD4), optional objects are never created, and the draw count is one per object of
+any type whose ID is still in `need` and whose ID list is not empty.
 
 Then §3.4.
 
@@ -132,7 +146,10 @@ generator `0x00B44870` (foundations §6.3) *[inferred]*.
 
 Only §3.3 draws: one `RandomUint32Uniform(n)` per created object with a non-empty ID list, from a temporary
 `cRZRandom` seeded from the clock. *[choice]* FreeCity4 seeds it with `derive(0xEAD4BA36 XOR n)`, `n` the number of
-earlier increase passes in the session (foundations §6.3, temporaries seeded from the clock). Network-lot
+earlier increase passes **by this manager object**, from 0 when it is constructed (foundations §6.3, temporaries
+seeded from the clock; CD5). The city makes a new city detail manager for every city it opens (component 51: from the
+record, or created when the record is absent), so `n` starts again at 0 at each city load; since `Init` runs once
+per city, `n` is 0 in practice. Network-lot
 redevelopment draws as its owner specifies.
 
 ## 4. Persistence *[compat]*
@@ -178,7 +195,7 @@ Who reaches in: only the city (create, `Read`, `Write`, `Init`, `Shutdown`).
 
 ## 7. Open questions
 
-See QUESTIONS.md, section "From the re-specs10 specs" (CD1–CD2).
+See QUESTIONS.md, section "From the re-specs10 specs" (CD1–CD2), and CD3–CD5 (re-answers22: §3.1, §3.3, §3.5).
 
 ## 8. Conformance tests
 
