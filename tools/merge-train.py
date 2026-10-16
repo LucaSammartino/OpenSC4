@@ -299,6 +299,8 @@ UNION_PATHS = (
     "engine/conformance/src/runner.rs",
     "engine/plugin/FC4Config.h",
     "engine/plugin/FC4Config.cpp",
+    "engine/plugin/FC4Subsystems.cpp",
+    "engine/CMakeLists.txt",
 )
 
 
