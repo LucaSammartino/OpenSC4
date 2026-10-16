@@ -2079,6 +2079,24 @@ struct FakePopupApp {
 
 FakePopupApp* g_popupApp = nullptr;
 
+// NG35 (neighbors.md §15.4): a stand-in for nSC4UI::GenericConfirmationDialog
+// (cdecl, four strings, true only for Yes), given to the plugin through
+// FC4TestSeam op 66.
+struct FakeConfirm {
+    int calls = 0;
+    bool answer = false;
+    bool stringsOk = false;   // title and text non-null, with text
+    bool labelsNull = false;  // the default Yes / No
+};
+FakeConfirm g_fakeConfirm;
+bool __cdecl FakeConfirmDialog(cIGZString* title, cIGZString* text, cIGZString* yes, cIGZString* no) {
+    ++g_fakeConfirm.calls;
+    g_fakeConfirm.stringsOk =
+        title != nullptr && text != nullptr && title->ToChar() != nullptr && text->ToChar() != nullptr;
+    g_fakeConfirm.labelsNull = yes == nullptr && no == nullptr;
+    return g_fakeConfirm.answer;
+}
+
 bool __fastcall AppGetPopupDialogsEnabled(void*, void*) {  // cISC4App 23 (+0x5C), pops 0
     ++g_popupApp->gets;
     return g_popupApp->enabled;
@@ -7843,6 +7861,50 @@ void CheckGetPropertyData(cISC4NeighborConnection* conn, NbGameProperty& raw) {
     u = 9;
     CHECK(h->GetPropertyU32(0x5AFE0205, u) && u == 0);
     CHECK(h->RemoveProperty(0x5AFE0204, false) && h->RemoveProperty(0x5AFE0205, false));
+    // NG44 (data-formats §5.1): an empty character array gives the empty
+    // text, which parses as 0: true and 0 (it was false); a string parses as
+    // a number; a signed scalar sign-extends.
+    char none[1] = {};
+    arr.SetRefRZChar(none, 0);
+    CHECK(h->AddPropertyVariant(0x5AFE0206, &arr, false));
+    u = 9;
+    CHECK(h->GetPropertyU32(0x5AFE0206, u) && u == 0);
+    char twelve[2] = {'1', '2'};
+    arr.SetRefRZChar(twelve, 2);
+    CHECK(h->AddPropertyVariant(0x5AFE0207, &arr, false));
+    CHECK(h->GetPropertyU32(0x5AFE0207, u) && u == 12);
+    arr.SetValSint32(-1);
+    CHECK(h->AddPropertyVariant(0x5AFE0208, &arr, false));
+    CHECK(h->GetPropertyU32(0x5AFE0208, u) && u == 0xFFFFFFFFu);
+    float big[1] = {1e30f};
+    arr.SetRefFloat32(big, 1);
+    CHECK(h->AddPropertyVariant(0x5AFE0209, &arr, false));
+    CHECK(h->GetPropertyU32(0x5AFE0209, u) && u == 0x19058000u);
+    CHECK(h->RemoveProperty(0x5AFE0206, false) && h->RemoveProperty(0x5AFE0207, false));
+    CHECK(h->RemoveProperty(0x5AFE0208, false) && h->RemoveProperty(0x5AFE0209, false));
+    // NG37: AddPropertyData (slot 10) stores raw bytes (type 0x8000, count =
+    // length), which GetPropertyData reads back; a null `data` keeps the
+    // count; the void array reads as 0 through slot 8.
+    uint8_t five[5] = {9, 8, 7, 6, 5};
+    CHECK(h->AddPropertyData(0x5AFE020A, five, 5, false));
+    cISCProperty* dp = h->GetProperty(0x5AFE020A);
+    CHECK(dp != nullptr);
+    if (dp != nullptr) {
+        const cFC4IGZVariant* dv = fc4::AsGame(dp->GetPropertyValue());
+        CHECK(dv->GetType() == cIGZVariant::VoidArray && dv->GetCount() == 5);
+        uint8_t back[5] = {};
+        uint32_t want = 5;
+        CHECK(dv->GetValVoid(back, want) && want == 5 && back[0] == 9 && back[4] == 5);  // slot 57
+    }
+    uint8_t got[8] = {};
+    len = 8;
+    CHECK(h->GetPropertyData(0x5AFE020A, got, len) && len == 5 && got[0] == 9 && got[4] == 5);
+    u = 9;
+    CHECK(h->GetPropertyU32(0x5AFE020A, u) && u == 0);
+    CHECK(h->AddPropertyData(0x5AFE020A, nullptr, 3, false));
+    len = 8;
+    CHECK(h->GetPropertyData(0x5AFE020A, got, len) && len == 3);
+    CHECK(h->RemoveProperty(0x5AFE020A, false));
 }
 
 int NeighborsEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
@@ -7902,9 +7964,11 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
             CHECK(sim->Init());  // §14.1: true (no city here)
             CHECK(sim->GetTuningExemplar() == nullptr);
             // NG14 (§15.4): with popups disabled the original's confirmation
-            // dialog answers no, so the request is refused; enabled, it is
-            // confirmed without the dialog [choice]. The app's flag through
-            // its slot 23 (an app whose other slots trap).
+            // dialog answers no, so the request is refused. Enabled (NG35),
+            // the dialog is asked and its answer returned; with no dialog (an
+            // unidentified executable, as here) it is confirmed without
+            // asking [choice]. The app's flag through its slot 23 (an app
+            // whose other slots trap).
             static FakePopupApp popupApp;
             g_popupApp = &popupApp;
             popupApp.vt.slots[23] = reinterpret_cast<void*>(&AppGetPopupDialogsEnabled);
@@ -7919,13 +7983,33 @@ int NeighborsEnableTest(const std::string& dll, const std::string& ini, const st
                 popupApp.enabled = true;
                 CHECK(sim->RequestCreateConnection(NbType::Road, -1, 5, false));
                 CHECK(popupApp.gets == 2 && !sim->HasConnection(NbType::Road, -1, 5));
+                // NG35: the dialog's answer, with the §6.2 title and text and
+                // null labels; No refuses, Yes confirms.
+                CHECK(seam(kFC4SeamNeighborsConfirm, reinterpret_cast<void*>(&FakeConfirmDialog), nullptr) == 1);
+                g_fakeConfirm.answer = false;
+                CHECK(!sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(g_fakeConfirm.calls == 1 && g_fakeConfirm.stringsOk && g_fakeConfirm.labelsNull);
+                g_fakeConfirm.answer = true;
+                CHECK(sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(g_fakeConfirm.calls == 2 && popupApp.gets == 4);
+                // Popups off: refused before the dialog.
+                popupApp.enabled = false;
+                CHECK(!sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(g_fakeConfirm.calls == 2 && popupApp.gets == 5);
+                popupApp.enabled = true;
+                // NG36: no app (tests have no framework) counts as popups off.
+                CHECK(seam(kFC4SeamNeighborsApp, nullptr, nullptr) == 1);
+                CHECK(!sim->RequestCreateConnection(NbType::Road, -1, 5, false));
+                CHECK(g_fakeConfirm.calls == 2);
+                CHECK(seam(kFC4SeamNeighborsApp, &popupApp.app, nullptr) == 1);
+                CHECK(seam(kFC4SeamNeighborsConfirm, nullptr, nullptr) == 1);
             }
             cISC4NeighborConnection* conn = sim->CreateConnection(NbType::Road, -1, 5, false);
             CHECK(conn != nullptr);
             if (seam != nullptr) {
                 // It exists: refused before any dialog (§6.2).
                 CHECK(!sim->RequestCreateConnection(NbType::Road, -1, 5, false));
-                CHECK(popupApp.gets == 2);
+                CHECK(popupApp.gets == 5);
                 CHECK(seam(kFC4SeamNeighborsApp, nullptr, nullptr) == 1);
             }
             CHECK(sim->CreateConnection(NbType::Road, -1, 5, false) == nullptr);  // §6.3 step 1

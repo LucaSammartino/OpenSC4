@@ -211,6 +211,14 @@ bool fc4::VariantToCore(const cFC4IGZVariant& v, uint32_t id, fc4_props* out) {
     const uint16_t type = v.GetType();
     const bool isArray = (type & cIGZVariant::TypeArray) != 0;
     const uint16_t base = static_cast<uint16_t>(type & ~cIGZVariant::TypeArray);
+    if (type == cIGZVariant::VoidArray) {
+        // Raw bytes (NG37: what AddPropertyData stores): memory type 0 with
+        // the array flag, one byte each (fc4_props_set_typed, ABI 66).
+        const uint32_t n = v.GetCount();
+        const void* p = v.RefVoid();  // slot 123
+        if (n != 0 && p == nullptr) return false;
+        return fc4_props_set_typed(out, id, 0, true, n != 0 ? p : nullptr, n);
+    }
     if (ElementSize(base) == 0) return false;  // empty, pointers, objects: not kept by the core
     std::vector<uint8_t> b;
     if (!ValueBytes(v, b)) return false;
@@ -377,26 +385,31 @@ bool cFC4PropertyHolder::GetPropertyString(uint32_t id, cIGZString& value) const
     return false;
 }
 
-// Slot 8 (NG27, neighbors.md §15.4): a Uint32 scalar as is; any other value
-// goes through the variant's text, so an array gives its first element and an
-// empty array the text "0": 0 and true. [choice, spec question] Signed,
-// 64-bit and float values convert as C does (the original's text parser was
-// not traced), and an empty array of characters (a string) stays false.
+// Slot 8 (NG27, NG44, neighbors.md §15.4; data-formats §5.1): the
+// converting getter, in the core (fc4_variant_get_u32). A Uint32 scalar as
+// is; other scalars by number (signed values sign-extended, 64-bit values
+// their low 32 bits, floats truncated, NaN / infinities / 2^63 or more 0);
+// arrays and strings through the variant's text, so an array gives its first
+// element, an empty numeric array "0", and an empty character array the empty
+// text: 0 and true (NG44; it was false). A float array element of 2^63 or
+// more wraps in 64 bits and a NaN element parses as +-1 (NG44). The void
+// array (0x8000) and the Empty value give 0 and true. [choice] Pointer and
+// object values: false (the original's result is an address).
 bool cFC4PropertyHolder::GetPropertyU32(uint32_t id, uint32_t& value) const {
     std::lock_guard<std::recursive_mutex> g(lock_);
     const cFC4IGZVariant* v = ValueOf(Find(id));
     if (v == nullptr) return false;
+    const uint16_t type = v->GetType();
+    const bool isArray = (type & cIGZVariant::TypeArray) != 0;
+    const uint16_t base = static_cast<uint16_t>(type & ~cIGZVariant::TypeArray);
     uint32_t r = 0;
-    if (!FirstU32(*v, &r)) {
-        const uint16_t type = v->GetType();
-        const uint16_t base = static_cast<uint16_t>(type & ~cIGZVariant::TypeArray);
-        const bool numeric = base == cIGZVariant::Bool || base == cIGZVariant::Uint8 || base == cIGZVariant::Sint8 ||
-                             base == cIGZVariant::Uint16 || base == cIGZVariant::Sint16 ||
-                             base == cIGZVariant::Uint32 || base == cIGZVariant::Sint32 ||
-                             base == cIGZVariant::Uint64 || base == cIGZVariant::Sint64 ||
-                             base == cIGZVariant::Float32 || base == cIGZVariant::Float64;
-        if ((type & cIGZVariant::TypeArray) == 0 || v->GetCount() != 0 || !numeric) return false;
-        r = 0;  // an empty numeric array (NG27)
+    if (base == 0) {  // Empty, or the void array: the empty text (data-formats §5.1)
+        if (!fc4_variant_get_u32(type, nullptr, 0, &r)) return false;
+    } else {
+        std::vector<uint8_t> b;
+        if (!ValueBytes(*v, b)) return false;  // pointers, objects
+        const size_t n = isArray ? v->GetCount() : 1;
+        if (!fc4_variant_get_u32(type, b.empty() ? nullptr : b.data(), n, &r)) return false;
     }
     value = r;
     return true;
@@ -408,9 +421,14 @@ cISCProperty* cFC4PropertyHolder::GetProperty(uint32_t id) const {
     return Find(id);
 }
 
+// Slot 10 (neighbors.md §15.4 NG37, the original 0x005FFA40): finds or
+// creates the property, then the variant's raw-bytes setter (slot 58) stores
+// `length` bytes of type 0x8000 (count = length), which GetPropertyData
+// (slot 5, NG23) reads back; it was a Uint8 array (0x8002) before NG37. A
+// null `data` copies nothing (the count is still `length`).
 bool cFC4PropertyHolder::AddPropertyData(uint32_t id, void* data, uint32_t length, bool) {
     std::lock_guard<std::recursive_mutex> g(lock_);
-    if (cFC4IGZVariant* v = ValueOf(Slot(id))) v->SetRefUint8(static_cast<uint8_t*>(data), data ? length : 0);
+    if (cFC4IGZVariant* v = ValueOf(Slot(id))) v->SetValVoid(data, length);
     return true;
 }
 
@@ -560,6 +578,10 @@ void cFC4PropertyHolder::FromCoreProperty(void* ctx, uint32_t id, uint16_t memTy
     cFC4IGZVariant& v = *pv;
     const uint32_t n = static_cast<uint32_t>(count);
     const bool a = isArray;
+    if (memType == 0 && a) {  // the void array (raw bytes, NG37)
+        v.SetValVoid(const_cast<void*>(data), n);  // slot 58
+        return;
+    }
     switch (memType) {
         case cIGZVariant::Bool: {
             const bool* p = static_cast<const bool*>(data);

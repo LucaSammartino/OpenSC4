@@ -37,6 +37,9 @@ enum class Direct : unsigned {
     GlobalHeapAllocate,    // allocator C allocate (the game's operator new): cdecl void* (uint32_t size)
                            //   (docs/abi/allocators.md; the zone developer's safe lot iterator
                            //   blocks, zones.md §8.3 slot 15, §13.2)
+    GenericConfirmationDialog,  // nSC4UI::GenericConfirmationDialog: cdecl bool (cIGZString* title,
+                                //   cIGZString* text, cIGZString* yes, cIGZString* no), the caller pops
+                                //   16, AL (neighbors.md §15.4 NG35; advisors.md §6.8)
     Count
 };
 

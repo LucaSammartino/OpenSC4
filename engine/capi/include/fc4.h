@@ -113,8 +113,12 @@ extern "C" {
  * 53 = adds fc4_commercial_set_machine (the commercial shadow; cmglue lane) (taken as 58 on its lane;
  *      renumbered at merge);
  * 54 = adds the lot developer (fc4_lotdev, lot-developer.md) (taken as 53 on its lane; renumbered at
+ *      merge);
+ * 66 = adds fc4_variant_get_u32 (holder slot 8's converting getter, neighbors.md §15.4 NG44,
+ *      data-formats §5.1); fc4_props_set_typed and the neighbour connection property callback carry
+ *      the void array (raw bytes, mem_type 0 with is_array; NG37) (apply12 lane; renumbered at
  *      merge). */
-#define FC4_ABI_VERSION 54u
+#define FC4_ABI_VERSION 66u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -866,9 +870,22 @@ size_t fc4_props_count(const fc4_props* p);
 /* Set property `id` exactly as a game variant holds it: mem_type = the
  * cIGZVariant type without the array bit (0x01 bool .. 0x0E RZChar); data =
  * `count` elements in that type's layout (bool: 1 byte). A scalar
- * (is_array false) needs count 1. False for other types or a bad count. */
+ * (is_array false) needs count 1. ABI 66 (neighbors.md §15.4 NG37):
+ * mem_type 0 with is_array = the void array (raw bytes, type 0x8000), `count`
+ * bytes. False for other types or a bad count. */
 bool fc4_props_set_typed(fc4_props* p, uint32_t id, uint16_t mem_type, bool is_array, const void* data,
                          size_t count);
+/* ABI 66 (neighbors.md §15.4 NG44, data-formats §5.1): GetProperty(id, uint32&)
+ * (holder slot 8) on one value held as a game variant: var_type = the
+ * cIGZVariant type WITH the array bit; data = `count` elements of an array, or
+ * the scalar's one value (count 1), in that type's layout (bool: 1 byte). A
+ * Uint32 scalar as is; other scalars by number (signed sign-extended, Char and
+ * RZChar signed bytes, 64-bit low bits, floats truncated, NaN / inf / >= 2^63
+ * give 0); arrays, strings, the void array (0x8000) and Empty (0) through the
+ * text round trip (first element's text; an empty string gives true and 0).
+ * True with *out set; false (out unchanged) for pointers, objects or a bad
+ * layout. */
+bool fc4_variant_get_u32(uint16_t var_type, const void* data, size_t count, uint32_t* out);
 
 /* ---- weather (docs/specs/weather.md) ------------------------------------------
  * The weather simulator's core. The shim owns the GZCOM object (agents,
