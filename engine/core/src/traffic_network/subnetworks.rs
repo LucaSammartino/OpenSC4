@@ -222,28 +222,22 @@ fn add_capacity(info: &mut SubnetworkInfo, c: &[u32; 4]) {
 
 impl Cx<'_> {
     /// Entering state 13 (§4.12): the working vector cleared and resized to
-<<<<<<< HEAD
     /// `counter` default entries. The scanning region is reset by the caller:
     /// in the work cycle it is the simulator's own scanning iterator (the
     /// member `+0x818`, TS64), and DoPostCityInit uses a local one (§1 step
     /// 7).
-=======
     /// `counter` default entries, the scan reset to the whole city. This
     /// form keeps its own cell cursor: DoPostCityInit's local iterator
     /// (§4.12, TS64). The work cycle's state 13 steps the simulator's
     /// scanning iterator instead ([`Self::reset_subnetwork_working`],
-    /// [`Self::subnetwork_info_cell`], [`Self::finish_subnetwork_info`]).
->>>>>>> apply14traffic
-    pub(crate) fn begin_subnetwork_info(&mut self) {
+    /// [`Self::subnetwork_info_cell`], [`Self::finish_subnetwork_info`]).    pub(crate) fn begin_subnetwork_info(&mut self) {
         self.reset_subnetwork_working();
         self.s.subnet_info_cursor = Some(0);
     }
 
-<<<<<<< HEAD
     /// §4.12, one cell of the scan: `lot = GetLot(x, z, true)` (lot manager
     /// slot 6; only the lot's anchor cell answers, so each lot is visited
     /// once).
-=======
     /// Step 1 of entering state 13 (§4.12): the working vector cleared and
     /// resized to `counter` default entries.
     pub(crate) fn reset_subnetwork_working(&mut self) {
@@ -251,15 +245,12 @@ impl Cx<'_> {
     }
 
     /// §4.12 for the cell (x, z) of the scan: the lot anchored there, if
-    /// any.
->>>>>>> apply14traffic
-    pub(crate) fn subnetwork_info_cell(&mut self, x: i32, z: i32) {
+    /// any.    pub(crate) fn subnetwork_info_cell(&mut self, x: i32, z: i32) {
         if let Some(lot) = self.h.lot_at(x, z, true) {
             self.accumulate_lot(lot);
         }
     }
 
-<<<<<<< HEAD
     /// §4.12 after the last cell: the neighbour connections are added and the
     /// working vector is copied to the published one. All queries read the
     /// published vector. [TS64] This runs in the same call as the last cell,
@@ -276,7 +267,6 @@ impl Cx<'_> {
     /// the work cycle instead drives the simulator's own scanning iterator
     /// through [`Self::subnetwork_info_cell`] (TS64). The budget is tested
     /// before each cell, as the original's deadline is. Returns true when the
-=======
     /// §4.12 after the last cell: the neighbour connections, then the working
     /// vector published.
     pub(crate) fn finish_subnetwork_info(&mut self) {
@@ -286,9 +276,7 @@ impl Cx<'_> {
 
     /// Works on §4.12 for at most `max_cells` cells (x inner, z outer) of
     /// the cursor of [`Self::begin_subnetwork_info`]. After the last cell,
-    /// adds the neighbour connections and publishes. Returns true when the
->>>>>>> apply14traffic
-    /// pass is finished (or none is running).
+    /// adds the neighbour connections and publishes. Returns true when the    /// pass is finished (or none is running).
     pub(crate) fn work_on_subnetwork_info(&mut self, max_cells: usize) -> bool {
         let Some(mut i) = self.s.subnet_info_cursor else {
             return true;
@@ -307,11 +295,7 @@ impl Cx<'_> {
             return false;
         }
         self.finish_subnetwork_info();
-<<<<<<< HEAD
-=======
-        self.s.subnet_info_cursor = None;
->>>>>>> apply14traffic
-        true
+        self.s.subnet_info_cursor = None;        true
     }
 
     /// §4.12 steps 1–4 for one lot.
